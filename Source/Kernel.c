@@ -1,0 +1,4 @@
+void KMain(void)
+{
+    for(;;);
+}
