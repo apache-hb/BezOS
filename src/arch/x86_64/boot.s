@@ -1,21 +1,15 @@
+#include "multiboot.h"
+#include "arch.h"
+
 .code32
+.section .multiboot
+    
+    .align 4
+    multiboot:
+        .long MULTIBOOT_HEADER_MAGIC ## magic
+        .long MULTIBOOT_HEADER_FLAGS ## flags
+        .long ~(MULTIBOOT_HEADER_MAGIC + MULTIBOOT_HEADER_FLAGS) ## checksum
 
-.section bootstrap_text, "ax"
-.global _start32
-.type _start32, @function
-_start32:
-    cld
-
-.code64
-    call _start64
-.size _start32, . - _start32
-
-.section .text
-.type _start64, @function
-_start64:
-    call kernel_main
-
-.section .bss
-.align 4096
-.skip 4096
-kernel_stack:
+    .global _start32
+    _start32:
+        cli
