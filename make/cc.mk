@@ -8,5 +8,5 @@ BUILD = $(ROOT)/build
 HERE = $(shell pwd)
 
 MAKEFLAGS += --silent
-CFLAGS = -O2 -g -std=gnu99
+CFLAGS = -O2 -g -std=gnu99 -Wall -Wextra
 LDFLAGS = -ffreestanding -nostdlib -lgcc
