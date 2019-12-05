@@ -1,8 +1,11 @@
-include ../../../make/cc.mk
+include ../../../make/config.mk
 
-LDFLAGS += -Wl,-z,max-page-size=0x1000,-n,-T,$(HERE)/link.ld
+all:
+	$(MAKE) boot.o
+	$(MAKE) kernel.bin
 
-all: $(HERE)/boot.S $(HERE)/link.ld
-	$(CC_X86) $(HERE)/boot.S -MD -MP -c -o $(BUILD)/boot.o
-	$(CC_X86) $(CXXFLAGS) -c $(ROOT)/src/kernel.cpp -o $(BUILD)/kernel.o
-	$(CC_X86) $(CXXFLAGS) $(LDFLAGS) $(BUILD)/kernel.o $(BUILD)/boot.o -o $(BUILD)/bezos.bin
+boot.o:
+	$(CXX) $(CXXFLAGS) -c $(HERE)/boot.S -o $(BIN)/boot.o
+
+kernel.bin:
+	$(CXX) $(CXXFLAGS) -T $(HERE)/link.ld $(BIN)/kernel.o $(BIN)/boot.o -o $(KERNEL) $(LDFLAGS)
