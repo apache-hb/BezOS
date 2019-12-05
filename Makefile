@@ -8,7 +8,8 @@ x86_64:
 	echo "Building for x86_64"
 	$(MAKE) -C src/arch/x86_64
 
-arm:
-	$(MAKE) setup
-	echo "Building for arm"
-	$(MAKE) -C src/arch/arm
+#todo: support arm, only ARMv8
+#arm:
+#	$(MAKE) setup
+#	echo "Building for arm"
+#	$(MAKE) -C src/arch/arm
