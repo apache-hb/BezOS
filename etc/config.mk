@@ -9,6 +9,7 @@ BIN = $(BUILD)/bin
 #magical C++ flags
 CXXFLAGS = 	-O3 \
 			-std=c++17 \
+			-fno-PIC \
 			-mno-mmx \
 			-mno-sse \
 			-mno-sse2 \
@@ -20,6 +21,6 @@ CXXFLAGS = 	-O3 \
 			-fno-exceptions \
 			-fno-rtti
 
-LDFLAGS = -nostdlib -lgcc
+LDFLAGS = -nostdlib -lgcc -no-pie
 
 KERNEL = $(BUILD)/kernel.bin
