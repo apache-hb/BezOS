@@ -9,6 +9,10 @@
 .global _boot
 .type _boot, @function
 
+.extern _kernel_bsp, _kernel_ap
+.type _kernel_bsp, @function
+.type _kernel_ap, @function
+
 .section .boot, "ax"
     .code32
 
@@ -46,7 +50,7 @@
         movl %eax, %cr0
 
         lgdt gdt64_ptr
-        jmp $8, boot64_low
+        jmp $8, $boot64_low
 
     .code64
     boot64_low:
@@ -56,6 +60,14 @@
         movw %ax, %fs
         movw %ax, %gs
         movw %ax, %ss
+
+        xorq %rax, %rax
+        movl $0xC0000100, %ecx
+        wrmsr
+        movl $0xC0000101, %ecx
+        wrmsr
+
+        jmp boot64_high
 
     die64_low:
         hlt
@@ -94,7 +106,20 @@
     .code64
 
     boot64_high:
-        nop
+        movq $boot_stack_front, %rsp
+        xorq %rbp, %rbp
+
+        xorq %rax, %rax
+        pushq %rax
+        popfq
+
+        movl (mb_eax), %eax
+        movl (mb_ebx), %edi
+        pushq $0
+        cmpl $0x2BADB002, %eax
+        je _kernel_bsp
+        cmpl $0xDEADBEEF, %eax
+        je _kernel_ap
 
     die64_high:
         hlt

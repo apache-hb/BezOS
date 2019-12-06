@@ -31,6 +31,11 @@ SECTIONS {
         *(.data.*)
     }
 
+    .eh_frame ALIGN(4K) : AT(ADDR(.eh_frame) - KERNEL_VMA + KERNEL_LMA) {
+        *(.eh_frame_hdr)
+        *(.eh_frame)
+    }
+
     .bss ALIGN(16) (NOLOAD) : AT(ADDR(.bss) -KERNEL_VMA + KERNEL_LMA) {
         *(.bss)
         *(.bss.*)
