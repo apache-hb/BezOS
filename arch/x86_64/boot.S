@@ -27,10 +27,35 @@
 
         movl %cr0, %eax
         andl $0x7FFFFFFF, %eax
+        movl %eax, %cr0
+
+        movl $ABSOLUTE(pml4), %edi
+        movl %edi, %cr3
+
+        movl %cr4, %eax
+        orl $(1 << 5), %eax
+        movl %eax, %cr4
+
+        movl $0xC0000080, %ecx
+        rdmsr
+        orl $(1 << 8), %eax
+        wrmsr
+
+        movl %cr0, %eax
+        orl $(1 << 31), %eax
+        movl %eax, %cr0
+
+        lgdt gdt64_ptr
+        jmp $8, boot64_low
 
     .code64
     boot64_low:
-        nop
+        movw $0x10, %ax
+        movw %ax, %ds
+        movw %ax, %es
+        movw %ax, %fs
+        movw %ax, %gs
+        movw %ax, %ss
 
     die64_low:
         hlt
@@ -77,3 +102,35 @@
 
 .section .init.data, "aw"
     .balign 0x1000
+    pml4:
+        .quad ABSOLUTE(pdp0) + 7
+        .skip 255 * 8
+        .quad ABSOLUTE(pdp0) + 7
+        .skip 254 * 8
+        .quad ABSOLUTE(pdp1) + 7
+
+    .balign 0x1000
+    pdp0:
+        .quad ABSOLUTE(pd + 0x0000) + 7
+        .quad ABSOLUTE(pd + 0x1000) + 7
+        .quad ABSOLUTE(pd + 0x2000) + 7
+        .quad ABSOLUTE(pd + 0x3000) + 7
+
+    .balign 0x1000
+    pdp1:
+        .skip 510 * 8
+        .quad ABSOLUTE(pd + 0x0000) + 7
+        .quad ABSOLUTE(pd + 0x1000) + 7
+
+    .balign 0x1000
+    pd:
+    index = 0
+    .rept 512 * 4
+        .quad (index << 21) + 0x87
+        index = index + 1
+    .endr
+
+    .balign 0x1000
+    boot_stack:
+        .skip 0x4000
+    boot_stack_front:
