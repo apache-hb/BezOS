@@ -2,9 +2,9 @@
 #define MB_FLAGS    1<<0 | 1<<1
 #define MB_CHECK    (-(MB_MAGIC + MB_FLAGS))
 
-#define KERNEL_LMA  0x0000000000200000
+#define KERNEL_LMA  0x0000000000100000
 #define KERNEL_VMA  0xFFFFFFFF80000000
-#define ABSOLUTE(x) ((x) - KERNEL_VMA + KERNEL_LMA)
+#define ABSOLUTE(x) ((x) - KERNEL_VMA)
 
 .global _boot
 .type _boot, @function

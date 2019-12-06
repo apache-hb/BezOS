@@ -106,6 +106,7 @@ void kernel_main(void)
 extern "C" void _kernel_bsp(void)
 {
     kernel_main();
+    while(true);
 }
 
 extern "C" void _kernel_ap(void)

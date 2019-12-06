@@ -21,6 +21,6 @@ CXXFLAGS = 	-O3 \
 			-fno-exceptions \
 			-fno-rtti
 
-LDFLAGS = -nostdlib -lgcc -no-pie
+LDFLAGS = -nostdlib -lgcc -no-pie -zmax-page-size=0x1000
 
 KERNEL = $(BUILD)/kernel.bin

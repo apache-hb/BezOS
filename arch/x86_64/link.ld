@@ -1,13 +1,13 @@
 OUTPUT_FORMAT(elf64-x86-64)
 ENTRY(_boot)
 
-KERNEL_LMA = 0x0000000000200000;
+KERNEL_LMA = 0x0000000000100000;
 KERNEL_VMA = 0xFFFFFFFF80000000;
 
 SECTIONS {
     . = KERNEL_LMA;
 
-    .boot KERNEL_LMA : AT(ADDR(.boot)) {
+    .boot : {
         *(.boot)
     }
 
