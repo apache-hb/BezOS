@@ -1,5 +1,7 @@
 #include "kernel.h"
 
+#include "pci/pci.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -96,6 +98,75 @@ void terminal_writestring(const char* data)
 	terminal_write(data, strlen(data));
 }
  
+void terminal_quickwrite(const char* data)
+{
+	while(*data)
+	{
+		if(*data == '\n')
+		{
+			terminal_row++;
+			terminal_column = 0;
+			data++;
+			continue;
+		}
+
+		terminal_putchar(*data);
+		data++;
+	}
+}
+// inline function to swap two numbers
+inline void swap(char *x, char *y) {
+	char t = *x; *x = *y; *y = t;
+}
+
+// function to reverse buffer[i..j]
+char* reverse(char *buffer, int i, int j)
+{
+	while (i < j)
+		swap(&buffer[i++], &buffer[j--]);
+
+	return buffer;
+}
+
+// Iterative function to implement itoa() function in C
+char* itoa(int value, char* buffer, int base)
+{
+	// invalid input
+	if (base < 2 || base > 32)
+		return buffer;
+
+	// consider absolute value of number
+	int n = (unsigned)(value);
+
+	int i = 0;
+	while (n)
+	{
+		int r = n % base;
+
+		if (r >= 10) 
+			buffer[i++] = 65 + (r - 10);
+		else
+			buffer[i++] = 48 + r;
+
+		n = n / base;
+	}
+
+	// if number is 0
+	if (i == 0)
+		buffer[i++] = '0';
+
+	// If base is 10 and value is negative, the resulting string 
+	// is preceded with a minus sign (-)
+	// With any other base, value is always considered unsigned
+	if (value < 0 && base == 10)
+		buffer[i++] = '-';
+
+	buffer[i] = '\0'; // null terminate string
+
+	// reverse the string and return it
+	return reverse(buffer, 0, i - 1);
+}
+
 namespace bezos
 {
     void kernel_main()
@@ -103,7 +174,21 @@ namespace bezos
         /* Initialize terminal interface */
         terminal_initialize();
     
-        /* Newline support is left as an exercise. */
-        terminal_writestring("my name jeff");
+		pci::init();
     }
+
+	void print(const char* str)
+	{
+		terminal_quickwrite(str);
+	}
+
+	void print(int i)
+	{
+		// we just need a pointer to some memory
+		char str[50] = {};
+
+		itoa(i, str, 10);
+
+		print(str);
+	}
 }

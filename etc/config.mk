@@ -1,7 +1,6 @@
 #MAKEFLAGS += --silent
 
 HERE=$(shell pwd)
-ROOT=$(dir $(realpath $(lastword $(MAKEFILE_LIST))))../
 
 BUILD = $(ROOT)/build/$(TARGET)
 BIN = $(BUILD)/bin
