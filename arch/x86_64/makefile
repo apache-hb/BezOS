@@ -7,4 +7,4 @@ boot.o:
 	@ $(CXX) $(CXXFLAGS) -c $(HERE)/boot.S -o $(BIN)/init.o
 
 kernel.bin:
-	$(CXX) $(CXXFLAGS) -T $(HERE)/link.ld $(wildcard $(BIN)/*.o) -o $(BUILD)/kernel.bin $(LDFLAGS)
+	@ $(CXX) $(CXXFLAGS) -T $(HERE)/link.ld $(wildcard $(BIN)/*.o) -o $(BUILD)/kernel.bin $(LDFLAGS)
