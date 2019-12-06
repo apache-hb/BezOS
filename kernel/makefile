@@ -1,4 +1,4 @@
-include ../make/config.mk
+include $(ROOT)/etc/config.mk
 
 all:
-	$(CXX) $(CXXFLAGS) -c $(HERE)/kernel.cpp -o $(BIN)/kernel.o
+	@ $(CXX) $(CXXFLAGS) -c $(HERE)/kernel.cpp -o $(BIN)/kernel.o
