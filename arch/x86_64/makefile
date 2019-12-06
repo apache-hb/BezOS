@@ -8,4 +8,5 @@ boot.o:
 
 kernel.bin:
 	@ $(CXX) $(CXXFLAGS) -T $(HERE)/link.ld $(wildcard $(BIN)/*.o) -o $(BUILD)/kernel.bin $(LDFLAGS)
+	@# lets just pretend that this 64 bit is code is actually 32 bit
 	@ x86_64-elf-objcopy -O elf32-i386 $(BUILD)/kernel.bin $(BUILD)/kernel32.bin

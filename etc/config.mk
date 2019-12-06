@@ -19,7 +19,8 @@ CXXFLAGS = 	-O3 \
 			-mcmodel=kernel \
 			-mno-red-zone \
 			-fno-exceptions \
-			-fno-rtti
+			-fno-rtti \
+			-I$(ROOT)
 
 LDFLAGS = -nostdlib -lgcc -no-pie -zmax-page-size=0x1000
 
