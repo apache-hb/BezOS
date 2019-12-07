@@ -1,6 +1,7 @@
 #include "kernel.h"
 
 #include "pci/pci.h"
+#include "memory/memory.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -174,7 +175,8 @@ namespace bezos
         /* Initialize terminal interface */
         terminal_initialize();
     
-		pci::init();
+        memory::init();
+		//pci::init();
     }
 
 	void print(const char* str)
