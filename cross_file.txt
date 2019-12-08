@@ -1,0 +1,19 @@
+[binaries]
+c = 'x86_64-elf-gcc'
+cpp = 'x86_64-elf-g++'
+ar = 'x86_64-elf-ar'
+strip = 'strip'
+
+[properties]
+has_function_printf = false
+
+c_args = ['-ffreestanding']
+cpp_args = ['-ffreestanding']
+c_link_args = ['-ffreestanding', '-nostdlib', '-lgcc']
+cpp_link_args = ['-ffreestanding', '-nostdlib', '-lgcc']
+
+[host_machine]
+system = 'jeff'
+cpu_family = 'x86_64'
+cpu = 'x86_64'
+endian = 'little'
