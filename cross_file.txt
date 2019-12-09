@@ -2,7 +2,7 @@
 c = 'x86_64-elf-gcc'
 cpp = 'x86_64-elf-g++'
 ar = 'x86_64-elf-ar'
-strip = 'strip'
+strip = 'x86_64-elf-strip'
 
 [properties]
 has_function_printf = false
@@ -17,3 +17,8 @@ system = 'jeff'
 cpu_family = 'x86_64'
 cpu = 'x86_64'
 endian = 'little'
+
+[paths]
+prefix = '/x86_64'
+libdir = 'lib'
+bindir = 'bin'
