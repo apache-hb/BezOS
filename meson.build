@@ -9,5 +9,16 @@ project('bezos', ['c', 'cpp'],
 )
 
 sources = []
+incs = []
+
+links = []
+
+args = []
 
 subdir('kernel')
+
+kernel = executable('bezos.elf', sources,
+    include_directories : incs,
+    cpp_args : args,
+    link_with : links
+)

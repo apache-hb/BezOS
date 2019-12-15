@@ -1,6 +1,4 @@
-#include "kernel.h"
-
-#include "memory/memory.h"
+#include "types.h"
 
 using namespace bezos;
 
@@ -171,8 +169,6 @@ namespace bezos
     {
         /* Initialize terminal interface */
         terminal_initialize();
-    
-        ram::init();
     }
 
 	void print(const char* str)

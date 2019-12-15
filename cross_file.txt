@@ -7,8 +7,8 @@ strip = 'x86_64-elf-strip'
 [properties]
 has_function_printf = false
 
-c_args = ['-ffreestanding']
-cpp_args = ['-ffreestanding']
+c_args = ['-ffreestanding', '-m64']
+cpp_args = ['-ffreestanding', '-m64']
 c_link_args = ['-ffreestanding', '-nostdlib', '-lgcc']
 cpp_link_args = ['-ffreestanding', '-nostdlib', '-lgcc']
 
