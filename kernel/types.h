@@ -13,4 +13,7 @@ namespace bezos
 
     using u64 = unsigned long long;
     static_assert(sizeof(u64) == 8);
+
+    // we only run on 64 bit computers so lets hardcode this
+    using size_t = u64;
 }

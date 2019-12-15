@@ -9,3 +9,5 @@ project('bezos', ['c', 'cpp'],
 )
 
 sources = []
+
+subdir('kernel')
