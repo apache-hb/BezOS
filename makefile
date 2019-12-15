@@ -1,10 +1,8 @@
-.PHONY: all
+all: setup
+	$(MAKE) ROOT=$(shell pwd) -C kernel
 
 setup:
 	@ mkdir -p build/kernel/bin
-
-all: setup
-	$(MAKE) ROOT=$(pwd) kernel
 
 clean:
 	@ rm -rf build/kernel

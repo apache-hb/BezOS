@@ -1,3 +1,3 @@
 all:
-	$(MAKE) ROOT=$(ROOT) vga
-	$(MAKE) ROOT=$(ROOT) ram
+	$(MAKE) ROOT=$(ROOT) -C vga
+	$(MAKE) ROOT=$(ROOT) -C ram

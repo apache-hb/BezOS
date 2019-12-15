@@ -1,3 +1,6 @@
+include $(ROOT)/scripts/info.make
+
 all:
-	$(MAKE) ROOT=$(ROOT) metal
-	$(MAKE) ROOT=$(ROOT) asm
+	$(CXX) -c $(HERE)/kernel.cpp -o $(BIN)/kernel_kernel.cpp.o
+	$(MAKE) ROOT=$(ROOT) -C metal
+	$(MAKE) ROOT=$(ROOT) -C asm
