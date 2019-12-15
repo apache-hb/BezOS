@@ -1,5 +1,8 @@
 #include "vga.h"
+#include "types.h"
  
+using namespace bezos;
+
 namespace besoz::vga
 {
 
@@ -29,8 +32,8 @@ namespace besoz::vga
 
     u8 colour;
     u16* buffer;
-    size_t row;
-    size_t column;
+    size row;
+    size column;
 
     void init()
     {
@@ -39,12 +42,12 @@ namespace besoz::vga
         buffer = (u16*)VGA_BUFFER;
     }
 
-    u8 vga_colour(vga_colour front, vga_colour back)
+    u8 make_colour(u16 front, u16 back)
     {
-        return fg | bg << 4;
+        return front | back << 4;
     }
 
-    u16 vga_entry(u8 c, vga_colour colour)
+    u16 vga_entry(u16 c, u16 colour)
     {
         return (u16) c | colour << 8;
     }

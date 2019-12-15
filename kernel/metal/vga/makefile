@@ -1,4 +1,4 @@
-include $(ROOT)/scripts/info.make
+include $(ROOT)/scripts/common.make
 
 all:
-	$(CXX) -c $(HERE)/vga.cpp -o $(BIN)/kernel_metal_vga_vga.cpp.o 
+	$(CL_CXX) $(HERE)/vga.cpp -o $(BIN)/kernel_metal_vga_vga.cpp.o 
