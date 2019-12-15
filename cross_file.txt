@@ -1,24 +1,18 @@
 [binaries]
-c = 'x86_64-elf-gcc'
-cpp = 'x86_64-elf-g++'
-ar = 'x86_64-elf-ar'
-strip = 'x86_64-elf-strip'
+c = '~/cross/bin/x86_64-elf-gcc.exe'
+cpp = '~/cross/bin/x86_64-elf-c++.exe'
+strip = '~/cross/bin/x86_64-elf-strip.exe'
 
 [properties]
 has_function_printf = false
 
-c_args = ['-ffreestanding', '-m64']
-cpp_args = ['-ffreestanding', '-m64']
+c_args = ['-ffreestanding']
+cpp_args = ['-ffreestanding']
 c_link_args = ['-ffreestanding', '-nostdlib', '-lgcc']
 cpp_link_args = ['-ffreestanding', '-nostdlib', '-lgcc']
 
 [host_machine]
-system = 'jeff'
+system = 'bezos'
 cpu_family = 'x86_64'
 cpu = 'x86_64'
 endian = 'little'
-
-[paths]
-prefix = '/x86_64'
-libdir = 'lib'
-bindir = 'bin'

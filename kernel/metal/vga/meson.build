@@ -1,1 +1,0 @@
-sources += 'kernel/metal/vga/vga.cpp'
