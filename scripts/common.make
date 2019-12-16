@@ -1,16 +1,32 @@
-FLAGS := -I$(ROOT)/kernel -ffreestanding -c
+FLAGS = -I$(ROOT)/kernel \
+		-nostdlib \
+		-ffreestanding \
+		-c -m64 \
+		-mcmodel=kernel \
+		-mno-sse2 \
+		-fno-common \
+		-mno-red-zone \
+		-march=native \
+		-fno-pic \
+		-fno-stack-protector \
+		-O2 \
+		-Wall \
+		-Wextra \
+		-no-pie
 
-CXX=x86_64-elf-g++
+CXX_FLAGS = $(FLAGS) -fno-rtti -fno-exceptions -std=c++17
+CXX = x86_64-elf-g++
+CL_CXX = $(CXX) $(CXX_FLAGS)
 
-CL_CXX = $(CXX) $(FLAGS)
+C_FLAGS = $(FLAGS) -std=gnu99
+CC = x86_64-elf-gcc
+CL_CC = $(CC) $(C_FLAGS)
 
-CC=x86_64-elf-gcc
+ASM_FLAGS = -f elf64 -g -F dwarf
+ASM = nasm
+CL_ASM = $(ASM) $(ASM_FLAGS)
 
-CL_CC = $(CC) $(FLAGS)
+COPY = x86_64-elf-objcopy
 
-ASM=nasm
-
-CL_ASM = $(ASM)
-
-BIN=$(ROOT)/build/kernel/bin
-HERE=$(shell pwd)
+BIN = $(ROOT)/build/kernel/bin
+HERE = $(shell pwd)

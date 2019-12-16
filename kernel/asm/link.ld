@@ -9,22 +9,27 @@ SECTIONS {
 
     .text ALIGN(4K) : {
         text_front = . - KERNEL_VMA;
-        KEEP(*(.multiboot))
+
         KEEP(*(.text*))
+        KEEP(*(.multiboot))
+        
         text_back = . - KERNEL_VMA;
     }
 
     .data ALIGN(4K) : {
         data_front = . - KERNEL_VMA;
-        KEEP(*(.data))
-        KEEP(*(.rodata*))
+        
+        KEEP(*(.data*))
+        KEEP(*(.rodata))
+        
         data_back = . - KERNEL_VMA;
     }
 
     .bss ALIGN(4K) : {
         bss_front = . - KERNEL_VMA;
-        KEEP(*(COMMON))
+        
         KEEP(*(.bss*))
+        
         bss_back = . - KERNEL_VMA;
     }
 }

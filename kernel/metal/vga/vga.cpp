@@ -54,7 +54,7 @@ namespace besoz::vga
 
     void putchar(char c)
     {
-
+        (void)c;   
     }
 
     void print(const char* str)
