@@ -3,6 +3,6 @@
 
 extern "C" void kmain()
 {
-    bezos::vga::init();
-    bezos::ram::init();
+    //bezos::vga::init();
+    //bezos::ram::init();
 }

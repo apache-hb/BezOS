@@ -4,7 +4,6 @@ FLAGS = -I$(ROOT)/kernel \
 		-c -m64 \
 		-mcmodel=kernel \
 		-mno-sse2 \
-		-fno-common \
 		-mno-red-zone \
 		-march=native \
 		-fno-pic \
@@ -30,3 +29,5 @@ COPY = x86_64-elf-objcopy
 
 BIN = $(ROOT)/build/kernel/bin
 HERE = $(shell pwd)
+
+MAKEFLAGS += --silent
