@@ -8,6 +8,7 @@ FLAGS = -I$(ROOT)/kernel \
 		-march=native \
 		-fno-pic \
 		-fno-stack-protector \
+		-fno-asynchronous-unwind-tables \
 		-O2 \
 		-Wall \
 		-Wextra \
@@ -21,7 +22,7 @@ C_FLAGS = $(FLAGS) -std=gnu99
 CC = x86_64-elf-gcc
 CL_CC = $(CC) $(C_FLAGS)
 
-ASM_FLAGS = -f elf64 -g -F dwarf
+ASM_FLAGS = -f elf64 -F dwarf
 ASM = nasm
 CL_ASM = $(ASM) $(ASM_FLAGS)
 

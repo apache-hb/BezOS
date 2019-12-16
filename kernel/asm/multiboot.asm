@@ -8,6 +8,7 @@ KERNEL_LMA equ 0x0000000000100000
 KERNEL_VMA equ 0xFFFFFFFF80000000
 
 %define ABS(x) ((x) - KERNEL_VMA)
+%define SKIP(n) times n db 0
 
 section .boot
     bits 32
@@ -21,7 +22,7 @@ section .boot
     global _boot:function
     _boot:
         cli
-        mov esp, stack_front
+        mov esp, ABS(stack_front)
 
         mov [mb_eax], eax
         mov [mb_ebx], ebx
@@ -125,9 +126,9 @@ section .init.data
     align 0x1000
     pml4:
         dq ABS(pdp0) + 7
-        times 255 * 8 db 0
+        SKIP(255 * 8)
         dq ABS(pdp0) + 7
-        times 255 * 8 db 0
+        SKIP(255 * 8)
         dq ABS(pdp1) + 7
 
     align 0x1000
@@ -139,7 +140,7 @@ section .init.data
 
     align 0x1000
     pdp1:        
-        times 510 * 8 db 0
+        SKIP(510 * 8)
         dq ABS(pd + 0x0000) + 7
         dq ABS(pd + 0x1000) + 7
 
@@ -154,5 +155,5 @@ section .init.data
     ; reserve 16K for a stack
     align 0x1000
     stack_back:
-        times 1024 * 16 db 0
+        SKIP(1024 * 16)
     stack_front:
