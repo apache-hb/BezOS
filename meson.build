@@ -17,7 +17,8 @@ args = [
     '-mcmodel=kernel',
     '-mno-red-zone',
     '-march=native',
-    '-fno-asynchronous-unwind-tables'
+    '-fno-asynchronous-unwind-tables',
+    '-fno-common'
 ]
 
 ld_args = [
@@ -36,6 +37,7 @@ nasm_gen = generator(nasm,
 
 linker = ''
 asm = []
+incs = []
 
 subdir('kernel')
 
@@ -44,6 +46,7 @@ ld_args += '-T' + linker
 asm_files = nasm_gen.process(asm)
 
 executable('bezos.elf', asm_files, sources,
+    include_directories : incs,
     cpp_args : args,
     c_args : args,
     link_args : ld_args

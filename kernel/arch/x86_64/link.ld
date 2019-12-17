@@ -14,12 +14,12 @@ SECTIONS {
     }
 
     .bss BLOCK(4K) : ALIGN(4K) {
-        *(COMMON)
         *(.bss)
     }
 
     /DISCARD/ : {
         *(.comment)
+        *(COMMON)
         *(.eh_frame)
     }
 }
