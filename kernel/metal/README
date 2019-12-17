@@ -1,3 +1,0 @@
-# Metal
-this folder contains all the things that interface directly with hardware.
-this includes things like e820 for memory, pci ports, cpie ports, usb ports, etc

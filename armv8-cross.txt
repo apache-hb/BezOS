@@ -1,0 +1,16 @@
+[binaries]
+c = 'arm-none-eabi-gcc'
+cpp = 'arm-none-eabi-g++'
+strip = 'arm-none-eabi-strip'
+
+[host_machine]
+system = 'bezos'
+cpu_family = 'aarch64'
+cpu = 'armv8'
+endian = 'little'
+
+[paths]
+prefix = '/armv8'
+
+[properties]
+arch = 'armv8'
