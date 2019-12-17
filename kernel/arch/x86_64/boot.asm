@@ -1,4 +1,3 @@
-
 ; real mode
 ; we need to get out of real mode and quickly
 ; to do this we 
@@ -6,6 +5,35 @@
 ; 2. disable interrupts and non maskable ones (we reneable those later)
 ; 3. load global descriptor table
 bits 16
+
+org 0x500
+
+jmp boot16
+
+gdt_front:
+    dw 0
+    dw 0
+
+    ; code section
+    dw 0xFFFF
+    dw 0
+    db 0
+    db 10011010b
+    db 11001111b
+    db 0
+
+    ; data section
+    dw 0xFFFF
+    dw 0
+    db 0
+    db 10010010b
+    db 11001111b
+    db 0
+gdt_back:
+toc:
+    dw gdt_back - gdt_front - 1
+    dd gdt_front
+
 boot16:
     ; check if the a20 gate is supported
     mov ax, 0x2403
@@ -72,7 +100,7 @@ boot16:
     out 0x70, al
 
     ; load global descriptor table
-    ; TODO
+    lgdt [toc]
 
     ; go to protected mode
     mov eax, cr0
@@ -80,7 +108,7 @@ boot16:
     mov cr0, eax
 
     ; far jump to protected mode code
-    jmp 0x08:boot32
+    ; jmp 0x8:boot32
 
 ; boot sector magic
 times 510-($-$$) db 0
@@ -90,6 +118,17 @@ db 0xAA
 ; protected mode
 bits 32
 boot32:
+    ; we escaped real mode
+    mov ax, 0x10
+    mov ds, ax
+    mov ss, ax
+    mov es, ax
+    mov esp, 0x90000
+
+stop:
+    cli
+    hlt
+    jmp stop
 
 ; long mode
 bits 64
