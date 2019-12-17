@@ -2,6 +2,8 @@
 c = 'x86_64-elf-gcc'
 cpp = 'x86_64-elf-g++'
 strip = 'x86_64-elf-strip'
+ld = 'x86_64-elf-ld'
+ar = 'x86_64-elf-ar'
 
 [host_machine]
 system = 'bezos'

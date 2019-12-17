@@ -3,7 +3,8 @@ project('bezos', ['c', 'cpp'],
         'cpp_std=c++17',
         'c_std=gnu99',
         'cpp_eh=none',
-        'cpp_rtti=no'
+        'cpp_rtti=no',
+        'warning_level=3'
     ],
     version : '0.0.1'
 )
@@ -37,6 +38,10 @@ subdir('kernel')
 ld_args += '-T' + linker
 
 compiled_asm = []
+
+foreach a : asm
+
+endforeach
 
 executable('bezos.elf', sources,
     cpp_args : args,

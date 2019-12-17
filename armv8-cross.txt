@@ -2,6 +2,8 @@
 c = 'arm-none-eabi-gcc'
 cpp = 'arm-none-eabi-g++'
 strip = 'arm-none-eabi-strip'
+ld = 'arm-none-eabi-ld'
+ar = 'arm-none-eabi-ar'
 
 [host_machine]
 system = 'bezos'
