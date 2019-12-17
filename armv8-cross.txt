@@ -15,4 +15,6 @@ endian = 'little'
 prefix = '/armv8'
 
 [properties]
+has_function_printf = false
+
 arch = 'armv8'

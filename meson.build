@@ -21,14 +21,18 @@ args = [
 ]
 
 ld_args = [
-    '-nostdlib',
     '-ffreestanding',
+    '-nostdlib',
     '-mcmodel=kernel',
     '-fno-use-linker-plugin',
     '-lgcc'
 ]
 
 nasm = find_program('nasm')
+nasm_gen = generator(nasm,
+    output : '@BASENAME@.o',
+    arguments : [ '-felf64', '@INPUT@', '-o', '@OUTPUT@']
+)
 
 linker = ''
 asm = []
@@ -37,13 +41,9 @@ subdir('kernel')
 
 ld_args += '-T' + linker
 
-compiled_asm = []
+asm_files = nasm_gen.process(asm)
 
-foreach a : asm
-
-endforeach
-
-executable('bezos.elf', sources,
+executable('bezos.elf', asm_files, sources,
     cpp_args : args,
     c_args : args,
     link_args : ld_args

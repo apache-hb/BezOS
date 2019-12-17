@@ -15,4 +15,6 @@ endian = 'little'
 prefix = '/x86_64'
 
 [properties]
+has_function_printf = false
+
 arch = 'x86_64'
