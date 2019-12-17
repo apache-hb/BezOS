@@ -1,51 +1,96 @@
-MAGIC equ 0x1BADB002
-PAGEALIGN equ 1 << 0
-MEMINFO equ 1 << 1
-FLAGS equ (PAGEALIGN | MEMINFO)
-CHECKSUM equ -(MAGIC + FLAGS)
 
-section .multiboot
-align 4
-    dd MAGIC
-    dd FLAGS
-    dd CHECKSUM
+; real mode
+; we need to get out of real mode and quickly
+; to do this we 
+; 1. enable a20 line
+; 2. disable interrupts and non maskable ones (we reneable those later)
+; 3. load global descriptor table
+bits 16
+boot16:
+    ; check if the a20 gate is supported
+    mov ax, 0x2403
+    int 0x15
 
-section .bss
-align 16
-    stack_back:
-        resb 1024 * 16
-    stack_front:
+    ; if the a20 gate isnt supported then we wont boot
+    jb .a20_unsupported
+    cmp ah, 0
+    jnz .a20_unsupported
 
-section .text
+    ; get the current a20 status
+    mov ax, 0x2402
+    int 0x15
+
+    ; if we couldnt get the a20 status then dont boot
+    jb .a20_failed
+    cmp ah, 0
+    jnz .a20_failed
+
+    ; if the a20 is already activated then skip ahead
+    cmp al, 1
+    jz .a20_good
+
+
+    ; activate the a20
+    mov ax, 0x2041
+    int 0x15
+
+    ; we couldnt activate the a20 so we dont boot
+    jb .a20_failed
+    cmp ah, 0
+    jnz .a20_failed
+
+.a20_unsupported:
+    ; dumb hack to show the letter u if a20 is unsupported
+    mov al, 'u'
+    mov ah, 0x0E
+    mov bh, 0x00
+    mov bl, 0x07
+
+    int 0x10
+    jmp $
+
+.a20_failed:
+    ; show f if a20 failed
+    mov al, 'f'
+    mov ah, 0x0E
+    mov bh, 0x00
+    mov bl, 0x07
+
+    int 0x10
+    jmp $
+
+.a20_good:
+    ; weve disabled the a20 line
+    ; time to disable interrupts
+
+    ; disable normal interrupts
+    cli
+
+    ; disable non maskable ones
+    in al, 0x70
+    and al, 0x80
+    out 0x70, al
+
+    ; load global descriptor table
+    ; TODO
+
+    ; go to protected mode
+    mov eax, cr0
+    or al, 1
+    mov cr0, eax
+
+    ; far jump to protected mode code
+    jmp 0x08:boot32
+
+; boot sector magic
+times 510-($-$$) db 0
+db 0x55
+db 0xAA
+
+; protected mode
 bits 32
-    global _boot:function (_boot.end - _boot)
-    _boot:
-        ; make sure we have cpuid
-        mov eax, 0x80000000
-        cpuid
-        cmp eax, 0x80000001
-        ; if we dont this cpu is bad and we wont boot
-        jb unsupported
+boot32:
 
-        ; if we do have cpuid then check if we have long mode
-        mov eax, 0x80000001
-        cpuid
-        test edx, 1 << 29
-        ; if we dont then this cpu is bad
-        jz unsupported
-
-        mov esp, stack_front
-
-        extern kmain
-        call kmain
-
-        cli
-    .halt: hlt
-        jmp .halt
-    .end:
-
-    unsupported:
-        mov [0xB8000], 0x30
-
-        cli
-        hlt
+; long mode
+bits 64
+boot64:

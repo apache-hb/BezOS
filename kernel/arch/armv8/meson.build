@@ -1,1 +1,0 @@
-linker = meson.current_source_dir()/'link.ld'
