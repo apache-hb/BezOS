@@ -1,4 +1,3 @@
-include $(ROOT)/etc/config.mk
-
 all:
-	@ $(CXX) $(CXXFLAGS) -c $(HERE)/kernel.cpp -o $(BIN)/kernel.o
+	x86_64-elf-gcc -fno-asynchronous-unwind-tables -ffreestanding -fno-use-linker-plugin -nostdlib -fwhole-program kernel.c -o $(ROOT)/build/bin/kernel.o
+	ld -Ttext 0x200 -oformat $(ROOT)/build/bin/kernel.o -o $(ROOT)/build/bin/kernel.bin
