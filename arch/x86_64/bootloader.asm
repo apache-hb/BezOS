@@ -11,8 +11,8 @@ org 0x500
 jmp boot16
 
 gdt_front:
-    dw 0
-    dw 0
+    dd 0
+    dd 0
 
     ; code section
     dw 0xFFFF
@@ -110,26 +110,28 @@ boot16:
     ; far jump to protected mode code
     ; jmp 0x8:boot32
 
+    jmp $
+
 ; boot sector magic
 times 510-($-$$) db 0
 db 0x55
 db 0xAA
 
-; protected mode
-bits 32
-boot32:
-    ; we escaped real mode
-    mov ax, 0x10
-    mov ds, ax
-    mov ss, ax
-    mov es, ax
-    mov esp, 0x90000
+; ; protected mode
+; bits 32
+; boot32:
+;     ; we escaped real mode
+;     mov ax, 0x10
+;     mov ds, ax
+;     mov ss, ax
+;     mov es, ax
+;     mov esp, 0x90000
 
-stop:
-    cli
-    hlt
-    jmp stop
+; stop:
+;     cli
+;     hlt
+;     jmp stop
 
-; long mode
-bits 64
-boot64:
+; ; long mode
+; bits 64
+; boot64:
