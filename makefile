@@ -1,20 +1,22 @@
+include etc/config.mk
+
 .PHONY: clean _setup x86_64 armv8 help
 
 help:
 	@echo "make [ x86_64 | armv8 ]"
 
-BUILDDIR = build/bin/
+setup:
+	@ mkdir -p $(HERE)/build/$(TARGET)/bin
 
-$(BUILDDIR):
-	@mkdir -p $(BUILDDIR)
+x86_64:
+	@$(MAKE) TARGET=x86_64 setup
+	@$(MAKE) TARGET=x86_64 ROOT=$(shell pwd) -C kernel
+	@$(MAKE) TARGET=x86_64 ROOT=$(shell pwd) -C arch/x86_64
 
-x86_64: $(BUILDDIR)
-	@$(MAKE) ROOT=$(shell pwd) -C arch/x86_64
-	@$(MAKE) ROOT=$(shell pwd) -C kernel
-
-armv8: $(BUILDDIR)
-	@$(MAKE) ROOT=$(shell pwd) -C arch/armv8
-	@$(MAKE) ROOT=$(shell pwd) -C kernel
+armv8: setup
+	@$(MAKE) TARGET=armv8 setup
+	@$(MAKE) TARGET=armv8 ROOT=$(shell pwd) -C kernel
+	@$(MAKE) TARGET=armv8 ROOT=$(shell pwd) -C arch/armv8
 
 clean:
 	@rm -rf build/
