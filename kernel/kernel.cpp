@@ -1,7 +1,7 @@
-typedef unsigned short uint16_t;
+#include "types.h"
 
-void kmain(void) 
+extern "C" void kmain(void) 
 {
-    uint16_t* vga = (uint16_t*)0xB8000;
+    bezos::u16* vga = (bezos::u16*)0xB8000;
     vga[1] = 'a' | ( 1 | 0 << 4) << 8;
 }
