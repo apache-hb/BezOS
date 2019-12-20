@@ -1,7 +1,7 @@
-#include "types.h"
+#include "modules/vga/vga.h"
 
 extern "C" void kmain(void) 
 {
-    bezos::u16* vga = (bezos::u16*)0xB8000;
-    vga[1] = 'a' | ( 1 | 0 << 4) << 8;
+    bezos::vga::init();
+    bezos::vga::print("name jeff");
 }

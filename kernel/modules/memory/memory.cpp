@@ -1,6 +1,6 @@
 #include "memory.h"
 
-#include "types.h"
+#include "kernel/types.h"
 
 #define E820_ENTRIES 128
 
@@ -21,7 +21,7 @@ namespace bezos::memory
         u32 flags;
     };
 
-    static_assert(sizeof(e820_result) == 24);
+    static_assert(sizeof(e820_entry) == 24);
 
     e820_entry entries[E820_ENTRIES];
 
@@ -34,13 +34,15 @@ namespace bezos::memory
 
         while(ebx && count < E820_ENTRIES) 
         {
-            asm volatile(
-                "xor ebx, ebx\n" // clear ebx (must be 0 for smap to work)
-                "mov $0x0534D4150, %%eax\n" // put "SMAP" in eax
-                "mov $0xE820, eax\n" // put e820 into eax
-                "int 0x15"
-            );
+            return 0;
+            // asm volatile(
+            //     "xor ebx, ebx\n" // clear ebx (must be 0 for smap to work)
+            //     "mov $0x0534D4150, %%eax\n" // put "SMAP" in eax
+            //     "mov $0xE820, eax\n" // put e820 into eax
+            //     "int 0x15"
+            // );
         }
+        return 0;
     }
 
     void init()
