@@ -45,7 +45,14 @@ start:
     jnz .a20_fail ; failed to activate the gate
 
 .a20_on: ; the a20 works
+    ; load the global descriptor table
     lgdt [descriptor]
+
+    ; go to protected mode
+    mov eax, cr0
+    or eax, 1 ; set the protected mode bit
+    mov cr0, eax
+
     ; jump to 32 bit code
     jmp 0x7E00
 
@@ -80,6 +87,7 @@ descriptor:
     .null:
         dw descriptor.end - descriptor
         dd descriptor
+        dw 0
     .code:
         dw 0xFFFF
         dw 0

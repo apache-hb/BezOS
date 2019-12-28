@@ -6,4 +6,5 @@ bits 32
 
 ; 32 bit start
 start:
-    
+    hlt
+    jmp start
