@@ -5,7 +5,7 @@ BUILDDIR = build
 $(BUILDDIR):
 	@ mkdir -p $(BUILDDIR)
 
-x86-64: $(BUILDDIR)
+x86-64: $(BUILDDIR) arch/x86-64/real.asm arch/x86-64/prot.asm arch/x86-64/link.ld kernel/kernel.c
 	@# build assembly bits
 	@nasm -felf64 arch/x86-64/real.asm -o $(BUILDDIR)/real.o
 	@nasm -felf64 arch/x86-64/prot.asm -o $(BUILDDIR)/prot.o
@@ -16,3 +16,4 @@ x86-64: $(BUILDDIR)
 
 clean:
 	@ rm -rf $(BUILDDIR)
+	@ rm bezos.bin

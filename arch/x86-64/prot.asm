@@ -9,12 +9,18 @@ section .protected
 bits 32
     ; 32 bit start
     start32:
+        mov bx, 0x10
+        mov ds, bx
+        mov es, bx
+
+        mov al, 0xFE
+        mov cr0, eax
+
+        pop es
+        pop ds
+        sti
         ; check for long mode so we can get into it
         ; use cpuid to check for long mode
-
-        ; TODO: definetly remove this
-        ; crappy temp stack 32k
-        mov esp, 0x9000 + (1024 * 32)
 
         ; check if we have cpuid
 

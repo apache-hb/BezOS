@@ -6,6 +6,21 @@ section .bootloader
 ; we're only 16 bits right now
 bits 16
     start:
+        ; there is free memory below us, we can use that for the stack
+        mov sp, 0x7C00
+
+        xor ax, ax
+        mov ds, ax
+        mov es, ax
+        mov ss, ax
+        mov fs, ax
+        mov gs, ax
+
+        cld
+
+        mov ax, 2
+        int 0x10 ; clear screen
+
         mov ah, 0 ; clear disk status
         int 0x13 ; int 0x13, ah = 0
 
@@ -19,7 +34,6 @@ bits 16
         int 0x13 ; disk interrupt
 
         ; prepare to go to protected mode
-        cli ; we wont be needing interrupts for now
 
         ; enable the a20 line
 
@@ -45,6 +59,12 @@ bits 16
         jnz .a20_fail ; failed to activate the gate
 
     .a20_on: ; the a20 works
+        
+        cli ; we wont be needing interrupts for now
+        
+        push ds
+        push es
+
         ; load the global descriptor table
         lgdt [descriptor]
 
@@ -52,7 +72,6 @@ bits 16
         mov eax, cr0
         or eax, 1 ; set the protected mode bit
         mov cr0, eax
-
 
         ; jump to 32 bit code
         jmp (descriptor.code - descriptor):start32
