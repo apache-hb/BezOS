@@ -1,10 +1,66 @@
 ; protected mode assembly
-; we are in the page after 0x7C00 so make sure the offset is right
-org 0x7E00
+
+global start32:function
+extern kmain
+extern kpanic
+
+section .protected
 ; we're in protected mode now, so we can use 32 bit instructions
 bits 32
+    ; 32 bit start
+    start32:
+        ; check for long mode so we can get into it
+        ; use cpuid to check for long mode
 
-; 32 bit start
-start:
-    hlt
-    jmp start
+        ; TODO: definetly remove this
+        ; crappy temp stack 32k
+        mov esp, 0x9000 + (1024 * 32)
+
+        ; check if we have cpuid
+
+        ; copy flags to eax
+        pushfd
+        pop eax
+
+        ; move flags to ecx for later
+        mov ecx, eax
+
+        ; flip the id bit
+        xor eax, 1 << 21
+
+        ; set flags to eax
+        push eax
+        popfd
+
+        ; set eax to flags. the bit will be flipped if cpuid is supported
+        pushfd
+        pop eax
+
+        ; restore flags to ecx
+        push ecx
+        popfd
+
+        ; if eax and ecx arent equal then we dont have cpuid
+        xor eax, ecx
+        jz .cpuid_no
+
+        ; check if we support extended cpuid
+        mov eax, 0x80000000
+        cpuid
+        cmp eax, 0x80000001
+        jb .long_no
+
+        ; if we support extended cpuid we can check if we support long mode
+        mov eax, 0x80000001
+        cpuid
+        test edx, 1 << 29
+        jz .long_no
+
+    .long_on:
+        call kmain
+
+    .cpuid_no:
+        call kpanic
+    .long_no:
+        call kpanic
+    panic:
