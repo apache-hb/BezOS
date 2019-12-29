@@ -19,6 +19,8 @@ SECTIONS {
         *(.bss)
     }
 
+    KERNEL_END = .;
+
     /DISCARD/ : {
         *(COMMON)
         *(.comment)

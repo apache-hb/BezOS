@@ -24,9 +24,11 @@ bits 16
         mov ah, 0 ; clear disk status
         int 0x13 ; int 0x13, ah = 0
 
-        ; read in 32 bit code from disk and put it in the sector afterwards
+    .read_disk:
+
+        ; read in the rest of the code from disk and put it in the sectors afterwards
         mov bx, 0x7E00 ; read it in after this memory 
-        mov al, 1 ; read 1 sector (512 bytes)
+        mov al, 1 ; read 1 sector
         mov ch, 0 ; from the first cylinder
         mov dh, 0 ; and the first head
         mov cl, 2 ; the second sector (we are in the first sector already)
@@ -61,7 +63,7 @@ bits 16
     .a20_on: ; the a20 works
         
         cli ; we wont be needing interrupts for now
-        
+
         push ds
         push es
 
