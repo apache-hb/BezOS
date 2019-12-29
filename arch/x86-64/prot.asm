@@ -83,33 +83,41 @@ bits 32
         add eax, 0x1000 - 1
         and eax, ~0x1000
 
-        ; add eax, 0x1000 * 3
-
         ; kernel
         ; ----
-        ; pages
-        ;   p4
-        ;   p3
-        ;   p2
+        ; [p2 | p3 | p4]
 
-        ; TODO: all this, dear god indirection is painful
-        ; mov [tables.p2], eax
+        ; p3
+        sub eax, 0x1000
+        or dword [eax], 11b
+
+        ; p4
+        add eax, 0x1000
+        mov [tables.p4], eax
+
+        ; p2
+        sub eax, 0x2000
+        or dword [eax], 11b
+        mov [tables.p2], eax
         
-        ; add eax, 0x1000
-        ; mov [tables.p3], eax
+        ; p3
+        add eax, 0x1000
+        mov [tables.p3], eax
 
-        ; add eax, 0x1000
-        ; mov [tables.p4], eax
+        mov ecx, 0
+        mov ebx, [tables.p2]
 
-        ; mov eax, [tables.p3]
-        ; mov eax, [eax]
-        ; or eax, 11b
-        ; mov [tables.p4], eax
+    .map_page:
+        mov eax, 0x200000
+        mul ecx
+        or eax, 10000011b
+        mov [ebx + ecx * 8], eax
 
-        ; mov eax, [tables.p2]
-        ; mov eax, [eax]
-        ; or eax, 11b
-        ; mov [tables.p3], eax
+        inc ecx
+        cmp ecx, 512
+
+        ; for some reason this triggers `check_exception old: 0xffffffff new 0x6` in qemu
+        jne .map_page
 
         ; enable paging
         ; put p4 into cr3 for the cpu to use
@@ -131,9 +139,6 @@ bits 32
         mov eax, cr0
         or eax, 1 << 8
         mov cr0, eax
-
-        ; go to long mode
-
 
         ; go to real 64 bit code
         lgdt [descriptor64.ptr]
