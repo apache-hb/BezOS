@@ -1,10 +1,10 @@
 #include "etc/types.h"
 
+using namespace bezos;
+
 extern "C" void kmain(void)
 {
-    volatile u16* vga = (u16*)0xB8000;
-    for(int i = 0; i < 80 * 25; i++)
-        vga[i] = 25;
-    
+    ((u16*)0xB8000)[0] = 0x0F0F;
+
     while(1);
 }
