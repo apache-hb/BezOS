@@ -64,9 +64,6 @@ bits 16
         
         cli ; we wont be needing interrupts for now
 
-        push ds
-        push es
-
         ; load the global descriptor table
         lgdt [descriptor]
 
