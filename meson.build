@@ -29,7 +29,7 @@ incs += 'src'
 subdir('src/kernel')
 subdir(arch)
 
-links += '-T' + linker
+links += '-Wl,-T' + linker
 
 kernel = executable('bezos.bin', # name
     sources, # source files 
