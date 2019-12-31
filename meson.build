@@ -31,6 +31,10 @@ subdir(arch)
 
 links += '-Wl,-T' + linker
 
+if meson.get_compiler('cpp').get_id() != 'clang'
+    error('We only support clang')
+endif
+
 kernel = executable('bezos.bin', # name
     sources, # source files 
     include_directories : incs,

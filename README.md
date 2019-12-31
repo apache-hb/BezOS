@@ -17,3 +17,5 @@ ninja
 
 ## Mentions
 1. Marley on the osdev discord for being incredibly clever and knowledgable 
+2. osdev wiki for good reference 
+3. all the random github os projects i've browsed to figure out how to do things

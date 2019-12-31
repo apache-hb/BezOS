@@ -9,8 +9,14 @@ jobs:
 
     steps:
     - uses: actions/checkout@v1
-    - name: Generate build files
-      run: meson buildx86 --cross-file x86-64-cross.ini
+    - uses: actions/setup-python@v1
+      with:
+        python-version: '3.x'
+    - run: pip install meson
+    - run: meson buildx86 --cross-file x86-64-cross.ini
+      env:
+        CC: clang
+        CXX: clang++
     - name: Generate kernel image
       run: ninja -C buildx86
     - name: Publish kernel to github
