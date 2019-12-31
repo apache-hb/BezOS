@@ -16,6 +16,16 @@ extern p4t
 section .protected
 bits 32
     start32:
+        pop ax
+        mov ds, ax
+        mov es, ax
+        mov ss, ax
+        mov fs, ax
+        mov gs, ax
+
+        ; before we continue lets init some stuff like vga output for easier debugging
+        ; call kmain32
+
         ; we need to check if cpuid exists
         
         ; copy eflags to eax
@@ -62,7 +72,7 @@ bits 32
 
         ; now we have set up paging
         ; i put this in a seperate C file because clang is better at this than i am
-        call init_paging
+        ; call init_paging
 
         ; then tell the cpu where the table is
         mov eax, p4t

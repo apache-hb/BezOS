@@ -72,6 +72,7 @@ bits 16
         or eax, 1 ; set the protected mode bit
         mov cr0, eax
 
+        push (descriptor.data - descriptor)
         ; jump to 32 bit code
         jmp (descriptor.code - descriptor):start32
 

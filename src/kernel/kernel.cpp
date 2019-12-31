@@ -1,6 +1,8 @@
-#include "etc/types.h"
+#include "common/types.h"
 
 using namespace bezos;
+
+extern "C" u32* p4t = 0;
 
 extern "C" void kmain(void)
 {
