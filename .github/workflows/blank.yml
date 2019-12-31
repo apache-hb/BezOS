@@ -12,6 +12,9 @@ jobs:
     - uses: actions/setup-python@v1
       with:
         python-version: '3.x'
+    - run: |
+        sudo add-apt-repository "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main"
+        sudo apt-get update
     - run: pip install meson
     - run: meson buildx86 --cross-file x86-64-cross.ini
     - name: Generate kernel image
