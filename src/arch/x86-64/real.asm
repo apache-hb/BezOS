@@ -62,6 +62,19 @@ bits 16
 
     .a20_on: ; the a20 works
         
+        ; time to do memory mapping
+        mov eax, 0xE820 ; function code
+        mov ebx, 0 ; continuation 
+        mov edi, memory_map ; memory map pointer
+        mov ecx, (memory_map.end - memory_map) ; memory map size
+        mov edx, 0x534D4150 ; signature (SMAP)
+ 
+        xchg bx, bx
+
+        int 0x15 ; interrupt
+
+        xchg bx, bx
+
         cli ; we wont be needing interrupts for now
 
         ; load the global descriptor table
@@ -122,6 +135,14 @@ bits 16
             db 0x92
             db 11001111b
             db 0
+        .end:
+
+section .bootloader
+    memory_map:
+        .addr: dq 0
+        .size: dq 0
+        .type: dd 0
+        .attrib: dd 0
         .end:
 
     ; pad the rest of the file with 0x0 up to 510

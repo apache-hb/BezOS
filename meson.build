@@ -21,10 +21,19 @@ arch = 'src/arch'/meson.get_cross_property('arch')
 
 sources = []
 links = []
+deps = []
 args = []
 incs = []
 
-incs += 'src'
+if arch == 'src/arch/x86-64'
+    args += '-DTARGET_X86=1'
+endif
+
+if arch == 'src/arch/armv8'
+    args += '-DTARGET_ARM=1'
+endif
+
+incs += include_directories('src')
 
 subdir('src/kernel')
 subdir(arch)
@@ -40,5 +49,5 @@ kernel = executable('bezos.bin', # name
     include_directories : incs,
     cpp_args : args,
     link_args : links,
-    link_depends : linker
+    link_with : deps
 )

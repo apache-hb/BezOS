@@ -8,10 +8,7 @@ extern kmain
 ; the end of the binary
 extern KERNEL_END
 
-; c function to setup all the page tables
 extern init_paging
-
-extern p4t
 
 section .protected
 bits 32
@@ -72,11 +69,13 @@ bits 32
 
         ; now we have set up paging
         ; i put this in a seperate C file because clang is better at this than i am
-        ; call init_paging
+        call init_paging
+
+        jmp $
 
         ; then tell the cpu where the table is
-        mov eax, p4t
-        mov cr3, eax
+        ; mov eax, [tables.p4]
+        ; mov cr3, eax
 
         ; enable physical address extension bit
         mov eax, cr4
@@ -105,6 +104,7 @@ bits 32
     ; long mode isnt available
     .long_no:
         jmp $
+
 
     descriptor64:
         .null:

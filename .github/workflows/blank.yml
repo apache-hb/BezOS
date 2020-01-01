@@ -15,6 +15,7 @@ jobs:
     - run: |
         sudo add-apt-repository "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main"
         sudo apt-get update
+        export CXX=clang-9
     - run: pip install meson
     - run: meson buildx86 --cross-file x86-64-cross.ini
     - name: Generate kernel image
