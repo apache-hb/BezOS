@@ -1,28 +1,18 @@
-; protected mode assembly
-
-global start32:function
-
 ; 64 bit kernel main function
 extern kmain
 
-; the end of the binary
-extern KERNEL_END
-
-extern init_paging
-
 section .protected
 bits 32
+    global start32:function
     start32:
+        dw 0xFFFF
         pop ax
         mov ds, ax
         mov es, ax
         mov ss, ax
         mov fs, ax
         mov gs, ax
-
-        ; before we continue lets init some stuff like vga output for easier debugging
-        ; call kmain32
-
+        
         ; we need to check if cpuid exists
         
         ; copy eflags to eax
@@ -51,7 +41,6 @@ bits 32
         xor eax, ecx
         jz .cpuid_no
 
-
         ; now we need to check if we support long mode
         ; first check if we have extended cpuid
         mov eax, 0x80000000
@@ -68,14 +57,7 @@ bits 32
         ; if we got this far we have long mode
 
         ; now we have set up paging
-        ; i put this in a seperate C file because clang is better at this than i am
-        call init_paging
-
-        jmp $
-
-        ; then tell the cpu where the table is
-        ; mov eax, [tables.p4]
-        ; mov cr3, eax
+        ; call setup_paging
 
         ; enable physical address extension bit
         mov eax, cr4
@@ -89,7 +71,6 @@ bits 32
         wrmsr
 
         ; enable paging
-        ; TODO: this causes a 0xE (general protection fault) not sure why
         mov eax, cr0
         or eax, 1 << 31
         mov cr0, eax
@@ -99,12 +80,34 @@ bits 32
 
     ; cpuid isnt avilable
     .cpuid_no:
-        jmp $
+        mov eax, fail_cpuid
+        jmp prot_panic
 
     ; long mode isnt available
     .long_no:
-        jmp $
+        mov eax, fail_long
+        jmp prot_panic
 
+    ; eax = error string
+    prot_panic:
+        cld
+        mov ebx, 0x8B00
+        mov ch, 11110000b
+    .put:
+        mov cl, [eax]
+        or cl, cl
+        jz .end
+        mov word [ebx], cx
+        add ebx, 2
+        inc eax
+        jmp .put
+    .end:
+        cli
+        hlt
+        jmp .end
+
+    fail_cpuid db "cpuid not available", 0
+    fail_long db "long mode not available", 0
 
     descriptor64:
         .null:

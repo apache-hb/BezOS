@@ -19,10 +19,16 @@ SECTIONS {
     .data : {
         *(.rodata)
         *(.data)
+
+        /* we need these to figure out how much memory we need to zero */
+        BSS_FRONT = .;
         *(.bss)
+        BSS_BACK = .;
     }
 
-    KERNEL_END = .;
+    /* align the kernel to the next page */
+    KERNEL_END = ALIGN(4K);
+    KERNEL_SECTORS = KERNEL_END / 512;
 
     /DISCARD/ : {
         *(COMMON)

@@ -2,9 +2,12 @@
 
 extern start32
 
+; get the size of the kernel
+extern KERNEL_SECTORS
+
 section .bootloader
 ; we're only 16 bits right now
-bits 16
+[bits 16]
     start:
         ; there is free memory below us, we can use that for the stack
         mov sp, 0x7C00
@@ -24,11 +27,10 @@ bits 16
         mov ah, 0 ; clear disk status
         int 0x13 ; int 0x13, ah = 0
 
-    .read_disk:
-
         ; read in the rest of the code from disk and put it in the sectors afterwards
         mov bx, 0x7E00 ; read it in after this memory 
-        mov al, 1 ; read 1 sector
+        mov al, KERNEL_SECTORS ; we need this many sectors 
+        ; TODO: at the point we have more than 1440 sectors this will break
         mov ch, 0 ; from the first cylinder
         mov dh, 0 ; and the first head
         mov cl, 2 ; the second sector (we are in the first sector already)
@@ -62,18 +64,29 @@ bits 16
 
     .a20_on: ; the a20 works
         
-        ; time to do memory mapping
-        mov eax, 0xE820 ; function code
+        ; lets do E820 memory mapping
+
         mov ebx, 0 ; continuation 
-        mov edi, memory_map ; memory map pointer
-        mov ecx, (memory_map.end - memory_map) ; memory map size
+
+        mov edi, [memory_base] ; memory map pointer
+        jmp .begin_mapping
+
+    .next_map:
+        add edi, ecx
+    .begin_mapping:
+
+        ; these two registers are trashed by the call
+        mov eax, 0xE820 ; function code
         mov edx, 0x534D4150 ; signature (SMAP)
- 
-        xchg bx, bx
+        mov ecx, 24 ; memory map size
 
-        int 0x15 ; interrupt
+        int 0x15 ; memory interrupt
 
-        xchg bx, bx
+        cmp ebx, 0 ; is there another map segment?
+        jne .next_map
+
+        ; set the memory map pointer to the end of mapped memory
+        mov [memory_base], edi
 
         cli ; we wont be needing interrupts for now
 
@@ -105,13 +118,13 @@ bits 16
     .put:
         lodsb ; put next character in al
         or al, al ; is character null
-        jz end ; if it is then halt
+        jz .end ; if it is then halt
         int 0x10 ; write char intterupt
         jmp .put ; write again
-    end:
+    .end:
         cli
         hlt
-        jmp end
+        jmp .end
 
     fail_a20 db "a20 line failed", 0
     no_a20 db "a20 line not supported", 0
@@ -125,25 +138,22 @@ bits 16
             dw 0xFFFF
             dw 0
             db 0
-            db 0x9A
+            db 10011010b
             db 11001111b
             db 0
         .data:
             dw 0xFFFF
             dw 0
             db 0
-            db 0x92
+            db 10010010b
             db 11001111b
             db 0
         .end:
 
-section .bootloader
-    memory_map:
-        .addr: dq 0
-        .size: dq 0
-        .type: dd 0
-        .attrib: dd 0
-        .end:
+    ; 0x500 - 0x7BFF is used for the stack so lets not touch that area
+    ; 0x7E00 - 0x7FFF on the other hand is usable so lets use that
+    global memory_base ; this is going to be used in other places as well so make it global
+    memory_base: dd 0x7E00
 
     ; pad the rest of the file with 0x0 up to 510
     times 510-($-$$) db 0
