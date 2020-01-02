@@ -1,6 +1,6 @@
 #pragma once
 
-#define SIZED_TYPE(name, type, size) using name = type; static_assert(sizeof(name) == size);
+#define SIZED_TYPE(NAME, TYPE, SIZE) using NAME = TYPE; static_assert(sizeof(NAME) == SIZE);
 
 namespace bezos
 {

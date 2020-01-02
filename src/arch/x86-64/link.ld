@@ -1,38 +1,28 @@
 OUTPUT_FORMAT(binary)
 
-KERNEL_VMA = 0x7C00;
-
 SECTIONS {
-    . = KERNEL_VMA;
-    .bootloader : { 
-        *(.bootloader)
+    . = 0x7C00;
+    .boot : {
+        *(.boot)
     }
-    
-    .protected : { 
-        *(.protected) 
+    .protected : {
+        *(.protected)
     }
-    
-    .text : { 
-        *(.text) 
+    .text : {
+        *(.text)
     }
-
     .data : {
-        *(.rodata)
         *(.data)
-
-        /* we need these to figure out how much memory we need to zero */
-        BSS_FRONT = .;
+        *(.rodata)
         *(.bss)
-        BSS_BACK = .;
     }
 
-    /* align the kernel to the next page */
     KERNEL_END = ALIGN(4K);
     KERNEL_SECTORS = KERNEL_END / 512;
 
     /DISCARD/ : {
         *(COMMON)
         *(.comment)
-        *(.eh_frame)
+        
     }
 }

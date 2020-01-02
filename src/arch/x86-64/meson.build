@@ -1,5 +1,7 @@
-foreach src : ['real', 'prot']
-    sources += assemble.process(meson.current_source_dir()/src+'.asm')
+linker = meson.current_source_dir()/'link.ld'
+
+foreach asm : [ 'boot', 'prot' ]
+    sources += assemble.process(meson.current_source_dir()/asm+'.asm')
 endforeach
 
-linker = meson.current_source_dir()/'link.ld'
+sources32 += meson.current_source_dir()/'paging.cpp'
