@@ -27,13 +27,21 @@ subdir('src/arch'/meson.get_cross_property('arch'))
 
 kernel32 = static_library('32', sources32,
     include_directories : incs,
-    cpp_args : args + [ '-m32' ],
-    link_args : links + [ '-Wl,--oformat=elf64-x86-64' ]
+    cpp_args : args + [ '-m32' ]
 )
+
+objcopy = find_program('objcopy')
+
+copy = custom_target('lib32as64',
+    input : kernel32,
+    output : '32as64.o',
+    command : [ objcopy, '-O', 'elf64-x86-64', '@INPUT@', '@OUTPUT@' ]
+)
+
+sources += copy
 
 kernel = executable('bezos.bin', sources,
     include_directories : incs,
     cpp_args : args,
-    link_args : links + [ '-Wl,-T' + linker ],
-    link_with : kernel32
+    link_args : links + [ '-Wl,-T' + linker ]
 )
