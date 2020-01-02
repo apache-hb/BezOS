@@ -13,4 +13,6 @@ namespace bezos
     SIZED_TYPE(i16, signed short, 2);
     SIZED_TYPE(i32, signed int, 4);
     SIZED_TYPE(i64, signed long long, 8);
+
+    using byte = u8;
 }

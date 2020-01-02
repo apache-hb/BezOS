@@ -17,12 +17,11 @@ SECTIONS {
         *(.bss)
     }
 
-    KERNEL_END = ALIGN(4K);
+    KERNEL_END = ALIGN(0x1000);
     KERNEL_SECTORS = KERNEL_END / 512;
 
     /DISCARD/ : {
         *(COMMON)
         *(.comment)
-        
     }
 }

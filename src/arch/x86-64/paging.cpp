@@ -1,8 +1,181 @@
-#include "common/types.h"
+#include "common/state.h"
 
 using namespace bezos;
-
-extern "C" void thing(void)
+/* Hardware text mode color constants. */
+enum vga_color {
+	VGA_COLOR_BLACK = 0,
+	VGA_COLOR_BLUE = 1,
+	VGA_COLOR_GREEN = 2,
+	VGA_COLOR_CYAN = 3,
+	VGA_COLOR_RED = 4,
+	VGA_COLOR_MAGENTA = 5,
+	VGA_COLOR_BROWN = 6,
+	VGA_COLOR_LIGHT_GREY = 7,
+	VGA_COLOR_DARK_GREY = 8,
+	VGA_COLOR_LIGHT_BLUE = 9,
+	VGA_COLOR_LIGHT_GREEN = 10,
+	VGA_COLOR_LIGHT_CYAN = 11,
+	VGA_COLOR_LIGHT_RED = 12,
+	VGA_COLOR_LIGHT_MAGENTA = 13,
+	VGA_COLOR_LIGHT_BROWN = 14,
+	VGA_COLOR_WHITE = 15,
+};
+ 
+static inline u8 vga_entry_color(enum vga_color fg, enum vga_color bg) 
 {
+	return fg | bg << 4;
+}
+ 
+static inline u16 vga_entry(unsigned char uc, u8 color) 
+{
+	return (u16) uc | (u16) color << 8;
+}
+ 
+u32 strlen(const char* str) 
+{
+	u32 len = 0;
+	while (str[len])
+		len++;
+	return len;
+}
+ 
+static const u32 VGA_WIDTH = 80;
+static const u32 VGA_HEIGHT = 25;
+ 
+u32 terminal_row;
+u32 terminal_column;
+u8 terminal_color;
+u16* terminal_buffer;
+ 
+void terminal_initialize(void) 
+{
+	terminal_row = 0;
+	terminal_column = 0;
+	terminal_color = vga_entry_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+	terminal_buffer = (u16*) 0xB8000;
+}
+ 
+void terminal_setcolor(u8 color) 
+{
+	terminal_color = color;
+}
+ 
+void terminal_putentryat(char c, u8 color, u32 x, u32 y) 
+{
+	const u32 index = y * VGA_WIDTH + x;
+	terminal_buffer[index] = vga_entry(c, color);
+}
+ 
+void terminal_putchar(char c) 
+{
+    if(c == '\n')
+    {
+        terminal_row++;
+        terminal_column = 0;
+        if(terminal_row == VGA_HEIGHT)
+            terminal_row = 0;
+        return;
+    }
+	terminal_putentryat(c, terminal_color, terminal_column, terminal_row);
+	if (++terminal_column == VGA_WIDTH) {
+		terminal_column = 0;
+		if (++terminal_row == VGA_HEIGHT)
+			terminal_row = 0;
+	}
+}
+ 
+void terminal_write(const char* data, u32 size) 
+{
+	for (u32 i = 0; i < size; i++)
+		terminal_putchar(data[i]);
+}
+ 
+void terminal_writestring(const char* data) 
+{
+	terminal_write(data, strlen(data));
+}
+
+
+extern "C" byte* LOW_MEMORY;
+
+struct e820_entry
+{
+    u64 addr;
+    u64 len;
+    u32 type;
+    u32 attrib;
+};
+
+void print(const char* msg)
+{
+    while(*msg)
+    {
+        terminal_putchar(*msg);
+        msg++;
+    }
+}
+
+void print(u32 v, u8 base)
+{
+    print("0x");
+    if(v == 0)
+    {
+        print("0");
+        return;
+    }
+    for(; v; v /= base)
+        terminal_putchar("0123456789ABCDEF"[v % base]);
+}
+
+extern "C" void setup_paging(void)
+{
+    terminal_initialize();
+
+    print("here\n");
+
+    u32 eax, ebx, ecx, edx;
+
+    asm("cpuid" : "=a"(eax), "=b"(ebx), "=c"(ecx), "=d"(edx) : "a"(0x80000007), "c"(0));
+
+    print("cpuid\n");
+
+    // check if we have pml5 support
+    if(ecx | (1 << 16))
+    {
+        MEMORY_LEVEL = 5;
+    }
+    else
+    {
+        MEMORY_LEVEL = 4;
+    }
+    
+    u32 count = 0;
+    byte* offset = LOW_MEMORY;
+    while((u32)offset > KERNEL_END)
+    {
+        print((u32)offset, 16);
+        print(" | ");
+        print(KERNEL_END, 16);
+        print("\n");
+
+        e820_entry entry;
+        auto size = *(u32*)(offset - sizeof(u32));
+        if(size == 24)
+        {
+            entry = *(e820_entry*)(offset - size);
+        }
+        else
+        {
+            entry = *(e820_entry*)(offset - size);
+            entry.attrib = 0;
+        }
+        offset -= (size + 4);
+        count++;
+    }
+
+    print("escape");
+
+    // read in tables
+
     while(true);
 }

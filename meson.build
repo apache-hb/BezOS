@@ -27,7 +27,7 @@ subdir('src/arch'/meson.get_cross_property('arch'))
 
 kernel32 = static_library('32', sources32,
     include_directories : incs,
-    cpp_args : args + [ '-m32' ]
+    cpp_args : args + [ '-m32', '-fno-pic' ]
 )
 
 objcopy = find_program('objcopy')
@@ -43,5 +43,6 @@ sources += copy
 kernel = executable('bezos.bin', sources,
     include_directories : incs,
     cpp_args : args,
-    link_args : links + [ '-Wl,-T' + linker ]
+    link_args : links + [ '-Wl,-T' + linker ],
+    link_depends : linker
 )

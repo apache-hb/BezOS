@@ -10,6 +10,8 @@ extern start32
 section .boot
 bits 16
     start:
+        mov ax, 0
+        int 0x10
         ; we need to load in the next sectors after the kernel
         ; we do this by passing alot of data into registers
         ; we set
@@ -23,7 +25,7 @@ bits 16
         ; then once we setup all the registers we 
         ; call the disk interrupt to execute our disk query
 
-        mov bx, [low_memory] ; we need to load them into the sectors after the boot sector
+        mov bx, [LOW_MEMORY] ; we need to load them into the sectors after the boot sector
         mov al, KERNEL_SECTORS ; we need all the sectors
         ; TODO: account for KERNEL_SECTORS > 1440
         mov ch, 0 ; take them from the first cylinder
@@ -33,7 +35,7 @@ bits 16
         int 0x13 ; then we do the disk interrupt to perform the action
 
         ; we have used this so mark it as used
-        add dword [low_memory], KERNEL_END
+        add dword [LOW_MEMORY], KERNEL_END
 
         ; next we need to enable the a20 line
         ; we do this by checking
@@ -97,9 +99,11 @@ bits 16
         mov ebx, 0
 
         ; output location
-        mov edi, [low_memory]
+        mov edi, [LOW_MEMORY]
 
     .next_map:
+        add edi, ecx
+        mov dword [edi], ecx
         add edi, ecx
     .begin_map:
         
@@ -115,7 +119,7 @@ bits 16
 
     .end_map:
 
-        mov [low_memory], edi
+        mov [LOW_MEMORY], edi
 
         cli ; clear interrupts
 
@@ -127,16 +131,40 @@ bits 16
         ; load the global descriptor table
         lgdt [descriptor]
         
+        ; push the data segment offset to the stack so we 
+        ; can use it in protected mode for segmentation
         push (descriptor.data - descriptor)
         jmp (descriptor.code - descriptor):start32
 
-        ; this means that some step of the enabling code failed
+        ; this means that some step of the a20 enabling code failed
     .a20_failed:
+        mov si, fail_a20
+        jmp real_panic
 
         ; if we are here then the a20 line doesnt exist
         ; welcome to the 1970s
     .a20_no:
-    
+        mov si, no_a20
+        jmp real_panic
+
+    ; real mode kernel panic, prints message then hangs
+    ; set si = message
+    real_panic:
+        cld
+        mov ah, 0x0E
+    .put:
+        lodsb ; load next character into al
+        or al, al ; if the charater is null
+        jz .end ; then hang at end
+        int 0x10 ; otherwise print character
+        jmp .put ; then loop again
+    .end:
+        cli
+        hlt
+        jmp .end
+
+    fail_a20: db "a20 line failed", 0
+    no_a20: db "a20 line missing", 0
 
     descriptor:
         .null:
@@ -161,8 +189,8 @@ bits 16
 
     
     ; pointer to the 480KB above the kernel
-    global low_memory
-    low_memory: dd 0x7E00
+    global LOW_MEMORY
+    LOW_MEMORY: dd 0x7E00
 
     ; byte 511, 512 of the first sector need to have this magic
     ; to mark this as a bootable sector
