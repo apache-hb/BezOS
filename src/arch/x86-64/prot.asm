@@ -1,5 +1,7 @@
 extern setup_paging
 
+extern prot_print
+
 extern kmain
 
 extern TOP_PAGE
@@ -81,21 +83,49 @@ bits 32
         ; now we setup paging
         call setup_paging
     
+        jmp $
+
     ; if we are here we dont have cpuid
     .no_cpuid:
+        mov eax, cpuid_msg
+        jmp prot_panic
 
     ; if we are here we dont have extended cpuid and therefore no long mode
     .no_extended_cpuid:
+        mov eax, ext_cpuid_msg
+        jmp prot_panic
 
     ; if we got here we dont have long mode
     .no_long:
+        mov eax, long_msg
+        jmp prot_panic
 
     ; if we get here we have no fpu unit (but protected mode)
     ; this is either one funky cpu or its buggy
     .no_fpu:
+        mov eax, fpu_msg
+        jmp prot_panic
 
     ; if we get here we dont support sse
     .no_sse:
+        mov eax, sse_msg
+        jmp prot_panic
+
+    ; panic by printing an error then hanging
+    ; eax = pointer to error message
+    prot_panic:
+        push eax
+        call prot_print
+    .end:
+        cli
+        hlt
+        jmp .end
+
+    sse_msg: db "this cpu doesnt support sse", 0
+    fpu_msg: db "this cpu doesnt have an fpu unit", 0
+    long_msg: db "this cpu doesnt support long mode", 0
+    cpuid_msg: db "this cpu doesnt support cpuid", 0
+    ext_cpuid_msg: db "this cpu doesnt support extended cpuid", 0
 
     ; data to test the fpu with
     fpu_test: dw 0xFFFF

@@ -54,6 +54,8 @@ void terminal_initialize(void)
 	terminal_column = 0;
 	terminal_color = vga_entry_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
 	terminal_buffer = (u16*) 0xB8000;
+    for(u32 i = 0; i < VGA_WIDTH * VGA_HEIGHT; i++)
+        terminal_buffer[i] = 0;
 }
  
 void terminal_setcolor(u8 color) 
@@ -96,7 +98,6 @@ void terminal_writestring(const char* data)
 	terminal_write(data, strlen(data));
 }
 
-
 extern "C" byte* LOW_MEMORY;
 
 struct e820_entry
@@ -114,6 +115,11 @@ void print(const char* msg)
         terminal_putchar(*msg);
         msg++;
     }
+}
+
+extern "C" void prot_print(const char* msg)
+{
+    print(msg);
 }
 
 char *convert(unsigned int num, int base) {
@@ -148,58 +154,49 @@ extern "C" void setup_paging(void)
 
     asm("cpuid" : "=a"(eax), "=b"(ebx), "=c"(ecx), "=d"(edx) : "a"(0x80000007), "c"(0));
 
-    print("cpuid\n");
-
     // check if we have pml5 support
-    /* if(ecx | (1 << 16))
+    if(ecx | (1 << 16))
     {
+        print("pml5 supported\n");
         MEMORY_LEVEL = 5;
     }
     else
     {
+        print("pml4 supported\n");
         MEMORY_LEVEL = 4;
-    } */
+    }
     
-    print("kernel end = ");
-    print((u32)&KERNEL_END, 16);
-    print("\nlow memory = ");
-    print(*(u32*)LOW_MEMORY, 16);
-
     u32 count = 0;
     byte* offset = LOW_MEMORY;
-    while(true)
+    u32 size = 0;
+    u64 usable_size = 0;
+    for(;;)
     {
-        print((u32)offset, 16);
-        print(" | ");
-        print(KERNEL_END, 16);
-        print("\n");
-
         e820_entry entry;
-        auto size = *(u32*)(offset - sizeof(u32));
-        if(size == 24)
-        {
-            entry = *(e820_entry*)(offset - size);
-        }
-        else
-        {
-            entry = *(e820_entry*)(offset - size);
+        size = *(u32*)(offset - sizeof(u32));
+        
+        // if the size is 0 then we're out of memory maps
+        if(!size)
+            break;
+
+        entry = *(e820_entry*)(offset - 4 - size);
+
+        if(size == 20)
             entry.attrib = 0;
-        }
+
         offset -= (size + 4);
         count++;
 
-        print("size = "); print(size, 10); print("\n");
+        usable_size += entry.len;
 
-        for(int i = 0; i < 999999999; i++) {
-            i += count;
-            i -= count;
-            i += entry.attrib;
-        }
+        print("\nsize = "); print(size, 10); 
+        print("\nentry(addr="); print(entry.addr, 16); 
+                print(",len="); print(entry.len, 16); 
+                print(",type="); print(entry.type, 10);
+                print(",attrib="); print(entry.attrib, 10);
+                print(")\n");
     }
 
-    print("escape");
-
-    // read in tables
-
-    while(true);
+    print(count, 10); print(" total sections\n");
+    print(usable_size / 1024 / 1024, 10); print(" usable MB of memory\n");
 }

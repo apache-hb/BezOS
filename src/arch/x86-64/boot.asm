@@ -10,8 +10,11 @@ extern start32
 section .boot
 bits 16
     start:
-        mov ax, 0
-        int 0x10
+        ; clear the screen
+        ; TODO: stop this from fucking up the vga resolution
+        ; mov ax, 0
+        ; int 0x10
+        
         ; we need to load in the next sectors after the kernel
         ; we do this by passing alot of data into registers
         ; we set
@@ -95,27 +98,50 @@ bits 16
         ; we can always read more complicated data in later but for now we dont need it
         ; and if its good enough for linux its probably good enough for us
 
+        ; we want to layout the tables like so
+        ;
+        ; [entry1(20/24) | u32 size]
+        ; [entry2(20/24) | u32 size]
+        ; [entryN(20/24) | u32 size]
+        ;
+        ; this means we can read in 4 bytes from the top of our "stack" of tables
+        ; then using those 4 bytes we know how much to read afterwards
+        ; we store the size for each entry because im not sure if
+        ; the standards define whether sizes can be mixed or not
+        ; so better safe than sorry
+
         ; continuation byte
         mov ebx, 0
 
         ; output location
         mov edi, [LOW_MEMORY]
+
+        ; add a 0 to signify that this is the end of the stack of memory maps
+        mov dword [edi], 0
+        add edi, 4
+
         jmp .begin_map
 
     .next_map:
         add edi, ecx
         mov dword [edi], ecx
-        add edi, ecx
+        add edi, 4
     .begin_map:
         
         mov eax, 0xE820 ; E820 function code
         mov edx, 0x534D4150 ; signature (SMAP)
-        mov edi, 24 ; desired output size (it may return 20 bytes if it doesnt support acpi3 attributes)
+        mov ecx, 24 ; desired output size (it may return 20 bytes if it doesnt support acpi3 attributes)
 
         int 0x15 ; memory map interrupt
 
+        ; make sure ecx is either 20 or 24 (these are the only valid sizes)
         cmp ecx, 20
+        je .correct_size
+
+        cmp ecx, 24
         jne .e820_size
+
+    .correct_size:
 
         cmp eax, 0x534D4150
         jne .e820_fail

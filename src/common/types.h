@@ -15,4 +15,7 @@ namespace bezos
     SIZED_TYPE(i64, signed long long, 8);
 
     using byte = u8;
+    using word = u16;
+    using dword = u32;
+    using qword = u64;
 }
