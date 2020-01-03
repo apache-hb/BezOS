@@ -100,6 +100,7 @@ bits 16
 
         ; output location
         mov edi, [LOW_MEMORY]
+        jmp .begin_map
 
     .next_map:
         add edi, ecx
@@ -112,6 +113,12 @@ bits 16
         mov edi, 24 ; desired output size (it may return 20 bytes if it doesnt support acpi3 attributes)
 
         int 0x15 ; memory map interrupt
+
+        cmp ecx, 20
+        jne .e820_size
+
+        cmp eax, 0x534D4150
+        jne .e820_fail
 
         ; continuation is put into ebx, if its not 0 there are more sections to read
         cmp ebx, 0
@@ -147,6 +154,14 @@ bits 16
         mov si, no_a20
         jmp real_panic
 
+    .e820_fail:
+        mov si, fail_e820
+        jmp real_panic
+
+    .e820_size:
+        mov si, size_e820
+        jmp real_panic
+
     ; real mode kernel panic, prints message then hangs
     ; set si = message
     real_panic:
@@ -165,6 +180,8 @@ bits 16
 
     fail_a20: db "a20 line failed", 0
     no_a20: db "a20 line missing", 0
+    fail_e820: db "e820 memory mapping failed", 0
+    size_e820: db "e820 structure was the wrong size", 0
 
     descriptor:
         .null:

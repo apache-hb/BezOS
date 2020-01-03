@@ -1,6 +1,7 @@
 #include "common/state.h"
 
 using namespace bezos;
+
 /* Hardware text mode color constants. */
 enum vga_color {
 	VGA_COLOR_BLACK = 0,
@@ -115,16 +116,26 @@ void print(const char* msg)
     }
 }
 
+char *convert(unsigned int num, int base) {
+    static char buff[33];  
+
+    char *ptr;    
+    ptr = &buff[sizeof(buff) - 1];    
+    *ptr = '\0';
+
+    do {
+        *--ptr="0123456789abcdef"[num%base];
+        num /= base;
+    } while(num != 0);
+
+    return ptr;
+}
+
 void print(u32 v, u8 base)
 {
-    print("0x");
-    if(v == 0)
-    {
-        print("0");
-        return;
-    }
-    for(; v; v /= base)
-        terminal_putchar("0123456789ABCDEF"[v % base]);
+    if(base == 16)
+        print("0x");
+    print(convert(v, base));
 }
 
 extern "C" void setup_paging(void)
@@ -140,18 +151,23 @@ extern "C" void setup_paging(void)
     print("cpuid\n");
 
     // check if we have pml5 support
-    if(ecx | (1 << 16))
+    /* if(ecx | (1 << 16))
     {
         MEMORY_LEVEL = 5;
     }
     else
     {
         MEMORY_LEVEL = 4;
-    }
+    } */
     
+    print("kernel end = ");
+    print((u32)&KERNEL_END, 16);
+    print("\nlow memory = ");
+    print(*(u32*)LOW_MEMORY, 16);
+
     u32 count = 0;
     byte* offset = LOW_MEMORY;
-    while((u32)offset > KERNEL_END)
+    while(true)
     {
         print((u32)offset, 16);
         print(" | ");
@@ -171,6 +187,14 @@ extern "C" void setup_paging(void)
         }
         offset -= (size + 4);
         count++;
+
+        print("size = "); print(size, 10); print("\n");
+
+        for(int i = 0; i < 999999999; i++) {
+            i += count;
+            i -= count;
+            i += entry.attrib;
+        }
     }
 
     print("escape");

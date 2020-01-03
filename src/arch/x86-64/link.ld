@@ -17,8 +17,8 @@ SECTIONS {
         *(.bss)
     }
 
-    KERNEL_END = ALIGN(0x1000);
-    KERNEL_SECTORS = KERNEL_END / 512;
+    KERNEL_END = ALIGN(512) - 0x7C00;
+    KERNEL_SECTORS = (KERNEL_END / 512) - 1;
 
     /DISCARD/ : {
         *(COMMON)
