@@ -152,10 +152,10 @@ extern "C" void setup_paging(void)
 
     u32 eax, ebx, ecx, edx;
 
-    asm("cpuid" : "=a"(eax), "=b"(ebx), "=c"(ecx), "=d"(edx) : "a"(0x80000007), "c"(0));
+    asm("cpuid" : "=a"(eax), "=b"(ebx), "=c"(ecx), "=d"(edx) : "a"(0x07), "c"(0));
 
     // check if we have pml5 support
-    if(ecx | (1 << 16))
+    if(ecx & (1 << 16))
     {
         print("pml5 supported\n");
         MEMORY_LEVEL = 5;
