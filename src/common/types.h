@@ -18,4 +18,10 @@ namespace bezos
     using word = u16;
     using dword = u32;
     using qword = u64;
+
+    using PT = u64*;
+    using PML2 = PT*;
+    using PML3 = PML2*;
+    using PML4 = PML3*;
+    using PML5 = PML4*;
 }

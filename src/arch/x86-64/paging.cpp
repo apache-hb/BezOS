@@ -144,7 +144,7 @@ void print(u32 v, u8 base)
     print(convert(v, base));
 }
 
-extern "C" void setup_paging(void)
+extern "C" void* setup_paging(void)
 {
     terminal_initialize();
 
@@ -199,4 +199,37 @@ extern "C" void setup_paging(void)
 
     print(count, 10); print(" total sections\n");
     print(usable_size / 1024 / 1024, 10); print(" usable MB of memory\n");
+
+    // align to next page
+    LOW_MEMORY = (byte*)(((u32)LOW_MEMORY + 0x1000 - 1) & -0x1000);
+
+    // we put the first page at the low memory boundary
+    TOP_PAGE = (PML4)LOW_MEMORY;
+
+    for(int i = 0; i < 512; i++)
+        TOP_PAGE[i] = 0;
+
+    PML3 pml3 = (PML3)(TOP_PAGE += 0x1000);
+    PML2 pml2 = (PML2)(TOP_PAGE += 0x1000);
+    PT pt = (PT)(TOP_PAGE += 0x1000);
+    
+    for(int i = 0; i < 512; i++)
+        pml3[i] = 0;
+
+    for(int i = 0; i < 512; i++)
+        pml2[i] = 0;
+
+    for(int i = 0; i < 512; i++)
+        pt[i] = 0;
+
+    pt[0] = (u64)TOP_PAGE;
+    pt[1] = (u64)pml3;
+    pt[2] = (u64)pml2;
+    pt[3] = (u64)pt;
+
+    pml2[0] = pt;
+    pml3[0] = pml2;
+    TOP_PAGE[0] = pml3;
+    
+    return (void*)TOP_PAGE;
 }

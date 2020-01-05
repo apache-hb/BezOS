@@ -5,6 +5,7 @@ extern prot_print
 extern kmain
 
 extern TOP_PAGE
+extern MEMORY_LEVEL
 
 section .protected
 bits 32
@@ -81,8 +82,35 @@ bits 32
         mov cr4, eax
 
         ; now we setup paging
+        ; eax = pointer to top level page
         call setup_paging
-    
+
+        ; if pml5 is supported then enable it
+        mov edx, byte [MEMORY_LEVEL]
+        cmp edx, 5
+        jne .pml4_only
+
+        mov edx, cr4
+        or edx, 1 << 12
+        mov cr4, edx
+
+    .pml4_only:
+
+        ; enable the long mode bit
+        mov ebx, 0xC0000080
+        rdmsr
+        or ebx, 1 << 8
+        wrmsr
+
+        ; cr3 stores the top level page table
+        mov cr3, eax
+
+        ; enable paging
+        mov ebx, cr0
+        or ebx, 0x80000000
+        mov cr0, ebx
+
+        lgdt [descriptor64.ptr]
         jmp $
 
     ; if we are here we dont have cpuid
@@ -129,3 +157,29 @@ bits 32
 
     ; data to test the fpu with
     fpu_test: dw 0xFFFF
+
+    descriptor64:
+        .null:
+            dw 0xFFFF
+            dw 0
+            db 0
+            db 0
+            db 1
+            db 0
+        .code:
+            dw 0
+            dw 0
+            db 0
+            db 10011010b
+            db 10101111b
+            db 0
+        .data:
+            dw 0
+            dw 0
+            db 0
+            db 10010010b
+            db 0
+            db 0
+        .ptr:
+            dw .ptr - descriptor64 - 1
+            dq descriptor64

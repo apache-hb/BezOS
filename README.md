@@ -6,14 +6,13 @@ I thought it would be funny
 2. execute (change cross file for targeting different platforms)
 ```sh
 meson build --cross-file x86-64-cross.ini
-cd build
-ninja
+ninja -C build
 ```
 3. kernel will be sitting in the build directory called `bezos.bin`
 
 ## Running
-1. install `qemu-system-x86_64`
-2. run with `qemu-system-x86_64 bezos.bin`
+1. install `qemu`
+2. run with `qemu-system-x86_64 -drive file=bezos.bin,format=raw`
 
 ## Mentions
 1. Marley on the osdev discord for being incredibly clever and knowledgable 
