@@ -188,6 +188,13 @@ struct gdt_ptr
 }
 __attribute__((packed));
 
+u64 last_page;
+
+extern "C" void get_last_page()
+{
+    return last_page;
+}
+
 extern "C" void* setup_paging(void)
 {
     terminal_initialize();
@@ -271,18 +278,16 @@ extern "C" void* setup_paging(void)
     pt[page_index++] = (u64)p2;
     pt[page_index++] = (u64)pt;
     pt[page_index++] = (u64)(LOW_MEMORY += 0x1000);
-    //pt[page_index] = 
+    last_page = (u64)LOW_MEMORY;
 
     return top_page;
 }
 
-__attribute__((aligned(8))) gdt_entry gdt64[] = {
-    {}
-};
-
 // at this point paging is enabled
 // lets be careful here
-extern "C" void setup_gdt(void)
+extern "C" void setup_gdt(void* page_table)
 {
+    
+    asm volatile("lgdt %0" : "=r"(page_table));
     //return 10;
 }

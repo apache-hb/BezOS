@@ -85,6 +85,9 @@ bits 32
         ; eax = pointer to top level page
         call setup_paging
 
+        ; save eax for the setup_gdt function
+        push eax
+
         ; if pml5 is supported then enable it
         mov bl, byte [MEMORY_LEVEL]
         cmp bl, 5
