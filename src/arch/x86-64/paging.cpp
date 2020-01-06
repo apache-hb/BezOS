@@ -144,28 +144,58 @@ void print(u32 v, u8 base)
     print(convert(v, base));
 }
 
+template<typename T>
+inline T page_align(T val) 
+{ 
+    return (T)((reinterpret_cast<u32>(val) + 0x1000 - 1) & -0x1000); 
+}
+
+template<typename T>
+void wipe_page(T* page)
+{
+    for(int i = 0; i < 512; i++)
+        page[i] = (T)0;
+}
+
+struct segment
+{
+    segment() {}
+
+    u32 limit;
+};
+
+struct gdt_entry
+{
+    u32 limit_low:16;
+    u32 base_low:16;
+    u8 type:4;
+    u8 cls:1;
+    u8 dpl:2;
+    u8 present:1;
+    u32 limit_high:4;
+    u8 avail:1;
+    u8 long_mode:1;
+    u8 op_size:1;
+    u8 granularity:1;
+    u32 base_high:8;
+}
+__attribute__((packed));
+
+struct gdt_ptr
+{
+    u16 size;
+    u32 offset;
+}
+__attribute__((packed));
+
 extern "C" void* setup_paging(void)
 {
     terminal_initialize();
-
-    print("here\n");
 
     u32 eax, ebx, ecx, edx;
 
     asm("cpuid" : "=a"(eax), "=b"(ebx), "=c"(ecx), "=d"(edx) : "a"(0x07), "c"(0));
 
-    // check if we have pml5 support
-    if(ecx & (1 << 16))
-    {
-        print("pml5 supported\n");
-        MEMORY_LEVEL = 5;
-    }
-    else
-    {
-        print("pml4 supported\n");
-        MEMORY_LEVEL = 4;
-    }
-    
     u32 count = 0;
     byte* offset = LOW_MEMORY;
     u32 size = 0;
@@ -200,36 +230,59 @@ extern "C" void* setup_paging(void)
     print(count, 10); print(" total sections\n");
     print(usable_size / 1024 / 1024, 10); print(" usable MB of memory\n");
 
-    // align to next page
-    LOW_MEMORY = (byte*)(((u32)LOW_MEMORY + 0x1000 - 1) & -0x1000);
+    // align the low memory to the page
+    LOW_MEMORY = page_align(LOW_MEMORY);
 
-    // we put the first page at the low memory boundary
-    TOP_PAGE = (PML4)LOW_MEMORY;
+    // check if we have pml5 support
+    if(ecx & (1 << 16))
+    {
+        print("pml5 supported\n");
+        MEMORY_LEVEL = 5;
+        page5 = (PML5)(LOW_MEMORY);
+        LOW_MEMORY += 0x1000;
+    }
+    else
+    {
+        print("pml4 supported\n");
+        MEMORY_LEVEL = 4;
 
-    for(int i = 0; i < 512; i++)
-        TOP_PAGE[i] = 0;
+        // find where to put the tables
+        auto p4 = (PML4)(LOW_MEMORY += 0x1000);
+        page4 = p4;
+        wipe_page(p4);
+    }
 
-    PML3 pml3 = (PML3)(TOP_PAGE += 0x1000);
-    PML2 pml2 = (PML2)(TOP_PAGE += 0x1000);
-    PT pt = (PT)(TOP_PAGE += 0x1000);
+    auto p3 = (PML3)(LOW_MEMORY += 0x1000);
+    auto p2 = (PML2)(LOW_MEMORY += 0x1000);
+    auto pt = (PT)(LOW_MEMORY += 0x1000);
     
-    for(int i = 0; i < 512; i++)
-        pml3[i] = 0;
+    // then clear memory because undefined behaviour is spooky
+    wipe_page(p3);
+    wipe_page(p2);
+    wipe_page(pt);
 
-    for(int i = 0; i < 512; i++)
-        pml2[i] = 0;
+    int page_index = 0;
 
-    for(int i = 0; i < 512; i++)
-        pt[i] = 0;
+    if(MEMORY_LEVEL == 5)
+        pt[page_index++] = (u64)page5;
 
-    pt[0] = (u64)TOP_PAGE;
-    pt[1] = (u64)pml3;
-    pt[2] = (u64)pml2;
-    pt[3] = (u64)pt;
+    pt[page_index++] = (u64)page4;
+    pt[page_index++] = (u64)p3;
+    pt[page_index++] = (u64)p2;
+    pt[page_index++] = (u64)pt;
+    pt[page_index++] = (u64)(LOW_MEMORY += 0x1000);
+    //pt[page_index] = 
 
-    pml2[0] = pt;
-    pml3[0] = pml2;
-    TOP_PAGE[0] = pml3;
-    
-    return (void*)TOP_PAGE;
+    return top_page;
+}
+
+__attribute__((aligned(8))) gdt_entry gdt64[] = {
+    {}
+};
+
+// at this point paging is enabled
+// lets be careful here
+extern "C" void setup_gdt(void)
+{
+    //return 10;
 }

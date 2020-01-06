@@ -1,10 +1,10 @@
 extern setup_paging
+extern setup_gdt
 
 extern prot_print
 
 extern kmain
 
-extern TOP_PAGE
 extern MEMORY_LEVEL
 
 section .protected
@@ -86,10 +86,11 @@ bits 32
         call setup_paging
 
         ; if pml5 is supported then enable it
-        mov edx, byte [MEMORY_LEVEL]
-        cmp edx, 5
+        mov bl, byte [MEMORY_LEVEL]
+        cmp bl, 5
         jne .pml4_only
 
+        ; enable 5 level paging
         mov edx, cr4
         or edx, 1 << 12
         mov cr4, edx
@@ -110,8 +111,9 @@ bits 32
         or ebx, 0x80000000
         mov cr0, ebx
 
-        lgdt [descriptor64.ptr]
-        jmp $
+        call setup_gdt
+
+        jmp 0x10:kmain
 
     ; if we are here we dont have cpuid
     .no_cpuid:
@@ -157,29 +159,3 @@ bits 32
 
     ; data to test the fpu with
     fpu_test: dw 0xFFFF
-
-    descriptor64:
-        .null:
-            dw 0xFFFF
-            dw 0
-            db 0
-            db 0
-            db 1
-            db 0
-        .code:
-            dw 0
-            dw 0
-            db 0
-            db 10011010b
-            db 10101111b
-            db 0
-        .data:
-            dw 0
-            dw 0
-            db 0
-            db 10010010b
-            db 0
-            db 0
-        .ptr:
-            dw .ptr - descriptor64 - 1
-            dq descriptor64

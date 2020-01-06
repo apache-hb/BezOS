@@ -7,7 +7,9 @@ project('bezos', ['c', 'cpp'],
         'warning_level=3',
         'werror=true',
         'debug=false',
-        'optimization=3'
+        'optimization=3',
+        'b_pie=false',
+        'b_staticpic=false'
     ]
 )
 
@@ -24,6 +26,8 @@ assemble = generator(
 )
 
 subdir('src/arch'/meson.get_cross_property('arch'))
+
+subdir('src/kernel')
 
 kernel32 = static_library('32', sources32,
     include_directories : incs,
