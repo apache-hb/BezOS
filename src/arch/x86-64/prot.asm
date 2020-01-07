@@ -111,7 +111,7 @@ bits 32
 
         ; enable paging
         mov ebx, cr0
-        or ebx, 0x80000000
+        or ebx, 1 << 31
         mov cr0, ebx
 
         call setup_gdt

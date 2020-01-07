@@ -2,6 +2,8 @@
 
 using namespace bezos;
 
+// TODO: there might be a better way of doing this than putting __attribute__((section(".protected"))) before everything
+
 /* Hardware text mode color constants. */
 enum vga_color {
 	VGA_COLOR_BLACK = 0,
@@ -21,17 +23,20 @@ enum vga_color {
 	VGA_COLOR_LIGHT_BROWN = 14,
 	VGA_COLOR_WHITE = 15,
 };
- 
+
+__attribute__((section(".protected"))) 
 static inline u8 vga_entry_color(enum vga_color fg, enum vga_color bg) 
 {
 	return fg | bg << 4;
 }
- 
+
+__attribute__((section(".protected"))) 
 static inline u16 vga_entry(unsigned char uc, u8 color) 
 {
 	return (u16) uc | (u16) color << 8;
 }
- 
+
+__attribute__((section(".protected"))) 
 u32 strlen(const char* str) 
 {
 	u32 len = 0;
@@ -42,12 +47,17 @@ u32 strlen(const char* str)
  
 static const u32 VGA_WIDTH = 80;
 static const u32 VGA_HEIGHT = 25;
- 
+
+__attribute__((section(".protected"))) 
 u32 terminal_row;
+__attribute__((section(".protected"))) 
 u32 terminal_column;
+__attribute__((section(".protected"))) 
 u8 terminal_color;
+__attribute__((section(".protected"))) 
 u16* terminal_buffer;
- 
+
+__attribute__((section(".protected"))) 
 void terminal_initialize(void) 
 {
 	terminal_row = 0;
@@ -57,18 +67,21 @@ void terminal_initialize(void)
     for(u32 i = 0; i < VGA_WIDTH * VGA_HEIGHT; i++)
         terminal_buffer[i] = 0;
 }
- 
+
+__attribute__((section(".protected"))) 
 void terminal_setcolor(u8 color) 
 {
 	terminal_color = color;
 }
- 
+
+__attribute__((section(".protected"))) 
 void terminal_putentryat(char c, u8 color, u32 x, u32 y) 
 {
 	const u32 index = y * VGA_WIDTH + x;
 	terminal_buffer[index] = vga_entry(c, color);
 }
- 
+
+__attribute__((section(".protected"))) 
 void terminal_putchar(char c) 
 {
     if(c == '\n')
@@ -86,18 +99,21 @@ void terminal_putchar(char c)
 			terminal_row = 0;
 	}
 }
- 
+
+__attribute__((section(".protected"))) 
 void terminal_write(const char* data, u32 size) 
 {
 	for (u32 i = 0; i < size; i++)
 		terminal_putchar(data[i]);
 }
- 
+
+__attribute__((section(".protected"))) 
 void terminal_writestring(const char* data) 
 {
 	terminal_write(data, strlen(data));
 }
 
+__attribute__((section(".protected"))) 
 extern "C" byte* LOW_MEMORY;
 
 struct e820_entry
@@ -108,6 +124,7 @@ struct e820_entry
     u32 attrib;
 };
 
+__attribute__((section(".protected"))) 
 void print(const char* msg)
 {
     while(*msg)
@@ -117,11 +134,13 @@ void print(const char* msg)
     }
 }
 
+__attribute__((section(".protected"))) 
 extern "C" void prot_print(const char* msg)
 {
     print(msg);
 }
 
+__attribute__((section(".protected"))) 
 char *convert(unsigned int num, int base) {
     static char buff[33];  
 
@@ -137,6 +156,7 @@ char *convert(unsigned int num, int base) {
     return ptr;
 }
 
+__attribute__((section(".protected"))) 
 void print(u32 v, u8 base)
 {
     if(base == 16)
@@ -145,24 +165,19 @@ void print(u32 v, u8 base)
 }
 
 template<typename T>
+__attribute__((section(".protected"))) 
 inline T page_align(T val) 
 { 
     return (T)((reinterpret_cast<u32>(val) + 0x1000 - 1) & -0x1000); 
 }
 
 template<typename T>
+__attribute__((section(".protected"))) 
 void wipe_page(T* page)
 {
     for(int i = 0; i < 512; i++)
         page[i] = (T)0;
 }
-
-struct segment
-{
-    segment() {}
-
-    u32 limit;
-};
 
 struct gdt_entry
 {
@@ -188,13 +203,16 @@ struct gdt_ptr
 }
 __attribute__((packed));
 
+__attribute__((section(".protected"))) 
 u64 last_page;
 
-extern "C" void get_last_page()
+__attribute__((section(".protected"))) 
+extern "C" u64 get_last_page()
 {
     return last_page;
 }
 
+__attribute__((section(".protected"))) 
 extern "C" void* setup_paging(void)
 {
     terminal_initialize();
@@ -283,11 +301,24 @@ extern "C" void* setup_paging(void)
     return top_page;
 }
 
+struct virtual_address
+{
+    u16 unused:(64 - 56);
+    u16 pml5:(55 - 47);
+    u16 pml4:(46 - 39);
+    u16 pml3:(38 - 30);
+    u64 pml2:(29 - 21);
+    u16 table:(20 - 12);
+    u16 offset:(11 - 0);
+} __attribute__((packed));
+
+static_assert(sizeof(virtual_address) == 8);
+
 // at this point paging is enabled
 // lets be careful here
+
+__attribute__((section(".protected"))) 
 extern "C" void setup_gdt(void* page_table)
 {
-    
-    asm volatile("lgdt %0" : "=r"(page_table));
-    //return 10;
+    (void)page_table;
 }
