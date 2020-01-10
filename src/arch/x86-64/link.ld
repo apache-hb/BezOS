@@ -8,11 +8,6 @@ SECTIONS {
     .protected : {
         *(.protected)
     }
-
-    . = ALIGN(512);
-    PROTECTED_END = . - 0x7C00;
-    PROTECTED_SECTORS = (PROTECTED_END / 512) - 1;
-
     .text : {
         *(.text)
     }

@@ -2,8 +2,6 @@
 
 using namespace bezos;
 
-// TODO: there might be a better way of doing this than putting __attribute__((section(".protected"))) before everything
-
 /* Hardware text mode color constants. */
 enum vga_color {
 	VGA_COLOR_BLACK = 0,
@@ -24,19 +22,16 @@ enum vga_color {
 	VGA_COLOR_WHITE = 15,
 };
 
-__attribute__((section(".protected"))) 
 static inline u8 vga_entry_color(enum vga_color fg, enum vga_color bg) 
 {
 	return fg | bg << 4;
 }
 
-__attribute__((section(".protected"))) 
 static inline u16 vga_entry(unsigned char uc, u8 color) 
 {
 	return (u16) uc | (u16) color << 8;
 }
 
-__attribute__((section(".protected"))) 
 u32 strlen(const char* str) 
 {
 	u32 len = 0;
@@ -48,16 +43,11 @@ u32 strlen(const char* str)
 static const u32 VGA_WIDTH = 80;
 static const u32 VGA_HEIGHT = 25;
 
-__attribute__((section(".protected"))) 
 u32 terminal_row;
-__attribute__((section(".protected"))) 
 u32 terminal_column;
-__attribute__((section(".protected"))) 
 u8 terminal_color;
-__attribute__((section(".protected"))) 
 u16* terminal_buffer;
 
-__attribute__((section(".protected"))) 
 void terminal_initialize(void) 
 {
 	terminal_row = 0;
@@ -68,20 +58,17 @@ void terminal_initialize(void)
         terminal_buffer[i] = 0;
 }
 
-__attribute__((section(".protected"))) 
 void terminal_setcolor(u8 color) 
 {
 	terminal_color = color;
 }
 
-__attribute__((section(".protected"))) 
 void terminal_putentryat(char c, u8 color, u32 x, u32 y) 
 {
 	const u32 index = y * VGA_WIDTH + x;
 	terminal_buffer[index] = vga_entry(c, color);
 }
 
-__attribute__((section(".protected"))) 
 void terminal_putchar(char c) 
 {
     if(c == '\n')
@@ -100,20 +87,17 @@ void terminal_putchar(char c)
 	}
 }
 
-__attribute__((section(".protected"))) 
 void terminal_write(const char* data, u32 size) 
 {
 	for (u32 i = 0; i < size; i++)
 		terminal_putchar(data[i]);
 }
 
-__attribute__((section(".protected"))) 
 void terminal_writestring(const char* data) 
 {
 	terminal_write(data, strlen(data));
 }
 
-__attribute__((section(".protected"))) 
 extern "C" byte* LOW_MEMORY;
 
 struct e820_entry
@@ -124,7 +108,6 @@ struct e820_entry
     u32 attrib;
 };
 
-__attribute__((section(".protected"))) 
 void print(const char* msg)
 {
     while(*msg)
@@ -134,13 +117,11 @@ void print(const char* msg)
     }
 }
 
-__attribute__((section(".protected"))) 
 extern "C" void prot_print(const char* msg)
 {
     print(msg);
 }
 
-__attribute__((section(".protected"))) 
 char *convert(unsigned int num, int base) {
     static char buff[33];  
 
@@ -156,7 +137,6 @@ char *convert(unsigned int num, int base) {
     return ptr;
 }
 
-__attribute__((section(".protected"))) 
 void print(u32 v, u8 base)
 {
     if(base == 16)
@@ -165,18 +145,16 @@ void print(u32 v, u8 base)
 }
 
 template<typename T>
-__attribute__((section(".protected"))) 
 inline T page_align(T val) 
 { 
     return (T)((reinterpret_cast<u32>(val) + 0x1000 - 1) & -0x1000); 
 }
 
 template<typename T>
-__attribute__((section(".protected"))) 
 void wipe_page(T* page)
 {
     for(int i = 0; i < 512; i++)
-        page[i] = (T)0;
+        page[i] = (T)2;
 }
 
 struct gdt_entry
@@ -203,16 +181,13 @@ struct gdt_ptr
 }
 __attribute__((packed));
 
-__attribute__((section(".protected"))) 
 u64 last_page;
 
-__attribute__((section(".protected"))) 
 extern "C" u64 get_last_page()
 {
     return last_page;
 }
 
-__attribute__((section(".protected"))) 
 extern "C" void* setup_paging(void)
 {
     terminal_initialize();
@@ -255,50 +230,32 @@ extern "C" void* setup_paging(void)
     print(count, 10); print(" total sections\n");
     print(usable_size / 1024 / 1024, 10); print(" usable MB of memory\n");
 
-    // align the low memory to the page
+    print("aaaa");
+
     LOW_MEMORY = page_align(LOW_MEMORY);
 
-    // check if we have pml5 support
-    if(ecx & (1 << 16))
+    auto p4 = (PML4)(LOW_MEMORY);
+    LOW_MEMORY += 0x1000;
+    auto p3 = (PML3)(LOW_MEMORY);
+    LOW_MEMORY += 0x1000;
+    auto p2 = (PML2)(LOW_MEMORY);
+    LOW_MEMORY += 0x1000;
+    auto pt = (PT)(LOW_MEMORY);
+    LOW_MEMORY += 0x1000;
+
+    p4[0] = (PML3)((u64)p3 | 3);
+    p3[0] = (PML2)((u64)p2 | 3);
+    p2[0] = (PT)((u64)pt | 3);
+
+    for(auto i = 0; i < 512; i++)
     {
-        print("pml5 supported\n");
-        MEMORY_LEVEL = 5;
-        page5 = (PML5)(LOW_MEMORY);
         LOW_MEMORY += 0x1000;
-    }
-    else
-    {
-        print("pml4 supported\n");
-        MEMORY_LEVEL = 4;
-
-        // find where to put the tables
-        auto p4 = (PML4)(LOW_MEMORY += 0x1000);
-        page4 = p4;
-        wipe_page(p4);
+        pt[i] = (u64)(LOW_MEMORY) | 3;
     }
 
-    auto p3 = (PML3)(LOW_MEMORY += 0x1000);
-    auto p2 = (PML2)(LOW_MEMORY += 0x1000);
-    auto pt = (PT)(LOW_MEMORY += 0x1000);
-    
-    // then clear memory because undefined behaviour is spooky
-    wipe_page(p3);
-    wipe_page(p2);
-    wipe_page(pt);
+    while(true);
 
-    int page_index = 0;
-
-    if(MEMORY_LEVEL == 5)
-        pt[page_index++] = (u64)page5;
-
-    pt[page_index++] = (u64)page4;
-    pt[page_index++] = (u64)p3;
-    pt[page_index++] = (u64)p2;
-    pt[page_index++] = (u64)pt;
-    pt[page_index++] = (u64)(LOW_MEMORY += 0x1000);
-    last_page = (u64)LOW_MEMORY;
-
-    return top_page;
+    return p4;
 }
 
 struct virtual_address
@@ -317,8 +274,8 @@ static_assert(sizeof(virtual_address) == 8);
 // at this point paging is enabled
 // lets be careful here
 
-__attribute__((section(".protected"))) 
 extern "C" void setup_gdt(void* page_table)
 {
+    while(true);
     (void)page_table;
 }

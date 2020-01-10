@@ -85,9 +85,6 @@ bits 32
         ; eax = pointer to top level page
         call setup_paging
 
-        ; save eax for the setup_gdt function
-        push eax
-
         ; if pml5 is supported then enable it
         mov bl, byte [MEMORY_LEVEL]
         cmp bl, 5
@@ -100,6 +97,11 @@ bits 32
 
     .pml4_only:
 
+        ; enable PAE
+        mov ecx, cr4
+        or ecx, 1 << 5
+        mov cr4, ecx
+
         ; enable the long mode bit
         mov ebx, 0xC0000080
         rdmsr
@@ -107,12 +109,15 @@ bits 32
         wrmsr
 
         ; cr3 stores the top level page table
+        mov eax, dword [eax]
         mov cr3, eax
 
         ; enable paging
-        mov ebx, cr0
-        or ebx, 1 << 31
-        mov cr0, ebx
+        mov ecx, cr0
+        or ecx, 1 << 31
+        mov cr0, ecx
+
+        jmp $
 
         call setup_gdt
 
