@@ -9,6 +9,30 @@ extern start32
 
 section .boot
 bits 16
+    boot:
+        jmp start
+        times 3-($-$$) db 0x90
+
+        .oem_name: db "mkfs.fat"
+        .bytes_per_sector: dw 512
+        .sect_per_cluster: db 1
+        .reserved_sects: dw 1
+        .num_fat: db 2
+        .num_root_dirs: dw 224
+        .num_sects: dw 2880
+        .media_type: db 0xF0
+        .num_fat_sects: dw 9
+        .sects_per_track: dw 18
+        .num_heads: dw 2
+        .num_hidden_sects: dd 0
+        .num_sects_huge: dd 0
+        .drive_num: db 0
+        .reserved: db 0
+        .signature: db 0x29
+        .volume_id: dd 0x2D7E5A1A
+        .volume_label: db "NO NAME    "
+        .file_type: db "FAT12   "
+
     start:
         ; clear the screen
         ; TODO: stop this from fucking up the vga resolution

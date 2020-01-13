@@ -202,28 +202,28 @@ extern "C" void* setup_paging(void)
     u64 usable_size = 0;
     for(;;)
     {
-        e820_entry entry;
+        e820_entry* entry;
         size = *(u32*)(offset - sizeof(u32));
         
         // if the size is 0 then we're out of memory maps
         if(!size)
             break;
 
-        entry = *(e820_entry*)(offset - 4 - size);
+        entry = reinterpret_cast<e820_entry*>(offset - 4 - size);
 
         if(size == 20)
-            entry.attrib = 0;
+            entry->attrib = 0;
 
         offset -= (size + 4);
         count++;
 
-        usable_size += entry.len;
+        usable_size += entry->len;
 
         print("\nsize = "); print(size, 10); 
-        print("\nentry(addr="); print(entry.addr, 16); 
-                print(",len="); print(entry.len, 16); 
-                print(",type="); print(entry.type, 10);
-                print(",attrib="); print(entry.attrib, 10);
+        print("\nentry(addr="); print(entry->addr, 16); 
+                print(",len="); print(entry->len, 16); 
+                print(",type="); print(entry->type, 10);
+                print(",attrib="); print(entry->attrib, 10);
                 print(")\n");
     }
 
