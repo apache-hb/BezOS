@@ -34,6 +34,21 @@ bits 16
         .file_type: db "FAT12   "
 
     start:
+        ; wipe all the gprs
+        xor eax, eax
+        xor ebx, ebx
+        xor ecx, ecx
+        xor edx, edx
+        
+        ; set stack pointer
+        mov sp, 0x7C00
+
+        ; zero the rest of the registers
+        mov ss, ax
+        mov ds, ax
+        mov es, ax
+        cld
+
         ; clear the screen
         ; TODO: stop this from fucking up the vga resolution
         ; mov ax, 0
