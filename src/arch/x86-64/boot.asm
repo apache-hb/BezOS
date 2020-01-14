@@ -223,18 +223,15 @@ section .boot
             call panic
 
     enter_prot:
-        mov si, here_msg
-        call panic
-
         cli
+
+        ; load the global descriptor table
+        lgdt [descriptor]
 
         ; enable the protected mode bit
         mov eax, cr0
         or eax, 1
         mov cr0, eax
-
-        ; load the global descriptor table
-        lgdt [descriptor]
 
         ; jump into protected mode code
         push (descriptor.data - descriptor)
