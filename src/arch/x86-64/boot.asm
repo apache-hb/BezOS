@@ -35,7 +35,6 @@ bits 16
 
     start:
         ; wipe all the gprs
-        xor eax, eax
         xor ebx, ebx
         xor ecx, ecx
         xor edx, edx
@@ -44,16 +43,14 @@ bits 16
         mov sp, 0x7C00
 
         ; zero the rest of the registers
-        mov ss, ax
-        mov ds, ax
-        mov es, ax
-        cld
+        mov ss, bx
+        mov ds, bx
+        mov es, bx
 
-        ; clear the screen
-        ; TODO: stop this from fucking up the vga resolution
-        ; mov ax, 0
-        ; int 0x10
-        
+        ; set fs to 0xFFFF
+        mov bx, 0xFFFF
+        mov fs, bx
+
         ; we need to load in the next sectors after the kernel
         ; we do this by passing alot of data into registers
         ; we set
@@ -79,52 +76,16 @@ bits 16
         ; we have used this so mark it as used
         add dword [LOW_MEMORY], KERNEL_END
 
-        ; next we need to enable the a20 line
-        ; we do this by checking
-        ; 1. does the current cpu even have the a20 gate?
-        ; 2. is the a20 gate already enabled?
-        ; 3. if not, try to enable it
-        ;
-        ; if any of these steps fail we will just error and not boot
+        ; clear the direction
+        cld
 
-        ; step 1. check if the cpu has an a20 gate
-        mov ax, 0x2403 ; ax = 0x2403 means we are querying for the existence of the gate
-        int 0x15 ; this executes our query
-        jb .a20_no ; if the query fails then we obviously dont have the gate
-        ;            or the cpu is buggy, but probably the former
+        ; try and enable the a20 line
+        call .a20_enable
 
-        ; ah stores the output of the query
-        ; we now need to check if eh is 0
-        ; if it is we dont have an a20 gate
-        ; this means we are running on a very old chip that only supports real mode
-        cmp ah, 0 
-        jb .a20_no
+        ; if we cant then fail out
+        ; mov si, here
+        ; jmp .a20_fail
 
-        ; step 2. check if the a20 gate is already enabled
-        ; if it is then we dont need to enable it again
-        mov ax, 0x2402 ; ax = 0x2402 means we are querying for the status of the gate
-        int 0x15 ; now we execute the query
-        jb .a20_failed ; if the query failed then something is wrong with the chip
-
-        ; now we check ah for the output to see if the gate is already enabled
-        cmp ah, 0 ; if ah != zero then something is wrong with the a20 gate
-        jnz .a20_failed
-
-        ; if al == 1 that means that the gate is already active
-        ; some bios's have an option to enable this as do some emulators
-        cmp al, 1
-        jz .a20_enabled ; so  if it is enabled we can skip enabling it again in the next step
-
-        ; now for the final step we try and enable the a20 line if it isnt already
-        mov ax, 0x2401 ; ax = 0x2401 is the code to try and enable the gate
-        int 0x15 ; tell the chip to enable the gate
-        jb .a20_failed ; if the call failed then the chip is either faulty or 30 years old
-
-        ; ah == 0 if the gate was enabled
-        cmp ah, 0
-        jnz .a20_failed ; if the gate wasnt zero then something went wrong
-
-    .a20_enabled:
         ; if we get here that means that the a20 gate was successfully enabled
 
         ; next we have to do the whole memory mapping thing so that later code
@@ -202,34 +163,104 @@ bits 16
 
         ; load the global descriptor table
         lgdt [descriptor]
-        
+
         ; push the data segment offset to the stack so we 
         ; can use it in protected mode for segmentation
         push (descriptor.data - descriptor)
         jmp (descriptor.code - descriptor):start32
 
-        ; this means that some step of the a20 enabling code failed
-    .a20_failed:
+        
+        ; a20 stuff
+
+        ; check if the a20 line is enabled
+        ; if it is enabled the function will jump back to boot
+    .a20_check:
+        mov ax, word [es:0x7DFE] ; test if memory wraps around
+        cmp word [fs:0x7E0E], ax
+
+        ; if it does wrap then the a20 line isnt enabled 
+        je .done
+
+        ; if it doesnt then change the values and just make sure
+    .change:
+        mov word [es:0x7DFE], 0x6969
+        cmp word [fs:0x7E0E], 0x6969
+        ; if we're really sure then go back to main
+        jne .a20_done
+
+        ; otherwise just return
+    .done:
+        ; restore boot signature
+        mov word [es:0x7DFE], ax
+        ret
+
+        ; try and enable the bios
+    .a20_enable:
+
+
+    .a20_done:
+        ret
+        
+        ; enable the a20 line through the bios
+    .a20_bios:
+
+        mov ax, 0x2403
+        int 0x15
+        jb .a20_kbd
+
+        cmp ah, 0
+        jb .a20_kbd
+
+        dec ax ; 0x2402
+        int 0x15
+        jb .a20_kbd
+
+        cmp ah, 0
+        jnz .a20_kbd
+
+        cmp al, 1
+        jz .a20_kbd
+
+        dec ax ; 0x2401
+        int 0x15
+        jb .a20_kbd
+
+        cmp ah, 0
+        jz .a20_kbd
+
+        call .a20_check
+        jmp .a20_kbd
+        
+        ; enable the a20 line through the keyboard
+    .a20_kbd:
+        mov si, here
+        call real_print
+        cli
+
+        sti
+        call .a20_fast
+
+        ; enable the a20 line through the fast port
+    .a20_fast:
+
+        call .a20_fail
+        ret
+
+    .a20_fail:
         mov si, fail_a20
-        jmp real_panic
-
-        ; if we are here then the a20 line doesnt exist
-        ; welcome to the 1970s
-    .a20_no:
-        mov si, no_a20
-        jmp real_panic
-
-    .e820_fail:
-        mov si, fail_e820
         jmp real_panic
 
     .e820_size:
         mov si, size_e820
         jmp real_panic
 
-    ; real mode kernel panic, prints message then hangs
+    .e820_fail:
+        mov si, fail_e820
+        jmp real_panic
+
+    ; print a message
     ; set si = message
-    real_panic:
+    real_print:
         cld
         mov ah, 0x0E
     .put:
@@ -239,14 +270,22 @@ bits 16
         int 0x10 ; otherwise print character
         jmp .put ; then loop again
     .end:
+        ret
+
+    ; real mode kernel panic, prints message then hangs
+    ; set si = message
+    real_panic:
+        call real_print
+    .end:
         cli
         hlt
         jmp .end
 
-    fail_a20: db "a20 line failed", 0
-    no_a20: db "a20 line missing", 0
+    fail_a20: db "failed to enable a20 line", 0
     fail_e820: db "e820 memory mapping failed", 0
     size_e820: db "e820 structure was the wrong size", 0
+
+    here: db "here", 0
 
     descriptor:
         .null:
@@ -278,3 +317,90 @@ bits 16
     ; to mark this as a bootable sector
     times 510 - ($-$$) db 0
     dw 0xAA55
+
+
+    ; check if the a20 line is enabled
+    ; .a20_check:
+    ;     mov ax, word [es:0x7DFE] ; if the a20 line is disabled these will wrap around and read the same address
+    ;     cmp word [fs:0x7E0E], ax ; we read the boot signature because we're already loaded and nuking it isnt a problem
+
+    ;     je .change
+
+    ; .disabled:
+    ;     ; restore the boot signautre
+    ;     mov word [es:0x7DFE], ax
+        
+    ;     ; return
+    ;     ret
+
+    ; .change:
+    ;     mov word [es:0x7DFE], 0x6969
+    ;     cmp word [fs:0x7E0E], 0x6969
+    ;     jne .a20_enabled
+    ;     jmp .disabled
+
+    ; ; try and enable the a20 line using the bios
+    ; .a20_bios:
+    ;     ; check if its enabled
+    ;     call .a20_check
+    ;     ; try and enable the a20
+    ;     mov ax, 0x2401
+    ;     int 0x15
+
+    ;     ; try again
+    ;     call .a20_check
+    ;     ret
+    
+    ; ; try and enable the a20 line using the keyboard controller
+    ; .a20_kbd:
+    ;     cli
+
+    ;     call .a20wait
+    ;     mov al, 0xAD
+    ;     out 0x64, al
+
+    ;     call .a20wait
+    ;     mov al, 0xD0
+    ;     out 0x64, al
+
+    ;     call .a20wait2
+    ;     mov al, 0x60
+    ;     push eax
+
+    ;     call .a20wait
+    ;     mov al, 0xD1
+    ;     out 0x64, al
+
+    ;     call .a20wait
+    ;     pop eax
+    ;     or al, 2
+    ;     out 0x60, al
+
+    ;     call .a20wait
+    ;     mov al, 0xAE
+    ;     out 0x64, al
+
+    ;     call .a20wait
+    ;     sti
+
+    ;     call .a20_check
+
+    ;     ret
+
+    ; .a20wait:
+    ;     in al, 0x64
+    ;     test al, 2
+    ;     jnz .a20wait
+    ;     ret
+
+    ; .a20wait2:
+    ;     in al, 0x64
+    ;     test al, 1
+    ;     jz .a20wait2
+    ;     ret
+
+    ; ; try and enable the a20 line using the fast 0xEE port
+    ; .a20_fast:
+    ;     in al, 0xEE
+    ;     call .a20_check
+    ;     ret
