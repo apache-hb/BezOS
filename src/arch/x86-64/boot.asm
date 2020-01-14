@@ -7,49 +7,56 @@ extern KERNEL_END
 ; 32 bit protected mode code
 extern start32
 
-section .boot
 bits 16
-    boot:
-        jmp start
+section .boot
+    header:
+        jmp start16
         times 3-($-$$) db 0x90
 
-        .oem_name: db "mkfs.fat"
-        .bytes_per_sector: dw 512
-        .sect_per_cluster: db 1
-        .reserved_sects: dw 1
-        .num_fat: db 2
-        .num_root_dirs: dw 224
-        .num_sects: dw 2880
-        .media_type: db 0xF0
-        .num_fat_sects: dw 9
-        .sects_per_track: dw 18
-        .num_heads: dw 2
-        .num_hidden_sects: dd 0
-        .num_sects_huge: dd 0
-        .drive_num: db 0
-        .reserved: db 0
-        .signature: db 0x29
-        .volume_id: dd 0x2D7E5A1A
-        .volume_label: db "NO NAME    "
-        .file_type: db "FAT12   "
+        .oem_name:          db "jeff.fat"
+        .bytes_per_sect:    dw 512
+        .sect_per_cluster:  db 1
+        .reserved_sects:    dw 1
+        .nut_fat:           db 2
+        .num_root_dirs:     dw 224
+        .num_sects:         dw 2880
+        .media_type:        db 0xF0
+        .num_fat_sects:     dw 9
+        .sects_per_track:   dw 18
+        .num_heads:         dw 2
+        .num_hidden_sects:  dd 0
+        .num_sects_huge:    dd 0
+        .drive_num:         db 0
+        .reserved:          db 0
+        .signature:         db 0x29
+        .volume_id:         dd 0x2D7E5A1A
+        .volume_label:      db "NO NAME    "
+        .file_type:         db "FAT12   "
 
-    start:
-        ; wipe all the gprs
-        xor ebx, ebx
-        xor ecx, ecx
-        xor edx, edx
-        
-        ; set stack pointer
+    start16:
+        ; when we get here only the register dl has a known value
+        ; the value of the boot drive
+        ; so we need to track what are in the registers to make sure we dont accidentally read bad data
+
+        ; lets give outselves a small stack below the kernel
         mov sp, 0x7C00
-
-        ; zero the rest of the registers
-        mov ss, bx
-        mov ds, bx
-        mov es, bx
 
         ; set fs to 0xFFFF
         mov bx, 0xFFFF
         mov fs, bx
+
+        ; zero bx 
+        xor bx, bx
+
+        ; zero the stack segment register so we have an absolute offset
+        mov ss, bx
+
+        ; zero the data and the extra segment
+        mov ds, bx
+        mov es, bx
+
+        ; load the rest of the kernel in from the disk
+    load_kernel:
 
         ; we need to load in the next sectors after the kernel
         ; we do this by passing alot of data into registers
@@ -64,29 +71,96 @@ bits 16
         ; then once we setup all the registers we 
         ; call the disk interrupt to execute our disk query
 
-        mov bx, [LOW_MEMORY] ; we need to load them into the sectors after the boot sector
-        mov al, KERNEL_SECTORS ; we need all the sectors
-        ; TODO: account for KERNEL_SECTORS > 1440
-        mov ch, 0 ; take them from the first cylinder
-        mov dh, 0 ; and the first head
-        mov cl, 2 ; we start reading from the second sector because the first was already loaded
-        mov ah, 2 ; and ah = 2 means we want to read in so we dont overwrite the disk 
-        int 0x13 ; then we do the disk interrupt to perform the action
+        ; we need to read into memory right after this section
+        mov bx, 0x7E00
 
-        ; we have used this so mark it as used
+        ; we need all the kernel sectors
+        ; KERNEL_SECTORS is calculated by the linker script to tell us
+        ; the size of the kernel in 512 byte sectors
+        mov al, KERNEL_SECTORS
+
+        ; everything is on the first cylinder for now
+        ; TODO: what happens when we use more than 1440 sectors?
+        mov ch, 0
+
+        ; everything is read from the first head of the disk drive
+        mov dh, 0
+
+        ; we start from the second sector because the bios loads the first for us
+        mov cl, 2
+
+        ; ah = 2 means we want to read from disk so we dont overwrite it
+        mov ah, 2
+
+        ; then we use the disk interrupt to perform disk io
+        int 0x13
+
+        ; then we set the used memory to the end of the kernel
         add dword [LOW_MEMORY], KERNEL_END
 
-        ; clear the direction
-        cld
+        ; enable the a20 memory line to disable memory wrapping
+        ; this is needed to get into protected mode
+    enable_a20:
+        ; check if the a20 line is already enabled
+        call a20check
 
-        ; try and enable the a20 line
-        call .a20_enable
+        ; try to enable through the bios
+        .bios:
 
-        ; if we cant then fail out
-        ; mov si, here
-        ; jmp .a20_fail
+            ; try and enable the a20 line through the bios call
+            mov ax, 0x2401
+            int 0x15
 
-        ; if we get here that means that the a20 gate was successfully enabled
+            ; check again for the a20 line
+            call a20check
+
+        ; if the bios doesnt work try the keyboard controller
+        .kbd:
+            cli
+
+            call a20wait
+            mov al, 0xAD
+            out 0x64, al
+
+            call a20wait
+            mov al, 0xD0
+            out 0x64, al
+
+            call a20wait2
+            in al, 0x60
+            push eax
+
+            call a20wait
+            mov al, 0xD1
+            out 0x64, al
+
+            call a20wait
+            pop eax
+            or al, 2
+            out 0x64, al
+
+            call a20wait
+            mov al, 0xAE
+            out 0x64, al
+
+            call a20wait
+            sti
+
+            call a20check
+        ; if the keyboard doesnt work then try port io
+        .port:
+            in al, 0xEE
+            call a20check
+
+        ; if the port io doesnt work then give up
+        .fail:
+            ; just panic with a message
+            mov si, a20_msg
+            call panic
+
+        ; collect e820 bios memory map
+        ; this can only be done in real mode so do it now
+        ; the less mode switching later on the better
 
         ; next we have to do the whole memory mapping thing so that later code
         ; knows where we can and cant put stuff
@@ -110,182 +184,110 @@ bits 16
         ; the standards define whether sizes can be mixed or not
         ; so better safe than sorry
 
-        ; continuation byte
-        mov ebx, 0
+    collect_e820:
+            mov ebx, 0
+            mov edi, [LOW_MEMORY]
 
-        ; output location
-        mov edi, [LOW_MEMORY]
+            mov dword [edi], 0
+            add edi, 4
 
-        ; add a 0 to signify that this is the end of the stack of memory maps
-        mov dword [edi], 0
-        add edi, 4
+            jmp .begin
+        .next:
+            add edi, ecx
+            mov dword [edi], ecx
+            add edi, 4
+        .begin:
+            mov eax, 0xE820
+            mov edx, 0x534D4150
+            mov ecx, 24
 
-        jmp .begin_map
+            int 0x15
 
-    .next_map:
-        add edi, ecx
-        mov dword [edi], ecx
-        add edi, 4
-    .begin_map:
-        
-        mov eax, 0xE820 ; E820 function code
-        mov edx, 0x534D4150 ; signature (SMAP)
-        mov ecx, 24 ; desired output size (it may return 20 bytes if it doesnt support acpi3 attributes)
+            cmp ecx, 20
+            je .fix_size
 
-        int 0x15 ; memory map interrupt
+            cmp ecx, 24
+            jne .fail
+        .fix_size:
+            cmp eax, 0x534D4150
+            jne .fail
 
-        ; make sure ecx is either 20 or 24 (these are the only valid sizes)
-        cmp ecx, 20
-        je .correct_size
+            cmp ebx, 0
+            jne .next
+        .end:
+            mov [LOW_MEMORY], edi
+            jmp enter_prot
+        .fail:
+            ; if the e820 mapping fails then panic
+            mov si, e820_msg
+            call panic
 
-        cmp ecx, 24
-        jne .e820_size
+    enter_prot:
+        mov si, here_msg
+        call panic
 
-    .correct_size:
+        cli
 
-        cmp eax, 0x534D4150
-        jne .e820_fail
-
-        ; continuation is put into ebx, if its not 0 there are more sections to read
-        cmp ebx, 0
-        jne .next_map
-
-    .end_map:
-
-        mov [LOW_MEMORY], edi
-
-        cli ; clear interrupts
-
-        ; enable protected mode bit
-        mov eax, cr0 
+        ; enable the protected mode bit
+        mov eax, cr0
         or eax, 1
         mov cr0, eax
 
         ; load the global descriptor table
         lgdt [descriptor]
 
-        ; push the data segment offset to the stack so we 
-        ; can use it in protected mode for segmentation
+        ; jump into protected mode code
         push (descriptor.data - descriptor)
         jmp (descriptor.code - descriptor):start32
 
-        
-        ; a20 stuff
+    ; print a message to the console
+    ; si = pointer to message
+    print:
+            cld ; clear the direction
+            mov ah, 0x0E ; print magic
+        .put:
+            lodsb ; load the next byte
+            or al, al ; if the byte is zero
+            jz .end ; if it is zero then return
+            int 0x10 ; then print the charater
+            jmp .put ; then loop
+        .end:
+            ret ; return from function
 
-        ; check if the a20 line is enabled
-        ; if it is enabled the function will jump back to boot
-    .a20_check:
-        mov ax, word [es:0x7DFE] ; test if memory wraps around
-        cmp word [fs:0x7E0E], ax
+    ; print a message then loop forever
+    ; si = pointer to message
+    panic:
+            call print
+        .end:
+            cli
+            hlt
+            jmp .end
 
-        ; if it does wrap then the a20 line isnt enabled 
-        je .done
+    a20wait:
+        in al, 0x64
+        test al, 2
+        jnz a20wait
+        ret
 
-        ; if it doesnt then change the values and just make sure
+    a20wait2:
+        in al, 0x64
+        test al, 1
+        jz a20wait2
+        ret
+
+    ; check if the a20 line is enabled by using the memory wrap around
+    a20check:
+        mov ax, word [es:0x7DFE] ; 0x0000:0x7DFE is the same address as 0xFFFF:0x7E0E due to wrap around
+        cmp word [fs:0x7E0E], ax ; this is the boot signature, we compare these to see if the wraparound is disabled
+        je .change
+
     .change:
-        mov word [es:0x7DFE], 0x6969
+        mov word [es:0x7DFE], 0x6969 ; change the values to make sure the memory wraps around
         cmp word [fs:0x7E0E], 0x6969
-        ; if we're really sure then go back to main
-        jne .a20_done
-
-        ; otherwise just return
-    .done:
-        ; restore boot signature
-        mov word [es:0x7DFE], ax
-        ret
-
-        ; try and enable the bios
-    .a20_enable:
-
-
-    .a20_done:
-        ret
-        
-        ; enable the a20 line through the bios
-    .a20_bios:
-
-        mov ax, 0x2403
-        int 0x15
-        jb .a20_kbd
-
-        cmp ah, 0
-        jb .a20_kbd
-
-        dec ax ; 0x2402
-        int 0x15
-        jb .a20_kbd
-
-        cmp ah, 0
-        jnz .a20_kbd
-
-        cmp al, 1
-        jz .a20_kbd
-
-        dec ax ; 0x2401
-        int 0x15
-        jb .a20_kbd
-
-        cmp ah, 0
-        jz .a20_kbd
-
-        call .a20_check
-        jmp .a20_kbd
-        
-        ; enable the a20 line through the keyboard
-    .a20_kbd:
-        mov si, here
-        call real_print
-        cli
-
-        sti
-        call .a20_fast
-
-        ; enable the a20 line through the fast port
-    .a20_fast:
-
-        call .a20_fail
-        ret
-
-    .a20_fail:
-        mov si, fail_a20
-        jmp real_panic
-
-    .e820_size:
-        mov si, size_e820
-        jmp real_panic
-
-    .e820_fail:
-        mov si, fail_e820
-        jmp real_panic
-
-    ; print a message
-    ; set si = message
-    real_print:
-        cld
-        mov ah, 0x0E
-    .put:
-        lodsb ; load next character into al
-        or al, al ; if the charater is null
-        jz .end ; then hang at end
-        int 0x10 ; otherwise print character
-        jmp .put ; then loop again
+        jne collect_e820
     .end:
+        mov word [es:0x7DFE], ax ; write the boot signature back for next time
         ret
-
-    ; real mode kernel panic, prints message then hangs
-    ; set si = message
-    real_panic:
-        call real_print
-    .end:
-        cli
-        hlt
-        jmp .end
-
-    fail_a20: db "failed to enable a20 line", 0
-    fail_e820: db "e820 memory mapping failed", 0
-    size_e820: db "e820 structure was the wrong size", 0
-
-    here: db "here", 0
 
     descriptor:
         .null:
@@ -308,99 +310,12 @@ bits 16
             db 0
         .end:
 
-    
-    ; pointer to the 480KB above the kernel
+    a20_msg: db "failed to activate a20 line", 0
+    e820_msg: db "failed to collect e820 memory map", 0
+    here_msg: db "got here", 0
+
     global LOW_MEMORY
     LOW_MEMORY: dd 0x7E00
 
-    ; byte 511, 512 of the first sector need to have this magic
-    ; to mark this as a bootable sector
     times 510 - ($-$$) db 0
     dw 0xAA55
-
-
-    ; check if the a20 line is enabled
-    ; .a20_check:
-    ;     mov ax, word [es:0x7DFE] ; if the a20 line is disabled these will wrap around and read the same address
-    ;     cmp word [fs:0x7E0E], ax ; we read the boot signature because we're already loaded and nuking it isnt a problem
-
-    ;     je .change
-
-    ; .disabled:
-    ;     ; restore the boot signautre
-    ;     mov word [es:0x7DFE], ax
-        
-    ;     ; return
-    ;     ret
-
-    ; .change:
-    ;     mov word [es:0x7DFE], 0x6969
-    ;     cmp word [fs:0x7E0E], 0x6969
-    ;     jne .a20_enabled
-    ;     jmp .disabled
-
-    ; ; try and enable the a20 line using the bios
-    ; .a20_bios:
-    ;     ; check if its enabled
-    ;     call .a20_check
-    ;     ; try and enable the a20
-    ;     mov ax, 0x2401
-    ;     int 0x15
-
-    ;     ; try again
-    ;     call .a20_check
-    ;     ret
-    
-    ; ; try and enable the a20 line using the keyboard controller
-    ; .a20_kbd:
-    ;     cli
-
-    ;     call .a20wait
-    ;     mov al, 0xAD
-    ;     out 0x64, al
-
-    ;     call .a20wait
-    ;     mov al, 0xD0
-    ;     out 0x64, al
-
-    ;     call .a20wait2
-    ;     mov al, 0x60
-    ;     push eax
-
-    ;     call .a20wait
-    ;     mov al, 0xD1
-    ;     out 0x64, al
-
-    ;     call .a20wait
-    ;     pop eax
-    ;     or al, 2
-    ;     out 0x60, al
-
-    ;     call .a20wait
-    ;     mov al, 0xAE
-    ;     out 0x64, al
-
-    ;     call .a20wait
-    ;     sti
-
-    ;     call .a20_check
-
-    ;     ret
-
-    ; .a20wait:
-    ;     in al, 0x64
-    ;     test al, 2
-    ;     jnz .a20wait
-    ;     ret
-
-    ; .a20wait2:
-    ;     in al, 0x64
-    ;     test al, 1
-    ;     jz .a20wait2
-    ;     ret
-
-    ; ; try and enable the a20 line using the fast 0xEE port
-    ; .a20_fast:
-    ;     in al, 0xEE
-    ;     call .a20_check
-    ;     ret
