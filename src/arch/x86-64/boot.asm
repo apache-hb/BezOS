@@ -233,8 +233,11 @@ section .boot
         or eax, 1
         mov cr0, eax
 
+        ; set ax to the data descriptor
+        mov ax, (descriptor.data - descriptor)
+        mov cx, (descriptor.code - descriptor)
+
         ; jump into protected mode code
-        push (descriptor.data - descriptor)
         jmp (descriptor.code - descriptor):start32
 
     ; print a message to the console

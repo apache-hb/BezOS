@@ -1,6 +1,72 @@
 #include "common/state.h"
 
-using namespace bezos;
+#define VGA_WIDTH 80
+#define VGA_HEIGHT 25
+#define VGA_BUFFER ((bezos::u16*)0xB8000)
+
+#define VGA_COLOUR(fg, bg) (fg | bg << 4)
+#define VGA_ENTRY(letter, col) (letter | col << 8)
+
+
+namespace bezos::vga
+{
+    u8 column;
+    u8 row;
+    u8 colour;
+
+    void put(char c)
+    {
+        // handle newlines
+        if(c == '\n' || column > VGA_WIDTH)
+        {
+            column = 0;
+            row++;
+        }
+
+        if(row > VGA_HEIGHT)
+        {
+            row = 0;
+        }
+
+        // write to vga
+        VGA_BUFFER[column + VGA_WIDTH * row] = VGA_ENTRY(c, colour);
+
+        column++;
+    }
+
+    void init()
+    {
+        column = 0;
+        row = 0;
+        colour = VGA_COLOUR(7, 0);
+
+        // TODO: clear vga buffer
+    }
+
+    void print(const char* msg)
+    {
+        while(*msg)
+            put(*msg++);
+    }
+}
+
+extern "C" void print(const char* msg) { bezos::vga::print(msg); }
+
+// export this so assembly code can see it
+extern "C" void init_vga() { bezos::vga::init(); }
+
+extern "C" void* init_paging()
+{
+    print("here");
+}
+
+#if 0
+u32
+
+extern "C" void init_vga()
+{
+
+}
 
 /* Hardware text mode color constants. */
 enum vga_color {
@@ -40,9 +106,6 @@ u32 strlen(const char* str)
 	return len;
 }
  
-static const u32 VGA_WIDTH = 80;
-static const u32 VGA_HEIGHT = 25;
-
 u32 terminal_row;
 u32 terminal_column;
 u8 terminal_color;
@@ -279,3 +342,4 @@ extern "C" void setup_gdt(void* page_table)
     while(true);
     (void)page_table;
 }
+#endif
