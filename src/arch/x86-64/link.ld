@@ -8,7 +8,9 @@ SECTIONS {
     .protected : {
         *(.protected)
     }
+
     .text : {
+        *(.text.front)
         *(.text)
     }
     .data : {

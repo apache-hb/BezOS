@@ -1,6 +1,4 @@
-extern kmain
-
-extern MEMORY_LEVEL
+extern start64
 
 extern print
 extern init_paging
@@ -94,21 +92,39 @@ bits 32
         ; time to enable paging
         call init_paging
 
+        ; move the top page table to cr3
         mov cr3, eax
 
-        mov eax, 0xC0000080
-        rdmsr
-        or ebx, 1 << 8
-        wrmsr
 
+        ; time to enable PAE for 64 bit addresses in the page table
+        ; this is also required for long mode
+
+        mov eax, cr4
+        or eax, (1 << 5)
+        mov cr4, eax
+
+        ; enable paging and WP flag for read only memory support
         mov eax, cr0
-        or ebx, 0x80000000
+        or eax, 0x80010001
         mov cr0, eax
+
 
         ; setup the gdt
 
         ; jump to 64 bit main
         
+        ; enable long mode
+        mov eax, 0xC0000080
+        rdmsr
+        or ebx, 1 << 8
+        wrmsr
+
+        ; load the 64 bit gdt to enable full 64 bit mode
+        lgdt [descriptor64.ptr]
+
+        ; then long jump to main
+        jmp descriptor64.code:start64
+
 
     cpuid_fail:
         push cpuid_msg
@@ -140,6 +156,36 @@ bits 32
     sse_msg: db "sse is not detected", 0
 
     fpu_data: dw 0xFFFF
+
+    global descriptor64.data
+    descriptor64:
+        .null:
+            dw 0xFFFF
+            dw 0
+            db 0
+            db 0
+            db 1
+            db 0
+        .code:
+            dw 0
+            dw 0
+            db 0
+            db 0
+            db 10011010b
+            db 10101111b
+            db 0
+        .data:
+            dw 0
+            dw 0
+            db 0
+            db 0
+            db 10010010b
+            db 00000000b
+            db 0
+        .ptr:
+            dw $ - descriptor64 - 1
+            dq descriptor64
+        .end:
 
     ;     ; we need to do segmentation because protected mode needs it
     ;     mov ds, ax
