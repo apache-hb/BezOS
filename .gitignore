@@ -3,3 +3,4 @@
 build/
 *.json
 *.ini
+.DS_Store

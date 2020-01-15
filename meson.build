@@ -34,7 +34,11 @@ kernel32 = static_library('32', sources32,
     cpp_args : args + [ '-m32', '-fno-pic' ]
 )
 
-objcopy = find_program('objcopy')
+if host_machine.system() == 'darwin'
+    objcopy = find_program('objcopy')
+else
+    objcopy = find_program('llvm-objcopy')
+endif
 
 copy = custom_target('lib32as64',
     input : kernel32,
