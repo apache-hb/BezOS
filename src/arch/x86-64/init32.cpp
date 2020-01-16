@@ -135,9 +135,9 @@ extern "C" void* init_paging()
     page += 0x1000;
     auto* pt = page;
 
-    pml4[0] = (u64)pml3;
-    pml3[0] = (u64)pml2;
-    pml2[0] = (u64)pt;
+    pml4[0] = (u64)pml3 | 3;
+    pml3[0] = (u64)pml2 | 3;
+    pml2[0] = (u64)pt | 3;
 
     vga::print_32((int)pt); print("\n");
     vga::print_32((int)pml2); print("\n");
