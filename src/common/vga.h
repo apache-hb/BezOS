@@ -9,19 +9,25 @@
 #define VGA_COLOUR(fg, bg) (fg | bg << 4)
 #define VGA_ENTRY(letter, col) (letter | col << 8)
 
+// a bit of a hack to prevent duplicate symbols
+#ifndef PREFIX
+#   define PREFIX(func) func
+#endif
+
 namespace bezos::vga
 {
-    u8 column;
-    u8 row;
-    u8 colour;
+    extern u8 column;
+    extern u8 row;
+    extern u8 colour;
 
-    void put(char c)
+    void PREFIX(put)(char c)
     {
         // handle newlines
         if(c == '\n' || column > VGA_WIDTH)
         {
             column = 0;
             row++;
+            return;
         }
 
         if(row > VGA_HEIGHT)
@@ -35,31 +41,24 @@ namespace bezos::vga
         column++;
     }
 
-    void init()
-    {
-        column = 0;
-        row = 0;
-        colour = VGA_COLOUR(7, 0);
-
-        // TODO: clear vga buffer
-    }
-
-    void print(const char* msg)
+    void PREFIX(print)(const char* msg)
     {
         while(*msg)
-            put(*msg++);
+            PREFIX(put)(*msg++);
     }
 
-    void print(int val, int base = 16)
+    void PREFIX(print)(int val, int base = 16)
     {
         if(base == 16)
-            print("0x");
+            PREFIX(print)("0x");
 
-        do
-        {
-            put("0123456789ABCDEF"[val % base]);
-            val /= base;
-        }
-        while(val != 0);
+        char buf[32] = {};
+
+        int i = 30;
+
+        for(; val && i; --i, val /= base)
+            buf[i] = "0123456789ABCDEF"[val % base];
+
+        PREFIX(print)(&buf[i+1]);
     }
 }

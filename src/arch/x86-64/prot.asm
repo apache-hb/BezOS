@@ -95,7 +95,6 @@ bits 32
         ; move the top page table to cr3
         mov cr3, eax
 
-
         ; time to enable PAE for 64 bit addresses in the page table
         ; this is also required for long mode
 
@@ -108,23 +107,19 @@ bits 32
         or eax, 0x80010001
         mov cr0, eax
 
-
-        ; setup the gdt
-
-        ; jump to 64 bit main
-        
         ; enable long mode
         mov eax, 0xC0000080
         rdmsr
         or ebx, 1 << 8
         wrmsr
 
+        jmp $
+
         ; load the 64 bit gdt to enable full 64 bit mode
         lgdt [descriptor64.ptr]
 
         ; then long jump to main
         jmp descriptor64.code:start64
-
 
     cpuid_fail:
         push cpuid_msg

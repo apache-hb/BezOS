@@ -11,10 +11,6 @@ namespace bezos
         
         // the number of 512 byte sectors the kernel takes up
         int KERNEL_SECTORS;
-
-        // used by the bootloader to load in things like e820 structs
-        // can be used to read them back
-        int LOW_MEMORY;
     }
 }
 

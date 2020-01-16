@@ -9,7 +9,7 @@ namespace bezos
         u32 eax, ebx, ecx, edx;
     };
 
-    cpuid_val cpuid(u32 a, u32 c)
+    inline cpuid_val cpuid(u32 a, u32 c)
     {
         cpuid_val ret = {};
 

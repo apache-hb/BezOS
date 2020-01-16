@@ -1,11 +1,23 @@
+#define PREFIX(func) func##_32
 #include "common/vga.h"
 #include "common/state.h"
 #include "common/cpuid.h"
 
-extern "C" void print(const char* msg) { bezos::vga::print(msg); }
+bezos::u8 bezos::vga::column;
+bezos::u8 bezos::vga::row;
+bezos::u8 bezos::vga::colour;
+
+extern "C" int LOW_MEMORY;
+
+extern "C" void print(const char* msg) { bezos::vga::print_32(msg); }
 
 // export this so assembly code can see it
-extern "C" void init_vga() { bezos::vga::init(); }
+extern "C" void init_vga() 
+{ 
+    bezos::vga::column = 0;
+    bezos::vga::row = 0;
+    bezos::vga::colour = VGA_COLOUR(7, 0);
+}
 
 using namespace bezos;
 
@@ -21,12 +33,33 @@ static_assert(sizeof(e820_entry) == 24);
 
 #define PAGE_ALIGN(val) ((val + 0x1000 -1) & -0x1000)
 
+void clear_page(void* ptr)
+{
+    vga::print_32("clear\n");
+    for(int i = 0; i < 512; i++)
+        ((u64*)ptr)[i] = 0;
+    vga::print_32("cleared\n");
+}
+
+struct virtual_address
+{
+    u64 pad:7;
+    u64 pml5:9;
+    u64 pml4:9;
+    u64 pml3:9;
+    u64 pml2:9;
+    u64 pt:9;
+    u64 offset:12;
+};
+
+static_assert(sizeof(virtual_address) == sizeof(u64));
+
 extern "C" void* init_paging()
 {
     // parse memory maps
     u32 struct_size = 0;
     u32 offset = LOW_MEMORY;
-    u32 total_memory = 0;
+    u64 total_memory = 0;
 
     for(;;)
     {
@@ -74,14 +107,14 @@ extern "C" void* init_paging()
     bool pml5_supported = cpuid(0x07, 0).ecx & (1 << 16);
 
     if(pml5_supported)
-        vga::print("pml5 is supported\n");
+        vga::print_32("pml5 is supported\n");
     else
-        vga::print("pml4 is supported\n");
+        vga::print_32("pml4 is supported\n");
 
     // align the first page
-    u64* page = (u64*)PAGE_ALIGN(LOW_MEMORY);
+    u64* page = (u64*)PAGE_ALIGN((u64)&LOW_MEMORY);
 
-    vga::print("first page aligned to "); vga::print((int)page); vga::print("\n");
+    vga::print_32("first page aligned to "); vga::print_32((int)page); vga::print_32("\n");
 
     if(pml5_supported)
     {
@@ -101,7 +134,23 @@ extern "C" void* init_paging()
     auto* pml2 = page;
     page += 0x1000;
     auto* pt = page;
-    pt[0] = 0x0000;
 
-    return nullptr;
+    pml4[0] = (u64)pml3;
+    pml3[0] = (u64)pml2;
+    pml2[0] = (u64)pt;
+
+    vga::print_32((int)pt); print("\n");
+    vga::print_32((int)pml2); print("\n");
+    vga::print_32((int)pml3); print("\n");
+    vga::print_32((int)pml4); print("\n");
+
+    // map the first 2mb to original address
+    for(int i = 0; i < 512; i++)
+    {
+        pt[i] = (i * 0x1000) | 3;
+    }
+
+    vga::print_32("here 2\n");
+
+    return pml4;
 }
