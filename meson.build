@@ -50,7 +50,7 @@ sources += copy
 
 kernel = executable('bezos.bin', sources,
     include_directories : incs,
-    cpp_args : args,
+    cpp_args : args + [ '-m64' ],
     link_args : links + [ '-Wl,-T' + linker ],
     link_depends : linker
 )

@@ -235,7 +235,6 @@ section .boot
 
         ; set ax to the data descriptor
         mov ax, (descriptor.data - descriptor)
-        mov cx, (descriptor.code - descriptor)
 
         ; jump into protected mode code
         jmp (descriptor.code - descriptor):start32

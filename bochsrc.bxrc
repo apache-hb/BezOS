@@ -7,7 +7,7 @@ romimage: file="C:\Program Files (x86)\Bochs-2.6.10/BIOS-bochs-latest", address=
 vgaromimage: file="C:\Program Files (x86)\Bochs-2.6.10/VGABIOS-lgpl-latest"
 boot: floppy
 floppy_bootsig_check: disabled=0
-floppya: type=1_44, 1_44="C:\Users\ehb56\Documents\GitHub\BezOS\build\bezos.bin", status=inserted, write_protected=1
+floppya: type=1_44, 1_44="C:\Users\ehb56\OneDrive\Documents\GitHub\BezOS\build\bezos.bin", status=inserted, write_protected=1
 # no floppyb
 ata0: enabled=true, ioaddr1=0x1f0, ioaddr2=0x3f0, irq=14
 ata0-master: type=none

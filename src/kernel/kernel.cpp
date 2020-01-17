@@ -3,6 +3,9 @@
 
 extern "C" void kmain(void)
 {
-    bezos::vga::print("64 bit nibba\n");
+    bezos::u64 i = *(bezos::u64*)0xB8000;
+    i++;
+    bezos::vga::print(i);
+    bezos::vga::print("64 bit\n");
     while(true);
 }

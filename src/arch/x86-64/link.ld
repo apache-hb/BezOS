@@ -8,9 +8,12 @@ SECTIONS {
     .protected : {
         *(.protected)
     }
+    .long : {
+        *(.long)
+    }
+
 
     .text : {
-        *(.text.front)
         *(.text)
     }
     .data : {
