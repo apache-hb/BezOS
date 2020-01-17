@@ -15,4 +15,14 @@ bits 64
 
         lgdt [high_gdt]
 
+        call setup_long
+    
+    setup_long:
+        xor rax, rax
+        xor rbx, rbx
+        xor rcx, rcx
+        xor rdx, rdx
+        xor rbp, rbp
+        movsx rsp, sp
+
         call kmain
