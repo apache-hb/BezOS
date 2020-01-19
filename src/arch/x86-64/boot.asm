@@ -9,30 +9,6 @@ extern start32
 
 bits 16
 section .boot
-    header:
-        jmp start16
-        times 3-($-$$) db 0x90
-
-        .oem_name:          db "jeff.fat"
-        .bytes_per_sect:    dw 512
-        .sect_per_cluster:  db 1
-        .reserved_sects:    dw 1
-        .nut_fat:           db 2
-        .num_root_dirs:     dw 224
-        .num_sects:         dw 2880
-        .media_type:        db 0xF0
-        .num_fat_sects:     dw 9
-        .sects_per_track:   dw 18
-        .num_heads:         dw 2
-        .num_hidden_sects:  dd 0
-        .num_sects_huge:    dd 0
-        .drive_num:         db 0
-        .reserved:          db 0
-        .signature:         db 0x29
-        .volume_id:         dd 0x2D7E5A1A
-        .volume_label:      db "NO NAME    "
-        .file_type:         db "FAT12   "
-
     start16:
         ; when we get here only the register dl has a known value
         ; the value of the boot drive
@@ -42,18 +18,23 @@ section .boot
         mov sp, 0x7C00
 
         ; set fs to 0xFFFF
-        mov bx, 0xFFFF
-        mov fs, bx
+        mov ax, 0xFFFF
+        mov fs, ax
 
         ; zero bx 
-        xor bx, bx
+        xor ax, ax
 
         ; zero the stack segment register so we have an absolute offset
-        mov ss, bx
+        mov ss, ax
 
         ; zero the data and the extra segment
-        mov ds, bx
-        mov es, bx
+        mov ds, ax
+        mov es, ax
+
+        ; clear carry bit and direction bit
+        clc
+        cld
+        sti
 
         ; load the rest of the kernel in from the disk
     load_kernel:
@@ -94,6 +75,9 @@ section .boot
 
         ; then we use the disk interrupt to perform disk io
         int 0x13
+
+        ; if we failed to read from disk then panic
+        jc fail_disk
 
         ; then we set the used memory to the end of the kernel
         add dword [LOW_MEMORY], KERNEL_END
@@ -156,7 +140,7 @@ section .boot
         .fail:
             ; just panic with a message
             mov si, a20_msg
-            call panic
+            jmp panic
 
         ; collect e820 bios memory map
         ; this can only be done in real mode so do it now
@@ -220,7 +204,7 @@ section .boot
         .fail:
             ; if the e820 mapping fails then panic
             mov si, e820_msg
-            call panic
+            jmp panic
 
     enter_prot:
         cli
@@ -309,12 +293,16 @@ section .boot
             db 0
         .end:
 
+    fail_disk:
+        mov si, disk_msg
+        jmp panic
+
     a20_msg: db "failed to activate a20 line", 0
     e820_msg: db "failed to collect e820 memory map", 0
-    here_msg: db "got here", 0
+    disk_msg: db "failed to read from disk drive", 0
 
     global LOW_MEMORY
     LOW_MEMORY: dd 0x7E00
 
     times 510 - ($-$$) db 0
-    dw 0xAA55
+    signature: dw 0xAA55

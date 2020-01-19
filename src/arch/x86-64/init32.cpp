@@ -17,6 +17,12 @@ extern "C" void init_vga()
     bezos::vga::column = 0;
     bezos::vga::row = 0;
     bezos::vga::colour = VGA_COLOUR(7, 0);
+
+    // clear vga buffer
+    for(int i = 0; i < 80 * 25; i++)
+        VGA_BUFFER[i] = VGA_ENTRY(' ', bezos::vga::colour);
+        
+    bezos::vga::print_32("here\n");
 }
 
 using namespace bezos;
@@ -35,24 +41,9 @@ static_assert(sizeof(e820_entry) == 24);
 
 void clear_page(void* ptr)
 {
-    vga::print_32("clear\n");
     for(int i = 0; i < 512; i++)
         ((u64*)ptr)[i] = 0;
-    vga::print_32("cleared\n");
 }
-
-struct virtual_address
-{
-    u64 pad:7;
-    u64 pml5:9;
-    u64 pml4:9;
-    u64 pml3:9;
-    u64 pml2:9;
-    u64 pt:9;
-    u64 offset:12;
-};
-
-static_assert(sizeof(virtual_address) == sizeof(u64));
 
 extern "C" void* init_paging()
 {
@@ -104,7 +95,7 @@ extern "C" void* init_paging()
     }
 
     // check if pml5 is supported
-    bool pml5_supported = cpuid(0x07, 0).ecx & (1 << 16);
+    bool pml5_supported = cpuid(0x07).ecx & (1 << 16);
 
     if(pml5_supported)
         vga::print_32("pml5 is supported\n");

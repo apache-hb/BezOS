@@ -5,6 +5,7 @@ SECTIONS {
     .boot : {
         *(.boot)
     }
+    . = ALIGN(512);
     .protected : {
         *(.protected)
     }
