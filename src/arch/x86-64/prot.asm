@@ -23,6 +23,11 @@ bits 32
         mov fs, ax
         mov es, ax
 
+        xor eax, eax
+        xor ebx, ebx
+        xor ecx, ecx
+        xor edx, edx
+
         ; enable printing to vga for logging
         call vga_init
 
