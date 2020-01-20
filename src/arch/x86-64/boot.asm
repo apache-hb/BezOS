@@ -1,61 +1,67 @@
 global start16
 
+extern LOW_MEMORY
 extern start32
 
 bits 16
 section .boot
     start16:
-
-    enable_a20:
-        call a20check
-    
-    .bios:
-        mov ax, 0x2401
-        int 0x15
-
+        ; check if the a20 line is already enabled
         call a20check
 
-    .kbd:
-        cli
+        ; try to enable through the bios
+        .bios:
 
-        call a20wait
-        mov al, 0xAD
-        out 0x64, al
+            ; try and enable the a20 line through the bios call
+            mov ax, 0x2401
+            int 0x15
 
-        call a20wait
-        mov al, 0xD0
-        out 0x64, al
+            ; check again for the a20 line
+            call a20check
 
-        call a20wait2
-        in al, 0x60
-        push eax
+        ; if the bios doesnt work try the keyboard controller
+        .kbd:
+            cli
 
-        call a20wait
-        mov al, 0xD1
-        out 0x64, al
+            call a20wait
+            mov al, 0xAD
+            out 0x64, al
 
-        call a20wait
-        pop eax
-        or al, 2
-        out 0x64, al
+            call a20wait
+            mov al, 0xD0
+            out 0x64, al
 
-        call a20wait
-        mov al, 0xAE
-        out 0x64, al
+            call a20wait2
+            in al, 0x60
+            push eax
 
-        call a20wait
+            call a20wait
+            mov al, 0xD1
+            out 0x64, al
 
-        sti
+            call a20wait
+            pop eax
+            or al, 2
+            out 0x64, al
 
-        call a20check
-    
-    .port:
-        in al, 0xEE
-        call a20check
+            call a20wait
+            mov al, 0xAE
+            out 0x64, al
 
-    .fail:
-        mov si, a20_msg
-        jmp panic
+            call a20wait
+            sti
+
+            call a20check
+        ; if the keyboard doesnt work then try port io
+        .port:
+            in al, 0xEE
+            call a20check
+
+        ; if the port io doesnt work then give up
+        .fail:
+            ; just panic with a message
+            mov si, a20_msg
+            jmp panic
 
         ; collect e820 bios memory map
         ; this can only be done in real mode so do it now
@@ -84,42 +90,42 @@ section .boot
         ; so better safe than sorry
 
     collect_e820:
-        mov ebx, 0
-        mov edi, [LOW_MEMORY]
+            mov ebx, 0
+            mov edi, [LOW_MEMORY]
 
-        mov dword [edi], 0
-        add edi, 4
+            mov dword [edi], 0
+            add edi, 4
 
-        jmp .begin
-    .next:
-        add edi, ecx
-        mov dword [edi], ecx
-        add edi, 4
-    .begin:
-        mov eax, 0xE820
-        mov edx, 0x534D4150
-        mov ecx, 24
+            jmp .begin
+        .next:
+            add edi, ecx
+            mov dword [edi], ecx
+            add edi, 4
+        .begin:
+            mov eax, 0xE820
+            mov edx, 0x534D4150
+            mov ecx, 24
 
-        int 0x15
+            int 0x15
 
-        cmp ecx, 20
-        je .fix_size
+            cmp ecx, 20
+            je .fix_size
 
-        cmp ecx, 24
-        jne .fail
-    .fix_size:
-        cmp eax, 0x534D4150
-        jne .fail
+            cmp ecx, 24
+            jne .fail
+        .fix_size:
+            cmp eax, 0x534D4150
+            jne .fail
 
-        cmp ebx, 0
-        jne .next
-    .end:
-        mov [LOW_MEMORY], edi
-        jmp enter_prot
-    .fail:
-        ; if the e820 mapping fails then panic
-        mov si, e820_msg
-        jmp panic
+            cmp ebx, 0
+            jne .next
+        .end:
+            mov [LOW_MEMORY], edi
+            jmp enter_prot
+        .fail:
+            ; if the e820 mapping fails then panic
+            mov si, e820_msg
+            jmp panic
 
     enter_prot:
         cli
@@ -137,6 +143,29 @@ section .boot
 
         ; jump into protected mode code
         jmp (descriptor.code - descriptor):start32
+
+    ; print a message to the console
+    ; si = pointer to message
+    print:
+        cld ; clear the direction
+        mov ah, 0x0E ; print magic
+    .put:
+        lodsb ; load the next byte
+        or al, al ; if the byte is zero
+        jz .end ; if it is zero then return
+        int 0x10 ; then print the charater
+        jmp .put ; then loop
+    .end:
+        ret ; return from function
+
+    ; print a message then loop forever
+    ; si = pointer to message
+    panic:
+        call print
+    .end:
+        cli
+        hlt
+        jmp .end
 
     a20wait:
         in al, 0x64
@@ -164,26 +193,6 @@ section .boot
         mov word [es:0x7DFE], ax ; write the boot signature back for next time
         ret
 
-    panic:
-        cld
-        mov ah, 0x0E
-    .put:
-        lodsb
-        or al, al
-        jz .end
-        int 0x10
-        jmp .put
-    .end:
-        cli
-        hlt
-        jmp .end
-
-    global LOW_MEMORY
-    LOW_MEMORY: dd 0x7C00
-
-    a20_msg: db "failed to enable a20 line", 0
-    e820_msg: db "failed to collect e820 memory map", 0
-
     descriptor:
         .null:
             dw descriptor.end - descriptor - 1
@@ -204,3 +213,6 @@ section .boot
             db 11001111b
             db 0
         .end:
+
+    a20_msg: db "failed to activate a20 line", 0
+    e820_msg: db "failed to collect e820 memory map", 0

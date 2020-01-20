@@ -1,25 +1,31 @@
 global start32
 
-extern vga_init
-extern vga_print
-extern init32
-
 extern start64
 
-bits 32
+extern vga_print
+extern vga_init
+extern init32
+
 section .prot
+bits 32
     start32:
+        ; when we get here the bootloader has set 
+        ; ax = data segment
+
+        ; so now we set the segments
         mov ds, ax
         mov ss, ax
-        
+
+        ; clear general segments
         xor ax, ax
 
         mov gs, ax
         mov fs, ax
         mov es, ax
 
+        ; enable printing to vga for logging
         call vga_init
-    
+
     enable_cpuid:
         ; check if we have cpuid by checking eflags
         pushfd

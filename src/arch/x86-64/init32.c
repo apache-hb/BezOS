@@ -4,13 +4,23 @@
 #define VGA_WIDTH 80
 #define VGA_HEIGHT 25
 
-#define VGA_COLOUR(fg, bg) (fg | bg << 4)
+#define VGA_COLOUR(fg, bg) (u16)(((u16)fg) | ((u16)bg << 4))
 #define VGA_ENTRY(letter, colour) ((letter) | (colour << 8))
 
 extern u32 KERNEL_END;
 
 static u8 vga_column;
 static u8 vga_row;
+
+static u8 vga_colour(u8 fg, u8 bg) 
+{
+    return fg | bg << 4;
+}
+
+static u16 vga_entry(u16 c, u16 col)
+{
+    return c | col << 8;
+}
 
 static void vga_put(char c)
 {
@@ -40,9 +50,7 @@ extern void vga_init()
 
     // clear vga buffer
     for(int i = 0; i < 80 * 25; i++)
-        VGA_BUFFER[i] = VGA_ENTRY(' ', VGA_COLOUR(7, 0));
-
-    for(;;);
+        VGA_BUFFER[i] = vga_entry(' ', vga_colour(7, 0));
 }
 
 extern u64* init32()
