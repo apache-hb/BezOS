@@ -1,21 +1,26 @@
-#pragma once
+#ifndef COMMON_TYPES_H
+#define COMMON_TYPES_H 1
 
-#define SIZED_TYPE(NAME, TYPE, SIZE) using NAME = TYPE; static_assert(sizeof(NAME) == SIZE);
+#include "assert.h"
 
-namespace bezos
-{
-    SIZED_TYPE(u8, unsigned char, 1);
-    SIZED_TYPE(u16, unsigned short, 2);
-    SIZED_TYPE(u32, unsigned int, 4);
-    SIZED_TYPE(u64, unsigned long long, 8);
+typedef unsigned char u8;
+typedef unsigned short u16;
+typedef unsigned int u32;
+typedef unsigned long long u64;
 
-    SIZED_TYPE(i8, signed char, 1);
-    SIZED_TYPE(i16, signed short, 2);
-    SIZED_TYPE(i32, signed int, 4);
-    SIZED_TYPE(i64, signed long long, 8);
+STATIC_ASSERT(sizeof(u8) == 1, "u8 should be 1 byte wide");
+STATIC_ASSERT(sizeof(u16) == 2, "u16 should be 2 bytes wide");
+STATIC_ASSERT(sizeof(u32) == 4, "u32 should be 4 bytes wide");
+STATIC_ASSERT(sizeof(u64) == 8, "u64 should be 8 bytes wide");
 
-    using byte = u8;
-    using word = u16;
-    using dword = u32;
-    using qword = u64;
-}
+typedef signed char s8;
+typedef signed short s16;
+typedef signed int s32;
+typedef signed long long s64;
+
+STATIC_ASSERT(sizeof(s8) == 1, "s8 should be 1 byte wide");
+STATIC_ASSERT(sizeof(s16) == 2, "s16 should be 2 bytes wide");
+STATIC_ASSERT(sizeof(s32) == 4, "s32 should be 4 bytes wide");
+STATIC_ASSERT(sizeof(s64) == 8, "s64 should be 8 bytes wide");
+
+#endif // COMMON_TYPES_H

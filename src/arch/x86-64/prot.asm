@@ -1,30 +1,25 @@
+global start32
+
+extern vga_init
+extern vga_print
+extern init32
+
 extern start64
 
-extern print
-extern init_paging
-extern init_vga
-
-section .protected
 bits 32
-    global start32
+section .prot
     start32:
-        ; when we get here the bootloader has set 
-        ; ax = data segment
-
-        ; so now we set the segments
         mov ds, ax
         mov ss, ax
-
-        ; clear general segments
+        
         xor ax, ax
 
         mov gs, ax
         mov fs, ax
         mov es, ax
 
-        ; enable printing to vga for logging
-        call init_vga
-
+        call vga_init
+    
     enable_cpuid:
         ; check if we have cpuid by checking eflags
         pushfd
@@ -90,7 +85,7 @@ bits 32
         mov cr4, eax
 
         ; time to enable paging
-        call init_paging
+        call init32
 
         ; move the top page table to cr3
         mov cr3, eax
@@ -138,7 +133,7 @@ bits 32
         jmp panic
 
     panic:
-        call print
+        call vga_print
     .end:
         cli
         hlt

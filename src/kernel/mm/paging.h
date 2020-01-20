@@ -1,11 +1,17 @@
-#pragma once
+#ifndef KERNEL_MM_PAGING_H
+#define KERNEL_MM_PAGING_H 1
 
-namespace bezos::mm
-{
-    void init();
+#include "common/types.h"
 
-    void* physical(void* addr);
+typedef struct {
+    u64 len;
+    u64 addr;
+    u32 type;
+    u32 attrib;
+} e820_entry;
 
-    // map a physical address to a page
-    void* map(void* phys);
-}
+STATIC_ASSERT(sizeof(e820_entry) == 24, "e820_entry should be 24 bytes wide");
+
+#define PAGE_ALIGN(addr) ((addr + 0x1000 - 1) & -0x1000)
+
+#endif // KERNEL_MM_PAGING_H

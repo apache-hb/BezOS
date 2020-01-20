@@ -1,1 +1,0 @@
-common code that is shared between 32 and 64 bit code

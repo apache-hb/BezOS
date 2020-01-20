@@ -1,0 +1,4 @@
+extern void kmain(void)
+{
+
+}
