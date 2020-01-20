@@ -6,25 +6,20 @@ SECTIONS {
     .real : {
         *(.real)
         *(.boot)
-    }
-
-    . = ALIGN(4K);
-
-    .text : {
-        /* execute only data */
-        TEXT_START = .;
-    
         *(.prot)
         *(.long)
+    }
+
+    .text : ALIGN(4K) {
+        /* execute only data */
+        TEXT_START = .;
+
         *(.text)
         
         TEXT_END = .;
     }
 
-    /* page align each section that has different permissions */
-    . = ALIGN(4K);
-
-    .data : {
+    .data : ALIGN(4K) {
         /* read/write data */
         DATA_START = .;
         
@@ -33,9 +28,7 @@ SECTIONS {
         DATA_END = .;
     }
 
-    . = ALIGN(4K);
-
-    .rodata : {
+    .rodata : ALIGN(4K) {
         /* read only data */
         RODATA_START = .;
         
@@ -44,7 +37,7 @@ SECTIONS {
         RODATA_END = .;
     }
 
-    .bss : {
+    .bss : ALIGN(4K) {
         /* read/write zeros */
         BSS_START = .;
         *(.bss)
