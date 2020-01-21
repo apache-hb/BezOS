@@ -1,4 +1,0 @@
-extern void kmain(void)
-{
-
-}
