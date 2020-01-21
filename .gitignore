@@ -1,6 +1,0 @@
-*.bin
-*.o
-build/
-*.json
-*.ini
-.DS_Store
