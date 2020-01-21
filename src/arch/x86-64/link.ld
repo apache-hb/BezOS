@@ -13,6 +13,7 @@ SECTIONS {
         *(.long)
     }
 
+
     .text : {
         *(.text)
     }

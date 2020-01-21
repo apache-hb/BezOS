@@ -1,6 +1,9 @@
-project('bezos', 'c',
+project('bezos', ['c', 'cpp'],
     default_options : [
-        'c_std=c11',
+        'cpp_rtti=false',
+        'cpp_eh=none',
+        'cpp_std=c++17',
+        'c_std=c99',
         'warning_level=3',
         'werror=true',
         'debug=false',

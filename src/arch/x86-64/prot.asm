@@ -1,10 +1,8 @@
 extern start64
 
-extern kernel_main
-
-extern vga_print
-extern init32
-extern vga_init
+extern print
+extern init_paging
+extern init_vga
 
 section .protected
 bits 32
@@ -16,7 +14,7 @@ bits 32
         ; so now we set the segments
         mov ds, ax
         mov ss, ax
-        
+
         ; clear general segments
         xor ax, ax
 
@@ -25,7 +23,7 @@ bits 32
         mov es, ax
 
         ; enable printing to vga for logging
-        call kernel_main
+        call init_vga
 
     enable_cpuid:
         ; check if we have cpuid by checking eflags
@@ -92,7 +90,7 @@ bits 32
         mov cr4, eax
 
         ; time to enable paging
-        call kernel_main
+        call init_paging
 
         ; move the top page table to cr3
         mov cr3, eax
@@ -140,7 +138,7 @@ bits 32
         jmp panic
 
     panic:
-        ; call vga_print
+        call print
     .end:
         cli
         hlt

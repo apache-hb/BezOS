@@ -1,1 +1,1 @@
-sources += meson.current_source_dir()/'kernel.c'
+sources += meson.current_source_dir()/'kernel.cpp'
