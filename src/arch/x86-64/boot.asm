@@ -5,7 +5,101 @@ extern start32
 
 bits 16
 section .boot
+    header:
+        jmp start16
+        times 3-($-$$) db 0x90
+
+        .oem_name:          db "jeff.fat"
+        .bytes_per_sect:    dw 512
+        .sect_per_cluster:  db 1
+        .reserved_sects:    dw 1
+        .nut_fat:           db 2
+        .num_root_dirs:     dw 224
+        .num_sects:         dw 2880
+        .media_type:        db 0xF0
+        .num_fat_sects:     dw 9
+        .sects_per_track:   dw 18
+        .num_heads:         dw 2
+        .num_hidden_sects:  dd 0
+        .num_sects_huge:    dd 0
+        .drive_num:         db 0
+        .reserved:          db 0
+        .signature:         db 0x29
+        .volume_id:         dd 0x2D7E5A1A
+        .volume_label:      db "NO NAME    "
+        .file_type:         db "FAT12   "
+
     start16:
+<<<<<<< HEAD
+=======
+        ; when we get here only the register dl has a known value
+        ; the value of the boot drive
+        ; so we need to track what are in the registers to make sure we dont accidentally read bad data
+
+        ; lets give outselves a small stack below the kernel
+        mov sp, 0x7C00
+
+        ; set fs to 0xFFFF
+        mov bx, 0xFFFF
+        mov fs, bx
+
+        ; zero bx 
+        xor bx, bx
+
+        ; zero the stack segment register so we have an absolute offset
+        mov ss, bx
+
+        ; zero the data and the extra segment
+        mov ds, bx
+        mov es, bx
+
+        ; load the rest of the kernel in from the disk
+    load_kernel:
+
+        ; we need to load in the next sectors after the kernel
+        ; we do this by passing alot of data into registers
+        ; we set
+        ; bx = memory to start loading disk data into
+        ; al = number of 512 byte sectors to load
+        ; ch = the cylinder to read from
+        ; dh = the head to read from
+        ; cl = the first sector we want to read from
+        ; ah = 2 which is the number chosen to read from disk
+        ;
+        ; then once we setup all the registers we 
+        ; call the disk interrupt to execute our disk query
+
+        ; we need to read into memory right after this section
+        mov bx, 0x7E00
+
+        ; we need all the kernel sectors
+        ; KERNEL_SECTORS is calculated by the linker script to tell us
+        ; the size of the kernel in 512 byte sectors
+        mov al, KERNEL_SECTORS
+
+        ; everything is on the first cylinder for now
+        ; TODO: what happens when we use more than 1440 sectors?
+        mov ch, 0
+
+        ; everything is read from the first head of the disk drive
+        mov dh, 0
+
+        ; we start from the second sector because the bios loads the first for us
+        mov cl, 2
+
+        ; ah = 2 means we want to read from disk so we dont overwrite it
+        mov ah, 2
+
+        ; then we use the disk interrupt to perform disk io
+        int 0x13
+
+        ; then we set the used memory to the end of the kernel
+        add dword [LOW_MEMORY], KERNEL_END
+
+        ; enable the a20 memory line to disable memory wrapping
+        ; this is needed to get into protected mode
+    enable_a20:
+>>>>>>> parent of e4cb183... add some more stuff
         ; check if the a20 line is already enabled
         call a20check
 
@@ -61,7 +155,7 @@ section .boot
         .fail:
             ; just panic with a message
             mov si, a20_msg
-            jmp panic
+            call panic
 
         ; collect e820 bios memory map
         ; this can only be done in real mode so do it now
@@ -125,7 +219,7 @@ section .boot
         .fail:
             ; if the e820 mapping fails then panic
             mov si, e820_msg
-            jmp panic
+            call panic
 
     enter_prot:
         cli
@@ -216,3 +310,13 @@ section .boot
 
     a20_msg: db "failed to activate a20 line", 0
     e820_msg: db "failed to collect e820 memory map", 0
+<<<<<<< HEAD
+=======
+    here_msg: db "got here", 0
+
+    global LOW_MEMORY
+    LOW_MEMORY: dd 0x7E00
+
+    times 510 - ($-$$) db 0
+    dw 0xAA55
+>>>>>>> parent of e4cb183... add some more stuff

@@ -6,7 +6,15 @@ SECTIONS {
     .real : {
         *(.real)
         *(.boot)
+<<<<<<< HEAD
         *(.prot)
+=======
+    }
+    .protected : {
+        *(.protected)
+    }
+    .long : {
+>>>>>>> parent of e4cb183... add some more stuff
         *(.long)
     }
 

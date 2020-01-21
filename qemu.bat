@@ -1,1 +1,1 @@
-"C:\Program Files\qemu\qemu-system-x86_64.exe" -drive format=raw,file=build/bezos.bin -no-shutdown -no-reboot -d int -debugcon stdio -m 256M
+"C:\Program Files\qemu\qemu-system-x86_64.exe" -drive format=raw,file=build/bezos.bin -no-shutdown -no-reboot -d int -debugcon stdio -m 256M -gdb tcp::9000
