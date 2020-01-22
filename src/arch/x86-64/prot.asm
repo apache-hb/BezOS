@@ -165,9 +165,47 @@ bits 32
     ; prints to vga output
     vga_print:
     .next:
-        mov eax, [edx]
-        cmp eax, 0
+        ; ebx = char to print
+        mov ebx, [edx]
+
+        ; if ebx is zero then return
+        cmp ebx, 0
         je .end
+
+        ; if ebx is a newline then go to the next line
+        cmp ebx, 10
+        jne .no_update_newline
+    
+        mov byte [vga_column], 0
+        inc byte [vga_row]
+
+    .no_update_newline:
+
+        cmp byte [vga_column], VGA_WIDTH
+        jng .no_update_column
+
+        mov byte [vga_column], 0
+        inc byte [vga_row]
+
+    .no_update_column:
+
+        cmp byte [vga_row], VGA_HEIGHT
+        jng .no_update_row
+
+        mov byte [vga_row], 0
+
+    .no_update_row:
+
+        mov al, byte [vga_row]
+        imul eax, eax, VGA_WIDTH
+        add al, byte [vga_column]
+
+        ; encode colour into char
+        or bx, 7 << 8
+
+        mov word [0xB8000+eax], bx
+
+        inc byte [vga_column]
 
         inc edx
 

@@ -56,8 +56,6 @@ extern void vga_init(void)
 
     vga_colour_t colour = VGA_COLOUR(7, 0);
 
-    asm volatile("nop");
-
     vga_print("12345\n");
 
     for(int i = 0; i < VGA_WIDTH * VGA_HEIGHT; i++)
