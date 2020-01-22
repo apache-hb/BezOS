@@ -169,6 +169,8 @@ bits 32
         cmp eax, 0
         je .end
 
+        inc edx
+
         jmp .next
     .end:
         ret
@@ -177,6 +179,7 @@ bits 32
         mov word [0xB8000], 69 | 7 << 8
         mov edx, sse_msg
         call vga_print
+        mov word [0xB8000], 71 | 7 << 8
         ret
 
     vga_row: db 0
