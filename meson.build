@@ -9,7 +9,6 @@ project('bezos', 'c',
 )
 
 sources = []
-sources32 = []
 args = []
 links = []
 incs = [ include_directories('src') ]
@@ -24,29 +23,9 @@ subdir('src/arch'/meson.get_cross_property('arch'))
 
 subdir('src/kernel')
 
-kernel32 = static_library('kernel32', sources32,
-    include_directories : incs,
-    cpp_args : args + [ '-m32' ],
-    link_args : [ '-Wl,-m32' ]
-)
-
-if host_machine.system() == 'darwin'
-    objcopy = find_program('objcopy')
-else
-    objcopy = find_program('llvm-objcopy')
-endif
-
-copy = custom_target('lib32as64',
-    input : kernel32,
-    output : '32as64.o',
-    command : [ objcopy, '-O', 'elf64-x86-64', '@INPUT@', '@OUTPUT@' ]
-)
-
-sources += copy
-
 kernel = executable('bezos.bin', sources,
     include_directories : incs,
-    cpp_args : args + [ '-m64' ],
+    cpp_args : args + [ '-m64', '-triple x86_64-elf' ],
     link_args : links + [ '-Wl,-T' + linker ],
     link_depends : linker
 )

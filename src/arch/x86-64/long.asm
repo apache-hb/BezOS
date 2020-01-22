@@ -18,11 +18,12 @@ bits 64
         call setup_long
     
     setup_long:
+
         xor rax, rax
         xor rbx, rbx
         xor rcx, rcx
         xor rdx, rdx
-        xor rbp, rbp
         movsx rsp, sp
+        mov rbp, rsp
 
         call kmain
