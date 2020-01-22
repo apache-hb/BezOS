@@ -1,5 +1,7 @@
 extern start64
 
+extern LOW_MEMORY
+
 %define VGA_WIDTH 80
 %define VGA_HEIGHT 25
 
@@ -217,7 +219,57 @@ bits 32
         mov word [0xB8000], 69 | 7 << 8
         mov edx, sse_msg
         call vga_print
-        mov word [0xB8000], 71 | 7 << 8
+
+        ; page align low memory ptr
+        mov eax, [LOW_MEMORY]
+        add eax, 0x1000 - 1
+        and eax, -0x1000
+
+        ; eax = pml4
+        ; ebx = pml3
+        mov ebx, eax
+        sub ebx, 0x1000
+
+        ; ecx = pml2
+        mov ecx, ebx
+        sub ecx, 0x1000
+
+        ; edx = pt
+        mov edx, ecx
+        sub edx, 0x1000
+
+        ; pml4[0] = pml3 | 3
+        mov esi, ebx
+        or esi, 3
+        mov [eax], esi
+
+        ; pml3[0] = pml2 | 3
+        mov esi, ecx
+        or esi, 3
+        mov [ebx], esi
+
+        ; pml2[0] = pt | 3
+        mov esi, edx
+        or esi, 3
+        mov [ecx], esi
+
+        ; eax = 0
+        ; loop counter
+        xor eax, eax
+
+    .fill_table:
+
+        mov edi, eax
+        imul edi, edi, 0x1000
+        or edi, 3
+
+        ; pt[i] = (i * 0x1000) | 3
+        mov [edx+eax], edi
+
+        ; if rsi != 512 goto fill_table
+        cmp eax, 512
+        jne .fill_table
+
         ret
 
     vga_row: db 0
@@ -266,3 +318,65 @@ bits 32
             db 00000000b
             db 0
         .end:
+
+%if 0
+        ; page align eax
+        mov eax, [LOW_MEMORY]
+        add eax, 0x1000 - 1
+        and eax, -0x1000
+
+        ; push pml4 rbp-12
+        push eax
+        add eax, 0x1000
+
+        ; push pml3 rbp-8
+        push eax
+        add eax, 0x1000
+
+        ; push pml2 rbp-4
+        push eax
+        add eax, 0x1000
+
+        ; push pt rbp
+        push eax
+        add eax, 0x1000
+
+
+        ; pml4[0] = pml3 | 3
+        mov eax, dword [rbp - 12]
+        mov ebx, dword [rbp - 8]
+        
+        or ebx, 3
+        mov [eax], ebx
+
+        ; pml3[0] = pml2 | 3;
+        mov eax, [rbp-8]
+        mov ebx, [rbp-4]
+
+        or ebx, 3
+        mov [eax], ebx
+
+        ; pml2[0] = pt | 3;
+        mov eax, [rbp-4]
+        mov ebx, [rbp]
+
+        or ebx, 3
+        mov [eax], ebx
+
+        mov eax, [rbp] ; eax = pt
+
+        ; counter
+        mov ebx, 0
+    .fill_table:
+        cmp 512, ebx
+        ja .end
+
+        mov ecx, ebx
+        imul ecx, ecx, 0x1000
+        or ecx, 3
+
+        mov [eax+ebx], ecx
+
+        jmp .fill_table
+
+%endif
