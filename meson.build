@@ -1,8 +1,6 @@
 project('bezos', 'c',
     default_options : [
-        'c_std=c99',
-        'warning_level=3',
-        'werror=true',
+        'c_std=gnu99',
         'debug=false',
         'optimization=3',
         'b_pie=false',
@@ -26,9 +24,10 @@ subdir('src/arch'/meson.get_cross_property('arch'))
 
 subdir('src/kernel')
 
-kernel32 = static_library('32', sources32,
+kernel32 = static_library('kernel32', sources32,
     include_directories : incs,
-    cpp_args : args + [ '-m32', '-fno-pic' ]
+    cpp_args : args + [ '-m32' ],
+    link_args : [ '-Wl,-m32' ]
 )
 
 if host_machine.system() == 'darwin'

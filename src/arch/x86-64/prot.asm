@@ -1,8 +1,7 @@
 extern start64
 
-extern print
-extern init_paging
-extern init_vga
+%define VGA_WIDTH 80
+%define VGA_HEIGHT 25
 
 section .protected
 bits 32
@@ -22,8 +21,7 @@ bits 32
         mov fs, ax
         mov es, ax
 
-        ; enable printing to vga for logging
-        call init_vga
+        call vga_init
 
     enable_cpuid:
         ; check if we have cpuid by checking eflags
@@ -58,7 +56,6 @@ bits 32
         test edx, 1 << 29
         jz long_fail
 
-
     enable_features:
         ; enable some cpu features for later use
         ; first enable the fpu because floats seem useful
@@ -90,7 +87,7 @@ bits 32
         mov cr4, eax
 
         ; time to enable paging
-        call init_paging
+        call paging_init
 
         ; move the top page table to cr3
         mov cr3, eax
@@ -138,12 +135,52 @@ bits 32
         jmp panic
 
     panic:
-        call print
+        call vga_print
     .end:
         cli
         hlt
         jmp .end
 
+    ; bonks eax
+    ; clears the vga text screen
+    vga_init:
+        ; counter register
+        mov eax, 0
+    .next:
+        ; if(eax == VGA_WIDTH * VGA_HEIGHT)
+        ;     return
+        cmp eax, VGA_HEIGHT * VGA_WIDTH
+        je .end
+
+        ; (word*)0xB8000[eax] = ' ' | 7 << 8
+        mov word [0xB8000+eax], 32 << 8
+        ; eax++
+        inc eax
+        jmp .next
+    .end:
+        ret
+
+    ; edx = string to print
+    ; bonks ebx, ecx, al
+    ; prints to vga output
+    vga_print:
+    .next:
+        mov eax, [edx]
+        cmp eax, 0
+        je .end
+
+        jmp .next
+    .end:
+        ret
+
+    paging_init:
+        mov word [0xB8000], 69 | 7 << 8
+        mov edx, sse_msg
+        call vga_print
+        ret
+
+    vga_row: db 0
+    vga_column: db 0
 
     cpuid_msg: db "cpuid not detected", 0
     long_msg: db "cpu is 32 bit, 64 bit is required", 0
