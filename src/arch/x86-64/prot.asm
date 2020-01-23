@@ -24,7 +24,7 @@ bits 32
         mov es, ax
 
         call vga_init
-
+        
     enable_cpuid:
         ; check if we have cpuid by checking eflags
         pushfd
@@ -115,25 +115,26 @@ bits 32
         ; load the 64 bit gdt to enable full 64 bit mode
         lgdt [low_gdt]
 
+
         mov ax, descriptor64.data
 
         ; then long jump to main
         jmp descriptor64.code:start64
 
     cpuid_fail:
-        push cpuid_msg
+        mov eax, cpuid_msg
         jmp panic
 
     long_fail:
-        push long_msg
+        mov eax, long_msg
         jmp panic
 
     fpu_fail:
-        push fpu_msg
+        mov eax, fpu_msg
         jmp panic
 
     sse_fail:
-        push sse_msg
+        mov eax, sse_msg
         jmp panic
 
     panic:
@@ -162,118 +163,51 @@ bits 32
     .end:
         ret
 
-    ; edx = string to print
-    ; bonks ebx, ecx, al
+    ; eax = string to print
+    ; bonks all registers
     ; prints to vga output
+
+    ; print a message to the console
+    ; si = pointer to message
     vga_print:
-    .next:
-        ; ebx = char to print
-        mov ebx, [edx]
-
-        ; if ebx is zero then return
-        cmp ebx, 0
-        je .end
-
-        ; if ebx is a newline then go to the next line
-        cmp ebx, 10
-        jne .no_update_newline
-    
-        mov byte [vga_column], 0
-        inc byte [vga_row]
-
-    .no_update_newline:
-
-        cmp byte [vga_column], VGA_WIDTH
-        jng .no_update_column
-
-        mov byte [vga_column], 0
-        inc byte [vga_row]
-
-    .no_update_column:
-
-        cmp byte [vga_row], VGA_HEIGHT
-        jng .no_update_row
-
-        mov byte [vga_row], 0
-
-    .no_update_row:
-
-        mov al, byte [vga_row]
-        imul eax, eax, VGA_WIDTH
-        add al, byte [vga_column]
-
-        ; encode colour into char
-        or bx, 7 << 8
-
-        mov word [0xB8000+eax], bx
-
-        inc byte [vga_column]
-
-        inc edx
-
-        jmp .next
+        cld ; clear the direction
+        xor eax, eax
+        mov ebx, 0xB8000
+    .put:
+        lodsb ; load the next byte
+        or al, al ; if the byte is zero
+        jz .end ; if it is zero then return
+        mov ah, 7 ; add some colour
+        mov word [ebx], ax
+        add ebx, 2
+        jmp .put ; then loop
     .end:
-        ret
+        ret ; return from function
 
     paging_init:
-        mov word [0xB8000], 69 | 7 << 8
-        mov edx, sse_msg
-        call vga_print
-
-        ; page align low memory ptr
-        mov eax, [LOW_MEMORY]
-        add eax, 0x1000 - 1
-        and eax, -0x1000
-
-        ; eax = pml4
-        ; ebx = pml3
-        mov ebx, eax
-        sub ebx, 0x1000
-
-        ; ecx = pml2
-        mov ecx, ebx
-        sub ecx, 0x1000
-
-        ; edx = pt
-        mov edx, ecx
-        sub edx, 0x1000
-
-        ; pml4[0] = pml3 | 3
-        mov esi, ebx
-        or esi, 3
-        mov [eax], esi
-
-        ; pml3[0] = pml2 | 3
-        mov esi, ecx
-        or esi, 3
-        mov [ebx], esi
-
-        ; pml2[0] = pt | 3
-        mov esi, edx
-        or esi, 3
-        mov [ecx], esi
-
-        ; eax = 0
-        ; loop counter
-        xor eax, eax
-
+        mov eax, LOW_MEMORY + 4095
+        and eax, -4096
+        lea ecx, [eax + 32771]
+        mov dword [eax + 4], 0
+        mov dword [eax], ecx
+        lea ecx, [eax + 65539]
+        mov dword [eax + 32772], 0
+        mov dword [eax + 32768], ecx
+        lea ecx, [eax + 98307]
+        mov dword [eax + 65540], 0
+        mov dword [eax + 65536], ecx
+        add eax, 98304
+        mov ecx, 3
     .fill_table:
-
-        mov edi, eax
-        imul edi, edi, 0x1000
-        or edi, 3
-
-        ; pt[i] = (i * 0x1000) | 3
-        mov [edx+eax], edi
-
-        ; if rsi != 512 goto fill_table
-        cmp eax, 512
+        mov dword [eax], ecx
+        add ecx, 4096
+        mov dword [eax + 4], 0
+        add eax, 8
+        cmp ecx, 2097155
         jne .fill_table
-
+        mov eax, LOW_MEMORY + 4095
+        and eax, -4096
         ret
-
-    vga_row: db 0
-    vga_column: db 0
 
     cpuid_msg: db "cpuid not detected", 0
     long_msg: db "cpu is 32 bit, 64 bit is required", 0
@@ -318,65 +252,3 @@ bits 32
             db 00000000b
             db 0
         .end:
-
-%if 0
-        ; page align eax
-        mov eax, [LOW_MEMORY]
-        add eax, 0x1000 - 1
-        and eax, -0x1000
-
-        ; push pml4 rbp-12
-        push eax
-        add eax, 0x1000
-
-        ; push pml3 rbp-8
-        push eax
-        add eax, 0x1000
-
-        ; push pml2 rbp-4
-        push eax
-        add eax, 0x1000
-
-        ; push pt rbp
-        push eax
-        add eax, 0x1000
-
-
-        ; pml4[0] = pml3 | 3
-        mov eax, dword [rbp - 12]
-        mov ebx, dword [rbp - 8]
-        
-        or ebx, 3
-        mov [eax], ebx
-
-        ; pml3[0] = pml2 | 3;
-        mov eax, [rbp-8]
-        mov ebx, [rbp-4]
-
-        or ebx, 3
-        mov [eax], ebx
-
-        ; pml2[0] = pt | 3;
-        mov eax, [rbp-4]
-        mov ebx, [rbp]
-
-        or ebx, 3
-        mov [eax], ebx
-
-        mov eax, [rbp] ; eax = pt
-
-        ; counter
-        mov ebx, 0
-    .fill_table:
-        cmp 512, ebx
-        ja .end
-
-        mov ecx, ebx
-        imul ecx, ecx, 0x1000
-        or ecx, 3
-
-        mov [eax+ebx], ecx
-
-        jmp .fill_table
-
-%endif

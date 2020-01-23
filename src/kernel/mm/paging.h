@@ -1,11 +1,22 @@
-#pragma once
+#ifndef MM_PAGING_H
+#define MM_PAGING_H 1
 
-namespace bezos::mm
-{
-    void init();
+#include "common/types.h"
 
-    void* physical(void* addr);
+typedef enum {
+    // read only memory
+    // a page can always be read from
+    read = 0,
+    
+    // writeable memory, implies read as well
+    // bit 1 is the write enable bit
+    write = (1 << 1),
 
-    // map a physical address to a page
-    void* map(void* phys);
-}
+    // executable memory
+    // if NX (bit 63) is 1 then the page cannot be executed
+    exec = (1 << 63)
+} paging_access;
+
+typedef u64 page_access_t;
+
+#endif // MM_PAGING_H

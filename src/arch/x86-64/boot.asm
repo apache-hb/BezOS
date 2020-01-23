@@ -96,59 +96,59 @@ section .boot
         ; check if the a20 line is already enabled
         call a20check
 
-        ; try to enable through the bios
-        .bios:
+    ; try to enable through the bios
+    .bios:
 
-            ; try and enable the a20 line through the bios call
-            mov ax, 0x2401
-            int 0x15
+        ; try and enable the a20 line through the bios call
+        mov ax, 0x2401
+        int 0x15
 
-            ; check again for the a20 line
-            call a20check
+        ; check again for the a20 line
+        call a20check
 
-        ; if the bios doesnt work try the keyboard controller
-        .kbd:
-            cli
+    ; if the bios doesnt work try the keyboard controller
+    .kbd:
+        cli
 
-            call a20wait
-            mov al, 0xAD
-            out 0x64, al
+        call a20wait
+        mov al, 0xAD
+        out 0x64, al
 
-            call a20wait
-            mov al, 0xD0
-            out 0x64, al
+        call a20wait
+        mov al, 0xD0
+        out 0x64, al
 
-            call a20wait2
-            in al, 0x60
-            push eax
+        call a20wait2
+        in al, 0x60
+        push eax
 
-            call a20wait
-            mov al, 0xD1
-            out 0x64, al
+        call a20wait
+        mov al, 0xD1
+        out 0x64, al
 
-            call a20wait
-            pop eax
-            or al, 2
-            out 0x64, al
+        call a20wait
+        pop eax
+        or al, 2
+        out 0x64, al
 
-            call a20wait
-            mov al, 0xAE
-            out 0x64, al
+        call a20wait
+        mov al, 0xAE
+        out 0x64, al
 
-            call a20wait
-            sti
+        call a20wait
+        sti
 
-            call a20check
-        ; if the keyboard doesnt work then try port io
-        .port:
-            in al, 0xEE
-            call a20check
+        call a20check
+    ; if the keyboard doesnt work then try port io
+    .port:
+        in al, 0xEE
+        call a20check
 
-        ; if the port io doesnt work then give up
-        .fail:
-            ; just panic with a message
-            mov si, a20_msg
-            jmp panic
+    ; if the port io doesnt work then give up
+    .fail:
+        ; just panic with a message
+        mov si, a20_msg
+        jmp panic
 
         ; collect e820 bios memory map
         ; this can only be done in real mode so do it now
@@ -177,42 +177,42 @@ section .boot
         ; so better safe than sorry
 
     collect_e820:
-            mov ebx, 0
-            mov edi, [LOW_MEMORY]
+        mov ebx, 0
+        mov edi, [LOW_MEMORY]
 
-            mov dword [edi], 0
-            add edi, 4
+        mov dword [edi], 0
+        add edi, 4
 
-            jmp .begin
-        .next:
-            add edi, ecx
-            mov dword [edi], ecx
-            add edi, 4
-        .begin:
-            mov eax, 0xE820
-            mov edx, 0x534D4150
-            mov ecx, 24
+        jmp .begin
+    .next:
+        add edi, ecx
+        mov dword [edi], ecx
+        add edi, 4
+    .begin:
+        mov eax, 0xE820
+        mov edx, 0x534D4150
+        mov ecx, 24
 
-            int 0x15
+        int 0x15
 
-            cmp ecx, 20
-            je .fix_size
+        cmp ecx, 20
+        je .fix_size
 
-            cmp ecx, 24
-            jne .fail
-        .fix_size:
-            cmp eax, 0x534D4150
-            jne .fail
+        cmp ecx, 24
+        jne .fail
+    .fix_size:
+        cmp eax, 0x534D4150
+        jne .fail
 
-            cmp ebx, 0
-            jne .next
-        .end:
-            mov [LOW_MEMORY], edi
-            jmp enter_prot
-        .fail:
-            ; if the e820 mapping fails then panic
-            mov si, e820_msg
-            jmp panic
+        cmp ebx, 0
+        jne .next
+    .end:
+        mov [LOW_MEMORY], edi
+        jmp enter_prot
+    .fail:
+        ; if the e820 mapping fails then panic
+        mov si, e820_msg
+        jmp panic
 
     enter_prot:
         cli
@@ -234,25 +234,25 @@ section .boot
     ; print a message to the console
     ; si = pointer to message
     print:
-            cld ; clear the direction
-            mov ah, 0x0E ; print magic
-        .put:
-            lodsb ; load the next byte
-            or al, al ; if the byte is zero
-            jz .end ; if it is zero then return
-            int 0x10 ; then print the charater
-            jmp .put ; then loop
-        .end:
-            ret ; return from function
+        cld ; clear the direction
+        mov ah, 0x0E ; print magic
+    .put:
+        lodsb ; load the next byte
+        or al, al ; if the byte is zero
+        jz .end ; if it is zero then return
+        int 0x10 ; then print the charater
+        jmp .put ; then loop
+    .end:
+        ret ; return from function
 
     ; print a message then loop forever
     ; si = pointer to message
     panic:
-            call print
-        .end:
-            cli
-            hlt
-            jmp .end
+        call print
+    .end:
+        cli
+        hlt
+        jmp .end
 
     a20wait:
         in al, 0x64
