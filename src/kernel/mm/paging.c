@@ -1,6 +1,6 @@
 #include "paging.h"
 
-void paging_init(void* top_page)
+void paging_init()
 {
     
 }

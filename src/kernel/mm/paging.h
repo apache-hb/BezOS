@@ -15,7 +15,7 @@ typedef enum {
 
 // initialize paging
 // @top_page the initial pml4, used for setup
-void paging_init(void* top_page);
+void paging_init();
 
 // allocate n pages from memory
 // @num number of pages to allocate
