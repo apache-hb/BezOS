@@ -24,15 +24,11 @@ void memory_init(void)
 {
     u8* ptr = (u8*)LOW_MEMORY;
 
-    vga_puti((int)ptr, 16);
-
     // TODO: handle with overlapping memory regions returned by e820
     // TODO: save usable memory ranges to prevent janky stuff
     for(;;)
     {
         u32 entry_size = *(u32*)(ptr - sizeof(u32));
-
-        vga_puti(entry_size, 10);
 
         // last entry size will be 0
         if(!entry_size)
