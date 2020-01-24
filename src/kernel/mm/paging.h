@@ -6,11 +6,7 @@
 typedef enum {
     page_size_4kb = 1,
     page_size_2mb = 2,
-    // this might be pointless to implement
-    page_size_4mb = 3,
-    page_size_1gb = 4,
-    // this might not be supported yet
-    page_size_512gb = 5,
+    page_size_1gb = 3,
 } page_size_t;
 
 // initialize paging
