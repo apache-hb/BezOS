@@ -36,7 +36,8 @@ void* page_alloc(u64 num, page_size_t size)
 
 void* map_physical_address(void* addr, page_modifier_t mods)
 {
-    u64 phys = addr;
+    u64 phys = (u64)addr;
+    
     if(phys % 0x1000)
     {
         // if the address isnt page aligned return null
