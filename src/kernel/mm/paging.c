@@ -14,6 +14,42 @@ typedef pml2_t* pml3_t;
 typedef pml3_t* pml4_t;
 typedef pml4_t* pml5_t;
 
+static void* get_virtual_address()
+{
+
+}
+
+void paging_init()
+{
+    // get the total amount of memory we have
+    const u64 total_memory = memory_total();
+
+    // check if we support pml5 or not
+    const u32 pml5_support = cpuid(0x07, 0).ecx & PML5_FLAG;
+}
+
+void* page_alloc(u64 num, page_size_t size)
+{
+    // return alloc_proc(num, size);
+    return 0;
+}
+
+void* map_physical_address(void* addr, page_modifier_t mods)
+{
+    u64 phys = addr;
+    if(phys % 0x1000)
+    {
+        // if the address isnt page aligned return null
+        return 0;
+    }
+
+    phys |= mods;
+    
+    return 0;
+}
+
+#if 0
+
 typedef void*(*page_alloc_proc_t)(u64, page_size_t);
 
 static union {
@@ -63,12 +99,9 @@ static void* alloc_pml5(u64 num, page_size_t size)
 {
     return 0;
 }
+#endif
 
-void paging_init()
-{
-    const u64 total_memory = memory_total();
-
-    const u32 pml5_support = cpuid(0x07, 0).ecx & PML5_FLAG;
+#if 0
 
     pml4_t pml4 = 0;
 
@@ -118,9 +151,4 @@ void paging_init()
 
 
     // TODO: set cr3
-}
-
-void* page_alloc(u64 num, page_size_t size)
-{
-    return alloc_proc(num, size);
-}
+#endif

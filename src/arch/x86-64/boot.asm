@@ -9,6 +9,31 @@ extern start32
 
 bits 16
 section .boot
+    bios_parameter_block:
+        jmp start16
+        times 3-($-$$) db 0x90
+
+    .oem_name: db "MSDOS5.0"
+    .bytes_per_section: dw 512
+    .sectors_per_cluster: db 8
+    .reserved_sectors: dw 1
+    .allocation_table_count: db 2
+    .num_root_dirs: dw 224
+    .num_sects: dw 2880
+    .media_type: dw 0xF0
+    .num_fat_sects: dw 9
+    .sects_per_track: dw 18
+    .num_heads: dw 2
+    .num_hidden_sects: dd 0
+    .num_sects_huge: dd 0
+    .drive_num: db 0
+    .reserved: db 0
+    .signature: db 0x29
+    .volume_id: dd 0x2D7E5A1A
+    .volume_label: db "NO NAME    "
+    .file_type: db "FAT12   "
+
+
     start16:
         ; when we get here only the register dl has a known value
         ; the value of the boot drive
@@ -83,6 +108,23 @@ section .boot
         add dword [LOW_MEMORY], KERNEL_END
 
         jmp enable_a20
+
+    ; print a message to the console
+    ; si = pointer to message
+    print:
+        push ax
+        cld ; clear the direction
+        mov ah, 0x0E ; print magic
+    .put:
+        lodsb ; load the next byte
+        or al, al ; if the byte is zero
+        jz .end ; if it is zero then return
+        int 0x10 ; then print the charater
+        jmp .put ; then loop
+    .end:
+        pop ax
+        ret ; return from function
+
 
     global LOW_MEMORY
     LOW_MEMORY: dd 0x7E00
@@ -230,20 +272,6 @@ section .boot
 
         ; jump into protected mode code
         jmp (descriptor.code - descriptor):start32
-
-    ; print a message to the console
-    ; si = pointer to message
-    print:
-        cld ; clear the direction
-        mov ah, 0x0E ; print magic
-    .put:
-        lodsb ; load the next byte
-        or al, al ; if the byte is zero
-        jz .end ; if it is zero then return
-        int 0x10 ; then print the charater
-        jmp .put ; then loop
-    .end:
-        ret ; return from function
 
     ; print a message then loop forever
     ; si = pointer to message

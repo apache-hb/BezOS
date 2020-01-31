@@ -4,7 +4,7 @@
 
 #include "vga/vga.h"
 
-extern int LOW_MEMORY;
+extern u64 LOW_MEMORY;
 
 typedef struct {
     // physical address

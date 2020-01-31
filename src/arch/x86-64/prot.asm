@@ -25,6 +25,8 @@ bits 32
 
         call vga_init
         
+        mov dword [0xB8000], 'a' | 7 << 8
+
     enable_cpuid:
         ; check if we have cpuid by checking eflags
         pushfd
@@ -46,17 +48,23 @@ bits 32
         xor eax, ecx
         jz cpuid_fail
 
+        mov dword [0xB8000], 'b' | 7 << 8
+
         ; if we have cpuid we need extended cpuid
         mov eax, 0x80000000
         cpuid
         cmp eax, 0x80000001
         jb cpuid_fail
 
+        mov dword [0xB8000], 'c' | 7 << 8
+
         ; now we use cpuid to check for long mode
         mov eax, 0x80000001
         cpuid 
         test edx, 1 << 29
         jz long_fail
+
+        mov dword [0xB8000], 'd' | 7 << 8
 
     enable_features:
         ; enable some cpu features for later use
@@ -65,16 +73,22 @@ bits 32
         and eax, (-1) - ((1 << 2) | (1 << 3))
         mov cr0, eax
 
+        mov dword [0xB8000], 'e' | 7 << 8
+
         fninit
         fnstsw [fpu_data]
         cmp word [fpu_data], 0
         jne fpu_fail ; if the fpu fails to store data then we dont have an fpu unit
+
+        mov dword [0xB8000], 'f' | 7 << 8
 
         ; next enable sse and sse2
         mov eax, 1
         cpuid
         test edx, 1 << 25
         jz sse_fail
+
+        mov dword [0xB8000], 'g' | 7 << 8
 
         mov eax, cr0
         ; disable emulation
@@ -83,16 +97,24 @@ bits 32
         or eax, 1
         mov cr0, eax
 
+        mov dword [0xB8000], 'h' | 7 << 8
+
         ; enable fpu save/restore functions and sse exceptions
         mov eax, cr4
         or eax, (1 << 9) | (1 << 10)
         mov cr4, eax
 
+        mov dword [0xB8000], 'i' | 7 << 8
+
         ; time to enable paging
         call paging_init
 
+        mov dword [0xB8000], 'j' | 7 << 8
+
         ; move the top page table to cr3
         mov cr3, eax
+
+        mov dword [0xB8000], 'k' | 7 << 8
 
         ; time to enable PAE for 64 bit addresses in the page table
         ; this is also required for long mode
@@ -101,20 +123,27 @@ bits 32
         or eax, (1 << 5) | (1 << 4)
         mov cr4, eax
 
+        mov dword [0xB8000], 'l' | 7 << 8
+
         ; enable long mode
         mov ecx, 0xC0000080
         rdmsr
         or eax, 1 << 8
         wrmsr
 
+        mov dword [0xB8000], 'm' | 7 << 8
+
         ; enable paging and WP flag for read only memory support
         mov eax, cr0
         or eax, 1 << 31
         mov cr0, eax
 
+        mov dword [0xB8000], 'n' | 7 << 8
+
         ; load the 64 bit gdt to enable full 64 bit mode
         lgdt [low_gdt]
 
+        mov dword [0xB8000], 'z' | 7 << 8
 
         mov ax, descriptor64.data
 

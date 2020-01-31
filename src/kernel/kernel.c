@@ -6,8 +6,9 @@
 extern void kmain(void)
 {
     vga_init();
-    memory_init();
-    paging_init();
+    vga_print("hello\n");
+    // memory_init();
+    // paging_init();
 
     while(1);
 }
