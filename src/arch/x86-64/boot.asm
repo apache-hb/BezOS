@@ -46,7 +46,7 @@ section .boot
         mov ax, 0xFFFF
         mov fs, ax
 
-        ; zero bx 
+        ; zero ax 
         xor ax, ax
 
         ; zero the stack segment register so we have an absolute offset
