@@ -4,13 +4,13 @@
 
 #define VGA_WIDTH 80
 #define VGA_HEIGHT 25
-#define VGA_BUFFER ((u16*)0xB8000)
+#define VGA_BUFFER ((uint16*)0xB8000)
 
 #define VGA_COLOUR(fg, bg) (fg | bg << 4)
 #define VGA_ENTRY(letter, colour) (letter | colour << 8)
 
-static u8 vga_row;
-static u8 vga_column;
+static int vga_row;
+static int vga_column;
 
 void vga_init()
 {
