@@ -12,7 +12,7 @@
 static int vga_row;
 static int vga_column;
 
-void vga_init()
+void vga_init(void)
 {
     vga_row = 0;
     vga_column = 0;
