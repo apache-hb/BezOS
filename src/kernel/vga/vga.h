@@ -1,11 +1,11 @@
-#ifndef VGA_H
-#define VGA_H
+#pragma once
 
-void vga_init(void);
+namespace vga
+{
+    void init();
 
-void vga_print(const char* str);
+    void print(const char* str);
 
-void vga_puts(const char* str);
-void vga_puti(int val, int base);
-
-#endif
+    void puts(const char* str);
+    void puti(int val, int base);
+}

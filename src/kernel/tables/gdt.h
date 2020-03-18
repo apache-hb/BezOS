@@ -1,6 +1,6 @@
-#ifndef GDT_H
-#define GDT_H
+#pragma once
 
-void gdt_init(void);
-
-#endif
+namespace gdt
+{
+    void init(void);
+}

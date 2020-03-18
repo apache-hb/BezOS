@@ -1,6 +1,6 @@
-#ifndef IDT_H
-#define IDT_H
+#pragma once
 
-void idt_init(void);
-
-#endif
+namespace idt
+{
+    void init(void);
+}

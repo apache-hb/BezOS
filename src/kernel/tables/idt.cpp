@@ -2,7 +2,10 @@
 
 #include "common/types.h"
 
-void idt_init(void)
+namespace idt
 {
+    void init(void)
+    {
 
+    }
 }

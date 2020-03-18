@@ -16,9 +16,6 @@ typedef uint16 word;
 typedef uint32 dword;
 typedef uint64 qword;
 
-#define true (1)
-#define false (0)
-
 #define PACKED(name, ...) typedef struct __attribute__((packed)) __VA_ARGS__ name
 
 #endif 

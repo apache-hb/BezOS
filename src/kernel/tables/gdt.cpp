@@ -2,7 +2,10 @@
 
 #include "common/types.h"
 
-void gdt_init(void)
+namespace gdt
 {
+    void init(void)
+    {
 
+    }
 }
