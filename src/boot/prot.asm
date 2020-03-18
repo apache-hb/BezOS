@@ -189,24 +189,31 @@ bits 32
     paging_init:
         mov eax, LOW_MEMORY + 4095
         and eax, -4096
+
         lea ecx, [eax + 32771]
         mov dword [eax + 4], 0
         mov dword [eax], ecx
+        
         lea ecx, [eax + 65539]
         mov dword [eax + 32772], 0
         mov dword [eax + 32768], ecx
+        
         lea ecx, [eax + 98307]
         mov dword [eax + 65540], 0
         mov dword [eax + 65536], ecx
+        
         add eax, 98304
         mov ecx, 3
+        
     .fill_table:
         mov dword [eax], ecx
         add ecx, 4096
+        
         mov dword [eax + 4], 0
         add eax, 8
         cmp ecx, 2097155
         jne .fill_table
+        
         mov eax, LOW_MEMORY + 4095
         and eax, -4096
         ret

@@ -19,8 +19,7 @@ assemble = generator(
     arguments : [ '-felf64', '@INPUT@', '-o', '@OUTPUT@' ]
 )
 
-subdir('src/arch'/meson.get_cross_property('arch'))
-
+subdir('src/boot')
 subdir('src/kernel')
 
 kernel = executable('bezos.bin', sources,

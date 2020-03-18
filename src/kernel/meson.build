@@ -1,5 +1,9 @@
-foreach src : [ 'kernel.c', 'vga/vga.c', 'mm/mm.c' ]
-    sources += meson.current_source_dir()/src
-endforeach
+sources += [
+    'src/kernel/mm/mm.c',
+    'src/kernel/vga/vga.c',
+    'src/kernel/kernel.c',
+    'src/kernel/tables/gdt.c',
+    'src/kernel/tables/idt.c'
+]
 
 incs += include_directories('.')

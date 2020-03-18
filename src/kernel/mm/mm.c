@@ -1,8 +1,6 @@
 #include "mm.h"
 #include "vga/vga.h"
 
-#include "common/types.h"
-
 extern uint64 LOW_MEMORY;
 extern uint64 KERNEL_END;
 
