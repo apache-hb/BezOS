@@ -118,10 +118,10 @@ bits 32
         ; load the 64 bit gdt to enable full 64 bit mode
         lgdt [low_gdt]
 
-        mov ax, descriptor64.data
+        mov ax, descriptor64.kdata
 
         ; then long jump to main
-        jmp descriptor64.code:start64
+        jmp descriptor64.kcode:start64
 
     cpuid_fail:
         mov eax, cpuid_msg
@@ -246,18 +246,32 @@ bits 32
             db 0
             db 0
             db 0
-        .code: equ $ - descriptor64
+        .kcode: equ $ - descriptor64
             dw 0
             dw 0
             db 0
             db 10011010b
             db 00100000b
             db 0
-        .data: equ $ - descriptor64
+        .kdata: equ $ - descriptor64
             dw 0
             dw 0
             db 0
             db 10010010b
+            db 00000000b
+            db 0
+        .ucode: equ $ - descriptor64
+            dw 0
+            dw 0
+            db 0
+            db 11011010b
+            db 00000000b
+            db 0
+        .udata: equ $ - descriptor64
+            dw 0
+            dw 0
+            db 0
+            db 11010010b
             db 00000000b
             db 0
         .end:

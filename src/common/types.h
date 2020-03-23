@@ -16,6 +16,9 @@ typedef uint16 word;
 typedef uint32 dword;
 typedef uint64 qword;
 
+template<uint64 N>
+using pad = byte[N];
+
 #define PACKED(name, ...) typedef struct __attribute__((packed)) __VA_ARGS__ name
 
 #endif 
