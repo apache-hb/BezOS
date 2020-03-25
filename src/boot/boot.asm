@@ -129,6 +129,15 @@ section .boot
     global LOW_MEMORY
     LOW_MEMORY: dd 0x7E00
 
+    global E820_MAP
+    E820_MAP: dd 0
+
+    global VBE_INFO
+    VBE_INFO: dd 0
+
+    global VBE_MAP
+    VBE_MAP: dd 0
+
     times 510 - ($-$$) db 0
     signature: dw 0xAA55
 
@@ -250,11 +259,44 @@ section .boot
         jne .next
     .end:
         mov [LOW_MEMORY], edi
-        jmp enter_prot
+        mov [E820_MAP], edi
+        jmp map_vbe
     .fail:
         ; if the e820 mapping fails then panic
         mov si, e820_msg
         jmp panic
+
+    map_vbe:
+        mov ax, 0
+        mov es, ax
+        
+        ; align to 4 bytes
+        mov di, [LOW_MEMORY]
+        add di, 3
+        and di, -4
+        add di, 512
+
+        ; write VBE2 as the signature
+        mov dword [di], 0x56424532
+
+        mov ah, 0x4F
+        mov al, 0
+
+        int 0x10
+
+        cmp ax, 0x4F
+        mov si, info_msg
+        jne panic
+
+        mov [VBE_INFO], di
+        add di, 512
+        mov [LOW_MEMORY], di
+
+        ;mov eax, 0x4F01
+    ;.begin:
+        ;add edi, 256
+
+        jmp enter_prot
 
     enter_prot:
         cli
@@ -336,3 +378,4 @@ section .boot
     a20_msg: db "failed to activate a20 line", 0
     e820_msg: db "failed to collect e820 memory map", 0
     disk_msg: db "failed to read from disk drive", 0
+    info_msg: db "failed to read vbe info", 0

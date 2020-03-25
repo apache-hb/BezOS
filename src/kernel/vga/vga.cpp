@@ -14,7 +14,6 @@ static int vga_column;
 
 namespace vga
 {
-
     void init(void)
     {
         vga_row = 0;
@@ -47,27 +46,26 @@ namespace vga
         vga_column++;
     }
 
-    void print(const char* str)
+    void putc(char c)
     {
-        while(*str)
-            put(*str++);
+        put(c);
     }
 
     void puts(const char* str)
     {
-        print(str);
-        put('\n');
+        while(*str)
+            put(*str++);
     }
 
     void puti(int val, int base)
     {
         if(base == 16)
         {
-            print("0x");
+            puts("0x");
         } 
         else if(base == 2)
         {
-            print("0b");
+            puts("0b");
         }
 
         if(!val)
@@ -83,8 +81,7 @@ namespace vga
         for(; val && i; --i, val /= base)
             buf[i] = "0123456789ABCDEF"[val % base];
 
-        print(&buf[i+1]);
-        put('\n');
+        puts(&buf[i+1]);
     }
 
 }

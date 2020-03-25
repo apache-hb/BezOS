@@ -1,7 +1,8 @@
 #include "vga/vga.h"
 #include "mm/mm.h"
 
-#include "tables/idt.h"
+#include "sys/idt.h"
+#include "sys/vesa.h"
 
 extern "C" void kmain(void)
 {
@@ -9,9 +10,12 @@ extern "C" void kmain(void)
 
     idt::init();
 
+    // mm::init *must* be called before vesa::init due to the bootloaders 
+    // delivery of data
     mm::init();
+    vesa::init();
 
-    vga::print("hello\n");
+    vga::puts("hello\n");
 
     for(;;);
 }

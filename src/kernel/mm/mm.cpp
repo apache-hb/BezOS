@@ -1,8 +1,8 @@
 #include "mm.h"
 #include "vga/vga.h"
 
-extern "C" uint64 LOW_MEMORY;
-extern "C" uint64 KERNEL_END;
+extern "C" uint32 E820_MAP;
+extern "C" uint32 KERNEL_END;
 
 namespace mm
 {
@@ -19,11 +19,11 @@ namespace mm
 
     void init(void)
     {
-        byte* ptr = (byte*)LOW_MEMORY;
-        entries = (e820_entry*)LOW_MEMORY;
+        byte* ptr = (byte*)E820_MAP;
+        entries = (e820_entry*)E820_MAP;
         entry_count = 0;
 
-        // go backwards over all the entries starting at LOW_MEMORY-4
+        // go backwards over all the entries starting at E820_MAP-4
         for(;;)
         {
             uint32 size = *(uint32*)(ptr - sizeof(uint32));
