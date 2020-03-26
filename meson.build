@@ -23,9 +23,18 @@ assemble = generator(
 subdir('src/boot')
 subdir('src/kernel')
 
-kernel = executable('bezos.bin', sources,
+kernel_elf = executable('bezos.elf', sources,
     include_directories : incs,
     cpp_args : args + [ '-m64' ],
     link_args : links + [ '-Wl,-T' + linker ],
     link_depends : linker
+)
+
+objcopy = find_program('objcopy')
+
+kernel = custom_target('flatten',
+    input : kernel_elf,
+    output : 'bezos.bin',
+    command : [ objcopy, '@INPUT@', '@OUTPUT@', '-j', '.kernel', '-O', 'binary' ],
+    build_by_default : true
 )

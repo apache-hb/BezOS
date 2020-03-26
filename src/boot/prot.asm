@@ -9,9 +9,6 @@ section .protected
 bits 32
     global start32
     start32:
-        ; TODO: if this isnt here everything breaks
-        ; it would be great if this wasnt here
-        mov dword [0xB8000], 'a' | 7 << 8
         ; when we get here the bootloader has set 
         ; ax = data segment
 

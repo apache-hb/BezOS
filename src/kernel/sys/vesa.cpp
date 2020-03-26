@@ -41,7 +41,6 @@ namespace vesa
         vga::puti(VBE_INFO, 16);
         vbe_info* info = reinterpret_cast<vbe_info*>(VBE_INFO);
         vga::putc('\n');
-        vga::puti((uint64)info, 16);
 
         vga::putc(info->signature[0]);
         vga::putc(info->signature[1]);

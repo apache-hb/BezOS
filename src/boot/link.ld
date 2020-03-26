@@ -1,30 +1,24 @@
-OUTPUT_FORMAT(binary)
+OUTPUT_FORMAT(elf64-x86-64)
 
 SECTIONS {
     . = 0x7C00;
-    .boot : {
-        *(.boot)
-    }
-    /* . = ALIGN(512); */
-    .protected : {
-        *(.protected)
-    }
-    .long : {
-        *(.long)
-    }
 
-
-    .text : {
-        *(.text)
+    .kernel : {
+        *(.boot*)
+        *(.protected*)
+        *(.long*)
+        *(.text*)
+        *(.data*)
+        *(.rodata*)
     }
-    .data : {
-        *(.data)
-        *(.rodata)
-        *(.bss)
-    }
-
-    KERNEL_END = ALIGN(512) - 0x7C00;
+    
+    . = ALIGN(512);
+    KERNEL_END = . - 0x7C00;
     KERNEL_SECTORS = (KERNEL_END / 512) - 1;
+    
+    BSS_FRONT = ALIGN(4);
+    .ignore : { *(.bss*) }
+    BSS_BACK = ALIGN(4);
 
     /DISCARD/ : {
         *(COMMON)

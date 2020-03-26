@@ -7,6 +7,9 @@ extern KERNEL_END
 ; 32 bit protected mode code
 extern start32
 
+extern BSS_FRONT
+extern BSS_BACK
+
 bits 16
 section .boot
     bios_parameter_block:
@@ -42,32 +45,27 @@ section .boot
         ; lets give outselves a small stack below the kernel
         mov sp, 0x7C00
 
-        ; set fs to 0xFFFF
         mov ax, 0xFFFF
         mov fs, ax
 
         ; zero ax 
         xor ax, ax
 
-        ; zero the stack segment register so we have an absolute offset
         mov ss, ax
 
-        ; zero the data and the extra segment
+        ; zero the stack segment register so we have an absolute offset
         mov ds, ax
         mov es, ax
 
-        ; clear carry bit and direction bit
         clc
         cld
         sti
 
-        ; load the rest of the kernel in from the disk
     load_kernel:
-
         ; we need to load in the next sectors after the kernel
         ; we do this by passing alot of data into registers
         ; we set
-        ; bx = memory to start loading disk data into
+        ; es:bx = memory to start loading disk data into
         ; al = number of 512 byte sectors to load
         ; ch = the cylinder to read from
         ; dh = the head to read from
@@ -78,31 +76,38 @@ section .boot
         ; call the disk interrupt to execute our disk query
 
         ; we need to read into memory right after this section
-        mov bx, 0x7E00
+        mov bx, 0x07E0
+        mov es, bx
+        xor bx, bx
 
-        ; we need all the kernel sectors
-        ; KERNEL_SECTORS is calculated by the linker script to tell us
-        ; the size of the kernel in 512 byte sectors
-        mov al, KERNEL_SECTORS
+        ; load the rest of the kernel in from the disk
+        mov di, 0
 
-        ; everything is on the first cylinder for now
-        ; TODO: what happens when we use more than 1440 sectors?
         mov ch, 0
-
-        ; everything is read from the first head of the disk drive
-        mov dh, 0
-
-        ; we start from the second sector because the bios loads the first for us
         mov cl, 2
+        mov dh, 0
+        mov dl, 0
 
-        ; ah = 2 means we want to read from disk so we dont overwrite it
+        mov di, 0
+
+        mov al, KERNEL_SECTORS
         mov ah, 2
 
         ; then we use the disk interrupt to perform disk io
         int 0x13
 
-        ; if we failed to read from disk then panic
+        ; jmp $
+
         jc fail_disk
+
+        xor bx, bx
+        mov es, bx
+
+        ; cmp ah, 0
+        ; jne fail_disk
+
+        ; if we failed to read from disk then panic
+        ; jc fail_disk
 
         ; then we set the used memory to the end of the kernel
         add dword [LOW_MEMORY], KERNEL_END
@@ -126,8 +131,27 @@ section .boot
         ret ; return from function
 
 
+    ; print a message then loop forever
+    ; si = pointer to message
+    panic:
+        call print
+    .end:
+        cli
+        hlt
+        jmp .end
+
+    fail_disk:
+        jmp $
+        mov si, disk_msg
+        jmp panic
+
+    disk_msg: db "failed to read from disk drive", 0
+
     global LOW_MEMORY
     LOW_MEMORY: dd 0x7E00
+
+    times 510 - ($-$$) db 0
+    signature: dw 0xAA55
 
     global E820_MAP
     E820_MAP: dd 0
@@ -138,8 +162,6 @@ section .boot
     global VBE_MAP
     VBE_MAP: dd 0
 
-    times 510 - ($-$$) db 0
-    signature: dw 0xAA55
 
         ; enable the a20 memory line to disable memory wrapping
         ; this is needed to get into protected mode
@@ -288,17 +310,34 @@ section .boot
         mov si, info_msg
         jne panic
 
-        mov [VBE_INFO], di
-        add di, 512
-        mov [LOW_MEMORY], di
+        mov [VBE_INFO], edi
+        add edi, 512
+        mov [LOW_MEMORY], edi
 
-        ;mov eax, 0x4F01
-    ;.begin:
-        ;add edi, 256
+        mov eax, 0x4F01
+        mov ecx, [VBE_INFO]
+        add ecx, 18
+        mov edi, [LOW_MEMORY]
+    .begin:
+        int 0x10
+
+        add edi, 256
+        add cx, 4
+
+    .end:
+        mov [LOW_MEMORY], edi
 
         jmp enter_prot
 
     enter_prot:
+        mov eax, dword [BSS_FRONT]
+    .next:
+        mov dword [eax], 0
+        cmp eax, [BSS_BACK]
+        je .end
+        add eax, 4
+        jmp .next
+    .end:
         cli
 
         ; load the global descriptor table
@@ -314,15 +353,6 @@ section .boot
 
         ; jump into protected mode code
         jmp (descriptor.code - descriptor):start32
-
-    ; print a message then loop forever
-    ; si = pointer to message
-    panic:
-        call print
-    .end:
-        cli
-        hlt
-        jmp .end
 
     a20wait:
         in al, 0x64
@@ -371,11 +401,6 @@ section .boot
             db 0
         .end:
 
-    fail_disk:
-        mov si, disk_msg
-        jmp panic
-
     a20_msg: db "failed to activate a20 line", 0
     e820_msg: db "failed to collect e820 memory map", 0
-    disk_msg: db "failed to read from disk drive", 0
     info_msg: db "failed to read vbe info", 0
