@@ -45,21 +45,15 @@ section .boot
         ; lets give outselves a small stack below the kernel
         mov sp, 0x7C00
 
-        mov ax, 0xFFFF
-        mov fs, ax
-
         ; zero ax 
         xor ax, ax
-
-        mov ss, ax
-
-        ; zero the stack segment register so we have an absolute offset
         mov ds, ax
-        mov es, ax
+        mov cs, ax
+        mov ss, ax
+        mov fs, ax
 
-        clc
         cld
-        sti
+        clc
 
     load_kernel:
         ; we need to load in the next sectors after the kernel
@@ -76,38 +70,22 @@ section .boot
         ; call the disk interrupt to execute our disk query
 
         ; we need to read into memory right after this section
-        mov bx, 0x07E0
-        mov es, bx
-        xor bx, bx
+        mov ah, 0x41
+        mov bx, 0x55AA
 
-        ; load the rest of the kernel in from the disk
-        mov di, 0
-
-        mov ch, 0
-        mov cl, 2
-        mov dh, 0
-        mov dl, 0
-
-        mov di, 0
-
-        mov al, KERNEL_SECTORS
-        mov ah, 2
-
-        ; then we use the disk interrupt to perform disk io
         int 0x13
+        jc fail_ext
 
-        ; jmp $
 
+        mov dl, 0x80
+        mov ah, 0x42
+        mov si, dap
+
+        int 0x13
         jc fail_disk
 
         xor bx, bx
         mov es, bx
-
-        ; cmp ah, 0
-        ; jne fail_disk
-
-        ; if we failed to read from disk then panic
-        ; jc fail_disk
 
         ; then we set the used memory to the end of the kernel
         add dword [LOW_MEMORY], KERNEL_END
@@ -141,11 +119,23 @@ section .boot
         jmp .end
 
     fail_disk:
-        jmp $
         mov si, disk_msg
         jmp panic
 
+    fail_ext:
+        mov si, ext_msg
+        jmp panic
+
     disk_msg: db "failed to read from disk drive", 0
+    ext_msg: db "disk extensions not supported", 0
+
+    dap:
+        db 10h ; size of disk address packet
+        db 0 ; unused
+        dw KERNEL_SECTORS ; sectors to be read
+        dw 0x7E00 ; addr
+        dw 0 ; segment
+        dq 1 ; start
 
     global LOW_MEMORY
     LOW_MEMORY: dd 0x7E00
