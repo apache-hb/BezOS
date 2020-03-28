@@ -10,9 +10,9 @@ SECTIONS {
         *(.text*)
         *(.data*)
         *(.rodata*)
+        . = ALIGN(512);
     }
     
-    . = ALIGN(512);
     KERNEL_END = . - 0x7C00;
     KERNEL_SECTORS = (KERNEL_END / 512) - 1;
     

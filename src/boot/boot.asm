@@ -63,11 +63,11 @@ section .boot
         cmp bx, 0xAA55
         jnz fail_ext
 
+        mov word [dap.sectors], KERNEL_SECTORS
 
         mov ah, 0x42
         mov si, dap
         int 0x13
-        jmp $
         jc fail_disk
 
         ; then we set the used memory to the end of the kernel
@@ -113,15 +113,15 @@ section .boot
     ext_msg: db "disk extensions not supported", 0
 
     dap:
-        .len: db 0x10 ; size of disk address packet
-        .zero: db 0 ; unused
-        .blocks: dw KERNEL_SECTORS ; sectors to be read
-        .addr: dw 0x7E00 ; addr
-        .seg: dw 0 ; segment
-        .lba: dq 1 ; start
+        .len: db 0x10
+        .zero: db 0 ; size of disk address packet
+        .sectors: dw 0 ; sectors to be read
+        dd bootend ; addr
+        dq 1 ; start
 
     times 510 - ($-$$) db 0
     signature: dw 0xAA55
+    bootend:
 
     global LOW_MEMORY
     LOW_MEMORY: dd 0x7E00
