@@ -16,7 +16,7 @@ section .boot
         jmp start16
         times 3-($-$$) db 0x90
 
-    .oem_name: db "MSDOS5.0"
+    .oem_name: db "mkfs.fat"
     .bytes_per_section: dw 512
     .sectors_per_cluster: db 8
     .reserved_sectors: dw 1
@@ -42,50 +42,33 @@ section .boot
         ; the value of the boot drive
         ; so we need to track what are in the registers to make sure we dont accidentally read bad data
 
-        ; lets give outselves a small stack below the kernel
-        mov sp, 0x7C00
+        cld
+        cli
+
 
         ; zero ax 
         xor ax, ax
         mov ds, ax
-        mov cs, ax
-        mov ss, ax
-        mov fs, ax
+        mov es, ax
 
-        cld
-        clc
+        mov ss, ax
+        mov sp, 0x7C00
 
     load_kernel:
-        ; we need to load in the next sectors after the kernel
-        ; we do this by passing alot of data into registers
-        ; we set
-        ; es:bx = memory to start loading disk data into
-        ; al = number of 512 byte sectors to load
-        ; ch = the cylinder to read from
-        ; dh = the head to read from
-        ; cl = the first sector we want to read from
-        ; ah = 2 which is the number chosen to read from disk
-        ;
-        ; then once we setup all the registers we 
-        ; call the disk interrupt to execute our disk query
-
-        ; we need to read into memory right after this section
         mov ah, 0x41
         mov bx, 0x55AA
-
         int 0x13
         jc fail_ext
 
+        cmp bx, 0xAA55
+        jnz fail_ext
 
-        mov dl, 0x80
+
         mov ah, 0x42
         mov si, dap
-
         int 0x13
+        jmp $
         jc fail_disk
-
-        xor bx, bx
-        mov es, bx
 
         ; then we set the used memory to the end of the kernel
         add dword [LOW_MEMORY], KERNEL_END
@@ -130,18 +113,18 @@ section .boot
     ext_msg: db "disk extensions not supported", 0
 
     dap:
-        db 10h ; size of disk address packet
-        db 0 ; unused
-        dw KERNEL_SECTORS ; sectors to be read
-        dw 0x7E00 ; addr
-        dw 0 ; segment
-        dq 1 ; start
-
-    global LOW_MEMORY
-    LOW_MEMORY: dd 0x7E00
+        .len: db 0x10 ; size of disk address packet
+        .zero: db 0 ; unused
+        .blocks: dw KERNEL_SECTORS ; sectors to be read
+        .addr: dw 0x7E00 ; addr
+        .seg: dw 0 ; segment
+        .lba: dq 1 ; start
 
     times 510 - ($-$$) db 0
     signature: dw 0xAA55
+
+    global LOW_MEMORY
+    LOW_MEMORY: dd 0x7E00
 
     global E820_MAP
     E820_MAP: dd 0
