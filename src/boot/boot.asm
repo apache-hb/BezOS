@@ -129,12 +129,6 @@ section .boot
     global E820_MAP
     E820_MAP: dd 0
 
-    global VBE_INFO
-    VBE_INFO: dd 0
-
-    global VBE_MAP
-    VBE_MAP: dd 0
-
 
         ; enable the a20 memory line to disable memory wrapping
         ; this is needed to get into protected mode
@@ -255,52 +249,11 @@ section .boot
     .end:
         mov [LOW_MEMORY], edi
         mov [E820_MAP], edi
-        jmp map_vbe
+        jmp enter_prot
     .fail:
         ; if the e820 mapping fails then panic
         mov si, e820_msg
         jmp panic
-
-    map_vbe:
-        mov ax, 0
-        mov es, ax
-        
-        ; align to 4 bytes
-        mov di, [LOW_MEMORY]
-        add di, 3
-        and di, -4
-        add di, 512
-
-        ; write VBE2 as the signature
-        mov dword [di], 0x56424532
-
-        mov ah, 0x4F
-        mov al, 0
-
-        int 0x10
-
-        cmp ax, 0x4F
-        mov si, info_msg
-        jne panic
-
-        mov [VBE_INFO], edi
-        add edi, 512
-        mov [LOW_MEMORY], edi
-
-        mov eax, 0x4F01
-        mov ecx, [VBE_INFO]
-        add ecx, 18
-        mov edi, [LOW_MEMORY]
-    .begin:
-        int 0x10
-
-        add edi, 256
-        add cx, 4
-
-    .end:
-        mov [LOW_MEMORY], edi
-
-        jmp enter_prot
 
     enter_prot:
         mov eax, dword [BSS_FRONT]
@@ -376,4 +329,3 @@ section .boot
 
     a20_msg: db "failed to activate a20 line", 0
     e820_msg: db "failed to collect e820 memory map", 0
-    info_msg: db "failed to read vbe info", 0
