@@ -88,12 +88,6 @@ bits 32
         or eax, (1 << 9) | (1 << 10)
         mov cr4, eax
 
-        ; time to enable paging
-        call paging_init
-
-        ; move the top page table to cr3
-        mov cr3, eax
-
         ; time to enable PAE for 64 bit addresses in the page table
         ; this is also required for long mode
 
@@ -106,6 +100,12 @@ bits 32
         rdmsr
         or eax, 1 << 8
         wrmsr
+
+        ; time to enable paging
+        call paging_init
+
+        ; move the top page table to cr3
+        mov cr3, eax
 
         ; enable paging and WP flag for read only memory support
         mov eax, cr0

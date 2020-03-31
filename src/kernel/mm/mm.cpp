@@ -17,7 +17,7 @@ namespace mm
     static e820_entry* entries;
     static int entry_count;
 
-    void init(void)
+    void init()
     {
         byte* ptr = (byte*)E820_MAP;
         entries = (e820_entry*)E820_MAP;
@@ -41,5 +41,20 @@ namespace mm
             // put the entries into their own table for later use
             entries[entry_count++] = *entry;
         }
+    }
+
+    void* alloc(uint64 size)
+    {
+        return nullptr;
+    }
+
+    void* map(uint64 addr, uint64 len)
+    {
+        return nullptr;
+    }
+
+    void free(void* ptr)
+    {
+
     }
 }

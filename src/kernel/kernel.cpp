@@ -14,6 +14,6 @@ extern "C" void kmain(void)
     mm::init();
 
     vga::puts("hello\n");
-
+    
     for(;;);
 }

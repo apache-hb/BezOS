@@ -1,10 +1,13 @@
-#ifndef MM_H
-#define MM_H
+#pragma once
 
 #include "common/types.h"
 
 namespace mm
 {
-    void init(void);
+    void init();
+
+    void* alloc(uint64 size);
+    void* map(uint64 addr, uint64 len);
+    
+    void free(void* ptr);
 }
-#endif

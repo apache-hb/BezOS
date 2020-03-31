@@ -14,12 +14,10 @@ static int vga_column;
 
 namespace vga
 {
-    void init(void)
+    void init()
     {
         vga_row = 0;
         vga_column = 0;
-
-        // vga will be cleared by the bootloader so no need to do it here
     }
 
     static void put(char c)
