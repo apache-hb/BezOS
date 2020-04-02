@@ -35,6 +35,6 @@ objcopy = find_program('objcopy')
 kernel = custom_target('flatten',
     input : kernel_elf,
     output : 'bezos.bin',
-    command : [ objcopy, '@INPUT@', '@OUTPUT@', '-j', '.kernel', '-O', 'binary' ],
+    command : [ objcopy, '@INPUT@', '@OUTPUT@', '-R', '.ignore', '-O', 'binary' ],
     build_by_default : true
 )
