@@ -1,8 +1,8 @@
 ; number of 512 byte sectors the kernel takes up
-extern KERNEL_SECTORS
+extern SECTORS
 
 ; size of the kernel aligned to page
-extern KERNEL_END
+extern BOOT_END
 
 ; 32 bit protected mode code
 extern start32
@@ -63,7 +63,7 @@ section .boot
         cmp bx, 0xAA55
         jnz fail_ext
 
-        mov word [dap.sectors], KERNEL_SECTORS
+        mov word [dap.sectors], SECTORS
 
         mov ah, 0x42
         mov si, dap
@@ -71,7 +71,7 @@ section .boot
         jc fail_disk
 
         ; then we set the used memory to the end of the kernel
-        add dword [LOW_MEMORY], KERNEL_END
+        mov dword [LOW_MEMORY], BOOT_END
 
         jmp enable_a20
 
@@ -124,7 +124,7 @@ section .boot
     bootend:
 
     global LOW_MEMORY
-    LOW_MEMORY: dd 0x7E00
+    LOW_MEMORY: dd 0
 
     global E820_MAP
     E820_MAP: dd 0
