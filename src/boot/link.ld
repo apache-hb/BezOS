@@ -1,44 +1,49 @@
 OUTPUT_FORMAT(elf64-x86-64)
 
-BOOT_ADDR = 0x7C00;
+BEGIN = 0x7C00;
 VMA = 0xFFFFFFFF80000000;
 
 SECTIONS {
-    . = BOOT_ADDR;
+    . = BEGIN;
 
-    .bootload : {
-        *(.boot*)
-        *(.protected*)
+    BOOT_BEGIN = .;
+    .boot : {
+        *(.real*)
+        *(.prot*)
         *(.long*)
     }
-    . = ALIGN(512);
-
-    BOOT_END = . - BOOT_ADDR;
-    BOOT_SECTORS = (BOOT_END / 512) - 1;
+    BOOT_END = .;
 
 
-    . = VMA;
-
-
-    KERN_FRONT = .;
-    .text : AT(ADDR(.text) - VMA) {
+    KERN_BEGIN = .;
+    .kern : {
         *(.text*)
-    }
-    .data : AT(ADDR(.data) - VMA) {
         *(.data*)
-        *(.rodata)
+        *(.rodata*)
     }
-    . = ALIGN(512);
-    KERN_BACK = .;
-    
+    KERN_END = .;
 
-    KERN_SECTORS = ((KERN_BACK - KERN_FRONT) / 512) - 1;
 
-    SECTORS = BOOT_SECTORS + KERN_SECTORS;    
-
-    BSS_FRONT = ALIGN(4);
+    BSS_BEGIN = ALIGN(8);
     .ignore : { *(.bss*) }
-    BSS_BACK = ALIGN(4);
+    BSS_END = ALIGN(8);
+
+
+
+
+    /* public variables */
+    BOOT_ADDR = BOOT_BEGIN;
+    BOOT_SIZE = BOOT_END - BOOT_BEGIN;
+
+    KERN_ADDR = KERN_BEGIN;
+    KERN_SIZE = KERN_END - KERN_BEGIN;
+
+    BSS_ADDR = BSS_BEGIN;
+    BSS_SIZE = BSS_END - BSS_BEGIN;
+
+    SECTORS = (BOOT_SIZE + KERN_SIZE) / 512;
+
+
 
     /DISCARD/ : {
         *(COMMON)
