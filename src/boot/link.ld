@@ -6,23 +6,23 @@ VMA = 0xFFFFFFFF80000000;
 SECTIONS {
     . = BEGIN;
 
-    BOOT_BEGIN = .;
     .boot : {
+        BOOT_BEGIN = .;
         *(.real*)
         *(.prot*)
         *(.long*)
+        BOOT_END = .;
     }
-    BOOT_END = .;
 
+    . += VMA;
 
-    KERN_BEGIN = .;
-    .kern : {
+    .kern : AT(ADDR(.kern) - VMA) {
+        KERN_BEGIN = ALIGN(4);
         *(.text*)
         *(.data*)
         *(.rodata*)
+        KERN_END = ALIGN(512);
     }
-    KERN_END = .;
-
 
     BSS_BEGIN = ALIGN(8);
     .ignore : { *(.bss*) }
@@ -41,7 +41,7 @@ SECTIONS {
     BSS_ADDR = BSS_BEGIN;
     BSS_SIZE = BSS_END - BSS_BEGIN;
 
-    SECTORS = (BOOT_SIZE + KERN_SIZE) / 512;
+    SECTORS = (BOOT_SIZE + KERN_SIZE) / 512 - 1;
 
 
 
