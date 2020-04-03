@@ -14,7 +14,7 @@ args = []
 links = []
 incs = [ include_directories('src') ]
 
-assemble = generator(
+asm = generator(
     find_program('nasm'),
     output : '@BASENAME@.o',
     arguments : [ '-felf64', '@INPUT@', '-o', '@OUTPUT@' ]
@@ -26,8 +26,8 @@ subdir('src/kernel')
 kernel_elf = executable('bezos.elf', sources,
     include_directories : incs,
     cpp_args : args + [ '-m64' ],
-    link_args : links + [ '-Wl,-T' + linker ],
-    link_depends : linker
+    link_args : links + [ '-Wl,-T' + link ],
+    link_depends : link
 )
 
 objcopy = find_program('objcopy')
