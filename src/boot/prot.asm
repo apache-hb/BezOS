@@ -1,5 +1,9 @@
 extern start64
 
+extern paging
+
+extern clear
+
 global start32
 
 global GDT64
@@ -15,15 +19,16 @@ section .prot
     start32:
         mov ds, ax
         mov ss, ax
-        
+
         xor ax, ax
 
         mov gs, ax
         mov fs, ax
         mov es, ax
 
-        call clear
+        mov esp, 0x7C00
 
+        call clear
 
         pushfd
         pop eax
@@ -58,6 +63,7 @@ section .prot
         and eax, (-1) - ((1 << 2) | (1 << 3))
         mov cr0, eax
 
+
         fninit
         fnstsw [fpudata]
         cmp word [fpudata], 0
@@ -88,28 +94,16 @@ section .prot
 
         call paging
 
-        mov cr3, eax
-
         mov eax, cr0
         or eax, 1 << 31
         mov cr0, eax
 
         lgdt [GDT32]
 
+        jmp $
+
         mov ax, descriptor64.kdata
         jmp descriptor64.kcode:start64
-
-
-    paging:
-
-    clear:
-        mov ecx, 0xB8000
-        mov eax, -4000
-    .next:
-        mov word [ecx + eax + 4000], 8192
-        add eax, 2
-        jne .next
-        ret
 
 
     print:

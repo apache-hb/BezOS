@@ -5,4 +5,5 @@ global start64
 bits 64
 section .long
     start64:
+        jmp $
         call kmain

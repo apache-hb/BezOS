@@ -170,6 +170,26 @@ section .real
         .addr: dd bootend
         .start: dq 1
 
+    descriptor:
+        .null:
+            dw descriptor.end - descriptor - 1
+            dd descriptor
+            dw 0
+        .code:
+            dw 0xFFFF
+            dw 0
+            db 0
+            db 0x9A
+            db 11001111b
+            db 0
+        .data:
+            dw 0xFFFF
+            dw 0
+            db 0
+            db 0x92
+            db 11001111b
+            db 0
+        .end:
 
         times 510 - ($-$$) db 0
         dw 0xAA55

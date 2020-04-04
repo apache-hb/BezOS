@@ -14,6 +14,8 @@ args = []
 links = []
 incs = [ include_directories('src') ]
 
+objcopy = find_program('objcopy')
+
 asm = generator(
     find_program('nasm'),
     output : '@BASENAME@.o',
@@ -25,12 +27,11 @@ subdir('src/kernel')
 
 kernel_elf = executable('bezos.elf', sources,
     include_directories : incs,
-    cpp_args : args + [ '-m64' ],
+    cpp_args : args + [ '-m64', '-mcmodel=kernel' ],
     link_args : links + [ '-Wl,-T' + link ],
+    link_with : prot,
     link_depends : link
 )
-
-objcopy = find_program('objcopy')
 
 kernel = custom_target('flatten',
     input : kernel_elf,
