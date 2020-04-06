@@ -98,9 +98,9 @@ section .prot
         or eax, 1 << 31
         mov cr0, eax
 
-        lgdt [GDT32]
-
         jmp $
+
+        lgdt [GDT32]
 
         mov ax, descriptor64.kdata
         jmp descriptor64.kcode:start64

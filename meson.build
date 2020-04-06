@@ -27,7 +27,7 @@ subdir('src/kernel')
 
 kernel_elf = executable('bezos.elf', sources,
     include_directories : incs,
-    cpp_args : args + [ '-m64', '-mcmodel=kernel' ],
+    cpp_args : args + [ '-m64', '-mcmodel=kernel', '-mno-red-zone' ],
     link_args : links + [ '-Wl,-T' + link ],
     link_with : prot,
     link_depends : link

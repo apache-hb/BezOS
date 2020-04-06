@@ -18,14 +18,14 @@ SECTIONS {
 
     . += VADDR;
 
-    KERN_BEGIN = ALIGN(4);
-    .kern ALIGN(4K) : AT(ADDR(.kern) - VADDR) {
+    .kern : AT(ADDR(.kern) - VADDR) {
+        KERN_BEGIN = .;
+        FILL(0x0);
         *(.text*)
         *(.data*)
         *(.rodata*)
-        . = ALIGN(512);
+        KERN_END = ALIGN(8);
     }
-    KERN_END = .;
 
     BSS_BEGIN = ALIGN(8);
     .ignore : { *(.bss*) }

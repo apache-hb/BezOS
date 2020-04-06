@@ -9,3 +9,8 @@ static_assert(sizeof(uint8) == 1);
 static_assert(sizeof(uint16) == 2);
 static_assert(sizeof(uint32) == 4);
 static_assert(sizeof(uint64) == 8);
+
+using byte = uint8;
+using word = uint16;
+using dword = uint32;
+using qword = uint64;
