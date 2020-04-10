@@ -1,18 +1,11 @@
 extern start64
 
-extern paging
-
-extern clear
+extern BSS_SIZE
+extern BSS_ADDR
 
 global start32
 
 global GDT64
-
-
-%define VGA_HEIGHT 25
-%define VGA_WIDTH 80
-%define VGA_BUFFER 0xB8000
-
 
 bits 32
 section .prot
@@ -30,6 +23,7 @@ section .prot
 
         call clear
 
+        ; check if we have cpuid
         pushfd
         pop eax
 
@@ -45,6 +39,9 @@ section .prot
         push ecx
         popfd
 
+
+        ; if we dont have cpuid then we cant have long mode
+        ; we fail in this case
         xor eax, ecx
         jz fail_cpuid
 
@@ -53,55 +50,54 @@ section .prot
         cmp eax, 0x80000001
         jb fail_cpuid
 
+        ; now use cpuid to check if we have long mode
+        ; if we dont then fail
         mov eax, 0x80000001
         cpuid
         test edx, 1 << 29
         jz fail_long
 
-
-        mov eax, cr0
-        and eax, (-1) - ((1 << 2) | (1 << 3))
-        mov cr0, eax
-
-
+        ; initialize the float point unit and make sure it works
         fninit
         fnstsw [fpudata]
         cmp word [fpudata], 0
-        jne fpudata
+        jne fail_fpu
 
+        ; make sure we have sse as well
         mov eax, 1
         cpuid
         test edx, 1 << 25
         jz fail_sse
 
+        ; tell the cpu that an fpu is present (what?)
         mov eax, cr0
         and eax, ~(1 << 2)
-        or eax, 1
         mov cr0, eax
 
+        ; enable PAE, and some sse stuff
         mov eax, cr4
-        or eax, (1 << 9) | (1 << 10)
+        or eax, (1 << 9) | (1 << 10) | (1 << 5)
         mov cr4, eax
 
-        mov eax, cr4
-        or eax, (1 << 5) | (1 << 4)
-        mov cr4, eax
+        ; setup basic paging
+        ; we will replace the page tables in long mode in the kernel
+        call paging
 
+        ; enable paging
+        mov eax, cr0
+        or eax, 1 << 31 | 1 << 0
+        mov cr0, eax
+
+        ; enable long mode
         mov ecx, 0xC0000080
         rdmsr
         or eax, 1 << 8
         wrmsr
 
-        call paging
-
-        mov eax, cr0
-        or eax, 1 << 31
-        mov cr0, eax
-
-        jmp $
-
+        ; load the 32 bit descriptor ptr
         lgdt [GDT32]
-
+        
+        ; jump to the kernel
         mov ax, descriptor64.kdata
         jmp descriptor64.kcode:start64
 
@@ -129,6 +125,65 @@ section .prot
         hlt
         jmp .end
 
+    ;                                  _           _
+    ;   __ _  ___ _ __   ___ _ __ __ _| |_ ___  __| |
+    ;  / _` |/ _ \ '_ \ / _ \ '__/ _` | __/ _ \/ _` |
+    ; | (_| |  __/ | | |  __/ | | (_| | ||  __/ (_| |
+    ;  \__, |\___|_| |_|\___|_|  \__,_|\__\___|\__,_|
+    ;  |___/
+
+    ; clear the vga monitor
+    clear:
+        mov eax, -4000
+    .next:
+        mov word [eax + 757664], 0
+        add eax, 2
+        jne .next
+
+        ; clear the bss section
+        mov eax, BSS_SIZE
+        mov ecx, BSS_ADDR
+        lea eax, [eax + BSS_ADDR]
+        cmp ecx, eax
+    .zero:
+        mov dword [4 * ecx + BSS_ADDR], 0
+        inc ecx
+        cmp ecx, eax
+        jl .zero
+
+        ret 
+
+    ; setup paging and identity map the first mb of memory
+    paging:
+        mov eax, pd
+        mov ecx, pt
+        mov dword [pdpt+4], 0
+        mov dword [pd+4], 0
+        or eax, 1
+        or ecx, 1
+        mov dword [pdpt], eax
+        mov dword [pd], ecx
+        mov eax, pt
+        mov ecx, 3
+    .next:
+        mov dword [eax], ecx
+        add ecx, 0x1000
+        mov dword [eax + 4], 0
+        add eax, 8
+        cmp ecx, 0x100003
+        jne .next
+        mov eax, pdpt
+        mov cr3, eax
+
+
+        mov     word [753664], 1896
+        mov     word [753666], 1893
+        mov     word [753668], 1900
+        mov     word [753670], 1900
+        mov     word [753672], 1903
+        mov     word [753674], 1792
+
+        ret
 
     fail_cpuid:
         mov eax, .msg
@@ -201,3 +256,13 @@ section .prot
             db 00000000b
             db 0
         .end:
+
+section .bss
+    align 0x1000
+    pd: resb 0x1000
+
+    align 0x1000
+    pt: resb 0x1000
+
+    align 0x20
+    pdpt: resb 32

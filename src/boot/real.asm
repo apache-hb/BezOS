@@ -5,22 +5,22 @@ extern start32
 bits 16
 section .real
     start16:
-        cld
         cli
-        clc
+        cld
+        jmp 0:init
+    init:
 
         ; zero out the segments
         xor ax, ax
         mov ds, ax
+        mov es, ax
         mov fs, ax
+        mov gs, ax
         mov ss, ax
-        
-        not ax
-        mov fs, ax
 
         mov sp, 0x7C00
 
-        xor ax, ax
+        sti
 
         ; check if we can read from the disk
         mov ah, 0x41
@@ -31,6 +31,8 @@ section .real
         cmp bx, 0xAA55
         jnz fail_ext
 
+        push ds
+        pop word [dap.segment]
 
         mov word [dap.sectors], SECTORS
 
@@ -41,14 +43,20 @@ section .real
 
         jc fail_disk
 
+
+        ; enable the a20 line to disable wraparound
     enable_a20:
+        ; if the a20 line has been enabled by the bios 
+        ; then we can just skip ahead
         call a20check
     .bios:
+        ; first we try the bios interrupt
         mov ax, 0x2401
         int 0x15
 
         call a20check
     .kbd:
+        ; next we try the keyboard controller
         cli
 
         call a20wait
@@ -81,20 +89,26 @@ section .real
 
         call a20check
     .port:
+        ; then finally we try the magic port
         in al, 0xEE
         call a20check
     .fail:
+        ; if the a20 line still isnt enabled then just give up
         jmp fail_a20
 
+        ; next lets load the global descriptor table
     prot:
         cli
         lgdt [descriptor]
 
+        ; then enable protected mode
         mov eax, cr0
         or eax, 1
         mov cr0, eax
 
+        ; and then jump to protected mode code
         mov ax, descriptor.data - descriptor
+        mov bx, descriptor.code - descriptor
         jmp (descriptor.code - descriptor):start32
 
 
@@ -163,11 +177,13 @@ section .real
         hlt
         jmp .end
 
+    align 4
     dap:
-        .len: db 0x10
+        .len: db 16
         .zero: db 0
         .sectors: dw 0
-        .addr: dd bootend
+        .offset: dw signature + 2
+        .segment: dw 0
         .start: dq 1
 
     descriptor:
@@ -191,6 +207,21 @@ section .real
             db 0
         .end:
 
-        times 510 - ($-$$) db 0
-        dw 0xAA55
-    bootend:
+    struc partition
+        .attrib: resb 1
+        .start: resb 3
+        .type: resb 1
+        .end: resb 3
+        .lba: resd 1
+        .sectors: resd 1
+    endstruc
+
+    times (0x1B4 - ($-$$)) db 0
+    mbr: times 10 db 0
+    pt1: times 16 db 0
+    pt2: times 16 db 0
+    pt3: times 16 db 0
+    pt4: times 16 db 0
+    
+    signature: dw 0xAA55
+    
