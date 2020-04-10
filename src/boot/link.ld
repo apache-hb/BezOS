@@ -19,12 +19,12 @@ SECTIONS {
         *(.text*)
         *(.data*)
         *(.rodata*)
-        KERN_END = ALIGN(512);
+        KERN_END = ALIGN(4);
     }
 
     BSS_BEGIN = ALIGN(8);
     .ignore : { *(.bss*) }
-    BSS_END = ALIGN(0x1000);
+    BSS_END = ALIGN(8);
 
 
 

@@ -76,7 +76,7 @@ section .prot
 
         ; enable PAE, and some sse stuff
         mov eax, cr4
-        or eax, (1 << 9) | (1 << 10) | (1 << 5)
+        or eax, (1 << 9) | (1 << 10) | (1 << 5) | (1 << 7)
         mov cr4, eax
 
         ; setup basic paging
@@ -85,7 +85,7 @@ section .prot
 
         ; enable paging
         mov eax, cr0
-        or eax, 1 << 31 | 1 << 0
+        or eax, 1 << 31
         mov cr0, eax
 
         ; enable long mode
@@ -96,7 +96,7 @@ section .prot
 
         ; load the 32 bit descriptor ptr
         lgdt [GDT32]
-        
+
         ; jump to the kernel
         mov ax, descriptor64.kdata
         jmp descriptor64.kcode:start64
