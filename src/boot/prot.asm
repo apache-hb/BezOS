@@ -227,28 +227,28 @@ section .prot
             db 0
             db 0
             db 0
-        .kcode: equ $ - descriptor64
+        .kcode:
             dw 0
             dw 0
             db 0
             db 10011010b
             db 00100000b
             db 0
-        .kdata: equ $ - descriptor64
+        .kdata:
             dw 0
             dw 0
             db 0
             db 10010010b
             db 00000000b
             db 0
-        .ucode: equ $ - descriptor64
+        .ucode:
             dw 0
             dw 0
             db 0
             db 11011010b
             db 00000000b
             db 0
-        .udata: equ $ - descriptor64
+        .udata:
             dw 0
             dw 0
             db 0
