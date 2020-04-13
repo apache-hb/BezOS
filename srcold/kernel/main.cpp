@@ -1,5 +1,6 @@
+#include "types.h"
 
-[[noreturn]] 
+[[noreturn]]
 extern "C" void kmain()
 {
     for(;;);

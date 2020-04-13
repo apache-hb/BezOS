@@ -1,9 +1,13 @@
 project('bezos', [ 'c', 'cpp' ],
     default_options : [
-        'c_std=gnu99',
+        'c_std=c11',
         'cpp_std=c++17',
         'debug=false',
-        'optimization=3',
+        #'layout=flat',
+        'warning_level=3',
+        'werror=true',
+        'unity=on',
+        'b_lto=true',
         'b_pie=false',
         'b_staticpic=false'
     ]
@@ -14,8 +18,6 @@ args = []
 links = []
 incs = [ include_directories('src') ]
 
-objcopy = find_program('objcopy')
-
 asm = generator(
     find_program('nasm'),
     output : '@BASENAME@.o',
@@ -25,15 +27,17 @@ asm = generator(
 subdir('src/boot')
 subdir('src/kernel')
 
-kernel_elf = executable('bezos.elf', sources,
+elf = executable('bezos.elf', sources,
     include_directories : incs,
     cpp_args : args + [ '-m64' ],
     link_args : links + [ '-Wl,-T' + link ],
     link_depends : link
 )
 
+objcopy = find_program('objcopy')
+
 kernel = custom_target('flatten',
-    input : kernel_elf,
+    input : elf,
     output : 'bezos.bin',
     command : [ objcopy, '@INPUT@', '@OUTPUT@', '-R', '.ignore', '-O', 'binary' ],
     build_by_default : true

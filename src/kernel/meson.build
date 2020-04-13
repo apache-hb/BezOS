@@ -1,1 +1,3 @@
-sources += 'src/kernel/main.cpp'
+sources += [
+    'src/kernel/main.cpp'
+]
