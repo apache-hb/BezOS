@@ -78,7 +78,13 @@ if __name__ == "__main__":
 
     if 'uefi' in sys.argv:
         outdir = 'uefi'
-        cxx_args.append('--target=x86_64-unknown-windows')
+        cxx_args += [
+            '--target=x86_64-unknown-windows',
+            '-I/usr/include/efi',
+            '-I/usr/include/efi/x86_64',
+            '-I/usr/include/efi/protocol'
+        ]
+
         ld_args += [
             '--target=x86_64-unknown-windows',
             '-nostdlib',
@@ -109,7 +115,7 @@ if __name__ == "__main__":
 
 
     if 'uefi' in sys.argv:
-        cc_link(objects + [out], f'{outdir}/bezos.efi')
+        cc_link(objects + [out], f'{outdir}/BOOTX64.EFI')
     else:
         elf = cc_link(objects + [out], f'{outdir}/bezos.elf')
         image(elf, f'{outdir}/bezos.bin')

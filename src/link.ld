@@ -10,7 +10,11 @@ SECTIONS {
         *(.real*)
         *(.prot*)
         *(.long*)
+        . = ALIGN(512);
     }
+
+    BOOT_SECTORS = (. - BEGIN) / 512;
+    BOOT_END = .;
 
     . += VMA;
 
@@ -20,7 +24,11 @@ SECTIONS {
         *(.rodata*)
     }
 
+
+    BSS_BEGIN = ALIGN(4);
     .ignore : { *(.bss*) }
+    BSS_END = ALIGN(4);
+
 
     /DISCARD/ : {
         *(COMMON)
