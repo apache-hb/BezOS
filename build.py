@@ -6,7 +6,7 @@ import sys
 
 asm = 'nasm'
 asm_args = [ '-felf64' ]
-asm_src = [ 'src/bios/boot.asm' ]
+asm_src = [ 'src/boot/bios/boot.asm' ]
 
 cxx = 'clang++'
 cxx_args = [
@@ -30,6 +30,7 @@ cxx_args = [
     '-fno-pic',
     '-pipe',
     '-fshort-wchar',
+    '-mcmodel=kernel',
 
     '-I.',
     '-Isrc',
@@ -38,7 +39,8 @@ cxx_args = [
     '-Wall',
     '-Wextra',
     '-Werror',
-    '-fno-pic'
+    '-fno-pic',
+    '-fno-pie'
 ]
 cxx_src = [ 
     'src/kernel/kmain.cpp',
@@ -77,6 +79,7 @@ if __name__ == "__main__":
         cxx_args.append('-O3')
 
     if 'uefi' in sys.argv:
+        # targetting uefi 64 bit
         outdir = 'uefi'
         cxx_args += [
             '--target=x86_64-unknown-windows',
@@ -92,11 +95,21 @@ if __name__ == "__main__":
             '-Wl,-entry:efi_main',
             '-Wl,-subsystem:efi_application'
         ]
-        cxx_src.append('src/uefi/uefi.cpp')
+        cxx_src.append('src/boot/uefi/uefi.cpp')
 
         if not os.path.exists(outdir):
             os.mkdir(outdir)
+    elif 'grub' in sys.argv:
+        # targetting grub and stepping up to 64 bit
+        pass
+    elif 'grub2' in sys.argv:
+        # targetting grub2 and stepping up to 64 bit
+        pass
+    elif 'qloader2' in sys.argv:
+        # targetting qloader2
+        pass
     else:
+        # we default to rolling our own bootloader
         outdir = 'bios'
         ld_args.append('-Wl,-Tsrc/link.ld')
         

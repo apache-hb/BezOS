@@ -1,8 +1,8 @@
 extern kmain
 
-extern BOOT_SECTORS
+extern SECTORS
 
-extern BOOT_END
+extern END
 
 struc partition
     .attrib: resb 1
@@ -40,7 +40,8 @@ section .real
         cmp bx, 0xAA55
         jc fail_ext
 
-        mov word [dap.sectors], BOOT_SECTORS
+        ; TODO: we should only load in the bootloader here
+        mov word [dap.sectors], SECTORS
         mov ah, 0x42
         mov si, dap
         int 0x13
@@ -205,15 +206,17 @@ section .real
     signature: dw 0xAA55
 
     e820_ptr: dd 0
+    e820_num: dd 0
 
     e820map:
-        mov edi, BOOT_END
+        mov edi, END
         xor ebx, ebx
 
         jmp .begin
 
     .next:
         add edi, 24
+        inc dword [e820_num]
     .begin:
         mov eax, 0xE820
         mov edx, 0x534D4150
@@ -253,7 +256,102 @@ section .real
 bits 32
 section .prot
     start32:
+        mov ds, ax
+        mov ss, ax
+
+        xor ax, ax
+
+        mov gs, ax
+        mov fs, ax
+        mov es, ax
+
+        mov esp, 0x7C00
+
+        call vga_init
+        
+        ; check if we have cpuid
+        pushfd
+        pop eax
+
+        mov ecx, eax
+        xor eax, 1 << 21
+
+        push eax
+        popfd
+
+        pushfd
+        pop eax
+
+        push ecx
+        popfd
+
+        xor eax, ecx
+        jz fail_cpuid
+
+        ; make sure we have extended cpuid
+        mov eax, 0x80000000
+        cpuid
+        cmp eax, 0x80000001
+        jb fail_long
+
+        ; make sure we have long mode
+        mov eax, 0x80000001
+        cpuid
+        test edx, 1 << 29
+        jz fail_long
+
+        ; next we need to setup paging for the rest of the kernel
+        ; eventually we need to load the kernel in above the 1mb mark
+        ; this will be possible at the point we get usb drivers
+        ; TODO: the plan
+        ;   - minimal bootloader thing
+        ;       - bump allocator
+        ;       - drivers to read from storage
+        ;           - usb
+        ;           - disk
+        ;           - sata
+        ;           - nvme
+        ;       - rest of kernel has to be stored somewhere
+        ;           - probably right after the bootloader in memory
+        ;           - either store it as a flat binary or in some custom format
+        ; for now lets just slap shit together and hope it works
+
         jmp $
+
+    ; clear the vga text buffer so we cant print messages to it
+    vga_init:
+        mov eax, -4000
+    .next:
+        mov word [eax + 757664], 0
+        add eax, 2
+        jne .next
+        ret
+
+    vga_panic:
+        cld
+        mov ebx, 0xB8000
+    .put:
+        lodsb
+        or al, al
+        jz .end
+        mov ah, 7
+        mov word [ebx], ax
+        add ebx, 2
+        jmp .put
+    .end:
+        cli
+        hlt
+        jmp .end
+
+    fail_long:
+        mov si, .msg
+        jmp vga_panic
+        .msg: db "cpu does not not support long mode", 0
+
+    fail_cpuid:
+        mov si, .msg
+        jmp vga_panic
+        .msg: db "cpu does not support cpuid", 0
 
 bits 64
 section .long

@@ -18,17 +18,21 @@ SECTIONS {
 
     . += VMA;
 
-    .kern : AT(ADDR(.kern) - VMA - BEGIN) {
+    .kern ALIGN(1K) : AT(ADDR(.kern) - VMA - BEGIN) {
         *(.text*)
         *(.data*)
         *(.rodata*)
     }
 
+    SECTORS = (. - VMA - BEGIN) / 512;
 
     BSS_BEGIN = ALIGN(4);
     .ignore : { *(.bss*) }
     BSS_END = ALIGN(4);
 
+    . = ALIGN(4);
+
+    END = (. - VMA - BEGIN);
 
     /DISCARD/ : {
         *(COMMON)
