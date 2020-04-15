@@ -1,0 +1,3 @@
+[submodule "subprojects/efi"]
+	path = subprojects/efi
+	url = https://github.com/vineyard-os/zircon-uefi
