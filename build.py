@@ -7,120 +7,123 @@ import os
 import sys
 import shutil
 
-subprocess.call([
-    'clang', '--target=x86_64-pc-win32-coff', '-fno-stack-protector', '-fshort-wchar', '-mno-red-zone', 
-    '-Isubprojects',
-    '-c', 'src/boot/uefi/uefi.c', '-o', 'uefi.o'
-])
-subprocess.call([
-    'lld-link', '-subsystem:efi_application', '-nodefaultlib', '-dll', '-entry:efi_main', 'uefi.o', '-out:BOOTX64.EFI'
-])
+uefi_src = [ 'src/boot/uefi/uefi.cpp' ]
+bios_src = [ 'src/kernel/kmain.cpp', 'src/kernel/mm/mm.cpp']
 
-subprocess.call(['dd', 'if=/dev/zero', 'of=fat.img', 'bs=1k', 'count=1440'])
-subprocess.call(['mformat', '-i', 'fat.img', '-f', '1440', '::'])
-subprocess.call(['mmd', '-i', 'fat.img', '::/EFI'])
-subprocess.call(['mmd', '-i', 'fat.img', '::/EFI/BOOT'])
-subprocess.call(['mcopy', '-i', 'fat.img', 'BOOTX64.EFI', '::/EFI/BOOT'])
+release = False
 
-'''
-def cc(): return 'clang'
-def cxx(): return 'clang++'
-def ld(target): return 'lld-link' if target == 'uefi' else 'ld.lld'
-
-def cflags():
-    pass
-
-def cxxflags():
-    pass
-
-def ldflags():
-    pass
-
-cflags = [ '-ffreestanding', '-fno-stack-protector', '-fpic', '-fshort-wchar', '-MMD', '-mno-red-zone', '-std=c++17', '--target=x86_64-pc-win32-coff', '-Wall', '-Wextra' ]
-cxxflags = [ 
-    '-ffreestanding', 
-    '-fno-stack-protector', 
-    '-fpic', 
-    '-fshort-wchar', 
-    '-MMD', 
-    '-mno-red-zone', 
-    '-std=c++17', 
-    '--target=x86_64-pc-win32-coff', 
-    '-Wall', 
-    '-Wextra' 
-]
-
-ldflags = [ '-subsystem:efi_application', '-entry:efi_main', '-nodefaultlib', '-dll' ]
-
-def get_ovmf(path):
-    subprocess.call(['wget', '--quiet', 'https://dl.bintray.com/no92/vineyard-binary/OVMF.fd', '-O', f'{path}/OVMF.fd'])
-    exit(0)
-
-def build_bios(path):
-    pass
-
-def build_uefi(path):
-    uefi_src = [ 'src/boot/uefi/uefi.cpp' ]
-    uefi_cxx = [ 
-        '-ffreestanding', 
-        '-fno-stack-protector', 
-        '-fshort-wchar',
-        '-MMD',
-        '-mno-red-zone',
+def default_cxx_args():
+    return [
+        '-mno-sse',
+        '-mno-sse2',
+        '-mno-mmx',
+        '-ffreestanding',
+        '-fno-exceptions',
+        '-fno-rtti',
         '-std=c++17',
-        '--target=x86_64-pc-win32-coff',
+        '-Isrc',
+        '-Isrc/kernel',
+        '-m64',
         '-Wall',
         '-Wextra',
         '-Werror'
-    ]
-    uefi_ld = [
-        '-subsystem:efi_application',
-        '-nodefaultlib',
-        '-dll',
-        '-entry:efi_main'
-    ]
+    ] + [ '-O3' ] if release else []
 
-    subprocess.call(['clang++'] + uefi_cxx + uefi_src + ['-o', f'{path}/bezos.o'])
-    #subprocess.call(['lld-link'] + uefi_ld + [f'{path}/bezos.o', f'-out:{path}/BOOTX64.EFI'])
+def get_ovmf(path, srcs):
+    subprocess.call(['wget', '--quiet', 'https://dl.bintray.com/no92/vineyard-binary/OVMF.fd', '-O', f'{path}/OVMF.fd'])
+    exit(0)
 
-    #image = f'{path}/uefi.img'
+def build_bios(path, srcs):
+    obj = f'{path}/kernel.o'
+    out = f'{path}/bezos.bin'
+    elf = f'{path}/bezos.elf'
+    link = 'src/boot/bios/bios.ld'
+    cxx = 'clang++'
+    ld = 'ld'
+    cxx_args = [
+        '-fno-addrsig',
+        '-fno-builtin',
+        '-fno-common',
+        '-nostdlib',
+        '-static',
+        '-ffast-math',
+        '-fdelete-null-pointer-checks',
+        '-fno-threadsafe-statics',
+        '-fno-stack-protector',
+        '-mno-red-zone',
+        '-fno-pic',
+        '-pipe',
+        '-fshort-wchar',
+        '-mcmodel=kernel',
+        '-static'
+    ] + default_cxx_args()
+    ld_args = [ '-nostdlib' ]
+    asm_src = 'src/boot/bios/boot.asm'
+    asm = 'nasm'
+    asm_obj = f'{path}/boot.o'
 
-    # generate a bootable uefi image that can be put on a disk
-    #subprocess.call(['dd', 'if=/dev/zero', f'of={image}', 'bs=1k', 'count=1440'])
+    copy = 'objcopy'
 
-    #subprocess.call(['mformat', '-i', image, '-f', '1440', '::'])
-    #subprocess.call(['mmd', '-i', image, '::/EFI'])
-    #subprocess.call(['mmd', '-i', image, '::/EFI/BOOT'])
-    #subprocess.call(['mcopy', '-i', image, f'{path}/BOOTX64.EFI', '::/EFI/BOOT'])
+    subprocess.call([asm, '-felf64', asm_src, '-o', asm_obj])
+    subprocess.call([cxx] + cxx_args + ['-c'] + srcs + ['-o', obj])
+    subprocess.call([ld] + ld_args + [asm_obj, obj, '-T' + link, '-o', elf])
+    subprocess.call([copy, elf, out, '-R', '.ignore', '-O', 'binary'])
 
-    #if not os.path.exists(f'{path}/iso'):
-    #    os.mkdir(f'{path}/iso')
+def build_uefi(path, srcs):
+    obj = f'{path}/uefi.o'
+    efi = f'{path}/BOOTX64.EFI'
+    cxx = 'clang++'
+    ld = 'lld-link'
+    cxx_args = [ '--target=x86_64-pc-win32-coff', '-fno-stack-protector', '-fshort-wchar', '-mno-red-zone', '-Isubprojects', '-std=c++17' ] + default_cxx_args()
+    ld_args = [ '-subsystem:efi_application', '-nodefaultlib', '-dll', '-entry:efi_main', obj, f'-out:{efi}' ]
 
-    #shutil.copy(image, f'{path}/iso/bezos.img')
+    subprocess.call([cxx] + cxx_args + ['-c'] + srcs + ['-o', obj])
+    subprocess.call([ld] + ld_args)
 
-    #subprocess.call(['xorriso', '-as', 'mkisofs', '-R', '-f', '-e', f'{path}/iso/bezos.img', '-no-emul-boot', '-o', 'bezos.iso', 'iso'])
+    img = f'{path}/bezos.img'
 
+    subprocess.call(['dd', 'if=/dev/zero', f'of={img}', 'bs=1k', 'count=1440'])
+    subprocess.call(['mformat', '-i', img, '-f', '1440', '::'])
+    subprocess.call(['mmd', '-i', img, '::/EFI'])
+    subprocess.call(['mmd', '-i', img, '::/EFI/BOOT'])
+    subprocess.call(['mcopy', '-i', img, efi, '::/EFI/BOOT'])
 
 
 builddir = 'build'
 
+def unity(path, src):
+    with open(f'{path}/unity.cpp', 'w+') as unity:
+        for each in src:
+            unity.write(f'#include <{os.path.abspath(each)}>\n')
+
+    # we return a list for now because as we get more files we may need to split unity builds
+    return [ f'{path}/unity.cpp' ]
+
 class Target:
-    def __init__(self, name, callback, desc = 'no description'):
+    def __init__(self, name, callback, desc = 'no description', src = []):
         self.name = name
         self.callback = callback
         self.desc = desc
+        self.src = src
 
     def run(self):
-        if not os.path.exists(f'{builddir}/{self.name}'):
-            os.mkdir(f'{builddir}/{self.name}')
+        subdir = f'{builddir}/{self.name}'
+        if not os.path.exists(subdir):
+            os.mkdir(subdir)
 
-        self.callback(f'{builddir}/{self.name}')
-        
+        # if this target has sources then generate a unity build
+        if not self.src:
+            self.callback(subdir, None)
+        else:
+            f = unity(subdir, self.src)
+            self.callback(subdir, f)
+
+
 
 targets = {
     'ovmf': Target('ovmf', get_ovmf, 'download ovmf bios for qemu'),
-    'bios': Target('bios', build_bios, 'build bezos targetting legacy bios'),
-    'uefi': Target('uefi', build_uefi, 'build bezos targetting uefi')
+    'bios': Target('bios', build_bios, 'build bezos targetting legacy bios', bios_src),
+    'uefi': Target('uefi', build_uefi, 'build bezos targetting uefi', uefi_src)
 }
 
 if __name__ == "__main__":
@@ -133,154 +136,9 @@ if __name__ == "__main__":
             print(f'    - {name}: {target.desc}')
         exit(0)
 
+    if 'release' in sys.argv:
+        release = True
+
     for name, target in targets.items():
         if name in sys.argv:
             target.run()    
-
-'''
-'''
-import subprocess
-import os
-import sys
-
-asm = 'nasm'
-asm_args = [ '-felf64' ]
-asm_src = [ 'src/boot/bios/boot.asm' ]
-
-cxx = 'clang++'
-cxx_args = [
-    '-ffreestanding',
-    '-fno-exceptions',
-    '-fno-rtti',
-    '-fno-addrsig',
-    '-fno-builtin',
-    '-fno-common',
-    '-nostdlib',
-    '-static',
-    '-mno-sse',
-    '-mno-sse2',
-    '-mno-mmx',
-    '-ffast-math',
-    '-fdelete-null-pointer-checks',
-    '-fno-threadsafe-statics',
-    '-fno-stack-protector',
-    '-mno-red-zone',
-    '-std=c++17',
-    '-fno-pic',
-    '-pipe',
-    '-fshort-wchar',
-    '-mcmodel=kernel',
-
-    '-I.',
-    '-Isrc',
-    '-Isrc/kernel',
-    '-m64',
-    '-Wall',
-    '-Wextra',
-    '-Werror'
-]
-cxx_src = [ 
-    'src/kernel/kmain.cpp',
-    'src/kernel/mm/mm.cpp'
-]
-
-ld = 'clang'
-ld_args = [
-    '-ffreestanding', 
-    '-nostartfiles', 
-    '-nostdlib'
-]
-
-objcopy = 'objcopy'
-
-def cc_asm(path, output):
-    subprocess.call([asm] + asm_args + [path, '-o', f'{output}.o'])
-    return f'{output}.o'
-
-def cc_cxx(files, output):
-    subprocess.call([cxx] + cxx_args + ['-o', f'{output}.o', '-c', files])
-    return f'{output}.o'
-
-def cc_link(objects, output):
-    subprocess.call([ld] + ld_args + ['-o', output] + objects)
-    return output
-
-def image(obj, output):
-    subprocess.call([objcopy, obj, output, '-R', '.ignore', '-O', 'binary'])
-    return output
-
-if __name__ == "__main__":
-    objects = []
-    
-    if 'release' in sys.argv:
-        cxx_args.append('-O3')
-
-    if not os.path.exists('build'):
-        os.mkdir('build')
-
-    if 'ovmf' in sys.argv:
-        if not os.path.exists('build/uefi'):
-            os.mkdir('build/uefi')
-
-        subprocess.call(['wget', '--quiet', 'https://dl.bintray.com/no92/vineyard-binary/OVMF.fd', '-O', 'build/uefi/OVMF.fd'])
-        exit(0)
-
-
-    if 'uefi' in sys.argv:
-        # targetting uefi 64 bit
-        outdir = 'build/uefi'
-        cxx_args += [
-            '--target=x86_64-pc-win32-coff',
-            '-I/usr/include/efi',
-            '-I/usr/include/efi/x86_64',
-            '-I/usr/include/efi/protocol'
-        ]
-
-        ld_args += [
-            '-nostdlib',
-            '-fuse-ld=lld-link',
-            '-Wl,-entry:efi_main',
-            '-Wl,-subsystem:efi_application'
-        ]
-        cxx_src.append('src/boot/uefi/uefi.cpp')
-
-        if not os.path.exists(outdir):
-            os.mkdir(outdir)
-    elif 'grub' in sys.argv:
-        # targetting grub and stepping up to 64 bit
-        pass
-    elif 'grub2' in sys.argv:
-        # targetting grub2 and stepping up to 64 bit
-        pass
-    elif 'qloader2' in sys.argv:
-        # targetting qloader2
-        pass
-    else:
-        # we default to rolling our own bootloader
-        outdir = 'build/bios'
-        cxx_args += [
-            '-fno-pic',
-            '-fno-pie'
-        ]
-        ld_args.append('-Wl,-Tsrc/link.ld')
-        
-        if not os.path.exists(outdir):
-            os.mkdir(outdir)
-
-        for src in asm_src:
-            objects.append(cc_asm(src, f'{outdir}/{".".join(src.split("/"))}'))
-
-    # generate unity build file
-    with open(f'{outdir}/unity.cpp', 'w+') as unity:
-        for src in cxx_src:
-            unity.write(f'#include "{src}"\n')
-
-    out = cc_cxx(f'{outdir}/unity.cpp', f'{outdir}/unity')
-
-
-    if 'uefi' in sys.argv:
-        cc_link(objects + [out], f'{outdir}/BOOTX64.EFI')
-    else:
-        elf = cc_link(objects + [out], f'{outdir}/bezos.elf')
-        image(elf, f'{outdir}/bezos.bin')
-'''

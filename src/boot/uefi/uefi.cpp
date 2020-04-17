@@ -3,7 +3,7 @@
 #include <efi/system-table.h>
 #include <efi/types.h>
 
-#define TRY(...) { efi_status err = __VA_ARGS__; if(err != EFI_SUCCESS) return err; }
+#define TRY(...) if(efi_status err = __VA_ARGS__; err != EFI_SUCCESS) return err;
 
 efi_status efi_main(efi_handle handle, efi_system_table* table)
 {

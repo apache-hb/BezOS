@@ -1,1 +1,1 @@
-"C:\Program Files\qemu\qemu-system-x86_64.exe" -drive format=raw,file=bios/bezos.bin -no-shutdown -d int -no-reboot -debugcon stdio -m 256M
+"C:\Program Files\qemu\qemu-system-x86_64.exe" -drive format=raw,file=build/bios/bezos.bin -no-shutdown -d int -no-reboot -debugcon stdio -m 256M

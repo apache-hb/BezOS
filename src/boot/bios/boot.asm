@@ -1,8 +1,13 @@
 extern kmain
 
 extern SECTORS
-
 extern END
+
+extern KERN_ADDR
+extern KERN_SIZE
+
+extern BSS_ADDR
+extern BSS_DWORDS
 
 struc partition
     .attrib: resb 1
@@ -316,7 +321,28 @@ section .prot
         ;           - either store it as a flat binary or in some custom format
         ; for now lets just slap shit together and hope it works
 
+        call bss_init
+
+        call paging_init
+
         jmp $
+
+    paging_init:
+        ret
+
+    bss_init:
+        mov     eax, BSS_DWORDS
+        test    eax, eax
+        jle     .end
+        xor     eax, eax
+    .next:
+        mov     ecx, dword [BSS_ADDR]
+        mov     dword [ecx + 4*eax], 0
+        inc     eax
+        cmp     eax, BSS_DWORDS
+        jl      .next
+    .end:
+        ret
 
     ; clear the vga text buffer so we cant print messages to it
     vga_init:
