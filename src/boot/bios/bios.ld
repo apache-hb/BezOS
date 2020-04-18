@@ -19,7 +19,7 @@ SECTIONS {
     }
 
     BSS_ADDR = ALIGN(8);
-    .ignore : { *(.bss*) }
+    .ignore : ALIGN(1K) { *(.bss*) }
     BSS_SIZE = ALIGN(8) - BSS_ADDR;
 
     BSS_DWORDS = BSS_SIZE / 4;
@@ -27,7 +27,7 @@ SECTIONS {
     . = ALIGN(8);
 
     END = . - BEGIN;
-    SECTORS = (. - BEGIN) / 512;
+    SECTORS = (BSS_ADDR - BEGIN) / 512;
 
     /* physical address and size of first stage loader */
     KERN_ADDR = ADDR(.kern) - BEGIN;

@@ -4,10 +4,11 @@
 
 enum class E820Type : u32
 {
-    RAM = 1,
+    Usable = 1,
     Reserved = 2,
     ACPI = 3,
-    Unusable = 4,
+    NVS = 4,
+    Unusable = 5
 };
 
 struct E820Entry

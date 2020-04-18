@@ -12,22 +12,22 @@ bios_src = [ 'src/kernel/kmain.cpp', 'src/kernel/mm/mm.cpp']
 
 release = False
 
-def default_cxx_args():
-    return [
-        '-mno-sse',
-        '-mno-sse2',
-        '-mno-mmx',
-        '-ffreestanding',
-        '-fno-exceptions',
-        '-fno-rtti',
-        '-std=c++17',
-        '-Isrc',
-        '-Isrc/kernel',
-        '-m64',
-        '-Wall',
-        '-Wextra',
-        '-Werror'
-    ] + [ '-O3' ] if release else []
+default_cxx_args = [
+    '-mno-sse',
+    '-mno-sse2',
+    '-mno-mmx',
+    '-ffreestanding',
+    '-fno-exceptions',
+    '-fno-rtti',
+    '-std=c++17',
+    '-I.',
+    '-I./src',
+    '-I./src/kernel',
+    '-m64',
+    '-Wall',
+    '-Wextra',
+    '-Werror'
+]
 
 def get_ovmf(path, srcs):
     subprocess.call(['wget', '--quiet', 'https://dl.bintray.com/no92/vineyard-binary/OVMF.fd', '-O', f'{path}/OVMF.fd'])
@@ -56,7 +56,7 @@ def build_bios(path, srcs):
         '-fshort-wchar',
         '-mcmodel=kernel',
         '-static'
-    ] + default_cxx_args()
+    ] + default_cxx_args
     ld_args = [ '-nostdlib' ]
     asm_src = 'src/boot/bios/boot.asm'
     asm = 'nasm'
@@ -74,7 +74,7 @@ def build_uefi(path, srcs):
     efi = f'{path}/BOOTX64.EFI'
     cxx = 'clang++'
     ld = 'lld-link'
-    cxx_args = [ '--target=x86_64-pc-win32-coff', '-fno-stack-protector', '-fshort-wchar', '-mno-red-zone', '-Isubprojects', '-std=c++17' ] + default_cxx_args()
+    cxx_args = [ '--target=x86_64-pc-win32-coff', '-fno-stack-protector', '-fshort-wchar', '-mno-red-zone', '-Isubprojects', '-std=c++17' ] + default_cxx_args
     ld_args = [ '-subsystem:efi_application', '-nodefaultlib', '-dll', '-entry:efi_main', obj, f'-out:{efi}' ]
 
     subprocess.call([cxx] + cxx_args + ['-c'] + srcs + ['-o', obj])
@@ -137,7 +137,7 @@ if __name__ == "__main__":
         exit(0)
 
     if 'release' in sys.argv:
-        release = True
+        default_cxx_args.append('-O3')
 
     for name, target in targets.items():
         if name in sys.argv:

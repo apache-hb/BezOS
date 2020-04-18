@@ -45,6 +45,7 @@ section .real
         cmp bx, 0xAA55
         jc fail_ext
 
+
         ; TODO: we should only load in the bootloader here
         mov word [dap.sectors], SECTORS
         mov ah, 0x42
@@ -146,6 +147,8 @@ section .real
         mov si, .msg
         jmp panic
         .msg: db "failed to read e820 map", 0
+
+
 
     panic:
         cld
@@ -321,13 +324,43 @@ section .prot
         ;           - either store it as a flat binary or in some custom format
         ; for now lets just slap shit together and hope it works
 
+        ; clear the bss
         call bss_init
 
         call paging_init
 
+        jmp enter_long
+    enter_long:
         jmp $
 
     paging_init:
+        mov     eax, 3
+        mov     ecx, pml1
+    .next:
+        mov     dword [ecx], eax
+        add     eax, 4096
+        mov     dword [ecx + 4], 0
+        add     ecx, 8
+        cmp     eax, 2097155
+        jne     .next
+        mov     eax, pml1
+        mov     dword [pml2+4], 0
+        mov     dword [pml3+4], 0
+        or      eax, 3
+        mov     dword [pml2], eax
+        mov     eax, pml2
+        or      eax, 1
+        mov     dword [pml3], eax
+        mov     eax, pml3
+        mov     eax, cr4
+        bts     eax, 5
+        mov     cr4, eax
+        or      eax, 1
+        mov     cr3, eax
+        mov     eax, cr0
+        or      eax, 2147483648
+        mov     cr0, eax
+
         ret
 
     bss_init:
@@ -384,3 +417,8 @@ section .long
     start64:
         mov rax, kmain
         call rax
+
+section .bss
+    pml1: resb 4096
+    pml2: resb 4096
+    pml3: resb 4096
