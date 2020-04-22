@@ -329,9 +329,23 @@ section .prot
 
         call paging_init
 
+        mov ecx, 0xc0000080
+        rdmsr
+        or eax, (1 << 8) | (1 << 0)
+        wrmsr
+
+        mov eax, cr0
+        or eax, (1 << 31) | (1 << 0)
+        mov cr0, eax
+
+        mov eax, cr4
+        or eax, (1 << 7)
+        mov cr4, eax
+
         jmp enter_long
     enter_long:
         jmp $
+
 
     paging_init:
         mov     eax, 3
@@ -411,6 +425,15 @@ section .prot
         mov si, .msg
         jmp vga_panic
         .msg: db "cpu does not support cpuid", 0
+
+    descriptor64:
+        .null:
+        .kdata:
+        .kcode:
+        .udata:
+        .ucode:
+        .tss:
+    .end:
 
 bits 64
 section .long
