@@ -1,1 +1,0 @@
-"C:\Program Files\qemu\qemu-system-x86_64.exe" -bios build/ovmf/OVMF.fd -cdrom fat.img -net none
