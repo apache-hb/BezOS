@@ -15,13 +15,9 @@ assemble = generator(nasm,
     arguments : [ '-felf64', '@INPUT@', '-o', '@OUTPUT@' ]
 )
 
-ldscript = meson.current_source_dir()/'src/link.ld'
+sources = [ 'src/main.c' ]
 
-sources = [
-    'src/main.c'
-]
-
-sources += assemble.process('src/boot.asm')
+subdir('src/boot')
 
 elf = executable('bezos', sources,
     link_args : [ '-Wl,-T' + ldscript ],
