@@ -36,8 +36,7 @@ start16:
     jc fail_ext
 
     ; load the number of required sectors
-    mov word [dap.offset], SECTORS
-    mov word [dap.segment], ds
+    mov word [dap.sectors], SECTORS
 
     ; read from the disk
     mov ah, 0x42
@@ -102,15 +101,15 @@ start16:
 
     ; time to load the gdt for protected mode
 load_gdt:
-    lgdt [table]
     cli
+    lgdt [descriptor]
 
     mov eax, cr0
-    or al, 1
+    or eax, 1
     mov cr0, eax
 
     ; jump to protected mode code
-    jmp 0x18:start32
+    jmp (descriptor.code - descriptor):start32
 
 a20wait:
     in al, 0x64
@@ -162,74 +161,33 @@ panic:
     jmp .end
 
 
-table:
-    dw .end - .start - 1
-    dd .start
-.start:
+descriptor:
+    .null:
+        dw descriptor.end - descriptor - 1
+        dd descriptor
+        dw 0
+    .code:
+        dw 0xFFFF
+        dw 0
+        db 0
+        db 0x9A
+        db 11001111b
+        db 0
+    .data:
+        dw 0xFFFF
+        dw 0
+        db 0
+        db 0x92
+        db 11001111b
+        db 0
+    .end:
 
-.null:
-    dw 0 ; limit
-    dw 0 ; base
-    db 0 ; base
-    db 0 ; access
-    db 0 ; granularity
-    db 0 ; base
-
-; code 16
-    dw 0xFFFF
-    dw 0
-    db 0
-    db 10011010b
-    db 0
-    db 0
-
-; data 16
-    dw 0xFFFF
-    dw 0
-    db 0
-    db 10010010b
-    db 0
-    db 0
-
-; code 32
-    dw 0xFFFF
-    dw 0
-    db 0
-    db 10011010b
-    db 11001111b
-    db 0
-
-; data 32
-    dw 0xFFFF
-    dw 0
-    db 0
-    db 10010010b
-    db 11001111b
-    db 0
-
-; code 64
-    dw 0
-    dw 0
-    db 0
-    db 10011010b
-    db 00100000b
-    db 0
-
-; data 64
-    dw 0
-    dw 0
-    db 0
-    db 10010010b
-    db 0
-    db 0
-.end:
 
 dap:
     .size: db 0x10 ; size of the packet
     .zero: db 0 ; always zero
     .sectors: dw 0 ; number of sectors to read
-    .offset: dw 0
-    .segment: dw 0
+    .addr: dd bootend
     .start: dq 1 
 
     times 510 - ($-$$) db 0
@@ -241,9 +199,14 @@ bootend:
 bits 32
 section .boot32
 start32:
+    mov ax, (descriptor.data - descriptor)
+    mov ds, ax
+    mov ss, ax
+    mov word [0xB8000], 'a' | 7 << 8
     jmp $
 
 
+align 4
 bits 64
 section .boot64
 start64:

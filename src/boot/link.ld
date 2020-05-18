@@ -13,22 +13,12 @@ SECTIONS {
 
     . += VMA;
 
-    HIGHER_START = . - VMA;
-
-    .kernel : AT(ADDR(.kernel) - VMA) {
-        *(.text)
-        *(.data)
-        *(.rodata)
-    }
-
-    HIGHER_END = . - VMA;
+    .text : AT(ADDR(.text) - VMA) { *(.text) }
+    .data : AT(ADDR(.data) - VMA) { *(.data) }
+    .rodata : AT(ADDR(.rodata) - VMA) { *(.rodata) }
 
 
-    IGNORE_START = . - VMA;
-    .ignore : AT(ADDR(.ignore) - VMA) {
-        *(.bss)
-    }
-    IGNORE_END = . - VMA;
+    .ignore : AT(ADDR(.ignore) - VMA) { *(.bss) }
 
     SECTORS = (. - VMA - BEGIN) / 512;
 
