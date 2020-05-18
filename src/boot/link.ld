@@ -11,6 +11,9 @@ SECTIONS {
         *(.boot64*)
     }
 
+    BOOTSECTORS = (. - BEGIN) / 512;
+    BOOTEND = ALIGN(4) - BEGIN;
+
     . += VMA;
 
     .text : AT(ADDR(.text) - VMA) { *(.text) }
@@ -19,8 +22,6 @@ SECTIONS {
 
 
     .ignore : AT(ADDR(.ignore) - VMA) { *(.bss) }
-
-    SECTORS = (. - VMA - BEGIN) / 512;
 
 
     /DISCARD/ : {

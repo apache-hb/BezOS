@@ -1,4 +1,5 @@
-extern SECTORS
+extern BOOTSECTORS
+extern BOOTEND
 extern kmain
 
 bits 16
@@ -36,7 +37,7 @@ start16:
     jc fail_ext
 
     ; load the number of required sectors
-    mov word [dap.sectors], SECTORS
+    mov word [dap.sectors], BOOTSECTORS
 
     ; read from the disk
     mov ah, 0x42
@@ -99,6 +100,22 @@ start16:
     ; if none of these methods work then fail
     jmp fail_a20
 
+load_e820:
+    mov qword [bootinfo.mem], BOOTEND
+    mov eax, 0xE820 ; function
+    xor ebx, ebx ; continuation, must be 0 for first call
+    mov di, [bootinfo.mem] ; buffer addr
+    mov ecx, 24 ; buffer size
+    mov edx, 'SMAP' ; signature
+
+.next:
+    int 15
+
+    ; check the continuation byte
+    or ebx, ebx
+    jnz .next
+    inc dword [bootinfo.num]
+
     ; time to load the gdt for protected mode
 load_gdt:
     cli
@@ -129,7 +146,7 @@ a20check:
     cmp word [fs:0x7E0E], 0x6969
 
     ; if there is no wraparound then the a20 line is enabled
-    jne load_gdt
+    jne load_e820
     ret
 
 %macro fail 2

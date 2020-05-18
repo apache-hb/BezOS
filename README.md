@@ -5,21 +5,16 @@ I thought it would be funny
 1. install `clang` (preferrably 9/10), `nasm`, `python3.7`
 2. execute 
 ```sh
-git submodule update --init
-./build.py <target> [options...]
-# target is any one of [bios | uefi | bootboot | multiboot1 | multiboot2 | bootboot | stivale]
-# options can be any of [release]
+meson build --cross-file x64-cross.ini
+ninja -C build
 ```
-3. kernel will be in either `bios/bezos.bin` or `uefi/BOOTX64.EFI`
+3. kernel will be in either `build/bezos.bin`
 
 ## Running
 
 ### Bios
 1. install `qemu`
 2. run with `qemu-system-x86_64 -drive file=bezos.bin,format=raw`
-
-### UEFI
-1. who knows, uefi is horrible and a pain to test so as far as im concerned it doesnt exist
 
 ## Mentions
 1. Marley on the osdev discord for being incredibly clever and knowledgable 
