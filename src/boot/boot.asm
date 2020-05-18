@@ -132,20 +132,16 @@ a20check:
     jne load_gdt
     ret
 
-fail_ext:
+%macro fail 2
+fail_%1:
     mov si, .msg
     jmp panic
-    .msg: db "no extension", 0
+    .msg: db %2, 0
+%endmacro
 
-fail_disk:
-    mov si, .msg
-    jmp panic
-    .msg: db "bad disk", 0
-
-fail_a20:
-    mov si, .msg
-    jmp panic
-    .msg: db "bad a20", 0
+fail ext, "no extension"
+fail disk, "bad disk"
+fail a20, "bad a20"
 
 panic:
     mov ah, 0x0E
@@ -202,9 +198,36 @@ start32:
     mov ax, (descriptor.data - descriptor)
     mov ds, ax
     mov ss, ax
-    mov word [0xB8000], 'a' | 7 << 8
-    jmp $
+    jmp fail_cpuid
 
+%macro error 2 
+fail_%1:
+    mov edi, .msg
+    jmp panic32
+    .msg: db %2, 0
+%endmacro
+
+error cpuid, "no cpuid"
+error long, "no long mode"
+error fpu, "no fpu"
+error sse, "no sse"
+
+; edi = message
+panic32:
+    mov ebx, 0xB8000
+    mov ah, 7
+.put:
+    mov al, [edi]
+    or al, al
+    jz .end
+    mov word [ebx], ax
+    add ebx, 2
+    inc edi
+    jmp .put
+.end:
+    cli
+    hlt
+    jmp .end
 
 align 4
 bits 64
