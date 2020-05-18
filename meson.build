@@ -1,6 +1,6 @@
 project('bezos', 'c',
     default_options : [
-        'c_std=c99',
+        'c_std=c11',
         'werror=true',
         'warning_level=3',
         'b_pie=false',

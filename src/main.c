@@ -1,6 +1,8 @@
+#include "boot/boot.h"
+
 int i;
 
-void kmain()
+void kmain(bootinfo_t* info)
 {
-    i = 5;
+    i = info->parts;
 }

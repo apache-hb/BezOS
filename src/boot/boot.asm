@@ -1,5 +1,5 @@
 extern SECTORS
-
+extern kmain
 
 bits 16
 section .boot16
@@ -198,7 +198,115 @@ start32:
     mov ax, (descriptor.data - descriptor)
     mov ds, ax
     mov ss, ax
-    jmp fail_cpuid
+
+    ; check if we have cpuid
+    pushfd
+    pop eax
+
+    mov ecx, eax
+
+    xor eax, 1 << 21
+
+    push eax
+    popfd
+
+    pushfd
+    pop eax
+
+    push ecx
+    popfd
+
+    xor eax, ecx
+    jz fail_cpuid
+
+    ; check for extended cpuid
+    mov eax, 0x80000000
+    cpuid
+    cmp eax, 0x80000001
+    jb fail_cpuid
+
+    ; check for long mode
+    mov eax, 0x80000001
+    cpuid
+    test edx, 1 << 29
+    jz fail_long
+
+    ; enable the fpu and sse
+    mov eax, cr0
+    and eax, (-1) - ((1 << 2) | (1 << 3))
+    mov cr0, eax
+
+    ; if the store fails then there is no fpu
+    fninit
+    fnstsw [fpu_data]
+    cmp word [fpu_data], 0
+    jne fail_fpu
+
+    ; enable sse and sse2
+    mov eax, 1
+    cpuid
+    test edx, 1 << 25
+    jz fail_sse
+
+    ; disable emulation and enable the coproccessor
+    mov eax, cr0
+    and eax, ~(1 << 2)
+    or eax, 1
+    mov cr0, eax
+
+    ; enabled fpu save/store and sse exceptions
+    mov eax, cr4
+    or eax, (1 << 9) | (1 << 10)
+    mov cr4, eax
+
+    ; time to enable paging
+    ; TODO: setup tables
+
+    jmp $
+
+    mov eax, cr0
+    or eax, 1 << 31
+    mov cr0, eax
+
+    ; load the descriptor table and jump to 64 bit code
+    lgdt [low_gdt]
+
+    jmp descriptor64.code:start64
+
+align 16
+low_gdt:
+    dw descriptor64.end - descriptor64 - 1
+    dd descriptor64
+
+align 16
+high_gdt:
+    dw descriptor64.end - descriptor64 - 1
+    dq descriptor64
+
+align 16
+descriptor64:
+    .null:
+        dw 0
+        dw 0
+        db 0
+        db 0
+        db 0
+        db 0
+    .code: equ $ - descriptor64
+        dw 0
+        dw 0
+        db 0
+        db 10011010b
+        db 00100000b
+        db 0
+    .data: equ $ - descriptor64
+        dw 0
+        dw 0
+        db 0
+        db 10010010b
+        db 0
+        db 0
+    .end:
 
 %macro error 2 
 fail_%1:
@@ -206,6 +314,8 @@ fail_%1:
     jmp panic32
     .msg: db %2, 0
 %endmacro
+
+fpu_data: dw 0xFFFF
 
 error cpuid, "no cpuid"
 error long, "no long mode"
@@ -229,8 +339,32 @@ panic32:
     hlt
     jmp .end
 
+bootinfo:
+    ; pointer to the memory map
+    .mem: dq 0
+    ; number of entries in the memory map
+    .num: dd 0
+
 align 4
 bits 64
 section .boot64
 start64:
-    jmp $
+    mov ax, descriptor64.data
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
+
+    lgdt [high_gdt]
+    jmp enter_long
+enter_long:
+    xor rax, rax
+    xor rbx, rbx
+    xor rcx, rcx
+    xor rdx, rdx
+    mov rbp, rsp
+    movsx rsp, sp
+
+    push bootinfo
+    call kmain
