@@ -1,6 +1,7 @@
 extern BOOTSECTORS
 extern BOOTEND
 extern kmain
+extern init32
 
 bits 16
 section .boot16
@@ -101,21 +102,6 @@ start16:
     jmp fail_a20
 
 load_e820:
-    mov qword [bootinfo.mem], BOOTEND
-    mov eax, 0xE820 ; function
-    xor ebx, ebx ; continuation, must be 0 for first call
-    mov di, [bootinfo.mem] ; buffer addr
-    mov ecx, 24 ; buffer size
-    mov edx, 'SMAP' ; signature
-
-.next:
-    int 15
-
-    ; check the continuation byte
-    or ebx, ebx
-    jnz .next
-    inc dword [bootinfo.num]
-
     ; time to load the gdt for protected mode
 load_gdt:
     cli
@@ -277,13 +263,23 @@ start32:
     mov cr4, eax
 
     ; time to enable paging
-    ; TODO: setup tables
 
-    jmp $
+    ; setup the page tables and put it in eax
+    call init32
 
+    ; load cr3 with page table
+    mov cr3, eax
+
+    ; enable paging
     mov eax, cr0
     or eax, 1 << 31
     mov cr0, eax
+
+    ; enable long mode
+    mov ecx, 0xC0000080
+    rdmsr
+    or eax, 1 << 8
+    wrmsr
 
     ; load the descriptor table and jump to 64 bit code
     lgdt [low_gdt]
@@ -382,6 +378,8 @@ enter_long:
     xor rdx, rdx
     mov rbp, rsp
     movsx rsp, sp
+
+    jmp $
 
     push bootinfo
     call kmain

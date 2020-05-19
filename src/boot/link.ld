@@ -11,6 +11,16 @@ SECTIONS {
         *(.boot64*)
     }
 
+    .text32 : { *(.text32*) }
+    .data32 : { *(.data32*) }
+    .rodata32 : { *(.rodata32*) }
+    
+    .bss32 : { 
+        BSS32_START = ALIGN(4);
+        *(.bss32*) 
+        BSS32_END = ALIGN(4);
+    }
+
     BOOTSECTORS = (. - BEGIN) / 512;
     BOOTEND = ALIGN(4) - BEGIN;
 
