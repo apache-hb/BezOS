@@ -20,7 +20,7 @@ sources = [ 'src/main.c' ]
 
 subdir('src/boot')
 
-elf = executable('bezos', sources,
+elf = executable('kernel', sources,
     c_args : [ '-m64' ],
     link_args : [ '-Wl,-T' + ldscript ],
     link_depends : ldscript
