@@ -14,10 +14,12 @@ extern bootinfo32_t* bootinfo;
 extern u32 BSS32_START;
 extern u32 BSS32_END;
 
-u64 pml4[512];
-u64 pml3[512];
-u64 pml2[512];
-u64 pml1[512];
+struct {
+    u64 pml4[512];
+    u64 pml3[512];
+    u64 pml2[512];
+    u64 pml1[512];
+} tables __attribute__((aligned(0x1000)));
 
 void* init32()
 {   
@@ -25,12 +27,12 @@ void* init32()
     for(u32 i = (u32)&BSS32_START; i < (u32)&BSS32_END; i++)
         *((u32*)i) = 0;
 
-    pml4[0] = pml3[0] | 0x3;
-    pml3[0] = pml2[0] | 0x3;
-    pml2[0] = pml1[0] | 0x3;
-
     for(int i = 0; i < 512; i++)
-        pml1[i] = (i * 0x1000) | 0x3;
+        tables.pml1[i] = (i * 0x1000) | 0x3;
 
-    return pml4;
+    tables.pml2[0] = (u64)tables.pml1 | 0x3;
+    tables.pml3[0] = (u64)tables.pml2 | 0x3;
+    tables.pml4[0] = (u64)tables.pml3 | 0x3;
+
+    return tables.pml4;
 }
