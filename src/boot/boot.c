@@ -15,9 +15,9 @@ extern u32 BSS32_START;
 extern u32 BSS32_END;
 
 u64 pml4[512];
-u64 pdp[512];
-u64 pd[512];
-u64 pt[512];
+u64 pml3[512];
+u64 pml2[512];
+u64 pml1[512];
 
 void* init32()
 {   
@@ -25,12 +25,12 @@ void* init32()
     for(u32 i = (u32)&BSS32_START; i < (u32)&BSS32_END; i++)
         *((u32*)i) = 0;
 
-    pml4[0] = pdp[3] | 0x3;
-    pdp[0] = pd[0] | 0x3;
-    pd[0] = pt[0] | 0x3;
+    pml4[0] = pml3[0] | 0x3;
+    pml3[0] = pml2[0] | 0x3;
+    pml2[0] = pml1[0] | 0x3;
 
     for(int i = 0; i < 512; i++)
-        pt[i] = (i * 0x1000) | 0x3;
+        pml1[i] = (i * 0x1000) | 0x3;
 
     return pml4;
 }

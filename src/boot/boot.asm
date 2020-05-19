@@ -257,9 +257,9 @@ start32:
     or eax, 1
     mov cr0, eax
 
-    ; enabled fpu save/store and sse exceptions
+    ; enabled fpu save/store and sse exceptions as well as PAE
     mov eax, cr4
-    or eax, (1 << 9) | (1 << 10)
+    or eax, (1 << 9) | (1 << 10) | (1 << 5)
     mov cr4, eax
 
     ; time to enable paging
@@ -272,7 +272,7 @@ start32:
 
     ; enable paging
     mov eax, cr0
-    or eax, 1 << 31
+    or eax, (1 << 31)
     mov cr0, eax
 
     ; enable long mode
