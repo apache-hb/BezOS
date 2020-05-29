@@ -8,18 +8,17 @@ all non human readable files should begin with 32 bits of file magic and a 32 bi
 
 ```c
 typedef struct {
-    u32 magic;
+    uint32_t magic;
 
-    // version
-    u8 major;
-    u8 minor;
-    u16 patch;
+    // version data
+    uint8_t major;
+    uint8_t minor;
+    uint16_t patch;
 } file_header_t;
 ```
 
-1. It is recommended that `magic` be a 3 or 4 byte human readable string containing only printable characters and `\0` nul
-2. The first bit of `magic` determines endianness, `0` if the file contains little endian content and `1` if the contents are big endian.
-3. It is recommended that versioning standards are followed to make the OS do less work when deciding which version of an application it should use on a file
-4. `patch` should be incremented with every bugfix
-5. `minor` should be incremented whenever a feature is added that does break backwards compatibility
-6. `major` should be incremented whenever the file format changes to an extent that a previous version would be unable to use the file
+1. `magic` can be any value between 0 and UINT32_MAX. It is recommended to treat this field as a 4 character string that only uses printable ascii characters and `\0` nul. But it is optional to do so.
+2. It is recommended that versioning standards are followed to make the OS do less work when deciding which version of an application it should use on a file
+3. `patch` should be incremented with every bugfix
+4. `minor` should be incremented whenever a feature is added that does break backwards compatibility
+5. `major` should be incremented whenever the file format changes to an extent that a previous version would be unable to use the file
