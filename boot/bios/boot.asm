@@ -1,3 +1,4 @@
+extern BOOT_SECTORS
 extern SECTORS
 extern kmain
 
@@ -27,18 +28,31 @@ entry:
     jne fail_ext
     jc fail_ext
 
+    ; read bootstages in from disk
     mov ah, 0x42
     mov si, dap
     int 0x13
 
+    jc fail_disk
+
+    ; read rest of kernel in at the 1MB mark
+    mov dword [dap.addr], 0x100000
+    mov word [dap.sectors], SECTORS
+    mov dword [dap.start], BOOT_SECTORS
+    int 0x13
+
+    jc fail_disk
+
     call a20check
 
+    ; try to enable the a20 line with the bios
     mov ax, 0x2401
     int 0x15
     call a20check
 
     cli
 
+    ; try to use the keyboard controller to enable the a20 line
     call a20wait
     mov al, 0xAD
     out 0x64, al
@@ -69,13 +83,16 @@ entry:
 
     call a20check
 
+    ; try the magic port to enable the a20 line
     in al, 0x92
     or al, 2
     out 0x92, al
     call a20check
     
+    ; if none of that works then give up
     jmp fail_a20
 
+    ; load the memory map in from the bios
 load_e820:
     xor si, si
     ; set continuation byte
@@ -104,11 +121,15 @@ load_e820:
     cmp ebx, 0
     jne .next
 
+    ; put the number of entries at the top of conventional bios memory
+    ; all the entries are stored below it in memory
     mov [es:0xFFFF - 2], si
 
+    ; load the gdt for 32 bit stub
     cli
     lgdt [gdt32]
 
+    ; enable protected mode
     mov eax, cr0
     or eax, 1
     mov cr0, eax
@@ -162,11 +183,11 @@ panic:
     jmp .end
 
 dap:
-    .size: db 0x10
-    .zero: db 0
-    .sectors: dw SECTORS
-    .addr: dd bootend
-    .start: dq 1
+    .size: db 0x10 ; size of the struct, always 0x10
+    .zero: db 0 ; zero
+    .sectors: dw BOOT_SECTORS ; number of sectors to read
+    .addr: dd bootend ; output address
+    .start: dq 1 ; sector to start reading at
 
 gdt32:
     dw gdt32.end - gdt32 - 1
@@ -207,6 +228,7 @@ start32:
     jnz .wipe
     mov dword [0xB8000], 0
 
+    ; check for cpuid using flags
     pushfd
     pop eax
 
@@ -226,15 +248,29 @@ start32:
     xor eax, ecx
     jz fail_cpuid
 
+    ; check for extended cpuid
     mov eax, 0x80000000
     cpuid
     cmp eax, 0x80000001
     jb fail_cpuid_ext
 
+    ; check for long mode using extended cpuid
     mov eax, 0x80000001
     cpuid
     test edx, 1 << 29
     jz fail_long
+
+    ; enable the fpu and sse
+    mov eax, cr0
+    and eax, (-1) - ((1 << 2) | (1 << 3))
+    mov cr0, eax
+
+    fninit
+
+    mov eax, cr0
+    and eax, ~(1 << 2)
+    or eax, 1
+    mov cr0, eax
 
     jmp $
 
@@ -265,6 +301,44 @@ panic32:
     hlt
     jmp .end
 
+gdt64:
+    dw 0
+    dw 0
+    db 0
+    db 0
+    db 0
+    db 0
+.code:
+    dw 0
+    dw 0
+    db 0
+    db 10011010b
+    db 00100000b
+    db 0
+.data:
+    dw 0
+    dw 0
+    db 0
+    db 10010010b
+    db 0
+    db 0
+.end:
+
+align 16
+low_gdt:
+    dw gdt64.end - gdt64 - 1
+    dd gdt64
+
+align 16
+high_gdt:
+    dw gdt64.end = gdt64 - 1
+    dq gdt64
+
+
+
 bits 64
 section .boot64
+start64:
+    ; remap gdt to high gdt
+    ; remap kernel to 64 bit higher half
     call kmain

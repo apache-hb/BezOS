@@ -12,6 +12,8 @@ SECTIONS {
         *(.boot64*)
     }
 
+    BOOT_SECTORS = (. - BEGIN) / 512;
+
     . += VMA;
 
     .text ALIGN(0x1000) : AT(ADDR(.text) - VMA) { 
@@ -32,13 +34,13 @@ SECTIONS {
         DATA_END = .;
     }
 
+    SECTORS = (. - VMA) / 512;
+
     .bss ALIGN(0x1000) : AT(ADDR(.bss) - VMA) { 
         BSS_BEGIN = .;
         *(.bss)
         BSS_END = .; 
     }
-
-    SECTORS = (. - (VMA + BEGIN)) / 512;
 
     /DISCARD/ : {
         *(.comment)

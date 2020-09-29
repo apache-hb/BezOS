@@ -6,7 +6,7 @@ assemble = generator(find_program('nasm'),
 src += assemble.process('boot.asm')
 ldscript = meson.current_source_dir()/'link.ld'
 
-kernel = executable('bezos', src,
+kernel = executable('bezos.bin', src,
     link_args : [ '-Wl,-T' + ldscript ],
     link_depends : ldscript
 )
