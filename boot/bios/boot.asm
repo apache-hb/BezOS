@@ -1,5 +1,6 @@
 extern BOOT_SECTORS
 extern SECTORS
+extern PT_ADDR
 extern kmain
 
 bits 16
@@ -13,7 +14,6 @@ entry:
     mov ds, ax
 
     mov ss, ax
-    mov sp, 0x7C00
 
     ; set fs to max to test for a20 wraparound later
     not ax
@@ -218,7 +218,10 @@ section .boot32
 start32:
     mov ax, gdt32.data - gdt32
     mov ds, ax
+
+    ; at this point we might actually need a stack
     mov ss, ax
+    mov esp, 0x7C00
 
     ; wipe any existing characters on the vga text buffer
     mov ecx, 1000
@@ -260,19 +263,75 @@ start32:
     test edx, 1 << 29
     jz fail_long
 
-    ; enable the fpu and sse
+    ; time to build the page tables to get into long mode
+    ; pdpt -> pd -> pt -> paddr
+    mov ebx, 0x1000
+    
+    ; ebp contains the pml4
+    call bump
+    mov ebp, eax
+
+    ; edx contains the pdpt
+    call bump
+    mov edx, eax
+
+    ; ecx contains the pd
+    call bump
+    mov ecx, eax
+
+    ; ebx contains the pt
+    call bump
+    mov ebx, eax
+
+    ; mark pdpt as present and read/write and put it in the pml4
+    or edx, 3
+    mov dword [ebp], edx
+    mov dword [ebp], 0
+    and edx, ~3
+
+    ; mark pd as present and read/write and put it into pdpt
+    or ecx, 3
+    mov dword [edx], ecx
+    mov dword [edx + 4], 0
+    and ecx, ~1
+
+    ; mark pt as read/write and put it in pd
+    or ebx, 3
+    mov dword [ecx], ebx
+    mov dword [ecx + 4], 0
+    and ebx, ~3
+
+    xor eax, eax
+    xor ecx, ecx
+.loop:
+    mov esp, eax
+    or esp, 3
+    mov dword [ebx + ecx * 4], esp
+    mov dword [ebx + ecx * 4 + 4], 0
+
+    add eax, 0x1000
+    inc ecx
+    cmp ecx, 513
+    jl .loop
+
+    ; load the pdpt into cr3 so the cpu can use it
+    mov eax, cr4
+    bts eax, 5
+    mov cr4, eax
+
+    mov cr3, ebp
+
+    mov ecx, 0xC0000080
+    rdmsr
+    or eax, 1 << 8
+    wrmsr
+
     mov eax, cr0
-    and eax, (-1) - ((1 << 2) | (1 << 3))
+    or eax, 1 << 31
     mov cr0, eax
 
-    fninit
-
-    mov eax, cr0
-    and eax, ~(1 << 2)
-    or eax, 1
-    mov cr0, eax
-
-    jmp $
+    lgdt [high_gdt]
+    jmp (gdt64.code - gdt64):start64
 
 %macro error 2
 fail_%1:
@@ -284,6 +343,16 @@ fail_%1:
 error cpuid, "cpuid instruction missing"
 error cpuid_ext, "extended cpuid missing"
 error long, "long mode not supported"
+
+base: dd PT_ADDR
+
+; bump allocate
+; ebx = amount to bump by
+; eax = allocated memory
+bump:
+    mov eax, [base]
+    add [base], ebx
+    ret
 
 panic32:
     mov ebx, 0xB8000
@@ -302,7 +371,7 @@ panic32:
     jmp .end
 
 gdt64:
-    dw 0
+    dw 0xFFFF
     dw 0
     db 0
     db 0
@@ -331,7 +400,7 @@ low_gdt:
 
 align 16
 high_gdt:
-    dw gdt64.end = gdt64 - 1
+    dw gdt64.end - gdt64 - 1
     dq gdt64
 
 
@@ -339,6 +408,6 @@ high_gdt:
 bits 64
 section .boot64
 start64:
-    ; remap gdt to high gdt
+    jmp $
     ; remap kernel to 64 bit higher half
     call kmain

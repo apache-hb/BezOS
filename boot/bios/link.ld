@@ -13,6 +13,7 @@ SECTIONS {
     }
 
     BOOT_SECTORS = (. - BEGIN) / 512;
+    PT_ADDR = ALIGN(0x1000);
 
     . += VMA;
 
