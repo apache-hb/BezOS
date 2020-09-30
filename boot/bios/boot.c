@@ -9,6 +9,7 @@ extern u64 BSS_END[];
 extern u64 TEXT_BEGIN[];
 extern u64 DATA_BEGIN[];
 extern u64 RODATA_BEGIN[];
+extern u64 BSS_BEGIN[];
 
 extern u64 KERNEL_BEGIN[];
 extern u64 KERNEL_PAGES[];
@@ -83,6 +84,7 @@ void boot_main() {
     STR(".text = 0x") NUM((u64)TEXT_BEGIN, 16) PUT('\n')
     STR(".data = 0x") NUM((u64)DATA_BEGIN, 16) PUT('\n')
     STR(".rodata = 0x") NUM((u64)RODATA_BEGIN, 16) PUT('\n')
+    STR(".bss = 0x") NUM((u64)BSS_BEGIN, 16) PUT('\n')
     STR("pages = ") NUM((u64)KERNEL_PAGES, 10) PUT('\n')
 
     for (int i = 0; i < (u64)KERNEL_PAGES; i++) {

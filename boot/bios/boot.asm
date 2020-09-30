@@ -390,6 +390,5 @@ bits 64
 section .boot64
 start64:
     mov rsp, 0x7C00
-    xor rcx, rcx
     ; remap kernel to 64 bit higher half
     call boot_main
