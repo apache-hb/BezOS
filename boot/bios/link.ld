@@ -18,22 +18,23 @@ SECTIONS {
 
     . += VMA;
 
+    KERNEL_BEGIN = ALIGN(0x1000);
     .text ALIGN(0x1000) : AT(ADDR(.text) - VMA) { 
         TEXT_BEGIN = .;
         *(.text*)
         TEXT_END = .;
     }
 
-    .rodata ALIGN(0x1000) : AT(ADDR(.rodata) - VMA) { 
-        RODATA_BEGIN = .;
-        *(.rodata*)
-        RODATA_END = .;
-    }
-
     .data ALIGN(0x1000) : AT(ADDR(.data) - VMA) { 
         DATA_BEGIN = .;
         *(.data*)
         DATA_END = .;
+    }
+
+    .rodata ALIGN(0x1000) : AT(ADDR(.rodata) - VMA) { 
+        RODATA_BEGIN = .;
+        *(.rodata*)
+        RODATA_END = .;
     }
 
     SECTORS = (. - VMA) / 512;
@@ -49,6 +50,9 @@ SECTIONS {
         *(.bss)
         BSS_END = .; 
     }
+
+    KERNEL_END = ALIGN(0x1000);
+    KERNEL_PAGES = ((KERNEL_END - KERNEL_BEGIN) / 0x1000) + 1;
 
     /DISCARD/ : {
         *(.comment)

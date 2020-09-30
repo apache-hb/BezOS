@@ -3,8 +3,6 @@ extern SECTORS
 extern PT_ADDR
 extern boot_main
 
-global BASE_ADDR
-
 bits 16
 section .boot16
 prelude:
@@ -340,7 +338,9 @@ error cpuid, "cpuid instruction missing"
 error cpuid_ext, "extended cpuid missing"
 error long, "long mode not supported"
 
+align 8
 BASE_ADDR: dq PT_ADDR
+global BASE_ADDR
 
 panic32:
     mov ebx, 0xB8000

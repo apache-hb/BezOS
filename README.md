@@ -5,16 +5,16 @@ I thought it would be funny
 1. install `clang` (preferrably 9/10), `nasm`, `python3.7`
 2. execute 
 ```sh
-meson build --cross-file x64-cross.ini
+meson build --cross-file x64-clang-cross.ini
 ninja -C build
 ```
-3. kernel will be in either `build/bezos.bin`
+1. kernel will be in `build/boot/<boot>/bezos.bin`
 
 ## Running
 
 ### Bios
 1. install `qemu`
-2. run with `qemu-system-x86_64 -drive file=bezos.bin,format=raw`
+2. run with `qemu.bat build\boot\<boot>\bezos.bin`
 
 ## Mentions
 1. Marley on the osdev discord for being incredibly clever and knowledgable 
