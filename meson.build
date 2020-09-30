@@ -10,6 +10,7 @@ project('bezos', 'c',
 )
 
 src = []
+inc = [include_directories('.')]
 
 subdir('kernel')
 subdir('boot'/get_option('boot'))

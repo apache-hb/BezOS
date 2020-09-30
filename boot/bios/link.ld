@@ -36,6 +36,12 @@ SECTIONS {
     }
 
     SECTORS = (. - VMA) / 512;
+    
+    /* TODO: int 13h can only read 64k at a time, 
+     * when the kernel gets bigger than that
+     * we'll need to update stuff here to 
+     * accomidate
+     */
 
     .bss ALIGN(0x1000) : AT(ADDR(.bss) - VMA) { 
         BSS_BEGIN = .;

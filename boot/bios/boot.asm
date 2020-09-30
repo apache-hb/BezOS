@@ -1,7 +1,9 @@
 extern BOOT_SECTORS
 extern SECTORS
 extern PT_ADDR
-extern kmain
+extern boot_main
+
+global BASE_ADDR
 
 bits 16
 section .boot16
@@ -225,10 +227,10 @@ start32:
 
     ; wipe any existing characters on the vga text buffer
     mov ecx, 1000
-.wipe:
+.wipe_vga:
     mov dword [0xB8000 + ecx * 4], 0
     dec ecx
-    jnz .wipe
+    jnz .wipe_vga
     mov dword [0xB8000], 0
 
     ; check for cpuid using flags
@@ -263,69 +265,63 @@ start32:
     test edx, 1 << 29
     jz fail_long
 
-    ; time to build the page tables to get into long mode
-    ; pdpt -> pd -> pt -> paddr
-    mov ebx, 0x1000
     
-    ; ebp contains the pml4
-    call bump
-    mov ebp, eax
+    mov eax, PT_ADDR
+    lea edx, [eax + 0x4000]
+.wipe_pt:
+    mov dword [eax], 0
+    add eax, 4
+    cmp eax, edx
+    jne .wipe_pt
 
-    ; edx contains the pdpt
-    call bump
-    mov edx, eax
+    mov eax, [BASE_ADDR]
+    add dword [BASE_ADDR], 0x4000
 
-    ; ecx contains the pd
-    call bump
-    mov ecx, eax
+    lea edx, [eax + 0x1000]
+    lea esi, [eax + 0x2000]
+    lea ecx, [eax + 0x3000]
 
-    ; ebx contains the pt
-    call bump
-    mov ebx, eax
+    ; eax = pml4
+    ; edx = pdpt
+    ; esi = pd
+    ; ecx = pt
 
-    ; mark pdpt as present and read/write and put it in the pml4
-    or edx, 3
-    mov dword [ebp], edx
-    mov dword [ebp], 0
-    and edx, ~3
+    or edx, 0b11
+    mov dword [eax + 4], 0
+    mov dword [eax], edx
+    mov edx, ecx
 
-    ; mark pd as present and read/write and put it into pdpt
-    or ecx, 3
-    mov dword [edx], ecx
-    mov dword [edx + 4], 0
-    and ecx, ~1
-
-    ; mark pt as read/write and put it in pd
-    or ebx, 3
-    mov dword [ecx], ebx
-    mov dword [ecx + 4], 0
-    and ebx, ~3
-
-    xor eax, eax
-    xor ecx, ecx
+    or esi, 0b11
+    mov dword [eax + 0x1000], esi
+    mov dword [eax + 0x1004], 0
+    mov dword [eax + 0x2000], 0
+    
+    or edx, 0b11
+    mov dword [eax + 0x2000], edx
+    mov edx, 0b11
 .loop:
-    mov esp, eax
-    or esp, 3
-    mov dword [ebx + ecx * 4], esp
-    mov dword [ebx + ecx * 4 + 4], 0
+    mov dword [ecx], edx
+    add edx, 0x1000
+    mov dword [ecx + 4], 0
+    add ecx, 8
+    cmp edx, 0x100003
+    jne .loop
 
-    add eax, 0x1000
-    inc ecx
-    cmp ecx, 513
-    jl .loop
+    ; put page table into cr3
+    mov cr3, eax
 
-    ; load the pdpt into cr3 so the cpu can use it
+    ; enable pae
     mov eax, cr4
-    bts eax, 5
+    or eax, 1 << 5
     mov cr4, eax
 
-    mov cr3, ebp
-
+    ; enable long mode
     mov ecx, 0xC0000080
     rdmsr
     or eax, 1 << 8
     wrmsr
 
+    ; enable paging
     mov eax, cr0
     or eax, 1 << 31
     mov cr0, eax
@@ -344,15 +340,7 @@ error cpuid, "cpuid instruction missing"
 error cpuid_ext, "extended cpuid missing"
 error long, "long mode not supported"
 
-base: dd PT_ADDR
-
-; bump allocate
-; ebx = amount to bump by
-; eax = allocated memory
-bump:
-    mov eax, [base]
-    add [base], ebx
-    ret
+BASE_ADDR: dd PT_ADDR
 
 panic32:
     mov ebx, 0xB8000
@@ -394,20 +382,13 @@ gdt64:
 .end:
 
 align 16
-low_gdt:
-    dw gdt64.end - gdt64 - 1
-    dd gdt64
-
-align 16
 high_gdt:
     dw gdt64.end - gdt64 - 1
     dq gdt64
 
-
-
 bits 64
 section .boot64
 start64:
-    jmp $
+    mov rsp, 0x7C00
     ; remap kernel to 64 bit higher half
-    call kmain
+    call boot_main
