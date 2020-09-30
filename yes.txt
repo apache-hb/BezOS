@@ -1,5 +1,0 @@
-
-C:\Users\ehb56\OneDrive\Documents\GitHub\BezOS>"C:\Program Files\qemu\qemu-system-x86_64.exe" -drive format=raw,file=build\boot\bios\bezos.bin -d int -no-reboot -no-shutdown -monitor stdio -debugcon stdio 
-QEMU 4.1.0 monitor - type 'help' for more information
-(qemu) 
-(qemu) ggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggq[K
