@@ -10,6 +10,7 @@ SECTIONS {
         *(.boot16*)
         *(.boot32*)
         *(.boot64*)
+        *(.bootc*)
     }
 
     BOOT_SECTORS = (. - BEGIN) / 512;
@@ -36,7 +37,7 @@ SECTIONS {
     }
 
     SECTORS = (. - VMA) / 512;
-    
+
     /* TODO: int 13h can only read 64k at a time, 
      * when the kernel gets bigger than that
      * we'll need to update stuff here to 

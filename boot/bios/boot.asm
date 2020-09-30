@@ -340,7 +340,7 @@ error cpuid, "cpuid instruction missing"
 error cpuid_ext, "extended cpuid missing"
 error long, "long mode not supported"
 
-BASE_ADDR: dd PT_ADDR
+BASE_ADDR: dq PT_ADDR
 
 panic32:
     mov ebx, 0xB8000
@@ -390,5 +390,6 @@ bits 64
 section .boot64
 start64:
     mov rsp, 0x7C00
+    xor rcx, rcx
     ; remap kernel to 64 bit higher half
     call boot_main
