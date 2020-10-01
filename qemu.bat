@@ -1,1 +1,1 @@
-"C:\Program Files\qemu\qemu-system-x86_64.exe" -drive format=raw,file=%1 -d int -no-reboot -no-shutdown -monitor stdio -debugcon stdio
+"C:\Program Files\qemu\qemu-system-x86_64.exe" -d int -no-reboot -no-shutdown -monitor stdio -debugcon stdio -drive format=raw,file=%*

@@ -15,6 +15,6 @@ typedef struct {
     memory_map_entry_t *entries;
 } memory_map_t;
 
-void kmain(memory_map_t *memory, u64 *pml4);
+void kmain(memory_map_t memory, u64 *pml4);
 
 #endif 

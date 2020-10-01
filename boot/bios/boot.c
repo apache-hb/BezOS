@@ -77,6 +77,7 @@ void boot_main() {
     memory_map_entry_t *entries = (memory_map_entry_t*)(0x7FFFF - (2 + (sizeof(memory_map_entry_t) * count)));
     memory_map_t memory = { count, entries };
 
+    STR("boot = 0x") NUM((u64)boot_main, 16) PUT('\n')
     STR("pml4 = 0x") NUM((u64)PT_ADDR, 16) PUT('\n')
     STR("KERNEL_VADDR = 0x") NUM((u64)KERNEL_BEGIN, 16) PUT('\n')
     STR(".text = 0x") NUM((u64)TEXT_BEGIN, 16) PUT('\n')
@@ -84,10 +85,12 @@ void boot_main() {
     STR(".rodata = 0x") NUM((u64)RODATA_BEGIN, 16) PUT('\n')
     STR(".bss = 0x") NUM((u64)BSS_BEGIN, 16) PUT('\n')
     STR("pages = ") NUM((u64)KERNEL_PAGES, 10) PUT('\n')
+    STR("kmain = 0x") NUM((u64)kmain, 16) PUT('\n')
+    STR("memory = (") NUM(memory.count, 10) STR(", 0x") NUM((u64)memory.entries, 16) STR(")\n") 
 
     for (int i = 0; i < (u64)KERNEL_PAGES; i++) {
         map_page(PT_ADDR, 0x100000 + (i * 0x1000), (u64)KERNEL_BEGIN + (i * 0x1000));
     }
 
-    kmain(&memory, PT_ADDR);
+    kmain(memory, PT_ADDR);
 }
