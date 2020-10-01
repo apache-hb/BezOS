@@ -77,9 +77,7 @@ void boot_main() {
     memory_map_entry_t *entries = (memory_map_entry_t*)(0x7FFFF - (2 + (sizeof(memory_map_entry_t) * count)));
     memory_map_t memory = { count, entries };
 
-    u64 *pml4 = PT_ADDR;
-
-    STR("pml4 = 0x") NUM((u64)pml4, 16) PUT('\n')
+    STR("pml4 = 0x") NUM((u64)PT_ADDR, 16) PUT('\n')
     STR("KERNEL_VADDR = 0x") NUM((u64)KERNEL_BEGIN, 16) PUT('\n')
     STR(".text = 0x") NUM((u64)TEXT_BEGIN, 16) PUT('\n')
     STR(".data = 0x") NUM((u64)DATA_BEGIN, 16) PUT('\n')
@@ -88,7 +86,7 @@ void boot_main() {
     STR("pages = ") NUM((u64)KERNEL_PAGES, 10) PUT('\n')
 
     for (int i = 0; i < (u64)KERNEL_PAGES; i++) {
-        map_page(pml4, 0x100000 + (i * 0x1000), (u64)KERNEL_BEGIN + (i * 0x1000));
+        map_page(PT_ADDR, 0x100000 + (i * 0x1000), (u64)KERNEL_BEGIN + (i * 0x1000));
     }
 
     kmain(&memory, PT_ADDR);

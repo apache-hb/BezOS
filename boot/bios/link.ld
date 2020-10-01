@@ -19,19 +19,19 @@ SECTIONS {
     . += VMA;
 
     KERNEL_BEGIN = ALIGN(0x1000);
-    .text ALIGN(0x1000) : AT(ADDR(.text) - VMA) { 
+    .text ALIGN(0x1000) : AT(ADDR(.text) - VMA) {
         TEXT_BEGIN = .;
         *(.text*)
         TEXT_END = .;
     }
 
-    .data ALIGN(0x1000) : AT(ADDR(.data) - VMA) { 
+    .data ALIGN(0x1000) : AT(ADDR(.data) - VMA) {
         DATA_BEGIN = .;
         *(.data*)
         DATA_END = .;
     }
 
-    .rodata ALIGN(0x1000) : AT(ADDR(.rodata) - VMA) { 
+    .rodata ALIGN(0x1000) : AT(ADDR(.rodata) - VMA) {
         RODATA_BEGIN = .;
         *(.rodata*)
         RODATA_END = .;
