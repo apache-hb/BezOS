@@ -22,8 +22,7 @@ char chars[] = "zyxwvutsrqponmlkjihgfedcba9876543210123456789abcdefghijklmnopqrs
 #define NUM(i, base) { char tstr[64] = { }; int idx = 0; \
     u64 num = i; u64 temp; \
     do { temp = num; num /= base; tstr[idx++] = (chars[35 + (temp - num * base)]); } while (num); \
-    for (int id = idx; id--;) { PUT(tstr[id]) } \
-    }
+    for (int id = idx; id--;) { PUT(tstr[id]) } }
 
 SECTION(".bootc")
 void *bump(u64 size) {
@@ -44,7 +43,7 @@ u64 *add_table(u64 *table, u64 idx, u64 flags) {
 
         table[idx] = (u64)entry | flags;
     } else {
-        entry = (u64*)(table[idx] & ~0b11);
+        entry = (u64*)(table[idx] & 0xfffffffffffff000);
     }
 
     return entry;
@@ -63,8 +62,10 @@ void map_page(u64 *pml4, u64 paddr, u64 vaddr) {
     u64 *pd = add_table(pdpt, pdpt_idx, 0b11);
     u64 *pt = add_table(pd, pd_idx, 0b11);
 
-    pt[pt_idx] = paddr | 0b11;
+    u64 va = vaddr & ~(0x1000 - 1);
+    pt[pt_idx] = va | 0b11;
 
+    INVLPG(va);
     STR("0x") NUM((u64)pml4, 16) STR(" pml4[") NUM((u64)pml4_idx, 10) STR("] = 0x") NUM(pml4[pml4_idx], 16) PUT('\n')
     STR("0x") NUM((u64)pdpt, 16) STR(" pdpt[") NUM((u64)pdpt_idx, 10) STR("] = 0x") NUM(pdpt[pdpt_idx], 16) PUT('\n')
     STR("0x") NUM((u64)pd, 16) STR(" pd[") NUM((u64)pd_idx, 10) STR("] = 0x") NUM(pd[pd_idx], 16) PUT('\n')
@@ -91,6 +92,12 @@ void boot_main() {
     for (int i = 0; i < (u64)KERNEL_PAGES; i++) {
         map_page(PT_ADDR, 0x100000 + (i * 0x1000), (u64)KERNEL_BEGIN + (i * 0x1000));
     }
+    
+    *((u16*)0xB8000) = 'c' | 7 << 8;
+    INVLPG(PT_ADDR);
+    *((u16*)0xB8000) = 'b' | 7 << 8;
 
+    STR("kmain = 0x") NUM((u64)kmain, 16) PUT('\n')
     kmain(memory, PT_ADDR);
+    for (;;) { }
 }
