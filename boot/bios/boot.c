@@ -62,10 +62,10 @@ void map_page(u64 *pml4, u64 paddr, u64 vaddr) {
     u64 *pd = add_table(pdpt, pdpt_idx, 0b11);
     u64 *pt = add_table(pd, pd_idx, 0b11);
 
-    u64 va = vaddr & ~(0x1000 - 1);
-    pt[pt_idx] = va | 0b11;
+    u64 pa = paddr & ~(0x1000 - 1);
+    pt[pt_idx] = pa | 0b11;
 
-    INVLPG(va);
+    INVLPG(vaddr);
     STR("0x") NUM((u64)pml4, 16) STR(" pml4[") NUM((u64)pml4_idx, 10) STR("] = 0x") NUM(pml4[pml4_idx], 16) PUT('\n')
     STR("0x") NUM((u64)pdpt, 16) STR(" pdpt[") NUM((u64)pdpt_idx, 10) STR("] = 0x") NUM(pdpt[pdpt_idx], 16) PUT('\n')
     STR("0x") NUM((u64)pd, 16) STR(" pd[") NUM((u64)pd_idx, 10) STR("] = 0x") NUM(pd[pd_idx], 16) PUT('\n')
