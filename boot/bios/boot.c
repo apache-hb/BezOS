@@ -1,5 +1,5 @@
 #include "kernel/kernel.h"
-#include "kernel/util/macros.h"
+#include "kernel/arch/idt.h"
 
 extern u64 PT_ADDR[];
 extern u64 *BASE_ADDR[];
@@ -65,11 +65,32 @@ void map_page(u64 *pml4, u64 paddr, u64 vaddr) {
     u64 pa = paddr & ~(0x1000 - 1);
     pt[pt_idx] = pa | 0b11;
 
-    INVLPG(vaddr);
+    INVLPG(pa);
     STR("0x") NUM((u64)pml4, 16) STR(" pml4[") NUM((u64)pml4_idx, 10) STR("] = 0x") NUM(pml4[pml4_idx], 16) PUT('\n')
     STR("0x") NUM((u64)pdpt, 16) STR(" pdpt[") NUM((u64)pdpt_idx, 10) STR("] = 0x") NUM(pdpt[pdpt_idx], 16) PUT('\n')
     STR("0x") NUM((u64)pd, 16) STR(" pd[") NUM((u64)pd_idx, 10) STR("] = 0x") NUM(pd[pd_idx], 16) PUT('\n')
     STR("0x") NUM((u64)pt, 16) STR(" pt[") NUM((u64)pt_idx, 10) STR("] = 0x") NUM(pt[pt_idx], 16) PUT('\n')
+}
+
+SECTION(".bootc")
+idt_entry_t idt[256];
+
+SECTION(".bootc")
+__attribute__((interrupt))
+void int_handler(void *frame) {
+    __asm__ volatile("cli");
+    STR("int\n")
+    for (;;) { }
+}
+
+SECTION(".bootc")
+idt_entry_t entry(void *func, u16 sel, u8 ist, u8 flags) {
+    u64 addr = (u64)func;
+    idt_entry_t entry = { 
+        (u16)addr, sel, ist, flags, 
+        (u16)(addr >> 16), (u32)(addr >> 32), 0
+    };
+    return entry;
 }
 
 SECTION(".bootc")
@@ -88,14 +109,27 @@ void boot_main() {
     STR("pages = ") NUM((u64)KERNEL_PAGES, 10) PUT('\n')
     STR("kmain = 0x") NUM((u64)kmain, 16) PUT('\n')
     STR("memory = (") NUM(memory.count, 10) STR(", 0x") NUM((u64)memory.entries, 16) STR(")\n") 
+    STR("idt = 0x") NUM((u64)idt, 16) PUT('\n')
+
+
+    idt[0xE] = entry(int_handler, 0x8, 0, 0x8E);
+
+    for (int i = 0; i < 256; i++) {
+        idt[i] = entry(int_handler, 0x8, 0, 0x8E);
+    }
+
+    idt_ptr_t ptr = { (u16)(sizeof(idt_entry_t) * 256) - 1, (u64)idt };
+    for (;;) { }
+    __asm__ volatile (
+        "lidt %0\n"
+        "sti" 
+        :: "m"(ptr)
+    );
 
     for (int i = 0; i < (u64)KERNEL_PAGES; i++) {
         map_page(PT_ADDR, 0x100000 + (i * 0x1000), (u64)KERNEL_BEGIN + (i * 0x1000));
     }
     
-    *((u16*)0xB8000) = 'c' | 7 << 8;
-    INVLPG(PT_ADDR);
-    *((u16*)0xB8000) = 'b' | 7 << 8;
 
     STR("kmain = 0x") NUM((u64)kmain, 16) PUT('\n')
     kmain(memory, PT_ADDR);
