@@ -25,15 +25,14 @@ char chars[] = "zyxwvutsrqponmlkjihgfedcba9876543210123456789abcdefghijklmnopqrs
     for (int id = idx; id--;) { PUT(tstr[id]) } }
 
 SECTION(".bootc")
-void *bump(u64 size) {
+static void *bump(u64 size) {
     u64 addr = (u64)*BASE_ADDR;
     *BASE_ADDR += size;
-    STR("allocated 0x") NUM((u64)addr, 16) PUT('\n')
     return (void*)addr;
 }
 
 SECTION(".bootc")
-u64 *add_table(u64 *table, u64 idx, u64 flags) {
+static u64 *add_table(u64 *table, u64 idx, u64 flags) {
     u64 *entry = NULL;
     if (!(table[idx] & 1)) {
         entry = bump(0x1000);
@@ -50,7 +49,7 @@ u64 *add_table(u64 *table, u64 idx, u64 flags) {
 }
 
 SECTION(".bootc")
-void map_page(u64 *pml4, u64 paddr, u64 vaddr) {
+static void map_page(u64 *pml4, u64 paddr, u64 vaddr) {
     STR("mapping 0x") NUM(paddr, 16) STR(" to 0x") NUM(vaddr, 16) PUT('\n')
 
     u64 pml4_idx = (vaddr & (0x1FFULL << 39)) >> 39;
@@ -84,7 +83,7 @@ void int_handler(void *frame) {
 }
 
 SECTION(".bootc")
-idt_entry_t entry(void *func, u16 sel, u8 ist, u8 flags) {
+static idt_entry_t entry(void *func, u16 sel, u8 ist, u8 flags) {
     u64 addr = (u64)func;
     idt_entry_t entry = { 
         (u16)addr, sel, ist, flags, 
@@ -118,6 +117,7 @@ void boot_main() {
         idt[i] = entry(int_handler, 0x8, 0, 0x8E);
     }
 
+    __asm__ volatile("nop");
     idt_ptr_t ptr = { (u16)(sizeof(idt_entry_t) * 256) - 1, (u64)idt };
     for (;;) { }
     __asm__ volatile (
