@@ -1,9 +1,9 @@
-#pragma once
+#ifndef KERNEL_H
+#define KERNEL_H
 
-#include <util.h>
-#include <mm/mm.h>
+#include "util/types.h"
 
-typedef struct PACKED {
+typedef struct {
     u64 addr;
     u64 size;
     u32 type;
@@ -11,8 +11,10 @@ typedef struct PACKED {
 } memory_map_entry_t;
 
 typedef struct {
-    size_t size;
+    size_t count;
     memory_map_entry_t *entries;
 } memory_map_t;
 
-void kmain(memory_map_t memory, pml4_t pml4);
+void kmain(memory_map_t memory, u64 *pml4);
+
+#endif 

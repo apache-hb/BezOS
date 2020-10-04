@@ -1,1 +1,4 @@
-option('boot', type : 'combo', choices : [ 'bios', 'uefi' ], value : 'bios')
+option('boot', type : 'combo', 
+    choices : [ 'bios', 'uefi' ], 
+    value : 'bios'
+)

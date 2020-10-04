@@ -1,1 +1,3 @@
-src += meson.current_source_dir()/'kernel.c'
+kernel = static_library('kernel', 'kernel.c',
+    include_directories : include_directories('.')
+)
