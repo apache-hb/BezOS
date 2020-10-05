@@ -1,6 +1,28 @@
-#include "kernel/kernel.h"
-#include "kernel/arch/idt.h"
+#include <kernel.h>
+#include <arch/idt.h>
 
+SECTION(".boot")
+static u64 *add_table() {
+    // TODO
+}
+
+SECTION(".boot")
+static void map_page(u64 paddr, u64 vaddr, u64 flags) {
+#define MASK(addr, mask) (addr & (0x1FFULL << mask)) >> mask
+    u64 pml4_idx = MASK(vaddr, 39);
+    u64 pdpt_idx = MASK(vaddr, 30);
+    u64 pd_idx = MASK(vaddr, 20);
+    u64 pt_idx = MASK(vaddr, 12);
+}
+
+SECTION(".boot")
+void boot() {
+    char c = 'p';
+    __asm__ volatile ("outb %0, %1" :: "a"(c), "Nd"(0xE9));
+    for (;;) { }
+}
+
+/*
 extern u64 PT_ADDR[];
 extern u64 *BASE_ADDR[];
 extern u64 BSS_BEGIN[];
@@ -14,7 +36,7 @@ extern u64 BSS_BEGIN[];
 extern u64 KERNEL_BEGIN[];
 extern u64 KERNEL_PAGES[];
 
-SECTION(".bootc")
+SECTION(".boot")
 char chars[] = "zyxwvutsrqponmlkjihgfedcba9876543210123456789abcdefghijklmnopqrstuvwxyz";
 
 #define PUT(i) { __asm__ volatile ("outb %0, %1" : : "a"((char)i), "Nd"(0xE9)); }
@@ -24,14 +46,14 @@ char chars[] = "zyxwvutsrqponmlkjihgfedcba9876543210123456789abcdefghijklmnopqrs
     do { temp = num; num /= base; tstr[idx++] = (chars[35 + (temp - num * base)]); } while (num); \
     for (int id = idx; id--;) { PUT(tstr[id]) } }
 
-SECTION(".bootc")
+SECTION(".boot")
 static void *bump(u64 size) {
     u64 addr = (u64)*BASE_ADDR;
     *BASE_ADDR += size;
     return (void*)addr;
 }
 
-SECTION(".bootc")
+SECTION(".boot")
 static u64 *add_table(u64 *table, u64 idx, u64 flags) {
     u64 *entry = NULL;
     if (!(table[idx] & 1)) {
@@ -48,7 +70,7 @@ static u64 *add_table(u64 *table, u64 idx, u64 flags) {
     return entry;
 }
 
-SECTION(".bootc")
+SECTION(".boot")
 static void map_page(u64 *pml4, u64 paddr, u64 vaddr) {
     STR("mapping 0x") NUM(paddr, 16) STR(" to 0x") NUM(vaddr, 16) PUT('\n')
 
@@ -71,10 +93,10 @@ static void map_page(u64 *pml4, u64 paddr, u64 vaddr) {
     STR("0x") NUM((u64)pt, 16) STR(" pt[") NUM((u64)pt_idx, 10) STR("] = 0x") NUM(pt[pt_idx], 16) PUT('\n')
 }
 
-SECTION(".bootc")
+SECTION(".boot")
 idt_entry_t idt[256];
 
-SECTION(".bootc")
+SECTION(".boot")
 __attribute__((interrupt))
 void int_handler(void *frame) {
     __asm__ volatile("cli");
@@ -82,7 +104,7 @@ void int_handler(void *frame) {
     for (;;) { }
 }
 
-SECTION(".bootc")
+SECTION(".boot")
 static idt_entry_t entry(void *func, u16 sel, u8 ist, u8 flags) {
     u64 addr = (u64)func;
     idt_entry_t entry = { 
@@ -92,7 +114,7 @@ static idt_entry_t entry(void *func, u16 sel, u8 ist, u8 flags) {
     return entry;
 }
 
-SECTION(".bootc")
+SECTION(".boot")
 void boot_main() {
     u16 count = *(u16*)(0x7FFFF - 2);
     memory_map_entry_t *entries = (memory_map_entry_t*)(0x7FFFF - (2 + (sizeof(memory_map_entry_t) * count)));
@@ -135,3 +157,4 @@ void boot_main() {
     kmain(memory, PT_ADDR);
     for (;;) { }
 }
+*/

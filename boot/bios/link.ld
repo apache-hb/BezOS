@@ -6,12 +6,7 @@ VMA = 0xFFFFFFFF80000000;
 SECTIONS {
     . = BEGIN;
 
-    .boot : {
-        *(.boot16*)
-        *(.boot32*)
-        *(.boot64*)
-        *(.bootc*)
-    }
+    .boot : { *(.boot*) }
 
     BOOT_SECTORS = (. - BEGIN) / 512;
     PT_ADDR = ALIGN(0x1000);
