@@ -1,7 +1,23 @@
 #pragma once
 
-typedef u64 pte_t;
-typedef pte_t pt_t[512];
-typedef pt_t pd_t[512];
-typedef pd_t pdpt_t[512];
-typedef pdpt_t pml4_t[512];
+#include <util.h>
+
+namespace mm {
+    using pte = u64;
+    using pt = pte[512];
+    using pd = pt[512];
+    using pdpt = pd[512];
+    using pml4 = pdpt[512];
+
+    struct PACKED memory_map_entry {
+        u64 addr;
+        u64 size;
+        u32 type;
+        u32 attrib;
+    };
+
+    struct memory_map {
+        size_t size;
+        memory_map_entry *entries;
+    };
+}

@@ -2,21 +2,23 @@
 
 #include <util.h>
 
-typedef struct PACKED {
-    u16 off_low;
-    u16 sel;
-    u8 ist;
-    u8 attr;
-    u16 off_mid;
-    u32 off_high;
-    u32 zero;
-} idt_entry_t;
+namespace x64 {
+    struct PACKED idt_entry {
+        u16 off_low;
+        u16 sel;
+        u8 ist;
+        u8 attr;
+        u16 off_mid;
+        u32 off_high;
+        u32 zero;
+    };
 
-typedef struct PACKED {
-    u16 limit;
-    u64 base;
-} idt_ptr_t;
+    struct PACKED idt_ptr {
+        u16 limit;
+        u64 base;
+    };
 
-typedef idt_entry_t idt_t[256];
+    using idt = idt_entry[256];
+}
 
 #define LIDT(ptr) __asm__ volatile("lidt %0" :: "a"(ptr))

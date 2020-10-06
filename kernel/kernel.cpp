@@ -1,5 +1,5 @@
 #include <kernel.h>
 
-void kmain(memory_map_t memory, pml4_t pml4) {
+void kmain(mm::memory_map memory, mm::pml4 pml4) {
 
 }

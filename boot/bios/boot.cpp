@@ -1,9 +1,9 @@
 #include <kernel.h>
 #include <arch/idt.h>
 
-SECTION(".boot")
-static u64 *add_table() {
-    return NULL;
+template<typename T>
+SECTION(".boot") static void *add_table() {
+    return nullptr;
     // TODO
 }
 
