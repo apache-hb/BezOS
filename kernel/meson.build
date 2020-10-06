@@ -1,4 +1,4 @@
-kernel_lib = static_library('kernel', 'kernel.c',
+kernel_lib = static_library('kernel', 'kernel.cpp',
     include_directories : include_directories('.')
 )
 

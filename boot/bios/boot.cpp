@@ -3,6 +3,7 @@
 
 SECTION(".boot")
 static u64 *add_table() {
+    return NULL;
     // TODO
 }
 
@@ -13,10 +14,12 @@ static void map_page(u64 paddr, u64 vaddr, u64 flags) {
     u64 pdpt_idx = MASK(vaddr, 30);
     u64 pd_idx = MASK(vaddr, 20);
     u64 pt_idx = MASK(vaddr, 12);
+
+    u64 phys = vaddr & ~(0x1000 - 1);
 }
 
 SECTION(".boot")
-void boot() {
+extern "C" void boot() {
     char c = 'p';
     __asm__ volatile ("outb %0, %1" :: "a"(c), "Nd"(0xE9));
     for (;;) { }
