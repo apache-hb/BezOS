@@ -395,8 +395,8 @@ start64:
     xor rcx, rcx
     xor rdx, rdx
     xor rbp, rbp
-    ; remap kernel to 64 bit higher half
     call boot
 
 section .kernel
+kernel:
     incbin "kernel.bin"

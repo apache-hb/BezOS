@@ -1,13 +1,37 @@
 #include <kernel.h>
 #include <arch/idt.h>
 
-extern u64 *BASE_ADDR;
+extern "C" {
+    u64 KERNEL_BEGIN;
+    u64 KERNEL_END;
+}
+
+extern "C" u64 BASE_ADDR;
+
+namespace {
+    u64 base;
+
+    void *bump(size_t size) {
+        void *addr = (void*)base;
+        base += size;
+        return addr;
+    }
+
+    u64 *add_page(u64 *table, u64 idx, u64 flags) {
+        return nullptr;
+    }
+
+    void map_page(u64 phys, u64 virt, u64 flags) {
+
+    }
+}
 
 extern "C" void boot() {
     u16 count = *(u16*)(0x7FFFF - 2);
     auto *entries = (mm::memory_map_entry*)(0x7FFFF - (2 + (sizeof(mm::memory_map_entry) * count)));
     mm::memory_map memory = { count, entries };
 
+    base = *(u64*)&BASE_ADDR;
 
     __asm__ volatile ("outb %0, %1" : : "a"((char)'p'), "Nd"(0xE9));
     for (;;) { }

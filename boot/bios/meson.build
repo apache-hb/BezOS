@@ -11,7 +11,7 @@ kernel = executable('kernel.bin', src,
 assemble = generator(find_program('nasm'),
     output : '@BASENAME@.o',
     depends : kernel,
-    arguments : [ '-felf64', '@INPUT@', '-o', '@OUTPUT@', '-I' + meson.current_build_dir() ]
+    arguments : [ '-felf64', '@INPUT@', '-o', '@OUTPUT@', '-i', meson.current_build_dir() + '/' ]
 )
 
 bezos = executable('bezos.bin', [ 'boot.cpp', assemble.process('boot.asm') ],
