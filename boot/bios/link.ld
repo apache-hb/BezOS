@@ -6,33 +6,38 @@ VMA = 0xFFFFFFFF80000000;
 SECTIONS {
     . = BEGIN;
 
+    BOOT_BEGIN = .;
+
     .boot : { *(.boot*) }
 
-    BOOT_SECTORS = (. - BEGIN) / 512;
-    PT_ADDR = ALIGN(0x1000);
-
-    . += VMA;
-
-    KERNEL_BEGIN = ALIGN(0x1000);
-    .text ALIGN(0x1000) : AT(ADDR(.text) - VMA) {
+    .text : {
         TEXT_BEGIN = .;
         *(.text*)
         TEXT_END = .;
     }
 
-    .data ALIGN(0x1000) : AT(ADDR(.data) - VMA) {
+    .data : {
         DATA_BEGIN = .;
         *(.data*)
         DATA_END = .;
     }
 
-    .rodata ALIGN(0x1000) : AT(ADDR(.rodata) - VMA) {
+    .rodata : {
         RODATA_BEGIN = .;
         *(.rodata*)
         RODATA_END = .;
     }
 
-    SECTORS = (. - VMA) / 512;
+    BOOT_END = .;
+
+    BOOT_SECTORS = (BOOT_END - BOOT_BEGIN) / 512;
+    PT_ADDR = ALIGN(0x1000);
+
+    KERNEL_BEGIN = .;
+    .kernel ALIGN(512) : { *(.kernel*) }
+    KERNEL_END = .;
+
+    KERNEL_SECTORS = (KERNEL_END - KERNEL_BEGIN) / 512;
 
     /* TODO: int 13h can only read 64k at a time, 
      * when the kernel gets bigger than that
@@ -45,9 +50,6 @@ SECTIONS {
         *(.bss)
         BSS_END = .; 
     }
-
-    KERNEL_END = ALIGN(0x1000);
-    KERNEL_PAGES = ((KERNEL_END - KERNEL_BEGIN) / 0x1000) + 1;
 
     /DISCARD/ : {
         *(.comment)

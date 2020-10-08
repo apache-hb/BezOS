@@ -11,5 +11,8 @@ project('bezos', 'cpp',
     ]
 )
 
+src = []
+inc = []
+
 subdir('kernel')
 subdir('boot'/get_option('boot'))

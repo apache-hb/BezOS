@@ -3,48 +3,13 @@
 
 extern u64 *BASE_ADDR;
 
-template<typename T>
-SECTION(".boot")
-static T *bump(size_t size) {
-    void *addr = (void*)*BASE_ADDR;
-    *BASE_ADDR += size;
-    return (T*)addr;
-}
-
-SECTION(".boot") 
-static u64 *add_table(u64 *parent, u64 idx, u64 flags) {
-    if (parent[idx] & 1) {
-        return (u64*)(parent[idx] & ~(0x1000 - 1));
-    } else {
-        auto *entry = bump<u64>(0x1000);
-
-        for (int i = 0; i < 512; i++)
-            entry[i] = 0;
-
-        parent[idx] = (u64)entry;
-        return entry;
-    }
-}
-
-SECTION(".boot")
-static void map_page(u64 paddr, u64 vaddr, u64 flags) {
-#define MASK(addr, mask) (addr & (0x1FFULL << mask)) >> mask
-    u64 pml4_idx = MASK(vaddr, 39);
-    u64 pdpt_idx = MASK(vaddr, 30);
-    u64 pd_idx = MASK(vaddr, 20);
-    u64 pt_idx = MASK(vaddr, 12);
-
-    
-
-    u64 phys = vaddr & ~(0x1000 - 1);
-}
-
-SECTION(".boot")
 extern "C" void boot() {
     u16 count = *(u16*)(0x7FFFF - 2);
     auto *entries = (mm::memory_map_entry*)(0x7FFFF - (2 + (sizeof(mm::memory_map_entry) * count)));
     mm::memory_map memory = { count, entries };
 
+
+    __asm__ volatile ("outb %0, %1" : : "a"((char)'p'), "Nd"(0xE9));
     for (;;) { }
     kmain(memory, nullptr);
     for (;;) { }

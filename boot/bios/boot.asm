@@ -1,5 +1,5 @@
 extern BOOT_SECTORS
-extern SECTORS
+extern KERNEL_SECTORS
 extern PT_ADDR
 extern boot
 
@@ -38,7 +38,7 @@ entry:
 
     ; read rest of kernel in at the 1MB mark
     mov dword [dap.addr], 0x100000
-    mov word [dap.sectors], SECTORS
+    mov word [dap.sectors], KERNEL_SECTORS
     mov dword [dap.start], BOOT_SECTORS
     int 0x13
 
@@ -397,3 +397,6 @@ start64:
     xor rbp, rbp
     ; remap kernel to 64 bit higher half
     call boot
+
+section .kernel
+    incbin "kernel.bin"
