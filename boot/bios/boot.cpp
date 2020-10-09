@@ -4,9 +4,11 @@
 extern "C" {
     u64 KERNEL_BEGIN;
     u64 KERNEL_END;
+    u64 PT_ADDR;
 }
 
 extern "C" u64 BASE_ADDR;
+extern "C" void(*KERNEL)(mm::memory_map, mm::pml4);
 
 namespace {
     u64 base;
@@ -17,26 +19,44 @@ namespace {
         return addr;
     }
 
-    u64 *add_page(u64 *table, u64 idx, u64 flags) {
-        return nullptr;
+    template<typename P>
+    auto add_table(P table, u64 idx) {
+        return table[idx];
     }
 
-    void map_page(u64 phys, u64 virt, u64 flags) {
+    void map_page(mm::pml4 pml4, u64 phys, u64 virt) {
+        auto pml4_idx = (virt & (0x1FFULL << 39)) >> 39;
+        auto pdpt_idx = (virt & (0x1FFULL << 30)) >> 30;
+        auto pd_idx = (virt & (0x1FFULL << 21)) >> 21;
+        auto pt_idx = (virt & (0x1FFULL << 12)) >> 12;
 
+        auto pdpt = add_table(pml4, pml4_idx);
+        auto pd = add_table(pdpt, pdpt_idx);
+        auto pt = add_table(pd, pd_idx);
+
+        u64 paddr = phys & ~(0x1000 - 1);
+        pt[pt_idx] = paddr | 0b11;
     }
 }
+
+
 
 extern "C" void boot() {
     u16 count = *(u16*)(0x7FFFF - 2);
     auto *entries = (mm::memory_map_entry*)(0x7FFFF - (2 + (sizeof(mm::memory_map_entry) * count)));
     mm::memory_map memory = { count, entries };
 
-    base = *(u64*)&BASE_ADDR;
+    auto pml4 = reinterpret_cast<mm::pml4>(&PT_ADDR);
 
-    __asm__ volatile ("outb %0, %1" : : "a"((char)'p'), "Nd"(0xE9));
-    for (;;) { }
-    kmain(memory, nullptr);
-    for (;;) { }
+    auto kernel_pages = 5; //((u64)&KERNEL_END - (u64)&KERNEL_BEGIN) / 0x1000;
+
+    for (int i = 0; i < kernel_pages; i++) {
+        map_page(pml4, (u64)&KERNEL_BEGIN + (i * 0x1000), 0xFFFFFFFF8000000ULL + (i * 0x1000));
+    }
+
+    auto kern = (decltype(KERNEL))&KERNEL;
+
+    kern(memory, pml4);
 }
 
 /*

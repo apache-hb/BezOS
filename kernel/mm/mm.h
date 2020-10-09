@@ -4,10 +4,10 @@
 
 namespace mm {
     using pte = u64;
-    using pt = pte[512];
-    using pd = pt[512];
-    using pdpt = pd[512];
-    using pml4 = pdpt[512];
+    using pt = pte*;
+    using pd = pt*;
+    using pdpt = pd*;
+    using pml4 = pdpt*;
 
     struct PACKED memory_map_entry {
         u64 addr;
