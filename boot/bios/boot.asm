@@ -15,6 +15,8 @@ entry:
     mov ds, ax
 
     mov ss, ax
+    ; sp is pretty much a gpr here
+    mov sp, dx
 
     ; set fs to max to test for a20 wraparound later
     not ax
@@ -32,14 +34,6 @@ entry:
     ; read bootstages in from disk
     mov ah, 0x42
     mov si, dap
-    int 0x13
-
-    jc fail_disk
-
-    ; read rest of kernel in at the 1MB mark
-    mov dword [dap.addr], 0x100000
-    mov word [dap.sectors], KERNEL_SECTORS
-    mov dword [dap.start], BOOT_SECTORS
     int 0x13
 
     jc fail_disk
@@ -125,6 +119,16 @@ load_e820:
     ; put the number of entries at the top of conventional bios memory
     ; all the entries are stored below it in memory
     mov [es:0xFFFF - 2], si
+
+    mov dx, sp
+    mov ah, 0x42
+    ; read rest of kernel in at the 1MB mark
+    mov dword [dap.addr], 0x100000
+    mov word [dap.sectors], KERNEL_SECTORS
+    mov dword [dap.start], BOOT_SECTORS
+    int 0x13
+
+    jc fail_disk
 
     ; load the gdt for 32 bit stub
     cli
