@@ -4,7 +4,7 @@ kscript = meson.current_source_dir()/'klink.ld'
 
 kernel = executable('kernel.bin', src,
     include_directories : inc,
-    link_args : [ '-Wl,-T' + kscript ],
+    link_args : [ '-Wl,-T' + kscript, '-mcmodel=kernel' ],
     link_depends : kscript
 )
 

@@ -398,6 +398,5 @@ start64:
     call boot
 
 section .kernel
-global KERNEL
 KERNEL:
     incbin "kernel.bin"

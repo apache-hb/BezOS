@@ -1,6 +1,8 @@
 #include <kernel.h>
 #include <arch/idt.h>
 
+#include <type_traits>
+
 extern "C" {
     u64 KERNEL_BEGIN;
     u64 KERNEL_END;
@@ -8,20 +10,32 @@ extern "C" {
 }
 
 extern "C" u64 BASE_ADDR;
-extern "C" void(*KERNEL)(mm::memory_map, mm::pml4);
 
 namespace {
     u64 base;
 
-    void *bump(size_t size) {
-        void *addr = (void*)base;
-        base += size;
+    template<typename T>
+    T *bump(size_t num) {
+        T *addr = (T*)base;
+        base += sizeof(T) * num;
         return addr;
     }
 
-    template<typename P>
-    auto add_table(P table, u64 idx) {
-        return table[idx];
+    template<typename T, typename P>
+    T add_table(P table, u64 idx) {
+        u64 *ptable = (u64*)table;
+
+        if (!(ptable[idx] & 1)) {
+            auto entry = bump<u64>(512);
+
+            for (int i = 0; i < 512; i++)
+                entry[i] = 0;
+
+            ptable[idx] = (u64)entry | 0b11;
+            return (T)entry;
+        } else {
+            return (T)(ptable[idx] & ~(0x1000 - 1));
+        }   
     }
 
     void map_page(mm::pml4 pml4, u64 phys, u64 virt) {
@@ -30,33 +44,32 @@ namespace {
         auto pd_idx = (virt & (0x1FFULL << 21)) >> 21;
         auto pt_idx = (virt & (0x1FFULL << 12)) >> 12;
 
-        auto pdpt = add_table(pml4, pml4_idx);
-        auto pd = add_table(pdpt, pdpt_idx);
-        auto pt = add_table(pd, pd_idx);
+        auto pdpt = add_table<mm::pdpt>(pml4, pml4_idx);
+        auto pd = add_table<mm::pd>(pdpt, pdpt_idx);
+        auto pt = add_table<mm::pt>(pd, pd_idx);
 
         u64 paddr = phys & ~(0x1000 - 1);
         pt[pt_idx] = paddr | 0b11;
     }
 }
 
-
-
 extern "C" void boot() {
+    base = *(u64*)&BASE_ADDR;
+
     u16 count = *(u16*)(0x7FFFF - 2);
     auto *entries = (mm::memory_map_entry*)(0x7FFFF - (2 + (sizeof(mm::memory_map_entry) * count)));
     mm::memory_map memory = { count, entries };
 
     auto pml4 = reinterpret_cast<mm::pml4>(&PT_ADDR);
 
-    auto kernel_pages = 5; //((u64)&KERNEL_END - (u64)&KERNEL_BEGIN) / 0x1000;
+    auto kernel_pages = (((u64)&KERNEL_END - (u64)&KERNEL_BEGIN) / 0x1000) + 1;
 
     for (int i = 0; i < kernel_pages; i++) {
-        map_page(pml4, (u64)&KERNEL_BEGIN + (i * 0x1000), 0xFFFFFFFF8000000ULL + (i * 0x1000));
+        map_page(pml4, 0x100000 + (i * 0x1000), 0xFFFFFFFF80000000ULL + (i * 0x1000));
     }
 
-    auto kern = (decltype(KERNEL))&KERNEL;
-
-    kern(memory, pml4);
+    ((u16*)0xB8000)[0] = 'b' | 7 << 8;
+    ((kmain_t*)0xFFFFFFFF80000000ULL)(memory, pml4);
 }
 
 /*

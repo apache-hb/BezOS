@@ -7,7 +7,7 @@ SECTIONS {
 
     .text ALIGN(4K) : AT(ADDR(.text) - VMA) {
         TEXT_BEGIN = .;
-        *(.kmain)
+        *(.text.kmain)
         *(.text*)
         TEXT_END = .;
     }
