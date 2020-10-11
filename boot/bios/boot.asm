@@ -15,12 +15,12 @@ entry:
     mov ds, ax
 
     mov ss, ax
-    ; sp is pretty much a gpr here
-    mov sp, dx
 
     ; set fs to max to test for a20 wraparound later
     not ax
     mov fs, ax
+
+    mov [drive], dl
 
     ; check for lba disk extensions
     mov ah, 0x41
@@ -120,7 +120,7 @@ load_e820:
     ; all the entries are stored below it in memory
     mov [es:0xFFFF - 2], si
 
-    mov dx, sp
+    mov dx, [drive]
     mov ah, 0x42
     ; read rest of kernel in at the 1MB mark
     mov dword [dap.addr], 0x100000
@@ -193,6 +193,8 @@ dap:
     .sectors: dw BOOT_SECTORS ; number of sectors to read
     .addr: dd bootend ; output address
     .start: dq 1 ; sector to start reading at
+
+drive: db 0
 
 gdt32:
     dw gdt32.end - gdt32 - 1
