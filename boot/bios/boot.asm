@@ -7,8 +7,6 @@ section .boot
 
 bits 16
 prelude:
-    cli
-    cld
     jmp 0:entry
 entry:
     xor ax, ax
@@ -21,22 +19,6 @@ entry:
     mov fs, ax
 
     mov [drive], dl
-
-    ; check for lba disk extensions
-    mov ah, 0x41
-    mov bx, 0x55AA
-    int 0x13
-    cmp bx, 0xAA55
-
-    jne fail_ext
-    jc fail_ext
-
-    ; read bootstages in from disk
-    mov ah, 0x42
-    mov si, dap
-    int 0x13
-
-    jc fail_disk
 
     call a20check
 
@@ -120,7 +102,24 @@ load_e820:
     ; all the entries are stored below it in memory
     mov [es:0xFFFF - 2], si
 
-    mov dx, [drive]
+    mov dl, [drive]
+    
+    ; check for lba disk extensions
+    mov ah, 0x41
+    mov bx, 0x55AA
+    int 0x13
+    cmp bx, 0xAA55
+
+    jne fail_ext
+    jc fail_ext
+
+    ; read bootstages in from disk
+    mov ah, 0x42
+    mov si, dap
+    int 0x13
+
+    jc fail_disk
+
     mov ah, 0x42
     ; read rest of kernel in at the 1MB mark
     mov dword [dap.addr], 0x100000
@@ -128,7 +127,7 @@ load_e820:
     mov dword [dap.start], BOOT_SECTORS
     int 0x13
 
-    jc fail_disk
+    jc fail_disk_kernel
 
     ; load the gdt for 32 bit stub
     cli
@@ -172,6 +171,7 @@ fail_%1:
 
 fail ext, "missing lba extension"
 fail disk, "failed to read from disk"
+fail disk_kernel, "failed to load kernel"
 fail a20, "failed to enable the a20 line"
 fail e820, "failed to collect memory map"
 panic:
