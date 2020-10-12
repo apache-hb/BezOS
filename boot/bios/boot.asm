@@ -6,19 +6,57 @@ extern boot
 section .boot
 
 bits 16
+start:
+    jmp prelude
+bpb:
+    .oem_name:          db "bezos   "
+    .bytes_per_sect:    dw 512
+    .sect_per_cluster:  db 1
+    .reserved_sects:    dw 1
+    .nut_fat:           db 2
+    .num_root_dirs:     dw 224
+    .num_sects:         dw 2880
+    .media_type:        db 0xF0
+    .num_fat_sects:     dw 9
+    .sects_per_track:   dw 18
+    .num_heads:         dw 2
+    .num_hidden_sects:  dd 0
+    .num_sects_huge:    dd 0
+    .drive_num:         db 0
+    .reserved:          db 0
+    .signature:         db 0x29
+    .volume_id:         dd 0x2D7E5A1A
+    .volume_label:      db "JEFF BEZOS "
+    .file_type:         db "FAT12   "
 prelude:
     jmp 0:entry
 entry:
     xor ax, ax
-    mov ds, ax
-
     mov ss, ax
+    mov sp, 0x7C00
 
     ; set fs to max to test for a20 wraparound later
+    mov ds, ax
     not ax
     mov fs, ax
 
     mov [drive], dl
+
+    ; check for lba disk extensions
+    mov ah, 0x41
+    mov bx, 0x55AA
+    int 0x13
+    cmp bx, 0xAA55
+
+    jne fail_ext
+    jc fail_ext
+
+    ; read bootstages in from disk
+    mov ah, 0x42
+    mov si, dap
+    int 0x13
+
+    jc fail_disk
 
     call a20check
 
@@ -68,78 +106,6 @@ entry:
     
     ; if none of that works then give up
     jmp fail_a20
-
-    ; load the memory map in from the bios
-load_e820:
-    xor si, si
-    ; set continuation byte
-    xor ebx, ebx
-    ; put the memory map below the 480kb mark
-    mov di, 0x7000
-    mov es, di
-    mov di, (0xFFFF - 2)
-
-.next:
-    inc si
-
-    mov ecx, 24
-    mov eax, 0xE820
-    mov edx, 0x534D4150 ; 'SMAP'
-    sub di, 24
-
-    int 0x15
-    jc fail_e820
-
-    cmp ecx, 20
-    jne .skip
-    mov dword [es:di + 20], 0
-.skip:
-
-    cmp ebx, 0
-    jne .next
-
-    ; put the number of entries at the top of conventional bios memory
-    ; all the entries are stored below it in memory
-    mov [es:0xFFFF - 2], si
-
-    mov dl, [drive]
-    
-    ; check for lba disk extensions
-    mov ah, 0x41
-    mov bx, 0x55AA
-    int 0x13
-    cmp bx, 0xAA55
-
-    jne fail_ext
-    jc fail_ext
-
-    ; read bootstages in from disk
-    mov ah, 0x42
-    mov si, dap
-    int 0x13
-
-    jc fail_disk
-
-    mov ah, 0x42
-    ; read rest of kernel in at the 1MB mark
-    mov dword [dap.addr], 0x100000
-    mov word [dap.sectors], KERNEL_SECTORS
-    mov dword [dap.start], BOOT_SECTORS
-    int 0x13
-
-    jc fail_disk_kernel
-
-    ; load the gdt for 32 bit stub
-    cli
-    lgdt [gdt32]
-
-    ; enable protected mode
-    mov eax, cr0
-    or eax, 1
-    mov cr0, eax
-
-    jmp (gdt32.code - gdt32):start32
-
 
 a20wait:
     in al, 0x64
@@ -191,10 +157,72 @@ dap:
     .size: db 0x10 ; size of the struct, always 0x10
     .zero: db 0 ; zero
     .sectors: dw BOOT_SECTORS ; number of sectors to read
-    .addr: dd bootend ; output address
+    .addr: dw 0x7C00 + 512 ; output address
+    .seg: dw 0
     .start: dq 1 ; sector to start reading at
 
 drive: db 0
+
+    times 510 - ($-$$) db 0
+bootmagic: dw 0xAA55
+
+    ; load the memory map in from the bios
+load_e820:
+    xor si, si
+    ; set continuation byte
+    xor ebx, ebx
+    ; put the memory map below the 480kb mark
+    mov di, 0x7000
+    mov es, di
+    mov di, (0xFFFF - 2)
+
+.next:
+    inc si
+
+    mov ecx, 24
+    mov eax, 0xE820
+    mov edx, 0x534D4150 ; 'SMAP'
+    sub di, 24
+
+    int 0x15
+    jc fail_e820
+
+    cmp ecx, 20
+    jne .skip
+    mov dword [es:di + 20], 0
+.skip:
+
+    cmp ebx, 0
+    jne .next
+
+    ; put the number of entries at the top of conventional bios memory
+    ; all the entries are stored below it in memory
+    mov [es:0xFFFF - 2], si
+
+    mov word [dap.seg], 0xFFFF
+    mov word [dap.addr], 0
+    mov word [dap.sectors], KERNEL_SECTORS
+    mov dword [dap.start], BOOT_SECTORS
+
+    mov dl, [drive]
+    mov si, dap
+    mov ah, 0x42
+
+    ; read rest of kernel in at the 1MB mark
+    int 0x13
+
+    jc fail_disk_kernel
+
+    ; load the gdt for 32 bit stub
+    cli
+    lgdt [gdt32]
+
+    ; enable protected mode
+    mov eax, cr0
+    or eax, 1
+    mov cr0, eax
+
+    jmp (gdt32.code - gdt32):start32
 
 gdt32:
     dw gdt32.end - gdt32 - 1
@@ -215,10 +243,6 @@ gdt32:
     db 11001111b
     db 0
 .end:
-
-    times 510 - ($-$$) db 0
-bootmagic: dw 0xAA55
-bootend:
 
 bits 32
 start32:

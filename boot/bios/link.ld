@@ -35,13 +35,13 @@ SECTIONS {
 
     BOOT_END = .;
 
-    BOOT_SECTORS = ((BOOT_END - BOOT_BEGIN) / 512) + 1;
     PT_ADDR = ALIGN(0x1000);
 
     KERNEL_BEGIN = .;
     .kernel ALIGN(512) : { *(.kernel*) }
     KERNEL_END = .;
 
+    BOOT_SECTORS = ((BOOT_END - BOOT_BEGIN) / 512) + 1;
     KERNEL_SECTORS = ((KERNEL_END - KERNEL_BEGIN) / 512) + 1;
 
     /* TODO: int 13h can only read 64k at a time, 
