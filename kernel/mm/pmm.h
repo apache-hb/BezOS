@@ -16,5 +16,4 @@ namespace pmm {
     };
 
     void init(memory_map map);
-
 }
