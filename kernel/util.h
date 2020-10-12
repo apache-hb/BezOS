@@ -10,3 +10,4 @@ using u64 = uint64_t;
 
 #define SECTION(name) __attribute__((section(name)))
 #define PACKED __attribute__((__packed__))
+#define MS_ABI __attribute__((ms_abi))

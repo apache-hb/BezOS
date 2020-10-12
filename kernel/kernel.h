@@ -1,6 +1,7 @@
 #pragma once
 
-#include <mm/mm.h>
+#include <mm/pmm.h>
+#include <mm/vmm.h>
 
-extern "C" void kmain(mm::memory_map memory, mm::pml4 pml4);
+extern "C" void kmain(pmm::memory_map memory, vmm::pml4 pml4);
 using kmain_t = decltype(kmain);

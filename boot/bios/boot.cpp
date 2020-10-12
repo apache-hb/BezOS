@@ -38,15 +38,15 @@ namespace {
         }   
     }
 
-    void map_page(mm::pml4 pml4, u64 phys, u64 virt) {
+    void map_page(vmm::pml4 pml4, u64 phys, u64 virt) {
         auto pml4_idx = (virt & (0x1FFULL << 39)) >> 39;
         auto pdpt_idx = (virt & (0x1FFULL << 30)) >> 30;
         auto pd_idx = (virt & (0x1FFULL << 21)) >> 21;
         auto pt_idx = (virt & (0x1FFULL << 12)) >> 12;
 
-        auto pdpt = add_table<mm::pdpt>(pml4, pml4_idx);
-        auto pd = add_table<mm::pd>(pdpt, pdpt_idx);
-        auto pt = add_table<mm::pt>(pd, pd_idx);
+        auto pdpt = add_table<vmm::pdpt>(pml4, pml4_idx);
+        auto pd = add_table<vmm::pd>(pdpt, pdpt_idx);
+        auto pt = add_table<vmm::pt>(pd, pd_idx);
 
         u64 paddr = phys & ~(0x1000 - 1);
         pt[pt_idx] = paddr | 0b11;
@@ -57,10 +57,10 @@ extern "C" void boot() {
     base = *(u64*)&BASE_ADDR;
 
     u16 count = *(u16*)(0x7FFFF - 2);
-    auto *entries = (mm::memory_map_entry*)(0x7FFFF - (2 + (sizeof(mm::memory_map_entry) * count)));
-    mm::memory_map memory = { count, entries };
+    auto *entries = (pmm::memory_map_entry*)(0x7FFFF - (2 + (sizeof(pmm::memory_map_entry) * count)));
+    pmm::memory_map memory = { count, entries };
 
-    auto pml4 = reinterpret_cast<mm::pml4>(&PT_ADDR);
+    auto pml4 = reinterpret_cast<vmm::pml4>(&PT_ADDR);
 
     auto kernel_pages = (((u64)&KERNEL_END - (u64)&KERNEL_BEGIN) / 0x1000) + 1;
 
