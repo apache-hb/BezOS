@@ -22,19 +22,19 @@ namespace {
     }
 
     template<typename T, typename P>
-    T add_table(P table, u64 idx) {
-        u64 *ptable = (u64*)table;
+    T add_table(P parent, u64 idx) {
+        u64 *table = (u64*)parent;
 
-        if (!(ptable[idx] & 1)) {
+        if (!(table[idx] & 1)) {
             auto entry = bump<u64>(512);
 
             for (int i = 0; i < 512; i++)
                 entry[i] = 0;
 
-            ptable[idx] = (u64)entry | 0b11;
+            table[idx] = (u64)entry | 0b11;
             return (T)entry;
         } else {
-            return (T)(ptable[idx] & ~(0x1000 - 1));
+            return (T)(table[idx] & ~(0x1000 - 1));
         }   
     }
 
@@ -54,6 +54,7 @@ namespace {
 }
 
 extern "C" void boot() {
+    ((u16*)0xB8000)[0] = 'b' | 7 << 8;
     base = *(u64*)&BASE_ADDR;
 
     u16 count = *(u16*)(0x7FFFF - 2);

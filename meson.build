@@ -13,6 +13,11 @@ project('bezos', 'cpp',
 
 src = []
 inc = []
+args = []
+
+if get_option('buildtype').startswith('debug')
+    args += '-DDEBUG=1'
+endif
 
 subdir('kernel')
 subdir('boot'/get_option('boot'))
