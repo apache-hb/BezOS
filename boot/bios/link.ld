@@ -30,6 +30,7 @@ SECTIONS {
     .bss : { 
         BSS_BEGIN = .;
         *(.bss)
+        *(COMMON)
         BSS_END = .; 
     }
 
@@ -53,6 +54,5 @@ SECTIONS {
     /DISCARD/ : {
         *(.comment)
         *(.eh_frame)
-        *(COMMON)
     }
 }

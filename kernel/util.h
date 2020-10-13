@@ -11,3 +11,9 @@ using u64 = uint64_t;
 #define SECTION(name) __attribute__((section(name)))
 #define PACKED __attribute__((__packed__))
 #define MS_ABI __attribute__((ms_abi))
+
+#define ASM(...) __asm__ volatile (__VA_ARGS__)
+
+extern "C" void __cxa_pure_virtual();
+
+void operator delete(void*);

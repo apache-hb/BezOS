@@ -5,34 +5,34 @@ VMA = 0xFFFFFFFF80000000;
 SECTIONS {
     . = VMA;
 
-    .text ALIGN(4K) : AT(ADDR(.text) - VMA) {
+    .text : AT(ADDR(.text) - VMA) {
         TEXT_BEGIN = .;
-        *(.text.kmain)
+        *(.kmain*)
         *(.text*)
         TEXT_END = .;
     }
 
-    .data ALIGN(4K) : AT(ADDR(.data) - VMA) {
+    .data BLOCK(4K) : AT(ADDR(.data) - VMA) {
         DATA_BEGIN = .;
         *(.data*)
         DATA_END = .;
     }
 
-    .rodata ALIGN(4K) : AT(ADDR(.rodata) - VMA) {
+    .rodata BLOCK(4K) : AT(ADDR(.rodata) - VMA) {
         RODATA_BEGIN = .;
         *(.rodata*)
         RODATA_END = .;
     }
 
-    .bss ALIGN(4K) : AT(ADDR(.bss) - VMA) {
+    .bss BLOCK(4K) : AT(ADDR(.bss) - VMA) {
         BSS_BEGIN = .;
         *(.bss*)
+        *(COMMON)
         BSS_END = .;
     }
 
     /DISCARD/ : {
         *(.comment)
         *(.eh_frame)
-        *(COMMON)
     }
 }

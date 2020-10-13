@@ -69,7 +69,7 @@ extern "C" void boot() {
         map_page(pml4, 0x100000 + (i * 0x1000), 0xFFFFFFFF80000000ULL + (i * 0x1000));
     }
 
-    ((u16*)0xB8000)[0] = 'b' | 7 << 8;
+    ((u16*)0xB8000)[0] = 'c' | 7 << 8;
     ((kmain_t*)0xFFFFFFFF80000000ULL)(memory, pml4);
 }
 
