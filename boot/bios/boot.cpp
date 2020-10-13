@@ -63,7 +63,7 @@ extern "C" void boot() {
 
     auto pml4 = reinterpret_cast<vmm::pml4>(&PT_ADDR);
 
-    auto kernel_pages = (((u64)&KERNEL_END - (u64)&KERNEL_BEGIN) / 0x1000) + 1;
+    auto kernel_pages = 0x100000 / 0x1000;
 
     for (int i = 0; i < kernel_pages; i++) {
         map_page(pml4, 0x100000 + (i * 0x1000), 0xFFFFFFFF80000000ULL + (i * 0x1000));
