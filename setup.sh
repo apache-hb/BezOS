@@ -1,0 +1,1 @@
+meson setup build --cross-file data/x64-clang.ini --prefix $(pwd)/install

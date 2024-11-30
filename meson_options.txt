@@ -1,4 +1,0 @@
-option('boot', type : 'combo', 
-    choices : [ 'bios', 'uefi' ], 
-    value : 'bios'
-)
