@@ -1,0 +1,11 @@
+[wrap-file]
+directory = limine-8.4.1-binary
+
+source_url = https://github.com/limine-bootloader/limine/archive/refs/tags/v8.4.1-binary.zip
+source_filename = limine-8.4.1-binary.zip
+source_hash = d84694f9749f9bc6a08af411f157cbc5c83fc78928ac7d4aa038e630b42775ca
+
+patch_directory = limine-8.4.1
+
+[provide]
+dependency_names = limine

@@ -1,2 +1,8 @@
 *uild*/
 .vscode/
+.cache/
+install/
+/subprojects/*
+!/subprojects/*.wrap
+!/subprojects/packagefiles/
+!/subprojects/stdlibshim/
