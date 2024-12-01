@@ -1,11 +1,10 @@
 [wrap-file]
-directory = clang-19.1.4.src
+directory = clang-headers
 
-source_url = https://github.com/llvm/llvm-project/releases/download/llvmorg-19.1.4/clang-19.1.4.src.tar.xz
-source_filename = clang-19.1.4.src.tar.xz
-source_hash = b6d123a4435f1869af709f3288c4c4db48173acaf621088400d91521bc5aa225
+source_filename = clang-headers.tar
+lead_directory_missing = true
 
-patch_directory = clang-19.1.4.src
+patch_directory = clang-headers
 
 [provide]
 dependency_names = clang-intrin-headers

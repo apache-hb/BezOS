@@ -12,8 +12,24 @@ project('bezos', [ 'c', 'cpp' ],
     ]
 )
 
-executable('bezos', 'src/kernel.c',
-    c_args : '-Wno-language-extension-token',
+cc = meson.get_compiler('c')
+cpp = meson.get_compiler('cpp')
+
+src = [
+    'src/crt.c',
+    'src/kernel.cpp',
+    'src/check.cpp',
+]
+
+common_args = [ '-fmacro-prefix-map=../=/' ]
+
+c_args = cc.get_supported_arguments([ '-Wno-language-extension-token' ] + common_args)
+cpp_args = cpp.get_supported_arguments([ '-Wno-c99-designator', '-Wno-missing-designated-field-initializers' ] + common_args)
+
+executable('bezos', src,
+    c_args : c_args,
+    cpp_args : cpp_args,
+    include_directories : 'include',
     dependencies : [ dependency('limine'), dependency('clang-intrin-headers') ],
     link_depends : 'data/linker-x64.ld',
     install : true,
