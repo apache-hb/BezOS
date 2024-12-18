@@ -9,36 +9,71 @@ project('bezos', [ 'c', 'cpp' ],
         'debug=false',
         'cpp_eh=none',
         'cpp_rtti=false'
-    ]
+    ],
+    version : '0.0.1',
+    license : 'GPL-3.0-only',
+    license_files : 'LICENSE',
+    meson_version : '>=1.1.0',
 )
 
 cc = meson.get_compiler('c')
 cpp = meson.get_compiler('cpp')
 
-src = [
-    'src/crt.c',
-    'src/kernel.cpp',
-    'src/check.cpp',
-]
+inc = include_directories('kernel/include')
 
-common_args = [ '-fmacro-prefix-map=../=/' ]
+common_args = [ '-fmacro-prefix-map=../=/', '-Wno-gnu-anonymous-struct', '-Wno-missing-field-initializers', '-Wno-missing-designated-field-initializers' ]
 
 c_args = cc.get_supported_arguments([ '-Wno-language-extension-token' ] + common_args)
-cpp_args = cpp.get_supported_arguments([ '-Wno-c99-designator', '-Wno-missing-designated-field-initializers' ] + common_args)
+cpp_args = cpp.get_supported_arguments([ '-Wno-c99-designator' ] + common_args)
 
-executable('bezos', src,
-    c_args : c_args,
-    cpp_args : cpp_args,
-    include_directories : 'include',
-    dependencies : [ dependency('limine'), dependency('clang-intrin-headers') ],
-    link_depends : 'data/linker-x64.ld',
-    install : true,
-    link_args : [ '-T', meson.current_source_dir() / 'data/linker-x64.ld' ],
-    install_dir : get_option('prefix') / 'image' / 'boot'
-)
+if meson.is_cross_build()
+    src = [
+        'kernel/src/crt.c',
+        'kernel/src/main.cpp',
+        'kernel/src/check.cpp',
+        'kernel/src/util/cpuid.cpp',
+        'kernel/src/util/memory.cpp',
+        'kernel/src/memory/physical.cpp',
+    ]
 
-install_data('data/limine.conf',
-    install_dir : get_option('prefix') / 'image' / 'boot' / 'limine'
-)
+    # cpp_args += cpp.get_supported_arguments([ '-nostdinc++'])
 
-meson.add_install_script('data/image.sh')
+    executable('bezos', src,
+        c_args : c_args,
+        cpp_args : cpp_args,
+        include_directories : 'kernel/include',
+        dependencies : [ dependency('limine'), dependency('clang-intrin-headers') ],
+        link_depends : 'data/linker-x64.ld',
+        install : true,
+        link_args : [ '-T', meson.current_source_dir() / 'data/linker-x64.ld' ],
+        install_dir : get_option('prefix') / 'image' / 'boot'
+    )
+
+    install_data('data/limine.conf',
+        install_dir : get_option('prefix') / 'image' / 'boot' / 'limine'
+    )
+
+    meson.add_install_script('data/image.sh')
+else
+    gtest = dependency('gtest_main', native : true)
+    testkwargs = { 'protocol' : 'gtest', 'timeout': 5 }
+
+    testcases = {
+        'format': 'kernel/test/format.cpp'
+    }
+
+    foreach name, source : testcases
+        exe = executable('test-kernel-' + name.to_lower().replace(' ', '-'), source,
+            include_directories : inc,
+            c_args : c_args,
+            cpp_args : cpp_args,
+            dependencies : [ gtest ],
+            native : true,
+        )
+
+        test(name, exe,
+            suite : 'kernel',
+            kwargs : testkwargs
+        )
+    endforeach
+endif

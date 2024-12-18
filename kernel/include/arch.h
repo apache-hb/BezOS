@@ -1,8 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
 
+#include <stdint.h>
+#include <stddef.h>
+
 // these are partially copied from clangs intrin.h, i cant pull in the full file
 // as it uses microsoft types. although i could enable msvc extensions...
+
+struct [[gnu::packed]] GDTR {
+    uint16_t limit;
+    uint64_t base;
+};
 
 #define __DEFAULT_FN_ATTRS __attribute__((__always_inline__, __nodebug__, unused))
 
@@ -50,4 +58,8 @@ static inline void __DEFAULT_FN_ATTRS __sti(void) {
 
 static inline void __DEFAULT_FN_ATTRS __halt(void) {
     asm volatile("hlt");
+}
+
+static inline void __DEFAULT_FN_ATTRS __lgdt(struct GDTR gdtr) {
+    asm volatile("lgdt %0" :: "m"(gdtr));
 }
