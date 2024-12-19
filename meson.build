@@ -26,26 +26,37 @@ common_args = [ '-fmacro-prefix-map=../=/', '-Wno-gnu-anonymous-struct', '-Wno-m
 c_args = cc.get_supported_arguments([ '-Wno-language-extension-token' ] + common_args)
 cpp_args = cpp.get_supported_arguments([ '-Wno-c99-designator' ] + common_args)
 
+src = [
+    'kernel/src/memory/physical.cpp',
+    'kernel/src/util/cpuid.cpp',
+    'kernel/src/util/memory.cpp',
+]
+
+limine = dependency('limine')
+
+libkernel = static_library('kernel', src,
+    include_directories : inc,
+    c_args : c_args,
+    cpp_args : cpp_args,
+    dependencies : [ limine ],
+)
+
 if meson.is_cross_build()
     src = [
         'kernel/src/crt.c',
         'kernel/src/main.cpp',
         'kernel/src/check.cpp',
-        'kernel/src/util/cpuid.cpp',
-        'kernel/src/util/memory.cpp',
-        'kernel/src/memory/physical.cpp',
     ]
-
-    # cpp_args += cpp.get_supported_arguments([ '-nostdinc++'])
 
     executable('bezos', src,
         c_args : c_args,
         cpp_args : cpp_args,
         include_directories : 'kernel/include',
-        dependencies : [ dependency('limine'), dependency('clang-intrin-headers') ],
+        dependencies : [ limine, dependency('clang-intrin-headers') ],
         link_depends : 'data/linker-x64.ld',
         install : true,
         link_args : [ '-T', meson.current_source_dir() / 'data/linker-x64.ld' ],
+        link_with : libkernel,
         install_dir : get_option('prefix') / 'image' / 'boot'
     )
 
@@ -55,11 +66,12 @@ if meson.is_cross_build()
 
     meson.add_install_script('data/image.sh')
 else
-    gtest = dependency('gtest_main', native : true)
+    gtest = dependency('gtest_main')
     testkwargs = { 'protocol' : 'gtest', 'timeout': 5 }
 
     testcases = {
-        'format': 'kernel/test/format.cpp'
+        'format': 'kernel/test/format.cpp',
+        'memmap': [ 'kernel/test/memmap.cpp' ],
     }
 
     foreach name, source : testcases
@@ -67,8 +79,8 @@ else
             include_directories : inc,
             c_args : c_args,
             cpp_args : cpp_args,
-            dependencies : [ gtest ],
-            native : true,
+            link_with : libkernel,
+            dependencies : [ gtest, limine ],
         )
 
         test(name, exe,

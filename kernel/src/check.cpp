@@ -11,7 +11,7 @@ void KmHalt(void) {
 }
 
 void KmBugCheck(stdx::StringView message, stdx::StringView file, unsigned line) {
-    KmDebugMessage("[BUGCHECK]: ", file, ":", line, "\n");
-    KmDebugMessage("[BUGCHECK]: ", message, "\n");
+    KmDebugMessage("[BUGCHECK] ", file, ":", line, "\n");
+    KmDebugMessage("[BUGCHECK] ", message, "\n");
     KmHalt();
 }

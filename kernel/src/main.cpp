@@ -40,8 +40,14 @@ static volatile struct limine_framebuffer_request framebuffer_request = {
 #endif
 
 [[gnu::used, gnu::section(".limine_requests")]]
-static volatile struct limine_memmap_request memmap_request = {
+static volatile struct limine_memmap_request gMemmoryMapRequest = {
     .id = LIMINE_MEMMAP_REQUEST,
+    .revision = 0
+};
+
+[[gnu::used, gnu::section(".limine_requests")]]
+static volatile struct limine_kernel_address_request gExecutableAddressRequest = {
+    .id = LIMINE_KERNEL_ADDRESS_REQUEST,
     .revision = 0
 };
 
@@ -157,10 +163,10 @@ static void KmInitGdt(void) {
 }
 
 static PhysicalMemoryLayout KmInitMemoryMap(void) {
-    const struct limine_memmap_response *memmap = memmap_request.response;
+    const struct limine_memmap_response *memmap = gMemmoryMapRequest.response;
     KM_CHECK(memmap != NULL, "No memory map!");
 
-    return PhysicalMemoryLayout(memmap_request.response);
+    return PhysicalMemoryLayout(gMemmoryMapRequest.response);
 }
 
 static bool IsHypervisorPresent(void) {

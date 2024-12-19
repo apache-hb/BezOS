@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "kernel.hpp"
+#include "util/format.hpp"
 
 struct FormatTest : public testing::TestWithParam<std::tuple<int, int, stdx::StringView>> {};
 
@@ -24,7 +24,7 @@ INSTANTIATE_TEST_SUITE_P(
 TEST_P(FormatTest, IntFormat) {
     auto [value, base, expected] = GetParam();
     char buffer[64];
-    stdx::StringView result = FormatInt(buffer, value, base);
+    stdx::StringView result = km::FormatInt(buffer, value, base);
     ASSERT_EQ(std::string_view(result), std::string_view(expected)) << std::string_view(result);
 }
 
@@ -50,6 +50,6 @@ INSTANTIATE_TEST_SUITE_P(
 TEST_P(PaddingTest, IntPadding) {
     auto [value, fill, expected] = GetParam();
     char buffer[64];
-    stdx::StringView result = FormatInt(buffer, value, 10, 10, fill);
+    stdx::StringView result = km::FormatInt(buffer, value, 10, 10, fill);
     ASSERT_EQ(std::string_view(result), std::string_view(expected)) << std::string_view(result);
 }
