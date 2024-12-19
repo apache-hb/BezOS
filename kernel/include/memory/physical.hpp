@@ -9,6 +9,9 @@
 struct limine_memmap_response;
 
 namespace km {
+    struct PhysicalAddress { uintptr_t address; };
+    struct VirtualAddress { uintptr_t address; };
+
     struct MemoryRange {
         uintptr_t front;
         uintptr_t back;
@@ -18,15 +21,15 @@ namespace km {
         }
     };
 
-    class PhysicalMemoryLayout {
-        static constexpr size_t kMaxFree = 64;
-        static constexpr size_t kMaxReserved = 64;
-        stdx::StaticVector<MemoryRange, kMaxFree> mFreeMemory;
-        stdx::StaticVector<MemoryRange, kMaxReserved> mReservedMemory;
+    struct SystemMemoryLayout {
+        using FreeMemoryRanges = stdx::StaticVector<MemoryRange, 64>;
+        using ReservedMemoryRanges = stdx::StaticVector<MemoryRange, 64>;
 
-        void setup(const limine_memmap_response *memmap) noexcept;
+        FreeMemoryRanges available;
+        ReservedMemoryRanges reserved;
 
-    public:
-        PhysicalMemoryLayout([[maybe_unused]] const limine_memmap_response *memmap [[gnu::nonnull]]) noexcept;
+        PhysicalAddress alloc4kPages(size_t pages) noexcept;
+
+        static SystemMemoryLayout from(const limine_memmap_response *memmap [[gnu::nonnull]]) noexcept;
     };
 }

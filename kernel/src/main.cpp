@@ -162,11 +162,11 @@ static void KmInitGdt(void) {
     );
 }
 
-static PhysicalMemoryLayout KmInitMemoryMap(void) {
+static SystemMemoryLayout KmInitMemoryMap(void) {
     const struct limine_memmap_response *memmap = gMemmoryMapRequest.response;
     KM_CHECK(memmap != NULL, "No memory map!");
 
-    return PhysicalMemoryLayout(gMemmoryMapRequest.response);
+    return SystemMemoryLayout::from(gMemmoryMapRequest.response);
 }
 
 static bool IsHypervisorPresent(void) {
@@ -339,7 +339,7 @@ extern "C" void kmain(void) {
     KmInitGdt();
 
     [[maybe_unused]]
-    PhysicalMemoryLayout layout = KmInitMemoryMap();
+    SystemMemoryLayout layout = KmInitMemoryMap();
 
     KM_PANIC("Test bugcheck.");
 

@@ -6,7 +6,6 @@
 
 #include <limine.h>
 
-#include <algorithm>
 #include <string.h>
 
 using namespace km;
@@ -54,7 +53,10 @@ static MemoryRange GetMemoryRange(ErrorList& errors, uint64_t i, const limine_me
     return MemoryRange { front, back };
 }
 
-void PhysicalMemoryLayout::setup(const limine_memmap_response *memmap) noexcept {
+SystemMemoryLayout SystemMemoryLayout::from(const limine_memmap_response *memmap) noexcept {
+    FreeMemoryRanges freeMemory;
+    ReservedMemoryRanges reservedMemory;
+
     ErrorList errors;
 
     KmDebugMessage("[INIT] ", memmap->entry_count, " memory map entries.\n");
@@ -77,12 +79,12 @@ void PhysicalMemoryLayout::setup(const limine_memmap_response *memmap) noexcept 
         MemoryRange range = GetMemoryRange(errors, i, entry);
 
         if (entry->type == LIMINE_MEMMAP_USABLE || entry->type == LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE) {
-            if (!mFreeMemory.add(range) && !usableRangesOverflow) {
+            if (!freeMemory.add(range) && !usableRangesOverflow) {
                 usableRangesOverflow = true;
                 errors.add("Too many usable memory ranges.", i);
             }
         } else {
-            if (!mReservedMemory.add(range) && !reservedRangesOverflow) {
+            if (!reservedMemory.add(range) && !reservedRangesOverflow) {
                 reservedRangesOverflow = true;
                 errors.add("Too many reserved memory ranges.", i);
             }
@@ -103,17 +105,15 @@ void PhysicalMemoryLayout::setup(const limine_memmap_response *memmap) noexcept 
             KmDebugMessage("[INIT] More than ", errors.errors.capacity(), " issues detected. Some issues may not be displayed.\n");
         }
     }
-}
-
-PhysicalMemoryLayout::PhysicalMemoryLayout(const limine_memmap_response *memmap) noexcept {
-    setup(memmap);
 
     uint64_t usableMemory = 0;
-    for (const MemoryRange& range : mFreeMemory) {
+    for (const MemoryRange& range : freeMemory) {
         usableMemory += range.size();
     }
 
     KM_CHECK(usableMemory > 0, "No usable memory found.");
 
     KmDebugMessage("[INIT] Usable memory: ", km::bytes(usableMemory), "\n");
+
+    return SystemMemoryLayout { freeMemory, reservedMemory };
 }
