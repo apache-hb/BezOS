@@ -1,11 +1,7 @@
-// SPDX-License-Identifier: GPL-3.0-only
 #pragma once
 
 #include <stdint.h>
 #include <stddef.h>
-
-// these are partially copied from clangs intrin.h, i cant pull in the full file
-// as it uses microsoft types. although i could enable msvc extensions...
 
 struct [[gnu::packed]] GDTR {
     uint16_t limit;

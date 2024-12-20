@@ -4,32 +4,48 @@
 #include <stdint.h>
 
 #include "std/static_vector.hpp"
-#include "std/string_view.hpp"
+
+#include <limine.h>
 
 struct limine_memmap_response;
 
 namespace km {
-    struct PhysicalAddress { uintptr_t address; };
-    struct VirtualAddress { uintptr_t address; };
+    struct PhysicalAddress {
+        uintptr_t address;
+
+        template<typename T>
+        T *as() const noexcept {
+            return reinterpret_cast<T *>(address);
+        }
+
+        constexpr PhysicalAddress() noexcept = default;
+
+        constexpr PhysicalAddress(uintptr_t address) noexcept
+            : address(address)
+        { }
+    };
+
+    struct VirtualAddress {
+        uintptr_t address;
+    };
 
     struct MemoryRange {
-        uintptr_t front;
-        uintptr_t back;
+        PhysicalAddress front;
+        PhysicalAddress back;
 
         constexpr size_t size() const noexcept {
-            return back - front;
+            return back.address - front.address;
         }
     };
 
     struct SystemMemoryLayout {
-        using FreeMemoryRanges = stdx::StaticVector<MemoryRange, 64>;
-        using ReservedMemoryRanges = stdx::StaticVector<MemoryRange, 64>;
+        using FreeMemoryRanges = stdx::StaticVector<MemoryRange, 16>;
+        using ReservedMemoryRanges = stdx::StaticVector<MemoryRange, 16>;
 
         FreeMemoryRanges available;
+        FreeMemoryRanges reclaimable;
         ReservedMemoryRanges reserved;
 
-        PhysicalAddress alloc4kPages(size_t pages) noexcept;
-
-        static SystemMemoryLayout from(const limine_memmap_response *memmap [[gnu::nonnull]]) noexcept;
+        static SystemMemoryLayout from(limine_memmap_response memmap) noexcept;
     };
 }

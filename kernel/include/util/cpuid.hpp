@@ -13,5 +13,5 @@ namespace km {
     };
 
     static constexpr unsigned kBrandStringSize = 3 * 4 * 4;
-    bool GetBrandString(char dst[kBrandStringSize]) noexcept;
+    void GetBrandString(char dst[kBrandStringSize]) noexcept;
 }

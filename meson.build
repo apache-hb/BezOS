@@ -27,9 +27,10 @@ c_args = cc.get_supported_arguments([ '-Wno-language-extension-token' ] + common
 cpp_args = cpp.get_supported_arguments([ '-Wno-c99-designator' ] + common_args)
 
 src = [
-    'kernel/src/memory/physical.cpp',
     'kernel/src/util/cpuid.cpp',
     'kernel/src/util/memory.cpp',
+    'kernel/src/memory/physical.cpp',
+    'kernel/src/memory/alloc.cpp',
 ]
 
 limine = dependency('limine')
@@ -38,6 +39,12 @@ libkernel = static_library('kernel', src,
     include_directories : inc,
     c_args : c_args,
     cpp_args : cpp_args,
+    dependencies : [ limine ],
+)
+
+kernel = declare_dependency(
+    include_directories : inc,
+    link_with : libkernel,
     dependencies : [ limine ],
 )
 
@@ -52,7 +59,7 @@ if meson.is_cross_build()
         c_args : c_args,
         cpp_args : cpp_args,
         include_directories : 'kernel/include',
-        dependencies : [ limine, dependency('clang-intrin-headers') ],
+        dependencies : [ kernel ],
         link_depends : 'data/linker-x64.ld',
         install : true,
         link_args : [ '-T', meson.current_source_dir() / 'data/linker-x64.ld' ],
@@ -80,7 +87,7 @@ else
             c_args : c_args,
             cpp_args : cpp_args,
             link_with : libkernel,
-            dependencies : [ gtest, limine ],
+            dependencies : [ gtest, kernel ],
         )
 
         test(name, exe,

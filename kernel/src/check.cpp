@@ -1,6 +1,6 @@
 #include "kernel.hpp"
 
-#include "arch.h"
+#include "arch/intrin.hpp"
 
 [[noreturn]]
 void KmHalt(void) {

@@ -5,9 +5,11 @@
 #include <stddef.h>
 #include <string.h>
 
+#include "memory/virtual.hpp"
 #include "std/static_string.hpp"
 
-#include "arch.h"
+#include "arch/intrin.hpp"
+#include "arch/paging.hpp"
 
 #include "kernel.hpp"
 
@@ -30,14 +32,6 @@ struct VirtualAddress {
 
 [[gnu::used, gnu::section(".limine_requests")]]
 static volatile LIMINE_BASE_REVISION(3)
-
-#if 0
-[[gnu::used, gnu::section(".limine_requests")]]
-static volatile struct limine_framebuffer_request framebuffer_request = {
-    .id = LIMINE_FRAMEBUFFER_REQUEST,
-    .revision = 0
-};
-#endif
 
 [[gnu::used, gnu::section(".limine_requests")]]
 static volatile struct limine_memmap_request gMemmoryMapRequest = {
@@ -64,7 +58,7 @@ static bool HasDebugPort(void) {
     return gHasDebugPort;
 }
 
-static bool TestDebugPort(void) {
+static bool KmTestDebugPort(void) {
     return __inbyte(0xE9) == 0xE9;
 }
 
@@ -162,11 +156,23 @@ static void KmInitGdt(void) {
     );
 }
 
-static SystemMemoryLayout KmInitMemoryMap(void) {
+struct SystemMemory {
+    SystemMemoryLayout mLayout;
+    PhysicalAllocator mPhysicalAllocator;
+    PageAllocator pPageAllocator;
+
+    SystemMemory(SystemMemoryLayout layout)
+        : mLayout(layout)
+        , mPhysicalAllocator(&mLayout)
+        , pPageAllocator(&mPhysicalAllocator)
+    { }
+};
+
+static SystemMemory KmInitMemoryMap(void) {
     const struct limine_memmap_response *memmap = gMemmoryMapRequest.response;
     KM_CHECK(memmap != NULL, "No memory map!");
 
-    return SystemMemoryLayout::from(gMemmoryMapRequest.response);
+    return SystemMemory { SystemMemoryLayout::from(*gMemmoryMapRequest.response) };
 }
 
 static bool IsHypervisorPresent(void) {
@@ -198,7 +204,7 @@ struct HypervisorInfo {
 };
 
 /// @pre: IsHypervisorPresent() = true
-static HypervisorInfo GetHypervisorInfo(void) {
+static HypervisorInfo KmGetHypervisorInfo(void) {
     km::CpuId cpuid = km::CpuId::of(0x40000000);
 
     char vendor[12];
@@ -224,6 +230,7 @@ struct ProcessorInfo {
     VendorString vendor;
     BrandString brand;
     uint32_t maxleaf;
+    uintptr_t maxpaddr;
 
     CoreMultiplier coreClock;
     uint32_t busClock; // in hz
@@ -237,16 +244,18 @@ struct ProcessorInfo {
     uint16_t busFrequency; // in mhz
 };
 
-static BrandString GetBrandString() noexcept {
+static BrandString KmGetBrandString() noexcept {
     char brand[km::kBrandStringSize];
-
-    if (!km::GetBrandString(brand))
-        return "";
-
+    km::GetBrandString(brand);
     return brand;
 }
 
-static ProcessorInfo GetProcessorInfo() {
+static uintptr_t KmGetMaxPhysicalAddress() noexcept {
+    km::CpuId cpuid = km::CpuId::of(0x80000008);
+    return cpuid.eax & 0xFF;
+}
+
+static ProcessorInfo KmGetProcessorInfo() {
     km::CpuId vendorId = km::CpuId::of(0);
 
     char vendor[12];
@@ -255,12 +264,13 @@ static ProcessorInfo GetProcessorInfo() {
     memcpy(vendor + 8, &vendorId.ecx, 4);
     uint32_t maxleaf = vendorId.eax;
 
-    BrandString brand = GetBrandString();
+    CpuId ext = CpuId::of(0x80000000);
+    BrandString brand = ext.eax < 0x80000004 ? "" : KmGetBrandString();
 
-    // TODO: validate against maxleaf before calling these cpuid leafs
+    uintptr_t maxpaddr = ext.eax < 0x80000008 ? 0 : KmGetMaxPhysicalAddress();
 
     if (maxleaf < 0x16) {
-        return ProcessorInfo { vendor, brand, maxleaf };
+        return ProcessorInfo { vendor, brand, maxleaf, maxpaddr };
     }
 
     km::CpuId tsc = km::CpuId::of(0x15);
@@ -278,6 +288,7 @@ static ProcessorInfo GetProcessorInfo() {
         .vendor = vendor,
         .brand = brand,
         .maxleaf = maxleaf,
+        .maxpaddr = maxpaddr,
         .coreClock = coreClock,
         .busClock = busClock,
         .baseFrequency = uint16_t(frequency.eax & 0xFFFF),
@@ -292,54 +303,57 @@ extern "C" void kmain(void) {
     bool hvPresent = IsHypervisorPresent();
     HypervisorInfo hvInfo;
     if (hvPresent) {
-        hvInfo = GetHypervisorInfo();
+        hvInfo = KmGetHypervisorInfo();
 
         if (hvInfo.platformHasDebugPort()) {
-            gHasDebugPort = TestDebugPort();
+            gHasDebugPort = KmTestDebugPort();
         }
     }
 
-    // Do this check as early as feasible, ideally after setting up the debug port
-    // so we can see the message.
-    // Ensure the bootloader actually understands our base revision (see spec).
-    KM_CHECK(LIMINE_BASE_REVISION_SUPPORTED, "Unsupported base revision.");
+    KM_CHECK(LIMINE_BASE_REVISION_SUPPORTED, "Unsupported limine base revision.");
 
-    ProcessorInfo processor = GetProcessorInfo();
+    ProcessorInfo processor = KmGetProcessorInfo();
+
+    if (processor.maxpaddr != x64::paging::kMaxPhysicalAddress) {
+        KmDebugMessage("[INIT] Unsupported physical address size ", processor.maxpaddr, ". Only", x64::paging::kMaxPhysicalAddress, " bit addressing is supported.\n");
+        KM_PANIC("Unsupported physical address size.");
+    }
 
     KmDebugMessage("[INIT] System report.\n");
-    KmDebugMessage("| Component     | Property       | Status\n");
-    KmDebugMessage("|---------------+----------------+-------\n");
+    KmDebugMessage("| Component     | Property             | Status\n");
+    KmDebugMessage("|---------------+----------------------+-------\n");
 
     if (hvPresent) {
-        KmDebugMessage("| /SYS/HV       | Hypervisor     | ", hvInfo.name, "\n");
-        KmDebugMessage("| /SYS/HV       | Max CPUID leaf | ", Hex(hvInfo.maxleaf).pad(8, '0'), "\n");
-        KmDebugMessage("| /SYS/HV       | e9 debug port  | ", gHasDebugPort ? stdx::StringView("Enabled") : stdx::StringView("Disabled"), "\n");
+        KmDebugMessage("| /SYS/HV       | Hypervisor           | ", hvInfo.name, "\n");
+        KmDebugMessage("| /SYS/HV       | Max CPUID leaf       | ", Hex(hvInfo.maxleaf).pad(8, '0'), "\n");
+        KmDebugMessage("| /SYS/HV       | e9 debug port        | ", gHasDebugPort ? stdx::StringView("Enabled") : stdx::StringView("Disabled"), "\n");
     } else {
-        KmDebugMessage("| /SYS/HV       | Hypervisor     | Not present\n");
-        KmDebugMessage("| /SYS/HV       | Max CPUID leaf | 0x00000000\n");
-        KmDebugMessage("| /SYS/HV       | e9 debug port  | Not applicable\n");
+        KmDebugMessage("| /SYS/HV       | Hypervisor           | Not present\n");
+        KmDebugMessage("| /SYS/HV       | Max CPUID leaf       | 0x00000000\n");
+        KmDebugMessage("| /SYS/HV       | e9 debug port        | Not applicable\n");
     }
 
-    KmDebugMessage("| /SYS/MB/CPU0  | Vendor         | ", processor.vendor, "\n");
-    KmDebugMessage("| /SYS/MB/CPU0  | Model name     | ", processor.brand, "\n");
-    KmDebugMessage("| /SYS/MB/CPU0  | Max CPUID leaf | ", Hex(processor.maxleaf).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/MB/CPU0  | TSC ratio      | ", processor.coreClock.tsc, "/", processor.coreClock.core, "\n");
+    KmDebugMessage("| /SYS/MB/CPU0  | Vendor               | ", processor.vendor, "\n");
+    KmDebugMessage("| /SYS/MB/CPU0  | Model name           | ", processor.brand, "\n");
+    KmDebugMessage("| /SYS/MB/CPU0  | Max CPUID leaf       | ", Hex(processor.maxleaf).pad(8, '0'), "\n");
+    KmDebugMessage("| /SYS/MB/CPU0  | Max physical address | ", processor.maxpaddr, "\n");
+    KmDebugMessage("| /SYS/MB/CPU0  | TSC ratio            | ", processor.coreClock.tsc, "/", processor.coreClock.core, "\n");
 
     if (processor.hasNominalFrequency()) {
-        KmDebugMessage("| /SYS/MB/CPU0  | Bus clock      | ", processor.busClock, "hz\n");
+        KmDebugMessage("| /SYS/MB/CPU0  | Bus clock            | ", processor.busClock, "hz\n");
     } else {
-        KmDebugMessage("| /SYS/MB/CPU0  | Bus clock      | Not available\n");
+        KmDebugMessage("| /SYS/MB/CPU0  | Bus clock            | Not available\n");
     }
 
-    KmDebugMessage("| /SYS/MB/CPU0  | Base frequency | ", processor.baseFrequency, "mhz\n");
-    KmDebugMessage("| /SYS/MB/CPU0  | Max frequency  | ", processor.maxFrequency, "mhz\n");
-    KmDebugMessage("| /SYS/MB/CPU0  | Bus frequency  | ", processor.busFrequency, "mhz\n");
+    KmDebugMessage("| /SYS/MB/CPU0  | Base frequency       | ", processor.baseFrequency, "mhz\n");
+    KmDebugMessage("| /SYS/MB/CPU0  | Max frequency        | ", processor.maxFrequency, "mhz\n");
+    KmDebugMessage("| /SYS/MB/CPU0  | Bus frequency        | ", processor.busFrequency, "mhz\n");
 
     KmDebugMessage("[INIT] Load GDT.\n");
     KmInitGdt();
 
     [[maybe_unused]]
-    SystemMemoryLayout layout = KmInitMemoryMap();
+    SystemMemory layout = KmInitMemoryMap();
 
     KM_PANIC("Test bugcheck.");
 
