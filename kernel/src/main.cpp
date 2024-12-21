@@ -162,12 +162,12 @@ static void KmInitGdt(void) {
 }
 
 struct SystemMemory {
-    x64::PageManager pageController;
+    km::PageManager pager;
     SystemMemoryLayout layout;
     SystemAllocator allocator;
 
-    SystemMemory(SystemMemoryLayout layout, uintptr_t bits)
-        : pageController(bits)
+    SystemMemory(SystemMemoryLayout layout, uintptr_t bits, limine_hhdm_response hhdm) noexcept
+        : pager(bits, hhdm.offset)
         , layout(layout)
         , allocator(&layout)
     { }
@@ -176,14 +176,14 @@ struct SystemMemory {
 static SystemMemory KmInitMemoryMap(uintptr_t bits) {
     const limine_memmap_response *memmap = gMemmoryMapRequest.response;
     const limine_kernel_address_response *kernel = gExecutableAddressRequest.response;
-    const limine_hhdm_response *directMap = gDirectMapRequest.response;
+    const limine_hhdm_response *hhdm = gDirectMapRequest.response;
 
     KM_CHECK(memmap != NULL, "No memory map!");
     KM_CHECK(kernel != NULL, "No kernel address!");
-    KM_CHECK(directMap != NULL, "No direct map!");
+    KM_CHECK(hhdm != NULL, "No higher half direct map!");
 
-    SystemMemory memory = SystemMemory { SystemMemoryLayout::from(*memmap), bits };
-    KmMapKernel(memory.pageController, memory.allocator, memory.layout, *kernel, *directMap);
+    SystemMemory memory = SystemMemory { SystemMemoryLayout::from(*memmap), bits, *hhdm };
+    KmMapKernel(memory.pager, memory.allocator, memory.layout, *kernel);
     return memory;
 }
 

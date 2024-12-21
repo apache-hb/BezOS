@@ -2,7 +2,7 @@
 
 #include "memory/layout.hpp"
 
-#include "arch/paging.hpp"
+#include "memory/paging.hpp"
 
 namespace km {
     enum class PageFlags {
@@ -36,8 +36,6 @@ namespace km {
     };
 }
 
-km::PhysicalAddress KmVirtualToPhysical(const x64::PageManager& pm, const void *map, km::VirtualAddress vaddr) noexcept;
-
 /// @brief remap the kernel to replace the boot page tables.
 /// @param pm the page manager
 /// @param vmm the virtual memory manager
@@ -45,9 +43,8 @@ km::PhysicalAddress KmVirtualToPhysical(const x64::PageManager& pm, const void *
 /// @param address the address of the kernel
 /// @param hhdm direct map offset
 void KmMapKernel(
-    const x64::PageManager& pm,
+    const km::PageManager& pm,
     km::SystemAllocator& vmm,
     const km::SystemMemoryLayout& layout,
-    limine_kernel_address_response address,
-    limine_hhdm_response hhdm
+    limine_kernel_address_response address
 ) noexcept;

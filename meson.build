@@ -25,7 +25,8 @@ common_args = [
     '-fmacro-prefix-map=../=/',
     '-Wno-gnu-anonymous-struct',
     '-Wno-missing-field-initializers',
-    '-Wno-missing-designated-field-initializers'
+    '-Wno-missing-designated-field-initializers',
+    '-Wno-zero-length-array'
 ]
 
 c_args = cc.get_supported_arguments([ '-Wno-language-extension-token' ] + common_args)

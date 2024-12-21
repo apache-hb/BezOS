@@ -47,8 +47,8 @@ namespace x64 {
         bool present() const noexcept { return underlying & paging::kPresentBit; }
         void setPresent(bool present) noexcept { setmask(underlying, paging::kPresentBit, present); }
 
-        bool writeable() const noexcept { return underlying & paging::kReadOnlyBit; }
-        void setWriteable(bool readonly) noexcept { setmask(underlying, paging::kReadOnlyBit, readonly); }
+        bool writeable() const noexcept { return !(underlying & paging::kReadOnlyBit); }
+        void setWriteable(bool readonly) noexcept { setmask(underlying, paging::kReadOnlyBit, !readonly); }
 
         bool user() const noexcept { return underlying & paging::kUserBit; }
         void setUser(bool user) noexcept { setmask(underlying, paging::kUserBit, user); }
@@ -93,60 +93,5 @@ namespace x64 {
 
     struct alignas(kPageSize) page {
         uint8_t data[kPageSize];
-    };
-
-    class PageManager {
-        uintptr_t mAddressMask;
-
-    public:
-        constexpr PageManager(uintptr_t bits) noexcept
-            : mAddressMask(paging::addressMask(bits))
-        { }
-
-        constexpr bool has3LevelPaging() const noexcept {
-            return mAddressMask == paging::addressMask(40);
-        }
-
-        constexpr bool has4LevelPaging() const noexcept {
-            return mAddressMask == paging::addressMask(48);
-        }
-
-        uintptr_t getAddressMask() const noexcept {
-            return mAddressMask;
-        }
-
-        constexpr uintptr_t address(Entry entry) const noexcept {
-            return entry.underlying & mAddressMask;
-        }
-
-        constexpr void setAddress(Entry& entry, uintptr_t address) const noexcept {
-            entry.underlying = (entry.underlying & ~mAddressMask) | (address & mAddressMask);
-        }
-
-        void *activeMap() const noexcept {
-            return reinterpret_cast<void *>(cr3() & mAddressMask);
-        }
-
-        x64::PageMapLevel3 *activeMap3() const noexcept {
-            return reinterpret_cast<x64::PageMapLevel3 *>(activeMap());
-        }
-
-        x64::PageMapLevel4 *activeMap4() const noexcept {
-            return reinterpret_cast<x64::PageMapLevel4 *>(activeMap());
-        }
-
-        void setActiveMap(const void *map) const noexcept {
-            uint64_t reg = cr3();
-            reg = (reg & ~mAddressMask) | reinterpret_cast<uint64_t>(map);
-            setcr3(reg);
-        }
-
-        void setActiveMap3(const x64::PageMapLevel3 *map) const noexcept {
-            setActiveMap(map);
-        }
-
-        void setActiveMap4(const x64::PageMapLevel4 *map) const noexcept {
-            setActiveMap(map);
-        }
     };
 }
