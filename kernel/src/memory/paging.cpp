@@ -25,17 +25,13 @@ static km::PhysicalAddress VirtualToPhysical3(const km::PageManager& pm, const x
 km::PhysicalAddress km::PageManager::translate(km::VirtualAddress vaddr) const noexcept {
     const void *pagemap = activeMap().as<void>(); // TODO: wrong
 
-    if (has4LevelPaging()) {
-        uint16_t pml4e = (vaddr.address >> 39) & 0b0001'1111'1111;
+    uint16_t pml4e = (vaddr.address >> 39) & 0b0001'1111'1111;
 
-        const x64::PageMapLevel4 *l4 = reinterpret_cast<const x64::PageMapLevel4*>(pagemap);
+    const x64::PageMapLevel4 *l4 = reinterpret_cast<const x64::PageMapLevel4*>(pagemap);
 
-        const x64::pml4e *t4 = &l4->entries[pml4e];
-        if (!t4->present())
-            return nullptr;
-
-        return VirtualToPhysical3(*this, (const x64::PageMapLevel3*)address(*t4), vaddr);
-    }
+    const x64::pml4e *t4 = &l4->entries[pml4e];
+    if (!t4->present())
+        return nullptr;
 
     return VirtualToPhysical3(*this, (const x64::PageMapLevel3*)pagemap, vaddr);
 }

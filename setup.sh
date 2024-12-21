@@ -1,2 +1,3 @@
-meson setup $1 --native-file data/x64-clang.ini --cross-file data/kernel.ini --prefix $(pwd)/install
-# meson setup $1-test --native-file data/x64-clang.ini -Db_coverage=true
+builddir=$1
+shift
+meson setup $builddir --native-file data/x64-clang.ini --cross-file data/kernel.ini --prefix $(pwd)/install $@

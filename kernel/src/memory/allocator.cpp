@@ -21,9 +21,6 @@ extern "C" {
     extern char __data_start[]; // always aligned to 0x1000
     extern char __data_end[];
 
-    extern char __bss_start[]; // always aligned to 0x1000
-    extern char __bss_end[];
-
     extern char __kernel_start[];
     extern char __kernel_end[];
 }
@@ -58,32 +55,6 @@ SystemAllocator::SystemAllocator(const SystemMemoryLayout *layout) noexcept
     KM_CHECK(range.size() >= size, "Not enough memory to store bitmap.");
 
     KmDebugMessage("[INIT] Physical memory bitmap size: ", km::bytes(size), ".\n");
-
-#if 0
-    mBitMap = range.front.as<uint8_t>();
-    mCount = size;
-    memset(mBitMap, 0, size);
-
-    KmDebugMessage("[INIT] Physical memory bitmap at ", Hex(range.front.address).pad(8, '0'), " size ", size, " pages.\n");
-
-    const void *map = pm.activeMap();
-
-    auto markRangeUsed = [&](const void *start, const void *end, stdx::StringView name) {
-        km::PhysicalAddress front = KmVirtualToPhysical(pm, map, VirtualAddress((uintptr_t)start));
-        km::PhysicalAddress back = KmVirtualToPhysical(pm, map, VirtualAddress((uintptr_t)end));
-        KmDebugMessage("[INIT] Marking segment ", name, " as used: ", Hex(front.address).pad(8, '0'), " - ", Hex(back.address).pad(8, '0'), "\n");
-        markUsed(MemoryRange(front, back));
-    };
-
-    // mark the bitmap as used
-    markUsed(MemoryRange(range.front, range.front.address + size));
-
-    // mark kernel sections as used
-    markRangeUsed(__text_start, __text_end, ".text");
-    markRangeUsed(__rodata_start, __rodata_end, ".rodata");
-    markRangeUsed(__data_start, __data_end, ".data");
-    markRangeUsed(__bss_start, __bss_end, ".bss");
-#endif
 }
 
 class PageAllocator {
@@ -200,40 +171,19 @@ struct Stage1Memory {
     }
 };
 
-// For stage1 we map the entire kernel as read/write/execute.
-// If I wanted to map with permissions I would need to walk the existing page tables to find the correct offsets to map.
-// As far as I know, there is no way to walk the bootloader page tables in stage1.
-// As to walk the bootloader page tables, we need to know the virtual address of the page tables.
 static void MapKernelPages(Stage1Memory& memory, limine_kernel_address_response address) noexcept {
-    size_t kernelSize = (uintptr_t)__kernel_end - (uintptr_t)__kernel_start;
-    size_t kernelPages = km::pages(kernelSize);
-
-    KmDebugMessage("[INIT] Physical kernel at ", Hex(address.physical_base).pad(8, '0'), " - ", Hex(address.physical_base + kernelSize).pad(8, '0'), ".\n");
-    KmDebugMessage("[INIT] Virtual kernel at ", Hex(address.virtual_base).pad(8, '0'), " - ", Hex(address.virtual_base + kernelSize).pad(8, '0'), ".\n");
-    KmDebugMessage("[INIT] Mapping kernel at ", Hex((uintptr_t)__kernel_start).pad(8, '0'), " - ", Hex((uintptr_t)__kernel_end).pad(8, '0'), " (", kernelPages, " pages).\n");
-
-    for (uintptr_t i = 0; i < kernelPages; i++) {
-        km::PhysicalAddress paddr = address.physical_base + (i * x64::kPageSize);
-        km::VirtualAddress vaddr = { address.virtual_base + (i * x64::kPageSize) };
-        memory.map(paddr, vaddr, PageFlags::eAll);
-    }
-
-#if 0
-    auto mapKernelRange = [&](const void *begin, const void *end, stdx::StringView segment, PageFlags flags) {
-        km::PhysicalAddress front = KmVirtualToPhysical(pm, map, VirtualAddress((uintptr_t)begin));
-        km::PhysicalAddress back = KmVirtualToPhysical(pm, map, VirtualAddress((uintptr_t)end));
-        KmDebugMessage("[INIT] Mapping segment '", segment, "' at ", Hex(front.address).pad(8, '0'), " - ", Hex(back.address).pad(8, '0'), ".\n");
+    auto mapKernelRange = [&](const void *begin, const void *end, PageFlags flags) {
+        km::PhysicalAddress front = km::PhysicalAddress {  (uintptr_t)begin - (uintptr_t)__kernel_start };
+        km::PhysicalAddress back = km::PhysicalAddress { (uintptr_t)end - (uintptr_t)__kernel_start };
 
         for (uintptr_t i = front.address; i < back.address; i += x64::kPageSize) {
-            memory.map(km::PhysicalAddress { i }, km::VirtualAddress { i }, flags, pm);
+            memory.map(km::PhysicalAddress { address.physical_base + i }, km::VirtualAddress { address.virtual_base + i }, flags);
         }
     };
 
-    mapKernelRange(__text_start, __text_end, ".text", PageFlags::eCode);
-    mapKernelRange(__rodata_start, __rodata_end, ".rodata", PageFlags::eRead);
-    mapKernelRange(__data_start, __data_end, ".data", PageFlags::eData);
-    mapKernelRange(__bss_start, __bss_end, ".bss", PageFlags::eData);
-#endif
+    mapKernelRange(__text_start, __text_end, PageFlags::eCode);
+    mapKernelRange(__rodata_start, __rodata_end, PageFlags::eRead);
+    mapKernelRange(__data_start, __data_end, PageFlags::eData);
 }
 
 [[maybe_unused]]
@@ -263,10 +213,6 @@ static void MapKernelStage1(
 
     // then remap the rest of memory to the higher half
     MapStage1Memory(memory, pm, layout);
-
-    KmDebugMessage("[INIT] Stage1 memory map complete ", Hex((uintptr_t)memory.rootPageTable() - pm.hhdmOffset()).pad(8, '0'), ".\n");
-
-    KmDebugMessage("[INIT] cr3: ", x64::cr3(), ", ", pm.getAddressMask(), "\n");
 
     // then apply the new page tables
     pm.setActiveMap(((uintptr_t)memory.rootPageTable() - pm.hhdmOffset()));
