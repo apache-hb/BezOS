@@ -182,7 +182,7 @@ struct Stage1Memory {
         setEntryFlags(t1, flags, paddr.address);
     }
 
-    void map4(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags) noexcept {
+    void map(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags) noexcept {
         uint16_t pml4e = (vaddr.address >> 39) & 0b0001'1111'1111;
 
         x64::PageMapLevel4 *l4 = (x64::PageMapLevel4*)rootPageTable();
@@ -197,14 +197,6 @@ struct Stage1Memory {
         }
 
         map3(paddr, vaddr, l3, flags);
-    }
-
-    void map(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags) noexcept {
-        if (pager->has4LevelPaging()) {
-            map4(paddr, vaddr, flags);
-        } else {
-            map3(paddr, vaddr, (x64::PageMapLevel3*)rootPageTable(), flags);
-        }
     }
 };
 
@@ -244,6 +236,7 @@ static void MapKernelPages(Stage1Memory& memory, limine_kernel_address_response 
 #endif
 }
 
+[[maybe_unused]]
 static void MapStage1Memory(Stage1Memory& memory, const km::PageManager& pm, const SystemMemoryLayout& layout) noexcept {
     for (MemoryRange range : layout.available) {
         for (PhysicalAddress i = range.front; i < range.back; i += x64::kPageSize) {

@@ -47,8 +47,8 @@ namespace x64 {
         bool present() const noexcept { return underlying & paging::kPresentBit; }
         void setPresent(bool present) noexcept { setmask(underlying, paging::kPresentBit, present); }
 
-        bool writeable() const noexcept { return !(underlying & paging::kReadOnlyBit); }
-        void setWriteable(bool readonly) noexcept { setmask(underlying, paging::kReadOnlyBit, !readonly); }
+        bool writeable() const noexcept { return (underlying & paging::kReadOnlyBit); }
+        void setWriteable(bool readonly) noexcept { setmask(underlying, paging::kReadOnlyBit, readonly); }
 
         bool user() const noexcept { return underlying & paging::kUserBit; }
         void setUser(bool user) noexcept { setmask(underlying, paging::kUserBit, user); }
