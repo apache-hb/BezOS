@@ -43,4 +43,11 @@ km::PhysicalAddress KmVirtualToPhysical(const x64::PageManager& pm, const void *
 /// @param vmm the virtual memory manager
 /// @param layout the system memory layout
 /// @param address the address of the kernel
-void KmMapKernel(const x64::PageManager& pm, km::SystemAllocator& vmm, const km::SystemMemoryLayout& layout, limine_kernel_address_response address) noexcept;
+/// @param hhdm direct map offset
+void KmMapKernel(
+    const x64::PageManager& pm,
+    km::SystemAllocator& vmm,
+    const km::SystemMemoryLayout& layout,
+    limine_kernel_address_response address,
+    limine_hhdm_response hhdm
+) noexcept;

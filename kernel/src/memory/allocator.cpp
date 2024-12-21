@@ -3,9 +3,10 @@
 #include "kernel.hpp"
 #include "util/memory.hpp"
 
-#include <bit>
 #include <limits.h>
 #include <string.h>
+
+#include <bit>
 
 using namespace km;
 
@@ -40,14 +41,15 @@ static size_t CountUsablePages(const SystemMemoryLayout& layout) noexcept {
     return count / x64::kPageSize;
 }
 
+static size_t GetMemoryBitmapSize(const SystemMemoryLayout& layout) noexcept {
+    return CountUsablePages(layout) / CHAR_BIT;
+}
+
 SystemAllocator::SystemAllocator(const SystemMemoryLayout *layout) noexcept
     : mLayout(layout)
 {
-    // number of pages required to store the bitmap
-    size_t pages = CountUsablePages(*mLayout);
-
     // number of bytes required to store the bitmap
-    size_t size = pages / CHAR_BIT;
+    size_t size = GetMemoryBitmapSize(*mLayout);
 
     // find first available memory range
     MemoryRange range = mLayout->available[0];
@@ -88,23 +90,17 @@ static km::PhysicalAddress VirtualToPhysical3(const x64::PageManager& pm, const 
     uint16_t pde = (vaddr.address >> 21) & 0b0001'1111'1111;
     uint16_t pte = (vaddr.address >> 12) & 0b0001'1111'1111;
 
-    KmDebugMessage("[INIT] pdpte: ", pdpte, " pde: ", pde, " pte: ", pte, "\n");
-    KmDebugMessage("[INIT] pml3: ", Hex((uintptr_t)pml3).pad(8, '0'), "\n");
-
     const x64::pdpte *l3 = &pml3->entries[pdpte];
-    KmDebugMessage("[INIT] l3: ", Hex((uintptr_t)l3).pad(8, '0'), "\n");
     if (!l3->present())
         return nullptr;
 
     const x64::PageMapLevel2 *pml2 = reinterpret_cast<const x64::PageMapLevel2*>(pm.address(*l3));
     const x64::pde *l2 = &pml2->entries[pde];
-    KmDebugMessage("[INIT] pml2: ", Hex((uintptr_t)pml2).pad(8, '0'), ", l2: ", Hex((uintptr_t)l2).pad(8, '0'), "\n");
     if (!l2->present())
         return nullptr;
 
     const x64::PageTable *pml1 = reinterpret_cast<const x64::PageTable*>(pm.address(*l2));
     const x64::pte *l1 = &pml1->entries[pte];
-    KmDebugMessage("[INIT] pml1: ", Hex((uintptr_t)pml1).pad(8, '0'), ", l1: ", Hex((uintptr_t)l1).pad(8, '0'), "\n");
     if (!l1->present())
         return nullptr;
 
@@ -115,14 +111,9 @@ km::PhysicalAddress KmVirtualToPhysical(const x64::PageManager& pm, const void *
     if (pm.has4LevelPaging()) {
         uint16_t pml4e = (vaddr.address >> 39) & 0b0001'1111'1111;
 
-        KmDebugMessage("[INIT] pml4e: ", pml4e, "\n");
-
         const x64::PageMapLevel4 *l4 = reinterpret_cast<const x64::PageMapLevel4*>(pagemap);
 
-        KmDebugMessage("[INIT] l4: ", Hex((uintptr_t)l4).pad(8, '0'), "\n");
-
         const x64::pml4e *t4 = &l4->entries[pml4e];
-        KmDebugMessage("[INIT] t4: ", Hex((uintptr_t)t4).pad(8, '0'), "\n");
         if (!t4->present())
             return nullptr;
 
@@ -132,84 +123,117 @@ km::PhysicalAddress KmVirtualToPhysical(const x64::PageManager& pm, const void *
     return VirtualToPhysical3(pm, (const x64::PageMapLevel3*)pagemap, vaddr);
 }
 
-static void SetEntryFlags(x64::Entry& entry, PageFlags flags, const x64::PageManager& pm, PhysicalAddress address) noexcept {
-    entry.setPresent(true);
-    pm.setAddress(entry, address.address);
+class PageAllocator {
+    const SystemMemoryLayout *mLayout;
+    int mCurrentRange;
+    PhysicalAddress mOffset;
 
-    if (bool(flags & PageFlags::eWrite))
-        entry.setWriteable(true);
+    MemoryRange currentRange() const noexcept {
+        return mLayout->available[mCurrentRange];
+    }
 
-    if (bool(flags & PageFlags::eExecute))
-        entry.setExecutable(true);
-}
+    void setCurrentRange(int range) noexcept {
+        KM_CHECK(range < mLayout->available.count(), "Out of memory.");
+
+        mCurrentRange = range;
+        mOffset = currentRange().front;
+    }
+
+public:
+    PageAllocator(const SystemMemoryLayout *layout) noexcept
+        : mLayout(layout)
+    {
+        setCurrentRange(0);
+    }
+
+    PhysicalPointer<x64::page> alloc4k() noexcept {
+        if (currentRange().contains(mOffset + x64::kPageSize)) {
+            x64::page *result = mOffset.as<x64::page>();
+            mOffset += x64::kPageSize;
+            return PhysicalPointer{result};
+        }
+
+        setCurrentRange(mCurrentRange + 1);
+
+        return alloc4k();
+    }
+};
 
 struct Stage1Memory {
-    x64::page pages[512];
-    int used = 0;
+    PageAllocator *allocator;
+    uint64_t hhdmOffset = 0;
+    x64::page *root;
 
-    Stage1Memory() noexcept {
-        x64::page& pm = alloc4k(); // allocate the top level page table
-        memset(&pm, 0, sizeof(x64::page));
+    Stage1Memory(PageAllocator *alloc, uint64_t offset) noexcept
+        : allocator(alloc)
+        , hhdmOffset(offset)
+        , root(alloc4k())
+    { }
+
+    void setEntryFlags(x64::Entry& entry, PageFlags flags, const x64::PageManager& pm, PhysicalAddress address) noexcept {
+        entry.setPresent(true);
+        pm.setAddress(entry, address.address - hhdmOffset);
+
+        if (bool(flags & PageFlags::eWrite))
+            entry.setWriteable(true);
+
+        if (bool(flags & PageFlags::eExecute))
+            entry.setExecutable(true);
     }
 
-    x64::page& alloc4k() noexcept {
-        KM_CHECK(used < 512, "Out of memory.");
-        x64::page& result = pages[used++];
-        memset(&result, 0, sizeof(x64::page));
-        return result;
+    x64::page *alloc4k() noexcept {
+        PhysicalPointer<x64::page> result = allocator->alloc4k();
+        uintptr_t offset = (uintptr_t)result.data + hhdmOffset;
+        x64::page *page = (x64::page*)offset;
+        memset(page, 0, sizeof(x64::page));
+        return page;
     }
 
-    x64::page *topLevelPage() noexcept {
-        return &pages[0];
+    x64::page *rootPageTable() noexcept {
+        return root;
     }
 
     void map3(PhysicalAddress paddr, VirtualAddress vaddr, x64::PageMapLevel3 *l3, PageFlags flags, const x64::PageManager& pm) noexcept {
-        uint16_t pdpte = (vaddr.address >> 30) & 0b0001'1111'1111;
-        uint16_t pde = (vaddr.address >> 21) & 0b0001'1111'1111;
+        uint16_t l3e = (vaddr.address >> 30) & 0b0001'1111'1111;
+        uint16_t l2e = (vaddr.address >> 21) & 0b0001'1111'1111;
         uint16_t pte = (vaddr.address >> 12) & 0b0001'1111'1111;
-
-        KmDebugMessage("[INIT] pdpte: ", pdpte, " pde: ", pde, " pte: ", pte, "\n");
 
         x64::PageMapLevel2 *l2;
 
-        x64::pdpte& t3 = l3->entries[pdpte];
+        x64::pdpte& t3 = l3->entries[l3e];
         if (!t3.present()) {
-            l2 = std::bit_cast<x64::PageMapLevel2*>(&alloc4k());
-            SetEntryFlags(t3, flags, pm, l2);
+            l2 = std::bit_cast<x64::PageMapLevel2*>(alloc4k());
+            setEntryFlags(t3, flags, pm, (uintptr_t)l2);
         } else {
-            l2 = std::bit_cast<x64::PageMapLevel2*>(pm.address(t3));
+            l2 = std::bit_cast<x64::PageMapLevel2*>(pm.address(t3) + hhdmOffset);
         }
-
-        KmDebugMessage("[INIT] l2: ", Hex((uintptr_t)l2).pad(8, '0'), "\n");
 
         x64::PageTable *pt;
 
-        x64::pde& t2 = l2->entries[pde];
+        x64::pde& t2 = l2->entries[l2e];
         if (!t2.present()) {
-            pt = std::bit_cast<x64::PageTable*>(&alloc4k());
-            SetEntryFlags(t2, flags, pm, pt);
+            pt = std::bit_cast<x64::PageTable*>(alloc4k());
+            setEntryFlags(t2, flags, pm, (uintptr_t)pt);
         } else {
-            pt = std::bit_cast<x64::PageTable*>(pm.address(t2));
+            pt = std::bit_cast<x64::PageTable*>(pm.address(t2) + hhdmOffset);
         }
 
         x64::pte& t1 = pt->entries[pte];
-        SetEntryFlags(t1, flags, pm, (const void*)paddr.address);
+        setEntryFlags(t1, flags, pm, paddr.address);
     }
 
     void map4(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags, const x64::PageManager& pm) noexcept {
         uint16_t pml4e = (vaddr.address >> 39) & 0b0001'1111'1111;
 
-        KmDebugMessage("[INIT] pml4e: ", pml4e, "\n");
-
-        x64::PageMapLevel4 *l4 = (x64::PageMapLevel4*)topLevelPage();
+        x64::PageMapLevel4 *l4 = (x64::PageMapLevel4*)rootPageTable();
         x64::PageMapLevel3 *l3;
 
         x64::pml4e& t4 = l4->entries[pml4e];
         if (!t4.present()) {
-            l3 = std::bit_cast<x64::PageMapLevel3*>(&alloc4k());
-            SetEntryFlags(t4, flags, pm, l3);
+            l3 = std::bit_cast<x64::PageMapLevel3*>(alloc4k());
+            setEntryFlags(t4, flags, pm, (uintptr_t)l3);
         } else {
-            l3 = std::bit_cast<x64::PageMapLevel3*>(pm.address(t4));
+            l3 = std::bit_cast<x64::PageMapLevel3*>(pm.address(t4) + hhdmOffset);
         }
 
         map3(paddr, vaddr, l3, flags, pm);
@@ -219,7 +243,7 @@ struct Stage1Memory {
         if (pm.has4LevelPaging()) {
             map4(paddr, vaddr, flags, pm);
         } else {
-            map3(paddr, vaddr, (x64::PageMapLevel3*)topLevelPage(), flags, pm);
+            map3(paddr, vaddr, (x64::PageMapLevel3*)rootPageTable(), flags, pm);
         }
     }
 };
@@ -240,8 +264,6 @@ static void MapKernelPages(Stage1Memory& memory, const x64::PageManager& pm, lim
         memory.map(paddr, vaddr, PageFlags::eAll, pm);
     }
 
-    KmDebugMessage("[INIT] Kernel mapped.\n");
-
 #if 0
     auto mapKernelRange = [&](const void *begin, const void *end, stdx::StringView segment, PageFlags flags) {
         km::PhysicalAddress front = KmVirtualToPhysical(pm, map, VirtualAddress((uintptr_t)begin));
@@ -260,42 +282,56 @@ static void MapKernelPages(Stage1Memory& memory, const x64::PageManager& pm, lim
 #endif
 }
 
-struct PageAllocator {
-    uint8_t *bitmap;
-    size_t words;
-};
-
 static void MapStage1Memory(Stage1Memory& memory, const x64::PageManager& pm, const SystemMemoryLayout& layout) noexcept {
-    size_t pages = km::roundpow2(CountUsablePages(layout), size_t(CHAR_BIT));
-    size_t words = pages / CHAR_BIT;
+    int limit = 3;
+    for (MemoryRange range : layout.available) {
+        if (limit-- == 0)
+            break;
 
-    MemoryRange range = layout.available[0];
+        for (PhysicalAddress i = range.front; i < range.back; i += x64::kPageSize) {
+            memory.map(i, km::VirtualAddress { i.address + memory.hhdmOffset }, PageFlags::eData, pm);
+        }
+    }
 
-    KmDebugMessage("[INIT] Stage1 memory bitmap of size ", km::bytes(words), " at ", Hex(range.front.address).pad(8, '0'), ".\n");
-
-    KM_CHECK(range.size() >= words, "Not enough memory in first free area to store bitmap.");
-
-    // Identity map the bitmap area.
-    for (size_t i = 0; i < words; i++) {
-        uintptr_t addr = range.front.address + i * CHAR_BIT;
-        memory.map(km::PhysicalAddress { addr }, km::VirtualAddress { addr }, PageFlags::eData, pm);
+    limit = 3;
+    for (MemoryRange range : layout.reclaimable) {
+        if (limit-- == 0)
+            break;
+        for (PhysicalAddress i = range.front; i < range.back; i += x64::kPageSize) {
+            memory.map(i, km::VirtualAddress { i.address + memory.hhdmOffset }, PageFlags::eData, pm);
+        }
     }
 }
 
-/// MapKernelStage1 is responsible for remapping the kernel and identity mapping enough usable memory
-/// to allocate the full memory bitmap.
-static void MapKernelStage1(const x64::PageManager& pm, const km::SystemMemoryLayout& layout, limine_kernel_address_response address) noexcept {
-    Stage1Memory memory;
-
-    KmDebugMessage("[INIT] Stage1 memory map.\n");
-
+/// MapKernelStage1 is responsible for remapping the kernel and higher half mappings.
+static void MapKernelStage1(
+    Stage1Memory& memory,
+    const x64::PageManager& pm,
+    const km::SystemMemoryLayout& layout,
+    limine_kernel_address_response address
+) noexcept {
     // first map the kernel pages
     MapKernelPages(memory, pm, address);
 
-    // then identity map enough memory to store the bitmap
+    // then remap the rest of memory to the higher half
     MapStage1Memory(memory, pm, layout);
+
+    KmDebugMessage("[INIT] Stage1 memory map complete ", Hex((uintptr_t)memory.rootPageTable()).pad(8, '0'), ".\n");
+
+    // then apply the new page tables
+    pm.setActiveMap(memory.rootPageTable());
+
+    KmDebugMessage("[INIT] Stage1 page tables applied.\n");
 }
 
-void KmMapKernel(const x64::PageManager& pm, km::SystemAllocator&, const km::SystemMemoryLayout& layout, limine_kernel_address_response address) noexcept {
-    MapKernelStage1(pm, layout, address);
+void KmMapKernel(
+    const x64::PageManager& pm,
+    km::SystemAllocator&,
+    const km::SystemMemoryLayout& layout,
+    limine_kernel_address_response address,
+    limine_hhdm_response hhdm
+) noexcept {
+    PageAllocator allocator{&layout};
+    Stage1Memory memory{&allocator, hhdm.offset};
+    MapKernelStage1(memory, pm, layout, address);
 }

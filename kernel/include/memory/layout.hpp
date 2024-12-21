@@ -1,6 +1,8 @@
 #pragma once
 
-#include <cstddef>
+#include <compare>
+
+#include <stddef.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -28,10 +30,42 @@ namespace km {
         constexpr PhysicalAddress(std::nullptr_t) noexcept
             : address(0)
         { }
+
+        constexpr auto operator<=>(const PhysicalAddress&) const noexcept = default;
+
+        constexpr PhysicalAddress& operator+=(size_t offset) noexcept {
+            address += offset;
+            return *this;
+        }
+
+        constexpr PhysicalAddress operator+(size_t offset) const noexcept {
+            return PhysicalAddress { address + offset };
+        }
+
+        constexpr PhysicalAddress& operator++() noexcept {
+            address += 1;
+            return *this;
+        }
+
+        constexpr PhysicalAddress operator++(int) noexcept {
+            PhysicalAddress copy = *this;
+            ++(*this);
+            return copy;
+        }
     };
 
     struct VirtualAddress {
         uintptr_t address;
+    };
+
+    template<typename T>
+    struct PhysicalPointer {
+        T *data;
+    };
+
+    template<typename T>
+    struct VirtualPointer {
+        T *data;
     };
 
     struct MemoryRange {

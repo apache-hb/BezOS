@@ -27,14 +27,20 @@ using namespace km;
 static volatile LIMINE_BASE_REVISION(3)
 
 [[gnu::used, gnu::section(".limine_requests")]]
-static volatile struct limine_memmap_request gMemmoryMapRequest = {
+static volatile limine_memmap_request gMemmoryMapRequest = {
     .id = LIMINE_MEMMAP_REQUEST,
     .revision = 0
 };
 
 [[gnu::used, gnu::section(".limine_requests")]]
-static volatile struct limine_kernel_address_request gExecutableAddressRequest = {
+static volatile limine_kernel_address_request gExecutableAddressRequest = {
     .id = LIMINE_KERNEL_ADDRESS_REQUEST,
+    .revision = 0
+};
+
+[[gnu::used, gnu::section(".limine_requests")]]
+static volatile limine_hhdm_request gDirectMapRequest = {
+    .id = LIMINE_HHDM_REQUEST,
     .revision = 0
 };
 
@@ -168,13 +174,16 @@ struct SystemMemory {
 };
 
 static SystemMemory KmInitMemoryMap(uintptr_t bits) {
-    const struct limine_memmap_response *memmap = gMemmoryMapRequest.response;
-    const struct limine_kernel_address_response *kernel = gExecutableAddressRequest.response;
+    const limine_memmap_response *memmap = gMemmoryMapRequest.response;
+    const limine_kernel_address_response *kernel = gExecutableAddressRequest.response;
+    const limine_hhdm_response *directMap = gDirectMapRequest.response;
+
     KM_CHECK(memmap != NULL, "No memory map!");
     KM_CHECK(kernel != NULL, "No kernel address!");
+    KM_CHECK(directMap != NULL, "No direct map!");
 
     SystemMemory memory = SystemMemory { SystemMemoryLayout::from(*memmap), bits };
-    KmMapKernel(memory.pageController, memory.allocator, memory.layout, *kernel);
+    KmMapKernel(memory.pageController, memory.allocator, memory.layout, *kernel, *directMap);
     return memory;
 }
 

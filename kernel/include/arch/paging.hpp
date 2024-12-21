@@ -98,12 +98,6 @@ namespace x64 {
     class PageManager {
         uintptr_t mAddressMask;
 
-        void setActiveMap(const void *map) const noexcept {
-            uint64_t reg = cr3();
-            reg = (reg & ~mAddressMask) | reinterpret_cast<uint64_t>(map);
-            setcr3(reg);
-        }
-
     public:
         constexpr PageManager(uintptr_t bits) noexcept
             : mAddressMask(paging::addressMask(bits))
@@ -115,6 +109,10 @@ namespace x64 {
 
         constexpr bool has4LevelPaging() const noexcept {
             return mAddressMask == paging::addressMask(48);
+        }
+
+        uintptr_t getAddressMask() const noexcept {
+            return mAddressMask;
         }
 
         constexpr uintptr_t address(Entry entry) const noexcept {
@@ -129,20 +127,22 @@ namespace x64 {
             return reinterpret_cast<void *>(cr3() & mAddressMask);
         }
 
-        uintptr_t getMask() const noexcept {
-            return mAddressMask;
-        }
-
         x64::PageMapLevel3 *activeMap3() const noexcept {
             return reinterpret_cast<x64::PageMapLevel3 *>(activeMap());
         }
 
-        void setActiveMap3(const x64::PageMapLevel3 *map) const noexcept {
-            setActiveMap(map);
-        }
-
         x64::PageMapLevel4 *activeMap4() const noexcept {
             return reinterpret_cast<x64::PageMapLevel4 *>(activeMap());
+        }
+
+        void setActiveMap(const void *map) const noexcept {
+            uint64_t reg = cr3();
+            reg = (reg & ~mAddressMask) | reinterpret_cast<uint64_t>(map);
+            setcr3(reg);
+        }
+
+        void setActiveMap3(const x64::PageMapLevel3 *map) const noexcept {
+            setActiveMap(map);
         }
 
         void setActiveMap4(const x64::PageMapLevel4 *map) const noexcept {
