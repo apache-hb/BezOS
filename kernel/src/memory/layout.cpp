@@ -1,4 +1,4 @@
-#include "memory/physical.hpp"
+#include "memory/layout.hpp"
 
 #include "util/memory.hpp"
 
@@ -123,7 +123,7 @@ SystemMemoryLayout SystemMemoryLayout::from(limine_memmap_response memmap) noexc
             break;
         }
 
-        KmDebugMessage(Hex(entry->base).pad(16, '0'), " | ", Int(entry->length).pad(12, ' '), " | ", GetMemoryMapTypeName(entry->type), "\n");
+        KmDebugMessage(Hex(entry->base).pad(16, '0'), " | ", km::bytes(entry->length), " | ", GetMemoryMapTypeName(entry->type), "\n");
     }
 
     uint64_t usableMemory = 0;

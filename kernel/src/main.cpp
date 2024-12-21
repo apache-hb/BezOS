@@ -5,7 +5,9 @@
 #include <stddef.h>
 #include <string.h>
 
-#include "memory/virtual.hpp"
+#include "memory/layout.hpp"
+#include "memory/allocator.hpp"
+
 #include "std/static_string.hpp"
 
 #include "arch/intrin.hpp"
@@ -14,21 +16,12 @@
 #include "kernel.hpp"
 
 #include "util/cpuid.hpp"
+#include "util/logger.hpp"
 #include "util/memory.hpp"
-
-#include "memory/physical.hpp"
 
 #include <limine.h>
 
 using namespace km;
-
-struct PhysicalAddress {
-    uint64_t address;
-};
-
-struct VirtualAddress {
-    uint64_t address;
-};
 
 [[gnu::used, gnu::section(".limine_requests")]]
 static volatile LIMINE_BASE_REVISION(3)
@@ -51,24 +44,30 @@ static volatile LIMINE_REQUESTS_START_MARKER
 [[gnu::used, gnu::section(".limine_requests_end")]]
 static volatile LIMINE_REQUESTS_END_MARKER
 
-static bool gHasDebugPort = false;
+class NullLog final : public ILogTarget {
+    void write(stdx::StringView) noexcept { }
+};
+
+class DebugPortLog final : public ILogTarget {
+    void write(stdx::StringView message) noexcept {
+        for (char c : message) {
+            __outbyte(0xE9, c);
+        }
+    }
+};
+
+static NullLog gNullLog;
+static DebugPortLog gDebugPortLog;
+
+static ILogTarget *gLogTarget = &gNullLog;
 
 // qemu e9 port check - i think bochs does something else
-static bool HasDebugPort(void) {
-    return gHasDebugPort;
-}
-
 static bool KmTestDebugPort(void) {
     return __inbyte(0xE9) == 0xE9;
 }
 
 void KmDebugWrite(stdx::StringView value) {
-    if (!HasDebugPort())
-        return;
-
-    for (char c : value) {
-        __outbyte(0xE9, c);
-    }
+    gLogTarget->write(value);
 }
 
 enum DescriptorFlags {
@@ -157,22 +156,26 @@ static void KmInitGdt(void) {
 }
 
 struct SystemMemory {
-    SystemMemoryLayout mLayout;
-    PhysicalAllocator mPhysicalAllocator;
-    PageAllocator pPageAllocator;
+    x64::PageManager pageController;
+    SystemMemoryLayout layout;
+    SystemAllocator allocator;
 
-    SystemMemory(SystemMemoryLayout layout)
-        : mLayout(layout)
-        , mPhysicalAllocator(&mLayout)
-        , pPageAllocator(&mPhysicalAllocator)
+    SystemMemory(SystemMemoryLayout layout, uintptr_t bits)
+        : pageController(bits)
+        , layout(layout)
+        , allocator(&layout)
     { }
 };
 
-static SystemMemory KmInitMemoryMap(void) {
+static SystemMemory KmInitMemoryMap(uintptr_t bits) {
     const struct limine_memmap_response *memmap = gMemmoryMapRequest.response;
+    const struct limine_kernel_address_response *kernel = gExecutableAddressRequest.response;
     KM_CHECK(memmap != NULL, "No memory map!");
+    KM_CHECK(kernel != NULL, "No kernel address!");
 
-    return SystemMemory { SystemMemoryLayout::from(*gMemmoryMapRequest.response) };
+    SystemMemory memory = SystemMemory { SystemMemoryLayout::from(*memmap), bits };
+    KmMapKernel(memory.pageController, memory.allocator, memory.layout, *kernel);
+    return memory;
 }
 
 static bool IsHypervisorPresent(void) {
@@ -191,7 +194,7 @@ struct HypervisorInfo {
     }
 
     bool isQemu(void) const noexcept {
-        return name == "TCGTCGTCGTCG" || name == "KVMKVMKVM\0\0\0";
+        return name == "TCGTCGTCGTCG";
     }
 
     bool isMicrosoftHyperV(void) const noexcept {
@@ -199,7 +202,8 @@ struct HypervisorInfo {
     }
 
     bool platformHasDebugPort(void) const noexcept {
-        return isQemu();
+        // qemu may use kvm, so check the e9 port in either case
+        return isQemu() || isKvm();
     }
 };
 
@@ -246,7 +250,7 @@ struct ProcessorInfo {
 
 static BrandString KmGetBrandString() noexcept {
     char brand[km::kBrandStringSize];
-    km::GetBrandString(brand);
+    km::KmGetBrandString(brand);
     return brand;
 }
 
@@ -302,21 +306,27 @@ extern "C" void kmain(void) {
 
     bool hvPresent = IsHypervisorPresent();
     HypervisorInfo hvInfo;
+    bool bHasDebugPort = false;
+
     if (hvPresent) {
         hvInfo = KmGetHypervisorInfo();
 
         if (hvInfo.platformHasDebugPort()) {
-            gHasDebugPort = KmTestDebugPort();
+            bHasDebugPort = KmTestDebugPort();
         }
+    }
+
+    if (bHasDebugPort) {
+        gLogTarget = &gDebugPortLog;
     }
 
     KM_CHECK(LIMINE_BASE_REVISION_SUPPORTED, "Unsupported limine base revision.");
 
     ProcessorInfo processor = KmGetProcessorInfo();
 
-    if (processor.maxpaddr != x64::paging::kMaxPhysicalAddress) {
-        KmDebugMessage("[INIT] Unsupported physical address size ", processor.maxpaddr, ". Only", x64::paging::kMaxPhysicalAddress, " bit addressing is supported.\n");
-        KM_PANIC("Unsupported physical address size.");
+    if (!x64::paging::isValidAddressWidth(processor.maxpaddr)) {
+        KmDebugMessage("[INIT] Unsupported physical address width ", processor.maxpaddr, "bits. Must be 40 or 48.\n");
+        KM_PANIC("Unsupported physical address width.");
     }
 
     KmDebugMessage("[INIT] System report.\n");
@@ -326,7 +336,7 @@ extern "C" void kmain(void) {
     if (hvPresent) {
         KmDebugMessage("| /SYS/HV       | Hypervisor           | ", hvInfo.name, "\n");
         KmDebugMessage("| /SYS/HV       | Max CPUID leaf       | ", Hex(hvInfo.maxleaf).pad(8, '0'), "\n");
-        KmDebugMessage("| /SYS/HV       | e9 debug port        | ", gHasDebugPort ? stdx::StringView("Enabled") : stdx::StringView("Disabled"), "\n");
+        KmDebugMessage("| /SYS/HV       | e9 debug port        | ", bHasDebugPort ? stdx::StringView("Enabled") : stdx::StringView("Disabled"), "\n");
     } else {
         KmDebugMessage("| /SYS/HV       | Hypervisor           | Not present\n");
         KmDebugMessage("| /SYS/HV       | Max CPUID leaf       | 0x00000000\n");
@@ -353,7 +363,7 @@ extern "C" void kmain(void) {
     KmInitGdt();
 
     [[maybe_unused]]
-    SystemMemory layout = KmInitMemoryMap();
+    SystemMemory layout = KmInitMemoryMap(processor.maxpaddr);
 
     KM_PANIC("Test bugcheck.");
 

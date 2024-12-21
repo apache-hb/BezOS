@@ -59,3 +59,15 @@ static inline void __DEFAULT_FN_ATTRS __halt(void) {
 static inline void __DEFAULT_FN_ATTRS __lgdt(struct GDTR gdtr) {
     asm volatile("lgdt %0" :: "m"(gdtr));
 }
+
+namespace x64 {
+    static inline uint64_t __DEFAULT_FN_ATTRS cr3() noexcept {
+        uint64_t value;
+        asm volatile("mov %%cr3, %0" : "=r"(value));
+        return value;
+    }
+
+    static inline void __DEFAULT_FN_ATTRS setcr3(uint64_t value) noexcept {
+        asm volatile("mov %0, %%cr3" :: "r"(value));
+    }
+}

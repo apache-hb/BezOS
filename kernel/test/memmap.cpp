@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
-#include "memory/physical.hpp"
+#include "std/string_view.hpp"
+
+#include "memory/layout.hpp"
 
 #include <limine.h>
 
@@ -16,7 +18,7 @@ TEST(MemoryMapTest, Basic) {
     limine_memmap_response resp = { 0, std::size(entries), entries };
 
     [[maybe_unused]]
-    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(&resp);
+    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(resp);
 
     ASSERT_TRUE(true) << "Layout created successfully";
 }
@@ -27,7 +29,7 @@ TEST(MemoryMapTest, NullEntry) {
     limine_memmap_response resp = { 0, std::size(entries), entries };
 
     [[maybe_unused]]
-    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(&resp);
+    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(resp);
 
     ASSERT_TRUE(true) << "Layout created successfully";
 }
@@ -38,7 +40,7 @@ TEST(MemoryMapTest, ManyNullEntries) {
     limine_memmap_response resp = { 0, std::size(entries), entries };
 
     [[maybe_unused]]
-    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(&resp);
+    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(resp);
 
     ASSERT_TRUE(true) << "Layout created successfully";
 }
@@ -50,7 +52,7 @@ TEST(MemoryMapTest, Overflow) {
     limine_memmap_response resp = { 0, std::size(entries), entries };
 
     [[maybe_unused]]
-    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(&resp);
+    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(resp);
 
     ASSERT_TRUE(true) << "Layout created successfully";
 }
@@ -69,7 +71,7 @@ TEST(MemoryMapTest, TooManyUsableRanges) {
     limine_memmap_response resp = { 0, std::size(entries), entries };
 
     [[maybe_unused]]
-    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(&resp);
+    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(resp);
 
     ASSERT_TRUE(true) << "Layout created successfully";
 }

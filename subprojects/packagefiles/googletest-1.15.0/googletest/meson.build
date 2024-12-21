@@ -16,7 +16,8 @@ deps = [ dependency('threads') ]
 libgtest = static_library('gtest', gtest_libsources,
     include_directories : gtest_incdir,
     dependencies : deps,
-    build_by_default : false
+    build_by_default : false,
+    native : true,
 )
 
 gtest_dep = declare_dependency(
@@ -28,7 +29,8 @@ gtest_dep = declare_dependency(
 libgtestmain = static_library('gtest_main', gtest_mainsources,
     include_directories : gtest_incdir,
     dependencies : deps,
-    build_by_default : false
+    build_by_default : false,
+    native : true,
 )
 
 gtest_main_dep = declare_dependency(

@@ -1,13 +1,14 @@
 #pragma once
 
+#include <cstddef>
 #include <stddef.h>
 #include <stdint.h>
 
+#include "util/math.hpp"
+#include "arch/paging.hpp"
 #include "std/static_vector.hpp"
 
 #include <limine.h>
-
-struct limine_memmap_response;
 
 namespace km {
     struct PhysicalAddress {
@@ -23,6 +24,10 @@ namespace km {
         constexpr PhysicalAddress(uintptr_t address) noexcept
             : address(address)
         { }
+
+        constexpr PhysicalAddress(std::nullptr_t) noexcept
+            : address(0)
+        { }
     };
 
     struct VirtualAddress {
@@ -36,7 +41,15 @@ namespace km {
         constexpr size_t size() const noexcept {
             return back.address - front.address;
         }
+
+        constexpr bool contains(PhysicalAddress addr) const noexcept {
+            return addr.address >= front.address && addr.address < back.address;
+        }
     };
+
+    constexpr size_t pages(size_t bytes) noexcept {
+        return roundpow2(bytes, x64::kPageSize) / x64::kPageSize;
+    }
 
     struct SystemMemoryLayout {
         using FreeMemoryRanges = stdx::StaticVector<MemoryRange, 16>;
