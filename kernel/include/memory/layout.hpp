@@ -86,12 +86,14 @@ namespace km {
     }
 
     struct SystemMemoryLayout {
-        using FreeMemoryRanges = stdx::StaticVector<MemoryRange, 16>;
-        using ReservedMemoryRanges = stdx::StaticVector<MemoryRange, 16>;
+        using FreeMemoryRanges = stdx::StaticVector<MemoryRange, 32>;
+        using ReservedMemoryRanges = stdx::StaticVector<MemoryRange, 32>;
 
         FreeMemoryRanges available;
         FreeMemoryRanges reclaimable;
         ReservedMemoryRanges reserved;
+
+        void reclaimBootMemory() noexcept;
 
         static SystemMemoryLayout from(limine_memmap_response memmap) noexcept;
     };

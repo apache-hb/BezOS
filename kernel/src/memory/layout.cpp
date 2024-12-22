@@ -4,6 +4,7 @@
 
 #include "kernel.hpp"
 
+#include <algorithm>
 #include <limine.h>
 
 #include <string.h>
@@ -146,4 +147,27 @@ SystemMemoryLayout SystemMemoryLayout::from(limine_memmap_response memmap) noexc
     KmDebugMessage("[INIT] Reclaimable memory: ", km::bytes(reclaimableMemory), "\n");
 
     return SystemMemoryLayout { freeMemory, reclaimable, reservedMemory };
+}
+
+void SystemMemoryLayout::reclaimBootMemory() noexcept {
+    for (MemoryRange range : reclaimable) {
+        available.add(range);
+    }
+
+    std::sort(available.begin(), available.end(), [](const MemoryRange& a, const MemoryRange& b) {
+        return a.front.address < b.front.address;
+    });
+
+    // merge adjacent ranges
+    for (ssize_t i = 0; i < available.count(); i++) {
+        for (ssize_t j = i + 1; j < available.count(); j++) {
+            if (available[i].back == available[j].front) {
+                available[i].back = available[j].back;
+                available.remove(j);
+                j--;
+            }
+        }
+    }
+
+    reclaimable.clear();
 }
