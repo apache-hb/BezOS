@@ -217,7 +217,7 @@ namespace x64 {
     static_assert(sizeof(IdtEntry) == 16);
 }
 
-struct Idt {
+struct alignas(0x8) Idt {
     static constexpr size_t kCount = 256;
     x64::IdtEntry entries[kCount];
 };
@@ -475,7 +475,9 @@ extern "C" void kmain(void) {
 
     __sti();
 
-    __int<0x0>();
+    // __int<0x0>();
+
+    __int<0x1>();
 
     KM_PANIC("Test bugcheck.");
 

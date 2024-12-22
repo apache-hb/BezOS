@@ -45,16 +45,18 @@ KmIsrStub:
 
     iretq
 
+.equ ISR_TABLE_STRIDE, 16
+
 .macro ISR_ENTRY vector
-    .align 16
-    KmIsrVector\vector:
+    .align ISR_TABLE_STRIDE
+    KmIsr\vector:
         pushq \vector
         jmp KmIsrStub
 .endm
 
 .macro ISR_ENTRY2 errcode, vector
-    .align 16
-    KmIsrVector\vector:
+    .align ISR_TABLE_STRIDE
+    KmIsr\vector:
         pushq \errcode
         pushq \vector
         jmp KmIsrStub
@@ -77,13 +79,13 @@ KmIsrTable:
     ISR_ENTRY $12
     ISR_ENTRY $13
     ISR_ENTRY $14
-    ISR_ENTRY $15
+    ISR_ENTRY2 $0, $15
     ISR_ENTRY2 $0, $16
     ISR_ENTRY $17
     ISR_ENTRY2 $0, $18
     ISR_ENTRY2 $0, $19
     ISR_ENTRY2 $0, $20
-    ISR_ENTRY2 $0, $21
+    ISR_ENTRY $21
     ISR_ENTRY2 $0, $22
     ISR_ENTRY2 $0, $23
     ISR_ENTRY2 $0, $24
@@ -94,4 +96,3 @@ KmIsrTable:
     ISR_ENTRY2 $0, $29
     ISR_ENTRY2 $0, $30
     ISR_ENTRY2 $0, $31
-    ISR_ENTRY2 $0, $32
