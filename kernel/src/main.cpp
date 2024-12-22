@@ -164,12 +164,14 @@ static void KmInitGdt(void) {
 struct SystemMemory {
     km::PageManager pager;
     SystemMemoryLayout layout;
-    SystemAllocator allocator;
+    PageAllocator pmm;
+    VirtualAllocator vmm;
 
     SystemMemory(SystemMemoryLayout layout, uintptr_t bits, limine_hhdm_response hhdm) noexcept
         : pager(bits, hhdm.offset)
         , layout(layout)
-        , allocator(&layout)
+        , pmm(&layout)
+        , vmm(&pager, &pmm)
     { }
 };
 
@@ -183,7 +185,7 @@ static SystemMemory KmInitMemoryMap(uintptr_t bits) {
     KM_CHECK(hhdm != NULL, "No higher half direct map!");
 
     SystemMemory memory = SystemMemory { SystemMemoryLayout::from(*memmap), bits, *hhdm };
-    KmMapKernel(memory.pager, memory.allocator, memory.layout, *kernel);
+    KmMapKernel(memory.pager, memory.vmm, memory.layout, *kernel);
     return memory;
 }
 

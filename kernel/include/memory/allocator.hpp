@@ -38,16 +38,23 @@ namespace km {
         PhysicalPointer<x64::page> alloc4k() noexcept;
     };
 
-    class SystemAllocator {
-        const SystemMemoryLayout *mLayout;
+    class VirtualAllocator {
+        const km::PageManager *mPageManager;
+        PageAllocator *mPageAllocator;
+        x64::page *mRootPageTable;
+
+        x64::page *alloc4k() noexcept;
+
+        void setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddress address) noexcept;
 
     public:
-        SystemAllocator(const SystemMemoryLayout *layout) noexcept;
+        VirtualAllocator(const km::PageManager *pm, PageAllocator *alloc) noexcept;
 
-        VirtualAddress map4k(PhysicalAddress paddr, size_t pages, PageFlags flags) noexcept;
-        void unmap4k(VirtualAddress vaddr, size_t pages) noexcept;
+        x64::page *rootPageTable() noexcept {
+            return mRootPageTable;
+        }
 
-        VirtualAddress alloc4k(size_t pages, PageFlags flags) noexcept;
+        void map4k(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags) noexcept;
     };
 }
 
@@ -59,7 +66,7 @@ namespace km {
 /// @param hhdm direct map offset
 void KmMapKernel(
     const km::PageManager& pm,
-    km::SystemAllocator& vmm,
+    km::VirtualAllocator& vmm,
     const km::SystemMemoryLayout& layout,
     limine_kernel_address_response address
 ) noexcept;
