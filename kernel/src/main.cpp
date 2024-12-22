@@ -266,18 +266,10 @@ struct [[gnu::packed]] IsrContext {
     uint64_t ss;
 };
 
-#if 0
-extern "C" IsrContext *KmIsrDispatchRoutine(IsrContext *context) {
-    KmDebugMessage("[INT] Interrupt\n");
-    // KmDebugMessage("[INT] Interrupt: ", context->vector, " Error: ", context->error, "\n");
+extern "C" void *KmIsrDispatchRoutine(IsrContext *context) {
+    KmDebugMessage("[INT] Interrupt: ", context->vector, " Error: ", context->error, "\n");
     return context;
 }
-#else
-extern "C" uint64_t KmIsrDispatchRoutine(IsrContext *context) {
-    KmDebugMessage("[INT] Interrupt: ", context->vector, " Error: ", context->error, "\n");
-    return context->rsp;
-}
-#endif
 
 static void KmInitInterrupts(void) {
     for (size_t i = 0; i < Idt::kCount; i++) {
