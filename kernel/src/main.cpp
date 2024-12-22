@@ -477,7 +477,7 @@ extern "C" void kmain(void) {
 
     // __int<0x0>();
 
-    __int<0x1>();
+    __int<0x3>();
 
     KM_PANIC("Test bugcheck.");
 

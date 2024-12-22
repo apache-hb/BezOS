@@ -63,6 +63,7 @@ KmIsrStub:
 .endm
 
 .global KmIsrTable
+.align ISR_TABLE_STRIDE
 KmIsrTable:
     ISR_ENTRY2 $0, $0
     ISR_ENTRY2 $0, $1
