@@ -23,6 +23,21 @@ namespace km {
         return static_cast<PageFlags>(static_cast<int>(lhs) & static_cast<int>(rhs));
     }
 
+    class PageAllocator {
+        const SystemMemoryLayout *mLayout;
+        int mCurrentRange;
+        PhysicalAddress mOffset;
+
+        MemoryRange currentRange() const noexcept;
+
+        void setCurrentRange(int range) noexcept;
+
+    public:
+        PageAllocator(const SystemMemoryLayout *layout) noexcept;
+
+        PhysicalPointer<x64::page> alloc4k() noexcept;
+    };
+
     class SystemAllocator {
         const SystemMemoryLayout *mLayout;
 

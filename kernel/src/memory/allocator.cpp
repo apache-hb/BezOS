@@ -57,41 +57,38 @@ SystemAllocator::SystemAllocator(const SystemMemoryLayout *layout) noexcept
     KmDebugMessage("[INIT] Physical memory bitmap size: ", km::bytes(size), ".\n");
 }
 
-class PageAllocator {
-    const SystemMemoryLayout *mLayout;
-    int mCurrentRange;
-    PhysicalAddress mOffset;
+/// page allocator
 
-    MemoryRange currentRange() const noexcept {
-        return mLayout->available[mCurrentRange];
+MemoryRange PageAllocator::currentRange() const noexcept {
+    return mLayout->available[mCurrentRange];
+}
+
+void PageAllocator::setCurrentRange(int range) noexcept {
+    KM_CHECK(range < mLayout->available.count(), "Out of memory.");
+
+    mCurrentRange = range;
+    mOffset = currentRange().front;
+}
+
+PageAllocator::PageAllocator(const SystemMemoryLayout *layout) noexcept
+    : mLayout(layout)
+{
+    setCurrentRange(0);
+}
+
+PhysicalPointer<x64::page> PageAllocator::alloc4k() noexcept {
+    if (currentRange().contains(mOffset + x64::kPageSize)) {
+        x64::page *result = mOffset.as<x64::page>();
+        mOffset += x64::kPageSize;
+        return PhysicalPointer{result};
     }
 
-    void setCurrentRange(int range) noexcept {
-        KM_CHECK(range < mLayout->available.count(), "Out of memory.");
+    setCurrentRange(mCurrentRange + 1);
 
-        mCurrentRange = range;
-        mOffset = currentRange().front;
-    }
+    return alloc4k();
+}
 
-public:
-    PageAllocator(const SystemMemoryLayout *layout) noexcept
-        : mLayout(layout)
-    {
-        setCurrentRange(0);
-    }
-
-    PhysicalPointer<x64::page> alloc4k() noexcept {
-        if (currentRange().contains(mOffset + x64::kPageSize)) {
-            x64::page *result = mOffset.as<x64::page>();
-            mOffset += x64::kPageSize;
-            return PhysicalPointer{result};
-        }
-
-        setCurrentRange(mCurrentRange + 1);
-
-        return alloc4k();
-    }
-};
+// stage 1 allocator
 
 struct Stage1Memory {
     const km::PageManager *pager;
