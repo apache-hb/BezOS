@@ -44,8 +44,7 @@ void KmDebugMessage(T&&... args) noexcept {
     (KmDebugWrite(args), ...);
 }
 
-[[noreturn]]
-void KmHalt(void);
+extern "C" [[noreturn]] void KmHalt(void);
 
 [[noreturn]]
 void KmBugCheck(stdx::StringView message, stdx::StringView file, unsigned line);

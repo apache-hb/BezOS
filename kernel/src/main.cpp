@@ -16,6 +16,7 @@
 #include "kernel.hpp"
 
 #include "util/cpuid.hpp"
+#include "util/digit.hpp"
 #include "util/logger.hpp"
 #include "util/memory.hpp"
 
@@ -109,7 +110,7 @@ enum GdtEntry {
     eGdtEntry_Count
 };
 
-static const uint64_t gGdtEntries[eGdtEntry_Count] = {
+static constexpr uint64_t gGdtEntries[eGdtEntry_Count] = {
     [eGdtEntry_Null] = 0,
     [eGdtEntry_Ring0Code] = BuildSegmentDescriptor(
         DescriptorFlags(eDescriptorFlag_Long | eDescriptorFlag_Granularity),
@@ -123,6 +124,9 @@ static const uint64_t gGdtEntries[eGdtEntry_Count] = {
     )
 };
 
+static constexpr uint64_t kCodeSelector = eGdtEntry_Ring0Code * sizeof(uint64_t);
+static constexpr uint64_t kDataSelector = eGdtEntry_Ring0Data * sizeof(uint64_t);
+
 static void KmInitGdt(void) {
     struct GDTR gdtr = {
         .limit = sizeof(gGdtEntries) - 1,
@@ -131,7 +135,6 @@ static void KmInitGdt(void) {
 
     __lgdt(gdtr);
 
-    uint64_t codeSegment = eGdtEntry_Ring0Code * sizeof(uint64_t);
     asm volatile (
         // long jump to reload the CS register with the new code segment
         "pushq %[code]\n"
@@ -140,11 +143,10 @@ static void KmInitGdt(void) {
         "lretq\n"
         "1:"
         : /* no outputs */
-        : [code] "r"(codeSegment)
+        : [code] "r"(kCodeSelector)
         : "memory", "rax"
     );
 
-    uint16_t dataSegment = eGdtEntry_Ring0Data * sizeof(uint64_t);
     asm volatile (
         // zero out all segments aside from ss
         "mov $0, %%ax\n"
@@ -153,10 +155,10 @@ static void KmInitGdt(void) {
         "mov %%ax, %%fs\n"
         "mov %%ax, %%gs\n"
         // load the data segment into ss
-        "mov %[data], %%ax\n"
+        "movw %[data], %%ax\n"
         "mov %%ax, %%ss\n"
         : /* no outputs */
-        : [data] "r"(dataSegment) /* inputs */
+        : [data] "r"((uint16_t)kDataSelector) /* inputs */
         : "memory", "rax" /* clobbers */
     );
 }
@@ -187,6 +189,107 @@ static SystemMemory KmInitMemoryMap(uintptr_t bits) {
     SystemMemory memory = SystemMemory { SystemMemoryLayout::from(*memmap), bits, *hhdm };
     KmMapKernel(memory.pager, memory.vmm, memory.layout, *kernel);
     return memory;
+}
+
+namespace x64 {
+    namespace idt {
+        static constexpr uint8_t kFlagPresent = (1 << 7);
+        static constexpr uint8_t kInterruptGate = 0b1110;
+        // static constexpr uint8_t kTrapGate = 0b1111;
+        // static constexpr uint8_t kTaskGate = 0b0101;
+
+        static constexpr uint8_t kPrivilegeRing0 = 0;
+        // static constexpr uint8_t kPrivilegeRing1 = 1;
+        // static constexpr uint8_t kPrivilegeRing2 = 2;
+        // static constexpr uint8_t kPrivilegeRing3 = 3;
+    }
+
+    struct [[gnu::packed]] IdtEntry {
+        uint16_t address0;
+        uint16_t selector;
+        uint8_t ist;
+        uint8_t flags;
+        uint16_t address1;
+        uint32_t address2;
+        uint32_t reserved;
+    };
+
+    static_assert(sizeof(IdtEntry) == 16);
+}
+
+struct Idt {
+    static constexpr size_t kCount = 256;
+    x64::IdtEntry entries[kCount];
+};
+
+static x64::IdtEntry KmCreateIdtEntry(void *handler, uint8_t dpl) {
+    uint8_t flags = x64::idt::kFlagPresent | x64::idt::kInterruptGate | ((dpl & 0b11) << 5);
+    uintptr_t address = (uintptr_t)handler;
+    return x64::IdtEntry {
+        .address0 = uint16_t(address & 0xFFFF),
+        .selector = kCodeSelector,
+        .flags = flags,
+        .address1 = uint16_t((address >> 16) & 0xFFFF),
+        .address2 = uint32_t(address >> 32),
+    };
+}
+
+static constexpr size_t kIsrTableStride = 16;
+extern "C" char KmIsrTable[];
+
+static Idt gIdt;
+
+struct [[gnu::packed]] IsrContext {
+    uint64_t rax;
+    uint64_t rbx;
+    uint64_t rcx;
+    uint64_t rdx;
+    uint64_t rdi;
+    uint64_t rsi;
+    uint64_t r8;
+    uint64_t r9;
+    uint64_t r10;
+    uint64_t r11;
+    uint64_t r12;
+    uint64_t r13;
+    uint64_t r14;
+    uint64_t r15;
+    uint64_t rbp;
+
+    uint64_t vector;
+    uint64_t error;
+
+    uint64_t rip;
+    uint64_t cs;
+    uint64_t rflags;
+    uint64_t rsp;
+    uint64_t ss;
+};
+
+#if 0
+extern "C" IsrContext *KmIsrDispatchRoutine(IsrContext *context) {
+    KmDebugMessage("[INT] Interrupt\n");
+    // KmDebugMessage("[INT] Interrupt: ", context->vector, " Error: ", context->error, "\n");
+    return context;
+}
+#else
+extern "C" uint64_t KmIsrDispatchRoutine(IsrContext *context) {
+    KmDebugMessage("[INT] Interrupt: ", context->vector, " Error: ", context->error, "\n");
+    return context->rsp;
+}
+#endif
+
+static void KmInitInterrupts(void) {
+    for (size_t i = 0; i < Idt::kCount; i++) {
+        gIdt.entries[i] = KmCreateIdtEntry(KmIsrTable + (i * kIsrTableStride), x64::idt::kPrivilegeRing0);
+    }
+
+    IDTR idtr = {
+        .limit = (sizeof(x64::IdtEntry) * Idt::kCount) - 1,
+        .base = (uintptr_t)&gIdt,
+    };
+
+    __lidt(idtr);
 }
 
 static bool IsHypervisorPresent(void) {
@@ -374,7 +477,13 @@ extern "C" void kmain(void) {
     KmInitGdt();
 
     [[maybe_unused]]
-    SystemMemory layout = KmInitMemoryMap(processor.maxpaddr);
+    SystemMemory memory = KmInitMemoryMap(processor.maxpaddr);
+
+    KmInitInterrupts();
+
+    __sti();
+
+    __int<0x0>();
 
     KM_PANIC("Test bugcheck.");
 

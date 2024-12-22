@@ -69,12 +69,10 @@ PhysicalPointer<x64::page> PageAllocator::alloc4k() noexcept {
     // TODO: currentRange somehow gets corrupted
     if (currentRange().contains(mOffset + x64::kPageSize)) {
         x64::page *result = mOffset.as<x64::page>();
-        KmDebugMessage("Allocated 4k page at ", Hex(mOffset.address), " in range ", mCurrentRange, " [", Hex(currentRange().front.address), ", ", Hex(currentRange().back.address), ")\n");
         mOffset += x64::kPageSize;
         return PhysicalPointer{result};
     }
 
-    KmDebugMessage("Switching to range ", mCurrentRange, " at ", mOffset.address, "\n");
     setCurrentRange(mCurrentRange + 1);
 
     return alloc4k();

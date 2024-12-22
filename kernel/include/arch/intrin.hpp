@@ -8,6 +8,11 @@ struct [[gnu::packed]] GDTR {
     uint64_t base;
 };
 
+struct [[gnu::packed]] IDTR {
+    uint16_t limit;
+    uint64_t base;
+};
+
 #define __DEFAULT_FN_ATTRS __attribute__((__always_inline__, __nodebug__, unused))
 
 static inline unsigned char __DEFAULT_FN_ATTRS __inbyte(unsigned short port) {
@@ -58,6 +63,15 @@ static inline void __DEFAULT_FN_ATTRS __halt(void) {
 
 static inline void __DEFAULT_FN_ATTRS __lgdt(struct GDTR gdtr) {
     asm volatile("lgdt %0" :: "m"(gdtr));
+}
+
+static inline void __DEFAULT_FN_ATTRS __lidt(struct IDTR idtr) {
+    asm volatile("lidt %0" :: "m"(idtr));
+}
+
+template<uint8_t N>
+static inline void __DEFAULT_FN_ATTRS __int() {
+    asm volatile("int %0" :: "N"(N));
 }
 
 namespace x64 {

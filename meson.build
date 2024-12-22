@@ -6,6 +6,7 @@ project('bezos', [ 'c', 'cpp' ],
         'warning_level=3',
         'b_pie=false',
         'b_staticpic=false',
+        'b_ndebug=true',
         'debug=false',
         'cpp_eh=none',
         'cpp_rtti=false'
@@ -43,6 +44,7 @@ limine = dependency('limine')
 
 src = [
     'kernel/src/crt.c',
+    'kernel/src/isr.S',
     'kernel/src/main.cpp',
     'kernel/src/check.cpp',
 ]
