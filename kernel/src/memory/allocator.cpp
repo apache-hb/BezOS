@@ -198,13 +198,15 @@ static void MapStage1Memory(Stage1Memory& memory, const km::PageManager& pm, con
     }
 }
 
-/// MapKernelStage1 is responsible for remapping the kernel and higher half mappings.
-static void MapKernelStage1(
-    Stage1Memory& memory,
+void KmMapKernel(
     const km::PageManager& pm,
+    km::SystemAllocator&,
     const km::SystemMemoryLayout& layout,
     limine_kernel_address_response address
 ) noexcept {
+    PageAllocator allocator{&layout};
+    Stage1Memory memory{&pm, &allocator};
+
     // first map the kernel pages
     MapKernelPages(memory, address);
 
@@ -215,15 +217,4 @@ static void MapKernelStage1(
     pm.setActiveMap(((uintptr_t)memory.rootPageTable() - pm.hhdmOffset()));
 
     KmDebugMessage("[INIT] Stage1 page tables applied.\n");
-}
-
-void KmMapKernel(
-    const km::PageManager& pm,
-    km::SystemAllocator&,
-    const km::SystemMemoryLayout& layout,
-    limine_kernel_address_response address
-) noexcept {
-    PageAllocator allocator{&layout};
-    Stage1Memory memory{&pm, &allocator};
-    MapKernelStage1(memory, pm, layout, address);
 }
