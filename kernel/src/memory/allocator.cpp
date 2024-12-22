@@ -1,8 +1,8 @@
 #include "memory/allocator.hpp"
 
-#include "kernel.hpp"
 #include "memory/paging.hpp"
-#include "util/memory.hpp"
+
+#include "kernel.hpp"
 
 #include <limits.h>
 #include <string.h>
@@ -66,19 +66,21 @@ PageAllocator::PageAllocator(const SystemMemoryLayout *layout) noexcept
 }
 
 PhysicalPointer<x64::page> PageAllocator::alloc4k() noexcept {
+    // TODO: currentRange somehow gets corrupted
     if (currentRange().contains(mOffset + x64::kPageSize)) {
         x64::page *result = mOffset.as<x64::page>();
+        KmDebugMessage("Allocated 4k page at ", Hex(mOffset.address), " in range ", mCurrentRange, " [", Hex(currentRange().front.address), ", ", Hex(currentRange().back.address), ")\n");
         mOffset += x64::kPageSize;
         return PhysicalPointer{result};
     }
 
+    KmDebugMessage("Switching to range ", mCurrentRange, " at ", mOffset.address, "\n");
     setCurrentRange(mCurrentRange + 1);
 
     return alloc4k();
 }
 
 // stage 1 allocator
-
 
 x64::page *VirtualAllocator::alloc4k() noexcept {
     PhysicalPointer<x64::page> result = mPageAllocator->alloc4k();
@@ -173,7 +175,7 @@ static void MapStage1Memory(VirtualAllocator& memory, const km::PageManager& pm,
 void KmMapKernel(
     const km::PageManager& pm,
     km::VirtualAllocator& vmm,
-    const km::SystemMemoryLayout& layout,
+    km::SystemMemoryLayout& layout,
     limine_kernel_address_response address
 ) noexcept {
     PageAllocator allocator{&layout};
@@ -186,6 +188,8 @@ void KmMapKernel(
 
     // then apply the new page tables
     pm.setActiveMap(((uintptr_t)vmm.rootPageTable() - pm.hhdmOffset()));
+
+    layout.reclaimBootMemory();
 
     KmDebugMessage("[INIT] Stage1 page tables applied.\n");
 }

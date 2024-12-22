@@ -167,9 +167,9 @@ struct SystemMemory {
     PageAllocator pmm;
     VirtualAllocator vmm;
 
-    SystemMemory(SystemMemoryLayout layout, uintptr_t bits, limine_hhdm_response hhdm) noexcept
+    SystemMemory(SystemMemoryLayout memory, uintptr_t bits, limine_hhdm_response hhdm) noexcept
         : pager(bits, hhdm.offset)
-        , layout(layout)
+        , layout(memory)
         , pmm(&layout)
         , vmm(&pager, &pmm)
     { }
