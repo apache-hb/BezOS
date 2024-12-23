@@ -2,12 +2,39 @@
 
 #include "memory/allocator.hpp"
 #include "memory/layout.hpp"
+#include <utility>
 namespace km {
     namespace apic {
-        enum IcrDeliver {
+        enum class IcrDeliver : uint32_t {
             eSelf = 0b01,
             eAll = 0b10,
             eOther = 0b11,
+        };
+
+        enum class Ivt {
+            eTimer = 0x320,
+            eThermal = 0x330,
+            ePerformance = 0x340,
+            eLvt0 = 0x350,
+            eLvt1 = 0x360,
+            eError = 0x370,
+        };
+
+        enum class Polarity {
+            eActiveHigh = 0,
+            eActiveLow = 1,
+        };
+
+        enum class Trigger {
+            eEdge = 0,
+            eLevel = 1,
+        };
+
+        struct IvtConfig {
+            uint8_t vector;
+            Polarity polarity;
+            Trigger trigger;
+            bool enabled;
         };
     }
 
@@ -18,15 +45,10 @@ namespace km {
         static constexpr uint16_t kApicId = 0x20;
         static constexpr uint16_t kApicVersion = 0x30;
 
-        static constexpr uint16_t kTimerIvt = 0x320;
-        static constexpr uint16_t kThermalIvt = 0x330;
-        static constexpr uint16_t kPerformanceIvt = 0x340;
-        static constexpr uint16_t kLint0Ivt = 0x350;
-        static constexpr uint16_t kLint1Ivt = 0x360;
-        static constexpr uint16_t kErrorIvt = 0x370;
-
         static constexpr uint32_t kIcrHigh = 0x310;
         static constexpr uint32_t kIcrLow = 0x300;
+
+        static constexpr uint32_t kIvtDisable = (1 << 16);
 
         static constexpr uint32_t kApicEnable = (1 << 8);
 
@@ -57,21 +79,24 @@ namespace km {
             reg(kSpuriousInt) = value;
         }
 
-        uint32_t timerLvt(void) const noexcept {
-            return reg(kTimerIvt);
-        }
-
-        void setTimerLvt(uint32_t value) noexcept {
-            reg(kTimerIvt) = value;
-        }
-
         void sendIpi(uint32_t dst, uint8_t vector) noexcept {
             reg(kIcrHigh) = dst << 24;
             reg(kIcrLow) = vector;
         }
 
+        void configure(apic::Ivt ivt, apic::IvtConfig config) noexcept {
+            uint32_t entry
+                = config.vector
+                | (std::to_underlying(config.polarity) << 13)
+                | (std::to_underlying(config.trigger) << 15)
+                | ((config.enabled ? 0 : 1) << 16);
+
+            reg(std::to_underlying(ivt)) = entry;
+        }
+
         void sendIpi(apic::IcrDeliver deliver, uint8_t vector) noexcept {
-            reg(kIcrLow) = deliver << 18 | uint16_t(vector);
+            reg(kIcrHigh) = 0;
+            reg(kIcrLow) = (std::to_underlying(deliver) << 18) | vector;
         }
 
         void clearEndOfInterrupt(void) noexcept {
@@ -83,7 +108,7 @@ namespace km {
         }
 
         void setSpuriousVector(uint8_t vector) noexcept {
-            setSpuriousInt((spuriousInt() & 0xFF) | vector);
+            setSpuriousInt((spuriousInt() & ~0xFF) | vector);
         }
     };
 }

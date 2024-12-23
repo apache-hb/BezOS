@@ -294,7 +294,13 @@ static LocalAPIC KmEnableAPIC(km::VirtualAllocator& vmm, const km::PageManager& 
     KmDebugMessage("[APIC] ID: ", lapic.id(), ", Version: ", lapic.version(), "\n");
 
     lapic.setSpuriousVector(32);
+
+    for (auto ivt : {apic::Ivt::eTimer, apic::Ivt::eThermal, apic::Ivt::ePerformance, apic::Ivt::eLvt0, apic::Ivt::eLvt1, apic::Ivt::eError}) {
+        lapic.configure(ivt, { .enabled = false });
+    }
+
     lapic.enable();
+
 
     return lapic;
 }
@@ -507,7 +513,7 @@ extern "C" void kmain(void) {
 
     lapic.clearEndOfInterrupt();
 
-    lapic.sendIpi(lapic.id(), 0);
+    lapic.sendIpi(apic::IcrDeliver::eSelf, 1);
 
     KM_PANIC("Test bugcheck.");
 
