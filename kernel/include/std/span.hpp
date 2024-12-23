@@ -2,6 +2,10 @@
 
 #include "std/std.hpp"
 
+#include "std/traits.hpp"
+
+#include <iterator>
+
 namespace stdx {
     template<typename T>
     class Span {
@@ -15,17 +19,17 @@ namespace stdx {
 
         template<size_t N>
         constexpr Span(T (&array)[N])
-            : Span(array, array + N)
+            : Span(std::begin(array), std::end(array))
+        { }
+
+        template<IsRange<T> R>
+        constexpr Span(R&& range)
+            : Span(range.begin(), range.end())
         { }
 
         constexpr Span(T *front [[gnu::nonnull]], T *back [[gnu::nonnull]])
             : mFront(front)
             , mBack(back)
-        { }
-
-        constexpr Span(T *front [[gnu::nonnull]], size_t count)
-            : mFront(front)
-            , mBack(front + count)
         { }
 
         constexpr ssize_t count() const { return mBack - mFront; }

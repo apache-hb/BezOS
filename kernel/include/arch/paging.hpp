@@ -1,8 +1,6 @@
 #pragma once
 
-#include "arch/intrin.hpp"
 #include <stdint.h>
-#include <type_traits>
 
 namespace x64 {
     inline void setmask(uint64_t& value, uint64_t mask, bool state) {

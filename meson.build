@@ -7,7 +7,6 @@ project('bezos', [ 'c', 'cpp' ],
         'b_pie=false',
         'b_staticpic=false',
         'b_ndebug=true',
-        'debug=false',
         'cpp_eh=none',
         'cpp_rtti=false'
     ],
@@ -33,24 +32,24 @@ common_args = [
 c_args = cc.get_supported_arguments([ '-Wno-language-extension-token' ] + common_args)
 cpp_args = cpp.get_supported_arguments([ '-Wno-c99-designator' ] + common_args)
 
-kernelsrc = [
+limine = dependency('limine')
+
+src = [
     'kernel/src/util/cpuid.cpp',
     'kernel/src/util/memory.cpp',
     'kernel/src/memory/layout.cpp',
     'kernel/src/memory/allocator.cpp',
-]
 
-limine = dependency('limine')
-
-src = [
     'kernel/src/crt.c',
+    'kernel/src/cxxrt.cpp',
     'kernel/src/isr.S',
     'kernel/src/main.cpp',
     'kernel/src/check.cpp',
     'kernel/src/apic.cpp',
+    'kernel/src/uart.cpp',
 ]
 
-executable('bezos', src + kernelsrc,
+executable('bezos', src,
     c_args : c_args,
     cpp_args : cpp_args,
     include_directories : inc,

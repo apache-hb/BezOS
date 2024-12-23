@@ -1,5 +1,7 @@
 #pragma once
 
+#include "util/format.hpp"
+
 #include "std/span.hpp"
 
 #include <stddef.h>
@@ -14,23 +16,64 @@ namespace km {
     namespace com {
         static constexpr ComPortInfo kComPort1 = { .port = 0x3f8, .irq = 4 };
         static constexpr ComPortInfo kComPort2 = { .port = 0x2f8, .irq = 3 };
+
+        static constexpr uint32_t kBaudRate = 115200;
+        static constexpr uint16_t kBaud9600 = kBaudRate / 9600;
     }
 
+    enum class SerialPortStatus {
+        eOk,
+        eScratchTestFailed,
+        eLoopbackTestFailed,
+    };
+
     class SerialPort {
-        static constexpr uint16_t kData = 0;
-        static constexpr uint16_t kInterruptEnable = 1;
-        static constexpr uint16_t kInterruptId = 2;
-        static constexpr uint16_t kFifoControl = 2;
-        static constexpr uint16_t kLineControl = 3;
-        static constexpr uint16_t kModemControl = 4;
-        static constexpr uint16_t kLineStatus = 5;
-        static constexpr uint16_t kModemStatus = 6;
-        static constexpr uint16_t kScratch = 7;
+        uint16_t mBasePort = 0xFFFF;
+
+        void put(uint8_t byte);
 
     public:
-        SerialPort(ComPortInfo info);
+        constexpr SerialPort() = default;
 
-        size_t write(stdx::Span<uint8_t> src);
+        /// @warning Do not use this constructor directly.
+        ///          Use @ref openSerial instead.
+        SerialPort(ComPortInfo info)
+            : mBasePort(info.port)
+        { }
+
+        size_t write(stdx::Span<const uint8_t> src);
         size_t read(stdx::Span<uint8_t> dst);
+
+        size_t print(stdx::StringView src);
+    };
+
+    struct OpenSerialResult {
+        SerialPort port;
+        SerialPortStatus status;
+
+        operator bool() const { return status != SerialPortStatus::eOk; }
+    };
+
+    /// @brief Construct a new Serial Port object
+    ///
+    /// @param info the port information
+    /// @param divisor the baud rate divisor
+    ///
+    /// @pre @a divisor is not 0
+    OpenSerialResult openSerial(ComPortInfo info, uint16_t divisor);
+
+    template<>
+    struct StaticFormat<SerialPortStatus> {
+        static constexpr size_t kStringSize = 16;
+        static stdx::StringView toString(char*, SerialPortStatus status) {
+            switch (status) {
+            case SerialPortStatus::eOk:
+                return "Ok";
+            case SerialPortStatus::eScratchTestFailed:
+                return "Scratch Test Failed";
+            case SerialPortStatus::eLoopbackTestFailed:
+                return "Loopback Test Failed";
+            }
+        }
     };
 }

@@ -5,6 +5,15 @@
 #include "std/traits.hpp"
 
 namespace km {
+    template<typename T>
+    struct StaticFormat;
+
+    template<typename T>
+    concept IsStaticFormat = requires(T it) {
+        { StaticFormat<T>::kStringSize } -> std::convertible_to<size_t>;
+        { StaticFormat<T>::toString(stdx::declval<char*>(), it) } -> stdx::Same<stdx::StringView>;
+    };
+
     template<stdx::Integer T>
     struct Int {
         T value;

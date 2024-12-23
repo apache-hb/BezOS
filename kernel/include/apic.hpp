@@ -3,6 +3,7 @@
 #include "memory/allocator.hpp"
 #include "memory/layout.hpp"
 #include <utility>
+
 namespace km {
     namespace apic {
         enum class IcrDeliver : uint32_t {

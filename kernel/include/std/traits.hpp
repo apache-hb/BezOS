@@ -1,7 +1,5 @@
 #pragma once
 
-#include "std/std.hpp"
-
 #include <stdint.h>
 #include <stddef.h>
 #include <limits.h>
@@ -150,4 +148,10 @@ namespace stdx {
 
     template<typename L, typename R>
     concept Same = IsSame<L, R>::kValue;
+
+    template<typename T, typename C>
+    concept IsRange = requires(C range) {
+        { range.begin() } -> Same<T*>;
+        { range.end() } -> Same<T*>;
+    };
 }

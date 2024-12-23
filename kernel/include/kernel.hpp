@@ -33,6 +33,12 @@ void KmDebugWrite(km::Hex<T> value) {
     KmDebugWrite(km::FormatInt(buffer, value.value, 16, value.width, value.fill));
 }
 
+template<km::IsStaticFormat T>
+void KmDebugWrite(const T& value) {
+    char buffer[km::StaticFormat<T>::kStringSize];
+    KmDebugWrite(km::StaticFormat<T>::toString(buffer, value));
+}
+
 template<km::IsFormat T>
 void KmDebugWrite(const T& value) {
     char buffer[T::kStringSize];

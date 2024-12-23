@@ -16,10 +16,9 @@
 
 #include "kernel.hpp"
 
+#include "uart.hpp"
 #include "util/cpuid.hpp"
-#include "util/digit.hpp"
 #include "util/logger.hpp"
-#include "util/memory.hpp"
 
 #include <limine.h>
 
@@ -52,22 +51,41 @@ static volatile LIMINE_REQUESTS_START_MARKER
 [[gnu::used, gnu::section(".limine_requests_end")]]
 static volatile LIMINE_REQUESTS_END_MARKER
 
+class SerialLog final : public ILogTarget {
+    SerialPort mPort;
+
+public:
+    SerialLog(SerialPort port)
+        : mPort(port)
+    { }
+
+    constexpr SerialLog() { }
+
+    void write(stdx::StringView message) override {
+        mPort.print(message);
+    }
+};
+
 class NullLog final : public ILogTarget {
-    void write(stdx::StringView) { }
+    void write(stdx::StringView) override { }
 };
 
 class DebugPortLog final : public ILogTarget {
-    void write(stdx::StringView message) {
+    void write(stdx::StringView message) override {
         for (char c : message) {
             __outbyte(0xE9, c);
         }
     }
 };
 
-static NullLog gNullLog;
-static DebugPortLog gDebugPortLog;
+constinit static NullLog gNullLog;
+constinit static DebugPortLog gDebugPortLog;
 
-static ILogTarget *gLogTarget = &gNullLog;
+// load bearing constinit, clang has a bug in c++26 mode
+// where it doesnt emit a warning for global constructors in all cases.
+constinit static SerialLog gSerialLog;
+
+constinit static ILogTarget *gLogTarget = &gNullLog;
 
 // qemu e9 port check - i think bochs does something else
 static bool KmTestDebugPort(void) {
@@ -442,18 +460,27 @@ extern "C" void kmain(void) {
 
     bool hvPresent = IsHypervisorPresent();
     HypervisorInfo hvInfo;
-    bool bHasDebugPort = false;
+    bool hasDebugPort = false;
 
     if (hvPresent) {
         hvInfo = KmGetHypervisorInfo();
 
         if (hvInfo.platformHasDebugPort()) {
-            bHasDebugPort = KmTestDebugPort();
+            hasDebugPort = KmTestDebugPort();
         }
     }
 
-    if (bHasDebugPort) {
+    if (hasDebugPort) {
         gLogTarget = &gDebugPortLog;
+    }
+
+    SerialPortStatus com1Status = SerialPortStatus::eOk;
+
+    if (OpenSerialResult com1 = openSerial(km::com::kComPort1, km::com::kBaud9600)) {
+        com1Status = com1.status;
+    } else {
+        gSerialLog = SerialLog(com1.port);
+        gLogTarget = &gSerialLog;
     }
 
     KM_CHECK(LIMINE_BASE_REVISION_SUPPORTED, "Unsupported limine base revision.");
@@ -472,12 +499,14 @@ extern "C" void kmain(void) {
     if (hvPresent) {
         KmDebugMessage("| /SYS/HV       | Hypervisor           | ", hvInfo.name, "\n");
         KmDebugMessage("| /SYS/HV       | Max CPUID leaf       | ", Hex(hvInfo.maxleaf).pad(8, '0'), "\n");
-        KmDebugMessage("| /SYS/HV       | e9 debug port        | ", bHasDebugPort ? stdx::StringView("Enabled") : stdx::StringView("Disabled"), "\n");
+        KmDebugMessage("| /SYS/HV       | e9 debug port        | ", hasDebugPort ? stdx::StringView("Enabled") : stdx::StringView("Disabled"), "\n");
     } else {
         KmDebugMessage("| /SYS/HV       | Hypervisor           | Not present\n");
         KmDebugMessage("| /SYS/HV       | Max CPUID leaf       | 0x00000000\n");
         KmDebugMessage("| /SYS/HV       | e9 debug port        | Not applicable\n");
     }
+
+    KmDebugMessage("| /SYS/MB       | Com1 status          | ", com1Status, "\n");
 
     KmDebugMessage("| /SYS/MB/CPU0  | Vendor               | ", processor.vendor, "\n");
     KmDebugMessage("| /SYS/MB/CPU0  | Model name           | ", processor.brand, "\n");
