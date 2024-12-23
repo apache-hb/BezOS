@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <string.h>
 
+#include "apic.hpp"
 #include "memory/layout.hpp"
 #include "memory/allocator.hpp"
 
@@ -110,7 +111,7 @@ enum GdtEntry {
     eGdtEntry_Count
 };
 
-static constexpr uint64_t gGdtEntries[eGdtEntry_Count] = {
+static constexpr uint64_t kGdtEntries[eGdtEntry_Count] = {
     [eGdtEntry_Null] = 0,
     [eGdtEntry_Ring0Code] = BuildSegmentDescriptor(
         DescriptorFlags(eDescriptorFlag_Long | eDescriptorFlag_Granularity),
@@ -129,8 +130,8 @@ static constexpr uint64_t kDataSelector = eGdtEntry_Ring0Data * sizeof(uint64_t)
 
 static void KmInitGdt(void) {
     struct GDTR gdtr = {
-        .limit = sizeof(gGdtEntries) - 1,
-        .base = (uint64_t)gGdtEntries
+        .limit = sizeof(kGdtEntries) - 1,
+        .base = (uint64_t)kGdtEntries
     };
 
     __lgdt(gdtr);
@@ -284,6 +285,20 @@ static void KmInitInterrupts(void) {
     __lidt(idtr);
 }
 
+static LocalAPIC KmEnableAPIC(km::VirtualAllocator& vmm, const km::PageManager& pm) {
+    // disable the 8259 PIC first
+    KmDisablePIC();
+
+    LocalAPIC lapic = KmGetLocalAPIC(vmm, pm);
+
+    KmDebugMessage("[APIC] ID: ", lapic.id(), ", Version: ", lapic.version(), "\n");
+
+    lapic.setSpuriousVector(32);
+    lapic.enable();
+
+    return lapic;
+}
+
 static bool IsHypervisorPresent(void) {
     static constexpr uint32_t kHypervisorBit = (1 << 31);
 
@@ -342,6 +357,9 @@ struct ProcessorInfo {
     uint32_t maxleaf;
     uintptr_t maxpaddr;
 
+    bool hasLocalApic;
+    bool has2xApic;
+
     CoreMultiplier coreClock;
     uint32_t busClock; // in hz
 
@@ -374,13 +392,17 @@ static ProcessorInfo KmGetProcessorInfo() {
     memcpy(vendor + 8, &vendorId.ecx, 4);
     uint32_t maxleaf = vendorId.eax;
 
+    km::CpuId cpuid = km::CpuId::of(1);
+    bool hasLocalApic = cpuid.edx & (1 << 9);
+    bool has2xApic = cpuid.ecx & (1 << 21);
+
     CpuId ext = CpuId::of(0x80000000);
     BrandString brand = ext.eax < 0x80000004 ? "" : KmGetBrandString();
 
     uintptr_t maxpaddr = ext.eax < 0x80000008 ? 0 : KmGetMaxPhysicalAddress();
 
     if (maxleaf < 0x16) {
-        return ProcessorInfo { vendor, brand, maxleaf, maxpaddr };
+        return ProcessorInfo { vendor, brand, maxleaf, maxpaddr, hasLocalApic, has2xApic };
     }
 
     km::CpuId tsc = km::CpuId::of(0x15);
@@ -399,6 +421,8 @@ static ProcessorInfo KmGetProcessorInfo() {
         .brand = brand,
         .maxleaf = maxleaf,
         .maxpaddr = maxpaddr,
+        .hasLocalApic = hasLocalApic,
+        .has2xApic = has2xApic,
         .coreClock = coreClock,
         .busClock = busClock,
         .baseFrequency = uint16_t(frequency.eax & 0xFFFF),
@@ -464,20 +488,26 @@ extern "C" void kmain(void) {
     KmDebugMessage("| /SYS/MB/CPU0  | Base frequency       | ", processor.baseFrequency, "mhz\n");
     KmDebugMessage("| /SYS/MB/CPU0  | Max frequency        | ", processor.maxFrequency, "mhz\n");
     KmDebugMessage("| /SYS/MB/CPU0  | Bus frequency        | ", processor.busFrequency, "mhz\n");
+    KmDebugMessage("| /SYS/MB/CPU0  | Local APIC           | ", processor.hasLocalApic ? stdx::StringView("Present") : stdx::StringView("Not present"), "\n");
+    KmDebugMessage("| /SYS/MB/CPU0  | 2x APIC              | ", processor.has2xApic ? stdx::StringView("Present") : stdx::StringView("Not present"), "\n");
 
     KmDebugMessage("[INIT] Load GDT.\n");
     KmInitGdt();
 
-    [[maybe_unused]]
     SystemMemory memory = KmInitMemoryMap(processor.maxpaddr);
 
     KmInitInterrupts();
 
     __sti();
 
-    // __int<0x0>();
+    // do a test interrupt
+    __int<0x0>();
 
-    __int<0x3>();
+    LocalAPIC lapic = KmEnableAPIC(memory.vmm, memory.pager);
+
+    lapic.clearEndOfInterrupt();
+
+    lapic.sendIpi(lapic.id(), 0);
 
     KM_PANIC("Test bugcheck.");
 

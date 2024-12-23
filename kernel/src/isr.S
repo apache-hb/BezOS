@@ -65,6 +65,7 @@ KmIsrStub:
 .global KmIsrTable
 .align ISR_TABLE_STRIDE
 KmIsrTable:
+    // base interrupt vectors
     ISR_ENTRY2 $0, $0
     ISR_ENTRY2 $0, $1
     ISR_ENTRY2 $0, $2
@@ -97,3 +98,37 @@ KmIsrTable:
     ISR_ENTRY2 $0, $29
     ISR_ENTRY2 $0, $30
     ISR_ENTRY2 $0, $31
+
+    // apic interrupt vectors
+    ISR_ENTRY2 $32, $32
+    ISR_ENTRY2 $33, $33
+    ISR_ENTRY2 $34, $34
+    ISR_ENTRY2 $35, $35
+    ISR_ENTRY2 $36, $36
+    ISR_ENTRY2 $37, $37
+    ISR_ENTRY2 $38, $38
+    ISR_ENTRY2 $39, $39
+    ISR_ENTRY2 $40, $40
+    ISR_ENTRY2 $41, $41
+    ISR_ENTRY2 $42, $42
+    ISR_ENTRY2 $43, $43
+    ISR_ENTRY2 $44, $44
+    ISR_ENTRY2 $45, $45
+    ISR_ENTRY2 $46, $46
+    ISR_ENTRY2 $47, $47
+    ISR_ENTRY2 $48, $48
+    ISR_ENTRY2 $49, $49
+    ISR_ENTRY2 $50, $50
+    ISR_ENTRY2 $51, $51
+    ISR_ENTRY2 $52, $52
+    ISR_ENTRY2 $53, $53
+    ISR_ENTRY2 $54, $54
+    ISR_ENTRY2 $55, $55
+    ISR_ENTRY2 $56, $56
+    ISR_ENTRY2 $57, $57
+    ISR_ENTRY2 $58, $58
+    ISR_ENTRY2 $59, $59
+    ISR_ENTRY2 $60, $60
+    ISR_ENTRY2 $61, $61
+    ISR_ENTRY2 $62, $62
+    ISR_ENTRY2 $63, $63

@@ -47,6 +47,7 @@ src = [
     'kernel/src/isr.S',
     'kernel/src/main.cpp',
     'kernel/src/check.cpp',
+    'kernel/src/apic.cpp',
 ]
 
 executable('bezos', src + kernelsrc,

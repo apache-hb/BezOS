@@ -189,5 +189,5 @@ void KmMapKernel(
 
     layout.reclaimBootMemory();
 
-    KmDebugMessage("[INIT] Stage1 page tables applied.\n");
+    KmDebugMessage("[INIT] Bootloader memory reclaimed.\n");
 }

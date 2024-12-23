@@ -45,6 +45,16 @@ static inline void __DEFAULT_FN_ATTRS __outdword(unsigned short port, unsigned l
     asm volatile("outl %k0, %w1" : : "a"(data), "Nd"(port));
 }
 
+static inline uint64_t __DEFAULT_FN_ATTRS __rdmsr(uint32_t msr) {
+    uint32_t low, high;
+    asm volatile("rdmsr" : "=a"(low), "=d"(high) : "c"(msr));
+    return ((uint64_t)high << 32) | low;
+}
+
+static inline void __DEFAULT_FN_ATTRS __wrmsr(uint32_t msr, uint64_t value) {
+    asm volatile("wrmsr" : : "c"(msr), "a"((uint32_t)value), "d"((uint32_t)(value >> 32)));
+}
+
 static inline void __DEFAULT_FN_ATTRS __nop(void) {
     asm volatile("nop");
 }
