@@ -1,6 +1,6 @@
 #include "memory/paging.hpp"
 
-static km::PhysicalAddress VirtualToPhysical3(const km::PageManager& pm, const x64::PageMapLevel3 *pml3, km::VirtualAddress vaddr) noexcept {
+static km::PhysicalAddress VirtualToPhysical3(const km::PageManager& pm, const x64::PageMapLevel3 *pml3, km::VirtualAddress vaddr) {
     uint16_t pdpte = (vaddr.address >> 30) & 0b0001'1111'1111;
     uint16_t pde = (vaddr.address >> 21) & 0b0001'1111'1111;
     uint16_t pte = (vaddr.address >> 12) & 0b0001'1111'1111;
@@ -22,7 +22,7 @@ static km::PhysicalAddress VirtualToPhysical3(const km::PageManager& pm, const x
     return km::PhysicalAddress { pm.address(*l1) };
 }
 
-km::PhysicalAddress km::PageManager::translate(km::VirtualAddress vaddr) const noexcept {
+km::PhysicalAddress km::PageManager::translate(km::VirtualAddress vaddr) const {
     const void *pagemap = activeMap().as<void>(); // TODO: wrong
 
     uint16_t pml4e = (vaddr.address >> 39) & 0b0001'1111'1111;

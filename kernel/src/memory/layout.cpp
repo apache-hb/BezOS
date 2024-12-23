@@ -45,7 +45,7 @@ struct ErrorList {
         flags |= eFatal;
     }
 
-    bool isEmpty() const noexcept { return errors.isEmpty(); }
+    bool isEmpty() const { return errors.isEmpty(); }
 };
 
 static MemoryRange GetMemoryRange(ErrorList& errors, uint64_t i, const limine_memmap_entry *entry [[gnu::nonnull]]) {
@@ -59,7 +59,7 @@ static MemoryRange GetMemoryRange(ErrorList& errors, uint64_t i, const limine_me
     return MemoryRange { front, back };
 }
 
-static void ReportMemoryIssues(const ErrorList& errors) noexcept {
+static void ReportMemoryIssues(const ErrorList& errors) {
     if (!errors.isEmpty()) {
         KmDebugMessage("[INIT] Issues detected during memory map setup.\n");
         KmDebugMessage("| Component   | Description\n");
@@ -78,7 +78,7 @@ static void ReportMemoryIssues(const ErrorList& errors) noexcept {
     }
 }
 
-SystemMemoryLayout SystemMemoryLayout::from(limine_memmap_response memmap) noexcept {
+SystemMemoryLayout SystemMemoryLayout::from(limine_memmap_response memmap) {
     FreeMemoryRanges freeMemory;
     FreeMemoryRanges reclaimable;
     ReservedMemoryRanges reservedMemory;
@@ -149,7 +149,7 @@ SystemMemoryLayout SystemMemoryLayout::from(limine_memmap_response memmap) noexc
     return SystemMemoryLayout { freeMemory, reclaimable, reservedMemory };
 }
 
-void SystemMemoryLayout::reclaimBootMemory() noexcept {
+void SystemMemoryLayout::reclaimBootMemory() {
     for (MemoryRange range : reclaimable) {
         available.add(range);
     }

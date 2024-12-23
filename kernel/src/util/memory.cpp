@@ -5,7 +5,7 @@
 
 #include <string.h>
 
-stdx::StringView km::Memory::toString(char buffer[kStringSize]) const noexcept {
+stdx::StringView km::Memory::toString(char buffer[kStringSize]) const {
     if (mBytes == 0) {
         strcpy(buffer, "0b");
         return stdx::StringView(buffer, buffer + 2);

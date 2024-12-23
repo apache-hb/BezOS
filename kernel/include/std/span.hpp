@@ -9,40 +9,40 @@ namespace stdx {
         T *mBack;
 
     public:
-        constexpr Span() noexcept
+        constexpr Span()
             : Span(nullptr, nullptr)
         { }
 
         template<size_t N>
-        constexpr Span(T (&array)[N]) noexcept
+        constexpr Span(T (&array)[N])
             : Span(array, array + N)
         { }
 
-        constexpr Span(T *front [[gnu::nonnull]], T *back [[gnu::nonnull]]) noexcept
+        constexpr Span(T *front [[gnu::nonnull]], T *back [[gnu::nonnull]])
             : mFront(front)
             , mBack(back)
         { }
 
-        constexpr Span(T *front [[gnu::nonnull]], size_t count) noexcept
+        constexpr Span(T *front [[gnu::nonnull]], size_t count)
             : mFront(front)
             , mBack(front + count)
         { }
 
-        constexpr ssize_t count() const noexcept { return mBack - mFront; }
-        constexpr ssize_t sizeInBytes() const noexcept { return count() * sizeof(T); }
-        constexpr bool isEmpty() const noexcept { return mBack == mFront; }
+        constexpr ssize_t count() const { return mBack - mFront; }
+        constexpr ssize_t sizeInBytes() const { return count() * sizeof(T); }
+        constexpr bool isEmpty() const { return mBack == mFront; }
 
-        constexpr T *begin() noexcept { return mFront; }
-        constexpr T *end() noexcept { return mBack; }
+        constexpr T *begin() { return mFront; }
+        constexpr T *end() { return mBack; }
 
-        constexpr const T *begin() const noexcept { return mFront; }
-        constexpr const T *end() const noexcept { return mBack; }
+        constexpr const T *begin() const { return mFront; }
+        constexpr const T *end() const { return mBack; }
 
-        constexpr T& operator[](size_t index) noexcept {
+        constexpr T& operator[](size_t index) {
             return mFront[index];
         }
 
-        constexpr const T& operator[](size_t index) const noexcept {
+        constexpr const T& operator[](size_t index) const {
             return mFront[index];
         }
     };

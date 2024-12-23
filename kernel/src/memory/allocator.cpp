@@ -26,7 +26,7 @@ extern "C" {
 }
 
 #if 0
-static size_t CountUsablePages(const SystemMemoryLayout& layout) noexcept {
+static size_t CountUsablePages(const SystemMemoryLayout& layout) {
     size_t count = 0;
 
     for (const MemoryRange& range : layout.available) {
@@ -40,7 +40,7 @@ static size_t CountUsablePages(const SystemMemoryLayout& layout) noexcept {
     return count / x64::kPageSize;
 }
 
-static size_t GetMemoryBitmapSize(const SystemMemoryLayout& layout) noexcept {
+static size_t GetMemoryBitmapSize(const SystemMemoryLayout& layout) {
     return CountUsablePages(layout) / CHAR_BIT;
 }
 
@@ -48,24 +48,24 @@ static size_t GetMemoryBitmapSize(const SystemMemoryLayout& layout) noexcept {
 
 /// page allocator
 
-MemoryRange PageAllocator::currentRange() const noexcept {
+MemoryRange PageAllocator::currentRange() const {
     return mLayout->available[mCurrentRange];
 }
 
-void PageAllocator::setCurrentRange(int range) noexcept {
+void PageAllocator::setCurrentRange(int range) {
     KM_CHECK(range < mLayout->available.count(), "Out of memory.");
 
     mCurrentRange = range;
     mOffset = currentRange().front;
 }
 
-PageAllocator::PageAllocator(const SystemMemoryLayout *layout) noexcept
+PageAllocator::PageAllocator(const SystemMemoryLayout *layout)
     : mLayout(layout)
 {
     setCurrentRange(0);
 }
 
-PhysicalPointer<x64::page> PageAllocator::alloc4k() noexcept {
+PhysicalPointer<x64::page> PageAllocator::alloc4k() {
     // TODO: currentRange somehow gets corrupted
     if (currentRange().contains(mOffset + x64::kPageSize)) {
         x64::page *result = mOffset.as<x64::page>();
@@ -80,7 +80,7 @@ PhysicalPointer<x64::page> PageAllocator::alloc4k() noexcept {
 
 // stage 1 allocator
 
-x64::page *VirtualAllocator::alloc4k() noexcept {
+x64::page *VirtualAllocator::alloc4k() {
     PhysicalPointer<x64::page> result = mPageAllocator->alloc4k();
     uintptr_t offset = (uintptr_t)result.data + mPageManager->hhdmOffset();
     x64::page *page = (x64::page*)offset;
@@ -88,7 +88,7 @@ x64::page *VirtualAllocator::alloc4k() noexcept {
     return page;
 }
 
-void VirtualAllocator::setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddress address) noexcept {
+void VirtualAllocator::setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddress address) {
     entry.setPresent(true);
     mPageManager->setAddress(entry, address.address);
 
@@ -96,13 +96,13 @@ void VirtualAllocator::setEntryFlags(x64::Entry& entry, PageFlags flags, Physica
     entry.setExecutable(bool(flags & PageFlags::eExecute));
 }
 
-VirtualAllocator::VirtualAllocator(const km::PageManager *pm, PageAllocator *alloc) noexcept
+VirtualAllocator::VirtualAllocator(const km::PageManager *pm, PageAllocator *alloc)
     : mPageManager(pm)
     , mPageAllocator(alloc)
     , mRootPageTable(alloc4k())
 { }
 
-void VirtualAllocator::map4k(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags) noexcept {
+void VirtualAllocator::map4k(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags) {
     uint16_t pml4e = (vaddr.address >> 39) & 0b0001'1111'1111;
     uint16_t pdpte = (vaddr.address >> 30) & 0b0001'1111'1111;
     uint16_t pdte = (vaddr.address >> 21) & 0b0001'1111'1111;
@@ -141,7 +141,7 @@ void VirtualAllocator::map4k(PhysicalAddress paddr, VirtualAddress vaddr, PageFl
     setEntryFlags(t1, flags, paddr.address);
 }
 
-static void MapKernelPages(VirtualAllocator& memory, limine_kernel_address_response address) noexcept {
+static void MapKernelPages(VirtualAllocator& memory, limine_kernel_address_response address) {
     auto mapKernelRange = [&](const void *begin, const void *end, PageFlags flags) {
         km::PhysicalAddress front = km::PhysicalAddress {  (uintptr_t)begin - (uintptr_t)__kernel_start };
         km::PhysicalAddress back = km::PhysicalAddress { (uintptr_t)end - (uintptr_t)__kernel_start };
@@ -156,7 +156,7 @@ static void MapKernelPages(VirtualAllocator& memory, limine_kernel_address_respo
     mapKernelRange(__data_start, __data_end, PageFlags::eData);
 }
 
-static void MapStage1Memory(VirtualAllocator& memory, const km::PageManager& pm, const SystemMemoryLayout& layout) noexcept {
+static void MapStage1Memory(VirtualAllocator& memory, const km::PageManager& pm, const SystemMemoryLayout& layout) {
     for (MemoryRange range : layout.available) {
         for (PhysicalAddress i = range.front; i < range.back; i += x64::kPageSize) {
             memory.map4k(i, km::VirtualAddress { i.address + pm.hhdmOffset() }, PageFlags::eData);
@@ -175,7 +175,7 @@ void KmMapKernel(
     km::VirtualAllocator& vmm,
     km::SystemMemoryLayout& layout,
     limine_kernel_address_response address
-) noexcept {
+) {
     PageAllocator allocator{&layout};
 
     // first map the kernel pages

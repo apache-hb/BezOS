@@ -8,10 +8,10 @@ namespace km {
         int32_t ireg[4];
         struct { uint32_t eax; uint32_t ebx; uint32_t ecx; uint32_t edx; };
 
-        static CpuId of(int leaf) noexcept;
-        static CpuId count(int leaf, int subleaf) noexcept;
+        static CpuId of(int leaf);
+        static CpuId count(int leaf, int subleaf);
     };
 
     static constexpr unsigned kBrandStringSize = 3 * 4 * 4;
-    void KmGetBrandString(char dst[kBrandStringSize]) noexcept;
+    void KmGetBrandString(char dst[kBrandStringSize]);
 }

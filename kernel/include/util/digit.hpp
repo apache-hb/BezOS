@@ -56,27 +56,27 @@ namespace km {
         /// @brief The minimum value that can be stored in the integer
         static constexpr Integral kMin = kIsSigned ? -(1LL << (N * 8 - 1)) : 0;
 
-        constexpr SizedInteger() noexcept = default;
+        constexpr SizedInteger() = default;
 
         /// @brief Construct a new Sized Integer object
         ///
         /// @param value the value to store
         /// @note @a value is clamped to @ref kMin and @ref kMax
-        constexpr SizedInteger(Integral value) noexcept {
+        constexpr SizedInteger(Integral value) {
             store(value);
         }
 
         /// @brief Load the value of the integer
         ///
         /// @return Integral the value of the integer
-        constexpr operator Integral() const noexcept {
+        constexpr operator Integral() const {
             return load();
         }
 
         /// @brief Load the value of the integer
         ///
         /// @return Integral the value of the integer
-        constexpr Integral load() const noexcept {
+        constexpr Integral load() const {
             Integral value;
             memcpy(&value, octets, N);
             return value;
@@ -86,7 +86,7 @@ namespace km {
         ///
         /// @param value the value to store
         /// @note @a value is clamped to @ref kMin and @ref kMax
-        constexpr void store(Integral value) noexcept {
+        constexpr void store(Integral value) {
             value = std::clamp(value, kMin, kMax);
             memcpy(octets, &value, N);
         }
@@ -95,7 +95,7 @@ namespace km {
         ///
         /// @param value the value to store
         /// @note @a value is clamped to @ref kMin and @ref kMax
-        constexpr SizedInteger& operator=(Integral value) noexcept {
+        constexpr SizedInteger& operator=(Integral value) {
             store(value);
             return *this;
         }
@@ -103,7 +103,7 @@ namespace km {
         /// @brief Byteswap the integer
         ///
         /// @return SizedInteger the byteswapped integer
-        constexpr SizedInteger byteswap() const noexcept {
+        constexpr SizedInteger byteswap() const {
             SizedInteger result;
             std::reverse_copy(octets, octets + N, result.octets);
             return result;

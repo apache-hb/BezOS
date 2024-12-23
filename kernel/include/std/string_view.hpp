@@ -9,34 +9,34 @@ namespace stdx {
         const T *mBack;
 
     public:
-        constexpr StringViewBase() noexcept
+        constexpr StringViewBase()
             : StringViewBase("")
         { }
 
         template<size_t N>
-        constexpr StringViewBase(const T (&str)[N]) noexcept
+        constexpr StringViewBase(const T (&str)[N])
             : StringViewBase(str, str + N - 1)
         { }
 
-        constexpr StringViewBase(const T *front [[gnu::nonnull]], const T *back [[gnu::nonnull]]) noexcept
+        constexpr StringViewBase(const T *front [[gnu::nonnull]], const T *back [[gnu::nonnull]])
             : mFront(front)
             , mBack(back)
         { }
 
-        constexpr ssize_t count() const noexcept { return mBack - mFront; }
-        constexpr ssize_t sizeInBytes() const noexcept { return count() * sizeof(T); }
-        constexpr bool isEmpty() const noexcept { return mBack == mFront; }
+        constexpr ssize_t count() const { return mBack - mFront; }
+        constexpr ssize_t sizeInBytes() const { return count() * sizeof(T); }
+        constexpr bool isEmpty() const { return mBack == mFront; }
 
-        constexpr const T *begin() const noexcept { return mFront; }
-        constexpr const T *end() const noexcept { return mBack; }
+        constexpr const T *begin() const { return mFront; }
+        constexpr const T *end() const { return mBack; }
 
-        constexpr const T *data() const noexcept { return mFront; }
+        constexpr const T *data() const { return mFront; }
 
-        constexpr const T& operator[](size_t index) const noexcept {
+        constexpr const T& operator[](size_t index) const {
             return mFront[index];
         }
 
-        constexpr bool operator==(StringViewBase other) const noexcept {
+        constexpr bool operator==(StringViewBase other) const {
             return other.count() == count() && memcmp(mFront, other.mFront, sizeInBytes()) == 0;
         }
     };

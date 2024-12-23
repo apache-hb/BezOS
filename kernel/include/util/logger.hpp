@@ -10,10 +10,10 @@ namespace km {
     public:
         virtual ~ILogTarget() = default;
 
-        void operator delete(ILogTarget*, std::destroying_delete_t) noexcept {
+        void operator delete(ILogTarget*, std::destroying_delete_t) {
             std::unreachable();
         }
 
-        virtual void write(stdx::StringView message) noexcept = 0;
+        virtual void write(stdx::StringView message) = 0;
     };
 }

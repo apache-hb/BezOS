@@ -15,11 +15,11 @@ namespace km {
         eAll = eRead | eWrite | eExecute,
     };
 
-    constexpr PageFlags operator|(PageFlags lhs, PageFlags rhs) noexcept {
+    constexpr PageFlags operator|(PageFlags lhs, PageFlags rhs) {
         return static_cast<PageFlags>(static_cast<int>(lhs) | static_cast<int>(rhs));
     }
 
-    constexpr PageFlags operator&(PageFlags lhs, PageFlags rhs) noexcept {
+    constexpr PageFlags operator&(PageFlags lhs, PageFlags rhs) {
         return static_cast<PageFlags>(static_cast<int>(lhs) & static_cast<int>(rhs));
     }
 
@@ -28,14 +28,14 @@ namespace km {
         int mCurrentRange;
         PhysicalAddress mOffset;
 
-        MemoryRange currentRange() const noexcept;
+        MemoryRange currentRange() const;
 
-        void setCurrentRange(int range) noexcept;
+        void setCurrentRange(int range);
 
     public:
-        PageAllocator(const SystemMemoryLayout *layout) noexcept;
+        PageAllocator(const SystemMemoryLayout *layout);
 
-        PhysicalPointer<x64::page> alloc4k() noexcept;
+        PhysicalPointer<x64::page> alloc4k();
     };
 
     class VirtualAllocator {
@@ -43,18 +43,18 @@ namespace km {
         PageAllocator *mPageAllocator;
         x64::page *mRootPageTable;
 
-        x64::page *alloc4k() noexcept;
+        x64::page *alloc4k();
 
-        void setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddress address) noexcept;
+        void setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddress address);
 
     public:
-        VirtualAllocator(const km::PageManager *pm, PageAllocator *alloc) noexcept;
+        VirtualAllocator(const km::PageManager *pm, PageAllocator *alloc);
 
-        x64::page *rootPageTable() noexcept {
+        x64::page *rootPageTable() {
             return mRootPageTable;
         }
 
-        void map4k(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags) noexcept;
+        void map4k(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags);
     };
 }
 
@@ -68,4 +68,4 @@ void KmMapKernel(
     km::VirtualAllocator& vmm,
     km::SystemMemoryLayout& layout,
     limine_kernel_address_response address
-) noexcept;
+);

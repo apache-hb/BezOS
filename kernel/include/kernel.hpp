@@ -10,7 +10,7 @@
 void KmDebugWrite(stdx::StringView value = "\n");
 
 template<typename T>
-constexpr T roundpow2(T value, T multiple) noexcept {
+constexpr T roundpow2(T value, T multiple) {
     return (value + multiple - 1) & ~(multiple - 1);
 }
 
@@ -40,7 +40,7 @@ void KmDebugWrite(const T& value) {
 }
 
 template<typename... T>
-void KmDebugMessage(T&&... args) noexcept {
+void KmDebugMessage(T&&... args) {
     (KmDebugWrite(args), ...);
 }
 

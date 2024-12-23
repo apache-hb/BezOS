@@ -5,7 +5,7 @@
 #include <type_traits>
 
 namespace x64 {
-    inline void setmask(uint64_t& value, uint64_t mask, bool state) noexcept {
+    inline void setmask(uint64_t& value, uint64_t mask, bool state) {
         if (state) {
             value |= mask;
         } else {
@@ -26,7 +26,7 @@ namespace x64 {
 
         constexpr uintptr_t kValidAddressBits[] = { 40, 48 };
 
-        constexpr bool isValidAddressWidth(uintptr_t width) noexcept {
+        constexpr bool isValidAddressWidth(uintptr_t width) {
             for (auto bits : kValidAddressBits) {
                 if (width == bits) {
                     return true;
@@ -36,7 +36,7 @@ namespace x64 {
             return false;
         }
 
-        constexpr uintptr_t addressMask(uintptr_t width) noexcept {
+        constexpr uintptr_t addressMask(uintptr_t width) {
             return ((1ull << width) - 1) & ~(kPageSize - 1);
         }
     }
@@ -44,23 +44,23 @@ namespace x64 {
     struct Entry {
         uint64_t underlying;
 
-        bool present() const noexcept { return underlying & paging::kPresentBit; }
-        void setPresent(bool present) noexcept { setmask(underlying, paging::kPresentBit, present); }
+        bool present() const { return underlying & paging::kPresentBit; }
+        void setPresent(bool present) { setmask(underlying, paging::kPresentBit, present); }
 
-        bool writeable() const noexcept { return (underlying & paging::kReadOnlyBit); }
-        void setWriteable(bool readonly) noexcept { setmask(underlying, paging::kReadOnlyBit, readonly); }
+        bool writeable() const { return (underlying & paging::kReadOnlyBit); }
+        void setWriteable(bool readonly) { setmask(underlying, paging::kReadOnlyBit, readonly); }
 
-        bool user() const noexcept { return underlying & paging::kUserBit; }
-        void setUser(bool user) noexcept { setmask(underlying, paging::kUserBit, user); }
+        bool user() const { return underlying & paging::kUserBit; }
+        void setUser(bool user) { setmask(underlying, paging::kUserBit, user); }
 
-        bool accessed() const noexcept { return underlying & paging::kAccessedBit; }
-        void setAccessed(bool accessed) noexcept { setmask(underlying, paging::kAccessedBit, accessed); }
+        bool accessed() const { return underlying & paging::kAccessedBit; }
+        void setAccessed(bool accessed) { setmask(underlying, paging::kAccessedBit, accessed); }
 
-        bool written() const noexcept { return underlying & paging::kWrittenBit; }
-        void setWritten(bool written) noexcept { setmask(underlying, paging::kWrittenBit, written); }
+        bool written() const { return underlying & paging::kWrittenBit; }
+        void setWritten(bool written) { setmask(underlying, paging::kWrittenBit, written); }
 
-        bool executable() const noexcept { return !(underlying & paging::kExecuteDisableBit); }
-        void setExecutable(bool exec) noexcept { setmask(underlying, paging::kExecuteDisableBit, !exec); }
+        bool executable() const { return !(underlying & paging::kExecuteDisableBit); }
+        void setExecutable(bool exec) { setmask(underlying, paging::kExecuteDisableBit, !exec); }
     };
 
     /// @brief Page table entry

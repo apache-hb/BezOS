@@ -85,13 +85,13 @@ static inline void __DEFAULT_FN_ATTRS __int() {
 }
 
 namespace x64 {
-    static inline uint64_t __DEFAULT_FN_ATTRS cr3() noexcept {
+    static inline uint64_t __DEFAULT_FN_ATTRS cr3() {
         uint64_t value;
         asm volatile("mov %%cr3, %0" : "=r"(value));
         return value;
     }
 
-    static inline void __DEFAULT_FN_ATTRS setcr3(uint64_t value) noexcept {
+    static inline void __DEFAULT_FN_ATTRS setcr3(uint64_t value) {
         asm volatile("mov %0, %%cr3" :: "r"(value));
     }
 }

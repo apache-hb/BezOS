@@ -7,12 +7,12 @@
 
 namespace km {
     template<size_t N, typename T>
-    constexpr SizedInteger<N, T> byteswap(SizedInteger<N, T> value) noexcept {
+    constexpr SizedInteger<N, T> byteswap(SizedInteger<N, T> value) {
         return value.byteswap();
     }
 
     template<std::integral T>
-    constexpr T byteswap(T value) noexcept {
+    constexpr T byteswap(T value) {
         return std::byteswap(value);
     }
 
@@ -24,28 +24,28 @@ namespace km {
     /// @tparam Order the desired byte order of the value
     template<typename T, std::endian Order>
     struct EndianValue {
-        constexpr EndianValue() noexcept = default;
+        constexpr EndianValue() = default;
 
         /// @brief Construct a new Endian Value object
         ///
         /// Converts the value to the desired byte order before storing
         ///
         /// @param v the value to store
-        constexpr EndianValue(T v) noexcept {
+        constexpr EndianValue(T v) {
             store(v);
         }
 
         /// @brief Load the value in native byte order
         ///
         /// @return T the value in native byte order
-        constexpr operator T() const noexcept {
+        constexpr operator T() const {
             return load();
         }
 
         /// @brief Load the value in the desired byte order
         ///
         /// @return T the value in the desired byte order
-        constexpr T load() const noexcept {
+        constexpr T load() const {
             if constexpr (Order == std::endian::native) {
                 return underlying;
             } else {
@@ -56,7 +56,7 @@ namespace km {
         /// @brief Store a new value in the desired byte order
         ///
         /// @param v the value to store
-        constexpr void store(T v) noexcept {
+        constexpr void store(T v) {
             if constexpr (Order == std::endian::native) {
                 underlying = v;
             } else {
@@ -69,7 +69,7 @@ namespace km {
         /// Converts the value to the desired byte order before storing
         ///
         /// @param v the value to assign
-        constexpr EndianValue& operator=(T v) noexcept {
+        constexpr EndianValue& operator=(T v) {
             store(v);
             return *this;
         }
@@ -77,7 +77,7 @@ namespace km {
         /// @brief Load the value in little endian byte order
         ///
         /// @return T the value in little endian byte order
-        constexpr T little() const noexcept {
+        constexpr T little() const {
             if constexpr (Order == std::endian::little) {
                 return underlying;
             } else {
@@ -88,7 +88,7 @@ namespace km {
         /// @brief Load the value in big endian byte order
         ///
         /// @return T the value in big endian byte order
-        constexpr T big() const noexcept {
+        constexpr T big() const {
             if constexpr (Order == std::endian::big) {
                 return underlying;
             } else {

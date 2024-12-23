@@ -17,37 +17,37 @@ namespace km {
         uintptr_t address;
 
         template<typename T>
-        T *as() const noexcept {
+        T *as() const {
             return reinterpret_cast<T *>(address);
         }
 
-        constexpr PhysicalAddress() noexcept = default;
+        constexpr PhysicalAddress() = default;
 
-        constexpr PhysicalAddress(uintptr_t address) noexcept
+        constexpr PhysicalAddress(uintptr_t address)
             : address(address)
         { }
 
-        constexpr PhysicalAddress(std::nullptr_t) noexcept
+        constexpr PhysicalAddress(std::nullptr_t)
             : address(0)
         { }
 
-        constexpr auto operator<=>(const PhysicalAddress&) const noexcept = default;
+        constexpr auto operator<=>(const PhysicalAddress&) const = default;
 
-        constexpr PhysicalAddress& operator+=(size_t offset) noexcept {
+        constexpr PhysicalAddress& operator+=(size_t offset) {
             address += offset;
             return *this;
         }
 
-        constexpr PhysicalAddress operator+(size_t offset) const noexcept {
+        constexpr PhysicalAddress operator+(size_t offset) const {
             return PhysicalAddress { address + offset };
         }
 
-        constexpr PhysicalAddress& operator++() noexcept {
+        constexpr PhysicalAddress& operator++() {
             address += 1;
             return *this;
         }
 
-        constexpr PhysicalAddress operator++(int) noexcept {
+        constexpr PhysicalAddress operator++(int) {
             PhysicalAddress copy = *this;
             ++(*this);
             return copy;
@@ -72,16 +72,16 @@ namespace km {
         PhysicalAddress front;
         PhysicalAddress back;
 
-        constexpr size_t size() const noexcept {
+        constexpr size_t size() const {
             return back.address - front.address;
         }
 
-        constexpr bool contains(PhysicalAddress addr) const noexcept {
+        constexpr bool contains(PhysicalAddress addr) const {
             return addr.address >= front.address && addr.address < back.address;
         }
     };
 
-    constexpr size_t pages(size_t bytes) noexcept {
+    constexpr size_t pages(size_t bytes) {
         return roundpow2(bytes, x64::kPageSize) / x64::kPageSize;
     }
 
@@ -93,8 +93,8 @@ namespace km {
         FreeMemoryRanges reclaimable;
         ReservedMemoryRanges reserved;
 
-        void reclaimBootMemory() noexcept;
+        void reclaimBootMemory();
 
-        static SystemMemoryLayout from(limine_memmap_response memmap) noexcept;
+        static SystemMemoryLayout from(limine_memmap_response memmap);
     };
 }

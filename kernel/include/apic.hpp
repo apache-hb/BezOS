@@ -54,37 +54,37 @@ namespace km {
 
         km::VirtualAddress mBaseAddress;
 
-        volatile uint32_t& reg(uint16_t offset) const noexcept {
+        volatile uint32_t& reg(uint16_t offset) const {
             return *reinterpret_cast<volatile uint32_t*>(mBaseAddress.address + offset);
         }
 
     public:
-        LocalAPIC(km::VirtualAddress base) noexcept
+        LocalAPIC(km::VirtualAddress base)
             : mBaseAddress(base)
         { }
 
-        uint32_t id(void) const noexcept {
+        uint32_t id(void) const {
             return reg(kApicId);
         }
 
-        uint32_t version(void) const noexcept {
+        uint32_t version(void) const {
             return reg(kApicVersion) & 0xFF;
         }
 
-        uint32_t spuriousInt(void) const noexcept {
+        uint32_t spuriousInt(void) const {
             return reg(kSpuriousInt);
         }
 
-        void setSpuriousInt(uint32_t value) noexcept {
+        void setSpuriousInt(uint32_t value) {
             reg(kSpuriousInt) = value;
         }
 
-        void sendIpi(uint32_t dst, uint8_t vector) noexcept {
+        void sendIpi(uint32_t dst, uint8_t vector) {
             reg(kIcrHigh) = dst << 24;
             reg(kIcrLow) = vector;
         }
 
-        void configure(apic::Ivt ivt, apic::IvtConfig config) noexcept {
+        void configure(apic::Ivt ivt, apic::IvtConfig config) {
             uint32_t entry
                 = config.vector
                 | (std::to_underlying(config.polarity) << 13)
@@ -94,20 +94,20 @@ namespace km {
             reg(std::to_underlying(ivt)) = entry;
         }
 
-        void sendIpi(apic::IcrDeliver deliver, uint8_t vector) noexcept {
+        void sendIpi(apic::IcrDeliver deliver, uint8_t vector) {
             reg(kIcrHigh) = 0;
             reg(kIcrLow) = (std::to_underlying(deliver) << 18) | vector;
         }
 
-        void clearEndOfInterrupt(void) noexcept {
+        void clearEndOfInterrupt(void) {
             reg(kEndOfInt) = 0;
         }
 
-        void enable(void) noexcept {
+        void enable(void) {
             setSpuriousInt(spuriousInt() | kApicEnable);
         }
 
-        void setSpuriousVector(uint8_t vector) noexcept {
+        void setSpuriousVector(uint8_t vector) {
             setSpuriousInt((spuriousInt() & ~0xFF) | vector);
         }
     };

@@ -140,7 +140,7 @@ namespace stdx {
     }
 
     template<typename T>
-    T&& declval() noexcept;
+    T&& declval();
 
     template<typename L, typename R>
     struct IsSame : False { };

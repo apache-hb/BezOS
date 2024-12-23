@@ -53,11 +53,11 @@ static volatile LIMINE_REQUESTS_START_MARKER
 static volatile LIMINE_REQUESTS_END_MARKER
 
 class NullLog final : public ILogTarget {
-    void write(stdx::StringView) noexcept { }
+    void write(stdx::StringView) { }
 };
 
 class DebugPortLog final : public ILogTarget {
-    void write(stdx::StringView message) noexcept {
+    void write(stdx::StringView message) {
         for (char c : message) {
             __outbyte(0xE9, c);
         }
@@ -170,7 +170,7 @@ struct SystemMemory {
     PageAllocator pmm;
     VirtualAllocator vmm;
 
-    SystemMemory(SystemMemoryLayout memory, uintptr_t bits, limine_hhdm_response hhdm) noexcept
+    SystemMemory(SystemMemoryLayout memory, uintptr_t bits, limine_hhdm_response hhdm)
         : pager(bits, hhdm.offset)
         , layout(memory)
         , pmm(&layout)
@@ -316,19 +316,19 @@ struct HypervisorInfo {
     stdx::StaticString<12> name;
     uint32_t maxleaf;
 
-    bool isKvm(void) const noexcept {
+    bool isKvm(void) const {
         return name == "KVMKVMKVM\0\0\0";
     }
 
-    bool isQemu(void) const noexcept {
+    bool isQemu(void) const {
         return name == "TCGTCGTCGTCG";
     }
 
-    bool isMicrosoftHyperV(void) const noexcept {
+    bool isMicrosoftHyperV(void) const {
         return name == "Microsoft Hv";
     }
 
-    bool platformHasDebugPort(void) const noexcept {
+    bool platformHasDebugPort(void) const {
         // qemu may use kvm, so check the e9 port in either case
         return isQemu() || isKvm();
     }
@@ -369,7 +369,7 @@ struct ProcessorInfo {
     CoreMultiplier coreClock;
     uint32_t busClock; // in hz
 
-    bool hasNominalFrequency() const noexcept {
+    bool hasNominalFrequency() const {
         return busClock != 0;
     }
 
@@ -378,13 +378,13 @@ struct ProcessorInfo {
     uint16_t busFrequency; // in mhz
 };
 
-static BrandString KmGetBrandString() noexcept {
+static BrandString KmGetBrandString() {
     char brand[km::kBrandStringSize];
     km::KmGetBrandString(brand);
     return brand;
 }
 
-static uintptr_t KmGetMaxPhysicalAddress() noexcept {
+static uintptr_t KmGetMaxPhysicalAddress() {
     km::CpuId cpuid = km::CpuId::of(0x80000008);
     return cpuid.eax & 0xFF;
 }
@@ -510,8 +510,6 @@ extern "C" void kmain(void) {
     __int<0x0>();
 
     LocalAPIC lapic = KmEnableAPIC(memory.vmm, memory.pager);
-
-    lapic.clearEndOfInterrupt();
 
     lapic.sendIpi(apic::IcrDeliver::eSelf, 1);
 

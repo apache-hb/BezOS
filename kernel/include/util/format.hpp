@@ -13,7 +13,7 @@ namespace km {
 
         Int(T value) : value(value) {}
 
-        Int pad(size_t width, char fill) const noexcept {
+        Int pad(size_t width, char fill) const {
             Int copy = *this;
             copy.width = width;
             copy.fill = fill;
@@ -29,7 +29,7 @@ namespace km {
 
         Hex(T value) : value(value) {}
 
-        Hex pad(size_t width, char fill) const noexcept {
+        Hex pad(size_t width, char fill) const {
             Hex copy = *this;
             copy.width = width;
             copy.fill = fill;
@@ -38,7 +38,7 @@ namespace km {
     };
 
     template<stdx::Integer T>
-    stdx::StringView FormatInt(stdx::Span<char> buffer, T input, int base, int width = 0, char fill = '\0') noexcept {
+    stdx::StringView FormatInt(stdx::Span<char> buffer, T input, int base, int width = 0, char fill = '\0') {
         static constexpr char kHex[] = "0123456789ABCDEF";
         bool negative = input < 0;
 
