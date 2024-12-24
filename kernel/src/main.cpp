@@ -20,6 +20,7 @@
 #include "kernel.hpp"
 
 #include "util/cpuid.hpp"
+#include "util/endian.hpp"
 #include "util/logger.hpp"
 
 #include <limine.h>
@@ -570,50 +571,48 @@ static ProcessorInfo KmGetProcessorInfo() {
 }
 
 static void KmDebugRSDT(const acpi::RsdpLocator *locator, SystemMemory& memory) {
-    KmDebugMessage("| /SYS/ACPI           | RSDT address         | ", Hex(locator->rsdtAddress).pad(16, '0'), "\n");
+    KmDebugMessage("| /SYS/ACPI       | RSDT address         | ", Hex(locator->rsdtAddress).pad(16, '0'), "\n");
 
     acpi::Rsdt *rsdt = memory.hhdmMapObject<acpi::Rsdt>(locator->rsdtAddress);
 
-    KmDebugMessage("| /SYS/ACPI/RSDT      | Signature            | '", stdx::StringView(rsdt->header.signature), "'\n");
+    KmDebugMessage("| /SYS/ACPI/RSDT  | Signature            | '", stdx::StringView(rsdt->header.signature), "'\n");
 
     for (uint32_t i = 0; i < rsdt->count(); i++) {
         km::PhysicalAddress paddr = km::PhysicalAddress { rsdt->entries[i] };
         acpi::RsdtHeader *entry = memory.hhdmMapObject<acpi::RsdtHeader>(paddr);
-        FormatOf<uint32_t> e = rpad(4) + i;
-        KmDebugMessage("| /SYS/ACPI/RSDT/", e, " | Address              | ", Hex(paddr.address).pad(16, '0'), "\n");
-        KmDebugMessage("| /SYS/ACPI/RSDT/", e, " | Signature            | '", stdx::StringView(entry->signature), "'\n");
-        KmDebugMessage("| /SYS/ACPI/RSDT/", e, " | Length               | ", entry->length, "\n");
-        KmDebugMessage("| /SYS/ACPI/RSDT/", e, " | Revision             | ", entry->revision, "\n");
-        KmDebugMessage("| /SYS/ACPI/RSDT/", e, " | OEM                  | ", stdx::StringView(entry->oemid), "\n");
-        KmDebugMessage("| /SYS/ACPI/RSDT/", e, " | Table ID             | ", stdx::StringView(entry->tableId), "\n");
-        KmDebugMessage("| /SYS/ACPI/RSDT/", e, " | OEM revision         | ", entry->oemRevision, "\n");
-        KmDebugMessage("| /SYS/ACPI/RSDT/", e, " | Creator ID           | ", Hex(entry->creatorId), "\n");
-        KmDebugMessage("| /SYS/ACPI/RSDT/", e, " | Creator revision     | ", entry->creatorRevision, "\n");
+        KmDebugMessage("| /SYS/ACPI/", entry->signature, "  | Address              | ", Hex(paddr.address).pad(16, '0'), "\n");
+        KmDebugMessage("| /SYS/ACPI/", entry->signature, "  | Signature            | '", stdx::StringView(entry->signature), "'\n");
+        KmDebugMessage("| /SYS/ACPI/", entry->signature, "  | Length               | ", entry->length, "\n");
+        KmDebugMessage("| /SYS/ACPI/", entry->signature, "  | Revision             | ", entry->revision, "\n");
+        KmDebugMessage("| /SYS/ACPI/", entry->signature, "  | OEM                  | ", stdx::StringView(entry->oemid), "\n");
+        KmDebugMessage("| /SYS/ACPI/", entry->signature, "  | Table ID             | ", stdx::StringView(entry->tableId), "\n");
+        KmDebugMessage("| /SYS/ACPI/", entry->signature, "  | OEM revision         | ", entry->oemRevision, "\n");
+        KmDebugMessage("| /SYS/ACPI/", entry->signature, "  | Creator ID           | ", Hex(entry->creatorId), "\n");
+        KmDebugMessage("| /SYS/ACPI/", entry->signature, "  | Creator revision     | ", entry->creatorRevision, "\n");
     }
 }
 
 static void KmDebugXSDT(const acpi::RsdpLocator *locator, SystemMemory& memory) {
-    KmDebugMessage("| /SYS/ACPI           | RSDP length          | ", locator->length, "\n");
-    KmDebugMessage("| /SYS/ACPI           | XSDT address         | ", Hex(locator->xsdtAddress).pad(16, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI           | Extended checksum    | ", locator->extendedChecksum, "\n");
+    KmDebugMessage("| /SYS/ACPI       | RSDP length          | ", locator->length, "\n");
+    KmDebugMessage("| /SYS/ACPI       | XSDT address         | ", Hex(locator->xsdtAddress).pad(16, '0'), "\n");
+    KmDebugMessage("| /SYS/ACPI       | Extended checksum    | ", locator->extendedChecksum, "\n");
 
     acpi::Xsdt *xsdt = memory.hhdmMapObject<acpi::Xsdt>(km::PhysicalAddress { locator->xsdtAddress });
 
-    KmDebugMessage("| /SYS/ACPI/XSDT      | Signature            | '", stdx::StringView(xsdt->header.signature), "'\n");
+    KmDebugMessage("| /SYS/ACPI/XSDT  | Signature            | '", stdx::StringView(xsdt->header.signature), "'\n");
 
     for (uint32_t i = 0; i < xsdt->count(); i++) {
         km::PhysicalAddress paddr = km::PhysicalAddress { xsdt->entries[i] };
         acpi::RsdtHeader *entry = memory.hhdmMapObject<acpi::RsdtHeader>(paddr);
-        FormatOf<uint32_t> e = rpad(4) + i;
-        KmDebugMessage("| /SYS/ACPI/XSDT/", e, " | Address              | ", Hex(paddr.address).pad(16, '0'), "\n");
-        KmDebugMessage("| /SYS/ACPI/XSDT/", e, " | Signature            | '", stdx::StringView(entry->signature), "'\n");
-        KmDebugMessage("| /SYS/ACPI/XSDT/", e, " | Length               | ", entry->length, "\n");
-        KmDebugMessage("| /SYS/ACPI/XSDT/", e, " | Revision             | ", entry->revision, "\n");
-        KmDebugMessage("| /SYS/ACPI/XSDT/", e, " | OEM                  | ", stdx::StringView(entry->oemid), "\n");
-        KmDebugMessage("| /SYS/ACPI/XSDT/", e, " | Table ID             | ", stdx::StringView(entry->tableId), "\n");
-        KmDebugMessage("| /SYS/ACPI/XSDT/", e, " | OEM revision         | ", entry->oemRevision, "\n");
-        KmDebugMessage("| /SYS/ACPI/XSDT/", e, " | Creator ID           | ", Hex(entry->creatorId), "\n");
-        KmDebugMessage("| /SYS/ACPI/XSDT/", e, " | Creator revision     | ", entry->creatorRevision, "\n");
+        KmDebugMessage("| /SYS/ACPI/", entry->signature, "  | Address              | ", Hex(paddr.address).pad(16, '0'), "\n");
+        KmDebugMessage("| /SYS/ACPI/", entry->signature, "  | Signature            | '", stdx::StringView(entry->signature), "'\n");
+        KmDebugMessage("| /SYS/ACPI/", entry->signature, "  | Length               | ", entry->length, "\n");
+        KmDebugMessage("| /SYS/ACPI/", entry->signature, "  | Revision             | ", entry->revision, "\n");
+        KmDebugMessage("| /SYS/ACPI/", entry->signature, "  | OEM                  | ", stdx::StringView(entry->oemid), "\n");
+        KmDebugMessage("| /SYS/ACPI/", entry->signature, "  | Table ID             | ", stdx::StringView(entry->tableId), "\n");
+        KmDebugMessage("| /SYS/ACPI/", entry->signature, "  | OEM revision         | ", entry->oemRevision, "\n");
+        KmDebugMessage("| /SYS/ACPI/", entry->signature, "  | Creator ID           | ", Hex(entry->creatorId), "\n");
+        KmDebugMessage("| /SYS/ACPI/", entry->signature, "  | Creator revision     | ", entry->creatorRevision, "\n");
     }
 }
 
@@ -719,10 +718,10 @@ extern "C" void kmain(void) {
     bool rsdpOk = KmValidateRsdpLocator(locator);
     KM_CHECK(rsdpOk, "Invalid RSDP checksum.");
 
-    KmDebugMessage("| /SYS/ACPI           | RSDP signature       | '", stdx::StringView(locator->signature), "'\n");
-    KmDebugMessage("| /SYS/ACPI           | RSDP checksum        | ", rsdpOk ? stdx::StringView("Valid") : stdx::StringView("Invalid"), "\n");
-    KmDebugMessage("| /SYS/ACPI           | RSDP revision        | ", locator->revision, "\n");
-    KmDebugMessage("| /SYS/ACPI           | OEM                  | ", stdx::StringView(locator->oemid), "\n");
+    KmDebugMessage("| /SYS/ACPI       | RSDP signature       | '", stdx::StringView(locator->signature), "'\n");
+    KmDebugMessage("| /SYS/ACPI       | RSDP checksum        | ", rsdpOk ? stdx::StringView("Valid") : stdx::StringView("Invalid"), "\n");
+    KmDebugMessage("| /SYS/ACPI       | RSDP revision        | ", locator->revision, "\n");
+    KmDebugMessage("| /SYS/ACPI       | OEM                  | ", stdx::StringView(locator->oemid), "\n");
 
     KmDebugACPI(locator, memory);
 
