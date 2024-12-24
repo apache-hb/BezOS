@@ -251,54 +251,164 @@ static LocalAPIC KmEnableAPIC(km::VirtualAllocator& vmm, const km::PageManager& 
     return lapic;
 }
 
-struct [[gnu::packed]] RsdpLocator {
-    // v1 fields
-    char signature[8];
-    uint8_t checksum;
-    char oemid[6];
-    uint8_t revision;
-    uint32_t rsdtAddress;
+namespace acpi {
+    struct [[gnu::packed]] RsdpLocator {
+        // v1 fields
+        char signature[8];
+        uint8_t checksum;
+        char oemid[6];
+        uint8_t revision;
+        uint32_t rsdtAddress;
 
-    // v2 fields
-    uint32_t length;
-    uint64_t xsdtAddress;
-    uint8_t extendedChecksum;
-    uint8_t reserved[3];
-};
+        // v2 fields
+        uint32_t length;
+        uint64_t xsdtAddress;
+        uint8_t extendedChecksum;
+        uint8_t reserved[3];
+    };
 
-static_assert(sizeof(RsdpLocator) == 36);
+    static_assert(sizeof(RsdpLocator) == 36);
 
-struct [[gnu::packed]] RsdtHeader {
-    char signature[4];
-    uint32_t length;
-    uint8_t revision;
-    uint8_t checksum;
-    char oemid[6];
-    char tableId[8];
-    uint32_t oemRevision;
-    uint32_t creatorId;
-    uint32_t creatorRevision;
-};
+    struct [[gnu::packed]] RsdtHeader {
+        char signature[4];
+        uint32_t length;
+        uint8_t revision;
+        uint8_t checksum;
+        char oemid[6];
+        char tableId[8];
+        uint32_t oemRevision;
+        uint32_t creatorId;
+        uint32_t creatorRevision;
+    };
 
-static_assert(sizeof(RsdtHeader) == 36);
+    static_assert(sizeof(RsdtHeader) == 36);
 
-struct [[gnu::packed]] Rsdt {
-    RsdtHeader header; // signature must be "RSDT"
-    uint32_t entries[];
+    struct [[gnu::packed]] Rsdt {
+        RsdtHeader header; // signature must be "RSDT"
+        uint32_t entries[];
 
-    uint32_t count() const noexcept {
-        return (header.length - sizeof(header)) / sizeof(uint32_t);
-    }
-};
+        uint32_t count() const noexcept {
+            return (header.length - sizeof(header)) / sizeof(uint32_t);
+        }
+    };
 
-struct [[gnu::packed]] Xsdt {
-    RsdtHeader header; // signature must be "XSDT"
-    uint64_t entries[];
+    struct [[gnu::packed]] Xsdt {
+        RsdtHeader header; // signature must be "XSDT"
+        uint64_t entries[];
 
-    uint32_t count() const noexcept {
-        return (header.length - sizeof(header)) / sizeof(uint64_t);
-    }
-};
+        uint32_t count() const noexcept {
+            return (header.length - sizeof(header)) / sizeof(uint64_t);
+        }
+    };
+
+    enum class AddressSpaceId : uint8_t {
+        eSystemMemory = 0x00,
+        eSystemIo = 0x01,
+        ePciConfig = 0x02,
+        eEmbeddedController = 0x03,
+        eSmbus = 0x04,
+        eSystemCmos = 0x05,
+        ePciBarTarget = 0x06,
+        eIpmi = 0x07,
+        eGeneralPurposeIo = 0x08,
+        eGenericSerialBus = 0x09,
+        ePlatformCommChannel = 0x0A,
+        eFunctionalFixedHardware = 0x7F,
+    };
+
+    enum class AccessSize : uint8_t {
+        eUndefined = 0,
+        eByte = 1,
+        eWord = 2,
+        eDword = 3,
+        eQword = 4,
+    };
+
+    // ACPI 5.2.3.2. Generic Address Structure
+    struct [[gnu::packed]] GenericAddress {
+        AddressSpaceId addressSpace;
+        uint8_t width;
+        uint8_t offset;
+        AccessSize accessSize;
+        uint64_t address;
+    };
+
+    static_assert(sizeof(GenericAddress) == 12);
+
+    struct [[gnu::packed]] Fadt {
+        RsdtHeader header; // signature must be "FACP"
+
+        uint32_t firmwareCtrl;
+        uint32_t dsdt;
+        uint8_t reserved0[1];
+        uint8_t preferredPmProfile;
+        uint16_t sciInt;
+        uint32_t smiCmd;
+        uint8_t acpiEnable;
+        uint8_t acpiDisable;
+        uint8_t s4BiosReq;
+        uint8_t pstateCnt;
+
+        uint32_t pm1aEvtBlk;
+        uint32_t pm1bEvtBlk;
+        uint32_t pm1aCntBlk;
+        uint32_t pm1bCntBlk;
+        uint32_t pm2CntBlk;
+        uint32_t pmTmrBlk;
+        uint32_t gpe0Blk;
+        uint32_t gpe1Blk;
+
+        uint8_t pm1EvtLen;
+        uint8_t pm1CntLen;
+        uint8_t pm2CntLen;
+        uint8_t pmTmrLen;
+        uint8_t gpe0BlkLen;
+        uint8_t gpe1BlkLen;
+        uint8_t gpe1Base;
+        uint8_t cstateCtl;
+        uint16_t worstC2Latency;
+        uint16_t worstC3Latency;
+        uint16_t flushSize;
+        uint16_t flushStride;
+        uint8_t dutyOffset;
+        uint8_t dutyWidth;
+        uint8_t dayAlrm;
+        uint8_t monAlrm;
+        uint8_t century;
+        uint16_t iapcBootArch;
+        uint8_t reserved1[1];
+        uint32_t flags;
+        GenericAddress resetReg;
+        uint8_t resetValue;
+        uint16_t armBootArch;
+        uint8_t fadtMinorVersion;
+        uint64_t x_firmwareCtrl;
+        uint64_t x_dsdt;
+
+        GenericAddress x_pm1aEvtBlk;
+        GenericAddress x_pm1bEvtBlk;
+        GenericAddress x_pm1aCntBlk;
+        GenericAddress x_pm1bCntBlk;
+        GenericAddress x_pm2CntBlk;
+        GenericAddress x_pmTmrBlk;
+        GenericAddress x_gpe0Blk;
+        GenericAddress x_gpe1Blk;
+        GenericAddress sleepControlReg;
+        GenericAddress sleepStatusReg;
+        uint64_t hypervisorVendor;
+    };
+
+    static_assert(sizeof(Fadt) == 276);
+
+    struct Madt {
+        RsdtHeader header; // signature must be "APIC"
+
+        uint32_t localApicAddress;
+        uint32_t flags;
+
+        char entries[];
+    };
+}
 
 static bool KmValidateChecksum(const uint8_t *bytes, size_t length) {
     uint32_t sum = 0;
@@ -309,7 +419,7 @@ static bool KmValidateChecksum(const uint8_t *bytes, size_t length) {
     return (sum & 0xFF) == 0;
 }
 
-static bool KmValidateRsdpLocator(const RsdpLocator *rsdp) {
+static bool KmValidateRsdpLocator(const acpi::RsdpLocator *rsdp) {
     switch (rsdp->revision) {
     case 0:
         return KmValidateChecksum((const uint8_t*)rsdp, 20);
@@ -459,54 +569,56 @@ static ProcessorInfo KmGetProcessorInfo() {
     };
 }
 
-static void KmDebugRSDT(const RsdpLocator *locator, SystemMemory& memory) {
+static void KmDebugRSDT(const acpi::RsdpLocator *locator, SystemMemory& memory) {
 
     KmDebugMessage("| /SYS/ACPI           | RSDT address         | ", Hex(locator->rsdtAddress).pad(16, '0'), "\n");
 
-    Rsdt *rsdt = memory.hhdmMapObject<Rsdt>(locator->rsdtAddress);
+    acpi::Rsdt *rsdt = memory.hhdmMapObject<acpi::Rsdt>(locator->rsdtAddress);
 
     KmDebugMessage("| /SYS/ACPI/RSDT      | Signature            | '", stdx::StringView(rsdt->header.signature), "'\n");
 
     for (uint32_t i = 0; i < rsdt->count(); i++) {
         km::PhysicalAddress paddr = km::PhysicalAddress { rsdt->entries[i] };
-        RsdtHeader *entry = memory.hhdmMapObject<RsdtHeader>(paddr);
-        KmDebugMessage("| /SYS/ACPI/RSDT/", rpad(4) + i, " | Address              | ", Hex(paddr.address).pad(16, '0'), "\n");
-        KmDebugMessage("| /SYS/ACPI/RSDT/", rpad(4) + i, " | Signature            | '", stdx::StringView(entry->signature), "'\n");
-        KmDebugMessage("| /SYS/ACPI/RSDT/", rpad(4) + i, " | Length               | ", entry->length, "\n");
-        KmDebugMessage("| /SYS/ACPI/RSDT/", rpad(4) + i, " | Revision             | ", entry->revision, "\n");
-        KmDebugMessage("| /SYS/ACPI/RSDT/", rpad(4) + i, " | OEM                  | ", stdx::StringView(entry->oemid), "\n");
-        KmDebugMessage("| /SYS/ACPI/RSDT/", rpad(4) + i, " | Table ID             | ", stdx::StringView(entry->tableId), "\n");
-        KmDebugMessage("| /SYS/ACPI/RSDT/", rpad(4) + i, " | OEM revision         | ", entry->oemRevision, "\n");
-        KmDebugMessage("| /SYS/ACPI/RSDT/", rpad(4) + i, " | Creator ID           | ", Hex(entry->creatorId), "\n");
-        KmDebugMessage("| /SYS/ACPI/RSDT/", rpad(4) + i, " | Creator revision     | ", entry->creatorRevision, "\n");
+        acpi::RsdtHeader *entry = memory.hhdmMapObject<acpi::RsdtHeader>(paddr);
+        FormatOf<uint32_t> e = rpad(4) + i;
+        KmDebugMessage("| /SYS/ACPI/RSDT/", e, " | Address              | ", Hex(paddr.address).pad(16, '0'), "\n");
+        KmDebugMessage("| /SYS/ACPI/RSDT/", e, " | Signature            | '", stdx::StringView(entry->signature), "'\n");
+        KmDebugMessage("| /SYS/ACPI/RSDT/", e, " | Length               | ", entry->length, "\n");
+        KmDebugMessage("| /SYS/ACPI/RSDT/", e, " | Revision             | ", entry->revision, "\n");
+        KmDebugMessage("| /SYS/ACPI/RSDT/", e, " | OEM                  | ", stdx::StringView(entry->oemid), "\n");
+        KmDebugMessage("| /SYS/ACPI/RSDT/", e, " | Table ID             | ", stdx::StringView(entry->tableId), "\n");
+        KmDebugMessage("| /SYS/ACPI/RSDT/", e, " | OEM revision         | ", entry->oemRevision, "\n");
+        KmDebugMessage("| /SYS/ACPI/RSDT/", e, " | Creator ID           | ", Hex(entry->creatorId), "\n");
+        KmDebugMessage("| /SYS/ACPI/RSDT/", e, " | Creator revision     | ", entry->creatorRevision, "\n");
     }
 }
 
-static void KmDebugXSDT(const RsdpLocator *locator, SystemMemory& memory) {
+static void KmDebugXSDT(const acpi::RsdpLocator *locator, SystemMemory& memory) {
     KmDebugMessage("| /SYS/ACPI           | RSDP length          | ", locator->length, "\n");
     KmDebugMessage("| /SYS/ACPI           | XSDT address         | ", Hex(locator->xsdtAddress).pad(16, '0'), "\n");
     KmDebugMessage("| /SYS/ACPI           | Extended checksum    | ", locator->extendedChecksum, "\n");
 
-    Xsdt *xsdt = memory.hhdmMapObject<Xsdt>(km::PhysicalAddress { locator->xsdtAddress });
+    acpi::Xsdt *xsdt = memory.hhdmMapObject<acpi::Xsdt>(km::PhysicalAddress { locator->xsdtAddress });
 
     KmDebugMessage("| /SYS/ACPI/XSDT      | Signature            | '", stdx::StringView(xsdt->header.signature), "'\n");
 
     for (uint32_t i = 0; i < xsdt->count(); i++) {
         km::PhysicalAddress paddr = km::PhysicalAddress { xsdt->entries[i] };
-        RsdtHeader *entry = memory.hhdmMapObject<RsdtHeader>(paddr);
-        KmDebugMessage("| /SYS/ACPI/XSDT/", rpad(4) + i, " | Address              | ", Hex(paddr.address).pad(16, '0'), "\n");
-        KmDebugMessage("| /SYS/ACPI/XSDT/", rpad(4) + i, " | Signature            | '", stdx::StringView(entry->signature), "'\n");
-        KmDebugMessage("| /SYS/ACPI/XSDT/", rpad(4) + i, " | Length               | ", entry->length, "\n");
-        KmDebugMessage("| /SYS/ACPI/XSDT/", rpad(4) + i, " | Revision             | ", entry->revision, "\n");
-        KmDebugMessage("| /SYS/ACPI/XSDT/", rpad(4) + i, " | OEM                  | ", stdx::StringView(entry->oemid), "\n");
-        KmDebugMessage("| /SYS/ACPI/XSDT/", rpad(4) + i, " | Table ID             | ", stdx::StringView(entry->tableId), "\n");
-        KmDebugMessage("| /SYS/ACPI/XSDT/", rpad(4) + i, " | OEM revision         | ", entry->oemRevision, "\n");
-        KmDebugMessage("| /SYS/ACPI/XSDT/", rpad(4) + i, " | Creator ID           | ", Hex(entry->creatorId), "\n");
-        KmDebugMessage("| /SYS/ACPI/XSDT/", rpad(4) + i, " | Creator revision     | ", entry->creatorRevision, "\n");
+        acpi::RsdtHeader *entry = memory.hhdmMapObject<acpi::RsdtHeader>(paddr);
+        FormatOf<uint32_t> e = rpad(4) + i;
+        KmDebugMessage("| /SYS/ACPI/XSDT/", e, " | Address              | ", Hex(paddr.address).pad(16, '0'), "\n");
+        KmDebugMessage("| /SYS/ACPI/XSDT/", e, " | Signature            | '", stdx::StringView(entry->signature), "'\n");
+        KmDebugMessage("| /SYS/ACPI/XSDT/", e, " | Length               | ", entry->length, "\n");
+        KmDebugMessage("| /SYS/ACPI/XSDT/", e, " | Revision             | ", entry->revision, "\n");
+        KmDebugMessage("| /SYS/ACPI/XSDT/", e, " | OEM                  | ", stdx::StringView(entry->oemid), "\n");
+        KmDebugMessage("| /SYS/ACPI/XSDT/", e, " | Table ID             | ", stdx::StringView(entry->tableId), "\n");
+        KmDebugMessage("| /SYS/ACPI/XSDT/", e, " | OEM revision         | ", entry->oemRevision, "\n");
+        KmDebugMessage("| /SYS/ACPI/XSDT/", e, " | Creator ID           | ", Hex(entry->creatorId), "\n");
+        KmDebugMessage("| /SYS/ACPI/XSDT/", e, " | Creator revision     | ", entry->creatorRevision, "\n");
     }
 }
 
-static void KmDebugACPI(const RsdpLocator *locator, SystemMemory& memory) {
+static void KmDebugACPI(const acpi::RsdpLocator *locator, SystemMemory& memory) {
     switch (locator->revision) {
     case 0:
         KmDebugRSDT(locator, memory);
@@ -597,7 +709,7 @@ extern "C" void kmain(void) {
     SystemMemory memory = KmInitMemoryMap(processor.maxpaddr);
 
     // map the rsdp table
-    RsdpLocator *locator = memory.hhdmMapObject<RsdpLocator>(rsdpBaseAddress.address);
+    acpi::RsdpLocator *locator = memory.hhdmMapObject<acpi::RsdpLocator>(rsdpBaseAddress.address);
     bool rsdpOk = KmValidateRsdpLocator(locator);
     KM_CHECK(rsdpOk, "Invalid RSDP checksum.");
 
