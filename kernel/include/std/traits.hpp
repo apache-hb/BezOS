@@ -139,7 +139,7 @@ namespace stdx {
 
     template<typename T, typename C>
     concept IsRange = requires(C range) {
-        { range.begin() } -> Same<T*>;
-        { range.end() } -> Same<T*>;
+        { range.begin() } -> std::convertible_to<T*>;
+        { range.end() } -> std::convertible_to<T*>;
     };
 }

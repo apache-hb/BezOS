@@ -570,7 +570,6 @@ static ProcessorInfo KmGetProcessorInfo() {
 }
 
 static void KmDebugRSDT(const acpi::RsdpLocator *locator, SystemMemory& memory) {
-
     KmDebugMessage("| /SYS/ACPI           | RSDT address         | ", Hex(locator->rsdtAddress).pad(16, '0'), "\n");
 
     acpi::Rsdt *rsdt = memory.hhdmMapObject<acpi::Rsdt>(locator->rsdtAddress);
@@ -650,11 +649,18 @@ extern "C" void kmain(void) {
     }
 
     SerialPortStatus com1Status = SerialPortStatus::eOk;
+    SerialPort com1;
 
-    if (OpenSerialResult com1 = openSerial(km::com::kComPort1, km::com::kBaud9600)) {
-        com1Status = com1.status;
+    ComPortInfo com1Info = {
+        .port = km::com::kComPort1,
+        .divisor = km::com::kBaud9600
+    };
+
+    if (OpenSerialResult com = openSerial(com1Info)) {
+        com1Status = com.status;
     } else {
-        gSerialLog = SerialLog(com1.port);
+        com1 = com.port;
+        gSerialLog = SerialLog(com1);
         gLogTarget = &gSerialLog;
     }
 

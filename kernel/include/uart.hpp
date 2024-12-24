@@ -10,12 +10,13 @@
 namespace km {
     struct ComPortInfo {
         uint16_t port;
+        uint16_t divisor;
         uint8_t irq;
     };
 
     namespace com {
-        static constexpr ComPortInfo kComPort1 = { .port = 0x3f8, .irq = 4 };
-        static constexpr ComPortInfo kComPort2 = { .port = 0x2f8, .irq = 3 };
+        static constexpr uint16_t kComPort1 = 0x3f8;
+        static constexpr uint16_t kComPort2 = 0x2f8;
 
         static constexpr uint32_t kBaudRate = 115200;
         static constexpr uint16_t kBaud9600 = kBaudRate / 9600;
@@ -57,10 +58,9 @@ namespace km {
     /// @brief Construct a new Serial Port object
     ///
     /// @param info the port information
-    /// @param divisor the baud rate divisor
     ///
     /// @pre @a divisor is not 0
-    OpenSerialResult openSerial(ComPortInfo info, uint16_t divisor);
+    OpenSerialResult openSerial(ComPortInfo info);
 
     template<>
     struct StaticFormat<SerialPortStatus> {

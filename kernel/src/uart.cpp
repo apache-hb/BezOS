@@ -56,7 +56,7 @@ size_t km::SerialPort::print(stdx::StringView src) {
     return result;
 }
 
-km::OpenSerialResult km::openSerial(ComPortInfo info, uint16_t divisor) {
+km::OpenSerialResult km::openSerial(ComPortInfo info) {
     uint16_t base = info.port;
 
     // do initial scratch test
@@ -75,9 +75,8 @@ km::OpenSerialResult km::openSerial(ComPortInfo info, uint16_t divisor) {
     __outbyte(base + kLineControl, (1 << kDLABOffset));
 
     // set the divisor
-    __outbyte(base + 0, (divisor & 0x00FF) >> 0);
-    __outbyte(base + 1, (divisor & 0xFF00) >> 8);
-
+    __outbyte(base + 0, (info.divisor & 0x00FF) >> 0);
+    __outbyte(base + 1, (info.divisor & 0xFF00) >> 8);
 
     // disable DLAB and configure the line
     uint8_t lineControl
@@ -87,9 +86,13 @@ km::OpenSerialResult km::openSerial(ComPortInfo info, uint16_t divisor) {
         | (0 << kDLABOffset); // DLAB off
     __outbyte(base + kLineControl, lineControl);
 
-
-    // enable fifo, clear bits, 14 byte threshold
-    __outbyte(base + kFifoControl, 0xC7);
+    // enable fifo
+    uint8_t fifoControl
+        = (1 << 0) // enable fifo
+        | (1 << 1) // clear receive fifo
+        | (1 << 2) // clear transmit fifo
+        | (0b11 << 6); // 1 byte threshold
+    __outbyte(base + kFifoControl, fifoControl);
 
     // enable irqs, rts/dtr set
     __outbyte(base + kModemControl, 0x0F);
