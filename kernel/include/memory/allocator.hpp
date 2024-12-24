@@ -63,9 +63,4 @@ namespace km {
 /// @param vmm the virtual memory manager
 /// @param layout the system memory layout
 /// @param address the address of the kernel
-void KmMapKernel(
-    const km::PageManager& pm,
-    km::VirtualAllocator& vmm,
-    km::SystemMemoryLayout& layout,
-    limine_kernel_address_response address
-);
+void KmMapKernel(const km::PageManager& pm, km::VirtualAllocator& vmm, km::SystemMemoryLayout& layout, limine_kernel_address_response address);

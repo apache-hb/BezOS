@@ -11,27 +11,19 @@ namespace x64 {
         }
     }
 
-    static constexpr uintptr_t kPageSize = 0x1000;
+    constexpr uintptr_t kPageSize = 0x1000;
 
     namespace paging {
-        static constexpr uint64_t kMaxPhysicalAddress = 48;
-        static constexpr uint64_t kPresentBit        = 1ull << 0;
-        static constexpr uint64_t kReadOnlyBit       = 1ull << 1;
-        static constexpr uint64_t kUserBit           = 1ull << 2;
-        static constexpr uint64_t kAccessedBit       = 1ull << 5;
-        static constexpr uint64_t kWrittenBit        = 1ull << 6;
-        static constexpr uint64_t kExecuteDisableBit = 1ull << 63;
-
-        constexpr uintptr_t kValidAddressBits[] = { 40, 48 };
+        constexpr uint64_t kMaxPhysicalAddress = 48;
+        constexpr uint64_t kPresentBit        = 1ull << 0;
+        constexpr uint64_t kReadOnlyBit       = 1ull << 1;
+        constexpr uint64_t kUserBit           = 1ull << 2;
+        constexpr uint64_t kAccessedBit       = 1ull << 5;
+        constexpr uint64_t kWrittenBit        = 1ull << 6;
+        constexpr uint64_t kExecuteDisableBit = 1ull << 63;
 
         constexpr bool isValidAddressWidth(uintptr_t width) {
-            for (auto bits : kValidAddressBits) {
-                if (width == bits) {
-                    return true;
-                }
-            }
-
-            return false;
+            return width == 40 || width == 48;
         }
 
         constexpr uintptr_t addressMask(uintptr_t width) {

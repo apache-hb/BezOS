@@ -6,6 +6,9 @@
 #include <string.h>
 
 #include "apic.hpp"
+#include "isr.hpp"
+#include "uart.hpp"
+
 #include "memory/layout.hpp"
 #include "memory/allocator.hpp"
 
@@ -16,7 +19,6 @@
 
 #include "kernel.hpp"
 
-#include "uart.hpp"
 #include "util/cpuid.hpp"
 #include "util/logger.hpp"
 
@@ -146,7 +148,7 @@ static constexpr uint64_t kGdtEntries[eGdtEntry_Count] = {
 static constexpr uint64_t kCodeSelector = eGdtEntry_Ring0Code * sizeof(uint64_t);
 static constexpr uint64_t kDataSelector = eGdtEntry_Ring0Data * sizeof(uint64_t);
 
-static void KmInitGdt(void) {
+void KmInitGdt(void) {
     struct GDTR gdtr = {
         .limit = sizeof(kGdtEntries) - 1,
         .base = (uint64_t)kGdtEntries
@@ -208,99 +210,6 @@ static SystemMemory KmInitMemoryMap(uintptr_t bits) {
     SystemMemory memory = SystemMemory { SystemMemoryLayout::from(*memmap), bits, *hhdm };
     KmMapKernel(memory.pager, memory.vmm, memory.layout, *kernel);
     return memory;
-}
-
-namespace x64 {
-    namespace idt {
-        static constexpr uint8_t kFlagPresent = (1 << 7);
-        static constexpr uint8_t kInterruptGate = 0b1110;
-        // static constexpr uint8_t kTrapGate = 0b1111;
-        // static constexpr uint8_t kTaskGate = 0b0101;
-
-        static constexpr uint8_t kPrivilegeRing0 = 0;
-        // static constexpr uint8_t kPrivilegeRing1 = 1;
-        // static constexpr uint8_t kPrivilegeRing2 = 2;
-        // static constexpr uint8_t kPrivilegeRing3 = 3;
-    }
-
-    struct [[gnu::packed]] IdtEntry {
-        uint16_t address0;
-        uint16_t selector;
-        uint8_t ist;
-        uint8_t flags;
-        uint16_t address1;
-        uint32_t address2;
-        uint32_t reserved;
-    };
-
-    static_assert(sizeof(IdtEntry) == 16);
-}
-
-struct alignas(0x8) Idt {
-    static constexpr size_t kCount = 256;
-    x64::IdtEntry entries[kCount];
-};
-
-static x64::IdtEntry KmCreateIdtEntry(void *handler, uint8_t dpl) {
-    uint8_t flags = x64::idt::kFlagPresent | x64::idt::kInterruptGate | ((dpl & 0b11) << 5);
-    uintptr_t address = (uintptr_t)handler;
-    return x64::IdtEntry {
-        .address0 = uint16_t(address & 0xFFFF),
-        .selector = kCodeSelector,
-        .flags = flags,
-        .address1 = uint16_t((address >> 16) & 0xFFFF),
-        .address2 = uint32_t(address >> 32),
-    };
-}
-
-static constexpr size_t kIsrTableStride = 16;
-extern "C" char KmIsrTable[];
-
-static Idt gIdt;
-
-struct [[gnu::packed]] IsrContext {
-    uint64_t rax;
-    uint64_t rbx;
-    uint64_t rcx;
-    uint64_t rdx;
-    uint64_t rdi;
-    uint64_t rsi;
-    uint64_t r8;
-    uint64_t r9;
-    uint64_t r10;
-    uint64_t r11;
-    uint64_t r12;
-    uint64_t r13;
-    uint64_t r14;
-    uint64_t r15;
-    uint64_t rbp;
-
-    uint64_t vector;
-    uint64_t error;
-
-    uint64_t rip;
-    uint64_t cs;
-    uint64_t rflags;
-    uint64_t rsp;
-    uint64_t ss;
-};
-
-extern "C" void *KmIsrDispatchRoutine(IsrContext *context) {
-    KmDebugMessage("[INT] Interrupt: ", context->vector, " Error: ", context->error, "\n");
-    return context;
-}
-
-static void KmInitInterrupts(void) {
-    for (size_t i = 0; i < Idt::kCount; i++) {
-        gIdt.entries[i] = KmCreateIdtEntry(KmIsrTable + (i * kIsrTableStride), x64::idt::kPrivilegeRing0);
-    }
-
-    IDTR idtr = {
-        .limit = (sizeof(x64::IdtEntry) * Idt::kCount) - 1,
-        .base = (uintptr_t)&gIdt,
-    };
-
-    __lidt(idtr);
 }
 
 static LocalAPIC KmEnableAPIC(km::VirtualAllocator& vmm, const km::PageManager& pm) {
@@ -499,14 +408,14 @@ extern "C" void kmain(void) {
     if (hvPresent) {
         KmDebugMessage("| /SYS/HV       | Hypervisor           | ", hvInfo.name, "\n");
         KmDebugMessage("| /SYS/HV       | Max CPUID leaf       | ", Hex(hvInfo.maxleaf).pad(8, '0'), "\n");
-        KmDebugMessage("| /SYS/HV       | e9 debug port        | ", hasDebugPort ? stdx::StringView("Enabled") : stdx::StringView("Disabled"), "\n");
+        KmDebugMessage("| /SYS/HV       | e9 debug port        | ", enabled(hasDebugPort), "\n");
     } else {
         KmDebugMessage("| /SYS/HV       | Hypervisor           | Not present\n");
         KmDebugMessage("| /SYS/HV       | Max CPUID leaf       | 0x00000000\n");
         KmDebugMessage("| /SYS/HV       | e9 debug port        | Not applicable\n");
     }
 
-    KmDebugMessage("| /SYS/MB       | Com1 status          | ", com1Status, "\n");
+    KmDebugMessage("| /SYS/MB/COM1  | Status               | ", com1Status, "\n");
 
     KmDebugMessage("| /SYS/MB/CPU0  | Vendor               | ", processor.vendor, "\n");
     KmDebugMessage("| /SYS/MB/CPU0  | Model name           | ", processor.brand, "\n");
@@ -523,15 +432,16 @@ extern "C" void kmain(void) {
     KmDebugMessage("| /SYS/MB/CPU0  | Base frequency       | ", processor.baseFrequency, "mhz\n");
     KmDebugMessage("| /SYS/MB/CPU0  | Max frequency        | ", processor.maxFrequency, "mhz\n");
     KmDebugMessage("| /SYS/MB/CPU0  | Bus frequency        | ", processor.busFrequency, "mhz\n");
-    KmDebugMessage("| /SYS/MB/CPU0  | Local APIC           | ", processor.hasLocalApic ? stdx::StringView("Present") : stdx::StringView("Not present"), "\n");
-    KmDebugMessage("| /SYS/MB/CPU0  | 2x APIC              | ", processor.has2xApic ? stdx::StringView("Present") : stdx::StringView("Not present"), "\n");
+    KmDebugMessage("| /SYS/MB/CPU0  | Local APIC           | ", present(processor.hasLocalApic), "\n");
+    KmDebugMessage("| /SYS/MB/CPU0  | 2x APIC              | ", present(processor.has2xApic), "\n");
 
     KmDebugMessage("[INIT] Load GDT.\n");
     KmInitGdt();
 
     SystemMemory memory = KmInitMemoryMap(processor.maxpaddr);
 
-    KmInitInterrupts();
+    km::IsrAllocator isrs;
+    KmInitInterrupts(isrs, kCodeSelector);
 
     __sti();
 

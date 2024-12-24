@@ -87,6 +87,14 @@ namespace km {
         return stdx::StringView(ptr + 1, buffer.end());
     }
 
+    constexpr stdx::StringView present(bool present) {
+        return present ? stdx::StringView("Present") : stdx::StringView("Not present");
+    }
+
+    constexpr stdx::StringView enabled(bool enabled) {
+        return enabled ? stdx::StringView("Enabled") : stdx::StringView("Disabled");
+    }
+
     template<typename T>
     concept IsFormat = requires(T it) {
         { it.toString(stdx::declval<char*>()) } -> stdx::Same<stdx::StringView>;

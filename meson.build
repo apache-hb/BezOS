@@ -26,7 +26,7 @@ common_args = [
     '-Wno-gnu-anonymous-struct',
     '-Wno-missing-field-initializers',
     '-Wno-missing-designated-field-initializers',
-    '-Wno-zero-length-array'
+    '-Wno-zero-length-array',
 ]
 
 c_args = cc.get_supported_arguments([ '-Wno-language-extension-token' ] + common_args)
@@ -42,6 +42,7 @@ src = [
 
     'kernel/src/crt.c',
     'kernel/src/cxxrt.cpp',
+    'kernel/src/isr.cpp',
     'kernel/src/isr.S',
     'kernel/src/main.cpp',
     'kernel/src/check.cpp',
@@ -50,7 +51,7 @@ src = [
 ]
 
 executable('bezos', src,
-    c_args : c_args,
+    c_args : c_args + [ '-mllvm', '-asm-macro-max-nesting-depth=256' ],
     cpp_args : cpp_args,
     include_directories : inc,
     dependencies : [ limine ],

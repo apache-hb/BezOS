@@ -9,11 +9,6 @@
 
 void KmDebugWrite(stdx::StringView value = "\n");
 
-template<typename T>
-constexpr T roundpow2(T value, T multiple) {
-    return (value + multiple - 1) & ~(multiple - 1);
-}
-
 template<stdx::Integer T>
 void KmDebugWrite(T value) {
     char buffer[stdx::NumericTraits<T>::kMaxDigits10];
@@ -49,6 +44,8 @@ template<typename... T>
 void KmDebugMessage(T&&... args) {
     (KmDebugWrite(args), ...);
 }
+
+void KmInitGdt();
 
 extern "C" [[noreturn]] void KmHalt(void);
 

@@ -25,27 +25,6 @@ extern "C" {
     extern char __kernel_end[];
 }
 
-#if 0
-static size_t CountUsablePages(const SystemMemoryLayout& layout) {
-    size_t count = 0;
-
-    for (const MemoryRange& range : layout.available) {
-        count += range.size();
-    }
-
-    for (const MemoryRange& range : layout.reclaimable) {
-        count += range.size();
-    }
-
-    return count / x64::kPageSize;
-}
-
-static size_t GetMemoryBitmapSize(const SystemMemoryLayout& layout) {
-    return CountUsablePages(layout) / CHAR_BIT;
-}
-
-#endif
-
 /// page allocator
 
 MemoryRange PageAllocator::currentRange() const {
@@ -77,9 +56,6 @@ PhysicalPointer<x64::page> PageAllocator::alloc4k() {
 
     return alloc4k();
 }
-
-// stage 1 allocator
-
 x64::page *VirtualAllocator::alloc4k() {
     PhysicalPointer<x64::page> result = mPageAllocator->alloc4k();
     uintptr_t offset = (uintptr_t)result.data + mPageManager->hhdmOffset();
@@ -170,12 +146,7 @@ static void MapStage1Memory(VirtualAllocator& memory, const km::PageManager& pm,
     }
 }
 
-void KmMapKernel(
-    const km::PageManager& pm,
-    km::VirtualAllocator& vmm,
-    km::SystemMemoryLayout& layout,
-    limine_kernel_address_response address
-) {
+void KmMapKernel(const km::PageManager& pm, km::VirtualAllocator& vmm, km::SystemMemoryLayout& layout, limine_kernel_address_response address) {
     PageAllocator allocator{&layout};
 
     // first map the kernel pages
