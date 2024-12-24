@@ -1,10 +1,13 @@
 #include "isr.hpp"
 
 #include "arch/intrin.hpp"
+#include "util/digit.hpp"
 #include "kernel.hpp"
 
 #include <stdint.h>
 #include <stddef.h>
+
+using km::uint48_t;
 
 namespace x64 {
     namespace idt {
@@ -24,8 +27,7 @@ namespace x64 {
         uint16_t selector;
         uint8_t ist;
         uint8_t flags;
-        uint16_t address1;
-        uint32_t address2;
+        uint48_t address1;
         uint32_t reserved;
     };
 
@@ -40,12 +42,12 @@ struct alignas(0x8) Idt {
 static x64::IdtEntry KmCreateIdtEntry(void *handler, uint16_t codeSelector, uint8_t dpl) {
     uint8_t flags = x64::idt::kFlagPresent | x64::idt::kInterruptGate | ((dpl & 0b11) << 5);
     uintptr_t address = (uintptr_t)handler;
+
     return x64::IdtEntry {
         .address0 = uint16_t(address & 0xFFFF),
         .selector = codeSelector,
         .flags = flags,
-        .address1 = uint16_t((address >> 16) & 0xFFFF),
-        .address2 = uint32_t(address >> 32),
+        .address1 = uint48_t((address >> 16) & 0xFFFF'FFFF'FFFF),
     };
 }
 
