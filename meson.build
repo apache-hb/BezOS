@@ -30,7 +30,7 @@ common_args = [
 ]
 
 c_args = cc.get_supported_arguments([ '-Wno-language-extension-token' ] + common_args)
-cpp_args = cpp.get_supported_arguments([ '-Wno-c99-designator' ] + common_args)
+cpp_args = cpp.get_supported_arguments([ '-Wno-c99-designator', '-Wno-c99-extensions' ] + common_args)
 
 limine = dependency('limine')
 

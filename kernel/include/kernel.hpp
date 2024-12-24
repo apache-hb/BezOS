@@ -10,12 +10,6 @@
 void KmDebugWrite(stdx::StringView value = "\n");
 
 template<stdx::Integer T>
-void KmDebugWrite(T value) {
-    char buffer[stdx::NumericTraits<T>::kMaxDigits10];
-    KmDebugWrite(km::FormatInt(buffer, value, 10));
-}
-
-template<stdx::Integer T>
 void KmDebugWrite(km::Int<T> value) {
     char buffer[stdx::NumericTraits<T>::kMaxDigits10];
     KmDebugWrite(km::FormatInt(buffer, value.value, 10, value.width, value.fill));
@@ -34,10 +28,26 @@ void KmDebugWrite(const T& value) {
     KmDebugWrite(km::StaticFormat<T>::toString(buffer, value));
 }
 
-template<km::IsFormat T>
-void KmDebugWrite(const T& value) {
-    char buffer[T::kStringSize];
-    KmDebugWrite(value.toString(buffer));
+template<km::IsStaticFormat T>
+void KmDebugWrite(km::FormatOf<T> value) {
+    char buffer[km::StaticFormat<T>::kStringSize];
+    stdx::StringView result = km::StaticFormat<T>::toString(buffer, value.value);
+    if (value.specifier.width <= result.count()) {
+        KmDebugWrite(result);
+        return;
+    }
+
+    if (value.specifier.align == km::Align::eRight) {
+        KmDebugWrite(result);
+        for (int i = result.count(); i < value.specifier.width; i++) {
+            KmDebugWrite(value.specifier.fill);
+        }
+    } else {
+        for (int i = result.count(); i < value.specifier.width; i++) {
+            KmDebugWrite(value.specifier.fill);
+        }
+        KmDebugWrite(result);
+    }
 }
 
 template<typename... T>

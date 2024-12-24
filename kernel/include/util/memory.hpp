@@ -2,6 +2,8 @@
 
 #include "std/string_view.hpp"
 
+#include "util/format.hpp"
+
 namespace km {
     struct Memory {
         enum Unit {
@@ -48,6 +50,14 @@ namespace km {
 
     private:
         size_t mBytes;
+    };
+
+    template<>
+    struct StaticFormat<Memory> {
+        static constexpr size_t kStringSize = 64;
+        static stdx::StringView toString(char *buffer, Memory value) {
+            return value.toString(buffer);
+        }
     };
 
     constexpr Memory bytes(size_t bytes) { return Memory(bytes, Memory::eBytes); }

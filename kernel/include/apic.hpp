@@ -112,6 +112,13 @@ namespace km {
             setSpuriousInt((spuriousInt() & ~0xFF) | vector);
         }
     };
+
+    class IoApic {
+
+    public:
+        uintptr_t mBaseAddress;
+        IoApic();
+    };
 }
 
 void KmDisablePIC(void);

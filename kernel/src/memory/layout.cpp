@@ -124,7 +124,7 @@ SystemMemoryLayout SystemMemoryLayout::from(limine_memmap_response memmap) {
             break;
         }
 
-        KmDebugMessage(Hex(entry->base).pad(16, '0'), " | ", km::bytes(entry->length), " | ", GetMemoryMapTypeName(entry->type), "\n");
+        KmDebugMessage(Hex(entry->base).pad(16, '0'), " | ", lpad(12) + km::bytes(entry->length), " | ", GetMemoryMapTypeName(entry->type), "\n");
     }
 
     uint64_t usableMemory = 0;
@@ -143,8 +143,7 @@ SystemMemoryLayout SystemMemoryLayout::from(limine_memmap_response memmap) {
 
     ReportMemoryIssues(errors);
 
-    KmDebugMessage("[INIT] Usable memory: ", km::bytes(usableMemory), "\n");
-    KmDebugMessage("[INIT] Reclaimable memory: ", km::bytes(reclaimableMemory), "\n");
+    KmDebugMessage("[INIT] Usable memory: ", km::bytes(usableMemory), ", Reclaimable memory: ", km::bytes(reclaimableMemory), "\n");
 
     return SystemMemoryLayout { freeMemory, reclaimable, reservedMemory };
 }

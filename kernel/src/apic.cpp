@@ -44,7 +44,7 @@ km::LocalAPIC KmGetLocalAPIC(km::VirtualAllocator& vmm, const km::PageManager& p
     uint64_t msr = __rdmsr(kApicBaseMsr);
     uintptr_t base = (msr & kApicAddressMask);
     bool enabled = msr & kApicEnable;
-    KmDebugMessage("[APIC] MSR: ", km::Hex(msr), ", Base address: ", km::Hex(base), ", State: ", enabled ? stdx::StringView("Enabled") : stdx::StringView("Disabled"), "\n");
+    KmDebugMessage("[INIT] APIC MSR: ", km::Hex(msr), ", Base address: ", km::Hex(base), ", State: ", km::enabled(enabled), "\n");
 
     // map the APIC base into the higher half
     km::VirtualAddress vbase = km::VirtualAddress { base + pm.hhdmOffset() };

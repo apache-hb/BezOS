@@ -47,6 +47,12 @@ static volatile limine_hhdm_request gDirectMapRequest = {
     .revision = 0
 };
 
+[[gnu::used, gnu::section(".limine_requests")]]
+static volatile limine_rsdp_request gAcpiTableRequest = {
+    .id = LIMINE_RSDP_REQUEST,
+    .revision = 0
+};
+
 [[gnu::used, gnu::section(".limine_requests_start")]]
 static volatile LIMINE_REQUESTS_START_MARKER
 
@@ -196,6 +202,18 @@ struct SystemMemory {
         , pmm(&layout)
         , vmm(&pager, &pmm)
     { }
+
+    VirtualAddress hhdmMap(PhysicalAddress paddr) {
+        VirtualAddress result { paddr.address + pager.hhdmOffset() };
+        vmm.map4k(paddr, result, PageFlags::eData);
+        return result;
+    }
+
+    template<typename T>
+    T *hhdmMapObject(PhysicalAddress paddr) {
+        VirtualAddress vaddr = hhdmMap(paddr);
+        return (T*)vaddr.address;
+    }
 };
 
 static SystemMemory KmInitMemoryMap(uintptr_t bits) {
@@ -212,15 +230,17 @@ static SystemMemory KmInitMemoryMap(uintptr_t bits) {
     return memory;
 }
 
-static LocalAPIC KmEnableAPIC(km::VirtualAllocator& vmm, const km::PageManager& pm) {
+static LocalAPIC KmEnableAPIC(km::VirtualAllocator& vmm, const km::PageManager& pm, km::IsrAllocator& isrs) {
     // disable the 8259 PIC first
     KmDisablePIC();
 
     LocalAPIC lapic = KmGetLocalAPIC(vmm, pm);
 
-    KmDebugMessage("[APIC] ID: ", lapic.id(), ", Version: ", lapic.version(), "\n");
+    uint8_t spuriousVec = isrs.allocateIsr();
+    KmDebugMessage("[INIT] APIC ID: ", lapic.id(), ", Version: ", lapic.version(), "\n");
+    KmDebugMessage("[INIT] Spurious vector: ", spuriousVec, "\n");
 
-    lapic.setSpuriousVector(32);
+    lapic.setSpuriousVector(spuriousVec);
 
     for (auto ivt : {apic::Ivt::eTimer, apic::Ivt::eThermal, apic::Ivt::ePerformance, apic::Ivt::eLvt0, apic::Ivt::eLvt1, apic::Ivt::eError}) {
         lapic.configure(ivt, { .enabled = false });
@@ -228,8 +248,83 @@ static LocalAPIC KmEnableAPIC(km::VirtualAllocator& vmm, const km::PageManager& 
 
     lapic.enable();
 
-
     return lapic;
+}
+
+struct [[gnu::packed]] RsdpLocator {
+    // v1 fields
+    char signature[8];
+    uint8_t checksum;
+    char oemid[6];
+    uint8_t revision;
+    uint32_t rsdtAddress;
+
+    // v2 fields
+    uint32_t length;
+    uint64_t xsdtAddress;
+    uint8_t extendedChecksum;
+    uint8_t reserved[3];
+};
+
+static_assert(sizeof(RsdpLocator) == 36);
+
+struct [[gnu::packed]] RsdtHeader {
+    char signature[4];
+    uint32_t length;
+    uint8_t revision;
+    uint8_t checksum;
+    char oemid[6];
+    char tableId[8];
+    uint32_t oemRevision;
+    uint32_t creatorId;
+    uint32_t creatorRevision;
+};
+
+static_assert(sizeof(RsdtHeader) == 36);
+
+struct [[gnu::packed]] Rsdt {
+    RsdtHeader header; // signature must be "RSDT"
+    uint32_t entries[];
+
+    uint32_t count() const noexcept {
+        return (header.length - sizeof(header)) / sizeof(uint32_t);
+    }
+};
+
+struct [[gnu::packed]] Xsdt {
+    RsdtHeader header; // signature must be "XSDT"
+    uint64_t entries[];
+
+    uint32_t count() const noexcept {
+        return (header.length - sizeof(header)) / sizeof(uint64_t);
+    }
+};
+
+static bool KmValidateChecksum(const uint8_t *bytes, size_t length) {
+    uint32_t sum = 0;
+    for (size_t i = 0; i < length; i++) {
+        sum += bytes[i];
+    }
+
+    return (sum & 0xFF) == 0;
+}
+
+static bool KmValidateRsdpLocator(const RsdpLocator *rsdp) {
+    switch (rsdp->revision) {
+    case 0:
+        return KmValidateChecksum((const uint8_t*)rsdp, 20);
+    default:
+        KmDebugMessage("[INIT] Unknown RSDP revision: ", rsdp->revision, ". Doing best guess validation.\n");
+    case 2:
+        return KmValidateChecksum((const uint8_t*)rsdp, rsdp->length);
+    }
+}
+
+static km::PhysicalAddress KmGetRSDPTable(void) {
+    const limine_rsdp_response *response = gAcpiTableRequest.response;
+    KM_CHECK(response != NULL, "No RSDP table!");
+
+    return km::PhysicalAddress { (uintptr_t)response->address };
 }
 
 static bool IsHypervisorPresent(void) {
@@ -364,6 +459,65 @@ static ProcessorInfo KmGetProcessorInfo() {
     };
 }
 
+static void KmDebugRSDT(const RsdpLocator *locator, SystemMemory& memory) {
+
+    KmDebugMessage("| /SYS/ACPI           | RSDT address         | ", Hex(locator->rsdtAddress).pad(16, '0'), "\n");
+
+    Rsdt *rsdt = memory.hhdmMapObject<Rsdt>(locator->rsdtAddress);
+
+    KmDebugMessage("| /SYS/ACPI/RSDT      | Signature            | '", stdx::StringView(rsdt->header.signature), "'\n");
+
+    for (uint32_t i = 0; i < rsdt->count(); i++) {
+        km::PhysicalAddress paddr = km::PhysicalAddress { rsdt->entries[i] };
+        RsdtHeader *entry = memory.hhdmMapObject<RsdtHeader>(paddr);
+        KmDebugMessage("| /SYS/ACPI/RSDT/", rpad(4) + i, " | Address              | ", Hex(paddr.address).pad(16, '0'), "\n");
+        KmDebugMessage("| /SYS/ACPI/RSDT/", rpad(4) + i, " | Signature            | '", stdx::StringView(entry->signature), "'\n");
+        KmDebugMessage("| /SYS/ACPI/RSDT/", rpad(4) + i, " | Length               | ", entry->length, "\n");
+        KmDebugMessage("| /SYS/ACPI/RSDT/", rpad(4) + i, " | Revision             | ", entry->revision, "\n");
+        KmDebugMessage("| /SYS/ACPI/RSDT/", rpad(4) + i, " | OEM                  | ", stdx::StringView(entry->oemid), "\n");
+        KmDebugMessage("| /SYS/ACPI/RSDT/", rpad(4) + i, " | Table ID             | ", stdx::StringView(entry->tableId), "\n");
+        KmDebugMessage("| /SYS/ACPI/RSDT/", rpad(4) + i, " | OEM revision         | ", entry->oemRevision, "\n");
+        KmDebugMessage("| /SYS/ACPI/RSDT/", rpad(4) + i, " | Creator ID           | ", Hex(entry->creatorId), "\n");
+        KmDebugMessage("| /SYS/ACPI/RSDT/", rpad(4) + i, " | Creator revision     | ", entry->creatorRevision, "\n");
+    }
+}
+
+static void KmDebugXSDT(const RsdpLocator *locator, SystemMemory& memory) {
+    KmDebugMessage("| /SYS/ACPI           | RSDP length          | ", locator->length, "\n");
+    KmDebugMessage("| /SYS/ACPI           | XSDT address         | ", Hex(locator->xsdtAddress).pad(16, '0'), "\n");
+    KmDebugMessage("| /SYS/ACPI           | Extended checksum    | ", locator->extendedChecksum, "\n");
+
+    Xsdt *xsdt = memory.hhdmMapObject<Xsdt>(km::PhysicalAddress { locator->xsdtAddress });
+
+    KmDebugMessage("| /SYS/ACPI/XSDT      | Signature            | '", stdx::StringView(xsdt->header.signature), "'\n");
+
+    for (uint32_t i = 0; i < xsdt->count(); i++) {
+        km::PhysicalAddress paddr = km::PhysicalAddress { xsdt->entries[i] };
+        RsdtHeader *entry = memory.hhdmMapObject<RsdtHeader>(paddr);
+        KmDebugMessage("| /SYS/ACPI/XSDT/", rpad(4) + i, " | Address              | ", Hex(paddr.address).pad(16, '0'), "\n");
+        KmDebugMessage("| /SYS/ACPI/XSDT/", rpad(4) + i, " | Signature            | '", stdx::StringView(entry->signature), "'\n");
+        KmDebugMessage("| /SYS/ACPI/XSDT/", rpad(4) + i, " | Length               | ", entry->length, "\n");
+        KmDebugMessage("| /SYS/ACPI/XSDT/", rpad(4) + i, " | Revision             | ", entry->revision, "\n");
+        KmDebugMessage("| /SYS/ACPI/XSDT/", rpad(4) + i, " | OEM                  | ", stdx::StringView(entry->oemid), "\n");
+        KmDebugMessage("| /SYS/ACPI/XSDT/", rpad(4) + i, " | Table ID             | ", stdx::StringView(entry->tableId), "\n");
+        KmDebugMessage("| /SYS/ACPI/XSDT/", rpad(4) + i, " | OEM revision         | ", entry->oemRevision, "\n");
+        KmDebugMessage("| /SYS/ACPI/XSDT/", rpad(4) + i, " | Creator ID           | ", Hex(entry->creatorId), "\n");
+        KmDebugMessage("| /SYS/ACPI/XSDT/", rpad(4) + i, " | Creator revision     | ", entry->creatorRevision, "\n");
+    }
+}
+
+static void KmDebugACPI(const RsdpLocator *locator, SystemMemory& memory) {
+    switch (locator->revision) {
+    case 0:
+        KmDebugRSDT(locator, memory);
+        break;
+    default:
+    case 2:
+        KmDebugXSDT(locator, memory);
+        break;
+    }
+}
+
 extern "C" void kmain(void) {
     __cli();
 
@@ -395,6 +549,7 @@ extern "C" void kmain(void) {
     KM_CHECK(LIMINE_BASE_REVISION_SUPPORTED, "Unsupported limine base revision.");
 
     ProcessorInfo processor = KmGetProcessorInfo();
+    km::PhysicalAddress rsdpBaseAddress = KmGetRSDPTable();
 
     if (!x64::paging::isValidAddressWidth(processor.maxpaddr)) {
         KmDebugMessage("[INIT] Unsupported physical address width ", processor.maxpaddr, "bits. Must be 40 or 48.\n");
@@ -417,6 +572,8 @@ extern "C" void kmain(void) {
 
     KmDebugMessage("| /SYS/MB/COM1  | Status               | ", com1Status, "\n");
 
+    KmDebugMessage("| /SYS/ACPI     | RSDP address         | ", Hex(rsdpBaseAddress.address).pad(16, '0'), "\n");
+
     KmDebugMessage("| /SYS/MB/CPU0  | Vendor               | ", processor.vendor, "\n");
     KmDebugMessage("| /SYS/MB/CPU0  | Model name           | ", processor.brand, "\n");
     KmDebugMessage("| /SYS/MB/CPU0  | Max CPUID leaf       | ", Hex(processor.maxleaf).pad(8, '0'), "\n");
@@ -435,10 +592,21 @@ extern "C" void kmain(void) {
     KmDebugMessage("| /SYS/MB/CPU0  | Local APIC           | ", present(processor.hasLocalApic), "\n");
     KmDebugMessage("| /SYS/MB/CPU0  | 2x APIC              | ", present(processor.has2xApic), "\n");
 
-    KmDebugMessage("[INIT] Load GDT.\n");
     KmInitGdt();
 
     SystemMemory memory = KmInitMemoryMap(processor.maxpaddr);
+
+    // map the rsdp table
+    RsdpLocator *locator = memory.hhdmMapObject<RsdpLocator>(rsdpBaseAddress.address);
+    bool rsdpOk = KmValidateRsdpLocator(locator);
+    KM_CHECK(rsdpOk, "Invalid RSDP checksum.");
+
+    KmDebugMessage("| /SYS/ACPI           | RSDP signature       | '", stdx::StringView(locator->signature), "'\n");
+    KmDebugMessage("| /SYS/ACPI           | RSDP checksum        | ", rsdpOk ? stdx::StringView("Valid") : stdx::StringView("Invalid"), "\n");
+    KmDebugMessage("| /SYS/ACPI           | RSDP revision        | ", locator->revision, "\n");
+    KmDebugMessage("| /SYS/ACPI           | OEM                  | ", stdx::StringView(locator->oemid), "\n");
+
+    KmDebugACPI(locator, memory);
 
     km::IsrAllocator isrs;
     KmInitInterrupts(isrs, kCodeSelector);
@@ -448,7 +616,7 @@ extern "C" void kmain(void) {
     // do a test interrupt
     __int<0x0>();
 
-    LocalAPIC lapic = KmEnableAPIC(memory.vmm, memory.pager);
+    LocalAPIC lapic = KmEnableAPIC(memory.vmm, memory.pager, isrs);
 
     lapic.sendIpi(apic::IcrDeliver::eSelf, 1);
 

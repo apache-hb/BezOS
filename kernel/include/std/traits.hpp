@@ -1,5 +1,6 @@
 #pragma once
 
+#include <concepts>
 #include <stdint.h>
 #include <stddef.h>
 #include <limits.h>
@@ -25,20 +26,7 @@ namespace stdx {
     struct True : Bool<true> { };
 
     template<typename T>
-    struct IsInteger : stdx::False { };
-
-    template<> struct IsInteger<int8_t> : stdx::True { };
-    template<> struct IsInteger<int16_t> : stdx::True { };
-    template<> struct IsInteger<int32_t> : stdx::True { };
-    template<> struct IsInteger<int64_t> : stdx::True { };
-
-    template<> struct IsInteger<uint8_t> : stdx::True { };
-    template<> struct IsInteger<uint16_t> : stdx::True { };
-    template<> struct IsInteger<uint32_t> : stdx::True { };
-    template<> struct IsInteger<uint64_t> : stdx::True { };
-
-    template<typename T>
-    concept Integer = IsInteger<T>::kValue;
+    concept Integer = std::integral<T>;
 
     template<typename T>
     struct IntegerSign { };

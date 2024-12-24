@@ -2,6 +2,8 @@
 
 #include "std/std.hpp"
 
+#include <iterator>
+
 namespace stdx {
     template<typename T>
     class StringViewBase {
@@ -15,7 +17,7 @@ namespace stdx {
 
         template<size_t N>
         constexpr StringViewBase(const T (&str)[N])
-            : StringViewBase(str, str + N - 1)
+            : StringViewBase(std::begin(str), std::end(str))
         { }
 
         constexpr StringViewBase(const T *front [[gnu::nonnull]], const T *back [[gnu::nonnull]])

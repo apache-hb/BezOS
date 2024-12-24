@@ -95,8 +95,54 @@ namespace km {
         return enabled ? stdx::StringView("Enabled") : stdx::StringView("Disabled");
     }
 
-    template<typename T>
-    concept IsFormat = requires(T it) {
-        { it.toString(stdx::declval<char*>()) } -> stdx::Same<stdx::StringView>;
+    template<>
+    struct StaticFormat<char> {
+        static constexpr size_t kStringSize = 1;
+        static constexpr stdx::StringView toString(char *buffer, char value) {
+            buffer[0] = value;
+            return stdx::StringView(buffer, buffer + 1);
+        }
     };
+
+    template<std::integral T>
+    struct StaticFormat<T> {
+        static constexpr size_t kStringSize = stdx::NumericTraits<T>::kMaxDigits10;
+        static constexpr stdx::StringView toString(char *buffer, T value) {
+            return FormatInt(stdx::Span(buffer, buffer + kStringSize), value, 10);
+        }
+    };
+
+    enum class Align {
+        eLeft,
+        eRight,
+    };
+
+    struct FormatSpecifier {
+        Align align = Align::eRight;
+        int width = 0;
+        char fill = ' ';
+    };
+
+    template<IsStaticFormat T>
+    struct FormatOf {
+        T value;
+        FormatSpecifier specifier;
+    };
+
+    struct FormatBuilder {
+        FormatSpecifier values;
+
+        template<IsStaticFormat T>
+        FormatOf<T> operator+(T value) const {
+            return { value, values };
+        }
+    };
+
+    constexpr FormatBuilder lpad(int width, char fill = ' ') {
+        return { { Align::eLeft, width, fill } };
+    }
+
+    constexpr FormatBuilder rpad(int width, char fill = ' ') {
+        return { { Align::eRight, width, fill } };
+    }
 }
