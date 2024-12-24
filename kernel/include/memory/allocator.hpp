@@ -3,6 +3,7 @@
 #include "memory/layout.hpp"
 
 #include "memory/paging.hpp"
+#include "std/traits.hpp"
 
 namespace km {
     enum class PageFlags {
@@ -15,13 +16,7 @@ namespace km {
         eAll = eRead | eWrite | eExecute,
     };
 
-    constexpr PageFlags operator|(PageFlags lhs, PageFlags rhs) {
-        return static_cast<PageFlags>(static_cast<int>(lhs) | static_cast<int>(rhs));
-    }
-
-    constexpr PageFlags operator&(PageFlags lhs, PageFlags rhs) {
-        return static_cast<PageFlags>(static_cast<int>(lhs) & static_cast<int>(rhs));
-    }
+    UTIL_BITFLAGS(PageFlags);
 
     class PageAllocator {
         const SystemMemoryLayout *mLayout;

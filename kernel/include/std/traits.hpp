@@ -1,6 +1,8 @@
 #pragma once
 
 #include <concepts>
+#include <utility> // IWYU pragma: keep - std::to_underlying
+
 #include <stdint.h>
 #include <stddef.h>
 #include <limits.h>
@@ -143,3 +145,12 @@ namespace stdx {
         { range.end() } -> std::convertible_to<T*>;
     };
 }
+
+#define UTIL_BITFLAGS(it) \
+    inline constexpr it operator|(it lhs, it rhs) { return it(std::to_underlying(lhs) | std::to_underlying(rhs)); } \
+    inline constexpr it operator&(it lhs, it rhs) { return it(std::to_underlying(lhs) & std::to_underlying(rhs)); } \
+    inline constexpr it operator^(it lhs, it rhs) { return it(std::to_underlying(lhs) ^ std::to_underlying(rhs)); } \
+    inline constexpr it operator~(it rhs) { return it(~std::to_underlying(rhs)); } \
+    inline it& operator|=(it& lhs, it rhs) { return lhs = lhs | rhs; } \
+    inline it& operator&=(it& lhs, it rhs) { return lhs = lhs & rhs; } \
+    inline it& operator^=(it& lhs, it rhs) { return lhs = lhs ^ rhs; }

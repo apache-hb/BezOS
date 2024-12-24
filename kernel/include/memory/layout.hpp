@@ -16,11 +16,6 @@ namespace km {
     struct PhysicalAddress {
         uintptr_t address;
 
-        template<typename T>
-        T *as() const {
-            return reinterpret_cast<T *>(address);
-        }
-
         constexpr PhysicalAddress() = default;
 
         constexpr PhysicalAddress(uintptr_t address)
@@ -33,12 +28,12 @@ namespace km {
 
         constexpr auto operator<=>(const PhysicalAddress&) const = default;
 
-        constexpr PhysicalAddress& operator+=(size_t offset) {
+        constexpr PhysicalAddress& operator+=(intptr_t offset) {
             address += offset;
             return *this;
         }
 
-        constexpr PhysicalAddress operator+(size_t offset) const {
+        constexpr PhysicalAddress operator+(intptr_t offset) const {
             return PhysicalAddress { address + offset };
         }
 

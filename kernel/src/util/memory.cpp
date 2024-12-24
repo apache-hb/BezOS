@@ -5,13 +5,22 @@
 
 #include <string.h>
 
-stdx::StringView km::Memory::toString(char buffer[kStringSize]) const {
-    if (mBytes == 0) {
+static constexpr const char *kNames[km::Memory::eCount] = {
+    [km::Memory::eBytes] = "b",
+    [km::Memory::eKilobytes] = "kb",
+    [km::Memory::eMegabytes] = "mb",
+    [km::Memory::eGigabytes] = "gb",
+    [km::Memory::eTerabytes] = "tb"
+};
+
+stdx::StringView km::toString(char buffer[Memory::kStringSize], Memory value) {
+    size_t bytes = value.asBytes();
+    if (bytes == 0) {
         strcpy(buffer, "0b");
         return stdx::StringView(buffer, buffer + 2);
     }
 
-    size_t total = mBytes;
+    size_t total = bytes;
 
     // seperate each part with a +
 
@@ -19,8 +28,8 @@ stdx::StringView km::Memory::toString(char buffer[kStringSize]) const {
 
     char *ptr = buffer;
 
-    for (int fmt = eCount - 1; fmt >= 0; fmt--) {
-        size_t size = total / kSizes[fmt];
+    for (int fmt = Memory::eCount - 1; fmt >= 0; fmt--) {
+        size_t size = total / Memory::kSizes[fmt];
         if (size > 0) {
             stdx::StringView result = FormatInt(num, size, 10);
             memcpy(ptr, result.data(), result.count());
@@ -28,7 +37,7 @@ stdx::StringView km::Memory::toString(char buffer[kStringSize]) const {
             strcpy(ptr, kNames[fmt]);
             ptr += kNames[fmt][0] == 'b' ? 1 : 2;
 
-            total %= kSizes[fmt];
+            total %= Memory::kSizes[fmt];
 
             if (total > 0) {
                 memcpy(ptr, "+", 1);

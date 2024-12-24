@@ -48,6 +48,8 @@ src = [
     'kernel/src/check.cpp',
     'kernel/src/apic.cpp',
     'kernel/src/uart.cpp',
+    'kernel/src/acpi.cpp',
+    'kernel/src/memory.cpp',
 ]
 
 executable('bezos', src,

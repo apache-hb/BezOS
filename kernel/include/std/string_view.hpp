@@ -3,6 +3,7 @@
 #include "std/std.hpp"
 
 #include <iterator>
+#include <algorithm>
 
 namespace stdx {
     template<typename T>
@@ -39,9 +40,15 @@ namespace stdx {
         }
 
         constexpr bool operator==(StringViewBase other) const {
-            return other.count() == count() && memcmp(mFront, other.mFront, sizeInBytes()) == 0;
+            return std::equal(begin(), end(), other.begin(), other.end());
         }
     };
 
     using StringView = StringViewBase<char>;
+
+    namespace literals {
+        constexpr StringView operator""_sv(const char *str, size_t length) {
+            return StringView(str, str + length);
+        }
+    }
 }

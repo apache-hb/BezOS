@@ -45,17 +45,17 @@ PageAllocator::PageAllocator(const SystemMemoryLayout *layout)
 }
 
 PhysicalPointer<x64::page> PageAllocator::alloc4k() {
-    // TODO: currentRange somehow gets corrupted
     if (currentRange().contains(mOffset + x64::kPageSize)) {
-        x64::page *result = mOffset.as<x64::page>();
+        uintptr_t result = mOffset.address;
         mOffset += x64::kPageSize;
-        return PhysicalPointer{result};
+        return PhysicalPointer{(x64::page*)result};
     }
 
     setCurrentRange(mCurrentRange + 1);
 
     return alloc4k();
 }
+
 x64::page *VirtualAllocator::alloc4k() {
     PhysicalPointer<x64::page> result = mPageAllocator->alloc4k();
     uintptr_t offset = (uintptr_t)result.data + mPageManager->hhdmOffset();
