@@ -61,6 +61,8 @@ namespace km {
         constexpr VirtualAddress(std::nullptr_t)
             : address(0)
         { }
+
+        constexpr auto operator<=>(const VirtualAddress&) const = default;
     };
 
     template<typename T>

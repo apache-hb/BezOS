@@ -4,6 +4,10 @@
 
 #include "memory.hpp"
 
+namespace km {
+    class IoApic;
+}
+
 namespace acpi {
     struct Madt;
 
@@ -222,24 +226,20 @@ namespace acpi {
         }
     };
 
-    struct IoApic {
-        km::PhysicalAddress address;
-    };
-
     class AcpiTables {
-        const RsdpLocator *rsdp;
-        const Madt *madt;
+        const RsdpLocator *mRsdpLocator;
+        const Madt *mMadt;
 
     public:
-        AcpiTables(km::PhysicalAddress rsdpBaseAddress, km::SystemMemory& memory);
+        AcpiTables(const RsdpLocator *locator, km::SystemMemory& memory);
 
-        uint32_t revision() const { return rsdp->revision; }
+        uint32_t revision() const { return mRsdpLocator->revision; }
 
-        IoApic findIoApic() const;
+        km::IoApic mapIoApic(km::SystemMemory& memory) const;
     };
 }
 
-void KmInitAcpi(km::PhysicalAddress rsdpBaseAddress, km::SystemMemory& memory);
+acpi::AcpiTables KmInitAcpi(km::PhysicalAddress rsdpBaseAddress, km::SystemMemory& memory);
 
 template<>
 struct km::StaticFormat<acpi::MadtEntryType> {

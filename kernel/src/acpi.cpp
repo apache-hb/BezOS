@@ -1,6 +1,7 @@
 #include "acpi.hpp"
-
+#include "apic.hpp"
 #include "kernel.hpp"
+
 #include "memory/layout.hpp"
 
 #include <stddef.h>
@@ -99,7 +100,7 @@ static void KmDebugXSDT(const acpi::RsdpLocator *locator, km::SystemMemory& memo
     }
 }
 
-void KmInitAcpi(km::PhysicalAddress rsdpBaseAddress, km::SystemMemory& memory) {
+acpi::AcpiTables KmInitAcpi(km::PhysicalAddress rsdpBaseAddress, km::SystemMemory& memory) {
     // map the rsdp table
     acpi::RsdpLocator *locator = memory.hhdmMapObject<acpi::RsdpLocator>(rsdpBaseAddress.address);
 
@@ -117,6 +118,8 @@ void KmInitAcpi(km::PhysicalAddress rsdpBaseAddress, km::SystemMemory& memory) {
     } else {
         KmDebugXSDT(locator, memory);
     }
+
+    return acpi::AcpiTables(locator, memory);
 }
 
 acpi::MadtIterator& acpi::MadtIterator::operator++() {
@@ -132,4 +135,43 @@ const acpi::MadtEntry *acpi::MadtIterator::operator*() {
 bool acpi::operator!=(const MadtIterator& lhs, const MadtIterator& rhs) {
     // prevent overrunning the end of the table in the case of a corrupted entry length
     return lhs.mCurrent < rhs.mCurrent;
+}
+
+acpi::AcpiTables::AcpiTables(const RsdpLocator *locator, km::SystemMemory& memory)
+    : mRsdpLocator(locator)
+{
+    // TODO: duplicated code
+    if (revision() == 0) {
+        const acpi::Rsdt *rsdt = memory.hhdmMapObject<acpi::Rsdt>(km::PhysicalAddress { locator->rsdtAddress });
+
+        for (uint32_t i = 0; i < rsdt->count(); i++) {
+            km::PhysicalAddress paddr = km::PhysicalAddress { rsdt->entries[i] };
+            const acpi::RsdtHeader *header = KmMapTableEntry(paddr, memory);
+            if (stdx::StringView(header->signature) == "APIC"_sv) {
+                mMadt = reinterpret_cast<const acpi::Madt*>(KmMapTableEntry(paddr, memory));
+                break;
+            }
+        }
+    } else {
+        const acpi::Xsdt *xsdt = memory.hhdmMapObject<acpi::Xsdt>(km::PhysicalAddress { locator->xsdtAddress });
+
+        for (uint32_t i = 0; i < xsdt->count(); i++) {
+            km::PhysicalAddress paddr = km::PhysicalAddress { xsdt->entries[i] };
+            const acpi::RsdtHeader *header = KmMapTableEntry(paddr, memory);
+            if (stdx::StringView(header->signature) == "APIC"_sv) {
+                mMadt = reinterpret_cast<const acpi::Madt*>(KmMapTableEntry(paddr, memory));
+                break;
+            }
+        }
+    }
+}
+
+km::IoApic acpi::AcpiTables::mapIoApic(km::SystemMemory& memory) const {
+    for (const acpi::MadtEntry *entry : *mMadt) {
+        if (entry->type == acpi::MadtEntryType::eIoApic) {
+            return km::IoApic { entry, memory };
+        }
+    }
+
+    return km::IoApic { };
 }

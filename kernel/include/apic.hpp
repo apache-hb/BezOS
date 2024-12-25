@@ -2,6 +2,9 @@
 
 #include "memory/allocator.hpp"
 #include "memory/layout.hpp"
+
+#include "acpi.hpp"
+
 #include <utility>
 
 namespace km {
@@ -116,10 +119,26 @@ namespace km {
     };
 
     class IoApic {
+        km::VirtualAddress mAddress = nullptr;
+        uint32_t mIsrBase;
+        uint8_t mId;
+
+        volatile uint32_t& reg(uint32_t offset);
+
+        void select(uint32_t field);
+        uint32_t read(uint32_t reg);
 
     public:
-        uintptr_t mBaseAddress;
-        IoApic();
+        IoApic() = default;
+        IoApic(const acpi::MadtEntry *entry, km::SystemMemory& memory);
+
+        uint8_t id() const { return mId; }
+        uint32_t isrBase() const { return mIsrBase; }
+
+        uint16_t inputCount();
+        uint8_t version();
+
+        bool present() const { return mAddress != nullptr; }
     };
 }
 

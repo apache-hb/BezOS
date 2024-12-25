@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "arch/intrin.hpp"
 #include "std/string_view.hpp"
 #include "std/traits.hpp"
 
@@ -56,6 +57,10 @@ void KmDebugMessage(T&&... args) {
 }
 
 void KmSetupGdt();
+
+inline void KmDelayIo() {
+    __outbyte(0x80, 0);
+}
 
 extern "C" [[noreturn]] void KmHalt(void);
 

@@ -241,6 +241,7 @@ struct ProcessorInfo {
     BrandString brand;
     uint32_t maxleaf;
     uintptr_t maxpaddr;
+    uintptr_t maxvaddr;
 
     bool hasLocalApic;
     bool has2xApic;
@@ -263,11 +264,6 @@ static BrandString KmGetBrandString() {
     return brand;
 }
 
-static uintptr_t KmGetMaxPhysicalAddress() {
-    km::CpuId cpuid = km::CpuId::of(0x80000008);
-    return cpuid.eax & 0xFF;
-}
-
 static ProcessorInfo KmGetProcessorInfo() {
     km::CpuId vendorId = km::CpuId::of(0);
 
@@ -278,41 +274,57 @@ static ProcessorInfo KmGetProcessorInfo() {
     uint32_t maxleaf = vendorId.eax;
 
     km::CpuId cpuid = km::CpuId::of(1);
-    bool hasLocalApic = cpuid.edx & (1 << 9);
-    bool has2xApic = cpuid.ecx & (1 << 21);
+    bool isLocalApicPresent = cpuid.edx & (1 << 9);
+    bool is2xApicPresent = cpuid.ecx & (1 << 21);
 
     CpuId ext = CpuId::of(0x80000000);
     BrandString brand = ext.eax < 0x80000004 ? "" : KmGetBrandString();
 
-    uintptr_t maxpaddr = ext.eax < 0x80000008 ? 0 : KmGetMaxPhysicalAddress();
-
-    if (maxleaf < 0x16) {
-        return ProcessorInfo { vendor, brand, maxleaf, maxpaddr, hasLocalApic, has2xApic };
+    uintptr_t maxvaddr = 0;
+    uintptr_t maxpaddr = 0;
+    if (ext.eax >= 0x80000008) {
+        km::CpuId leaf = km::CpuId::of(0x80000008);
+        maxvaddr = (leaf.eax >> 8) & 0xFF;
+        maxpaddr = (leaf.eax >> 0) & 0xFF;
     }
 
-    km::CpuId tsc = km::CpuId::of(0x15);
+    CoreMultiplier coreClock = { 0, 0 };
+    uint32_t busClock = 0;
+    uint16_t baseFrequency = 0;
+    uint16_t maxFrequency = 0;
+    uint16_t busFrequency = 0;
 
-    CoreMultiplier coreClock = {
-        .tsc = tsc.eax,
-        .core = tsc.ebx
-    };
+    if (maxleaf >= 0x15) {
+        km::CpuId tsc = km::CpuId::of(0x15);
 
-    uint32_t busClock = tsc.ecx;
+        coreClock = {
+            .tsc = tsc.eax,
+            .core = tsc.ebx
+        };
 
-    km::CpuId frequency = km::CpuId::of(0x16);
+        busClock = tsc.ecx;
+    }
+
+    if (maxleaf >= 0x16) {
+        km::CpuId frequency = km::CpuId::of(0x16);
+        baseFrequency = frequency.eax & 0xFFFF;
+        maxFrequency = frequency.ebx & 0xFFFF;
+        busFrequency = frequency.ecx & 0xFFFF;
+    }
 
     return ProcessorInfo {
         .vendor = vendor,
         .brand = brand,
         .maxleaf = maxleaf,
         .maxpaddr = maxpaddr,
-        .hasLocalApic = hasLocalApic,
-        .has2xApic = has2xApic,
+        .maxvaddr = maxvaddr,
+        .hasLocalApic = isLocalApicPresent,
+        .has2xApic = is2xApicPresent,
         .coreClock = coreClock,
         .busClock = busClock,
-        .baseFrequency = uint16_t(frequency.eax & 0xFFFF),
-        .maxFrequency = uint16_t(frequency.ebx & 0xFFFF),
-        .busFrequency = uint16_t(frequency.ecx & 0xFFFF),
+        .baseFrequency = baseFrequency,
+        .maxFrequency = maxFrequency,
+        .busFrequency = busFrequency
     };
 }
 
@@ -324,6 +336,33 @@ static SerialPortStatus KmInitSerialPort(ComPortInfo info) {
         gLogTarget = &gSerialLog;
         return SerialPortStatus::eOk;
     }
+}
+
+static void KmInstallExceptionHandlers(void) {
+    KmInstallIsrHandler(0x0, [](km::IsrContext *context) -> void* {
+        KM_PANIC("[INT] Divide by zero.\n");
+        return context;
+    });
+
+    KmInstallIsrHandler(0x6, [](km::IsrContext *context) -> void* {
+        KM_PANIC("[INT] Invalid opcode.\n");
+        return context;
+    });
+
+    KmInstallIsrHandler(0x8, [](km::IsrContext *context) -> void* {
+        KM_PANIC("[INT] Double fault.\n");
+        return context;
+    });
+
+    KmInstallIsrHandler(0xD, [](km::IsrContext *context) -> void* {
+        KM_PANIC("[INT] General protection fault.\n");
+        return context;
+    });
+
+    KmInstallIsrHandler(0xE, [](km::IsrContext *context) -> void* {
+        KM_PANIC("[INT] Page fault.\n");
+        return context;
+    });
 }
 
 extern "C" void kmain(void) {
@@ -387,6 +426,7 @@ extern "C" void kmain(void) {
     KmDebugMessage("| /SYS/MB/CPU0  | Model name           | ", processor.brand, "\n");
     KmDebugMessage("| /SYS/MB/CPU0  | Max CPUID leaf       | ", Hex(processor.maxleaf).pad(8, '0'), "\n");
     KmDebugMessage("| /SYS/MB/CPU0  | Max physical address | ", processor.maxpaddr, "\n");
+    KmDebugMessage("| /SYS/MB/CPU0  | Max virtual address  | ", processor.maxvaddr, "\n");
     KmDebugMessage("| /SYS/MB/CPU0  | TSC ratio            | ", processor.coreClock.tsc, "/", processor.coreClock.core, "\n");
 
     if (processor.hasNominalFrequency()) {
@@ -405,23 +445,22 @@ extern "C" void kmain(void) {
 
     km::IsrAllocator isrs;
     KmInitInterrupts(isrs, eGdtEntry_Ring0Code * sizeof(uint64_t));
+    KmInstallExceptionHandlers();
     __sti();
 
     // reclaims bootloader memory, all the limine requests must be read
     // before this point.
     SystemMemory memory = KmInitMemoryMap(processor.maxpaddr);
 
-    KmInitAcpi(rsdpBaseAddress, memory);
-
-    KmIsrHandler isrHandler = KmInstallIsrHandler(0x0, [](km::IsrContext *context) -> void* {
+    KmIsrHandler isrHandler = KmInstallIsrHandler(0x1, [](km::IsrContext *context) -> void* {
         KmDebugMessage("[INT] Test interrupt.\n");
         return context;
     });
 
     // do a test interrupt
-    __int<0x0>();
+    __int<0x1>();
 
-    KmInstallIsrHandler(0x0, isrHandler);
+    KmInstallIsrHandler(0x1, isrHandler);
 
     LocalAPIC lapic = KmEnableAPIC(memory.vmm, memory.pager, isrs);
 
@@ -437,6 +476,12 @@ extern "C" void kmain(void) {
     lapic.sendIpi(apic::IcrDeliver::eSelf, 33);
     lapic.sendIpi(apic::IcrDeliver::eSelf, 33);
     lapic.sendIpi(apic::IcrDeliver::eSelf, 33);
+
+    acpi::AcpiTables rsdt = KmInitAcpi(rsdpBaseAddress, memory);
+    IoApic ioapic = rsdt.mapIoApic(memory);
+
+    KmDebugMessage("[INIT] ISR base: ", ioapic.isrBase(), ", ID: ", ioapic.id(), "\n");
+    KmDebugMessage("[INIT] IOAPIC version: ", ioapic.version(), ", Inputs: ", ioapic.inputCount(), "\n");
 
     KM_PANIC("Test bugcheck.");
 
