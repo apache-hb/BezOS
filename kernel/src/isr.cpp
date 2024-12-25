@@ -55,15 +55,30 @@ static constexpr size_t kIsrTableStride = 16;
 extern "C" char KmIsrTable[];
 
 static Idt gIdt;
+static KmIsrHandler KmIsrHandlers[256];
+
+static void *KmDefaultIsrHandler(km::IsrContext *context) {
+    KmDebugMessage("[INT] Unhandled interrupt: ", context->vector, " Error: ", context->error, "\n");
+    return context;
+}
 
 extern "C" void *KmIsrDispatchRoutine(km::IsrContext *context) {
-    KmDebugMessage("[INT] Interrupt: ", context->vector, " Error: ", context->error, "\n");
-    return context;
+    return KmIsrHandlers[context->vector](context);
+}
+
+KmIsrHandler KmInstallIsrHandler(uint8_t isr, KmIsrHandler handler) {
+    KmIsrHandler old = KmIsrHandlers[isr];
+    KmIsrHandlers[isr] = handler;
+    return old;
 }
 
 void KmInitInterrupts(km::IsrAllocator& isrs, uint16_t codeSelector) {
     for (size_t i = 0; i < Idt::kCount; i++) {
         gIdt.entries[i] = KmCreateIdtEntry(KmIsrTable + (i * kIsrTableStride), codeSelector, x64::idt::kPrivilegeRing0);
+    }
+
+    for (size_t i = 0; i < Idt::kCount; i++) {
+        KmIsrHandlers[i] = KmDefaultIsrHandler;
     }
 
     IDTR idtr = {

@@ -55,7 +55,7 @@ void KmDebugMessage(T&&... args) {
     (KmDebugWrite(args), ...);
 }
 
-void KmInitGdt();
+void KmSetupGdt();
 
 extern "C" [[noreturn]] void KmHalt(void);
 

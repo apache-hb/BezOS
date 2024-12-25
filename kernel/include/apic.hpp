@@ -60,6 +60,8 @@ namespace km {
         }
 
     public:
+        constexpr LocalAPIC() = default;
+
         LocalAPIC(km::VirtualAddress base)
             : mBaseAddress(base)
         { }
@@ -122,4 +124,4 @@ namespace km {
 }
 
 void KmDisablePIC(void);
-km::LocalAPIC KmGetLocalAPIC(km::VirtualAllocator& vmm, const km::PageManager& pm);
+km::LocalAPIC KmInitLocalAPIC(km::VirtualAllocator& vmm, const km::PageManager& pm);

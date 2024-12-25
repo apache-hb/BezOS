@@ -1,5 +1,7 @@
 #pragma once
 
+#include "util/format.hpp"
+
 #include "memory.hpp"
 
 namespace acpi {
@@ -159,9 +161,32 @@ namespace acpi {
 
     UTIL_BITFLAGS(MadtFlags);
 
-    struct MadtEntry {
-        uint8_t type;
+    enum class MadtEntryType : uint8_t {
+        eLocalApic = 0,
+        eIoApic = 1,
+    };
+
+    struct [[gnu::packed]] MadtEntry {
+        struct [[gnu::packed]] LocalApic {
+            uint8_t processorId;
+            uint8_t apicId;
+            uint32_t flags;
+        };
+
+        struct [[gnu::packed]] IoApic {
+            uint8_t ioApicId;
+            uint8_t reserved;
+            uint32_t address;
+            uint32_t interruptBase;
+        };
+
+        MadtEntryType type;
         uint8_t length;
+
+        union {
+            LocalApic lapic;
+            IoApic ioapic;
+        };
     };
 
     class MadtIterator {
@@ -174,7 +199,7 @@ namespace acpi {
 
         MadtIterator& operator++();
 
-        MadtEntry operator*();
+        const MadtEntry *operator*();
 
         friend bool operator!=(const MadtIterator& lhs, const MadtIterator& rhs);
     };
@@ -196,6 +221,37 @@ namespace acpi {
             return MadtIterator { reinterpret_cast<const uint8_t*>(this) + header.length };
         }
     };
+
+    struct IoApic {
+        km::PhysicalAddress address;
+    };
+
+    class AcpiTables {
+        const RsdpLocator *rsdp;
+        const Madt *madt;
+
+    public:
+        AcpiTables(km::PhysicalAddress rsdpBaseAddress, km::SystemMemory& memory);
+
+        uint32_t revision() const { return rsdp->revision; }
+
+        IoApic findIoApic() const;
+    };
 }
 
 void KmInitAcpi(km::PhysicalAddress rsdpBaseAddress, km::SystemMemory& memory);
+
+template<>
+struct km::StaticFormat<acpi::MadtEntryType> {
+    static constexpr size_t kStringSize = km::StaticFormat<uint8_t>::kStringSize;
+    static stdx::StringView toString(char *buffer, acpi::MadtEntryType type) {
+        switch (type) {
+        case acpi::MadtEntryType::eLocalApic:
+            return "Local APIC";
+        case acpi::MadtEntryType::eIoApic:
+            return "IO APIC";
+        default:
+            return km::StaticFormat<uint8_t>::toString(buffer, static_cast<uint8_t>(type));
+        }
+    }
+};

@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "apic.hpp"
+#include "gdt.hpp"
 #include "isr.hpp"
 #include "memory.hpp"
 #include "uart.hpp"
@@ -106,31 +107,6 @@ void KmDebugWrite(stdx::StringView value) {
     gLogTarget->write(value);
 }
 
-enum DescriptorFlags {
-    eDescriptorFlag_Long = (1 << 1),
-    eDescriptorFlag_Size = (1 << 2),
-    eDescriptorFlag_Granularity = (1 << 3),
-};
-
-enum SegmentAccessFlags {
-    eSegmentAccess_Accessed = (1 << 0),
-    eSegmentAccess_ReadWrite = (1 << 1),
-    eSegmentAccess_EscalateDirection = (1 << 2),
-    eSegmentAccess_Executable = (1 << 3),
-    eSegmentAccess_CodeOrDataSegment = (1 << 4),
-
-    eSegmentAccess_Ring0 = (0 << 5),
-    eSegmentAccess_Ring1 = (1 << 5),
-    eSegmentAccess_Ring2 = (2 << 5),
-    eSegmentAccess_Ring3 = (3 << 5),
-
-    eSegmentAccess_Present = (1 << 7),
-};
-
-static constexpr uint64_t BuildSegmentDescriptor(DescriptorFlags flags, SegmentAccessFlags access, uint16_t limit) {
-    return (((uint64_t)(flags) << 52) | ((uint64_t)(access) << 40)) | (0xFULL << 48) | (uint16_t)limit;
-}
-
 enum GdtEntry {
     eGdtEntry_Null = 0,
     eGdtEntry_Ring0Code = 1,
@@ -141,55 +117,20 @@ enum GdtEntry {
 
 static constexpr uint64_t kGdtEntries[eGdtEntry_Count] = {
     [eGdtEntry_Null] = 0,
-    [eGdtEntry_Ring0Code] = BuildSegmentDescriptor(
-        DescriptorFlags(eDescriptorFlag_Long | eDescriptorFlag_Granularity),
-        SegmentAccessFlags(eSegmentAccess_Executable | eSegmentAccess_CodeOrDataSegment | eSegmentAccess_ReadWrite | eSegmentAccess_Ring0 | eSegmentAccess_Present | eSegmentAccess_Accessed),
+    [eGdtEntry_Ring0Code] = KmBuildSegmentDescriptor(
+        DescriptorFlags::eLong | DescriptorFlags::eGranularity,
+        SegmentAccessFlags::eExecutable | SegmentAccessFlags::eCodeOrDataSegment | SegmentAccessFlags::eReadWrite | SegmentAccessFlags::eRing0 | SegmentAccessFlags::ePresent | SegmentAccessFlags::eAccessed,
         0
     ),
-    [eGdtEntry_Ring0Data] = BuildSegmentDescriptor(
-        DescriptorFlags(eDescriptorFlag_Long | eDescriptorFlag_Granularity),
-        SegmentAccessFlags(eSegmentAccess_CodeOrDataSegment | eSegmentAccess_Ring0 | eSegmentAccess_ReadWrite | eSegmentAccess_Present | eSegmentAccess_Accessed),
+    [eGdtEntry_Ring0Data] = KmBuildSegmentDescriptor(
+        DescriptorFlags::eLong | DescriptorFlags::eGranularity,
+        SegmentAccessFlags::eCodeOrDataSegment | SegmentAccessFlags::eRing0 | SegmentAccessFlags::eReadWrite | SegmentAccessFlags::ePresent | SegmentAccessFlags::eAccessed,
         0
     )
 };
 
-static constexpr uint64_t kCodeSelector = eGdtEntry_Ring0Code * sizeof(uint64_t);
-static constexpr uint64_t kDataSelector = eGdtEntry_Ring0Data * sizeof(uint64_t);
-
-void KmInitGdt(void) {
-    struct GDTR gdtr = {
-        .limit = sizeof(kGdtEntries) - 1,
-        .base = (uint64_t)kGdtEntries
-    };
-
-    __lgdt(gdtr);
-
-    asm volatile (
-        // long jump to reload the CS register with the new code segment
-        "pushq %[code]\n"
-        "lea 1f(%%rip), %%rax\n"
-        "push %%rax\n"
-        "lretq\n"
-        "1:"
-        : /* no outputs */
-        : [code] "r"(kCodeSelector)
-        : "memory", "rax"
-    );
-
-    asm volatile (
-        // zero out all segments aside from ss
-        "mov $0, %%ax\n"
-        "mov %%ax, %%ds\n"
-        "mov %%ax, %%es\n"
-        "mov %%ax, %%fs\n"
-        "mov %%ax, %%gs\n"
-        // load the data segment into ss
-        "movw %[data], %%ax\n"
-        "mov %%ax, %%ss\n"
-        : /* no outputs */
-        : [data] "r"((uint16_t)kDataSelector) /* inputs */
-        : "memory", "rax" /* clobbers */
-    );
+void KmSetupGdt(void) {
+    KmInitGdt(kGdtEntries, eGdtEntry_Count, eGdtEntry_Ring0Code, eGdtEntry_Ring0Data);
 }
 
 static SystemMemory KmInitMemoryMap(uintptr_t bits) {
@@ -210,7 +151,7 @@ static LocalAPIC KmEnableAPIC(km::VirtualAllocator& vmm, const km::PageManager& 
     // disable the 8259 PIC first
     KmDisablePIC();
 
-    LocalAPIC lapic = KmGetLocalAPIC(vmm, pm);
+    LocalAPIC lapic = KmInitLocalAPIC(vmm, pm);
 
     uint8_t spuriousVec = isrs.allocateIsr();
     KmDebugMessage("[INIT] APIC ID: ", lapic.id(), ", Version: ", lapic.version(), "\n");
@@ -366,6 +307,16 @@ static ProcessorInfo KmGetProcessorInfo() {
     };
 }
 
+static SerialPortStatus KmInitSerialPort(ComPortInfo info) {
+    if (OpenSerialResult com1 = openSerial(info)) {
+        return com1.status;
+    } else {
+        gSerialLog = SerialLog(com1.port);
+        gLogTarget = &gSerialLog;
+        return SerialPortStatus::eOk;
+    }
+}
+
 extern "C" void kmain(void) {
     __cli();
 
@@ -385,21 +336,12 @@ extern "C" void kmain(void) {
         gLogTarget = &gDebugPortLog;
     }
 
-    SerialPortStatus com1Status = SerialPortStatus::eOk;
-    SerialPort com1;
-
     ComPortInfo com1Info = {
         .port = km::com::kComPort1,
         .divisor = km::com::kBaud9600
     };
 
-    if (OpenSerialResult com = openSerial(com1Info)) {
-        com1Status = com.status;
-    } else {
-        com1 = com.port;
-        gSerialLog = SerialLog(com1);
-        gLogTarget = &gSerialLog;
-    }
+    SerialPortStatus com1Status = KmInitSerialPort(com1Info);
 
     KM_CHECK(LIMINE_BASE_REVISION_SUPPORTED, "Unsupported limine base revision.");
 
@@ -450,7 +392,11 @@ extern "C" void kmain(void) {
     KmDebugMessage("| /SYS/MB/CPU0  | Local APIC           | ", present(processor.hasLocalApic), "\n");
     KmDebugMessage("| /SYS/MB/CPU0  | 2x APIC              | ", present(processor.has2xApic), "\n");
 
-    KmInitGdt();
+    KmSetupGdt();
+
+    km::IsrAllocator isrs;
+    KmInitInterrupts(isrs, eGdtEntry_Ring0Code * sizeof(uint64_t));
+    __sti();
 
     // reclaims bootloader memory, all the limine requests must be read
     // before this point.
@@ -458,18 +404,27 @@ extern "C" void kmain(void) {
 
     KmInitAcpi(rsdpBaseAddress, memory);
 
-    km::IsrAllocator isrs;
-    KmInitInterrupts(isrs, kCodeSelector);
-
-    __sti();
+    KmIsrHandler isrHandler = KmInstallIsrHandler(0x0, [](km::IsrContext *context) -> void* {
+        KmDebugMessage("[INT] Test interrupt.\n");
+        return context;
+    });
 
     // do a test interrupt
     __int<0x0>();
 
+    KmInstallIsrHandler(0x0, isrHandler);
+
     LocalAPIC lapic = KmEnableAPIC(memory.vmm, memory.pager, isrs);
 
+    // lapic.clearEndOfInterrupt();
+
     // another test interrupt
-    lapic.sendIpi(apic::IcrDeliver::eSelf, 1);
+    lapic.sendIpi(apic::IcrDeliver::eSelf, 33);
+    lapic.clearEndOfInterrupt();
+    lapic.sendIpi(apic::IcrDeliver::eSelf, 33);
+    lapic.clearEndOfInterrupt();
+    lapic.sendIpi(apic::IcrDeliver::eSelf, 33);
+    lapic.clearEndOfInterrupt();
 
     KM_PANIC("Test bugcheck.");
 

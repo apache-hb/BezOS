@@ -42,9 +42,9 @@ static void KmDebugMadt(const acpi::RsdtHeader *header) {
     KmDebugMessage("| /SYS/ACPI/APIC    | Flags                | ", bool(madt->flags & acpi::MadtFlags::ePcatCompat) ? stdx::StringView("PCAT compatible") : stdx::StringView("None"), "\n");
 
     uint32_t index = 0;
-    for (acpi::MadtEntry entry : *madt) {
-        KmDebugMessage("| /SYS/ACPI/APIC/", km::rpad(2) + index, " | Entry type           | ", km::Hex(entry.type), "\n");
-        KmDebugMessage("| /SYS/ACPI/APIC/", km::rpad(2) + index, " | Entry length         | ", entry.length, "\n");
+    for (const acpi::MadtEntry *entry : *madt) {
+        KmDebugMessage("| /SYS/ACPI/APIC/", km::rpad(2) + index, " | Entry type           | ", entry->type, "\n");
+        KmDebugMessage("| /SYS/ACPI/APIC/", km::rpad(2) + index, " | Entry length         | ", entry->length, "\n");
 
         index += 1;
     }
@@ -125,8 +125,8 @@ acpi::MadtIterator& acpi::MadtIterator::operator++() {
     return *this;
 }
 
-acpi::MadtEntry acpi::MadtIterator::operator*() {
-    return *reinterpret_cast<const MadtEntry*>(mCurrent);
+const acpi::MadtEntry *acpi::MadtIterator::operator*() {
+    return reinterpret_cast<const MadtEntry*>(mCurrent);
 }
 
 bool acpi::operator!=(const MadtIterator& lhs, const MadtIterator& rhs) {

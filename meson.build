@@ -44,6 +44,7 @@ src = [
     'kernel/src/cxxrt.cpp',
     'kernel/src/isr.cpp',
     'kernel/src/isr.S',
+    'kernel/src/gdt.cpp',
     'kernel/src/main.cpp',
     'kernel/src/check.cpp',
     'kernel/src/apic.cpp',

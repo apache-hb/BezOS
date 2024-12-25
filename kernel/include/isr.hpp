@@ -43,4 +43,7 @@ namespace km {
     };
 }
 
+using KmIsrHandler = void*(*)(km::IsrContext*);
+
 void KmInitInterrupts(km::IsrAllocator& isrs, uint16_t codeSelector);
+KmIsrHandler KmInstallIsrHandler(uint8_t isr, KmIsrHandler handler);

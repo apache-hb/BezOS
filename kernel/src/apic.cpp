@@ -40,7 +40,7 @@ void KmDisablePIC(void) {
     __outbyte(kDataSlavePort, 0xFF);
 }
 
-km::LocalAPIC KmGetLocalAPIC(km::VirtualAllocator& vmm, const km::PageManager& pm) {
+km::LocalAPIC KmInitLocalAPIC(km::VirtualAllocator& vmm, const km::PageManager& pm) {
     uint64_t msr = __rdmsr(kApicBaseMsr);
     uintptr_t base = (msr & kApicAddressMask);
     bool enabled = msr & kApicEnable;
