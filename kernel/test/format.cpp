@@ -2,18 +2,20 @@
 
 #include "util/format.hpp"
 
+using namespace stdx::literals;
+
 struct FormatTest : public testing::TestWithParam<std::tuple<int, int, stdx::StringView>> {};
 
 INSTANTIATE_TEST_SUITE_P(
     IntFormat, FormatTest,
     testing::Values(
-        std::make_tuple(0, 10, stdx::StringView("0")),
-        std::make_tuple(1, 10, stdx::StringView("1")),
-        std::make_tuple(10, 10, stdx::StringView("10")),
-        std::make_tuple(15, 10, stdx::StringView("15")),
-        std::make_tuple(16, 10, stdx::StringView("16")),
-        std::make_tuple(2147483647, 10, stdx::StringView("2147483647")),
-        std::make_tuple(-2147483648, 10, stdx::StringView("-2147483648"))
+        std::make_tuple(0, 10, "0"_sv),
+        std::make_tuple(1, 10,  "1"_sv),
+        std::make_tuple(10, 10, "10"_sv),
+        std::make_tuple(15, 10, "15"_sv),
+        std::make_tuple(16, 10, "16"_sv),
+        std::make_tuple(2147483647, 10, "2147483647"_sv),
+        std::make_tuple(-2147483648, 10, "-2147483648"_sv)
     ),
     [](const auto& info) {
         std::string result = std::format("{}_{}", std::get<0>(info.param), std::get<1>(info.param));
@@ -33,13 +35,13 @@ struct PaddingTest : public testing::TestWithParam<std::tuple<int, char, stdx::S
 INSTANTIATE_TEST_SUITE_P(
     IntPadding, PaddingTest,
     testing::Values(
-        std::make_tuple(0, '0', stdx::StringView("0000000000")),
-        std::make_tuple(1, '0', stdx::StringView("0000000001")),
-        std::make_tuple(10, '0', stdx::StringView("0000000010")),
-        std::make_tuple(15, '0', stdx::StringView("0000000015")),
-        std::make_tuple(16, '0', stdx::StringView("0000000016")),
-        std::make_tuple(2147483647, '0', stdx::StringView("2147483647")),
-        std::make_tuple(-2147483648, '0', stdx::StringView("-2147483648"))
+        std::make_tuple(0, '0',  "0000000000"_sv),
+        std::make_tuple(1, '0',  "0000000001"_sv),
+        std::make_tuple(10, '0', "0000000010"_sv),
+        std::make_tuple(15, '0', "0000000015"_sv),
+        std::make_tuple(16, '0', "0000000016"_sv),
+        std::make_tuple(2147483647, '0', "2147483647"_sv),
+        std::make_tuple(-2147483648, '0', "-2147483648"_sv)
     ),
     [](const auto& info) {
         std::string result = std::format("{}_{}", std::get<0>(info.param), std::get<1>(info.param));

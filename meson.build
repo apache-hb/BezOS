@@ -76,6 +76,7 @@ testkwargs = { 'protocol' : 'gtest', 'timeout': 5 }
 testcases = {
     'format': [ 'kernel/test/format.cpp', ],
     'memmap': [ 'kernel/test/memmap.cpp', 'kernel/src/memory/layout.cpp', 'kernel/src/util/memory.cpp', ],
+    'string': [ 'kernel/test/string.cpp', ],
 }
 
 foreach name, source : testcases

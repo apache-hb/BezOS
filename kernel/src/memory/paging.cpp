@@ -23,7 +23,7 @@ static km::PhysicalAddress VirtualToPhysical3(const km::PageManager& pm, const x
 }
 
 km::PhysicalAddress km::PageManager::translate(km::VirtualAddress vaddr) const {
-    const void *pagemap = activeMap().as<void>(); // TODO: wrong
+    const void *pagemap = (void*)activeMap().address; // TODO: wrong
 
     uint16_t pml4e = (vaddr.address >> 39) & 0b0001'1111'1111;
 

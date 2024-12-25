@@ -28,6 +28,7 @@
 #include <limine.h>
 
 using namespace km;
+using namespace stdx::literals;
 
 [[gnu::used, gnu::section(".limine_requests")]]
 static volatile LIMINE_BASE_REVISION(3)
@@ -98,6 +99,8 @@ constinit static SerialLog gSerialLog;
 
 constinit static ILogTarget *gLogTarget = &gNullLog;
 
+constinit static LocalAPIC gLocalApic;
+
 // qemu e9 port check - i think bochs does something else
 static bool KmTestDebugPort(void) {
     return __inbyte(0xE9) == 0xE9;
@@ -152,10 +155,16 @@ static LocalAPIC KmEnableAPIC(km::VirtualAllocator& vmm, const km::PageManager& 
     KmDisablePIC();
 
     LocalAPIC lapic = KmInitLocalAPIC(vmm, pm);
+    gLocalApic = lapic;
 
     uint8_t spuriousVec = isrs.allocateIsr();
-    KmDebugMessage("[INIT] APIC ID: ", lapic.id(), ", Version: ", lapic.version(), "\n");
-    KmDebugMessage("[INIT] Spurious vector: ", spuriousVec, "\n");
+    KmDebugMessage("[INIT] APIC ID: ", lapic.id(), ", Version: ", lapic.version(), ", Spurious vector: ", spuriousVec, "\n");
+
+    KmInstallIsrHandler(spuriousVec, [](km::IsrContext *ctx) -> void* {
+        KmDebugMessage("[ISR] Spurious interrupt: ", ctx->vector, "\n");
+        gLocalApic.clearEndOfInterrupt();
+        return ctx;
+    });
 
     lapic.setSpuriousVector(spuriousVec);
 
@@ -187,15 +196,15 @@ struct HypervisorInfo {
     uint32_t maxleaf;
 
     bool isKvm(void) const {
-        return name == "KVMKVMKVM\0\0\0";
+        return name == "KVMKVMKVM\0\0\0"_sv;
     }
 
     bool isQemu(void) const {
-        return name == "TCGTCGTCGTCG";
+        return name == "TCGTCGTCGTCG"_sv;
     }
 
     bool isMicrosoftHyperV(void) const {
-        return name == "Microsoft Hv";
+        return name == "Microsoft Hv"_sv;
     }
 
     bool platformHasDebugPort(void) const {
@@ -416,15 +425,18 @@ extern "C" void kmain(void) {
 
     LocalAPIC lapic = KmEnableAPIC(memory.vmm, memory.pager, isrs);
 
-    // lapic.clearEndOfInterrupt();
+    KmIsrHandler testHandler = [](km::IsrContext *context) -> void* {
+        KmDebugMessage("[INT] APIC interrupt.\n");
+        gLocalApic.clearEndOfInterrupt();
+        return context;
+    };
+
+    KmInstallIsrHandler(33, testHandler);
 
     // another test interrupt
     lapic.sendIpi(apic::IcrDeliver::eSelf, 33);
-    lapic.clearEndOfInterrupt();
     lapic.sendIpi(apic::IcrDeliver::eSelf, 33);
-    lapic.clearEndOfInterrupt();
     lapic.sendIpi(apic::IcrDeliver::eSelf, 33);
-    lapic.clearEndOfInterrupt();
 
     KM_PANIC("Test bugcheck.");
 

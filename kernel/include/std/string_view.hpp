@@ -4,6 +4,7 @@
 
 #include <iterator>
 #include <algorithm>
+#include <array>
 
 namespace stdx {
     template<typename T>

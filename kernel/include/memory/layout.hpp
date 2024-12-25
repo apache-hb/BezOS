@@ -51,6 +51,16 @@ namespace km {
 
     struct VirtualAddress {
         uintptr_t address;
+
+        constexpr VirtualAddress() = default;
+
+        constexpr VirtualAddress(uintptr_t address)
+            : address(address)
+        { }
+
+        constexpr VirtualAddress(std::nullptr_t)
+            : address(0)
+        { }
     };
 
     template<typename T>

@@ -23,7 +23,7 @@ static stdx::StringView GetMemoryMapTypeName(uint64_t type) {
         [LIMINE_MEMMAP_FRAMEBUFFER]            = "Framebuffer",
     };
 
-    if (type < countof(kMemoryMapTypeNames))
+    if (type < std::size(kMemoryMapTypeNames))
         return kMemoryMapTypeNames[type];
 
     return "Unknown";
@@ -87,8 +87,8 @@ SystemMemoryLayout SystemMemoryLayout::from(limine_memmap_response memmap) {
 
     KmDebugMessage("[INIT] ", memmap.entry_count, " memory map entries.\n");
 
-    KmDebugMessage("| Entry | Address            | Size         | Type\n");
-    KmDebugMessage("|-------+--------------------+--------------+-----------------------\n");
+    KmDebugMessage("| Entry | Address            | Size             | Type\n");
+    KmDebugMessage("|-------+--------------------+------------------+-----------------------\n");
 
     bool usableRangesOverflow = false;
     bool reclaimableRangesOverflow = false;
@@ -106,7 +106,7 @@ SystemMemoryLayout SystemMemoryLayout::from(limine_memmap_response memmap) {
         struct limine_memmap_entry *entry = memmap.entries[i];
         if (entry == NULL) {
             errors.add("Null memory map entry.", i);
-            KmDebugMessage("NULL             |         NULL | NULL\n");
+            KmDebugMessage("NULL               |             NULL | NULL\n");
             continue;
         }
 
@@ -124,7 +124,7 @@ SystemMemoryLayout SystemMemoryLayout::from(limine_memmap_response memmap) {
             break;
         }
 
-        KmDebugMessage(Hex(entry->base).pad(16, '0'), " | ", lpad(12) + km::bytes(entry->length), " | ", GetMemoryMapTypeName(entry->type), "\n");
+        KmDebugMessage(Hex(entry->base).pad(16, '0'), " | ", lpad(16) + km::bytes(entry->length), " | ", GetMemoryMapTypeName(entry->type), "\n");
     }
 
     uint64_t usableMemory = 0;

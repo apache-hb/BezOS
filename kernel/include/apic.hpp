@@ -53,7 +53,7 @@ namespace km {
 
         static constexpr uint32_t kApicEnable = (1 << 8);
 
-        km::VirtualAddress mBaseAddress;
+        km::VirtualAddress mBaseAddress = nullptr;
 
         volatile uint32_t& reg(uint16_t offset) const {
             return *reinterpret_cast<volatile uint32_t*>(mBaseAddress.address + offset);
