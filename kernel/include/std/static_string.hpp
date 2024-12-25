@@ -4,6 +4,8 @@
 
 #include "std/string_view.hpp"
 
+#include <string.h>
+
 namespace stdx {
     template<typename T, size_t N>
     class StaticStringBase {

@@ -51,6 +51,7 @@ src = [
     'kernel/src/uart.cpp',
     'kernel/src/acpi.cpp',
     'kernel/src/memory.cpp',
+    'kernel/src/hypervisor.cpp',
 ]
 
 executable('bezos', src,
