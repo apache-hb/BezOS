@@ -25,6 +25,7 @@
 
 #include "util/cpuid.hpp"
 #include "util/logger.hpp"
+#include "util/memory.hpp"
 
 #include <limine.h>
 
@@ -137,7 +138,7 @@ void KmSetupGdt(void) {
     KmInitGdt(kGdtEntries, eGdtEntry_Count, eGdtEntry_Ring0Code, eGdtEntry_Ring0Data);
 }
 
-static SystemMemory KmInitMemoryMap(uintptr_t bits) {
+static SystemMemory KmInitMemoryMap(uintptr_t bits, const void *stack) {
     const limine_memmap_response *memmap = gMemmoryMapRequest.response;
     const limine_kernel_address_response *kernel = gExecutableAddressRequest.response;
     const limine_hhdm_response *hhdm = gDirectMapRequest.response;
@@ -147,7 +148,17 @@ static SystemMemory KmInitMemoryMap(uintptr_t bits) {
     KM_CHECK(hhdm != NULL, "No higher half direct map!");
 
     SystemMemory memory = SystemMemory { SystemMemoryLayout::from(*memmap), bits, *hhdm };
+
+    // initialize our own page tables and remap everything into it
     KmMapKernel(memory.pager, memory.vmm, memory.layout, *kernel);
+
+    // move our stack out of reclaimable memory
+    // limine garuntees 64k of stack space
+    KmMigrateStack(memory.vmm, memory.pager, stack, 0x10000);
+
+    // once it is safe to remap the boot memory, do so
+    KmReclaimBootMemory(memory.layout);
+
     return memory;
 }
 
@@ -195,35 +206,66 @@ static SerialPortStatus KmInitSerialPort(ComPortInfo info) {
     }
 }
 
+[[noreturn]]
+static void KmDumpIsrContext(const km::IsrContext *context, stdx::StringView message) {
+    KmDebugMessage("[INT]", message, "\n");
+    KmDebugMessage("| Register | Value\n");
+    KmDebugMessage("|----------+------\n");
+    KmDebugMessage("| %RAX     | ", Hex(context->rax).pad(16, '0'), "\n");
+    KmDebugMessage("| %RBX     | ", Hex(context->rbx).pad(16, '0'), "\n");
+    KmDebugMessage("| %RCX     | ", Hex(context->rcx).pad(16, '0'), "\n");
+    KmDebugMessage("| %RDX     | ", Hex(context->rdx).pad(16, '0'), "\n");
+    KmDebugMessage("| %RDI     | ", Hex(context->rdi).pad(16, '0'), "\n");
+    KmDebugMessage("| %RSI     | ", Hex(context->rsi).pad(16, '0'), "\n");
+    KmDebugMessage("| %R8      | ", Hex(context->r8).pad(16, '0'), "\n");
+    KmDebugMessage("| %R9      | ", Hex(context->r9).pad(16, '0'), "\n");
+    KmDebugMessage("| %R10     | ", Hex(context->r10).pad(16, '0'), "\n");
+    KmDebugMessage("| %R11     | ", Hex(context->r11).pad(16, '0'), "\n");
+    KmDebugMessage("| %R12     | ", Hex(context->r12).pad(16, '0'), "\n");
+    KmDebugMessage("| %R13     | ", Hex(context->r13).pad(16, '0'), "\n");
+    KmDebugMessage("| %R14     | ", Hex(context->r14).pad(16, '0'), "\n");
+    KmDebugMessage("| %R15     | ", Hex(context->r15).pad(16, '0'), "\n");
+    KmDebugMessage("| %RBP     | ", Hex(context->rbp).pad(16, '0'), "\n");
+    KmDebugMessage("| %RIP     | ", Hex(context->rip).pad(16, '0'), "\n");
+    KmDebugMessage("| %CS      | ", Hex(context->cs).pad(16, '0'), "\n");
+    KmDebugMessage("| %RFLAGS  | ", Hex(context->rflags).pad(16, '0'), "\n");
+    KmDebugMessage("| %RSP     | ", Hex(context->rsp).pad(16, '0'), "\n");
+    KmDebugMessage("| %SS      | ", Hex(context->ss).pad(16, '0'), "\n");
+    KmDebugMessage("| Vector   | ", Hex(context->vector).pad(16, '0'), "\n");
+    KmDebugMessage("| Error    | ", Hex(context->error).pad(16, '0'), "\n");
+
+    KM_PANIC("Kernel panic.");
+}
+
 static void KmInstallExceptionHandlers(void) {
     KmInstallIsrHandler(0x0, [](km::IsrContext *context) -> void* {
-        KM_PANIC("[INT] Divide by zero.\n");
-        return context;
+        KmDumpIsrContext(context, "Divide by zero (#DE).");
     });
 
     KmInstallIsrHandler(0x6, [](km::IsrContext *context) -> void* {
-        KM_PANIC("[INT] Invalid opcode.\n");
-        return context;
+        KmDumpIsrContext(context, "Invalid opcode (#UD).");
     });
 
     KmInstallIsrHandler(0x8, [](km::IsrContext *context) -> void* {
-        KM_PANIC("[INT] Double fault.\n");
-        return context;
+        KmDumpIsrContext(context, "Double fault (#DF).");
     });
 
     KmInstallIsrHandler(0xD, [](km::IsrContext *context) -> void* {
-        KM_PANIC("[INT] General protection fault.\n");
-        return context;
+        KmDumpIsrContext(context, "General protection fault (#GP).");
     });
 
     KmInstallIsrHandler(0xE, [](km::IsrContext *context) -> void* {
-        KM_PANIC("[INT] Page fault.\n");
-        return context;
+        KmDumpIsrContext(context, "Page fault (#PF).");
     });
 }
 
 extern "C" void kmain(void) {
     __cli();
+
+    // offset the stack pointer as limine pushes qword 0 to
+    // the stack before jumping to the kernel. and builtin_frame_address
+    // returns the address where call would store the return address.
+    void *base = (char*)__builtin_frame_address(0) + (sizeof(void*) * 2);
 
     bool hvPresent = KmIsHypervisorPresent();
     HypervisorInfo hvInfo;
@@ -307,7 +349,7 @@ extern "C" void kmain(void) {
 
     // reclaims bootloader memory, all the limine requests must be read
     // before this point.
-    SystemMemory memory = KmInitMemoryMap(processor.maxpaddr);
+    SystemMemory memory = KmInitMemoryMap(processor.maxpaddr, base);
 
     KmIsrHandler isrHandler = KmInstallIsrHandler(0x1, [](km::IsrContext *context) -> void* {
         KmDebugMessage("[INT] Test interrupt.\n");
@@ -346,6 +388,8 @@ extern "C" void kmain(void) {
         KmDebugMessage("[INIT] IOAPIC ", i, " ID: ", ioapic.id(), ", Version: ", ioapic.version(), "\n");
         KmDebugMessage("[INIT] ISR base: ", ioapic.isrBase(), ", Inputs: ", ioapic.inputCount(), "\n");
     }
+
+    __int<0x0>();
 
     KM_PANIC("Test bugcheck.");
 

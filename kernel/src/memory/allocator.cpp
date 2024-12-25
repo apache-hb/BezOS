@@ -157,7 +157,21 @@ void KmMapKernel(const km::PageManager& pm, km::VirtualAllocator& vmm, km::Syste
 
     // then apply the new page tables
     pm.setActiveMap(((uintptr_t)vmm.rootPageTable() - pm.hhdmOffset()));
+}
 
+void KmMigrateStack(km::VirtualAllocator& vmm, km::PageManager& pm, const void *stack, size_t size) {
+    km::PhysicalAddress base = km::PhysicalAddress { (uintptr_t)stack - pm.hhdmOffset() };
+    km::PhysicalAddress end = base + size;
+
+    KmDebugMessage("[INIT] Stack virtual address: ", Hex((uintptr_t)stack), "\n");
+    KmDebugMessage("[INIT] Migrating stack to ", Hex(base.address), " - ", Hex(end.address), "\n");
+
+    for (km::PhysicalAddress i = base; i < end; i += x64::kPageSize) {
+        vmm.map4k(i, km::VirtualAddress { i.address + pm.hhdmOffset() }, PageFlags::eData);
+    }
+}
+
+void KmReclaimBootMemory(km::SystemMemoryLayout& layout) {
     layout.reclaimBootMemory();
 
     KmDebugMessage("[INIT] Bootloader memory reclaimed.\n");
