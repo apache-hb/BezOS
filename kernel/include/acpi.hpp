@@ -235,7 +235,8 @@ namespace acpi {
 
         uint32_t revision() const { return mRsdpLocator->revision; }
 
-        km::IoApic mapIoApic(km::SystemMemory& memory) const;
+        km::IoApic mapIoApic(km::SystemMemory& memory, uint32_t index) const;
+        uint32_t ioApicCount() const;
     };
 }
 

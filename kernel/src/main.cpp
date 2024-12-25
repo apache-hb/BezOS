@@ -276,7 +276,7 @@ extern "C" void kmain(void) {
     }
 
     KmDebugMessage("| /SYS/MB/COM1  | Status               | ", com1Status, "\n");
-    KmDebugMessage("| /SYS/MB/COM1  | Port                 | ", com1Info.port, "\n");
+    KmDebugMessage("| /SYS/MB/COM1  | Port                 | ", Hex(com1Info.port), "\n");
     KmDebugMessage("| /SYS/MB/COM1  | Baud rate            | ", km::com::kBaudRate / com1Info.divisor, "\n");
 
     KmDebugMessage("| /SYS/MB/CPU0  | Vendor               | ", processor.vendor, "\n");
@@ -335,10 +335,17 @@ extern "C" void kmain(void) {
     lapic.sendIpi(apic::IcrDeliver::eSelf, 33);
 
     acpi::AcpiTables rsdt = KmInitAcpi(rsdpBaseAddress, memory);
-    IoApic ioapic = rsdt.mapIoApic(memory);
+    uint32_t ioApicCount = rsdt.ioApicCount();
+    if (ioApicCount == 0) {
+        KM_PANIC("No IOAPICs found.");
+    }
 
-    KmDebugMessage("[INIT] ISR base: ", ioapic.isrBase(), ", ID: ", ioapic.id(), "\n");
-    KmDebugMessage("[INIT] IOAPIC version: ", ioapic.version(), ", Inputs: ", ioapic.inputCount(), "\n");
+    for (uint32_t i = 0; i < ioApicCount; i++) {
+        IoApic ioapic = rsdt.mapIoApic(memory, 0);
+
+        KmDebugMessage("[INIT] IOAPIC ", i, " ID: ", ioapic.id(), ", Version: ", ioapic.version(), "\n");
+        KmDebugMessage("[INIT] ISR base: ", ioapic.isrBase(), ", Inputs: ", ioapic.inputCount(), "\n");
+    }
 
     KM_PANIC("Test bugcheck.");
 

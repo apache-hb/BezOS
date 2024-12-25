@@ -166,12 +166,27 @@ acpi::AcpiTables::AcpiTables(const RsdpLocator *locator, km::SystemMemory& memor
     }
 }
 
-km::IoApic acpi::AcpiTables::mapIoApic(km::SystemMemory& memory) const {
+km::IoApic acpi::AcpiTables::mapIoApic(km::SystemMemory& memory, uint32_t index) const {
     for (const acpi::MadtEntry *entry : *mMadt) {
         if (entry->type == acpi::MadtEntryType::eIoApic) {
-            return km::IoApic { entry, memory };
+            if (index == 0) {
+                return km::IoApic { entry, memory };
+            }
+
+            index -= 1;
         }
     }
 
     return km::IoApic { };
+}
+
+uint32_t acpi::AcpiTables::ioApicCount() const {
+    uint32_t count = 0;
+    for (const acpi::MadtEntry *entry : *mMadt) {
+        if (entry->type == acpi::MadtEntryType::eIoApic) {
+            count += 1;
+        }
+    }
+
+    return count;
 }

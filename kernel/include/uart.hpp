@@ -17,6 +17,12 @@ namespace km {
     namespace com {
         static constexpr uint16_t kComPort1 = 0x3f8;
         static constexpr uint16_t kComPort2 = 0x2f8;
+        static constexpr uint16_t kComPort3 = 0x3e8;
+        static constexpr uint16_t kComPort4 = 0x2e8;
+        static constexpr uint16_t kComPort5 = 0x5f8;
+        static constexpr uint16_t kComPort6 = 0x4f8;
+        static constexpr uint16_t kComPort7 = 0x5e8;
+        static constexpr uint16_t kComPort8 = 0x4e8;
 
         static constexpr uint32_t kBaudRate = 115200;
         static constexpr uint16_t kBaud9600 = kBaudRate / 9600;
