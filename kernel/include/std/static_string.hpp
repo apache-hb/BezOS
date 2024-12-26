@@ -1,5 +1,6 @@
 #pragma once
 
+#include "std/traits.hpp"
 #include "std/std.hpp"
 
 #include "std/string_view.hpp"
@@ -13,7 +14,7 @@ namespace stdx {
         ssize_t mSize;
 
         constexpr void init(const T *front, const T *back) {
-            mSize = back - front;
+            mSize = std::clamp<ssize_t>(back - front, 0, std::size(mStorage));
             memcpy(mStorage, front, mSize * sizeof(T));
         }
 
@@ -25,6 +26,11 @@ namespace stdx {
         template<size_t S> requires (S <= N)
         constexpr StaticStringBase(const T (&str)[S])
             : StaticStringBase(str, str + S)
+        { }
+
+        template<typename R> requires IsRange<const T, R>
+        constexpr StaticStringBase(const R& range)
+            : StaticStringBase(std::begin(range), std::end(range))
         { }
 
         constexpr StaticStringBase(const T *front [[gnu::nonnull]], const T *back [[gnu::nonnull]]) {

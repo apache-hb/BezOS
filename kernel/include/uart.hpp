@@ -68,18 +68,19 @@ namespace km {
     /// @pre @a divisor is not 0
     OpenSerialResult openSerial(ComPortInfo info);
 
-    template<>
-    struct StaticFormat<SerialPortStatus> {
-        static constexpr size_t kStringSize = 16;
-        static stdx::StringView toString(char*, SerialPortStatus status) {
-            switch (status) {
-            case SerialPortStatus::eOk:
-                return "Ok";
-            case SerialPortStatus::eScratchTestFailed:
-                return "Scratch Test Failed";
-            case SerialPortStatus::eLoopbackTestFailed:
-                return "Loopback Test Failed";
-            }
-        }
-    };
 }
+
+template<>
+struct km::StaticFormat<km::SerialPortStatus> {
+    static constexpr size_t kStringSize = 16;
+    static stdx::StringView toString(char*, SerialPortStatus status) {
+        switch (status) {
+        case SerialPortStatus::eOk:
+            return "Ok";
+        case SerialPortStatus::eScratchTestFailed:
+            return "Scratch Test Failed";
+        case SerialPortStatus::eLoopbackTestFailed:
+            return "Loopback Test Failed";
+        }
+    }
+};

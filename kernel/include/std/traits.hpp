@@ -1,6 +1,7 @@
 #pragma once
 
 #include <concepts>
+#include <iterator>
 
 #include <stdint.h>
 #include <stddef.h>
@@ -93,8 +94,8 @@ namespace stdx {
     };
 
     template<typename T, typename C>
-    concept IsRange = requires(C range) {
-        { range.begin() } -> std::convertible_to<T*>;
-        { range.end() } -> std::convertible_to<T*>;
+    concept IsRange = requires(const C& range) {
+        { std::begin(range) } -> std::convertible_to<T*>;
+        { std::end(range) } -> std::convertible_to<T*>;
     };
 }
