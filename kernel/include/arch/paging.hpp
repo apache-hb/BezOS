@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 namespace x64 {
-    inline void setmask(uint64_t& value, uint64_t mask, bool state) {
+    constexpr void setmask(uint64_t& value, uint64_t mask, bool state) {
         if (state) {
             value |= mask;
         } else {

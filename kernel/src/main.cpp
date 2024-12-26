@@ -16,16 +16,12 @@
 #include "memory/layout.hpp"
 #include "memory/allocator.hpp"
 
-#include "std/static_string.hpp"
-
 #include "arch/intrin.hpp"
 #include "arch/paging.hpp"
 
 #include "kernel.hpp"
 
-#include "util/cpuid.hpp"
 #include "util/logger.hpp"
-#include "util/memory.hpp"
 
 #include <limine.h>
 
@@ -180,7 +176,7 @@ static LocalAPIC KmEnableAPIC(km::VirtualAllocator& vmm, const km::PageManager& 
 
     lapic.setSpuriousVector(spuriousVec);
 
-    for (auto ivt : {apic::Ivt::eTimer, apic::Ivt::eThermal, apic::Ivt::ePerformance, apic::Ivt::eLvt0, apic::Ivt::eLvt1, apic::Ivt::eError}) {
+    for (apic::Ivt ivt : {apic::Ivt::eTimer, apic::Ivt::eThermal, apic::Ivt::ePerformance, apic::Ivt::eLvt0, apic::Ivt::eLvt1, apic::Ivt::eError}) {
         lapic.configure(ivt, { .enabled = false });
     }
 
@@ -208,7 +204,7 @@ static SerialPortStatus KmInitSerialPort(ComPortInfo info) {
 
 [[noreturn]]
 static void KmDumpIsrContext(const km::IsrContext *context, stdx::StringView message) {
-    KmDebugMessage("[INT]", message, "\n");
+    KmDebugMessage("[INT] ", message, "\n");
     KmDebugMessage("| Register | Value\n");
     KmDebugMessage("|----------+------\n");
     KmDebugMessage("| %RAX     | ", Hex(context->rax).pad(16, '0'), "\n");
@@ -258,6 +254,23 @@ static void KmInstallExceptionHandlers(void) {
         KmDumpIsrContext(context, "Page fault (#PF).");
     });
 }
+
+struct [[gnu::packed]] alignas(0x10) TaskStateSegment {
+    uint8_t reserved0[4];
+    uint64_t rsp0;
+    uint64_t rsp1;
+    uint64_t rsp2;
+    uint8_t reserved1[8];
+    uint64_t ist1;
+    uint64_t ist2;
+    uint64_t ist3;
+    uint64_t ist4;
+    uint64_t ist5;
+    uint64_t ist6;
+    uint64_t ist7;
+    uint8_t reserved2[8];
+    uint32_t iopbOffset;
+};
 
 extern "C" void kmain(void) {
     __cli();
@@ -363,18 +376,26 @@ extern "C" void kmain(void) {
 
     LocalAPIC lapic = KmEnableAPIC(memory.vmm, memory.pager, isrs);
 
-    KmIsrHandler testHandler = [](km::IsrContext *context) -> void* {
-        KmDebugMessage("[INT] APIC interrupt.\n");
-        gLocalApic.clearEndOfInterrupt();
-        return context;
-    };
+    {
+        KmIsrHandler testHandler = [](km::IsrContext *context) -> void* {
+            KmDebugMessage("[INT] APIC interrupt.\n");
+            gLocalApic.clearEndOfInterrupt();
+            return context;
+        };
 
-    KmInstallIsrHandler(33, testHandler);
+        uint8_t testVec = isrs.allocateIsr();
 
-    // another test interrupt
-    lapic.sendIpi(apic::IcrDeliver::eSelf, 33);
-    lapic.sendIpi(apic::IcrDeliver::eSelf, 33);
-    lapic.sendIpi(apic::IcrDeliver::eSelf, 33);
+        KmIsrHandler oldHandler = KmInstallIsrHandler(testVec, testHandler);
+
+        // another test interrupt
+        lapic.sendIpi(apic::IcrDeliver::eSelf, testVec);
+        lapic.sendIpi(apic::IcrDeliver::eSelf, testVec);
+        lapic.sendIpi(apic::IcrDeliver::eSelf, testVec);
+
+        isrs.releaseIsr(testVec);
+
+        KmInstallIsrHandler(testVec, oldHandler);
+    }
 
     acpi::AcpiTables rsdt = KmInitAcpi(rsdpBaseAddress, memory);
     uint32_t ioApicCount = rsdt.ioApicCount();
@@ -388,8 +409,6 @@ extern "C" void kmain(void) {
         KmDebugMessage("[INIT] IOAPIC ", i, " ID: ", ioapic.id(), ", Version: ", ioapic.version(), "\n");
         KmDebugMessage("[INIT] ISR base: ", ioapic.isrBase(), ", Inputs: ", ioapic.inputCount(), "\n");
     }
-
-    __int<0x0>();
 
     KM_PANIC("Test bugcheck.");
 

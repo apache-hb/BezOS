@@ -166,6 +166,12 @@ acpi::AcpiTables::AcpiTables(const RsdpLocator *locator, km::SystemMemory& memor
     }
 }
 
+uint32_t acpi::AcpiTables::lapicCount() const {
+    return std::count_if(mMadt->begin(), mMadt->end(), [](const acpi::MadtEntry *entry) {
+        return entry->type == acpi::MadtEntryType::eLocalApic;
+    });
+}
+
 km::IoApic acpi::AcpiTables::mapIoApic(km::SystemMemory& memory, uint32_t index) const {
     for (const acpi::MadtEntry *entry : *mMadt) {
         if (entry->type == acpi::MadtEntryType::eIoApic) {
@@ -181,12 +187,7 @@ km::IoApic acpi::AcpiTables::mapIoApic(km::SystemMemory& memory, uint32_t index)
 }
 
 uint32_t acpi::AcpiTables::ioApicCount() const {
-    uint32_t count = 0;
-    for (const acpi::MadtEntry *entry : *mMadt) {
-        if (entry->type == acpi::MadtEntryType::eIoApic) {
-            count += 1;
-        }
-    }
-
-    return count;
+    return std::count_if(mMadt->begin(), mMadt->end(), [](const acpi::MadtEntry *entry) {
+        return entry->type == acpi::MadtEntryType::eIoApic;
+    });
 }

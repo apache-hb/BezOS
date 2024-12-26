@@ -235,6 +235,8 @@ namespace acpi {
 
         uint32_t revision() const { return mRsdpLocator->revision; }
 
+        uint32_t lapicCount() const;
+
         km::IoApic mapIoApic(km::SystemMemory& memory, uint32_t index) const;
         uint32_t ioApicCount() const;
     };
@@ -255,4 +257,13 @@ struct km::StaticFormat<acpi::MadtEntryType> {
             return km::StaticFormat<uint8_t>::toString(buffer, static_cast<uint8_t>(type));
         }
     }
+};
+
+template<>
+struct std::iterator_traits<acpi::MadtIterator> {
+    using iterator_category = std::forward_iterator_tag;
+    using value_type = const acpi::MadtEntry*;
+    using difference_type = std::ptrdiff_t;
+    using pointer = const acpi::MadtEntry*;
+    using reference = const acpi::MadtEntry*;
 };

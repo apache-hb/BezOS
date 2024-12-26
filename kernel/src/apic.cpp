@@ -17,6 +17,7 @@ static constexpr uint32_t kApicBaseMsr = 0x1B;
 
 static constexpr uint64_t kApicAddressMask = 0xFFFFFFFFFFFFF000;
 static constexpr uint64_t kApicEnable = (1 << 11);
+static constexpr uint64_t kApicBsp = (1 << 8);
 
 void KmDisablePIC(void) {
     // start init sequence
@@ -44,7 +45,8 @@ km::LocalAPIC KmInitLocalAPIC(km::VirtualAllocator& vmm, const km::PageManager& 
     uint64_t msr = __rdmsr(kApicBaseMsr);
     uintptr_t base = (msr & kApicAddressMask);
     bool enabled = msr & kApicEnable;
-    KmDebugMessage("[INIT] APIC MSR: ", km::Hex(msr), ", Base address: ", km::Hex(base), ", State: ", km::enabled(enabled), "\n");
+    bool bsp = msr & kApicBsp;
+    KmDebugMessage("[INIT] APIC MSR: ", km::Hex(msr), ", Base address: ", km::Hex(base), ", State: ", km::enabled(enabled), ", BSP: ", bsp ? stdx::StringView("True") : stdx::StringView("False"), "\n");
 
     // map the APIC base into the higher half
     km::VirtualAddress vbase = km::VirtualAddress { base + pm.hhdmOffset() };
