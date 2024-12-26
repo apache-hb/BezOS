@@ -4,7 +4,7 @@
 
 #include "util/format.hpp"
 
-namespace km {
+namespace sm {
     struct Memory {
         enum Unit {
             eBytes,
@@ -48,13 +48,6 @@ namespace km {
 
     stdx::StringView toString(char buffer[Memory::kStringSize], Memory value);
 
-    template<>
-    struct StaticFormat<Memory> {
-        static constexpr size_t kStringSize = 64;
-        static stdx::StringView toString(char *buffer, Memory value) {
-            return km::toString(buffer, value);
-        }
-    };
 
     constexpr Memory bytes(size_t bytes) { return Memory(bytes, Memory::eBytes); }
     constexpr Memory kilobytes(size_t kilobytes) { return Memory(kilobytes, Memory::eKilobytes); }
@@ -62,3 +55,11 @@ namespace km {
     constexpr Memory gigabytes(size_t gigabytes) { return Memory(gigabytes, Memory::eGigabytes); }
     constexpr Memory terabytes(size_t terabytes) { return Memory(terabytes, Memory::eTerabytes); }
 }
+
+template<>
+struct km::StaticFormat<sm::Memory> {
+    static constexpr size_t kStringSize = 64;
+    static stdx::StringView toString(char *buffer, sm::Memory value) {
+        return sm::toString(buffer, value);
+    }
+};

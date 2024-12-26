@@ -1,19 +1,12 @@
 #pragma once
 
 #include <concepts>
-#include <utility> // IWYU pragma: keep - std::to_underlying
 
 #include <stdint.h>
 #include <stddef.h>
 #include <limits.h>
 
 namespace stdx {
-    enum class Endian {
-        LITTLE = __ORDER_LITTLE_ENDIAN__,
-        BIG = __ORDER_BIG_ENDIAN__,
-        NATIVE = __BYTE_ORDER__
-    };
-
     enum class Sign {
         SIGNED,
         UNSIGNED,
@@ -26,9 +19,6 @@ namespace stdx {
     struct Bool : Constant<bool, V> { };
     struct False : Bool<false> { };
     struct True : Bool<true> { };
-
-    template<typename T>
-    concept Integer = std::integral<T>;
 
     template<typename T>
     struct IntegerSign { };
@@ -76,23 +66,23 @@ namespace stdx {
         using Unsigned = uint64_t;
     };
 
-    template<Integer T>
+    template<std::integral T>
     using Signed = typename IntegerSign<T>::Signed;
 
-    template<Integer T>
+    template<std::integral T>
     using Unsigned = typename IntegerSign<T>::Unsigned;
 
-    template<Integer T>
+    template<std::integral T>
     consteval bool isSigned(void) {
         return IntegerSign<T>::kValue == Sign::SIGNED;
     }
 
-    template<Integer T>
+    template<std::integral T>
     consteval bool isUnsigned(void) {
         return IntegerSign<T>::kValue == Sign::UNSIGNED;
     }
 
-    template<Integer T>
+    template<std::integral T>
     struct NumericTraits {
         static constexpr T kMin = isSigned<T>() ? T(1) << (sizeof(T) * CHAR_BIT - 1) : 0;
         static constexpr T kMax = isSigned<T>() ? ~kMin : ~T(0);
@@ -102,55 +92,9 @@ namespace stdx {
         static constexpr int kMaxDigits16 = sizeof(T) * 2;
     };
 
-    template<typename T, size_t N>
-    consteval size_t countof(const T (&)[N]) {
-        return N;
-    }
-
-    template<typename T, size_t N>
-    constexpr T *end(T (&array)[N]) {
-        return array + N;
-    }
-
-    template<typename T, size_t N>
-    constexpr T *begin(T (&array)[N]) {
-        return array;
-    }
-
-    template<typename C>
-    constexpr auto end(C &container) -> decltype(container.end()) {
-        return container.end();
-    }
-
-    template<typename C>
-    constexpr auto begin(C &container) -> decltype(container.begin()) {
-        return container.begin();
-    }
-
-    template<typename T>
-    T&& declval();
-
-    template<typename L, typename R>
-    struct IsSame : False { };
-
-    template<typename T>
-    struct IsSame<T, T> : True { };
-
-    template<typename L, typename R>
-    concept Same = IsSame<L, R>::kValue;
-
     template<typename T, typename C>
     concept IsRange = requires(C range) {
         { range.begin() } -> std::convertible_to<T*>;
         { range.end() } -> std::convertible_to<T*>;
     };
 }
-
-#define UTIL_BITFLAGS(it) \
-    inline constexpr it operator|(it lhs, it rhs) { return it(std::to_underlying(lhs) | std::to_underlying(rhs)); } \
-    inline constexpr it operator&(it lhs, it rhs) { return it(std::to_underlying(lhs) & std::to_underlying(rhs)); } \
-    inline constexpr it operator^(it lhs, it rhs) { return it(std::to_underlying(lhs) ^ std::to_underlying(rhs)); } \
-    inline constexpr it operator~(it rhs) { return it(~std::to_underlying(rhs)); } \
-    inline it& operator|=(it& lhs, it rhs) { return lhs = lhs | rhs; } \
-    inline it& operator&=(it& lhs, it rhs) { return lhs = lhs & rhs; } \
-    inline it& operator^=(it& lhs, it rhs) { return lhs = lhs ^ rhs; }

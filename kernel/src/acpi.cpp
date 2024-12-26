@@ -53,7 +53,7 @@ static void KmDebugMadt(const acpi::RsdtHeader *header) {
 
 static acpi::RsdtHeader *KmGetRsdtHeader(km::PhysicalAddress paddr, km::SystemMemory& memory) {
     acpi::RsdtHeader *entry = KmMapTableEntry(paddr, memory);
-    KmDebugMessage("| /SYS/ACPI/", entry->signature, "     | Address              | ", km::Hex(paddr.address).pad(16, '0'), "\n");
+    KmDebugMessage("| /SYS/ACPI/", entry->signature, "     | Address              | ", paddr, "\n");
     KmDebugMessage("| /SYS/ACPI/", entry->signature, "     | Signature            | '", stdx::StringView(entry->signature), "'\n");
     KmDebugMessage("| /SYS/ACPI/", entry->signature, "     | Length               | ", entry->length, "\n");
     KmDebugMessage("| /SYS/ACPI/", entry->signature, "     | Revision             | ", entry->revision, "\n");
@@ -102,7 +102,7 @@ static void KmDebugXSDT(const acpi::RsdpLocator *locator, km::SystemMemory& memo
 
 acpi::AcpiTables KmInitAcpi(km::PhysicalAddress rsdpBaseAddress, km::SystemMemory& memory) {
     // map the rsdp table
-    acpi::RsdpLocator *locator = memory.hhdmMapObject<acpi::RsdpLocator>(rsdpBaseAddress.address);
+    acpi::RsdpLocator *locator = memory.hhdmMapObject<acpi::RsdpLocator>(rsdpBaseAddress);
 
     // validate that the table is ok to use
     bool rsdpOk = KmValidateRsdpLocator(locator);

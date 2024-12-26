@@ -5,15 +5,15 @@
 
 #include <string.h>
 
-static constexpr const char *kNames[km::Memory::eCount] = {
-    [km::Memory::eBytes] = "b",
-    [km::Memory::eKilobytes] = "kb",
-    [km::Memory::eMegabytes] = "mb",
-    [km::Memory::eGigabytes] = "gb",
-    [km::Memory::eTerabytes] = "tb"
+static constexpr const char *kNames[sm::Memory::eCount] = {
+    [sm::Memory::eBytes] = "b",
+    [sm::Memory::eKilobytes] = "kb",
+    [sm::Memory::eMegabytes] = "mb",
+    [sm::Memory::eGigabytes] = "gb",
+    [sm::Memory::eTerabytes] = "tb"
 };
 
-stdx::StringView km::toString(char buffer[Memory::kStringSize], Memory value) {
+stdx::StringView sm::toString(char buffer[Memory::kStringSize], Memory value) {
     size_t bytes = value.asBytes();
     if (bytes == 0) {
         strcpy(buffer, "0b");
@@ -31,7 +31,7 @@ stdx::StringView km::toString(char buffer[Memory::kStringSize], Memory value) {
     for (int fmt = Memory::eCount - 1; fmt >= 0; fmt--) {
         size_t size = total / Memory::kSizes[fmt];
         if (size > 0) {
-            stdx::StringView result = FormatInt(num, size, 10);
+            stdx::StringView result = km::FormatInt(num, size, 10);
             memcpy(ptr, result.data(), result.count());
             ptr += result.count();
             strcpy(ptr, kNames[fmt]);

@@ -4,24 +4,10 @@
 
 #include "arch/intrin.hpp"
 #include "std/string_view.hpp"
-#include "std/traits.hpp"
 
 #include "util/format.hpp"
 
 void KmDebugWrite(stdx::StringView value = "\n");
-
-template<stdx::Integer T>
-void KmDebugWrite(km::Int<T> value) {
-    char buffer[stdx::NumericTraits<T>::kMaxDigits10];
-    KmDebugWrite(km::FormatInt(buffer, value.value, 10, value.width, value.fill));
-}
-
-template<stdx::Integer T>
-void KmDebugWrite(km::Hex<T> value) {
-    char buffer[stdx::NumericTraits<T>::kMaxDigits16];
-    KmDebugWrite("0x");
-    KmDebugWrite(km::FormatInt(buffer, value.value, 16, value.width, value.fill));
-}
 
 template<km::IsStaticFormat T>
 void KmDebugWrite(const T& value) {
@@ -56,10 +42,21 @@ void KmDebugMessage(T&&... args) {
     (KmDebugWrite(args), ...);
 }
 
-void KmSetupGdt();
-
 inline void KmDelayIo() {
     __outbyte(0x80, 0);
+}
+
+inline void __DEFAULT_FN_ATTRS KmWriteByte(uint16_t port, uint8_t value) {
+    __outbyte(port, value);
+    KmDelayIo();
+}
+
+inline void __DEFAULT_FN_ATTRS KmWriteByteNoDelay(uint16_t port, uint8_t value) {
+    __outbyte(port, value);
+}
+
+inline uint8_t __DEFAULT_FN_ATTRS KmReadByte(uint16_t port) {
+    return __inbyte(port);
 }
 
 extern "C" [[noreturn]] void KmHalt(void);

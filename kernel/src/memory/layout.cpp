@@ -124,7 +124,7 @@ SystemMemoryLayout SystemMemoryLayout::from(limine_memmap_response memmap) {
             break;
         }
 
-        KmDebugMessage(Hex(entry->base).pad(16, '0'), " | ", lpad(16) + km::bytes(entry->length), " | ", GetMemoryMapTypeName(entry->type), "\n");
+        KmDebugMessage(Hex(entry->base).pad(16, '0'), " | ", lpad(16) + sm::bytes(entry->length), " | ", GetMemoryMapTypeName(entry->type), "\n");
     }
 
     uint64_t usableMemory = 0;
@@ -143,7 +143,7 @@ SystemMemoryLayout SystemMemoryLayout::from(limine_memmap_response memmap) {
 
     ReportMemoryIssues(errors);
 
-    KmDebugMessage("[INIT] Usable memory: ", km::bytes(usableMemory), ", Reclaimable memory: ", km::bytes(reclaimableMemory), "\n");
+    KmDebugMessage("[INIT] Usable memory: ", sm::bytes(usableMemory), ", Reclaimable memory: ", sm::bytes(reclaimableMemory), "\n");
 
     return SystemMemoryLayout { freeMemory, reclaimable, reservedMemory };
 }
@@ -154,7 +154,7 @@ void SystemMemoryLayout::reclaimBootMemory() {
     }
 
     std::sort(available.begin(), available.end(), [](const MemoryRange& a, const MemoryRange& b) {
-        return a.front.address < b.front.address;
+        return a.front < b.front;
     });
 
     // merge adjacent ranges

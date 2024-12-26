@@ -21,24 +21,24 @@ static constexpr uint64_t kApicBsp = (1 << 8);
 
 void KmDisablePIC(void) {
     // start init sequence
-    __outbyte(kCommandMasterPort, kInitStart);
-    __outbyte(kCommandSlavePort, kInitStart);
+    KmWriteByte(kCommandMasterPort, kInitStart);
+    KmWriteByte(kCommandSlavePort, kInitStart);
 
     // set interrupt offsets
-    __outbyte(kDataMasterPort, kMasterIdtStart);
-    __outbyte(kDataSlavePort, kSlaveIdtStart);
+    KmWriteByte(kDataMasterPort, kMasterIdtStart);
+    KmWriteByte(kDataSlavePort, kSlaveIdtStart);
 
     // set master/slave pin
-    __outbyte(kDataMasterPort, kSlavePin);
-    __outbyte(kDataSlavePort, kSlaveId);
+    KmWriteByte(kDataMasterPort, kSlavePin);
+    KmWriteByte(kDataSlavePort, kSlaveId);
 
     // set 8086 mode
-    __outbyte(kDataMasterPort, 0x1);
-    __outbyte(kDataSlavePort, 0x1);
+    KmWriteByte(kDataMasterPort, 0x1);
+    KmWriteByte(kDataSlavePort, 0x1);
 
     // mask all interrupts
-    __outbyte(kDataMasterPort, 0xFF);
-    __outbyte(kDataSlavePort, 0xFF);
+    KmWriteByte(kDataMasterPort, 0xFF);
+    KmWriteByte(kDataSlavePort, 0xFF);
 }
 
 km::LocalAPIC KmInitLocalAPIC(km::VirtualAllocator& vmm, const km::PageManager& pm) {

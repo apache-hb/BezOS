@@ -3,7 +3,6 @@
 #include "memory/layout.hpp"
 
 #include "memory/paging.hpp"
-#include "std/traits.hpp"
 
 namespace km {
     enum class PageFlags {

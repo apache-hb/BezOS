@@ -1,6 +1,7 @@
 #pragma once
 
-#include "std/traits.hpp"
+#include "util/util.hpp"
+
 #include <stdint.h>
 
 namespace km {

@@ -11,10 +11,10 @@ namespace km {
     template<typename T>
     concept IsStaticFormat = requires(T it) {
         { StaticFormat<T>::kStringSize } -> std::convertible_to<size_t>;
-        { StaticFormat<T>::toString(stdx::declval<char*>(), it) } -> stdx::Same<stdx::StringView>;
+        { StaticFormat<T>::toString(std::declval<char*>(), it) } -> std::same_as<stdx::StringView>;
     };
 
-    template<stdx::Integer T>
+    template<std::integral T>
     struct Int {
         T value;
         int width = 0;
@@ -30,7 +30,7 @@ namespace km {
         }
     };
 
-    template<stdx::Integer T>
+    template<std::integral T>
     struct Hex {
         T value;
         int width = 0;
@@ -46,7 +46,7 @@ namespace km {
         }
     };
 
-    template<stdx::Integer T>
+    template<std::integral T>
     stdx::StringView FormatInt(stdx::Span<char> buffer, T input, int base, int width = 0, char fill = '\0') {
         static constexpr char kHex[] = "0123456789ABCDEF";
         bool negative = input < 0;
@@ -111,6 +111,43 @@ namespace km {
             return FormatInt(stdx::Span(buffer, buffer + kStringSize), value, 10);
         }
     };
+
+    template<std::integral T>
+    struct StaticFormat<Hex<T>> {
+        static constexpr size_t kStringSize = stdx::NumericTraits<T>::kMaxDigits16 + 2;
+        static stdx::StringView toString(char *buffer, Hex<T> value) {
+            char temp[stdx::NumericTraits<T>::kMaxDigits16];
+            stdx::StringView result = FormatInt(stdx::Span(temp), value.value, 16, value.width, value.fill);
+            buffer[0] = '0';
+            buffer[1] = 'x';
+            std::copy(result.begin(), result.end(), buffer + 2);
+            return stdx::StringView(buffer, buffer + 2 + result.count());
+        }
+    };
+
+    template<std::integral T>
+    struct StaticFormat<Int<T>> {
+        static constexpr size_t kStringSize = stdx::NumericTraits<T>::kMaxDigits10;
+        static stdx::StringView toString(char *buffer, Int<T> value) {
+            return FormatInt(stdx::Span(buffer, buffer + kStringSize), value.value, 10, value.width, value.fill);
+        }
+    };
+
+    template<>
+    struct StaticFormat<bool> {
+        static constexpr size_t kStringSize = 8;
+        static stdx::StringView toString(char*, bool value) {
+            return value ? stdx::StringView("true") : stdx::StringView("false");
+        }
+    };
+
+    template<IsStaticFormat T>
+    inline constexpr size_t kFormatSize = StaticFormat<T>::kStringSize;
+
+    template<IsStaticFormat T>
+    inline constexpr stdx::StringView format(char *buffer, T value) {
+        return StaticFormat<T>::toString(buffer, value);
+    }
 
     enum class Align {
         eLeft,

@@ -10,6 +10,7 @@
 #include "hypervisor.hpp"
 #include "isr.hpp"
 #include "memory.hpp"
+#include "pat.hpp"
 #include "uart.hpp"
 #include "acpi.hpp"
 
@@ -130,7 +131,7 @@ static constexpr uint64_t kGdtEntries[eGdtEntry_Count] = {
     )
 };
 
-void KmSetupGdt(void) {
+static void KmSetupGdt(void) {
     KmInitGdt(kGdtEntries, eGdtEntry_Count, eGdtEntry_Ring0Code, eGdtEntry_Ring0Data);
 }
 
@@ -142,6 +143,42 @@ static SystemMemory KmInitMemoryMap(uintptr_t bits, const void *stack) {
     KM_CHECK(memmap != NULL, "No memory map!");
     KM_CHECK(kernel != NULL, "No kernel address!");
     KM_CHECK(hhdm != NULL, "No higher half direct map!");
+
+    if (x64::HasPatSupport()) {
+        x64::PageAttributeTable pat;
+
+        for (uint8_t i = 0; i < pat.count(); i++) {
+            x64::MemoryType type = pat.getEntry(i);
+            KmDebugMessage("[INIT] PAT[", i, "]: ", type, "\n");
+        }
+    }
+
+    if (x64::HasMtrrSupport()) {
+        x64::MemoryTypeRanges mtrrs;
+
+        KmDebugMessage("[INIT] MTRR fixed support: ", present(mtrrs.fixedMtrrSupported()), "\n");
+        KmDebugMessage("[INIT] MTRR fixed enabled: ", enabled(mtrrs.fixedMtrrEnabled()), "\n");
+        KmDebugMessage("[INIT] MTRR fixed count: ", mtrrs.fixedMtrrCount(), "\n");
+
+        KmDebugMessage("[INIT] MTRR variable supported: ", enabled(HasVariableMtrrSupport(mtrrs)), "\n");
+        KmDebugMessage("[INIT] MTRR variable count: ", mtrrs.variableMtrrCount(), "\n");
+        KmDebugMessage("[INIT] MTRR write combining: ", enabled(mtrrs.hasWriteCombining()), "\n");
+        KmDebugMessage("[INIT] MTRRs enabled: ", enabled(mtrrs.enabled()), "\n");
+
+        if (mtrrs.fixedMtrrSupported()) {
+            for (uint8_t i = 0; i < mtrrs.fixedMtrrCount(); i++) {
+                x64::FixedMtrr mtrr = mtrrs.fixedMtrr(i);
+                KmDebugMessage("[INIT] Fixed MTRR[", i, "]: ", mtrr.type(), "\n");
+            }
+        }
+
+        if (HasVariableMtrrSupport(mtrrs)) {
+            for (uint8_t i = 0; i < mtrrs.variableMtrrCount(); i++) {
+                x64::VariableMtrr mtrr = mtrrs.variableMtrr(i);
+                KmDebugMessage("[INIT] Variable MTRR[", i, "]: ", mtrr.type(), "\n");
+            }
+        }
+    }
 
     SystemMemory memory = SystemMemory { SystemMemoryLayout::from(*memmap), bits, *hhdm };
 
@@ -204,7 +241,7 @@ static SerialPortStatus KmInitSerialPort(ComPortInfo info) {
 
 [[noreturn]]
 static void KmDumpIsrContext(const km::IsrContext *context, stdx::StringView message) {
-    KmDebugMessage("[INT] ", message, "\n");
+    KmDebugMessage("\n[BUG] ", message, "\n");
     KmDebugMessage("| Register | Value\n");
     KmDebugMessage("|----------+------\n");
     KmDebugMessage("| %RAX     | ", Hex(context->rax).pad(16, '0'), "\n");
@@ -364,18 +401,21 @@ extern "C" void kmain(void) {
     // before this point.
     SystemMemory memory = KmInitMemoryMap(processor.maxpaddr, base);
 
-    KmIsrHandler isrHandler = KmInstallIsrHandler(0x1, [](km::IsrContext *context) -> void* {
-        KmDebugMessage("[INT] Test interrupt.\n");
-        return context;
-    });
+    // test interrupt to ensure the IDT is working
+    {
+        KmIsrHandler isrHandler = KmInstallIsrHandler(0x1, [](km::IsrContext *context) -> void* {
+            KmDebugMessage("[INT] Test interrupt.\n");
+            return context;
+        });
 
-    // do a test interrupt
-    __int<0x1>();
+        __int<0x1>();
 
-    KmInstallIsrHandler(0x1, isrHandler);
+        KmInstallIsrHandler(0x1, isrHandler);
+    }
 
     LocalAPIC lapic = KmEnableAPIC(memory.vmm, memory.pager, isrs);
 
+    // test lapic ipis to ensure the local apic is working
     {
         KmIsrHandler testHandler = [](km::IsrContext *context) -> void* {
             KmDebugMessage("[INT] APIC interrupt.\n");
@@ -399,9 +439,7 @@ extern "C" void kmain(void) {
 
     acpi::AcpiTables rsdt = KmInitAcpi(rsdpBaseAddress, memory);
     uint32_t ioApicCount = rsdt.ioApicCount();
-    if (ioApicCount == 0) {
-        KM_PANIC("No IOAPICs found.");
-    }
+    KM_CHECK(ioApicCount > 0, "No IOAPICs found.");
 
     for (uint32_t i = 0; i < ioApicCount; i++) {
         IoApic ioapic = rsdt.mapIoApic(memory, 0);

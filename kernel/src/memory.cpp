@@ -10,7 +10,7 @@ km::SystemMemory::SystemMemory(SystemMemoryLayout memory, uintptr_t bits, limine
 { }
 
 km::VirtualAddress km::SystemMemory::hhdmMap(PhysicalAddress begin, PhysicalAddress end) {
-    size_t pages = std::max((end.address - begin.address) / x64::kPageSize, 1zu);
+    size_t pages = std::max((end - begin) / x64::kPageSize, 1zu);
     for (size_t i = 0; i < pages; i++) {
         hhdmMap(begin + i * x64::kPageSize);
     }

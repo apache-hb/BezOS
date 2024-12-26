@@ -45,13 +45,15 @@ src = [
     'kernel/src/isr.cpp',
     'kernel/src/isr.S',
     'kernel/src/gdt.cpp',
-    'kernel/src/main.cpp',
+    'kernel/src/pat.cpp',
     'kernel/src/check.cpp',
     'kernel/src/apic.cpp',
     'kernel/src/uart.cpp',
     'kernel/src/acpi.cpp',
     'kernel/src/memory.cpp',
     'kernel/src/hypervisor.cpp',
+
+    'kernel/src/main.cpp',
 ]
 
 executable('bezos', src,
