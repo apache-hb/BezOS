@@ -19,7 +19,6 @@
 #include "memory/allocator.hpp"
 
 #include "arch/intrin.hpp"
-#include "arch/paging.hpp"
 
 #include "kernel.hpp"
 
@@ -214,9 +213,17 @@ static SystemMemory KmInitMemoryMap(uintptr_t bits, const void *stack, const voi
         KmDebugMessage("[INIT] MTRRs enabled: ", enabled(mtrrs.enabled()), "\n");
 
         if (mtrrs.fixedMtrrSupported()) {
-            for (uint8_t i = 0; i < mtrrs.fixedMtrrCount(); i++) {
-                x64::FixedMtrr mtrr = mtrrs.fixedMtrr(i);
-                KmDebugMessage("[INIT] Fixed MTRR[", i, "]: ", mtrr.type(), "\n");
+            for (uint8_t i = 0; i < 11; i++) {
+                KmDebugMessage("[INIT] Fixed MTRR[", rpad(2) + i, "]: ");
+                for (uint8_t j = 0; j < 8; j++) {
+                    if (j != 0) {
+                        KmDebugMessage("| ");
+                    }
+
+                    x64::FixedMtrr mtrr = mtrrs.fixedMtrr(i);
+                    KmDebugMessage(mtrr.type(), " ");
+                }
+                KmDebugMessage("\n");
             }
         }
 
