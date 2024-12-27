@@ -1,6 +1,7 @@
 #pragma once
 
 #include "memory/layout.hpp"
+#include "memory/paging.hpp"
 #include "util/util.hpp"
 #include "util/format.hpp"
 
@@ -94,6 +95,9 @@ namespace x64 {
 
             MemoryType type() const;
             bool valid() const;
+
+            km::PhysicalAddress baseAddress(const km::PageManager& pm) const;
+            uintptr_t addressMask(const km::PageManager& pm) const;
         };
 
         class FixedMtrr {

@@ -6,7 +6,7 @@
 
 #include <algorithm>
 
-namespace km {
+namespace sm {
     namespace detail {
         template<size_t N, typename T>
         struct SizedIntegerTraits { using type = void; };

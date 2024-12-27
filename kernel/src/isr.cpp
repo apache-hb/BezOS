@@ -7,7 +7,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-using km::uint48_t;
+using sm::uint48_t;
 
 namespace x64 {
     namespace idt {

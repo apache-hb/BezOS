@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "apic.hpp"
+#include "display.hpp"
 #include "gdt.hpp"
 #include "hypervisor.hpp"
 #include "isr.hpp"
@@ -56,6 +57,12 @@ static volatile limine_rsdp_request gAcpiTableRequest = {
     .revision = 0
 };
 
+[[gnu::used, gnu::section(".limine_requests")]]
+static volatile limine_framebuffer_request gFramebufferRequest = {
+    .id = LIMINE_FRAMEBUFFER_REQUEST,
+    .revision = 0
+};
+
 [[gnu::used, gnu::section(".limine_requests_start")]]
 static volatile LIMINE_REQUESTS_START_MARKER
 
@@ -89,12 +96,35 @@ class DebugPortLog final : public ILogTarget {
     }
 };
 
+class TerminalLog final : public ILogTarget {
+    Terminal mTerminal;
+
+    ILogTarget *mNext;
+
+public:
+    constexpr TerminalLog()
+        : mTerminal(sm::noinit{})
+        , mNext(nullptr)
+    { }
+
+    constexpr TerminalLog(Terminal terminal, ILogTarget *next)
+        : mTerminal(terminal)
+        , mNext(next)
+    { }
+
+    void write(stdx::StringView message) override {
+        mNext->write(message);
+        mTerminal.print(message);
+    }
+};
+
 constinit static NullLog gNullLog;
 constinit static DebugPortLog gDebugPortLog;
 
 // load bearing constinit, clang has a bug in c++26 mode
 // where it doesnt emit a warning for global constructors in all cases.
 constinit static SerialLog gSerialLog;
+constinit static TerminalLog gTerminalLog;
 
 constinit static ILogTarget *gLogTarget = &gNullLog;
 
@@ -117,6 +147,9 @@ enum GdtEntry {
     eGdtEntry_Count
 };
 
+using x64::DescriptorFlags;
+using x64::SegmentAccessFlags;
+
 static constexpr uint64_t kGdtEntries[eGdtEntry_Count] = {
     [eGdtEntry_Null] = 0,
     [eGdtEntry_Ring0Code] = KmBuildSegmentDescriptor(
@@ -135,14 +168,14 @@ static void KmSetupGdt(void) {
     KmInitGdt(kGdtEntries, eGdtEntry_Count, eGdtEntry_Ring0Code, eGdtEntry_Ring0Data);
 }
 
-static SystemMemory KmInitMemoryMap(uintptr_t bits, const void *stack) {
+static SystemMemory KmInitMemoryMap(uintptr_t bits, const void *stack, const void *framebuffer, size_t size) {
     const limine_memmap_response *memmap = gMemmoryMapRequest.response;
     const limine_kernel_address_response *kernel = gExecutableAddressRequest.response;
     const limine_hhdm_response *hhdm = gDirectMapRequest.response;
 
-    KM_CHECK(memmap != NULL, "No memory map!");
-    KM_CHECK(kernel != NULL, "No kernel address!");
-    KM_CHECK(hhdm != NULL, "No higher half direct map!");
+    KM_CHECK(memmap != NULL, "No memory map");
+    KM_CHECK(kernel != NULL, "No kernel address");
+    KM_CHECK(hhdm != NULL, "No higher half direct map");
 
     if (x64::HasPatSupport()) {
         x64::PageAttributeTable pat;
@@ -152,6 +185,21 @@ static SystemMemory KmInitMemoryMap(uintptr_t bits, const void *stack) {
             KmDebugMessage("[INIT] PAT[", i, "]: ", type, "\n");
         }
     }
+
+    SystemMemory memory = SystemMemory { SystemMemoryLayout::from(*memmap), bits, *hhdm };
+
+    // initialize our own page tables and remap everything into it
+    KmMapKernel(memory.pager, memory.vmm, memory.layout, *kernel);
+
+    // move our stack out of reclaimable memory
+    // limine garuntees 64k of stack space
+    KmMigrateMemory(memory.vmm, memory.pager, stack, 0x10000);
+
+    // migrate framebuffer memory
+    KmMigrateMemory(memory.vmm, memory.pager, framebuffer, size);
+
+    // once it is safe to remap the boot memory, do so
+    KmReclaimBootMemory(memory.pager, memory.vmm, memory.layout);
 
     if (x64::HasMtrrSupport()) {
         x64::MemoryTypeRanges mtrrs;
@@ -175,22 +223,10 @@ static SystemMemory KmInitMemoryMap(uintptr_t bits, const void *stack) {
         if (HasVariableMtrrSupport(mtrrs)) {
             for (uint8_t i = 0; i < mtrrs.variableMtrrCount(); i++) {
                 x64::VariableMtrr mtrr = mtrrs.variableMtrr(i);
-                KmDebugMessage("[INIT] Variable MTRR[", i, "]: ", mtrr.type(), "\n");
+                KmDebugMessage("[INIT] Variable MTRR[", i, "]: ", mtrr.type(), ", address: ", mtrr.baseAddress(memory.pager), ", mask: ", Hex(mtrr.addressMask(memory.pager)).pad(16, '0'), "\n");
             }
         }
     }
-
-    SystemMemory memory = SystemMemory { SystemMemoryLayout::from(*memmap), bits, *hhdm };
-
-    // initialize our own page tables and remap everything into it
-    KmMapKernel(memory.pager, memory.vmm, memory.layout, *kernel);
-
-    // move our stack out of reclaimable memory
-    // limine garuntees 64k of stack space
-    KmMigrateStack(memory.vmm, memory.pager, stack, 0x10000);
-
-    // once it is safe to remap the boot memory, do so
-    KmReclaimBootMemory(memory.layout);
 
     return memory;
 }
@@ -224,9 +260,18 @@ static LocalAPIC KmEnableAPIC(km::VirtualAllocator& vmm, const km::PageManager& 
 
 static km::PhysicalAddress KmGetRSDPTable(void) {
     const limine_rsdp_response *response = gAcpiTableRequest.response;
-    KM_CHECK(response != NULL, "No RSDP table!");
+    KM_CHECK(response != NULL, "No RSDP table");
 
     return km::PhysicalAddress { (uintptr_t)response->address };
+}
+
+static km::Terminal KmGetTerminal(void) {
+    const limine_framebuffer_response *response = gFramebufferRequest.response;
+    KM_CHECK(response != NULL, "No framebuffer response");
+    KM_CHECK(response->framebuffer_count > 0, "No framebuffer");
+
+    km::Display display { *response->framebuffers[0] };
+    return km::Terminal { display, uint16_t(display.height() / 8), uint16_t(display.width() / 8) };
 }
 
 static SerialPortStatus KmInitSerialPort(ComPortInfo info) {
@@ -348,10 +393,12 @@ extern "C" void kmain(void) {
     // reclaimable memory, which is reclaimed before this data is used.
     km::PhysicalAddress rsdpBaseAddress = KmGetRSDPTable();
 
-    if (!x64::paging::isValidAddressWidth(processor.maxpaddr)) {
-        KmDebugMessage("[INIT] Unsupported physical address width ", processor.maxpaddr, "bits. Must be 40 or 48.\n");
-        KM_PANIC("Unsupported physical address width.");
-    }
+    km::Terminal terminal = KmGetTerminal();
+    km::Display& display = terminal.display();
+    display.fill(Pixel { 0, 0, 0 });
+
+    gTerminalLog = TerminalLog(terminal, gLogTarget);
+    gLogTarget = &gTerminalLog;
 
     KmDebugMessage("[INIT] System report.\n");
     KmDebugMessage("| Component     | Property             | Status\n");
@@ -390,6 +437,10 @@ extern "C" void kmain(void) {
     KmDebugMessage("| /SYS/MB/CPU0  | Local APIC           | ", present(processor.hasLocalApic), "\n");
     KmDebugMessage("| /SYS/MB/CPU0  | 2x APIC              | ", present(processor.has2xApic), "\n");
 
+    KmDebugMessage("| /SYS/VIDEO    | Display size         | ", display.width(), "x", display.height(), "x", display.bpp(), "\n");
+    KmDebugMessage("| /SYS/VIDEO    | Display address      | ", Hex((uintptr_t)display.address()).pad(16, '0'), "\n");
+    KmDebugMessage("| /SYS/VIDEO    | Display pitch        | ", display.pitch(), "\n");
+
     KmSetupGdt();
 
     km::IsrAllocator isrs;
@@ -399,7 +450,7 @@ extern "C" void kmain(void) {
 
     // reclaims bootloader memory, all the limine requests must be read
     // before this point.
-    SystemMemory memory = KmInitMemoryMap(processor.maxpaddr, base);
+    SystemMemory memory = KmInitMemoryMap(processor.maxpaddr, base, display.address(), display.size());
 
     // test interrupt to ensure the IDT is working
     {

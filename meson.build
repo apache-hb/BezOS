@@ -52,6 +52,7 @@ src = [
     'kernel/src/acpi.cpp',
     'kernel/src/memory.cpp',
     'kernel/src/hypervisor.cpp',
+    'kernel/src/display.cpp',
 
     'kernel/src/main.cpp',
 ]

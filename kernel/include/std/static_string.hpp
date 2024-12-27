@@ -63,7 +63,7 @@ namespace stdx {
         }
 
         constexpr bool operator==(StringViewBase<T> other) const {
-            return count() == other.count() && memcmp(begin(), other.begin(), sizeInBytes()) == 0;
+            return std::equal(begin(), end(), other.begin(), other.end());
         }
     };
 

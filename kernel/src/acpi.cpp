@@ -71,7 +71,7 @@ static acpi::RsdtHeader *KmGetRsdtHeader(km::PhysicalAddress paddr, km::SystemMe
 }
 
 static void KmDebugRSDT(const acpi::RsdpLocator *locator, km::SystemMemory& memory) {
-    KmDebugMessage("| /SYS/ACPI          | RSDT address         | ", km::Hex(locator->rsdtAddress).pad(16, '0'), "\n");
+    KmDebugMessage("| /SYS/ACPI          | RSDT address         | ", km::Hex(locator->rsdtAddress).pad(8, '0'), "\n");
 
     acpi::Rsdt *rsdt = memory.hhdmMapObject<acpi::Rsdt>(locator->rsdtAddress);
 

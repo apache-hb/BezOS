@@ -59,13 +59,13 @@ namespace km {
 /// @param address The address of the kernel
 void KmMapKernel(const km::PageManager& pm, km::VirtualAllocator& vmm, km::SystemMemoryLayout& layout, limine_kernel_address_response address);
 
-/// @brief Migrate the kernel stack out of bootloader reclaimable memory.
+/// @brief Migrate the memory range into hhdm.
 /// @param vmm The virtual memory manager
 /// @param pm The page manager
-/// @param base The old stack address
-/// @param size The old stack size
-void KmMigrateStack(km::VirtualAllocator& vmm, km::PageManager& pm, const void *base, size_t size);
+/// @param base The virtual address
+/// @param size The size of the memory range
+void KmMigrateMemory(km::VirtualAllocator& vmm, km::PageManager& pm, const void *base, size_t size);
 
 /// @brief Reclaim bootloader memory.
 /// @param layout The system memory layout
-void KmReclaimBootMemory(km::SystemMemoryLayout& layout);
+void KmReclaimBootMemory(const km::PageManager& pm, km::VirtualAllocator& vmm, km::SystemMemoryLayout& layout);

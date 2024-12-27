@@ -4,7 +4,7 @@
 
 #include <stdint.h>
 
-namespace km {
+namespace x64 {
     enum class DescriptorFlags {
         eLong = (1 << 1),
         eSize = (1 << 2),

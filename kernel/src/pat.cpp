@@ -30,14 +30,14 @@ static constexpr uint32_t kFixedMtrrMsrs[] = {
 
 bool x64::HasPatSupport() {
     static constexpr uint32_t kPatSupportBit = (1 << 16);
-    km::CpuId cpuid = km::CpuId::of(1);
+    sm::CpuId cpuid = sm::CpuId::of(1);
 
     return cpuid.edx & kPatSupportBit;
 }
 
 bool x64::HasMtrrSupport() {
     static constexpr uint32_t kMtrrSupportBit = (1 << 12);
-    km::CpuId cpuid = km::CpuId::of(1);
+    sm::CpuId cpuid = sm::CpuId::of(1);
 
     return cpuid.edx & kMtrrSupportBit;
 }
@@ -131,6 +131,14 @@ x64::MemoryType x64::VariableMtrr::type() const {
 bool x64::VariableMtrr::valid() const {
     static constexpr uint64_t kValidBit = (1 << 11);
     return mMask & kValidBit;
+}
+
+km::PhysicalAddress x64::VariableMtrr::baseAddress(const km::PageManager& pm) const {
+    return km::PhysicalAddress { mBase & pm.getAddressMask() };
+}
+
+uintptr_t x64::VariableMtrr::addressMask(const km::PageManager& pm) const {
+    return mMask & pm.getAddressMask();
 }
 
 x64::VariableMtrr x64::MemoryTypeRanges::variableMtrr(uint8_t index) const {

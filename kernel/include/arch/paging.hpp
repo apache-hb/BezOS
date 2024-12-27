@@ -22,10 +22,6 @@ namespace x64 {
         constexpr uint64_t kWrittenBit        = 1ull << 6;
         constexpr uint64_t kExecuteDisableBit = 1ull << 63;
 
-        constexpr bool isValidAddressWidth(uintptr_t width) {
-            return width == 40 || width == 48;
-        }
-
         constexpr uintptr_t addressMask(uintptr_t width) {
             return ((1ull << width) - 1) & ~(kPageSize - 1);
         }

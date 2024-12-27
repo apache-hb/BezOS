@@ -1,7 +1,6 @@
 #pragma once
 
 #include "std/static_string.hpp"
-#include "std/string_view.hpp"
 
 #include <stdint.h>
 

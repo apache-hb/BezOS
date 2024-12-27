@@ -4,12 +4,13 @@
 
 #include <string.h>
 
+using sm::CpuId;
 using namespace stdx::literals;
 
 bool km::KmIsHypervisorPresent(void) {
     static constexpr uint32_t kHypervisorBit = (1 << 31);
 
-    km::CpuId cpuid = km::CpuId::of(1);
+    CpuId cpuid = CpuId::of(1);
     return cpuid.ecx & kHypervisorBit;
 }
 
@@ -31,7 +32,7 @@ bool km::HypervisorInfo::platformHasDebugPort(void) const {
 }
 
 km::HypervisorInfo km::KmGetHypervisorInfo(void) {
-    km::CpuId cpuid = km::CpuId::of(0x40000000);
+    CpuId cpuid = CpuId::of(0x40000000);
 
     char vendor[12];
     memcpy(vendor + 0, &cpuid.ebx, 4);
@@ -42,13 +43,13 @@ km::HypervisorInfo km::KmGetHypervisorInfo(void) {
 }
 
 km::BrandString km::KmGetBrandString() {
-    char brand[km::kBrandStringSize];
-    km::KmGetBrandString(brand);
+    char brand[sm::kBrandStringSize];
+    sm::KmGetBrandString(brand);
     return brand;
 }
 
 km::ProcessorInfo km::KmGetProcessorInfo() {
-    km::CpuId vendorId = km::CpuId::of(0);
+    CpuId vendorId = CpuId::of(0);
 
     char vendor[12];
     memcpy(vendor + 0, &vendorId.ebx, 4);
@@ -56,7 +57,7 @@ km::ProcessorInfo km::KmGetProcessorInfo() {
     memcpy(vendor + 8, &vendorId.ecx, 4);
     uint32_t maxleaf = vendorId.eax;
 
-    km::CpuId cpuid = km::CpuId::of(1);
+    CpuId cpuid = CpuId::of(1);
     bool isLocalApicPresent = cpuid.edx & (1 << 9);
     bool is2xApicPresent = cpuid.ecx & (1 << 21);
 
@@ -66,9 +67,9 @@ km::ProcessorInfo km::KmGetProcessorInfo() {
     uintptr_t maxvaddr = 0;
     uintptr_t maxpaddr = 0;
     if (ext.eax >= 0x80000008) {
-        km::CpuId leaf = km::CpuId::of(0x80000008);
-        maxvaddr = (leaf.eax >> 8) & 0xFF;
+        CpuId leaf = CpuId::of(0x80000008);
         maxpaddr = (leaf.eax >> 0) & 0xFF;
+        maxvaddr = (leaf.eax >> 8) & 0xFF;
     }
 
     CoreMultiplier coreClock = { 0, 0 };
@@ -78,7 +79,7 @@ km::ProcessorInfo km::KmGetProcessorInfo() {
     uint16_t busFrequency = 0;
 
     if (maxleaf >= 0x15) {
-        km::CpuId tsc = km::CpuId::of(0x15);
+        CpuId tsc = CpuId::of(0x15);
 
         coreClock = {
             .tsc = tsc.eax,
@@ -89,7 +90,7 @@ km::ProcessorInfo km::KmGetProcessorInfo() {
     }
 
     if (maxleaf >= 0x16) {
-        km::CpuId frequency = km::CpuId::of(0x16);
+        CpuId frequency = CpuId::of(0x16);
         baseFrequency = frequency.eax & 0xFFFF;
         maxFrequency = frequency.ebx & 0xFFFF;
         busFrequency = frequency.ecx & 0xFFFF;

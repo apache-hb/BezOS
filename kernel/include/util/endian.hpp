@@ -5,7 +5,7 @@
 
 #include "util/digit.hpp"
 
-namespace km {
+namespace sm {
     template<size_t N, typename T>
     constexpr SizedInteger<N, T> byteswap(SizedInteger<N, T> value) {
         return value.byteswap();

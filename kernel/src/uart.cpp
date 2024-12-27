@@ -1,6 +1,5 @@
 #include "uart.hpp"
 
-#include "arch/intrin.hpp"
 #include "kernel.hpp"
 
 static constexpr uint8_t kDLABOffset = 7;
@@ -44,6 +43,9 @@ size_t km::SerialPort::read(stdx::Span<uint8_t> dst) {
 size_t km::SerialPort::print(stdx::StringView src) {
     size_t result = 0;
     for (char c : src) {
+        if (c == '\0')
+            continue;
+
         if (c == '\n') {
             put('\r');
             result += 1;

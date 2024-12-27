@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-namespace km {
+namespace sm {
     union CpuId {
         uint32_t ureg[4];
         int32_t ireg[4];
