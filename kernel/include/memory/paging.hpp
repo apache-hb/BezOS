@@ -48,7 +48,5 @@ namespace km {
             reg = (reg & ~mAddressMask) | map.address;
             x64::setcr3(reg);
         }
-
-        km::PhysicalAddress translate(km::VirtualAddress vaddr) const;
     };
 }

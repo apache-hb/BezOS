@@ -23,6 +23,7 @@
 #include "kernel.hpp"
 
 #include "util/logger.hpp"
+#include "util/memory.hpp"
 
 #include <limine.h>
 
@@ -446,9 +447,11 @@ extern "C" void kmain(void) {
     KmDebugMessage("| /SYS/MB/CPU0  | Local APIC           | ", present(processor.hasLocalApic), "\n");
     KmDebugMessage("| /SYS/MB/CPU0  | 2x APIC              | ", present(processor.has2xApic), "\n");
 
-    KmDebugMessage("| /SYS/VIDEO    | Display size         | ", display.width(), "x", display.height(), "x", display.bpp(), "\n");
+    KmDebugMessage("| /SYS/VIDEO    | Display resolution   | ", display.width(), "x", display.height(), "x", display.bpp(), "\n");
     KmDebugMessage("| /SYS/VIDEO    | Display address      | ", Hex((uintptr_t)display.address()).pad(16, '0'), "\n");
+    KmDebugMessage("| /SYS/VIDEO    | Framebuffer size     | ", sm::bytes(display.size()), "\n");
     KmDebugMessage("| /SYS/VIDEO    | Display pitch        | ", display.pitch(), "\n");
+    KmDebugMessage("| /SYS/VIDEO    | Display bpp          | ", display.bpp(), "\n");
 
     KmSetupGdt();
 
@@ -478,7 +481,7 @@ extern "C" void kmain(void) {
 
     // test lapic ipis to ensure the local apic is working
     {
-        KmIsrHandler testHandler = [](km::IsrContext *context) -> void* {
+        KmIsrHandler isrHandler = [](km::IsrContext *context) -> void* {
             KmDebugMessage("[INT] APIC interrupt.\n");
             gLocalApic.clearEndOfInterrupt();
             return context;
@@ -486,7 +489,7 @@ extern "C" void kmain(void) {
 
         uint8_t testVec = isrs.allocateIsr();
 
-        KmIsrHandler oldHandler = KmInstallIsrHandler(testVec, testHandler);
+        KmIsrHandler oldHandler = KmInstallIsrHandler(testVec, isrHandler);
 
         // another test interrupt
         lapic.sendIpi(apic::IcrDeliver::eSelf, testVec);

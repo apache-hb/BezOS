@@ -9,6 +9,8 @@ namespace km {
         eRead = 1 << 0,
         eWrite = 1 << 1,
         eExecute = 1 << 2,
+        eWriteThrough = 1 << 3,
+        eCacheDisable = 1 << 4,
 
         eCode = eRead | eExecute,
         eData = eRead | eWrite,
@@ -41,6 +43,12 @@ namespace km {
 
         void setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddress address);
 
+        x64::PageMapLevel3 *getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e);
+        x64::PageMapLevel2 *getPageMap2(x64::PageMapLevel3 *l3, uint16_t pdpte);
+
+        void mapRange4k(MemoryRange range, VirtualAddress vaddr, PageFlags flags);
+        void mapRange2m(MemoryRange range, VirtualAddress vaddr, PageFlags flags);
+
     public:
         VirtualAllocator(const km::PageManager *pm, PageAllocator *alloc);
 
@@ -49,6 +57,10 @@ namespace km {
         }
 
         void map4k(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags);
+
+        void map2m(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags);
+
+        void mapRange(MemoryRange range, VirtualAddress vaddr, PageFlags flags);
     };
 }
 

@@ -65,11 +65,14 @@ x64::page *VirtualAllocator::alloc4k() {
 }
 
 void VirtualAllocator::setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddress address) {
-    entry.setPresent(true);
     mPageManager->setAddress(entry, address.address);
 
     entry.setWriteable(bool(flags & PageFlags::eWrite));
     entry.setExecutable(bool(flags & PageFlags::eExecute));
+    entry.setWriteThrough(bool(flags & PageFlags::eWriteThrough));
+    entry.setCacheDisable(bool(flags & PageFlags::eCacheDisable));
+
+    entry.setPresent(true);
 }
 
 VirtualAllocator::VirtualAllocator(const km::PageManager *pm, PageAllocator *alloc)
@@ -78,16 +81,8 @@ VirtualAllocator::VirtualAllocator(const km::PageManager *pm, PageAllocator *all
     , mRootPageTable(alloc4k())
 { }
 
-void VirtualAllocator::map4k(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags) {
-    uint16_t pml4e = (vaddr.address >> 39) & 0b0001'1111'1111;
-    uint16_t pdpte = (vaddr.address >> 30) & 0b0001'1111'1111;
-    uint16_t pdte = (vaddr.address >> 21) & 0b0001'1111'1111;
-    uint16_t pte = (vaddr.address >> 12) & 0b0001'1111'1111;
-
-    x64::PageMapLevel4 *l4 = (x64::PageMapLevel4*)rootPageTable();
+x64::PageMapLevel3 *VirtualAllocator::getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e) {
     x64::PageMapLevel3 *l3;
-    x64::PageMapLevel2 *l2;
-    x64::PageTable *pt;
 
     x64::pml4e& t4 = l4->entries[pml4e];
     if (!t4.present()) {
@@ -97,6 +92,12 @@ void VirtualAllocator::map4k(PhysicalAddress paddr, VirtualAddress vaddr, PageFl
         l3 = std::bit_cast<x64::PageMapLevel3*>(mPageManager->address(t4) + mPageManager->hhdmOffset());
     }
 
+    return l3;
+}
+
+x64::PageMapLevel2 *VirtualAllocator::getPageMap2(x64::PageMapLevel3 *l3, uint16_t pdpte) {
+    x64::PageMapLevel2 *l2;
+
     x64::pdpte& t3 = l3->entries[pdpte];
     if (!t3.present()) {
         l2 = std::bit_cast<x64::PageMapLevel2*>(alloc4k());
@@ -104,6 +105,34 @@ void VirtualAllocator::map4k(PhysicalAddress paddr, VirtualAddress vaddr, PageFl
     } else {
         l2 = std::bit_cast<x64::PageMapLevel2*>(mPageManager->address(t3) + mPageManager->hhdmOffset());
     }
+
+    return l2;
+}
+
+void VirtualAllocator::mapRange4k(MemoryRange range, VirtualAddress vaddr, PageFlags flags) {
+    for (PhysicalAddress i = range.front; i < range.back; i += x64::kPageSize) {
+        map4k(i, vaddr, flags);
+        vaddr.address += x64::kPageSize;
+    }
+}
+
+void VirtualAllocator::mapRange2m(MemoryRange range, VirtualAddress vaddr, PageFlags flags) {
+    for (PhysicalAddress i = range.front; i < range.back; i += x64::kLargePageSize) {
+        map2m(i, vaddr, flags);
+        vaddr.address += x64::kLargePageSize;
+    }
+}
+
+void VirtualAllocator::map4k(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags) {
+    uint16_t pml4e = (vaddr.address >> 39) & 0b0001'1111'1111;
+    uint16_t pdpte = (vaddr.address >> 30) & 0b0001'1111'1111;
+    uint16_t pdte = (vaddr.address >> 21) & 0b0001'1111'1111;
+    uint16_t pte = (vaddr.address >> 12) & 0b0001'1111'1111;
+
+    x64::PageMapLevel4 *l4 = (x64::PageMapLevel4*)rootPageTable();
+    x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e);
+    x64::PageMapLevel2 *l2 = getPageMap2(l3, pdpte);
+    x64::PageTable *pt;
 
     x64::pde& t2 = l2->entries[pdte];
     if (!t2.present()) {
@@ -117,14 +146,62 @@ void VirtualAllocator::map4k(PhysicalAddress paddr, VirtualAddress vaddr, PageFl
     setEntryFlags(t1, flags, paddr.address);
 }
 
+void VirtualAllocator::map2m(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags) {
+    uint16_t pml4e = (vaddr.address >> 39) & 0b0001'1111'1111;
+    uint16_t pdpte = (vaddr.address >> 30) & 0b0001'1111'1111;
+    uint16_t pdte = (vaddr.address >> 21) & 0b0001'1111'1111;
+
+    x64::PageMapLevel4 *l4 = (x64::PageMapLevel4*)rootPageTable();
+    x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e);
+    x64::PageMapLevel2 *l2 = getPageMap2(l3, pdpte);
+
+    x64::pde& t2 = l2->entries[pdte];
+    t2.set2m(true);
+    setEntryFlags(t2, flags, paddr.address);
+}
+
+void VirtualAllocator::mapRange(MemoryRange range, VirtualAddress vaddr, PageFlags flags) {
+    // align everything to 4k page boundaries
+    range.front = sm::rounddown(range.front.address, x64::kPageSize);
+    range.back = sm::roundup(range.back.address, x64::kPageSize);
+
+    // check if we should we attempt to use large pages
+    if ((uintptr_t)range.size() >= x64::kLargePageSize) {
+        // if the range is larger than 2m in total, its worth checking if
+        // the range is still larger than 2m after aligning the range.
+        PhysicalAddress front2m = sm::roundup(range.front.address, x64::kLargePageSize);
+        PhysicalAddress back2m = sm::rounddown(range.back.address, x64::kLargePageSize);
+
+        // if the range is still larger than 2m, we can use 2m pages
+        if (front2m < back2m) {
+            // map the leading 4k pages we need to map to fulfill our api contract
+            MemoryRange head = {range.front, front2m};
+            mapRange4k(head, vaddr, flags);
+
+            // then map the 2m pages
+            MemoryRange body = {front2m, back2m};
+            mapRange2m(body, vaddr + head.size(), flags);
+
+            // finally map the trailing 4k pages
+            MemoryRange tail = {back2m, range.back};
+            mapRange4k(tail, vaddr + head.size() + body.size(), flags);
+            return;
+        }
+    }
+
+    // if we get to this point its not worth using 2m pages
+    // so we just map the range with 4k pages
+    mapRange4k(range, vaddr, flags);
+}
+
 static void MapKernelPages(VirtualAllocator& memory, limine_kernel_address_response address) {
+    uint64_t physicalBase = address.physical_base;
+    uint64_t virtualBase = address.virtual_base;
     auto mapKernelRange = [&](const void *begin, const void *end, PageFlags flags) {
         km::PhysicalAddress front = km::PhysicalAddress {  (uintptr_t)begin - (uintptr_t)__kernel_start };
         km::PhysicalAddress back = km::PhysicalAddress { (uintptr_t)end - (uintptr_t)__kernel_start };
 
-        for (uintptr_t i = front.address; i < back.address; i += x64::kPageSize) {
-            memory.map4k(km::PhysicalAddress { address.physical_base + i }, km::VirtualAddress { address.virtual_base + i }, flags);
-        }
+        memory.mapRange({ physicalBase + front.address, physicalBase + back.address }, virtualBase + front.address, flags);
     };
 
     mapKernelRange(__text_start, __text_end, PageFlags::eCode);
@@ -134,15 +211,11 @@ static void MapKernelPages(VirtualAllocator& memory, limine_kernel_address_respo
 
 static void MapStage1Memory(VirtualAllocator& memory, const km::PageManager& pm, const SystemMemoryLayout& layout) {
     for (MemoryRange range : layout.available) {
-        for (PhysicalAddress i = range.front; i < range.back; i += x64::kPageSize) {
-            memory.map4k(i, km::VirtualAddress { i.address + pm.hhdmOffset() }, PageFlags::eData);
-        }
+        memory.mapRange(range, km::VirtualAddress { range.front.address + pm.hhdmOffset() }, PageFlags::eData);
     }
 
     for (MemoryRange range : layout.reclaimable) {
-        for (PhysicalAddress i = range.front; i < range.back; i += x64::kPageSize) {
-            memory.map4k(i, km::VirtualAddress { i.address + pm.hhdmOffset() }, PageFlags::eData);
-        }
+        memory.mapRange(range, km::VirtualAddress { range.front.address + pm.hhdmOffset() }, PageFlags::eData);
     }
 }
 
@@ -160,9 +233,7 @@ void KmMigrateMemory(km::VirtualAllocator& vmm, km::PageManager& pm, const void 
     km::PhysicalAddress base = km::PhysicalAddress { (uintptr_t)address - pm.hhdmOffset() };
     km::PhysicalAddress end = base + size;
 
-    for (km::PhysicalAddress i = base; i < end; i += x64::kPageSize) {
-        vmm.map4k(i, km::VirtualAddress { i.address + pm.hhdmOffset() }, PageFlags::eData);
-    }
+    vmm.mapRange({ base, end }, km::VirtualAddress { base.address + pm.hhdmOffset() }, PageFlags::eData);
 }
 
 void KmReclaimBootMemory(const km::PageManager& pm, km::VirtualAllocator& vmm, km::SystemMemoryLayout& layout) {

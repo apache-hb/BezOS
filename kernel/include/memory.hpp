@@ -12,7 +12,6 @@ namespace km {
 
         SystemMemory(SystemMemoryLayout memory, uintptr_t bits, limine_hhdm_response hhdm);
 
-        VirtualAddress hhdmMap(PhysicalAddress paddr);
         VirtualAddress hhdmMap(PhysicalAddress begin, PhysicalAddress end);
 
         template<typename T>

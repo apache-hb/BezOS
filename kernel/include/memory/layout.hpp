@@ -70,6 +70,10 @@ namespace km {
         { }
 
         constexpr auto operator<=>(const VirtualAddress&) const = default;
+
+        constexpr VirtualAddress operator+(intptr_t offset) const {
+            return VirtualAddress { address + offset };
+        }
     };
 
     template<typename T>
@@ -94,6 +98,10 @@ namespace km {
             return addr >= front && addr < back;
         }
     };
+
+    constexpr MemoryRange pageAligned(MemoryRange range) {
+        return {sm::rounddown(range.front.address, x64::kPageSize), sm::roundup(range.back.address, x64::kPageSize)};
+    }
 
     constexpr size_t pages(size_t bytes) {
         return sm::roundpow2(bytes, x64::kPageSize) / x64::kPageSize;

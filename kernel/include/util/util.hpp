@@ -16,6 +16,11 @@ namespace sm {
     constexpr T roundup(T value, T multiple) {
         return (value + multiple - 1) / multiple * multiple;
     }
+
+    template<std::integral T>
+    constexpr T rounddown(T value, T multiple) {
+        return value / multiple * multiple;
+    }
 }
 
 #define UTIL_BITFLAGS(it) \

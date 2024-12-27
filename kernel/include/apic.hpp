@@ -42,6 +42,8 @@ namespace km {
         };
     }
 
+    static constexpr size_t kApicSize = 0x3F0;
+
     class LocalAPIC {
         static constexpr uint16_t kSpuriousInt = 0xF0;
         static constexpr uint16_t kEndOfInt = 0xB0;

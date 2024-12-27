@@ -51,7 +51,8 @@ km::LocalAPIC KmInitLocalAPIC(km::VirtualAllocator& vmm, const km::PageManager& 
 
     // map the APIC base into the higher half
     km::VirtualAddress vbase = km::VirtualAddress { base + pm.hhdmOffset() };
-    vmm.map4k(km::PhysicalAddress { base }, vbase, km::PageFlags::eData);
+    km::MemoryRange range { base, base + km::kApicSize };
+    vmm.mapRange(range, vbase, km::PageFlags::eData);
 
     return km::LocalAPIC { vbase };
 }
@@ -62,7 +63,7 @@ static constexpr uint32_t kIoApicWindow = 0x10;
 static constexpr uint32_t kIoApicVersion = 0x1;
 
 km::IoApic::IoApic(const acpi::MadtEntry *entry, km::SystemMemory& memory)
-    : mAddress(memory.hhdmMap(entry->ioapic.address))
+    : mAddress(memory.hhdmMap(entry->ioapic.address, entry->ioapic.address + entry->length))
     , mIsrBase(entry->ioapic.interruptBase)
     , mId(entry->ioapic.ioApicId)
 { }

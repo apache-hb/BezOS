@@ -1,5 +1,7 @@
 #pragma once
 
+#include "util/memory.hpp"
+
 #include <stdint.h>
 
 namespace x64 {
@@ -11,13 +13,16 @@ namespace x64 {
         }
     }
 
-    constexpr uintptr_t kPageSize = 0x1000;
+    constexpr uintptr_t kPageSize = sm::kilobytes(4).asBytes();
+    constexpr uintptr_t kLargePageSize = sm::megabytes(2).asBytes();
 
     namespace paging {
         constexpr uint64_t kMaxPhysicalAddress = 48;
         constexpr uint64_t kPresentBit        = 1ull << 0;
         constexpr uint64_t kReadOnlyBit       = 1ull << 1;
         constexpr uint64_t kUserBit           = 1ull << 2;
+        constexpr uint64_t kWriteThroughBit   = 1ull << 3;
+        constexpr uint64_t kCacheDisableBit   = 1ull << 4;
         constexpr uint64_t kAccessedBit       = 1ull << 5;
         constexpr uint64_t kWrittenBit        = 1ull << 6;
         constexpr uint64_t kExecuteDisableBit = 1ull << 63;
@@ -36,6 +41,12 @@ namespace x64 {
         bool writeable() const { return (underlying & paging::kReadOnlyBit); }
         void setWriteable(bool readonly) { setmask(underlying, paging::kReadOnlyBit, readonly); }
 
+        bool writeThrough() const { return underlying & paging::kWriteThroughBit; }
+        void setWriteThrough(bool writeThrough) { setmask(underlying, paging::kWriteThroughBit, writeThrough); }
+
+        bool cacheDisable() const { return underlying & paging::kCacheDisableBit; }
+        void setCacheDisable(bool cacheDisable) { setmask(underlying, paging::kCacheDisableBit, cacheDisable); }
+
         bool user() const { return underlying & paging::kUserBit; }
         void setUser(bool user) { setmask(underlying, paging::kUserBit, user); }
 
@@ -53,7 +64,11 @@ namespace x64 {
     struct pte : Entry { };
 
     /// @brief Page directory entry
-    struct pde : Entry { };
+    struct pde : Entry {
+        static constexpr uint64_t kLargePage = 1ull << 7;
+        bool is2m() const { return underlying & kLargePage; }
+        void set2m(bool large) { setmask(underlying, kLargePage, large); }
+    };
 
     /// @brief Page directory pointer table entry
     struct pdpte : Entry { };

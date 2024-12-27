@@ -1,7 +1,5 @@
 #include "memory.hpp"
 
-#include <algorithm>
-
 km::SystemMemory::SystemMemory(SystemMemoryLayout memory, uintptr_t bits, limine_hhdm_response hhdm)
     : pager(bits, hhdm.offset)
     , layout(memory)
@@ -10,16 +8,8 @@ km::SystemMemory::SystemMemory(SystemMemoryLayout memory, uintptr_t bits, limine
 { }
 
 km::VirtualAddress km::SystemMemory::hhdmMap(PhysicalAddress begin, PhysicalAddress end) {
-    size_t pages = std::max((end - begin) / x64::kPageSize, 1zu);
-    for (size_t i = 0; i < pages; i++) {
-        hhdmMap(begin + i * x64::kPageSize);
-    }
-
-    return VirtualAddress { begin.address + pager.hhdmOffset() };
-}
-
-km::VirtualAddress km::SystemMemory::hhdmMap(PhysicalAddress paddr) {
-    VirtualAddress result { paddr.address + pager.hhdmOffset() };
-    vmm.map4k(paddr, result, PageFlags::eData);
-    return result;
+    MemoryRange range { begin, end };
+    VirtualAddress vaddr = { begin.address + pager.hhdmOffset() };
+    vmm.mapRange(range, vaddr, PageFlags::eData);
+    return vaddr;
 }
