@@ -68,8 +68,9 @@ namespace km {
 /// @param pm The page manager
 /// @param vmm The virtual memory manager
 /// @param layout The system memory layout
-/// @param address The address of the kernel
-void KmMapKernel(const km::PageManager& pm, km::VirtualAllocator& vmm, km::SystemMemoryLayout& layout, limine_kernel_address_response address);
+/// @param paddr The physical address of the kernel
+/// @param vaddr The virtual address of the kernel
+void KmMapKernel(const km::PageManager& pm, km::VirtualAllocator& vmm, km::SystemMemoryLayout& layout, km::PhysicalAddress paddr, km::VirtualAddress vaddr);
 
 /// @brief Migrate the memory range into hhdm.
 /// @param vmm The virtual memory manager

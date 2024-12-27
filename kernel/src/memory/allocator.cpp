@@ -194,14 +194,12 @@ void VirtualAllocator::mapRange(MemoryRange range, VirtualAddress vaddr, PageFla
     mapRange4k(range, vaddr, flags);
 }
 
-static void MapKernelPages(VirtualAllocator& memory, limine_kernel_address_response address) {
-    uint64_t physicalBase = address.physical_base;
-    uint64_t virtualBase = address.virtual_base;
+static void MapKernelPages(VirtualAllocator& memory, km::PhysicalAddress paddr, km::VirtualAddress vaddr) {
     auto mapKernelRange = [&](const void *begin, const void *end, PageFlags flags) {
         km::PhysicalAddress front = km::PhysicalAddress {  (uintptr_t)begin - (uintptr_t)__kernel_start };
         km::PhysicalAddress back = km::PhysicalAddress { (uintptr_t)end - (uintptr_t)__kernel_start };
 
-        memory.mapRange({ physicalBase + front.address, physicalBase + back.address }, virtualBase + front.address, flags);
+        memory.mapRange({ paddr + front.address, paddr + back.address }, vaddr + front.address, flags);
     };
 
     mapKernelRange(__text_start, __text_end, PageFlags::eCode);
@@ -219,11 +217,11 @@ static void MapStage1Memory(VirtualAllocator& memory, const km::PageManager& pm,
     }
 }
 
-void KmMapKernel(const km::PageManager& pm, km::VirtualAllocator& vmm, km::SystemMemoryLayout& layout, limine_kernel_address_response address) {
+void KmMapKernel(const km::PageManager& pm, km::VirtualAllocator& vmm, km::SystemMemoryLayout& layout, km::PhysicalAddress paddr, km::VirtualAddress vaddr) {
     PageAllocator allocator{&layout};
 
     // first map the kernel pages
-    MapKernelPages(vmm, address);
+    MapKernelPages(vmm, paddr, vaddr);
 
     // then remap the rest of memory to the higher half
     MapStage1Memory(vmm, pm, layout);

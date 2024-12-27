@@ -60,7 +60,7 @@ src = [
     'kernel/src/main.cpp',
 
     # bootloader compatibility layer
-    # 'kernel/src/boot/limine.cpp',
+    'kernel/src/boot/limine.cpp',
 ]
 
 executable('bezos', src,

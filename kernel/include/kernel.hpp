@@ -3,7 +3,9 @@
 #include <stddef.h>
 
 #include "arch/intrin.hpp"
-#include "memory/layout.hpp"
+#include "memory/memory.hpp"
+
+#include "std/static_vector.hpp"
 #include "std/string_view.hpp"
 
 #include "util/format.hpp"

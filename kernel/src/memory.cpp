@@ -1,7 +1,7 @@
 #include "memory.hpp"
 
-km::SystemMemory::SystemMemory(SystemMemoryLayout memory, uintptr_t bits, limine_hhdm_response hhdm)
-    : pager(bits, hhdm.offset)
+km::SystemMemory::SystemMemory(SystemMemoryLayout memory, uintptr_t bits, uintptr_t hhdmOffset)
+    : pager(bits, hhdmOffset)
     , layout(memory)
     , pmm(&layout)
     , vmm(&pager, &pmm)

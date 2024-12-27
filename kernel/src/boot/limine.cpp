@@ -1,5 +1,6 @@
 #include "kernel.hpp"
 
+#include <limine.h>
 
 [[gnu::used, gnu::section(".limine_requests")]]
 static volatile LIMINE_BASE_REVISION(3)
@@ -40,7 +41,7 @@ static volatile LIMINE_REQUESTS_START_MARKER
 [[gnu::used, gnu::section(".limine_requests_end")]]
 static volatile LIMINE_REQUESTS_END_MARKER
 
-static KernelFrameBuffer BootGetDisplay(void) {
+static KernelFrameBuffer BootGetDisplay(uintptr_t hhdmOffset) {
     limine_framebuffer_response response = *gFramebufferRequest.response;
     limine_framebuffer framebuffer = *response.framebuffers[0];
 
@@ -57,7 +58,7 @@ static KernelFrameBuffer BootGetDisplay(void) {
         .greenMaskShift = framebuffer.green_mask_shift,
         .blueMaskSize = framebuffer.blue_mask_size,
         .blueMaskShift = framebuffer.blue_mask_shift,
-        .address = (uintptr_t)framebuffer.address,
+        .address = (uintptr_t)framebuffer.address - hhdmOffset,
         .edid = { edidAddress, edidAddress + framebuffer.edid_size }
     };
 }
@@ -94,7 +95,7 @@ static KernelMemoryMap BootGetMemoryMap(void) {
 
         MemoryMapEntryType type = BootGetEntryType(entry);
 
-        MemoryMapEntry item = { type, { entry.base, entry.length } };
+        MemoryMapEntry item = { type, { entry.base, entry.base + entry.length } };
 
         result.add(item);
     }
@@ -105,6 +106,9 @@ static KernelMemoryMap BootGetMemoryMap(void) {
 extern "C" void kmain(void) {
     KM_CHECK(LIMINE_BASE_REVISION_SUPPORTED, "Unsupported limine base revision.");
 
+    // offset the stack pointer as limine pushes qword 0 to
+    // the stack before jumping to the kernel. and builtin_frame_address
+    // returns the address where call would store the return address.
     const char *base = (char*)__builtin_frame_address(0) + (sizeof(void*) * 2);
 
     limine_kernel_address_response kernelAddress = *gExecutableAddressRequest.response;
@@ -117,7 +121,7 @@ extern "C" void kmain(void) {
         .kernelVirtualBase = kernelAddress.virtual_base,
         .hhdmOffset = hhdm.offset,
         .rsdpAddress = (uintptr_t)rsdp.address,
-        .framebuffer = BootGetDisplay(),
+        .framebuffer = BootGetDisplay(hhdm.offset),
         .memoryMap = BootGetMemoryMap(),
         .stack = { stack - 0x10000, stack }
     };

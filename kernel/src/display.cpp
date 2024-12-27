@@ -6,18 +6,18 @@
 
 #include "kernel.hpp"
 
-km::Display::Display(limine_framebuffer framebuffer)
-    : mAddress((uint8_t*)framebuffer.address)
+km::Display::Display(KernelFrameBuffer framebuffer, uint8_t *address)
+    : mAddress(address)
     , mWidth(framebuffer.width)
     , mHeight(framebuffer.height)
     , mPitch(framebuffer.pitch)
     , mBpp(framebuffer.bpp)
-    , mRedMaskSize(framebuffer.red_mask_size)
-    , mRedMaskShift(framebuffer.red_mask_shift)
-    , mGreenMaskSize(framebuffer.green_mask_size)
-    , mGreenMaskShift(framebuffer.green_mask_shift)
-    , mBlueMaskSize(framebuffer.blue_mask_size)
-    , mBlueMaskShift(framebuffer.blue_mask_shift)
+    , mRedMaskSize(framebuffer.redMaskSize)
+    , mRedMaskShift(framebuffer.redMaskShift)
+    , mGreenMaskSize(framebuffer.greenMaskSize)
+    , mGreenMaskShift(framebuffer.greenMaskShift)
+    , mBlueMaskSize(framebuffer.blueMaskSize)
+    , mBlueMaskShift(framebuffer.blueMaskShift)
 {
     KmDebugMessage("[INIT] Display: ", mWidth, "x", mHeight, "x", mBpp, " @ ", Hex((uintptr_t)mAddress).pad(16, '0'), "\n");
     KmDebugMessage("[INIT] Display: Pitch: ", mPitch / 4, "\n");

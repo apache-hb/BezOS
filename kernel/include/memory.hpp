@@ -10,7 +10,7 @@ namespace km {
         PageAllocator pmm;
         VirtualAllocator vmm;
 
-        SystemMemory(SystemMemoryLayout memory, uintptr_t bits, limine_hhdm_response hhdm);
+        SystemMemory(SystemMemoryLayout memory, uintptr_t bits, uintptr_t hhdmOffset);
 
         VirtualAddress hhdmMap(PhysicalAddress begin, PhysicalAddress end);
 

@@ -5,26 +5,25 @@
 #include "kernel.hpp"
 
 #include <algorithm>
-#include <limine.h>
 
 #include <string.h>
 
 using namespace km;
 
-static stdx::StringView GetMemoryMapTypeName(uint64_t type) {
+static stdx::StringView GetMemoryMapTypeName(MemoryMapEntryType type) {
     static constexpr stdx::StringView kMemoryMapTypeNames[] = {
-        [LIMINE_MEMMAP_USABLE]                 = "Usable",
-        [LIMINE_MEMMAP_RESERVED]               = "Reserved",
-        [LIMINE_MEMMAP_ACPI_RECLAIMABLE]       = "ACPI Reclaimable",
-        [LIMINE_MEMMAP_ACPI_NVS]               = "ACPI NVS",
-        [LIMINE_MEMMAP_BAD_MEMORY]             = "Bad Memory",
-        [LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE] = "Bootloader Reclaimable",
-        [LIMINE_MEMMAP_KERNEL_AND_MODULES]     = "Kernel and Modules",
-        [LIMINE_MEMMAP_FRAMEBUFFER]            = "Framebuffer",
+        [(int)MemoryMapEntryType::eUsable]                = "Usable",
+        [(int)MemoryMapEntryType::eReserved]              = "Reserved",
+        [(int)MemoryMapEntryType::eAcpiReclaimable]       = "ACPI Reclaimable",
+        [(int)MemoryMapEntryType::eAcpiNvs]               = "ACPI NVS",
+        [(int)MemoryMapEntryType::eBadMemory]             = "Bad Memory",
+        [(int)MemoryMapEntryType::eBootloaderReclaimable] = "Bootloader Reclaimable",
+        [(int)MemoryMapEntryType::eKernel]                = "Kernel and Modules",
+        [(int)MemoryMapEntryType::eFrameBuffer]           = "Framebuffer",
     };
 
-    if (type < std::size(kMemoryMapTypeNames))
-        return kMemoryMapTypeNames[type];
+    if ((size_t)type < std::size(kMemoryMapTypeNames))
+        return kMemoryMapTypeNames[(size_t)type];
 
     return "Unknown";
 }
@@ -48,17 +47,6 @@ struct ErrorList {
     bool isEmpty() const { return errors.isEmpty(); }
 };
 
-static MemoryRange GetMemoryRange(ErrorList& errors, uint64_t i, const limine_memmap_entry *entry [[gnu::nonnull]]) {
-    uintptr_t front = entry->base;
-    uintptr_t back;
-    if (__builtin_add_overflow(front, entry->length, &back)) {
-        back = UINTPTR_MAX; // overflow
-        errors.add("Memory range ends outside of addressable space.", i);
-    }
-
-    return MemoryRange { front, back };
-}
-
 static void ReportMemoryIssues(const ErrorList& errors) {
     if (!errors.isEmpty()) {
         KmDebugMessage("[INIT] Issues detected during memory map setup.\n");
@@ -78,14 +66,14 @@ static void ReportMemoryIssues(const ErrorList& errors) {
     }
 }
 
-SystemMemoryLayout SystemMemoryLayout::from(limine_memmap_response memmap) {
+SystemMemoryLayout SystemMemoryLayout::from(KernelMemoryMap memmap) {
     FreeMemoryRanges freeMemory;
     FreeMemoryRanges reclaimable;
     ReservedMemoryRanges reservedMemory;
 
     ErrorList errors;
 
-    KmDebugMessage("[INIT] ", memmap.entry_count, " memory map entries.\n");
+    KmDebugMessage("[INIT] ", memmap.count(), " memory map entries.\n");
 
     KmDebugMessage("| Entry | Address            | Size             | Type\n");
     KmDebugMessage("|-------+--------------------+------------------+-----------------------\n");
@@ -94,7 +82,7 @@ SystemMemoryLayout SystemMemoryLayout::from(limine_memmap_response memmap) {
     bool reclaimableRangesOverflow = false;
     bool reservedRangesOverflow = false;
 
-    for (uint64_t i = 0; i < memmap.entry_count; i++) {
+    for (ssize_t i = 0; i < memmap.count(); i++) {
         auto addMemoryRange = [&](MemoryRange range, auto& ranges, stdx::StringView message, bool& overflow) {
             if (!ranges.add(range) && !overflow) {
                 overflow = true;
@@ -103,20 +91,14 @@ SystemMemoryLayout SystemMemoryLayout::from(limine_memmap_response memmap) {
         };
 
         KmDebugMessage("| ", Int(i).pad(3, '0'), "   | ");
-        struct limine_memmap_entry *entry = memmap.entries[i];
-        if (entry == NULL) {
-            errors.add("Null memory map entry.", i);
-            KmDebugMessage("NULL               |             NULL | NULL\n");
-            continue;
-        }
+        MemoryMapEntry entry = memmap[i];
+        MemoryRange range = entry.range;
 
-        MemoryRange range = GetMemoryRange(errors, i, entry);
-
-        switch (entry->type) {
-        case LIMINE_MEMMAP_USABLE:
+        switch (entry.type) {
+        case MemoryMapEntryType::eUsable:
             addMemoryRange(range, freeMemory, "Too many usable memory ranges.", usableRangesOverflow);
             break;
-        case LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE:
+        case MemoryMapEntryType::eBootloaderReclaimable:
             addMemoryRange(range, reclaimable, "Too many reclaimable memory ranges.", reclaimableRangesOverflow);
             break;
         default:
@@ -124,7 +106,7 @@ SystemMemoryLayout SystemMemoryLayout::from(limine_memmap_response memmap) {
             break;
         }
 
-        KmDebugMessage(Hex(entry->base).pad(16, '0'), " | ", lpad(16) + sm::bytes(entry->length), " | ", GetMemoryMapTypeName(entry->type), "\n");
+        KmDebugMessage(range.front, " | ", lpad(16) + sm::bytes(range.size()), " | ", GetMemoryMapTypeName(entry.type), "\n");
     }
 
     uint64_t usableMemory = 0;

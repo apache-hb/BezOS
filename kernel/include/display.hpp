@@ -1,10 +1,9 @@
 #pragma once
 
+#include "kernel.hpp"
 #include "std/string_view.hpp"
 
 #include "util/util.hpp"
-
-#include <limine.h>
 
 namespace km {
     struct Pixel {
@@ -33,7 +32,7 @@ namespace km {
         uint32_t pixelValue(Pixel it) const;
 
     public:
-        Display(limine_framebuffer framebuffer);
+        Display(KernelFrameBuffer framebuffer, uint8_t *address);
 
         constexpr Display(sm::noinit)
             : mAddress(nullptr)

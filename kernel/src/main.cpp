@@ -25,49 +25,8 @@
 #include "util/logger.hpp"
 #include "util/memory.hpp"
 
-#include <limine.h>
-
 using namespace km;
 using namespace stdx::literals;
-
-[[gnu::used, gnu::section(".limine_requests")]]
-static volatile LIMINE_BASE_REVISION(3)
-
-[[gnu::used, gnu::section(".limine_requests")]]
-static volatile limine_memmap_request gMemmoryMapRequest = {
-    .id = LIMINE_MEMMAP_REQUEST,
-    .revision = 0
-};
-
-[[gnu::used, gnu::section(".limine_requests")]]
-static volatile limine_kernel_address_request gExecutableAddressRequest = {
-    .id = LIMINE_KERNEL_ADDRESS_REQUEST,
-    .revision = 0
-};
-
-[[gnu::used, gnu::section(".limine_requests")]]
-static volatile limine_hhdm_request gDirectMapRequest = {
-    .id = LIMINE_HHDM_REQUEST,
-    .revision = 0
-};
-
-[[gnu::used, gnu::section(".limine_requests")]]
-static volatile limine_rsdp_request gAcpiTableRequest = {
-    .id = LIMINE_RSDP_REQUEST,
-    .revision = 0
-};
-
-[[gnu::used, gnu::section(".limine_requests")]]
-static volatile limine_framebuffer_request gFramebufferRequest = {
-    .id = LIMINE_FRAMEBUFFER_REQUEST,
-    .revision = 0
-};
-
-[[gnu::used, gnu::section(".limine_requests_start")]]
-static volatile LIMINE_REQUESTS_START_MARKER
-
-[[gnu::used, gnu::section(".limine_requests_end")]]
-static volatile LIMINE_REQUESTS_END_MARKER
 
 class SerialLog final : public ILogTarget {
     SerialPort mPort;
@@ -168,15 +127,7 @@ static void KmSetupGdt(void) {
     KmInitGdt(kGdtEntries, eGdtEntry_Count, eGdtEntry_Ring0Code, eGdtEntry_Ring0Data);
 }
 
-static SystemMemory KmInitMemoryMap(uintptr_t bits, const void *stack, const km::Display *display) {
-    const limine_memmap_response *memmap = gMemmoryMapRequest.response;
-    const limine_kernel_address_response *kernel = gExecutableAddressRequest.response;
-    const limine_hhdm_response *hhdm = gDirectMapRequest.response;
-
-    KM_CHECK(memmap != NULL, "No memory map");
-    KM_CHECK(kernel != NULL, "No kernel address");
-    KM_CHECK(hhdm != NULL, "No higher half direct map");
-
+static SystemMemory KmInitMemoryMap(uintptr_t bits, const KernelLaunch& launch, const km::Display *display) {
     if (x64::HasPatSupport()) {
         x64::PageAttributeTable pat;
 
@@ -186,14 +137,14 @@ static SystemMemory KmInitMemoryMap(uintptr_t bits, const void *stack, const km:
         }
     }
 
-    SystemMemory memory = SystemMemory { SystemMemoryLayout::from(*memmap), bits, *hhdm };
+    SystemMemory memory = SystemMemory { SystemMemoryLayout::from(launch.memoryMap), bits, launch.hhdmOffset };
 
     // initialize our own page tables and remap everything into it
-    KmMapKernel(memory.pager, memory.vmm, memory.layout, *kernel);
+    KmMapKernel(memory.pager, memory.vmm, memory.layout, launch.kernelPhysicalBase, launch.kernelVirtualBase);
 
     // move our stack out of reclaimable memory
     // limine garuntees 64k of stack space
-    KmMigrateMemory(memory.vmm, memory.pager, stack, 0x10000);
+    KmMigrateMemory(memory.vmm, memory.pager, (void*)(launch.stack.front.address + launch.hhdmOffset), 0x10000);
 
     // migrate framebuffer memory
     KmMigrateMemory(memory.vmm, memory.pager, display->address(), display->size());
@@ -267,20 +218,14 @@ static LocalAPIC KmEnableAPIC(km::VirtualAllocator& vmm, const km::PageManager& 
     return lapic;
 }
 
-static km::PhysicalAddress KmGetRSDPTable(void) {
-    const limine_rsdp_response *response = gAcpiTableRequest.response;
-    KM_CHECK(response != NULL, "No RSDP table");
-
-    return km::PhysicalAddress { (uintptr_t)response->address };
+static km::PhysicalAddress KmGetRSDPTable(const KernelLaunch& launch) {
+    return launch.rsdpAddress;
 }
 
-static km::Terminal KmGetTerminal(void) {
-    const limine_framebuffer_response *response = gFramebufferRequest.response;
-    KM_CHECK(response != NULL, "No framebuffer response");
-    KM_CHECK(response->framebuffer_count > 0, "No framebuffer");
-
-    km::Display display { *response->framebuffers[0] };
-    return km::Terminal { display, uint16_t(display.height() / 8), uint16_t(display.width() / 8) };
+static km::Terminal KmGetTerminal(const KernelLaunch& launch) {
+    KernelFrameBuffer framebuffer = launch.framebuffer;
+    km::Display display { framebuffer, (uint8_t*)(framebuffer.address.address + launch.hhdmOffset) };
+    return km::Terminal { display, uint16_t(framebuffer.height / 8), uint16_t(framebuffer.width / 8) };
 }
 
 static SerialPortStatus KmInitSerialPort(ComPortInfo info) {
@@ -363,14 +308,8 @@ struct [[gnu::packed]] alignas(0x10) TaskStateSegment {
     uint32_t iopbOffset;
 };
 
-extern "C" void kmain(void) {
+extern "C" void KmLaunch(KernelLaunch launch) {
     __cli();
-
-    // offset the stack pointer as limine pushes qword 0 to
-    // the stack before jumping to the kernel. and builtin_frame_address
-    // returns the address where call would store the return address.
-    [[maybe_unused]]
-    void *base = (char*)__builtin_frame_address(0) + (sizeof(void*) * 2);
 
     bool hvPresent = KmIsHypervisorPresent();
     HypervisorInfo hvInfo;
@@ -395,17 +334,16 @@ extern "C" void kmain(void) {
 
     SerialPortStatus com1Status = KmInitSerialPort(com1Info);
 
-    KM_CHECK(LIMINE_BASE_REVISION_SUPPORTED, "Unsupported limine base revision.");
-
     ProcessorInfo processor = KmGetProcessorInfo();
 
     // save the base address early as its stored in bootloader
     // reclaimable memory, which is reclaimed before this data is used.
-    km::PhysicalAddress rsdpBaseAddress = KmGetRSDPTable();
+    km::PhysicalAddress rsdpBaseAddress = KmGetRSDPTable(launch);
 
-    km::Terminal terminal = KmGetTerminal();
+    km::Terminal terminal = KmGetTerminal(launch);
     km::Display& display = terminal.display();
     // display.fill(Pixel { 0, 0, 0 });
+
 
     gTerminalLog = TerminalLog(terminal, gLogTarget);
     gLogTarget = &gTerminalLog;
@@ -463,7 +401,7 @@ extern "C" void kmain(void) {
     // reclaims bootloader memory, all the limine requests must be read
     // before this point.
 
-    SystemMemory memory = KmInitMemoryMap(processor.maxpaddr, base, &display);
+    SystemMemory memory = KmInitMemoryMap(processor.maxpaddr, launch, &display);
 
     // test interrupt to ensure the IDT is working
     {
@@ -500,7 +438,6 @@ extern "C" void kmain(void) {
 
         KmInstallIsrHandler(testVec, oldHandler);
     }
-
 
     acpi::AcpiTables rsdt = KmInitAcpi(rsdpBaseAddress, memory);
     uint32_t ioApicCount = rsdt.ioApicCount();
