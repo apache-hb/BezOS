@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include "arch/intrin.hpp"
+#include "memory/layout.hpp"
 #include "std/string_view.hpp"
 
 #include "util/format.hpp"
@@ -60,6 +61,61 @@ inline uint8_t __DEFAULT_FN_ATTRS KmReadByte(uint16_t port) {
 }
 
 extern "C" [[noreturn]] void KmHalt(void);
+
+enum class MemoryMapEntryType {
+    eUsable,
+    eReserved,
+    eAcpiReclaimable,
+    eAcpiNvs,
+    eBadMemory,
+    eBootloaderReclaimable,
+    eKernel,
+    eFrameBuffer,
+};
+
+struct MemoryMapEntry {
+    MemoryMapEntryType type;
+    km::MemoryRange range;
+};
+
+using KernelMemoryMap = stdx::StaticVector<MemoryMapEntry, 256>;
+
+struct KernelFrameBuffer {
+    uint64_t width;
+    uint64_t height;
+    uint64_t pitch;
+    uint16_t bpp;
+
+    uint8_t redMaskSize;
+    uint8_t redMaskShift;
+
+    uint8_t greenMaskSize;
+    uint8_t greenMaskShift;
+
+    uint8_t blueMaskSize;
+    uint8_t blueMaskShift;
+
+    km::PhysicalAddress address;
+
+    km::MemoryRange edid;
+};
+
+struct KernelLaunch {
+    km::PhysicalAddress kernelPhysicalBase;
+    km::VirtualAddress kernelVirtualBase;
+
+    uintptr_t hhdmOffset;
+
+    km::PhysicalAddress rsdpAddress;
+
+    KernelFrameBuffer framebuffer;
+
+    KernelMemoryMap memoryMap;
+
+    km::MemoryRange stack;
+};
+
+extern "C" [[noreturn]] void KmLaunch(KernelLaunch launch);
 
 [[noreturn]]
 void KmBugCheck(stdx::StringView message, stdx::StringView file, unsigned line);

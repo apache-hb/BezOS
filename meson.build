@@ -35,11 +35,13 @@ cpp_args = cpp.get_supported_arguments([ '-Wno-c99-designator', '-Wno-c99-extens
 limine = dependency('limine')
 
 src = [
+    # utilities
     'kernel/src/util/cpuid.cpp',
     'kernel/src/util/memory.cpp',
     'kernel/src/memory/layout.cpp',
     'kernel/src/memory/allocator.cpp',
 
+    # various architecture features
     'kernel/src/crt.c',
     'kernel/src/cxxrt.cpp',
     'kernel/src/isr.cpp',
@@ -54,7 +56,11 @@ src = [
     'kernel/src/hypervisor.cpp',
     'kernel/src/display.cpp',
 
+    # kernel main
     'kernel/src/main.cpp',
+
+    # bootloader compatibility layer
+    # 'kernel/src/boot/limine.cpp',
 ]
 
 executable('bezos', src,
