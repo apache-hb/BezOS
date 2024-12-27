@@ -69,22 +69,28 @@ void km::Terminal::advance() {
 
     if (mCurrentColumn >= mColumnCount) {
         newline();
+        mCurrentColumn = 0;
     }
 }
 
 void km::Terminal::newline() {
     mCurrentRow += 1;
+    bool scroll = false;
     if (mCurrentRow >= mRowCount) {
-        mCurrentRow = 0;
+        mCurrentRow = mRowCount - 1;
+        scroll = true;
     }
 
     mCurrentColumn = 0;
 
-    // clear current row
-    for (uint64_t x = 0; x < mDisplay.width(); x++) {
-        for (uint64_t y = mCurrentRow * 8; y < (mCurrentRow + 1) * 8; y++) {
-            mDisplay.write(x, y, Pixel { 0, 0, 0 });
-        }
+    if (scroll) {
+        uint64_t offset = mDisplay.pitch() * 8;
+
+        // scroll one row
+        memmove(mDisplay.address(), (uint8_t*)mDisplay.address() + offset, mDisplay.size() - offset);
+
+        // clear the last row
+        memset((uint8_t*)mDisplay.address() + mDisplay.size() - offset, 0, offset);
     }
 }
 

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "std/static_vector.hpp"
 #include "std/string_view.hpp"
 
 #include "util/util.hpp"
