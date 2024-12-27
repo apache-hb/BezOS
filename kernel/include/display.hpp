@@ -54,7 +54,7 @@ namespace km {
         void fill(Pixel pixel);
 
         void *address() const { return mAddress; }
-        size_t size() const { return mWidth * mHeight * mBpp / 8; }
+        size_t size() const { return mWidth * mPitch * mBpp / 8; }
 
         uint64_t width() const { return mWidth; }
         uint64_t height() const { return mHeight; }

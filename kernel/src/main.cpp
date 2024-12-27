@@ -167,7 +167,7 @@ static void KmSetupGdt(void) {
     KmInitGdt(kGdtEntries, eGdtEntry_Count, eGdtEntry_Ring0Code, eGdtEntry_Ring0Data);
 }
 
-static SystemMemory KmInitMemoryMap(uintptr_t bits, const void *stack, const void *framebuffer, size_t size) {
+static SystemMemory KmInitMemoryMap(uintptr_t bits, const void *stack, const km::Display *display) {
     const limine_memmap_response *memmap = gMemmoryMapRequest.response;
     const limine_kernel_address_response *kernel = gExecutableAddressRequest.response;
     const limine_hhdm_response *hhdm = gDirectMapRequest.response;
@@ -195,7 +195,7 @@ static SystemMemory KmInitMemoryMap(uintptr_t bits, const void *stack, const voi
     KmMigrateMemory(memory.vmm, memory.pager, stack, 0x10000);
 
     // migrate framebuffer memory
-    KmMigrateMemory(memory.vmm, memory.pager, framebuffer, size);
+    KmMigrateMemory(memory.vmm, memory.pager, display->address(), display->size());
 
     // once it is safe to remap the boot memory, do so
     KmReclaimBootMemory(memory.pager, memory.vmm, memory.layout);
@@ -237,6 +237,7 @@ static SystemMemory KmInitMemoryMap(uintptr_t bits, const void *stack, const voi
 
     return memory;
 }
+
 
 static LocalAPIC KmEnableAPIC(km::VirtualAllocator& vmm, const km::PageManager& pm, km::IsrAllocator& isrs) {
     // disable the 8259 PIC first
@@ -367,6 +368,7 @@ extern "C" void kmain(void) {
     // offset the stack pointer as limine pushes qword 0 to
     // the stack before jumping to the kernel. and builtin_frame_address
     // returns the address where call would store the return address.
+    [[maybe_unused]]
     void *base = (char*)__builtin_frame_address(0) + (sizeof(void*) * 2);
 
     bool hvPresent = KmIsHypervisorPresent();
@@ -402,7 +404,7 @@ extern "C" void kmain(void) {
 
     km::Terminal terminal = KmGetTerminal();
     km::Display& display = terminal.display();
-    display.fill(Pixel { 0, 0, 0 });
+    // display.fill(Pixel { 0, 0, 0 });
 
     gTerminalLog = TerminalLog(terminal, gLogTarget);
     gLogTarget = &gTerminalLog;
@@ -457,7 +459,8 @@ extern "C" void kmain(void) {
 
     // reclaims bootloader memory, all the limine requests must be read
     // before this point.
-    SystemMemory memory = KmInitMemoryMap(processor.maxpaddr, base, display.address(), display.size());
+
+    SystemMemory memory = KmInitMemoryMap(processor.maxpaddr, base, &display);
 
     // test interrupt to ensure the IDT is working
     {
@@ -494,6 +497,7 @@ extern "C" void kmain(void) {
 
         KmInstallIsrHandler(testVec, oldHandler);
     }
+
 
     acpi::AcpiTables rsdt = KmInitAcpi(rsdpBaseAddress, memory);
     uint32_t ioApicCount = rsdt.ioApicCount();
