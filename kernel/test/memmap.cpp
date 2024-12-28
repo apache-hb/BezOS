@@ -6,120 +6,87 @@
 
 void KmDebugWrite(stdx::StringView) { }
 
-void KmBugCheck(stdx::StringView, stdx::StringView, unsigned) {
-    abort();
-    // GTEST_FAIL_AT(std::string(file.begin(), file.end()).c_str(), line)
-    //     << "Bug check triggered: " << std::string_view(message)
-    //     << " at " << std::string_view(file) << ":" << line;
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Winvalid-noreturn" // GTEST_FAIL_AT is a macro that doesn't return
+
+void KmBugCheck(stdx::StringView message, stdx::StringView file, unsigned line) {
+    GTEST_FAIL_AT(std::string(file.begin(), file.end()).c_str(), line)
+        << "Bug check triggered: " << std::string_view(message)
+        << " at " << std::string_view(file) << ":" << line;
 }
 
-#if 0
+#pragma clang diagnostic pop
 
 TEST(MemoryMapTest, Basic) {
-    limine_memmap_entry e0 = { 0x1000, 0x1000, LIMINE_MEMMAP_USABLE };
-    limine_memmap_entry *entries[] = { &e0 };
-    limine_memmap_response resp = { 0, std::size(entries), entries };
+    KernelMemoryMap memmap;
+    memmap.add(MemoryMapEntry { MemoryMapEntryType::eUsable, { 0x1000, 0x2000 } });
 
     [[maybe_unused]]
-    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(resp);
+    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(memmap);
 
     ASSERT_TRUE(true) << "Layout created successfully";
 }
 
-TEST(MemoryMapTest, NullEntry) {
-    limine_memmap_entry e0 = { 0x1000, 0x1000, LIMINE_MEMMAP_USABLE };
-    limine_memmap_entry *entries[] = { &e0, nullptr };
-    limine_memmap_response resp = { 0, std::size(entries), entries };
-
-    [[maybe_unused]]
-    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(resp);
-
-    ASSERT_TRUE(true) << "Layout created successfully";
-}
-
-TEST(MemoryMapTest, ManyNullEntries) {
-    limine_memmap_entry e0 = { 0x1000, 0x1000, LIMINE_MEMMAP_USABLE };
-    limine_memmap_entry *entries[256] = { &e0 };
-    limine_memmap_response resp = { 0, std::size(entries), entries };
-
-    [[maybe_unused]]
-    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(resp);
-
-    ASSERT_TRUE(true) << "Layout created successfully";
-}
-
-TEST(MemoryMapTest, Overflow) {
-    limine_memmap_entry e0 = { 0x1000, 0x1000, LIMINE_MEMMAP_USABLE };
-    limine_memmap_entry e1 = { UINT64_MAX - 0x1000ull, 0x2000000ull, LIMINE_MEMMAP_USABLE };
-    limine_memmap_entry *entries[] = { &e0, &e1 };
-    limine_memmap_response resp = { 0, std::size(entries), entries };
-
-    [[maybe_unused]]
-    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(resp);
-
-    ASSERT_TRUE(true) << "Layout created successfully";
-}
-
-TEST(MemoryMapTest, TooManyUsableRanges) {
-    limine_memmap_entry data[256];
-    for (int i = 0; i < 256; i++) {
-        data[i] = { uint64_t(0x3000 + i * 0x1000), 0x1000, uint64_t(i % 2 == 0 ? LIMINE_MEMMAP_USABLE : LIMINE_MEMMAP_RESERVED) };
+TEST(MemoryMapTest, AllEntries) {
+    KernelMemoryMap memmap;
+    for (size_t i = 0; i < 32; i++) {
+        memmap.add(MemoryMapEntry { MemoryMapEntryType::eUsable, { 0x1000 + i * 0x1000, 0x2000 + i * 0x1000 } });
     }
 
-    limine_memmap_entry *entries[256];
-    for (int i = 0; i < 256; i++) {
-        entries[i] = &data[i];
-    }
-
-    limine_memmap_response resp = { 0, std::size(entries), entries };
-
     [[maybe_unused]]
-    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(resp);
+    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(memmap);
 
     ASSERT_TRUE(true) << "Layout created successfully";
+    ASSERT_EQ(layout.available.count(), 32) << "All usable memory ranges added";
+}
+
+TEST(MemoryMapTest, ManyRanges) {
+    KernelMemoryMap memmap;
+    for (int i = 0; i < 32; i++) {
+        MemoryMapEntryType type = i % 2 == 0 ? MemoryMapEntryType::eUsable : MemoryMapEntryType::eReserved;
+        memmap.add(MemoryMapEntry { type, { 0x1000ull + i * 0x1000, 0x2000ull + i * 0x1000 } });
+    }
+
+    [[maybe_unused]]
+    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(memmap);
+
+    ASSERT_TRUE(true) << "Layout created successfully";
+
+    ASSERT_EQ(layout.available.count(), 16) << "All usable memory ranges added";
+    ASSERT_EQ(layout.reserved.count(), 16) << "All reserved memory ranges added";
+    ASSERT_EQ(layout.reclaimable.count(), 0) << "No reclaimable memory ranges added";
 }
 
 TEST(MemoryMapTest, ReclaimBootMemory) {
-    limine_memmap_entry data[24];
-    for (size_t i = 0; i < std::size(data); i++) {
-        data[i] = { uint64_t(0x3000 + (i * 0x4000)), 0x1000, uint64_t(i % 2 == 0 ? LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE : LIMINE_MEMMAP_USABLE) };
+    KernelMemoryMap memmap;
+    for (int i = 0; i < 32; i++) {
+        MemoryMapEntryType type = i % 2 == 0 ? MemoryMapEntryType::eUsable : MemoryMapEntryType::eBootloaderReclaimable;
+        uintptr_t start = (0x8000ull * i);
+        memmap.add(MemoryMapEntry { type, { start, start + 0x1000 } });
     }
 
-    limine_memmap_entry *entries[std::size(data)];
-    for (size_t i = 0; i < std::size(data); i++) {
-        entries[i] = &data[i];
-    }
-
-    limine_memmap_response resp = { 0, std::size(entries), entries };
-
-    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(resp);
+    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(memmap);
 
     layout.reclaimBootMemory();
 
-    ASSERT_EQ(layout.available.count(), std::size(data)) << "All reclaimable memory ranges reclaimed";
+    ASSERT_EQ(layout.available.count(), 32) << "All reclaimable memory ranges reclaimed";
+    ASSERT_TRUE(layout.reclaimable.isEmpty()) << "All reclaimable memory ranges reclaimed";
 }
 
 TEST(MemoryMapTest, MergeAdjacentDuringReclaim) {
-    limine_memmap_entry data[24];
-    for (size_t i = 0; i < std::size(data); i++) {
-        data[i] = { uint64_t(0x3000 + (i * 0x1000)), 0x1000, uint64_t(i % 2 == 0 ? LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE : LIMINE_MEMMAP_USABLE) };
+    KernelMemoryMap data;
+    for (size_t i = 0; i < 64; i++) {
+        MemoryMapEntryType type = i % 2 == 0 ? MemoryMapEntryType::eUsable : MemoryMapEntryType::eBootloaderReclaimable;
+        data.add(MemoryMapEntry { type, { 0x1000 + (i * 0x1000), 0x2000 + (i * 0x1000) }});
     }
 
-    limine_memmap_entry *entries[std::size(data)];
-    for (size_t i = 0; i < std::size(data); i++) {
-        entries[i] = &data[i];
-    }
-
-    limine_memmap_response resp = { 0, std::size(entries), entries };
-
-    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(resp);
+    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(data);
 
     layout.reclaimBootMemory();
 
     ASSERT_EQ(layout.available.count(), 1) << "All reclaimable memory ranges merged";
     ASSERT_TRUE(layout.reclaimable.isEmpty()) << "All reclaimable memory ranges reclaimed";
 
-    ASSERT_EQ(layout.available[0].front.address, 0x3000) << "Merged range starts at 0x3000";
-    ASSERT_EQ(layout.available[0].back.address, 0x3000 + 0x1000 * std::size(data)) << "Merged range ends at 0x3000 + 0x1000 * " << std::size(data);
+    ASSERT_EQ(layout.available[0].front.address, 0x1000) << "Merged range starts at 0x1000";
+    ASSERT_EQ(layout.available[0].back.address, 0x1000 + 0x1000 * data.count()) << "Merged range ends at 0x1000 + 0x1000 * " << data.count();
 }
-#endif

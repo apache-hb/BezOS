@@ -141,9 +141,11 @@ void SystemMemoryLayout::reclaimBootMemory() {
 
     // merge adjacent ranges
     for (ssize_t i = 0; i < available.count(); i++) {
+        MemoryRange& range = available[i];
         for (ssize_t j = i + 1; j < available.count(); j++) {
-            if (available[i].back == available[j].front) {
-                available[i].back = available[j].back;
+            MemoryRange& next = available[j];
+            if (range.back == next.front) {
+                range.back = next.back;
                 available.remove(j);
                 j--;
             }

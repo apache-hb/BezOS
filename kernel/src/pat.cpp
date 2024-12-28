@@ -44,19 +44,28 @@ bool x64::HasMtrrSupport() {
 
 /// PAT
 
+
+void x64::detail::SetPatEntry(uint64_t& pat, uint8_t index, km::MemoryType type) {
+    pat &= ~(0xFFull << (index * 8));
+    pat |= (uint64_t)type << (index * 8);
+}
+
+km::MemoryType x64::detail::GetPatEntry(uint64_t pat, uint8_t index) {
+    return km::MemoryType((pat >> (index * 8)) & 0xFF);
+}
+
 x64::PageAttributeTable::PageAttributeTable()
     : mValue(kPatMsr.load())
 { }
 
 void x64::PageAttributeTable::setEntry(uint8_t index, km::MemoryType type) {
     kPatMsr.update(mValue, [&](uint64_t& mValue) {
-        mValue &= ~(0xFFull << (index * 8));
-        mValue |= (uint64_t)type << (index * 8);
+        detail::SetPatEntry(mValue, index, type);
     });
 }
 
 km::MemoryType x64::PageAttributeTable::getEntry(uint8_t index) const {
-    return km::MemoryType((mValue >> (index * 8)) & 0xFF);
+    return detail::GetPatEntry(mValue, index);
 }
 
 /// MTRR

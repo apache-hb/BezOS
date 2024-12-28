@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include <x86intrin.h>
+
 struct [[gnu::packed]] GDTR {
     uint16_t limit;
     uint64_t base;

@@ -8,8 +8,9 @@
 
 namespace km {
     struct SystemMemoryLayout {
-        using FreeMemoryRanges = stdx::StaticVector<MemoryRange, 32>;
-        using ReservedMemoryRanges = stdx::StaticVector<MemoryRange, 32>;
+        static constexpr size_t kMaxRanges = 64;
+        using FreeMemoryRanges = stdx::StaticVector<MemoryRange, kMaxRanges>;
+        using ReservedMemoryRanges = stdx::StaticVector<MemoryRange, kMaxRanges>;
 
         FreeMemoryRanges available;
         FreeMemoryRanges reclaimable;

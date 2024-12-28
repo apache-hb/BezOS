@@ -30,6 +30,27 @@ namespace x64 {
         constexpr uintptr_t addressMask(uintptr_t width) {
             return ((1ull << width) - 1) & ~(kPageSize - 1);
         }
+
+        // See Vol 3A Table 13-11. Selection of PAT Entries with PAT, PCD, and PWT Flags
+        constexpr void setMemoryType(uint64_t& entry, uint64_t pat, uint8_t type) {
+            uint64_t mask
+                = kWriteThroughBit
+                | kCacheDisableBit
+                | (1ull << pat);
+
+            uint64_t select
+                = (type & 0b0000'0001) << 3
+                | (type & 0b0000'0010) << 3
+                | (type & 0b0000'0100) << (pat - 2);
+
+            entry = (entry & ~mask) | select;
+        }
+
+        constexpr uint8_t getMemoryType(uint64_t entry, uint64_t pat) {
+            return (entry & kWriteThroughBit) >> 3
+                | (entry & kCacheDisableBit) >> 3
+                | (entry & (1ull << pat)) >> (pat - 2);
+        }
     }
 
     struct Entry {
@@ -66,21 +87,13 @@ namespace x64 {
 
         /// @brief Set the PAT entry to use for this page
         void setPatEntry(uint8_t entry) {
-            // See Vol 3, 13.12.3 Table 13-11. Selection of PAT Entries with PAT, PCD, and PWT Flags
-            // The PAT is encoded into bits 3 (PWT), 4 (PCD), and 7 (PAT)
-            static constexpr uint64_t mask
-                = paging::kWriteThroughBit
-                | paging::kCacheDisableBit
-                | (1ull << kPageAttributeBit);
-
             // See Vol 3A 5-31. Table 5-20. Format of a Page-Table Entry that Maps a 4-KByte Page
-            // subtract from each elements slide to account for bit positions.
-            uint64_t select
-                = (entry & 0b0000'0001) << (3 - 0)
-                | (entry & 0b0000'0010) << (4 - 1)
-                | (entry & 0b0000'0100) << (kPageAttributeBit - 2);
+            // The PAT is encoded into bits 3 (PWT), 4 (PCD), and 7 (PAT)
+            paging::setMemoryType(underlying, kPageAttributeBit, entry);
+        }
 
-            underlying = (underlying & ~mask) | select;
+        uint8_t memoryType() const {
+            return paging::getMemoryType(underlying, kPageAttributeBit);
         }
     };
 
@@ -94,18 +107,12 @@ namespace x64 {
 
         /// @brief Set the PAT entry to use for this page
         void setPatEntry(uint8_t entry) {
-            static constexpr uint64_t mask
-                = paging::kWriteThroughBit
-                | paging::kCacheDisableBit
-                | (1ull << kPageAttributeBit);
-
             // See Vol 3A 5-29. Table 5-18. Format of a Page-Directory Entry that Maps a 2-MByte Page
-            uint64_t select
-                = (entry & 0b0000'0001) << (3 - 0)
-                | (entry & 0b0000'0010) << (4 - 1)
-                | (entry & 0b0000'0100) << (kPageAttributeBit - 2);
+            paging::setMemoryType(underlying, kPageAttributeBit, entry);
+        }
 
-            underlying = (underlying & ~mask) | select;
+        uint8_t memoryType() const {
+            return paging::getMemoryType(underlying, kPageAttributeBit);
         }
     };
 
@@ -120,18 +127,12 @@ namespace x64 {
 
         /// @brief Set the PAT entry to use for this page
         void setPatEntry(uint8_t entry) {
-            static constexpr uint64_t mask
-                = paging::kWriteThroughBit
-                | paging::kCacheDisableBit
-                | (1ull << kPageAttributeBit);
-
             // See Vol 3A 5-27.Table 5-16. Format of a Page-Directory-Pointer-Table Entry (PDPTE) that Maps a 1-GByte Page
-            uint64_t select
-                = (entry & 0b0000'0001) << (3 - 0)
-                | (entry & 0b0000'0010) << (4 - 1)
-                | (entry & 0b0000'0100) << (kPageAttributeBit - 2);
+            paging::setMemoryType(underlying, kPageAttributeBit, entry);
+        }
 
-            underlying = (underlying & ~mask) | select;
+        uint8_t memoryType() const {
+            return paging::getMemoryType(underlying, kPageAttributeBit);
         }
     };
 

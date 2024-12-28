@@ -7,6 +7,11 @@
 #include <stdint.h>
 
 namespace x64 {
+    namespace detail {
+        void SetPatEntry(uint64_t& pat, uint8_t index, km::MemoryType type);
+        km::MemoryType GetPatEntry(uint64_t pat, uint8_t index);
+    }
+
     /// @brief Test if the processor supports the Page Attribute Table (PAT).
     ///
     /// @return True if the processor supports the PAT, false otherwise.

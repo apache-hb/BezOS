@@ -80,7 +80,8 @@ struct MemoryMapEntry {
     km::MemoryRange range;
 };
 
-using KernelMemoryMap = stdx::StaticVector<MemoryMapEntry, 256>;
+static constexpr size_t kMaxMemoryMapEntries = 256;
+using KernelMemoryMap = stdx::StaticVector<MemoryMapEntry, kMaxMemoryMapEntries>;
 
 struct KernelFrameBuffer {
     uint64_t width;

@@ -127,7 +127,16 @@ static void KmSetupGdt(void) {
 }
 
 static PageMemoryTypeLayout KmSetupPat(void) {
+    if (!x64::HasPatSupport()) {
+        return PageMemoryTypeLayout { };
+    }
+
     x64::PageAttributeTable pat;
+
+    for (uint8_t i = 0; i < pat.count(); i++) {
+        km::MemoryType type = pat.getEntry(i);
+        KmDebugMessage("[INIT] PAT[", i, "]: ", type, "\n");
+    }
 
     constexpr uint8_t kEntryUncached = 0;
     constexpr uint8_t kEntryWriteCombined = 1;
@@ -153,17 +162,51 @@ static PageMemoryTypeLayout KmSetupPat(void) {
     };
 }
 
-static SystemMemory KmInitMemoryMap(uintptr_t bits, const KernelLaunch& launch, const km::Display *display) {
-    if (x64::HasPatSupport()) {
-        x64::PageAttributeTable pat;
+static void KmSetupMtrrs(const km::PageManager& pm) {
+    if (!x64::HasMtrrSupport()) {
+        return;
+    }
 
-        for (uint8_t i = 0; i < pat.count(); i++) {
-            km::MemoryType type = pat.getEntry(i);
-            KmDebugMessage("[INIT] PAT[", i, "]: ", type, "\n");
+    x64::MemoryTypeRanges mtrrs;
+
+    KmDebugMessage("[INIT] MTRR fixed support: ", present(mtrrs.fixedMtrrSupported()), "\n");
+    KmDebugMessage("[INIT] MTRR fixed enabled: ", enabled(mtrrs.fixedMtrrEnabled()), "\n");
+    KmDebugMessage("[INIT] MTRR fixed count: ", mtrrs.fixedMtrrCount(), "\n");
+
+    KmDebugMessage("[INIT] MTRR variable supported: ", enabled(HasVariableMtrrSupport(mtrrs)), "\n");
+    KmDebugMessage("[INIT] MTRR variable count: ", mtrrs.variableMtrrCount(), "\n");
+    KmDebugMessage("[INIT] MTRR write combining: ", enabled(mtrrs.hasWriteCombining()), "\n");
+    KmDebugMessage("[INIT] MTRRs enabled: ", enabled(mtrrs.enabled()), "\n");
+
+    if (mtrrs.fixedMtrrSupported()) {
+        for (uint8_t i = 0; i < 11; i++) {
+            KmDebugMessage("[INIT] Fixed MTRR[", rpad(2) + i, "]: ");
+            for (uint8_t j = 0; j < 8; j++) {
+                if (j != 0) {
+                    KmDebugMessage("| ");
+                }
+
+                x64::FixedMtrr mtrr = mtrrs.fixedMtrr(i);
+                KmDebugMessage(mtrr.type(), " ");
+            }
+            KmDebugMessage("\n");
         }
     }
 
-    SystemMemory memory = SystemMemory { SystemMemoryLayout::from(launch.memoryMap), bits, launch.hhdmOffset, KmSetupPat() };
+    if (HasVariableMtrrSupport(mtrrs)) {
+        for (uint8_t i = 0; i < mtrrs.variableMtrrCount(); i++) {
+            x64::VariableMtrr mtrr = mtrrs.variableMtrr(i);
+            KmDebugMessage("[INIT] Variable MTRR[", i, "]: ", mtrr.type(), ", address: ", mtrr.baseAddress(pm), ", mask: ", Hex(mtrr.addressMask(pm)).pad(16, '0'), "\n");
+        }
+    }
+}
+
+static SystemMemory KmInitMemoryMap(uintptr_t bits, const KernelLaunch& launch, const km::Display *display) {
+    PageMemoryTypeLayout pat = KmSetupPat();
+
+    SystemMemory memory = SystemMemory { SystemMemoryLayout::from(launch.memoryMap), bits, launch.hhdmOffset, pat };
+
+    KmSetupMtrrs(memory.pager);
 
     // initialize our own page tables and remap everything into it
     KmMapKernel(memory.pager, memory.vmm, memory.layout, launch.kernelPhysicalBase, launch.kernelVirtualBase);
@@ -177,41 +220,6 @@ static SystemMemory KmInitMemoryMap(uintptr_t bits, const KernelLaunch& launch, 
 
     // once it is safe to remap the boot memory, do so
     KmReclaimBootMemory(memory.pager, memory.vmm, memory.layout);
-
-    if (x64::HasMtrrSupport()) {
-        x64::MemoryTypeRanges mtrrs;
-
-        KmDebugMessage("[INIT] MTRR fixed support: ", present(mtrrs.fixedMtrrSupported()), "\n");
-        KmDebugMessage("[INIT] MTRR fixed enabled: ", enabled(mtrrs.fixedMtrrEnabled()), "\n");
-        KmDebugMessage("[INIT] MTRR fixed count: ", mtrrs.fixedMtrrCount(), "\n");
-
-        KmDebugMessage("[INIT] MTRR variable supported: ", enabled(HasVariableMtrrSupport(mtrrs)), "\n");
-        KmDebugMessage("[INIT] MTRR variable count: ", mtrrs.variableMtrrCount(), "\n");
-        KmDebugMessage("[INIT] MTRR write combining: ", enabled(mtrrs.hasWriteCombining()), "\n");
-        KmDebugMessage("[INIT] MTRRs enabled: ", enabled(mtrrs.enabled()), "\n");
-
-        if (mtrrs.fixedMtrrSupported()) {
-            for (uint8_t i = 0; i < 11; i++) {
-                KmDebugMessage("[INIT] Fixed MTRR[", rpad(2) + i, "]: ");
-                for (uint8_t j = 0; j < 8; j++) {
-                    if (j != 0) {
-                        KmDebugMessage("| ");
-                    }
-
-                    x64::FixedMtrr mtrr = mtrrs.fixedMtrr(i);
-                    KmDebugMessage(mtrr.type(), " ");
-                }
-                KmDebugMessage("\n");
-            }
-        }
-
-        if (HasVariableMtrrSupport(mtrrs)) {
-            for (uint8_t i = 0; i < mtrrs.variableMtrrCount(); i++) {
-                x64::VariableMtrr mtrr = mtrrs.variableMtrr(i);
-                KmDebugMessage("[INIT] Variable MTRR[", i, "]: ", mtrr.type(), ", address: ", mtrr.baseAddress(memory.pager), ", mask: ", Hex(mtrr.addressMask(memory.pager)).pad(16, '0'), "\n");
-            }
-        }
-    }
 
     return memory;
 }

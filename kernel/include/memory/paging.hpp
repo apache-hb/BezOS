@@ -101,6 +101,10 @@ namespace km {
             entry.setPatEntry(getMemoryTypeIndex(type));
         }
 
+        constexpr void setMemoryType(x64::pdpte& entry, MemoryType type) const {
+            entry.setPatEntry(getMemoryTypeIndex(type));
+        }
+
         km::PhysicalAddress activeMap() const {
             return (x64::cr3() & mAddressMask);
         }

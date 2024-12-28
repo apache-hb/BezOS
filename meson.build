@@ -64,6 +64,7 @@ kernel = static_library('kernel', src,
     include_directories : inc,
     c_args : c_args + [ '-mllvm', '-asm-macro-max-nesting-depth=256' ],
     cpp_args : cpp_args,
+    override_options : [ 'b_coverage=false' ],
 )
 
 executable('bezos', 'kernel/src/boot/limine.cpp',
@@ -76,6 +77,7 @@ executable('bezos', 'kernel/src/boot/limine.cpp',
     link_args : [ '-T', meson.current_source_dir() / 'data/linker-x64.ld' ],
     install_dir : get_option('prefix') / 'image' / 'boot',
     install : true,
+    override_options : [ 'b_coverage=false' ],
 )
 
 install_data('data/limine.conf',
@@ -91,6 +93,9 @@ testcases = {
     'format': [ 'kernel/test/format.cpp', ],
     'memmap': [ 'kernel/test/memmap.cpp', 'kernel/src/memory/layout.cpp', 'kernel/src/util/memory.cpp', ],
     'string': [ 'kernel/test/string.cpp', ],
+    'memory range': [ 'kernel/test/memory_range.cpp' ],
+    'pat': [ 'kernel/test/page_attribute_table.cpp', 'kernel/src/pat.cpp', 'kernel/src/util/cpuid.cpp', ],
+    'paging': [ 'kernel/test/paging.cpp', ],
 }
 
 foreach name, source : testcases
@@ -98,7 +103,7 @@ foreach name, source : testcases
         include_directories : inc,
         c_args : c_args,
         cpp_args : cpp_args + [ '-std=c++26' ], # meson bug: native executables dont have default_options applied
-        dependencies : [ gtest, limine ],
+        dependencies : [ gtest ],
         native : true,
     )
 
