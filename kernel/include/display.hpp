@@ -62,35 +62,39 @@ namespace km {
     };
 
     class Terminal {
+        static constexpr size_t kColumnCount = 80;
+        static constexpr size_t kRowCount = 25;
+
         Display mDisplay;
 
         uint16_t mCurrentRow;
         uint16_t mCurrentColumn;
 
-        uint16_t mRowCount;
-        uint16_t mColumnCount;
+        char buffer[kColumnCount * kRowCount] = { };
 
         void put(char c);
 
         void advance();
         void newline();
 
+        void write(uint64_t x, uint64_t y, char c);
+
     public:
-        Terminal(Display display, uint16_t rows, uint16_t columns)
+        Terminal(Display display)
             : mDisplay(display)
             , mCurrentRow(0)
             , mCurrentColumn(0)
-            , mRowCount(rows)
-            , mColumnCount(columns)
-        { }
+        {
+            std::fill(std::begin(buffer), std::end(buffer), ' ');
+        }
 
         constexpr Terminal(sm::noinit)
             : mDisplay(sm::noinit{})
             , mCurrentRow(0)
             , mCurrentColumn(0)
-            , mRowCount(0)
-            , mColumnCount(0)
-        { }
+        {
+            std::fill(std::begin(buffer), std::end(buffer), ' ');
+        }
 
         void print(stdx::StringView message);
 

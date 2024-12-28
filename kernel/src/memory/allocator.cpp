@@ -69,8 +69,6 @@ void VirtualAllocator::setEntryFlags(x64::Entry& entry, PageFlags flags, Physica
 
     entry.setWriteable(bool(flags & PageFlags::eWrite));
     entry.setExecutable(bool(flags & PageFlags::eExecute));
-    entry.setWriteThrough(bool(flags & PageFlags::eWriteThrough));
-    entry.setCacheDisable(bool(flags & PageFlags::eCacheDisable));
 
     entry.setPresent(true);
 }
@@ -109,21 +107,21 @@ x64::PageMapLevel2 *VirtualAllocator::getPageMap2(x64::PageMapLevel3 *l3, uint16
     return l2;
 }
 
-void VirtualAllocator::mapRange4k(MemoryRange range, VirtualAddress vaddr, PageFlags flags) {
+void VirtualAllocator::mapRange4k(MemoryRange range, VirtualAddress vaddr, PageFlags flags, MemoryType type) {
     for (PhysicalAddress i = range.front; i < range.back; i += x64::kPageSize) {
-        map4k(i, vaddr, flags);
+        map4k(i, vaddr, flags, type);
         vaddr.address += x64::kPageSize;
     }
 }
 
-void VirtualAllocator::mapRange2m(MemoryRange range, VirtualAddress vaddr, PageFlags flags) {
+void VirtualAllocator::mapRange2m(MemoryRange range, VirtualAddress vaddr, PageFlags flags, MemoryType type) {
     for (PhysicalAddress i = range.front; i < range.back; i += x64::kLargePageSize) {
-        map2m(i, vaddr, flags);
+        map2m(i, vaddr, flags, type);
         vaddr.address += x64::kLargePageSize;
     }
 }
 
-void VirtualAllocator::map4k(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags) {
+void VirtualAllocator::map4k(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags, MemoryType type) {
     uint16_t pml4e = (vaddr.address >> 39) & 0b0001'1111'1111;
     uint16_t pdpte = (vaddr.address >> 30) & 0b0001'1111'1111;
     uint16_t pdte = (vaddr.address >> 21) & 0b0001'1111'1111;
@@ -143,10 +141,11 @@ void VirtualAllocator::map4k(PhysicalAddress paddr, VirtualAddress vaddr, PageFl
     }
 
     x64::pte& t1 = pt->entries[pte];
+    mPageManager->setMemoryType(t1, type);
     setEntryFlags(t1, flags, paddr.address);
 }
 
-void VirtualAllocator::map2m(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags) {
+void VirtualAllocator::map2m(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags, MemoryType type) {
     uint16_t pml4e = (vaddr.address >> 39) & 0b0001'1111'1111;
     uint16_t pdpte = (vaddr.address >> 30) & 0b0001'1111'1111;
     uint16_t pdte = (vaddr.address >> 21) & 0b0001'1111'1111;
@@ -157,17 +156,18 @@ void VirtualAllocator::map2m(PhysicalAddress paddr, VirtualAddress vaddr, PageFl
 
     x64::pde& t2 = l2->entries[pdte];
     t2.set2m(true);
+    mPageManager->setMemoryType(t2, type);
     setEntryFlags(t2, flags, paddr.address);
 }
 
-void VirtualAllocator::mapRange(MemoryRange range, VirtualAddress vaddr, PageFlags flags) {
+void VirtualAllocator::mapRange(MemoryRange range, VirtualAddress vaddr, PageFlags flags, MemoryType type) {
     // align everything to 4k page boundaries
     range.front = sm::rounddown(range.front.address, x64::kPageSize);
     range.back = sm::roundup(range.back.address, x64::kPageSize);
 
     // check if we should we attempt to use large pages
     if ((uintptr_t)range.size() >= x64::kLargePageSize) {
-        // if the range is larger than 2m in total, its worth checking if
+        // if the range is larger than 2m in total, check if
         // the range is still larger than 2m after aligning the range.
         PhysicalAddress front2m = sm::roundup(range.front.address, x64::kLargePageSize);
         PhysicalAddress back2m = sm::rounddown(range.back.address, x64::kLargePageSize);
@@ -176,22 +176,22 @@ void VirtualAllocator::mapRange(MemoryRange range, VirtualAddress vaddr, PageFla
         if (front2m < back2m) {
             // map the leading 4k pages we need to map to fulfill our api contract
             MemoryRange head = {range.front, front2m};
-            mapRange4k(head, vaddr, flags);
+            mapRange4k(head, vaddr, flags, type);
 
             // then map the 2m pages
             MemoryRange body = {front2m, back2m};
-            mapRange2m(body, vaddr + head.size(), flags);
+            mapRange2m(body, vaddr + head.size(), flags, type);
 
             // finally map the trailing 4k pages
             MemoryRange tail = {back2m, range.back};
-            mapRange4k(tail, vaddr + head.size() + body.size(), flags);
+            mapRange4k(tail, vaddr + head.size() + body.size(), flags, type);
             return;
         }
     }
 
     // if we get to this point its not worth using 2m pages
     // so we just map the range with 4k pages
-    mapRange4k(range, vaddr, flags);
+    mapRange4k(range, vaddr, flags, type);
 }
 
 static void MapKernelPages(VirtualAllocator& memory, km::PhysicalAddress paddr, km::VirtualAddress vaddr) {
@@ -227,11 +227,11 @@ void KmMapKernel(const km::PageManager& pm, km::VirtualAllocator& vmm, km::Syste
     MapStage1Memory(vmm, pm, layout);
 }
 
-void KmMigrateMemory(km::VirtualAllocator& vmm, km::PageManager& pm, const void *address, size_t size) {
+void KmMigrateMemory(km::VirtualAllocator& vmm, km::PageManager& pm, const void *address, size_t size, km::MemoryType type) {
     km::PhysicalAddress base = km::PhysicalAddress { (uintptr_t)address - pm.hhdmOffset() };
     km::PhysicalAddress end = base + size;
 
-    vmm.mapRange({ base, end }, km::VirtualAddress { base.address + pm.hhdmOffset() }, PageFlags::eData);
+    vmm.mapRange({ base, end }, km::VirtualAddress { base.address + pm.hhdmOffset() }, PageFlags::eData, type);
 }
 
 void KmReclaimBootMemory(const km::PageManager& pm, km::VirtualAllocator& vmm, km::SystemMemoryLayout& layout) {

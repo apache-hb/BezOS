@@ -48,15 +48,15 @@ x64::PageAttributeTable::PageAttributeTable()
     : mValue(kPatMsr.load())
 { }
 
-void x64::PageAttributeTable::setEntry(uint8_t index, MemoryType type) {
+void x64::PageAttributeTable::setEntry(uint8_t index, km::MemoryType type) {
     kPatMsr.update(mValue, [&](uint64_t& mValue) {
         mValue &= ~(0xFFull << (index * 8));
         mValue |= (uint64_t)type << (index * 8);
     });
 }
 
-x64::MemoryType x64::PageAttributeTable::getEntry(uint8_t index) const {
-    return MemoryType((mValue >> (index * 8)) & 0xFF);
+km::MemoryType x64::PageAttributeTable::getEntry(uint8_t index) const {
+    return km::MemoryType((mValue >> (index * 8)) & 0xFF);
 }
 
 /// MTRR
@@ -106,8 +106,8 @@ x64::FixedMtrr::FixedMtrr(uint8_t value)
     : mValue(value)
 { }
 
-x64::MemoryType x64::FixedMtrr::type() const {
-    return MemoryType(mValue);
+km::MemoryType x64::FixedMtrr::type() const {
+    return km::MemoryType(mValue);
 }
 
 x64::FixedMtrr x64::MemoryTypeRanges::fixedMtrr(uint8_t index) const {
@@ -124,8 +124,8 @@ x64::VariableMtrr::VariableMtrr(uint64_t base, uint64_t mask)
     , mMask(mask)
 { }
 
-x64::MemoryType x64::VariableMtrr::type() const {
-    return MemoryType(mBase & 0xFF);
+km::MemoryType x64::VariableMtrr::type() const {
+    return km::MemoryType(mBase & 0xFF);
 }
 
 bool x64::VariableMtrr::valid() const {

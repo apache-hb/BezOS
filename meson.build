@@ -58,15 +58,19 @@ src = [
 
     # kernel main
     'kernel/src/main.cpp',
-
-    # bootloader compatibility layer
-    'kernel/src/boot/limine.cpp',
 ]
 
-executable('bezos', src,
+kernel = static_library('kernel', src,
+    include_directories : inc,
     c_args : c_args + [ '-mllvm', '-asm-macro-max-nesting-depth=256' ],
     cpp_args : cpp_args,
+)
+
+executable('bezos', 'kernel/src/boot/limine.cpp',
+    c_args : c_args,
+    cpp_args : cpp_args,
     include_directories : inc,
+    link_with : kernel,
     dependencies : [ limine ],
     link_depends : 'data/linker-x64.ld',
     link_args : [ '-T', meson.current_source_dir() / 'data/linker-x64.ld' ],

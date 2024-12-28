@@ -11,7 +11,6 @@
 
 #include "arch/paging.hpp"
 
-#include <limine.h>
 #include <string.h>
 
 namespace km {

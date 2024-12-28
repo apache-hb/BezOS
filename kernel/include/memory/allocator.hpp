@@ -9,8 +9,6 @@ namespace km {
         eRead = 1 << 0,
         eWrite = 1 << 1,
         eExecute = 1 << 2,
-        eWriteThrough = 1 << 3,
-        eCacheDisable = 1 << 4,
 
         eCode = eRead | eExecute,
         eData = eRead | eWrite,
@@ -46,8 +44,8 @@ namespace km {
         x64::PageMapLevel3 *getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e);
         x64::PageMapLevel2 *getPageMap2(x64::PageMapLevel3 *l3, uint16_t pdpte);
 
-        void mapRange4k(MemoryRange range, VirtualAddress vaddr, PageFlags flags);
-        void mapRange2m(MemoryRange range, VirtualAddress vaddr, PageFlags flags);
+        void mapRange4k(MemoryRange range, VirtualAddress vaddr, PageFlags flags, MemoryType type);
+        void mapRange2m(MemoryRange range, VirtualAddress vaddr, PageFlags flags, MemoryType type);
 
     public:
         VirtualAllocator(const km::PageManager *pm, PageAllocator *alloc);
@@ -56,11 +54,11 @@ namespace km {
             return mRootPageTable;
         }
 
-        void map4k(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags);
+        void map4k(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags, MemoryType type = MemoryType::eUncachedOverridable);
 
-        void map2m(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags);
+        void map2m(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags, MemoryType type = MemoryType::eUncachedOverridable);
 
-        void mapRange(MemoryRange range, VirtualAddress vaddr, PageFlags flags);
+        void mapRange(MemoryRange range, VirtualAddress vaddr, PageFlags flags, MemoryType type = MemoryType::eUncachedOverridable);
     };
 }
 
@@ -77,7 +75,7 @@ void KmMapKernel(const km::PageManager& pm, km::VirtualAllocator& vmm, km::Syste
 /// @param pm The page manager
 /// @param base The virtual address
 /// @param size The size of the memory range
-void KmMigrateMemory(km::VirtualAllocator& vmm, km::PageManager& pm, const void *base, size_t size);
+void KmMigrateMemory(km::VirtualAllocator& vmm, km::PageManager& pm, const void *base, size_t size, km::MemoryType type);
 
 /// @brief Reclaim bootloader memory.
 /// @param layout The system memory layout

@@ -1,7 +1,9 @@
 #pragma once
 
 #include "kernel.hpp"
+
 #include "memory/memory.hpp"
+
 #include "std/static_vector.hpp"
 
 namespace km {

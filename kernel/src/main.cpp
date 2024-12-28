@@ -3,7 +3,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include <string.h>
 
 #include "apic.hpp"
 #include "display.hpp"
@@ -127,27 +126,54 @@ static void KmSetupGdt(void) {
     KmInitGdt(kGdtEntries, eGdtEntry_Count, eGdtEntry_Ring0Code, eGdtEntry_Ring0Data);
 }
 
+static PageMemoryTypeLayout KmSetupPat(void) {
+    x64::PageAttributeTable pat;
+
+    constexpr uint8_t kEntryUncached = 0;
+    constexpr uint8_t kEntryWriteCombined = 1;
+    constexpr uint8_t kEntryWriteThrough = 2;
+    constexpr uint8_t kEntryWriteBack = 3;
+    constexpr uint8_t kEntryWriteProtect = 4;
+    constexpr uint8_t kEntryUncachedOverridable = 5;
+
+    pat.setEntry(kEntryUncached, MemoryType::eUncached);
+    pat.setEntry(kEntryWriteCombined, MemoryType::eWriteCombine);
+    pat.setEntry(kEntryWriteThrough, MemoryType::eWriteThrough);
+    pat.setEntry(kEntryWriteBack, MemoryType::eWriteBack);
+    pat.setEntry(kEntryWriteProtect, MemoryType::eWriteProtect);
+    pat.setEntry(kEntryUncachedOverridable, MemoryType::eUncachedOverridable);
+
+    return PageMemoryTypeLayout {
+        .deferred = kEntryUncachedOverridable,
+        .uncached = kEntryUncached,
+        .writeCombined = kEntryWriteCombined,
+        .writeThrough = kEntryWriteThrough,
+        .writeProtect = kEntryWriteProtect,
+        .writeBack = kEntryWriteBack,
+    };
+}
+
 static SystemMemory KmInitMemoryMap(uintptr_t bits, const KernelLaunch& launch, const km::Display *display) {
     if (x64::HasPatSupport()) {
         x64::PageAttributeTable pat;
 
         for (uint8_t i = 0; i < pat.count(); i++) {
-            x64::MemoryType type = pat.getEntry(i);
+            km::MemoryType type = pat.getEntry(i);
             KmDebugMessage("[INIT] PAT[", i, "]: ", type, "\n");
         }
     }
 
-    SystemMemory memory = SystemMemory { SystemMemoryLayout::from(launch.memoryMap), bits, launch.hhdmOffset };
+    SystemMemory memory = SystemMemory { SystemMemoryLayout::from(launch.memoryMap), bits, launch.hhdmOffset, KmSetupPat() };
 
     // initialize our own page tables and remap everything into it
     KmMapKernel(memory.pager, memory.vmm, memory.layout, launch.kernelPhysicalBase, launch.kernelVirtualBase);
 
     // move our stack out of reclaimable memory
     // limine garuntees 64k of stack space
-    KmMigrateMemory(memory.vmm, memory.pager, (void*)(launch.stack.front.address + launch.hhdmOffset), 0x10000);
+    KmMigrateMemory(memory.vmm, memory.pager, (void*)(launch.stack.front.address + launch.hhdmOffset), launch.stack.size(), MemoryType::eUncached);
 
     // migrate framebuffer memory
-    KmMigrateMemory(memory.vmm, memory.pager, display->address(), display->size());
+    KmMigrateMemory(memory.vmm, memory.pager, display->address(), display->size(), MemoryType::eWriteCombine);
 
     // once it is safe to remap the boot memory, do so
     KmReclaimBootMemory(memory.pager, memory.vmm, memory.layout);
@@ -190,7 +216,6 @@ static SystemMemory KmInitMemoryMap(uintptr_t bits, const KernelLaunch& launch, 
     return memory;
 }
 
-
 static LocalAPIC KmEnableAPIC(km::VirtualAllocator& vmm, const km::PageManager& pm, km::IsrAllocator& isrs) {
     // disable the 8259 PIC first
     KmDisablePIC();
@@ -225,7 +250,7 @@ static km::PhysicalAddress KmGetRSDPTable(const KernelLaunch& launch) {
 static km::Terminal KmGetTerminal(const KernelLaunch& launch) {
     KernelFrameBuffer framebuffer = launch.framebuffer;
     km::Display display { framebuffer, (uint8_t*)(framebuffer.address.address + launch.hhdmOffset) };
-    return km::Terminal { display, uint16_t(framebuffer.height / 8), uint16_t(framebuffer.width / 8) };
+    return km::Terminal { display };
 }
 
 static SerialPortStatus KmInitSerialPort(ComPortInfo info) {
@@ -342,8 +367,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
 
     km::Terminal terminal = KmGetTerminal(launch);
     km::Display& display = terminal.display();
-    // display.fill(Pixel { 0, 0, 0 });
-
+    display.fill(Pixel { 0, 0, 0 });
 
     gTerminalLog = TerminalLog(terminal, gLogTarget);
     gLogTarget = &gTerminalLog;

@@ -1,36 +1,12 @@
 #pragma once
 
-#include "memory/layout.hpp"
-#include "memory/paging.hpp"
 #include "util/util.hpp"
-#include "util/format.hpp"
+
+#include "memory/paging.hpp"
 
 #include <stdint.h>
 
 namespace x64 {
-    /// @brief Page Attribute Table (PAT) and Memory Type Range Registers (MTRRs) choices.
-    /// @see AMD64 Architecture Programmer's Manual Volume 2: System Programming Table 7-9.
-    enum class MemoryType {
-        /// @brief No caching, write combining, or speculative reads are allowed.
-        eUncached            = 0x00,
-
-        /// @brief Only write combining is allowed,
-        eWriteCombined       = 0x01,
-
-        /// @brief Only speculative reads are allowed.
-        eWriteThrough        = 0x04,
-
-        /// @brief All writes update main memory.
-        eWriteProtect        = 0x05,
-
-        /// @brief All reads and writes can be cached.
-        eWriteBack           = 0x06,
-
-        /// @brief Same as @a eUncached, but can be overridden by the MTRRs.
-        /// @note Not valid for @a MemoryTypeRanges.
-        eUncachedOverridable = 0x07,
-    };
-
     /// @brief Test if the processor supports the Page Attribute Table (PAT).
     ///
     /// @return True if the processor supports the PAT, false otherwise.
@@ -62,7 +38,7 @@ namespace x64 {
         ///
         /// @param index The index of the PAT entry.
         /// @param type The page type.
-        void setEntry(uint8_t index, MemoryType type);
+        void setEntry(uint8_t index, km::MemoryType type);
 
         /// @brief Get the page type for an entry in the PAT.
         ///
@@ -70,7 +46,7 @@ namespace x64 {
         ///
         /// @param index The index of the PAT entry.
         /// @return The page type.
-        MemoryType getEntry(uint8_t index) const;
+        km::MemoryType getEntry(uint8_t index) const;
     };
 
     class MemoryTypeRanges {
@@ -93,7 +69,7 @@ namespace x64 {
         public:
             VariableMtrr(uint64_t base, uint64_t mask);
 
-            MemoryType type() const;
+            km::MemoryType type() const;
             bool valid() const;
 
             km::PhysicalAddress baseAddress(const km::PageManager& pm) const;
@@ -106,7 +82,7 @@ namespace x64 {
         public:
             FixedMtrr(uint8_t value);
 
-            MemoryType type() const;
+            km::MemoryType type() const;
         };
 
         VariableMtrr variableMtrr(uint8_t index) const;
@@ -156,27 +132,3 @@ namespace x64 {
         return mtrr.variableMtrrCount() > 0;
     }
 }
-
-template<>
-struct km::StaticFormat<x64::MemoryType> {
-    static constexpr size_t kStringSize = 16;
-    static constexpr stdx::StringView toString(char*, x64::MemoryType type) {
-        using namespace stdx::literals;
-        using enum x64::MemoryType;
-
-        switch (type) {
-        case eUncached:
-            return "Uncached"_sv;
-        case eWriteCombined:
-            return "Write Combined"_sv;
-        case eWriteThrough:
-            return "Write Through"_sv;
-        case eWriteProtect:
-            return "Write Protect"_sv;
-        case eWriteBack:
-            return "Write Back"_sv;
-        case eUncachedOverridable:
-            return "Uncached-"_sv;
-        }
-    }
-};

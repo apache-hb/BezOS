@@ -50,8 +50,15 @@ void km::Display::fill(Pixel pixel) {
 }
 
 void km::Terminal::put(char c) {
-    uint64_t x = mCurrentColumn * 8;
-    uint64_t y = mCurrentRow * 8;
+    write(mCurrentColumn, mCurrentRow, c);
+    buffer[mCurrentRow * kColumnCount + mCurrentColumn] = c;
+
+    advance();
+}
+
+void km::Terminal::write(uint64_t x, uint64_t y, char c) {
+    x *= 8;
+    y *= 8;
     uint64_t letter = kFontData[(uint8_t)c];
 
     for (int i = 0; i < 8; i++) {
@@ -60,14 +67,12 @@ void km::Terminal::put(char c) {
             mDisplay.write(x + (8 - j), y + i, pixel);
         }
     }
-
-    advance();
 }
 
 void km::Terminal::advance() {
     mCurrentColumn += 1;
 
-    if (mCurrentColumn >= mColumnCount) {
+    if (mCurrentColumn >= kColumnCount) {
         newline();
         mCurrentColumn = 0;
     }
@@ -76,21 +81,23 @@ void km::Terminal::advance() {
 void km::Terminal::newline() {
     mCurrentRow += 1;
     bool scroll = false;
-    if (mCurrentRow >= mRowCount) {
-        mCurrentRow = mRowCount - 1;
+    if (mCurrentRow >= kRowCount) {
+        mCurrentRow = kRowCount - 1;
         scroll = true;
     }
 
     mCurrentColumn = 0;
 
     if (scroll) {
-        uint64_t offset = mDisplay.pitch() * 8;
+        memmove(buffer, buffer + kColumnCount, kColumnCount * (kRowCount - 1));
+        memset(buffer + kColumnCount * (kRowCount - 1), ' ', kColumnCount);
 
-        // scroll one row
-        memmove(mDisplay.address(), (uint8_t*)mDisplay.address() + offset, mDisplay.size() - offset);
-
-        // clear the last row
-        memset((uint8_t*)mDisplay.address() + mDisplay.size() - offset, 0, offset);
+        // redraw the screen
+        for (uint64_t y = 0; y < kRowCount; y++) {
+            for (uint64_t x = 0; x < kColumnCount; x++) {
+                write(x, y, buffer[y * kColumnCount + x]);
+            }
+        }
     }
 }
 
