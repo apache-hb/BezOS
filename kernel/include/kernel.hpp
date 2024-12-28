@@ -116,6 +116,9 @@ struct KernelLaunch {
     KernelMemoryMap memoryMap;
 
     km::MemoryRange stack;
+
+    km::PhysicalAddress smbios32Address;
+    km::PhysicalAddress smbios64Address;
 };
 
 extern "C" [[noreturn]] void KmLaunch(KernelLaunch launch);
@@ -125,3 +128,30 @@ void KmBugCheck(stdx::StringView message, stdx::StringView file, unsigned line);
 
 #define KM_PANIC(msg) KmBugCheck(msg, __FILE__, __LINE__)
 #define KM_CHECK(expr, msg) do { if (!(expr)) { KmBugCheck(msg, __FILE__, __LINE__); } } while (0)
+
+template<>
+struct km::StaticFormat<MemoryMapEntryType> {
+    static constexpr size_t kStringSize = 16;
+    static constexpr stdx::StringView toString(char *, MemoryMapEntryType value) {
+        switch (value) {
+        case MemoryMapEntryType::eUsable:
+            return "Usable";
+        case MemoryMapEntryType::eReserved:
+            return "Reserved";
+        case MemoryMapEntryType::eAcpiReclaimable:
+            return "ACPI Reclaimable";
+        case MemoryMapEntryType::eAcpiNvs:
+            return "ACPI NVS";
+        case MemoryMapEntryType::eBadMemory:
+            return "Bad Memory";
+        case MemoryMapEntryType::eBootloaderReclaimable:
+            return "Bootloader Reclaimable";
+        case MemoryMapEntryType::eKernel:
+            return "Kernel and Modules";
+        case MemoryMapEntryType::eFrameBuffer:
+            return "Framebuffer";
+        default:
+            return "Unknown";
+        }
+    }
+};

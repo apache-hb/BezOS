@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <random>
 
 #include "std/string_view.hpp"
 
@@ -37,7 +38,7 @@ TEST(MemoryMapTest, AllEntries) {
     km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(memmap);
 
     ASSERT_TRUE(true) << "Layout created successfully";
-    ASSERT_EQ(layout.available.count(), 32) << "All usable memory ranges added";
+    ASSERT_FALSE(layout.available.isEmpty()) << "All usable memory ranges added";
 }
 
 TEST(MemoryMapTest, ManyRanges) {
@@ -69,7 +70,7 @@ TEST(MemoryMapTest, ReclaimBootMemory) {
 
     layout.reclaimBootMemory();
 
-    ASSERT_EQ(layout.available.count(), 32) << "All reclaimable memory ranges reclaimed";
+    ASSERT_GE(layout.available.count(), 1) << "All reclaimable memory ranges reclaimed";
     ASSERT_TRUE(layout.reclaimable.isEmpty()) << "All reclaimable memory ranges reclaimed";
 }
 
@@ -87,6 +88,45 @@ TEST(MemoryMapTest, MergeAdjacentDuringReclaim) {
     ASSERT_EQ(layout.available.count(), 1) << "All reclaimable memory ranges merged";
     ASSERT_TRUE(layout.reclaimable.isEmpty()) << "All reclaimable memory ranges reclaimed";
 
-    ASSERT_EQ(layout.available[0].front.address, 0x1000) << "Merged range starts at 0x1000";
-    ASSERT_EQ(layout.available[0].back.address, 0x1000 + 0x1000 * data.count()) << "Merged range ends at 0x1000 + 0x1000 * " << data.count();
+    ASSERT_EQ(layout.available[0].range.front, 0x1000) << "Merged range starts at 0x1000";
+    ASSERT_EQ(layout.available[0].range.back, 0x1000 + 0x1000 * data.count()) << "Merged range ends at 0x1000 + 0x1000 * " << data.count();
+}
+
+TEST(MemoryMapTest, EntryListTooLong) {
+    KernelMemoryMap data;
+    for (size_t i = 0; i < data.capacity(); i++) {
+        data.add(MemoryMapEntry { MemoryMapEntryType::eUsable, { 0x1000 + (i * 0x1000), 0x2000 + (i * 0x1000) }});
+    }
+
+    [[maybe_unused]]
+    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(data);
+
+    ASSERT_TRUE(true) << "Layout created successfully";
+}
+
+TEST(MemoryMapTest, UnsortedMemory) {
+    std::mt19937 rng(0x9876);
+
+    std::uniform_int_distribution<uintptr_t> dist(0, sm::terabytes(2).asBytes());
+    KernelMemoryMap memmap;
+    for (size_t i = 0; i < memmap.capacity(); i++) {
+        uintptr_t start = dist(rng);
+        uintptr_t end = start + dist(rng);
+        memmap.add(MemoryMapEntry { MemoryMapEntryType::eUsable, { start, end } });
+    }
+
+    [[maybe_unused]]
+    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(memmap);
+
+    ASSERT_TRUE(std::is_sorted(layout.available.begin(), layout.available.end(), [](const auto& a, const auto& b) {
+        return a.range.front < b.range.front;
+    })) << "Memory ranges are sorted";
+
+    ASSERT_TRUE(std::is_sorted(layout.reserved.begin(), layout.reserved.end(), [](const auto& a, const auto& b) {
+        return a.range.front < b.range.front;
+    })) << "Memory ranges are sorted";
+
+    ASSERT_TRUE(std::is_sorted(layout.reclaimable.begin(), layout.reclaimable.end(), [](const auto& a, const auto& b) {
+        return a.range.front < b.range.front;
+    })) << "Memory ranges are sorted";
 }

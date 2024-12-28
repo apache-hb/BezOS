@@ -10,24 +10,6 @@
 
 using namespace km;
 
-static stdx::StringView GetMemoryMapTypeName(MemoryMapEntryType type) {
-    static constexpr stdx::StringView kMemoryMapTypeNames[] = {
-        [(int)MemoryMapEntryType::eUsable]                = "Usable",
-        [(int)MemoryMapEntryType::eReserved]              = "Reserved",
-        [(int)MemoryMapEntryType::eAcpiReclaimable]       = "ACPI Reclaimable",
-        [(int)MemoryMapEntryType::eAcpiNvs]               = "ACPI NVS",
-        [(int)MemoryMapEntryType::eBadMemory]             = "Bad Memory",
-        [(int)MemoryMapEntryType::eBootloaderReclaimable] = "Bootloader Reclaimable",
-        [(int)MemoryMapEntryType::eKernel]                = "Kernel and Modules",
-        [(int)MemoryMapEntryType::eFrameBuffer]           = "Framebuffer",
-    };
-
-    if ((size_t)type < std::size(kMemoryMapTypeNames))
-        return kMemoryMapTypeNames[(size_t)type];
-
-    return "Unknown";
-}
-
 struct ErrorList {
     enum { eFatal = (1 << 0), eOverflow = (1 << 1) };
     struct Entry { stdx::StringView message; uint64_t entry; };
@@ -66,6 +48,28 @@ static void ReportMemoryIssues(const ErrorList& errors) {
     }
 }
 
+template<size_t N>
+static void SortMemoryRanges(stdx::StaticVector<MemoryMapEntry, N>& ranges) {
+    std::sort(ranges.begin(), ranges.end(), [](const MemoryMapEntry& a, const MemoryMapEntry& b) {
+        return a.range.front < b.range.front;
+    });
+}
+
+template<size_t N>
+static void MergeMemoryRanges(stdx::StaticVector<MemoryMapEntry, N>& ranges) {
+    for (ssize_t i = 0; i < ranges.count(); i++) {
+        MemoryMapEntry& range = ranges[i];
+        for (ssize_t j = i + 1; j < ranges.count(); j++) {
+            MemoryMapEntry& next = ranges[j];
+            if (range.range.back == next.range.front) {
+                range.range.back = next.range.back;
+                ranges.remove(j);
+                j--;
+            }
+        }
+    }
+}
+
 SystemMemoryLayout SystemMemoryLayout::from(KernelMemoryMap memmap) {
     FreeMemoryRanges freeMemory;
     FreeMemoryRanges reclaimable;
@@ -83,7 +87,7 @@ SystemMemoryLayout SystemMemoryLayout::from(KernelMemoryMap memmap) {
     bool reservedRangesOverflow = false;
 
     for (ssize_t i = 0; i < memmap.count(); i++) {
-        auto addMemoryRange = [&](MemoryRange range, auto& ranges, stdx::StringView message, bool& overflow) {
+        auto addMemoryRange = [&](MemoryMapEntry range, auto& ranges, stdx::StringView message, bool& overflow) {
             if (!ranges.add(range) && !overflow) {
                 overflow = true;
                 errors.add(message, i);
@@ -96,27 +100,34 @@ SystemMemoryLayout SystemMemoryLayout::from(KernelMemoryMap memmap) {
 
         switch (entry.type) {
         case MemoryMapEntryType::eUsable:
-            addMemoryRange(range, freeMemory, "Too many usable memory ranges.", usableRangesOverflow);
+            addMemoryRange(entry, freeMemory, "Too many usable memory ranges.", usableRangesOverflow);
             break;
         case MemoryMapEntryType::eBootloaderReclaimable:
-            addMemoryRange(range, reclaimable, "Too many reclaimable memory ranges.", reclaimableRangesOverflow);
+            addMemoryRange(entry, reclaimable, "Too many reclaimable memory ranges.", reclaimableRangesOverflow);
             break;
         default:
-            addMemoryRange(range, reservedMemory, "Too many reserved memory ranges.", reservedRangesOverflow);
+            addMemoryRange(entry, reservedMemory, "Too many reserved memory ranges.", reservedRangesOverflow);
             break;
         }
 
-        KmDebugMessage(range.front, " | ", lpad(16) + sm::bytes(range.size()), " | ", GetMemoryMapTypeName(entry.type), "\n");
+        KmDebugMessage(range.front, " | ", lpad(16) + sm::bytes(range.size()), " | ", entry.type, "\n");
     }
 
+    SortMemoryRanges(freeMemory);
+    SortMemoryRanges(reclaimable);
+    SortMemoryRanges(reservedMemory);
+
+    // only merge adjacent free ranges, the others are not needed
+    MergeMemoryRanges(freeMemory);
+
     uint64_t usableMemory = 0;
-    for (const MemoryRange& range : freeMemory) {
-        usableMemory += range.size();
+    for (const MemoryMapEntry& range : freeMemory) {
+        usableMemory += range.range.size();
     }
 
     uint64_t reclaimableMemory = 0;
-    for (const MemoryRange& range : reclaimable) {
-        reclaimableMemory += range.size();
+    for (const MemoryMapEntry& range : reclaimable) {
+        reclaimableMemory += range.range.size();
     }
 
     if (usableMemory == 0) {
@@ -131,26 +142,12 @@ SystemMemoryLayout SystemMemoryLayout::from(KernelMemoryMap memmap) {
 }
 
 void SystemMemoryLayout::reclaimBootMemory() {
-    for (MemoryRange range : reclaimable) {
+    for (MemoryMapEntry range : reclaimable) {
         available.add(range);
     }
 
-    std::sort(available.begin(), available.end(), [](const MemoryRange& a, const MemoryRange& b) {
-        return a.front < b.front;
-    });
-
-    // merge adjacent ranges
-    for (ssize_t i = 0; i < available.count(); i++) {
-        MemoryRange& range = available[i];
-        for (ssize_t j = i + 1; j < available.count(); j++) {
-            MemoryRange& next = available[j];
-            if (range.back == next.front) {
-                range.back = next.back;
-                available.remove(j);
-                j--;
-            }
-        }
-    }
+    SortMemoryRanges(available);
+    MergeMemoryRanges(available);
 
     reclaimable.clear();
 }

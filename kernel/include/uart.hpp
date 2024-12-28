@@ -12,6 +12,8 @@ namespace km {
         uint16_t port;
         uint16_t divisor;
         uint8_t irq;
+
+        bool skipLoopbackTest = false;
     };
 
     namespace com {

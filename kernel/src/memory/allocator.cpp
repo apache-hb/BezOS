@@ -28,7 +28,7 @@ extern "C" {
 /// page allocator
 
 MemoryRange PageAllocator::currentRange() const {
-    return mLayout->available[mCurrentRange];
+    return mLayout->available[mCurrentRange].range;
 }
 
 void PageAllocator::setCurrentRange(int range) {
@@ -208,12 +208,12 @@ static void MapKernelPages(VirtualAllocator& memory, km::PhysicalAddress paddr, 
 }
 
 static void MapStage1Memory(VirtualAllocator& memory, const km::PageManager& pm, const SystemMemoryLayout& layout) {
-    for (MemoryRange range : layout.available) {
-        memory.mapRange(range, km::VirtualAddress { range.front.address + pm.hhdmOffset() }, PageFlags::eData);
+    for (MemoryMapEntry range : layout.available) {
+        memory.mapRange(range.range, km::VirtualAddress { range.range.front.address + pm.hhdmOffset() }, PageFlags::eData);
     }
 
-    for (MemoryRange range : layout.reclaimable) {
-        memory.mapRange(range, km::VirtualAddress { range.front.address + pm.hhdmOffset() }, PageFlags::eData);
+    for (MemoryMapEntry range : layout.reclaimable) {
+        memory.mapRange(range.range, km::VirtualAddress { range.range.front.address + pm.hhdmOffset() }, PageFlags::eData);
     }
 }
 

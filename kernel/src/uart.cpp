@@ -102,11 +102,13 @@ km::OpenSerialResult km::openSerial(ComPortInfo info) {
     KmWriteByteNoDelay(base + kModemControl, 0x1E);
 
     // send a byte and check if it comes back
-    static constexpr uint8_t kLoopbackByte = 0xAE;
-    KmWriteByteNoDelay(base + kData, kLoopbackByte);
-    if (uint8_t read = KmReadByte(base + kData); read != kLoopbackByte) {
-        KmDebugMessage("[UART][", Hex(base), "] Loopback test failed ", Hex(read), " != ", Hex(kLoopbackByte), "\n");
-        return { .status = SerialPortStatus::eLoopbackTestFailed };
+    if (!info.skipLoopbackTest) {
+        static constexpr uint8_t kLoopbackByte = 0xAE;
+        KmWriteByteNoDelay(base + kData, kLoopbackByte);
+        if (uint8_t read = KmReadByte(base + kData); read != kLoopbackByte) {
+            KmDebugMessage("[UART][", Hex(base), "] Loopback test failed ", Hex(read), " != ", Hex(kLoopbackByte), "\n");
+            return { .status = SerialPortStatus::eLoopbackTestFailed };
+        }
     }
 
     // disable loopback

@@ -15,7 +15,8 @@ namespace stdx {
 
     public:
         constexpr StaticVector()
-            : mSize(0)
+            : mStorage()
+            , mSize(0)
         { }
 
         constexpr StaticVector(const T *front [[gnu::nonnull]], const T *back [[gnu::nonnull]]) {

@@ -35,6 +35,12 @@ static volatile limine_framebuffer_request gFramebufferRequest = {
     .revision = 0
 };
 
+[[gnu::used, gnu::section(".limine_requests")]]
+static volatile limine_smbios_request gSmbiosRequest = {
+    .id = LIMINE_SMBIOS_REQUEST,
+    .revision = 0
+};
+
 [[gnu::used, gnu::section(".limine_requests_start")]]
 static volatile LIMINE_REQUESTS_START_MARKER
 
@@ -114,6 +120,7 @@ extern "C" void kmain(void) {
     limine_kernel_address_response kernelAddress = *gExecutableAddressRequest.response;
     limine_hhdm_response hhdm = *gDirectMapRequest.response;
     limine_rsdp_response rsdp = *gAcpiTableRequest.response;
+    limine_smbios_response smbios = *gSmbiosRequest.response;
     uintptr_t stack = (uintptr_t)base - hhdm.offset;
 
     KernelLaunch launch = {
@@ -123,7 +130,9 @@ extern "C" void kmain(void) {
         .rsdpAddress = (uintptr_t)rsdp.address,
         .framebuffer = BootGetDisplay(hhdm.offset),
         .memoryMap = BootGetMemoryMap(),
-        .stack = { stack - 0x10000, stack }
+        .stack = { stack - 0x10000, stack },
+        .smbios32Address = (uintptr_t)smbios.entry_32,
+        .smbios64Address = (uintptr_t)smbios.entry_64,
     };
 
     KmLaunch(launch);

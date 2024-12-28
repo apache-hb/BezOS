@@ -18,11 +18,7 @@ km::Display::Display(KernelFrameBuffer framebuffer, uint8_t *address)
     , mGreenMaskShift(framebuffer.greenMaskShift)
     , mBlueMaskSize(framebuffer.blueMaskSize)
     , mBlueMaskShift(framebuffer.blueMaskShift)
-{
-    KmDebugMessage("[INIT] Display: ", mWidth, "x", mHeight, "x", mBpp, " @ ", Hex((uintptr_t)mAddress).pad(16, '0'), "\n");
-    KmDebugMessage("[INIT] Display: Pitch: ", mPitch / 4, "\n");
-    KmDebugMessage("[INIT] Display: Red[", mRedMaskSize, ":", mRedMaskShift, "], Green[", mGreenMaskSize, ":", mGreenMaskShift, "], Blue[", mBlueMaskSize, ":", mBlueMaskShift, "]\n");
-}
+{ }
 
 uint32_t km::Display::pixelValue(Pixel it) const {
     return uint32_t(it.r & (1 << mRedMaskSize) - 1) << mRedMaskShift

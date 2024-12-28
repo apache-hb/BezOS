@@ -57,26 +57,20 @@ class DebugPortLog final : public ILogTarget {
 class TerminalLog final : public ILogTarget {
     Terminal mTerminal;
 
-    ILogTarget *mNext;
-
 public:
     constexpr TerminalLog()
         : mTerminal(sm::noinit{})
-        , mNext(nullptr)
     { }
 
-    constexpr TerminalLog(Terminal terminal, ILogTarget *next)
+    constexpr TerminalLog(Terminal terminal)
         : mTerminal(terminal)
-        , mNext(next)
     { }
 
     void write(stdx::StringView message) override {
-        mNext->write(message);
         mTerminal.print(message);
     }
 };
 
-constinit static NullLog gNullLog;
 constinit static DebugPortLog gDebugPortLog;
 
 // load bearing constinit, clang has a bug in c++26 mode
@@ -84,7 +78,7 @@ constinit static DebugPortLog gDebugPortLog;
 constinit static SerialLog gSerialLog;
 constinit static TerminalLog gTerminalLog;
 
-constinit static ILogTarget *gLogTarget = &gNullLog;
+constinit static stdx::StaticVector<ILogTarget*, 4> gLogTargets;
 
 constinit static LocalAPIC gLocalApic;
 
@@ -94,7 +88,9 @@ static bool KmTestDebugPort(void) {
 }
 
 void KmDebugWrite(stdx::StringView value) {
-    gLogTarget->write(value);
+    for (ILogTarget *target : gLogTargets) {
+        target->write(value);
+    }
 }
 
 enum GdtEntry {
@@ -201,6 +197,11 @@ static void KmSetupMtrrs(const km::PageManager& pm) {
     }
 }
 
+static void KmMigrateTerminal(const km::Display *display, SystemMemory& memory) {
+    // migrate framebuffer memory
+    KmMigrateMemory(memory.vmm, memory.pager, display->address(), display->size(), MemoryType::eWriteCombine);
+}
+
 static SystemMemory KmInitMemoryMap(uintptr_t bits, const KernelLaunch& launch, const km::Display *display) {
     PageMemoryTypeLayout pat = KmSetupPat();
 
@@ -215,8 +216,9 @@ static SystemMemory KmInitMemoryMap(uintptr_t bits, const KernelLaunch& launch, 
     // limine garuntees 64k of stack space
     KmMigrateMemory(memory.vmm, memory.pager, (void*)(launch.stack.front.address + launch.hhdmOffset), launch.stack.size(), MemoryType::eUncached);
 
-    // migrate framebuffer memory
-    KmMigrateMemory(memory.vmm, memory.pager, display->address(), display->size(), MemoryType::eWriteCombine);
+    if (display != nullptr) {
+        KmMigrateTerminal(display, memory);
+    }
 
     // once it is safe to remap the boot memory, do so
     KmReclaimBootMemory(memory.pager, memory.vmm, memory.layout);
@@ -255,10 +257,26 @@ static km::PhysicalAddress KmGetRSDPTable(const KernelLaunch& launch) {
     return launch.rsdpAddress;
 }
 
-static km::Terminal KmGetTerminal(const KernelLaunch& launch) {
+static bool KmGetTerminal(const KernelLaunch& launch, km::Terminal *terminal) {
     KernelFrameBuffer framebuffer = launch.framebuffer;
+    if (framebuffer.address == nullptr)
+        return false;
+
     km::Display display { framebuffer, (uint8_t*)(framebuffer.address.address + launch.hhdmOffset) };
-    return km::Terminal { display };
+    *terminal = km::Terminal { display };
+    display.fill(Pixel { 0, 0, 0 });
+
+    gTerminalLog = TerminalLog(*terminal);
+    gLogTargets.add(&gTerminalLog);
+
+    return true;
+}
+
+static void KmUpdateSerialPort(ComPortInfo info) {
+    if (OpenSerialResult com1 = openSerial(info); com1.status == SerialPortStatus::eOk) {
+        gSerialLog = SerialLog(com1.port);
+        gLogTargets.add(&gSerialLog);
+    }
 }
 
 static SerialPortStatus KmInitSerialPort(ComPortInfo info) {
@@ -266,7 +284,7 @@ static SerialPortStatus KmInitSerialPort(ComPortInfo info) {
         return com1.status;
     } else {
         gSerialLog = SerialLog(com1.port);
-        gLogTarget = &gSerialLog;
+        gLogTargets.add(&gSerialLog);
         return SerialPortStatus::eOk;
     }
 }
@@ -341,6 +359,179 @@ struct [[gnu::packed]] alignas(0x10) TaskStateSegment {
     uint32_t iopbOffset;
 };
 
+struct SmBiosHeader64 {
+    char anchor[5];
+    uint8_t checksum;
+    uint8_t length;
+    uint8_t major;
+    uint8_t minor;
+    uint8_t revision;
+    uint8_t entryRevision;
+    uint8_t reserved0[1];
+    uint32_t tableSize;
+    uint64_t tableAddress;
+};
+
+struct SmBiosHeader32 {
+    char anchor0[4];
+    uint8_t checksum0;
+
+    uint8_t length;
+    uint8_t major;
+    uint8_t minor;
+    uint16_t tableSize;
+    uint8_t entryRevision;
+    uint8_t reserved0[5];
+
+    char anchor1[5];
+    uint8_t checksum1;
+
+    uint16_t tableLength;
+    uint32_t tableAddress;
+    uint16_t entryCount;
+    uint8_t bcdRevision;
+};
+
+struct SmBiosEntryHeader {
+    uint8_t type;
+    uint8_t length;
+    uint16_t handle;
+};
+
+struct SmBiosFirmwareInfo {
+    SmBiosEntryHeader header;
+    uint8_t vendor;
+    uint8_t version;
+    uint16_t start;
+    uint8_t build;
+    uint8_t romSize;
+    uint64_t characteristics;
+    uint8_t reserved0[1];
+};
+
+struct SmBiosSystemInfo {
+    SmBiosEntryHeader header;
+    uint8_t manufacturer;
+    uint8_t productName;
+    uint8_t version;
+    uint8_t serialNumber;
+    uint8_t uuid[16];
+    uint8_t wakeUpType;
+    uint8_t skuNumber;
+    uint8_t family;
+};
+
+struct PlatformInfo {
+    stdx::StaticString<64> vendor;
+    stdx::StaticString<64> version;
+
+    stdx::StaticString<64> manufacturer;
+    stdx::StaticString<64> product;
+    stdx::StaticString<64> serial;
+
+    bool isOracleVirtualBox() const {
+        return vendor == "innotek GmbH"_sv;
+    }
+};
+
+/// @brief Read an SMBIOS entry from the given pointer.
+///
+/// @param info The platform info to write the entry to.
+/// @param ptr The pointer to read the entry from.
+/// @return The start of the next entry or NULL if the entry is invalid.
+static const void *KmReadSmbiosEntry(PlatformInfo& info, const void *ptr) {
+    const SmBiosEntryHeader *header = (const SmBiosEntryHeader*)ptr;
+    KmDebugMessage("[SMBIOS] Type: ", header->type, ", Length: ", header->length, ", Handle: ", header->handle, "\n");
+
+    const char *front = (const char*)((uintptr_t)ptr + header->length);
+    const char *back = front;
+
+    stdx::StaticVector<stdx::StringView, 16> strings;
+
+    auto getString = [&](uint8_t index) -> stdx::StringView {
+        if (index == 0)
+            return "Not specified"_sv;
+
+        if (index >= strings.count())
+            return "Invalid index"_sv;
+
+        return strings[index - 1];
+    };
+
+    while (true) {
+        while (*back != '\0') {
+            back++;
+        }
+
+        if (*(back + 1) == '\0') {
+            break;
+        }
+
+        stdx::StringView entry = stdx::StringView(front, back);
+        strings.add(entry);
+
+        back++;
+        front = back;
+    }
+
+    if (header->type == 0) {
+        const SmBiosFirmwareInfo *firmware = (const SmBiosFirmwareInfo*)ptr;
+        info.vendor = getString(firmware->vendor);
+        info.version = getString(firmware->version);
+    } else if (header->type == 1) {
+        const SmBiosSystemInfo *system = (const SmBiosSystemInfo*)ptr;
+        info.manufacturer = getString(system->manufacturer);
+        info.product = getString(system->productName);
+        info.serial = getString(system->serialNumber);
+    }
+
+    return back + 2;
+}
+
+static PlatformInfo KmDebugSmbios64(km::PhysicalAddress address, SystemMemory& memory) {
+    const SmBiosHeader64 *smbios = memory.hhdmMapObject<SmBiosHeader64>(address);
+
+    VirtualAddress tableAddress = memory.hhdmMap(smbios->tableAddress, smbios->tableAddress + smbios->tableSize);
+    KmDebugMessage("[SMBIOS] Table address: ", Hex(smbios->tableAddress).pad(16, '0'), ", Size: ", smbios->tableSize, "\n");
+    const void *ptr = (void*)tableAddress.address;
+    const void *end = (const void*)((uintptr_t)ptr + smbios->tableSize);
+
+    PlatformInfo info;
+
+    while (ptr < end) {
+        ptr = KmReadSmbiosEntry(info, ptr);
+    }
+
+    return info;
+}
+
+static PlatformInfo KmDebugSmbios32(km::PhysicalAddress address, SystemMemory& memory) {
+    const SmBiosHeader32 *smbios = memory.hhdmMapObject<SmBiosHeader32>(address);
+
+    VirtualAddress tableAddress = memory.hhdmMap(smbios->tableAddress, smbios->tableAddress + smbios->tableSize);
+    KmDebugMessage("[SMBIOS] Table address: ", Hex(smbios->tableAddress).pad(8, '0'), ", Size: ", smbios->tableSize, "\n");
+    const void *ptr = (void*)tableAddress.address;
+    const void *end = (const void*)((uintptr_t)ptr + smbios->tableSize);
+
+    PlatformInfo info;
+
+    while (ptr < end) {
+        ptr = KmReadSmbiosEntry(info, ptr);
+    }
+
+    return info;
+}
+
+static PlatformInfo KmGetPlatformInfo(const KernelLaunch& launch, SystemMemory& memory) {
+    if (launch.smbios64Address != nullptr) {
+        return KmDebugSmbios64(launch.smbios64Address, memory);
+    } else if (launch.smbios32Address != nullptr) {
+        return KmDebugSmbios32(launch.smbios32Address, memory);
+    }
+
+    return PlatformInfo { };
+}
+
 extern "C" void KmLaunch(KernelLaunch launch) {
     __cli();
 
@@ -357,28 +548,46 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     }
 
     if (hasDebugPort) {
-        gLogTarget = &gDebugPortLog;
+        gLogTargets.add(&gDebugPortLog);
     }
+
+    ProcessorInfo processor = KmGetProcessorInfo();
 
     ComPortInfo com1Info = {
         .port = km::com::kComPort1,
-        .divisor = km::com::kBaud9600
+        .divisor = km::com::kBaud9600,
+        .skipLoopbackTest = false,
     };
 
     SerialPortStatus com1Status = KmInitSerialPort(com1Info);
 
-    ProcessorInfo processor = KmGetProcessorInfo();
+    KmSetupGdt();
+
+    km::IsrAllocator isrs;
+    KmInitInterrupts(isrs, eGdtEntry_Ring0Code * sizeof(uint64_t));
+    KmInstallExceptionHandlers();
+    __sti();
+
+    km::Terminal terminal = sm::noinit{};
+    km::Display *display = nullptr;
+
+    if (KmGetTerminal(launch, &terminal)) {
+        display = &terminal.display();
+    }
+
+    SystemMemory memory = KmInitMemoryMap(processor.maxpaddr, launch, display);
+
+    PlatformInfo platform = KmGetPlatformInfo(launch, memory);
+
+    // On Oracle VirtualBox the COM1 port is functional but fails the loopback test.
+    // If we are running on VirtualBox, retry the serial port initialization without the loopback test.
+    if (com1Status != SerialPortStatus::eOk && platform.isOracleVirtualBox()) {
+        KmUpdateSerialPort(com1Info);
+    }
 
     // save the base address early as its stored in bootloader
     // reclaimable memory, which is reclaimed before this data is used.
     km::PhysicalAddress rsdpBaseAddress = KmGetRSDPTable(launch);
-
-    km::Terminal terminal = KmGetTerminal(launch);
-    km::Display& display = terminal.display();
-    display.fill(Pixel { 0, 0, 0 });
-
-    gTerminalLog = TerminalLog(terminal, gLogTarget);
-    gLogTarget = &gTerminalLog;
 
     KmDebugMessage("[INIT] System report.\n");
     KmDebugMessage("| Component     | Property             | Status\n");
@@ -393,10 +602,6 @@ extern "C" void KmLaunch(KernelLaunch launch) {
         KmDebugMessage("| /SYS/HV       | Max CPUID leaf       | 0x00000000\n");
         KmDebugMessage("| /SYS/HV       | e9 debug port        | Not applicable\n");
     }
-
-    KmDebugMessage("| /SYS/MB/COM1  | Status               | ", com1Status, "\n");
-    KmDebugMessage("| /SYS/MB/COM1  | Port                 | ", Hex(com1Info.port), "\n");
-    KmDebugMessage("| /SYS/MB/COM1  | Baud rate            | ", km::com::kBaudRate / com1Info.divisor, "\n");
 
     KmDebugMessage("| /SYS/MB/CPU0  | Vendor               | ", processor.vendor, "\n");
     KmDebugMessage("| /SYS/MB/CPU0  | Model name           | ", processor.brand, "\n");
@@ -417,23 +622,16 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     KmDebugMessage("| /SYS/MB/CPU0  | Local APIC           | ", present(processor.hasLocalApic), "\n");
     KmDebugMessage("| /SYS/MB/CPU0  | 2x APIC              | ", present(processor.has2xApic), "\n");
 
-    KmDebugMessage("| /SYS/VIDEO    | Display resolution   | ", display.width(), "x", display.height(), "x", display.bpp(), "\n");
-    KmDebugMessage("| /SYS/VIDEO    | Display address      | ", Hex((uintptr_t)display.address()).pad(16, '0'), "\n");
-    KmDebugMessage("| /SYS/VIDEO    | Framebuffer size     | ", sm::bytes(display.size()), "\n");
-    KmDebugMessage("| /SYS/VIDEO    | Display pitch        | ", display.pitch(), "\n");
-    KmDebugMessage("| /SYS/VIDEO    | Display bpp          | ", display.bpp(), "\n");
+    if (display != nullptr) {
+        KmDebugMessage("| /SYS/VIDEO    | Display resolution   | ", display->width(), "x", display->height(), "x", display->bpp(), "\n");
+        KmDebugMessage("| /SYS/VIDEO    | Framebuffer size     | ", sm::bytes(display->size()), "\n");
+        KmDebugMessage("| /SYS/VIDEO    | Display pitch        | ", display->pitch(), "\n");
+        KmDebugMessage("| /SYS/VIDEO    | Display bpp          | ", display->bpp(), "\n");
+    }
 
-    KmSetupGdt();
-
-    km::IsrAllocator isrs;
-    KmInitInterrupts(isrs, eGdtEntry_Ring0Code * sizeof(uint64_t));
-    KmInstallExceptionHandlers();
-    __sti();
-
-    // reclaims bootloader memory, all the limine requests must be read
-    // before this point.
-
-    SystemMemory memory = KmInitMemoryMap(processor.maxpaddr, launch, &display);
+    KmDebugMessage("| /SYS/MB/COM1  | Status               | ", com1Status, "\n");
+    KmDebugMessage("| /SYS/MB/COM1  | Port                 | ", Hex(com1Info.port), "\n");
+    KmDebugMessage("| /SYS/MB/COM1  | Baud rate            | ", km::com::kBaudRate / com1Info.divisor, "\n");
 
     // test interrupt to ensure the IDT is working
     {
