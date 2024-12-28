@@ -19,7 +19,11 @@ $VmName = 'Test-BezOS'
 $SerialPort = $RootPath + '\com1.txt'
 $BootDrive = 'BOOT'
 
+# Delete old instance if it exists
+
 & $VBoxManage unregistervm $VmName --delete-all
+
+# Create new VM
 
 & $VBoxManage createvm `
     --name $VmName `
@@ -28,6 +32,8 @@ $BootDrive = 'BOOT'
     --platform-architecture "x86" `
     --uuid $VmGuid `
     --register
+
+# Configure boot drive
 
 & $VBoxManage storagectl $VmGuid `
     --name $BootDrive `
@@ -44,13 +50,19 @@ $BootDrive = 'BOOT'
     --mtype readonly
 
 & $VBoxManage modifyvm $VmGuid `
-    --triple-fault-reset off
+    --boot1 disk
+
+# Configure serial port
 
 & $VBoxManage modifyvm $VmGuid `
     --uart1 0x3F8 4 `
     --uartmode1 file $SerialPort
 
+# Don't reset on triple fault
+
 & $VBoxManage modifyvm $VmGuid `
-    --boot1 disk
+    --triple-fault-reset off
+
+# Start the VM
 
 & $VBoxManage startvm $VmGuid

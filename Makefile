@@ -15,3 +15,7 @@ install-ovmf: install/ovmf/ovmf-code-x86_64.fd install/ovmf/ovmf-vars-x86_64.fd
 .PHONY: vbox
 vbox:
 	pwsh.exe -File data/test/vm/Test-VirtualBox.ps1 -KernelImage install/bezos.iso
+
+.PHONY: vmware
+vmware:
+	pwsh.exe -File data/test/vm/Test-VMware.ps1 -KernelImage install/bezos.iso
