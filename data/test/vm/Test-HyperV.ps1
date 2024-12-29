@@ -14,6 +14,7 @@ Copy-Item -Path $KernelImage -Destination $ImagePath -Force
 
 $VmName = 'Test-BezOS'
 $VhdPath = $RootPath + '\bezos.vhdx'
+$SerialPort = $RootPath + '\com1.txt'
 
 $VM = @{
     Name = $VmName
@@ -37,7 +38,7 @@ $Vm = New-VM @VM
 
 $BootDrive = Add-VMDvdDrive -VMName $VmName -Path $ImagePath -Passthru
 
-Set-VMComPort -VMName $VmName -Number 1 -Path $RootPath + '\com1.txt'
+# Set-VMComPort $VmName 1 -Path $SerialPort
 
 Set-VMFirmware -VMName $VmName -FirstBootDevice $BootDrive -EnableSecureBoot Off
 
