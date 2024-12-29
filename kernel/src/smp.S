@@ -30,7 +30,7 @@ KmSmpInfoEnd:
 .equ KmStackSizeAddress, 0x7000 + (KmSmpInfo_StackSize - KmSmpInfoBegin)
 .equ KmEntryPointAddress, 0x7000 + (KmSmpInfo_EntryPoint - KmSmpInfoBegin)
 
-.section .smp.startup,"awx",@progbits
+.section .smp.startup,"a"
 
 .align 16
 .code16

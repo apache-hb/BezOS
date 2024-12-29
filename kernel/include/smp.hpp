@@ -4,4 +4,4 @@ namespace km {
 
 }
 
-void KmInitSmp();
+void KmInitSmp(void);

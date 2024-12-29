@@ -36,10 +36,11 @@ cpp_args = cpp.get_supported_arguments([ '-Wno-c99-designator', '-Wno-c99-extens
 limine = dependency('limine')
 
 compiler = find_program(cc.get_id())
+objcopy = find_program('objcopy')
 
-custom_target('smp',
+smp_blob = custom_target('smp.bin',
     input : 'kernel/src/smp.S',
-    output : 'smp.o',
+    output : 'smp.bin',
     depend_files : 'data/smp.ld',
     command : [
         compiler, '@INPUT@',
@@ -47,7 +48,18 @@ custom_target('smp',
         '-o', '@OUTPUT@',
         '-nostdlib', '-nostdlib++', '-ffreestanding'
     ],
-    build_by_default : true,
+)
+
+smp = custom_target('smp.o',
+    input : smp_blob,
+    output : 'smp.o',
+    command : [
+        objcopy, '-I', 'binary', '-O', 'elf64-x86-64',
+        '-B', 'i386:x86-64',
+        '--set-section-flags', '.data.smp=alloc,load,readonly,data',
+        '--rename-section', '.data=.rodata.smp',
+        '@INPUT@', '@OUTPUT@'
+    ],
 )
 
 src = [
@@ -74,7 +86,10 @@ src = [
     'kernel/src/memory.cpp',
     'kernel/src/hypervisor.cpp',
     'kernel/src/display.cpp',
+
+    # smp setup
     'kernel/src/smp.cpp',
+    smp,
 
     # kernel main
     'kernel/src/main.cpp',
