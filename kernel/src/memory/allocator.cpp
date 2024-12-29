@@ -64,11 +64,9 @@ PageAllocator::PageAllocator(const SystemMemoryLayout *layout, uintptr_t hhdmOff
     // Create an allocator for each memory range
     size_t offset = 0;
     for (MemoryMapEntry entry : layout->available) {
-        // TODO: if theres multiple free ranges below 1M some will be discarded here.
-        // thats not great.
         RegionBitmapAllocator allocator{entry.range, (uint8_t*)(bitmap + offset + hhdmOffset).address};
         if (entry.range.front < 0x100000) {
-            mLowMemory = allocator;
+            mLowMemory.add(allocator);
         } else {
             mAllocators.add(allocator);
         }
@@ -87,6 +85,16 @@ PageAllocator::PageAllocator(const SystemMemoryLayout *layout, uintptr_t hhdmOff
 
 PhysicalAddress PageAllocator::alloc4k() {
     for (RegionBitmapAllocator& allocator : mAllocators) {
+        if (PhysicalAddress addr = allocator.alloc4k(1); addr != nullptr) {
+            return addr;
+        }
+    }
+
+    return nullptr;
+}
+
+PhysicalAddress PageAllocator::lowMemoryAlloc4k() {
+    for (RegionBitmapAllocator& allocator : mLowMemory) {
         if (PhysicalAddress addr = allocator.alloc4k(1); addr != nullptr) {
             return addr;
         }

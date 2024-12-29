@@ -1,7 +1,5 @@
 #include "memory/layout.hpp"
 
-#include "util/memory.hpp"
-
 #include "kernel.hpp"
 
 #include <algorithm>

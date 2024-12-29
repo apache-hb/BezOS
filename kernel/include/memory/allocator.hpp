@@ -54,11 +54,15 @@ namespace km {
         void release(MemoryRange range);
 
         /// @brief Check if the given address is within the range.
+        ///
+        /// @param addr The address to check.
         bool contains(PhysicalAddress addr) const {
             return mRange.contains(addr);
         }
 
         /// @brief Mark a range of memory as used.
+        ///
+        /// @param range The range to mark as used.
         void markAsUsed(MemoryRange range);
     };
 
@@ -68,7 +72,7 @@ namespace km {
         /// @brief One allocator for each usable or reclaimable memory range.
         RegionAllocators mAllocators;
 
-        RegionBitmapAllocator mLowMemory;
+        stdx::StaticVector<RegionBitmapAllocator, 4> mLowMemory;
 
     public:
         PageAllocator(const SystemMemoryLayout *layout, uintptr_t hhdmOffset);
@@ -78,12 +82,10 @@ namespace km {
         /// @return The physical address of the page.
         PhysicalAddress alloc4k();
 
-        /// @brief Get the low memory allocator for allocating below 1M.
+        /// @brief Allocate a 4k page of memory below 1M.
         ///
-        /// @return The low memory allocator.
-        RegionBitmapAllocator lowMemory() {
-            return mLowMemory;
-        }
+        /// @return The physical address of the page.
+        PhysicalAddress lowMemoryAlloc4k();
     };
 
     class VirtualAllocator {
