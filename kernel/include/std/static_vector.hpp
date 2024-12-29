@@ -5,7 +5,7 @@
 namespace stdx {
     template<typename T, size_t N>
     class StaticVector {
-        T mStorage[N];
+        union { T mStorage[N]; };
         size_t mSize;
 
         constexpr void init(const T *front, const T *back) {
@@ -15,8 +15,7 @@ namespace stdx {
 
     public:
         constexpr StaticVector()
-            : mStorage()
-            , mSize(0)
+            : mSize(0)
         { }
 
         constexpr StaticVector(const T *front [[gnu::nonnull]], const T *back [[gnu::nonnull]]) {

@@ -3,7 +3,7 @@
 km::SystemMemory::SystemMemory(SystemMemoryLayout memory, uintptr_t bits, uintptr_t hhdmOffset, PageMemoryTypeLayout types)
     : pager(bits, hhdmOffset, types)
     , layout(memory)
-    , pmm(&layout)
+    , pmm(&layout, hhdmOffset)
     , vmm(&pager, &pmm)
 { }
 

@@ -532,6 +532,32 @@ static PlatformInfo KmGetPlatformInfo(const KernelLaunch& launch, SystemMemory& 
     return PlatformInfo { };
 }
 
+static void KmWriteMemoryMap(const KernelMemoryMap& memmap, const SystemMemory& memory) {
+    KmDebugMessage("[INIT] ", memmap.count(), " memory map entries.\n");
+
+    KmDebugMessage("| Entry | Address            | Size             | Type\n");
+    KmDebugMessage("|-------+--------------------+------------------+-----------------------\n");
+
+    for (ssize_t i = 0; i < memmap.count(); i++) {
+        MemoryMapEntry entry = memmap[i];
+        MemoryRange range = entry.range;
+
+        KmDebugMessage("| ", Int(i).pad(4, '0'), "  | ", Hex(range.front.address).pad(16, '0'), " | ", Hex(range.size()).pad(16, '0'), " | ", entry.type, "\n");
+    }
+
+    uint64_t usableMemory = 0;
+    for (const MemoryMapEntry& range : memory.layout.available) {
+        usableMemory += range.range.size();
+    }
+
+    uint64_t reclaimableMemory = 0;
+    for (const MemoryMapEntry& range : memory.layout.reclaimable) {
+        reclaimableMemory += range.range.size();
+    }
+
+    KmDebugMessage("[INIT] Usable memory: ", sm::bytes(usableMemory), ", Reclaimable memory: ", sm::bytes(reclaimableMemory), "\n");
+}
+
 extern "C" void KmLaunch(KernelLaunch launch) {
     __cli();
 
@@ -632,6 +658,8 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     KmDebugMessage("| /SYS/MB/COM1  | Status               | ", com1Status, "\n");
     KmDebugMessage("| /SYS/MB/COM1  | Port                 | ", Hex(com1Info.port), "\n");
     KmDebugMessage("| /SYS/MB/COM1  | Baud rate            | ", km::com::kBaudRate / com1Info.divisor, "\n");
+
+    KmWriteMemoryMap(launch.memoryMap, memory);
 
     // test interrupt to ensure the IDT is working
     {

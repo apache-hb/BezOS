@@ -84,25 +84,43 @@ namespace km {
         T *data;
     };
 
+    /// @brief A range of physical address space.
+    ///
+    /// @pre @a MemoryRange::front < @a MemoryRange::back
     struct MemoryRange {
         PhysicalAddress front;
         PhysicalAddress back;
 
-        constexpr intptr_t size() const {
+        /// @brief Returns the size of the range.
+        ///
+        /// @return The size of the range.
+        constexpr uintptr_t size() const {
             return back - front;
         }
 
+        /// @brief Checks if the given address is within the range.
+        ///
+        /// @param addr The address to check.
+        /// @return True if the address is within the range, false otherwise.
         constexpr bool contains(PhysicalAddress addr) const {
             return addr >= front && addr < back;
         }
     };
 
+    /// @brief Returns a memory range that is page aligned.
+    ///
+    /// @param range The memory range.
+    /// @return The page aligned memory range.
     constexpr MemoryRange pageAligned(MemoryRange range) {
         return {sm::rounddown(range.front.address, x64::kPageSize), sm::roundup(range.back.address, x64::kPageSize)};
     }
 
+    /// @brief Returns the number of pages required to store the given number of bytes.
+    ///
+    /// @param bytes The number of bytes.
+    /// @return The number of pages.
     constexpr size_t pages(size_t bytes) {
-        return sm::roundpow2(bytes, x64::kPageSize) / x64::kPageSize;
+        return sm::roundup(bytes, x64::kPageSize) / x64::kPageSize;
     }
 }
 

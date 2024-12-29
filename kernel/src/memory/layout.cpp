@@ -70,18 +70,12 @@ static void MergeMemoryRanges(stdx::StaticVector<MemoryMapEntry, N>& ranges) {
     }
 }
 
-SystemMemoryLayout SystemMemoryLayout::from(KernelMemoryMap memmap) {
+SystemMemoryLayout SystemMemoryLayout::from(const KernelMemoryMap& memmap) {
     FreeMemoryRanges freeMemory;
     FreeMemoryRanges reclaimable;
     ReservedMemoryRanges reservedMemory;
 
     ErrorList errors;
-
-    KmDebugMessage("[INIT] ", memmap.count(), " memory map entries.\n");
-
-    KmDebugMessage("| Entry | Address            | Size             | Type\n");
-    KmDebugMessage("|-------+--------------------+------------------+-----------------------\n");
-
     bool usableRangesOverflow = false;
     bool reclaimableRangesOverflow = false;
     bool reservedRangesOverflow = false;
@@ -94,9 +88,7 @@ SystemMemoryLayout SystemMemoryLayout::from(KernelMemoryMap memmap) {
             }
         };
 
-        KmDebugMessage("| ", Int(i).pad(3, '0'), "   | ");
         MemoryMapEntry entry = memmap[i];
-        MemoryRange range = entry.range;
 
         switch (entry.type) {
         case MemoryMapEntryType::eUsable:
@@ -109,8 +101,6 @@ SystemMemoryLayout SystemMemoryLayout::from(KernelMemoryMap memmap) {
             addMemoryRange(entry, reservedMemory, "Too many reserved memory ranges.", reservedRangesOverflow);
             break;
         }
-
-        KmDebugMessage(range.front, " | ", lpad(16) + sm::bytes(range.size()), " | ", entry.type, "\n");
     }
 
     SortMemoryRanges(freeMemory);
@@ -125,18 +115,11 @@ SystemMemoryLayout SystemMemoryLayout::from(KernelMemoryMap memmap) {
         usableMemory += range.range.size();
     }
 
-    uint64_t reclaimableMemory = 0;
-    for (const MemoryMapEntry& range : reclaimable) {
-        reclaimableMemory += range.range.size();
-    }
-
     if (usableMemory == 0) {
         errors.fatal("No usable memory found.", 0);
     }
 
     ReportMemoryIssues(errors);
-
-    KmDebugMessage("[INIT] Usable memory: ", sm::bytes(usableMemory), ", Reclaimable memory: ", sm::bytes(reclaimableMemory), "\n");
 
     return SystemMemoryLayout { freeMemory, reclaimable, reservedMemory };
 }

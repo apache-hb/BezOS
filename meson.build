@@ -39,8 +39,11 @@ src = [
     # utilities
     'kernel/src/util/cpuid.cpp',
     'kernel/src/util/memory.cpp',
+
+    # memory management
     'kernel/src/memory/layout.cpp',
     'kernel/src/memory/allocator.cpp',
+    'kernel/src/memory/bitmap.cpp',
 
     # various architecture features
     'kernel/src/crt.c',
@@ -97,6 +100,7 @@ testcases = {
     'memory range': [ 'kernel/test/memory_range.cpp' ],
     'pat': [ 'kernel/test/page_attribute_table.cpp', 'kernel/src/pat.cpp', 'kernel/src/util/cpuid.cpp', ],
     'paging': [ 'kernel/test/paging.cpp', ],
+    'pmm': [ 'kernel/test/pmm.cpp', 'kernel/src/memory/bitmap.cpp', ],
 }
 
 foreach name, source : testcases

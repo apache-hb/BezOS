@@ -18,6 +18,19 @@ namespace km {
 
         void reclaimBootMemory();
 
-        static SystemMemoryLayout from(KernelMemoryMap memmap);
+        size_t usableMemory() const {
+            size_t total = 0;
+            for (MemoryMapEntry range : available) {
+                total += range.range.size();
+            }
+
+            for (MemoryMapEntry range : reclaimable) {
+                total += range.range.size();
+            }
+
+            return total;
+        }
+
+        static SystemMemoryLayout from(const KernelMemoryMap& memmap);
     };
 }

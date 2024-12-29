@@ -27,38 +27,77 @@ extern "C" {
 
 /// page allocator
 
-MemoryRange PageAllocator::currentRange() const {
-    return mLayout->available[mCurrentRange].range;
-}
+static size_t GetBitmapSize(const SystemMemoryLayout *layout) {
+    size_t size = 0;
 
-void PageAllocator::setCurrentRange(int range) {
-    KM_CHECK(range < mLayout->available.count(), "Out of memory.");
-
-    mCurrentRange = range;
-    mOffset = currentRange().front;
-}
-
-PageAllocator::PageAllocator(const SystemMemoryLayout *layout)
-    : mLayout(layout)
-{
-    setCurrentRange(0);
-}
-
-PhysicalPointer<x64::page> PageAllocator::alloc4k() {
-    if (currentRange().contains(mOffset + x64::kPageSize)) {
-        uintptr_t result = mOffset.address;
-        mOffset += x64::kPageSize;
-        return PhysicalPointer{(x64::page*)result};
+    for (MemoryMapEntry entry : layout->available) {
+        size += detail::GetRangeBitmapSize(entry.range);
     }
 
-    setCurrentRange(mCurrentRange + 1);
+    for (MemoryMapEntry entry : layout->reclaimable) {
+        size += detail::GetRangeBitmapSize(entry.range);
+    }
 
-    return alloc4k();
+    return size;
+}
+
+static PhysicalAddress FindBitmapSpace(const SystemMemoryLayout *layout, size_t bitmapSize) {
+    // Find any memory range that is large enough to hold the bitmap
+    // and is not in the first 1MB of memory.
+
+    for (MemoryMapEntry entry : layout->available) {
+        if (entry.range.size() >= bitmapSize && !entry.range.contains(0x100000)) {
+            return entry.range.front;
+        }
+    }
+
+    return nullptr;
+}
+
+PageAllocator::PageAllocator(const SystemMemoryLayout *layout, uintptr_t hhdmOffset) {
+    // Get the size of the bitmap and round up to the nearest page.
+    size_t bitmapSize = sm::roundup(GetBitmapSize(layout), x64::kPageSize);
+
+    // Allocate bitmap space
+    PhysicalAddress bitmap = FindBitmapSpace(layout, bitmapSize);
+
+    // Create an allocator for each memory range
+    size_t offset = 0;
+    for (MemoryMapEntry entry : layout->available) {
+        // TODO: if theres multiple free ranges below 1M some will be discarded here.
+        // thats not great.
+        RegionBitmapAllocator allocator{entry.range, (uint8_t*)(bitmap + offset + hhdmOffset).address};
+        if (entry.range.front < 0x100000) {
+            mLowMemory = allocator;
+        } else {
+            mAllocators.add(allocator);
+        }
+
+        offset += detail::GetRangeBitmapSize(entry.range);
+    }
+
+    // Mark the bitmap memory as used
+    for (RegionBitmapAllocator& allocator : mAllocators) {
+        if (allocator.contains(bitmap)) {
+            allocator.markAsUsed({bitmap, bitmap + bitmapSize});
+            break;
+        }
+    }
+}
+
+PhysicalAddress PageAllocator::alloc4k() {
+    for (RegionBitmapAllocator& allocator : mAllocators) {
+        if (PhysicalAddress addr = allocator.alloc4k(1); addr != nullptr) {
+            return addr;
+        }
+    }
+
+    return nullptr;
 }
 
 x64::page *VirtualAllocator::alloc4k() {
-    PhysicalPointer<x64::page> result = mPageAllocator->alloc4k();
-    uintptr_t offset = (uintptr_t)result.data + mPageManager->hhdmOffset();
+    PhysicalAddress result = mPageAllocator->alloc4k();
+    uintptr_t offset = (uintptr_t)result.address + mPageManager->hhdmOffset();
     x64::page *page = (x64::page*)offset;
     memset(page, 0, sizeof(x64::page));
     return page;
@@ -218,8 +257,6 @@ static void MapStage1Memory(VirtualAllocator& memory, const km::PageManager& pm,
 }
 
 void KmMapKernel(const km::PageManager& pm, km::VirtualAllocator& vmm, km::SystemMemoryLayout& layout, km::PhysicalAddress paddr, km::VirtualAddress vaddr) {
-    PageAllocator allocator{&layout};
-
     // first map the kernel pages
     MapKernelPages(vmm, paddr, vaddr);
 

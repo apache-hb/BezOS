@@ -5,6 +5,10 @@
 #include "memory/paging.hpp"
 
 namespace km {
+    namespace detail {
+        size_t GetRangeBitmapSize(MemoryRange range);
+    }
+
     enum class PageFlags {
         eRead = 1 << 0,
         eWrite = 1 << 1,
@@ -17,19 +21,69 @@ namespace km {
 
     UTIL_BITFLAGS(PageFlags);
 
-    class PageAllocator {
-        const SystemMemoryLayout *mLayout;
-        int mCurrentRange;
-        PhysicalAddress mOffset;
+    class RegionBitmapAllocator {
+        MemoryRange mRange;
+        uint8_t *mBitmap;
 
-        MemoryRange currentRange() const;
+        size_t bitCount() const;
 
-        void setCurrentRange(int range);
+        bool test(size_t bit) const;
+        void set(size_t bit);
+        void clear(size_t bit);
 
     public:
-        PageAllocator(const SystemMemoryLayout *layout);
+        /// @brief Construct a new region bitmap allocator.
+        ///
+        /// @pre The range must be page aligned.
+        /// @pre The bitmap must be large enough to cover the range.
+        ///
+        /// @param range The range of memory to manage.
+        /// @param bitmap The bitmap to use.
+        RegionBitmapAllocator(MemoryRange range, uint8_t *bitmap);
 
-        PhysicalPointer<x64::page> alloc4k();
+        RegionBitmapAllocator() = default;
+
+        PhysicalAddress alloc4k(size_t count);
+
+        /// @brief Release a range of memory.
+        ///
+        /// @pre The range must have been allocated by this allocator.
+        /// @pre The range must be page aligned.
+        ///
+        /// @param range The range to release.
+        void release(MemoryRange range);
+
+        /// @brief Check if the given address is within the range.
+        bool contains(PhysicalAddress addr) const {
+            return mRange.contains(addr);
+        }
+
+        /// @brief Mark a range of memory as used.
+        void markAsUsed(MemoryRange range);
+    };
+
+    class PageAllocator {
+        using RegionAllocators = stdx::StaticVector<RegionBitmapAllocator, SystemMemoryLayout::kMaxRanges>;
+
+        /// @brief One allocator for each usable or reclaimable memory range.
+        RegionAllocators mAllocators;
+
+        RegionBitmapAllocator mLowMemory;
+
+    public:
+        PageAllocator(const SystemMemoryLayout *layout, uintptr_t hhdmOffset);
+
+        /// @brief Allocate a 4k page of memory above 1M.
+        ///
+        /// @return The physical address of the page.
+        PhysicalAddress alloc4k();
+
+        /// @brief Get the low memory allocator for allocating below 1M.
+        ///
+        /// @return The low memory allocator.
+        RegionBitmapAllocator lowMemory() {
+            return mLowMemory;
+        }
     };
 
     class VirtualAllocator {
