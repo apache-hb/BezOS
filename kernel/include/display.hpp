@@ -30,6 +30,7 @@ namespace km {
         uint8_t mBlueMaskShift;
 
         uint32_t pixelValue(Pixel it) const;
+        uint64_t pixelOffset(uint64_t x, uint64_t y) const;
 
     public:
         Display(KernelFrameBuffer framebuffer, uint8_t *address);
@@ -59,6 +60,8 @@ namespace km {
         uint64_t height() const { return mHeight; }
         uint64_t pitch() const { return mPitch; }
         uint16_t bpp() const { return mBpp; }
+
+        bool hasLinePadding() const { return mPitch == mWidth * (mBpp / 8); }
     };
 
     class Terminal {

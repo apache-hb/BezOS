@@ -26,11 +26,15 @@ uint32_t km::Display::pixelValue(Pixel it) const {
          | uint32_t(it.b & (1 << mBlueMaskSize) - 1) << mBlueMaskShift;
 }
 
+uint64_t km::Display::pixelOffset(uint64_t x, uint64_t y) const {
+    return (y * (mPitch / 4) + x) * (mBpp / 8);
+}
+
 void km::Display::write(uint64_t x, uint64_t y, Pixel pixel) {
     if (x >= mWidth || y >= mHeight)
         return;
 
-    uint64_t offset = (y * (mPitch / 4) + x) * (mBpp / 8);
+    uint64_t offset = pixelOffset(x, y);
 
     uint32_t pix = pixelValue(pixel);
 
