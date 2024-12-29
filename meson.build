@@ -35,6 +35,21 @@ cpp_args = cpp.get_supported_arguments([ '-Wno-c99-designator', '-Wno-c99-extens
 
 limine = dependency('limine')
 
+compiler = find_program(cc.get_id())
+
+custom_target('smp',
+    input : 'kernel/src/smp.S',
+    output : 'smp.o',
+    depend_files : 'data/smp.ld',
+    command : [
+        compiler, '@INPUT@',
+        '-T', meson.current_source_dir() / 'data/smp.ld',
+        '-o', '@OUTPUT@',
+        '-nostdlib', '-nostdlib++', '-ffreestanding'
+    ],
+    build_by_default : true,
+)
+
 src = [
     # utilities
     'kernel/src/util/cpuid.cpp',
@@ -59,10 +74,12 @@ src = [
     'kernel/src/memory.cpp',
     'kernel/src/hypervisor.cpp',
     'kernel/src/display.cpp',
+    'kernel/src/smp.cpp',
 
     # kernel main
     'kernel/src/main.cpp',
 ]
+
 
 kernel = static_library('kernel', src,
     include_directories : inc,

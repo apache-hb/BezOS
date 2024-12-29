@@ -16,13 +16,13 @@ KmRealModeGdtValue:
 .align 16
 KmSmpInfoBegin:
 KmSmpInfo_Pml4:
-    .quad 0
+    .long 0
 KmSmpInfo_Stack:
-    .quad 0
+    .long 0
 KmSmpInfo_StackSize:
-    .quad 0
+    .long 0
 KmSmpInfo_EntryPoint:
-    .quad 0
+    .long 0
 KmSmpInfoEnd:
 
 .equ KmPml4Address, 0x7000 + (KmSmpInfo_Pml4 - KmSmpInfoBegin)
@@ -30,7 +30,7 @@ KmSmpInfoEnd:
 .equ KmStackSizeAddress, 0x7000 + (KmSmpInfo_StackSize - KmSmpInfoBegin)
 .equ KmEntryPointAddress, 0x7000 + (KmSmpInfo_EntryPoint - KmSmpInfoBegin)
 
-.section .smp.startup
+.section .smp.startup,"awx",@progbits
 
 .align 16
 .code16
