@@ -9,7 +9,7 @@ ENTRY(kmain)
 /* process. */
 PHDRS
 {
-    limine_requests PT_LOAD;
+    boot_requests PT_LOAD;
     text PT_LOAD;
     rodata PT_LOAD;
     data PT_LOAD;
@@ -26,11 +26,11 @@ SECTIONS
     __kernel_start = .;
 
     /* Define a section to contain the Limine requests and assign it to its own PHDR */
-    .limine_requests : {
+    .boot_requests : {
         KEEP(*(.limine_requests_start))
         KEEP(*(.limine_requests))
         KEEP(*(.limine_requests_end))
-    } :limine_requests
+    } :boot_requests
 
     /* Move to the next memory page for .text */
     . = ALIGN(CONSTANT(MAXPAGESIZE));

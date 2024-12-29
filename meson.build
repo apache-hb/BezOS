@@ -27,6 +27,7 @@ common_args = [
     '-Wno-missing-field-initializers',
     '-Wno-missing-designated-field-initializers',
     '-Wno-zero-length-array',
+    '-Wno-nested-anon-types'
 ]
 
 c_args = cc.get_supported_arguments([ '-Wno-language-extension-token' ] + common_args)
