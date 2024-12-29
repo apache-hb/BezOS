@@ -19,3 +19,7 @@ vbox:
 .PHONY: vmware
 vmware:
 	pwsh.exe -File data/test/vm/Test-VMware.ps1 -KernelImage install/bezos.iso
+
+.PHONY: hyperv
+hyperv:
+	pwsh.exe -File data/test/vm/Test-HyperV.ps1 -KernelImage install/bezos.iso
