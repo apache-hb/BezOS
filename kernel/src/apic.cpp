@@ -1,7 +1,7 @@
 #include "apic.hpp"
 
 #include "kernel.hpp"
-#include "msr.hpp"
+#include "arch/msr.hpp"
 
 static constexpr uint16_t kCommandMasterPort = 0x20;
 static constexpr uint16_t kDataMasterPort = 0x21;
@@ -21,25 +21,33 @@ static constexpr uint64_t kApicEnable = (1 << 11);
 static constexpr uint64_t kApicBsp = (1 << 8);
 
 void KmDisablePIC(void) {
+    KmDebugMessage("[INIT] Disabling PIC\n");
+
+    // TODO: not writing a delay here because it causes a fault on KVM.
+    // On real hardware it's fine, and sometimes even required for correctness.
+    // Need a way of detecting platform type to determine if we need to delay or not.
+
     // start init sequence
-    KmWriteByte(kCommandMasterPort, kInitStart);
-    KmWriteByte(kCommandSlavePort, kInitStart);
+    KmWriteByteNoDelay(kCommandMasterPort, kInitStart);
+    KmWriteByteNoDelay(kCommandSlavePort, kInitStart);
 
     // set interrupt offsets
-    KmWriteByte(kDataMasterPort, kMasterIdtStart);
-    KmWriteByte(kDataSlavePort, kSlaveIdtStart);
+    KmWriteByteNoDelay(kDataMasterPort, kMasterIdtStart);
+    KmWriteByteNoDelay(kDataSlavePort, kSlaveIdtStart);
 
     // set master/slave pin
-    KmWriteByte(kDataMasterPort, kSlavePin);
-    KmWriteByte(kDataSlavePort, kSlaveId);
+    KmWriteByteNoDelay(kDataMasterPort, kSlavePin);
+    KmWriteByteNoDelay(kDataSlavePort, kSlaveId);
 
     // set 8086 mode
-    KmWriteByte(kDataMasterPort, 0x1);
-    KmWriteByte(kDataSlavePort, 0x1);
+    KmWriteByteNoDelay(kDataMasterPort, 0x1);
+    KmWriteByteNoDelay(kDataSlavePort, 0x1);
 
     // mask all interrupts
-    KmWriteByte(kDataMasterPort, 0xFF);
-    KmWriteByte(kDataSlavePort, 0xFF);
+    KmWriteByteNoDelay(kDataMasterPort, 0xFF);
+    KmWriteByteNoDelay(kDataSlavePort, 0xFF);
+
+    KmDebugMessage("[INIT] PIC disabled\n");
 }
 
 km::LocalAPIC KmInitLocalAPIC(km::VirtualAllocator& vmm, const km::PageManager& pm) {

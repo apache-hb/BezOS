@@ -97,31 +97,65 @@ void KmDebugWrite(stdx::StringView value) {
 
 enum GdtEntry {
     eGdtEntry_Null = 0,
-    eGdtEntry_Ring0Code = 1,
-    eGdtEntry_Ring0Data = 2,
+    eGdtEntry_RealModeCode = 1,
+    eGdtEntry_RealModeData = 2,
+    eGdtEntry_ProtectedModeCode = 3,
+    eGdtEntry_ProtectedModeData = 4,
+    eGdtEntry_LongModeCode = 5,
+    eGdtEntry_LongModeData = 6,
 
     eGdtEntry_Count
 };
 
-using x64::DescriptorFlags;
-using x64::SegmentAccessFlags;
+static constexpr x64::GdtEntry kGdtEntries[eGdtEntry_Count] = {
+    // Null descriptor
+    [eGdtEntry_Null] = x64::GdtEntry::null(),
 
-static constexpr uint64_t kGdtEntries[eGdtEntry_Count] = {
-    [eGdtEntry_Null] = 0,
-    [eGdtEntry_Ring0Code] = BuildSegmentDescriptor(
-        DescriptorFlags::eLong | DescriptorFlags::eGranularity,
-        SegmentAccessFlags::eExecutable | SegmentAccessFlags::eCodeOrDataSegment | SegmentAccessFlags::eReadWrite | SegmentAccessFlags::eRing0 | SegmentAccessFlags::ePresent | SegmentAccessFlags::eAccessed,
+    // Real mode code segment
+    [eGdtEntry_RealModeCode] = x64::GdtEntry(
+        x64::Flags::eRealMode,
+        x64::Access::eCode,
+        0xFFFF
+    ),
+
+    // Real mode data segment
+    [eGdtEntry_RealModeData] = x64::GdtEntry(
+        x64::Flags::eRealMode,
+        x64::Access::eData,
+        0xFFFF
+    ),
+
+    // Protected mode code segment
+    [eGdtEntry_ProtectedModeCode] = x64::GdtEntry(
+        x64::Flags::eProtectedMode,
+        x64::Access::eCode,
+        0xFFFF
+    ),
+
+    // Protected mode data segment
+    [eGdtEntry_ProtectedModeData] = x64::GdtEntry(
+        x64::Flags::eProtectedMode,
+        x64::Access::eData,
         0
     ),
-    [eGdtEntry_Ring0Data] = BuildSegmentDescriptor(
-        DescriptorFlags::eLong | DescriptorFlags::eGranularity,
-        SegmentAccessFlags::eCodeOrDataSegment | SegmentAccessFlags::eRing0 | SegmentAccessFlags::eReadWrite | SegmentAccessFlags::ePresent | SegmentAccessFlags::eAccessed,
+
+    // Long mode code segment
+    [eGdtEntry_LongModeCode] = x64::GdtEntry(
+        x64::Flags::eLongMode,
+        x64::Access::eCode,
+        0
+    ),
+
+    // Long mode data segment
+    [eGdtEntry_LongModeData] = x64::GdtEntry(
+        x64::Flags::eLongMode,
+        x64::Access::eData,
         0
     )
 };
 
 static void KmSetupGdt(void) {
-    KmInitGdt(kGdtEntries, eGdtEntry_Count, eGdtEntry_Ring0Code, eGdtEntry_Ring0Data);
+    KmInitGdt(kGdtEntries, eGdtEntry_Count, eGdtEntry_LongModeCode, eGdtEntry_LongModeData);
 }
 
 static PageMemoryTypeLayout KmSetupPat(void) {
@@ -130,11 +164,6 @@ static PageMemoryTypeLayout KmSetupPat(void) {
     }
 
     x64::PageAttributeTable pat;
-
-    for (uint8_t i = 0; i < pat.count(); i++) {
-        km::MemoryType type = pat.getEntry(i);
-        KmDebugMessage("[INIT] PAT[", i, "]: ", type, "\n");
-    }
 
     constexpr uint8_t kEntryUncached = 0;
     constexpr uint8_t kEntryWriteCombined = 1;
@@ -149,6 +178,15 @@ static PageMemoryTypeLayout KmSetupPat(void) {
     pat.setEntry(kEntryWriteBack, MemoryType::eWriteBack);
     pat.setEntry(kEntryWriteProtect, MemoryType::eWriteProtect);
     pat.setEntry(kEntryUncachedOverridable, MemoryType::eUncachedOverridable);
+
+    // PAT[6] and PAT[7] are unused for now, so just set them to UC-
+    pat.setEntry(6, MemoryType::eUncachedOverridable);
+    pat.setEntry(7, MemoryType::eUncachedOverridable);
+
+    for (uint8_t i = 0; i < pat.count(); i++) {
+        km::MemoryType type = pat.getEntry(i);
+        KmDebugMessage("[INIT] PAT[", i, "]: ", type, "\n");
+    }
 
     return PageMemoryTypeLayout {
         .deferred = kEntryUncachedOverridable,
@@ -269,7 +307,7 @@ static bool KmGetTerminal(const KernelLaunch& launch, km::Terminal *terminal) {
     display.fill(Pixel { 0, 0, 0 });
 
     gTerminalLog = TerminalLog(*terminal);
-    gLogTargets.add(&gTerminalLog);
+    // gLogTargets.add(&gTerminalLog);
 
     return true;
 }
@@ -419,7 +457,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     KmSetupGdt();
 
     km::IsrAllocator isrs;
-    KmInitInterrupts(isrs, eGdtEntry_Ring0Code * sizeof(uint64_t));
+    KmInitInterrupts(isrs, eGdtEntry_LongModeCode * sizeof(uint64_t));
     KmInstallExceptionHandlers();
     __sti();
 

@@ -54,7 +54,9 @@ static inline uint64_t __DEFAULT_FN_ATTRS __rdmsr(uint32_t msr) {
 }
 
 static inline void __DEFAULT_FN_ATTRS __wrmsr(uint32_t msr, uint64_t value) {
-    asm volatile("wrmsr" : : "c"(msr), "a"((uint32_t)value), "d"((uint32_t)(value >> 32)));
+    uint32_t low = value;
+    uint32_t high = value >> 32;
+    asm volatile("wrmsr" : : "c"(msr), "a"(low), "d"(high));
 }
 
 static inline void __DEFAULT_FN_ATTRS __nop(void) {

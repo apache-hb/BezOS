@@ -1,20 +1,27 @@
 #pragma once
 
+#include "util/format.hpp"
 #include "util/util.hpp"
 
 #include <stdint.h>
 
 namespace x64 {
-    enum class DescriptorFlags {
+    enum class Flags {
         eNone = 0,
         eLong = (1 << 1),
         eSize = (1 << 2),
         eGranularity = (1 << 3),
+
+        eRealMode = eNone,
+        eProtectedMode = eSize | eGranularity,
+        eLongMode = eLong | eGranularity,
     };
 
-    UTIL_BITFLAGS(DescriptorFlags);
+    UTIL_BITFLAGS(Flags);
 
-    enum class SegmentAccessFlags {
+    enum class Access {
+        eNone = 0,
+
         eAccessed = (1 << 0),
         eReadWrite = (1 << 1),
         eEscalateDirection = (1 << 2),
@@ -27,15 +34,62 @@ namespace x64 {
         eRing3 = (3 << 5),
 
         ePresent = (1 << 7),
+
+        eData = eCodeOrDataSegment | eReadWrite | ePresent | eAccessed,
+        eCode = eCodeOrDataSegment | eExecutable | eReadWrite | ePresent | eAccessed,
     };
 
-    UTIL_BITFLAGS(SegmentAccessFlags);
+    UTIL_BITFLAGS(Access);
+
+    constexpr uint64_t BuildSegmentDescriptor(Flags flags, Access access, uint32_t limit) {
+        return (uint64_t)(flags) << 52
+             | (uint64_t)(access) << 40
+             | (uint16_t)(limit & 0xFFFF)
+             | (uint64_t)(limit & 0xF0000) << 32;
+    }
+
+    class GdtEntry {
+        uint64_t mValue;
+
+    public:
+        constexpr GdtEntry(Flags flags, Access access, uint32_t limit)
+            : mValue(BuildSegmentDescriptor(flags, access, limit))
+        { }
+
+        static constexpr GdtEntry null() {
+            return GdtEntry(Flags::eNone, Access::eNone, 0);
+        }
+
+        uint64_t value() const { return mValue; }
+
+        uint32_t limit() const {
+            uint32_t limit = mValue & 0xFFFF;
+            limit |= (mValue >> 32) & 0xF0000;
+            return limit;
+        }
+
+        uint32_t base() const {
+            uint32_t base = (mValue >> 16) & 0xFFFF;
+            base |= (mValue >> 32) & 0xFF000000;
+            return base;
+        }
+
+        Flags flags() const {
+            return Flags(mValue >> 52);
+        }
+
+        Access access() const {
+            return Access((mValue >> 40) & 0xFF);
+        }
+    };
 
     constexpr uint64_t kNullDescriptor = 0;
-
-    constexpr uint64_t BuildSegmentDescriptor(DescriptorFlags flags, SegmentAccessFlags access, uint32_t limit) {
-        return (((uint64_t)(flags) << 52) | ((uint64_t)(access) << 40)) | (uint16_t)(limit & 0xFFFF) | ((uint64_t)(limit & 0xF0000) << 32);
-    }
 }
 
-void KmInitGdt(const uint64_t *gdt, uint64_t count, uint64_t codeSelector, uint64_t dataSelector);
+void KmInitGdt(const x64::GdtEntry *gdt, uint64_t count, uint64_t codeSelector, uint64_t dataSelector);
+
+template<>
+struct km::StaticFormat<x64::GdtEntry> {
+    using String = stdx::StaticString<256>;
+    static String toString(x64::GdtEntry value);
+};

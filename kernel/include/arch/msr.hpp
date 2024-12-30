@@ -23,12 +23,14 @@ namespace x64 {
 
         /// @brief Load the value of the register.
         /// @return The value of the register.
+        [[gnu::always_inline, gnu::nodebug]]
         uint64_t load() const requires (bool(A & RegisterAccess::eRead)) {
             return __rdmsr(kMsr);
         }
 
         /// @brief Store a new value in the register.
         /// @param value The new value to store.
+        [[gnu::always_inline, gnu::nodebug]]
         void store(uint64_t value) const requires (bool(A & RegisterAccess::eWrite)) {
             __wrmsr(kMsr, value);
         }

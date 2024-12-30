@@ -1,8 +1,9 @@
 .section .smp.info
 
+.align 16
+
 KmSmpInfoStart:
 
-.align 16
 KmSmpStartAddress:
     .quad 0 // Address of the smp startup C++ code
 
@@ -13,8 +14,10 @@ KmSmpPageAttributeTable1:
     .long 0
 KmSmpPml4:
     .long 0 // Address of the PML4 table
-KmSmpHhdmOffset:
-    .quad 0 // Offset of the HHDM from the start of the kernel
+KmSmpReady:
+    .long 0 // Set to 1 when the AP is initialized
+KmSmpStack:
+    .quad 0 // Base of the stack
 
 .align 16
 KmGdtBegin:
@@ -32,11 +35,13 @@ KmGdtValue:
     .word KmGdtEnd - KmGdtBegin - 1
     .quad KmGdtBegin
 
+.equ KmInfoAddress, 0x7000
+.equ KmStartAddress, 0x7000 + (KmSmpStartAddress - KmSmpInfoStart)
 .equ KmGdtAddress, 0x7000 + (KmGdtValue - KmSmpInfoStart)
 .equ KmPat0Address, 0x7000 + (KmSmpPageAttributeTable0 - KmSmpInfoStart)
 .equ KmPat1Address, 0x7000 + (KmSmpPageAttributeTable1 - KmSmpInfoStart)
 .equ KmPml4Address, 0x7000 + (KmSmpPml4 - KmSmpInfoStart)
-.equ KmHhdmOffsetAddress, 0x7000 + (KmSmpHhdmOffset - KmSmpInfoStart)
+.equ KmSmpStackAddress, 0x7000 + (KmSmpStack - KmSmpInfoStart)
 
 .equ KmRealModeCode, 8
 .equ KmRealModeData, 16
@@ -56,11 +61,13 @@ KmSmpTrampoline:
     mov %ax, %ds
     lgdt KmGdtAddress
 
-    // Enable protected mode - CR0.PE (bit 0)
+    // Enable Protected Mode - CR0.PE (bit 0)
+    // Enable Numeric Error - CR0.NE (bit 5)
     mov %cr0, %eax
-    or $1, %eax
+    or $(1 << 0) | (1 << 5), %eax
     mov %eax, %cr0
 
+    // Long jump to protected mode code
     jmp $KmProtectedModeCode, $KmSmpTrampoline32
 
 .code32
@@ -73,21 +80,18 @@ KmSmpTrampoline32:
     mov %ax, %es
     mov %ax, %fs
     mov %ax, %gs
-
-    // Clear the cr4 register, we don't want anything set yet
-    xor %eax, %eax
-    mov %eax, %cr4
+    mov %ax, %ss
 
     // Copy the PAT MSR value from the BSP
+    // x86 requires that all cores have the same PAT
     mov KmPat0Address, %eax
     mov KmPat1Address, %edx
     mov $0x277, %ecx
     wrmsr
 
     // Enable PAE - CR4.PAE (bit 5)
-    // Enable WP - CR4.WP (bit 16)
     mov %cr4, %eax
-    or $(1 << 5) | (1 << 16), %eax
+    or $(1 << 5), %eax
     mov %eax, %cr4
 
     // Enable IA32_EFER.LME (bit 8) to start entering long mode
@@ -96,6 +100,11 @@ KmSmpTrampoline32:
     or $(1 << 8), %eax
     xor %edx, %edx
     wrmsr
+
+    // Enable WP - CR0.WP (bit 16)
+    mov %cr0, %eax
+    or $(1 << 16), %eax
+    mov %eax, %cr0
 
     // Setup cr3 to point to the PML4 table
     mov KmPml4Address, %eax
@@ -111,4 +120,31 @@ KmSmpTrampoline32:
 .code64
 .align 16
 KmSmpTrampoline64:
-    jmp KmSmpTrampoline64
+    1: jmp 1b
+
+    // Load the stack we were given
+    mov KmSmpStackAddress, %rsp
+
+    // Long jump to reload cs
+    pushq $KmLongModeCode
+    lea KmReloadCs(%rip), %rax
+    push %rax
+    lretq
+KmReloadCs:
+
+    // Clear out segments we don't need
+    mov $0, %ax
+    mov %ax, %ds
+    mov %ax, %es
+    mov %ax, %fs
+    mov %ax, %gs
+
+    // Load the data segment into ss
+    mov $KmLongModeData, %ax
+    mov %ax, %ss
+
+    // Call back into C++ code
+
+    mov $KmInfoAddress, %rdi
+    mov KmStartAddress, %rax
+    call *%rax
