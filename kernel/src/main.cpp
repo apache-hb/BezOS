@@ -5,6 +5,7 @@
 #include <stddef.h>
 
 #include "apic.hpp"
+#include "arch/cr0.hpp"
 #include "display.hpp"
 #include "gdt.hpp"
 #include "hypervisor.hpp"
@@ -464,6 +465,11 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     };
 
     SerialPortStatus com1Status = KmInitSerialPort(com1Info);
+
+    x64::Cr0 cr0 = x64::Cr0::load();
+    cr0.set(x64::Cr0::WP);
+    cr0.set(x64::Cr0::NE);
+    x64::Cr0::store(cr0);
 
     KmSetupGdt();
 
