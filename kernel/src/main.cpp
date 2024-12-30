@@ -307,7 +307,7 @@ static bool KmGetTerminal(const KernelLaunch& launch, km::Terminal *terminal) {
     display.fill(Pixel { 0, 0, 0 });
 
     gTerminalLog = TerminalLog(*terminal);
-    // gLogTargets.add(&gTerminalLog);
+    gLogTargets.add(&gTerminalLog);
 
     return true;
 }

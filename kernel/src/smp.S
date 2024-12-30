@@ -95,9 +95,10 @@ KmSmpTrampoline32:
     mov %eax, %cr4
 
     // Enable IA32_EFER.LME (bit 8) to start entering long mode
+    // Enable IA32_EFER.NXE (bit 11) to enable execute disable pages
     mov $0xc0000080, %ecx
     rdmsr
-    or $(1 << 8), %eax
+    or $(1 << 8) | (1 << 11), %eax
     xor %edx, %edx
     wrmsr
 
@@ -111,18 +112,17 @@ KmSmpTrampoline32:
     mov %eax, %cr3
 
     // Enable paging - CR0.PG (bit 31)
+    // Disable CR0.CD, and CR0.NW (bits 30 and 29)
     mov %cr0, %eax
     or $(1 << 31), %eax
+    and $~((1 << 30) | (1 << 29)), %eax
     mov %eax, %cr0
-
-    1: jmp 1b
 
     jmp $KmLongModeCode, $KmSmpTrampoline64
 
 .code64
 .align 16
 KmSmpTrampoline64:
-
     // Load the stack we were given
     mov KmSmpStackAddress, %rsp
 

@@ -29,12 +29,12 @@ static constexpr km::PhysicalAddress kSmpStart = 0x8000;
 
 extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
     KmDebugMessage("[SMP] Starting Core.\n");
+
     header->ready = 1;
 
     KmHalt();
 }
 
-[[maybe_unused]]
 static uintptr_t AllocSmpStack(km::SystemMemory& memory) {
     km::PhysicalAddress stack = memory.pmm.alloc4k(4);
     return (uintptr_t)memory.hhdmMap(stack, stack + (x64::kPageSize * 4)) + (x64::kPageSize * 4);
@@ -65,22 +65,22 @@ static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory& memory) {
             x64::GdtEntry::null(),
 
             // Real mode code segment
-            x64::GdtEntry(x64::Flags::eRealMode, x64::Access::eCode, 0xFFFF),
+            x64::GdtEntry(x64::Flags::eRealMode, x64::Access::eCode, 0xffffffff),
 
             // Real mode data segment
-            x64::GdtEntry(x64::Flags::eRealMode, x64::Access::eData, 0xFFFF),
+            x64::GdtEntry(x64::Flags::eRealMode, x64::Access::eData, 0xffffffff),
 
             // Protected mode code segment
-            x64::GdtEntry(x64::Flags::eProtectedMode, x64::Access::eCode, 0xFFFF),
+            x64::GdtEntry(x64::Flags::eProtectedMode, x64::Access::eCode, 0xffffffff),
 
             // Protected mode data segment
-            x64::GdtEntry(x64::Flags::eProtectedMode, x64::Access::eData, 0xFFFF),
+            x64::GdtEntry(x64::Flags::eProtectedMode, x64::Access::eData, 0xffffffff),
 
             // Long mode code segment
-            x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eCode, 0xFFFF),
+            x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eCode, 0xffffffff),
 
             // Long mode data segment
-            x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eData, 0xFFFF)
+            x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eData, 0xffffffff)
         },
         .gdtr = {
             .limit = sizeof(SmpInfoHeader::gdtEntries) - 1,
@@ -118,11 +118,11 @@ void KmInitSmp(km::SystemMemory& memory, km::LocalAPIC& bsp, acpi::AcpiTables& a
             continue;
 
         if (!localApic.isEnabled() && !localApic.isOnlineCapable()) {
-            KmDebugMessage("[SMP] Skipping APIC ID: ", localApic.apicId, ", core is reported as damaged.\n");
+            KmDebugMessage("[SMP] Skipping APIC ID: ", localApic.apicId, ", core is marked as inoperable.\n");
             continue;
         }
 
-        // info->stack = AllocSmpStack(memory);
+        smpInfo->stack = AllocSmpStack(memory);
 
         KmDebugMessage("[SMP] Starting APIC ID: ", localApic.apicId, "\n");
 
