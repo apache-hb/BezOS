@@ -6,6 +6,7 @@
 
 namespace x64 {
     enum class DescriptorFlags {
+        eNone = 0,
         eLong = (1 << 1),
         eSize = (1 << 2),
         eGranularity = (1 << 3),
@@ -30,8 +31,10 @@ namespace x64 {
 
     UTIL_BITFLAGS(SegmentAccessFlags);
 
-    constexpr uint64_t KmBuildSegmentDescriptor(DescriptorFlags flags, SegmentAccessFlags access, uint16_t limit) {
-        return (((uint64_t)(flags) << 52) | ((uint64_t)(access) << 40)) | (0xFULL << 48) | (uint16_t)limit;
+    constexpr uint64_t kNullDescriptor = 0;
+
+    constexpr uint64_t BuildSegmentDescriptor(DescriptorFlags flags, SegmentAccessFlags access, uint32_t limit) {
+        return (((uint64_t)(flags) << 52) | ((uint64_t)(access) << 40)) | (uint16_t)(limit & 0xFFFF) | ((uint64_t)(limit & 0xF0000) << 32);
     }
 }
 

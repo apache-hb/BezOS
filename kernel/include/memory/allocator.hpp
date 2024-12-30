@@ -86,6 +86,8 @@ namespace km {
         ///
         /// @return The physical address of the page.
         PhysicalAddress lowMemoryAlloc4k();
+
+        void markRangeUsed(MemoryRange range);
     };
 
     class VirtualAllocator {

@@ -12,12 +12,11 @@ namespace km {
 
         SystemMemory(SystemMemoryLayout memory, uintptr_t bits, uintptr_t hhdmOffset, PageMemoryTypeLayout types);
 
-        VirtualAddress hhdmMap(PhysicalAddress begin, PhysicalAddress end);
+        void *hhdmMap(PhysicalAddress begin, PhysicalAddress end);
 
         template<typename T>
         T *hhdmMapObject(PhysicalAddress begin, PhysicalAddress end) {
-            VirtualAddress vaddr = hhdmMap(begin, end);
-            return (T*)vaddr.address;
+            return (T*)hhdmMap(begin, end);
         }
 
         template<typename T>

@@ -1,7 +1,7 @@
 #pragma once
 
-namespace km {
+#include "apic.hpp"
 
-}
+#include "memory.hpp"
 
-void KmInitSmp(void);
+void KmInitSmp(km::SystemMemory& memory, km::LocalAPIC& bsp, acpi::AcpiTables& acpiTables);

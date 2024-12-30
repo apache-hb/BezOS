@@ -175,6 +175,16 @@ namespace acpi {
             uint8_t processorId;
             uint8_t apicId;
             uint32_t flags;
+
+            bool isEnabled() const {
+                static constexpr uint32_t kEnabled = 1 << 0;
+                return flags & kEnabled;
+            }
+
+            bool isOnlineCapable() const {
+                static constexpr uint32_t kOnlineCapable = 1 << 1;
+                return flags & kOnlineCapable;
+            }
         };
 
         struct [[gnu::packed]] IoApic {
@@ -239,6 +249,8 @@ namespace acpi {
 
         km::IoApic mapIoApic(km::SystemMemory& memory, uint32_t index) const;
         uint32_t ioApicCount() const;
+
+        const Madt *madt() const { return mMadt; }
     };
 }
 

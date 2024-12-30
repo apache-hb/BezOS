@@ -38,9 +38,9 @@ limine = dependency('limine')
 compiler = find_program(cc.get_id())
 objcopy = find_program('objcopy')
 
-smp_blob = custom_target('smp.bin',
+smp_blob = custom_target('smp',
     input : 'kernel/src/smp.S',
-    output : 'smp.bin',
+    output : 'smp',
     depend_files : 'data/smp.ld',
     command : [
         compiler, '@INPUT@',
@@ -86,6 +86,7 @@ src = [
     'kernel/src/memory.cpp',
     'kernel/src/hypervisor.cpp',
     'kernel/src/display.cpp',
+    'kernel/src/smbios.cpp',
 
     # smp setup
     'kernel/src/smp.cpp',

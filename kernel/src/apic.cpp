@@ -63,13 +63,13 @@ static constexpr uint32_t kIoApicWindow = 0x10;
 static constexpr uint32_t kIoApicVersion = 0x1;
 
 km::IoApic::IoApic(const acpi::MadtEntry *entry, km::SystemMemory& memory)
-    : mAddress(memory.hhdmMap(entry->ioapic.address, entry->ioapic.address + entry->length))
+    : mAddress((uint8_t*)memory.hhdmMap(entry->ioapic.address, entry->ioapic.address + entry->length))
     , mIsrBase(entry->ioapic.interruptBase)
     , mId(entry->ioapic.ioApicId)
 { }
 
 volatile uint32_t& km::IoApic::reg(uint32_t offset) {
-    return *(volatile uint32_t*)(mAddress.address + offset);
+    return *(volatile uint32_t*)(mAddress + offset);
 }
 
 void km::IoApic::select(uint32_t field) {

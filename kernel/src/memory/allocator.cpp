@@ -103,6 +103,20 @@ PhysicalAddress PageAllocator::lowMemoryAlloc4k() {
     return nullptr;
 }
 
+void PageAllocator::markRangeUsed(MemoryRange range) {
+    for (RegionBitmapAllocator& allocator : mAllocators) {
+        if (allocator.contains(range.front)) {
+            allocator.markAsUsed(range);
+        }
+    }
+
+    for (RegionBitmapAllocator& allocator : mLowMemory) {
+        if (allocator.contains(range.front)) {
+            allocator.markAsUsed(range);
+        }
+    }
+}
+
 x64::page *VirtualAllocator::alloc4k() {
     PhysicalAddress result = mPageAllocator->alloc4k();
     uintptr_t offset = (uintptr_t)result.address + mPageManager->hhdmOffset();

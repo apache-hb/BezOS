@@ -51,8 +51,8 @@ namespace km {
         static constexpr uint16_t kApicId = 0x20;
         static constexpr uint16_t kApicVersion = 0x30;
 
-        static constexpr uint32_t kIcrHigh = 0x310;
-        static constexpr uint32_t kIcrLow = 0x300;
+        static constexpr uint32_t kIcr1 = 0x310;
+        static constexpr uint32_t kIcr0 = 0x300;
 
         static constexpr uint32_t kIvtDisable = (1 << 16);
 
@@ -87,9 +87,9 @@ namespace km {
             reg(kSpuriousInt) = value;
         }
 
-        void sendIpi(uint32_t dst, uint8_t vector) {
-            reg(kIcrHigh) = dst << 24;
-            reg(kIcrLow) = vector;
+        void sendIpi(uint32_t dst, uint32_t vector) {
+            reg(kIcr1) = dst << 24;
+            reg(kIcr0) = vector;
         }
 
         void configure(apic::Ivt ivt, apic::IvtConfig config) {
@@ -103,8 +103,8 @@ namespace km {
         }
 
         void sendIpi(apic::IcrDeliver deliver, uint8_t vector) {
-            reg(kIcrHigh) = 0;
-            reg(kIcrLow) = (std::to_underlying(deliver) << 18) | vector;
+            reg(kIcr1) = 0;
+            reg(kIcr0) = (std::to_underlying(deliver) << 18) | vector;
         }
 
         void clearEndOfInterrupt(void) {
@@ -121,7 +121,7 @@ namespace km {
     };
 
     class IoApic {
-        km::VirtualAddress mAddress = nullptr;
+        uint8_t *mAddress = nullptr;
         uint32_t mIsrBase;
         uint8_t mId;
 
