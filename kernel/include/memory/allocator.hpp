@@ -80,7 +80,7 @@ namespace km {
         /// @brief Allocate a 4k page of memory above 1M.
         ///
         /// @return The physical address of the page.
-        PhysicalAddress alloc4k();
+        PhysicalAddress alloc4k(size_t count = 1);
 
         /// @brief Allocate a 4k page of memory below 1M.
         ///

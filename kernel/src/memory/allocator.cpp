@@ -83,9 +83,9 @@ PageAllocator::PageAllocator(const SystemMemoryLayout *layout, uintptr_t hhdmOff
     }
 }
 
-PhysicalAddress PageAllocator::alloc4k() {
+PhysicalAddress PageAllocator::alloc4k(size_t count) {
     for (RegionBitmapAllocator& allocator : mAllocators) {
-        if (PhysicalAddress addr = allocator.alloc4k(1); addr != nullptr) {
+        if (PhysicalAddress addr = allocator.alloc4k(count); addr != nullptr) {
             return addr;
         }
     }
