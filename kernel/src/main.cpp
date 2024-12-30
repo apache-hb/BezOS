@@ -12,6 +12,7 @@
 #include "memory.hpp"
 #include "pat.hpp"
 #include "smp.hpp"
+#include "std/spinlock.hpp"
 #include "uart.hpp"
 #include "acpi.hpp"
 #include "smbios.hpp"
@@ -87,6 +88,16 @@ constinit static LocalAPIC gLocalApic;
 // qemu e9 port check - i think bochs does something else
 static bool KmTestDebugPort(void) {
     return __inbyte(0xE9) == 0xE9;
+}
+
+constinit static stdx::SpinLock gLogLock;
+
+void KmBeginWrite() {
+    gLogLock.lock();
+}
+
+void KmEndWrite() {
+    gLogLock.unlock();
 }
 
 void KmDebugWrite(stdx::StringView value) {

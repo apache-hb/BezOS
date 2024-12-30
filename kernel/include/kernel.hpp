@@ -10,6 +10,9 @@
 
 #include "util/format.hpp"
 
+void KmBeginWrite();
+void KmEndWrite();
+
 void KmDebugWrite(stdx::StringView value = "\n");
 
 template<km::IsStaticFormat T>
@@ -48,7 +51,9 @@ void KmDebugWrite(km::FormatOf<T> value) {
 
 template<typename... T>
 void KmDebugMessage(T&&... args) {
+    KmBeginWrite();
     (KmDebugWrite(args), ...);
+    KmEndWrite();
 }
 
 inline void KmDelayIo() {

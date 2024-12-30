@@ -6,6 +6,8 @@
 #include "memory/layout.hpp"
 
 void KmDebugWrite(stdx::StringView) { }
+void KmBeginWrite() { }
+void KmEndWrite() { }
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Winvalid-noreturn" // GTEST_FAIL_AT is a macro that doesn't return

@@ -105,7 +105,6 @@ void KmInitSmp(km::SystemMemory& memory, km::LocalAPIC& bsp, acpi::AcpiTables& a
 
     SmpInfoHeader header = SetupSmpInfoHeader(memory);
     memcpy(smpInfo, &header, sizeof(header));
-    // SmpInfoHeader *info = reinterpret_cast<SmpInfoHeader *>(smpInfo);
 
     for (const acpi::MadtEntry *madt : *acpiTables.madt()) {
         if (madt->type != acpi::MadtEntryType::eLocalApic)
@@ -123,6 +122,7 @@ void KmInitSmp(km::SystemMemory& memory, km::LocalAPIC& bsp, acpi::AcpiTables& a
         }
 
         smpInfo->stack = AllocSmpStack(memory);
+        smpInfo->ready = 0;
 
         KmDebugMessage("[SMP] Starting APIC ID: ", localApic.apicId, "\n");
 
@@ -138,10 +138,9 @@ void KmInitSmp(km::SystemMemory& memory, km::LocalAPIC& bsp, acpi::AcpiTables& a
         KmDebugMessage("[SMP] APIC ID: ", localApic.apicId, " started.\n");
 
         // TODO: should really have a condition variable here
-        // while (!info->ready) {
-        //     // Spin until the core is ready
-        // }
-
-        KmDebugMessage("[SMP] APIC ID: ", localApic.apicId, " is ready.\n");
+        while (!smpInfo->ready) {
+            _mm_pause();
+            // Spin until the core is ready
+        }
     }
 }
