@@ -77,10 +77,10 @@ static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory& memory) {
             x64::GdtEntry(x64::Flags::eProtectedMode, x64::Access::eData, 0xFFFF),
 
             // Long mode code segment
-            x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eCode, 0),
+            x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eCode, 0xFFFF),
 
             // Long mode data segment
-            x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eData, 0)
+            x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eData, 0xFFFF)
         },
         .gdtr = {
             .limit = sizeof(SmpInfoHeader::gdtEntries) - 1,
@@ -96,11 +96,11 @@ void KmInitSmp(km::SystemMemory& memory, km::LocalAPIC& bsp, acpi::AcpiTables& a
     memcpy(smpStartBlob, _binary_smp_start, blobSize);
 
     uint32_t bspId = bsp.id();
-    void *smpInfo = memory.hhdmMap(kSmpInfo, kSmpInfo + km::pages(0x1000));
+    SmpInfoHeader *smpInfo = memory.hhdmMapObject<SmpInfoHeader>(kSmpInfo);
 
     // Also identity map the SMP blob and info regions, it makes jumping to compatibility mode easier.
     // I think theres a better way to do this, but I'm not sure what it is.
-    memory.vmm.mapRange({ kSmpInfo, kSmpInfo + km::pages(0x1000) }, kSmpInfo.address, km::PageFlags::eData);
+    memory.vmm.mapRange({ kSmpInfo, kSmpInfo + sizeof(SmpInfoHeader) }, kSmpInfo.address, km::PageFlags::eData);
     memory.vmm.mapRange({ kSmpStart, kSmpStart + blobSize }, kSmpStart.address, km::PageFlags::eCode);
 
     SmpInfoHeader header = SetupSmpInfoHeader(memory);

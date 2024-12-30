@@ -115,12 +115,13 @@ KmSmpTrampoline32:
     or $(1 << 31), %eax
     mov %eax, %cr0
 
+    1: jmp 1b
+
     jmp $KmLongModeCode, $KmSmpTrampoline64
 
 .code64
 .align 16
 KmSmpTrampoline64:
-    1: jmp 1b
 
     // Load the stack we were given
     mov KmSmpStackAddress, %rsp
