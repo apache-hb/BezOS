@@ -93,3 +93,21 @@ struct km::StaticFormat<x64::GdtEntry> {
     using String = stdx::StaticString<256>;
     static String toString(x64::GdtEntry value);
 };
+
+struct SystemGdt {
+    enum : int {
+        eNull,
+        eRealModeCode,
+        eRealModeData,
+        eProtectedModeCode,
+        eProtectedModeData,
+        eLongModeCode,
+        eLongModeData,
+        eLongModeUserCode,
+        eLongModeUserData,
+
+        eCount,
+    };
+
+    x64::GdtEntry entries[eCount];
+};

@@ -491,7 +491,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
 
     // On Oracle VirtualBox the COM1 port is functional but fails the loopback test.
     // If we are running on VirtualBox, retry the serial port initialization without the loopback test.
-    if (com1Status != SerialPortStatus::eOk && platform.isOracleVirtualBox()) {
+    if (com1Status == SerialPortStatus::eLoopbackTestFailed && platform.isOracleVirtualBox()) {
         KmUpdateSerialPort(com1Info);
     }
 
