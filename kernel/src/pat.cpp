@@ -42,6 +42,10 @@ bool x64::HasMtrrSupport() {
     return cpuid.edx & kMtrrSupportBit;
 }
 
+uint64_t x64::LoadPatMsr(void) {
+    return kPatMsr.load();
+}
+
 /// PAT
 
 
@@ -55,7 +59,7 @@ km::MemoryType x64::detail::GetPatEntry(uint64_t pat, uint8_t index) {
 }
 
 x64::PageAttributeTable::PageAttributeTable()
-    : mValue(kPatMsr.load())
+    : mValue(LoadPatMsr())
 { }
 
 void x64::PageAttributeTable::setEntry(uint8_t index, km::MemoryType type) {

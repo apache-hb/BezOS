@@ -7,10 +7,10 @@ km::SystemMemory::SystemMemory(SystemMemoryLayout memory, uintptr_t bits, uintpt
     , vmm(&pager, &pmm)
 { }
 
-void *km::SystemMemory::hhdmMap(PhysicalAddress begin, PhysicalAddress end) {
+void *km::SystemMemory::hhdmMap(PhysicalAddress begin, PhysicalAddress end, PageFlags flags) {
     MemoryRange range { begin, end };
     VirtualAddress vaddr = { begin.address + pager.hhdmOffset() };
-    vmm.mapRange(range, vaddr, PageFlags::eData);
+    vmm.mapRange(range, vaddr, flags);
     pmm.markRangeUsed(range);
     return (void*)vaddr.address;
 }

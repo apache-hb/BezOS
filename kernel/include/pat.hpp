@@ -22,6 +22,8 @@ namespace x64 {
     /// @return True if the processor supports the MTRRs, false otherwise.
     bool HasMtrrSupport(void);
 
+    uint64_t LoadPatMsr(void);
+
     class PageAttributeTable {
         uint64_t mValue;
 

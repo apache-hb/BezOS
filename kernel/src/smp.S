@@ -6,6 +6,16 @@ KmSmpInfoStart:
 KmSmpStartAddress:
     .quad 0 // Address of the smp startup C++ code
 
+    // PAT MSR value from the BSP we need to copy before enabling paging
+KmSmpPageAttributeTable0:
+    .long 0
+KmSmpPageAttributeTable1:
+    .long 0
+KmSmpPml4:
+    .long 0 // Address of the PML4 table
+KmSmpHhdmOffset:
+    .quad 0 // Offset of the HHDM from the start of the kernel
+
 .align 16
 KmGdtBegin:
     .quad 0 // Null
@@ -23,6 +33,10 @@ KmGdtValue:
     .quad KmGdtBegin
 
 .equ KmGdtAddress, 0x7000 + (KmGdtValue - KmSmpInfoStart)
+.equ KmPat0Address, 0x7000 + (KmSmpPageAttributeTable0 - KmSmpInfoStart)
+.equ KmPat1Address, 0x7000 + (KmSmpPageAttributeTable1 - KmSmpInfoStart)
+.equ KmPml4Address, 0x7000 + (KmSmpPml4 - KmSmpInfoStart)
+.equ KmHhdmOffsetAddress, 0x7000 + (KmSmpHhdmOffset - KmSmpInfoStart)
 
 .equ KmRealModeCode, 8
 .equ KmRealModeData, 16
@@ -52,22 +66,49 @@ KmSmpTrampoline:
 .code32
 .align 32
 KmSmpTrampoline32:
-    1: jmp 1b
-
     // Setup protected mode data segment
     mov $KmProtectedModeData, %ax
+
     mov %ax, %ds
-    mov %ax, %ss
     mov %ax, %es
     mov %ax, %fs
     mov %ax, %gs
-    mov %ax, %ss
 
+    // Clear the cr4 register, we don't want anything set yet
     xor %eax, %eax
-    lldt %ax
+    mov %eax, %cr4
 
-    jmp KmSmpTrampoline32
+    // Copy the PAT MSR value from the BSP
+    mov KmPat0Address, %eax
+    mov KmPat1Address, %edx
+    mov $0x277, %ecx
+    wrmsr
+
+    // Enable PAE - CR4.PAE (bit 5)
+    // Enable WP - CR4.WP (bit 16)
+    mov %cr4, %eax
+    or $(1 << 5) | (1 << 16), %eax
+    mov %eax, %cr4
+
+    // Enable IA32_EFER.LME (bit 8) to start entering long mode
+    mov $0xc0000080, %ecx
+    rdmsr
+    or $(1 << 8), %eax
+    xor %edx, %edx
+    wrmsr
+
+    // Setup cr3 to point to the PML4 table
+    mov KmPml4Address, %eax
+    mov %eax, %cr3
+
+    // Enable paging - CR0.PG (bit 31)
+    mov %cr0, %eax
+    or $(1 << 31), %eax
+    mov %eax, %cr0
+
+    jmp $KmLongModeCode, $KmSmpTrampoline64
 
 .code64
 .align 16
 KmSmpTrampoline64:
+    jmp KmSmpTrampoline64

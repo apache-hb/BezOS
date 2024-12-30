@@ -2,19 +2,27 @@
 I thought it would be funny
 
 ## Building
-1. install `clang` (preferrably 9/10), `nasm`, `python3.7`
+1. install `clang` (preferrably 19/20) and `meson`
 2. execute
 ```sh
-meson build --cross-file x64-clang-cross.ini
-ninja -C build
+./setup.sh
+make
 ```
-1. kernel will be in `build/boot/<boot>/bezos.bin`
+3. kernel will be in `install/bezos.iso`
 
 ## Running
 
-### Bios
-1. install `qemu`
-2. run with `qemu.bat build\boot\<boot>\bezos.bin`
+### On qemu
+```sh
+./qemu.sh
+```
+
+### On other emulators (assumes wsl2 inside a windows host)
+```sh
+make hyperv
+make vbox
+make vmware
+```
 
 ## Mentions
 1. Marley on the osdev discord for being incredibly clever and knowledgable
