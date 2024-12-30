@@ -48,7 +48,6 @@ namespace sm {
 
     stdx::StringView toString(char buffer[Memory::kStringSize], Memory value);
 
-
     constexpr Memory bytes(size_t bytes) { return Memory(bytes, Memory::eBytes); }
     constexpr Memory kilobytes(size_t kilobytes) { return Memory(kilobytes, Memory::eKilobytes); }
     constexpr Memory megabytes(size_t megabytes) { return Memory(megabytes, Memory::eMegabytes); }

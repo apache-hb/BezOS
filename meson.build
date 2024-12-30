@@ -88,6 +88,8 @@ src = [
     'kernel/src/display.cpp',
     'kernel/src/smbios.cpp',
 
+    'kernel/src/arch/cr.cpp',
+
     # smp setup
     'kernel/src/smp.cpp',
     smp,
@@ -134,6 +136,7 @@ testcases = {
     'pat': [ 'kernel/test/page_attribute_table.cpp', 'kernel/src/pat.cpp', 'kernel/src/util/cpuid.cpp', ],
     'paging': [ 'kernel/test/paging.cpp', ],
     'pmm': [ 'kernel/test/pmm.cpp', 'kernel/src/memory/bitmap.cpp', ],
+    'arch cr': [ 'kernel/test/arch/cr.cpp', 'kernel/src/arch/cr.cpp', ],
 }
 
 foreach name, source : testcases

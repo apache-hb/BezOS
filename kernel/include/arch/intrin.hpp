@@ -86,14 +86,17 @@ static inline void __DEFAULT_FN_ATTRS __int() {
     asm volatile("int %0" :: "N"(N));
 }
 
-namespace x64 {
-    static inline uint64_t __DEFAULT_FN_ATTRS cr3() {
-        uint64_t value;
-        asm volatile("mov %%cr3, %0" : "=r"(value));
-        return value;
+#define X64_CONTROL_REGISTER(name) \
+    static inline uint64_t __DEFAULT_FN_ATTRS name() { \
+        uint64_t value; \
+        asm volatile("mov %%" #name ", %0" : "=r"(value)); \
+        return value; \
+    } \
+    static inline void __DEFAULT_FN_ATTRS set##name(uint64_t value) { \
+        asm volatile("mov %0, %%" #name :: "r"(value)); \
     }
 
-    static inline void __DEFAULT_FN_ATTRS setcr3(uint64_t value) {
-        asm volatile("mov %0, %%cr3" :: "r"(value));
-    }
+namespace x64 {
+    X64_CONTROL_REGISTER(cr2)
+    X64_CONTROL_REGISTER(cr3)
 }

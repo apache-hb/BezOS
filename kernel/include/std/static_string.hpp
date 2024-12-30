@@ -15,7 +15,7 @@ namespace stdx {
 
         constexpr void init(const T *front, const T *back) {
             mSize = std::clamp<ssize_t>(back - front, 0, std::size(mStorage));
-            memcpy(mStorage, front, mSize * sizeof(T));
+            std::copy_n(front, mSize, mStorage);
         }
 
     public:
@@ -50,6 +50,42 @@ namespace stdx {
         constexpr const T *begin() const { return mStorage; }
         constexpr const T *end() const { return mStorage + mSize; }
 
+        constexpr void clear() {
+            mSize = 0;
+        }
+
+        template<typename R> requires IsRange<const T, R>
+        constexpr void add(const R& range) {
+            add(std::begin(range), std::end(range));
+        }
+
+        constexpr void add(const T *front [[gnu::nonnull]], const T *back [[gnu::nonnull]]) {
+            size_t size = back - front;
+            size_t newSize = mSize + size;
+            if (newSize > N) {
+                size = N - mSize;
+            }
+
+            std::copy_n(front, size, mStorage + mSize);
+            mSize += size;
+        }
+
+        constexpr bool endsWith(StringViewBase<T> view) const {
+            if (view.count() > mSize) {
+                return false;
+            }
+
+            return std::equal(view.begin(), view.end(), end() - view.count());
+        }
+
+        constexpr bool startsWith(StringViewBase<T> view) const {
+            if (view.count() > mSize) {
+                return false;
+            }
+
+            return std::equal(view.begin(), view.end(), begin());
+        }
+
         constexpr T& operator[](size_t index) {
             return mStorage[index];
         }
@@ -69,4 +105,13 @@ namespace stdx {
 
     template<size_t N>
     using StaticString = StaticStringBase<char, N>;
+
+    template<typename T>
+    struct IsStaticString : std::false_type { };
+
+    template<size_t N>
+    struct IsStaticString<StaticString<N>> : std::true_type { };
+
+    template<typename T>
+    concept StaticStringType = IsStaticString<T>::value;
 }

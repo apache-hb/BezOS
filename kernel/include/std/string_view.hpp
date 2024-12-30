@@ -27,6 +27,11 @@ namespace stdx {
             , mBack(back)
         { }
 
+        template<size_t N>
+        static constexpr StringViewBase ofString(const T (&str)[N]) {
+            return StringViewBase(str, str + N - 1);
+        }
+
         constexpr ssize_t count() const { return mBack - mFront; }
         constexpr ssize_t sizeInBytes() const { return count() * sizeof(T); }
         constexpr bool isEmpty() const { return mBack == mFront; }

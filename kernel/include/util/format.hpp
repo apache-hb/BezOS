@@ -2,6 +2,7 @@
 
 #include "std/span.hpp"
 #include "std/string_view.hpp"
+#include "std/static_string.hpp"
 #include "std/traits.hpp"
 
 namespace km {
@@ -12,6 +13,11 @@ namespace km {
     concept IsStaticFormat = requires(T it) {
         { StaticFormat<T>::kStringSize } -> std::convertible_to<size_t>;
         { StaticFormat<T>::toString(std::declval<char*>(), it) } -> std::same_as<stdx::StringView>;
+    };
+
+    template<typename T>
+    concept IsStaticFormatEx = requires(T it) {
+        { StaticFormat<T>::toString(it) } -> stdx::StaticStringType;
     };
 
     template<std::integral T>
@@ -147,6 +153,21 @@ namespace km {
     template<IsStaticFormat T>
     inline constexpr stdx::StringView format(char *buffer, T value) {
         return StaticFormat<T>::toString(buffer, value);
+    }
+
+    template<IsStaticFormat T>
+    inline constexpr stdx::StaticString<kFormatSize<T>> format(T value) {
+        stdx::StaticString<kFormatSize<T>> result;
+
+        char buffer[kFormatSize<T>];
+        result = format(buffer, value);
+
+        return result;
+    }
+
+    template<IsStaticFormatEx T>
+    inline constexpr auto format(T value) {
+        return StaticFormat<T>::toString(value);
     }
 
     enum class Align {

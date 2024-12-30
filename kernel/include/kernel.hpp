@@ -18,6 +18,12 @@ void KmDebugWrite(const T& value) {
     KmDebugWrite(km::StaticFormat<T>::toString(buffer, value));
 }
 
+template<km::IsStaticFormatEx T>
+void KmDebugWrite(const T& value) {
+    auto result = km::StaticFormat<T>::toString(value);
+    KmDebugWrite(result);
+}
+
 template<km::IsStaticFormat T>
 void KmDebugWrite(km::FormatOf<T> value) {
     char buffer[km::StaticFormat<T>::kStringSize];

@@ -2,7 +2,7 @@
 
 #include "util/cpuid.hpp"
 
-#include "msr.hpp"
+#include "arch/msr.hpp"
 
 static constexpr x64::ModelRegister<0x277, x64::RegisterAccess::eReadWrite> kPatMsr;
 
