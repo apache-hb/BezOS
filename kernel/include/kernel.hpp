@@ -112,6 +112,10 @@ struct KernelFrameBuffer {
     km::PhysicalAddress address;
 
     km::MemoryRange edid;
+
+    size_t size() const {
+        return pitch * height * bpp / 8;
+    }
 };
 
 struct KernelLaunch {

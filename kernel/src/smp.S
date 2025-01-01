@@ -28,6 +28,8 @@ KmGdtBegin:
     .quad 0 // 32-bit data
     .quad 0 // 64-bit code
     .quad 0 // 64-bit data
+    .quad 0 // 64-bit code (user)
+    .quad 0 // 64-bit data (user)
 KmGdtEnd:
 
 .align 16

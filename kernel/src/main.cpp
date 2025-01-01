@@ -107,67 +107,11 @@ void KmDebugWrite(stdx::StringView value) {
     }
 }
 
-enum GdtEntry {
-    eGdtEntry_Null = 0,
-    eGdtEntry_RealModeCode = 1,
-    eGdtEntry_RealModeData = 2,
-    eGdtEntry_ProtectedModeCode = 3,
-    eGdtEntry_ProtectedModeData = 4,
-    eGdtEntry_LongModeCode = 5,
-    eGdtEntry_LongModeData = 6,
-
-    eGdtEntry_Count
-};
-
-static constexpr x64::GdtEntry kGdtEntries[eGdtEntry_Count] = {
-    // Null descriptor
-    [eGdtEntry_Null] = x64::GdtEntry::null(),
-
-    // Real mode code segment
-    [eGdtEntry_RealModeCode] = x64::GdtEntry(
-        x64::Flags::eRealMode,
-        x64::Access::eCode,
-        0xFFFF
-    ),
-
-    // Real mode data segment
-    [eGdtEntry_RealModeData] = x64::GdtEntry(
-        x64::Flags::eRealMode,
-        x64::Access::eData,
-        0xFFFF
-    ),
-
-    // Protected mode code segment
-    [eGdtEntry_ProtectedModeCode] = x64::GdtEntry(
-        x64::Flags::eProtectedMode,
-        x64::Access::eCode,
-        0xFFFF
-    ),
-
-    // Protected mode data segment
-    [eGdtEntry_ProtectedModeData] = x64::GdtEntry(
-        x64::Flags::eProtectedMode,
-        x64::Access::eData,
-        0
-    ),
-
-    // Long mode code segment
-    [eGdtEntry_LongModeCode] = x64::GdtEntry(
-        x64::Flags::eLongMode,
-        x64::Access::eCode,
-        0
-    ),
-
-    // Long mode data segment
-    [eGdtEntry_LongModeData] = x64::GdtEntry(
-        x64::Flags::eLongMode,
-        x64::Access::eData,
-        0
-    )
-};
+static SystemGdt gSystemGdt;
 
 static void KmSetupGdt(void) {
-    KmInitGdt(kGdtEntries, eGdtEntry_Count, eGdtEntry_LongModeCode, eGdtEntry_LongModeData);
+    gSystemGdt = KmGetSystemGdt();
+    KmInitGdt(gSystemGdt.entries, SystemGdt::eCount, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
 }
 
 static PageMemoryTypeLayout KmSetupPat(void) {
@@ -474,7 +418,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     KmSetupGdt();
 
     km::IsrAllocator isrs;
-    KmInitInterrupts(isrs, eGdtEntry_LongModeCode * sizeof(uint64_t));
+    KmInitInterrupts(isrs, SystemGdt::eLongModeCode * sizeof(uint64_t));
     KmInstallExceptionHandlers();
     __sti();
 

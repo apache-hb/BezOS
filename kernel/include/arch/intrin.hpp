@@ -5,12 +5,12 @@
 
 #include <x86intrin.h>
 
-struct [[gnu::packed]] GDTR {
+struct [[gnu::packed]] alignas(16) GDTR {
     uint16_t limit;
     uint64_t base;
 };
 
-struct [[gnu::packed]] IDTR {
+struct [[gnu::packed]] alignas(16) IDTR {
     uint16_t limit;
     uint64_t base;
 };

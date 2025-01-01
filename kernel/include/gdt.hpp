@@ -4,6 +4,7 @@
 #include "util/util.hpp"
 
 #include <stdint.h>
+#include <type_traits>
 
 namespace x64 {
     enum class Flags {
@@ -56,6 +57,8 @@ namespace x64 {
             : mValue(BuildSegmentDescriptor(flags, access, limit))
         { }
 
+        constexpr GdtEntry() : mValue(0) { }
+
         static constexpr GdtEntry null() {
             return GdtEntry(Flags::eNone, Access::eNone, 0);
         }
@@ -86,6 +89,8 @@ namespace x64 {
     constexpr uint64_t kNullDescriptor = 0;
 }
 
+static_assert(std::is_standard_layout_v<x64::GdtEntry>);
+
 void KmInitGdt(const x64::GdtEntry *gdt, uint64_t count, uint64_t codeSelector, uint64_t dataSelector);
 
 template<>
@@ -111,3 +116,7 @@ struct SystemGdt {
 
     x64::GdtEntry entries[eCount];
 };
+
+static_assert(std::is_standard_layout_v<SystemGdt>);
+
+SystemGdt KmGetSystemGdt();

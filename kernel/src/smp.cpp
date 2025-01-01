@@ -6,16 +6,18 @@
 #include "gdt.hpp"
 #include "pat.hpp"
 
-struct [[gnu::packed]] SmpInfoHeader {
+struct SmpInfoHeader {
     uint64_t startAddress;
     uint64_t pat0;
     uint32_t pml4;
     volatile uint32_t ready;
     uint64_t stack;
 
-    alignas(16) x64::GdtEntry gdtEntries[7];
+    alignas(16) SystemGdt gdt;
     alignas(16) GDTR gdtr;
 };
+
+static_assert(std::is_standard_layout_v<SmpInfoHeader>);
 
 extern const char _binary_smp_start[];
 extern const char _binary_smp_end[];
@@ -60,34 +62,15 @@ static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory& memory) {
         .pat0 = pat,
         .pml4 = uint32_t(pml4),
         .ready = 0,
-        .gdtEntries = {
-            // Null descriptor
-            x64::GdtEntry::null(),
-
-            // Real mode code segment
-            x64::GdtEntry(x64::Flags::eRealMode, x64::Access::eCode, 0xffffffff),
-
-            // Real mode data segment
-            x64::GdtEntry(x64::Flags::eRealMode, x64::Access::eData, 0xffffffff),
-
-            // Protected mode code segment
-            x64::GdtEntry(x64::Flags::eProtectedMode, x64::Access::eCode, 0xffffffff),
-
-            // Protected mode data segment
-            x64::GdtEntry(x64::Flags::eProtectedMode, x64::Access::eData, 0xffffffff),
-
-            // Long mode code segment
-            x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eCode, 0xffffffff),
-
-            // Long mode data segment
-            x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eData, 0xffffffff)
-        },
+        .gdt = KmGetSystemGdt(),
         .gdtr = {
-            .limit = sizeof(SmpInfoHeader::gdtEntries) - 1,
-            .base = offsetof(SmpInfoHeader, gdtEntries) + kSmpInfo.address,
+            .limit = sizeof(SmpInfoHeader::gdt) - 1,
+            .base = offsetof(SmpInfoHeader, gdt) + kSmpInfo.address,
         }
     };
 }
+
+static_assert(sizeof(SystemGdt) == (9 * sizeof(uint64_t)), "Dont change the System GDT size without also changing the SMP header in smp.S");
 
 void KmInitSmp(km::SystemMemory& memory, km::LocalAPIC& bsp, acpi::AcpiTables& acpiTables) {
     // copy the SMP blob to the correct location
