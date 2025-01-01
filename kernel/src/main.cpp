@@ -287,6 +287,8 @@ static SerialPortStatus KmInitSerialPort(ComPortInfo info) {
 
 [[noreturn]]
 static void KmDumpIsrContext(const km::IsrContext *context, stdx::StringView message) {
+    // TODO: print lapic id so i can identify which core faulted
+    
     KmDebugMessage("\n[BUG] ", message, "\n");
     KmDebugMessage("| Register | Value\n");
     KmDebugMessage("|----------+------\n");

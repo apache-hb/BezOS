@@ -45,6 +45,7 @@ smp_blob = custom_target('smp',
     command : [
         compiler, '@INPUT@',
         '-T', meson.current_source_dir() / 'data/smp.ld',
+        '-I', meson.current_source_dir() / 'kernel/include',
         '-o', '@OUTPUT@',
         '-nostdlib', '-nostdlib++', '-ffreestanding'
     ],

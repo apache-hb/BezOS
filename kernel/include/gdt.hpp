@@ -1,5 +1,7 @@
 #pragma once
 
+#include "gdt.h"
+
 #include "util/format.hpp"
 #include "util/util.hpp"
 
@@ -101,20 +103,20 @@ struct km::StaticFormat<x64::GdtEntry> {
 
 struct SystemGdt {
     enum : int {
-        eNull,
-        eRealModeCode,
-        eRealModeData,
-        eProtectedModeCode,
-        eProtectedModeData,
-        eLongModeCode,
-        eLongModeData,
-        eLongModeUserCode,
-        eLongModeUserData,
+        eNull = GDT_NULL,
+        eRealModeCode = GDT_16BIT_CODE,
+        eRealModeData = GDT_16BIT_DATA,
+        eProtectedModeCode = GDT_32BIT_CODE,
+        eProtectedModeData = GDT_32BIT_DATA,
+        eLongModeCode = GDT_64BIT_CODE,
+        eLongModeData = GDT_64BIT_DATA,
+        eLongModeUserCode = GDT_64BIT_USER_CODE,
+        eLongModeUserData = GDT_64BIT_USER_DATA,
 
-        eCount,
+        eCount = GDT_COUNT,
     };
 
-    x64::GdtEntry entries[eCount];
+    x64::GdtEntry entries[GDT_COUNT];
 };
 
 static_assert(std::is_standard_layout_v<SystemGdt>);

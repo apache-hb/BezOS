@@ -1,3 +1,5 @@
+#include "gdt.h"
+
 .section .smp.info
 
 .align 16
@@ -45,12 +47,12 @@ KmGdtValue:
 .equ KmPml4Address, 0x7000 + (KmSmpPml4 - KmSmpInfoStart)
 .equ KmSmpStackAddress, 0x7000 + (KmSmpStack - KmSmpInfoStart)
 
-.equ KmRealModeCode, 8
-.equ KmRealModeData, 16
-.equ KmProtectedModeCode, 24
-.equ KmProtectedModeData, 32
-.equ KmLongModeCode, 40
-.equ KmLongModeData, 48
+.equ KmRealModeCode, (GDT_16BIT_CODE * 0x8)
+.equ KmRealModeData, (GDT_16BIT_DATA * 0x8)
+.equ KmProtectedModeCode, (GDT_32BIT_CODE * 0x8)
+.equ KmProtectedModeData, (GDT_32BIT_DATA * 0x8)
+.equ KmLongModeCode, (GDT_64BIT_CODE * 0x8)
+.equ KmLongModeData, (GDT_64BIT_DATA * 0x8)
 
 .section .smp.startup,"a"
 
