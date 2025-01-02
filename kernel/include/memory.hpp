@@ -12,6 +12,8 @@ namespace km {
 
         SystemMemory(SystemMemoryLayout memory, uintptr_t bits, uintptr_t hhdmOffset, PageMemoryTypeLayout types);
 
+        void unmap(void *ptr, size_t size);
+
         void *hhdmMap(PhysicalAddress begin, PhysicalAddress end, PageFlags flags = PageFlags::eData);
 
         template<typename T>

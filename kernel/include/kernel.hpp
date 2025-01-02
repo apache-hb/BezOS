@@ -73,6 +73,8 @@ inline uint8_t __DEFAULT_FN_ATTRS KmReadByte(uint16_t port) {
     return __inbyte(port);
 }
 
+void KmSetupApGdt(void);
+
 extern "C" [[noreturn]] void KmHalt(void);
 
 enum class MemoryMapEntryType {

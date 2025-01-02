@@ -72,6 +72,11 @@ namespace km {
         constexpr VirtualAddress operator+(intptr_t offset) const {
             return VirtualAddress { address + offset };
         }
+
+        constexpr VirtualAddress& operator+=(intptr_t offset) {
+            address += offset;
+            return *this;
+        }
     };
 
     template<typename T>

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "arch/paging.hpp"
 #include "memory/layout.hpp"
 
 #include "memory/paging.hpp"
@@ -102,6 +103,10 @@ namespace km {
         x64::PageMapLevel3 *getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e);
         x64::PageMapLevel2 *getPageMap2(x64::PageMapLevel3 *l3, uint16_t pdpte);
 
+        const x64::PageMapLevel3 *findPageMap3(const x64::PageMapLevel4 *l4, uint16_t pml4e) const;
+        const x64::PageMapLevel2 *findPageMap2(const x64::PageMapLevel3 *l3, uint16_t pdpte) const;
+        x64::PageTable *findPageTable(const x64::PageMapLevel2 *l2, uint16_t pdte) const;
+
         void mapRange4k(MemoryRange range, VirtualAddress vaddr, PageFlags flags, MemoryType type);
         void mapRange2m(MemoryRange range, VirtualAddress vaddr, PageFlags flags, MemoryType type);
 
@@ -117,6 +122,8 @@ namespace km {
         void map2m(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags, MemoryType type = MemoryType::eUncachedOverridable);
 
         void mapRange(MemoryRange range, VirtualAddress vaddr, PageFlags flags, MemoryType type = MemoryType::eUncachedOverridable);
+    
+        void unmap(void *ptr, size_t size);
     };
 }
 

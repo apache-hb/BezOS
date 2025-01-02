@@ -4,6 +4,7 @@
 #include "arch/cr0.hpp"
 #include "arch/cr4.hpp"
 #include "gdt.hpp"
+#include "isr.hpp"
 #include "pat.hpp"
 
 struct SmpInfoHeader {
@@ -31,6 +32,9 @@ static constexpr km::PhysicalAddress kSmpStart = 0x8000;
 
 extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
     KmDebugMessage("[SMP] Starting Core.\n");
+
+    KmSetupApGdt();
+    KmLoadIdt();
 
     header->ready = 1;
 
@@ -126,4 +130,14 @@ void KmInitSmp(km::SystemMemory& memory, km::LocalAPIC& bsp, acpi::AcpiTables& a
             // Spin until the core is ready
         }
     }
+
+    // Now that we're finished, cleanup the smp blob and startup area.
+    
+    // Unmap the HHDM mappings
+    memory.unmap(smpStartBlob, blobSize);
+    memory.unmap(smpInfo, sizeof(SmpInfoHeader));
+
+    // And unmap the identity mappings
+    memory.vmm.unmap((void*)kSmpInfo.address, sizeof(SmpInfoHeader));
+    memory.vmm.unmap((void*)kSmpStart.address, blobSize);
 }

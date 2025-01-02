@@ -81,15 +81,19 @@ void KmInitInterrupts(km::IsrAllocator& isrs, uint16_t codeSelector) {
         KmIsrHandlers[i] = KmDefaultIsrHandler;
     }
 
-    IDTR idtr = {
-        .limit = (sizeof(x64::IdtEntry) * Idt::kCount) - 1,
-        .base = (uintptr_t)&gIdt,
-    };
-
     // claim all the system interrupts
     for (uint8_t i = 0; i < 32; i++) {
         isrs.claimIsr(i);
     }
+
+    KmLoadIdt();
+}
+
+void KmLoadIdt(void) {
+    IDTR idtr = {
+        .limit = (sizeof(x64::IdtEntry) * Idt::kCount) - 1,
+        .base = (uintptr_t)&gIdt,
+    };
 
     __lidt(idtr);
 }

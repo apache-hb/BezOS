@@ -1,5 +1,6 @@
 #include "memory/allocator.hpp"
 
+#include "arch/paging.hpp"
 #include "memory/paging.hpp"
 
 #include "kernel.hpp"
@@ -168,6 +169,45 @@ x64::PageMapLevel2 *VirtualAllocator::getPageMap2(x64::PageMapLevel3 *l3, uint16
     return l2;
 }
 
+const x64::PageMapLevel3 *VirtualAllocator::findPageMap3(const x64::PageMapLevel4 *l4, uint16_t pml4e) const {
+    if (l4->entries[pml4e].present()) {
+        uintptr_t base = mPageManager->address(l4->entries[pml4e]);
+        return std::bit_cast<x64::PageMapLevel3*>(base + mPageManager->hhdmOffset());
+    }
+
+    return nullptr;
+}
+
+const x64::PageMapLevel2 *VirtualAllocator::findPageMap2(const x64::PageMapLevel3 *l3, uint16_t pdpte) const {
+    const x64::pdpte& t3 = l3->entries[pdpte];
+    if (t3.present()) {
+        if (t3.is1g()) {
+            KmDebugMessage("[WARN] Attempted to unmap a 1g page. Currently unimplemented, sorry :(\n");
+            return nullptr;
+        }
+
+        uintptr_t base = mPageManager->address(t3);
+        return std::bit_cast<x64::PageMapLevel2*>(base + mPageManager->hhdmOffset());
+    }
+
+    return nullptr;
+}
+
+x64::PageTable *VirtualAllocator::findPageTable(const x64::PageMapLevel2 *l2, uint16_t pdte) const {
+    const x64::pde& pde = l2->entries[pdte];
+    if (pde.present()) {
+        if (pde.is2m()) {
+            KmDebugMessage("[WARN] Attempted to unmap a 2m page. Currently unimplemented, sorry :(\n");
+            return nullptr;
+        }
+
+        uintptr_t base = mPageManager->address(pde);
+        return std::bit_cast<x64::PageTable*>(base + mPageManager->hhdmOffset());
+    }
+
+    return nullptr;
+}
+
 void VirtualAllocator::mapRange4k(MemoryRange range, VirtualAddress vaddr, PageFlags flags, MemoryType type) {
     for (PhysicalAddress i = range.front; i < range.back; i += x64::kPageSize) {
         map4k(i, vaddr, flags, type);
@@ -253,6 +293,32 @@ void VirtualAllocator::mapRange(MemoryRange range, VirtualAddress vaddr, PageFla
     // if we get to this point its not worth using 2m pages
     // so we just map the range with 4k pages
     mapRange4k(range, vaddr, flags, type);
+}
+
+void VirtualAllocator::unmap(void *ptr, size_t size) {
+    VirtualAddress front = { sm::rounddown((uintptr_t)ptr, x64::kPageSize) };
+    VirtualAddress back = { sm::roundup((uintptr_t)ptr + size, x64::kPageSize) };
+
+    x64::PageMapLevel4 *l4 = (x64::PageMapLevel4*)rootPageTable();
+    
+    for (VirtualAddress i = front; i < back; i += x64::kPageSize) {
+        uint16_t pml4e = (i.address >> 39) & 0b0001'1111'1111;
+        uint16_t pdpte = (i.address >> 30) & 0b0001'1111'1111;
+        uint16_t pdte = (i.address >> 21) & 0b0001'1111'1111;
+        uint16_t pte = (i.address >> 12) & 0b0001'1111'1111;
+
+        const x64::PageMapLevel3 *l3 = findPageMap3(l4, pml4e);
+        if (!l3) continue;
+        
+        const x64::PageMapLevel2 *l2 = findPageMap2(l3, pdpte);
+        if (!l2) continue;
+
+        x64::PageTable *pt = findPageTable(l2, pdte);
+        if (!pt) continue;
+
+        x64::pte& t1 = pt->entries[pte];
+        t1.setPresent(false);
+    }
 }
 
 static void MapKernelPages(VirtualAllocator& memory, km::PhysicalAddress paddr, km::VirtualAddress vaddr) {

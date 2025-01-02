@@ -109,8 +109,12 @@ void KmDebugWrite(stdx::StringView value) {
 
 static SystemGdt gSystemGdt;
 
-static void KmSetupGdt(void) {
+static void KmSetupBspGdt(void) {
     gSystemGdt = KmGetSystemGdt();
+    KmInitGdt(gSystemGdt.entries, SystemGdt::eCount, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
+}
+
+void KmSetupApGdt(void) {
     KmInitGdt(gSystemGdt.entries, SystemGdt::eCount, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
 }
 
@@ -288,7 +292,7 @@ static SerialPortStatus KmInitSerialPort(ComPortInfo info) {
 [[noreturn]]
 static void KmDumpIsrContext(const km::IsrContext *context, stdx::StringView message) {
     // TODO: print lapic id so i can identify which core faulted
-    
+
     KmDebugMessage("\n[BUG] ", message, "\n");
     KmDebugMessage("| Register | Value\n");
     KmDebugMessage("|----------+------\n");
@@ -417,7 +421,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     cr0.set(x64::Cr0::NE);
     x64::Cr0::store(cr0);
 
-    KmSetupGdt();
+    KmSetupBspGdt();
 
     km::IsrAllocator isrs;
     KmInitInterrupts(isrs, SystemGdt::eLongModeCode * sizeof(uint64_t));
@@ -491,7 +495,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
 
     KmWriteMemoryMap(launch.memoryMap, memory);
 
-    // test interrupt to ensure the IDT is working
+    // Test interrupt to ensure the IDT is working
     {
         KmIsrHandler isrHandler = KmInstallIsrHandler(0x1, [](km::IsrContext *context) -> void* {
             KmDebugMessage("[INT] Test interrupt.\n");
