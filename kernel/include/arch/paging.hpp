@@ -1,5 +1,6 @@
 #pragma once
 
+#include "arch/intrin.hpp"
 #include "util/memory.hpp"
 
 #include <stdint.h>
@@ -158,4 +159,8 @@ namespace x64 {
     struct alignas(kPageSize) page {
         uint8_t data[kPageSize];
     };
+
+    static inline __DEFAULT_FN_ATTRS void invlpg(uintptr_t address) {
+        asm volatile("invlpg (%0)" : : "r"(address) : "memory");
+    }
 }

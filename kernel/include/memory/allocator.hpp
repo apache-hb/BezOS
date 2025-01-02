@@ -73,6 +73,7 @@ namespace km {
         /// @brief One allocator for each usable or reclaimable memory range.
         RegionAllocators mAllocators;
 
+        /// @brief One allocator for each memory range below 1M.
         stdx::StaticVector<RegionBitmapAllocator, 4> mLowMemory;
 
     public:
@@ -88,6 +89,9 @@ namespace km {
         /// @return The physical address of the page.
         PhysicalAddress lowMemoryAlloc4k();
 
+        /// @brief Mark a range of memory as used.
+        ///
+        /// @param range The range to mark as used.
         void markRangeUsed(MemoryRange range);
     };
 

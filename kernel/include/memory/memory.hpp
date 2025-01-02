@@ -103,6 +103,10 @@ namespace km {
             return back - front;
         }
 
+        constexpr bool isEmpty() const {
+            return size() == 0;
+        }
+
         /// @brief Checks if the given address is within the range.
         ///
         /// @param addr The address to check.

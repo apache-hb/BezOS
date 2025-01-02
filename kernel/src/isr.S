@@ -8,17 +8,16 @@
 
 /* When in ring0 the kernel gs shouldn't be swapped. */
 /* To ensure it isn't a check is done against the current CS. */
-.macro SWAPGS_KERNEL, offset
+.macro SWAPGS_KERNEL
     /* Code selector is at offset 0x8. */
-    cmpq $(GDT_64BIT_CODE * 0x8), (\offset + 0x8)(%rsp)
+    cmpq $(GDT_64BIT_CODE * 0x8), (0x16 + 0x8)(%rsp)
     je 1f
     swapgs
 1:
 .endm
 
 KmIsrStub:
-    /* The 0x16 is to account for the error and vector values. */
-    SWAPGS_KERNEL 0x16
+    SWAPGS_KERNEL
     
     pushq %rbp
     pushq %r15
@@ -58,7 +57,7 @@ KmIsrStub:
 
     add $16, %rsp
 
-    SWAPGS_KERNEL 0x0
+    SWAPGS_KERNEL
 
     iretq
 

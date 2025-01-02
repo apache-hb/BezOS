@@ -88,6 +88,11 @@ SystemMemoryLayout SystemMemoryLayout::from(const KernelMemoryMap& memmap) {
 
         MemoryMapEntry entry = memmap[i];
 
+        if (entry.range.isEmpty()) {
+            errors.add("Empty memory range.", i);
+            continue;
+        }
+
         switch (entry.type) {
         case MemoryMapEntryType::eUsable:
             addMemoryRange(entry, freeMemory, "Too many usable memory ranges.", usableRangesOverflow);

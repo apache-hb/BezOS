@@ -318,6 +318,7 @@ void VirtualAllocator::unmap(void *ptr, size_t size) {
 
         x64::pte& t1 = pt->entries[pte];
         t1.setPresent(false);
+        x64::invlpg(i.address);
     }
 }
 
