@@ -38,6 +38,10 @@ namespace x64 {
             mValue |= flag;
         }
 
+        void clear(uint32_t flag) {
+            mValue &= ~flag;
+        }
+
         [[gnu::always_inline, gnu::nodebug]]
         static Cr0 load() {
             uint64_t value;

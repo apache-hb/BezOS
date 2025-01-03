@@ -5,7 +5,10 @@
 #include <stddef.h>
 
 #include "apic.hpp"
+
 #include "arch/cr0.hpp"
+#include "arch/cr4.hpp"
+
 #include "delay.hpp"
 #include "display.hpp"
 #include "gdt.hpp"
@@ -47,10 +50,6 @@ public:
     }
 };
 
-class NullLog final : public ILogTarget {
-    void write(stdx::StringView) override { }
-};
-
 class DebugPortLog final : public ILogTarget {
     void write(stdx::StringView message) override {
         for (char c : message) {
@@ -60,15 +59,15 @@ class DebugPortLog final : public ILogTarget {
 };
 
 class TerminalLog final : public ILogTarget {
-    DisplayTerminal mTerminal;
+    BufferedTerminal mTerminal;
 
 public:
     constexpr TerminalLog()
         : mTerminal(sm::noinit{})
     { }
 
-    constexpr TerminalLog(DisplayTerminal terminal)
-        : mTerminal(terminal)
+    constexpr TerminalLog(Canvas display, SystemMemory& memory)
+        : mTerminal(display, memory)
     { }
 
     void write(stdx::StringView message) override {
@@ -76,12 +75,12 @@ public:
     }
 };
 
-constinit static DebugPortLog gDebugPortLog;
 
 // load bearing constinit, clang has a bug in c++26 mode
 // where it doesnt emit a warning for global constructors in all cases.
 constinit static SerialLog gSerialLog;
 constinit static TerminalLog gTerminalLog;
+constinit static DebugPortLog gDebugPortLog;
 
 constinit static stdx::StaticVector<ILogTarget*, 4> gLogTargets;
 
@@ -203,7 +202,7 @@ static void KmMigrateTerminal(const km::Canvas *display, SystemMemory& memory) {
     KmMigrateMemory(memory.vmm, memory.pager, display->address(), display->size(), MemoryType::eWriteCombine);
 }
 
-static SystemMemory KmInitMemoryMap(uintptr_t bits, const KernelLaunch& launch, const km::Canvas *display) {
+static SystemMemory KmInitMemoryMap(uintptr_t bits, const KernelLaunch& launch) {
     PageMemoryTypeLayout pat = KmSetupPat();
 
     SystemMemory memory = SystemMemory { SystemMemoryLayout::from(launch.memoryMap), bits, launch.hhdmOffset, pat };
@@ -216,10 +215,6 @@ static SystemMemory KmInitMemoryMap(uintptr_t bits, const KernelLaunch& launch, 
     // move our stack out of reclaimable memory
     // limine garuntees 64k of stack space
     KmMigrateMemory(memory.vmm, memory.pager, (void*)(launch.stack.front.address + launch.hhdmOffset), launch.stack.size(), MemoryType::eUncached);
-
-    if (display != nullptr) {
-        KmMigrateTerminal(display, memory);
-    }
 
     // once it is safe to remap the boot memory, do so
     KmReclaimBootMemory(memory.pager, memory.vmm, memory.layout);
@@ -255,19 +250,18 @@ static km::PhysicalAddress KmGetRSDPTable(const KernelLaunch& launch) {
     return launch.rsdpAddress;
 }
 
-static bool KmGetTerminal(const KernelLaunch& launch, km::DisplayTerminal *terminal) {
+static km::Canvas KmGetTerminal(const KernelLaunch& launch, SystemMemory& memory) {
     KernelFrameBuffer framebuffer = launch.framebuffer;
     if (framebuffer.address == nullptr)
-        return false;
+        return sm::noinit{};
 
     km::Canvas display { framebuffer, (uint8_t*)(framebuffer.address.address + launch.hhdmOffset) };
-    *terminal = km::DisplayTerminal { display };
-    display.fill(Pixel { 0, 0, 0 });
+    KmMigrateTerminal(&display, memory);
 
-    gTerminalLog = TerminalLog(*terminal);
+    gTerminalLog = TerminalLog(display, memory);
     gLogTargets.add(&gTerminalLog);
 
-    return true;
+    return display;
 }
 
 static void KmUpdateSerialPort(ComPortInfo info) {
@@ -432,6 +426,9 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     cr0.set(x64::Cr0::NE);
     x64::Cr0::store(cr0);
 
+    KmDebugMessage("[CPU] CR0: ", cr0, "\n");
+    KmDebugMessage("[CPU] CR4: ", x64::Cr4::load(), "\n");
+
     KmSetupBspGdt();
 
     km::IsrAllocator isrs;
@@ -439,15 +436,10 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     KmInstallExceptionHandlers();
     __sti();
 
-    km::DisplayTerminal terminal = sm::noinit{};
-    km::Canvas *display = nullptr;
-
-    if (KmGetTerminal(launch, &terminal)) {
-        display = &terminal.display();
-    }
-
-    SystemMemory memory = KmInitMemoryMap(processor.maxpaddr, launch, display);
+    SystemMemory memory = KmInitMemoryMap(processor.maxpaddr, launch);
     gMemoryMap = &memory;
+
+    km::Canvas display = KmGetTerminal(launch, memory);
 
     PlatformInfo platform = KmGetPlatformInfo(launch, memory);
 
@@ -494,11 +486,12 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     KmDebugMessage("| /SYS/MB/CPU0  | Local APIC           | ", present(processor.hasLocalApic), "\n");
     KmDebugMessage("| /SYS/MB/CPU0  | 2x APIC              | ", present(processor.has2xApic), "\n");
 
-    if (display != nullptr) {
-        KmDebugMessage("| /SYS/VIDEO    | Display resolution   | ", display->width(), "x", display->height(), "x", display->bpp(), "\n");
-        KmDebugMessage("| /SYS/VIDEO    | Framebuffer size     | ", sm::bytes(display->size()), "\n");
-        KmDebugMessage("| /SYS/VIDEO    | Display pitch        | ", display->pitch(), "\n");
-        KmDebugMessage("| /SYS/VIDEO    | Display bpp          | ", display->bpp(), "\n");
+    if (display.address() != nullptr) {
+        KmDebugMessage("| /SYS/VIDEO    | Display resolution   | ", display.width(), "x", display.height(), "x", display.bpp(), "\n");
+        KmDebugMessage("| /SYS/VIDEO    | Framebuffer size     | ", sm::bytes(display.size()), "\n");
+        KmDebugMessage("| /SYS/VIDEO    | Framebuffer address  | ", display.address(), "\n");
+        KmDebugMessage("| /SYS/VIDEO    | Display pitch        | ", display.pitch(), "\n");
+        KmDebugMessage("| /SYS/VIDEO    | Display bpp          | ", display.bpp(), "\n");
     }
 
     KmDebugMessage("| /SYS/MB/COM1  | Status               | ", com1Status, "\n");

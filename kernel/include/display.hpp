@@ -184,7 +184,19 @@ namespace km {
     public:
         BufferedTerminal(Canvas display, SystemMemory& memory);
 
+        constexpr BufferedTerminal(sm::noinit)
+            : mCurrentColumn(0)
+            , mCurrentRow(0)
+            , mColumnCount(0)
+            , mRowCount(0)
+            , mDisplay(sm::noinit{})
+            , mBackBuffer(sm::noinit{})
+            , mTextBuffer(nullptr)
+        { }
+
         void print(stdx::StringView message);
         void flush();
+
+        void fill(Pixel pixel) { mBackBuffer.fill(pixel); }
     };
 }

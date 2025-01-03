@@ -74,7 +74,9 @@ src = [
     'kernel/src/memory/bitmap.cpp',
 
     # various architecture features
-    'kernel/src/crt.c',
+    'kernel/src/crt.cpp',
+    'kernel/src/crt_freestanding.cpp',
+
     'kernel/src/cxxrt.cpp',
     'kernel/src/isr.cpp',
     'kernel/src/isr.S',
@@ -145,6 +147,7 @@ testcases = {
     'arch cr': [ 'kernel/test/arch/cr.cpp', 'kernel/src/arch/cr.cpp', ],
     'arch gdt': [ 'kernel/test/arch/gdt.cpp', 'kernel/src/gdt.cpp', ],
     'framebuffer': [ 'kernel/test/display.cpp', 'kernel/src/canvas.cpp', ],
+    'crt': [ 'kernel/test/crt.cpp', 'kernel/src/crt.cpp', ],
 }
 
 foreach name, source : testcases

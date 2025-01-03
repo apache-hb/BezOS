@@ -137,6 +137,14 @@ namespace km {
         }
     };
 
+    template<>
+    struct StaticFormat<void*> {
+        static constexpr size_t kStringSize = stdx::NumericTraits<uintptr_t>::kMaxDigits16 + 2;
+        static stdx::StringView toString(char *buffer, void *value) {
+            return StaticFormat<Hex<uintptr_t>>::toString(buffer, Hex<uintptr_t> { reinterpret_cast<uintptr_t>(value) });
+        }
+    };
+
     template<std::integral T>
     struct StaticFormat<Int<T>> {
         static constexpr size_t kStringSize = stdx::NumericTraits<T>::kMaxDigits10;

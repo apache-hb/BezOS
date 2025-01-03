@@ -1,18 +1,14 @@
 #include <string.h>
 #include <stdint.h>
 
-void *memcpy(void *dest, const void *src, size_t n) {
-    uint8_t *pdest = (uint8_t *)dest;
-    const uint8_t *psrc = (const uint8_t *)src;
+#include "crt.hpp"
 
-    for (size_t i = 0; i < n; i++) {
-        pdest[i] = psrc[i];
-    }
-
+extern "C" void *memcpy(void *dest, const void *source, size_t n) {
+    KmMemoryCopy(dest, source, n);
     return dest;
 }
 
-void *memset(void *s, int c, size_t n) {
+extern "C" void *memset(void *s, int c, size_t n) {
     uint8_t *p = (uint8_t *)s;
 
     for (size_t i = 0; i < n; i++) {
@@ -22,7 +18,7 @@ void *memset(void *s, int c, size_t n) {
     return s;
 }
 
-void *memmove(void *dest, const void *src, size_t n) {
+extern "C" void *memmove(void *dest, const void *src, size_t n) {
     uint8_t *pdest = (uint8_t *)dest;
     const uint8_t *psrc = (const uint8_t *)src;
 
@@ -39,7 +35,7 @@ void *memmove(void *dest, const void *src, size_t n) {
     return dest;
 }
 
-int memcmp(const void *s1, const void *s2, size_t n) {
+extern "C" int memcmp(const void *s1, const void *s2, size_t n) {
     const uint8_t *p1 = (const uint8_t *)s1;
     const uint8_t *p2 = (const uint8_t *)s2;
 
@@ -52,7 +48,7 @@ int memcmp(const void *s1, const void *s2, size_t n) {
     return 0;
 }
 
-char *strcpy(char *dest, const char *src) {
+extern "C" char *strcpy(char *dest, const char *src) {
     char *pdest = dest;
     const char *psrc = src;
 
