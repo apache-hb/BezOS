@@ -94,11 +94,13 @@ namespace km {
     }
 
     constexpr stdx::StringView present(bool present) {
-        return present ? stdx::StringView("Present") : stdx::StringView("Not present");
+        using namespace stdx::literals;
+        return present ? "Present"_sv : "Not Present"_sv;
     }
 
     constexpr stdx::StringView enabled(bool enabled) {
-        return enabled ? stdx::StringView("Enabled") : stdx::StringView("Disabled");
+        using namespace stdx::literals;
+        return enabled ? "Enabled"_sv : "Disabled"_sv;
     }
 
     template<>
@@ -143,7 +145,8 @@ namespace km {
     struct StaticFormat<bool> {
         static constexpr size_t kStringSize = 8;
         static stdx::StringView toString(char*, bool value) {
-            return value ? stdx::StringView("true") : stdx::StringView("false");
+            using namespace stdx::literals;
+            return value ? "True"_sv : "False"_sv;
         }
     };
 

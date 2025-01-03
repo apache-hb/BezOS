@@ -1,8 +1,7 @@
 #include "smp.hpp"
 
 #include "arch/paging.hpp"
-#include "arch/cr0.hpp"
-#include "arch/cr4.hpp"
+
 #include "gdt.hpp"
 #include "isr.hpp"
 #include "pat.hpp"
@@ -67,7 +66,7 @@ static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory& memory) {
 
 static_assert(sizeof(SystemGdt) == (9 * sizeof(uint64_t)), "Dont change the System GDT size without also changing the SMP header in smp.S");
 
-void KmInitSmp(km::SystemMemory& memory, km::LocalAPIC& bsp, acpi::AcpiTables& acpiTables) {
+void KmInitSmp(km::SystemMemory& memory, km::LocalApic& bsp, acpi::AcpiTables& acpiTables) {
     // copy the SMP blob to the correct location
     size_t blobSize = GetSmpBlobSize();
     void *smpStartBlob = memory.hhdmMap(kSmpStart, kSmpStart + blobSize, km::PageFlags::eAll);

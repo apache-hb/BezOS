@@ -84,7 +84,7 @@ constinit static TerminalLog gTerminalLog;
 
 constinit static stdx::StaticVector<ILogTarget*, 4> gLogTargets;
 
-constinit static LocalAPIC gLocalApic;
+constinit static LocalApic gLocalApic;
 
 // qemu e9 port check - i think bochs does something else
 static bool KmTestDebugPort(void) {
@@ -226,11 +226,11 @@ static SystemMemory KmInitMemoryMap(uintptr_t bits, const KernelLaunch& launch, 
     return memory;
 }
 
-static LocalAPIC KmEnableAPIC(km::VirtualAllocator& vmm, const km::PageManager& pm, km::IsrAllocator& isrs) {
+static LocalApic KmEnableAPIC(km::SystemMemory& memory, km::IsrAllocator& isrs) {
     // disable the 8259 PIC first
-    KmDisablePIC();
+    KmDisablePic();
 
-    LocalAPIC lapic = KmInitLocalAPIC(vmm, pm);
+    LocalApic lapic = KmInitBspLocalApic(memory);
     gLocalApic = lapic;
 
     uint8_t spuriousVec = isrs.allocateIsr();
@@ -289,11 +289,18 @@ static SerialPortStatus KmInitSerialPort(ComPortInfo info) {
     }
 }
 
+static km::SystemMemory *gMemoryMap = nullptr;
+
 [[noreturn]]
 static void KmDumpIsrContext(const km::IsrContext *context, stdx::StringView message) {
-    // TODO: print lapic id so i can identify which core faulted
+    if (gMemoryMap != nullptr) {
+        km::LocalApic lapic = km::LocalApic::current(*gMemoryMap);
 
-    KmDebugMessage("\n[BUG] ", message, "\n");
+        KmDebugMessage("\n[BUG] ", message, " - On core ", lapic.id(), "\n");
+    } else {
+        KmDebugMessage("\n[BUG] ", message, "\n");
+    }
+
     KmDebugMessage("| Register | Value\n");
     KmDebugMessage("|----------+------\n");
     KmDebugMessage("| %RAX     | ", Hex(context->rax).pad(16, '0'), "\n");
@@ -324,23 +331,23 @@ static void KmDumpIsrContext(const km::IsrContext *context, stdx::StringView mes
 
 static void KmInstallExceptionHandlers(void) {
     KmInstallIsrHandler(0x0, [](km::IsrContext *context) -> void* {
-        KmDumpIsrContext(context, "Divide by zero (#DE).");
+        KmDumpIsrContext(context, "Divide by zero (#DE)");
     });
 
     KmInstallIsrHandler(0x6, [](km::IsrContext *context) -> void* {
-        KmDumpIsrContext(context, "Invalid opcode (#UD).");
+        KmDumpIsrContext(context, "Invalid opcode (#UD)");
     });
 
     KmInstallIsrHandler(0x8, [](km::IsrContext *context) -> void* {
-        KmDumpIsrContext(context, "Double fault (#DF).");
+        KmDumpIsrContext(context, "Double fault (#DF)");
     });
 
     KmInstallIsrHandler(0xD, [](km::IsrContext *context) -> void* {
-        KmDumpIsrContext(context, "General protection fault (#GP).");
+        KmDumpIsrContext(context, "General protection fault (#GP)");
     });
 
     KmInstallIsrHandler(0xE, [](km::IsrContext *context) -> void* {
-        KmDumpIsrContext(context, "Page fault (#PF).");
+        KmDumpIsrContext(context, "Page fault (#PF)");
     });
 }
 
@@ -436,6 +443,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     }
 
     SystemMemory memory = KmInitMemoryMap(processor.maxpaddr, launch, display);
+    gMemoryMap = &memory;
 
     PlatformInfo platform = KmGetPlatformInfo(launch, memory);
 
@@ -507,7 +515,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
         KmInstallIsrHandler(0x1, isrHandler);
     }
 
-    LocalAPIC lapic = KmEnableAPIC(memory.vmm, memory.pager, isrs);
+    LocalApic lapic = KmEnableAPIC(memory, isrs);
 
     // test lapic ipis to ensure the local apic is working
     {

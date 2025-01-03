@@ -44,12 +44,12 @@ namespace km {
 
     static constexpr size_t kApicSize = 0x3F0;
 
-    class LocalAPIC {
-        static constexpr uint16_t kSpuriousInt = 0xF0;
-        static constexpr uint16_t kEndOfInt = 0xB0;
-        static constexpr uint16_t kTimerLvt = 0x320;
+    class LocalApic {
         static constexpr uint16_t kApicId = 0x20;
         static constexpr uint16_t kApicVersion = 0x30;
+        static constexpr uint16_t kEndOfInt = 0xB0;
+        static constexpr uint16_t kSpuriousInt = 0xF0;
+        static constexpr uint16_t kTimerLvt = 0x320;
 
         static constexpr uint32_t kIcr1 = 0x310;
         static constexpr uint32_t kIcr0 = 0x300;
@@ -58,16 +58,18 @@ namespace km {
 
         static constexpr uint32_t kApicEnable = (1 << 8);
 
-        km::VirtualAddress mBaseAddress = nullptr;
+        void *mBaseAddress = nullptr;
 
         volatile uint32_t& reg(uint16_t offset) const {
-            return *reinterpret_cast<volatile uint32_t*>(mBaseAddress.address + offset);
+            return *reinterpret_cast<volatile uint32_t*>((char*)mBaseAddress + offset);
         }
 
     public:
-        constexpr LocalAPIC() = default;
+        constexpr LocalApic() = default;
 
-        LocalAPIC(km::VirtualAddress base)
+        static LocalApic current(km::SystemMemory& memory);
+
+        LocalApic(void *base)
             : mBaseAddress(base)
         { }
 
@@ -118,6 +120,8 @@ namespace km {
         void setSpuriousVector(uint8_t vector) {
             setSpuriousInt((spuriousInt() & ~0xFF) | vector);
         }
+
+        void *baseAddress(void) const { return mBaseAddress; }
     };
 
     class IoApic {
@@ -144,5 +148,7 @@ namespace km {
     };
 }
 
-void KmDisablePIC(void);
-km::LocalAPIC KmInitLocalAPIC(km::VirtualAllocator& vmm, const km::PageManager& pm);
+void KmDisablePic(void);
+void KmEnableLocalApic(km::PhysicalAddress baseAddress);
+km::LocalApic KmInitBspLocalApic(km::SystemMemory& memory);
+void KmInitApLocalApic(km::SystemMemory& memory, km::LocalApic& bsp);

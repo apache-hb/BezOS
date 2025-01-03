@@ -12,10 +12,10 @@ void km::SystemMemory::unmap(void *ptr, size_t size) {
 }
 
 
-void *km::SystemMemory::hhdmMap(PhysicalAddress begin, PhysicalAddress end, PageFlags flags) {
+void *km::SystemMemory::hhdmMap(PhysicalAddress begin, PhysicalAddress end, PageFlags flags, MemoryType type) {
     MemoryRange range { begin, end };
     VirtualAddress vaddr = { begin.address + pager.hhdmOffset() };
-    vmm.mapRange(range, vaddr, flags);
+    vmm.mapRange(range, vaddr, flags, type);
     pmm.markRangeUsed(range);
     return (void*)vaddr.address;
 }
