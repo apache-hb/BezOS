@@ -6,6 +6,17 @@
 #include "util/util.hpp"
 
 namespace km {
+    namespace detail {
+        struct Channel {
+            uint8_t size;
+            uint8_t shift;
+
+            uint16_t maxValue() const;
+            uint64_t asValue(uint8_t value) const;
+            uint8_t asChannel(uint64_t value) const;
+        };
+    }
+
     struct Pixel {
         uint8_t r;
         uint8_t g;
@@ -17,24 +28,23 @@ namespace km {
     class PixelFormat {
         uint8_t mBpp;
 
-        uint8_t mRedMaskSize;
-        uint8_t mRedMaskShift;
-
-        uint8_t mGreenMaskSize;
-        uint8_t mGreenMaskShift;
-
-        uint8_t mBlueMaskSize;
-        uint8_t mBlueMaskShift;
+        detail::Channel mRedChannel;
+        detail::Channel mGreenChannel;
+        detail::Channel mBlueChannel;
 
     public:
+        constexpr PixelFormat(sm::noinit)
+            : mBpp(0)
+            , mRedChannel(0, 0)
+            , mGreenChannel(0, 0)
+            , mBlueChannel(0, 0)
+        { }
+
         PixelFormat(uint8_t bpp, uint8_t redMaskSize, uint8_t redMaskShift, uint8_t greenMaskSize, uint8_t greenMaskShift, uint8_t blueMaskSize, uint8_t blueMaskShift)
             : mBpp(bpp)
-            , mRedMaskSize(redMaskSize)
-            , mRedMaskShift(redMaskShift)
-            , mGreenMaskSize(greenMaskSize)
-            , mGreenMaskShift(greenMaskShift)
-            , mBlueMaskSize(blueMaskSize)
-            , mBlueMaskShift(blueMaskShift)
+            , mRedChannel(redMaskSize, redMaskShift)
+            , mGreenChannel(greenMaskSize, greenMaskShift)
+            , mBlueChannel(blueMaskSize, blueMaskShift)
         { }
 
         /// @brief Stores a pixel value as it would be stored in the framebuffer exactly.
@@ -63,18 +73,10 @@ namespace km {
         uint64_t mWidth;
         uint64_t mHeight;
         uint64_t mPitch;
-        uint16_t mBpp;
 
-        uint8_t mRedMaskSize;
-        uint8_t mRedMaskShift;
+        PixelFormat mFormat;
 
-        uint8_t mGreenMaskSize;
-        uint8_t mGreenMaskShift;
-
-        uint8_t mBlueMaskSize;
-        uint8_t mBlueMaskShift;
-
-        uint32_t pixelValue(Pixel it) const;
+        uint64_t pixelValue(Pixel it) const;
         uint64_t pixelOffset(uint64_t x, uint64_t y) const;
 
     public:
@@ -85,13 +87,7 @@ namespace km {
             , mWidth(0)
             , mHeight(0)
             , mPitch(0)
-            , mBpp(0)
-            , mRedMaskSize(0)
-            , mRedMaskShift(0)
-            , mGreenMaskSize(0)
-            , mGreenMaskShift(0)
-            , mBlueMaskSize(0)
-            , mBlueMaskShift(0)
+            , mFormat(sm::noinit{})
         { }
 
         void write(uint64_t x, uint64_t y, Pixel pixel);
@@ -99,15 +95,14 @@ namespace km {
         void fill(Pixel pixel);
 
         void *address() const { return mAddress; }
-        size_t size() const { return mPitch * mHeight * mBpp / 8; }
+        size_t size() const { return mPitch * mHeight * bpp() / 8; }
 
         uint64_t width() const { return mWidth; }
         uint64_t height() const { return mHeight; }
         uint64_t pitch() const { return mPitch; }
-        uint16_t bpp() const { return mBpp; }
-        uint8_t pixelSize() const { return mBpp / 8; }
+        uint16_t bpp() const { return mFormat.bpp(); }
 
-        bool hasLinePadding() const { return mWidth != (mPitch / pixelSize()); }
+        bool hasLinePadding() const { return mWidth != (mPitch / (bpp() / 8)); }
 
         Pixel read(uint64_t x, uint64_t y) const;
     };

@@ -6,41 +6,36 @@
 
 #include "kernel.hpp"
 
-// Pixel colour math without floating point support. What joy.
+uint16_t km::detail::Channel::maxValue() const { return (1 << size) - 1; }
+
+uint64_t km::detail::Channel::asValue(uint8_t value) const {
+    uint16_t max = maxValue();
+    uint16_t c = value * max / 255;
+    return uint64_t(c & max) << shift;
+}
+
+uint8_t km::detail::Channel::asChannel(uint64_t value) const {
+    uint16_t max = maxValue();
+    uint16_t c = (value >> shift) & max;
+    return c * 255 / max;
+}
 
 km::PixelFormat::PixelValue km::PixelFormat::pixelValue(km::Pixel it) const {
-    uint16_t maxRedValue = (1 << mRedMaskSize) - 1;
-    uint16_t maxGreenValue = (1 << mGreenMaskSize) - 1;
-    uint16_t maxBlueValue = (1 << mBlueMaskSize) - 1;
-
-    uint16_t r = it.r * maxRedValue / 255;
-    uint16_t g = it.g * maxGreenValue / 255;
-    uint16_t b = it.b * maxBlueValue / 255;
-
-    return uint64_t(r & maxRedValue) << mRedMaskShift
-         | uint64_t(g & maxGreenValue) << mGreenMaskShift
-         | uint64_t(b & maxBlueValue) << mBlueMaskShift;
+    return mRedChannel.asValue(it.r)
+         | mGreenChannel.asValue(it.g)
+         | mBlueChannel.asValue(it.b);
 }
 
 km::PixelFormat::ChannelValue km::PixelFormat::getRedChannel(PixelValue value) const {
-    uint16_t maxRedValue = (1 << mRedMaskSize) - 1;
-    uint16_t r = (value >> mRedMaskShift) & maxRedValue;
-
-    return r * 255 / maxRedValue;
+    return mRedChannel.asChannel(value);
 }
 
 km::PixelFormat::ChannelValue km::PixelFormat::getGreenChannel(PixelValue value) const {
-    uint16_t maxGreenValue = (1 << mGreenMaskSize) - 1;
-    uint16_t g = (value >> mGreenMaskShift) & maxGreenValue;
-
-    return g * 255 / maxGreenValue;
+    return mGreenChannel.asChannel(value);
 }
 
 km::PixelFormat::ChannelValue km::PixelFormat::getBlueChannel(PixelValue value) const {
-    uint16_t maxBlueValue = (1 << mBlueMaskSize) - 1;
-    uint16_t b = (value >> mBlueMaskShift) & maxBlueValue;
-
-    return b * 255 / maxBlueValue;
+    return mBlueChannel.asChannel(value);
 }
 
 km::Pixel km::PixelFormat::pixelRead(PixelValue value) const {
@@ -56,23 +51,15 @@ km::Display::Display(KernelFrameBuffer framebuffer, uint8_t *address)
     , mWidth(framebuffer.width)
     , mHeight(framebuffer.height)
     , mPitch(framebuffer.pitch)
-    , mBpp(framebuffer.bpp)
-    , mRedMaskSize(framebuffer.redMaskSize)
-    , mRedMaskShift(framebuffer.redMaskShift)
-    , mGreenMaskSize(framebuffer.greenMaskSize)
-    , mGreenMaskShift(framebuffer.greenMaskShift)
-    , mBlueMaskSize(framebuffer.blueMaskSize)
-    , mBlueMaskShift(framebuffer.blueMaskShift)
+    , mFormat(framebuffer.bpp, framebuffer.redMaskSize, framebuffer.redMaskShift, framebuffer.greenMaskSize, framebuffer.greenMaskShift, framebuffer.blueMaskSize, framebuffer.blueMaskShift)
 { }
 
-uint32_t km::Display::pixelValue(Pixel it) const {
-    return uint32_t(it.r & (1 << mRedMaskSize) - 1) << mRedMaskShift
-         | uint32_t(it.g & (1 << mGreenMaskSize) - 1) << mGreenMaskShift
-         | uint32_t(it.b & (1 << mBlueMaskSize) - 1) << mBlueMaskShift;
+uint64_t km::Display::pixelValue(Pixel it) const {
+    return mFormat.pixelValue(it);
 }
 
 uint64_t km::Display::pixelOffset(uint64_t x, uint64_t y) const {
-    return (y * (mPitch / 4) + x) * (mBpp / 8);
+    return (y * (mPitch / 4) + x) * (bpp() / 8);
 }
 
 void km::Display::write(uint64_t x, uint64_t y, Pixel pixel) {
@@ -83,18 +70,14 @@ void km::Display::write(uint64_t x, uint64_t y, Pixel pixel) {
 
     uint32_t pix = pixelValue(pixel);
 
-    memcpy(mAddress + offset, &pix, mBpp / 8);
+    memcpy(mAddress + offset, &pix, bpp() / 8);
 }
 
 km::Pixel km::Display::read(uint64_t x, uint64_t y) const {
     uint8_t offset = pixelOffset(x, y);
     uint32_t *pix = (uint32_t*)(mAddress + offset);
 
-    uint8_t r = (*pix >> mRedMaskShift) & ((1 << mRedMaskSize) - 1);
-    uint8_t g = (*pix >> mGreenMaskShift) & ((1 << mGreenMaskSize) - 1);
-    uint8_t b = (*pix >> mBlueMaskShift) & ((1 << mBlueMaskSize) - 1);
-
-    return Pixel { r, g, b };
+    return mFormat.pixelRead(*pix);
 }
 
 void km::Display::fill(Pixel pixel) {

@@ -27,7 +27,6 @@ TEST(DisplayTest, Simple) {
     ASSERT_EQ(display.height(), framebuffer.height);
     ASSERT_EQ(display.pitch(), framebuffer.pitch);
     ASSERT_EQ(display.bpp(), framebuffer.bpp);
-    ASSERT_EQ(display.pixelSize(), 4);
 
     ASSERT_FALSE(display.hasLinePadding());
 
