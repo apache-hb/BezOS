@@ -67,7 +67,9 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
     KmSetupApGdt();
     KmLoadIdt();
 
-    KmInitApLocalApic(*header->memory, *header->bspApic);
+    km::LocalApic lapic = KmInitApLocalApic(*header->memory, *header->bspApic);
+
+    KmDebugMessage("[SMP] Started AP ", lapic.id(), "\n");
 
     header->ready = 1;
 
@@ -147,8 +149,6 @@ void KmInitSmp(km::SystemMemory& memory, km::LocalApic& bsp, acpi::AcpiTables& a
         // Send the start IPI
         size_t smpStartAddress = kSmpStart.address / x64::kPageSize;
         bsp.sendIpi(localApic.apicId, 0x4600 | smpStartAddress);
-
-        KmDebugMessage("[SMP] APIC ID: ", localApic.apicId, " started.\n");
 
         // TODO: should really have a condition variable here
         while (!smpInfo->ready) {

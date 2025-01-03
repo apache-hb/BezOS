@@ -1,5 +1,6 @@
 #include "apic.hpp"
 
+#include "delay.hpp"
 #include "kernel.hpp"
 #include "arch/msr.hpp"
 
@@ -23,46 +24,30 @@ static constexpr uint64_t kApicBsp = (1 << 8);
 void KmDisablePic(void) {
     KmDebugMessage("[INIT] Disabling PIC\n");
 
-    // TODO: not writing a delay here because it causes a fault on KVM.
-    // On real hardware it's fine, and sometimes even required for correctness.
-    // Need a way of detecting platform type to determine if we need to delay or not.
-
     // start init sequence
-    KmWriteByteNoDelay(kCommandMasterPort, kInitStart);
-    KmWriteByteNoDelay(kCommandSlavePort, kInitStart);
+    KmWriteByte(kCommandMasterPort, kInitStart);
+    KmWriteByte(kCommandSlavePort, kInitStart);
 
     // set interrupt offsets
-    KmWriteByteNoDelay(kDataMasterPort, kMasterIdtStart);
-    KmWriteByteNoDelay(kDataSlavePort, kSlaveIdtStart);
+    KmWriteByte(kDataMasterPort, kMasterIdtStart);
+    KmWriteByte(kDataSlavePort, kSlaveIdtStart);
 
     // set master/slave pin
-    KmWriteByteNoDelay(kDataMasterPort, kSlavePin);
-    KmWriteByteNoDelay(kDataSlavePort, kSlaveId);
+    KmWriteByte(kDataMasterPort, kSlavePin);
+    KmWriteByte(kDataSlavePort, kSlaveId);
 
     // set 8086 mode
-    KmWriteByteNoDelay(kDataMasterPort, 0x1);
-    KmWriteByteNoDelay(kDataSlavePort, 0x1);
+    KmWriteByte(kDataMasterPort, 0x1);
+    KmWriteByte(kDataSlavePort, 0x1);
 
     // mask all interrupts
-    KmWriteByteNoDelay(kDataMasterPort, 0xFF);
-    KmWriteByteNoDelay(kDataSlavePort, 0xFF);
+    KmWriteByte(kDataMasterPort, 0xFF);
+    KmWriteByte(kDataSlavePort, 0xFF);
 
     KmDebugMessage("[INIT] PIC disabled\n");
 }
 
-km::LocalApic km::LocalApic::current(km::SystemMemory& memory) {
-    uint64_t reg = kApicBaseMsr.load();
-
-    KM_CHECK(reg & kApicEnable, "APIC not enabled");
-
-    uintptr_t base = reg & kApicAddressMask;
-
-    // TODO: the apic base may not always be the same for every core
-    // may need to handle this in the future
-    void *addr = memory.hhdmMap(base, base + km::kApicSize);
-
-    return km::LocalApic { addr };
-}
+// local apic setup
 
 static void LogApicStartup(uint64_t msr) {
     using namespace stdx::literals;
@@ -73,10 +58,10 @@ static void LogApicStartup(uint64_t msr) {
 
     stdx::StringView kind = bsp ? "Bootstrap Processor"_sv : "Application Processor"_sv;
 
-    KmDebugMessage("[APIC] APIC: ", km::Hex(msr), ", Base address: ", km::Hex(base), ", State: ", km::enabled(enabled), ", Type: ", kind, "\n");
+    KmDebugMessage("[APIC] Startup: ", km::Hex(msr), ", Base address: ", km::Hex(base), ", State: ", km::enabled(enabled), ", Type: ", kind, "\n");
 }
 
-uint64_t KmEnableLocalApic(km::PhysicalAddress baseAddress) {
+static uint64_t EnableLocalApic(km::PhysicalAddress baseAddress = 0uz) {
     uint64_t msr = kApicBaseMsr.load();
 
     kApicBaseMsr.update(msr, [&](uint64_t& value) {
@@ -93,26 +78,52 @@ uint64_t KmEnableLocalApic(km::PhysicalAddress baseAddress) {
     return msr;
 }
 
-km::LocalApic KmInitBspLocalApic(km::SystemMemory& memory) {
-    using namespace stdx::literals;
-
-    uint64_t msr = KmEnableLocalApic();
-
-    bool enabled = msr & kApicEnable;
-    KM_CHECK(enabled, "BSP APIC not enabled");
+static km::LocalApic MapLocalApic(uint64_t msr, km::SystemMemory& memory) {
+    KM_CHECK(msr & kApicEnable, "APIC not enabled");
 
     uintptr_t base = msr & kApicAddressMask;
 
-    // map the APIC base into the higher half
-    void *addr = memory.hhdmMap(base, base + km::kApicSize);
+    // Intel SDM Vol 3A 12-4 12.4.1
+    // For correct APIC operation, this address space must
+    // be mapped to an area of memory that has
+    // been designated as strong uncacheable (UC)
+    void *addr = memory.hhdmMap(base, base + km::kApicSize, km::PageFlags::eData, km::MemoryType::eUncached);
 
     return km::LocalApic { addr };
 }
 
-void KmInitApLocalApic(km::SystemMemory& memory, km::LocalApic& bsp) {
-    km::PhysicalAddress bspBaseAddress = uintptr_t((std::byte*)bsp.baseAddress() - memory.pager.hhdmOffset());
-    KmEnableLocalApic(bspBaseAddress);
+km::LocalApic km::LocalApic::current(km::SystemMemory& memory) {
+    uint64_t reg = kApicBaseMsr.load();
+
+    return MapLocalApic(reg, memory);
 }
+
+km::LocalApic KmInitBspLocalApic(km::SystemMemory& memory) {
+    uint64_t msr = EnableLocalApic();
+
+    return MapLocalApic(msr, memory);
+}
+
+km::LocalApic KmInitApLocalApic(km::SystemMemory& memory, km::LocalApic& bsp) {
+    // Remap every AP lapic at the same address as the BSP lapic.
+    km::PhysicalAddress bspBaseAddress = uintptr_t(bsp.baseAddress()) - memory.pager.hhdmOffset();
+    uint64_t msr = EnableLocalApic(bspBaseAddress);
+
+    return MapLocalApic(msr, memory);
+}
+
+// local apic methods
+
+uint32_t km::LocalApic::id() const {
+    uint32_t id = reg(kApicId);
+    return id >> 24;
+}
+
+uint32_t km::LocalApic::version() const {
+    return reg(kApicVersion) & 0xFF;
+}
+
+// io apic
 
 static constexpr uint32_t kIoApicSelect = 0x0;
 static constexpr uint32_t kIoApicWindow = 0x10;

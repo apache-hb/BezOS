@@ -6,6 +6,7 @@
 
 #include "apic.hpp"
 #include "arch/cr0.hpp"
+#include "delay.hpp"
 #include "display.hpp"
 #include "gdt.hpp"
 #include "hypervisor.hpp"
@@ -394,11 +395,17 @@ static void KmWriteMemoryMap(const KernelMemoryMap& memmap, const SystemMemory& 
     KmDebugMessage("[INIT] Usable memory: ", sm::bytes(usableMemory), ", Reclaimable memory: ", sm::bytes(reclaimableMemory), "\n");
 }
 
+static void KmInitPortDelay() {
+    KmSetPortDelayMethod(x64::PortDelay::eNone);
+}
+
 extern "C" void KmLaunch(KernelLaunch launch) {
     __cli();
 
-    bool hvPresent = KmIsHypervisorPresent();
-    HypervisorInfo hvInfo;
+    KmInitPortDelay();
+
+    bool hvPresent = IsHypervisorPresent();
+    HypervisorInfo hvInfo{};
     bool hasDebugPort = false;
 
     if (hvPresent) {

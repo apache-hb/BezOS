@@ -5,21 +5,22 @@
 #include <stdint.h>
 
 namespace km {
-    bool KmIsHypervisorPresent(void);
+    bool IsHypervisorPresent();
 
     struct HypervisorInfo {
         stdx::StaticString<12> name;
         uint32_t maxleaf;
 
-        bool isKvm(void) const;
-        bool isQemu(void) const;
-        bool isMicrosoftHyperV(void) const;
+        bool isPresent() const { return maxleaf == 0; }
+        bool isKvm() const;
+        bool isQemu() const;
+        bool isMicrosoftHyperV() const;
 
-        bool platformHasDebugPort(void) const;
+        bool platformHasDebugPort() const;
     };
 
     /// @pre: IsHypervisorPresent() = true
-    HypervisorInfo KmGetHypervisorInfo(void);
+    HypervisorInfo KmGetHypervisorInfo();
 
     struct CoreMultiplier {
         uint32_t tsc;

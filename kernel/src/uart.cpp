@@ -1,5 +1,6 @@
 #include "uart.hpp"
 
+#include "delay.hpp"
 #include "kernel.hpp"
 
 static constexpr uint8_t kDLABOffset = 7;
@@ -63,21 +64,21 @@ km::OpenSerialResult km::openSerial(ComPortInfo info) {
 
     // do initial scratch test
     static constexpr uint8_t kScratchByte = 0x55;
-    KmWriteByteNoDelay(base + kScratch, kScratchByte);
+    KmWriteByte(base + kScratch, kScratchByte);
     if (uint8_t read = KmReadByte(base + kScratch); read != kScratchByte) {
         KmDebugMessage("[UART][", Hex(base), "] Scratch test failed ", Hex(read), " != ", Hex(kScratchByte), "\n");
         return { .status = SerialPortStatus::eScratchTestFailed };
     }
 
     // disable interrupts
-    KmWriteByteNoDelay(base + kInterruptEnable, 0x00);
+    KmWriteByte(base + kInterruptEnable, 0x00);
 
     // enable DLAB
-    KmWriteByteNoDelay(base + kLineControl, (1 << kDLABOffset));
+    KmWriteByte(base + kLineControl, (1 << kDLABOffset));
 
     // set the divisor
-    KmWriteByteNoDelay(base + 0, (info.divisor & 0x00FF) >> 0);
-    KmWriteByteNoDelay(base + 1, (info.divisor & 0xFF00) >> 8);
+    KmWriteByte(base + 0, (info.divisor & 0x00FF) >> 0);
+    KmWriteByte(base + 1, (info.divisor & 0xFF00) >> 8);
 
     // disable DLAB and configure the line
     uint8_t lineControl
@@ -85,7 +86,7 @@ km::OpenSerialResult km::openSerial(ComPortInfo info) {
         | (0 << 2) // one stop bit
         | (0 << 3) // no parity bit
         | (0 << kDLABOffset); // DLAB off
-    KmWriteByteNoDelay(base + kLineControl, lineControl);
+    KmWriteByte(base + kLineControl, lineControl);
 
     // enable fifo
     uint8_t fifoControl
@@ -93,18 +94,18 @@ km::OpenSerialResult km::openSerial(ComPortInfo info) {
         | (1 << 1) // clear receive fifo
         | (1 << 2) // clear transmit fifo
         | (0b11 << 6); // 1 byte threshold
-    KmWriteByteNoDelay(base + kFifoControl, fifoControl);
+    KmWriteByte(base + kFifoControl, fifoControl);
 
     // enable irqs, rts/dtr set
-    KmWriteByteNoDelay(base + kModemControl, 0x0F);
+    KmWriteByte(base + kModemControl, 0x0F);
 
     // do loopback test
-    KmWriteByteNoDelay(base + kModemControl, 0x1E);
+    KmWriteByte(base + kModemControl, 0x1E);
 
     // send a byte and check if it comes back
     if (!info.skipLoopbackTest) {
         static constexpr uint8_t kLoopbackByte = 0xAE;
-        KmWriteByteNoDelay(base + kData, kLoopbackByte);
+        KmWriteByte(base + kData, kLoopbackByte);
         if (uint8_t read = KmReadByte(base + kData); read != kLoopbackByte) {
             KmDebugMessage("[UART][", Hex(base), "] Loopback test failed ", Hex(read), " != ", Hex(kLoopbackByte), "\n");
             return { .status = SerialPortStatus::eLoopbackTestFailed };
@@ -112,7 +113,7 @@ km::OpenSerialResult km::openSerial(ComPortInfo info) {
     }
 
     // disable loopback
-    KmWriteByteNoDelay(base + kModemControl, 0x0F);
+    KmWriteByte(base + kModemControl, 0x0F);
 
     return { .port = SerialPort(info), .status = SerialPortStatus::eOk };
 }

@@ -7,31 +7,31 @@
 using sm::CpuId;
 using namespace stdx::literals;
 
-bool km::KmIsHypervisorPresent(void) {
+bool km::IsHypervisorPresent() {
     static constexpr uint32_t kHypervisorBit = (1 << 31);
 
     CpuId cpuid = CpuId::of(1);
     return cpuid.ecx & kHypervisorBit;
 }
 
-bool km::HypervisorInfo::isKvm(void) const {
+bool km::HypervisorInfo::isKvm() const {
     return name == "KVMKVMKVM\0\0\0"_sv;
 }
 
-bool km::HypervisorInfo::isQemu(void) const {
+bool km::HypervisorInfo::isQemu() const {
     return name == "TCGTCGTCGTCG"_sv;
 }
 
-bool km::HypervisorInfo::isMicrosoftHyperV(void) const {
+bool km::HypervisorInfo::isMicrosoftHyperV() const {
     return name == "Microsoft Hv"_sv;
 }
 
-bool km::HypervisorInfo::platformHasDebugPort(void) const {
+bool km::HypervisorInfo::platformHasDebugPort() const {
     // qemu may use kvm, so check the e9 port in either case
     return isQemu() || isKvm();
 }
 
-km::HypervisorInfo km::KmGetHypervisorInfo(void) {
+km::HypervisorInfo km::KmGetHypervisorInfo() {
     CpuId cpuid = CpuId::of(0x40000000);
 
     char vendor[12];

@@ -88,6 +88,7 @@ src = [
     'kernel/src/hypervisor.cpp',
     'kernel/src/display.cpp',
     'kernel/src/smbios.cpp',
+    'kernel/src/delay.cpp',
 
     'kernel/src/arch/cr.cpp',
 

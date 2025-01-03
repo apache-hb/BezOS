@@ -64,6 +64,10 @@ namespace km {
             return *reinterpret_cast<volatile uint32_t*>((char*)mBaseAddress + offset);
         }
 
+        void setSpuriousInt(uint32_t value) {
+            reg(kSpuriousInt) = value;
+        }
+
     public:
         constexpr LocalApic() = default;
 
@@ -73,20 +77,12 @@ namespace km {
             : mBaseAddress(base)
         { }
 
-        uint32_t id(void) const {
-            return reg(kApicId);
-        }
+        uint32_t id() const;
 
-        uint32_t version(void) const {
-            return reg(kApicVersion) & 0xFF;
-        }
+        uint32_t version() const;
 
-        uint32_t spuriousInt(void) const {
+        uint32_t spuriousInt() const {
             return reg(kSpuriousInt);
-        }
-
-        void setSpuriousInt(uint32_t value) {
-            reg(kSpuriousInt) = value;
         }
 
         void sendIpi(uint32_t dst, uint32_t vector) {
@@ -109,11 +105,11 @@ namespace km {
             reg(kIcr0) = (std::to_underlying(deliver) << 18) | vector;
         }
 
-        void clearEndOfInterrupt(void) {
+        void clearEndOfInterrupt() {
             reg(kEndOfInt) = 0;
         }
 
-        void enable(void) {
+        void enable() {
             setSpuriousInt(spuriousInt() | kApicEnable);
         }
 
@@ -149,6 +145,5 @@ namespace km {
 }
 
 void KmDisablePic(void);
-uint64_t KmEnableLocalApic(km::PhysicalAddress baseAddress = 0uz);
 km::LocalApic KmInitBspLocalApic(km::SystemMemory& memory);
-void KmInitApLocalApic(km::SystemMemory& memory, km::LocalApic& bsp);
+km::LocalApic KmInitApLocalApic(km::SystemMemory& memory, km::LocalApic& bsp);

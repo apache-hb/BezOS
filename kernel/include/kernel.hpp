@@ -2,7 +2,6 @@
 
 #include <stddef.h>
 
-#include "arch/intrin.hpp"
 #include "memory/memory.hpp"
 
 #include "std/static_vector.hpp"
@@ -54,23 +53,6 @@ void KmDebugMessage(T&&... args) {
     KmBeginWrite();
     (KmDebugWrite(args), ...);
     KmEndWrite();
-}
-
-inline void KmDelayIo() {
-    __outbyte(0x80, 0);
-}
-
-inline void __DEFAULT_FN_ATTRS KmWriteByte(uint16_t port, uint8_t value) {
-    __outbyte(port, value);
-    KmDelayIo();
-}
-
-inline void __DEFAULT_FN_ATTRS KmWriteByteNoDelay(uint16_t port, uint8_t value) {
-    __outbyte(port, value);
-}
-
-inline uint8_t __DEFAULT_FN_ATTRS KmReadByte(uint16_t port) {
-    return __inbyte(port);
 }
 
 void KmSetupApGdt(void);
