@@ -46,7 +46,7 @@ km::Pixel km::PixelFormat::pixelRead(PixelValue value) const {
     return Pixel { uint8_t(r), uint8_t(g), uint8_t(b) };
 }
 
-km::Display::Display(KernelFrameBuffer framebuffer, uint8_t *address)
+km::Canvas::Canvas(KernelFrameBuffer framebuffer, uint8_t *address)
     : mAddress(address)
     , mWidth(framebuffer.width)
     , mHeight(framebuffer.height)
@@ -54,15 +54,15 @@ km::Display::Display(KernelFrameBuffer framebuffer, uint8_t *address)
     , mFormat(framebuffer.bpp, framebuffer.redMaskSize, framebuffer.redMaskShift, framebuffer.greenMaskSize, framebuffer.greenMaskShift, framebuffer.blueMaskSize, framebuffer.blueMaskShift)
 { }
 
-uint64_t km::Display::pixelValue(Pixel it) const {
+uint64_t km::Canvas::pixelValue(Pixel it) const {
     return mFormat.pixelValue(it);
 }
 
-uint64_t km::Display::pixelOffset(uint64_t x, uint64_t y) const {
+uint64_t km::Canvas::pixelOffset(uint64_t x, uint64_t y) const {
     return (y * (mPitch / 4) + x) * (bpp() / 8);
 }
 
-void km::Display::write(uint64_t x, uint64_t y, Pixel pixel) {
+void km::Canvas::write(uint64_t x, uint64_t y, Pixel pixel) {
     if (x >= mWidth || y >= mHeight)
         return;
 
@@ -73,14 +73,14 @@ void km::Display::write(uint64_t x, uint64_t y, Pixel pixel) {
     memcpy(mAddress + offset, &pix, bpp() / 8);
 }
 
-km::Pixel km::Display::read(uint64_t x, uint64_t y) const {
+km::Pixel km::Canvas::read(uint64_t x, uint64_t y) const {
     uint8_t offset = pixelOffset(x, y);
     uint32_t *pix = (uint32_t*)(mAddress + offset);
 
     return mFormat.pixelRead(*pix);
 }
 
-void km::Display::fill(Pixel pixel) {
+void km::Canvas::fill(Pixel pixel) {
     for (uint64_t x = 0; x < mWidth; x++) {
         for (uint64_t y = 0; y < mHeight; y++) {
             write(x, y, pixel);
@@ -88,27 +88,31 @@ void km::Display::fill(Pixel pixel) {
     }
 }
 
-void km::Terminal::put(char c) {
-    write(mCurrentColumn, mCurrentRow, c);
-    buffer[mCurrentRow * kColumnCount + mCurrentColumn] = c;
-
-    advance();
-}
-
-void km::Terminal::write(uint64_t x, uint64_t y, char c) {
+void km::DrawCharacter(km::Canvas& display, uint64_t x, uint64_t y, char c, Pixel fg, Pixel bg) {
     x *= 8;
     y *= 8;
     uint64_t letter = kFontData[(uint8_t)c];
 
     for (int i = 0; i < 8; i++) {
         for (int j = 0; j < 8; j++) {
-            Pixel pixel = (letter & (1ull << (i * 8 + j))) ? Pixel { 255, 255, 255 } : Pixel { 0, 0, 0 };
-            mDisplay.write(x + (8 - j), y + i, pixel);
+            Pixel pixel = (letter & (1ull << (i * 8 + j))) ? fg : bg;
+            display.write(x + (8 - j), y + i, pixel);
         }
     }
 }
 
-void km::Terminal::advance() {
+void km::DisplayTerminal::put(char c) {
+    write(mCurrentColumn, mCurrentRow, c);
+    buffer[mCurrentRow * kColumnCount + mCurrentColumn] = c;
+
+    advance();
+}
+
+void km::DisplayTerminal::write(uint64_t x, uint64_t y, char c) {
+    DrawCharacter(mDisplay, x, y, c, Pixel { 255, 255, 255 }, Pixel { 0, 0, 0 });
+}
+
+void km::DisplayTerminal::advance() {
     mCurrentColumn += 1;
 
     if (mCurrentColumn >= kColumnCount) {
@@ -117,7 +121,7 @@ void km::Terminal::advance() {
     }
 }
 
-void km::Terminal::newline() {
+void km::DisplayTerminal::newline() {
     mCurrentRow += 1;
     bool scroll = false;
     if (mCurrentRow >= kRowCount) {
@@ -140,7 +144,7 @@ void km::Terminal::newline() {
     }
 }
 
-void km::Terminal::print(stdx::StringView message) {
+void km::DisplayTerminal::print(stdx::StringView message) {
     for (char c : message) {
         if (c == '\0') {
             continue;

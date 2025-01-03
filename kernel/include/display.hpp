@@ -2,6 +2,8 @@
 
 #include "kernel.hpp"
 #include "math.hpp"
+#include "memory.hpp"
+
 #include "std/string_view.hpp"
 
 #include "util/util.hpp"
@@ -17,6 +19,11 @@ namespace km {
             uint8_t asChannel(uint64_t value) const;
         };
     }
+
+    struct DirtyArea {
+        sm::math::int2 min;
+        sm::math::int2 max;
+    };
 
     struct Pixel {
         uint8_t r;
@@ -68,7 +75,7 @@ namespace km {
         Pixel pixelRead(PixelValue value) const;
     };
 
-    class Display {
+    class Canvas {
         uint8_t *mAddress;
 
         uint64_t mWidth;
@@ -81,9 +88,9 @@ namespace km {
         uint64_t pixelOffset(uint64_t x, uint64_t y) const;
 
     public:
-        Display(KernelFrameBuffer framebuffer, uint8_t *address);
+        Canvas(KernelFrameBuffer framebuffer, uint8_t *address);
 
-        constexpr Display(sm::noinit)
+        constexpr Canvas(sm::noinit)
             : mAddress(nullptr)
             , mWidth(0)
             , mHeight(0)
@@ -108,21 +115,42 @@ namespace km {
         Pixel read(uint64_t x, uint64_t y) const;
     };
 
-    class ITerminal {
+    void DrawCharacter(Canvas& display, uint64_t x, uint64_t y, char c, Pixel fg, Pixel bg);
+
+    class BufferedTerminal {
+        stdx::StaticVector<DirtyArea, 16> mDirty;
+
+        uint16_t mCurrentColumn;
+        uint16_t mCurrentRow;
+
+        uint16_t mColumnCount;
+        uint16_t mRowCount;
+
+        Canvas mDisplay;
+        Canvas mBackBuffer;
+
+        char *mTextBuffer;
+        size_t bufferSize() const { return mColumnCount * mRowCount; }
+
+        void put(char c);
+
+        void advance();
+        void newline();
+
+        void write(uint64_t x, uint64_t y, char c);
+
     public:
-        virtual ~ITerminal() = default;
+        BufferedTerminal(Canvas display, SystemMemory& memory);
 
-        virtual void print(stdx::StringView message) = 0;
-        virtual void flush() = 0;
-
-        virtual sm::math::int2 size() const = 0;
+        void print(stdx::StringView message);
+        void flush();
     };
 
-    class Terminal {
+    class DisplayTerminal {
         static constexpr size_t kColumnCount = 80;
         static constexpr size_t kRowCount = 25;
 
-        Display mDisplay;
+        Canvas mDisplay;
 
         uint16_t mCurrentRow;
         uint16_t mCurrentColumn;
@@ -137,7 +165,7 @@ namespace km {
         void write(uint64_t x, uint64_t y, char c);
 
     public:
-        Terminal(Display display)
+        DisplayTerminal(Canvas display)
             : mDisplay(display)
             , mCurrentRow(0)
             , mCurrentColumn(0)
@@ -145,7 +173,7 @@ namespace km {
             std::fill(std::begin(buffer), std::end(buffer), ' ');
         }
 
-        constexpr Terminal(sm::noinit)
+        constexpr DisplayTerminal(sm::noinit)
             : mDisplay(sm::noinit{})
             , mCurrentRow(0)
             , mCurrentColumn(0)
@@ -155,6 +183,6 @@ namespace km {
 
         void print(stdx::StringView message);
 
-        Display& display() { return mDisplay; }
+        Canvas& display() { return mDisplay; }
     };
 }

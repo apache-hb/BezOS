@@ -20,7 +20,7 @@ TEST(DisplayTest, Simple) {
 
     void *address = std::malloc(framebuffer.size());
 
-    km::Display display(framebuffer, (uint8_t*)address);
+    km::Canvas display(framebuffer, (uint8_t*)address);
 
     ASSERT_EQ(display.size(), framebuffer.size());
     ASSERT_EQ(display.width(), framebuffer.width);
@@ -55,7 +55,7 @@ TEST(DisplayTest, WithLinePadding) {
 
     void *address = std::malloc(framebuffer.size());
 
-    km::Display display(framebuffer, (uint8_t*)address);
+    km::Canvas display(framebuffer, (uint8_t*)address);
 
     ASSERT_EQ(display.size(), framebuffer.size());
     ASSERT_EQ(display.width(), framebuffer.width);

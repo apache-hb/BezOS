@@ -1,8 +1,5 @@
 #pragma once
 
-#include "memory/allocator.hpp"
-#include "memory/layout.hpp"
-
 #include "acpi.hpp"
 
 #include <utility>
@@ -144,6 +141,5 @@ namespace km {
     };
 }
 
-void KmDisablePic(void);
 km::LocalApic KmInitBspLocalApic(km::SystemMemory& memory);
 km::LocalApic KmInitApLocalApic(km::SystemMemory& memory, km::LocalApic& bsp);

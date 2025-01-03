@@ -21,8 +21,8 @@ static constexpr uint64_t kApicAddressMask = 0xFFFFFFFFFFFFF000;
 static constexpr uint64_t kApicEnable = (1 << 11);
 static constexpr uint64_t kApicBsp = (1 << 8);
 
-void KmDisablePic(void) {
-    KmDebugMessage("[INIT] Disabling PIC\n");
+static void Disable8259Pic() {
+    KmDebugMessage("[INIT] Disabling 8259 PIC.\n");
 
     // start init sequence
     KmWriteByte(kCommandMasterPort, kInitStart);
@@ -99,6 +99,9 @@ km::LocalApic km::LocalApic::current(km::SystemMemory& memory) {
 }
 
 km::LocalApic KmInitBspLocalApic(km::SystemMemory& memory) {
+    // Disable the emulated 8259 PIC before starting up the local apic.
+    Disable8259Pic();
+
     uint64_t msr = EnableLocalApic();
 
     return MapLocalApic(msr, memory);

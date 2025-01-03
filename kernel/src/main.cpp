@@ -60,14 +60,14 @@ class DebugPortLog final : public ILogTarget {
 };
 
 class TerminalLog final : public ILogTarget {
-    Terminal mTerminal;
+    DisplayTerminal mTerminal;
 
 public:
     constexpr TerminalLog()
         : mTerminal(sm::noinit{})
     { }
 
-    constexpr TerminalLog(Terminal terminal)
+    constexpr TerminalLog(DisplayTerminal terminal)
         : mTerminal(terminal)
     { }
 
@@ -198,12 +198,12 @@ static void KmSetupMtrrs(const km::PageManager& pm) {
     }
 }
 
-static void KmMigrateTerminal(const km::Display *display, SystemMemory& memory) {
+static void KmMigrateTerminal(const km::Canvas *display, SystemMemory& memory) {
     // migrate framebuffer memory
     KmMigrateMemory(memory.vmm, memory.pager, display->address(), display->size(), MemoryType::eWriteCombine);
 }
 
-static SystemMemory KmInitMemoryMap(uintptr_t bits, const KernelLaunch& launch, const km::Display *display) {
+static SystemMemory KmInitMemoryMap(uintptr_t bits, const KernelLaunch& launch, const km::Canvas *display) {
     PageMemoryTypeLayout pat = KmSetupPat();
 
     SystemMemory memory = SystemMemory { SystemMemoryLayout::from(launch.memoryMap), bits, launch.hhdmOffset, pat };
@@ -228,9 +228,6 @@ static SystemMemory KmInitMemoryMap(uintptr_t bits, const KernelLaunch& launch, 
 }
 
 static LocalApic KmEnableAPIC(km::SystemMemory& memory, km::IsrAllocator& isrs) {
-    // disable the 8259 PIC first
-    KmDisablePic();
-
     LocalApic lapic = KmInitBspLocalApic(memory);
     gLocalApic = lapic;
 
@@ -258,13 +255,13 @@ static km::PhysicalAddress KmGetRSDPTable(const KernelLaunch& launch) {
     return launch.rsdpAddress;
 }
 
-static bool KmGetTerminal(const KernelLaunch& launch, km::Terminal *terminal) {
+static bool KmGetTerminal(const KernelLaunch& launch, km::DisplayTerminal *terminal) {
     KernelFrameBuffer framebuffer = launch.framebuffer;
     if (framebuffer.address == nullptr)
         return false;
 
-    km::Display display { framebuffer, (uint8_t*)(framebuffer.address.address + launch.hhdmOffset) };
-    *terminal = km::Terminal { display };
+    km::Canvas display { framebuffer, (uint8_t*)(framebuffer.address.address + launch.hhdmOffset) };
+    *terminal = km::DisplayTerminal { display };
     display.fill(Pixel { 0, 0, 0 });
 
     gTerminalLog = TerminalLog(*terminal);
@@ -442,8 +439,8 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     KmInstallExceptionHandlers();
     __sti();
 
-    km::Terminal terminal = sm::noinit{};
-    km::Display *display = nullptr;
+    km::DisplayTerminal terminal = sm::noinit{};
+    km::Canvas *display = nullptr;
 
     if (KmGetTerminal(launch, &terminal)) {
         display = &terminal.display();
