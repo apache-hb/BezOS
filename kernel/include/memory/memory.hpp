@@ -80,11 +80,6 @@ namespace km {
     };
 
     template<typename T>
-    struct PhysicalPointer {
-        T *data;
-    };
-
-    template<typename T>
     struct VirtualPointer {
         T *data;
     };

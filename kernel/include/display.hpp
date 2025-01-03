@@ -10,6 +10,51 @@ namespace km {
         uint8_t r;
         uint8_t g;
         uint8_t b;
+
+        constexpr auto operator<=>(const Pixel&) const = default;
+    };
+
+    class PixelFormat {
+        uint8_t mBpp;
+
+        uint8_t mRedMaskSize;
+        uint8_t mRedMaskShift;
+
+        uint8_t mGreenMaskSize;
+        uint8_t mGreenMaskShift;
+
+        uint8_t mBlueMaskSize;
+        uint8_t mBlueMaskShift;
+
+    public:
+        PixelFormat(uint8_t bpp, uint8_t redMaskSize, uint8_t redMaskShift, uint8_t greenMaskSize, uint8_t greenMaskShift, uint8_t blueMaskSize, uint8_t blueMaskShift)
+            : mBpp(bpp)
+            , mRedMaskSize(redMaskSize)
+            , mRedMaskShift(redMaskShift)
+            , mGreenMaskSize(greenMaskSize)
+            , mGreenMaskShift(greenMaskShift)
+            , mBlueMaskSize(blueMaskSize)
+            , mBlueMaskShift(blueMaskShift)
+        { }
+
+        /// @brief Stores a pixel value as it would be stored in the framebuffer exactly.
+        using PixelValue = uint64_t;
+
+        /// @brief Stores the value of a single colour channel in a pixel.
+        /// This is always a value between 0 and 255, while we support displays
+        /// with a higher bit depth, i only care about displaying 8-bit colour.
+        /// This is a kernel bootlog console, not a graphics engine.
+        using ChannelValue = uint8_t;
+
+        uint8_t bpp() const { return mBpp; }
+
+        PixelValue pixelValue(Pixel it) const;
+
+        ChannelValue getRedChannel(PixelValue value) const;
+        ChannelValue getGreenChannel(PixelValue value) const;
+        ChannelValue getBlueChannel(PixelValue value) const;
+
+        Pixel pixelRead(PixelValue value) const;
     };
 
     class Display {
@@ -54,14 +99,17 @@ namespace km {
         void fill(Pixel pixel);
 
         void *address() const { return mAddress; }
-        size_t size() const { return mWidth * mPitch * mBpp / 8; }
+        size_t size() const { return mPitch * mHeight * mBpp / 8; }
 
         uint64_t width() const { return mWidth; }
         uint64_t height() const { return mHeight; }
         uint64_t pitch() const { return mPitch; }
         uint16_t bpp() const { return mBpp; }
+        uint8_t pixelSize() const { return mBpp / 8; }
 
-        bool hasLinePadding() const { return mPitch == mWidth * (mBpp / 8); }
+        bool hasLinePadding() const { return mWidth != (mPitch / pixelSize()); }
+
+        Pixel read(uint64_t x, uint64_t y) const;
     };
 
     class Terminal {

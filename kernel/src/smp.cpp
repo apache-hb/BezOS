@@ -50,16 +50,7 @@ static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory& memory) {
     uintptr_t pml4 = (uintptr_t)memory.vmm.rootPageTable() - memory.pager.hhdmOffset();
     KM_CHECK(pml4 < UINT32_MAX, "PML4 address is above the 4G range.");
 
-    KmDebugMessage("[SMP] PML4: ", km::Hex(pml4).pad(16, '0'), "\n");
-
     uint64_t pat = x64::LoadPatMsr();
-
-    KmDebugMessage("[SMP] PAT: ", km::Hex(pat).pad(16, '0'), "\n");
-
-    KmDebugMessage("[INIT] CR0: ", x64::Cr0::load(), "\n");
-    KmDebugMessage("[INIT] CR2: ", km::Hex(x64::cr2()).pad(16, '0'), "\n");
-    KmDebugMessage("[INIT] CR3: ", km::Hex(x64::cr3()).pad(16, '0'), "\n");
-    KmDebugMessage("[INIT] CR4: ", x64::Cr4::load(), "\n");
 
     return SmpInfoHeader {
         .startAddress = (uintptr_t)KmSmpStartup,
@@ -132,7 +123,7 @@ void KmInitSmp(km::SystemMemory& memory, km::LocalAPIC& bsp, acpi::AcpiTables& a
     }
 
     // Now that we're finished, cleanup the smp blob and startup area.
-    
+
     // Unmap the HHDM mappings
     memory.unmap(smpStartBlob, blobSize);
     memory.unmap(smpInfo, sizeof(SmpInfoHeader));

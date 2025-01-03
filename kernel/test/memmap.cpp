@@ -36,7 +36,6 @@ TEST(MemoryMapTest, AllEntries) {
         memmap.add(MemoryMapEntry { MemoryMapEntryType::eUsable, { 0x1000 + i * 0x1000, 0x2000 + i * 0x1000 } });
     }
 
-    [[maybe_unused]]
     km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(memmap);
 
     ASSERT_TRUE(true) << "Layout created successfully";
@@ -50,7 +49,6 @@ TEST(MemoryMapTest, ManyRanges) {
         memmap.add(MemoryMapEntry { type, { 0x1000ull + i * 0x1000, 0x2000ull + i * 0x1000 } });
     }
 
-    [[maybe_unused]]
     km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(memmap);
 
     ASSERT_TRUE(true) << "Layout created successfully";
@@ -117,7 +115,6 @@ TEST(MemoryMapTest, UnsortedMemory) {
         memmap.add(MemoryMapEntry { MemoryMapEntryType::eUsable, { start, end } });
     }
 
-    [[maybe_unused]]
     km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(memmap);
 
     ASSERT_TRUE(std::is_sorted(layout.available.begin(), layout.available.end(), [](const auto& a, const auto& b) {

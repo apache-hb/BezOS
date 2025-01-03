@@ -6,6 +6,51 @@
 
 #include "kernel.hpp"
 
+// Pixel colour math without floating point support. What joy.
+
+km::PixelFormat::PixelValue km::PixelFormat::pixelValue(km::Pixel it) const {
+    uint16_t maxRedValue = (1 << mRedMaskSize) - 1;
+    uint16_t maxGreenValue = (1 << mGreenMaskSize) - 1;
+    uint16_t maxBlueValue = (1 << mBlueMaskSize) - 1;
+
+    uint16_t r = it.r * maxRedValue / 255;
+    uint16_t g = it.g * maxGreenValue / 255;
+    uint16_t b = it.b * maxBlueValue / 255;
+
+    return uint64_t(r & maxRedValue) << mRedMaskShift
+         | uint64_t(g & maxGreenValue) << mGreenMaskShift
+         | uint64_t(b & maxBlueValue) << mBlueMaskShift;
+}
+
+km::PixelFormat::ChannelValue km::PixelFormat::getRedChannel(PixelValue value) const {
+    uint16_t maxRedValue = (1 << mRedMaskSize) - 1;
+    uint16_t r = (value >> mRedMaskShift) & maxRedValue;
+
+    return r * 255 / maxRedValue;
+}
+
+km::PixelFormat::ChannelValue km::PixelFormat::getGreenChannel(PixelValue value) const {
+    uint16_t maxGreenValue = (1 << mGreenMaskSize) - 1;
+    uint16_t g = (value >> mGreenMaskShift) & maxGreenValue;
+
+    return g * 255 / maxGreenValue;
+}
+
+km::PixelFormat::ChannelValue km::PixelFormat::getBlueChannel(PixelValue value) const {
+    uint16_t maxBlueValue = (1 << mBlueMaskSize) - 1;
+    uint16_t b = (value >> mBlueMaskShift) & maxBlueValue;
+
+    return b * 255 / maxBlueValue;
+}
+
+km::Pixel km::PixelFormat::pixelRead(PixelValue value) const {
+    ChannelValue r = getRedChannel(value);
+    ChannelValue g = getGreenChannel(value);
+    ChannelValue b = getBlueChannel(value);
+
+    return Pixel { uint8_t(r), uint8_t(g), uint8_t(b) };
+}
+
 km::Display::Display(KernelFrameBuffer framebuffer, uint8_t *address)
     : mAddress(address)
     , mWidth(framebuffer.width)
@@ -39,6 +84,17 @@ void km::Display::write(uint64_t x, uint64_t y, Pixel pixel) {
     uint32_t pix = pixelValue(pixel);
 
     memcpy(mAddress + offset, &pix, mBpp / 8);
+}
+
+km::Pixel km::Display::read(uint64_t x, uint64_t y) const {
+    uint8_t offset = pixelOffset(x, y);
+    uint32_t *pix = (uint32_t*)(mAddress + offset);
+
+    uint8_t r = (*pix >> mRedMaskShift) & ((1 << mRedMaskSize) - 1);
+    uint8_t g = (*pix >> mGreenMaskShift) & ((1 << mGreenMaskSize) - 1);
+    uint8_t b = (*pix >> mBlueMaskShift) & ((1 << mBlueMaskSize) - 1);
+
+    return Pixel { r, g, b };
 }
 
 void km::Display::fill(Pixel pixel) {
