@@ -1,6 +1,7 @@
 #pragma once
 
 #include "kernel.hpp"
+#include "math.hpp"
 #include "std/string_view.hpp"
 
 #include "util/util.hpp"
@@ -105,6 +106,16 @@ namespace km {
         bool hasLinePadding() const { return mWidth != (mPitch / (bpp() / 8)); }
 
         Pixel read(uint64_t x, uint64_t y) const;
+    };
+
+    class ITerminal {
+    public:
+        virtual ~ITerminal() = default;
+
+        virtual void print(stdx::StringView message) = 0;
+        virtual void flush() = 0;
+
+        virtual sm::math::int2 size() const = 0;
     };
 
     class Terminal {
