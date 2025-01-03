@@ -64,7 +64,19 @@ km::LocalApic km::LocalApic::current(km::SystemMemory& memory) {
     return km::LocalApic { addr };
 }
 
-void KmEnableLocalApic(km::PhysicalAddress baseAddress) {
+static void LogApicStartup(uint64_t msr) {
+    using namespace stdx::literals;
+
+    uintptr_t base = msr & kApicAddressMask;
+    bool enabled = msr & kApicEnable;
+    bool bsp = msr & kApicBsp;
+
+    stdx::StringView kind = bsp ? "Bootstrap Processor"_sv : "Application Processor"_sv;
+
+    KmDebugMessage("[APIC] APIC: ", km::Hex(msr), ", Base address: ", km::Hex(base), ", State: ", km::enabled(enabled), ", Type: ", kind, "\n");
+}
+
+uint64_t KmEnableLocalApic(km::PhysicalAddress baseAddress) {
     uint64_t msr = kApicBaseMsr.load();
 
     kApicBaseMsr.update(msr, [&](uint64_t& value) {
@@ -75,20 +87,21 @@ void KmEnableLocalApic(km::PhysicalAddress baseAddress) {
             value |= baseAddress.address;
         }
     });
+
+    LogApicStartup(msr);
+
+    return msr;
 }
 
 km::LocalApic KmInitBspLocalApic(km::SystemMemory& memory) {
     using namespace stdx::literals;
 
-    uint64_t msr = kApicBaseMsr.load();
+    uint64_t msr = KmEnableLocalApic();
+
     bool enabled = msr & kApicEnable;
-    KM_CHECK(enabled, "APIC not enabled");
+    KM_CHECK(enabled, "BSP APIC not enabled");
 
     uintptr_t base = msr & kApicAddressMask;
-
-    bool bsp = msr & kApicBsp;
-    stdx::StringView kind = bsp ? "Bootstrap Processor"_sv : "Application Processor"_sv;
-    KmDebugMessage("[INIT] APIC: ", km::Hex(msr), ", Base address: ", km::Hex(base), ", State: ", km::enabled(enabled), ", Type: ", kind, "\n");
 
     // map the APIC base into the higher half
     void *addr = memory.hhdmMap(base, base + km::kApicSize);

@@ -149,6 +149,6 @@ namespace km {
 }
 
 void KmDisablePic(void);
-void KmEnableLocalApic(km::PhysicalAddress baseAddress);
+uint64_t KmEnableLocalApic(km::PhysicalAddress baseAddress = 0uz);
 km::LocalApic KmInitBspLocalApic(km::SystemMemory& memory);
 void KmInitApLocalApic(km::SystemMemory& memory, km::LocalApic& bsp);

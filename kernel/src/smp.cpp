@@ -7,7 +7,6 @@
 #include "pat.hpp"
 
 #include <atomic>
-#include <functional>
 
 /// @brief The info passed to the smp startup blob.
 /// @warning MUST BE KEPT IN SYNC WITH KmSmpInfoStart in smp.S
@@ -67,6 +66,8 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
 
     KmSetupApGdt();
     KmLoadIdt();
+
+    KmInitApLocalApic(*header->memory, *header->bspApic);
 
     header->ready = 1;
 
