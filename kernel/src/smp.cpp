@@ -6,15 +6,42 @@
 #include "isr.hpp"
 #include "pat.hpp"
 
-struct SmpInfoHeader {
-    uint64_t startAddress;
-    uint64_t pat0;
-    uint32_t pml4;
-    volatile uint32_t ready;
-    uint64_t stack;
+#include <atomic>
 
+/// @brief The info passed to the smp startup blob.
+/// @warning MUST BE KEPT IN SYNC WITH KmSmpInfoStart in smp.S
+struct SmpInfoHeader {
+    /// @brief The address of the long mode entry point for the AP.
+    /// @note For now this is always the address of @ref KmSmpStartup.
+    alignas(uint64_t) uintptr_t startAddress;
+
+    /// @brief The PAT MSR value.
+    /// Every core requires the same PAT values when paging is enabled.
+    /// @see Intel SDM Vol3A 10-30 - MULTIPLE-PROCESSOR MANAGEMENT 10.7.4
+    alignas(uint64_t) uint64_t pat;
+
+    /// @brief The physical address of the kernels top level page table.
+    /// @note As this is 32 bit this places a constraint on the pml4 that it must always
+    ///       be in the first 4G of memory. It would be ideal to have a seperate
+    ///       page heirarchy for ap startup to remove this silent constraint.
+    alignas(uint32_t) uint32_t pml4;
+
+    /// @brief The stack pointer for the currently starting AP.
+    alignas(uint64_t) uint64_t stack;
+
+    /// @brief The startup GDT used to reach long mode.
     alignas(16) SystemGdt gdt;
+
+    /// @brief The GDTR that will be loaded.
     alignas(16) GDTR gdtr;
+
+    /// Fields after this point are only visible in C++ land and do not need
+    /// to line up with smp.S
+
+    /// @brief The ready flag.
+    /// Once an AP has been fully started it will set this flag, which signals to
+    /// the BSP that the next core can be started safely.
+    std::atomic<uint32_t> ready;
 };
 
 static_assert(std::is_standard_layout_v<SmpInfoHeader>);
@@ -53,9 +80,8 @@ static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory& memory) {
 
     return SmpInfoHeader {
         .startAddress = (uintptr_t)KmSmpStartup,
-        .pat0 = pat,
+        .pat = pat,
         .pml4 = uint32_t(pml4),
-        .ready = 0,
         .gdt = KmGetSystemGdt(),
         .gdtr = {
             .limit = sizeof(SmpInfoHeader::gdt) - 1,

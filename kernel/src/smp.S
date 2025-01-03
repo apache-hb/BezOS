@@ -6,20 +6,26 @@
 
 KmSmpInfoStart:
 
+// Address of the smp startup C++ code
 KmSmpStartAddress:
-    .quad 0 // Address of the smp startup C++ code
+    .quad 0
 
-    // PAT MSR value from the BSP we need to copy before enabling paging
+// PAT MSR value from the BSP we need to copy before enabling paging.
+.align 0x8
 KmSmpPageAttributeTable0:
     .long 0
 KmSmpPageAttributeTable1:
     .long 0
+
+// Physical address of the top level page table.
+.align 0x4
 KmSmpPml4:
-    .long 0 // Address of the PML4 table
-KmSmpReady:
-    .long 0 // Set to 1 when the AP is initialized
+    .long 0
+
+// Base address of the stack for this AP.
+.align 0x8
 KmSmpStack:
-    .quad 0 // Base of the stack
+    .quad 0
 
 .align 16
 KmGdtBegin:
