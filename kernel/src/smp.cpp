@@ -7,6 +7,7 @@
 #include "pat.hpp"
 
 #include <atomic>
+#include <functional>
 
 /// @brief The info passed to the smp startup blob.
 /// @warning MUST BE KEPT IN SYNC WITH KmSmpInfoStart in smp.S
@@ -42,9 +43,14 @@ struct SmpInfoHeader {
     /// Once an AP has been fully started it will set this flag, which signals to
     /// the BSP that the next core can be started safely.
     std::atomic<uint32_t> ready;
+
+    km::LocalApic *bspApic;
+
+    km::SystemMemory *memory;
 };
 
-static_assert(std::is_standard_layout_v<SmpInfoHeader>);
+static_assert(std::is_standard_layout_v<SmpInfoHeader>, "The SMP header must have the layout smp.S expects.");
+static_assert(sizeof(SmpInfoHeader) < 0x1000, "If the SMP header gets this large it will overwrite the BSP startup area.");
 
 extern const char _binary_smp_start[];
 extern const char _binary_smp_end[];
@@ -72,21 +78,24 @@ static uintptr_t AllocSmpStack(km::SystemMemory& memory) {
     return (uintptr_t)memory.hhdmMap(stack, stack + (x64::kPageSize * 4)) + (x64::kPageSize * 4);
 }
 
-static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory& memory) {
-    uintptr_t pml4 = (uintptr_t)memory.vmm.rootPageTable() - memory.pager.hhdmOffset();
-    KM_CHECK(pml4 < UINT32_MAX, "PML4 address is above the 4G range.");
+static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::LocalApic *lapic) {
+    const km::PageManager& pager = memory->pager;
+    km::VirtualAllocator& vmm = memory->vmm;
 
-    uint64_t pat = x64::LoadPatMsr();
+    uintptr_t pml4 = (uintptr_t)vmm.rootPageTable() - pager.hhdmOffset();
+    KM_CHECK(pml4 < UINT32_MAX, "PML4 address is above the 4G range.");
 
     return SmpInfoHeader {
         .startAddress = (uintptr_t)KmSmpStartup,
-        .pat = pat,
+        .pat = x64::LoadPatMsr(),
         .pml4 = uint32_t(pml4),
         .gdt = KmGetSystemGdt(),
         .gdtr = {
             .limit = sizeof(SmpInfoHeader::gdt) - 1,
             .base = offsetof(SmpInfoHeader, gdt) + kSmpInfo.address,
-        }
+        },
+        .bspApic = lapic,
+        .memory = memory,
     };
 }
 
@@ -106,7 +115,7 @@ void KmInitSmp(km::SystemMemory& memory, km::LocalApic& bsp, acpi::AcpiTables& a
     memory.vmm.mapRange({ kSmpInfo, kSmpInfo + sizeof(SmpInfoHeader) }, kSmpInfo.address, km::PageFlags::eData);
     memory.vmm.mapRange({ kSmpStart, kSmpStart + blobSize }, kSmpStart.address, km::PageFlags::eCode);
 
-    SmpInfoHeader header = SetupSmpInfoHeader(memory);
+    SmpInfoHeader header = SetupSmpInfoHeader(&memory, &bsp);
     memcpy(smpInfo, &header, sizeof(header));
 
     for (const acpi::MadtEntry *madt : *acpiTables.madt()) {

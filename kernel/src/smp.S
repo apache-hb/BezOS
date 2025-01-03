@@ -1,5 +1,10 @@
 #include "gdt.h"
 
+// This section will not be part of the final binary.
+// It is here to calculate the offsets of each field in the smp info structure.
+// The smp startup routines in smp.cpp will create and fill out data
+// and place it at 0x7000.
+
 .section .smp.info
 
 .align 16
@@ -29,15 +34,7 @@ KmSmpStack:
 
 .align 16
 KmGdtBegin:
-    .quad 0 // Null
-    .quad 0 // Real mode code
-    .quad 0 // Real mode data
-    .quad 0 // 32-bit code
-    .quad 0 // 32-bit data
-    .quad 0 // 64-bit code
-    .quad 0 // 64-bit data
-    .quad 0 // 64-bit code (user)
-    .quad 0 // 64-bit data (user)
+    .space (GDT_COUNT * 0x8), 0x0
 KmGdtEnd:
 
 .align 16
@@ -136,7 +133,7 @@ KmSmpTrampoline64:
     // Load the stack we were given
     mov KmSmpStackAddress, %rsp
 
-    // Long jump to reload cs
+    // Long jump to reload CS
     pushq $KmLongModeCode
     lea KmReloadCs(%rip), %rax
     push %rax
