@@ -86,9 +86,13 @@ src = [
     'kernel/src/acpi.cpp',
     'kernel/src/memory.cpp',
     'kernel/src/hypervisor.cpp',
-    'kernel/src/display.cpp',
     'kernel/src/smbios.cpp',
+
     'kernel/src/delay.cpp',
+
+    'kernel/src/canvas.cpp',
+    'kernel/src/terminal/terminal.cpp',
+    'kernel/src/terminal/buffered.cpp',
 
     'kernel/src/arch/cr.cpp',
 
@@ -140,7 +144,7 @@ testcases = {
     'pmm': [ 'kernel/test/pmm.cpp', 'kernel/src/memory/bitmap.cpp', ],
     'arch cr': [ 'kernel/test/arch/cr.cpp', 'kernel/src/arch/cr.cpp', ],
     'arch gdt': [ 'kernel/test/arch/gdt.cpp', 'kernel/src/gdt.cpp', ],
-    'framebuffer': [ 'kernel/test/display.cpp', 'kernel/src/display.cpp', ],
+    'framebuffer': [ 'kernel/test/display.cpp', 'kernel/src/canvas.cpp', ],
 }
 
 foreach name, source : testcases

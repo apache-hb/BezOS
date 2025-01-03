@@ -73,8 +73,7 @@ namespace km {
 
 template<>
 struct km::StaticFormat<km::SerialPortStatus> {
-    static constexpr size_t kStringSize = 16;
-    static stdx::StringView toString(char*, SerialPortStatus status) {
+    static stdx::StringView toString(SerialPortStatus status) {
         switch (status) {
         case SerialPortStatus::eOk:
             return "Ok";

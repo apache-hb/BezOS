@@ -94,6 +94,12 @@ PhysicalAddress PageAllocator::alloc4k(size_t count) {
     return nullptr;
 }
 
+void PageAllocator::release(MemoryRange range) {
+    for (RegionBitmapAllocator& allocator : mAllocators) {
+        allocator.release(range);
+    }
+}
+
 PhysicalAddress PageAllocator::lowMemoryAlloc4k() {
     for (RegionBitmapAllocator& allocator : mLowMemory) {
         if (PhysicalAddress addr = allocator.alloc4k(1); addr != nullptr) {
@@ -300,7 +306,7 @@ void VirtualAllocator::unmap(void *ptr, size_t size) {
     VirtualAddress back = { sm::roundup((uintptr_t)ptr + size, x64::kPageSize) };
 
     x64::PageMapLevel4 *l4 = (x64::PageMapLevel4*)rootPageTable();
-    
+
     for (VirtualAddress i = front; i < back; i += x64::kPageSize) {
         uint16_t pml4e = (i.address >> 39) & 0b0001'1111'1111;
         uint16_t pdpte = (i.address >> 30) & 0b0001'1111'1111;
@@ -309,7 +315,7 @@ void VirtualAllocator::unmap(void *ptr, size_t size) {
 
         const x64::PageMapLevel3 *l3 = findPageMap3(l4, pml4e);
         if (!l3) continue;
-        
+
         const x64::PageMapLevel2 *l2 = findPageMap2(l3, pdpte);
         if (!l2) continue;
 

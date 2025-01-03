@@ -58,6 +58,10 @@ PhysicalAddress RegionBitmapAllocator::alloc4k(size_t count) {
 }
 
 void RegionBitmapAllocator::release(MemoryRange range) {
+    if (!mRange.overlaps(range)) {
+        return;
+    }
+
     // Find the bit range that corresponds to the range.
     size_t start = (range.front - mRange.front) / x64::kPageSize;
     size_t end = (range.back - mRange.front) / x64::kPageSize;

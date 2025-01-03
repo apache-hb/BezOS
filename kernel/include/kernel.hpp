@@ -22,7 +22,7 @@ void KmDebugWrite(const T& value) {
 
 template<km::IsStaticFormatEx T>
 void KmDebugWrite(const T& value) {
-    auto result = km::StaticFormat<T>::toString(value);
+    auto result = km::format(value);
     KmDebugWrite(result);
 }
 

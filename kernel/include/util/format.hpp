@@ -15,9 +15,13 @@ namespace km {
         { StaticFormat<T>::toString(std::declval<char*>(), it) } -> std::same_as<stdx::StringView>;
     };
 
+    /// @brief Does a type conform to the static format concept.
+    /// @warning While this trait expects toString to return something that is convertible to a string view.
+    ///          The returned object is allowed to own its storage, always assign it to auto in cases where
+    ///          its a StaticString or similar.
     template<typename T>
     concept IsStaticFormatEx = requires(T it) {
-        { StaticFormat<T>::toString(it) } -> stdx::StaticStringType;
+        { StaticFormat<T>::toString(it) } -> std::convertible_to<stdx::StringView>;
     };
 
     template<std::integral T>

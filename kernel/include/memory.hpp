@@ -3,6 +3,8 @@
 #include "memory/allocator.hpp"
 #include "memory/paging.hpp"
 
+#include <cstddef>
+
 namespace km {
     struct SystemMemory {
         PageManager pager;
@@ -11,6 +13,10 @@ namespace km {
         VirtualAllocator vmm;
 
         SystemMemory(SystemMemoryLayout memory, uintptr_t bits, uintptr_t hhdmOffset, PageMemoryTypeLayout types);
+
+        void *allocate(size_t size, size_t align = alignof(std::max_align_t));
+
+        void release(void *ptr, size_t size);
 
         void unmap(void *ptr, size_t size);
 

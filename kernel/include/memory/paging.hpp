@@ -119,24 +119,25 @@ namespace km {
 
 template<>
 struct km::StaticFormat<km::MemoryType> {
-    static constexpr size_t kStringSize = 16;
-    static constexpr stdx::StringView toString(char*, km::MemoryType type) {
+    static constexpr size_t kStringSize = 4;
+
+    static constexpr stdx::StringView toString(km::MemoryType type) {
         using namespace stdx::literals;
         using enum km::MemoryType;
 
         switch (type) {
         case eUncached:
-            return "Uncached"_sv;
+            return "UC"_sv;
         case eWriteCombine:
-            return "Write Combined"_sv;
+            return "WC"_sv;
         case eWriteThrough:
-            return "Write Through"_sv;
+            return "WT"_sv;
         case eWriteProtect:
-            return "Write Protect"_sv;
+            return "WP"_sv;
         case eWriteBack:
-            return "Write Back"_sv;
+            return "WB"_sv;
         case eUncachedOverridable:
-            return "Uncached-"_sv;
+            return "UC-"_sv;
         }
     }
 };

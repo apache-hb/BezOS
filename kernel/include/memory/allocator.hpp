@@ -84,6 +84,8 @@ namespace km {
         /// @return The physical address of the page.
         PhysicalAddress alloc4k(size_t count = 1);
 
+        void release(MemoryRange range);
+
         /// @brief Allocate a 4k page of memory below 1M.
         ///
         /// @return The physical address of the page.
@@ -126,7 +128,7 @@ namespace km {
         void map2m(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags, MemoryType type = MemoryType::eUncachedOverridable);
 
         void mapRange(MemoryRange range, VirtualAddress vaddr, PageFlags flags, MemoryType type = MemoryType::eUncachedOverridable);
-    
+
         void unmap(void *ptr, size_t size);
     };
 }

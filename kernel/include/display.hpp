@@ -90,6 +90,8 @@ namespace km {
     public:
         Canvas(KernelFrameBuffer framebuffer, uint8_t *address);
 
+        Canvas(Canvas geometry, uint8_t *address);
+
         constexpr Canvas(sm::noinit)
             : mAddress(nullptr)
             , mWidth(0)
@@ -116,35 +118,6 @@ namespace km {
     };
 
     void DrawCharacter(Canvas& display, uint64_t x, uint64_t y, char c, Pixel fg, Pixel bg);
-
-    class BufferedTerminal {
-        stdx::StaticVector<DirtyArea, 16> mDirty;
-
-        uint16_t mCurrentColumn;
-        uint16_t mCurrentRow;
-
-        uint16_t mColumnCount;
-        uint16_t mRowCount;
-
-        Canvas mDisplay;
-        Canvas mBackBuffer;
-
-        char *mTextBuffer;
-        size_t bufferSize() const { return mColumnCount * mRowCount; }
-
-        void put(char c);
-
-        void advance();
-        void newline();
-
-        void write(uint64_t x, uint64_t y, char c);
-
-    public:
-        BufferedTerminal(Canvas display, SystemMemory& memory);
-
-        void print(stdx::StringView message);
-        void flush();
-    };
 
     class DisplayTerminal {
         static constexpr size_t kColumnCount = 80;
@@ -184,5 +157,34 @@ namespace km {
         void print(stdx::StringView message);
 
         Canvas& display() { return mDisplay; }
+    };
+
+    class BufferedTerminal {
+        stdx::StaticVector<DirtyArea, 16> mDirty;
+
+        uint16_t mCurrentColumn;
+        uint16_t mCurrentRow;
+
+        uint16_t mColumnCount;
+        uint16_t mRowCount;
+
+        Canvas mDisplay;
+        Canvas mBackBuffer;
+
+        char *mTextBuffer;
+        size_t bufferSize() const { return mColumnCount * mRowCount; }
+
+        void put(char c);
+
+        void advance();
+        void newline();
+
+        void write(uint64_t x, uint64_t y, char c);
+
+    public:
+        BufferedTerminal(Canvas display, SystemMemory& memory);
+
+        void print(stdx::StringView message);
+        void flush();
     };
 }

@@ -109,6 +109,10 @@ namespace km {
         constexpr bool contains(PhysicalAddress addr) const {
             return addr >= front && addr < back;
         }
+
+        constexpr bool overlaps(MemoryRange range) const {
+            return front < range.back && back > range.front;
+        }
     };
 
     /// @brief Returns a memory range that is page aligned.

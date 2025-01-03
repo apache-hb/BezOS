@@ -54,10 +54,8 @@ INSTANTIATE_TEST_SUITE_P(
         )
     ),
     [](const auto& info) {
-        char buffer0[km::StaticFormat<km::MemoryType>::kStringSize] = {};
-        stdx::StringView type = km::StaticFormat<km::MemoryType>::toString(buffer0, std::get<1>(info.param));
-        char buffer1[km::StaticFormat<km::MemoryType>::kStringSize] = {};
-        stdx::StringView type1 = km::StaticFormat<km::MemoryType>::toString(buffer1, std::get<3>(info.param));
+        auto type = km::format(std::get<1>(info.param));
+        auto type1 = km::format(std::get<3>(info.param));
         auto out = std::format("{}_{}_{}_{}", std::get<0>(info.param), std::get<2>(info.param), std::string_view(type), std::string_view(type1));
         std::replace(out.begin(), out.end(), ' ', '_');
         std::replace(out.begin(), out.end(), '-', 'n');
