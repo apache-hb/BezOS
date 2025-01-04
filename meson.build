@@ -95,6 +95,7 @@ src = [
 
     'kernel/src/canvas.cpp',
     'kernel/src/terminal/terminal.cpp',
+    'kernel/src/terminal/buffered.cpp',
 
     'kernel/src/arch/cr.cpp',
 
@@ -105,7 +106,6 @@ src = [
     # kernel main
     'kernel/src/main.cpp',
 ]
-
 
 kernel = static_library('kernel', src,
     include_directories : inc,
@@ -127,8 +127,14 @@ executable('bezos', 'kernel/src/boot/limine.cpp',
     override_options : [ 'b_coverage=false' ],
 )
 
-install_data('data/limine.conf',
-    install_dir : get_option('prefix') / 'image' / 'boot' / 'limine'
+install_data('data/limine-iso.conf',
+    install_dir : get_option('prefix') / 'image' / 'boot' / 'limine',
+    rename : 'limine.conf',
+)
+
+install_data('data/limine-pxe.conf',
+    install_dir : get_option('prefix') / 'pxe',
+    rename : 'limine.conf',
 )
 
 meson.add_install_script('data/image.sh')

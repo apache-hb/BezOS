@@ -17,4 +17,8 @@ install_data('limine-bios.sys', 'limine-bios-cd.bin', 'limine-uefi-cd.bin',
     install_dir : get_option('prefix') / 'image' / 'boot' / 'limine'
 )
 
+install_data('limine-bios-pxe.bin', 'limine-bios.sys', 'BOOTX64.EFI', 'BOOTIA32.EFI',
+    install_dir : get_option('prefix') / 'pxe'
+)
+
 limine_tool = executable('limine', 'limine.c', native : true)

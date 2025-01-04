@@ -156,4 +156,36 @@ namespace km {
 
         Canvas& display() { return mDisplay; }
     };
+
+    class BufferedTerminal {
+        Canvas mDisplay;
+        Canvas mBackBuffer;
+
+        uint16_t mCurrentRow;
+        uint16_t mCurrentColumn;
+
+        uint16_t mRowCount;
+        uint16_t mColumnCount;
+
+        void put(char c);
+
+        void advance();
+        void newline();
+
+        void write(uint64_t x, uint64_t y, char c);
+
+    public:
+        BufferedTerminal(Canvas display, SystemMemory& memory);
+
+        constexpr BufferedTerminal(sm::noinit)
+            : mDisplay(sm::noinit{})
+            , mBackBuffer(sm::noinit{})
+            , mCurrentRow(0)
+            , mCurrentColumn(0)
+            , mRowCount(0)
+            , mColumnCount(0)
+        { }
+
+        void print(stdx::StringView message);
+    };
 }
