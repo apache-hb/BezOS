@@ -329,16 +329,20 @@ void VirtualAllocator::unmap(void *ptr, size_t size) {
 }
 
 static void MapKernelPages(VirtualAllocator& memory, km::PhysicalAddress paddr, km::VirtualAddress vaddr) {
-    auto mapKernelRange = [&](const void *begin, const void *end, PageFlags flags) {
+    auto mapKernelRange = [&](const void *begin, const void *end, PageFlags flags, stdx::StringView name) {
         km::PhysicalAddress front = km::PhysicalAddress {  (uintptr_t)begin - (uintptr_t)__kernel_start };
         km::PhysicalAddress back = km::PhysicalAddress { (uintptr_t)end - (uintptr_t)__kernel_start };
+
+        KmDebugMessage("[INIT] Mapping ", Hex((uintptr_t)begin), "-", Hex((uintptr_t)end), " - ", name, "\n");
 
         memory.mapRange({ paddr + front.address, paddr + back.address }, vaddr + front.address, flags);
     };
 
-    mapKernelRange(__text_start, __text_end, PageFlags::eCode);
-    mapKernelRange(__rodata_start, __rodata_end, PageFlags::eRead);
-    mapKernelRange(__data_start, __data_end, PageFlags::eData);
+    KmDebugMessage("[INIT] Mapping kernel pages.\n");
+
+    mapKernelRange(__text_start, __text_end, PageFlags::eCode, ".text");
+    mapKernelRange(__rodata_start, __rodata_end, PageFlags::eRead, ".rodata");
+    mapKernelRange(__data_start, __data_end, PageFlags::eData, ".data");
 }
 
 static void MapStage1Memory(VirtualAllocator& memory, const km::PageManager& pm, const SystemMemoryLayout& layout) {

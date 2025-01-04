@@ -157,7 +157,7 @@ static PageMemoryTypeLayout KmSetupPat(void) {
     };
 }
 
-static void KmSetupMtrrs(const km::PageManager& pm) {
+static void KmWriteMtrrs(const km::PageManager& pm) {
     if (!x64::HasMtrrSupport()) {
         return;
     }
@@ -196,12 +196,39 @@ static void KmSetupMtrrs(const km::PageManager& pm) {
     }
 }
 
+static void KmWriteMemoryMap(const KernelMemoryMap& memmap, const SystemMemory& memory) {
+    KmDebugMessage("[INIT] ", memmap.count(), " memory map entries.\n");
+
+    KmDebugMessage("| Entry | Address            | Size             | Type\n");
+    KmDebugMessage("|-------+--------------------+------------------+-----------------------\n");
+
+    for (ssize_t i = 0; i < memmap.count(); i++) {
+        MemoryMapEntry entry = memmap[i];
+        MemoryRange range = entry.range;
+
+        KmDebugMessage("| ", Int(i).pad(4, '0'), "  | ", Hex(range.front.address).pad(16, '0'), " | ", Hex(range.size()).pad(16, '0'), " | ", entry.type, "\n");
+    }
+
+    uint64_t usableMemory = 0;
+    for (const MemoryMapEntry& range : memory.layout.available) {
+        usableMemory += range.range.size();
+    }
+
+    uint64_t reclaimableMemory = 0;
+    for (const MemoryMapEntry& range : memory.layout.reclaimable) {
+        reclaimableMemory += range.range.size();
+    }
+
+    KmDebugMessage("[INIT] Usable memory: ", sm::bytes(usableMemory), ", Reclaimable memory: ", sm::bytes(reclaimableMemory), "\n");
+}
+
 static SystemMemory KmInitMemory(uintptr_t bits, const KernelLaunch& launch) {
     PageMemoryTypeLayout pat = KmSetupPat();
 
     SystemMemory memory = SystemMemory { SystemMemoryLayout::from(launch.memoryMap), bits, launch.hhdmOffset, pat };
 
-    KmSetupMtrrs(memory.pager);
+    KmWriteMtrrs(memory.pager);
+    KmWriteMemoryMap(launch.memoryMap, memory);
 
     // initialize our own page tables and remap everything into it
     KmMapKernel(memory.pager, memory.vmm, memory.layout, launch.kernelPhysicalBase, launch.kernelVirtualBase);
@@ -361,32 +388,6 @@ struct [[gnu::packed]] alignas(0x10) TaskStateSegment {
     uint32_t iopbOffset;
 };
 
-static void KmWriteMemoryMap(const KernelMemoryMap& memmap, const SystemMemory& memory) {
-    KmDebugMessage("[INIT] ", memmap.count(), " memory map entries.\n");
-
-    KmDebugMessage("| Entry | Address            | Size             | Type\n");
-    KmDebugMessage("|-------+--------------------+------------------+-----------------------\n");
-
-    for (ssize_t i = 0; i < memmap.count(); i++) {
-        MemoryMapEntry entry = memmap[i];
-        MemoryRange range = entry.range;
-
-        KmDebugMessage("| ", Int(i).pad(4, '0'), "  | ", Hex(range.front.address).pad(16, '0'), " | ", Hex(range.size()).pad(16, '0'), " | ", entry.type, "\n");
-    }
-
-    uint64_t usableMemory = 0;
-    for (const MemoryMapEntry& range : memory.layout.available) {
-        usableMemory += range.range.size();
-    }
-
-    uint64_t reclaimableMemory = 0;
-    for (const MemoryMapEntry& range : memory.layout.reclaimable) {
-        reclaimableMemory += range.range.size();
-    }
-
-    KmDebugMessage("[INIT] Usable memory: ", sm::bytes(usableMemory), ", Reclaimable memory: ", sm::bytes(reclaimableMemory), "\n");
-}
-
 static void KmInitPortDelay() {
     KmSetPortDelayMethod(x64::PortDelay::ePostCode);
 }
@@ -494,8 +495,6 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     KmDebugMessage("| /SYS/MB/COM1  | Status               | ", com1Status, "\n");
     KmDebugMessage("| /SYS/MB/COM1  | Port                 | ", Hex(com1Info.port), "\n");
     KmDebugMessage("| /SYS/MB/COM1  | Baud rate            | ", km::com::kBaudRate / com1Info.divisor, "\n");
-
-    KmWriteMemoryMap(launch.memoryMap, memory);
 
     // Test interrupt to ensure the IDT is working
     {
