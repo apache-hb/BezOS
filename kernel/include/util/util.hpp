@@ -31,3 +31,11 @@ namespace sm {
     inline it& operator|=(it& lhs, it rhs) { return lhs = lhs | rhs; } \
     inline it& operator&=(it& lhs, it rhs) { return lhs = lhs & rhs; } \
     inline it& operator^=(it& lhs, it rhs) { return lhs = lhs ^ rhs; }
+
+#define UTIL_NOCOPY(it) \
+    it(const it&) = delete; \
+    it& operator=(const it&) = delete;
+
+#define UTIL_NOMOVE(it) \
+    it(it&&) = delete; \
+    it& operator=(it&&) = delete;

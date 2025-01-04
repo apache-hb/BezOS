@@ -237,7 +237,7 @@ static void MapKernelPages(VirtualAllocator& memory, km::PhysicalAddress paddr, 
 
         KmDebugMessage("[INIT] Mapping ", Hex((uintptr_t)begin), "-", Hex((uintptr_t)end), " - ", name, "\n");
 
-        memory.mapRange({ paddr + front.address, paddr + back.address }, vaddr + front.address, flags);
+        memory.mapRange({ paddr + front.address, paddr + back.address }, vaddr + front.address, flags, MemoryType::eWriteBack);
     };
 
     KmDebugMessage("[INIT] Mapping kernel pages.\n");
@@ -249,11 +249,11 @@ static void MapKernelPages(VirtualAllocator& memory, km::PhysicalAddress paddr, 
 
 static void MapStage1Memory(VirtualAllocator& memory, const km::PageManager& pm, const SystemMemoryLayout& layout) {
     for (MemoryMapEntry range : layout.available) {
-        memory.mapRange(range.range, km::VirtualAddress { range.range.front.address + pm.hhdmOffset() }, PageFlags::eData);
+        memory.mapRange(range.range, km::VirtualAddress { range.range.front.address + pm.hhdmOffset() }, PageFlags::eData, MemoryType::eWriteBack);
     }
 
     for (MemoryMapEntry range : layout.reclaimable) {
-        memory.mapRange(range.range, km::VirtualAddress { range.range.front.address + pm.hhdmOffset() }, PageFlags::eData);
+        memory.mapRange(range.range, km::VirtualAddress { range.range.front.address + pm.hhdmOffset() }, PageFlags::eData, MemoryType::eWriteBack);
     }
 }
 
@@ -274,7 +274,7 @@ void KmMigrateMemory(km::VirtualAllocator& vmm, km::PageManager& pm, const void 
 
 void KmReclaimBootMemory(const km::PageManager& pm, km::VirtualAllocator& vmm, km::SystemMemoryLayout& layout) {
     // then apply the new page tables
-    pm.setActiveMap(((uintptr_t)vmm.rootPageTable() - pm.hhdmOffset()));
+    pm.setActiveMap((uintptr_t)vmm.rootPageTable() - pm.hhdmOffset());
 
     layout.reclaimBootMemory();
 

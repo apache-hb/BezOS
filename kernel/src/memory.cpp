@@ -12,7 +12,7 @@ void *km::SystemMemory::allocate(size_t size, size_t) {
     PhysicalAddress paddr = pmm.alloc4k(pages(size));
     VirtualAddress vaddr = { paddr.address + pager.hhdmOffset() };
     MemoryRange range { paddr, paddr + size };
-    vmm.mapRange(range, vaddr, PageFlags::eData);
+    vmm.mapRange(range, vaddr, PageFlags::eData, MemoryType::eWriteBack);
     return (void*)vaddr.address;
 }
 

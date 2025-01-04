@@ -17,6 +17,15 @@ km::BufferedTerminal::BufferedTerminal(km::Canvas display, SystemMemory& memory)
     , mColumnCount(display.width() / 8)
 { }
 
+km::BufferedTerminal::BufferedTerminal(DirectTerminal terminal, SystemMemory& memory)
+    : mDisplay(terminal.display())
+    , mBackBuffer(InMemoryCanvas(terminal.display(), memory))
+    , mCurrentRow(0)
+    , mCurrentColumn(0)
+    , mRowCount(terminal.rowCount())
+    , mColumnCount(terminal.columnCount())
+{ }
+
 void km::BufferedTerminal::put(char c) {
     write(mCurrentColumn, mCurrentRow, c);
     advance();
@@ -45,8 +54,8 @@ void km::BufferedTerminal::newline() {
         memset(mDisplay.address(), 0, mDisplay.size());
     } else {
         // copy the current row from the back buffer to the display
-        size_t rowSize = mDisplay.width() * 8 * (mDisplay.bpp() / 8);
-        size_t offset = mCurrentRow * rowSize;
+        size_t rowSize = mDisplay.rowSize() * 8;
+        size_t offset = (mCurrentRow - 1) * rowSize;
         memcpy((uint8_t*)mDisplay.address() + offset, (uint8_t*)mBackBuffer.address() + offset, rowSize);
     }
 }

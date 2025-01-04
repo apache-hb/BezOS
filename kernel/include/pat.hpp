@@ -129,6 +129,12 @@ namespace x64 {
         /// @return true if MTRRs are enabled, false otherwise.
         bool enabled() const;
 
+        /// @brief Get the default MTRR memory type.
+        /// @return The default memory type.
+        km::MemoryType defaultType() const;
+
+        void setDefaultType(km::MemoryType type);
+
         /// @brief Enable or disable MTRRs in the processor.
         /// @note This affects both fixed and variable MTRRs.
         void enable(bool enabled);

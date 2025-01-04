@@ -6,6 +6,7 @@
 
 #include "std/string_view.hpp"
 
+#include "util/combine.hpp"
 #include "util/util.hpp"
 
 namespace km {
@@ -112,6 +113,9 @@ namespace km {
         uint64_t pitch() const { return mPitch; }
         uint16_t bpp() const { return mFormat.bpp(); }
 
+        size_t offset(uint64_t x, uint64_t y) const { return pixelOffset(x, y); }
+        size_t rowSize() const { return mWidth * (mFormat.bpp() / 8); }
+
         bool hasLinePadding() const { return mWidth != (mPitch / (bpp() / 8)); }
 
         Pixel read(uint64_t x, uint64_t y) const;
@@ -119,7 +123,7 @@ namespace km {
 
     void DrawCharacter(Canvas& display, uint64_t x, uint64_t y, char c, Pixel fg, Pixel bg);
 
-    class Terminal {
+    class DirectTerminal final {
         Canvas mDisplay;
 
         uint16_t mCurrentRow;
@@ -136,7 +140,7 @@ namespace km {
         void write(uint64_t x, uint64_t y, char c);
 
     public:
-        Terminal(Canvas display)
+        DirectTerminal(Canvas display)
             : mDisplay(display)
             , mCurrentRow(0)
             , mCurrentColumn(0)
@@ -144,7 +148,7 @@ namespace km {
             , mColumnCount(display.width() / 8)
         { }
 
-        constexpr Terminal(sm::noinit)
+        constexpr DirectTerminal(sm::noinit)
             : mDisplay(sm::noinit{})
             , mCurrentRow(0)
             , mCurrentColumn(0)
@@ -155,9 +159,13 @@ namespace km {
         void print(stdx::StringView message);
 
         Canvas& display() { return mDisplay; }
+        uint16_t currentRow() const { return mCurrentRow; }
+        uint16_t currentColumn() const { return mCurrentColumn; }
+        uint16_t rowCount() const { return mRowCount; }
+        uint16_t columnCount() const { return mColumnCount; }
     };
 
-    class BufferedTerminal {
+    class BufferedTerminal final {
         Canvas mDisplay;
         Canvas mBackBuffer;
 
@@ -176,6 +184,7 @@ namespace km {
 
     public:
         BufferedTerminal(Canvas display, SystemMemory& memory);
+        BufferedTerminal(DirectTerminal terminal, SystemMemory& memory);
 
         constexpr BufferedTerminal(sm::noinit)
             : mDisplay(sm::noinit{})

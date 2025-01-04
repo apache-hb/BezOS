@@ -58,27 +58,31 @@ class DebugPortLog final : public ILogTarget {
     }
 };
 
+template<typename T>
 class TerminalLog final : public ILogTarget {
-    Terminal mTerminal;
+    T mTerminal;
 
 public:
     constexpr TerminalLog()
-        : mTerminal(sm::noinit{})
+        : mTerminal(T(sm::noinit{}))
     { }
 
-    constexpr TerminalLog(Canvas display)
-        : mTerminal(display)
+    constexpr TerminalLog(T terminal)
+        : mTerminal(terminal)
     { }
 
     void write(stdx::StringView message) override {
         mTerminal.print(message);
     }
+
+    T& get() { return mTerminal; }
 };
 
 // load bearing constinit, clang has a bug in c++26 mode
 // where it doesnt emit a warning for global constructors in all cases.
 constinit static SerialLog gSerialLog;
-constinit static TerminalLog gTerminalLog;
+constinit static TerminalLog<DirectTerminal> gDirectTerminalLog;
+constinit static TerminalLog<BufferedTerminal> gBufferedTerminalLog;
 constinit static DebugPortLog gDebugPortLog;
 
 constinit static stdx::StaticVector<ILogTarget*, 4> gLogTargets;
@@ -167,6 +171,7 @@ static void KmWriteMtrrs(const km::PageManager& pm) {
     KmDebugMessage("[INIT] MTRR fixed support: ", present(mtrrs.fixedMtrrSupported()), "\n");
     KmDebugMessage("[INIT] MTRR fixed enabled: ", enabled(mtrrs.fixedMtrrEnabled()), "\n");
     KmDebugMessage("[INIT] MTRR fixed count: ", mtrrs.fixedMtrrCount(), "\n");
+    KmDebugMessage("[INIT] Default MTRR type: ", mtrrs.defaultType(), "\n");
 
     KmDebugMessage("[INIT] MTRR variable supported: ", enabled(HasVariableMtrrSupport(mtrrs)), "\n");
     KmDebugMessage("[INIT] MTRR variable count: ", mtrrs.variableMtrrCount(), "\n");
@@ -235,7 +240,7 @@ static SystemMemory KmInitMemory(uintptr_t bits, const KernelLaunch& launch) {
 
     // move our stack out of reclaimable memory
     // limine garuntees 64k of stack space
-    KmMigrateMemory(memory.vmm, memory.pager, (void*)(launch.stack.front.address + launch.hhdmOffset), launch.stack.size(), MemoryType::eUncached);
+    KmMigrateMemory(memory.vmm, memory.pager, (void*)(launch.stack.front.address + launch.hhdmOffset), launch.stack.size(), MemoryType::eWriteBack);
 
     // remap framebuffers
     for (const KernelFrameBuffer& framebuffer : launch.framebuffers) {
@@ -276,15 +281,29 @@ static km::PhysicalAddress KmGetRsdpTable(const KernelLaunch& launch) {
     return launch.rsdpAddress;
 }
 
-[[maybe_unused]]
 static void KmInitBootTerminal(const KernelLaunch& launch) {
     for (const KernelFrameBuffer& framebuffer : launch.framebuffers) {
         if (framebuffer.address == nullptr)
             continue;
 
         km::Canvas display { framebuffer, (uint8_t*)(framebuffer.address.address + launch.hhdmOffset) };
-        gTerminalLog = TerminalLog(display);
-        gLogTargets.add(&gTerminalLog);
+        gDirectTerminalLog = DirectTerminal(display);
+        gLogTargets.add(&gDirectTerminalLog);
+
+        return;
+    }
+}
+
+static void KmInitBootBufferedTerminal(const KernelLaunch& launch, SystemMemory& memory) {
+    for (const KernelFrameBuffer& framebuffer : launch.framebuffers) {
+        if (framebuffer.address == nullptr)
+            continue;
+
+        gLogTargets.erase(&gDirectTerminalLog);
+
+        km::Canvas display { framebuffer, (uint8_t*)(framebuffer.address.address + launch.hhdmOffset) };
+        gBufferedTerminalLog = BufferedTerminal(gDirectTerminalLog.get(), memory);
+        gLogTargets.add(&gBufferedTerminalLog);
 
         return;
     }
@@ -438,6 +457,8 @@ extern "C" void KmLaunch(KernelLaunch launch) {
 
     SystemMemory memory = KmInitMemory(processor.maxpaddr, launch);
     gMemoryMap = &memory;
+
+    KmInitBootBufferedTerminal(launch, memory);
 
     PlatformInfo platform = KmGetPlatformInfo(launch, memory);
 

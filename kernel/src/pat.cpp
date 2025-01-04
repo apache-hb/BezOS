@@ -109,6 +109,18 @@ bool x64::MemoryTypeRanges::enabled() const {
     return mMtrrDefault & kMtrrEnabledBit;
 }
 
+static constexpr uint32_t kDefaultTypeMask = 0xFF;
+
+km::MemoryType x64::MemoryTypeRanges::defaultType() const {
+    return km::MemoryType(mMtrrDefault & kDefaultTypeMask);
+}
+
+void x64::MemoryTypeRanges::setDefaultType(km::MemoryType type) {
+    kMtrrMsrDefaultType.update(mMtrrDefault, [&](uint64_t& value) {
+        value = (value & ~kDefaultTypeMask) | (uint8_t)type;
+    });
+}
+
 void x64::MemoryTypeRanges::enable(bool enabled) {
     kMtrrMsrDefaultType.updateBits(mMtrrDefault, kMtrrEnabledBit, enabled);
 }

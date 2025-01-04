@@ -23,6 +23,8 @@ TEST(CanvasTest, Size) {
     km::Canvas display(framebuffer, address.get());
 
     ASSERT_EQ(display.size(), (1280 * 800 * 4));
+
+    ASSERT_EQ(display.rowSize(), (1280 * 4));
 }
 
 TEST(DisplayTest, Simple) {

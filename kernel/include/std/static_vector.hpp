@@ -36,6 +36,15 @@ namespace stdx {
 
         constexpr void clear() { mSize = 0; }
 
+        constexpr void erase(const T& value) {
+            for (size_t i = 0; i < mSize; i++) {
+                if (mStorage[i] == value) {
+                    remove(i);
+                    return;
+                }
+            }
+        }
+
         constexpr void remove(size_t index) {
             if (index < mSize) {
                 for (size_t i = index; i < mSize - 1; i++)
