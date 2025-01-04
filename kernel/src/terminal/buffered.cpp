@@ -57,6 +57,9 @@ void km::BufferedTerminal::newline() {
         size_t rowSize = mDisplay.rowSize() * 8;
         size_t offset = (mCurrentRow - 1) * rowSize;
         memcpy((uint8_t*)mDisplay.address() + offset, (uint8_t*)mBackBuffer.address() + offset, rowSize);
+
+        // zero out the back buffer row
+        memset((uint8_t*)mBackBuffer.address() + offset, 0, rowSize);
     }
 }
 
