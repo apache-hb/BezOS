@@ -16,19 +16,19 @@ KmSmpStartAddress:
     .quad 0
 
 // PAT MSR value from the BSP we need to copy before enabling paging.
-.align 0x8
+.align 8
 KmSmpPageAttributeTable0:
     .long 0
 KmSmpPageAttributeTable1:
     .long 0
 
 // Physical address of the top level page table.
-.align 0x4
+.align 4
 KmSmpPml4:
     .long 0
 
 // Base address of the stack for this AP.
-.align 0x8
+.align 8
 KmSmpStack:
     .quad 0
 

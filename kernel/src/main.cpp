@@ -233,6 +233,11 @@ static SystemMemory KmInitMemoryMap(uintptr_t bits, const KernelLaunch& launch) 
     // limine garuntees 64k of stack space
     KmMigrateMemory(memory.vmm, memory.pager, (void*)(launch.stack.front.address + launch.hhdmOffset), launch.stack.size(), MemoryType::eUncached);
 
+    // remap framebuffers
+    for (const KernelFrameBuffer& framebuffer : launch.framebuffers) {
+        KmMigrateMemory(memory.vmm, memory.pager, (void*)(framebuffer.address.address + launch.hhdmOffset), framebuffer.size(), MemoryType::eWriteCombine);
+    }
+
     // once it is safe to remap the boot memory, do so
     KmReclaimBootMemory(memory.pager, memory.vmm, memory.layout);
 
@@ -408,16 +413,21 @@ static void KmInitPortDelay() {
     KmSetPortDelayMethod(x64::PortDelay::ePostCode);
 }
 
-static void KmInitEarlyTerminal(const KernelLaunch& launch) {
+static ssize_t KmInitEarlyTerminal(const KernelLaunch& launch) {
     auto fb = launch.framebuffers[0];
     Canvas canvas { fb, (uint8_t*)(fb.address.address + launch.hhdmOffset) };
     gEarlyTerminalLog = EarlyTerminalLog(canvas);
+
+    ssize_t index = gLogTargets.count();
+    gLogTargets.add(&gEarlyTerminalLog);
+
+    return index;
 }
 
 extern "C" void KmLaunch(KernelLaunch launch) {
     __cli();
 
-    KmInitEarlyTerminal(launch);
+    ssize_t earlyTerminalIndex = KmInitEarlyTerminal(launch);
 
     KmInitPortDelay();
 
@@ -452,9 +462,6 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     cr0.set(x64::Cr0::NE);
     x64::Cr0::store(cr0);
 
-    KmDebugMessage("[CPU] CR0: ", cr0, "\n");
-    KmDebugMessage("[CPU] CR4: ", x64::Cr4::load(), "\n");
-
     KmSetupBspGdt();
 
     km::IsrAllocator isrs;
@@ -465,6 +472,8 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     SystemMemory memory = KmInitMemoryMap(processor.maxpaddr, launch);
     gMemoryMap = &memory;
 
+    // remove the early init terminal for the final terminal
+    gLogTargets.remove(earlyTerminalIndex);
     KmGetTerminal(launch, memory);
 
     PlatformInfo platform = KmGetPlatformInfo(launch, memory);

@@ -91,8 +91,6 @@ namespace x64 {
     constexpr uint64_t kNullDescriptor = 0;
 }
 
-static_assert(std::is_standard_layout_v<x64::GdtEntry>);
-
 void KmInitGdt(const x64::GdtEntry *gdt, uint64_t count, uint64_t codeSelector, uint64_t dataSelector);
 
 template<>
@@ -104,7 +102,7 @@ struct km::StaticFormat<x64::GdtEntry> {
 /// @brief The GDT entries for the system.
 /// @warning This alignas(16) is load bearing, some AMD laptop cpus will hang forever
 ///          if the GDT is not 16 byte aligned.
-struct alignas(16) SystemGdt {
+struct SystemGdt {
     enum : int {
         eNull = GDT_NULL,
         eRealModeCode = GDT_16BIT_CODE,
@@ -122,6 +120,7 @@ struct alignas(16) SystemGdt {
     x64::GdtEntry entries[GDT_COUNT];
 };
 
+static_assert(std::is_standard_layout_v<x64::GdtEntry>);
 static_assert(std::is_standard_layout_v<SystemGdt>);
 
 SystemGdt KmGetSystemGdt();
