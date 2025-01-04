@@ -22,11 +22,11 @@ TEST(PmmTest, BitmapSize) {
 
     // 64 kilobytes = 8 pages
     // 8 pages / 8 bits = 1 byte
-    ASSERT_EQ(km::detail::GetRangeBitmapSize({(uintptr_t)0x0, sm::kilobytes(32).asBytes()}), 1);
+    ASSERT_EQ(km::detail::GetRangeBitmapSize({(uintptr_t)0x0, sm::kilobytes(32).bytes()}), 1);
 
-    ASSERT_EQ(km::detail::GetRangeBitmapSize({(uintptr_t)0x0, sm::kilobytes(7).asBytes()}), 1);
+    ASSERT_EQ(km::detail::GetRangeBitmapSize({(uintptr_t)0x0, sm::kilobytes(7).bytes()}), 1);
 
-    ASSERT_EQ(km::detail::GetRangeBitmapSize({(uintptr_t)0x0, sm::kilobytes(123).asBytes()}), 4);
+    ASSERT_EQ(km::detail::GetRangeBitmapSize({(uintptr_t)0x0, sm::kilobytes(123).bytes()}), 4);
 }
 
 TEST(PmmTest, PageCount) {
@@ -38,11 +38,11 @@ TEST(PmmTest, PageCount) {
 
     ASSERT_EQ(km::pages(4097), 2);
 
-    ASSERT_EQ(km::pages(sm::kilobytes(64).asBytes()), 16);
+    ASSERT_EQ(km::pages(sm::kilobytes(64).bytes()), 16);
 }
 
 TEST(PmmTest, Allocate) {
-    size_t size = sm::kilobytes(128).asBytes();
+    size_t size = sm::kilobytes(128).bytes();
     size_t pages = km::pages(size);
 
     std::unique_ptr<uint8_t[]> memory = std::make_unique<uint8_t[]>(size);

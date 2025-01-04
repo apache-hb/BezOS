@@ -14,7 +14,7 @@ static constexpr const char *kNames[sm::Memory::eCount] = {
 };
 
 stdx::StringView sm::toString(char buffer[Memory::kStringSize], Memory value) {
-    size_t bytes = value.asBytes();
+    size_t bytes = value.bytes();
     if (bytes == 0) {
         strcpy(buffer, "0b");
         return stdx::StringView(buffer, buffer + 2);

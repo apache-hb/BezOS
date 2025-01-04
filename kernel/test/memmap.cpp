@@ -107,7 +107,7 @@ TEST(MemoryMapTest, EntryListTooLong) {
 TEST(MemoryMapTest, UnsortedMemory) {
     std::mt19937 rng(0x9876);
 
-    std::uniform_int_distribution<uintptr_t> dist(0, sm::terabytes(2).asBytes());
+    std::uniform_int_distribution<uintptr_t> dist(0, sm::terabytes(2).bytes());
     KernelMemoryMap memmap;
     for (size_t i = 0; i < memmap.capacity(); i++) {
         uintptr_t start = dist(rng);

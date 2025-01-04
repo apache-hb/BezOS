@@ -36,11 +36,11 @@ namespace sm {
             : mBytes(memory * kSizes[unit])
         { }
 
-        constexpr size_t asBytes() const { return mBytes; }
-        constexpr size_t asKilobytes() const { return mBytes / kKilobyte; }
-        constexpr size_t asMegabytes() const { return mBytes / kMegabyte; }
-        constexpr size_t asGigabytes() const { return mBytes / kGigabyte; }
-        constexpr size_t asTerabytes() const { return mBytes / kTerabyte; }
+        constexpr size_t bytes() const { return mBytes; }
+        constexpr size_t kilobytes() const { return mBytes / kKilobyte; }
+        constexpr size_t megabytes() const { return mBytes / kMegabyte; }
+        constexpr size_t gigabytes() const { return mBytes / kGigabyte; }
+        constexpr size_t terabytes() const { return mBytes / kTerabyte; }
 
     private:
         size_t mBytes;

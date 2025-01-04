@@ -110,10 +110,38 @@ namespace km {
             return addr >= front && addr < back;
         }
 
+        /// @brief Checks if the given range overlaps with this range.
+        ///
+        /// Checks if the given range overlaps with this range. If one range
+        /// is a subset of the other, they are not considered to overlap.
+        ///
+        /// @param range The range to check.
+        /// @return True if the ranges overlap, false otherwise.
         constexpr bool overlaps(MemoryRange range) const {
             return front < range.back && back > range.front;
         }
+
+        constexpr bool isBefore(PhysicalAddress addr) const {
+            return back <= addr;
+        }
+
+        constexpr bool isAfter(PhysicalAddress addr) const {
+            return front >= addr;
+        }
     };
+
+    /// @brief Splits the given memory range at the given address.
+    ///
+    /// @pre @a range contains @a at
+    ///
+    /// @param range The memory range.
+    /// @param at The address to split the range at.
+    /// @return The two memory ranges.
+    constexpr std::pair<MemoryRange, MemoryRange> split(MemoryRange range, PhysicalAddress at) {
+        MemoryRange first = {range.front, at};
+        MemoryRange second = {at, range.back};
+        return {first, second};
+    }
 
     /// @brief Returns a memory range that is page aligned.
     ///

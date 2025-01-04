@@ -72,6 +72,7 @@ src = [
     'kernel/src/memory/layout.cpp',
     'kernel/src/memory/allocator.cpp',
     'kernel/src/memory/bitmap.cpp',
+    'kernel/src/memory/page_allocator.cpp',
 
     # various architecture features
     'kernel/src/crt.cpp',
