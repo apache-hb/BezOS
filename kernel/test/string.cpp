@@ -8,6 +8,9 @@ using namespace stdx::literals;
 
 static_assert(requires { stdx::IsRange<const char, stdx::StringView>; });
 
+static_assert(std::ranges::contiguous_range<stdx::StringView>);
+static_assert(std::ranges::sized_range<stdx::StringView>);
+
 TEST(StringViewTest, Length) {
     stdx::StringView view = "Hello, World!";
     ASSERT_EQ(view.count(), 14);

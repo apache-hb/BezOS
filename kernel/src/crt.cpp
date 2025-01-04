@@ -3,6 +3,10 @@
 
 #include "crt.hpp"
 
+static bool HaveEqualAlignment(const void *lhs, const void *rhs, size_t alignment) {
+    return ((uintptr_t)lhs % alignment) == ((uintptr_t)rhs % alignment);
+}
+
 static void CopySmall(uint8_t *dst, const uint8_t *src, size_t n) {
     for (size_t i = 0; i < n; i++) {
         dst[i] = src[i];
@@ -40,13 +44,14 @@ void KmMemoryCopy(void *to, const void *from, size_t n) {
     uint8_t *dst = (uint8_t *)to;
     const uint8_t *src = (const uint8_t *)from;
 
-    if (n > (sizeof(uint64_t) * 2)) {
+    bool useLargeCopy = HaveEqualAlignment(dst, src, sizeof(uint64_t)) && (n > sizeof(uint64_t) * 2);
+
+    if (useLargeCopy) {
         CopyLarge(dst, src, n);
     } else {
         CopySmall(dst, src, n);
     }
 }
-
 
 static void SetSmall(uint8_t *dst, uint8_t value, size_t n) {
     for (size_t i = 0; i < n; i++) {
@@ -76,7 +81,9 @@ static void SetLarge(uint8_t *dst, uint8_t value, size_t n) {
 void KmMemorySet(void *dst, uint8_t value, size_t size) {
     uint8_t *p = (uint8_t *)dst;
 
-    if (size > (sizeof(uint64_t) * 2)) {
+    bool useLargeCopy = (size > (sizeof(uint64_t) * 2));
+
+    if (useLargeCopy) {
         SetLarge(p, value, size);
     } else {
         SetSmall(p, value, size);

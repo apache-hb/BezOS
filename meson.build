@@ -133,8 +133,17 @@ install_data('data/limine.conf',
 
 meson.add_install_script('data/image.sh')
 
-gtest = dependency('gtest_main', native : true)
+gtest = dependency('gtest', native : true)
+gtest_main = dependency('gtest_main', native : true)
 testkwargs = { 'protocol' : 'gtest', 'timeout': 5 }
+
+test_shim = static_library('test_shim', 'kernel/test/test_shim.cpp',
+    include_directories : inc,
+    c_args : c_args,
+    cpp_args : cpp_args + [ '-std=c++26' ],
+    dependencies : [ gtest ],
+    native : true,
+)
 
 testcases = {
     'format': [ 'kernel/test/format.cpp', ],
@@ -148,6 +157,12 @@ testcases = {
     'arch gdt': [ 'kernel/test/arch/gdt.cpp', 'kernel/src/gdt.cpp', ],
     'framebuffer': [ 'kernel/test/display.cpp', 'kernel/src/canvas.cpp', ],
     'crt': [ 'kernel/test/crt.cpp', 'kernel/src/crt.cpp', ],
+    'page allocator': [
+        'kernel/test/page_allocator.cpp',
+        'kernel/src/memory/page_allocator.cpp',
+        'kernel/src/memory/bitmap.cpp',
+        'kernel/src/memory/layout.cpp',
+    ],
 }
 
 foreach name, source : testcases
@@ -155,9 +170,10 @@ foreach name, source : testcases
         include_directories : inc,
         c_args : c_args,
         cpp_args : cpp_args + [ '-std=c++26' ], # meson bug: native executables dont have default_options applied
-        dependencies : [ gtest ],
+        dependencies : [ gtest_main ],
         override_options : [ 'b_sanitize=address' ],
         native : true,
+        link_with : test_shim,
     )
 
     test(name, exe,

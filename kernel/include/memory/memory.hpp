@@ -110,6 +110,14 @@ namespace km {
             return addr >= front && addr < back;
         }
 
+        /// @brief Checks if the given range is totally contained within this range.
+        ///
+        /// @param range The range to check.
+        /// @return True if the range is contained, false otherwise.
+        constexpr bool contains(MemoryRange range) const {
+            return range.front >= front && range.back <= back;
+        }
+
         /// @brief Checks if the given range overlaps with this range.
         ///
         /// Checks if the given range overlaps with this range. If one range
@@ -118,7 +126,18 @@ namespace km {
         /// @param range The range to check.
         /// @return True if the ranges overlap, false otherwise.
         constexpr bool overlaps(MemoryRange range) const {
-            return front < range.back && back > range.front;
+            return contains(range.front) ^ contains(range.back);
+        }
+
+        /// @brief Checks if the given range intersects with this range.
+        ///
+        /// Checks if the given range intersects with this range. If one range
+        /// is a subset of the other, they are considered to intersect.
+        ///
+        /// @param range The range to check.
+        /// @return True if the ranges intersect, false otherwise.
+        constexpr bool intersects(MemoryRange range) const {
+            return contains(range.front) || contains(range.back);
         }
 
         constexpr bool isBefore(PhysicalAddress addr) const {
@@ -128,7 +147,31 @@ namespace km {
         constexpr bool isAfter(PhysicalAddress addr) const {
             return front >= addr;
         }
+
+        constexpr bool operator==(MemoryRange other) const {
+            return front == other.front && back == other.back;
+        }
     };
+
+    /// @brief Find the intersection of two memory ranges.
+    ///
+    /// Finds the intersecting area of two ranges. If one range
+    /// is a subset of the other the subset is returned. If there
+    /// is no overlap the empty range is returned.
+    ///
+    /// @param a The first memory range.
+    /// @param b The second memory range.
+    /// @return The intersection of the ranges.
+    constexpr MemoryRange intersection(MemoryRange a, MemoryRange b) {
+        PhysicalAddress front = std::max(a.front, b.front);
+        PhysicalAddress back = std::min(a.back, b.back);
+
+        if (front >= back) {
+            return { 0uz, 0uz };
+        }
+
+        return {front, back};
+    }
 
     /// @brief Splits the given memory range at the given address.
     ///

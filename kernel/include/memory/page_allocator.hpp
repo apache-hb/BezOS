@@ -58,20 +58,32 @@ namespace km {
             return mRange.contains(addr);
         }
 
+        MemoryRange range() const {
+            return mRange;
+        }
+
         /// @brief Mark a range of memory as used.
         ///
         /// @param range The range to mark as used.
         void markAsUsed(MemoryRange range);
     };
 
-    class PageAllocator {
+    namespace detail {
         using RegionAllocators = stdx::StaticVector<RegionBitmapAllocator, SystemMemoryLayout::kMaxRanges>;
+        using LowMemoryAllocators = stdx::StaticVector<RegionBitmapAllocator, 4>;
 
+        void BuildMemoryRanges(
+            RegionAllocators& allocators, LowMemoryAllocators& lowMemory,
+            const SystemMemoryLayout *layout, PhysicalAddress bitmap, uintptr_t hhdmOffset
+        );
+    }
+
+    class PageAllocator {
         /// @brief One allocator for each usable or reclaimable memory range.
-        RegionAllocators mAllocators;
+        detail::RegionAllocators mAllocators;
 
         /// @brief One allocator for each memory range below 1M.
-        stdx::StaticVector<RegionBitmapAllocator, 4> mLowMemory;
+        detail::LowMemoryAllocators mLowMemory;
 
     public:
         PageAllocator(const SystemMemoryLayout *layout, uintptr_t hhdmOffset);

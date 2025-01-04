@@ -40,29 +40,23 @@ static size_t GetBitmapSize(const SystemMemoryLayout *layout) {
     return size;
 }
 
+static constexpr PhysicalAddress kLowMemory = sm::megabytes(1).bytes();
+
 static PhysicalAddress FindBitmapSpace(const SystemMemoryLayout *layout, size_t bitmapSize) {
     // Find any memory range that is large enough to hold the bitmap
     // and is not in the first 1MB of memory.
 
     for (MemoryMapEntry entry : layout->available) {
-        if (entry.range.size() >= bitmapSize && !entry.range.contains(0x100000)) {
-            return entry.range.front;
+        MemoryRange usable = intersection(entry.range, { kLowMemory, UINTPTR_MAX });
+        if (usable.size() >= bitmapSize) {
+            return usable.front;
         }
     }
 
     return nullptr;
 }
 
-static constexpr size_t kLowMemory = sm::megabytes(1).bytes();
-
-PageAllocator::PageAllocator(const SystemMemoryLayout *layout, uintptr_t hhdmOffset) {
-    // Get the size of the bitmap and round up to the nearest page.
-    size_t bitmapSize = sm::roundup(GetBitmapSize(layout), x64::kPageSize);
-
-    // Allocate bitmap space
-    PhysicalAddress bitmap = FindBitmapSpace(layout, bitmapSize);
-    KM_CHECK(bitmap != nullptr, "Failed to find space for bitmap");
-
+void detail::BuildMemoryRanges(RegionAllocators& allocators, LowMemoryAllocators& lowMemory, const SystemMemoryLayout *layout, PhysicalAddress bitmap, uintptr_t hhdmOffset) {
     size_t offset = 0;
 
     auto newRegion = [&](MemoryRange range) {
@@ -73,26 +67,31 @@ PageAllocator::PageAllocator(const SystemMemoryLayout *layout, uintptr_t hhdmOff
 
     // Create an allocator for each memory range
     for (MemoryMapEntry entry : layout->available) {
-
         // If the range straddles the 1MB boundary, split it
         if (entry.range.contains(kLowMemory)) {
             auto [low, high] = split(entry.range, kLowMemory);
-            mLowMemory.add(newRegion(low));
-            mAllocators.add(newRegion(high));
+            lowMemory.add(newRegion(low));
+            allocators.add(newRegion(high));
         } else if (entry.range.isBefore(kLowMemory)) {
-            mLowMemory.add(newRegion(entry.range));
+            lowMemory.add(newRegion(entry.range));
         } else {
-            mAllocators.add(newRegion(entry.range));
+            allocators.add(newRegion(entry.range));
         }
     }
+}
+
+PageAllocator::PageAllocator(const SystemMemoryLayout *layout, uintptr_t hhdmOffset) {
+    // Get the size of the bitmap and round up to the nearest page.
+    size_t bitmapSize = sm::roundup(GetBitmapSize(layout), x64::kPageSize);
+
+    // Allocate bitmap space
+    PhysicalAddress bitmap = FindBitmapSpace(layout, bitmapSize);
+    KM_CHECK(bitmap != nullptr, "Failed to find space for bitmap");
+
+    detail::BuildMemoryRanges(mAllocators, mLowMemory, layout, bitmap, hhdmOffset);
 
     // Mark the bitmap memory as used
-    for (RegionBitmapAllocator& allocator : mAllocators) {
-        if (allocator.contains(bitmap)) {
-            allocator.markAsUsed({bitmap, bitmap + bitmapSize});
-            break;
-        }
-    }
+    markRangeUsed({bitmap, bitmap + bitmapSize});
 }
 
 PhysicalAddress PageAllocator::alloc4k(size_t count) {
