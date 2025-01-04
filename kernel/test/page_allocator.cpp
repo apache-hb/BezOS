@@ -5,7 +5,8 @@
 
 TEST(PageAllocatorTest, LowMemorySplit) {
     KernelMemoryMap data;
-    data.add(MemoryMapEntry { MemoryMapEntryType::eUsable, { 0x0000uz, sm::gigabytes(4).bytes() } });
+    size_t size = sm::gigabytes(4).bytes();
+    data.add(MemoryMapEntry { MemoryMapEntryType::eUsable, { 0x0000uz, size } });
 
     km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(data);
 
@@ -25,8 +26,8 @@ TEST(PageAllocatorTest, LowMemorySplit) {
     km::MemoryRange low1M = { 0x0000uz, sm::megabytes(1).bytes() };
     ASSERT_EQ(low.range(), low1M);
 
-    km::MemoryRange high3M = { sm::megabytes(1).bytes(), sm::gigabytes(4).bytes() };
-    ASSERT_EQ(high.range(), high3M);
+    km::MemoryRange highMemory = { sm::megabytes(1).bytes(), size };
+    ASSERT_EQ(high.range(), highMemory);
 }
 
 TEST(PageAllocatorTest, Allocate) {
