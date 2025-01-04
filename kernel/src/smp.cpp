@@ -9,7 +9,7 @@
 #include <atomic>
 
 /// @brief The info passed to the smp startup blob.
-/// @warning MUST BE KEPT IN SYNC WITH KmSmpInfoStart in smp.S
+/// @warning MUST BE KEPT IN SYNC WITH KmSmpInfoStart
 struct SmpInfoHeader {
     /// @brief The address of the long mode entry point for the AP.
     /// @note For now this is always the address of @ref KmSmpStartup.
@@ -47,6 +47,8 @@ struct SmpInfoHeader {
 
     km::SystemMemory *memory;
 };
+
+static_assert(offsetof(SmpInfoHeader, gdt) == 32);
 
 static_assert(std::is_standard_layout_v<SmpInfoHeader>, "The SMP header must have the layout smp.S expects.");
 static_assert(sizeof(SmpInfoHeader) < 0x1000, "If the SMP header gets this large it will overwrite the BSP startup area.");
@@ -101,8 +103,6 @@ static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::LocalApic 
         .memory = memory,
     };
 }
-
-static_assert(sizeof(SystemGdt) == (9 * sizeof(uint64_t)), "Dont change the System GDT size without also changing the SMP header in smp.S");
 
 void KmInitSmp(km::SystemMemory& memory, km::LocalApic& bsp, acpi::AcpiTables& acpiTables) {
     // copy the SMP blob to the correct location

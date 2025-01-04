@@ -15,9 +15,18 @@ static constexpr uint16_t kLineStatus = 5;
 // static constexpr uint16_t kModemStatus = 6;
 static constexpr uint16_t kScratch = 7;
 
-void km::SerialPort::put(uint8_t byte) {
-    while (!(KmReadByte(mBasePort + kLineStatus) & 0x20)) { }
+static constexpr uint8_t kEmptyTransmit = (1 << 5);
+static constexpr uint8_t kDataReady = (1 << 0);
+
+bool km::SerialPort::put(uint8_t byte) {
+    // TODO: should add some configuration for reliable transmission
+    if (!(KmReadByte(mBasePort + kLineStatus) & kEmptyTransmit)) {
+        return false;
+    }
+
     KmWriteByteNoDelay(mBasePort, byte);
+
+    return true;
 }
 
 size_t km::SerialPort::write(stdx::Span<const uint8_t> src) {
@@ -31,7 +40,7 @@ size_t km::SerialPort::write(stdx::Span<const uint8_t> src) {
 size_t km::SerialPort::read(stdx::Span<uint8_t> dst) {
     ssize_t i = 0;
     for (; i < dst.sizeInBytes(); i++) {
-        if (!(KmReadByte(mBasePort + kLineStatus) & 0x01)) {
+        if (!(KmReadByte(mBasePort + kLineStatus) & kDataReady)) {
             break;
         }
 

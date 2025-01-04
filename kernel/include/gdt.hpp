@@ -101,7 +101,10 @@ struct km::StaticFormat<x64::GdtEntry> {
     static String toString(x64::GdtEntry value);
 };
 
-struct SystemGdt {
+/// @brief The GDT entries for the system.
+/// @warning This alignas(16) is load bearing, some AMD laptop cpus will hang forever
+///          if the GDT is not 16 byte aligned.
+struct alignas(16) SystemGdt {
     enum : int {
         eNull = GDT_NULL,
         eRealModeCode = GDT_16BIT_CODE,

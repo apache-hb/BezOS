@@ -123,18 +123,20 @@ GdtString GdtFormat::toString(x64::GdtEntry value) {
     return result;
 }
 
+static constexpr SystemGdt kSystemGdt = {
+    .entries = {
+        x64::GdtEntry::null(),
+        x64::GdtEntry(x64::Flags::eRealMode, x64::Access::eCode, 0xffffffff),
+        x64::GdtEntry(x64::Flags::eRealMode, x64::Access::eData, 0xffffffff),
+        x64::GdtEntry(x64::Flags::eProtectedMode, x64::Access::eCode, 0xffffffff),
+        x64::GdtEntry(x64::Flags::eProtectedMode, x64::Access::eData, 0xffffffff),
+        x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eCode, 0xffffffff),
+        x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eData, 0xffffffff),
+        x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eCode | x64::Access::eRing3, 0xffffffff),
+        x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eData | x64::Access::eRing3, 0xffffffff),
+    },
+};
+
 SystemGdt KmGetSystemGdt() {
-    return SystemGdt {
-        .entries = {
-            [SystemGdt::eNull] = x64::GdtEntry::null(),
-            [SystemGdt::eRealModeCode] = x64::GdtEntry(x64::Flags::eRealMode, x64::Access::eCode, 0xffffffff),
-            [SystemGdt::eRealModeData] = x64::GdtEntry(x64::Flags::eRealMode, x64::Access::eData, 0xffffffff),
-            [SystemGdt::eProtectedModeCode] = x64::GdtEntry(x64::Flags::eProtectedMode, x64::Access::eCode, 0xffffffff),
-            [SystemGdt::eProtectedModeData] = x64::GdtEntry(x64::Flags::eProtectedMode, x64::Access::eData, 0xffffffff),
-            [SystemGdt::eLongModeCode] = x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eCode, 0xffffffff),
-            [SystemGdt::eLongModeData] = x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eData, 0xffffffff),
-            [SystemGdt::eLongModeUserCode] = x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eCode | x64::Access::eRing3, 0xffffffff),
-            [SystemGdt::eLongModeUserData] = x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eData | x64::Access::eRing3, 0xffffffff),
-        },
-    };
+    return kSystemGdt;
 }

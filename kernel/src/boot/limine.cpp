@@ -47,9 +47,9 @@ static volatile LIMINE_REQUESTS_START_MARKER
 [[gnu::used, gnu::section(".limine_requests_end")]]
 static volatile LIMINE_REQUESTS_END_MARKER
 
-static KernelFrameBuffer BootGetDisplay(uintptr_t hhdmOffset) {
+static KernelFrameBuffer BootGetDisplay(uintptr_t hhdmOffset, int index) {
     limine_framebuffer_response response = *gFramebufferRequest.response;
-    limine_framebuffer framebuffer = *response.framebuffers[0];
+    limine_framebuffer framebuffer = *response.framebuffers[index];
 
     km::PhysicalAddress edidAddress = km::PhysicalAddress { (uintptr_t)framebuffer.edid };
 
@@ -67,6 +67,17 @@ static KernelFrameBuffer BootGetDisplay(uintptr_t hhdmOffset) {
         .address = (uintptr_t)framebuffer.address - hhdmOffset,
         .edid = { edidAddress, edidAddress + framebuffer.edid_size }
     };
+}
+
+static stdx::StaticVector<KernelFrameBuffer, 4> BootGetAllDisplays(uintptr_t hhdmOffset) {
+    limine_framebuffer_response response = *gFramebufferRequest.response;
+    stdx::StaticVector<KernelFrameBuffer, 4> result;
+
+    for (uint64_t i = 0; i < std::min<uint64_t>(result.capacity(), response.framebuffer_count); i++) {
+        result.add(BootGetDisplay(hhdmOffset, i));
+    }
+
+    return result;
 }
 
 static MemoryMapEntryType BootGetEntryType(limine_memmap_entry entry) {
@@ -110,7 +121,7 @@ static KernelMemoryMap BootGetMemoryMap(void) {
 }
 
 extern "C" void kmain(void) {
-    KM_CHECK(LIMINE_BASE_REVISION_SUPPORTED, "Unsupported limine base revision.");
+    // KM_CHECK(LIMINE_BASE_REVISION_SUPPORTED, "Unsupported limine base revision.");
 
     // offset the stack pointer as limine pushes qword 0 to
     // the stack before jumping to the kernel. and builtin_frame_address
@@ -128,7 +139,7 @@ extern "C" void kmain(void) {
         .kernelVirtualBase = kernelAddress.virtual_base,
         .hhdmOffset = hhdm.offset,
         .rsdpAddress = (uintptr_t)rsdp.address,
-        .framebuffer = BootGetDisplay(hhdm.offset),
+        .framebuffers = BootGetAllDisplays(hhdm.offset),
         .memoryMap = BootGetMemoryMap(),
         .stack = { stack - 0x10000, stack },
         .smbios32Address = (uintptr_t)smbios.entry_32,

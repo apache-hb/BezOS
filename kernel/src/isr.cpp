@@ -34,7 +34,7 @@ namespace x64 {
     static_assert(sizeof(IdtEntry) == 16);
 }
 
-struct alignas(0x8) Idt {
+struct alignas(16) Idt {
     static constexpr size_t kCount = 256;
     x64::IdtEntry entries[kCount];
 };

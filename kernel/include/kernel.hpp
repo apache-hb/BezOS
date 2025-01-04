@@ -110,7 +110,7 @@ struct KernelLaunch {
 
     km::PhysicalAddress rsdpAddress;
 
-    KernelFrameBuffer framebuffer;
+    stdx::StaticVector<KernelFrameBuffer, 4> framebuffers;
 
     KernelMemoryMap memoryMap;
 

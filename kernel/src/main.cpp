@@ -75,12 +75,29 @@ public:
     }
 };
 
+class EarlyTerminalLog final : public ILogTarget {
+    DisplayTerminal mTerminal;
+
+public:
+    constexpr EarlyTerminalLog()
+        : mTerminal(sm::noinit{})
+    { }
+
+    constexpr EarlyTerminalLog(Canvas display)
+        : mTerminal(display)
+    { }
+
+    void write(stdx::StringView message) override {
+        mTerminal.print(message);
+    }
+};
 
 // load bearing constinit, clang has a bug in c++26 mode
 // where it doesnt emit a warning for global constructors in all cases.
 constinit static SerialLog gSerialLog;
 constinit static TerminalLog gTerminalLog;
 constinit static DebugPortLog gDebugPortLog;
+constinit static EarlyTerminalLog gEarlyTerminalLog;
 
 constinit static stdx::StaticVector<ILogTarget*, 4> gLogTargets;
 
@@ -250,18 +267,19 @@ static km::PhysicalAddress KmGetRSDPTable(const KernelLaunch& launch) {
     return launch.rsdpAddress;
 }
 
-static km::Canvas KmGetTerminal(const KernelLaunch& launch, SystemMemory& memory) {
-    KernelFrameBuffer framebuffer = launch.framebuffer;
-    if (framebuffer.address == nullptr)
-        return sm::noinit{};
+static void KmGetTerminal(const KernelLaunch& launch, SystemMemory& memory) {
+    for (const KernelFrameBuffer& framebuffer : launch.framebuffers) {
+        if (framebuffer.address == nullptr)
+            continue;
 
-    km::Canvas display { framebuffer, (uint8_t*)(framebuffer.address.address + launch.hhdmOffset) };
-    KmMigrateTerminal(&display, memory);
+        km::Canvas display { framebuffer, (uint8_t*)(framebuffer.address.address + launch.hhdmOffset) };
+        KmMigrateTerminal(&display, memory);
 
-    gTerminalLog = TerminalLog(display, memory);
-    gLogTargets.add(&gTerminalLog);
+        gTerminalLog = TerminalLog(display, memory);
+        gLogTargets.add(&gTerminalLog);
 
-    return display;
+        return;
+    }
 }
 
 static void KmUpdateSerialPort(ComPortInfo info) {
@@ -387,11 +405,19 @@ static void KmWriteMemoryMap(const KernelMemoryMap& memmap, const SystemMemory& 
 }
 
 static void KmInitPortDelay() {
-    KmSetPortDelayMethod(x64::PortDelay::eNone);
+    KmSetPortDelayMethod(x64::PortDelay::ePostCode);
+}
+
+static void KmInitEarlyTerminal(const KernelLaunch& launch) {
+    auto fb = launch.framebuffers[0];
+    Canvas canvas { fb, (uint8_t*)(fb.address.address + launch.hhdmOffset) };
+    gEarlyTerminalLog = EarlyTerminalLog(canvas);
 }
 
 extern "C" void KmLaunch(KernelLaunch launch) {
     __cli();
+
+    KmInitEarlyTerminal(launch);
 
     KmInitPortDelay();
 
@@ -439,7 +465,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     SystemMemory memory = KmInitMemoryMap(processor.maxpaddr, launch);
     gMemoryMap = &memory;
 
-    km::Canvas display = KmGetTerminal(launch, memory);
+    KmGetTerminal(launch, memory);
 
     PlatformInfo platform = KmGetPlatformInfo(launch, memory);
 
@@ -486,12 +512,13 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     KmDebugMessage("| /SYS/MB/CPU0  | Local APIC           | ", present(processor.hasLocalApic), "\n");
     KmDebugMessage("| /SYS/MB/CPU0  | 2x APIC              | ", present(processor.has2xApic), "\n");
 
-    if (display.address() != nullptr) {
-        KmDebugMessage("| /SYS/VIDEO    | Display resolution   | ", display.width(), "x", display.height(), "x", display.bpp(), "\n");
-        KmDebugMessage("| /SYS/VIDEO    | Framebuffer size     | ", sm::bytes(display.size()), "\n");
-        KmDebugMessage("| /SYS/VIDEO    | Framebuffer address  | ", display.address(), "\n");
-        KmDebugMessage("| /SYS/VIDEO    | Display pitch        | ", display.pitch(), "\n");
-        KmDebugMessage("| /SYS/VIDEO    | Display bpp          | ", display.bpp(), "\n");
+    for (ssize_t i = 0; i < launch.framebuffers.count(); i++) {
+        const KernelFrameBuffer& display = launch.framebuffers[i];
+        KmDebugMessage("| /SYS/VIDEO", i, "   | Display resolution   | ", display.width, "x", display.height, "x", display.bpp, "\n");
+        KmDebugMessage("| /SYS/VIDEO", i, "   | Framebuffer size     | ", sm::bytes(display.size()), "\n");
+        KmDebugMessage("| /SYS/VIDEO", i, "   | Framebuffer address  | ", display.address, "\n");
+        KmDebugMessage("| /SYS/VIDEO", i, "   | Display pitch        | ", display.pitch, "\n");
+        KmDebugMessage("| /SYS/VIDEO", i, "   | EDID                 | ", display.edid, "\n");
     }
 
     KmDebugMessage("| /SYS/MB/COM1  | Status               | ", com1Status, "\n");

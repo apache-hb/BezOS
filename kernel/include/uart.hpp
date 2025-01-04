@@ -39,7 +39,7 @@ namespace km {
     class SerialPort {
         uint16_t mBasePort = 0xFFFF;
 
-        void put(uint8_t byte);
+        bool put(uint8_t byte);
 
     public:
         constexpr SerialPort() = default;

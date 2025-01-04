@@ -2,8 +2,6 @@
 
 .section .text
 
-.extern KmHalt
-
 .extern KmIsrDispatchRoutine
 
 /* When in ring0 the kernel gs shouldn't be swapped. */
@@ -18,7 +16,7 @@
 
 KmIsrStub:
     SWAPGS_KERNEL
-    
+
     pushq %rbp
     pushq %r15
     pushq %r14

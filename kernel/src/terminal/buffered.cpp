@@ -104,7 +104,7 @@ void km::BufferedTerminal::flush() {
             memcpy(dst, src, count * mDisplay.bpp() / 8);
 
             // then copy black space for the rest of the line
-            // memset(dst + count * mDisplay.bpp() / 8, 0, (mColumnCount - size) * 8 * mDisplay.bpp() / 8);
+            memset(dst + count * mDisplay.bpp() / 8, 0, (mColumnCount - size) * 8 * mDisplay.bpp() / 8);
         }
     }
 }
