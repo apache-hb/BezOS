@@ -4,6 +4,27 @@
 
 #include "display.hpp"
 
+TEST(CanvasTest, Size) {
+    KernelFrameBuffer framebuffer = {
+        .width = 1280,
+        .height = 800,
+        .pitch = 5120,
+        .bpp = 32,
+        .redMaskSize = 8,
+        .redMaskShift = 16,
+        .greenMaskSize = 8,
+        .greenMaskShift = 8,
+        .blueMaskSize = 8,
+        .blueMaskShift = 0,
+    };
+
+    std::unique_ptr<uint8_t[]> address(new uint8_t[framebuffer.size()]);
+
+    km::Canvas display(framebuffer, address.get());
+
+    ASSERT_EQ(display.size(), (1280 * 800 * 4));
+}
+
 TEST(DisplayTest, Simple) {
     KernelFrameBuffer framebuffer = {
         .width = 1280,

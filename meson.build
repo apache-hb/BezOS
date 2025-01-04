@@ -94,7 +94,6 @@ src = [
 
     'kernel/src/canvas.cpp',
     'kernel/src/terminal/terminal.cpp',
-    'kernel/src/terminal/buffered.cpp',
 
     'kernel/src/arch/cr.cpp',
 

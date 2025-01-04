@@ -302,16 +302,16 @@ void VirtualAllocator::mapRange(MemoryRange range, VirtualAddress vaddr, PageFla
 }
 
 void VirtualAllocator::unmap(void *ptr, size_t size) {
-    VirtualAddress front = { sm::rounddown((uintptr_t)ptr, x64::kPageSize) };
-    VirtualAddress back = { sm::roundup((uintptr_t)ptr + size, x64::kPageSize) };
+    uintptr_t front = sm::rounddown((uintptr_t)ptr, x64::kPageSize);
+    uintptr_t back = sm::roundup((uintptr_t)ptr + size, x64::kPageSize);
 
     x64::PageMapLevel4 *l4 = (x64::PageMapLevel4*)rootPageTable();
 
-    for (VirtualAddress i = front; i < back; i += x64::kPageSize) {
-        uint16_t pml4e = (i.address >> 39) & 0b0001'1111'1111;
-        uint16_t pdpte = (i.address >> 30) & 0b0001'1111'1111;
-        uint16_t pdte = (i.address >> 21) & 0b0001'1111'1111;
-        uint16_t pte = (i.address >> 12) & 0b0001'1111'1111;
+    for (uintptr_t i = front; i < back; i += x64::kPageSize) {
+        uint16_t pml4e = (i >> 39) & 0b0001'1111'1111;
+        uint16_t pdpte = (i >> 30) & 0b0001'1111'1111;
+        uint16_t pdte = (i >> 21) & 0b0001'1111'1111;
+        uint16_t pte = (i >> 12) & 0b0001'1111'1111;
 
         const x64::PageMapLevel3 *l3 = findPageMap3(l4, pml4e);
         if (!l3) continue;
@@ -324,7 +324,7 @@ void VirtualAllocator::unmap(void *ptr, size_t size) {
 
         x64::pte& t1 = pt->entries[pte];
         t1.setPresent(false);
-        x64::invlpg(i.address);
+        x64::invlpg(i);
     }
 }
 
@@ -363,7 +363,7 @@ void KmMigrateMemory(km::VirtualAllocator& vmm, km::PageManager& pm, const void 
     km::PhysicalAddress base = km::PhysicalAddress { (uintptr_t)address - pm.hhdmOffset() };
     km::PhysicalAddress end = base + size;
 
-    vmm.mapRange({ base, end }, km::VirtualAddress { base.address + pm.hhdmOffset() }, PageFlags::eData, type);
+    vmm.mapRange({ base, end }, km::VirtualAddress { (uintptr_t)address }, PageFlags::eData, type);
 }
 
 void KmReclaimBootMemory(const km::PageManager& pm, km::VirtualAllocator& vmm, km::SystemMemoryLayout& layout) {

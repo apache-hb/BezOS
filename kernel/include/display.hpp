@@ -105,7 +105,7 @@ namespace km {
         void fill(Pixel pixel);
 
         void *address() const { return mAddress; }
-        size_t size() const { return (mPitch / 8) * mHeight; }
+        size_t size() const { return mPitch * mHeight; }
 
         uint64_t width() const { return mWidth; }
         uint64_t height() const { return mHeight; }
@@ -119,14 +119,14 @@ namespace km {
 
     void DrawCharacter(Canvas& display, uint64_t x, uint64_t y, char c, Pixel fg, Pixel bg);
 
-    class DisplayTerminal {
-        static constexpr size_t kColumnCount = 80;
-        static constexpr size_t kRowCount = 25;
-
+    class Terminal {
         Canvas mDisplay;
 
         uint16_t mCurrentRow;
         uint16_t mCurrentColumn;
+
+        uint16_t mRowCount;
+        uint16_t mColumnCount;
 
         void put(char c);
 
@@ -136,61 +136,24 @@ namespace km {
         void write(uint64_t x, uint64_t y, char c);
 
     public:
-        DisplayTerminal(Canvas display)
+        Terminal(Canvas display)
             : mDisplay(display)
             , mCurrentRow(0)
             , mCurrentColumn(0)
+            , mRowCount(display.height() / 8)
+            , mColumnCount(display.width() / 8)
         { }
 
-        constexpr DisplayTerminal(sm::noinit)
+        constexpr Terminal(sm::noinit)
             : mDisplay(sm::noinit{})
             , mCurrentRow(0)
             , mCurrentColumn(0)
+            , mRowCount(0)
+            , mColumnCount(0)
         { }
 
         void print(stdx::StringView message);
 
         Canvas& display() { return mDisplay; }
-    };
-
-    class BufferedTerminal {
-        stdx::StaticVector<DirtyArea, 16> mDirty;
-
-        uint16_t mCurrentColumn;
-        uint16_t mCurrentRow;
-
-        uint16_t mColumnCount;
-        uint16_t mRowCount;
-
-        Canvas mDisplay;
-        Canvas mBackBuffer;
-
-        char *mTextBuffer;
-        size_t bufferSize() const { return mColumnCount * mRowCount; }
-
-        void put(char c);
-
-        void advance();
-        void newline();
-
-        void write(uint64_t x, uint64_t y, char c);
-
-    public:
-        BufferedTerminal(Canvas display, SystemMemory& memory);
-
-        constexpr BufferedTerminal(sm::noinit)
-            : mCurrentColumn(0)
-            , mCurrentRow(0)
-            , mColumnCount(0)
-            , mRowCount(0)
-            , mDisplay(sm::noinit{})
-            , mBackBuffer(sm::noinit{})
-            , mTextBuffer(nullptr)
-        { }
-
-        void print(stdx::StringView message);
-        void flush();
-
-        void fill(Pixel pixel) { mBackBuffer.fill(pixel); }
     };
 }

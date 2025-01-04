@@ -54,9 +54,7 @@ PhysicalAddress RegionBitmapAllocator::alloc4k(size_t count) {
         set(i);
     }
 
-    PhysicalAddress front = mRange.front + (start * x64::kPageSize);
-    KmDebugMessage("[ALLOC] 4k: ", Hex(front.address), " - ", Hex(front.address + (count * x64::kPageSize)), "\n");
-    return front;
+    return mRange.front + (start * x64::kPageSize);
 }
 
 void RegionBitmapAllocator::release(MemoryRange range) {

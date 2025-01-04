@@ -59,31 +59,14 @@ class DebugPortLog final : public ILogTarget {
 };
 
 class TerminalLog final : public ILogTarget {
-    BufferedTerminal mTerminal;
+    Terminal mTerminal;
 
 public:
     constexpr TerminalLog()
         : mTerminal(sm::noinit{})
     { }
 
-    constexpr TerminalLog(Canvas display, SystemMemory& memory)
-        : mTerminal(display, memory)
-    { }
-
-    void write(stdx::StringView message) override {
-        mTerminal.print(message);
-    }
-};
-
-class EarlyTerminalLog final : public ILogTarget {
-    DisplayTerminal mTerminal;
-
-public:
-    constexpr EarlyTerminalLog()
-        : mTerminal(sm::noinit{})
-    { }
-
-    constexpr EarlyTerminalLog(Canvas display)
+    constexpr TerminalLog(Canvas display)
         : mTerminal(display)
     { }
 
@@ -213,11 +196,6 @@ static void KmSetupMtrrs(const km::PageManager& pm) {
     }
 }
 
-static void KmMigrateTerminal(const km::Canvas *display, SystemMemory& memory) {
-    // migrate framebuffer memory
-    KmMigrateMemory(memory.vmm, memory.pager, display->address(), display->size(), MemoryType::eWriteCombine);
-}
-
 static SystemMemory KmInitMemory(uintptr_t bits, const KernelLaunch& launch) {
     PageMemoryTypeLayout pat = KmSetupPat();
 
@@ -271,15 +249,14 @@ static km::PhysicalAddress KmGetRsdpTable(const KernelLaunch& launch) {
     return launch.rsdpAddress;
 }
 
-static void KmGetTerminal(const KernelLaunch& launch, SystemMemory& memory) {
+[[maybe_unused]]
+static void KmInitBootTerminal(const KernelLaunch& launch) {
     for (const KernelFrameBuffer& framebuffer : launch.framebuffers) {
         if (framebuffer.address == nullptr)
             continue;
 
         km::Canvas display { framebuffer, (uint8_t*)(framebuffer.address.address + launch.hhdmOffset) };
-        KmMigrateTerminal(&display, memory);
-
-        gTerminalLog = TerminalLog(display, memory);
+        gTerminalLog = TerminalLog(display);
         gLogTargets.add(&gTerminalLog);
 
         return;
@@ -307,6 +284,8 @@ static km::SystemMemory *gMemoryMap = nullptr;
 
 [[noreturn]]
 static void KmDumpIsrContext(const km::IsrContext *context, stdx::StringView message) {
+    KmEndWrite(); // TODO: HACK - this prevents a deadlock if the thread dies while holding the lock
+
     if (gMemoryMap != nullptr) {
         km::LocalApic lapic = km::LocalApic::current(*gMemoryMap);
 
@@ -415,7 +394,12 @@ static void KmInitPortDelay() {
 extern "C" void KmLaunch(KernelLaunch launch) {
     __cli();
 
+    x64::Cr0 cr0 = x64::Cr0::load();
+    cr0.set(x64::Cr0::WP | x64::Cr0::NE);
+    x64::Cr0::store(cr0);
+
     KmInitPortDelay();
+    KmInitBootTerminal(launch);
 
     bool hvPresent = IsHypervisorPresent();
     HypervisorInfo hvInfo{};
@@ -443,11 +427,6 @@ extern "C" void KmLaunch(KernelLaunch launch) {
 
     SerialPortStatus com1Status = KmInitSerialPort(com1Info);
 
-    x64::Cr0 cr0 = x64::Cr0::load();
-    cr0.set(x64::Cr0::WP);
-    cr0.set(x64::Cr0::NE);
-    x64::Cr0::store(cr0);
-
     KmSetupBspGdt();
 
     km::IsrAllocator isrs;
@@ -457,9 +436,6 @@ extern "C" void KmLaunch(KernelLaunch launch) {
 
     SystemMemory memory = KmInitMemory(processor.maxpaddr, launch);
     gMemoryMap = &memory;
-
-    // remove the early init terminal for the final terminal
-    KmGetTerminal(launch, memory);
 
     PlatformInfo platform = KmGetPlatformInfo(launch, memory);
 

@@ -1,27 +1,27 @@
 #include "display.hpp"
 
-void km::DisplayTerminal::put(char c) {
+void km::Terminal::put(char c) {
     write(mCurrentColumn, mCurrentRow, c);
     advance();
 }
 
-void km::DisplayTerminal::write(uint64_t x, uint64_t y, char c) {
+void km::Terminal::write(uint64_t x, uint64_t y, char c) {
     DrawCharacter(mDisplay, x, y, c, Pixel { 255, 255, 255 }, Pixel { 0, 0, 0 });
 }
 
-void km::DisplayTerminal::advance() {
+void km::Terminal::advance() {
     mCurrentColumn += 1;
 
-    if (mCurrentColumn >= kColumnCount) {
+    if (mCurrentColumn >= mColumnCount) {
         newline();
         mCurrentColumn = 0;
     }
 }
 
-void km::DisplayTerminal::newline() {
+void km::Terminal::newline() {
     mCurrentRow += 1;
     bool scroll = false;
-    if (mCurrentRow >= kRowCount) {
+    if (mCurrentRow >= mRowCount) {
         mCurrentRow = 0;
         scroll = true;
     }
@@ -33,7 +33,7 @@ void km::DisplayTerminal::newline() {
     }
 }
 
-void km::DisplayTerminal::print(stdx::StringView message) {
+void km::Terminal::print(stdx::StringView message) {
     for (char c : message) {
         if (c == '\0') {
             continue;
