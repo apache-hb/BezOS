@@ -5,7 +5,7 @@ I thought it would be funny
 1. install `clang` (preferrably 19/20) and `meson`
 2. execute
 ```sh
-./setup.sh
+./setup.sh build
 make
 ```
 3. kernel will be in `install/bezos.iso`
