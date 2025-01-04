@@ -42,13 +42,17 @@ km::HypervisorInfo km::KmGetHypervisorInfo() {
     return HypervisorInfo { vendor, cpuid.eax };
 }
 
-km::BrandString km::KmGetBrandString() {
+bool km::ProcessorInfo::isKvm() const {
+    return vendor == "KVMKVMKVM\0\0\0"_sv;
+}
+
+km::BrandString km::GetBrandString() {
     char brand[sm::kBrandStringSize];
     sm::KmGetBrandString(brand);
     return brand;
 }
 
-km::ProcessorInfo km::KmGetProcessorInfo() {
+km::ProcessorInfo km::GetProcessorInfo() {
     CpuId vendorId = CpuId::of(0);
 
     char vendor[12];
@@ -62,7 +66,7 @@ km::ProcessorInfo km::KmGetProcessorInfo() {
     bool is2xApicPresent = cpuid.ecx & (1 << 21);
 
     CpuId ext = CpuId::of(0x80000000);
-    BrandString brand = ext.eax < 0x80000004 ? "" : KmGetBrandString();
+    BrandString brand = ext.eax < 0x80000004 ? "" : GetBrandString();
 
     uintptr_t maxvaddr = 0;
     uintptr_t maxpaddr = 0;

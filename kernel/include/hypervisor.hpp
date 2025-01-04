@@ -47,12 +47,14 @@ namespace km {
             return busClock != 0;
         }
 
+        bool isKvm() const;
+
         uint16_t baseFrequency; // in mhz
         uint16_t maxFrequency; // in mhz
         uint16_t busFrequency; // in mhz
     };
 
-    BrandString KmGetBrandString();
+    BrandString GetBrandString();
 
-    ProcessorInfo KmGetProcessorInfo();
+    ProcessorInfo GetProcessorInfo();
 }

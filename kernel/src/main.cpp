@@ -388,8 +388,9 @@ struct [[gnu::packed]] alignas(0x10) TaskStateSegment {
     uint32_t iopbOffset;
 };
 
-static void KmInitPortDelay() {
-    KmSetPortDelayMethod(x64::PortDelay::ePostCode);
+static void KmInitPortDelay(const ProcessorInfo& processor) {
+    x64::PortDelay delay = processor.isKvm() ? x64::PortDelay::eNone : x64::PortDelay::ePostCode;
+    KmSetPortDelayMethod(delay);
 }
 
 extern "C" void KmLaunch(KernelLaunch launch) {
@@ -399,7 +400,6 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     cr0.set(x64::Cr0::WP | x64::Cr0::NE);
     x64::Cr0::store(cr0);
 
-    KmInitPortDelay();
     KmInitBootTerminal(launch);
 
     bool hvPresent = IsHypervisorPresent();
@@ -418,7 +418,8 @@ extern "C" void KmLaunch(KernelLaunch launch) {
         gLogTargets.add(&gDebugPortLog);
     }
 
-    ProcessorInfo processor = KmGetProcessorInfo();
+    ProcessorInfo processor = GetProcessorInfo();
+    KmInitPortDelay(processor);
 
     ComPortInfo com1Info = {
         .port = km::com::kComPort1,
