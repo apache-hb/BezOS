@@ -57,9 +57,7 @@ namespace km {
 
         void *mBaseAddress = nullptr;
 
-        volatile uint32_t& reg(uint16_t offset) const {
-            return *reinterpret_cast<volatile uint32_t*>((char*)mBaseAddress + offset);
-        }
+        volatile uint32_t& reg(uint16_t offset) const;
 
         void setSpuriousInt(uint32_t value) {
             reg(kSpuriousInt) = value;

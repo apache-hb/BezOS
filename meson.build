@@ -156,6 +156,7 @@ foreach name, source : testcases
         c_args : c_args,
         cpp_args : cpp_args + [ '-std=c++26' ], # meson bug: native executables dont have default_options applied
         dependencies : [ gtest ],
+        override_options : [ 'b_sanitize=address' ],
         native : true,
     )
 

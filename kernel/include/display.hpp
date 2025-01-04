@@ -105,7 +105,7 @@ namespace km {
         void fill(Pixel pixel);
 
         void *address() const { return mAddress; }
-        size_t size() const { return mPitch * mHeight * bpp() / 8; }
+        size_t size() const { return (mPitch / 8) * mHeight; }
 
         uint64_t width() const { return mWidth; }
         uint64_t height() const { return mHeight; }
@@ -128,8 +128,6 @@ namespace km {
         uint16_t mCurrentRow;
         uint16_t mCurrentColumn;
 
-        char buffer[kColumnCount * kRowCount] = { };
-
         void put(char c);
 
         void advance();
@@ -142,17 +140,13 @@ namespace km {
             : mDisplay(display)
             , mCurrentRow(0)
             , mCurrentColumn(0)
-        {
-            std::fill(std::begin(buffer), std::end(buffer), ' ');
-        }
+        { }
 
         constexpr DisplayTerminal(sm::noinit)
             : mDisplay(sm::noinit{})
             , mCurrentRow(0)
             , mCurrentColumn(0)
-        {
-            std::fill(std::begin(buffer), std::end(buffer), ' ');
-        }
+        { }
 
         void print(stdx::StringView message);
 

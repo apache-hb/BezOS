@@ -97,7 +97,6 @@ public:
 constinit static SerialLog gSerialLog;
 constinit static TerminalLog gTerminalLog;
 constinit static DebugPortLog gDebugPortLog;
-constinit static EarlyTerminalLog gEarlyTerminalLog;
 
 constinit static stdx::StaticVector<ILogTarget*, 4> gLogTargets;
 
@@ -219,7 +218,7 @@ static void KmMigrateTerminal(const km::Canvas *display, SystemMemory& memory) {
     KmMigrateMemory(memory.vmm, memory.pager, display->address(), display->size(), MemoryType::eWriteCombine);
 }
 
-static SystemMemory KmInitMemoryMap(uintptr_t bits, const KernelLaunch& launch) {
+static SystemMemory KmInitMemory(uintptr_t bits, const KernelLaunch& launch) {
     PageMemoryTypeLayout pat = KmSetupPat();
 
     SystemMemory memory = SystemMemory { SystemMemoryLayout::from(launch.memoryMap), bits, launch.hhdmOffset, pat };
@@ -244,7 +243,7 @@ static SystemMemory KmInitMemoryMap(uintptr_t bits, const KernelLaunch& launch) 
     return memory;
 }
 
-static LocalApic KmEnableAPIC(km::SystemMemory& memory, km::IsrAllocator& isrs) {
+static LocalApic KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllocator& isrs) {
     LocalApic lapic = KmInitBspLocalApic(memory);
     gLocalApic = lapic;
 
@@ -268,7 +267,7 @@ static LocalApic KmEnableAPIC(km::SystemMemory& memory, km::IsrAllocator& isrs) 
     return lapic;
 }
 
-static km::PhysicalAddress KmGetRSDPTable(const KernelLaunch& launch) {
+static km::PhysicalAddress KmGetRsdpTable(const KernelLaunch& launch) {
     return launch.rsdpAddress;
 }
 
@@ -413,21 +412,8 @@ static void KmInitPortDelay() {
     KmSetPortDelayMethod(x64::PortDelay::ePostCode);
 }
 
-static ssize_t KmInitEarlyTerminal(const KernelLaunch& launch) {
-    auto fb = launch.framebuffers[0];
-    Canvas canvas { fb, (uint8_t*)(fb.address.address + launch.hhdmOffset) };
-    gEarlyTerminalLog = EarlyTerminalLog(canvas);
-
-    ssize_t index = gLogTargets.count();
-    gLogTargets.add(&gEarlyTerminalLog);
-
-    return index;
-}
-
 extern "C" void KmLaunch(KernelLaunch launch) {
     __cli();
-
-    ssize_t earlyTerminalIndex = KmInitEarlyTerminal(launch);
 
     KmInitPortDelay();
 
@@ -469,11 +455,10 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     KmInstallExceptionHandlers();
     __sti();
 
-    SystemMemory memory = KmInitMemoryMap(processor.maxpaddr, launch);
+    SystemMemory memory = KmInitMemory(processor.maxpaddr, launch);
     gMemoryMap = &memory;
 
     // remove the early init terminal for the final terminal
-    gLogTargets.remove(earlyTerminalIndex);
     KmGetTerminal(launch, memory);
 
     PlatformInfo platform = KmGetPlatformInfo(launch, memory);
@@ -486,7 +471,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
 
     // save the base address early as its stored in bootloader
     // reclaimable memory, which is reclaimed before this data is used.
-    km::PhysicalAddress rsdpBaseAddress = KmGetRSDPTable(launch);
+    km::PhysicalAddress rsdpBaseAddress = KmGetRsdpTable(launch);
 
     KmDebugMessage("[INIT] System report.\n");
     KmDebugMessage("| Component     | Property             | Status\n");
@@ -548,7 +533,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
         KmInstallIsrHandler(0x1, isrHandler);
     }
 
-    LocalApic lapic = KmEnableAPIC(memory, isrs);
+    LocalApic lapic = KmEnableLocalApic(memory, isrs);
 
     // test lapic ipis to ensure the local apic is working
     {

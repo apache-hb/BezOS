@@ -44,25 +44,17 @@ void km::BufferedTerminal::newline() {
     mCurrentRow += 1;
     bool scroll = false;
     if (mCurrentRow >= mRowCount) {
-        mCurrentRow = mRowCount - 1;
+        mCurrentRow = 0;
         scroll = true;
     }
 
     mCurrentColumn = 0;
 
     if (scroll) {
-        memmove(mTextBuffer, mTextBuffer + mColumnCount, mColumnCount * (mRowCount - 1));
-        memset(mTextBuffer + mColumnCount * (mRowCount - 1), ' ', mColumnCount);
-
-        // redraw the screen
-        for (uint64_t y = 0; y < mRowCount; y++) {
-            for (uint64_t x = 0; x < mColumnCount; x++) {
-                write(x, y, mTextBuffer[y * mColumnCount + x]);
-            }
-        }
+        memset(mDisplay.address(), 0, mDisplay.size());
     }
 
-    flush();
+    // flush();
 }
 
 void km::BufferedTerminal::print(stdx::StringView message) {

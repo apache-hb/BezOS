@@ -67,7 +67,7 @@ static uint64_t EnableLocalApic(km::PhysicalAddress baseAddress = 0uz) {
     kApicBaseMsr.update(msr, [&](uint64_t& value) {
         value |= kApicEnable;
 
-        if (baseAddress != nullptr) {
+        if (baseAddress != 0uz) {
             value &= ~kApicAddressMask;
             value |= baseAddress.address;
         }
@@ -89,7 +89,15 @@ static km::LocalApic MapLocalApic(uint64_t msr, km::SystemMemory& memory) {
     // been designated as strong uncacheable (UC)
     void *addr = memory.hhdmMap(base, base + km::kApicSize, km::PageFlags::eData, km::MemoryType::eUncached);
 
+    KmDebugMessage("[APIC] Mapped: ", km::Hex(base), " -> ", km::Hex((uintptr_t)addr), "\n");
+
     return km::LocalApic { addr };
+}
+
+volatile uint32_t& km::LocalApic::reg(uint16_t offset) const {
+    KmDebugMessage("[APIC] Access: ", mBaseAddress, " + ", offset, "\n");
+
+    return *reinterpret_cast<volatile uint32_t*>((char*)mBaseAddress + offset);
 }
 
 km::LocalApic km::LocalApic::current(km::SystemMemory& memory) {

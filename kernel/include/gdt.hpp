@@ -100,9 +100,8 @@ struct km::StaticFormat<x64::GdtEntry> {
 };
 
 /// @brief The GDT entries for the system.
-/// @warning This alignas(16) is load bearing, some AMD laptop cpus will hang forever
-///          if the GDT is not 16 byte aligned.
-struct SystemGdt {
+/// @warning This alignas(8) is load bearing, unaligned gdt entries can cause poor performance.
+struct alignas(8) SystemGdt {
     enum : int {
         eNull = GDT_NULL,
         eRealModeCode = GDT_16BIT_CODE,

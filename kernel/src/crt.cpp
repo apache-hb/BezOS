@@ -3,19 +3,19 @@
 
 #include "crt.hpp"
 
-static size_t memcpy64(uint64_t *dst, const uint64_t *src, size_t n) {
+static void CopySmall(uint8_t *dst, const uint8_t *src, size_t n) {
+    for (size_t i = 0; i < n; i++) {
+        dst[i] = src[i];
+    }
+}
+
+static size_t CopyQword(uint64_t *dst, const uint64_t *src, size_t n) {
     while (n > sizeof(uint64_t)) {
         *dst++ = *src++;
         n -= sizeof(uint64_t);
     }
 
     return n;
-}
-
-static void CopySmall(uint8_t *dst, const uint8_t *src, size_t n) {
-    for (size_t i = 0; i < n; i++) {
-        dst[i] = src[i];
-    }
 }
 
 static void CopyLarge(uint8_t *dst, const uint8_t *src, size_t n) {
@@ -27,7 +27,7 @@ static void CopyLarge(uint8_t *dst, const uint8_t *src, size_t n) {
     n -= align;
 
     // copy 8 bytes at a time
-    size_t remaining = memcpy64((uint64_t *)dst, (const uint64_t *)src, n);
+    size_t remaining = CopyQword((uint64_t *)dst, (const uint64_t *)src, n);
 
     // copy the remaining bytes
     dst += n - remaining;
@@ -46,6 +46,7 @@ void KmMemoryCopy(void *to, const void *from, size_t n) {
         CopySmall(dst, src, n);
     }
 }
+
 
 static void SetSmall(uint8_t *dst, uint8_t value, size_t n) {
     for (size_t i = 0; i < n; i++) {

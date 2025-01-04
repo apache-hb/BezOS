@@ -98,7 +98,7 @@ struct KernelFrameBuffer {
     km::MemoryRange edid;
 
     size_t size() const {
-        return pitch * height * bpp / 8;
+        return (pitch / 8) * height;
     }
 };
 

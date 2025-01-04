@@ -2,8 +2,6 @@
 
 void km::DisplayTerminal::put(char c) {
     write(mCurrentColumn, mCurrentRow, c);
-    buffer[mCurrentRow * kColumnCount + mCurrentColumn] = c;
-
     advance();
 }
 
@@ -24,22 +22,14 @@ void km::DisplayTerminal::newline() {
     mCurrentRow += 1;
     bool scroll = false;
     if (mCurrentRow >= kRowCount) {
-        mCurrentRow = kRowCount - 1;
+        mCurrentRow = 0;
         scroll = true;
     }
 
     mCurrentColumn = 0;
 
     if (scroll) {
-        memmove(buffer, buffer + kColumnCount, kColumnCount * (kRowCount - 1));
-        memset(buffer + kColumnCount * (kRowCount - 1), ' ', kColumnCount);
-
-        // redraw the screen
-        for (uint64_t y = 0; y < kRowCount; y++) {
-            for (uint64_t x = 0; x < kColumnCount; x++) {
-                write(x, y, buffer[y * kColumnCount + x]);
-            }
-        }
+        memset(mDisplay.address(), 0, mDisplay.size());
     }
 }
 

@@ -110,7 +110,12 @@ void KmInitSmp(km::SystemMemory& memory, km::LocalApic& bsp, acpi::AcpiTables& a
     void *smpStartBlob = memory.hhdmMap(kSmpStart, kSmpStart + blobSize, km::PageFlags::eAll);
     memcpy(smpStartBlob, _binary_smp_start, blobSize);
 
+    KmDebugMessage("[SMP] Starting APs.\n");
+
     uint32_t bspId = bsp.id();
+
+    KmDebugMessage("[SMP] BSP ID: ", bspId, "\n");
+
     SmpInfoHeader *smpInfo = memory.hhdmMapObject<SmpInfoHeader>(kSmpInfo);
 
     // Also identity map the SMP blob and info regions, it makes jumping to compatibility mode easier.

@@ -18,9 +18,9 @@ TEST(DisplayTest, Simple) {
         .blueMaskShift = 0,
     };
 
-    void *address = std::malloc(framebuffer.size());
+    std::unique_ptr<uint8_t[]> address(new uint8_t[framebuffer.size()]);
 
-    km::Canvas display(framebuffer, (uint8_t*)address);
+    km::Canvas display(framebuffer, address.get());
 
     ASSERT_EQ(display.size(), framebuffer.size());
     ASSERT_EQ(display.width(), framebuffer.width);
@@ -53,9 +53,9 @@ TEST(DisplayTest, WithLinePadding) {
         .blueMaskShift = 0,
     };
 
-    void *address = std::malloc(framebuffer.size());
+    std::unique_ptr<uint8_t[]> address(new uint8_t[framebuffer.size()]);
 
-    km::Canvas display(framebuffer, (uint8_t*)address);
+    km::Canvas display(framebuffer, address.get());
 
     ASSERT_EQ(display.size(), framebuffer.size());
     ASSERT_EQ(display.width(), framebuffer.width);
