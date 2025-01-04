@@ -199,6 +199,9 @@ static void KmWriteMtrrs(const km::PageManager& pm) {
             KmDebugMessage("[INIT] Variable MTRR[", i, "]: ", mtrr.type(), ", address: ", mtrr.baseAddress(pm), ", mask: ", Hex(mtrr.addressMask(pm)).pad(16, '0'), "\n");
         }
     }
+
+    // Some systems use UC as the default MTRR type :(
+    mtrrs.setDefaultType(km::MemoryType::eWriteBack);
 }
 
 static void KmWriteMemoryMap(const KernelMemoryMap& memmap, const SystemMemory& memory) {
