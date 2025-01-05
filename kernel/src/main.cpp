@@ -313,6 +313,7 @@ static void KmInitBootBufferedTerminal(const KernelLaunch& launch, SystemMemory&
 }
 
 static void KmUpdateSerialPort(ComPortInfo info) {
+    info.skipLoopbackTest = true;
     if (OpenSerialResult com1 = openSerial(info); com1.status == SerialPortStatus::eOk) {
         gSerialLog = SerialLog(com1.port);
         gLogTargets.add(&gSerialLog);

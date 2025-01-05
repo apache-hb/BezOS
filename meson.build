@@ -35,6 +35,8 @@ cpp_args = cpp.get_supported_arguments([ '-Wno-c99-designator', '-Wno-c99-extens
 
 limine = dependency('limine')
 
+# Smp startup blob
+
 compiler = find_program(cc.get_id())
 objcopy = find_program('objcopy')
 
@@ -62,6 +64,8 @@ smp = custom_target('smp.o',
         '@INPUT@', '@OUTPUT@'
     ],
 )
+
+# Kernel
 
 src = [
     # utilities
@@ -138,6 +142,8 @@ install_data('data/limine-pxe.conf',
 )
 
 meson.add_install_script('data/image.sh')
+
+# Unit tests
 
 gtest = dependency('gtest', native : true)
 gtest_main = dependency('gtest_main', native : true)

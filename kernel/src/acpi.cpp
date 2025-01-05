@@ -57,7 +57,7 @@ static void KmDebugMcfg(const acpi::RsdtHeader *header) {
         KmDebugMessage("| /SYS/ACPI/MCFG/", km::rpad(3) + i, " | Address              | ", km::PhysicalAddress(allocation->address), "\n");
         KmDebugMessage("| /SYS/ACPI/MCFG/", km::rpad(3) + i, " | PCI Segment          | ", km::Hex(allocation->segment).pad(4, '0'), "\n");
         KmDebugMessage("| /SYS/ACPI/MCFG/", km::rpad(3) + i, " | Bus range            | ",
-            km::Hex(allocation->startBusNumber).pad(2, '0'), "..", km::Hex(allocation->endBustNumber).pad(2, '0'), "\n");
+            km::Hex(allocation->startBusNumber).pad(2, '0'), "..", km::Hex(allocation->endBusNumber).pad(2, '0'), "\n");
     }
 }
 

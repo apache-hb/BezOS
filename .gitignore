@@ -1,6 +1,7 @@
 *uild*/
 .vscode/
 .cache/
+*-serial.txt
 install*/
 /subprojects/*
 !/subprojects/*.wrap

@@ -1,18 +1,18 @@
 param(
-    [Parameter(Mandatory=$true)][string]$KernelImage
-)
+    [Parameter(Mandatory=$false)]
+    [ValidateScript({ Test-Path $_ })]
+    [string]$KernelImage,
 
-$VMwarePath = 'C:\Program Files (x86)\VMware\VMware Workstation'
+    [Parameter(Mandatory=$false)]
+    [string]$VMwarePath = 'C:\Program Files (x86)\VMware\VMware Workstation',
+
+    [Parameter(Mandatory=$false)]
+    [string]$SerialOutputPath
+)
 
 $RootPath = $env:USERPROFILE + '\Documents\KernelTest\VMware'
 
 $ImagePath = $RootPath + '\bezos.iso'
-
-# Create the vmware directory
-New-Item -ItemType Directory -Path $RootPath -Force
-
-# Copy the kernel image to the vmware directory
-Copy-Item -Path $KernelImage -Destination $ImagePath -Force
 
 $VmCli = $VMwarePath + '\vmcli.exe'
 $VmRun = $VMwarePath + '\vmrun.exe'
@@ -20,13 +20,25 @@ $VmRun = $VMwarePath + '\vmrun.exe'
 $VmName = 'Test-BezOS'
 $VmPath = $RootPath + '\' + $VmName
 $VmxPath = $VmPath + '\' + $VmName + '.vmx'
-$SerialPort = $RootPath + '\com1.txt'
+$SerialPath = $RootPath + '\com1.txt'
+
+# Create the vmware directory
+New-Item -ItemType Directory -Path $RootPath -Force
+
+# Copy the kernel image to the vmware directory
+Copy-Item -Path $KernelImage -Destination $ImagePath -Force
 
 # Delete old instance if it exists
 
 if (Test-Path $VmxPath) {
     & $VmRun stop $VmxPath
     & $VmRun deleteVM $VmxPath
+}
+
+# Remove old serial output file if it exists
+
+if (Test-Path $SerialPath) {
+    Remove-Item $SerialPath
 }
 
 # Create the VM
@@ -41,7 +53,7 @@ if (Test-Path $VmxPath) {
 
 & $VmCli nvme SetPresent nvme0 1 $VmxPath
 
-& $VmCli Disk SetBackingInfo nvme0:0 disk $VmPath\bezos.vmdk 1 $VmxPath
+& $VmCli Disk SetBackingInfo nvme0:0 disk $VmPath\$VmName.vmdk 1 $VmxPath
 
 & $VmCli Disk SetPresent nvme0:0 1 $VmxPath
 
@@ -57,7 +69,7 @@ if (Test-Path $VmxPath) {
 
 & $VmCli Serial SetPresent serial0 1 $VmxPath
 
-& $VmCli Serial SetBackingInfo serial0 file $SerialPort null null null $VmxPath
+& $VmCli Serial SetBackingInfo serial0 file $SerialPath null null null $VmxPath
 
 # Set boot order
 

@@ -9,7 +9,7 @@ namespace acpi {
         uint64_t address;
         uint16_t segment;
         uint8_t startBusNumber;
-        uint8_t endBustNumber;
+        uint8_t endBusNumber;
 
         uint8_t reserved0[4];
     };
