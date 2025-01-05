@@ -143,11 +143,11 @@ static const acpi::RsdtHeader *KmGetRsdtHeader(km::PhysicalAddress paddr, km::Sy
 }
 
 static void KmDebugRsdt(const acpi::RsdpLocator *locator, km::SystemMemory& memory) {
-    KmDebugMessage("| /SYS/ACPI          | RSDT address               | ", km::Hex(locator->rsdtAddress).pad(8, '0'), "\n");
+    KmDebugMessage("| /SYS/ACPI          | RSDT address                | ", km::Hex(locator->rsdtAddress).pad(8, '0'), "\n");
 
     const acpi::Rsdt *rsdt = memory.hhdmMapConst<acpi::Rsdt>(locator->rsdtAddress);
 
-    KmDebugMessage("| /SYS/ACPI/RSDT     | Signature                  | '", stdx::StringView(rsdt->header.signature), "'\n");
+    KmDebugMessage("| /SYS/ACPI/RSDT     | Signature                   | '", stdx::StringView(rsdt->header.signature), "'\n");
 
     for (uint32_t i = 0; i < rsdt->count(); i++) {
         km::PhysicalAddress paddr = km::PhysicalAddress { rsdt->entries[i] };

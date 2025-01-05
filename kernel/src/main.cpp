@@ -14,6 +14,7 @@
 #include "delay.hpp"
 #include "display.hpp"
 #include "gdt.hpp"
+#include "hid/ps2.hpp"
 #include "hypervisor.hpp"
 #include "isr.hpp"
 #include "memory.hpp"
@@ -570,6 +571,17 @@ extern "C" void KmLaunch(KernelLaunch launch) {
 
         KmDebugMessage("[INIT] IOAPIC ", i, " ID: ", ioapic.id(), ", Version: ", ioapic.version(), "\n");
         KmDebugMessage("[INIT] ISR base: ", ioapic.isrBase(), ", Inputs: ", ioapic.inputCount(), "\n");
+    }
+
+    bool has8042 = rsdt.has8042Controller();
+
+    if (has8042) {
+        hid::Ps2ControllerResult result = hid::EnablePs2Controller();
+        KmDebugMessage("[INIT] PS/2 controller: ", result.status, "\n");
+        if (result.status == hid::Ps2ControllerStatus::eOk) {
+            KmDebugMessage("[INIT] PS/2 channel1: ", present(result.controller.hasChannel1()), "\n");
+            KmDebugMessage("[INIT] PS/2 channel2: ", present(result.controller.hasChannel2()), "\n");
+        }
     }
 
     pci::ProbeConfigSpace();
