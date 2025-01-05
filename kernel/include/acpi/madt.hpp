@@ -1,0 +1,109 @@
+#pragma once
+
+#include "acpi/header.hpp"
+
+#include "util/util.hpp"
+#include "util/format.hpp"
+
+namespace acpi {
+    enum class MadtFlags : uint32_t {
+        ePcatCompat = (1 << 0),
+    };
+
+    UTIL_BITFLAGS(MadtFlags);
+
+    enum class MadtEntryType : uint8_t {
+        eLocalApic = 0,
+        eIoApic = 1,
+    };
+
+    struct [[gnu::packed]] MadtEntry {
+        struct [[gnu::packed]] LocalApic {
+            uint8_t processorId;
+            uint8_t apicId;
+            uint32_t flags;
+
+            bool isEnabled() const {
+                static constexpr uint32_t kEnabled = 1 << 0;
+                return flags & kEnabled;
+            }
+
+            bool isOnlineCapable() const {
+                static constexpr uint32_t kOnlineCapable = 1 << 1;
+                return flags & kOnlineCapable;
+            }
+        };
+
+        struct [[gnu::packed]] IoApic {
+            uint8_t ioApicId;
+            uint8_t reserved;
+            uint32_t address;
+            uint32_t interruptBase;
+        };
+
+        MadtEntryType type;
+        uint8_t length;
+
+        union {
+            LocalApic lapic;
+            IoApic ioapic;
+        };
+    };
+
+    class MadtIterator {
+        const uint8_t *mCurrent;
+
+    public:
+        MadtIterator(const uint8_t *current)
+            : mCurrent(current)
+        { }
+
+        MadtIterator& operator++();
+
+        const MadtEntry *operator*();
+
+        friend bool operator!=(const MadtIterator& lhs, const MadtIterator& rhs);
+    };
+
+    struct Madt {
+        RsdtHeader header; // signature must be "APIC"
+
+        uint32_t localApicAddress;
+        MadtFlags flags;
+
+        // these entries are variable length so i cant use a struct
+        uint8_t entries[];
+
+        MadtIterator begin() const {
+            return MadtIterator { entries };
+        }
+
+        MadtIterator end() const {
+            return MadtIterator { reinterpret_cast<const uint8_t*>(this) + header.length };
+        }
+    };
+}
+
+template<>
+struct km::StaticFormat<acpi::MadtEntryType> {
+    static constexpr size_t kStringSize = km::StaticFormat<uint8_t>::kStringSize;
+    static stdx::StringView toString(char *buffer, acpi::MadtEntryType type) {
+        switch (type) {
+        case acpi::MadtEntryType::eLocalApic:
+            return "Local APIC";
+        case acpi::MadtEntryType::eIoApic:
+            return "IO APIC";
+        default:
+            return km::StaticFormat<uint8_t>::toString(buffer, static_cast<uint8_t>(type));
+        }
+    }
+};
+
+template<>
+struct std::iterator_traits<acpi::MadtIterator> {
+    using iterator_category = std::forward_iterator_tag;
+    using value_type = const acpi::MadtEntry*;
+    using difference_type = std::ptrdiff_t;
+    using pointer = const acpi::MadtEntry*;
+    using reference = const acpi::MadtEntry*;
+};

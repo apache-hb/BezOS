@@ -1,7 +1,7 @@
 *uild*/
 .vscode/
 .cache/
-install/
+install*/
 /subprojects/*
 !/subprojects/*.wrap
 !/subprojects/packagefiles/

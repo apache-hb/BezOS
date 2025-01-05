@@ -1,6 +1,6 @@
 #pragma once
 
-#include "acpi.hpp"
+#include "acpi/acpi.hpp"
 
 #include <utility>
 

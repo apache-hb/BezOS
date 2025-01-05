@@ -1,8 +1,6 @@
-#include "acpi.hpp"
+#include "acpi/acpi.hpp"
 #include "apic.hpp"
 #include "kernel.hpp"
-
-#include "memory/layout.hpp"
 
 #include <stddef.h>
 
@@ -51,6 +49,18 @@ static void KmDebugMadt(const acpi::RsdtHeader *header) {
     }
 }
 
+static void KmDebugMcfg(const acpi::RsdtHeader *header) {
+    const acpi::Mcfg *mcfg = reinterpret_cast<const acpi::Mcfg*>(header);
+
+    for (size_t i = 0; i < mcfg->allocationCount(); i++) {
+        const acpi::McfgAllocation *allocation = &mcfg->allocations[i];
+        KmDebugMessage("| /SYS/ACPI/MCFG/", km::rpad(3) + i, " | Address              | ", km::PhysicalAddress(allocation->address), "\n");
+        KmDebugMessage("| /SYS/ACPI/MCFG/", km::rpad(3) + i, " | PCI Segment          | ", km::Hex(allocation->segment).pad(4, '0'), "\n");
+        KmDebugMessage("| /SYS/ACPI/MCFG/", km::rpad(3) + i, " | Bus range            | ",
+            km::Hex(allocation->startBusNumber).pad(2, '0'), "..", km::Hex(allocation->endBustNumber).pad(2, '0'), "\n");
+    }
+}
+
 static acpi::RsdtHeader *KmGetRsdtHeader(km::PhysicalAddress paddr, km::SystemMemory& memory) {
     acpi::RsdtHeader *entry = KmMapTableEntry(paddr, memory);
     KmDebugMessage("| /SYS/ACPI/", entry->signature, "     | Address              | ", paddr, "\n");
@@ -63,14 +73,16 @@ static acpi::RsdtHeader *KmGetRsdtHeader(km::PhysicalAddress paddr, km::SystemMe
     KmDebugMessage("| /SYS/ACPI/", entry->signature, "     | Creator ID           | ", km::Hex(entry->creatorId), "\n");
     KmDebugMessage("| /SYS/ACPI/", entry->signature, "     | Creator revision     | ", entry->creatorRevision, "\n");
 
-    if (stdx::StringView(entry->signature) == "APIC"_sv) {
+    if ("APIC"_sv == entry->signature) {
         KmDebugMadt(entry);
+    } else if ("MCFG"_sv == entry->signature) {
+        KmDebugMcfg(entry);
     }
 
     return entry;
 }
 
-static void KmDebugRSDT(const acpi::RsdpLocator *locator, km::SystemMemory& memory) {
+static void KmDebugRsdt(const acpi::RsdpLocator *locator, km::SystemMemory& memory) {
     KmDebugMessage("| /SYS/ACPI          | RSDT address         | ", km::Hex(locator->rsdtAddress).pad(8, '0'), "\n");
 
     acpi::Rsdt *rsdt = memory.hhdmMapObject<acpi::Rsdt>(locator->rsdtAddress);
@@ -84,7 +96,7 @@ static void KmDebugRSDT(const acpi::RsdpLocator *locator, km::SystemMemory& memo
     }
 }
 
-static void KmDebugXSDT(const acpi::RsdpLocator *locator, km::SystemMemory& memory) {
+static void KmDebugXsdt(const acpi::RsdpLocator *locator, km::SystemMemory& memory) {
     KmDebugMessage("| /SYS/ACPI          | RSDP length          | ", locator->length, "\n");
     KmDebugMessage("| /SYS/ACPI          | XSDT address         | ", km::Hex(locator->xsdtAddress).pad(16, '0'), "\n");
     KmDebugMessage("| /SYS/ACPI          | Extended checksum    | ", locator->extendedChecksum, "\n");
@@ -114,9 +126,9 @@ acpi::AcpiTables KmInitAcpi(km::PhysicalAddress rsdpBaseAddress, km::SystemMemor
     KmDebugMessage("| /SYS/ACPI          | OEM                  | ", stdx::StringView(locator->oemid), "\n");
 
     if (locator->revision == 0) {
-        KmDebugRSDT(locator, memory);
+        KmDebugRsdt(locator, memory);
     } else {
-        KmDebugXSDT(locator, memory);
+        KmDebugXsdt(locator, memory);
     }
 
     return acpi::AcpiTables(locator, memory);
@@ -140,29 +152,25 @@ bool acpi::operator!=(const MadtIterator& lhs, const MadtIterator& rhs) {
 acpi::AcpiTables::AcpiTables(const RsdpLocator *locator, km::SystemMemory& memory)
     : mRsdpLocator(locator)
 {
-    // TODO: duplicated code
+    auto setupTables = [&](const auto *locator) {
+        for (uint32_t i = 0; i < locator->count(); i++) {
+            km::PhysicalAddress paddr = km::PhysicalAddress { locator->entries[i] };
+            const acpi::RsdtHeader *header = KmMapTableEntry(paddr, memory);
+
+            if ("APIC"_sv == header->signature) {
+                mMadt = reinterpret_cast<const acpi::Madt*>(header);
+            } else if ("MCFG"_sv == header->signature) {
+                mMcfg = reinterpret_cast<const acpi::Mcfg*>(header);
+            }
+        }
+    };
+
     if (revision() == 0) {
         const acpi::Rsdt *rsdt = memory.hhdmMapObject<acpi::Rsdt>(km::PhysicalAddress { locator->rsdtAddress });
-
-        for (uint32_t i = 0; i < rsdt->count(); i++) {
-            km::PhysicalAddress paddr = km::PhysicalAddress { rsdt->entries[i] };
-            const acpi::RsdtHeader *header = KmMapTableEntry(paddr, memory);
-            if (stdx::StringView(header->signature) == "APIC"_sv) {
-                mMadt = reinterpret_cast<const acpi::Madt*>(KmMapTableEntry(paddr, memory));
-                break;
-            }
-        }
+        setupTables(rsdt);
     } else {
         const acpi::Xsdt *xsdt = memory.hhdmMapObject<acpi::Xsdt>(km::PhysicalAddress { locator->xsdtAddress });
-
-        for (uint32_t i = 0; i < xsdt->count(); i++) {
-            km::PhysicalAddress paddr = km::PhysicalAddress { xsdt->entries[i] };
-            const acpi::RsdtHeader *header = KmMapTableEntry(paddr, memory);
-            if (stdx::StringView(header->signature) == "APIC"_sv) {
-                mMadt = reinterpret_cast<const acpi::Madt*>(KmMapTableEntry(paddr, memory));
-                break;
-            }
-        }
+        setupTables(xsdt);
     }
 }
 

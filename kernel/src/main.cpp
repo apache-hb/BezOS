@@ -19,7 +19,7 @@
 #include "smp.hpp"
 #include "std/spinlock.hpp"
 #include "uart.hpp"
-#include "acpi.hpp"
+#include "acpi/acpi.hpp"
 #include "smbios.hpp"
 
 #include "memory/layout.hpp"
