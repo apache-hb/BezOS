@@ -9,6 +9,8 @@
 #include "arch/cr0.hpp"
 #include "arch/cr4.hpp"
 
+#include "acpi/acpi.hpp"
+
 #include "delay.hpp"
 #include "display.hpp"
 #include "gdt.hpp"
@@ -17,10 +19,11 @@
 #include "memory.hpp"
 #include "pat.hpp"
 #include "smp.hpp"
-#include "std/spinlock.hpp"
 #include "uart.hpp"
-#include "acpi/acpi.hpp"
 #include "smbios.hpp"
+#include "pci.hpp"
+
+#include "std/spinlock.hpp"
 
 #include "memory/layout.hpp"
 #include "memory/allocator.hpp"
@@ -207,8 +210,8 @@ static void KmWriteMtrrs(const km::PageManager& pm) {
 static void KmWriteMemoryMap(const KernelMemoryMap& memmap, const SystemMemory& memory) {
     KmDebugMessage("[INIT] ", memmap.count(), " memory map entries.\n");
 
-    KmDebugMessage("| Entry | Address            | Size             | Type\n");
-    KmDebugMessage("|-------+--------------------+------------------+-----------------------\n");
+    KmDebugMessage("| Entry | Address            | Size               | Type\n");
+    KmDebugMessage("|-------+--------------------+--------------------+-----------------------\n");
 
     for (ssize_t i = 0; i < memmap.count(); i++) {
         MemoryMapEntry entry = memmap[i];
@@ -314,14 +317,14 @@ static void KmInitBootBufferedTerminal(const KernelLaunch& launch, SystemMemory&
 
 static void KmUpdateSerialPort(ComPortInfo info) {
     info.skipLoopbackTest = true;
-    if (OpenSerialResult com1 = openSerial(info); com1.status == SerialPortStatus::eOk) {
+    if (OpenSerialResult com1 = OpenSerial(info); com1.status == SerialPortStatus::eOk) {
         gSerialLog = SerialLog(com1.port);
         gLogTargets.add(&gSerialLog);
     }
 }
 
 static SerialPortStatus KmInitSerialPort(ComPortInfo info) {
-    if (OpenSerialResult com1 = openSerial(info)) {
+    if (OpenSerialResult com1 = OpenSerial(info)) {
         return com1.status;
     } else {
         gSerialLog = SerialLog(com1.port);
@@ -411,7 +414,7 @@ struct [[gnu::packed]] alignas(0x10) TaskStateSegment {
     uint32_t iopbOffset;
 };
 
-static void KmInitPortDelay(const HypervisorInfo& hvInfo) {
+static void InitPortDelay(const HypervisorInfo& hvInfo) {
     x64::PortDelay delay = hvInfo.isKvm() ? x64::PortDelay::eNone : x64::PortDelay::ePostCode;
     KmSetPortDelayMethod(delay);
 }
@@ -442,7 +445,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     }
 
     ProcessorInfo processor = GetProcessorInfo();
-    KmInitPortDelay(hvInfo);
+    InitPortDelay(hvInfo);
 
     ComPortInfo com1Info = {
         .port = km::com::kComPort1,
@@ -568,6 +571,8 @@ extern "C" void KmLaunch(KernelLaunch launch) {
         KmDebugMessage("[INIT] IOAPIC ", i, " ID: ", ioapic.id(), ", Version: ", ioapic.version(), "\n");
         KmDebugMessage("[INIT] ISR base: ", ioapic.isrBase(), ", Inputs: ", ioapic.inputCount(), "\n");
     }
+
+    pci::ProbeConfigSpace();
 
     KmInitSmp(memory, lapic, rsdt);
 

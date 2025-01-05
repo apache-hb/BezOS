@@ -31,5 +31,15 @@ namespace km {
         T *hhdmMapObject(PhysicalAddress paddr) {
             return hhdmMapObject<T>(paddr, paddr + sizeof(T));
         }
+
+        template<typename T>
+        const T *hhdmMapConst(PhysicalAddress begin, PhysicalAddress end) {
+            return (const T*)hhdmMap(begin, end, PageFlags::eRead);
+        }
+
+        template<typename T>
+        const T *hhdmMapConst(PhysicalAddress paddr) {
+            return hhdmMapConst<T>(paddr, paddr + sizeof(T));
+        }
     };
 }

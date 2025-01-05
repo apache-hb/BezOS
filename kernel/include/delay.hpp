@@ -20,6 +20,6 @@ uint16_t KmReadWord(uint16_t port);
 void KmWriteWord(uint16_t port, uint16_t value);
 void KmWriteWordNoDelay(uint16_t port, uint16_t value);
 
-uint32_t KmReadDword(uint16_t port);
-void KmWriteDword(uint16_t port, uint32_t value);
-void KmWriteDwordNoDelay(uint16_t port, uint32_t value);
+uint32_t KmReadLong(uint16_t port);
+void KmWriteLong(uint16_t port, uint32_t value);
+void KmWriteLongNoDelay(uint16_t port, uint32_t value);

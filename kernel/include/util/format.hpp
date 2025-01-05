@@ -45,13 +45,15 @@ namespace km {
         T value;
         int width = 0;
         char fill = '\0';
+        bool prefix = true;
 
         Hex(T value) : value(value) {}
 
-        Hex pad(size_t width, char fill) const {
+        Hex pad(size_t width, char fill, bool prefix = true) const {
             Hex copy = *this;
             copy.width = width;
             copy.fill = fill;
+            copy.prefix = prefix;
             return copy;
         }
     };
@@ -130,10 +132,15 @@ namespace km {
         static stdx::StringView toString(char *buffer, Hex<T> value) {
             char temp[stdx::NumericTraits<T>::kMaxDigits16];
             stdx::StringView result = FormatInt(stdx::Span(temp), value.value, 16, value.width, value.fill);
-            buffer[0] = '0';
-            buffer[1] = 'x';
-            std::copy(result.begin(), result.end(), buffer + 2);
-            return stdx::StringView(buffer, buffer + 2 + result.count());
+
+            int offset = 0;
+            if (value.prefix) {
+                buffer[offset++] = '0';
+                buffer[offset++] = 'x';
+            }
+
+            std::copy(result.begin(), result.end(), buffer + offset);
+            return stdx::StringView(buffer, buffer + offset + result.count());
         }
     };
 

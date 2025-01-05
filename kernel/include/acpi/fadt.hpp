@@ -1,8 +1,19 @@
 #pragma once
 
 #include "acpi/header.hpp"
+#include "util/format.hpp"
+#include "util/util.hpp"
 
 namespace acpi {
+    enum class IapcBootArch : uint16_t {
+        eLegacyDevices = (1 << 0),
+        e8042Controller = (1 << 1),
+        eVgaNotPresent = (1 << 2),
+        eMsiNotPresent = (1 << 3),
+    };
+
+    UTIL_BITFLAGS(IapcBootArch);
+
     struct [[gnu::packed]] Fadt {
         RsdtHeader header; // signature must be "FACP"
 
@@ -43,7 +54,7 @@ namespace acpi {
         uint8_t dayAlrm;
         uint8_t monAlrm;
         uint8_t century;
-        uint16_t iapcBootArch;
+        IapcBootArch iapcBootArch;
         uint8_t reserved1[1];
         uint32_t flags;
         GenericAddress resetReg;
@@ -68,3 +79,9 @@ namespace acpi {
 
     static_assert(sizeof(Fadt) == 276);
 }
+
+template<>
+struct km::StaticFormat<acpi::IapcBootArch> {
+    using String = stdx::StaticString<64>;
+    static String toString(acpi::IapcBootArch arch);
+};

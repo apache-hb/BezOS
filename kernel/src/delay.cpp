@@ -67,15 +67,15 @@ void KmWriteWordNoDelay(uint16_t port, uint16_t value) {
 
 // dword port io
 
-uint32_t KmReadDword(uint16_t port) {
+uint32_t KmReadLong(uint16_t port) {
     return __indword(port);
 }
 
-void KmWriteDword(uint16_t port, uint32_t value) {
+void KmWriteLong(uint16_t port, uint32_t value) {
     __outdword(port, value);
     KmPortDelay();
 }
 
-void KmWriteDwordNoDelay(uint16_t port, uint32_t value) {
+void KmWriteLongNoDelay(uint16_t port, uint32_t value) {
     __outdword(port, value);
 }

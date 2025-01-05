@@ -19,7 +19,6 @@ static constexpr uint8_t kEmptyTransmit = (1 << 5);
 static constexpr uint8_t kDataReady = (1 << 0);
 
 bool km::SerialPort::put(uint8_t byte) {
-    // TODO: should add some configuration for reliable transmission
     if (!(KmReadByte(mBasePort + kLineStatus) & kEmptyTransmit)) {
         return false;
     }
@@ -29,23 +28,29 @@ bool km::SerialPort::put(uint8_t byte) {
     return true;
 }
 
-size_t km::SerialPort::write(stdx::Span<const uint8_t> src) {
-    for (uint8_t c : src) {
-        put(c);
+bool km::SerialPort::get(uint8_t& byte) {
+    if (!(KmReadByte(mBasePort + kLineStatus) & kDataReady)) {
+        return false;
     }
 
-    return src.sizeInBytes();
+    byte = KmReadByte(mBasePort);
+    return true;
+}
+
+size_t km::SerialPort::write(stdx::Span<const uint8_t> src) {
+    size_t i = 0;
+    for (; i < (size_t)src.sizeInBytes(); i++)
+        if (!put(src[i]))
+            break;
+
+    return i;
 }
 
 size_t km::SerialPort::read(stdx::Span<uint8_t> dst) {
-    ssize_t i = 0;
-    for (; i < dst.sizeInBytes(); i++) {
-        if (!(KmReadByte(mBasePort + kLineStatus) & kDataReady)) {
+    size_t i = 0;
+    for (; i < (size_t)dst.sizeInBytes(); i++)
+        if (!get(dst[i]))
             break;
-        }
-
-        dst[i] = KmReadByte(mBasePort);
-    }
 
     return i;
 }
@@ -68,7 +73,7 @@ size_t km::SerialPort::print(stdx::StringView src) {
     return result;
 }
 
-km::OpenSerialResult km::openSerial(ComPortInfo info) {
+km::OpenSerialResult km::OpenSerial(ComPortInfo info) {
     uint16_t base = info.port;
 
     // do initial scratch test

@@ -39,8 +39,6 @@ namespace km {
     class SerialPort {
         uint16_t mBasePort = 0xFFFF;
 
-        bool put(uint8_t byte);
-
     public:
         constexpr SerialPort() = default;
 
@@ -52,6 +50,9 @@ namespace km {
 
         size_t write(stdx::Span<const uint8_t> src);
         size_t read(stdx::Span<uint8_t> dst);
+
+        bool put(uint8_t byte);
+        bool get(uint8_t& byte);
 
         size_t print(stdx::StringView src);
     };
@@ -68,7 +69,7 @@ namespace km {
     /// @param info the port information
     ///
     /// @pre @a divisor is not 0
-    OpenSerialResult openSerial(ComPortInfo info);
+    OpenSerialResult OpenSerial(ComPortInfo info);
 }
 
 template<>

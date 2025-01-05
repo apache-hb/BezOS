@@ -148,9 +148,7 @@ namespace km {
             return front >= addr;
         }
 
-        constexpr bool operator==(MemoryRange other) const {
-            return front == other.front && back == other.back;
-        }
+        constexpr bool operator==(const MemoryRange& other) const = default;
     };
 
     /// @brief Find the intersection of two memory ranges.

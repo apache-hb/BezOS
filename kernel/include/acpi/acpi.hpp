@@ -3,6 +3,7 @@
 #include "memory.hpp"
 
 #include "acpi/madt.hpp"
+#include "acpi/fadt.hpp"
 #include "acpi/mcfg.hpp"
 
 namespace km {
@@ -49,6 +50,7 @@ namespace acpi {
         const RsdpLocator *mRsdpLocator;
         const Madt *mMadt;
         const Mcfg *mMcfg;
+        const Fadt *mFadt;
 
     public:
         AcpiTables(const RsdpLocator *locator, km::SystemMemory& memory);
@@ -60,8 +62,11 @@ namespace acpi {
         km::IoApic mapIoApic(km::SystemMemory& memory, uint32_t index) const;
         uint32_t ioApicCount() const;
 
+        bool has8042Controller() const;
+
         const Madt *madt() const { return mMadt; }
         const Mcfg *mcfg() const { return mMcfg; }
+        const Fadt *fadt() const { return mFadt; }
     };
 }
 

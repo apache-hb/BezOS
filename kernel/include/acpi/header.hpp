@@ -1,5 +1,6 @@
 #pragma once
 
+#include "util/format.hpp"
 #include <stdint.h>
 
 namespace acpi {
@@ -51,3 +52,21 @@ namespace acpi {
 
     static_assert(sizeof(GenericAddress) == 12);
 }
+
+template<>
+struct km::StaticFormat<acpi::AddressSpaceId> {
+    using String = stdx::StaticString<32>;
+    static String toString(acpi::AddressSpaceId id);
+};
+
+template<>
+struct km::StaticFormat<acpi::AccessSize> {
+    using String = stdx::StaticString<32>;
+    static String toString(acpi::AccessSize size);
+};
+
+template<>
+struct km::StaticFormat<acpi::GenericAddress> {
+    using String = stdx::StaticString<128>;
+    static String toString(acpi::GenericAddress addr);
+};

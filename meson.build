@@ -68,21 +68,22 @@ smp = custom_target('smp.o',
 # Kernel
 
 src = [
-    # utilities
+    # Utilities
     'kernel/src/util/cpuid.cpp',
     'kernel/src/util/memory.cpp',
 
-    # memory management
+    # Memory management
     'kernel/src/memory/layout.cpp',
     'kernel/src/memory/allocator.cpp',
     'kernel/src/memory/bitmap.cpp',
     'kernel/src/memory/page_allocator.cpp',
 
-    # various architecture features
+    # C and C++ Runtime
     'kernel/src/crt.cpp',
+    'kernel/src/cxxrt.cpp',
     'kernel/src/crt_freestanding.cpp',
 
-    'kernel/src/cxxrt.cpp',
+    # Architecture features
     'kernel/src/isr.cpp',
     'kernel/src/isr.S',
     'kernel/src/gdt.cpp',
@@ -94,20 +95,26 @@ src = [
     'kernel/src/memory.cpp',
     'kernel/src/hypervisor.cpp',
     'kernel/src/smbios.cpp',
+    'kernel/src/pci.cpp',
 
     'kernel/src/delay.cpp',
 
+    # HID
+    'kernel/src/hid/ps2.cpp',
+
+    # Terminal
     'kernel/src/canvas.cpp',
     'kernel/src/terminal/terminal.cpp',
     'kernel/src/terminal/buffered.cpp',
 
+    # Wrappers
     'kernel/src/arch/cr.cpp',
 
-    # smp setup
+    # Smp setup
     'kernel/src/smp.cpp',
     smp,
 
-    # kernel main
+    # Kernel main
     'kernel/src/main.cpp',
 ]
 
