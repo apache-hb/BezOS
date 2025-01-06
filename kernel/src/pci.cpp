@@ -146,18 +146,32 @@ DeviceIdFormat::String DeviceIdFormat::toString(pci::DeviceId id) {
 }
 
 VendorIdFormat::String VendorIdFormat::toString(pci::VendorId id) {
+    // Names sourced from https://pcisig.com/membership/member-companies
     switch (id) {
-    case pci::VendorId::eInvalid:
+    using enum pci::VendorId;
+    case eInvalid:
         return "Invalid (0xFFFF)"_sv;
-    case pci::VendorId::eIntel:
+    case eIntel:
         return "Intel (0x8086)"_sv;
-    case pci::VendorId::eQemuVirtio:
+    case eAMD:
+        return "Advanced Micro Devices (0x1022)"_sv;
+    case eATI:
+        return "ATI Technologies (0x1002)"_sv;
+    case eNvidia:
+        return "NVidia Corporation (0x10DE)"_sv;
+    case eMicron:
+        return "Micron Technology (0x12B9)"_sv;
+    case eRealtek:
+        return "Realtek Semiconductor Corporation (0x10EC)"_sv;
+    case eMediaTek:
+        return "MediaTek Incorporation (0x14C3)"_sv;
+    case eQemuVirtio:
         return "QEMU Virtio (0x1AF4)"_sv;
-    case pci::VendorId::eQemu:
+    case eQemu:
         return "QEMU (0x1B36)"_sv;
-    case pci::VendorId::eOracle:
+    case eOracle:
         return "Oracle Corporation (0x108E)"_sv;
-    case pci::VendorId::eBroadcom:
+    case eBroadcom:
         return "Broadcom Limited (0x1166)"_sv;
     default:
         return km::format(km::Hex(std::to_underlying(id)).pad(4, '0'));

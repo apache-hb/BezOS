@@ -575,18 +575,37 @@ extern "C" void KmLaunch(KernelLaunch launch) {
 
     bool has8042 = rsdt.has8042Controller();
 
-    if (has8042) {
-        hid::Ps2ControllerResult result = hid::EnablePs2Controller();
-        KmDebugMessage("[INIT] PS/2 controller: ", result.status, "\n");
-        if (result.status == hid::Ps2ControllerStatus::eOk) {
-            KmDebugMessage("[INIT] PS/2 channel1: ", present(result.controller.hasChannel1()), "\n");
-            KmDebugMessage("[INIT] PS/2 channel2: ", present(result.controller.hasChannel2()), "\n");
-        }
-    }
+    hid::Ps2Controller ps2Controller;
 
     pci::ProbeConfigSpace();
 
     KmInitSmp(memory, lapic, rsdt);
+
+    if (has8042) {
+        hid::Ps2ControllerResult result = hid::EnablePs2Controller();
+        KmDebugMessage("[INIT] PS/2 controller: ", result.status, "\n");
+        if (result.status == hid::Ps2ControllerStatus::eOk) {
+            ps2Controller = result.controller;
+
+            KmDebugMessage("[INIT] PS/2 channel 1: ", present(ps2Controller.hasKeyboard()), "\n");
+            KmDebugMessage("[INIT] PS/2 channel 2: ", present(ps2Controller.hasMouse()), "\n");
+
+        }
+    } else {
+        KmDebugMessage("[INIT] No PS/2 controller found.\n");
+    }
+
+    if (ps2Controller.hasKeyboard()) {
+        hid::Ps2Device keyboard = ps2Controller.keyboard();
+        hid::Ps2Device mouse = ps2Controller.mouse();
+        mouse.disable();
+        keyboard.enable();
+
+        while (true) {
+            uint8_t scancode = ps2Controller.read();
+            KmDebugMessage("[PS2] Keyboard scancode: ", Hex(scancode), "\n");
+        }
+    }
 
     KM_PANIC("Test bugcheck.");
 

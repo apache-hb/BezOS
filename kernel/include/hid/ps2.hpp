@@ -9,22 +9,77 @@ namespace hid {
         ePortTestFailed,
     };
 
-    struct Ps2Device {
+    enum class Ps2DeviceType {
+        eDisabled,
 
+        eAtKeyboard,
+        eMouse,
+        eMouseWithScroll,
+        eMouse5Button,
+
+        eMf2Keyboard,
+        eShortKeyboard,
+        eN97Keyboard,
+        e122KeyKeyboard,
+
+        eJapaneseKeyboardG,
+        eJapaneseKeyboardP,
+        eJapaneseKeyboardA,
+
+        eSunKeyboard,
+    };
+
+    constexpr bool isKeyboardDevice(Ps2DeviceType type) {
+        switch (type) {
+        case Ps2DeviceType::eAtKeyboard:
+        case Ps2DeviceType::eMf2Keyboard:
+        case Ps2DeviceType::eShortKeyboard:
+        case Ps2DeviceType::eN97Keyboard:
+        case Ps2DeviceType::e122KeyKeyboard:
+        case Ps2DeviceType::eJapaneseKeyboardG:
+        case Ps2DeviceType::eJapaneseKeyboardP:
+        case Ps2DeviceType::eJapaneseKeyboardA:
+        case Ps2DeviceType::eSunKeyboard:
+            return true;
+        default:
+            return false;
+        }
+    }
+
+    struct Ps2Device {
+        Ps2DeviceType type;
+        void(*write)(uint8_t);
+
+        bool valid() const { return type != Ps2DeviceType::eDisabled; }
+
+        bool isKeyboard() const { return isKeyboardDevice(type); }
+
+        void enable();
+        void disable();
     };
 
     class Ps2Controller {
-        bool mChannel1;
-        bool mChannel2;
+        Ps2Device mKeyboard;
+        Ps2Device mMouse;
 
     public:
-        Ps2Controller(bool channel1, bool channel2)
-            : mChannel1(channel1)
-            , mChannel2(channel2)
+        Ps2Controller(Ps2Device channel1, Ps2Device channel2)
+            : mKeyboard(channel1)
+            , mMouse(channel2)
         { }
 
-        bool hasChannel1() const { return mChannel1; }
-        bool hasChannel2() const { return mChannel2; }
+        Ps2Controller()
+            : mKeyboard(Ps2Device { Ps2DeviceType::eDisabled })
+            , mMouse(Ps2Device { Ps2DeviceType::eDisabled })
+        { }
+
+        Ps2Device keyboard() const { return mKeyboard; }
+        Ps2Device mouse() const { return mMouse; }
+
+        bool hasKeyboard() const { return mKeyboard.valid(); }
+        bool hasMouse() const { return mMouse.valid(); }
+
+        uint8_t read() const;
     };
 
     struct Ps2ControllerResult {

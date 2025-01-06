@@ -25,6 +25,16 @@ namespace pci {
 
         eIntel = 0x8086,
 
+        eAMD = 0x1022,
+        eATI = 0x1002,
+
+        eMicron = 0x1344,
+
+        eNvidia = 0x10DE,
+
+        eRealtek = 0x10EC,
+        eMediaTek = 0x14C3,
+
         eQemuVirtio = 0x1af4,
         eQemu = 0x1b36,
 
