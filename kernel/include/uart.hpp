@@ -8,6 +8,25 @@
 #include <stdint.h>
 
 namespace km {
+    namespace uart::detail {
+        // Offsets from the base serial port
+        static constexpr uint16_t kData = 0;
+        static constexpr uint16_t kInterruptEnable = 1;
+        static constexpr uint16_t kFifoControl = 2;
+        static constexpr uint16_t kLineControl = 3;
+        static constexpr uint16_t kModemControl = 4;
+        static constexpr uint16_t kLineStatus = 5;
+        static constexpr uint16_t KModemStatus = 6;
+        static constexpr uint16_t kScratch = 7;
+
+        /// @brief Divisor Latch Access Bit
+        static constexpr uint8_t kDlabOffset = 7;
+
+        // Line status bits
+        static constexpr uint8_t kEmptyTransmit = (1 << 5);
+        static constexpr uint8_t kDataReady = (1 << 0);
+    }
+
     struct ComPortInfo {
         uint16_t port;
         uint16_t divisor;

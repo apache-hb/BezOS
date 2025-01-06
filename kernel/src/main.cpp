@@ -118,11 +118,11 @@ static SystemGdt gSystemGdt;
 
 static void KmSetupBspGdt(void) {
     gSystemGdt = KmGetSystemGdt();
-    KmInitGdt(gSystemGdt.entries, SystemGdt::eCount, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
+    KmInitGdt(gSystemGdt.entries, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
 }
 
 void KmSetupApGdt(void) {
-    KmInitGdt(gSystemGdt.entries, SystemGdt::eCount, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
+    KmInitGdt(gSystemGdt.entries, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
 }
 
 static PageMemoryTypeLayout KmSetupPat(void) {
@@ -562,7 +562,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
         KmInstallIsrHandler(testVec, oldHandler);
     }
 
-    acpi::AcpiTables rsdt = KmInitAcpi(rsdpBaseAddress, memory);
+    acpi::AcpiTables rsdt = InitAcpi(rsdpBaseAddress, memory);
     uint32_t ioApicCount = rsdt.ioApicCount();
     KM_CHECK(ioApicCount > 0, "No IOAPICs found.");
 

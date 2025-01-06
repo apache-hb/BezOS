@@ -2,10 +2,10 @@
 
 #include "arch/intrin.hpp"
 
-void KmInitGdt(const x64::GdtEntry *gdt, uint64_t count, uint64_t codeSelector, uint64_t dataSelector) {
+void KmInitGdt(std::span<const x64::GdtEntry> gdt, size_t codeSelector, size_t dataSelector) {
     GDTR gdtr = {
-        .limit = uint16_t((count * sizeof(x64::GdtEntry)) - 1),
-        .base = (uint64_t)gdt
+        .limit = uint16_t(gdt.size_bytes() - 1),
+        .base = (uint64_t)gdt.data()
     };
 
     __lgdt(gdtr);
@@ -33,7 +33,7 @@ void KmInitGdt(const x64::GdtEntry *gdt, uint64_t count, uint64_t codeSelector, 
         "movw %[data], %%ax\n"
         "mov %%ax, %%ss\n"
         : /* no outputs */
-        : [data] "r"((uint16_t)(dataSelector * sizeof(x64::GdtEntry))) /* inputs */
+        : [data] "r"(uint16_t(dataSelector * sizeof(x64::GdtEntry))) /* inputs */
         : "memory", "rax" /* clobbers */
     );
 }

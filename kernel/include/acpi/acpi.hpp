@@ -70,4 +70,4 @@ namespace acpi {
     };
 }
 
-acpi::AcpiTables KmInitAcpi(km::PhysicalAddress rsdpBaseAddress, km::SystemMemory& memory);
+acpi::AcpiTables InitAcpi(km::PhysicalAddress rsdpBaseAddress, km::SystemMemory& memory);

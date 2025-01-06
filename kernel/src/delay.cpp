@@ -42,7 +42,7 @@ uint8_t KmReadByte(uint16_t port) {
 }
 
 void KmWriteByte(uint16_t port, uint8_t value) {
-    __outbyte(port, value);
+    KmWriteByteNoDelay(port, value);
     KmPortDelay();
 }
 
@@ -57,7 +57,7 @@ uint16_t KmReadWord(uint16_t port) {
 }
 
 void KmWriteWord(uint16_t port, uint16_t value) {
-    __outword(port, value);
+    KmWriteWordNoDelay(port, value);
     KmPortDelay();
 }
 
@@ -72,7 +72,7 @@ uint32_t KmReadLong(uint16_t port) {
 }
 
 void KmWriteLong(uint16_t port, uint32_t value) {
-    __outdword(port, value);
+    KmWriteLongNoDelay(port, value);
     KmPortDelay();
 }
 

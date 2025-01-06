@@ -5,6 +5,7 @@
 #include "util/format.hpp"
 #include "util/util.hpp"
 
+#include <span>
 #include <stdint.h>
 #include <type_traits>
 
@@ -91,7 +92,7 @@ namespace x64 {
     constexpr uint64_t kNullDescriptor = 0;
 }
 
-void KmInitGdt(const x64::GdtEntry *gdt, uint64_t count, uint64_t codeSelector, uint64_t dataSelector);
+void KmInitGdt(std::span<const x64::GdtEntry> gdt, size_t codeSelector, size_t dataSelector);
 
 template<>
 struct km::StaticFormat<x64::GdtEntry> {

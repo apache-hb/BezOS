@@ -6,7 +6,7 @@
 
 using namespace stdx::literals;
 
-static bool KmValidateChecksum(const uint8_t *bytes, size_t length) {
+static bool ValidateChecksum(const uint8_t *bytes, size_t length) {
     uint32_t sum = 0;
     for (size_t i = 0; i < length; i++) {
         sum += bytes[i];
@@ -15,18 +15,18 @@ static bool KmValidateChecksum(const uint8_t *bytes, size_t length) {
     return (sum & 0xFF) == 0;
 }
 
-static bool KmValidateRsdpLocator(const acpi::RsdpLocator *rsdp) {
+static bool ValidateRsdpLocator(const acpi::RsdpLocator *rsdp) {
     switch (rsdp->revision) {
     case 0:
-        return KmValidateChecksum((const uint8_t*)rsdp, 20);
+        return ValidateChecksum((const uint8_t*)rsdp, 20);
     default:
-        KmDebugMessage("[INIT] Unknown RSDP revision: ", rsdp->revision, ". Doing best guess validation.\n");
+        KmDebugMessage("[ACPI] Unknown RSDP revision: ", rsdp->revision, ". Interpreting as an XSDT.\n");
     case 2:
-        return KmValidateChecksum((const uint8_t*)rsdp, rsdp->length);
+        return ValidateChecksum((const uint8_t*)rsdp, rsdp->length);
     }
 }
 
-static const acpi::RsdtHeader *KmMapTableEntry(km::PhysicalAddress paddr, km::SystemMemory& memory) {
+static const acpi::RsdtHeader *MapTableEntry(km::PhysicalAddress paddr, km::SystemMemory& memory) {
     // first map the header
     const acpi::RsdtHeader *header = memory.hhdmMapConst<acpi::RsdtHeader>(paddr);
 
@@ -34,7 +34,7 @@ static const acpi::RsdtHeader *KmMapTableEntry(km::PhysicalAddress paddr, km::Sy
     return memory.hhdmMapConst<acpi::RsdtHeader>(paddr, paddr + header->length);
 }
 
-static void KmDebugMadt(const acpi::RsdtHeader *header) {
+static void DebugMadt(const acpi::RsdtHeader *header) {
     const acpi::Madt *madt = reinterpret_cast<const acpi::Madt*>(header);
 
     KmDebugMessage("| /SYS/ACPI/APIC     | Local APIC address          | ", km::Hex(madt->localApicAddress).pad(8, '0'), "\n");
@@ -49,7 +49,7 @@ static void KmDebugMadt(const acpi::RsdtHeader *header) {
     }
 }
 
-static void KmDebugMcfg(const acpi::RsdtHeader *header) {
+static void DebugMcfg(const acpi::RsdtHeader *header) {
     const acpi::Mcfg *mcfg = reinterpret_cast<const acpi::Mcfg*>(header);
 
     for (size_t i = 0; i < mcfg->allocationCount(); i++) {
@@ -61,7 +61,7 @@ static void KmDebugMcfg(const acpi::RsdtHeader *header) {
     }
 }
 
-static void KmDebugFadt(const acpi::RsdtHeader *header) {
+static void DebugFadt(const acpi::RsdtHeader *header) {
     const acpi::Fadt *fadt = reinterpret_cast<const acpi::Fadt*>(header);
 
     KmDebugMessage("| /SYS/ACPI/FACP     | Firmware control            | ", km::Hex(fadt->firmwareCtrl).pad(8, '0'), "\n");
@@ -119,8 +119,8 @@ static void KmDebugFadt(const acpi::RsdtHeader *header) {
     KmDebugMessage("| /SYS/ACPI/FACP     | Hypervisor vendor ID        | ", fadt->hypervisorVendor, "\n");
 }
 
-static const acpi::RsdtHeader *KmGetRsdtHeader(km::PhysicalAddress paddr, km::SystemMemory& memory) {
-    const acpi::RsdtHeader *entry = KmMapTableEntry(paddr, memory);
+static const acpi::RsdtHeader *GetRsdtHeader(km::PhysicalAddress paddr, km::SystemMemory& memory) {
+    const acpi::RsdtHeader *entry = MapTableEntry(paddr, memory);
     KmDebugMessage("| /SYS/ACPI/", entry->signature, "     | Address                     | ", paddr, "\n");
     KmDebugMessage("| /SYS/ACPI/", entry->signature, "     | Signature                   | '", stdx::StringView(entry->signature), "'\n");
     KmDebugMessage("| /SYS/ACPI/", entry->signature, "     | Length                      | ", entry->length, "\n");
@@ -132,17 +132,17 @@ static const acpi::RsdtHeader *KmGetRsdtHeader(km::PhysicalAddress paddr, km::Sy
     KmDebugMessage("| /SYS/ACPI/", entry->signature, "     | Creator revision            | ", entry->creatorRevision, "\n");
 
     if ("APIC"_sv == entry->signature) {
-        KmDebugMadt(entry);
+        DebugMadt(entry);
     } else if ("MCFG"_sv == entry->signature) {
-        KmDebugMcfg(entry);
+        DebugMcfg(entry);
     } else if ("FACP"_sv == entry->signature) {
-        KmDebugFadt(entry);
+        DebugFadt(entry);
     }
 
     return entry;
 }
 
-static void KmDebugRsdt(const acpi::RsdpLocator *locator, km::SystemMemory& memory) {
+static void DebugRsdt(const acpi::RsdpLocator *locator, km::SystemMemory& memory) {
     KmDebugMessage("| /SYS/ACPI          | RSDT address                | ", km::Hex(locator->rsdtAddress).pad(8, '0'), "\n");
 
     const acpi::Rsdt *rsdt = memory.hhdmMapConst<acpi::Rsdt>(locator->rsdtAddress);
@@ -152,11 +152,11 @@ static void KmDebugRsdt(const acpi::RsdpLocator *locator, km::SystemMemory& memo
     for (uint32_t i = 0; i < rsdt->count(); i++) {
         km::PhysicalAddress paddr = km::PhysicalAddress { rsdt->entries[i] };
         [[maybe_unused]]
-        const acpi::RsdtHeader *entry = KmGetRsdtHeader(paddr, memory);
+        const acpi::RsdtHeader *entry = GetRsdtHeader(paddr, memory);
     }
 }
 
-static void KmDebugXsdt(const acpi::RsdpLocator *locator, km::SystemMemory& memory) {
+static void DebugXsdt(const acpi::RsdpLocator *locator, km::SystemMemory& memory) {
     KmDebugMessage("| /SYS/ACPI          | RSDP length                | ", locator->length, "\n");
     KmDebugMessage("| /SYS/ACPI          | XSDT address               | ", km::Hex(locator->xsdtAddress).pad(16, '0'), "\n");
     KmDebugMessage("| /SYS/ACPI          | Extended checksum          | ", locator->extendedChecksum, "\n");
@@ -168,16 +168,16 @@ static void KmDebugXsdt(const acpi::RsdpLocator *locator, km::SystemMemory& memo
     for (uint32_t i = 0; i < xsdt->count(); i++) {
         km::PhysicalAddress paddr = km::PhysicalAddress { xsdt->entries[i] };
         [[maybe_unused]]
-        const acpi::RsdtHeader *entry = KmGetRsdtHeader(paddr, memory);
+        const acpi::RsdtHeader *entry = GetRsdtHeader(paddr, memory);
     }
 }
 
-acpi::AcpiTables KmInitAcpi(km::PhysicalAddress rsdpBaseAddress, km::SystemMemory& memory) {
+acpi::AcpiTables InitAcpi(km::PhysicalAddress rsdpBaseAddress, km::SystemMemory& memory) {
     // map the rsdp table
     const acpi::RsdpLocator *locator = memory.hhdmMapConst<acpi::RsdpLocator>(rsdpBaseAddress);
 
     // validate that the table is ok to use
-    bool rsdpOk = KmValidateRsdpLocator(locator);
+    bool rsdpOk = ValidateRsdpLocator(locator);
     KM_CHECK(rsdpOk, "Invalid RSDP checksum.");
 
     KmDebugMessage("| /SYS/ACPI          | RSDP signature              | '", stdx::StringView(locator->signature), "'\n");
@@ -186,9 +186,9 @@ acpi::AcpiTables KmInitAcpi(km::PhysicalAddress rsdpBaseAddress, km::SystemMemor
     KmDebugMessage("| /SYS/ACPI          | OEM                         | ", stdx::StringView(locator->oemid), "\n");
 
     if (locator->revision == 0) {
-        KmDebugRsdt(locator, memory);
+        DebugRsdt(locator, memory);
     } else {
-        KmDebugXsdt(locator, memory);
+        DebugXsdt(locator, memory);
     }
 
     return acpi::AcpiTables(locator, memory);
@@ -209,21 +209,31 @@ bool acpi::operator!=(const MadtIterator& lhs, const MadtIterator& rhs) {
     return lhs.mCurrent < rhs.mCurrent;
 }
 
+template<typename T>
+void SetUniqueTableEntry(const T** dst, const acpi::RsdtHeader *header, stdx::StringView signature) {
+    if (header->signature != signature) return;
+    if (*dst != nullptr) {
+        KmDebugMessage("[ACPI] Multiple ", signature, " tables found. This table should be unique. I will only use the first instance of this table.\n");
+        return;
+    }
+
+    *dst = reinterpret_cast<const T*>(header);
+}
+
 acpi::AcpiTables::AcpiTables(const RsdpLocator *locator, km::SystemMemory& memory)
     : mRsdpLocator(locator)
+    , mMadt(nullptr)
+    , mMcfg(nullptr)
+    , mFadt(nullptr)
 {
     auto setupTables = [&](const auto *locator) {
         for (uint32_t i = 0; i < locator->count(); i++) {
             km::PhysicalAddress paddr = km::PhysicalAddress { locator->entries[i] };
-            const acpi::RsdtHeader *header = KmMapTableEntry(paddr, memory);
+            const acpi::RsdtHeader *header = MapTableEntry(paddr, memory);
 
-            if ("APIC"_sv == header->signature) {
-                mMadt = reinterpret_cast<const acpi::Madt*>(header);
-            } else if ("MCFG"_sv == header->signature) {
-                mMcfg = reinterpret_cast<const acpi::Mcfg*>(header);
-            } else if ("FACP"_sv == header->signature) {
-                mFadt = reinterpret_cast<const acpi::Fadt*>(header);
-            }
+            SetUniqueTableEntry(&mMadt, header, "APIC"_sv);
+            SetUniqueTableEntry(&mMcfg, header, "MCFG"_sv);
+            SetUniqueTableEntry(&mFadt, header, "FACP"_sv);
         }
     };
 

@@ -39,3 +39,9 @@ namespace sm {
 #define UTIL_NOMOVE(it) \
     it(it&&) = delete; \
     it& operator=(it&&) = delete;
+
+#ifdef UTIL_TESTING
+#   define WEAK_SYMBOL_TEST [[gnu::weak]]
+#else
+#   define WEAK_SYMBOL_TEST
+#endif
