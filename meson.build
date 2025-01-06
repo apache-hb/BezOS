@@ -153,13 +153,23 @@ meson.add_install_script('data/image.sh')
 # Unit tests
 
 gtest = dependency('gtest', native : true)
+gmock = dependency('gmock', native : true)
 gtest_main = dependency('gtest_main', native : true)
 testkwargs = { 'protocol' : 'gtest', 'timeout': 5 }
 
-test_shim = static_library('test_shim', 'kernel/test/test_shim.cpp',
+# meson bug: native executables dont have all default_options applied
+test_cpp_args = cpp_args + [ '-std=c++26', '-DUTIL_TESTING=1' ]
+
+src = [
+    'kernel/test/test_shim.cpp',
+    'kernel/test/ports.cpp',
+    'kernel/src/delay.cpp',
+]
+
+test_shim = static_library('test_shim', src,
     include_directories : inc,
     c_args : c_args,
-    cpp_args : cpp_args + [ '-std=c++26' ],
+    cpp_args : test_cpp_args,
     dependencies : [ gtest ],
     native : true,
 )
@@ -182,14 +192,15 @@ testcases = {
         'kernel/src/memory/bitmap.cpp',
         'kernel/src/memory/layout.cpp',
     ],
+    'serial': [ 'kernel/test/serial.cpp', 'kernel/src/uart.cpp', ],
 }
 
 foreach name, source : testcases
     exe = executable('test-kernel-' + name.to_lower().replace(' ', '-'), source,
         include_directories : inc,
         c_args : c_args,
-        cpp_args : cpp_args + [ '-std=c++26' ], # meson bug: native executables dont have default_options applied
-        dependencies : [ gtest_main ],
+        cpp_args : test_cpp_args,
+        dependencies : [ gtest_main, gmock ],
         override_options : [ 'b_sanitize=address' ],
         native : true,
         link_with : test_shim,
