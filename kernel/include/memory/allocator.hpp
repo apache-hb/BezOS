@@ -7,8 +7,8 @@
 #include "memory/paging.hpp"
 
 namespace km {
-    class VirtualAllocator {
-        const km::PageManager *mPageManager;
+    class PageTableManager {
+        const km::PageBuilder *mPageManager;
         PageAllocator *mPageAllocator;
         x64::page *mRootPageTable;
 
@@ -27,17 +27,17 @@ namespace km {
         void mapRange2m(MemoryRange range, VirtualAddress vaddr, PageFlags flags, MemoryType type);
 
     public:
-        VirtualAllocator(const km::PageManager *pm, PageAllocator *alloc);
+        PageTableManager(const km::PageBuilder *pm, PageAllocator *alloc);
 
         x64::page *rootPageTable() {
             return mRootPageTable;
         }
 
-        void map4k(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags, MemoryType type = MemoryType::eUncachedOverridable);
+        void map4k(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
 
-        void map2m(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags, MemoryType type = MemoryType::eUncachedOverridable);
+        void map2m(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
 
-        void mapRange(MemoryRange range, VirtualAddress vaddr, PageFlags flags, MemoryType type = MemoryType::eUncachedOverridable);
+        void mapRange(MemoryRange range, VirtualAddress vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
 
         void unmap(void *ptr, size_t size);
     };
@@ -49,15 +49,15 @@ namespace km {
 /// @param layout The system memory layout
 /// @param paddr The physical address of the kernel
 /// @param vaddr The virtual address of the kernel
-void KmMapKernel(const km::PageManager& pm, km::VirtualAllocator& vmm, km::SystemMemoryLayout& layout, km::PhysicalAddress paddr, km::VirtualAddress vaddr);
+void KmMapKernel(const km::PageBuilder& pm, km::PageTableManager& vmm, km::SystemMemoryLayout& layout, km::PhysicalAddress paddr, km::VirtualAddress vaddr);
 
 /// @brief Migrate the memory range into hhdm.
 /// @param vmm The virtual memory manager
 /// @param pm The page manager
-/// @param base The virtual address
+/// @param base The physical address
 /// @param size The size of the memory range
-void KmMigrateMemory(km::VirtualAllocator& vmm, km::PageManager& pm, const void *base, size_t size, km::MemoryType type);
+void KmMigrateMemory(km::PageTableManager& vmm, km::PageBuilder& pm, km::PhysicalAddress base, size_t size, km::MemoryType type);
 
 /// @brief Reclaim bootloader memory.
 /// @param layout The system memory layout
-void KmReclaimBootMemory(const km::PageManager& pm, km::VirtualAllocator& vmm, km::SystemMemoryLayout& layout);
+void KmReclaimBootMemory(const km::PageBuilder& pm, km::PageTableManager& vmm, km::SystemMemoryLayout& layout);

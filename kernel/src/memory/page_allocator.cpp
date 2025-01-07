@@ -80,23 +80,31 @@ void detail::BuildMemoryRanges(RegionAllocators& allocators, LowMemoryAllocators
     }
 }
 
-PageAllocator::PageAllocator(const SystemMemoryLayout *layout, uintptr_t hhdmOffset) {
+static MemoryRange GetBitmapRange(const SystemMemoryLayout *layout) {
     // Get the size of the bitmap and round up to the nearest page.
-    size_t bitmapSize = sm::roundup(GetBitmapSize(layout), x64::kPageSize);
+    size_t size = sm::roundup(GetBitmapSize(layout), x64::kPageSize);
 
     // Allocate bitmap space
-    PhysicalAddress bitmap = FindBitmapSpace(layout, bitmapSize);
+    PhysicalAddress bitmap = FindBitmapSpace(layout, size);
     KM_CHECK(bitmap != nullptr, "Failed to find space for bitmap");
 
-    detail::BuildMemoryRanges(mAllocators, mLowMemory, layout, bitmap, hhdmOffset);
+    return {bitmap, bitmap + size};
+}
+
+PageAllocator::PageAllocator(const SystemMemoryLayout *layout, uintptr_t hhdmOffset) {
+    MemoryRange bitmap = GetBitmapRange(layout);
+
+    detail::BuildMemoryRanges(mAllocators, mLowMemory, layout, bitmap.front, hhdmOffset);
 
     // Mark the bitmap memory as used
-    markRangeUsed({bitmap, bitmap + bitmapSize});
+    markRangeUsed(bitmap);
 }
 
 PhysicalAddress PageAllocator::alloc4k(size_t count) {
+    KmDebugMessage("[ALLOC] 4k ", count, " pages\n");
     for (RegionBitmapAllocator& allocator : mAllocators) {
         if (PhysicalAddress addr = allocator.alloc4k(count); addr != nullptr) {
+            KmDebugMessage("[ALLOC] 4k ", count, " pages at ", addr.address, "\n");
             return addr;
         }
     }

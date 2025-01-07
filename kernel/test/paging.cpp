@@ -12,7 +12,7 @@ TEST(PageManagerTest, MemoryTypeIndex) {
         .writeBack = 5,
     };
 
-    km::PageManager pm = { 40, 0, layout };
+    km::PageBuilder pm = { 40, 0, layout };
 
     x64::pte pte;
     pm.setMemoryType(pte, km::MemoryType::eUncached);
@@ -30,7 +30,7 @@ TEST(PageManagerTest, PdeMemoryType) {
         .writeBack = 5,
     };
 
-    km::PageManager pm = { 40, 0, layout };
+    km::PageBuilder pm = { 40, 0, layout };
 
     x64::pde pte;
     pm.setMemoryType(pte, km::MemoryType::eUncached);
@@ -48,7 +48,7 @@ TEST(PageManagerTest, PdpteMemoryType) {
         .writeBack = 5,
     };
 
-    km::PageManager pm = { 40, 0, layout };
+    km::PageBuilder pm = { 40, 0, layout };
 
     x64::pdpte pte;
     pm.setMemoryType(pte, km::MemoryType::eUncached);

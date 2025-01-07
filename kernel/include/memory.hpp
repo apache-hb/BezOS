@@ -7,12 +7,12 @@
 
 namespace km {
     struct SystemMemory {
-        PageManager pager;
+        PageBuilder pager;
         SystemMemoryLayout layout;
         PageAllocator pmm;
-        VirtualAllocator vmm;
+        PageTableManager vmm;
 
-        SystemMemory(SystemMemoryLayout memory, uintptr_t bits, uintptr_t hhdmOffset, PageMemoryTypeLayout types);
+        SystemMemory(SystemMemoryLayout memory, PageBuilder pm);
 
         void *allocate(size_t size, size_t align = alignof(std::max_align_t));
 

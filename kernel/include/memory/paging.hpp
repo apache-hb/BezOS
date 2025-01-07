@@ -40,7 +40,7 @@ namespace km {
         uint8_t writeBack;
     };
 
-    class PageManager {
+    class PageBuilder {
         uintptr_t mAddressMask;
         uint64_t mHigherHalfOffset;
         PageMemoryTypeLayout mLayout;
@@ -63,7 +63,7 @@ namespace km {
         }
 
     public:
-        PageManager(uintptr_t bits, uint64_t hhdmOffset, PageMemoryTypeLayout layout)
+        PageBuilder(uintptr_t bits, uint64_t hhdmOffset, PageMemoryTypeLayout layout)
             : mAddressMask(x64::paging::addressMask(bits))
             , mHigherHalfOffset(hhdmOffset)
             , mLayout(layout)

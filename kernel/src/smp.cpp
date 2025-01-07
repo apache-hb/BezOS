@@ -84,8 +84,8 @@ static uintptr_t AllocSmpStack(km::SystemMemory& memory) {
 }
 
 static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::LocalApic *lapic) {
-    const km::PageManager& pager = memory->pager;
-    km::VirtualAllocator& vmm = memory->vmm;
+    const km::PageBuilder& pager = memory->pager;
+    km::PageTableManager& vmm = memory->vmm;
 
     uintptr_t pml4 = (uintptr_t)vmm.rootPageTable() - pager.hhdmOffset();
     KM_CHECK(pml4 < UINT32_MAX, "PML4 address is above the 4G range.");

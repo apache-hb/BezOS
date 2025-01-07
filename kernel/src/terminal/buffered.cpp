@@ -2,7 +2,9 @@
 
 static km::Canvas InMemoryCanvas(km::Canvas geometry, km::SystemMemory& memory) {
     size_t size = geometry.size();
+    KmDebugMessage("[INIT] Allocating back buffer: ", sm::bytes(size), "\n");
     uint8_t *data = (uint8_t*)memory.allocate(size, x64::kPageSize);
+    KmDebugMessage("[INIT] Back buffer address: ", (void*)data, "\n");
     memset(data, 0, size);
 
     return km::Canvas(geometry, data);

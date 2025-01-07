@@ -132,6 +132,11 @@ static PageMemoryTypeLayout KmSetupPat(void) {
 
     x64::PageAttributeTable pat;
 
+    for (uint8_t i = 0; i < pat.count(); i++) {
+        km::MemoryType type = pat.getEntry(i);
+        KmDebugMessage("[INIT] PAT[", i, "]: ", type, "\n");
+    }
+
     constexpr uint8_t kEntryUncached = 0;
     constexpr uint8_t kEntryWriteCombined = 1;
     constexpr uint8_t kEntryWriteThrough = 2;
@@ -150,11 +155,6 @@ static PageMemoryTypeLayout KmSetupPat(void) {
     pat.setEntry(6, MemoryType::eUncachedOverridable);
     pat.setEntry(7, MemoryType::eUncachedOverridable);
 
-    for (uint8_t i = 0; i < pat.count(); i++) {
-        km::MemoryType type = pat.getEntry(i);
-        KmDebugMessage("[INIT] PAT[", i, "]: ", type, "\n");
-    }
-
     return PageMemoryTypeLayout {
         .deferred = kEntryUncachedOverridable,
         .uncached = kEntryUncached,
@@ -165,7 +165,23 @@ static PageMemoryTypeLayout KmSetupPat(void) {
     };
 }
 
-static void KmWriteMtrrs(const km::PageManager& pm) {
+static void SetupMtrrs(x64::MemoryTypeRanges& mtrrs, const km::PageBuilder& pm) {
+    mtrrs.setDefaultType(km::MemoryType::eWriteBack);
+
+    // Mark all fixed MTRRs as write-back
+    if (mtrrs.fixedMtrrSupported()) {
+        for (uint8_t i = 0; i < mtrrs.fixedMtrrCount(); i++) {
+            mtrrs.setFixedMtrr(i, km::MemoryType::eWriteBack);
+        }
+    }
+
+    // Disable all variable mtrrs
+    for (uint8_t i = 0; i < mtrrs.variableMtrrCount(); i++) {
+        mtrrs.setVariableMtrr(i, pm, km::MemoryType::eUncached, nullptr, 0, false);
+    }
+}
+
+static void KmWriteMtrrs(const km::PageBuilder& pm) {
     if (!x64::HasMtrrSupport()) {
         return;
     }
@@ -190,8 +206,7 @@ static void KmWriteMtrrs(const km::PageManager& pm) {
                     KmDebugMessage("| ");
                 }
 
-                x64::FixedMtrr mtrr = mtrrs.fixedMtrr(i);
-                KmDebugMessage(mtrr.type(), " ");
+                KmDebugMessage(mtrrs.fixedMtrr(i), " ");
             }
             KmDebugMessage("\n");
         }
@@ -204,8 +219,7 @@ static void KmWriteMtrrs(const km::PageManager& pm) {
         }
     }
 
-    // Some systems use UC as the default MTRR type :(
-    mtrrs.setDefaultType(km::MemoryType::eWriteBack);
+    SetupMtrrs(mtrrs, pm);
 }
 
 static void KmWriteMemoryMap(const KernelMemoryMap& memmap, const SystemMemory& memory) {
@@ -237,25 +251,35 @@ static void KmWriteMemoryMap(const KernelMemoryMap& memmap, const SystemMemory& 
 static SystemMemory KmInitMemory(uintptr_t bits, const KernelLaunch& launch) {
     PageMemoryTypeLayout pat = KmSetupPat();
 
-    SystemMemory memory = SystemMemory { SystemMemoryLayout::from(launch.memoryMap), bits, launch.hhdmOffset, pat };
+    PageBuilder pm = PageBuilder { bits, launch.hhdmOffset, pat };
+    KmWriteMtrrs(pm);
 
-    KmWriteMtrrs(memory.pager);
+    SystemMemory memory = SystemMemory { SystemMemoryLayout::from(launch.memoryMap), pm };
+
     KmWriteMemoryMap(launch.memoryMap, memory);
 
     // initialize our own page tables and remap everything into it
     KmMapKernel(memory.pager, memory.vmm, memory.layout, launch.kernelPhysicalBase, launch.kernelVirtualBase);
 
+    KmDebugMessage("[INIT] Migrating kernel stack\n");
+
     // move our stack out of reclaimable memory
     // limine garuntees 64k of stack space
-    KmMigrateMemory(memory.vmm, memory.pager, (void*)(launch.stack.front.address + launch.hhdmOffset), launch.stack.size(), MemoryType::eWriteBack);
+    KmMigrateMemory(memory.vmm, memory.pager, launch.stack.front, launch.stack.size(), MemoryType::eWriteBack);
+
+    KmDebugMessage("[INIT] Mapping ", launch.framebuffers.count(), " framebuffers\n");
 
     // remap framebuffers
     for (const KernelFrameBuffer& framebuffer : launch.framebuffers) {
-        KmMigrateMemory(memory.vmm, memory.pager, (void*)(framebuffer.address.address + launch.hhdmOffset), framebuffer.size(), MemoryType::eWriteCombine);
+        KmDebugMessage("[INIT] Mapping framebuffer: ", framebuffer.address, ", size: ", framebuffer.size(), "\n");
+
+        KmMigrateMemory(memory.vmm, memory.pager, framebuffer.address, framebuffer.size(), MemoryType::eWriteCombine);
     }
 
     // once it is safe to remap the boot memory, do so
     KmReclaimBootMemory(memory.pager, memory.vmm, memory.layout);
+
+    KmDebugMessage("[INIT] Memory initialized\n");
 
     return memory;
 }
@@ -306,11 +330,17 @@ static void KmInitBootBufferedTerminal(const KernelLaunch& launch, SystemMemory&
         if (framebuffer.address == nullptr)
             continue;
 
+        KmDebugMessage("[INIT] Deleting unbuffered terminal\n");
+
         gLogTargets.erase(&gDirectTerminalLog);
+
+        KmDebugMessage("[INIT] Initializing buffered terminal\n");
 
         km::Canvas display { framebuffer, (uint8_t*)(framebuffer.address.address + launch.hhdmOffset) };
         gBufferedTerminalLog = BufferedTerminal(gDirectTerminalLog.get(), memory);
         gLogTargets.add(&gBufferedTerminalLog);
+
+        KmDebugMessage("[INIT] Buffered terminal initialized\n");
 
         return;
     }
@@ -456,6 +486,9 @@ extern "C" void KmLaunch(KernelLaunch launch) {
 
     SerialPortStatus com1Status = KmInitSerialPort(com1Info);
 
+    KmDebugMessage("[INIT] CR0: ", x64::Cr0::load(), "\n");
+    KmDebugMessage("[INIT] CR4: ", x64::Cr4::load(), "\n");
+
     KmSetupBspGdt();
 
     km::IsrAllocator isrs;
@@ -465,6 +498,8 @@ extern "C" void KmLaunch(KernelLaunch launch) {
 
     SystemMemory memory = KmInitMemory(processor.maxpaddr, launch);
     gMemoryMap = &memory;
+
+    KmDebugMessage("[INIT] Initializing buffered boot terminal\n");
 
     KmInitBootBufferedTerminal(launch, memory);
 

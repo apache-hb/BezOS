@@ -84,22 +84,17 @@ namespace x64 {
             km::MemoryType type() const;
             bool valid() const;
 
-            km::PhysicalAddress baseAddress(const km::PageManager& pm) const;
-            uintptr_t addressMask(const km::PageManager& pm) const;
-        };
-
-        class FixedMtrr {
-            uint8_t mValue;
-
-        public:
-            FixedMtrr(uint8_t value);
-
-            km::MemoryType type() const;
+            km::PhysicalAddress baseAddress(const km::PageBuilder& pm) const;
+            uintptr_t addressMask(const km::PageBuilder& pm) const;
         };
 
         VariableMtrr variableMtrr(uint8_t index) const;
 
-        FixedMtrr fixedMtrr(uint8_t index) const;
+        km::MemoryType fixedMtrr(uint8_t index) const;
+
+        void setFixedMtrr(uint8_t index, km::MemoryType mtrr);
+
+        void setVariableMtrr(uint8_t index, const km::PageBuilder& pm, km::MemoryType type, km::PhysicalAddress base, uintptr_t mask, bool enable);
 
         /// @brief Get the number of variable MTRRs supported by the processor.
         /// @return The number of variable MTRRs.
@@ -140,7 +135,6 @@ namespace x64 {
         void enable(bool enabled);
     };
 
-    using FixedMtrr = MemoryTypeRanges::FixedMtrr;
     using VariableMtrr = MemoryTypeRanges::VariableMtrr;
 
     /// @brief Test if variable MTRRs are supported.

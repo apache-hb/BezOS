@@ -127,19 +127,20 @@ void x64::MemoryTypeRanges::enable(bool enabled) {
 
 /// fixed mtrrs
 
-x64::FixedMtrr::FixedMtrr(uint8_t value)
-    : mValue(value)
-{ }
-
-km::MemoryType x64::FixedMtrr::type() const {
-    return km::MemoryType(mValue);
-}
-
-x64::FixedMtrr x64::MemoryTypeRanges::fixedMtrr(uint8_t index) const {
+km::MemoryType x64::MemoryTypeRanges::fixedMtrr(uint8_t index) const {
     uint64_t msr = __rdmsr(kFixedMtrrMsrs[index / 11]);
     uint64_t shift = (index % 11) * 8;
     uint64_t value = (msr >> shift) & 0xFF;
-    return x64::MemoryTypeRanges::FixedMtrr(value);
+    return km::MemoryType(value);
+}
+
+void x64::MemoryTypeRanges::setFixedMtrr(uint8_t index, km::MemoryType mtrr) {
+    uint64_t msr = __rdmsr(kFixedMtrrMsrs[index / 11]);
+    uint64_t shift = (index % 11) * 8;
+    uint64_t mask = 0xFFull << shift;
+    uint64_t value = (uint64_t)mtrr << shift;
+
+    __wrmsr(kFixedMtrrMsrs[index / 11], (msr & ~mask) | value);
 }
 
 /// variable mtrrs
@@ -158,11 +159,11 @@ bool x64::VariableMtrr::valid() const {
     return mMask & kValidBit;
 }
 
-km::PhysicalAddress x64::VariableMtrr::baseAddress(const km::PageManager& pm) const {
+km::PhysicalAddress x64::VariableMtrr::baseAddress(const km::PageBuilder& pm) const {
     return km::PhysicalAddress { mBase & pm.getAddressMask() };
 }
 
-uintptr_t x64::VariableMtrr::addressMask(const km::PageManager& pm) const {
+uintptr_t x64::VariableMtrr::addressMask(const km::PageBuilder& pm) const {
     return mMask & pm.getAddressMask();
 }
 
@@ -171,4 +172,15 @@ x64::VariableMtrr x64::MemoryTypeRanges::variableMtrr(uint8_t index) const {
     uint32_t mask = kMtrrMaskMsrStart + (index * 2);
 
     return VariableMtrr(__rdmsr(base), __rdmsr(mask));
+}
+
+void x64::MemoryTypeRanges::setVariableMtrr(uint8_t index, const km::PageBuilder& pm, km::MemoryType type, km::PhysicalAddress base, uintptr_t mask, bool enable) {
+    uint32_t baseMsr = kMtrrBaseMsrStart + (index * 2);
+    uint32_t maskMsr = kMtrrMaskMsrStart + (index * 2);
+
+    uint64_t baseValue = (base.address & pm.getAddressMask()) | ((uint64_t)type & 0xFF);
+    uint64_t maskValue = mask | (enable ? (1 << 11) : 0);
+
+    __wrmsr(baseMsr, baseValue);
+    __wrmsr(maskMsr, maskValue);
 }

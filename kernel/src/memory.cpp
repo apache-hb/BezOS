@@ -1,15 +1,17 @@
 #include "memory.hpp"
 
-km::SystemMemory::SystemMemory(SystemMemoryLayout memory, uintptr_t bits, uintptr_t hhdmOffset, PageMemoryTypeLayout types)
-    : pager(bits, hhdmOffset, types)
+km::SystemMemory::SystemMemory(SystemMemoryLayout memory, PageBuilder pm)
+    : pager(pm)
     , layout(memory)
-    , pmm(&layout, hhdmOffset)
+    , pmm(&layout, pager.hhdmOffset())
     , vmm(&pager, &pmm)
 { }
 
 // TODO: respect align, dont allocate such large memory ranges
 void *km::SystemMemory::allocate(size_t size, size_t) {
     PhysicalAddress paddr = pmm.alloc4k(pages(size));
+    KmDebugMessage("[INIT] Allocating ", Hex(size), " bytes at ", Hex(paddr.address), "\n");
+
     VirtualAddress vaddr = { paddr.address + pager.hhdmOffset() };
     MemoryRange range { paddr, paddr + size };
     vmm.mapRange(range, vaddr, PageFlags::eData, MemoryType::eWriteBack);

@@ -213,7 +213,7 @@ template<typename T>
 void SetUniqueTableEntry(const T** dst, const acpi::RsdtHeader *header, stdx::StringView signature) {
     if (header->signature != signature) return;
     if (*dst != nullptr) {
-        KmDebugMessage("[ACPI] Multiple ", signature, " tables found. This table should be unique. I will only use the first instance of this table.\n");
+        KmDebugMessage("[ACPI] Multiple '", signature, "' tables found. This table should be unique. I will only use the first instance of this table.\n");
         return;
     }
 
