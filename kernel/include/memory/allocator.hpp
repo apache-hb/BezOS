@@ -12,7 +12,7 @@ namespace km {
         const km::PageBuilder *mPageManager;
         PageAllocator *mPageAllocator;
         VirtualAllocator *mVirtualAllocator;
-        x64::page *mRootPageTable;
+        x64::PageMapLevel4 *mRootPageTable;
 
         x64::page *alloc4k();
 
@@ -28,11 +28,24 @@ namespace km {
         void mapRange4k(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type);
         void mapRange2m(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type);
 
+        x64::PageMapLevel4 *getRootTable() const {
+            return mRootPageTable;
+        }
+
+        template<typename T>
+        T *getVirtualAddress(km::PhysicalAddress addr) {
+            return (T*)(addr.address + mPageManager->hhdmOffset());
+        }
+
+        km::PhysicalAddress getPhysicalAddress(const void *ptr) {
+            return km::PhysicalAddress { (uintptr_t)ptr - mPageManager->hhdmOffset() };
+        }
+
     public:
         PageTableManager(const km::PageBuilder *pm, VirtualAllocator *vmm, PageAllocator *alloc);
 
-        x64::page *rootPageTable() {
-            return mRootPageTable;
+        km::PhysicalAddress rootPageTable() {
+            return getPhysicalAddress(getRootTable());
         }
 
         void map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);

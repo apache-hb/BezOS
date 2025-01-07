@@ -47,7 +47,7 @@ PageTableManager::PageTableManager(const km::PageBuilder *pm, km::VirtualAllocat
     : mPageManager(pm)
     , mPageAllocator(alloc)
     , mVirtualAllocator(vmm)
-    , mRootPageTable(alloc4k())
+    , mRootPageTable((x64::PageMapLevel4*)alloc4k())
 { }
 
 x64::PageMapLevel3 *PageTableManager::getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e) {
@@ -138,7 +138,7 @@ void PageTableManager::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags
     uint16_t pdte = (addr >> 21) & 0b0001'1111'1111;
     uint16_t pte = (addr >> 12) & 0b0001'1111'1111;
 
-    x64::PageMapLevel4 *l4 = (x64::PageMapLevel4*)rootPageTable();
+    x64::PageMapLevel4 *l4 = getRootTable();
     x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e);
     x64::PageMapLevel2 *l2 = getPageMap2(l3, pdpte);
     x64::PageTable *pt;
@@ -162,7 +162,7 @@ void PageTableManager::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags
     uint16_t pdpte = (addr >> 30) & 0b0001'1111'1111;
     uint16_t pdte = (addr >> 21) & 0b0001'1111'1111;
 
-    x64::PageMapLevel4 *l4 = (x64::PageMapLevel4*)rootPageTable();
+    x64::PageMapLevel4 *l4 = getRootTable();
     x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e);
     x64::PageMapLevel2 *l2 = getPageMap2(l3, pdpte);
 
@@ -210,7 +210,7 @@ void PageTableManager::unmap(void *ptr, size_t size) {
     uintptr_t front = sm::rounddown((uintptr_t)ptr, x64::kPageSize);
     uintptr_t back = sm::roundup((uintptr_t)ptr + size, x64::kPageSize);
 
-    x64::PageMapLevel4 *l4 = (x64::PageMapLevel4*)rootPageTable();
+    x64::PageMapLevel4 *l4 = getRootTable();
 
     for (uintptr_t i = front; i < back; i += x64::kPageSize) {
         uint16_t pml4e = (i >> 39) & 0b0001'1111'1111;
@@ -278,7 +278,7 @@ void KmReclaimBootMemory(const km::PageBuilder& pm, km::PageTableManager& vmm, k
     KmDebugMessage("[INIT] Moving to kernel pagemap.\n");
 
     // then apply the new page tables
-    pm.setActiveMap((uintptr_t)vmm.rootPageTable() - pm.hhdmOffset());
+    pm.setActiveMap(vmm.rootPageTable());
 
     KmDebugMessage("[INIT] Reclaiming bootloader memory.\n");
 
