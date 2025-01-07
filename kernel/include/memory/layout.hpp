@@ -2,8 +2,6 @@
 
 #include "kernel.hpp"
 
-#include "memory/memory.hpp"
-
 #include "std/static_vector.hpp"
 
 namespace km {
@@ -23,27 +21,9 @@ namespace km {
 
         void reclaimBootMemory();
 
-        sm::Memory availableMemory() const {
-            return usableMemory() + reclaimableMemory();
-        }
-
-        sm::Memory usableMemory() const {
-            size_t total = 0;
-            for (MemoryMapEntry range : available) {
-                total += range.range.size();
-            }
-
-            return sm::bytes(total);
-        }
-
-        sm::Memory reclaimableMemory() const {
-            size_t total = 0;
-            for (MemoryMapEntry range : reclaimable) {
-                total += range.range.size();
-            }
-
-            return sm::bytes(total);
-        }
+        sm::Memory availableMemory() const;
+        sm::Memory usableMemory() const;
+        sm::Memory reclaimableMemory() const;
 
         static SystemMemoryLayout from(const KernelMemoryMap& memmap);
     };

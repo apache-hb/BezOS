@@ -133,3 +133,25 @@ void SystemMemoryLayout::reclaimBootMemory() {
     detail::SortMemoryRanges(available);
     detail::MergeMemoryRanges(available);
 }
+
+sm::Memory SystemMemoryLayout::availableMemory() const {
+    return usableMemory() + reclaimableMemory();
+}
+
+sm::Memory SystemMemoryLayout::usableMemory() const {
+    size_t total = 0;
+    for (MemoryMapEntry range : available) {
+        total += range.range.size();
+    }
+
+    return sm::bytes(total);
+}
+
+sm::Memory SystemMemoryLayout::reclaimableMemory() const {
+    size_t total = 0;
+    for (MemoryMapEntry range : reclaimable) {
+        total += range.range.size();
+    }
+
+    return sm::bytes(total);
+}
