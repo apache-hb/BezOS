@@ -71,7 +71,7 @@ void RegionBitmapAllocator::release(MemoryRange range) {
     }
 }
 
-void RegionBitmapAllocator::markAsUsed(MemoryRange range) {
+void RegionBitmapAllocator::markUsed(MemoryRange range) {
     range = intersection(range, mRange);
     if (range.isEmpty()) return;
 

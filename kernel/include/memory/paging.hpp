@@ -77,6 +77,10 @@ namespace km {
             return mAddressMask == x64::paging::addressMask(48);
         }
 
+        constexpr uintptr_t maxVirtualAddress() const {
+            return mAddressMask;
+        }
+
         uintptr_t getAddressMask() const {
             return mAddressMask;
         }

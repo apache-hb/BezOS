@@ -66,7 +66,7 @@ namespace km {
         /// @brief Mark a range of memory as used.
         ///
         /// @param range The range to mark as used.
-        void markAsUsed(MemoryRange range);
+        void markUsed(MemoryRange range);
     };
 
     namespace detail {
@@ -114,9 +114,6 @@ namespace km {
         /// @brief Mark a range of memory as used.
         ///
         /// @param range The range to mark as used.
-        void markRangeUsed(MemoryRange range);
-
-        sm::Memory usableMemory() const;
-        sm::Memory reclaimableMemory() const;
+        void markUsed(MemoryRange range);
     };
 }

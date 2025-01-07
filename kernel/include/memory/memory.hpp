@@ -79,11 +79,6 @@ namespace km {
         }
     };
 
-    template<typename T>
-    struct VirtualPointer {
-        T *data;
-    };
-
     /// @brief A range of physical address space.
     ///
     /// @pre @a MemoryRange::front < @a MemoryRange::back

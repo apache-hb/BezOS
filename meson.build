@@ -77,6 +77,7 @@ src = [
     'kernel/src/memory/allocator.cpp',
     'kernel/src/memory/bitmap.cpp',
     'kernel/src/memory/page_allocator.cpp',
+    'kernel/src/memory/virtual_allocator.cpp',
 
     # C and C++ Runtime
     'kernel/src/crt.cpp',

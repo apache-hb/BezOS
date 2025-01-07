@@ -118,6 +118,10 @@ namespace stdx {
             Super::addRange(front, back);
         }
 
+        constexpr StaticVector(std::initializer_list<T> list)
+            : StaticVector(std::begin(list), std::end(list))
+        { }
+
         constexpr StaticVector(const StaticVector& other)
             : StaticVector(std::begin(other), std::end(other))
         { }
@@ -129,7 +133,7 @@ namespace stdx {
         }
 
         constexpr StaticVector(StaticVector&& other)
-            : Super(std::begin(other), std::end(other))
+            : StaticVector(std::begin(other), std::end(other))
         {
             other.clear();
         }

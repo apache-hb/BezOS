@@ -85,7 +85,7 @@ void detail::MergeAdjacentAllocators(stdx::StaticVectorBase<RegionBitmapAllocato
         RegionBitmapAllocator& allocator = allocators[i];
         for (size_t j = i + 1; j < allocators.count(); j++) {
             RegionBitmapAllocator& next = allocators[j];
-            if (adjacent(allocator.range(), next.range())) {
+            if (allocator.range().intersects(next.range())) {
                 allocator.extend(next);
                 allocators.remove(j);
                 j--;
@@ -111,7 +111,7 @@ PageAllocator::PageAllocator(const SystemMemoryLayout *layout, uintptr_t hhdmOff
     detail::BuildMemoryRanges(mAllocators, mLowMemory, layout, mBitmapMemory.front, hhdmOffset);
 
     // Mark the bitmap memory as used
-    markRangeUsed(mBitmapMemory);
+    markUsed(mBitmapMemory);
 }
 
 void PageAllocator::rebuild() {
@@ -145,12 +145,12 @@ PhysicalAddress PageAllocator::lowMemoryAlloc4k() {
     return nullptr;
 }
 
-void PageAllocator::markRangeUsed(MemoryRange range) {
+void PageAllocator::markUsed(MemoryRange range) {
     for (RegionBitmapAllocator& allocator : mAllocators) {
-        allocator.markAsUsed(range);
+        allocator.markUsed(range);
     }
 
     for (RegionBitmapAllocator& allocator : mLowMemory) {
-        allocator.markAsUsed(range);
+        allocator.markUsed(range);
     }
 }
