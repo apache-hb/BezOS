@@ -274,7 +274,7 @@ static SystemMemory KmInitMemory(uintptr_t bits, const KernelLaunch& launch) {
     for (const KernelFrameBuffer& framebuffer : launch.framebuffers) {
         KmDebugMessage("[INIT] Mapping framebuffer ", framebuffer.address, " - ", sm::bytes(framebuffer.size()), "\n");
 
-        KmMigrateMemory(memory.vmm, memory.pager, framebuffer.address, framebuffer.size(), MemoryType::eWriteCombine);
+        KmMigrateMemory(memory.vmm, memory.pager, (uintptr_t)framebuffer.address - launch.hhdmOffset, framebuffer.size(), MemoryType::eWriteCombine);
     }
 
     // once it is safe to remap the boot memory, do so
@@ -316,7 +316,7 @@ static void KmInitBootTerminal(const KernelLaunch& launch) {
         if (framebuffer.address == nullptr)
             continue;
 
-        km::Canvas display { framebuffer, (uint8_t*)(framebuffer.address.address + launch.hhdmOffset) };
+        km::Canvas display { framebuffer, (uint8_t*)(framebuffer.address) };
         gDirectTerminalLog = DirectTerminal(display);
         gLogTargets.add(&gDirectTerminalLog);
 
@@ -335,7 +335,6 @@ static void KmInitBootBufferedTerminal(const KernelLaunch& launch, SystemMemory&
 
         KmDebugMessage("[INIT] Initializing buffered terminal\n");
 
-        km::Canvas display { framebuffer, (uint8_t*)(framebuffer.address.address + launch.hhdmOffset) };
         gBufferedTerminalLog = BufferedTerminal(gDirectTerminalLog.get(), memory);
         gLogTargets.add(&gBufferedTerminalLog);
 
@@ -423,6 +422,8 @@ static void KmInstallExceptionHandlers(void) {
     });
 
     KmInstallIsrHandler(0xE, [](km::IsrContext *context) -> void* {
+        KmEndWrite();
+        KmDebugMessage("[BUG] CR2: ", Hex(x64::cr2()).pad(16, '0'), "\n");
         KmDumpIsrContext(context, "Page fault (#PF)");
     });
 }
@@ -487,6 +488,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
 
     KmDebugMessage("[INIT] CR0: ", x64::Cr0::load(), "\n");
     KmDebugMessage("[INIT] CR4: ", x64::Cr4::load(), "\n");
+    KmDebugMessage("[INIT] HHDM: ", Hex(launch.hhdmOffset).pad(16, '0'), "\n");
 
     KmSetupBspGdt();
 

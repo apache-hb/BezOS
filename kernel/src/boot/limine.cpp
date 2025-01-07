@@ -47,7 +47,7 @@ static volatile LIMINE_REQUESTS_START_MARKER
 [[gnu::used, gnu::section(".limine_requests_end")]]
 static volatile LIMINE_REQUESTS_END_MARKER
 
-static KernelFrameBuffer BootGetDisplay(uintptr_t hhdmOffset, int index) {
+static KernelFrameBuffer BootGetDisplay(int index) {
     limine_framebuffer_response response = *gFramebufferRequest.response;
     limine_framebuffer framebuffer = *response.framebuffers[index];
 
@@ -64,17 +64,17 @@ static KernelFrameBuffer BootGetDisplay(uintptr_t hhdmOffset, int index) {
         .greenMaskShift = framebuffer.green_mask_shift,
         .blueMaskSize = framebuffer.blue_mask_size,
         .blueMaskShift = framebuffer.blue_mask_shift,
-        .address = (uintptr_t)framebuffer.address - hhdmOffset,
+        .address = framebuffer.address,
         .edid = { edidAddress, edidAddress + framebuffer.edid_size }
     };
 }
 
-static stdx::StaticVector<KernelFrameBuffer, 4> BootGetAllDisplays(uintptr_t hhdmOffset) {
+static stdx::StaticVector<KernelFrameBuffer, 4> BootGetAllDisplays() {
     limine_framebuffer_response response = *gFramebufferRequest.response;
     stdx::StaticVector<KernelFrameBuffer, 4> result;
 
     for (uint64_t i = 0; i < std::min<uint64_t>(result.capacity(), response.framebuffer_count); i++) {
-        result.add(BootGetDisplay(hhdmOffset, i));
+        result.add(BootGetDisplay(i));
     }
 
     return result;
@@ -141,7 +141,7 @@ extern "C" void kmain(void) {
         .kernelVirtualBase = (void*)kernelAddress.virtual_base,
         .hhdmOffset = hhdm.offset,
         .rsdpAddress = (uintptr_t)rsdp.address,
-        .framebuffers = BootGetAllDisplays(hhdm.offset),
+        .framebuffers = BootGetAllDisplays(),
         .memoryMap = BootGetMemoryMap(),
         .stack = { stack - kLimineStackSize, stack },
         .smbios32Address = (uintptr_t)smbios.entry_32,

@@ -108,6 +108,8 @@ static MemoryRange GetBitmapRange(const SystemMemoryLayout *layout) {
 PageAllocator::PageAllocator(const SystemMemoryLayout *layout, uintptr_t hhdmOffset)
     : mBitmapMemory(GetBitmapRange(layout))
 {
+    memset((void*)(mBitmapMemory.front.address + hhdmOffset), 0, mBitmapMemory.size());
+
     detail::BuildMemoryRanges(mAllocators, mLowMemory, layout, mBitmapMemory.front, hhdmOffset);
 
     // Mark the bitmap memory as used
