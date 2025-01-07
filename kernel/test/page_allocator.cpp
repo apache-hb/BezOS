@@ -3,6 +3,32 @@
 
 #include "memory/page_allocator.hpp"
 
+struct TestData {
+    KernelMemoryMap memmap;
+    km::SystemMemoryLayout layout;
+    km::PageAllocator allocator;
+
+    ~TestData() {
+        for (MemoryMapEntry entry : memmap) {
+            _mm_free((void*)entry.range.front.address);
+        }
+    }
+};
+
+static TestData GetTestAllocator() {
+    KernelMemoryMap data;
+    for (unsigned i = 0; i < data.capacity(); i++) {
+        size_t size = sm::megabytes(4).bytes();
+        void *ptr = _mm_malloc(size, x64::kPageSize);
+        km::MemoryRange range = { (uintptr_t)ptr, (uintptr_t)ptr + size };
+        data.add({ MemoryMapEntryType::eUsable, range});
+    }
+
+    TestData test = { data, km::SystemMemoryLayout::from(data), km::PageAllocator(&test.layout, 0) };
+
+    return test;
+}
+
 TEST(PageAllocatorTest, LowMemorySplit) {
     KernelMemoryMap data;
     size_t size = sm::gigabytes(4).bytes();
@@ -31,17 +57,7 @@ TEST(PageAllocatorTest, LowMemorySplit) {
 }
 
 TEST(PageAllocatorTest, Allocate) {
-    KernelMemoryMap data;
-    for (int i = 0; i < data.capacity(); i++) {
-        size_t size = sm::megabytes(4).bytes();
-        void *ptr = _mm_malloc(size, x64::kPageSize);
-        km::MemoryRange range = { (uintptr_t)ptr, (uintptr_t)ptr + size };
-        data.add({ MemoryMapEntryType::eUsable, range});
-    }
-
-    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(data);
-
-    km::PageAllocator allocator(&layout, 0);
+    auto [_, _, allocator] = GetTestAllocator();
 
     std::mt19937 rng(0x1234);
     std::uniform_int_distribution<int> dist(0, 4);
@@ -72,7 +88,27 @@ TEST(PageAllocatorTest, Allocate) {
         }
     }
 
-    for (MemoryMapEntry entry : data) {
-        _mm_free((void*)entry.range.front.address);
+    for (auto [ptr, pages] : allocated) {
+        allocator.release({ ptr, ptr + (pages * x64::kPageSize) });
     }
+}
+
+TEST(PageAllocatorTest, RebuildAfterReclaim) {
+    void *memory = _mm_malloc(sm::megabytes(128).bytes(), x64::kPageSize);
+
+    KernelMemoryMap data;
+    for (size_t i = 0; i < 32; i++) {
+        MemoryMapEntryType type = i % 2 == 0 ? MemoryMapEntryType::eUsable : MemoryMapEntryType::eBootloaderReclaimable;
+        uintptr_t start = (0x8000ull * i) + (uintptr_t)memory;
+        data.add(MemoryMapEntry { type, { start, start + 0x1000 } });
+    }
+
+    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(data);
+
+    km::PageAllocator allocator(&layout, 0);
+
+    layout.reclaimBootMemory();
+    allocator.rebuild();
+
+    _mm_free(memory);
 }

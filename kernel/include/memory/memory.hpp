@@ -184,6 +184,14 @@ namespace km {
         return {first, second};
     }
 
+    constexpr bool adjacent(MemoryRange a, MemoryRange b) {
+        return a.back == b.front || b.back == a.front;
+    }
+
+    constexpr MemoryRange merge(MemoryRange a, MemoryRange b) {
+        return {std::min(a.front, b.front), std::max(a.back, b.back)};
+    }
+
     /// @brief Returns a memory range that is page aligned.
     ///
     /// @param range The memory range.

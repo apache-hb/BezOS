@@ -37,11 +37,11 @@ void KmDebugWrite(km::FormatOf<T> value) {
 
     if (value.specifier.align == km::Align::eRight) {
         KmDebugWrite(result);
-        for (int i = result.count(); i < value.specifier.width; i++) {
+        for (unsigned i = result.count(); i < value.specifier.width; i++) {
             KmDebugWrite(value.specifier.fill);
         }
     } else {
-        for (int i = result.count(); i < value.specifier.width; i++) {
+        for (unsigned i = result.count(); i < value.specifier.width; i++) {
             KmDebugWrite(value.specifier.fill);
         }
         KmDebugWrite(result);

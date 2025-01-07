@@ -175,6 +175,7 @@ test_shim = static_library('test_shim', src,
 )
 
 testcases = {
+    'static vector': [ 'kernel/test/vector.cpp', ],
     'format': [ 'kernel/test/format.cpp', ],
     'memmap': [ 'kernel/test/memmap.cpp', 'kernel/src/memory/layout.cpp', 'kernel/src/util/memory.cpp', ],
     'string': [ 'kernel/test/string.cpp', ],

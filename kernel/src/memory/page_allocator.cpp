@@ -80,6 +80,20 @@ void detail::BuildMemoryRanges(RegionAllocators& allocators, LowMemoryAllocators
     }
 }
 
+void detail::MergeAdjacentAllocators(stdx::StaticVectorBase<RegionBitmapAllocator>& allocators) {
+    for (size_t i = 0; i < allocators.count(); i++) {
+        RegionBitmapAllocator& allocator = allocators[i];
+        for (size_t j = i + 1; j < allocators.count(); j++) {
+            RegionBitmapAllocator& next = allocators[j];
+            if (adjacent(allocator.range(), next.range())) {
+                allocator.extend(next);
+                allocators.remove(j);
+                j--;
+            }
+        }
+    }
+}
+
 static MemoryRange GetBitmapRange(const SystemMemoryLayout *layout) {
     // Get the size of the bitmap and round up to the nearest page.
     size_t size = sm::roundup(GetBitmapSize(layout), x64::kPageSize);
@@ -91,13 +105,18 @@ static MemoryRange GetBitmapRange(const SystemMemoryLayout *layout) {
     return {bitmap, bitmap + size};
 }
 
-PageAllocator::PageAllocator(const SystemMemoryLayout *layout, uintptr_t hhdmOffset) {
-    MemoryRange bitmap = GetBitmapRange(layout);
-
-    detail::BuildMemoryRanges(mAllocators, mLowMemory, layout, bitmap.front, hhdmOffset);
+PageAllocator::PageAllocator(const SystemMemoryLayout *layout, uintptr_t hhdmOffset)
+    : mBitmapMemory(GetBitmapRange(layout))
+{
+    detail::BuildMemoryRanges(mAllocators, mLowMemory, layout, mBitmapMemory.front, hhdmOffset);
 
     // Mark the bitmap memory as used
-    markRangeUsed(bitmap);
+    markRangeUsed(mBitmapMemory);
+}
+
+void PageAllocator::rebuild() {
+    detail::MergeAdjacentAllocators(mAllocators);
+    detail::MergeAdjacentAllocators(mLowMemory);
 }
 
 PhysicalAddress PageAllocator::alloc4k(size_t count) {
@@ -128,14 +147,10 @@ PhysicalAddress PageAllocator::lowMemoryAlloc4k() {
 
 void PageAllocator::markRangeUsed(MemoryRange range) {
     for (RegionBitmapAllocator& allocator : mAllocators) {
-        if (allocator.contains(range.front)) {
-            allocator.markAsUsed(range);
-        }
+        allocator.markAsUsed(range);
     }
 
     for (RegionBitmapAllocator& allocator : mLowMemory) {
-        if (allocator.contains(range.front)) {
-            allocator.markAsUsed(range);
-        }
+        allocator.markAsUsed(range);
     }
 }

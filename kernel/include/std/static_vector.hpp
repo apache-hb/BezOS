@@ -1,44 +1,68 @@
 #pragma once
 
 #include "std/std.hpp"
+#include "std/traits.hpp"
+
+#include <iterator>
 
 namespace stdx {
-    template<typename T, size_t N>
-    class StaticVector {
-        union { T mStorage[N]; };
-        size_t mSize;
+    template<typename T>
+    class StaticVectorBase {
+        T *mFront;
+        T *mBack;
+        T *mCapacity;
 
-        constexpr void init(const T *front, const T *back) {
-            mSize = back - front;
-            memcpy(mStorage, front, mSize * sizeof(T));
-        }
-
-    public:
-        constexpr StaticVector()
-            : mSize(0)
+    protected:
+        constexpr StaticVectorBase(T *front, T *back, T *capacity)
+            : mFront(front)
+            , mBack(back)
+            , mCapacity(capacity)
         { }
 
-        constexpr StaticVector(const T *front [[gnu::nonnull]], const T *back [[gnu::nonnull]]) {
-            init(front, back);
+    public:
+        constexpr size_t count() const { return mBack - mFront; }
+        constexpr size_t capacity() const { return mCapacity - mFront; }
+        constexpr size_t sizeInBytes() const { return count() * sizeof(T); }
+        constexpr size_t available() const { return mCapacity - mBack; }
+        constexpr bool isEmpty() const { return mBack == mFront; }
+        constexpr bool isFull() const { return mBack == mCapacity; }
+
+        constexpr T *begin() { return mFront; }
+        constexpr T *end() { return mBack; }
+
+        constexpr const T *begin() const { return mFront; }
+        constexpr const T *end() const { return mBack; }
+
+        constexpr void clear() { mBack = mFront; }
+
+        constexpr bool add(const T& value) {
+            if (isFull()) return false;
+
+            std::construct_at(mBack++, value);
+            return true;
         }
 
-        constexpr ssize_t count() const { return mSize; }
-        constexpr ssize_t capacity() const { return N; }
-        constexpr ssize_t sizeInBytes() const { return mSize * sizeof(T); }
-        constexpr bool isEmpty() const { return mSize == 0; }
-        constexpr bool isFull() const { return mSize == N; }
+        constexpr size_t addRange(const T *front [[gnu::nonnull]], const T *back [[gnu::nonnull]]) {
+            size_t count = 0;
+            while (front != back && !isFull()) {
+                std::construct_at(mBack++, *front++);
+                count++;
+            }
+            return count;
+        }
 
-        constexpr T *begin() { return mStorage; }
-        constexpr T *end() { return mStorage + mSize; }
+        template<typename R> requires (IsRange<const T, R>)
+        constexpr size_t addRange(const R& range) {
+            return addRange(std::begin(range), std::end(range));
+        }
 
-        constexpr const T *begin() const { return mStorage; }
-        constexpr const T *end() const { return mStorage + mSize; }
-
-        constexpr void clear() { mSize = 0; }
+        constexpr void pop() {
+            if (!isEmpty()) std::destroy_at(--mBack);
+        }
 
         constexpr void erase(const T& value) {
-            for (size_t i = 0; i < mSize; i++) {
-                if (mStorage[i] == value) {
+            for (size_t i = 0; i < count(); i++) {
+                if (mFront[i] == value) {
                     remove(i);
                     return;
                 }
@@ -46,41 +70,64 @@ namespace stdx {
         }
 
         constexpr void remove(size_t index) {
-            if (index < mSize) {
-                for (size_t i = index; i < mSize - 1; i++)
-                    mStorage[i] = mStorage[i + 1];
-                mSize -= 1;
+            if (index < count()) {
+                std::destroy_at(mFront + index);
+                for (size_t i = index; i < count() - 1; i++)
+                    mFront[i] = mFront[i + 1];
+                std::destroy_at(--mBack);
             }
         }
 
-        constexpr void insert(size_t index, T value) {
-            if (index < mSize) {
-                for (size_t i = mSize; i > index; i--)
-                    mStorage[i] = mStorage[i - 1];
-                mStorage[index] = value;
-                mSize += 1;
-            }
-        }
+        constexpr bool insert(size_t index, const T& value) {
+            if (index > count() || isFull()) return false;
 
-        constexpr T& operator[](size_t index) {
-            return mStorage[index];
-        }
-
-        constexpr const T& operator[](size_t index) const {
-            return mStorage[index];
-        }
-
-        constexpr bool add(const T& value) {
-            if (isFull())
-                return false;
-
-            mStorage[mSize++] = value;
+            for (size_t i = count(); i > index; i--)
+                mFront[i] = mFront[i - 1];
+            mFront[index] = value;
+            mBack += 1;
             return true;
         }
 
-        constexpr void pop() {
-            if (!isEmpty())
-                mSize -= 1;
+        constexpr T& operator[](size_t index) {
+            TEST_ASSERT(index < count() && "Index out of bounds");
+            return mFront[index];
+        }
+
+        constexpr const T& operator[](size_t index) const {
+            TEST_ASSERT(index < count() && "Index out of bounds");
+            return mFront[index];
+        }
+    };
+
+    template<typename T, size_t N>
+    class StaticVector : public StaticVectorBase<T> {
+        using Super = StaticVectorBase<T>;
+
+        union { T mStorage[N]; };
+
+    public:
+        using Super::Super;
+
+        constexpr StaticVector()
+            : Super(std::begin(mStorage), std::begin(mStorage), std::end(mStorage))
+        { }
+
+        constexpr StaticVector(const T *front [[gnu::nonnull]], const T *back [[gnu::nonnull]])
+            : StaticVector()
+        {
+            Super::addRange(front, back);
+        }
+
+        constexpr StaticVector(const StaticVector& other)
+            : StaticVector()
+        {
+            Super::addRange(other);
+        }
+
+        constexpr StaticVector& operator=(const StaticVector& other) {
+            Super::clear();
+            Super::addRange(other);
+            return *this;
         }
     };
 }

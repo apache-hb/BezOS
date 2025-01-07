@@ -199,7 +199,7 @@ namespace km {
 
     struct FormatSpecifier {
         Align align = Align::eRight;
-        int width = 0;
+        unsigned width = 0;
         char fill = ' ';
     };
 
@@ -218,11 +218,11 @@ namespace km {
         }
     };
 
-    constexpr FormatBuilder lpad(int width, char fill = ' ') {
+    constexpr FormatBuilder lpad(unsigned width, char fill = ' ') {
         return { { Align::eLeft, width, fill } };
     }
 
-    constexpr FormatBuilder rpad(int width, char fill = ' ') {
+    constexpr FormatBuilder rpad(unsigned width, char fill = ' ') {
         return { { Align::eRight, width, fill } };
     }
 }

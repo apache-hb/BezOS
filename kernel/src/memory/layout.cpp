@@ -46,21 +46,19 @@ static void ReportMemoryIssues(const ErrorList& errors) {
     }
 }
 
-template<size_t N>
-static void SortMemoryRanges(stdx::StaticVector<MemoryMapEntry, N>& ranges) {
+void detail::SortMemoryRanges(stdx::StaticVectorBase<MemoryMapEntry>& ranges) {
     std::sort(ranges.begin(), ranges.end(), [](const MemoryMapEntry& a, const MemoryMapEntry& b) {
         return a.range.front < b.range.front;
     });
 }
 
-template<size_t N>
-static void MergeMemoryRanges(stdx::StaticVector<MemoryMapEntry, N>& ranges) {
-    for (ssize_t i = 0; i < ranges.count(); i++) {
+void detail::MergeMemoryRanges(stdx::StaticVectorBase<MemoryMapEntry>& ranges) {
+    for (size_t i = 0; i < ranges.count(); i++) {
         MemoryMapEntry& range = ranges[i];
-        for (ssize_t j = i + 1; j < ranges.count(); j++) {
+        for (size_t j = i + 1; j < ranges.count(); j++) {
             MemoryMapEntry& next = ranges[j];
-            if (range.range.back == next.range.front) {
-                range.range.back = next.range.back;
+            if (adjacent(range.range, next.range)) {
+                range.range = merge(range.range, next.range);
                 ranges.remove(j);
                 j--;
             }
@@ -78,7 +76,7 @@ SystemMemoryLayout SystemMemoryLayout::from(const KernelMemoryMap& memmap) {
     bool reclaimableRangesOverflow = false;
     bool reservedRangesOverflow = false;
 
-    for (ssize_t i = 0; i < memmap.count(); i++) {
+    for (size_t i = 0; i < memmap.count(); i++) {
         auto addMemoryRange = [&](MemoryMapEntry range, auto& ranges, stdx::StringView message, bool& overflow) {
             if (!ranges.add(range) && !overflow) {
                 overflow = true;
@@ -106,12 +104,12 @@ SystemMemoryLayout SystemMemoryLayout::from(const KernelMemoryMap& memmap) {
         }
     }
 
-    SortMemoryRanges(freeMemory);
-    SortMemoryRanges(reclaimable);
-    SortMemoryRanges(reservedMemory);
+    detail::SortMemoryRanges(freeMemory);
+    detail::SortMemoryRanges(reclaimable);
+    detail::SortMemoryRanges(reservedMemory);
 
-    // only merge adjacent free ranges, the others are not needed
-    MergeMemoryRanges(freeMemory);
+    // Only merge adjacent free ranges, the others are not needed
+    detail::MergeMemoryRanges(freeMemory);
 
     uint64_t usableMemory = 0;
     for (const MemoryMapEntry& range : freeMemory) {
@@ -128,12 +126,10 @@ SystemMemoryLayout SystemMemoryLayout::from(const KernelMemoryMap& memmap) {
 }
 
 void SystemMemoryLayout::reclaimBootMemory() {
-    for (MemoryMapEntry range : reclaimable) {
-        available.add(range);
-    }
+    available.addRange(reclaimable);
 
     reclaimable.clear();
 
-    SortMemoryRanges(available);
-    MergeMemoryRanges(available);
+    detail::SortMemoryRanges(available);
+    detail::MergeMemoryRanges(available);
 }

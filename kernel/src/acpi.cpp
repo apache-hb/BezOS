@@ -373,7 +373,7 @@ AccessFormat::String AccessFormat::toString(acpi::AccessSize size) {
 AddressFormat::String AddressFormat::toString(acpi::GenericAddress addr) {
     AddressFormat::String result;
     auto as = km::format(addr.addressSpace);
-    for (ssize_t i = 0; i < 4 - as.count(); i++) {
+    for (size_t i = 0; i < 4 - as.count(); i++) {
         result.add(" "_sv);
     }
     result.add(as);

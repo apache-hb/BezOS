@@ -230,7 +230,7 @@ static void KmWriteMemoryMap(const KernelMemoryMap& memmap, const SystemMemory& 
     KmDebugMessage("| Entry | Address            | Size               | Type\n");
     KmDebugMessage("|-------+--------------------+--------------------+-----------------------\n");
 
-    for (ssize_t i = 0; i < memmap.count(); i++) {
+    for (size_t i = 0; i < memmap.count(); i++) {
         MemoryMapEntry entry = memmap[i];
         MemoryRange range = entry.range;
 
@@ -542,7 +542,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     KmDebugMessage("| /SYS/MB/CPU0  | Local APIC           | ", present(processor.hasLocalApic), "\n");
     KmDebugMessage("| /SYS/MB/CPU0  | 2x APIC              | ", present(processor.has2xApic), "\n");
 
-    for (ssize_t i = 0; i < launch.framebuffers.count(); i++) {
+    for (size_t i = 0; i < launch.framebuffers.count(); i++) {
         const KernelFrameBuffer& display = launch.framebuffers[i];
         KmDebugMessage("| /SYS/VIDEO", i, "   | Display resolution   | ", display.width, "x", display.height, "x", display.bpp, "\n");
         KmDebugMessage("| /SYS/VIDEO", i, "   | Framebuffer size     | ", sm::bytes(display.size()), "\n");

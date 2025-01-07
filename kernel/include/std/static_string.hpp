@@ -11,10 +11,10 @@ namespace stdx {
     template<typename T, size_t N>
     class StaticStringBase {
         T mStorage[N];
-        ssize_t mSize;
+        size_t mSize;
 
         constexpr void init(const T *front, const T *back) {
-            mSize = std::clamp<ssize_t>(back - front, 0, std::size(mStorage));
+            mSize = std::clamp<size_t>(back - front, 0, std::size(mStorage));
             std::copy_n(front, mSize, mStorage);
         }
 
@@ -37,9 +37,9 @@ namespace stdx {
             init(front, back);
         }
 
-        constexpr ssize_t count() const { return mSize; }
-        constexpr ssize_t capacity() const { return N; }
-        constexpr ssize_t sizeInBytes() const { return mSize * sizeof(T); }
+        constexpr size_t count() const { return mSize; }
+        constexpr size_t capacity() const { return N; }
+        constexpr size_t sizeInBytes() const { return mSize * sizeof(T); }
 
         constexpr bool isEmpty() const { return mSize == 0; }
         constexpr bool isFull() const { return mSize == N; }

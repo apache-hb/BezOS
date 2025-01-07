@@ -42,6 +42,13 @@ namespace sm {
         constexpr size_t gigabytes() const { return mBytes / kGigabyte; }
         constexpr size_t terabytes() const { return mBytes / kTerabyte; }
 
+        constexpr auto operator<=>(const Memory&) const = default;
+
+        constexpr Memory operator+(const Memory& other) const { return Memory(mBytes + other.mBytes); }
+        constexpr Memory operator-(const Memory& other) const { return Memory(mBytes - other.mBytes); }
+        constexpr Memory operator*(size_t value) const { return Memory(mBytes * value); }
+        constexpr Memory operator/(size_t value) const { return Memory(mBytes / value); }
+
     private:
         size_t mBytes;
     };

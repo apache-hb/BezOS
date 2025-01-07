@@ -51,15 +51,16 @@ namespace km {
         /// @param range The range to release.
         void release(MemoryRange range);
 
-        /// @brief Check if the given address is within the range.
+        /// @brief Get the range of memory managed by this allocator.
         ///
-        /// @param addr The address to check.
-        bool contains(PhysicalAddress addr) const {
-            return mRange.contains(addr);
-        }
-
+        /// @return The range of memory.
         MemoryRange range() const {
             return mRange;
+        }
+
+        void extend(const RegionBitmapAllocator& other) {
+            mRange = km::merge(mRange, other.mRange);
+            mBitmap = std::min(mBitmap, other.mBitmap);
         }
 
         /// @brief Mark a range of memory as used.
@@ -76,6 +77,8 @@ namespace km {
             RegionAllocators& allocators, LowMemoryAllocators& lowMemory,
             const SystemMemoryLayout *layout, PhysicalAddress bitmap, uintptr_t hhdmOffset
         );
+
+        void MergeAdjacentAllocators(stdx::StaticVectorBase<RegionBitmapAllocator>& allocators);
     }
 
     class PageAllocator {
@@ -85,8 +88,16 @@ namespace km {
         /// @brief One allocator for each memory range below 1M.
         detail::LowMemoryAllocators mLowMemory;
 
+        MemoryRange mBitmapMemory;
+
     public:
         PageAllocator(const SystemMemoryLayout *layout, uintptr_t hhdmOffset);
+
+        /// @brief Rebuild the internal allocators.
+        ///
+        /// Must be called once bootloader memory has been reclaimed.
+        /// This will merge any internal allocators that are now contiguous.
+        void rebuild();
 
         /// @brief Allocate a 4k page of memory above 1M.
         ///
@@ -104,5 +115,8 @@ namespace km {
         ///
         /// @param range The range to mark as used.
         void markRangeUsed(MemoryRange range);
+
+        sm::Memory usableMemory() const;
+        sm::Memory reclaimableMemory() const;
     };
 }

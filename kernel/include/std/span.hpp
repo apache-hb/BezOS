@@ -32,8 +32,8 @@ namespace stdx {
             , mBack(back)
         { }
 
-        constexpr ssize_t count() const { return mBack - mFront; }
-        constexpr ssize_t sizeInBytes() const { return count() * sizeof(T); }
+        constexpr size_t count() const { return mBack - mFront; }
+        constexpr size_t sizeInBytes() const { return count() * sizeof(T); }
         constexpr bool isEmpty() const { return mBack == mFront; }
 
         constexpr T *begin() { return mFront; }

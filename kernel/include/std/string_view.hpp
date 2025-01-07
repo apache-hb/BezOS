@@ -14,7 +14,7 @@ namespace stdx {
 
     public:
         constexpr StringViewBase()
-            : StringViewBase("")
+            : StringViewBase(ofString(""))
         { }
 
         template<size_t N>
@@ -32,8 +32,8 @@ namespace stdx {
             return StringViewBase(str, str + N - 1);
         }
 
-        constexpr ssize_t count() const { return mBack - mFront; }
-        constexpr ssize_t sizeInBytes() const { return count() * sizeof(T); }
+        constexpr size_t count() const { return mBack - mFront; }
+        constexpr size_t sizeInBytes() const { return count() * sizeof(T); }
         constexpr bool isEmpty() const { return mBack == mFront; }
 
         constexpr const T *begin() const { return mFront; }
