@@ -28,8 +28,7 @@ extern "C" {
 
 x64::page *PageTableManager::alloc4k() {
     PhysicalAddress result = mPageAllocator->alloc4k();
-    uintptr_t offset = (uintptr_t)result.address + mPageManager->hhdmOffset();
-    x64::page *page = (x64::page*)offset;
+    x64::page *page = getVirtualAddress<x64::page>(result);
     memset(page, 0, sizeof(x64::page));
     return page;
 }
@@ -56,9 +55,9 @@ x64::PageMapLevel3 *PageTableManager::getPageMap3(x64::PageMapLevel4 *l4, uint16
     x64::pml4e& t4 = l4->entries[pml4e];
     if (!t4.present()) {
         l3 = std::bit_cast<x64::PageMapLevel3*>(alloc4k());
-        setEntryFlags(t4, PageFlags::eAll, (uintptr_t)l3 - mPageManager->hhdmOffset());
+        setEntryFlags(t4, PageFlags::eAll, getPhysicalAddress(l3));
     } else {
-        l3 = std::bit_cast<x64::PageMapLevel3*>(mPageManager->address(t4) + mPageManager->hhdmOffset());
+        l3 = getVirtualAddress<x64::PageMapLevel3>(mPageManager->address(t4));
     }
 
     return l3;
@@ -70,9 +69,9 @@ x64::PageMapLevel2 *PageTableManager::getPageMap2(x64::PageMapLevel3 *l3, uint16
     x64::pdpte& t3 = l3->entries[pdpte];
     if (!t3.present()) {
         l2 = std::bit_cast<x64::PageMapLevel2*>(alloc4k());
-        setEntryFlags(t3, PageFlags::eAll, (uintptr_t)l2 - mPageManager->hhdmOffset());
+        setEntryFlags(t3, PageFlags::eAll, getPhysicalAddress(l2));
     } else {
-        l2 = std::bit_cast<x64::PageMapLevel2*>(mPageManager->address(t3) + mPageManager->hhdmOffset());
+        l2 = getVirtualAddress<x64::PageMapLevel2>(mPageManager->address(t3));
     }
 
     return l2;
@@ -81,7 +80,7 @@ x64::PageMapLevel2 *PageTableManager::getPageMap2(x64::PageMapLevel3 *l3, uint16
 const x64::PageMapLevel3 *PageTableManager::findPageMap3(const x64::PageMapLevel4 *l4, uint16_t pml4e) const {
     if (l4->entries[pml4e].present()) {
         uintptr_t base = mPageManager->address(l4->entries[pml4e]);
-        return std::bit_cast<x64::PageMapLevel3*>(base + mPageManager->hhdmOffset());
+        return getVirtualAddress<x64::PageMapLevel3>(base);
     }
 
     return nullptr;
@@ -96,7 +95,7 @@ const x64::PageMapLevel2 *PageTableManager::findPageMap2(const x64::PageMapLevel
         }
 
         uintptr_t base = mPageManager->address(t3);
-        return std::bit_cast<x64::PageMapLevel2*>(base + mPageManager->hhdmOffset());
+        return getVirtualAddress<x64::PageMapLevel2>(base);
     }
 
     return nullptr;
@@ -111,7 +110,7 @@ x64::PageTable *PageTableManager::findPageTable(const x64::PageMapLevel2 *l2, ui
         }
 
         uintptr_t base = mPageManager->address(pde);
-        return std::bit_cast<x64::PageTable*>(base + mPageManager->hhdmOffset());
+        return getVirtualAddress<x64::PageTable>(base);
     }
 
     return nullptr;
@@ -146,9 +145,9 @@ void PageTableManager::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags
     x64::pde& t2 = l2->entries[pdte];
     if (!t2.present()) {
         pt = std::bit_cast<x64::PageTable*>(alloc4k());
-        setEntryFlags(t2, PageFlags::eAll, (uintptr_t)pt - mPageManager->hhdmOffset());
+        setEntryFlags(t2, PageFlags::eAll, getPhysicalAddress(pt));
     } else {
-        pt = std::bit_cast<x64::PageTable*>(mPageManager->address(t2) + mPageManager->hhdmOffset());
+        pt = getVirtualAddress<x64::PageTable>(mPageManager->address(t2));
     }
 
     x64::pte& t1 = pt->entries[pte];

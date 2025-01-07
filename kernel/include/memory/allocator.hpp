@@ -33,18 +33,18 @@ namespace km {
         }
 
         template<typename T>
-        T *getVirtualAddress(km::PhysicalAddress addr) {
+        T *getVirtualAddress(km::PhysicalAddress addr) const {
             return (T*)(addr.address + mPageManager->hhdmOffset());
         }
 
-        km::PhysicalAddress getPhysicalAddress(const void *ptr) {
+        km::PhysicalAddress getPhysicalAddress(const void *ptr) const {
             return km::PhysicalAddress { (uintptr_t)ptr - mPageManager->hhdmOffset() };
         }
 
     public:
         PageTableManager(const km::PageBuilder *pm, VirtualAllocator *vmm, PageAllocator *alloc);
 
-        km::PhysicalAddress rootPageTable() {
+        km::PhysicalAddress rootPageTable() const {
             return getPhysicalAddress(getRootTable());
         }
 
