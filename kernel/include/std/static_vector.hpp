@@ -119,14 +119,25 @@ namespace stdx {
         }
 
         constexpr StaticVector(const StaticVector& other)
-            : StaticVector()
-        {
-            Super::addRange(other);
-        }
+            : StaticVector(std::begin(other), std::end(other))
+        { }
 
         constexpr StaticVector& operator=(const StaticVector& other) {
             Super::clear();
             Super::addRange(other);
+            return *this;
+        }
+
+        constexpr StaticVector(StaticVector&& other)
+            : Super(std::begin(other), std::end(other))
+        {
+            other.clear();
+        }
+
+        constexpr StaticVector& operator=(StaticVector&& other) {
+            Super::clear();
+            Super::addRange(other);
+            other.clear();
             return *this;
         }
     };
