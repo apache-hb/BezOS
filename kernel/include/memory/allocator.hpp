@@ -9,6 +9,8 @@
 
 namespace km {
     class PageTableManager {
+        uintptr_t mAddressOffset;
+
         const km::PageBuilder *mPageManager;
         PageAllocator *mPageAllocator;
         VirtualAllocator *mVirtualAllocator;
@@ -34,11 +36,11 @@ namespace km {
 
         template<typename T>
         T *getVirtualAddress(km::PhysicalAddress addr) const {
-            return (T*)(addr.address + mPageManager->hhdmOffset());
+            return (T*)(addr.address + mAddressOffset);
         }
 
         km::PhysicalAddress getPhysicalAddress(const void *ptr) const {
-            return km::PhysicalAddress { (uintptr_t)ptr - mPageManager->hhdmOffset() };
+            return km::PhysicalAddress { (uintptr_t)ptr - mAddressOffset };
         }
 
     public:

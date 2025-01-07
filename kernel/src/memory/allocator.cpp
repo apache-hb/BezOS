@@ -43,7 +43,8 @@ void PageTableManager::setEntryFlags(x64::Entry& entry, PageFlags flags, Physica
 }
 
 PageTableManager::PageTableManager(const km::PageBuilder *pm, km::VirtualAllocator *vmm, PageAllocator *alloc)
-    : mPageManager(pm)
+    : mAddressOffset(pm->hhdmOffset())
+    , mPageManager(pm)
     , mPageAllocator(alloc)
     , mVirtualAllocator(vmm)
     , mRootPageTable((x64::PageMapLevel4*)alloc4k())
