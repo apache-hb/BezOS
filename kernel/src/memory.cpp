@@ -33,6 +33,6 @@ void *km::SystemMemory::hhdmMap(PhysicalAddress begin, PhysicalAddress end, Page
     MemoryRange range { begin, end };
     VirtualAddress vaddr = { begin.address + pager.hhdmOffset() };
     vmm.mapRange(range, vaddr, flags, type);
-    pmm.markRangeUsed(range);
+    pmm.markUsed(range);
     return (void*)vaddr.address;
 }
