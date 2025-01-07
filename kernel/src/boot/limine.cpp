@@ -120,6 +120,8 @@ static KernelMemoryMap BootGetMemoryMap(void) {
     return result;
 }
 
+static constexpr size_t kLimineStackSize = sm::kilobytes(16).bytes();
+
 extern "C" void kmain(void) {
     // KM_CHECK(LIMINE_BASE_REVISION_SUPPORTED, "Unsupported limine base revision.");
 
@@ -141,7 +143,7 @@ extern "C" void kmain(void) {
         .rsdpAddress = (uintptr_t)rsdp.address,
         .framebuffers = BootGetAllDisplays(hhdm.offset),
         .memoryMap = BootGetMemoryMap(),
-        .stack = { stack - 0x10000, stack },
+        .stack = { stack - kLimineStackSize, stack },
         .smbios32Address = (uintptr_t)smbios.entry_32,
         .smbios64Address = (uintptr_t)smbios.entry_64,
     };
