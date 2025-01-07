@@ -25,26 +25,26 @@ namespace km {
 
         void unmap(void *ptr, size_t size);
 
-        void *hhdmMap(PhysicalAddress begin, PhysicalAddress end, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eUncachedOverridable);
+        void *map(PhysicalAddress begin, PhysicalAddress end, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eUncachedOverridable);
 
         template<typename T>
-        T *hhdmMapObject(PhysicalAddress begin, PhysicalAddress end) {
-            return (T*)hhdmMap(begin, end);
+        T *mapObject(PhysicalAddress begin, PhysicalAddress end) {
+            return (T*)map(begin, end);
         }
 
         template<typename T>
-        T *hhdmMapObject(PhysicalAddress paddr) {
-            return hhdmMapObject<T>(paddr, paddr + sizeof(T));
+        T *mmapObject(PhysicalAddress paddr) {
+            return mapObject<T>(paddr, paddr + sizeof(T));
         }
 
         template<typename T>
-        const T *hhdmMapConst(PhysicalAddress begin, PhysicalAddress end) {
-            return (const T*)hhdmMap(begin, end, PageFlags::eRead);
+        const T *mapConst(PhysicalAddress begin, PhysicalAddress end) {
+            return (const T*)map(begin, end, PageFlags::eRead);
         }
 
         template<typename T>
-        const T *hhdmMapConst(PhysicalAddress paddr) {
-            return hhdmMapConst<T>(paddr, paddr + sizeof(T));
+        const T *mapConst(PhysicalAddress paddr) {
+            return mapConst<T>(paddr, paddr + sizeof(T));
         }
     };
 }

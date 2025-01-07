@@ -30,7 +30,7 @@ void km::SystemMemory::unmap(void *ptr, size_t size) {
     vmm.unmap(ptr, size);
 }
 
-void *km::SystemMemory::hhdmMap(PhysicalAddress begin, PhysicalAddress end, PageFlags flags, MemoryType type) {
+void *km::SystemMemory::map(PhysicalAddress begin, PhysicalAddress end, PageFlags flags, MemoryType type) {
     MemoryRange range { begin, end };
 
     void *vaddr = { (void*)(begin.address + pager.hhdmOffset()) };

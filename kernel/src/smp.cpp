@@ -80,7 +80,7 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
 
 static uintptr_t AllocSmpStack(km::SystemMemory& memory) {
     km::PhysicalAddress stack = memory.pmm.alloc4k(4);
-    return (uintptr_t)memory.hhdmMap(stack, stack + (x64::kPageSize * 4)) + (x64::kPageSize * 4);
+    return (uintptr_t)memory.map(stack, stack + (x64::kPageSize * 4)) + (x64::kPageSize * 4);
 }
 
 static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::LocalApic *lapic) {
@@ -106,7 +106,7 @@ static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::LocalApic 
 void KmInitSmp(km::SystemMemory& memory, km::LocalApic& bsp, acpi::AcpiTables& acpiTables) {
     // copy the SMP blob to the correct location
     size_t blobSize = GetSmpBlobSize();
-    void *smpStartBlob = memory.hhdmMap(kSmpStart, kSmpStart + blobSize, km::PageFlags::eAll);
+    void *smpStartBlob = memory.map(kSmpStart, kSmpStart + blobSize, km::PageFlags::eAll);
     memcpy(smpStartBlob, _binary_smp_start, blobSize);
 
     KmDebugMessage("[SMP] Starting APs.\n");
@@ -115,7 +115,7 @@ void KmInitSmp(km::SystemMemory& memory, km::LocalApic& bsp, acpi::AcpiTables& a
 
     KmDebugMessage("[SMP] BSP ID: ", bspId, "\n");
 
-    SmpInfoHeader *smpInfo = memory.hhdmMapObject<SmpInfoHeader>(kSmpInfo);
+    SmpInfoHeader *smpInfo = memory.mmapObject<SmpInfoHeader>(kSmpInfo);
 
     // Also identity map the SMP blob and info regions, it makes jumping to compatibility mode easier.
     // I think theres a better way to do this, but I'm not sure what it is.

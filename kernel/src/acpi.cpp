@@ -28,10 +28,10 @@ static bool ValidateRsdpLocator(const acpi::RsdpLocator *rsdp) {
 
 static const acpi::RsdtHeader *MapTableEntry(km::PhysicalAddress paddr, km::SystemMemory& memory) {
     // first map the header
-    const acpi::RsdtHeader *header = memory.hhdmMapConst<acpi::RsdtHeader>(paddr);
+    const acpi::RsdtHeader *header = memory.mapConst<acpi::RsdtHeader>(paddr);
 
     // then use the headers length to ensure we map the entire table
-    return memory.hhdmMapConst<acpi::RsdtHeader>(paddr, paddr + header->length);
+    return memory.mapConst<acpi::RsdtHeader>(paddr, paddr + header->length);
 }
 
 static void DebugMadt(const acpi::RsdtHeader *header) {
@@ -145,7 +145,7 @@ static const acpi::RsdtHeader *GetRsdtHeader(km::PhysicalAddress paddr, km::Syst
 static void DebugRsdt(const acpi::RsdpLocator *locator, km::SystemMemory& memory) {
     KmDebugMessage("| /SYS/ACPI          | RSDT address                | ", km::Hex(locator->rsdtAddress).pad(8, '0'), "\n");
 
-    const acpi::Rsdt *rsdt = memory.hhdmMapConst<acpi::Rsdt>(locator->rsdtAddress);
+    const acpi::Rsdt *rsdt = memory.mapConst<acpi::Rsdt>(locator->rsdtAddress);
 
     KmDebugMessage("| /SYS/ACPI/RSDT     | Signature                   | '", stdx::StringView(rsdt->header.signature), "'\n");
 
@@ -161,7 +161,7 @@ static void DebugXsdt(const acpi::RsdpLocator *locator, km::SystemMemory& memory
     KmDebugMessage("| /SYS/ACPI          | XSDT address               | ", km::Hex(locator->xsdtAddress).pad(16, '0'), "\n");
     KmDebugMessage("| /SYS/ACPI          | Extended checksum          | ", locator->extendedChecksum, "\n");
 
-    const acpi::Xsdt *xsdt = memory.hhdmMapConst<acpi::Xsdt>(km::PhysicalAddress { locator->xsdtAddress });
+    const acpi::Xsdt *xsdt = memory.mapConst<acpi::Xsdt>(km::PhysicalAddress { locator->xsdtAddress });
 
     KmDebugMessage("| /SYS/ACPI/XSDT     | Signature                  | '", stdx::StringView(xsdt->header.signature), "'\n");
 
@@ -174,7 +174,7 @@ static void DebugXsdt(const acpi::RsdpLocator *locator, km::SystemMemory& memory
 
 acpi::AcpiTables InitAcpi(km::PhysicalAddress rsdpBaseAddress, km::SystemMemory& memory) {
     // map the rsdp table
-    const acpi::RsdpLocator *locator = memory.hhdmMapConst<acpi::RsdpLocator>(rsdpBaseAddress);
+    const acpi::RsdpLocator *locator = memory.mapConst<acpi::RsdpLocator>(rsdpBaseAddress);
 
     // validate that the table is ok to use
     bool rsdpOk = ValidateRsdpLocator(locator);
@@ -238,10 +238,10 @@ acpi::AcpiTables::AcpiTables(const RsdpLocator *locator, km::SystemMemory& memor
     };
 
     if (revision() == 0) {
-        const acpi::Rsdt *rsdt = memory.hhdmMapObject<acpi::Rsdt>(km::PhysicalAddress { locator->rsdtAddress });
+        const acpi::Rsdt *rsdt = memory.mmapObject<acpi::Rsdt>(km::PhysicalAddress { locator->rsdtAddress });
         setupTables(rsdt);
     } else {
-        const acpi::Xsdt *xsdt = memory.hhdmMapObject<acpi::Xsdt>(km::PhysicalAddress { locator->xsdtAddress });
+        const acpi::Xsdt *xsdt = memory.mmapObject<acpi::Xsdt>(km::PhysicalAddress { locator->xsdtAddress });
         setupTables(xsdt);
     }
 }

@@ -87,7 +87,7 @@ static km::LocalApic MapLocalApic(uint64_t msr, km::SystemMemory& memory) {
     // For correct APIC operation, this address space must
     // be mapped to an area of memory that has
     // been designated as strong uncacheable (UC)
-    void *addr = memory.hhdmMap(base, base + km::kApicSize, km::PageFlags::eData, km::MemoryType::eUncached);
+    void *addr = memory.map(base, base + km::kApicSize, km::PageFlags::eData, km::MemoryType::eUncached);
 
     return km::LocalApic { addr };
 }
@@ -139,7 +139,7 @@ static constexpr uint32_t kIoApicVersion = 0x1;
 
 static uint8_t *hhdmMapIoApic(km::SystemMemory& memory, const acpi::MadtEntry *entry) {
     const acpi::MadtEntry::IoApic ioApic = entry->ioapic;
-    return (uint8_t*)memory.hhdmMap(ioApic.address, ioApic.address + entry->length);
+    return (uint8_t*)memory.map(ioApic.address, ioApic.address + entry->length);
 }
 
 km::IoApic::IoApic(const acpi::MadtEntry *entry, km::SystemMemory& memory)
