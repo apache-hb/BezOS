@@ -132,8 +132,8 @@ void SystemMemoryLayout::reclaimBootMemory() {
         available.add(range);
     }
 
+    reclaimable.clear();
+
     SortMemoryRanges(available);
     MergeMemoryRanges(available);
-
-    reclaimable.clear();
 }

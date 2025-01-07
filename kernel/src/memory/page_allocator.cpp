@@ -101,10 +101,8 @@ PageAllocator::PageAllocator(const SystemMemoryLayout *layout, uintptr_t hhdmOff
 }
 
 PhysicalAddress PageAllocator::alloc4k(size_t count) {
-    KmDebugMessage("[ALLOC] 4k ", count, " pages\n");
     for (RegionBitmapAllocator& allocator : mAllocators) {
         if (PhysicalAddress addr = allocator.alloc4k(count); addr != nullptr) {
-            KmDebugMessage("[ALLOC] 4k ", count, " pages at ", addr.address, "\n");
             return addr;
         }
     }

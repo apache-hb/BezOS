@@ -263,25 +263,21 @@ static SystemMemory KmInitMemory(uintptr_t bits, const KernelLaunch& launch) {
     // initialize our own page tables and remap everything into it
     KmMapKernel(memory.pager, memory.vmm, memory.layout, launch.kernelPhysicalBase, launch.kernelVirtualBase);
 
-    KmDebugMessage("[INIT] Migrating kernel stack\n");
-
     // move our stack out of reclaimable memory
     // limine garuntees 64k of stack space
     KmMigrateMemory(memory.vmm, memory.pager, launch.stack.front, launch.stack.size(), MemoryType::eWriteBack);
 
-    KmDebugMessage("[INIT] Mapping ", launch.framebuffers.count(), " framebuffers\n");
-
     // remap framebuffers
+
+    // TODO: The surface 4 crashes when writing to the framebuffer after its remapped. need to investigate
     for (const KernelFrameBuffer& framebuffer : launch.framebuffers) {
-        KmDebugMessage("[INIT] Mapping framebuffer: ", framebuffer.address, ", size: ", framebuffer.size(), "\n");
+        KmDebugMessage("[INIT] Mapping framebuffer ", framebuffer.address, " - ", sm::bytes(framebuffer.size()), "\n");
 
         KmMigrateMemory(memory.vmm, memory.pager, framebuffer.address, framebuffer.size(), MemoryType::eWriteCombine);
     }
 
     // once it is safe to remap the boot memory, do so
     KmReclaimBootMemory(memory.pager, memory.vmm, memory.layout);
-
-    KmDebugMessage("[INIT] Memory initialized\n");
 
     return memory;
 }
@@ -501,10 +497,6 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     SystemMemory memory = KmInitMemory(processor.maxpaddr, launch);
     gMemoryMap = &memory;
 
-    KmDebugMessage("[INIT] Initializing buffered boot terminal\n");
-
-    KmInitBootBufferedTerminal(launch, memory);
-
     PlatformInfo platform = KmGetPlatformInfo(launch, memory);
 
     // On Oracle VirtualBox the COM1 port is functional but fails the loopback test.
@@ -562,6 +554,10 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     KmDebugMessage("| /SYS/MB/COM1  | Status               | ", com1Status, "\n");
     KmDebugMessage("| /SYS/MB/COM1  | Port                 | ", Hex(com1Info.port), "\n");
     KmDebugMessage("| /SYS/MB/COM1  | Baud rate            | ", km::com::kBaudRate / com1Info.divisor, "\n");
+
+    KmDebugMessage("[INIT] Initializing buffered boot terminal\n");
+
+    KmInitBootBufferedTerminal(launch, memory);
 
     // Test interrupt to ensure the IDT is working
     {

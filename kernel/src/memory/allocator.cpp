@@ -279,6 +279,8 @@ void KmReclaimBootMemory(const km::PageBuilder& pm, km::PageTableManager& vmm, k
 
     KmDebugMessage("[INIT] Reclaiming bootloader memory.\n");
 
+    KmHalt();
+
     layout.reclaimBootMemory();
 
     KmDebugMessage("[INIT] Bootloader memory reclaimed.\n");
