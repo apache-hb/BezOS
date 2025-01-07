@@ -137,12 +137,14 @@ static PageMemoryTypeLayout KmSetupPat(void) {
         KmDebugMessage("[INIT] PAT[", i, "]: ", type, "\n");
     }
 
-    constexpr uint8_t kEntryUncached = 0;
-    constexpr uint8_t kEntryWriteCombined = 1;
-    constexpr uint8_t kEntryWriteThrough = 2;
-    constexpr uint8_t kEntryWriteBack = 3;
-    constexpr uint8_t kEntryWriteProtect = 4;
-    constexpr uint8_t kEntryUncachedOverridable = 5;
+    enum {
+        kEntryWriteBack,
+        kEntryWriteThrough,
+        kEntryUncachedOverridable,
+        kEntryUncached,
+        kEntryWriteCombined,
+        kEntryWriteProtect,
+    };
 
     pat.setEntry(kEntryUncached, MemoryType::eUncached);
     pat.setEntry(kEntryWriteCombined, MemoryType::eWriteCombine);

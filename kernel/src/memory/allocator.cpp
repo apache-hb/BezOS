@@ -70,7 +70,6 @@ x64::PageMapLevel2 *PageTableManager::getPageMap2(x64::PageMapLevel3 *l3, uint16
     if (!t3.present()) {
         l2 = std::bit_cast<x64::PageMapLevel2*>(alloc4k());
         setEntryFlags(t3, PageFlags::eAll, (uintptr_t)l2 - mPageManager->hhdmOffset());
-        // mPageManager->setMemoryType(t3, MemoryType::eWriteBack);
     } else {
         l2 = std::bit_cast<x64::PageMapLevel2*>(mPageManager->address(t3) + mPageManager->hhdmOffset());
     }
@@ -146,7 +145,6 @@ void PageTableManager::map4k(PhysicalAddress paddr, VirtualAddress vaddr, PageFl
     if (!t2.present()) {
         pt = std::bit_cast<x64::PageTable*>(alloc4k());
         setEntryFlags(t2, PageFlags::eAll, (uintptr_t)pt - mPageManager->hhdmOffset());
-        // mPageManager->setMemoryType(t2, MemoryType::eWriteBack);
     } else {
         pt = std::bit_cast<x64::PageTable*>(mPageManager->address(t2) + mPageManager->hhdmOffset());
     }
