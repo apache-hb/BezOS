@@ -10,8 +10,8 @@ namespace km {
     struct SystemMemory {
         PageBuilder pager;
 
-        /// @brief Allocates address space in the higher half (above 4GB).
-        VirtualAllocator hhAllocator;
+        /// @brief Manages address space for the kernel.
+        VirtualAllocator vmAllocator;
 
         SystemMemoryLayout layout;
         PageAllocator pmm;

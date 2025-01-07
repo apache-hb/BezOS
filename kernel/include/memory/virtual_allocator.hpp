@@ -36,7 +36,7 @@ namespace km {
     /// @brief Allocates virtual memory address space.
     class VirtualAllocator {
         /// @brief Ranges of memory that are still available.
-        stdx::StaticVector<VirtualRange, 64> mAvailable;
+        stdx::StaticVector<VirtualRange, 32> mAvailable;
 
     public:
         VirtualAllocator(VirtualRange range);

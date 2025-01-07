@@ -9,6 +9,7 @@ static void SortRanges(stdx::StaticVectorBase<km::VirtualRange>& ranges) {
 }
 
 static void MergeRanges(stdx::StaticVectorBase<km::VirtualRange>& ranges) {
+    SortRanges(ranges);
     for (size_t i = 0; i < ranges.count(); i++) {
         km::VirtualRange& range = ranges[i];
         for (size_t j = i + 1; j < ranges.count(); j++) {
@@ -71,12 +72,7 @@ void *km::VirtualAllocator::alloc4k(size_t count) {
 }
 
 void km::VirtualAllocator::release(VirtualRange range) {
-    for (size_t i = 0; i < mAvailable.count(); i++) {
-        VirtualRange& available = mAvailable[i];
-        if (available.overlaps(range)) {
-            available = km::merge(available, range);
-        }
-    }
+    mAvailable.add(range);
 
     MergeRanges(mAvailable);
 }

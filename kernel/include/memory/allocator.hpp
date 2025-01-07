@@ -5,11 +5,13 @@
 
 #include "memory/page_allocator.hpp"
 #include "memory/paging.hpp"
+#include "memory/virtual_allocator.hpp"
 
 namespace km {
     class PageTableManager {
         const km::PageBuilder *mPageManager;
         PageAllocator *mPageAllocator;
+        VirtualAllocator *mVirtualAllocator;
         x64::page *mRootPageTable;
 
         x64::page *alloc4k();
@@ -27,7 +29,7 @@ namespace km {
         void mapRange2m(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type);
 
     public:
-        PageTableManager(const km::PageBuilder *pm, PageAllocator *alloc);
+        PageTableManager(const km::PageBuilder *pm, VirtualAllocator *vmm, PageAllocator *alloc);
 
         x64::page *rootPageTable() {
             return mRootPageTable;
@@ -56,8 +58,11 @@ void KmMapKernel(const km::PageBuilder& pm, km::PageTableManager& vmm, km::Syste
 /// @param pm The page manager
 /// @param base The physical address
 /// @param size The size of the memory range
+/// @param type The memory type to use
 void KmMigrateMemory(km::PageTableManager& vmm, km::PageBuilder& pm, km::PhysicalAddress base, size_t size, km::MemoryType type);
 
 /// @brief Reclaim bootloader memory.
+/// @param pm The page manager
+/// @param vmm The virtual memory manager
 /// @param layout The system memory layout
 void KmReclaimBootMemory(const km::PageBuilder& pm, km::PageTableManager& vmm, km::SystemMemoryLayout& layout);

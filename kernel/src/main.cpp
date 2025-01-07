@@ -167,6 +167,7 @@ static PageMemoryTypeLayout KmSetupPat(void) {
     };
 }
 
+[[maybe_unused]]
 static void SetupMtrrs(x64::MemoryTypeRanges& mtrrs, const km::PageBuilder& pm) {
     mtrrs.setDefaultType(km::MemoryType::eWriteBack);
 
@@ -221,7 +222,7 @@ static void KmWriteMtrrs(const km::PageBuilder& pm) {
         }
     }
 
-    SetupMtrrs(mtrrs, pm);
+    // SetupMtrrs(mtrrs, pm);
 }
 
 static void KmWriteMemoryMap(const KernelMemoryMap& memmap, const SystemMemory& memory) {
