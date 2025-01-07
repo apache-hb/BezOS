@@ -116,25 +116,26 @@ x64::PageTable *PageTableManager::findPageTable(const x64::PageMapLevel2 *l2, ui
     return nullptr;
 }
 
-void PageTableManager::mapRange4k(MemoryRange range, VirtualAddress vaddr, PageFlags flags, MemoryType type) {
+void PageTableManager::mapRange4k(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type) {
     for (PhysicalAddress i = range.front; i < range.back; i += x64::kPageSize) {
         map4k(i, vaddr, flags, type);
-        vaddr.address += x64::kPageSize;
+        vaddr = (char*)vaddr + x64::kPageSize;
     }
 }
 
-void PageTableManager::mapRange2m(MemoryRange range, VirtualAddress vaddr, PageFlags flags, MemoryType type) {
+void PageTableManager::mapRange2m(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type) {
     for (PhysicalAddress i = range.front; i < range.back; i += x64::kLargePageSize) {
         map2m(i, vaddr, flags, type);
-        vaddr.address += x64::kLargePageSize;
+        vaddr = (char*)vaddr + x64::kLargePageSize;
     }
 }
 
-void PageTableManager::map4k(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags, MemoryType type) {
-    uint16_t pml4e = (vaddr.address >> 39) & 0b0001'1111'1111;
-    uint16_t pdpte = (vaddr.address >> 30) & 0b0001'1111'1111;
-    uint16_t pdte = (vaddr.address >> 21) & 0b0001'1111'1111;
-    uint16_t pte = (vaddr.address >> 12) & 0b0001'1111'1111;
+void PageTableManager::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type) {
+    uintptr_t addr = (uintptr_t)vaddr;
+    uint16_t pml4e = (addr >> 39) & 0b0001'1111'1111;
+    uint16_t pdpte = (addr >> 30) & 0b0001'1111'1111;
+    uint16_t pdte = (addr >> 21) & 0b0001'1111'1111;
+    uint16_t pte = (addr >> 12) & 0b0001'1111'1111;
 
     x64::PageMapLevel4 *l4 = (x64::PageMapLevel4*)rootPageTable();
     x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e);
@@ -154,10 +155,11 @@ void PageTableManager::map4k(PhysicalAddress paddr, VirtualAddress vaddr, PageFl
     setEntryFlags(t1, flags, paddr.address);
 }
 
-void PageTableManager::map2m(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags, MemoryType type) {
-    uint16_t pml4e = (vaddr.address >> 39) & 0b0001'1111'1111;
-    uint16_t pdpte = (vaddr.address >> 30) & 0b0001'1111'1111;
-    uint16_t pdte = (vaddr.address >> 21) & 0b0001'1111'1111;
+void PageTableManager::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type) {
+    uintptr_t addr = (uintptr_t)vaddr;
+    uint16_t pml4e = (addr >> 39) & 0b0001'1111'1111;
+    uint16_t pdpte = (addr >> 30) & 0b0001'1111'1111;
+    uint16_t pdte = (addr >> 21) & 0b0001'1111'1111;
 
     x64::PageMapLevel4 *l4 = (x64::PageMapLevel4*)rootPageTable();
     x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e);
@@ -169,7 +171,7 @@ void PageTableManager::map2m(PhysicalAddress paddr, VirtualAddress vaddr, PageFl
     setEntryFlags(t2, flags, paddr.address);
 }
 
-void PageTableManager::mapRange(MemoryRange range, VirtualAddress vaddr, PageFlags flags, MemoryType type) {
+void PageTableManager::mapRange(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type) {
     // align everything to 4k page boundaries
     range.front = sm::rounddown(range.front.address, x64::kPageSize);
     range.back = sm::roundup(range.back.address, x64::kPageSize);
@@ -189,11 +191,11 @@ void PageTableManager::mapRange(MemoryRange range, VirtualAddress vaddr, PageFla
 
             // then map the 2m pages
             MemoryRange body = {front2m, back2m};
-            mapRange2m(body, vaddr + head.size(), flags, type);
+            mapRange2m(body, (char*)vaddr + head.size(), flags, type);
 
             // finally map the trailing 4k pages
             MemoryRange tail = {back2m, range.back};
-            mapRange4k(tail, vaddr + head.size() + body.size(), flags, type);
+            mapRange4k(tail, (char*)vaddr + head.size() + body.size(), flags, type);
             return;
         }
     }
@@ -230,14 +232,14 @@ void PageTableManager::unmap(void *ptr, size_t size) {
     }
 }
 
-static void MapKernelPages(PageTableManager& memory, km::PhysicalAddress paddr, km::VirtualAddress vaddr) {
+static void MapKernelPages(PageTableManager& memory, km::PhysicalAddress paddr, const void *vaddr) {
     auto mapKernelRange = [&](const void *begin, const void *end, PageFlags flags, stdx::StringView name) {
         km::PhysicalAddress front = km::PhysicalAddress {  (uintptr_t)begin - (uintptr_t)__kernel_start };
         km::PhysicalAddress back = km::PhysicalAddress { (uintptr_t)end - (uintptr_t)__kernel_start };
 
         KmDebugMessage("[INIT] Mapping ", Hex((uintptr_t)begin), "-", Hex((uintptr_t)end), " - ", name, "\n");
 
-        memory.mapRange({ paddr + front.address, paddr + back.address }, vaddr + front.address, flags, MemoryType::eWriteBack);
+        memory.mapRange({ paddr + front.address, paddr + back.address }, (char*)vaddr + front.address, flags, MemoryType::eWriteBack);
     };
 
     KmDebugMessage("[INIT] Mapping kernel pages.\n");
@@ -249,15 +251,15 @@ static void MapKernelPages(PageTableManager& memory, km::PhysicalAddress paddr, 
 
 static void MapStage1Memory(PageTableManager& memory, const km::PageBuilder& pm, const SystemMemoryLayout& layout) {
     for (MemoryMapEntry range : layout.available) {
-        memory.mapRange(range.range, km::VirtualAddress { range.range.front.address + pm.hhdmOffset() }, PageFlags::eData, MemoryType::eWriteBack);
+        memory.mapRange(range.range, (void*)(range.range.front.address + pm.hhdmOffset()), PageFlags::eData, MemoryType::eWriteBack);
     }
 
     for (MemoryMapEntry range : layout.reclaimable) {
-        memory.mapRange(range.range, km::VirtualAddress { range.range.front.address + pm.hhdmOffset() }, PageFlags::eData, MemoryType::eWriteBack);
+        memory.mapRange(range.range, (void*)(range.range.front.address + pm.hhdmOffset()), PageFlags::eData, MemoryType::eWriteBack);
     }
 }
 
-void KmMapKernel(const km::PageBuilder& pm, km::PageTableManager& vmm, km::SystemMemoryLayout& layout, km::PhysicalAddress paddr, km::VirtualAddress vaddr) {
+void KmMapKernel(const km::PageBuilder& pm, km::PageTableManager& vmm, km::SystemMemoryLayout& layout, km::PhysicalAddress paddr, const void *vaddr) {
     // first map the kernel pages
     MapKernelPages(vmm, paddr, vaddr);
 
@@ -268,7 +270,7 @@ void KmMapKernel(const km::PageBuilder& pm, km::PageTableManager& vmm, km::Syste
 void KmMigrateMemory(km::PageTableManager& vmm, km::PageBuilder& pm, km::PhysicalAddress base, size_t size, km::MemoryType type) {
     km::PhysicalAddress end = base + size;
 
-    vmm.mapRange({ base, end }, km::VirtualAddress { base.address + pm.hhdmOffset() }, PageFlags::eData, type);
+    vmm.mapRange({ base, end }, (void*)(base.address + pm.hhdmOffset()), PageFlags::eData, type);
 }
 
 void KmReclaimBootMemory(const km::PageBuilder& pm, km::PageTableManager& vmm, km::SystemMemoryLayout& layout) {

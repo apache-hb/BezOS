@@ -23,8 +23,8 @@ namespace km {
         const x64::PageMapLevel2 *findPageMap2(const x64::PageMapLevel3 *l3, uint16_t pdpte) const;
         x64::PageTable *findPageTable(const x64::PageMapLevel2 *l2, uint16_t pdte) const;
 
-        void mapRange4k(MemoryRange range, VirtualAddress vaddr, PageFlags flags, MemoryType type);
-        void mapRange2m(MemoryRange range, VirtualAddress vaddr, PageFlags flags, MemoryType type);
+        void mapRange4k(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type);
+        void mapRange2m(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type);
 
     public:
         PageTableManager(const km::PageBuilder *pm, PageAllocator *alloc);
@@ -33,11 +33,11 @@ namespace km {
             return mRootPageTable;
         }
 
-        void map4k(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
+        void map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
 
-        void map2m(PhysicalAddress paddr, VirtualAddress vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
+        void map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
 
-        void mapRange(MemoryRange range, VirtualAddress vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
+        void mapRange(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
 
         void unmap(void *ptr, size_t size);
     };
@@ -49,7 +49,7 @@ namespace km {
 /// @param layout The system memory layout
 /// @param paddr The physical address of the kernel
 /// @param vaddr The virtual address of the kernel
-void KmMapKernel(const km::PageBuilder& pm, km::PageTableManager& vmm, km::SystemMemoryLayout& layout, km::PhysicalAddress paddr, km::VirtualAddress vaddr);
+void KmMapKernel(const km::PageBuilder& pm, km::PageTableManager& vmm, km::SystemMemoryLayout& layout, km::PhysicalAddress paddr, const void *vaddr);
 
 /// @brief Migrate the memory range into hhdm.
 /// @param vmm The virtual memory manager

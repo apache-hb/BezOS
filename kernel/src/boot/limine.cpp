@@ -136,7 +136,7 @@ extern "C" void kmain(void) {
 
     KernelLaunch launch = {
         .kernelPhysicalBase = kernelAddress.physical_base,
-        .kernelVirtualBase = kernelAddress.virtual_base,
+        .kernelVirtualBase = (void*)kernelAddress.virtual_base,
         .hhdmOffset = hhdm.offset,
         .rsdpAddress = (uintptr_t)rsdp.address,
         .framebuffers = BootGetAllDisplays(hhdm.offset),

@@ -120,8 +120,8 @@ void KmInitSmp(km::SystemMemory& memory, km::LocalApic& bsp, acpi::AcpiTables& a
 
     // Also identity map the SMP blob and info regions, it makes jumping to compatibility mode easier.
     // I think theres a better way to do this, but I'm not sure what it is.
-    memory.vmm.mapRange({ kSmpInfo, kSmpInfo + sizeof(SmpInfoHeader) }, kSmpInfo.address, km::PageFlags::eData);
-    memory.vmm.mapRange({ kSmpStart, kSmpStart + blobSize }, kSmpStart.address, km::PageFlags::eCode);
+    memory.vmm.mapRange({ kSmpInfo, kSmpInfo + sizeof(SmpInfoHeader) }, (void*)kSmpInfo.address, km::PageFlags::eData);
+    memory.vmm.mapRange({ kSmpStart, kSmpStart + blobSize }, (void*)kSmpStart.address, km::PageFlags::eCode);
 
     SmpInfoHeader header = SetupSmpInfoHeader(&memory, &bsp);
     memcpy(smpInfo, &header, sizeof(header));

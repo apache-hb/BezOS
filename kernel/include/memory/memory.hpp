@@ -54,31 +54,6 @@ namespace km {
         }
     };
 
-    struct VirtualAddress {
-        uintptr_t address;
-
-        constexpr VirtualAddress() = default;
-
-        constexpr VirtualAddress(uintptr_t address)
-            : address(address)
-        { }
-
-        constexpr VirtualAddress(std::nullptr_t)
-            : address(0)
-        { }
-
-        constexpr auto operator<=>(const VirtualAddress&) const = default;
-
-        constexpr VirtualAddress operator+(intptr_t offset) const {
-            return VirtualAddress { address + offset };
-        }
-
-        constexpr VirtualAddress& operator+=(intptr_t offset) {
-            address += offset;
-            return *this;
-        }
-    };
-
     /// @brief A range of physical address space.
     ///
     /// @pre @a MemoryRange::front < @a MemoryRange::back

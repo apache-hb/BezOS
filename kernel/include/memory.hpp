@@ -2,12 +2,17 @@
 
 #include "memory/allocator.hpp"
 #include "memory/paging.hpp"
+#include "memory/virtual_allocator.hpp"
 
 #include <cstddef>
 
 namespace km {
     struct SystemMemory {
         PageBuilder pager;
+
+        /// @brief Allocates address space in the higher half (above 4GB).
+        VirtualAllocator hhAllocator;
+
         SystemMemoryLayout layout;
         PageAllocator pmm;
         PageTableManager vmm;

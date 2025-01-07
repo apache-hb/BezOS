@@ -104,7 +104,7 @@ struct KernelFrameBuffer {
 
 struct KernelLaunch {
     km::PhysicalAddress kernelPhysicalBase;
-    km::VirtualAddress kernelVirtualBase;
+    const void *kernelVirtualBase;
 
     uintptr_t hhdmOffset;
 
