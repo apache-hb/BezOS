@@ -20,6 +20,8 @@ namespace acpi {
             : mCode(code)
         { }
 
+        AmlParser(const RsdtHeader *header);
+
         AmlByte amlByteData();
         AmlWord amlWordData();
         AmlDword amlDwordData();
@@ -29,15 +31,46 @@ namespace acpi {
         uint8_t read();
     };
 
-    struct AmlObject {
+    struct AmlTermObject {
 
     };
 
-    struct AmlCreateField : public AmlObject {
+    struct AmlTermArg {
+
+    };
+
+    // term arguments
+
+    struct AmlLocalObject : AmlTermArg {
+        enum class Type {
+            eLocal0 = 0x60,
+            eLocal1 = 0x61,
+            eLocal2 = 0x62,
+            eLocal3 = 0x63,
+            eLocal4 = 0x64,
+            eLocal5 = 0x65,
+            eLocal6 = 0x66,
+            eLocal7 = 0x67,
+        };
+    };
+
+    // term objects
+
+    struct AmlObject : AmlTermObject {
+
+    };
+
+    struct AmlNamedObject : AmlObject {
+
+    };
+
+    struct AmlDefCreateField : AmlNamedObject {
 
     };
 
     struct AmlCode {
         RsdtHeader header;
     };
+
+    void WalkAml(const RsdtHeader *ssdt);
 }

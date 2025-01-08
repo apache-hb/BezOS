@@ -93,13 +93,14 @@ src = [
     'kernel/src/check.cpp',
     'kernel/src/apic.cpp',
     'kernel/src/uart.cpp',
-    'kernel/src/acpi.cpp',
-    'kernel/src/memory.cpp',
     'kernel/src/hypervisor.cpp',
     'kernel/src/smbios.cpp',
     'kernel/src/pci.cpp',
-
     'kernel/src/delay.cpp',
+
+    # ACPI
+    'kernel/src/acpi/acpi.cpp',
+    'kernel/src/acpi/aml.cpp',
 
     # HID
     'kernel/src/hid/ps2.cpp',
@@ -116,7 +117,8 @@ src = [
     'kernel/src/smp.cpp',
     smp,
 
-    # Kernel main
+    # Kernel components
+    'kernel/src/memory.cpp',
     'kernel/src/main.cpp',
 ]
 
@@ -176,6 +178,8 @@ test_shim = static_library('test_shim', src,
     native : true,
 )
 
+# Test cases
+
 testcases = {
     'static vector': [ 'kernel/test/vector.cpp', ],
     'format': [ 'kernel/test/format.cpp', ],
@@ -212,5 +216,43 @@ foreach name, source : testcases
     test(name, exe,
         suite : 'kernel',
         kwargs : testkwargs
+    )
+endforeach
+
+# AML tests
+
+testcases = [
+    'B450M-MORTAR'
+]
+
+acpixtract = find_program('data/test/acpi/dump.sh')
+
+src = [
+    'kernel/test/acpi/aml.cpp',
+    'kernel/src/acpi/aml.cpp',
+]
+
+exe = executable('test-aml', src,
+    include_directories : inc,
+    c_args : c_args,
+    cpp_args : test_cpp_args,
+    dependencies : [ gtest_main, gmock ],
+    override_options : [ 'b_sanitize=address' ],
+    native : true,
+    link_with : test_shim,
+)
+
+foreach name : testcases
+    bin = custom_target(name + '-bin',
+        input : 'data/test/acpi/' + name + '.txt',
+        output : name + '.bin',
+        command : [ acpixtract, '@INPUT@', '@OUTPUT@' ],
+    )
+
+    test(name, exe,
+        suite : 'acpi',
+        kwargs : testkwargs,
+        depends : bin,
+        env : { 'AML_BLOB': bin.full_path() }
     )
 endforeach

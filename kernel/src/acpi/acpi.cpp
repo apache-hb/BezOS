@@ -138,6 +138,7 @@ static const acpi::RsdtHeader *GetRsdtHeader(km::PhysicalAddress paddr, km::Syst
     } else if ("FACP"_sv == entry->signature) {
         DebugFadt(entry);
     }
+
     KmDebugMessage(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(entry), entry->length)), "\n");
 
     return entry;
