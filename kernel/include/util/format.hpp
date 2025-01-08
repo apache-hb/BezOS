@@ -76,7 +76,7 @@ namespace km {
 
         Hex(T value) : value(value) {}
 
-        Hex pad(size_t width, char fill, bool prefix = true) const {
+        Hex pad(size_t width, char fill = '0', bool prefix = true) const {
             Hex copy = *this;
             copy.width = width;
             copy.fill = fill;

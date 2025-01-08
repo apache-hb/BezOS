@@ -1,15 +1,32 @@
 #pragma once
 
 #include "acpi/header.hpp"
+
+#include "arena.hpp"
+
+#include "std/static_vector.hpp"
+
 #include <span>
 
 #include <stdint.h>
 
 namespace acpi {
-    using AmlByte = uint8_t;
-    using AmlWord = uint16_t;
-    using AmlDword = uint32_t;
-    using AmlQword = uint64_t;
+    struct AmlName {
+        using Segment = stdx::StaticString<4>;
+        size_t prefix = 0;
+        stdx::StaticVector<Segment, 8> segments;
+    };
+
+    struct AmlConst {
+        enum class Type {
+            eByte,
+            eWord,
+            eDword,
+            eQword,
+        } type;
+
+        uint64_t value;
+    };
 
     class AmlParser {
         uint32_t mOffset = 0;
@@ -22,14 +39,23 @@ namespace acpi {
 
         AmlParser(const RsdtHeader *header);
 
-        AmlByte amlByteData();
-        AmlWord amlWordData();
-        AmlDword amlDwordData();
-        AmlQword amlQwordData();
+        void advance() { mOffset += 1; }
+        uint32_t offset() const { return mOffset; }
 
         uint8_t peek() const;
         uint8_t read();
+
+        bool consume(uint8_t v) {
+            if (peek() == v) {
+                advance();
+                return true;
+            }
+
+            return false;
+        }
     };
+
+    AmlName ReadAmlNameString(AmlParser& parser);
 
     struct AmlTermObject {
 
@@ -37,6 +63,10 @@ namespace acpi {
 
     struct AmlTermArg {
 
+    };
+
+    struct AmlDefineName : AmlTermObject {
+        stdx::StringView name;
     };
 
     // term arguments
@@ -70,7 +100,8 @@ namespace acpi {
 
     struct AmlCode {
         RsdtHeader header;
+        km::Arena *arena;
     };
 
-    void WalkAml(const RsdtHeader *ssdt);
+    AmlCode WalkAml(const RsdtHeader *dsdt, km::Arena *arena);
 }

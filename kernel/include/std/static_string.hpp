@@ -38,6 +38,10 @@ namespace stdx {
             : StaticStringBase(std::begin(range), std::end(range))
         { }
 
+        constexpr StaticStringBase(std::initializer_list<T> list)
+            : StaticStringBase(std::begin(list), std::end(list))
+        { }
+
         constexpr StaticStringBase(const T *front [[gnu::nonnull]], const T *back [[gnu::nonnull]]) {
             init(front, back);
         }
@@ -62,6 +66,12 @@ namespace stdx {
         template<typename R> requires IsRange<const T, R>
         constexpr void add(const R& range) {
             add(std::begin(range), std::end(range));
+        }
+
+        constexpr void add(T elem) {
+            if (mSize < N) {
+                mStorage[mSize++] = elem;
+            }
         }
 
         constexpr void add(const T *front [[gnu::nonnull]], const T *back [[gnu::nonnull]]) {

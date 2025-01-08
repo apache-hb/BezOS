@@ -5,7 +5,10 @@
 class TestStream final : public km::IOutStream {
 public:
     void write(stdx::StringView message) override {
-        std::cout << std::string_view(message);
+        for (char c : message) {
+            if (c == '\0') continue;
+            std::cout << c;
+        }
     }
 };
 

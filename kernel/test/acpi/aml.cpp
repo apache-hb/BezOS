@@ -6,9 +6,11 @@
 
 #include "acpi/aml.hpp"
 
+using namespace stdx::literals;
+
 static std::vector<uint8_t> ReadBinaryBlob(const std::filesystem::path& path) {
     std::ifstream ifs{path, std::ios::binary};
-    EXPECT_TRUE(ifs.is_open());
+    EXPECT_TRUE(ifs.is_open()) << "Failed to open file: " << path;
 
     ifs.seekg(0, std::ios::end);
     size_t size = ifs.tellg();
@@ -35,7 +37,23 @@ struct AcpiTable {
     }
 };
 
-TEST(AmlTest, Simple) {
+TEST(AmlTest, ParseTable) {
     const char *path = getenv("AML_BLOB");
-    ASSERT_NE(path, nullptr);
+    ASSERT_NE(path, nullptr) << "AML_BLOB environment variable not set";
+
+    AcpiTable table = { ReadBinaryBlob(path) };
+
+    const acpi::RsdtHeader *header = nullptr;
+    do {
+        header = table.next();
+    } while (header != nullptr && header->signature != "DSDT"_sv);
+
+    ASSERT_NE(header, nullptr) << "DSDT table not found";
+
+    static constexpr size_t kBufferSize = 0x2000;
+    std::unique_ptr<uint8_t[]> buffer{new uint8_t[kBufferSize]};
+
+    km::Arena arena { buffer.get(), buffer.get() + kBufferSize };
+
+    acpi::WalkAml(header, &arena);
 }
