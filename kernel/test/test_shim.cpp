@@ -2,9 +2,20 @@
 
 #include "kernel.hpp"
 
-void KmDebugWrite(stdx::StringView) { }
+class TestStream final : public km::IOutStream {
+public:
+    void write(stdx::StringView message) override {
+        std::cout << std::string_view(message);
+    }
+};
+
 void KmBeginWrite() { }
 void KmEndWrite() { }
+
+km::IOutStream *KmGetDebugStream() {
+    static TestStream sTestStream;
+    return &sTestStream;
+}
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Winvalid-noreturn" // GTEST_FAIL_AT is a macro that doesn't return

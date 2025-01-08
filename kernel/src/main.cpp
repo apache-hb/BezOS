@@ -90,7 +90,22 @@ constinit static DebugPortLog gDebugPortLog;
 
 constinit static stdx::StaticVector<IOutStream*, 4> gLogTargets;
 
-constinit static LocalApic gLocalApic;
+class DebugLog final : public IOutStream {
+public:
+    constexpr DebugLog() { }
+
+    void write(stdx::StringView message) override {
+        for (IOutStream *target : gLogTargets) {
+            target->write(message);
+        }
+    }
+};
+
+constinit static DebugLog gDebugLog;
+
+km::IOutStream *KmGetDebugStream() {
+    return &gDebugLog;
+}
 
 // qemu e9 port check - i think bochs does something else
 static bool KmTestDebugPort(void) {
@@ -107,11 +122,7 @@ void KmEndWrite() {
     gLogLock.unlock();
 }
 
-void KmDebugWrite(stdx::StringView value) {
-    for (IOutStream *target : gLogTargets) {
-        target->write(value);
-    }
-}
+constinit static LocalApic gLocalApic;
 
 static SystemGdt gSystemGdt;
 

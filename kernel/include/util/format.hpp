@@ -138,11 +138,11 @@ namespace km {
     }
 
     template<std::integral T>
-    stdx::StaticString<stdx::NumericTraits<T>::kMaxDigits16> FormatInt(T value, int base = 10) {
+    stdx::StaticString<stdx::NumericTraits<T>::kMaxDigits16> FormatInt(T value, int base = 10, int width = 0, char fill = '\0') {
         stdx::StaticString<stdx::NumericTraits<T>::kMaxDigits16> result;
 
         char buffer[stdx::NumericTraits<T>::kMaxDigits16];
-        result = FormatInt(stdx::Span(buffer, buffer + stdx::NumericTraits<T>::kMaxDigits16), value, base);
+        result = FormatInt(stdx::Span(buffer, buffer + stdx::NumericTraits<T>::kMaxDigits16), value, base, width, fill);
 
         return result;
     }

@@ -19,13 +19,15 @@ static void FormatRow(km::IOutStream& out, std::span<const std::byte> row) {
         if (i >= row.size()) {
             out.write("  "_sv);
         } else {
-            out.write(km::FormatInt((uint8_t)row[i], 16));
+            out.write(km::FormatInt((uint8_t)row[i], 16, 2, '0'));
         }
 
         if (i % 2 == 1) {
             out.write(" "_sv);
         }
     }
+
+    out.write("  "_sv);
 
     for (size_t i = 0; i < 16; i++) {
         if (i >= row.size()) {

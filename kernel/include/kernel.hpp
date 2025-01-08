@@ -12,7 +12,11 @@
 void KmBeginWrite();
 void KmEndWrite();
 
-void KmDebugWrite(stdx::StringView value = "\n");
+km::IOutStream *KmGetDebugStream();
+
+inline void KmDebugWrite(stdx::StringView value = "\n") {
+    KmGetDebugStream()->write(value);
+}
 
 template<km::IsFormat T>
 void KmDebugWrite(const T& value) {
@@ -24,6 +28,11 @@ template<km::IsFormatEx T>
 void KmDebugWrite(const T& value) {
     auto result = km::format(value);
     KmDebugWrite(result);
+}
+
+template<km::IsStreamFormat T>
+void KmDebugWrite(const T& value) {
+    km::Format<T>::format(*KmGetDebugStream(), value);
 }
 
 template<km::IsFormat T>

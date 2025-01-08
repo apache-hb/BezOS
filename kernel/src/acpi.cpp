@@ -138,6 +138,7 @@ static const acpi::RsdtHeader *GetRsdtHeader(km::PhysicalAddress paddr, km::Syst
     } else if ("FACP"_sv == entry->signature) {
         DebugFadt(entry);
     }
+    KmDebugMessage(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(entry), entry->length)), "\n");
 
     return entry;
 }
@@ -157,13 +158,13 @@ static void DebugRsdt(const acpi::RsdpLocator *locator, km::SystemMemory& memory
 }
 
 static void DebugXsdt(const acpi::RsdpLocator *locator, km::SystemMemory& memory) {
-    KmDebugMessage("| /SYS/ACPI          | RSDP length                | ", locator->length, "\n");
-    KmDebugMessage("| /SYS/ACPI          | XSDT address               | ", km::Hex(locator->xsdtAddress).pad(16, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI          | Extended checksum          | ", locator->extendedChecksum, "\n");
+    KmDebugMessage("| /SYS/ACPI          | RSDP length                 | ", locator->length, "\n");
+    KmDebugMessage("| /SYS/ACPI          | XSDT address                | ", km::Hex(locator->xsdtAddress).pad(16, '0'), "\n");
+    KmDebugMessage("| /SYS/ACPI          | Extended checksum           | ", locator->extendedChecksum, "\n");
 
     const acpi::Xsdt *xsdt = memory.mapConst<acpi::Xsdt>(km::PhysicalAddress { locator->xsdtAddress });
 
-    KmDebugMessage("| /SYS/ACPI/XSDT     | Signature                  | '", stdx::StringView(xsdt->header.signature), "'\n");
+    KmDebugMessage("| /SYS/ACPI/XSDT     | Signature                   | '", stdx::StringView(xsdt->header.signature), "'\n");
 
     for (uint32_t i = 0; i < xsdt->count(); i++) {
         km::PhysicalAddress paddr = km::PhysicalAddress { xsdt->entries[i] };
