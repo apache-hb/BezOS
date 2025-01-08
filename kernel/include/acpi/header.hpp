@@ -54,19 +54,19 @@ namespace acpi {
 }
 
 template<>
-struct km::StaticFormat<acpi::AddressSpaceId> {
+struct km::Format<acpi::AddressSpaceId> {
     using String = stdx::StaticString<32>;
     static String toString(acpi::AddressSpaceId id);
 };
 
 template<>
-struct km::StaticFormat<acpi::AccessSize> {
+struct km::Format<acpi::AccessSize> {
     using String = stdx::StaticString<32>;
     static String toString(acpi::AccessSize size);
 };
 
 template<>
-struct km::StaticFormat<acpi::GenericAddress> {
+struct km::Format<acpi::GenericAddress> {
     using String = stdx::StaticString<128>;
     static String toString(acpi::GenericAddress addr);
 };

@@ -85,8 +85,8 @@ namespace acpi {
 }
 
 template<>
-struct km::StaticFormat<acpi::MadtEntryType> {
-    static constexpr size_t kStringSize = km::StaticFormat<uint8_t>::kStringSize;
+struct km::Format<acpi::MadtEntryType> {
+    static constexpr size_t kStringSize = km::Format<uint8_t>::kStringSize;
     static stdx::StringView toString(char *buffer, acpi::MadtEntryType type) {
         switch (type) {
         case acpi::MadtEntryType::eLocalApic:
@@ -94,7 +94,7 @@ struct km::StaticFormat<acpi::MadtEntryType> {
         case acpi::MadtEntryType::eIoApic:
             return "IO APIC";
         default:
-            return km::StaticFormat<uint8_t>::toString(buffer, static_cast<uint8_t>(type));
+            return km::Format<uint8_t>::toString(buffer, static_cast<uint8_t>(type));
         }
     }
 };

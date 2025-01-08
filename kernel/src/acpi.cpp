@@ -276,10 +276,10 @@ bool acpi::AcpiTables::has8042Controller() const {
     return bool(mFadt->iapcBootArch & acpi::IapcBootArch::e8042Controller);
 }
 
-using IapcFormat = km::StaticFormat<acpi::IapcBootArch>;
-using AddrSpaceFormat = km::StaticFormat<acpi::AddressSpaceId>;
-using AccessFormat = km::StaticFormat<acpi::AccessSize>;
-using AddressFormat = km::StaticFormat<acpi::GenericAddress>;
+using IapcFormat = km::Format<acpi::IapcBootArch>;
+using AddrSpaceFormat = km::Format<acpi::AddressSpaceId>;
+using AccessFormat = km::Format<acpi::AccessSize>;
+using AddressFormat = km::Format<acpi::GenericAddress>;
 
 IapcFormat::String IapcFormat::toString(acpi::IapcBootArch arch) {
     IapcFormat::String result;

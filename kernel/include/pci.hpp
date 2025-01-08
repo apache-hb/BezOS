@@ -37,6 +37,9 @@ namespace pci {
 
         eQemuVirtio = 0x1af4,
         eQemu = 0x1b36,
+        eQemuVga = 0x1234,
+
+        eSandisk = 0x15B7,
 
         eOracle = 0x108e,
         eBroadcom = 0x1166,
@@ -100,31 +103,31 @@ namespace pci {
 }
 
 template<>
-struct km::StaticFormat<pci::DeviceId> {
+struct km::Format<pci::DeviceId> {
     using String = stdx::StaticString<64>;
     static String toString(pci::DeviceId id);
 };
 
 template<>
-struct km::StaticFormat<pci::VendorId> {
+struct km::Format<pci::VendorId> {
     using String = stdx::StaticString<64>;
     static String toString(pci::VendorId id);
 };
 
 template<>
-struct km::StaticFormat<pci::DeviceType> {
+struct km::Format<pci::DeviceType> {
     using String = stdx::StaticString<64>;
     static String toString(pci::DeviceType type);
 };
 
 template<>
-struct km::StaticFormat<pci::DeviceClassCode> {
+struct km::Format<pci::DeviceClassCode> {
     using String = stdx::StaticString<64>;
     static String toString(pci::DeviceClassCode cls);
 };
 
 template<>
-struct km::StaticFormat<pci::DeviceClass> {
+struct km::Format<pci::DeviceClass> {
     using String = stdx::StaticString<128>;
     static String toString(pci::DeviceClass cls);
 };

@@ -29,6 +29,7 @@ extern "C" {
 x64::page *PageTableManager::alloc4k() {
     PhysicalAddress result = mPageAllocator->alloc4k();
     x64::page *page = getVirtualAddress<x64::page>(result);
+    mVirtualAllocator->markUsed({ page, (char*)page + x64::kPageSize });
     memset(page, 0, sizeof(x64::page));
     return page;
 }

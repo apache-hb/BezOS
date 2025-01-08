@@ -14,22 +14,22 @@ void KmEndWrite();
 
 void KmDebugWrite(stdx::StringView value = "\n");
 
-template<km::IsStaticFormat T>
+template<km::IsFormat T>
 void KmDebugWrite(const T& value) {
-    char buffer[km::StaticFormat<T>::kStringSize];
-    KmDebugWrite(km::StaticFormat<T>::toString(buffer, value));
+    char buffer[km::Format<T>::kStringSize];
+    KmDebugWrite(km::Format<T>::toString(buffer, value));
 }
 
-template<km::IsStaticFormatEx T>
+template<km::IsFormatEx T>
 void KmDebugWrite(const T& value) {
     auto result = km::format(value);
     KmDebugWrite(result);
 }
 
-template<km::IsStaticFormat T>
+template<km::IsFormat T>
 void KmDebugWrite(km::FormatOf<T> value) {
-    char buffer[km::StaticFormat<T>::kStringSize];
-    stdx::StringView result = km::StaticFormat<T>::toString(buffer, value.value);
+    char buffer[km::Format<T>::kStringSize];
+    stdx::StringView result = km::Format<T>::toString(buffer, value.value);
     if (value.specifier.width <= result.count()) {
         KmDebugWrite(result);
         return;
@@ -129,7 +129,7 @@ void KmBugCheck(stdx::StringView message, stdx::StringView file, unsigned line);
 #define KM_CHECK(expr, msg) do { if (!(expr)) { KmBugCheck(msg, __FILE__, __LINE__); } } while (0)
 
 template<>
-struct km::StaticFormat<MemoryMapEntryType> {
+struct km::Format<MemoryMapEntryType> {
     static constexpr size_t kStringSize = 16;
     static constexpr stdx::StringView toString(char *, MemoryMapEntryType value) {
         switch (value) {

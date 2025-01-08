@@ -33,13 +33,12 @@
 
 #include "kernel.hpp"
 
-#include "util/logger.hpp"
 #include "util/memory.hpp"
 
 using namespace km;
 using namespace stdx::literals;
 
-class SerialLog final : public ILogTarget {
+class SerialLog final : public IOutStream {
     SerialPort mPort;
 
 public:
@@ -54,7 +53,7 @@ public:
     }
 };
 
-class DebugPortLog final : public ILogTarget {
+class DebugPortLog final : public IOutStream {
     void write(stdx::StringView message) override {
         for (char c : message) {
             __outbyte(0xE9, c);
@@ -63,7 +62,7 @@ class DebugPortLog final : public ILogTarget {
 };
 
 template<typename T>
-class TerminalLog final : public ILogTarget {
+class TerminalLog final : public IOutStream {
     T mTerminal;
 
 public:
@@ -89,7 +88,7 @@ constinit static TerminalLog<DirectTerminal> gDirectTerminalLog;
 constinit static TerminalLog<BufferedTerminal> gBufferedTerminalLog;
 constinit static DebugPortLog gDebugPortLog;
 
-constinit static stdx::StaticVector<ILogTarget*, 4> gLogTargets;
+constinit static stdx::StaticVector<IOutStream*, 4> gLogTargets;
 
 constinit static LocalApic gLocalApic;
 
@@ -109,7 +108,7 @@ void KmEndWrite() {
 }
 
 void KmDebugWrite(stdx::StringView value) {
-    for (ILogTarget *target : gLogTargets) {
+    for (IOutStream *target : gLogTargets) {
         target->write(value);
     }
 }

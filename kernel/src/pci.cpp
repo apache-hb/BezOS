@@ -128,11 +128,11 @@ void pci::ProbeConfigSpace() {
     }
 }
 
-using DeviceIdFormat = km::StaticFormat<pci::DeviceId>;
-using VendorIdFormat = km::StaticFormat<pci::VendorId>;
-using DeviceTypeFormat = km::StaticFormat<pci::DeviceType>;
-using DeviceClassCodeFormat = km::StaticFormat<pci::DeviceClassCode>;
-using DeviceClassFormat = km::StaticFormat<pci::DeviceClass>;
+using DeviceIdFormat = km::Format<pci::DeviceId>;
+using VendorIdFormat = km::Format<pci::VendorId>;
+using DeviceTypeFormat = km::Format<pci::DeviceType>;
+using DeviceClassCodeFormat = km::Format<pci::DeviceClassCode>;
+using DeviceClassFormat = km::Format<pci::DeviceClass>;
 
 using namespace stdx::literals;
 
@@ -147,6 +147,7 @@ DeviceIdFormat::String DeviceIdFormat::toString(pci::DeviceId id) {
 
 VendorIdFormat::String VendorIdFormat::toString(pci::VendorId id) {
     // Names sourced from https://pcisig.com/membership/member-companies
+    // and https://devicehunt.com/all-pci-vendors
     switch (id) {
     using enum pci::VendorId;
     case eInvalid:
@@ -169,10 +170,14 @@ VendorIdFormat::String VendorIdFormat::toString(pci::VendorId id) {
         return "QEMU Virtio (0x1AF4)"_sv;
     case eQemu:
         return "QEMU (0x1B36)"_sv;
+    case eQemuVga:
+        return "QEMU stdvga (0x1234)"_sv;
     case eOracle:
         return "Oracle Corporation (0x108E)"_sv;
     case eBroadcom:
         return "Broadcom Limited (0x1166)"_sv;
+    case eSandisk:
+        return "Sandisk Corp (0x15B7)"_sv;
     default:
         return km::format(km::Hex(std::to_underlying(id)).pad(4, '0'));
     }

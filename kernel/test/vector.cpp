@@ -58,3 +58,25 @@ TEST(StaticVectorTest, AddVector) {
     ASSERT_EQ(vec[6], 3);
     ASSERT_EQ(vec[7], 4);
 }
+
+TEST(StaticVectorTest, Erase) {
+    const char *a = "a";
+    const char *b = "b";
+
+    stdx::StaticVector<const char*, 4> vec;
+
+    vec.add(a);
+
+    vec.erase(a);
+    ASSERT_EQ(vec.count(), 0);
+
+    stdx::StaticVector<const char*, 4> vec1;
+
+    vec1.add(a);
+    vec1.add(b);
+
+    vec1.erase(a);
+
+    ASSERT_EQ(vec1.count(), 1);
+    ASSERT_EQ(vec1[0], b);
+}

@@ -63,7 +63,7 @@ namespace sm {
 }
 
 template<>
-struct km::StaticFormat<sm::Memory> {
+struct km::Format<sm::Memory> {
     static constexpr size_t kStringSize = 64;
     static stdx::StringView toString(char *buffer, sm::Memory value) {
         return sm::toString(buffer, value);

@@ -122,7 +122,7 @@ namespace km {
 }
 
 template<>
-struct km::StaticFormat<km::MemoryType> {
+struct km::Format<km::MemoryType> {
     static constexpr size_t kStringSize = 4;
 
     static constexpr stdx::StringView toString(km::MemoryType type) {

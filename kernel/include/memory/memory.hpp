@@ -180,7 +180,7 @@ namespace km {
 }
 
 template<>
-struct km::StaticFormat<km::PhysicalAddress> {
+struct km::Format<km::PhysicalAddress> {
     static constexpr size_t kStringSize = km::kFormatSize<Hex<uintptr_t>>;
     static constexpr stdx::StringView toString(char *buffer, km::PhysicalAddress value) {
         return km::format(buffer, Hex(value.address).pad(16, '0'));
@@ -188,8 +188,8 @@ struct km::StaticFormat<km::PhysicalAddress> {
 };
 
 template<>
-struct km::StaticFormat<km::MemoryRange> {
-    static constexpr size_t kStringSize = km::StaticFormat<km::PhysicalAddress>::kStringSize * 2 + 1;
+struct km::Format<km::MemoryRange> {
+    static constexpr size_t kStringSize = km::Format<km::PhysicalAddress>::kStringSize * 2 + 1;
     static constexpr stdx::StringView toString(char *buffer, km::MemoryRange value) {
         char *ptr = buffer;
 

@@ -71,6 +71,7 @@ src = [
     # Utilities
     'kernel/src/util/cpuid.cpp',
     'kernel/src/util/memory.cpp',
+    'kernel/src/util/format.cpp',
 
     # Memory management
     'kernel/src/memory/layout.cpp',

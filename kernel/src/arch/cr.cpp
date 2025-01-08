@@ -1,8 +1,8 @@
 #include "arch/cr0.hpp"
 #include "arch/cr4.hpp"
 
-using Cr0Format = km::StaticFormat<x64::Cr0>;
-using Cr4Format = km::StaticFormat<x64::Cr4>;
+using Cr0Format = km::Format<x64::Cr0>;
+using Cr4Format = km::Format<x64::Cr4>;
 
 using namespace stdx::literals;
 

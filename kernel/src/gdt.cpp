@@ -38,7 +38,7 @@ void KmInitGdt(std::span<const x64::GdtEntry> gdt, size_t codeSelector, size_t d
     );
 }
 
-using GdtFormat = km::StaticFormat<x64::GdtEntry>;
+using GdtFormat = km::Format<x64::GdtEntry>;
 using GdtString = GdtFormat::String;
 
 using namespace stdx::literals;

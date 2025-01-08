@@ -5,14 +5,36 @@
 #include "std/static_string.hpp"
 #include "std/traits.hpp"
 
+#include <span>
+#include <utility>
+
 namespace km {
     template<typename T>
-    struct StaticFormat;
+    struct Format;
+
+    class IOutStream {
+    public:
+        virtual ~IOutStream() = default;
+
+        void operator delete(IOutStream*, std::destroying_delete_t) {
+            std::unreachable();
+        }
+
+        virtual void write(stdx::StringView message) = 0;
+        virtual void write(char c) {
+            char buffer[1] = { c };
+            write(buffer);
+        }
+    };
 
     template<typename T>
-    concept IsStaticFormat = requires(T it) {
-        { StaticFormat<T>::kStringSize } -> std::convertible_to<size_t>;
-        { StaticFormat<T>::toString(std::declval<char*>(), it) } -> std::same_as<stdx::StringView>;
+    concept IsFormatWithSize = requires {
+        { Format<T>::kStringSize } -> std::convertible_to<size_t>;
+    };
+
+    template<typename T>
+    concept IsFormat = IsFormatWithSize<T> && requires(T it) {
+        { Format<T>::toString(std::declval<char*>(), it) } -> std::same_as<stdx::StringView>;
     };
 
     /// @brief Does a type conform to the static format concept.
@@ -20,8 +42,13 @@ namespace km {
     ///          The returned object is allowed to own its storage, always assign it to auto in cases where
     ///          its a StaticString or similar.
     template<typename T>
-    concept IsStaticFormatEx = requires(T it) {
-        { StaticFormat<T>::toString(it) } -> std::convertible_to<stdx::StringView>;
+    concept IsFormatEx = requires(T it) {
+        { Format<T>::toString(it) } -> std::convertible_to<stdx::StringView>;
+    };
+
+    template<typename T>
+    concept IsStreamFormat = requires(T it) {
+        { Format<T>::format(std::declval<IOutStream&>(), it) };
     };
 
     template<std::integral T>
@@ -56,6 +83,17 @@ namespace km {
             copy.prefix = prefix;
             return copy;
         }
+    };
+
+    struct HexDump {
+        std::span<const std::byte> data;
+
+        HexDump(std::span<const std::byte> data) : data(data) {}
+
+        template<typename T>
+        HexDump(std::span<const T> data)
+            : data(reinterpret_cast<const std::byte*>(data.data()), data.size_bytes())
+        { }
     };
 
     template<std::integral T>
@@ -99,6 +137,16 @@ namespace km {
         return stdx::StringView(ptr + 1, buffer.end());
     }
 
+    template<std::integral T>
+    stdx::StaticString<stdx::NumericTraits<T>::kMaxDigits16> FormatInt(T value, int base = 10) {
+        stdx::StaticString<stdx::NumericTraits<T>::kMaxDigits16> result;
+
+        char buffer[stdx::NumericTraits<T>::kMaxDigits16];
+        result = FormatInt(stdx::Span(buffer, buffer + stdx::NumericTraits<T>::kMaxDigits16), value, base);
+
+        return result;
+    }
+
     constexpr stdx::StringView present(bool present) {
         using namespace stdx::literals;
         return present ? "Present"_sv : "Not Present"_sv;
@@ -110,7 +158,7 @@ namespace km {
     }
 
     template<>
-    struct StaticFormat<char> {
+    struct Format<char> {
         static constexpr size_t kStringSize = 1;
         static constexpr stdx::StringView toString(char *buffer, char value) {
             buffer[0] = value;
@@ -119,7 +167,7 @@ namespace km {
     };
 
     template<std::integral T>
-    struct StaticFormat<T> {
+    struct Format<T> {
         static constexpr size_t kStringSize = stdx::NumericTraits<T>::kMaxDigits10;
         static constexpr stdx::StringView toString(char *buffer, T value) {
             return FormatInt(stdx::Span(buffer, buffer + kStringSize), value, 10);
@@ -127,7 +175,7 @@ namespace km {
     };
 
     template<std::integral T>
-    struct StaticFormat<Hex<T>> {
+    struct Format<Hex<T>> {
         static constexpr size_t kStringSize = stdx::NumericTraits<T>::kMaxDigits16 + 2;
         static stdx::StringView toString(char *buffer, Hex<T> value) {
             char temp[stdx::NumericTraits<T>::kMaxDigits16];
@@ -145,15 +193,15 @@ namespace km {
     };
 
     template<>
-    struct StaticFormat<void*> {
+    struct Format<void*> {
         static constexpr size_t kStringSize = stdx::NumericTraits<uintptr_t>::kMaxDigits16 + 2;
         static stdx::StringView toString(char *buffer, void *value) {
-            return StaticFormat<Hex<uintptr_t>>::toString(buffer, Hex<uintptr_t> { reinterpret_cast<uintptr_t>(value) });
+            return Format<Hex<uintptr_t>>::toString(buffer, Hex<uintptr_t> { reinterpret_cast<uintptr_t>(value) });
         }
     };
 
     template<std::integral T>
-    struct StaticFormat<Int<T>> {
+    struct Format<Int<T>> {
         static constexpr size_t kStringSize = stdx::NumericTraits<T>::kMaxDigits10;
         static stdx::StringView toString(char *buffer, Int<T> value) {
             return FormatInt(stdx::Span(buffer, buffer + kStringSize), value.value, 10, value.width, value.fill);
@@ -161,23 +209,27 @@ namespace km {
     };
 
     template<>
-    struct StaticFormat<bool> {
-        static constexpr size_t kStringSize = 8;
-        static stdx::StringView toString(char*, bool value) {
+    struct Format<bool> {
+        static stdx::StringView toString(bool value) {
             using namespace stdx::literals;
             return value ? "True"_sv : "False"_sv;
         }
     };
 
-    template<IsStaticFormat T>
-    inline constexpr size_t kFormatSize = StaticFormat<T>::kStringSize;
+    template<>
+    struct Format<HexDump> {
+        static void format(IOutStream& out, HexDump value);
+    };
 
-    template<IsStaticFormat T>
+    template<IsFormat T>
+    inline constexpr size_t kFormatSize = Format<T>::kStringSize;
+
+    template<IsFormat T>
     inline constexpr stdx::StringView format(char *buffer, T value) {
-        return StaticFormat<T>::toString(buffer, value);
+        return Format<T>::toString(buffer, value);
     }
 
-    template<IsStaticFormat T>
+    template<IsFormat T>
     inline constexpr stdx::StaticString<kFormatSize<T>> format(T value) {
         stdx::StaticString<kFormatSize<T>> result;
 
@@ -187,9 +239,9 @@ namespace km {
         return result;
     }
 
-    template<IsStaticFormatEx T>
+    template<IsFormatEx T>
     inline constexpr auto format(T value) {
-        return StaticFormat<T>::toString(value);
+        return Format<T>::toString(value);
     }
 
     enum class Align {
@@ -203,7 +255,7 @@ namespace km {
         char fill = ' ';
     };
 
-    template<IsStaticFormat T>
+    template<IsFormat T>
     struct FormatOf {
         T value;
         FormatSpecifier specifier;
@@ -212,7 +264,7 @@ namespace km {
     struct FormatBuilder {
         FormatSpecifier values;
 
-        template<IsStaticFormat T>
+        template<IsFormat T>
         FormatOf<T> operator+(T value) const {
             return { value, values };
         }

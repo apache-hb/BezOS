@@ -92,7 +92,7 @@ namespace km {
 }
 
 template<>
-struct km::StaticFormat<km::SerialPortStatus> {
+struct km::Format<km::SerialPortStatus> {
     static stdx::StringView toString(SerialPortStatus status) {
         switch (status) {
         case SerialPortStatus::eOk:

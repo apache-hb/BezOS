@@ -57,7 +57,7 @@ namespace x64 {
 }
 
 template<>
-struct km::StaticFormat<x64::Cr0> {
+struct km::Format<x64::Cr0> {
     using String = stdx::StaticString<64>;
     static String toString(x64::Cr0 value);
 };

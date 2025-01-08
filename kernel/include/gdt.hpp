@@ -95,7 +95,7 @@ namespace x64 {
 void KmInitGdt(std::span<const x64::GdtEntry> gdt, size_t codeSelector, size_t dataSelector);
 
 template<>
-struct km::StaticFormat<x64::GdtEntry> {
+struct km::Format<x64::GdtEntry> {
     using String = stdx::StaticString<256>;
     static String toString(x64::GdtEntry value);
 };

@@ -93,7 +93,7 @@ namespace hid {
 }
 
 template<>
-struct km::StaticFormat<hid::Ps2ControllerStatus> {
+struct km::Format<hid::Ps2ControllerStatus> {
     using String = stdx::StaticString<32>;
     static String toString(hid::Ps2ControllerStatus status);
 };

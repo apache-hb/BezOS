@@ -22,6 +22,12 @@ namespace stdx {
             : mSize(0)
         { }
 
+        constexpr StaticStringBase(T elem)
+            : mSize(1)
+        {
+            mStorage[0] = elem;
+        }
+
         template<size_t S> requires (S <= N)
         constexpr StaticStringBase(const T (&str)[S])
             : StaticStringBase(str, str + S)

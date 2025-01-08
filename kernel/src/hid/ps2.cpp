@@ -274,7 +274,7 @@ void hid::Ps2Device::disable() {
     write(kDisableScanning);
 }
 
-using StatusFormat = km::StaticFormat<hid::Ps2ControllerStatus>;
+using StatusFormat = km::Format<hid::Ps2ControllerStatus>;
 
 using namespace stdx::literals;
 

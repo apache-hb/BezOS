@@ -81,7 +81,7 @@ namespace acpi {
 }
 
 template<>
-struct km::StaticFormat<acpi::IapcBootArch> {
+struct km::Format<acpi::IapcBootArch> {
     using String = stdx::StaticString<64>;
     static String toString(acpi::IapcBootArch arch);
 };
