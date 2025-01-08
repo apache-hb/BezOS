@@ -2,17 +2,17 @@
 
 SRC=$1
 DST=$2
+PRIVATE=$3
+RUNDIR=`pwd`
 
-PLAINNAME=${SRC%.*}
 FILENAME=$(basename $SRC)
 
-PWD=$(pwd)
+mkdir -p $PRIVATE
+cp $SRC $PRIVATE/$FILENAME
+cd $PRIVATE
 
-mkdir -p $PLAINNAME
-cp $SRC $PLAINNAME/$FILENAME
-cd $PLAINNAME
 acpixtract -am $FILENAME
 
-mv amltables.dat $DST
+echo "Copying to $RUNDIR/$DST"
 
-cd $PWD
+mv amltables.dat $RUNDIR/$DST

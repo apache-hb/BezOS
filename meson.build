@@ -246,7 +246,7 @@ foreach name : testcases
     bin = custom_target(name + '-bin',
         input : 'data/test/acpi/' + name + '.txt',
         output : name + '.bin',
-        command : [ acpixtract, '@INPUT@', '@OUTPUT@' ],
+        command : [ acpixtract, '@INPUT@', '@OUTPUT@', '@PRIVATE_DIR@' ],
     )
 
     test(name, exe,
