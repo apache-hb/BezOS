@@ -215,6 +215,12 @@ testcases = {
         'kernel/src/acpi/format.cpp',
         'kernel/src/acpi/aml.cpp',
     ],
+    'aml names': [
+        'kernel/test/acpi/name.cpp',
+        'kernel/src/allocator/bitmap.cpp',
+        'kernel/src/acpi/format.cpp',
+        'kernel/src/acpi/aml.cpp',
+    ]
 }
 
 foreach name, source : testcases

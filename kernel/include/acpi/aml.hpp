@@ -57,6 +57,8 @@ namespace acpi {
         using Segment = stdx::StaticString<4>;
         size_t prefix = 0;
         stdx::StaticVector<Segment, 8> segments;
+
+        constexpr bool operator==(const AmlName& other) const = default;
     };
 
     struct AmlAnyId {
@@ -246,6 +248,40 @@ namespace acpi {
 
         // 20.2.4. Package Length Encoding
         uint32_t PkgLength(AmlParser& parser);
+
+        // 20.2.2. Name Objects Encoding
+        AmlName NameString(AmlParser& parser);
+    }
+
+    namespace literals {
+        constexpr AmlName operator""_aml(const char *str, size_t len) {
+            size_t prefix = 0;
+            while (*str == '\\') {
+                prefix++;
+                str++;
+            }
+
+            AmlName name;
+            name.prefix = prefix;
+
+            while (len >= 4) {
+                acpi::AmlName::Segment seg;
+
+                // TODO: fixup case where \\_PR -> \\_PR_
+                seg.add(str, str + 4);
+
+                name.segments.add(seg);
+
+                len -= 4;
+
+                if (len > 0 && *str == '.') {
+                    str++;
+                    len--;
+                }
+            }
+
+            return name;
+        }
     }
 }
 

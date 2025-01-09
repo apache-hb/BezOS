@@ -3,6 +3,7 @@
 #include "std/std.hpp"
 #include "std/traits.hpp"
 
+#include <algorithm>
 #include <iterator>
 
 namespace stdx {
@@ -143,6 +144,10 @@ namespace stdx {
             Super::addRange(other);
             other.clear();
             return *this;
+        }
+
+        constexpr bool operator==(const StaticVector& other) const {
+            return std::equal(std::begin(*this), std::end(*this), std::begin(other), std::end(other));
         }
     };
 }

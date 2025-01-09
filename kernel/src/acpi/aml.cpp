@@ -102,7 +102,7 @@ static void PrefixPath(acpi::AmlParser& parser, acpi::AmlName& name) {
     }
 }
 
-acpi::AmlName NameString(acpi::AmlParser& parser) {
+acpi::AmlName acpi::detail::NameString(acpi::AmlParser& parser) {
     acpi::AmlName name;
 
     uint8_t letter = parser.peek();
