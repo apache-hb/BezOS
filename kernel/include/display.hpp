@@ -113,11 +113,12 @@ namespace km {
         uint64_t height() const { return mHeight; }
         uint64_t pitch() const { return mPitch; }
         uint16_t bpp() const { return mFormat.bpp(); }
+        uint8_t bytesPerPixel() const { return bpp() / CHAR_BIT; }
 
         size_t offset(uint64_t x, uint64_t y) const { return pixelOffset(x, y); }
-        size_t stride() const { return width() * (bpp() / 8); }
+        size_t stride() const { return width() * bytesPerPixel(); }
 
-        bool hasLinePadding() const { return mWidth != (pitch() / (bpp() / 8)); }
+        bool hasLinePadding() const { return mWidth != (pitch() / bytesPerPixel()); }
 
         Pixel read(uint64_t x, uint64_t y) const;
     };

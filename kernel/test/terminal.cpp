@@ -103,6 +103,8 @@ static void DumpImage(const char *filename, KernelFrameBuffer framebuffer, km::C
     std::unique_ptr<uint8_t[]> rgbData(new uint8_t[rgbFrame.size()]);
     km::Canvas rgbCanvas(rgbFrame, rgbData.get());
 
+    ASSERT_EQ(rgbCanvas.bytesPerPixel(), channels);
+
     for (uint64_t x = 0; x < framebuffer.width; x++) {
         for (uint64_t y = 0; y < framebuffer.height; y++) {
             km::Pixel pixel = canvas.read(x, y);
