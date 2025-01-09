@@ -95,12 +95,25 @@ namespace km {
 
     struct HexDump {
         std::span<const std::byte> data;
+        uintptr_t base;
 
-        HexDump(std::span<const std::byte> data) : data(data) {}
+        HexDump(std::span<const std::byte> data, uintptr_t base)
+            : data(data)
+            , base(base)
+        { }
+
+        HexDump(std::span<const std::byte> data)
+            : HexDump(data, (uintptr_t)data.data())
+        { }
 
         template<typename T>
         HexDump(std::span<const T> data)
-            : data(reinterpret_cast<const std::byte*>(data.data()), data.size_bytes())
+            : HexDump(std::span(reinterpret_cast<const std::byte*>(data.data()), data.size_bytes()))
+        { }
+
+        template<typename T>
+        HexDump(std::span<const T> data, uintptr_t base)
+            : HexDump(std::span(reinterpret_cast<const std::byte*>(data.data()), data.size_bytes()), base)
         { }
     };
 

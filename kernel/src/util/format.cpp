@@ -11,9 +11,7 @@ static bool IsText(uint8_t c) {
 
 static constexpr size_t kRowSize = 16;
 
-static void FormatRow(km::IOutStream& out, std::span<const std::byte> row) {
-    uintptr_t address = (uintptr_t)row.data();
-
+static void FormatRow(km::IOutStream& out, std::span<const std::byte> row, uintptr_t address) {
     out.write(km::format(km::Hex(address).pad(16, '0')));
     out.write(" : "_sv);
 
@@ -46,10 +44,10 @@ void HexDumpFormat::format(IOutStream &out, HexDump value) {
     size_t start = 0;
 
     while ((start + kRowSize) < size) {
-        FormatRow(out, value.data.subspan(start, kRowSize));
+        FormatRow(out, value.data.subspan(start, kRowSize), value.base + start);
         out.write("\n"_sv);
         start += kRowSize;
     }
 
-    FormatRow(out, value.data.subspan(start));
+    FormatRow(out, value.data.subspan(start), value.base + start);
 }

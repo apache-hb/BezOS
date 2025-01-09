@@ -198,7 +198,10 @@ test_exe_kwargs = {
 
 testcases = {
     'static vector': [ 'kernel/test/vector.cpp', ],
-    'format': [ 'kernel/test/format.cpp', ],
+    'format': [
+        'kernel/test/format.cpp',
+        'kernel/src/util/format.cpp',
+    ],
     'memmap': [ 'kernel/test/memmap.cpp', 'kernel/src/memory/layout.cpp', 'kernel/src/util/memory.cpp', ],
     'string': [ 'kernel/test/string.cpp', ],
     'memory range': [ 'kernel/test/memory_range.cpp' ],
