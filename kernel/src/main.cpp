@@ -562,6 +562,9 @@ extern "C" void KmLaunch(KernelLaunch launch) {
         KmDebugMessage("| /SYS/VIDEO", i, "   | Framebuffer address  | ", display.address, "\n");
         KmDebugMessage("| /SYS/VIDEO", i, "   | Display pitch        | ", display.pitch, "\n");
         KmDebugMessage("| /SYS/VIDEO", i, "   | EDID                 | ", display.edid, "\n");
+        KmDebugMessage("| /SYS/VIDEO", i, "   | Red channel          | (mask=", display.redMaskSize, ",shift=", display.redMaskShift, ")\n");
+        KmDebugMessage("| /SYS/VIDEO", i, "   | Green channel        | (mask=", display.greenMaskSize, ",shift=", display.greenMaskShift, ")\n");
+        KmDebugMessage("| /SYS/VIDEO", i, "   | Blue channel         | (mask=", display.blueMaskSize, ",shift=", display.blueMaskShift, ")\n");
     }
 
     KmDebugMessage("| /SYS/MB/COM1  | Status               | ", com1Status, "\n");

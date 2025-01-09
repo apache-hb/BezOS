@@ -6,7 +6,6 @@
 
 #include "std/string_view.hpp"
 
-#include "util/combine.hpp"
 #include "util/util.hpp"
 
 namespace km {
@@ -182,9 +181,33 @@ namespace km {
 
         void write(uint64_t x, uint64_t y, char c);
 
+        /// @brief Allocates a canvas in system memory.
+        ///
+        /// @todo This is only in the header file to prevent linking errors
+        ///       when building the terminal test cases, as SystemMemory isnt
+        ///       usable on the host machine.
+        ///
+        /// @param geometry The geometry of the canvas.
+        /// @param memory The system memory allocator.
+        ///
+        /// @return The allocated canvas.
+        static km::Canvas InMemoryCanvas(km::Canvas geometry, km::SystemMemory& memory) {
+            size_t size = geometry.size();
+            uint8_t *data = (uint8_t*)memory.allocate(size, x64::kPageSize);
+            memset(data, 0, size);
+            return km::Canvas(geometry, data);
+        }
+
     public:
-        BufferedTerminal(Canvas display, SystemMemory& memory);
-        BufferedTerminal(DirectTerminal terminal, SystemMemory& memory);
+        BufferedTerminal(Canvas display, SystemMemory& memory)
+            : BufferedTerminal(display, InMemoryCanvas(display, memory))
+        { }
+
+        BufferedTerminal(DirectTerminal terminal, SystemMemory& memory)
+            : BufferedTerminal(terminal.display(), InMemoryCanvas(terminal.display(), memory))
+        { }
+
+        BufferedTerminal(Canvas display, Canvas backBuffer);
 
         constexpr BufferedTerminal(sm::noinit)
             : mDisplay(sm::noinit{})

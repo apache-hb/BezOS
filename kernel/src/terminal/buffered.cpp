@@ -1,28 +1,12 @@
 #include "display.hpp"
 
-static km::Canvas InMemoryCanvas(km::Canvas geometry, km::SystemMemory& memory) {
-    size_t size = geometry.size();
-    uint8_t *data = (uint8_t*)memory.allocate(size, x64::kPageSize);
-    memset(data, 0, size);
-    return km::Canvas(geometry, data);
-}
-
-km::BufferedTerminal::BufferedTerminal(km::Canvas display, SystemMemory& memory)
+km::BufferedTerminal::BufferedTerminal(Canvas display, Canvas backBuffer)
     : mDisplay(display)
-    , mBackBuffer(InMemoryCanvas(display, memory))
+    , mBackBuffer(backBuffer)
     , mCurrentRow(0)
     , mCurrentColumn(0)
     , mRowCount(display.height() / 8)
     , mColumnCount(display.width() / 8)
-{ }
-
-km::BufferedTerminal::BufferedTerminal(DirectTerminal terminal, SystemMemory& memory)
-    : mDisplay(terminal.display())
-    , mBackBuffer(InMemoryCanvas(terminal.display(), memory))
-    , mCurrentRow(0)
-    , mCurrentColumn(0)
-    , mRowCount(terminal.rowCount())
-    , mColumnCount(terminal.columnCount())
 { }
 
 void km::BufferedTerminal::put(char c) {

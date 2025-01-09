@@ -197,6 +197,12 @@ testcases = {
     'arch cr': [ 'kernel/test/arch/cr.cpp', 'kernel/src/arch/cr.cpp', ],
     'arch gdt': [ 'kernel/test/arch/gdt.cpp', 'kernel/src/gdt.cpp', ],
     'framebuffer': [ 'kernel/test/display.cpp', 'kernel/src/canvas.cpp', ],
+    'terimal': [
+        'kernel/test/terminal.cpp',
+        'kernel/src/canvas.cpp',
+        'kernel/src/terminal/terminal.cpp',
+        'kernel/src/terminal/buffered.cpp',
+    ],
     'crt': [ 'kernel/test/crt.cpp', 'kernel/src/crt.cpp', ],
     'page allocator': [
         'kernel/test/page_allocator.cpp',
