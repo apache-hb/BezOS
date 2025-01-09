@@ -15,6 +15,12 @@ namespace stdx {
         T *mBack;
         T *mCapacity;
 
+        void ensureExtra(size_t extra) {
+            if (count() + extra > capacity()) {
+                reserve(count() + extra);
+            }
+        }
+
     public:
         Vector(Allocator allocator)
             : mAllocator(allocator)
@@ -94,14 +100,15 @@ namespace stdx {
         const T *begin() const { return mFront; }
         const T *end() const { return mBack; }
 
-        void addRange(std::span<const T> src) {
-            reserve(count() + src.size());
-
-            std::uninitialized_copy(src.begin(), src.end(), mBack);
-            mBack += src.size();
+        T& operator[](size_t index) {
+            return mFront[index];
         }
 
-        void reserve(size_t capacity) {
+        const T& operator[](size_t index) const {
+            return mFront[index];
+        }
+
+        void reserveExact(size_t capacity) {
             size_t oldCapacity = this->capacity();
             if (capacity <= oldCapacity) {
                 return;
@@ -111,20 +118,36 @@ namespace stdx {
             T *newBack = newFront + count();
             T *newCapacity = newFront + capacity;
 
-            std::uninitialized_move(mFront, mBack, newFront);
+            if (mFront) {
+                std::uninitialized_move(mFront, mBack, newFront);
+            }
 
             clear();
 
-            mAllocator.deallocate((void*)mFront, oldCapacity * sizeof(T));
+            if (mFront) {
+                mAllocator.deallocate((void*)mFront, oldCapacity * sizeof(T));
+            }
+
             mFront = newFront;
             mBack = newBack;
             mCapacity = newCapacity;
         }
 
-        void add(const T& value) {
-            reserve(count() + 1);
+        void reserve(size_t newCapacity) {
+            reserveExact(std::max(newCapacity, count() * 2));
+        }
 
-            std::construct_at(mBack, value);
+        void add(const T& value) {
+            ensureExtra(1);
+
+            std::construct_at(mBack++, value);
+        }
+
+        void addRange(std::span<const T> src) {
+            ensureExtra(src.size());
+
+            std::uninitialized_copy(src.begin(), src.end(), mBack);
+            mBack += src.size();
         }
     };
 }

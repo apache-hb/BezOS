@@ -50,7 +50,7 @@ TEST(AmlTest, ParseTable) {
 
     ASSERT_NE(header, nullptr) << "DSDT table not found";
 
-    static constexpr size_t kBufferSize = 0x4000;
+    static constexpr size_t kBufferSize = 0x16000;
     std::unique_ptr<uint8_t[]> buffer{new uint8_t[kBufferSize]};
 
     acpi::AmlAllocator arena { buffer.get(), buffer.get() + kBufferSize };

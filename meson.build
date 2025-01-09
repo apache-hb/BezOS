@@ -81,6 +81,9 @@ src = [
     'kernel/src/memory/page_allocator.cpp',
     'kernel/src/memory/virtual_allocator.cpp',
 
+    # Allocators
+    'kernel/src/allocator/bitmap.cpp',
+
     # C and C++ Runtime
     'kernel/src/crt.cpp',
     'kernel/src/cxxrt.cpp',
@@ -202,6 +205,16 @@ testcases = {
         'kernel/src/memory/layout.cpp',
     ],
     'serial': [ 'kernel/test/serial.cpp', 'kernel/src/uart.cpp', ],
+    'bitmap allocator': [
+        'kernel/test/memory/bitmap.cpp',
+        'kernel/src/allocator/bitmap.cpp',
+    ],
+    'aml details': [
+        'kernel/test/acpi/detail.cpp',
+        'kernel/src/allocator/bitmap.cpp',
+        'kernel/src/acpi/format.cpp',
+        'kernel/src/acpi/aml.cpp',
+    ],
 }
 
 foreach name, source : testcases
@@ -234,6 +247,7 @@ src = [
     'kernel/test/acpi/aml.cpp',
     'kernel/src/acpi/aml.cpp',
     'kernel/src/acpi/format.cpp',
+    'kernel/src/allocator/bitmap.cpp',
 ]
 
 exe = executable('test-aml', src,

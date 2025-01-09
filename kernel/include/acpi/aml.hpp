@@ -16,15 +16,16 @@
 
 namespace acpi {
     using AmlOffsetType = sm::uint24_t;
-    using AmlAllocator = mem::BumpAllocator;
+    using AmlAllocator = mem::BitmapAllocator;
 
     class AmlParser {
-        uint32_t mOffset = 0;
+        uint32_t mOffset;
         std::span<const uint8_t> mCode;
 
     public:
         AmlParser(std::span<const uint8_t> code)
-            : mCode(code)
+            : mOffset(0)
+            , mCode(code)
         { }
 
         AmlParser(const RsdtHeader *header);
@@ -176,6 +177,14 @@ namespace acpi {
 
         AmlData mOnes;
 
+        static AmlData ones(uint32_t revision) {
+            if (revision == 0) {
+                return { AmlData::Type::eDword, { 0xFFFF'FFFF } };
+            } else {
+                return { AmlData::Type::eQword, { 0xFFFF'FFFF'FFFF'FFFF } };
+            }
+        }
+
         template<typename T>
         AmlId<T> addTerm(T term, AmlTermType type) {
             size_t offset = mObjects.add(term);
@@ -190,7 +199,7 @@ namespace acpi {
             : mAllocator(allocator)
             , mHeaders(&mAllocator)
             , mObjects(&mAllocator)
-            , mOnes(header.revision == 0 ? AmlData(AmlData::Type::eDword, { 0xFFFF'FFFF }) : AmlData(AmlData::Type::eQword, { 0xFFFF'FFFF'FFFF'FFFF }))
+            , mOnes(AmlNodeBuffer::ones(header.revision))
         { }
 
         AmlAllocator *allocator() { return &mAllocator; }
@@ -200,6 +209,8 @@ namespace acpi {
         AmlPackageId add(AmlPackageTerm term);
         AmlDataId add(AmlDataTerm term);
         AmlOpRegionId add(AmlOpRegionTerm term);
+
+        AmlData ones() { return mOnes; }
 
         AmlIdRange addRange(auto&& fn) {
             AmlAnyId front = { mHeaders.count() };
@@ -225,6 +236,17 @@ namespace acpi {
     };
 
     AmlCode WalkAml(const RsdtHeader *dsdt, AmlAllocator arena);
+
+    namespace detail {
+        // 20.2.3. Data Objects Encoding
+        uint8_t ByteData(AmlParser& parser);
+        uint16_t WordData(AmlParser& parser);
+        uint32_t DwordData(AmlParser& parser);
+        uint64_t QwordData(AmlParser& parser);
+
+        // 20.2.4. Package Length Encoding
+        uint32_t PkgLength(AmlParser& parser);
+    }
 }
 
 template<>

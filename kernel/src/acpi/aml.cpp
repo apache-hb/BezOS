@@ -3,9 +3,10 @@
 #include "kernel.hpp"
 
 using namespace stdx::literals;
+using namespace acpi::detail;
 
 acpi::AmlParser::AmlParser(const RsdtHeader *header)
-    : mCode((const uint8_t*)header + sizeof(RsdtHeader), header->length - sizeof(RsdtHeader))
+    : AmlParser(std::span((const uint8_t*)header + sizeof(RsdtHeader), header->length - sizeof(RsdtHeader)))
 { }
 
 uint8_t acpi::AmlParser::peek() const {
@@ -119,23 +120,23 @@ acpi::AmlName NameString(acpi::AmlParser& parser) {
     return { name };
 }
 
-static uint8_t ByteData(acpi::AmlParser& parser) {
+uint8_t acpi::detail::ByteData(acpi::AmlParser& parser) {
     return parser.read();
 }
 
-static uint16_t WordData(acpi::AmlParser& parser) {
+uint16_t acpi::detail::WordData(acpi::AmlParser& parser) {
     return uint16_t(parser.read())
         | uint16_t(parser.read() << 8);
 }
 
-static uint32_t DwordData(acpi::AmlParser& parser) {
+uint32_t acpi::detail::DwordData(acpi::AmlParser& parser) {
     return uint32_t(parser.read())
         | (uint32_t(parser.read()) << 8)
         | (uint32_t(parser.read()) << 16)
         | (uint32_t(parser.read()) << 24);
 }
 
-static uint64_t QwordData(acpi::AmlParser& parser) {
+uint64_t acpi::detail::QwordData(acpi::AmlParser& parser) {
     return uint64_t(parser.read())
         | (uint64_t(parser.read()) << 8)
         | (uint64_t(parser.read()) << 16)
@@ -158,22 +159,19 @@ static stdx::StringView StringData(acpi::AmlParser& parser) {
     return { first, last };
 }
 
-static uint32_t PkgLength(acpi::AmlParser& parser) {
+uint32_t acpi::detail::PkgLength(acpi::AmlParser& parser) {
     uint8_t lead = parser.read();
-    uint8_t extra = (lead & 0b1100'0000) >> 6;
 
-    uint32_t value = 0;
-    if (extra > 0) {
-        value = lead & 0b0000'1111;
+    if (uint8_t count = (lead & 0b1100'0000) >> 6) {
+        uint32_t value = lead & 0b0000'1111;
 
-        for (uint8_t i = 0; i < extra; i++) {
+        for (uint8_t i = 0; i < count; i++) {
             value |= (uint32_t(parser.read()) << (((i + 1) * 8) - 4));
         }
+        return value;
     } else {
-        value = lead & 0b0011'1111;
+        return lead & 0b0011'1111;
     }
-
-    return value;
 }
 
 static acpi::AmlData DataRefObject(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code);
@@ -246,7 +244,7 @@ static acpi::AmlData DataRefObject(acpi::AmlParser& parser, acpi::AmlNodeBuffer&
     case kOneOp:
         return { acpi::AmlData::Type::eByte, { 1 } };
     case kOnesOp:
-        return { acpi::AmlData::Type::eQword, { 0xFFFF'FFFF'FFFF'FFFF } };
+        return code.ones();
     default:
         KmDebugMessage("[AML] Unknown DataRefObject: ", km::Hex(it).pad(2, '0'), "\n");
         return { acpi::AmlData::Type::eByte, { 0 } };
@@ -348,6 +346,8 @@ static void TermObj(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
         uint32_t back = parser.offset();
 
         KmDebugMessage("[AML] Scope (", name, ") - ", length, "\n");
+
+        parser.skip(length - (back - front));
 
         break;
     }
