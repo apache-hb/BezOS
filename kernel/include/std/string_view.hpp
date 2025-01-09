@@ -7,12 +7,13 @@
 namespace stdx {
     template<typename T>
     class StringViewBase {
+        static constexpr T kEmpty[] = { };
         const T *mFront;
         const T *mBack;
 
     public:
         constexpr StringViewBase()
-            : StringViewBase(ofString(""))
+            : StringViewBase(kEmpty, kEmpty)
         { }
 
         template<size_t N>

@@ -7,10 +7,40 @@
 #include <string.h>
 
 namespace stdx {
+    namespace detail {
+        template<size_t N>
+        struct StringSizeType;
+
+        template<size_t N> requires (N <= 0xFF)
+        struct StringSizeType<N> {
+            using type = uint8_t;
+        };
+
+        template<size_t N> requires (N <= 0xFFFF && N > 0xFF)
+        struct StringSizeType<N> {
+            using type = uint16_t;
+        };
+
+        template<size_t N> requires (N <= 0xFFFFFFFF && N > 0xFFFF)
+        struct StringSizeType<N> {
+            using type = uint32_t;
+        };
+
+        template<size_t N> requires (N <= 0xFFFFFFFFFFFFFFFF && N > 0xFFFFFFFF)
+        struct StringSizeType<N> {
+            using type = uint64_t;
+        };
+
+        template<size_t N>
+        using StringSize = typename StringSizeType<N>::type;
+    }
+
     template<typename T, size_t N>
     class StaticStringBase {
+        using SizeType = detail::StringSize<N>;
+
+        SizeType mSize;
         T mStorage[N];
-        size_t mSize;
 
         constexpr void init(const T *front, const T *back) {
             mSize = std::clamp<size_t>(back - front, 0, std::size(mStorage));

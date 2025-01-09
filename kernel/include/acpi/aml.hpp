@@ -2,31 +2,21 @@
 
 #include "acpi/header.hpp"
 
-#include "arena.hpp"
+#include "allocator/bitmap.hpp"
+#include "allocator/bump.hpp"
 
+#include "std/memory.hpp"
 #include "std/static_vector.hpp"
+#include "std/vector.hpp"
+#include "util/digit.hpp"
 
 #include <span>
 
 #include <stdint.h>
 
 namespace acpi {
-    struct AmlName {
-        using Segment = stdx::StaticString<4>;
-        size_t prefix = 0;
-        stdx::StaticVector<Segment, 8> segments;
-    };
-
-    struct AmlConst {
-        enum class Type {
-            eByte,
-            eWord,
-            eDword,
-            eQword,
-        } type;
-
-        uint64_t value;
-    };
+    using AmlOffsetType = sm::uint24_t;
+    using AmlAllocator = mem::BumpAllocator;
 
     class AmlParser {
         uint32_t mOffset = 0;
@@ -39,8 +29,11 @@ namespace acpi {
 
         AmlParser(const RsdtHeader *header);
 
-        void advance() { mOffset += 1; }
         uint32_t offset() const { return mOffset; }
+        const char *current() const { return (const char*)mCode.data() + mOffset; }
+
+        void skip(uint32_t count) { mOffset += count; }
+        void advance() { skip(1); }
 
         uint8_t peek() const;
         uint8_t read();
@@ -53,55 +46,193 @@ namespace acpi {
 
             return false;
         }
+
+        bool done() const {
+            return mOffset >= mCode.size();
+        }
     };
 
-    AmlName ReadAmlNameString(AmlParser& parser);
-
-    struct AmlTermObject {
-
+    struct AmlName {
+        using Segment = stdx::StaticString<4>;
+        size_t prefix = 0;
+        stdx::StaticVector<Segment, 8> segments;
     };
 
-    struct AmlTermArg {
-
+    struct AmlAnyId {
+        AmlOffsetType id;
     };
 
-    struct AmlDefineName : AmlTermObject {
-        stdx::StringView name;
+    template<typename T>
+    struct AmlId : public AmlAnyId {
+        AmlId(AmlOffsetType id)
+            : AmlAnyId(id)
+        { }
+
+        AmlId(AmlAnyId id)
+            : AmlAnyId(id)
+        { }
     };
 
-    // term arguments
+    struct AmlIdRange {
+        AmlAnyId front;
+        AmlAnyId back;
 
-    struct AmlLocalObject : AmlTermArg {
+        size_t count() const { return back.id - front.id; }
+    };
+
+    using AmlNameId = AmlId<struct AmlNameTerm>;
+    using AmlMethodId = AmlId<struct AmlMethodTerm>;
+    using AmlPackageId = AmlId<struct AmlPackageTerm>;
+    using AmlDataId = AmlId<struct AmlDataTerm>;
+    using AmlOpRegionId = AmlId<struct AmlOpRegionTerm>;
+
+    struct AmlData {
         enum class Type {
-            eLocal0 = 0x60,
-            eLocal1 = 0x61,
-            eLocal2 = 0x62,
-            eLocal3 = 0x63,
-            eLocal4 = 0x64,
-            eLocal5 = 0x65,
-            eLocal6 = 0x66,
-            eLocal7 = 0x67,
+            eByte,
+            eWord,
+            eDword,
+            eQword,
+            eString,
+            ePackage,
+        } type;
+
+        union Data {
+            Data() { }
+            Data(uint64_t i)
+                : integer(i)
+            { }
+
+            Data(stdx::StringView s)
+                : string(s)
+            { }
+
+            Data(AmlPackageId p)
+                : package(p)
+            { }
+
+            uint64_t integer;
+            stdx::StringView string;
+            AmlPackageId package;
+        } data;
+
+        AmlData() { }
+
+        AmlData(Type ty, Data d)
+            : type(ty)
+            , data(d)
+        { }
+
+        bool isInteger() const { return type == Type::eByte || type == Type::eWord || type == Type::eDword || type == Type::eQword; }
+        bool isString() const { return type == Type::eString; }
+        bool isPackage() const { return type == Type::ePackage; }
+    };
+
+    enum class AmlTermType : uint8_t {
+        eName,
+        eMethod,
+        ePackage,
+        eData,
+        eOpRegion,
+    };
+
+    struct AmlNameTerm {
+        AmlName name;
+        AmlAnyId data;
+    };
+
+    struct AmlMethodTerm {
+        AmlName name;
+    };
+
+    struct AmlNameString {
+        AmlName name;
+    };
+
+    struct AmlPackageTerm {
+        AmlIdRange range;
+    };
+
+    struct AmlDataTerm {
+        AmlData data;
+    };
+
+    struct AmlOpRegionTerm {
+        AmlName name;
+        AddressSpaceId region;
+        AmlData offset;
+        AmlData size;
+    };
+
+    class AmlNodeBuffer {
+        struct ObjectHeader {
+            AmlTermType type;
+            AmlOffsetType offset;
         };
+
+        AmlAllocator mAllocator;
+
+        stdx::Vector<ObjectHeader, mem::AllocatorPointer<AmlAllocator>> mHeaders;
+        stdx::MemoryResource<mem::AllocatorPointer<AmlAllocator>> mObjects;
+
+        AmlData mOnes;
+
+        template<typename T>
+        AmlId<T> addTerm(T term, AmlTermType type) {
+            size_t offset = mObjects.add(term);
+
+            size_t index = mHeaders.count();
+            mHeaders.add(ObjectHeader { type, offset });
+            return { index };
+        }
+
+    public:
+        AmlNodeBuffer(AmlAllocator allocator, RsdtHeader header)
+            : mAllocator(allocator)
+            , mHeaders(&mAllocator)
+            , mObjects(&mAllocator)
+            , mOnes(header.revision == 0 ? AmlData(AmlData::Type::eDword, { 0xFFFF'FFFF }) : AmlData(AmlData::Type::eQword, { 0xFFFF'FFFF'FFFF'FFFF }))
+        { }
+
+        AmlAllocator *allocator() { return &mAllocator; }
+
+        AmlNameId add(AmlNameTerm term);
+        AmlMethodId add(AmlMethodTerm term);
+        AmlPackageId add(AmlPackageTerm term);
+        AmlDataId add(AmlDataTerm term);
+        AmlOpRegionId add(AmlOpRegionTerm term);
+
+        AmlIdRange addRange(auto&& fn) {
+            AmlAnyId front = { mHeaders.count() };
+            fn();
+            AmlAnyId back = { mHeaders.count() };
+
+            return AmlIdRange { front, back };
+        }
     };
 
-    // term objects
+    class AmlCode {
+        RsdtHeader mHeader;
 
-    struct AmlObject : AmlTermObject {
+        AmlNodeBuffer mNodes;
 
+    public:
+        AmlCode(RsdtHeader header, AmlAllocator arena)
+            : mHeader(header)
+            , mNodes(arena, mHeader)
+        { }
+
+        AmlNodeBuffer& nodes() { return mNodes; }
     };
 
-    struct AmlNamedObject : AmlObject {
-
-    };
-
-    struct AmlDefCreateField : AmlNamedObject {
-
-    };
-
-    struct AmlCode {
-        RsdtHeader header;
-        km::Arena *arena;
-    };
-
-    AmlCode WalkAml(const RsdtHeader *dsdt, km::Arena *arena);
+    AmlCode WalkAml(const RsdtHeader *dsdt, AmlAllocator arena);
 }
+
+template<>
+struct km::Format<acpi::AmlName> {
+    static void format(km::IOutStream& out, const acpi::AmlName& value);
+};
+
+template<>
+struct km::Format<acpi::AmlData> {
+    static void format(km::IOutStream& out, const acpi::AmlData& value);
+};

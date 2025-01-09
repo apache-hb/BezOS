@@ -24,18 +24,18 @@ bool km::SerialPort::get(uint8_t& byte) {
     return true;
 }
 
-size_t km::SerialPort::write(stdx::Span<const uint8_t> src) {
+size_t km::SerialPort::write(std::span<const uint8_t> src) {
     size_t i = 0;
-    for (; i < (size_t)src.sizeInBytes(); i++)
+    for (; i < src.size_bytes(); i++)
         if (!put(src[i]))
             break;
 
     return i;
 }
 
-size_t km::SerialPort::read(stdx::Span<uint8_t> dst) {
+size_t km::SerialPort::read(std::span<uint8_t> dst) {
     size_t i = 0;
-    for (; i < (size_t)dst.sizeInBytes(); i++)
+    for (; i < dst.size_bytes(); i++)
         if (!get(dst[i]))
             break;
 

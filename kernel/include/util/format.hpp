@@ -12,21 +12,6 @@ namespace km {
     template<typename T>
     struct Format;
 
-    class IOutStream {
-    public:
-        virtual ~IOutStream() = default;
-
-        void operator delete(IOutStream*, std::destroying_delete_t) {
-            std::unreachable();
-        }
-
-        virtual void write(stdx::StringView message) = 0;
-        virtual void write(char c) {
-            char buffer[1] = { c };
-            write(buffer);
-        }
-    };
-
     template<typename T>
     concept IsFormatWithSize = requires {
         { Format<T>::kStringSize } -> std::convertible_to<size_t>;
@@ -48,7 +33,30 @@ namespace km {
 
     template<typename T>
     concept IsStreamFormat = requires(T it) {
-        { Format<T>::format(std::declval<IOutStream&>(), it) };
+        { Format<T>::format(std::declval<class IOutStream&>(), it) };
+    };
+
+    class IOutStream {
+    public:
+        virtual ~IOutStream() = default;
+
+        void operator delete(IOutStream*, std::destroying_delete_t) {
+            std::unreachable();
+        }
+
+        virtual void write(stdx::StringView message) = 0;
+        virtual void write(char c) {
+            char buffer[1] = { c };
+            write(buffer);
+        }
+
+        template<typename T> requires (!std::convertible_to<T, stdx::StringView>)
+        void write(const T& value);
+
+        template<typename... T>
+        void format(T&&... args) {
+            (write(std::forward<T>(args)), ...);
+        }
     };
 
     template<std::integral T>
@@ -242,6 +250,27 @@ namespace km {
     template<IsFormatEx T>
     inline constexpr auto format(T value) {
         return Format<T>::toString(value);
+    }
+
+    template<IsStreamFormat T>
+    inline void format(IOutStream& out, const T& value) {
+        Format<T>::format(out, value);
+    }
+
+    template<IsFormatEx T>
+    inline void format(IOutStream& out, const T& value) {
+        out.write(Format<T>::toString(value));
+    }
+
+    template<IsFormat T>
+    inline void format(IOutStream& out, const T& value) {
+        char buffer[kFormatSize<T>];
+        out.write(Format<T>::toString(buffer, value));
+    }
+
+    template<typename T> requires (!std::convertible_to<T, stdx::StringView>)
+    void IOutStream::write(const T& value) {
+        km::format(*this, value);
     }
 
     enum class Align {

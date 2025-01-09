@@ -1,6 +1,7 @@
 #pragma once
 
 #include <concepts>
+#include <cstddef>
 #include <utility> // IWYU pragma: keep - std::to_underlying
 
 namespace sm {
@@ -20,6 +21,19 @@ namespace sm {
     template<std::integral T>
     constexpr T rounddown(T value, T multiple) {
         return value / multiple * multiple;
+    }
+
+    constexpr bool isPowerOf2(std::integral auto value) {
+        return value && !(value & (value - 1));
+    }
+
+    template<std::integral T>
+    constexpr T nextPowerOf2(T value) {
+        value--;
+        for (size_t i = 1; i < sizeof(T) * 8; i *= 2) {
+            value |= value >> i;
+        }
+        return value + 1;
     }
 }
 

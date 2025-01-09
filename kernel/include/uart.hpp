@@ -67,8 +67,8 @@ namespace km {
             : mBasePort(info.port)
         { }
 
-        size_t write(stdx::Span<const uint8_t> src);
-        size_t read(stdx::Span<uint8_t> dst);
+        size_t write(std::span<const uint8_t> src);
+        size_t read(std::span<uint8_t> dst);
 
         bool put(uint8_t byte);
         bool get(uint8_t& byte);

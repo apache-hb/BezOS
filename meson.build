@@ -27,7 +27,8 @@ common_args = [
     '-Wno-missing-field-initializers',
     '-Wno-missing-designated-field-initializers',
     '-Wno-zero-length-array',
-    '-Wno-nested-anon-types'
+    '-Wno-nested-anon-types',
+    '-Wno-gnu-case-range',
 ]
 
 c_args = cc.get_supported_arguments([ '-Wno-language-extension-token' ] + common_args)
@@ -100,6 +101,7 @@ src = [
 
     # ACPI
     'kernel/src/acpi/acpi.cpp',
+    'kernel/src/acpi/format.cpp',
     'kernel/src/acpi/aml.cpp',
 
     # HID
@@ -222,7 +224,8 @@ endforeach
 # AML tests
 
 testcases = [
-    'B450M-MORTAR'
+    'B450M-MORTAR',
+    'H13SSL-N',
 ]
 
 acpixtract = find_program('data/test/acpi/dump.sh')
@@ -230,6 +233,7 @@ acpixtract = find_program('data/test/acpi/dump.sh')
 src = [
     'kernel/test/acpi/aml.cpp',
     'kernel/src/acpi/aml.cpp',
+    'kernel/src/acpi/format.cpp',
 ]
 
 exe = executable('test-aml', src,
