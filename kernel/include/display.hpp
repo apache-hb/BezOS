@@ -84,7 +84,9 @@ namespace km {
 
         PixelFormat mFormat;
 
-        uint64_t pixelValue(Pixel it) const;
+        using PixelValue = PixelFormat::PixelValue;
+
+        PixelValue pixelValue(Pixel it) const;
         uint64_t pixelOffset(uint64_t x, uint64_t y) const;
 
     public:
@@ -113,9 +115,9 @@ namespace km {
         uint16_t bpp() const { return mFormat.bpp(); }
 
         size_t offset(uint64_t x, uint64_t y) const { return pixelOffset(x, y); }
-        size_t rowSize() const { return mWidth * (mFormat.bpp() / 8); }
+        size_t stride() const { return width() * (bpp() / 8); }
 
-        bool hasLinePadding() const { return mWidth != (mPitch / (bpp() / 8)); }
+        bool hasLinePadding() const { return mWidth != (pitch() / (bpp() / 8)); }
 
         Pixel read(uint64_t x, uint64_t y) const;
     };

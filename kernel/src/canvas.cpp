@@ -62,12 +62,12 @@ km::Canvas::Canvas(Canvas geometry, uint8_t *address)
     , mFormat(geometry.mFormat)
 { }
 
-uint64_t km::Canvas::pixelValue(Pixel it) const {
+km::Canvas::PixelValue km::Canvas::pixelValue(Pixel it) const {
     return mFormat.pixelValue(it);
 }
 
 uint64_t km::Canvas::pixelOffset(uint64_t x, uint64_t y) const {
-    return (y * (mPitch / 4) + x) * (bpp() / 8);
+    return y * mPitch + x * (bpp() / 8);
 }
 
 void km::Canvas::write(uint64_t x, uint64_t y, Pixel pixel) {
@@ -76,14 +76,14 @@ void km::Canvas::write(uint64_t x, uint64_t y, Pixel pixel) {
 
     uint64_t offset = pixelOffset(x, y);
 
-    uint32_t pix = pixelValue(pixel);
+    PixelValue pix = pixelValue(pixel);
 
     memcpy(mAddress + offset, &pix, bpp() / 8);
 }
 
 km::Pixel km::Canvas::read(uint64_t x, uint64_t y) const {
     uint8_t offset = pixelOffset(x, y);
-    uint32_t *pix = (uint32_t*)(mAddress + offset);
+    PixelValue *pix = (PixelValue*)(mAddress + offset);
 
     return mFormat.pixelRead(*pix);
 }
@@ -97,14 +97,14 @@ void km::Canvas::fill(Pixel pixel) {
 }
 
 void km::DrawCharacter(km::Canvas& display, uint64_t x, uint64_t y, char c, Pixel fg, Pixel bg) {
-    x *= 8;
-    y *= 8;
+    uint64_t wx = x * 8;
+    uint64_t wy = y * 8;
     uint64_t letter = kFontData[(uint8_t)c];
 
     for (int i = 0; i < 8; i++) {
         for (int j = 0; j < 8; j++) {
             Pixel pixel = (letter & (1ull << (i * 8 + j))) ? fg : bg;
-            display.write(x + (8 - j), y + i, pixel);
+            display.write(wx + (8 - j), wy + i, pixel);
         }
     }
 }

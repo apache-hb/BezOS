@@ -14,7 +14,6 @@ void km::DirectTerminal::advance() {
 
     if (mCurrentColumn >= mColumnCount) {
         newline();
-        mCurrentColumn = 0;
     }
 }
 

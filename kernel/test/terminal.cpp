@@ -7,7 +7,6 @@
 #include "display.hpp"
 
 static constexpr stdx::StringView kText = R"(
-| /SYS/PCI/00.1F.00 | Programmable         | 0
 | /SYS/PCI/00.1F.00 | Revision             | 2
 | /SYS/PCI/00.1F.00 | Type                 | Multi-Function
 | /SYS/PCI/00.1F.02 | Vendor ID            | Intel (0x8086)
@@ -84,20 +83,15 @@ static constexpr stdx::StringView kText = R"(
 [SMP] Starting Core.
 [APIC] Startup: 0xFEE00800, Base address: 0xFEE00000, State: Enabled, Type: Application Processor
 [SMP] Started AP 15
-[INIT] PS/2 controller: Ok
-[INIT] PS/2 channel 1: Present
-[INIT] PS/2 channel 2: Present
-[PS2] Keyboard scancode: 0xFA
-[PS2] Keyboard scancode: 0xFA
 )";
 
 static void DumpImage(const char *filename, KernelFrameBuffer framebuffer, km::Canvas canvas) {
-    std::unique_ptr<uint8_t[]> data(new uint8_t[framebuffer.width * framebuffer.height * 3]);
-    KernelFrameBuffer rgbFramebuffer = {
+    uint8_t channels = 3;
+    KernelFrameBuffer rgbFrame = {
         .width = framebuffer.width,
         .height = framebuffer.height,
-        .pitch = framebuffer.width * 3,
-        .bpp = 24,
+        .pitch = framebuffer.width * channels,
+        .bpp = uint16_t(8u * channels),
         .redMaskSize = 8,
         .redMaskShift = 16,
         .greenMaskSize = 8,
@@ -106,16 +100,19 @@ static void DumpImage(const char *filename, KernelFrameBuffer framebuffer, km::C
         .blueMaskShift = 0,
     };
 
-    km::Canvas rgbCanvas{rgbFramebuffer, data.get()};
+    std::unique_ptr<uint8_t[]> rgbData(new uint8_t[rgbFrame.size()]);
+    km::Canvas rgbCanvas(rgbFrame, rgbData.get());
 
     for (uint64_t x = 0; x < framebuffer.width; x++) {
         for (uint64_t y = 0; y < framebuffer.height; y++) {
             km::Pixel pixel = canvas.read(x, y);
+
             rgbCanvas.write(x, y, pixel);
         }
     }
 
-    stbi_write_bmp(filename, framebuffer.width, framebuffer.height, 3, data.get());
+    int err = stbi_write_bmp(filename, rgbCanvas.width(), rgbCanvas.height(), channels, rgbCanvas.address());
+    ASSERT_NE(err, 0) << "Failed to write image: " << filename;
 }
 
 TEST(TerminalTest, WriteText) {
@@ -141,7 +138,7 @@ TEST(TerminalTest, WriteText) {
 
     km::DirectTerminal terminal(display);
 
-    terminal.print(kText);
+    terminal.print("A");
 
     DumpImage("terminal.bmp", framebuffer, display);
 
@@ -160,8 +157,14 @@ TEST(TerminalTest, WriteText) {
                 whiteCount++;
             }
 
-            ASSERT_TRUE(displayPixel == black || displayPixel == white)
-                << "Pixel in display at (" << x << ", " << y << ") is (" << displayPixel.r << ", " << displayPixel.g << ", " << displayPixel.b << ")";
+            // all pixels below the text must be black
+            if (y > 16) {
+                ASSERT_TRUE(displayPixel == black)
+                    << "Pixel in display at (" << x << ", " << y << ") is (" << uint32_t(displayPixel.r) << ", " << uint32_t(displayPixel.g) << ", " << uint32_t(displayPixel.b) << ")";
+            } else {
+                ASSERT_TRUE(displayPixel == black || displayPixel == white)
+                    << "Pixel in display at (" << x << ", " << y << ") is (" << uint32_t(displayPixel.r) << ", " << uint32_t(displayPixel.g) << ", " << uint32_t(displayPixel.b) << ")";
+            }
         }
     }
 

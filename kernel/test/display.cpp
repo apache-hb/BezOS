@@ -24,7 +24,8 @@ TEST(CanvasTest, Size) {
 
     ASSERT_EQ(display.size(), (1280 * 800 * 4));
 
-    ASSERT_EQ(display.rowSize(), (1280 * 4));
+    ASSERT_EQ(display.stride(), (1280 * 4));
+    ASSERT_EQ(display.pitch(), 5120);
 }
 
 TEST(DisplayTest, Simple) {

@@ -36,7 +36,7 @@ void km::BufferedTerminal::newline() {
         memset(mDisplay.address(), 0, mDisplay.size());
     } else {
         // copy the current row from the back buffer to the display
-        size_t rowSize = mDisplay.rowSize() * 8;
+        size_t rowSize = mDisplay.stride() * 8;
         size_t offset = (mCurrentRow - 1) * rowSize;
         memcpy((uint8_t*)mDisplay.address() + offset, (uint8_t*)mBackBuffer.address() + offset, rowSize);
 
