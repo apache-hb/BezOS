@@ -67,7 +67,7 @@ km::Canvas::PixelValue km::Canvas::pixelValue(Pixel it) const {
 }
 
 uint64_t km::Canvas::pixelOffset(uint64_t x, uint64_t y) const {
-    return y * mPitch + x * (bpp() / 8);
+    return (y * width() + x) * bytesPerPixel();
 }
 
 void km::Canvas::write(uint64_t x, uint64_t y, Pixel pixel) {
@@ -78,14 +78,16 @@ void km::Canvas::write(uint64_t x, uint64_t y, Pixel pixel) {
 
     PixelValue pix = pixelValue(pixel);
 
-    memcpy(mAddress + offset, &pix, bpp() / 8);
+    memcpy(mAddress + offset, &pix, bytesPerPixel());
 }
 
 km::Pixel km::Canvas::read(uint64_t x, uint64_t y) const {
-    uint8_t offset = pixelOffset(x, y);
-    PixelValue *pix = (PixelValue*)(mAddress + offset);
+    uint64_t offset = pixelOffset(x, y);
+    PixelValue pix = 0;
 
-    return mFormat.pixelRead(*pix);
+    memcpy(&pix, mAddress + offset, bytesPerPixel());
+
+    return mFormat.pixelRead(pix);
 }
 
 void km::Canvas::fill(Pixel pixel) {

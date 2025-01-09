@@ -33,6 +33,8 @@ TEST(CanvasTest, Size) {
     ASSERT_EQ(display.offset(1, 0), 4);
     ASSERT_EQ(display.offset(0, 1), 5120);
     ASSERT_EQ(display.offset(1, 1), 5124);
+
+    ASSERT_EQ(display.offset(256, 128), (256 + (128 * 1280)) * 4);
 }
 
 TEST(DisplayTest, Simple) {
@@ -61,12 +63,38 @@ TEST(DisplayTest, Simple) {
 
     ASSERT_FALSE(display.hasLinePadding());
 
+    display.fill(km::Pixel { 0, 0, 0 });
+
     display.write(0, 0, km::Pixel { 255, 255, 255 });
 
     km::Pixel pixel = display.read(0, 0);
 
     ASSERT_EQ(pixel.r, 255);
     ASSERT_EQ(pixel.g, 255);
+    ASSERT_EQ(pixel.b, 255);
+
+    // make sure no other pixels were written to
+    for (uint64_t x = 0; x < display.width(); x++) {
+        for (uint64_t y = 0; y < display.height(); y++) {
+            if (x == 0 && y == 0) continue;
+
+            km::Pixel other = display.read(x, y);
+
+            km::Pixel black { 0, 0, 0 };
+            EXPECT_EQ(other, black) 
+                << "Pixel (" << x << "," << y << ") is "
+                << "(" << int(other.r) << "," << int(other.g) << "," << int(other.b) << ")";
+        }
+    }
+
+    display.fill(km::Pixel { 0, 0, 0 });
+    
+    display.write(123, 456, km::Pixel { 127, 127, 255 });
+
+    pixel = display.read(123, 456);
+
+    ASSERT_EQ(pixel.r, 127);
+    ASSERT_EQ(pixel.g, 127);
     ASSERT_EQ(pixel.b, 255);
 }
 

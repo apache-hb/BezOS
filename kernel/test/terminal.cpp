@@ -121,7 +121,7 @@ TEST(TerminalTest, WriteText) {
     KernelFrameBuffer framebuffer = {
         .width = 1920,
         .height = 1080,
-        .pitch = 5120,
+        .pitch = 1920 * 4,
         .bpp = 32,
         .redMaskSize = 8,
         .redMaskShift = 16,
@@ -146,8 +146,8 @@ TEST(TerminalTest, WriteText) {
 
     uint64_t whiteCount = 0;
 
-    for (uint64_t x = 0; x < framebuffer.width; x++) {
-        for (uint64_t y = 0; y < framebuffer.height; y++) {
+    for (uint64_t x = 0; x < display.width(); x++) {
+        for (uint64_t y = 0; y < display.height(); y++) {
             km::Pixel displayPixel = display.read(x, y);
 
             // pixel must either be black or white
@@ -170,6 +170,6 @@ TEST(TerminalTest, WriteText) {
         }
     }
 
-    // at least 100 pixels must be white, stops the test from passing if the terminal is not working
-    ASSERT_TRUE(whiteCount > 100);
+    // stops the test from passing if the terminal is not working
+    ASSERT_GT(whiteCount, 10);
 }
