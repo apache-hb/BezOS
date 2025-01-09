@@ -19,21 +19,20 @@ void km::BufferedTerminal::advance() {
 
     if (mCurrentColumn >= mColumnCount) {
         newline();
-        mCurrentColumn = 0;
     }
 }
 
 void km::BufferedTerminal::newline() {
     mCurrentRow += 1;
-    bool scroll = false;
+    bool clear = false;
     if (mCurrentRow >= mRowCount) {
         mCurrentRow = 0;
-        scroll = true;
+        clear = true;
     }
 
     mCurrentColumn = 0;
 
-    if (scroll) {
+    if (clear) {
         memset(mDisplay.address(), 0, mDisplay.size());
     } else {
         // copy the current row from the back buffer to the display

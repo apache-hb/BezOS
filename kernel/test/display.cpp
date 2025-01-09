@@ -77,6 +77,7 @@ TEST(DisplayTest, WithLinePadding) {
     };
 
     std::unique_ptr<uint8_t[]> address(new uint8_t[framebuffer.size()]);
+    memset(address.get(), 0, framebuffer.size());
 
     km::Canvas display(framebuffer, address.get());
 

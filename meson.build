@@ -163,6 +163,7 @@ meson.add_install_script('data/image.sh')
 
 gtest = dependency('gtest', native : true)
 gmock = dependency('gmock', native : true)
+stb_image_write = dependency('stb_image_write')
 gtest_main = dependency('gtest_main', native : true)
 testkwargs = { 'protocol' : 'gtest', 'timeout': 5 }
 
@@ -183,6 +184,16 @@ test_shim = static_library('test_shim', src,
     native : true,
 )
 
+test_exe_kwargs = {
+    'include_directories': inc,
+    'c_args': c_args,
+    'cpp_args': test_cpp_args,
+    'dependencies': [ gtest_main, gmock ],
+    'override_options': [ 'b_sanitize=address' ],
+    'native': true,
+    'link_with': test_shim,
+}
+
 # Test cases
 
 testcases = {
@@ -197,12 +208,6 @@ testcases = {
     'arch cr': [ 'kernel/test/arch/cr.cpp', 'kernel/src/arch/cr.cpp', ],
     'arch gdt': [ 'kernel/test/arch/gdt.cpp', 'kernel/src/gdt.cpp', ],
     'framebuffer': [ 'kernel/test/display.cpp', 'kernel/src/canvas.cpp', ],
-    'terimal': [
-        'kernel/test/terminal.cpp',
-        'kernel/src/canvas.cpp',
-        'kernel/src/terminal/terminal.cpp',
-        'kernel/src/terminal/buffered.cpp',
-    ],
     'crt': [ 'kernel/test/crt.cpp', 'kernel/src/crt.cpp', ],
     'page allocator': [
         'kernel/test/page_allocator.cpp',
@@ -231,13 +236,34 @@ testcases = {
 
 foreach name, source : testcases
     exe = executable('test-kernel-' + name.to_lower().replace(' ', '-'), source,
-        include_directories : inc,
-        c_args : c_args,
-        cpp_args : test_cpp_args,
-        dependencies : [ gtest_main, gmock ],
-        override_options : [ 'b_sanitize=address' ],
-        native : true,
-        link_with : test_shim,
+        kwargs : test_exe_kwargs,
+    )
+
+    test(name, exe,
+        suite : 'kernel',
+        kwargs : testkwargs
+    )
+endforeach
+
+testcases = {
+    'terminal': {
+        'sources': [
+            'kernel/test/terminal.cpp',
+            'kernel/src/canvas.cpp',
+            'kernel/src/terminal/terminal.cpp',
+            'kernel/src/terminal/buffered.cpp',
+        ],
+        'dependencies' : [ stb_image_write ]
+    }
+}
+
+foreach name, kwargs : testcases
+    new_kwargs = test_exe_kwargs
+    new_kwargs += { 'dependencies': new_kwargs['dependencies'] + kwargs['dependencies'] }
+    new_kwargs += { 'sources': kwargs['sources'] }
+
+    exe = executable('test-kernel-' + name.to_lower().replace(' ', '-'),
+        kwargs : new_kwargs,
     )
 
     test(name, exe,
@@ -263,13 +289,7 @@ src = [
 ]
 
 exe = executable('test-aml', src,
-    include_directories : inc,
-    c_args : c_args,
-    cpp_args : test_cpp_args,
-    dependencies : [ gtest_main, gmock ],
-    override_options : [ 'b_sanitize=address' ],
-    native : true,
-    link_with : test_shim,
+    kwargs : test_exe_kwargs,
 )
 
 foreach name : testcases

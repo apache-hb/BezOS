@@ -2,6 +2,8 @@
 
 #include <cstdlib>
 
+#include <stb_image_write.h>
+
 #include "display.hpp"
 
 static constexpr stdx::StringView kText = R"(
@@ -89,6 +91,33 @@ static constexpr stdx::StringView kText = R"(
 [PS2] Keyboard scancode: 0xFA
 )";
 
+static void DumpImage(const char *filename, KernelFrameBuffer framebuffer, km::Canvas canvas) {
+    std::unique_ptr<uint8_t[]> data(new uint8_t[framebuffer.width * framebuffer.height * 3]);
+    KernelFrameBuffer rgbFramebuffer = {
+        .width = framebuffer.width,
+        .height = framebuffer.height,
+        .pitch = framebuffer.width * 3,
+        .bpp = 24,
+        .redMaskSize = 8,
+        .redMaskShift = 16,
+        .greenMaskSize = 8,
+        .greenMaskShift = 8,
+        .blueMaskSize = 8,
+        .blueMaskShift = 0,
+    };
+
+    km::Canvas rgbCanvas{rgbFramebuffer, data.get()};
+
+    for (uint64_t x = 0; x < framebuffer.width; x++) {
+        for (uint64_t y = 0; y < framebuffer.height; y++) {
+            km::Pixel pixel = canvas.read(x, y);
+            rgbCanvas.write(x, y, pixel);
+        }
+    }
+
+    stbi_write_bmp(filename, framebuffer.width, framebuffer.height, 3, data.get());
+}
+
 TEST(TerminalTest, WriteText) {
     KernelFrameBuffer framebuffer = {
         .width = 1920,
@@ -104,35 +133,38 @@ TEST(TerminalTest, WriteText) {
     };
 
     std::unique_ptr<uint8_t[]> displayData(new uint8_t[framebuffer.size()]);
-    std::unique_ptr<uint8_t[]> backbufferData(new uint8_t[framebuffer.size()]);
     memset(displayData.get(), 0, framebuffer.size());
-    memset(backbufferData.get(), 0, framebuffer.size());
 
     framebuffer.address = displayData.get();
 
     km::Canvas display(framebuffer, displayData.get());
 
-    km::Canvas backbuffer(display, backbufferData.get());
-
-    km::BufferedTerminal terminal(display, backbuffer);
+    km::DirectTerminal terminal(display);
 
     terminal.print(kText);
+
+    DumpImage("terminal.bmp", framebuffer, display);
+
+    uint64_t whiteCount = 0;
 
     for (uint64_t x = 0; x < framebuffer.width; x++) {
         for (uint64_t y = 0; y < framebuffer.height; y++) {
             km::Pixel displayPixel = display.read(x, y);
-            km::Pixel backbufferPixel = backbuffer.read(x, y);
 
             // pixel must either be black or white
 
             km::Pixel black { 0, 0, 0 };
             km::Pixel white { 255, 255, 255 };
 
+            if (displayPixel == white) {
+                whiteCount++;
+            }
+
             ASSERT_TRUE(displayPixel == black || displayPixel == white)
                 << "Pixel in display at (" << x << ", " << y << ") is (" << displayPixel.r << ", " << displayPixel.g << ", " << displayPixel.b << ")";
-
-            ASSERT_TRUE(backbufferPixel == black || backbufferPixel == white)
-                << "Pixel in backbuffer at (" << x << ", " << y << ") is (" << backbufferPixel.r << ", " << backbufferPixel.g << ", " << backbufferPixel.b << ")";
         }
     }
+
+    // at least 100 pixels must be white, stops the test from passing if the terminal is not working
+    ASSERT_TRUE(whiteCount > 100);
 }
