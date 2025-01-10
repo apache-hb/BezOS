@@ -222,18 +222,21 @@ testcases = {
     'bitmap allocator': [
         'kernel/test/memory/bitmap.cpp',
         'kernel/src/allocator/bitmap.cpp',
+        'kernel/src/util/format.cpp',
     ],
     'aml details': [
         'kernel/test/acpi/detail.cpp',
         'kernel/src/allocator/bitmap.cpp',
         'kernel/src/acpi/format.cpp',
         'kernel/src/acpi/aml.cpp',
+        'kernel/src/util/format.cpp',
     ],
     'aml names': [
         'kernel/test/acpi/name.cpp',
         'kernel/src/allocator/bitmap.cpp',
         'kernel/src/acpi/format.cpp',
         'kernel/src/acpi/aml.cpp',
+        'kernel/src/util/format.cpp',
     ]
 }
 
@@ -289,6 +292,7 @@ src = [
     'kernel/test/acpi/aml.cpp',
     'kernel/src/acpi/aml.cpp',
     'kernel/src/acpi/format.cpp',
+    'kernel/src/util/format.cpp',
     'kernel/src/allocator/bitmap.cpp',
 ]
 

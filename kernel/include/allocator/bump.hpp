@@ -7,8 +7,8 @@
 #include "allocator/allocator.hpp"
 
 namespace mem {
-    class BumpAllocator : public mem::AllocatorMixin<BumpAllocator> {
-        using Super = mem::AllocatorMixin<BumpAllocator>;
+    class BumpAllocator : public mem::IAllocator {
+        using Super = mem::IAllocator;
 
         void *mFront;
         void *mBack;
@@ -24,7 +24,7 @@ namespace mem {
             , mCurrent(front)
         { }
 
-        void *allocate(size_t size, size_t align = alignof(std::max_align_t)) {
+        void *allocate(size_t size, size_t align) override {
             size_t offset = (size_t)mCurrent % align;
             if (offset != 0) {
                 mCurrent = (void*)((size_t)mCurrent + align - offset);
@@ -40,7 +40,7 @@ namespace mem {
             return ptr;
         }
 
-        void deallocate(void *ptr, size_t size) {
+        void deallocate(void *ptr, size_t size) override {
             if (ptr == mCurrent) {
                 mCurrent = (void*)((size_t)mCurrent - size);
             }

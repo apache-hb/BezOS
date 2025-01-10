@@ -253,40 +253,18 @@ acpi::AmlData acpi::detail::DataRefObject(acpi::AmlParser& parser, acpi::AmlNode
     }
 }
 
-struct AmlMethodFlags {
-    uint8_t flags;
 
-    uint8_t argCount() const {
-        return flags & 0b0000'0111;
-    }
-
-    bool serialized() const {
-        return flags & 0b0000'1000;
-    }
-
-    uint8_t syncLevel() const {
-        return (flags & 0b1111'0000) >> 4;
-    }
-};
-
-static AmlMethodFlags MethodFlags(acpi::AmlParser& parser) {
+static acpi::AmlMethodFlags MethodFlags(acpi::AmlParser& parser) {
     uint8_t flags = parser.read();
     return { flags };
 }
 
-struct AmlFieldFlags {
-    uint8_t flags;
-
-    bool lock() const {
-        return flags & (1 << 4);
-    }
-};
-
-static AmlFieldFlags FieldFlags(acpi::AmlParser& parser) {
+static acpi::AmlFieldFlags FieldFlags(acpi::AmlParser& parser) {
     uint8_t flags = parser.read();
     return { flags };
 }
 
+#if 0
 static void FieldList(acpi::AmlParser& parser, uint32_t length) {
     enum {
         kReservedField = 0x00,
@@ -318,8 +296,53 @@ static void FieldList(acpi::AmlParser& parser, uint32_t length) {
         }
     }
 }
+#endif
 
-static void TermObj(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
+acpi::AmlNameTerm acpi::detail::NameTerm(AmlParser& parser, AmlNodeBuffer& code) {
+    acpi::AmlName name = NameString(parser);
+    acpi::AmlData data = DataRefObject(parser, code);
+
+    KmDebugMessage("[AML] Name (", name, ", ", data, ")\n");
+
+    return { name, code.add(AmlDataTerm(data)) };
+}
+
+acpi::AmlScopeTerm acpi::detail::ScopeTerm(AmlParser& parser, AmlNodeBuffer& code) {
+    uint32_t front = parser.offset();
+    uint32_t length = PkgLength(parser);
+    acpi::AmlName name = NameString(parser);
+    uint32_t back = parser.offset();
+
+    acpi::AmlParser sub = parser.subspan(length - (back - front));
+
+    stdx::Vector<acpi::AmlAnyId> terms(code.allocator());
+
+    while (!sub.done()) {
+        terms.add(Term(sub, code));
+    }
+
+    KmDebugMessage("[AML] Scope (", name, ") - ", length, "\n");
+
+    return acpi::AmlScopeTerm { name, terms };
+}
+
+acpi::AmlMethodTerm acpi::detail::MethodTerm(AmlParser& parser, AmlNodeBuffer& code) {
+    uint32_t front = parser.offset();
+
+    uint32_t length = PkgLength(parser);
+    acpi::AmlName name = NameString(parser);
+    AmlMethodFlags flags = MethodFlags(parser);
+
+    uint32_t back = parser.offset();
+
+    acpi::AmlParser sub = parser.subspan(length - (back - front));
+
+    KmDebugMessage("[AML] Method (", name, ", ", flags.argCount(), ", ", flags.serialized() ? "Serialized"_sv : "NotSerialized"_sv, ")\n");
+
+    return { name, flags };
+}
+
+acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
     enum {
         kNameOp = 0x08,
         kScopeOp = 0x10,
@@ -332,41 +355,15 @@ static void TermObj(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
     };
 
     switch (uint8_t op = parser.read()) {
-    case kNameOp: {
-        acpi::AmlName name = NameString(parser);
-        acpi::AmlData data = DataRefObject(parser, code);
+    case kNameOp:
+        return code.add(NameTerm(parser, code));
 
-        KmDebugMessage("[AML] Name (", name, ", ", data, ")\n");
-        break;
-    }
-    case kScopeOp: {
-        uint32_t front = parser.offset();
+    case kScopeOp:
+        return code.add(ScopeTerm(parser, code));
 
-        uint32_t length = PkgLength(parser);
-        acpi::AmlName name = NameString(parser);
+    case kMethodOp:
+        return code.add(MethodTerm(parser, code));
 
-        uint32_t back = parser.offset();
-
-        KmDebugMessage("[AML] Scope (", name, ") - ", length, "\n");
-
-        parser.skip(length - (back - front));
-
-        break;
-    }
-    case kMethodOp: {
-        uint32_t front = parser.offset();
-
-        uint32_t length = PkgLength(parser);
-        acpi::AmlName name = NameString(parser);
-        AmlMethodFlags flags = MethodFlags(parser);
-
-        uint32_t back = parser.offset();
-
-        KmDebugMessage("[AML] Method (", name, ", ", flags.argCount(), ", ", flags.serialized() ? "Serialized"_sv : "NotSerialized"_sv, ")\n");
-
-        parser.skip(length - (back - front));
-        break;
-    }
     case kExtOpPrefix: {
         uint8_t ext = parser.read();
         switch (ext) {
@@ -426,6 +423,8 @@ static void TermObj(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
         KmDebugMessage("[AML] Unknown TermObj ", km::Hex(op).pad(2, '0'), "\n");
         break;
     }
+
+    return { 0 };
 }
 
 acpi::AmlCode acpi::WalkAml(const RsdtHeader *dsdt, AmlAllocator arena) {
@@ -434,7 +433,7 @@ acpi::AmlCode acpi::WalkAml(const RsdtHeader *dsdt, AmlAllocator arena) {
     AmlParser parser(dsdt);
 
     while (!parser.done()) {
-        TermObj(parser, code.nodes());
+        Term(parser, code.nodes());
     }
 
     return code;
@@ -458,6 +457,15 @@ acpi::AmlDataId acpi::AmlNodeBuffer::add(AmlDataTerm term) {
 
 acpi::AmlOpRegionId acpi::AmlNodeBuffer::add(AmlOpRegionTerm term) {
     return addTerm(term, AmlTermType::eOpRegion);
+}
+
+acpi::AmlScopeId acpi::AmlNodeBuffer::add(AmlScopeTerm term) {
+    return addTerm(term, AmlTermType::eScope);
+}
+
+acpi::AmlNameTerm acpi::AmlNodeBuffer::get(AmlNameId id) {
+    ObjectHeader header = mHeaders[id.id];
+    return *mObjects.get<AmlNameTerm>(header.offset);
 }
 
 using AmlNameFormat = km::Format<acpi::AmlName>;

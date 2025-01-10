@@ -2,19 +2,18 @@
 
 #include "std/vector.hpp"
 namespace stdx {
-    template<typename Allocator>
     class MemoryResource {
-        stdx::Vector<std::byte, Allocator> mMemory;
+        stdx::Vector<std::byte> mMemory;
 
     public:
-        MemoryResource(Allocator allocator)
+        MemoryResource(mem::IAllocator *allocator)
             : mMemory(allocator)
         { }
 
-        const void *front() const { (void*)mMemory.begin(); }
-        const void *back() const { (void*)mMemory.end(); }
+        const void *front() const { return (void*)mMemory.begin(); }
+        const void *back() const { return (void*)mMemory.end(); }
 
-        size_t size() const { return mMemory.size(); }
+        size_t size() const { return mMemory.count(); }
 
         size_t add(const void *data, size_t size) {
             std::span<const std::byte> span((const std::byte*)data, size);

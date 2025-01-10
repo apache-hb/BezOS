@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include <span>
 
 namespace stdx {
     template<typename T>
@@ -98,6 +99,11 @@ namespace stdx {
             TEST_ASSERT(index < count() && "Index out of bounds");
             return mFront[index];
         }
+
+        constexpr T& back() {
+            TEST_ASSERT(!isEmpty() && "Vector is empty");
+            return mBack[-1];
+        }
     };
 
     template<typename T, size_t N>
@@ -118,6 +124,10 @@ namespace stdx {
         {
             Super::addRange(front, back);
         }
+
+        constexpr StaticVector(std::span<const T> range)
+            : StaticVector(range.data(), range.data() + range.size())
+        { }
 
         constexpr StaticVector(std::initializer_list<T> list)
             : StaticVector(std::begin(list), std::end(list))

@@ -10,6 +10,7 @@
 #include "std/vector.hpp"
 #include "util/digit.hpp"
 
+#include <expected>
 #include <span>
 
 #include <stdint.h>
@@ -94,6 +95,7 @@ namespace acpi {
     using AmlPackageId = AmlId<struct AmlPackageTerm>;
     using AmlDataId = AmlId<struct AmlDataTerm>;
     using AmlOpRegionId = AmlId<struct AmlOpRegionTerm>;
+    using AmlScopeId = AmlId<struct AmlScopeTerm>;
 
     struct AmlData {
         enum class Type {
@@ -136,12 +138,37 @@ namespace acpi {
         bool isPackage() const { return type == Type::ePackage; }
     };
 
+    struct AmlMethodFlags {
+        uint8_t flags;
+
+        uint8_t argCount() const {
+            return flags & 0b0000'0111;
+        }
+
+        bool serialized() const {
+            return flags & 0b0000'1000;
+        }
+
+        uint8_t syncLevel() const {
+            return (flags & 0b1111'0000) >> 4;
+        }
+    };
+
+    struct AmlFieldFlags {
+        uint8_t flags;
+
+        bool lock() const {
+            return flags & (1 << 4);
+        }
+    };
+
     enum class AmlTermType : uint8_t {
         eName,
         eMethod,
         ePackage,
         eData,
         eOpRegion,
+        eScope,
     };
 
     struct AmlNameTerm {
@@ -151,6 +178,7 @@ namespace acpi {
 
     struct AmlMethodTerm {
         AmlName name;
+        AmlMethodFlags flags;
     };
 
     struct AmlNameString {
@@ -172,6 +200,11 @@ namespace acpi {
         AmlData size;
     };
 
+    struct AmlScopeTerm {
+        AmlName name;
+        stdx::Vector<AmlAnyId> terms;
+    };
+
     class AmlNodeBuffer {
         struct ObjectHeader {
             AmlTermType type;
@@ -180,8 +213,8 @@ namespace acpi {
 
         AmlAllocator mAllocator;
 
-        stdx::Vector<ObjectHeader, mem::AllocatorPointer<AmlAllocator>> mHeaders;
-        stdx::MemoryResource<mem::AllocatorPointer<AmlAllocator>> mObjects;
+        stdx::Vector<ObjectHeader> mHeaders;
+        stdx::MemoryResource mObjects;
 
         AmlData mOnes;
 
@@ -217,6 +250,9 @@ namespace acpi {
         AmlPackageId add(AmlPackageTerm term);
         AmlDataId add(AmlDataTerm term);
         AmlOpRegionId add(AmlOpRegionTerm term);
+        AmlScopeId add(AmlScopeTerm term);
+
+        AmlNameTerm get(AmlNameId id);
 
         AmlData ones() { return mOnes; }
 
@@ -227,6 +263,10 @@ namespace acpi {
 
             return AmlIdRange { front, back };
         }
+    };
+
+    enum class AmlError {
+        eOk
     };
 
     class AmlCode {
@@ -241,6 +281,8 @@ namespace acpi {
         { }
 
         AmlNodeBuffer& nodes() { return mNodes; }
+
+        std::expected<uint64_t, AmlError> intValue(AmlName name) const;
     };
 
     AmlCode WalkAml(const RsdtHeader *dsdt, AmlAllocator arena);
@@ -259,6 +301,14 @@ namespace acpi {
         AmlName NameString(AmlParser& parser);
 
         AmlData DataRefObject(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code);
+
+        AmlNameTerm NameTerm(AmlParser& parser, AmlNodeBuffer& code);
+
+        AmlScopeTerm ScopeTerm(AmlParser& parser, AmlNodeBuffer& code);
+
+        AmlMethodTerm MethodTerm(AmlParser& parser, AmlNodeBuffer& code);
+
+        AmlAnyId Term(AmlParser& parser, AmlNodeBuffer& code);
     }
 
     namespace literals {

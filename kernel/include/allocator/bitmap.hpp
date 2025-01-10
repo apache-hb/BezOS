@@ -6,7 +6,7 @@
 #include <span>
 
 namespace mem {
-    class BitmapAllocator : public mem::AllocatorMixin<BitmapAllocator> {
+    class BitmapAllocator : public mem::IAllocator {
         void *mFront;
         void *mBack;
 
@@ -14,7 +14,8 @@ namespace mem {
 
         void init(void *front, void *back, size_t unit);
 
-        size_t bitmapSize() const;
+        size_t bitmapWordCount() const;
+        size_t bitmapBitCount() const;
 
         std::span<uint8_t> bitmap();
 
@@ -44,7 +45,7 @@ namespace mem {
         /// @param align The alignment of the block.
         ///
         /// @return The block of memory or @c nullptr if the allocation failed.
-        void *allocate(size_t size, size_t align = alignof(std::max_align_t));
+        void *allocate(size_t size, size_t align = alignof(std::max_align_t)) override;
 
         /// @brief Deallocate a block of memory.
         ///
@@ -53,6 +54,6 @@ namespace mem {
         ///
         /// @param ptr The block of memory.
         /// @param size The size of the block.
-        void deallocate(void *ptr, size_t size);
+        void deallocate(void *ptr, size_t size) override;
     };
 }

@@ -6,10 +6,13 @@
 
 #include <stddef.h>
 
+#include "allocator/allocator.hpp"
+#include "kernel.hpp"
+
 namespace stdx {
-    template<typename T, typename Allocator>
+    template<typename T>
     class Vector {
-        [[no_unique_address]] Allocator mAllocator;
+        mem::IAllocator *mAllocator;
 
         T *mFront;
         T *mBack;
@@ -17,28 +20,28 @@ namespace stdx {
 
         void ensureExtra(size_t extra) {
             if (count() + extra > capacity()) {
-                reserve(count() + extra);
+                reserveExact(count() + extra);
             }
         }
 
     public:
-        Vector(Allocator allocator)
+        Vector(mem::IAllocator *allocator)
             : mAllocator(allocator)
             , mFront(nullptr)
             , mBack(nullptr)
             , mCapacity(nullptr)
         { }
 
-        Vector(Allocator allocator, size_t capacity)
+        Vector(mem::IAllocator *allocator, size_t capacity)
             : mAllocator(allocator)
-            , mFront(mAllocator.allocate(capacity))
+            , mFront(mAllocator->allocateArray<T>(capacity))
             , mBack(mFront)
             , mCapacity(mFront + capacity)
         { }
 
-        Vector(Allocator allocator, std::span<const T> src)
+        Vector(mem::IAllocator *allocator, std::span<const T> src)
             : mAllocator(allocator)
-            , mFront(mAllocator.allocate(src.size()))
+            , mFront(mAllocator->allocateArray<T>(src.size()))
             , mBack(mFront + src.size())
             , mCapacity(mFront + src.size())
         {
@@ -53,7 +56,7 @@ namespace stdx {
             if (this != &other) {
                 clear();
                 mAllocator = other.mAllocator;
-                mFront = mAllocator.allocate(other.count());
+                mFront = mAllocator->allocateArray<T>(other.count());
                 mBack = mFront + other.count();
                 mCapacity = mFront + other.count();
 
@@ -73,7 +76,7 @@ namespace stdx {
         Vector& operator=(Vector&& other) {
             if (this != &other) {
                 clear();
-                mAllocator = std::exchange(other.mAllocator, Allocator());
+                mAllocator = std::exchange(other.mAllocator, nullptr);
                 mFront = std::exchange(other.mFront, nullptr);
                 mBack = std::exchange(other.mBack, nullptr);
                 mCapacity = std::exchange(other.mCapacity, nullptr);
@@ -114,18 +117,15 @@ namespace stdx {
                 return;
             }
 
-            T *newFront = (T*)mAllocator.allocate(capacity * sizeof(T), alignof(T));
+            T *newFront = mAllocator->allocateArray<T>(capacity);
             T *newBack = newFront + count();
             T *newCapacity = newFront + capacity;
 
             if (mFront) {
+                KM_CHECK(newFront != nullptr, "Failed to allocate new vector buffer");
                 std::uninitialized_move(mFront, mBack, newFront);
-            }
-
-            clear();
-
-            if (mFront) {
-                mAllocator.deallocate((void*)mFront, oldCapacity * sizeof(T));
+                clear();
+                mAllocator->deallocateArray<T>(mFront, oldCapacity);
             }
 
             mFront = newFront;
