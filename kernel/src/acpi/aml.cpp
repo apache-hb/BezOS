@@ -162,6 +162,11 @@ static stdx::StringView StringData(acpi::AmlParser& parser) {
 }
 
 acpi::AmlAnyId acpi::detail::TermArg(AmlParser& parser, acpi::AmlNodeBuffer& code) {
+    // TODO: normalize the parsing
+    if (parser.peek() == 0x5B) {
+        return Term(parser, code);
+    }
+
     return code.add(AmlDataTerm{DataRefObject(parser, code)});
 }
 
@@ -229,21 +234,22 @@ static acpi::AmlPackageId DefPackage(acpi::AmlParser& parser, acpi::AmlNodeBuffe
     return code.add(acpi::AmlPackageTerm { elements });
 }
 
+enum {
+    kBytePrefix = 0x0A,
+    kWordPrefix = 0x0B,
+    kDwordPrefix = 0x0C,
+    kQwordPrefix = 0x0E,
+    kStringPrefix = 0x0D,
+    kBufferPrefix = 0x11,
+
+    kPackageOp = 0x12,
+
+    kZeroOp = 0x00,
+    kOneOp = 0x01,
+    kOnesOp = 0xFF,
+};
+
 acpi::AmlData acpi::detail::DataRefObject(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
-    enum {
-        kBytePrefix = 0x0A,
-        kWordPrefix = 0x0B,
-        kDwordPrefix = 0x0C,
-        kQwordPrefix = 0x0E,
-        kStringPrefix = 0x0D,
-        kBufferPrefix = 0x11,
-
-        kPackageOp = 0x12,
-
-        kZeroOp = 0x00,
-        kOneOp = 0x01,
-        kOnesOp = 0xFF,
-    };
 
     uint8_t it = parser.read();
 
@@ -425,9 +431,10 @@ acpi::AmlProcessorTerm acpi::detail::ProcessorTerm(AmlParser& parser, AmlNodeBuf
 
 acpi::AmlIfElseOp acpi::detail::DefIfElse(AmlParser& parser, AmlNodeBuffer& code) {
     uint32_t front = parser.offset();
+
     uint32_t length = PkgLength(parser);
 
-    acpi::AmlExpr predicate = { }; // TODO
+    AmlAnyId predicate = TermArg(parser, code);
 
     uint32_t back = parser.offset();
 
@@ -435,9 +442,9 @@ acpi::AmlIfElseOp acpi::detail::DefIfElse(AmlParser& parser, AmlNodeBuffer& code
 
     stdx::Vector<acpi::AmlAnyId> terms(code.allocator());
 
-    // while (!sub.done()) {
-    //     terms.add(Term(sub, code));
-    // }
+    while (!sub.done()) {
+        terms.add(Term(sub, code));
+    }
 
     KmDebugMessage("[AML] IfElse () - ", (length - (back - front)), "\n");
 
@@ -466,6 +473,15 @@ acpi::AmlOpRegionTerm acpi::detail::DefOpRegion(AmlParser& parser, AmlNodeBuffer
     return opRegion;
 }
 
+acpi::AmlStoreTerm acpi::detail::DefStore(AmlParser& parser, AmlNodeBuffer& code) {
+    acpi::AmlAnyId source = TermArg(parser, code);
+    acpi::AmlSuperName target = SuperName(parser);
+
+    KmDebugMessage("[AML] Store (", target.name, ")\n");
+
+    return { source, target };
+}
+
 acpi::CreateDwordFieldTerm acpi::detail::DefCreateDwordField(AmlParser& parser, AmlNodeBuffer& code) {
     AmlAnyId source = TermArg(parser, code);
     AmlAnyId index = TermArg(parser, code);
@@ -483,6 +499,7 @@ acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& 
         kScopeOp = 0x10,
         kCondRefOp = 0x12,
         kMethodOp = 0x14,
+        kStoreOp = 0x70,
         kIfOp = 0xA0,
 
         kCreateDwordFieldOp = 0x8A,
@@ -513,8 +530,33 @@ acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& 
     case kIfOp:
         return code.add(DefIfElse(parser, code));
 
+    case kStoreOp:
+        return code.add(DefStore(parser, code));
+
     case kCreateDwordFieldOp:
         return code.add(DefCreateDwordField(parser, code));
+
+    case kBytePrefix:
+        return code.add(AmlDataTerm{ AmlData{ acpi::AmlData::Type::eByte, { ByteData(parser) } } });
+    case kWordPrefix:
+        return code.add(AmlDataTerm{ AmlData{ acpi::AmlData::Type::eWord, { WordData(parser) } }});
+    case kDwordPrefix:
+        return code.add(AmlDataTerm{ AmlData{ acpi::AmlData::Type::eDword, { DwordData(parser) } }});
+    case kQwordPrefix:
+        return code.add(AmlDataTerm{ AmlData{ acpi::AmlData::Type::eQword, { QwordData(parser) } }});
+    case kStringPrefix:
+        parser.advance();
+        return code.add(AmlDataTerm{ AmlData{ acpi::AmlData::Type::eString, { StringData(parser) } }});
+    case kBufferPrefix:
+        return code.add(AmlDataTerm{ AmlData{ acpi::AmlData::Type::eBuffer, { BufferData(parser, code) } }});
+    case kPackageOp:
+        return code.add(AmlDataTerm{ AmlData{ acpi::AmlData::Type::ePackage, { DefPackage(parser, code) } }});
+    case kZeroOp:
+        return code.add(AmlDataTerm{ AmlData{ acpi::AmlData::Type::eByte, { 0ull } }});
+    case kOneOp:
+        return code.add(AmlDataTerm{ AmlData{ acpi::AmlData::Type::eByte, { 1ull } }});
+    case kOnesOp:
+        return code.add(AmlDataTerm{ code.ones() });
 
     case kExtOpPrefix: {
         uint8_t ext = parser.read();
@@ -573,7 +615,7 @@ acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& 
     }
     default:
         KmDebugMessage("[AML] Unknown TermObj ", km::Hex(op).pad(2, '0'), "\n");
-        break;
+        return code.add(AmlDataTerm{DataRefObject(parser, code)});
     }
 
     return { 0 };
@@ -600,6 +642,11 @@ using AmlNameFormat = km::Format<acpi::AmlName>;
 using AmlConstFormat = km::Format<acpi::AmlData>;
 
 void AmlNameFormat::format(km::IOutStream& out, const acpi::AmlName& value) {
+    if (value.segments.isEmpty()) {
+        out.write("NullName");
+        return;
+    }
+
     if (value.prefix == SIZE_MAX) {
         out.write('\\');
     } else {

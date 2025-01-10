@@ -174,10 +174,6 @@ namespace acpi {
     };
 
     struct AmlSuperName {
-        enum class Type {
-
-        };
-
         AmlName name;
     };
 
@@ -214,6 +210,7 @@ namespace acpi {
         eMethod,
         ePackage,
         eData,
+        eStore,
         eOpRegion,
         eScope,
         eAlias,
@@ -226,6 +223,12 @@ namespace acpi {
         eCreateWordField,
         eCreateDwordField,
         eCreateQwordField,
+    };
+
+    struct AmlStoreTerm {
+        static constexpr AmlTermType kType = AmlTermType::eStore;
+        AmlAnyId source;
+        AmlSuperName target;
     };
 
     struct AmlNameTerm {
@@ -290,7 +293,7 @@ namespace acpi {
 
     struct AmlIfElseOp {
         static constexpr AmlTermType kType = AmlTermType::eIfElse;
-        AmlExpr predicate;
+        AmlAnyId predicate;
         stdx::Vector<AmlAnyId> terms;
     };
 
@@ -412,6 +415,8 @@ namespace acpi {
 
         AmlAnyId Term(AmlParser& parser, AmlNodeBuffer& code);
 
+        AmlAnyId ExpressionOp(AmlParser& parser, AmlNodeBuffer& code);
+
         AmlAnyId TermArg(AmlParser& parser, AmlNodeBuffer& code);
 
         AmlAliasTerm AliasTerm(AmlParser& parser, AmlNodeBuffer& code);
@@ -427,6 +432,8 @@ namespace acpi {
         AmlCondRefOp ConfRefOf(AmlParser& parser, AmlNodeBuffer& code);
 
         AmlOpRegionTerm DefOpRegion(AmlParser& parser, AmlNodeBuffer& code);
+
+        AmlStoreTerm DefStore(AmlParser& parser, AmlNodeBuffer& code);
 
         CreateDwordFieldTerm DefCreateDwordField(AmlParser& parser, AmlNodeBuffer& code);
     }
