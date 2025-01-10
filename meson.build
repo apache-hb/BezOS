@@ -280,6 +280,7 @@ endforeach
 testcases = [
     'B450M-MORTAR',
     'H13SSL-N',
+    'G513RM',
 ]
 
 acpixtract = find_program('data/test/acpi/dump.sh')

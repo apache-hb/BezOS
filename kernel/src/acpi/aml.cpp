@@ -174,13 +174,15 @@ uint32_t acpi::detail::PkgLength(acpi::AmlParser& parser) {
     }
 }
 
-static acpi::AmlData DataRefObject(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code);
-
 static acpi::AmlPackageId DefPackage(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
-    uint32_t length = PkgLength(parser);
-    (void)length; // TODO: Should probably limit parsing with length as well as count
+    uint32_t front = parser.offset();
 
+    uint32_t length = PkgLength(parser);
     uint8_t count = ByteData(parser);
+
+    uint32_t back = parser.offset();
+
+    acpi::AmlParser sub = parser.subspan(length - (back - front));
 
     acpi::AmlAllocator *alloc = code.allocator();
 
@@ -191,7 +193,7 @@ static acpi::AmlPackageId DefPackage(acpi::AmlParser& parser, acpi::AmlNodeBuffe
     std::unique_ptr<acpi::AmlData[], decltype(deleter)> terms{alloc->allocateArray<acpi::AmlData>(count), deleter};
 
     for (uint8_t i = 0; i < count; i++) {
-        terms[i] = DataRefObject(parser, code);
+        terms[i] = DataRefObject(sub, code);
     }
 
     acpi::AmlIdRange elements = code.addRange([&] {
@@ -203,7 +205,7 @@ static acpi::AmlPackageId DefPackage(acpi::AmlParser& parser, acpi::AmlNodeBuffe
     return code.add(acpi::AmlPackageTerm { elements });
 }
 
-static acpi::AmlData DataRefObject(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
+acpi::AmlData acpi::detail::DataRefObject(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
     enum {
         kBytePrefix = 0x0A,
         kWordPrefix = 0x0B,

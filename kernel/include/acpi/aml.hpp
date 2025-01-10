@@ -51,6 +51,12 @@ namespace acpi {
         bool done() const {
             return mOffset >= mCode.size();
         }
+
+        AmlParser subspan(uint32_t count) {
+            uint32_t offset = mOffset;
+            mOffset += count;
+            return { mCode.subspan(offset, count) };
+        }
     };
 
     struct AmlName {
@@ -197,11 +203,11 @@ namespace acpi {
         }
 
     public:
-        AmlNodeBuffer(AmlAllocator allocator, RsdtHeader header)
+        AmlNodeBuffer(AmlAllocator allocator, uint32_t revision)
             : mAllocator(allocator)
             , mHeaders(&mAllocator)
             , mObjects(&mAllocator)
-            , mOnes(AmlNodeBuffer::ones(header.revision))
+            , mOnes(AmlNodeBuffer::ones(revision))
         { }
 
         AmlAllocator *allocator() { return &mAllocator; }
@@ -231,7 +237,7 @@ namespace acpi {
     public:
         AmlCode(RsdtHeader header, AmlAllocator arena)
             : mHeader(header)
-            , mNodes(arena, mHeader)
+            , mNodes(arena, mHeader.revision)
         { }
 
         AmlNodeBuffer& nodes() { return mNodes; }
@@ -251,12 +257,15 @@ namespace acpi {
 
         // 20.2.2. Name Objects Encoding
         AmlName NameString(AmlParser& parser);
+
+        AmlData DataRefObject(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code);
     }
 
     namespace literals {
         constexpr AmlName operator""_aml(const char *str, size_t len) {
+            const char *end = str + len;
             size_t prefix = 0;
-            while (*str == '\\') {
+            while (*str == '^') {
                 prefix++;
                 str++;
             }
@@ -264,19 +273,33 @@ namespace acpi {
             AmlName name;
             name.prefix = prefix;
 
-            while (len >= 4) {
-                acpi::AmlName::Segment seg;
+            // chunk the name into 4 byte segments seperated with '.'
+            // if the '.' appears within the name segment then pad with
+            // trailing '_'
 
-                // TODO: fixup case where \\_PR -> \\_PR_
-                seg.add(str, str + 4);
+            while (str < end) {
+                char segment[4];
+                for (size_t i = 0; i < 4; i++) {
+                    if (str < end) {
+                        if (*str == '.') {
+                            str++;
+                            // fill rest of segment with '_'
+                            for (; i < 4; i++) {
+                                segment[i] = '_';
+                            }
+                            break;
+                        }
 
-                name.segments.add(seg);
+                        segment[i] = *str++;
+                    } else {
+                        segment[i] = '_';
+                    }
+                }
 
-                len -= 4;
+                name.segments.add(segment);
 
-                if (len > 0 && *str == '.') {
+                if (*str == '.') {
                     str++;
-                    len--;
                 }
             }
 

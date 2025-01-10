@@ -75,3 +75,151 @@ TEST(AmlDetailTest, QwordDataValue) {
 
     ASSERT_EQ(value, 0x8877665544332211);
 }
+
+static constexpr size_t kSize = 0x10000;
+
+static auto GetAllocatorMemory() {
+    auto deleter = [](uint8_t *ptr) {
+        :: operator delete[] (ptr, std::align_val_t(16));
+    };
+
+    return std::unique_ptr<uint8_t[], decltype(deleter)>{
+        new (std::align_val_t(16)) uint8_t[kSize],
+        deleter
+    };
+}
+
+TEST(AmlDetailTest, DataRefObjectByte) {
+    uint8_t data[] = { 0x0A, 0x42 };
+
+    std::unique_ptr memory = GetAllocatorMemory();
+    acpi::AmlAllocator bitmap {memory.get(), memory.get() + kSize, 16};
+
+    acpi::AmlNodeBuffer code { bitmap, 2 };
+    acpi::AmlParser parser(data);
+    acpi::AmlData value = acpi::detail::DataRefObject(parser, code);
+
+    ASSERT_EQ(value.type, acpi::AmlData::Type::eByte);
+    ASSERT_EQ(value.data.integer, 0x42);
+}
+
+TEST(AmlDetailTest, DataRefObjectWord) {
+    uint8_t data[] = { 0x0B, 0xFF, 0x00 };
+
+    std::unique_ptr memory = GetAllocatorMemory();
+    acpi::AmlAllocator bitmap {memory.get(), memory.get() + kSize, 16};
+
+    acpi::AmlNodeBuffer code { bitmap, 2 };
+    acpi::AmlParser parser(data);
+    acpi::AmlData value = acpi::detail::DataRefObject(parser, code);
+
+    ASSERT_EQ(value.type, acpi::AmlData::Type::eWord);
+    ASSERT_EQ(value.data.integer, 0x00FF);
+}
+
+TEST(AmlDetailTest, DataRefObjectDword) {
+    uint8_t data[] = { 0x0C, 0x11, 0x22, 0x33, 0x44 };
+
+    std::unique_ptr memory = GetAllocatorMemory();
+    acpi::AmlAllocator bitmap {memory.get(), memory.get() + kSize, 16};
+
+    acpi::AmlNodeBuffer code { bitmap, 2 };
+    acpi::AmlParser parser(data);
+    acpi::AmlData value = acpi::detail::DataRefObject(parser, code);
+
+    ASSERT_EQ(value.type, acpi::AmlData::Type::eDword);
+    ASSERT_EQ(value.data.integer, 0x44332211);
+}
+
+TEST(AmlDetailTest, DataRefObjectQword) {
+    uint8_t data[] = {
+        0x0E, 0x11, 0x22, 0x33, 0x44,
+        0x55, 0x66, 0x77, 0x88
+    };
+
+    std::unique_ptr memory = GetAllocatorMemory();
+    acpi::AmlAllocator bitmap {memory.get(), memory.get() + kSize, 16};
+
+    acpi::AmlNodeBuffer code { bitmap, 2 };
+    acpi::AmlParser parser(data);
+    acpi::AmlData value = acpi::detail::DataRefObject(parser, code);
+
+    ASSERT_EQ(value.type, acpi::AmlData::Type::eQword);
+    ASSERT_EQ(value.data.integer, 0x8877665544332211);
+}
+
+TEST(AmlDetailTest, DataRefObjectString) {
+    uint8_t data[] = {
+        0x0D, 0x04, 'A', 'B', 'C', 'D'
+    };
+
+    std::unique_ptr memory = GetAllocatorMemory();
+    acpi::AmlAllocator bitmap {memory.get(), memory.get() + kSize, 16};
+
+    acpi::AmlNodeBuffer code { bitmap, 2 };
+    acpi::AmlParser parser(data);
+    acpi::AmlData value = acpi::detail::DataRefObject(parser, code);
+
+    ASSERT_EQ(value.type, acpi::AmlData::Type::eString);
+    ASSERT_EQ(value.data.string.count(), 4);
+    ASSERT_EQ(value.data.string[0], 'A');
+    ASSERT_EQ(value.data.string[1], 'B');
+    ASSERT_EQ(value.data.string[2], 'C');
+    ASSERT_EQ(value.data.string[3], 'D');
+}
+
+TEST(AmlDetailTest, Revision0Ones) {
+    uint8_t data[] = { 0xFF };
+
+    std::unique_ptr memory = GetAllocatorMemory();
+    acpi::AmlAllocator bitmap {memory.get(), memory.get() + kSize, 16};
+
+    acpi::AmlNodeBuffer code { bitmap, 0 };
+    acpi::AmlParser parser(data);
+    acpi::AmlData value = acpi::detail::DataRefObject(parser, code);
+
+    ASSERT_EQ(value.type, acpi::AmlData::Type::eDword);
+    ASSERT_EQ(value.data.integer, 0xFFFF'FFFF);
+}
+
+TEST(AmlDetailTest, Revision2Ones) {
+    uint8_t data[] = { 0xFF, 0xFF };
+
+    std::unique_ptr memory = GetAllocatorMemory();
+    acpi::AmlAllocator bitmap {memory.get(), memory.get() + kSize, 16};
+
+    acpi::AmlNodeBuffer code { bitmap, 2 };
+    acpi::AmlParser parser(data);
+    acpi::AmlData value = acpi::detail::DataRefObject(parser, code);
+
+    ASSERT_EQ(value.type, acpi::AmlData::Type::eQword);
+    ASSERT_EQ(value.data.integer, 0xFFFF'FFFF'FFFF'FFFF);
+}
+
+TEST(AmlDetailTest, ZeroData) {
+    uint8_t data[] = { 0x00 };
+
+    std::unique_ptr memory = GetAllocatorMemory();
+    acpi::AmlAllocator bitmap {memory.get(), memory.get() + kSize, 16};
+
+    acpi::AmlNodeBuffer code { bitmap, 0 };
+    acpi::AmlParser parser(data);
+    acpi::AmlData value = acpi::detail::DataRefObject(parser, code);
+
+    ASSERT_EQ(value.type, acpi::AmlData::Type::eByte);
+    ASSERT_EQ(value.data.integer, 0);
+}
+
+TEST(AmlDetailTest, OneData) {
+    uint8_t data[] = { 0x01 };
+
+    std::unique_ptr memory = GetAllocatorMemory();
+    acpi::AmlAllocator bitmap {memory.get(), memory.get() + kSize, 16};
+
+    acpi::AmlNodeBuffer code { bitmap, 0 };
+    acpi::AmlParser parser(data);
+    acpi::AmlData value = acpi::detail::DataRefObject(parser, code);
+
+    ASSERT_EQ(value.type, acpi::AmlData::Type::eByte);
+    ASSERT_EQ(value.data.integer, 1);
+}

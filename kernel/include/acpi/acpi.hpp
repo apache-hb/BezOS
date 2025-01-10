@@ -51,6 +51,7 @@ namespace acpi {
         const Madt *mMadt;
         const Mcfg *mMcfg;
         const Fadt *mFadt;
+        const RsdtHeader *mDsdt;
 
     public:
         AcpiTables(const RsdpLocator *locator, km::SystemMemory& memory);
@@ -67,6 +68,7 @@ namespace acpi {
         const Madt *madt() const { return mMadt; }
         const Mcfg *mcfg() const { return mMcfg; }
         const Fadt *fadt() const { return mFadt; }
+        const RsdtHeader *dsdt() const { return mDsdt; }
     };
 }
 

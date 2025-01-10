@@ -246,6 +246,15 @@ acpi::AcpiTables::AcpiTables(const RsdpLocator *locator, km::SystemMemory& memor
         const acpi::Xsdt *xsdt = memory.mmapObject<acpi::Xsdt>(km::PhysicalAddress { locator->xsdtAddress });
         setupTables(xsdt);
     }
+
+    if (mFadt != nullptr) {
+        uint64_t address = (revision() == 0) ? mFadt->dsdt : mFadt->x_dsdt;
+        mDsdt = MapTableEntry(km::PhysicalAddress { address }, memory);
+    }
+
+    if (mDsdt != nullptr) {
+        KmDebugMessage(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(mDsdt), mDsdt->length)), "\n");
+    }
 }
 
 uint32_t acpi::AcpiTables::lapicCount() const {
