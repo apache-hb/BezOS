@@ -159,6 +159,27 @@ static stdx::StringView StringData(acpi::AmlParser& parser) {
     return { first, last };
 }
 
+acpi::AmlTermArg acpi::detail::TermArg(AmlParser& parser) {
+    return acpi::AmlTermArg { }; // TODO
+}
+
+acpi::AmlBuffer acpi::detail::BufferData(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
+    uint32_t length = PkgLength(parser);
+
+    size_t front = parser.offset();
+    acpi::AmlTermArg size = TermArg(parser);
+    size_t back = parser.offset();
+
+    size_t space = length - (back - front) - 1;
+
+    stdx::Vector<uint8_t> data{code.allocator(), length};
+    for (uint32_t i = 0; i < space; i++) {
+        data.add(parser.read());
+    }
+
+    return { size, data };
+}
+
 uint32_t acpi::detail::PkgLength(acpi::AmlParser& parser) {
     uint8_t lead = parser.read();
 
@@ -184,7 +205,7 @@ static acpi::AmlPackageId DefPackage(acpi::AmlParser& parser, acpi::AmlNodeBuffe
 
     acpi::AmlParser sub = parser.subspan(length - (back - front));
 
-    acpi::AmlAllocator *alloc = code.allocator();
+    mem::IAllocator *alloc = code.allocator();
 
     auto deleter = [&](acpi::AmlData *ptr) {
         alloc->deallocateArray(ptr, count);
@@ -212,6 +233,7 @@ acpi::AmlData acpi::detail::DataRefObject(acpi::AmlParser& parser, acpi::AmlNode
         kDwordPrefix = 0x0C,
         kQwordPrefix = 0x0E,
         kStringPrefix = 0x0D,
+        kBufferPrefix = 0x11,
 
         kPackageOp = 0x12,
 
@@ -223,6 +245,11 @@ acpi::AmlData acpi::detail::DataRefObject(acpi::AmlParser& parser, acpi::AmlNode
     uint8_t it = parser.read();
 
     switch (it) {
+    case 'A'...'Z': case '_': {
+        acpi::AmlName name;
+        NameSegBody(parser, name, it);
+        return { acpi::AmlData::Type::eString, { name.segments[0] } };
+    }
     case kBytePrefix:
         return { acpi::AmlData::Type::eByte, { ByteData(parser) } };
     case kWordPrefix:
@@ -231,25 +258,22 @@ acpi::AmlData acpi::detail::DataRefObject(acpi::AmlParser& parser, acpi::AmlNode
         return { acpi::AmlData::Type::eDword, { DwordData(parser) } };
     case kQwordPrefix:
         return { acpi::AmlData::Type::eQword, { QwordData(parser) } };
-    case 'A'...'Z': case '_': {
-        acpi::AmlName name;
-        NameSegBody(parser, name, it);
-        return { acpi::AmlData::Type::eString, { name.segments[0] } };
-    }
     case kStringPrefix:
         parser.advance();
         return { acpi::AmlData::Type::eString, { StringData(parser) } };
+    case kBufferPrefix:
+        return { acpi::AmlData::Type::eBuffer, { BufferData(parser, code) } };
     case kPackageOp:
         return { acpi::AmlData::Type::ePackage, { DefPackage(parser, code) } };
     case kZeroOp:
-        return { acpi::AmlData::Type::eByte, { 0 } };
+        return { acpi::AmlData::Type::eByte, { 0ull } };
     case kOneOp:
-        return { acpi::AmlData::Type::eByte, { 1 } };
+        return { acpi::AmlData::Type::eByte, { 1ull } };
     case kOnesOp:
         return code.ones();
     default:
         KmDebugMessage("[AML] Unknown DataRefObject: ", km::Hex(it).pad(2, '0'), "\n");
-        return { acpi::AmlData::Type::eByte, { 0 } };
+        return { acpi::AmlData::Type::eByte, { 0ull } };
     }
 }
 
@@ -309,19 +333,21 @@ acpi::AmlNameTerm acpi::detail::NameTerm(AmlParser& parser, AmlNodeBuffer& code)
 
 acpi::AmlScopeTerm acpi::detail::ScopeTerm(AmlParser& parser, AmlNodeBuffer& code) {
     uint32_t front = parser.offset();
+
     uint32_t length = PkgLength(parser);
     acpi::AmlName name = NameString(parser);
+
     uint32_t back = parser.offset();
 
-    acpi::AmlParser sub = parser.subspan(length - (back - front));
-
     stdx::Vector<acpi::AmlAnyId> terms(code.allocator());
+
+    acpi::AmlParser sub = parser.subspan(length - (back - front));
 
     while (!sub.done()) {
         terms.add(Term(sub, code));
     }
 
-    KmDebugMessage("[AML] Scope (", name, ") - ", length, "\n");
+    KmDebugMessage("[AML] Scope (", name, ") - ", (length - (back - front)), "\n");
 
     return acpi::AmlScopeTerm { name, terms };
 }
@@ -342,21 +368,67 @@ acpi::AmlMethodTerm acpi::detail::MethodTerm(AmlParser& parser, AmlNodeBuffer& c
     return { name, flags };
 }
 
+acpi::AmlAliasTerm acpi::detail::AliasTerm(AmlParser& parser, AmlNodeBuffer& code) {
+    acpi::AmlName name = NameString(parser);
+    acpi::AmlName alias = NameString(parser);
+
+    KmDebugMessage("[AML] Alias (", name, ", ", alias, ")\n");
+
+    return { name, alias };
+}
+
+acpi::AmlDeviceTerm acpi::detail::DeviceTerm(AmlParser& parser, AmlNodeBuffer& code) {
+    uint32_t front = parser.offset();
+    uint32_t length = PkgLength(parser);
+    acpi::AmlName name = NameString(parser);
+    uint32_t back = parser.offset();
+
+    acpi::AmlParser sub = parser.subspan(length - (back - front));
+
+    KmDebugMessage("[AML] Device (", name, ") - ", (length - (back - front)), "\n");
+
+    return { name };
+}
+
+acpi::AmlProcessorTerm acpi::detail::ProcessorTerm(AmlParser& parser, AmlNodeBuffer& code) {
+    uint32_t front = parser.offset();
+    uint32_t length = PkgLength(parser);
+    acpi::AmlName name = NameString(parser);
+    uint8_t id = ByteData(parser);
+    uint32_t pblkAddr = DwordData(parser);
+    uint8_t pblkLen = ByteData(parser);
+
+    uint32_t back = parser.offset();
+
+    acpi::AmlParser sub = parser.subspan(length - (back - front));
+
+    KmDebugMessage("[AML] Processor (", name, ", ", id, ") - ", (length - (back - front)), "\n");
+
+    return { name, id, pblkAddr, pblkLen };
+}
+
 acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
     enum {
         kNameOp = 0x08,
+        kAliasOp = 0x06,
         kScopeOp = 0x10,
         kMethodOp = 0x14,
         kExtOpPrefix = 0x5B,
 
         kRegionOp = 0x80,
         kFieldOp = 0x81,
+        kDeviceOp = 0x82,
+        kProcessorOp = 0x83,
+        kDerefOfOp = 0x83,
         kIndexFieldOp = 0x86,
     };
 
     switch (uint8_t op = parser.read()) {
     case kNameOp:
         return code.add(NameTerm(parser, code));
+
+    case kAliasOp:
+        return code.add(AliasTerm(parser, code));
 
     case kScopeOp:
         return code.add(ScopeTerm(parser, code));
@@ -393,6 +465,13 @@ acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& 
             parser.skip(length - (back - front));
             break;
         }
+
+        case kDeviceOp:
+            return code.add(DeviceTerm(parser, code));
+
+        case kProcessorOp:
+            return code.add(ProcessorTerm(parser, code));
+
         case kIndexFieldOp: {
             uint32_t front = parser.offset();
 
@@ -427,7 +506,7 @@ acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& 
     return { 0 };
 }
 
-acpi::AmlCode acpi::WalkAml(const RsdtHeader *dsdt, AmlAllocator arena) {
+acpi::AmlCode acpi::WalkAml(const RsdtHeader *dsdt, mem::IAllocator *arena) {
     AmlCode code = { *dsdt, arena };
 
     AmlParser parser(dsdt);
@@ -463,6 +542,18 @@ acpi::AmlScopeId acpi::AmlNodeBuffer::add(AmlScopeTerm term) {
     return addTerm(term, AmlTermType::eScope);
 }
 
+acpi::AmlAliasId acpi::AmlNodeBuffer::add(AmlAliasTerm term) {
+    return addTerm(term, AmlTermType::eAlias);
+}
+
+acpi::AmlDeviceId acpi::AmlNodeBuffer::add(AmlDeviceTerm term) {
+    return addTerm(term, AmlTermType::eDevice);
+}
+
+acpi::AmlProcessorId acpi::AmlNodeBuffer::add(AmlProcessorTerm term) {
+    return addTerm(term, AmlTermType::eProcessor);
+}
+
 acpi::AmlNameTerm acpi::AmlNodeBuffer::get(AmlNameId id) {
     ObjectHeader header = mHeaders[id.id];
     return *mObjects.get<AmlNameTerm>(header.offset);
@@ -484,22 +575,25 @@ void AmlNameFormat::format(km::IOutStream& out, const acpi::AmlName& value) {
 void AmlConstFormat::format(km::IOutStream& out, const acpi::AmlData& value) {
     switch (value.type) {
     case acpi::AmlData::Type::eByte:
-        out.format(km::Hex(value.data.integer).pad(2));
+        out.format(km::Hex(std::get<uint64_t>(value.data)).pad(2));
         break;
     case acpi::AmlData::Type::eWord:
-        out.format(km::Hex(value.data.integer).pad(4));
+        out.format(km::Hex(std::get<uint64_t>(value.data)).pad(4));
         break;
     case acpi::AmlData::Type::eDword:
-        out.format(km::Hex(value.data.integer).pad(8));
+        out.format(km::Hex(std::get<uint64_t>(value.data)).pad(8));
         break;
     case acpi::AmlData::Type::eQword:
-        out.format(km::Hex(value.data.integer).pad(16));
+        out.format(km::Hex(std::get<uint64_t>(value.data)).pad(16));
         break;
     case acpi::AmlData::Type::eString:
-        out.format("\"", value.data.string, "\"");
+        out.format("\"", std::get<stdx::StringView>(value.data), "\"");
         break;
     case acpi::AmlData::Type::ePackage:
         out.write("package");
+        break;
+    case acpi::AmlData::Type::eBuffer:
+        out.write("buffer");
         break;
     default:
         out.write("unknown");

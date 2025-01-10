@@ -93,7 +93,6 @@ void *mem::BitmapAllocator::allocate(size_t size, size_t align) {
     align = sm::roundup(align, mUnit);
     size = sm::roundup(size, mUnit);
 
-
     size_t front = allocateBitmapSpace(size / mUnit, align / mUnit);
 
     int pressure = 0;
@@ -113,8 +112,6 @@ void *mem::BitmapAllocator::allocate(size_t size, size_t align) {
 
     void *ptr = (uint8_t*)memoryFront() + (front * mUnit);
 
-    KmDebugMessage("Allocating ", size, " bytes with ", align, " alignment = ", ptr, ", pressure = ", pressure, "/", bitmapWordCount() * CHAR_BIT,  "\n");
-
     return ptr;
 }
 
@@ -123,7 +120,7 @@ void mem::BitmapAllocator::deallocate(void *ptr, size_t size) {
         return;
     }
 
-    KmDebugMessage("Deallocating ", size, " bytes ", ptr, "\n");
+    size = sm::roundup(size, mUnit);
 
     size_t offset = (uintptr_t)ptr - (uintptr_t)memoryFront();
     size_t front = offset / mUnit;

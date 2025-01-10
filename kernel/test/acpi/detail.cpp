@@ -95,12 +95,12 @@ TEST(AmlDetailTest, DataRefObjectByte) {
     std::unique_ptr memory = GetAllocatorMemory();
     acpi::AmlAllocator bitmap {memory.get(), memory.get() + kSize, 16};
 
-    acpi::AmlNodeBuffer code { bitmap, 2 };
+    acpi::AmlNodeBuffer code { &bitmap, 2 };
     acpi::AmlParser parser(data);
     acpi::AmlData value = acpi::detail::DataRefObject(parser, code);
 
     ASSERT_EQ(value.type, acpi::AmlData::Type::eByte);
-    ASSERT_EQ(value.data.integer, 0x42);
+    ASSERT_EQ(std::get<uint64_t>(value.data), 0x42);
 }
 
 TEST(AmlDetailTest, DataRefObjectWord) {
@@ -109,12 +109,12 @@ TEST(AmlDetailTest, DataRefObjectWord) {
     std::unique_ptr memory = GetAllocatorMemory();
     acpi::AmlAllocator bitmap {memory.get(), memory.get() + kSize, 16};
 
-    acpi::AmlNodeBuffer code { bitmap, 2 };
+    acpi::AmlNodeBuffer code { &bitmap, 2 };
     acpi::AmlParser parser(data);
     acpi::AmlData value = acpi::detail::DataRefObject(parser, code);
 
     ASSERT_EQ(value.type, acpi::AmlData::Type::eWord);
-    ASSERT_EQ(value.data.integer, 0x00FF);
+    ASSERT_EQ(std::get<uint64_t>(value.data), 0x00FF);
 }
 
 TEST(AmlDetailTest, DataRefObjectDword) {
@@ -123,12 +123,12 @@ TEST(AmlDetailTest, DataRefObjectDword) {
     std::unique_ptr memory = GetAllocatorMemory();
     acpi::AmlAllocator bitmap {memory.get(), memory.get() + kSize, 16};
 
-    acpi::AmlNodeBuffer code { bitmap, 2 };
+    acpi::AmlNodeBuffer code { &bitmap, 2 };
     acpi::AmlParser parser(data);
     acpi::AmlData value = acpi::detail::DataRefObject(parser, code);
 
     ASSERT_EQ(value.type, acpi::AmlData::Type::eDword);
-    ASSERT_EQ(value.data.integer, 0x44332211);
+    ASSERT_EQ(std::get<uint64_t>(value.data), 0x44332211);
 }
 
 TEST(AmlDetailTest, DataRefObjectQword) {
@@ -140,12 +140,12 @@ TEST(AmlDetailTest, DataRefObjectQword) {
     std::unique_ptr memory = GetAllocatorMemory();
     acpi::AmlAllocator bitmap {memory.get(), memory.get() + kSize, 16};
 
-    acpi::AmlNodeBuffer code { bitmap, 2 };
+    acpi::AmlNodeBuffer code { &bitmap, 2 };
     acpi::AmlParser parser(data);
     acpi::AmlData value = acpi::detail::DataRefObject(parser, code);
 
     ASSERT_EQ(value.type, acpi::AmlData::Type::eQword);
-    ASSERT_EQ(value.data.integer, 0x8877665544332211);
+    ASSERT_EQ(std::get<uint64_t>(value.data), 0x8877665544332211);
 }
 
 TEST(AmlDetailTest, DataRefObjectString) {
@@ -156,16 +156,17 @@ TEST(AmlDetailTest, DataRefObjectString) {
     std::unique_ptr memory = GetAllocatorMemory();
     acpi::AmlAllocator bitmap {memory.get(), memory.get() + kSize, 16};
 
-    acpi::AmlNodeBuffer code { bitmap, 2 };
+    acpi::AmlNodeBuffer code { &bitmap, 2 };
     acpi::AmlParser parser(data);
     acpi::AmlData value = acpi::detail::DataRefObject(parser, code);
 
     ASSERT_EQ(value.type, acpi::AmlData::Type::eString);
-    ASSERT_EQ(value.data.string.count(), 4);
-    ASSERT_EQ(value.data.string[0], 'A');
-    ASSERT_EQ(value.data.string[1], 'B');
-    ASSERT_EQ(value.data.string[2], 'C');
-    ASSERT_EQ(value.data.string[3], 'D');
+    stdx::StringView view = std::get<stdx::StringView>(value.data);
+    ASSERT_EQ(view.count(), 4);
+    ASSERT_EQ(view[0], 'A');
+    ASSERT_EQ(view[1], 'B');
+    ASSERT_EQ(view[2], 'C');
+    ASSERT_EQ(view[3], 'D');
 }
 
 TEST(AmlDetailTest, Revision0Ones) {
@@ -174,12 +175,12 @@ TEST(AmlDetailTest, Revision0Ones) {
     std::unique_ptr memory = GetAllocatorMemory();
     acpi::AmlAllocator bitmap {memory.get(), memory.get() + kSize, 16};
 
-    acpi::AmlNodeBuffer code { bitmap, 0 };
+    acpi::AmlNodeBuffer code { &bitmap, 0 };
     acpi::AmlParser parser(data);
     acpi::AmlData value = acpi::detail::DataRefObject(parser, code);
 
     ASSERT_EQ(value.type, acpi::AmlData::Type::eDword);
-    ASSERT_EQ(value.data.integer, 0xFFFF'FFFF);
+    ASSERT_EQ(std::get<uint64_t>(value.data), 0xFFFF'FFFF);
 }
 
 TEST(AmlDetailTest, Revision2Ones) {
@@ -188,12 +189,12 @@ TEST(AmlDetailTest, Revision2Ones) {
     std::unique_ptr memory = GetAllocatorMemory();
     acpi::AmlAllocator bitmap {memory.get(), memory.get() + kSize, 16};
 
-    acpi::AmlNodeBuffer code { bitmap, 2 };
+    acpi::AmlNodeBuffer code { &bitmap, 2 };
     acpi::AmlParser parser(data);
     acpi::AmlData value = acpi::detail::DataRefObject(parser, code);
 
     ASSERT_EQ(value.type, acpi::AmlData::Type::eQword);
-    ASSERT_EQ(value.data.integer, 0xFFFF'FFFF'FFFF'FFFF);
+    ASSERT_EQ(std::get<uint64_t>(value.data), 0xFFFF'FFFF'FFFF'FFFF);
 }
 
 TEST(AmlDetailTest, ZeroData) {
@@ -202,12 +203,12 @@ TEST(AmlDetailTest, ZeroData) {
     std::unique_ptr memory = GetAllocatorMemory();
     acpi::AmlAllocator bitmap {memory.get(), memory.get() + kSize, 16};
 
-    acpi::AmlNodeBuffer code { bitmap, 0 };
+    acpi::AmlNodeBuffer code { &bitmap, 0 };
     acpi::AmlParser parser(data);
     acpi::AmlData value = acpi::detail::DataRefObject(parser, code);
 
     ASSERT_EQ(value.type, acpi::AmlData::Type::eByte);
-    ASSERT_EQ(value.data.integer, 0);
+    ASSERT_EQ(std::get<uint64_t>(value.data), 0);
 }
 
 TEST(AmlDetailTest, OneData) {
@@ -216,10 +217,10 @@ TEST(AmlDetailTest, OneData) {
     std::unique_ptr memory = GetAllocatorMemory();
     acpi::AmlAllocator bitmap {memory.get(), memory.get() + kSize, 16};
 
-    acpi::AmlNodeBuffer code { bitmap, 0 };
+    acpi::AmlNodeBuffer code { &bitmap, 0 };
     acpi::AmlParser parser(data);
     acpi::AmlData value = acpi::detail::DataRefObject(parser, code);
 
     ASSERT_EQ(value.type, acpi::AmlData::Type::eByte);
-    ASSERT_EQ(value.data.integer, 1);
+    ASSERT_EQ(std::get<uint64_t>(value.data), 1);
 }

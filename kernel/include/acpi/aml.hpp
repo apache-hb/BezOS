@@ -14,6 +14,7 @@
 #include <span>
 
 #include <stdint.h>
+#include <variant>
 
 namespace acpi {
     using AmlOffsetType = sm::uint24_t;
@@ -96,6 +97,18 @@ namespace acpi {
     using AmlDataId = AmlId<struct AmlDataTerm>;
     using AmlOpRegionId = AmlId<struct AmlOpRegionTerm>;
     using AmlScopeId = AmlId<struct AmlScopeTerm>;
+    using AmlAliasId = AmlId<struct AmlAliasTerm>;
+    using AmlDeviceId = AmlId<struct AmlDeviceTerm>;
+    using AmlProcessorId = AmlId<struct AmlProcessorTerm>;
+
+    struct AmlTermArg {
+
+    };
+
+    struct AmlBuffer {
+        acpi::AmlTermArg size;
+        stdx::Vector<uint8_t> data;
+    };
 
     struct AmlData {
         enum class Type {
@@ -104,27 +117,18 @@ namespace acpi {
             eDword,
             eQword,
             eString,
+            eBuffer,
             ePackage,
         } type;
 
-        union Data {
-            Data() { }
-            Data(uint64_t i)
-                : integer(i)
-            { }
+        using Data = std::variant<
+            uint64_t,
+            stdx::StringView,
+            AmlPackageId,
+            AmlBuffer
+        >;
 
-            Data(stdx::StringView s)
-                : string(s)
-            { }
-
-            Data(AmlPackageId p)
-                : package(p)
-            { }
-
-            uint64_t integer;
-            stdx::StringView string;
-            AmlPackageId package;
-        } data;
+        Data data;
 
         AmlData() { }
 
@@ -169,6 +173,9 @@ namespace acpi {
         eData,
         eOpRegion,
         eScope,
+        eAlias,
+        eDevice,
+        eProcessor,
     };
 
     struct AmlNameTerm {
@@ -193,6 +200,15 @@ namespace acpi {
         AmlData data;
     };
 
+    struct AmlAliasTerm {
+        AmlName name;
+        AmlName alias;
+    };
+
+    struct AmlDeviceTerm {
+        AmlName name;
+    };
+
     struct AmlOpRegionTerm {
         AmlName name;
         AddressSpaceId region;
@@ -205,13 +221,20 @@ namespace acpi {
         stdx::Vector<AmlAnyId> terms;
     };
 
+    struct AmlProcessorTerm {
+        AmlName name;
+        uint8_t id;
+        uint32_t pblkAddr;
+        uint8_t pblkLen;
+    };
+
     class AmlNodeBuffer {
         struct ObjectHeader {
             AmlTermType type;
             AmlOffsetType offset;
         };
 
-        AmlAllocator mAllocator;
+        mem::IAllocator *mAllocator;
 
         stdx::Vector<ObjectHeader> mHeaders;
         stdx::MemoryResource mObjects;
@@ -236,14 +259,14 @@ namespace acpi {
         }
 
     public:
-        AmlNodeBuffer(AmlAllocator allocator, uint32_t revision)
+        AmlNodeBuffer(mem::IAllocator *allocator, uint32_t revision)
             : mAllocator(allocator)
-            , mHeaders(&mAllocator)
-            , mObjects(&mAllocator)
+            , mHeaders(mAllocator)
+            , mObjects(mAllocator)
             , mOnes(AmlNodeBuffer::ones(revision))
         { }
 
-        AmlAllocator *allocator() { return &mAllocator; }
+        mem::IAllocator *allocator() { return mAllocator; }
 
         AmlNameId add(AmlNameTerm term);
         AmlMethodId add(AmlMethodTerm term);
@@ -251,6 +274,9 @@ namespace acpi {
         AmlDataId add(AmlDataTerm term);
         AmlOpRegionId add(AmlOpRegionTerm term);
         AmlScopeId add(AmlScopeTerm term);
+        AmlAliasId add(AmlAliasTerm term);
+        AmlDeviceId add(AmlDeviceTerm term);
+        AmlProcessorId add(AmlProcessorTerm term);
 
         AmlNameTerm get(AmlNameId id);
 
@@ -275,7 +301,7 @@ namespace acpi {
         AmlNodeBuffer mNodes;
 
     public:
-        AmlCode(RsdtHeader header, AmlAllocator arena)
+        AmlCode(RsdtHeader header, mem::IAllocator *arena)
             : mHeader(header)
             , mNodes(arena, mHeader.revision)
         { }
@@ -285,7 +311,7 @@ namespace acpi {
         std::expected<uint64_t, AmlError> intValue(AmlName name) const;
     };
 
-    AmlCode WalkAml(const RsdtHeader *dsdt, AmlAllocator arena);
+    AmlCode WalkAml(const RsdtHeader *dsdt, mem::IAllocator *arena);
 
     namespace detail {
         // 20.2.3. Data Objects Encoding
@@ -300,7 +326,7 @@ namespace acpi {
         // 20.2.2. Name Objects Encoding
         AmlName NameString(AmlParser& parser);
 
-        AmlData DataRefObject(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code);
+        AmlData DataRefObject(AmlParser& parser, AmlNodeBuffer& code);
 
         AmlNameTerm NameTerm(AmlParser& parser, AmlNodeBuffer& code);
 
@@ -309,6 +335,16 @@ namespace acpi {
         AmlMethodTerm MethodTerm(AmlParser& parser, AmlNodeBuffer& code);
 
         AmlAnyId Term(AmlParser& parser, AmlNodeBuffer& code);
+
+        AmlTermArg TermArg(AmlParser& parser);
+
+        AmlAliasTerm AliasTerm(AmlParser& parser, AmlNodeBuffer& code);
+
+        AmlDeviceTerm DeviceTerm(AmlParser& parser, AmlNodeBuffer& code);
+
+        AmlProcessorTerm ProcessorTerm(AmlParser& parser, AmlNodeBuffer& code);
+
+        AmlBuffer BufferData(AmlParser& parser, AmlNodeBuffer& code);
     }
 
     namespace literals {
