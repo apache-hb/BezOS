@@ -488,7 +488,6 @@ acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& 
 
             KmDebugMessage("[AML] IndexField (", name, ", ", field, ", ", flags.lock() ? "Lock"_sv : "NoLock"_sv, ")\n");
 
-            // -2 for the prefix
             parser.skip(length - (back - front));
             break;
         }
