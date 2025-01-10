@@ -61,6 +61,11 @@ static void NameSeg(acpi::AmlParser& parser, acpi::AmlName& dst) {
     NameSegBody(parser, dst, lead);
 }
 
+enum {
+    kPrefixChar = 0x5e,
+    kRootChar = 0x5c,
+};
+
 static void NamePath(acpi::AmlParser& parser, acpi::AmlName& dst) {
     enum {
         kDualNamePrefix = 0x2e,
@@ -91,11 +96,6 @@ static void NamePath(acpi::AmlParser& parser, acpi::AmlName& dst) {
     }
 }
 
-enum {
-    kPrefixChar = 0x5e,
-    kRootChar = 0x5c,
-};
-
 static void PrefixPath(acpi::AmlParser& parser, acpi::AmlName& name) {
     while (parser.consume(kPrefixChar)) {
         name.prefix += 1;
@@ -103,11 +103,13 @@ static void PrefixPath(acpi::AmlParser& parser, acpi::AmlName& name) {
 }
 
 acpi::AmlName acpi::detail::NameString(acpi::AmlParser& parser) {
-    acpi::AmlName name;
+    acpi::AmlName name = { 0 };
 
     uint8_t letter = parser.peek();
     switch (letter) {
     case kRootChar:
+        parser.advance();
+        name.prefix = SIZE_MAX;
         NamePath(parser, name);
         break;
 
@@ -159,18 +161,19 @@ static stdx::StringView StringData(acpi::AmlParser& parser) {
     return { first, last };
 }
 
-acpi::AmlTermArg acpi::detail::TermArg(AmlParser& parser) {
-    return acpi::AmlTermArg { }; // TODO
+acpi::AmlAnyId acpi::detail::TermArg(AmlParser& parser, acpi::AmlNodeBuffer& code) {
+    return code.add(AmlDataTerm{DataRefObject(parser, code)});
 }
 
 acpi::AmlBuffer acpi::detail::BufferData(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
+    size_t front = parser.offset();
+
     uint32_t length = PkgLength(parser);
 
-    size_t front = parser.offset();
-    acpi::AmlTermArg size = TermArg(parser);
+    acpi::AmlAnyId size = TermArg(parser, code);
     size_t back = parser.offset();
 
-    size_t space = length - (back - front) - 1;
+    size_t space = length - (back - front);
 
     stdx::Vector<uint8_t> data{code.allocator(), length};
     for (uint32_t i = 0; i < space; i++) {
@@ -277,7 +280,6 @@ acpi::AmlData acpi::detail::DataRefObject(acpi::AmlParser& parser, acpi::AmlNode
     }
 }
 
-
 static acpi::AmlMethodFlags MethodFlags(acpi::AmlParser& parser) {
     uint8_t flags = parser.read();
     return { flags };
@@ -329,6 +331,20 @@ acpi::AmlNameTerm acpi::detail::NameTerm(AmlParser& parser, AmlNodeBuffer& code)
     KmDebugMessage("[AML] Name (", name, ", ", data, ")\n");
 
     return { name, code.add(AmlDataTerm(data)) };
+}
+
+acpi::AmlSuperName acpi::detail::SuperName(AmlParser& parser) {
+    acpi::AmlName name = NameString(parser);
+    return { name };
+}
+
+acpi::AmlTarget acpi::detail::Target(AmlParser& parser) {
+    if (parser.consume('\0')) {
+        return acpi::AmlTarget { };
+    }
+
+    acpi::AmlSuperName name = SuperName(parser);
+    return { name };
 }
 
 acpi::AmlScopeTerm acpi::detail::ScopeTerm(AmlParser& parser, AmlNodeBuffer& code) {
@@ -407,12 +423,70 @@ acpi::AmlProcessorTerm acpi::detail::ProcessorTerm(AmlParser& parser, AmlNodeBuf
     return { name, id, pblkAddr, pblkLen };
 }
 
+acpi::AmlIfElseOp acpi::detail::DefIfElse(AmlParser& parser, AmlNodeBuffer& code) {
+    uint32_t front = parser.offset();
+    uint32_t length = PkgLength(parser);
+
+    acpi::AmlExpr predicate = { }; // TODO
+
+    uint32_t back = parser.offset();
+
+    acpi::AmlParser sub = parser.subspan(length - (back - front));
+
+    stdx::Vector<acpi::AmlAnyId> terms(code.allocator());
+
+    // while (!sub.done()) {
+    //     terms.add(Term(sub, code));
+    // }
+
+    KmDebugMessage("[AML] IfElse () - ", (length - (back - front)), "\n");
+
+    return { predicate, terms };
+}
+
+acpi::AmlCondRefOp acpi::detail::ConfRefOf(AmlParser& parser, AmlNodeBuffer& code) {
+    acpi::AmlSuperName name = SuperName(parser);
+    acpi::AmlTarget target = Target(parser);
+
+    KmDebugMessage("[AML] CondRefOf (", name.name, ", ", target.name.name, ")\n");
+
+    return { name, target };
+}
+
+acpi::AmlOpRegionTerm acpi::detail::DefOpRegion(AmlParser& parser, AmlNodeBuffer& code) {
+    acpi::AmlName name = NameString(parser);
+    acpi::AddressSpaceId region = acpi::AddressSpaceId(ByteData(parser));
+    acpi::AmlAnyId offset = TermArg(parser, code);
+    acpi::AmlAnyId size = TermArg(parser, code);
+
+    KmDebugMessage("[AML] OperationRegion (", name, ", ", region, ")\n");
+
+    acpi::AmlOpRegionTerm opRegion = { name, region, offset, size };
+
+    return opRegion;
+}
+
+acpi::CreateDwordFieldTerm acpi::detail::DefCreateDwordField(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlAnyId source = TermArg(parser, code);
+    AmlAnyId index = TermArg(parser, code);
+    acpi::AmlName name = NameString(parser);
+
+    KmDebugMessage("[AML] CreateDwordField (", name, ")\n");
+
+    return { source, index, name };
+}
+
 acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
     enum {
         kNameOp = 0x08,
         kAliasOp = 0x06,
         kScopeOp = 0x10,
+        kCondRefOp = 0x12,
         kMethodOp = 0x14,
+        kIfOp = 0xA0,
+
+        kCreateDwordFieldOp = 0x8A,
+
         kExtOpPrefix = 0x5B,
 
         kRegionOp = 0x80,
@@ -436,21 +510,18 @@ acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& 
     case kMethodOp:
         return code.add(MethodTerm(parser, code));
 
+    case kIfOp:
+        return code.add(DefIfElse(parser, code));
+
+    case kCreateDwordFieldOp:
+        return code.add(DefCreateDwordField(parser, code));
+
     case kExtOpPrefix: {
         uint8_t ext = parser.read();
         switch (ext) {
-        case kRegionOp: {
-            acpi::AmlName name = NameString(parser);
-            acpi::AddressSpaceId region = acpi::AddressSpaceId(ByteData(parser));
-            acpi::AmlData offset = DataRefObject(parser, code);
-            acpi::AmlData size = DataRefObject(parser, code);
+        case kRegionOp:
+            return code.add(DefOpRegion(parser, code));
 
-            KmDebugMessage("[AML] OperationRegion (", name, ", ", region, ", ", offset, ", ", size, ")\n");
-
-            acpi::AmlOpRegionTerm opRegion = { name, region, offset, size };
-            code.add(opRegion);
-            break;
-        }
         case kFieldOp: {
             uint32_t front = parser.offset();
 
@@ -471,6 +542,9 @@ acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& 
 
         case kProcessorOp:
             return code.add(ProcessorTerm(parser, code));
+
+        case kCondRefOp:
+            return code.add(ConfRefOf(parser, code));
 
         case kIndexFieldOp: {
             uint32_t front = parser.offset();
@@ -517,42 +591,6 @@ acpi::AmlCode acpi::WalkAml(const RsdtHeader *dsdt, mem::IAllocator *arena) {
     return code;
 }
 
-acpi::AmlNameId acpi::AmlNodeBuffer::add(AmlNameTerm term) {
-    return addTerm(term, AmlTermType::eName);
-}
-
-acpi::AmlMethodId acpi::AmlNodeBuffer::add(AmlMethodTerm term) {
-    return addTerm(term, AmlTermType::eMethod);
-}
-
-acpi::AmlPackageId acpi::AmlNodeBuffer::add(AmlPackageTerm term) {
-    return addTerm(term, AmlTermType::ePackage);
-}
-
-acpi::AmlDataId acpi::AmlNodeBuffer::add(AmlDataTerm term) {
-    return addTerm(term, AmlTermType::eData);
-}
-
-acpi::AmlOpRegionId acpi::AmlNodeBuffer::add(AmlOpRegionTerm term) {
-    return addTerm(term, AmlTermType::eOpRegion);
-}
-
-acpi::AmlScopeId acpi::AmlNodeBuffer::add(AmlScopeTerm term) {
-    return addTerm(term, AmlTermType::eScope);
-}
-
-acpi::AmlAliasId acpi::AmlNodeBuffer::add(AmlAliasTerm term) {
-    return addTerm(term, AmlTermType::eAlias);
-}
-
-acpi::AmlDeviceId acpi::AmlNodeBuffer::add(AmlDeviceTerm term) {
-    return addTerm(term, AmlTermType::eDevice);
-}
-
-acpi::AmlProcessorId acpi::AmlNodeBuffer::add(AmlProcessorTerm term) {
-    return addTerm(term, AmlTermType::eProcessor);
-}
-
 acpi::AmlNameTerm acpi::AmlNodeBuffer::get(AmlNameId id) {
     ObjectHeader header = mHeaders[id.id];
     return *mObjects.get<AmlNameTerm>(header.offset);
@@ -562,9 +600,14 @@ using AmlNameFormat = km::Format<acpi::AmlName>;
 using AmlConstFormat = km::Format<acpi::AmlData>;
 
 void AmlNameFormat::format(km::IOutStream& out, const acpi::AmlName& value) {
-    for (size_t i = 0; i < value.prefix; i++) {
+    if (value.prefix == SIZE_MAX) {
         out.write('\\');
+    } else {
+        for (size_t i = 0; i < value.prefix; i++) {
+            out.write('^');
+        }
     }
+
     for (size_t i = 0; i < value.segments.count(); i++) {
         if (i != 0) out.write('.');
         out.write(value.segments[i]);

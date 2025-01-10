@@ -224,3 +224,14 @@ TEST(AmlDetailTest, OneData) {
     ASSERT_EQ(value.type, acpi::AmlData::Type::eByte);
     ASSERT_EQ(std::get<uint64_t>(value.data), 1);
 }
+
+TEST(AmlDetailTest, PkgLength1) {
+    const uint8_t data[2] = {
+        0x4C, 0x05,
+    };
+
+    acpi::AmlParser parser(data);
+    uint32_t length = acpi::detail::PkgLength(parser);
+
+    ASSERT_EQ(length, 92);
+}

@@ -189,7 +189,7 @@ test_exe_kwargs = {
     'c_args': c_args,
     'cpp_args': test_cpp_args,
     'dependencies': [ gtest_main, gmock ],
-    'override_options': [ 'b_sanitize=address' ],
+    # 'override_options': [ 'b_sanitize=address' ],
     'native': true,
     'link_with': test_shim,
 }

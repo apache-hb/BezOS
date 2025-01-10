@@ -100,13 +100,40 @@ namespace acpi {
     using AmlAliasId = AmlId<struct AmlAliasTerm>;
     using AmlDeviceId = AmlId<struct AmlDeviceTerm>;
     using AmlProcessorId = AmlId<struct AmlProcessorTerm>;
+    using AmlIfElseId = AmlId<struct IfElseOp>;
+    using AmlCondRefOfId = AmlId<struct CondRefOp>;
+
+    enum class AmlArgObject : uint8_t {
+        eArg0 = 0x68,
+        eArg1 = 0x69,
+        eArg2 = 0x6A,
+        eArg3 = 0x6B,
+        eArg4 = 0x6C,
+        eArg5 = 0x6D,
+        eArg6 = 0x6E,
+    };
+
+    enum AmlLocalObject : uint8_t {
+        eLocal0 = 0x60,
+        eLocal1 = 0x61,
+        eLocal2 = 0x62,
+        eLocal3 = 0x63,
+        eLocal4 = 0x64,
+        eLocal5 = 0x65,
+        eLocal6 = 0x66,
+        eLocal7 = 0x67,
+    };
 
     struct AmlTermArg {
-
+        std::variant<
+            AmlAnyId,
+            AmlArgObject,
+            AmlLocalObject
+        > data;
     };
 
     struct AmlBuffer {
-        acpi::AmlTermArg size;
+        acpi::AmlAnyId size;
         stdx::Vector<uint8_t> data;
     };
 
@@ -140,6 +167,22 @@ namespace acpi {
         bool isInteger() const { return type == Type::eByte || type == Type::eWord || type == Type::eDword || type == Type::eQword; }
         bool isString() const { return type == Type::eString; }
         bool isPackage() const { return type == Type::ePackage; }
+    };
+
+    struct AmlExpr {
+
+    };
+
+    struct AmlSuperName {
+        enum class Type {
+
+        };
+
+        AmlName name;
+    };
+
+    struct AmlTarget {
+        acpi::AmlSuperName name;
     };
 
     struct AmlMethodFlags {
@@ -176,56 +219,92 @@ namespace acpi {
         eAlias,
         eDevice,
         eProcessor,
+        eIfElse,
+        eCondRefOf,
+
+        eCreateByteField,
+        eCreateWordField,
+        eCreateDwordField,
+        eCreateQwordField,
     };
 
     struct AmlNameTerm {
+        static constexpr AmlTermType kType = AmlTermType::eName;
         AmlName name;
         AmlAnyId data;
     };
 
     struct AmlMethodTerm {
+        static constexpr AmlTermType kType = AmlTermType::eMethod;
         AmlName name;
         AmlMethodFlags flags;
     };
 
     struct AmlNameString {
+        static constexpr AmlTermType kType = AmlTermType::eName;
         AmlName name;
     };
 
     struct AmlPackageTerm {
+        static constexpr AmlTermType kType = AmlTermType::ePackage;
         AmlIdRange range;
     };
 
     struct AmlDataTerm {
+        static constexpr AmlTermType kType = AmlTermType::eData;
         AmlData data;
     };
 
     struct AmlAliasTerm {
+        static constexpr AmlTermType kType = AmlTermType::eAlias;
         AmlName name;
         AmlName alias;
     };
 
     struct AmlDeviceTerm {
+        static constexpr AmlTermType kType = AmlTermType::eDevice;
         AmlName name;
     };
 
     struct AmlOpRegionTerm {
+        static constexpr AmlTermType kType = AmlTermType::eOpRegion;
         AmlName name;
         AddressSpaceId region;
-        AmlData offset;
-        AmlData size;
+        AmlAnyId offset;
+        AmlAnyId size;
     };
 
     struct AmlScopeTerm {
+        static constexpr AmlTermType kType = AmlTermType::eScope;
         AmlName name;
         stdx::Vector<AmlAnyId> terms;
     };
 
     struct AmlProcessorTerm {
+        static constexpr AmlTermType kType = AmlTermType::eProcessor;
         AmlName name;
         uint8_t id;
         uint32_t pblkAddr;
         uint8_t pblkLen;
+    };
+
+    struct AmlIfElseOp {
+        static constexpr AmlTermType kType = AmlTermType::eIfElse;
+        AmlExpr predicate;
+        stdx::Vector<AmlAnyId> terms;
+    };
+
+    struct AmlCondRefOp {
+        static constexpr AmlTermType kType = AmlTermType::eCondRefOf;
+        AmlSuperName name;
+        AmlTarget target;
+    };
+
+    struct CreateDwordFieldTerm {
+        static constexpr AmlTermType kType = AmlTermType::eCreateDwordField;
+        AmlAnyId source;
+        AmlAnyId index;
+        AmlName name;
     };
 
     class AmlNodeBuffer {
@@ -268,15 +347,8 @@ namespace acpi {
 
         mem::IAllocator *allocator() { return mAllocator; }
 
-        AmlNameId add(AmlNameTerm term);
-        AmlMethodId add(AmlMethodTerm term);
-        AmlPackageId add(AmlPackageTerm term);
-        AmlDataId add(AmlDataTerm term);
-        AmlOpRegionId add(AmlOpRegionTerm term);
-        AmlScopeId add(AmlScopeTerm term);
-        AmlAliasId add(AmlAliasTerm term);
-        AmlDeviceId add(AmlDeviceTerm term);
-        AmlProcessorId add(AmlProcessorTerm term);
+        template<typename T>
+        AmlId<T> add(T term) { return addTerm(term, T::kType); }
 
         AmlNameTerm get(AmlNameId id);
 
@@ -326,6 +398,10 @@ namespace acpi {
         // 20.2.2. Name Objects Encoding
         AmlName NameString(AmlParser& parser);
 
+        AmlSuperName SuperName(AmlParser& parser);
+
+        AmlTarget Target(AmlParser& parser);
+
         AmlData DataRefObject(AmlParser& parser, AmlNodeBuffer& code);
 
         AmlNameTerm NameTerm(AmlParser& parser, AmlNodeBuffer& code);
@@ -336,7 +412,7 @@ namespace acpi {
 
         AmlAnyId Term(AmlParser& parser, AmlNodeBuffer& code);
 
-        AmlTermArg TermArg(AmlParser& parser);
+        AmlAnyId TermArg(AmlParser& parser, AmlNodeBuffer& code);
 
         AmlAliasTerm AliasTerm(AmlParser& parser, AmlNodeBuffer& code);
 
@@ -345,6 +421,14 @@ namespace acpi {
         AmlProcessorTerm ProcessorTerm(AmlParser& parser, AmlNodeBuffer& code);
 
         AmlBuffer BufferData(AmlParser& parser, AmlNodeBuffer& code);
+
+        AmlIfElseOp DefIfElse(AmlParser& parser, AmlNodeBuffer& code);
+
+        AmlCondRefOp ConfRefOf(AmlParser& parser, AmlNodeBuffer& code);
+
+        AmlOpRegionTerm DefOpRegion(AmlParser& parser, AmlNodeBuffer& code);
+
+        CreateDwordFieldTerm DefCreateDwordField(AmlParser& parser, AmlNodeBuffer& code);
     }
 
     namespace literals {

@@ -19,6 +19,16 @@ namespace mem {
         virtual void *allocate(size_t size, size_t align = alignof(std::max_align_t)) = 0;
         virtual void deallocate(void *ptr, size_t size) = 0;
 
+        virtual void *reallocate(void *old, size_t oldSize, size_t newSize) {
+            void *ptr = allocate(newSize);
+            if (old) {
+                std::memcpy(ptr, old, oldSize);
+                deallocate(old, oldSize);
+            }
+
+            return ptr;
+        }
+
         template<typename T, typename... A> requires std::is_constructible_v<T, A...>
         T *allocate(A&&... args) {
             if (void *ptr = allocate(sizeof(T), alignof(T))) {
@@ -43,6 +53,23 @@ namespace mem {
             }
 
             return nullptr;
+        }
+
+        template<typename T> requires (std::is_trivial_v<T>)
+        T *reallocateArray(T *old, size_t oldCount, size_t newCount) {
+            return static_cast<T*>(reallocate(old, sizeof(T) * oldCount, sizeof(T) * newCount));
+        }
+
+        template<typename T>
+        T *reallocateArray(T *old, size_t usedCount, size_t oldCount, size_t newCount) {
+            T *ptr = allocateArray<T>(newCount);
+            if (old) {
+                size_t count = std::min(usedCount, newCount);
+                std::uninitialized_move(old, old + count, ptr);
+                deallocateArray(old, oldCount);
+            }
+
+            return ptr;
         }
 
         template<typename T>
