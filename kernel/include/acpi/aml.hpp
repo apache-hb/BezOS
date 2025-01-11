@@ -17,7 +17,7 @@
 #include <variant>
 
 namespace acpi {
-    using AmlOffsetType = sm::uint24_t;
+    using AmlOffsetType = uint32_t;
     using AmlAllocator = mem::BitmapAllocator;
 
     class AmlParser {
@@ -71,6 +71,8 @@ namespace acpi {
 
     struct AmlAnyId {
         AmlOffsetType id;
+
+        constexpr bool operator==(const AmlAnyId& other) const = default;
     };
 
     template<typename T>
@@ -342,11 +344,11 @@ namespace acpi {
 
         template<typename T>
         AmlId<T> addTerm(T term, AmlTermType type) {
-            size_t offset = mObjects.add(term);
+            size_t offset = mObjects.add<T>(std::move(term));
 
             size_t index = mHeaders.count();
-            mHeaders.add(ObjectHeader { type, offset });
-            return { index };
+            mHeaders.add(ObjectHeader { type, uint32_t(offset) });
+            return { uint32_t(index) };
         }
 
     public:
@@ -399,6 +401,7 @@ namespace acpi {
         std::expected<uint64_t, AmlError> intValue(AmlName name) const;
 
         AmlScopeTerm *root() { return mNodes.get<AmlScopeTerm>(mRootScope); }
+        AmlScopeId rootId() { return mRootScope; }
     };
 
     AmlCode WalkAml(const RsdtHeader *dsdt, mem::IAllocator *arena);

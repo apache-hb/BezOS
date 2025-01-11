@@ -289,12 +289,12 @@ acpi::AmlNameTerm acpi::detail::NameTerm(AmlParser& parser, AmlNodeBuffer& code)
 
     // KmDebugMessage("[AML] Name (", name, ", ", data, ")\n");
 
-    return { name, code.add(AmlDataTerm(data)) };
+    return acpi::AmlNameTerm { name, code.add(AmlDataTerm(data)) };
 }
 
 acpi::AmlSuperName acpi::detail::SuperName(AmlParser& parser) {
     acpi::AmlName name = NameString(parser);
-    return { name };
+    return acpi::AmlSuperName { name };
 }
 
 acpi::AmlTarget acpi::detail::Target(AmlParser& parser) {
@@ -303,7 +303,7 @@ acpi::AmlTarget acpi::detail::Target(AmlParser& parser) {
     }
 
     acpi::AmlSuperName name = SuperName(parser);
-    return { name };
+    return acpi::AmlTarget { name };
 }
 
 acpi::AmlScopeTerm acpi::detail::ScopeTerm(AmlParser& parser, AmlNodeBuffer& code) {
@@ -319,7 +319,9 @@ acpi::AmlScopeTerm acpi::detail::ScopeTerm(AmlParser& parser, AmlNodeBuffer& cod
     acpi::AmlParser sub = parser.subspan(length - (back - front));
 
     while (!sub.done()) {
-        terms.add(Term(sub, code));
+        acpi::AmlAnyId id = Term(sub, code);
+        KmDebugMessage("Scope(", name, ") - ", id.id, "\n");
+        terms.add(id);
     }
 
     // KmDebugMessage("[AML] Scope (", name, ") - ", (length - (back - front)), "\n");
@@ -340,7 +342,7 @@ acpi::AmlMethodTerm acpi::detail::MethodTerm(AmlParser& parser, AmlNodeBuffer& c
 
     // KmDebugMessage("[AML] Method (", name, ", ", flags.argCount(), ", ", flags.serialized() ? "Serialized"_sv : "NotSerialized"_sv, ")\n");
 
-    return { name, flags };
+    return acpi::AmlMethodTerm { name, flags };
 }
 
 acpi::AmlAliasTerm acpi::detail::AliasTerm(AmlParser& parser, AmlNodeBuffer& code) {
@@ -349,7 +351,7 @@ acpi::AmlAliasTerm acpi::detail::AliasTerm(AmlParser& parser, AmlNodeBuffer& cod
 
     // KmDebugMessage("[AML] Alias (", name, ", ", alias, ")\n");
 
-    return { name, alias };
+    return acpi::AmlAliasTerm { name, alias };
 }
 
 acpi::AmlDeviceTerm acpi::detail::DeviceTerm(AmlParser& parser, AmlNodeBuffer& code) {
@@ -362,7 +364,7 @@ acpi::AmlDeviceTerm acpi::detail::DeviceTerm(AmlParser& parser, AmlNodeBuffer& c
 
     // KmDebugMessage("[AML] Device (", name, ") - ", (length - (back - front)), "\n");
 
-    return { name };
+    return acpi::AmlDeviceTerm { name };
 }
 
 acpi::AmlProcessorTerm acpi::detail::ProcessorTerm(AmlParser& parser, AmlNodeBuffer& code) {
@@ -379,7 +381,7 @@ acpi::AmlProcessorTerm acpi::detail::ProcessorTerm(AmlParser& parser, AmlNodeBuf
 
     // KmDebugMessage("[AML] Processor (", name, ", ", id, ") - ", (length - (back - front)), "\n");
 
-    return { name, id, pblkAddr, pblkLen };
+    return acpi::AmlProcessorTerm { name, id, pblkAddr, pblkLen };
 }
 
 acpi::AmlIfElseOp acpi::detail::DefIfElse(AmlParser& parser, AmlNodeBuffer& code) {
@@ -401,7 +403,7 @@ acpi::AmlIfElseOp acpi::detail::DefIfElse(AmlParser& parser, AmlNodeBuffer& code
 
     // KmDebugMessage("[AML] IfElse () - ", (length - (back - front)), "\n");
 
-    return { predicate, terms };
+    return acpi::AmlIfElseOp { predicate, terms };
 }
 
 acpi::AmlCondRefOp acpi::detail::ConfRefOf(AmlParser& parser, AmlNodeBuffer& code) {
@@ -410,7 +412,7 @@ acpi::AmlCondRefOp acpi::detail::ConfRefOf(AmlParser& parser, AmlNodeBuffer& cod
 
     // KmDebugMessage("[AML] CondRefOf (", name.name, ", ", target.name.name, ")\n");
 
-    return { name, target };
+    return acpi::AmlCondRefOp { name, target };
 }
 
 acpi::AmlOpRegionTerm acpi::detail::DefOpRegion(AmlParser& parser, AmlNodeBuffer& code) {
@@ -421,9 +423,7 @@ acpi::AmlOpRegionTerm acpi::detail::DefOpRegion(AmlParser& parser, AmlNodeBuffer
 
     // KmDebugMessage("[AML] OperationRegion (", name, ", ", region, ")\n");
 
-    acpi::AmlOpRegionTerm opRegion = { name, region, offset, size };
-
-    return opRegion;
+    return acpi::AmlOpRegionTerm { name, region, offset, size };
 }
 
 acpi::AmlStoreTerm acpi::detail::DefStore(AmlParser& parser, AmlNodeBuffer& code) {
@@ -432,7 +432,7 @@ acpi::AmlStoreTerm acpi::detail::DefStore(AmlParser& parser, AmlNodeBuffer& code
 
     // KmDebugMessage("[AML] Store (", target.name, ")\n");
 
-    return { source, target };
+    return acpi::AmlStoreTerm { source, target };
 }
 
 acpi::CreateDwordFieldTerm acpi::detail::DefCreateDwordField(AmlParser& parser, AmlNodeBuffer& code) {
@@ -442,7 +442,7 @@ acpi::CreateDwordFieldTerm acpi::detail::DefCreateDwordField(AmlParser& parser, 
 
     // KmDebugMessage("[AML] CreateDwordField (", name, ")\n");
 
-    return { source, index, name };
+    return acpi::CreateDwordFieldTerm  { source, index, name };
 }
 
 acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
@@ -570,21 +570,24 @@ acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& 
     }
     default:
         KmDebugMessage("[AML] Unknown TermObj ", km::Hex(op).pad(2, '0'), "\n");
-        return code.add(AmlDataTerm{DataRefObject(parser, code)});
+        break;
     }
 
-    return { 0 };
+    return code.add(AmlDataTerm{DataRefObject(parser, code)});
 }
 
 acpi::AmlCode acpi::WalkAml(const RsdtHeader *dsdt, mem::IAllocator *arena) {
     AmlCode code = { *dsdt, arena };
 
     AmlParser parser(dsdt);
+    AmlNodeBuffer& nodes = code.nodes();
 
     stdx::Vector<AmlAnyId> terms(arena);
 
     while (!parser.done()) {
-        terms.add(Term(parser, code.nodes()));
+        acpi::AmlAnyId id = Term(parser, nodes);
+        KmDebugMessage("Scope() - ", id.id, "\n");
+        terms.add(id);
     }
 
     code.root()->terms = terms;

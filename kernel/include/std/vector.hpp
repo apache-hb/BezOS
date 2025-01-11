@@ -24,12 +24,20 @@ namespace stdx {
             }
         }
 
-    public:
-        ~Vector() {
-            clear();
+        void releaseMemory() {
             if (mFront != nullptr) {
+                std::destroy_n(mFront, count());
                 mAllocator->deallocate(mFront, capacity());
             }
+
+            mFront = nullptr;
+            mBack = nullptr;
+            mCapacity = nullptr;
+        }
+
+    public:
+        ~Vector() {
+            releaseMemory();
         }
 
         Vector(mem::IAllocator *allocator)
@@ -58,7 +66,7 @@ namespace stdx {
 
         Vector& operator=(const Vector& other) {
             if (this != &other) {
-                clear();
+                releaseMemory();
                 mAllocator = other.mAllocator;
                 addRange(other);
             }
@@ -79,7 +87,7 @@ namespace stdx {
 
         Vector& operator=(Vector&& other) {
             if (this != &other) {
-                clear();
+                releaseMemory();
                 mAllocator = other.mAllocator;
                 mFront = other.mFront;
                 mBack = other.mBack;
@@ -98,12 +106,11 @@ namespace stdx {
         bool isEmpty() const { return mBack == mFront; }
 
         void clear() {
-            for (T *it = mFront; it != mBack; it++) {
-                std::destroy_at(it);
-            }
-
+            std::destroy_n(mFront, count());
             mBack = mFront;
         }
+
+        T *data() { return mFront; }
 
         T *begin() { return mFront; }
         T *end() { return mBack; }
@@ -131,16 +138,27 @@ namespace stdx {
             if (mFront == nullptr) {
                 mFront = mAllocator->allocateArray<T>(newCapacity);
                 mBack = mFront;
+                mCapacity = mFront + newCapacity;
             } else {
                 mFront = mAllocator->reallocateArray<T>(mFront, currentCount, oldCapacity, newCapacity);
                 mBack = mFront + currentCount;
+                mCapacity = mFront + newCapacity;
             }
-
-            mCapacity = mFront + newCapacity;
         }
 
         void reserve(size_t newCapacity) {
             reserveExact(std::max(newCapacity, count() * 2));
+        }
+
+        void resize(size_t newSize) {
+            if (newSize < count()) {
+                std::destroy_n(mFront + newSize, count() - newSize);
+                mBack = mFront + newSize;
+            } else if (newSize > count()) {
+                ensureExtra(newSize - count());
+                std::uninitialized_default_construct(mBack, mFront + newSize);
+                mBack = mFront + newSize;
+            }
         }
 
         void add(const T& value) {

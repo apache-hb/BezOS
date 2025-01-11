@@ -39,6 +39,85 @@ struct AcpiTable {
     }
 };
 
+struct AmlPrinter {
+    std::vector<acpi::AmlAnyId> stack;
+
+    int depth = 0;
+
+    void println(auto&&... args) {
+        for (int i = 0; i < depth; i++) {
+            KmDebugMessage("  ");
+        }
+
+        KmDebugMessage(args...);
+
+        KmDebugMessage("\n");
+    }
+
+    bool enter(acpi::AmlAnyId id) {
+        depth++;
+
+        if (std::find(stack.begin(), stack.end(), id) != stack.end()) {
+            KmDebugMessage("Cycle detected: ", id.id, "\n");
+            return false;
+        }
+
+        stack.push_back(id);
+
+        return true;
+    }
+
+    void leave() {
+        depth--;
+        stack.pop_back();
+    }
+};
+
+static bool PrintAml(AmlPrinter& printer, acpi::AmlNodeBuffer& nodes, acpi::AmlAnyId id) {
+    acpi::AmlTermType type = nodes.getType(id);
+    switch (type) {
+    case acpi::AmlTermType::eName: {
+        acpi::AmlNameTerm *term = nodes.get<acpi::AmlNameTerm>(id);
+        printer.println("Name(", term->name, ") - ", id.id);
+        break;
+    }
+    case acpi::AmlTermType::eAlias: {
+        acpi::AmlAliasTerm *term = nodes.get<acpi::AmlAliasTerm>(id);
+        printer.println("Alias(", term->name, ", ", term->alias, ") - ", id.id);
+        break;
+    }
+    case acpi::AmlTermType::eDevice: {
+        acpi::AmlDeviceTerm *term = nodes.get<acpi::AmlDeviceTerm>(id);
+        printer.println("Device(", term->name, ") - ", id.id);
+        break;
+    }
+    case acpi::AmlTermType::eMethod: {
+        acpi::AmlMethodTerm *term = nodes.get<acpi::AmlMethodTerm>(id);
+        stdx::StringView serialized = term->flags.serialized() ? "Serialized"_sv : "NotSerialized"_sv;
+        printer.println("Method(", term->name, ", ", term->flags.argCount(), ", ", serialized, ") - ", id.id);
+        break;
+    }
+    case acpi::AmlTermType::eScope: {
+        acpi::AmlScopeTerm *term = nodes.get<acpi::AmlScopeTerm>(id);
+        printer.println("Scope(", term->name, ") - ", id.id, " - ", (void*)term->terms.data(), " {");
+        if (!printer.enter(id)) return false;
+
+        for (size_t i = 0; i < term->terms.count(); i++) {
+            if (!PrintAml(printer, nodes, term->terms[i])) return false;
+        }
+        printer.leave();
+        printer.println("}");
+        break;
+    }
+    default: {
+        printer.println("Unknown(", type, ") - ", id.id);
+        break;
+    }
+    }
+
+    return true;
+}
+
 TEST(AmlTest, ParseTable) {
     const char *path = getenv("AML_BLOB");
     ASSERT_NE(path, nullptr) << "AML_BLOB environment variable not set";
@@ -59,34 +138,14 @@ TEST(AmlTest, ParseTable) {
     acpi::AmlNodeBuffer& nodes = code.nodes();
     acpi::AmlScopeTerm *root = code.root();
 
+    AmlPrinter printer;
+
     KmDebugMessage("Scope(", root->name, ") {\n");
+    printer.enter(code.rootId());
     for (size_t i = 0; i < root->terms.count(); i++) {
         acpi::AmlAnyId id = root->terms[i];
-        auto type = nodes.getType(id);
-        KmDebugMessage("  Term ", i, ": ", uint32_t(id.id), " ", type, "\n");
-        switch (type) {
-        case acpi::AmlTermType::eName: {
-            acpi::AmlNameTerm *term = nodes.get<acpi::AmlNameTerm>(id);
-            KmDebugMessage("  Address: ", (void*)term, "\n");
-            KmDebugMessage("  Name(", term->name, ")\n");
-            break;
-        }
-        case acpi::AmlTermType::eAlias: {
-            acpi::AmlAliasTerm *term = nodes.get<acpi::AmlAliasTerm>(id);
-            KmDebugMessage("  Alias(", term->name, ", ", term->alias, ")\n");
-            break;
-        }
-        case acpi::AmlTermType::eDevice: {
-            acpi::AmlDeviceTerm *term = nodes.get<acpi::AmlDeviceTerm>(id);
-            KmDebugMessage("  Device(", term->name, ")\n");
-            break;
-        }
-
-        default: {
-            KmDebugMessage("  Unknown term\n");
-            break;
-        }
-        }
+        if (!PrintAml(printer, nodes, id)) break;
     }
+    printer.leave();
     KmDebugMessage("}\n");
 }

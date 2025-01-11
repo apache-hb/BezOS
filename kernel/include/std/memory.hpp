@@ -15,20 +15,17 @@ namespace stdx {
 
         size_t count() const { return mMemory.count(); }
 
-        size_t add(const void *data, size_t size) {
-            std::span<const std::byte> span((const std::byte*)data, size);
+        template<typename T>
+        size_t add(T value) {
             size_t offset = mMemory.count();
-            mMemory.addRange(span);
+            mMemory.resize(offset + sizeof(T));
+            T *ptr = reinterpret_cast<T*>(mMemory.data() + offset);
+            std::uninitialized_move_n(&value, 1, ptr);
             return offset;
         }
 
-        template<typename T>
-        size_t add(const T& value) {
-            return add(reinterpret_cast<const void*>(&value), sizeof(T));
-        }
-
         void *get(size_t offset) {
-            return (void*)(mMemory.begin() + offset);
+            return (void*)(mMemory.data() + offset);
         }
 
         template<typename T>

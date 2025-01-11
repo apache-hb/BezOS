@@ -12,7 +12,7 @@ namespace stdx {
     class StaticVector {
         using SizeType = detail::ArraySize<N>;
 
-        union { T mStorage[N]; };
+        T mStorage[N];
         SizeType mSize;
 
     public:
