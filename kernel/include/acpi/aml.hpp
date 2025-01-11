@@ -20,19 +20,26 @@ namespace acpi {
     using AmlOffsetType = uint32_t;
     using AmlAllocator = mem::BitmapAllocator;
 
+    struct DeviceHandle {
+
+    };
+
     class AmlParser {
+        uint32_t mStart;
         uint32_t mOffset;
         std::span<const uint8_t> mCode;
 
     public:
-        AmlParser(std::span<const uint8_t> code)
-            : mOffset(0)
+        AmlParser(std::span<const uint8_t> code, uint32_t start = 0)
+            : mStart(start)
+            , mOffset(0)
             , mCode(code)
         { }
 
         AmlParser(const RsdtHeader *header);
 
         uint32_t offset() const { return mOffset; }
+        uint32_t absOffset() const { return mStart + mOffset; }
         const char *current() const { return (const char*)mCode.data() + mOffset; }
 
         void skip(uint32_t count) { mOffset += count; }
@@ -57,7 +64,7 @@ namespace acpi {
         AmlParser subspan(uint32_t count) {
             uint32_t offset = mOffset;
             mOffset += count;
-            return { mCode.subspan(offset, count) };
+            return { mCode.subspan(offset, count), offset + mStart };
         }
     };
 
@@ -141,13 +148,17 @@ namespace acpi {
             eString,
             eBuffer,
             ePackage,
+            eArg,
+            eLocal,
         } type;
 
         using Data = std::variant<
             uint64_t,
             stdx::StringView,
             AmlPackageId,
-            AmlBuffer
+            AmlBuffer,
+            AmlArgObject,
+            AmlLocalObject
         >;
 
         Data data;
@@ -207,6 +218,7 @@ namespace acpi {
         eData,
         eStore,
         eOpRegion,
+        eMutex,
         eScope,
         eAlias,
         eDevice,
@@ -215,6 +227,9 @@ namespace acpi {
         eCondRefOf,
         eField,
         eIndexField,
+        eExternal,
+        ePowerRes,
+        eThermalZone,
 
         eCreateByteField,
         eCreateWordField,
@@ -238,6 +253,13 @@ namespace acpi {
         static constexpr AmlTermType kType = AmlTermType::eMethod;
         AmlName name;
         AmlMethodFlags flags;
+        stdx::Vector<AmlAnyId> terms;
+    };
+
+    struct AmlThermalZoneTerm {
+        static constexpr AmlTermType kType = AmlTermType::eThermalZone;
+        AmlName name;
+        stdx::Vector<AmlAnyId> terms;
     };
 
     struct AmlNameString {
@@ -247,7 +269,7 @@ namespace acpi {
 
     struct AmlPackageTerm {
         static constexpr AmlTermType kType = AmlTermType::ePackage;
-        stdx::Vector<AmlAnyId> range;
+        stdx::Vector<AmlAnyId> terms;
     };
 
     struct AmlDataTerm {
@@ -264,6 +286,7 @@ namespace acpi {
     struct AmlDeviceTerm {
         static constexpr AmlTermType kType = AmlTermType::eDevice;
         AmlName name;
+        stdx::Vector<AmlAnyId> terms;
     };
 
     struct AmlFieldTerm {
@@ -279,12 +302,26 @@ namespace acpi {
         AmlFieldFlags flags;
     };
 
+    struct AmlPowerResTerm {
+        static constexpr AmlTermType kType = AmlTermType::ePowerRes;
+        AmlName name;
+        uint8_t level;
+        uint16_t order;
+        stdx::Vector<AmlAnyId> terms;
+    };
+
     struct AmlOpRegionTerm {
         static constexpr AmlTermType kType = AmlTermType::eOpRegion;
         AmlName name;
         AddressSpaceId region;
         AmlAnyId offset;
         AmlAnyId size;
+    };
+
+    struct AmlMutexTerm {
+        static constexpr AmlTermType kType = AmlTermType::eMutex;
+        AmlName name;
+        uint8_t flags;
     };
 
     struct AmlScopeTerm {
@@ -339,6 +376,13 @@ namespace acpi {
         AmlAnyId source;
         AmlAnyId index;
         AmlName name;
+    };
+
+    struct AmlExternalTerm {
+        static constexpr AmlTermType kType = AmlTermType::eExternal;
+        AmlName name;
+        uint8_t type;
+        uint8_t args;
     };
 
     class AmlNodeBuffer {
@@ -423,6 +467,8 @@ namespace acpi {
 
         AmlScopeTerm *root() { return mNodes.get<AmlScopeTerm>(mRootScope); }
         AmlScopeId rootId() { return mRootScope; }
+
+        DeviceHandle findDevice(stdx::StringView hid) { return DeviceHandle {}; }
     };
 
     AmlCode WalkAml(const RsdtHeader *dsdt, mem::IAllocator *arena);
@@ -438,7 +484,7 @@ namespace acpi {
         uint32_t PkgLength(AmlParser& parser);
 
         // 20.2.2. Name Objects Encoding
-        AmlName NameString(AmlParser& parser);
+        AmlName NameString(AmlParser& parser, uint8_t lead = 0);
 
         AmlSuperName SuperName(AmlParser& parser);
 
@@ -472,11 +518,19 @@ namespace acpi {
 
         AmlOpRegionTerm DefOpRegion(AmlParser& parser, AmlNodeBuffer& code);
 
+        AmlMutexTerm DefMutex(AmlParser& parser, AmlNodeBuffer& code);
+
         AmlStoreTerm DefStore(AmlParser& parser, AmlNodeBuffer& code);
 
         AmlFieldTerm DefField(AmlParser& parser, AmlNodeBuffer& code);
 
+        AmlThermalZoneTerm DefThermalZone(AmlParser& parser, AmlNodeBuffer& code);
+
         AmlIndexFieldTerm DefIndexField(AmlParser& parser, AmlNodeBuffer& code);
+
+        AmlPowerResTerm DefPowerRes(AmlParser& parser, AmlNodeBuffer& code);
+
+        AmlExternalTerm DefExternal(AmlParser& parser, AmlNodeBuffer& code);
 
         AmlCreateByteFieldTerm DefCreateByteField(AmlParser& parser, AmlNodeBuffer& code);
         AmlCreateWordFieldTerm DefCreateWordField(AmlParser& parser, AmlNodeBuffer& code);

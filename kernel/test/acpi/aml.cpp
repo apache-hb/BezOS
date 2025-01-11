@@ -104,13 +104,25 @@ static bool PrintAml(AmlPrinter& printer, acpi::AmlNodeBuffer& nodes, acpi::AmlA
     }
     case acpi::AmlTermType::eDevice: {
         acpi::AmlDeviceTerm *term = nodes.get<acpi::AmlDeviceTerm>(id);
-        printer.println("Device(", term->name, ")");
+        printer.println("Device(", term->name, ") {");
+        if (!printer.enter(id)) return false;
+        for (size_t i = 0; i < term->terms.count(); i++) {
+            if (!PrintAml(printer, nodes, term->terms[i])) return false;
+        }
+        printer.leave();
+        printer.println("}");
         break;
     }
     case acpi::AmlTermType::eMethod: {
         acpi::AmlMethodTerm *term = nodes.get<acpi::AmlMethodTerm>(id);
         stdx::StringView serialized = term->flags.serialized() ? "Serialized"_sv : "NotSerialized"_sv;
-        printer.println("Method(", term->name, ", ", term->flags.argCount(), ", ", serialized, ")");
+        printer.println("Method(", term->name, ", ", term->flags.argCount(), ", ", serialized, ") {");
+        if (!printer.enter(id)) return false;
+        for (size_t i = 0; i < term->terms.count(); i++) {
+            if (!PrintAml(printer, nodes, term->terms[i])) return false;
+        }
+        printer.leave();
+        printer.println("}");
         break;
     }
     case acpi::AmlTermType::eOpRegion: {
@@ -148,6 +160,11 @@ static bool PrintAml(AmlPrinter& printer, acpi::AmlNodeBuffer& nodes, acpi::AmlA
     case acpi::AmlTermType::eCreateQwordField: {
         acpi::AmlCreateQwordFieldTerm *term = nodes.get<acpi::AmlCreateQwordFieldTerm>(id);
         printer.println("CreateQwordField(", term->name, ")");
+        break;
+    }
+    case acpi::AmlTermType::eExternal: {
+        acpi::AmlExternalTerm *term = nodes.get<acpi::AmlExternalTerm>(id);
+        printer.println("External(", term->name, ", ", term->type, ", ", term->args, ")");
         break;
     }
     case acpi::AmlTermType::eScope: {
@@ -193,6 +210,8 @@ TEST(AmlTest, ParseTable) {
 
     acpi::AmlNodeBuffer& nodes = code.nodes();
     acpi::AmlScopeTerm *root = code.root();
+
+    acpi::DeviceHandle ps2Keyboard = code.findDevice("PNP0303");
 
     AmlPrinter printer;
 
