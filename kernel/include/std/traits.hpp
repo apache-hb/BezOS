@@ -98,4 +98,32 @@ namespace stdx {
         { std::begin(range) } -> std::convertible_to<T*>;
         { std::end(range) } -> std::convertible_to<T*>;
     };
+
+    namespace detail {
+        template<size_t N>
+        struct ArraySizeType;
+
+        template<size_t N> requires (N <= 0xFF)
+        struct ArraySizeType<N> {
+            using type = uint8_t;
+        };
+
+        template<size_t N> requires (N <= 0xFFFF && N > 0xFF)
+        struct ArraySizeType<N> {
+            using type = uint16_t;
+        };
+
+        template<size_t N> requires (N <= 0xFFFFFFFF && N > 0xFFFF)
+        struct ArraySizeType<N> {
+            using type = uint32_t;
+        };
+
+        template<size_t N> requires (N <= 0xFFFFFFFFFFFFFFFF && N > 0xFFFFFFFF)
+        struct ArraySizeType<N> {
+            using type = uint64_t;
+        };
+
+        template<size_t N>
+        using ArraySize = typename ArraySizeType<N>::type;
+    }
 }

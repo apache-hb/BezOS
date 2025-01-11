@@ -28,7 +28,6 @@ TEST(VectorTest, DefaultConstructor) {
     stdx::Vector<int> vec(&allocator);
     ASSERT_TRUE(vec.isEmpty());
     ASSERT_EQ(vec.count(), 0);
-    ASSERT_EQ(vec.capacity(), 0);
 }
 
 TEST(VectorTest, ConstructorWithCapacity) {

@@ -242,6 +242,13 @@ testcases = {
         'kernel/src/acpi/format.cpp',
         'kernel/src/acpi/aml.cpp',
         'kernel/src/util/format.cpp',
+    ],
+    'aml nodes': [
+        'kernel/test/acpi/nodes.cpp',
+        'kernel/src/allocator/bitmap.cpp',
+        'kernel/src/acpi/format.cpp',
+        'kernel/src/acpi/aml.cpp',
+        'kernel/src/util/format.cpp',
     ]
 }
 

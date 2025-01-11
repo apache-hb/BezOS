@@ -7,37 +7,9 @@
 #include <string.h>
 
 namespace stdx {
-    namespace detail {
-        template<size_t N>
-        struct StringSizeType;
-
-        template<size_t N> requires (N <= 0xFF)
-        struct StringSizeType<N> {
-            using type = uint8_t;
-        };
-
-        template<size_t N> requires (N <= 0xFFFF && N > 0xFF)
-        struct StringSizeType<N> {
-            using type = uint16_t;
-        };
-
-        template<size_t N> requires (N <= 0xFFFFFFFF && N > 0xFFFF)
-        struct StringSizeType<N> {
-            using type = uint32_t;
-        };
-
-        template<size_t N> requires (N <= 0xFFFFFFFFFFFFFFFF && N > 0xFFFFFFFF)
-        struct StringSizeType<N> {
-            using type = uint64_t;
-        };
-
-        template<size_t N>
-        using StringSize = typename StringSizeType<N>::type;
-    }
-
     template<typename T, size_t N>
     class StaticStringBase {
-        using SizeType = detail::StringSize<N>;
+        using SizeType = detail::ArraySize<N>;
 
         SizeType mSize;
         T mStorage[N];
@@ -54,9 +26,8 @@ namespace stdx {
 
         constexpr StaticStringBase(T elem)
             : mSize(1)
-        {
-            mStorage[0] = elem;
-        }
+            , mStorage({ elem })
+        { }
 
         template<size_t S> requires (S <= N)
         constexpr StaticStringBase(const T (&str)[S])
@@ -139,12 +110,9 @@ namespace stdx {
             return mStorage[index];
         }
 
-        constexpr operator StringViewBase<T>() const {
-            return StringViewBase<T>(mStorage, mStorage + mSize);
-        }
-
-        constexpr bool operator==(StringViewBase<T> other) const {
-            return std::equal(begin(), end(), other.begin(), other.end());
+        template<typename R> requires IsRange<const T, R>
+        constexpr bool operator==(const R& other) const {
+            return std::equal(begin(), end(), std::begin(other), std::end(other));
         }
     };
 

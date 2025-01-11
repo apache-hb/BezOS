@@ -33,10 +33,7 @@ namespace stdx {
         }
 
         Vector(mem::IAllocator *allocator)
-            : mAllocator(allocator)
-            , mFront(nullptr)
-            , mBack(nullptr)
-            , mCapacity(nullptr)
+            : Vector(allocator, 1)
         { }
 
         Vector(mem::IAllocator *allocator, size_t capacity)

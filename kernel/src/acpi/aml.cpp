@@ -238,7 +238,6 @@ enum {
 };
 
 acpi::AmlData acpi::detail::DataRefObject(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
-
     uint8_t it = parser.read();
 
     switch (it) {
@@ -591,11 +590,6 @@ acpi::AmlCode acpi::WalkAml(const RsdtHeader *dsdt, mem::IAllocator *arena) {
     code.root()->terms = terms;
 
     return code;
-}
-
-acpi::AmlNameTerm acpi::AmlNodeBuffer::get(AmlNameId id) {
-    ObjectHeader header = mHeaders[id.id];
-    return *mObjects.get<AmlNameTerm>(header.offset);
 }
 
 using AmlNameFormat = km::Format<acpi::AmlName>;

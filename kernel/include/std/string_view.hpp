@@ -1,5 +1,7 @@
 #pragma once
 
+#include "std/traits.hpp"
+
 #include <iterator>
 #include <algorithm>
 #include <array>
@@ -19,6 +21,11 @@ namespace stdx {
         template<size_t N>
         constexpr StringViewBase(const T (&str)[N])
             : StringViewBase(std::begin(str), std::end(str))
+        { }
+
+        template<typename R> requires IsRange<const T, R>
+        constexpr StringViewBase(const R& range)
+            : StringViewBase(std::begin(range), std::end(range))
         { }
 
         constexpr StringViewBase(const T *front [[gnu::nonnull]], const T *back [[gnu::nonnull]])

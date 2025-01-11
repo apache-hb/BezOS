@@ -319,11 +319,12 @@ namespace acpi {
     };
 
     class AmlNodeBuffer {
+    public:
         struct ObjectHeader {
             AmlTermType type;
             AmlOffsetType offset;
         };
-
+    private:
         mem::IAllocator *mAllocator;
 
         stdx::Vector<ObjectHeader> mHeaders;
@@ -361,18 +362,16 @@ namespace acpi {
         template<typename T>
         AmlId<T> add(T term) { return addTerm(term, T::kType); }
 
-        AmlNameTerm get(AmlNameId id);
-
         template<typename T>
         T *getTerm(AmlAnyId id) {
-            ObjectHeader header = mHeaders[id.id];
-            return mObjects.get<T>(header.offset);
+            return mObjects.get<T>(getHeader(id).offset);
         }
 
         template<typename T>
         T *get(AmlId<T> id) { return getTerm<T>(id); }
 
-        AmlTermType getType(AmlAnyId id) const { return mHeaders[id.id].type; }
+        AmlTermType getType(AmlAnyId id) const { return getHeader(id).type; }
+        ObjectHeader getHeader(AmlAnyId id) const { return mHeaders[id.id]; }
 
         AmlData ones() { return mOnes; }
     };

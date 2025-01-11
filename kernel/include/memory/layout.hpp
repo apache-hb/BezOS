@@ -5,11 +5,6 @@
 #include "std/static_vector.hpp"
 
 namespace km {
-    namespace detail {
-        void SortMemoryRanges(stdx::StaticVectorBase<MemoryMapEntry>& ranges);
-        void MergeMemoryRanges(stdx::StaticVectorBase<MemoryMapEntry>& ranges);
-    }
-
     struct SystemMemoryLayout {
         static constexpr size_t kMaxRanges = 64;
         using FreeMemoryRanges = stdx::StaticVector<MemoryMapEntry, kMaxRanges>;
@@ -27,4 +22,9 @@ namespace km {
 
         static SystemMemoryLayout from(const KernelMemoryMap& memmap);
     };
+
+    namespace detail {
+        void SortMemoryRanges(stdx::StaticVector<MemoryMapEntry, SystemMemoryLayout::kMaxRanges>& ranges);
+        void MergeMemoryRanges(stdx::StaticVector<MemoryMapEntry, SystemMemoryLayout::kMaxRanges>& ranges);
+    }
 }

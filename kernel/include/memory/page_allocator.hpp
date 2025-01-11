@@ -78,7 +78,20 @@ namespace km {
             const SystemMemoryLayout *layout, PhysicalAddress bitmap, uintptr_t hhdmOffset
         );
 
-        void MergeAdjacentAllocators(stdx::StaticVectorBase<RegionBitmapAllocator>& allocators);
+        template<size_t N>
+        void MergeAdjacentAllocators(stdx::StaticVector<RegionBitmapAllocator, N>& allocators) {
+            for (size_t i = 0; i < allocators.count(); i++) {
+                RegionBitmapAllocator& allocator = allocators[i];
+                for (size_t j = i + 1; j < allocators.count(); j++) {
+                    RegionBitmapAllocator& next = allocators[j];
+                    if (allocator.range().intersects(next.range())) {
+                        allocator.extend(next);
+                        allocators.remove(j);
+                        j--;
+                    }
+                }
+            }
+        }
     }
 
     class PageAllocator {

@@ -13,7 +13,7 @@ namespace stdx {
         const void *front() const { return (void*)mMemory.begin(); }
         const void *back() const { return (void*)mMemory.end(); }
 
-        size_t size() const { return mMemory.count(); }
+        size_t count() const { return mMemory.count(); }
 
         size_t add(const void *data, size_t size) {
             std::span<const std::byte> span((const std::byte*)data, size);

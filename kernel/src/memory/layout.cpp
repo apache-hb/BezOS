@@ -46,13 +46,13 @@ static void ReportMemoryIssues(const ErrorList& errors) {
     }
 }
 
-void detail::SortMemoryRanges(stdx::StaticVectorBase<MemoryMapEntry>& ranges) {
+void detail::SortMemoryRanges(stdx::StaticVector<MemoryMapEntry, SystemMemoryLayout::kMaxRanges>& ranges) {
     std::sort(ranges.begin(), ranges.end(), [](const MemoryMapEntry& a, const MemoryMapEntry& b) {
         return a.range.front < b.range.front;
     });
 }
 
-void detail::MergeMemoryRanges(stdx::StaticVectorBase<MemoryMapEntry>& ranges) {
+void detail::MergeMemoryRanges(stdx::StaticVector<MemoryMapEntry, SystemMemoryLayout::kMaxRanges>& ranges) {
     for (size_t i = 0; i < ranges.count(); i++) {
         MemoryMapEntry& range = ranges[i];
         for (size_t j = i + 1; j < ranges.count(); j++) {

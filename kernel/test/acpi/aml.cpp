@@ -6,7 +6,7 @@
 
 #include "acpi/aml.hpp"
 
-#include "allocator/bucket.hpp"
+#include "aml_test_common.hpp"
 
 using namespace stdx::literals;
 
@@ -52,24 +52,9 @@ TEST(AmlTest, ParseTable) {
 
     ASSERT_NE(header, nullptr) << "DSDT table not found";
 
-    static constexpr size_t kBufferSize0 = 0x10000;
-    static constexpr size_t kBufferSize1 = 0x10000;
-    static constexpr size_t kBufferSize2 = 0x100000;
-    std::unique_ptr<uint8_t[]> buffer0{new uint8_t[kBufferSize0]};
-    std::unique_ptr<uint8_t[]> buffer1{new uint8_t[kBufferSize1]};
-    std::unique_ptr<uint8_t[]> buffer2{new uint8_t[kBufferSize2]};
+    AmlTestContext ctx;
 
-    mem::BitmapAllocator arena0 { buffer0.get(), buffer0.get() + kBufferSize0 };
-    mem::BitmapAllocator arena1 { buffer1.get(), buffer1.get() + kBufferSize1 };
-    mem::BitmapAllocator arena2 { buffer2.get(), buffer2.get() + kBufferSize2 };
-
-    mem::BucketAllocator arena { {
-        { .width = 32, .allocator = &arena0 },
-        { .width = 256, .allocator = &arena1 },
-        { .width = 512, .allocator = &arena2 },
-    } };
-
-    acpi::AmlCode code = acpi::WalkAml(header, &arena);
+    acpi::AmlCode code = acpi::WalkAml(header, &ctx.arena);
 
     acpi::AmlNodeBuffer& nodes = code.nodes();
     acpi::AmlScopeTerm *root = code.root();
@@ -78,7 +63,7 @@ TEST(AmlTest, ParseTable) {
     for (size_t i = 0; i < root->terms.count(); i++) {
         acpi::AmlAnyId id = root->terms[i];
         auto type = nodes.getType(id);
-        KmDebugMessage("Term ", i, ": ", uint32_t(id.id), " ", type, "\n");
+        KmDebugMessage("  Term ", i, ": ", uint32_t(id.id), " ", type, "\n");
         switch (type) {
         case acpi::AmlTermType::eName: {
             acpi::AmlNameTerm *term = nodes.get<acpi::AmlNameTerm>(id);
