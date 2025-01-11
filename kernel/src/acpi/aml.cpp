@@ -616,8 +616,6 @@ void AmlNameFormat::format(km::IOutStream& out, const acpi::AmlName& value) {
         }
     }
 
-    KmDebugMessage("LENGTH: ", value.segments.count(), "\n");
-
     for (size_t i = 0; i < value.segments.count(); i++) {
         if (i != 0) out.write('.');
         out.write(value.segments[i]);
