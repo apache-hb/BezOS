@@ -1,82 +1,105 @@
 #include <gtest/gtest.h>
 
-#include "std/static_vector.hpp"
+#include "allocator/allocator.hpp"
 
-TEST(StaticVectorTest, Construct) {
-    stdx::StaticVector<int, 4> vec;
+#include "std/vector.hpp"
 
-    vec.add(1);
+class TestAllocator : public mem::IAllocator {
+public:
+    void* allocate(size_t size, size_t _) override {
+        void *ptr = std::malloc(size);
+        std::cerr << "allocating " << size << " bytes at " << (uintptr_t)ptr << std::endl;
+        return ptr;
+    }
 
-    ASSERT_EQ(vec.count(), 1);
-    ASSERT_EQ(vec[0], 1);
-}
+    void* reallocate(void* old, size_t _, size_t newSize) override {
+        std::cerr << "reallocating " << (uintptr_t)old << " to " << newSize << std::endl;
+        return std::realloc(old, newSize);
+    }
 
-TEST(StaticVectorTest, AddRange) {
-    stdx::StaticVector<int, 4> vec;
+    void deallocate(void* ptr, size_t _) override {
+        std::cerr << "deallocating " << (uintptr_t)ptr << std::endl;
+        std::free(ptr);
+    }
+};
 
-    int data[] = { 1, 2, 3, 4 };
-    vec.addRange(data);
-
-    ASSERT_EQ(vec.count(), 4);
-    ASSERT_EQ(vec[0], 1);
-    ASSERT_EQ(vec[1], 2);
-    ASSERT_EQ(vec[2], 3);
-    ASSERT_EQ(vec[3], 4);
-}
-
-TEST(StaticVectorTest, AddOverflow) {
-    stdx::StaticVector<int, 4> vec;
-
-    int data[] = { 1, 2, 3, 4, 5, 6 };
-    size_t actual = vec.addRange(data);
-
-    ASSERT_EQ(vec.count(), 4);
-    ASSERT_EQ(actual, 4);
-    ASSERT_EQ(vec[0], 1);
-    ASSERT_EQ(vec[1], 2);
-    ASSERT_EQ(vec[2], 3);
-    ASSERT_EQ(vec[3], 4);
-}
-
-TEST(StaticVectorTest, AddVector) {
-    stdx::StaticVector<int, 16> vec;
-    stdx::StaticVector<int, 4> vec2;
-
-    int data[] = { 1, 2, 3, 4 };
-    vec2.addRange(data);
-
-    vec.addRange(vec2);
-    vec.addRange(vec2);
-
-    ASSERT_EQ(vec.count(), 8);
-    ASSERT_EQ(vec[0], 1);
-    ASSERT_EQ(vec[1], 2);
-    ASSERT_EQ(vec[2], 3);
-    ASSERT_EQ(vec[3], 4);
-    ASSERT_EQ(vec[4], 1);
-    ASSERT_EQ(vec[5], 2);
-    ASSERT_EQ(vec[6], 3);
-    ASSERT_EQ(vec[7], 4);
-}
-
-TEST(StaticVectorTest, Erase) {
-    const char *a = "a";
-    const char *b = "b";
-
-    stdx::StaticVector<const char*, 4> vec;
-
-    vec.add(a);
-
-    vec.erase(a);
+TEST(VectorTest, DefaultConstructor) {
+    TestAllocator allocator;
+    stdx::Vector<int> vec(&allocator);
+    ASSERT_TRUE(vec.isEmpty());
     ASSERT_EQ(vec.count(), 0);
+    ASSERT_EQ(vec.capacity(), 0);
+}
 
-    stdx::StaticVector<const char*, 4> vec1;
+TEST(VectorTest, ConstructorWithCapacity) {
+    TestAllocator allocator;
+    stdx::Vector<int> vec(&allocator, 10);
+    ASSERT_TRUE(vec.isEmpty());
+    ASSERT_EQ(vec.count(), 0);
+    ASSERT_EQ(vec.capacity(), 10);
+}
 
-    vec1.add(a);
-    vec1.add(b);
+TEST(VectorTest, ConstructorWithSpan) {
+    TestAllocator allocator;
+    int data[] = {1, 2, 3, 4, 5};
+    std::span<const int> span(data, 5);
+    stdx::Vector<int> vec(&allocator, span);
+    ASSERT_FALSE(vec.isEmpty());
+    ASSERT_EQ(vec.count(), 5);
+    ASSERT_GE(vec.capacity(), 5);
+    for (size_t i = 0; i < 5; ++i) {
+        ASSERT_EQ(vec[i], data[i]);
+    }
+}
 
-    vec1.erase(a);
+TEST(VectorTest, CopyConstructor) {
+    TestAllocator allocator;
+    stdx::Vector<int> vec1(&allocator, 5);
+    vec1.add(1);
+    vec1.add(2);
+    vec1.add(3);
+    stdx::Vector<int> vec2(vec1);
+    ASSERT_EQ(vec2.count(), 3);
+    ASSERT_GE(vec2.capacity(), 3);
+    for (size_t i = 0; i < 3; ++i) {
+        ASSERT_EQ(vec2[i], vec1[i]);
+    }
+}
 
-    ASSERT_EQ(vec1.count(), 1);
-    ASSERT_EQ(vec1[0], b);
+TEST(VectorTest, MoveConstructor) {
+    TestAllocator allocator;
+    stdx::Vector<int> vec1(&allocator, 5);
+    vec1.add(1);
+    vec1.add(2);
+    vec1.add(3);
+    stdx::Vector<int> vec2(std::move(vec1));
+    ASSERT_EQ(vec2.count(), 3);
+    ASSERT_EQ(vec2.capacity(), 5);
+    ASSERT_TRUE(vec1.isEmpty());
+}
+
+TEST(VectorTest, Add) {
+    TestAllocator allocator;
+    stdx::Vector<int> vec(&allocator, 2);
+    vec.add(1);
+    vec.add(2);
+    vec.add(3);
+    ASSERT_EQ(vec.count(), 3);
+    ASSERT_GE(vec.capacity(), 3);
+    ASSERT_EQ(vec[0], 1);
+    ASSERT_EQ(vec[1], 2);
+    ASSERT_EQ(vec[2], 3);
+}
+
+TEST(VectorTest, AddRange) {
+    TestAllocator allocator;
+    stdx::Vector<int> vec(&allocator, 2);
+    int data[] = {1, 2, 3, 4, 5};
+    std::span<const int> span(data, 5);
+    vec.addRange(span);
+    ASSERT_EQ(vec.count(), 5);
+    ASSERT_GE(vec.capacity(), 5);
+    for (size_t i = 0; i < 5; ++i) {
+        ASSERT_EQ(vec[i], data[i]);
+    }
 }

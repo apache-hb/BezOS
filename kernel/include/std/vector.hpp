@@ -19,12 +19,19 @@ namespace stdx {
         T *mCapacity;
 
         void ensureExtra(size_t extra) {
-            if (count() + extra > capacity()) {
-                reserveExact(count() + extra);
+            if ((count() + extra) >= capacity()) {
+                reserveExact(capacity() + extra);
             }
         }
 
     public:
+        ~Vector() {
+            clear();
+            if (mFront != nullptr) {
+                mAllocator->deallocate(mFront, capacity());
+            }
+        }
+
         Vector(mem::IAllocator *allocator)
             : mAllocator(allocator)
             , mFront(nullptr)
@@ -37,15 +44,15 @@ namespace stdx {
             , mFront(mAllocator->allocateArray<T>(capacity))
             , mBack(mFront)
             , mCapacity(mFront + capacity)
-        { }
+        {
+            KM_CHECK(mFront != nullptr, "Failed to allocate vector buffer");
+        }
 
         Vector(mem::IAllocator *allocator, std::span<const T> src)
-            : mAllocator(allocator)
-            , mFront(mAllocator->allocateArray<T>(src.size()))
-            , mBack(mFront + src.size())
-            , mCapacity(mFront + src.size())
+            : Vector(allocator, src.size())
         {
-            std::uninitialized_copy(src.begin(), src.end(), mFront);
+            KM_CHECK(mFront != nullptr, "Failed to allocate vector buffer");
+            addRange(src);
         }
 
         Vector(const Vector& other)
@@ -56,11 +63,7 @@ namespace stdx {
             if (this != &other) {
                 clear();
                 mAllocator = other.mAllocator;
-                mFront = mAllocator->allocateArray<T>(other.count());
-                mBack = mFront + other.count();
-                mCapacity = mFront + other.count();
-
-                std::uninitialized_copy(other.begin(), other.end(), mFront);
+                addRange(other);
             }
 
             return *this;
@@ -68,18 +71,26 @@ namespace stdx {
 
         Vector(Vector&& other)
             : mAllocator(other.mAllocator)
-            , mFront(std::exchange(other.mFront, nullptr))
-            , mBack(std::exchange(other.mBack, nullptr))
-            , mCapacity(std::exchange(other.mCapacity, nullptr))
-        { }
+            , mFront(other.mFront)
+            , mBack(other.mBack)
+            , mCapacity(other.mCapacity)
+        {
+            other.mFront = nullptr;
+            other.mBack = nullptr;
+            other.mCapacity = nullptr;
+        }
 
         Vector& operator=(Vector&& other) {
             if (this != &other) {
                 clear();
-                mAllocator = std::exchange(other.mAllocator, nullptr);
-                mFront = std::exchange(other.mFront, nullptr);
-                mBack = std::exchange(other.mBack, nullptr);
-                mCapacity = std::exchange(other.mCapacity, nullptr);
+                mAllocator = other.mAllocator;
+                mFront = other.mFront;
+                mBack = other.mBack;
+                mCapacity = other.mCapacity;
+
+                other.mFront = nullptr;
+                other.mBack = nullptr;
+                other.mCapacity = nullptr;
             }
 
             return *this;
@@ -111,26 +122,24 @@ namespace stdx {
             return mFront[index];
         }
 
-        void reserveExact(size_t capacity) {
-            size_t oldCapacity = this->capacity();
-            if (capacity <= oldCapacity) {
+        void reserveExact(size_t newCapacity) {
+            size_t oldCapacity = capacity();
+            if (newCapacity <= oldCapacity) {
                 return;
             }
 
-            T *newFront = mAllocator->allocateArray<T>(capacity);
-            T *newBack = newFront + count();
-            T *newCapacity = newFront + capacity;
+            // need to cache this here for correctness
+            size_t currentCount = count();
 
-            if (mFront) {
-                KM_CHECK(newFront != nullptr, "Failed to allocate new vector buffer");
-                std::uninitialized_move(mFront, mBack, newFront);
-                clear();
-                mAllocator->deallocateArray<T>(mFront, oldCapacity);
+            if (mFront == nullptr) {
+                mFront = mAllocator->allocateArray<T>(newCapacity);
+                mBack = mFront;
+            } else {
+                mFront = mAllocator->reallocateArray<T>(mFront, currentCount, oldCapacity, newCapacity);
+                mBack = mFront + currentCount;
             }
 
-            mFront = newFront;
-            mBack = newBack;
-            mCapacity = newCapacity;
+            mCapacity = mFront + newCapacity;
         }
 
         void reserve(size_t newCapacity) {

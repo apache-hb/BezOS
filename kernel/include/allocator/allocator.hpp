@@ -21,7 +21,7 @@ namespace mem {
 
         virtual void *reallocate(void *old, size_t oldSize, size_t newSize) {
             void *ptr = allocate(newSize);
-            if (old) {
+            if (ptr) {
                 std::memcpy(ptr, old, oldSize);
                 deallocate(old, oldSize);
             }
@@ -56,14 +56,14 @@ namespace mem {
         }
 
         template<typename T> requires (std::is_trivially_move_constructible_v<T>)
-        T *reallocateArray(T *old, size_t oldCount, size_t newCount) {
+        T *reallocateArray(T *old, size_t _, size_t oldCount, size_t newCount) {
             return static_cast<T*>(reallocate(old, sizeof(T) * oldCount, sizeof(T) * newCount));
         }
 
         template<typename T>
         T *reallocateArray(T *old, size_t usedCount, size_t oldCount, size_t newCount) {
             T *ptr = allocateArray<T>(newCount);
-            if (old) {
+            if (ptr) {
                 size_t count = std::min(usedCount, newCount);
                 std::uninitialized_move(old, old + count, ptr);
                 deallocateArray(old, oldCount);

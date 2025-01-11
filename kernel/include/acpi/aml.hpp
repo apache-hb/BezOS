@@ -161,7 +161,7 @@ namespace acpi {
 
         AmlData(Type ty, Data d)
             : type(ty)
-            , data(d)
+            , data(std::move(d))
         { }
 
         bool isInteger() const { return type == Type::eByte || type == Type::eWord || type == Type::eDword || type == Type::eQword; }

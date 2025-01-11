@@ -189,7 +189,7 @@ test_exe_kwargs = {
     'c_args': c_args,
     'cpp_args': test_cpp_args,
     'dependencies': [ gtest_main, gmock ],
-    # 'override_options': [ 'b_sanitize=address' ],
+    'override_options': [ 'b_sanitize=address' ],
     'native': true,
     'link_with': test_shim,
 }
@@ -197,7 +197,12 @@ test_exe_kwargs = {
 # Test cases
 
 testcases = {
-    'static vector': [ 'kernel/test/vector.cpp', ],
+    'static vector': [
+        'kernel/test/static_vector.cpp',
+    ],
+    'vector': [
+        'kernel/test/vector.cpp',
+    ],
     'format': [
         'kernel/test/format.cpp',
         'kernel/src/util/format.cpp',

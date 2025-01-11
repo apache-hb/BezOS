@@ -6,7 +6,7 @@
 #include <span>
 
 namespace mem {
-    class BitmapAllocator : public mem::IAllocator {
+    class BitmapAllocator final : public mem::IAllocator {
         void *mFront;
         void *mBack;
 
