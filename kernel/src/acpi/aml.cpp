@@ -213,25 +213,13 @@ static acpi::AmlPackageId DefPackage(acpi::AmlParser& parser, acpi::AmlNodeBuffe
 
     acpi::AmlParser sub = parser.subspan(length - (back - front));
 
-    mem::IAllocator *alloc = code.allocator();
-
-    auto deleter = [&](acpi::AmlData *ptr) {
-        alloc->deallocateArray(ptr, count);
-    };
-
-    std::unique_ptr<acpi::AmlData[], decltype(deleter)> terms{alloc->allocateArray<acpi::AmlData>(count), deleter};
+    stdx::Vector<acpi::AmlAnyId> terms(code.allocator());
 
     for (uint8_t i = 0; i < count; i++) {
-        terms[i] = DataRefObject(sub, code);
+        terms.add(code.add(acpi::AmlDataTerm{DataRefObject(sub, code)}));
     }
 
-    acpi::AmlIdRange elements = code.addRange([&] {
-        for (uint8_t i = 0; i < count; i++) {
-            code.add(acpi::AmlDataTerm{ terms[i] });
-        }
-    });
-
-    return code.add(acpi::AmlPackageTerm { elements });
+    return code.add(acpi::AmlPackageTerm { terms });
 }
 
 enum {
@@ -296,45 +284,11 @@ static acpi::AmlFieldFlags FieldFlags(acpi::AmlParser& parser) {
     return { flags };
 }
 
-#if 0
-static void FieldList(acpi::AmlParser& parser, uint32_t length) {
-    enum {
-        kReservedField = 0x00,
-        kAccessField = 0x01,
-    };
-
-    uint32_t end = parser.offset() + length;
-
-    KmDebugMessage("[AML] Reading until ", km::Hex(end).pad(8, '0'), "\n");
-
-    while (parser.offset() < end) {
-        uint8_t it = parser.peek();
-        switch (it) {
-        case kReservedField: {
-            parser.advance();
-            uint32_t length = PkgLength(parser);
-            KmDebugMessage("[AML] ReservedField length ", length, "\n");
-            break;
-        }
-        case kAccessField: {
-            parser.advance();
-            ByteData(parser);
-            ByteData(parser);
-            break;
-        }
-        default:
-            KmDebugMessage("[AML] Unknown Field ", km::Hex(it).pad(2, '0'), "\n");
-            return;
-        }
-    }
-}
-#endif
-
 acpi::AmlNameTerm acpi::detail::NameTerm(AmlParser& parser, AmlNodeBuffer& code) {
     acpi::AmlName name = NameString(parser);
     acpi::AmlData data = DataRefObject(parser, code);
 
-    KmDebugMessage("[AML] Name (", name, ", ", data, ")\n");
+    // KmDebugMessage("[AML] Name (", name, ", ", data, ")\n");
 
     return { name, code.add(AmlDataTerm(data)) };
 }
@@ -369,7 +323,7 @@ acpi::AmlScopeTerm acpi::detail::ScopeTerm(AmlParser& parser, AmlNodeBuffer& cod
         terms.add(Term(sub, code));
     }
 
-    KmDebugMessage("[AML] Scope (", name, ") - ", (length - (back - front)), "\n");
+    // KmDebugMessage("[AML] Scope (", name, ") - ", (length - (back - front)), "\n");
 
     return acpi::AmlScopeTerm { name, terms };
 }
@@ -385,7 +339,7 @@ acpi::AmlMethodTerm acpi::detail::MethodTerm(AmlParser& parser, AmlNodeBuffer& c
 
     acpi::AmlParser sub = parser.subspan(length - (back - front));
 
-    KmDebugMessage("[AML] Method (", name, ", ", flags.argCount(), ", ", flags.serialized() ? "Serialized"_sv : "NotSerialized"_sv, ")\n");
+    // KmDebugMessage("[AML] Method (", name, ", ", flags.argCount(), ", ", flags.serialized() ? "Serialized"_sv : "NotSerialized"_sv, ")\n");
 
     return { name, flags };
 }
@@ -394,7 +348,7 @@ acpi::AmlAliasTerm acpi::detail::AliasTerm(AmlParser& parser, AmlNodeBuffer& cod
     acpi::AmlName name = NameString(parser);
     acpi::AmlName alias = NameString(parser);
 
-    KmDebugMessage("[AML] Alias (", name, ", ", alias, ")\n");
+    // KmDebugMessage("[AML] Alias (", name, ", ", alias, ")\n");
 
     return { name, alias };
 }
@@ -407,7 +361,7 @@ acpi::AmlDeviceTerm acpi::detail::DeviceTerm(AmlParser& parser, AmlNodeBuffer& c
 
     acpi::AmlParser sub = parser.subspan(length - (back - front));
 
-    KmDebugMessage("[AML] Device (", name, ") - ", (length - (back - front)), "\n");
+    // KmDebugMessage("[AML] Device (", name, ") - ", (length - (back - front)), "\n");
 
     return { name };
 }
@@ -424,7 +378,7 @@ acpi::AmlProcessorTerm acpi::detail::ProcessorTerm(AmlParser& parser, AmlNodeBuf
 
     acpi::AmlParser sub = parser.subspan(length - (back - front));
 
-    KmDebugMessage("[AML] Processor (", name, ", ", id, ") - ", (length - (back - front)), "\n");
+    // KmDebugMessage("[AML] Processor (", name, ", ", id, ") - ", (length - (back - front)), "\n");
 
     return { name, id, pblkAddr, pblkLen };
 }
@@ -446,7 +400,7 @@ acpi::AmlIfElseOp acpi::detail::DefIfElse(AmlParser& parser, AmlNodeBuffer& code
         terms.add(Term(sub, code));
     }
 
-    KmDebugMessage("[AML] IfElse () - ", (length - (back - front)), "\n");
+    // KmDebugMessage("[AML] IfElse () - ", (length - (back - front)), "\n");
 
     return { predicate, terms };
 }
@@ -455,7 +409,7 @@ acpi::AmlCondRefOp acpi::detail::ConfRefOf(AmlParser& parser, AmlNodeBuffer& cod
     acpi::AmlSuperName name = SuperName(parser);
     acpi::AmlTarget target = Target(parser);
 
-    KmDebugMessage("[AML] CondRefOf (", name.name, ", ", target.name.name, ")\n");
+    // KmDebugMessage("[AML] CondRefOf (", name.name, ", ", target.name.name, ")\n");
 
     return { name, target };
 }
@@ -466,7 +420,7 @@ acpi::AmlOpRegionTerm acpi::detail::DefOpRegion(AmlParser& parser, AmlNodeBuffer
     acpi::AmlAnyId offset = TermArg(parser, code);
     acpi::AmlAnyId size = TermArg(parser, code);
 
-    KmDebugMessage("[AML] OperationRegion (", name, ", ", region, ")\n");
+    // KmDebugMessage("[AML] OperationRegion (", name, ", ", region, ")\n");
 
     acpi::AmlOpRegionTerm opRegion = { name, region, offset, size };
 
@@ -477,7 +431,7 @@ acpi::AmlStoreTerm acpi::detail::DefStore(AmlParser& parser, AmlNodeBuffer& code
     acpi::AmlAnyId source = TermArg(parser, code);
     acpi::AmlSuperName target = SuperName(parser);
 
-    KmDebugMessage("[AML] Store (", target.name, ")\n");
+    // KmDebugMessage("[AML] Store (", target.name, ")\n");
 
     return { source, target };
 }
@@ -487,7 +441,7 @@ acpi::CreateDwordFieldTerm acpi::detail::DefCreateDwordField(AmlParser& parser, 
     AmlAnyId index = TermArg(parser, code);
     acpi::AmlName name = NameString(parser);
 
-    KmDebugMessage("[AML] CreateDwordField (", name, ")\n");
+    // KmDebugMessage("[AML] CreateDwordField (", name, ")\n");
 
     return { source, index, name };
 }
@@ -573,10 +527,11 @@ acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& 
 
             uint32_t back = parser.offset();
 
-            KmDebugMessage("[AML] Field (", name, ", ", flags.lock() ? "Lock"_sv : "NoLock"_sv, ")\n");
+            // KmDebugMessage("[AML] Field (", name, ", ", flags.lock() ? "Lock"_sv : "NoLock"_sv, ")\n");
 
             parser.skip(length - (back - front));
-            break;
+
+            return code.add(AmlFieldTerm{ name, flags });
         }
 
         case kDeviceOp:
@@ -600,12 +555,13 @@ acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& 
 
             uint32_t back = parser.offset();
 
-            KmDebugMessage("[AML] IndexField length ", length, " - ", back - front, "\n");
+            // KmDebugMessage("[AML] IndexField length ", length, " - ", back - front, "\n");
 
-            KmDebugMessage("[AML] IndexField (", name, ", ", field, ", ", flags.lock() ? "Lock"_sv : "NoLock"_sv, ")\n");
+            // KmDebugMessage("[AML] IndexField (", name, ", ", field, ", ", flags.lock() ? "Lock"_sv : "NoLock"_sv, ")\n");
 
             parser.skip(length - (back - front));
-            break;
+
+            return code.add(AmlIndexFieldTerm{ name, field, flags });
         }
         default:
             KmDebugMessage("[AML] Unknown ExtendedOp ", km::Hex(ext).pad(2, '0'), "\n");
@@ -626,9 +582,13 @@ acpi::AmlCode acpi::WalkAml(const RsdtHeader *dsdt, mem::IAllocator *arena) {
 
     AmlParser parser(dsdt);
 
+    stdx::Vector<AmlAnyId> terms(arena);
+
     while (!parser.done()) {
-        Term(parser, code.nodes());
+        terms.add(Term(parser, code.nodes()));
     }
+
+    code.root()->terms = terms;
 
     return code;
 }
@@ -640,6 +600,7 @@ acpi::AmlNameTerm acpi::AmlNodeBuffer::get(AmlNameId id) {
 
 using AmlNameFormat = km::Format<acpi::AmlName>;
 using AmlConstFormat = km::Format<acpi::AmlData>;
+using AmlTermTypeFormat = km::Format<acpi::AmlTermType>;
 
 void AmlNameFormat::format(km::IOutStream& out, const acpi::AmlName& value) {
     if (value.segments.isEmpty()) {
@@ -654,6 +615,8 @@ void AmlNameFormat::format(km::IOutStream& out, const acpi::AmlName& value) {
             out.write('^');
         }
     }
+
+    KmDebugMessage("LENGTH: ", value.segments.count(), "\n");
 
     for (size_t i = 0; i < value.segments.count(); i++) {
         if (i != 0) out.write('.');
@@ -686,5 +649,45 @@ void AmlConstFormat::format(km::IOutStream& out, const acpi::AmlData& value) {
         break;
     default:
         out.write("unknown");
+    }
+}
+
+void AmlTermTypeFormat::format(km::IOutStream& out, acpi::AmlTermType value) {
+    switch (value) {
+    case acpi::AmlTermType::eName:
+        out.write("Name");
+        break;
+    case acpi::AmlTermType::eAlias:
+        out.write("Alias");
+        break;
+    case acpi::AmlTermType::eScope:
+        out.write("Scope");
+        break;
+    case acpi::AmlTermType::eMethod:
+        out.write("Method");
+        break;
+    case acpi::AmlTermType::eIfElse:
+        out.write("IfElse");
+        break;
+    case acpi::AmlTermType::eStore:
+        out.write("Store");
+        break;
+    case acpi::AmlTermType::eOpRegion:
+        out.write("OpRegion");
+        break;
+    case acpi::AmlTermType::eDevice:
+        out.write("Device");
+        break;
+    case acpi::AmlTermType::eProcessor:
+        out.write("Processor");
+        break;
+    case acpi::AmlTermType::eData:
+        out.write("Data");
+        break;
+    case acpi::AmlTermType::ePackage:
+        out.write("Package");
+        break;
+    default:
+        out.write(std::to_underlying(value));
     }
 }

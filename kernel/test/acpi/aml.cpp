@@ -69,5 +69,39 @@ TEST(AmlTest, ParseTable) {
         { .width = 512, .allocator = &arena2 },
     } };
 
-    acpi::WalkAml(header, &arena);
+    acpi::AmlCode code = acpi::WalkAml(header, &arena);
+
+    acpi::AmlNodeBuffer& nodes = code.nodes();
+    acpi::AmlScopeTerm *root = code.root();
+
+    KmDebugMessage("Scope(", root->name, ") {\n");
+    for (size_t i = 0; i < root->terms.count(); i++) {
+        acpi::AmlAnyId id = root->terms[i];
+        auto type = nodes.getType(id);
+        KmDebugMessage("Term ", i, ": ", uint32_t(id.id), " ", type, "\n");
+        switch (type) {
+        case acpi::AmlTermType::eName: {
+            acpi::AmlNameTerm *term = nodes.get<acpi::AmlNameTerm>(id);
+            KmDebugMessage("  Address: ", (void*)term, "\n");
+            KmDebugMessage("  Name(", term->name, ")\n");
+            break;
+        }
+        case acpi::AmlTermType::eAlias: {
+            acpi::AmlAliasTerm *term = nodes.get<acpi::AmlAliasTerm>(id);
+            KmDebugMessage("  Alias(", term->name, ", ", term->alias, ")\n");
+            break;
+        }
+        case acpi::AmlTermType::eDevice: {
+            acpi::AmlDeviceTerm *term = nodes.get<acpi::AmlDeviceTerm>(id);
+            KmDebugMessage("  Device(", term->name, ")\n");
+            break;
+        }
+
+        default: {
+            KmDebugMessage("  Unknown term\n");
+            break;
+        }
+        }
+    }
+    KmDebugMessage("}\n");
 }

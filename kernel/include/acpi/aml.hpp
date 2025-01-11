@@ -84,13 +84,6 @@ namespace acpi {
         { }
     };
 
-    struct AmlIdRange {
-        AmlAnyId front;
-        AmlAnyId back;
-
-        size_t count() const { return back.id - front.id; }
-    };
-
     using AmlNameId = AmlId<struct AmlNameTerm>;
     using AmlMethodId = AmlId<struct AmlMethodTerm>;
     using AmlPackageId = AmlId<struct AmlPackageTerm>;
@@ -218,6 +211,8 @@ namespace acpi {
         eProcessor,
         eIfElse,
         eCondRefOf,
+        eField,
+        eIndexField,
 
         eCreateByteField,
         eCreateWordField,
@@ -250,7 +245,7 @@ namespace acpi {
 
     struct AmlPackageTerm {
         static constexpr AmlTermType kType = AmlTermType::ePackage;
-        AmlIdRange range;
+        stdx::Vector<AmlAnyId> range;
     };
 
     struct AmlDataTerm {
@@ -267,6 +262,19 @@ namespace acpi {
     struct AmlDeviceTerm {
         static constexpr AmlTermType kType = AmlTermType::eDevice;
         AmlName name;
+    };
+
+    struct AmlFieldTerm {
+        static constexpr AmlTermType kType = AmlTermType::eField;
+        AmlName name;
+        AmlFieldFlags flags;
+    };
+
+    struct AmlIndexFieldTerm {
+        static constexpr AmlTermType kType = AmlTermType::eIndexField;
+        AmlName name;
+        AmlName field;
+        AmlFieldFlags flags;
     };
 
     struct AmlOpRegionTerm {
@@ -355,15 +363,18 @@ namespace acpi {
 
         AmlNameTerm get(AmlNameId id);
 
-        AmlData ones() { return mOnes; }
-
-        AmlIdRange addRange(auto&& fn) {
-            AmlAnyId front = { mHeaders.count() };
-            fn();
-            AmlAnyId back = { mHeaders.count() };
-
-            return AmlIdRange { front, back };
+        template<typename T>
+        T *getTerm(AmlAnyId id) {
+            ObjectHeader header = mHeaders[id.id];
+            return mObjects.get<T>(header.offset);
         }
+
+        template<typename T>
+        T *get(AmlId<T> id) { return getTerm<T>(id); }
+
+        AmlTermType getType(AmlAnyId id) const { return mHeaders[id.id].type; }
+
+        AmlData ones() { return mOnes; }
     };
 
     enum class AmlError {
@@ -375,15 +386,20 @@ namespace acpi {
 
         AmlNodeBuffer mNodes;
 
+        AmlScopeId mRootScope;
+
     public:
         AmlCode(RsdtHeader header, mem::IAllocator *arena)
             : mHeader(header)
             , mNodes(arena, mHeader.revision)
+            , mRootScope(mNodes.add(AmlScopeTerm { .terms = stdx::Vector<AmlAnyId>(mNodes.allocator()) }))
         { }
 
         AmlNodeBuffer& nodes() { return mNodes; }
 
         std::expected<uint64_t, AmlError> intValue(AmlName name) const;
+
+        AmlScopeTerm *root() { return mNodes.get<AmlScopeTerm>(mRootScope); }
     };
 
     AmlCode WalkAml(const RsdtHeader *dsdt, mem::IAllocator *arena);
@@ -493,4 +509,9 @@ struct km::Format<acpi::AmlName> {
 template<>
 struct km::Format<acpi::AmlData> {
     static void format(km::IOutStream& out, const acpi::AmlData& value);
+};
+
+template<>
+struct km::Format<acpi::AmlTermType> {
+    static void format(km::IOutStream& out, acpi::AmlTermType value);
 };
