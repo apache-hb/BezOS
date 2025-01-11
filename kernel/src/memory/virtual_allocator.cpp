@@ -2,13 +2,14 @@
 
 #include "arch/paging.hpp"
 
-static void SortRanges(stdx::StaticVectorBase<km::VirtualRange>& ranges) {
+static void SortRanges(std::span<km::VirtualRange> ranges) {
     std::sort(ranges.begin(), ranges.end(), [](const km::VirtualRange& a, const km::VirtualRange& b) {
         return a.front < b.front;
     });
 }
 
-static void MergeRanges(stdx::StaticVectorBase<km::VirtualRange>& ranges) {
+template<size_t N>
+static void MergeRanges(stdx::StaticVector<km::VirtualRange, N>& ranges) {
     SortRanges(ranges);
     for (size_t i = 0; i < ranges.count(); i++) {
         km::VirtualRange& range = ranges[i];

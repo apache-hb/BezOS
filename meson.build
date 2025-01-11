@@ -19,7 +19,7 @@ project('bezos', [ 'c', 'cpp' ],
 cc = meson.get_compiler('c')
 cpp = meson.get_compiler('cpp')
 
-inc = include_directories('kernel/include')
+inc = include_directories('kernel/include', 'kernel/subprojects/tlsf/include')
 
 common_args = [
     '-fmacro-prefix-map=../=/',
@@ -69,6 +69,9 @@ smp = custom_target('smp.o',
 # Kernel
 
 src = [
+    # TLSF allocator
+    'kernel/subprojects/tlsf/tlsf.c',
+
     # Utilities
     'kernel/src/util/cpuid.cpp',
     'kernel/src/util/memory.cpp',
@@ -306,6 +309,7 @@ src = [
     'kernel/src/acpi/format.cpp',
     'kernel/src/util/format.cpp',
     'kernel/src/allocator/bitmap.cpp',
+    'kernel/subprojects/tlsf/tlsf.c',
 ]
 
 exe = executable('test-aml', src,

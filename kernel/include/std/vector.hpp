@@ -46,9 +46,9 @@ namespace stdx {
 
         Vector(mem::IAllocator *allocator, size_t capacity)
             : mAllocator(allocator)
-            , mFront(mAllocator->allocateArray<T>(capacity))
+            , mFront(mAllocator->allocateArray<T>(std::max<size_t>(capacity, 1)))
             , mBack(mFront)
-            , mCapacity(mFront + capacity)
+            , mCapacity(mFront + std::max<size_t>(capacity, 1))
         {
             KM_CHECK(mFront != nullptr, "Failed to allocate vector buffer");
         }

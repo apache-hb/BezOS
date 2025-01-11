@@ -6,9 +6,25 @@
 
 #include "acpi/aml.hpp"
 
-#include "aml_test_common.hpp"
+#include "allocator/tlsf.hpp"
 
 using namespace stdx::literals;
+
+class TestAllocator : public mem::IAllocator {
+public:
+    void* allocate(size_t size, size_t _) override {
+        void *ptr = std::malloc(size);
+        return ptr;
+    }
+
+    void* reallocate(void* old, size_t _, size_t newSize) override {
+        return std::realloc(old, newSize);
+    }
+
+    void deallocate(void* ptr, size_t _) override {
+        std::free(ptr);
+    }
+};
 
 static std::vector<uint8_t> ReadBinaryBlob(const std::filesystem::path& path) {
     std::ifstream ifs{path, std::ios::binary};
@@ -78,28 +94,65 @@ static bool PrintAml(AmlPrinter& printer, acpi::AmlNodeBuffer& nodes, acpi::AmlA
     switch (type) {
     case acpi::AmlTermType::eName: {
         acpi::AmlNameTerm *term = nodes.get<acpi::AmlNameTerm>(id);
-        printer.println("Name(", term->name, ") - ", id.id);
+        printer.println("Name(", term->name, ")");
         break;
     }
     case acpi::AmlTermType::eAlias: {
         acpi::AmlAliasTerm *term = nodes.get<acpi::AmlAliasTerm>(id);
-        printer.println("Alias(", term->name, ", ", term->alias, ") - ", id.id);
+        printer.println("Alias(", term->name, ", ", term->alias, ")");
         break;
     }
     case acpi::AmlTermType::eDevice: {
         acpi::AmlDeviceTerm *term = nodes.get<acpi::AmlDeviceTerm>(id);
-        printer.println("Device(", term->name, ") - ", id.id);
+        printer.println("Device(", term->name, ")");
         break;
     }
     case acpi::AmlTermType::eMethod: {
         acpi::AmlMethodTerm *term = nodes.get<acpi::AmlMethodTerm>(id);
         stdx::StringView serialized = term->flags.serialized() ? "Serialized"_sv : "NotSerialized"_sv;
-        printer.println("Method(", term->name, ", ", term->flags.argCount(), ", ", serialized, ") - ", id.id);
+        printer.println("Method(", term->name, ", ", term->flags.argCount(), ", ", serialized, ")");
+        break;
+    }
+    case acpi::AmlTermType::eOpRegion: {
+        acpi::AmlOpRegionTerm *term = nodes.get<acpi::AmlOpRegionTerm>(id);
+        printer.println("OperationRegion(", term->name, ")");
+        break;
+    }
+    case acpi::AmlTermType::eField: {
+        acpi::AmlFieldTerm *term = nodes.get<acpi::AmlFieldTerm>(id);
+        stdx::StringView lock = term->flags.lock() ? "Lock"_sv : "NoLock"_sv;
+        printer.println("Field(", term->name, ", ", lock, ")");
+        break;
+    }
+    case acpi::AmlTermType::eIndexField: {
+        acpi::AmlIndexFieldTerm *term = nodes.get<acpi::AmlIndexFieldTerm>(id);
+        stdx::StringView lock = term->flags.lock() ? "Lock"_sv : "NoLock"_sv;
+        printer.println("IndexField(", term->name, ", ", term->field, ", ", lock, ")");
+        break;
+    }
+    case acpi::AmlTermType::eCreateByteField: {
+        acpi::AmlCreateByteFieldTerm *term = nodes.get<acpi::AmlCreateByteFieldTerm>(id);
+        printer.println("CreateByteField(", term->name, ")");
+        break;
+    }
+    case acpi::AmlTermType::eCreateWordField: {
+        acpi::AmlCreateWordFieldTerm *term = nodes.get<acpi::AmlCreateWordFieldTerm>(id);
+        printer.println("CreateWordField(", term->name, ")");
+        break;
+    }
+    case acpi::AmlTermType::eCreateDwordField: {
+        acpi::AmlCreateDwordFieldTerm *term = nodes.get<acpi::AmlCreateDwordFieldTerm>(id);
+        printer.println("CreateDwordField(", term->name, ")");
+        break;
+    }
+    case acpi::AmlTermType::eCreateQwordField: {
+        acpi::AmlCreateQwordFieldTerm *term = nodes.get<acpi::AmlCreateQwordFieldTerm>(id);
+        printer.println("CreateQwordField(", term->name, ")");
         break;
     }
     case acpi::AmlTermType::eScope: {
         acpi::AmlScopeTerm *term = nodes.get<acpi::AmlScopeTerm>(id);
-        printer.println("Scope(", term->name, ") - ", id.id, " - ", (void*)term->terms.data(), " {");
+        printer.println("Scope(", term->name, ") {");
         if (!printer.enter(id)) return false;
 
         for (size_t i = 0; i < term->terms.count(); i++) {
@@ -131,16 +184,19 @@ TEST(AmlTest, ParseTable) {
 
     ASSERT_NE(header, nullptr) << "DSDT table not found";
 
-    AmlTestContext ctx;
+    static constexpr size_t kBufferSize = 0x1000000;
+    std::unique_ptr<uint8_t[]> buffer{new uint8_t[kBufferSize]};
 
-    acpi::AmlCode code = acpi::WalkAml(header, &ctx.arena);
+    mem::TlsfAllocator tlsf { buffer.get(), kBufferSize };
+
+    acpi::AmlCode code = acpi::WalkAml(header, &tlsf);
 
     acpi::AmlNodeBuffer& nodes = code.nodes();
     acpi::AmlScopeTerm *root = code.root();
 
     AmlPrinter printer;
 
-    KmDebugMessage("Scope(", root->name, ") {\n");
+    KmDebugMessage("DefinitionBlock(\"", std::string_view(path), "\", \"DSDT\") {\n");
     printer.enter(code.rootId());
     for (size_t i = 0; i < root->terms.count(); i++) {
         acpi::AmlAnyId id = root->terms[i];

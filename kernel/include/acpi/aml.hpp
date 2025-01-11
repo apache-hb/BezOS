@@ -313,8 +313,29 @@ namespace acpi {
         AmlTarget target;
     };
 
-    struct CreateDwordFieldTerm {
+    struct AmlCreateByteFieldTerm {
+        static constexpr AmlTermType kType = AmlTermType::eCreateByteField;
+        AmlAnyId source;
+        AmlAnyId index;
+        AmlName name;
+    };
+
+    struct AmlCreateWordFieldTerm {
+        static constexpr AmlTermType kType = AmlTermType::eCreateWordField;
+        AmlAnyId source;
+        AmlAnyId index;
+        AmlName name;
+    };
+
+    struct AmlCreateDwordFieldTerm {
         static constexpr AmlTermType kType = AmlTermType::eCreateDwordField;
+        AmlAnyId source;
+        AmlAnyId index;
+        AmlName name;
+    };
+
+    struct AmlCreateQwordFieldTerm {
+        static constexpr AmlTermType kType = AmlTermType::eCreateQwordField;
         AmlAnyId source;
         AmlAnyId index;
         AmlName name;
@@ -453,7 +474,14 @@ namespace acpi {
 
         AmlStoreTerm DefStore(AmlParser& parser, AmlNodeBuffer& code);
 
-        CreateDwordFieldTerm DefCreateDwordField(AmlParser& parser, AmlNodeBuffer& code);
+        AmlFieldTerm DefField(AmlParser& parser, AmlNodeBuffer& code);
+
+        AmlIndexFieldTerm DefIndexField(AmlParser& parser, AmlNodeBuffer& code);
+
+        AmlCreateByteFieldTerm DefCreateByteField(AmlParser& parser, AmlNodeBuffer& code);
+        AmlCreateWordFieldTerm DefCreateWordField(AmlParser& parser, AmlNodeBuffer& code);
+        AmlCreateDwordFieldTerm DefCreateDwordField(AmlParser& parser, AmlNodeBuffer& code);
+        AmlCreateQwordFieldTerm DefCreateQwordField(AmlParser& parser, AmlNodeBuffer& code);
     }
 
     namespace literals {

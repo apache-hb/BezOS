@@ -42,7 +42,7 @@ check:
 
 .PHONY: clean
 clean:
-	meson clean -C build
+	ninja -C build clean
 
 .PHONY: integration
 integration: qemu vbox vmware hyperv

@@ -180,7 +180,7 @@ acpi::AmlBuffer acpi::detail::BufferData(acpi::AmlParser& parser, acpi::AmlNodeB
 
     size_t space = length - (back - front);
 
-    stdx::Vector<uint8_t> data{code.allocator(), length};
+    stdx::Vector<uint8_t> data(code.allocator(), length);
     for (uint32_t i = 0; i < space; i++) {
         data.add(parser.read());
     }
@@ -213,7 +213,7 @@ static acpi::AmlPackageId DefPackage(acpi::AmlParser& parser, acpi::AmlNodeBuffe
 
     acpi::AmlParser sub = parser.subspan(length - (back - front));
 
-    stdx::Vector<acpi::AmlAnyId> terms(code.allocator());
+    stdx::Vector<acpi::AmlAnyId> terms(code.allocator(), count);
 
     for (uint8_t i = 0; i < count; i++) {
         terms.add(code.add(acpi::AmlDataTerm{DataRefObject(sub, code)}));
@@ -320,7 +320,6 @@ acpi::AmlScopeTerm acpi::detail::ScopeTerm(AmlParser& parser, AmlNodeBuffer& cod
 
     while (!sub.done()) {
         acpi::AmlAnyId id = Term(sub, code);
-        KmDebugMessage("Scope(", name, ") - ", id.id, "\n");
         terms.add(id);
     }
 
@@ -421,9 +420,38 @@ acpi::AmlOpRegionTerm acpi::detail::DefOpRegion(AmlParser& parser, AmlNodeBuffer
     acpi::AmlAnyId offset = TermArg(parser, code);
     acpi::AmlAnyId size = TermArg(parser, code);
 
-    // KmDebugMessage("[AML] OperationRegion (", name, ", ", region, ")\n");
-
     return acpi::AmlOpRegionTerm { name, region, offset, size };
+}
+
+acpi::AmlFieldTerm acpi::detail::DefField(AmlParser& parser, AmlNodeBuffer& code) {
+    uint32_t front = parser.offset();
+
+    uint32_t length = PkgLength(parser);
+    acpi::AmlName name = NameString(parser);
+    AmlFieldFlags flags = FieldFlags(parser);
+
+    uint32_t back = parser.offset();
+
+    parser.skip(length - (back - front));
+
+    return AmlFieldTerm { name, flags };
+}
+
+acpi::AmlIndexFieldTerm acpi::detail::DefIndexField(AmlParser& parser, AmlNodeBuffer& code) {
+    uint32_t front = parser.offset();
+
+    uint32_t length = PkgLength(parser);
+    acpi::AmlName name = NameString(parser);
+    acpi::AmlName field = NameString(parser);
+    AmlFieldFlags flags = FieldFlags(parser);
+
+    // FieldList(parser, length);
+
+    uint32_t back = parser.offset();
+
+    parser.skip(length - (back - front));
+
+    return AmlIndexFieldTerm{ name, field, flags };
 }
 
 acpi::AmlStoreTerm acpi::detail::DefStore(AmlParser& parser, AmlNodeBuffer& code) {
@@ -435,14 +463,36 @@ acpi::AmlStoreTerm acpi::detail::DefStore(AmlParser& parser, AmlNodeBuffer& code
     return acpi::AmlStoreTerm { source, target };
 }
 
-acpi::CreateDwordFieldTerm acpi::detail::DefCreateDwordField(AmlParser& parser, AmlNodeBuffer& code) {
+acpi::AmlCreateByteFieldTerm acpi::detail::DefCreateByteField(AmlParser& parser, AmlNodeBuffer& code) {
     AmlAnyId source = TermArg(parser, code);
     AmlAnyId index = TermArg(parser, code);
     acpi::AmlName name = NameString(parser);
 
-    // KmDebugMessage("[AML] CreateDwordField (", name, ")\n");
+    return acpi::AmlCreateByteFieldTerm { source, index, name };
+}
 
-    return acpi::CreateDwordFieldTerm  { source, index, name };
+acpi::AmlCreateWordFieldTerm acpi::detail::DefCreateWordField(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlAnyId source = TermArg(parser, code);
+    AmlAnyId index = TermArg(parser, code);
+    acpi::AmlName name = NameString(parser);
+
+    return acpi::AmlCreateWordFieldTerm { source, index, name };
+}
+
+acpi::AmlCreateDwordFieldTerm acpi::detail::DefCreateDwordField(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlAnyId source = TermArg(parser, code);
+    AmlAnyId index = TermArg(parser, code);
+    acpi::AmlName name = NameString(parser);
+
+    return acpi::AmlCreateDwordFieldTerm { source, index, name };
+}
+
+acpi::AmlCreateQwordFieldTerm acpi::detail::DefCreateQwordField(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlAnyId source = TermArg(parser, code);
+    AmlAnyId index = TermArg(parser, code);
+    acpi::AmlName name = NameString(parser);
+
+    return acpi::AmlCreateQwordFieldTerm { source, index, name };
 }
 
 acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
@@ -455,7 +505,10 @@ acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& 
         kStoreOp = 0x70,
         kIfOp = 0xA0,
 
+        kCreateByteFieldOp = 0x8C,
+        kCreateWordFieldOp = 0x8B,
         kCreateDwordFieldOp = 0x8A,
+        kCreateQwordFieldOp = 0x8F,
 
         kExtOpPrefix = 0x5B,
 
@@ -486,8 +539,14 @@ acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& 
     case kStoreOp:
         return code.add(DefStore(parser, code));
 
+    case kCreateByteFieldOp:
+        return code.add(DefCreateByteField(parser, code));
+    case kCreateWordFieldOp:
+        return code.add(DefCreateWordField(parser, code));
     case kCreateDwordFieldOp:
         return code.add(DefCreateDwordField(parser, code));
+    case kCreateQwordFieldOp:
+        return code.add(DefCreateQwordField(parser, code));
 
     case kBytePrefix:
         return code.add(AmlDataTerm{ AmlData{ acpi::AmlData::Type::eByte, { ByteData(parser) } } });
@@ -517,21 +576,8 @@ acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& 
         case kRegionOp:
             return code.add(DefOpRegion(parser, code));
 
-        case kFieldOp: {
-            uint32_t front = parser.offset();
-
-            uint32_t length = PkgLength(parser);
-            acpi::AmlName name = NameString(parser);
-            AmlFieldFlags flags = FieldFlags(parser);
-
-            uint32_t back = parser.offset();
-
-            // KmDebugMessage("[AML] Field (", name, ", ", flags.lock() ? "Lock"_sv : "NoLock"_sv, ")\n");
-
-            parser.skip(length - (back - front));
-
-            return code.add(AmlFieldTerm{ name, flags });
-        }
+        case kFieldOp:
+            return code.add(DefField(parser, code));
 
         case kDeviceOp:
             return code.add(DeviceTerm(parser, code));
@@ -542,26 +588,9 @@ acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& 
         case kCondRefOp:
             return code.add(ConfRefOf(parser, code));
 
-        case kIndexFieldOp: {
-            uint32_t front = parser.offset();
+        case kIndexFieldOp:
+            return code.add(DefIndexField(parser, code));
 
-            uint32_t length = PkgLength(parser);
-            acpi::AmlName name = NameString(parser);
-            acpi::AmlName field = NameString(parser);
-            AmlFieldFlags flags = FieldFlags(parser);
-
-            // FieldList(parser, length);
-
-            uint32_t back = parser.offset();
-
-            // KmDebugMessage("[AML] IndexField length ", length, " - ", back - front, "\n");
-
-            // KmDebugMessage("[AML] IndexField (", name, ", ", field, ", ", flags.lock() ? "Lock"_sv : "NoLock"_sv, ")\n");
-
-            parser.skip(length - (back - front));
-
-            return code.add(AmlIndexFieldTerm{ name, field, flags });
-        }
         default:
             KmDebugMessage("[AML] Unknown ExtendedOp ", km::Hex(ext).pad(2, '0'), "\n");
             break;
@@ -586,7 +615,6 @@ acpi::AmlCode acpi::WalkAml(const RsdtHeader *dsdt, mem::IAllocator *arena) {
 
     while (!parser.done()) {
         acpi::AmlAnyId id = Term(parser, nodes);
-        KmDebugMessage("Scope() - ", id.id, "\n");
         terms.add(id);
     }
 

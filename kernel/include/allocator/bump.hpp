@@ -2,8 +2,6 @@
 
 #include <cstddef>
 
-#include <utility>
-
 #include "allocator/allocator.hpp"
 
 namespace mem {
