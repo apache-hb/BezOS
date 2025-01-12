@@ -3,6 +3,7 @@
 #include "acpi/aml.hpp"
 
 using namespace stdx::literals;
+using namespace acpi::literals;
 
 TEST(AmlDetailTest, PkgLengthEmpty) {
     uint8_t data[] = { 0x00 };
@@ -265,4 +266,40 @@ TEST(AmlDetailTest, IfElseCondRef) {
 
     ASSERT_EQ(op.terms.count(), 2);
     ASSERT_NE(op.predicate.id, 0xFFFF);
+}
+
+TEST(AmlDetailTest, Method) {
+    const uint8_t data[60] = {
+        0x14, 0x2E, 0x5F, 0x50, 0x49, 0x43, 0x01, // 7
+        // Method (_PIC, 1, NotSerialized) {
+        0xA0, 0x18, 0x68, // 10
+        // If (Arg0) {
+        0x70, 0x0A, 0xAA, 0x44, 0x42, 0x47, 0x38, // 17
+        // DBG8 = 0xAA
+        0x5C, 0x2F, 0x03, 0x5F, 0x53, 0x42, 0x5F, 0x50, 0x43, 0x49, 0x30, 0x4E, 0x41, 0x50, 0x45,
+        // \_SB.PCI0.NAPE ()
+        0xA1, 0x08,
+        // } Else {
+        0x70, 0x0A, 0xAC, 0x44, 0x42, 0x47, 0x38,
+        // DBG8 = 0xAC
+        // }
+        0x70, 0x68, 0x50, 0x49, 0x43, 0x4D,
+        // PICM = Arg0
+
+        0x08, 0x4F, 0x53, 0x56, 0x52, 0xFF, 0x14, 0x40, 0x2A, 0x4F, 0x53, 0x46, 0x4C,
+    };
+
+    std::unique_ptr memory = GetAllocatorMemory();
+    acpi::AmlAllocator bitmap {memory.get(), memory.get() + kSize, 16};
+
+    acpi::AmlNodeBuffer code { &bitmap, 0 };
+    acpi::AmlParser parser(data);
+    acpi::AmlAnyId term = acpi::detail::Term(parser, code);
+
+    ASSERT_EQ(code.getType(term), acpi::AmlTermType::eMethod);
+
+    acpi::AmlMethodTerm method = *code.get<acpi::AmlMethodTerm>(term);
+
+    ASSERT_EQ(method.name, "_PIC"_aml);
+    ASSERT_EQ(method.terms.count(), 3);
 }

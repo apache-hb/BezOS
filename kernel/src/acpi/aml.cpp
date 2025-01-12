@@ -45,15 +45,25 @@ static uint8_t GetNameChar(acpi::AmlParser& parser) {
 }
 
 static void NameSegBody(acpi::AmlParser& parser, acpi::AmlName& dst, char lead) {
-    if (!IsLeadNameChar(lead)) {
-        KmDebugMessage("[AML] Invalid lead name character ", km::Hex((uint8_t)lead).pad(2, '0'), "\n");
+    if (lead != '\\') {
+        if (!IsLeadNameChar(lead)) {
+            KmDebugMessage("[AML] Invalid lead name character ", km::Hex((uint8_t)lead).pad(2, '0'), "\n");
+        }
+        char a = GetNameChar(parser);
+        char b = GetNameChar(parser);
+        char c = GetNameChar(parser);
+
+        dst.segments.add({ lead, a, b, c });
+    } else {
+        char a = GetNameChar(parser);
+        char b = GetNameChar(parser);
+        char c = GetNameChar(parser);
+        char d = GetNameChar(parser);
+
+        (void)d; // discard the last character
+
+        dst.segments.add({ lead, a, b, c });
     }
-
-    char a = GetNameChar(parser);
-    char b = GetNameChar(parser);
-    char c = GetNameChar(parser);
-
-    dst.segments.add({ lead, a, b, c });
 }
 
 static void NameSeg(acpi::AmlParser& parser, acpi::AmlName& dst) {
@@ -64,15 +74,13 @@ static void NameSeg(acpi::AmlParser& parser, acpi::AmlName& dst) {
 enum {
     kPrefixChar = 0x5e,
     kRootChar = 0x5c,
+
+    kDualNamePrefix = 0x2e,
+    kMultiNamePrefix = 0x2f,
+    kNullName = 0x00,
 };
 
 static void NamePath(acpi::AmlParser& parser, acpi::AmlName& dst) {
-    enum {
-        kDualNamePrefix = 0x2e,
-        kMultiNamePrefix = 0x2f,
-        kNullName = 0x00,
-    };
-
     uint8_t it = parser.read();
     switch (it) {
     case kMultiNamePrefix: {
@@ -105,12 +113,19 @@ static void PrefixPath(acpi::AmlParser& parser, acpi::AmlName& name) {
 acpi::AmlName acpi::detail::NameString(acpi::AmlParser& parser, uint8_t lead) {
     acpi::AmlName name = { 0 };
 
-    uint8_t letter = lead ?: parser.peek();
+    bool peeked = lead == 0;
+    uint8_t letter = lead ? lead : parser.peek();
     switch (letter) {
     case kRootChar:
-        parser.advance();
-        name.prefix = SIZE_MAX;
+        if (peeked) {
+            parser.advance();
+        }
         NamePath(parser, name);
+        // prepend a `\` to the first segment, discarding the last character in the segment
+        name.segments[0][3] = name.segments[0][2];
+        name.segments[0][2] = name.segments[0][1];
+        name.segments[0][1] = name.segments[0][0];
+        name.segments[0][0] = kRootChar;
         break;
 
     default:
@@ -382,10 +397,15 @@ acpi::AmlMethodTerm acpi::detail::MethodTerm(AmlParser& parser, AmlNodeBuffer& c
 
     acpi::AmlParser sub = parser.subspan(length - (back - front));
 
+    static bool once = true;
+
     stdx::Vector<acpi::AmlAnyId> terms(code.allocator());
 
-    while (!sub.done()) {
-        terms.add(Term(sub, code));
+    if (once) {
+        once = false;
+        while (!sub.done()) {
+            terms.add(Term(sub, code));
+        }
     }
 
     return acpi::AmlMethodTerm { name, flags, terms };
@@ -448,6 +468,32 @@ acpi::AmlIfElseOp acpi::detail::DefIfElse(AmlParser& parser, AmlNodeBuffer& code
     }
 
     return acpi::AmlIfElseOp { predicate, terms };
+}
+
+acpi::AmlElseTerm acpi::detail::DefElse(AmlParser& parser, AmlNodeBuffer& code) {
+    uint32_t front = parser.offset();
+
+    uint32_t length = PkgLength(parser);
+
+    uint32_t back = parser.offset();
+
+    acpi::AmlParser sub = parser.subspan(length - (back - front));
+
+    stdx::Vector<acpi::AmlAnyId> terms(code.allocator());
+
+    while (!sub.done()) {
+        terms.add(Term(sub, code));
+    }
+
+    return acpi::AmlElseTerm { terms };
+}
+
+acpi::AmlMethodInvokeTerm acpi::detail::DefMethodInvoke(AmlParser& parser, AmlNodeBuffer& code, uint8_t lead) {
+    acpi::AmlName name = NameString(parser, lead);
+
+    stdx::Vector<AmlAnyId> args(code.allocator());
+
+    return acpi::AmlMethodInvokeTerm { name, args };
 }
 
 acpi::AmlCondRefOp acpi::detail::ConfRefOf(AmlParser& parser, AmlNodeBuffer& code) {
@@ -599,6 +645,7 @@ acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& 
         kExternalOp = 0x15,
         kStoreOp = 0x70,
         kIfOp = 0xA0,
+        kElseOp = 0xA1,
 
         kCreateByteFieldOp = 0x8C,
         kCreateWordFieldOp = 0x8B,
@@ -637,8 +684,14 @@ acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& 
     case kIfOp:
         return code.add(DefIfElse(parser, code));
 
+    case kElseOp:
+        return code.add(DefElse(parser, code));
+
     case kStoreOp:
         return code.add(DefStore(parser, code));
+
+    case 'A'...'Z': case '_': case kRootChar:
+        return code.add(DefMethodInvoke(parser, code, op));
 
     case kCreateByteFieldOp:
         return code.add(DefCreateByteField(parser, code));
@@ -742,12 +795,8 @@ void AmlNameFormat::format(km::IOutStream& out, const acpi::AmlName& value) {
         return;
     }
 
-    if (value.prefix == SIZE_MAX) {
-        out.write('\\');
-    } else {
-        for (size_t i = 0; i < value.prefix; i++) {
-            out.write('^');
-        }
+    for (size_t i = 0; i < value.prefix; i++) {
+        out.write('^');
     }
 
     for (size_t i = 0; i < value.segments.count(); i++) {

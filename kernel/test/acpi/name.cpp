@@ -76,3 +76,20 @@ TEST(AmlNameTest, MultiNamePath) {
 
     ASSERT_EQ(name, "_SB_.PCI0.GPP5"_aml);
 }
+
+TEST(AmlNameTest, MultiNameRootCharPrefix) {
+    const uint8_t data[] = {
+        0x5C, 0x2F, 0x03, 0x5F, 0x53, 0x42, 0x5F, 0x50, 0x43, 0x49, 0x30, 0x4E, 0x41, 0x50, 0x45,
+    };
+
+    acpi::AmlParser parser(data);
+    acpi::AmlName name = acpi::detail::NameString(parser);
+
+    ASSERT_EQ(name.prefix, 0);
+    ASSERT_EQ(name.segments.count(), 3);
+    ASSERT_EQ(name.segments[0], stdx::StaticString<4>("\\_SB"));
+    ASSERT_EQ(name.segments[1], stdx::StaticString<4>("PCI0"));
+    ASSERT_EQ(name.segments[2], stdx::StaticString<4>("NAPE"));
+
+    ASSERT_EQ(name, "\\_SB.PCI0.NAPE"_aml);
+}

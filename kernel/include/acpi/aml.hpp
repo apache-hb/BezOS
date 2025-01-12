@@ -224,8 +224,10 @@ namespace acpi {
         eDevice,
         eProcessor,
         eIfElse,
+        eElse,
         eCondRefOf,
         eField,
+        eMethodInvoke,
         eIndexField,
         eExternal,
         ePowerRes,
@@ -295,6 +297,12 @@ namespace acpi {
         AmlFieldFlags flags;
     };
 
+    struct AmlMethodInvokeTerm {
+        static constexpr AmlTermType kType = AmlTermType::eMethodInvoke;
+        AmlName name;
+        stdx::Vector<AmlAnyId> args;
+    };
+
     struct AmlIndexFieldTerm {
         static constexpr AmlTermType kType = AmlTermType::eIndexField;
         AmlName name;
@@ -341,6 +349,11 @@ namespace acpi {
     struct AmlIfElseOp {
         static constexpr AmlTermType kType = AmlTermType::eIfElse;
         AmlAnyId predicate;
+        stdx::Vector<AmlAnyId> terms;
+    };
+
+    struct AmlElseTerm {
+        static constexpr AmlTermType kType = AmlTermType::eElse;
         stdx::Vector<AmlAnyId> terms;
     };
 
@@ -513,6 +526,10 @@ namespace acpi {
         AmlBuffer BufferData(AmlParser& parser, AmlNodeBuffer& code);
 
         AmlIfElseOp DefIfElse(AmlParser& parser, AmlNodeBuffer& code);
+
+        AmlElseTerm DefElse(AmlParser& parser, AmlNodeBuffer& code);
+
+        AmlMethodInvokeTerm DefMethodInvoke(AmlParser& parser, AmlNodeBuffer& code, uint8_t lead);
 
         AmlCondRefOp ConfRefOf(AmlParser& parser, AmlNodeBuffer& code);
 
