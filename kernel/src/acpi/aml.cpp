@@ -270,6 +270,10 @@ enum {
     kLLessOp = 0x95,
     kSizeOfOp = 0x87,
     kAddOp = 0x72,
+    kAndOp = 0x7B,
+    kOrOp = 0x7D,
+    kIncrementOp = 0x75,
+    kDecrementOp = 0x76,
 
     kCreateByteFieldOp = 0x8C,
     kCreateWordFieldOp = 0x8B,
@@ -287,6 +291,10 @@ enum {
     kPowerResOp = 0x84,
     kThermalZoneOp = 0x85,
     kMutexOp = 0x01,
+    kToHexStringOp = 0x98,
+    kToBufferOp = 0x96,
+    kSubtractOp = 0x74,
+    kIndexOp = 0x88,
 };
 
 struct AmlDataPair {
@@ -380,26 +388,40 @@ static std::optional<acpi::AmlAnyId> ExpressionOpcode(acpi::AmlParser& parser, a
     if (parser.consumeSeq(kAddOp))
         return code.add(DefAdd(parser, code));
 
+    if (parser.consumeSeq(kToHexStringOp))
+        return code.add(DefToHexString(parser, code));
+
+    if (parser.consumeSeq(kToBufferOp))
+        return code.add(DefToBuffer(parser, code));
+
+    if (parser.consumeSeq(kIncrementOp))
+        return code.add(DefIncrement(parser, code));
+
+    if (parser.consumeSeq(kDecrementOp))
+        return code.add(DefDecrement(parser, code));
+
+    if (parser.consumeSeq(kDerefOfOp))
+        return code.add(DefDerefOf(parser, code));
+
+    if (parser.consumeSeq(kSubtractOp))
+        return code.add(DefSubtract(parser, code));
+
+    if (parser.consumeSeq(kIndexOp))
+        return code.add(DefIndex(parser, code));
+
+    if (parser.consumeSeq(kAndOp))
+        return code.add(DefAnd(parser, code));
+
+    if (parser.consumeSeq(kOrOp))
+        return code.add(DefOr(parser, code));
+
     return std::nullopt;
 }
 
-acpi::AmlAnyId acpi::detail::DataRefObject(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
-    static constexpr AmlDataPair kDataPairs[] = {
-        { kZeroOp, { acpi::AmlData::Type::eByte, { 0ull } } },
-        { kOneOp, { acpi::AmlData::Type::eByte, { 1ull } } },
-    };
-
+static std::optional<acpi::AmlAnyId> ComputationalData(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
     auto addTerm = [&](acpi::AmlData::Type type, auto data) {
-        return code.add(AmlDataTerm { { type, { data } } });
+        return code.add(acpi::AmlDataTerm { { type, { data } } });
     };
-
-    switch (parser.peek()) {
-    case 'A'...'Z': case '_': case kRootChar:
-        return code.add(DefMethodInvoke(parser, code));
-
-    default:
-        break;
-    }
 
     if (parser.consumeSeq(kBytePrefix))
         return addTerm(acpi::AmlData::Type::eByte, ByteData(parser));
@@ -423,7 +445,32 @@ acpi::AmlAnyId acpi::detail::DataRefObject(acpi::AmlParser& parser, acpi::AmlNod
         return addTerm(acpi::AmlData::Type::ePackage, DefPackage(parser, code));
 
     if (parser.consumeSeq(kOnesOp))
-        return code.add(AmlDataTerm { code.ones() });
+        return code.add(acpi::AmlDataTerm { code.ones() });
+
+    return std::nullopt;
+}
+
+acpi::AmlAnyId acpi::detail::DataRefObject(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
+    static constexpr AmlDataPair kDataPairs[] = {
+        { kZeroOp, { acpi::AmlData::Type::eByte, { 0ull } } },
+        { kOneOp, { acpi::AmlData::Type::eByte, { 1ull } } },
+    };
+
+    auto addTerm = [&](acpi::AmlData::Type type, auto data) {
+        return code.add(AmlDataTerm { { type, { data } } });
+    };
+
+    if (auto cd = ComputationalData(parser, code)) {
+        return *cd;
+    }
+
+    switch (parser.peek()) {
+    case 'A'...'Z': case '_': case kRootChar:
+        return code.add(DefMethodInvoke(parser, code));
+
+    default:
+        break;
+    }
 
     if (auto arg = ArgObject(parser)) {
         return addTerm(acpi::AmlData::Type::eArg, *arg);
@@ -528,11 +575,10 @@ acpi::AmlSuperName acpi::detail::SuperName(AmlParser& parser) {
 
 acpi::AmlTarget acpi::detail::Target(AmlParser& parser) {
     if (parser.consume('\0')) {
-        return acpi::AmlTarget { };
+        return AmlNullName{};
     }
 
-    acpi::AmlSuperName name = SuperName(parser);
-    return acpi::AmlTarget { name };
+    return std::visit([&](auto&& it) -> acpi::AmlTarget { return it; }, SuperName(parser));
 }
 
 acpi::AmlScopeTerm acpi::detail::ScopeTerm(AmlParser& parser, AmlNodeBuffer& code) {
@@ -825,6 +871,70 @@ acpi::AmlSizeOfTerm acpi::detail::DefSizeOf(AmlParser& parser, AmlNodeBuffer& co
     return acpi::AmlSizeOfTerm { name };
 }
 
+acpi::AmlModifyDataTerm acpi::detail::DefToHexString(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlAnyId term = TermArg(parser, code);
+    AmlTarget target = Target(parser);
+
+    return acpi::AmlModifyDataTerm { acpi::AmlModifyDataTerm::eToHexString, term, target };
+}
+
+acpi::AmlModifyDataTerm acpi::detail::DefToBuffer(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlAnyId term = TermArg(parser, code);
+    AmlTarget target = Target(parser);
+
+    return acpi::AmlModifyDataTerm { acpi::AmlModifyDataTerm::eToBuffer, term, target };
+}
+
+acpi::AmlExpression acpi::detail::DefDecrement(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlSuperName name = SuperName(parser);
+
+    return acpi::AmlExpression { acpi::AmlExpression::eDecrement, name };
+}
+
+acpi::AmlExpression acpi::detail::DefIncrement(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlSuperName name = SuperName(parser);
+
+    return acpi::AmlExpression { acpi::AmlExpression::eIncrement, name };
+}
+
+acpi::AmlUnaryTerm acpi::detail::DefDerefOf(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlAnyId name = TermArg(parser, code);
+
+    return acpi::AmlUnaryTerm { acpi::AmlUnaryTerm::eDerefOf, name };
+}
+
+acpi::AmlBinaryTacTerm acpi::detail::DefSubtract(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlAnyId left = TermArg(parser, code);
+    AmlAnyId right = TermArg(parser, code);
+    AmlTarget target = Target(parser);
+
+    return acpi::AmlBinaryTacTerm { acpi::AmlBinaryTacTerm::eSub, left, right, target };
+}
+
+acpi::AmlBinaryTacTerm acpi::detail::DefIndex(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlAnyId left = TermArg(parser, code);
+    AmlAnyId right = TermArg(parser, code);
+    AmlTarget target = Target(parser);
+
+    return acpi::AmlBinaryTacTerm { acpi::AmlBinaryTacTerm::eIndex, left, right, target };
+}
+
+acpi::AmlBinaryTacTerm acpi::detail::DefAnd(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlAnyId left = TermArg(parser, code);
+    AmlAnyId right = TermArg(parser, code);
+    AmlTarget target = Target(parser);
+
+    return acpi::AmlBinaryTacTerm { acpi::AmlBinaryTacTerm::eAnd, left, right, target };
+}
+
+acpi::AmlBinaryTacTerm acpi::detail::DefOr(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlAnyId left = TermArg(parser, code);
+    AmlAnyId right = TermArg(parser, code);
+    AmlTarget target = Target(parser);
+
+    return acpi::AmlBinaryTacTerm { acpi::AmlBinaryTacTerm::eOr, left, right, target };
+}
+
 acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
     if (code.error()) {
         return acpi::AmlAnyId::kInvalid;
@@ -890,35 +1000,9 @@ acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& 
     if (parser.consumeSeq(kExtOpPrefix, kMutexOp))
         return code.add(DefMutex(parser, code));
 
-    // TODO: dedup with DataRefObject
-
-    auto addTerm = [&](acpi::AmlData::Type type, auto data) {
-        return code.add(AmlDataTerm { { type, { data } } });
-    };
-
-    if (parser.consumeSeq(kBytePrefix))
-        return addTerm(acpi::AmlData::Type::eByte, ByteData(parser));
-
-    if (parser.consumeSeq(kWordPrefix))
-        return addTerm(acpi::AmlData::Type::eWord, WordData(parser));
-
-    if (parser.consumeSeq(kDwordPrefix))
-        return addTerm(acpi::AmlData::Type::eDword, DwordData(parser));
-
-    if (parser.consumeSeq(kQwordPrefix))
-        return addTerm(acpi::AmlData::Type::eQword, QwordData(parser));
-
-    if (parser.consumeSeq(kStringPrefix))
-        return addTerm(acpi::AmlData::Type::eString, StringData(parser));
-
-    if (parser.consumeSeq(kBufferPrefix))
-        return addTerm(acpi::AmlData::Type::eBuffer, BufferData(parser, code));
-
-    if (parser.consumeSeq(kPackageOp))
-        return addTerm(acpi::AmlData::Type::ePackage, DefPackage(parser, code));
-
-    if (parser.consumeSeq(kOnesOp))
-        return code.add(AmlDataTerm { code.ones() });
+    if (auto cd = ComputationalData(parser, code)) {
+        return *cd;
+    }
 
     switch (parser.peek()) {
     case 'A'...'Z': case '_': case kRootChar:
@@ -935,6 +1019,10 @@ acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& 
     if (auto expr = ExpressionOpcode(parser, code)) {
         return *expr;
     }
+
+    auto addTerm = [&](acpi::AmlData::Type type, auto data) {
+        return code.add(acpi::AmlDataTerm { { type, { data } } });
+    };
 
     if (auto local = LocalObject(parser)) {
         return addTerm(acpi::AmlData::Type::eLocal, *local);

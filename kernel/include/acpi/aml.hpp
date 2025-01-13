@@ -197,13 +197,13 @@ namespace acpi {
         bool isPackage() const { return type == Type::ePackage; }
     };
 
+    struct AmlNullName { };
+
     using AmlSimpleName = std::variant<AmlName, AmlArgObject, AmlLocalObject>;
 
     using AmlSuperName = std::variant<AmlName, AmlArgObject, AmlLocalObject>;
 
-    struct AmlTarget {
-        acpi::AmlSuperName name;
-    };
+    using AmlTarget = std::variant<AmlName, AmlArgObject, AmlLocalObject, AmlNullName>;
 
     struct AmlMethodFlags {
         uint8_t flags;
@@ -247,6 +247,7 @@ namespace acpi {
         eReturn,
         eCondRefOf,
         eSizeOf,
+        eModifyData,
         eField,
         eMethodInvoke,
         eIndexField,
@@ -260,7 +261,9 @@ namespace acpi {
         eCreateQwordField,
 
         eUnary,
+        eExpression,
         eBinary,
+        eBinaryTac,
 
         eInvalid,
     };
@@ -407,6 +410,16 @@ namespace acpi {
         AmlSuperName term;
     };
 
+    struct AmlModifyDataTerm {
+        static constexpr AmlTermType kType = AmlTermType::eModifyData;
+        enum Type {
+            eToHexString,
+            eToBuffer,
+        } type;
+        AmlAnyId operand;
+        AmlTarget target;
+    };
+
     struct AmlCreateByteFieldTerm {
         static constexpr AmlTermType kType = AmlTermType::eCreateByteField;
         AmlAnyId source;
@@ -446,8 +459,18 @@ namespace acpi {
         static constexpr AmlTermType kType = AmlTermType::eUnary;
         enum Type {
             eNot,
+            eDerefOf,
         } type;
         AmlAnyId term;
+    };
+
+    struct AmlExpression {
+        static constexpr AmlTermType kType = AmlTermType::eExpression;
+        enum Type {
+            eIncrement,
+            eDecrement,
+        } type;
+        AmlSuperName term;
     };
 
     struct AmlBinaryTerm {
@@ -464,6 +487,20 @@ namespace acpi {
         } type;
         AmlAnyId left;
         AmlAnyId right;
+    };
+
+    struct AmlBinaryTacTerm {
+        static constexpr AmlTermType kType = AmlTermType::eBinaryTac;
+        enum Type {
+            eSub,
+            eAdd,
+            eIndex,
+            eAnd,
+            eOr,
+        } type;
+        AmlAnyId left;
+        AmlAnyId right;
+        AmlTarget target;
     };
 
     class AmlNodeBuffer {
@@ -647,6 +684,15 @@ namespace acpi {
         AmlBinaryTerm DefAdd(AmlParser& parser, AmlNodeBuffer& code);
         AmlBinaryTerm DefLLess(AmlParser& parser, AmlNodeBuffer& code);
         AmlSizeOfTerm DefSizeOf(AmlParser& parser, AmlNodeBuffer& code);
+        AmlModifyDataTerm DefToHexString(AmlParser& parser, AmlNodeBuffer& code);
+        AmlModifyDataTerm DefToBuffer(AmlParser& parser, AmlNodeBuffer& code);
+        AmlExpression DefDecrement(AmlParser& parser, AmlNodeBuffer& code);
+        AmlExpression DefIncrement(AmlParser& parser, AmlNodeBuffer& code);
+        AmlUnaryTerm DefDerefOf(AmlParser& parser, AmlNodeBuffer& code);
+        AmlBinaryTacTerm DefSubtract(AmlParser& parser, AmlNodeBuffer& code);
+        AmlBinaryTacTerm DefIndex(AmlParser& parser, AmlNodeBuffer& code);
+        AmlBinaryTacTerm DefAnd(AmlParser& parser, AmlNodeBuffer& code);
+        AmlBinaryTacTerm DefOr(AmlParser& parser, AmlNodeBuffer& code);
 
         stdx::Vector<AmlAnyId> TermList(AmlParser& parser, AmlNodeBuffer& code);
     }
