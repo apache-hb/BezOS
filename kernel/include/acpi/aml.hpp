@@ -243,7 +243,10 @@ namespace acpi {
         eProcessor,
         eIfElse,
         eElse,
+        eWhile,
+        eReturn,
         eCondRefOf,
+        eSizeOf,
         eField,
         eMethodInvoke,
         eIndexField,
@@ -256,7 +259,8 @@ namespace acpi {
         eCreateDwordField,
         eCreateQwordField,
 
-        eLNotOp,
+        eUnary,
+        eBinary,
 
         eInvalid,
     };
@@ -381,10 +385,26 @@ namespace acpi {
         stdx::Vector<AmlAnyId> terms;
     };
 
+    struct AmlWhileTerm {
+        static constexpr AmlTermType kType = AmlTermType::eWhile;
+        AmlAnyId predicate;
+        stdx::Vector<AmlAnyId> terms;
+    };
+
+    struct AmlReturnTerm {
+        static constexpr AmlTermType kType = AmlTermType::eReturn;
+        AmlAnyId value;
+    };
+
     struct AmlCondRefOfTerm {
         static constexpr AmlTermType kType = AmlTermType::eCondRefOf;
         AmlSuperName name;
         AmlTarget target;
+    };
+
+    struct AmlSizeOfTerm {
+        static constexpr AmlTermType kType = AmlTermType::eSizeOf;
+        AmlSuperName term;
     };
 
     struct AmlCreateByteFieldTerm {
@@ -422,9 +442,28 @@ namespace acpi {
         uint8_t args;
     };
 
-    struct AmlLNotTerm {
-        static constexpr AmlTermType kType = AmlTermType::eLNotOp;
+    struct AmlUnaryTerm {
+        static constexpr AmlTermType kType = AmlTermType::eUnary;
+        enum Type {
+            eNot,
+        } type;
         AmlAnyId term;
+    };
+
+    struct AmlBinaryTerm {
+        static constexpr AmlTermType kType = AmlTermType::eBinary;
+        enum Type {
+            eLess,
+            eLessEqual,
+            eEqual,
+            eNotEqual,
+            eAdd,
+            eSub,
+            eMul,
+            eDiv,
+        } type;
+        AmlAnyId left;
+        AmlAnyId right;
     };
 
     class AmlNodeBuffer {
@@ -574,6 +613,10 @@ namespace acpi {
 
         AmlElseTerm DefElse(AmlParser& parser, AmlNodeBuffer& code);
 
+        AmlReturnTerm DefReturn(AmlParser& parser, AmlNodeBuffer& code);
+
+        AmlWhileTerm DefWhile(AmlParser& parser, AmlNodeBuffer& code);
+
         AmlMethodInvokeTerm DefMethodInvoke(AmlParser& parser, AmlNodeBuffer& code);
 
         AmlCondRefOfTerm ConfRefOf(AmlParser& parser, AmlNodeBuffer& code);
@@ -599,7 +642,11 @@ namespace acpi {
         AmlCreateDwordFieldTerm DefCreateDwordField(AmlParser& parser, AmlNodeBuffer& code);
         AmlCreateQwordFieldTerm DefCreateQwordField(AmlParser& parser, AmlNodeBuffer& code);
 
-        AmlLNotTerm DefLNot(AmlParser& parser, AmlNodeBuffer& code);
+        AmlUnaryTerm DefLNot(AmlParser& parser, AmlNodeBuffer& code);
+        AmlBinaryTerm DefLEqual(AmlParser& parser, AmlNodeBuffer& code);
+        AmlBinaryTerm DefAdd(AmlParser& parser, AmlNodeBuffer& code);
+        AmlBinaryTerm DefLLess(AmlParser& parser, AmlNodeBuffer& code);
+        AmlSizeOfTerm DefSizeOf(AmlParser& parser, AmlNodeBuffer& code);
 
         stdx::Vector<AmlAnyId> TermList(AmlParser& parser, AmlNodeBuffer& code);
     }

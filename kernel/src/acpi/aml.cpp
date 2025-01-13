@@ -261,8 +261,15 @@ enum {
     kStoreOp = 0x70,
     kIfOp = 0xA0,
     kElseOp = 0xA1,
+    kWhileOp = 0xA2,
+
+    kReturnOp = 0xA4,
 
     kLNotOp = 0x92,
+    kLEqualOp = 0x93,
+    kLLessOp = 0x95,
+    kSizeOfOp = 0x87,
+    kAddOp = 0x72,
 
     kCreateByteFieldOp = 0x8C,
     kCreateWordFieldOp = 0x8B,
@@ -338,12 +345,40 @@ static std::optional<acpi::AmlArgObject> ArgObject(acpi::AmlParser& parser) {
     return std::nullopt;
 }
 
+static std::optional<acpi::AmlAnyId> StatementOpcode(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
+    if (parser.consumeSeq(kIfOp))
+        return code.add(DefIfElse(parser, code));
+
+    if (parser.consumeSeq(kElseOp))
+        return code.add(DefElse(parser, code));
+
+    if (parser.consumeSeq(kReturnOp))
+        return code.add(DefReturn(parser, code));
+
+    if (parser.consumeSeq(kWhileOp))
+        return code.add(DefWhile(parser, code));
+
+    return std::nullopt;
+}
+
 static std::optional<acpi::AmlAnyId> ExpressionOpcode(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
     if (parser.consumeSeq(kLNotOp))
         return code.add(DefLNot(parser, code));
 
+    if (parser.consumeSeq(kLEqualOp))
+        return code.add(DefLEqual(parser, code));
+
+    if (parser.consumeSeq(kLLessOp))
+        return code.add(DefLLess(parser, code));
+
+    if (parser.consumeSeq(kSizeOfOp))
+        return code.add(DefSizeOf(parser, code));
+
     if (parser.consumeSeq(kExtOpPrefix, kCondRefOp))
         return code.add(ConfRefOf(parser, code));
+
+    if (parser.consumeSeq(kAddOp))
+        return code.add(DefAdd(parser, code));
 
     return std::nullopt;
 }
@@ -597,6 +632,27 @@ acpi::AmlElseTerm acpi::detail::DefElse(AmlParser& parser, AmlNodeBuffer& code) 
     return acpi::AmlElseTerm { terms };
 }
 
+acpi::AmlReturnTerm acpi::detail::DefReturn(AmlParser& parser, AmlNodeBuffer& code) {
+    acpi::AmlAnyId value = TermArg(parser, code);
+
+    return acpi::AmlReturnTerm { value };
+}
+
+acpi::AmlWhileTerm acpi::detail::DefWhile(AmlParser& parser, AmlNodeBuffer& code) {
+    uint32_t front = parser.offset();
+
+    uint32_t length = PkgLength(parser);
+    AmlAnyId predicate = TermArg(parser, code);
+
+    uint32_t back = parser.offset();
+
+    acpi::AmlParser sub = parser.subspan(length - (back - front));
+
+    stdx::Vector<AmlAnyId> terms = TermList(sub, code);
+
+    return acpi::AmlWhileTerm { predicate, terms };
+}
+
 acpi::AmlMethodInvokeTerm acpi::detail::DefMethodInvoke(AmlParser& parser, AmlNodeBuffer& code) {
     acpi::AmlName name = NameString(parser);
 
@@ -736,10 +792,37 @@ acpi::AmlCreateQwordFieldTerm acpi::detail::DefCreateQwordField(AmlParser& parse
     return acpi::AmlCreateQwordFieldTerm { source, index, name };
 }
 
-acpi::AmlLNotTerm acpi::detail::DefLNot(AmlParser& parser, AmlNodeBuffer& code) {
+acpi::AmlUnaryTerm acpi::detail::DefLNot(AmlParser& parser, AmlNodeBuffer& code) {
     AmlAnyId term = TermArg(parser, code);
 
-    return acpi::AmlLNotTerm { term };
+    return acpi::AmlUnaryTerm { acpi::AmlUnaryTerm::eNot, term };
+}
+
+acpi::AmlBinaryTerm acpi::detail::DefLEqual(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlAnyId left = TermArg(parser, code);
+    AmlAnyId right = TermArg(parser, code);
+
+    return acpi::AmlBinaryTerm { acpi::AmlBinaryTerm::eEqual, left, right };
+}
+
+acpi::AmlBinaryTerm acpi::detail::DefAdd(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlAnyId left = TermArg(parser, code);
+    AmlAnyId right = TermArg(parser, code);
+
+    return acpi::AmlBinaryTerm { acpi::AmlBinaryTerm::eAdd, left, right };
+}
+
+acpi::AmlBinaryTerm acpi::detail::DefLLess(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlAnyId left = TermArg(parser, code);
+    AmlAnyId right = TermArg(parser, code);
+
+    return acpi::AmlBinaryTerm { acpi::AmlBinaryTerm::eLess, left, right };
+}
+
+acpi::AmlSizeOfTerm acpi::detail::DefSizeOf(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlSuperName name = SuperName(parser);
+
+    return acpi::AmlSizeOfTerm { name };
 }
 
 acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
@@ -771,9 +854,6 @@ acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& 
     if (parser.consumeSeq(kStoreOp))
         return code.add(DefStore(parser, code));
 
-    if (parser.consumeSeq(kLNotOp))
-        return code.add(DefLNot(parser, code));
-
     if (parser.consumeSeq(kCreateByteFieldOp))
         return code.add(DefCreateByteField(parser, code));
 
@@ -794,9 +874,6 @@ acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& 
 
     if (parser.consumeSeq(kExtOpPrefix, kProcessorOp))
         return code.add(ProcessorTerm(parser, code));
-
-    if (parser.consumeSeq(kExtOpPrefix, kCondRefOp))
-        return code.add(ConfRefOf(parser, code));
 
     if (parser.consumeSeq(kExtOpPrefix, kIndexFieldOp))
         return code.add(DefIndexField(parser, code));
@@ -849,6 +926,14 @@ acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& 
 
     default:
         break;
+    }
+
+    if (auto stmt = StatementOpcode(parser, code)) {
+        return *stmt;
+    }
+
+    if (auto expr = ExpressionOpcode(parser, code)) {
+        return *expr;
     }
 
     if (auto local = LocalObject(parser)) {
