@@ -289,7 +289,7 @@ tlsf_decl size_t adjust_request_size(control_t *control, size_t size, size_t ali
 		const size_t aligned = align_up(size, align);
 
 		/* aligned sized must not exceed block_size_max or we'll go out of bounds on sl_bitmap */
-		if (aligned < tlsf_block_size_max(control)) 
+		if (aligned < tlsf_block_size_max(control))
 		{
 			adjust = tlsf_max(aligned, block_size_min);
 		}
@@ -487,10 +487,10 @@ tlsf_decl block_header_t* block_split(block_header_t* block, size_t size)
 
 /*!
  * @brief Weak function filling the given memory with a given fill pattern.
- * 
+ *
  * @param start: pointer to the start of the memory region to fill
  * @param size: size of the memory region to fill
- * @param is_free: Indicate if the pattern to use the fill the region should be 
+ * @param is_free: Indicate if the pattern to use the fill the region should be
  * an after free or after allocation pattern.
  */
 __attribute__((weak)) void block_absorb_post_hook(void *start, size_t size, bool is_free);
@@ -503,10 +503,12 @@ tlsf_decl block_header_t* block_absorb(block_header_t* prev, block_header_t* blo
 	prev->size += block_size(block) + block_header_overhead;
 	block_link_next(prev);
 
+#if 0
 	if (block_absorb_post_hook != NULL)
 	{
 		block_absorb_post_hook(block, sizeof(block_header_t), POISONING_AFTER_FREE);
 	}
+#endif
 
 	return prev;
 }
@@ -600,9 +602,9 @@ tlsf_decl block_header_t* block_locate_free(control_t* control, size_t* size)
 	if (*size)
 	{
 		mapping_search(control, size, &fl, &sl);
-		
+
 		/*
-		** mapping_search can futz with the size, so for excessively large sizes it can sometimes wind up 
+		** mapping_search can futz with the size, so for excessively large sizes it can sometimes wind up
 		** with indices that are off the end of the block array.
 		** So, we protect against that here, since this is the only callsite of mapping_search.
 		** Note that we don't need to check sl, since it comes from a modulo operation that guarantees it's always in range.

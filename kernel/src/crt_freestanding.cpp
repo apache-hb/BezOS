@@ -3,6 +3,12 @@
 
 #include "crt.hpp"
 
+#include "kernel.hpp"
+
+extern "C" [[noreturn]] void abort() {
+    KM_PANIC("abort() called");
+}
+
 extern "C" void *memcpy(void *dest, const void *source, size_t n) {
     KmMemoryCopy(dest, source, n);
     return dest;

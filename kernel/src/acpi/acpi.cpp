@@ -139,7 +139,9 @@ static const acpi::RsdtHeader *GetRsdtHeader(km::PhysicalAddress paddr, km::Syst
         DebugFadt(entry);
     }
 
+#if 0
     KmDebugMessage(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(entry), entry->length)), "\n");
+#endif
 
     return entry;
 }
@@ -252,9 +254,11 @@ acpi::AcpiTables::AcpiTables(const RsdpLocator *locator, km::SystemMemory& memor
         mDsdt = MapTableEntry(km::PhysicalAddress { address }, memory);
     }
 
+#if 0
     if (mDsdt != nullptr) {
         KmDebugMessage(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(mDsdt), mDsdt->length)), "\n");
     }
+#endif
 }
 
 uint32_t acpi::AcpiTables::lapicCount() const {

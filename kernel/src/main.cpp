@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "acpi/aml.hpp"
+#include "allocator/tlsf.hpp"
 #include "apic.hpp"
 
 #include "arch/cr0.hpp"
@@ -620,6 +622,15 @@ extern "C" void KmLaunch(KernelLaunch launch) {
 
         KmDebugMessage("[INIT] IOAPIC ", i, " ID: ", ioapic.id(), ", Version: ", ioapic.version(), "\n");
         KmDebugMessage("[INIT] ISR base: ", ioapic.isrBase(), ", Inputs: ", ioapic.inputCount(), "\n");
+    }
+
+    static constexpr size_t kSize = sm::kilobytes(256).bytes();
+    void *tlsfMemory = memory.allocate(kSize);
+
+    mem::TlsfAllocator allocator = mem::TlsfAllocator(tlsfMemory, kSize);
+    acpi::AmlCode code = acpi::WalkAml(rsdt.dsdt(), &allocator);
+    if (code.nodes().error()) {
+        KmDebugMessage("[INIT] Failed to parse DSDT AML.\n");
     }
 
     bool has8042 = rsdt.has8042Controller();

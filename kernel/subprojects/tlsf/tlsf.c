@@ -197,8 +197,11 @@ int tlsf_check(tlsf_t tlsf)
 
 static bool default_walker(void* ptr, size_t size, int used, void* user)
 {
+	(void)ptr;
+	(void)size;
+	(void)used;
 	(void)user;
-	printf("\t%p %s size: %x (%p)\n", ptr, used ? "used" : "free", (unsigned int)size, (void*)block_from_ptr(ptr));
+	// printf("\t%p %s size: %x (%p)\n", ptr, used ? "used" : "free", (unsigned int)size, (void*)block_from_ptr(ptr));
 	return true;
 }
 
@@ -299,22 +302,11 @@ pool_t tlsf_add_pool(tlsf_t tlsf, void* mem, size_t bytes)
 
 	if (((ptrdiff_t)mem % ALIGN_SIZE) != 0)
 	{
-		printf("tlsf_add_pool: Memory must be aligned by %u bytes.\n",
-			(unsigned int)ALIGN_SIZE);
 		return 0;
 	}
 
 	if (pool_bytes < block_size_min || pool_bytes > tlsf_block_size_max(tlsf))
 	{
-#if defined (TLSF_64BIT)
-		printf("tlsf_add_pool: Memory size must be between 0x%x and 0x%x00 bytes.\n",
-			(unsigned int)(pool_overhead + block_size_min),
-			(unsigned int)((pool_overhead + tlsf_block_size_max(tlsf)) / 256));
-#else
-		printf("tlsf_add_pool: Memory size must be between %u and %u bytes.\n",
-			(unsigned int)(pool_overhead + block_size_min),
-			(unsigned int)(pool_overhead + tlsf_block_size_max(tlsf)));
-#endif
 		return 0;
 	}
 
@@ -401,8 +393,6 @@ tlsf_t tlsf_create(void* mem, size_t max_bytes)
 
 	if (((tlsfptr_t)mem % ALIGN_SIZE) != 0)
 	{
-		printf("tlsf_create: Memory must be aligned to %u bytes.\n",
-			(unsigned int)ALIGN_SIZE);
 		return NULL;
 	}
 
