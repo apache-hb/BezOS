@@ -310,9 +310,11 @@ static LocalApic KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllocator& i
 
     lapic.setSpuriousVector(spuriousVec);
 
+#if 0
     for (apic::Ivt ivt : {apic::Ivt::eTimer, apic::Ivt::eThermal, apic::Ivt::ePerformance, apic::Ivt::eLvt0, apic::Ivt::eLvt1, apic::Ivt::eError}) {
         lapic.configure(ivt, { .enabled = false });
     }
+#endif
 
     lapic.enable();
 
@@ -624,6 +626,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
         KmDebugMessage("[INIT] ISR base: ", ioapic.isrBase(), ", Inputs: ", ioapic.inputCount(), "\n");
     }
 
+#if 0
     static constexpr size_t kSize = sm::kilobytes(256).bytes();
     void *tlsfMemory = memory.allocate(kSize);
 
@@ -632,6 +635,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     if (code.nodes().error()) {
         KmDebugMessage("[INIT] Failed to parse DSDT AML.\n");
     }
+#endif
 
     bool has8042 = rsdt.has8042Controller();
 

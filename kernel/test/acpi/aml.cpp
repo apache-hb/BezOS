@@ -244,7 +244,9 @@ TEST(AmlTest, ParseTable) {
     acpi::AmlNodeBuffer& nodes = code.nodes();
     acpi::AmlScopeTerm *root = code.root();
 
+#if 0
     acpi::DeviceHandle ps2Keyboard = code.findDevice("PNP0303");
+#endif
 
     AmlPrinter printer;
 

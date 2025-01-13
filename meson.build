@@ -125,6 +125,10 @@ src = [
     'kernel/src/smp.cpp',
     smp,
 
+    # Device drivers
+    'kernel/src/drivers/driver.cpp',
+    'kernel/src/drivers/virtio_blk.cpp',
+
     # Kernel components
     'kernel/src/memory.cpp',
     'kernel/src/main.cpp',

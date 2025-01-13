@@ -165,6 +165,8 @@ namespace km {
         uint16_t currentColumn() const { return mCurrentColumn; }
         uint16_t rowCount() const { return mRowCount; }
         uint16_t columnCount() const { return mColumnCount; }
+
+        void clear();
     };
 
     class BufferedTerminal final {
@@ -222,5 +224,7 @@ namespace km {
         { }
 
         void print(stdx::StringView message);
+
+        void clear();
     };
 }

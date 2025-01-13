@@ -45,3 +45,9 @@ void km::DirectTerminal::print(stdx::StringView message) {
         }
     }
 }
+
+void km::DirectTerminal::clear() {
+    mDisplay.fill(Pixel { 0, 0, 0 });
+    mCurrentRow = 0;
+    mCurrentColumn = 0;
+}

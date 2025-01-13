@@ -47,6 +47,12 @@ SECTIONS
     .rodata : {
         __rodata_start = .;
         *(.rodata .rodata.*)
+
+        . = ALIGN(8);
+        __drivers_start = .;
+        *(.kernel.drivers .kernel.drivers.*)
+        __drivers_end = .;
+        
         __rodata_end = .;
     } :rodata
 
