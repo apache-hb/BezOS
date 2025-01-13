@@ -8,7 +8,7 @@ struct RsdtHeader {
     u32 oemRevision;
     u32 creatorId;
     u32 creatorRevision;
-    
+
     u8 data[length - 36];
 };
 
@@ -18,7 +18,7 @@ fn pkg_length_byte_count(u8 lead) {
 
 struct PkgLength {
     u8 lead;
-    
+
     if (pkg_length_byte_count(lead) != 0) {
         u8 data[pkg_length_byte_count(lead)];
     }
@@ -32,5 +32,3 @@ fn get_pkg_length(PkgLength length) {
     }
     return result;
 };
-
-RsdtHeader rsdtheader_at_0x00 @ 0x00;
