@@ -86,8 +86,9 @@ TEST(AmlNameTest, MultiNameRootCharPrefix) {
     acpi::AmlName name = acpi::detail::NameString(parser);
 
     ASSERT_EQ(name.prefix, 0);
+    ASSERT_TRUE(name.useroot);
     ASSERT_EQ(name.segments.count(), 3);
-    ASSERT_EQ(name.segments[0], stdx::StaticString<4>("\\_SB"));
+    ASSERT_EQ(name.segments[0], stdx::StaticString<4>("_SB_"));
     ASSERT_EQ(name.segments[1], stdx::StaticString<4>("PCI0"));
     ASSERT_EQ(name.segments[2], stdx::StaticString<4>("NAPE"));
 

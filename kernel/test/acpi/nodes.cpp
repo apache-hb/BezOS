@@ -15,11 +15,7 @@ TEST(AmlNodeTest, AddNode) {
 
     ASSERT_EQ(buffer.getType(id), acpi::AmlTermType::eName);
 
-    std::cout << "Offset: " << uint32_t(buffer.getHeader(id).offset) << std::endl;
-
     acpi::AmlNameTerm *term = buffer.get(id);
-
-    std::cout << "Pointer: " << (uintptr_t)term << std::endl;
 
     ASSERT_NE(term, nullptr);
 

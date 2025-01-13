@@ -38,7 +38,7 @@ static bool IsNameChar(uint8_t c) {
 static uint8_t GetNameChar(acpi::AmlParser& parser) {
     uint8_t next = parser.read();
     if (!IsNameChar(next)) {
-        KmDebugMessage("[AML] Invalid name character ", km::Hex(next).pad(2, '0'), " - ", parser.offset(), "\n");
+        KmDebugMessage("[AML] Invalid name character ", km::Hex(next).pad(2, '0'), " - ", parser.absOffset(), "\n");
     }
 
     return next;
@@ -110,22 +110,15 @@ static void PrefixPath(acpi::AmlParser& parser, acpi::AmlName& name) {
     }
 }
 
-acpi::AmlName acpi::detail::NameString(acpi::AmlParser& parser, uint8_t lead) {
+acpi::AmlName acpi::detail::NameString(acpi::AmlParser& parser) {
     acpi::AmlName name = { 0 };
 
-    bool peeked = lead == 0;
-    uint8_t letter = lead ? lead : parser.peek();
+    uint8_t letter = parser.peek();
     switch (letter) {
     case kRootChar:
-        if (peeked) {
-            parser.advance();
-        }
+        parser.advance();
+        name.useroot = true;
         NamePath(parser, name);
-        // prepend a `\` to the first segment, discarding the last character in the segment
-        name.segments[0][3] = name.segments[0][2];
-        name.segments[0][2] = name.segments[0][1];
-        name.segments[0][1] = name.segments[0][0];
-        name.segments[0][0] = kRootChar;
         break;
 
     default:
@@ -176,15 +169,6 @@ static stdx::StringView StringData(acpi::AmlParser& parser) {
     return { first, last };
 }
 
-acpi::AmlAnyId acpi::detail::TermArg(AmlParser& parser, acpi::AmlNodeBuffer& code) {
-    // TODO: normalize the parsing
-    if (parser.peek() == 0x5B) {
-        return Term(parser, code);
-    }
-
-    return code.add(AmlDataTerm{DataRefObject(parser, code)});
-}
-
 acpi::AmlBuffer acpi::detail::BufferData(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
     size_t front = parser.offset();
 
@@ -231,7 +215,7 @@ static acpi::AmlPackageId DefPackage(acpi::AmlParser& parser, acpi::AmlNodeBuffe
     stdx::Vector<acpi::AmlAnyId> terms(code.allocator(), count);
 
     for (uint8_t i = 0; i < count; i++) {
-        terms.add(code.add(acpi::AmlDataTerm{DataRefObject(sub, code)}));
+        terms.add(DataRefObject(sub, code));
     }
 
     return code.add(acpi::AmlPackageTerm { terms });
@@ -267,72 +251,182 @@ enum {
     kLocal5Op = 0x65,
     kLocal6Op = 0x66,
     kLocal7Op = 0x67,
+
+    kAliasOp = 0x06,
+    kNameOp = 0x08,
+    kScopeOp = 0x10,
+    kCondRefOp = 0x12,
+    kMethodOp = 0x14,
+    kExternalOp = 0x15,
+    kStoreOp = 0x70,
+    kIfOp = 0xA0,
+    kElseOp = 0xA1,
+
+    kLNotOp = 0x92,
+
+    kCreateByteFieldOp = 0x8C,
+    kCreateWordFieldOp = 0x8B,
+    kCreateDwordFieldOp = 0x8A,
+    kCreateQwordFieldOp = 0x8F,
+
+    kExtOpPrefix = 0x5B,
+
+    kRegionOp = 0x80,
+    kFieldOp = 0x81,
+    kDeviceOp = 0x82,
+    kProcessorOp = 0x83,
+    kDerefOfOp = 0x83,
+    kIndexFieldOp = 0x86,
+    kPowerResOp = 0x84,
+    kThermalZoneOp = 0x85,
+    kMutexOp = 0x01,
 };
 
-acpi::AmlData acpi::detail::DataRefObject(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
-    uint8_t it = parser.read();
+struct AmlDataPair {
+    uint8_t op;
+    acpi::AmlData data;
+};
 
-    switch (it) {
-    case 'A'...'Z': case '_': {
-        acpi::AmlName name;
-        NameSegBody(parser, name, it);
-        return { acpi::AmlData::Type::eString, { name.segments[0] } };
+static std::optional<acpi::AmlLocalObject> LocalObject(acpi::AmlParser& parser) {
+    struct LocalPair {
+        uint8_t op;
+        acpi::AmlLocalObject data;
+    };
+
+    static constexpr LocalPair kLocalPairs[] = {
+        { kLocal0Op, acpi::AmlLocalObject::eLocal0 },
+        { kLocal1Op, acpi::AmlLocalObject::eLocal1 },
+        { kLocal2Op, acpi::AmlLocalObject::eLocal2 },
+        { kLocal3Op, acpi::AmlLocalObject::eLocal3 },
+        { kLocal4Op, acpi::AmlLocalObject::eLocal4 },
+        { kLocal5Op, acpi::AmlLocalObject::eLocal5 },
+        { kLocal6Op, acpi::AmlLocalObject::eLocal6 },
+        { kLocal7Op, acpi::AmlLocalObject::eLocal7 },
+    };
+
+    for (const auto& pair : kLocalPairs) {
+        if (parser.consumeSeq(pair.op)) {
+            return pair.data;
+        }
     }
-    case kBytePrefix:
-        return { acpi::AmlData::Type::eByte, { ByteData(parser) } };
-    case kWordPrefix:
-        return { acpi::AmlData::Type::eWord, { WordData(parser) } };
-    case kDwordPrefix:
-        return { acpi::AmlData::Type::eDword, { DwordData(parser) } };
-    case kQwordPrefix:
-        return { acpi::AmlData::Type::eQword, { QwordData(parser) } };
-    case kStringPrefix:
-        parser.advance();
-        return { acpi::AmlData::Type::eString, { StringData(parser) } };
-    case kBufferPrefix:
-        return { acpi::AmlData::Type::eBuffer, { BufferData(parser, code) } };
-    case kPackageOp:
-        return { acpi::AmlData::Type::ePackage, { DefPackage(parser, code) } };
-    case kZeroOp:
-        return { acpi::AmlData::Type::eByte, { 0ull } };
-    case kOneOp:
-        return { acpi::AmlData::Type::eByte, { 1ull } };
-    case kOnesOp:
-        return code.ones();
-    case kArg0Op:
-        return { acpi::AmlData::Type::eArg, { acpi::AmlArgObject::eArg0 } };
-    case kArg1Op:
-        return { acpi::AmlData::Type::eArg, { acpi::AmlArgObject::eArg1 } };
-    case kArg2Op:
-        return { acpi::AmlData::Type::eArg, { acpi::AmlArgObject::eArg2 } };
-    case kArg3Op:
-        return { acpi::AmlData::Type::eArg, { acpi::AmlArgObject::eArg3 } };
-    case kArg4Op:
-        return { acpi::AmlData::Type::eArg, { acpi::AmlArgObject::eArg4 } };
-    case kArg5Op:
-        return { acpi::AmlData::Type::eArg, { acpi::AmlArgObject::eArg5 } };
-    case kArg6Op:
-        return { acpi::AmlData::Type::eArg, { acpi::AmlArgObject::eArg6 } };
-    case kLocal0Op:
-        return { acpi::AmlData::Type::eLocal, { acpi::AmlLocalObject::eLocal0 } };
-    case kLocal1Op:
-        return { acpi::AmlData::Type::eLocal, { acpi::AmlLocalObject::eLocal1 } };
-    case kLocal2Op:
-        return { acpi::AmlData::Type::eLocal, { acpi::AmlLocalObject::eLocal2 } };
-    case kLocal3Op:
-        return { acpi::AmlData::Type::eLocal, { acpi::AmlLocalObject::eLocal3 } };
-    case kLocal4Op:
-        return { acpi::AmlData::Type::eLocal, { acpi::AmlLocalObject::eLocal4 } };
-    case kLocal5Op:
-        return { acpi::AmlData::Type::eLocal, { acpi::AmlLocalObject::eLocal5 } };
-    case kLocal6Op:
-        return { acpi::AmlData::Type::eLocal, { acpi::AmlLocalObject::eLocal6 } };
-    case kLocal7Op:
-        return { acpi::AmlData::Type::eLocal, { acpi::AmlLocalObject::eLocal7 } };
+
+    return std::nullopt;
+}
+
+static std::optional<acpi::AmlArgObject> ArgObject(acpi::AmlParser& parser) {
+    struct ArgPair {
+        uint8_t op;
+        acpi::AmlArgObject data;
+    };
+
+    static constexpr ArgPair kArgPairs[] = {
+        { kArg0Op, acpi::AmlArgObject::eArg0 },
+        { kArg1Op, acpi::AmlArgObject::eArg1 },
+        { kArg2Op, acpi::AmlArgObject::eArg2 },
+        { kArg3Op, acpi::AmlArgObject::eArg3 },
+        { kArg4Op, acpi::AmlArgObject::eArg4 },
+        { kArg5Op, acpi::AmlArgObject::eArg5 },
+        { kArg6Op, acpi::AmlArgObject::eArg6 },
+    };
+
+    for (const auto& pair : kArgPairs) {
+        if (parser.consumeSeq(pair.op)) {
+            return pair.data;
+        }
+    }
+
+    return std::nullopt;
+}
+
+static std::optional<acpi::AmlAnyId> ExpressionOpcode(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
+    if (parser.consumeSeq(kLNotOp))
+        return code.add(DefLNot(parser, code));
+
+    if (parser.consumeSeq(kExtOpPrefix, kCondRefOp))
+        return code.add(ConfRefOf(parser, code));
+
+    return std::nullopt;
+}
+
+acpi::AmlAnyId acpi::detail::DataRefObject(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
+    static constexpr AmlDataPair kDataPairs[] = {
+        { kZeroOp, { acpi::AmlData::Type::eByte, { 0ull } } },
+        { kOneOp, { acpi::AmlData::Type::eByte, { 1ull } } },
+    };
+
+    auto addTerm = [&](acpi::AmlData::Type type, auto data) {
+        return code.add(AmlDataTerm { { type, { data } } });
+    };
+
+    switch (parser.peek()) {
+    case 'A'...'Z': case '_': case kRootChar:
+        return code.add(DefMethodInvoke(parser, code));
+
     default:
-        KmDebugMessage("[AML] Unknown DataRefObject: ", km::Hex(it).pad(2, '0'), ", Offset: ", parser.absOffset(), "\n");
-        return { acpi::AmlData::Type::eByte, { 0ull } };
+        break;
     }
+
+    if (parser.consumeSeq(kBytePrefix))
+        return addTerm(acpi::AmlData::Type::eByte, ByteData(parser));
+
+    if (parser.consumeSeq(kWordPrefix))
+        return addTerm(acpi::AmlData::Type::eWord, WordData(parser));
+
+    if (parser.consumeSeq(kDwordPrefix))
+        return addTerm(acpi::AmlData::Type::eDword, DwordData(parser));
+
+    if (parser.consumeSeq(kQwordPrefix))
+        return addTerm(acpi::AmlData::Type::eQword, QwordData(parser));
+
+    if (parser.consumeSeq(kStringPrefix))
+        return addTerm(acpi::AmlData::Type::eString, StringData(parser));
+
+    if (parser.consumeSeq(kBufferPrefix))
+        return addTerm(acpi::AmlData::Type::eBuffer, BufferData(parser, code));
+
+    if (parser.consumeSeq(kPackageOp))
+        return addTerm(acpi::AmlData::Type::ePackage, DefPackage(parser, code));
+
+    if (parser.consumeSeq(kOnesOp))
+        return code.add(AmlDataTerm { code.ones() });
+
+    if (auto arg = ArgObject(parser)) {
+        return addTerm(acpi::AmlData::Type::eArg, *arg);
+    }
+
+    if (auto local = LocalObject(parser)) {
+        return addTerm(acpi::AmlData::Type::eLocal, *local);
+    }
+
+    for (const auto& pair : kDataPairs) {
+        if (parser.consumeSeq(pair.op)) {
+            return code.add(AmlDataTerm { pair.data });
+        }
+    }
+
+    code.setInvalid();
+    KmDebugMessage("[AML] Invalid data object ", km::Hex(parser.peek()).pad(2, '0'), " - ", parser.absOffset(), "\n");
+    return AmlAnyId::kInvalid;
+}
+
+acpi::AmlAnyId acpi::detail::TermArg(AmlParser& parser, acpi::AmlNodeBuffer& code) {
+    auto addTerm = [&](acpi::AmlData::Type type, auto data) {
+        return code.add(AmlDataTerm { { type, { data } } });
+    };
+
+    if (auto arg = ArgObject(parser)) {
+        return addTerm(acpi::AmlData::Type::eArg, *arg);
+    }
+
+    if (auto local = LocalObject(parser)) {
+        return addTerm(acpi::AmlData::Type::eLocal, *local);
+    }
+
+    if (auto expr = ExpressionOpcode(parser, code)) {
+        return *expr;
+    }
+
+    return DataRefObject(parser, code);
 }
 
 static acpi::AmlMethodFlags MethodFlags(acpi::AmlParser& parser) {
@@ -345,16 +439,56 @@ static acpi::AmlFieldFlags FieldFlags(acpi::AmlParser& parser) {
     return { flags };
 }
 
+stdx::Vector<acpi::AmlAnyId> acpi::detail::TermList(AmlParser& parser, AmlNodeBuffer& code) {
+    stdx::Vector<acpi::AmlAnyId> terms(code.allocator());
+
+    while (!parser.done()) {
+        acpi::AmlAnyId term = Term(parser, code);
+        if (code.error() || term == acpi::AmlAnyId::kInvalid)
+            break;
+        terms.add(term);
+    }
+
+    if (terms.count() == 0) {
+        return terms;
+    }
+
+    // if theres an else term following a branch term, merge them
+    for (size_t i = 0; i < terms.count() - 1; i++) {
+        acpi::AmlBranchTerm *branch = code.get<acpi::AmlBranchTerm>(terms[i]);
+        acpi::AmlElseTerm *otherwise = code.get<acpi::AmlElseTerm>(terms[i + 1]);
+
+        if (branch && otherwise) {
+            branch->otherwise = terms[i + 1];
+
+            terms.remove(i + 1);
+        }
+    }
+
+    return terms;
+}
+
 acpi::AmlNameTerm acpi::detail::NameTerm(AmlParser& parser, AmlNodeBuffer& code) {
     acpi::AmlName name = NameString(parser);
-    acpi::AmlData data = DataRefObject(parser, code);
+    acpi::AmlAnyId data = DataRefObject(parser, code);
 
-    return acpi::AmlNameTerm { name, code.add(AmlDataTerm(data)) };
+    return acpi::AmlNameTerm { name, data };
+}
+
+static acpi::AmlSimpleName SimpleName(acpi::AmlParser& parser) {
+    if (auto local = LocalObject(parser)) {
+        return acpi::AmlSimpleName { *local };
+    }
+
+    if (auto arg = ArgObject(parser)) {
+        return acpi::AmlSimpleName { *arg };
+    }
+
+    return acpi::AmlSimpleName { NameString(parser) };
 }
 
 acpi::AmlSuperName acpi::detail::SuperName(AmlParser& parser) {
-    acpi::AmlName name = NameString(parser);
-    return acpi::AmlSuperName { name };
+    return SimpleName(parser);
 }
 
 acpi::AmlTarget acpi::detail::Target(AmlParser& parser) {
@@ -374,14 +508,8 @@ acpi::AmlScopeTerm acpi::detail::ScopeTerm(AmlParser& parser, AmlNodeBuffer& cod
 
     uint32_t back = parser.offset();
 
-    stdx::Vector<acpi::AmlAnyId> terms(code.allocator());
-
     acpi::AmlParser sub = parser.subspan(length - (back - front));
-
-    while (!sub.done()) {
-        acpi::AmlAnyId id = Term(sub, code);
-        terms.add(id);
-    }
+    stdx::Vector<acpi::AmlAnyId> terms = TermList(sub, code);
 
     return acpi::AmlScopeTerm { name, terms };
 }
@@ -397,16 +525,7 @@ acpi::AmlMethodTerm acpi::detail::MethodTerm(AmlParser& parser, AmlNodeBuffer& c
 
     acpi::AmlParser sub = parser.subspan(length - (back - front));
 
-    static bool once = true;
-
-    stdx::Vector<acpi::AmlAnyId> terms(code.allocator());
-
-    if (once) {
-        once = false;
-        while (!sub.done()) {
-            terms.add(Term(sub, code));
-        }
-    }
+    stdx::Vector<acpi::AmlAnyId> terms = TermList(sub, code);
 
     return acpi::AmlMethodTerm { name, flags, terms };
 }
@@ -426,11 +545,7 @@ acpi::AmlDeviceTerm acpi::detail::DeviceTerm(AmlParser& parser, AmlNodeBuffer& c
 
     acpi::AmlParser sub = parser.subspan(length - (back - front));
 
-    stdx::Vector<AmlAnyId> terms(code.allocator());
-
-    while (!sub.done()) {
-        terms.add(Term(sub, code));
-    }
+    stdx::Vector<AmlAnyId> terms = TermList(sub, code);
 
     return acpi::AmlDeviceTerm { name, terms };
 }
@@ -447,10 +562,12 @@ acpi::AmlProcessorTerm acpi::detail::ProcessorTerm(AmlParser& parser, AmlNodeBuf
 
     acpi::AmlParser sub = parser.subspan(length - (back - front));
 
-    return acpi::AmlProcessorTerm { name, id, pblkAddr, pblkLen };
+    stdx::Vector<AmlAnyId> terms = TermList(sub, code);
+
+    return acpi::AmlProcessorTerm { name, id, pblkAddr, pblkLen, terms };
 }
 
-acpi::AmlIfElseOp acpi::detail::DefIfElse(AmlParser& parser, AmlNodeBuffer& code) {
+acpi::AmlBranchTerm acpi::detail::DefIfElse(AmlParser& parser, AmlNodeBuffer& code) {
     uint32_t front = parser.offset();
 
     uint32_t length = PkgLength(parser);
@@ -461,13 +578,9 @@ acpi::AmlIfElseOp acpi::detail::DefIfElse(AmlParser& parser, AmlNodeBuffer& code
 
     acpi::AmlParser sub = parser.subspan(length - (back - front));
 
-    stdx::Vector<acpi::AmlAnyId> terms(code.allocator());
+    stdx::Vector<acpi::AmlAnyId> terms = TermList(sub, code);
 
-    while (!sub.done()) {
-        terms.add(Term(sub, code));
-    }
-
-    return acpi::AmlIfElseOp { predicate, terms };
+    return acpi::AmlBranchTerm { predicate, terms };
 }
 
 acpi::AmlElseTerm acpi::detail::DefElse(AmlParser& parser, AmlNodeBuffer& code) {
@@ -479,28 +592,24 @@ acpi::AmlElseTerm acpi::detail::DefElse(AmlParser& parser, AmlNodeBuffer& code) 
 
     acpi::AmlParser sub = parser.subspan(length - (back - front));
 
-    stdx::Vector<acpi::AmlAnyId> terms(code.allocator());
-
-    while (!sub.done()) {
-        terms.add(Term(sub, code));
-    }
+    stdx::Vector<acpi::AmlAnyId> terms = TermList(sub, code);
 
     return acpi::AmlElseTerm { terms };
 }
 
-acpi::AmlMethodInvokeTerm acpi::detail::DefMethodInvoke(AmlParser& parser, AmlNodeBuffer& code, uint8_t lead) {
-    acpi::AmlName name = NameString(parser, lead);
+acpi::AmlMethodInvokeTerm acpi::detail::DefMethodInvoke(AmlParser& parser, AmlNodeBuffer& code) {
+    acpi::AmlName name = NameString(parser);
 
     stdx::Vector<AmlAnyId> args(code.allocator());
 
     return acpi::AmlMethodInvokeTerm { name, args };
 }
 
-acpi::AmlCondRefOp acpi::detail::ConfRefOf(AmlParser& parser, AmlNodeBuffer& code) {
+acpi::AmlCondRefOfTerm acpi::detail::ConfRefOf(AmlParser& parser, AmlNodeBuffer& code) {
     acpi::AmlSuperName name = SuperName(parser);
     acpi::AmlTarget target = Target(parser);
 
-    return acpi::AmlCondRefOp { name, target };
+    return acpi::AmlCondRefOfTerm { name, target };
 }
 
 acpi::AmlOpRegionTerm acpi::detail::DefOpRegion(AmlParser& parser, AmlNodeBuffer& code) {
@@ -543,11 +652,7 @@ acpi::AmlThermalZoneTerm acpi::detail::DefThermalZone(AmlParser& parser, AmlNode
 
     AmlParser sub = parser.subspan(length - (back - front));
 
-    stdx::Vector<AmlAnyId> terms(code.allocator());
-
-    while (!sub.done()) {
-        terms.add(Term(sub, code));
-    }
+    stdx::Vector<AmlAnyId> terms = TermList(sub, code);
 
     return acpi::AmlThermalZoneTerm { name, terms };
 }
@@ -579,11 +684,7 @@ acpi::AmlPowerResTerm acpi::detail::DefPowerRes(AmlParser& parser, AmlNodeBuffer
 
     AmlParser sub = parser.subspan(length - (back - front));
 
-    stdx::Vector<AmlAnyId> terms(code.allocator());
-
-    while (!sub.done()) {
-        terms.add(Term(sub, code));
-    }
+    stdx::Vector<AmlAnyId> terms = TermList(sub, code);
 
     return acpi::AmlPowerResTerm { name, level, order, terms };
 }
@@ -635,137 +736,132 @@ acpi::AmlCreateQwordFieldTerm acpi::detail::DefCreateQwordField(AmlParser& parse
     return acpi::AmlCreateQwordFieldTerm { source, index, name };
 }
 
+acpi::AmlLNotTerm acpi::detail::DefLNot(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlAnyId term = TermArg(parser, code);
+
+    return acpi::AmlLNotTerm { term };
+}
+
 acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
-    enum {
-        kNameOp = 0x08,
-        kAliasOp = 0x06,
-        kScopeOp = 0x10,
-        kCondRefOp = 0x12,
-        kMethodOp = 0x14,
-        kExternalOp = 0x15,
-        kStoreOp = 0x70,
-        kIfOp = 0xA0,
-        kElseOp = 0xA1,
+    if (code.error()) {
+        return acpi::AmlAnyId::kInvalid;
+    }
 
-        kCreateByteFieldOp = 0x8C,
-        kCreateWordFieldOp = 0x8B,
-        kCreateDwordFieldOp = 0x8A,
-        kCreateQwordFieldOp = 0x8F,
-
-        kExtOpPrefix = 0x5B,
-
-        kRegionOp = 0x80,
-        kFieldOp = 0x81,
-        kDeviceOp = 0x82,
-        kProcessorOp = 0x83,
-        kDerefOfOp = 0x83,
-        kIndexFieldOp = 0x86,
-        kPowerResOp = 0x84,
-        kThermalZoneOp = 0x85,
-        kMutexOp = 0x01,
-    };
-
-    switch (uint8_t op = parser.read()) {
-    case kNameOp:
+    if (parser.consumeSeq(kNameOp))
         return code.add(NameTerm(parser, code));
 
-    case kAliasOp:
+    if (parser.consumeSeq(kAliasOp))
         return code.add(AliasTerm(parser, code));
 
-    case kScopeOp:
+    if (parser.consumeSeq(kScopeOp))
         return code.add(ScopeTerm(parser, code));
 
-    case kMethodOp:
+    if (parser.consumeSeq(kMethodOp))
         return code.add(MethodTerm(parser, code));
 
-    case kExternalOp:
+    if (parser.consumeSeq(kExternalOp))
         return code.add(DefExternal(parser, code));
 
-    case kIfOp:
+    if (parser.consumeSeq(kIfOp))
         return code.add(DefIfElse(parser, code));
 
-    case kElseOp:
+    if (parser.consumeSeq(kElseOp))
         return code.add(DefElse(parser, code));
 
-    case kStoreOp:
+    if (parser.consumeSeq(kStoreOp))
         return code.add(DefStore(parser, code));
 
-    case 'A'...'Z': case '_': case kRootChar:
-        return code.add(DefMethodInvoke(parser, code, op));
+    if (parser.consumeSeq(kLNotOp))
+        return code.add(DefLNot(parser, code));
 
-    case kCreateByteFieldOp:
+    if (parser.consumeSeq(kCreateByteFieldOp))
         return code.add(DefCreateByteField(parser, code));
-    case kCreateWordFieldOp:
+
+    if (parser.consumeSeq(kCreateWordFieldOp))
         return code.add(DefCreateWordField(parser, code));
-    case kCreateDwordFieldOp:
+
+    if (parser.consumeSeq(kCreateDwordFieldOp))
         return code.add(DefCreateDwordField(parser, code));
-    case kCreateQwordFieldOp:
+
+    if (parser.consumeSeq(kCreateQwordFieldOp))
         return code.add(DefCreateQwordField(parser, code));
 
-    case kBytePrefix:
-        return code.add(AmlDataTerm{ AmlData{ acpi::AmlData::Type::eByte, { ByteData(parser) } } });
-    case kWordPrefix:
-        return code.add(AmlDataTerm{ AmlData{ acpi::AmlData::Type::eWord, { WordData(parser) } }});
-    case kDwordPrefix:
-        return code.add(AmlDataTerm{ AmlData{ acpi::AmlData::Type::eDword, { DwordData(parser) } }});
-    case kQwordPrefix:
-        return code.add(AmlDataTerm{ AmlData{ acpi::AmlData::Type::eQword, { QwordData(parser) } }});
-    case kStringPrefix:
-        parser.advance();
-        return code.add(AmlDataTerm{ AmlData{ acpi::AmlData::Type::eString, { StringData(parser) } }});
-    case kBufferPrefix:
-        return code.add(AmlDataTerm{ AmlData{ acpi::AmlData::Type::eBuffer, { BufferData(parser, code) } }});
-    case kPackageOp:
-        return code.add(AmlDataTerm{ AmlData{ acpi::AmlData::Type::ePackage, { DefPackage(parser, code) } }});
-    case kZeroOp:
-        return code.add(AmlDataTerm{ AmlData{ acpi::AmlData::Type::eByte, { 0ull } }});
-    case kOneOp:
-        return code.add(AmlDataTerm{ AmlData{ acpi::AmlData::Type::eByte, { 1ull } }});
-    case kOnesOp:
-        return code.add(AmlDataTerm{ code.ones() });
+    if (parser.consumeSeq(kExtOpPrefix, kFieldOp))
+        return code.add(DefField(parser, code));
 
-    case kExtOpPrefix: {
-        uint8_t ext = parser.read();
-        switch (ext) {
-        case kMutexOp:
-            return code.add(DefMutex(parser, code));
+    if (parser.consumeSeq(kExtOpPrefix, kDeviceOp))
+        return code.add(DeviceTerm(parser, code));
 
-        case kRegionOp:
-            return code.add(DefOpRegion(parser, code));
+    if (parser.consumeSeq(kExtOpPrefix, kProcessorOp))
+        return code.add(ProcessorTerm(parser, code));
 
-        case kFieldOp:
-            return code.add(DefField(parser, code));
+    if (parser.consumeSeq(kExtOpPrefix, kCondRefOp))
+        return code.add(ConfRefOf(parser, code));
 
-        case kDeviceOp:
-            return code.add(DeviceTerm(parser, code));
+    if (parser.consumeSeq(kExtOpPrefix, kIndexFieldOp))
+        return code.add(DefIndexField(parser, code));
 
-        case kProcessorOp:
-            return code.add(ProcessorTerm(parser, code));
+    if (parser.consumeSeq(kExtOpPrefix, kPowerResOp))
+        return code.add(DefPowerRes(parser, code));
 
-        case kCondRefOp:
-            return code.add(ConfRefOf(parser, code));
+    if (parser.consumeSeq(kExtOpPrefix, kThermalZoneOp))
+        return code.add(DefThermalZone(parser, code));
 
-        case kIndexFieldOp:
-            return code.add(DefIndexField(parser, code));
+    if (parser.consumeSeq(kExtOpPrefix, kRegionOp))
+        return code.add(DefOpRegion(parser, code));
 
-        case kPowerResOp:
-            return code.add(DefPowerRes(parser, code));
+    if (parser.consumeSeq(kExtOpPrefix, kMutexOp))
+        return code.add(DefMutex(parser, code));
 
-        case kThermalZoneOp:
-            return code.add(DefThermalZone(parser, code));
+    // TODO: dedup with DataRefObject
 
-        default:
-            KmDebugMessage("[AML] Unknown ExtendedOp ", km::Hex(ext).pad(2, '0'), ", Offset: ", parser.absOffset(), "\n");
-            break;
-        }
-        break;
-    }
+    auto addTerm = [&](acpi::AmlData::Type type, auto data) {
+        return code.add(AmlDataTerm { { type, { data } } });
+    };
+
+    if (parser.consumeSeq(kBytePrefix))
+        return addTerm(acpi::AmlData::Type::eByte, ByteData(parser));
+
+    if (parser.consumeSeq(kWordPrefix))
+        return addTerm(acpi::AmlData::Type::eWord, WordData(parser));
+
+    if (parser.consumeSeq(kDwordPrefix))
+        return addTerm(acpi::AmlData::Type::eDword, DwordData(parser));
+
+    if (parser.consumeSeq(kQwordPrefix))
+        return addTerm(acpi::AmlData::Type::eQword, QwordData(parser));
+
+    if (parser.consumeSeq(kStringPrefix))
+        return addTerm(acpi::AmlData::Type::eString, StringData(parser));
+
+    if (parser.consumeSeq(kBufferPrefix))
+        return addTerm(acpi::AmlData::Type::eBuffer, BufferData(parser, code));
+
+    if (parser.consumeSeq(kPackageOp))
+        return addTerm(acpi::AmlData::Type::ePackage, DefPackage(parser, code));
+
+    if (parser.consumeSeq(kOnesOp))
+        return code.add(AmlDataTerm { code.ones() });
+
+    switch (parser.peek()) {
+    case 'A'...'Z': case '_': case kRootChar:
+        return code.add(DefMethodInvoke(parser, code));
+
     default:
-        KmDebugMessage("[AML] Unknown TermObj ", km::Hex(op).pad(2, '0'), ", Offset: ", parser.absOffset(), "\n");
         break;
     }
 
-    return code.add(AmlDataTerm{DataRefObject(parser, code)});
+    if (auto local = LocalObject(parser)) {
+        return addTerm(acpi::AmlData::Type::eLocal, *local);
+    }
+
+    if (auto arg = ArgObject(parser)) {
+        return addTerm(acpi::AmlData::Type::eArg, *arg);
+    }
+
+    code.setInvalid();
+    KmDebugMessage("[AML] Unknown term: ", km::Hex(parser.peek()).pad(2, '0'), ", Offset: ", parser.absOffset(), "\n");
+    return acpi::AmlAnyId::kInvalid;
 }
 
 acpi::AmlCode acpi::WalkAml(const RsdtHeader *dsdt, mem::IAllocator *arena) {
@@ -774,11 +870,7 @@ acpi::AmlCode acpi::WalkAml(const RsdtHeader *dsdt, mem::IAllocator *arena) {
     AmlParser parser(dsdt);
     AmlNodeBuffer& nodes = code.nodes();
 
-    stdx::Vector<AmlAnyId> terms(arena);
-
-    while (!parser.done()) {
-        terms.add(Term(parser, nodes));
-    }
+    stdx::Vector<AmlAnyId> terms = TermList(parser, nodes);
 
     code.root()->terms = terms;
 

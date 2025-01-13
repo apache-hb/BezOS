@@ -48,13 +48,34 @@ namespace acpi {
         uint8_t peek() const;
         uint8_t read();
 
-        bool consume(uint8_t v) {
-            if (peek() == v) {
+        template<typename F>
+        bool match(F&& fn) {
+            if (fn(peek())) {
                 advance();
                 return true;
             }
 
             return false;
+        }
+
+        bool consume(uint8_t v) {
+            return match([v](uint8_t c) { return c == v; });
+        }
+
+        template<typename... A>
+        bool consumeSeq(A&&... args) {
+            std::array<uint8_t, sizeof...(args)> seq = { static_cast<uint8_t>(args)... };
+
+            if (mOffset + seq.size() > mCode.size()) {
+                return false;
+            }
+
+            bool matched = memcmp(mCode.data() + mOffset, seq.data(), seq.size()) == 0;
+            if (matched) {
+                mOffset += seq.size();
+            }
+
+            return matched;
         }
 
         bool done() const {
@@ -70,7 +91,8 @@ namespace acpi {
 
     struct AmlName {
         using Segment = stdx::StaticString<4>;
-        size_t prefix = 0;
+        uint8_t prefix = 0;
+        bool useroot = false;
         stdx::StaticVector<Segment, 8> segments;
 
         constexpr bool operator==(const AmlName& other) const = default;
@@ -79,8 +101,13 @@ namespace acpi {
     struct AmlAnyId {
         AmlOffsetType id;
 
+        static const AmlAnyId kInvalid;
+
         constexpr bool operator==(const AmlAnyId& other) const = default;
+        constexpr operator bool() const { return id != kInvalid.id; }
     };
+
+    constexpr AmlAnyId AmlAnyId::kInvalid = { 0xFFFF'FFFF };
 
     template<typename T>
     struct AmlId : public AmlAnyId {
@@ -91,6 +118,9 @@ namespace acpi {
         AmlId(AmlAnyId id)
             : AmlAnyId(id)
         { }
+
+        constexpr bool operator==(const AmlId& other) const = default;
+        constexpr operator bool() const { return id != kInvalid.id; }
     };
 
     using AmlNameId = AmlId<struct AmlNameTerm>;
@@ -126,14 +156,6 @@ namespace acpi {
         eLocal7 = 0x67,
     };
 
-    struct AmlTermArg {
-        std::variant<
-            AmlAnyId,
-            AmlArgObject,
-            AmlLocalObject
-        > data;
-    };
-
     struct AmlBuffer {
         acpi::AmlAnyId size;
         stdx::Vector<uint8_t> data;
@@ -163,9 +185,9 @@ namespace acpi {
 
         Data data;
 
-        AmlData() { }
+        constexpr AmlData() { }
 
-        AmlData(Type ty, Data d)
+        constexpr AmlData(Type ty, Data d)
             : type(ty)
             , data(std::move(d))
         { }
@@ -175,13 +197,9 @@ namespace acpi {
         bool isPackage() const { return type == Type::ePackage; }
     };
 
-    struct AmlExpr {
+    using AmlSimpleName = std::variant<AmlName, AmlArgObject, AmlLocalObject>;
 
-    };
-
-    struct AmlSuperName {
-        AmlName name;
-    };
+    using AmlSuperName = std::variant<AmlName, AmlArgObject, AmlLocalObject>;
 
     struct AmlTarget {
         acpi::AmlSuperName name;
@@ -237,6 +255,10 @@ namespace acpi {
         eCreateWordField,
         eCreateDwordField,
         eCreateQwordField,
+
+        eLNotOp,
+
+        eInvalid,
     };
 
     struct AmlStoreTerm {
@@ -344,12 +366,14 @@ namespace acpi {
         uint8_t id;
         uint32_t pblkAddr;
         uint8_t pblkLen;
+        stdx::Vector<AmlAnyId> terms;
     };
 
-    struct AmlIfElseOp {
+    struct AmlBranchTerm {
         static constexpr AmlTermType kType = AmlTermType::eIfElse;
         AmlAnyId predicate;
         stdx::Vector<AmlAnyId> terms;
+        AmlAnyId otherwise;
     };
 
     struct AmlElseTerm {
@@ -357,7 +381,7 @@ namespace acpi {
         stdx::Vector<AmlAnyId> terms;
     };
 
-    struct AmlCondRefOp {
+    struct AmlCondRefOfTerm {
         static constexpr AmlTermType kType = AmlTermType::eCondRefOf;
         AmlSuperName name;
         AmlTarget target;
@@ -398,6 +422,11 @@ namespace acpi {
         uint8_t args;
     };
 
+    struct AmlLNotTerm {
+        static constexpr AmlTermType kType = AmlTermType::eLNotOp;
+        AmlAnyId term;
+    };
+
     class AmlNodeBuffer {
     public:
         struct ObjectHeader {
@@ -411,6 +440,7 @@ namespace acpi {
         stdx::MemoryResource mObjects;
 
         AmlData mOnes;
+        bool mError;
 
         static AmlData ones(uint32_t revision) {
             if (revision == 0) {
@@ -435,6 +465,7 @@ namespace acpi {
             , mHeaders(mAllocator)
             , mObjects(mAllocator)
             , mOnes(AmlNodeBuffer::ones(revision))
+            , mError(false)
         { }
 
         mem::IAllocator *allocator() { return mAllocator; }
@@ -444,16 +475,30 @@ namespace acpi {
 
         template<typename T>
         T *getTerm(AmlAnyId id) {
-            return mObjects.get<T>(getHeader(id).offset);
+            ObjectHeader header = getHeader(id);
+            if (header.type != T::kType) {
+                return nullptr;
+            }
+
+            return mObjects.get<T>(header.offset);
         }
 
         template<typename T>
         T *get(AmlId<T> id) { return getTerm<T>(id); }
 
         AmlTermType getType(AmlAnyId id) const { return getHeader(id).type; }
-        ObjectHeader getHeader(AmlAnyId id) const { return mHeaders[id.id]; }
+        ObjectHeader getHeader(AmlAnyId id) const {
+            if (id.id >= mHeaders.count()) {
+                return { AmlTermType::eInvalid, 0 };
+            }
+
+            return mHeaders[id.id];
+        }
 
         AmlData ones() { return mOnes; }
+
+        void setInvalid() { mError = true; }
+        bool error() const { return mError; }
     };
 
     enum class AmlError {
@@ -481,7 +526,7 @@ namespace acpi {
         AmlScopeTerm *root() { return mNodes.get<AmlScopeTerm>(mRootScope); }
         AmlScopeId rootId() { return mRootScope; }
 
-        DeviceHandle findDevice(stdx::StringView hid) { return DeviceHandle {}; }
+        DeviceHandle findDevice(stdx::StringView) { return DeviceHandle {}; }
     };
 
     AmlCode WalkAml(const RsdtHeader *dsdt, mem::IAllocator *arena);
@@ -497,13 +542,13 @@ namespace acpi {
         uint32_t PkgLength(AmlParser& parser);
 
         // 20.2.2. Name Objects Encoding
-        AmlName NameString(AmlParser& parser, uint8_t lead = 0);
+        AmlName NameString(AmlParser& parser);
 
         AmlSuperName SuperName(AmlParser& parser);
 
         AmlTarget Target(AmlParser& parser);
 
-        AmlData DataRefObject(AmlParser& parser, AmlNodeBuffer& code);
+        AmlAnyId DataRefObject(AmlParser& parser, AmlNodeBuffer& code);
 
         AmlNameTerm NameTerm(AmlParser& parser, AmlNodeBuffer& code);
 
@@ -525,13 +570,13 @@ namespace acpi {
 
         AmlBuffer BufferData(AmlParser& parser, AmlNodeBuffer& code);
 
-        AmlIfElseOp DefIfElse(AmlParser& parser, AmlNodeBuffer& code);
+        AmlBranchTerm DefIfElse(AmlParser& parser, AmlNodeBuffer& code);
 
         AmlElseTerm DefElse(AmlParser& parser, AmlNodeBuffer& code);
 
-        AmlMethodInvokeTerm DefMethodInvoke(AmlParser& parser, AmlNodeBuffer& code, uint8_t lead);
+        AmlMethodInvokeTerm DefMethodInvoke(AmlParser& parser, AmlNodeBuffer& code);
 
-        AmlCondRefOp ConfRefOf(AmlParser& parser, AmlNodeBuffer& code);
+        AmlCondRefOfTerm ConfRefOf(AmlParser& parser, AmlNodeBuffer& code);
 
         AmlOpRegionTerm DefOpRegion(AmlParser& parser, AmlNodeBuffer& code);
 
@@ -553,19 +598,26 @@ namespace acpi {
         AmlCreateWordFieldTerm DefCreateWordField(AmlParser& parser, AmlNodeBuffer& code);
         AmlCreateDwordFieldTerm DefCreateDwordField(AmlParser& parser, AmlNodeBuffer& code);
         AmlCreateQwordFieldTerm DefCreateQwordField(AmlParser& parser, AmlNodeBuffer& code);
+
+        AmlLNotTerm DefLNot(AmlParser& parser, AmlNodeBuffer& code);
+
+        stdx::Vector<AmlAnyId> TermList(AmlParser& parser, AmlNodeBuffer& code);
     }
 
     namespace literals {
         constexpr AmlName operator""_aml(const char *str, size_t len) {
             const char *end = str + len;
-            size_t prefix = 0;
-            while (*str == '^') {
-                prefix++;
-                str++;
-            }
 
             AmlName name;
-            name.prefix = prefix;
+            if (*str == '\\') {
+                str += 1;
+                name.useroot = true;
+            } else {
+                while (*str == '^') {
+                    name.prefix += 1;
+                    str++;
+                }
+            }
 
             // chunk the name into 4 byte segments seperated with '.'
             // if the '.' appears within the name segment then pad with

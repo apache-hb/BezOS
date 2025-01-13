@@ -5,6 +5,28 @@
 using namespace stdx::literals;
 using namespace acpi::literals;
 
+TEST(AmlDetailTest, ConsumeSeq) {
+    uint8_t data[] = { 0x01, 0x02, 0x03, 0x04 };
+    acpi::AmlParser parser(data);
+
+    ASSERT_FALSE(parser.consumeSeq(0x02, 0x02, 0x03));
+    ASSERT_EQ(parser.offset(), 0);
+
+    ASSERT_TRUE(parser.consumeSeq(0x01, 0x02, 0x03));
+    ASSERT_EQ(parser.offset(), 3);
+}
+
+TEST(AmlDetailTest, ConsumeSeqOne) {
+    uint8_t data[] = { 0x01, 0x02, 0x03, 0x04 };
+    acpi::AmlParser parser(data);
+
+    ASSERT_FALSE(parser.consumeSeq(0x02));
+    ASSERT_EQ(parser.offset(), 0);
+
+    ASSERT_TRUE(parser.consumeSeq(0x01));
+    ASSERT_EQ(parser.offset(), 1);
+}
+
 TEST(AmlDetailTest, PkgLengthEmpty) {
     uint8_t data[] = { 0x00 };
     acpi::AmlParser parser(data);
@@ -98,10 +120,11 @@ TEST(AmlDetailTest, DataRefObjectByte) {
 
     acpi::AmlNodeBuffer code { &bitmap, 2 };
     acpi::AmlParser parser(data);
-    acpi::AmlData value = acpi::detail::DataRefObject(parser, code);
+    acpi::AmlAnyId id = acpi::detail::DataRefObject(parser, code);
+    acpi::AmlDataTerm value = *code.get<acpi::AmlDataTerm>(id);
 
-    ASSERT_EQ(value.type, acpi::AmlData::Type::eByte);
-    ASSERT_EQ(std::get<uint64_t>(value.data), 0x42);
+    ASSERT_EQ(value.data.type, acpi::AmlData::Type::eByte);
+    ASSERT_EQ(std::get<uint64_t>(value.data.data), 0x42);
 }
 
 TEST(AmlDetailTest, DataRefObjectWord) {
@@ -112,10 +135,11 @@ TEST(AmlDetailTest, DataRefObjectWord) {
 
     acpi::AmlNodeBuffer code { &bitmap, 2 };
     acpi::AmlParser parser(data);
-    acpi::AmlData value = acpi::detail::DataRefObject(parser, code);
+    acpi::AmlAnyId id = acpi::detail::DataRefObject(parser, code);
+    acpi::AmlDataTerm value = *code.get<acpi::AmlDataTerm>(id);
 
-    ASSERT_EQ(value.type, acpi::AmlData::Type::eWord);
-    ASSERT_EQ(std::get<uint64_t>(value.data), 0x00FF);
+    ASSERT_EQ(value.data.type, acpi::AmlData::Type::eWord);
+    ASSERT_EQ(std::get<uint64_t>(value.data.data), 0x00FF);
 }
 
 TEST(AmlDetailTest, DataRefObjectDword) {
@@ -126,10 +150,11 @@ TEST(AmlDetailTest, DataRefObjectDword) {
 
     acpi::AmlNodeBuffer code { &bitmap, 2 };
     acpi::AmlParser parser(data);
-    acpi::AmlData value = acpi::detail::DataRefObject(parser, code);
+    acpi::AmlAnyId id = acpi::detail::DataRefObject(parser, code);
+    acpi::AmlDataTerm value = *code.get<acpi::AmlDataTerm>(id);
 
-    ASSERT_EQ(value.type, acpi::AmlData::Type::eDword);
-    ASSERT_EQ(std::get<uint64_t>(value.data), 0x44332211);
+    ASSERT_EQ(value.data.type, acpi::AmlData::Type::eDword);
+    ASSERT_EQ(std::get<uint64_t>(value.data.data), 0x44332211);
 }
 
 TEST(AmlDetailTest, DataRefObjectQword) {
@@ -143,15 +168,16 @@ TEST(AmlDetailTest, DataRefObjectQword) {
 
     acpi::AmlNodeBuffer code { &bitmap, 2 };
     acpi::AmlParser parser(data);
-    acpi::AmlData value = acpi::detail::DataRefObject(parser, code);
+    acpi::AmlAnyId id = acpi::detail::DataRefObject(parser, code);
+    acpi::AmlDataTerm value = *code.get<acpi::AmlDataTerm>(id);
 
-    ASSERT_EQ(value.type, acpi::AmlData::Type::eQword);
-    ASSERT_EQ(std::get<uint64_t>(value.data), 0x8877665544332211);
+    ASSERT_EQ(value.data.type, acpi::AmlData::Type::eQword);
+    ASSERT_EQ(std::get<uint64_t>(value.data.data), 0x8877665544332211);
 }
 
 TEST(AmlDetailTest, DataRefObjectString) {
     uint8_t data[] = {
-        0x0D, 0x04, 'A', 'B', 'C', 'D'
+        0x0D, 'A', 'B', 'C', 'D'
     };
 
     std::unique_ptr memory = GetAllocatorMemory();
@@ -159,10 +185,11 @@ TEST(AmlDetailTest, DataRefObjectString) {
 
     acpi::AmlNodeBuffer code { &bitmap, 2 };
     acpi::AmlParser parser(data);
-    acpi::AmlData value = acpi::detail::DataRefObject(parser, code);
+    acpi::AmlAnyId id = acpi::detail::DataRefObject(parser, code);
+    acpi::AmlDataTerm value = *code.get<acpi::AmlDataTerm>(id);
 
-    ASSERT_EQ(value.type, acpi::AmlData::Type::eString);
-    stdx::StringView view = std::get<stdx::StringView>(value.data);
+    ASSERT_EQ(value.data.type, acpi::AmlData::Type::eString);
+    stdx::StringView view = std::get<stdx::StringView>(value.data.data);
     ASSERT_EQ(view.count(), 4);
     ASSERT_EQ(view[0], 'A');
     ASSERT_EQ(view[1], 'B');
@@ -178,10 +205,11 @@ TEST(AmlDetailTest, Revision0Ones) {
 
     acpi::AmlNodeBuffer code { &bitmap, 0 };
     acpi::AmlParser parser(data);
-    acpi::AmlData value = acpi::detail::DataRefObject(parser, code);
+    acpi::AmlAnyId id = acpi::detail::DataRefObject(parser, code);
+    acpi::AmlDataTerm value = *code.get<acpi::AmlDataTerm>(id);
 
-    ASSERT_EQ(value.type, acpi::AmlData::Type::eDword);
-    ASSERT_EQ(std::get<uint64_t>(value.data), 0xFFFF'FFFF);
+    ASSERT_EQ(value.data.type, acpi::AmlData::Type::eDword);
+    ASSERT_EQ(std::get<uint64_t>(value.data.data), 0xFFFF'FFFF);
 }
 
 TEST(AmlDetailTest, Revision2Ones) {
@@ -192,10 +220,11 @@ TEST(AmlDetailTest, Revision2Ones) {
 
     acpi::AmlNodeBuffer code { &bitmap, 2 };
     acpi::AmlParser parser(data);
-    acpi::AmlData value = acpi::detail::DataRefObject(parser, code);
+    acpi::AmlAnyId id = acpi::detail::DataRefObject(parser, code);
+    acpi::AmlDataTerm value = *code.get<acpi::AmlDataTerm>(id);
 
-    ASSERT_EQ(value.type, acpi::AmlData::Type::eQword);
-    ASSERT_EQ(std::get<uint64_t>(value.data), 0xFFFF'FFFF'FFFF'FFFF);
+    ASSERT_EQ(value.data.type, acpi::AmlData::Type::eQword);
+    ASSERT_EQ(std::get<uint64_t>(value.data.data), 0xFFFF'FFFF'FFFF'FFFF);
 }
 
 TEST(AmlDetailTest, ZeroData) {
@@ -206,10 +235,11 @@ TEST(AmlDetailTest, ZeroData) {
 
     acpi::AmlNodeBuffer code { &bitmap, 0 };
     acpi::AmlParser parser(data);
-    acpi::AmlData value = acpi::detail::DataRefObject(parser, code);
+    acpi::AmlAnyId id = acpi::detail::DataRefObject(parser, code);
+    acpi::AmlDataTerm value = *code.get<acpi::AmlDataTerm>(id);
 
-    ASSERT_EQ(value.type, acpi::AmlData::Type::eByte);
-    ASSERT_EQ(std::get<uint64_t>(value.data), 0);
+    ASSERT_EQ(value.data.type, acpi::AmlData::Type::eByte);
+    ASSERT_EQ(std::get<uint64_t>(value.data.data), 0);
 }
 
 TEST(AmlDetailTest, OneData) {
@@ -220,10 +250,11 @@ TEST(AmlDetailTest, OneData) {
 
     acpi::AmlNodeBuffer code { &bitmap, 0 };
     acpi::AmlParser parser(data);
-    acpi::AmlData value = acpi::detail::DataRefObject(parser, code);
+    acpi::AmlAnyId id = acpi::detail::DataRefObject(parser, code);
+    acpi::AmlDataTerm value = *code.get<acpi::AmlDataTerm>(id);
 
-    ASSERT_EQ(value.type, acpi::AmlData::Type::eByte);
-    ASSERT_EQ(std::get<uint64_t>(value.data), 1);
+    ASSERT_EQ(value.data.type, acpi::AmlData::Type::eByte);
+    ASSERT_EQ(std::get<uint64_t>(value.data.data), 1);
 }
 
 TEST(AmlDetailTest, PkgLength1) {
@@ -249,8 +280,8 @@ TEST(AmlDetailTest, PkgLength2) {
 }
 
 TEST(AmlDetailTest, IfElseCondRef) {
-    const uint8_t data[66] = {
-        0x3F, 0x5B, 0x12, 0x5C, 0x5F, 0x4F, 0x53, 0x49, 0x00, 0xA0, 0x1A, 0x5F, 0x4F, 0x53, 0x49,
+    const uint8_t data[] = {
+        0xA0, 0x3F, 0x5B, 0x12, 0x5C, 0x5F, 0x4F, 0x53, 0x49, 0x00, 0xA0, 0x1A, 0x5F, 0x4F, 0x53, 0x49,
         0x0D, 0x57, 0x69, 0x6E, 0x64, 0x6F, 0x77, 0x73, 0x20, 0x32, 0x30, 0x30, 0x39, 0x00, 0x70, 0x0A,
         0x50, 0x54, 0x53, 0x4F, 0x53, 0xA0, 0x1A, 0x5F, 0x4F, 0x53, 0x49, 0x0D, 0x57, 0x69, 0x6E, 0x64,
         0x6F, 0x77, 0x73, 0x20, 0x32, 0x30, 0x31, 0x35, 0x00, 0x70, 0x0A, 0x70, 0x54, 0x53, 0x4F, 0x53,
@@ -262,19 +293,30 @@ TEST(AmlDetailTest, IfElseCondRef) {
 
     acpi::AmlNodeBuffer code { &bitmap, 0 };
     acpi::AmlParser parser(data);
-    acpi::AmlIfElseOp op = acpi::detail::DefIfElse(parser, code);
+    acpi::AmlAnyId op = acpi::detail::Term(parser, code);
+    acpi::AmlBranchTerm *branch = code.get<acpi::AmlBranchTerm>(op);
 
-    ASSERT_EQ(op.terms.count(), 2);
-    ASSERT_NE(op.predicate.id, 0xFFFF);
+    ASSERT_NE(branch, nullptr);
+
+    ASSERT_NE(branch->predicate, acpi::AmlAnyId::kInvalid);
+    ASSERT_EQ(code.getType(branch->predicate), acpi::AmlTermType::eCondRefOf);
+
+    acpi::AmlCondRefOfTerm *predicate = code.get<acpi::AmlCondRefOfTerm>(branch->predicate);
+    ASSERT_NE(predicate, nullptr);
+    ASSERT_EQ(std::get<acpi::AmlName>(predicate->name), "\\_OSI"_aml);
 }
 
 TEST(AmlDetailTest, Method) {
-    const uint8_t data[60] = {
-        0x14, 0x2E, 0x5F, 0x50, 0x49, 0x43, 0x01, // 7
+    const uint8_t data[] = {
+        //  MethodOp  PkgLength '_'   'P'   'I'   'C'   MethodFlags
+            0x14,     0x2E,     0x5F, 0x50, 0x49, 0x43, 0x01,
         // Method (_PIC, 1, NotSerialized) {
-        0xA0, 0x18, 0x68, // 10
+
+        //  IfOp  PkgLength Arg0
+            0xA0, 0x18,     0x68,
         // If (Arg0) {
-        0x70, 0x0A, 0xAA, 0x44, 0x42, 0x47, 0x38, // 17
+
+        0x70, 0x0A, 0xAA, 0x44, 0x42, 0x47, 0x38,
         // DBG8 = 0xAA
         0x5C, 0x2F, 0x03, 0x5F, 0x53, 0x42, 0x5F, 0x50, 0x43, 0x49, 0x30, 0x4E, 0x41, 0x50, 0x45,
         // \_SB.PCI0.NAPE ()
@@ -296,10 +338,58 @@ TEST(AmlDetailTest, Method) {
     acpi::AmlParser parser(data);
     acpi::AmlAnyId term = acpi::detail::Term(parser, code);
 
+    ASSERT_FALSE(code.error());
+
     ASSERT_EQ(code.getType(term), acpi::AmlTermType::eMethod);
 
     acpi::AmlMethodTerm method = *code.get<acpi::AmlMethodTerm>(term);
 
     ASSERT_EQ(method.name, "_PIC"_aml);
-    ASSERT_EQ(method.terms.count(), 3);
+    ASSERT_EQ(method.terms.count(), 2);
+
+    acpi::AmlBranchTerm *branch = code.get<acpi::AmlBranchTerm>(method.terms[0]);
+    ASSERT_NE(branch, nullptr);
+
+    ASSERT_NE(branch->predicate, acpi::AmlAnyId::kInvalid);
+    ASSERT_EQ(code.getType(branch->predicate), acpi::AmlTermType::eData);
+
+    acpi::AmlDataTerm *predicate = code.get<acpi::AmlDataTerm>(branch->predicate);
+    ASSERT_NE(predicate, nullptr);
+    ASSERT_EQ(std::get<acpi::AmlArgObject>(predicate->data.data), acpi::AmlArgObject::eArg0);
+
+    ASSERT_EQ(branch->terms.count(), 2);
+
+    {
+        acpi::AmlStoreTerm *store = code.get<acpi::AmlStoreTerm>(branch->terms[0]);
+        ASSERT_NE(store, nullptr);
+
+        acpi::AmlDataTerm *source = code.get<acpi::AmlDataTerm>(store->source);
+        ASSERT_NE(source, nullptr);
+        ASSERT_EQ(std::get<uint64_t>(source->data.data), 0xAA);
+
+        ASSERT_EQ(std::get<acpi::AmlName>(store->target), "DBG8"_aml);
+    }
+
+    {
+        acpi::AmlMethodInvokeTerm *invoke = code.get<acpi::AmlMethodInvokeTerm>(branch->terms[1]);
+        ASSERT_NE(invoke, nullptr);
+
+        ASSERT_EQ(invoke->name, "\\_SB.PCI0.NAPE"_aml);
+    }
+
+    {
+        acpi::AmlElseTerm *otherwise = code.get<acpi::AmlElseTerm>(branch->otherwise);
+        ASSERT_NE(otherwise, nullptr);
+
+        ASSERT_EQ(otherwise->terms.count(), 1);
+
+        acpi::AmlStoreTerm *store = code.get<acpi::AmlStoreTerm>(otherwise->terms[0]);
+        ASSERT_NE(store, nullptr);
+
+        acpi::AmlDataTerm *source = code.get<acpi::AmlDataTerm>(store->source);
+        ASSERT_NE(source, nullptr);
+        ASSERT_EQ(std::get<uint64_t>(source->data.data), 0xAC);
+
+        ASSERT_EQ(std::get<acpi::AmlName>(store->target), "DBG8"_aml);
+    }
 }

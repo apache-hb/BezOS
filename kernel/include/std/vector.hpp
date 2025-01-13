@@ -2,7 +2,6 @@
 
 #include <memory>
 #include <span>
-#include <utility>
 
 #include <stddef.h>
 
@@ -126,6 +125,14 @@ namespace stdx {
             return mFront[index];
         }
 
+        T& front() { return *mFront; }
+        const T& front() const { return *mFront; }
+
+        T& back() { return *(mBack - 1); }
+        const T& back() const { return *(mBack - 1); }
+
+        T pop() { return *--mBack; }
+
         void reserveExact(size_t newCapacity) {
             size_t oldCapacity = capacity();
             if (newCapacity <= oldCapacity) {
@@ -172,6 +179,12 @@ namespace stdx {
 
             std::uninitialized_copy(src.begin(), src.end(), mBack);
             mBack += src.size();
+        }
+
+        void remove(size_t index) {
+            std::destroy_at(mFront + index);
+            std::copy(mFront + index + 1, mBack, mFront + index);
+            std::destroy_at(--mBack);
         }
     };
 }
