@@ -167,6 +167,39 @@ static bool PrintAml(AmlPrinter& printer, acpi::AmlNodeBuffer& nodes, acpi::AmlA
         printer.println("External(", term->name, ", ", term->type, ", ", term->args, ")");
         break;
     }
+    case acpi::AmlTermType::eIfElse: {
+        acpi::AmlBranchTerm *term = nodes.get<acpi::AmlBranchTerm>(id);
+        printer.println("If {");
+        if (!printer.enter(id)) return false;
+        if (!PrintAml(printer, nodes, term->predicate)) return false;
+        for (size_t i = 0; i < term->terms.count(); i++) {
+            if (!PrintAml(printer, nodes, term->terms[i])) return false;
+        }
+        printer.leave();
+
+        if (term->otherwise) {
+            printer.println("} Else {");
+            if (!printer.enter(id)) return false;
+            for (size_t i = 0; i < term->terms.count(); i++) {
+                if (!PrintAml(printer, nodes, term->terms[i])) return false;
+            }
+            printer.leave();
+        }
+
+        printer.println("}");
+        break;
+    }
+    case acpi::AmlTermType::eElse: {
+        acpi::AmlElseTerm *term = nodes.get<acpi::AmlElseTerm>(id);
+        printer.println("Else {");
+        if (!printer.enter(id)) return false;
+        for (size_t i = 0; i < term->terms.count(); i++) {
+            if (!PrintAml(printer, nodes, term->terms[i])) return false;
+        }
+        printer.leave();
+        printer.println("}");
+        break;
+    }
     case acpi::AmlTermType::eScope: {
         acpi::AmlScopeTerm *term = nodes.get<acpi::AmlScopeTerm>(id);
         printer.println("Scope(", term->name, ") {");

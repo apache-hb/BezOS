@@ -1045,6 +1045,21 @@ void AmlTermTypeFormat::format(km::IOutStream& out, acpi::AmlTermType value) {
     case acpi::AmlTermType::ePackage:
         out.write("Package");
         break;
+    case acpi::AmlTermType::eUnary:
+        out.write("Unary");
+        break;
+    case acpi::AmlTermType::eBinary:
+        out.write("Binary");
+        break;
+    case acpi::AmlTermType::eWhile:
+        out.write("While");
+        break;
+    case acpi::AmlTermType::eReturn:
+        out.write("Return");
+        break;
+    case acpi::AmlTermType::eMethodInvoke:
+        out.write("MethodInvoke");
+        break;
     default:
         out.write(std::to_underlying(value));
     }
