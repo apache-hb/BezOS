@@ -569,16 +569,30 @@ static acpi::AmlSimpleName SimpleName(acpi::AmlParser& parser) {
     return acpi::AmlSimpleName { NameString(parser) };
 }
 
-acpi::AmlSuperName acpi::detail::SuperName(AmlParser& parser) {
-    return SimpleName(parser);
+static std::optional<acpi::AmlAnyId> ReferenceType(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
+    if (parser.consumeSeq(kDerefOfOp))
+        return code.add(DefDerefOf(parser, code));
+
+    if (parser.consumeSeq(kIndexOp))
+        return code.add(DefIndex(parser, code));
+
+    return std::nullopt;
 }
 
-acpi::AmlTarget acpi::detail::Target(AmlParser& parser) {
+acpi::AmlSuperName acpi::detail::SuperName(AmlParser& parser, AmlNodeBuffer& code) {
+    if (auto ref = ReferenceType(parser, code)) {
+        return *ref;
+    }
+
+    return std::visit([&](auto&& it) -> acpi::AmlSuperName { return it; }, SimpleName(parser));
+}
+
+acpi::AmlTarget acpi::detail::Target(AmlParser& parser, AmlNodeBuffer& code) {
     if (parser.consume('\0')) {
         return AmlNullName{};
     }
 
-    return std::visit([&](auto&& it) -> acpi::AmlTarget { return it; }, SuperName(parser));
+    return std::visit([&](auto&& it) -> acpi::AmlTarget { return it; }, SuperName(parser, code));
 }
 
 acpi::AmlScopeTerm acpi::detail::ScopeTerm(AmlParser& parser, AmlNodeBuffer& code) {
@@ -708,8 +722,8 @@ acpi::AmlMethodInvokeTerm acpi::detail::DefMethodInvoke(AmlParser& parser, AmlNo
 }
 
 acpi::AmlCondRefOfTerm acpi::detail::ConfRefOf(AmlParser& parser, AmlNodeBuffer& code) {
-    acpi::AmlSuperName name = SuperName(parser);
-    acpi::AmlTarget target = Target(parser);
+    acpi::AmlSuperName name = SuperName(parser, code);
+    acpi::AmlTarget target = Target(parser, code);
 
     return acpi::AmlCondRefOfTerm { name, target };
 }
@@ -801,7 +815,7 @@ acpi::AmlExternalTerm acpi::detail::DefExternal(AmlParser& parser, AmlNodeBuffer
 
 acpi::AmlStoreTerm acpi::detail::DefStore(AmlParser& parser, AmlNodeBuffer& code) {
     acpi::AmlAnyId source = TermArg(parser, code);
-    acpi::AmlSuperName target = SuperName(parser);
+    acpi::AmlSuperName target = SuperName(parser, code);
 
     return acpi::AmlStoreTerm { source, target };
 }
@@ -866,33 +880,33 @@ acpi::AmlBinaryTerm acpi::detail::DefLLess(AmlParser& parser, AmlNodeBuffer& cod
 }
 
 acpi::AmlSizeOfTerm acpi::detail::DefSizeOf(AmlParser& parser, AmlNodeBuffer& code) {
-    AmlSuperName name = SuperName(parser);
+    AmlSuperName name = SuperName(parser, code);
 
     return acpi::AmlSizeOfTerm { name };
 }
 
 acpi::AmlModifyDataTerm acpi::detail::DefToHexString(AmlParser& parser, AmlNodeBuffer& code) {
     AmlAnyId term = TermArg(parser, code);
-    AmlTarget target = Target(parser);
+    AmlTarget target = Target(parser, code);
 
     return acpi::AmlModifyDataTerm { acpi::AmlModifyDataTerm::eToHexString, term, target };
 }
 
 acpi::AmlModifyDataTerm acpi::detail::DefToBuffer(AmlParser& parser, AmlNodeBuffer& code) {
     AmlAnyId term = TermArg(parser, code);
-    AmlTarget target = Target(parser);
+    AmlTarget target = Target(parser, code);
 
     return acpi::AmlModifyDataTerm { acpi::AmlModifyDataTerm::eToBuffer, term, target };
 }
 
 acpi::AmlExpression acpi::detail::DefDecrement(AmlParser& parser, AmlNodeBuffer& code) {
-    AmlSuperName name = SuperName(parser);
+    AmlSuperName name = SuperName(parser, code);
 
     return acpi::AmlExpression { acpi::AmlExpression::eDecrement, name };
 }
 
 acpi::AmlExpression acpi::detail::DefIncrement(AmlParser& parser, AmlNodeBuffer& code) {
-    AmlSuperName name = SuperName(parser);
+    AmlSuperName name = SuperName(parser, code);
 
     return acpi::AmlExpression { acpi::AmlExpression::eIncrement, name };
 }
@@ -906,7 +920,7 @@ acpi::AmlUnaryTerm acpi::detail::DefDerefOf(AmlParser& parser, AmlNodeBuffer& co
 acpi::AmlBinaryTacTerm acpi::detail::DefSubtract(AmlParser& parser, AmlNodeBuffer& code) {
     AmlAnyId left = TermArg(parser, code);
     AmlAnyId right = TermArg(parser, code);
-    AmlTarget target = Target(parser);
+    AmlTarget target = Target(parser, code);
 
     return acpi::AmlBinaryTacTerm { acpi::AmlBinaryTacTerm::eSub, left, right, target };
 }
@@ -914,7 +928,7 @@ acpi::AmlBinaryTacTerm acpi::detail::DefSubtract(AmlParser& parser, AmlNodeBuffe
 acpi::AmlBinaryTacTerm acpi::detail::DefIndex(AmlParser& parser, AmlNodeBuffer& code) {
     AmlAnyId left = TermArg(parser, code);
     AmlAnyId right = TermArg(parser, code);
-    AmlTarget target = Target(parser);
+    AmlTarget target = Target(parser, code);
 
     return acpi::AmlBinaryTacTerm { acpi::AmlBinaryTacTerm::eIndex, left, right, target };
 }
@@ -922,7 +936,7 @@ acpi::AmlBinaryTacTerm acpi::detail::DefIndex(AmlParser& parser, AmlNodeBuffer& 
 acpi::AmlBinaryTacTerm acpi::detail::DefAnd(AmlParser& parser, AmlNodeBuffer& code) {
     AmlAnyId left = TermArg(parser, code);
     AmlAnyId right = TermArg(parser, code);
-    AmlTarget target = Target(parser);
+    AmlTarget target = Target(parser, code);
 
     return acpi::AmlBinaryTacTerm { acpi::AmlBinaryTacTerm::eAnd, left, right, target };
 }
@@ -930,7 +944,7 @@ acpi::AmlBinaryTacTerm acpi::detail::DefAnd(AmlParser& parser, AmlNodeBuffer& co
 acpi::AmlBinaryTacTerm acpi::detail::DefOr(AmlParser& parser, AmlNodeBuffer& code) {
     AmlAnyId left = TermArg(parser, code);
     AmlAnyId right = TermArg(parser, code);
-    AmlTarget target = Target(parser);
+    AmlTarget target = Target(parser, code);
 
     return acpi::AmlBinaryTacTerm { acpi::AmlBinaryTacTerm::eOr, left, right, target };
 }
@@ -1033,7 +1047,11 @@ acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& 
     }
 
     code.setInvalid();
-    KmDebugMessage("[AML] Unknown term: ", km::Hex(parser.peek()).pad(2, '0'), ", Offset: ", parser.absOffset(), "\n");
+    if (parser.consume(kExtOpPrefix)) {
+        KmDebugMessage("[AML] Unknown ext term: ", km::Hex(parser.peek()).pad(2, '0'), ", Offset: ", parser.absOffset(), "\n");
+    } else {
+        KmDebugMessage("[AML] Unknown term: ", km::Hex(parser.peek()).pad(2, '0'), ", Offset: ", parser.absOffset(), "\n");
+    }
     return acpi::AmlAnyId::kInvalid;
 }
 

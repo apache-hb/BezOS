@@ -201,9 +201,9 @@ namespace acpi {
 
     using AmlSimpleName = std::variant<AmlName, AmlArgObject, AmlLocalObject>;
 
-    using AmlSuperName = std::variant<AmlName, AmlArgObject, AmlLocalObject>;
+    using AmlSuperName = std::variant<AmlName, AmlArgObject, AmlLocalObject, AmlAnyId>;
 
-    using AmlTarget = std::variant<AmlName, AmlArgObject, AmlLocalObject, AmlNullName>;
+    using AmlTarget = std::variant<AmlName, AmlArgObject, AmlLocalObject, AmlAnyId, AmlNullName>;
 
     struct AmlMethodFlags {
         uint8_t flags;
@@ -620,9 +620,9 @@ namespace acpi {
         // 20.2.2. Name Objects Encoding
         AmlName NameString(AmlParser& parser);
 
-        AmlSuperName SuperName(AmlParser& parser);
+        AmlSuperName SuperName(AmlParser& parser, AmlNodeBuffer& code);
 
-        AmlTarget Target(AmlParser& parser);
+        AmlTarget Target(AmlParser& parser, AmlNodeBuffer& code);
 
         AmlAnyId DataRefObject(AmlParser& parser, AmlNodeBuffer& code);
 
