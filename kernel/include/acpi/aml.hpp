@@ -48,6 +48,8 @@ namespace acpi {
         uint8_t peek() const;
         uint8_t read();
 
+        bool eof() const { return mOffset >= mCode.size(); }
+
         template<typename F>
         bool match(F&& fn) {
             if (fn(peek())) {
@@ -264,6 +266,11 @@ namespace acpi {
         eExpression,
         eBinary,
         eBinaryTac,
+        eUnaryTac,
+
+        eAcquire,
+        eRelease,
+        eNotify,
 
         eInvalid,
     };
@@ -300,6 +307,7 @@ namespace acpi {
 
     struct AmlPackageTerm {
         static constexpr AmlTermType kType = AmlTermType::ePackage;
+        uint8_t count;
         stdx::Vector<AmlAnyId> terms;
     };
 
@@ -479,6 +487,9 @@ namespace acpi {
             eLess,
             eLessEqual,
             eEqual,
+            eGreater,
+            eGreaterEqual,
+            eOr,
             eNotEqual,
             eAdd,
             eSub,
@@ -497,10 +508,39 @@ namespace acpi {
             eIndex,
             eAnd,
             eOr,
+            eShiftLeft,
+            eShiftRight,
         } type;
         AmlAnyId left;
         AmlAnyId right;
         AmlTarget target;
+    };
+
+    struct AmlUnaryTacTerm {
+        static constexpr AmlTermType kType = AmlTermType::eUnaryTac;
+        enum Type {
+            eFindSetLeftBit,
+            eFindSetRightBit,
+        } type;
+        AmlAnyId term;
+        AmlTarget target;
+    };
+
+    struct AmlAcquireTerm {
+        static constexpr AmlTermType kType = AmlTermType::eAcquire;
+        AmlSuperName name;
+        uint16_t timeout;
+    };
+
+    struct AmlReleaseTerm {
+        static constexpr AmlTermType kType = AmlTermType::eRelease;
+        AmlSuperName name;
+    };
+
+    struct AmlNotifyTerm {
+        static constexpr AmlTermType kType = AmlTermType::eNotify;
+        AmlSuperName name;
+        AmlAnyId value;
     };
 
     class AmlNodeBuffer {
@@ -618,7 +658,7 @@ namespace acpi {
         uint32_t PkgLength(AmlParser& parser);
 
         // 20.2.2. Name Objects Encoding
-        AmlName NameString(AmlParser& parser);
+        AmlName NameString(AmlParser& parser, AmlNodeBuffer& code);
 
         AmlSuperName SuperName(AmlParser& parser, AmlNodeBuffer& code);
 
@@ -681,8 +721,10 @@ namespace acpi {
 
         AmlUnaryTerm DefLNot(AmlParser& parser, AmlNodeBuffer& code);
         AmlBinaryTerm DefLEqual(AmlParser& parser, AmlNodeBuffer& code);
+        AmlBinaryTerm DefLOr(AmlParser& parser, AmlNodeBuffer& code);
         AmlBinaryTerm DefAdd(AmlParser& parser, AmlNodeBuffer& code);
         AmlBinaryTerm DefLLess(AmlParser& parser, AmlNodeBuffer& code);
+        AmlBinaryTerm DefLGreater(AmlParser& parser, AmlNodeBuffer& code);
         AmlSizeOfTerm DefSizeOf(AmlParser& parser, AmlNodeBuffer& code);
         AmlModifyDataTerm DefToHexString(AmlParser& parser, AmlNodeBuffer& code);
         AmlModifyDataTerm DefToBuffer(AmlParser& parser, AmlNodeBuffer& code);
@@ -693,8 +735,27 @@ namespace acpi {
         AmlBinaryTacTerm DefIndex(AmlParser& parser, AmlNodeBuffer& code);
         AmlBinaryTacTerm DefAnd(AmlParser& parser, AmlNodeBuffer& code);
         AmlBinaryTacTerm DefOr(AmlParser& parser, AmlNodeBuffer& code);
+        AmlBinaryTacTerm DefShiftLeft(AmlParser& parser, AmlNodeBuffer& code);
+        AmlBinaryTacTerm DefShiftRight(AmlParser& parser, AmlNodeBuffer& code);
+        AmlAcquireTerm DefAcquire(AmlParser& parser, AmlNodeBuffer& code);
+        AmlReleaseTerm DefRelease(AmlParser& parser, AmlNodeBuffer& code);
+        AmlNotifyTerm DefNotify(AmlParser& parser, AmlNodeBuffer& code);
+        AmlUnaryTacTerm DefFindSetLeftBit(AmlParser& parser, AmlNodeBuffer& code);
+        AmlUnaryTacTerm DefFindSetRightBit(AmlParser& parser, AmlNodeBuffer& code);
 
         stdx::Vector<AmlAnyId> TermList(AmlParser& parser, AmlNodeBuffer& code);
+
+        template<typename... A>
+        void ReportError(AmlParser& parser, AmlNodeBuffer& code, A&&... args) {
+            code.setInvalid();
+            KmDebugMessage("[AML] ", std::forward<A>(args)..., "\n");
+
+            if (parser.eof()) {
+                KmDebugMessage("[AML] Reached end of code (", parser.absOffset(), ")\n");
+            } else {
+                KmDebugMessage("[AML] At offset ", parser.absOffset(), " (local offset: ", parser.offset(), ")\n");
+            }
+        }
     }
 
     namespace literals {

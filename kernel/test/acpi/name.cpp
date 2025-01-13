@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "acpi/aml.hpp"
+#include "kernel/test/acpi/aml_test_common.hpp"
 
 using namespace stdx::literals;
 using namespace acpi::literals;
@@ -33,7 +34,10 @@ TEST(AmlNameTest, DualNameSegLiteral) {
 TEST(AmlNameTest, SingleName) {
     uint8_t data[] = { 'P', 'C', 'I', 'D' };
     acpi::AmlParser parser(data);
-    acpi::AmlName name = acpi::detail::NameString(parser);
+    AmlTestContext ctx;
+    acpi::AmlNodeBuffer buffer = { &ctx.arena, 0 };
+
+    acpi::AmlName name = acpi::detail::NameString(parser, buffer);
 
     ASSERT_EQ(name.prefix, 0);
     ASSERT_EQ(name.segments.count(), 1);
@@ -48,8 +52,11 @@ TEST(AmlNameTest, DualName) {
         0x30, 0x31, 0x08, 0x5f, 0x50, 0x43, 0x54, 0x12,
     };
 
+    AmlTestContext ctx;
+    acpi::AmlNodeBuffer buffer = { &ctx.arena, 0 };
+
     acpi::AmlParser parser(data);
-    acpi::AmlName name = acpi::detail::NameString(parser);
+    acpi::AmlName name = acpi::detail::NameString(parser, buffer);
 
     ASSERT_EQ(name.prefix, 0);
     ASSERT_EQ(name.segments.count(), 2);
@@ -65,8 +72,11 @@ TEST(AmlNameTest, MultiNamePath) {
         0x43, 0x49, 0x30, 0x47, 0x50, 0x50, 0x35,
     };
 
+    AmlTestContext ctx;
+    acpi::AmlNodeBuffer buffer = { &ctx.arena, 0 };
+
     acpi::AmlParser parser(data);
-    acpi::AmlName name = acpi::detail::NameString(parser);
+    acpi::AmlName name = acpi::detail::NameString(parser, buffer);
 
     ASSERT_EQ(name.prefix, 0);
     ASSERT_EQ(name.segments.count(), 3);
@@ -82,8 +92,11 @@ TEST(AmlNameTest, MultiNameRootCharPrefix) {
         0x5C, 0x2F, 0x03, 0x5F, 0x53, 0x42, 0x5F, 0x50, 0x43, 0x49, 0x30, 0x4E, 0x41, 0x50, 0x45,
     };
 
+    AmlTestContext ctx;
+    acpi::AmlNodeBuffer buffer = { &ctx.arena, 0 };
+
     acpi::AmlParser parser(data);
-    acpi::AmlName name = acpi::detail::NameString(parser);
+    acpi::AmlName name = acpi::detail::NameString(parser, buffer);
 
     ASSERT_EQ(name.prefix, 0);
     ASSERT_TRUE(name.useroot);

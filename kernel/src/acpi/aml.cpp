@@ -35,30 +35,30 @@ static bool IsNameChar(uint8_t c) {
     return (c >= 0x41 && c <= 0x5a) || (c >= 0x30 && c <= 0x39) || c == 0x5f;
 }
 
-static uint8_t GetNameChar(acpi::AmlParser& parser) {
+static uint8_t GetNameChar(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
     uint8_t next = parser.read();
     if (!IsNameChar(next)) {
-        KmDebugMessage("[AML] Invalid name character ", km::Hex(next).pad(2, '0'), " - ", parser.absOffset(), "\n");
+        ReportError(parser, code, "Invalid name character ", km::Hex(next).pad(2, '0'));
     }
 
     return next;
 }
 
-static void NameSegBody(acpi::AmlParser& parser, acpi::AmlName& dst, char lead) {
+static void NameSegBody(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code, acpi::AmlName& dst, char lead) {
     if (lead != '\\') {
         if (!IsLeadNameChar(lead)) {
-            KmDebugMessage("[AML] Invalid lead name character ", km::Hex((uint8_t)lead).pad(2, '0'), "\n");
+            ReportError(parser, code, "Invalid lead name character ", km::Hex((uint8_t)lead).pad(2, '0'));
         }
-        char a = GetNameChar(parser);
-        char b = GetNameChar(parser);
-        char c = GetNameChar(parser);
+        char a = GetNameChar(parser, code);
+        char b = GetNameChar(parser, code);
+        char c = GetNameChar(parser, code);
 
         dst.segments.add({ lead, a, b, c });
     } else {
-        char a = GetNameChar(parser);
-        char b = GetNameChar(parser);
-        char c = GetNameChar(parser);
-        char d = GetNameChar(parser);
+        char a = GetNameChar(parser, code);
+        char b = GetNameChar(parser, code);
+        char c = GetNameChar(parser, code);
+        char d = GetNameChar(parser, code);
 
         (void)d; // discard the last character
 
@@ -66,9 +66,9 @@ static void NameSegBody(acpi::AmlParser& parser, acpi::AmlName& dst, char lead) 
     }
 }
 
-static void NameSeg(acpi::AmlParser& parser, acpi::AmlName& dst) {
+static void NameSeg(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code, acpi::AmlName& dst) {
     char lead = parser.read();
-    NameSegBody(parser, dst, lead);
+    NameSegBody(parser, code, dst, lead);
 }
 
 enum {
@@ -80,26 +80,26 @@ enum {
     kNullName = 0x00,
 };
 
-static void NamePath(acpi::AmlParser& parser, acpi::AmlName& dst) {
+static void NamePath(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code, acpi::AmlName& dst) {
     uint8_t it = parser.read();
     switch (it) {
     case kMultiNamePrefix: {
         uint8_t count = parser.read();
         for (uint8_t i = 0; i < count; i++) {
-            NameSeg(parser, dst);
+            NameSeg(parser, code, dst);
         }
         break;
     }
     case kDualNamePrefix:
-        NameSeg(parser, dst);
-        NameSeg(parser, dst);
+        NameSeg(parser, code, dst);
+        NameSeg(parser, code, dst);
         break;
 
     case kNullName:
         break;
 
     default:
-        NameSegBody(parser, dst, it);
+        NameSegBody(parser, code, dst, it);
         break;
     }
 }
@@ -110,7 +110,7 @@ static void PrefixPath(acpi::AmlParser& parser, acpi::AmlName& name) {
     }
 }
 
-acpi::AmlName acpi::detail::NameString(acpi::AmlParser& parser) {
+acpi::AmlName acpi::detail::NameString(acpi::AmlParser& parser, AmlNodeBuffer& code) {
     acpi::AmlName name = { 0 };
 
     uint8_t letter = parser.peek();
@@ -118,12 +118,12 @@ acpi::AmlName acpi::detail::NameString(acpi::AmlParser& parser) {
     case kRootChar:
         parser.advance();
         name.useroot = true;
-        NamePath(parser, name);
+        NamePath(parser, code, name);
         break;
 
     default:
         PrefixPath(parser, name);
-        NamePath(parser, name);
+        NamePath(parser, code, name);
         break;
     }
 
@@ -214,11 +214,11 @@ static acpi::AmlPackageId DefPackage(acpi::AmlParser& parser, acpi::AmlNodeBuffe
 
     stdx::Vector<acpi::AmlAnyId> terms(code.allocator(), count);
 
-    for (uint8_t i = 0; i < count; i++) {
+    while (!sub.done()) {
         terms.add(DataRefObject(sub, code));
     }
 
-    return code.add(acpi::AmlPackageTerm { terms });
+    return code.add(acpi::AmlPackageTerm { count, terms });
 }
 
 enum {
@@ -265,9 +265,12 @@ enum {
 
     kReturnOp = 0xA4,
 
+    kLOrOp = 0x91,
     kLNotOp = 0x92,
     kLEqualOp = 0x93,
+    kLGreaterOp = 0x94,
     kLLessOp = 0x95,
+
     kSizeOfOp = 0x87,
     kAddOp = 0x72,
     kAndOp = 0x7B,
@@ -295,6 +298,15 @@ enum {
     kToBufferOp = 0x96,
     kSubtractOp = 0x74,
     kIndexOp = 0x88,
+    kAcquireOp = 0x23,
+    kReleaseOp = 0x27,
+    kNotifyOp = 0x86,
+
+    kShiftLeftOp = 0x79,
+    kShiftRightOp = 0x7A,
+
+    kFindSetLeftBitOp = 0x81,
+    kFindSetRightBitOp = 0x82,
 };
 
 struct AmlDataPair {
@@ -366,6 +378,12 @@ static std::optional<acpi::AmlAnyId> StatementOpcode(acpi::AmlParser& parser, ac
     if (parser.consumeSeq(kWhileOp))
         return code.add(DefWhile(parser, code));
 
+    if (parser.consumeSeq(kExtOpPrefix, kReleaseOp))
+        return code.add(DefRelease(parser, code));
+
+    if (parser.consumeSeq(kNotifyOp))
+        return code.add(DefNotify(parser, code));
+
     return std::nullopt;
 }
 
@@ -373,11 +391,17 @@ static std::optional<acpi::AmlAnyId> ExpressionOpcode(acpi::AmlParser& parser, a
     if (parser.consumeSeq(kLNotOp))
         return code.add(DefLNot(parser, code));
 
+    if (parser.consumeSeq(kLOrOp))
+        return code.add(DefLOr(parser, code));
+
     if (parser.consumeSeq(kLEqualOp))
         return code.add(DefLEqual(parser, code));
 
     if (parser.consumeSeq(kLLessOp))
         return code.add(DefLLess(parser, code));
+
+    if (parser.consumeSeq(kLGreaterOp))
+        return code.add(DefLGreater(parser, code));
 
     if (parser.consumeSeq(kSizeOfOp))
         return code.add(DefSizeOf(parser, code));
@@ -415,6 +439,21 @@ static std::optional<acpi::AmlAnyId> ExpressionOpcode(acpi::AmlParser& parser, a
     if (parser.consumeSeq(kOrOp))
         return code.add(DefOr(parser, code));
 
+    if (parser.consumeSeq(kExtOpPrefix, kAcquireOp))
+        return code.add(DefAcquire(parser, code));
+
+    if (parser.consumeSeq(kShiftLeftOp))
+        return code.add(DefShiftLeft(parser, code));
+
+    if (parser.consumeSeq(kShiftRightOp))
+        return code.add(DefShiftRight(parser, code));
+
+    if (parser.consumeSeq(kFindSetLeftBitOp))
+        return code.add(DefFindSetLeftBit(parser, code));
+
+    if (parser.consumeSeq(kFindSetRightBitOp))
+        return code.add(DefFindSetRightBit(parser, code));
+
     return std::nullopt;
 }
 
@@ -451,11 +490,6 @@ static std::optional<acpi::AmlAnyId> ComputationalData(acpi::AmlParser& parser, 
 }
 
 acpi::AmlAnyId acpi::detail::DataRefObject(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
-    static constexpr AmlDataPair kDataPairs[] = {
-        { kZeroOp, { acpi::AmlData::Type::eByte, { 0ull } } },
-        { kOneOp, { acpi::AmlData::Type::eByte, { 1ull } } },
-    };
-
     auto addTerm = [&](acpi::AmlData::Type type, auto data) {
         return code.add(AmlDataTerm { { type, { data } } });
     };
@@ -463,6 +497,12 @@ acpi::AmlAnyId acpi::detail::DataRefObject(acpi::AmlParser& parser, acpi::AmlNod
     if (auto cd = ComputationalData(parser, code)) {
         return *cd;
     }
+
+    if (parser.consumeSeq(kZeroOp))
+        return addTerm(acpi::AmlData::Type::eByte, uint64_t(0));
+
+    if (parser.consumeSeq(kOneOp))
+        return addTerm(acpi::AmlData::Type::eByte, uint64_t(1));
 
     switch (parser.peek()) {
     case 'A'...'Z': case '_': case kRootChar:
@@ -480,14 +520,8 @@ acpi::AmlAnyId acpi::detail::DataRefObject(acpi::AmlParser& parser, acpi::AmlNod
         return addTerm(acpi::AmlData::Type::eLocal, *local);
     }
 
-    for (const auto& pair : kDataPairs) {
-        if (parser.consumeSeq(pair.op)) {
-            return code.add(AmlDataTerm { pair.data });
-        }
-    }
+    ReportError(parser, code, "Invalid data object ", km::Hex(parser.peek()).pad(2, '0'));
 
-    code.setInvalid();
-    KmDebugMessage("[AML] Invalid data object ", km::Hex(parser.peek()).pad(2, '0'), " - ", parser.absOffset(), "\n");
     return AmlAnyId::kInvalid;
 }
 
@@ -551,13 +585,13 @@ stdx::Vector<acpi::AmlAnyId> acpi::detail::TermList(AmlParser& parser, AmlNodeBu
 }
 
 acpi::AmlNameTerm acpi::detail::NameTerm(AmlParser& parser, AmlNodeBuffer& code) {
-    acpi::AmlName name = NameString(parser);
+    acpi::AmlName name = NameString(parser, code);
     acpi::AmlAnyId data = DataRefObject(parser, code);
 
     return acpi::AmlNameTerm { name, data };
 }
 
-static acpi::AmlSimpleName SimpleName(acpi::AmlParser& parser) {
+static acpi::AmlSimpleName SimpleName(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
     if (auto local = LocalObject(parser)) {
         return acpi::AmlSimpleName { *local };
     }
@@ -566,7 +600,7 @@ static acpi::AmlSimpleName SimpleName(acpi::AmlParser& parser) {
         return acpi::AmlSimpleName { *arg };
     }
 
-    return acpi::AmlSimpleName { NameString(parser) };
+    return acpi::AmlSimpleName { NameString(parser, code) };
 }
 
 static std::optional<acpi::AmlAnyId> ReferenceType(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
@@ -584,7 +618,7 @@ acpi::AmlSuperName acpi::detail::SuperName(AmlParser& parser, AmlNodeBuffer& cod
         return *ref;
     }
 
-    return std::visit([&](auto&& it) -> acpi::AmlSuperName { return it; }, SimpleName(parser));
+    return std::visit([&](auto&& it) -> acpi::AmlSuperName { return it; }, SimpleName(parser, code));
 }
 
 acpi::AmlTarget acpi::detail::Target(AmlParser& parser, AmlNodeBuffer& code) {
@@ -599,7 +633,7 @@ acpi::AmlScopeTerm acpi::detail::ScopeTerm(AmlParser& parser, AmlNodeBuffer& cod
     uint32_t front = parser.offset();
 
     uint32_t length = PkgLength(parser);
-    acpi::AmlName name = NameString(parser);
+    acpi::AmlName name = NameString(parser, code);
 
     uint32_t back = parser.offset();
 
@@ -613,7 +647,7 @@ acpi::AmlMethodTerm acpi::detail::MethodTerm(AmlParser& parser, AmlNodeBuffer& c
     uint32_t front = parser.offset();
 
     uint32_t length = PkgLength(parser);
-    acpi::AmlName name = NameString(parser);
+    acpi::AmlName name = NameString(parser, code);
     AmlMethodFlags flags = MethodFlags(parser);
 
     uint32_t back = parser.offset();
@@ -626,8 +660,8 @@ acpi::AmlMethodTerm acpi::detail::MethodTerm(AmlParser& parser, AmlNodeBuffer& c
 }
 
 acpi::AmlAliasTerm acpi::detail::AliasTerm(AmlParser& parser, AmlNodeBuffer& code) {
-    acpi::AmlName name = NameString(parser);
-    acpi::AmlName alias = NameString(parser);
+    acpi::AmlName name = NameString(parser, code);
+    acpi::AmlName alias = NameString(parser, code);
 
     return acpi::AmlAliasTerm { name, alias };
 }
@@ -635,7 +669,7 @@ acpi::AmlAliasTerm acpi::detail::AliasTerm(AmlParser& parser, AmlNodeBuffer& cod
 acpi::AmlDeviceTerm acpi::detail::DeviceTerm(AmlParser& parser, AmlNodeBuffer& code) {
     uint32_t front = parser.offset();
     uint32_t length = PkgLength(parser);
-    acpi::AmlName name = NameString(parser);
+    acpi::AmlName name = NameString(parser, code);
     uint32_t back = parser.offset();
 
     acpi::AmlParser sub = parser.subspan(length - (back - front));
@@ -648,7 +682,7 @@ acpi::AmlDeviceTerm acpi::detail::DeviceTerm(AmlParser& parser, AmlNodeBuffer& c
 acpi::AmlProcessorTerm acpi::detail::ProcessorTerm(AmlParser& parser, AmlNodeBuffer& code) {
     uint32_t front = parser.offset();
     uint32_t length = PkgLength(parser);
-    acpi::AmlName name = NameString(parser);
+    acpi::AmlName name = NameString(parser, code);
     uint8_t id = ByteData(parser);
     uint32_t pblkAddr = DwordData(parser);
     uint8_t pblkLen = ByteData(parser);
@@ -714,7 +748,7 @@ acpi::AmlWhileTerm acpi::detail::DefWhile(AmlParser& parser, AmlNodeBuffer& code
 }
 
 acpi::AmlMethodInvokeTerm acpi::detail::DefMethodInvoke(AmlParser& parser, AmlNodeBuffer& code) {
-    acpi::AmlName name = NameString(parser);
+    acpi::AmlName name = NameString(parser, code);
 
     stdx::Vector<AmlAnyId> args(code.allocator());
 
@@ -729,7 +763,7 @@ acpi::AmlCondRefOfTerm acpi::detail::ConfRefOf(AmlParser& parser, AmlNodeBuffer&
 }
 
 acpi::AmlOpRegionTerm acpi::detail::DefOpRegion(AmlParser& parser, AmlNodeBuffer& code) {
-    acpi::AmlName name = NameString(parser);
+    acpi::AmlName name = NameString(parser, code);
     acpi::AddressSpaceId region = acpi::AddressSpaceId(ByteData(parser));
     acpi::AmlAnyId offset = TermArg(parser, code);
     acpi::AmlAnyId size = TermArg(parser, code);
@@ -738,7 +772,7 @@ acpi::AmlOpRegionTerm acpi::detail::DefOpRegion(AmlParser& parser, AmlNodeBuffer
 }
 
 acpi::AmlMutexTerm acpi::detail::DefMutex(AmlParser& parser, AmlNodeBuffer& code) {
-    acpi::AmlName name = NameString(parser);
+    acpi::AmlName name = NameString(parser, code);
     uint8_t flags = ByteData(parser);
 
     return acpi::AmlMutexTerm { name, flags };
@@ -748,7 +782,7 @@ acpi::AmlFieldTerm acpi::detail::DefField(AmlParser& parser, AmlNodeBuffer& code
     uint32_t front = parser.offset();
 
     uint32_t length = PkgLength(parser);
-    acpi::AmlName name = NameString(parser);
+    acpi::AmlName name = NameString(parser, code);
     AmlFieldFlags flags = FieldFlags(parser);
 
     uint32_t back = parser.offset();
@@ -762,7 +796,7 @@ acpi::AmlThermalZoneTerm acpi::detail::DefThermalZone(AmlParser& parser, AmlNode
     uint32_t front = parser.offset();
 
     uint32_t length = PkgLength(parser);
-    acpi::AmlName name = NameString(parser);
+    acpi::AmlName name = NameString(parser, code);
 
     uint32_t back = parser.offset();
 
@@ -777,8 +811,8 @@ acpi::AmlIndexFieldTerm acpi::detail::DefIndexField(AmlParser& parser, AmlNodeBu
     uint32_t front = parser.offset();
 
     uint32_t length = PkgLength(parser);
-    acpi::AmlName name = NameString(parser);
-    acpi::AmlName field = NameString(parser);
+    acpi::AmlName name = NameString(parser, code);
+    acpi::AmlName field = NameString(parser, code);
     AmlFieldFlags flags = FieldFlags(parser);
 
     uint32_t back = parser.offset();
@@ -792,7 +826,7 @@ acpi::AmlPowerResTerm acpi::detail::DefPowerRes(AmlParser& parser, AmlNodeBuffer
     uint32_t front = parser.offset();
 
     uint32_t length = PkgLength(parser);
-    acpi::AmlName name = NameString(parser);
+    acpi::AmlName name = NameString(parser, code);
     uint8_t level = ByteData(parser);
     uint16_t order = WordData(parser);
 
@@ -806,7 +840,7 @@ acpi::AmlPowerResTerm acpi::detail::DefPowerRes(AmlParser& parser, AmlNodeBuffer
 }
 
 acpi::AmlExternalTerm acpi::detail::DefExternal(AmlParser& parser, AmlNodeBuffer& code) {
-    acpi::AmlName name = NameString(parser);
+    acpi::AmlName name = NameString(parser, code);
     uint8_t type = ByteData(parser);
     uint8_t args = ByteData(parser);
 
@@ -823,7 +857,7 @@ acpi::AmlStoreTerm acpi::detail::DefStore(AmlParser& parser, AmlNodeBuffer& code
 acpi::AmlCreateByteFieldTerm acpi::detail::DefCreateByteField(AmlParser& parser, AmlNodeBuffer& code) {
     AmlAnyId source = TermArg(parser, code);
     AmlAnyId index = TermArg(parser, code);
-    acpi::AmlName name = NameString(parser);
+    acpi::AmlName name = NameString(parser, code);
 
     return acpi::AmlCreateByteFieldTerm { source, index, name };
 }
@@ -831,7 +865,7 @@ acpi::AmlCreateByteFieldTerm acpi::detail::DefCreateByteField(AmlParser& parser,
 acpi::AmlCreateWordFieldTerm acpi::detail::DefCreateWordField(AmlParser& parser, AmlNodeBuffer& code) {
     AmlAnyId source = TermArg(parser, code);
     AmlAnyId index = TermArg(parser, code);
-    acpi::AmlName name = NameString(parser);
+    acpi::AmlName name = NameString(parser, code);
 
     return acpi::AmlCreateWordFieldTerm { source, index, name };
 }
@@ -839,7 +873,7 @@ acpi::AmlCreateWordFieldTerm acpi::detail::DefCreateWordField(AmlParser& parser,
 acpi::AmlCreateDwordFieldTerm acpi::detail::DefCreateDwordField(AmlParser& parser, AmlNodeBuffer& code) {
     AmlAnyId source = TermArg(parser, code);
     AmlAnyId index = TermArg(parser, code);
-    acpi::AmlName name = NameString(parser);
+    acpi::AmlName name = NameString(parser, code);
 
     return acpi::AmlCreateDwordFieldTerm { source, index, name };
 }
@@ -847,7 +881,7 @@ acpi::AmlCreateDwordFieldTerm acpi::detail::DefCreateDwordField(AmlParser& parse
 acpi::AmlCreateQwordFieldTerm acpi::detail::DefCreateQwordField(AmlParser& parser, AmlNodeBuffer& code) {
     AmlAnyId source = TermArg(parser, code);
     AmlAnyId index = TermArg(parser, code);
-    acpi::AmlName name = NameString(parser);
+    acpi::AmlName name = NameString(parser, code);
 
     return acpi::AmlCreateQwordFieldTerm { source, index, name };
 }
@@ -863,6 +897,20 @@ acpi::AmlBinaryTerm acpi::detail::DefLEqual(AmlParser& parser, AmlNodeBuffer& co
     AmlAnyId right = TermArg(parser, code);
 
     return acpi::AmlBinaryTerm { acpi::AmlBinaryTerm::eEqual, left, right };
+}
+
+acpi::AmlBinaryTerm acpi::detail::DefLGreater(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlAnyId left = TermArg(parser, code);
+    AmlAnyId right = TermArg(parser, code);
+
+    return acpi::AmlBinaryTerm { acpi::AmlBinaryTerm::eGreater, left, right };
+}
+
+acpi::AmlBinaryTerm acpi::detail::DefLOr(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlAnyId left = TermArg(parser, code);
+    AmlAnyId right = TermArg(parser, code);
+
+    return acpi::AmlBinaryTerm { acpi::AmlBinaryTerm::eOr, left, right };
 }
 
 acpi::AmlBinaryTerm acpi::detail::DefAdd(AmlParser& parser, AmlNodeBuffer& code) {
@@ -947,6 +995,56 @@ acpi::AmlBinaryTacTerm acpi::detail::DefOr(AmlParser& parser, AmlNodeBuffer& cod
     AmlTarget target = Target(parser, code);
 
     return acpi::AmlBinaryTacTerm { acpi::AmlBinaryTacTerm::eOr, left, right, target };
+}
+
+acpi::AmlBinaryTacTerm acpi::detail::DefShiftLeft(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlAnyId left = TermArg(parser, code);
+    AmlAnyId right = TermArg(parser, code);
+    AmlTarget target = Target(parser, code);
+
+    return acpi::AmlBinaryTacTerm { acpi::AmlBinaryTacTerm::eShiftLeft, left, right, target };
+}
+
+acpi::AmlBinaryTacTerm acpi::detail::DefShiftRight(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlAnyId left = TermArg(parser, code);
+    AmlAnyId right = TermArg(parser, code);
+    AmlTarget target = Target(parser, code);
+
+    return acpi::AmlBinaryTacTerm { acpi::AmlBinaryTacTerm::eShiftRight, left, right, target };
+}
+
+acpi::AmlAcquireTerm acpi::detail::DefAcquire(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlSuperName name = SuperName(parser, code);
+    uint16_t timeout = WordData(parser);
+
+    return acpi::AmlAcquireTerm { name, timeout };
+}
+
+acpi::AmlReleaseTerm acpi::detail::DefRelease(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlSuperName name = SuperName(parser, code);
+
+    return acpi::AmlReleaseTerm { name };
+}
+
+acpi::AmlUnaryTacTerm acpi::detail::DefFindSetLeftBit(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlAnyId term = TermArg(parser, code);
+    AmlTarget target = Target(parser, code);
+
+    return acpi::AmlUnaryTacTerm { acpi::AmlUnaryTacTerm::eFindSetLeftBit, term, target };
+}
+
+acpi::AmlUnaryTacTerm acpi::detail::DefFindSetRightBit(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlAnyId term = TermArg(parser, code);
+    AmlTarget target = Target(parser, code);
+
+    return acpi::AmlUnaryTacTerm { acpi::AmlUnaryTacTerm::eFindSetRightBit, term, target };
+}
+
+acpi::AmlNotifyTerm acpi::detail::DefNotify(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlSuperName name = SuperName(parser, code);
+    AmlAnyId value = TermArg(parser, code);
+
+    return acpi::AmlNotifyTerm { name, value };
 }
 
 acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
@@ -1048,9 +1146,9 @@ acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& 
 
     code.setInvalid();
     if (parser.consume(kExtOpPrefix)) {
-        KmDebugMessage("[AML] Unknown ext term: ", km::Hex(parser.peek()).pad(2, '0'), ", Offset: ", parser.absOffset(), "\n");
+        ReportError(parser, code, "Unknown ext term: ", km::Hex(parser.peek()).pad(2, '0'));
     } else {
-        KmDebugMessage("[AML] Unknown term: ", km::Hex(parser.peek()).pad(2, '0'), ", Offset: ", parser.absOffset(), "\n");
+        ReportError(parser, code, "Unknown term: ", km::Hex(parser.peek()).pad(2, '0'));
     }
     return acpi::AmlAnyId::kInvalid;
 }
