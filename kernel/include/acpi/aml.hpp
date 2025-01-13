@@ -278,6 +278,8 @@ namespace acpi {
         eInvalid,
     };
 
+    using AmlTermList = stdx::Vector<AmlAnyId>;
+
     struct AmlStoreTerm {
         static constexpr AmlTermType kType = AmlTermType::eStore;
         AmlAnyId source;
@@ -294,13 +296,13 @@ namespace acpi {
         static constexpr AmlTermType kType = AmlTermType::eMethod;
         AmlName name;
         AmlMethodFlags flags;
-        stdx::Vector<AmlAnyId> terms;
+        AmlTermList terms;
     };
 
     struct AmlThermalZoneTerm {
         static constexpr AmlTermType kType = AmlTermType::eThermalZone;
         AmlName name;
-        stdx::Vector<AmlAnyId> terms;
+        AmlTermList terms;
     };
 
     struct AmlNameString {
@@ -311,7 +313,7 @@ namespace acpi {
     struct AmlPackageTerm {
         static constexpr AmlTermType kType = AmlTermType::ePackage;
         uint8_t count;
-        stdx::Vector<AmlAnyId> terms;
+        AmlTermList terms;
     };
 
     struct AmlDataTerm {
@@ -328,7 +330,7 @@ namespace acpi {
     struct AmlDeviceTerm {
         static constexpr AmlTermType kType = AmlTermType::eDevice;
         AmlName name;
-        stdx::Vector<AmlAnyId> terms;
+        AmlTermList terms;
     };
 
     struct AmlFieldTerm {
@@ -340,7 +342,7 @@ namespace acpi {
     struct AmlMethodInvokeTerm {
         static constexpr AmlTermType kType = AmlTermType::eMethodInvoke;
         AmlName name;
-        stdx::Vector<AmlAnyId> args;
+        AmlTermList args;
     };
 
     struct AmlIndexFieldTerm {
@@ -355,7 +357,7 @@ namespace acpi {
         AmlName name;
         uint8_t level;
         uint16_t order;
-        stdx::Vector<AmlAnyId> terms;
+        AmlTermList terms;
     };
 
     struct AmlOpRegionTerm {
@@ -375,7 +377,7 @@ namespace acpi {
     struct AmlScopeTerm {
         static constexpr AmlTermType kType = AmlTermType::eScope;
         AmlName name;
-        stdx::Vector<AmlAnyId> terms;
+        AmlTermList terms;
     };
 
     struct AmlProcessorTerm {
@@ -384,25 +386,25 @@ namespace acpi {
         uint8_t id;
         uint32_t pblkAddr;
         uint8_t pblkLen;
-        stdx::Vector<AmlAnyId> terms;
+        AmlTermList terms;
     };
 
     struct AmlBranchTerm {
         static constexpr AmlTermType kType = AmlTermType::eIfElse;
         AmlAnyId predicate;
-        stdx::Vector<AmlAnyId> terms;
+        AmlTermList terms;
         AmlAnyId otherwise;
     };
 
     struct AmlElseTerm {
         static constexpr AmlTermType kType = AmlTermType::eElse;
-        stdx::Vector<AmlAnyId> terms;
+        AmlTermList terms;
     };
 
     struct AmlWhileTerm {
         static constexpr AmlTermType kType = AmlTermType::eWhile;
         AmlAnyId predicate;
-        stdx::Vector<AmlAnyId> terms;
+        AmlTermList terms;
     };
 
     struct AmlReturnTerm {
@@ -671,7 +673,7 @@ namespace acpi {
         AmlCode(RsdtHeader header, mem::IAllocator *arena)
             : mHeader(header)
             , mNodes(arena, mHeader.revision)
-            , mRootScope(mNodes.add(AmlScopeTerm { .terms = stdx::Vector<AmlAnyId>(mNodes.allocator()) }))
+            , mRootScope(mNodes.add(AmlScopeTerm { .terms = AmlTermList(mNodes.allocator()) }))
         { }
 
         AmlNodeBuffer& nodes() { return mNodes; }
@@ -799,7 +801,7 @@ namespace acpi {
 
         AmlDivideTerm DefDivide(AmlParser& parser, AmlNodeBuffer& code);
 
-        stdx::Vector<AmlAnyId> TermList(AmlParser& parser, AmlNodeBuffer& code);
+        AmlTermList TermList(AmlParser& parser, AmlNodeBuffer& code);
 
         template<typename... A>
         void ReportError(AmlParser& parser, AmlNodeBuffer& code, A&&... args) {

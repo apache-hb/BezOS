@@ -210,7 +210,7 @@ static acpi::AmlPackageId DefPackage(acpi::AmlParser& parser, acpi::AmlNodeBuffe
 
     uint32_t back = parser.offset();
 
-    stdx::Vector<acpi::AmlAnyId> terms(code.allocator());
+    acpi::AmlTermList terms(code.allocator());
 
     if (length != 0) {
         acpi::AmlParser sub = parser.subspan(length - (back - front));
@@ -614,8 +614,8 @@ static acpi::AmlFieldFlags FieldFlags(acpi::AmlParser& parser) {
     return { flags };
 }
 
-stdx::Vector<acpi::AmlAnyId> acpi::detail::TermList(AmlParser& parser, AmlNodeBuffer& code) {
-    stdx::Vector<acpi::AmlAnyId> terms(code.allocator());
+acpi::AmlTermList acpi::detail::TermList(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlTermList terms(code.allocator());
 
     while (!parser.done()) {
         acpi::AmlAnyId term = Term(parser, code);
@@ -700,7 +700,7 @@ acpi::AmlScopeTerm acpi::detail::ScopeTerm(AmlParser& parser, AmlNodeBuffer& cod
     uint32_t back = parser.offset();
 
     acpi::AmlParser sub = parser.subspan(length - (back - front));
-    stdx::Vector<acpi::AmlAnyId> terms = TermList(sub, code);
+    AmlTermList terms = TermList(sub, code);
 
     return acpi::AmlScopeTerm { name, terms };
 }
@@ -716,7 +716,7 @@ acpi::AmlMethodTerm acpi::detail::MethodTerm(AmlParser& parser, AmlNodeBuffer& c
 
     acpi::AmlParser sub = parser.subspan(length - (back - front));
 
-    stdx::Vector<acpi::AmlAnyId> terms = TermList(sub, code);
+    AmlTermList terms = TermList(sub, code);
 
     return acpi::AmlMethodTerm { name, flags, terms };
 }
@@ -736,7 +736,7 @@ acpi::AmlDeviceTerm acpi::detail::DeviceTerm(AmlParser& parser, AmlNodeBuffer& c
 
     acpi::AmlParser sub = parser.subspan(length - (back - front));
 
-    stdx::Vector<AmlAnyId> terms = TermList(sub, code);
+    AmlTermList terms = TermList(sub, code);
 
     return acpi::AmlDeviceTerm { name, terms };
 }
@@ -753,7 +753,7 @@ acpi::AmlProcessorTerm acpi::detail::ProcessorTerm(AmlParser& parser, AmlNodeBuf
 
     acpi::AmlParser sub = parser.subspan(length - (back - front));
 
-    stdx::Vector<AmlAnyId> terms = TermList(sub, code);
+    AmlTermList terms = TermList(sub, code);
 
     return acpi::AmlProcessorTerm { name, id, pblkAddr, pblkLen, terms };
 }
@@ -769,7 +769,7 @@ acpi::AmlBranchTerm acpi::detail::DefIfElse(AmlParser& parser, AmlNodeBuffer& co
 
     acpi::AmlParser sub = parser.subspan(length - (back - front));
 
-    stdx::Vector<acpi::AmlAnyId> terms = TermList(sub, code);
+    AmlTermList terms = TermList(sub, code);
 
     return acpi::AmlBranchTerm { predicate, terms };
 }
@@ -783,7 +783,7 @@ acpi::AmlElseTerm acpi::detail::DefElse(AmlParser& parser, AmlNodeBuffer& code) 
 
     acpi::AmlParser sub = parser.subspan(length - (back - front));
 
-    stdx::Vector<acpi::AmlAnyId> terms = TermList(sub, code);
+    AmlTermList terms = TermList(sub, code);
 
     return acpi::AmlElseTerm { terms };
 }
@@ -804,7 +804,7 @@ acpi::AmlWhileTerm acpi::detail::DefWhile(AmlParser& parser, AmlNodeBuffer& code
 
     acpi::AmlParser sub = parser.subspan(length - (back - front));
 
-    stdx::Vector<AmlAnyId> terms = TermList(sub, code);
+    AmlTermList terms = TermList(sub, code);
 
     return acpi::AmlWhileTerm { predicate, terms };
 }
@@ -812,7 +812,7 @@ acpi::AmlWhileTerm acpi::detail::DefWhile(AmlParser& parser, AmlNodeBuffer& code
 acpi::AmlMethodInvokeTerm acpi::detail::DefMethodInvoke(AmlParser& parser, AmlNodeBuffer& code) {
     acpi::AmlName name = NameString(parser, code);
 
-    stdx::Vector<AmlAnyId> args(code.allocator());
+    AmlTermList args(code.allocator());
 
     return acpi::AmlMethodInvokeTerm { name, args };
 }
@@ -864,7 +864,7 @@ acpi::AmlThermalZoneTerm acpi::detail::DefThermalZone(AmlParser& parser, AmlNode
 
     AmlParser sub = parser.subspan(length - (back - front));
 
-    stdx::Vector<AmlAnyId> terms = TermList(sub, code);
+    AmlTermList terms = TermList(sub, code);
 
     return acpi::AmlThermalZoneTerm { name, terms };
 }
@@ -896,7 +896,7 @@ acpi::AmlPowerResTerm acpi::detail::DefPowerRes(AmlParser& parser, AmlNodeBuffer
 
     AmlParser sub = parser.subspan(length - (back - front));
 
-    stdx::Vector<AmlAnyId> terms = TermList(sub, code);
+    AmlTermList terms = TermList(sub, code);
 
     return acpi::AmlPowerResTerm { name, level, order, terms };
 }
@@ -1293,7 +1293,7 @@ acpi::AmlCode acpi::WalkAml(const RsdtHeader *dsdt, mem::IAllocator *arena) {
     AmlParser parser(dsdt);
     AmlNodeBuffer& nodes = code.nodes();
 
-    stdx::Vector<AmlAnyId> terms = TermList(parser, nodes);
+    AmlTermList terms = TermList(parser, nodes);
 
     code.root()->terms = terms;
 
