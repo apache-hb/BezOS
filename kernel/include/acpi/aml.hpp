@@ -3,12 +3,10 @@
 #include "acpi/header.hpp"
 
 #include "allocator/bitmap.hpp"
-#include "allocator/bump.hpp"
 
 #include "std/memory.hpp"
 #include "std/static_vector.hpp"
 #include "std/vector.hpp"
-#include "util/digit.hpp"
 
 #include <expected>
 #include <span>
@@ -200,12 +198,13 @@ namespace acpi {
     };
 
     struct AmlNullName { };
+    struct AmlDebugObject { };
 
     using AmlSimpleName = std::variant<AmlName, AmlArgObject, AmlLocalObject>;
 
-    using AmlSuperName = std::variant<AmlName, AmlArgObject, AmlLocalObject, AmlAnyId>;
+    using AmlSuperName = std::variant<AmlName, AmlArgObject, AmlLocalObject, AmlAnyId, AmlDebugObject>;
 
-    using AmlTarget = std::variant<AmlName, AmlArgObject, AmlLocalObject, AmlAnyId, AmlNullName>;
+    using AmlTarget = std::variant<AmlName, AmlArgObject, AmlLocalObject, AmlAnyId, AmlNullName, AmlDebugObject>;
 
     struct AmlMethodFlags {
         uint8_t flags;
@@ -249,7 +248,6 @@ namespace acpi {
         eReturn,
         eCondRefOf,
         eSizeOf,
-        eModifyData,
         eField,
         eMethodInvoke,
         eIndexField,
@@ -267,6 +265,11 @@ namespace acpi {
         eBinary,
         eBinaryTac,
         eUnaryTac,
+        eToString,
+        eStatement,
+        eFatal,
+        eDivide,
+        eWait,
 
         eAcquire,
         eRelease,
@@ -418,16 +421,6 @@ namespace acpi {
         AmlSuperName term;
     };
 
-    struct AmlModifyDataTerm {
-        static constexpr AmlTermType kType = AmlTermType::eModifyData;
-        enum Type {
-            eToHexString,
-            eToBuffer,
-        } type;
-        AmlAnyId operand;
-        AmlTarget target;
-    };
-
     struct AmlCreateByteFieldTerm {
         static constexpr AmlTermType kType = AmlTermType::eCreateByteField;
         AmlAnyId source;
@@ -481,16 +474,33 @@ namespace acpi {
         AmlSuperName term;
     };
 
+    struct AmlStatementTerm {
+        static constexpr AmlTermType kType = AmlTermType::eStatement;
+        enum Type {
+            eContinue,
+            eBreak,
+            eBreakPoint,
+        } type;
+    };
+
+    struct AmlFatalTerm {
+        static constexpr AmlTermType kType = AmlTermType::eFatal;
+        uint8_t type;
+        uint32_t code;
+        AmlAnyId arg;
+    };
+
     struct AmlBinaryTerm {
         static constexpr AmlTermType kType = AmlTermType::eBinary;
         enum Type {
+            eEqual,
+            eNotEqual,
             eLess,
             eLessEqual,
-            eEqual,
             eGreater,
             eGreaterEqual,
             eOr,
-            eNotEqual,
+            eAnd,
             eAdd,
             eSub,
             eMul,
@@ -505,6 +515,7 @@ namespace acpi {
         enum Type {
             eSub,
             eAdd,
+            eMul,
             eIndex,
             eAnd,
             eOr,
@@ -521,9 +532,37 @@ namespace acpi {
         enum Type {
             eFindSetLeftBit,
             eFindSetRightBit,
+            eToHexString,
+            eToBuffer,
+            eToInteger,
+            eToString,
         } type;
         AmlAnyId term;
         AmlTarget target;
+    };
+
+    struct AmlToStringTerm {
+        static constexpr AmlTermType kType = AmlTermType::eToString;
+        AmlAnyId term;
+        AmlAnyId length;
+        AmlTarget target;
+    };
+
+    struct AmlDivideTerm {
+        static constexpr AmlTermType kType = AmlTermType::eDivide;
+        AmlAnyId dividend;
+        AmlAnyId divisor;
+        AmlTarget remainder;
+        AmlTarget quotient;
+    };
+
+    struct AmlWaitTerm {
+        static constexpr AmlTermType kType = AmlTermType::eWait;
+        enum Type {
+            eStall,
+            eSleep,
+        } type;
+        AmlAnyId value;
     };
 
     struct AmlAcquireTerm {
@@ -722,26 +761,43 @@ namespace acpi {
         AmlUnaryTerm DefLNot(AmlParser& parser, AmlNodeBuffer& code);
         AmlBinaryTerm DefLEqual(AmlParser& parser, AmlNodeBuffer& code);
         AmlBinaryTerm DefLOr(AmlParser& parser, AmlNodeBuffer& code);
-        AmlBinaryTerm DefAdd(AmlParser& parser, AmlNodeBuffer& code);
+        AmlBinaryTerm DefLAnd(AmlParser& parser, AmlNodeBuffer& code);
         AmlBinaryTerm DefLLess(AmlParser& parser, AmlNodeBuffer& code);
         AmlBinaryTerm DefLGreater(AmlParser& parser, AmlNodeBuffer& code);
+
         AmlSizeOfTerm DefSizeOf(AmlParser& parser, AmlNodeBuffer& code);
-        AmlModifyDataTerm DefToHexString(AmlParser& parser, AmlNodeBuffer& code);
-        AmlModifyDataTerm DefToBuffer(AmlParser& parser, AmlNodeBuffer& code);
         AmlExpression DefDecrement(AmlParser& parser, AmlNodeBuffer& code);
         AmlExpression DefIncrement(AmlParser& parser, AmlNodeBuffer& code);
         AmlUnaryTerm DefDerefOf(AmlParser& parser, AmlNodeBuffer& code);
-        AmlBinaryTacTerm DefSubtract(AmlParser& parser, AmlNodeBuffer& code);
+
         AmlBinaryTacTerm DefIndex(AmlParser& parser, AmlNodeBuffer& code);
+        AmlBinaryTacTerm DefSubtract(AmlParser& parser, AmlNodeBuffer& code);
+        AmlBinaryTacTerm DefAdd(AmlParser& parser, AmlNodeBuffer& code);
         AmlBinaryTacTerm DefAnd(AmlParser& parser, AmlNodeBuffer& code);
         AmlBinaryTacTerm DefOr(AmlParser& parser, AmlNodeBuffer& code);
+        AmlBinaryTacTerm DefMultiply(AmlParser& parser, AmlNodeBuffer& code);
         AmlBinaryTacTerm DefShiftLeft(AmlParser& parser, AmlNodeBuffer& code);
         AmlBinaryTacTerm DefShiftRight(AmlParser& parser, AmlNodeBuffer& code);
+
         AmlAcquireTerm DefAcquire(AmlParser& parser, AmlNodeBuffer& code);
         AmlReleaseTerm DefRelease(AmlParser& parser, AmlNodeBuffer& code);
         AmlNotifyTerm DefNotify(AmlParser& parser, AmlNodeBuffer& code);
+        AmlStatementTerm DefContinue(AmlParser& parser, AmlNodeBuffer& code);
+        AmlStatementTerm DefBreak(AmlParser& parser, AmlNodeBuffer& code);
+        AmlStatementTerm DefBreakPoint(AmlParser& parser, AmlNodeBuffer& code);
+        AmlFatalTerm DefFatal(AmlParser& parser, AmlNodeBuffer& code);
+
         AmlUnaryTacTerm DefFindSetLeftBit(AmlParser& parser, AmlNodeBuffer& code);
         AmlUnaryTacTerm DefFindSetRightBit(AmlParser& parser, AmlNodeBuffer& code);
+        AmlUnaryTacTerm DefToHexString(AmlParser& parser, AmlNodeBuffer& code);
+        AmlUnaryTacTerm DefToBuffer(AmlParser& parser, AmlNodeBuffer& code);
+        AmlUnaryTacTerm DefToInteger(AmlParser& parser, AmlNodeBuffer& code);
+        AmlToStringTerm DefToString(AmlParser& parser, AmlNodeBuffer& code);
+
+        AmlWaitTerm DefSleep(AmlParser& parser, AmlNodeBuffer& code);
+        AmlWaitTerm DefStall(AmlParser& parser, AmlNodeBuffer& code);
+
+        AmlDivideTerm DefDivide(AmlParser& parser, AmlNodeBuffer& code);
 
         stdx::Vector<AmlAnyId> TermList(AmlParser& parser, AmlNodeBuffer& code);
 

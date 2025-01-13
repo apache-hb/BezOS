@@ -210,12 +210,14 @@ static acpi::AmlPackageId DefPackage(acpi::AmlParser& parser, acpi::AmlNodeBuffe
 
     uint32_t back = parser.offset();
 
-    acpi::AmlParser sub = parser.subspan(length - (back - front));
+    stdx::Vector<acpi::AmlAnyId> terms(code.allocator());
 
-    stdx::Vector<acpi::AmlAnyId> terms(code.allocator(), count);
+    if (length != 0) {
+        acpi::AmlParser sub = parser.subspan(length - (back - front));
 
-    while (!sub.done()) {
-        terms.add(DataRefObject(sub, code));
+        while (!sub.done()) {
+            terms.add(DataRefObject(sub, code));
+        }
     }
 
     return code.add(acpi::AmlPackageTerm { count, terms });
@@ -265,6 +267,18 @@ enum {
 
     kReturnOp = 0xA4,
 
+    kDebugOp = 0x31,
+
+    kBreakOp = 0xA5,
+    kBreakPointOp = 0xCC,
+    kContinueOp = 0x9F,
+    kFatalOp = 0x32,
+    kToIntegerOp = 0x99,
+    kToStringOp = 0x9C,
+    kDivideOp = 0x78,
+    kMultiplyOp = 0x77,
+
+    kLAndOp = 0x90,
     kLOrOp = 0x91,
     kLNotOp = 0x92,
     kLEqualOp = 0x93,
@@ -301,6 +315,8 @@ enum {
     kAcquireOp = 0x23,
     kReleaseOp = 0x27,
     kNotifyOp = 0x86,
+    kStallOp = 0x21,
+    kSleepOp = 0x22,
 
     kShiftLeftOp = 0x79,
     kShiftRightOp = 0x7A,
@@ -366,6 +382,21 @@ static std::optional<acpi::AmlArgObject> ArgObject(acpi::AmlParser& parser) {
 }
 
 static std::optional<acpi::AmlAnyId> StatementOpcode(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
+    if (parser.consumeSeq(kBreakOp))
+        return code.add(DefBreak(parser, code));
+
+    if (parser.consumeSeq(kBreakPointOp))
+        return code.add(DefBreakPoint(parser, code));
+
+    if (parser.consumeSeq(kContinueOp))
+        return code.add(DefContinue(parser, code));
+
+    if (parser.consumeSeq(kToStringOp))
+        return code.add(DefToString(parser, code));
+
+    if (parser.consumeSeq(kExtOpPrefix, kFatalOp))
+        return code.add(DefFatal(parser, code));
+
     if (parser.consumeSeq(kIfOp))
         return code.add(DefIfElse(parser, code));
 
@@ -384,18 +415,43 @@ static std::optional<acpi::AmlAnyId> StatementOpcode(acpi::AmlParser& parser, ac
     if (parser.consumeSeq(kNotifyOp))
         return code.add(DefNotify(parser, code));
 
+    if (parser.consumeSeq(kExtOpPrefix, kStallOp))
+        return code.add(DefStall(parser, code));
+
+    if (parser.consumeSeq(kExtOpPrefix, kSleepOp))
+        return code.add(DefSleep(parser, code));
+
     return std::nullopt;
 }
 
 static std::optional<acpi::AmlAnyId> ExpressionOpcode(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
+    auto addTerm = [&](acpi::AmlData::Type type, auto data) {
+        return code.add(acpi::AmlDataTerm { { type, { data } } });
+    };
+
+    if (parser.consumeSeq(kZeroOp))
+        return addTerm(acpi::AmlData::Type::eByte, uint64_t(0));
+
+    if (parser.consumeSeq(kOneOp))
+        return addTerm(acpi::AmlData::Type::eByte, uint64_t(1));
+
+    if (parser.consumeSeq(kMultiplyOp))
+        return code.add(DefMultiply(parser, code));
+
     if (parser.consumeSeq(kLNotOp))
         return code.add(DefLNot(parser, code));
 
     if (parser.consumeSeq(kLOrOp))
         return code.add(DefLOr(parser, code));
 
+    if (parser.consumeSeq(kLAndOp))
+        return code.add(DefLAnd(parser, code));
+
     if (parser.consumeSeq(kLEqualOp))
         return code.add(DefLEqual(parser, code));
+
+    if (parser.consumeSeq(kDivideOp))
+        return code.add(DefDivide(parser, code));
 
     if (parser.consumeSeq(kLLessOp))
         return code.add(DefLLess(parser, code));
@@ -454,6 +510,9 @@ static std::optional<acpi::AmlAnyId> ExpressionOpcode(acpi::AmlParser& parser, a
     if (parser.consumeSeq(kFindSetRightBitOp))
         return code.add(DefFindSetRightBit(parser, code));
 
+    if (parser.consumeSeq(kToIntegerOp))
+        return code.add(DefToInteger(parser, code));
+
     return std::nullopt;
 }
 
@@ -494,15 +553,15 @@ acpi::AmlAnyId acpi::detail::DataRefObject(acpi::AmlParser& parser, acpi::AmlNod
         return code.add(AmlDataTerm { { type, { data } } });
     };
 
-    if (auto cd = ComputationalData(parser, code)) {
-        return *cd;
-    }
-
     if (parser.consumeSeq(kZeroOp))
         return addTerm(acpi::AmlData::Type::eByte, uint64_t(0));
 
     if (parser.consumeSeq(kOneOp))
         return addTerm(acpi::AmlData::Type::eByte, uint64_t(1));
+
+    if (auto cd = ComputationalData(parser, code)) {
+        return *cd;
+    }
 
     switch (parser.peek()) {
     case 'A'...'Z': case '_': case kRootChar:
@@ -614,6 +673,9 @@ static std::optional<acpi::AmlAnyId> ReferenceType(acpi::AmlParser& parser, acpi
 }
 
 acpi::AmlSuperName acpi::detail::SuperName(AmlParser& parser, AmlNodeBuffer& code) {
+    if (parser.consumeSeq(kExtOpPrefix, kDebugOp))
+        return acpi::AmlDebugObject { };
+
     if (auto ref = ReferenceType(parser, code)) {
         return *ref;
     }
@@ -913,11 +975,27 @@ acpi::AmlBinaryTerm acpi::detail::DefLOr(AmlParser& parser, AmlNodeBuffer& code)
     return acpi::AmlBinaryTerm { acpi::AmlBinaryTerm::eOr, left, right };
 }
 
-acpi::AmlBinaryTerm acpi::detail::DefAdd(AmlParser& parser, AmlNodeBuffer& code) {
+acpi::AmlBinaryTerm acpi::detail::DefLAnd(AmlParser& parser, AmlNodeBuffer& code) {
     AmlAnyId left = TermArg(parser, code);
     AmlAnyId right = TermArg(parser, code);
 
-    return acpi::AmlBinaryTerm { acpi::AmlBinaryTerm::eAdd, left, right };
+    return acpi::AmlBinaryTerm { acpi::AmlBinaryTerm::eAnd, left, right };
+}
+
+acpi::AmlBinaryTacTerm acpi::detail::DefAdd(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlAnyId left = TermArg(parser, code);
+    AmlAnyId right = TermArg(parser, code);
+    AmlTarget target = Target(parser, code);
+
+    return acpi::AmlBinaryTacTerm { acpi::AmlBinaryTacTerm::eAdd, left, right, target };
+}
+
+acpi::AmlBinaryTacTerm acpi::detail::DefMultiply(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlAnyId left = TermArg(parser, code);
+    AmlAnyId right = TermArg(parser, code);
+    AmlTarget target = Target(parser, code);
+
+    return acpi::AmlBinaryTacTerm { acpi::AmlBinaryTacTerm::eMul, left, right, target };
 }
 
 acpi::AmlBinaryTerm acpi::detail::DefLLess(AmlParser& parser, AmlNodeBuffer& code) {
@@ -933,18 +1011,33 @@ acpi::AmlSizeOfTerm acpi::detail::DefSizeOf(AmlParser& parser, AmlNodeBuffer& co
     return acpi::AmlSizeOfTerm { name };
 }
 
-acpi::AmlModifyDataTerm acpi::detail::DefToHexString(AmlParser& parser, AmlNodeBuffer& code) {
+acpi::AmlUnaryTacTerm acpi::detail::DefToHexString(AmlParser& parser, AmlNodeBuffer& code) {
     AmlAnyId term = TermArg(parser, code);
     AmlTarget target = Target(parser, code);
 
-    return acpi::AmlModifyDataTerm { acpi::AmlModifyDataTerm::eToHexString, term, target };
+    return acpi::AmlUnaryTacTerm { acpi::AmlUnaryTacTerm::eToHexString, term, target };
 }
 
-acpi::AmlModifyDataTerm acpi::detail::DefToBuffer(AmlParser& parser, AmlNodeBuffer& code) {
+acpi::AmlUnaryTacTerm acpi::detail::DefToBuffer(AmlParser& parser, AmlNodeBuffer& code) {
     AmlAnyId term = TermArg(parser, code);
     AmlTarget target = Target(parser, code);
 
-    return acpi::AmlModifyDataTerm { acpi::AmlModifyDataTerm::eToBuffer, term, target };
+    return acpi::AmlUnaryTacTerm { acpi::AmlUnaryTacTerm::eToBuffer, term, target };
+}
+
+acpi::AmlUnaryTacTerm acpi::detail::DefToInteger(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlAnyId term = TermArg(parser, code);
+    AmlTarget target = Target(parser, code);
+
+    return acpi::AmlUnaryTacTerm { acpi::AmlUnaryTacTerm::eToInteger, term, target };
+}
+
+acpi::AmlToStringTerm acpi::detail::DefToString(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlAnyId term = TermArg(parser, code);
+    AmlAnyId length = TermArg(parser, code);
+    AmlTarget target = Target(parser, code);
+
+    return acpi::AmlToStringTerm { term, length, target };
 }
 
 acpi::AmlExpression acpi::detail::DefDecrement(AmlParser& parser, AmlNodeBuffer& code) {
@@ -1045,6 +1138,47 @@ acpi::AmlNotifyTerm acpi::detail::DefNotify(AmlParser& parser, AmlNodeBuffer& co
     AmlAnyId value = TermArg(parser, code);
 
     return acpi::AmlNotifyTerm { name, value };
+}
+
+acpi::AmlStatementTerm acpi::detail::DefContinue(AmlParser&, AmlNodeBuffer&) {
+    return acpi::AmlStatementTerm { acpi::AmlStatementTerm::eContinue };
+}
+
+acpi::AmlStatementTerm acpi::detail::DefBreak(AmlParser&, AmlNodeBuffer&) {
+    return acpi::AmlStatementTerm { acpi::AmlStatementTerm::eBreak };
+}
+
+acpi::AmlStatementTerm acpi::detail::DefBreakPoint(AmlParser&, AmlNodeBuffer&) {
+    return acpi::AmlStatementTerm { acpi::AmlStatementTerm::eBreakPoint };
+}
+
+acpi::AmlFatalTerm acpi::detail::DefFatal(AmlParser& parser, AmlNodeBuffer& code) {
+    uint8_t type = ByteData(parser);
+    uint32_t error = DwordData(parser);
+    AmlAnyId arg = TermArg(parser, code);
+
+    return acpi::AmlFatalTerm { type, error, arg };
+}
+
+acpi::AmlDivideTerm acpi::detail::DefDivide(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlAnyId dividend = TermArg(parser, code);
+    AmlAnyId divisor = TermArg(parser, code);
+    AmlTarget remainder = Target(parser, code);
+    AmlTarget quotient = Target(parser, code);
+
+    return acpi::AmlDivideTerm { dividend, divisor, remainder, quotient };
+}
+
+acpi::AmlWaitTerm acpi::detail::DefSleep(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlAnyId time = TermArg(parser, code);
+
+    return acpi::AmlWaitTerm { acpi::AmlWaitTerm::eSleep, time };
+}
+
+acpi::AmlWaitTerm acpi::detail::DefStall(AmlParser& parser, AmlNodeBuffer& code) {
+    AmlAnyId time = TermArg(parser, code);
+
+    return acpi::AmlWaitTerm { acpi::AmlWaitTerm::eStall, time };
 }
 
 acpi::AmlAnyId acpi::detail::Term(acpi::AmlParser& parser, acpi::AmlNodeBuffer& code) {
