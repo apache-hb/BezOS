@@ -10,7 +10,8 @@
 #define GDT_64BIT_DATA 6
 #define GDT_64BIT_USER_CODE 7
 #define GDT_64BIT_USER_DATA 8
+#define GDT_TSS 9
 
-#define GDT_COUNT 9
+#define GDT_COUNT 10
 
 #endif /* SYSTEM_GDT_H */

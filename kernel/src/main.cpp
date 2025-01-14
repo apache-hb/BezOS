@@ -123,17 +123,26 @@ void KmEndWrite() {
     gLogLock.unlock();
 }
 
-TLS(LocalApic) gLocalApic;
+namespace km {
+    [[gnu::section(".tlsdata")]]
+    extern constinit km::ThreadLocal<km::LocalApic> tlsLocalApic;
 
-static SystemGdt gSystemGdt;
+    [[gnu::section(".tlsdata")]]
+    extern constinit km::ThreadLocal<SystemGdt> tlsSystemGdt;
+}
 
-static void KmSetupBspGdt(void) {
-    gSystemGdt = KmGetSystemGdt();
-    KmInitGdt(gSystemGdt.entries, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
+constinit km::ThreadLocal<km::LocalApic> km::tlsLocalApic;
+constinit km::ThreadLocal<SystemGdt> km::tlsSystemGdt;
+
+static SystemGdt gBootGdt;
+
+static void SetupInitialGdt(void) {
+    gBootGdt = KmGetSystemGdt();
+    KmInitGdt(gBootGdt.entries, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
 }
 
 void KmSetupApGdt(void) {
-    KmInitGdt(gSystemGdt.entries, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
+    KmInitGdt(gBootGdt.entries, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
 }
 
 static PageMemoryTypeLayout KmSetupPat(void) {
@@ -335,14 +344,14 @@ static LocalApic KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllocator& i
 
     km::InitTlsRegion(memory);
 
-    gLocalApic = lapic;
+    tlsLocalApic = lapic;
 
     uint8_t spuriousVec = isrs.allocateIsr();
     KmDebugMessage("[INIT] APIC ID: ", lapic.id(), ", Version: ", lapic.version(), ", Spurious vector: ", spuriousVec, "\n");
 
     KmInstallIsrHandler(spuriousVec, [](km::IsrContext *ctx) -> void* {
         KmDebugMessage("[ISR] Spurious interrupt: ", ctx->vector, "\n");
-        gLocalApic->clearEndOfInterrupt();
+        tlsLocalApic->clearEndOfInterrupt();
         return ctx;
     });
 
@@ -519,7 +528,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     KmDebugMessage("[INIT] CR4: ", x64::Cr4::load(), "\n");
     KmDebugMessage("[INIT] HHDM: ", Hex(launch.hhdmOffset).pad(16, '0'), "\n");
 
-    KmSetupBspGdt();
+    SetupInitialGdt();
 
     km::IsrAllocator isrs;
     KmInitInterrupts(isrs, SystemGdt::eLongModeCode * sizeof(uint64_t));
@@ -612,11 +621,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     {
         KmIsrHandler isrHandler = [](km::IsrContext *context) -> void* {
             KmDebugMessage("[INT] APIC interrupt.\n");
-            DumpIsrState(context);
-            KmDebugMessage("context: ", (void*)context, "\n");
-            // while (1) { }
-
-            gLocalApic->clearEndOfInterrupt();
+            tlsLocalApic->clearEndOfInterrupt();
             return context;
         };
 
