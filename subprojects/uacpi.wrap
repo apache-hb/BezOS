@@ -1,0 +1,12 @@
+[wrap-file]
+
+directory = uACPI-1d636a34152dc82833c89175b702f2c0671f04e3
+
+source_url = https://github.com/UltraOS/uACPI/archive/1d636a34152dc82833c89175b702f2c0671f04e3.zip
+source_filename = uACPI-1d636a34152dc82833c89175b702f2c0671f04e3.zip
+source_hash = 044e2829143ab1d82ba2851cd335efd6cd359e95399f51624d9d414a388ec54d
+
+patch_directory = uacpi
+
+[provide]
+dependency_names = uacpi

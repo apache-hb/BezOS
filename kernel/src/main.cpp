@@ -4,8 +4,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#include "acpi/aml.hpp"
-#include "allocator/tlsf.hpp"
 #include "apic.hpp"
 
 #include "arch/cr0.hpp"
@@ -22,6 +20,7 @@
 #include "memory.hpp"
 #include "pat.hpp"
 #include "smp.hpp"
+#include "thread.hpp"
 #include "uart.hpp"
 #include "smbios.hpp"
 #include "pci.hpp"
@@ -124,7 +123,7 @@ void KmEndWrite() {
     gLogLock.unlock();
 }
 
-constinit static LocalApic gLocalApic;
+TLS(LocalApic) gLocalApic;
 
 static SystemGdt gSystemGdt;
 
@@ -142,7 +141,7 @@ static PageMemoryTypeLayout KmSetupPat(void) {
         return PageMemoryTypeLayout { };
     }
 
-    x64::PageAttributeTable pat;
+    x64::PageAttributeTable pat = x64::PageAttributeTable::get();
 
     for (uint8_t i = 0; i < pat.count(); i++) {
         km::MemoryType type = pat.getEntry(i);
@@ -295,8 +294,40 @@ static SystemMemory KmInitMemory(uintptr_t bits, const KernelLaunch& launch) {
     return memory;
 }
 
+static void DumpIsrState(const km::IsrContext *context) {
+    KmDebugMessage("| Register | Value\n");
+    KmDebugMessage("|----------+------\n");
+    KmDebugMessage("| %RAX     | ", Hex(context->rax).pad(16, '0'), "\n");
+    KmDebugMessage("| %RBX     | ", Hex(context->rbx).pad(16, '0'), "\n");
+    KmDebugMessage("| %RCX     | ", Hex(context->rcx).pad(16, '0'), "\n");
+    KmDebugMessage("| %RDX     | ", Hex(context->rdx).pad(16, '0'), "\n");
+    KmDebugMessage("| %RDI     | ", Hex(context->rdi).pad(16, '0'), "\n");
+    KmDebugMessage("| %RSI     | ", Hex(context->rsi).pad(16, '0'), "\n");
+    KmDebugMessage("| %R8      | ", Hex(context->r8).pad(16, '0'), "\n");
+    KmDebugMessage("| %R9      | ", Hex(context->r9).pad(16, '0'), "\n");
+    KmDebugMessage("| %R10     | ", Hex(context->r10).pad(16, '0'), "\n");
+    KmDebugMessage("| %R11     | ", Hex(context->r11).pad(16, '0'), "\n");
+    KmDebugMessage("| %R12     | ", Hex(context->r12).pad(16, '0'), "\n");
+    KmDebugMessage("| %R13     | ", Hex(context->r13).pad(16, '0'), "\n");
+    KmDebugMessage("| %R14     | ", Hex(context->r14).pad(16, '0'), "\n");
+    KmDebugMessage("| %R15     | ", Hex(context->r15).pad(16, '0'), "\n");
+    KmDebugMessage("| %RBP     | ", Hex(context->rbp).pad(16, '0'), "\n");
+    KmDebugMessage("| %RIP     | ", Hex(context->rip).pad(16, '0'), "\n");
+    KmDebugMessage("| %CS      | ", Hex(context->cs).pad(16, '0'), "\n");
+    KmDebugMessage("| %RFLAGS  | ", Hex(context->rflags).pad(16, '0'), "\n");
+    KmDebugMessage("| %RSP     | ", Hex(context->rsp).pad(16, '0'), "\n");
+    KmDebugMessage("| %SS      | ", Hex(context->ss).pad(16, '0'), "\n");
+    KmDebugMessage("| Vector   | ", Hex(context->vector).pad(16, '0'), "\n");
+    KmDebugMessage("| Error    | ", Hex(context->error).pad(16, '0'), "\n");
+}
+
 static LocalApic KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllocator& isrs) {
     LocalApic lapic = KmInitBspLocalApic(memory);
+
+    // setup tls now that we have the lapic id
+
+    km::InitTlsRegion(memory);
+
     gLocalApic = lapic;
 
     uint8_t spuriousVec = isrs.allocateIsr();
@@ -304,7 +335,7 @@ static LocalApic KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllocator& i
 
     KmInstallIsrHandler(spuriousVec, [](km::IsrContext *ctx) -> void* {
         KmDebugMessage("[ISR] Spurious interrupt: ", ctx->vector, "\n");
-        gLocalApic.clearEndOfInterrupt();
+        gLocalApic->clearEndOfInterrupt();
         return ctx;
     });
 
@@ -390,30 +421,7 @@ static void KmDumpIsrContext(const km::IsrContext *context, stdx::StringView mes
         KmDebugMessage("\n[BUG] ", message, "\n");
     }
 
-    KmDebugMessage("| Register | Value\n");
-    KmDebugMessage("|----------+------\n");
-    KmDebugMessage("| %RAX     | ", Hex(context->rax).pad(16, '0'), "\n");
-    KmDebugMessage("| %RBX     | ", Hex(context->rbx).pad(16, '0'), "\n");
-    KmDebugMessage("| %RCX     | ", Hex(context->rcx).pad(16, '0'), "\n");
-    KmDebugMessage("| %RDX     | ", Hex(context->rdx).pad(16, '0'), "\n");
-    KmDebugMessage("| %RDI     | ", Hex(context->rdi).pad(16, '0'), "\n");
-    KmDebugMessage("| %RSI     | ", Hex(context->rsi).pad(16, '0'), "\n");
-    KmDebugMessage("| %R8      | ", Hex(context->r8).pad(16, '0'), "\n");
-    KmDebugMessage("| %R9      | ", Hex(context->r9).pad(16, '0'), "\n");
-    KmDebugMessage("| %R10     | ", Hex(context->r10).pad(16, '0'), "\n");
-    KmDebugMessage("| %R11     | ", Hex(context->r11).pad(16, '0'), "\n");
-    KmDebugMessage("| %R12     | ", Hex(context->r12).pad(16, '0'), "\n");
-    KmDebugMessage("| %R13     | ", Hex(context->r13).pad(16, '0'), "\n");
-    KmDebugMessage("| %R14     | ", Hex(context->r14).pad(16, '0'), "\n");
-    KmDebugMessage("| %R15     | ", Hex(context->r15).pad(16, '0'), "\n");
-    KmDebugMessage("| %RBP     | ", Hex(context->rbp).pad(16, '0'), "\n");
-    KmDebugMessage("| %RIP     | ", Hex(context->rip).pad(16, '0'), "\n");
-    KmDebugMessage("| %CS      | ", Hex(context->cs).pad(16, '0'), "\n");
-    KmDebugMessage("| %RFLAGS  | ", Hex(context->rflags).pad(16, '0'), "\n");
-    KmDebugMessage("| %RSP     | ", Hex(context->rsp).pad(16, '0'), "\n");
-    KmDebugMessage("| %SS      | ", Hex(context->ss).pad(16, '0'), "\n");
-    KmDebugMessage("| Vector   | ", Hex(context->vector).pad(16, '0'), "\n");
-    KmDebugMessage("| Error    | ", Hex(context->error).pad(16, '0'), "\n");
+    DumpIsrState(context);
 
     KM_PANIC("Kernel panic.");
 }
@@ -597,16 +605,18 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     {
         KmIsrHandler isrHandler = [](km::IsrContext *context) -> void* {
             KmDebugMessage("[INT] APIC interrupt.\n");
-            gLocalApic.clearEndOfInterrupt();
+            gLocalApic->clearEndOfInterrupt();
             return context;
         };
 
         uint8_t testVec = isrs.allocateIsr();
 
+
         KmIsrHandler oldHandler = KmInstallIsrHandler(testVec, isrHandler);
 
         // another test interrupt
         lapic.sendIpi(apic::IcrDeliver::eSelf, testVec);
+    while (1) { }
         lapic.sendIpi(apic::IcrDeliver::eSelf, testVec);
         lapic.sendIpi(apic::IcrDeliver::eSelf, testVec);
 
@@ -625,17 +635,6 @@ extern "C" void KmLaunch(KernelLaunch launch) {
         KmDebugMessage("[INIT] IOAPIC ", i, " ID: ", ioapic.id(), ", Version: ", ioapic.version(), "\n");
         KmDebugMessage("[INIT] ISR base: ", ioapic.isrBase(), ", Inputs: ", ioapic.inputCount(), "\n");
     }
-
-#if 0
-    static constexpr size_t kSize = sm::kilobytes(256).bytes();
-    void *tlsfMemory = memory.allocate(kSize);
-
-    mem::TlsfAllocator allocator = mem::TlsfAllocator(tlsfMemory, kSize);
-    acpi::AmlCode code = acpi::WalkAml(rsdt.dsdt(), &allocator);
-    if (code.nodes().error()) {
-        KmDebugMessage("[INIT] Failed to parse DSDT AML.\n");
-    }
-#endif
 
     bool has8042 = rsdt.has8042Controller();
 

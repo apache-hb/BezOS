@@ -8,6 +8,7 @@
 /* To ensure it isn't a check is done against the current CS. */
 .macro SWAPGS_KERNEL
     /* Code selector is at offset 0x8. */
+    /* TODO: this is swapping gs even in ring 0 */
     cmpq $(GDT_64BIT_CODE * 0x8), (0x16 + 0x8)(%rsp)
     je 1f
     swapgs

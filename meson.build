@@ -16,6 +16,8 @@ project('bezos', [ 'c', 'cpp' ],
     meson_version : '>=1.1.0',
 )
 
+enable_aml = false
+
 cc = meson.get_compiler('c')
 cpp = meson.get_compiler('cpp')
 
@@ -35,6 +37,7 @@ c_args = cc.get_supported_arguments([ '-Wno-language-extension-token' ] + common
 cpp_args = cpp.get_supported_arguments([ '-Wno-c99-designator', '-Wno-c99-extensions' ] + common_args)
 
 limine = dependency('limine')
+# uacpi = dependency('uacpi')
 
 # Smp startup blob
 
@@ -76,6 +79,7 @@ src = [
     'kernel/src/util/cpuid.cpp',
     'kernel/src/util/memory.cpp',
     'kernel/src/util/format.cpp',
+    'kernel/src/util/bits.cpp',
 
     # Memory management
     'kernel/src/memory/layout.cpp',
@@ -104,11 +108,11 @@ src = [
     'kernel/src/smbios.cpp',
     'kernel/src/pci.cpp',
     'kernel/src/delay.cpp',
+    'kernel/src/thread.cpp',
 
     # ACPI
     'kernel/src/acpi/acpi.cpp',
     'kernel/src/acpi/format.cpp',
-    'kernel/src/acpi/aml.cpp',
 
     # HID
     'kernel/src/hid/ps2.cpp',
@@ -133,6 +137,10 @@ src = [
     'kernel/src/memory.cpp',
     'kernel/src/main.cpp',
 ]
+
+if enable_aml
+    src += [ 'kernel/src/acpi/aml.cpp', ]
+endif
 
 kernel = static_library('kernel', src,
     include_directories : inc,
@@ -214,6 +222,10 @@ testcases = {
         'kernel/test/format.cpp',
         'kernel/src/util/format.cpp',
     ],
+    'bitset': [
+        'kernel/test/bitset.cpp',
+        'kernel/src/util/bits.cpp',
+    ],
     'memmap': [ 'kernel/test/memmap.cpp', 'kernel/src/memory/layout.cpp', 'kernel/src/util/memory.cpp', ],
     'string': [ 'kernel/test/string.cpp', ],
     'memory range': [ 'kernel/test/memory_range.cpp' ],
@@ -236,28 +248,33 @@ testcases = {
         'kernel/src/allocator/bitmap.cpp',
         'kernel/src/util/format.cpp',
     ],
-    'aml details': [
-        'kernel/test/acpi/detail.cpp',
-        'kernel/src/allocator/bitmap.cpp',
-        'kernel/src/acpi/format.cpp',
-        'kernel/src/acpi/aml.cpp',
-        'kernel/src/util/format.cpp',
-    ],
-    'aml names': [
-        'kernel/test/acpi/name.cpp',
-        'kernel/src/allocator/bitmap.cpp',
-        'kernel/src/acpi/format.cpp',
-        'kernel/src/acpi/aml.cpp',
-        'kernel/src/util/format.cpp',
-    ],
-    'aml nodes': [
-        'kernel/test/acpi/nodes.cpp',
-        'kernel/src/allocator/bitmap.cpp',
-        'kernel/src/acpi/format.cpp',
-        'kernel/src/acpi/aml.cpp',
-        'kernel/src/util/format.cpp',
-    ]
 }
+
+if enable_aml
+    testcases += {
+        'aml details': [
+            'kernel/test/acpi/detail.cpp',
+            'kernel/src/allocator/bitmap.cpp',
+            'kernel/src/acpi/format.cpp',
+            'kernel/src/acpi/aml.cpp',
+            'kernel/src/util/format.cpp',
+        ],
+        'aml names': [
+            'kernel/test/acpi/name.cpp',
+            'kernel/src/allocator/bitmap.cpp',
+            'kernel/src/acpi/format.cpp',
+            'kernel/src/acpi/aml.cpp',
+            'kernel/src/util/format.cpp',
+        ],
+        'aml nodes': [
+            'kernel/test/acpi/nodes.cpp',
+            'kernel/src/allocator/bitmap.cpp',
+            'kernel/src/acpi/format.cpp',
+            'kernel/src/acpi/aml.cpp',
+            'kernel/src/util/format.cpp',
+        ]
+    }
+endif
 
 foreach name, source : testcases
     exe = executable('test-kernel-' + name.to_lower().replace(' ', '-'), source,
@@ -299,39 +316,41 @@ endforeach
 
 # AML tests
 
-testcases = [
-    'B450M-MORTAR',
-    'H13SSL-N',
-    'G513RM',
-    'QEMU',
-]
+if enable_aml
+    testcases = [
+        'B450M-MORTAR',
+        'H13SSL-N',
+        'G513RM',
+        'QEMU',
+    ]
 
-acpixtract = find_program('data/test/acpi/dump.sh')
+    acpixtract = find_program('data/test/acpi/dump.sh')
 
-src = [
-    'kernel/test/acpi/aml.cpp',
-    'kernel/src/acpi/aml.cpp',
-    'kernel/src/acpi/format.cpp',
-    'kernel/src/util/format.cpp',
-    'kernel/src/allocator/bitmap.cpp',
-    'kernel/subprojects/tlsf/tlsf.c',
-]
+    src = [
+        'kernel/test/acpi/aml.cpp',
+        'kernel/src/acpi/aml.cpp',
+        'kernel/src/acpi/format.cpp',
+        'kernel/src/util/format.cpp',
+        'kernel/src/allocator/bitmap.cpp',
+        'kernel/subprojects/tlsf/tlsf.c',
+    ]
 
-exe = executable('test-aml', src,
-    kwargs : test_exe_kwargs,
-)
-
-foreach name : testcases
-    bin = custom_target(name + '-bin',
-        input : 'data/test/acpi/' + name + '.txt',
-        output : name + '.bin',
-        command : [ acpixtract, '@INPUT@', '@OUTPUT@', '@PRIVATE_DIR@' ],
+    exe = executable('test-aml', src,
+        kwargs : test_exe_kwargs,
     )
 
-    test(name, exe,
-        suite : 'acpi',
-        kwargs : testkwargs,
-        depends : bin,
-        env : { 'AML_BLOB': bin.full_path() }
-    )
-endforeach
+    foreach name : testcases
+        bin = custom_target(name + '-bin',
+            input : 'data/test/acpi/' + name + '.txt',
+            output : name + '.bin',
+            command : [ acpixtract, '@INPUT@', '@OUTPUT@', '@PRIVATE_DIR@' ],
+        )
+
+        test(name, exe,
+            suite : 'acpi',
+            kwargs : testkwargs,
+            depends : bin,
+            env : { 'AML_BLOB': bin.full_path() }
+        )
+    endforeach
+endif

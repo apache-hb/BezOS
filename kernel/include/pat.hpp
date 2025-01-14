@@ -32,14 +32,16 @@ namespace x64 {
     class PageAttributeTable {
         uint64_t mValue;
 
-    public:
         /// @brief Construct a page attribute table accessor.
         /// @pre: HasPatSupport() = true
         PageAttributeTable();
+    public:
 
         constexpr PageAttributeTable(sm::noinit)
             : mValue(0)
         { }
+
+        static PageAttributeTable get() { return PageAttributeTable(); }
 
         /// @brief Get the number of entries in the PAT.
         uint8_t count() const { return 8; }

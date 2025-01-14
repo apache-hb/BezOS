@@ -1,6 +1,7 @@
 #pragma once
 
 #include "std/vector.hpp"
+
 namespace stdx {
     class MemoryResource {
         stdx::Vector<std::byte> mMemory;

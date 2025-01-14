@@ -52,7 +52,7 @@ SECTIONS
         __drivers_start = .;
         *(.kernel.drivers .kernel.drivers.*)
         __drivers_end = .;
-        
+
         __rodata_end = .;
     } :rodata
 
@@ -76,6 +76,17 @@ SECTIONS
     } :data
 
     __kernel_end = .;
+
+    /* Move to the next memory page for .tlsdata */
+    . = ALIGN(CONSTANT(MAXPAGESIZE));
+
+    .tlsdata : {
+        __tlsdata_start = .;
+        *(.tlsroot .tlsroot.*)
+        . = ALIGN(8);
+        *(.tlsdata .tlsdata.*)
+        __tlsdata_end = .;
+    }
 
     /* Discard .note.* and .eh_frame* since they may cause issues on some hosts. */
     /DISCARD/ : {
