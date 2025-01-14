@@ -17,7 +17,9 @@
 #include "hid/ps2.hpp"
 #include "hypervisor.hpp"
 #include "isr.hpp"
+#include "log.hpp"
 #include "memory.hpp"
+#include "panic.hpp"
 #include "pat.hpp"
 #include "smp.hpp"
 #include "thread.hpp"
@@ -104,7 +106,7 @@ public:
 
 constinit static DebugLog gDebugLog;
 
-km::IOutStream *KmGetDebugStream() {
+km::IOutStream *GetDebugStream() {
     return &gDebugLog;
 }
 
@@ -127,29 +129,17 @@ static constexpr x64::ModelRegister<0xC0000080, x64::RegisterAccess::eReadWrite>
 static constexpr x64::ModelRegister<0xC0000081, x64::RegisterAccess::eReadWrite> kStar;
 static constexpr x64::ModelRegister<0xC0000082, x64::RegisterAccess::eReadWrite> kLStar;
 
-namespace km {
-    [[gnu::section(".tlsdata")]]
-    extern constinit km::ThreadLocal<km::LocalApic> tlsLocalApic;
-
-    [[gnu::section(".tlsdata")]]
-    extern constinit km::ThreadLocal<SystemGdt> tlsSystemGdt;
-
-    [[gnu::section(".tlsdata")]]
-    extern constinit km::ThreadLocal<x64::TaskStateSegment> tlsTaskState;
-}
-
 constinit km::ThreadLocal<km::LocalApic> km::tlsLocalApic;
 constinit km::ThreadLocal<SystemGdt> km::tlsSystemGdt;
 constinit km::ThreadLocal<x64::TaskStateSegment> km::tlsTaskState;
 
 static SystemGdt gBootGdt;
 
-static void SetupInitialGdt(void) {
-    gBootGdt = KmGetBootGdt();
+void SetupInitialGdt(void) {
     KmInitGdt(gBootGdt.entries, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
 }
 
-void KmSetupApGdt(void) {
+void SetupApGdt(void) {
     tlsTaskState = x64::TaskStateSegment { };
     tlsTaskState->rsp0 = 0; // TODO: I think i need to allocate a stack for this
     tlsSystemGdt = KmGetSystemGdt(&tlsTaskState);
@@ -534,6 +524,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     KmDebugMessage("[INIT] CR4: ", x64::Cr4::load(), "\n");
     KmDebugMessage("[INIT] HHDM: ", Hex(launch.hhdmOffset).pad(16, '0'), "\n");
 
+    gBootGdt = KmGetBootGdt();
     SetupInitialGdt();
 
     km::IsrAllocator isrs;
@@ -665,8 +656,11 @@ extern "C" void KmLaunch(KernelLaunch launch) {
 
     KmInitSmp(memory, lapic, rsdt);
 
+    KmHalt();
+
     // Setup gdt that contains a TSS for this core
-    KmSetupApGdt();
+    SetupApGdt();
+
 
     // Enable syscall/sysret
     uint64_t efer = kEfer.load();

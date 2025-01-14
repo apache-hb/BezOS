@@ -1,6 +1,5 @@
 #pragma once
 
-#include "kernel.hpp"
 #include "math.hpp"
 #include "memory.hpp"
 

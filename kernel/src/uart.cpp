@@ -1,7 +1,8 @@
 #include "uart.hpp"
 
 #include "delay.hpp"
-#include "kernel.hpp"
+
+#include "log.hpp"
 
 using namespace km::uart::detail;
 

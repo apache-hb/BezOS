@@ -1,8 +1,10 @@
 #include "apic.hpp"
 
 #include "delay.hpp"
-#include "kernel.hpp"
+
 #include "arch/msr.hpp"
+#include "log.hpp"
+#include "panic.hpp"
 
 static constexpr uint16_t kCommandMasterPort = 0x20;
 static constexpr uint16_t kDataMasterPort = 0x21;

@@ -15,7 +15,7 @@ public:
 void KmBeginWrite() { }
 void KmEndWrite() { }
 
-km::IOutStream *KmGetDebugStream() {
+km::IOutStream *GetDebugStream() {
     static TestStream sTestStream;
     return &sTestStream;
 }

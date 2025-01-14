@@ -2,7 +2,7 @@
 
 #include "arch/intrin.hpp"
 #include "util/digit.hpp"
-#include "kernel.hpp"
+#include "log.hpp"
 
 #include <stdint.h>
 #include <stddef.h>

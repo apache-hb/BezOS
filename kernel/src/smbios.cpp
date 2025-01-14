@@ -1,5 +1,7 @@
 #include "smbios.hpp"
 
+#include "log.hpp"
+
 using namespace stdx::literals;
 
 bool PlatformInfo::isOracleVirtualBox() const {

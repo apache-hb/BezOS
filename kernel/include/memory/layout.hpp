@@ -1,6 +1,6 @@
 #pragma once
 
-#include "kernel.hpp"
+#include "boot.hpp"
 
 #include "std/static_vector.hpp"
 

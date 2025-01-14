@@ -1,6 +1,8 @@
 #include "acpi/acpi.hpp"
+
 #include "apic.hpp"
-#include "kernel.hpp"
+#include "log.hpp"
+#include "panic.hpp"
 
 #include <stddef.h>
 

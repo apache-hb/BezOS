@@ -4,7 +4,10 @@
 
 #include "gdt.hpp"
 #include "isr.hpp"
+#include "panic.hpp"
+#include "log.hpp"
 #include "pat.hpp"
+#include "thread.hpp"
 
 #include <atomic>
 
@@ -66,10 +69,16 @@ static constexpr km::PhysicalAddress kSmpStart = 0x8000;
 extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
     KmDebugMessage("[SMP] Starting Core.\n");
 
-    KmSetupApGdt();
+    SetupInitialGdt();
     KmLoadIdt();
 
     km::LocalApic lapic = KmInitApLocalApic(*header->memory, *header->bspApic);
+
+    km::InitTlsRegion(*header->memory);
+
+    km::tlsLocalApic = lapic;
+
+    // SetupApGdt();
 
     KmDebugMessage("[SMP] Started AP ", lapic.id(), "\n");
 
@@ -150,9 +159,13 @@ void KmInitSmp(km::SystemMemory& memory, km::LocalApic& bsp, acpi::AcpiTables& a
 
         // TODO: sleep
 
+        KmDebugMessage("[SMP] Sending SIPI to APIC ID: ", localApic.apicId, "\n");
+
         // Send the start IPI
         size_t smpStartAddress = kSmpStart.address / x64::kPageSize;
         bsp.sendIpi(localApic.apicId, 0x4600 | smpStartAddress);
+
+        KmDebugMessage("[SMP] Waiting for APIC ID: ", localApic.apicId, " to start.\n");
 
         // TODO: should really have a condition variable here
         while (!smpInfo->ready) {

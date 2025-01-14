@@ -6,7 +6,7 @@
 #include <stddef.h>
 
 #include "allocator/allocator.hpp"
-#include "kernel.hpp"
+#include "panic.hpp"
 
 namespace stdx {
     template<typename T>

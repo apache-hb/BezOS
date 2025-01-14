@@ -1,7 +1,7 @@
 #pragma once
 
-#include "apic.hpp"
 #include "arch/msr.hpp"
+#include "memory.hpp"
 
 namespace km {
     constexpr x64::ModelRegister<0xC0000100, x64::RegisterAccess::eReadWrite> kFsBase;

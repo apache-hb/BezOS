@@ -160,7 +160,7 @@ struct alignas(8) SystemGdt {
         eCount = GDT_COUNT,
     };
 
-    x64::GdtEntry entries[GDT_COUNT];
+    x64::GdtEntry entries[eCount];
 };
 
 static_assert(std::is_standard_layout_v<x64::GdtEntry>);

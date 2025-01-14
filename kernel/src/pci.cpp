@@ -1,6 +1,6 @@
 #include "pci.hpp"
 #include "delay.hpp"
-#include "kernel.hpp"
+#include "log.hpp"
 
 #include <utility>
 

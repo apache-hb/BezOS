@@ -1,5 +1,7 @@
 #include "memory.hpp"
 
+#include "log.hpp"
+
 km::SystemMemory::SystemMemory(SystemMemoryLayout memory, PageBuilder pm)
     : pager(pm)
     , vmAllocator({ (void*)sm::megabytes(1).bytes(), (void*)pager.maxVirtualAddress() })

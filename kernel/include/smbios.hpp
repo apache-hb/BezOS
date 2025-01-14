@@ -1,6 +1,5 @@
 #pragma once
 
-#include "kernel.hpp"
 #include "memory.hpp"
 #include "std/static_string.hpp"
 

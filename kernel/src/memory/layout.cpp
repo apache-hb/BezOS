@@ -1,6 +1,7 @@
 #include "memory/layout.hpp"
 
-#include "kernel.hpp"
+#include "log.hpp"
+#include "panic.hpp"
 
 #include <algorithm>
 

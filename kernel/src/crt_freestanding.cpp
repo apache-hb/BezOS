@@ -2,8 +2,7 @@
 #include <stdint.h>
 
 #include "crt.hpp"
-
-#include "kernel.hpp"
+#include "panic.hpp"
 
 extern "C" [[noreturn]] void abort() {
     KM_PANIC("abort() called");

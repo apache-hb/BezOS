@@ -1,7 +1,6 @@
 #include "allocator/bitmap.hpp"
 
-#include "kernel.hpp"
-
+#include "log.hpp"
 #include "util/util.hpp"
 
 #include <limits.h>

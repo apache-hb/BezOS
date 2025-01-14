@@ -2,8 +2,8 @@
 
 #include "arch/paging.hpp"
 
-#include "kernel.hpp"
 #include "memory/layout.hpp"
+#include "panic.hpp"
 
 #include <limits.h>
 #include <string.h>

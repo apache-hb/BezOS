@@ -1,7 +1,7 @@
 #include "hid/ps2.hpp"
 
 #include "delay.hpp"
-#include "kernel.hpp"
+#include "log.hpp"
 
 static constexpr uint16_t kData = 0x60;
 static constexpr uint16_t kCommand = 0x64;

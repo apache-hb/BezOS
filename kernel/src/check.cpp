@@ -1,6 +1,6 @@
-#include "kernel.hpp"
-
 #include "arch/intrin.hpp"
+#include "log.hpp"
+#include "panic.hpp"
 
 [[noreturn]]
 void KmHalt(void) {

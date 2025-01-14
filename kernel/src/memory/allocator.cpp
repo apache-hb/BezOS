@@ -1,9 +1,8 @@
 #include "memory/allocator.hpp"
 
 #include "arch/paging.hpp"
+#include "log.hpp"
 #include "memory/paging.hpp"
-
-#include "kernel.hpp"
 
 #include <limits.h>
 #include <string.h>
