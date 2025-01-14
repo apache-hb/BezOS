@@ -109,6 +109,7 @@ src = [
     'kernel/src/pci.cpp',
     'kernel/src/delay.cpp',
     'kernel/src/thread.cpp',
+    'kernel/src/user.S',
 
     # ACPI
     'kernel/src/acpi/acpi.cpp',

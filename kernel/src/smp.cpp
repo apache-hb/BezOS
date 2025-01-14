@@ -93,7 +93,7 @@ static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::LocalApic 
         .startAddress = (uintptr_t)KmSmpStartup,
         .pat = x64::LoadPatMsr(),
         .pml4 = uint32_t(pml4.address),
-        .gdt = KmGetSystemGdt(),
+        .gdt = KmGetBootGdt(),
         .gdtr = {
             .limit = sizeof(SmpInfoHeader::gdt) - 1,
             .base = offsetof(SmpInfoHeader, gdt) + kSmpInfo.address,

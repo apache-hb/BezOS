@@ -41,6 +41,7 @@ void PageTableManager::setEntryFlags(x64::Entry& entry, PageFlags flags, Physica
     entry.setExecutable(bool(flags & PageFlags::eExecute));
 
     entry.setPresent(true);
+    entry.setUser(true);
 }
 
 PageTableManager::PageTableManager(const km::PageBuilder *pm, km::VirtualAllocator *vmm, PageAllocator *alloc)

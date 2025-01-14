@@ -21,6 +21,10 @@ namespace km {
             return *reinterpret_cast<T*>(GetTlsData(this));
         }
 
+        T *operator&() {
+            return &get();
+        }
+
         T *operator->() {
             return &get();
         }

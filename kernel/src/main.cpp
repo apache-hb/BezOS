@@ -123,26 +123,38 @@ void KmEndWrite() {
     gLogLock.unlock();
 }
 
+static constexpr x64::ModelRegister<0xC0000080, x64::RegisterAccess::eReadWrite> kEfer;
+static constexpr x64::ModelRegister<0xC0000081, x64::RegisterAccess::eReadWrite> kStar;
+static constexpr x64::ModelRegister<0xC0000082, x64::RegisterAccess::eReadWrite> kLStar;
+
 namespace km {
     [[gnu::section(".tlsdata")]]
     extern constinit km::ThreadLocal<km::LocalApic> tlsLocalApic;
 
     [[gnu::section(".tlsdata")]]
     extern constinit km::ThreadLocal<SystemGdt> tlsSystemGdt;
+
+    [[gnu::section(".tlsdata")]]
+    extern constinit km::ThreadLocal<x64::TaskStateSegment> tlsTaskState;
 }
 
 constinit km::ThreadLocal<km::LocalApic> km::tlsLocalApic;
 constinit km::ThreadLocal<SystemGdt> km::tlsSystemGdt;
+constinit km::ThreadLocal<x64::TaskStateSegment> km::tlsTaskState;
 
 static SystemGdt gBootGdt;
 
 static void SetupInitialGdt(void) {
-    gBootGdt = KmGetSystemGdt();
+    gBootGdt = KmGetBootGdt();
     KmInitGdt(gBootGdt.entries, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
 }
 
 void KmSetupApGdt(void) {
-    KmInitGdt(gBootGdt.entries, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
+    tlsTaskState = x64::TaskStateSegment { };
+    tlsTaskState->rsp0 = 0; // TODO: I think i need to allocate a stack for this
+    tlsSystemGdt = KmGetSystemGdt(&tlsTaskState);
+    KmInitGdt(tlsSystemGdt->entries, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
+    __ltr(SystemGdt::eTaskState0 * 0x8);
 }
 
 static PageMemoryTypeLayout KmSetupPat(void) {
@@ -466,26 +478,20 @@ static void KmInstallExceptionHandlers(void) {
     });
 }
 
-struct [[gnu::packed]] alignas(0x10) TaskStateSegment {
-    uint8_t reserved0[4];
-    uint64_t rsp0;
-    uint64_t rsp1;
-    uint64_t rsp2;
-    uint8_t reserved1[8];
-    uint64_t ist1;
-    uint64_t ist2;
-    uint64_t ist3;
-    uint64_t ist4;
-    uint64_t ist5;
-    uint64_t ist6;
-    uint64_t ist7;
-    uint8_t reserved2[8];
-    uint32_t iopbOffset;
-};
-
 static void InitPortDelay(const HypervisorInfo& hvInfo) {
     x64::PortDelay delay = hvInfo.isKvm() ? x64::PortDelay::eNone : x64::PortDelay::ePostCode;
     KmSetPortDelayMethod(delay);
+}
+
+extern "C" void KmEnterRing3(uintptr_t address, uint64_t eflags);
+
+static void UserModeStub(void) {
+    asm volatile("syscall");
+}
+
+static void KernelModeStub(void) {
+    KmDebugMessage("Back in kernel mode.\n");
+    KmHalt();
 }
 
 extern "C" void KmLaunch(KernelLaunch launch) {
@@ -658,6 +664,29 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     pci::ProbeConfigSpace();
 
     KmInitSmp(memory, lapic, rsdt);
+
+    // Setup gdt that contains a TSS for this core
+    KmSetupApGdt();
+
+    // Enable syscall/sysret
+    uint64_t efer = kEfer.load();
+    kEfer.store(efer | (1 << 0));
+
+    // Store the kernel mode stub address in the LSTAR MSR
+    kLStar.store((uint64_t)KernelModeStub);
+
+    uint64_t star = 0;
+    // Store the kernel mode code segment and stack segment in the STAR MSR
+    star |= uint64_t(SystemGdt::eLongModeCode * 0x8) << 32;
+    star |= uint64_t(SystemGdt::eLongModeData * 0x8) << 40;
+    // And the user mode code segment and stack segment
+    star |= uint64_t(SystemGdt::eLongModeCode * 0x8) << 48;
+    star |= uint64_t(SystemGdt::eLongModeData * 0x8) << 56;
+    kStar.store(star);
+
+    KmEnterRing3((uintptr_t)UserModeStub, 0x202);
+
+    KmHalt();
 
     if (has8042) {
         hid::Ps2ControllerResult result = hid::EnablePs2Controller();

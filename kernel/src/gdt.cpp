@@ -123,7 +123,7 @@ GdtString GdtFormat::toString(x64::GdtEntry value) {
     return result;
 }
 
-static constexpr SystemGdt kSystemGdt = {
+static constexpr SystemGdt kBootGdt = {
     .entries = {
         [SystemGdt::eNull] = x64::GdtEntry::null(),
         [SystemGdt::eRealModeCode] = x64::GdtEntry(x64::Flags::eRealMode, x64::Access::eCode, 0xffffffff),
@@ -137,6 +137,15 @@ static constexpr SystemGdt kSystemGdt = {
     },
 };
 
-SystemGdt KmGetSystemGdt() {
-    return kSystemGdt;
+SystemGdt KmGetBootGdt() {
+    return kBootGdt;
+}
+
+SystemGdt KmGetSystemGdt(const x64::TaskStateSegment *tss) {
+    SystemGdt gdt = KmGetBootGdt();
+
+    gdt.entries[SystemGdt::eTaskState0] = x64::GdtEntry::tss0(tss);
+    gdt.entries[SystemGdt::eTaskState1] = x64::GdtEntry::tss1(tss);
+
+    return gdt;
 }
