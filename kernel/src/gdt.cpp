@@ -1,6 +1,7 @@
 #include "gdt.hpp"
 
 #include "arch/intrin.hpp"
+#include "kernel.hpp"
 
 void KmInitGdt(std::span<const x64::GdtEntry> gdt, size_t codeSelector, size_t dataSelector) {
     GDTR gdtr = {
@@ -146,6 +147,11 @@ SystemGdt KmGetSystemGdt(const x64::TaskStateSegment *tss) {
 
     gdt.entries[SystemGdt::eTaskState0] = x64::GdtEntry::tss0(tss);
     gdt.entries[SystemGdt::eTaskState1] = x64::GdtEntry::tss1(tss);
+
+    KmDebugMessage("TSS: ", (void*)tss, "\n");
+
+    KmDebugMessage("TSS0: ", km::Hex(gdt.entries[SystemGdt::eTaskState0].value()).pad(16, '0'), "\n");
+    KmDebugMessage("TSS1: ", km::Hex(gdt.entries[SystemGdt::eTaskState1].value()).pad(16, '0'), "\n");
 
     return gdt;
 }

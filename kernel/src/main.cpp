@@ -686,8 +686,6 @@ extern "C" void KmLaunch(KernelLaunch launch) {
 
     KmEnterRing3((uintptr_t)UserModeStub, 0x202);
 
-    KmHalt();
-
     if (has8042) {
         hid::Ps2ControllerResult result = hid::EnablePs2Controller();
         KmDebugMessage("[INIT] PS/2 controller: ", result.status, "\n");

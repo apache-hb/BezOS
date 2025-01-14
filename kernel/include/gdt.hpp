@@ -95,14 +95,16 @@ namespace x64 {
 
         static constexpr GdtEntry tss0(const TaskStateSegment *tss) {
             uintptr_t address = (uintptr_t)tss;
-            uint32_t base = address & 0xFFFFFFFF;
-            return GdtEntry(Flags::eLongMode, Access::eTaskState, sizeof(TaskStateSegment) - 1, base);
+            return sizeof(TaskStateSegment)
+                 | (address & 0xFFFF) << 16
+                 | (address & 0xFF0000) << 32
+                 | (0b10001001ull) << 40
+                 | (address & 0xFF000000) << 52;
         }
 
         static constexpr GdtEntry tss1(const TaskStateSegment *tss) {
             uintptr_t address = (uintptr_t)tss;
-            uint64_t base = address >> 32;
-            return base;
+            return address >> 32;
         }
 
         uint64_t value() const { return mValue; }
