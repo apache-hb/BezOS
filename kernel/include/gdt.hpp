@@ -157,7 +157,7 @@ struct alignas(8) SystemGdt {
         eTaskState0 = GDT_TSS0,
         eTaskState1 = GDT_TSS1,
 
-        eCount = GDT_COUNT,
+        eCount = GDT_TSS_COUNT,
     };
 
     x64::GdtEntry entries[eCount];

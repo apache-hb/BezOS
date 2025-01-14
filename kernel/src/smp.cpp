@@ -78,7 +78,7 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
 
     km::tlsLocalApic = lapic;
 
-    // SetupApGdt();
+    SetupApGdt();
 
     KmDebugMessage("[SMP] Started AP ", lapic.id(), "\n");
 

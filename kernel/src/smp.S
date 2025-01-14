@@ -34,13 +34,13 @@ KmSmpStack:
 
 .align 16
 KmGdtBegin:
-    .space (GDT_COUNT * 0x8), 0x0
+    .space (GDT_TSS_COUNT * 0x8), 0x0
 KmGdtEnd:
 
 .align 16
 KmGdtValue:
-    .word KmGdtEnd - KmGdtBegin - 1
-    .quad KmGdtBegin
+    .word 0
+    .quad 0
 
 .equ KmInfoAddress, 0x7000
 .equ KmStartAddress, 0x7000 + (KmSmpStartAddress - KmSmpInfoStart)

@@ -656,11 +656,8 @@ extern "C" void KmLaunch(KernelLaunch launch) {
 
     KmInitSmp(memory, lapic, rsdt);
 
-    KmHalt();
-
     // Setup gdt that contains a TSS for this core
     SetupApGdt();
-
 
     // Enable syscall/sysret
     uint64_t efer = kEfer.load();

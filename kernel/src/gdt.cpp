@@ -144,8 +144,8 @@ SystemGdt KmGetBootGdt() {
 SystemGdt KmGetSystemGdt(const x64::TaskStateSegment *tss) {
     SystemGdt gdt = KmGetBootGdt();
 
-    // gdt.entries[SystemGdt::eTaskState0] = x64::GdtEntry::tss0(tss);
-    // gdt.entries[SystemGdt::eTaskState1] = x64::GdtEntry::tss1(tss);
+    gdt.entries[SystemGdt::eTaskState0] = x64::GdtEntry::tss0(tss);
+    gdt.entries[SystemGdt::eTaskState1] = x64::GdtEntry::tss1(tss);
 
     return gdt;
 }
