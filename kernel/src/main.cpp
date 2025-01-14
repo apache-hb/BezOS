@@ -319,6 +319,13 @@ static void DumpIsrState(const km::IsrContext *context) {
     KmDebugMessage("| %SS      | ", Hex(context->ss).pad(16, '0'), "\n");
     KmDebugMessage("| Vector   | ", Hex(context->vector).pad(16, '0'), "\n");
     KmDebugMessage("| Error    | ", Hex(context->error).pad(16, '0'), "\n");
+    KmDebugMessage("\n");
+
+    KmDebugMessage("| MSR                 | Value\n");
+    KmDebugMessage("|---------------------+------\n");
+    KmDebugMessage("| IA32_GS_BASE        | ", Hex(kGsBase.load()).pad(16, '0'), "\n");
+    KmDebugMessage("| IA32_FS_BASE        | ", Hex(kFsBase.load()).pad(16, '0'), "\n");
+    KmDebugMessage("| IA32_KERNEL_GS_BASE | ", Hex(kKernelGsBase.load()).pad(16, '0'), "\n");
 }
 
 static LocalApic KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllocator& isrs) {
@@ -605,6 +612,10 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     {
         KmIsrHandler isrHandler = [](km::IsrContext *context) -> void* {
             KmDebugMessage("[INT] APIC interrupt.\n");
+            DumpIsrState(context);
+            KmDebugMessage("context: ", (void*)context, "\n");
+            // while (1) { }
+
             gLocalApic->clearEndOfInterrupt();
             return context;
         };
@@ -616,7 +627,6 @@ extern "C" void KmLaunch(KernelLaunch launch) {
 
         // another test interrupt
         lapic.sendIpi(apic::IcrDeliver::eSelf, testVec);
-    while (1) { }
         lapic.sendIpi(apic::IcrDeliver::eSelf, testVec);
         lapic.sendIpi(apic::IcrDeliver::eSelf, testVec);
 
