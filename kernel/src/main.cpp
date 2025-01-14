@@ -129,6 +129,8 @@ static constexpr x64::ModelRegister<0xC0000080, x64::RegisterAccess::eReadWrite>
 static constexpr x64::ModelRegister<0xC0000081, x64::RegisterAccess::eReadWrite> kStar;
 static constexpr x64::ModelRegister<0xC0000082, x64::RegisterAccess::eReadWrite> kLStar;
 
+constinit km::ThreadLocal<KernelThreadData> km::tlsKernelThreadData;
+
 constinit km::ThreadLocal<km::LocalApic> km::tlsLocalApic;
 constinit km::ThreadLocal<SystemGdt> km::tlsSystemGdt;
 constinit km::ThreadLocal<x64::TaskStateSegment> km::tlsTaskState;
@@ -140,11 +142,20 @@ void SetupInitialGdt(void) {
 }
 
 void SetupApGdt(void) {
+    // Save the gs/fs/kgsbase values, as setting the GDT will clear them
+    uint64_t gsBase = kGsBase.load();
+    uint64_t fsBase = kFsBase.load();
+    uint64_t kernelGsBase = kKernelGsBase.load();
+
     tlsTaskState = x64::TaskStateSegment { };
     tlsTaskState->rsp0 = 0; // TODO: I think i need to allocate a stack for this
     tlsSystemGdt = KmGetSystemGdt(&tlsTaskState);
     KmInitGdt(tlsSystemGdt->entries, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
     __ltr(SystemGdt::eTaskState0 * 0x8);
+
+    kGsBase.store(gsBase);
+    kFsBase.store(fsBase);
+    kKernelGsBase.store(kernelGsBase);
 }
 
 static PageMemoryTypeLayout KmSetupPat(void) {
@@ -473,15 +484,67 @@ static void InitPortDelay(const HypervisorInfo& hvInfo) {
     KmSetPortDelayMethod(delay);
 }
 
-extern "C" void KmEnterRing3(uintptr_t address, uint64_t eflags);
+extern "C" void KmEnterUserMode(uintptr_t address, uint64_t eflags);
+extern "C" void KmSystemEntry(void);
 
-static void UserModeStub(void) {
-    asm volatile("syscall");
+extern "C" uint64_t OsSystemCall(uint64_t function, uint64_t arg0, uint64_t arg1, uint64_t arg2);
+
+extern "C" uint64_t KmSystemCallStackTlsOffset;
+
+struct [[gnu::packed]] SystemCallContext {
+    // user registers
+    uint64_t r15;
+    uint64_t r14;
+    uint64_t r13;
+    uint64_t r12;
+    // r11 is clobbered by syscall
+    uint64_t r10;
+    // r9 is clobbered by syscall
+    // r8 is clobbered by syscall
+    uint64_t rbx;
+    uint64_t rbp;
+
+    // syscall related
+    uint64_t userReturnAddress;
+    uint64_t rflags;
+    uint64_t arg2;
+    uint64_t arg1;
+    uint64_t arg0;
+    uint64_t function;
+    uint64_t userStack;
+};
+
+extern "C" uint64_t KmSystemDispatchRoutine(SystemCallContext *context) {
+    KmDebugMessage("[SYSCALL] Function: ", context->function, ", Arg0: ", context->arg0, ", Arg1: ", context->arg1, ", Arg2: ", context->arg2, "\n");
+    return 0x1234;
 }
 
-static void KernelModeStub(void) {
-    KmDebugMessage("Back in kernel mode.\n");
-    KmHalt();
+static void UserModeStub(void) {
+    uint64_t result = OsSystemCall(0x1234, 0, 0, 0);
+    OsSystemCall(0x9999, result, result, result);
+    while (1) { }
+}
+
+static void SetupUserMode(SystemMemory& memory) {
+    tlsKernelThreadData->syscallStack = memory.allocate(0x1000);
+
+    size_t offset = tlsKernelThreadData.tlsOffset() + offsetof(KernelThreadData, syscallStack);
+    KmSystemCallStackTlsOffset = offset;
+
+    // Enable syscall/sysret
+    uint64_t efer = kEfer.load();
+    kEfer.store(efer | (1 << 0));
+
+    // Store the syscall entry point in the LSTAR MSR
+    kLStar.store((uint64_t)KmSystemEntry);
+
+    uint64_t star = 0;
+    // Store the kernel mode code segment and stack segment in the STAR MSR
+    // The stack selector is chosen as the next entry in the gdt
+    star |= uint64_t(SystemGdt::eLongModeCode * 0x8) << 32;
+    // And the user mode code segment and stack segment
+    star |= uint64_t(SystemGdt::eLongModeUserCode * 0x8) << 48;
+    kStar.store(star);
 }
 
 extern "C" void KmLaunch(KernelLaunch launch) {
@@ -659,23 +722,9 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     // Setup gdt that contains a TSS for this core
     SetupApGdt();
 
-    // Enable syscall/sysret
-    uint64_t efer = kEfer.load();
-    kEfer.store(efer | (1 << 0));
+    SetupUserMode(memory);
 
-    // Store the kernel mode stub address in the LSTAR MSR
-    kLStar.store((uint64_t)KernelModeStub);
-
-    uint64_t star = 0;
-    // Store the kernel mode code segment and stack segment in the STAR MSR
-    star |= uint64_t(SystemGdt::eLongModeCode * 0x8) << 32;
-    star |= uint64_t(SystemGdt::eLongModeData * 0x8) << 40;
-    // And the user mode code segment and stack segment
-    star |= uint64_t(SystemGdt::eLongModeCode * 0x8) << 48;
-    star |= uint64_t(SystemGdt::eLongModeData * 0x8) << 56;
-    kStar.store(star);
-
-    KmEnterRing3((uintptr_t)UserModeStub, 0x202);
+    KmEnterUserMode((uintptr_t)UserModeStub, 0x202);
 
     if (has8042) {
         hid::Ps2ControllerResult result = hid::EnablePs2Controller();

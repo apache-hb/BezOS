@@ -9,6 +9,7 @@ namespace km {
     constexpr x64::ModelRegister<0xC0000102, x64::RegisterAccess::eReadWrite> kKernelGsBase;
 
     void *GetTlsData(void *object);
+    uint64_t GetTlsOffset(const void *object);
 
     template<typename T>
     class ThreadLocal {
@@ -31,6 +32,10 @@ namespace km {
 
         void operator=(const T& value) {
             get() = value;
+        }
+
+        size_t tlsOffset() const {
+            return GetTlsOffset(this);
         }
     };
 

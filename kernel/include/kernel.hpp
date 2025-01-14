@@ -16,6 +16,13 @@ void SetupApGdt(void);
 void SetupInitialGdt(void);
 
 namespace km {
+    struct KernelThreadData {
+        void *syscallStack;
+    };
+
+    [[gnu::section(".tlsdata")]]
+    extern constinit km::ThreadLocal<KernelThreadData> tlsKernelThreadData;
+
     [[gnu::section(".tlsdata")]]
     extern constinit km::ThreadLocal<km::LocalApic> tlsLocalApic;
 
@@ -24,4 +31,6 @@ namespace km {
 
     [[gnu::section(".tlsdata")]]
     extern constinit km::ThreadLocal<x64::TaskStateSegment> tlsTaskState;
+
+    uint32_t GetCurrentCoreId();
 }

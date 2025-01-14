@@ -4,6 +4,7 @@ extern "C" char __tlsdata_start[];
 extern "C" char __tlsdata_end[];
 
 struct ThreadLocalData {
+    /// @brief Pointer to thread local storage.
     void *tls;
 };
 
@@ -31,8 +32,13 @@ void km::InitTlsRegion(SystemMemory& memory) {
     asm volatile ("mov %0, %%gs:0" :: "r"(data));
 }
 
-void *km::GetTlsData(void *object) {
+uint64_t km::GetTlsOffset(const void *object) {
     uintptr_t offset = (uintptr_t)object - (uintptr_t)__tlsdata_start;
+    return offset;
+}
+
+void *km::GetTlsData(void *object) {
+    uintptr_t offset = GetTlsOffset(object);
     std::byte *base = GetTlsBase();
     return base + offset;
 }
