@@ -3,10 +3,10 @@
 #include "arch/intrin.hpp"
 #include "log.hpp"
 
-void KmInitGdt(std::span<const x64::GdtEntry> gdt, size_t codeSelector, size_t dataSelector) {
+void KmInitGdt(const void *gdt, size_t size, size_t codeSelector, size_t dataSelector) {
     GDTR gdtr = {
-        .limit = uint16_t(gdt.size_bytes() - 1),
-        .base = (uint64_t)gdt.data()
+        .limit = uint16_t(size - 1),
+        .base = (uint64_t)gdt,
     };
 
     __lgdt(gdtr);
@@ -37,6 +37,10 @@ void KmInitGdt(std::span<const x64::GdtEntry> gdt, size_t codeSelector, size_t d
         : [data] "r"(uint16_t(dataSelector * sizeof(x64::GdtEntry))) /* inputs */
         : "memory", "rax" /* clobbers */
     );
+}
+
+void KmInitGdt(std::span<const x64::GdtEntry> gdt, size_t codeSelector, size_t dataSelector) {
+    KmInitGdt(gdt.data(), gdt.size_bytes(), codeSelector, dataSelector);
 }
 
 using GdtFormat = km::Format<x64::GdtEntry>;

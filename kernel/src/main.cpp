@@ -147,7 +147,9 @@ void SetupApGdt(void) {
     uint64_t fsBase = kFsBase.load();
     uint64_t kernelGsBase = kKernelGsBase.load();
 
-    tlsTaskState = x64::TaskStateSegment { };
+    tlsTaskState = x64::TaskStateSegment {
+        .iopbOffset = sizeof(x64::TaskStateSegment),
+    };
     tlsSystemGdt = KmGetSystemGdt(&tlsTaskState);
     KmInitGdt(tlsSystemGdt->entries, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
     __ltr(SystemGdt::eTaskState0 * 0x8);
@@ -459,6 +461,15 @@ static void KmInstallExceptionHandlers(void) {
         KmDumpIsrContext(context, "Divide by zero (#DE)");
     });
 
+    KmInstallIsrHandler(0x2, [](km::IsrContext *context) -> void* {
+        KmEndWrite();
+
+        KmDebugMessage("[INT] Non-maskable interrupt (#NM)\n");
+        DumpIsrState(context);
+
+        return context;
+    });
+
     KmInstallIsrHandler(0x6, [](km::IsrContext *context) -> void* {
         KmDumpIsrContext(context, "Invalid opcode (#UD)");
     });
@@ -530,10 +541,8 @@ static void SetupUserMode(SystemMemory& memory) {
     void *rsp0 = memory.allocate(0x1000);
     void *ist1 = memory.allocate(0x1000);
 
-    KmDebugMessage("RSP0: ", rsp0, ", IST1: ", ist1, "\n");
-
-    tlsTaskState->rsp0 = (uintptr_t)rsp0 + 0x1000;
-    tlsTaskState->ist1 = (uintptr_t)ist1 + 0x1000;
+    tlsTaskState->rsp0 = (uintptr_t)rsp0 + 0x0100;
+    tlsTaskState->ist1 = (uintptr_t)ist1 + 0x0100;
 
     // nmis use the IST1 stack
     KmUpdateIdtEntry(0x2, SystemGdt::eLongModeCode, 0, 1);
@@ -563,8 +572,6 @@ static void SetupUserMode(SystemMemory& memory) {
     star |= uint64_t(SystemGdt::eLongModeUserCode * 0x8) << 48;
 
     kStar.store(star);
-
-    KmDebugMessage("IA32_STAR: ", Hex(star).pad(16, '0'), "\n");
 }
 
 extern "C" void KmLaunch(KernelLaunch launch) {

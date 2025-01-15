@@ -95,11 +95,11 @@ namespace x64 {
 
         static constexpr GdtEntry tss0(const TaskStateSegment *tss) {
             uintptr_t address = (uintptr_t)tss;
-            return sizeof(TaskStateSegment)
+            return (sizeof(TaskStateSegment) - 1)
                  | (address & 0xFFFF) << 16
-                 | (address & 0xFF0000) << 32
+                 | ((address & 0xFF0000) >> 16) << 32
                  | (0b10001001ull) << 40
-                 | (address & 0xFF000000) << 52;
+                 | ((address & 0xFF000000) >> 24) << 52;
         }
 
         static constexpr GdtEntry tss1(const TaskStateSegment *tss) {
@@ -133,6 +133,7 @@ namespace x64 {
     constexpr uint64_t kNullDescriptor = 0;
 }
 
+void KmInitGdt(const void *gdt, size_t size, size_t codeSelector, size_t dataSelector);
 void KmInitGdt(std::span<const x64::GdtEntry> gdt, size_t codeSelector, size_t dataSelector);
 
 template<>
