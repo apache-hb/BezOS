@@ -69,8 +69,8 @@ namespace x64 {
         uint64_t ist6;
         uint64_t ist7;
         uint8_t reserved2[8];
-        uint16_t iopbOffset;
         uint8_t reserved3[2];
+        uint16_t iopbOffset;
     };
 
     static_assert(sizeof(TaskStateSegment) == 0x68);

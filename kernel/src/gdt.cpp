@@ -1,6 +1,7 @@
 #include "gdt.hpp"
 
 #include "arch/intrin.hpp"
+#include "log.hpp"
 
 void KmInitGdt(std::span<const x64::GdtEntry> gdt, size_t codeSelector, size_t dataSelector) {
     GDTR gdtr = {
@@ -118,7 +119,11 @@ GdtString GdtFormat::toString(x64::GdtEntry value) {
         result.add("] "_sv);
     }
 
-    result.add("]"_sv);
+    result.add("RING ");
+    uint8_t ring = uint8_t(access & x64::Access::eRing3) >> 5;
+    result.add(km::format(ring));
+
+    result.add(" ]"_sv);
 
     return result;
 }

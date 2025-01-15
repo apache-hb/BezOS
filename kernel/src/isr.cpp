@@ -19,7 +19,7 @@ namespace x64 {
         static constexpr uint8_t kPrivilegeRing0 = 0;
         // static constexpr uint8_t kPrivilegeRing1 = 1;
         // static constexpr uint8_t kPrivilegeRing2 = 2;
-        // static constexpr uint8_t kPrivilegeRing3 = 3;
+        static constexpr uint8_t kPrivilegeRing3 = 3;
     }
 
     struct [[gnu::packed]] IdtEntry {
@@ -39,15 +39,15 @@ struct alignas(16) Idt {
     x64::IdtEntry entries[kCount];
 };
 
-static x64::IdtEntry KmCreateIdtEntry(void *handler, uint16_t codeSelector, uint8_t dpl) {
+static constexpr x64::IdtEntry KmCreateIdtEntry(uintptr_t handler, uint16_t codeSelector, uint8_t dpl, uint8_t ist) {
     uint8_t flags = x64::idt::kFlagPresent | x64::idt::kInterruptGate | ((dpl & 0b11) << 5);
-    uintptr_t address = (uintptr_t)handler;
 
     return x64::IdtEntry {
-        .address0 = uint16_t(address & 0xFFFF),
+        .address0 = uint16_t(handler & 0xFFFF),
         .selector = codeSelector,
+        .ist = ist,
         .flags = flags,
-        .address1 = uint48_t((address >> 16) & 0xFFFF'FFFF'FFFF),
+        .address1 = uint48_t((handler >> 16) & 0xFFFF'FFFF'FFFF),
     };
 }
 
@@ -72,9 +72,13 @@ KmIsrHandler KmInstallIsrHandler(uint8_t isr, KmIsrHandler handler) {
     return old;
 }
 
+void KmUpdateIdtEntry(uint8_t isr, uint16_t selector, uint8_t dpl, uint8_t ist) {
+    gIdt.entries[isr] = KmCreateIdtEntry((uintptr_t)KmIsrTable + (isr * kIsrTableStride), selector * 0x8, dpl, ist);
+}
+
 void KmInitInterrupts(km::IsrAllocator& isrs, uint16_t codeSelector) {
     for (size_t i = 0; i < Idt::kCount; i++) {
-        gIdt.entries[i] = KmCreateIdtEntry(KmIsrTable + (i * kIsrTableStride), codeSelector, x64::idt::kPrivilegeRing0);
+        KmUpdateIdtEntry(i, codeSelector, x64::idt::kPrivilegeRing0, 0);
     }
 
     for (size_t i = 0; i < Idt::kCount; i++) {

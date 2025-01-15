@@ -148,7 +148,6 @@ void SetupApGdt(void) {
     uint64_t kernelGsBase = kKernelGsBase.load();
 
     tlsTaskState = x64::TaskStateSegment { };
-    tlsTaskState->rsp0 = 0; // TODO: I think i need to allocate a stack for this
     tlsSystemGdt = KmGetSystemGdt(&tlsTaskState);
     KmInitGdt(tlsSystemGdt->entries, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
     __ltr(SystemGdt::eTaskState0 * 0x8);
@@ -528,6 +527,19 @@ static void UserModeStub(void) {
 static void SetupUserMode(SystemMemory& memory) {
     tlsKernelThreadData->syscallStack = memory.allocate(0x1000);
 
+    void *rsp0 = memory.allocate(0x1000);
+    void *ist1 = memory.allocate(0x1000);
+
+    tlsTaskState->rsp0 = (uintptr_t)rsp0 + 0x1000;
+    tlsTaskState->ist1 = (uintptr_t)ist1 + 0x1000;
+
+    // nmis use the IST1 stack
+    KmUpdateIdtEntry(0x2, SystemGdt::eLongModeCode, 3, 1);
+
+    KmUpdateIdtEntry(0xe, SystemGdt::eLongModeCode, 3, 1);
+
+    KmLoadIdt();
+
     size_t offset = tlsKernelThreadData.tlsOffset() + offsetof(KernelThreadData, syscallStack);
     KmSystemCallStackTlsOffset = offset;
 
@@ -539,12 +551,17 @@ static void SetupUserMode(SystemMemory& memory) {
     kLStar.store((uint64_t)KmSystemEntry);
 
     uint64_t star = 0;
+
     // Store the kernel mode code segment and stack segment in the STAR MSR
     // The stack selector is chosen as the next entry in the gdt
     star |= uint64_t(SystemGdt::eLongModeCode * 0x8) << 32;
+
     // And the user mode code segment and stack segment
     star |= uint64_t(SystemGdt::eLongModeUserCode * 0x8) << 48;
+
     kStar.store(star);
+
+    KmDebugMessage("IA32_STAR: ", Hex(star).pad(16, '0'), "\n");
 }
 
 extern "C" void KmLaunch(KernelLaunch launch) {
@@ -591,7 +608,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     SetupInitialGdt();
 
     km::IsrAllocator isrs;
-    KmInitInterrupts(isrs, SystemGdt::eLongModeCode * sizeof(uint64_t));
+    KmInitInterrupts(isrs, SystemGdt::eLongModeCode);
     KmInstallExceptionHandlers();
     __sti();
 
@@ -663,6 +680,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
 
     KmInitBootBufferedTerminal(launch, memory);
 
+#if 0
     // Test interrupt to ensure the IDT is working
     {
         KmIsrHandler isrHandler = KmInstallIsrHandler(0x1, [](km::IsrContext *context) -> void* {
@@ -674,9 +692,10 @@ extern "C" void KmLaunch(KernelLaunch launch) {
 
         KmInstallIsrHandler(0x1, isrHandler);
     }
-
+#endif
     LocalApic lapic = KmEnableLocalApic(memory, isrs);
 
+#if 0
     // test lapic ipis to ensure the local apic is working
     {
         KmIsrHandler isrHandler = [](km::IsrContext *context) -> void* {
@@ -699,6 +718,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
 
         KmInstallIsrHandler(testVec, oldHandler);
     }
+#endif
 
     acpi::AcpiTables rsdt = InitAcpi(rsdpBaseAddress, memory);
     uint32_t ioApicCount = rsdt.ioApicCount();
