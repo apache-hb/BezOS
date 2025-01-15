@@ -1,6 +1,7 @@
 #include "isr.hpp"
 
 #include "arch/intrin.hpp"
+#include "util/bits.hpp"
 #include "util/digit.hpp"
 #include "log.hpp"
 
@@ -63,7 +64,18 @@ static void *KmDefaultIsrHandler(km::IsrContext *context) {
 }
 
 extern "C" void *KmIsrDispatchRoutine(km::IsrContext *context) {
-    return KmIsrHandlers[context->vector](context);
+    bool kernelSpaceInt = (GDT_64BIT_CODE * 0x8) == context->cs;
+    if (!kernelSpaceInt) {
+        __swapgs();
+    }
+
+    void *result = KmIsrHandlers[context->vector](context);
+
+    if (!kernelSpaceInt) {
+        __swapgs();
+    }
+
+    return result;
 }
 
 KmIsrHandler KmInstallIsrHandler(uint8_t isr, KmIsrHandler handler) {
@@ -103,24 +115,15 @@ void KmLoadIdt(void) {
 }
 
 void km::IsrAllocator::claimIsr(uint8_t isr) {
-    mFreeIsrs[isr / CHAR_BIT] |= (1 << (isr % CHAR_BIT));
+    sm::BitsSetBit(mFreeIsrs, sm::BitCount(isr));
 }
 
 void km::IsrAllocator::releaseIsr(uint8_t isr) {
-    mFreeIsrs[isr / CHAR_BIT] &= ~(1 << (isr % CHAR_BIT));
+    sm::BitsClearBit(mFreeIsrs, sm::BitCount(isr));
 }
 
 uint8_t km::IsrAllocator::allocateIsr() {
-    for (size_t i = 0; i < kIsrCount / CHAR_BIT; i++) {
-        if (mFreeIsrs[i] != 0xFF) {
-            for (size_t j = 0; j < CHAR_BIT; j++) {
-                if (!(mFreeIsrs[i] & (1 << j))) {
-                    mFreeIsrs[i] |= (1 << j);
-                    return i * CHAR_BIT + j;
-                }
-            }
-        }
-    }
+    sm::BitCount bit = sm::BitsFindAndSetNextFree(mFreeIsrs, sm::BitCount { 0 }, sm::BitCount { kIsrCount });
 
-    return 0;
+    return bit.count;
 }

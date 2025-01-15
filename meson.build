@@ -223,8 +223,8 @@ testcases = {
         'kernel/test/format.cpp',
         'kernel/src/util/format.cpp',
     ],
-    'bitset': [
-        'kernel/test/bitset.cpp',
+    'bits': [
+        'kernel/test/bits.cpp',
         'kernel/src/util/bits.cpp',
     ],
     'memmap': [ 'kernel/test/memmap.cpp', 'kernel/src/memory/layout.cpp', 'kernel/src/util/memory.cpp', ],

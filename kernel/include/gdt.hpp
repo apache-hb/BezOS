@@ -153,8 +153,8 @@ struct alignas(8) SystemGdt {
         eProtectedModeData = GDT_32BIT_DATA,
         eLongModeCode = GDT_64BIT_CODE,
         eLongModeData = GDT_64BIT_DATA,
-        eLongModeUserCode = GDT_64BIT_USER_CODE,
         eLongModeUserData = GDT_64BIT_USER_DATA,
+        eLongModeUserCode = GDT_64BIT_USER_CODE,
         eTaskState0 = GDT_TSS0,
         eTaskState1 = GDT_TSS1,
 

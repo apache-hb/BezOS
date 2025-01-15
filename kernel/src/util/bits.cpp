@@ -22,6 +22,17 @@ sm::BitCount sm::BitsFindNextSet(uint8_t *words, BitCount start, BitCount size) 
     return size;
 }
 
+sm::BitCount sm::BitsFindAndSetNextFree(uint8_t *words, BitCount start, BitCount size) {
+    for (size_t i = start.count; i < size.count; i++) {
+        if (!(words[i / CHAR_BIT] & (1 << (i % CHAR_BIT)))) {
+            words[i / CHAR_BIT] |= 1 << (i % CHAR_BIT);
+            return BitCount { i };
+        }
+    }
+
+    return size;
+}
+
 sm::BitCount sm::BitsFindFreeRange(uint8_t *words, BitCount start, BitCount size, BitCount count) {
     size_t front = start.count;
     size_t length = 0;

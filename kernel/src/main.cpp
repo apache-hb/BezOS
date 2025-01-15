@@ -126,6 +126,7 @@ void KmEndWrite() {
 }
 
 static constexpr x64::ModelRegister<0xC0000080, x64::RegisterAccess::eReadWrite> kEfer;
+static constexpr x64::ModelRegister<0xc0000084, x64::RegisterAccess::eReadWrite> kFMask;
 static constexpr x64::ModelRegister<0xC0000081, x64::RegisterAccess::eReadWrite> kStar;
 static constexpr x64::ModelRegister<0xC0000082, x64::RegisterAccess::eReadWrite> kLStar;
 
@@ -541,8 +542,8 @@ static void SetupUserMode(SystemMemory& memory) {
     void *rsp0 = memory.allocate(0x1000);
     void *ist1 = memory.allocate(0x1000);
 
-    tlsTaskState->rsp0 = (uintptr_t)rsp0 + 0x0100;
-    tlsTaskState->ist1 = (uintptr_t)ist1 + 0x0100;
+    tlsTaskState->rsp0 = (uintptr_t)rsp0 + 0x1000;
+    tlsTaskState->ist1 = (uintptr_t)ist1 + 0x1000;
 
     // nmis use the IST1 stack
     KmUpdateIdtEntry(0x2, SystemGdt::eLongModeCode, 0, 1);
@@ -559,6 +560,8 @@ static void SetupUserMode(SystemMemory& memory) {
     uint64_t efer = kEfer.load();
     kEfer.store(efer | (1 << 0));
 
+    kFMask.store(0xFFFF'FFFF);
+
     // Store the syscall entry point in the LSTAR MSR
     kLStar.store((uint64_t)KmSystemEntry);
 
@@ -569,7 +572,7 @@ static void SetupUserMode(SystemMemory& memory) {
     star |= uint64_t(SystemGdt::eLongModeCode * 0x8) << 32;
 
     // And the user mode code segment and stack segment
-    star |= uint64_t(SystemGdt::eLongModeUserCode * 0x8) << 48;
+    star |= uint64_t((SystemGdt::eLongModeUserCode * 0x8) - 0x10) << 48;
 
     kStar.store(star);
 }

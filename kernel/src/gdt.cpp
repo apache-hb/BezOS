@@ -123,7 +123,7 @@ GdtString GdtFormat::toString(x64::GdtEntry value) {
         result.add("] "_sv);
     }
 
-    result.add("RING ");
+    result.add("RING "_sv);
     uint8_t ring = uint8_t(access & x64::Access::eRing3) >> 5;
     result.add(km::format(ring));
 
@@ -141,8 +141,8 @@ static constexpr SystemGdt kBootGdt = {
         [SystemGdt::eProtectedModeData] = x64::GdtEntry(x64::Flags::eProtectedMode, x64::Access::eData, 0xffffffff),
         [SystemGdt::eLongModeCode] = x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eCode, 0xffffffff),
         [SystemGdt::eLongModeData] = x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eData, 0xffffffff),
-        [SystemGdt::eLongModeUserCode] = x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eCode | x64::Access::eRing3, 0xffffffff),
         [SystemGdt::eLongModeUserData] = x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eData | x64::Access::eRing3, 0xffffffff),
+        [SystemGdt::eLongModeUserCode] = x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eCode | x64::Access::eRing3, 0xffffffff),
     },
 };
 

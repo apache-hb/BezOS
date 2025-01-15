@@ -79,6 +79,10 @@ static inline void __DEFAULT_FN_ATTRS __halt(void) {
     asm volatile("hlt");
 }
 
+static inline void __DEFAULT_FN_ATTRS __swapgs(void) {
+    asm volatile("swapgs");
+}
+
 static inline void __DEFAULT_FN_ATTRS __lgdt(struct GDTR gdtr) {
     asm volatile("lgdt %0" :: "m"(gdtr));
 }

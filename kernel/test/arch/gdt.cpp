@@ -13,7 +13,7 @@ TEST(GdtTest, FormatNull) {
 TEST(GdtTest, FormatRealModeCode) {
     x64::GdtEntry entry = x64::GdtEntry(x64::Flags::eRealMode, x64::Access::eCode, 0xFFFF);
     auto result = km::format(entry);
-    EXPECT_EQ(result, "0x00009B000000FFFF [ LIMIT = 0x00FFFF ACCESS = [ CODE/DATA EXECUTABLE READ/WRITE PRESENT ACCESSED ] ]"_sv) << std::string_view(result);
+    EXPECT_EQ(result, "0x00009B000000FFFF [ LIMIT = 0x00FFFF ACCESS = [ CODE/DATA EXECUTABLE READ/WRITE PRESENT ACCESSED ] RING 0 ]"_sv) << std::string_view(result);
 
     EXPECT_EQ(entry.base(), 0);
     EXPECT_EQ(entry.limit(), 0xFFFF);
@@ -25,7 +25,7 @@ TEST(GdtTest, FormatRealModeCode) {
 TEST(GdtTest, FormatRealModeData) {
     x64::GdtEntry entry = x64::GdtEntry(x64::Flags::eRealMode, x64::Access::eData, 0xFFFF);
     auto result = km::format(entry);
-    EXPECT_EQ(result, "0x000093000000FFFF [ LIMIT = 0x00FFFF ACCESS = [ CODE/DATA READ/WRITE PRESENT ACCESSED ] ]"_sv) << std::string_view(result);
+    EXPECT_EQ(result, "0x000093000000FFFF [ LIMIT = 0x00FFFF ACCESS = [ CODE/DATA READ/WRITE PRESENT ACCESSED ] RING 0 ]"_sv) << std::string_view(result);
 
     EXPECT_EQ(entry.base(), 0);
     EXPECT_EQ(entry.limit(), 0xFFFF);
@@ -37,7 +37,7 @@ TEST(GdtTest, FormatRealModeData) {
 TEST(GdtTest, FormatProtectedModeCode) {
     x64::GdtEntry entry = x64::GdtEntry(x64::Flags::eProtectedMode, x64::Access::eCode, 0xFFFF);
     auto result = km::format(entry);
-    EXPECT_EQ(result, "0x00C09B000000FFFF [ LIMIT = 0x00FFFF FLAGS = [ SIZE GRANULARITY ] ACCESS = [ CODE/DATA EXECUTABLE READ/WRITE PRESENT ACCESSED ] ]"_sv) << std::string_view(result);
+    EXPECT_EQ(result, "0x00C09B000000FFFF [ LIMIT = 0x00FFFF FLAGS = [ SIZE GRANULARITY ] ACCESS = [ CODE/DATA EXECUTABLE READ/WRITE PRESENT ACCESSED ] RING 0 ]"_sv) << std::string_view(result);
 
     EXPECT_EQ(entry.base(), 0);
     EXPECT_EQ(entry.limit(), 0xFFFF);
@@ -49,7 +49,7 @@ TEST(GdtTest, FormatProtectedModeCode) {
 TEST(GdtTest, FormatProtectedModeData) {
     x64::GdtEntry entry = x64::GdtEntry(x64::Flags::eProtectedMode, x64::Access::eData, 0);
     auto result = km::format(entry);
-    EXPECT_EQ(result, "0x00C0930000000000 [ FLAGS = [ SIZE GRANULARITY ] ACCESS = [ CODE/DATA READ/WRITE PRESENT ACCESSED ] ]"_sv) << std::string_view(result);
+    EXPECT_EQ(result, "0x00C0930000000000 [ FLAGS = [ SIZE GRANULARITY ] ACCESS = [ CODE/DATA READ/WRITE PRESENT ACCESSED ] RING 0 ]"_sv) << std::string_view(result);
 
     EXPECT_EQ(entry.base(), 0);
     EXPECT_EQ(entry.limit(), 0);
@@ -61,7 +61,7 @@ TEST(GdtTest, FormatProtectedModeData) {
 TEST(GdtTest, FormatLongModeCode) {
     x64::GdtEntry entry = x64::GdtEntry(x64::Flags::eLong | x64::Flags::eGranularity, x64::Access::eCode, 0);
     auto result = km::format(entry);
-    EXPECT_EQ(result, "0x00A09B0000000000 [ FLAGS = [ LONG GRANULARITY ] ACCESS = [ CODE/DATA EXECUTABLE READ/WRITE PRESENT ACCESSED ] ]"_sv) << std::string_view(result);
+    EXPECT_EQ(result, "0x00A09B0000000000 [ FLAGS = [ LONG GRANULARITY ] ACCESS = [ CODE/DATA EXECUTABLE READ/WRITE PRESENT ACCESSED ] RING 0 ]"_sv) << std::string_view(result);
 
     EXPECT_EQ(entry.base(), 0);
     EXPECT_EQ(entry.limit(), 0);
@@ -73,7 +73,7 @@ TEST(GdtTest, FormatLongModeCode) {
 TEST(GdtTest, FormatLongModeData) {
     x64::GdtEntry entry = x64::GdtEntry(x64::Flags::eLong | x64::Flags::eGranularity, x64::Access::eData, 0);
     auto result = km::format(entry);
-    EXPECT_EQ(result, "0x00A0930000000000 [ FLAGS = [ LONG GRANULARITY ] ACCESS = [ CODE/DATA READ/WRITE PRESENT ACCESSED ] ]"_sv) << std::string_view(result);
+    EXPECT_EQ(result, "0x00A0930000000000 [ FLAGS = [ LONG GRANULARITY ] ACCESS = [ CODE/DATA READ/WRITE PRESENT ACCESSED ] RING 0 ]"_sv) << std::string_view(result);
 
     EXPECT_EQ(entry.base(), 0);
     EXPECT_EQ(entry.limit(), 0);
@@ -96,7 +96,7 @@ TEST(GdtTest, FormatAll) {
     x64::GdtEntry entry = x64::GdtEntry(flags, access, 0xFFFFF);
     auto result = km::format(entry);
 
-    EXPECT_EQ(result, "0x00EFFF000000FFFF [ LIMIT = 0x0FFFFF FLAGS = [ LONG SIZE GRANULARITY ] ACCESS = [ CODE/DATA EXECUTABLE READ/WRITE PRESENT ACCESSED DIRECTION ] ]"_sv) << std::string_view(result);
+    EXPECT_EQ(result, "0x00EFFF000000FFFF [ LIMIT = 0x0FFFFF FLAGS = [ LONG SIZE GRANULARITY ] ACCESS = [ CODE/DATA EXECUTABLE READ/WRITE PRESENT ACCESSED DIRECTION ] RING 3 ]"_sv) << std::string_view(result);
 
     EXPECT_EQ(entry.base(), 0);
     EXPECT_EQ(entry.limit(), 0xFFFFF);

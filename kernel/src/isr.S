@@ -4,19 +4,8 @@
 
 .extern KmIsrDispatchRoutine
 
-/* When in ring0 the kernel gs shouldn't be swapped. */
-/* To ensure it isn't a check is done against the current CS. */
-.macro SWAPGS_KERNEL
-    /* Code selector is at offset 0x8. */
-    /* TODO: this is swapping gs even in ring 0 */
-    cmpq $(GDT_64BIT_CODE * 0x8), (0x8 + 0x8 + 0x8)(%rsp)
-    je 1f
-    swapgs
-1:
-.endm
-
 KmIsrStub:
-    SWAPGS_KERNEL
+    /* Save all registers to restore them after the dispatch. */
 
     pushq %rbp
     pushq %r15
@@ -34,9 +23,12 @@ KmIsrStub:
     pushq %rbx
     pushq %rax
 
+    /* Pass the context to the dispatch routine. */
     mov %rsp, %rdi
     call KmIsrDispatchRoutine
     mov %rax, %rsp
+
+    /* Restore all registers. */
 
     popq %rax
     popq %rbx
@@ -54,8 +46,7 @@ KmIsrStub:
     popq %r15
     popq %rbp
 
-    SWAPGS_KERNEL
-
+    /* Pop the vector number and error code. */
     add $16, %rsp
 
     iretq
