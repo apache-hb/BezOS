@@ -530,14 +530,17 @@ static void SetupUserMode(SystemMemory& memory) {
     void *rsp0 = memory.allocate(0x1000);
     void *ist1 = memory.allocate(0x1000);
 
+    KmDebugMessage("RSP0: ", rsp0, ", IST1: ", ist1, "\n");
+
     tlsTaskState->rsp0 = (uintptr_t)rsp0 + 0x1000;
     tlsTaskState->ist1 = (uintptr_t)ist1 + 0x1000;
 
     // nmis use the IST1 stack
-    KmUpdateIdtEntry(0x2, SystemGdt::eLongModeCode, 3, 1);
+    KmUpdateIdtEntry(0x2, SystemGdt::eLongModeCode, 0, 1);
 
-    KmUpdateIdtEntry(0xe, SystemGdt::eLongModeCode, 3, 1);
+    KmUpdateIdtEntry(0xe, SystemGdt::eLongModeCode, 0, 1);
 
+    // reload the idt
     KmLoadIdt();
 
     size_t offset = tlsKernelThreadData.tlsOffset() + offsetof(KernelThreadData, syscallStack);
