@@ -8,8 +8,8 @@
 #define GDT_32BIT_DATA 4
 #define GDT_64BIT_CODE 5
 #define GDT_64BIT_DATA 6
-#define GDT_64BIT_USER_CODE 8
 #define GDT_64BIT_USER_DATA 7
+#define GDT_64BIT_USER_CODE 8
 
 #define GDT_COUNT 9
 

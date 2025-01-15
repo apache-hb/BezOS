@@ -572,7 +572,7 @@ static void SetupUserMode(SystemMemory& memory) {
     star |= uint64_t(SystemGdt::eLongModeCode * 0x8) << 32;
 
     // And the user mode code segment and stack segment
-    star |= uint64_t((SystemGdt::eLongModeUserCode * 0x8) - 0x10) << 48;
+    star |= uint64_t(((SystemGdt::eLongModeUserCode * 0x8) - 0x10) | 0b11) << 48;
 
     kStar.store(star);
 }
