@@ -16,8 +16,13 @@ void SetupApGdt(void);
 void SetupInitialGdt(void);
 
 namespace km {
+    enum class CpuCoreId : uint32_t {
+        eInvalid = 0xFFFF'FFFF
+    };
+
     struct KernelThreadData {
         void *syscallStack;
+        uint32_t lapicId;
     };
 
     [[gnu::section(".tlsdata")]]
@@ -32,5 +37,5 @@ namespace km {
     [[gnu::section(".tlsdata")]]
     extern constinit km::ThreadLocal<x64::TaskStateSegment> tlsTaskState;
 
-    uint32_t GetCurrentCoreId();
+    CpuCoreId GetCurrentCoreId();
 }

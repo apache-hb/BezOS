@@ -28,6 +28,7 @@
 #include "pci.hpp"
 
 #include "std/spinlock.hpp"
+#include "std/recursive_mutex.hpp"
 
 #include "memory/layout.hpp"
 #include "memory/allocator.hpp"
@@ -115,14 +116,42 @@ static bool KmTestDebugPort(void) {
     return __inbyte(0xE9) == 0xE9;
 }
 
-constinit static stdx::SpinLock gLogLock;
+class IDebugLock {
+public:
+    virtual void lock() = 0;
+    virtual void unlock() = 0;
+};
+
+class NullLock final : public IDebugLock {
+public:
+    void lock() override { }
+    void unlock() override { }
+};
+
+class RecursiveDebugLock final : public IDebugLock {
+    stdx::RecursiveSpinLock mLock;
+
+public:
+    void lock() override {
+        mLock.lock();
+    }
+
+    void unlock() override {
+        mLock.unlock();
+    }
+};
+
+constinit static NullLock gNullLock;
+constinit static RecursiveDebugLock gRecursiveDebugLock;
+
+constinit static IDebugLock *gLogLock = &gNullLock;
 
 void KmBeginWrite() {
-    gLogLock.lock();
+    gLogLock->lock();
 }
 
 void KmEndWrite() {
-    gLogLock.unlock();
+    gLogLock->unlock();
 }
 
 static constexpr x64::ModelRegister<0xC0000080, x64::RegisterAccess::eReadWrite> kEfer;
@@ -359,6 +388,11 @@ static LocalApic KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllocator& i
 
     km::InitTlsRegion(memory);
 
+    tlsKernelThreadData = KernelThreadData {
+        .lapicId = lapic.id(),
+    };
+
+    gLogLock = &gRecursiveDebugLock;
     tlsLocalApic = lapic;
 
     uint8_t spuriousVec = isrs.allocateIsr();
@@ -442,8 +476,6 @@ static km::SystemMemory *gMemoryMap = nullptr;
 
 [[noreturn]]
 static void KmDumpIsrContext(const km::IsrContext *context, stdx::StringView message) {
-    KmEndWrite(); // TODO: HACK - this prevents a deadlock if the thread dies while holding the lock
-
     if (gMemoryMap != nullptr) {
         km::LocalApic lapic = km::LocalApic::current(*gMemoryMap);
 
@@ -463,8 +495,6 @@ static void KmInstallExceptionHandlers(void) {
     });
 
     KmInstallIsrHandler(0x2, [](km::IsrContext *context) -> void* {
-        KmEndWrite();
-
         KmDebugMessage("[INT] Non-maskable interrupt (#NM)\n");
         DumpIsrState(context);
 
@@ -484,7 +514,6 @@ static void KmInstallExceptionHandlers(void) {
     });
 
     KmInstallIsrHandler(0xE, [](km::IsrContext *context) -> void* {
-        KmEndWrite();
         KmDebugMessage("[BUG] CR2: ", Hex(x64::cr2()).pad(16, '0'), "\n");
         KmDumpIsrContext(context, "Page fault (#PF)");
     });
@@ -575,6 +604,10 @@ static void SetupUserMode(SystemMemory& memory) {
     star |= uint64_t(((SystemGdt::eLongModeUserCode * 0x8) - 0x10) | 0b11) << 48;
 
     kStar.store(star);
+}
+
+CpuCoreId km::GetCurrentCoreId() {
+    return CpuCoreId(tlsKernelThreadData->lapicId);
 }
 
 extern "C" void KmLaunch(KernelLaunch launch) {
