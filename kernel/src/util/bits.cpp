@@ -49,3 +49,11 @@ sm::BitCount sm::BitsFindAndSetFreeRange(uint8_t *words, BitCount start, BitCoun
 
     return front;
 }
+
+void sm::BitsSetBit(uint8_t *words, BitCount bit) {
+    words[bit.count / CHAR_BIT] |= 1 << (bit.count % CHAR_BIT);
+}
+
+void sm::BitsClearBit(uint8_t *words, BitCount bit) {
+    words[bit.count / CHAR_BIT] &= ~(1 << (bit.count % CHAR_BIT));
+}
