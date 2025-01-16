@@ -41,6 +41,11 @@ namespace km {
 
         uint8_t allocateIsr();
     };
+
+    void DisableNmi();
+    void EnableNmi();
+    void DisableInterrupts();
+    void EnableInterrupts();
 }
 
 using KmIsrHandler = void*(*)(km::IsrContext*);

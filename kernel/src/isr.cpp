@@ -1,6 +1,7 @@
 #include "isr.hpp"
 
 #include "arch/intrin.hpp"
+#include "delay.hpp"
 #include "util/bits.hpp"
 #include "util/digit.hpp"
 #include "log.hpp"
@@ -107,6 +108,26 @@ void KmLoadIdt(void) {
     };
 
     __lidt(idtr);
+}
+
+static constexpr uint16_t kNmiPort = 0x70;
+
+void km::DisableNmi() {
+    uint8_t nmi = KmReadByte(kNmiPort);
+    KmWriteByte(kNmiPort, nmi & 0x7F);
+}
+
+void km::EnableNmi() {
+    uint8_t nmi = KmReadByte(kNmiPort);
+    KmWriteByte(kNmiPort, nmi | 0x80);
+}
+
+void km::DisableInterrupts() {
+    __cli();
+}
+
+void km::EnableInterrupts() {
+    __sti();
 }
 
 void km::IsrAllocator::claimIsr(uint8_t isr) {
