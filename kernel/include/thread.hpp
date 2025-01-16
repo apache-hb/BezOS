@@ -8,6 +8,15 @@ namespace km {
     constexpr x64::ModelRegister<0xC0000101, x64::RegisterAccess::eReadWrite> kGsBase;
     constexpr x64::ModelRegister<0xC0000102, x64::RegisterAccess::eReadWrite> kKernelGsBase;
 
+    struct TlsRegisters {
+        uint64_t fsBase;
+        uint64_t gsBase;
+        uint64_t kernelGsBase;
+    };
+
+    TlsRegisters LoadTlsRegisters();
+    void StoreTlsRegisters(TlsRegisters registers);
+
     void *GetTlsData(void *object);
     uint64_t GetTlsOffset(const void *object);
 

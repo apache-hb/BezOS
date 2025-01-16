@@ -31,5 +31,5 @@ namespace km {
 
     void SetupUserMode(SystemMemory& memory);
 
-    void EnterUserMode(km::MachineState& state);
+    void EnterUserMode(km::MachineState state);
 }

@@ -183,9 +183,7 @@ void SetupInitialGdt(void) {
 
 void SetupApGdt(void) {
     // Save the gs/fs/kgsbase values, as setting the GDT will clear them
-    uint64_t gsBase = kGsBase.load();
-    uint64_t fsBase = kFsBase.load();
-    uint64_t kernelGsBase = kKernelGsBase.load();
+    TlsRegisters tls = LoadTlsRegisters();
 
     tlsTaskState = x64::TaskStateSegment {
         .iopbOffset = sizeof(x64::TaskStateSegment),
@@ -194,9 +192,7 @@ void SetupApGdt(void) {
     KmInitGdt(tlsSystemGdt->entries, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
     __ltr(SystemGdt::eTaskState0 * 0x8);
 
-    kGsBase.store(gsBase);
-    kFsBase.store(fsBase);
-    kKernelGsBase.store(kernelGsBase);
+    StoreTlsRegisters(tls);
 }
 
 static PageMemoryTypeLayout KmSetupPat(void) {
@@ -690,7 +686,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
         KM_PANIC("Failed to load init.elf");
     }
 
-    km::EnterUserMode(process->state);
+    km::EnterUserMode(process->main.state);
 
     if (has8042) {
         hid::Ps2ControllerResult result = hid::EnablePs2Controller();
@@ -700,7 +696,6 @@ extern "C" void KmLaunch(KernelLaunch launch) {
 
             KmDebugMessage("[INIT] PS/2 channel 1: ", present(ps2Controller.hasKeyboard()), "\n");
             KmDebugMessage("[INIT] PS/2 channel 2: ", present(ps2Controller.hasMouse()), "\n");
-
         }
     } else {
         KmDebugMessage("[INIT] No PS/2 controller found.\n");

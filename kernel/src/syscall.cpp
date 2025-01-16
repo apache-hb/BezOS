@@ -39,8 +39,7 @@ void km::SetupUserMode(SystemMemory& memory) {
     // reload the idt
     KmLoadIdt();
 
-    size_t offset = tlsSystemCallStack.tlsOffset();
-    KmSystemCallStackTlsOffset = offset;
+    KmSystemCallStackTlsOffset = tlsSystemCallStack.tlsOffset();
 
     // Enable syscall/sysret
     uint64_t efer = kEfer.load();
@@ -63,7 +62,7 @@ void km::SetupUserMode(SystemMemory& memory) {
     kStar.store(star);
 }
 
-void km::EnterUserMode(km::MachineState& state) {
+void km::EnterUserMode(km::MachineState state) {
     asm volatile (
         "movq %[mrsp], %%rsp\n"
         "movq %[mrbp], %%rbp\n"

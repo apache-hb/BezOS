@@ -42,3 +42,21 @@ void *km::GetTlsData(void *object) {
     std::byte *base = GetTlsBase();
     return base + offset;
 }
+
+km::TlsRegisters km::LoadTlsRegisters() {
+    uint64_t gsBase = kGsBase.load();
+    uint64_t fsBase = kFsBase.load();
+    uint64_t kernelGsBase = kKernelGsBase.load();
+
+    return TlsRegisters {
+        .fsBase = fsBase,
+        .gsBase = gsBase,
+        .kernelGsBase = kernelGsBase,
+    };
+}
+
+void km::StoreTlsRegisters(TlsRegisters registers) {
+    kFsBase.store(registers.fsBase);
+    kGsBase.store(registers.gsBase);
+    kKernelGsBase.store(registers.kernelGsBase);
+}

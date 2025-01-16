@@ -4,26 +4,8 @@
 #include "std/vector.hpp"
 #include <cstdint>
 
-namespace km {   
-    class ProcessThread {
-        stdx::StaticString<64> mName;
-        uint32_t mThreadId;
-
-    public:
-        ProcessThread(stdx::StringView name, uint32_t threadId)
-            : mName(name)
-            , mThreadId(threadId)
-        { }
-
-        stdx::StringView name() const {
-            return mName;
-        }
-
-        uint32_t threadId() const {
-            return mThreadId;
-        }
-    };
-     
+namespace km {  
+    
     struct [[gnu::packed]] MachineState {
         uint64_t rax;
         uint64_t rbx;
@@ -44,11 +26,17 @@ namespace km {
         uint64_t rip;
         uint64_t rflags;
     };
-
+ 
+    struct ProcessThread {
+        stdx::StaticString<64> name;
+        uint32_t threadId;
+        MachineState state;
+    };
+    
     struct Process {
         stdx::StaticString<64> name;
         uint32_t processId;
         stdx::Vector<void*> memory;
-        MachineState state;
+        ProcessThread main;
     };
 }

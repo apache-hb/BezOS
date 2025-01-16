@@ -34,15 +34,17 @@ std::expected<km::Process, bool> km::LoadElf(std::span<const uint8_t> program, s
 
     KmDebugMessage("[ELF] Program Header Count: ", phs.size(), "\n");
 
-    Process process = {
-        .name = name,
-        .processId = id,
-        .memory = allocator
+
+    stdx::Vector<void*> processMemory(allocator);
+
+    ProcessThread main = { 
+        .name = "main",
+        .threadId = 1,
     };
 
     void *stack = memory.allocate(0x1000, 0x1000, PageFlags::eUser | PageFlags::eWrite);
 
-    process.state = MachineState {
+    main.state = MachineState {
         .rbp = (uintptr_t)stack + 0x1000,
         .rsp = (uintptr_t)stack + 0x1000,
     };
@@ -78,16 +80,21 @@ std::expected<km::Process, bool> km::LoadElf(std::span<const uint8_t> program, s
         bool containsEntry = entry >= ph.vaddr && entry < ph.vaddr + ph.memsz;
 
         if (containsEntry) {
-            process.state.rip = ((uintptr_t)vaddr + (entry - ph.vaddr));
+            main.state.rip = ((uintptr_t)vaddr + (entry - ph.vaddr));
         }
 
-        process.memory.add(vaddr);
+        processMemory.add(vaddr);
     }
 
-    if (process.state.rip == 0) {
+    if (main.state.rip == 0) {
         KmDebugMessage("[ELF] Entry point not found\n");
         return std::unexpected{false};
     }
 
-    return process;
+    return Process {
+        .name = name,
+        .processId = id,
+        .memory = processMemory,
+        .main = main,
+    };
 }
