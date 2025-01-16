@@ -33,7 +33,7 @@ KmEnterUserMode:
  * @param r11 eflags - reserved by syscall instruction
  * @param rcx return address - reserved by syscall instruction
  *
- * @clobber rax, rdi, rsi, rdx, r11, rcx, rsp, rbp, r8, r9
+ * @clobber rax, rdi, rsi, rdx, r11, rcx, rsp, rbp, r15, r9
  *
  * @return rax - result
  */
@@ -52,6 +52,7 @@ KmSystemEntry:
     pushq %rdi /* arg0 */
     pushq %rsi /* arg1 */
     pushq %rdx /* arg2 */
+    pushq %r8  /* arg3 */
     pushq %r11 /* eflags */
     pushq %rcx /* userReturnAddress */
 
@@ -84,7 +85,7 @@ KmSystemEntry:
     popq %r11 /* eflags */
 
     /* pop the rest of the context we dont need to preserve */
-    add $(4 * 8), %rsp
+    add $(5 * 8), %rsp
 
     /* Restore the user stack */
     popq %rsp
