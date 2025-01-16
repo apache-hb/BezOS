@@ -160,6 +160,8 @@ src = [
     'kernel/src/drivers/virtio_blk.cpp',
 
     # Process
+    'kernel/src/syscall.cpp',
+    'kernel/src/processor.cpp',
     'kernel/src/launch.cpp',
 
     # Embedded init

@@ -22,8 +22,10 @@
 #include "memory.hpp"
 #include "panic.hpp"
 #include "pat.hpp"
+#include "processor.hpp"
 #include "smp.hpp"
 #include "std/spinlock.hpp"
+#include "syscall.hpp"
 #include "thread.hpp"
 #include "uart.hpp"
 #include "smbios.hpp"
@@ -170,14 +172,6 @@ void KmEndWrite() {
     gLogLock->unlock();
 }
 
-static constexpr x64::ModelRegister<0xC0000080, x64::RegisterAccess::eReadWrite> kEfer;
-static constexpr x64::ModelRegister<0xc0000084, x64::RegisterAccess::eReadWrite> kFMask;
-static constexpr x64::ModelRegister<0xC0000081, x64::RegisterAccess::eReadWrite> kStar;
-static constexpr x64::ModelRegister<0xC0000082, x64::RegisterAccess::eReadWrite> kLStar;
-
-constinit km::ThreadLocal<KernelThreadData> km::tlsKernelThreadData;
-
-constinit km::ThreadLocal<km::LocalApic> km::tlsLocalApic;
 constinit km::ThreadLocal<SystemGdt> km::tlsSystemGdt;
 constinit km::ThreadLocal<x64::TaskStateSegment> km::tlsTaskState;
 
@@ -405,18 +399,15 @@ static LocalApic KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllocator& i
     km::InitTlsRegion(memory);
 
     gLogLock = &gSpinLock;
-    tlsKernelThreadData = KernelThreadData {
-        .lapicId = lapic.id(),
-    };
-
-    tlsLocalApic = lapic;
-
+    km::InitKernelThread(lapic);
+    
     uint8_t spuriousVec = isrs.allocateIsr();
     KmDebugMessage("[INIT] APIC ID: ", lapic.id(), ", Version: ", lapic.version(), ", Spurious vector: ", spuriousVec, "\n");
 
     KmInstallIsrHandler(spuriousVec, [](km::IsrContext *ctx) -> void* {
         KmDebugMessage("[ISR] Spurious interrupt: ", ctx->vector, "\n");
-        tlsLocalApic->clearEndOfInterrupt();
+        km::LocalApic lapic = GetCurrentCoreApic();
+        lapic.clearEndOfInterrupt();
         return ctx;
     });
 
@@ -539,116 +530,11 @@ static void InitPortDelay(const HypervisorInfo& hvInfo) {
     KmSetPortDelayMethod(delay);
 }
 
-extern "C" void KmSystemEntry(void);
-
-extern "C" uint64_t OsSystemCall(uint64_t function, uint64_t arg0, uint64_t arg1, uint64_t arg2);
-
-extern "C" uint64_t KmSystemCallStackTlsOffset;
-
-struct [[gnu::packed]] SystemCallContext {
-    // user registers
-    uint64_t r15;
-    uint64_t r14;
-    uint64_t r13;
-    uint64_t r12;
-    // r11 is clobbered by syscall
-    uint64_t r10;
-    // r9 is clobbered by syscall
-    // r8 is clobbered by syscall
-    uint64_t rbx;
-    uint64_t rbp;
-
-    // syscall related
-    uint64_t userReturnAddress;
-    uint64_t rflags;
-    uint64_t arg2;
-    uint64_t arg1;
-    uint64_t arg0;
-    uint64_t function;
-    uint64_t userStack;
-};
-
-extern "C" uint64_t KmSystemDispatchRoutine(SystemCallContext *context) {
-    KmDebugMessage("[SYSCALL] Function: ", context->function, ", Arg0: ", context->arg0, ", Arg1: ", context->arg1, ", Arg2: ", context->arg2, "\n");
-    return 0x1234;
-}
-
-static void UserModeStub(void) {
-    uint64_t result = OsSystemCall(0x1234, 0, 0, 0);
-    OsSystemCall(0x9999, result, result, result);
-    while (1) { }
-}
-
-static void SetupUserMode(SystemMemory& memory) {
-    tlsKernelThreadData->syscallStack = memory.allocate(0x1000);
-
-    void *rsp0 = memory.allocate(0x1000);
-    void *ist1 = memory.allocate(0x1000);
-
-    tlsTaskState->rsp0 = (uintptr_t)rsp0 + 0x1000;
-    tlsTaskState->ist1 = (uintptr_t)ist1 + 0x1000;
-
-    // nmis use the IST1 stack
-    KmUpdateIdtEntry(0x2, SystemGdt::eLongModeCode, 0, 1);
-
-    KmUpdateIdtEntry(0xe, SystemGdt::eLongModeCode, 0, 1);
-
-    // reload the idt
-    KmLoadIdt();
-
-    size_t offset = tlsKernelThreadData.tlsOffset() + offsetof(KernelThreadData, syscallStack);
-    KmSystemCallStackTlsOffset = offset;
-
-    // Enable syscall/sysret
-    uint64_t efer = kEfer.load();
-    kEfer.store(efer | (1 << 0));
-
-    kFMask.store(0xFFFF'FFFF);
-
-    // Store the syscall entry point in the LSTAR MSR
-    kLStar.store((uint64_t)KmSystemEntry);
-
-    uint64_t star = 0;
-
-    // Store the kernel mode code segment and stack segment in the STAR MSR
-    // The stack selector is chosen as the next entry in the gdt
-    star |= uint64_t(SystemGdt::eLongModeCode * 0x8) << 32;
-
-    // And the user mode code segment and stack segment
-    star |= uint64_t(((SystemGdt::eLongModeUserCode * 0x8) - 0x10) | 0b11) << 48;
-
-    kStar.store(star);
-}
-
 extern const char _binary_init_elf_start[];
 extern const char _binary_init_elf_end[];
 
 static std::span<const uint8_t> GetInitProgram() {
     return { (const uint8_t*)_binary_init_elf_start, (const uint8_t*)_binary_init_elf_end };
-}
-
-CpuCoreId km::GetCurrentCoreId() {
-    return CpuCoreId(tlsKernelThreadData->lapicId);
-}
-
-static void KmEnterUserMode(km::MachineState& state) {
-    asm volatile (
-        "movq %[mrsp], %%rsp\n"
-        "movq %[mrbp], %%rbp\n"
-        "movq %[mrip], %%rcx\n"
-        "movq %[meflags], %%r11\n"
-        "movq %[mrdi], %%rdi\n"
-        "movq %[mrsi], %%rsi\n"
-        "movq %[mrdx], %%rdx\n"
-        "\n"
-        "swapgs\n"
-        "sysretq\n"
-        : [mrsp] "+m" (state.rsp), [mrbp] "+m" (state.rbp)
-        : [mrip] "m" (state.rip), [meflags] "m" (state.rflags),
-          [mrdi] "m" (state.rdi), [mrsi] "m" (state.rsi),
-          [mrdx] "m" (state.rdx)
-        : "memory", "cc"
-    );
 }
 
 extern "C" void KmLaunch(KernelLaunch launch) {
@@ -793,7 +679,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     // Setup gdt that contains a TSS for this core
     SetupApGdt();
 
-    SetupUserMode(memory);
+    km::SetupUserMode(memory);
 
     std::span init = GetInitProgram();
 
@@ -804,7 +690,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
         KM_PANIC("Failed to load init.elf");
     }
 
-    KmEnterUserMode(process->state);
+    km::EnterUserMode(process->state);
 
     if (has8042) {
         hid::Ps2ControllerResult result = hid::EnablePs2Controller();

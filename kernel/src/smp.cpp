@@ -7,6 +7,7 @@
 #include "panic.hpp"
 #include "log.hpp"
 #include "pat.hpp"
+#include "processor.hpp"
 #include "thread.hpp"
 
 #include <atomic>
@@ -75,8 +76,7 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
     km::LocalApic lapic = KmInitApLocalApic(*header->memory, *header->bspApic);
 
     km::InitTlsRegion(*header->memory);
-
-    km::tlsLocalApic = lapic;
+    km::InitKernelThread(lapic);
 
     SetupApGdt();
 
