@@ -15,7 +15,7 @@ namespace km {
         // r11 is clobbered by syscall
         uint64_t r10;
         // r9 is clobbered by syscall
-        uint64_t r8;
+        // r8 is a parameter
         uint64_t rbx;
         uint64_t rbp;
 

@@ -59,7 +59,6 @@ KmSystemEntry:
     /* Save general registers */
     pushq %rbp
     pushq %rbx
-    pushq %r8
     pushq %r10
     pushq %r12
     pushq %r13
@@ -75,7 +74,6 @@ KmSystemEntry:
     popq %r13
     popq %r12
     popq %r10
-    popq %r8
     popq %rbx
     popq %rbp
 
