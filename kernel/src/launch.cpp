@@ -2,7 +2,7 @@
 
 #include "log.hpp"
 
-std::expected<km::Process, bool> km::LoadElf(std::span<const uint8_t> program) {
+std::expected<km::Process, bool> km::LoadElf(std::span<const uint8_t> program, stdx::StringView name, uint32_t id, SystemMemory& memory, mem::IAllocator *allocator) {
     KmDebugMessage("[ELF] Launching process from ELF\n");
 
     if (program.size() < sizeof(elf::ElfHeader)) {
@@ -34,12 +34,60 @@ std::expected<km::Process, bool> km::LoadElf(std::span<const uint8_t> program) {
 
     KmDebugMessage("[ELF] Program Header Count: ", phs.size(), "\n");
 
+    Process process = {
+        .name = name,
+        .processId = id,
+        .memory = allocator
+    };
+
+    void *stack = memory.allocate(0x1000, 0x1000, PageFlags::eUser | PageFlags::eWrite);
+
+    process.state = MachineState {
+        .rbp = (uintptr_t)stack + 0x1000,
+        .rsp = (uintptr_t)stack + 0x1000,
+    };
+
+    uint64_t entry = header->entry;
+
+    KmDebugMessage("[ELF] Entry point: ", km::Hex(entry), "\n");
+
     for (const elf::ElfProgramHeader &ph : phs) {
         KmDebugMessage("[ELF] Program Header type: ",
             km::Hex(ph.type), ", flags: ", ph.flags, ", offset:", ph.offset, ", filesize: ", ph.filesz,
-            ", memorysize: ", ph.memsz, ", virtual address: ", ph.vaddr,
-            ", physical address: ", ph.paddr, ", minimum alignment: ", ph.align, "\n");
+            ", memorysize: ", km::Hex(ph.memsz), ", virtual address: ", km::Hex(ph.vaddr),
+            ", physical address: ", km::Hex(ph.paddr), ", minimum alignment: ", km::Hex(ph.align), "\n");
+
+        if (ph.type != 1)
+            continue;
+
+        // TODO: dont mark everything as writable
+        PageFlags flags = PageFlags::eUser | PageFlags::eWrite;
+        if (ph.flags & (1 << 0))
+            flags |= PageFlags::eExecute;
+        if (ph.flags & (1 << 1))
+            flags |= PageFlags::eWrite;
+        if (ph.flags & (1 << 2))
+            flags |= PageFlags::eRead;
+
+        KmDebugMessage("[ELF] Flags: ", std::to_underlying(flags), "\n");
+
+        void *vaddr = memory.allocate(ph.memsz, ph.align, flags);
+        KmDebugMessage("[ELF] Allocated memory at ", km::Hex((uintptr_t)vaddr), " for ", km::Hex(ph.memsz), " bytes\n");
+        memcpy(vaddr, program.data() + ph.offset, ph.filesz);
+
+        bool containsEntry = entry >= ph.vaddr && entry < ph.vaddr + ph.memsz;
+
+        if (containsEntry) {
+            process.state.rip = ((uintptr_t)vaddr + (entry - ph.vaddr));
+        }
+
+        process.memory.add(vaddr);
     }
 
-    return std::unexpected{false};
+    if (process.state.rip == 0) {
+        KmDebugMessage("[ELF] Entry point not found\n");
+        return std::unexpected{false};
+    }
+
+    return process;
 }

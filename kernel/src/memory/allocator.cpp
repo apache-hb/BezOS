@@ -38,9 +38,9 @@ void PageTableManager::setEntryFlags(x64::Entry& entry, PageFlags flags, Physica
 
     entry.setWriteable(bool(flags & PageFlags::eWrite));
     entry.setExecutable(bool(flags & PageFlags::eExecute));
+    entry.setUser(bool(flags & PageFlags::eUser));
 
     entry.setPresent(true);
-    entry.setUser(true);
 }
 
 PageTableManager::PageTableManager(const km::PageBuilder *pm, km::VirtualAllocator *vmm, PageAllocator *alloc)
@@ -56,7 +56,7 @@ x64::PageMapLevel3 *PageTableManager::getPageMap3(x64::PageMapLevel4 *l4, uint16
     x64::pml4e& t4 = l4->entries[pml4e];
     if (!t4.present()) {
         l3 = std::bit_cast<x64::PageMapLevel3*>(alloc4k());
-        setEntryFlags(t4, PageFlags::eAll, getPhysicalAddress(l3));
+        setEntryFlags(t4, PageFlags::eAllUser, getPhysicalAddress(l3));
     } else {
         l3 = getVirtualAddress<x64::PageMapLevel3>(mPageManager->address(t4));
     }
@@ -70,7 +70,7 @@ x64::PageMapLevel2 *PageTableManager::getPageMap2(x64::PageMapLevel3 *l3, uint16
     x64::pdpte& t3 = l3->entries[pdpte];
     if (!t3.present()) {
         l2 = std::bit_cast<x64::PageMapLevel2*>(alloc4k());
-        setEntryFlags(t3, PageFlags::eAll, getPhysicalAddress(l2));
+        setEntryFlags(t3, PageFlags::eAllUser, getPhysicalAddress(l2));
     } else {
         l2 = getVirtualAddress<x64::PageMapLevel2>(mPageManager->address(t3));
     }
@@ -146,7 +146,7 @@ void PageTableManager::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags
     x64::pde& t2 = l2->entries[pdte];
     if (!t2.present()) {
         pt = std::bit_cast<x64::PageTable*>(alloc4k());
-        setEntryFlags(t2, PageFlags::eAll, getPhysicalAddress(pt));
+        setEntryFlags(t2, PageFlags::eAllUser, getPhysicalAddress(pt));
     } else {
         pt = getVirtualAddress<x64::PageTable>(mPageManager->address(t2));
     }
@@ -177,6 +177,7 @@ void PageTableManager::mapRange(MemoryRange range, const void *vaddr, PageFlags 
     range.front = sm::rounddown(range.front.address, x64::kPageSize);
     range.back = sm::roundup(range.back.address, x64::kPageSize);
 
+#if 0
     // check if we should we attempt to use large pages
     if ((uintptr_t)range.size() >= x64::kLargePageSize) {
         // if the range is larger than 2m in total, check if
@@ -200,6 +201,7 @@ void PageTableManager::mapRange(MemoryRange range, const void *vaddr, PageFlags 
             return;
         }
     }
+#endif
 
     // if we get to this point its not worth using 2m pages
     // so we just map the range with 4k pages

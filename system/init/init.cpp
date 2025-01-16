@@ -12,9 +12,9 @@ enum SystemCall : uint64_t {
 // rdi: first argument
 // rsi: last argument
 // rdx: reserved
-// rcx: reserved
-extern "C" [[noreturn]] void ClientStart(uint64_t, uint64_t, uint64_t, uint64_t) {
+extern "C" [[noreturn]] void ClientStart(uint64_t, uint64_t, uint64_t) {
     OsSystemCall(eDebugPrint, 0, 0, 0);
+    while (1) { }
 
     OsSystemCall(eExitProcess, 0, 0, 0);
     __builtin_unreachable();

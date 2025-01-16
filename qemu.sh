@@ -41,5 +41,5 @@ elif [ "$MODE" = "numa" ]; then
         -M q35 -cdrom install/bezos.iso $(serial_chardev numa-serial.txt) $@
     exit
 else
-    qemu-system-x86_64 -M q35 -cdrom install/bezos.iso $(serial_chardev qemu-serial.txt) $@
+    qemu-system-x86_64 -M q35 -cdrom install/bezos.iso $(serial_chardev qemu-serial.txt) -smp 4 $@
 fi

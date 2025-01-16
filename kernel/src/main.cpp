@@ -34,6 +34,8 @@
 #include "memory/layout.hpp"
 #include "memory/allocator.hpp"
 
+#include "allocator/tlsf.hpp"
+
 #include "arch/intrin.hpp"
 
 #include "kernel.hpp"
@@ -537,7 +539,6 @@ static void InitPortDelay(const HypervisorInfo& hvInfo) {
     KmSetPortDelayMethod(delay);
 }
 
-extern "C" void KmEnterUserMode(uintptr_t address, uint64_t eflags);
 extern "C" void KmSystemEntry(void);
 
 extern "C" uint64_t OsSystemCall(uint64_t function, uint64_t arg0, uint64_t arg1, uint64_t arg2);
@@ -628,6 +629,26 @@ static std::span<const uint8_t> GetInitProgram() {
 
 CpuCoreId km::GetCurrentCoreId() {
     return CpuCoreId(tlsKernelThreadData->lapicId);
+}
+
+static void KmEnterUserMode(km::MachineState& state) {
+    asm volatile (
+        "movq %[mrsp], %%rsp\n"
+        "movq %[mrbp], %%rbp\n"
+        "movq %[mrip], %%rcx\n"
+        "movq %[meflags], %%r11\n"
+        "movq %[mrdi], %%rdi\n"
+        "movq %[mrsi], %%rsi\n"
+        "movq %[mrdx], %%rdx\n"
+        "\n"
+        "swapgs\n"
+        "sysretq\n"
+        : [mrsp] "+m" (state.rsp), [mrbp] "+m" (state.rbp)
+        : [mrip] "m" (state.rip), [meflags] "m" (state.rflags),
+          [mrdi] "m" (state.rdi), [mrsi] "m" (state.rsi),
+          [mrdx] "m" (state.rdx)
+        : "memory", "cc"
+    );
 }
 
 extern "C" void KmLaunch(KernelLaunch launch) {
@@ -776,10 +797,14 @@ extern "C" void KmLaunch(KernelLaunch launch) {
 
     std::span init = GetInitProgram();
 
-    auto process = LoadElf(init);
-    (void)process;
+    void *initMemory = memory.allocate(0x1000);
+    mem::TlsfAllocator allocator(initMemory, 0x1000);
+    auto process = LoadElf(init, "init.elf", 1, memory, &allocator);
+    if (!process) {
+        KM_PANIC("Failed to load init.elf");
+    }
 
-    KmEnterUserMode((uintptr_t)UserModeStub, 0x202);
+    KmEnterUserMode(process->state);
 
     if (has8042) {
         hid::Ps2ControllerResult result = hid::EnablePs2Controller();

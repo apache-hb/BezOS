@@ -19,13 +19,18 @@ namespace km {
 
         SystemMemory(SystemMemoryLayout memory, PageBuilder pm);
 
-        void *allocate(size_t size, size_t align = alignof(std::max_align_t));
+        void *allocate(
+            size_t size,
+            size_t align = alignof(std::max_align_t),
+            PageFlags flags = PageFlags::eData,
+            MemoryType type = MemoryType::eWriteBack
+        );
 
         void release(void *ptr, size_t size);
 
         void unmap(void *ptr, size_t size);
 
-        void *map(PhysicalAddress begin, PhysicalAddress end, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eUncachedOverridable);
+        void *map(PhysicalAddress begin, PhysicalAddress end, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eWriteBack);
 
         template<typename T>
         T *mapObject(PhysicalAddress begin, PhysicalAddress end) {
