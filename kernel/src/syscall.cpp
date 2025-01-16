@@ -18,7 +18,7 @@ extern "C" void KmSystemEntry(void);
 extern "C" uint64_t KmSystemCallStackTlsOffset;
 
 extern "C" uint64_t KmSystemDispatchRoutine(km::SystemCallContext *context) {
-    KmDebugMessage("[SYSCALL] Function: ", context->function, ", Arg0: ", context->arg0, ", Arg1: ", context->arg1, ", Arg2: ", context->arg2, "\n");
+    KmDebugMessage("[SYSCALL] Function: ", context->function, ", Arg0: ", context->arg0, ", Arg1: ", context->arg1, ", Arg2: ", context->arg2, ", Arg3: ", context->arg3, "\n");
     return 0x1234;
 }
 

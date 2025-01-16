@@ -2,7 +2,6 @@
 
 #include <stddef.h>
 
-#include "apic.hpp"
 #include "util/format.hpp"
 
 #include "gdt.hpp"

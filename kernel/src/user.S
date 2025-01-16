@@ -29,6 +29,7 @@ KmEnterUserMode:
  * @param rdi arg1
  * @param rsi arg2
  * @param rdx arg3
+ * @param r8  arg4
  * @param r11 eflags - reserved by syscall instruction
  * @param rcx return address - reserved by syscall instruction
  *
@@ -39,14 +40,14 @@ KmEnterUserMode:
 KmSystemEntry:
     swapgs
 
-    movq %rsp, %r8
+    movq %rsp, %r15
     movq KmSystemCallStackTlsOffset, %r9
 
     movq %gs:(%r9), %rsp
 
     /* Construct a SystemCallContext */
 
-    pushq %r8  /* userStack */
+    pushq %r15  /* userStack */
     pushq %rax /* function */
     pushq %rdi /* arg0 */
     pushq %rsi /* arg1 */
@@ -57,11 +58,11 @@ KmSystemEntry:
     /* Save general registers */
     pushq %rbp
     pushq %rbx
+    pushq %r8
     pushq %r10
     pushq %r12
     pushq %r13
     pushq %r14
-    pushq %r15
 
     /* Call the dispatch routine, passing the context struct */
     mov %rsp, %rdi
@@ -69,11 +70,11 @@ KmSystemEntry:
     /* Routine returns into rax, so no need to move it */
 
     /* Restore general registers */
-    popq %r15
     popq %r14
     popq %r13
     popq %r12
     popq %r10
+    popq %r8
     popq %rbx
     popq %rbp
 
