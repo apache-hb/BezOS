@@ -34,6 +34,7 @@ $VM = @{
     Path = $RootPath
     SwitchName = (Get-VMSwitch)[0].Name
     NewVHDSizeBytes = 256MB
+    MemoryStartupBytes = 512MB
 }
 
 # Create the hyperv directory
@@ -44,7 +45,7 @@ Copy-Item -Path $KernelImage -Destination $ImagePath -Force
 
 $OldVm = Get-VM -Name $VmName -ErrorAction SilentlyContinue
 if ($OldVm) {
-    Stop-VM -Name $VmName -Force -TurnOff
+    Stop-VM -Name $VmName -Force -TurnOff -ErrorAction SilentlyContinue
 
     Remove-VM -Name $VmName -Force
 }
@@ -60,5 +61,7 @@ $BootDrive = Add-VMDvdDrive -VMName $VmName -Path $ImagePath -Passthru
 Set-VMComPort $VmName 1 -Path $SerialPipe
 
 Set-VMFirmware -VMName $VmName -FirstBootDevice $BootDrive -EnableSecureBoot Off
+
+Set-VMProcessor -VMName $VmName -Count 4
 
 Start-VM -Name $VmName

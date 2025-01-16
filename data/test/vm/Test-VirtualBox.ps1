@@ -42,6 +42,12 @@ if (Test-Path $SerialPath) {
     --uuid $VmGuid `
     --register
 
+# Configure CPU & memory
+
+& $VBoxManage modifyvm $VmGuid `
+    --cpus 4 `
+    --memory 4096
+
 # Configure boot drive
 
 & $VBoxManage storagectl $VmGuid `

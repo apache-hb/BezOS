@@ -12,6 +12,7 @@
 KmSmpInfoStart:
 
 // Address of the smp startup C++ code
+.align 8
 KmSmpStartAddress:
     .quad 0
 

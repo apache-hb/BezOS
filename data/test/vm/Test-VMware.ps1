@@ -49,6 +49,8 @@ if (Test-Path $SerialPath) {
 
 & $VmCli ConfigParams SetEntry guestOS other-64 $VmxPath
 
+& $VmCli ConfigParams SetEntry numvcpus 4
+
 # Configure main drive
 
 & $VmCli nvme SetPresent nvme0 1 $VmxPath

@@ -1,7 +1,6 @@
 #include "gdt.hpp"
 
 #include "arch/intrin.hpp"
-#include "log.hpp"
 
 void KmInitGdt(const void *gdt, size_t size, size_t codeSelector, size_t dataSelector) {
     GDTR gdtr = {

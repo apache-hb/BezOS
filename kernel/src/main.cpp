@@ -13,6 +13,7 @@
 
 #include "delay.hpp"
 #include "display.hpp"
+#include "elf.hpp"
 #include "gdt.hpp"
 #include "hid/ps2.hpp"
 #include "hypervisor.hpp"
@@ -22,12 +23,12 @@
 #include "panic.hpp"
 #include "pat.hpp"
 #include "smp.hpp"
+#include "std/spinlock.hpp"
 #include "thread.hpp"
 #include "uart.hpp"
 #include "smbios.hpp"
 #include "pci.hpp"
 
-#include "std/spinlock.hpp"
 #include "std/recursive_mutex.hpp"
 
 #include "memory/layout.hpp"
@@ -128,6 +129,18 @@ public:
     void unlock() override { }
 };
 
+class SpinLockDebugLock final : public IDebugLock {
+    stdx::SpinLock mLock;
+public:
+    void lock() override {
+        mLock.lock();
+    }
+
+    void unlock() override {
+        mLock.unlock();
+    }
+};
+
 class RecursiveDebugLock final : public IDebugLock {
     stdx::RecursiveSpinLock mLock;
 
@@ -142,6 +155,7 @@ public:
 };
 
 constinit static NullLock gNullLock;
+constinit static SpinLockDebugLock gSpinLock;
 constinit static RecursiveDebugLock gRecursiveDebugLock;
 
 constinit static IDebugLock *gLogLock = &gNullLock;
@@ -253,7 +267,7 @@ static void KmWriteMtrrs(const km::PageBuilder& pm) {
         return;
     }
 
-    x64::MemoryTypeRanges mtrrs;
+    x64::MemoryTypeRanges mtrrs = x64::MemoryTypeRanges::get();
 
     KmDebugMessage("[INIT] MTRR fixed support: ", present(mtrrs.fixedMtrrSupported()), "\n");
     KmDebugMessage("[INIT] MTRR fixed enabled: ", enabled(mtrrs.fixedMtrrEnabled()), "\n");
@@ -388,11 +402,11 @@ static LocalApic KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllocator& i
 
     km::InitTlsRegion(memory);
 
+    gLogLock = &gSpinLock;
     tlsKernelThreadData = KernelThreadData {
         .lapicId = lapic.id(),
     };
 
-    gLogLock = &gRecursiveDebugLock;
     tlsLocalApic = lapic;
 
     uint8_t spuriousVec = isrs.allocateIsr();
@@ -497,7 +511,6 @@ static void KmInstallExceptionHandlers(void) {
     KmInstallIsrHandler(0x2, [](km::IsrContext *context) -> void* {
         KmDebugMessage("[INT] Non-maskable interrupt (#NM)\n");
         DumpIsrState(context);
-
         return context;
     });
 
@@ -604,6 +617,13 @@ static void SetupUserMode(SystemMemory& memory) {
     star |= uint64_t(((SystemGdt::eLongModeUserCode * 0x8) - 0x10) | 0b11) << 48;
 
     kStar.store(star);
+}
+
+extern const char _binary_init_elf_start[];
+extern const char _binary_init_elf_end[];
+
+static std::span<const uint8_t> GetInitProgram() {
+    return { (const uint8_t*)_binary_init_elf_start, (const uint8_t*)_binary_init_elf_end };
 }
 
 CpuCoreId km::GetCurrentCoreId() {
@@ -726,45 +746,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
 
     KmInitBootBufferedTerminal(launch, memory);
 
-#if 0
-    // Test interrupt to ensure the IDT is working
-    {
-        KmIsrHandler isrHandler = KmInstallIsrHandler(0x1, [](km::IsrContext *context) -> void* {
-            KmDebugMessage("[INT] Test interrupt.\n");
-            return context;
-        });
-
-        __int<0x1>();
-
-        KmInstallIsrHandler(0x1, isrHandler);
-    }
-#endif
     LocalApic lapic = KmEnableLocalApic(memory, isrs);
-
-#if 0
-    // test lapic ipis to ensure the local apic is working
-    {
-        KmIsrHandler isrHandler = [](km::IsrContext *context) -> void* {
-            KmDebugMessage("[INT] APIC interrupt.\n");
-            tlsLocalApic->clearEndOfInterrupt();
-            return context;
-        };
-
-        uint8_t testVec = isrs.allocateIsr();
-
-
-        KmIsrHandler oldHandler = KmInstallIsrHandler(testVec, isrHandler);
-
-        // another test interrupt
-        lapic.sendIpi(apic::IcrDeliver::eSelf, testVec);
-        lapic.sendIpi(apic::IcrDeliver::eSelf, testVec);
-        lapic.sendIpi(apic::IcrDeliver::eSelf, testVec);
-
-        isrs.releaseIsr(testVec);
-
-        KmInstallIsrHandler(testVec, oldHandler);
-    }
-#endif
 
     acpi::AcpiTables rsdt = InitAcpi(rsdpBaseAddress, memory);
     uint32_t ioApicCount = rsdt.ioApicCount();
@@ -785,10 +767,17 @@ extern "C" void KmLaunch(KernelLaunch launch) {
 
     KmInitSmp(memory, lapic, rsdt);
 
+    gLogLock = &gRecursiveDebugLock;
+
     // Setup gdt that contains a TSS for this core
     SetupApGdt();
 
     SetupUserMode(memory);
+
+    std::span init = GetInitProgram();
+
+    auto process = LoadElf(init);
+    (void)process;
 
     KmEnterUserMode((uintptr_t)UserModeStub, 0x202);
 

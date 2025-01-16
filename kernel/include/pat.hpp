@@ -66,10 +66,12 @@ namespace x64 {
     class MemoryTypeRanges {
         uint64_t mMtrrCap;
         uint64_t mMtrrDefault;
-    public:
         /// @brief Construct a memory type ranges accessor.
         /// @pre: HasMtrrSupport() = true
         MemoryTypeRanges();
+    public:
+
+        static MemoryTypeRanges get() { return MemoryTypeRanges(); }
 
         constexpr MemoryTypeRanges(sm::noinit)
             : mMtrrCap(0)

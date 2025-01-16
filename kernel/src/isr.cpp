@@ -16,11 +16,6 @@ namespace x64 {
         static constexpr uint8_t kInterruptGate = 0b1110;
         // static constexpr uint8_t kTrapGate = 0b1111;
         // static constexpr uint8_t kTaskGate = 0b0101;
-
-        static constexpr uint8_t kPrivilegeRing0 = 0;
-        // static constexpr uint8_t kPrivilegeRing1 = 1;
-        // static constexpr uint8_t kPrivilegeRing2 = 2;
-        static constexpr uint8_t kPrivilegeRing3 = 3;
     }
 
     struct [[gnu::packed]] IdtEntry {
@@ -90,7 +85,7 @@ void KmUpdateIdtEntry(uint8_t isr, uint16_t selector, uint8_t dpl, uint8_t ist) 
 
 void KmInitInterrupts(km::IsrAllocator& isrs, uint16_t codeSelector) {
     for (size_t i = 0; i < Idt::kCount; i++) {
-        KmUpdateIdtEntry(i, codeSelector, x64::idt::kPrivilegeRing0, 0);
+        KmUpdateIdtEntry(i, codeSelector, 0, 0);
     }
 
     for (size_t i = 0; i < Idt::kCount; i++) {

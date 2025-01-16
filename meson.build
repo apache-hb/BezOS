@@ -37,12 +37,37 @@ c_args = cc.get_supported_arguments([ '-Wno-language-extension-token' ] + common
 cpp_args = cpp.get_supported_arguments([ '-Wno-c99-designator', '-Wno-c99-extensions' ] + common_args)
 
 limine = dependency('limine')
-# uacpi = dependency('uacpi')
-
-# Smp startup blob
 
 compiler = find_program(cc.get_id())
 objcopy = find_program('objcopy')
+
+# Init program
+
+init_blob = custom_target('init',
+    input : [ 'system/init/init.S', 'system/init/init.cpp' ],
+    output : 'init.elf',
+    command : [
+        compiler, '@INPUT@',
+        '-ffreestanding', '-nostdlib', '-nostdlib++',
+        '-fPIE', '-fno-pic', '-static', '-fno-rtti', '-fno-exceptions',
+        '-z', 'noexecstack',
+        '-e', 'ClientStart',
+        '-o', '@OUTPUT@',
+    ]
+)
+
+init = custom_target('init.o',
+    input : init_blob,
+    output : 'init.o',
+    command : [
+        objcopy, '-I', 'binary', '-O', 'elf64-x86-64',
+        '--set-section-flags', '.data.init=alloc,load,readonly,data',
+        '--rename-section', '.data=.rodata.init',
+        '@INPUT@', '@OUTPUT@'
+    ],
+)
+
+# Smp startup blob
 
 smp_blob = custom_target('smp',
     input : 'kernel/src/smp.S',
@@ -133,6 +158,12 @@ src = [
     # Device drivers
     'kernel/src/drivers/driver.cpp',
     'kernel/src/drivers/virtio_blk.cpp',
+
+    # Process
+    'kernel/src/launch.cpp',
+
+    # Embedded init
+    init,
 
     # Kernel components
     'kernel/src/memory.cpp',

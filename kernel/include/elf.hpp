@@ -1,12 +1,15 @@
 #pragma once
 
+#include "std/static_string.hpp"
+
 #include <bit>
 
 #include <cstddef>
 #include <cstdint>
 
 #include <cstring>
-#include <elf.h>
+#include <expected>
+#include <span>
 
 namespace elf {
     enum class ElfType : uint16_t {
@@ -116,4 +119,31 @@ namespace elf {
     static_assert(sizeof(ElfHeader) == 64);
     static_assert(sizeof(ElfProgramHeader) == 56);
     static_assert(sizeof(ElfSectionHeader) == 64);
+}
+
+namespace km {
+    class ProcessThread {
+        stdx::StaticString<64> mName;
+        uint32_t mThreadId;
+
+    public:
+        ProcessThread(stdx::StringView name, uint32_t threadId)
+            : mName(name)
+            , mThreadId(threadId)
+        { }
+
+        stdx::StringView name() const {
+            return mName;
+        }
+
+        uint32_t threadId() const {
+            return mThreadId;
+        }
+    };
+
+    class Process {
+        stdx::StaticString<64> mName;
+    };
+
+    std::expected<Process, bool> LoadElf(std::span<const uint8_t> program);
 }
