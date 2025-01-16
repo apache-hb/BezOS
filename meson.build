@@ -133,6 +133,7 @@ src = [
     'kernel/src/smbios.cpp',
     'kernel/src/pci.cpp',
     'kernel/src/delay.cpp',
+    'kernel/src/cmos.cpp',
     'kernel/src/thread.cpp',
     'kernel/src/user.S',
 

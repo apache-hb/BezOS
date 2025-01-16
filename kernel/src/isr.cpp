@@ -110,18 +110,6 @@ void KmLoadIdt(void) {
     __lidt(idtr);
 }
 
-static constexpr uint16_t kNmiPort = 0x70;
-
-void km::DisableNmi() {
-    uint8_t nmi = KmReadByte(kNmiPort);
-    KmWriteByte(kNmiPort, nmi & 0x7F);
-}
-
-void km::EnableNmi() {
-    uint8_t nmi = KmReadByte(kNmiPort);
-    KmWriteByte(kNmiPort, nmi | 0x80);
-}
-
 void km::DisableInterrupts() {
     __cli();
 }

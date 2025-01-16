@@ -11,6 +11,7 @@
 
 #include "acpi/acpi.hpp"
 
+#include "cmos.hpp"
 #include "delay.hpp"
 #include "display.hpp"
 #include "elf.hpp"
@@ -396,7 +397,7 @@ static LocalApic KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllocator& i
 
     gLogLock = &gSpinLock;
     km::InitKernelThread(lapic);
-    
+
     uint8_t spuriousVec = isrs.allocateIsr();
     KmDebugMessage("[INIT] APIC ID: ", lapic.id(), ", Version: ", lapic.version(), ", Spurious vector: ", spuriousVec, "\n");
 
@@ -534,8 +535,6 @@ static std::span<const uint8_t> GetInitProgram() {
 }
 
 extern "C" void KmLaunch(KernelLaunch launch) {
-    __cli();
-
     x64::Cr0 cr0 = x64::Cr0::load();
     cr0.set(x64::Cr0::WP | x64::Cr0::NE);
     x64::Cr0::store(cr0);
@@ -579,7 +578,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     km::IsrAllocator isrs;
     KmInitInterrupts(isrs, SystemGdt::eLongModeCode);
     KmInstallExceptionHandlers();
-    __sti();
+    EnableInterrupts();
 
     SystemMemory memory = KmInitMemory(processor.maxpaddr, launch);
     gMemoryMap = &memory;
@@ -652,6 +651,9 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     LocalApic lapic = KmEnableLocalApic(memory, isrs);
 
     acpi::AcpiTables rsdt = InitAcpi(rsdpBaseAddress, memory);
+    const acpi::Fadt *fadt = rsdt.fadt();
+    InitCmos(fadt->century);
+
     uint32_t ioApicCount = rsdt.ioApicCount();
     KM_CHECK(ioApicCount > 0, "No IOAPICs found.");
 
@@ -685,6 +687,9 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     if (!process) {
         KM_PANIC("Failed to load init.elf");
     }
+
+    DateTime time = ReadRtc();
+    KmDebugMessage("[INIT] Current time: ", time.year, "-", time.month, "-", time.day, "T", time.hour, ":", time.minute, ":", time.second, "Z\n");
 
     km::EnterUserMode(process->main.state);
 

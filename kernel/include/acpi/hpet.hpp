@@ -10,6 +10,10 @@ namespace acpi {
         uint8_t hpetNumber;
         uint16_t clockTick;
         uint8_t pageProtection;
+
+        uint8_t comparatorCount() const {
+            return (evtTimerBlockId >> 8) & 0b11111;
+        }
     };
 
     static_assert(sizeof(Hpet) == 56);

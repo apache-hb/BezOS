@@ -49,7 +49,7 @@ if (Test-Path $SerialPath) {
 
 & $VmCli ConfigParams SetEntry guestOS other-64 $VmxPath
 
-& $VmCli ConfigParams SetEntry numvcpus 4
+& $VmCli ConfigParams SetEntry numvcpus 4 $VmxPath
 
 # Configure main drive
 
