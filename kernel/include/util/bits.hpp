@@ -24,6 +24,7 @@ namespace sm {
     BitCount BitsFindAndSetFreeRange(uint8_t *words, BitCount start, BitCount length, BitCount size);
     void BitsSetBit(uint8_t *words, BitCount bit);
     void BitsClearBit(uint8_t *words, BitCount bit);
+    bool BitsTestBit(uint8_t *words, BitCount bit);
 
     /// @brief Create a bitmask for a range of bits.
     ///

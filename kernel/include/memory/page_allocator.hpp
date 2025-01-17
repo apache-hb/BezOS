@@ -2,6 +2,8 @@
 
 #include "memory/layout.hpp"
 
+#include "util/digit.hpp"
+
 namespace km {
     namespace detail {
         size_t GetRangeBitmapSize(MemoryRange range);
@@ -96,6 +98,29 @@ namespace km {
             }
         }
     }
+
+    using sm::uint24_t;
+
+    /// @brief A range of free pages.
+    ///
+    /// Deriving the maximum size of a memory range.
+    ///
+    /// let sw = sizeof(FreeRange::start) * CHAR_BIT
+    /// let pg = x64::kPageSize
+    /// let mr = ((1 << sw) - 1) * pg
+    /// mr = 0xF'FFFF'F000 bytes or 63.999GB per free range.
+    ///
+    /// The worst case free range allocation size can be dervied from sizeof(FreeRange) * (mr / 2).
+    /// Which describes the case of every other page being free.
+    /// wc = 0x1FF'FFFC bytes or 33.55MB of overhead in the worst case.
+    /// This is a 0.048% worst case memory usage overhead, I feel this is good enough.
+    struct FreeRange {
+        uint24_t start;
+        uint8_t count;
+    };
+
+    constexpr size_t kMaxPageAllocatorSize = std::numeric_limits<uint24_t>::max() * x64::kPageSize;
+    constexpr size_t kPageAllocatorWorstCaseSize = sizeof(FreeRange) * (std::numeric_limits<uint24_t>::max() / 2);
 
     class PageAllocator {
         /// @brief One allocator for each usable or reclaimable memory range.

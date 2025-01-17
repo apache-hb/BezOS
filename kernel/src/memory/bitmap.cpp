@@ -1,4 +1,5 @@
 #include "memory/page_allocator.hpp"
+#include "util/bits.hpp"
 
 using namespace km;
 
@@ -15,15 +16,15 @@ size_t RegionBitmapAllocator::bitCount() const {
 }
 
 bool RegionBitmapAllocator::test(size_t bit) const {
-    return mBitmap[bit / CHAR_BIT] & (1 << (bit % CHAR_BIT));
+    return sm::BitsTestBit(mBitmap, sm::BitCount(bit));
 }
 
 void RegionBitmapAllocator::set(size_t bit) {
-    mBitmap[bit / CHAR_BIT] |= 1 << (bit % CHAR_BIT);
+    sm::BitsSetBit(mBitmap, sm::BitCount(bit));
 }
 
 void RegionBitmapAllocator::clear(size_t bit) {
-    mBitmap[bit / CHAR_BIT] &= ~(1 << (bit % CHAR_BIT));
+    sm::BitsClearBit(mBitmap, sm::BitCount(bit));
 }
 
 RegionBitmapAllocator::RegionBitmapAllocator(MemoryRange range, uint8_t *bitmap)
@@ -33,28 +34,14 @@ RegionBitmapAllocator::RegionBitmapAllocator(MemoryRange range, uint8_t *bitmap)
 
 PhysicalAddress RegionBitmapAllocator::alloc4k(size_t count) {
     // Find a sequence of free bits at least count long.
-    size_t start = 0;
-    size_t length = 0;
-    for (size_t i = 0; i < bitCount(); i++) {
-        if (test(i)) {
-            start = i + 1;
-            length = 0;
-        } else {
-            length++;
-        }
-    }
+    sm::BitCount start = sm::BitsFindAndSetFreeRange(mBitmap, sm::BitCount(0), sm::BitCount(count), sm::BitCount(bitCount()));
 
     // If we didn't find a sequence of free bits, return nullptr.
-    if (length < count) {
+    if (start.count >= bitCount()) {
         return nullptr;
     }
 
-    // Mark the bits as used.
-    for (size_t i = start; i < start + count; i++) {
-        set(i);
-    }
-
-    return mRange.front + (start * x64::kPageSize);
+    return mRange.front + (start.count * x64::kPageSize);
 }
 
 void RegionBitmapAllocator::release(MemoryRange range) {
@@ -66,9 +53,7 @@ void RegionBitmapAllocator::release(MemoryRange range) {
     size_t end = (range.back - mRange.front) / x64::kPageSize;
 
     // Mark the bits as free.
-    for (size_t i = start; i < end; i++) {
-        clear(i);
-    }
+    sm::BitsClearRange(mBitmap, sm::BitCount(start), sm::BitCount(end));
 }
 
 void RegionBitmapAllocator::markUsed(MemoryRange range) {
@@ -80,7 +65,5 @@ void RegionBitmapAllocator::markUsed(MemoryRange range) {
     size_t end = (range.back - mRange.front) / x64::kPageSize;
 
     // Mark the bits as used.
-    for (size_t i = start; i < end; i++) {
-        set(i);
-    }
+    sm::BitsSetRange(mBitmap, sm::BitCount(start), sm::BitCount(end));
 }

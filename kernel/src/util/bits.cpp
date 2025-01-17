@@ -2,19 +2,19 @@
 
 void sm::BitsSetRange(uint8_t *words, BitCount front, BitCount back) {
     for (size_t i = front.count; i < back.count; i++) {
-        words[i / CHAR_BIT] |= 1 << (i % CHAR_BIT);
+        BitsSetBit(words, BitCount { i });
     }
 }
 
 void sm::BitsClearRange(uint8_t *words, BitCount front, BitCount back) {
     for (size_t i = front.count; i < back.count; i++) {
-        words[i / CHAR_BIT] &= ~(1 << (i % CHAR_BIT));
+        BitsClearBit(words, BitCount { i });
     }
 }
 
 sm::BitCount sm::BitsFindNextSet(uint8_t *words, BitCount start, BitCount size) {
     for (size_t i = start.count; i < size.count; i++) {
-        if (words[i / CHAR_BIT] & (1 << (i % CHAR_BIT))) {
+        if (BitsTestBit(words, BitCount { i })) {
             return BitCount { i };
         }
     }
@@ -24,8 +24,8 @@ sm::BitCount sm::BitsFindNextSet(uint8_t *words, BitCount start, BitCount size) 
 
 sm::BitCount sm::BitsFindAndSetNextFree(uint8_t *words, BitCount start, BitCount size) {
     for (size_t i = start.count; i < size.count; i++) {
-        if (!(words[i / CHAR_BIT] & (1 << (i % CHAR_BIT)))) {
-            words[i / CHAR_BIT] |= 1 << (i % CHAR_BIT);
+        if (!BitsTestBit(words, BitCount { i })) {
+            BitsSetBit(words, BitCount { i });
             return BitCount { i };
         }
     }
@@ -67,4 +67,8 @@ void sm::BitsSetBit(uint8_t *words, BitCount bit) {
 
 void sm::BitsClearBit(uint8_t *words, BitCount bit) {
     words[bit.count / CHAR_BIT] &= ~(1 << (bit.count % CHAR_BIT));
+}
+
+bool sm::BitsTestBit(uint8_t *words, BitCount bit) {
+    return words[bit.count / CHAR_BIT] & (1 << (bit.count % CHAR_BIT));
 }

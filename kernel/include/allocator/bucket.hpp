@@ -11,7 +11,7 @@ namespace mem {
         IAllocator *allocator;
     };
 
-    class BucketAllocator final : public IAllocator {
+    class BucketAllocator final : public mem::IAllocator {
         stdx::StaticVector<Bucket, 4> mBuckets;
 
         Bucket *getBucketFor(size_t size) {

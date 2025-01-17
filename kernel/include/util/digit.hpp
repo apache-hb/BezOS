@@ -78,8 +78,10 @@ namespace sm {
         ///
         /// @return Integral the value of the integer
         constexpr Integral load() const {
-            Integral value;
-            memcpy(&value, octets, N);
+            Integral value = 0;
+            for (size_t i = 0; i < N; i++) {
+                value |= octets[i] << (i * 8);
+            }
             return value;
         }
 
@@ -89,7 +91,9 @@ namespace sm {
         /// @note @a value is clamped to @ref kMin and @ref kMax
         constexpr void store(Integral value) {
             value = std::clamp(value, kMin, kMax);
-            memcpy(octets, &value, N);
+            for (size_t i = 0; i < N; i++) {
+                octets[i] = (value >> (i * 8)) & 0xFF;
+            }
         }
 
         /// @brief Assign a new value to the integer
@@ -135,3 +139,15 @@ namespace sm {
     static_assert(sizeof(uint56_t) == 7);
     static_assert(sizeof(int56_t) == 7);
 }
+
+template<size_t N, typename S> requires (N > 0 && N <= 8)
+struct std::numeric_limits<sm::SizedInteger<N, S>> {
+    using Type = sm::SizedInteger<N, S>;
+    static constexpr Type min() noexcept { return Type::kMin; }
+    static constexpr Type max() noexcept { return Type::kMax; }
+
+    static constexpr bool is_integer = true;
+    static constexpr int digits10 = N * 8 - 1;
+    static constexpr bool is_exact = true;
+    static constexpr bool is_signed = Type::kIsSigned;
+};

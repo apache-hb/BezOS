@@ -1,6 +1,5 @@
 #pragma once
 
-#include "math.hpp"
 #include "memory.hpp"
 
 #include "std/string_view.hpp"
@@ -18,11 +17,6 @@ namespace km {
             uint8_t asChannel(uint64_t value) const;
         };
     }
-
-    struct DirtyArea {
-        sm::math::int2 min;
-        sm::math::int2 max;
-    };
 
     struct Pixel {
         uint8_t r;
