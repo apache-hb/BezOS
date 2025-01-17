@@ -65,11 +65,13 @@ km::OpenSerialResult km::OpenSerial(ComPortInfo info) {
     uint16_t base = info.port;
 
     // do initial scratch test
-    static constexpr uint8_t kScratchByte = 0x55;
-    KmWriteByte(base + kScratch, kScratchByte);
-    if (uint8_t read = KmReadByte(base + kScratch); read != kScratchByte) {
-        KmDebugMessage("[UART][", Hex(base), "] Scratch test failed ", Hex(read), " != ", Hex(kScratchByte), "\n");
-        return { .status = SerialPortStatus::eScratchTestFailed };
+    if (!info.skipScratchTest) {
+        static constexpr uint8_t kScratchByte = 0x55;
+        KmWriteByte(base + kScratch, kScratchByte);
+        if (uint8_t read = KmReadByte(base + kScratch); read != kScratchByte) {
+            KmDebugMessage("[UART][", Hex(base), "] Scratch test failed ", Hex(read), " != ", Hex(kScratchByte), "\n");
+            return { .status = SerialPortStatus::eScratchTestFailed };
+        }
     }
 
     // disable interrupts

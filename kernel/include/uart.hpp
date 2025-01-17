@@ -33,6 +33,7 @@ namespace km {
         uint8_t irq;
 
         bool skipLoopbackTest = false;
+        bool skipScratchTest = false;
     };
 
     namespace com {

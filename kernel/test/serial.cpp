@@ -63,6 +63,21 @@ static void PassScratchTest(testing::StrictMock<MockSerial>& serial, uint16_t ba
         .WillOnce(testing::ReturnPointee(&scratch));
 }
 
+static void PassLoopbackTest(testing::StrictMock<MockSerial>& serial, uint16_t base, uint8_t& loopback) {
+    // enable loopback
+    EXPECT_CALL(serial, write8(base + kModemControl, 0x1E));
+
+    // successful loopback test
+    EXPECT_CALL(serial, write8(base + kData, _))
+        .WillOnce(testing::SaveArg<1>(&loopback));
+
+    EXPECT_CALL(serial, read8(base + kData))
+        .WillOnce(testing::ReturnPointee(&loopback));
+
+    // disable loopback
+    EXPECT_CALL(serial, write8(base + kModemControl, 0x0F));
+}
+
 TEST(SerialTest, OpenSerialOk) {
     testing::StrictMock<MockSerial> serial(km::com::kComPort1);
     kmtest::devices().add(&serial);
@@ -77,18 +92,7 @@ TEST(SerialTest, OpenSerialOk) {
 
         SerialConfigLine(serial, km::com::kComPort1);
 
-        // enable loopback
-        EXPECT_CALL(serial, write8(km::com::kComPort1 + kModemControl, 0x1E));
-
-        // successful loopback test
-        EXPECT_CALL(serial, write8(km::com::kComPort1 + kData, _))
-            .WillOnce(testing::SaveArg<1>(&loopback));
-
-        EXPECT_CALL(serial, read8(km::com::kComPort1 + kData))
-            .WillOnce(testing::ReturnPointee(&loopback));
-
-        // disable loopback
-        EXPECT_CALL(serial, write8(km::com::kComPort1 + kModemControl, 0x0F));
+        PassLoopbackTest(serial, km::com::kComPort1, loopback);
     }
 
     km::ComPortInfo info = {
@@ -190,6 +194,31 @@ TEST(SerialTest, SkipLookbackTest) {
         .port = km::com::kComPort1,
         .divisor = km::com::kBaud9600,
         .skipLoopbackTest = true,
+    };
+
+    km::OpenSerialResult result = km::OpenSerial(info);
+
+    EXPECT_EQ(result.status, km::SerialPortStatus::eOk);
+}
+
+TEST(SerialTest, SkipScratchTest) {
+    testing::StrictMock<MockSerial> serial(km::com::kComPort1);
+    kmtest::devices().add(&serial);
+
+    uint8_t loopback;
+
+    {
+        testing::InSequence s;
+
+        SerialConfigLine(serial, km::com::kComPort1);
+
+        PassLoopbackTest(serial, km::com::kComPort1, loopback);
+    }
+
+    km::ComPortInfo info = {
+        .port = km::com::kComPort1,
+        .divisor = km::com::kBaud9600,
+        .skipScratchTest = true,
     };
 
     km::OpenSerialResult result = km::OpenSerial(info);
