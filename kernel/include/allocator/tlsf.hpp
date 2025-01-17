@@ -10,35 +10,27 @@ namespace mem {
     class TlsfAllocator final : public mem::IAllocator {
         using Super = mem::IAllocator;
 
-        tlsf_t mAllocator;
+        using TlsfHandle = std::unique_ptr<void, void(*)(tlsf_t)>;
+
+        TlsfHandle mAllocator;
 
     public:
         using Super::Super;
 
         constexpr TlsfAllocator(void *memory, size_t size)
-            : mAllocator(tlsf_create_with_pool(memory, size, 0))
+            : mAllocator(tlsf_create_with_pool(memory, size, 0), tlsf_destroy)
         { }
 
-        ~TlsfAllocator() {
-            tlsf_destroy(mAllocator);
-        }
-
-        constexpr TlsfAllocator(const TlsfAllocator&) = delete;
-        TlsfAllocator& operator=(const TlsfAllocator&) = delete;
-
-        constexpr TlsfAllocator(TlsfAllocator&&) = delete;
-        TlsfAllocator& operator=(TlsfAllocator&&) = delete;
-
-        void *allocate(size_t size, size_t _) override {
-            return tlsf_malloc(mAllocator, size);
+        void *allocate(size_t size, size_t _ = alignof(std::max_align_t)) override {
+            return tlsf_malloc(mAllocator.get(), size);
         }
 
         void *reallocate(void *old, size_t _, size_t newSize) override {
-            return tlsf_realloc(mAllocator, old, newSize);
+            return tlsf_realloc(mAllocator.get(), old, newSize);
         }
 
         void deallocate(void *ptr, size_t _) override {
-            tlsf_free(mAllocator, ptr);
+            tlsf_free(mAllocator.get(), ptr);
         }
     };
 }
