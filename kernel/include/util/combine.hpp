@@ -3,6 +3,7 @@
 #include "util/util.hpp"
 
 #include <algorithm>
+#include <cstring>
 
 namespace sm {
     /// @brief Combine the storage of interface implementations into a single object.
@@ -12,31 +13,40 @@ namespace sm {
     ///          that while copying/moving, causing lots of fun issues.
     template<typename T, typename... U> requires ((std::derived_from<U, T> && ...) && std::has_virtual_destructor_v<T>)
     class Combine {
-        alignas(std::max(alignof(U)...)) char storage[std::max(sizeof(U)...)] {};
+        alignas(std::max(alignof(U)...)) char mStorage[std::max(sizeof(U)...)] {};
 
-        constexpr T *pointer() { return reinterpret_cast<T *>(storage); }
-        constexpr T **address() { return reinterpret_cast<T **>(&storage); }
+        constexpr T *pointer() { return reinterpret_cast<T *>(mStorage); }
+        constexpr T **address() { return reinterpret_cast<T **>(&mStorage); }
+
+        /// @brief Checks if the vtable pointer is valid.
+        bool isValid() const {
+            char zero[sizeof(void*)]{};
+            return std::memcmp(mStorage, zero, sizeof(void*)) != 0;
+        }
 
         constexpr void destroy() {
-            pointer()->~T();
+            if (isValid()) {
+                pointer()->~T();
+                std::memset(mStorage, 0, sizeof(void*));
+            }
         }
 
     public:
         constexpr Combine() = default;
 
-        template<typename O> requires (std::same_as<O, U> || ...)
+        template<typename O> requires (std::same_as<std::remove_reference_t<O>, U> || ...)
         constexpr Combine(O &&o) {
-            new (address()) O{std::forward<O>(o)};
+            new (address()) std::remove_reference_t<O>{std::forward<O>(o)};
         }
 
         constexpr ~Combine() {
             destroy();
         }
 
-        template<typename O> requires (std::same_as<O, U> || ...)
+        template<typename O> requires (std::same_as<std::remove_reference_t<O>, U> || ...)
         constexpr Combine &operator=(O &&o) {
             destroy();
-            new (address()) O{std::forward<O>(o)};
+            new (address()) std::remove_reference_t<O>{std::forward<O>(o)};
             return *this;
         }
 
