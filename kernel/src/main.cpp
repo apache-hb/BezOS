@@ -390,8 +390,8 @@ static void DumpIsrState(const km::IsrContext *context) {
     KmDebugMessage("| IA32_KERNEL_GS_BASE | ", Hex(kKernelGsBase.load()).pad(16, '0'), "\n");
 }
 
-static LocalApic KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllocator& isrs) {
-    LocalApic lapic = KmInitBspLocalApic(memory);
+static km::IntController KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllocator& isrs, bool useX2Apic) {
+    km::IntController lapic = KmInitBspLocalApic(memory, useX2Apic);
 
     // setup tls now that we have the lapic id
 
@@ -401,7 +401,7 @@ static LocalApic KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllocator& i
     km::InitKernelThread(lapic);
 
     uint8_t spuriousVec = isrs.allocateIsr();
-    KmDebugMessage("[INIT] APIC ID: ", lapic.id(), ", Version: ", lapic.version(), ", Spurious vector: ", spuriousVec, "\n");
+    KmDebugMessage("[INIT] APIC ID: ", lapic->id(), ", Version: ", lapic->version(), ", Spurious vector: ", spuriousVec, "\n");
 
     KmInstallIsrHandler(spuriousVec, [](km::IsrContext *ctx) -> void* {
         KmDebugMessage("[ISR] Spurious interrupt: ", ctx->vector, "\n");
@@ -410,7 +410,7 @@ static LocalApic KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllocator& i
         return ctx;
     });
 
-    lapic.setSpuriousVector(spuriousVec);
+    lapic->setSpuriousVector(spuriousVec);
 
 #if 0
     for (apic::Ivt ivt : {apic::Ivt::eTimer, apic::Ivt::eThermal, apic::Ivt::ePerformance, apic::Ivt::eLvt0, apic::Ivt::eLvt1, apic::Ivt::eError}) {
@@ -418,7 +418,7 @@ static LocalApic KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllocator& i
     }
 #endif
 
-    lapic.enable();
+    lapic->enable();
 
     return lapic;
 }
@@ -652,7 +652,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
 
     bool useX2Apic = kUseX2Apic && processor.has2xApic;
 
-    LocalApic lapic = KmEnableLocalApic(memory, isrs);
+    km::IntController lapic = KmEnableLocalApic(memory, isrs, useX2Apic);
 
     acpi::AcpiTables rsdt = InitAcpi(rsdpBaseAddress, memory);
     const acpi::Fadt *fadt = rsdt.fadt();
@@ -674,7 +674,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
 
     pci::ProbeConfigSpace();
 
-    KmInitSmp(memory, &lapic, rsdt, useX2Apic);
+    KmInitSmp(memory, lapic.pointer(), rsdt, useX2Apic);
 
     gLogLock = &gRecursiveDebugLock;
 

@@ -40,8 +40,6 @@ namespace km {
         };
     }
 
-    static constexpr size_t kApicSize = 0x3F0;
-
     void EnableX2Apic();
     bool HasX2ApicSupport();
     bool IsX2ApicEnabled();
@@ -60,9 +58,10 @@ namespace km {
 
         virtual void sendIpi(uint32_t dst, uint32_t vector) = 0;
 
-        void sendIpi(apic::IcrDeliver deliver, uint8_t vector) {
-            sendIpi(0, (std::to_underlying(deliver) << 18) | vector);
-        }
+        void sendIpi(apic::IcrDeliver deliver, uint8_t vector);
+
+        virtual void enable() = 0;
+        virtual void setSpuriousVector(uint8_t vector) = 0;
     };
 
     class X2Apic final : public IIntController {
@@ -78,6 +77,9 @@ namespace km {
         void eoi() override;
 
         void sendIpi(uint32_t dst, uint32_t vector) override;
+
+        void enable() override;
+        void setSpuriousVector(uint8_t vector) override;
     };
 
     class LocalApic final : public IIntController {
@@ -91,8 +93,6 @@ namespace km {
         static constexpr uint32_t kIcr0 = 0x300;
 
         static constexpr uint32_t kIvtDisable = (1 << 16);
-
-        static constexpr uint32_t kApicEnable = (1 << 8);
 
         void *mBaseAddress = nullptr;
 
@@ -133,13 +133,9 @@ namespace km {
 
         void eoi() override;
 
-        void enable() {
-            setSpuriousInt(spuriousInt() | kApicEnable);
-        }
+        void enable() override;
 
-        void setSpuriousVector(uint8_t vector) {
-            setSpuriousInt((spuriousInt() & ~0xFF) | vector);
-        }
+        void setSpuriousVector(uint8_t vector) override;
 
         void *baseAddress(void) const { return mBaseAddress; }
     };
@@ -172,5 +168,5 @@ namespace km {
     };
 }
 
-km::LocalApic KmInitBspLocalApic(km::SystemMemory& memory);
+km::LocalApic KmInitBspLocalApic(km::SystemMemory& memory, bool useX2Apic);
 km::IntController KmInitApIntController(km::SystemMemory& memory, km::IIntController *bsp, bool useX2Apic);

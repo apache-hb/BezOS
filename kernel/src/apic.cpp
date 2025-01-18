@@ -29,8 +29,11 @@ static constexpr x64::ModelRegister<k2xApicBaseMsr + 0xF, x64::RegisterAccess::e
 static constexpr x64::ModelRegister<k2xApicBaseMsr + 0x30, x64::RegisterAccess::eWrite> k2xApicIcr;
 
 static constexpr uint64_t kApicAddressMask = 0xFFFFFFFFFFFFF000;
-static constexpr uint64_t kApicEnable = (1 << 11);
-static constexpr uint64_t kApicBsp = (1 << 8);
+static constexpr uint64_t kApicEnableBit = (1 << 11);
+static constexpr uint32_t kX2ApicEnableBit = (1 << 10);
+static constexpr uint64_t kApicBspBit = (1 << 8);
+
+static constexpr uint32_t kApicSoftwareEnable = (1 << 8);
 
 static void Disable8259Pic() {
     KmDebugMessage("[INIT] Disabling 8259 PIC.\n");
@@ -64,19 +67,30 @@ static void LogApicStartup(uint64_t msr) {
     using namespace stdx::literals;
 
     uintptr_t base = msr & kApicAddressMask;
-    bool enabled = msr & kApicEnable;
-    bool bsp = msr & kApicBsp;
+    bool enabled = msr & kApicEnableBit;
+    bool x2apic = msr & kX2ApicEnableBit;
+    bool bsp = msr & kApicBspBit;
 
     stdx::StringView kind = bsp ? "Bootstrap Processor"_sv : "Application Processor"_sv;
 
-    KmDebugMessage("[APIC] Startup: ", km::Hex(msr), ", Base address: ", km::Hex(base), ", State: ", km::enabled(enabled), ", Type: ", kind, "\n");
+    stdx::StringView state = [&] {
+        if (enabled && x2apic) {
+            return "x2APIC enabled"_sv;
+        } else if (enabled) {
+            return "Local APIC enabled"_sv;
+        } else {
+            return "Disabled"_sv;
+        }
+    }();
+
+    KmDebugMessage("[APIC] Startup: ", km::Hex(msr), ", Base address: ", km::Hex(base), ", State: ", state, ", Type: ", kind, "\n");
 }
 
 static uint64_t EnableLocalApic(km::PhysicalAddress baseAddress = 0uz) {
     uint64_t msr = kApicBase.load();
 
     kApicBase.update(msr, [&](uint64_t& value) {
-        value |= kApicEnable;
+        value |= kApicEnableBit;
 
         if (baseAddress != 0uz) {
             value &= ~kApicAddressMask;
@@ -108,10 +122,19 @@ void km::X2Apic::sendIpi(uint32_t dst, uint32_t vector) {
     k2xApicIcr.store(icr);
 }
 
-static constexpr uint32_t kX2ApicEnableBit = (1 << 10);
+void km::X2Apic::enable() {
+    k2xApicSpuriousVector |= kApicSoftwareEnable;
+}
+
+void km::X2Apic::setSpuriousVector(uint8_t vector) {
+    k2xApicSpuriousVector.store((k2xApicSpuriousVector.load() & ~0xFF) | vector);
+}
 
 void km::EnableX2Apic() {
-    kApicBase |= kX2ApicEnableBit;
+    // Intel® 64 Architecture x2APIC Specification
+    // Table 2-1. x2APIC Operating Mode Configurations
+    // Both IA32_APIC_BASE[11] (xAPIC global enable) and IA32_APIC_BASE[10] (x2APIC enable) must be set.
+    kApicBase |= (kX2ApicEnableBit | kApicEnableBit);
 }
 
 bool km::HasX2ApicSupport() {
@@ -125,8 +148,11 @@ bool km::IsX2ApicEnabled() {
 
 // local apic
 
+static constexpr size_t kApicSize = 0x3F0;
+
 static km::LocalApic MapLocalApic(uint64_t msr, km::SystemMemory& memory) {
-    KM_CHECK(msr & kApicEnable, "APIC not enabled");
+    KM_CHECK(msr & kApicEnableBit, "APIC not enabled");
+    KM_CHECK(!(msr & kX2ApicEnableBit), "Cannot use local APIC in x2APIC mode");
 
     uintptr_t base = msr & kApicAddressMask;
 
@@ -134,7 +160,7 @@ static km::LocalApic MapLocalApic(uint64_t msr, km::SystemMemory& memory) {
     // For correct APIC operation, this address space must
     // be mapped to an area of memory that has
     // been designated as strong uncacheable (UC)
-    void *addr = memory.map(base, base + km::kApicSize, km::PageFlags::eData, km::MemoryType::eUncached);
+    void *addr = memory.map(base, base + kApicSize, km::PageFlags::eData, km::MemoryType::eUncached);
 
     return km::LocalApic { addr };
 }
@@ -149,7 +175,7 @@ km::LocalApic km::LocalApic::current(km::SystemMemory& memory) {
     return MapLocalApic(reg, memory);
 }
 
-km::LocalApic KmInitBspLocalApic(km::SystemMemory& memory) {
+km::LocalApic KmInitBspLocalApic(km::SystemMemory& memory, bool useX2Apic) {
     // Disable the emulated 8259 PIC before starting up the local apic.
     Disable8259Pic();
 
@@ -193,12 +219,24 @@ void km::LocalApic::eoi() {
     reg(kEndOfInt) = 0;
 }
 
+void km::LocalApic::enable() {
+    setSpuriousInt(spuriousInt() | kApicSoftwareEnable);
+}
+
+void km::LocalApic::setSpuriousVector(uint8_t vector) {
+    setSpuriousInt((spuriousInt() & ~0xFF) | vector);
+}
+
 km::IntController km::GetLocalIntController(km::SystemMemory& memory) {
     if (IsX2ApicEnabled()) {
         return X2Apic::get();
     } else {
         return LocalApic::current(memory);
     }
+}
+
+void km::IIntController::sendIpi(apic::IcrDeliver deliver, uint8_t vector) {
+    sendIpi(0, (std::to_underlying(deliver) << 18) | vector);
 }
 
 // io apic
