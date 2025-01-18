@@ -60,6 +60,13 @@ namespace km {
 
         void sendIpi(apic::IcrDeliver deliver, uint8_t vector);
 
+        virtual void cfgIvtTimer(apic::IvtConfig) { }
+        virtual void cfgIvtThermal(apic::IvtConfig) { }
+        virtual void cfgIvtPerformance(apic::IvtConfig) { }
+        virtual void cfgIvtLvt0(apic::IvtConfig) { }
+        virtual void cfgIvtLvt1(apic::IvtConfig) { }
+        virtual void cfgIvtError(apic::IvtConfig) { }
+
         virtual void enable() = 0;
         virtual void setSpuriousVector(uint8_t vector) = 0;
     };
@@ -102,6 +109,10 @@ namespace km {
             reg(kSpuriousInt) = value;
         }
 
+        uint32_t spuriousInt() const {
+            return reg(kSpuriousInt);
+        }
+
     public:
         constexpr LocalApic() = default;
 
@@ -114,10 +125,6 @@ namespace km {
         uint32_t id() const override;
 
         uint32_t version() const override;
-
-        uint32_t spuriousInt() const {
-            return reg(kSpuriousInt);
-        }
 
         void sendIpi(uint32_t dst, uint32_t vector) override;
 
@@ -141,8 +148,6 @@ namespace km {
     };
 
     using IntController = sm::Combine<IIntController, LocalApic, X2Apic>;
-
-    IntController GetLocalIntController(km::SystemMemory& memory);
 
     class IoApic {
         uint8_t *mAddress = nullptr;
@@ -168,5 +173,5 @@ namespace km {
     };
 }
 
-km::IntController KmInitBspLocalApic(km::SystemMemory& memory, bool useX2Apic);
-km::IntController KmInitApIntController(km::SystemMemory& memory, km::IIntController *bsp, bool useX2Apic);
+km::IntController KmInitBspApic(km::SystemMemory& memory, bool useX2Apic);
+km::IntController KmInitApApic(km::SystemMemory& memory, km::IIntController *bsp, bool useX2Apic);

@@ -61,7 +61,7 @@ static void Disable8259Pic() {
     KmDebugMessage("[INIT] PIC disabled\n");
 }
 
-// local apic setup
+// apic setup
 
 static void LogApicStartup(uint64_t msr) {
     using namespace stdx::literals;
@@ -80,24 +80,27 @@ static void LogApicStartup(uint64_t msr) {
     }
 }
 
-static uint64_t EnableLocalApic(km::PhysicalAddress baseAddress = 0uz) {
-    uint64_t msr = kApicBase.load();
+// x2apic free functions
 
-    kApicBase.update(msr, [&](uint64_t& value) {
-        value |= kApicEnableBit;
+void km::EnableX2Apic() {
+    // Intel® 64 Architecture x2APIC Specification
+    // Table 2-1. x2APIC Operating Mode Configurations
+    // Both IA32_APIC_BASE[11] (xAPIC global enable) and IA32_APIC_BASE[10] (x2APIC enable) must be set.
+    kApicBase |= (kX2ApicEnableBit | kApicEnableBit);
 
-        if (baseAddress != 0uz) {
-            value &= ~kApicAddressMask;
-            value |= baseAddress.address;
-        }
-    });
-
-    LogApicStartup(msr);
-
-    return msr;
+    LogApicStartup(kApicBase.load());
 }
 
-// 2xapic
+bool km::HasX2ApicSupport() {
+    sm::CpuId cpuid = sm::CpuId::of(1);
+    return cpuid.ecx & (1 << 21);
+}
+
+bool km::IsX2ApicEnabled() {
+    return kApicBase.load() & kX2ApicEnableBit;
+}
+
+// x2apic methods
 
 uint32_t km::X2Apic::id() const {
     return k2xApicId.load();
@@ -124,25 +127,7 @@ void km::X2Apic::setSpuriousVector(uint8_t vector) {
     k2xApicSpuriousVector.store((k2xApicSpuriousVector.load() & ~0xFF) | vector);
 }
 
-void km::EnableX2Apic() {
-    // Intel® 64 Architecture x2APIC Specification
-    // Table 2-1. x2APIC Operating Mode Configurations
-    // Both IA32_APIC_BASE[11] (xAPIC global enable) and IA32_APIC_BASE[10] (x2APIC enable) must be set.
-    kApicBase |= (kX2ApicEnableBit | kApicEnableBit);
-
-    LogApicStartup(kApicBase.load());
-}
-
-bool km::HasX2ApicSupport() {
-    sm::CpuId cpuid = sm::CpuId::of(1);
-    return cpuid.ecx & (1 << 21);
-}
-
-bool km::IsX2ApicEnabled() {
-    return kApicBase.load() & kX2ApicEnableBit;
-}
-
-// local apic
+// local apic free functions
 
 static constexpr size_t kApicSize = 0x3F0;
 
@@ -161,6 +146,25 @@ static km::LocalApic MapLocalApic(uint64_t msr, km::SystemMemory& memory) {
     return km::LocalApic { addr };
 }
 
+static uint64_t EnableLocalApic(km::PhysicalAddress baseAddress = 0uz) {
+    uint64_t msr = kApicBase.load();
+
+    kApicBase.update(msr, [&](uint64_t& value) {
+        value |= kApicEnableBit;
+
+        if (baseAddress != 0uz) {
+            value &= ~kApicAddressMask;
+            value |= baseAddress.address;
+        }
+    });
+
+    LogApicStartup(msr);
+
+    return msr;
+}
+
+// local apic methods
+
 volatile uint32_t& km::LocalApic::reg(uint16_t offset) const {
     return *reinterpret_cast<volatile uint32_t*>((char*)mBaseAddress + offset);
 }
@@ -170,36 +174,6 @@ km::LocalApic km::LocalApic::current(km::SystemMemory& memory) {
 
     return MapLocalApic(reg, memory);
 }
-
-km::IntController KmInitBspLocalApic(km::SystemMemory& memory, bool useX2Apic) {
-    // Disable the 8259 PIC before starting up the local apic.
-    Disable8259Pic();
-
-    if (useX2Apic) {
-        km::EnableX2Apic();
-        return km::X2Apic::get();
-    } else {
-        uint64_t msr = EnableLocalApic();
-        return MapLocalApic(msr, memory);
-    }
-}
-
-km::IntController KmInitApIntController(km::SystemMemory& memory, km::IIntController *bsp, bool useX2Apic) {
-    if (useX2Apic) {
-        km::EnableX2Apic();
-
-        return km::X2Apic::get();
-    } else {
-        // Remap every AP lapic at the same address as the BSP lapic.
-        km::LocalApic *lapic = static_cast<km::LocalApic*>(bsp);
-        km::PhysicalAddress bspBaseAddress = uintptr_t(lapic->baseAddress()) - memory.pager.hhdmOffset();
-        uint64_t msr = EnableLocalApic(bspBaseAddress);
-
-        return MapLocalApic(msr, memory);
-    }
-}
-
-// local apic methods
 
 uint32_t km::LocalApic::id() const {
     uint32_t id = reg(kApicId);
@@ -227,16 +201,38 @@ void km::LocalApic::setSpuriousVector(uint8_t vector) {
     setSpuriousInt((spuriousInt() & ~0xFF) | vector);
 }
 
-km::IntController km::GetLocalIntController(km::SystemMemory& memory) {
-    if (IsX2ApicEnabled()) {
-        return X2Apic::get();
+void km::IIntController::sendIpi(apic::IcrDeliver deliver, uint8_t vector) {
+    sendIpi(0, (std::to_underlying(deliver) << 18) | vector);
+}
+
+// generic apic free functions
+
+km::IntController KmInitBspApic(km::SystemMemory& memory, bool useX2Apic) {
+    // Disable the 8259 PIC before starting up the local apic.
+    Disable8259Pic();
+
+    if (useX2Apic) {
+        km::EnableX2Apic();
+        return km::X2Apic::get();
     } else {
-        return LocalApic::current(memory);
+        uint64_t msr = EnableLocalApic();
+        return MapLocalApic(msr, memory);
     }
 }
 
-void km::IIntController::sendIpi(apic::IcrDeliver deliver, uint8_t vector) {
-    sendIpi(0, (std::to_underlying(deliver) << 18) | vector);
+km::IntController KmInitApApic(km::SystemMemory& memory, km::IIntController *bsp, bool useX2Apic) {
+    if (useX2Apic) {
+        km::EnableX2Apic();
+
+        return km::X2Apic::get();
+    } else {
+        // Remap every AP lapic at the same address as the BSP lapic.
+        km::LocalApic *lapic = static_cast<km::LocalApic*>(bsp);
+        km::PhysicalAddress bspBaseAddress = uintptr_t(lapic->baseAddress()) - memory.pager.hhdmOffset();
+        uint64_t msr = EnableLocalApic(bspBaseAddress);
+
+        return MapLocalApic(msr, memory);
+    }
 }
 
 // io apic

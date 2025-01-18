@@ -1,8 +1,8 @@
 #pragma once
 
-#include <stddef.h>
-#include <stdint.h>
-#include <limits.h>
+#include <cstddef>
+#include <cstdint>
+#include <climits>
 
 namespace km {
     struct [[gnu::packed]] IsrContext {

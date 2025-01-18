@@ -391,7 +391,7 @@ static void DumpIsrState(const km::IsrContext *context) {
 }
 
 static km::IntController KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllocator& isrs, bool useX2Apic) {
-    km::IntController lapic = KmInitBspLocalApic(memory, useX2Apic);
+    km::IntController lapic = KmInitBspApic(memory, useX2Apic);
 
     // setup tls now that we have the lapic id
 

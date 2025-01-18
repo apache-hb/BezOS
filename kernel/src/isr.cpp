@@ -60,13 +60,18 @@ static void *KmDefaultIsrHandler(km::IsrContext *context) {
 }
 
 extern "C" void *KmIsrDispatchRoutine(km::IsrContext *context) {
+    // Did this interrupt happen while in kernel space?
     bool kernelSpaceInt = (GDT_64BIT_CODE * 0x8) == context->cs;
+
+    // If it didn't then the GS_BASE and KERNEL_GS_BASE registers need to be swapped
     if (!kernelSpaceInt) {
         __swapgs();
     }
 
+    // Then invoke the interrupt handler routine
     void *result = KmIsrHandlers[context->vector](context);
 
+    // And then swapped back again to avoid breaking userspace
     if (!kernelSpaceInt) {
         __swapgs();
     }
