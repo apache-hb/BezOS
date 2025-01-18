@@ -5,6 +5,7 @@
 #include "arch/msr.hpp"
 #include "log.hpp"
 #include "panic.hpp"
+#include "util/cpuid.hpp"
 
 static constexpr uint16_t kCommandMasterPort = 0x20;
 static constexpr uint16_t kDataMasterPort = 0x21;
@@ -17,7 +18,15 @@ static constexpr uint8_t kSlaveIdtStart = 0x28;
 static constexpr uint8_t kSlavePin = 0x2;
 static constexpr uint8_t kSlaveId = 0x4;
 
-static constexpr x64::ModelRegister<0x1b, x64::RegisterAccess::eReadWrite> kApicBaseMsr;
+static constexpr x64::ModelRegister<0x1b, x64::RegisterAccess::eReadWrite> kApicBase;
+
+static constexpr uint16_t k2xApicBaseMsr = 0x800;
+
+static constexpr x64::ModelRegister<k2xApicBaseMsr + 0x2, x64::RegisterAccess::eRead> k2xApicId;
+static constexpr x64::ModelRegister<k2xApicBaseMsr + 0x3, x64::RegisterAccess::eRead> k2xApicVersion;
+static constexpr x64::ModelRegister<k2xApicBaseMsr + 0xB, x64::RegisterAccess::eWrite> k2xApicEoi;
+static constexpr x64::ModelRegister<k2xApicBaseMsr + 0xF, x64::RegisterAccess::eReadWrite> k2xApicSpuriousVector;
+static constexpr x64::ModelRegister<k2xApicBaseMsr + 0x30, x64::RegisterAccess::eWrite> k2xApicIcr;
 
 static constexpr uint64_t kApicAddressMask = 0xFFFFFFFFFFFFF000;
 static constexpr uint64_t kApicEnable = (1 << 11);
@@ -64,9 +73,9 @@ static void LogApicStartup(uint64_t msr) {
 }
 
 static uint64_t EnableLocalApic(km::PhysicalAddress baseAddress = 0uz) {
-    uint64_t msr = kApicBaseMsr.load();
+    uint64_t msr = kApicBase.load();
 
-    kApicBaseMsr.update(msr, [&](uint64_t& value) {
+    kApicBase.update(msr, [&](uint64_t& value) {
         value |= kApicEnable;
 
         if (baseAddress != 0uz) {
@@ -79,6 +88,42 @@ static uint64_t EnableLocalApic(km::PhysicalAddress baseAddress = 0uz) {
 
     return msr;
 }
+
+// 2xapic
+
+uint32_t km::X2Apic::id() const {
+    return k2xApicId.load();
+}
+
+uint32_t km::X2Apic::version() const {
+    return k2xApicVersion.load() & 0xFF;
+}
+
+void km::X2Apic::eoi() {
+    k2xApicEoi.store(0);
+}
+
+void km::X2Apic::sendIpi(uint32_t dst, uint32_t vector) {
+    uint64_t icr = uint64_t(dst) << 32 | vector;
+    k2xApicIcr.store(icr);
+}
+
+static constexpr uint32_t kX2ApicEnableBit = (1 << 10);
+
+void km::EnableX2Apic() {
+    kApicBase |= kX2ApicEnableBit;
+}
+
+bool km::HasX2ApicSupport() {
+    sm::CpuId cpuid = sm::CpuId::of(1);
+    return cpuid.ecx & (1 << 21);
+}
+
+bool km::IsX2ApicEnabled() {
+    return kApicBase.load() & kX2ApicEnableBit;
+}
+
+// local apic
 
 static km::LocalApic MapLocalApic(uint64_t msr, km::SystemMemory& memory) {
     KM_CHECK(msr & kApicEnable, "APIC not enabled");
@@ -99,7 +144,7 @@ volatile uint32_t& km::LocalApic::reg(uint16_t offset) const {
 }
 
 km::LocalApic km::LocalApic::current(km::SystemMemory& memory) {
-    uint64_t reg = kApicBaseMsr.load();
+    uint64_t reg = kApicBase.load();
 
     return MapLocalApic(reg, memory);
 }
@@ -130,6 +175,23 @@ uint32_t km::LocalApic::id() const {
 
 uint32_t km::LocalApic::version() const {
     return reg(kApicVersion) & 0xFF;
+}
+
+void km::LocalApic::sendIpi(uint32_t dst, uint32_t vector) {
+    reg(kIcr1) = dst << 24;
+    reg(kIcr0) = vector;
+}
+
+void km::LocalApic::eoi() {
+    reg(kEndOfInt) = 0;
+}
+
+km::IntController km::GetLocalIntController(km::SystemMemory& memory) {
+    if (IsX2ApicEnabled()) {
+        return X2Apic::get();
+    } else {
+        return LocalApic::current(memory);
+    }
 }
 
 // io apic

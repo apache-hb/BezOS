@@ -11,4 +11,5 @@ namespace km {
 
     CpuCoreId GetCurrentCoreId();
     LocalApic GetCurrentCoreApic();
+    IntController GetCurrentCoreIntController();
 }

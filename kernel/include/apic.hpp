@@ -1,6 +1,7 @@
 #pragma once
 
 #include "acpi/acpi.hpp"
+#include "util/combine.hpp"
 
 #include <utility>
 
@@ -41,7 +42,45 @@ namespace km {
 
     static constexpr size_t kApicSize = 0x3F0;
 
-    class LocalApic {
+    void EnableX2Apic();
+    bool HasX2ApicSupport();
+    bool IsX2ApicEnabled();
+
+    class IIntController {
+    public:
+        void operator delete(IIntController*, std::destroying_delete_t) {
+            std::unreachable();
+        }
+
+        virtual ~IIntController() = default;
+
+        virtual uint32_t id() const = 0;
+        virtual uint32_t version() const = 0;
+        virtual void eoi() = 0;
+
+        virtual void sendIpi(uint32_t dst, uint32_t vector) = 0;
+
+        void sendIpi(apic::IcrDeliver deliver, uint8_t vector) {
+            sendIpi(0, (std::to_underlying(deliver) << 18) | vector);
+        }
+    };
+
+    class X2Apic final : public IIntController {
+    public:
+        constexpr X2Apic() = default;
+
+        static X2Apic get() { return X2Apic(); }
+
+        uint32_t id() const override;
+
+        uint32_t version() const override;
+
+        void eoi() override;
+
+        void sendIpi(uint32_t dst, uint32_t vector) override;
+    };
+
+    class LocalApic final : public IIntController {
         static constexpr uint16_t kApicId = 0x20;
         static constexpr uint16_t kApicVersion = 0x30;
         static constexpr uint16_t kEndOfInt = 0xB0;
@@ -68,22 +107,19 @@ namespace km {
 
         static LocalApic current(km::SystemMemory& memory);
 
-        LocalApic(void *base)
+        constexpr LocalApic(void *base)
             : mBaseAddress(base)
         { }
 
-        uint32_t id() const;
+        uint32_t id() const override;
 
-        uint32_t version() const;
+        uint32_t version() const override;
 
         uint32_t spuriousInt() const {
             return reg(kSpuriousInt);
         }
 
-        void sendIpi(uint32_t dst, uint32_t vector) {
-            reg(kIcr1) = dst << 24;
-            reg(kIcr0) = vector;
-        }
+        void sendIpi(uint32_t dst, uint32_t vector) override;
 
         void configure(apic::Ivt ivt, apic::IvtConfig config) {
             uint32_t entry
@@ -95,14 +131,7 @@ namespace km {
             reg(std::to_underlying(ivt)) = entry;
         }
 
-        void sendIpi(apic::IcrDeliver deliver, uint8_t vector) {
-            reg(kIcr1) = 0;
-            reg(kIcr0) = (std::to_underlying(deliver) << 18) | vector;
-        }
-
-        void clearEndOfInterrupt() {
-            reg(kEndOfInt) = 0;
-        }
+        void eoi() override;
 
         void enable() {
             setSpuriousInt(spuriousInt() | kApicEnable);
@@ -114,6 +143,10 @@ namespace km {
 
         void *baseAddress(void) const { return mBaseAddress; }
     };
+
+    using IntController = sm::Combine<IIntController, LocalApic, X2Apic>;
+
+    IntController GetLocalIntController(km::SystemMemory& memory);
 
     class IoApic {
         uint8_t *mAddress = nullptr;

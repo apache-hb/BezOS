@@ -6,6 +6,7 @@
 struct KernelThreadData {
     uint32_t lapicId;
     km::LocalApic lapic;
+    km::IntController pic;
 };
 
 [[gnu::section(".tlsdata")]]
@@ -25,4 +26,8 @@ km::CpuCoreId km::GetCurrentCoreId() {
 
 km::LocalApic km::GetCurrentCoreApic() {
     return tlsCoreInfo->lapic;
+}
+
+km::IntController km::GetCurrentCoreIntController() {
+    return tlsCoreInfo->pic;
 }
