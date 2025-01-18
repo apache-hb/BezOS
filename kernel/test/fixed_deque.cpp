@@ -147,3 +147,57 @@ TEST(FixedDequeTest, Interleaved) {
         EXPECT_EQ(test.ring.pollFront(), 7 - i) << "i = " << i;
     }
 }
+
+TEST(FixedDequeTest, Iter) {
+    FixedDequeTestData<int> test(16);
+
+    for (int i = 0; i < 16; i++) {
+        test.ring.addFront(i);
+    }
+
+    int i = 0;
+    for (auto it : test.ring) {
+        ASSERT_EQ(it, 15 - i) << "i = " << i;
+        i++;
+    }
+}
+
+TEST(FixedDequeTest, Erase) {
+    FixedDequeTestData<int> test(16);
+
+    for (int i = 0; i < 16; i++) {
+        test.ring.addFront(i);
+        ASSERT_EQ(test.ring.front(), i);
+    }
+
+    auto it = test.ring.begin();
+    for (int i = 0; i < 16; i++) {
+        EXPECT_EQ(*it, 15 - i) << "i = " << i;
+        it++;
+    }
+
+    ASSERT_NE(test.ring.begin(), test.ring.end());
+
+    it = test.ring.begin();
+    int iter = 0;
+    while (it != test.ring.end()) {
+        if (iter % 2 == 0) {
+            it = test.ring.erase(it);
+            ASSERT_EQ(*it, 15 - iter) << "iter = " << iter;
+        } else {
+            it++;
+        }
+
+        iter++;
+    }
+
+    ASSERT_EQ(iter, 16);
+
+    ASSERT_EQ(test.ring.count(), 8);
+
+    it = test.ring.begin();
+    for (int i = 0; i < 8; i++) {
+        EXPECT_EQ(*it, 15 - (i * 2)) << "i = " << i;
+        it++;
+    }
+}

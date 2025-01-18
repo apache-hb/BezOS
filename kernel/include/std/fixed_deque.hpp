@@ -12,10 +12,10 @@ namespace stdx {
         T *mBack;
 
         /// @brief Current deque head.
-        T *mHead;
+        T *mTail;
 
         /// @brief Current deque tail.
-        T *mTail;
+        T *mHead;
 
         /// @brief The current number of elements in the deque.
         /// @note This is annoying to have to keep track of, there is
@@ -45,68 +45,92 @@ namespace stdx {
         constexpr FixedDeque(T *front, T *back)
             : mFront(front)
             , mBack(back)
-            , mHead(front)
             , mTail(front)
+            , mHead(front)
         { }
 
         class Iterator {
-            const FixedDeque *mContainer;
+            FixedDeque *mContainer;
 
-            T *mIter;
+            size_t mIndex;
 
         public:
             using difference_type = std::ptrdiff_t;
 
             constexpr Iterator()
                 : mContainer(nullptr)
-                , mIter(nullptr)
+                , mIndex(0)
             { }
 
-            constexpr Iterator(const FixedDeque *container, T *iter)
+            constexpr Iterator(const FixedDeque *container, size_t iter)
                 : mContainer(container)
-                , mIter(iter)
+                , mIndex(iter)
             { }
-
-            // fulfill the requirements of LegacyInputIterator
 
             constexpr bool operator!=(const Iterator& other) const {
-                return mIter != other.mIter;
+                return mIndex != other.mIndex;
+            }
+
+            constexpr bool operator==(const Iterator& other) const {
+                return mIndex == other.mIndex;
             }
 
             constexpr Iterator& operator++() {
-                mIter = mContainer->after(mIter);
+                mIndex++;
                 return *this;
+            }
+
+            constexpr Iterator operator++(int) {
+                Iterator copy = *this;
+                mIndex++;
+                return copy;
+            }
+
+            constexpr Iterator& operator--() {
+                mIndex--;
+                return *this;
+            }
+
+            constexpr Iterator operator--(int) {
+                Iterator copy = *this;
+                mIndex--;
+                return copy;
             }
 
             constexpr T& operator*() {
-                return *mIter;
+                return mContainer->get(mIndex);
             }
 
             constexpr difference_type operator-(const Iterator& other) const {
-                if (other.mIter <= mIter) {
-                    return mIter - other.mIter;
-                } else {
-                    return mContainer->mBack - other.mIter + mIter - mContainer->mFront;
-                }
+                return mIndex - other.mIndex;
             }
 
-            constexpr Iterator& operator+=(difference_type n) {
-                mIter = mContainer->after(mIter, n);
-                return *this;
+            constexpr Iterator operator+(difference_type diff) const {
+                return Iterator(mContainer, mIndex + diff);
             }
         };
 
-        Iterator begin() { return Iterator(this, mHead - 1); }
-        Iterator end() { return Iterator(this, mTail); }
+        Iterator end() {
+            return Iterator(this, mTail);
+        }
 
-        Iterator begin() const { return Iterator(this, mHead - 1); }
-        Iterator end() const { return Iterator(this, mTail); }
+        Iterator begin() {
+            return Iterator(this, mHead);
+        }
 
-        bool isEmpty() const { return mHead == mTail; }
+        Iterator end() const {
+            return Iterator(this, mTail);
+        }
+
+        Iterator begin() const {
+            return Iterator(this, mHead);
+        }
+
+        bool isEmpty() const { return mCount == 0; }
         bool isFull() const { return count() == capacity(); }
 
-        T& head() { return *mHead; }
-        T& tail() { return *mTail; }
+        T& back() { return *mTail; }
+        T& front() { return *mHead; }
 
         size_t capacity() const { return mBack - mFront; }
         size_t count() const { return mCount; }
@@ -117,8 +141,8 @@ namespace stdx {
             }
 
             mCount += 1;
-            *mHead = value;
-            mHead = before(mHead);
+            *mTail = value;
+            mTail = before(mTail);
             return true;
         }
 
@@ -128,33 +152,51 @@ namespace stdx {
             }
 
             mCount += 1;
-            mTail = after(mTail);
-            *mTail = value;
+            mHead = after(mHead);
+            *mHead = value;
             return true;
         }
 
         T pollFront() {
             mCount -= 1;
-            T value = *mTail;
-            mTail = before(mTail);
+            T value = *mHead;
+            mHead = before(mHead);
             return value;
         }
 
         T pollBack() {
             mCount -= 1;
-            mHead = after(mHead);
-            return *mHead;
+            mTail = after(mTail);
+            return *mTail;
         }
 
-        void erase(Iterator it) {
-            Iterator next = it;
-            while (next != end()) {
-                *it = *next;
-                it++;
-                next++;
+        T &get(size_t index) {
+            T *ptr = mHead;
+            for (size_t i = 0; i < index; i++) {
+                ptr = before(ptr);
             }
-            mTail = before(mTail);
+            return *ptr;
+        }
+
+        const T &get(size_t index) const {
+            T *ptr = mHead;
+            for (size_t i = 0; i < index; i++) {
+                ptr = before(ptr);
+            }
+            return *ptr;
+        }
+
+        Iterator erase(Iterator it) {
+            Iterator current = it;
+
+            while (current != end()) {
+                *current = *++current;
+            }
+
             mCount -= 1;
+            mHead = before(mHead);
+
+            return it;
         }
     };
 }
