@@ -158,7 +158,7 @@ km::LocalApic KmInitBspLocalApic(km::SystemMemory& memory) {
     return MapLocalApic(msr, memory);
 }
 
-km::LocalApic KmInitApLocalApic(km::SystemMemory& memory, km::LocalApic& bsp) {
+km::IntController KmInitApLocalApic(km::SystemMemory& memory, km::LocalApic& bsp) {
     // Remap every AP lapic at the same address as the BSP lapic.
     km::PhysicalAddress bspBaseAddress = uintptr_t(bsp.baseAddress()) - memory.pager.hhdmOffset();
     uint64_t msr = EnableLocalApic(bspBaseAddress);

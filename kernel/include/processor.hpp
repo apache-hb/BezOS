@@ -7,9 +7,8 @@ namespace km {
         eInvalid = 0xFFFF'FFFF
     };
 
-    void InitKernelThread(LocalApic lapic);
+    void InitKernelThread(IntController pic);
 
     CpuCoreId GetCurrentCoreId();
-    LocalApic GetCurrentCoreApic();
     IntController GetCurrentCoreIntController();
 }

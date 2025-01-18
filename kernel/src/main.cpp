@@ -403,8 +403,8 @@ static LocalApic KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllocator& i
 
     KmInstallIsrHandler(spuriousVec, [](km::IsrContext *ctx) -> void* {
         KmDebugMessage("[ISR] Spurious interrupt: ", ctx->vector, "\n");
-        km::LocalApic lapic = GetCurrentCoreApic();
-        lapic.eoi();
+        km::IntController pic = GetCurrentCoreIntController();
+        pic->eoi();
         return ctx;
     });
 

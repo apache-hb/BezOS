@@ -15,9 +15,6 @@ namespace sm {
     class Combine {
         alignas(std::max(alignof(U)...)) char mStorage[std::max(sizeof(U)...)] {};
 
-        constexpr T *pointer() { return reinterpret_cast<T *>(mStorage); }
-        constexpr T **address() { return reinterpret_cast<T **>(&mStorage); }
-
         /// @brief Checks if the vtable pointer is valid.
         bool isValid() const {
             char zero[sizeof(void*)]{};
@@ -49,6 +46,9 @@ namespace sm {
             new (address()) std::remove_reference_t<O>{std::forward<O>(o)};
             return *this;
         }
+
+        T *pointer() { return reinterpret_cast<T *>(mStorage); }
+        T **address() { return reinterpret_cast<T **>(&mStorage); }
 
         T *operator->() { return pointer(); }
         T **operator&() { return address(); }

@@ -173,4 +173,4 @@ namespace km {
 }
 
 km::LocalApic KmInitBspLocalApic(km::SystemMemory& memory);
-km::LocalApic KmInitApLocalApic(km::SystemMemory& memory, km::LocalApic& bsp);
+km::IntController KmInitApLocalApic(km::SystemMemory& memory, km::LocalApic& bsp);
