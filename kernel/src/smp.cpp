@@ -47,9 +47,9 @@ struct SmpInfoHeader {
     /// the BSP that the next core can be started safely.
     std::atomic<uint32_t> ready;
 
-    km::LocalApic *bspApic;
-
+    km::IIntController *bspIntController;
     km::SystemMemory *memory;
+    bool useX2Apic;
 };
 
 static_assert(offsetof(SmpInfoHeader, gdt) == 32);
@@ -73,7 +73,7 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
     SetupInitialGdt();
     KmLoadIdt();
 
-    km::IntController pic = KmInitApLocalApic(*header->memory, *header->bspApic);
+    km::IntController pic = KmInitApIntController(*header->memory, header->bspIntController, header->useX2Apic);
 
     km::InitTlsRegion(*header->memory);
     km::InitKernelThread(pic);
@@ -92,7 +92,7 @@ static uintptr_t AllocSmpStack(km::SystemMemory& memory) {
     return (uintptr_t)memory.map(stack, stack + (x64::kPageSize * 4)) + (x64::kPageSize * 4);
 }
 
-static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::LocalApic *lapic) {
+static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::IIntController *pic, bool useX2Apic) {
     km::PageTableManager& vmm = memory->vmm;
 
     km::PhysicalAddress pml4 = vmm.rootPageTable();
@@ -107,12 +107,13 @@ static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::LocalApic 
             .limit = sizeof(SmpInfoHeader::gdt) - 1,
             .base = offsetof(SmpInfoHeader, gdt) + kSmpInfo.address,
         },
-        .bspApic = lapic,
+        .bspIntController = pic,
         .memory = memory,
+        .useX2Apic = useX2Apic,
     };
 }
 
-void KmInitSmp(km::SystemMemory& memory, km::LocalApic& bsp, acpi::AcpiTables& acpiTables) {
+void KmInitSmp(km::SystemMemory& memory, km::IIntController *bsp, acpi::AcpiTables& acpiTables, bool useX2Apic) {
     // copy the SMP blob to the correct location
     size_t blobSize = GetSmpBlobSize();
     void *smpStartBlob = memory.map(kSmpStart, kSmpStart + blobSize, km::PageFlags::eAll);
@@ -120,7 +121,7 @@ void KmInitSmp(km::SystemMemory& memory, km::LocalApic& bsp, acpi::AcpiTables& a
 
     KmDebugMessage("[SMP] Starting APs.\n");
 
-    uint32_t bspId = bsp.id();
+    uint32_t bspId = bsp->id();
 
     KmDebugMessage("[SMP] BSP ID: ", bspId, "\n");
 
@@ -131,7 +132,7 @@ void KmInitSmp(km::SystemMemory& memory, km::LocalApic& bsp, acpi::AcpiTables& a
     memory.vmm.mapRange({ kSmpInfo, kSmpInfo + sizeof(SmpInfoHeader) }, (void*)kSmpInfo.address, km::PageFlags::eData);
     memory.vmm.mapRange({ kSmpStart, kSmpStart + blobSize }, (void*)kSmpStart.address, km::PageFlags::eCode);
 
-    SmpInfoHeader header = SetupSmpInfoHeader(&memory, &bsp);
+    SmpInfoHeader header = SetupSmpInfoHeader(&memory, bsp, useX2Apic);
     memcpy(smpInfo, &header, sizeof(header));
 
     for (const acpi::MadtEntry *madt : *acpiTables.madt()) {
@@ -155,7 +156,7 @@ void KmInitSmp(km::SystemMemory& memory, km::LocalApic& bsp, acpi::AcpiTables& a
         KmDebugMessage("[SMP] Starting APIC ID: ", localApic.apicId, "\n");
 
         // Send the INIT IPI
-        bsp.sendIpi(localApic.apicId, 0x4500);
+        bsp->sendIpi(localApic.apicId, 0x4500);
 
         // TODO: sleep
 
@@ -163,7 +164,7 @@ void KmInitSmp(km::SystemMemory& memory, km::LocalApic& bsp, acpi::AcpiTables& a
 
         // Send the start IPI
         size_t smpStartAddress = kSmpStart.address / x64::kPageSize;
-        bsp.sendIpi(localApic.apicId, 0x4600 | smpStartAddress);
+        bsp->sendIpi(localApic.apicId, 0x4600 | smpStartAddress);
 
         KmDebugMessage("[SMP] Waiting for APIC ID: ", localApic.apicId, " to start.\n");
 

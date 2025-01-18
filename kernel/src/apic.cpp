@@ -158,12 +158,19 @@ km::LocalApic KmInitBspLocalApic(km::SystemMemory& memory) {
     return MapLocalApic(msr, memory);
 }
 
-km::IntController KmInitApLocalApic(km::SystemMemory& memory, km::LocalApic& bsp) {
+km::IntController KmInitApIntController(km::SystemMemory& memory, km::IIntController *bsp, bool useX2Apic) {
     // Remap every AP lapic at the same address as the BSP lapic.
-    km::PhysicalAddress bspBaseAddress = uintptr_t(bsp.baseAddress()) - memory.pager.hhdmOffset();
-    uint64_t msr = EnableLocalApic(bspBaseAddress);
+    if (useX2Apic) {
+        km::EnableX2Apic();
 
-    return MapLocalApic(msr, memory);
+        return km::X2Apic::get();
+    } else {
+        km::LocalApic *lapic = static_cast<km::LocalApic*>(bsp);
+        km::PhysicalAddress bspBaseAddress = uintptr_t(lapic->baseAddress()) - memory.pager.hhdmOffset();
+        uint64_t msr = EnableLocalApic(bspBaseAddress);
+
+        return MapLocalApic(msr, memory);
+    }
 }
 
 // local apic methods

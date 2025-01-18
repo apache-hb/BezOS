@@ -1,7 +1,5 @@
 #pragma once
 
-#include "util/util.hpp"
-
 #include <algorithm>
 #include <cstring>
 

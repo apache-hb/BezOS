@@ -48,6 +48,8 @@
 using namespace km;
 using namespace stdx::literals;
 
+static constexpr bool kUseX2Apic = true;
+
 class SerialLog final : public IOutStream {
     SerialPort mPort;
 
@@ -648,6 +650,8 @@ extern "C" void KmLaunch(KernelLaunch launch) {
 
     KmInitBootBufferedTerminal(launch, memory);
 
+    bool useX2Apic = kUseX2Apic && processor.has2xApic;
+
     LocalApic lapic = KmEnableLocalApic(memory, isrs);
 
     acpi::AcpiTables rsdt = InitAcpi(rsdpBaseAddress, memory);
@@ -670,7 +674,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
 
     pci::ProbeConfigSpace();
 
-    KmInitSmp(memory, lapic, rsdt);
+    KmInitSmp(memory, &lapic, rsdt, useX2Apic);
 
     gLogLock = &gRecursiveDebugLock;
 
