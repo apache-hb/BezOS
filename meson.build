@@ -250,9 +250,9 @@ testcases = {
     'static vector': [
         'kernel/test/static_vector.cpp',
     ],
-    # 'fixed deque': [
-    #     'kernel/test/fixed_deque.cpp',
-    # ],
+    'fixed deque': [
+        'kernel/test/fixed_deque.cpp',
+    ],
     'vector': [
         'kernel/test/vector.cpp',
     ],

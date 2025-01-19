@@ -49,6 +49,7 @@ using namespace km;
 using namespace stdx::literals;
 
 static constexpr bool kUseX2Apic = true;
+static constexpr bool kSelfTestApic = true;
 
 class SerialLog final : public IOutStream {
     SerialPort mPort;
@@ -391,17 +392,17 @@ static void DumpIsrState(const km::IsrContext *context) {
 }
 
 static km::IntController KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllocator& isrs, bool useX2Apic) {
-    km::IntController lapic = KmInitBspApic(memory, useX2Apic);
+    km::IntController pic = KmInitBspApic(memory, useX2Apic);
 
     // setup tls now that we have the lapic id
 
     km::InitTlsRegion(memory);
 
     gLogLock = &gSpinLock;
-    km::InitKernelThread(lapic);
+    km::InitKernelThread(pic);
 
     uint8_t spuriousVec = isrs.allocateIsr();
-    KmDebugMessage("[INIT] APIC ID: ", lapic->id(), ", Version: ", lapic->version(), ", Spurious vector: ", spuriousVec, "\n");
+    KmDebugMessage("[INIT] APIC ID: ", pic->id(), ", Version: ", pic->version(), ", Spurious vector: ", spuriousVec, "\n");
 
     KmInstallIsrHandler(spuriousVec, [](km::IsrContext *ctx) -> void* {
         KmDebugMessage("[ISR] Spurious interrupt: ", ctx->vector, "\n");
@@ -410,7 +411,7 @@ static km::IntController KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllo
         return ctx;
     });
 
-    lapic->setSpuriousVector(spuriousVec);
+    pic->setSpuriousVector(spuriousVec);
 
 #if 0
     for (apic::Ivt ivt : {apic::Ivt::eTimer, apic::Ivt::eThermal, apic::Ivt::ePerformance, apic::Ivt::eLvt0, apic::Ivt::eLvt1, apic::Ivt::eError}) {
@@ -418,9 +419,27 @@ static km::IntController KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllo
     }
 #endif
 
-    lapic->enable();
+    pic->enable();
 
-    return lapic;
+    if (kSelfTestApic) {
+        uint8_t isr = isrs.allocateIsr();
+
+        KmIsrHandler old = KmInstallIsrHandler(isr, [](km::IsrContext *context) -> void* {
+            KmDebugMessage("[SELFTEST] Handled isr: ", context->vector, "\n");
+            km::IntController pic = GetCurrentCoreIntController();
+            pic->eoi();
+            return context;
+        });
+
+        pic->sendIpi(apic::IcrDeliver::eSelf, isr);
+        pic->sendIpi(apic::IcrDeliver::eSelf, isr);
+        pic->sendIpi(apic::IcrDeliver::eSelf, isr);
+
+        KmInstallIsrHandler(isr, old);
+        isrs.releaseIsr(isr);
+    }
+
+    return pic;
 }
 
 static km::PhysicalAddress KmGetRsdpTable(const KernelLaunch& launch) {

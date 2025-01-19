@@ -1,202 +1,315 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 
-namespace stdx {
-    template<typename T>
-    class FixedDeque {
-        /// @brief Start of deque memory.
-        T *mFront;
+template <typename T>
+class fsdeque_iterator;
 
-        /// @brief End of deque memory.
-        T *mBack;
+template <typename T>
+class fsdeque
+{
+public:
 
-        /// @brief Current deque head.
-        T *mTail;
+    friend class fsdeque_iterator<T>;
 
-        /// @brief Current deque tail.
-        T *mHead;
+    typedef fsdeque_iterator<T> iterator;
 
-        /// @brief The current number of elements in the deque.
-        /// @note This is annoying to have to keep track of, there is
-        ///       probably a way to calculate this while ensuring
-        ///       we can still differentiate between an empty and full deque.
-        size_t mCount = 0;
+    fsdeque(T *entries, size_t max_entries)
+    {
+        m_num_entries = 0;
+        m_front = 0;
+        m_back = 0;
+        m_entries = entries;
+        m_max_entries = max_entries;
+    }
 
-        T *after(T *ptr) const {
-            ptr += 1;
-            if (ptr >= mBack) {
-                return mFront;
-            } else {
-                return ptr;
-            }
+    iterator begin()
+    {
+        return iterator(*this, 0);
+    }
+
+    iterator end()
+    {
+        return iterator(*this, m_num_entries);
+    }
+
+    // returns true on success, false if the queue is full
+    bool push_front(T e)
+    {
+        if (m_num_entries == capacity())
+        {
+            return false;
         }
 
-        T *before(T *ptr) const {
-            ptr -= 1;
-            if (ptr < mFront) {
-                return mBack - 1;
-            } else {
-                return ptr;
-            }
+        m_entries[m_front++] = e;
+        m_front = m_front % capacity();
+        m_num_entries++;
+
+        return true;
+    }
+
+    // returns true on success, false if the queue is empty (i.e. there is nothing to pop)
+    bool pop_front()
+    {
+        if (m_num_entries == 0)
+        {
+            return false;
+        }
+        else
+        {
+            m_num_entries--;
         }
 
-    public:
-        constexpr FixedDeque(T *front, T *back)
-            : mFront(front)
-            , mBack(back)
-            , mTail(front)
-            , mHead(front)
-        { }
-
-        class Iterator {
-            FixedDeque *mContainer;
-
-            size_t mIndex;
-
-        public:
-            using difference_type = std::ptrdiff_t;
-
-            constexpr Iterator()
-                : mContainer(nullptr)
-                , mIndex(0)
-            { }
-
-            constexpr Iterator(const FixedDeque *container, size_t iter)
-                : mContainer(container)
-                , mIndex(iter)
-            { }
-
-            constexpr bool operator!=(const Iterator& other) const {
-                return mIndex != other.mIndex;
-            }
-
-            constexpr bool operator==(const Iterator& other) const {
-                return mIndex == other.mIndex;
-            }
-
-            constexpr Iterator& operator++() {
-                mIndex++;
-                return *this;
-            }
-
-            constexpr Iterator operator++(int) {
-                Iterator copy = *this;
-                mIndex++;
-                return copy;
-            }
-
-            constexpr Iterator& operator--() {
-                mIndex--;
-                return *this;
-            }
-
-            constexpr Iterator operator--(int) {
-                Iterator copy = *this;
-                mIndex--;
-                return copy;
-            }
-
-            constexpr T& operator*() {
-                return mContainer->get(mIndex);
-            }
-
-            constexpr difference_type operator-(const Iterator& other) const {
-                return mIndex - other.mIndex;
-            }
-
-            constexpr Iterator operator+(difference_type diff) const {
-                return Iterator(mContainer, mIndex + diff);
-            }
-        };
-
-        Iterator end() {
-            return Iterator(this, mTail);
+        if (m_front == 0)
+        {
+            m_front = capacity() - 1;
+        }
+        else
+        {
+            m_front--;
         }
 
-        Iterator begin() {
-            return Iterator(this, mHead);
+        return true;
+    }
+
+    // returns true on success, false if the queue is full
+    bool push_back(T e)
+    {
+        if (m_num_entries == capacity())
+        {
+            return false;
         }
 
-        Iterator end() const {
-            return Iterator(this, mTail);
+        if (m_back == 0)
+        {
+            m_back = capacity() - 1;
+        }
+        else
+        {
+            m_back--;
         }
 
-        Iterator begin() const {
-            return Iterator(this, mHead);
+        m_entries[m_back] = e;
+        m_num_entries++;
+
+        return true;
+    }
+
+    // returns true on success, false if the queue is empty (i.e. there is nothing to pop)
+    bool pop_back()
+    {
+        if (m_num_entries == 0)
+        {
+            return false;
+        }
+        else
+        {
+            m_num_entries--;
         }
 
-        bool isEmpty() const { return mCount == 0; }
-        bool isFull() const { return count() == capacity(); }
+        m_back++;
+        m_back = m_back % capacity();
 
-        T& back() { return *mTail; }
-        T& front() { return *mHead; }
+        return true;
+    }
 
-        size_t capacity() const { return mBack - mFront; }
-        size_t count() const { return mCount; }
+    // Returns the entry at a given index. Behaviour is undefined if the index
+    // is out of range.
+    T &get_entry(size_t index) const
+    {
+        if (m_num_entries == 0 || index > m_num_entries)
+        {
+            return m_entries[0];
+        }
+        else
+        {
+            return m_entries[(m_back + index) % capacity()];
+        }
+    }
 
-        bool addBack(T value) {
-            if (isFull()) {
-                return false;
+    // Erases an entry at a given index - returns false if the index was out of range
+    bool remove(size_t index)
+    {
+        if (m_num_entries == 0 || index > m_num_entries)
+        {
+            return false;
+        }
+        else
+        {
+            index = (m_back + index) % capacity();
+
+            if (m_back < m_front)
+            {
+                std::copy(&(m_entries[index + 1]), &(m_entries[m_front]), &(m_entries[index]));
+
+            }
+            else
+            {
+                if (index >= m_back)
+                {
+                    std::copy(&(m_entries[index + 1]), &(m_entries[capacity()]), &(m_entries[index]));
+                    std::copy(&(m_entries[0]), &(m_entries[1]), &(m_entries[capacity() - 1]));
+                    std::copy(&(m_entries[1]), &(m_entries[m_front]), &(m_entries[0]));
+                }
+                else
+                {
+                    std::copy(&(m_entries[index + 1]), &(m_entries[m_front]), &(m_entries[index]));
+                }
             }
 
-            mCount += 1;
-            *mTail = value;
-            mTail = before(mTail);
+            (void)pop_front();
             return true;
         }
+    }
 
-        bool addFront(T value) {
-            if (isFull()) {
-                return false;
-            }
+    iterator erase(iterator it)
+    {
+        remove(it.m_index);
+        return iterator(*this, it.m_index);
+    }
 
-            mCount += 1;
-            mHead = after(mHead);
-            *mHead = value;
-            return true;
-        }
+    T poll_front()
+    {
+        T result = front();
+        pop_front();
+        return result;
+    }
 
-        T pollFront() {
-            mCount -= 1;
-            T value = *mHead;
-            mHead = before(mHead);
-            return value;
-        }
+    T poll_back()
+    {
+        T result = back();
+        pop_back();
+        return result;
+    }
 
-        T pollBack() {
-            mCount -= 1;
-            mTail = after(mTail);
-            return *mTail;
-        }
+    T &front()
+    {
+        return *--end();
+    }
 
-        T &get(size_t index) {
-            T *ptr = mHead;
-            for (size_t i = 0; i < index; i++) {
-                ptr = before(ptr);
-            }
-            return *ptr;
-        }
+    T &back()
+    {
+        return *begin();
+    }
 
-        const T &get(size_t index) const {
-            T *ptr = mHead;
-            for (size_t i = 0; i < index; i++) {
-                ptr = before(ptr);
-            }
-            return *ptr;
-        }
+    size_t count() const
+    {
+        return m_num_entries;
+    }
 
-        Iterator erase(Iterator it) {
-            Iterator current = it;
+    size_t capacity() const
+    {
+        return m_max_entries;
+    }
 
-            while (current != end()) {
-                *current = *++current;
-            }
+    bool isEmpty() const { return count() == 0; }
+    bool isFull() const { return count() == capacity(); }
 
-            mCount -= 1;
-            mHead = before(mHead);
+private:
 
-            return it;
-        }
-    };
-}
+    size_t m_num_entries;
+    size_t m_front;
+    size_t m_back;
+
+    T *m_entries;
+    size_t m_max_entries;
+};
+
+template <typename T>
+class fsdeque_iterator
+{
+    friend class fsdeque<T>;
+public:
+    using value_type = T;
+    using difference_type = int;
+    using pointer = T *;
+    using reference = T &;
+    using iterator_category = std::random_access_iterator_tag;
+
+    fsdeque_iterator(const fsdeque<T> &q, size_t index) : m_fsdeque(&q), m_index(index)
+    {
+    }
+
+    fsdeque_iterator<T> &operator--()
+    {
+        m_index--;
+        return *this;
+    }
+
+    fsdeque_iterator<T> operator--(int)
+    {
+        fsdeque_iterator<T> temp = *this;
+        --m_index;
+        return temp;
+    }
+
+    T &operator*() const
+    {
+        return m_fsdeque->get_entry(m_index);
+    }
+
+    fsdeque_iterator<T> &operator++()
+    {
+        m_index++;
+        return *this;
+    }
+
+    fsdeque_iterator<T> operator++(int)
+    {
+        fsdeque_iterator temp = *this;
+        ++m_index;
+        return temp;
+    }
+
+    fsdeque_iterator<T> &operator+=(difference_type n)
+    {
+        m_index += n;
+        return *this;
+    }
+
+    fsdeque_iterator<T> &operator-=(difference_type n)
+    {
+        m_index -= n;
+        return *this;
+    }
+
+    bool operator==(const fsdeque_iterator<T>& other) const
+    {
+        return m_index == other.m_index;
+    }
+
+    bool operator!=(const fsdeque_iterator<T>& other) const
+    {
+        return m_index != other.m_index;
+    }
+
+    bool operator<(const fsdeque_iterator<T>& other) const
+    {
+        return m_index < other.m_index;
+    }
+
+    fsdeque_iterator<T> operator+(difference_type n) const
+    {
+        fsdeque_iterator temp = *this;
+        temp += n;
+        return temp;
+    }
+
+    fsdeque_iterator<T> operator-(difference_type n) const
+    {
+        fsdeque_iterator temp = *this;
+        temp -= n;
+        return temp;
+    }
+
+    friend difference_type operator-(const fsdeque_iterator<T> &lhs, const fsdeque_iterator<T> &rhs)
+    {
+        return lhs.m_index - rhs.m_index;
+    }
+
+private:
+    const fsdeque<T> *m_fsdeque;
+    size_t m_index;
+
+};
