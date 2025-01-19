@@ -413,12 +413,6 @@ static km::IntController KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllo
 
     pic->setSpuriousVector(spuriousVec);
 
-#if 0
-    for (apic::Ivt ivt : {apic::Ivt::eTimer, apic::Ivt::eThermal, apic::Ivt::ePerformance, apic::Ivt::eLvt0, apic::Ivt::eLvt1, apic::Ivt::eError}) {
-        lapic.configure(ivt, { .enabled = false });
-    }
-#endif
-
     pic->enable();
 
     if (kSelfTestApic) {

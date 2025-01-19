@@ -115,6 +115,7 @@ src = [
 
     # Allocators
     'kernel/src/allocator/bitmap.cpp',
+    'kernel/src/allocator/freelist.cpp',
 
     # C and C++ Runtime
     'kernel/src/crt.cpp',

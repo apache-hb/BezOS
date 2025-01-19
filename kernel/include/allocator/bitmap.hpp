@@ -45,7 +45,9 @@ namespace mem {
         /// @param align The alignment of the block.
         ///
         /// @return The block of memory or @c nullptr if the allocation failed.
-        void *allocate(size_t size, size_t align = alignof(std::max_align_t)) override;
+        void *allocate(size_t size) override;
+
+        void *allocateAligned(size_t size, size_t align) override;
 
         /// @brief Deallocate a block of memory.
         ///

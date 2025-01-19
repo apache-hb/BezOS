@@ -16,7 +16,8 @@ namespace mem {
             std::unreachable();
         }
 
-        virtual void *allocate(size_t size, size_t align = alignof(std::max_align_t)) = 0;
+        virtual void *allocate(size_t size) = 0;
+        virtual void *allocateAligned(size_t size, size_t align) = 0;
         virtual void deallocate(void *ptr, size_t size) = 0;
 
         virtual void *reallocate(void *old, size_t oldSize, size_t newSize) {
@@ -31,7 +32,7 @@ namespace mem {
 
         template<typename T, typename... A> requires std::is_constructible_v<T, A...>
         T *allocate(A&&... args) {
-            if (void *ptr = allocate(sizeof(T), alignof(T))) {
+            if (void *ptr = allocateAligned(sizeof(T), alignof(T))) {
                 return new (ptr) T(std::forward<A>(args)...);
             }
 
@@ -48,7 +49,7 @@ namespace mem {
 
         template<typename T>
         T *allocateArray(size_t count) {
-            if (void *ptr = allocate(sizeof(T) * count, alignof(T))) {
+            if (void *ptr = allocateAligned(sizeof(T) * count, alignof(T))) {
                 return new (ptr) T[count]();
             }
 

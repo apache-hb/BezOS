@@ -21,8 +21,12 @@ namespace mem {
             : mAllocator(tlsf_create_with_pool(memory, size, 0), tlsf_destroy)
         { }
 
-        void *allocate(size_t size, size_t _ = alignof(std::max_align_t)) override {
+        void *allocate(size_t size) override {
             return tlsf_malloc(mAllocator.get(), size);
+        }
+
+        void *allocateAligned(size_t size, size_t align = alignof(std::max_align_t)) override {
+            return tlsf_memalign(mAllocator.get(), size, align);
         }
 
         void *reallocate(void *old, size_t _, size_t newSize) override {

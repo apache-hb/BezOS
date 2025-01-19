@@ -7,3 +7,4 @@ install*/
 !/subprojects/*.wrap
 !/subprojects/packagefiles/
 !/subprojects/tlsf/
+bezos.hdd

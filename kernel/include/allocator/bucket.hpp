@@ -3,7 +3,6 @@
 #include "allocator/allocator.hpp"
 
 #include "std/static_vector.hpp"
-#include <span>
 
 namespace mem {
     struct Bucket {
@@ -29,10 +28,22 @@ namespace mem {
             : mBuckets(buckets)
         { }
 
-        void *allocate(size_t size, size_t align) override {
+        void *allocate(size_t size) override {
             Bucket *bucket = getBucketFor(size);
             do {
-                void *ptr = bucket->allocator->allocate(size, align);
+                void *ptr = bucket->allocator->allocate(size);
+                if (ptr)
+                    return ptr;
+
+            } while (++bucket != mBuckets.end());
+
+            return nullptr;
+        }
+
+        void *allocateAligned(size_t size, size_t align = sizeof(std::max_align_t)) override {
+            Bucket *bucket = getBucketFor(size);
+            do {
+                void *ptr = bucket->allocator->allocateAligned(size, align);
                 if (ptr)
                     return ptr;
 

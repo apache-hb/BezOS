@@ -88,7 +88,11 @@ mem::BitmapAllocator::BitmapAllocator(void *front, void *back, size_t unit) {
 
 size_t mem::BitmapAllocator::size() const { return (uintptr_t)mBack - (uintptr_t)mFront; }
 
-void *mem::BitmapAllocator::allocate(size_t size, size_t align) {
+void *mem::BitmapAllocator::allocate(size_t size) {
+    return allocateAligned(size, mUnit);
+}
+
+void *mem::BitmapAllocator::allocateAligned(size_t size, size_t align) {
     align = sm::roundup(align, mUnit);
     size = sm::roundup(size, mUnit);
 

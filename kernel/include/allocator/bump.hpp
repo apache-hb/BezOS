@@ -22,7 +22,11 @@ namespace mem {
             , mCurrent(front)
         { }
 
-        void *allocate(size_t size, size_t align) override {
+        void *allocate(size_t size) override {
+            return allocateAligned(size, sizeof(std::max_align_t));
+        }
+
+        void *allocateAligned(size_t size, size_t align) override {
             size_t offset = (size_t)mCurrent % align;
             if (offset != 0) {
                 mCurrent = (void*)((size_t)mCurrent + align - offset);
