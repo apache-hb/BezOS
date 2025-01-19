@@ -43,6 +43,10 @@ void *km::GetTlsData(void *object) {
     return base + offset;
 }
 
+bool km::IsTlsSetup() {
+    return kGsBase.load() != 0;
+}
+
 km::TlsRegisters km::LoadTlsRegisters() {
     uint64_t gsBase = kGsBase.load();
     uint64_t fsBase = kFsBase.load();

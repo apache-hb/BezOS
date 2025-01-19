@@ -18,6 +18,7 @@ namespace km {
     void StoreTlsRegisters(TlsRegisters registers);
 
     void *GetTlsData(void *object);
+    bool IsTlsSetup();
     uint64_t GetTlsOffset(const void *object);
 
     template<typename T>

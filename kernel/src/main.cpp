@@ -491,14 +491,10 @@ static SerialPortStatus KmInitSerialPort(ComPortInfo info) {
     }
 }
 
-static km::SystemMemory *gMemoryMap = nullptr;
-
 [[noreturn]]
 static void KmDumpIsrContext(const km::IsrContext *context, stdx::StringView message) {
-    if (gMemoryMap != nullptr) {
-        km::LocalApic lapic = km::LocalApic::current(*gMemoryMap);
-
-        KmDebugMessage("\n[BUG] ", message, " - On core ", lapic.id(), "\n");
+    if (km::IsTlsSetup()) {
+        KmDebugMessage("\n[BUG] ", message, " - On core ", std::to_underlying(km::GetCurrentCoreId()), "\n");
     } else {
         KmDebugMessage("\n[BUG] ", message, "\n");
     }
@@ -554,6 +550,8 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     cr0.set(x64::Cr0::WP | x64::Cr0::NE);
     x64::Cr0::store(cr0);
 
+    kGsBase.store(0);
+
     KmInitBootTerminal(launch);
 
     bool hvPresent = IsHypervisorPresent();
@@ -596,7 +594,6 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     EnableInterrupts();
 
     SystemMemory memory = KmInitMemory(processor.maxpaddr, launch);
-    gMemoryMap = &memory;
 
     PlatformInfo platform = KmGetPlatformInfo(launch, memory);
 
