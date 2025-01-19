@@ -7,7 +7,7 @@
 #include <tlsf.h>
 
 namespace mem {
-    class TlsfAllocator final : public mem::IAllocator {
+    class TlsfAllocator : public mem::IAllocator {
         using Super = mem::IAllocator;
 
         using TlsfHandle = std::unique_ptr<void, void(*)(tlsf_t)>;

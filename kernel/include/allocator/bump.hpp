@@ -5,7 +5,7 @@
 #include "allocator/allocator.hpp"
 
 namespace mem {
-    class BumpAllocator final : public mem::IAllocator {
+    class BumpAllocator : public mem::IAllocator {
         using Super = mem::IAllocator;
 
         void *mFront;
