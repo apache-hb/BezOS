@@ -19,12 +19,12 @@ namespace stdx {
 
         typedef FixedSizeDequeIterator<T> iterator;
 
-        FixedSizeDeque(T *entries, size_t max_entries)
+        FixedSizeDeque(T *entries, size_t size)
             : mCount(0)
             , mFront(0)
             , mBack(0)
             , mEntries(entries)
-            , mCapacity(max_entries)
+            , mCapacity(size)
         { }
 
         iterator begin() { return iterator(this, 0); }
@@ -150,11 +150,12 @@ namespace stdx {
         }
 
         T &front() { return *--end(); }
-
         T &back() { return *begin(); }
 
-        size_t count() const { return mCount; }
+        const T &front() const { return *--end(); }
+        const T &back() const { return *begin(); }
 
+        size_t count() const { return mCount; }
         size_t capacity() const { return mCapacity; }
 
         bool isEmpty() const { return count() == 0; }
@@ -181,7 +182,9 @@ namespace stdx {
         using iterator_category = std::random_access_iterator_tag;
 
         FixedSizeDequeIterator(const FixedSizeDeque<T> *q, size_t index)
-            : mContainer(q), mIndex(index) {}
+            : mContainer(q)
+            , mIndex(index)
+        { }
 
         FixedSizeDequeIterator<T> &operator--() {
             mIndex--;

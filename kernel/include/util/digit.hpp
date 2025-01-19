@@ -1,8 +1,9 @@
 #pragma once
 
-#include <stdint.h>
-#include <assert.h>
-#include <string.h>
+#include <cstdint>
+#include <cstring>
+
+#include <limits>
 
 #include <algorithm>
 
