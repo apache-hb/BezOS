@@ -1,12 +1,12 @@
-#include <deque>
 #include <gtest/gtest.h>
+#include <random>
 
 #include "std/fixed_deque.hpp"
 
 template<typename T>
 struct FixedDequeTestData {
     std::unique_ptr<T[]> data;
-    fsdeque<T> ring;
+    stdx::FixedSizeDeque<T> ring;
 
     FixedDequeTestData(size_t size)
         : data(new T[size])
@@ -24,42 +24,34 @@ TEST(FixedDequeTest, Construct) {
     ASSERT_TRUE(test.ring.isEmpty());
 }
 
-TEST(DequeTest, AddBack) {
-    FixedDequeTestData<int> test(16);
-
-    test.ring.push_front(999);
-    ASSERT_EQ(test.ring.front(), 999);
-    ASSERT_EQ(test.ring.back(), 999);
-}
-
 TEST(FixedDequeTest, AddBack) {
     FixedDequeTestData<int> test(16);
 
     // shift the head to the right
-    test.ring.push_front(999);
+    test.ring.addFront(999);
     ASSERT_EQ(test.ring.front(), 999);
     ASSERT_EQ(test.ring.back(), 999);
 
-    test.ring.push_front(999);
+    test.ring.addFront(999);
     ASSERT_EQ(test.ring.front(), 999);
     ASSERT_EQ(test.ring.back(), 999);
 
-    test.ring.push_front(999);
+    test.ring.addFront(999);
     ASSERT_EQ(test.ring.front(), 999);
     ASSERT_EQ(test.ring.back(), 999);
 
-    ASSERT_EQ(test.ring.poll_back(), 999);
-    ASSERT_EQ(test.ring.poll_back(), 999);
-    ASSERT_EQ(test.ring.poll_back(), 999);
+    ASSERT_EQ(test.ring.pollBack(), 999);
+    ASSERT_EQ(test.ring.pollBack(), 999);
+    ASSERT_EQ(test.ring.pollBack(), 999);
 
     for (int i = 0; i < 16; i++) {
-        ASSERT_TRUE(test.ring.push_front(i));
+        ASSERT_TRUE(test.ring.addFront(i));
         ASSERT_EQ(test.ring.count(), i + 1) << "i = " << i;
     }
 
     ASSERT_TRUE(test.ring.isFull());
 
-    ASSERT_FALSE(test.ring.push_front(16));
+    ASSERT_FALSE(test.ring.addFront(16));
     ASSERT_EQ(test.ring.count(), 16);
 }
 
@@ -67,12 +59,12 @@ TEST(FixedDequeTest, AddFront) {
     FixedDequeTestData<int> test(16);
 
     for (int i = 0; i < 16; i++) {
-        ASSERT_TRUE(test.ring.push_back(i));
+        ASSERT_TRUE(test.ring.addBack(i));
         ASSERT_EQ(test.ring.back(), i);
         ASSERT_EQ(test.ring.count(), i + 1);
     }
 
-    ASSERT_FALSE(test.ring.push_back(16));
+    ASSERT_FALSE(test.ring.addBack(16));
     ASSERT_EQ(test.ring.count(), 16);
 }
 
@@ -80,11 +72,11 @@ TEST(FixedDequeTest, GetFront) {
     FixedDequeTestData<int> test(16);
 
     for (int i = 0; i < 16; i++) {
-        test.ring.push_front(i);
+        test.ring.addFront(i);
     }
 
     for (int i = 0; i < 16; i++) {
-        ASSERT_EQ(test.ring.poll_back(), i);
+        ASSERT_EQ(test.ring.pollBack(), i);
     }
 }
 
@@ -92,8 +84,8 @@ TEST(FixedDequeTest, Circular) {
     FixedDequeTestData<int> test(16);
 
     for (int i = 0; i < 20; i++) {
-        ASSERT_TRUE(test.ring.push_front(99 + i));
-        ASSERT_EQ(test.ring.poll_back(), 99 + i) << "i = " << i;
+        ASSERT_TRUE(test.ring.addFront(99 + i));
+        ASSERT_EQ(test.ring.pollBack(), 99 + i) << "i = " << i;
     }
 }
 
@@ -101,12 +93,12 @@ TEST(FixedDequeTest, GetBack) {
     FixedDequeTestData<int> test(16);
 
     for (int i = 0; i < 16; i++) {
-        ASSERT_TRUE(test.ring.push_front(i));
+        ASSERT_TRUE(test.ring.addFront(i));
         ASSERT_EQ(test.ring.front(), i);
     }
 
     for (int i = 15; i >= 0; i--) {
-        ASSERT_EQ(test.ring.poll_front(), i);
+        ASSERT_EQ(test.ring.pollFront(), i);
     }
 }
 
@@ -114,19 +106,19 @@ TEST(FixedDequeTest, AddRemove) {
     FixedDequeTestData<int> test(16);
 
     for (int i = 0; i < 16; i++) {
-        test.ring.push_front(i);
+        test.ring.addFront(i);
     }
 
     for (int i = 0; i < 16; i++) {
-        ASSERT_EQ(test.ring.poll_back(), i);
+        ASSERT_EQ(test.ring.pollBack(), i);
     }
 
     for (int i = 0; i < 16; i++) {
-        test.ring.push_front(i);
+        test.ring.addFront(i);
     }
 
     for (int i = 0; i < 16; i++) {
-        ASSERT_EQ(test.ring.poll_back(), i);
+        ASSERT_EQ(test.ring.pollBack(), i);
     }
 }
 
@@ -136,44 +128,27 @@ TEST(FixedDequeTest, AddMixed) {
     FixedDequeTestData<int> test(16);
 
     for (int i = 0; i < 8; i++) {
-        ASSERT_TRUE(test.ring.push_front(i));
+        ASSERT_TRUE(test.ring.addFront(i));
     }
 
     for (int i = 0; i < 8; i++) {
-        ASSERT_TRUE(test.ring.push_back(i + 8));
+        ASSERT_TRUE(test.ring.addBack(i + 8));
     }
 
     for (int i = 0; i < 8; i++) {
-        EXPECT_EQ(test.ring.poll_front(), 7 - i) << "i = " << i;
+        EXPECT_EQ(test.ring.pollFront(), 7 - i) << "i = " << i;
     }
 
     for (int i = 0; i < 8; i++) {
-        EXPECT_EQ(test.ring.poll_back(), 15 - i) << "i = " << i;
+        EXPECT_EQ(test.ring.pollBack(), 15 - i) << "i = " << i;
     }
 }
-
-TEST(FixedDequeTest, Interleaved) {
-    // add and remove from both ends
-
-    FixedDequeTestData<int> test(16);
-
-    for (int i = 0; i < 8; i++) {
-        test.ring.push_front(i);
-        test.ring.push_back(i + 8);
-    }
-
-    for (int i = 0; i < 8; i++) {
-        EXPECT_EQ(test.ring.poll_back(), 15 - i) << "i = " << i;
-        EXPECT_EQ(test.ring.poll_front(), 7 - i) << "i = " << i;
-    }
-}
-
 
 TEST(FixedDequeTest, Iter) {
     FixedDequeTestData<int> test(16);
 
     for (int i = 0; i < 16; i++) {
-        test.ring.push_front(i);
+        test.ring.addFront(i);
     }
 
     int i = 0;
@@ -183,12 +158,11 @@ TEST(FixedDequeTest, Iter) {
     }
 }
 
-
 TEST(FixedDequeTest, Erase) {
     FixedDequeTestData<int> test(16);
 
     for (int i = 0; i < 16; i++) {
-        test.ring.push_back(i);
+        test.ring.addBack(i);
         ASSERT_EQ(test.ring.back(), i);
     }
 
@@ -224,22 +198,36 @@ TEST(FixedDequeTest, Erase) {
     }
 }
 
-TEST(FsDequeTest, Interleaved) {
+TEST(FixedDequeTest, Interleaved) {
     std::unique_ptr<int[]> data(new int[16]);
-    fsdeque<int> ring(data.get(), 16);
+    stdx::FixedSizeDeque<int> ring(data.get(), 16);
 
     for (int i = 0; i < 8; i++) {
-        ring.push_front(i);
-        ring.push_back(i + 8);
+        ring.addFront(i);
+        ring.addBack(i + 8);
     }
 
     ASSERT_EQ(ring.front(), 7);
 
     for (int i = 0; i < 8; i++) {
         EXPECT_EQ(ring.front(), 7 - i) << "i = " << i;
-        ASSERT_TRUE(ring.pop_front());
+        ASSERT_TRUE(ring.popFront());
 
         EXPECT_EQ(ring.back(), 15 - i) << "i = " << i;
-        ASSERT_TRUE(ring.pop_back());
+        ASSERT_TRUE(ring.popBack());
     }
+}
+
+TEST(FixedDequeTest, Sort) {
+    FixedDequeTestData<int> test(256);
+
+    std::mt19937 rng(0x1234);
+    std::uniform_int_distribution<> dist(INT_MIN, INT_MAX);
+    for (int i = 0; i < 256; i++) {
+        test.ring.addFront(dist(rng));
+    }
+
+    std::sort(test.ring.begin(), test.ring.end());
+
+    ASSERT_TRUE(std::is_sorted(test.ring.begin(), test.ring.end()));
 }
