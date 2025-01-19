@@ -10,6 +10,8 @@ namespace mem {
         struct FreeBlock {
             uint32_t offset;
             uint32_t length;
+
+            bool isEmpty() const { return length == 0; }
         };
 
     private:
@@ -24,5 +26,8 @@ namespace mem {
         void freeBlock(FreeBlock block);
 
         void compact();
+
+        size_t count() const { return mFreeBlocks.count(); }
+        size_t capacity() const { return mFreeBlocks.capacity(); }
     };
 }

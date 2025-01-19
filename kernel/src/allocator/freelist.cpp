@@ -16,7 +16,7 @@ FreeVector::FreeBlock FreeVector::findBlock(uint32_t size, uint32_t align) {
         }
     }
 
-    return { 0, 0 };
+    return { UINT32_MAX, 0 };
 }
 
 void FreeVector::freeBlock(FreeBlock block) {

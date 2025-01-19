@@ -6,9 +6,15 @@
 
 class TestAllocator : public mem::IAllocator {
 public:
-    void* allocate(size_t size, size_t _) override {
+    void* allocate(size_t size) override {
         void *ptr = std::malloc(size);
         std::cerr << "allocating " << size << " bytes at " << (uintptr_t)ptr << std::endl;
+        return ptr;
+    }
+
+    void *allocateAligned(size_t size, size_t align) override {
+        void *ptr = std::aligned_alloc(align, size);
+        std::cerr << "allocating " << size << " bytes at " << (uintptr_t)ptr << " with alignment " << align << std::endl;
         return ptr;
     }
 

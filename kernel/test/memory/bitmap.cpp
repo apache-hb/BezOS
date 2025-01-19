@@ -29,13 +29,13 @@ TEST(BitmapAllocTest, Allocate) {
 
     mem::BitmapAllocator bitmap {memory.get(), memory.get() + kSize, 16};
 
-    void *ptr = bitmap.allocate(99, 16);
+    void *ptr = bitmap.allocateAligned(99, 16);
     ASSERT_NE(ptr, nullptr);
 
-    void *ptr2 = bitmap.allocate(99, 16);
+    void *ptr2 = bitmap.allocateAligned(99, 16);
     ASSERT_NE(ptr2, nullptr);
 
-    void *ptr3 = bitmap.allocate(999, 16);
+    void *ptr3 = bitmap.allocateAligned(999, 16);
     ASSERT_NE(ptr3, nullptr);
 
     ASSERT_NE(ptr, ptr2);
@@ -51,21 +51,21 @@ TEST(BitmapAllocTest, OverAllocate) {
 
     mem::BitmapAllocator bitmap {memory.get(), memory.get() + kSize, 16};
 
-    void *ptr = bitmap.allocate(kSize * 2, 16);
+    void *ptr = bitmap.allocateAligned(kSize * 2, 16);
     ASSERT_EQ(ptr, nullptr);
 
-    ptr = bitmap.allocate(kSize + 1, 16);
+    ptr = bitmap.allocateAligned(kSize + 1, 16);
     ASSERT_EQ(ptr, nullptr);
 
-    ptr = bitmap.allocate(kSize, 16);
+    ptr = bitmap.allocateAligned(kSize, 16);
     ASSERT_NE(ptr, nullptr);
 
-    void *ptr2 = bitmap.allocate(1, 16);
+    void *ptr2 = bitmap.allocateAligned(1, 16);
     ASSERT_EQ(ptr2, nullptr);
 
     bitmap.deallocate(ptr, kSize);
 
-    ptr2 = bitmap.allocate(1, 16);
+    ptr2 = bitmap.allocateAligned(1, 16);
     ASSERT_NE(ptr2, nullptr);
 }
 
@@ -77,7 +77,7 @@ TEST(BitmapAllocTest, NoDuplicates) {
     std::unordered_set<void*> pointers;
 
     for (size_t i = 0; i < (kSize / 32); i++) {
-        void *ptr = bitmap.allocate(32, 16);
+        void *ptr = bitmap.allocateAligned(32, 16);
         ASSERT_NE(ptr, nullptr);
 
         auto [it, inserted] = pointers.insert(ptr);

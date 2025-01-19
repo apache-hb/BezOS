@@ -297,6 +297,10 @@ testcases = {
         'kernel/src/util/format.cpp',
         'kernel/src/util/bits.cpp',
     ],
+    'freelist vector': [
+        'kernel/test/freelist.cpp',
+        'kernel/src/allocator/freelist.cpp',
+    ]
 }
 
 if enable_aml
