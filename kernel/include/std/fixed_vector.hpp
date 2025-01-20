@@ -38,10 +38,13 @@ namespace stdx {
         T& back() { return *(mBack - 1); }
         const T& back() const { return *(mBack - 1); }
 
-        void add(T value) {
+        bool add(T value) {
             if (mBack < mCapacity) {
                 std::construct_at(mBack++, value);
+                return true;
             }
+
+            return false;
         }
 
         void clear() {

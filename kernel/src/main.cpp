@@ -325,7 +325,7 @@ static void KmWriteMemoryMap(const KernelMemoryMap& memmap, const SystemMemory& 
     KmDebugMessage("[INIT] Usable memory: ", sm::bytes(usableMemory), ", Reclaimable memory: ", sm::bytes(reclaimableMemory), "\n");
 }
 
-static SystemMemory KmInitMemory(uintptr_t bits, const KernelLaunch& launch) {
+static SystemMemory SetupKernelMemory(uintptr_t bits, const KernelLaunch& launch) {
     PageMemoryTypeLayout pat = KmSetupPat();
 
     PageBuilder pm = PageBuilder { bits, launch.hhdmOffset, pat };
@@ -339,16 +339,14 @@ static SystemMemory KmInitMemory(uintptr_t bits, const KernelLaunch& launch) {
     KmMapKernel(memory.pager, memory.vmm, memory.layout, launch.kernelPhysicalBase, launch.kernelVirtualBase);
 
     // move our stack out of reclaimable memory
-    // limine garuntees 64k of stack space
     KmMigrateMemory(memory.vmm, memory.pager, launch.stack.front, launch.stack.size(), MemoryType::eWriteBack);
 
     // remap framebuffers
 
-    // TODO: The surface 4 crashes when writing to the framebuffer after its remapped. need to investigate
     for (const KernelFrameBuffer& framebuffer : launch.framebuffers) {
-        KmDebugMessage("[INIT] Mapping framebuffer ", framebuffer.address, " - ", sm::bytes(framebuffer.size()), "\n");
+        KmDebugMessage("[INIT] Mapping framebuffer ", framebuffer.vaddr, " - ", sm::bytes(framebuffer.size()), "\n");
 
-        KmMigrateMemory(memory.vmm, memory.pager, (uintptr_t)framebuffer.address - launch.hhdmOffset, framebuffer.size(), MemoryType::eWriteCombine);
+        KmMapMemory(memory.vmm, framebuffer.paddr, framebuffer.vaddr, framebuffer.size(), PageFlags::eData, MemoryType::eWriteCombine);
     }
 
     // once it is safe to remap the boot memory, do so
@@ -442,10 +440,10 @@ static km::PhysicalAddress KmGetRsdpTable(const KernelLaunch& launch) {
 
 static void KmInitBootTerminal(const KernelLaunch& launch) {
     for (const KernelFrameBuffer& framebuffer : launch.framebuffers) {
-        if (framebuffer.address == nullptr)
+        if (framebuffer.vaddr == nullptr)
             continue;
 
-        km::Canvas display { framebuffer, (uint8_t*)(framebuffer.address) };
+        km::Canvas display { framebuffer, (uint8_t*)(framebuffer.vaddr) };
         gDirectTerminalLog = DirectTerminal(display);
         gLogTargets.add(&gDirectTerminalLog);
 
@@ -455,7 +453,7 @@ static void KmInitBootTerminal(const KernelLaunch& launch) {
 
 static void KmInitBootBufferedTerminal(const KernelLaunch& launch, SystemMemory& memory) {
     for (const KernelFrameBuffer& framebuffer : launch.framebuffers) {
-        if (framebuffer.address == nullptr)
+        if (framebuffer.vaddr == nullptr)
             continue;
 
         KmDebugMessage("[INIT] Deleting unbuffered terminal\n");
@@ -593,7 +591,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     KmInstallExceptionHandlers();
     EnableInterrupts();
 
-    SystemMemory memory = KmInitMemory(processor.maxpaddr, launch);
+    SystemMemory memory = SetupKernelMemory(processor.maxpaddr, launch);
 
     PlatformInfo platform = KmGetPlatformInfo(launch, memory);
 
@@ -644,7 +642,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
         const KernelFrameBuffer& display = launch.framebuffers[i];
         KmDebugMessage("| /SYS/VIDEO", i, "   | Display resolution   | ", display.width, "x", display.height, "x", display.bpp, "\n");
         KmDebugMessage("| /SYS/VIDEO", i, "   | Framebuffer size     | ", sm::bytes(display.size()), "\n");
-        KmDebugMessage("| /SYS/VIDEO", i, "   | Framebuffer address  | ", display.address, "\n");
+        KmDebugMessage("| /SYS/VIDEO", i, "   | Framebuffer address  | ", display.vaddr, "\n");
         KmDebugMessage("| /SYS/VIDEO", i, "   | Display pitch        | ", display.pitch, "\n");
         KmDebugMessage("| /SYS/VIDEO", i, "   | EDID                 | ", display.edid, "\n");
         KmDebugMessage("| /SYS/VIDEO", i, "   | Red channel          | (mask=", display.redMaskSize, ",shift=", display.redMaskShift, ")\n");

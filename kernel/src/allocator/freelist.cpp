@@ -1,6 +1,8 @@
 #include "allocator/freelist.hpp"
 #include <algorithm>
 
+#include "panic.hpp"
+
 using FreeVector = mem::FreeVector;
 
 FreeVector::FreeBlock FreeVector::findBlock(uint32_t size, uint32_t align) {
@@ -20,7 +22,13 @@ FreeVector::FreeBlock FreeVector::findBlock(uint32_t size, uint32_t align) {
 }
 
 void FreeVector::freeBlock(FreeBlock block) {
-    mFreeBlocks.add(block);
+    if (!mFreeBlocks.add(block)) {
+        // Emergency compaction to prevent forgetting about this block
+        compact();
+
+        bool ok = mFreeBlocks.add(block);
+        KM_CHECK(ok, "Failed to add free block, free vector was not constructed with enough space for its memory region.");
+    }
 }
 
 void FreeVector::compact() {

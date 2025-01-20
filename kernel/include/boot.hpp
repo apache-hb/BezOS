@@ -39,7 +39,8 @@ struct KernelFrameBuffer {
     uint8_t blueMaskSize;
     uint8_t blueMaskShift;
 
-    void *address;
+    km::PhysicalAddress paddr;
+    void *vaddr;
 
     km::MemoryRange edid;
 

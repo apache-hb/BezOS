@@ -134,7 +134,7 @@ TEST(TerminalTest, WriteText) {
     std::unique_ptr<uint8_t[]> displayData(new uint8_t[framebuffer.size()]);
     memset(displayData.get(), 0, framebuffer.size());
 
-    framebuffer.address = displayData.get();
+    framebuffer.vaddr = displayData.get();
 
     km::Canvas display(framebuffer, displayData.get());
 
@@ -191,7 +191,7 @@ TEST(TerminalTest, WriteMultiLine) {
     std::unique_ptr<uint8_t[]> displayData(new uint8_t[framebuffer.size()]);
     memset(displayData.get(), 0, framebuffer.size());
 
-    framebuffer.address = displayData.get();
+    framebuffer.vaddr = displayData.get();
 
     km::Canvas display(framebuffer, displayData.get());
 

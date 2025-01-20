@@ -1,5 +1,6 @@
 #pragma once
 
+#include "allocator/freelist.hpp"
 #include "std/static_vector.hpp"
 
 #include <algorithm>
@@ -37,6 +38,8 @@ namespace km {
     class VirtualAllocator {
         /// @brief Ranges of memory that are still available.
         stdx::StaticVector<VirtualRange, 32> mAvailable;
+
+        mem::FreeVector mFreeList;
 
     public:
         VirtualAllocator(VirtualRange range);

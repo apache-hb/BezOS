@@ -235,6 +235,30 @@ void PageTableManager::unmap(void *ptr, size_t size) {
     }
 }
 
+km::PhysicalAddress PageTableManager::getBackingAddress(const void *ptr) const {
+    uintptr_t address = reinterpret_cast<uintptr_t>(ptr);
+    uintptr_t pml4e = (address >> 39) & 0b0001'1111'1111;
+    uintptr_t pdpte = (address >> 30) & 0b0001'1111'1111;
+    uintptr_t pdte = (address >> 21) & 0b0001'1111'1111;
+    uintptr_t pte = (address >> 12) & 0b0001'1111'1111;
+    uintptr_t offset = address & 0xFFF;
+
+    const x64::PageMapLevel4 *l4 = getRootTable();
+    const x64::PageMapLevel3 *l3 = findPageMap3(l4, pml4e);
+    if (!l3) return nullptr;
+
+    const x64::PageMapLevel2 *l2 = findPageMap2(l3, pdpte);
+    if (!l2) return nullptr;
+
+    const x64::PageTable *pt = findPageTable(l2, pdte);
+    if (!pt) return nullptr;
+
+    const x64::pte& t1 = pt->entries[pte];
+    if (!t1.present()) return nullptr;
+
+    return km::PhysicalAddress { mPageManager->address(t1) + offset };
+}
+
 static void MapKernelPages(PageTableManager& memory, km::PhysicalAddress paddr, const void *vaddr) {
     auto mapKernelRange = [&](const void *begin, const void *end, PageFlags flags, stdx::StringView name) {
         km::PhysicalAddress front = km::PhysicalAddress {  (uintptr_t)begin - (uintptr_t)__kernel_start };
@@ -252,7 +276,7 @@ static void MapKernelPages(PageTableManager& memory, km::PhysicalAddress paddr, 
     mapKernelRange(__data_start, __data_end, PageFlags::eData, ".data");
 }
 
-static void MapStage1Memory(PageTableManager& memory, const km::PageBuilder& pm, const SystemMemoryLayout& layout) {
+static void MapUsableMemory(PageTableManager& memory, const km::PageBuilder& pm, const SystemMemoryLayout& layout) {
     for (MemoryMapEntry range : layout.available) {
         memory.mapRange(range.range, (void*)(range.range.front.address + pm.hhdmOffset()), PageFlags::eData, MemoryType::eWriteBack);
     }
@@ -267,24 +291,24 @@ void KmMapKernel(const km::PageBuilder& pm, km::PageTableManager& vmm, km::Syste
     MapKernelPages(vmm, paddr, vaddr);
 
     // then remap the rest of memory to the higher half
-    MapStage1Memory(vmm, pm, layout);
+    MapUsableMemory(vmm, pm, layout);
 }
 
 void KmMigrateMemory(km::PageTableManager& vmm, km::PageBuilder& pm, km::PhysicalAddress base, size_t size, km::MemoryType type) {
+    KmMapMemory(vmm, base, (void*)(base.address + pm.hhdmOffset()), size, PageFlags::eData, type);
+}
+
+void KmMapMemory(km::PageTableManager& vmm, km::PhysicalAddress base, const void *vaddr, size_t size, km::PageFlags flags, km::MemoryType type) {
     km::PhysicalAddress end = base + size;
 
-    vmm.mapRange({ base, end }, (void*)(base.address + pm.hhdmOffset()), PageFlags::eData, type);
+    vmm.mapRange({ base, end }, vaddr, flags, type);
 }
 
 void KmReclaimBootMemory(const km::PageBuilder& pm, km::PageTableManager& vmm, km::SystemMemoryLayout& layout) {
-    KmDebugMessage("[INIT] Moving to kernel pagemap.\n");
-
     // then apply the new page tables
     pm.setActiveMap(vmm.rootPageTable());
 
     KmDebugMessage("[INIT] Reclaiming bootloader memory.\n");
 
     layout.reclaimBootMemory();
-
-    KmDebugMessage("[INIT] Bootloader memory reclaimed.\n");
 }

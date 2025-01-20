@@ -29,5 +29,13 @@ namespace mem {
 
         size_t count() const { return mFreeBlocks.count(); }
         size_t capacity() const { return mFreeBlocks.capacity(); }
+
+        static constexpr size_t GetRequiredSize(size_t memory) {
+            // Worst case is when every other block is free
+            size_t blocks = memory / 2;
+            return blocks * sizeof(FreeBlock);
+        }
     };
+
+    static_assert(FreeVector::GetRequiredSize(0x1000) == ((0x1000 / 2) * sizeof(FreeVector::FreeBlock)));
 }

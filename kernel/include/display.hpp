@@ -100,6 +100,7 @@ namespace km {
         void fill(Pixel pixel);
 
         void *address() const { return mAddress; }
+        void setAddress(void *address) { mAddress = (uint8_t*)address; }
         size_t size() const { return mPitch * mHeight; }
 
         uint64_t width() const { return mWidth; }
