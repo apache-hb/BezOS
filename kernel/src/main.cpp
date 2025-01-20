@@ -417,10 +417,11 @@ static SystemMemory SetupKernelMemory(uintptr_t bits, const KernelLayout& layout
     // Now update the terminal to use the new memory layout
     if (!launch.framebuffers.isEmpty()) {
         gDirectTerminalLog.get().display().setAddress(layout.getFrameBuffer(launch, 0));
+    }
 
-        // And unmap the old hhdm framebuffer
-        auto fb = launch.framebuffers.front();
-        memory.unmap(fb.vaddr, fb.size());
+    // Now unmap all the old hhdm mapped framebuffers
+    for (const KernelFrameBuffer& framebuffer : launch.framebuffers) {
+        memory.unmap(framebuffer.vaddr, framebuffer.size());
     }
 
     return memory;
