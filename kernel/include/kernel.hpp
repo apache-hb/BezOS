@@ -2,15 +2,10 @@
 
 #include <stddef.h>
 
-#include "util/format.hpp"
-
+#include "log.hpp" // IWYU pragma: export
 #include "gdt.hpp"
 #include "thread.hpp"
 
-void KmBeginWrite();
-void KmEndWrite();
-
-km::IOutStream *GetDebugStream();
 void SetupApGdt(void);
 void SetupInitialGdt(void);
 

@@ -67,7 +67,7 @@ namespace km {
 
         Int(T value) : value(value) {}
 
-        Int pad(size_t width, char fill) const {
+        Int pad(size_t width, char fill = '0') const {
             Int copy = *this;
             copy.width = width;
             copy.fill = fill;

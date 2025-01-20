@@ -3,6 +3,8 @@
 #include "delay.hpp"
 #include "log.hpp"
 
+#include <emmintrin.h>
+
 static constexpr uint16_t kData = 0x60;
 static constexpr uint16_t kCommand = 0x64;
 

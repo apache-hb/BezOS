@@ -1,16 +1,18 @@
 #pragma once
 
+#include "arch/intrin.hpp"
 #include "util/format.hpp"
+#include "util/util.hpp"
 #include <stdint.h>
 
 namespace x64 {
     class Cr0 {
-        uint64_t mValue;
+        uint32_t mValue;
 
-        Cr0(uint64_t value) : mValue(value) { }
+        Cr0(uint32_t value) : mValue(value) { }
 
     public:
-        enum : uint32_t {
+        enum Bit : uint32_t {
             PG = (1ull << 31),
             CD = (1ull << 30),
             NW = (1ull << 29),
@@ -30,30 +32,30 @@ namespace x64 {
             return Cr0(value);
         }
 
-        bool test(uint32_t flag) const {
+        bool test(Bit flag) const {
             return mValue & flag;
         }
 
-        void set(uint32_t flag) {
+        void set(Bit flag) {
             mValue |= flag;
         }
 
-        void clear(uint32_t flag) {
+        void clear(Bit flag) {
             mValue &= ~flag;
         }
 
         [[gnu::always_inline, gnu::nodebug]]
         static Cr0 load() {
-            uint64_t value;
-            asm volatile("mov %%cr0, %0" : "=r"(value));
-            return Cr0(value);
+            return Cr0(__get_cr0());
         }
 
         [[gnu::always_inline, gnu::nodebug]]
         static void store(Cr0 cr0) {
-            asm volatile("mov %0, %%cr0" : : "r"(cr0.mValue));
+            __set_cr0(cr0.value());
         }
     };
+
+    UTIL_BITFLAGS(Cr0::Bit);
 }
 
 template<>

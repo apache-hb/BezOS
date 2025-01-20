@@ -170,6 +170,7 @@ src = [
     init,
 
     # Kernel components
+    'kernel/src/log.cpp',
     'kernel/src/memory.cpp',
     'kernel/src/main.cpp',
 ]

@@ -2,13 +2,14 @@
 
 #include "gdt.hpp"
 #include "isr.hpp"
+#include "kernel.hpp"
 #include "log.hpp"
 #include "thread.hpp"
 
 static constexpr x64::ModelRegister<0xC0000080, x64::RegisterAccess::eReadWrite> kEfer;
 static constexpr x64::ModelRegister<0xC0000081, x64::RegisterAccess::eReadWrite> kStar;
 static constexpr x64::ModelRegister<0xC0000082, x64::RegisterAccess::eReadWrite> kLStar;
-static constexpr x64::ModelRegister<0xc0000084, x64::RegisterAccess::eReadWrite> kFMask;
+static constexpr x64::ModelRegister<0xC0000084, x64::RegisterAccess::eReadWrite> kFMask;
 
 [[gnu::section(".tlsdata")]]
 static constinit km::ThreadLocal<void*> tlsSystemCallStack;

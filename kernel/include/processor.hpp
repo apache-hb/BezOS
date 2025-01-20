@@ -1,6 +1,8 @@
 #pragma once
 
 #include "apic.hpp"
+#include "util/format.hpp"
+#include <utility>
 
 namespace km {
     enum class CpuCoreId : uint32_t {
@@ -10,5 +12,13 @@ namespace km {
     void InitKernelThread(IntController pic);
 
     CpuCoreId GetCurrentCoreId();
-    IntController GetCurrentCoreIntController();
+    IIntController *GetCurrentCoreIntController();
 }
+
+template<>
+struct km::Format<km::CpuCoreId> {
+    static void format(km::IOutStream& out, km::CpuCoreId id) {
+        using namespace stdx::literals;
+        out.format("CPU"_sv, km::Int(std::to_underlying(id)).pad(3));
+    }
+};

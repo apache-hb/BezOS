@@ -9,6 +9,9 @@
 #include <stdint.h>
 
 namespace km {
+    /// @brief A range of virtual address space.
+    ///
+    /// @pre @a VirtualRange::front < @a VirtualRange::back
     struct VirtualRange {
         const void *front;
         const void *back;
@@ -28,6 +31,9 @@ namespace km {
         bool contains(VirtualRange range) const {
             return range.front >= front && range.back <= back;
         }
+
+        constexpr bool operator==(const VirtualRange& other) const = default;
+        constexpr bool operator!=(const VirtualRange& other) const = default;
     };
 
     constexpr VirtualRange merge(VirtualRange a, VirtualRange b) {

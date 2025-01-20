@@ -48,6 +48,7 @@ namespace sm {
         T *pointer() { return reinterpret_cast<T *>(mStorage); }
         T **address() { return reinterpret_cast<T **>(&mStorage); }
 
+        T *operator*() { return pointer(); }
         T *operator->() { return pointer(); }
         T **operator&() { return address(); }
     };

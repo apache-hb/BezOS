@@ -69,7 +69,7 @@ namespace km {
         }
 
         constexpr bool isEmpty() const {
-            return size() == 0;
+            return front == back;
         }
 
         /// @brief Checks if the given address is within the range.
@@ -119,6 +119,7 @@ namespace km {
         }
 
         constexpr bool operator==(const MemoryRange& other) const = default;
+        constexpr bool operator!=(const MemoryRange& other) const = default;
     };
 
     /// @brief Find the intersection of two memory ranges.

@@ -1,6 +1,8 @@
 #pragma once
 
+#include "arch/intrin.hpp"
 #include "util/format.hpp"
+#include "util/util.hpp"
 #include <stdint.h>
 
 namespace x64 {
@@ -10,7 +12,7 @@ namespace x64 {
         Cr4(uint64_t value) : mValue(value) { }
 
     public:
-        enum : uint32_t {
+        enum Bit : uint32_t {
             VME = (1ull << 0),
             PVI = (1ull << 1),
             TSD = (1ull << 2),
@@ -41,26 +43,30 @@ namespace x64 {
             return Cr4(value);
         }
 
-        bool test(uint32_t flag) const {
+        bool test(Bit flag) const {
             return mValue & flag;
         }
 
-        void set(uint32_t flag) {
+        void set(Bit flag) {
             mValue |= flag;
+        }
+
+        void clear(Bit bit) {
+            mValue &= ~bit;
         }
 
         [[gnu::always_inline, gnu::nodebug]]
         static Cr4 load() {
-            uint64_t value;
-            asm volatile("mov %%cr4, %0" : "=r"(value));
-            return Cr4(value);
+            return Cr4(__get_cr4());
         }
 
         [[gnu::always_inline, gnu::nodebug]]
         static void store(Cr4 cr4) {
-            asm volatile("mov %0, %%cr4" : : "r"(cr4.mValue));
+            __set_cr4(cr4.value());
         }
     };
+
+    UTIL_BITFLAGS(Cr4::Bit);
 }
 
 template<>

@@ -4,6 +4,7 @@
 #include "util/bits.hpp"
 #include "util/digit.hpp"
 
+#include "gdt.h"
 #include "log.hpp"
 
 #include <stdint.h>

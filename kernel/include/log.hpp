@@ -1,9 +1,28 @@
 #pragma once
 
-#include "kernel.hpp"
+#include "boot.hpp"
+#include "uart.hpp"
+#include "util/format.hpp"
+
+namespace km {
+    enum class DebugLogLockType {
+        eNone,
+        eSpinLock,
+        eRecursiveSpinLock
+    };
+
+    void SetDebugLogLock(DebugLogLockType type);
+
+    void InitDebugLog(std::span<KernelFrameBuffer> framebuffer);
+    SerialPortStatus InitSerialDebugLog(ComPortInfo uart);
+
+    void LockDebugLog();
+    void UnlockDebugLog();
+    km::IOutStream *GetDebugStream();
+}
 
 inline void KmDebugWrite(stdx::StringView value = "\n") {
-    GetDebugStream()->write(value);
+    km::GetDebugStream()->write(value);
 }
 
 template<km::IsFormat T>
@@ -20,7 +39,7 @@ void KmDebugWrite(const T& value) {
 
 template<km::IsStreamFormat T>
 void KmDebugWrite(const T& value) {
-    km::Format<T>::format(*GetDebugStream(), value);
+    km::Format<T>::format(*km::GetDebugStream(), value);
 }
 
 template<km::IsFormat T>
@@ -47,7 +66,7 @@ void KmDebugWrite(km::FormatOf<T> value) {
 
 template<typename... T>
 void KmDebugMessage(T&&... args) {
-    KmBeginWrite();
+    km::LockDebugLog();
     (KmDebugWrite(args), ...);
-    KmEndWrite();
+    km::UnlockDebugLog();
 }

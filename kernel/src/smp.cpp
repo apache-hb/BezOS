@@ -4,6 +4,7 @@
 
 #include "gdt.hpp"
 #include "isr.hpp"
+#include "kernel.hpp"
 #include "panic.hpp"
 #include "log.hpp"
 #include "pat.hpp"

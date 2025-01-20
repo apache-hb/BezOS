@@ -110,13 +110,13 @@ namespace km {
         }
 
         km::PhysicalAddress activeMap() const {
-            return (x64::cr3() & mAddressMask);
+            return (__get_cr3() & mAddressMask);
         }
 
         void setActiveMap(km::PhysicalAddress map) const {
-            uint64_t reg = x64::cr3();
+            uint64_t reg = __get_cr3();
             reg = (reg & ~mAddressMask) | map.address;
-            x64::setcr3(reg);
+            __set_cr3(reg);
         }
     };
 }

@@ -7,6 +7,8 @@ serial_chardev()
     echo "-chardev stdio,id=char0,logfile=$1,signal=off -serial chardev:char0"
 }
 
+QEMUARGS="-M q35 -cdrom install/bezos.iso -display gtk"
+
 if [ "$MODE" = "ovmf" ]; then
     shift
     make install-ovmf
@@ -14,7 +16,7 @@ if [ "$MODE" = "ovmf" ]; then
         -drive if=pflash,format=raw,unit=0,file=install/ovmf/ovmf-code-x86_64.fd,readonly=on \
         -drive if=pflash,format=raw,unit=1,file=install/ovmf/ovmf-vars-x86_64.fd \
         -m 4G \
-        -M q35 -cdrom install/bezos.iso $(serial_chardev ovmf-serial.txt) $@
+        $QEMUARGS $(serial_chardev ovmf-serial.txt) $@
     exit
 elif [ "$MODE" = "numa" ]; then
     shift
@@ -38,8 +40,8 @@ elif [ "$MODE" = "numa" ]; then
         -numa dist,src=1,dst=2,val=20 \
         -numa dist,src=1,dst=3,val=20 \
         -m 4G \
-        -M q35 -cdrom install/bezos.iso $(serial_chardev numa-serial.txt) $@
+        $QEMUARGS $(serial_chardev numa-serial.txt) $@
     exit
 else
-    qemu-system-x86_64 -M q35 -cdrom install/bezos.iso $(serial_chardev qemu-serial.txt) -smp 4 $@
+    qemu-system-x86_64 $QEMUARGS $(serial_chardev qemu-serial.txt) -smp 4 $@
 fi

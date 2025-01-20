@@ -25,14 +25,11 @@
 #include "pat.hpp"
 #include "processor.hpp"
 #include "smp.hpp"
-#include "std/spinlock.hpp"
 #include "syscall.hpp"
 #include "thread.hpp"
 #include "uart.hpp"
 #include "smbios.hpp"
 #include "pci.hpp"
-
-#include "std/recursive_mutex.hpp"
 
 #include "memory/layout.hpp"
 #include "memory/allocator.hpp"
@@ -116,64 +113,13 @@ public:
 
 constinit static DebugLog gDebugLog;
 
-km::IOutStream *GetDebugStream() {
+km::IOutStream *km::GetDebugStream() {
     return &gDebugLog;
 }
 
 // qemu e9 port check - i think bochs does something else
 static bool KmTestDebugPort(void) {
     return __inbyte(0xE9) == 0xE9;
-}
-
-class IDebugLock {
-public:
-    virtual void lock() = 0;
-    virtual void unlock() = 0;
-};
-
-class NullLock final : public IDebugLock {
-public:
-    void lock() override { }
-    void unlock() override { }
-};
-
-class SpinLockDebugLock final : public IDebugLock {
-    stdx::SpinLock mLock;
-public:
-    void lock() override {
-        mLock.lock();
-    }
-
-    void unlock() override {
-        mLock.unlock();
-    }
-};
-
-class RecursiveDebugLock final : public IDebugLock {
-    stdx::RecursiveSpinLock mLock;
-
-public:
-    void lock() override {
-        mLock.lock();
-    }
-
-    void unlock() override {
-        mLock.unlock();
-    }
-};
-
-constinit static NullLock gNullLock;
-constinit static SpinLockDebugLock gSpinLock;
-constinit static RecursiveDebugLock gRecursiveDebugLock;
-
-constinit static IDebugLock *gLogLock = &gNullLock;
-
-void KmBeginWrite() {
-    gLogLock->lock();
-}
-
-void KmEndWrite() {
-    gLogLock->unlock();
 }
 
 constinit km::ThreadLocal<SystemGdt> km::tlsSystemGdt;
@@ -371,11 +317,16 @@ static KernelLayout BuildKernelLayout(uintptr_t vaddrbits, const KernelLaunch& l
     KmDebugMessage("[INIT] Framebuffers: ", Hex(framebufferFront).pad(16, '0'), " - ", Hex(framebufferBack).pad(16, '0'), "\n");
     KmDebugMessage("[INIT] Kernel: ", Hex(kernelFront).pad(16, '0'), " - ", Hex(kernelBack).pad(16, '0'), "\n");
 
-    return KernelLayout {
+    KernelLayout layout = {
         .data = { (void*)dataFront, (void*)dataBack },
         .framebuffers = { (void*)framebufferFront, (void*)framebufferBack },
         .kernel = { (void*)kernelFront, (void*)kernelBack },
     };
+
+    KM_CHECK(!layout.kernel.overlaps(layout.data), "Kernel virtual address space overlays with dynamic data space");
+    KM_CHECK(!layout.kernel.overlaps(layout.data), "Kernel virtual address space overlaps with framebuffers");
+
+    return layout;
 }
 
 static SystemMemory SetupKernelMemory(uintptr_t bits, const KernelLayout& layout, const KernelLaunch& launch) {
@@ -416,7 +367,9 @@ static SystemMemory SetupKernelMemory(uintptr_t bits, const KernelLayout& layout
 
     // Now update the terminal to use the new memory layout
     if (!launch.framebuffers.isEmpty()) {
-        gDirectTerminalLog.get().display().setAddress(layout.getFrameBuffer(launch, 0));
+        gDirectTerminalLog.get()
+            .display()
+            .setAddress(layout.getFrameBuffer(launch, 0));
     }
 
     // Now unmap all the old hhdm mapped framebuffers
@@ -468,7 +421,7 @@ static km::IntController KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllo
 
     km::InitTlsRegion(memory);
 
-    gLogLock = &gSpinLock;
+    SetDebugLogLock(DebugLogLockType::eSpinLock);
     km::InitKernelThread(pic);
 
     uint8_t spuriousVec = isrs.allocateIsr();
@@ -476,7 +429,7 @@ static km::IntController KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllo
 
     KmInstallIsrHandler(spuriousVec, [](km::IsrContext *ctx) -> void* {
         KmDebugMessage("[ISR] Spurious interrupt: ", ctx->vector, "\n");
-        km::IntController pic = GetCurrentCoreIntController();
+        km::IIntController *pic = km::GetCurrentCoreIntController();
         pic->eoi();
         return ctx;
     });
@@ -490,7 +443,7 @@ static km::IntController KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllo
 
         KmIsrHandler old = KmInstallIsrHandler(isr, [](km::IsrContext *context) -> void* {
             KmDebugMessage("[SELFTEST] Handled isr: ", context->vector, "\n");
-            km::IntController pic = GetCurrentCoreIntController();
+            km::IIntController *pic = km::GetCurrentCoreIntController();
             pic->eoi();
             return context;
         });
@@ -555,7 +508,7 @@ static SerialPortStatus KmInitSerialPort(ComPortInfo info) {
 [[noreturn]]
 static void KmDumpIsrContext(const km::IsrContext *context, stdx::StringView message) {
     if (km::IsTlsSetup()) {
-        KmDebugMessage("\n[BUG] ", message, " - On core ", std::to_underlying(km::GetCurrentCoreId()), "\n");
+        KmDebugMessage("\n[BUG] ", message, " - On ", km::GetCurrentCoreId(), "\n");
     } else {
         KmDebugMessage("\n[BUG] ", message, "\n");
     }
@@ -589,7 +542,7 @@ static void KmInstallExceptionHandlers(void) {
     });
 
     KmInstallIsrHandler(0xE, [](km::IsrContext *context) -> void* {
-        KmDebugMessage("[BUG] CR2: ", Hex(x64::cr2()).pad(16, '0'), "\n");
+        KmDebugMessage("[BUG] CR2: ", Hex(__get_cr2()).pad(16, '0'), "\n");
         KmDumpIsrContext(context, "Page fault (#PF)");
     });
 }
@@ -612,6 +565,8 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     x64::Cr0::store(cr0);
 
     kGsBase.store(0);
+
+    SetDebugLogLock(DebugLogLockType::eNone);
 
     KmInitBootTerminal(launch);
 
@@ -747,8 +702,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     pci::ProbeConfigSpace();
 
     KmInitSmp(memory, lapic.pointer(), rsdt, useX2Apic);
-
-    gLogLock = &gRecursiveDebugLock;
+    SetDebugLogLock(DebugLogLockType::eRecursiveSpinLock);
 
     // Setup gdt that contains a TSS for this core
     SetupApGdt();
