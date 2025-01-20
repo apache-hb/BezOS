@@ -35,6 +35,8 @@ namespace km {
         BrandString brand;
         uint32_t maxleaf;
         uintptr_t maxpaddr;
+
+        /// @brief The bits of the maximum virtual address.
         uintptr_t maxvaddr;
 
         bool hasLocalApic;
@@ -46,6 +48,17 @@ namespace km {
         bool hasNominalFrequency() const {
             return busClock != 0;
         }
+
+        /// @brief The canonical maximum virtual address.
+        uintptr_t maxVirtualAddress() const {
+            return (UINTPTR_MAX << maxvaddr);
+        }
+
+        /// @brief The canonical maximum physical address.
+        uintptr_t maxPhysicalAddress() const {
+            return (UINTPTR_MAX << maxpaddr);
+        }
+
 
         bool isKvm() const;
 

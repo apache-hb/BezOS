@@ -50,6 +50,8 @@ struct KernelFrameBuffer {
 };
 
 struct KernelLaunch {
+    static constexpr size_t kMaxDisplayCount = 4;
+
     km::PhysicalAddress kernelPhysicalBase;
     const void *kernelVirtualBase;
 
@@ -57,7 +59,7 @@ struct KernelLaunch {
 
     km::PhysicalAddress rsdpAddress;
 
-    stdx::StaticVector<KernelFrameBuffer, 4> framebuffers;
+    stdx::StaticVector<KernelFrameBuffer, kMaxDisplayCount> framebuffers;
 
     KernelMemoryMap memoryMap;
 

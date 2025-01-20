@@ -164,7 +164,17 @@ namespace stdx {
             return mStorage[0];
         }
 
+        constexpr const T& front() const {
+            TEST_ASSERT(!isEmpty() && "Vector is empty");
+            return mStorage[0];
+        }
+
         constexpr T& back() {
+            TEST_ASSERT(!isEmpty() && "Vector is empty");
+            return mStorage[mSize - 1];
+        }
+
+        constexpr const T& back() const {
             TEST_ASSERT(!isEmpty() && "Vector is empty");
             return mStorage[mSize - 1];
         }

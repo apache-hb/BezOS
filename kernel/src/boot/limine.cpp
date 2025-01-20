@@ -124,8 +124,6 @@ static KernelMemoryMap BootGetMemoryMap(void) {
 static constexpr size_t kLimineStackSize = sm::kilobytes(16).bytes();
 
 extern "C" void kmain(void) {
-    // KM_CHECK(LIMINE_BASE_REVISION_SUPPORTED, "Unsupported limine base revision.");
-
     // offset the stack pointer as limine pushes qword 0 to
     // the stack before jumping to the kernel. and builtin_frame_address
     // returns the address where call would store the return address.

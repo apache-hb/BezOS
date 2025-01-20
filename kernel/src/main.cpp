@@ -325,7 +325,60 @@ static void KmWriteMemoryMap(const KernelMemoryMap& memmap, const SystemMemory& 
     KmDebugMessage("[INIT] Usable memory: ", sm::bytes(usableMemory), ", Reclaimable memory: ", sm::bytes(reclaimableMemory), "\n");
 }
 
-static SystemMemory SetupKernelMemory(uintptr_t bits, const KernelLaunch& launch) {
+struct KernelLayout {
+    /// @brief Virtual address space reserved for the kernel.
+    /// Space for dynamic allocations, kernel heap, kernel stacks, etc.
+    VirtualRange data;
+
+    /// @brief All framebuffers that are available to the kernel.
+    VirtualRange framebuffers;
+
+    /// @brief Statically allocated memory for the kernel.
+    /// Includes text, data, bss, and other sections.
+    VirtualRange kernel;
+
+    void *getFrameBuffer(const KernelLaunch& launch, size_t index) const {
+        size_t offset = 0;
+        for (size_t i = 0; i < index; i++) {
+            offset += launch.framebuffers[i].size();
+        }
+
+        return (void*)((uintptr_t)framebuffers.front + offset);
+    }
+};
+
+extern "C" {
+    extern char __kernel_start[];
+    extern char __kernel_end[];
+}
+
+static KernelLayout BuildKernelLayout(uintptr_t vaddrbits, const KernelLaunch& launch) {
+    // reserve the top 1/4 of the address space for the kernel
+    uintptr_t dataBack = -(1ull << (vaddrbits - 1));
+    uintptr_t dataFront = -(1ull << (vaddrbits - 2));
+
+    uintptr_t framebufferBack = dataFront;
+    uintptr_t framebufferFront = framebufferBack;
+    for (const KernelFrameBuffer& framebuffer : launch.framebuffers) {
+        framebufferFront -= framebuffer.size();
+    }
+
+    uintptr_t kernelBack = (uintptr_t)__kernel_end;
+    uintptr_t kernelFront = (uintptr_t)__kernel_start;
+
+    KmDebugMessage("[INIT] Kernel layout:\n");
+    KmDebugMessage("[INIT] Data: ", Hex(dataFront).pad(16, '0'), " - ", Hex(dataBack).pad(16, '0'), "\n");
+    KmDebugMessage("[INIT] Framebuffers: ", Hex(framebufferFront).pad(16, '0'), " - ", Hex(framebufferBack).pad(16, '0'), "\n");
+    KmDebugMessage("[INIT] Kernel: ", Hex(kernelFront).pad(16, '0'), " - ", Hex(kernelBack).pad(16, '0'), "\n");
+
+    return KernelLayout {
+        .data = { (void*)dataFront, (void*)dataBack },
+        .framebuffers = { (void*)framebufferFront, (void*)framebufferBack },
+        .kernel = { (void*)kernelFront, (void*)kernelBack },
+    };
+}
+
+static SystemMemory SetupKernelMemory(uintptr_t bits, const KernelLayout& layout, const KernelLaunch& launch) {
     PageMemoryTypeLayout pat = KmSetupPat();
 
     PageBuilder pm = PageBuilder { bits, launch.hhdmOffset, pat };
@@ -343,14 +396,32 @@ static SystemMemory SetupKernelMemory(uintptr_t bits, const KernelLaunch& launch
 
     // remap framebuffers
 
+    uintptr_t framebufferBase = (uintptr_t)layout.framebuffers.front;
     for (const KernelFrameBuffer& framebuffer : launch.framebuffers) {
         KmDebugMessage("[INIT] Mapping framebuffer ", framebuffer.vaddr, " - ", sm::bytes(framebuffer.size()), "\n");
 
+        // first do a hhdm remap to prevent crashes when logging
         KmMapMemory(memory.vmm, framebuffer.paddr, framebuffer.vaddr, framebuffer.size(), PageFlags::eData, MemoryType::eWriteCombine);
+
+        // also remap the framebuffer into its final location
+        KmMapMemory(memory.vmm, framebuffer.paddr, (void*)framebufferBase, framebuffer.size(), PageFlags::eData, MemoryType::eWriteCombine);
+
+        KmDebugMessage("[INIT] Framebuffer ", framebuffer.paddr, " - ", (void*)(framebufferBase), "\n");
+
+        framebufferBase += framebuffer.size();
     }
 
     // once it is safe to remap the boot memory, do so
     KmReclaimBootMemory(memory.pager, memory.vmm, memory.layout);
+
+    // Now update the terminal to use the new memory layout
+    if (!launch.framebuffers.isEmpty()) {
+        // gDirectTerminalLog.get().display().setAddress(layout.getFrameBuffer(launch, 0));
+
+        // And unmap the old hhdm framebuffer
+        auto fb = launch.framebuffers.front();
+        // memory.unmap(fb.vaddr, fb.size());
+    }
 
     return memory;
 }
@@ -439,36 +510,27 @@ static km::PhysicalAddress KmGetRsdpTable(const KernelLaunch& launch) {
 }
 
 static void KmInitBootTerminal(const KernelLaunch& launch) {
-    for (const KernelFrameBuffer& framebuffer : launch.framebuffers) {
-        if (framebuffer.vaddr == nullptr)
-            continue;
+    if (launch.framebuffers.isEmpty()) return;
 
-        km::Canvas display { framebuffer, (uint8_t*)(framebuffer.vaddr) };
-        gDirectTerminalLog = DirectTerminal(display);
-        gLogTargets.add(&gDirectTerminalLog);
-
-        return;
-    }
+    KernelFrameBuffer framebuffer = launch.framebuffers.front();
+    km::Canvas display { framebuffer, (uint8_t*)(framebuffer.vaddr) };
+    gDirectTerminalLog = DirectTerminal(display);
+    gLogTargets.add(&gDirectTerminalLog);
 }
 
 static void KmInitBootBufferedTerminal(const KernelLaunch& launch, SystemMemory& memory) {
-    for (const KernelFrameBuffer& framebuffer : launch.framebuffers) {
-        if (framebuffer.vaddr == nullptr)
-            continue;
+    if (launch.framebuffers.isEmpty()) return;
 
-        KmDebugMessage("[INIT] Deleting unbuffered terminal\n");
+    KmDebugMessage("[INIT] Deleting unbuffered terminal\n");
 
-        gLogTargets.erase(&gDirectTerminalLog);
+    gLogTargets.erase(&gDirectTerminalLog);
 
-        KmDebugMessage("[INIT] Initializing buffered terminal\n");
+    KmDebugMessage("[INIT] Initializing buffered terminal\n");
 
-        gBufferedTerminalLog = BufferedTerminal(gDirectTerminalLog.get(), memory);
-        gLogTargets.add(&gBufferedTerminalLog);
+    gBufferedTerminalLog = BufferedTerminal(gDirectTerminalLog.get(), memory);
+    gLogTargets.add(&gBufferedTerminalLog);
 
-        KmDebugMessage("[INIT] Buffered terminal initialized\n");
-
-        return;
-    }
+    KmDebugMessage("[INIT] Buffered terminal initialized\n");
 }
 
 static void KmUpdateSerialPort(ComPortInfo info) {
@@ -583,28 +645,6 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     KmDebugMessage("[INIT] CR4: ", x64::Cr4::load(), "\n");
     KmDebugMessage("[INIT] HHDM: ", Hex(launch.hhdmOffset).pad(16, '0'), "\n");
 
-    gBootGdt = KmGetBootGdt();
-    SetupInitialGdt();
-
-    km::IsrAllocator isrs;
-    KmInitInterrupts(isrs, SystemGdt::eLongModeCode);
-    KmInstallExceptionHandlers();
-    EnableInterrupts();
-
-    SystemMemory memory = SetupKernelMemory(processor.maxpaddr, launch);
-
-    PlatformInfo platform = KmGetPlatformInfo(launch, memory);
-
-    // On Oracle VirtualBox the COM1 port is functional but fails the loopback test.
-    // If we are running on VirtualBox, retry the serial port initialization without the loopback test.
-    if (com1Status == SerialPortStatus::eLoopbackTestFailed && platform.isOracleVirtualBox()) {
-        KmUpdateSerialPort(com1Info);
-    }
-
-    // save the base address early as its stored in bootloader
-    // reclaimable memory, which is reclaimed before this data is used.
-    km::PhysicalAddress rsdpBaseAddress = KmGetRsdpTable(launch);
-
     KmDebugMessage("[INIT] System report.\n");
     KmDebugMessage("| Component     | Property             | Status\n");
     KmDebugMessage("|---------------+----------------------+-------\n");
@@ -653,6 +693,29 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     KmDebugMessage("| /SYS/MB/COM1  | Status               | ", com1Status, "\n");
     KmDebugMessage("| /SYS/MB/COM1  | Port                 | ", Hex(com1Info.port), "\n");
     KmDebugMessage("| /SYS/MB/COM1  | Baud rate            | ", km::com::kBaudRate / com1Info.divisor, "\n");
+
+    gBootGdt = KmGetBootGdt();
+    SetupInitialGdt();
+
+    km::IsrAllocator isrs;
+    KmInitInterrupts(isrs, SystemGdt::eLongModeCode);
+    KmInstallExceptionHandlers();
+    EnableInterrupts();
+
+    KernelLayout layout = BuildKernelLayout(processor.maxvaddr, launch);
+    SystemMemory memory = SetupKernelMemory(processor.maxpaddr, layout, launch);
+
+    PlatformInfo platform = KmGetPlatformInfo(launch, memory);
+
+    // On Oracle VirtualBox the COM1 port is functional but fails the loopback test.
+    // If we are running on VirtualBox, retry the serial port initialization without the loopback test.
+    if (com1Status == SerialPortStatus::eLoopbackTestFailed && platform.isOracleVirtualBox()) {
+        KmUpdateSerialPort(com1Info);
+    }
+
+    // save the base address early as its stored in bootloader
+    // reclaimable memory, which is reclaimed before this data is used.
+    km::PhysicalAddress rsdpBaseAddress = KmGetRsdpTable(launch);
 
     KmDebugMessage("[INIT] Initializing buffered boot terminal\n");
 
