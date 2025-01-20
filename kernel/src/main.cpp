@@ -506,7 +506,7 @@ static SerialPortStatus KmInitSerialPort(ComPortInfo info) {
 }
 
 [[noreturn]]
-static void KmDumpIsrContext(const km::IsrContext *context, stdx::StringView message) {
+static void DumpIsrContext(const km::IsrContext *context, stdx::StringView message) {
     if (km::IsTlsSetup()) {
         KmDebugMessage("\n[BUG] ", message, " - On ", km::GetCurrentCoreId(), "\n");
     } else {
@@ -518,9 +518,9 @@ static void KmDumpIsrContext(const km::IsrContext *context, stdx::StringView mes
     KM_PANIC("Kernel panic.");
 }
 
-static void KmInstallExceptionHandlers(void) {
+static void InstallExceptionHandlers(void) {
     KmInstallIsrHandler(0x0, [](km::IsrContext *context) -> void* {
-        KmDumpIsrContext(context, "Divide by zero (#DE)");
+        DumpIsrContext(context, "Divide by zero (#DE)");
     });
 
     KmInstallIsrHandler(0x2, [](km::IsrContext *context) -> void* {
@@ -530,25 +530,28 @@ static void KmInstallExceptionHandlers(void) {
     });
 
     KmInstallIsrHandler(0x6, [](km::IsrContext *context) -> void* {
-        KmDumpIsrContext(context, "Invalid opcode (#UD)");
+        DumpIsrContext(context, "Invalid opcode (#UD)");
     });
 
     KmInstallIsrHandler(0x8, [](km::IsrContext *context) -> void* {
-        KmDumpIsrContext(context, "Double fault (#DF)");
+        DumpIsrContext(context, "Double fault (#DF)");
     });
 
     KmInstallIsrHandler(0xD, [](km::IsrContext *context) -> void* {
-        KmDumpIsrContext(context, "General protection fault (#GP)");
+        DumpIsrContext(context, "General protection fault (#GP)");
     });
 
     KmInstallIsrHandler(0xE, [](km::IsrContext *context) -> void* {
         KmDebugMessage("[BUG] CR2: ", Hex(__get_cr2()).pad(16, '0'), "\n");
-        KmDumpIsrContext(context, "Page fault (#PF)");
+        DumpIsrContext(context, "Page fault (#PF)");
     });
 }
 
-static void InitPortDelay(const HypervisorInfo& hvInfo) {
-    x64::PortDelay delay = hvInfo.isKvm() ? x64::PortDelay::eNone : x64::PortDelay::ePostCode;
+static void InitPortDelay(const std::optional<HypervisorInfo>& hvInfo) {
+    x64::PortDelay delay = hvInfo.transform([](const HypervisorInfo& hv) { return hv.isKvm(); }).value_or(false)
+        ? x64::PortDelay::eNone
+        : x64::PortDelay::ePostCode;
+
     KmSetPortDelayMethod(delay);
 }
 
@@ -559,44 +562,7 @@ static std::span<const uint8_t> GetInitProgram() {
     return { (const uint8_t*)_binary_init_elf_start, (const uint8_t*)_binary_init_elf_end };
 }
 
-extern "C" void KmLaunch(KernelLaunch launch) {
-    x64::Cr0 cr0 = x64::Cr0::load();
-    cr0.set(x64::Cr0::WP | x64::Cr0::NE);
-    x64::Cr0::store(cr0);
-
-    kGsBase.store(0);
-
-    SetDebugLogLock(DebugLogLockType::eNone);
-
-    KmInitBootTerminal(launch);
-
-    bool hvPresent = IsHypervisorPresent();
-    HypervisorInfo hvInfo{};
-    bool hasDebugPort = false;
-
-    if (hvPresent) {
-        hvInfo = KmGetHypervisorInfo();
-
-        if (hvInfo.platformHasDebugPort()) {
-            hasDebugPort = KmTestDebugPort();
-        }
-    }
-
-    if (hasDebugPort) {
-        gLogTargets.add(&gDebugPortLog);
-    }
-
-    ProcessorInfo processor = GetProcessorInfo();
-    InitPortDelay(hvInfo);
-
-    ComPortInfo com1Info = {
-        .port = km::com::kComPort1,
-        .divisor = km::com::kBaud9600,
-        .skipLoopbackTest = false,
-    };
-
-    SerialPortStatus com1Status = KmInitSerialPort(com1Info);
-
+static void LogSystemInfo(const KernelLaunch& launch, std::optional<HypervisorInfo> hvInfo, ProcessorInfo processor, bool hasDebugPort, SerialPortStatus com1Status, const ComPortInfo& com1Info) {
     KmDebugMessage("[INIT] CR0: ", x64::Cr0::load(), "\n");
     KmDebugMessage("[INIT] CR4: ", x64::Cr4::load(), "\n");
     KmDebugMessage("[INIT] HHDM: ", Hex(launch.hhdmOffset).pad(16, '0'), "\n");
@@ -605,9 +571,9 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     KmDebugMessage("| Component     | Property             | Status\n");
     KmDebugMessage("|---------------+----------------------+-------\n");
 
-    if (hvPresent) {
-        KmDebugMessage("| /SYS/HV       | Hypervisor           | ", hvInfo.name, "\n");
-        KmDebugMessage("| /SYS/HV       | Max CPUID leaf       | ", Hex(hvInfo.maxleaf).pad(8, '0'), "\n");
+    if (hvInfo.has_value()) {
+        KmDebugMessage("| /SYS/HV       | Hypervisor           | ", hvInfo->name, "\n");
+        KmDebugMessage("| /SYS/HV       | Max CPUID leaf       | ", Hex(hvInfo->maxleaf).pad(8, '0'), "\n");
         KmDebugMessage("| /SYS/HV       | e9 debug port        | ", enabled(hasDebugPort), "\n");
     } else {
         KmDebugMessage("| /SYS/HV       | Hypervisor           | Not present\n");
@@ -650,12 +616,49 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     KmDebugMessage("| /SYS/MB/COM1  | Port                 | ", Hex(com1Info.port), "\n");
     KmDebugMessage("| /SYS/MB/COM1  | Baud rate            | ", km::com::kBaudRate / com1Info.divisor, "\n");
 
+}
+
+extern "C" void KmLaunch(KernelLaunch launch) {
+    x64::Cr0 cr0 = x64::Cr0::load();
+    cr0.set(x64::Cr0::WP | x64::Cr0::NE);
+    x64::Cr0::store(cr0);
+
+    kGsBase.store(0);
+
+    SetDebugLogLock(DebugLogLockType::eNone);
+
+    KmInitBootTerminal(launch);
+
+    std::optional<HypervisorInfo> hvInfo = KmGetHypervisorInfo();
+    bool hasDebugPort = false;
+
+    if (hvInfo.transform([](const HypervisorInfo& info) { return info.platformHasDebugPort(); }).value_or(false)) {
+        hasDebugPort = KmTestDebugPort();
+    }
+
+    if (hasDebugPort) {
+        gLogTargets.add(&gDebugPortLog);
+    }
+
+    ProcessorInfo processor = GetProcessorInfo();
+    InitPortDelay(hvInfo);
+
+    ComPortInfo com1Info = {
+        .port = km::com::kComPort1,
+        .divisor = km::com::kBaud9600,
+        .skipLoopbackTest = false,
+    };
+
+    SerialPortStatus com1Status = KmInitSerialPort(com1Info);
+
+    LogSystemInfo(launch, hvInfo, processor, hasDebugPort, com1Status, com1Info);
+
     gBootGdt = KmGetBootGdt();
     SetupInitialGdt();
 
     km::IsrAllocator isrs;
     KmInitInterrupts(isrs, SystemGdt::eLongModeCode);
-    KmInstallExceptionHandlers();
+    InstallExceptionHandlers();
     EnableInterrupts();
 
     KernelLayout layout = BuildKernelLayout(processor.maxvaddr, launch);

@@ -12,10 +12,10 @@ public:
     }
 };
 
-void KmBeginWrite() { }
-void KmEndWrite() { }
+void km::LockDebugLog() { }
+void km::UnlockDebugLog() { }
 
-km::IOutStream *GetDebugStream() {
+km::IOutStream *km::GetDebugStream() {
     static TestStream sTestStream;
     return &sTestStream;
 }

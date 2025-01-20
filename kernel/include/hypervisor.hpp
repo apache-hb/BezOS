@@ -19,8 +19,7 @@ namespace km {
         bool platformHasDebugPort() const;
     };
 
-    /// @pre: IsHypervisorPresent() = true
-    HypervisorInfo KmGetHypervisorInfo();
+    std::optional<HypervisorInfo> KmGetHypervisorInfo();
 
     struct CoreMultiplier {
         uint32_t tsc;

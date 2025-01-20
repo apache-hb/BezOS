@@ -31,7 +31,11 @@ bool km::HypervisorInfo::platformHasDebugPort() const {
     return isQemu() || isKvm();
 }
 
-km::HypervisorInfo km::KmGetHypervisorInfo() {
+std::optional<km::HypervisorInfo> km::KmGetHypervisorInfo() {
+    if (!IsHypervisorPresent()) {
+        return std::nullopt;
+    }
+
     CpuId cpuid = CpuId::of(0x40000000);
 
     char vendor[12];
