@@ -63,7 +63,7 @@ static const void *KmReadSmbiosEntry(PlatformInfo& info, const void *ptr) {
 }
 
 static PlatformInfo KmReadSmbios64(km::PhysicalAddress address, km::SystemMemory& memory) {
-    const SmBiosHeader64 *smbios = memory.mmapObject<SmBiosHeader64>(address);
+    const SmBiosHeader64 *smbios = memory.mapObject<SmBiosHeader64>(address);
 
     void *tableAddress = memory.map(smbios->tableAddress, smbios->tableAddress + smbios->tableSize);
     KmDebugMessage("[SMBIOS] Table address: ", km::Hex(smbios->tableAddress).pad(16, '0'), ", Size: ", smbios->tableSize, "\n");
@@ -82,7 +82,7 @@ static PlatformInfo KmReadSmbios64(km::PhysicalAddress address, km::SystemMemory
 }
 
 static PlatformInfo KmReadSmbios32(km::PhysicalAddress address, km::SystemMemory& memory) {
-    const SmBiosHeader32 *smbios = memory.mmapObject<SmBiosHeader32>(address);
+    const SmBiosHeader32 *smbios = memory.mapObject<SmBiosHeader32>(address);
 
     void *tableAddress = memory.map(smbios->tableAddress, smbios->tableAddress + smbios->tableSize);
     KmDebugMessage("[SMBIOS] Table address: ", km::Hex(smbios->tableAddress).pad(8, '0'), ", Size: ", smbios->tableSize, "\n");

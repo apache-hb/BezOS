@@ -116,8 +116,6 @@ namespace km {
     public:
         constexpr LocalApic() = default;
 
-        static LocalApic current(km::SystemMemory& memory);
-
         constexpr LocalApic(void *base)
             : mBaseAddress(base)
         { }

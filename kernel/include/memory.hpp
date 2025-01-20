@@ -38,7 +38,7 @@ namespace km {
         }
 
         template<typename T>
-        T *mmapObject(PhysicalAddress paddr) {
+        T *mapObject(PhysicalAddress paddr) {
             return mapObject<T>(paddr, paddr + sizeof(T));
         }
 

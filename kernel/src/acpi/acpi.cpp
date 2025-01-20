@@ -244,10 +244,10 @@ acpi::AcpiTables::AcpiTables(const RsdpLocator *locator, km::SystemMemory& memor
     };
 
     if (revision() == 0) {
-        const acpi::Rsdt *rsdt = memory.mmapObject<acpi::Rsdt>(km::PhysicalAddress { locator->rsdtAddress });
+        const acpi::Rsdt *rsdt = memory.mapObject<acpi::Rsdt>(km::PhysicalAddress { locator->rsdtAddress });
         setupTables(rsdt);
     } else {
-        const acpi::Xsdt *xsdt = memory.mmapObject<acpi::Xsdt>(km::PhysicalAddress { locator->xsdtAddress });
+        const acpi::Xsdt *xsdt = memory.mapObject<acpi::Xsdt>(km::PhysicalAddress { locator->xsdtAddress });
         setupTables(xsdt);
     }
 

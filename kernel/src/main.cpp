@@ -672,19 +672,13 @@ extern "C" void KmLaunch(KernelLaunch launch) {
         KmUpdateSerialPort(com1Info);
     }
 
-    // save the base address early as its stored in bootloader
-    // reclaimable memory, which is reclaimed before this data is used.
-    km::PhysicalAddress rsdpBaseAddress = KmGetRsdpTable(launch);
-
-    KmDebugMessage("[INIT] Initializing buffered boot terminal\n");
-
     KmInitBootBufferedTerminal(launch, memory);
 
     bool useX2Apic = kUseX2Apic && processor.has2xApic;
 
     km::IntController lapic = KmEnableLocalApic(memory, isrs, useX2Apic);
 
-    acpi::AcpiTables rsdt = InitAcpi(rsdpBaseAddress, memory);
+    acpi::AcpiTables rsdt = InitAcpi(KmGetRsdpTable(launch), memory);
     const acpi::Fadt *fadt = rsdt.fadt();
     InitCmos(fadt->century);
 
@@ -717,9 +711,7 @@ extern "C" void KmLaunch(KernelLaunch launch) {
     void *initMemory = memory.allocate(0x1000);
     mem::TlsfAllocator allocator(initMemory, 0x1000);
     auto process = LoadElf(init, "init.elf", 1, memory, &allocator);
-    if (!process) {
-        KM_PANIC("Failed to load init.elf");
-    }
+    KM_CHECK(process.has_value(), "Failed to load init.elf");
 
     DateTime time = ReadRtc();
     KmDebugMessage("[INIT] Current time: ", time.year, "-", time.month, "-", time.day, "T", time.hour, ":", time.minute, ":", time.second, "Z\n");

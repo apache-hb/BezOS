@@ -126,7 +126,7 @@ void KmInitSmp(km::SystemMemory& memory, km::IIntController *bsp, acpi::AcpiTabl
 
     KmDebugMessage("[SMP] BSP ID: ", bspId, "\n");
 
-    SmpInfoHeader *smpInfo = memory.mmapObject<SmpInfoHeader>(kSmpInfo);
+    SmpInfoHeader *smpInfo = memory.mapObject<SmpInfoHeader>(kSmpInfo);
 
     // Also identity map the SMP blob and info regions, it makes jumping to compatibility mode easier.
     // I think theres a better way to do this, but I'm not sure what it is.

@@ -169,12 +169,6 @@ volatile uint32_t& km::LocalApic::reg(uint16_t offset) const {
     return *reinterpret_cast<volatile uint32_t*>((char*)mBaseAddress + offset);
 }
 
-km::LocalApic km::LocalApic::current(km::SystemMemory& memory) {
-    uint64_t reg = kApicBase.load();
-
-    return MapLocalApic(reg, memory);
-}
-
 uint32_t km::LocalApic::id() const {
     uint32_t id = reg(kApicId);
     return id >> 24;
@@ -226,12 +220,15 @@ km::IntController KmInitApApic(km::SystemMemory& memory, km::IIntController *bsp
 
         return km::X2Apic::get();
     } else {
-        // Remap every AP lapic at the same address as the BSP lapic.
         km::LocalApic *lapic = static_cast<km::LocalApic*>(bsp);
-        km::PhysicalAddress bspBaseAddress = uintptr_t(lapic->baseAddress()) - memory.pager.hhdmOffset();
-        uint64_t msr = EnableLocalApic(bspBaseAddress);
+        void *vaddr = lapic->baseAddress();
 
-        return MapLocalApic(msr, memory);
+        // Move every AP lapic at the same address as the BSP lapic.
+        // This makes accessing it less error prone.
+        km::PhysicalAddress bspBaseAddress = memory.vmm.getBackingAddress(vaddr);
+        EnableLocalApic(bspBaseAddress);
+
+        return km::LocalApic { vaddr };
     }
 }
 
@@ -242,13 +239,13 @@ static constexpr uint32_t kIoApicWindow = 0x10;
 
 static constexpr uint32_t kIoApicVersion = 0x1;
 
-static uint8_t *hhdmMapIoApic(km::SystemMemory& memory, const acpi::MadtEntry *entry) {
+static uint8_t *mapIoApic(km::SystemMemory& memory, const acpi::MadtEntry *entry) {
     const acpi::MadtEntry::IoApic ioApic = entry->ioapic;
     return (uint8_t*)memory.map(ioApic.address, ioApic.address + entry->length);
 }
 
 km::IoApic::IoApic(const acpi::MadtEntry *entry, km::SystemMemory& memory)
-    : mAddress(hhdmMapIoApic(memory, entry))
+    : mAddress(mapIoApic(memory, entry))
     , mIsrBase(entry->ioapic.interruptBase)
     , mId(entry->ioapic.ioApicId)
 { }
