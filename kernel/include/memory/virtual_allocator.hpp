@@ -3,6 +3,8 @@
 #include "allocator/freelist.hpp"
 #include "std/static_vector.hpp"
 
+#include "util/format.hpp"
+
 #include <algorithm>
 
 #include <stddef.h>
@@ -45,8 +47,6 @@ namespace km {
         /// @brief Ranges of memory that are still available.
         stdx::StaticVector<VirtualRange, 32> mAvailable;
 
-        mem::FreeVector mFreeList;
-
     public:
         VirtualAllocator(VirtualRange range);
 
@@ -57,3 +57,10 @@ namespace km {
         void release(VirtualRange range);
     };
 }
+
+template<>
+struct km::Format<km::VirtualRange> {
+    static void format(km::IOutStream& out, km::VirtualRange value) {
+        out.format(value.front, "-", value.back);
+    }
+};

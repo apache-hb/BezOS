@@ -42,7 +42,7 @@ static size_t GetBitmapSize(const SystemMemoryLayout *layout) {
 
 static constexpr PhysicalAddress kLowMemory = sm::megabytes(1).bytes();
 
-static PhysicalAddress FindBitmapSpace(const SystemMemoryLayout *layout, size_t bitmapSize) {
+static PhysicalAddress FindFreeSpace(const SystemMemoryLayout *layout, size_t bitmapSize) {
     // Find any memory range that is large enough to hold the bitmap
     // and is not in the first 1MB of memory.
 
@@ -85,7 +85,7 @@ static MemoryRange GetBitmapRange(const SystemMemoryLayout *layout) {
     size_t size = sm::roundup(GetBitmapSize(layout), x64::kPageSize);
 
     // Allocate bitmap space
-    PhysicalAddress bitmap = FindBitmapSpace(layout, size);
+    PhysicalAddress bitmap = FindFreeSpace(layout, size);
     KM_CHECK(bitmap != nullptr, "Failed to find space for bitmap");
 
     return {bitmap, bitmap + size};

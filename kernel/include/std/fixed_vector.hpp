@@ -12,9 +12,13 @@ namespace stdx {
 
     public:
         FixedVector(T *front, T *back)
+            : FixedVector(front, front, back)
+        { }
+
+        FixedVector(T *front, T *back, T *capacity)
             : mFront(front)
-            , mBack(front)
-            , mCapacity(back)
+            , mBack(back)
+            , mCapacity(capacity)
         { }
 
         size_t capacity() const { return mCapacity - mFront; }

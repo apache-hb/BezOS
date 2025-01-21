@@ -26,7 +26,6 @@ static void MergeRanges(stdx::StaticVector<km::VirtualRange, N>& ranges) {
 
 km::VirtualAllocator::VirtualAllocator(VirtualRange range)
     : mAvailable({ range })
-    , mFreeList(nullptr, nullptr) // TODO: implement
 { }
 
 void km::VirtualAllocator::markUsed(VirtualRange range) {

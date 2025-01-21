@@ -1,6 +1,8 @@
 #pragma once
 
+#include "allocator/freelist.hpp"
 #include "memory/layout.hpp"
+#include "memory/virtual_allocator.hpp"
 
 namespace km {
     namespace detail {
@@ -134,5 +136,13 @@ namespace km {
         ///
         /// @param range The range to mark as used.
         void markUsed(MemoryRange range);
+
+        MemoryRange bitmap() const {
+            return mBitmapMemory;
+        }
+
+        void moveBitmap(MemoryRange range) {
+            mBitmapMemory = range;
+        }
     };
 }
