@@ -43,6 +43,7 @@ pci::ConfigHeader pci::QueryConfig(uint8_t bus, uint8_t slot, uint8_t function) 
     }
 
     uint16_t device = ReadConfigWord(bus, slot, function, 0x2);
+    uint16_t status = ReadConfigWord(bus, slot, function, 0x4);
 
     uint8_t cls = ReadConfigByte(bus, slot, function, 0x8);
     uint8_t subclass = ReadConfigByte(bus, slot, function, 0x9);
@@ -54,6 +55,7 @@ pci::ConfigHeader pci::QueryConfig(uint8_t bus, uint8_t slot, uint8_t function) 
     return pci::ConfigHeader {
         .deviceId = DeviceId(device),
         .vendorId = VendorId(vendor),
+        .status = DeviceStatus(status),
 
         .cls = DeviceClass(DeviceClassCode(cls), subclass),
         .programmable = programmable,

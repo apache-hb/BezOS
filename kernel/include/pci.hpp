@@ -51,6 +51,10 @@ namespace pci {
         eBridge = 0x6,
     };
 
+    enum class DeviceStatus : uint16_t {
+        eCapsList = (1 << 4),
+    };
+
     struct DeviceClass {
         DeviceClassCode cls;
         uint8_t subclass;
@@ -61,6 +65,7 @@ namespace pci {
     struct ConfigHeader {
         DeviceId deviceId;
         VendorId vendorId;
+        DeviceStatus status;
         DeviceClass cls;
         uint8_t programmable;
         uint8_t revision;
