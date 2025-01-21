@@ -67,6 +67,9 @@ namespace stdx {
             if (this != &other) {
                 releaseMemory();
                 mAllocator = other.mAllocator;
+                mFront = mAllocator->allocateArray<T>(other.count());
+                mBack = mFront;
+                mCapacity = mFront + other.count();
                 addRange(other);
             }
 
