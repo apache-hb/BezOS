@@ -13,6 +13,10 @@ namespace mem {
 
         void *mCurrent;
 
+        bool wasLastAllocation(void *ptr, size_t size) const {
+            return ((char*)ptr + size) == mCurrent;
+        }
+
     public:
         using Super::Super;
 
@@ -24,6 +28,20 @@ namespace mem {
 
         void *allocate(size_t size) override {
             return allocateAligned(size, sizeof(std::max_align_t));
+        }
+
+        void *reallocate(void *old, size_t oldSize, size_t newSize) override {
+            if (wasLastAllocation(old, oldSize)) {
+                mCurrent = (char*)old + newSize;
+                return old;
+            }
+
+            void *data = allocate(newSize);
+            if (data != nullptr) {
+                memcpy(data, old, oldSize);
+            }
+
+            return data;
         }
 
         void *allocateAligned(size_t size, size_t align) override {
@@ -43,8 +61,8 @@ namespace mem {
         }
 
         void deallocate(void *ptr, size_t size) override {
-            if (ptr == mCurrent) {
-                mCurrent = (void*)((size_t)mCurrent - size);
+            if (wasLastAllocation(ptr, size)) {
+                mCurrent = ptr;
             }
         }
 

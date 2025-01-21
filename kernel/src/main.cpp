@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+#include <numeric>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -276,7 +277,25 @@ struct KernelLayout {
     /// Space for dynamic allocations, kernel heap, kernel stacks, etc.
     VirtualRange data;
 
-    /// @brief All framebuffers that are available to the kernel.
+
+
+    /// @brief Non pageable memory used for the physical memory manager.
+    VirtualRange pmm;
+
+    /// @brief The physical memory for @ref pmm.
+    MemoryRange pmmBackingMemory;
+
+
+
+    /// @brief Non pageable memory used for the virtual memory manager.
+    VirtualRange vmm;
+
+    /// @brief The physical memory for @ref vmm.
+    MemoryRange vmmBackingMemory;
+
+
+
+    /// @brief All framebuffers that are available.
     VirtualRange framebuffers;
 
     /// @brief Statically allocated memory for the kernel.
@@ -299,9 +318,15 @@ extern "C" {
 }
 
 static KernelLayout BuildKernelLayout(uintptr_t vaddrbits, const KernelLaunch& launch) {
+    size_t framebuffersSize = std::accumulate(launch.framebuffers.begin(), launch.framebuffers.end(), 0, [](size_t sum, const KernelFrameBuffer& framebuffer) {
+        return sum + framebuffer.size();
+    });
+
     // reserve the top 1/4 of the address space for the kernel
     uintptr_t dataBack = -(1ull << (vaddrbits - 1));
     uintptr_t dataFront = -(1ull << (vaddrbits - 2));
+
+    VirtualRange data = { (void*)dataFront, (void*)dataBack };
 
     uintptr_t offset = dataFront;
 
@@ -312,29 +337,28 @@ static KernelLayout BuildKernelLayout(uintptr_t vaddrbits, const KernelLaunch& l
         return VirtualRange { (void*)back, (void*)offset };
     };
 
-    size_t framebuffersSize = 0;
-    for (const KernelFrameBuffer& framebuffer : launch.framebuffers) {
-        framebuffersSize += framebuffer.size();
-    }
+    // TODO: calculate correct amount
+    VirtualRange pmm = reserve(sm::megabytes(1).bytes());
+    VirtualRange vmm = reserve(sm::megabytes(1).bytes());
 
     VirtualRange framebuffers = reserve(framebuffersSize);
 
-    uintptr_t kernelBack = (uintptr_t)__kernel_end;
-    uintptr_t kernelFront = (uintptr_t)__kernel_start;
+    VirtualRange kernel = { (void*)__kernel_start, (void*)__kernel_end };
 
     KmDebugMessage("[INIT] Kernel layout:\n");
-    KmDebugMessage("[INIT] Data: ", Hex(dataFront).pad(16, '0'), " - ", Hex(dataBack).pad(16, '0'), "\n");
-    KmDebugMessage("[INIT] Framebuffers: ", framebuffers.front, " - ", framebuffers.back, "\n");
-    KmDebugMessage("[INIT] Kernel: ", Hex(kernelFront).pad(16, '0'), " - ", Hex(kernelBack).pad(16, '0'), "\n");
+    KmDebugMessage("[INIT] Data         : ", data, "\n");
+    KmDebugMessage("[INIT] PMM          : ", pmm, "\n");
+    KmDebugMessage("[INIT] VMM          : ", vmm, "\n");
+    KmDebugMessage("[INIT] Framebuffers : ", framebuffers, "\n");
+    KmDebugMessage("[INIT] Kernel       : ", kernel, "\n");
 
     KernelLayout layout = {
-        .data = { (void*)dataFront, (void*)dataBack },
+        .data = data,
+        .pmm = pmm,
+        .vmm = vmm,
         .framebuffers = framebuffers,
-        .kernel = { (void*)kernelFront, (void*)kernelBack },
+        .kernel = kernel,
     };
-
-    KM_CHECK(!layout.kernel.overlaps(layout.data), "Kernel virtual address space overlays with dynamic data space");
-    KM_CHECK(!layout.kernel.overlaps(layout.data), "Kernel virtual address space overlaps with framebuffers");
 
     return layout;
 }
@@ -625,10 +649,9 @@ static void LogSystemInfo(const KernelLaunch& launch, std::optional<HypervisorIn
     KmDebugMessage("| /SYS/MB/COM1  | Status               | ", com1Status, "\n");
     KmDebugMessage("| /SYS/MB/COM1  | Port                 | ", Hex(com1Info.port), "\n");
     KmDebugMessage("| /SYS/MB/COM1  | Baud rate            | ", km::com::kBaudRate / com1Info.divisor, "\n");
-
 }
 
-extern "C" void KmLaunch(KernelLaunch launch) {
+extern "C" void KmLaunch(const KernelLaunch& launch) {
     x64::Cr0 cr0 = x64::Cr0::load();
     cr0.set(x64::Cr0::WP | x64::Cr0::NE);
     x64::Cr0::store(cr0);

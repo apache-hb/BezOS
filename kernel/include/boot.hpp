@@ -19,6 +19,19 @@ enum class MemoryMapEntryType {
 struct MemoryMapEntry {
     MemoryMapEntryType type;
     km::MemoryRange range;
+
+    size_t size() const { return range.size(); }
+    bool isUsable() const {
+        switch (type) {
+        case MemoryMapEntryType::eUsable:
+        case MemoryMapEntryType::eAcpiReclaimable:
+        case MemoryMapEntryType::eBootloaderReclaimable:
+            return true;
+
+        default:
+            return false;
+        }
+    }
 };
 
 static constexpr size_t kMaxMemoryMapEntries = 256;
@@ -69,7 +82,7 @@ struct KernelLaunch {
     km::PhysicalAddress smbios64Address;
 };
 
-extern "C" [[noreturn]] void KmLaunch(KernelLaunch launch);
+extern "C" [[noreturn]] void KmLaunch(const KernelLaunch& launch);
 
 template<>
 struct km::Format<MemoryMapEntryType> {

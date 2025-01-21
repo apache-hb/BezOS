@@ -17,9 +17,21 @@ namespace mem {
     public:
         using Super::Super;
 
-        constexpr TlsfAllocator(void *memory, size_t size)
-            : mAllocator(tlsf_create_with_pool(memory, size, 0), tlsf_destroy)
+        constexpr TlsfAllocator(void *memory, size_t size, size_t max = 0)
+            : mAllocator(tlsf_create_with_pool(memory, size, max), tlsf_destroy)
         { }
+
+        constexpr TlsfAllocator(tlsf_t allocator)
+            : mAllocator(allocator, tlsf_destroy)
+        { }
+
+        pool_t addPool(void *memory, size_t size) {
+            return tlsf_add_pool(mAllocator.get(), memory, size);
+        }
+
+        void removePool(pool_t pool) {
+            tlsf_remove_pool(mAllocator.get(), pool);
+        }
 
         void *allocate(size_t size) override {
             return tlsf_malloc(mAllocator.get(), size);

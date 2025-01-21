@@ -121,7 +121,7 @@ static KernelMemoryMap BootGetMemoryMap(void) {
     return result;
 }
 
-static constexpr size_t kLimineStackSize = sm::kilobytes(16).bytes();
+static constexpr size_t kStackSize = sm::kilobytes(16).bytes();
 
 extern "C" void kmain(void) {
     // offset the stack pointer as limine pushes qword 0 to
@@ -142,7 +142,7 @@ extern "C" void kmain(void) {
         .rsdpAddress = (uintptr_t)rsdp.address,
         .framebuffers = BootGetAllDisplays(hhdm.offset),
         .memoryMap = BootGetMemoryMap(),
-        .stack = { stack - kLimineStackSize, stack },
+        .stack = { stack - kStackSize, stack },
         .smbios32Address = (uintptr_t)smbios.entry_32,
         .smbios64Address = (uintptr_t)smbios.entry_64,
     };

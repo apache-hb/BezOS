@@ -20,6 +20,8 @@ namespace km {
         sm::Memory usableMemory() const;
         sm::Memory reclaimableMemory() const;
 
+        size_t count() const { return available.count() + reclaimable.count(); }
+
         static SystemMemoryLayout from(const KernelMemoryMap& memmap);
     };
 

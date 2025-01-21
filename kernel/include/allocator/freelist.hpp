@@ -16,6 +16,10 @@ namespace mem {
         stdx::FixedVector<FreeBlock> mFreeBlocks;
 
     public:
+        FreeVector(stdx::FixedVector<FreeBlock> blocks)
+            : mFreeBlocks(blocks)
+        { }
+
         FreeVector(FreeBlock *front, FreeBlock *back)
             : mFreeBlocks(front, back)
         { }
@@ -29,9 +33,12 @@ namespace mem {
         size_t capacity() const { return mFreeBlocks.capacity(); }
 
         static constexpr size_t GetRequiredSize(size_t memory) {
+            return GetRequiredBlocks(memory) * sizeof(FreeBlock);
+        }
+
+        static constexpr size_t GetRequiredBlocks(size_t memory) {
             // Worst case is when every other block is free
-            size_t blocks = memory / 2;
-            return blocks * sizeof(FreeBlock);
+            return memory / 2;
         }
     };
 
