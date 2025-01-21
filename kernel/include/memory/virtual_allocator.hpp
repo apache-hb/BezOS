@@ -1,6 +1,5 @@
 #pragma once
 
-#include "allocator/freelist.hpp"
 #include "std/static_vector.hpp"
 
 #include "util/format.hpp"

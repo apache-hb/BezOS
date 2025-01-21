@@ -305,12 +305,8 @@ void KmMapMemory(km::PageTableManager& vmm, km::PhysicalAddress base, const void
     vmm.mapRange({ base, end }, vaddr, flags, type);
 }
 
-void KmReclaimBootMemory(const km::PageBuilder& pm, km::PageTableManager& vmm, km::SystemMemoryLayout& layout) {
+void KmReclaimBootMemory(const km::PageBuilder& pm, km::PageTableManager& vmm) {
     // then apply the new page tables
     KmDebugMessage("[INIT] PML4: ", vmm.rootPageTable(), "\n");
     pm.setActiveMap(vmm.rootPageTable());
-
-    KmDebugMessage("[INIT] Reclaiming bootloader memory.\n");
-
-    layout.reclaimBootMemory();
 }

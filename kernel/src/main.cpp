@@ -385,10 +385,7 @@ static SystemMemory SetupKernelMemory(uintptr_t bits, const KernelLayout& layout
     for (const KernelFrameBuffer& framebuffer : launch.framebuffers) {
         KmDebugMessage("[INIT] Mapping framebuffer ", framebuffer.vaddr, " - ", sm::bytes(framebuffer.size()), "\n");
 
-        // first do a hhdm remap to prevent crashes when logging
-        KmMapMemory(memory.vmm, framebuffer.paddr, framebuffer.vaddr, framebuffer.size(), PageFlags::eData, MemoryType::eWriteCombine);
-
-        // also remap the framebuffer into its final location
+        // remap the framebuffer into its final location
         KmMapMemory(memory.vmm, framebuffer.paddr, (void*)framebufferBase, framebuffer.size(), PageFlags::eData, MemoryType::eWriteCombine);
 
         KmDebugMessage("[INIT] Framebuffer ", framebuffer.paddr, " - ", (void*)(framebufferBase), "\n");
@@ -397,7 +394,7 @@ static SystemMemory SetupKernelMemory(uintptr_t bits, const KernelLayout& layout
     }
 
     // once it is safe to remap the boot memory, do so
-    KmReclaimBootMemory(memory.pager, memory.vmm, memory.layout);
+    KmReclaimBootMemory(memory.pager, memory.vmm);
 
     // Now update the terminal to use the new memory layout
     if (!launch.framebuffers.isEmpty()) {
@@ -406,10 +403,7 @@ static SystemMemory SetupKernelMemory(uintptr_t bits, const KernelLayout& layout
             .setAddress(layout.getFrameBuffer(launch, 0));
     }
 
-    // Now unmap all the old hhdm mapped framebuffers
-    for (const KernelFrameBuffer& framebuffer : launch.framebuffers) {
-        memory.unmap(framebuffer.vaddr, framebuffer.size());
-    }
+    memory.layout.reclaimBootMemory();
 
     return memory;
 }

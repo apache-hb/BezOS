@@ -1,8 +1,6 @@
 #pragma once
 
-#include "allocator/freelist.hpp"
 #include "memory/layout.hpp"
-#include "memory/virtual_allocator.hpp"
 
 namespace km {
     namespace detail {

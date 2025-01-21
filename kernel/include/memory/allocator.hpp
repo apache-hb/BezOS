@@ -87,5 +87,4 @@ void KmMapMemory(km::PageTableManager& vmm, km::PhysicalAddress base, const void
 /// @brief Reclaim bootloader memory.
 /// @param pm The page manager
 /// @param vmm The virtual memory manager
-/// @param layout The system memory layout
-void KmReclaimBootMemory(const km::PageBuilder& pm, km::PageTableManager& vmm, km::SystemMemoryLayout& layout);
+void KmReclaimBootMemory(const km::PageBuilder& pm, km::PageTableManager& vmm);
