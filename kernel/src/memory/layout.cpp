@@ -67,7 +67,7 @@ void detail::MergeMemoryRanges(stdx::StaticVector<MemoryMapEntry, SystemMemoryLa
     }
 }
 
-SystemMemoryLayout SystemMemoryLayout::from(const KernelMemoryMap& memmap) {
+SystemMemoryLayout SystemMemoryLayout::from(std::span<const boot::MemoryRegion> memmap) {
     FreeMemoryRanges freeMemory;
     FreeMemoryRanges reclaimable;
     ReservedMemoryRanges reservedMemory;
@@ -77,7 +77,7 @@ SystemMemoryLayout SystemMemoryLayout::from(const KernelMemoryMap& memmap) {
     bool reclaimableRangesOverflow = false;
     bool reservedRangesOverflow = false;
 
-    for (size_t i = 0; i < memmap.count(); i++) {
+    for (size_t i = 0; i < memmap.size(); i++) {
         auto addMemoryRange = [&](MemoryMapEntry range, auto& ranges, stdx::StringView message, bool& overflow) {
             if (!ranges.add(range) && !overflow) {
                 overflow = true;

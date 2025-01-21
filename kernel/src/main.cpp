@@ -247,13 +247,13 @@ static void KmWriteMtrrs(const km::PageBuilder& pm) {
     // SetupMtrrs(mtrrs, pm);
 }
 
-static void KmWriteMemoryMap(const KernelMemoryMap& memmap, const SystemMemory& memory) {
-    KmDebugMessage("[INIT] ", memmap.count(), " memory map entries.\n");
+static void KmWriteMemoryMap(std::span<const boot::MemoryRegion> memmap, const SystemMemory& memory) {
+    KmDebugMessage("[INIT] ", memmap.size(), " memory map entries.\n");
 
     KmDebugMessage("| Entry | Address            | Size               | Type\n");
     KmDebugMessage("|-------+--------------------+--------------------+-----------------------\n");
 
-    for (size_t i = 0; i < memmap.count(); i++) {
+    for (size_t i = 0; i < memmap.size(); i++) {
         MemoryMapEntry entry = memmap[i];
         MemoryRange range = entry.range;
 
@@ -285,10 +285,10 @@ struct KernelLayout {
     /// Includes text, data, bss, and other sections.
     VirtualRange kernel;
 
-    void *getFrameBuffer(const KernelLaunch& launch, size_t index) const {
+    void *getFrameBuffer(std::span<const boot::FrameBuffer> fbs, size_t index) const {
         size_t offset = 0;
         for (size_t i = 0; i < index; i++) {
-            offset += launch.framebuffers[i].size();
+            offset += fbs[i].size();
         }
 
         return (void*)((uintptr_t)framebuffers.front + offset);
@@ -338,18 +338,27 @@ static KernelLayout BuildKernelLayout(uintptr_t vaddrbits, std::span<const boot:
     return layout;
 }
 
-static SystemMemory SetupKernelMemory(uintptr_t bits, const KernelLayout& layout, km::AddressMapping stack, const KernelLaunch& launch) {
+static SystemMemory SetupKernelMemory(
+    uintptr_t maxpaddr,
+    const KernelLayout& layout,
+    km::AddressMapping stack,
+    uintptr_t hhdmOffset,
+    std::span<const boot::FrameBuffer> framebuffers,
+    std::span<const boot::MemoryRegion> memmap,
+    km::PhysicalAddress kernelPhysicalBase,
+    const void *kernelVirtualBase
+) {
     PageMemoryTypeLayout pat = KmSetupPat();
 
-    PageBuilder pm = PageBuilder { bits, launch.hhdmOffset, pat };
+    PageBuilder pm = PageBuilder { maxpaddr, hhdmOffset, pat };
     KmWriteMtrrs(pm);
 
-    SystemMemory memory = SystemMemory { SystemMemoryLayout::from(launch.memoryMap), pm };
+    SystemMemory memory = SystemMemory { SystemMemoryLayout::from(memmap), pm };
 
-    KmWriteMemoryMap(launch.memoryMap, memory);
+    KmWriteMemoryMap(memmap, memory);
 
     // initialize our own page tables and remap everything into it
-    KmMapKernel(memory.pager, memory.vmm, memory.layout, launch.kernelPhysicalBase, launch.kernelVirtualBase);
+    KmMapKernel(memory.pager, memory.vmm, memory.layout, kernelPhysicalBase, kernelVirtualBase);
 
     // move our stack out of reclaimable memory
     KmMapMemory(memory.vmm, stack.paddr, stack.vaddr, stack.size, PageFlags::eData, MemoryType::eWriteBack);
@@ -357,7 +366,7 @@ static SystemMemory SetupKernelMemory(uintptr_t bits, const KernelLayout& layout
     // remap framebuffers
 
     uintptr_t framebufferBase = (uintptr_t)layout.framebuffers.front;
-    for (const KernelFrameBuffer& framebuffer : launch.framebuffers) {
+    for (const KernelFrameBuffer& framebuffer : framebuffers) {
         // remap the framebuffer into its final location
         KmMapMemory(memory.vmm, framebuffer.paddr, (void*)framebufferBase, framebuffer.size(), PageFlags::eData, MemoryType::eWriteCombine);
 
@@ -370,10 +379,10 @@ static SystemMemory SetupKernelMemory(uintptr_t bits, const KernelLayout& layout
     // can't log anything here as we need to move the framebuffer first
 
     // Now update the terminal to use the new memory layout
-    if (!launch.framebuffers.isEmpty()) {
+    if (!framebuffers.empty()) {
         gDirectTerminalLog.get()
             .display()
-            .setAddress(layout.getFrameBuffer(launch, 0));
+            .setAddress(layout.getFrameBuffer(framebuffers, 0));
     }
 
     memory.layout.reclaimBootMemory();
@@ -458,10 +467,6 @@ static km::IntController KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllo
     }
 
     return pic;
-}
-
-static km::PhysicalAddress KmGetRsdpTable(const KernelLaunch& launch) {
-    return launch.rsdpAddress;
 }
 
 static void KmInitBootTerminal(std::span<const boot::FrameBuffer> framebuffers) {
@@ -625,7 +630,6 @@ static void LogSystemInfo(
     KmDebugMessage("| /SYS/MB/COM1  | Baud rate            | ", km::com::kBaudRate / com1Info.divisor, "\n");
 }
 
-#if 0
 void KmLaunchEx(boot::LaunchInfo launch) {
     x64::Cr0 cr0 = x64::Cr0::load();
     cr0.set(x64::Cr0::WP | x64::Cr0::NE);
@@ -670,7 +674,12 @@ void KmLaunchEx(boot::LaunchInfo launch) {
     EnableInterrupts();
 
     KernelLayout layout = BuildKernelLayout(processor.maxvaddr, launch.framebuffers);
-    SystemMemory memory = SetupKernelMemory(processor.maxpaddr, layout, launch.stack, launch);
+    SystemMemory memory = SetupKernelMemory(
+        processor.maxpaddr, layout, launch.stack,
+        launch.hhdmOffset,
+        launch.framebuffers, launch.memmap,
+        launch.kernelPhysicalBase, launch.kernelVirtualBase
+    );
 
     PlatformInfo platform = KmGetPlatformInfo(launch.smbios32Address, launch.smbios64Address, memory);
 
@@ -687,145 +696,6 @@ void KmLaunchEx(boot::LaunchInfo launch) {
     km::IntController lapic = KmEnableLocalApic(memory, isrs, useX2Apic);
 
     acpi::AcpiTables rsdt = InitAcpi(launch.rsdpAddress, memory);
-    const acpi::Fadt *fadt = rsdt.fadt();
-    InitCmos(fadt->century);
-
-    uint32_t ioApicCount = rsdt.ioApicCount();
-    KM_CHECK(ioApicCount > 0, "No IOAPICs found.");
-
-    for (uint32_t i = 0; i < ioApicCount; i++) {
-        IoApic ioapic = rsdt.mapIoApic(memory, 0);
-
-        KmDebugMessage("[INIT] IOAPIC ", i, " ID: ", ioapic.id(), ", Version: ", ioapic.version(), "\n");
-        KmDebugMessage("[INIT] ISR base: ", ioapic.isrBase(), ", Inputs: ", ioapic.inputCount(), "\n");
-    }
-
-    bool has8042 = rsdt.has8042Controller();
-
-    hid::Ps2Controller ps2Controller;
-
-    pci::ProbeConfigSpace();
-
-    KmInitSmp(memory, lapic.pointer(), rsdt, useX2Apic);
-    SetDebugLogLock(DebugLogLockType::eRecursiveSpinLock);
-
-    // Setup gdt that contains a TSS for this core
-    SetupApGdt();
-
-    km::SetupUserMode(memory);
-
-    std::span init = GetInitProgram();
-
-    void *initMemory = memory.allocate(0x1000);
-    mem::TlsfAllocator allocator(initMemory, 0x1000);
-    auto process = LoadElf(init, "init.elf", 1, memory, &allocator);
-    KM_CHECK(process.has_value(), "Failed to load init.elf");
-
-    DateTime time = ReadRtc();
-    KmDebugMessage("[INIT] Current time: ", time.year, "-", time.month, "-", time.day, "T", time.hour, ":", time.minute, ":", time.second, "Z\n");
-
-    km::EnterUserMode(process->main.state);
-
-    if (has8042) {
-        hid::Ps2ControllerResult result = hid::EnablePs2Controller();
-        KmDebugMessage("[INIT] PS/2 controller: ", result.status, "\n");
-        if (result.status == hid::Ps2ControllerStatus::eOk) {
-            ps2Controller = result.controller;
-
-            KmDebugMessage("[INIT] PS/2 channel 1: ", present(ps2Controller.hasKeyboard()), "\n");
-            KmDebugMessage("[INIT] PS/2 channel 2: ", present(ps2Controller.hasMouse()), "\n");
-        }
-    } else {
-        KmDebugMessage("[INIT] No PS/2 controller found.\n");
-    }
-
-    if (ps2Controller.hasKeyboard()) {
-        hid::Ps2Device keyboard = ps2Controller.keyboard();
-        hid::Ps2Device mouse = ps2Controller.mouse();
-        mouse.disable();
-        keyboard.enable();
-
-        while (true) {
-            uint8_t scancode = ps2Controller.read();
-            KmDebugMessage("[PS2] Keyboard scancode: ", Hex(scancode), "\n");
-        }
-    }
-
-    KM_PANIC("Test bugcheck.");
-
-    KmHalt();
-}
-#endif
-
-void KmLaunch(const KernelLaunch& launch) {
-    x64::Cr0 cr0 = x64::Cr0::load();
-    cr0.set(x64::Cr0::WP | x64::Cr0::NE);
-    x64::Cr0::store(cr0);
-
-    kGsBase.store(0);
-
-    SetDebugLogLock(DebugLogLockType::eNone);
-
-    std::span<const boot::FrameBuffer> framebuffers = { launch.framebuffers.data(), launch.framebuffers.count() };
-
-    KmInitBootTerminal(framebuffers);
-
-    std::optional<HypervisorInfo> hvInfo = KmGetHypervisorInfo();
-    bool hasDebugPort = false;
-
-    if (hvInfo.transform([](const HypervisorInfo& info) { return info.platformHasDebugPort(); }).value_or(false)) {
-        hasDebugPort = KmTestDebugPort();
-    }
-
-    if (hasDebugPort) {
-        gLogTargets.add(&gDebugPortLog);
-    }
-
-    ProcessorInfo processor = GetProcessorInfo();
-    InitPortDelay(hvInfo);
-
-    ComPortInfo com1Info = {
-        .port = km::com::kComPort1,
-        .divisor = km::com::kBaud9600,
-        .skipLoopbackTest = false,
-    };
-
-    SerialPortStatus com1Status = KmInitSerialPort(com1Info);
-
-    LogSystemInfo(launch.hhdmOffset, framebuffers, hvInfo, processor, hasDebugPort, com1Status, com1Info);
-
-    gBootGdt = KmGetBootGdt();
-    SetupInitialGdt();
-
-    km::IsrAllocator isrs;
-    KmInitInterrupts(isrs, SystemGdt::eLongModeCode);
-    InstallExceptionHandlers();
-    EnableInterrupts();
-
-    km::AddressMapping stack = {
-        .vaddr = (void*)(launch.stack.front.address - launch.hhdmOffset),
-        .paddr = launch.stack.front,
-        .size = launch.stack.size(),
-    };
-
-    KernelLayout layout = BuildKernelLayout(processor.maxvaddr, framebuffers);
-    SystemMemory memory = SetupKernelMemory(processor.maxpaddr, layout, stack, launch);
-
-    PlatformInfo platform = KmGetPlatformInfo(launch.smbios32Address, launch.smbios64Address, memory);
-
-    // On Oracle VirtualBox the COM1 port is functional but fails the loopback test.
-    // If we are running on VirtualBox, retry the serial port initialization without the loopback test.
-    if (com1Status == SerialPortStatus::eLoopbackTestFailed && platform.isOracleVirtualBox()) {
-        KmUpdateSerialPort(com1Info);
-    }
-
-    KmInitBootBufferedTerminal(framebuffers, memory);
-
-    bool useX2Apic = kUseX2Apic && processor.has2xApic;
-
-    km::IntController lapic = KmEnableLocalApic(memory, isrs, useX2Apic);
-
-    acpi::AcpiTables rsdt = InitAcpi(KmGetRsdpTable(launch), memory);
     const acpi::Fadt *fadt = rsdt.fadt();
     InitCmos(fadt->century);
 

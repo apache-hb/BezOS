@@ -73,16 +73,6 @@ struct BootAllocator {
 
         return ptr;
     }
-
-    template<typename T, typename... A>
-    T *construct(A&&... args) {
-        return new (malloc(sizeof(T), alignof(T))) T(std::forward<A>(args)...);
-    }
-
-    template<typename T>
-    T *box(T value) {
-        return construct<T>(std::move(value));
-    }
 };
 
 static KernelFrameBuffer BootGetDisplay(int index, uintptr_t hhdmOffset) {
@@ -106,17 +96,6 @@ static KernelFrameBuffer BootGetDisplay(int index, uintptr_t hhdmOffset) {
         .vaddr = framebuffer.address,
         .edid = { edidAddress, edidAddress + framebuffer.edid_size }
     };
-}
-
-static stdx::StaticVector<KernelFrameBuffer, 4> BootGetAllDisplays(uintptr_t hhdmOffset) {
-    limine_framebuffer_response response = *gFramebufferRequest.response;
-    stdx::StaticVector<KernelFrameBuffer, 4> result;
-
-    for (uint64_t i = 0; i < std::min<uint64_t>(result.capacity(), response.framebuffer_count); i++) {
-        result.add(BootGetDisplay(i, hhdmOffset));
-    }
-
-    return result;
 }
 
 static std::span<boot::FrameBuffer> BootGetFrameBuffers(uintptr_t hhdmOffset, BootAllocator& alloc) {
@@ -153,23 +132,6 @@ static MemoryMapEntryType BootGetEntryType(limine_memmap_entry entry) {
     }
 }
 
-static KernelMemoryMap BootGetMemoryMap(void) {
-    limine_memmap_response response = *gMemmoryMapRequest.response;
-
-    KernelMemoryMap result;
-    for (uint64_t i = 0; i < response.entry_count; i++) {
-        limine_memmap_entry entry = *response.entries[i];
-
-        MemoryMapEntryType type = BootGetEntryType(entry);
-
-        MemoryMapEntry item = { type, { entry.base, entry.base + entry.length } };
-
-        result.add(item);
-    }
-
-    return result;
-}
-
 static std::span<boot::MemoryRegion> BootGetMemoryMap(BootAllocator& alloc) {
     limine_memmap_response response = *gMemmoryMapRequest.response;
     boot::MemoryRegion *memmap = (boot::MemoryRegion*)alloc.malloc(sizeof(boot::MemoryRegion) * response.entry_count + 1, alignof(boot::MemoryRegion));
@@ -196,6 +158,7 @@ static std::span<boot::MemoryRegion> BootGetMemoryMap(BootAllocator& alloc) {
 
 static constexpr size_t kStackSize = sm::kilobytes(16).bytes();
 static constexpr size_t kBootMemory = sm::kilobytes(64).bytes();
+static constexpr size_t kLowMemory = sm::megabytes(1).bytes();
 
 static BootAllocator MakeBootAllocator(size_t size, const limine_memmap_response& memmap, uintptr_t hhdmOffset) {
     // Find a free memory range to use as a buffer
@@ -203,6 +166,9 @@ static BootAllocator MakeBootAllocator(size_t size, const limine_memmap_response
         limine_memmap_entry entry = *memmap.entries[i];
 
         if (entry.type != LIMINE_MEMMAP_USABLE)
+            continue;
+
+        if (entry.base > kLowMemory)
             continue;
 
         if (entry.length < size)
@@ -235,7 +201,7 @@ extern "C" void kmain(void) {
     std::span<boot::FrameBuffer> framebuffers = BootGetFrameBuffers(hhdm.offset, alloc);
     std::span<boot::MemoryRegion> memmap = BootGetMemoryMap(alloc);
 
-    boot::LaunchInfo *info = alloc.box(boot::LaunchInfo {
+    boot::LaunchInfo info = {
         .kernelPhysicalBase = kernelAddress.physical_base,
         .kernelVirtualBase = (void*)kernelAddress.virtual_base,
         .hhdmOffset = hhdm.offset,
@@ -245,19 +211,7 @@ extern "C" void kmain(void) {
         .stack = { base, stack, kStackSize },
         .smbios32Address = (uintptr_t)smbios.entry_32,
         .smbios64Address = (uintptr_t)smbios.entry_64,
-    });
-
-    KernelLaunch launch = {
-        .kernelPhysicalBase = kernelAddress.physical_base,
-        .kernelVirtualBase = (void*)kernelAddress.virtual_base,
-        .hhdmOffset = hhdm.offset,
-        .rsdpAddress = (uintptr_t)rsdp.address,
-        .framebuffers = BootGetAllDisplays(hhdm.offset),
-        .memoryMap = BootGetMemoryMap(),
-        .stack = { stack - kStackSize, stack },
-        .smbios32Address = (uintptr_t)smbios.entry_32,
-        .smbios64Address = (uintptr_t)smbios.entry_64,
     };
 
-    KmLaunch(launch);
+    KmLaunchEx(info);
 }

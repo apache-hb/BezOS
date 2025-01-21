@@ -34,9 +34,6 @@ struct MemoryMapEntry {
     }
 };
 
-static constexpr size_t kMaxMemoryMapEntries = 256;
-using KernelMemoryMap = stdx::StaticVector<MemoryMapEntry, kMaxMemoryMapEntries>;
-
 struct KernelFrameBuffer {
     uint64_t width;
     uint64_t height;
@@ -83,32 +80,6 @@ namespace boot {
         km::PhysicalAddress smbios64Address;
     };
 }
-
-struct KernelLaunch {
-    static constexpr size_t kMaxDisplayCount = 4;
-
-    km::PhysicalAddress kernelPhysicalBase;
-    const void *kernelVirtualBase;
-
-    uintptr_t hhdmOffset;
-
-    km::PhysicalAddress rsdpAddress;
-
-    std::span<boot::FrameBuffer> framebuffers2;
-    std::span<boot::MemoryRegion> memmap;
-
-    stdx::StaticVector<KernelFrameBuffer, kMaxDisplayCount> framebuffers;
-
-    KernelMemoryMap memoryMap;
-
-    km::MemoryRange stack;
-
-    km::PhysicalAddress smbios32Address;
-    km::PhysicalAddress smbios64Address;
-};
-
-[[noreturn]]
-void KmLaunch(const KernelLaunch& launch);
 
 [[noreturn]]
 void KmLaunchEx(boot::LaunchInfo launch);

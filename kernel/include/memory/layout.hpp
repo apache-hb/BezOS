@@ -22,7 +22,7 @@ namespace km {
 
         size_t count() const { return available.count() + reclaimable.count(); }
 
-        static SystemMemoryLayout from(const KernelMemoryMap& memmap);
+        static SystemMemoryLayout from(std::span<const boot::MemoryRegion> memmap);
     };
 
     namespace detail {

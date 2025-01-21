@@ -3,6 +3,8 @@
 
 #include "memory/page_allocator.hpp"
 
+using KernelMemoryMap = std::vector<boot::MemoryRegion>;
+
 struct TestData {
     KernelMemoryMap memmap;
     km::SystemMemoryLayout layout;
@@ -17,11 +19,11 @@ struct TestData {
 
 static TestData GetTestAllocator() {
     KernelMemoryMap data;
-    for (unsigned i = 0; i < data.capacity(); i++) {
+    for (unsigned i = 0; i < 64; i++) {
         size_t size = sm::megabytes(4).bytes();
         void *ptr = _mm_malloc(size, x64::kPageSize);
         km::MemoryRange range = { (uintptr_t)ptr, (uintptr_t)ptr + size };
-        data.add({ MemoryMapEntryType::eUsable, range});
+        data.push_back({ MemoryMapEntryType::eUsable, range});
     }
 
     TestData test = { data, km::SystemMemoryLayout::from(data), km::PageAllocator(&test.layout, 0) };
@@ -32,7 +34,7 @@ static TestData GetTestAllocator() {
 TEST(PageAllocatorTest, LowMemorySplit) {
     KernelMemoryMap data;
     size_t size = sm::gigabytes(4).bytes();
-    data.add(MemoryMapEntry { MemoryMapEntryType::eUsable, { 0x0000uz, size } });
+    data.push_back(MemoryMapEntry { MemoryMapEntryType::eUsable, { 0x0000uz, size } });
 
     km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(data);
 
@@ -100,7 +102,7 @@ TEST(PageAllocatorTest, RebuildAfterReclaim) {
     for (size_t i = 0; i < 32; i++) {
         MemoryMapEntryType type = i % 2 == 0 ? MemoryMapEntryType::eUsable : MemoryMapEntryType::eBootloaderReclaimable;
         uintptr_t start = (0x8000ull * i) + (uintptr_t)memory;
-        data.add(MemoryMapEntry { type, { start, start + 0x1000 } });
+        data.push_back(MemoryMapEntry { type, { start, start + 0x1000 } });
     }
 
     km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(data);
