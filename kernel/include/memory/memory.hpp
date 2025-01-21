@@ -54,6 +54,12 @@ namespace km {
         }
     };
 
+    struct AddressMapping {
+        const void *vaddr;
+        km::PhysicalAddress paddr;
+        size_t size;
+    };
+
     /// @brief A range of physical address space.
     ///
     /// @pre @a MemoryRange::front < @a MemoryRange::back
@@ -116,6 +122,30 @@ namespace km {
 
         constexpr bool isAfter(PhysicalAddress addr) const {
             return front >= addr;
+        }
+
+        /// @brief Return a copy of this range with the overlapping area cut out.
+        ///
+        /// Cut off a range from this range. If the range is a subset of the other
+        /// the empty range is returned. If there is no overlap the original range
+        /// is returned.
+        ///
+        /// @see km::split for a similar function that returns two ranges.
+        ///
+        /// @param other The range to cut out.
+        /// @return The range with the overlapping area cut out.
+        constexpr MemoryRange cut(MemoryRange other) const {
+            if (contains(other)) return { 0zu, 0zu };
+
+            if (other.front <= front) {
+                return {other.back, back};
+            }
+
+            if (other.back >= back) {
+                return {front, other.front};
+            }
+
+            return {front, other.front};
         }
 
         constexpr bool operator==(const MemoryRange& other) const = default;

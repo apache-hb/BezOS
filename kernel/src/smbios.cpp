@@ -100,11 +100,15 @@ static PlatformInfo KmReadSmbios32(km::PhysicalAddress address, km::SystemMemory
     return info;
 }
 
-PlatformInfo KmGetPlatformInfo(const KernelLaunch& launch, km::SystemMemory& memory) {
-    if (launch.smbios64Address != nullptr) {
-        return KmReadSmbios64(launch.smbios64Address, memory);
-    } else if (launch.smbios32Address != nullptr) {
-        return KmReadSmbios32(launch.smbios32Address, memory);
+PlatformInfo KmGetPlatformInfo(
+    km::PhysicalAddress smbios32Address,
+    km::PhysicalAddress smbios64Address,
+    km::SystemMemory& memory
+) {
+    if (smbios64Address != nullptr) {
+        return KmReadSmbios64(smbios64Address, memory);
+    } else if (smbios32Address != nullptr) {
+        return KmReadSmbios32(smbios32Address, memory);
     }
 
     return PlatformInfo { };

@@ -78,4 +78,8 @@ struct PlatformInfo {
     bool isOracleVirtualBox() const;
 };
 
-PlatformInfo KmGetPlatformInfo(const KernelLaunch& launch, km::SystemMemory& memory);
+PlatformInfo KmGetPlatformInfo(
+    km::PhysicalAddress smbios32Address,
+    km::PhysicalAddress smbios64Address,
+    km::SystemMemory& memory
+);

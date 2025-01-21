@@ -75,6 +75,9 @@ namespace stdx {
         constexpr const T *begin() const { return mStorage; }
         constexpr const T *end() const { return begin() + mSize; }
 
+        constexpr T *data() { return mStorage; }
+        constexpr const T *data() const { return mStorage; }
+
         constexpr void clear() {
             std::destroy_n(begin(), count());
             mSize = 0;

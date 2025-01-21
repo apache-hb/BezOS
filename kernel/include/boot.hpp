@@ -62,6 +62,28 @@ struct KernelFrameBuffer {
     }
 };
 
+namespace boot {
+    using FrameBuffer = KernelFrameBuffer;
+    using MemoryRegion = MemoryMapEntry;
+
+    struct LaunchInfo {
+        km::PhysicalAddress kernelPhysicalBase;
+        const void *kernelVirtualBase;
+
+        uintptr_t hhdmOffset;
+
+        km::PhysicalAddress rsdpAddress;
+
+        std::span<boot::FrameBuffer> framebuffers;
+        std::span<boot::MemoryRegion> memmap;
+
+        km::AddressMapping stack;
+
+        km::PhysicalAddress smbios32Address;
+        km::PhysicalAddress smbios64Address;
+    };
+}
+
 struct KernelLaunch {
     static constexpr size_t kMaxDisplayCount = 4;
 
@@ -71,6 +93,9 @@ struct KernelLaunch {
     uintptr_t hhdmOffset;
 
     km::PhysicalAddress rsdpAddress;
+
+    std::span<boot::FrameBuffer> framebuffers2;
+    std::span<boot::MemoryRegion> memmap;
 
     stdx::StaticVector<KernelFrameBuffer, kMaxDisplayCount> framebuffers;
 
@@ -82,7 +107,11 @@ struct KernelLaunch {
     km::PhysicalAddress smbios64Address;
 };
 
-extern "C" [[noreturn]] void KmLaunch(const KernelLaunch& launch);
+[[noreturn]]
+void KmLaunch(const KernelLaunch& launch);
+
+[[noreturn]]
+void KmLaunchEx(boot::LaunchInfo launch);
 
 template<>
 struct km::Format<MemoryMapEntryType> {
