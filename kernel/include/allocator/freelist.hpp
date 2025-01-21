@@ -5,16 +5,14 @@
 #include <cstdint>
 
 namespace mem {
+    struct FreeBlock {
+        uint32_t offset;
+        uint32_t length;
+
+        bool isEmpty() const { return length == 0; }
+    };
+
     class FreeVector {
-    public:
-        struct FreeBlock {
-            uint32_t offset;
-            uint32_t length;
-
-            bool isEmpty() const { return length == 0; }
-        };
-
-    private:
         stdx::FixedVector<FreeBlock> mFreeBlocks;
 
     public:
@@ -37,5 +35,5 @@ namespace mem {
         }
     };
 
-    static_assert(FreeVector::GetRequiredSize(0x1000) == ((0x1000 / 2) * sizeof(FreeVector::FreeBlock)));
+    static_assert(FreeVector::GetRequiredSize(0x1000) == ((0x1000 / 2) * sizeof(FreeBlock)));
 }

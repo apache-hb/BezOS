@@ -214,9 +214,17 @@ namespace km {
     };
 
     template<>
+    struct Format<const void*> {
+        static constexpr size_t kStringSize = stdx::NumericTraits<uintptr_t>::kMaxDigits16 + 2;
+        static stdx::StringView toString(char *buffer, const void *value) {
+            return Format<Hex<uintptr_t>>::toString(buffer, Hex<uintptr_t> { reinterpret_cast<uintptr_t>(value) });
+        }
+    };
+
+    template<>
     struct Format<void*> {
         static constexpr size_t kStringSize = stdx::NumericTraits<uintptr_t>::kMaxDigits16 + 2;
-        static stdx::StringView toString(char *buffer, void *value) {
+        static stdx::StringView toString(char *buffer, const void *value) {
             return Format<Hex<uintptr_t>>::toString(buffer, Hex<uintptr_t> { reinterpret_cast<uintptr_t>(value) });
         }
     };

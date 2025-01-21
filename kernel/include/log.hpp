@@ -2,6 +2,7 @@
 
 #include "boot.hpp"
 #include "uart.hpp"
+
 #include "util/format.hpp"
 
 namespace km {

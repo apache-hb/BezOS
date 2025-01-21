@@ -10,7 +10,7 @@ protected:
         freeVector.freeBlock({600, 100});
     }
 
-    std::unique_ptr<mem::FreeVector::FreeBlock[]> blocks = std::make_unique<mem::FreeVector::FreeBlock[]>(256);
+    std::unique_ptr<mem::FreeBlock[]> blocks = std::make_unique<mem::FreeBlock[]>(256);
     mem::FreeVector freeVector = {blocks.get(), blocks.get() + 256};
 };
 

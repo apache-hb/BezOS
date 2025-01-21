@@ -303,23 +303,33 @@ static KernelLayout BuildKernelLayout(uintptr_t vaddrbits, const KernelLaunch& l
     uintptr_t dataBack = -(1ull << (vaddrbits - 1));
     uintptr_t dataFront = -(1ull << (vaddrbits - 2));
 
-    uintptr_t framebufferBack = dataFront;
-    uintptr_t framebufferFront = framebufferBack;
+    uintptr_t offset = dataFront;
+
+    auto reserve = [&](size_t size) {
+        uintptr_t back = offset;
+        offset += sm::roundup(size, x64::kPageSize);
+
+        return VirtualRange { (void*)back, (void*)offset };
+    };
+
+    size_t framebuffersSize = 0;
     for (const KernelFrameBuffer& framebuffer : launch.framebuffers) {
-        framebufferFront -= framebuffer.size();
+        framebuffersSize += framebuffer.size();
     }
+
+    VirtualRange framebuffers = reserve(framebuffersSize);
 
     uintptr_t kernelBack = (uintptr_t)__kernel_end;
     uintptr_t kernelFront = (uintptr_t)__kernel_start;
 
     KmDebugMessage("[INIT] Kernel layout:\n");
     KmDebugMessage("[INIT] Data: ", Hex(dataFront).pad(16, '0'), " - ", Hex(dataBack).pad(16, '0'), "\n");
-    KmDebugMessage("[INIT] Framebuffers: ", Hex(framebufferFront).pad(16, '0'), " - ", Hex(framebufferBack).pad(16, '0'), "\n");
+    KmDebugMessage("[INIT] Framebuffers: ", framebuffers.front, " - ", framebuffers.back, "\n");
     KmDebugMessage("[INIT] Kernel: ", Hex(kernelFront).pad(16, '0'), " - ", Hex(kernelBack).pad(16, '0'), "\n");
 
     KernelLayout layout = {
         .data = { (void*)dataFront, (void*)dataBack },
-        .framebuffers = { (void*)framebufferFront, (void*)framebufferBack },
+        .framebuffers = framebuffers,
         .kernel = { (void*)kernelFront, (void*)kernelBack },
     };
 

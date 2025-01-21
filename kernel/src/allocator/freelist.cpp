@@ -5,7 +5,7 @@
 
 using FreeVector = mem::FreeVector;
 
-FreeVector::FreeBlock FreeVector::findBlock(uint32_t size, uint32_t align) {
+mem::FreeBlock FreeVector::findBlock(uint32_t size, uint32_t align) {
     for (FreeBlock& block : mFreeBlocks) {
         if (block.length >= size) {
             uint32_t offset = block.offset;
