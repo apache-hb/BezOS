@@ -2,10 +2,9 @@
 
 km::SystemMemory::SystemMemory(SystemMemoryLayout memory, PageBuilder pm)
     : pager(pm)
-    , vmAllocator({ (void*)sm::megabytes(1).bytes(), (void*)pager.maxVirtualAddress() })
     , layout(memory)
     , pmm(&layout, pager.hhdmOffset())
-    , vmm(&pager, &vmAllocator, &pmm)
+    , vmm(&pager, &pmm)
 { }
 
 // TODO: respect align, dont allocate such large memory ranges

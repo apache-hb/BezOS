@@ -5,13 +5,11 @@
 
 #include "memory/page_allocator.hpp"
 #include "memory/paging.hpp"
-#include "memory/virtual_allocator.hpp"
 
 namespace km {
     class PageTableManager {
         const km::PageBuilder *mPageManager;
         PageAllocator *mPageAllocator;
-        VirtualAllocator *mVirtualAllocator;
         x64::PageMapLevel4 *mRootPageTable;
 
         x64::page *alloc4k();
@@ -42,7 +40,7 @@ namespace km {
         }
 
     public:
-        PageTableManager(const km::PageBuilder *pm, VirtualAllocator *vmm, PageAllocator *alloc);
+        PageTableManager(const km::PageBuilder *pm, PageAllocator *alloc);
 
         km::PhysicalAddress rootPageTable() const {
             return getPhysicalAddress(getRootTable());

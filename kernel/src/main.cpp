@@ -22,6 +22,7 @@
 #include "isr.hpp"
 #include "log.hpp"
 #include "memory.hpp"
+#include "memory/virtual_allocator.hpp"
 #include "panic.hpp"
 #include "pat.hpp"
 #include "processor.hpp"
@@ -272,28 +273,16 @@ static void KmWriteMemoryMap(const KernelMemoryMap& memmap, const SystemMemory& 
     KmDebugMessage("[INIT] Usable memory: ", sm::bytes(usableMemory), ", Reclaimable memory: ", sm::bytes(reclaimableMemory), "\n");
 }
 
+struct AddressMapping {
+    const void *vaddr;
+    km::PhysicalAddress paddr;
+    size_t size;
+};
+
 struct KernelLayout {
     /// @brief Virtual address space reserved for the kernel.
     /// Space for dynamic allocations, kernel heap, kernel stacks, etc.
     VirtualRange data;
-
-
-
-    /// @brief Non pageable memory used for the physical memory manager.
-    VirtualRange pmm;
-
-    /// @brief The physical memory for @ref pmm.
-    MemoryRange pmmBackingMemory;
-
-
-
-    /// @brief Non pageable memory used for the virtual memory manager.
-    VirtualRange vmm;
-
-    /// @brief The physical memory for @ref vmm.
-    MemoryRange vmmBackingMemory;
-
-
 
     /// @brief All framebuffers that are available.
     VirtualRange framebuffers;
@@ -337,25 +326,17 @@ static KernelLayout BuildKernelLayout(uintptr_t vaddrbits, const KernelLaunch& l
         return VirtualRange { (void*)back, (void*)offset };
     };
 
-    // TODO: calculate correct amount
-    VirtualRange pmm = reserve(sm::megabytes(1).bytes());
-    VirtualRange vmm = reserve(sm::megabytes(1).bytes());
-
     VirtualRange framebuffers = reserve(framebuffersSize);
 
     VirtualRange kernel = { (void*)__kernel_start, (void*)__kernel_end };
 
     KmDebugMessage("[INIT] Kernel layout:\n");
     KmDebugMessage("[INIT] Data         : ", data, "\n");
-    KmDebugMessage("[INIT] PMM          : ", pmm, "\n");
-    KmDebugMessage("[INIT] VMM          : ", vmm, "\n");
     KmDebugMessage("[INIT] Framebuffers : ", framebuffers, "\n");
     KmDebugMessage("[INIT] Kernel       : ", kernel, "\n");
 
     KernelLayout layout = {
         .data = data,
-        .pmm = pmm,
-        .vmm = vmm,
         .framebuffers = framebuffers,
         .kernel = kernel,
     };
@@ -383,18 +364,16 @@ static SystemMemory SetupKernelMemory(uintptr_t bits, const KernelLayout& layout
 
     uintptr_t framebufferBase = (uintptr_t)layout.framebuffers.front;
     for (const KernelFrameBuffer& framebuffer : launch.framebuffers) {
-        KmDebugMessage("[INIT] Mapping framebuffer ", framebuffer.vaddr, " - ", sm::bytes(framebuffer.size()), "\n");
-
         // remap the framebuffer into its final location
         KmMapMemory(memory.vmm, framebuffer.paddr, (void*)framebufferBase, framebuffer.size(), PageFlags::eData, MemoryType::eWriteCombine);
-
-        KmDebugMessage("[INIT] Framebuffer ", framebuffer.paddr, " - ", (void*)(framebufferBase), "\n");
 
         framebufferBase += framebuffer.size();
     }
 
     // once it is safe to remap the boot memory, do so
     KmReclaimBootMemory(memory.pager, memory.vmm);
+
+    // can't log anything here as we need to move the framebuffer first
 
     // Now update the terminal to use the new memory layout
     if (!launch.framebuffers.isEmpty()) {

@@ -2,17 +2,12 @@
 
 #include "memory/allocator.hpp"
 #include "memory/paging.hpp"
-#include "memory/virtual_allocator.hpp"
 
 #include <cstddef>
 
 namespace km {
     struct SystemMemory {
         PageBuilder pager;
-
-        /// @brief Manages address space for the kernel.
-        VirtualAllocator vmAllocator;
-
         SystemMemoryLayout layout;
         PageAllocator pmm;
         PageTableManager vmm;
