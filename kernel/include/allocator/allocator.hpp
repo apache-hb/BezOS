@@ -16,7 +16,10 @@ namespace mem {
             std::unreachable();
         }
 
-        virtual void *allocate(size_t size) = 0;
+        virtual void *allocate(size_t size) {
+            return allocateAligned(size, alignof(std::max_align_t));
+        }
+
         virtual void *allocateAligned(size_t size, size_t align) = 0;
         virtual void deallocate(void *ptr, size_t size) = 0;
 

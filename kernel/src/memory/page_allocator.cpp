@@ -29,12 +29,12 @@ extern "C" {
 static size_t GetBitmapSize(const SystemMemoryLayout *layout) {
     size_t size = 0;
 
-    for (MemoryMapEntry entry : layout->available) {
-        size += detail::GetRangeBitmapSize(entry.range);
+    for (MemoryRange entry : layout->available) {
+        size += detail::GetRangeBitmapSize(entry);
     }
 
-    for (MemoryMapEntry entry : layout->reclaimable) {
-        size += detail::GetRangeBitmapSize(entry.range);
+    for (MemoryRange entry : layout->reclaimable) {
+        size += detail::GetRangeBitmapSize(entry);
     }
 
     return size;
@@ -46,8 +46,8 @@ static PhysicalAddress FindFreeSpace(const SystemMemoryLayout *layout, size_t bi
     // Find any memory range that is large enough to hold the bitmap
     // and is not in the first 1MB of memory.
 
-    for (MemoryMapEntry entry : layout->available) {
-        MemoryRange usable = intersection(entry.range, { kLowMemory, UINTPTR_MAX });
+    for (MemoryRange entry : layout->available) {
+        MemoryRange usable = intersection(entry, { kLowMemory, UINTPTR_MAX });
         if (usable.size() >= bitmapSize) {
             return usable.front;
         }
@@ -66,16 +66,16 @@ void detail::BuildMemoryRanges(RegionAllocators& allocators, LowMemoryAllocators
     };
 
     // Create an allocator for each memory range
-    for (MemoryMapEntry entry : layout->available) {
+    for (MemoryRange entry : layout->available) {
         // If the range straddles the 1MB boundary, split it
-        if (entry.range.contains(kLowMemory)) {
-            auto [low, high] = split(entry.range, kLowMemory);
+        if (entry.contains(kLowMemory)) {
+            auto [low, high] = split(entry, kLowMemory);
             lowMemory.add(newRegion(low));
             allocators.add(newRegion(high));
-        } else if (entry.range.isBefore(kLowMemory)) {
-            lowMemory.add(newRegion(entry.range));
+        } else if (entry.isBefore(kLowMemory)) {
+            lowMemory.add(newRegion(entry));
         } else {
-            allocators.add(newRegion(entry.range));
+            allocators.add(newRegion(entry));
         }
     }
 }

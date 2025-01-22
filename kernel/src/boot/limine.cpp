@@ -142,7 +142,7 @@ static std::span<boot::MemoryRegion> BootGetMemoryMap(BootAllocator& alloc) {
         MemoryMapEntryType type = BootGetEntryType(entry);
 
         km::MemoryRange range = { entry.base, entry.base + entry.length };
-        if (range.intersects(alloc.range())) {
+        if (range.overlaps(alloc.range())) {
             range = range.cut(alloc.range());
         }
 

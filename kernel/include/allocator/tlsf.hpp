@@ -3,6 +3,7 @@
 #include <cstddef>
 
 #include "allocator/allocator.hpp"
+#include "log.hpp"
 
 #include <tlsf.h>
 
@@ -38,15 +39,27 @@ namespace mem {
         }
 
         void *allocate(size_t size) override {
-            return tlsf_malloc(mAllocator.get(), size);
+            void *ptr = tlsf_malloc(mAllocator.get(), size);
+            if (ptr == nullptr) {
+                KmDebugMessage("Failed to allocate ", size, " bytes\n");
+            }
+            return ptr;
         }
 
         void *allocateAligned(size_t size, size_t align = alignof(std::max_align_t)) override {
-            return tlsf_memalign(mAllocator.get(), align, size);
+            void *ptr = tlsf_memalign(mAllocator.get(), align, size);
+            if (ptr == nullptr) {
+                KmDebugMessage("Failed to allocate aligned ", size, " bytes\n");
+            }
+            return ptr;
         }
 
-        void *reallocate(void *old, size_t _, size_t newSize) override {
-            return tlsf_realloc(mAllocator.get(), old, newSize);
+        void *reallocate(void *old, size_t oldSize, size_t newSize) override {
+            void *ptr = tlsf_realloc(mAllocator.get(), old, newSize);
+            if (ptr == nullptr) {
+                KmDebugMessage("Failed to reallocate ", newSize, " bytes, ", old, ", ", oldSize, ", ", mAllocator.get(), "\n");
+            }
+            return ptr;
         }
 
         void deallocate(void *ptr, size_t _) override {

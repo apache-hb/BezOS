@@ -49,7 +49,7 @@ size_t tlsf_alloc_overhead(void);
 /**
  * @brief Return the allocable size based on the size passed
  * as parameter
- * 
+ *
  * @param tlsf Pointer to the tlsf structure
  * @param size The allocation size
  * @return size_t The updated allocation size
@@ -66,7 +66,7 @@ int tlsf_check_pool(pool_t pool);
 /**
  * @brief Weak function called on every free block of memory allowing the user to implement
  * application specific checks on the memory.
- * 
+ *
  * @param start The start pointer to the memory of a block
  * @param size The size of the memory in the block
  * @param is_free Set to true when the memory belongs to a free block.

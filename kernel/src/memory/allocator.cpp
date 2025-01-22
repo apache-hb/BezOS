@@ -275,8 +275,8 @@ static void MapKernelPages(PageTableManager& memory, km::PhysicalAddress paddr, 
 }
 
 static void MapUsableMemory(PageTableManager& memory, const km::PageBuilder& pm, const SystemMemoryLayout& layout) {
-    for (MemoryMapEntry range : layout.available) {
-        memory.mapRange(range.range, (void*)(range.range.front.address + pm.hhdmOffset()), PageFlags::eData, MemoryType::eWriteBack);
+    for (MemoryRange range : layout.available) {
+        memory.mapRange(range, (void*)(range.front.address + pm.hhdmOffset()), PageFlags::eData, MemoryType::eWriteBack);
     }
 }
 

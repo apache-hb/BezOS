@@ -12,6 +12,7 @@
 
 #include "acpi/acpi.hpp"
 
+#include "kernel.h"
 #include "cmos.hpp"
 #include "delay.hpp"
 #include "display.hpp"
@@ -92,6 +93,26 @@ public:
 
     T& get() { return mTerminal; }
 };
+
+size_t strlen(const char *str)
+{
+    size_t len = 0;
+    while (str[len] != '\0') {
+        len++;
+    }
+    return len;
+}
+
+void debug_prints(const char *message)
+{
+    size_t len = strlen(message);
+    KmDebugMessage(stdx::StringView(message, message + len));
+}
+
+void debug_printull(uint64_t value)
+{
+    KmDebugMessage(value);
+}
 
 // load bearing constinit, clang has a bug in c++26 mode
 // where it doesnt emit a warning for global constructors in all cases.
@@ -247,7 +268,7 @@ static void KmWriteMtrrs(const km::PageBuilder& pm) {
     // SetupMtrrs(mtrrs, pm);
 }
 
-static void KmWriteMemoryMap(std::span<const boot::MemoryRegion> memmap, const SystemMemory& memory) {
+static void WriteMemoryMap(std::span<const boot::MemoryRegion> memmap) {
     KmDebugMessage("[INIT] ", memmap.size(), " memory map entries.\n");
 
     KmDebugMessage("| Entry | Address            | Size               | Type\n");
@@ -259,15 +280,19 @@ static void KmWriteMemoryMap(std::span<const boot::MemoryRegion> memmap, const S
 
         KmDebugMessage("| ", Int(i).pad(4, '0'), "  | ", Hex(range.front.address).pad(16, '0'), " | ", Hex(range.size()).pad(16, '0'), " | ", entry.type, "\n");
     }
+}
+
+static void WriteSystemMemory(std::span<const boot::MemoryRegion> memmap, const SystemMemory& memory) {
+    WriteMemoryMap(memmap);
 
     uint64_t usableMemory = 0;
-    for (const MemoryMapEntry& range : memory.layout.available) {
-        usableMemory += range.range.size();
+    for (const MemoryRange& range : memory.layout.available) {
+        usableMemory += range.size();
     }
 
     uint64_t reclaimableMemory = 0;
-    for (const MemoryMapEntry& range : memory.layout.reclaimable) {
-        reclaimableMemory += range.range.size();
+    for (const MemoryRange& range : memory.layout.reclaimable) {
+        reclaimableMemory += range.size();
     }
 
     KmDebugMessage("[INIT] Usable memory: ", sm::bytes(usableMemory), ", Reclaimable memory: ", sm::bytes(reclaimableMemory), "\n");
@@ -376,7 +401,7 @@ static EarlyMemory *AllocateEarlyMemory(void *vaddr, size_t size) {
     return mem;
 }
 
-static EarlyMemory *CreateEarlyAllocator(std::span<const boot::MemoryRegion> memmap, uintptr_t hhdmOffset) {
+static std::tuple<EarlyMemory*, km::AddressMapping> CreateEarlyAllocator(std::span<const boot::MemoryRegion> memmap, uintptr_t hhdmOffset) {
     boot::MemoryRegion region = FindEarlyAllocatorRegion(memmap, kEarlyAllocSize);
     km::MemoryRange range = { region.range.front, region.range.front + kEarlyAllocSize };
 
@@ -385,21 +410,21 @@ static EarlyMemory *CreateEarlyAllocator(std::span<const boot::MemoryRegion> mem
 
     boot::MemoryRegion *memoryMap = memory->allocator.allocateArray<boot::MemoryRegion>(memmap.size() + 1);
     std::copy(memmap.begin(), memmap.end(), memoryMap);
-    memoryMap[memmap.size()] = boot::MemoryRegion { MemoryMapEntryType::eKernelRuntimeData, { (uintptr_t)vaddr, (uintptr_t)vaddr + kEarlyAllocSize } };
+    memoryMap[memmap.size()] = boot::MemoryRegion { MemoryMapEntryType::eKernelRuntimeData, range };
 
     for (size_t i = 0; i < memmap.size(); i++) {
         boot::MemoryRegion& entry = memoryMap[i];
-        if (entry.range.intersects(range)) {
+        if (entry.range.overlaps(range) || entry.range.intersects(range)) {
             entry.range = entry.range.cut(range);
         }
     }
 
     memory->memmap = std::span(memoryMap, memmap.size() + 1);
 
-    return memory;
+    return std::make_tuple(memory, km::AddressMapping { vaddr, range.front, kEarlyAllocSize });
 }
 
-static SystemMemory SetupKernelMemory(
+static SystemMemory *SetupKernelMemory(
     uintptr_t maxpaddr,
     const KernelLayout& layout,
     km::AddressMapping stack,
@@ -409,34 +434,39 @@ static SystemMemory SetupKernelMemory(
 ) {
     PageMemoryTypeLayout pat = KmSetupPat();
 
-    EarlyMemory *earlyMemory = CreateEarlyAllocator(memmap, hhdmOffset);
+    auto [earlyMemory, earlyRegion] = CreateEarlyAllocator(memmap, hhdmOffset);
 
     PageBuilder pm = PageBuilder { maxpaddr, hhdmOffset, pat };
     KmWriteMtrrs(pm);
 
-    SystemMemory memory = SystemMemory { SystemMemoryLayout::from(memmap), pm };
+    mem::IAllocator *alloc = &earlyMemory->allocator;
 
-    KmWriteMemoryMap(memmap, memory);
+    SystemMemory *memory = alloc->construct<SystemMemory>(SystemMemoryLayout::from(earlyMemory->memmap, &earlyMemory->allocator), pm);
+
+    WriteSystemMemory(earlyMemory->memmap, *memory);
 
     // initialize our own page tables and remap everything into it
     auto [kernelVirtualBase, kernelPhysicalBase, _] = layout.kernel;
-    KmMapKernel(memory.pager, memory.vmm, memory.layout, kernelPhysicalBase, kernelVirtualBase);
+    KmMapKernel(memory->pager, memory->vmm, memory->layout, kernelPhysicalBase, kernelVirtualBase);
 
     // move our stack out of reclaimable memory
-    KmMapMemory(memory.vmm, stack.paddr - stack.size, (void*)((uintptr_t)stack.vaddr - stack.size), stack.size, PageFlags::eData, MemoryType::eWriteBack);
+    KmMapMemory(memory->vmm, stack.paddr - stack.size, (void*)((uintptr_t)stack.vaddr - stack.size), stack.size, PageFlags::eData, MemoryType::eWriteBack);
+
+    // map the early allocator region
+    KmMapMemory(memory->vmm, earlyRegion.paddr, earlyRegion.vaddr, earlyRegion.size, PageFlags::eData, MemoryType::eWriteBack);
 
     // remap framebuffers
 
     uintptr_t framebufferBase = (uintptr_t)layout.framebuffers.front;
     for (const KernelFrameBuffer& framebuffer : framebuffers) {
         // remap the framebuffer into its final location
-        KmMapMemory(memory.vmm, framebuffer.paddr, (void*)framebufferBase, framebuffer.size(), PageFlags::eData, MemoryType::eWriteCombine);
+        KmMapMemory(memory->vmm, framebuffer.paddr, (void*)framebufferBase, framebuffer.size(), PageFlags::eData, MemoryType::eWriteCombine);
 
         framebufferBase += framebuffer.size();
     }
 
     // once it is safe to remap the boot memory, do so
-    KmReclaimBootMemory(memory.pager, memory.vmm);
+    KmReclaimBootMemory(memory->pager, memory->vmm);
 
     // can't log anything here as we need to move the framebuffer first
 
@@ -447,7 +477,7 @@ static SystemMemory SetupKernelMemory(
             .setAddress(layout.getFrameBuffer(framebuffers, 0));
     }
 
-    memory.layout.reclaimBootMemory();
+    // memory.layout.reclaimBootMemory();
 
     return memory;
 }
@@ -741,13 +771,13 @@ void KmLaunchEx(boot::LaunchInfo launch) {
         launch.kernelVirtualBase,
         launch.framebuffers
     );
-    SystemMemory memory = SetupKernelMemory(
+    SystemMemory *memory = SetupKernelMemory(
         processor.maxpaddr, layout, launch.stack,
         launch.hhdmOffset,
         launch.framebuffers, launch.memmap
     );
 
-    PlatformInfo platform = KmGetPlatformInfo(launch.smbios32Address, launch.smbios64Address, memory);
+    PlatformInfo platform = KmGetPlatformInfo(launch.smbios32Address, launch.smbios64Address, *memory);
 
     // On Oracle VirtualBox the COM1 port is functional but fails the loopback test.
     // If we are running on VirtualBox, retry the serial port initialization without the loopback test.
@@ -755,13 +785,13 @@ void KmLaunchEx(boot::LaunchInfo launch) {
         KmUpdateSerialPort(com1Info);
     }
 
-    KmInitBootBufferedTerminal(launch.framebuffers, memory);
+    // KmInitBootBufferedTerminal(launch.framebuffers, memory);
 
     bool useX2Apic = kUseX2Apic && processor.has2xApic;
 
-    km::IntController lapic = KmEnableLocalApic(memory, isrs, useX2Apic);
+    km::IntController lapic = KmEnableLocalApic(*memory, isrs, useX2Apic);
 
-    acpi::AcpiTables rsdt = InitAcpi(launch.rsdpAddress, memory);
+    acpi::AcpiTables rsdt = InitAcpi(launch.rsdpAddress, *memory);
     const acpi::Fadt *fadt = rsdt.fadt();
     InitCmos(fadt->century);
 
@@ -769,7 +799,7 @@ void KmLaunchEx(boot::LaunchInfo launch) {
     KM_CHECK(ioApicCount > 0, "No IOAPICs found.");
 
     for (uint32_t i = 0; i < ioApicCount; i++) {
-        IoApic ioapic = rsdt.mapIoApic(memory, 0);
+        IoApic ioapic = rsdt.mapIoApic(*memory, 0);
 
         KmDebugMessage("[INIT] IOAPIC ", i, " ID: ", ioapic.id(), ", Version: ", ioapic.version(), "\n");
         KmDebugMessage("[INIT] ISR base: ", ioapic.isrBase(), ", Inputs: ", ioapic.inputCount(), "\n");
@@ -781,19 +811,19 @@ void KmLaunchEx(boot::LaunchInfo launch) {
 
     pci::ProbeConfigSpace();
 
-    KmInitSmp(memory, lapic.pointer(), rsdt, useX2Apic);
+    KmInitSmp(*memory, lapic.pointer(), rsdt, useX2Apic);
     SetDebugLogLock(DebugLogLockType::eRecursiveSpinLock);
 
     // Setup gdt that contains a TSS for this core
     SetupApGdt();
 
-    km::SetupUserMode(memory);
+    km::SetupUserMode(*memory);
 
     std::span init = GetInitProgram();
 
-    void *initMemory = memory.allocate(0x1000);
-    mem::TlsfAllocator allocator(initMemory, 0x1000);
-    auto process = LoadElf(init, "init.elf", 1, memory, &allocator);
+    void *initMemory = memory->allocate(0x8000);
+    mem::TlsfAllocator allocator(initMemory, 0x8000);
+    auto process = LoadElf(init, "init.elf", 1, *memory, &allocator);
     KM_CHECK(process.has_value(), "Failed to load init.elf");
 
     DateTime time = ReadRtc();

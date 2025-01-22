@@ -5,6 +5,7 @@
  */
 
 #pragma once
+#include "kernel.h"
 #include "tlsf_block_functions.h"
 
 #if defined(__cplusplus)
@@ -288,12 +289,37 @@ tlsf_decl size_t adjust_request_size(control_t *control, size_t size, size_t ali
 	{
 		const size_t aligned = align_up(size, align);
 
+		debug_prints("adjust_request_size: ");
+		debug_printull(size);
+		debug_prints("+");
+		debug_printull(align);
+		debug_prints(" -> ");
+		debug_printull(aligned);
+		debug_prints("\n");
+
 		/* aligned sized must not exceed block_size_max or we'll go out of bounds on sl_bitmap */
 		if (aligned < tlsf_block_size_max(control))
 		{
 			adjust = tlsf_max(aligned, block_size_min);
 		}
+
+		debug_prints("adjust_request_size after: ");
+		debug_printull(adjust);
+		debug_prints(" ");
+		debug_printull(tlsf_max(aligned, block_size_min));
+		debug_prints("\n");
 	}
+
+	debug_prints("adjust_request_size exit: ");
+	debug_printull(size);
+	debug_prints(" -> ");
+	debug_printull(adjust);
+	debug_prints(" ");
+	debug_printull(tlsf_block_size_max(control));
+	debug_prints(" ");
+	debug_printull(block_size_min);
+	debug_prints("\n");
+
 	return adjust;
 }
 

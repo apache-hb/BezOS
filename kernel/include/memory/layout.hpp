@@ -1,18 +1,18 @@
 #pragma once
 
+#include "allocator/allocator.hpp"
 #include "boot.hpp"
 
-#include "std/static_vector.hpp"
+#include "std/vector.hpp"
 
 namespace km {
     struct SystemMemoryLayout {
         static constexpr size_t kMaxRanges = 64;
-        using FreeMemoryRanges = stdx::StaticVector<MemoryMapEntry, kMaxRanges>;
-        using ReservedMemoryRanges = stdx::StaticVector<MemoryMapEntry, kMaxRanges>;
 
-        FreeMemoryRanges available;
-        FreeMemoryRanges reclaimable;
-        ReservedMemoryRanges reserved;
+        stdx::Vector<MemoryRange> available;
+        stdx::Vector<MemoryRange> reclaimable;
+
+        stdx::Vector<MemoryMapEntry> reserved;
 
         void reclaimBootMemory();
 
@@ -22,11 +22,11 @@ namespace km {
 
         size_t count() const { return available.count() + reclaimable.count(); }
 
-        static SystemMemoryLayout from(std::span<const boot::MemoryRegion> memmap);
+        static SystemMemoryLayout from(std::span<const boot::MemoryRegion> memmap, mem::IAllocator *allocator [[gnu::nonnull]]);
     };
 
     namespace detail {
-        void SortMemoryRanges(stdx::StaticVector<MemoryMapEntry, SystemMemoryLayout::kMaxRanges>& ranges);
-        void MergeMemoryRanges(stdx::StaticVector<MemoryMapEntry, SystemMemoryLayout::kMaxRanges>& ranges);
+        void SortMemoryRanges(std::span<MemoryRange> ranges);
+        void MergeMemoryRanges(stdx::Vector<MemoryRange>& ranges);
     }
 }

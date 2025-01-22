@@ -6,6 +6,7 @@
 #include <stddef.h>
 
 #include "allocator/allocator.hpp"
+#include "log.hpp"
 #include "panic.hpp"
 
 namespace stdx {
@@ -24,14 +25,22 @@ namespace stdx {
         }
 
         void releaseMemory() {
+            KmDebugMessage("Allocator ptr: ", (void*)mAllocator, "\n");
+            KmDebugMessage("Allocator vtable: ", *(void**)mAllocator, "\n");
             if (mFront != nullptr) {
                 std::destroy_n(mFront, count());
-                mAllocator->deallocate(mFront, capacity());
+
+                KmDebugMessage("Destroyed vector buffer\n");
+
+                mAllocator->deallocate(mFront, capacity() * sizeof(T));
+
+                KmDebugMessage("Deallocated vector buffer\n");
             }
 
             mFront = nullptr;
             mBack = nullptr;
             mCapacity = nullptr;
+            mAllocator = nullptr;
         }
 
     public:
@@ -39,11 +48,11 @@ namespace stdx {
             releaseMemory();
         }
 
-        Vector(mem::IAllocator *allocator)
+        Vector(mem::IAllocator *allocator [[gnu::nonnull]])
             : Vector(allocator, 1)
         { }
 
-        Vector(mem::IAllocator *allocator, size_t capacity)
+        Vector(mem::IAllocator *allocator [[gnu::nonnull]], size_t capacity)
             : mAllocator(allocator)
             , mFront(mAllocator->allocateArray<T>(std::max<size_t>(capacity, 1)))
             , mBack(mFront)
@@ -52,7 +61,7 @@ namespace stdx {
             KM_CHECK(mFront != nullptr, "Failed to allocate vector buffer");
         }
 
-        Vector(mem::IAllocator *allocator, std::span<const T> src)
+        Vector(mem::IAllocator *allocator [[gnu::nonnull]], std::span<const T> src)
             : Vector(allocator, src.size())
         {
             KM_CHECK(mFront != nullptr, "Failed to allocate vector buffer");
@@ -138,7 +147,7 @@ namespace stdx {
 
         void reserveExact(size_t newCapacity) {
             size_t oldCapacity = capacity();
-            if (newCapacity <= oldCapacity) {
+            if (newCapacity < oldCapacity) {
                 return;
             }
 
@@ -172,8 +181,10 @@ namespace stdx {
         }
 
         void add(const T& value) {
+            KmDebugMessage("Add before ", (void*)mBack, "\n");
             ensureExtra(1);
 
+            KmDebugMessage("Add ", (void*)mBack, "\n");
             std::construct_at(mBack++, value);
         }
 

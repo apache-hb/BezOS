@@ -1,9 +1,22 @@
 #include <gtest/gtest.h>
+
 #include <random>
 
 #include "memory/page_allocator.hpp"
 
 using KernelMemoryMap = std::vector<boot::MemoryRegion>;
+
+struct GlobalAllocator final : public mem::IAllocator {
+    void *allocateAligned(size_t size, size_t align) override {
+        return _mm_malloc(size, align);
+    }
+
+    void deallocate(void *ptr, size_t _) override {
+        free(ptr);
+    }
+};
+
+static GlobalAllocator gAllocator;
 
 struct TestData {
     KernelMemoryMap memmap;
@@ -26,7 +39,7 @@ static TestData GetTestAllocator() {
         data.push_back({ MemoryMapEntryType::eUsable, range});
     }
 
-    TestData test = { data, km::SystemMemoryLayout::from(data), km::PageAllocator(&test.layout, 0) };
+    TestData test = { data, km::SystemMemoryLayout::from(data, &gAllocator), km::PageAllocator(&test.layout, 0) };
 
     return test;
 }
@@ -36,7 +49,7 @@ TEST(PageAllocatorTest, LowMemorySplit) {
     size_t size = sm::gigabytes(4).bytes();
     data.push_back(MemoryMapEntry { MemoryMapEntryType::eUsable, { 0x0000uz, size } });
 
-    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(data);
+    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(data, &gAllocator);
 
     km::PhysicalAddress bitmap = sm::megabytes(2).bytes();
 
@@ -105,7 +118,7 @@ TEST(PageAllocatorTest, RebuildAfterReclaim) {
         data.push_back(MemoryMapEntry { type, { start, start + 0x1000 } });
     }
 
-    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(data);
+    km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(data, &gAllocator);
 
     km::PageAllocator allocator(&layout, 0);
 

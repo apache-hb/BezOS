@@ -37,7 +37,7 @@ std::expected<km::Process, bool> km::LoadElf(std::span<const uint8_t> program, s
 
     stdx::Vector<void*> processMemory(allocator);
 
-    ProcessThread main = { 
+    ProcessThread main = {
         .name = "main",
         .threadId = 1,
     };
@@ -55,7 +55,7 @@ std::expected<km::Process, bool> km::LoadElf(std::span<const uint8_t> program, s
 
     for (const elf::ElfProgramHeader &ph : phs) {
         KmDebugMessage("[ELF] Program Header type: ",
-            km::Hex(ph.type), ", flags: ", ph.flags, ", offset:", ph.offset, ", filesize: ", ph.filesz,
+            km::Hex(ph.type), ", flags: ", ph.flags, ", offset: ", ph.offset, ", filesize: ", ph.filesz,
             ", memorysize: ", km::Hex(ph.memsz), ", virtual address: ", km::Hex(ph.vaddr),
             ", physical address: ", km::Hex(ph.paddr), ", minimum alignment: ", km::Hex(ph.align), "\n");
 
