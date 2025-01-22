@@ -11,7 +11,7 @@ QEMUARGS="-M q35 -cdrom install/bezos.iso -display gtk"
 
 if [ "$MODE" = "ovmf" ]; then
     shift
-    make install-ovmf
+    make build install-ovmf
     qemu-system-x86_64 \
         -drive if=pflash,format=raw,unit=0,file=install/ovmf/ovmf-code-x86_64.fd,readonly=on \
         -drive if=pflash,format=raw,unit=1,file=install/ovmf/ovmf-vars-x86_64.fd \
@@ -20,7 +20,7 @@ if [ "$MODE" = "ovmf" ]; then
     exit
 elif [ "$MODE" = "numa" ]; then
     shift
-    make install-ovmf
+    make build install-ovmf
     qemu-system-x86_64 \
         -drive if=pflash,format=raw,unit=0,file=install/ovmf/ovmf-code-x86_64.fd,readonly=on \
         -drive if=pflash,format=raw,unit=1,file=install/ovmf/ovmf-vars-x86_64.fd \
@@ -43,5 +43,6 @@ elif [ "$MODE" = "numa" ]; then
         $QEMUARGS $(serial_chardev numa-serial.txt) $@
     exit
 else
+    make build
     qemu-system-x86_64 $QEMUARGS $(serial_chardev qemu-serial.txt) -smp 4 $@
 fi

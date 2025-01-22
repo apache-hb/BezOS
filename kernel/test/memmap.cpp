@@ -19,7 +19,7 @@ static GlobalAllocator gAllocator;
 
 TEST(MemoryMapTest, Basic) {
     KernelMemoryMap memmap;
-    memmap.push_back(MemoryMapEntry { MemoryMapEntryType::eUsable, { 0x1000, 0x2000 } });
+    memmap.push_back(boot::MemoryRegion { boot::MemoryRegion::eUsable, { 0x1000, 0x2000 } });
 
     [[maybe_unused]]
     km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(memmap, &gAllocator);
@@ -30,7 +30,7 @@ TEST(MemoryMapTest, Basic) {
 TEST(MemoryMapTest, AllEntries) {
     KernelMemoryMap memmap;
     for (size_t i = 0; i < 32; i++) {
-        memmap.push_back(MemoryMapEntry { MemoryMapEntryType::eUsable, { 0x1000 + i * 0x1000, 0x2000 + i * 0x1000 } });
+        memmap.push_back(boot::MemoryRegion { boot::MemoryRegion::eUsable, { 0x1000 + i * 0x1000, 0x2000 + i * 0x1000 } });
     }
 
     km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(memmap, &gAllocator);
@@ -42,8 +42,8 @@ TEST(MemoryMapTest, AllEntries) {
 TEST(MemoryMapTest, ManyRanges) {
     KernelMemoryMap memmap;
     for (int i = 0; i < 32; i++) {
-        MemoryMapEntryType type = i % 2 == 0 ? MemoryMapEntryType::eUsable : MemoryMapEntryType::eReserved;
-        memmap.push_back(MemoryMapEntry { type, { 0x1000ull + i * 0x1000, 0x2000ull + i * 0x1000 } });
+        boot::MemoryRegion::Type type = i % 2 == 0 ? boot::MemoryRegion::eUsable : boot::MemoryRegion::eReserved;
+        memmap.push_back(boot::MemoryRegion { type, { 0x1000ull + i * 0x1000, 0x2000ull + i * 0x1000 } });
     }
 
     km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(memmap, &gAllocator);
@@ -58,9 +58,9 @@ TEST(MemoryMapTest, ManyRanges) {
 TEST(MemoryMapTest, ReclaimBootMemory) {
     KernelMemoryMap memmap;
     for (int i = 0; i < 32; i++) {
-        MemoryMapEntryType type = i % 2 == 0 ? MemoryMapEntryType::eUsable : MemoryMapEntryType::eBootloaderReclaimable;
+        boot::MemoryRegion::Type type = i % 2 == 0 ? boot::MemoryRegion::eUsable : boot::MemoryRegion::eBootloaderReclaimable;
         uintptr_t start = (0x8000ull * i);
-        memmap.push_back(MemoryMapEntry { type, { start, start + 0x1000 } });
+        memmap.push_back(boot::MemoryRegion { type, { start, start + 0x1000 } });
     }
 
     km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(memmap, &gAllocator);
@@ -74,8 +74,8 @@ TEST(MemoryMapTest, ReclaimBootMemory) {
 TEST(MemoryMapTest, MergeAdjacentDuringReclaim) {
     KernelMemoryMap data;
     for (size_t i = 0; i < 64; i++) {
-        MemoryMapEntryType type = i % 2 == 0 ? MemoryMapEntryType::eUsable : MemoryMapEntryType::eBootloaderReclaimable;
-        data.push_back(MemoryMapEntry { type, { 0x1000 + (i * 0x1000), 0x2000 + (i * 0x1000) }});
+        boot::MemoryRegion::Type type = i % 2 == 0 ? boot::MemoryRegion::eUsable : boot::MemoryRegion::eBootloaderReclaimable;
+        data.push_back(boot::MemoryRegion { type, { 0x1000 + (i * 0x1000), 0x2000 + (i * 0x1000) }});
     }
 
     km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(data, &gAllocator);
@@ -92,7 +92,7 @@ TEST(MemoryMapTest, MergeAdjacentDuringReclaim) {
 TEST(MemoryMapTest, EntryListTooLong) {
     KernelMemoryMap data;
     for (size_t i = 0; i < 1024; i++) {
-        data.push_back(MemoryMapEntry { MemoryMapEntryType::eUsable, { 0x1000 + (i * 0x1000), 0x2000 + (i * 0x1000) }});
+        data.push_back(boot::MemoryRegion { boot::MemoryRegion::eUsable, { 0x1000 + (i * 0x1000), 0x2000 + (i * 0x1000) }});
     }
 
     [[maybe_unused]]
@@ -109,7 +109,7 @@ TEST(MemoryMapTest, UnsortedMemory) {
     for (size_t i = 0; i < 1024; i++) {
         uintptr_t start = dist(rng);
         uintptr_t end = start + dist(rng);
-        memmap.push_back(MemoryMapEntry { MemoryMapEntryType::eUsable, { start, end } });
+        memmap.push_back(boot::MemoryRegion { boot::MemoryRegion::eUsable, { start, end } });
     }
 
     km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(memmap, &gAllocator);

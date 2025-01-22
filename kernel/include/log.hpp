@@ -14,7 +14,7 @@ namespace km {
 
     void SetDebugLogLock(DebugLogLockType type);
 
-    void InitDebugLog(std::span<KernelFrameBuffer> framebuffer);
+    void InitDebugLog(std::span<boot::FrameBuffer> framebuffer);
     SerialPortStatus InitSerialDebugLog(ComPortInfo uart);
 
     void LockDebugLog();

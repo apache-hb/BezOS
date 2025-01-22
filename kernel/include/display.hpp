@@ -83,7 +83,7 @@ namespace km {
         uint64_t pixelOffset(uint64_t x, uint64_t y) const;
 
     public:
-        Canvas(KernelFrameBuffer framebuffer, uint8_t *address);
+        Canvas(boot::FrameBuffer framebuffer, uint8_t *address);
 
         Canvas(Canvas geometry, uint8_t *address);
 

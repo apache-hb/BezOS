@@ -75,13 +75,13 @@ struct BootAllocator {
     }
 };
 
-static KernelFrameBuffer BootGetDisplay(int index, uintptr_t hhdmOffset) {
+static boot::FrameBuffer BootGetDisplay(int index, uintptr_t hhdmOffset) {
     limine_framebuffer_response response = *gFramebufferRequest.response;
     limine_framebuffer framebuffer = *response.framebuffers[index];
 
     km::PhysicalAddress edidAddress = km::PhysicalAddress { (uintptr_t)framebuffer.edid };
 
-    return KernelFrameBuffer {
+    return boot::FrameBuffer {
         .width = framebuffer.width,
         .height = framebuffer.height,
         .pitch = framebuffer.pitch,
@@ -109,26 +109,26 @@ static std::span<boot::FrameBuffer> BootGetFrameBuffers(uintptr_t hhdmOffset, Bo
     return { fbs, response.framebuffer_count };
 }
 
-static MemoryMapEntryType BootGetEntryType(limine_memmap_entry entry) {
+static boot::MemoryRegion::Type BootGetEntryType(limine_memmap_entry entry) {
     switch (entry.type) {
     case LIMINE_MEMMAP_USABLE:
-        return MemoryMapEntryType::eUsable;
+        return boot::MemoryRegion::eUsable;
     case LIMINE_MEMMAP_RESERVED:
-        return MemoryMapEntryType::eReserved;
+        return boot::MemoryRegion::eReserved;
     case LIMINE_MEMMAP_ACPI_RECLAIMABLE:
-        return MemoryMapEntryType::eAcpiReclaimable;
+        return boot::MemoryRegion::eAcpiReclaimable;
     case LIMINE_MEMMAP_ACPI_NVS:
-        return MemoryMapEntryType::eAcpiNvs;
+        return boot::MemoryRegion::eAcpiNvs;
     case LIMINE_MEMMAP_BAD_MEMORY:
-        return MemoryMapEntryType::eBadMemory;
+        return boot::MemoryRegion::eBadMemory;
     case LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE:
-        return MemoryMapEntryType::eBootloaderReclaimable;
+        return boot::MemoryRegion::eBootloaderReclaimable;
     case LIMINE_MEMMAP_KERNEL_AND_MODULES:
-        return MemoryMapEntryType::eKernel;
+        return boot::MemoryRegion::eKernel;
     case LIMINE_MEMMAP_FRAMEBUFFER:
-        return MemoryMapEntryType::eFrameBuffer;
+        return boot::MemoryRegion::eFrameBuffer;
     default:
-        return MemoryMapEntryType::eBadMemory;
+        return boot::MemoryRegion::eBadMemory;
     }
 }
 
@@ -139,20 +139,20 @@ static std::span<boot::MemoryRegion> BootGetMemoryMap(BootAllocator& alloc) {
     for (uint64_t i = 0; i < response.entry_count; i++) {
         limine_memmap_entry entry = *response.entries[i];
 
-        MemoryMapEntryType type = BootGetEntryType(entry);
+        boot::MemoryRegion::Type type = BootGetEntryType(entry);
 
         km::MemoryRange range = { entry.base, entry.base + entry.length };
         if (range.overlaps(alloc.range())) {
             range = range.cut(alloc.range());
         }
 
-        MemoryMapEntry item = { type, range };
+        boot::MemoryRegion item = { type, range };
 
         memmap[i] = item;
     }
 
     // Add the boot memory to the memory map
-    memmap[response.entry_count] = { MemoryMapEntryType::eBootloaderReclaimable, alloc.range() };
+    memmap[response.entry_count] = { boot::MemoryRegion::eBootloaderReclaimable, alloc.range() };
 
     return { memmap, response.entry_count + 1 };
 }

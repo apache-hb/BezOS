@@ -1,68 +1,64 @@
 #pragma once
 
 #include "memory/memory.hpp"
-#include "std/static_vector.hpp"
 
 #include <cstddef>
 
-enum class MemoryMapEntryType {
-    eUsable,
-    eReserved,
-    eAcpiReclaimable,
-    eAcpiNvs,
-    eBadMemory,
-    eBootloaderReclaimable,
-    eKernel,
-    eFrameBuffer,
-    eKernelRuntimeData,
-};
-
-struct MemoryMapEntry {
-    MemoryMapEntryType type;
-    km::MemoryRange range;
-
-    size_t size() const { return range.size(); }
-    bool isUsable() const {
-        switch (type) {
-        case MemoryMapEntryType::eUsable:
-        case MemoryMapEntryType::eAcpiReclaimable:
-        case MemoryMapEntryType::eBootloaderReclaimable:
-            return true;
-
-        default:
-            return false;
-        }
-    }
-};
-
-struct KernelFrameBuffer {
-    uint64_t width;
-    uint64_t height;
-    uint64_t pitch;
-    uint16_t bpp;
-
-    uint8_t redMaskSize;
-    uint8_t redMaskShift;
-
-    uint8_t greenMaskSize;
-    uint8_t greenMaskShift;
-
-    uint8_t blueMaskSize;
-    uint8_t blueMaskShift;
-
-    km::PhysicalAddress paddr;
-    void *vaddr;
-
-    km::MemoryRange edid;
-
-    size_t size() const {
-        return pitch * height;
-    }
-};
-
 namespace boot {
-    using FrameBuffer = KernelFrameBuffer;
-    using MemoryRegion = MemoryMapEntry;
+    struct FrameBuffer {
+        uint64_t width;
+        uint64_t height;
+        uint64_t pitch;
+        uint16_t bpp;
+
+        uint8_t redMaskSize;
+        uint8_t redMaskShift;
+
+        uint8_t greenMaskSize;
+        uint8_t greenMaskShift;
+
+        uint8_t blueMaskSize;
+        uint8_t blueMaskShift;
+
+        km::PhysicalAddress paddr;
+        void *vaddr;
+
+        km::MemoryRange edid;
+
+        size_t size() const {
+            return pitch * height;
+        }
+    };
+
+    struct MemoryRegion {
+        enum Type {
+            eUsable,
+            eReserved,
+            eAcpiReclaimable,
+            eAcpiNvs,
+            eBadMemory,
+            eBootloaderReclaimable,
+            eKernel,
+            eFrameBuffer,
+            eKernelRuntimeData,
+        };
+
+        Type type;
+        km::MemoryRange range;
+
+        size_t size() const { return range.size(); }
+        bool isUsable() const {
+            switch (type) {
+            case eUsable:
+            case eAcpiReclaimable:
+            case eBootloaderReclaimable:
+                return true;
+
+            default:
+                return false;
+            }
+        }
+    };
 
     struct LaunchInfo {
         km::PhysicalAddress kernelPhysicalBase;
@@ -86,27 +82,27 @@ namespace boot {
 void KmLaunchEx(boot::LaunchInfo launch);
 
 template<>
-struct km::Format<MemoryMapEntryType> {
+struct km::Format<boot::MemoryRegion::Type> {
     static constexpr size_t kStringSize = 16;
-    static constexpr stdx::StringView toString(char *, MemoryMapEntryType value) {
+    static constexpr stdx::StringView toString(char *, boot::MemoryRegion::Type value) {
         switch (value) {
-        case MemoryMapEntryType::eUsable:
+        case boot::MemoryRegion::eUsable:
             return "Usable";
-        case MemoryMapEntryType::eReserved:
+        case boot::MemoryRegion::eReserved:
             return "Reserved";
-        case MemoryMapEntryType::eAcpiReclaimable:
+        case boot::MemoryRegion::eAcpiReclaimable:
             return "ACPI reclaimable";
-        case MemoryMapEntryType::eAcpiNvs:
+        case boot::MemoryRegion::eAcpiNvs:
             return "ACPI NVS";
-        case MemoryMapEntryType::eBadMemory:
+        case boot::MemoryRegion::eBadMemory:
             return "Bad memory";
-        case MemoryMapEntryType::eBootloaderReclaimable:
+        case boot::MemoryRegion::eBootloaderReclaimable:
             return "Bootloader reclaimable";
-        case MemoryMapEntryType::eKernel:
+        case boot::MemoryRegion::eKernel:
             return "Kernel and modules";
-        case MemoryMapEntryType::eFrameBuffer:
+        case boot::MemoryRegion::eFrameBuffer:
             return "Framebuffer";
-        case MemoryMapEntryType::eKernelRuntimeData:
+        case boot::MemoryRegion::eKernelRuntimeData:
             return "Kernel runtime data";
         default:
             return "Unknown";

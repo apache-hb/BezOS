@@ -94,4 +94,16 @@ namespace mem {
             }
         }
     };
+
+    template<typename T>
+    class AllocatorDeleter {
+        IAllocator *allocator;
+
+    public:
+        void operator()(T *ptr) {
+            allocator->deallocate(ptr, 0);
+        }
+
+        AllocatorDeleter(IAllocator *allocator) : allocator(allocator) { }
+    };
 }

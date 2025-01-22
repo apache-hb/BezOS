@@ -3,7 +3,7 @@
 km::SystemMemory::SystemMemory(SystemMemoryLayout memory, PageBuilder pm, mem::IAllocator *allocator)
     : pager(pm)
     , layout(memory)
-    , pmm(&layout, pager.hhdmOffset(), allocator)
+    , pmm(&layout, allocator)
     , vmm(&pager, &pmm)
 { }
 

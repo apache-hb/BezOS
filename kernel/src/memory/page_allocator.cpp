@@ -1,28 +1,12 @@
 #include "memory/page_allocator.hpp"
 
-#include "arch/paging.hpp"
-
+#include "log.hpp"
 #include "memory/layout.hpp"
-#include "panic.hpp"
 
-#include <limits.h>
-#include <string.h>
+#include <climits>
+#include <cstring>
 
 using namespace km;
-
-extern "C" {
-    extern char __text_start[]; // always aligned to 0x1000
-    extern char __text_end[];
-
-    extern char __rodata_start[]; // always aligned to 0x1000
-    extern char __rodata_end[];
-
-    extern char __data_start[]; // always aligned to 0x1000
-    extern char __data_end[];
-
-    extern char __kernel_start[];
-    extern char __kernel_end[];
-}
 
 /// page allocator
 
@@ -42,25 +26,11 @@ static size_t GetBitmapSize(const SystemMemoryLayout *layout) {
 
 static constexpr PhysicalAddress kLowMemory = sm::megabytes(1).bytes();
 
-static PhysicalAddress FindFreeSpace(const SystemMemoryLayout *layout, size_t bitmapSize) {
-    // Find any memory range that is large enough to hold the bitmap
-    // and is not in the first 1MB of memory.
-
-    for (MemoryRange entry : layout->available) {
-        MemoryRange usable = intersection(entry, { kLowMemory, UINTPTR_MAX });
-        if (usable.size() >= bitmapSize) {
-            return usable.front;
-        }
-    }
-
-    return nullptr;
-}
-
-void detail::BuildMemoryRanges(stdx::Vector<RegionBitmapAllocator>& allocators, stdx::Vector<RegionBitmapAllocator>& lowMemory, const SystemMemoryLayout *layout, PhysicalAddress bitmap, uintptr_t hhdmOffset) {
+void detail::BuildMemoryRanges(RegionList& allocators, RegionList& lowMemory, const SystemMemoryLayout *layout, uint8_t *bitmap) {
     size_t offset = 0;
 
     auto newRegion = [&](MemoryRange range) {
-        RegionBitmapAllocator result{range, (uint8_t*)(bitmap + offset + hhdmOffset).address};
+        RegionBitmapAllocator result{range, (bitmap + offset)};
         offset += detail::GetRangeBitmapSize(range);
         return result;
     };
@@ -80,28 +50,28 @@ void detail::BuildMemoryRanges(stdx::Vector<RegionBitmapAllocator>& allocators, 
     }
 }
 
-static MemoryRange GetBitmapRange(const SystemMemoryLayout *layout) {
-    // Get the size of the bitmap and round up to the nearest page.
-    size_t size = sm::roundup(GetBitmapSize(layout), x64::kPageSize);
-
-    // Allocate bitmap space
-    PhysicalAddress bitmap = FindFreeSpace(layout, size);
-    KM_CHECK(bitmap != nullptr, "Failed to find space for bitmap");
-
-    return {bitmap, bitmap + size};
+void detail::MergeAdjacentAllocators(RegionList& allocators) {
+    for (size_t i = 0; i < allocators.count(); i++) {
+        RegionBitmapAllocator& allocator = allocators[i];
+        for (size_t j = i + 1; j < allocators.count(); j++) {
+            RegionBitmapAllocator& next = allocators[j];
+            if (allocator.range().intersects(next.range())) {
+                allocator.extend(next);
+                allocators.remove(j);
+                j--;
+            }
+        }
+    }
 }
 
-PageAllocator::PageAllocator(const SystemMemoryLayout *layout, uintptr_t hhdmOffset, mem::IAllocator *allocator)
+PageAllocator::PageAllocator(const SystemMemoryLayout *layout, mem::IAllocator *allocator)
     : mAllocators(allocator)
     , mLowMemory(allocator)
-    , mBitmapMemory(GetBitmapRange(layout))
+    , mBitmapMemory((uint8_t*)allocator->allocate(GetBitmapSize(layout)), allocator)
 {
-    memset((void*)(mBitmapMemory.front.address + hhdmOffset), 0, mBitmapMemory.size());
+    memset(mBitmapMemory.get(), 0, GetBitmapSize(layout));
 
-    detail::BuildMemoryRanges(mAllocators, mLowMemory, layout, mBitmapMemory.front, hhdmOffset);
-
-    // Mark the bitmap memory as used
-    markUsed(mBitmapMemory);
+    detail::BuildMemoryRanges(mAllocators, mLowMemory, layout, mBitmapMemory.get());
 }
 
 void PageAllocator::rebuild() {
@@ -136,6 +106,8 @@ PhysicalAddress PageAllocator::lowMemoryAlloc4k() {
 }
 
 void PageAllocator::markUsed(MemoryRange range) {
+    KmDebugMessage("[PMM] Request to mark range as used: ", range, "\n");
+
     for (RegionBitmapAllocator& allocator : mAllocators) {
         allocator.markUsed(range);
     }

@@ -5,7 +5,7 @@
 #include "display.hpp"
 
 TEST(CanvasTest, Size) {
-    KernelFrameBuffer framebuffer = {
+    boot::FrameBuffer framebuffer = {
         .width = 1280,
         .height = 800,
         .pitch = 5120,
@@ -38,7 +38,7 @@ TEST(CanvasTest, Size) {
 }
 
 TEST(DisplayTest, Simple) {
-    KernelFrameBuffer framebuffer = {
+    boot::FrameBuffer framebuffer = {
         .width = 1280,
         .height = 800,
         .pitch = 5120,
@@ -81,14 +81,14 @@ TEST(DisplayTest, Simple) {
             km::Pixel other = display.read(x, y);
 
             km::Pixel black { 0, 0, 0 };
-            EXPECT_EQ(other, black) 
+            EXPECT_EQ(other, black)
                 << "Pixel (" << x << "," << y << ") is "
                 << "(" << int(other.r) << "," << int(other.g) << "," << int(other.b) << ")";
         }
     }
 
     display.fill(km::Pixel { 0, 0, 0 });
-    
+
     display.write(123, 456, km::Pixel { 127, 127, 255 });
 
     pixel = display.read(123, 456);
@@ -99,7 +99,7 @@ TEST(DisplayTest, Simple) {
 }
 
 TEST(DisplayTest, WithLinePadding) {
-    KernelFrameBuffer framebuffer = {
+    boot::FrameBuffer framebuffer = {
         .width = 1920,
         .height = 1080,
         .pitch = 1920 * 4 + 4,

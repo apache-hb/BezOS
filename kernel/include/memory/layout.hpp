@@ -12,7 +12,7 @@ namespace km {
         stdx::Vector<MemoryRange> available;
         stdx::Vector<MemoryRange> reclaimable;
 
-        stdx::Vector<MemoryMapEntry> reserved;
+        stdx::Vector<boot::MemoryRegion> reserved;
 
         void reclaimBootMemory();
 

@@ -39,6 +39,14 @@ TEST(MemoryRangeTest, Overlaps) {
     ASSERT_FALSE(first.overlaps(smaller));
 }
 
+TEST(MemoryRangeTest, OverlapIsCommutative) {
+    km::MemoryRange first = { 0x100000, 0x200000 };
+    km::MemoryRange second = { 0x100000, 0x7D47000 };
+
+    ASSERT_TRUE(first.overlaps(second));
+    ASSERT_TRUE(second.overlaps(first));
+}
+
 TEST(MemoryRangeTest, Intersection) {
     km::MemoryRange first = { 0x1000, 0x2000 };
     km::MemoryRange second = { 0x1500, 0x2500 };
@@ -62,4 +70,30 @@ TEST(MemoryRangeTest, Intersection) {
         ASSERT_EQ(intersection.front, 0);
         ASSERT_EQ(intersection.back, 0);
     }
+}
+
+static void TestRangeCut(km::MemoryRange first, km::MemoryRange second, km::MemoryRange expected) {
+    km::MemoryRange result = first.cut(second);
+    ASSERT_EQ(result.front.address, expected.front.address)
+        << "Cut (" << first.front.address << ", " << first.back.address << ") with ("
+        << second.front.address << ", " << second.back.address << ")";
+
+    ASSERT_EQ(result.back.address, expected.back.address)
+        << "Cut (" << first.front.address << ", " << first.back.address << ") with ("
+        << second.front.address << ", " << second.back.address << ")";
+}
+
+TEST(MemoryRangeTest, Cut) {
+    // only the overlapping section is removed
+    TestRangeCut({ 0x1000, 0x2000 }, { 0x1500, 0x2500 }, { 0x1000, 0x1500 });
+
+    // when there is no overlap, the original range is returned
+    TestRangeCut({ 0x1000, 0x2000 }, { 0x3000, 0x4000 }, { 0x1000, 0x2000 });
+
+    // when the ranges only touch, the original range is returned
+    TestRangeCut({ 0x1000, 0x2000 }, { 0x0000uz, 0x1000 }, { 0x1000, 0x2000 });
+
+    TestRangeCut({ 0x100000, 0x200000 }, { 0x100000, 0x7D47000 }, { 0x200000, 0x7D47000 });
+
+    TestRangeCut({ 0x100000, 0x7D47000 }, { 0x7D47000 - 0x100000, 0x7D47000 }, { 0x100000, 0x7D47000 - 0x100000 });
 }

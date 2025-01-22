@@ -1,3 +1,4 @@
+#include "log.hpp"
 #include "memory/page_allocator.hpp"
 #include "util/bits.hpp"
 
@@ -59,6 +60,8 @@ void RegionBitmapAllocator::release(MemoryRange range) {
 void RegionBitmapAllocator::markUsed(MemoryRange range) {
     range = intersection(range, mRange);
     if (range.isEmpty()) return;
+
+    KmDebugMessage("[PMM] Marking range as used: ", range, "\n");
 
     // Find the bit range that corresponds to the range.
     size_t start = (range.front - mRange.front) / x64::kPageSize;

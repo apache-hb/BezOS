@@ -7,6 +7,7 @@
 #include <stdint.h>
 
 #include "memory/virtual_allocator.hpp"
+#include "panic.hpp"
 #include "util/util.hpp"
 #include "util/format.hpp"
 
@@ -97,6 +98,13 @@ namespace km {
         /// @param range The range to check.
         /// @return True if the ranges overlap, false otherwise.
         constexpr bool overlaps(MemoryRange range) const {
+            // Handle the cases where the ranges have the same front or back.
+            // |----------------| |-----------|
+            // |------|                |------|
+            // These cases are considered to overlap.
+            if (range.front == front && range.back <= back) return true;
+            if (range.back == back && range.front >= front) return true;
+
             return contains(range.front) ^ contains(range.back);
         }
 
@@ -121,26 +129,24 @@ namespace km {
 
         /// @brief Return a copy of this range with the overlapping area cut out.
         ///
-        /// Cut off a range from this range. If the range is a subset of the other
-        /// the empty range is returned. If there is no overlap the original range
-        /// is returned.
+        /// Cut off a range from this range. If there is no overlap the original range
+        /// is returned. If the other range is a subset of this range, the behavior is undefined.
         ///
         /// @see km::split for a similar function that returns two ranges.
         ///
         /// @param other The range to cut out.
         /// @return The range with the overlapping area cut out.
         constexpr MemoryRange cut(MemoryRange other) const {
-            if (contains(other)) return { 0zu, 0zu };
-
-            if (other.front <= front) {
-                return {other.back, back};
+            if (other.back != back && other.front != front) {
+                KM_CHECK(!contains(other), "Range is a subset of the other.");
             }
 
-            if (other.back >= back) {
-                return {front, other.front};
-            }
+            if (!overlaps(other)) return *this;
 
-            return {front, other.front};
+            if (other.front <= front) return {std::min(back, other.back), std::max(back, other.back)};
+            if (other.back >= back) return {std::min(front, other.front), std::max(front, other.front)};
+
+            return *this;
         }
 
         constexpr bool operator==(const MemoryRange& other) const = default;

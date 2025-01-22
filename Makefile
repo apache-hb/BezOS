@@ -1,6 +1,6 @@
 .PHONY: build
 build:
-	ninja -C build install
+	meson install -C build --quiet
 
 install/ovmf/ovmf-code-x86_64.fd:
 	mkdir -p install/ovmf

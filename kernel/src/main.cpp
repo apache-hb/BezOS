@@ -7,6 +7,7 @@
 
 #include "apic.hpp"
 
+#include "arch/abi.hpp"
 #include "arch/cr0.hpp"
 #include "arch/cr4.hpp"
 
@@ -50,6 +51,7 @@ using namespace stdx::literals;
 
 static constexpr bool kUseX2Apic = true;
 static constexpr bool kSelfTestApic = true;
+static constexpr bool kDumpAddr2lineCmd = true;
 
 class SerialLog final : public IOutStream {
     SerialPort mPort;
@@ -275,7 +277,7 @@ static void WriteMemoryMap(std::span<const boot::MemoryRegion> memmap) {
     KmDebugMessage("|-------+--------------------+--------------------+-----------------------\n");
 
     for (size_t i = 0; i < memmap.size(); i++) {
-        MemoryMapEntry entry = memmap[i];
+        boot::MemoryRegion entry = memmap[i];
         MemoryRange range = entry.range;
 
         KmDebugMessage("| ", Int(i).pad(4, '0'), "  | ", Hex(range.front.address).pad(16, '0'), " | ", Hex(range.size()).pad(16, '0'), " | ", entry.type, "\n");
@@ -330,7 +332,7 @@ static size_t GetKernelSize() {
 }
 
 static KernelLayout BuildKernelLayout(uintptr_t vaddrbits, km::PhysicalAddress kernelPhysicalBase, const void *kernelVirtualBase, std::span<const boot::FrameBuffer> displays) {
-    size_t framebuffersSize = std::accumulate(displays.begin(), displays.end(), 0, [](size_t sum, const KernelFrameBuffer& framebuffer) {
+    size_t framebuffersSize = std::accumulate(displays.begin(), displays.end(), 0, [](size_t sum, const boot::FrameBuffer& framebuffer) {
         return sum + framebuffer.size();
     });
 
@@ -377,7 +379,7 @@ struct EarlyMemory {
 
 static boot::MemoryRegion FindEarlyAllocatorRegion(std::span<const boot::MemoryRegion> memmap, size_t size) {
     for (const boot::MemoryRegion& entry : memmap) {
-        if (entry.type != MemoryMapEntryType::eUsable)
+        if (entry.type != boot::MemoryRegion::eUsable)
             continue;
 
         if (entry.range.front < kLowMemory)
@@ -410,7 +412,7 @@ static std::tuple<EarlyMemory*, km::AddressMapping> CreateEarlyAllocator(std::sp
 
     boot::MemoryRegion *memoryMap = memory->allocator.allocateArray<boot::MemoryRegion>(memmap.size() + 1);
     std::copy(memmap.begin(), memmap.end(), memoryMap);
-    memoryMap[memmap.size()] = boot::MemoryRegion { MemoryMapEntryType::eKernelRuntimeData, range };
+    memoryMap[memmap.size()] = boot::MemoryRegion { boot::MemoryRegion::eKernelRuntimeData, range };
 
     for (size_t i = 0; i < memmap.size(); i++) {
         boot::MemoryRegion& entry = memoryMap[i];
@@ -420,6 +422,10 @@ static std::tuple<EarlyMemory*, km::AddressMapping> CreateEarlyAllocator(std::sp
     }
 
     memory->memmap = std::span(memoryMap, memmap.size() + 1);
+
+    std::sort(memory->memmap.begin(), memory->memmap.end(), [](const boot::MemoryRegion& a, const boot::MemoryRegion& b) {
+        return a.range.front < b.range.front;
+    });
 
     return std::make_tuple(memory, km::AddressMapping { vaddr, range.front, kEarlyAllocSize });
 }
@@ -435,6 +441,8 @@ static SystemMemory *SetupKernelMemory(
     PageMemoryTypeLayout pat = KmSetupPat();
 
     auto [earlyMemory, earlyRegion] = CreateEarlyAllocator(memmap, hhdmOffset);
+
+    WriteMemoryMap(earlyMemory->memmap);
 
     PageBuilder pm = PageBuilder { maxpaddr, hhdmOffset, pat };
     KmWriteMtrrs(pm);
@@ -461,7 +469,7 @@ static SystemMemory *SetupKernelMemory(
     // remap framebuffers
 
     uintptr_t framebufferBase = (uintptr_t)layout.framebuffers.front;
-    for (const KernelFrameBuffer& framebuffer : framebuffers) {
+    for (const boot::FrameBuffer& framebuffer : framebuffers) {
         // remap the framebuffer into its final location
         KmMapMemory(memory->vmm, framebuffer.paddr, (void*)framebufferBase, framebuffer.size(), PageFlags::eData, MemoryType::eWriteCombine);
 
@@ -480,7 +488,7 @@ static SystemMemory *SetupKernelMemory(
             .setAddress(layout.getFrameBuffer(framebuffers, 0));
     }
 
-    // memory.layout.reclaimBootMemory();
+    memory->layout.reclaimBootMemory();
 
     return memory;
 }
@@ -517,6 +525,24 @@ static void DumpIsrState(const km::IsrContext *context) {
     KmDebugMessage("| IA32_GS_BASE        | ", Hex(kGsBase.load()).pad(16, '0'), "\n");
     KmDebugMessage("| IA32_FS_BASE        | ", Hex(kFsBase.load()).pad(16, '0'), "\n");
     KmDebugMessage("| IA32_KERNEL_GS_BASE | ", Hex(kKernelGsBase.load()).pad(16, '0'), "\n");
+    KmDebugMessage("\n");
+}
+
+static void DumpStackTrace(const km::IsrContext *context) {
+    KmDebugMessage("|----Stack trace-----+----------------\n");
+    KmDebugMessage("| Frame              | Program Counter\n");
+    KmDebugMessage("|--------------------+----------------\n");
+    x64::WalkStackFrames((void**)context->rbp, [](void **frame, void *pc) {
+        KmDebugMessage("| ", (void*)frame, " | ", pc, "\n");
+    });
+
+    if (kDumpAddr2lineCmd) {
+        KmDebugMessage("llvm-addr2line -e ./build/bezos");
+        x64::WalkStackFrames((void**)context->rbp, [](void **, void *pc) {
+            KmDebugMessage(" ", pc);
+        });
+        KmDebugMessage("\n");
+    }
 }
 
 static km::IntController KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllocator& isrs, bool useX2Apic) {
@@ -567,7 +593,7 @@ static km::IntController KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllo
 static void KmInitBootTerminal(std::span<const boot::FrameBuffer> framebuffers) {
     if (framebuffers.empty()) return;
 
-    KernelFrameBuffer framebuffer = framebuffers.front();
+    boot::FrameBuffer framebuffer = framebuffers.front();
     km::Canvas display { framebuffer, (uint8_t*)(framebuffer.vaddr) };
     gDirectTerminalLog = DirectTerminal(display);
     gLogTargets.add(&gDirectTerminalLog);
@@ -606,7 +632,6 @@ static SerialPortStatus KmInitSerialPort(ComPortInfo info) {
     }
 }
 
-[[noreturn]]
 static void DumpIsrContext(const km::IsrContext *context, stdx::StringView message) {
     if (km::IsTlsSetup()) {
         KmDebugMessage("\n[BUG] ", message, " - On ", km::GetCurrentCoreId(), "\n");
@@ -615,13 +640,13 @@ static void DumpIsrContext(const km::IsrContext *context, stdx::StringView messa
     }
 
     DumpIsrState(context);
-
-    KM_PANIC("Kernel panic.");
 }
 
 static void InstallExceptionHandlers(void) {
     KmInstallIsrHandler(0x0, [](km::IsrContext *context) -> void* {
         DumpIsrContext(context, "Divide by zero (#DE)");
+        DumpStackTrace(context);
+        KM_PANIC("Kernel panic.");
     });
 
     KmInstallIsrHandler(0x2, [](km::IsrContext *context) -> void* {
@@ -632,19 +657,27 @@ static void InstallExceptionHandlers(void) {
 
     KmInstallIsrHandler(0x6, [](km::IsrContext *context) -> void* {
         DumpIsrContext(context, "Invalid opcode (#UD)");
+        DumpStackTrace(context);
+        KM_PANIC("Kernel panic.");
     });
 
     KmInstallIsrHandler(0x8, [](km::IsrContext *context) -> void* {
         DumpIsrContext(context, "Double fault (#DF)");
+        DumpStackTrace(context);
+        KM_PANIC("Kernel panic.");
     });
 
     KmInstallIsrHandler(0xD, [](km::IsrContext *context) -> void* {
         DumpIsrContext(context, "General protection fault (#GP)");
+        DumpStackTrace(context);
+        KM_PANIC("Kernel panic.");
     });
 
     KmInstallIsrHandler(0xE, [](km::IsrContext *context) -> void* {
         KmDebugMessage("[BUG] CR2: ", Hex(__get_cr2()).pad(16, '0'), "\n");
         DumpIsrContext(context, "Page fault (#PF)");
+        DumpStackTrace(context);
+        KM_PANIC("Kernel panic.");
     });
 }
 
@@ -709,7 +742,7 @@ static void LogSystemInfo(
     KmDebugMessage("| /SYS/MB/CPU0  | 2x APIC              | ", present(processor.has2xApic), "\n");
 
     for (size_t i = 0; i < framebuffers.size(); i++) {
-        const KernelFrameBuffer& display = framebuffers[i];
+        const boot::FrameBuffer& display = framebuffers[i];
         KmDebugMessage("| /SYS/VIDEO", i, "   | Display resolution   | ", display.width, "x", display.height, "x", display.bpp, "\n");
         KmDebugMessage("| /SYS/VIDEO", i, "   | Framebuffer size     | ", sm::bytes(display.size()), "\n");
         KmDebugMessage("| /SYS/VIDEO", i, "   | Framebuffer address  | ", display.vaddr, "\n");

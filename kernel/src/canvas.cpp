@@ -46,7 +46,7 @@ km::Pixel km::PixelFormat::pixelRead(PixelValue value) const {
     return Pixel { uint8_t(r), uint8_t(g), uint8_t(b) };
 }
 
-km::Canvas::Canvas(KernelFrameBuffer framebuffer, uint8_t *address)
+km::Canvas::Canvas(boot::FrameBuffer framebuffer, uint8_t *address)
     : mAddress(address)
     , mWidth(framebuffer.width)
     , mHeight(framebuffer.height)

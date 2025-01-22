@@ -32,21 +32,21 @@ void detail::MergeMemoryRanges(stdx::Vector<MemoryRange>& ranges) {
 SystemMemoryLayout SystemMemoryLayout::from(std::span<const boot::MemoryRegion> memmap, mem::IAllocator *allocator) {
     stdx::Vector<MemoryRange> freeMemory(allocator);
     stdx::Vector<MemoryRange> reclaimable(allocator);
-    stdx::Vector<MemoryMapEntry> reservedMemory(allocator);
+    stdx::Vector<boot::MemoryRegion> reservedMemory(allocator);
 
     for (size_t i = 0; i < memmap.size(); i++) {
-        MemoryMapEntry entry = memmap[i];
+        boot::MemoryRegion entry = memmap[i];
 
         if (entry.range.isEmpty()) {
-            KmDebugMessage("[MEM] Empty memory range ", i, "\n");
+            KmDebugMessage("[MEM] Memory range ", i, " is empty.\n");
             continue;
         }
 
         switch (entry.type) {
-        case MemoryMapEntryType::eUsable:
+        case boot::MemoryRegion::eUsable:
             freeMemory.add(entry.range);
             break;
-        case MemoryMapEntryType::eBootloaderReclaimable:
+        case boot::MemoryRegion::eBootloaderReclaimable:
             reclaimable.add(entry.range);
             break;
         default:
@@ -58,7 +58,7 @@ SystemMemoryLayout SystemMemoryLayout::from(std::span<const boot::MemoryRegion> 
     detail::SortMemoryRanges(freeMemory);
     detail::SortMemoryRanges(reclaimable);
 
-    std::sort(reservedMemory.begin(), reservedMemory.end(), [](const MemoryMapEntry& a, const MemoryMapEntry& b) {
+    std::sort(reservedMemory.begin(), reservedMemory.end(), [](const boot::MemoryRegion& a, const boot::MemoryRegion& b) {
         return a.range.front < b.range.front;
     });
 

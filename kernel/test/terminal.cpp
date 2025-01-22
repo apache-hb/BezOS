@@ -85,9 +85,9 @@ static constexpr stdx::StringView kText = R"(
 [SMP] Started AP 15
 )";
 
-static void DumpImage(const char *filename, KernelFrameBuffer framebuffer, km::Canvas canvas) {
+static void DumpImage(const char *filename, boot::FrameBuffer framebuffer, km::Canvas canvas) {
     uint8_t channels = 3;
-    KernelFrameBuffer rgbFrame = {
+    boot::FrameBuffer rgbFrame = {
         .width = framebuffer.width,
         .height = framebuffer.height,
         .pitch = framebuffer.width * channels,
@@ -118,7 +118,7 @@ static void DumpImage(const char *filename, KernelFrameBuffer framebuffer, km::C
 }
 
 TEST(TerminalTest, WriteText) {
-    KernelFrameBuffer framebuffer = {
+    boot::FrameBuffer framebuffer = {
         .width = 1920,
         .height = 1080,
         .pitch = 1920 * 4,
@@ -175,7 +175,7 @@ TEST(TerminalTest, WriteText) {
 }
 
 TEST(TerminalTest, WriteMultiLine) {
-    KernelFrameBuffer framebuffer = {
+    boot::FrameBuffer framebuffer = {
         .width = 1920,
         .height = 1080,
         .pitch = 1920 * 4,

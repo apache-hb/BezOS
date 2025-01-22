@@ -73,37 +73,26 @@ namespace km {
     };
 
     namespace detail {
+        using RegionList = stdx::Vector<RegionBitmapAllocator>;
         void BuildMemoryRanges(
-            stdx::Vector<RegionBitmapAllocator>& allocators, stdx::Vector<RegionBitmapAllocator>& lowMemory,
-            const SystemMemoryLayout *layout, PhysicalAddress bitmap, uintptr_t hhdmOffset
+            RegionList& allocators, RegionList& lowMemory,
+            const SystemMemoryLayout *layout, uint8_t *bitmap
         );
 
-        inline void MergeAdjacentAllocators(stdx::Vector<RegionBitmapAllocator>& allocators) {
-            for (size_t i = 0; i < allocators.count(); i++) {
-                RegionBitmapAllocator& allocator = allocators[i];
-                for (size_t j = i + 1; j < allocators.count(); j++) {
-                    RegionBitmapAllocator& next = allocators[j];
-                    if (allocator.range().intersects(next.range())) {
-                        allocator.extend(next);
-                        allocators.remove(j);
-                        j--;
-                    }
-                }
-            }
-        }
+        void MergeAdjacentAllocators(RegionList& allocators);
     }
 
     class PageAllocator {
         /// @brief One allocator for each usable or reclaimable memory range.
-        stdx::Vector<RegionBitmapAllocator> mAllocators;
+        detail::RegionList mAllocators;
 
         /// @brief One allocator for each memory range below 1M.
-        stdx::Vector<RegionBitmapAllocator> mLowMemory;
+        detail::RegionList mLowMemory;
 
-        MemoryRange mBitmapMemory;
+        std::unique_ptr<uint8_t[], mem::AllocatorDeleter<uint8_t>> mBitmapMemory;
 
     public:
-        PageAllocator(const SystemMemoryLayout *layout, uintptr_t hhdmOffset, mem::IAllocator *allocator);
+        PageAllocator(const SystemMemoryLayout *layout, mem::IAllocator *allocator);
 
         /// @brief Rebuild the internal allocators.
         ///
@@ -130,13 +119,5 @@ namespace km {
         ///
         /// @param range The range to mark as used.
         void markUsed(MemoryRange range);
-
-        MemoryRange bitmap() const {
-            return mBitmapMemory;
-        }
-
-        void moveBitmap(MemoryRange range) {
-            mBitmapMemory = range;
-        }
     };
 }
