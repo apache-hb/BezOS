@@ -9,6 +9,7 @@
 namespace km {
     class PageTableManager {
         const km::PageBuilder *mPageManager;
+        mem::IAllocator *mAllocator;
         PageAllocator *mPageAllocator;
         x64::PageMapLevel4 *mRootPageTable;
 
@@ -40,7 +41,7 @@ namespace km {
         }
 
     public:
-        PageTableManager(const km::PageBuilder *pm, PageAllocator *alloc);
+        PageTableManager(const km::PageBuilder *pm, mem::IAllocator *allocator, PageAllocator *pageAllocator);
 
         km::PhysicalAddress rootPageTable() const {
             return getPhysicalAddress(getRootTable());
@@ -59,12 +60,10 @@ namespace km {
 }
 
 /// @brief Remap the kernel to replace the boot page tables.
-/// @param pm The page manager
 /// @param vmm The virtual memory manager
-/// @param layout The system memory layout
 /// @param paddr The physical address of the kernel
 /// @param vaddr The virtual address of the kernel
-void KmMapKernel(const km::PageBuilder& pm, km::PageTableManager& vmm, km::SystemMemoryLayout& layout, km::PhysicalAddress paddr, const void *vaddr);
+void KmMapKernel(km::PageTableManager& vmm, km::PhysicalAddress paddr, const void *vaddr);
 
 /// @brief Migrate the memory range into hhdm.
 /// @param vmm The virtual memory manager

@@ -106,8 +106,6 @@ PhysicalAddress PageAllocator::lowMemoryAlloc4k() {
 }
 
 void PageAllocator::markUsed(MemoryRange range) {
-    KmDebugMessage("[PMM] Request to mark range as used: ", range, "\n");
-
     for (RegionBitmapAllocator& allocator : mAllocators) {
         allocator.markUsed(range);
     }

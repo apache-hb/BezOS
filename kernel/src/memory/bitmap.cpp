@@ -61,8 +61,6 @@ void RegionBitmapAllocator::markUsed(MemoryRange range) {
     range = intersection(range, mRange);
     if (range.isEmpty()) return;
 
-    KmDebugMessage("[PMM] Marking range as used: ", range, "\n");
-
     // Find the bit range that corresponds to the range.
     size_t start = (range.front - mRange.front) / x64::kPageSize;
     size_t end = (range.back - mRange.front) / x64::kPageSize;

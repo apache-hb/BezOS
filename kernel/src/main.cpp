@@ -458,7 +458,7 @@ static SystemMemory *SetupKernelMemory(
 
     // initialize our own page tables and remap everything into it
     auto [kernelVirtualBase, kernelPhysicalBase, _] = layout.kernel;
-    KmMapKernel(memory->pager, memory->vmm, memory->layout, kernelPhysicalBase, kernelVirtualBase);
+    KmMapKernel(memory->vmm, kernelPhysicalBase, kernelVirtualBase);
 
     // move our stack out of reclaimable memory
     KmMapMemory(memory->vmm, stack.paddr - stack.size, (void*)((uintptr_t)stack.vaddr - stack.size), stack.size, PageFlags::eData, MemoryType::eWriteBack);

@@ -4,7 +4,7 @@ km::SystemMemory::SystemMemory(SystemMemoryLayout memory, PageBuilder pm, mem::I
     : pager(pm)
     , layout(memory)
     , pmm(&layout, allocator)
-    , vmm(&pager, &pmm)
+    , vmm(&pager, allocator, &pmm)
 { }
 
 // TODO: respect align, dont allocate such large memory ranges

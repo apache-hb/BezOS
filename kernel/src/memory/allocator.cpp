@@ -26,8 +26,7 @@ extern "C" {
 }
 
 x64::page *PageTableManager::alloc4k() {
-    PhysicalAddress result = mPageAllocator->alloc4k();
-    x64::page *page = getVirtualAddress<x64::page>(result);
+    x64::page *page = (x64::page*)mAllocator->allocateAligned(x64::kPageSize, x64::kPageSize);
     memset(page, 0, sizeof(x64::page));
     return page;
 }
@@ -42,9 +41,10 @@ void PageTableManager::setEntryFlags(x64::Entry& entry, PageFlags flags, Physica
     entry.setPresent(true);
 }
 
-PageTableManager::PageTableManager(const km::PageBuilder *pm, PageAllocator *alloc)
+PageTableManager::PageTableManager(const km::PageBuilder *pm, mem::IAllocator *allocator, PageAllocator *pageAllocator)
     : mPageManager(pm)
-    , mPageAllocator(alloc)
+    , mAllocator(allocator)
+    , mPageAllocator(pageAllocator)
     , mRootPageTable((x64::PageMapLevel4*)alloc4k())
 { }
 
@@ -274,18 +274,9 @@ static void MapKernelPages(PageTableManager& memory, km::PhysicalAddress paddr, 
     mapKernelRange(__data_start, __data_end, PageFlags::eData, ".data");
 }
 
-static void MapUsableMemory(PageTableManager& memory, const km::PageBuilder& pm, const SystemMemoryLayout& layout) {
-    for (MemoryRange range : layout.available) {
-        memory.mapRange(range, (void*)(range.front.address + pm.hhdmOffset()), PageFlags::eData, MemoryType::eWriteBack);
-    }
-}
-
-void KmMapKernel(const km::PageBuilder& pm, km::PageTableManager& vmm, km::SystemMemoryLayout& layout, km::PhysicalAddress paddr, const void *vaddr) {
+void KmMapKernel(km::PageTableManager& vmm, km::PhysicalAddress paddr, const void *vaddr) {
     // first map the kernel pages
     MapKernelPages(vmm, paddr, vaddr);
-
-    // then remap the rest of memory to the higher half
-    MapUsableMemory(vmm, pm, layout);
 }
 
 void KmMigrateMemory(km::PageTableManager& vmm, km::PageBuilder& pm, km::PhysicalAddress base, size_t size, km::MemoryType type) {
