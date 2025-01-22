@@ -369,13 +369,29 @@ static KernelLayout BuildKernelLayout(uintptr_t vaddrbits, km::PhysicalAddress k
     return layout;
 }
 
-static constexpr size_t kEarlyAllocSize = sm::megabytes(1).bytes();
+static constexpr size_t kEarlyAllocMinSize = sm::megabytes(1).bytes();
 static constexpr size_t kLowMemory = sm::megabytes(1).bytes();
 
 struct EarlyMemory {
     mem::TlsfAllocator allocator;
     std::span<boot::MemoryRegion> memmap;
 };
+
+static size_t GetEarlyMemorySize(std::span<const boot::MemoryRegion> memmap) {
+    size_t size = 0;
+    for (const boot::MemoryRegion& entry : memmap) {
+        if (!entry.isAccessible())
+            continue;
+
+        if (entry.range.front < kLowMemory)
+            continue;
+
+        size += entry.range.size();
+    }
+
+    // should only need around 1% of total memory for the early allocator
+    return sm::roundup(size / 100, x64::kPageSize);
+}
 
 static boot::MemoryRegion FindEarlyAllocatorRegion(std::span<const boot::MemoryRegion> memmap, size_t size) {
     for (const boot::MemoryRegion& entry : memmap) {
@@ -404,11 +420,13 @@ static EarlyMemory *AllocateEarlyMemory(void *vaddr, size_t size) {
 }
 
 static std::tuple<EarlyMemory*, km::AddressMapping> CreateEarlyAllocator(std::span<const boot::MemoryRegion> memmap, uintptr_t hhdmOffset) {
-    boot::MemoryRegion region = FindEarlyAllocatorRegion(memmap, kEarlyAllocSize);
-    km::MemoryRange range = { region.range.front, region.range.front + kEarlyAllocSize };
+    size_t earlyAllocSize = std::max(GetEarlyMemorySize(memmap), kEarlyAllocMinSize);
+
+    boot::MemoryRegion region = FindEarlyAllocatorRegion(memmap, earlyAllocSize);
+    km::MemoryRange range = { region.range.front, region.range.front + earlyAllocSize };
 
     void *vaddr = std::bit_cast<void*>(region.range.front + hhdmOffset);
-    EarlyMemory *memory = AllocateEarlyMemory(vaddr, kEarlyAllocSize);
+    EarlyMemory *memory = AllocateEarlyMemory(vaddr, earlyAllocSize);
 
     boot::MemoryRegion *memoryMap = memory->allocator.allocateArray<boot::MemoryRegion>(memmap.size() + 1);
     std::copy(memmap.begin(), memmap.end(), memoryMap);
@@ -427,7 +445,7 @@ static std::tuple<EarlyMemory*, km::AddressMapping> CreateEarlyAllocator(std::sp
         return a.range.front < b.range.front;
     });
 
-    return std::make_tuple(memory, km::AddressMapping { vaddr, range.front, kEarlyAllocSize });
+    return std::make_tuple(memory, km::AddressMapping { vaddr, range.front, earlyAllocSize });
 }
 
 static SystemMemory *SetupKernelMemory(

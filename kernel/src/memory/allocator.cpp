@@ -41,10 +41,9 @@ void PageTableManager::setEntryFlags(x64::Entry& entry, PageFlags flags, Physica
     entry.setPresent(true);
 }
 
-PageTableManager::PageTableManager(const km::PageBuilder *pm, mem::IAllocator *allocator, PageAllocator *pageAllocator)
+PageTableManager::PageTableManager(const km::PageBuilder *pm, mem::IAllocator *allocator)
     : mPageManager(pm)
     , mAllocator(allocator)
-    , mPageAllocator(pageAllocator)
     , mRootPageTable((x64::PageMapLevel4*)alloc4k())
 { }
 

@@ -47,11 +47,26 @@ namespace boot {
         km::MemoryRange range;
 
         size_t size() const { return range.size(); }
+
         bool isUsable() const {
             switch (type) {
             case eUsable:
             case eAcpiReclaimable:
             case eBootloaderReclaimable:
+                return true;
+
+            default:
+                return false;
+            }
+        }
+
+        bool isAccessible() const {
+            switch (type) {
+            case eUsable:
+            case eAcpiReclaimable:
+            case eBootloaderReclaimable:
+            case eKernel:
+            case eKernelRuntimeData:
                 return true;
 
             default:
