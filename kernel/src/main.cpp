@@ -443,6 +443,9 @@ static SystemMemory *SetupKernelMemory(
 
     SystemMemory *memory = alloc->construct<SystemMemory>(SystemMemoryLayout::from(earlyMemory->memmap, &earlyMemory->allocator), pm);
 
+    memory->pmm.markUsed(earlyRegion.physicalRange());
+    memory->pmm.markUsed(stack.physicalRange());
+
     WriteSystemMemory(earlyMemory->memmap, *memory);
 
     // initialize our own page tables and remap everything into it

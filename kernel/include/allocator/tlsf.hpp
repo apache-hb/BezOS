@@ -22,8 +22,8 @@ namespace mem {
             : mAllocator(nullptr, tlsf_destroy)
         { }
 
-        constexpr TlsfAllocator(void *memory, size_t size, size_t max = 0)
-            : mAllocator(tlsf_create_with_pool(memory, size, max), tlsf_destroy)
+        constexpr TlsfAllocator(void *memory, size_t size)
+            : mAllocator(tlsf_create_with_pool(memory, size), tlsf_destroy)
         { }
 
         constexpr TlsfAllocator(tlsf_t allocator)

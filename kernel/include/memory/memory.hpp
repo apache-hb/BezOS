@@ -6,6 +6,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "memory/virtual_allocator.hpp"
 #include "util/util.hpp"
 #include "util/format.hpp"
 
@@ -52,12 +53,6 @@ namespace km {
             ++(*this);
             return copy;
         }
-    };
-
-    struct AddressMapping {
-        const void *vaddr;
-        km::PhysicalAddress paddr;
-        size_t size;
     };
 
     /// @brief A range of physical address space.
@@ -150,6 +145,20 @@ namespace km {
 
         constexpr bool operator==(const MemoryRange& other) const = default;
         constexpr bool operator!=(const MemoryRange& other) const = default;
+    };
+
+    struct AddressMapping {
+        const void *vaddr;
+        km::PhysicalAddress paddr;
+        size_t size;
+
+        MemoryRange physicalRange() const {
+            return { paddr, paddr + size };
+        }
+
+        VirtualRange virtualRange() const {
+            return { vaddr, (const char*)vaddr + size };
+        }
     };
 
     /// @brief Find the intersection of two memory ranges.
