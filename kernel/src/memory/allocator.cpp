@@ -278,11 +278,6 @@ static void MapUsableMemory(PageTableManager& memory, const km::PageBuilder& pm,
     for (MemoryMapEntry range : layout.available) {
         memory.mapRange(range.range, (void*)(range.range.front.address + pm.hhdmOffset()), PageFlags::eData, MemoryType::eWriteBack);
     }
-
-    for (MemoryMapEntry range : layout.reclaimable) {
-        KmDebugMessage("[INIT] Reclaimable: ", range.range, "\n");
-        memory.mapRange(range.range, (void*)(range.range.front.address + pm.hhdmOffset()), PageFlags::eData, MemoryType::eWriteBack);
-    }
 }
 
 void KmMapKernel(const km::PageBuilder& pm, km::PageTableManager& vmm, km::SystemMemoryLayout& layout, km::PhysicalAddress paddr, const void *vaddr) {

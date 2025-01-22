@@ -151,6 +151,7 @@ static std::span<boot::MemoryRegion> BootGetMemoryMap(BootAllocator& alloc) {
         memmap[i] = item;
     }
 
+    // Add the boot memory to the memory map
     memmap[response.entry_count] = { MemoryMapEntryType::eBootloaderReclaimable, alloc.range() };
 
     return { memmap, response.entry_count };

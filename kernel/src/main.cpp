@@ -361,7 +361,7 @@ static SystemMemory SetupKernelMemory(
     KmMapKernel(memory.pager, memory.vmm, memory.layout, kernelPhysicalBase, kernelVirtualBase);
 
     // move our stack out of reclaimable memory
-    KmMapMemory(memory.vmm, stack.paddr, stack.vaddr, stack.size, PageFlags::eData, MemoryType::eWriteBack);
+    KmMapMemory(memory.vmm, stack.paddr - stack.size, (void*)((uintptr_t)stack.vaddr - stack.size), stack.size, PageFlags::eData, MemoryType::eWriteBack);
 
     // remap framebuffers
 
@@ -386,6 +386,7 @@ static SystemMemory SetupKernelMemory(
     }
 
     memory.layout.reclaimBootMemory();
+    memory.layout.scrubReclaimableMemory(hhdmOffset);
 
     return memory;
 }
