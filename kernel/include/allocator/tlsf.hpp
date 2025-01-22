@@ -18,6 +18,10 @@ namespace mem {
     public:
         using Super::Super;
 
+        tlsf_t getAllocator() const {
+            return mAllocator.get();
+        }
+
         constexpr TlsfAllocator()
             : mAllocator(nullptr, tlsf_destroy)
         { }

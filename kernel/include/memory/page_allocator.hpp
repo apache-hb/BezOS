@@ -73,16 +73,12 @@ namespace km {
     };
 
     namespace detail {
-        using RegionAllocators = stdx::StaticVector<RegionBitmapAllocator, SystemMemoryLayout::kMaxRanges>;
-        using LowMemoryAllocators = stdx::StaticVector<RegionBitmapAllocator, 4>;
-
         void BuildMemoryRanges(
-            RegionAllocators& allocators, LowMemoryAllocators& lowMemory,
+            stdx::Vector<RegionBitmapAllocator>& allocators, stdx::Vector<RegionBitmapAllocator>& lowMemory,
             const SystemMemoryLayout *layout, PhysicalAddress bitmap, uintptr_t hhdmOffset
         );
 
-        template<size_t N>
-        void MergeAdjacentAllocators(stdx::StaticVector<RegionBitmapAllocator, N>& allocators) {
+        inline void MergeAdjacentAllocators(stdx::Vector<RegionBitmapAllocator>& allocators) {
             for (size_t i = 0; i < allocators.count(); i++) {
                 RegionBitmapAllocator& allocator = allocators[i];
                 for (size_t j = i + 1; j < allocators.count(); j++) {
@@ -99,15 +95,15 @@ namespace km {
 
     class PageAllocator {
         /// @brief One allocator for each usable or reclaimable memory range.
-        detail::RegionAllocators mAllocators;
+        stdx::Vector<RegionBitmapAllocator> mAllocators;
 
         /// @brief One allocator for each memory range below 1M.
-        detail::LowMemoryAllocators mLowMemory;
+        stdx::Vector<RegionBitmapAllocator> mLowMemory;
 
         MemoryRange mBitmapMemory;
 
     public:
-        PageAllocator(const SystemMemoryLayout *layout, uintptr_t hhdmOffset);
+        PageAllocator(const SystemMemoryLayout *layout, uintptr_t hhdmOffset, mem::IAllocator *allocator);
 
         /// @brief Rebuild the internal allocators.
         ///

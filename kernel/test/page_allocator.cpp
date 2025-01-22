@@ -39,7 +39,7 @@ static TestData GetTestAllocator() {
         data.push_back({ MemoryMapEntryType::eUsable, range});
     }
 
-    TestData test = { data, km::SystemMemoryLayout::from(data, &gAllocator), km::PageAllocator(&test.layout, 0) };
+    TestData test = { data, km::SystemMemoryLayout::from(data, &gAllocator), km::PageAllocator(&test.layout, 0, &gAllocator) };
 
     return test;
 }
@@ -53,8 +53,8 @@ TEST(PageAllocatorTest, LowMemorySplit) {
 
     km::PhysicalAddress bitmap = sm::megabytes(2).bytes();
 
-    km::detail::RegionAllocators allocators;
-    km::detail::LowMemoryAllocators lowMemory;
+    stdx::Vector<km::RegionBitmapAllocator> allocators(&gAllocator);
+    stdx::Vector<km::RegionBitmapAllocator> lowMemory(&gAllocator);
 
     km::detail::BuildMemoryRanges(allocators, lowMemory, &layout, bitmap, 0);
 
@@ -120,7 +120,7 @@ TEST(PageAllocatorTest, RebuildAfterReclaim) {
 
     km::SystemMemoryLayout layout = km::SystemMemoryLayout::from(data, &gAllocator);
 
-    km::PageAllocator allocator(&layout, 0);
+    km::PageAllocator allocator(&layout, 0, &gAllocator);
 
     layout.reclaimBootMemory();
     allocator.rebuild();

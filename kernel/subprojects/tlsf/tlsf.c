@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "tlsf.h"
+#include "kernel.h"
 
 #if defined(__cplusplus)
 #define tlsf_decl inline
@@ -824,7 +825,7 @@ typedef struct integrity_t
 	int status;
 } integrity_t;
 
-#define tlsf_insist(x) { tlsf_assert(x); if (!(x)) { status--; } }
+#define tlsf_insist(x) { if (!(x)) { debug_prints(#x "\n"); status--; } }
 
 static void integrity_walker(void* ptr, size_t size, int used, void* user)
 {
@@ -897,9 +898,8 @@ int tlsf_check(tlsf_t tlsf)
 
 #undef tlsf_insist
 
-static void default_walker(void* ptr, size_t size, int used, void* user)
+static void default_walker(void*, size_t, int, void*)
 {
-	(void)user;
 	// printf("\t%p %s size: %x (%p)\n", ptr, used ? "used" : "free", (unsigned int)size, block_from_ptr(ptr));
 }
 
@@ -1106,7 +1106,8 @@ void* tlsf_malloc(tlsf_t tlsf, size_t size)
 	control_t* control = tlsf_cast(control_t*, tlsf);
 	const size_t adjust = adjust_request_size(size, ALIGN_SIZE);
 	block_header_t* block = block_locate_free(control, adjust);
-	return block_prepare_used(control, block, adjust);
+	void *ptr = block_prepare_used(control, block, adjust);
+	return ptr;
 }
 
 void* tlsf_memalign(tlsf_t tlsf, size_t align, size_t size)

@@ -6,7 +6,6 @@
 #include <stddef.h>
 
 #include "allocator/allocator.hpp"
-#include "log.hpp"
 #include "panic.hpp"
 
 namespace stdx {
@@ -25,16 +24,10 @@ namespace stdx {
         }
 
         void releaseMemory() {
-            KmDebugMessage("Allocator ptr: ", (void*)mAllocator, "\n");
-            KmDebugMessage("Allocator vtable: ", *(void**)mAllocator, "\n");
             if (mFront != nullptr) {
                 std::destroy_n(mFront, count());
 
-                KmDebugMessage("Destroyed vector buffer\n");
-
                 mAllocator->deallocate(mFront, capacity() * sizeof(T));
-
-                KmDebugMessage("Deallocated vector buffer\n");
             }
 
             mFront = nullptr;
@@ -181,10 +174,7 @@ namespace stdx {
         }
 
         void add(const T& value) {
-            KmDebugMessage("Add before ", (void*)mBack, "\n");
             ensureExtra(1);
-
-            KmDebugMessage("Add ", (void*)mBack, "\n");
             std::construct_at(mBack++, value);
         }
 

@@ -56,7 +56,7 @@ static PhysicalAddress FindFreeSpace(const SystemMemoryLayout *layout, size_t bi
     return nullptr;
 }
 
-void detail::BuildMemoryRanges(RegionAllocators& allocators, LowMemoryAllocators& lowMemory, const SystemMemoryLayout *layout, PhysicalAddress bitmap, uintptr_t hhdmOffset) {
+void detail::BuildMemoryRanges(stdx::Vector<RegionBitmapAllocator>& allocators, stdx::Vector<RegionBitmapAllocator>& lowMemory, const SystemMemoryLayout *layout, PhysicalAddress bitmap, uintptr_t hhdmOffset) {
     size_t offset = 0;
 
     auto newRegion = [&](MemoryRange range) {
@@ -91,8 +91,10 @@ static MemoryRange GetBitmapRange(const SystemMemoryLayout *layout) {
     return {bitmap, bitmap + size};
 }
 
-PageAllocator::PageAllocator(const SystemMemoryLayout *layout, uintptr_t hhdmOffset)
-    : mBitmapMemory(GetBitmapRange(layout))
+PageAllocator::PageAllocator(const SystemMemoryLayout *layout, uintptr_t hhdmOffset, mem::IAllocator *allocator)
+    : mAllocators(allocator)
+    , mLowMemory(allocator)
+    , mBitmapMemory(GetBitmapRange(layout))
 {
     memset((void*)(mBitmapMemory.front.address + hhdmOffset), 0, mBitmapMemory.size());
 

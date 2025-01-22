@@ -111,7 +111,7 @@ void debug_prints(const char *message)
 
 void debug_printull(uint64_t value)
 {
-    KmDebugMessage(value);
+    KmDebugMessage(km::Hex(value).pad(16));
 }
 
 // load bearing constinit, clang has a bug in c++26 mode
@@ -441,7 +441,7 @@ static SystemMemory *SetupKernelMemory(
 
     mem::IAllocator *alloc = &earlyMemory->allocator;
 
-    SystemMemory *memory = alloc->construct<SystemMemory>(SystemMemoryLayout::from(earlyMemory->memmap, &earlyMemory->allocator), pm);
+    SystemMemory *memory = alloc->construct<SystemMemory>(SystemMemoryLayout::from(earlyMemory->memmap, &earlyMemory->allocator), pm, &earlyMemory->allocator);
 
     memory->pmm.markUsed(earlyRegion.physicalRange());
     memory->pmm.markUsed(stack.physicalRange());

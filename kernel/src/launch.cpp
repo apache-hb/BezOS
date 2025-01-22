@@ -1,5 +1,6 @@
 #include "elf.hpp"
 
+#include "allocator/tlsf.hpp"
 #include "log.hpp"
 
 std::expected<km::Process, bool> km::LoadElf(std::span<const uint8_t> program, stdx::StringView name, uint32_t id, SystemMemory& memory, mem::IAllocator *allocator) {
@@ -33,7 +34,6 @@ std::expected<km::Process, bool> km::LoadElf(std::span<const uint8_t> program, s
     std::span<const elf::ElfProgramHeader> phs{reinterpret_cast<const elf::ElfProgramHeader *>(program.data() + phbegin), header->phnum};
 
     KmDebugMessage("[ELF] Program Header Count: ", phs.size(), "\n");
-
 
     stdx::Vector<void*> processMemory(allocator);
 
@@ -82,6 +82,12 @@ std::expected<km::Process, bool> km::LoadElf(std::span<const uint8_t> program, s
         if (containsEntry) {
             main.state.rip = ((uintptr_t)vaddr + (entry - ph.vaddr));
         }
+
+        mem::TlsfAllocator *alloc = static_cast<mem::TlsfAllocator*>(allocator);
+        // KmDebugMessage("Check: ", tlsf_check(alloc->getAllocator()), "\n");
+        tlsf_walk_pool(alloc->getAllocator(), [](void *ptr, size_t size, int used, void *) {
+            KmDebugMessage("[TLSF] ", ptr, " ", size, " ", used, "\n");
+        }, nullptr);
 
         processMemory.add(vaddr);
     }

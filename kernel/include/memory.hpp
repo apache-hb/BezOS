@@ -12,7 +12,7 @@ namespace km {
         PageAllocator pmm;
         PageTableManager vmm;
 
-        SystemMemory(SystemMemoryLayout memory, PageBuilder pm);
+        SystemMemory(SystemMemoryLayout memory, PageBuilder pm, mem::IAllocator *allocator);
 
         void *allocate(
             size_t size,

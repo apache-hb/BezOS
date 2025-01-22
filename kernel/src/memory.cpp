@@ -1,9 +1,9 @@
 #include "memory.hpp"
 
-km::SystemMemory::SystemMemory(SystemMemoryLayout memory, PageBuilder pm)
+km::SystemMemory::SystemMemory(SystemMemoryLayout memory, PageBuilder pm, mem::IAllocator *allocator)
     : pager(pm)
     , layout(memory)
-    , pmm(&layout, pager.hhdmOffset())
+    , pmm(&layout, pager.hhdmOffset(), allocator)
     , vmm(&pager, &pmm)
 { }
 
