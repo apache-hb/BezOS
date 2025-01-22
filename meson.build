@@ -31,6 +31,7 @@ common_args = [
     '-Wno-zero-length-array',
     '-Wno-nested-anon-types',
     '-Wno-gnu-case-range',
+    '-fno-omit-frame-pointer',
 ]
 
 c_args = cc.get_supported_arguments([ '-Wno-language-extension-token' ] + common_args)

@@ -154,7 +154,7 @@ static std::span<boot::MemoryRegion> BootGetMemoryMap(BootAllocator& alloc) {
     // Add the boot memory to the memory map
     memmap[response.entry_count] = { MemoryMapEntryType::eBootloaderReclaimable, alloc.range() };
 
-    return { memmap, response.entry_count };
+    return { memmap, response.entry_count + 1 };
 }
 
 static constexpr size_t kStackSize = sm::kilobytes(16).bytes();

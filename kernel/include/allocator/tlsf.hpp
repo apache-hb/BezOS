@@ -17,6 +17,10 @@ namespace mem {
     public:
         using Super::Super;
 
+        constexpr TlsfAllocator()
+            : mAllocator(nullptr, tlsf_destroy)
+        { }
+
         constexpr TlsfAllocator(void *memory, size_t size, size_t max = 0)
             : mAllocator(tlsf_create_with_pool(memory, size, max), tlsf_destroy)
         { }
@@ -38,7 +42,7 @@ namespace mem {
         }
 
         void *allocateAligned(size_t size, size_t align = alignof(std::max_align_t)) override {
-            return tlsf_memalign(mAllocator.get(), size, align);
+            return tlsf_memalign(mAllocator.get(), align, size);
         }
 
         void *reallocate(void *old, size_t _, size_t newSize) override {

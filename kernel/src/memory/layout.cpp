@@ -126,16 +126,6 @@ SystemMemoryLayout SystemMemoryLayout::from(std::span<const boot::MemoryRegion> 
     return SystemMemoryLayout { freeMemory, reclaimable, reservedMemory };
 }
 
-void SystemMemoryLayout::scrubReclaimableMemory(uintptr_t hhdmOffset) {
-    // mangle reclaimable memory to ensure it's not accidentally
-    // still in use
-    for (MemoryMapEntry range : reclaimable) {
-        void *front = std::bit_cast<void*>(range.range.front.address + hhdmOffset);
-
-        memset(front, 0xAB, range.range.size());
-    }
-}
-
 void SystemMemoryLayout::reclaimBootMemory() {
     available.addRange(reclaimable);
 

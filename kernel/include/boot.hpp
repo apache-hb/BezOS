@@ -14,6 +14,7 @@ enum class MemoryMapEntryType {
     eBootloaderReclaimable,
     eKernel,
     eFrameBuffer,
+    eKernelRuntimeData,
 };
 
 struct MemoryMapEntry {
@@ -94,17 +95,19 @@ struct km::Format<MemoryMapEntryType> {
         case MemoryMapEntryType::eReserved:
             return "Reserved";
         case MemoryMapEntryType::eAcpiReclaimable:
-            return "ACPI Reclaimable";
+            return "ACPI reclaimable";
         case MemoryMapEntryType::eAcpiNvs:
             return "ACPI NVS";
         case MemoryMapEntryType::eBadMemory:
-            return "Bad Memory";
+            return "Bad memory";
         case MemoryMapEntryType::eBootloaderReclaimable:
-            return "Bootloader Reclaimable";
+            return "Bootloader reclaimable";
         case MemoryMapEntryType::eKernel:
-            return "Kernel and Modules";
+            return "Kernel and modules";
         case MemoryMapEntryType::eFrameBuffer:
             return "Framebuffer";
+        case MemoryMapEntryType::eKernelRuntimeData:
+            return "Kernel runtime data";
         default:
             return "Unknown";
         }

@@ -14,7 +14,6 @@ namespace km {
         FreeMemoryRanges reclaimable;
         ReservedMemoryRanges reserved;
 
-        void scrubReclaimableMemory(uintptr_t hhdmOffset);
         void reclaimBootMemory();
 
         sm::Memory availableMemory() const;

@@ -283,7 +283,7 @@ struct KernelLayout {
 
     /// @brief Statically allocated memory for the kernel.
     /// Includes text, data, bss, and other sections.
-    VirtualRange kernel;
+    AddressMapping kernel;
 
     void *getFrameBuffer(std::span<const boot::FrameBuffer> fbs, size_t index) const {
         size_t offset = 0;
@@ -300,7 +300,11 @@ extern "C" {
     extern char __kernel_end[];
 }
 
-static KernelLayout BuildKernelLayout(uintptr_t vaddrbits, std::span<const boot::FrameBuffer> displays) {
+static size_t GetKernelSize() {
+    return (uintptr_t)__kernel_end - (uintptr_t)__kernel_start;
+}
+
+static KernelLayout BuildKernelLayout(uintptr_t vaddrbits, km::PhysicalAddress kernelPhysicalBase, const void *kernelVirtualBase, std::span<const boot::FrameBuffer> displays) {
     size_t framebuffersSize = std::accumulate(displays.begin(), displays.end(), 0, [](size_t sum, const KernelFrameBuffer& framebuffer) {
         return sum + framebuffer.size();
     });
@@ -322,7 +326,7 @@ static KernelLayout BuildKernelLayout(uintptr_t vaddrbits, std::span<const boot:
 
     VirtualRange framebuffers = reserve(framebuffersSize);
 
-    VirtualRange kernel = { (void*)__kernel_start, (void*)__kernel_end };
+    AddressMapping kernel = { kernelVirtualBase, kernelPhysicalBase, GetKernelSize() };
 
     KmDebugMessage("[INIT] Kernel layout:\n");
     KmDebugMessage("[INIT] Data         : ", data, "\n");
@@ -338,17 +342,74 @@ static KernelLayout BuildKernelLayout(uintptr_t vaddrbits, std::span<const boot:
     return layout;
 }
 
+static constexpr size_t kEarlyAllocSize = sm::megabytes(1).bytes();
+static constexpr size_t kLowMemory = sm::megabytes(1).bytes();
+
+struct EarlyMemory {
+    mem::TlsfAllocator allocator;
+    std::span<boot::MemoryRegion> memmap;
+};
+
+static boot::MemoryRegion FindEarlyAllocatorRegion(std::span<const boot::MemoryRegion> memmap, size_t size) {
+    for (const boot::MemoryRegion& entry : memmap) {
+        if (entry.type != MemoryMapEntryType::eUsable)
+            continue;
+
+        if (entry.range.front < kLowMemory)
+            continue;
+
+        if (entry.range.size() < size)
+            continue;
+
+        return entry;
+    }
+
+    KM_PANIC("No suitable memory region found for early allocator.");
+}
+
+static EarlyMemory *AllocateEarlyMemory(void *vaddr, size_t size) {
+    mem::TlsfAllocator allocator { vaddr, size };
+
+    EarlyMemory *mem = allocator.box(EarlyMemory { });
+    mem->allocator = std::move(allocator);
+
+    return mem;
+}
+
+static EarlyMemory *CreateEarlyAllocator(std::span<const boot::MemoryRegion> memmap, uintptr_t hhdmOffset) {
+    boot::MemoryRegion region = FindEarlyAllocatorRegion(memmap, kEarlyAllocSize);
+    km::MemoryRange range = { region.range.front, region.range.front + kEarlyAllocSize };
+
+    void *vaddr = std::bit_cast<void*>(region.range.front + hhdmOffset);
+    EarlyMemory *memory = AllocateEarlyMemory(vaddr, kEarlyAllocSize);
+
+    boot::MemoryRegion *memoryMap = memory->allocator.allocateArray<boot::MemoryRegion>(memmap.size() + 1);
+    std::copy(memmap.begin(), memmap.end(), memoryMap);
+    memoryMap[memmap.size()] = boot::MemoryRegion { MemoryMapEntryType::eKernelRuntimeData, { (uintptr_t)vaddr, (uintptr_t)vaddr + kEarlyAllocSize } };
+
+    for (size_t i = 0; i < memmap.size(); i++) {
+        boot::MemoryRegion& entry = memoryMap[i];
+        if (entry.range.intersects(range)) {
+            entry.range = entry.range.cut(range);
+        }
+    }
+
+    memory->memmap = std::span(memoryMap, memmap.size() + 1);
+
+    return memory;
+}
+
 static SystemMemory SetupKernelMemory(
     uintptr_t maxpaddr,
     const KernelLayout& layout,
     km::AddressMapping stack,
     uintptr_t hhdmOffset,
     std::span<const boot::FrameBuffer> framebuffers,
-    std::span<const boot::MemoryRegion> memmap,
-    km::PhysicalAddress kernelPhysicalBase,
-    const void *kernelVirtualBase
+    std::span<const boot::MemoryRegion> memmap
 ) {
     PageMemoryTypeLayout pat = KmSetupPat();
+
+    EarlyMemory *earlyMemory = CreateEarlyAllocator(memmap, hhdmOffset);
 
     PageBuilder pm = PageBuilder { maxpaddr, hhdmOffset, pat };
     KmWriteMtrrs(pm);
@@ -358,6 +419,7 @@ static SystemMemory SetupKernelMemory(
     KmWriteMemoryMap(memmap, memory);
 
     // initialize our own page tables and remap everything into it
+    auto [kernelVirtualBase, kernelPhysicalBase, _] = layout.kernel;
     KmMapKernel(memory.pager, memory.vmm, memory.layout, kernelPhysicalBase, kernelVirtualBase);
 
     // move our stack out of reclaimable memory
@@ -386,7 +448,6 @@ static SystemMemory SetupKernelMemory(
     }
 
     memory.layout.reclaimBootMemory();
-    memory.layout.scrubReclaimableMemory(hhdmOffset);
 
     return memory;
 }
@@ -674,12 +735,16 @@ void KmLaunchEx(boot::LaunchInfo launch) {
     InstallExceptionHandlers();
     EnableInterrupts();
 
-    KernelLayout layout = BuildKernelLayout(processor.maxvaddr, launch.framebuffers);
+    KernelLayout layout = BuildKernelLayout(
+        processor.maxvaddr,
+        launch.kernelPhysicalBase,
+        launch.kernelVirtualBase,
+        launch.framebuffers
+    );
     SystemMemory memory = SetupKernelMemory(
         processor.maxpaddr, layout, launch.stack,
         launch.hhdmOffset,
-        launch.framebuffers, launch.memmap,
-        launch.kernelPhysicalBase, launch.kernelVirtualBase
+        launch.framebuffers, launch.memmap
     );
 
     PlatformInfo platform = KmGetPlatformInfo(launch.smbios32Address, launch.smbios64Address, memory);

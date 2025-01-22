@@ -211,6 +211,13 @@ namespace km {
 }
 
 template<>
+struct km::Format<km::AddressMapping> {
+    static void format(km::IOutStream& out, km::AddressMapping value) {
+        out.format(value.vaddr, " -> ", value.paddr, " (", sm::bytes(value.size), ")");
+    }
+};
+
+template<>
 struct km::Format<km::PhysicalAddress> {
     static constexpr size_t kStringSize = km::kFormatSize<Hex<uintptr_t>>;
     static constexpr stdx::StringView toString(char *buffer, km::PhysicalAddress value) {

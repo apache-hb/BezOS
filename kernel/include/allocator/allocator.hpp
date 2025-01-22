@@ -30,7 +30,17 @@ namespace mem {
             return ptr;
         }
 
-        template<typename T, typename... A> requires std::is_constructible_v<T, A...>
+        template<typename T, typename... A>
+        T *construct(A&&... args) {
+            return allocate<T>(std::forward<A>(args)...);
+        }
+
+        template<typename T>
+        T *box(T value) {
+            return construct<T>(std::move(value));
+        }
+
+        template<typename T, typename... A>
         T *allocate(A&&... args) {
             if (void *ptr = allocateAligned(sizeof(T), alignof(T))) {
                 return new (ptr) T(std::forward<A>(args)...);
