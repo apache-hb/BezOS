@@ -96,26 +96,6 @@ public:
     T& get() { return mTerminal; }
 };
 
-size_t strlen(const char *str)
-{
-    size_t len = 0;
-    while (str[len] != '\0') {
-        len++;
-    }
-    return len;
-}
-
-void debug_prints(const char *message)
-{
-    size_t len = strlen(message);
-    KmDebugMessage(stdx::StringView(message, message + len));
-}
-
-void debug_printull(uint64_t value)
-{
-    KmDebugMessage(km::Hex(value).pad(16));
-}
-
 // load bearing constinit, clang has a bug in c++26 mode
 // where it doesnt emit a warning for global constructors in all cases.
 constinit static SerialLog gSerialLog;
@@ -345,9 +325,15 @@ public:
         uintptr_t front = mOffset;
         mOffset -= sm::roundup(memory, x64::kPageSize);
 
-        return VirtualRange { (void*)mOffset, (void*)front };
+        return VirtualRange { (void*)front, (void*)mOffset };
     }
 };
+
+static size_t TotalDisplaySize(std::span<const boot::FrameBuffer> displays) {
+    return std::accumulate(displays.begin(), displays.end(), 0zu, [](size_t sum, const boot::FrameBuffer& framebuffer) {
+        return sum + framebuffer.size();
+    });
+}
 
 static KernelLayout BuildKernelLayout(
     uintptr_t vaddrbits,
@@ -355,9 +341,7 @@ static KernelLayout BuildKernelLayout(
     const void *kernelVirtualBase,
     std::span<const boot::FrameBuffer> displays
 ) {
-    size_t framebuffersSize = std::accumulate(displays.begin(), displays.end(), 0zu, [](size_t sum, const boot::FrameBuffer& framebuffer) {
-        return sum + framebuffer.size();
-    });
+    size_t framebuffersSize = TotalDisplaySize(displays);
 
     // reserve the top 1/4 of the address space for the kernel
     uintptr_t dataBack = -(1ull << (vaddrbits - 1));
@@ -462,21 +446,23 @@ static std::tuple<EarlyMemory*, km::AddressMapping> CreateEarlyAllocator(const b
     return std::make_tuple(memory, km::AddressMapping { vaddr, range.front, earlyAllocSize });
 }
 
-static SystemMemory *SetupKernelMemory(
-    uintptr_t maxpaddr,
-    const KernelLayout& layout,
-    km::AddressMapping stack,
-    uintptr_t hhdmOffset,
-    std::span<const boot::FrameBuffer> framebuffers,
-    const boot::MemoryMap& memmap
-) {
+static SystemMemory *SetupKernelMemory(const boot::LaunchInfo& launch, const km::ProcessorInfo& processor) {
+    km::AddressMapping stack = launch.stack;
+
     PageMemoryTypeLayout pat = SetupPat();
 
-    auto [earlyMemory, earlyRegion] = CreateEarlyAllocator(memmap, hhdmOffset);
+    KernelLayout layout = BuildKernelLayout(
+        processor.maxvaddr,
+        launch.kernelPhysicalBase,
+        launch.kernelVirtualBase,
+        launch.framebuffers
+    );
+
+    auto [earlyMemory, earlyRegion] = CreateEarlyAllocator(launch.memmap, launch.hhdmOffset);
 
     WriteMemoryMap(boot::MemoryMap{earlyMemory->memmap});
 
-    PageBuilder pm = PageBuilder { maxpaddr, hhdmOffset, pat };
+    PageBuilder pm = PageBuilder { processor.maxpaddr, launch.hhdmOffset, pat };
     WriteMtrrs(pm);
 
     mem::IAllocator *alloc = &earlyMemory->allocator;
@@ -499,7 +485,7 @@ static SystemMemory *SetupKernelMemory(
     // remap framebuffers
 
     uintptr_t framebufferBase = (uintptr_t)layout.framebuffers.front;
-    for (const boot::FrameBuffer& framebuffer : framebuffers) {
+    for (const boot::FrameBuffer& framebuffer : launch.framebuffers) {
         // remap the framebuffer into its final location
         KmMapMemory(memory->vmm, framebuffer.paddr, (void*)framebufferBase, framebuffer.size(), PageFlags::eData, MemoryType::eWriteCombine);
 
@@ -512,10 +498,10 @@ static SystemMemory *SetupKernelMemory(
     // can't log anything here as we need to move the framebuffer first
 
     // Now update the terminal to use the new memory layout
-    if (!framebuffers.empty()) {
+    if (!launch.framebuffers.empty()) {
         gDirectTerminalLog.get()
             .display()
-            .setAddress(layout.getFrameBuffer(framebuffers, 0));
+            .setAddress(layout.getFrameBuffer(launch.framebuffers, 0));
     }
 
     memory->layout.reclaimBootMemory();
@@ -712,9 +698,8 @@ static void InstallExceptionHandlers(void) {
 }
 
 static void InitPortDelay(const std::optional<HypervisorInfo>& hvInfo) {
-    x64::PortDelay delay = hvInfo.transform([](const HypervisorInfo& hv) { return hv.isKvm(); }).value_or(false)
-        ? x64::PortDelay::eNone
-        : x64::PortDelay::ePostCode;
+    bool isKvm = hvInfo.transform([](const HypervisorInfo& hv) { return hv.isKvm(); }).value_or(false);
+    x64::PortDelay delay = isKvm ? x64::PortDelay::eNone : x64::PortDelay::ePostCode;
 
     KmSetPortDelayMethod(delay);
 }
@@ -831,16 +816,9 @@ void KmLaunchEx(boot::LaunchInfo launch) {
     InstallExceptionHandlers();
     EnableInterrupts();
 
-    KernelLayout layout = BuildKernelLayout(
-        processor.maxvaddr,
-        launch.kernelPhysicalBase,
-        launch.kernelVirtualBase,
-        launch.framebuffers
-    );
+
     SystemMemory *memory = SetupKernelMemory(
-        processor.maxpaddr, layout, launch.stack,
-        launch.hhdmOffset,
-        launch.framebuffers, launch.memmap
+        launch, processor
     );
 
     PlatformInfo platform = GetPlatformInfo(launch.smbios32Address, launch.smbios64Address, *memory);

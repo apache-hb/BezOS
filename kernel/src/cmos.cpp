@@ -9,6 +9,8 @@ static constexpr uint16_t kCmosData = 0x71;
 
 static constexpr uint8_t kDisableNmi = (1 << 7);
 
+static uint8_t gCenturyRegister = 0;
+
 void km::DisableNmi() {
     uint8_t nmi = KmReadByte(kCmosSelect);
     KmWriteByte(kCmosData, nmi & ~kDisableNmi);
@@ -24,8 +26,6 @@ static uint8_t ReadCmosRegister(uint8_t reg) {
     return KmReadByte(kCmosData);
 }
 
-static uint8_t gCenturyRegister = 0;
-
 void km::InitCmos(uint8_t century) {
     gCenturyRegister = century;
     KmDebugMessage("[CMOS] Century register: ", km::Hex(gCenturyRegister), "\n");
@@ -35,15 +35,18 @@ static uint8_t ConvertFromBcd(uint8_t value) {
     return ((value / 16) * 10) + (value & 0xF);
 }
 
+static void DateComponentOverflow(uint8_t& value, uint8_t& next, uint8_t max) {
+    if (value >= max) {
+        value -= max;
+        next += 1;
+    }
+}
+
 km::DateTime km::ReadRtc() {
     DisableNmi();
     DisableInterrupts();
 
     uint8_t regB = ReadCmosRegister(0x0B);
-    bool is24Hour = !(regB & (1 << 1));
-    bool isBcdFormat = !(regB & (1 << 2));
-
-    KmDebugMessage("[RTC] Register B: ", km::Hex(regB), "\n");
 
     uint8_t second = ReadCmosRegister(0x00);
     uint8_t minute = ReadCmosRegister(0x02);
@@ -51,6 +54,15 @@ km::DateTime km::ReadRtc() {
     uint8_t day = ReadCmosRegister(0x07);
     uint8_t month = ReadCmosRegister(0x08);
     uint16_t year = ReadCmosRegister(0x09);
+    uint8_t century = (gCenturyRegister != 0)
+        ? ReadCmosRegister(gCenturyRegister)
+        : 0;
+
+    EnableInterrupts();
+    EnableNmi();
+
+    bool is24Hour = !(regB & (1 << 1));
+    bool isBcdFormat = !(regB & (1 << 2));
 
     if (isBcdFormat) {
         second = ConvertFromBcd(second);
@@ -65,20 +77,18 @@ km::DateTime km::ReadRtc() {
         hour = ((hour & 0x7F) + 12) % 24;
     }
 
-    if (gCenturyRegister != 0) {
-        uint8_t century = ReadCmosRegister(gCenturyRegister);
+    DateComponentOverflow(second, minute, 60);
+    DateComponentOverflow(minute, hour, 60);
+    DateComponentOverflow(hour, day, 24);
+
+    if (century != 0) {
         if (isBcdFormat)
             century = ConvertFromBcd(century);
-
-        KmDebugMessage("[RTC] Century: ", century, "\n");
 
         year += century * 100;
     } else {
         year += 2000;
     }
-
-    EnableInterrupts();
-    EnableNmi();
 
     return DateTime {
         .second = second,

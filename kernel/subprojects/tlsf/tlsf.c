@@ -825,7 +825,7 @@ typedef struct integrity_t
 	int status;
 } integrity_t;
 
-#define tlsf_insist(x) { if (!(x)) { debug_prints(#x "\n"); status--; } }
+#define tlsf_insist(x) { if (!(x)) { status--; } }
 
 static void integrity_walker(void* ptr, size_t size, int used, void* user)
 {

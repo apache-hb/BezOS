@@ -60,3 +60,11 @@ extern "C" char *strcpy(char *dest, const char *src) {
 
     return dest;
 }
+
+extern "C" size_t strlen(const char *str) {
+    const char *back = str;
+
+    while (*back++) { /* empty */ }
+
+    return back - str - 1;
+}
