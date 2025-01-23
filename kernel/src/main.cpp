@@ -24,6 +24,7 @@
 #include "isr.hpp"
 #include "log.hpp"
 #include "memory.hpp"
+#include "memory/memory.hpp"
 #include "memory/virtual_allocator.hpp"
 #include "panic.hpp"
 #include "pat.hpp"
@@ -371,8 +372,17 @@ static KernelLayout BuildKernelLayout(
 
 struct EarlyMemory {
     mem::TlsfAllocator allocator;
-    std::span<boot::MemoryRegion> memmap;
+    stdx::Vector<boot::MemoryRegion> memmap;
+
+    EarlyMemory(mem::TlsfAllocator alloc)
+        : allocator(std::move(alloc))
+        , memmap(&allocator)
+    { }
 };
+
+static constexpr bool IsLowMemory(km::MemoryRange range) {
+    return range.front <= kLowMemory;
+}
 
 static size_t GetEarlyMemorySize(const boot::MemoryMap& memmap) {
     size_t size = 0;
@@ -380,10 +390,10 @@ static size_t GetEarlyMemorySize(const boot::MemoryMap& memmap) {
         if (!entry.isUsable() && !entry.isReclaimable())
             continue;
 
-        if (entry.range.front < kLowMemory)
+        if (IsLowMemory(entry.range))
             continue;
 
-        size += entry.range.size();
+        size += entry.size();
     }
 
     // should only need around 1% of total memory for the early allocator
@@ -392,10 +402,10 @@ static size_t GetEarlyMemorySize(const boot::MemoryMap& memmap) {
 
 static boot::MemoryRegion FindEarlyAllocatorRegion(const boot::MemoryMap& memmap, size_t size) {
     for (const boot::MemoryRegion& entry : memmap.regions) {
-        if (entry.type != boot::MemoryRegion::eUsable)
+        if (!entry.isUsable())
             continue;
 
-        if (entry.range.front < kLowMemory)
+        if (IsLowMemory(entry.range))
             continue;
 
         if (entry.range.size() < size)
@@ -411,10 +421,9 @@ static boot::MemoryRegion FindEarlyAllocatorRegion(const boot::MemoryMap& memmap
 static EarlyMemory *AllocateEarlyMemory(void *vaddr, size_t size) {
     mem::TlsfAllocator allocator { vaddr, size };
 
-    EarlyMemory *mem = allocator.box(EarlyMemory { });
-    mem->allocator = std::move(allocator);
+    void *mem = allocator.allocateAligned(sizeof(EarlyMemory), alignof(EarlyMemory));
 
-    return mem;
+    return new (mem) EarlyMemory(std::move(allocator));
 }
 
 static std::tuple<EarlyMemory*, km::AddressMapping> CreateEarlyAllocator(const boot::MemoryMap& memmap, uintptr_t hhdmOffset) {
@@ -426,18 +435,15 @@ static std::tuple<EarlyMemory*, km::AddressMapping> CreateEarlyAllocator(const b
     void *vaddr = std::bit_cast<void*>(region.range.front + hhdmOffset);
     EarlyMemory *memory = AllocateEarlyMemory(vaddr, earlyAllocSize);
 
-    boot::MemoryRegion *memoryMap = memory->allocator.allocateArray<boot::MemoryRegion>(memmap.regions.size() + 1);
-    std::copy(memmap.regions.begin(), memmap.regions.end(), memoryMap);
-    memoryMap[memmap.regions.size()] = boot::MemoryRegion { boot::MemoryRegion::eKernelRuntimeData, range };
+    std::copy(memmap.regions.begin(), memmap.regions.end(), std::back_inserter(memory->memmap));
+    memory->memmap.add({ boot::MemoryRegion::eKernelRuntimeData, range });
 
     for (size_t i = 0; i < memmap.regions.size(); i++) {
-        boot::MemoryRegion& entry = memoryMap[i];
+        boot::MemoryRegion& entry = memory->memmap[i];
         if (entry.range.intersects(range)) {
             entry.range = entry.range.cut(range);
         }
     }
-
-    memory->memmap = std::span(memoryMap, memmap.regions.size() + 1);
 
     std::sort(memory->memmap.begin(), memory->memmap.end(), [](const boot::MemoryRegion& a, const boot::MemoryRegion& b) {
         return a.range.front < b.range.front;
@@ -447,9 +453,12 @@ static std::tuple<EarlyMemory*, km::AddressMapping> CreateEarlyAllocator(const b
 }
 
 static SystemMemory *SetupKernelMemory(const boot::LaunchInfo& launch, const km::ProcessorInfo& processor) {
-    km::AddressMapping stack = launch.stack;
-
     PageMemoryTypeLayout pat = SetupPat();
+
+    km::AddressMapping stack = launch.stack;
+    PageBuilder pm = PageBuilder { processor.maxpaddr, launch.hhdmOffset, pat };
+
+    WriteMtrrs(pm);
 
     KernelLayout layout = BuildKernelLayout(
         processor.maxvaddr,
@@ -461,9 +470,6 @@ static SystemMemory *SetupKernelMemory(const boot::LaunchInfo& launch, const km:
     auto [earlyMemory, earlyRegion] = CreateEarlyAllocator(launch.memmap, launch.hhdmOffset);
 
     WriteMemoryMap(boot::MemoryMap{earlyMemory->memmap});
-
-    PageBuilder pm = PageBuilder { processor.maxpaddr, launch.hhdmOffset, pat };
-    WriteMtrrs(pm);
 
     mem::IAllocator *alloc = &earlyMemory->allocator;
 
@@ -773,12 +779,16 @@ static void LogSystemInfo(
     KmDebugMessage("| /SYS/MB/COM1  | Baud rate            | ", km::com::kBaudRate / com1Info.divisor, "\n");
 }
 
-void KmLaunchEx(boot::LaunchInfo launch) {
+static void NormalizeProcessorState() {
     x64::Cr0 cr0 = x64::Cr0::load();
     cr0.set(x64::Cr0::WP | x64::Cr0::NE);
     x64::Cr0::store(cr0);
 
     kGsBase.store(0);
+}
+
+void KmLaunchEx(boot::LaunchInfo launch) {
+    NormalizeProcessorState();
 
     SetDebugLogLock(DebugLogLockType::eNone);
 
