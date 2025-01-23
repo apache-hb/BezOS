@@ -178,7 +178,7 @@ static void DebugXsdt(const acpi::RsdpLocator *locator, km::SystemMemory& memory
     }
 }
 
-acpi::AcpiTables InitAcpi(km::PhysicalAddress rsdpBaseAddress, km::SystemMemory& memory) {
+acpi::AcpiTables acpi::InitAcpi(km::PhysicalAddress rsdpBaseAddress, km::SystemMemory& memory) {
     // map the rsdp table
     const acpi::RsdpLocator *locator = memory.mapConst<acpi::RsdpLocator>(rsdpBaseAddress);
 

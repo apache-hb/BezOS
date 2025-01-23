@@ -849,7 +849,7 @@ void KmLaunchEx(boot::LaunchInfo launch) {
 
     km::Apic lapic = EnableBootApic(*memory, isrs, useX2Apic);
 
-    acpi::AcpiTables rsdt = InitAcpi(launch.rsdpAddress, *memory);
+    acpi::AcpiTables rsdt = acpi::InitAcpi(launch.rsdpAddress, *memory);
     const acpi::Fadt *fadt = rsdt.fadt();
     InitCmos(fadt->century);
 

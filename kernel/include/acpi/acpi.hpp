@@ -70,6 +70,6 @@ namespace acpi {
         const Fadt *fadt() const { return mFadt; }
         const RsdtHeader *dsdt() const { return mDsdt; }
     };
-}
 
-acpi::AcpiTables InitAcpi(km::PhysicalAddress rsdpBaseAddress, km::SystemMemory& memory);
+    acpi::AcpiTables InitAcpi(km::PhysicalAddress rsdpBaseAddress, km::SystemMemory& memory);
+}
