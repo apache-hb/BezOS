@@ -2,7 +2,7 @@
 
 #include "arch/intrin.hpp"
 
-void KmInitGdt(const void *gdt, size_t size, size_t codeSelector, size_t dataSelector) {
+void km::InitGdt(const void *gdt, size_t size, size_t codeSelector, size_t dataSelector) {
     GDTR gdtr = {
         .limit = uint16_t(size - 1),
         .base = (uint64_t)gdt,
@@ -38,8 +38,8 @@ void KmInitGdt(const void *gdt, size_t size, size_t codeSelector, size_t dataSel
     );
 }
 
-void KmInitGdt(std::span<const x64::GdtEntry> gdt, size_t codeSelector, size_t dataSelector) {
-    KmInitGdt(gdt.data(), gdt.size_bytes(), codeSelector, dataSelector);
+void km::InitGdt(std::span<const x64::GdtEntry> gdt, size_t codeSelector, size_t dataSelector) {
+    InitGdt(gdt.data(), gdt.size_bytes(), codeSelector, dataSelector);
 }
 
 using GdtFormat = km::Format<x64::GdtEntry>;
@@ -131,26 +131,26 @@ GdtString GdtFormat::toString(x64::GdtEntry value) {
     return result;
 }
 
-static constexpr SystemGdt kBootGdt = {
+static constexpr km::SystemGdt kBootGdt = {
     .entries = {
-        [SystemGdt::eNull] = x64::GdtEntry::null(),
-        [SystemGdt::eRealModeCode] = x64::GdtEntry(x64::Flags::eRealMode, x64::Access::eCode, 0xffffffff),
-        [SystemGdt::eRealModeData] = x64::GdtEntry(x64::Flags::eRealMode, x64::Access::eData, 0xffffffff),
-        [SystemGdt::eProtectedModeCode] = x64::GdtEntry(x64::Flags::eProtectedMode, x64::Access::eCode, 0xffffffff),
-        [SystemGdt::eProtectedModeData] = x64::GdtEntry(x64::Flags::eProtectedMode, x64::Access::eData, 0xffffffff),
-        [SystemGdt::eLongModeCode] = x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eCode, 0xffffffff),
-        [SystemGdt::eLongModeData] = x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eData, 0xffffffff),
-        [SystemGdt::eLongModeUserData] = x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eData | x64::Access::eRing3, 0xffffffff),
-        [SystemGdt::eLongModeUserCode] = x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eCode | x64::Access::eRing3, 0xffffffff),
+        [km::SystemGdt::eNull] = x64::GdtEntry::null(),
+        [km::SystemGdt::eRealModeCode] = x64::GdtEntry(x64::Flags::eRealMode, x64::Access::eCode, 0xffffffff),
+        [km::SystemGdt::eRealModeData] = x64::GdtEntry(x64::Flags::eRealMode, x64::Access::eData, 0xffffffff),
+        [km::SystemGdt::eProtectedModeCode] = x64::GdtEntry(x64::Flags::eProtectedMode, x64::Access::eCode, 0xffffffff),
+        [km::SystemGdt::eProtectedModeData] = x64::GdtEntry(x64::Flags::eProtectedMode, x64::Access::eData, 0xffffffff),
+        [km::SystemGdt::eLongModeCode] = x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eCode, 0xffffffff),
+        [km::SystemGdt::eLongModeData] = x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eData, 0xffffffff),
+        [km::SystemGdt::eLongModeUserData] = x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eData | x64::Access::eRing3, 0xffffffff),
+        [km::SystemGdt::eLongModeUserCode] = x64::GdtEntry(x64::Flags::eLongMode, x64::Access::eCode | x64::Access::eRing3, 0xffffffff),
     },
 };
 
-SystemGdt KmGetBootGdt() {
+km::SystemGdt km::GetBootGdt() {
     return kBootGdt;
 }
 
-SystemGdt KmGetSystemGdt(const x64::TaskStateSegment *tss) {
-    SystemGdt gdt = KmGetBootGdt();
+km::SystemGdt km::GetSystemGdt(const x64::TaskStateSegment *tss) {
+    SystemGdt gdt = GetBootGdt();
 
     gdt.entries[SystemGdt::eTaskState0] = x64::GdtEntry::tss0(tss);
     gdt.entries[SystemGdt::eTaskState1] = x64::GdtEntry::tss1(tss);

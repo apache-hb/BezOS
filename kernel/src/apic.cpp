@@ -195,13 +195,13 @@ void km::LocalApic::setSpuriousVector(uint8_t vector) {
     setSpuriousInt((spuriousInt() & ~0xFF) | vector);
 }
 
-void km::IIntController::sendIpi(apic::IcrDeliver deliver, uint8_t vector) {
+void km::IApic::sendIpi(apic::IcrDeliver deliver, uint8_t vector) {
     sendIpi(0, (std::to_underlying(deliver) << 18) | vector);
 }
 
 // generic apic free functions
 
-km::IntController KmInitBspApic(km::SystemMemory& memory, bool useX2Apic) {
+km::Apic km::InitBspApic(km::SystemMemory& memory, bool useX2Apic) {
     // Disable the 8259 PIC before starting up the local apic.
     Disable8259Pic();
 
@@ -214,7 +214,7 @@ km::IntController KmInitBspApic(km::SystemMemory& memory, bool useX2Apic) {
     }
 }
 
-km::IntController KmInitApApic(km::SystemMemory& memory, km::IIntController *bsp, bool useX2Apic) {
+km::Apic km::InitApApic(km::SystemMemory& memory, km::IApic *bsp, bool useX2Apic) {
     if (useX2Apic) {
         km::EnableX2Apic();
 

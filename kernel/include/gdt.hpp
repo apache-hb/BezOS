@@ -133,40 +133,42 @@ namespace x64 {
     constexpr uint64_t kNullDescriptor = 0;
 }
 
-void KmInitGdt(const void *gdt, size_t size, size_t codeSelector, size_t dataSelector);
-void KmInitGdt(std::span<const x64::GdtEntry> gdt, size_t codeSelector, size_t dataSelector);
+namespace km {
+    void InitGdt(const void *gdt, size_t size, size_t codeSelector, size_t dataSelector);
+    void InitGdt(std::span<const x64::GdtEntry> gdt, size_t codeSelector, size_t dataSelector);
+
+    /// @brief The GDT entries for the system.
+    /// @warning This alignas(8) is load bearing, unaligned gdt entries can cause poor performance.
+    struct alignas(8) SystemGdt {
+        enum : int {
+            eNull = GDT_NULL,
+            eRealModeCode = GDT_16BIT_CODE,
+            eRealModeData = GDT_16BIT_DATA,
+            eProtectedModeCode = GDT_32BIT_CODE,
+            eProtectedModeData = GDT_32BIT_DATA,
+            eLongModeCode = GDT_64BIT_CODE,
+            eLongModeData = GDT_64BIT_DATA,
+            eLongModeUserData = GDT_64BIT_USER_DATA,
+            eLongModeUserCode = GDT_64BIT_USER_CODE,
+            eTaskState0 = GDT_TSS0,
+            eTaskState1 = GDT_TSS1,
+
+            eCount = GDT_TSS_COUNT,
+        };
+
+        x64::GdtEntry entries[eCount];
+    };
+
+    static_assert(std::is_standard_layout_v<x64::GdtEntry>);
+    static_assert(std::is_standard_layout_v<SystemGdt>);
+
+    SystemGdt GetBootGdt();
+
+    SystemGdt GetSystemGdt(const x64::TaskStateSegment *tss);
+}
 
 template<>
 struct km::Format<x64::GdtEntry> {
     using String = stdx::StaticString<256>;
     static String toString(x64::GdtEntry value);
 };
-
-/// @brief The GDT entries for the system.
-/// @warning This alignas(8) is load bearing, unaligned gdt entries can cause poor performance.
-struct alignas(8) SystemGdt {
-    enum : int {
-        eNull = GDT_NULL,
-        eRealModeCode = GDT_16BIT_CODE,
-        eRealModeData = GDT_16BIT_DATA,
-        eProtectedModeCode = GDT_32BIT_CODE,
-        eProtectedModeData = GDT_32BIT_DATA,
-        eLongModeCode = GDT_64BIT_CODE,
-        eLongModeData = GDT_64BIT_DATA,
-        eLongModeUserData = GDT_64BIT_USER_DATA,
-        eLongModeUserCode = GDT_64BIT_USER_CODE,
-        eTaskState0 = GDT_TSS0,
-        eTaskState1 = GDT_TSS1,
-
-        eCount = GDT_TSS_COUNT,
-    };
-
-    x64::GdtEntry entries[eCount];
-};
-
-static_assert(std::is_standard_layout_v<x64::GdtEntry>);
-static_assert(std::is_standard_layout_v<SystemGdt>);
-
-SystemGdt KmGetBootGdt();
-
-SystemGdt KmGetSystemGdt(const x64::TaskStateSegment *tss);

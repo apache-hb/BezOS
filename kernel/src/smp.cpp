@@ -35,7 +35,7 @@ struct SmpInfoHeader {
     alignas(uint64_t) uint64_t stack;
 
     /// @brief The startup GDT used to reach long mode.
-    alignas(16) SystemGdt gdt;
+    alignas(16) km::SystemGdt gdt;
 
     /// @brief The GDTR that will be loaded.
     alignas(16) GDTR gdtr;
@@ -48,7 +48,7 @@ struct SmpInfoHeader {
     /// the BSP that the next core can be started safely.
     std::atomic<uint32_t> ready;
 
-    km::IIntController *bspIntController;
+    km::IApic *bspIntController;
     km::SystemMemory *memory;
     bool useX2Apic;
 };
@@ -71,15 +71,15 @@ static constexpr km::PhysicalAddress kSmpStart = 0x8000;
 extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
     KmDebugMessage("[SMP] Starting Core.\n");
 
-    SetupInitialGdt();
-    KmLoadIdt();
+    km::SetupInitialGdt();
+    km::LoadIdt();
 
-    km::IntController pic = KmInitApApic(*header->memory, header->bspIntController, header->useX2Apic);
+    km::Apic pic = km::InitApApic(*header->memory, header->bspIntController, header->useX2Apic);
 
     km::InitTlsRegion(*header->memory);
     km::InitKernelThread(pic);
 
-    SetupApGdt();
+    km::SetupApGdt();
 
     KmDebugMessage("[SMP] Started AP ", pic->id(), "\n");
 
@@ -89,11 +89,11 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
 }
 
 static uintptr_t AllocSmpStack(km::SystemMemory& memory) {
-    km::PhysicalAddress stack = memory.pmm.alloc4k(4);
-    return (uintptr_t)memory.map(stack, stack + (x64::kPageSize * 4)) + (x64::kPageSize * 4);
+    static constexpr size_t kDefaultStackSize = (x64::kPageSize * 4);
+    return (uintptr_t)memory.allocate(kDefaultStackSize, x64::kPageSize, km::PageFlags::eData);
 }
 
-static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::IIntController *pic, bool useX2Apic) {
+static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::IApic *pic, bool useX2Apic) {
     km::PageTableManager& vmm = memory->vmm;
 
     km::PhysicalAddress pml4 = vmm.rootPageTable();
@@ -103,7 +103,7 @@ static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::IIntContro
         .startAddress = (uintptr_t)KmSmpStartup,
         .pat = x64::LoadPatMsr(),
         .pml4 = uint32_t(pml4.address),
-        .gdt = KmGetBootGdt(),
+        .gdt = km::GetBootGdt(),
         .gdtr = {
             .limit = sizeof(SmpInfoHeader::gdt) - 1,
             .base = offsetof(SmpInfoHeader, gdt) + kSmpInfo.address,
@@ -114,13 +114,13 @@ static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::IIntContro
     };
 }
 
-void KmInitSmp(km::SystemMemory& memory, km::IIntController *bsp, acpi::AcpiTables& acpiTables, bool useX2Apic) {
+void km::InitSmp(km::SystemMemory& memory, km::IApic *bsp, acpi::AcpiTables& acpiTables, bool useX2Apic) {
+    KmDebugMessage("[SMP] Starting APs.\n");
+
     // copy the SMP blob to the correct location
     size_t blobSize = GetSmpBlobSize();
     void *smpStartBlob = memory.map(kSmpStart, kSmpStart + blobSize, km::PageFlags::eAll);
     memcpy(smpStartBlob, _binary_smp_start, blobSize);
-
-    KmDebugMessage("[SMP] Starting APs.\n");
 
     uint32_t bspId = bsp->id();
 

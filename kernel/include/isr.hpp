@@ -46,13 +46,13 @@ namespace km {
     void EnableNmi();
     void DisableInterrupts();
     void EnableInterrupts();
+
+    using KmIsrHandler = void*(*)(km::IsrContext*);
+
+    void InitInterrupts(km::IsrAllocator& isrs, uint16_t codeSelector);
+    void LoadIdt(void);
+
+    void UpdateIdtEntry(uint8_t isr, uint16_t selector, uint8_t dpl, uint8_t ist);
+
+    KmIsrHandler InstallIsrHandler(uint8_t isr, KmIsrHandler handler);
 }
-
-using KmIsrHandler = void*(*)(km::IsrContext*);
-
-void KmInitInterrupts(km::IsrAllocator& isrs, uint16_t codeSelector);
-void KmLoadIdt(void);
-
-void KmUpdateIdtEntry(uint8_t isr, uint16_t selector, uint8_t dpl, uint8_t ist);
-
-KmIsrHandler KmInstallIsrHandler(uint8_t isr, KmIsrHandler handler);

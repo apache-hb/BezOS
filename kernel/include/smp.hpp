@@ -4,4 +4,6 @@
 
 #include "memory.hpp"
 
-void KmInitSmp(km::SystemMemory& memory, km::IIntController *bsp, acpi::AcpiTables& acpiTables, bool useX2Apic);
+namespace km {
+    void InitSmp(km::SystemMemory& memory, km::IApic *bsp, acpi::AcpiTables& acpiTables, bool useX2Apic);
+}

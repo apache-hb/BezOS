@@ -33,12 +33,12 @@ void km::SetupUserMode(SystemMemory& memory) {
     tlsTaskState->ist1 = (uintptr_t)ist1 + 0x1000;
 
     // nmis use the IST1 stack
-    KmUpdateIdtEntry(0x2, SystemGdt::eLongModeCode, 0, 1);
+    km::UpdateIdtEntry(0x2, SystemGdt::eLongModeCode, 0, 1);
 
-    KmUpdateIdtEntry(0xe, SystemGdt::eLongModeCode, 0, 1);
+    km::UpdateIdtEntry(0xe, SystemGdt::eLongModeCode, 0, 1);
 
     // reload the idt
-    KmLoadIdt();
+    km::LoadIdt();
 
     KmSystemCallStackTlsOffset = tlsSystemCallStack.tlsOffset();
 

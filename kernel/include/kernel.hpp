@@ -6,10 +6,10 @@
 #include "gdt.hpp"
 #include "thread.hpp"
 
-void SetupApGdt(void);
-void SetupInitialGdt(void);
-
 namespace km {
+    void SetupApGdt(void);
+    void SetupInitialGdt(void);
+
     [[gnu::section(".tlsdata")]]
     extern constinit km::ThreadLocal<SystemGdt> tlsSystemGdt;
 

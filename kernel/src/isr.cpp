@@ -37,7 +37,7 @@ struct alignas(16) Idt {
     x64::IdtEntry entries[kCount];
 };
 
-static constexpr x64::IdtEntry KmCreateIdtEntry(uintptr_t handler, uint16_t codeSelector, uint8_t dpl, uint8_t ist) {
+static constexpr x64::IdtEntry CreateIdtEntry(uintptr_t handler, uint16_t codeSelector, uint8_t dpl, uint8_t ist) {
     uint8_t flags = x64::idt::kFlagPresent | x64::idt::kInterruptGate | ((dpl & 0b11) << 5);
 
     return x64::IdtEntry {
@@ -53,9 +53,9 @@ static constexpr size_t kIsrTableStride = 16;
 extern "C" char KmIsrTable[];
 
 static Idt gIdt;
-static KmIsrHandler KmIsrHandlers[256];
+static km::KmIsrHandler KmIsrHandlers[256];
 
-static void *KmDefaultIsrHandler(km::IsrContext *context) {
+static void *DefaultIsrHandler(km::IsrContext *context) {
     KmDebugMessage("[INT] Unhandled interrupt: ", context->vector, " Error: ", context->error, "\n");
     return context;
 }
@@ -80,23 +80,23 @@ extern "C" void *KmIsrDispatchRoutine(km::IsrContext *context) {
     return result;
 }
 
-KmIsrHandler KmInstallIsrHandler(uint8_t isr, KmIsrHandler handler) {
+km::KmIsrHandler km::InstallIsrHandler(uint8_t isr, KmIsrHandler handler) {
     KmIsrHandler old = KmIsrHandlers[isr];
     KmIsrHandlers[isr] = handler;
     return old;
 }
 
-void KmUpdateIdtEntry(uint8_t isr, uint16_t selector, uint8_t dpl, uint8_t ist) {
-    gIdt.entries[isr] = KmCreateIdtEntry((uintptr_t)KmIsrTable + (isr * kIsrTableStride), selector * 0x8, dpl, ist);
+void km::UpdateIdtEntry(uint8_t isr, uint16_t selector, uint8_t dpl, uint8_t ist) {
+    gIdt.entries[isr] = CreateIdtEntry((uintptr_t)KmIsrTable + (isr * kIsrTableStride), selector * 0x8, dpl, ist);
 }
 
-void KmInitInterrupts(km::IsrAllocator& isrs, uint16_t codeSelector) {
+void km::InitInterrupts(km::IsrAllocator& isrs, uint16_t codeSelector) {
     for (size_t i = 0; i < Idt::kCount; i++) {
-        KmUpdateIdtEntry(i, codeSelector, 0, 0);
+        UpdateIdtEntry(i, codeSelector, 0, 0);
     }
 
     for (size_t i = 0; i < Idt::kCount; i++) {
-        KmIsrHandlers[i] = KmDefaultIsrHandler;
+        KmIsrHandlers[i] = DefaultIsrHandler;
     }
 
     // claim all the system interrupts
@@ -104,10 +104,10 @@ void KmInitInterrupts(km::IsrAllocator& isrs, uint16_t codeSelector) {
         isrs.claimIsr(i);
     }
 
-    KmLoadIdt();
+    LoadIdt();
 }
 
-void KmLoadIdt(void) {
+void km::LoadIdt(void) {
     IDTR idtr = {
         .limit = (sizeof(x64::IdtEntry) * Idt::kCount) - 1,
         .base = (uintptr_t)&gIdt,

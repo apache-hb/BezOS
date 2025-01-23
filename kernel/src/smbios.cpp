@@ -4,7 +4,7 @@
 
 using namespace stdx::literals;
 
-bool PlatformInfo::isOracleVirtualBox() const {
+bool km::PlatformInfo::isOracleVirtualBox() const {
     return vendor == "innotek GmbH"_sv;
 }
 
@@ -12,9 +12,9 @@ bool PlatformInfo::isOracleVirtualBox() const {
 ///
 /// @param info The platform info to write the entry to.
 /// @param ptr The pointer to read the entry from.
-/// @return The start of the next entry or NULL if the entry is invalid.
-static const void *KmReadSmbiosEntry(PlatformInfo& info, const void *ptr) {
-    const SmBiosEntryHeader *header = (const SmBiosEntryHeader*)ptr;
+/// @return The start of the next entry.
+static const void *ReadSmbiosEntry(km::PlatformInfo& info, const void *ptr) {
+    const km::SmBiosEntryHeader *header = (const km::SmBiosEntryHeader*)ptr;
     KmDebugMessage("[SMBIOS] Type: ", header->type, ", Length: ", header->length, ", Handle: ", header->handle, "\n");
 
     const char *front = (const char*)((uintptr_t)ptr + header->length);
@@ -49,11 +49,11 @@ static const void *KmReadSmbiosEntry(PlatformInfo& info, const void *ptr) {
     }
 
     if (header->type == 0) {
-        const SmBiosFirmwareInfo *firmware = (const SmBiosFirmwareInfo*)ptr;
+        const km::SmBiosFirmwareInfo *firmware = (const km::SmBiosFirmwareInfo*)ptr;
         info.vendor = getString(firmware->vendor);
         info.version = getString(firmware->version);
     } else if (header->type == 1) {
-        const SmBiosSystemInfo *system = (const SmBiosSystemInfo*)ptr;
+        const km::SmBiosSystemInfo *system = (const km::SmBiosSystemInfo*)ptr;
         info.manufacturer = getString(system->manufacturer);
         info.product = getString(system->productName);
         info.serial = getString(system->serialNumber);
@@ -62,8 +62,8 @@ static const void *KmReadSmbiosEntry(PlatformInfo& info, const void *ptr) {
     return back + 2;
 }
 
-static PlatformInfo KmReadSmbios64(km::PhysicalAddress address, km::SystemMemory& memory) {
-    const SmBiosHeader64 *smbios = memory.mapObject<SmBiosHeader64>(address);
+static km::PlatformInfo ReadSmbios64(km::PhysicalAddress address, km::SystemMemory& memory) {
+    const km::SmBiosHeader64 *smbios = memory.mapObject<km::SmBiosHeader64>(address);
 
     void *tableAddress = memory.map(smbios->tableAddress, smbios->tableAddress + smbios->tableSize);
     KmDebugMessage("[SMBIOS] Table address: ", km::Hex(smbios->tableAddress).pad(16, '0'), ", Size: ", smbios->tableSize, "\n");
@@ -72,17 +72,17 @@ static PlatformInfo KmReadSmbios64(km::PhysicalAddress address, km::SystemMemory
     const void *ptr = tableAddress;
     const void *end = (const void*)((uintptr_t)ptr + smbios->tableSize);
 
-    PlatformInfo info;
+    km::PlatformInfo info;
 
     while (ptr < end) {
-        ptr = KmReadSmbiosEntry(info, ptr);
+        ptr = ReadSmbiosEntry(info, ptr);
     }
 
     return info;
 }
 
-static PlatformInfo KmReadSmbios32(km::PhysicalAddress address, km::SystemMemory& memory) {
-    const SmBiosHeader32 *smbios = memory.mapObject<SmBiosHeader32>(address);
+static km::PlatformInfo ReadSmbios32(km::PhysicalAddress address, km::SystemMemory& memory) {
+    const km::SmBiosHeader32 *smbios = memory.mapObject<km::SmBiosHeader32>(address);
 
     void *tableAddress = memory.map(smbios->tableAddress, smbios->tableAddress + smbios->tableSize);
     KmDebugMessage("[SMBIOS] Table address: ", km::Hex(smbios->tableAddress).pad(8, '0'), ", Size: ", smbios->tableSize, "\n");
@@ -91,24 +91,24 @@ static PlatformInfo KmReadSmbios32(km::PhysicalAddress address, km::SystemMemory
     const void *ptr = tableAddress;
     const void *end = (const void*)((uintptr_t)ptr + smbios->tableSize);
 
-    PlatformInfo info;
+    km::PlatformInfo info;
 
     while (ptr < end) {
-        ptr = KmReadSmbiosEntry(info, ptr);
+        ptr = ReadSmbiosEntry(info, ptr);
     }
 
     return info;
 }
 
-PlatformInfo KmGetPlatformInfo(
+km::PlatformInfo km::GetPlatformInfo(
     km::PhysicalAddress smbios32Address,
     km::PhysicalAddress smbios64Address,
     km::SystemMemory& memory
 ) {
     if (smbios64Address != nullptr) {
-        return KmReadSmbios64(smbios64Address, memory);
+        return ReadSmbios64(smbios64Address, memory);
     } else if (smbios32Address != nullptr) {
-        return KmReadSmbios32(smbios32Address, memory);
+        return ReadSmbios32(smbios32Address, memory);
     }
 
     return PlatformInfo { };

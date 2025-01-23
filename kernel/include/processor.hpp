@@ -9,10 +9,10 @@ namespace km {
         eInvalid = 0xFFFF'FFFF
     };
 
-    void InitKernelThread(IntController pic);
+    void InitKernelThread(Apic pic);
 
     CpuCoreId GetCurrentCoreId();
-    IIntController *GetCurrentCoreIntController();
+    IApic *GetCurrentCoreIntController();
 }
 
 template<>

@@ -44,13 +44,13 @@ namespace km {
     bool HasX2ApicSupport();
     bool IsX2ApicEnabled();
 
-    class IIntController {
+    class IApic {
     public:
-        void operator delete(IIntController*, std::destroying_delete_t) {
+        void operator delete(IApic*, std::destroying_delete_t) {
             std::unreachable();
         }
 
-        virtual ~IIntController() = default;
+        virtual ~IApic() = default;
 
         virtual uint32_t id() const = 0;
         virtual uint32_t version() const = 0;
@@ -71,7 +71,7 @@ namespace km {
         virtual void setSpuriousVector(uint8_t vector) = 0;
     };
 
-    class X2Apic final : public IIntController {
+    class X2Apic final : public IApic {
     public:
         constexpr X2Apic() = default;
 
@@ -89,7 +89,7 @@ namespace km {
         void setSpuriousVector(uint8_t vector) override;
     };
 
-    class LocalApic final : public IIntController {
+    class LocalApic final : public IApic {
         static constexpr uint16_t kApicId = 0x20;
         static constexpr uint16_t kApicVersion = 0x30;
         static constexpr uint16_t kEndOfInt = 0xB0;
@@ -145,7 +145,7 @@ namespace km {
         void *baseAddress(void) const { return mBaseAddress; }
     };
 
-    using IntController = sm::Combine<IIntController, LocalApic, X2Apic>;
+    using Apic = sm::Combine<IApic, LocalApic, X2Apic>;
 
     class IoApic {
         uint8_t *mAddress = nullptr;
@@ -169,7 +169,7 @@ namespace km {
 
         bool present() const { return mAddress != nullptr; }
     };
-}
 
-km::IntController KmInitBspApic(km::SystemMemory& memory, bool useX2Apic);
-km::IntController KmInitApApic(km::SystemMemory& memory, km::IIntController *bsp, bool useX2Apic);
+    Apic InitBspApic(km::SystemMemory& memory, bool useX2Apic);
+    Apic InitApApic(km::SystemMemory& memory, km::IApic *bsp, bool useX2Apic);
+}

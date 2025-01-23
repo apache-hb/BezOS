@@ -152,25 +152,25 @@ constinit km::ThreadLocal<x64::TaskStateSegment> km::tlsTaskState;
 
 static SystemGdt gBootGdt;
 
-void SetupInitialGdt(void) {
-    KmInitGdt(gBootGdt.entries, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
+void km::SetupInitialGdt(void) {
+    InitGdt(gBootGdt.entries, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
 }
 
-void SetupApGdt(void) {
+void km::SetupApGdt(void) {
     // Save the gs/fs/kgsbase values, as setting the GDT will clear them
     TlsRegisters tls = LoadTlsRegisters();
 
     tlsTaskState = x64::TaskStateSegment {
         .iopbOffset = sizeof(x64::TaskStateSegment),
     };
-    tlsSystemGdt = KmGetSystemGdt(&tlsTaskState);
-    KmInitGdt(tlsSystemGdt->entries, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
+    tlsSystemGdt = km::GetSystemGdt(&tlsTaskState);
+    InitGdt(tlsSystemGdt->entries, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
     __ltr(SystemGdt::eTaskState0 * 0x8);
 
     StoreTlsRegisters(tls);
 }
 
-static PageMemoryTypeLayout KmSetupPat(void) {
+static PageMemoryTypeLayout SetupPat(void) {
     if (!x64::HasPatSupport()) {
         return PageMemoryTypeLayout { };
     }
@@ -229,7 +229,7 @@ static void SetupMtrrs(x64::MemoryTypeRanges& mtrrs, const km::PageBuilder& pm) 
     }
 }
 
-static void KmWriteMtrrs(const km::PageBuilder& pm) {
+static void WriteMtrrs(const km::PageBuilder& pm) {
     if (!x64::HasMtrrSupport()) {
         return;
     }
@@ -300,12 +300,19 @@ static void WriteSystemMemory(std::span<const boot::MemoryRegion> memmap, const 
     KmDebugMessage("[INIT] Usable memory: ", sm::bytes(usableMemory), ", Reclaimable memory: ", sm::bytes(reclaimableMemory), "\n");
 }
 
+static constexpr size_t kEarlyAllocMinSize = sm::megabytes(1).bytes();
+static constexpr size_t kLowMemory = sm::megabytes(1).bytes();
+
 struct KernelLayout {
     /// @brief Virtual address space reserved for the kernel.
     /// Space for dynamic allocations, kernel heap, kernel stacks, etc.
-    VirtualRange data;
+    VirtualRange system;
 
-    /// @brief All framebuffers that are available.
+    /// @brief All memory that cannot be paged out.
+    /// Includes kernel paging structures.
+    AddressMapping committed;
+
+    /// @brief All framebuffers.
     VirtualRange framebuffers;
 
     /// @brief Statically allocated memory for the kernel.
@@ -344,14 +351,14 @@ static KernelLayout BuildKernelLayout(uintptr_t vaddrbits, km::PhysicalAddress k
 
     uintptr_t offset = dataFront;
 
-    auto reserve = [&](size_t size) {
+    auto reserveVirtual = [&](size_t size) {
         uintptr_t back = offset;
         offset += sm::roundup(size, x64::kPageSize);
 
         return VirtualRange { (void*)back, (void*)offset };
     };
 
-    VirtualRange framebuffers = reserve(framebuffersSize);
+    VirtualRange framebuffers = reserveVirtual(framebuffersSize);
 
     AddressMapping kernel = { kernelVirtualBase, kernelPhysicalBase, GetKernelSize() };
 
@@ -361,16 +368,13 @@ static KernelLayout BuildKernelLayout(uintptr_t vaddrbits, km::PhysicalAddress k
     KmDebugMessage("[INIT] Kernel       : ", kernel, "\n");
 
     KernelLayout layout = {
-        .data = data,
+        .system = data,
         .framebuffers = framebuffers,
         .kernel = kernel,
     };
 
     return layout;
 }
-
-static constexpr size_t kEarlyAllocMinSize = sm::megabytes(1).bytes();
-static constexpr size_t kLowMemory = sm::megabytes(1).bytes();
 
 struct EarlyMemory {
     mem::TlsfAllocator allocator;
@@ -456,14 +460,14 @@ static SystemMemory *SetupKernelMemory(
     std::span<const boot::FrameBuffer> framebuffers,
     std::span<const boot::MemoryRegion> memmap
 ) {
-    PageMemoryTypeLayout pat = KmSetupPat();
+    PageMemoryTypeLayout pat = SetupPat();
 
     auto [earlyMemory, earlyRegion] = CreateEarlyAllocator(memmap, hhdmOffset);
 
     WriteMemoryMap(earlyMemory->memmap);
 
     PageBuilder pm = PageBuilder { maxpaddr, hhdmOffset, pat };
-    KmWriteMtrrs(pm);
+    WriteMtrrs(pm);
 
     mem::IAllocator *alloc = &earlyMemory->allocator;
 
@@ -563,8 +567,8 @@ static void DumpStackTrace(const km::IsrContext *context) {
     }
 }
 
-static km::IntController KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllocator& isrs, bool useX2Apic) {
-    km::IntController pic = KmInitBspApic(memory, useX2Apic);
+static km::Apic EnableBootApic(km::SystemMemory& memory, km::IsrAllocator& isrs, bool useX2Apic) {
+    km::Apic pic = InitBspApic(memory, useX2Apic);
 
     // setup tls now that we have the lapic id
 
@@ -576,9 +580,9 @@ static km::IntController KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllo
     uint8_t spuriousVec = isrs.allocateIsr();
     KmDebugMessage("[INIT] APIC ID: ", pic->id(), ", Version: ", pic->version(), ", Spurious vector: ", spuriousVec, "\n");
 
-    KmInstallIsrHandler(spuriousVec, [](km::IsrContext *ctx) -> void* {
+    InstallIsrHandler(spuriousVec, [](km::IsrContext *ctx) -> void* {
         KmDebugMessage("[ISR] Spurious interrupt: ", ctx->vector, "\n");
-        km::IIntController *pic = km::GetCurrentCoreIntController();
+        km::IApic *pic = km::GetCurrentCoreIntController();
         pic->eoi();
         return ctx;
     });
@@ -590,9 +594,9 @@ static km::IntController KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllo
     if (kSelfTestApic) {
         uint8_t isr = isrs.allocateIsr();
 
-        KmIsrHandler old = KmInstallIsrHandler(isr, [](km::IsrContext *context) -> void* {
+        KmIsrHandler old = InstallIsrHandler(isr, [](km::IsrContext *context) -> void* {
             KmDebugMessage("[SELFTEST] Handled isr: ", context->vector, "\n");
-            km::IIntController *pic = km::GetCurrentCoreIntController();
+            km::IApic *pic = km::GetCurrentCoreIntController();
             pic->eoi();
             return context;
         });
@@ -601,14 +605,14 @@ static km::IntController KmEnableLocalApic(km::SystemMemory& memory, km::IsrAllo
         pic->sendIpi(apic::IcrDeliver::eSelf, isr);
         pic->sendIpi(apic::IcrDeliver::eSelf, isr);
 
-        KmInstallIsrHandler(isr, old);
+        InstallIsrHandler(isr, old);
         isrs.releaseIsr(isr);
     }
 
     return pic;
 }
 
-static void KmInitBootTerminal(std::span<const boot::FrameBuffer> framebuffers) {
+static void InitBootTerminal(std::span<const boot::FrameBuffer> framebuffers) {
     if (framebuffers.empty()) return;
 
     boot::FrameBuffer framebuffer = framebuffers.front();
@@ -632,7 +636,7 @@ static void KmInitBootBufferedTerminal(std::span<const boot::FrameBuffer> frameb
     KmDebugMessage("[INIT] Buffered terminal initialized\n");
 }
 
-static void KmUpdateSerialPort(ComPortInfo info) {
+static void UpdateSerialPort(ComPortInfo info) {
     info.skipLoopbackTest = true;
     if (OpenSerialResult com1 = OpenSerial(info); com1.status == SerialPortStatus::eOk) {
         gSerialLog = SerialLog(com1.port);
@@ -640,7 +644,7 @@ static void KmUpdateSerialPort(ComPortInfo info) {
     }
 }
 
-static SerialPortStatus KmInitSerialPort(ComPortInfo info) {
+static SerialPortStatus InitSerialPort(ComPortInfo info) {
     if (OpenSerialResult com1 = OpenSerial(info)) {
         return com1.status;
     } else {
@@ -661,37 +665,37 @@ static void DumpIsrContext(const km::IsrContext *context, stdx::StringView messa
 }
 
 static void InstallExceptionHandlers(void) {
-    KmInstallIsrHandler(0x0, [](km::IsrContext *context) -> void* {
+    InstallIsrHandler(0x0, [](km::IsrContext *context) -> void* {
         DumpIsrContext(context, "Divide by zero (#DE)");
         DumpStackTrace(context);
         KM_PANIC("Kernel panic.");
     });
 
-    KmInstallIsrHandler(0x2, [](km::IsrContext *context) -> void* {
+    InstallIsrHandler(0x2, [](km::IsrContext *context) -> void* {
         KmDebugMessage("[INT] Non-maskable interrupt (#NM)\n");
         DumpIsrState(context);
         return context;
     });
 
-    KmInstallIsrHandler(0x6, [](km::IsrContext *context) -> void* {
+    InstallIsrHandler(0x6, [](km::IsrContext *context) -> void* {
         DumpIsrContext(context, "Invalid opcode (#UD)");
         DumpStackTrace(context);
         KM_PANIC("Kernel panic.");
     });
 
-    KmInstallIsrHandler(0x8, [](km::IsrContext *context) -> void* {
+    InstallIsrHandler(0x8, [](km::IsrContext *context) -> void* {
         DumpIsrContext(context, "Double fault (#DF)");
         DumpStackTrace(context);
         KM_PANIC("Kernel panic.");
     });
 
-    KmInstallIsrHandler(0xD, [](km::IsrContext *context) -> void* {
+    InstallIsrHandler(0xD, [](km::IsrContext *context) -> void* {
         DumpIsrContext(context, "General protection fault (#GP)");
         DumpStackTrace(context);
         KM_PANIC("Kernel panic.");
     });
 
-    KmInstallIsrHandler(0xE, [](km::IsrContext *context) -> void* {
+    InstallIsrHandler(0xE, [](km::IsrContext *context) -> void* {
         KmDebugMessage("[BUG] CR2: ", Hex(__get_cr2()).pad(16, '0'), "\n");
         DumpIsrContext(context, "Page fault (#PF)");
         DumpStackTrace(context);
@@ -785,7 +789,7 @@ void KmLaunchEx(boot::LaunchInfo launch) {
 
     SetDebugLogLock(DebugLogLockType::eNone);
 
-    KmInitBootTerminal(launch.framebuffers);
+    InitBootTerminal(launch.framebuffers);
 
     std::optional<HypervisorInfo> hvInfo = KmGetHypervisorInfo();
     bool hasDebugPort = false;
@@ -807,15 +811,15 @@ void KmLaunchEx(boot::LaunchInfo launch) {
         .skipLoopbackTest = false,
     };
 
-    SerialPortStatus com1Status = KmInitSerialPort(com1Info);
+    SerialPortStatus com1Status = InitSerialPort(com1Info);
 
     LogSystemInfo(launch.hhdmOffset, launch.framebuffers, hvInfo, processor, hasDebugPort, com1Status, com1Info);
 
-    gBootGdt = KmGetBootGdt();
+    gBootGdt = GetBootGdt();
     SetupInitialGdt();
 
     km::IsrAllocator isrs;
-    KmInitInterrupts(isrs, SystemGdt::eLongModeCode);
+    InitInterrupts(isrs, SystemGdt::eLongModeCode);
     InstallExceptionHandlers();
     EnableInterrupts();
 
@@ -831,19 +835,19 @@ void KmLaunchEx(boot::LaunchInfo launch) {
         launch.framebuffers, launch.memmap
     );
 
-    PlatformInfo platform = KmGetPlatformInfo(launch.smbios32Address, launch.smbios64Address, *memory);
+    PlatformInfo platform = GetPlatformInfo(launch.smbios32Address, launch.smbios64Address, *memory);
 
     // On Oracle VirtualBox the COM1 port is functional but fails the loopback test.
     // If we are running on VirtualBox, retry the serial port initialization without the loopback test.
     if (com1Status == SerialPortStatus::eLoopbackTestFailed && platform.isOracleVirtualBox()) {
-        KmUpdateSerialPort(com1Info);
+        UpdateSerialPort(com1Info);
     }
 
     // KmInitBootBufferedTerminal(launch.framebuffers, memory);
 
     bool useX2Apic = kUseX2Apic && processor.has2xApic;
 
-    km::IntController lapic = KmEnableLocalApic(*memory, isrs, useX2Apic);
+    km::Apic lapic = EnableBootApic(*memory, isrs, useX2Apic);
 
     acpi::AcpiTables rsdt = InitAcpi(launch.rsdpAddress, *memory);
     const acpi::Fadt *fadt = rsdt.fadt();
@@ -865,7 +869,7 @@ void KmLaunchEx(boot::LaunchInfo launch) {
 
     pci::ProbeConfigSpace();
 
-    KmInitSmp(*memory, lapic.pointer(), rsdt, useX2Apic);
+    InitSmp(*memory, lapic.pointer(), rsdt, useX2Apic);
     SetDebugLogLock(DebugLogLockType::eRecursiveSpinLock);
 
     // Setup gdt that contains a TSS for this core
