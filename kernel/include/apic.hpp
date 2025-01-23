@@ -38,6 +38,11 @@ namespace km {
             Trigger trigger;
             bool enabled;
         };
+
+        enum class Type {
+            eLocalApic,
+            eX2Apic,
+        };
     }
 
     void EnableX2Apic();
@@ -54,6 +59,8 @@ namespace km {
 
         virtual uint32_t id() const = 0;
         virtual uint32_t version() const = 0;
+        virtual apic::Type type() const = 0;
+
         virtual void eoi() = 0;
 
         virtual void sendIpi(uint32_t dst, uint32_t vector) = 0;
@@ -78,8 +85,8 @@ namespace km {
         static X2Apic get() { return X2Apic(); }
 
         uint32_t id() const override;
-
         uint32_t version() const override;
+        apic::Type type() const override { return apic::Type::eX2Apic; }
 
         void eoi() override;
 
@@ -121,8 +128,8 @@ namespace km {
         { }
 
         uint32_t id() const override;
-
         uint32_t version() const override;
+        apic::Type type() const override { return apic::Type::eLocalApic; }
 
         void sendIpi(uint32_t dst, uint32_t vector) override;
 
@@ -171,5 +178,5 @@ namespace km {
     };
 
     Apic InitBspApic(km::SystemMemory& memory, bool useX2Apic);
-    Apic InitApApic(km::SystemMemory& memory, km::IApic *bsp, bool useX2Apic);
+    Apic InitApApic(km::SystemMemory& memory, km::IApic *bsp);
 }

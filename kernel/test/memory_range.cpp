@@ -47,6 +47,34 @@ TEST(MemoryRangeTest, OverlapIsCommutative) {
     ASSERT_TRUE(second.overlaps(first));
 }
 
+TEST(MemoryRangeTest, OverlapsEdge) {
+    km::MemoryRange first = { 0x1000, 0x2000 };
+    km::MemoryRange second = { 0x2000, 0x3000 };
+
+    ASSERT_FALSE(first.overlaps(second));
+}
+
+TEST(MemoryRangeTest, OverlapsInner) {
+    km::MemoryRange first = { 0x1000, 0x2000 };
+    km::MemoryRange second = { 0x1800, 0x2000 };
+
+    ASSERT_TRUE(first.overlaps(second));
+}
+
+TEST(MemoryRangeTest, OverlapsSubset) {
+    km::MemoryRange first = { 0x1000, 0x2000 };
+    km::MemoryRange second = { 0x1100, 0x1900 };
+
+    ASSERT_FALSE(first.overlaps(second));
+}
+
+TEST(MemoryRangeTest, NotOverlapping) {
+    km::MemoryRange first = { 0x1000, 0x2000 };
+    km::MemoryRange second = { 0x3000, 0x4000 };
+
+    ASSERT_FALSE(first.overlaps(second));
+}
+
 TEST(MemoryRangeTest, Intersection) {
     km::MemoryRange first = { 0x1000, 0x2000 };
     km::MemoryRange second = { 0x1500, 0x2500 };

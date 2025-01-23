@@ -2,6 +2,10 @@
 
 #include <limine.h>
 
+static constexpr size_t kStackSize = sm::kilobytes(16).bytes();
+static constexpr size_t kBootMemory = sm::kilobytes(64).bytes();
+static constexpr size_t kLowMemory = sm::megabytes(1).bytes();
+
 [[gnu::used, gnu::section(".limine_requests")]]
 static volatile LIMINE_BASE_REVISION(3)
 
@@ -48,27 +52,25 @@ static volatile LIMINE_REQUESTS_START_MARKER
 static volatile LIMINE_REQUESTS_END_MARKER
 
 struct BootAllocator {
-    void *vmem;
-    km::PhysicalAddress pmem;
-    size_t size;
-
-    km::MemoryRange range() const {
-        return { pmem, pmem + size };
-    }
+    km::AddressMapping addr;
 
     size_t offset = 0;
 
+    km::MemoryRange range() const {
+        return addr.physicalRange();
+    }
+
     void *malloc(size_t size, size_t align = alignof(std::max_align_t)) {
-        if (offset + size > this->size) {
+        if (offset + size > addr.size) {
             return nullptr;
         }
 
-        size_t offsetAlign = (size_t)vmem % align;
+        size_t offsetAlign = (size_t)addr.vaddr % align;
         if (offsetAlign != 0) {
             offset += align - offsetAlign;
         }
 
-        void *ptr = (void*)((size_t)vmem + offset);
+        void *ptr = (void*)((size_t)addr.vaddr + offset);
         offset += size;
 
         return ptr;
@@ -157,10 +159,6 @@ static std::span<boot::MemoryRegion> BootGetMemoryMap(BootAllocator& alloc) {
     return { memmap, response.entry_count + 1 };
 }
 
-static constexpr size_t kStackSize = sm::kilobytes(16).bytes();
-static constexpr size_t kBootMemory = sm::kilobytes(64).bytes();
-static constexpr size_t kLowMemory = sm::megabytes(1).bytes();
-
 static BootAllocator MakeBootAllocator(size_t size, const limine_memmap_response& memmap, uintptr_t hhdmOffset) {
     // Find a free memory range to use as a buffer
     for (uint64_t i = 0; i < memmap.entry_count; i++) {
@@ -175,14 +173,12 @@ static BootAllocator MakeBootAllocator(size_t size, const limine_memmap_response
         if (entry.length < size)
             continue;
 
-        return BootAllocator {
-            .vmem = (void*)(entry.base + hhdmOffset),
-            .pmem = km::PhysicalAddress { entry.base },
-            .size = size
-        };
+        km::AddressMapping addr = { (void*)(entry.base + hhdmOffset), km::PhysicalAddress { entry.base }, size };
+
+        return BootAllocator { addr };
     }
 
-    return BootAllocator { nullptr, nullptr, 0 };
+    return BootAllocator { };
 }
 
 extern "C" void kmain(void) {
@@ -208,7 +204,7 @@ extern "C" void kmain(void) {
         .hhdmOffset = hhdm.offset,
         .rsdpAddress = (uintptr_t)rsdp.address,
         .framebuffers = framebuffers,
-        .memmap = memmap,
+        .memmap = { memmap },
         .stack = { base, stack, kStackSize },
         .smbios32Address = (uintptr_t)smbios.entry_32,
         .smbios64Address = (uintptr_t)smbios.entry_64,

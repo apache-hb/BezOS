@@ -58,6 +58,16 @@ namespace km {
 
     /// @brief A range of physical address space.
     ///
+    /// The terminology used for dealing with ranges is as follows:
+    /// - front: The start of the range, this is the first byte in the range.
+    /// - back: The end of the range, this is the first byte after the range.
+    /// - size: The number of bytes in the range.
+    /// - empty: A range where the front and back are the same.
+    /// - contains: A range that is totally contained within another range.
+    ///             Ranges that are a total subset of another range are considered to be contained.
+    /// - overlaps: A range that shares some area with another range.
+    /// - intersects: A range that shares any area with another range, not including touching.
+    ///
     /// @pre @a MemoryRange::front < @a MemoryRange::back
     struct MemoryRange {
         PhysicalAddress front;
@@ -70,6 +80,9 @@ namespace km {
             return back - front;
         }
 
+        /// @brief Checks if the range is empty.
+        ///
+        /// @return True if the range is empty, false otherwise.
         constexpr bool isEmpty() const {
             return front == back;
         }
@@ -98,10 +111,6 @@ namespace km {
         /// @param range The range to check.
         /// @return True if the ranges overlap, false otherwise.
         constexpr bool overlaps(MemoryRange range) const {
-            // Handle the cases where the ranges have the same front or back.
-            // |----------------| |-----------|
-            // |------|                |------|
-            // These cases are considered to overlap.
             if (range.front == front && range.back <= back) return true;
             if (range.back == back && range.front >= front) return true;
 
@@ -110,8 +119,10 @@ namespace km {
 
         /// @brief Checks if the given range intersects with this range.
         ///
-        /// Checks if the given range intersects with this range. If one range
-        /// is a subset of the other, they are considered to intersect.
+        /// Checks if the given range intersects with this range.
+        /// If one range is a subset of the other, or if the ranges overlap,
+        /// they are considered to intersect. Ranges that only touch
+        /// are not considered to intersect.
         ///
         /// @param range The range to check.
         /// @return True if the ranges intersect, false otherwise.
@@ -119,12 +130,12 @@ namespace km {
             return contains(range.front) || contains(range.back);
         }
 
-        constexpr bool isBefore(PhysicalAddress addr) const {
-            return back <= addr;
+        constexpr bool isBefore(PhysicalAddress address) const {
+            return back <= address;
         }
 
-        constexpr bool isAfter(PhysicalAddress addr) const {
-            return front >= addr;
+        constexpr bool isAfter(PhysicalAddress address) const {
+            return front >= address;
         }
 
         /// @brief Return a copy of this range with the overlapping area cut out.
@@ -153,21 +164,7 @@ namespace km {
         constexpr bool operator!=(const MemoryRange& other) const = default;
     };
 
-    struct AddressMapping {
-        const void *vaddr;
-        km::PhysicalAddress paddr;
-        size_t size;
-
-        MemoryRange physicalRange() const {
-            return { paddr, paddr + size };
-        }
-
-        VirtualRange virtualRange() const {
-            return { vaddr, (const char*)vaddr + size };
-        }
-    };
-
-    /// @brief Find the intersection of two memory ranges.
+    /// @brief Find the intersection of two ranges.
     ///
     /// Finds the intersecting area of two ranges. If one range
     /// is a subset of the other the subset is returned. If there
@@ -223,6 +220,20 @@ namespace km {
     constexpr size_t pages(size_t bytes) {
         return sm::roundup(bytes, x64::kPageSize) / x64::kPageSize;
     }
+
+    struct AddressMapping {
+        const void *vaddr;
+        km::PhysicalAddress paddr;
+        size_t size;
+
+        MemoryRange physicalRange() const {
+            return { paddr, paddr + size };
+        }
+
+        VirtualRange virtualRange() const {
+            return { vaddr, (const char*)vaddr + size };
+        }
+    };
 }
 
 template<>

@@ -270,34 +270,20 @@ static void WriteMtrrs(const km::PageBuilder& pm) {
     // SetupMtrrs(mtrrs, pm);
 }
 
-static void WriteMemoryMap(std::span<const boot::MemoryRegion> memmap) {
-    KmDebugMessage("[INIT] ", memmap.size(), " memory map entries.\n");
+static void WriteMemoryMap(const boot::MemoryMap& memmap) {
+    KmDebugMessage("[INIT] ", memmap.regions.size(), " memory map entries.\n");
 
     KmDebugMessage("| Entry | Address            | Size               | Type\n");
     KmDebugMessage("|-------+--------------------+--------------------+-----------------------\n");
 
-    for (size_t i = 0; i < memmap.size(); i++) {
-        boot::MemoryRegion entry = memmap[i];
+    for (size_t i = 0; i < memmap.regions.size(); i++) {
+        boot::MemoryRegion entry = memmap.regions[i];
         MemoryRange range = entry.range;
 
         KmDebugMessage("| ", Int(i).pad(4, '0'), "  | ", Hex(range.front.address).pad(16, '0'), " | ", Hex(range.size()).pad(16, '0'), " | ", entry.type, "\n");
     }
-}
 
-static void WriteSystemMemory(std::span<const boot::MemoryRegion> memmap, const SystemMemory& memory) {
-    WriteMemoryMap(memmap);
-
-    uint64_t usableMemory = 0;
-    for (const MemoryRange& range : memory.layout.available) {
-        usableMemory += range.size();
-    }
-
-    uint64_t reclaimableMemory = 0;
-    for (const MemoryRange& range : memory.layout.reclaimable) {
-        reclaimableMemory += range.size();
-    }
-
-    KmDebugMessage("[INIT] Usable memory: ", sm::bytes(usableMemory), ", Reclaimable memory: ", sm::bytes(reclaimableMemory), "\n");
+    KmDebugMessage("[INIT] Usable memory: ", memmap.usableMemory(), ", Reclaimable memory: ", memmap.reclaimableMemory(), "\n");
 }
 
 static constexpr size_t kEarlyAllocMinSize = sm::megabytes(1).bytes();
@@ -338,8 +324,38 @@ static size_t GetKernelSize() {
     return (uintptr_t)__kernel_end - (uintptr_t)__kernel_start;
 }
 
-static KernelLayout BuildKernelLayout(uintptr_t vaddrbits, km::PhysicalAddress kernelPhysicalBase, const void *kernelVirtualBase, std::span<const boot::FrameBuffer> displays) {
-    size_t framebuffersSize = std::accumulate(displays.begin(), displays.end(), 0, [](size_t sum, const boot::FrameBuffer& framebuffer) {
+/// @brief Factory to reserve sections of virtual address space.
+///
+/// Grows down from the top of virtual address space.
+class AddressSpaceBuilder {
+    uintptr_t mOffset = 0;
+
+public:
+    AddressSpaceBuilder(uintptr_t top)
+        : mOffset(top)
+    { }
+
+    /// @brief Reserve a section of virtual address space.
+    ///
+    /// The reserved memory is aligned to the smallest page size.
+    ///
+    /// @param memory The size of the memory to reserve.
+    /// @return The reserved virtual address range.
+    VirtualRange reserve(size_t memory) {
+        uintptr_t front = mOffset;
+        mOffset -= sm::roundup(memory, x64::kPageSize);
+
+        return VirtualRange { (void*)mOffset, (void*)front };
+    }
+};
+
+static KernelLayout BuildKernelLayout(
+    uintptr_t vaddrbits,
+    km::PhysicalAddress kernelPhysicalBase,
+    const void *kernelVirtualBase,
+    std::span<const boot::FrameBuffer> displays
+) {
+    size_t framebuffersSize = std::accumulate(displays.begin(), displays.end(), 0zu, [](size_t sum, const boot::FrameBuffer& framebuffer) {
         return sum + framebuffer.size();
     });
 
@@ -349,16 +365,9 @@ static KernelLayout BuildKernelLayout(uintptr_t vaddrbits, km::PhysicalAddress k
 
     VirtualRange data = { (void*)dataFront, (void*)dataBack };
 
-    uintptr_t offset = dataFront;
+    AddressSpaceBuilder builder { dataFront };
 
-    auto reserveVirtual = [&](size_t size) {
-        uintptr_t back = offset;
-        offset += sm::roundup(size, x64::kPageSize);
-
-        return VirtualRange { (void*)back, (void*)offset };
-    };
-
-    VirtualRange framebuffers = reserveVirtual(framebuffersSize);
+    VirtualRange framebuffers = builder.reserve(framebuffersSize);
 
     AddressMapping kernel = { kernelVirtualBase, kernelPhysicalBase, GetKernelSize() };
 
@@ -381,10 +390,10 @@ struct EarlyMemory {
     std::span<boot::MemoryRegion> memmap;
 };
 
-static size_t GetEarlyMemorySize(std::span<const boot::MemoryRegion> memmap) {
+static size_t GetEarlyMemorySize(const boot::MemoryMap& memmap) {
     size_t size = 0;
-    for (const boot::MemoryRegion& entry : memmap) {
-        if (!entry.isAccessible())
+    for (const boot::MemoryRegion& entry : memmap.regions) {
+        if (!entry.isUsable() && !entry.isReclaimable())
             continue;
 
         if (entry.range.front < kLowMemory)
@@ -397,8 +406,8 @@ static size_t GetEarlyMemorySize(std::span<const boot::MemoryRegion> memmap) {
     return sm::roundup(size / 100, x64::kPageSize);
 }
 
-static boot::MemoryRegion FindEarlyAllocatorRegion(std::span<const boot::MemoryRegion> memmap, size_t size) {
-    for (const boot::MemoryRegion& entry : memmap) {
+static boot::MemoryRegion FindEarlyAllocatorRegion(const boot::MemoryMap& memmap, size_t size) {
+    for (const boot::MemoryRegion& entry : memmap.regions) {
         if (entry.type != boot::MemoryRegion::eUsable)
             continue;
 
@@ -411,6 +420,7 @@ static boot::MemoryRegion FindEarlyAllocatorRegion(std::span<const boot::MemoryR
         return entry;
     }
 
+    WriteMemoryMap(memmap);
     KM_PANIC("No suitable memory region found for early allocator.");
 }
 
@@ -423,7 +433,7 @@ static EarlyMemory *AllocateEarlyMemory(void *vaddr, size_t size) {
     return mem;
 }
 
-static std::tuple<EarlyMemory*, km::AddressMapping> CreateEarlyAllocator(std::span<const boot::MemoryRegion> memmap, uintptr_t hhdmOffset) {
+static std::tuple<EarlyMemory*, km::AddressMapping> CreateEarlyAllocator(const boot::MemoryMap& memmap, uintptr_t hhdmOffset) {
     size_t earlyAllocSize = std::max(GetEarlyMemorySize(memmap), kEarlyAllocMinSize);
 
     boot::MemoryRegion region = FindEarlyAllocatorRegion(memmap, earlyAllocSize);
@@ -432,18 +442,18 @@ static std::tuple<EarlyMemory*, km::AddressMapping> CreateEarlyAllocator(std::sp
     void *vaddr = std::bit_cast<void*>(region.range.front + hhdmOffset);
     EarlyMemory *memory = AllocateEarlyMemory(vaddr, earlyAllocSize);
 
-    boot::MemoryRegion *memoryMap = memory->allocator.allocateArray<boot::MemoryRegion>(memmap.size() + 1);
-    std::copy(memmap.begin(), memmap.end(), memoryMap);
-    memoryMap[memmap.size()] = boot::MemoryRegion { boot::MemoryRegion::eKernelRuntimeData, range };
+    boot::MemoryRegion *memoryMap = memory->allocator.allocateArray<boot::MemoryRegion>(memmap.regions.size() + 1);
+    std::copy(memmap.regions.begin(), memmap.regions.end(), memoryMap);
+    memoryMap[memmap.regions.size()] = boot::MemoryRegion { boot::MemoryRegion::eKernelRuntimeData, range };
 
-    for (size_t i = 0; i < memmap.size(); i++) {
+    for (size_t i = 0; i < memmap.regions.size(); i++) {
         boot::MemoryRegion& entry = memoryMap[i];
-        if (entry.range.overlaps(range) || entry.range.intersects(range)) {
+        if (entry.range.intersects(range)) {
             entry.range = entry.range.cut(range);
         }
     }
 
-    memory->memmap = std::span(memoryMap, memmap.size() + 1);
+    memory->memmap = std::span(memoryMap, memmap.regions.size() + 1);
 
     std::sort(memory->memmap.begin(), memory->memmap.end(), [](const boot::MemoryRegion& a, const boot::MemoryRegion& b) {
         return a.range.front < b.range.front;
@@ -458,13 +468,13 @@ static SystemMemory *SetupKernelMemory(
     km::AddressMapping stack,
     uintptr_t hhdmOffset,
     std::span<const boot::FrameBuffer> framebuffers,
-    std::span<const boot::MemoryRegion> memmap
+    const boot::MemoryMap& memmap
 ) {
     PageMemoryTypeLayout pat = SetupPat();
 
     auto [earlyMemory, earlyRegion] = CreateEarlyAllocator(memmap, hhdmOffset);
 
-    WriteMemoryMap(earlyMemory->memmap);
+    WriteMemoryMap(boot::MemoryMap{earlyMemory->memmap});
 
     PageBuilder pm = PageBuilder { maxpaddr, hhdmOffset, pat };
     WriteMtrrs(pm);
@@ -475,8 +485,6 @@ static SystemMemory *SetupKernelMemory(
 
     memory->pmm.markUsed(earlyRegion.physicalRange());
     memory->pmm.markUsed(stack.physicalRange());
-
-    WriteSystemMemory(earlyMemory->memmap, *memory);
 
     // initialize our own page tables and remap everything into it
     auto [kernelVirtualBase, kernelPhysicalBase, _] = layout.kernel;
@@ -869,7 +877,7 @@ void KmLaunchEx(boot::LaunchInfo launch) {
 
     pci::ProbeConfigSpace();
 
-    InitSmp(*memory, lapic.pointer(), rsdt, useX2Apic);
+    InitSmp(*memory, lapic.pointer(), rsdt);
     SetDebugLogLock(DebugLogLockType::eRecursiveSpinLock);
 
     // Setup gdt that contains a TSS for this core

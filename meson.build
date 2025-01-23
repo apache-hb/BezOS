@@ -153,6 +153,7 @@ src = [
 
     # Wrappers
     'kernel/src/arch/cr.cpp',
+    'kernel/src/boot.cpp',
 
     # Smp setup
     'kernel/src/smp.cpp',

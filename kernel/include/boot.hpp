@@ -48,31 +48,18 @@ namespace boot {
 
         size_t size() const { return range.size(); }
 
-        bool isUsable() const {
-            switch (type) {
-            case eUsable:
-            case eAcpiReclaimable:
-            case eBootloaderReclaimable:
-                return true;
+        bool isUsable() const;
+        bool isReclaimable() const;
+        bool isAccessible() const;
+    };
 
-            default:
-                return false;
-            }
-        }
+    struct MemoryMap {
+        std::span<MemoryRegion> regions;
 
-        bool isAccessible() const {
-            switch (type) {
-            case eUsable:
-            case eAcpiReclaimable:
-            case eBootloaderReclaimable:
-            case eKernel:
-            case eKernelRuntimeData:
-                return true;
+        sm::Memory usableMemory() const;
+        sm::Memory reclaimableMemory() const;
 
-            default:
-                return false;
-            }
-        }
+        km::PhysicalAddress maxPhysicalAddress() const;
     };
 
     struct LaunchInfo {
@@ -83,8 +70,8 @@ namespace boot {
 
         km::PhysicalAddress rsdpAddress;
 
-        std::span<boot::FrameBuffer> framebuffers;
-        std::span<boot::MemoryRegion> memmap;
+        std::span<FrameBuffer> framebuffers;
+        MemoryMap memmap;
 
         km::AddressMapping stack;
 

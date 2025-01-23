@@ -214,8 +214,8 @@ km::Apic km::InitBspApic(km::SystemMemory& memory, bool useX2Apic) {
     }
 }
 
-km::Apic km::InitApApic(km::SystemMemory& memory, km::IApic *bsp, bool useX2Apic) {
-    if (useX2Apic) {
+km::Apic km::InitApApic(km::SystemMemory& memory, km::IApic *bsp) {
+    if (bsp->type() == apic::Type::eX2Apic) {
         km::EnableX2Apic();
 
         return km::X2Apic::get();
