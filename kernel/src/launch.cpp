@@ -100,7 +100,7 @@ std::expected<km::Process, bool> km::LoadElf(std::span<const uint8_t> program, s
     return Process {
         .name = name,
         .processId = id,
-        .memory = processMemory,
+        .memory = std::move(processMemory),
         .main = main,
     };
 }

@@ -2,7 +2,6 @@
 
 #include "delay.hpp"
 #include "isr.hpp"
-#include "log.hpp"
 
 static constexpr uint16_t kCmosSelect = 0x70;
 static constexpr uint16_t kCmosData = 0x71;
@@ -28,7 +27,6 @@ static uint8_t ReadCmosRegister(uint8_t reg) {
 
 void km::InitCmos(uint8_t century) {
     gCenturyRegister = century;
-    KmDebugMessage("[CMOS] Century register: ", km::Hex(gCenturyRegister), "\n");
 }
 
 static uint8_t ConvertFromBcd(uint8_t value) {

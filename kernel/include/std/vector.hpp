@@ -37,6 +37,8 @@ namespace stdx {
         }
 
     public:
+        using value_type = T;
+        
         ~Vector() {
             releaseMemory();
         }
@@ -61,7 +63,7 @@ namespace stdx {
             addRange(src);
         }
 
-        Vector(const Vector& other)
+        explicit Vector(const Vector& other)
             : Vector(other.mAllocator, std::span(other))
         { }
 
@@ -173,9 +175,9 @@ namespace stdx {
             }
         }
 
-        void add(const T& value) {
+        void add(T value) {
             ensureExtra(1);
-            std::construct_at(mBack++, value);
+            std::construct_at(mBack++, std::move(value));
         }
 
         void addRange(std::span<const T> src) {
@@ -189,6 +191,10 @@ namespace stdx {
             std::destroy_at(mFront + index);
             std::copy(mFront + index + 1, mBack, mFront + index);
             std::destroy_at(--mBack);
+        }
+
+        void push_back(T value) {
+            add(std::move(value));
         }
     };
 }

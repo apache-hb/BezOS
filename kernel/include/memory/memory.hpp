@@ -197,6 +197,12 @@ namespace km {
         return {first, second};
     }
 
+    constexpr std::pair<MemoryRange, MemoryRange> split(MemoryRange range, MemoryRange other) {
+        MemoryRange first = {range.front, other.front};
+        MemoryRange second = {other.back, range.back};
+        return {first, second};
+    }
+
     constexpr bool adjacent(MemoryRange a, MemoryRange b) {
         return a.back == b.front || b.back == a.front;
     }
