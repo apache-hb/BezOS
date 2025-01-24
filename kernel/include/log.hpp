@@ -26,7 +26,7 @@ inline void KmDebugWrite(stdx::StringView value = "\n") {
     km::GetDebugStream()->write(value);
 }
 
-template<km::IsFormat T>
+template<km::IsFormat T> requires (!km::IsStreamFormat<T>)
 void KmDebugWrite(const T& value) {
     char buffer[km::Format<T>::kStringSize];
     KmDebugWrite(km::Format<T>::toString(buffer, value));

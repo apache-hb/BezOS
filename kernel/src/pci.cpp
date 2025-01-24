@@ -2,6 +2,8 @@
 #include "delay.hpp"
 #include "log.hpp"
 
+#include "util/table.hpp"
+
 #include <utility>
 
 static constexpr uint8_t kOffsetMask = 0b1111'1100;
@@ -91,12 +93,12 @@ static pci::ConfigHeader ProbePciFunction(uint8_t bus, uint8_t slot, uint8_t fun
         auto slotId = km::format(km::Hex(slot).pad(2, '0', false));
         auto functionId = km::format(km::Hex(function).pad(2, '0', false));
 
-        KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, " | Vendor ID            | ", header.vendorId, "\n");
-        KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, " | Device ID            | ", header.deviceId, "\n");
-        KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, " | Class                | ", header.cls, "\n");
-        KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, " | Programmable         | ", header.programmable, "\n");
-        KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, " | Revision             | ", header.revision, "\n");
-        KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, " | Type                 | ", header.type, "\n");
+        KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, " | Vendor ID    | ", header.vendorId, "\n");
+        KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, " | Device ID    | ", header.deviceId, "\n");
+        KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, " | Class        | ", header.cls, "\n");
+        KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, " | Programmable | ", header.programmable, "\n");
+        KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, " | Revision     | ", header.revision, "\n");
+        KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, " | Type         | ", header.type, "\n");
     }
 
     if (header.isPciBridge()) {
@@ -125,6 +127,9 @@ static void ProbePciDevice(uint8_t bus, uint8_t slot) {
 }
 
 void pci::ProbeConfigSpace() {
+    KmDebugMessage("| PCI               | Property     | Value\n");
+    KmDebugMessage("|-------------------+--------------+-------------\n");
+
     for (uint8_t bus = 0; bus < 255; bus++) {
         ProbePciBus(bus);
     }

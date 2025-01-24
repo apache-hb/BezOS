@@ -13,7 +13,6 @@
 
 #include "acpi/acpi.hpp"
 
-#include "kernel.h"
 #include "cmos.hpp"
 #include "delay.hpp"
 #include "display.hpp"
@@ -46,6 +45,7 @@
 #include "kernel.hpp"
 
 #include "util/memory.hpp"
+#include "util/table.hpp"
 
 using namespace km;
 using namespace stdx::literals;
@@ -267,17 +267,17 @@ static void WriteMemoryMap(const boot::MemoryMap& memmap) {
     KmDebugMessage("[INIT] Usable memory: ", memmap.usableMemory(), ", Reclaimable memory: ", memmap.reclaimableMemory(), "\n");
 }
 
-static constexpr size_t kEarlyAllocMinSize = sm::megabytes(1).bytes();
+static constexpr size_t kStage1AllocMinSize = sm::megabytes(1).bytes();
 static constexpr size_t kLowMemory = sm::megabytes(1).bytes();
+static constexpr size_t kComittedRegionSize = sm::megabytes(16).bytes();
 
 struct KernelLayout {
     /// @brief Virtual address space reserved for the kernel.
     /// Space for dynamic allocations, kernel heap, kernel stacks, etc.
     VirtualRange system;
 
-    /// @brief All memory that cannot be paged out.
-    /// Includes kernel paging structures.
-    AddressMapping committed;
+    /// @brief Non-pageable memory.
+    AddressMapping comitted;
 
     /// @brief All framebuffers.
     VirtualRange framebuffers;
@@ -336,10 +336,51 @@ static size_t TotalDisplaySize(std::span<const boot::FrameBuffer> displays) {
     });
 }
 
+static constexpr bool IsLowMemory(km::MemoryRange range) {
+    return range.front <= kLowMemory;
+}
+
+struct EarlyMemory {
+    mem::TlsfAllocator allocator;
+    stdx::Vector<boot::MemoryRegion> memmap;
+
+    EarlyMemory(mem::TlsfAllocator alloc)
+        : allocator(std::move(alloc))
+        , memmap(&allocator)
+    { }
+
+    /// @brief Find and reserve a section of physical memory.
+    ///
+    /// @param size The size of the memory to reserve.
+    /// @return The reserved physical memory range.
+    km::MemoryRange reserve(size_t size) {
+        for (boot::MemoryRegion& entry : memmap) {
+            if (!entry.isUsable())
+                continue;
+
+            if (entry.size() < size)
+                continue;
+
+            if (IsLowMemory(entry.range))
+                continue;
+
+            km::MemoryRange range = entry.range;
+            entry.range = entry.range.cut(range);
+
+            memmap.add({ boot::MemoryRegion::eKernelRuntimeData, range });
+
+            return range;
+        }
+
+        return km::MemoryRange{};
+    }
+};
+
 static KernelLayout BuildKernelLayout(
     uintptr_t vaddrbits,
     km::PhysicalAddress kernelPhysicalBase,
     const void *kernelVirtualBase,
+    EarlyMemory& memory,
     std::span<const boot::FrameBuffer> displays
 ) {
     size_t framebuffersSize = TotalDisplaySize(displays);
@@ -353,35 +394,27 @@ static KernelLayout BuildKernelLayout(
     AddressSpaceBuilder builder { dataFront };
 
     VirtualRange framebuffers = builder.reserve(framebuffersSize);
+    km::MemoryRange comittedPhysicalMemory = memory.reserve(kComittedRegionSize);
+    VirtualRange comittedVirtualRange = builder.reserve(kComittedRegionSize);
+
+    km::AddressMapping stage2 = { comittedVirtualRange.front, comittedPhysicalMemory.front, kComittedRegionSize };
 
     AddressMapping kernel = { kernelVirtualBase, kernelPhysicalBase, GetKernelSize() };
 
     KmDebugMessage("[INIT] Kernel layout:\n");
     KmDebugMessage("[INIT] Data         : ", data, "\n");
     KmDebugMessage("[INIT] Framebuffers : ", framebuffers, "\n");
+    KmDebugMessage("[INIT] Committed    : ", stage2, "\n");
     KmDebugMessage("[INIT] Kernel       : ", kernel, "\n");
 
     KernelLayout layout = {
         .system = data,
+        .comitted = stage2,
         .framebuffers = framebuffers,
         .kernel = kernel,
     };
 
     return layout;
-}
-
-struct EarlyMemory {
-    mem::TlsfAllocator allocator;
-    stdx::Vector<boot::MemoryRegion> memmap;
-
-    EarlyMemory(mem::TlsfAllocator alloc)
-        : allocator(std::move(alloc))
-        , memmap(&allocator)
-    { }
-};
-
-static constexpr bool IsLowMemory(km::MemoryRange range) {
-    return range.front <= kLowMemory;
 }
 
 static size_t GetEarlyMemorySize(const boot::MemoryMap& memmap) {
@@ -427,7 +460,7 @@ static EarlyMemory *AllocateEarlyMemory(void *vaddr, size_t size) {
 }
 
 static std::tuple<EarlyMemory*, km::AddressMapping> CreateEarlyAllocator(const boot::MemoryMap& memmap, uintptr_t hhdmOffset) {
-    size_t earlyAllocSize = std::max(GetEarlyMemorySize(memmap), kEarlyAllocMinSize);
+    size_t earlyAllocSize = std::max(GetEarlyMemorySize(memmap), kStage1AllocMinSize);
 
     boot::MemoryRegion region = FindEarlyAllocatorRegion(memmap, earlyAllocSize);
     km::MemoryRange range = { region.range.front, region.range.front + earlyAllocSize };
@@ -460,14 +493,15 @@ static SystemMemory *SetupKernelMemory(const boot::LaunchInfo& launch, const km:
 
     WriteMtrrs(pm);
 
+    auto [earlyMemory, earlyRegion] = CreateEarlyAllocator(launch.memmap, launch.hhdmOffset);
+
     KernelLayout layout = BuildKernelLayout(
         processor.maxvaddr,
         launch.kernelPhysicalBase,
         launch.kernelVirtualBase,
+        *earlyMemory,
         launch.framebuffers
     );
-
-    auto [earlyMemory, earlyRegion] = CreateEarlyAllocator(launch.memmap, launch.hhdmOffset);
 
     WriteMemoryMap(boot::MemoryMap{earlyMemory->memmap});
 

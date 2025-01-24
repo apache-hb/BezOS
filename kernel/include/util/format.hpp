@@ -185,6 +185,10 @@ namespace km {
             buffer[0] = value;
             return stdx::StringView(buffer, buffer + 1);
         }
+
+        static void format(IOutStream& out, char value) {
+            out.write(value);
+        }
     };
 
     template<std::integral T>
@@ -192,6 +196,11 @@ namespace km {
         static constexpr size_t kStringSize = stdx::NumericTraits<T>::kMaxDigits10;
         static constexpr stdx::StringView toString(char *buffer, T value) {
             return FormatInt(stdx::Span(buffer, buffer + kStringSize), value, 10);
+        }
+
+        static void format(IOutStream& out, T value) {
+            char buffer[kStringSize];
+            out.write(toString(buffer, value));
         }
     };
 
@@ -211,6 +220,11 @@ namespace km {
             std::copy(result.begin(), result.end(), buffer + offset);
             return stdx::StringView(buffer, buffer + offset + result.count());
         }
+
+        static void format(IOutStream& out, Hex<T> value) {
+            char buffer[kStringSize];
+            out.write(toString(buffer, value));
+        }
     };
 
     template<>
@@ -218,6 +232,11 @@ namespace km {
         static constexpr size_t kStringSize = stdx::NumericTraits<uintptr_t>::kMaxDigits16 + 2;
         static stdx::StringView toString(char *buffer, const void *value) {
             return Format<Hex<uintptr_t>>::toString(buffer, Hex<uintptr_t> { reinterpret_cast<uintptr_t>(value) });
+        }
+
+        static void format(IOutStream& out, void *value) {
+            char buffer[kStringSize];
+            out.write(toString(buffer, value));
         }
     };
 
@@ -227,6 +246,11 @@ namespace km {
         static stdx::StringView toString(char *buffer, const void *value) {
             return Format<Hex<uintptr_t>>::toString(buffer, Hex<uintptr_t> { reinterpret_cast<uintptr_t>(value) });
         }
+
+        static void format(IOutStream& out, const void *value) {
+            char buffer[kStringSize];
+            out.write(toString(buffer, value));
+        }
     };
 
     template<std::integral T>
@@ -235,6 +259,11 @@ namespace km {
         static stdx::StringView toString(char *buffer, Int<T> value) {
             return FormatInt(stdx::Span(buffer, buffer + kStringSize), value.value, 10, value.width, value.fill);
         }
+
+        static void format(IOutStream& out, Int<T> value) {
+            char buffer[kStringSize];
+            out.write(toString(buffer, value));
+        }
     };
 
     template<>
@@ -242,6 +271,10 @@ namespace km {
         static stdx::StringView toString(bool value) {
             using namespace stdx::literals;
             return value ? "True"_sv : "False"_sv;
+        }
+
+        static void format(IOutStream& out, bool value) {
+            out.write(toString(value));
         }
     };
 
@@ -278,12 +311,44 @@ namespace km {
         Format<T>::format(out, value);
     }
 
+    template<size_t N, IsStreamFormat T>
+    inline stdx::StaticString<N> ToStaticString(const T& value) {
+        struct OutStream final : public IOutStream {
+            stdx::StaticString<N> result;
+
+            void write(stdx::StringView message) override {
+                result.add(message);
+            }
+        };
+
+        OutStream out;
+        format(out, value);
+
+        return out.result;
+    }
+
+    template<size_t N, typename... T>
+    inline stdx::StaticString<N> concat(T&&... args) {
+        struct OutStream final : public IOutStream {
+            stdx::StaticString<N> result;
+
+            void write(stdx::StringView message) override {
+                result.add(message);
+            }
+        };
+
+        OutStream out;
+        (format(out, args), ...);
+
+        return out.result;
+    }
+
     template<IsFormatEx T>
     inline void format(IOutStream& out, const T& value) {
         out.write(Format<T>::toString(value));
     }
 
-    template<IsFormat T>
+    template<IsFormat T> requires (!IsStreamFormat<T>)
     inline void format(IOutStream& out, const T& value) {
         char buffer[kFormatSize<T>];
         out.write(Format<T>::toString(buffer, value));
