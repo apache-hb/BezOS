@@ -278,16 +278,6 @@ void KmMapKernel(km::PageTableManager& vmm, km::PhysicalAddress paddr, const voi
     MapKernelPages(vmm, paddr, vaddr);
 }
 
-void KmMigrateMemory(km::PageTableManager& vmm, km::PageBuilder& pm, km::PhysicalAddress base, size_t size, km::MemoryType type) {
-    KmMapMemory(vmm, base, (void*)(base.address + pm.hhdmOffset()), size, PageFlags::eData, type);
-}
-
-void KmMapMemory(km::PageTableManager& vmm, km::PhysicalAddress base, const void *vaddr, size_t size, km::PageFlags flags, km::MemoryType type) {
-    km::PhysicalAddress end = base + size;
-
-    vmm.mapRange({ base, end }, vaddr, flags, type);
-}
-
 void KmReclaimBootMemory(const km::PageBuilder& pm, km::PageTableManager& vmm) {
     // then apply the new page tables
     KmDebugMessage("[INIT] PML4: ", vmm.rootPageTable(), "\n");

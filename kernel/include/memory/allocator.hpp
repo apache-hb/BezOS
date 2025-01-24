@@ -54,6 +54,10 @@ namespace km {
         void unmap(void *ptr, size_t size);
 
         km::PhysicalAddress getBackingAddress(const void *ptr) const;
+
+        void map(km::AddressMapping mapping, PageFlags flags, MemoryType type = MemoryType::eWriteBack) {
+            mapRange(mapping.physicalRange(), mapping.vaddr, flags, type);
+        }
     };
 }
 
@@ -62,22 +66,6 @@ namespace km {
 /// @param paddr The physical address of the kernel
 /// @param vaddr The virtual address of the kernel
 void KmMapKernel(km::PageTableManager& vmm, km::PhysicalAddress paddr, const void *vaddr);
-
-/// @brief Migrate the memory range into hhdm.
-/// @param vmm The virtual memory manager
-/// @param pm The page manager
-/// @param base The physical address
-/// @param size The size of the memory range
-/// @param type The memory type to use
-void KmMigrateMemory(km::PageTableManager& vmm, km::PageBuilder& pm, km::PhysicalAddress base, size_t size, km::MemoryType type);
-
-/// @brief Map a range of physical memory into virtual memory.
-/// @param vmm The virtual memory manager
-/// @param base The physical address
-/// @param vaddr The virtual address
-/// @param size The size of the memory range
-/// @param flags The page flags
-void KmMapMemory(km::PageTableManager& vmm, km::PhysicalAddress base, const void *vaddr, size_t size, km::PageFlags flags, km::MemoryType type);
 
 /// @brief Reclaim bootloader memory.
 /// @param pm The page manager

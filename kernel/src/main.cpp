@@ -45,7 +45,6 @@
 #include "kernel.hpp"
 
 #include "util/memory.hpp"
-#include "util/table.hpp"
 
 using namespace km;
 using namespace stdx::literals;
@@ -101,7 +100,6 @@ public:
 // where it doesnt emit a warning for global constructors in all cases.
 constinit static SerialLog gSerialLog;
 constinit static TerminalLog<DirectTerminal> gDirectTerminalLog;
-constinit static TerminalLog<BufferedTerminal> gBufferedTerminalLog;
 constinit static DebugPortLog gDebugPortLog;
 
 constinit static stdx::StaticVector<IOutStream*, 4> gLogTargets;
@@ -517,17 +515,22 @@ static SystemMemory *SetupKernelMemory(const boot::LaunchInfo& launch, const km:
     KmMapKernel(memory->vmm, kernelPhysicalBase, kernelVirtualBase);
 
     // move our stack out of reclaimable memory
-    KmMapMemory(memory->vmm, stack.paddr - stack.size, (void*)((uintptr_t)stack.vaddr - stack.size), stack.size, PageFlags::eData, MemoryType::eWriteBack);
+    km::AddressMapping stackMapping = { (void*)((uintptr_t)stack.vaddr - stack.size), stack.paddr - stack.size, stack.size };
+    memory->vmm.map(stackMapping, PageFlags::eData, MemoryType::eWriteBack);
 
     // map the early allocator region
-    KmMapMemory(memory->vmm, earlyRegion.paddr, earlyRegion.vaddr, earlyRegion.size, PageFlags::eData, MemoryType::eWriteBack);
+    memory->vmm.map(earlyRegion, PageFlags::eData, MemoryType::eWriteBack);
+
+    // map the non-pageable memory
+    memory->vmm.map(layout.comitted, PageFlags::eData, MemoryType::eWriteBack);
 
     // remap framebuffers
 
     uintptr_t framebufferBase = (uintptr_t)layout.framebuffers.front;
     for (const boot::FrameBuffer& framebuffer : launch.framebuffers) {
         // remap the framebuffer into its final location
-        KmMapMemory(memory->vmm, framebuffer.paddr, (void*)framebufferBase, framebuffer.size(), PageFlags::eData, MemoryType::eWriteCombine);
+        km::AddressMapping fb = { (void*)framebufferBase, framebuffer.paddr, framebuffer.size() };
+        memory->vmm.map(fb, PageFlags::eData, MemoryType::eWriteCombine);
 
         framebufferBase += framebuffer.size();
     }
@@ -653,21 +656,6 @@ static void InitBootTerminal(std::span<const boot::FrameBuffer> framebuffers) {
     km::Canvas display { framebuffer, (uint8_t*)(framebuffer.vaddr) };
     gDirectTerminalLog = DirectTerminal(display);
     gLogTargets.add(&gDirectTerminalLog);
-}
-
-static void KmInitBootBufferedTerminal(std::span<const boot::FrameBuffer> framebuffers, SystemMemory& memory) {
-    if (framebuffers.empty()) return;
-
-    KmDebugMessage("[INIT] Deleting unbuffered terminal\n");
-
-    gLogTargets.erase(&gDirectTerminalLog);
-
-    KmDebugMessage("[INIT] Initializing buffered terminal\n");
-
-    gBufferedTerminalLog = BufferedTerminal(gDirectTerminalLog.get(), memory);
-    gLogTargets.add(&gBufferedTerminalLog);
-
-    KmDebugMessage("[INIT] Buffered terminal initialized\n");
 }
 
 static void UpdateSerialPort(ComPortInfo info) {
@@ -872,8 +860,6 @@ void KmLaunchEx(boot::LaunchInfo launch) {
     if (com1Status == SerialPortStatus::eLoopbackTestFailed && platform.isOracleVirtualBox()) {
         UpdateSerialPort(com1Info);
     }
-
-    // KmInitBootBufferedTerminal(launch.framebuffers, memory);
 
     bool useX2Apic = kUseX2Apic && processor.has2xApic;
 
