@@ -8,11 +8,10 @@
 namespace km {
     struct SystemMemory {
         PageBuilder pager;
-        SystemMemoryLayout layout;
         PageAllocator pmm;
         PageTableManager vmm;
 
-        SystemMemory(SystemMemoryLayout memory, PageBuilder pm, mem::IAllocator *allocator);
+        SystemMemory(const boot::MemoryMap& memmap, PageBuilder pm, mem::IAllocator *allocator);
 
         void *allocate(
             size_t size,

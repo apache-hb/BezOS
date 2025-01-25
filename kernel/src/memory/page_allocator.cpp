@@ -9,21 +9,19 @@ using namespace km;
 
 /// page allocator
 
-static size_t GetBitmapSize(const SystemMemoryLayout *layout) {
+static size_t GetBitmapSize(const boot::MemoryMap& layout) {
     size_t size = 0;
 
-    for (MemoryRange entry : layout->available) {
-        size += detail::GetRangeBitmapSize(entry);
-    }
-
-    for (MemoryRange entry : layout->reclaimable) {
-        size += detail::GetRangeBitmapSize(entry);
+    for (boot::MemoryRegion entry : layout.regions) {
+        if (entry.isUsable() || entry.isReclaimable()) {
+            size += detail::GetRangeBitmapSize(entry.range);
+        }
     }
 
     return size;
 }
 
-void detail::BuildMemoryRanges(RegionList& allocators, RegionList& lowMemory, const SystemMemoryLayout *layout, uint8_t *bitmap) {
+void detail::BuildMemoryRanges(RegionList& allocators, RegionList& lowMemory, const boot::MemoryMap& layout, uint8_t *bitmap) {
     size_t offset = 0;
 
     auto newRegion = [&](MemoryRange range) {
@@ -33,7 +31,12 @@ void detail::BuildMemoryRanges(RegionList& allocators, RegionList& lowMemory, co
     };
 
     // Create an allocator for each memory range
-    for (MemoryRange entry : layout->available) {
+    for (boot::MemoryRegion region : layout.regions) {
+        if (!region.isUsable())
+            continue;
+
+        MemoryRange entry = region.range;
+
         // If the range straddles the 1MB boundary, split it
         if (entry.contains(kLowMemory)) {
             auto [low, high] = split(entry, kLowMemory);
@@ -61,14 +64,14 @@ void detail::MergeAdjacentAllocators(RegionList& allocators) {
     }
 }
 
-PageAllocator::PageAllocator(const SystemMemoryLayout *layout, mem::IAllocator *allocator)
+PageAllocator::PageAllocator(const boot::MemoryMap& memmap, mem::IAllocator *allocator)
     : mAllocators(allocator)
     , mLowMemory(allocator)
-    , mBitmapMemory((uint8_t*)allocator->allocate(GetBitmapSize(layout)), allocator)
+    , mBitmapMemory((uint8_t*)allocator->allocate(GetBitmapSize(memmap)), allocator)
 {
-    memset(mBitmapMemory.get(), 0, GetBitmapSize(layout));
+    memset(mBitmapMemory.get(), 0, GetBitmapSize(memmap));
 
-    detail::BuildMemoryRanges(mAllocators, mLowMemory, layout, mBitmapMemory.get());
+    detail::BuildMemoryRanges(mAllocators, mLowMemory, memmap, mBitmapMemory.get());
 }
 
 void PageAllocator::rebuild() {

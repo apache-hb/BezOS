@@ -352,6 +352,12 @@ struct MemoryMap {
         , memmap(&allocator)
     { }
 
+    void sortMemoryMap() {
+        std::sort(memmap.begin(), memmap.end(), [](const boot::MemoryRegion& a, const boot::MemoryRegion& b) {
+            return a.range.front < b.range.front;
+        });
+    }
+
     /// @brief Find and reserve a section of physical memory.
     ///
     /// @param size The size of the memory to reserve.
@@ -372,6 +378,8 @@ struct MemoryMap {
 
             memmap.add({ boot::MemoryRegion::eKernelRuntimeData, range });
 
+            sortMemoryMap();
+
             return range;
         }
 
@@ -388,9 +396,7 @@ struct MemoryMap {
 
         memmap.add(memory);
 
-        std::sort(memmap.begin(), memmap.end(), [](const boot::MemoryRegion& a, const boot::MemoryRegion& b) {
-            return a.range.front < b.range.front;
-        });
+        sortMemoryMap();
     }
 };
 
@@ -509,12 +515,29 @@ static void MapDisplayRegions(PageTableManager& vmm, std::span<const boot::Frame
     }
 }
 
+static void MapKernelRegions(SystemMemory *memory, const KernelLayout& layout) {
+    auto [kernelVirtualBase, kernelPhysicalBase, _] = layout.kernel;
+    KmMapKernel(memory->vmm, kernelPhysicalBase, kernelVirtualBase);
+}
+
+static void MapDataRegion(SystemMemory *memory, km::AddressMapping mapping) {
+    memory->vmm.map(mapping, PageFlags::eData);
+}
+
+/// Everything in this structure is owned by the stage1 memory allocator.
+/// Once that allocator is destroyed this memory is no longer mapped.
 struct Stage1MemoryInfo {
     SystemMemory *memory;
     MemoryMap *earlyMemory;
     KernelLayout layout;
     std::span<boot::FrameBuffer> framebuffers;
 };
+
+static boot::FrameBuffer *CloneFrameBuffers(mem::IAllocator *alloc, std::span<const boot::FrameBuffer> framebuffers) {
+    boot::FrameBuffer *fbs = alloc->allocateArray<boot::FrameBuffer>(framebuffers.size());
+    std::copy(framebuffers.begin(), framebuffers.end(), fbs);
+    return fbs;
+}
 
 static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const km::ProcessorInfo& processor) {
     PageMemoryTypeLayout pat = SetupPat();
@@ -539,26 +562,25 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
 
     mem::IAllocator *alloc = &earlyMemory->allocator;
 
-    boot::FrameBuffer *framebuffers = alloc->allocateArray<boot::FrameBuffer>(launch.framebuffers.size());
-    std::copy(launch.framebuffers.begin(), launch.framebuffers.end(), framebuffers);
+    boot::FrameBuffer *framebuffers = CloneFrameBuffers(alloc, launch.framebuffers);
 
-    SystemMemory *memory = alloc->construct<SystemMemory>(SystemMemoryLayout::from(earlyMemory->memmap, &earlyMemory->allocator), pm, &earlyMemory->allocator);
+    SystemMemory *memory = alloc->construct<SystemMemory>(boot::MemoryMap{earlyMemory->memmap}, pm, &earlyMemory->allocator);
 
     memory->pmm.markUsed(earlyRegion.physicalRange());
+    memory->pmm.markUsed(layout.comitted.physicalRange());
     memory->pmm.markUsed(stackMapping.physicalRange());
 
     // initialize our own page tables and remap everything into it
-    auto [kernelVirtualBase, kernelPhysicalBase, _] = layout.kernel;
-    KmMapKernel(memory->vmm, kernelPhysicalBase, kernelVirtualBase);
+    MapKernelRegions(memory, layout);
 
     // move our stack out of reclaimable memory
-    memory->vmm.map(stackMapping, PageFlags::eData, MemoryType::eWriteBack);
+    MapDataRegion(memory, stackMapping);
 
     // map the early allocator region
-    memory->vmm.map(earlyRegion, PageFlags::eData, MemoryType::eWriteBack);
+    MapDataRegion(memory, earlyRegion);
 
     // map the non-pageable memory
-    memory->vmm.map(layout.comitted, PageFlags::eData, MemoryType::eWriteBack);
+    MapDataRegion(memory, layout.comitted);
 
     // remap framebuffers
 
@@ -579,7 +601,13 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
     return Stage1MemoryInfo { memory, earlyMemory, layout, std::span(framebuffers, launch.framebuffers.size()) };
 }
 
-static std::tuple<SystemMemory*, mem::TlsfAllocator, KernelLayout> InitStage2Memory(
+struct Stage2MemoryInfo {
+    SystemMemory *memory;
+    mem::TlsfAllocator allocator;
+    KernelLayout layout;
+};
+
+static Stage2MemoryInfo *InitStage2Memory(
     const boot::LaunchInfo& launch,
     const km::ProcessorInfo& processor,
     const Stage1MemoryInfo& stage1
@@ -595,8 +623,14 @@ static std::tuple<SystemMemory*, mem::TlsfAllocator, KernelLayout> InitStage2Mem
     // Create the global memory allocator
     mem::TlsfAllocator alloc{(void*)layout.comitted.vaddr, layout.comitted.size};
 
-    SystemMemory *memory = alloc.construct<SystemMemory>(SystemMemoryLayout::from(earlyMemory->memmap, &alloc), pm, &alloc);
+    Stage2MemoryInfo *stage2 = alloc.construct<Stage2MemoryInfo>();
+    stage2->allocator = std::move(alloc);
+
+    SystemMemory *memory = stage2->allocator.construct<SystemMemory>(boot::MemoryMap{earlyMemory->memmap}, pm, &stage2->allocator);
     KM_CHECK(memory != nullptr, "Failed to allocate memory for SystemMemory.");
+
+    stage2->memory = memory;
+    stage2->layout = layout;
 
     WriteMemoryMap(boot::MemoryMap{earlyMemory->memmap});
 
@@ -606,14 +640,13 @@ static std::tuple<SystemMemory*, mem::TlsfAllocator, KernelLayout> InitStage2Mem
     memory->pmm.markUsed(layout.comitted.physicalRange());
 
     // initialize our own page tables and remap everything into it
-    auto [kernelVirtualBase, kernelPhysicalBase, _] = layout.kernel;
-    KmMapKernel(memory->vmm, kernelPhysicalBase, kernelVirtualBase);
+    MapKernelRegions(memory, layout);
 
     // map the stack again
-    memory->vmm.map(stackMapping, PageFlags::eData, MemoryType::eWriteBack);
+    MapDataRegion(memory, stackMapping);
 
     // carry forward the non-pageable memory
-    memory->vmm.map(layout.comitted, PageFlags::eData, MemoryType::eWriteBack);
+    MapDataRegion(memory, layout.comitted);
 
     // remap framebuffers
     MapDisplayRegions(memory->vmm, framebuffers, layout.framebuffers);
@@ -621,18 +654,7 @@ static std::tuple<SystemMemory*, mem::TlsfAllocator, KernelLayout> InitStage2Mem
     // once it is safe to remap the boot memory, do so
     KmUpdateRootPageTable(memory->pager, memory->vmm);
 
-    // can't log anything here as we need to move the framebuffer first
-
-    // Now update the terminal to use the new memory layout
-    if (!framebuffers.empty()) {
-        gDirectTerminalLog.get()
-            .display()
-            .setAddress(layout.getFrameBuffer(framebuffers, 0));
-    }
-
-    memory->layout.reclaimBootMemory();
-
-    return { memory, std::move(alloc), layout };
+    return stage2;
 }
 
 static void DumpIsrState(const km::IsrContext *context) {
@@ -931,10 +953,10 @@ void KmLaunchEx(boot::LaunchInfo launch) {
     InstallExceptionHandlers();
     EnableInterrupts();
 
-    auto stage1 = InitStage1Memory(launch, processor);
-    auto [stage2Memory, stage2Allocator, stage2Layout] = InitStage2Memory(launch, processor, stage1);
+    Stage1MemoryInfo stage1 = InitStage1Memory(launch, processor);
+    Stage2MemoryInfo *stage2 = InitStage2Memory(launch, processor, stage1);
 
-    PlatformInfo platform = GetPlatformInfo(launch.smbios32Address, launch.smbios64Address, *stage2Memory);
+    PlatformInfo platform = GetPlatformInfo(launch.smbios32Address, launch.smbios64Address, *stage2->memory);
 
     // On Oracle VirtualBox the COM1 port is functional but fails the loopback test.
     // If we are running on VirtualBox, retry the serial port initialization without the loopback test.
@@ -944,9 +966,9 @@ void KmLaunchEx(boot::LaunchInfo launch) {
 
     bool useX2Apic = kUseX2Apic && processor.has2xApic;
 
-    km::Apic lapic = EnableBootApic(*stage2Memory, isrs, useX2Apic);
+    km::Apic lapic = EnableBootApic(*stage2->memory, isrs, useX2Apic);
 
-    acpi::AcpiTables rsdt = acpi::InitAcpi(launch.rsdpAddress, *stage2Memory);
+    acpi::AcpiTables rsdt = acpi::InitAcpi(launch.rsdpAddress, *stage2->memory);
     const acpi::Fadt *fadt = rsdt.fadt();
     InitCmos(fadt->century);
 
@@ -954,7 +976,7 @@ void KmLaunchEx(boot::LaunchInfo launch) {
     KM_CHECK(ioApicCount > 0, "No IOAPICs found.");
 
     for (uint32_t i = 0; i < ioApicCount; i++) {
-        IoApic ioapic = rsdt.mapIoApic(*stage2Memory, 0);
+        IoApic ioapic = rsdt.mapIoApic(*stage2->memory, 0);
 
         KmDebugMessage("[INIT] IOAPIC ", i, " ID: ", ioapic.id(), ", Version: ", ioapic.version(), "\n");
         KmDebugMessage("[INIT] ISR base: ", ioapic.isrBase(), ", Inputs: ", ioapic.inputCount(), "\n");
@@ -966,19 +988,17 @@ void KmLaunchEx(boot::LaunchInfo launch) {
 
     pci::ProbeConfigSpace();
 
-    InitSmp(*stage2Memory, lapic.pointer(), rsdt);
+    InitSmp(*stage2->memory, lapic.pointer(), rsdt);
     SetDebugLogLock(DebugLogLockType::eRecursiveSpinLock);
 
     // Setup gdt that contains a TSS for this core
     SetupApGdt();
 
-    km::SetupUserMode(*stage2Memory);
+    km::SetupUserMode(*stage2->memory);
 
     std::span init = GetInitProgram();
 
-    void *initMemory = stage2Memory->allocate(0x8000);
-    mem::TlsfAllocator allocator(initMemory, 0x8000);
-    auto process = LoadElf(init, "init.elf", 1, *stage2Memory, &allocator);
+    auto process = LoadElf(init, "init.elf", 1, *stage2->memory, &stage2->allocator);
     KM_CHECK(process.has_value(), "Failed to load init.elf");
 
     DateTime time = ReadRtc();

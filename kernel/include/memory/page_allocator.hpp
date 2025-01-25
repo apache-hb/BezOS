@@ -76,7 +76,7 @@ namespace km {
         using RegionList = stdx::Vector<RegionBitmapAllocator>;
         void BuildMemoryRanges(
             RegionList& allocators, RegionList& lowMemory,
-            const SystemMemoryLayout *layout, uint8_t *bitmap
+            const boot::MemoryMap& layout, uint8_t *bitmap
         );
 
         void MergeAdjacentAllocators(RegionList& allocators);
@@ -92,7 +92,7 @@ namespace km {
         std::unique_ptr<uint8_t[], mem::AllocatorDeleter<uint8_t>> mBitmapMemory;
 
     public:
-        PageAllocator(const SystemMemoryLayout *layout, mem::IAllocator *allocator);
+        PageAllocator(const boot::MemoryMap& memmap, mem::IAllocator *allocator);
 
         /// @brief Rebuild the internal allocators.
         ///

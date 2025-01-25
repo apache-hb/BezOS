@@ -1,4 +1,3 @@
-#include "log.hpp"
 #include "memory/page_allocator.hpp"
 #include "util/bits.hpp"
 

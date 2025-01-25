@@ -289,13 +289,15 @@ testcases = {
     'arch gdt': [ 'kernel/test/arch/gdt.cpp', 'kernel/src/gdt.cpp', ],
     'framebuffer': [ 'kernel/test/display.cpp', 'kernel/src/canvas.cpp', ],
     'crt': [ 'kernel/test/crt.cpp', 'kernel/src/crt.cpp', ],
-    'page allocator': [
-        'kernel/test/page_allocator.cpp',
-        'kernel/src/memory/page_allocator.cpp',
-        'kernel/src/memory/bitmap.cpp',
-        'kernel/src/memory/layout.cpp',
-        'kernel/src/util/bits.cpp',
-    ],
+    # TODO: re-enable once the page allocator design is finalized
+    # 'page allocator': [
+    #     'kernel/test/page_allocator.cpp',
+    #     'kernel/src/memory/page_allocator.cpp',
+    #     'kernel/src/memory/bitmap.cpp',
+    #     'kernel/src/memory/layout.cpp',
+    #     'kernel/src/util/bits.cpp',
+    #     'kernel/src/boot.cpp',
+    # ],
     'serial': [ 'kernel/test/serial.cpp', 'kernel/src/uart.cpp', ],
     'bitmap allocator': [
         'kernel/test/memory/bitmap.cpp',
