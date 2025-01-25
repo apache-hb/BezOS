@@ -272,7 +272,6 @@ static void WriteMemoryMap(const boot::MemoryMap& memmap) {
 }
 
 static constexpr size_t kStage1AllocMinSize = sm::megabytes(1).bytes();
-static constexpr size_t kLowMemory = sm::megabytes(1).bytes();
 static constexpr size_t kComittedRegionSize = sm::megabytes(16).bytes();
 
 struct KernelLayout {

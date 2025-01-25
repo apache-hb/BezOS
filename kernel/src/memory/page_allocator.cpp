@@ -1,6 +1,5 @@
 #include "memory/page_allocator.hpp"
 
-#include "log.hpp"
 #include "memory/layout.hpp"
 
 #include <climits>
@@ -23,8 +22,6 @@ static size_t GetBitmapSize(const SystemMemoryLayout *layout) {
 
     return size;
 }
-
-static constexpr PhysicalAddress kLowMemory = sm::megabytes(1).bytes();
 
 void detail::BuildMemoryRanges(RegionList& allocators, RegionList& lowMemory, const SystemMemoryLayout *layout, uint8_t *bitmap) {
     size_t offset = 0;

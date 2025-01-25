@@ -6,9 +6,14 @@
 #include "std/vector.hpp"
 
 namespace km {
-    struct SystemMemoryLayout {
-        static constexpr size_t kMaxRanges = 64;
+    static constexpr size_t kLowMemory = sm::megabytes(1).bytes();
 
+    namespace detail {
+        void SortMemoryRanges(std::span<MemoryRange> ranges);
+        void MergeMemoryRanges(stdx::Vector<MemoryRange>& ranges);
+    }
+
+    struct SystemMemoryLayout {
         stdx::Vector<MemoryRange> available;
         stdx::Vector<MemoryRange> reclaimable;
 
@@ -24,9 +29,4 @@ namespace km {
 
         static SystemMemoryLayout from(std::span<const boot::MemoryRegion> memmap, mem::IAllocator *allocator [[gnu::nonnull]]);
     };
-
-    namespace detail {
-        void SortMemoryRanges(std::span<MemoryRange> ranges);
-        void MergeMemoryRanges(stdx::Vector<MemoryRange>& ranges);
-    }
 }
