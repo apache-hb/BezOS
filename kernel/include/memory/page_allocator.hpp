@@ -74,6 +74,8 @@ namespace km {
 
     namespace detail {
         using RegionList = stdx::Vector<RegionBitmapAllocator>;
+        using RegionFreeList = stdx::Vector<MemoryRange>;
+
         void BuildMemoryRanges(
             RegionList& allocators, RegionList& lowMemory,
             const boot::MemoryMap& layout, uint8_t *bitmap
@@ -83,6 +85,9 @@ namespace km {
     }
 
     class PageAllocator {
+        detail::RegionFreeList mMemoryFree;
+        detail::RegionFreeList mLowMemoryFree;
+
         /// @brief One allocator for each usable or reclaimable memory range.
         detail::RegionList mAllocators;
 

@@ -515,19 +515,18 @@ static void MapDisplayRegions(PageTableManager& vmm, std::span<const boot::Frame
     }
 }
 
-static void MapKernelRegions(SystemMemory *memory, const KernelLayout& layout) {
+static void MapKernelRegions(PageTableManager &vmm, const KernelLayout& layout) {
     auto [kernelVirtualBase, kernelPhysicalBase, _] = layout.kernel;
-    KmMapKernel(memory->vmm, kernelPhysicalBase, kernelVirtualBase);
+    KmMapKernel(vmm, kernelPhysicalBase, kernelVirtualBase);
 }
 
-static void MapDataRegion(SystemMemory *memory, km::AddressMapping mapping) {
-    memory->vmm.map(mapping, PageFlags::eData);
+static void MapDataRegion(PageTableManager &vmm, km::AddressMapping mapping) {
+    vmm.map(mapping, PageFlags::eData);
 }
 
 /// Everything in this structure is owned by the stage1 memory allocator.
 /// Once that allocator is destroyed this memory is no longer mapped.
 struct Stage1MemoryInfo {
-    SystemMemory *memory;
     MemoryMap *earlyMemory;
     KernelLayout layout;
     std::span<boot::FrameBuffer> framebuffers;
@@ -564,30 +563,26 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
 
     boot::FrameBuffer *framebuffers = CloneFrameBuffers(alloc, launch.framebuffers);
 
-    SystemMemory *memory = alloc->construct<SystemMemory>(boot::MemoryMap{earlyMemory->memmap}, pm, &earlyMemory->allocator);
-
-    memory->pmm.markUsed(earlyRegion.physicalRange());
-    memory->pmm.markUsed(layout.comitted.physicalRange());
-    memory->pmm.markUsed(stackMapping.physicalRange());
+    PageTableManager vmm(&pm, &earlyMemory->allocator);
 
     // initialize our own page tables and remap everything into it
-    MapKernelRegions(memory, layout);
+    MapKernelRegions(vmm, layout);
 
     // move our stack out of reclaimable memory
-    MapDataRegion(memory, stackMapping);
+    MapDataRegion(vmm, stackMapping);
 
     // map the early allocator region
-    MapDataRegion(memory, earlyRegion);
+    MapDataRegion(vmm, earlyRegion);
 
     // map the non-pageable memory
-    MapDataRegion(memory, layout.comitted);
+    MapDataRegion(vmm, layout.comitted);
 
     // remap framebuffers
 
-    MapDisplayRegions(memory->vmm, launch.framebuffers, layout.framebuffers);
+    MapDisplayRegions(vmm, launch.framebuffers, layout.framebuffers);
 
     // once it is safe to remap the boot memory, do so
-    KmUpdateRootPageTable(memory->pager, memory->vmm);
+    KmUpdateRootPageTable(pm, vmm);
 
     // can't log anything here as we need to move the framebuffer first
 
@@ -598,7 +593,7 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
             .setAddress(layout.getFrameBuffer(launch.framebuffers, 0));
     }
 
-    return Stage1MemoryInfo { memory, earlyMemory, layout, std::span(framebuffers, launch.framebuffers.size()) };
+    return Stage1MemoryInfo { earlyMemory, layout, std::span(framebuffers, launch.framebuffers.size()) };
 }
 
 struct Stage2MemoryInfo {
@@ -632,21 +627,19 @@ static Stage2MemoryInfo *InitStage2Memory(
     stage2->memory = memory;
     stage2->layout = layout;
 
-    WriteMemoryMap(boot::MemoryMap{earlyMemory->memmap});
-
     // carry forward the mappings made in stage 1
     // that are still required for kernel runtime
     memory->pmm.markUsed(stackMapping.physicalRange());
     memory->pmm.markUsed(layout.comitted.physicalRange());
 
     // initialize our own page tables and remap everything into it
-    MapKernelRegions(memory, layout);
+    MapKernelRegions(memory->vmm, layout);
 
     // map the stack again
-    MapDataRegion(memory, stackMapping);
+    MapDataRegion(memory->vmm, stackMapping);
 
     // carry forward the non-pageable memory
-    MapDataRegion(memory, layout.comitted);
+    MapDataRegion(memory->vmm, layout.comitted);
 
     // remap framebuffers
     MapDisplayRegions(memory->vmm, framebuffers, layout.framebuffers);
