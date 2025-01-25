@@ -70,4 +70,4 @@ void KmMapKernel(km::PageTableManager& vmm, km::PhysicalAddress paddr, const voi
 /// @brief Reclaim bootloader memory.
 /// @param pm The page manager
 /// @param vmm The virtual memory manager
-void KmReclaimBootMemory(const km::PageBuilder& pm, km::PageTableManager& vmm);
+void KmUpdateRootPageTable(const km::PageBuilder& pm, km::PageTableManager& vmm);

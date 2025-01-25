@@ -21,7 +21,10 @@ enable_aml = false
 cc = meson.get_compiler('c')
 cpp = meson.get_compiler('cpp')
 
-inc = include_directories('kernel/include', 'kernel/subprojects/tlsf/include')
+inc = include_directories(
+    'kernel/include',
+    'kernel/subprojects/tlsf/include',
+)
 
 common_args = [
     '-fmacro-prefix-map=../=/',
@@ -183,14 +186,14 @@ endif
 
 kernel = static_library('kernel', src,
     include_directories : inc,
-    c_args : c_args + [ '-mllvm', '-asm-macro-max-nesting-depth=256' ],
-    cpp_args : cpp_args,
+    c_args : c_args + [ '-mllvm', '-asm-macro-max-nesting-depth=256', '-D__BEZOS__=1' ],
+    cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
     override_options : [ 'b_coverage=false' ],
 )
 
 executable('bezos', 'kernel/src/boot/limine.cpp',
-    c_args : c_args,
-    cpp_args : cpp_args,
+    c_args : c_args + [ '-D__BEZOS__=1' ],
+    cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
     include_directories : inc,
     link_with : kernel,
     dependencies : [ limine ],

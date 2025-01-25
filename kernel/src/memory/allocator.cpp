@@ -278,8 +278,7 @@ void KmMapKernel(km::PageTableManager& vmm, km::PhysicalAddress paddr, const voi
     MapKernelPages(vmm, paddr, vaddr);
 }
 
-void KmReclaimBootMemory(const km::PageBuilder& pm, km::PageTableManager& vmm) {
-    // then apply the new page tables
+void KmUpdateRootPageTable(const km::PageBuilder& pm, km::PageTableManager& vmm) {
     KmDebugMessage("[INIT] PML4: ", vmm.rootPageTable(), "\n");
     pm.setActiveMap(vmm.rootPageTable());
 }
