@@ -7,11 +7,13 @@
 
 namespace km {
     struct SystemMemory {
+        mem::IAllocator *allocator;
         PageBuilder pager;
         PageAllocator pmm;
-        PageTableManager vmm;
+        PageTableManager pt;
+        VirtualAllocator vmm;
 
-        SystemMemory(const boot::MemoryMap& memmap, PageBuilder pm, mem::IAllocator *allocator);
+        SystemMemory(const boot::MemoryMap& memmap, VirtualRange systemArea, PageBuilder pm, mem::IAllocator *allocator);
 
         void *allocate(
             size_t size,

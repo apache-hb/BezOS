@@ -65,9 +65,7 @@ void detail::MergeAdjacentAllocators(RegionList& allocators) {
 }
 
 PageAllocator::PageAllocator(const boot::MemoryMap& memmap, mem::IAllocator *allocator)
-    : mMemoryFree(allocator)
-    , mLowMemoryFree(allocator)
-    , mAllocators(allocator)
+    : mAllocators(allocator)
     , mLowMemory(allocator)
     , mBitmapMemory((uint8_t*)allocator->allocate(GetBitmapSize(memmap)), allocator)
 {

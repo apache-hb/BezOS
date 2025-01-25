@@ -2,6 +2,8 @@
 
 #include "log.hpp"
 
+#include "std/static_vector.hpp"
+
 using namespace stdx::literals;
 
 bool km::PlatformInfo::isOracleVirtualBox() const {

@@ -1,7 +1,6 @@
 #pragma once
 
-#include "std/static_vector.hpp"
-
+#include "std/vector.hpp"
 #include "util/format.hpp"
 
 #include <algorithm>
@@ -44,10 +43,10 @@ namespace km {
     /// @brief Allocates virtual memory address space.
     class VirtualAllocator {
         /// @brief Ranges of memory that are still available.
-        stdx::StaticVector<VirtualRange, 32> mAvailable;
+        stdx::Vector<VirtualRange> mAvailable;
 
     public:
-        VirtualAllocator(VirtualRange range);
+        VirtualAllocator(VirtualRange range, mem::IAllocator *allocator);
 
         void markUsed(VirtualRange range);
 

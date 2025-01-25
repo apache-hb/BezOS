@@ -8,8 +8,7 @@ static void SortRanges(std::span<km::VirtualRange> ranges) {
     });
 }
 
-template<size_t N>
-static void MergeRanges(stdx::StaticVector<km::VirtualRange, N>& ranges) {
+static void MergeRanges(stdx::Vector<km::VirtualRange>& ranges) {
     SortRanges(ranges);
     for (size_t i = 0; i < ranges.count(); i++) {
         km::VirtualRange& range = ranges[i];
@@ -24,9 +23,11 @@ static void MergeRanges(stdx::StaticVector<km::VirtualRange, N>& ranges) {
     }
 }
 
-km::VirtualAllocator::VirtualAllocator(VirtualRange range)
-    : mAvailable({ range })
-{ }
+km::VirtualAllocator::VirtualAllocator(VirtualRange range, mem::IAllocator *allocator)
+    : mAvailable(allocator)
+{
+    mAvailable.add(range);
+}
 
 void km::VirtualAllocator::markUsed(VirtualRange range) {
     for (size_t i = 0; i < mAvailable.count(); i++) {

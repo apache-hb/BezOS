@@ -29,6 +29,7 @@
 #include "pat.hpp"
 #include "processor.hpp"
 #include "smp.hpp"
+#include "std/static_vector.hpp"
 #include "syscall.hpp"
 #include "thread.hpp"
 #include "uart.hpp"
@@ -621,7 +622,7 @@ static Stage2MemoryInfo *InitStage2Memory(
     Stage2MemoryInfo *stage2 = alloc.construct<Stage2MemoryInfo>();
     stage2->allocator = std::move(alloc);
 
-    SystemMemory *memory = stage2->allocator.construct<SystemMemory>(boot::MemoryMap{earlyMemory->memmap}, pm, &stage2->allocator);
+    SystemMemory *memory = stage2->allocator.construct<SystemMemory>(boot::MemoryMap{earlyMemory->memmap}, stage1.layout.system, pm, &stage2->allocator);
     KM_CHECK(memory != nullptr, "Failed to allocate memory for SystemMemory.");
 
     stage2->memory = memory;
@@ -633,19 +634,19 @@ static Stage2MemoryInfo *InitStage2Memory(
     memory->pmm.markUsed(layout.comitted.physicalRange());
 
     // initialize our own page tables and remap everything into it
-    MapKernelRegions(memory->vmm, layout);
+    MapKernelRegions(memory->pt, layout);
 
     // map the stack again
-    MapDataRegion(memory->vmm, stackMapping);
+    MapDataRegion(memory->pt, stackMapping);
 
     // carry forward the non-pageable memory
-    MapDataRegion(memory->vmm, layout.comitted);
+    MapDataRegion(memory->pt, layout.comitted);
 
     // remap framebuffers
-    MapDisplayRegions(memory->vmm, framebuffers, layout.framebuffers);
+    MapDisplayRegions(memory->pt, framebuffers, layout.framebuffers);
 
     // once it is safe to remap the boot memory, do so
-    KmUpdateRootPageTable(memory->pager, memory->vmm);
+    KmUpdateRootPageTable(memory->pager, memory->pt);
 
     return stage2;
 }

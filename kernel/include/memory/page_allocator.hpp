@@ -1,6 +1,7 @@
 #pragma once
 
-#include "memory/layout.hpp"
+#include "boot.hpp"
+#include "memory/memory.hpp"
 
 namespace km {
     namespace detail {
@@ -85,9 +86,6 @@ namespace km {
     }
 
     class PageAllocator {
-        detail::RegionFreeList mMemoryFree;
-        detail::RegionFreeList mLowMemoryFree;
-
         /// @brief One allocator for each usable or reclaimable memory range.
         detail::RegionList mAllocators;
 
