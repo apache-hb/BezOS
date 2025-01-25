@@ -343,10 +343,6 @@ static size_t TotalDisplaySize(std::span<const boot::FrameBuffer> displays) {
     });
 }
 
-static constexpr bool IsLowMemory(km::MemoryRange range) {
-    return range.front < kLowMemory;
-}
-
 struct MemoryMap {
     mem::TlsfAllocator allocator;
     stdx::Vector<boot::MemoryRegion> memmap;

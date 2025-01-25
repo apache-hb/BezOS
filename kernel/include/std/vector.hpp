@@ -38,9 +38,16 @@ namespace stdx {
 
     public:
         using value_type = T;
-        
+
         ~Vector() {
             releaseMemory();
+        }
+
+        Vector(const T *front, const T *back, mem::IAllocator *allocator)
+            : Vector(allocator, back - front)
+        {
+            std::uninitialized_copy(front, back, mFront);
+            mBack = mFront + (back - front);
         }
 
         Vector(mem::IAllocator *allocator [[gnu::nonnull]])

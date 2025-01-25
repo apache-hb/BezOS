@@ -13,6 +13,10 @@ namespace km {
         void MergeMemoryRanges(stdx::Vector<MemoryRange>& ranges);
     }
 
+    constexpr bool IsLowMemory(km::MemoryRange range) {
+        return range.front < kLowMemory;
+    }
+
     struct SystemMemoryLayout {
         stdx::Vector<MemoryRange> available;
         stdx::Vector<MemoryRange> reclaimable;
