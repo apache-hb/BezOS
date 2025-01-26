@@ -24,6 +24,7 @@ cpp = meson.get_compiler('cpp')
 inc = include_directories(
     'kernel/include',
     'kernel/subprojects/tlsf/include',
+    'kernel/subprojects/concurrentqueue',
 )
 
 common_args = [
@@ -141,6 +142,8 @@ src = [
     'kernel/src/cmos.cpp',
     'kernel/src/thread.cpp',
     'kernel/src/user.S',
+
+    'kernel/src/schedule.cpp',
 
     # ACPI
     'kernel/src/acpi/acpi.cpp',

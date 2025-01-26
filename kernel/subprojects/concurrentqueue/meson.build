@@ -15,9 +15,3 @@ concurrentqueue_dep = declare_dependency(
     # like moodycamel/ConcurrentQueue
     include_directories: [include_directories('.')],
 )
-
-install_data(meson.project_license_files(),
-    install_dir : get_option('licensedir'),
-    rename : meson.project_name() + '.LICENSE.txt',
-    install_tag : 'legal',
-)

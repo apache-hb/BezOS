@@ -28,6 +28,7 @@
 #include "panic.hpp"
 #include "pat.hpp"
 #include "processor.hpp"
+#include "schedule.hpp"
 #include "smp.hpp"
 #include "std/static_vector.hpp"
 #include "syscall.hpp"
@@ -910,6 +911,24 @@ static void NormalizeProcessorState() {
     kGsBase.store(0);
 }
 
+static constinit mem::IAllocator *gAllocator = nullptr;
+
+extern "C" void *malloc(size_t size) {
+    return gAllocator->allocate(size);
+}
+
+extern "C" void *realloc(void *old, size_t size) {
+    return gAllocator->reallocate(old, 0, size);
+}
+
+extern "C" void free(void *ptr) {
+    gAllocator->deallocate(ptr, 0);
+}
+
+extern void operator delete(void *ptr, size_t size) noexcept {
+    gAllocator->deallocate(ptr, size);
+}
+
 void KmLaunchEx(boot::LaunchInfo launch) {
     NormalizeProcessorState();
 
@@ -952,6 +971,8 @@ void KmLaunchEx(boot::LaunchInfo launch) {
     Stage1MemoryInfo stage1 = InitStage1Memory(launch, processor);
     Stage2MemoryInfo *stage2 = InitStage2Memory(launch, processor, stage1);
 
+    gAllocator = &stage2->allocator;
+
     PlatformInfo platform = GetPlatformInfo(launch.smbios32Address, launch.smbios64Address, *stage2->memory);
 
     // On Oracle VirtualBox the COM1 port is functional but fails the loopback test.
@@ -991,6 +1012,8 @@ void KmLaunchEx(boot::LaunchInfo launch) {
     SetupApGdt();
 
     km::SetupUserMode(*stage2->memory);
+
+    Scheduler scheduler;
 
     std::span init = GetInitProgram();
 

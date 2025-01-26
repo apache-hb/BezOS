@@ -4,7 +4,7 @@
 #include "crt.hpp"
 #include "panic.hpp"
 
-extern "C" [[noreturn]] void abort() {
+extern "C" void abort() {
     KM_PANIC("abort() called");
 }
 
