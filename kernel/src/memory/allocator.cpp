@@ -150,7 +150,7 @@ void PageTableManager::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags
 
     x64::pte& t1 = pt->entries[pte];
     mPageManager->setMemoryType(t1, type);
-    setEntryFlags(t1, flags, paddr.address);
+    setEntryFlags(t1, flags, paddr);
 }
 
 void PageTableManager::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type) {
@@ -166,7 +166,7 @@ void PageTableManager::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags
     x64::pde& t2 = l2->entries[pdte];
     t2.set2m(true);
     mPageManager->setMemoryType(t2, type);
-    setEntryFlags(t2, flags, paddr.address);
+    setEntryFlags(t2, flags, paddr);
 }
 
 void PageTableManager::mapRange(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type) {

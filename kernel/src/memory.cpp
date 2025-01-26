@@ -1,6 +1,5 @@
 #include "memory.hpp"
 
-
 km::SystemMemory::SystemMemory(const boot::MemoryMap& memmap, VirtualRange systemArea, PageBuilder pm, mem::IAllocator *alloc)
     : allocator(alloc)
     , pager(pm)
@@ -30,10 +29,17 @@ void km::SystemMemory::unmap(void *ptr, size_t size) {
 }
 
 void *km::SystemMemory::map(PhysicalAddress begin, PhysicalAddress end, PageFlags flags, MemoryType type) {
+    // I may be asked to map a range that is not page aligned
+    // so I need to save the offset to apply to the virtual address before giving it back.
+    uintptr_t offset = (begin.address & 0xFFF);
+
     MemoryRange range { begin, end };
 
-    void *vaddr = { (void*)(begin.address + pager.hhdmOffset()) };
+
+    void *vaddr = vmm.alloc4k(pages(range.size()));
     pt.mapRange(range, vaddr, flags, type);
     pmm.markUsed(range);
-    return vaddr;
+
+    // Apply the offset to the virtual address
+    return (void*)((uintptr_t)vaddr + offset);
 }

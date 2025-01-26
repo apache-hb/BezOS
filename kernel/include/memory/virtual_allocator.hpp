@@ -32,6 +32,10 @@ namespace km {
             return range.front >= front && range.back <= back;
         }
 
+        bool isEmpty() const {
+            return front == back;
+        }
+
         constexpr bool operator==(const VirtualRange& other) const = default;
         constexpr bool operator!=(const VirtualRange& other) const = default;
     };

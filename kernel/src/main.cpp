@@ -273,7 +273,7 @@ static void WriteMemoryMap(const boot::MemoryMap& memmap) {
 }
 
 static constexpr size_t kStage1AllocMinSize = sm::megabytes(1).bytes();
-static constexpr size_t kComittedRegionSize = sm::megabytes(16).bytes();
+static constexpr size_t kCommittedRegionSize = sm::megabytes(16).bytes();
 
 struct KernelLayout {
     /// @brief Virtual address space reserved for the kernel.
@@ -281,7 +281,7 @@ struct KernelLayout {
     VirtualRange system;
 
     /// @brief Non-pageable memory.
-    AddressMapping comitted;
+    AddressMapping committed;
 
     /// @brief All framebuffers.
     VirtualRange framebuffers;
@@ -300,7 +300,7 @@ struct KernelLayout {
     }
 
     uintptr_t committedSlide() const {
-        return comitted.slide();
+        return committed.slide();
     }
 };
 
@@ -414,33 +414,34 @@ static KernelLayout BuildKernelLayout(
     uintptr_t dataBack = -(1ull << (vaddrbits - 1));
     uintptr_t dataFront = -(1ull << (vaddrbits - 2));
 
-    VirtualRange data = { (void*)dataFront, (void*)dataBack };
+    VirtualRange data = { (void*)dataBack, (void*)dataFront };
 
     AddressSpaceBuilder builder { dataFront };
 
-    VirtualRange framebuffers = builder.reserve(framebuffersSize);
-    km::MemoryRange comittedPhysicalMemory = memory.reserve(kComittedRegionSize);
-    if (comittedPhysicalMemory.isEmpty()) {
+    km::MemoryRange committedPhysicalMemory = memory.reserve(kCommittedRegionSize);
+    if (committedPhysicalMemory.isEmpty()) {
         WriteMemoryMap(boot::MemoryMap{memory.memmap});
-        KmDebugMessage("[INIT] Failed to reserve memory for committed region ", sm::bytes(kComittedRegionSize), ".\n");
+        KmDebugMessage("[INIT] Failed to reserve memory for committed region ", sm::bytes(kCommittedRegionSize), ".\n");
         KM_PANIC("Failed to reserve memory for committed region.");
     }
 
-    VirtualRange comittedVirtualRange = builder.reserve(kComittedRegionSize);
+    VirtualRange committedVirtualRange = builder.reserve(kCommittedRegionSize);
 
-    km::AddressMapping stage2 = { comittedVirtualRange.front, comittedPhysicalMemory.front, kComittedRegionSize };
+    VirtualRange framebuffers = builder.reserve(framebuffersSize);
+
+    km::AddressMapping committed = { committedVirtualRange.front, committedPhysicalMemory.front, kCommittedRegionSize };
 
     AddressMapping kernel = { kernelVirtualBase, kernelPhysicalBase, GetKernelSize() };
 
     KmDebugMessage("[INIT] Kernel layout:\n");
     KmDebugMessage("[INIT] Data         : ", data, "\n");
+    KmDebugMessage("[INIT] Committed    : ", committed, "\n");
     KmDebugMessage("[INIT] Framebuffers : ", framebuffers, "\n");
-    KmDebugMessage("[INIT] Committed    : ", stage2, "\n");
     KmDebugMessage("[INIT] Kernel       : ", kernel, "\n");
 
     KernelLayout layout = {
         .system = data,
-        .comitted = stage2,
+        .committed = committed,
         .framebuffers = framebuffers,
         .kernel = kernel,
     };
@@ -576,7 +577,7 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
     MapDataRegion(vmm, earlyRegion);
 
     // map the non-pageable memory
-    MapDataRegion(vmm, layout.comitted);
+    MapDataRegion(vmm, layout.committed);
 
     // remap framebuffers
 
@@ -617,7 +618,7 @@ static Stage2MemoryInfo *InitStage2Memory(
     km::AddressMapping stackMapping = { (void*)((uintptr_t)stack.vaddr - stack.size), stack.paddr - stack.size, stack.size };
 
     // Create the global memory allocator
-    mem::TlsfAllocator alloc{(void*)layout.comitted.vaddr, layout.comitted.size};
+    mem::TlsfAllocator alloc{(void*)layout.committed.vaddr, layout.committed.size};
 
     Stage2MemoryInfo *stage2 = alloc.construct<Stage2MemoryInfo>();
     stage2->allocator = std::move(alloc);
@@ -631,7 +632,7 @@ static Stage2MemoryInfo *InitStage2Memory(
     // carry forward the mappings made in stage 1
     // that are still required for kernel runtime
     memory->pmm.markUsed(stackMapping.physicalRange());
-    memory->pmm.markUsed(layout.comitted.physicalRange());
+    memory->pmm.markUsed(layout.committed.physicalRange());
 
     // initialize our own page tables and remap everything into it
     MapKernelRegions(memory->pt, layout);
@@ -640,7 +641,7 @@ static Stage2MemoryInfo *InitStage2Memory(
     MapDataRegion(memory->pt, stackMapping);
 
     // carry forward the non-pageable memory
-    MapDataRegion(memory->pt, layout.comitted);
+    MapDataRegion(memory->pt, layout.committed);
 
     // remap framebuffers
     MapDisplayRegions(memory->pt, framebuffers, layout.framebuffers);
@@ -839,8 +840,7 @@ static std::span<const uint8_t> GetInitProgram() {
 }
 
 static void LogSystemInfo(
-    uintptr_t hhdmOffset,
-    std::span<const boot::FrameBuffer> framebuffers,
+    const boot::LaunchInfo& launch,
     std::optional<HypervisorInfo> hvInfo,
     ProcessorInfo processor,
     bool hasDebugPort,
@@ -848,7 +848,7 @@ static void LogSystemInfo(
     const ComPortInfo& com1Info) {
     KmDebugMessage("[INIT] CR0: ", x64::Cr0::load(), "\n");
     KmDebugMessage("[INIT] CR4: ", x64::Cr4::load(), "\n");
-    KmDebugMessage("[INIT] HHDM: ", Hex(hhdmOffset).pad(16, '0'), "\n");
+    KmDebugMessage("[INIT] HHDM: ", Hex(launch.hhdmOffset).pad(16, '0'), "\n");
 
     KmDebugMessage("[INIT] System report.\n");
     KmDebugMessage("| Component     | Property             | Status\n");
@@ -882,9 +882,11 @@ static void LogSystemInfo(
     KmDebugMessage("| /SYS/MB/CPU0  | Bus frequency        | ", processor.busFrequency, "mhz\n");
     KmDebugMessage("| /SYS/MB/CPU0  | Local APIC           | ", present(processor.hasLocalApic), "\n");
     KmDebugMessage("| /SYS/MB/CPU0  | 2x APIC              | ", present(processor.has2xApic), "\n");
+    KmDebugMessage("| /SYS/MB/CPU0  | SMBIOS 32 address    | ", launch.smbios32Address, "\n");
+    KmDebugMessage("| /SYS/MB/CPU0  | SMBIOS 64 address    | ", launch.smbios64Address, "\n");
 
-    for (size_t i = 0; i < framebuffers.size(); i++) {
-        const boot::FrameBuffer& display = framebuffers[i];
+    for (size_t i = 0; i < launch.framebuffers.size(); i++) {
+        const boot::FrameBuffer& display = launch.framebuffers[i];
         KmDebugMessage("| /SYS/VIDEO", i, "   | Display resolution   | ", display.width, "x", display.height, "x", display.bpp, "\n");
         KmDebugMessage("| /SYS/VIDEO", i, "   | Framebuffer size     | ", sm::bytes(display.size()), "\n");
         KmDebugMessage("| /SYS/VIDEO", i, "   | Framebuffer address  | ", display.vaddr, "\n");
@@ -937,7 +939,7 @@ void KmLaunchEx(boot::LaunchInfo launch) {
 
     SerialPortStatus com1Status = InitSerialPort(com1Info);
 
-    LogSystemInfo(launch.hhdmOffset, launch.framebuffers, hvInfo, processor, hasDebugPort, com1Status, com1Info);
+    LogSystemInfo(launch, hvInfo, processor, hasDebugPort, com1Status, com1Info);
 
     gBootGdt = GetBootGdt();
     SetupInitialGdt();

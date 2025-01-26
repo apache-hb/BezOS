@@ -180,7 +180,7 @@ void km::InitSmp(km::SystemMemory& memory, km::IApic *bsp, acpi::AcpiTables& acp
 
     // Now that we're finished, cleanup the smp blob and startup area.
 
-    // Unmap the HHDM mappings
+    // Unmap the smp blob and info regions
     memory.unmap(smpStartBlob, blobSize);
     memory.unmap(smpInfo, sizeof(SmpInfoHeader));
 

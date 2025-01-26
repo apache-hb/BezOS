@@ -33,6 +33,12 @@ void km::VirtualAllocator::markUsed(VirtualRange range) {
     for (size_t i = 0; i < mAvailable.count(); i++) {
         VirtualRange& available = mAvailable[i];
 
+        if (available.isEmpty()) {
+            mAvailable.remove(i);
+            i--;
+            continue;
+        }
+
         if (available.contains(range)) {
             // if this range is fully contained in another range
             // then split the range

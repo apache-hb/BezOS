@@ -249,7 +249,7 @@ namespace km {
 template<>
 struct km::Format<km::AddressMapping> {
     static void format(km::IOutStream& out, km::AddressMapping value) {
-        out.format(value.vaddr, " -> ", value.paddr, " (", sm::bytes(value.size), ")");
+        out.format(value.virtualRange(), " -> ", value.physicalRange(), " (", sm::bytes(value.size), ")");
     }
 };
 

@@ -298,6 +298,15 @@ testcases = {
     #     'kernel/src/util/bits.cpp',
     #     'kernel/src/boot.cpp',
     # ],
+    'virtual allocator': [
+        'kernel/test/memory/virtual_allocator.cpp',
+        'kernel/src/memory/virtual_allocator.cpp',
+        'kernel/src/memory/page_allocator.cpp',
+        'kernel/src/memory/bitmap.cpp',
+        'kernel/src/memory/layout.cpp',
+        'kernel/src/util/bits.cpp',
+        'kernel/src/boot.cpp',
+    ],
     'serial': [ 'kernel/test/serial.cpp', 'kernel/src/uart.cpp', ],
     'bitmap allocator': [
         'kernel/test/memory/bitmap.cpp',
