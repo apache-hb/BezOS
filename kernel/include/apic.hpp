@@ -43,6 +43,17 @@ namespace km {
             eLocalApic,
             eX2Apic,
         };
+
+        // apic register offsets
+
+        static constexpr uint16_t kApicVersion = 0x3;
+        static constexpr uint16_t kEndOfInt = 0xB;
+        static constexpr uint16_t kSpuriousInt = 0xF;
+        static constexpr uint16_t kTimerLvt = 0x32;
+        static constexpr uint16_t kTaskPriority = 0x8;
+
+        static constexpr uint16_t kIcr1 = 0x31;
+        static constexpr uint16_t kIcr0 = 0x30;
     }
 
     void EnableX2Apic();
@@ -50,6 +61,8 @@ namespace km {
     bool IsX2ApicEnabled();
 
     class IApic {
+        void maskTaskPriority();
+        void enableSpuriousInt();
     public:
         void operator delete(IApic*, std::destroying_delete_t) {
             std::unreachable();
@@ -57,13 +70,17 @@ namespace km {
 
         virtual ~IApic() = default;
 
+        virtual uint32_t read(uint16_t offset) const = 0;
+        virtual void write(uint16_t offset, uint32_t value) = 0;
+
         virtual uint32_t id() const = 0;
-        virtual uint32_t version() const = 0;
         virtual apic::Type type() const = 0;
 
-        virtual void eoi() = 0;
-
         virtual void sendIpi(uint32_t dst, uint32_t vector) = 0;
+
+        uint32_t version() const;
+
+        void eoi();
 
         void sendIpi(apic::IcrDeliver deliver, uint8_t vector);
 
@@ -74,26 +91,24 @@ namespace km {
         virtual void cfgIvtLvt1(apic::IvtConfig) { }
         virtual void cfgIvtError(apic::IvtConfig) { }
 
-        virtual void enable() = 0;
-        virtual void setSpuriousVector(uint8_t vector) = 0;
+        void enable();
+
+        void setSpuriousVector(uint8_t vector);
     };
 
     class X2Apic final : public IApic {
+        uint32_t read(uint16_t offset) const override;
+        void write(uint16_t offset, uint32_t value) override;
+
     public:
         constexpr X2Apic() = default;
 
         static X2Apic get() { return X2Apic(); }
 
         uint32_t id() const override;
-        uint32_t version() const override;
         apic::Type type() const override { return apic::Type::eX2Apic; }
 
-        void eoi() override;
-
         void sendIpi(uint32_t dst, uint32_t vector) override;
-
-        void enable() override;
-        void setSpuriousVector(uint8_t vector) override;
     };
 
     class LocalApic final : public IApic {
@@ -106,19 +121,12 @@ namespace km {
         static constexpr uint32_t kIcr1 = 0x310;
         static constexpr uint32_t kIcr0 = 0x300;
 
-        static constexpr uint32_t kIvtDisable = (1 << 16);
-
         void *mBaseAddress = nullptr;
 
         volatile uint32_t& reg(uint16_t offset) const;
 
-        void setSpuriousInt(uint32_t value) {
-            reg(kSpuriousInt) = value;
-        }
-
-        uint32_t spuriousInt() const {
-            return reg(kSpuriousInt);
-        }
+        uint32_t read(uint16_t offset) const override;
+        void write(uint16_t offset, uint32_t value) override;
 
     public:
         constexpr LocalApic() = default;
@@ -128,7 +136,6 @@ namespace km {
         { }
 
         uint32_t id() const override;
-        uint32_t version() const override;
         apic::Type type() const override { return apic::Type::eLocalApic; }
 
         void sendIpi(uint32_t dst, uint32_t vector) override;
@@ -142,12 +149,6 @@ namespace km {
 
             reg(std::to_underlying(ivt)) = entry;
         }
-
-        void eoi() override;
-
-        void enable() override;
-
-        void setSpuriousVector(uint8_t vector) override;
 
         void *baseAddress(void) const { return mBaseAddress; }
     };

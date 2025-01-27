@@ -23,16 +23,12 @@ static constexpr x64::ModelRegister<0x1b, x64::RegisterAccess::eReadWrite> kApic
 static constexpr uint16_t k2xApicBaseMsr = 0x800;
 
 static constexpr x64::ModelRegister<k2xApicBaseMsr + 0x2, x64::RegisterAccess::eRead> k2xApicId;
-static constexpr x64::ModelRegister<k2xApicBaseMsr + 0x3, x64::RegisterAccess::eRead> k2xApicVersion;
-static constexpr x64::ModelRegister<k2xApicBaseMsr + 0xB, x64::RegisterAccess::eWrite> k2xApicEoi;
-static constexpr x64::ModelRegister<k2xApicBaseMsr + 0xF, x64::RegisterAccess::eReadWrite> k2xApicSpuriousVector;
 static constexpr x64::ModelRegister<k2xApicBaseMsr + 0x30, x64::RegisterAccess::eWrite> k2xApicIcr;
 
 static constexpr uint64_t kApicAddressMask = 0xFFFFFFFFFFFFF000;
 static constexpr uint64_t kApicEnableBit = (1 << 11);
 static constexpr uint32_t kX2ApicEnableBit = (1 << 10);
 static constexpr uint64_t kApicBspBit = (1 << 8);
-
 static constexpr uint32_t kApicSoftwareEnable = (1 << 8);
 
 static void Disable8259Pic() {
@@ -102,29 +98,21 @@ bool km::IsX2ApicEnabled() {
 
 // x2apic methods
 
+uint32_t km::X2Apic::read(uint16_t offset) const {
+    return __rdmsr(k2xApicBaseMsr + offset) & UINT32_MAX;
+}
+
+void km::X2Apic::write(uint16_t offset, uint32_t value) {
+    __wrmsr(k2xApicBaseMsr + offset, value);
+}
+
 uint32_t km::X2Apic::id() const {
     return k2xApicId.load();
-}
-
-uint32_t km::X2Apic::version() const {
-    return k2xApicVersion.load() & 0xFF;
-}
-
-void km::X2Apic::eoi() {
-    k2xApicEoi.store(0);
 }
 
 void km::X2Apic::sendIpi(uint32_t dst, uint32_t vector) {
     uint64_t icr = uint64_t(dst) << 32 | vector;
     k2xApicIcr.store(icr);
-}
-
-void km::X2Apic::enable() {
-    k2xApicSpuriousVector |= kApicSoftwareEnable;
-}
-
-void km::X2Apic::setSpuriousVector(uint8_t vector) {
-    k2xApicSpuriousVector.store((k2xApicSpuriousVector.load() & ~0xFF) | vector);
 }
 
 // local apic free functions
@@ -169,13 +157,17 @@ volatile uint32_t& km::LocalApic::reg(uint16_t offset) const {
     return *reinterpret_cast<volatile uint32_t*>((char*)mBaseAddress + offset);
 }
 
+uint32_t km::LocalApic::read(uint16_t offset) const {
+    return reg(offset << 4);
+}
+
+void km::LocalApic::write(uint16_t offset, uint32_t value) {
+    reg(offset << 4) = value;
+}
+
 uint32_t km::LocalApic::id() const {
     uint32_t id = reg(kApicId);
     return id >> 24;
-}
-
-uint32_t km::LocalApic::version() const {
-    return reg(kApicVersion) & 0xFF;
 }
 
 void km::LocalApic::sendIpi(uint32_t dst, uint32_t vector) {
@@ -183,20 +175,41 @@ void km::LocalApic::sendIpi(uint32_t dst, uint32_t vector) {
     reg(kIcr0) = vector;
 }
 
-void km::LocalApic::eoi() {
-    reg(kEndOfInt) = 0;
-}
-
-void km::LocalApic::enable() {
-    setSpuriousInt(spuriousInt() | kApicSoftwareEnable);
-}
-
-void km::LocalApic::setSpuriousVector(uint8_t vector) {
-    setSpuriousInt((spuriousInt() & ~0xFF) | vector);
-}
+// generic apic methods
 
 void km::IApic::sendIpi(apic::IcrDeliver deliver, uint8_t vector) {
     sendIpi(0, (std::to_underlying(deliver) << 18) | vector);
+}
+
+uint32_t km::IApic::version() const {
+    return read(apic::kApicVersion) & 0xFF;
+}
+
+void km::IApic::eoi() {
+    write(apic::kEndOfInt, 0);
+}
+
+void km::IApic::maskTaskPriority() {
+    uint32_t value = read(apic::kTaskPriority);
+    value |= 0x10;
+    write(apic::kTaskPriority, value);
+}
+
+void km::IApic::enableSpuriousInt() {
+    uint32_t value = read(apic::kSpuriousInt);
+    value |= kApicSoftwareEnable;
+    write(apic::kSpuriousInt, value);
+}
+
+void km::IApic::enable() {
+    maskTaskPriority();
+    enableSpuriousInt();
+}
+
+void km::IApic::setSpuriousVector(uint8_t vector) {
+    uint32_t value = read(apic::kSpuriousInt);
+    value = (value & ~0xFF) | vector;
+    write(apic::kSpuriousInt, value);
 }
 
 // generic apic free functions

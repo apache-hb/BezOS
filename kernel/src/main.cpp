@@ -30,6 +30,7 @@
 #include "processor.hpp"
 #include "schedule.hpp"
 #include "smp.hpp"
+#include "std/spinlock.hpp"
 #include "std/static_vector.hpp"
 #include "syscall.hpp"
 #include "thread.hpp"
@@ -912,20 +913,25 @@ static void NormalizeProcessorState() {
 }
 
 static constinit mem::IAllocator *gAllocator = nullptr;
+static constinit stdx::SpinLock gAllocatorLock;
 
 extern "C" void *malloc(size_t size) {
+    stdx::LockGuard _(gAllocatorLock);
     return gAllocator->allocate(size);
 }
 
 extern "C" void *realloc(void *old, size_t size) {
+    stdx::LockGuard _(gAllocatorLock);
     return gAllocator->reallocate(old, 0, size);
 }
 
 extern "C" void free(void *ptr) {
+    stdx::LockGuard _(gAllocatorLock);
     gAllocator->deallocate(ptr, 0);
 }
 
 extern void operator delete(void *ptr, size_t size) noexcept {
+    stdx::LockGuard _(gAllocatorLock);
     gAllocator->deallocate(ptr, size);
 }
 
@@ -970,7 +976,6 @@ void KmLaunchEx(boot::LaunchInfo launch) {
 
     Stage1MemoryInfo stage1 = InitStage1Memory(launch, processor);
     Stage2MemoryInfo *stage2 = InitStage2Memory(launch, processor, stage1);
-
     gAllocator = &stage2->allocator;
 
     PlatformInfo platform = GetPlatformInfo(launch.smbios32Address, launch.smbios64Address, *stage2->memory);
