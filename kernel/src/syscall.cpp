@@ -34,8 +34,6 @@ void km::SetupUserMode(mem::IAllocator *allocator) {
     tlsTaskState->rsp0 = (uintptr_t)rsp0 + kStackSize;
     tlsTaskState->ist1 = (uintptr_t)ist1 + kStackSize;
 
-    KmDebugMessage("rsp0: ", km::Hex(tlsTaskState->rsp0), ", ist1: ", km::Hex(tlsTaskState->ist1), "\n");
-
     // nmis use the IST1 stack
     km::UpdateIdtEntry(0x2, SystemGdt::eLongModeCode, 0, 1);
 
@@ -45,8 +43,6 @@ void km::SetupUserMode(mem::IAllocator *allocator) {
     km::LoadIdt();
 
     KmSystemCallStackTlsOffset = tlsSystemCallStack.tlsOffset();
-
-    KmDebugMessage("System call stack offset: ", km::Hex(KmSystemCallStackTlsOffset), "\n");
 
     // Enable syscall/sysret
     uint64_t efer = kEfer.load();
