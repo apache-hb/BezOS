@@ -44,7 +44,7 @@ void km::SetupUserMode(SystemMemory& memory, mem::IAllocator *allocator) {
     // nmis use the IST1 stack
     km::UpdateIdtEntry(0x2, SystemGdt::eLongModeCode, 0, 1);
 
-    km::UpdateIdtEntry(0xe, SystemGdt::eLongModeCode, 0, 0);
+    km::UpdateIdtEntry(0xe, SystemGdt::eLongModeCode, 0, 1);
 
     // reload the idt
     km::LoadIdt();
