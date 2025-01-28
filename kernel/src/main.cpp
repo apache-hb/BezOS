@@ -1039,7 +1039,7 @@ void KmLaunchEx(boot::LaunchInfo launch) {
     // Setup gdt that contains a TSS for this core
     SetupApGdt();
 
-    km::SetupUserMode(*stage2->memory, gAllocator);
+    km::SetupUserMode(gAllocator);
 
     SelfTestNmi();
 

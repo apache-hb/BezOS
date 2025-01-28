@@ -11,6 +11,8 @@ static constexpr x64::ModelRegister<0xC0000081, x64::RegisterAccess::eReadWrite>
 static constexpr x64::ModelRegister<0xC0000082, x64::RegisterAccess::eReadWrite> kLStar;
 static constexpr x64::ModelRegister<0xC0000084, x64::RegisterAccess::eReadWrite> kFMask;
 
+static constexpr size_t kStackSize = 0x1000;
+
 [[gnu::section(".tlsdata")]]
 static constinit km::ThreadLocal<void*> tlsSystemCallStack;
 
@@ -23,14 +25,12 @@ extern "C" uint64_t KmSystemDispatchRoutine(km::SystemCallContext *context) {
     return 0x1234;
 }
 
-static constexpr size_t kStackSize = 0x1000;
-
 static void SelfTestNmi() {
     KmDebugMessage("[SELFTEST] NMI\n");
     __int<0x2>();
 }
 
-void km::SetupUserMode(SystemMemory& memory, mem::IAllocator *allocator) {
+void km::SetupUserMode(mem::IAllocator *allocator) {
     tlsSystemCallStack = allocator->allocateAligned(kStackSize, x64::kPageSize);
 
     void *rsp0 = allocator->allocateAligned(kStackSize, x64::kPageSize);
@@ -49,9 +49,11 @@ void km::SetupUserMode(SystemMemory& memory, mem::IAllocator *allocator) {
     // reload the idt
     km::LoadIdt();
 
-    // SelfTestNmi();
+    SelfTestNmi();
 
     KmSystemCallStackTlsOffset = tlsSystemCallStack.tlsOffset();
+
+    KmDebugMessage("System call stack offset: ", km::Hex(KmSystemCallStackTlsOffset), "\n");
 
     // Enable syscall/sysret
     uint64_t efer = kEfer.load();

@@ -75,6 +75,33 @@ namespace x64 {
 
     static_assert(sizeof(TaskStateSegment) == 0x68);
 
+    struct TssEntry {
+        uint16_t limit0;
+        uint16_t address0;
+        uint8_t address1;
+        uint8_t access;
+        uint8_t flags;
+        uint8_t address2;
+        uint32_t address3;
+        uint32_t reserved;
+    };
+
+    static_assert(sizeof(TssEntry) == 0x10);
+
+    static constexpr TssEntry NewTssEntry(const TaskStateSegment *tss, uint8_t dpl) {
+        uintptr_t address = (uintptr_t)tss;
+        return TssEntry {
+            .limit0 = sizeof(TaskStateSegment) - 1,
+            .address0 = uint16_t(address & 0xFFFF),
+            .address1 = uint8_t((address >> 16) & 0xFF),
+            .access = uint8_t(0b10001001 | ((dpl & 0b11) << 5)),
+            .flags = 0,
+            .address2 = uint8_t((address >> 24) & 0xFF),
+            .address3 = uint32_t(address >> 32),
+            .reserved = 0,
+        };
+    }
+
     class GdtEntry {
         uint64_t mValue;
 
@@ -91,20 +118,6 @@ namespace x64 {
 
         static constexpr GdtEntry null() {
             return GdtEntry(Flags::eNone, Access::eNone, 0);
-        }
-
-        static constexpr GdtEntry tss0(const TaskStateSegment *tss) {
-            uintptr_t address = (uintptr_t)tss;
-            return (sizeof(TaskStateSegment) - 1)
-                 | (address & 0xFFFF) << 16
-                 | ((address & 0xFF0000) >> 16) << 32
-                 | (0b10001001ull) << 40
-                 | ((address & 0xFF000000) >> 24) << 52;
-        }
-
-        static constexpr GdtEntry tss1(const TaskStateSegment *tss) {
-            uintptr_t address = (uintptr_t)tss;
-            return address >> 32;
         }
 
         uint64_t value() const { return mValue; }
@@ -138,8 +151,9 @@ namespace km {
     void InitGdt(std::span<const x64::GdtEntry> gdt, size_t codeSelector, size_t dataSelector);
 
     /// @brief The GDT entries for the system.
-    /// @warning This alignas(8) is load bearing, unaligned gdt entries can cause poor performance.
-    struct alignas(8) SystemGdt {
+    /// @warning This alignas(0x10) is load bearing, gdt entries not aligned to 16 bytes can
+    ///          cause faults on some processors.
+    struct alignas(0x10) SystemGdt {
         enum : int {
             eNull = GDT_NULL,
             eRealModeCode = GDT_16BIT_CODE,

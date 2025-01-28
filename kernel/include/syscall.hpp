@@ -1,6 +1,5 @@
 #pragma once
 
-#include "memory.hpp"
 #include "process.hpp"
 
 #include <cstdint>
@@ -30,7 +29,7 @@ namespace km {
         uint64_t userStack;
     };
 
-    void SetupUserMode(SystemMemory& memory, mem::IAllocator *allocator);
+    void SetupUserMode(mem::IAllocator *allocator);
 
     void EnterUserMode(km::MachineState state);
 }
