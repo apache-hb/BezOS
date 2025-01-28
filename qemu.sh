@@ -49,11 +49,15 @@ elif [ "$MODE" = "numa" ]; then
         -m 4G \
         $QEMUARGS $(serial_chardev numa-serial.txt) $@
     exit
-else
+elif [ "$MODE" = "test" ]; then
+    shift
     # Startup a socat instance to create a virtual CAN bus
     # that the guest can read data from.
     socat -d -d pty,link=/tmp/canbus,raw,echo=0 pty,link=/tmp/canbus.pty,raw,echo=0 &
 
     make build
     qemu-system-x86_64 $QEMUARGS $(serial_chardev qemu-serial.txt) $(serial_canbus) -smp 4 $@
+else
+    make build
+    qemu-system-x86_64 $QEMUARGS $(serial_chardev qemu-serial.txt) -smp 4 $@
 fi

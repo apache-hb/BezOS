@@ -37,5 +37,15 @@ namespace km {
 
             mSerialPort->write(std::span(reinterpret_cast<uint8_t*>(&packet), sizeof(Packet)));
         }
+
+        void sendDataFrame(uint32_t id, std::span<uint8_t> data) {
+            mSerialPort->put(0xAA);
+            uint32_t timestamp = 0;
+            mSerialPort->write(std::span(reinterpret_cast<const uint8_t*>(&timestamp), sizeof(timestamp)));
+            mSerialPort->put(data.size_bytes());
+            mSerialPort->write(std::span(reinterpret_cast<const uint8_t*>(&id), sizeof(id)));
+            mSerialPort->write(data);
+            mSerialPort->put(0xBB);
+        }
     };
 }
