@@ -142,7 +142,7 @@ void km::InitSmp(km::SystemMemory& memory, km::IApic *bsp, acpi::AcpiTables& acp
         if (madt->type != acpi::MadtEntryType::eLocalApic)
             continue;
 
-        const acpi::MadtEntry::LocalApic localApic = madt->lapic;
+        const acpi::MadtEntry::LocalApic localApic = madt->apic;
 
         // No need to start the BSP
         if (localApic.apicId == bspId)

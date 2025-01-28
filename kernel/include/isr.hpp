@@ -1,5 +1,6 @@
 #pragma once
 
+#include "util/util.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <climits>
@@ -46,6 +47,20 @@ namespace km {
     void EnableNmi();
     void DisableInterrupts();
     void EnableInterrupts();
+
+    class IntGuard {
+    public:
+        UTIL_NOMOVE(IntGuard);
+        UTIL_NOCOPY(IntGuard);
+
+        IntGuard() {
+            DisableInterrupts();
+        }
+
+        ~IntGuard() {
+            EnableInterrupts();
+        }
+    };
 
     using KmIsrHandler = void*(*)(km::IsrContext*);
 

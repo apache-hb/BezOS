@@ -15,6 +15,9 @@ namespace acpi {
     enum class MadtEntryType : uint8_t {
         eLocalApic = 0,
         eIoApic = 1,
+        eInterruptSourceOverride = 2,
+        eNmiSource = 3,
+        eLocalApicNmi = 4,
     };
 
     struct [[gnu::packed]] MadtEntry {
@@ -41,12 +44,32 @@ namespace acpi {
             uint32_t interruptBase;
         };
 
+        struct [[gnu::packed]] InterruptSourceOverride {
+            uint8_t bus;
+            uint8_t source;
+            uint32_t interrupt;
+            uint16_t flags;
+        };
+
+        struct [[gnu::packed]] NonMaskableInterruptSource {
+            uint32_t interrupt;
+        };
+
+        struct [[gnu::packed]] LocalApicNmi {
+            uint8_t processorId;
+            uint16_t flags;
+            uint8_t lint;
+        };
+
         MadtEntryType type;
         uint8_t length;
 
         union {
-            LocalApic lapic;
+            LocalApic apic;
             IoApic ioapic;
+            InterruptSourceOverride iso;
+            NonMaskableInterruptSource nmiSource;
+            LocalApicNmi apicNmi;
         };
     };
 
