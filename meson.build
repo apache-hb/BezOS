@@ -166,8 +166,8 @@ src = [
     smp,
 
     # Device drivers
-    'kernel/src/drivers/driver.cpp',
-    'kernel/src/drivers/virtio_blk.cpp',
+    'kernel/src/drivers/block/driver.cpp',
+    'kernel/src/drivers/block/virtio_blk.cpp',
 
     # Process
     'kernel/src/syscall.cpp',

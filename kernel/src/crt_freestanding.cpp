@@ -4,6 +4,10 @@
 #include "crt.hpp"
 #include "panic.hpp"
 
+void std::terminate() noexcept {
+    KM_PANIC("__cxa_terminate() called");
+}
+
 extern "C" void abort() {
     KM_PANIC("abort() called");
 }

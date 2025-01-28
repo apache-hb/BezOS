@@ -1,4 +1,4 @@
-#include "drivers/driver.hpp"
+#include "drivers/block/driver.hpp"
 
 extern "C" const km::DeviceDriver __drivers_start[];
 extern "C" const km::DeviceDriver __drivers_end[];

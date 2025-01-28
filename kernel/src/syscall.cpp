@@ -25,11 +25,6 @@ extern "C" uint64_t KmSystemDispatchRoutine(km::SystemCallContext *context) {
     return 0x1234;
 }
 
-static void SelfTestNmi() {
-    KmDebugMessage("[SELFTEST] NMI\n");
-    __int<0x2>();
-}
-
 void km::SetupUserMode(mem::IAllocator *allocator) {
     tlsSystemCallStack = allocator->allocateAligned(kStackSize, x64::kPageSize);
 
@@ -48,8 +43,6 @@ void km::SetupUserMode(mem::IAllocator *allocator) {
 
     // reload the idt
     km::LoadIdt();
-
-    SelfTestNmi();
 
     KmSystemCallStackTlsOffset = tlsSystemCallStack.tlsOffset();
 

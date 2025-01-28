@@ -44,6 +44,7 @@
 #include "allocator/tlsf.hpp"
 
 #include "arch/intrin.hpp"
+#include "can.hpp"
 
 #include "kernel.hpp"
 
@@ -134,6 +135,9 @@ constinit km::ThreadLocal<SystemGdt> km::tlsSystemGdt;
 constinit km::ThreadLocal<x64::TaskStateSegment> km::tlsTaskState;
 
 static SystemGdt gBootGdt;
+
+static constinit SerialPort gCanBusPort;
+static constinit CanBus gCanBus{nullptr};
 
 void km::SetupInitialGdt(void) {
     InitGdt(gBootGdt.entries, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
@@ -779,6 +783,25 @@ static SerialPortStatus InitSerialPort(ComPortInfo info) {
     }
 }
 
+static SerialPortStatus InitCanSerialPort(ComPortInfo info) {
+    if (OpenSerialResult com1 = OpenSerial(info)) {
+        return com1.status;
+    } else {
+        gCanBusPort = com1.port;
+        gCanBus = CanBus(&gCanBusPort);
+        gCanBus.sendDataFrame(0x123, 0x9988776655443322);
+        return SerialPortStatus::eOk;
+    }
+}
+
+static void UpdateCanSerialPort(ComPortInfo info) {
+    info.skipLoopbackTest = true;
+    if (OpenSerialResult com1 = OpenSerial(info); com1.status == SerialPortStatus::eOk) {
+        gCanBusPort = com1.port;
+        gCanBus = CanBus(&gCanBusPort);
+    }
+}
+
 static void DumpIsrContext(const km::IsrContext *context, stdx::StringView message) {
     if (km::IsTlsSetup()) {
         KmDebugMessage("\n[BUG] ", message, " - On ", km::GetCurrentCoreId(), "\n");
@@ -848,7 +871,9 @@ static void LogSystemInfo(
     ProcessorInfo processor,
     bool hasDebugPort,
     SerialPortStatus com1Status,
-    const ComPortInfo& com1Info) {
+    const ComPortInfo& com1Info,
+    SerialPortStatus com2Status,
+    const ComPortInfo& com2Info) {
     KmDebugMessage("[INIT] CR0: ", x64::Cr0::load(), "\n");
     KmDebugMessage("[INIT] CR4: ", x64::Cr4::load(), "\n");
     KmDebugMessage("[INIT] HHDM: ", Hex(launch.hhdmOffset).pad(16, '0'), "\n");
@@ -903,6 +928,9 @@ static void LogSystemInfo(
     KmDebugMessage("| /SYS/MB/COM1  | Status               | ", com1Status, "\n");
     KmDebugMessage("| /SYS/MB/COM1  | Port                 | ", Hex(com1Info.port), "\n");
     KmDebugMessage("| /SYS/MB/COM1  | Baud rate            | ", km::com::kBaudRate / com1Info.divisor, "\n");
+    KmDebugMessage("| /SYS/MB/COM2  | Status               | ", com2Status, "\n");
+    KmDebugMessage("| /SYS/MB/COM2  | Port                 | ", Hex(com2Info.port), "\n");
+    KmDebugMessage("| /SYS/MB/COM2  | Baud rate            | ", km::com::kBaudRate / com2Info.divisor, "\n");
 }
 
 static km::IsrAllocator InitStage1Idt(uint16_t cs) {
@@ -956,11 +984,6 @@ extern void operator delete(void *ptr, size_t size) noexcept {
     gAllocator->deallocate(ptr, size);
 }
 
-static void SelfTestNmi() {
-    KmDebugMessage("[SELFTEST] NMI\n");
-    __int<0x2>();
-}
-
 void KmLaunchEx(boot::LaunchInfo launch) {
     NormalizeProcessorState();
 
@@ -982,6 +1005,11 @@ void KmLaunchEx(boot::LaunchInfo launch) {
     ProcessorInfo processor = GetProcessorInfo();
     InitPortDelay(hvInfo);
 
+    ComPortInfo com2Info = {
+        .port = km::com::kComPort2,
+        .divisor = km::com::kBaud9600,
+    };
+
     ComPortInfo com1Info = {
         .port = km::com::kComPort1,
         .divisor = km::com::kBaud9600,
@@ -989,8 +1017,9 @@ void KmLaunchEx(boot::LaunchInfo launch) {
     };
 
     SerialPortStatus com1Status = InitSerialPort(com1Info);
+    SerialPortStatus com2Status = InitCanSerialPort(com2Info);
 
-    LogSystemInfo(launch, hvInfo, processor, hasDebugPort, com1Status, com1Info);
+    LogSystemInfo(launch, hvInfo, processor, hasDebugPort, com1Status, com1Info, com2Status, com2Info);
 
     gBootGdt = GetBootGdt();
     SetupInitialGdt();
@@ -1007,6 +1036,7 @@ void KmLaunchEx(boot::LaunchInfo launch) {
     // If we are running on VirtualBox, retry the serial port initialization without the loopback test.
     if (com1Status == SerialPortStatus::eLoopbackTestFailed && platform.isOracleVirtualBox()) {
         UpdateSerialPort(com1Info);
+        UpdateCanSerialPort(com2Info);
     }
 
     bool useX2Apic = kUseX2Apic && processor.has2xApic;
@@ -1040,8 +1070,6 @@ void KmLaunchEx(boot::LaunchInfo launch) {
     SetupApGdt();
 
     km::SetupUserMode(gAllocator);
-
-    SelfTestNmi();
 
     Scheduler scheduler;
 

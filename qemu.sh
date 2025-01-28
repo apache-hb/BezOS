@@ -7,6 +7,13 @@ serial_chardev()
     echo "-chardev stdio,id=char0,logfile=$1,signal=off -serial chardev:char0"
 }
 
+CANBUS=/tmp/canbus
+
+serial_canbus()
+{
+    echo "-chardev serial,id=canbus0,path=$CANBUS -serial chardev:canbus0"
+}
+
 QEMUARGS="-M q35 -cdrom install/bezos.iso -display gtk"
 
 if [ "$MODE" = "ovmf" ]; then
@@ -43,6 +50,10 @@ elif [ "$MODE" = "numa" ]; then
         $QEMUARGS $(serial_chardev numa-serial.txt) $@
     exit
 else
+    # Startup a socat instance to create a virtual CAN bus
+    # that the guest can read data from.
+    socat -d -d pty,link=/tmp/canbus,raw,echo=0 pty,link=/tmp/canbus.pty,raw,echo=0 &
+
     make build
-    qemu-system-x86_64 $QEMUARGS $(serial_chardev qemu-serial.txt) -smp 4 $@
+    qemu-system-x86_64 $QEMUARGS $(serial_chardev qemu-serial.txt) $(serial_canbus) -smp 4 $@
 fi
