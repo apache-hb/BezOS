@@ -43,6 +43,7 @@ check:
 .PHONY: clean
 clean:
 	ninja -C build clean
+	rm -rf install
 
 .PHONY: integration
 integration: qemu vbox vmware hyperv
