@@ -227,13 +227,13 @@ km::Apic km::InitBspApic(km::SystemMemory& memory, bool useX2Apic) {
     }
 }
 
-km::Apic km::InitApApic(km::SystemMemory& memory, km::IApic *bsp) {
+km::Apic km::InitApApic(km::SystemMemory& memory, const km::IApic *bsp) {
     if (bsp->type() == apic::Type::eX2Apic) {
         km::EnableX2Apic();
 
         return km::X2Apic::get();
     } else {
-        km::LocalApic *lapic = static_cast<km::LocalApic*>(bsp);
+        const km::LocalApic *lapic = static_cast<const km::LocalApic*>(bsp);
         void *vaddr = lapic->baseAddress();
 
         // Move every AP lapic at the same address as the BSP lapic.
@@ -276,6 +276,11 @@ uint32_t km::IoApic::read(uint32_t field) {
     return reg(kIoApicWindow);
 }
 
+void km::IoApic::write(uint32_t field, uint32_t value) {
+    select(field);
+    reg(kIoApicWindow) = value;
+}
+
 uint16_t km::IoApic::inputCount() {
     uint32_t version = read(kIoApicVersion);
     return ((version >> 16) & 0xFF) + 1;
@@ -283,4 +288,28 @@ uint16_t km::IoApic::inputCount() {
 
 uint8_t km::IoApic::version() {
     return read(kIoApicVersion) & 0xFF;
+}
+
+static constexpr uint64_t kActiveLow = (1 << 13);
+static constexpr uint64_t kLevel = (1 << 15);
+static constexpr uint64_t kMasked = (1 << 16);
+
+void km::IoApic::setRedirect(apic::IvtConfig config, uint32_t redirect, const IApic *target) {
+    uint64_t entry = config.vector | uint64_t(target->id()) << 56;
+
+    if (config.polarity == apic::Polarity::eActiveLow) {
+        entry |= kActiveLow;
+    }
+
+    if (config.trigger == apic::Trigger::eLevel) {
+        entry |= kLevel;
+    }
+
+    if (!config.enabled) {
+        entry |= kMasked;
+    }
+
+    uint32_t ioredirect = (redirect - mIsrBase) * 2 + 0x10;
+    write(ioredirect + 0, entry & UINT32_MAX);
+    write(ioredirect + 1, entry >> 32);
 }

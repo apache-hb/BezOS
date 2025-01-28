@@ -33,8 +33,6 @@ std::expected<km::Process, bool> km::LoadElf(std::span<const uint8_t> program, s
 
     std::span<const elf::ElfProgramHeader> phs{reinterpret_cast<const elf::ElfProgramHeader *>(program.data() + phbegin), header->phnum};
 
-    KmDebugMessage("[ELF] Program Header Count: ", phs.size(), "\n");
-
     stdx::Vector<void*> processMemory(allocator);
 
     ProcessThread main = {
@@ -71,10 +69,7 @@ std::expected<km::Process, bool> km::LoadElf(std::span<const uint8_t> program, s
         if (ph.flags & (1 << 2))
             flags |= PageFlags::eRead;
 
-        KmDebugMessage("[ELF] Flags: ", std::to_underlying(flags), "\n");
-
         void *vaddr = memory.allocate(ph.memsz, ph.align, flags);
-        KmDebugMessage("[ELF] Allocated memory at ", km::Hex((uintptr_t)vaddr), " for ", km::Hex(ph.memsz), " bytes\n");
         memcpy(vaddr, program.data() + ph.offset, ph.filesz);
 
         bool containsEntry = entry >= ph.vaddr && entry < ph.vaddr + ph.memsz;

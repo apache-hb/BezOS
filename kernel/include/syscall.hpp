@@ -30,7 +30,7 @@ namespace km {
         uint64_t userStack;
     };
 
-    void SetupUserMode(SystemMemory& memory);
+    void SetupUserMode(SystemMemory& memory, mem::IAllocator *allocator);
 
     void EnterUserMode(km::MachineState state);
 }

@@ -51,6 +51,7 @@ namespace km {
 
     public:
         VirtualAllocator(VirtualRange range, mem::IAllocator *allocator);
+        VirtualAllocator(mem::IAllocator *allocator);
 
         void markUsed(VirtualRange range);
 

@@ -45,15 +45,15 @@ static constexpr x64::IdtEntry CreateIdtEntry(uintptr_t handler, uint16_t codeSe
         .selector = codeSelector,
         .ist = ist,
         .flags = flags,
-        .address1 = uint48_t((handler >> 16) & 0xFFFF'FFFF'FFFF),
+        .address1 = uint48_t((handler >> 16)),
     };
 }
 
 static constexpr size_t kIsrTableStride = 16;
-extern "C" char KmIsrTable[];
+extern "C" const char KmIsrTable[];
 
 static Idt gIdt;
-static km::KmIsrHandler KmIsrHandlers[256];
+static km::KmIsrHandler gIsrHandlers[256];
 
 static void *DefaultIsrHandler(km::IsrContext *context) {
     KmDebugMessage("[INT] Unhandled interrupt: ", context->vector, " Error: ", context->error, "\n");
@@ -70,7 +70,7 @@ extern "C" void *KmIsrDispatchRoutine(km::IsrContext *context) {
     }
 
     // Then invoke the interrupt handler routine
-    void *result = KmIsrHandlers[context->vector](context);
+    void *result = gIsrHandlers[context->vector](context);
 
     // And then swapped back again to avoid breaking userspace
     if (!kernelSpaceInt) {
@@ -81,8 +81,8 @@ extern "C" void *KmIsrDispatchRoutine(km::IsrContext *context) {
 }
 
 km::KmIsrHandler km::InstallIsrHandler(uint8_t isr, KmIsrHandler handler) {
-    KmIsrHandler old = KmIsrHandlers[isr];
-    KmIsrHandlers[isr] = handler;
+    KmIsrHandler old = gIsrHandlers[isr];
+    gIsrHandlers[isr] = handler;
     return old;
 }
 
@@ -96,7 +96,7 @@ void km::InitInterrupts(km::IsrAllocator& isrs, uint16_t codeSelector) {
     }
 
     for (size_t i = 0; i < Idt::kCount; i++) {
-        KmIsrHandlers[i] = DefaultIsrHandler;
+        gIsrHandlers[i] = DefaultIsrHandler;
     }
 
     // claim all the system interrupts

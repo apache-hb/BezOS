@@ -23,22 +23,33 @@ extern "C" uint64_t KmSystemDispatchRoutine(km::SystemCallContext *context) {
     return 0x1234;
 }
 
-void km::SetupUserMode(SystemMemory& memory) {
-    tlsSystemCallStack = memory.allocate(0x1000);
+static constexpr size_t kStackSize = 0x1000;
 
-    void *rsp0 = memory.allocate(0x1000);
-    void *ist1 = memory.allocate(0x1000);
+static void SelfTestNmi() {
+    KmDebugMessage("[SELFTEST] NMI\n");
+    __int<0x2>();
+}
 
-    tlsTaskState->rsp0 = (uintptr_t)rsp0 + 0x1000;
-    tlsTaskState->ist1 = (uintptr_t)ist1 + 0x1000;
+void km::SetupUserMode(SystemMemory& memory, mem::IAllocator *allocator) {
+    tlsSystemCallStack = allocator->allocateAligned(kStackSize, x64::kPageSize);
+
+    void *rsp0 = allocator->allocateAligned(kStackSize, x64::kPageSize);
+    void *ist1 = allocator->allocateAligned(kStackSize, x64::kPageSize);
+
+    tlsTaskState->rsp0 = (uintptr_t)rsp0 + kStackSize;
+    tlsTaskState->ist1 = (uintptr_t)ist1 + kStackSize;
+
+    KmDebugMessage("rsp0: ", km::Hex(tlsTaskState->rsp0), ", ist1: ", km::Hex(tlsTaskState->ist1), "\n");
 
     // nmis use the IST1 stack
     km::UpdateIdtEntry(0x2, SystemGdt::eLongModeCode, 0, 1);
 
-    km::UpdateIdtEntry(0xe, SystemGdt::eLongModeCode, 0, 1);
+    km::UpdateIdtEntry(0xe, SystemGdt::eLongModeCode, 0, 0);
 
     // reload the idt
     km::LoadIdt();
+
+    // SelfTestNmi();
 
     KmSystemCallStackTlsOffset = tlsSystemCallStack.tlsOffset();
 

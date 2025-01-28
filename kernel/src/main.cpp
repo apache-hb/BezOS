@@ -53,6 +53,7 @@ using namespace km;
 using namespace stdx::literals;
 
 static constexpr bool kUseX2Apic = true;
+static constexpr bool kSelfTestIdt = true;
 static constexpr bool kSelfTestApic = true;
 static constexpr bool kDumpAddr2lineCmd = true;
 
@@ -904,6 +905,26 @@ static void LogSystemInfo(
     KmDebugMessage("| /SYS/MB/COM1  | Baud rate            | ", km::com::kBaudRate / com1Info.divisor, "\n");
 }
 
+static km::IsrAllocator InitStage1Idt(uint16_t cs) {
+    km::IsrAllocator isrs;
+    InitInterrupts(isrs, cs);
+    InstallExceptionHandlers();
+    EnableInterrupts();
+
+    if (kSelfTestIdt) {
+        KmIsrHandler old = InstallIsrHandler(0x2, [](km::IsrContext *context) -> void* {
+            KmDebugMessage("[SELFTEST] Handled isr: ", context->vector, "\n");
+            return context;
+        });
+
+        __int<0x2>();
+
+        InstallIsrHandler(0x2, old);
+    }
+
+    return isrs;
+}
+
 static void NormalizeProcessorState() {
     x64::Cr0 cr0 = x64::Cr0::load();
     cr0.set(x64::Cr0::WP | x64::Cr0::NE);
@@ -933,6 +954,11 @@ extern "C" void free(void *ptr) {
 extern void operator delete(void *ptr, size_t size) noexcept {
     stdx::LockGuard _(gAllocatorLock);
     gAllocator->deallocate(ptr, size);
+}
+
+static void SelfTestNmi() {
+    KmDebugMessage("[SELFTEST] NMI\n");
+    __int<0x2>();
 }
 
 void KmLaunchEx(boot::LaunchInfo launch) {
@@ -969,10 +995,7 @@ void KmLaunchEx(boot::LaunchInfo launch) {
     gBootGdt = GetBootGdt();
     SetupInitialGdt();
 
-    km::IsrAllocator isrs;
-    InitInterrupts(isrs, SystemGdt::eLongModeCode);
-    InstallExceptionHandlers();
-    EnableInterrupts();
+    km::IsrAllocator isrs = InitStage1Idt(SystemGdt::eLongModeCode);
 
     Stage1MemoryInfo stage1 = InitStage1Memory(launch, processor);
     Stage2MemoryInfo *stage2 = InitStage2Memory(launch, processor, stage1);
@@ -1016,7 +1039,9 @@ void KmLaunchEx(boot::LaunchInfo launch) {
     // Setup gdt that contains a TSS for this core
     SetupApGdt();
 
-    km::SetupUserMode(*stage2->memory);
+    km::SetupUserMode(*stage2->memory, gAllocator);
+
+    SelfTestNmi();
 
     Scheduler scheduler;
 

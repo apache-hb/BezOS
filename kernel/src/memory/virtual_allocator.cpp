@@ -24,10 +24,14 @@ static void MergeRanges(stdx::Vector<km::VirtualRange>& ranges) {
 }
 
 km::VirtualAllocator::VirtualAllocator(VirtualRange range, mem::IAllocator *allocator)
-    : mAvailable(allocator)
+    : VirtualAllocator(allocator)
 {
     mAvailable.add(range);
 }
+
+km::VirtualAllocator::VirtualAllocator(mem::IAllocator *allocator)
+    : mAvailable(allocator)
+{ }
 
 void km::VirtualAllocator::markUsed(VirtualRange range) {
     for (size_t i = 0; i < mAvailable.count(); i++) {

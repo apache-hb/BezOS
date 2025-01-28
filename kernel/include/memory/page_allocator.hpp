@@ -85,6 +85,9 @@ namespace km {
         void MergeAdjacentAllocators(RegionList& allocators);
     }
 
+    // TODO: this should be a wrapper around VirtualAllocator
+    // and VirtualAllocator should be made generic to handle
+    // both virtual and physical memory.
     class PageAllocator {
         /// @brief One allocator for each usable or reclaimable memory range.
         detail::RegionList mAllocators;

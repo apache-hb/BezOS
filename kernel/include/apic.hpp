@@ -113,10 +113,6 @@ namespace km {
 
     class LocalApic final : public IApic {
         static constexpr uint16_t kApicId = 0x20;
-        static constexpr uint16_t kApicVersion = 0x30;
-        static constexpr uint16_t kEndOfInt = 0xB0;
-        static constexpr uint16_t kSpuriousInt = 0xF0;
-        static constexpr uint16_t kTimerLvt = 0x320;
 
         static constexpr uint32_t kIcr1 = 0x310;
         static constexpr uint32_t kIcr0 = 0x300;
@@ -164,6 +160,7 @@ namespace km {
 
         void select(uint32_t field);
         uint32_t read(uint32_t reg);
+        void write(uint32_t field, uint32_t value);
 
     public:
         IoApic() = default;
@@ -175,9 +172,18 @@ namespace km {
         uint16_t inputCount();
         uint8_t version();
 
+        /// @brief Update the redirection table entry for the given ISR
+        ///
+        /// @param config The configuration for the ISR
+        /// @param redirect The redirection table entry to update
+        /// @param target The target APIC to send the interrupt to
+        void setRedirect(apic::IvtConfig config, uint32_t redirect, const IApic *target);
+
         bool present() const { return mAddress != nullptr; }
     };
 
     Apic InitBspApic(km::SystemMemory& memory, bool useX2Apic);
-    Apic InitApApic(km::SystemMemory& memory, km::IApic *bsp);
+    Apic InitApApic(km::SystemMemory& memory, const km::IApic *bsp);
+
+    void RedirectLegacyIrq(uint8_t irq, const acpi::Madt *madt, const km::IApic *apic);
 }
