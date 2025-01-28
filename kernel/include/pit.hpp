@@ -1,5 +1,8 @@
 #pragma once
 
+#include "apic.hpp"
+#include "isr.hpp"
+
 #include <cstdint>
 
 namespace km {
@@ -13,5 +16,5 @@ namespace km {
         void setCount(uint16_t count);
     };
 
-    void InitPit();
+    void InitPit(unsigned frequency, const acpi::Madt *madt, IoApic& ioApic, IApic *apic, IsrAllocator& isrAllocator);
 }

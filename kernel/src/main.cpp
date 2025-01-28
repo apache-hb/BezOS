@@ -27,6 +27,7 @@
 #include "memory/virtual_allocator.hpp"
 #include "panic.hpp"
 #include "pat.hpp"
+#include "pit.hpp"
 #include "processor.hpp"
 #include "schedule.hpp"
 #include "smp.hpp"
@@ -721,12 +722,12 @@ static km::Apic EnableBootApic(km::SystemMemory& memory, km::IsrAllocator& isrs,
     SetDebugLogLock(DebugLogLockType::eSpinLock);
     km::InitKernelThread(pic);
 
-    uint8_t spuriousVec = isrs.allocateIsr();
+    uint8_t spuriousVec = isrs.claimIsr(0xFF);
     KmDebugMessage("[INIT] APIC ID: ", pic->id(), ", Version: ", pic->version(), ", Spurious vector: ", spuriousVec, "\n");
 
     InstallIsrHandler(spuriousVec, [](km::IsrContext *ctx) -> void* {
         KmDebugMessage("[ISR] Spurious interrupt: ", ctx->vector, "\n");
-        km::IApic *pic = km::GetCurrentCoreIntController();
+        km::IApic *pic = km::GetCurrentCoreApic();
         pic->eoi();
         return ctx;
     });
@@ -740,7 +741,7 @@ static km::Apic EnableBootApic(km::SystemMemory& memory, km::IsrAllocator& isrs,
 
         KmIsrHandler old = InstallIsrHandler(isr, [](km::IsrContext *context) -> void* {
             KmDebugMessage("[SELFTEST] Handled isr: ", context->vector, "\n");
-            km::IApic *pic = km::GetCurrentCoreIntController();
+            km::IApic *pic = km::GetCurrentCoreApic();
             pic->eoi();
             return context;
         });
@@ -1049,12 +1050,15 @@ void KmLaunchEx(boot::LaunchInfo launch) {
 
     uint32_t ioApicCount = rsdt.ioApicCount();
     KM_CHECK(ioApicCount > 0, "No IOAPICs found.");
+    stdx::StaticVector<IoApic, 4> ioApics;
 
     for (uint32_t i = 0; i < ioApicCount; i++) {
         IoApic ioapic = rsdt.mapIoApic(*stage2->memory, 0);
 
         KmDebugMessage("[INIT] IOAPIC ", i, " ID: ", ioapic.id(), ", Version: ", ioapic.version(), "\n");
         KmDebugMessage("[INIT] ISR base: ", ioapic.isrBase(), ", Inputs: ", ioapic.inputCount(), "\n");
+
+        ioApics.add(ioapic);
     }
 
     bool has8042 = rsdt.has8042Controller();
@@ -1070,6 +1074,8 @@ void KmLaunchEx(boot::LaunchInfo launch) {
     SetupApGdt();
 
     km::SetupUserMode(gAllocator);
+
+    km::InitPit(100, rsdt.madt(), ioApics.front(), lapic.pointer(), isrs);
 
     Scheduler scheduler;
 

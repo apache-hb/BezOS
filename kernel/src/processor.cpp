@@ -24,6 +24,6 @@ km::CpuCoreId km::GetCurrentCoreId() {
     return CpuCoreId(tlsCoreInfo->lapicId);
 }
 
-km::IApic *km::GetCurrentCoreIntController() {
+km::IApic *km::GetCurrentCoreApic() {
     return *tlsCoreInfo->pic;
 }

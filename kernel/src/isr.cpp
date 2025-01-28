@@ -124,8 +124,9 @@ void km::EnableInterrupts() {
     __sti();
 }
 
-void km::IsrAllocator::claimIsr(uint8_t isr) {
+uint8_t km::IsrAllocator::claimIsr(uint8_t isr) {
     sm::BitsSetBit(mFreeIsrs, sm::BitCount(isr));
+    return isr;
 }
 
 void km::IsrAllocator::releaseIsr(uint8_t isr) {

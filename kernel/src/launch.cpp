@@ -45,6 +45,8 @@ std::expected<km::Process, bool> km::LoadElf(std::span<const uint8_t> program, s
     main.state = MachineState {
         .rbp = (uintptr_t)stack + 0x1000,
         .rsp = (uintptr_t)stack + 0x1000,
+
+        .rflags = 0x202,
     };
 
     uint64_t entry = header->entry;

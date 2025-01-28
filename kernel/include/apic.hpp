@@ -14,12 +14,12 @@ namespace km {
         };
 
         enum class Ivt {
-            eTimer = 0x320,
-            eThermal = 0x330,
-            ePerformance = 0x340,
-            eLvt0 = 0x350,
-            eLvt1 = 0x360,
-            eError = 0x370,
+            eTimer = 0x32,
+            eThermal = 0x33,
+            ePerformance = 0x34,
+            eLvt0 = 0x35,
+            eLvt1 = 0x36,
+            eError = 0x37,
         };
 
         enum class Polarity {
@@ -84,12 +84,14 @@ namespace km {
 
         void sendIpi(apic::IcrDeliver deliver, uint8_t vector);
 
-        virtual void cfgIvtTimer(apic::IvtConfig) { }
-        virtual void cfgIvtThermal(apic::IvtConfig) { }
-        virtual void cfgIvtPerformance(apic::IvtConfig) { }
-        virtual void cfgIvtLvt0(apic::IvtConfig) { }
-        virtual void cfgIvtLvt1(apic::IvtConfig) { }
-        virtual void cfgIvtError(apic::IvtConfig) { }
+        void cfgIvtTimer(apic::IvtConfig config) { configure(apic::Ivt::eTimer, config); }
+        void cfgIvtThermal(apic::IvtConfig config) { configure(apic::Ivt::eThermal, config); }
+        void cfgIvtPerformance(apic::IvtConfig config) { configure(apic::Ivt::ePerformance, config); }
+        void cfgIvtLvt0(apic::IvtConfig config) { configure(apic::Ivt::eLvt0, config); }
+        void cfgIvtLvt1(apic::IvtConfig config) { configure(apic::Ivt::eLvt1, config); }
+        void cfgIvtError(apic::IvtConfig config) { configure(apic::Ivt::eError, config); }
+
+        void configure(apic::Ivt ivt, apic::IvtConfig config);
 
         void enable();
 
@@ -136,16 +138,6 @@ namespace km {
 
         void sendIpi(uint32_t dst, uint32_t vector) override;
 
-        void configure(apic::Ivt ivt, apic::IvtConfig config) {
-            uint32_t entry
-                = config.vector
-                | (std::to_underlying(config.polarity) << 13)
-                | (std::to_underlying(config.trigger) << 15)
-                | ((config.enabled ? 0 : 1) << 16);
-
-            reg(std::to_underlying(ivt)) = entry;
-        }
-
         void *baseAddress(void) const { return mBaseAddress; }
     };
 
@@ -179,11 +171,11 @@ namespace km {
         /// @param target The target APIC to send the interrupt to
         void setRedirect(apic::IvtConfig config, uint32_t redirect, const IApic *target);
 
+        void setLegacyRedirect(apic::IvtConfig config, uint32_t redirect, const acpi::Madt *madt, const IApic *target);
+
         bool present() const { return mAddress != nullptr; }
     };
 
     Apic InitBspApic(km::SystemMemory& memory, bool useX2Apic);
     Apic InitApApic(km::SystemMemory& memory, const km::IApic *bsp);
-
-    void RedirectLegacyIrq(uint8_t irq, const acpi::Madt *madt, const km::IApic *apic);
 }

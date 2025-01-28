@@ -140,9 +140,10 @@ src = [
     'kernel/src/pci.cpp',
     'kernel/src/delay.cpp',
     'kernel/src/cmos.cpp',
+    'kernel/src/pit.cpp',
+
     'kernel/src/thread.cpp',
     'kernel/src/user.S',
-
     'kernel/src/schedule.cpp',
 
     # ACPI

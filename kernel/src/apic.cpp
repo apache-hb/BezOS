@@ -195,6 +195,16 @@ void km::IApic::maskTaskPriority() {
     write(apic::kTaskPriority, value);
 }
 
+void km::IApic::configure(apic::Ivt ivt, apic::IvtConfig config) {
+    uint32_t entry
+        = config.vector
+        | (std::to_underlying(config.polarity) << 13)
+        | (std::to_underlying(config.trigger) << 15)
+        | ((config.enabled ? 0 : 1) << 16);
+
+    write(std::to_underlying(ivt), entry);
+}
+
 void km::IApic::enableSpuriousInt() {
     uint32_t value = read(apic::kSpuriousInt);
     value |= kApicSoftwareEnable;
@@ -312,4 +322,32 @@ void km::IoApic::setRedirect(apic::IvtConfig config, uint32_t redirect, const IA
     uint32_t ioredirect = (redirect - mIsrBase) * 2 + 0x10;
     write(ioredirect + 0, entry & UINT32_MAX);
     write(ioredirect + 1, entry >> 32);
+}
+
+void km::IoApic::setLegacyRedirect(apic::IvtConfig config, uint32_t redirect, const acpi::Madt *madt, const IApic *target) {
+    for (const acpi::MadtEntry *entry : *madt) {
+        if (entry->type != acpi::MadtEntryType::eInterruptSourceOverride)
+            continue;
+
+        const acpi::MadtEntry::InterruptSourceOverride iso = entry->iso;
+        if (iso.source != (redirect - mIsrBase))
+            continue;
+
+        // TODO: the trigger and polarity need to be read from the MADT
+        apic::IvtConfig fixup {
+            .vector = uint8_t(config.vector),
+            .polarity = apic::Polarity::eActiveHigh,
+            .trigger = apic::Trigger::eEdge,
+            .enabled = true,
+        };
+
+        KmDebugMessage("[INIT] IRQ ", fixup.vector, " redirect fixup to ", iso.interrupt, " provided by MADT\n");
+
+        setRedirect(fixup, iso.interrupt, target);
+        return;
+    }
+
+    setRedirect(config, redirect, target);
+
+    KmDebugMessage("[INIT] IRQ ", config.vector, " redirected to APIC\n");
 }
