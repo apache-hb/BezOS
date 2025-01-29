@@ -16,6 +16,12 @@ km::ProcessThread *km::Scheduler::getWorkItem() {
 
 static constinit km::Scheduler *gScheduler = nullptr;
 
-void km::InitScheduler() {
+void km::InitScheduler(IsrAllocator& isrs) {
     gScheduler = new km::Scheduler();
+
+    uint8_t isr = isrs.allocateIsr();
+
+    InstallIsrHandler(isr, [](km::IsrContext *context) -> km::IsrContext {
+        return *context;
+    });
 }

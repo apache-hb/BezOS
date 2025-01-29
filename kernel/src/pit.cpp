@@ -55,12 +55,12 @@ void km::InitPit(unsigned frequency, const acpi::Madt *madt, IoApic& ioApic, IAp
         .enabled = true,
     };
 
-    InstallIsrHandler(irq, [](IsrContext *ctx) -> void* {
+    InstallIsrHandler(irq, [](IsrContext *ctx) -> km::IsrContext {
         KmDebugMessage("[PIT] Timer: ", ctx->vector, "\n");
 
         IApic *apic = GetCurrentCoreApic();
         apic->eoi();
-        return ctx;
+        return *ctx;
     });
 
     apic->cfgIvtTimer(config);

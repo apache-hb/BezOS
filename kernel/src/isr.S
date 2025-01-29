@@ -24,8 +24,15 @@ KmIsrStub:
     pushq %rax
 
     /* Pass the context to the dispatch routine. */
+    mov %rsp, %rsi
+
+    /* Reserve space for the returned context. */
+    sub $176, %rsp /* sizeof(km::IsrContext) = 176 */
     mov %rsp, %rdi
+
     call KmIsrDispatchRoutine
+
+    /* As a convenience the systemv abi places the address of the returned struct in rax. */
     mov %rax, %rsp
 
     /* Restore all registers. */
@@ -75,7 +82,7 @@ KmIsrStub:
 .global KmIsrTable
 .align ISR_TABLE_STRIDE
 KmIsrTable:
-    // base interrupt vectors
+    /* exception vectors */
     ISR_ENTRY2 $0, $0
     ISR_ENTRY2 $0, $1
     ISR_ENTRY2 $0, $2

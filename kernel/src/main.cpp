@@ -725,11 +725,11 @@ static km::Apic EnableBootApic(km::SystemMemory& memory, km::IsrAllocator& isrs,
     uint8_t spuriousVec = isrs.claimIsr(0xFF);
     KmDebugMessage("[INIT] APIC ID: ", pic->id(), ", Version: ", pic->version(), ", Spurious vector: ", spuriousVec, "\n");
 
-    InstallIsrHandler(spuriousVec, [](km::IsrContext *ctx) -> void* {
+    InstallIsrHandler(spuriousVec, [](km::IsrContext *ctx) -> km::IsrContext {
         KmDebugMessage("[ISR] Spurious interrupt: ", ctx->vector, "\n");
         km::IApic *pic = km::GetCurrentCoreApic();
         pic->eoi();
-        return ctx;
+        return *ctx;
     });
 
     pic->setSpuriousVector(spuriousVec);
@@ -739,11 +739,11 @@ static km::Apic EnableBootApic(km::SystemMemory& memory, km::IsrAllocator& isrs,
     if (kSelfTestApic) {
         uint8_t isr = isrs.allocateIsr();
 
-        IsrCallback old = InstallIsrHandler(isr, [](km::IsrContext *context) -> void* {
+        IsrCallback old = InstallIsrHandler(isr, [](km::IsrContext *context) -> km::IsrContext {
             KmDebugMessage("[SELFTEST] Handled isr: ", context->vector, "\n");
             km::IApic *pic = km::GetCurrentCoreApic();
             pic->eoi();
-            return context;
+            return *context;
         });
 
         pic->sendIpi(apic::IcrDeliver::eSelf, isr);
@@ -814,37 +814,37 @@ static void DumpIsrContext(const km::IsrContext *context, stdx::StringView messa
 }
 
 static void InstallExceptionHandlers(void) {
-    InstallIsrHandler(0x0, [](km::IsrContext *context) -> void* {
+    InstallIsrHandler(0x0, [](km::IsrContext *context) -> km::IsrContext {
         DumpIsrContext(context, "Divide by zero (#DE)");
         DumpStackTrace(context);
         KM_PANIC("Kernel panic.");
     });
 
-    InstallIsrHandler(0x2, [](km::IsrContext *context) -> void* {
+    InstallIsrHandler(0x2, [](km::IsrContext *context) -> km::IsrContext {
         KmDebugMessage("[INT] Non-maskable interrupt (#NM)\n");
         DumpIsrState(context);
-        return context;
+        return *context;
     });
 
-    InstallIsrHandler(0x6, [](km::IsrContext *context) -> void* {
+    InstallIsrHandler(0x6, [](km::IsrContext *context) -> km::IsrContext {
         DumpIsrContext(context, "Invalid opcode (#UD)");
         DumpStackTrace(context);
         KM_PANIC("Kernel panic.");
     });
 
-    InstallIsrHandler(0x8, [](km::IsrContext *context) -> void* {
+    InstallIsrHandler(0x8, [](km::IsrContext *context) -> km::IsrContext {
         DumpIsrContext(context, "Double fault (#DF)");
         DumpStackTrace(context);
         KM_PANIC("Kernel panic.");
     });
 
-    InstallIsrHandler(0xD, [](km::IsrContext *context) -> void* {
+    InstallIsrHandler(0xD, [](km::IsrContext *context) -> km::IsrContext {
         DumpIsrContext(context, "General protection fault (#GP)");
         DumpStackTrace(context);
         KM_PANIC("Kernel panic.");
     });
 
-    InstallIsrHandler(0xE, [](km::IsrContext *context) -> void* {
+    InstallIsrHandler(0xE, [](km::IsrContext *context) -> km::IsrContext {
         KmDebugMessage("[BUG] CR2: ", Hex(__get_cr2()).pad(16, '0'), "\n");
         DumpIsrContext(context, "Page fault (#PF)");
         DumpStackTrace(context);
@@ -941,9 +941,9 @@ static km::IsrAllocator InitStage1Idt(uint16_t cs) {
     EnableInterrupts();
 
     if (kSelfTestIdt) {
-        IsrCallback old = InstallIsrHandler(0x2, [](km::IsrContext *context) -> void* {
+        IsrCallback old = InstallIsrHandler(0x2, [](km::IsrContext *context) -> km::IsrContext {
             KmDebugMessage("[SELFTEST] Handled isr: ", context->vector, "\n");
-            return context;
+            return *context;
         });
 
         __int<0x2>();
@@ -1080,7 +1080,7 @@ void KmLaunchEx(boot::LaunchInfo launch) {
 
     km::SetupUserMode(gAllocator);
 
-    km::InitScheduler();
+    km::InitScheduler(isrs);
 
     km::InitPit(100, rsdt.madt(), ioApics.front(), lapic.pointer(), isrs);
 

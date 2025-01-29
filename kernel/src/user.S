@@ -2,7 +2,6 @@
 
 .global KmEnterUserMode
 .global KmSystemEntry
-.global OsSystemCall
 
 .global KmSystemCallStackTlsOffset
 
@@ -30,8 +29,6 @@ KmEnterUserMode:
  * @param rsi arg2
  * @param rdx arg3
  * @param r8  arg4
- * @param r11 eflags - reserved by syscall instruction
- * @param rcx return address - reserved by syscall instruction
  *
  * @clobber rax, rdi, rsi, rdx, r11, rcx, rsp, rbp, r15, r9
  *
@@ -47,7 +44,7 @@ KmSystemEntry:
 
     /* Construct a SystemCallContext */
 
-    pushq %r15  /* userStack */
+    pushq %r15 /* userStack */
     pushq %rax /* function */
     pushq %rdi /* arg0 */
     pushq %rsi /* arg1 */
@@ -91,19 +88,3 @@ KmSystemEntry:
     swapgs
 
     sysretq
-
-/** Invoke a syscall from userspace
- * @param rdi syscall number
- * @param rsi arg1
- * @param rdx arg2
- * @param rcx arg3
- *
- * @return rax - result
- */
-OsSystemCall:
-    mov %rdi, %rax
-    mov %rsi, %rdi
-    mov %rdx, %rsi
-    mov %rcx, %rdx
-    syscall
-    ret

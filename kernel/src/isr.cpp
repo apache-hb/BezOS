@@ -30,12 +30,18 @@ namespace x64 {
     };
 
     static_assert(sizeof(IdtEntry) == 16);
+
+    struct alignas(16) Idt {
+        static constexpr size_t kCount = 256;
+        x64::IdtEntry entries[kCount];
+    };
 }
 
-struct alignas(16) Idt {
-    static constexpr size_t kCount = 256;
-    x64::IdtEntry entries[kCount];
-};
+static constexpr size_t kIsrTableStride = 16;
+extern "C" const char KmIsrTable[];
+
+static x64::Idt gIdt;
+static km::IsrCallback gIsrHandlers[256];
 
 static constexpr x64::IdtEntry CreateIdtEntry(uintptr_t handler, uint16_t codeSelector, uint8_t dpl, uint8_t ist) {
     uint8_t flags = x64::idt::kFlagPresent | x64::idt::kInterruptGate | ((dpl & 0b11) << 5);
@@ -49,18 +55,13 @@ static constexpr x64::IdtEntry CreateIdtEntry(uintptr_t handler, uint16_t codeSe
     };
 }
 
-static constexpr size_t kIsrTableStride = 16;
-extern "C" const char KmIsrTable[];
-
-static Idt gIdt;
-static km::IsrCallback gIsrHandlers[256];
-
-static void *DefaultIsrHandler(km::IsrContext *context) {
+static km::IsrContext DefaultIsrHandler(km::IsrContext *context) {
     KmDebugMessage("[INT] Unhandled interrupt: ", context->vector, " Error: ", context->error, "\n");
-    return context;
+    return *context;
 }
 
-extern "C" void *KmIsrDispatchRoutine(km::IsrContext *context) {
+template<typename F>
+static km::IsrContext DispatchIsr(km::IsrContext *context, F&& handler) {
     // Did this interrupt happen while in kernel space?
     bool kernelSpaceInt = (GDT_64BIT_CODE * 0x8) == context->cs;
 
@@ -70,7 +71,7 @@ extern "C" void *KmIsrDispatchRoutine(km::IsrContext *context) {
     }
 
     // Then invoke the interrupt handler routine
-    void *result = gIsrHandlers[context->vector](context);
+    km::IsrContext result = handler(context);
 
     // And then swapped back again to avoid breaking userspace
     if (!kernelSpaceInt) {
@@ -78,6 +79,12 @@ extern "C" void *KmIsrDispatchRoutine(km::IsrContext *context) {
     }
 
     return result;
+}
+
+extern "C" km::IsrContext KmIsrDispatchRoutine(km::IsrContext *context) {
+    return DispatchIsr(context, [](km::IsrContext *context) {
+        return gIsrHandlers[context->vector](context);
+    });
 }
 
 km::IsrCallback km::InstallIsrHandler(uint8_t isr, IsrCallback handler) {
@@ -91,11 +98,11 @@ void km::UpdateIdtEntry(uint8_t isr, uint16_t selector, uint8_t dpl, uint8_t ist
 }
 
 void km::InitInterrupts(km::IsrAllocator& isrs, uint16_t codeSelector) {
-    for (size_t i = 0; i < Idt::kCount; i++) {
+    for (size_t i = 0; i < x64::Idt::kCount; i++) {
         UpdateIdtEntry(i, codeSelector, 0, 0);
     }
 
-    for (size_t i = 0; i < Idt::kCount; i++) {
+    for (size_t i = 0; i < x64::Idt::kCount; i++) {
         gIsrHandlers[i] = DefaultIsrHandler;
     }
 
@@ -109,7 +116,7 @@ void km::InitInterrupts(km::IsrAllocator& isrs, uint16_t codeSelector) {
 
 void km::LoadIdt(void) {
     IDTR idtr = {
-        .limit = (sizeof(x64::IdtEntry) * Idt::kCount) - 1,
+        .limit = (sizeof(x64::IdtEntry) * x64::Idt::kCount) - 1,
         .base = (uintptr_t)&gIdt,
     };
 

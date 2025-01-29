@@ -58,6 +58,7 @@ elif [ "$MODE" = "test" ]; then
     make build
     qemu-system-x86_64 $QEMUARGS $(serial_chardev qemu-serial.txt) $(serial_canbus) -smp 4 $@
 else
-    make build
+    make build || exit 1
+
     qemu-system-x86_64 $QEMUARGS $(serial_chardev qemu-serial.txt) -smp 4 $@
 fi

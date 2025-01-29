@@ -85,7 +85,7 @@ namespace km {
         uint64_t ss;
     };
 
-    using IsrCallback = void*(*)(km::IsrContext*);
+    using IsrCallback = km::IsrContext(*)(km::IsrContext*);
 
     class IsrHandle {
         CpuCoreId mCpuCore;

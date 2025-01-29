@@ -41,7 +41,7 @@ std::expected<km::Process, bool> km::LoadElf(std::span<const uint8_t> program, s
 
     void *stack = memory.allocate(0x1000, 0x1000, PageFlags::eUser | PageFlags::eWrite);
 
-    main.regs = RegisterState {
+    main.regs = x64::RegisterState {
         .rbp = (uintptr_t)stack + 0x1000,
         .rsp = (uintptr_t)stack + 0x1000,
 

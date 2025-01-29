@@ -31,5 +31,5 @@ namespace km {
 
     void SetupUserMode(mem::IAllocator *allocator);
 
-    void EnterUserMode(km::RegisterState state);
+    void EnterUserMode(x64::RegisterState state);
 }

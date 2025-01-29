@@ -1,6 +1,7 @@
 #pragma once
 
 #include "crt.hpp"
+#include "isr.hpp"
 #include "process.hpp"
 
 #define MOODYCAMEL_MALLOC ::malloc
@@ -19,5 +20,5 @@ namespace km {
         km::ProcessThread *getWorkItem();
     };
 
-    void InitScheduler();
+    void InitScheduler(IsrAllocator& isrs);
 }
