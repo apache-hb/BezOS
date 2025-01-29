@@ -50,6 +50,7 @@ struct SmpInfoHeader {
 
     km::IApic *bspIntController;
     km::SystemMemory *memory;
+    uint8_t scheduleIpi;
 };
 
 static_assert(offsetof(SmpInfoHeader, gdt) == 32);
@@ -82,6 +83,9 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
 
     KmDebugMessage("[SMP] Started AP ", pic->id(), "\n");
 
+    pic->enable();
+    pic->eoi();
+
     header->ready = 1;
 
     KmIdle();
@@ -91,7 +95,7 @@ static uintptr_t AllocSmpStack(km::SystemMemory& memory) {
     return (uintptr_t)memory.allocate(km::kStartupStackSize, x64::kPageSize, km::PageFlags::eData);
 }
 
-static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::IApic *pic) {
+static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::IApic *pic, uint8_t scheduleIpi) {
     km::PageTableManager& vmm = memory->pt;
 
     km::PhysicalAddress pml4 = vmm.rootPageTable();
@@ -108,6 +112,7 @@ static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::IApic *pic
         },
         .bspIntController = pic,
         .memory = memory,
+        .scheduleIpi = scheduleIpi,
     };
 }
 
@@ -116,7 +121,7 @@ size_t km::GetStartupMemorySize(const acpi::AcpiTables &acpiTables) {
     return apCount * kStartupMemorySize;
 }
 
-void km::InitSmp(km::SystemMemory& memory, km::IApic *bsp, acpi::AcpiTables& acpiTables) {
+void km::InitSmp(km::SystemMemory& memory, km::IApic *bsp, acpi::AcpiTables& acpiTables, uint8_t scheduleIpi) {
     KmDebugMessage("[SMP] Starting APs.\n");
 
     // copy the SMP blob to the correct location
@@ -135,7 +140,7 @@ void km::InitSmp(km::SystemMemory& memory, km::IApic *bsp, acpi::AcpiTables& acp
     memory.pt.mapRange({ kSmpInfo, kSmpInfo + sizeof(SmpInfoHeader) }, (void*)kSmpInfo.address, km::PageFlags::eData);
     memory.pt.mapRange({ kSmpStart, kSmpStart + blobSize }, (void*)kSmpStart.address, km::PageFlags::eCode);
 
-    SmpInfoHeader header = SetupSmpInfoHeader(&memory, bsp);
+    SmpInfoHeader header = SetupSmpInfoHeader(&memory, bsp, scheduleIpi);
     memcpy(smpInfo, &header, sizeof(header));
 
     for (const acpi::MadtEntry *madt : *acpiTables.madt()) {

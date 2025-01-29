@@ -7,16 +7,6 @@
 #include "panic.hpp"
 #include "util/cpuid.hpp"
 
-static constexpr uint16_t kCommandMasterPort = 0x20;
-static constexpr uint16_t kDataMasterPort = 0x21;
-static constexpr uint16_t kCommandSlavePort = 0xA0;
-static constexpr uint16_t kDataSlavePort = 0xA1;
-
-static constexpr uint8_t kInitStart = 0x11;
-static constexpr uint8_t kMasterIdtStart = 0x20;
-static constexpr uint8_t kSlaveIdtStart = 0x28;
-static constexpr uint8_t kSlavePin = 0x2;
-static constexpr uint8_t kSlaveId = 0x4;
 
 static constexpr x64::ModelRegister<0x1b, x64::RegisterAccess::eReadWrite> kApicBase;
 
@@ -33,6 +23,17 @@ static constexpr uint64_t kApicBspBit = (1 << 8);
 static constexpr uint32_t kApicSoftwareEnable = (1 << 8);
 
 static void Disable8259Pic() {
+    static constexpr uint16_t kCommandMasterPort = 0x20;
+    static constexpr uint16_t kDataMasterPort = 0x21;
+    static constexpr uint16_t kCommandSlavePort = 0xA0;
+    static constexpr uint16_t kDataSlavePort = 0xA1;
+
+    static constexpr uint8_t kInitStart = 0x11;
+    static constexpr uint8_t kMasterIdtStart = 0x20;
+    static constexpr uint8_t kSlaveIdtStart = 0x28;
+    static constexpr uint8_t kSlavePin = 0x2;
+    static constexpr uint8_t kSlaveId = 0x4;
+
     KmDebugMessage("[INIT] Disabling 8259 PIC.\n");
 
     // start init sequence
@@ -122,9 +123,9 @@ void km::X2Apic::writeIcr(uint32_t dst, uint32_t cmd) {
 
 // local apic free functions
 
-static constexpr size_t kApicSize = 0x3F0;
-
 static km::LocalApic MapLocalApic(uint64_t msr, km::SystemMemory& memory) {
+    static constexpr size_t kApicSize = 0x3F0;
+
     KM_CHECK(msr & kApicEnableBit, "APIC not enabled");
     KM_CHECK(!(msr & kX2ApicEnableBit), "Cannot use local APIC in x2APIC mode");
 

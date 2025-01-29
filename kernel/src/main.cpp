@@ -1057,6 +1057,7 @@ void KmLaunchEx(boot::LaunchInfo launch) {
 
     uint32_t ioApicCount = rsdt.ioApicCount();
     KM_CHECK(ioApicCount > 0, "No IOAPICs found.");
+
     stdx::StaticVector<IoApic, 4> ioApics;
 
     for (uint32_t i = 0; i < ioApicCount; i++) {
@@ -1074,7 +1075,9 @@ void KmLaunchEx(boot::LaunchInfo launch) {
 
     pci::ProbeConfigSpace();
 
-    InitSmp(*stage2->memory, lapic.pointer(), rsdt);
+    gSchedulerVector = isrs.allocateIsr();
+
+    InitSmp(*stage2->memory, lapic.pointer(), rsdt, gSchedulerVector);
     SetDebugLogLock(DebugLogLockType::eRecursiveSpinLock);
 
     // Setup gdt that contains a TSS for this core
@@ -1085,7 +1088,6 @@ void KmLaunchEx(boot::LaunchInfo launch) {
     km::InitScheduler(isrs);
 
     uint8_t timer = isrs.allocateIsr();
-    gSchedulerVector = isrs.allocateIsr();
 
     InstallIsrHandler(gSchedulerVector, [](km::IsrContext *ctx) -> km::IsrContext {
         KmDebugMessage("[SMP] Reschedule: ", ctx->vector, " - ", GetCurrentCoreId(), "\n");
@@ -1095,8 +1097,6 @@ void KmLaunchEx(boot::LaunchInfo launch) {
     });
 
     km::InitPit(100, rsdt.madt(), ioApics.front(), lapic.pointer(), timer, [](IsrContext *ctx) -> km::IsrContext {
-        KmDebugMessage("[PIT] Timer: ", ctx->vector, " - ", GetCurrentCoreId(), "\n");
-
         IApic *apic = GetCpuLocalApic();
         apic->eoi();
 
