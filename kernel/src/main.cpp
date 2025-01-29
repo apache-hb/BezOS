@@ -985,6 +985,11 @@ extern void operator delete(void *ptr, size_t size) noexcept {
     gAllocator->deallocate(ptr, size);
 }
 
+extern void *operator new(size_t size) {
+    stdx::LockGuard _(gAllocatorLock);
+    return gAllocator->allocate(size);
+}
+
 void KmLaunchEx(boot::LaunchInfo launch) {
     NormalizeProcessorState();
 
@@ -1075,9 +1080,9 @@ void KmLaunchEx(boot::LaunchInfo launch) {
 
     km::SetupUserMode(gAllocator);
 
-    km::InitPit(100, rsdt.madt(), ioApics.front(), lapic.pointer(), isrs);
+    km::InitScheduler();
 
-    Scheduler scheduler;
+    km::InitPit(100, rsdt.madt(), ioApics.front(), lapic.pointer(), isrs);
 
     std::span init = GetInitProgram();
 

@@ -1,11 +1,10 @@
 #pragma once
 
-#include "std/static_string.hpp"
 #include "std/vector.hpp"
+
 #include <cstdint>
 
-namespace km {  
-    
+namespace km {
     struct [[gnu::packed]] MachineState {
         uint64_t rax;
         uint64_t rbx;
@@ -26,15 +25,13 @@ namespace km {
         uint64_t rip;
         uint64_t rflags;
     };
- 
+
     struct ProcessThread {
-        stdx::StaticString<64> name;
         uint32_t threadId;
         MachineState state;
     };
-    
+
     struct Process {
-        stdx::StaticString<64> name;
         uint32_t processId;
         stdx::Vector<void*> memory;
         ProcessThread main;

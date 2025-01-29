@@ -20,7 +20,7 @@ void *km::AllocateCpuLocalRegion(SystemMemory& memory) {
     return memory.allocate(size, x64::kPageSize);
 }
 
-static std::byte *GetTlsBase() {
+static std::byte *GetCpuLocalBase() {
     std::byte *tls = nullptr;
     asm volatile ("mov %%gs:0, %0" : "=r"(tls));
     return tls;
@@ -39,7 +39,7 @@ uint64_t km::GetCpuStorageOffset(const void *object) {
 
 void *km::GetCpuLocalData(void *object) {
     uintptr_t offset = GetCpuStorageOffset(object);
-    std::byte *base = GetTlsBase();
+    std::byte *base = GetCpuLocalBase();
     return base + offset;
 }
 

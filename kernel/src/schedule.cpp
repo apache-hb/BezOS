@@ -13,3 +13,9 @@ km::ProcessThread *km::Scheduler::getWorkItem() {
     mQueue.try_dequeue(thread);
     return thread;
 }
+
+static constinit km::Scheduler *gScheduler = nullptr;
+
+void km::InitScheduler() {
+    gScheduler = new km::Scheduler();
+}

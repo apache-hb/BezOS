@@ -18,4 +18,6 @@ namespace km {
         void addWorkItem(km::ProcessThread *thread);
         km::ProcessThread *getWorkItem();
     };
+
+    void InitScheduler();
 }

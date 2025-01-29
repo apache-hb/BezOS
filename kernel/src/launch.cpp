@@ -36,7 +36,6 @@ std::expected<km::Process, bool> km::LoadElf(std::span<const uint8_t> program, s
     stdx::Vector<void*> processMemory(allocator);
 
     ProcessThread main = {
-        .name = "main",
         .threadId = 1,
     };
 
@@ -95,7 +94,6 @@ std::expected<km::Process, bool> km::LoadElf(std::span<const uint8_t> program, s
     }
 
     return Process {
-        .name = name,
         .processId = id,
         .memory = std::move(processMemory),
         .main = main,
