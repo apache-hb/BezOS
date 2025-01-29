@@ -24,6 +24,7 @@ static constexpr uint16_t k2xApicBaseMsr = 0x800;
 
 static constexpr x64::ModelRegister<k2xApicBaseMsr + 0x2, x64::RegisterAccess::eRead> k2xApicId;
 static constexpr x64::ModelRegister<k2xApicBaseMsr + 0x30, x64::RegisterAccess::eWrite> k2xApicIcr;
+static constexpr x64::ModelRegister<k2xApicBaseMsr + 0x83, x64::RegisterAccess::eWrite> k2xApicSelfIpi;
 
 static constexpr uint64_t kApicAddressMask = 0xFFFFFFFFFFFFF000;
 static constexpr uint64_t kApicEnableBit = (1 << 11);
@@ -110,8 +111,12 @@ uint32_t km::X2Apic::id() const {
     return k2xApicId.load();
 }
 
-void km::X2Apic::sendIpi(uint32_t dst, uint32_t vector) {
-    uint64_t icr = uint64_t(dst) << 32 | vector;
+void km::X2Apic::selfIpi(uint8_t vector) {
+    k2xApicSelfIpi.store(vector);
+}
+
+void km::X2Apic::writeIcr(uint32_t dst, uint32_t cmd) {
+    uint64_t icr = uint64_t(dst) << 32 | cmd;
     k2xApicIcr.store(icr);
 }
 
@@ -170,15 +175,46 @@ uint32_t km::LocalApic::id() const {
     return id >> 24;
 }
 
-void km::LocalApic::sendIpi(uint32_t dst, uint32_t vector) {
+void km::LocalApic::selfIpi(uint8_t vector) {
+    IApic::sendIpi(apic::IcrDeliver::eSelf, apic::IpiAlert { vector });
+}
+
+void km::LocalApic::writeIcr(uint32_t dst, uint32_t cmd) {
     reg(kIcr1) = dst << 24;
-    reg(kIcr0) = vector;
+    reg(kIcr0) = cmd;
 }
 
 // generic apic methods
 
+static constexpr uint32_t BuildIpi(km::apic::IpiAlert alert) {
+    uint32_t result = 0;
+    result |= alert.vector;
+    result |= (std::to_underlying(alert.mode) << 8);
+    result |= (std::to_underlying(alert.dst) << 11);
+    result |= (std::to_underlying(alert.level) << 14);
+    result |= (std::to_underlying(alert.trigger) << 15);
+    return result;
+}
+
+static constexpr uint32_t BuildIpiShorthand(km::apic::IpiAlert alert, km::apic::IcrDeliver deliver) {
+    uint32_t result = BuildIpi(alert);
+    result |= (std::to_underlying(deliver) << 18);
+    return result;
+}
+
+static_assert(BuildIpi(km::apic::IpiAlert::init()) == 0x4500);
+static_assert(BuildIpi(km::apic::IpiAlert::sipi(0x8000)) == 0x4608);
+
 void km::IApic::sendIpi(apic::IcrDeliver deliver, uint8_t vector) {
-    sendIpi(0, (std::to_underlying(deliver) << 18) | vector);
+    sendIpi(deliver, km::apic::IpiAlert { vector });
+}
+
+void km::IApic::sendIpi(uint32_t dst, apic::IpiAlert alert) {
+    writeIcr(dst, BuildIpi(alert));
+}
+
+void km::IApic::sendIpi(apic::IcrDeliver deliver, apic::IpiAlert alert) {
+    writeIcr(0, BuildIpiShorthand(alert, deliver));
 }
 
 uint32_t km::IApic::version() const {
@@ -190,8 +226,9 @@ void km::IApic::eoi() {
 }
 
 void km::IApic::maskTaskPriority() {
+    static constexpr uint32_t kMaskTaskPriority = 1 << 4;
     uint32_t value = read(apic::kTaskPriority);
-    value |= 0x10;
+    value |= kMaskTaskPriority;
     write(apic::kTaskPriority, value);
 }
 

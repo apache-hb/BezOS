@@ -3,6 +3,7 @@
 #include "std/string_view.hpp"
 
 extern "C" [[noreturn]] void KmHalt(void);
+extern "C" [[noreturn]] void KmIdle(void);
 
 [[noreturn]]
 void KmBugCheck(stdx::StringView message, stdx::StringView file, unsigned line);

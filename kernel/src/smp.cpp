@@ -84,7 +84,7 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
 
     header->ready = 1;
 
-    KmHalt();
+    KmIdle();
 }
 
 static uintptr_t AllocSmpStack(km::SystemMemory& memory) {
@@ -159,15 +159,14 @@ void km::InitSmp(km::SystemMemory& memory, km::IApic *bsp, acpi::AcpiTables& acp
         KmDebugMessage("[SMP] Starting APIC ID: ", localApic.apicId, "\n");
 
         // Send the INIT IPI
-        bsp->sendIpi(localApic.apicId, 0x4500);
+        bsp->sendIpi(localApic.apicId, apic::IpiAlert::init());
 
         // TODO: sleep
 
         KmDebugMessage("[SMP] Sending SIPI to APIC ID: ", localApic.apicId, "\n");
 
         // Send the start IPI
-        size_t smpStartAddress = kSmpStart.address / x64::kPageSize;
-        bsp->sendIpi(localApic.apicId, 0x4600 | smpStartAddress);
+        bsp->sendIpi(localApic.apicId, apic::IpiAlert::sipi(kSmpStart));
 
         KmDebugMessage("[SMP] Waiting for APIC ID: ", localApic.apicId, " to start.\n");
 

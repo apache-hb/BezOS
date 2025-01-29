@@ -14,7 +14,7 @@ namespace km {
     void InitKernelThread(Apic pic);
 
     CpuCoreId GetCurrentCoreId();
-    IApic *GetCurrentCoreApic();
+    IApic *GetCpuLocalApic();
 }
 
 template<>

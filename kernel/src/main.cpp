@@ -727,7 +727,7 @@ static km::Apic EnableBootApic(km::SystemMemory& memory, km::IsrAllocator& isrs,
 
     InstallIsrHandler(spuriousVec, [](km::IsrContext *ctx) -> km::IsrContext {
         KmDebugMessage("[ISR] Spurious interrupt: ", ctx->vector, "\n");
-        km::IApic *pic = km::GetCurrentCoreApic();
+        km::IApic *pic = km::GetCpuLocalApic();
         pic->eoi();
         return *ctx;
     });
@@ -741,7 +741,7 @@ static km::Apic EnableBootApic(km::SystemMemory& memory, km::IsrAllocator& isrs,
 
         IsrCallback old = InstallIsrHandler(isr, [](km::IsrContext *context) -> km::IsrContext {
             KmDebugMessage("[SELFTEST] Handled isr: ", context->vector, "\n");
-            km::IApic *pic = km::GetCurrentCoreApic();
+            km::IApic *pic = km::GetCpuLocalApic();
             pic->eoi();
             return *context;
         });
@@ -990,6 +990,8 @@ extern void *operator new(size_t size) {
     return gAllocator->allocate(size);
 }
 
+static uint32_t gSchedulerVector = 0;
+
 void KmLaunchEx(boot::LaunchInfo launch) {
     NormalizeProcessorState();
 
@@ -1082,7 +1084,25 @@ void KmLaunchEx(boot::LaunchInfo launch) {
 
     km::InitScheduler(isrs);
 
-    km::InitPit(100, rsdt.madt(), ioApics.front(), lapic.pointer(), isrs);
+    uint8_t timer = isrs.allocateIsr();
+    gSchedulerVector = isrs.allocateIsr();
+
+    InstallIsrHandler(gSchedulerVector, [](km::IsrContext *ctx) -> km::IsrContext {
+        KmDebugMessage("[SMP] Reschedule: ", ctx->vector, " - ", GetCurrentCoreId(), "\n");
+        km::IApic *apic = km::GetCpuLocalApic();
+        apic->eoi();
+        return *ctx;
+    });
+
+    km::InitPit(100, rsdt.madt(), ioApics.front(), lapic.pointer(), timer, [](IsrContext *ctx) -> km::IsrContext {
+        KmDebugMessage("[PIT] Timer: ", ctx->vector, " - ", GetCurrentCoreId(), "\n");
+
+        IApic *apic = GetCpuLocalApic();
+        apic->eoi();
+
+        apic->sendIpi(apic::IcrDeliver::eOther, gSchedulerVector);
+        return *ctx;
+    });
 
     std::span init = GetInitProgram();
 

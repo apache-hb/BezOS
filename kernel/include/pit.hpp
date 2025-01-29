@@ -16,5 +16,5 @@ namespace km {
         void setCount(uint16_t count);
     };
 
-    void InitPit(unsigned frequency, const acpi::Madt *madt, IoApic& ioApic, IApic *apic, IsrAllocator& isrAllocator);
+    void InitPit(unsigned frequency, const acpi::Madt *madt, IoApic& ioApic, IApic *apic, uint8_t irq, IsrCallback handler);
 }

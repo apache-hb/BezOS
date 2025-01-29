@@ -8,9 +8,19 @@
 namespace km {
     namespace apic {
         enum class IcrDeliver : uint32_t {
+            eSingle = 0b00,
             eSelf = 0b01,
             eAll = 0b10,
             eOther = 0b11,
+        };
+
+        enum class IcrMode : uint32_t {
+            eFixed = 0b000,
+            eLowest = 0b001,
+            eSmi = 0b010,
+            eNmi = 0b100,
+            eInit = 0b101,
+            eStartup = 0b110,
         };
 
         enum class Ivt {
@@ -22,14 +32,24 @@ namespace km {
             eError = 0x37,
         };
 
-        enum class Polarity {
+        enum class Polarity : uint32_t {
             eActiveHigh = 0,
             eActiveLow = 1,
         };
 
-        enum class Trigger {
+        enum class Trigger : uint32_t {
             eEdge = 0,
             eLevel = 1,
+        };
+
+        enum class DestinationMode : uint32_t {
+            ePhysical = 0,
+            eLogical = 1,
+        };
+
+        enum class Level : uint32_t {
+            eDeAssert = 0,
+            eAssert = 1,
         };
 
         struct IvtConfig {
@@ -42,6 +62,34 @@ namespace km {
         enum class Type {
             eLocalApic,
             eX2Apic,
+        };
+
+        struct IpiAlert {
+            uint8_t vector;
+            IcrMode mode = IcrMode::eFixed;
+            DestinationMode dst = DestinationMode::ePhysical;
+            Trigger trigger = Trigger::eEdge;
+            Level level = Level::eAssert;
+
+            static constexpr IpiAlert sipi(km::PhysicalAddress address) {
+                return IpiAlert {
+                    .vector = uint8_t(address.address / x64::kPageSize),
+                    .mode = IcrMode::eStartup,
+                    .dst = DestinationMode::ePhysical,
+                    .trigger = Trigger::eEdge,
+                    .level = Level::eAssert,
+                };
+            }
+
+            static constexpr IpiAlert init() {
+                return IpiAlert {
+                    .vector = 0,
+                    .mode = IcrMode::eInit,
+                    .dst = DestinationMode::ePhysical,
+                    .trigger = Trigger::eEdge,
+                    .level = Level::eAssert,
+                };
+            }
         };
 
         // apic register offsets
@@ -63,6 +111,12 @@ namespace km {
     class IApic {
         void maskTaskPriority();
         void enableSpuriousInt();
+
+        virtual void writeIcr(uint32_t dst, uint32_t cmd) = 0;
+
+        virtual uint32_t read(uint16_t offset) const = 0;
+        virtual void write(uint16_t offset, uint32_t value) = 0;
+
     public:
         void operator delete(IApic*, std::destroying_delete_t) {
             std::unreachable();
@@ -70,19 +124,16 @@ namespace km {
 
         virtual ~IApic() = default;
 
-        virtual uint32_t read(uint16_t offset) const = 0;
-        virtual void write(uint16_t offset, uint32_t value) = 0;
-
         virtual uint32_t id() const = 0;
         virtual apic::Type type() const = 0;
 
-        virtual void sendIpi(uint32_t dst, uint32_t vector) = 0;
+        virtual void selfIpi(uint8_t vector) = 0;
 
         uint32_t version() const;
 
-        void eoi();
-
         void sendIpi(apic::IcrDeliver deliver, uint8_t vector);
+        void sendIpi(uint32_t dst, apic::IpiAlert alert);
+        void sendIpi(apic::IcrDeliver deliver, apic::IpiAlert alert);
 
         void cfgIvtTimer(apic::IvtConfig config) { configure(apic::Ivt::eTimer, config); }
         void cfgIvtThermal(apic::IvtConfig config) { configure(apic::Ivt::eThermal, config); }
@@ -93,6 +144,8 @@ namespace km {
 
         void configure(apic::Ivt ivt, apic::IvtConfig config);
 
+        void eoi();
+
         void enable();
 
         void setSpuriousVector(uint8_t vector);
@@ -102,6 +155,8 @@ namespace km {
         uint32_t read(uint16_t offset) const override;
         void write(uint16_t offset, uint32_t value) override;
 
+        void writeIcr(uint32_t icr0, uint32_t icr1) override;
+
     public:
         constexpr X2Apic() = default;
 
@@ -110,7 +165,7 @@ namespace km {
         uint32_t id() const override;
         apic::Type type() const override { return apic::Type::eX2Apic; }
 
-        void sendIpi(uint32_t dst, uint32_t vector) override;
+        void selfIpi(uint8_t vector) override;
     };
 
     class LocalApic final : public IApic {
@@ -126,6 +181,8 @@ namespace km {
         uint32_t read(uint16_t offset) const override;
         void write(uint16_t offset, uint32_t value) override;
 
+        void writeIcr(uint32_t icr0, uint32_t icr1) override;
+
     public:
         constexpr LocalApic() = default;
 
@@ -136,7 +193,7 @@ namespace km {
         uint32_t id() const override;
         apic::Type type() const override { return apic::Type::eLocalApic; }
 
-        void sendIpi(uint32_t dst, uint32_t vector) override;
+        void selfIpi(uint8_t vector) override;
 
         void *baseAddress(void) const { return mBaseAddress; }
     };

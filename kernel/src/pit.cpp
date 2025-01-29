@@ -41,13 +41,12 @@ void km::Pit::setFrequency(unsigned frequency) {
     KmWriteByte(kChannel0, (divisor >> 8) & 0xFF);
 }
 
-void km::InitPit(unsigned frequency, const acpi::Madt *madt, IoApic& ioApic, IApic *apic, IsrAllocator& isrAllocator) {
+void km::InitPit(unsigned frequency, const acpi::Madt *madt, IoApic& ioApic, IApic *apic, uint8_t irq, IsrCallback callback) {
     Pit pit;
     pit.setFrequency(frequency);
 
     uint16_t now = pit.getCount();
 
-    uint8_t irq = isrAllocator.allocateIsr();
     apic::IvtConfig config {
         .vector = irq,
         .polarity = apic::Polarity::eActiveHigh,
@@ -55,13 +54,7 @@ void km::InitPit(unsigned frequency, const acpi::Madt *madt, IoApic& ioApic, IAp
         .enabled = true,
     };
 
-    InstallIsrHandler(irq, [](IsrContext *ctx) -> km::IsrContext {
-        KmDebugMessage("[PIT] Timer: ", ctx->vector, "\n");
-
-        IApic *apic = GetCurrentCoreApic();
-        apic->eoi();
-        return *ctx;
-    });
+    InstallIsrHandler(irq, callback);
 
     apic->cfgIvtTimer(config);
 

@@ -22,6 +22,9 @@ void km::InitScheduler(IsrAllocator& isrs) {
     uint8_t isr = isrs.allocateIsr();
 
     InstallIsrHandler(isr, [](km::IsrContext *context) -> km::IsrContext {
+        IApic *apic = GetCpuLocalApic();
+        apic->eoi();
+
         return *context;
     });
 }
