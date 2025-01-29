@@ -10,9 +10,9 @@ namespace km {
     void SetupApGdt(void);
     void SetupInitialGdt(void);
 
-    [[gnu::section(".tlsdata")]]
-    extern constinit km::ThreadLocal<SystemGdt> tlsSystemGdt;
+    CPU_LOCAL
+    extern constinit km::CpuLocal<SystemGdt> tlsSystemGdt;
 
-    [[gnu::section(".tlsdata")]]
-    extern constinit km::ThreadLocal<x64::TaskStateSegment> tlsTaskState;
+    CPU_LOCAL
+    extern constinit km::CpuLocal<x64::TaskStateSegment> tlsTaskState;
 }

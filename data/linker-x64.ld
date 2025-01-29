@@ -77,15 +77,15 @@ SECTIONS
 
     __kernel_end = .;
 
-    /* Move to the next memory page for .tlsdata */
+    /* Move to the next memory page for .cpudata */
     . = ALIGN(CONSTANT(MAXPAGESIZE));
 
-    .tlsdata : {
-        __tlsdata_start = .;
-        *(.tlsroot .tlsroot.*)
+    .cpudata : {
+        __cpudata_start = .;
+        *(.cpuroot .cpuroot.*)
         . = ALIGN(8);
-        *(.tlsdata .tlsdata.*)
-        __tlsdata_end = .;
+        *(.cpudata .cpudata.*)
+        __cpudata_end = .;
     }
 
     /* Discard .note.* and .eh_frame* since they may cause issues on some hosts. */

@@ -1,22 +1,22 @@
 #include "thread.hpp"
 
-extern "C" char __tlsdata_start[];
-extern "C" char __tlsdata_end[];
+extern "C" char __cpudata_start[];
+extern "C" char __cpudata_end[];
 
-struct ThreadLocalData {
-    /// @brief Pointer to thread local storage.
+struct CpuLocalData {
+    /// @brief Pointer to cpu local storage.
     void *tls;
 };
 
-[[gnu::section(".tlsroot"), gnu::used]]
-static constinit ThreadLocalData tlsThreadData = { };
+[[gnu::section(".cpuroot"), gnu::used]]
+static constinit CpuLocalData tlsThreadData = { };
 
-size_t km::TlsDataSize() {
-    return (uintptr_t)__tlsdata_end - (uintptr_t)__tlsdata_start;
+size_t km::CpuLocalDataSize() {
+    return (uintptr_t)__cpudata_end - (uintptr_t)__cpudata_start;
 }
 
-void *km::AllocateTlsRegion(SystemMemory& memory) {
-    size_t size = TlsDataSize();
+void *km::AllocateCpuLocalRegion(SystemMemory& memory) {
+    size_t size = CpuLocalDataSize();
     return memory.allocate(size, x64::kPageSize);
 }
 
@@ -26,40 +26,40 @@ static std::byte *GetTlsBase() {
     return tls;
 }
 
-void km::InitTlsRegion(SystemMemory& memory) {
-    void *data = AllocateTlsRegion(memory);
+void km::InitCpuLocalRegion(SystemMemory& memory) {
+    void *data = AllocateCpuLocalRegion(memory);
     kGsBase.store((uintptr_t)data);
     asm volatile ("mov %0, %%gs:0" :: "r"(data));
 }
 
-uint64_t km::GetTlsOffset(const void *object) {
-    uintptr_t offset = (uintptr_t)object - (uintptr_t)__tlsdata_start;
+uint64_t km::GetCpuStorageOffset(const void *object) {
+    uintptr_t offset = (uintptr_t)object - (uintptr_t)__cpudata_start;
     return offset;
 }
 
-void *km::GetTlsData(void *object) {
-    uintptr_t offset = GetTlsOffset(object);
+void *km::GetCpuLocalData(void *object) {
+    uintptr_t offset = GetCpuStorageOffset(object);
     std::byte *base = GetTlsBase();
     return base + offset;
 }
 
-bool km::IsTlsSetup() {
+bool km::IsCpuStorageSetup() {
     return kGsBase.load() != 0;
 }
 
-km::TlsRegisters km::LoadTlsRegisters() {
+km::CpuLocalRegisters km::LoadTlsRegisters() {
     uint64_t gsBase = kGsBase.load();
     uint64_t fsBase = kFsBase.load();
     uint64_t kernelGsBase = kKernelGsBase.load();
 
-    return TlsRegisters {
+    return CpuLocalRegisters {
         .fsBase = fsBase,
         .gsBase = gsBase,
         .kernelGsBase = kernelGsBase,
     };
 }
 
-void km::StoreTlsRegisters(TlsRegisters registers) {
+void km::StoreTlsRegisters(CpuLocalRegisters registers) {
     kFsBase.store(registers.fsBase);
     kGsBase.store(registers.gsBase);
     kKernelGsBase.store(registers.kernelGsBase);

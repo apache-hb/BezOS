@@ -11,14 +11,6 @@ static constexpr uint16_t kChannel0 = 0x40;
 // static constexpr uint16_t kChannel2 = 0x42;
 static constexpr uint16_t kCommand = 0x43;
 
-static uint16_t ComputePitReloadValue(unsigned frequency) {
-    uint16_t result = km::Pit::kFrequencyHz / frequency;
-    if ((km::Pit::kFrequencyHz % frequency) > (frequency / 2)) {
-        result++;
-    }
-    return result;
-}
-
 uint16_t km::Pit::getCount() {
     IntGuard guard;
 

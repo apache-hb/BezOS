@@ -13,8 +13,8 @@ static constexpr x64::ModelRegister<0xC0000084, x64::RegisterAccess::eReadWrite>
 
 static constexpr size_t kStackSize = 0x1000;
 
-[[gnu::section(".tlsdata")]]
-static constinit km::ThreadLocal<void*> tlsSystemCallStack;
+CPU_LOCAL
+static constinit km::CpuLocal<void*> tlsSystemCallStack;
 
 extern "C" void KmSystemEntry(void);
 

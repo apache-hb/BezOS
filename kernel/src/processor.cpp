@@ -9,8 +9,8 @@ struct KernelThreadData {
     km::Apic pic;
 };
 
-[[gnu::section(".tlsdata")]]
-static constinit km::ThreadLocal<KernelThreadData> tlsCoreInfo;
+CPU_LOCAL
+static constinit km::CpuLocal<KernelThreadData> tlsCoreInfo;
 
 void km::InitKernelThread(Apic pic) {
     uint32_t id = pic->id();

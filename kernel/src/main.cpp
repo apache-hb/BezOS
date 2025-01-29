@@ -132,8 +132,8 @@ static bool KmTestDebugPort(void) {
     return __inbyte(0xE9) == 0xE9;
 }
 
-constinit km::ThreadLocal<SystemGdt> km::tlsSystemGdt;
-constinit km::ThreadLocal<x64::TaskStateSegment> km::tlsTaskState;
+constinit km::CpuLocal<SystemGdt> km::tlsSystemGdt;
+constinit km::CpuLocal<x64::TaskStateSegment> km::tlsTaskState;
 
 static SystemGdt gBootGdt;
 
@@ -146,7 +146,7 @@ void km::SetupInitialGdt(void) {
 
 void km::SetupApGdt(void) {
     // Save the gs/fs/kgsbase values, as setting the GDT will clear them
-    TlsRegisters tls = LoadTlsRegisters();
+    CpuLocalRegisters tls = LoadTlsRegisters();
 
     tlsTaskState = x64::TaskStateSegment {
         .iopbOffset = sizeof(x64::TaskStateSegment),
@@ -717,7 +717,7 @@ static km::Apic EnableBootApic(km::SystemMemory& memory, km::IsrAllocator& isrs,
 
     // setup tls now that we have the lapic id
 
-    km::InitTlsRegion(memory);
+    km::InitCpuLocalRegion(memory);
 
     SetDebugLogLock(DebugLogLockType::eSpinLock);
     km::InitKernelThread(pic);
@@ -804,7 +804,7 @@ static void UpdateCanSerialPort(ComPortInfo info) {
 }
 
 static void DumpIsrContext(const km::IsrContext *context, stdx::StringView message) {
-    if (km::IsTlsSetup()) {
+    if (km::IsCpuStorageSetup()) {
         KmDebugMessage("\n[BUG] ", message, " - On ", km::GetCurrentCoreId(), "\n");
     } else {
         KmDebugMessage("\n[BUG] ", message, "\n");
