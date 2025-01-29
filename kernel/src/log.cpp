@@ -51,7 +51,7 @@ public:
 
 constinit static NullLock gNullLock;
 constinit static SpinLockDebugLock gSpinLock;
-constinit static RecursiveDebugLock gRecursiveDebugLock;
+constinit static RecursiveDebugLock gRecursiveLock;
 
 constinit static IDebugLock *gLogLock = &gNullLock;
 
@@ -66,7 +66,7 @@ void km::SetDebugLogLock(DebugLogLockType type) {
         gLogLock = &gSpinLock;
         break;
     case DebugLogLockType::eRecursiveSpinLock:
-        gLogLock = &gRecursiveDebugLock;
+        gLogLock = &gRecursiveLock;
         break;
     }
 }

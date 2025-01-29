@@ -45,8 +45,6 @@ void km::InitPit(unsigned frequency, const acpi::Madt *madt, IoApic& ioApic, IAp
     Pit pit;
     pit.setFrequency(frequency);
 
-    uint16_t now = pit.getCount();
-
     apic::IvtConfig config {
         .vector = irq,
         .polarity = apic::Polarity::eActiveHigh,
@@ -59,8 +57,4 @@ void km::InitPit(unsigned frequency, const acpi::Madt *madt, IoApic& ioApic, IAp
     apic->cfgIvtTimer(config);
 
     ioApic.setLegacyRedirect(config, irq::kTimer, madt, apic);
-
-    uint16_t then = pit.getCount();
-
-    KmDebugMessage("[PIT] Time between ticks: ", now, " ", then, "\n");
 }
