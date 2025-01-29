@@ -6,13 +6,15 @@
 #include <stdint.h>
 
 namespace x64 {
-    class Cr0 {
-        uint32_t mValue;
+    using cr0_t = uint32_t;
 
-        Cr0(uint32_t value) : mValue(value) { }
+    class Cr0 {
+        cr0_t mValue;
+
+        constexpr Cr0(cr0_t value) : mValue(value) { }
 
     public:
-        enum Bit : uint32_t {
+        enum Bit : cr0_t {
             PG = (1ull << 31),
             CD = (1ull << 30),
             NW = (1ull << 29),
@@ -26,21 +28,21 @@ namespace x64 {
             PE = (1ull << 0),
         };
 
-        uint32_t value() const { return mValue; }
+        constexpr cr0_t value() const { return mValue; }
 
-        static Cr0 of(uint32_t value) {
+        constexpr static Cr0 of(cr0_t value) {
             return Cr0(value);
         }
 
-        bool test(Bit flag) const {
+        constexpr bool test(Bit flag) const {
             return mValue & flag;
         }
 
-        void set(Bit flag) {
+        constexpr void set(Bit flag) {
             mValue |= flag;
         }
 
-        void clear(Bit flag) {
+        constexpr void clear(Bit flag) {
             mValue &= ~flag;
         }
 

@@ -1,11 +1,63 @@
 #pragma once
 
+#include "processor.hpp"
 #include "util/util.hpp"
+
+#include <bitset>
 #include <cstddef>
 #include <cstdint>
 #include <climits>
 
+#include <memory>
+#include <array>
+
 namespace km {
+    namespace isr {
+        static constexpr uint8_t DE = 0x0;
+        static constexpr uint8_t DB = 0x1;
+        static constexpr uint8_t NMI = 0x2;
+        static constexpr uint8_t BP = 0x3;
+        static constexpr uint8_t OF = 0x4;
+        static constexpr uint8_t BR = 0x5;
+        static constexpr uint8_t UD = 0x6;
+        static constexpr uint8_t NM = 0x7;
+        static constexpr uint8_t DF = 0x8;
+        static constexpr uint8_t TS = 0xA;
+        static constexpr uint8_t NP = 0xB;
+        static constexpr uint8_t SS = 0xC;
+        static constexpr uint8_t GP = 0xD;
+        static constexpr uint8_t PF = 0xE;
+        static constexpr uint8_t MF = 0x10;
+        static constexpr uint8_t AC = 0x11;
+        static constexpr uint8_t MC = 0x12;
+        static constexpr uint8_t XM = 0x13;
+        static constexpr uint8_t VE = 0x14;
+        static constexpr uint8_t CP = 0x15;
+
+        /// @brief The number of exceptions reserved by the CPU
+        static constexpr uint8_t kExceptionCount = 0x20;
+
+        /// @brief The total number of ISRs the CPU supports
+        static constexpr uint8_t kIsrCount = 0xFF;
+
+        /// @brief The number of ISRs available for use
+        static constexpr uint8_t kAvailableIsrCount = kIsrCount - kExceptionCount;
+    }
+
+    namespace irq {
+        static constexpr uint8_t kTimer = 0x0;
+        static constexpr uint8_t kKeyboard = 0x1;
+        static constexpr uint8_t kCom2 = 0x3;
+        static constexpr uint8_t kCom1 = 0x4;
+        static constexpr uint8_t kLpt2 = 0x5;
+        static constexpr uint8_t kFloppy = 0x6;
+        static constexpr uint8_t kSpurious = 0x7;
+        static constexpr uint8_t kClock = 0x8;
+        static constexpr uint8_t kMouse = 0xC;
+        static constexpr uint8_t kPrimaryAta = 0xE;
+        static constexpr uint8_t kSecondaryAta = 0xF;
+    }
+
     struct [[gnu::packed]] IsrContext {
         uint64_t rax;
         uint64_t rbx;
@@ -31,6 +83,57 @@ namespace km {
         uint64_t rflags;
         uint64_t rsp;
         uint64_t ss;
+    };
+
+    using IsrCallback = void*(*)(km::IsrContext*);
+
+    class IsrHandle {
+        CpuCoreId mCpuCore;
+        uint32_t mIsr;
+
+    public:
+        IsrHandle(CpuCoreId core, uint32_t isr)
+            : mCpuCore(core)
+            , mIsr(isr)
+        { }
+
+        CpuCoreId core() const {
+            return mCpuCore;
+        }
+
+        uint32_t isr() const {
+            return mIsr + isr::kExceptionCount;
+        }
+
+        bool isValid() const {
+            return mIsr < isr::kAvailableIsrCount;
+        }
+
+        operator bool() const { return isValid(); }
+    };
+
+    class CpuLocalIsrSet {
+        std::array<IsrCallback, isr::kAvailableIsrCount> mIsrs;
+        std::bitset<isr::kAvailableIsrCount> mIsrUsed;
+
+    public:
+        CpuLocalIsrSet();
+
+        IsrHandle claimIsr(uint8_t isr, IsrCallback handler);
+
+        IsrHandle allocateIsr(IsrCallback handler);
+    };
+
+    class SystemIsrSet {
+        std::array<IsrCallback, isr::kExceptionCount> mExceptionHandlers;
+        std::unique_ptr<CpuLocalIsrSet[]> mIsrSets;
+
+    public:
+        SystemIsrSet(CpuCoreCount cpuCount);
+
+        CpuLocalIsrSet& getCpuIsrSet(CpuCoreId cpu);
+
+        IsrHandle claimException(uint8_t isr, IsrCallback handler);
     };
 
     class IsrAllocator {
@@ -62,12 +165,26 @@ namespace km {
         }
     };
 
-    using KmIsrHandler = void*(*)(km::IsrContext*);
+    class NmiGuard {
+    public:
+        UTIL_NOMOVE(NmiGuard);
+        UTIL_NOCOPY(NmiGuard);
+
+        NmiGuard() {
+            DisableInterrupts();
+            DisableNmi();
+        }
+
+        ~NmiGuard() {
+            EnableNmi();
+            EnableInterrupts();
+        }
+    };
 
     void InitInterrupts(km::IsrAllocator& isrs, uint16_t codeSelector);
     void LoadIdt(void);
 
     void UpdateIdtEntry(uint8_t isr, uint16_t selector, uint8_t dpl, uint8_t ist);
 
-    KmIsrHandler InstallIsrHandler(uint8_t isr, KmIsrHandler handler);
+    IsrCallback InstallIsrHandler(uint8_t isr, IsrCallback handler);
 }

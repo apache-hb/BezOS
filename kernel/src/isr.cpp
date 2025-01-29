@@ -53,7 +53,7 @@ static constexpr size_t kIsrTableStride = 16;
 extern "C" const char KmIsrTable[];
 
 static Idt gIdt;
-static km::KmIsrHandler gIsrHandlers[256];
+static km::IsrCallback gIsrHandlers[256];
 
 static void *DefaultIsrHandler(km::IsrContext *context) {
     KmDebugMessage("[INT] Unhandled interrupt: ", context->vector, " Error: ", context->error, "\n");
@@ -80,8 +80,8 @@ extern "C" void *KmIsrDispatchRoutine(km::IsrContext *context) {
     return result;
 }
 
-km::KmIsrHandler km::InstallIsrHandler(uint8_t isr, KmIsrHandler handler) {
-    KmIsrHandler old = gIsrHandlers[isr];
+km::IsrCallback km::InstallIsrHandler(uint8_t isr, IsrCallback handler) {
+    IsrCallback old = gIsrHandlers[isr];
     gIsrHandlers[isr] = handler;
     return old;
 }

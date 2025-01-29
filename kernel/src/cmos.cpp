@@ -40,24 +40,37 @@ static void DateComponentOverflow(uint8_t& value, uint8_t& next, uint8_t max) {
     }
 }
 
+struct CmosRegisters {
+    uint8_t regB;
+
+    uint8_t second;
+    uint8_t minute;
+    uint8_t hour;
+    uint8_t day;
+    uint8_t month;
+    uint16_t year;
+    uint8_t century;
+};
+
+static CmosRegisters ReadCmosRegisters() {
+    km::NmiGuard guard;
+
+    return CmosRegisters {
+        .regB = ReadCmosRegister(0x0B),
+        .second = ReadCmosRegister(0x00),
+        .minute = ReadCmosRegister(0x02),
+        .hour = ReadCmosRegister(0x04),
+        .day = ReadCmosRegister(0x07),
+        .month = ReadCmosRegister(0x08),
+        .year = ReadCmosRegister(0x09),
+        .century = (gCenturyRegister != 0)
+            ? ReadCmosRegister(gCenturyRegister)
+            : uint8_t(0),
+    };
+}
+
 km::DateTime km::ReadRtc() {
-    DisableNmi();
-    DisableInterrupts();
-
-    uint8_t regB = ReadCmosRegister(0x0B);
-
-    uint8_t second = ReadCmosRegister(0x00);
-    uint8_t minute = ReadCmosRegister(0x02);
-    uint8_t hour = ReadCmosRegister(0x04);
-    uint8_t day = ReadCmosRegister(0x07);
-    uint8_t month = ReadCmosRegister(0x08);
-    uint16_t year = ReadCmosRegister(0x09);
-    uint8_t century = (gCenturyRegister != 0)
-        ? ReadCmosRegister(gCenturyRegister)
-        : 0;
-
-    EnableInterrupts();
-    EnableNmi();
+    auto [regB, second, minute, hour, day, month, year, century] = ReadCmosRegisters();
 
     bool is24Hour = !(regB & (1 << 1));
     bool isBcdFormat = !(regB & (1 << 2));

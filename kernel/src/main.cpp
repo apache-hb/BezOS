@@ -739,7 +739,7 @@ static km::Apic EnableBootApic(km::SystemMemory& memory, km::IsrAllocator& isrs,
     if (kSelfTestApic) {
         uint8_t isr = isrs.allocateIsr();
 
-        KmIsrHandler old = InstallIsrHandler(isr, [](km::IsrContext *context) -> void* {
+        IsrCallback old = InstallIsrHandler(isr, [](km::IsrContext *context) -> void* {
             KmDebugMessage("[SELFTEST] Handled isr: ", context->vector, "\n");
             km::IApic *pic = km::GetCurrentCoreApic();
             pic->eoi();
@@ -941,7 +941,7 @@ static km::IsrAllocator InitStage1Idt(uint16_t cs) {
     EnableInterrupts();
 
     if (kSelfTestIdt) {
-        KmIsrHandler old = InstallIsrHandler(0x2, [](km::IsrContext *context) -> void* {
+        IsrCallback old = InstallIsrHandler(0x2, [](km::IsrContext *context) -> void* {
             KmDebugMessage("[SELFTEST] Handled isr: ", context->vector, "\n");
             return context;
         });
@@ -1092,7 +1092,7 @@ void KmLaunchEx(boot::LaunchInfo launch) {
     DateTime time = ReadRtc();
     KmDebugMessage("[INIT] Current time: ", time.year, "-", time.month, "-", time.day, "T", time.hour, ":", time.minute, ":", time.second, "Z\n");
 
-    km::EnterUserMode(process->main.state);
+    km::EnterUserMode(process->main.regs);
 
     if (has8042) {
         hid::Ps2ControllerResult result = hid::EnablePs2Controller();

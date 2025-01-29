@@ -65,7 +65,7 @@ void km::InitPit(unsigned frequency, const acpi::Madt *madt, IoApic& ioApic, IAp
 
     apic->cfgIvtTimer(config);
 
-    ioApic.setLegacyRedirect(config, 0, madt, apic);
+    ioApic.setLegacyRedirect(config, irq::kTimer, madt, apic);
 
     uint16_t then = pit.getCount();
 

@@ -324,6 +324,34 @@ void km::IoApic::setRedirect(apic::IvtConfig config, uint32_t redirect, const IA
     write(ioredirect + 1, entry >> 32);
 }
 
+static km::apic::Trigger GetIsoTriggerMode(acpi::MadtEntry::InterruptSourceOverride iso) {
+    switch (iso.flags & 0b1100) {
+    case 0b0000:
+    case 0b0100:
+        return km::apic::Trigger::eEdge;
+    case 0b1100:
+        return km::apic::Trigger::eLevel;
+
+    default:
+        KmDebugMessage("[WARN] Unknown trigger mode: ", km::Hex(iso.flags & 0b1100), "\n");
+        return km::apic::Trigger::eEdge;
+    }
+}
+
+static km::apic::Polarity GetIsoPolarity(acpi::MadtEntry::InterruptSourceOverride iso) {
+    switch (iso.flags & 0b11) {
+    case 0b00:
+    case 0b11:
+        return km::apic::Polarity::eActiveLow;
+    case 0b01:
+        return km::apic::Polarity::eActiveHigh;
+
+    default:
+        KmDebugMessage("[WARN] Unknown polarity mode: ", km::Hex(iso.flags & 0b11), "\n");
+        return km::apic::Polarity::eActiveLow;
+    }
+}
+
 void km::IoApic::setLegacyRedirect(apic::IvtConfig config, uint32_t redirect, const acpi::Madt *madt, const IApic *target) {
     for (const acpi::MadtEntry *entry : *madt) {
         if (entry->type != acpi::MadtEntryType::eInterruptSourceOverride)
@@ -333,11 +361,10 @@ void km::IoApic::setLegacyRedirect(apic::IvtConfig config, uint32_t redirect, co
         if (iso.source != (redirect - mIsrBase))
             continue;
 
-        // TODO: the trigger and polarity need to be read from the MADT
         apic::IvtConfig fixup {
             .vector = uint8_t(config.vector),
-            .polarity = apic::Polarity::eActiveHigh,
-            .trigger = apic::Trigger::eEdge,
+            .polarity = GetIsoPolarity(iso),
+            .trigger = GetIsoTriggerMode(iso),
             .enabled = true,
         };
 
@@ -347,7 +374,7 @@ void km::IoApic::setLegacyRedirect(apic::IvtConfig config, uint32_t redirect, co
         return;
     }
 
-    setRedirect(config, redirect, target);
-
     KmDebugMessage("[INIT] IRQ ", config.vector, " redirected to APIC\n");
+
+    setRedirect(config, redirect, target);
 }

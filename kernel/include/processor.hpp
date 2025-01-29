@@ -5,7 +5,9 @@
 #include <utility>
 
 namespace km {
-    enum class CpuCoreId : uint32_t {
+    using CpuCoreCount = uint32_t;
+
+    enum class CpuCoreId : CpuCoreCount {
         eInvalid = 0xFFFF'FFFF
     };
 

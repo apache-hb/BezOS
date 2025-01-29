@@ -3,16 +3,19 @@
 #include "arch/intrin.hpp"
 #include "util/format.hpp"
 #include "util/util.hpp"
-#include <stdint.h>
+
+#include <cstdint>
 
 namespace x64 {
-    class Cr4 {
-        uint64_t mValue;
+    using cr4_t = uint32_t;
 
-        Cr4(uint64_t value) : mValue(value) { }
+    class Cr4 {
+        cr4_t mValue;
+
+        constexpr Cr4(cr4_t value) : mValue(value) { }
 
     public:
-        enum Bit : uint32_t {
+        enum Bit : cr4_t {
             VME = (1ull << 0),
             PVI = (1ull << 1),
             TSD = (1ull << 2),
@@ -37,21 +40,21 @@ namespace x64 {
             PKE = (1ull << 22),
         };
 
-        uint32_t value() const { return mValue; }
+        constexpr cr4_t value() const { return mValue; }
 
-        static Cr4 of(uint32_t value) {
+        constexpr static Cr4 of(cr4_t value) {
             return Cr4(value);
         }
 
-        bool test(Bit flag) const {
+        constexpr bool test(Bit flag) const {
             return mValue & flag;
         }
 
-        void set(Bit flag) {
+        constexpr void set(Bit flag) {
             mValue |= flag;
         }
 
-        void clear(Bit bit) {
+        constexpr void clear(Bit bit) {
             mValue &= ~bit;
         }
 

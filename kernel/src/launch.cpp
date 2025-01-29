@@ -41,7 +41,7 @@ std::expected<km::Process, bool> km::LoadElf(std::span<const uint8_t> program, s
 
     void *stack = memory.allocate(0x1000, 0x1000, PageFlags::eUser | PageFlags::eWrite);
 
-    main.state = MachineState {
+    main.regs = RegisterState {
         .rbp = (uintptr_t)stack + 0x1000,
         .rsp = (uintptr_t)stack + 0x1000,
 
@@ -76,7 +76,7 @@ std::expected<km::Process, bool> km::LoadElf(std::span<const uint8_t> program, s
         bool containsEntry = entry >= ph.vaddr && entry < ph.vaddr + ph.memsz;
 
         if (containsEntry) {
-            main.state.rip = ((uintptr_t)vaddr + (entry - ph.vaddr));
+            main.regs.rip = ((uintptr_t)vaddr + (entry - ph.vaddr));
         }
 
         mem::TlsfAllocator *alloc = static_cast<mem::TlsfAllocator*>(allocator);
@@ -88,7 +88,7 @@ std::expected<km::Process, bool> km::LoadElf(std::span<const uint8_t> program, s
         processMemory.add(vaddr);
     }
 
-    if (main.state.rip == 0) {
+    if (main.regs.rip == 0) {
         KmDebugMessage("[ELF] Entry point not found\n");
         return std::unexpected{false};
     }
