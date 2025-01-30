@@ -2,6 +2,7 @@
 
 #include "memory/allocator.hpp"
 #include "memory/paging.hpp"
+#include "memory/virtual_allocator.hpp"
 
 #include <cstddef>
 

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "boot.hpp"
-#include "memory/memory.hpp"
+#include "std/vector.hpp"
 
 namespace km {
     namespace detail {

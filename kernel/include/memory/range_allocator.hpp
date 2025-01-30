@@ -1,6 +1,7 @@
 #pragma once
 
 #include "allocator/allocator.hpp"
+#include "memory/range.hpp"
 #include "std/vector.hpp"
 
 namespace km {
@@ -12,9 +13,11 @@ namespace km {
         { T::merge(it, it) } -> std::same_as<T>;
     };
 
-    template<IsMemoryRange Range>
+    template<typename T>
     class RangeAllocator {
-        using Type = typename Range::Type;
+        using Range = AnyRange<T>;
+        using Type = T;
+
         stdx::Vector<Range> mAvailable;
 
         void sortRanges() {
@@ -31,7 +34,7 @@ namespace km {
                 for (size_t j = i + 1; j < mAvailable.count(); j++) {
                     auto& next = mAvailable[j];
                     if (range.overlaps(next)) {
-                        range = Range::merge(range, next);
+                        range = merge(range, next);
                         mAvailable.remove(j);
                         j--;
                     }

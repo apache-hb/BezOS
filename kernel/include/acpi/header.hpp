@@ -83,6 +83,5 @@ struct km::Format<acpi::AccessSize> {
 
 template<>
 struct km::Format<acpi::GenericAddress> {
-    using String = stdx::StaticString<128>;
-    static String toString(acpi::GenericAddress addr);
+    static void format(km::IOutStream& out, acpi::GenericAddress value);
 };

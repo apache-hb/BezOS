@@ -98,23 +98,12 @@ AccessFormat::String AccessFormat::toString(acpi::AccessSize size) {
     }
 }
 
-AddressFormat::String AddressFormat::toString(acpi::GenericAddress addr) {
-    AddressFormat::String result;
-    auto as = km::format(addr.addressSpace);
+void AddressFormat::format(km::IOutStream& out, acpi::GenericAddress value) {
+    auto as = km::format(value.addressSpace);
     for (size_t i = 0; i < 4 - as.count(); i++) {
-        result.add(" "_sv);
+        out.write(" "_sv);
     }
-    result.add(as);
-    result.add(":"_sv);
-    result.add(km::format(km::PhysicalAddress(addr.address)));
-
-    result.add("+"_sv);
-    result.add(km::format(km::Int(addr.offset).pad(3, '0')));
-
-    result.add("["_sv);
-    result.add(km::format(km::Int(addr.width).pad(3, '0')));
-    result.add("] "_sv);
-    result.add(km::format(addr.accessSize));
-
-    return result;
+    out.format(as, ":"_sv, km::Hex(value.address).pad(16, '0'));
+    out.format("+"_sv, km::Int(value.offset).pad(3, '0'));
+    out.format("["_sv, km::Int(value.width).pad(3, '0'), "] "_sv, value.accessSize);
 }
