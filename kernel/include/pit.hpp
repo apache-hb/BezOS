@@ -19,7 +19,7 @@ namespace mp = mp_units;
 namespace si = mp_units::si;
 
 namespace km {
-    using hertz = mp::quantity<si::hertz, int>;
+    using hertz = mp::quantity<si::hertz, int64_t>;
 
     namespace pit {
         enum class Type {

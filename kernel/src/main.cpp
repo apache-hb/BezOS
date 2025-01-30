@@ -1100,12 +1100,12 @@ void KmLaunchEx(boot::LaunchInfo launch) {
 
     std::optional<km::HighPrecisionTimer> hpet = km::HighPrecisionTimer::find(rsdt, *stage2->memory);
     if (hpet.has_value()) {
-        KmDebugMessage("[INIT] Found HPET:\n");
+        KmDebugMessage("|---- HPET ----------------\n");
         KmDebugMessage("| Property     | Value\n");
-        KmDebugMessage("|--------------+------\n");
+        KmDebugMessage("|--------------+-----------\n");
         KmDebugMessage("| Vendor       | ", hpet->vendor(), "\n");
         KmDebugMessage("| Timer count  | ", hpet->timerCount(), "\n");
-        KmDebugMessage("| Clock        | ", uint32_t(hpet->refclk() / si::hertz), "\n");
+        KmDebugMessage("| Clock        | ", uint32_t(hpet->refclk() / si::hertz), "hz\n");
         KmDebugMessage("| Counter size | ", hpet->counterSize() == HpetWidth::DWORD ? "32"_sv : "64"_sv, "\n");
         KmDebugMessage("| Revision     | ", hpet->revision(), "\n");
     }

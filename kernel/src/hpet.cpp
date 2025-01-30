@@ -13,8 +13,11 @@ uint16_t km::HighPrecisionTimer::bestDivisor(hertz) const {
 }
 
 km::hertz km::HighPrecisionTimer::refclk() const {
-    mp::quantity period = (mMmioRegion->id >> 32) * si::femto<si::second>;
-    return (1 / period).in(si::hertz);
+    // TODO: Ideally I would use the femtoseconds value and do proper
+    // conversions using mp_units. Currently the handling of femtoseconds
+    // and frequency conversions doesn't make that possible.
+    uint32_t femtos = (mMmioRegion->id >> 32);
+    return (femtos * 10) * si::hertz;
 }
 
 uint64_t km::HighPrecisionTimer::ticks() const {

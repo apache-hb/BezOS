@@ -20,17 +20,22 @@ namespace km {
             std::unreachable();
         }
 
-        virtual BlockDeviceStatus getStatus() = 0;
+        virtual BlockDeviceStatus getStatus() const = 0;
     };
+
+    using DeviceFactory = IBlockDevice *(*)(void *);
 
     struct DeviceDriver {
         pci::VendorId vendorId;
         pci::DeviceId deviceId;
+        size_t size;
+        size_t align;
+        DeviceFactory factory;
     };
 }
 
 #define DEVICE_DRIVER(name) \
     extern "C" [[gnu::used, gnu::section(".kernel.drivers")]] \
-    const km::DeviceDriver name
+    constinit const km::DeviceDriver name
 
 std::span<const km::DeviceDriver> GetDeviceDrivers();
