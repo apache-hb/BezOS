@@ -1,8 +1,6 @@
 #include "pit.hpp"
 #include "delay.hpp"
 #include "isr.hpp"
-#include "log.hpp"
-#include "processor.hpp"
 
 #include <cstdint>
 
@@ -11,7 +9,7 @@ static constexpr uint16_t kChannel0 = 0x40;
 // static constexpr uint16_t kChannel2 = 0x42;
 static constexpr uint16_t kCommand = 0x43;
 
-uint16_t km::Pit::getCount() {
+uint16_t km::IntervalTimer::getCount() const {
     IntGuard guard;
 
     KmWriteByte(kCommand, 0b00000000);
@@ -22,17 +20,17 @@ uint16_t km::Pit::getCount() {
     return (hi << 8) | lo;
 }
 
-void km::Pit::setCount(uint16_t value) {
+void km::IntervalTimer::setCount(uint16_t value) {
     IntGuard guard;
 
     KmWriteByte(kChannel0, value & 0xFF);
     KmWriteByte(kChannel0, (value >> 8) & 0xFF);
 }
 
-void km::Pit::setFrequency(unsigned frequency) {
+void km::IntervalTimer::setFrequency(hertz frequency) {
     IntGuard guard;
 
-    uint16_t divisor = kFrequencyHz / frequency;
+    uint16_t divisor = uint16_t(kFrequencyHz / frequency);
 
     // Channel 0, lo/hi byte, rate generator
     KmWriteByte(kCommand, 0b00110100);
@@ -41,8 +39,8 @@ void km::Pit::setFrequency(unsigned frequency) {
     KmWriteByte(kChannel0, (divisor >> 8) & 0xFF);
 }
 
-void km::InitPit(unsigned frequency, const acpi::Madt *madt, IoApic& ioApic, IApic *apic, uint8_t irq, IsrCallback callback) {
-    Pit pit;
+void km::InitPit(hertz frequency, const acpi::Madt *madt, IoApic& ioApic, IApic *apic, uint8_t irq, IsrCallback callback) {
+    IntervalTimer pit;
     pit.setFrequency(frequency);
 
     apic::IvtConfig config {

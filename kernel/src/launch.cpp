@@ -3,7 +3,7 @@
 #include "allocator/tlsf.hpp"
 #include "log.hpp"
 
-std::expected<km::Process, bool> km::LoadElf(std::span<const uint8_t> program, stdx::StringView name, uint32_t id, SystemMemory& memory, mem::IAllocator *allocator) {
+std::expected<km::Process, bool> km::LoadElf(std::span<const uint8_t> program, uint32_t id, SystemMemory& memory, mem::IAllocator *allocator) {
     KmDebugMessage("[ELF] Launching process from ELF\n");
 
     if (program.size() < sizeof(elf::ElfHeader)) {

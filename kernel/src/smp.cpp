@@ -51,6 +51,7 @@ struct SmpInfoHeader {
     km::IApic *bspIntController;
     km::SystemMemory *memory;
     uint8_t scheduleIpi;
+    uint8_t spuriousInt;
 };
 
 static_assert(offsetof(SmpInfoHeader, gdt) == 32);
@@ -83,6 +84,7 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
 
     KmDebugMessage("[SMP] Started AP ", pic->id(), "\n");
 
+    pic->setSpuriousVector(header->spuriousInt);
     pic->enable();
     pic->eoi();
 
@@ -95,7 +97,7 @@ static uintptr_t AllocSmpStack(km::SystemMemory& memory) {
     return (uintptr_t)memory.allocate(km::kStartupStackSize, x64::kPageSize, km::PageFlags::eData);
 }
 
-static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::IApic *pic, uint8_t scheduleIpi) {
+static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::IApic *pic, uint8_t scheduleIpi, uint8_t spuriousInt) {
     km::PageTableManager& vmm = memory->pt;
 
     km::PhysicalAddress pml4 = vmm.rootPageTable();
@@ -113,6 +115,7 @@ static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::IApic *pic
         .bspIntController = pic,
         .memory = memory,
         .scheduleIpi = scheduleIpi,
+        .spuriousInt = spuriousInt,
     };
 }
 
@@ -121,7 +124,7 @@ size_t km::GetStartupMemorySize(const acpi::AcpiTables &acpiTables) {
     return apCount * kStartupMemorySize;
 }
 
-void km::InitSmp(km::SystemMemory& memory, km::IApic *bsp, acpi::AcpiTables& acpiTables, uint8_t scheduleIpi) {
+void km::InitSmp(km::SystemMemory& memory, km::IApic *bsp, acpi::AcpiTables& acpiTables, uint8_t scheduleIpi, uint8_t spuriousInt) {
     KmDebugMessage("[SMP] Starting APs.\n");
 
     // copy the SMP blob to the correct location
@@ -140,7 +143,7 @@ void km::InitSmp(km::SystemMemory& memory, km::IApic *bsp, acpi::AcpiTables& acp
     memory.pt.mapRange({ kSmpInfo, kSmpInfo + sizeof(SmpInfoHeader) }, (void*)kSmpInfo.address, km::PageFlags::eData);
     memory.pt.mapRange({ kSmpStart, kSmpStart + blobSize }, (void*)kSmpStart.address, km::PageFlags::eCode);
 
-    SmpInfoHeader header = SetupSmpInfoHeader(&memory, bsp, scheduleIpi);
+    SmpInfoHeader header = SetupSmpInfoHeader(&memory, bsp, scheduleIpi, spuriousInt);
     memcpy(smpInfo, &header, sizeof(header));
 
     for (const acpi::MadtEntry *madt : *acpiTables.madt()) {

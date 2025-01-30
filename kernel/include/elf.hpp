@@ -123,5 +123,5 @@ namespace elf {
 }
 
 namespace km {
-    std::expected<Process, bool> LoadElf(std::span<const uint8_t> program, stdx::StringView name, uint32_t id, SystemMemory& memory, mem::IAllocator *allocator);
+    std::expected<Process, bool> LoadElf(std::span<const uint8_t> program, uint32_t id, SystemMemory& memory, mem::IAllocator *allocator);
 }

@@ -712,7 +712,12 @@ static void DumpStackTrace(const km::IsrContext *context) {
     }
 }
 
-static km::Apic EnableBootApic(km::SystemMemory& memory, km::IsrAllocator& isrs, bool useX2Apic) {
+struct ApicInfo {
+    km::Apic apic;
+    uint8_t spuriousInt;
+};
+
+static ApicInfo EnableBootApic(km::SystemMemory& memory, km::IsrAllocator& isrs, bool useX2Apic) {
     km::Apic pic = InitBspApic(memory, useX2Apic);
 
     // setup tls now that we have the lapic id
@@ -722,17 +727,17 @@ static km::Apic EnableBootApic(km::SystemMemory& memory, km::IsrAllocator& isrs,
     SetDebugLogLock(DebugLogLockType::eSpinLock);
     km::InitKernelThread(pic);
 
-    uint8_t spuriousVec = isrs.claimIsr(0xFF);
-    KmDebugMessage("[INIT] APIC ID: ", pic->id(), ", Version: ", pic->version(), ", Spurious vector: ", spuriousVec, "\n");
+    uint8_t spuriousInt = isrs.allocateIsr();
+    KmDebugMessage("[INIT] APIC ID: ", pic->id(), ", Version: ", pic->version(), ", Spurious vector: ", spuriousInt, "\n");
 
-    InstallIsrHandler(spuriousVec, [](km::IsrContext *ctx) -> km::IsrContext {
+    InstallIsrHandler(spuriousInt, [](km::IsrContext *ctx) -> km::IsrContext {
         KmDebugMessage("[ISR] Spurious interrupt: ", ctx->vector, "\n");
         km::IApic *pic = km::GetCpuLocalApic();
         pic->eoi();
         return *ctx;
     });
 
-    pic->setSpuriousVector(spuriousVec);
+    pic->setSpuriousVector(spuriousInt);
 
     pic->enable();
 
@@ -754,7 +759,7 @@ static km::Apic EnableBootApic(km::SystemMemory& memory, km::IsrAllocator& isrs,
         isrs.releaseIsr(isr);
     }
 
-    return pic;
+    return ApicInfo { pic, spuriousInt };
 }
 
 static void InitBootTerminal(std::span<const boot::FrameBuffer> framebuffers) {
@@ -1049,7 +1054,7 @@ void KmLaunchEx(boot::LaunchInfo launch) {
 
     bool useX2Apic = kUseX2Apic && processor.has2xApic;
 
-    km::Apic lapic = EnableBootApic(*stage2->memory, isrs, useX2Apic);
+    auto [lapic, spuriousInt] = EnableBootApic(*stage2->memory, isrs, useX2Apic);
 
     acpi::AcpiTables rsdt = acpi::InitAcpi(launch.rsdpAddress, *stage2->memory);
     const acpi::Fadt *fadt = rsdt.fadt();
@@ -1077,7 +1082,7 @@ void KmLaunchEx(boot::LaunchInfo launch) {
 
     gSchedulerVector = isrs.allocateIsr();
 
-    InitSmp(*stage2->memory, lapic.pointer(), rsdt, gSchedulerVector);
+    InitSmp(*stage2->memory, lapic.pointer(), rsdt, gSchedulerVector, spuriousInt);
     SetDebugLogLock(DebugLogLockType::eRecursiveSpinLock);
 
     // Setup gdt that contains a TSS for this core
@@ -1090,14 +1095,13 @@ void KmLaunchEx(boot::LaunchInfo launch) {
     uint8_t timer = isrs.allocateIsr();
 
     InstallIsrHandler(gSchedulerVector, [](km::IsrContext *ctx) -> km::IsrContext {
-        KmDebugMessage("[SMP] Reschedule: ", ctx->vector, " - ", GetCurrentCoreId(), "\n");
         km::IApic *apic = km::GetCpuLocalApic();
         apic->eoi();
         return *ctx;
     });
 
-    km::InitPit(100, rsdt.madt(), ioApics.front(), lapic.pointer(), timer, [](IsrContext *ctx) -> km::IsrContext {
-        IApic *apic = GetCpuLocalApic();
+    km::InitPit(100 * si::hertz, rsdt.madt(), ioApics.front(), lapic.pointer(), timer, [](IsrContext *ctx) -> km::IsrContext {
+        IApic *apic = km::GetCpuLocalApic();
         apic->eoi();
 
         apic->sendIpi(apic::IcrDeliver::eOther, gSchedulerVector);
@@ -1106,7 +1110,7 @@ void KmLaunchEx(boot::LaunchInfo launch) {
 
     std::span init = GetInitProgram();
 
-    auto process = LoadElf(init, "init.elf", 1, *stage2->memory, &stage2->allocator);
+    auto process = LoadElf(init, 1, *stage2->memory, &stage2->allocator);
     KM_CHECK(process.has_value(), "Failed to load init.elf");
 
     DateTime time = ReadRtc();

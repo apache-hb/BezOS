@@ -63,6 +63,8 @@ namespace acpi {
         km::IoApic mapIoApic(km::SystemMemory& memory, uint32_t index) const;
         uint32_t ioApicCount() const;
 
+        uint32_t hpetCount() const;
+
         bool has8042Controller() const;
 
         const Madt *madt() const { return mMadt; }

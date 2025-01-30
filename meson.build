@@ -42,6 +42,7 @@ c_args = cc.get_supported_arguments([ '-Wno-language-extension-token' ] + common
 cpp_args = cpp.get_supported_arguments([ '-Wno-c99-designator', '-Wno-c99-extensions' ] + common_args)
 
 limine = dependency('limine')
+mp_units = dependency('mp-units')
 
 compiler = find_program(cc.get_id())
 objcopy = find_program('objcopy')
@@ -141,6 +142,7 @@ src = [
     'kernel/src/delay.cpp',
     'kernel/src/cmos.cpp',
     'kernel/src/pit.cpp',
+    'kernel/src/hpet.cpp',
 
     'kernel/src/thread.cpp',
     'kernel/src/user.S',
@@ -192,6 +194,7 @@ kernel = static_library('kernel', src,
     include_directories : inc,
     c_args : c_args + [ '-mllvm', '-asm-macro-max-nesting-depth=256', '-D__BEZOS__=1' ],
     cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
+    dependencies : [ mp_units ],
     override_options : [ 'b_coverage=false' ],
 )
 
@@ -200,7 +203,7 @@ executable('bezos', 'kernel/src/boot/limine.cpp',
     cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
     include_directories : inc,
     link_with : kernel,
-    dependencies : [ limine ],
+    dependencies : [ limine, mp_units ],
     link_depends : 'data/linker-x64.ld',
     link_args : [ '-T', meson.current_source_dir() / 'data/linker-x64.ld' ],
     install_dir : get_option('prefix') / 'image' / 'boot',

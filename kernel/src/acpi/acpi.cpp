@@ -1,5 +1,6 @@
 #include "acpi/acpi.hpp"
 
+#include "acpi/hpet.hpp"
 #include "apic.hpp"
 #include "log.hpp"
 #include "panic.hpp"
@@ -121,6 +122,16 @@ static void DebugFadt(const acpi::RsdtHeader *header) {
     KmDebugMessage("| /SYS/ACPI/FACP     | Hypervisor vendor ID        | ", fadt->hypervisorVendor, "\n");
 }
 
+static void DebugHpet(const acpi::RsdtHeader *header) {
+    const acpi::Hpet *hpet = reinterpret_cast<const acpi::Hpet*>(header);
+
+    KmDebugMessage("| /SYS/ACPI/HPET     | Event timer block ID        | ", km::Hex(hpet->evtTimerBlockId).pad(8, '0'), "\n");
+    KmDebugMessage("| /SYS/ACPI/HPET     | Base address                | ", hpet->baseAddress, "\n");
+    KmDebugMessage("| /SYS/ACPI/HPET     | HPET number                 | ", hpet->hpetNumber, "\n");
+    KmDebugMessage("| /SYS/ACPI/HPET     | Clock tick                  | ", hpet->clockTick, "\n");
+    KmDebugMessage("| /SYS/ACPI/HPET     | Page protection             | ", hpet->pageProtection, "\n");
+}
+
 static const acpi::RsdtHeader *GetRsdtHeader(km::PhysicalAddress paddr, km::SystemMemory& memory) {
     const acpi::RsdtHeader *entry = MapTableEntry(paddr, memory);
     KmDebugMessage("| /SYS/ACPI/", entry->signature, "     | Address                     | ", paddr, "\n");
@@ -139,6 +150,8 @@ static const acpi::RsdtHeader *GetRsdtHeader(km::PhysicalAddress paddr, km::Syst
         DebugMcfg(entry);
     } else if ("FACP"_sv == entry->signature) {
         DebugFadt(entry);
+    } else if ("HPET"_sv == entry->signature) {
+        DebugHpet(entry);
     }
 
 #if 0
