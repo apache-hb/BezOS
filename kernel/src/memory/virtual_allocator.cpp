@@ -31,6 +31,7 @@ km::VirtualAllocator::VirtualAllocator(VirtualRange range, mem::IAllocator *allo
 
 km::VirtualAllocator::VirtualAllocator(mem::IAllocator *allocator)
     : mAvailable(allocator)
+    , mRangeAllocator(allocator)
 { }
 
 void km::VirtualAllocator::markUsed(VirtualRange range) {

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "memory/range_allocator.hpp"
 #include "std/vector.hpp"
 #include "util/format.hpp"
 
@@ -13,6 +14,8 @@ namespace km {
     ///
     /// @pre @a VirtualRange::front < @a VirtualRange::back
     struct VirtualRange {
+        using Type = const void *;
+
         const void *front;
         const void *back;
 
@@ -36,6 +39,10 @@ namespace km {
             return front == back;
         }
 
+        static VirtualRange merge(VirtualRange a, VirtualRange b) {
+            return { std::min(a.front, b.front), std::max(a.back, b.back) };
+        }
+
         constexpr bool operator==(const VirtualRange& other) const = default;
         constexpr bool operator!=(const VirtualRange& other) const = default;
     };
@@ -48,6 +55,8 @@ namespace km {
     class VirtualAllocator {
         /// @brief Ranges of memory that are still available.
         stdx::Vector<VirtualRange> mAvailable;
+
+        RangeAllocator<VirtualRange> mRangeAllocator;
 
     public:
         VirtualAllocator(VirtualRange range, mem::IAllocator *allocator);

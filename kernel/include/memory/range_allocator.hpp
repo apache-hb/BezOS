@@ -9,6 +9,28 @@ namespace km {
         using Type = typename Range::Type;
         stdx::Vector<Range> mAvailable;
 
+        void sortRanges() {
+            std::sort(mAvailable.begin(), mAvailable.end(), [](const auto& a, const auto& b) {
+                return a.front < b.front;
+            });
+        }
+
+        void mergeRanges() {
+            sortRanges();
+
+            for (size_t i = 0; i < mAvailable.count(); i++) {
+                auto& range = mAvailable[i];
+                for (size_t j = i + 1; j < mAvailable.count(); j++) {
+                    auto& next = mAvailable[j];
+                    if (range.overlaps(next)) {
+                        range = Range::merge(range, next);
+                        mAvailable.remove(j);
+                        j--;
+                    }
+                }
+            }
+        }
+
     public:
         RangeAllocator(mem::IAllocator *allocator)
             : mAvailable(allocator)
@@ -52,6 +74,8 @@ namespace km {
                     // multiple ranges can overlap, so don't break here
                 }
             }
+
+            sortRanges();
         }
 
         Range allocate(size_t size) {
@@ -70,6 +94,8 @@ namespace km {
 
         void release(Range range) {
             mAvailable.add(range);
+
+            mergeRanges();
         }
     };
 }
