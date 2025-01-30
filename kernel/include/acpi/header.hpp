@@ -4,8 +4,10 @@
 #include <stdint.h>
 
 namespace acpi {
+    using TableSignature = std::array<char, 4>;
+
     struct [[gnu::packed]] RsdtHeader {
-        std::array<char, 4> signature;
+        TableSignature signature;
         uint32_t length;
         uint8_t revision;
         uint8_t checksum;
@@ -51,6 +53,20 @@ namespace acpi {
     };
 
     static_assert(sizeof(GenericAddress) == 12);
+
+    template<typename T>
+    concept IsAcpiTable = requires {
+        { T::kSignature } -> std::convertible_to<TableSignature>;
+    };
+
+    template<IsAcpiTable T>
+    const T *TableCast(const RsdtHeader *header) {
+        if (header->signature == T::kSignature) {
+            return reinterpret_cast<const T*>(header);
+        }
+
+        return nullptr;
+    }
 }
 
 template<>

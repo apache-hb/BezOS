@@ -101,7 +101,7 @@ namespace km {
         HighPrecisionTimer(const acpi::Hpet *hpet, SystemMemory& memory);
 
     public:
-        pit::Type type() const override { return pit::Type::HPET; }
+        pit::Type type() const override;
         uint16_t bestDivisor(hertz frequency) const override;
         hertz refclk() const override;
         uint64_t ticks() const override;

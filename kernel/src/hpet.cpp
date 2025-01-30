@@ -6,6 +6,12 @@ km::HighPrecisionTimer::HighPrecisionTimer(const acpi::Hpet *hpet, SystemMemory&
     , mMmioRegion(memory.mmioRegion<HpetRegisters>(km::PhysicalAddress { hpet->baseAddress.address }))
 { }
 
+km::pit::Type km::HighPrecisionTimer::type() const { return pit::Type::HPET; }
+
+uint16_t km::HighPrecisionTimer::bestDivisor(hertz) const {
+    return 1; // TODO: Implement
+}
+
 km::hertz km::HighPrecisionTimer::refclk() const {
     mp::quantity period = (mMmioRegion->id >> 32) * si::femto<si::second>;
     return (1 / period).in(si::hertz);
@@ -13,6 +19,10 @@ km::hertz km::HighPrecisionTimer::refclk() const {
 
 uint64_t km::HighPrecisionTimer::ticks() const {
     return 0;
+}
+
+void km::HighPrecisionTimer::setDivisor(uint16_t) {
+    // TODO: Implement
 }
 
 pci::VendorId km::HighPrecisionTimer::vendor() const {
@@ -58,5 +68,6 @@ std::optional<km::HighPrecisionTimer> km::HighPrecisionTimer::find(const acpi::A
         return HighPrecisionTimer { hpet, memory };
     }
 
+    KmDebugMessage("[ACPI] No HPET table found.\n");
     return std::nullopt;
 }

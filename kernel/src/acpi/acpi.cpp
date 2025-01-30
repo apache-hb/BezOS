@@ -37,9 +37,7 @@ static const acpi::RsdtHeader *MapTableEntry(km::PhysicalAddress paddr, km::Syst
     return memory.mapConst<acpi::RsdtHeader>(paddr, paddr + header->length);
 }
 
-static void DebugMadt(const acpi::RsdtHeader *header) {
-    const acpi::Madt *madt = reinterpret_cast<const acpi::Madt*>(header);
-
+static void DebugMadt(const acpi::Madt *madt) {
     KmDebugMessage("| /SYS/ACPI/APIC     | Local APIC address          | ", km::Hex(madt->localApicAddress).pad(8, '0'), "\n");
     KmDebugMessage("| /SYS/ACPI/APIC     | Flags                       | ", bool(madt->flags & acpi::MadtFlags::ePcatCompat) ? stdx::StringView("PCAT compatible") : stdx::StringView("None"), "\n");
 
@@ -52,9 +50,7 @@ static void DebugMadt(const acpi::RsdtHeader *header) {
     }
 }
 
-static void DebugMcfg(const acpi::RsdtHeader *header) {
-    const acpi::Mcfg *mcfg = reinterpret_cast<const acpi::Mcfg*>(header);
-
+static void DebugMcfg(const acpi::Mcfg *mcfg) {
     for (size_t i = 0; i < mcfg->allocationCount(); i++) {
         const acpi::McfgAllocation *allocation = &mcfg->allocations[i];
         KmDebugMessage("| /SYS/ACPI/MCFG/", km::rpad(3) + i, " | Address                     | ", km::PhysicalAddress(allocation->address), "\n");
@@ -64,9 +60,7 @@ static void DebugMcfg(const acpi::RsdtHeader *header) {
     }
 }
 
-static void DebugFadt(const acpi::RsdtHeader *header) {
-    const acpi::Fadt *fadt = reinterpret_cast<const acpi::Fadt*>(header);
-
+static void DebugFadt(const acpi::Fadt *fadt) {
     KmDebugMessage("| /SYS/ACPI/FACP     | Firmware control            | ", km::Hex(fadt->firmwareCtrl).pad(8, '0'), "\n");
     KmDebugMessage("| /SYS/ACPI/FACP     | DSDT                        | ", km::Hex(fadt->dsdt).pad(8, '0'), "\n");
     KmDebugMessage("| /SYS/ACPI/FACP     | Preferred PM profile        | ", fadt->preferredPmProfile, "\n");
@@ -122,9 +116,7 @@ static void DebugFadt(const acpi::RsdtHeader *header) {
     KmDebugMessage("| /SYS/ACPI/FACP     | Hypervisor vendor ID        | ", fadt->hypervisorVendor, "\n");
 }
 
-static void DebugHpet(const acpi::RsdtHeader *header) {
-    const acpi::Hpet *hpet = reinterpret_cast<const acpi::Hpet*>(header);
-
+static void DebugHpet(const acpi::Hpet *hpet) {
     KmDebugMessage("| /SYS/ACPI/HPET     | Event timer block ID        | ", km::Hex(hpet->evtTimerBlockId).pad(8, '0'), "\n");
     KmDebugMessage("| /SYS/ACPI/HPET     | Base address                | ", hpet->baseAddress, "\n");
     KmDebugMessage("| /SYS/ACPI/HPET     | HPET number                 | ", hpet->hpetNumber, "\n");
@@ -144,14 +136,14 @@ static const acpi::RsdtHeader *GetRsdtHeader(km::PhysicalAddress paddr, km::Syst
     KmDebugMessage("| /SYS/ACPI/", entry->signature, "     | Creator ID                  | ", km::Hex(entry->creatorId), "\n");
     KmDebugMessage("| /SYS/ACPI/", entry->signature, "     | Creator revision            | ", entry->creatorRevision, "\n");
 
-    if ("APIC"_sv == entry->signature) {
-        DebugMadt(entry);
-    } else if ("MCFG"_sv == entry->signature) {
-        DebugMcfg(entry);
-    } else if ("FACP"_sv == entry->signature) {
-        DebugFadt(entry);
-    } else if ("HPET"_sv == entry->signature) {
-        DebugHpet(entry);
+    if (auto *madt = acpi::TableCast<acpi::Madt>(entry)) {
+        DebugMadt(madt);
+    } else if (auto *mcfg = acpi::TableCast<acpi::Mcfg>(entry)) {
+        DebugMcfg(mcfg);
+    } else if (auto *fadt = acpi::TableCast<acpi::Fadt>(entry)) {
+        DebugFadt(fadt);
+    } else if (auto *hpet = acpi::TableCast<acpi::Hpet>(entry)) {
+        DebugHpet(hpet);
     }
 
 #if 0
@@ -228,15 +220,16 @@ bool acpi::operator!=(const MadtIterator& lhs, const MadtIterator& rhs) {
     return lhs.mCurrent < rhs.mCurrent;
 }
 
-template<typename T>
-void SetUniqueTableEntry(const T** dst, const acpi::RsdtHeader *header, stdx::StringView signature) {
-    if (header->signature != signature) return;
-    if (*dst != nullptr) {
-        KmDebugMessage("[ACPI] Multiple '", signature, "' tables found. This table should be unique. I will only use the first instance of this table.\n");
-        return;
-    }
+template<acpi::IsAcpiTable T>
+void SetUniqueTableEntry(const T** dst, const acpi::RsdtHeader *header) {
+    if (const T *table = acpi::TableCast<T>(header)) {
+        if (*dst != nullptr) {
+            KmDebugMessage("[ACPI] Multiple '", T::kSignature, "' tables found. This table should be unique. I will only use the first instance of this table.\n");
+            return;
+        }
 
-    *dst = reinterpret_cast<const T*>(header);
+        *dst = reinterpret_cast<const T*>(header);
+    }
 }
 
 acpi::AcpiTables::AcpiTables(const RsdpLocator *locator, km::SystemMemory& memory)
@@ -249,16 +242,16 @@ acpi::AcpiTables::AcpiTables(const RsdpLocator *locator, km::SystemMemory& memor
     auto setupTables = [&](const auto *locator) {
         mRsdtEntryCount = locator->count();
 
-        mRsdtEntries.reset(new (std::nothrow) RsdtHeaderPtr[mRsdtEntryCount]);
+        mRsdtEntries.reset(new (std::nothrow) const RsdtHeader*[mRsdtEntryCount]);
         KM_CHECK(mRsdtEntries != nullptr, "Failed to allocate memory for RSDT entries.");
 
         for (uint32_t i = 0; i < mRsdtEntryCount; i++) {
             km::PhysicalAddress paddr = km::PhysicalAddress { locator->entries[i] };
             const acpi::RsdtHeader *header = MapTableEntry(paddr, memory);
 
-            SetUniqueTableEntry(&mMadt, header, "APIC"_sv);
-            SetUniqueTableEntry(&mMcfg, header, "MCFG"_sv);
-            SetUniqueTableEntry(&mFadt, header, "FACP"_sv);
+            SetUniqueTableEntry(&mMadt, header);
+            SetUniqueTableEntry(&mMcfg, header);
+            SetUniqueTableEntry(&mFadt, header);
 
             mRsdtEntries[i] = header;
         }
