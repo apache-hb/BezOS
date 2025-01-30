@@ -985,16 +985,6 @@ extern "C" void free(void *ptr) {
     gAllocator->deallocate(ptr, 0);
 }
 
-extern void operator delete(void *ptr, size_t size) noexcept {
-    stdx::LockGuard _(gAllocatorLock);
-    gAllocator->deallocate(ptr, size);
-}
-
-extern void *operator new(size_t size) {
-    stdx::LockGuard _(gAllocatorLock);
-    return gAllocator->allocate(size);
-}
-
 static uint32_t gSchedulerVector = 0;
 
 void KmLaunchEx(boot::LaunchInfo launch) {

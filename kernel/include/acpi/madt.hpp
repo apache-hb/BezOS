@@ -89,6 +89,8 @@ namespace acpi {
     };
 
     struct Madt {
+        static constexpr std::array<char, 4> kSignature = { 'A', 'P', 'I', 'C' };
+
         RsdtHeader header; // signature must be "APIC"
 
         uint32_t localApicAddress;

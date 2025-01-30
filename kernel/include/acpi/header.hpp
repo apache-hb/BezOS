@@ -5,7 +5,7 @@
 
 namespace acpi {
     struct [[gnu::packed]] RsdtHeader {
-        char signature[4];
+        std::array<char, 4> signature;
         uint32_t length;
         uint8_t revision;
         uint8_t checksum;

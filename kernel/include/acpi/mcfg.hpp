@@ -17,6 +17,8 @@ namespace acpi {
     static_assert(sizeof(McfgAllocation) == 16);
 
     struct [[gnu::packed]] Mcfg {
+        static constexpr std::array<char, 4> kSignature = { 'M', 'C', 'F', 'G' };
+
         RsdtHeader header; // signature must be "MCFG"
         uint8_t reserved0[8];
 

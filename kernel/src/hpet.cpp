@@ -1,40 +1,62 @@
+#include "log.hpp"
 #include "pit.hpp"
-
-struct [[gnu::packed]] HpetComparator {
-    volatile uint64_t config;
-    volatile uint64_t comparator;
-    volatile uint64_t irq;
-    uint8_t reserved[8];
-};
-
-struct [[gnu::packed]] HpetRegisters {
-    volatile const uint64_t id;
-    uint8_t reserved0[8];
-    volatile uint64_t config;
-    uint8_t reserved1[8];
-    volatile uint64_t irqStatus;
-    uint8_t reserved2[200];
-    volatile uint64_t counter;
-    uint8_t reserved3[8];
-    HpetComparator comparators[32];
-};
-
-static_assert(offsetof(HpetRegisters, id) == 0x00);
-static_assert(offsetof(HpetRegisters, config) == 0x10);
-static_assert(offsetof(HpetRegisters, irqStatus) == 0x20);
-static_assert(offsetof(HpetRegisters, counter) == 0xF0);
-static_assert(offsetof(HpetRegisters, comparators) == 0x100);
 
 km::HighPrecisionTimer::HighPrecisionTimer(const acpi::Hpet *hpet, SystemMemory& memory)
     : mTable(*hpet)
-{
-    void *addr = memory.mapObject<HpetRegisters>(km::PhysicalAddress { hpet->baseAddress.address });
-}
+    , mMmioRegion(memory.mmioRegion<HpetRegisters>(km::PhysicalAddress { hpet->baseAddress.address }))
+{ }
 
 km::hertz km::HighPrecisionTimer::refclk() const {
-    return 0 * si::hertz;
+    mp::quantity period = (mMmioRegion->id >> 32) * si::femto<si::second>;
+    return (1 / period).in(si::hertz);
 }
 
 uint64_t km::HighPrecisionTimer::ticks() const {
     return 0;
+}
+
+pci::VendorId km::HighPrecisionTimer::vendor() const {
+    return pci::VendorId { uint16_t(mMmioRegion->id >> 16) };
+}
+
+km::HpetWidth km::HighPrecisionTimer::counterSize() const {
+    static constexpr uint64_t kCounterSize = 1 << 13;
+    return (mMmioRegion->id & kCounterSize) ? HpetWidth::QWORD : HpetWidth::DWORD;
+}
+
+uint8_t km::HighPrecisionTimer::timerCount() const {
+    return uint8_t((mMmioRegion->id >> 8) & 0b11111) + 1;
+}
+
+uint8_t km::HighPrecisionTimer::revision() const {
+    return uint8_t(mMmioRegion->id & 0b11111111);
+}
+
+void km::HighPrecisionTimer::enable(bool enabled) {
+    if (enabled) {
+        mMmioRegion->config = (mMmioRegion->config & ~0b1) | 0b1;
+    } else {
+        mMmioRegion->config = mMmioRegion->config & ~0b1;
+    }
+}
+
+bool km::HighPrecisionTimer::isTimerActive(uint8_t timer) const {
+    return (mMmioRegion->irqStatus & (1 << timer)) != 0;
+}
+
+std::optional<km::HighPrecisionTimer> km::HighPrecisionTimer::find(const acpi::AcpiTables& acpiTables, SystemMemory& memory) {
+    for (const acpi::RsdtHeader *header : acpiTables.entries()) {
+        if (header->signature != acpi::Hpet::kSignature)
+            continue;
+
+        const acpi::Hpet *hpet = reinterpret_cast<const acpi::Hpet*>(header);
+        if (hpet->baseAddress.addressSpace != acpi::AddressSpaceId::eSystemMemory) {
+            KmDebugMessage("[WARN] HPET base address (", hpet->baseAddress, ") is not in system memory. Currently unsupported.\n");
+            continue;
+        }
+
+        return HighPrecisionTimer { hpet, memory };
+    }
+
+    return std::nullopt;
 }

@@ -29,23 +29,28 @@ namespace km {
         void *map(PhysicalAddress begin, PhysicalAddress end, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eWriteBack);
 
         template<typename T>
-        T *mapObject(PhysicalAddress begin, PhysicalAddress end) {
-            return (T*)map(begin, end);
+        T *mapObject(PhysicalAddress begin, PhysicalAddress end, MemoryType type = MemoryType::eWriteBack) {
+            return (T*)map(begin, end, PageFlags::eData, type);
         }
 
         template<typename T>
-        T *mapObject(PhysicalAddress paddr) {
-            return mapObject<T>(paddr, paddr + sizeof(T));
+        T *mapObject(PhysicalAddress paddr, MemoryType type = MemoryType::eWriteBack) {
+            return mapObject<T>(paddr, paddr + sizeof(T), type);
         }
 
         template<typename T>
-        const T *mapConst(PhysicalAddress begin, PhysicalAddress end) {
-            return (const T*)map(begin, end, PageFlags::eRead);
+        T *mmioRegion(PhysicalAddress begin) {
+            return mapObject<T>(begin, begin + sizeof(T), MemoryType::eUncached);
         }
 
         template<typename T>
-        const T *mapConst(PhysicalAddress paddr) {
-            return mapConst<T>(paddr, paddr + sizeof(T));
+        const T *mapConst(PhysicalAddress begin, PhysicalAddress end, MemoryType type = MemoryType::eWriteBack) {
+            return (const T*)map(begin, end, PageFlags::eRead, type);
+        }
+
+        template<typename T>
+        const T *mapConst(PhysicalAddress paddr, MemoryType type = MemoryType::eWriteBack) {
+            return mapConst<T>(paddr, paddr + sizeof(T), type);
         }
     };
 }

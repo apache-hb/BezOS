@@ -244,15 +244,23 @@ acpi::AcpiTables::AcpiTables(const RsdpLocator *locator, km::SystemMemory& memor
     , mMadt(nullptr)
     , mMcfg(nullptr)
     , mFadt(nullptr)
+    , mDsdt(nullptr)
 {
     auto setupTables = [&](const auto *locator) {
-        for (uint32_t i = 0; i < locator->count(); i++) {
+        mRsdtEntryCount = locator->count();
+
+        mRsdtEntries.reset(new (std::nothrow) RsdtHeaderPtr[mRsdtEntryCount]);
+        KM_CHECK(mRsdtEntries != nullptr, "Failed to allocate memory for RSDT entries.");
+
+        for (uint32_t i = 0; i < mRsdtEntryCount; i++) {
             km::PhysicalAddress paddr = km::PhysicalAddress { locator->entries[i] };
             const acpi::RsdtHeader *header = MapTableEntry(paddr, memory);
 
             SetUniqueTableEntry(&mMadt, header, "APIC"_sv);
             SetUniqueTableEntry(&mMcfg, header, "MCFG"_sv);
             SetUniqueTableEntry(&mFadt, header, "FACP"_sv);
+
+            mRsdtEntries[i] = header;
         }
     };
 

@@ -15,6 +15,8 @@ namespace acpi {
     UTIL_BITFLAGS(IapcBootArch);
 
     struct [[gnu::packed]] Fadt {
+        static constexpr std::array<char, 4> kSignature = { 'F', 'A', 'C', 'P' };
+
         RsdtHeader header; // signature must be "FACP"
 
         uint32_t firmwareCtrl;

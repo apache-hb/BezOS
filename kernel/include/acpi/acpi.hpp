@@ -29,6 +29,8 @@ namespace acpi {
     static_assert(sizeof(RsdpLocator) == 36);
 
     struct [[gnu::packed]] Rsdt {
+        static constexpr std::array<char, 4> kSignature = { 'R', 'S', 'D', 'T' };
+
         RsdtHeader header; // signature must be "RSDT"
         uint32_t entries[];
 
@@ -38,6 +40,8 @@ namespace acpi {
     };
 
     struct [[gnu::packed]] Xsdt {
+        static constexpr std::array<char, 4> kSignature = { 'X', 'S', 'D', 'T' };
+
         RsdtHeader header; // signature must be "XSDT"
         uint64_t entries[];
 
@@ -46,12 +50,16 @@ namespace acpi {
         }
     };
 
+    using RsdtHeaderPtr = const RsdtHeader *;
+
     class AcpiTables {
         const RsdpLocator *mRsdpLocator;
         const Madt *mMadt;
         const Mcfg *mMcfg;
         const Fadt *mFadt;
         const RsdtHeader *mDsdt;
+        std::unique_ptr<RsdtHeaderPtr[]> mRsdtEntries;
+        size_t mRsdtEntryCount;
 
     public:
         AcpiTables(const RsdpLocator *locator, km::SystemMemory& memory);
@@ -64,6 +72,10 @@ namespace acpi {
         uint32_t ioApicCount() const;
 
         uint32_t hpetCount() const;
+
+        std::span<RsdtHeaderPtr> entries() const {
+            return std::span(mRsdtEntries.get(), mRsdtEntryCount);
+        }
 
         bool has8042Controller() const;
 

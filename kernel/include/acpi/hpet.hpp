@@ -4,6 +4,8 @@
 
 namespace acpi {
     struct [[gnu::packed]] Hpet {
+        static constexpr std::array<char, 4> kSignature = { 'H', 'P', 'E', 'T' };
+
         RsdtHeader header;
         uint32_t evtTimerBlockId;
         GenericAddress baseAddress;
