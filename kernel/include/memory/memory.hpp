@@ -70,6 +70,8 @@ namespace km {
     ///
     /// @pre @a MemoryRange::front < @a MemoryRange::back
     struct MemoryRange {
+        using Type = PhysicalAddress;
+
         PhysicalAddress front;
         PhysicalAddress back;
 
@@ -136,6 +138,10 @@ namespace km {
 
         constexpr bool isAfter(PhysicalAddress address) const {
             return front >= address;
+        }
+
+        static MemoryRange merge(MemoryRange a, MemoryRange b) {
+            return { std::min(a.front, b.front), std::max(a.back, b.back) };
         }
 
         /// @brief Return a copy of this range with the overlapping area cut out.
