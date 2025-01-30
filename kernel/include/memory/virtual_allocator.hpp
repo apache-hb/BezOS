@@ -53,9 +53,6 @@ namespace km {
 
     /// @brief Allocates virtual memory address space.
     class VirtualAllocator {
-        /// @brief Ranges of memory that are still available.
-        stdx::Vector<VirtualRange> mAvailable;
-
         RangeAllocator<VirtualRange> mRangeAllocator;
 
     public:
