@@ -4,7 +4,15 @@
 #include "std/vector.hpp"
 
 namespace km {
-    template<typename Range>
+    template<typename T>
+    concept IsMemoryRange = requires(T it) {
+        typename T::Type;
+        { it.front } -> std::convertible_to<typename T::Type>;
+        { it.back } -> std::convertible_to<typename T::Type>;
+        { T::merge(it, it) } -> std::same_as<T>;
+    };
+
+    template<IsMemoryRange Range>
     class RangeAllocator {
         using Type = typename Range::Type;
         stdx::Vector<Range> mAvailable;
