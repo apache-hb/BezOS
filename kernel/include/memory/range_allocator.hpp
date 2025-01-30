@@ -94,7 +94,7 @@ namespace km {
                 Range& range = mAvailable[i];
                 if (range.size() >= size) {
                     Type front = range.front;
-                    Type back = (Type)((uintptr_t)range.front + size);
+                    Type back = (Type)(std::bit_cast<uintptr_t>(range.front) + size);
                     range.front = back;
                     return Range { front, back };
                 }

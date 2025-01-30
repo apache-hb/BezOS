@@ -115,7 +115,6 @@ src = [
     # Memory management
     'kernel/src/memory/layout.cpp',
     'kernel/src/memory/allocator.cpp',
-    'kernel/src/memory/bitmap.cpp',
     'kernel/src/memory/page_allocator.cpp',
     'kernel/src/memory/virtual_allocator.cpp',
 
@@ -287,11 +286,11 @@ testcases = {
     'memory range': [ 'kernel/test/memory_range.cpp' ],
     'pat': [ 'kernel/test/page_attribute_table.cpp', 'kernel/src/pat.cpp', 'kernel/src/util/cpuid.cpp', ],
     'paging': [ 'kernel/test/paging.cpp', ],
-    'pmm': [
-        'kernel/test/pmm.cpp',
-        'kernel/src/memory/bitmap.cpp',
-        'kernel/src/util/bits.cpp',
-    ],
+    # 'pmm': [
+    #     'kernel/test/pmm.cpp',
+    #     'kernel/src/memory/bitmap.cpp',
+    #     'kernel/src/util/bits.cpp',
+    # ],
     'arch cr': [ 'kernel/test/arch/cr.cpp', 'kernel/src/arch/cr.cpp', ],
     'arch gdt': [ 'kernel/test/arch/gdt.cpp', 'kernel/src/gdt.cpp', ],
     'framebuffer': [ 'kernel/test/display.cpp', 'kernel/src/canvas.cpp', ],
@@ -309,18 +308,17 @@ testcases = {
         'kernel/test/memory/virtual_allocator.cpp',
         'kernel/src/memory/virtual_allocator.cpp',
         'kernel/src/memory/page_allocator.cpp',
-        'kernel/src/memory/bitmap.cpp',
         'kernel/src/memory/layout.cpp',
         'kernel/src/util/bits.cpp',
         'kernel/src/boot.cpp',
     ],
     'serial': [ 'kernel/test/serial.cpp', 'kernel/src/uart.cpp', ],
-    'bitmap allocator': [
-        'kernel/test/memory/bitmap.cpp',
-        'kernel/src/allocator/bitmap.cpp',
-        'kernel/src/util/format.cpp',
-        'kernel/src/util/bits.cpp',
-    ],
+    # 'bitmap allocator': [
+    #     'kernel/test/memory/bitmap.cpp',
+    #     'kernel/src/allocator/bitmap.cpp',
+    #     'kernel/src/util/format.cpp',
+    #     'kernel/src/util/bits.cpp',
+    # ],
     'freelist vector': [
         'kernel/test/freelist.cpp',
         'kernel/src/allocator/freelist.cpp',
@@ -331,21 +329,18 @@ if enable_aml
     testcases += {
         'aml details': [
             'kernel/test/acpi/detail.cpp',
-            'kernel/src/allocator/bitmap.cpp',
             'kernel/src/acpi/format.cpp',
             'kernel/src/acpi/aml.cpp',
             'kernel/src/util/format.cpp',
         ],
         'aml names': [
             'kernel/test/acpi/name.cpp',
-            'kernel/src/allocator/bitmap.cpp',
             'kernel/src/acpi/format.cpp',
             'kernel/src/acpi/aml.cpp',
             'kernel/src/util/format.cpp',
         ],
         'aml nodes': [
             'kernel/test/acpi/nodes.cpp',
-            'kernel/src/allocator/bitmap.cpp',
             'kernel/src/acpi/format.cpp',
             'kernel/src/acpi/aml.cpp',
             'kernel/src/util/format.cpp',
