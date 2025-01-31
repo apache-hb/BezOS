@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "memory/memory.hpp"
+#include "memory/range.hpp"
 
 TEST(MemoryRangeTest, Contains) {
     km::MemoryRange range { 0x1000, 0x2000 };

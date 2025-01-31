@@ -15,12 +15,12 @@ static constexpr size_t kEcamSize = (256 * 32 * 8) * 0x1000;
 // generic PCI configuration space read
 
 uint16_t pci::IConfigSpace::read16(uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset) {
-    uint32_t data = read32(bus, slot, function, offset);
+    uint32_t data = read32(bus, slot, function, offset & ~0b11);
     return (data >> ((offset & 2) * 8)) & 0xFFFF;
 }
 
 uint8_t pci::IConfigSpace::read8(uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset) {
-    uint32_t data = read32(bus, slot, function, offset);
+    uint32_t data = read32(bus, slot, function, offset & ~0b11);
     uint32_t shift = (3 - (offset % 4)) * 8;
     uint8_t result = (data >> shift) & 0xFF;
     return result;
@@ -50,26 +50,33 @@ pci::McfgConfigSpace::McfgConfigSpace(const acpi::Mcfg *mcfg, km::SystemMemory& 
     for (size_t i = 0; i < mMcfg->allocationCount(); i++) {
         const acpi::McfgAllocation& allocation = mMcfg->allocations[i];
 
+        km::MemoryRange range = { allocation.address, allocation.address + kEcamSize };
+
         EcamRegion region = {
             .first = allocation.startBusNumber,
             .last = allocation.endBusNumber,
-            .base = memory.map(allocation.address, allocation.address + kEcamSize, km::PageFlags::eData, km::MemoryType::eWriteBack)
+            .base = memory.map(range, km::PageFlags::eData, km::MemoryType::eWriteThrough)
         };
 
         mRegions[i] = region;
 
-        KmDebugMessage("[PCI] ECAM region ", i, ": ", (const void*)region.base, " (", (const void*)((char*)region.base + kEcamSize), ")", "\n");
+        KmDebugMessage("[PCI] ECAM region ", i, ": ", range, " -> ", (const void*)region.base, " (", (const void*)((char*)region.base + kEcamSize), ")", "\n");
     }
 }
 
 uint32_t pci::McfgConfigSpace::read32(uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset) {
-    uint32_t address = (((bus * 256) + (slot * 8) + function) * 0x1000) + offset;
-
     for (size_t i = 0; i < mMcfg->allocationCount(); i++) {
         EcamRegion region = mRegions[i];
-        if (region.contains(bus)) {
-            return *(uint32_t*)((uint8_t*)region.base + address);
-        }
+        if (!region.contains(bus)) continue;
+
+        uint32_t address = (((uint32_t(bus) * 256) + (uint32_t(slot) * 8) + uint32_t(function)) * 0x1000) + uint32_t(offset);
+
+        // uint32_t address2 = (uint32_t(bus) << 20) | (uint32_t(slot) << 15) | (uint32_t(function) << 12) | offset;
+
+        KmDebugMessage("[PCI] Reading ECAM address ", address, " for bus ", bus, ", slot ", slot, ", function ", function, " + ", offset, "\n");
+        KmDebugMessage("[PCI] ECAM read ", (void*)((char*)region.base + address), "\n");
+
+        return *(uint32_t*)((uint8_t*)region.base + address);
     }
 
     KmDebugMessage("[PCI] ECAM region not found for bus ", bus, ", slot ", slot, ", function ", function, "\n");

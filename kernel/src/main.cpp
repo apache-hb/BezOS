@@ -669,54 +669,54 @@ static Stage2MemoryInfo *InitStage2Memory(
 }
 
 static void DumpIsrState(const km::IsrContext *context) {
-    KmDebugMessage("| Register | Value\n");
-    KmDebugMessage("|----------+------\n");
-    KmDebugMessage("| %RAX     | ", Hex(context->rax).pad(16, '0'), "\n");
-    KmDebugMessage("| %RBX     | ", Hex(context->rbx).pad(16, '0'), "\n");
-    KmDebugMessage("| %RCX     | ", Hex(context->rcx).pad(16, '0'), "\n");
-    KmDebugMessage("| %RDX     | ", Hex(context->rdx).pad(16, '0'), "\n");
-    KmDebugMessage("| %RDI     | ", Hex(context->rdi).pad(16, '0'), "\n");
-    KmDebugMessage("| %RSI     | ", Hex(context->rsi).pad(16, '0'), "\n");
-    KmDebugMessage("| %R8      | ", Hex(context->r8).pad(16, '0'), "\n");
-    KmDebugMessage("| %R9      | ", Hex(context->r9).pad(16, '0'), "\n");
-    KmDebugMessage("| %R10     | ", Hex(context->r10).pad(16, '0'), "\n");
-    KmDebugMessage("| %R11     | ", Hex(context->r11).pad(16, '0'), "\n");
-    KmDebugMessage("| %R12     | ", Hex(context->r12).pad(16, '0'), "\n");
-    KmDebugMessage("| %R13     | ", Hex(context->r13).pad(16, '0'), "\n");
-    KmDebugMessage("| %R14     | ", Hex(context->r14).pad(16, '0'), "\n");
-    KmDebugMessage("| %R15     | ", Hex(context->r15).pad(16, '0'), "\n");
-    KmDebugMessage("| %RBP     | ", Hex(context->rbp).pad(16, '0'), "\n");
-    KmDebugMessage("| %RIP     | ", Hex(context->rip).pad(16, '0'), "\n");
-    KmDebugMessage("| %CS      | ", Hex(context->cs).pad(16, '0'), "\n");
-    KmDebugMessage("| %RFLAGS  | ", Hex(context->rflags).pad(16, '0'), "\n");
-    KmDebugMessage("| %RSP     | ", Hex(context->rsp).pad(16, '0'), "\n");
-    KmDebugMessage("| %SS      | ", Hex(context->ss).pad(16, '0'), "\n");
-    KmDebugMessage("| Vector   | ", Hex(context->vector).pad(16, '0'), "\n");
-    KmDebugMessage("| Error    | ", Hex(context->error).pad(16, '0'), "\n");
-    KmDebugMessage("\n");
+    KmDebugMessageUnlocked("| Register | Value\n");
+    KmDebugMessageUnlocked("|----------+------\n");
+    KmDebugMessageUnlocked("| %RAX     | ", Hex(context->rax).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("| %RBX     | ", Hex(context->rbx).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("| %RCX     | ", Hex(context->rcx).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("| %RDX     | ", Hex(context->rdx).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("| %RDI     | ", Hex(context->rdi).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("| %RSI     | ", Hex(context->rsi).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("| %R8      | ", Hex(context->r8).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("| %R9      | ", Hex(context->r9).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("| %R10     | ", Hex(context->r10).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("| %R11     | ", Hex(context->r11).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("| %R12     | ", Hex(context->r12).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("| %R13     | ", Hex(context->r13).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("| %R14     | ", Hex(context->r14).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("| %R15     | ", Hex(context->r15).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("| %RBP     | ", Hex(context->rbp).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("| %RIP     | ", Hex(context->rip).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("| %CS      | ", Hex(context->cs).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("| %RFLAGS  | ", Hex(context->rflags).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("| %RSP     | ", Hex(context->rsp).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("| %SS      | ", Hex(context->ss).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("| Vector   | ", Hex(context->vector).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("| Error    | ", Hex(context->error).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("\n");
 
-    KmDebugMessage("| MSR                 | Value\n");
-    KmDebugMessage("|---------------------+------\n");
-    KmDebugMessage("| IA32_GS_BASE        | ", Hex(kGsBase.load()).pad(16, '0'), "\n");
-    KmDebugMessage("| IA32_FS_BASE        | ", Hex(kFsBase.load()).pad(16, '0'), "\n");
-    KmDebugMessage("| IA32_KERNEL_GS_BASE | ", Hex(kKernelGsBase.load()).pad(16, '0'), "\n");
-    KmDebugMessage("\n");
+    KmDebugMessageUnlocked("| MSR                 | Value\n");
+    KmDebugMessageUnlocked("|---------------------+------\n");
+    KmDebugMessageUnlocked("| IA32_GS_BASE        | ", Hex(kGsBase.load()).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("| IA32_FS_BASE        | ", Hex(kFsBase.load()).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("| IA32_KERNEL_GS_BASE | ", Hex(kKernelGsBase.load()).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("\n");
 }
 
 static void DumpStackTrace(const km::IsrContext *context) {
-    KmDebugMessage("|----Stack trace-----+----------------\n");
-    KmDebugMessage("| Frame              | Program Counter\n");
-    KmDebugMessage("|--------------------+----------------\n");
+    KmDebugMessageUnlocked("|----Stack trace-----+----------------\n");
+    KmDebugMessageUnlocked("| Frame              | Program Counter\n");
+    KmDebugMessageUnlocked("|--------------------+----------------\n");
     x64::WalkStackFrames((void**)context->rbp, [](void **frame, void *pc) {
-        KmDebugMessage("| ", (void*)frame, " | ", pc, "\n");
+        KmDebugMessageUnlocked("| ", (void*)frame, " | ", pc, "\n");
     });
 
     if (kDumpAddr2lineCmd) {
-        KmDebugMessage("llvm-addr2line -e ./build/bezos");
+        KmDebugMessageUnlocked("llvm-addr2line -e ./build/bezos");
         x64::WalkStackFrames((void**)context->rbp, [](void **, void *pc) {
-            KmDebugMessage(" ", pc);
+            KmDebugMessageUnlocked(" ", pc);
         });
-        KmDebugMessage("\n");
+        KmDebugMessageUnlocked("\n");
     }
 }
 
@@ -818,9 +818,9 @@ static void UpdateCanSerialPort(ComPortInfo info) {
 
 static void DumpIsrContext(const km::IsrContext *context, stdx::StringView message) {
     if (km::IsCpuStorageSetup()) {
-        KmDebugMessage("\n[BUG] ", message, " - On ", km::GetCurrentCoreId(), "\n");
+        KmDebugMessageUnlocked("\n[BUG] ", message, " - On ", km::GetCurrentCoreId(), "\n");
     } else {
-        KmDebugMessage("\n[BUG] ", message, "\n");
+        KmDebugMessageUnlocked("\n[BUG] ", message, "\n");
     }
 
     DumpIsrState(context);
@@ -834,7 +834,7 @@ static void InstallExceptionHandlers(void) {
     });
 
     InstallIsrHandler(0x2, [](km::IsrContext *context) -> km::IsrContext {
-        KmDebugMessage("[INT] Non-maskable interrupt (#NM)\n");
+        KmDebugMessageUnlocked("[INT] Non-maskable interrupt (#NM)\n");
         DumpIsrState(context);
         return *context;
     });
@@ -858,7 +858,7 @@ static void InstallExceptionHandlers(void) {
     });
 
     InstallIsrHandler(0xE, [](km::IsrContext *context) -> km::IsrContext {
-        KmDebugMessage("[BUG] CR2: ", Hex(__get_cr2()).pad(16, '0'), "\n");
+        KmDebugMessageUnlocked("[BUG] CR2: ", Hex(__get_cr2()).pad(16, '0'), "\n");
         DumpIsrContext(context, "Page fault (#PF)");
         DumpStackTrace(context);
         KM_PANIC("Kernel panic.");

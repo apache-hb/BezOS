@@ -66,8 +66,13 @@ void KmDebugWrite(km::FormatOf<T> value) {
 }
 
 template<typename... T>
+void KmDebugMessageUnlocked(T&&... args) {
+    (KmDebugWrite(args), ...);
+}
+
+template<typename... T>
 void KmDebugMessage(T&&... args) {
     km::LockDebugLog();
-    (KmDebugWrite(args), ...);
+    KmDebugMessageUnlocked(std::forward<T>(args)...);
     km::UnlockDebugLog();
 }

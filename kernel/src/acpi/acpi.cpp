@@ -124,8 +124,7 @@ static void DebugHpet(const acpi::Hpet *hpet) {
     KmDebugMessage("| /SYS/ACPI/HPET     | Page protection             | ", hpet->pageProtection, "\n");
 }
 
-static const acpi::RsdtHeader *GetRsdtHeader(km::PhysicalAddress paddr, km::SystemMemory& memory) {
-    const acpi::RsdtHeader *entry = MapTableEntry(paddr, memory);
+static void PrintRsdtEntry(const acpi::RsdtHeader *entry, km::PhysicalAddress paddr) {
     KmDebugMessage("| /SYS/ACPI/", entry->signature, "     | Address                     | ", paddr, "\n");
     KmDebugMessage("| /SYS/ACPI/", entry->signature, "     | Signature                   | '", stdx::StringView(entry->signature), "'\n");
     KmDebugMessage("| /SYS/ACPI/", entry->signature, "     | Length                      | ", entry->length, "\n");
@@ -149,38 +148,18 @@ static const acpi::RsdtHeader *GetRsdtHeader(km::PhysicalAddress paddr, km::Syst
 #if 0
     KmDebugMessage(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(entry), entry->length)), "\n");
 #endif
-
-    return entry;
 }
 
-static void DebugRsdt(const acpi::RsdpLocator *locator, km::SystemMemory& memory) {
+static void PrintRsdt(const acpi::Rsdt *rsdt, const acpi::RsdpLocator *locator) {
     KmDebugMessage("| /SYS/ACPI          | RSDT address                | ", km::Hex(locator->rsdtAddress).pad(8, '0'), "\n");
-
-    const acpi::Rsdt *rsdt = memory.mapConst<acpi::Rsdt>(locator->rsdtAddress);
-
     KmDebugMessage("| /SYS/ACPI/RSDT     | Signature                   | '", stdx::StringView(rsdt->header.signature), "'\n");
-
-    for (uint32_t i = 0; i < rsdt->count(); i++) {
-        km::PhysicalAddress paddr = km::PhysicalAddress { rsdt->entries[i] };
-        [[maybe_unused]]
-        const acpi::RsdtHeader *entry = GetRsdtHeader(paddr, memory);
-    }
 }
 
-static void DebugXsdt(const acpi::RsdpLocator *locator, km::SystemMemory& memory) {
+static void PrintXsdt(const acpi::Xsdt *xsdt, const acpi::RsdpLocator *locator) {
     KmDebugMessage("| /SYS/ACPI          | RSDP length                 | ", locator->length, "\n");
     KmDebugMessage("| /SYS/ACPI          | XSDT address                | ", km::Hex(locator->xsdtAddress).pad(16, '0'), "\n");
     KmDebugMessage("| /SYS/ACPI          | Extended checksum           | ", locator->extendedChecksum, "\n");
-
-    const acpi::Xsdt *xsdt = memory.mapConst<acpi::Xsdt>(km::PhysicalAddress { locator->xsdtAddress });
-
     KmDebugMessage("| /SYS/ACPI/XSDT     | Signature                   | '", stdx::StringView(xsdt->header.signature), "'\n");
-
-    for (uint32_t i = 0; i < xsdt->count(); i++) {
-        km::PhysicalAddress paddr = km::PhysicalAddress { xsdt->entries[i] };
-        [[maybe_unused]]
-        const acpi::RsdtHeader *entry = GetRsdtHeader(paddr, memory);
-    }
 }
 
 acpi::AcpiTables acpi::InitAcpi(km::PhysicalAddress rsdpBaseAddress, km::SystemMemory& memory) {
@@ -195,12 +174,6 @@ acpi::AcpiTables acpi::InitAcpi(km::PhysicalAddress rsdpBaseAddress, km::SystemM
     KmDebugMessage("| /SYS/ACPI          | RSDP checksum               | ", rsdpOk ? stdx::StringView("Valid") : stdx::StringView("Invalid"), "\n");
     KmDebugMessage("| /SYS/ACPI          | RSDP revision               | ", locator->revision, "\n");
     KmDebugMessage("| /SYS/ACPI          | OEM                         | ", stdx::StringView(locator->oemid), "\n");
-
-    if (locator->revision == 0) {
-        DebugRsdt(locator, memory);
-    } else {
-        DebugXsdt(locator, memory);
-    }
 
     return acpi::AcpiTables(locator, memory);
 }
@@ -254,14 +227,18 @@ acpi::AcpiTables::AcpiTables(const RsdpLocator *locator, km::SystemMemory& memor
             SetUniqueTableEntry(&mFadt, header);
 
             mRsdtEntries[i] = header;
+
+            PrintRsdtEntry(header, paddr);
         }
     };
 
     if (revision() == 0) {
-        const acpi::Rsdt *rsdt = memory.mapObject<acpi::Rsdt>(km::PhysicalAddress { locator->rsdtAddress });
+        const acpi::Rsdt *rsdt = memory.mapConst<acpi::Rsdt>(km::PhysicalAddress { locator->rsdtAddress });
+        PrintRsdt(rsdt, locator);
         setupTables(rsdt);
     } else {
-        const acpi::Xsdt *xsdt = memory.mapObject<acpi::Xsdt>(km::PhysicalAddress { locator->xsdtAddress });
+        const acpi::Xsdt *xsdt = memory.mapConst<acpi::Xsdt>(km::PhysicalAddress { locator->xsdtAddress });
+        PrintXsdt(xsdt, locator);
         setupTables(xsdt);
     }
 

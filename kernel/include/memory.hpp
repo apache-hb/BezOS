@@ -29,6 +29,10 @@ namespace km {
 
         void *map(PhysicalAddress begin, PhysicalAddress end, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eWriteBack);
 
+        void *map(MemoryRange range, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eWriteBack) {
+            return map(range.front, range.back, flags, type);
+        }
+
         template<typename T>
         T *mapObject(PhysicalAddress begin, PhysicalAddress end, MemoryType type = MemoryType::eWriteBack) {
             return (T*)map(begin, end, PageFlags::eData, type);
