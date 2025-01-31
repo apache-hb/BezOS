@@ -58,6 +58,7 @@ namespace km {
         void unmap(void *ptr, size_t size);
 
         km::PhysicalAddress getBackingAddress(const void *ptr) const;
+        PageFlags getMemoryFlags(const void *ptr) const;
 
         void map(km::AddressMapping mapping, PageFlags flags, MemoryType type = MemoryType::eWriteBack) {
             mapRange(mapping.physicalRange(), mapping.vaddr, flags, type);

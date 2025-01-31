@@ -339,7 +339,7 @@ public:
     /// @return The reserved virtual address range.
     VirtualRange reserve(size_t memory) {
         uintptr_t front = mOffset;
-        mOffset -= sm::roundup(memory, x64::kPageSize);
+        mOffset += sm::roundup(memory, x64::kPageSize);
 
         return VirtualRange { (void*)front, (void*)mOffset };
     }
@@ -418,12 +418,12 @@ static KernelLayout BuildKernelLayout(
     size_t framebuffersSize = TotalDisplaySize(displays);
 
     // reserve the top 1/4 of the address space for the kernel
-    uintptr_t dataBack = -(1ull << (vaddrbits - 1));
-    uintptr_t dataFront = -(1ull << (vaddrbits - 2));
+    uintptr_t dataFront = -(1ull << (vaddrbits - 1));
+    uintptr_t dataBack = -(1ull << (vaddrbits - 2));
 
-    VirtualRange data = { (void*)dataBack, (void*)dataFront };
+    VirtualRange data = { (void*)dataFront, (void*)dataBack };
 
-    AddressSpaceBuilder builder { dataFront };
+    AddressSpaceBuilder builder { dataBack };
 
     km::MemoryRange committedPhysicalMemory = memory.reserve(kCommittedRegionSize);
     if (committedPhysicalMemory.isEmpty()) {
@@ -433,10 +433,9 @@ static KernelLayout BuildKernelLayout(
     }
 
     VirtualRange committedVirtualRange = builder.reserve(kCommittedRegionSize);
+    km::AddressMapping committed = { committedVirtualRange.front, committedPhysicalMemory.front, kCommittedRegionSize };
 
     VirtualRange framebuffers = builder.reserve(framebuffersSize);
-
-    km::AddressMapping committed = { committedVirtualRange.front, committedPhysicalMemory.front, kCommittedRegionSize };
 
     AddressMapping kernel = { kernelVirtualBase, kernelPhysicalBase, GetKernelSize() };
 
@@ -445,6 +444,14 @@ static KernelLayout BuildKernelLayout(
     KmDebugMessage("[INIT] Committed    : ", committed, "\n");
     KmDebugMessage("[INIT] Framebuffers : ", framebuffers, "\n");
     KmDebugMessage("[INIT] Kernel       : ", kernel, "\n");
+
+    KM_CHECK(data.isValid(), "Invalid data range.");
+    KM_CHECK(committedVirtualRange.isValid(), "Invalid committed range.");
+    KM_CHECK(framebuffers.isValid(), "Invalid framebuffers range.");
+    KM_CHECK(kernel.physicalRange().isValid(), "Invalid kernel range.");
+
+    KM_CHECK(!data.intersects(committedVirtualRange), "Committed range overlaps with data range.");
+    KM_CHECK(!data.intersects(framebuffers), "Framebuffers overlap with data range.");
 
     KernelLayout layout = {
         .system = data,
@@ -552,7 +559,7 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
 
     km::AddressMapping stack = launch.stack;
     km::AddressMapping stackMapping = { (void*)((uintptr_t)stack.vaddr - stack.size), stack.paddr - stack.size, stack.size };
-    PageBuilder pm = PageBuilder { processor.maxpaddr, launch.hhdmOffset, pat };
+    PageBuilder pm = PageBuilder { processor.maxpaddr, processor.maxvaddr, launch.hhdmOffset, pat };
 
     WriteMtrrs(pm);
 
@@ -621,8 +628,10 @@ static Stage2MemoryInfo *InitStage2Memory(
     std::span<boot::FrameBuffer> framebuffers = stage1.framebuffers;
     MemoryMap *earlyMemory = stage1.earlyMemory;
 
-    PageBuilder pm = PageBuilder { processor.maxpaddr, layout.committedSlide(), GetDefaultPatLayout() };
+    PageBuilder pm = PageBuilder { processor.maxpaddr, processor.maxvaddr, layout.committedSlide(), GetDefaultPatLayout() };
     km::AddressMapping stackMapping = { (void*)((uintptr_t)stack.vaddr - stack.size), stack.paddr - stack.size, stack.size };
+
+    KmDebugMessage("[INIT] Comitted slide: ", Hex(layout.committedSlide()).pad(16, '0'), "\n");
 
     // Create the global memory allocator
     mem::TlsfAllocator alloc{(void*)layout.committed.vaddr, layout.committed.size};

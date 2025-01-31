@@ -3,7 +3,7 @@
 #include "arch/intrin.hpp"
 #include "arch/paging.hpp"
 
-#include "memory/memory.hpp"
+#include "memory/range.hpp"
 #include "util/format.hpp"
 
 namespace km {
@@ -42,6 +42,7 @@ namespace km {
 
     class PageBuilder {
         uintptr_t mAddressMask;
+        uintptr_t mVaddrBits;
         uint64_t mHigherHalfOffset;
         PageMemoryTypeLayout mLayout;
 
@@ -63,8 +64,9 @@ namespace km {
         }
 
     public:
-        PageBuilder(uintptr_t bits, uint64_t hhdmOffset, PageMemoryTypeLayout layout)
-            : mAddressMask(x64::paging::addressMask(bits))
+        PageBuilder(uintptr_t paddrbits, uintptr_t vaddrbits, uint64_t hhdmOffset, PageMemoryTypeLayout layout)
+            : mAddressMask(x64::paging::addressMask(paddrbits))
+            , mVaddrBits(vaddrbits)
             , mHigherHalfOffset(hhdmOffset)
             , mLayout(layout)
         { }
@@ -77,8 +79,8 @@ namespace km {
             return mAddressMask == x64::paging::addressMask(48);
         }
 
-        constexpr uintptr_t maxVirtualAddress() const {
-            return mAddressMask;
+        km::PhysicalAddress maxPhysicalAddress() const {
+            return km::PhysicalAddress { mAddressMask };
         }
 
         uintptr_t getAddressMask() const {
@@ -117,6 +119,15 @@ namespace km {
             uint64_t reg = __get_cr3();
             reg = (reg & ~mAddressMask) | map.address;
             __set_cr3(reg);
+        }
+
+        bool isCanonicalAddress(const void *ptr) const {
+            uintptr_t addr = reinterpret_cast<uintptr_t>(ptr);
+            uintptr_t mask = -(1ull << (mVaddrBits - 1));
+            uintptr_t bits = (addr & mask);
+
+            // bits must either be all 0 or all 1
+            return bits == 0 || bits == mask;
         }
     };
 }

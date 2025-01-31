@@ -12,7 +12,7 @@ TEST(PageManagerTest, MemoryTypeIndex) {
         .writeBack = 5,
     };
 
-    km::PageBuilder pm = { 40, 0, layout };
+    km::PageBuilder pm = { 40, 40, 0, layout };
 
     x64::pte pte;
     pm.setMemoryType(pte, km::MemoryType::eUncached);
@@ -30,7 +30,7 @@ TEST(PageManagerTest, PdeMemoryType) {
         .writeBack = 5,
     };
 
-    km::PageBuilder pm = { 40, 0, layout };
+    km::PageBuilder pm = { 40, 40, 0, layout };
 
     x64::pde pte;
     pm.setMemoryType(pte, km::MemoryType::eUncached);
@@ -48,7 +48,7 @@ TEST(PageManagerTest, PdpteMemoryType) {
         .writeBack = 5,
     };
 
-    km::PageBuilder pm = { 40, 0, layout };
+    km::PageBuilder pm = { 40, 40, 0, layout };
 
     x64::pdpte pte;
     pm.setMemoryType(pte, km::MemoryType::eUncached);
@@ -81,4 +81,12 @@ TEST(PageManagerTest, PdpteEntryMemoryType) {
 
         ASSERT_EQ(pdpte.memoryType(), i);
     }
+}
+
+TEST(PageManagerTest, CanonicalAddress) {
+    km::PageBuilder pm { 48, 48, 0, km::PageMemoryTypeLayout { 2, 3, 4, 1, 5, 0 } };
+
+    ASSERT_TRUE(pm.isCanonicalAddress((void*)0xFFFF800000000000));
+    ASSERT_TRUE(pm.isCanonicalAddress((void*)0x00007FFFFFFFFFFF));
+    ASSERT_FALSE(pm.isCanonicalAddress((void*)0xFF8F800000000001));
 }

@@ -117,6 +117,7 @@ src = [
     'kernel/src/memory/allocator.cpp',
     'kernel/src/memory/page_allocator.cpp',
     'kernel/src/memory/virtual_allocator.cpp',
+    'kernel/src/memory/page_tables.cpp',
 
     # Allocators
     'kernel/src/allocator/bitmap.cpp',
@@ -318,6 +319,11 @@ testcases = {
     'serial': [ 'kernel/test/serial.cpp', 'kernel/src/uart.cpp', ],
     'range allocator': [
         'kernel/test/memory/range_allocator.cpp',
+        'kernel/subprojects/tlsf/tlsf.c',
+    ],
+    'page table': [
+        'kernel/test/memory/pte.cpp',
+        'kernel/src/memory/page_tables.cpp',
         'kernel/subprojects/tlsf/tlsf.c',
     ]
 }

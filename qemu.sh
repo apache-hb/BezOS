@@ -20,8 +20,6 @@ QEMUARGS="-M q35 -cdrom install/bezos.iso -display gtk"
 echo $ARGS | grep -q "\-disk"
 
 if [ $? -eq 0 ]; then
-    echo "Using disk image"
-
     # if the disk image is not present, create it
     DISKIMAGE="bezos.hdd"
     if [ ! -f "$DISKIMAGE" ]; then

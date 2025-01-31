@@ -1,4 +1,5 @@
 #include "memory.hpp"
+#include "log.hpp"
 
 km::SystemMemory::SystemMemory(const boot::MemoryMap& memmap, VirtualRange systemArea, PageBuilder pm, mem::IAllocator *alloc)
     : allocator(alloc)
@@ -11,14 +12,19 @@ km::SystemMemory::SystemMemory(const boot::MemoryMap& memmap, VirtualRange syste
 // TODO: respect align, dont allocate such large memory ranges
 void *km::SystemMemory::allocate(size_t size, size_t, PageFlags flags, MemoryType type) {
     PhysicalAddress paddr = pmm.alloc4k(pages(size));
-    void *vaddr = (void*)(paddr.address + pager.hhdmOffset());
+    void *vaddr = vmm.alloc4k(pages(size));
     MemoryRange range { paddr, paddr + size };
     pt.mapRange(range, vaddr, flags, type);
     return vaddr;
 }
 
 void km::SystemMemory::release(void *ptr, size_t size) {
-    PhysicalAddress start = (uintptr_t)ptr - pager.hhdmOffset();
+    PhysicalAddress start = pt.getBackingAddress(ptr);
+    if (start == nullptr) {
+        KmDebugMessage("[WARN] Attempted to release ", ptr, " but it is not mapped.\n");
+        return;
+    }
+
     MemoryRange range { start, start + size };
     pt.unmap(ptr, size);
     pmm.release(range);

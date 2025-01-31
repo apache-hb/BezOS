@@ -1,7 +1,7 @@
 #pragma once
 
 #include <algorithm>
-#include <compare>
+#include <compare> // IWYU pragma: keep
 
 #include <cstdint>
 
@@ -79,6 +79,10 @@ namespace km {
             return front == back;
         }
 
+        constexpr bool isValid() const {
+            return front <= back;
+        }
+
         /// @brief Checks if the given address is within the range.
         ///
         /// @param addr The address to check.
@@ -119,6 +123,8 @@ namespace km {
         /// @param range The range to check.
         /// @return True if the ranges intersect, false otherwise.
         constexpr bool intersects(AnyRange range) const {
+            if (range.front == back || range.back == front) return false;
+
             return contains(range.front) || contains(range.back);
         }
 

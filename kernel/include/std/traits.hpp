@@ -47,6 +47,11 @@ namespace stdx {
         using Unsigned = uint64_t;
     };
 
+    template<> struct IntegerSign<signed long long> : SignConstant<Sign::SIGNED> {
+        using Signed = signed long long;
+        using Unsigned = unsigned long long;
+    };
+
     template<> struct IntegerSign<uint8_t>  : SignConstant<Sign::UNSIGNED> {
         using Signed = int8_t;
         using Unsigned = uint8_t;
@@ -65,6 +70,11 @@ namespace stdx {
     template<> struct IntegerSign<uint64_t> : SignConstant<Sign::UNSIGNED> {
         using Signed = int64_t;
         using Unsigned = uint64_t;
+    };
+
+    template<> struct IntegerSign<unsigned long long> : SignConstant<Sign::UNSIGNED> {
+        using Signed = signed long long;
+        using Unsigned = unsigned long long;
     };
 
     template<std::integral T>

@@ -126,6 +126,17 @@ TEST(MemoryRangeTest, Cut) {
     TestRangeCut({ 0x100000, 0x7D47000 }, { 0x7D47000 - 0x100000, 0x7D47000 }, { 0x100000, 0x7D47000 - 0x100000 });
 }
 
+TEST(MemoryRangeTest, IntersectAtEdge) {
+    km::MemoryRange data = { 0xFFFF800000000000, 0xFFFFC00000000000 };
+    km::MemoryRange committed = { 0xFFFF7FFFFF000000, 0xFFFF800000000000 };
+
+    ASSERT_TRUE(data.isValid());
+    ASSERT_TRUE(data.isValid());
+
+    ASSERT_FALSE(data.intersects(committed));
+    ASSERT_FALSE(committed.intersects(data));
+}
+
 TEST(MemoryRangeTest, Adjacent) {
     km::MemoryRange first = { 0x1000, 0x2000 };
     km::MemoryRange second = { 0x2000, 0x3000 };
