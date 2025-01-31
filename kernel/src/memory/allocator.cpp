@@ -128,6 +128,13 @@ void PageTableManager::mapRange2m(MemoryRange range, const void *vaddr, PageFlag
     }
 }
 
+void PageTableManager::mapRange1g(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type) {
+    for (PhysicalAddress i = range.front; i < range.back; i += x64::kHugePageSize) {
+        map1g(i, vaddr, flags, type);
+        vaddr = (char*)vaddr + x64::kHugePageSize;
+    }
+}
+
 void PageTableManager::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type) {
     uintptr_t addr = (uintptr_t)vaddr;
     uint16_t pml4e = (addr >> 39) & 0b0001'1111'1111;
@@ -169,11 +176,27 @@ void PageTableManager::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags
     setEntryFlags(t2, flags, paddr);
 }
 
+void PageTableManager::map1g(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type) {
+    uintptr_t addr = (uintptr_t)vaddr;
+    uint16_t pml4e = (addr >> 39) & 0b0001'1111'1111;
+    uint16_t pdpte = (addr >> 30) & 0b0001'1111'1111;
+
+    x64::PageMapLevel4 *l4 = getRootTable();
+    x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e);
+
+    x64::pdpte& t3 = l3->entries[pdpte];
+    t3.set1g(true);
+    mPageManager->setMemoryType(t3, type);
+    setEntryFlags(t3, flags, paddr);
+}
+
 void PageTableManager::mapRange(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type) {
     // align everything to 4k page boundaries
     range.front = sm::rounddown(range.front.address, x64::kPageSize);
     range.back = sm::roundup(range.back.address, x64::kPageSize);
 
+    // TODO: this needs to handle the case where parts of the pte are already mapped
+    // and split up the range into 4k, 2m, and 1g pages as needed
 #if 0
     // check if we should we attempt to use large pages
     if ((uintptr_t)range.size() >= x64::kLargePageSize) {

@@ -1,10 +1,11 @@
 #!/bin/sh
 
 MODE=$1
+ARGS=$@
 
 serial_chardev()
 {
-    echo "-chardev stdio,id=char0,logfile=$1,signal=off -serial chardev:char0"
+    echo "-chardev stdio,id=uart0,logfile=$1,signal=off -serial chardev:uart0"
 }
 
 CANBUS=/tmp/canbus
@@ -16,17 +17,33 @@ serial_canbus()
 
 QEMUARGS="-M q35 -cdrom install/bezos.iso -display gtk"
 
+echo $ARGS | grep -q "\-disk"
+
+if [ $? -eq 0 ]; then
+    echo "Using disk image"
+
+    # if the disk image is not present, create it
+    DISKIMAGE="bezos.hdd"
+    if [ ! -f "$DISKIMAGE" ]; then
+        qemu-img create -f raw $DISKIMAGE 1G
+    fi
+
+    QEMUARGS="$QEMUARGS -drive file=$DISKIMAGE,format=raw"
+
+    ARGS="$(echo $ARGS | sed s/\-disk//)"
+fi
+
 if [ "$MODE" = "ovmf" ]; then
-    shift
+    ARGS=$(echo $ARGS | sed s/ovmf//)
     make build install-ovmf
     qemu-system-x86_64 \
         -drive if=pflash,format=raw,unit=0,file=install/ovmf/ovmf-code-x86_64.fd,readonly=on \
         -drive if=pflash,format=raw,unit=1,file=install/ovmf/ovmf-vars-x86_64.fd \
         -m 4G \
-        $QEMUARGS $(serial_chardev ovmf-serial.txt) $@
+        $QEMUARGS $(serial_chardev ovmf-serial.txt) $ARGS
     exit
 elif [ "$MODE" = "numa" ]; then
-    shift
+    ARGS=$(echo $ARGS | sed s/numa//)
     make build install-ovmf
     qemu-system-x86_64 \
         -drive if=pflash,format=raw,unit=0,file=install/ovmf/ovmf-code-x86_64.fd,readonly=on \
@@ -47,18 +64,20 @@ elif [ "$MODE" = "numa" ]; then
         -numa dist,src=1,dst=2,val=20 \
         -numa dist,src=1,dst=3,val=20 \
         -m 4G \
-        $QEMUARGS $(serial_chardev numa-serial.txt) $@
+        $QEMUARGS $(serial_chardev numa-serial.txt) $ARGS
     exit
 elif [ "$MODE" = "test" ]; then
-    shift
+    ARGS=$(echo $ARGS | sed s/test//)
+
+    make build || exit 1
+
     # Startup a socat instance to create a virtual CAN bus
     # that the guest can read data from.
     socat -d -d pty,link=/tmp/canbus,raw,echo=0 pty,link=/tmp/canbus.pty,raw,echo=0 &
 
-    make build
-    qemu-system-x86_64 $QEMUARGS $(serial_chardev qemu-serial.txt) $(serial_canbus) -smp 4 $@
+    qemu-system-x86_64 $QEMUARGS $(serial_chardev qemu-serial.txt) $(serial_canbus) -smp 4 $ARGS
 else
     make build || exit 1
 
-    qemu-system-x86_64 $QEMUARGS $(serial_chardev qemu-serial.txt) -smp 4 $@
+    qemu-system-x86_64 $QEMUARGS $(serial_chardev qemu-serial.txt) -smp 4 $ARGS
 fi

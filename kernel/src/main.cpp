@@ -24,7 +24,6 @@
 #include "log.hpp"
 #include "memory.hpp"
 #include "memory/memory.hpp"
-#include "memory/virtual_allocator.hpp"
 #include "panic.hpp"
 #include "pat.hpp"
 #include "pit.hpp"
@@ -37,7 +36,7 @@
 #include "thread.hpp"
 #include "uart.hpp"
 #include "smbios.hpp"
-#include "pci.hpp"
+#include "pci/pci.hpp"
 
 #include "memory/layout.hpp"
 #include "memory/allocator.hpp"
@@ -1068,7 +1067,12 @@ void KmLaunchEx(boot::LaunchInfo launch) {
 
     hid::Ps2Controller ps2Controller;
 
-    pci::ProbeConfigSpace();
+    // TODO: mcfg pci config space is currently broken
+    std::unique_ptr<pci::IConfigSpace> config{pci::InitConfigSpace(nullptr, *stage2->memory)};
+    if (!config) {
+        KM_PANIC("Failed to initialize PCI config space.");
+    }
+    pci::ProbeConfigSpace(config.get());
 
     gSchedulerVector = isrs.allocateIsr();
 

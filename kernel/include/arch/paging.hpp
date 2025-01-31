@@ -16,6 +16,7 @@ namespace x64 {
 
     constexpr uintptr_t kPageSize = sm::kilobytes(4).bytes();
     constexpr uintptr_t kLargePageSize = sm::megabytes(2).bytes();
+    constexpr uintptr_t kHugePageSize = sm::gigabytes(1).bytes();
 
     namespace paging {
         constexpr uint64_t kMaxPhysicalAddress = 48;

@@ -137,7 +137,6 @@ src = [
     'kernel/src/uart.cpp',
     'kernel/src/hypervisor.cpp',
     'kernel/src/smbios.cpp',
-    'kernel/src/pci.cpp',
     'kernel/src/delay.cpp',
     'kernel/src/cmos.cpp',
     'kernel/src/pit.cpp',
@@ -146,6 +145,10 @@ src = [
     'kernel/src/thread.cpp',
     'kernel/src/user.S',
     'kernel/src/schedule.cpp',
+
+    # PCI
+    'kernel/src/pci/pci.cpp',
+    'kernel/src/pci/config.cpp',
 
     # ACPI
     'kernel/src/acpi/acpi.cpp',

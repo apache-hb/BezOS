@@ -20,6 +20,10 @@ void *operator new(size_t size) {
     KM_PANIC("Failed to allocate memory.");
 }
 
+void *operator new[](size_t size) {
+    return operator new(size);
+}
+
 void *operator new[](size_t size, std::nothrow_t const&) noexcept {
     return malloc(size);
 }

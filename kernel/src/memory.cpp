@@ -35,7 +35,6 @@ void *km::SystemMemory::map(PhysicalAddress begin, PhysicalAddress end, PageFlag
 
     MemoryRange range { begin, end };
 
-
     void *vaddr = vmm.alloc4k(pages(range.size()));
     pt.mapRange(range, vaddr, flags, type);
     pmm.markUsed(range);

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "pci/config.hpp"
+
 #include "util/format.hpp"
 #include "util/util.hpp"
 
@@ -55,11 +57,26 @@ namespace pci {
         eCapsList = (1 << 4),
     };
 
+    UTIL_BITFLAGS(DeviceStatus);
+
     struct DeviceClass {
         DeviceClassCode cls;
         uint8_t subclass;
 
         constexpr bool operator==(const DeviceClass& other) const = default;
+    };
+
+    enum class CapabilityId : uint8_t {
+        eNull = 0x00,
+        eMsi = 0x05,
+        eMsiX = 0x11,
+        eSataConfig = 0x12,
+    };
+
+    struct Capability {
+        CapabilityId id;
+        uint8_t next;
+        uint16_t control;
     };
 
     struct ConfigHeader {
@@ -79,8 +96,20 @@ namespace pci {
             return bool(type & DeviceType::eMultiFunction);
         }
 
+        bool hasCapabilityList() const {
+            return bool(status & DeviceStatus::eCapsList);
+        }
+
         bool isPciBridge() const {
             return cls == DeviceClass { DeviceClassCode::eBridge, 0x4 };
+        }
+
+        uint32_t capabilityOffset() const {
+            if ((type & ~DeviceType::eMultiFunction) == DeviceType::eCardBusBridge) {
+                return 0x14;
+            }
+
+            return 0x34;
         }
     };
 
@@ -93,18 +122,12 @@ namespace pci {
         uint8_t subordinateBus;
     };
 
-    struct Device {
+    Capability ReadCapability(IConfigSpace *config, uint8_t bus, uint8_t slot, uint8_t function, uint8_t offset);
+    void ReadCapabilityList(IConfigSpace *config, uint8_t bus, uint8_t slot, uint8_t function, ConfigHeader header);
+    ConfigHeader QueryHeader(IConfigSpace *config, uint8_t bus, uint8_t slot, uint8_t function);
+    BridgeConfig QueryBridge(IConfigSpace *config, uint8_t bus, uint8_t slot, uint8_t function);
 
-    };
-
-    uint32_t ReadConfigLong(uint8_t bus, uint8_t slot, uint8_t function, uint8_t offset);
-    uint16_t ReadConfigWord(uint8_t bus, uint8_t slot, uint8_t function, uint8_t offset);
-    uint8_t ReadConfigByte(uint8_t bus, uint8_t slot, uint8_t function, uint8_t offset);
-
-    ConfigHeader QueryConfig(uint8_t bus, uint8_t slot, uint8_t function);
-    BridgeConfig QueryBridge(uint8_t bus, uint8_t slot, uint8_t function);
-
-    void ProbeConfigSpace();
+    void ProbeConfigSpace(IConfigSpace *config);
 }
 
 template<>
@@ -135,4 +158,9 @@ template<>
 struct km::Format<pci::DeviceClass> {
     using String = stdx::StaticString<128>;
     static String toString(pci::DeviceClass cls);
+};
+
+template<>
+struct km::Format<pci::CapabilityId> {
+    static void format(km::IOutStream& out, pci::CapabilityId value);
 };
