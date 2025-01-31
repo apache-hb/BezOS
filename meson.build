@@ -120,7 +120,6 @@ src = [
 
     # Allocators
     'kernel/src/allocator/bitmap.cpp',
-    'kernel/src/allocator/freelist.cpp',
 
     # C and C++ Runtime
     'kernel/src/crt.cpp',
@@ -234,6 +233,7 @@ gtest_main = dependency('gtest_main', native : true)
 testkwargs = { 'protocol' : 'gtest', 'timeout': 5 }
 
 # meson bug: native executables dont have all default_options applied
+test_c_args = c_args + [ '-std=gnu23', '-DUTIL_TESTING=1' ]
 test_cpp_args = cpp_args + [ '-std=c++26', '-DUTIL_TESTING=1' ]
 
 src = [
@@ -244,7 +244,7 @@ src = [
 
 test_shim = static_library('test_shim', src,
     include_directories : inc,
-    c_args : c_args,
+    c_args : test_c_args,
     cpp_args : test_cpp_args,
     dependencies : [ gtest ],
     native : true,
@@ -252,7 +252,7 @@ test_shim = static_library('test_shim', src,
 
 test_exe_kwargs = {
     'include_directories': inc,
-    'c_args': c_args,
+    'c_args': test_c_args,
     'cpp_args': test_cpp_args,
     'dependencies': [ gtest_main, gmock ],
     'override_options': [ 'b_sanitize=address' ],
@@ -316,15 +316,9 @@ testcases = {
         'kernel/src/boot.cpp',
     ],
     'serial': [ 'kernel/test/serial.cpp', 'kernel/src/uart.cpp', ],
-    # 'bitmap allocator': [
-    #     'kernel/test/memory/bitmap.cpp',
-    #     'kernel/src/allocator/bitmap.cpp',
-    #     'kernel/src/util/format.cpp',
-    #     'kernel/src/util/bits.cpp',
-    # ],
-    'freelist vector': [
-        'kernel/test/freelist.cpp',
-        'kernel/src/allocator/freelist.cpp',
+    'range allocator': [
+        'kernel/test/memory/range_allocator.cpp',
+        'kernel/subprojects/tlsf/tlsf.c',
     ]
 }
 

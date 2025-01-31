@@ -13,12 +13,12 @@ namespace km {
     struct Format;
 
     template<typename T>
-    concept IsFormatWithSize = requires {
+    concept IsFormatSize = requires {
         { Format<T>::kStringSize } -> std::convertible_to<size_t>;
     };
 
     template<typename T>
-    concept IsFormat = IsFormatWithSize<T> && requires(T it) {
+    concept IsFormat = IsFormatSize<T> && requires(T it) {
         { Format<T>::toString(std::declval<char*>(), it) } -> std::same_as<stdx::StringView>;
     };
 
@@ -283,7 +283,7 @@ namespace km {
         static void format(IOutStream& out, HexDump value);
     };
 
-    template<IsFormat T>
+    template<IsFormatSize T>
     inline constexpr size_t kFormatSize = Format<T>::kStringSize;
 
     template<IsFormat T>
@@ -341,6 +341,11 @@ namespace km {
         (format(out, args), ...);
 
         return out.result;
+    }
+
+    template<typename T> requires (IsStreamFormat<T> && IsFormatSize<T> && !IsFormat<T>)
+    inline constexpr auto format(T value) {
+        return ToStaticString<kFormatSize<T>>(value);
     }
 
     template<IsFormatEx T>

@@ -98,18 +98,7 @@ void *mem::BitmapAllocator::allocateAligned(size_t size, size_t align) {
 
     size_t front = allocateBitmapSpace(size / mUnit, align / mUnit);
 
-    int pressure = 0;
-    // count all set bits
-    for (size_t i = 0; i < bitmapWordCount(); i++) {
-        for (size_t j = 0; j < CHAR_BIT; j++) {
-            if (bitmap()[i] & (1 << j)) {
-                pressure++;
-            }
-        }
-    }
-
     if (front == SIZE_MAX) {
-        KmDebugMessage("Allocating ", size, " bytes with ", align, " alignment = ", (void*)nullptr, ", pressure = ", pressure, "/", bitmapWordCount() * 8,  "\n");
         return nullptr;
     }
 

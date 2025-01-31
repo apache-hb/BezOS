@@ -4,14 +4,101 @@
 #include "memory/range.hpp"
 #include "std/vector.hpp"
 
+#include <numeric>
+
 namespace km {
-    template<typename T>
-    concept IsMemoryRange = requires(T it) {
-        typename T::Type;
-        { it.front } -> std::convertible_to<typename T::Type>;
-        { it.back } -> std::convertible_to<typename T::Type>;
-        { T::merge(it, it) } -> std::same_as<T>;
-    };
+    namespace detail {
+        template<typename T>
+        void SortRanges(std::span<AnyRange<T>> ranges) {
+            std::sort(ranges.begin(), ranges.end(), [](const AnyRange<T>& a, const AnyRange<T>& b) {
+                return a.front < b.front;
+            });
+        }
+
+        template<typename T>
+        void MergeRanges(stdx::Vector<AnyRange<T>>& ranges) {
+            SortRanges(std::span(ranges));
+
+            for (size_t i = 0; i < ranges.count(); i++) {
+                auto& range = ranges[i];
+                if (range.isEmpty()) {
+                    ranges.remove(i);
+                    i--;
+                    continue;
+                }
+
+                for (size_t j = i + 1; j < ranges.count(); j++) {
+                    auto& next = ranges[j];
+                    if (interval(range, next)) {
+                        range = merge(range, next);
+                        ranges.remove(j);
+                        j--;
+                    }
+                }
+            }
+        }
+
+        /// @brief Mark an area of memory as used.
+        ///
+        /// This function will mark an area of memory as used, and split
+        /// any ranges that are fully contained in the used range.
+        ///
+        /// @warning The behavior is undefined if @p ranges are not
+        ///          merged and sorted.
+        ///
+        /// @param ranges The ranges to mark.
+        /// @param used The range that is used.
+        /// @tparam T The type of the range.
+        template<typename T>
+        void MarkUsedArea(stdx::Vector<AnyRange<T>>& ranges, AnyRange<T> used) {
+            using Range = AnyRange<T>;
+
+            for (size_t i = 0; i < ranges.count(); i++) {
+                Range& available = ranges[i];
+
+                // Remove any ranges that would be completely covered
+                // by the new used range
+                if (used.contains(available)) {
+                    ranges.remove(i);
+                    i--;
+                    continue;
+                }
+
+                if (available.contains(used)) {
+                    // if this range is fully contained in another range
+                    // then split the range
+                    auto [left, right] = split(available, used);
+
+                    ranges.remove(i);
+                    ranges.add(left);
+                    ranges.add(right);
+                } else if (available.overlaps(used)) {
+                    // if this range overlaps with another range
+                    // then trim off the overlapping parts
+                    available = available.cut(used);
+
+                    // multiple ranges can overlap, so don't break here
+                }
+            }
+        }
+
+        template<typename T>
+        AnyRange<T> AllocateSpace(stdx::Vector<AnyRange<T>>& ranges, size_t size) {
+            using Range = AnyRange<T>;
+
+            for (size_t i = 0; i < ranges.count(); i++) {
+                Range& range = ranges[i];
+                if (range.size() >= size) {
+                    T front = range.front;
+                    T back = (T)(std::bit_cast<uintptr_t>(range.front) + size);
+                    range.front = back;
+                    return Range { front, back };
+                }
+            }
+
+            return Range{};
+        }
+    }
 
     template<typename T>
     class RangeAllocator {
@@ -19,28 +106,6 @@ namespace km {
         using Type = T;
 
         stdx::Vector<Range> mAvailable;
-
-        void sortRanges() {
-            std::sort(mAvailable.begin(), mAvailable.end(), [](const auto& a, const auto& b) {
-                return a.front < b.front;
-            });
-        }
-
-        void mergeRanges() {
-            sortRanges();
-
-            for (size_t i = 0; i < mAvailable.count(); i++) {
-                auto& range = mAvailable[i];
-                for (size_t j = i + 1; j < mAvailable.count(); j++) {
-                    auto& next = mAvailable[j];
-                    if (range.overlaps(next)) {
-                        range = merge(range, next);
-                        mAvailable.remove(j);
-                        j--;
-                    }
-                }
-            }
-        }
 
     public:
         RangeAllocator(mem::IAllocator *allocator)
@@ -54,59 +119,24 @@ namespace km {
         }
 
         void markUsed(Range range) {
-            for (size_t i = 0; i < mAvailable.count(); i++) {
-                Range& available = mAvailable[i];
-
-                if (available.isEmpty()) {
-                    mAvailable.remove(i);
-                    i--;
-                    continue;
-                }
-
-                if (available.contains(range)) {
-                    // if this range is fully contained in another range
-                    // then split the range
-                    Range front = { available.front, range.front };
-                    Range back = { range.back, available.back };
-
-                    mAvailable.remove(i);
-                    mAvailable.add(front);
-                    mAvailable.add(back);
-                    break;
-                } else if (available.overlaps(range)) {
-                    // if this range overlaps with another range
-                    // then trim off the overlapping parts
-                    if (available.front < range.front) {
-                        available.back = range.front;
-                    } else {
-                        available.front = range.back;
-                    }
-
-                    // multiple ranges can overlap, so don't break here
-                }
-            }
-
-            sortRanges();
+            detail::MarkUsedArea(mAvailable, range);
+            detail::SortRanges(std::span(mAvailable));
         }
 
         Range allocate(size_t size) {
-            for (size_t i = 0; i < mAvailable.count(); i++) {
-                Range& range = mAvailable[i];
-                if (range.size() >= size) {
-                    Type front = range.front;
-                    Type back = (Type)(std::bit_cast<uintptr_t>(range.front) + size);
-                    range.front = back;
-                    return Range { front, back };
-                }
-            }
-
-            return Range{};
+            return detail::AllocateSpace(mAvailable, size);
         }
 
         void release(Range range) {
             mAvailable.add(range);
 
-            mergeRanges();
+            detail::MergeRanges(mAvailable);
+        }
+
+        size_t freeSpace() const {
+            return std::accumulate(mAvailable.begin(), mAvailable.end(), size_t(0), [](size_t acc, const Range& range) {
+                return acc + range.size();
+            });
         }
     };
 }

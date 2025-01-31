@@ -40,6 +40,10 @@ pxe: build
 check:
 	meson test -C build
 
+.PHONY: coverage
+coverage:
+	ninja -C build coverage
+
 .PHONY: clean
 clean:
 	ninja -C build clean

@@ -58,7 +58,10 @@ namespace km {
     /// - contains: A range that is totally contained within another range.
     ///             Ranges that are a total subset of another range are considered to be contained.
     /// - overlaps: A range that shares some area with another range.
+    ///             This does not include ranges that are a subset of another range.
     /// - intersects: A range that shares any area with another range, not including touching.
+    /// - contiguous: A range that shares any area with another range, or is adjacent to it.
+    /// - adjacent: Two ranges that share no area, but are next to each other.
     ///
     /// @pre @a AnyRange::front < @a AnyRange::back
     template<typename T>
@@ -170,6 +173,7 @@ namespace km {
         return {front, back};
     }
 
+
     template<typename T>
     constexpr AnyRange<T> merge(AnyRange<T> a, AnyRange<T> b) {
         return {std::min(a.front, b.front), std::max(a.back, b.back)};
@@ -180,9 +184,24 @@ namespace km {
         return a.back == b.front || b.back == a.front;
     }
 
+    template<typename T>
+    constexpr bool overlaps(AnyRange<T> a, AnyRange<T> b) {
+        return a.overlaps(b);
+    }
+
+    template<typename T>
+    constexpr bool contiguous(AnyRange<T> a, AnyRange<T> b) {
+        return adjacent(a, b) || overlaps(a, b);
+    }
+
+    template<typename T>
+    constexpr bool interval(AnyRange<T> a, AnyRange<T> b) {
+        return adjacent(a, b) || overlaps(a, b) || a.contains(b) || b.contains(a);
+    }
+
     /// @brief Splits the given memory range at the given address.
     ///
-    /// @pre @a range contains @a at
+    /// @pre @p range contains @p at
     ///
     /// @param range The memory range.
     /// @param midpoint The address to split the range at.
@@ -194,6 +213,18 @@ namespace km {
         return {first, second};
     }
 
+    /// @brief Split a memory range at another memory range.
+    ///
+    /// If @p other is not a subset of @p range, the behavior is undefined.
+    /// If the beginning of @p other is the same as the beginning of @p range,
+    /// the first range will be empty. If the end of @p other is the same as the
+    /// end of @p range, the second range will be empty.
+    ///
+    /// @pre @p range contains @p other
+    ///
+    /// @param range The memory range to split.
+    /// @param other The memory range to split at.
+    /// @return The two memory ranges.
     template<typename T>
     constexpr std::pair<AnyRange<T>, AnyRange<T>> split(AnyRange<T> range, AnyRange<T> other) {
         AnyRange<T> first = {range.front, other.front};

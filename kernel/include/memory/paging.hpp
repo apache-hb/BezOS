@@ -9,7 +9,7 @@
 namespace km {
     /// @brief Page Attribute Table (PAT) and Memory Type Range Registers (MTRRs) choices.
     /// @see AMD64 Architecture Programmer's Manual Volume 2: System Programming Table 7-9.
-    enum class MemoryType {
+    enum class MemoryType : uint8_t {
         /// @brief No caching, write combining, or speculative reads are allowed.
         eUncached            = 0x00,
 
@@ -125,23 +125,32 @@ template<>
 struct km::Format<km::MemoryType> {
     static constexpr size_t kStringSize = 4;
 
-    static constexpr stdx::StringView toString(km::MemoryType type) {
+    static void format(km::IOutStream& out, km::MemoryType value) {
         using namespace stdx::literals;
         using enum km::MemoryType;
 
-        switch (type) {
+        switch (value) {
         case eUncached:
-            return "UC"_sv;
+            out.write("UC"_sv);
+            break;
         case eWriteCombine:
-            return "WC"_sv;
+            out.write("WC"_sv);
+            break;
         case eWriteThrough:
-            return "WT"_sv;
+            out.write("WT"_sv);
+            break;
         case eWriteProtect:
-            return "WP"_sv;
+            out.write("WP"_sv);
+            break;
         case eWriteBack:
-            return "WB"_sv;
+            out.write("WB"_sv);
+            break;
         case eUncachedOverridable:
-            return "UC-"_sv;
+            out.write("UC-"_sv);
+            break;
+        default:
+            out.write(km::Hex(std::to_underlying(value)).pad(2));
+            break;
         }
     }
 };
