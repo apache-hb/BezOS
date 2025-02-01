@@ -171,6 +171,12 @@ namespace km {
         };
 
         x64::GdtEntry entries[eCount];
+
+        void setTss(const x64::TaskStateSegment *tss) {
+            x64::TssEntry entry = x64::NewTssEntry(tss, 0);
+
+            memcpy(&entries[SystemGdt::eTaskState0], &entry, sizeof(entry));
+        }
     };
 
     static_assert(std::is_standard_layout_v<x64::GdtEntry>);

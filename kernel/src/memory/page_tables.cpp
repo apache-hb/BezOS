@@ -12,9 +12,13 @@
 using namespace km;
 
 x64::page *PageTableManager::alloc4k() {
-    x64::page *page = mAllocator->allocate<x64::page>();
-    memset(page, 0, sizeof(x64::page));
-    return page;
+    if (x64::page *page = mAllocator->allocate<x64::page>()) {
+        memset(page, 0, sizeof(x64::page));
+
+        return page;
+    }
+
+    return nullptr;
 }
 
 void PageTableManager::setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddress address) {
@@ -201,7 +205,8 @@ void PageTableManager::mapRange(MemoryRange range, const void *vaddr, PageFlags 
         if (front2m < back2m) {
             // map the leading 4k pages we need to map to fulfill our api contract
             MemoryRange head = {range.front, front2m};
-            mapRange4k(head, vaddr, flags, type);
+            if (!head.isEmpty())
+                mapRange4k(head, vaddr, flags, type);
 
             // then map the 2m pages
             MemoryRange body = {front2m, back2m};
@@ -209,7 +214,9 @@ void PageTableManager::mapRange(MemoryRange range, const void *vaddr, PageFlags 
 
             // finally map the trailing 4k pages
             MemoryRange tail = {back2m, range.back};
-            mapRange4k(tail, (char*)vaddr + head.size() + body.size(), flags, type);
+            if (!tail.isEmpty())
+                mapRange4k(tail, (char*)vaddr + head.size() + body.size(), flags, type);
+
             return;
         }
     }
@@ -325,4 +332,35 @@ PageFlags PageTableManager::getMemoryFlags(const void *ptr) const {
     applyFlags(t1);
 
     return flags;
+}
+
+PageSize PageTableManager::getPageSize(const void *ptr) const {
+    uintptr_t address = reinterpret_cast<uintptr_t>(ptr);
+    uintptr_t pml4e = (address >> 39) & 0b0001'1111'1111;
+    uintptr_t pdpte = (address >> 30) & 0b0001'1111'1111;
+    uintptr_t pdte = (address >> 21) & 0b0001'1111'1111;
+    uintptr_t pte = (address >> 12) & 0b0001'1111'1111;
+
+    const x64::PageMapLevel4 *l4 = getRootTable();
+    const x64::PageMapLevel3 *l3 = findPageMap3(l4, pml4e);
+    if (!l3) return PageSize::eNone;
+
+    if (l3->entries[pdpte].is1g()) {
+        return PageSize::eHuge;
+    }
+
+    const x64::PageMapLevel2 *l2 = findPageMap2(l3, pdpte);
+    if (!l2) return PageSize::eNone;
+
+    if (l2->entries[pdte].is2m()) {
+        return PageSize::eLarge;
+    }
+
+    const x64::PageTable *pt = findPageTable(l2, pdte);
+    if (!pt) return PageSize::eNone;
+
+    const x64::pte& t1 = pt->entries[pte];
+    if (!t1.present()) return PageSize::eNone;
+
+    return PageSize::eDefault;
 }

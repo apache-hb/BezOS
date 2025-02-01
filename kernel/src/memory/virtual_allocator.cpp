@@ -16,7 +16,12 @@ void km::VirtualAllocator::markUsed(VirtualRange range) {
 
 void *km::VirtualAllocator::alloc4k(size_t count) {
     size_t size = (count * x64::kPageSize);
-    return (void*)mRangeAllocator.allocate(size).front;
+    return (void*)mRangeAllocator.allocateAligned(size, x64::kPageSize).front;
+}
+
+void *km::VirtualAllocator::alloc2m(size_t count) {
+    size_t size = (count * x64::kLargePageSize);
+    return (void*)mRangeAllocator.allocateAligned(size, x64::kLargePageSize).front;
 }
 
 void km::VirtualAllocator::release(VirtualRange range) {

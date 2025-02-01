@@ -45,7 +45,7 @@ uint32_t pci::PortConfigSpace::read32(uint8_t bus, uint8_t slot, uint8_t functio
 
 pci::McfgConfigSpace::McfgConfigSpace(const acpi::Mcfg *mcfg, km::SystemMemory& memory)
     : mMcfg(mcfg)
-    , mRegions(new EcamRegion[mMcfg->allocationCount()])
+    , mRegions(new (std::nothrow) EcamRegion[mMcfg->allocationCount()])
 {
     for (size_t i = 0; i < mMcfg->allocationCount(); i++) {
         const acpi::McfgAllocation& allocation = mMcfg->allocations[i];
@@ -69,12 +69,7 @@ uint32_t pci::McfgConfigSpace::read32(uint8_t bus, uint8_t slot, uint8_t functio
         EcamRegion region = mRegions[i];
         if (!region.contains(bus)) continue;
 
-        uint32_t address = (((uint32_t(bus) * 256) + (uint32_t(slot) * 8) + uint32_t(function)) * 0x1000) + uint32_t(offset);
-
-        // uint32_t address2 = (uint32_t(bus) << 20) | (uint32_t(slot) << 15) | (uint32_t(function) << 12) | offset;
-
-        KmDebugMessage("[PCI] Reading ECAM address ", address, " for bus ", bus, ", slot ", slot, ", function ", function, " + ", offset, "\n");
-        KmDebugMessage("[PCI] ECAM read ", (void*)((char*)region.base + address), "\n");
+        uint32_t address = (uint32_t(bus) << 20) | (uint32_t(slot) << 15) | (uint32_t(function) << 12) | offset;
 
         return *(uint32_t*)((uint8_t*)region.base + address);
     }

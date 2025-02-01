@@ -25,7 +25,7 @@ extern "C" uint64_t KmSystemDispatchRoutine(km::SystemCallContext *context) {
     return 0x1234;
 }
 
-void km::SetupUserMode(mem::IAllocator *allocator) {
+void km::SetupUserMode(mem::IAllocator *allocator, uint8_t ist) {
     tlsSystemCallStack = allocator->allocateAligned(kStackSize, x64::kPageSize);
 
     void *rsp0 = allocator->allocateAligned(kStackSize, x64::kPageSize);
@@ -35,9 +35,7 @@ void km::SetupUserMode(mem::IAllocator *allocator) {
     tlsTaskState->ist1 = (uintptr_t)ist1 + kStackSize;
 
     // nmis use the IST1 stack
-    km::UpdateIdtEntry(0x2, SystemGdt::eLongModeCode, 0, 1);
-
-    km::UpdateIdtEntry(0xe, SystemGdt::eLongModeCode, 0, 1);
+    km::UpdateIdtEntry(0x2, SystemGdt::eLongModeCode, 0, ist);
 
     // reload the idt
     km::LoadIdt();

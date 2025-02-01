@@ -81,7 +81,7 @@ namespace boot {
 }
 
 [[noreturn]]
-void KmLaunchEx(boot::LaunchInfo launch);
+void LaunchKernel(boot::LaunchInfo launch);
 
 template<>
 struct km::Format<boot::MemoryRegion::Type> {

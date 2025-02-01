@@ -18,6 +18,7 @@ namespace km {
         void markUsed(VirtualRange range);
 
         void *alloc4k(size_t count);
+        void *alloc2m(size_t count);
 
         void release(VirtualRange range);
     };

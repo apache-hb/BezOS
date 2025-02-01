@@ -13,6 +13,8 @@
 
 #include <atomic>
 
+#include "crt.hpp"
+
 /// @brief The info passed to the smp startup blob.
 /// @warning MUST BE KEPT IN SYNC WITH KmSmpInfoStart
 struct SmpInfoHeader {
@@ -93,8 +95,8 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
     KmIdle();
 }
 
-static uintptr_t AllocSmpStack(km::SystemMemory& memory) {
-    return (uintptr_t)memory.allocate(km::kStartupStackSize, x64::kPageSize, km::PageFlags::eData);
+static uintptr_t AllocSmpStack() {
+    return (uintptr_t)aligned_alloc(x64::kPageSize, km::kStartupStackSize);
 }
 
 static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::IApic *pic, uint8_t scheduleIpi, uint8_t spuriousInt) {
@@ -161,7 +163,7 @@ void km::InitSmp(km::SystemMemory& memory, km::IApic *bsp, acpi::AcpiTables& acp
             continue;
         }
 
-        smpInfo->stack = AllocSmpStack(memory);
+        smpInfo->stack = AllocSmpStack();
         smpInfo->ready = 0;
 
         KmDebugMessage("[SMP] Starting APIC ID: ", localApic.apicId, "\n");

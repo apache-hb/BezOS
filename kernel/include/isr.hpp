@@ -85,6 +85,8 @@ namespace km {
         uint64_t ss;
     };
 
+    static_assert(sizeof(IsrContext) == 176, "Update isr.S");
+
     using IsrCallback = km::IsrContext(*)(km::IsrContext*);
 
     class IsrHandle {

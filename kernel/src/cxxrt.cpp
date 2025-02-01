@@ -2,17 +2,18 @@
 #include "panic.hpp"
 #include "util/memory.hpp"
 
+#include "crt.hpp"
+
+#include <new>
+
 extern "C" void __cxa_pure_virtual() {
     KM_PANIC("Pure virtual function called.");
 }
 
 const std::nothrow_t std::nothrow{};
 
-extern "C" void *malloc(size_t size);
-extern "C" void free(void *ptr);
-
-void *operator new(size_t size) {
-    if (void *ptr = malloc(size)) {
+void* operator new(std::size_t size) {
+    if (void* ptr = malloc(size)) {
         return ptr;
     }
 
@@ -20,22 +21,78 @@ void *operator new(size_t size) {
     KM_PANIC("Failed to allocate memory.");
 }
 
-void *operator new[](size_t size) {
+void* operator new[](std::size_t size) {
     return operator new(size);
 }
 
-void *operator new[](size_t size, std::nothrow_t const&) noexcept {
-    return malloc(size);
-}
-
-void operator delete(void *ptr, size_t _) noexcept {
+void operator delete(void* ptr) {
     free(ptr);
 }
 
-void operator delete(void* ptr) noexcept {
-    operator delete(ptr, 0zu);
+void operator delete[](void* ptr) {
+    operator delete(ptr);
 }
 
-void operator delete[](void *ptr) noexcept {
+void operator delete(void* ptr, std::size_t) {
     operator delete(ptr);
+}
+
+void operator delete[](void* ptr, std::size_t) {
+    operator delete(ptr);
+}
+
+void* operator new(std::size_t size, const std::nothrow_t&) noexcept {
+    return malloc(size);
+}
+
+void* operator new[](std::size_t size, const std::nothrow_t&) noexcept {
+    return operator new(size, std::nothrow);
+}
+
+void operator delete(void* ptr, const std::nothrow_t&) {
+    free(ptr);
+}
+
+void operator delete[](void* ptr, const std::nothrow_t&) {
+    operator delete(ptr, std::nothrow);
+}
+
+void* operator new(std::size_t size, std::align_val_t align) {
+    return aligned_alloc(std::to_underlying(align), size);
+}
+
+void* operator new(std::size_t size, std::align_val_t align, const std::nothrow_t&) noexcept {
+    return aligned_alloc(std::to_underlying(align), size);
+}
+
+void operator delete(void* ptr, std::align_val_t) {
+    free(ptr);
+}
+
+void operator delete(void* ptr, std::align_val_t, const std::nothrow_t&) {
+    operator delete(ptr, std::nothrow);
+}
+
+void* operator new[](std::size_t size, std::align_val_t align) {
+    return operator new(size, align);
+}
+
+void* operator new[](std::size_t size, std::align_val_t align, const std::nothrow_t&) noexcept {
+    return operator new(size, align, std::nothrow);
+}
+
+void operator delete[](void* ptr, std::align_val_t) {
+    operator delete(ptr);
+}
+
+void operator delete[](void* ptr, std::align_val_t, const std::nothrow_t&) {
+    operator delete(ptr, std::nothrow);
+}
+
+void operator delete(void* ptr, std::size_t, std::align_val_t align) {
+    operator delete(ptr, align);
+}
+
+void operator delete[](void* ptr, std::size_t size, std::align_val_t align) {
+    operator delete(ptr, size, align);
 }

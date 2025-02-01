@@ -11,8 +11,8 @@ km::SystemMemory::SystemMemory(const boot::MemoryMap& memmap, VirtualRange syste
 
 // TODO: respect align, dont allocate such large memory ranges
 void *km::SystemMemory::allocate(size_t size, size_t, PageFlags flags, MemoryType type) {
-    PhysicalAddress paddr = pmm.alloc4k(pages(size));
-    void *vaddr = vmm.alloc4k(pages(size));
+    PhysicalAddress paddr = pmm.alloc4k(Pages(size));
+    void *vaddr = vmm.alloc4k(Pages(size));
     MemoryRange range { paddr, paddr + size };
     pt.mapRange(range, vaddr, flags, type);
     return vaddr;
@@ -41,7 +41,14 @@ void *km::SystemMemory::map(PhysicalAddress begin, PhysicalAddress end, PageFlag
 
     MemoryRange range { begin, end };
 
-    void *vaddr = vmm.alloc4k(pages(range.size()));
+    void *vaddr = [&] {
+        if (begin.address % x64::kLargePageSize == 0 && range.size() >= x64::kLargePageSize) {
+            return vmm.alloc2m(LargePages(range.size()));
+        }
+
+        return vmm.alloc4k(Pages(range.size()));
+    }();
+
     pt.mapRange(range, vaddr, flags, type);
     pmm.markUsed(range);
 

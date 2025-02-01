@@ -18,7 +18,7 @@ namespace km {
     ///
     /// @param range The memory range.
     /// @return The page aligned memory range.
-    constexpr MemoryRange pageAligned(MemoryRange range) {
+    constexpr MemoryRange PageAligned(MemoryRange range) {
         return {sm::rounddown(range.front.address, x64::kPageSize), sm::roundup(range.back.address, x64::kPageSize)};
     }
 
@@ -26,8 +26,12 @@ namespace km {
     ///
     /// @param bytes The number of bytes.
     /// @return The number of pages.
-    constexpr size_t pages(size_t bytes) {
+    constexpr size_t Pages(size_t bytes) {
         return sm::roundup(bytes, x64::kPageSize) / x64::kPageSize;
+    }
+
+    constexpr size_t LargePages(size_t bytes) {
+        return sm::roundup(bytes, x64::kLargePageSize) / x64::kLargePageSize;
     }
 
     struct AddressMapping {

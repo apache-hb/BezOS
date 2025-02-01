@@ -152,9 +152,7 @@ km::SystemGdt km::GetBootGdt() {
 km::SystemGdt km::GetSystemGdt(const x64::TaskStateSegment *tss) {
     SystemGdt gdt = GetBootGdt();
 
-    x64::TssEntry entry = x64::NewTssEntry(tss, 0);
-
-    memcpy(&gdt.entries[SystemGdt::eTaskState0], &entry, sizeof(entry));
+    gdt.setTss(tss);
 
     return gdt;
 }

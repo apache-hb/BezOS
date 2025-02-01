@@ -7,6 +7,13 @@
 #include "memory/paging.hpp"
 
 namespace km {
+    enum class PageSize {
+        eNone = 0,
+        eDefault = x64::kPageSize,
+        eLarge = x64::kLargePageSize,
+        eHuge = x64::kHugePageSize,
+    };
+
     class PageTableManager {
         const km::PageBuilder *mPageManager;
         mem::IAllocator *mAllocator;
@@ -59,6 +66,7 @@ namespace km {
 
         km::PhysicalAddress getBackingAddress(const void *ptr) const;
         PageFlags getMemoryFlags(const void *ptr) const;
+        PageSize getPageSize(const void *ptr) const;
 
         void map(km::AddressMapping mapping, PageFlags flags, MemoryType type = MemoryType::eWriteBack) {
             mapRange(mapping.physicalRange(), mapping.vaddr, flags, type);

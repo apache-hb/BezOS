@@ -3,6 +3,7 @@
 #include "allocator/allocator.hpp"
 #include "memory/range.hpp"
 #include "std/vector.hpp"
+#include "util/util.hpp"
 
 #include <numeric>
 
@@ -83,20 +84,42 @@ namespace km {
         }
 
         template<typename T>
-        AnyRange<T> AllocateSpace(stdx::Vector<AnyRange<T>>& ranges, size_t size) {
+        AnyRange<T> AllocateSpaceAligned(stdx::Vector<AnyRange<T>>& ranges, size_t size, size_t align) {
             using Range = AnyRange<T>;
 
             for (size_t i = 0; i < ranges.count(); i++) {
-                Range& range = ranges[i];
+                Range range = ranges[i];
                 if (range.size() >= size) {
-                    T front = range.front;
-                    T back = (T)(std::bit_cast<uintptr_t>(range.front) + size);
-                    range.front = back;
-                    return Range { front, back };
+                    T front = (T)sm::roundup(std::bit_cast<uintptr_t>(range.front), align);
+                    T back = (T)(std::bit_cast<uintptr_t>(front) + size);
+
+                    Range aligned { front, back };
+
+                    // if the range is too small after aligning, skip it
+                    if (aligned.back > range.back) {
+                        continue;
+                    }
+
+                    // split the range
+                    auto [left, right] = split(range, aligned);
+                    if (!left.isEmpty())
+                        ranges.add(left);
+
+                    if (!right.isEmpty())
+                        ranges.add(right);
+
+                    ranges.remove(i);
+
+                    return aligned;
                 }
             }
 
             return Range{};
+        }
+
+        template<typename T>
+        AnyRange<T> AllocateSpace(stdx::Vector<AnyRange<T>>& ranges, size_t size) {
+            return AllocateSpaceAligned(ranges, size, 1);
         }
     }
 
@@ -125,6 +148,10 @@ namespace km {
 
         Range allocate(size_t size) {
             return detail::AllocateSpace(mAvailable, size);
+        }
+
+        Range allocateAligned(size_t size, size_t align) {
+            return detail::AllocateSpaceAligned(mAvailable, size, align);
         }
 
         void release(Range range) {

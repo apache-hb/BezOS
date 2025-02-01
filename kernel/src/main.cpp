@@ -134,7 +134,8 @@ static bool KmTestDebugPort(void) {
 constinit km::CpuLocal<SystemGdt> km::tlsSystemGdt;
 constinit km::CpuLocal<x64::TaskStateSegment> km::tlsTaskState;
 
-static SystemGdt gBootGdt;
+static constinit x64::TaskStateSegment gBootTss{};
+static constinit SystemGdt gBootGdt{};
 
 static constinit SerialPort gCanBusPort;
 static constinit CanBus gCanBus{nullptr};
@@ -631,8 +632,6 @@ static Stage2MemoryInfo *InitStage2Memory(
     PageBuilder pm = PageBuilder { processor.maxpaddr, processor.maxvaddr, layout.committedSlide(), GetDefaultPatLayout() };
     km::AddressMapping stackMapping = { (void*)((uintptr_t)stack.vaddr - stack.size), stack.paddr - stack.size, stack.size };
 
-    KmDebugMessage("[INIT] Comitted slide: ", Hex(layout.committedSlide()).pad(16, '0'), "\n");
-
     // Create the global memory allocator
     mem::TlsfAllocator alloc{(void*)layout.committed.vaddr, layout.committed.size};
 
@@ -649,6 +648,12 @@ static Stage2MemoryInfo *InitStage2Memory(
     // that are still required for kernel runtime
     memory->pmm.markUsed(stackMapping.physicalRange());
     memory->pmm.markUsed(layout.committed.physicalRange());
+    memory->pmm.markUsed(layout.kernel.physicalRange());
+    memory->pmm.markUsed({ 0zu, kLowMemory });
+
+    memory->vmm.markUsed(stackMapping.virtualRange());
+    memory->vmm.markUsed(layout.committed.virtualRange());
+    memory->vmm.markUsed(layout.kernel.virtualRange());
 
     // initialize our own page tables and remap everything into it
     MapKernelRegions(memory->pt, layout);
@@ -967,6 +972,38 @@ static km::IsrAllocator InitStage1Idt(uint16_t cs) {
     return isrs;
 }
 
+static constexpr size_t kTssStackSize = x64::kPageSize * 4;
+
+enum {
+    kIstTrap = 1,
+    kIstTimer = 2,
+};
+
+static void SetupInterruptStacks(uint16_t cs, mem::IAllocator *allocator) {
+    gBootTss = x64::TaskStateSegment{
+        .ist1 = (uintptr_t)allocator->allocateAligned(kTssStackSize, x64::kPageSize),
+        .ist2 = (uintptr_t)allocator->allocateAligned(kTssStackSize, x64::kPageSize),
+    };
+
+    gBootGdt.setTss(&gBootTss);
+    __ltr(SystemGdt::eTaskState0 * 0x8);
+
+    for (uint8_t i = 0; i < isr::kExceptionCount; i++) {
+        UpdateIdtEntry(i, cs, 0, kIstTrap);
+    }
+
+    if (kSelfTestIdt) {
+        IsrCallback old = InstallIsrHandler(0x2, [](km::IsrContext *context) -> km::IsrContext {
+            KmDebugMessage("[SELFTEST] Handled isr: ", context->vector, "\n");
+            return *context;
+        });
+
+        __int<0x2>();
+
+        InstallIsrHandler(0x2, old);
+    }
+}
+
 static void NormalizeProcessorState() {
     x64::Cr0 cr0 = x64::Cr0::load();
     cr0.set(x64::Cr0::WP | x64::Cr0::NE);
@@ -993,9 +1030,14 @@ extern "C" void free(void *ptr) {
     gAllocator->deallocate(ptr, 0);
 }
 
+extern "C" void *aligned_alloc(size_t alignment, size_t size) {
+    stdx::LockGuard _(gAllocatorLock);
+    return gAllocator->allocateAligned(size, alignment);
+}
+
 static uint32_t gSchedulerVector = 0;
 
-void KmLaunchEx(boot::LaunchInfo launch) {
+void LaunchKernel(boot::LaunchInfo launch) {
     NormalizeProcessorState();
 
     SetDebugLogLock(DebugLogLockType::eNone);
@@ -1041,6 +1083,8 @@ void KmLaunchEx(boot::LaunchInfo launch) {
     Stage2MemoryInfo *stage2 = InitStage2Memory(launch, processor, stage1);
     gAllocator = &stage2->allocator;
 
+    SetupInterruptStacks(SystemGdt::eLongModeCode, gAllocator);
+
     PlatformInfo platform = GetPlatformInfo(launch.smbios32Address, launch.smbios64Address, *stage2->memory);
 
     // On Oracle VirtualBox the COM1 port is functional but fails the loopback test.
@@ -1072,16 +1116,13 @@ void KmLaunchEx(boot::LaunchInfo launch) {
         ioApics.add(ioapic);
     }
 
-    bool has8042 = rsdt.has8042Controller();
-
-    hid::Ps2Controller ps2Controller;
-
     // TODO: mcfg pci config space is currently broken
-    std::unique_ptr<pci::IConfigSpace> config{pci::InitConfigSpace(nullptr, *stage2->memory)};
+    pci::IConfigSpace *config{pci::InitConfigSpace(rsdt.mcfg(), *stage2->memory)};
     if (!config) {
         KM_PANIC("Failed to initialize PCI config space.");
     }
-    pci::ProbeConfigSpace(config.get());
+
+    pci::ProbeConfigSpace(config);
 
     gSchedulerVector = isrs.allocateIsr();
 
@@ -1091,7 +1132,7 @@ void KmLaunchEx(boot::LaunchInfo launch) {
     // Setup gdt that contains a TSS for this core
     SetupApGdt();
 
-    km::SetupUserMode(gAllocator);
+    km::SetupUserMode(gAllocator, kIstTimer);
 
     km::InitScheduler(isrs);
 
@@ -1132,6 +1173,9 @@ void KmLaunchEx(boot::LaunchInfo launch) {
     KmDebugMessage("[INIT] Current time: ", time.year, "-", time.month, "-", time.day, "T", time.hour, ":", time.minute, ":", time.second, "Z\n");
 
     km::EnterUserMode(process->main.regs);
+    hid::Ps2Controller ps2Controller;
+
+    bool has8042 = rsdt.has8042Controller();
 
     if (has8042) {
         hid::Ps2ControllerResult result = hid::EnablePs2Controller();

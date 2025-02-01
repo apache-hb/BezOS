@@ -210,5 +210,5 @@ extern "C" void kmain(void) {
         .smbios64Address = (uintptr_t)smbios.entry_64,
     };
 
-    KmLaunchEx(info);
+    LaunchKernel(info);
 }
