@@ -131,12 +131,22 @@ static void ProbePciDevice(pci::IConfigSpace *config, uint8_t bus, uint8_t slot)
     }
 }
 
-void pci::ProbeConfigSpace(IConfigSpace *config) {
+static void ProbeBusRange(pci::IConfigSpace *config, uint8_t first, uint8_t last) {
+    for (uint8_t bus = first; bus < last; bus++) {
+        ProbePciBus(config, bus);
+    }
+}
+
+void pci::ProbeConfigSpace(IConfigSpace *config, const acpi::Mcfg *mcfg) {
     KmDebugMessage("| PCI                 | Property              | Value\n");
     KmDebugMessage("|---------------------+-----------------------+--------------------\n");
 
-    for (uint8_t bus = 0; bus < 255; bus++) {
-        ProbePciBus(config, bus);
+    if (mcfg == nullptr) {
+        ProbeBusRange(config, 0, 255);
+    } else {
+        for (const acpi::McfgAllocation& allocation : mcfg->mcfgAllocations()) {
+            ProbeBusRange(config, allocation.startBusNumber, allocation.endBusNumber);
+        }
     }
 }
 

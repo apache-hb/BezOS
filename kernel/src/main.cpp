@@ -1122,7 +1122,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
         KM_PANIC("Failed to initialize PCI config space.");
     }
 
-    pci::ProbeConfigSpace(config);
+    pci::ProbeConfigSpace(config, rsdt.mcfg());
 
     gSchedulerVector = isrs.allocateIsr();
 
