@@ -23,7 +23,7 @@ namespace sm {
     /// @tparam T the type of the value
     /// @tparam Order the desired byte order of the value
     template<typename T, std::endian Order>
-    struct EndianValue {
+    struct [[gnu::packed]] EndianValue {
         constexpr EndianValue() = default;
 
         /// @brief Construct a new Endian Value object

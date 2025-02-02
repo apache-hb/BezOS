@@ -5,6 +5,7 @@
 #include "acpi/madt.hpp"
 #include "acpi/fadt.hpp"
 #include "acpi/mcfg.hpp"
+#include "util/signature.hpp"
 
 namespace km {
     class IoApic;
@@ -29,7 +30,7 @@ namespace acpi {
     static_assert(sizeof(RsdpLocator) == 36);
 
     struct [[gnu::packed]] Rsdt {
-        static constexpr TableSignature kSignature = { 'R', 'S', 'D', 'T' };
+        static constexpr TableSignature kSignature = util::Signature("RSDT");
 
         RsdtHeader header; // signature must be "RSDT"
         uint32_t entries[];
@@ -40,7 +41,7 @@ namespace acpi {
     };
 
     struct [[gnu::packed]] Xsdt {
-        static constexpr TableSignature kSignature = { 'X', 'S', 'D', 'T' };
+        static constexpr TableSignature kSignature = util::Signature("XSDT");
 
         RsdtHeader header; // signature must be "XSDT"
         uint64_t entries[];

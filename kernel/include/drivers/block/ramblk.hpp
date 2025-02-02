@@ -9,19 +9,13 @@ namespace km {
         std::byte *mMemory;
         size_t mSize;
         Protection mProtection;
-        bool mExternalMemory;
+
+        km::BlockDeviceStatus readImpl(uint64_t block, void *buffer, size_t count) override;
+        km::BlockDeviceStatus writeImpl(uint64_t block, const void *buffer, size_t count) override;
 
     public:
-        MemoryBlk(size_t size);
         MemoryBlk(const std::byte *memory, size_t size);
-        ~MemoryBlk();
-
-        UTIL_NOCOPY(MemoryBlk);
-        UTIL_NOMOVE(MemoryBlk);
 
         km::BlockDeviceCapability capability() const override;
-
-        km::BlockDeviceStatus read(uint64_t block, void *buffer, size_t count) override;
-        km::BlockDeviceStatus write(uint64_t block, const void *buffer, size_t count) override;
     };
 }

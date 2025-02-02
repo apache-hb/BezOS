@@ -1,6 +1,7 @@
 #pragma once
 
 #include "acpi/header.hpp"
+#include "util/signature.hpp"
 
 #include <stddef.h>
 
@@ -21,7 +22,7 @@ namespace acpi {
     static_assert(sizeof(McfgAllocation) == 16);
 
     struct [[gnu::packed]] Mcfg {
-        static constexpr TableSignature kSignature = { 'M', 'C', 'F', 'G' };
+        static constexpr TableSignature kSignature = util::Signature("MCFG");
 
         RsdtHeader header; // signature must be "MCFG"
         uint8_t reserved0[8];

@@ -2,6 +2,7 @@
 
 #include "acpi/header.hpp"
 
+#include "util/signature.hpp"
 #include "util/util.hpp"
 #include "util/format.hpp"
 
@@ -89,7 +90,7 @@ namespace acpi {
     };
 
     struct Madt {
-        static constexpr TableSignature kSignature = { 'A', 'P', 'I', 'C' };
+        static constexpr TableSignature kSignature = util::Signature("APIC");
 
         RsdtHeader header; // signature must be "APIC"
 

@@ -1,10 +1,11 @@
 #pragma once
 
 #include "acpi/header.hpp"
+#include "util/signature.hpp"
 
 namespace acpi {
     struct [[gnu::packed]] Hpet {
-        static constexpr TableSignature kSignature = { 'H', 'P', 'E', 'T' };
+        static constexpr TableSignature kSignature = util::Signature("HPET");
 
         RsdtHeader header;
         uint32_t evtTimerBlockId;

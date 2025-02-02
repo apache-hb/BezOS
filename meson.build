@@ -111,6 +111,7 @@ src = [
     'kernel/src/util/memory.cpp',
     'kernel/src/util/format.cpp',
     'kernel/src/util/bits.cpp',
+    'kernel/src/util/uuid.cpp',
 
     # Memory management
     'kernel/src/memory/layout.cpp',
@@ -118,9 +119,6 @@ src = [
     'kernel/src/memory/page_allocator.cpp',
     'kernel/src/memory/virtual_allocator.cpp',
     'kernel/src/memory/page_tables.cpp',
-
-    # Allocators
-    'kernel/src/allocator/bitmap.cpp',
 
     # C and C++ Runtime
     'kernel/src/crt.cpp',
@@ -173,6 +171,10 @@ src = [
     # Device drivers
     'kernel/src/drivers/block/driver.cpp',
     'kernel/src/drivers/block/virtio_blk.cpp',
+    'kernel/src/drivers/block/ramblk.cpp',
+
+    # FS drviers
+    'kernel/src/drivers/fs/driver.cpp',
 
     # Process
     'kernel/src/syscall.cpp',
@@ -325,6 +327,12 @@ testcases = {
         'kernel/test/memory/pte.cpp',
         'kernel/src/memory/page_tables.cpp',
         'kernel/subprojects/tlsf/tlsf.c',
+    ],
+    'partitions': [
+        'kernel/test/drivers/partitions.cpp',
+        'kernel/src/drivers/fs/driver.cpp',
+        'kernel/src/drivers/block/driver.cpp',
+        'kernel/src/drivers/block/ramblk.cpp',
     ]
 }
 

@@ -2,6 +2,7 @@
 
 #include "acpi/header.hpp"
 #include "util/format.hpp"
+#include "util/signature.hpp"
 #include "util/util.hpp"
 
 namespace acpi {
@@ -15,7 +16,7 @@ namespace acpi {
     UTIL_BITFLAGS(IapcBootArch);
 
     struct [[gnu::packed]] Fadt {
-        static constexpr TableSignature kSignature = { 'F', 'A', 'C', 'P' };
+        static constexpr TableSignature kSignature = util::Signature("FACP");
 
         RsdtHeader header; // signature must be "FACP"
 

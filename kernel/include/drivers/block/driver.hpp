@@ -32,6 +32,9 @@ namespace km {
     };
 
     class IBlockDevice {
+        virtual BlockDeviceStatus readImpl(uint64_t block, void *buffer, size_t count) = 0;
+        virtual BlockDeviceStatus writeImpl(uint64_t block, const void *buffer, size_t count) = 0;
+
     public:
         virtual ~IBlockDevice() = default;
 
@@ -41,8 +44,23 @@ namespace km {
 
         virtual BlockDeviceCapability capability() const = 0;
 
-        virtual BlockDeviceStatus read(uint64_t block, void *buffer, size_t count) = 0;
-        virtual BlockDeviceStatus write(uint64_t block, const void *buffer, size_t count) = 0;
+        BlockDeviceStatus read(uint64_t block, void *buffer, size_t count);
+        BlockDeviceStatus write(uint64_t block, const void *buffer, size_t count);
+    };
+
+    class DriveMedia {
+        IBlockDevice *mDevice;
+        std::unique_ptr<std::byte[]> mBuffer;
+
+    public:
+        DriveMedia(IBlockDevice *device [[gnu::nonnull]]);
+
+        size_t size() const;
+
+        size_t read(size_t offset, void *buffer, size_t size);
+        size_t write(size_t offset, const void *buffer, size_t size);
+
+        void sync();
     };
 
     using DeviceFactory = IBlockDevice *(*)(void *);
@@ -55,11 +73,3 @@ namespace km {
         DeviceFactory factory;
     };
 }
-
-#define DEVICE_DRIVER(name) \
-    extern "C" [[gnu::used, gnu::section(".kernel.drivers")]] \
-    constinit const km::BlockDeviceDriver name
-
-std::span<const km::BlockDeviceDriver> GetDeviceDrivers();
-km::IBlockDevice *VirtIoBlockDevice();
-km::IBlockDevice *MemoryBlockDevice();

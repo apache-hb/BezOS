@@ -35,6 +35,11 @@ namespace sm {
         }
         return value + 1;
     }
+
+    template<typename T>
+    struct AlwaysFalse {
+        static constexpr bool Value = false;
+    };
 }
 
 #define UTIL_BITFLAGS(it) \
