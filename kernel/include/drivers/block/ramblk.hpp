@@ -4,6 +4,8 @@
 
 namespace km {
     class MemoryBlk final : public km::IBlockDevice {
+        static constexpr uint32_t kBlockSize = 512;
+
         std::byte *mMemory;
         size_t mSize;
         Protection mProtection;
@@ -11,7 +13,7 @@ namespace km {
 
     public:
         MemoryBlk(size_t size);
-        MemoryBlk(std::byte *memory, size_t size);
+        MemoryBlk(const std::byte *memory, size_t size);
         ~MemoryBlk();
 
         UTIL_NOCOPY(MemoryBlk);

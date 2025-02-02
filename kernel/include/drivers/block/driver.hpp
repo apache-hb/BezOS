@@ -21,13 +21,14 @@ namespace km {
     struct BlockDeviceCapability {
         Protection protection;
         uint32_t blockSize;
-        uint32_t blockCount;
+        uint64_t blockCount;
     };
 
     enum class BlockDeviceStatus {
         eOk,
         eReadOnly,
         eInternalError,
+        eOutOfRange,
     };
 
     class IBlockDevice {
