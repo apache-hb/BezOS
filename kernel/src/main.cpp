@@ -1116,13 +1116,12 @@ void LaunchKernel(boot::LaunchInfo launch) {
         ioApics.add(ioapic);
     }
 
-    // TODO: mcfg pci config space is currently broken
-    pci::IConfigSpace *config{pci::InitConfigSpace(rsdt.mcfg(), *stage2->memory)};
+    std::unique_ptr<pci::IConfigSpace> config{pci::InitConfigSpace(rsdt.mcfg(), *stage2->memory)};
     if (!config) {
         KM_PANIC("Failed to initialize PCI config space.");
     }
 
-    pci::ProbeConfigSpace(config, rsdt.mcfg());
+    pci::ProbeConfigSpace(config.get(), rsdt.mcfg());
 
     gSchedulerVector = isrs.allocateIsr();
 

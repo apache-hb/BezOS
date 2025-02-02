@@ -312,7 +312,7 @@ TEST_F(PageTableTest, MemoryFlagsKernelMapping) {
     }
 
     // ensure that nothing else was mapped
-    // scan 1mb above  the kernel
+    // scan 1mb above the kernel
     for (uintptr_t i = kernel - 0x100000; i < kernel + 0x100000; i += x64::kPageSize) {
         km::PageFlags flags = pt.getMemoryFlags((void*)i);
         ASSERT_EQ(km::PageFlags::eNone, flags);
