@@ -3,23 +3,9 @@
 #include <cstdlib>
 
 #include <mm_malloc.h>
-#include <ostream>
 #include <stdint.h>
 
 #include "memory/virtual_allocator.hpp"
-
-struct GlobalAllocator final : public mem::IAllocator {
-    void *allocateAligned(size_t size, size_t align) override {
-        std::cout << "Allocating " << size << " bytes with alignment " << align << std::endl;
-        return _mm_malloc(size, align);
-    }
-
-    void deallocate(void *ptr, size_t _) override {
-        free(ptr);
-    }
-};
-
-static GlobalAllocator gAllocator;
 
 TEST(VmemTest, Construction) {
     uintptr_t front = -(1ull << 47);
