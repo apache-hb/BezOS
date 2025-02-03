@@ -1,6 +1,6 @@
 #include "drivers/block/driver.hpp"
 
-km::BlockDeviceStatus km::IBlockDevice::read(uint64_t block, void *buffer, size_t count) {
+km::BlockDeviceStatus km::IBlockDriver::read(uint64_t block, void *buffer, size_t count) {
     BlockDeviceCapability cap = capability();
     if (!bool(cap.protection & Protection::eRead)) {
         return BlockDeviceStatus::eReadOnly;
@@ -15,7 +15,7 @@ km::BlockDeviceStatus km::IBlockDevice::read(uint64_t block, void *buffer, size_
     return readImpl(block, buffer, count);
 }
 
-km::BlockDeviceStatus km::IBlockDevice::write(uint64_t block, const void *buffer, size_t count) {
+km::BlockDeviceStatus km::IBlockDriver::write(uint64_t block, const void *buffer, size_t count) {
     BlockDeviceCapability cap = capability();
     if (!bool(cap.protection & Protection::eWrite)) {
         return BlockDeviceStatus::eReadOnly;
@@ -54,12 +54,12 @@ km::detail::SectorRange km::detail::SectorRangeForSpan(size_t offset, size_t siz
     };
 }
 
-km::DriveMedia::DriveMedia(IBlockDevice *device [[gnu::nonnull]])
+km::BlockDevice::BlockDevice(IBlockDriver *device [[gnu::nonnull]])
     : mDevice(device)
     , mBuffer(new std::byte[size()])
 { }
 
-size_t km::DriveMedia::read(size_t offset, void *buffer, size_t size) {
+size_t km::BlockDevice::read(size_t offset, void *buffer, size_t size) {
     std::byte *dst = static_cast<std::byte*>(buffer);
 
     BlockDeviceCapability cap = mDevice->capability();
@@ -101,11 +101,11 @@ size_t km::DriveMedia::read(size_t offset, void *buffer, size_t size) {
     return readSize + endSize;
 }
 
-void km::DriveMedia::sync() {
+void km::BlockDevice::sync() {
     /* empty for now */
 }
 
-km::PartitionBlockDevice::PartitionBlockDevice(IBlockDevice *device, uint64_t front, uint64_t back)
+km::PartitionBlockDevice::PartitionBlockDevice(IBlockDriver *device, uint64_t front, uint64_t back)
     : mDevice(device)
     , mFront(front)
     , mBack(back)
@@ -116,7 +116,7 @@ km::BlockDeviceStatus km::PartitionBlockDevice::readImpl(uint64_t block, void *b
     if (block + count > mBack) {
         return BlockDeviceStatus::eOutOfRange;
     }
-    
+
     return mDevice->read(block, buffer, count);
 }
 

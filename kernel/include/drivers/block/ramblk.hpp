@@ -3,7 +3,7 @@
 #include "drivers/block/driver.hpp"
 
 namespace km {
-    class MemoryBlk final : public km::IBlockDevice {
+    class MemoryBlk final : public km::IBlockDriver {
         static constexpr uint32_t kBlockSize = 512;
 
         std::byte *mMemory;

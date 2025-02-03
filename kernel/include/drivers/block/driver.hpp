@@ -34,14 +34,14 @@ namespace km {
         eOutOfRange,
     };
 
-    class IBlockDevice {
+    class IBlockDriver {
         virtual BlockDeviceStatus readImpl(uint64_t block, void *buffer, size_t count) = 0;
         virtual BlockDeviceStatus writeImpl(uint64_t block, const void *buffer, size_t count) = 0;
 
     public:
-        virtual ~IBlockDevice() = default;
+        virtual ~IBlockDriver() = default;
 
-        void operator delete(IBlockDevice*, std::destroying_delete_t) {
+        void operator delete(IBlockDriver*, std::destroying_delete_t) {
             std::unreachable();
         }
 
@@ -62,12 +62,12 @@ namespace km {
         SectorRange SectorRangeForSpan(size_t offset, size_t size, const BlockDeviceCapability &cap);
     }
 
-    class DriveMedia {
-        IBlockDevice *mDevice;
+    class BlockDevice {
+        IBlockDriver *mDevice;
         std::unique_ptr<std::byte[]> mBuffer;
 
     public:
-        DriveMedia(IBlockDevice *device [[gnu::nonnull]]);
+        BlockDevice(IBlockDriver *device [[gnu::nonnull]]);
 
         BlockDeviceCapability capability() const { return mDevice->capability(); }
         size_t size() const { return capability().size(); }
@@ -76,12 +76,12 @@ namespace km {
         size_t read(size_t offset, void *buffer, size_t size);
         size_t write(size_t offset, const void *buffer, size_t size);
 
-        IBlockDevice *device() const { return mDevice; }
+        IBlockDriver *device() const { return mDevice; }
 
         void sync();
     };
 
-    using DeviceFactory = IBlockDevice *(*)(void *);
+    using DeviceFactory = IBlockDriver *(*)(void *);
 
     struct BlockDeviceDriver {
         pci::VendorId vendorId;
@@ -91,8 +91,8 @@ namespace km {
         DeviceFactory factory;
     };
 
-    class PartitionBlockDevice final : public IBlockDevice {
-        IBlockDevice *mDevice;
+    class PartitionBlockDevice final : public IBlockDriver {
+        IBlockDriver *mDevice;
         uint64_t mFront;
         uint64_t mBack;
 
@@ -100,8 +100,8 @@ namespace km {
         BlockDeviceStatus writeImpl(uint64_t block, const void *buffer, size_t count) override;
 
     public:
-        PartitionBlockDevice(IBlockDevice *device, uint64_t front, uint64_t back);
-        
+        PartitionBlockDevice(IBlockDriver *device, uint64_t front, uint64_t back);
+
         BlockDeviceCapability capability() const override;
     };
 }

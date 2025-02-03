@@ -1,6 +1,6 @@
 #include "drivers/fs/driver.hpp"
 
-std::expected<km::DrivePartitions, km::PartParseError> km::ParsePartitionTable(DriveMedia& drive) {
+std::expected<km::DrivePartitions, km::PartParseError> km::ParsePartitionTable(BlockDevice& drive) {
     MasterBootRecord mbr;
 
     if (drive.read(0, &mbr, sizeof(MasterBootRecord)) != sizeof(MasterBootRecord))

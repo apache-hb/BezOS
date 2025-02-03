@@ -85,7 +85,7 @@ namespace km {
 
     static_assert(sizeof(FatFolder) == 32);
 
-    class FatFsDriver : public km::IFsDriver {
+    class FatFsDriver : public km::IFileSystemDriver {
 
     };
 }

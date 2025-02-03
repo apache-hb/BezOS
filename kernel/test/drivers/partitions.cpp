@@ -32,7 +32,7 @@ TEST(MbrPartitionTest, RejectEmpty) {
     static constexpr size_t kSize = 0x10000;
     std::unique_ptr<std::byte[]> data{new std::byte[kSize]()};
     km::MemoryBlk ramblk(data.get(), kSize);
-    km::DriveMedia media(&ramblk);
+    km::BlockDevice media(&ramblk);
 
     auto partitions = km::ParsePartitionTable(media);
     ASSERT_FALSE(partitions.has_value());
@@ -108,7 +108,7 @@ static constexpr uint8_t kSinglePartitionMbr[512] = {
 
 TEST(MbrPartitionTest, SinglePartition) {
     km::MemoryBlk ramblk((std::byte*)kSinglePartitionMbr, sizeof(kSinglePartitionMbr), km::Protection::eRead);
-    km::DriveMedia media(&ramblk);
+    km::BlockDevice media(&ramblk);
 
     auto partitions = km::ParsePartitionTable(media);
     ASSERT_TRUE(partitions.has_value()) << "Error: " << std::to_underlying(partitions.error());
@@ -137,7 +137,7 @@ TEST(GptPartitionTest, InvalidGpt) {
     static constexpr size_t kSize = 0x10000;
     std::unique_ptr<std::byte[]> data{new std::byte[kSize]()};
     km::MemoryBlk ramblk(data.get(), kSize);
-    km::DriveMedia media(&ramblk);
+    km::BlockDevice media(&ramblk);
 
     auto partitions = km::ParsePartitionTable(media);
     ASSERT_FALSE(partitions.has_value());
@@ -341,7 +341,7 @@ static constexpr uint8_t kGptTwoEntries[512 * 3] = {
 
 TEST(GptPartitionTest, TwoEntries) {
 	km::MemoryBlk ramblk((std::byte*)kGptTwoEntries, sizeof(kGptTwoEntries), km::Protection::eRead);
-    km::DriveMedia media(&ramblk);
+    km::BlockDevice media(&ramblk);
 
     auto partitions = km::ParsePartitionTable(media);
     ASSERT_TRUE(partitions.has_value()) << "Error: " << std::to_underlying(partitions.error());

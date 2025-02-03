@@ -76,7 +76,7 @@ TEST(DriveMediaTest, ReadSector) {
     }
 
     km::MemoryBlk ramblk(data.get(), kSize);
-    km::DriveMedia media(&ramblk);
+    km::BlockDevice media(&ramblk);
 
     ASSERT_EQ(media.size(), kSize);
 

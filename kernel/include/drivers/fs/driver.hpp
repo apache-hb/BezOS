@@ -14,16 +14,6 @@
 #include <utility>
 
 namespace km {
-    template<typename... A, typename U = decltype([]{})>
-    static consteval auto concat(A&&... args) {
-        std::array<char, ((std::size(args) - 1) + ...)> buffer;
-
-        size_t i = 0;
-        ((buffer[i == 0 ? i : i++] = 0, std::copy(std::begin(args), std::end(args) - 1, &buffer[i]), i += std::size(args)), ...);
-
-        return buffer;
-    }
-
     class FsPath {
         stdx::String mPath;
         size_t mSegments;
@@ -37,35 +27,6 @@ namespace km {
         static constexpr FsPath root() {
             return FsPath("", 0);
         }
-
-        template<size_t N, typename U = decltype([]{})>
-        static constexpr FsPath ofString(const char (&text)[N]) {
-            std::array<char, N - 1> buffer;
-            size_t segments = 0;
-            for (size_t i = 0; i < N - 1; i++) {
-                char c = text[i];
-                if (c == '/') {
-                    buffer[i] = 0;
-                    segments += 1;
-                } else if (c == 0) {
-                    assert(false);
-                } else {
-                    buffer[i] = c;
-                }
-            }
-
-            return FsPath(stdx::String(buffer.begin(), buffer.end()), segments);
-        }
-
-        template<typename... A>
-        static constexpr FsPath ofSegments(A&&... args) {
-            constexpr size_t segments = sizeof...(args);
-            stdx::String path;
-            path.reserve((std::size(args) + ...));
-            (path.insert(std::begin(args), std::end(args)), ...);
-
-            return FsPath(std::move(path), segments);
-        }
     };
 
     class FsFile {
@@ -76,18 +37,18 @@ namespace km {
 
     };
 
-    class IFsDriver {
-        IBlockDevice *mDevice;
-    
-    protected:
-        IFsDriver(IBlockDevice *device) : mDevice(device) { }
+    class IFileSystemDriver {
+        BlockDevice *mMedia;
 
-        IBlockDevice *device() const { return mDevice; }
+    protected:
+        IFileSystemDriver(BlockDevice *media) : mMedia(media) { }
+
+        BlockDevice *device() const { return mMedia; }
 
     public:
-        virtual ~IFsDriver() = default;
+        virtual ~IFileSystemDriver() = default;
 
-        void operator delete(IFsDriver*, std::destroying_delete_t) {
+        void operator delete(IFileSystemDriver*, std::destroying_delete_t) {
             std::unreachable();
         }
     };
@@ -216,5 +177,5 @@ namespace km {
         eInvalidGptSignature,
     };
 
-    std::expected<DrivePartitions, PartParseError> ParsePartitionTable(DriveMedia& drive);
+    std::expected<DrivePartitions, PartParseError> ParsePartitionTable(BlockDevice& drive);
 }
