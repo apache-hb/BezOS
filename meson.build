@@ -333,7 +333,17 @@ testcases = {
         'kernel/src/drivers/fs/driver.cpp',
         'kernel/src/drivers/block/driver.cpp',
         'kernel/src/drivers/block/ramblk.cpp',
-    ]
+    ],
+    'ramblk': [
+        'kernel/test/drivers/ramblk.cpp',
+        'kernel/src/drivers/block/driver.cpp',
+        'kernel/src/drivers/block/ramblk.cpp',
+    ],
+    'media': [
+        'kernel/test/drivers/media.cpp',
+        'kernel/src/drivers/block/driver.cpp',
+        'kernel/src/drivers/block/ramblk.cpp',
+    ],
 }
 
 if enable_aml

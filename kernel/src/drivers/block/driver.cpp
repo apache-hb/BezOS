@@ -6,7 +6,7 @@ km::BlockDeviceStatus km::IBlockDevice::read(uint64_t block, void *buffer, size_
         return BlockDeviceStatus::eReadOnly;
     }
 
-    size_t back = (block + count) * cap.blockSize;
+    size_t back = (block + count);
 
     if (back > cap.blockCount) {
         return BlockDeviceStatus::eOutOfRange;
@@ -21,7 +21,7 @@ km::BlockDeviceStatus km::IBlockDevice::write(uint64_t block, const void *buffer
         return BlockDeviceStatus::eReadOnly;
     }
 
-    size_t back = (block + count) * cap.blockSize;
+    size_t back = (block + count);
 
     if (back > cap.blockCount) {
         return BlockDeviceStatus::eOutOfRange;
@@ -30,33 +30,43 @@ km::BlockDeviceStatus km::IBlockDevice::write(uint64_t block, const void *buffer
     return writeImpl(block, buffer, count);
 }
 
-km::DriveMedia::DriveMedia(IBlockDevice *device [[gnu::nonnull]])
-    : mDevice(device)
-    , mBuffer(new std::byte[size()])
-{ }
-
-size_t km::DriveMedia::size() const {
-    BlockDeviceCapability cap = mDevice->capability();
-
-    return cap.blockCount * cap.blockSize;
-}
-
-size_t km::DriveMedia::read(size_t offset, void *buffer, size_t size) {
-    std::byte *dst = static_cast<std::byte*>(buffer);
-
-    BlockDeviceCapability cap = mDevice->capability();
-    if (offset + size > (cap.blockSize * cap.blockCount))
-        return 0;
-
+km::detail::SectorRange km::detail::SectorRangeForSpan(size_t offset, size_t size, const BlockDeviceCapability &cap) {
     // the first sector to load
     size_t firstSector = offset / cap.blockSize;
     // distance into the first sector to start reading from
     size_t firstSectorOffset = offset - (firstSector * cap.blockSize);
 
     // the last sector to load
-    size_t lastSector = (offset + size + cap.blockSize - 1) / cap.blockSize;
+    size_t lastSector = (offset + size) / cap.blockSize;
     // distance into the last sector to stop reading at
     size_t lastSectorOffset = (size + offset) - (lastSector * cap.blockSize);
+
+    if (lastSectorOffset == 0) {
+        lastSectorOffset = cap.blockSize;
+        lastSector -= 1;
+    }
+
+    return SectorRange {
+        .firstSector = firstSector,
+        .firstSectorOffset = firstSectorOffset,
+        .lastSector = lastSector,
+        .lastSectorOffset = lastSectorOffset,
+    };
+}
+
+km::DriveMedia::DriveMedia(IBlockDevice *device [[gnu::nonnull]])
+    : mDevice(device)
+    , mBuffer(new std::byte[size()])
+{ }
+
+size_t km::DriveMedia::read(size_t offset, void *buffer, size_t size) {
+    std::byte *dst = static_cast<std::byte*>(buffer);
+
+    BlockDeviceCapability cap = mDevice->capability();
+    if (offset + size > cap.size())
+        return 0;
+
+    auto [firstSector, firstSectorOffset, lastSector, lastSectorOffset] = detail::SectorRangeForSpan(offset, size, cap);
 
     // read in the first sector to the temp buffer
     if (mDevice->read(firstSector, mBuffer.get(), 1) != BlockDeviceStatus::eOk)

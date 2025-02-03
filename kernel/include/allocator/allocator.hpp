@@ -1,11 +1,15 @@
 #pragma once
 
 #include <concepts>
+#include <cstdlib>
 #include <memory>
 #include <utility>
 
 #include <cstring>
 #include <cstddef>
+
+extern "C" void *malloc(size_t);
+extern "C" void free(void*);
 
 namespace mem {
     class IAllocator {
@@ -105,5 +109,17 @@ namespace mem {
         }
 
         AllocatorDeleter(IAllocator *allocator) : allocator(allocator) { }
+    };
+
+    template<typename T>
+    class GlobalAllocator {
+    public:
+        T *allocate(size_t n) {
+            return (T*)malloc(n * sizeof(T));
+        }
+
+        void deallocate(T *ptr, size_t) {
+            free(ptr);
+        }
     };
 }

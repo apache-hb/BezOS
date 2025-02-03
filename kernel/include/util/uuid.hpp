@@ -2,7 +2,7 @@
 
 #include "util/digit.hpp"
 #include "util/endian.hpp"
-#include "util/gnu_chrono.hpp"
+#include "util/cxx_chrono.hpp"
 
 #include <cassert>
 #include <cstdint>

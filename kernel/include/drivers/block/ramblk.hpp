@@ -14,7 +14,7 @@ namespace km {
         km::BlockDeviceStatus writeImpl(uint64_t block, const void *buffer, size_t count) override;
 
     public:
-        MemoryBlk(const std::byte *memory, size_t size);
+        MemoryBlk(std::byte *memory, size_t size, Protection protection = Protection::eReadWrite);
 
         km::BlockDeviceCapability capability() const override;
     };

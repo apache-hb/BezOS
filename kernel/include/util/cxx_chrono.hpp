@@ -34,7 +34,9 @@
 #include <bits/c++0x_warning.h>
 #else
 
+#ifndef __glibcxx_chrono
 #define __glibcxx_chrono
+#endif
 #include <bits/chrono.h>
 #include <iterator>
 

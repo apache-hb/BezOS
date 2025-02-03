@@ -1,14 +1,14 @@
 #include "drivers/block/ramblk.hpp"
 
-km::MemoryBlk::MemoryBlk(const std::byte *memory, size_t size)
-    : mMemory(const_cast<std::byte *>(memory))
+km::MemoryBlk::MemoryBlk(std::byte *memory, size_t size, Protection protection)
+    : mMemory(memory)
     , mSize(size)
-    , mProtection(Protection::eRead)
+    , mProtection(protection)
 { }
 
 km::BlockDeviceCapability km::MemoryBlk::capability() const {
     return km::BlockDeviceCapability {
-        .protection = km::Protection::eReadWrite,
+        .protection = mProtection,
         .blockSize = kBlockSize,
         .blockCount = uint64_t(mSize / kBlockSize),
     };

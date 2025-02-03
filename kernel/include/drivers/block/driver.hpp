@@ -22,6 +22,10 @@ namespace km {
         Protection protection;
         uint32_t blockSize;
         uint64_t blockCount;
+
+        uint64_t size() const {
+            return blockSize * blockCount;
+        }
     };
 
     enum class BlockDeviceStatus {
@@ -48,6 +52,17 @@ namespace km {
         BlockDeviceStatus write(uint64_t block, const void *buffer, size_t count);
     };
 
+    namespace detail {
+        struct SectorRange {
+            uint64_t firstSector;
+            size_t firstSectorOffset;
+            uint64_t lastSector;
+            size_t lastSectorOffset;
+        };
+
+        SectorRange SectorRangeForSpan(size_t offset, size_t size, const BlockDeviceCapability &cap);
+    }
+
     class DriveMedia {
         IBlockDevice *mDevice;
         std::unique_ptr<std::byte[]> mBuffer;
@@ -55,7 +70,9 @@ namespace km {
     public:
         DriveMedia(IBlockDevice *device [[gnu::nonnull]]);
 
-        size_t size() const;
+        BlockDeviceCapability capability() const { return mDevice->capability(); }
+        size_t size() const { return capability().size(); }
+        uint64_t blockSize() const { return capability().blockSize; }
 
         size_t read(size_t offset, void *buffer, size_t size);
         size_t write(size_t offset, const void *buffer, size_t size);

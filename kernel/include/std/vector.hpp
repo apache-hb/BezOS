@@ -204,4 +204,32 @@ namespace stdx {
             add(std::move(value));
         }
     };
+
+    template<typename T, typename Allocator = mem::GlobalAllocator<T>>
+    class Vector2 {
+        [[no_unique_address]] Allocator mAllocator{};
+
+        T *mFront;
+        T *mBack;
+        T *mCapacity;
+
+    public:
+        Vector2()
+            : mFront(nullptr)
+            , mBack(nullptr)
+            , mCapacity(nullptr)
+        { }
+
+        Vector2(std::span<const T> src)
+            : mFront(mAllocator.allocate(src.size()))
+            , mBack(mFront)
+            , mCapacity(mFront + src.size())
+        {
+            std::uninitialized_copy(src.begin(), src.end(), mFront);
+        }
+
+        Vector2(const Vector2& other)
+            : Vector2(std::span(other))
+        { }
+    };
 }
