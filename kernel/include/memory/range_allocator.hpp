@@ -17,7 +17,7 @@ namespace km {
         }
 
         template<typename T>
-        void MergeRanges(stdx::Vector<AnyRange<T>>& ranges) {
+        void MergeRanges(stdx::Vector2<AnyRange<T>>& ranges) {
             SortRanges(std::span(ranges));
 
             for (size_t i = 0; i < ranges.count(); i++) {
@@ -51,7 +51,7 @@ namespace km {
         /// @param used The range that is used.
         /// @tparam T The type of the range.
         template<typename T>
-        void MarkUsedArea(stdx::Vector<AnyRange<T>>& ranges, AnyRange<T> used) {
+        void MarkUsedArea(stdx::Vector2<AnyRange<T>>& ranges, AnyRange<T> used) {
             using Range = AnyRange<T>;
 
             for (size_t i = 0; i < ranges.count(); i++) {
@@ -84,7 +84,7 @@ namespace km {
         }
 
         template<typename T>
-        AnyRange<T> AllocateSpaceAligned(stdx::Vector<AnyRange<T>>& ranges, size_t size, size_t align) {
+        AnyRange<T> AllocateSpaceAligned(stdx::Vector2<AnyRange<T>>& ranges, size_t size, size_t align) {
             using Range = AnyRange<T>;
 
             for (size_t i = 0; i < ranges.count(); i++) {
@@ -118,7 +118,7 @@ namespace km {
         }
 
         template<typename T>
-        AnyRange<T> AllocateSpace(stdx::Vector<AnyRange<T>>& ranges, size_t size) {
+        AnyRange<T> AllocateSpace(stdx::Vector2<AnyRange<T>>& ranges, size_t size) {
             return AllocateSpaceAligned(ranges, size, 1);
         }
     }
@@ -128,16 +128,12 @@ namespace km {
         using Range = AnyRange<T>;
         using Type = T;
 
-        stdx::Vector<Range> mAvailable;
+        stdx::Vector2<Range> mAvailable;
 
     public:
-        RangeAllocator(mem::IAllocator *allocator)
-            : mAvailable(allocator)
-        { }
+        RangeAllocator() = default;
 
-        RangeAllocator(Range range, mem::IAllocator *allocator)
-            : mAvailable(allocator)
-        {
+        RangeAllocator(Range range) {
             mAvailable.add(range);
         }
 

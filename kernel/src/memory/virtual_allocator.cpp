@@ -2,12 +2,8 @@
 
 #include "arch/paging.hpp"
 
-km::VirtualAllocator::VirtualAllocator(VirtualRange range, mem::IAllocator *allocator)
-    : mRangeAllocator(range, allocator)
-{ }
-
-km::VirtualAllocator::VirtualAllocator(mem::IAllocator *allocator)
-    : mRangeAllocator(allocator)
+km::VirtualAllocator::VirtualAllocator(VirtualRange range)
+    : mRangeAllocator(range)
 { }
 
 void km::VirtualAllocator::markUsed(VirtualRange range) {

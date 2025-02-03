@@ -32,7 +32,7 @@ protected:
 };
 
 TEST_F(RangeDetailTest, MergeOverlapping) {
-    stdx::Vector<km::MemoryRange> ranges { &alloc };
+    stdx::Vector2<km::MemoryRange> ranges { };
     ranges.add({ 0x1000, 0x2000 });
     ranges.add({ 0x1500, 0x2500 });
 
@@ -44,7 +44,7 @@ TEST_F(RangeDetailTest, MergeOverlapping) {
 }
 
 TEST_F(RangeDetailTest, MergeContaining) {
-    stdx::Vector<km::MemoryRange> ranges { &alloc };
+    stdx::Vector2<km::MemoryRange> ranges { };
     ranges.add({ 0x1000, 0x2000 });
     ranges.add({ 0x1500, 0x1800 });
 
@@ -56,7 +56,7 @@ TEST_F(RangeDetailTest, MergeContaining) {
 }
 
 TEST_F(RangeDetailTest, MergeAdjacent) {
-    stdx::Vector<km::MemoryRange> ranges { &alloc };
+    stdx::Vector2<km::MemoryRange> ranges { };
     ranges.add({ 0x1000, 0x2000 });
     ranges.add({ 0x2000, 0x3000 });
 
@@ -68,7 +68,7 @@ TEST_F(RangeDetailTest, MergeAdjacent) {
 }
 
 TEST_F(RangeDetailTest, MultipleOverlapping) {
-    stdx::Vector<km::MemoryRange> ranges { &alloc };
+    stdx::Vector2<km::MemoryRange> ranges { };
     ranges.add({ 0x1000, 0x2000 });
     ranges.add({ 0x1500, 0x2500 });
     ranges.add({ 0x3000, 0x4000 });
@@ -179,7 +179,7 @@ TEST_P(MergeRangeTest, Merge) {
 
     mem::TlsfAllocator alloc { memory.get(), kSize };
 
-    stdx::Vector<km::MemoryRange> ranges { &alloc, input };
+    stdx::Vector2<km::MemoryRange> ranges { input.begin(), input.end() };
 
     km::detail::MergeRanges(ranges);
 
@@ -265,7 +265,7 @@ TEST_P(MarkUsedTest, MarkUsedArea) {
 
     mem::TlsfAllocator alloc { memory.get(), kSize };
 
-    stdx::Vector<km::MemoryRange> ranges { &alloc, input };
+    stdx::Vector2<km::MemoryRange> ranges { input.begin(), input.end() };
 
     km::detail::MergeRanges(ranges);
 

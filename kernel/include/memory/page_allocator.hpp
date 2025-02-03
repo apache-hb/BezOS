@@ -19,9 +19,6 @@ namespace km {
 
     UTIL_BITFLAGS(PageFlags);
 
-    // TODO: this should be a wrapper around VirtualAllocator
-    // and VirtualAllocator should be made generic to handle
-    // both virtual and physical memory.
     class PageAllocator {
         /// @brief Allocator for memory below 1M.
         RangeAllocator<PhysicalAddress> mLowMemory;
@@ -30,7 +27,7 @@ namespace km {
         RangeAllocator<PhysicalAddress> mMemory;
 
     public:
-        PageAllocator(const boot::MemoryMap& memmap, mem::IAllocator *allocator);
+        PageAllocator(const boot::MemoryMap& memmap);
 
         /// @brief Allocate a 4k page of memory above 1M.
         ///

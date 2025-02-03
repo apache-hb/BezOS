@@ -4,9 +4,9 @@
 km::SystemMemory::SystemMemory(const boot::MemoryMap& memmap, VirtualRange systemArea, PageBuilder pm, mem::IAllocator *alloc)
     : allocator(alloc)
     , pager(pm)
-    , pmm(memmap, allocator)
+    , pmm(memmap)
     , pt(&pager, allocator)
-    , vmm(systemArea, alloc)
+    , vmm(systemArea)
 { }
 
 // TODO: respect align, dont allocate such large memory ranges

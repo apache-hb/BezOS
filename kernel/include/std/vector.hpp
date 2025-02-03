@@ -257,6 +257,11 @@ namespace stdx {
             insert(first, last);
         }
 
+        template<IsRange<const T> R>
+        constexpr Vector2(R&& range, Allocator allocator = Allocator{})
+            : Vector2(range.begin(), range.end(), allocator)
+        { }
+
         constexpr Vector2(size_t capacity, const T& value, Allocator allocator = Allocator{})
             : Vector2(capacity, allocator)
         {

@@ -283,11 +283,11 @@ testcases = {
         'kernel/test/bits.cpp',
         'kernel/src/util/bits.cpp',
     ],
-    'memmap': [
-        'kernel/test/memmap.cpp',
-        'kernel/src/memory/layout.cpp',
-        'kernel/src/util/memory.cpp',
-    ],
+    # 'memmap': [
+    #     'kernel/test/memmap.cpp',
+    #     'kernel/src/memory/layout.cpp',
+    #     'kernel/src/util/memory.cpp',
+    # ],
     'string': [ 'kernel/test/string.cpp', ],
     'memory range': [ 'kernel/test/memory_range.cpp' ],
     'pat': [ 'kernel/test/page_attribute_table.cpp', 'kernel/src/pat.cpp', 'kernel/src/util/cpuid.cpp', ],

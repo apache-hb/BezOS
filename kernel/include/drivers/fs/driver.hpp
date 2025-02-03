@@ -1,7 +1,6 @@
 #pragma once
 
 #include "drivers/block/driver.hpp"
-#include "std/string.hpp"
 #include "std/vector.hpp"
 #include "util/signature.hpp"
 #include "util/uuid.hpp"
@@ -14,29 +13,6 @@
 #include <utility>
 
 namespace km {
-    class FsPath {
-        stdx::String mPath;
-        size_t mSegments;
-
-        constexpr FsPath(stdx::String path, size_t segments)
-            : mPath(path)
-            , mSegments(segments)
-        { }
-
-    public:
-        static constexpr FsPath root() {
-            return FsPath("", 0);
-        }
-    };
-
-    class FsFile {
-
-    };
-
-    class FsFolder {
-
-    };
-
     class IFileSystemDriver {
         BlockDevice *mMedia;
 

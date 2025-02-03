@@ -354,7 +354,7 @@ static size_t TotalDisplaySize(std::span<const boot::FrameBuffer> displays) {
 
 struct MemoryMap {
     mem::TlsfAllocator allocator;
-    stdx::Vector<boot::MemoryRegion> memmap;
+    stdx::Vector3<boot::MemoryRegion> memmap;
 
     MemoryMap(mem::TlsfAllocator alloc)
         : allocator(std::move(alloc))
@@ -619,6 +619,34 @@ struct Stage2MemoryInfo {
     KernelLayout layout;
 };
 
+static constinit mem::IAllocator *gAllocator = nullptr;
+static constinit stdx::SpinLock gAllocatorLock;
+
+extern "C" void *malloc(size_t size) {
+    stdx::LockGuard _(gAllocatorLock);
+    return gAllocator->allocate(size);
+}
+
+extern "C" void *realloc(void *old, size_t size) {
+    stdx::LockGuard _(gAllocatorLock);
+    return gAllocator->reallocate(old, 0, size);
+}
+
+extern "C" void free(void *ptr) {
+    stdx::LockGuard _(gAllocatorLock);
+    gAllocator->deallocate(ptr, 0);
+}
+
+extern "C" void *aligned_alloc(size_t alignment, size_t size) {
+    stdx::LockGuard _(gAllocatorLock);
+    return gAllocator->allocateAligned(size, alignment);
+}
+
+static void InitGlobalAllocator(mem::IAllocator *allocator) {
+    stdx::LockGuard _(gAllocatorLock);
+    gAllocator = allocator;
+}
+
 static Stage2MemoryInfo *InitStage2Memory(
     const boot::LaunchInfo& launch,
     const km::ProcessorInfo& processor,
@@ -637,6 +665,8 @@ static Stage2MemoryInfo *InitStage2Memory(
 
     Stage2MemoryInfo *stage2 = alloc.construct<Stage2MemoryInfo>();
     stage2->allocator = std::move(alloc);
+
+    InitGlobalAllocator(&stage2->allocator);
 
     SystemMemory *memory = stage2->allocator.construct<SystemMemory>(boot::MemoryMap{earlyMemory->memmap}, stage1.layout.system, pm, &stage2->allocator);
     KM_CHECK(memory != nullptr, "Failed to allocate memory for SystemMemory.");
@@ -1012,29 +1042,6 @@ static void NormalizeProcessorState() {
     kGsBase.store(0);
 }
 
-static constinit mem::IAllocator *gAllocator = nullptr;
-static constinit stdx::SpinLock gAllocatorLock;
-
-extern "C" void *malloc(size_t size) {
-    stdx::LockGuard _(gAllocatorLock);
-    return gAllocator->allocate(size);
-}
-
-extern "C" void *realloc(void *old, size_t size) {
-    stdx::LockGuard _(gAllocatorLock);
-    return gAllocator->reallocate(old, 0, size);
-}
-
-extern "C" void free(void *ptr) {
-    stdx::LockGuard _(gAllocatorLock);
-    gAllocator->deallocate(ptr, 0);
-}
-
-extern "C" void *aligned_alloc(size_t alignment, size_t size) {
-    stdx::LockGuard _(gAllocatorLock);
-    return gAllocator->allocateAligned(size, alignment);
-}
-
 static uint32_t gSchedulerVector = 0;
 
 void LaunchKernel(boot::LaunchInfo launch) {
@@ -1081,7 +1088,6 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     Stage1MemoryInfo stage1 = InitStage1Memory(launch, processor);
     Stage2MemoryInfo *stage2 = InitStage2Memory(launch, processor, stage1);
-    gAllocator = &stage2->allocator;
 
     SetupInterruptStacks(SystemGdt::eLongModeCode, gAllocator);
 

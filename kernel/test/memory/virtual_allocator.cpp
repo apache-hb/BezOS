@@ -24,7 +24,7 @@ static GlobalAllocator gAllocator;
 TEST(VmemTest, Construction) {
     uintptr_t front = -(1ull << 47);
     uintptr_t back = -(1ull << 46);
-    km::VirtualAllocator vmem { { (void*)front, (void*)back }, &gAllocator };
+    km::VirtualAllocator vmem { { (void*)front, (void*)back } };
 }
 
 TEST(VmemTest, Allocate) {
@@ -38,7 +38,7 @@ TEST(VmemTest, Allocate) {
     ASSERT_GT(range.size(), 0x10000);
     ASSERT_TRUE(range.isValid());
 
-    km::VirtualAllocator vmem { range, &gAllocator };
+    km::VirtualAllocator vmem { range };
 
     void *addr = vmem.alloc4k(1);
     ASSERT_EQ(addr, (void*)front);
@@ -59,7 +59,7 @@ TEST(VmemTest, AllocateLarge) {
     ASSERT_GT(range.size(), 0x10000);
     ASSERT_TRUE(range.isValid());
 
-    km::VirtualAllocator vmem { range, &gAllocator };
+    km::VirtualAllocator vmem { range };
 
     void *addr = vmem.alloc2m(1);
     ASSERT_EQ(addr, (void*)front);

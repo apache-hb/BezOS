@@ -1,8 +1,11 @@
 #include <gtest/gtest.h>
 
-#include <random>
+#include <mm_malloc.h>
 
 #include "memory/page_allocator.hpp"
+#include "memory/layout.hpp"
+
+// #include <random>
 
 using KernelMemoryMap = std::vector<boot::MemoryRegion>;
 
