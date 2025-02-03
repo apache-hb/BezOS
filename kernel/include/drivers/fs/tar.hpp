@@ -1,6 +1,7 @@
 #pragma once
 
 #include "drivers/fs/driver.hpp"
+
 namespace km {
     struct TarPosixHeader {
         char name[100];
@@ -19,11 +20,23 @@ namespace km {
         char devmajor[8];
         char devminor[8];
         char prefix[155];
+
+        size_t getSize() const {
+            size_t result = 0;
+            for (size_t i = 0; i < 12; i++) {
+                result = result * 8 + (size[i] - '0');
+            }
+
+            return result;
+        }
     };
 
     static_assert(sizeof(TarPosixHeader) == 500);
 
     class TarFsDriver : public IFsDriver {
-
+    public:
+        TarFsDriver(IBlockDevice *device)
+            : IFsDriver(device)
+        { }
     };
 }
