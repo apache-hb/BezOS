@@ -1,9 +1,8 @@
 #include "elf.hpp"
 
-#include "allocator/tlsf.hpp"
 #include "log.hpp"
 
-std::expected<km::Process, bool> km::LoadElf(std::span<const uint8_t> program, uint32_t id, SystemMemory& memory, mem::IAllocator *allocator) {
+std::expected<km::Process, bool> km::LoadElf(std::span<const uint8_t> program, uint32_t id, SystemMemory& memory) {
     KmDebugMessage("[ELF] Launching process from ELF\n");
 
     if (program.size() < sizeof(elf::ElfHeader)) {
@@ -33,7 +32,7 @@ std::expected<km::Process, bool> km::LoadElf(std::span<const uint8_t> program, u
 
     std::span<const elf::ElfProgramHeader> phs{reinterpret_cast<const elf::ElfProgramHeader *>(program.data() + phbegin), header->phnum};
 
-    stdx::Vector<void*> processMemory(allocator);
+    stdx::Vector2<void*> processMemory;
 
     ProcessThread main = {
         .threadId = 1,
@@ -78,12 +77,6 @@ std::expected<km::Process, bool> km::LoadElf(std::span<const uint8_t> program, u
         if (containsEntry) {
             main.regs.rip = ((uintptr_t)vaddr + (entry - ph.vaddr));
         }
-
-        mem::TlsfAllocator *alloc = static_cast<mem::TlsfAllocator*>(allocator);
-        // KmDebugMessage("Check: ", tlsf_check(alloc->getAllocator()), "\n");
-        tlsf_walk_pool(alloc->getAllocator(), [](void *ptr, size_t size, int used, void *) {
-            KmDebugMessage("[TLSF] ", ptr, " ", size, " ", used, "\n");
-        }, nullptr);
 
         processMemory.add(vaddr);
     }

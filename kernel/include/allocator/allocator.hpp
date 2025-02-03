@@ -122,4 +122,23 @@ namespace mem {
             free(ptr);
         }
     };
+
+    template<typename T>
+    class AllocatorPointer {
+        mem::IAllocator *mAllocator;
+    public:
+        AllocatorPointer() = delete;
+        
+        AllocatorPointer(mem::IAllocator *allocator) 
+            : mAllocator(allocator) 
+        { }
+
+        T *allocate(size_t n) {
+            return (T*)mAllocator->allocate(n * sizeof(T));
+        }
+
+        void deallocate(T *ptr, size_t n) {
+            mAllocator->deallocate(ptr, n * sizeof(T));
+        }
+    };
 }

@@ -15,7 +15,7 @@ namespace km {
 
     struct Process {
         uint32_t processId;
-        stdx::Vector<void*> memory;
+        stdx::Vector2<void*> memory;
         ProcessThread main;
     };
 }

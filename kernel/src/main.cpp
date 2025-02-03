@@ -1165,7 +1165,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     std::span init = GetInitProgram();
 
-    auto process = LoadElf(init, 1, *stage2->memory, &stage2->allocator);
+    auto process = LoadElf(init, 1, *stage2->memory);
     KM_CHECK(process.has_value(), "Failed to load init.elf");
 
     DateTime time = ReadRtc();
