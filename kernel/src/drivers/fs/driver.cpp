@@ -22,14 +22,17 @@ std::expected<km::DrivePartitions, km::PartParseError> km::ParsePartitionTable(D
     if (header.signature != GptHeader::kSignature)
         return std::unexpected(km::PartParseError::eInvalidMbrSignature);
 
-    std::unique_ptr<GptEntry[]> entries(new GptEntry[header.partitionCount]);
+    stdx::Vector2<GptEntry> entries;
 
     for (uint32_t i = 0; i < header.partitionCount; i++) {
         GptEntry entry;
         if (drive.read(header.lbaPartitionArray * drive.blockSize() + i * header.partitionEntrySize, &entry, sizeof(GptEntry)) != sizeof(GptEntry))
-            continue;
+            break;
 
-        entries[i] = entry;
+        if (entry.type == GptEntry::kNullEntry)
+            break;
+
+        entries.add(entry);
     }
 
     return DrivePartitions {

@@ -119,6 +119,7 @@ namespace km {
     static_assert(sizeof(GptHeader) == 92);
 
     struct GptEntry {
+        static constexpr sm::uuid kNullEntry = sm::uuid::nil();
         sm::uuid type;
         sm::uuid guid;
         sm::le<uint64_t> lbaBegin;
@@ -132,10 +133,10 @@ namespace km {
     struct DrivePartitions {
         MasterBootRecord mbr;
         GptHeader gpt;
-        std::unique_ptr<GptEntry[]> entries;
+        stdx::Vector2<GptEntry> entries;
 
-        std::span<GptEntry> gptPartitions() const {
-            return std::span(entries.get(), gpt.partitionCount);
+        std::span<const GptEntry> gptPartitions() const {
+            return std::span(entries);
         }
     };
 

@@ -353,11 +353,15 @@ TEST(GptPartitionTest, TwoEntries) {
 
 	ASSERT_TRUE(mbr.partitions[0].isGpt());
 
-	ASSERT_EQ(gpt.guid, sm::uuid::of("C4D9ACB6-8607-4F29-A8AC-868F08748F80"));
+	ASSERT_EQ(gpt.guid, sm::uuid::of("B6ACD9C4-0786-294F-A8AC-868F08748F80"));
 
 	EXPECT_EQ(gpt.revision, 0x00010000);
 	EXPECT_EQ(gpt.size, 0x5c);
 	EXPECT_EQ(gpt.partitionEntrySize, 128);
 
-	EXPECT_EQ(gpt.partitionCount, 2);
+	auto entries = partitions->gptPartitions();
+	ASSERT_EQ(entries.size(), 2);
+
+	ASSERT_EQ(entries[0].guid, sm::uuid::of("E009526A-F306-7D47-A73D-D3D6E040457B"));
+	ASSERT_EQ(entries[1].guid, sm::uuid::of("FBF202DC-0622-E547-B33A-F9E4F3FACB12"));
 }
