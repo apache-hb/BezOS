@@ -3,7 +3,6 @@
 #include "pci/pci.hpp"
 
 #include <new>
-#include <span>
 #include <utility>
 
 namespace km {
@@ -77,6 +76,8 @@ namespace km {
         size_t read(size_t offset, void *buffer, size_t size);
         size_t write(size_t offset, const void *buffer, size_t size);
 
+        IBlockDevice *device() const { return mDevice; }
+
         void sync();
     };
 
@@ -88,5 +89,19 @@ namespace km {
         size_t size;
         size_t align;
         DeviceFactory factory;
+    };
+
+    class PartitionBlockDevice final : public IBlockDevice {
+        IBlockDevice *mDevice;
+        uint64_t mFront;
+        uint64_t mBack;
+
+        BlockDeviceStatus readImpl(uint64_t block, void *buffer, size_t count) override;
+        BlockDeviceStatus writeImpl(uint64_t block, const void *buffer, size_t count) override;
+
+    public:
+        PartitionBlockDevice(IBlockDevice *device, uint64_t front, uint64_t back);
+        
+        BlockDeviceCapability capability() const override;
     };
 }

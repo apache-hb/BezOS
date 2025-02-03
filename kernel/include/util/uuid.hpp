@@ -2,7 +2,7 @@
 
 #include "util/digit.hpp"
 #include "util/endian.hpp"
-#include "util/cxx_chrono.hpp"
+#include "util/cxx_chrono.hpp" // IWYU pragma: keep
 
 #include <cassert>
 #include <cstdint>

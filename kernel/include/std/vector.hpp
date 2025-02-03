@@ -312,7 +312,7 @@ namespace stdx {
         }
 
         constexpr void reserve(size_t size) {
-            reserveExact(std::max(size, count() * 2));
+            reserveExact(std::max(size, capacity()));
         }
 
         constexpr void reserveExact(size_t size) {

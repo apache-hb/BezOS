@@ -104,3 +104,33 @@ size_t km::DriveMedia::read(size_t offset, void *buffer, size_t size) {
 void km::DriveMedia::sync() {
     /* empty for now */
 }
+
+km::PartitionBlockDevice::PartitionBlockDevice(IBlockDevice *device, uint64_t front, uint64_t back)
+    : mDevice(device)
+    , mFront(front)
+    , mBack(back)
+{ }
+
+km::BlockDeviceStatus km::PartitionBlockDevice::readImpl(uint64_t block, void *buffer, size_t count) {
+    block += mFront;
+    if (block + count > mBack) {
+        return BlockDeviceStatus::eOutOfRange;
+    }
+    
+    return mDevice->read(block, buffer, count);
+}
+
+km::BlockDeviceStatus km::PartitionBlockDevice::writeImpl(uint64_t block, const void *buffer, size_t count) {
+    block += mFront;
+    if (block + count > mBack) {
+        return BlockDeviceStatus::eOutOfRange;
+    }
+
+    return mDevice->write(block, buffer, count);
+}
+
+km::BlockDeviceCapability km::PartitionBlockDevice::capability() const {
+    BlockDeviceCapability cap = mDevice->capability();
+    cap.blockCount = mBack - mFront;
+    return cap;
+}
