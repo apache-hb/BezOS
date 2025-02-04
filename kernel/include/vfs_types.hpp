@@ -1,6 +1,5 @@
 #pragma once
 
-#include "drivers/fs/driver.hpp"
 #include "std/string.hpp"
 #include "std/string_view.hpp"
 
@@ -9,6 +8,7 @@
 #include "absl/container/btree_map.h"
 
 namespace km {
+    class IFileSystem;
     enum class VfsNodeId : std::uint64_t {};
 
     enum class VfsNodeType {

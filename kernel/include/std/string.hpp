@@ -110,7 +110,7 @@ namespace stdx {
                 mCapacity = mFront + size;
             }
         }
-        
+
         constexpr void resize(size_t size) {
             if (size < count()) {
                 std::destroy_n(mFront + size, count() - size);
@@ -176,7 +176,7 @@ namespace stdx {
         constexpr T *data() { return mFront; }
         constexpr const T *data() const { return mFront; }
 
-        constexpr T *cString() { 
+        constexpr T *cString() {
             ensureExtra(1);
             mBack[0] = T{};
             return mFront;
@@ -194,6 +194,10 @@ namespace stdx {
 
         constexpr const T& operator[](size_t index) const {
             return mFront[index];
+        }
+
+        friend constexpr auto operator<=>(const StringBase& lhs, const StringBase& rhs) {
+            return std::lexicographical_compare_three_way(std::begin(lhs), std::end(lhs), std::begin(rhs), std::end(rhs));
         }
 
         friend constexpr void swap(StringBase& lhs, StringBase& rhs) {

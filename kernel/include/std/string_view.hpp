@@ -51,8 +51,8 @@ namespace stdx {
             return mFront[index];
         }
 
-        constexpr bool operator==(StringViewBase other) const {
-            return std::equal(begin(), end(), other.begin(), other.end());
+        friend constexpr auto operator<=>(StringViewBase lhs, StringViewBase rhs) {
+            return std::lexicographical_compare_three_way(std::begin(lhs), std::end(lhs), std::begin(rhs), std::end(rhs));
         }
     };
 
