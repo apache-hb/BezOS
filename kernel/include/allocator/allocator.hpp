@@ -113,6 +113,20 @@ namespace mem {
     template<typename T>
     class GlobalAllocator {
     public:
+        using value_type = T;
+
+        GlobalAllocator() = default;
+        GlobalAllocator(GlobalAllocator const&) = default;
+        GlobalAllocator& operator=(GlobalAllocator const&) = default;
+        GlobalAllocator(GlobalAllocator &&) = default;
+        GlobalAllocator& operator=(GlobalAllocator &&) = default;
+
+        template<typename O>
+        GlobalAllocator(GlobalAllocator<O> const&) { }
+
+        template<typename O>
+        GlobalAllocator(GlobalAllocator<O> &&) { }
+
         T *allocate(size_t n) {
             return (T*)malloc(n * sizeof(T));
         }
@@ -127,9 +141,9 @@ namespace mem {
         mem::IAllocator *mAllocator;
     public:
         AllocatorPointer() = delete;
-        
-        AllocatorPointer(mem::IAllocator *allocator) 
-            : mAllocator(allocator) 
+
+        AllocatorPointer(mem::IAllocator *allocator)
+            : mAllocator(allocator)
         { }
 
         T *allocate(size_t n) {

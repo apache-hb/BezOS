@@ -36,6 +36,7 @@ common_args = [
     '-Wno-nested-anon-types',
     '-Wno-gnu-case-range',
     '-fno-omit-frame-pointer',
+    '-Wno-nullability-extension',
 ]
 
 c_args = cc.get_supported_arguments([ '-Wno-language-extension-token' ] + common_args)
@@ -43,6 +44,9 @@ cpp_args = cpp.get_supported_arguments([ '-Wno-c99-designator', '-Wno-c99-extens
 
 limine = dependency('limine')
 mp_units = dependency('mp-units')
+absl = subproject('abseil-cpp')
+
+inc = [ inc, absl.get_variable('absl_include_dir') ]
 
 compiler = find_program(cc.get_id())
 objcopy = find_program('objcopy')

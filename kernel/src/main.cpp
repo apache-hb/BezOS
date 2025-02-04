@@ -50,6 +50,8 @@
 
 #include "util/memory.hpp"
 
+#include "vfs.hpp"
+
 using namespace km;
 using namespace stdx::literals;
 
