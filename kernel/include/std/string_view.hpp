@@ -45,6 +45,13 @@ namespace stdx {
         constexpr const T *begin() const { return mFront; }
         constexpr const T *end() const { return mBack; }
 
+        constexpr const T& front() const { return *mFront; }
+        constexpr const T& back() const { return *mBack; }
+
+        constexpr StringViewBase substr(size_t first, size_t count) const {
+            return StringViewBase(begin() + first, begin() + first + count);
+        }
+
         constexpr const T *data() const { return mFront; }
 
         constexpr const T& operator[](size_t index) const {

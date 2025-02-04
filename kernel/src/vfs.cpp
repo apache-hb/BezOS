@@ -1,13 +1,14 @@
 #include "vfs.hpp"
+#include <utility>
 
 stdx::StringView km::VfsPathIterator::segment() const {
     stdx::StringView path = mPath->path();
     auto begin = path.begin() + mOffset;
     auto end = path.end();
 
-    auto it = std::find(begin, end, VfsPath::kSeperator);
+    auto it = std::find(begin + 1, end, VfsPath::kSeperator);
 
-    return stdx::StringView(begin, it);
+    return stdx::StringView(begin + 1, it);
 }
 
 bool km::VfsPathIterator::operator!=(const VfsPathIterator& other) const {
@@ -69,6 +70,9 @@ km::VfsNodeId km::VirtualFileSystem::allocateId() {
 }
 
 km::VfsFolder *km::VirtualFileSystem::getParentFolder(const VfsPath& path) {
+    if (path.segments() == 1)
+        return &mRoot;
+
     VfsFolder *current = &mRoot;
 
     for (stdx::StringView segment : path.parent()) {
@@ -118,6 +122,8 @@ km::VfsNodeId km::VirtualFileSystem::mkdir(const VfsPath& path) {
         return id;
     }
 
+    KmDebugMessage("Failed to create folder: '", path.path(), "'\n");
+
     return VfsNodeId::eInvalid;
 }
 
@@ -125,6 +131,7 @@ km::VfsNodeId km::VirtualFileSystem::open(const VfsPath& path) {
     if (VfsFolder *parent = getParentFolder(path)) {
         auto it = parent->find(path.name());
         if (it != parent->end()) {
+            it->second->file().offset = 0;
             cacheNode(it->second->id(), it->second.get());
             return it->second->id();
         }

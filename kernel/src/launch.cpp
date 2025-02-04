@@ -1,6 +1,7 @@
 #include "elf.hpp"
 
 #include "log.hpp"
+#include "memory/range.hpp"
 
 std::expected<km::Process, bool> km::LoadElf(std::span<const uint8_t> program, uint32_t id, SystemMemory& memory) {
     KmDebugMessage("[ELF] Launching process from ELF\n");
@@ -38,7 +39,7 @@ std::expected<km::Process, bool> km::LoadElf(std::span<const uint8_t> program, u
         .threadId = 1,
     };
 
-    void *stack = memory.allocate(0x1000, 0x1000, PageFlags::eUser | PageFlags::eWrite);
+    void *stack = memory.allocate(0x1000, 0x1000, PageFlags::eUser | PageFlags::eData);
 
     main.regs = x64::RegisterState {
         .rbp = (uintptr_t)stack + 0x1000,
@@ -69,7 +70,9 @@ std::expected<km::Process, bool> km::LoadElf(std::span<const uint8_t> program, u
         if (ph.flags & (1 << 2))
             flags |= PageFlags::eRead;
 
-        void *vaddr = memory.allocate(ph.memsz, ph.align, flags);
+        PhysicalAddress paddr = memory.pmm.alloc4k(Pages(ph.memsz));
+        void *vaddr = (void*)ph.vaddr; // TODO: this isnt great
+        memory.pt.map4k(paddr, vaddr, flags);
         memcpy(vaddr, program.data() + ph.offset, ph.filesz);
 
         bool containsEntry = entry >= ph.vaddr && entry < ph.vaddr + ph.memsz;

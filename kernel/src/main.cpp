@@ -1210,20 +1210,19 @@ void LaunchKernel(boot::LaunchInfo launch) {
         KmDebugMessage("[INIT] No PS/2 controller found.\n");
     }
 
-    VirtualFileSystem vfs;
-    gVfs = &vfs;
+    gVfs = new VirtualFileSystem();
 
-    vfs.mkdir("/System"_sv);
-    vfs.mkdir("/System/Config"_sv);
+    gVfs->mkdir("/System"_sv);
+    gVfs->mkdir("/System/Config"_sv);
 
-    vfs.mkdir("/Users"_sv);
-    vfs.mkdir("/Users/Admin"_sv);
-    vfs.mkdir("/Users/Guest"_sv);
+    gVfs->mkdir("/Users"_sv);
+    gVfs->mkdir("/Users/Admin"_sv);
+    gVfs->mkdir("/Users/Guest"_sv);
 
-    VfsNodeId motd = vfs.open("/Users/Guest/motd.txt"_sv);
+    VfsNodeId motd = gVfs->open("/Users/Guest/motd.txt"_sv);
     stdx::StringView motdContent = "Welcome.\n";
-    vfs.write(motd, motdContent.data(), motdContent.count());
-    vfs.close(motd);
+    gVfs->write(motd, motdContent.data(), motdContent.count());
+    gVfs->close(motd);
 
     enum {
         kSysOpen = 10,
@@ -1288,6 +1287,9 @@ void LaunchKernel(boot::LaunchInfo launch) {
         }
 
         stdx::StringView message = stdx::StringView((const char*)messageBegin, (const char*)messageEnd);
+        while (message.back() == '\n' || message.back() == '\0')
+            message = message.substr(0, message.count() - 1);
+
         KmDebugMessage("[USER] ", message, "\n");
 
         return 0;
