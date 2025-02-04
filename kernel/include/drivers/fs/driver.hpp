@@ -1,13 +1,11 @@
 #pragma once
 
-#include "shared/status.h"
-
 #include "drivers/block/driver.hpp"
 #include "std/vector.hpp"
 #include "util/signature.hpp"
 #include "util/uuid.hpp"
 
-#include "vfs_types.hpp"
+#include "fs/types.hpp"
 
 #include <cstdint>
 

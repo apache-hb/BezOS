@@ -9,12 +9,13 @@
 namespace km {
     template<typename TKey, typename TValue, typename TCompare = std::less<TKey>, typename TAllocator = mem::GlobalAllocator<std::pair<const TKey, TValue>>>
     using BTreeMap = absl::btree_map<TKey, TValue, TCompare, TAllocator>;
-    
+
     class IFileSystem;
+
     enum class VfsLocalNodeId : std::uint64_t {
         eInvalid = UINT64_MAX,
     };
-    
+
     enum class VfsNodeId : std::uint64_t {
         eInvalid = UINT64_MAX,
     };

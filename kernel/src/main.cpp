@@ -51,7 +51,7 @@
 
 #include "util/memory.hpp"
 
-#include "vfs.hpp"
+#include "fs/vfs.hpp"
 
 using namespace km;
 using namespace stdx::literals;
@@ -1270,7 +1270,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
         size_t bufferSize = userBufferSize;
 
         size_t read = gVfs->read(nodeId, (uint8_t*)bufferBegin, bufferSize);
-        
+
         return read;
     });
 
