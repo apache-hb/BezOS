@@ -37,6 +37,7 @@ common_args = [
     '-Wno-gnu-case-range',
     '-fno-omit-frame-pointer',
     '-Wno-nullability-extension',
+    '-Wno-gcc-compat',
 ]
 
 c_args = cc.get_supported_arguments([ '-Wno-language-extension-token' ] + common_args)
@@ -167,6 +168,9 @@ src = [
     # Wrappers
     'kernel/src/arch/cr.cpp',
     'kernel/src/boot.cpp',
+
+    # VFS
+    'kernel/src/vfs.cpp',
 
     # Smp setup
     'kernel/src/smp.cpp',

@@ -24,12 +24,6 @@ namespace km {
         void operator delete(IFileSystem*, std::destroying_delete_t) {
             std::unreachable();
         }
-
-        virtual KmStatus open(VfsHandle parent, stdx::StringView name, VfsHandle *handle) = 0;
-        virtual KmStatus close(VfsHandle handle) = 0;
-        virtual KmStatus unlink(VfsHandle parent, stdx::StringView name) = 0;
-
-        virtual KmStatus getNodeType(VfsHandle handle, VfsNodeType *type) = 0;
     };
 
     struct [[gnu::packed]] ChsAddress {

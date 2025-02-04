@@ -1,6 +1,7 @@
 #pragma once
 
 #include "allocator/allocator.hpp"
+#include "std/string_view.hpp"
 
 namespace stdx {
     template<typename T, typename Allocator = mem::GlobalAllocator<T>>
@@ -45,6 +46,10 @@ namespace stdx {
         template<size_t N>
         constexpr StringBase(const T (&text)[N], Allocator allocator = Allocator{})
             : StringBase(text, text + N - 1, allocator)
+        { }
+
+        explicit constexpr StringBase(stdx::StringViewBase<T> view, Allocator allocatr = Allocator{})
+            : StringBase(view.begin(), view.end(), allocatr)
         { }
 
         explicit constexpr StringBase(const StringBase& other)

@@ -29,6 +29,7 @@
 #include "pit.hpp"
 #include "processor.hpp"
 #include "schedule.hpp"
+#include "shared/status.h"
 #include "smp.hpp"
 #include "std/spinlock.hpp"
 #include "std/static_vector.hpp"
@@ -1046,6 +1047,18 @@ static void NormalizeProcessorState() {
 
 static uint32_t gSchedulerVector = 0;
 
+static VirtualFileSystem *gVfs = nullptr;
+static SystemMemory *gMemory = nullptr;
+
+const void *TranslateUserPointer(const void *userAddress) {
+    PageTableManager& pt = gMemory->pt;
+    if (bool(pt.getMemoryFlags(userAddress) & (PageFlags::eUser | PageFlags::eRead))) {
+        return userAddress;
+    }
+
+    return nullptr;
+}
+
 void LaunchKernel(boot::LaunchInfo launch) {
     NormalizeProcessorState();
 
@@ -1090,6 +1103,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     Stage1MemoryInfo stage1 = InitStage1Memory(launch, processor);
     Stage2MemoryInfo *stage2 = InitStage2Memory(launch, processor, stage1);
+    gMemory = stage2->memory;
 
     SetupInterruptStacks(SystemGdt::eLongModeCode, gAllocator);
 
@@ -1179,7 +1193,6 @@ void LaunchKernel(boot::LaunchInfo launch) {
     DateTime time = ReadRtc();
     KmDebugMessage("[INIT] Current time: ", time.year, "-", time.month, "-", time.day, "T", time.hour, ":", time.minute, ":", time.second, "Z\n");
 
-    km::EnterUserMode(process->main.regs);
     hid::Ps2Controller ps2Controller;
 
     bool has8042 = rsdt.has8042Controller();
@@ -1196,6 +1209,91 @@ void LaunchKernel(boot::LaunchInfo launch) {
     } else {
         KmDebugMessage("[INIT] No PS/2 controller found.\n");
     }
+
+    VirtualFileSystem vfs;
+    gVfs = &vfs;
+
+    vfs.mkdir("/System"_sv);
+    vfs.mkdir("/System/Config"_sv);
+
+    vfs.mkdir("/Users"_sv);
+    vfs.mkdir("/Users/Admin"_sv);
+    vfs.mkdir("/Users/Guest"_sv);
+
+    VfsNodeId motd = vfs.open("/Users/Guest/motd.txt"_sv);
+    stdx::StringView motdContent = "Welcome.\n";
+    vfs.write(motd, motdContent.data(), motdContent.count());
+    vfs.close(motd);
+
+    enum {
+        kSysOpen = 10,
+        kSysClose = 11,
+        kSysRead = 12,
+
+        kSysLog = 20,
+    };
+
+    AddSystemCall(kSysOpen, [](uint64_t userArgPathBegin, uint64_t userArgPathEnd, uint64_t, uint64_t) -> uint64_t {
+        const void *argPathBegin = TranslateUserPointer((const void*)userArgPathBegin);
+        const void *argPathEnd = TranslateUserPointer((const void*)userArgPathEnd);
+        if (argPathBegin == nullptr || argPathEnd == nullptr) {
+            return ERROR_INVALID_INPUT;
+        }
+
+        if (argPathBegin >= argPathEnd) {
+            return ERROR_INVALID_INPUT;
+        }
+
+        VfsPath path = stdx::StringView((const char*)argPathBegin, (const char*)argPathEnd);
+        if (VfsNodeId node = gVfs->open(path); node != VfsNodeId::eInvalid) {
+            return std::to_underlying(node);
+        }
+
+        return ERROR_NOT_FOUND;
+    });
+
+    AddSystemCall(kSysClose, [](uint64_t, uint64_t, uint64_t, uint64_t) -> uint64_t {
+        return 0;
+    });
+
+    AddSystemCall(kSysRead, [](uint64_t userNodeId, uint64_t userBufferAddress, uint64_t userBufferSize, uint64_t) -> uint64_t {
+        const void *bufferBegin = TranslateUserPointer((const void*)userBufferAddress);
+        if (bufferBegin == nullptr) {
+            return ERROR_INVALID_INPUT;
+        }
+
+        const void *bufferEnd = TranslateUserPointer((const void*)((uintptr_t)bufferBegin + userBufferSize));
+        if (bufferEnd == nullptr) {
+            return ERROR_INVALID_INPUT;
+        }
+
+        VfsNodeId nodeId = (VfsNodeId)userNodeId;
+        size_t bufferSize = userBufferSize;
+
+        size_t read = gVfs->read(nodeId, (uint8_t*)bufferBegin, bufferSize);
+        
+        return read;
+    });
+
+    AddSystemCall(kSysLog, [](uint64_t userMessageBegin, uint64_t userMessageEnd, uint64_t, uint64_t) -> uint64_t {
+        const void *messageBegin = TranslateUserPointer((const void*)userMessageBegin);
+        const void *messageEnd = TranslateUserPointer((const void*)userMessageEnd);
+
+        if (messageBegin == nullptr || messageEnd == nullptr) {
+            return ERROR_INVALID_INPUT;
+        }
+
+        if (messageBegin >= messageEnd) {
+            return ERROR_INVALID_INPUT;
+        }
+
+        stdx::StringView message = stdx::StringView((const char*)messageBegin, (const char*)messageEnd);
+        KmDebugMessage("[USER] ", message, "\n");
+
+        return 0;
+    });
+
+    km::EnterUserMode(process->main.regs);
 
     if (ps2Controller.hasKeyboard()) {
         hid::Ps2Device keyboard = ps2Controller.keyboard();

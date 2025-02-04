@@ -1,49 +1,30 @@
 #pragma once
 
-#include "std/string.hpp"
-#include "std/string_view.hpp"
+#include "absl/container/btree_map.h"
+#include "allocator/allocator.hpp"
 
 #include <utility>
-
-#include "absl/container/btree_map.h"
+#include <cstdint>
 
 namespace km {
+    template<typename TKey, typename TValue, typename TCompare = std::less<TKey>, typename TAllocator = mem::GlobalAllocator<std::pair<const TKey, TValue>>>
+    using BTreeMap = absl::btree_map<TKey, TValue, TCompare, TAllocator>;
+    
     class IFileSystem;
-    enum class VfsNodeId : std::uint64_t {};
+    enum class VfsLocalNodeId : std::uint64_t {
+        eInvalid = UINT64_MAX,
+    };
+    
+    enum class VfsNodeId : std::uint64_t {
+        eInvalid = UINT64_MAX,
+    };
 
     enum class VfsNodeType {
+        eNone,
+
         eFile,
         eFolder,
         eDevice,
         eMount,
-    };
-
-    class VfsHandle {
-        IFileSystem *mDriver;
-        VfsNodeId mNodeId;
-
-    public:
-        VfsHandle(IFileSystem *driver, VfsNodeId nodeId)
-            : mDriver(driver)
-            , mNodeId(nodeId)
-        { }
-
-        IFileSystem *driver() const { return mDriver; }
-        VfsNodeId nodeId() const { return mNodeId; }
-        VfsNodeType type() const;
-    };
-
-    class VfsMount {
-        stdx::String mName;
-        IFileSystem *mDriver;
-
-    public:
-        VfsMount(stdx::String name, IFileSystem *driver)
-            : mName(std::move(name))
-            , mDriver(driver)
-        { }
-
-        stdx::StringView name() const { return mName; }
-        IFileSystem *driver() const { return mDriver; }
     };
 }

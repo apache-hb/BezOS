@@ -5,6 +5,8 @@
 #include <cstdint>
 
 namespace km {
+    using SystemCallHandler = uint64_t(*)(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3);
+
     struct [[gnu::packed]] SystemCallContext {
         // user registers
         // r15 is clobbered by syscall
@@ -32,4 +34,6 @@ namespace km {
     void SetupUserMode(mem::IAllocator *allocator, uint8_t ist);
 
     void EnterUserMode(x64::RegisterState state);
+
+    void AddSystemCall(uint8_t function, SystemCallHandler handler);
 }
