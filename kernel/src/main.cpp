@@ -1287,8 +1287,8 @@ void LaunchKernel(boot::LaunchInfo launch) {
         }
 
         stdx::StringView message = stdx::StringView((const char*)messageBegin, (const char*)messageEnd);
-        while (message.back() == '\n' || message.back() == '\0')
-            message = message.substr(0, message.count() - 1);
+        while (message.back() == '\n')
+            message = message.substr(message.count() - 1);
 
         KmDebugMessage("[USER] ", message, "\n");
 
