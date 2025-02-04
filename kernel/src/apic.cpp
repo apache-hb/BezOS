@@ -406,13 +406,13 @@ void km::IoApic::setLegacyRedirect(apic::IvtConfig config, uint32_t redirect, co
             .enabled = true,
         };
 
-        KmDebugMessage("[INIT] IRQ ", fixup.vector, " redirect fixup to ", iso.interrupt, " provided by MADT\n");
+        KmDebugMessage("[INIT] IRQ PIN ", redirect, " remapped to PIN ", iso.interrupt, " by MADT\n");
 
         setRedirect(fixup, iso.interrupt, target);
         return;
     }
 
-    KmDebugMessage("[INIT] IRQ ", config.vector, " redirected to APIC\n");
+    KmDebugMessage("[INIT] IRQ PIN ", redirect, " redirected to APIC ", target->id(), ":", config.vector, "\n");
 
     setRedirect(config, redirect, target);
 }

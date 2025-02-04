@@ -33,10 +33,14 @@ namespace km {
 
     static_assert(sizeof(TarPosixHeader) == 500);
 
-    class TarFsDriver : public IFileSystemDriver {
+    class TarFsDriver : public IFileSystem {
+        BlockDevice *mMedia;
+
     public:
         TarFsDriver(BlockDevice *media)
-            : IFileSystemDriver(media)
+            : mMedia(media)
         { }
+
+        BlockDevice *media() const { return mMedia; }
     };
 }

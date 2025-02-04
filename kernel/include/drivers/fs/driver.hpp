@@ -13,18 +13,11 @@
 #include <utility>
 
 namespace km {
-    class IFileSystemDriver {
-        BlockDevice *mMedia;
-
-    protected:
-        IFileSystemDriver(BlockDevice *media) : mMedia(media) { }
-
-        BlockDevice *device() const { return mMedia; }
-
+    class IFileSystem {
     public:
-        virtual ~IFileSystemDriver() = default;
+        virtual ~IFileSystem() = default;
 
-        void operator delete(IFileSystemDriver*, std::destroying_delete_t) {
+        void operator delete(IFileSystem*, std::destroying_delete_t) {
             std::unreachable();
         }
     };
