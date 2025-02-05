@@ -12,18 +12,33 @@ static constexpr uint16_t kDataPort = 0xCFC;
 
 static constexpr size_t kEcamSize = (256 * 32 * 8) * 0x1000;
 
+static constexpr uint16_t ExtractWord(uint32_t data, uint16_t offset) {
+    return (data >> ((offset & 2) * 8)) & 0xFFFF;
+}
+
+static constexpr uint8_t ExtractByte(uint32_t data, uint16_t offset) {
+    uint32_t shift = (offset % 4) * 8;
+    return (data >> shift) & 0xFF;
+}
+
+static_assert(ExtractWord(0xAABBCCDD, 0) == 0xCCDD);
+static_assert(ExtractWord(0xAABBCCDD, 2) == 0xAABB);
+
+static_assert(ExtractByte(0xAABBCCDD, 3) == 0xAA);
+static_assert(ExtractByte(0xAABBCCDD, 2) == 0xBB);
+static_assert(ExtractByte(0xAABBCCDD, 1) == 0xCC);
+static_assert(ExtractByte(0xAABBCCDD, 0) == 0xDD);
+
 // generic PCI configuration space read
 
 uint16_t pci::IConfigSpace::read16(uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset) {
     uint32_t data = read32(bus, slot, function, offset & ~0b11);
-    return (data >> ((offset & 2) * 8)) & 0xFFFF;
+    return ExtractWord(data, offset);
 }
 
 uint8_t pci::IConfigSpace::read8(uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset) {
     uint32_t data = read32(bus, slot, function, offset & ~0b11);
-    uint32_t shift = (3 - (offset % 4)) * 8;
-    uint8_t result = (data >> shift) & 0xFF;
-    return result;
+    return ExtractByte(data, offset);
 }
 
 // port-based PCI configuration space read

@@ -68,7 +68,9 @@ namespace pci {
 
     enum class CapabilityId : uint8_t {
         eNull = 0x00,
+        ePowerManagement = 0x01,
         eMsi = 0x05,
+        ePciExpress = 0x10,
         eMsiX = 0x11,
         eSataConfig = 0x12,
     };
@@ -82,6 +84,7 @@ namespace pci {
     struct ConfigHeader {
         DeviceId deviceId;
         VendorId vendorId;
+        uint16_t command;
         DeviceStatus status;
         DeviceClass cls;
         uint8_t programmable;
@@ -144,8 +147,7 @@ struct km::Format<pci::VendorId> {
 
 template<>
 struct km::Format<pci::DeviceType> {
-    using String = stdx::StaticString<64>;
-    static String toString(pci::DeviceType type);
+    static void format(km::IOutStream& out, pci::DeviceType type);
 };
 
 template<>

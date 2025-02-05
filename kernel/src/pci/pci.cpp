@@ -14,7 +14,7 @@ pci::Capability pci::ReadCapability(IConfigSpace *config, uint8_t bus, uint8_t s
 }
 
 void pci::ReadCapabilityList(IConfigSpace *config, uint8_t bus, uint8_t slot, uint8_t function, ConfigHeader header) {
-    uint8_t offset = config->read8(bus, slot, function, header.capabilityOffset());
+    uint8_t offset = config->read8(bus, slot, function, header.capabilityOffset()) & ~0b11;
 
     auto busId = km::format(km::Hex(bus).pad(2, '0', false));
     auto slotId = km::format(km::Hex(slot).pad(2, '0', false));
@@ -23,6 +23,8 @@ void pci::ReadCapabilityList(IConfigSpace *config, uint8_t bus, uint8_t slot, ui
     int index = 0;
 
     while (true) {
+        KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "/C", index, " | Capability list      | ", km::Hex(offset).pad(2), "\n");
+
         pci::Capability capability = pci::ReadCapability(config, bus, slot, function, offset);
 
         KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "/C", index, " | Capability ID        | ", capability.id, "\n");
@@ -44,18 +46,20 @@ pci::ConfigHeader pci::QueryHeader(IConfigSpace *config, uint8_t bus, uint8_t sl
     }
 
     uint16_t device = config->read16(bus, slot, function, 0x2);
+    uint16_t command = config->read16(bus, slot, function, 0x4);
     uint16_t status = config->read16(bus, slot, function, 0x6);
 
-    uint8_t cls = config->read8(bus, slot, function, 0x8);
-    uint8_t subclass = config->read8(bus, slot, function, 0x9);
-    uint8_t programmable = config->read8(bus, slot, function, 0xA);
-    uint8_t revision = config->read8(bus, slot, function, 0xB);
+    uint8_t cls = config->read8(bus, slot, function, 0x8 + 3);
+    uint8_t subclass = config->read8(bus, slot, function, 0x8 + 2);
+    uint8_t programmable = config->read8(bus, slot, function, 0x8 + 1);
+    uint8_t revision = config->read8(bus, slot, function, 0x8 + 0);
 
-    uint8_t headerType = config->read8(bus, slot, function, 0xD);
+    uint8_t headerType = config->read8(bus, slot, function, 0xC + 2);
 
     return pci::ConfigHeader {
         .deviceId = DeviceId(device),
         .vendorId = VendorId(vendor),
+        .command = command,
         .status = DeviceStatus(status),
 
         .cls = DeviceClass(DeviceClassCode(cls), subclass),
@@ -95,14 +99,15 @@ static pci::ConfigHeader ProbePciFunction(pci::IConfigSpace *config, uint8_t bus
 
     KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "    | Vendor ID            | ", header.vendorId, "\n");
     KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "    | Device ID            | ", header.deviceId, "\n");
+    KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "    | Command              | ", km::Hex(header.command).pad(4), "\n");
     KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "    | Class                | ", header.cls, "\n");
     KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "    | Programmable         | ", header.programmable, "\n");
     KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "    | Revision             | ", header.revision, "\n");
     KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "    | Type                 | ", header.type, "\n");
-    KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "    | Status               | ", km::Hex(std::to_underlying(header.status)).pad(4, '0'), "\n");
+    KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "    | Status               | ", km::Hex(std::to_underlying(header.status)).pad(4), "\n");
 
     if (header.hasCapabilityList()) {
-        KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "    | Capability list head | ", header.capabilityOffset(), "\n");
+        KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "    | Capability list head | ", km::Hex(header.capabilityOffset()), "\n");
         ReadCapabilityList(config, bus, slot, function, header);
     }
 
@@ -206,18 +211,24 @@ VendorIdFormat::String VendorIdFormat::toString(pci::VendorId id) {
     }
 }
 
-DeviceTypeFormat::String DeviceTypeFormat::toString(pci::DeviceType type) {
-    switch (type) {
+void DeviceTypeFormat::format(km::IOutStream& out, pci::DeviceType type) {
+    switch (type & ~pci::DeviceType::eMultiFunction) {
     case pci::DeviceType::eGeneral:
-        return "General"_sv;
+        out.write("General"_sv);
+        break;
     case pci::DeviceType::eCardBusBridge:
-        return "CardBus Bridge"_sv;
+        out.write("CardBus Bridge"_sv);
+        break;
     case pci::DeviceType::ePciBridge:
-        return "PCI Bridge"_sv;
-    case pci::DeviceType::eMultiFunction:
-        return "Multi-Function"_sv;
+        out.write("PCI Bridge"_sv);
+        break;
     default:
-        return km::format(km::Hex(std::to_underlying(type)).pad(2, '0'));
+        out.write(km::format(km::Hex(std::to_underlying(type)).pad(2, '0')));
+        break;
+    }
+
+    if (bool(type & pci::DeviceType::eMultiFunction)) {
+        out.write(" (Multi-Function)"_sv);
     }
 }
 
@@ -265,8 +276,14 @@ void CapabilityIdFormat::format(km::IOutStream& out, pci::CapabilityId value) {
     case pci::CapabilityId::eNull:
         out.write("Null (0x00)"_sv);
         break;
+    case pci::CapabilityId::ePowerManagement:
+        out.write("Power Management (0x01)"_sv);
+        break;
     case pci::CapabilityId::eMsi:
         out.write("MSI (0x05)"_sv);
+        break;
+    case pci::CapabilityId::ePciExpress:
+        out.write("PCIe (0x10)"_sv);
         break;
     case pci::CapabilityId::eMsiX:
         out.write("MSI-X (0x11)"_sv);
