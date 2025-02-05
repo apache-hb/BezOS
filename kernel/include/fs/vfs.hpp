@@ -5,17 +5,51 @@
 
 namespace km {
     class VfsHandle {
-        vfs::INode *mNode;
+        VfsEntry *mNode;
 
         uint64_t mOffset;
 
     public:
-        VfsHandle(vfs::INode *node)
+        VfsHandle(VfsEntry *node)
             : mNode(node)
+            , mOffset(0)
         { }
 
-        KmStatus read(void *buffer, size_t size, size_t *result);
-        KmStatus write(const void *buffer, size_t size, size_t *result);
+        KmStatus read(void *buffer, size_t size, size_t *result) {
+            vfs::ReadRequest request = {
+                .front = mOffset,
+                .back = mOffset + size,
+                .buffer = (std::byte*)buffer,
+            };
+
+            vfs::ReadResult readResult;
+
+            KmStatus status = mNode->node()->read(request, &readResult);
+            if (status == ERROR_SUCCESS) {
+                mOffset += readResult.read;
+                *result = readResult.read;
+            }
+
+            return status;
+        }
+
+        KmStatus write(const void *buffer, size_t size, size_t *result) {
+            vfs::WriteRequest request = {
+                .front = mOffset,
+                .back = mOffset + size,
+                .buffer = (const std::byte*)buffer,
+            };
+
+            vfs::WriteResult writeResult;
+
+            KmStatus status = mNode->node()->write(request, &writeResult);
+            if (status == ERROR_SUCCESS) {
+                mOffset += writeResult.written;
+                *result = writeResult.written;
+            }
+
+            return status;
+        }
     };
 
     class VirtualFileSystem {
@@ -38,10 +72,7 @@ namespace km {
         VfsEntry *mount(const VfsPath& path, vfs::IFileSystem *fs);
         void unmount(const VfsPath& path);
 
-        VfsEntry *open(const VfsPath& path);
-        void close(VfsEntry *id);
-
-        size_t read(VfsEntry *id, void *buffer, size_t size);
-        size_t write(VfsEntry *id, const void *buffer, size_t size);
+        VfsHandle *open(const VfsPath& path);
+        void close(VfsHandle *id);
     };
 }

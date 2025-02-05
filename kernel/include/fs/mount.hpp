@@ -37,6 +37,7 @@ namespace vfs {
         virtual ~INode() = default;
 
         virtual IFileSystemMount *owner() const = 0;
+        virtual km::VfsEntryType type() const = 0;
 
         virtual KmStatus read(ReadRequest request, ReadResult *result) = 0;
         virtual KmStatus write(WriteRequest request, WriteResult *result) = 0;

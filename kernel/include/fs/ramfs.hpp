@@ -27,6 +27,8 @@ namespace vfs {
     public:
         RamFsFile(RamFsMount *mount);
 
+        km::VfsEntryType type() const override { return km::VfsEntryType::eFile; }
+
         KmStatus read(ReadRequest request, ReadResult *result) override;
         KmStatus write(WriteRequest request, WriteResult *result) override;
     };
@@ -36,6 +38,8 @@ namespace vfs {
 
     public:
         RamFsFolder(RamFsMount *mount);
+
+        km::VfsEntryType type() const override { return km::VfsEntryType::eFolder; }
 
         KmStatus create(stdx::StringView name, INode **node) override;
         KmStatus remove(INode *node) override;

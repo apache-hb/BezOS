@@ -354,6 +354,12 @@ testcases = {
         'kernel/src/drivers/block/driver.cpp',
         'kernel/src/drivers/block/ramblk.cpp',
     ],
+    'vfs': [
+        'kernel/test/vfs.cpp',
+        'kernel/src/fs/vfs.cpp',
+        'kernel/src/fs/path.cpp',
+        'kernel/src/fs/ramfs.cpp',
+    ]
 }
 
 if enable_aml
