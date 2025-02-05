@@ -38,33 +38,11 @@ km::VfsFolder *km::VirtualFileSystem::getParentFolder(const VfsPath& path) {
     return current;
 }
 
-km::VfsFile *km::VirtualFileSystem::findFileInCache(VfsNodeId id) {
-    if (auto it = mNodeCache.find(id); it != mNodeCache.end()) {
-        auto [node, _] = it->second;
-        if (node->type() == VfsNodeType::eFile) {
-            return &node->file();
-        }
-    }
-
-    return nullptr;
-}
-
-void km::VirtualFileSystem::cacheNode(VfsNodeId id, VfsNode *node) {
-    if (auto it = mNodeCache.find(id); it != mNodeCache.end()) {
-        auto& [entry, refCount] = it->second;
-        KM_CHECK(entry == node, "Node already cached with different pointer.");
-        refCount += 1;
-    } else {
-        mNodeCache.insert({ id, VfsCacheEntry(node, 1) });
-    }
-}
-
 km::VfsNode *km::VirtualFileSystem::mkdir(const VfsPath& path) {
     if (VfsFolder *parent = getParentFolder(path)) {
         VfsNodeId id = allocateId();
         std::unique_ptr<VfsNode> node(new VfsNode(id, VfsFolder{}));
         VfsNode *ptr = node.get();
-        cacheNode(id, ptr);
         parent->insert(stdx::String(path.name()), std::move(node));
         return ptr;
     }
@@ -77,14 +55,12 @@ km::VfsNode *km::VirtualFileSystem::open(const VfsPath& path) {
         auto it = parent->find(path.name());
         if (it != parent->end()) {
             it->second->file().offset = 0;
-            cacheNode(it->second->id(), it->second.get());
             return it->second.get();
         }
 
         VfsNodeId id = allocateId();
         std::unique_ptr<VfsNode> node(new VfsNode(id, VfsFile{}));
         VfsNode *ptr = node.get();
-        cacheNode(id, node.get());
 
         parent->insert(stdx::String(path.name()), std::move(node));
         return ptr;
