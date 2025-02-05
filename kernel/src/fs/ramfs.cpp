@@ -1,0 +1,116 @@
+#include "fs/ramfs.hpp"
+
+static constinit vfs::RamFs gRamFs{};
+
+vfs::RamFsNode::RamFsNode(RamFsMount *mount)
+    : mMount(mount)
+{ }
+
+vfs::IFileSystemMount *vfs::RamFsNode::owner() const {
+    return mMount;
+}
+
+vfs::RamFsFile::RamFsFile(RamFsMount *mount)
+    : RamFsNode(mount)
+{ }
+
+KmStatus vfs::RamFsFile::read(ReadRequest request, ReadResult *result) {
+    uint64_t front = std::min(request.front, mData.count());
+    uint64_t back = std::min(request.back, mData.count());
+
+    uint64_t read = back - front;
+    memcpy(request.buffer, mData.data() + front, read);
+
+    result->read = read;
+
+    return ERROR_SUCCESS;
+}
+
+KmStatus vfs::RamFsFile::write(WriteRequest request, WriteResult *result) {
+    uint64_t front = request.front;
+    uint64_t back = request.back;
+
+    if (back > mData.count()) {
+        mData.resize(back);
+    }
+
+    uint64_t write = back - front;
+    memcpy(mData.data() + front, request.buffer, write);
+
+    result->written = write;
+
+    return ERROR_SUCCESS;
+}
+
+vfs::RamFsFolder::RamFsFolder(RamFsMount *mount)
+    : RamFsNode(mount)
+{ }
+
+KmStatus vfs::RamFsFolder::create(stdx::StringView name, INode **node) {
+    std::unique_ptr<RamFsNode> child(new RamFsFile(mount()));
+    RamFsNode *ptr = child.get();
+
+    mChildren.insert({ stdx::String(name), std::move(child) });
+
+    *node = ptr;
+
+    return ERROR_SUCCESS;
+}
+
+KmStatus vfs::RamFsFolder::remove(INode *) {
+    return ERROR_NOT_SUPPORTED;
+}
+
+KmStatus vfs::RamFsFolder::mkdir(stdx::StringView name, INode **node) {
+    std::unique_ptr<RamFsFolder> child(new RamFsFolder(mount()));
+    RamFsNode *ptr = child.get();
+
+    mChildren.insert({ stdx::String(name), std::move(child) });
+
+    *node = ptr;
+
+    return ERROR_SUCCESS;
+}
+
+KmStatus vfs::RamFsFolder::rmdir(stdx::StringView) {
+    return ERROR_NOT_SUPPORTED;
+}
+
+KmStatus vfs::RamFsFolder::find(stdx::StringView name, INode **node) {
+    if (auto it = mChildren.find(name); it != mChildren.end()) {
+        *node = it->second.get();
+        return ERROR_SUCCESS;
+    }
+
+    return ERROR_NOT_FOUND;
+}
+
+vfs::RamFsMount::RamFsMount()
+    : mRoot(new RamFsFolder(this))
+{ }
+
+vfs::IFileSystem *vfs::RamFsMount::filesystem() const {
+    return &RamFs::get();
+}
+
+vfs::INode *vfs::RamFsMount::root() const {
+    return mRoot.get();
+}
+
+stdx::StringView vfs::RamFs::name() const {
+    using namespace stdx::literals;
+    return "ramfs"_sv;
+}
+
+KmStatus vfs::RamFs::mount(IFileSystemMount **mount) {
+    if (RamFsMount *instance = new(std::nothrow) RamFsMount()) {
+        *mount = instance;
+        return ERROR_SUCCESS;
+    }
+
+    return ERROR_OUT_OF_MEMORY;
+}
+
+vfs::RamFs& vfs::RamFs::get() {
+    return gRamFs;
+}

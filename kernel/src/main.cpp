@@ -1219,7 +1219,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     gVfs->mkdir("/Users/Admin"_sv);
     gVfs->mkdir("/Users/Guest"_sv);
 
-    VfsNode *motd = gVfs->open("/Users/Guest/motd.txt"_sv);
+    VfsEntry *motd = gVfs->open("/Users/Guest/motd.txt"_sv);
     stdx::StringView motdContent = "Welcome.\n";
     gVfs->write(motd, motdContent.data(), motdContent.count());
     gVfs->close(motd);
@@ -1244,7 +1244,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
         }
 
         VfsPath path = stdx::StringView((const char*)argPathBegin, (const char*)argPathEnd);
-        if (VfsNode *node = gVfs->open(path)) {
+        if (VfsEntry *node = gVfs->open(path)) {
             return (uintptr_t)node;
         }
 
@@ -1266,7 +1266,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
             return ERROR_INVALID_INPUT;
         }
 
-        VfsNode* nodeId = (VfsNode*)userNodeId;
+        VfsEntry* nodeId = (VfsEntry*)userNodeId;
         size_t bufferSize = userBufferSize;
 
         size_t read = gVfs->read(nodeId, (uint8_t*)bufferBegin, bufferSize);

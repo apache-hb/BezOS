@@ -4,19 +4,21 @@
 #include "std/string_view.hpp"
 
 #include "std/vector.hpp"
+
 #include "fs/types.hpp"
+#include "fs/mount.hpp"
 
 #include <utility>
 
 namespace km {
-    class VfsNode;
+    class VfsEntry;
 
     struct VfsFolder {
-        using Container = BTreeMap<stdx::String, std::unique_ptr<VfsNode>, std::less<>>;
+        using Container = BTreeMap<stdx::String, std::unique_ptr<VfsEntry>, std::less<>>;
         using ConstIterator = Container::const_iterator;
         Container nodes;
 
-        void insert(stdx::String name, std::unique_ptr<VfsNode> node);
+        void insert(stdx::String name, std::unique_ptr<VfsEntry> node);
 
         ConstIterator find(stdx::StringView name) const {
             return nodes.find(name);
@@ -31,25 +33,26 @@ namespace km {
         stdx::Vector2<uint8_t> data;
     };
 
-    union VfsNodeData {
-        ~VfsNodeData() { }
+    union VfsEntryData {
+        ~VfsEntryData() { }
 
         VfsFolder folder;
         VfsFile file;
     };
 
-    class VfsNode {
-        VfsNodeId mId;
-        VfsNodeType mType;
-        VfsNodeData mData;
+    class VfsEntry {
+        VfsEntryType mType;
+        VfsEntryData mData;
+        vfs::INode *mNode;
+        vfs::IFileSystemMount *mMount;
 
     public:
-        ~VfsNode() {
+        ~VfsEntry() {
             switch (mType) {
-            case km::VfsNodeType::eFolder:
+            case km::VfsEntryType::eFolder:
                 std::destroy_at(&mData.folder);
                 break;
-            case km::VfsNodeType::eFile:
+            case km::VfsEntryType::eFile:
                 std::destroy_at(&mData.file);
                 break;
 
@@ -58,26 +61,40 @@ namespace km {
             }
         }
 
-        VfsNode()
-            : mId(VfsNodeId::eInvalid)
-            , mType(VfsNodeType::eNone)
-            , mData(VfsNodeData{})
+        VfsEntry()
+            : mType(VfsEntryType::eNone)
+            , mData(VfsEntryData{})
+            , mMount(nullptr)
         { }
 
-        VfsNode(VfsNodeId id, VfsFile file)
-            : mId(id)
-            , mType(VfsNodeType::eFile)
-            , mData(VfsNodeData{ .file = std::move(file) })
+        VfsEntry(VfsFile file, vfs::IFileSystemMount *mount)
+            : mType(VfsEntryType::eFile)
+            , mData(VfsEntryData{ .file = std::move(file) })
+            , mMount(mount)
         { }
 
-        VfsNode(VfsNodeId id, VfsFolder folder)
-            : mId(id)
-            , mType(VfsNodeType::eFolder)
-            , mData(VfsNodeData{ .folder = std::move(folder) })
+        VfsEntry(VfsFolder folder, vfs::IFileSystemMount *mount)
+            : mType(VfsEntryType::eFolder)
+            , mData(VfsEntryData{ .folder = std::move(folder) })
+            , mMount(mount)
         { }
 
-        VfsNodeId id() const { return mId; }
-        VfsNodeType type() const { return mType; }
+        VfsEntry(vfs::IFileSystemMount *mount)
+            : mType(VfsEntryType::eMount)
+            , mData(VfsEntryData{})
+            , mMount(mount)
+        { }
+
+        VfsEntry(vfs::INode *node, VfsEntryType type)
+            : mType(type)
+            , mData(VfsEntryData{})
+            , mNode(node)
+            , mMount(node->owner())
+        { }
+
+        VfsEntryType type() const { return mType; }
+        vfs::INode *node() const { return mNode; }
+        vfs::IFileSystemMount *mount() const { return mMount; }
 
         VfsFolder& folder() { return mData.folder; }
         VfsFile& file() { return mData.file; }

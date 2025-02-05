@@ -8,4 +8,6 @@ enum KmStatus {
     ERROR_NOT_FOUND = 2,
 
     ERROR_INVALID_INPUT = 3,
+
+    ERROR_NOT_SUPPORTED = 4,
 };

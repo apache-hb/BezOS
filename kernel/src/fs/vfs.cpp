@@ -1,80 +1,112 @@
 #include "fs/vfs.hpp"
 
+#include "fs/ramfs.hpp"
+
 #include <utility>
 
-void km::VfsFolder::insert(stdx::String name, std::unique_ptr<VfsNode> node) {
+void km::VfsFolder::insert(stdx::String name, std::unique_ptr<VfsEntry> node) {
     using Value = Container::value_type;
 
     Value value = { std::move(name), std::move(node) };
     nodes.insert(std::move(value));
 }
 
-km::VfsNodeId km::VirtualFileSystem::allocateId() {
-    VfsNodeId id = mNextId;
-    mNextId = VfsNodeId(std::to_underlying(mNextId) + 1);
-    return id;
-}
+km::VirtualFileSystem::VirtualFileSystem()
+    : mRootMount(new vfs::RamFsMount())
+    , mRootEntry(VfsFolder{}, mRootMount.get())
+{ }
 
-km::VfsFolder *km::VirtualFileSystem::getParentFolder(const VfsPath& path) {
+std::tuple<km::VfsEntry*, vfs::IFileSystemMount*> km::VirtualFileSystem::getParentFolder(const VfsPath& path) {
     if (path.segments() == 1)
-        return &mRoot;
+        return std::make_tuple(&mRootEntry, mRootMount.get());
 
-    VfsFolder *current = &mRoot;
+    VfsEntry *current = &mRootEntry;
+    vfs::IFileSystemMount *mount = mRootMount.get();
 
     for (stdx::StringView segment : path.parent()) {
-        auto it = current->find(segment);
-        if (it == current->end()) {
-            return nullptr;
+        VfsFolder& folder = current->folder();
+        auto it = folder.find(segment);
+        if (it == folder.end()) {
+            return { nullptr, nullptr };
         }
 
         auto& node = it->second;
-        if (node->type() != VfsNodeType::eFolder) {
-            return nullptr;
+        if (node->type() != VfsEntryType::eFolder) {
+            return { nullptr, nullptr };
         }
 
-        current = &node->folder();
+        current = node.get();
+        mount = node->mount();
     }
 
-    return current;
+    return std::make_tuple(current, mount);
 }
 
-km::VfsNode *km::VirtualFileSystem::mkdir(const VfsPath& path) {
-    if (VfsFolder *parent = getParentFolder(path)) {
-        VfsNodeId id = allocateId();
-        std::unique_ptr<VfsNode> node(new VfsNode(id, VfsFolder{}));
-        VfsNode *ptr = node.get();
-        parent->insert(stdx::String(path.name()), std::move(node));
+km::VfsEntry *km::VirtualFileSystem::mkdir(const VfsPath& path) {
+    auto [parent, mount] = getParentFolder(path);
+    if (parent != nullptr) {
+        VfsFolder& folder = parent->folder();
+        std::unique_ptr<VfsEntry> node(new VfsEntry(VfsFolder{}, mount));
+        VfsEntry *ptr = node.get();
+        folder.insert(stdx::String(path.name()), std::move(node));
         return ptr;
     }
 
     return nullptr;
 }
 
-km::VfsNode *km::VirtualFileSystem::open(const VfsPath& path) {
-    if (VfsFolder *parent = getParentFolder(path)) {
-        auto it = parent->find(path.name());
-        if (it != parent->end()) {
+km::VfsEntry *km::VirtualFileSystem::mount(const VfsPath& path, vfs::IFileSystem *fs) {
+    auto [parent, mount] = getParentFolder(path);
+    if (parent != nullptr) {
+        VfsFolder& folder = parent->folder();
+        auto it = folder.find(path.name());
+        if (it != folder.end()) {
+            return nullptr;
+        }
+
+        vfs::IFileSystemMount *mount = nullptr;
+        KmStatus status = fs->mount(&mount);
+        if (status != ERROR_SUCCESS) {
+            return nullptr;
+        }
+
+        std::unique_ptr<VfsEntry> node(new VfsEntry(mount));
+        VfsEntry *ptr = node.get();
+
+        folder.insert(stdx::String(path.name()), std::move(node));
+
+        return ptr;
+    }
+
+    return nullptr;
+}
+
+km::VfsEntry *km::VirtualFileSystem::open(const VfsPath& path) {
+    auto [parent, mount] = getParentFolder(path);
+    if (parent != nullptr) {
+        VfsFolder& folder = parent->folder();
+        auto it = folder.find(path.name());
+        if (it != folder.end()) {
             it->second->file().offset = 0;
             return it->second.get();
         }
 
-        VfsNodeId id = allocateId();
-        std::unique_ptr<VfsNode> node(new VfsNode(id, VfsFile{}));
-        VfsNode *ptr = node.get();
+        std::unique_ptr<VfsEntry> node(new VfsEntry(VfsFile{}, mount));
+        VfsEntry *ptr = node.get();
 
-        parent->insert(stdx::String(path.name()), std::move(node));
+        folder.insert(stdx::String(path.name()), std::move(node));
         return ptr;
     }
 
     return nullptr;
 }
 
-void km::VirtualFileSystem::close(VfsNode*) {
+void km::VirtualFileSystem::close(VfsEntry*) {
 
 }
 
-size_t km::VirtualFileSystem::read(VfsNode *id, void *buffer, size_t size) {
-    if (id->type() == VfsNodeType::eFile) {
+size_t km::VirtualFileSystem::read(VfsEntry *id, void *buffer, size_t size) {
+    if (id->type() == VfsEntryType::eFile) {
         VfsFile *file = &id->file();
         const auto& data = file->data;
         size_t front = file->offset;
@@ -88,8 +120,8 @@ size_t km::VirtualFileSystem::read(VfsNode *id, void *buffer, size_t size) {
     return 0;
 }
 
-size_t km::VirtualFileSystem::write(VfsNode *id, const void *buffer, size_t size) {
-    if (id->type() == VfsNodeType::eFile) {
+size_t km::VirtualFileSystem::write(VfsEntry *id, const void *buffer, size_t size) {
+    if (id->type() == VfsEntryType::eFile) {
         VfsFile *file = &id->file();
         auto& data = file->data;
         size_t front = file->offset;

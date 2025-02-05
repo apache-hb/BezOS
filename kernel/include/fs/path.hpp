@@ -8,7 +8,7 @@
 #include <utility>
 
 namespace km {
-    class VfsNode;
+    class VfsEntry;
     class VfsPath;
 
     class VfsPathIterator {

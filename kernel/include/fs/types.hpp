@@ -20,12 +20,22 @@ namespace km {
         eInvalid = UINT64_MAX,
     };
 
-    enum class VfsNodeType {
+    enum class VfsEntryType {
         eNone,
 
         eFile,
         eFolder,
         eDevice,
         eMount,
+    };
+
+    class VfsIdAllocator {
+        VfsNodeId mNextId = VfsNodeId(1);
+    public:
+        VfsNodeId allocateId() {
+            VfsNodeId id = mNextId;
+            mNextId = VfsNodeId(std::to_underlying(mNextId) + 1);
+            return id;
+        }
     };
 }
