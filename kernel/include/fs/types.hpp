@@ -12,11 +12,11 @@ namespace km {
 
     class IFileSystem;
 
-    enum class VfsLocalNodeId : std::uint64_t {
+    enum class VfsNodeId : std::uint64_t {
         eInvalid = UINT64_MAX,
     };
 
-    enum class VfsNodeId : std::uint64_t {
+    enum class VfsHandleId : std::uint64_t {
         eInvalid = UINT64_MAX,
     };
 

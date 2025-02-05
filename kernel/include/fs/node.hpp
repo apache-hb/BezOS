@@ -27,8 +27,6 @@ namespace km {
     };
 
     struct VfsFile {
-        VfsLocalNodeId nodeId;
-
         size_t offset;
         stdx::Vector2<uint8_t> data;
     };

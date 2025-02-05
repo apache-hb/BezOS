@@ -63,5 +63,9 @@ namespace km {
 
         VfsPath parent() const;
         stdx::StringView name() const;
+
+        constexpr auto operator<=>(const VfsPath& other) const {
+            return mPath <=> other.mPath;
+        }
     };
 }
