@@ -59,51 +59,47 @@ void km::VirtualFileSystem::cacheNode(VfsNodeId id, VfsNode *node) {
     }
 }
 
-km::VfsNodeId km::VirtualFileSystem::mkdir(const VfsPath& path) {
+km::VfsNode *km::VirtualFileSystem::mkdir(const VfsPath& path) {
     if (VfsFolder *parent = getParentFolder(path)) {
         VfsNodeId id = allocateId();
         std::unique_ptr<VfsNode> node(new VfsNode(id, VfsFolder{}));
-        cacheNode(id, node.get());
+        VfsNode *ptr = node.get();
+        cacheNode(id, ptr);
         parent->insert(stdx::String(path.name()), std::move(node));
-        return id;
+        return ptr;
     }
 
-    return VfsNodeId::eInvalid;
+    return nullptr;
 }
 
-km::VfsNodeId km::VirtualFileSystem::open(const VfsPath& path) {
+km::VfsNode *km::VirtualFileSystem::open(const VfsPath& path) {
     if (VfsFolder *parent = getParentFolder(path)) {
         auto it = parent->find(path.name());
         if (it != parent->end()) {
             it->second->file().offset = 0;
             cacheNode(it->second->id(), it->second.get());
-            return it->second->id();
+            return it->second.get();
         }
 
         VfsNodeId id = allocateId();
         std::unique_ptr<VfsNode> node(new VfsNode(id, VfsFile{}));
+        VfsNode *ptr = node.get();
         cacheNode(id, node.get());
 
         parent->insert(stdx::String(path.name()), std::move(node));
-        return id;
+        return ptr;
     }
 
-    return VfsNodeId::eInvalid;
+    return nullptr;
 }
 
-void km::VirtualFileSystem::close(VfsNodeId id) {
-    if (auto it = mNodeCache.find(id); it != mNodeCache.end()) {
-        auto& [node, refCount] = it->second;
-        if (refCount == 1) {
-            mNodeCache.erase(it);
-        } else {
-            refCount -= 1;
-        }
-    }
+void km::VirtualFileSystem::close(VfsNode*) {
+
 }
 
-size_t km::VirtualFileSystem::read(VfsNodeId id, void *buffer, size_t size) {
-    if (VfsFile *file = findFileInCache(id)) {
+size_t km::VirtualFileSystem::read(VfsNode *id, void *buffer, size_t size) {
+    if (id->type() == VfsNodeType::eFile) {
+        VfsFile *file = &id->file();
         const auto& data = file->data;
         size_t front = file->offset;
         size_t back = std::min(front + size, data.count());
@@ -116,8 +112,9 @@ size_t km::VirtualFileSystem::read(VfsNodeId id, void *buffer, size_t size) {
     return 0;
 }
 
-size_t km::VirtualFileSystem::write(VfsNodeId id, const void *buffer, size_t size) {
-    if (VfsFile *file = findFileInCache(id)) {
+size_t km::VirtualFileSystem::write(VfsNode *id, const void *buffer, size_t size) {
+    if (id->type() == VfsNodeType::eFile) {
+        VfsFile *file = &id->file();
         auto& data = file->data;
         size_t front = file->offset;
         size_t back = front + size;

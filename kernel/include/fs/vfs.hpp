@@ -23,15 +23,13 @@ namespace km {
     public:
         VirtualFileSystem() = default;
 
-        VfsNodeId mkdir(const VfsPath& path);
-
+        VfsNode *mkdir(const VfsPath& path);
         void rmdir(const VfsPath& path);
 
-        VfsNodeId open(const VfsPath& path);
+        VfsNode *open(const VfsPath& path);
+        void close(VfsNode *id);
 
-        void close(VfsNodeId id);
-
-        size_t read(VfsNodeId id, void *buffer, size_t size);
-        size_t write(VfsNodeId id, const void *buffer, size_t size);
+        size_t read(VfsNode *id, void *buffer, size_t size);
+        size_t write(VfsNode *id, const void *buffer, size_t size);
     };
 }

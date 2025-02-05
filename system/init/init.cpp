@@ -32,14 +32,14 @@ static void OsDebugLog(const char *message) {
     OsDebugLog(begin, end);
 }
 
-static int OsOpenFile(const char *path) {
+static uint64_t OsOpenFile(const char *path) {
     const char *begin = path;
     const char *end = path + strlen(path);
 
     return OsSystemCall(eSysOpen, (uint64_t)begin, (uint64_t)end, 0, 0);
 }
 
-static size_t OsReadFile(int fd, void *buffer, size_t size) {
+static size_t OsReadFile(uint64_t fd, void *buffer, size_t size) {
     return OsSystemCall(eSysRead, fd, (uint64_t)buffer, size, 0);
 }
 
@@ -47,14 +47,14 @@ static size_t OsReadFile(int fd, void *buffer, size_t size) {
 // rsi: last argument
 // rdx: reserved
 extern "C" [[noreturn]] void ClientStart(uint64_t, uint64_t, uint64_t) {
-    int fd = OsOpenFile("/Users/Guest/motd.txt");
+    uint64_t fd = OsOpenFile("/Users/Guest/motd.txt");
 
     char buffer[256];
     size_t read = OsReadFile(fd, buffer, sizeof(buffer));
 
     OsDebugLog("Reading file /Users/Guest/motd.txt");
     OsDebugLog(buffer, buffer + read);
-    
+
     while (1) { }
     __builtin_unreachable();
 }
