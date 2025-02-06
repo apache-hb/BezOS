@@ -1219,10 +1219,11 @@ void LaunchKernel(boot::LaunchInfo launch) {
     gVfs->mkdir("/Users/Admin"_sv);
     gVfs->mkdir("/Users/Guest"_sv);
 
-    VfsEntry *motd = gVfs->open("/Users/Guest/motd.txt"_sv);
+    std::unique_ptr<VfsHandle> motd {gVfs->open("/Users/Guest/motd.txt"_sv)};
     stdx::StringView motdContent = "Welcome.\n";
-    gVfs->write(motd, motdContent.data(), motdContent.count());
-    gVfs->close(motd);
+    size_t count = 0;
+    motd->write(motdContent.data(), motdContent.count(), &count);
+    gVfs->close(motd.release());
 
     enum {
         kSysOpen = 10,
@@ -1244,7 +1245,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
         }
 
         VfsPath path = stdx::StringView((const char*)argPathBegin, (const char*)argPathEnd);
-        if (VfsEntry *node = gVfs->open(path)) {
+        if (VfsHandle *node = gVfs->open(path)) {
             return (uintptr_t)node;
         }
 
@@ -1266,10 +1267,14 @@ void LaunchKernel(boot::LaunchInfo launch) {
             return ERROR_INVALID_INPUT;
         }
 
-        VfsEntry* nodeId = (VfsEntry*)userNodeId;
+        VfsHandle* nodeId = (VfsHandle*)userNodeId;
         size_t bufferSize = userBufferSize;
 
-        size_t read = gVfs->read(nodeId, (uint8_t*)bufferBegin, bufferSize);
+        size_t read = 0;
+        KmStatus status = nodeId->read((void*)bufferBegin, bufferSize, &read);
+        if (status == ERROR_SUCCESS) {
+            read = bufferSize;
+        }
 
         return read;
     });
