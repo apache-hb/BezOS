@@ -77,6 +77,8 @@ namespace boot {
 
         km::PhysicalAddress smbios32Address;
         km::PhysicalAddress smbios64Address;
+
+        km::MemoryRange initrd;
     };
 }
 

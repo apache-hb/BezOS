@@ -12,37 +12,43 @@ static volatile LIMINE_BASE_REVISION(3)
 [[gnu::used, gnu::section(".limine_requests")]]
 static volatile limine_memmap_request gMemmoryMapRequest = {
     .id = LIMINE_MEMMAP_REQUEST,
-    .revision = 0
+    .revision = 0,
 };
 
 [[gnu::used, gnu::section(".limine_requests")]]
 static volatile limine_kernel_address_request gExecutableAddressRequest = {
     .id = LIMINE_KERNEL_ADDRESS_REQUEST,
-    .revision = 0
+    .revision = 0,
 };
 
 [[gnu::used, gnu::section(".limine_requests")]]
 static volatile limine_hhdm_request gDirectMapRequest = {
     .id = LIMINE_HHDM_REQUEST,
-    .revision = 0
+    .revision = 0,
 };
 
 [[gnu::used, gnu::section(".limine_requests")]]
 static volatile limine_rsdp_request gAcpiTableRequest = {
     .id = LIMINE_RSDP_REQUEST,
-    .revision = 0
+    .revision = 0,
 };
 
 [[gnu::used, gnu::section(".limine_requests")]]
 static volatile limine_framebuffer_request gFramebufferRequest = {
     .id = LIMINE_FRAMEBUFFER_REQUEST,
-    .revision = 0
+    .revision = 0,
 };
 
 [[gnu::used, gnu::section(".limine_requests")]]
 static volatile limine_smbios_request gSmbiosRequest = {
     .id = LIMINE_SMBIOS_REQUEST,
-    .revision = 0
+    .revision = 0,
+};
+
+[[gnu::used, gnu::section(".limine_requests")]]
+static volatile limine_module_request gModuleRequest = {
+    .id = LIMINE_MODULE_REQUEST,
+    .revision = 0,
 };
 
 [[gnu::used, gnu::section(".limine_requests_start")]]
@@ -181,6 +187,20 @@ static BootAllocator MakeBootAllocator(size_t size, const limine_memmap_response
     return BootAllocator { };
 }
 
+static km::MemoryRange GetInitDiskImage(const limine_module_response& modules, const char *path, uintptr_t hhdmOffset) {
+    for (uint64_t i = 0; i < modules.module_count; i++) {
+        limine_file file = *modules.modules[i];
+
+        if (strcmp(file.path, path) == 0) {
+            uintptr_t front = (uintptr_t)file.address - hhdmOffset;
+            uintptr_t back = front + file.size;
+            return { front, back };
+        }
+    }
+
+    return { };
+}
+
 extern "C" void kmain(void) {
     // offset the stack pointer as limine pushes qword 0 to
     // the stack before jumping to the kernel. and builtin_frame_address
@@ -192,11 +212,13 @@ extern "C" void kmain(void) {
     limine_hhdm_response hhdm = *gDirectMapRequest.response;
     limine_rsdp_response rsdp = *gAcpiTableRequest.response;
     limine_smbios_response smbios = *gSmbiosRequest.response;
+    limine_module_response modules = *gModuleRequest.response;
     uintptr_t stack = (uintptr_t)base - hhdm.offset;
 
     BootAllocator alloc = MakeBootAllocator(kBootMemory, memory, hhdm.offset);
     std::span<boot::FrameBuffer> framebuffers = BootGetFrameBuffers(hhdm.offset, alloc);
     std::span<boot::MemoryRegion> memmap = BootGetMemoryMap(alloc);
+    km::MemoryRange initrd = GetInitDiskImage(modules, "/initrd", hhdm.offset);
 
     boot::LaunchInfo info = {
         .kernelPhysicalBase = kernelAddress.physical_base,
@@ -208,6 +230,7 @@ extern "C" void kmain(void) {
         .stack = { base, stack, kStackSize },
         .smbios32Address = (uintptr_t)smbios.entry_32,
         .smbios64Address = (uintptr_t)smbios.entry_64,
+        .initrd = initrd,
     };
 
     LaunchKernel(info);
