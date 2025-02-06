@@ -1,10 +1,14 @@
 #pragma once
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-enum OsStatus {
+typedef uint64_t OsStatus;
+
+enum OsStatusId {
     OsStatusSuccess = 0,
 
     OsStatusOutOfMemory = 1,
@@ -15,6 +19,14 @@ enum OsStatus {
 
     OsStatusNotSupported = 4,
 };
+
+inline bool OsStatusOk(OsStatus status) {
+    return status == OsStatusSuccess;
+}
+
+inline bool OsStatusError(OsStatus status) {
+    return !OsStatusOk(status);
+}
 
 #ifdef __cplusplus
 }
