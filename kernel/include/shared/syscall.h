@@ -14,8 +14,7 @@ enum {
     eOsCallFileRead = 0x12,
     eOsCallFileWrite = 0x13,
     eOsCallFileSeek = 0x14,
-    eOsCallFileTell = 0x15,
-    eOsCallFileStat = 0x16,
+    eOsCallFileStat = 0x15,
 
     eOsCallDirIter = 0x20,
     eOsCallDirNext = 0x21,
@@ -36,6 +35,11 @@ enum {
 
 /// @brief A handle to a file object.
 typedef uint64_t OsFileHandle;
+
+enum {
+    /// @brief An invalid file handle.
+    OsFileHandleInvalid = UINT64_MAX
+};
 
 /// @brief Seek modes.
 ///
@@ -95,7 +99,8 @@ enum {
 /// @pre @p OutHandle must be valid.
 /// @pre @p Mode must be a valid combination of @a OsFileOpenMode flags.
 ///
-/// @post @p OutHandle will be a valid file handle, even if the operation fails.
+/// @post @p OutHandle will be a valid file handle if the operation is successful.
+/// @post @p OutHandle will be @a OsFileHandleInvalid if the operation fails.
 ///
 /// @param PathFront The front of the path.
 /// @param PathBack The back of the path.
@@ -113,22 +118,29 @@ extern OsStatus OsFileWrite(OsFileHandle Handle, const void *BufferFront, const 
 
 extern OsStatus OsFileSeek(OsFileHandle Handle, OsSeekMode Mode, int64_t Offset, uint64_t *OutPosition);
 
-extern OsStatus OsFileTell(OsFileHandle Handle, uint64_t *OutPosition);
-
 /// @brief A handle to a transaction.
 typedef uint64_t OsTransactionHandle;
 
+enum {
+    /// @brief An invalid transaction handle.
+    OsTransactionInvalid = UINT64_MAX
+};
+
 /// @brief Transaction creation modes.
 ///
-/// Bits [0:2] contain the transaction mode.
-/// Bits [3:63] are reserved and must be zero.
+/// Bits [0:1] contain the read transaction mode.
+/// Bits [2:3] contain the write transaction mode.
+/// Bits [4:63] are reserved and must be zero.
 typedef uint64_t OsTransactionMode;
 
 enum {
-    eOsIsolateSerializable = UINT64_C(0),
-    eOsIsolateRepeatableRead = UINT64_C(1),
-    eOsIsolateReadCommitted = UINT64_C(2),
-    eOsIsolateUncommitted = UINT64_C(3),
+    eOsIsolateReadSerializable = UINT64_C(0),
+    eOsIsolateReadCommitted = UINT64_C(1),
+    eOsIsolateReadUncommitted = UINT64_C(2),
+
+    eOsIsolateWriteSerializable = UINT64_C(0) << 2,
+    eOsIsolateWriteCommitted = UINT64_C(1) << 2,
+    eOsIsolateWriteUncommitted = UINT64_C(2) << 2,
 };
 
 extern OsStatus OsTransactBegin(const char *NameFront, const char *NameBack, OsTransactionMode Mode, OsTransactionHandle *OutHandle);
