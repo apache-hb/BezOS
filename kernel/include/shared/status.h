@@ -1,13 +1,21 @@
 #pragma once
 
-enum KmStatus {
-    ERROR_SUCCESS = 0,
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-    ERROR_OUT_OF_MEMORY = 1,
+enum OsStatus {
+    OsStatusSuccess = 0,
 
-    ERROR_NOT_FOUND = 2,
+    OsStatusOutOfMemory = 1,
 
-    ERROR_INVALID_INPUT = 3,
+    OsStatusNotFound = 2,
 
-    ERROR_NOT_SUPPORTED = 4,
+    OsStatusInvalidInput = 3,
+
+    OsStatusNotSupported = 4,
 };
+
+#ifdef __cplusplus
+}
+#endif

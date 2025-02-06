@@ -14,7 +14,7 @@ vfs::RamFsFile::RamFsFile(RamFsMount *mount)
     : RamFsNode(mount)
 { }
 
-KmStatus vfs::RamFsFile::read(ReadRequest request, ReadResult *result) {
+OsStatus vfs::RamFsFile::read(ReadRequest request, ReadResult *result) {
     uint64_t front = std::min(request.front, mData.count());
     uint64_t back = std::min(request.back, mData.count());
 
@@ -26,7 +26,7 @@ KmStatus vfs::RamFsFile::read(ReadRequest request, ReadResult *result) {
     return ERROR_SUCCESS;
 }
 
-KmStatus vfs::RamFsFile::write(WriteRequest request, WriteResult *result) {
+OsStatus vfs::RamFsFile::write(WriteRequest request, WriteResult *result) {
     uint64_t front = request.front;
     uint64_t back = request.back;
 
@@ -46,7 +46,7 @@ vfs::RamFsFolder::RamFsFolder(RamFsMount *mount)
     : RamFsNode(mount)
 { }
 
-KmStatus vfs::RamFsFolder::create(stdx::StringView, INode **node) {
+OsStatus vfs::RamFsFolder::create(stdx::StringView, INode **node) {
     if (RamFsNode *child = new(std::nothrow) RamFsFile(mount())) {
         *node = child;
         return ERROR_SUCCESS;
@@ -55,11 +55,11 @@ KmStatus vfs::RamFsFolder::create(stdx::StringView, INode **node) {
     return ERROR_OUT_OF_MEMORY;
 }
 
-KmStatus vfs::RamFsFolder::remove(INode *) {
+OsStatus vfs::RamFsFolder::remove(INode *) {
     return ERROR_NOT_SUPPORTED;
 }
 
-KmStatus vfs::RamFsFolder::mkdir(stdx::StringView, INode **node) {
+OsStatus vfs::RamFsFolder::mkdir(stdx::StringView, INode **node) {
     if (RamFsFolder *child = new(std::nothrow) RamFsFolder(mount())) {
         *node = child;
         return ERROR_SUCCESS;
@@ -68,11 +68,11 @@ KmStatus vfs::RamFsFolder::mkdir(stdx::StringView, INode **node) {
     return ERROR_OUT_OF_MEMORY;
 }
 
-KmStatus vfs::RamFsFolder::rmdir(stdx::StringView) {
+OsStatus vfs::RamFsFolder::rmdir(stdx::StringView) {
     return ERROR_NOT_SUPPORTED;
 }
 
-KmStatus vfs::RamFsFolder::find(stdx::StringView, INode **) {
+OsStatus vfs::RamFsFolder::find(stdx::StringView, INode **) {
     return ERROR_NOT_FOUND;
 }
 
@@ -93,7 +93,7 @@ stdx::StringView vfs::RamFs::name() const {
     return "ramfs"_sv;
 }
 
-KmStatus vfs::RamFs::mount(IFileSystemMount **mount) {
+OsStatus vfs::RamFs::mount(IFileSystemMount **mount) {
     if (RamFsMount *instance = new(std::nothrow) RamFsMount()) {
         *mount = instance;
         return ERROR_SUCCESS;

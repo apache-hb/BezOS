@@ -29,8 +29,8 @@ namespace vfs {
 
         km::VfsEntryType type() const override { return km::VfsEntryType::eFile; }
 
-        KmStatus read(ReadRequest request, ReadResult *result) override;
-        KmStatus write(WriteRequest request, WriteResult *result) override;
+        OsStatus read(ReadRequest request, ReadResult *result) override;
+        OsStatus write(WriteRequest request, WriteResult *result) override;
     };
 
     class RamFsFolder final : public RamFsNode {
@@ -39,13 +39,13 @@ namespace vfs {
 
         km::VfsEntryType type() const override { return km::VfsEntryType::eFolder; }
 
-        KmStatus create(stdx::StringView name, INode **node) override;
-        KmStatus remove(INode *node) override;
+        OsStatus create(stdx::StringView name, INode **node) override;
+        OsStatus remove(INode *node) override;
 
-        KmStatus mkdir(stdx::StringView name, INode **node) override;
-        KmStatus rmdir(stdx::StringView name) override;
+        OsStatus mkdir(stdx::StringView name, INode **node) override;
+        OsStatus rmdir(stdx::StringView name) override;
 
-        KmStatus find(stdx::StringView name, INode **node) override;
+        OsStatus find(stdx::StringView name, INode **node) override;
     };
 
     class RamFsMount final : public IFileSystemMount {
@@ -60,7 +60,7 @@ namespace vfs {
     class RamFs final : public IFileSystem {
     public:
         stdx::StringView name() const override;
-        KmStatus mount(IFileSystemMount **mount) override;
+        OsStatus mount(IFileSystemMount **mount) override;
 
         static RamFs& get();
     };

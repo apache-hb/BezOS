@@ -1237,11 +1237,11 @@ void LaunchKernel(boot::LaunchInfo launch) {
         const void *argPathBegin = TranslateUserPointer((const void*)userArgPathBegin);
         const void *argPathEnd = TranslateUserPointer((const void*)userArgPathEnd);
         if (argPathBegin == nullptr || argPathEnd == nullptr) {
-            return ERROR_INVALID_INPUT;
+            return OsStatusInvalidInput;
         }
 
         if (argPathBegin >= argPathEnd) {
-            return ERROR_INVALID_INPUT;
+            return OsStatusInvalidInput;
         }
 
         VfsPath path = stdx::StringView((const char*)argPathBegin, (const char*)argPathEnd);
@@ -1249,7 +1249,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
             return (uintptr_t)node;
         }
 
-        return ERROR_NOT_FOUND;
+        return OsStatusNotFound;
     });
 
     AddSystemCall(kSysClose, [](uint64_t, uint64_t, uint64_t, uint64_t) -> uint64_t {
@@ -1259,20 +1259,20 @@ void LaunchKernel(boot::LaunchInfo launch) {
     AddSystemCall(kSysRead, [](uint64_t userNodeId, uint64_t userBufferAddress, uint64_t userBufferSize, uint64_t) -> uint64_t {
         const void *bufferBegin = TranslateUserPointer((const void*)userBufferAddress);
         if (bufferBegin == nullptr) {
-            return ERROR_INVALID_INPUT;
+            return OsStatusInvalidInput;
         }
 
         const void *bufferEnd = TranslateUserPointer((const void*)((uintptr_t)bufferBegin + userBufferSize));
         if (bufferEnd == nullptr) {
-            return ERROR_INVALID_INPUT;
+            return OsStatusInvalidInput;
         }
 
         VfsHandle* nodeId = (VfsHandle*)userNodeId;
         size_t bufferSize = userBufferSize;
 
         size_t read = 0;
-        KmStatus status = nodeId->read((void*)bufferBegin, bufferSize, &read);
-        if (status == ERROR_SUCCESS) {
+        OsStatus status = nodeId->read((void*)bufferBegin, bufferSize, &read);
+        if (status == OsStatusSuccess) {
             read = bufferSize;
         }
 
@@ -1284,11 +1284,11 @@ void LaunchKernel(boot::LaunchInfo launch) {
         const void *messageEnd = TranslateUserPointer((const void*)userMessageEnd);
 
         if (messageBegin == nullptr || messageEnd == nullptr) {
-            return ERROR_INVALID_INPUT;
+            return OsStatusInvalidInput;
         }
 
         if (messageBegin >= messageEnd) {
-            return ERROR_INVALID_INPUT;
+            return OsStatusInvalidInput;
         }
 
         stdx::StringView message = stdx::StringView((const char*)messageBegin, (const char*)messageEnd);

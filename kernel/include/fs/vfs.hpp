@@ -15,7 +15,7 @@ namespace km {
             , mOffset(0)
         { }
 
-        KmStatus read(void *buffer, size_t size, size_t *result) {
+        OsStatus read(void *buffer, size_t size, size_t *result) {
             vfs::ReadRequest request = {
                 .front = mOffset,
                 .back = mOffset + size,
@@ -24,8 +24,8 @@ namespace km {
 
             vfs::ReadResult readResult;
 
-            KmStatus status = mNode->node()->read(request, &readResult);
-            if (status == ERROR_SUCCESS) {
+            OsStatus status = mNode->node()->read(request, &readResult);
+            if (status == OsStatusSuccess) {
                 mOffset += readResult.read;
                 *result = readResult.read;
             }
@@ -33,7 +33,7 @@ namespace km {
             return status;
         }
 
-        KmStatus write(const void *buffer, size_t size, size_t *result) {
+        OsStatus write(const void *buffer, size_t size, size_t *result) {
             vfs::WriteRequest request = {
                 .front = mOffset,
                 .back = mOffset + size,
@@ -42,8 +42,8 @@ namespace km {
 
             vfs::WriteResult writeResult;
 
-            KmStatus status = mNode->node()->write(request, &writeResult);
-            if (status == ERROR_SUCCESS) {
+            OsStatus status = mNode->node()->write(request, &writeResult);
+            if (status == OsStatusSuccess) {
                 mOffset += writeResult.written;
                 *result = writeResult.written;
             }

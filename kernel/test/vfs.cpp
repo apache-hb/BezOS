@@ -37,7 +37,7 @@ TEST(VfsTest, CreateFile) {
     ASSERT_NE(file, nullptr);
 
     size_t write = 0;
-    KmStatus status = file->write("Welcome.\n", 9, &write);
+    OsStatus status = file->write("Welcome.\n", 9, &write);
     ASSERT_EQ(status, ERROR_SUCCESS);
     ASSERT_EQ(write, 9);
 

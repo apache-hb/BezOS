@@ -40,44 +40,44 @@ namespace vfs {
         virtual IFileSystemMount *owner() const = 0;
         virtual km::VfsEntryType type() const = 0;
 
-        virtual KmStatus read(ReadRequest request, ReadResult *result) = 0;
-        virtual KmStatus write(WriteRequest request, WriteResult *result) = 0;
+        virtual OsStatus read(ReadRequest request, ReadResult *result) = 0;
+        virtual OsStatus write(WriteRequest request, WriteResult *result) = 0;
 
-        virtual KmStatus create(stdx::StringView name, INode **node) = 0;
-        virtual KmStatus remove(INode *node) = 0;
+        virtual OsStatus create(stdx::StringView name, INode **node) = 0;
+        virtual OsStatus remove(INode *node) = 0;
 
-        virtual KmStatus mkdir(stdx::StringView name, INode **node) = 0;
-        virtual KmStatus rmdir(stdx::StringView name) = 0;
+        virtual OsStatus mkdir(stdx::StringView name, INode **node) = 0;
+        virtual OsStatus rmdir(stdx::StringView name) = 0;
 
-        virtual KmStatus find(stdx::StringView name, INode **node) = 0;
+        virtual OsStatus find(stdx::StringView name, INode **node) = 0;
     };
 
     class EmptyNode : public INode {
-        KmStatus read(ReadRequest, ReadResult *) override {
+        OsStatus read(ReadRequest, ReadResult *) override {
             return ERROR_NOT_SUPPORTED;
         }
 
-        KmStatus write(WriteRequest, WriteResult *) override {
+        OsStatus write(WriteRequest, WriteResult *) override {
             return ERROR_NOT_SUPPORTED;
         }
 
-        KmStatus create(stdx::StringView, INode **) override {
+        OsStatus create(stdx::StringView, INode **) override {
             return ERROR_NOT_SUPPORTED;
         }
 
-        KmStatus remove(INode *) override {
+        OsStatus remove(INode *) override {
             return ERROR_NOT_SUPPORTED;
         }
 
-        KmStatus mkdir(stdx::StringView, INode **) override {
+        OsStatus mkdir(stdx::StringView, INode **) override {
             return ERROR_NOT_SUPPORTED;
         }
 
-        KmStatus rmdir(stdx::StringView) override {
+        OsStatus rmdir(stdx::StringView) override {
             return ERROR_NOT_SUPPORTED;
         }
 
-        KmStatus find(stdx::StringView, INode **) override {
+        OsStatus find(stdx::StringView, INode **) override {
             return ERROR_NOT_SUPPORTED;
         }
     };
@@ -99,6 +99,6 @@ namespace vfs {
 
         virtual stdx::StringView name() const = 0;
 
-        virtual KmStatus mount(IFileSystemMount **mount) = 0;
+        virtual OsStatus mount(IFileSystemMount **mount) = 0;
     };
 }

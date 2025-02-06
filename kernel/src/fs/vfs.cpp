@@ -57,7 +57,7 @@ km::VfsEntry *km::VirtualFileSystem::mkdir(const VfsPath& path) {
         vfs::INode *pnode = parent->node();
 
         vfs::INode *node = nullptr;
-        KmStatus status = pnode->mkdir(path.name(), &node);
+        OsStatus status = pnode->mkdir(path.name(), &node);
         if (status != ERROR_SUCCESS) {
             return nullptr;
         }
@@ -78,7 +78,7 @@ km::VfsEntry *km::VirtualFileSystem::mount(const VfsPath& path, vfs::IFileSystem
         }
 
         vfs::IFileSystemMount *mount = nullptr;
-        KmStatus status = fs->mount(&mount);
+        OsStatus status = fs->mount(&mount);
         if (status != ERROR_SUCCESS) {
             return nullptr;
         }
@@ -105,7 +105,7 @@ km::VfsHandle *km::VirtualFileSystem::open(const VfsPath& path) {
 
             // If it doesn't exist then try to find it in the filesystem.
             vfs::INode *node = nullptr;
-            KmStatus status = pnode->find(path.name(), &node);
+            OsStatus status = pnode->find(path.name(), &node);
             if (status == ERROR_SUCCESS) {
                 // If it's in the filesystem, then cache it and return a handle
                 // to the newly created entry.
