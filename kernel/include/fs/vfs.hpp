@@ -5,12 +5,12 @@
 
 namespace km {
     class VfsHandle {
-        VfsEntry *mNode;
+        km::VfsEntry *mNode;
 
         uint64_t mOffset;
 
     public:
-        VfsHandle(VfsEntry *node)
+        VfsHandle(km::VfsEntry *node)
             : mNode(node)
             , mOffset(0)
         { }
@@ -53,23 +53,28 @@ namespace km {
     };
 
     class VirtualFileSystem {
-        struct VfsCacheEntry {
-            VfsEntry *entry;
-            uint32_t refCount;
-        };
-
-        std::unique_ptr<vfs::IFileSystemMount> mRootMount;
+        vfs::IFileSystemMount *mRootMount;
         VfsEntry mRootEntry;
+
+        using Container = BTreeMap<VfsPath, std::unique_ptr<vfs::IFileSystemMount>>;
+        using ValueType = Container::value_type;
+        Container mMounts;
 
         std::tuple<VfsEntry*, vfs::IFileSystemMount*> getParentFolder(const VfsPath& path);
 
     public:
         VirtualFileSystem();
 
-        VfsEntry *mkdir(const VfsPath& path);
+        VirtualFileSystem(const VirtualFileSystem&) = delete;
+        VirtualFileSystem& operator=(const VirtualFileSystem&) = delete;
+
+        VirtualFileSystem(VirtualFileSystem&&) = delete;
+        VirtualFileSystem& operator=(VirtualFileSystem&&) = delete;
+
+        km::VfsEntry *mkdir(const VfsPath& path);
         void rmdir(const VfsPath& path);
 
-        VfsEntry *mount(const VfsPath& path, vfs::IFileSystem *fs);
+        km::VfsEntry *mount(const VfsPath& path, vfs::IFileSystem *fs);
         void unmount(const VfsPath& path);
 
         VfsHandle *open(const VfsPath& path);

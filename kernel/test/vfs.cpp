@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "fs/vfs.hpp"
+#include "fs/ramfs.hpp"
 
 void DefaultInternalLog(absl::LogSeverity, const char *, int, std::string_view message) {
     std::cout << "Internal log: " << message << std::endl;
@@ -15,20 +16,9 @@ TEST(VfsTest, Construct) {
     km::VirtualFileSystem vfs;
 }
 
-TEST(VfsText, CreateRoot) {
+TEST(VfsText, CreateFolder) {
     km::VirtualFileSystem vfs;
-    km::VfsEntry *entry = vfs.mkdir("/"_sv);
-
-    ASSERT_NE(entry, nullptr);
-    ASSERT_EQ(entry->type(), km::VfsEntryType::eFolder);
-    ASSERT_NE(entry->node(), nullptr);
-    ASSERT_NE(entry->mount(), nullptr);
-}
-
-TEST(VfsTest, CreateFolder) {
-    km::VirtualFileSystem vfs;
-    vfs.mkdir("/"_sv);
-    km::VfsEntry *entry = vfs.mkdir("/Users"_sv);
+    auto entry = vfs.mkdir("/Users"_sv);
 
     ASSERT_NE(entry, nullptr);
     ASSERT_EQ(entry->type(), km::VfsEntryType::eFolder);
@@ -63,4 +53,23 @@ TEST(VfsTest, CreateFile) {
 
     buffer[readSize] = '\0';
     ASSERT_STREQ(buffer, "Welcome.\n");
+}
+
+TEST(VfsTest, CreateMount) {
+    km::VirtualFileSystem vfs;
+
+    auto *system = vfs.mkdir("/System"_sv);
+    vfs.mkdir("/System/Config"_sv);
+
+    auto *entry = vfs.mount("/Init"_sv, &vfs::RamFs::get());
+    auto *subdir = vfs.mkdir("/Init/DriverConfig"_sv);
+
+    ASSERT_NE(entry, nullptr);
+    ASSERT_NE(subdir, nullptr);
+
+    ASSERT_NE(system->mount(), nullptr);
+    ASSERT_NE(entry->mount(), nullptr);
+
+    ASSERT_NE(system->mount(), entry->mount());
+    ASSERT_EQ(entry->mount(), subdir->mount());
 }

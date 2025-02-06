@@ -359,6 +359,9 @@ testcases = {
         'kernel/src/fs/vfs.cpp',
         'kernel/src/fs/path.cpp',
         'kernel/src/fs/ramfs.cpp',
+    ],
+    'shared ptr': [
+        'kernel/test/shared.cpp',
     ]
 }
 

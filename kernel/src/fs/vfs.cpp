@@ -4,24 +4,28 @@
 
 #include <utility>
 
-void km::VfsFolder::insert(stdx::String name, std::unique_ptr<VfsEntry> node) {
+using namespace stdx::literals;
+
+km::VfsEntry *km::VfsFolder::insert(stdx::String name, std::unique_ptr<VfsEntry> node) {
     using Value = Container::value_type;
 
-    Value value = { std::move(name), std::move(node) };
-    nodes.insert(std::move(value));
+    auto [iter, _] = nodes.insert(Value { std::move(name), std::move(node) });
+
+    return iter->second.get();
 }
 
 km::VirtualFileSystem::VirtualFileSystem()
     : mRootMount(new vfs::RamFsMount())
-    , mRootEntry(mRootMount.get())
-{ }
+    , mRootEntry(mRootMount)
+{
+    mMounts.insert(ValueType{ VfsPath("/"_sv), std::unique_ptr<vfs::IFileSystemMount>(mRootMount) });
+}
 
 std::tuple<km::VfsEntry*, vfs::IFileSystemMount*> km::VirtualFileSystem::getParentFolder(const VfsPath& path) {
     if (path.segments() == 1)
-        return std::make_tuple(&mRootEntry, mRootMount.get());
+        return std::make_tuple(&mRootEntry, mRootMount);
 
     VfsEntry *current = &mRootEntry;
-    vfs::IFileSystemMount *mount = mRootMount.get();
 
     for (stdx::StringView segment : path.parent()) {
         VfsFolder& folder = current->folder();
@@ -31,15 +35,14 @@ std::tuple<km::VfsEntry*, vfs::IFileSystemMount*> km::VirtualFileSystem::getPare
         }
 
         auto& node = it->second;
-        if (node->type() != VfsEntryType::eFolder) {
+        if (node->type() != VfsEntryType::eFolder && node->type() != VfsEntryType::eMount) {
             return { nullptr, nullptr };
         }
 
         current = node.get();
-        mount = node->mount();
     }
 
-    return std::make_tuple(current, mount);
+    return std::make_tuple(current, current->mount());
 }
 
 km::VfsEntry *km::VirtualFileSystem::mkdir(const VfsPath& path) {
@@ -59,10 +62,7 @@ km::VfsEntry *km::VirtualFileSystem::mkdir(const VfsPath& path) {
             return nullptr;
         }
 
-        std::unique_ptr<VfsEntry> vfsEntry(new VfsEntry(node));
-        VfsEntry *ptr = vfsEntry.get();
-        folder.insert(stdx::String(path.name()), std::move(vfsEntry));
-        return ptr;
+        return folder.insert(stdx::String(path.name()), std::unique_ptr<VfsEntry>(new VfsEntry(node)));
     }
 
     return nullptr;
@@ -83,12 +83,9 @@ km::VfsEntry *km::VirtualFileSystem::mount(const VfsPath& path, vfs::IFileSystem
             return nullptr;
         }
 
-        std::unique_ptr<VfsEntry> node(new VfsEntry(mount));
-        VfsEntry *ptr = node.get();
+        mMounts.insert(ValueType{ path, std::unique_ptr<vfs::IFileSystemMount>(mount) });
 
-        folder.insert(stdx::String(path.name()), std::move(node));
-
-        return ptr;
+        return folder.insert(stdx::String(path.name()), std::unique_ptr<VfsEntry>(new VfsEntry(mount)));
     }
 
     return nullptr;
@@ -112,11 +109,7 @@ km::VfsHandle *km::VirtualFileSystem::open(const VfsPath& path) {
             if (status == ERROR_SUCCESS) {
                 // If it's in the filesystem, then cache it and return a handle
                 // to the newly created entry.
-                std::unique_ptr<VfsEntry> vfsEntry(new VfsEntry(node));
-                VfsEntry *ptr = vfsEntry.get();
-
-                folder.insert(stdx::String(path.name()), std::move(vfsEntry));
-                return new VfsHandle(ptr);
+                return new VfsHandle(folder.insert(stdx::String(path.name()), std::unique_ptr<VfsEntry>(new VfsEntry(node))));
             }
 
             // If it doesn't exist in either the cache or the filesystem, then
@@ -127,11 +120,7 @@ km::VfsHandle *km::VirtualFileSystem::open(const VfsPath& path) {
                 return nullptr;
             }
 
-            std::unique_ptr<VfsEntry> vfsEntry(new VfsEntry(node));
-            VfsEntry *ptr = vfsEntry.get();
-
-            folder.insert(stdx::String(path.name()), std::move(vfsEntry));
-            return new VfsHandle(ptr);
+            return new VfsHandle(folder.insert(stdx::String(path.name()), std::unique_ptr<VfsEntry>(new VfsEntry(node))));
         }
 
         if (it->second->type() != VfsEntryType::eFile) {

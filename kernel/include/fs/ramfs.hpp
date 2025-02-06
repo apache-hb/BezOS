@@ -34,8 +34,6 @@ namespace vfs {
     };
 
     class RamFsFolder final : public RamFsNode {
-        km::BTreeMap<stdx::String, std::unique_ptr<RamFsNode>, std::less<>> mChildren;
-
     public:
         RamFsFolder(RamFsMount *mount);
 
@@ -51,12 +49,12 @@ namespace vfs {
     };
 
     class RamFsMount final : public IFileSystemMount {
-        std::unique_ptr<RamFsNode> mRoot;
+        sm::SharedPtr<RamFsNode> mRoot;
     public:
         RamFsMount();
 
         IFileSystem *filesystem() const override;
-        INode *root() const override;
+        sm::SharedPtr<INode> root() const override;
     };
 
     class RamFs final : public IFileSystem {

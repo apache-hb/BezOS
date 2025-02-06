@@ -5,6 +5,7 @@
 #include <iterator>
 #include <algorithm>
 #include <array>
+#include <string_view>
 
 namespace stdx {
     template<typename T>
@@ -75,3 +76,10 @@ namespace stdx {
         }
     }
 }
+
+template<typename T>
+struct std::hash<stdx::StringViewBase<T>> {
+    size_t operator()(const stdx::StringViewBase<T>& view) const {
+        return std::hash<std::basic_string_view<T>>()(std::basic_string_view<T>(view.data(), view.count()));
+    }
+};

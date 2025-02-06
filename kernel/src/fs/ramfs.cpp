@@ -46,42 +46,33 @@ vfs::RamFsFolder::RamFsFolder(RamFsMount *mount)
     : RamFsNode(mount)
 { }
 
-KmStatus vfs::RamFsFolder::create(stdx::StringView name, INode **node) {
-    std::unique_ptr<RamFsNode> child(new RamFsFile(mount()));
-    RamFsNode *ptr = child.get();
+KmStatus vfs::RamFsFolder::create(stdx::StringView, INode **node) {
+    if (RamFsNode *child = new(std::nothrow) RamFsFile(mount())) {
+        *node = child;
+        return ERROR_SUCCESS;
+    }
 
-    mChildren.insert({ stdx::String(name), std::move(child) });
-
-    *node = ptr;
-
-    return ERROR_SUCCESS;
+    return ERROR_OUT_OF_MEMORY;
 }
 
 KmStatus vfs::RamFsFolder::remove(INode *) {
     return ERROR_NOT_SUPPORTED;
 }
 
-KmStatus vfs::RamFsFolder::mkdir(stdx::StringView name, INode **node) {
-    std::unique_ptr<RamFsFolder> child(new RamFsFolder(mount()));
-    RamFsNode *ptr = child.get();
+KmStatus vfs::RamFsFolder::mkdir(stdx::StringView, INode **node) {
+    if (RamFsFolder *child = new(std::nothrow) RamFsFolder(mount())) {
+        *node = child;
+        return ERROR_SUCCESS;
+    }
 
-    mChildren.insert({ stdx::String(name), std::move(child) });
-
-    *node = ptr;
-
-    return ERROR_SUCCESS;
+    return ERROR_OUT_OF_MEMORY;
 }
 
 KmStatus vfs::RamFsFolder::rmdir(stdx::StringView) {
     return ERROR_NOT_SUPPORTED;
 }
 
-KmStatus vfs::RamFsFolder::find(stdx::StringView name, INode **node) {
-    if (auto it = mChildren.find(name); it != mChildren.end()) {
-        *node = it->second.get();
-        return ERROR_SUCCESS;
-    }
-
+KmStatus vfs::RamFsFolder::find(stdx::StringView, INode **) {
     return ERROR_NOT_FOUND;
 }
 
@@ -93,8 +84,8 @@ vfs::IFileSystem *vfs::RamFsMount::filesystem() const {
     return &RamFs::get();
 }
 
-vfs::INode *vfs::RamFsMount::root() const {
-    return mRoot.get();
+sm::SharedPtr<vfs::INode> vfs::RamFsMount::root() const {
+    return mRoot;
 }
 
 stdx::StringView vfs::RamFs::name() const {

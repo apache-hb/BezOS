@@ -69,3 +69,10 @@ namespace km {
         }
     };
 }
+
+template<>
+struct std::hash<km::VfsPath> {
+    size_t operator()(const km::VfsPath& path) const {
+        return std::hash<stdx::StringView>()(path.path());
+    }
+};

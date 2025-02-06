@@ -2,6 +2,7 @@
 
 #include "shared/status.h"
 
+#include "std/shared.hpp"
 #include "std/string_view.hpp"
 
 #include "fs/types.hpp"
@@ -88,7 +89,7 @@ namespace vfs {
 
         virtual IFileSystem *filesystem() const = 0;
 
-        virtual INode *root() const = 0;
+        virtual sm::SharedPtr<INode> root() const = 0;
     };
 
     /// @brief Represents a file system type.
