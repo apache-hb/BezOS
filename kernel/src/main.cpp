@@ -1088,7 +1088,6 @@ void LaunchKernel(boot::LaunchInfo launch) {
     ComPortInfo com1Info = {
         .port = km::com::kComPort1,
         .divisor = km::com::kBaud9600,
-        .skipLoopbackTest = false,
     };
 
     SerialPortStatus com1Status = InitSerialPort(com1Info);

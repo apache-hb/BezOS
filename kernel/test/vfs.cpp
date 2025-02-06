@@ -38,7 +38,7 @@ TEST(VfsTest, CreateFile) {
 
     size_t write = 0;
     OsStatus status = file->write("Welcome.\n", 9, &write);
-    ASSERT_EQ(status, ERROR_SUCCESS);
+    ASSERT_EQ(status, OsStatusSuccess);
     ASSERT_EQ(write, 9);
 
     std::unique_ptr<km::VfsHandle> read{vfs.open("/Users/Guest/motd.txt"_sv)};
@@ -48,7 +48,7 @@ TEST(VfsTest, CreateFile) {
     char buffer[256];
     size_t readSize = 0;
     status = read->read(buffer, 256, &readSize);
-    ASSERT_EQ(status, ERROR_SUCCESS);
+    ASSERT_EQ(status, OsStatusSuccess);
     ASSERT_EQ(readSize, 9);
 
     buffer[readSize] = '\0';

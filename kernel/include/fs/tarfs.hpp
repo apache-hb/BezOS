@@ -1,8 +1,10 @@
 #pragma once
 
-#include "drivers/fs/driver.hpp"
+#include "drivers/block/driver.hpp"
 
-namespace km {
+#include "fs/mount.hpp"
+
+namespace vfs {
     struct TarPosixHeader {
         char name[100];
         char mode[8];
@@ -34,13 +36,13 @@ namespace km {
     static_assert(sizeof(TarPosixHeader) == 500);
 
     class TarFsDriver : public IFileSystem {
-        BlockDevice *mMedia;
+        km::BlockDevice *mMedia;
 
     public:
-        TarFsDriver(BlockDevice *media)
+        TarFsDriver(km::BlockDevice *media)
             : mMedia(media)
         { }
 
-        BlockDevice *media() const { return mMedia; }
+        km::BlockDevice *media() const { return mMedia; }
     };
 }

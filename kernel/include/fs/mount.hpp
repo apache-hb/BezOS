@@ -54,31 +54,31 @@ namespace vfs {
 
     class EmptyNode : public INode {
         OsStatus read(ReadRequest, ReadResult *) override {
-            return ERROR_NOT_SUPPORTED;
+            return OsStatusNotSupported;
         }
 
         OsStatus write(WriteRequest, WriteResult *) override {
-            return ERROR_NOT_SUPPORTED;
+            return OsStatusNotSupported;
         }
 
         OsStatus create(stdx::StringView, INode **) override {
-            return ERROR_NOT_SUPPORTED;
+            return OsStatusNotSupported;
         }
 
         OsStatus remove(INode *) override {
-            return ERROR_NOT_SUPPORTED;
+            return OsStatusNotSupported;
         }
 
         OsStatus mkdir(stdx::StringView, INode **) override {
-            return ERROR_NOT_SUPPORTED;
+            return OsStatusNotSupported;
         }
 
         OsStatus rmdir(stdx::StringView) override {
-            return ERROR_NOT_SUPPORTED;
+            return OsStatusNotSupported;
         }
 
         OsStatus find(stdx::StringView, INode **) override {
-            return ERROR_NOT_SUPPORTED;
+            return OsStatusNotSupported;
         }
     };
 

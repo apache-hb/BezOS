@@ -22,6 +22,15 @@ extern "C" void *memset(void *dst, int value, size_t n) {
     return dst;
 }
 
+extern "C" int strcmp(const char *s1, const char *s2) {
+    while (*s1 && *s1 == *s2) {
+        s1++;
+        s2++;
+    }
+
+    return *(unsigned char *)s1 - *(unsigned char *)s2;
+}
+
 extern "C" void *memmove(void *dest, const void *src, size_t n) {
     uint8_t *pdest = (uint8_t *)dest;
     const uint8_t *psrc = (const uint8_t *)src;

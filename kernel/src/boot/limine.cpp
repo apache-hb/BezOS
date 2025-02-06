@@ -187,9 +187,13 @@ static BootAllocator MakeBootAllocator(size_t size, const limine_memmap_response
     return BootAllocator { };
 }
 
-static km::MemoryRange GetInitDiskImage(const limine_module_response& modules, const char *path, uintptr_t hhdmOffset) {
-    for (uint64_t i = 0; i < modules.module_count; i++) {
-        limine_file file = *modules.modules[i];
+static km::MemoryRange GetInitDiskImage(const limine_module_response *modules, const char *path, uintptr_t hhdmOffset) {
+    if (modules == nullptr) {
+        return { };
+    }
+
+    for (uint64_t i = 0; i < modules->module_count; i++) {
+        limine_file file = *modules->modules[i];
 
         if (strcmp(file.path, path) == 0) {
             uintptr_t front = (uintptr_t)file.address - hhdmOffset;
@@ -212,7 +216,7 @@ extern "C" void kmain(void) {
     limine_hhdm_response hhdm = *gDirectMapRequest.response;
     limine_rsdp_response rsdp = *gAcpiTableRequest.response;
     limine_smbios_response smbios = *gSmbiosRequest.response;
-    limine_module_response modules = *gModuleRequest.response;
+    const limine_module_response *modules = gModuleRequest.response;
     uintptr_t stack = (uintptr_t)base - hhdm.offset;
 
     BootAllocator alloc = MakeBootAllocator(kBootMemory, memory, hhdm.offset);
