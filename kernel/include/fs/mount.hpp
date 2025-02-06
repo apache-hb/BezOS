@@ -5,6 +5,8 @@
 #include "std/shared.hpp"
 #include "std/string_view.hpp"
 
+#include "util/cxx_chrono.hpp" // IWYU pragma: keep
+
 #include "fs/types.hpp"
 
 namespace vfs {
@@ -32,6 +34,41 @@ namespace vfs {
         uint64_t written;
     };
 
+    struct OpenRequest {
+
+    };
+
+    struct OpenResult {
+
+    };
+
+    struct CloseRequest {
+
+    };
+
+    struct CloseResult {
+
+    };
+
+    using FileTime = std::chrono::utc_clock::time_point;
+
+    struct NodeAttributes {
+        FileTime created;
+        FileTime modified;
+        FileTime accessed;
+        uint64_t filesize;
+        uint64_t blocks;
+        km::VfsNodeId id;
+        km::VfsEntryType type;
+    };
+
+    class INodeIterator {
+    public:
+        virtual ~INodeIterator() = default;
+
+        virtual OsStatus next(INode **node) = 0;
+    };
+
     /// @brief A file or directory in a mounted filesystem.
     class INode {
     public:
@@ -39,6 +76,8 @@ namespace vfs {
 
         virtual IFileSystemMount *owner() const = 0;
         virtual km::VfsEntryType type() const = 0;
+
+        virtual OsStatus stat(NodeAttributes*) { return OsStatusNotSupported; }
 
         virtual OsStatus read(ReadRequest request, ReadResult *result) = 0;
         virtual OsStatus write(WriteRequest request, WriteResult *result) = 0;

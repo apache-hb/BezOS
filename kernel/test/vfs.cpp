@@ -8,7 +8,7 @@ void DefaultInternalLog(absl::LogSeverity, const char *, int, std::string_view m
 }
 
 constinit absl::base_internal::AtomicHook<absl::raw_log_internal::InternalLogFunction>
-        absl::raw_log_internal::internal_log_function(DefaultInternalLog);
+    absl::raw_log_internal::internal_log_function(DefaultInternalLog);
 
 using namespace stdx::literals;
 
@@ -72,4 +72,18 @@ TEST(VfsTest, CreateMount) {
 
     ASSERT_NE(system->mount(), entry->mount());
     ASSERT_EQ(entry->mount(), subdir->mount());
+}
+
+TEST(VfsTest, DeleteFile) {
+    km::VirtualFileSystem vfs;
+
+    vfs.mkdir("/System"_sv);
+    auto *dir = vfs.mkdir("/System/Config"_sv);
+    ASSERT_NE(dir, nullptr);
+
+    auto *entry = vfs.open("/System/Config/Settings.ini"_sv);
+    ASSERT_NE(entry, nullptr);
+    vfs.close(entry);
+
+    vfs.unlink("/System/Config/Settings.ini"_sv);
 }

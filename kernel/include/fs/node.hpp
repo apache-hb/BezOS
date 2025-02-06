@@ -23,6 +23,10 @@ namespace km {
             return nodes.find(name);
         }
 
+        void erase(ConstIterator it) {
+            nodes.erase(it);
+        }
+
         ConstIterator begin() const { return nodes.begin(); }
         ConstIterator end() const { return nodes.end(); }
     };

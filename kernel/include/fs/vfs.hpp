@@ -79,5 +79,7 @@ namespace km {
 
         VfsHandle *open(const VfsPath& path);
         void close(VfsHandle *id);
+
+        void unlink(const VfsPath& path);
     };
 }

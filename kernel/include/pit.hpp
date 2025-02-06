@@ -111,6 +111,7 @@ namespace km {
         HpetWidth counterSize() const;
         uint8_t timerCount() const;
         uint8_t revision() const;
+        uint8_t hpetNumber() const { return mTable.hpetNumber; }
 
         void enable(bool enabled);
 

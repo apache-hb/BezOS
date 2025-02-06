@@ -1059,6 +1059,98 @@ const void *TranslateUserPointer(const void *userAddress) {
     return nullptr;
 }
 
+static void InitVfs() {
+    gVfs = new VirtualFileSystem();
+
+    gVfs->mkdir("/System"_sv);
+    gVfs->mkdir("/System/Config"_sv);
+
+    gVfs->mkdir("/Users"_sv);
+    gVfs->mkdir("/Users/Admin"_sv);
+    gVfs->mkdir("/Users/Guest"_sv);
+
+    std::unique_ptr<VfsHandle> motd {gVfs->open("/Users/Guest/motd.txt"_sv)};
+    stdx::StringView motdContent = "Welcome.\n";
+    size_t count = 0;
+    motd->write(motdContent.data(), motdContent.count(), &count);
+    gVfs->close(motd.release());
+
+    enum {
+        kSysOpen = 10,
+        kSysClose = 11,
+        kSysRead = 12,
+
+        kSysLog = 20,
+    };
+
+    AddSystemCall(kSysOpen, [](uint64_t userArgPathBegin, uint64_t userArgPathEnd, uint64_t, uint64_t) -> uint64_t {
+        const void *argPathBegin = TranslateUserPointer((const void*)userArgPathBegin);
+        const void *argPathEnd = TranslateUserPointer((const void*)userArgPathEnd);
+        if (argPathBegin == nullptr || argPathEnd == nullptr) {
+            return OsStatusInvalidInput;
+        }
+
+        if (argPathBegin >= argPathEnd) {
+            return OsStatusInvalidInput;
+        }
+
+        VfsPath path = stdx::StringView((const char*)argPathBegin, (const char*)argPathEnd);
+        if (VfsHandle *node = gVfs->open(path)) {
+            return (uintptr_t)node;
+        }
+
+        return OsStatusNotFound;
+    });
+
+    AddSystemCall(kSysClose, [](uint64_t, uint64_t, uint64_t, uint64_t) -> uint64_t {
+        return 0;
+    });
+
+    AddSystemCall(kSysRead, [](uint64_t userNodeId, uint64_t userBufferAddress, uint64_t userBufferSize, uint64_t) -> uint64_t {
+        const void *bufferBegin = TranslateUserPointer((const void*)userBufferAddress);
+        if (bufferBegin == nullptr) {
+            return OsStatusInvalidInput;
+        }
+
+        const void *bufferEnd = TranslateUserPointer((const void*)((uintptr_t)bufferBegin + userBufferSize));
+        if (bufferEnd == nullptr) {
+            return OsStatusInvalidInput;
+        }
+
+        VfsHandle* nodeId = (VfsHandle*)userNodeId;
+        size_t bufferSize = userBufferSize;
+
+        size_t read = 0;
+        OsStatus status = nodeId->read((void*)bufferBegin, bufferSize, &read);
+        if (status == OsStatusSuccess) {
+            read = bufferSize;
+        }
+
+        return read;
+    });
+
+    AddSystemCall(kSysLog, [](uint64_t userMessageBegin, uint64_t userMessageEnd, uint64_t, uint64_t) -> uint64_t {
+        const void *messageBegin = TranslateUserPointer((const void*)userMessageBegin);
+        const void *messageEnd = TranslateUserPointer((const void*)userMessageEnd);
+
+        if (messageBegin == nullptr || messageEnd == nullptr) {
+            return OsStatusInvalidInput;
+        }
+
+        if (messageBegin >= messageEnd) {
+            return OsStatusInvalidInput;
+        }
+
+        stdx::StringView message = stdx::StringView((const char*)messageBegin, (const char*)messageEnd);
+        while (message.back() == '\n')
+            message = message.substr(message.count() - 1);
+
+        KmDebugMessage("[USER] ", message, "\n");
+
+        return 0;
+    });
+}
+
 void LaunchKernel(boot::LaunchInfo launch) {
     NormalizeProcessorState();
 
@@ -1192,6 +1284,8 @@ void LaunchKernel(boot::LaunchInfo launch) {
     DateTime time = ReadRtc();
     KmDebugMessage("[INIT] Current time: ", time.year, "-", time.month, "-", time.day, "T", time.hour, ":", time.minute, ":", time.second, "Z\n");
 
+    InitVfs();
+
     hid::Ps2Controller ps2Controller;
 
     bool has8042 = rsdt.has8042Controller();
@@ -1208,96 +1302,6 @@ void LaunchKernel(boot::LaunchInfo launch) {
     } else {
         KmDebugMessage("[INIT] No PS/2 controller found.\n");
     }
-
-    gVfs = new VirtualFileSystem();
-
-    gVfs->mkdir("/System"_sv);
-    gVfs->mkdir("/System/Config"_sv);
-
-    gVfs->mkdir("/Users"_sv);
-    gVfs->mkdir("/Users/Admin"_sv);
-    gVfs->mkdir("/Users/Guest"_sv);
-
-    std::unique_ptr<VfsHandle> motd {gVfs->open("/Users/Guest/motd.txt"_sv)};
-    stdx::StringView motdContent = "Welcome.\n";
-    size_t count = 0;
-    motd->write(motdContent.data(), motdContent.count(), &count);
-    gVfs->close(motd.release());
-
-    enum {
-        kSysOpen = 10,
-        kSysClose = 11,
-        kSysRead = 12,
-
-        kSysLog = 20,
-    };
-
-    AddSystemCall(kSysOpen, [](uint64_t userArgPathBegin, uint64_t userArgPathEnd, uint64_t, uint64_t) -> uint64_t {
-        const void *argPathBegin = TranslateUserPointer((const void*)userArgPathBegin);
-        const void *argPathEnd = TranslateUserPointer((const void*)userArgPathEnd);
-        if (argPathBegin == nullptr || argPathEnd == nullptr) {
-            return OsStatusInvalidInput;
-        }
-
-        if (argPathBegin >= argPathEnd) {
-            return OsStatusInvalidInput;
-        }
-
-        VfsPath path = stdx::StringView((const char*)argPathBegin, (const char*)argPathEnd);
-        if (VfsHandle *node = gVfs->open(path)) {
-            return (uintptr_t)node;
-        }
-
-        return OsStatusNotFound;
-    });
-
-    AddSystemCall(kSysClose, [](uint64_t, uint64_t, uint64_t, uint64_t) -> uint64_t {
-        return 0;
-    });
-
-    AddSystemCall(kSysRead, [](uint64_t userNodeId, uint64_t userBufferAddress, uint64_t userBufferSize, uint64_t) -> uint64_t {
-        const void *bufferBegin = TranslateUserPointer((const void*)userBufferAddress);
-        if (bufferBegin == nullptr) {
-            return OsStatusInvalidInput;
-        }
-
-        const void *bufferEnd = TranslateUserPointer((const void*)((uintptr_t)bufferBegin + userBufferSize));
-        if (bufferEnd == nullptr) {
-            return OsStatusInvalidInput;
-        }
-
-        VfsHandle* nodeId = (VfsHandle*)userNodeId;
-        size_t bufferSize = userBufferSize;
-
-        size_t read = 0;
-        OsStatus status = nodeId->read((void*)bufferBegin, bufferSize, &read);
-        if (status == OsStatusSuccess) {
-            read = bufferSize;
-        }
-
-        return read;
-    });
-
-    AddSystemCall(kSysLog, [](uint64_t userMessageBegin, uint64_t userMessageEnd, uint64_t, uint64_t) -> uint64_t {
-        const void *messageBegin = TranslateUserPointer((const void*)userMessageBegin);
-        const void *messageEnd = TranslateUserPointer((const void*)userMessageEnd);
-
-        if (messageBegin == nullptr || messageEnd == nullptr) {
-            return OsStatusInvalidInput;
-        }
-
-        if (messageBegin >= messageEnd) {
-            return OsStatusInvalidInput;
-        }
-
-        stdx::StringView message = stdx::StringView((const char*)messageBegin, (const char*)messageEnd);
-        while (message.back() == '\n')
-            message = message.substr(message.count() - 1);
-
-        KmDebugMessage("[USER] ", message, "\n");
-
-        return 0;
-    });
 
     km::EnterUserMode(process->main.regs);
 

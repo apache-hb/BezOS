@@ -147,10 +147,48 @@ enum {
 /// @return The status of the operation.
 extern OsStatus OsFileOpen(const char *PathFront, const char *PathBack, OsFileOpenMode Mode, OsFileHandle *OutHandle);
 
+/// @brief Close a file handle.
+///
+/// @pre @p Handle must be a valid file handle.
+///
+/// @param Handle The file handle to close.
+///
+/// @return The status of the operation.
 extern OsStatus OsFileClose(OsFileHandle Handle);
 
+/// @brief Read from a file.
+///
+/// @pre @p Handle must be a valid file handle.
+/// @pre @p BufferFront and @p BufferBack must point to the front and back of a valid buffer.
+/// @pre @p BufferBack must be > @p BufferFront.
+/// @pre @p OutRead must point to valid memory.
+///
+/// @post @p OutRead will contain the number of bytes read.
+/// @post @p BufferFront to *@p OutRead will contain the data read, the remaining data is undefined.
+///
+/// @param Handle The file handle to read from.
+/// @param BufferFront The front of the buffer to read into.
+/// @param BufferBack The back of the buffer to read into.
+/// @param OutRead The number of bytes read.
+///
+/// @return The status of the operation.
 extern OsStatus OsFileRead(OsFileHandle Handle, void *BufferFront, void *BufferBack, uint64_t *OutRead);
 
+/// @brief Write to a file.
+///
+/// @pre @p Handle must be a valid file handle.
+/// @pre @p BufferFront and @p BufferBack must point to the front and back of a valid buffer.
+/// @pre @p BufferBack must be > @p BufferFront.
+/// @pre @p OutWritten must point to valid memory.
+///
+/// @post @p OutWritten will contain the number of bytes written.
+///
+/// @param Handle The file handle to write to.
+/// @param BufferFront The front of the buffer to write from.
+/// @param BufferBack The back of the buffer to write from.
+/// @param OutWritten The number of bytes written.
+///
+/// @return The status of the operation.
 extern OsStatus OsFileWrite(OsFileHandle Handle, const void *BufferFront, const void *BufferBack, uint64_t *OutWritten);
 
 extern OsStatus OsFileSeek(OsFileHandle Handle, OsSeekMode Mode, int64_t Offset, uint64_t *OutPosition);

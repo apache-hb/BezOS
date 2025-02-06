@@ -133,6 +133,23 @@ km::VfsHandle *km::VirtualFileSystem::open(const VfsPath& path) {
     return nullptr;
 }
 
-void km::VirtualFileSystem::close(VfsHandle*) {
+void km::VirtualFileSystem::close(VfsHandle* handle) {
+    delete handle;
+}
 
+void km::VirtualFileSystem::unlink(const VfsPath& path) {
+    auto [parent, mount] = getParentFolder(path);
+    if (parent != nullptr) {
+        VfsFolder& folder = parent->folder();
+        auto it = folder.find(path.name());
+        if (it != folder.end()) {
+            vfs::INode *pnode = parent->node();
+            vfs::INode *node = it->second->node();
+
+            OsStatus status = pnode->remove(node);
+            if (status == OsStatusSuccess) {
+                folder.erase(it);
+            }
+        }
+    }
 }
