@@ -29,11 +29,6 @@ namespace pci {
         uint8_t read8(uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset);
     };
 
-    class PortConfigSpace final : public IConfigSpace {
-    public:
-        uint32_t read32(uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset) override;
-    };
-
     struct EcamRegion {
         uint8_t first;
         uint8_t last;
@@ -51,6 +46,11 @@ namespace pci {
     public:
         McfgConfigSpace(const acpi::Mcfg *mcfg, km::SystemMemory& memory);
 
+        uint32_t read32(uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset) override;
+    };
+
+    class PortConfigSpace final : public IConfigSpace {
+    public:
         uint32_t read32(uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset) override;
     };
 

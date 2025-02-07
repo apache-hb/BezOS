@@ -173,6 +173,7 @@ src = [
     'kernel/src/fs/path.cpp',
     'kernel/src/fs/vfs.cpp',
     'kernel/src/fs/ramfs.cpp',
+    'kernel/src/fs/tarfs.cpp',
 
     # Smp setup
     'kernel/src/smp.cpp',

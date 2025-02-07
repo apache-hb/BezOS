@@ -5,7 +5,7 @@
 #include "panic.hpp"
 
 void std::terminate() noexcept {
-    KM_PANIC("__cxa_terminate() called");
+    KM_PANIC("std::terminate() called");
 }
 
 extern "C" void abort() {

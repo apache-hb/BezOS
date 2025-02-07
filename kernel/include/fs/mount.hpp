@@ -31,7 +31,7 @@ namespace vfs {
     };
 
     struct WriteResult {
-        uint64_t written;
+        uint64_t write;
     };
 
     struct OpenRequest {
@@ -79,8 +79,11 @@ namespace vfs {
 
         virtual OsStatus stat(NodeAttributes*) { return OsStatusNotSupported; }
 
-        virtual OsStatus read(ReadRequest request, ReadResult *result) = 0;
-        virtual OsStatus write(WriteRequest request, WriteResult *result) = 0;
+        virtual OsStatus read(ReadRequest, ReadResult*) { return OsStatusNotSupported; }
+        virtual OsStatus write(WriteRequest, WriteResult*) { return OsStatusNotSupported; }
+
+        virtual OsStatus open(OpenRequest, OpenResult*) { return OsStatusNotSupported; }
+        virtual OsStatus close(CloseRequest, CloseResult*) { return OsStatusNotSupported; }
 
         virtual OsStatus create(stdx::StringView name, INode **node) = 0;
         virtual OsStatus remove(INode *node) = 0;
@@ -92,14 +95,6 @@ namespace vfs {
     };
 
     class EmptyNode : public INode {
-        OsStatus read(ReadRequest, ReadResult *) override {
-            return OsStatusNotSupported;
-        }
-
-        OsStatus write(WriteRequest, WriteResult *) override {
-            return OsStatusNotSupported;
-        }
-
         OsStatus create(stdx::StringView, INode **) override {
             return OsStatusNotSupported;
         }

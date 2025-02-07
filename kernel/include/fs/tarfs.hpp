@@ -3,6 +3,7 @@
 #include "drivers/block/driver.hpp"
 
 #include "fs/mount.hpp"
+#include "fs/path.hpp"
 
 namespace vfs {
     struct TarPosixHeader {
@@ -31,18 +32,51 @@ namespace vfs {
 
             return result;
         }
+
+        km::VfsEntryType getType() const {
+            switch (typeflag) {
+            case '0': return km::VfsEntryType::eFile;
+            case '5': return km::VfsEntryType::eFolder;
+            default: return km::VfsEntryType::eNone;
+            }
+        }
+    };
+
+    struct TarNode {
+        TarPosixHeader header;
+        size_t offset;
     };
 
     static_assert(sizeof(TarPosixHeader) == 500);
 
-    class TarFsDriver : public IFileSystem {
-        km::BlockDevice *mMedia;
+    km::BTreeMap<km::VfsPath, TarNode> ParseTar(km::BlockDevice *media);
+
+    class TarFsMount final : public IFileSystemMount {
+        km::BlockDevice mMedia;
+        km::BTreeMap<km::VfsPath, TarNode> mEntries;
 
     public:
-        TarFsDriver(km::BlockDevice *media)
-            : mMedia(media)
+        TarFsMount(km::IBlockDriver *block)
+            : mMedia(block)
+            , mEntries(ParseTar(&mMedia))
         { }
 
-        km::BlockDevice *media() const { return mMedia; }
+        IFileSystem *filesystem() const override;
+
+        sm::SharedPtr<INode> root() const override;
+
+        km::BlockDevice *media() { return &mMedia; }
+    };
+
+    class TarFsDriver final : public IFileSystem {
+    public:
+        TarFsDriver();
+
+        stdx::StringView name() const override {
+            using namespace stdx::literals;
+            return "tarfs"_sv;
+        }
+
+        OsStatus mount(IFileSystemMount **mount) override;
     };
 }
