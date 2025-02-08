@@ -227,6 +227,10 @@ namespace stdx {
             return std::lexicographical_compare_three_way(std::begin(lhs), std::end(lhs), std::begin(rhs), std::end(rhs));
         }
 
+        friend constexpr bool operator==(const StringBase& lhs, const StringBase& rhs) {
+            return std::equal(std::begin(lhs), std::end(lhs), std::begin(rhs), std::end(rhs));
+        }
+
         friend constexpr void swap(StringBase& lhs, StringBase& rhs) {
             std::swap(lhs.mAllocator, rhs.mAllocator);
             std::swap(lhs.mFront, rhs.mFront);

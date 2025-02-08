@@ -42,7 +42,7 @@ namespace stdx {
         constexpr const T *end() const { return mBack; }
 
         constexpr const T& front() const { return *mFront; }
-        constexpr const T& back() const { return *mBack; }
+        constexpr const T& back() const { return *(mBack - 1); }
 
         constexpr StringViewBase substr(size_t first, size_t count) const {
             return StringViewBase(begin() + first, begin() + first + count);
@@ -60,6 +60,10 @@ namespace stdx {
 
         friend constexpr auto operator<=>(StringViewBase lhs, StringViewBase rhs) {
             return std::lexicographical_compare_three_way(std::begin(lhs), std::end(lhs), std::begin(rhs), std::end(rhs));
+        }
+
+        friend constexpr bool operator==(StringViewBase lhs, StringViewBase rhs) {
+            return std::equal(std::begin(lhs), std::end(lhs), std::begin(rhs), std::end(rhs));
         }
     };
 

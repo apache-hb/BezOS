@@ -49,9 +49,22 @@ namespace vfs2 {
         { }
 
         size_t count() const { return mPath.count(); }
+        size_t segmentCount() const;
 
         VfsPathConstIterator begin() const;
         VfsPathConstIterator end() const;
+
+        VfsStringView string() const { return mPath; }
+
+        VfsPath parent() const;
+
+        friend constexpr auto operator<=>(const VfsPath& lhs, const VfsPath& rhs) {
+            return lhs.mPath <=> rhs.mPath;
+        }
+
+        friend constexpr bool operator==(const VfsPath& lhs, const VfsPath& rhs) {
+            return lhs.mPath == rhs.mPath;
+        }
     };
 
     namespace detail {

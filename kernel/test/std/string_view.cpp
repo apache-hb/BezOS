@@ -31,3 +31,20 @@ TEST(StringViewTest, Iterator) {
 
     ASSERT_EQ(std::begin(view), view.begin());
 }
+
+TEST(StringViewTest, Ends) {
+    stdx::StringView sv = "String";
+
+    ASSERT_EQ(sv.front(), 'S');
+    ASSERT_EQ(sv.back(), 'g');
+}
+
+TEST(StringViewTest, Empty) {
+    stdx::StringView sv = "String";
+
+    ASSERT_FALSE(sv.isEmpty());
+
+    stdx::StringView sv2 = "";
+
+    ASSERT_TRUE(sv2.isEmpty());
+}

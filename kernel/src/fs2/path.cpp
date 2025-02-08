@@ -29,6 +29,10 @@ VfsStringView VfsPathConstIterator::operator*() const {
 
 VfsPathConstIterator& VfsPathConstIterator::operator++() {
     auto back = nextSegment(mIter);
+    if (back != mString->end()) {
+        back++;
+    }
+
     mIter = back;
 
     return *this;
@@ -48,6 +52,16 @@ VfsPathConstIterator VfsPath::begin() const {
 
 VfsPathConstIterator VfsPath::end() const {
     return VfsPathConstIterator(&mPath, mPath.end());
+}
+
+size_t VfsPath::segmentCount() const {
+    return std::ranges::count(mPath, OS_PATH_SEPARATOR) + 1;
+}
+
+VfsPath VfsPath::parent() const {
+    auto tail = std::ranges::find_last(mPath, OS_PATH_SEPARATOR);
+
+    return VfsPath(VfsString(mPath.begin(), tail.begin()));
 }
 
 bool vfs2::VerifyPathText(VfsStringView text) {

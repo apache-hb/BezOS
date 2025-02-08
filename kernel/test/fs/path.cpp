@@ -12,6 +12,11 @@ TEST(VfsPathTest, Construct) {
     VfsPath vfs = "System";
 }
 
+TEST(VfsPathTest, StringFormat) {
+    auto path = detail::BuildPathText("System", "Init");
+    ASSERT_EQ(path, VfsString("System\0Init"));
+}
+
 TEST(VfsPathTest, Verify) {
     ASSERT_TRUE(VerifyPathText("System"));
 
@@ -25,7 +30,55 @@ TEST(VfsPathTest, Verify) {
     // No leading or trailing separators
     ASSERT_FALSE(VerifyPathText("\0System"));
     ASSERT_FALSE(VerifyPathText("System\0"));
+    ASSERT_FALSE(VerifyPathText("\0System\0"));
 
     // No empty segments
     ASSERT_FALSE(VerifyPathText(detail::BuildPathText("System", "", "Init")));
+
+    ASSERT_TRUE(VerifyPathText(detail::BuildPathText("System", "Init")));
+}
+
+TEST(VfsPathTest, SegmentCount) {
+    auto path = BuildPath("System", "Init", "Drivers", "DriverConfig.db");
+    ASSERT_EQ(path.segmentCount(), 4);
+}
+
+TEST(VfsPathTest, SegmentCountOne) {
+    auto path = BuildPath("System");
+    ASSERT_EQ(path.segmentCount(), 1);
+}
+
+TEST(VfsPathTest, Iterate) {
+    auto path = BuildPath("System", "Init", "Drivers", "DriverConfig.db");
+    auto begin = path.begin();
+    auto end = path.end();
+
+    ASSERT_NE(begin, end);
+
+    auto segment = *begin;
+    ASSERT_EQ(segment, "System") << std::string_view(segment);
+    ++begin;
+
+    segment = *begin;
+    ASSERT_EQ(segment, "Init") << std::string_view(segment);
+    ++begin;
+
+    segment = *begin;
+    ASSERT_EQ(segment, "Drivers") << std::string_view(segment);
+    ++begin;
+
+    segment = *begin;
+    ASSERT_EQ(segment, "DriverConfig.db") << std::string_view(segment);
+    ++begin;
+
+    ASSERT_EQ(begin, end);
+}
+
+TEST(VfsPathTest, Parent) {
+    auto path = BuildPath("System", "Init", "Drivers", "DriverConfig.db");
+    auto parent = path.parent();
+
+    auto expected = BuildPath("System", "Init", "Drivers");
+
+    ASSERT_EQ(parent, expected) << std::string_view(expected.string()) << " != " << std::string_view(parent.string());
 }
