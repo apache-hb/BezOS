@@ -4,6 +4,12 @@
 
 using namespace vfs2;
 
+IVfsNode::~IVfsNode() {
+    for (auto& [_, inode] : children) {
+        delete inode;
+    }
+}
+
 OsStatus IVfsNode::lookup(VfsStringView name, IVfsNode **child) {
     KM_ASSERT(type == VfsNodeType::eFolder);
 
@@ -59,7 +65,7 @@ OsStatus IVfsNode::addNode(VfsStringView name, IVfsNode *node) {
 }
 
 VfsRoot::VfsRoot()
-    : mRootNode({ })
+    : mRootNode()
 {
     mRootNode.type = VfsNodeType::eFolder;
 }

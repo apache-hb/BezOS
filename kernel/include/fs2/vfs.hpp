@@ -3,11 +3,10 @@
 #include "fs2/path.hpp"
 
 #include "shared/status.h"
-#include "std/string.hpp"
 #include "std/string_view.hpp"
-#include "std/vector.hpp"
 
 #include "absl/container/btree_map.h"
+#include "util/util.hpp"
 
 /// @brief Virtual File System.
 ///
@@ -76,7 +75,12 @@ namespace vfs2 {
     };
 
     struct IVfsNode {
-        virtual ~IVfsNode() = default;
+        IVfsNode() = default;
+
+        virtual ~IVfsNode();
+
+        UTIL_NOCOPY(IVfsNode);
+        UTIL_NOMOVE(IVfsNode);
 
         /// @brief The name of the entry.
         VfsString name;
