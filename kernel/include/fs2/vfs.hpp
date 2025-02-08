@@ -16,7 +16,7 @@
 namespace vfs2 {
     class VfsPath;
 
-    struct VfsHandle;
+    struct IVfsHandle;
 
     struct IVfsNodeIterator;
     struct IVfsNode;
@@ -26,6 +26,12 @@ namespace vfs2 {
 
     template<typename TKey, typename TValue, typename TCompare = std::less<TKey>, typename TAllocator = mem::GlobalAllocator<std::pair<const TKey, TValue>>>
     using BTreeMap = absl::btree_map<TKey, TValue, TCompare, TAllocator>;
+
+    struct ReadRequest { };
+    struct ReadResult { };
+
+    struct WriteRequest { };
+    struct WriteResult { };
 
     enum class VfsNodeType {
         eNone,
@@ -66,8 +72,11 @@ namespace vfs2 {
         OsStatus(*rename)();
     };
 
-    struct VfsHandle {
+    struct IVfsHandle {
         IVfsNode *node;
+
+        OsStatus read(ReadRequest request, ReadResult *result);
+        OsStatus write(WriteRequest request, WriteResult *result);
     };
 
     struct IVfsNodeIterator {
@@ -100,8 +109,10 @@ namespace vfs2 {
         /// @brief If this is a directory, these are all the entries.
         BTreeMap<VfsString, IVfsNode*, std::less<>> children;
 
+        OsStatus open(IVfsHandle **handle);
+
         OsStatus lookup(VfsStringView name, IVfsNode **child);
-        OsStatus createFile(VfsStringView name, IVfsNode **child);
+        OsStatus addFile(VfsStringView name, IVfsNode **child);
         OsStatus addNode(VfsStringView name, IVfsNode *node);
     };
 

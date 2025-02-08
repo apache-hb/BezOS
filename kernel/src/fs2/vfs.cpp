@@ -10,6 +10,18 @@ IVfsNode::~IVfsNode() {
     }
 }
 
+OsStatus IVfsNode::open(IVfsHandle **handle) {
+    KM_ASSERT(type == VfsNodeType::eFile);
+
+    IVfsHandle *result = new(std::nothrow) IVfsHandle(this);
+    if (!result) {
+        return OsStatusOutOfMemory;
+    }
+
+    *handle = result;
+    return OsStatusSuccess;
+}
+
 OsStatus IVfsNode::lookup(VfsStringView name, IVfsNode **child) {
     KM_ASSERT(type == VfsNodeType::eFolder);
 
@@ -23,7 +35,7 @@ OsStatus IVfsNode::lookup(VfsStringView name, IVfsNode **child) {
     return OsStatusSuccess;
 }
 
-OsStatus IVfsNode::createFile(VfsStringView name, IVfsNode **child) {
+OsStatus IVfsNode::addFile(VfsStringView name, IVfsNode **child) {
     KM_ASSERT(type == VfsNodeType::eFolder);
 
     //
@@ -56,6 +68,8 @@ OsStatus IVfsNode::createFile(VfsStringView name, IVfsNode **child) {
 }
 
 OsStatus IVfsNode::addNode(VfsStringView name, IVfsNode *node) {
+    KM_ASSERT(type == VfsNodeType::eFolder);
+
     auto [it, ok] = children.insert({ VfsString(name), node });
     if (!ok) {
         return OsStatusAlreadyExists;
@@ -206,7 +220,7 @@ OsStatus VfsRoot::createFile(const VfsPath& path, IVfsNode **node) {
     // Create the new file inside the parent folder.
     //
     IVfsNode *child = nullptr;
-    if (OsStatus status = parent->createFile(path.name(), &child)) {
+    if (OsStatus status = parent->addFile(path.name(), &child)) {
         return status;
     }
 

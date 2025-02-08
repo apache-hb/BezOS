@@ -76,4 +76,18 @@ TEST(Vfs2Test, CreateFile) {
         ASSERT_EQ(OsStatusSuccess, status);
         ASSERT_NE(file, nullptr);
     }
+
+    ASSERT_EQ(file->type, VfsNodeType::eFile);
+    ASSERT_EQ(file->name, "motd.txt");
+    ASSERT_EQ(file->mount, mount);
+
+    std::unique_ptr<IVfsHandle> fd0;
+
+    {
+        OsStatus status = file->open(std::out_ptr(fd0));
+        ASSERT_EQ(OsStatusSuccess, status);
+        ASSERT_NE(fd0, nullptr);
+    }
+
+    ASSERT_EQ(fd0->node, file);
 }
