@@ -9,53 +9,20 @@ VfsRoot::VfsRoot()
 }
 
 OsStatus VfsRoot::walk(const VfsPath& path, IVfsNode **parent) {
+    //
+    // If the path is only one segment long then the parent
+    // is the root node.
+    //
     if (path.segmentCount() == 1) {
         *parent = &mRootNode;
         return OsStatusSuccess;
     }
 
-    IVfsNode *current = &mRootNode;
-    VfsPath journey = path.parent();
-
-    for (auto segment : journey) {
-        //
-        // Search the current folder for the segment name
-        // we are looking for.
-        //
-        IVfsNode *child = nullptr;
-        if (OsStatus status = current->lookup(segment, &child)) {
-            return status;
-        }
-
-        //
-        // If the current node is a mount point we need to take it's
-        // root node to follow.
-        //
-
-        if (child->type == VfsNodeType::eMount) {
-            IVfsNode *root = nullptr;
-            if (OsStatus status = child->mount->root(&root)) {
-                return status;
-            }
-
-            assert(root->type == VfsNodeType::eFolder);
-            current = root;
-        } else if (child->type == VfsNodeType::eFolder) {
-            //
-            // If the current node is a folder we can continue
-            // walking down the tree.
-            //
-            current = child;
-        } else {
-            //
-            // If the node is anything else then the path is malformed.
-            //
-            return OsStatusNotFound;
-        }
-    }
-
-    *parent = current;
-    return OsStatusSuccess;
+    //
+    // Otherwise we need to walk the path to find the parent
+    // which is deferred to lookup.
+    //
+    return lookup(path.parent(), parent);
 }
 
 OsStatus VfsRoot::addMount(IVfsDriver *driver, const VfsPath& path, IVfsMount **mount) {
@@ -130,7 +97,7 @@ OsStatus VfsRoot::addMount(IVfsDriver *driver, const VfsPath& path, IVfsMount **
     return OsStatusSuccess;
 }
 
-OsStatus VfsRoot::createFile(const VfsPath& path, IVfsNode **node) {
+OsStatus VfsRoot::create(const VfsPath& path, IVfsNode **node) {
     //
     // Walk along the fs to find the parent folder
     // to the requested path.
@@ -152,5 +119,128 @@ OsStatus VfsRoot::createFile(const VfsPath& path, IVfsNode **node) {
     // Return the newly created file up to the caller.
     //
     *node = child;
+    return OsStatusSuccess;
+}
+
+OsStatus VfsRoot::remove(IVfsNode *node) {
+    //
+    // remove is only valid on files, each inode type
+    // has its own method for removal.
+    //
+    if (node->type != VfsNodeType::eFile) {
+        return OsStatusInvalidType;
+    }
+
+    //
+    // If the node has no parent, we are unable to remove it.
+    // Additionally this is a contract violation as all nodes
+    // aside from the root node must have a parent.
+    //
+    if (node->parent == nullptr) {
+        return OsStatusInvalidInput;
+    }
+
+    //
+    // Ensure that no programs hold exclusive locks on the file.
+    //
+    if (!node->readyForRemove()) {
+        return OsStatusHandleLocked;
+    }
+
+    //
+    // Once we know the node is ready for removal we can
+    // remove it from the parent folder.
+    //
+    if (OsStatus status = node->parent->remove(node)) {
+        return status;
+    }
+
+    return OsStatusSuccess;
+}
+
+OsStatus VfsRoot::mkdir(const VfsPath& path, IVfsNode **node) {
+    IVfsNode *parent = nullptr;
+    if (OsStatus status = walk(path, &parent)) {
+        return status;
+    }
+
+    IVfsNode *child = nullptr;
+    if (OsStatus status = parent->addFolder(path.name(), &child)) {
+        return status;
+    }
+
+    *node = child;
+    return OsStatusSuccess;
+}
+
+OsStatus VfsRoot::mkpath(const VfsPath& path, IVfsNode **node) {
+    IVfsNode *current = &mRootNode;
+
+    for (auto segment : path) {
+        IVfsNode *child = nullptr;
+        OsStatus lookupStatus = current->lookup(segment, &child);
+
+        if (lookupStatus == OsStatusSuccess) {
+            //
+            // If there is an inode then we must ensure it's
+            // a folder before continuing traversal.
+            //
+            if (child->type != VfsNodeType::eFolder) {
+                return OsStatusTraverseNonFolder;
+            }
+        } else if (lookupStatus == OsStatusNotFound) {
+            //
+            // If there is no inode with this name then
+            // we need to create a folder.
+            //
+
+            if (OsStatus status = current->addFolder(segment, &child)) {
+                return status;
+            }
+
+        } else {
+            //
+            // If we got an error we can't handle then propogate it
+            // up to the caller.
+            //
+
+            return lookupStatus;
+        }
+
+        current = child;
+    }
+
+    *node = current;
+    return OsStatusSuccess;
+}
+
+OsStatus VfsRoot::lookup(const VfsPath& path, IVfsNode **node) {
+    IVfsNode *current = &mRootNode;
+
+    for (auto segment : path) {
+        //
+        // Search the current folder for the segment name
+        // we are looking for.
+        //
+        IVfsNode *child = nullptr;
+        if (OsStatus status = current->lookup(segment, &child)) {
+            return status;
+        }
+
+        if (child->type == VfsNodeType::eFolder) {
+            //
+            // If the current node is a folder we can continue
+            // walking down the tree.
+            //
+            current = child;
+        } else {
+            //
+            // If the node is anything else then the path is malformed.
+            //
+            return OsStatusTraverseNonFolder;
+        }
+    }
+
+    *node = current;
     return OsStatusSuccess;
 }

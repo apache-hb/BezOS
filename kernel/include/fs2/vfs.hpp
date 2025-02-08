@@ -51,7 +51,6 @@ namespace vfs2 {
         eNone,
         eFile,
         eFolder,
-        eMount,
     };
 
     struct VfsMountStat {
@@ -108,12 +107,20 @@ namespace vfs2 {
         virtual OsStatus write(WriteRequest, WriteResult*) { return OsStatusNotSupported; }
 
         virtual OsStatus create(IVfsNode**) { return OsStatusNotSupported; }
+        virtual OsStatus mkdir(IVfsNode**) { return OsStatusNotSupported; }
+
+        virtual OsStatus remove(IVfsNode*) { return OsStatusNotSupported; }
 
         OsStatus open(IVfsNodeHandle **handle);
 
         OsStatus lookup(VfsStringView name, IVfsNode **child);
         OsStatus addFile(VfsStringView name, IVfsNode **child);
+        OsStatus addFolder(VfsStringView name, IVfsNode **child);
         OsStatus addNode(VfsStringView name, IVfsNode *node);
+
+        void initNode(IVfsNode *node, VfsStringView name, VfsNodeType type);
+
+        bool readyForRemove() const { return true; }
     };
 
     struct IVfsMount {
@@ -126,11 +133,6 @@ namespace vfs2 {
         virtual ~IVfsMount() = default;
 
         virtual OsStatus root(IVfsNode**) { return OsStatusNotSupported; }
-        virtual OsStatus stat(VfsMountStat*) { return OsStatusNotSupported; }
-        virtual OsStatus sync() { return OsStatusNotSupported; }
-
-        virtual OsStatus fid() { return OsStatusNotSupported; }
-        virtual OsStatus get() { return OsStatusNotSupported; }
     };
 
     struct IVfsDriver {
@@ -157,6 +159,14 @@ namespace vfs2 {
 
         OsStatus addMount(IVfsDriver *driver, const VfsPath& path, IVfsMount **mount);
 
-        OsStatus createFile(const VfsPath& path, IVfsNode **node);
+        OsStatus create(const VfsPath& path, IVfsNode **node);
+        OsStatus remove(IVfsNode *node);
+
+        OsStatus mkdir(const VfsPath& path, IVfsNode **node);
+        OsStatus rmdir(IVfsNode *node);
+
+        OsStatus mkpath(const VfsPath& path, IVfsNode **node);
+
+        OsStatus lookup(const VfsPath& path, IVfsNode **node);
     };
 }

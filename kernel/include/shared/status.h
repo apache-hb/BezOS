@@ -20,6 +20,23 @@ enum OsStatusId {
     OsStatusNotSupported = 4,
 
     OsStatusAlreadyExists = 5,
+
+    /// @brief Attempted to traverse over a non-folder inode.
+    ///
+    /// When walking a path an inode that wasnt a folder
+    /// was encountered.
+    OsStatusTraverseNonFolder = 6,
+
+    /// @brief Attempted to perform an operation on an inode of the wrong type.
+    ///
+    /// When performing an operation on an inode the type of the inode
+    /// was not what was expected.
+    OsStatusInvalidType = 7,
+
+    /// @brief Attempted to remove an inode that was not ready for removal.
+    ///
+    /// INodes with outstanding exclusive locks cannot be removed.
+    OsStatusHandleLocked = 8,
 };
 
 inline bool OsStatusOk(OsStatus status) {

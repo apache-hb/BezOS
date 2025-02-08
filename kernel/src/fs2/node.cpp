@@ -10,6 +10,13 @@ IVfsNode::~IVfsNode() {
     }
 }
 
+void IVfsNode::initNode(IVfsNode *node, VfsStringView name, VfsNodeType type) {
+    node->name = VfsString(name);
+    node->parent = this;
+    node->type = type;
+    node->mount = mount;
+}
+
 OsStatus IVfsNode::open(IVfsNodeHandle **handle) {
     KM_ASSERT(type == VfsNodeType::eFile);
 
@@ -47,10 +54,7 @@ OsStatus IVfsNode::addFile(VfsStringView name, IVfsNode **child) {
         return status;
     }
 
-    node->name = VfsString(name);
-    node->parent = this;
-    node->type = VfsNodeType::eFile;
-    node->mount = this->mount;
+    initNode(node, name, VfsNodeType::eFile);
 
     //
     // Insert the newly created file into our folder
@@ -58,6 +62,24 @@ OsStatus IVfsNode::addFile(VfsStringView name, IVfsNode **child) {
     // exists. Note that this indicates a race condition, a folder
     // should always be externally synchronized before modification.
     //
+
+    if (OsStatus status = addNode(name, node)) {
+        return status;
+    }
+
+    *child = node;
+    return OsStatusSuccess;
+}
+
+OsStatus IVfsNode::addFolder(VfsStringView name, IVfsNode **child) {
+    KM_ASSERT(type == VfsNodeType::eFolder);
+
+    IVfsNode *node = nullptr;
+    if (OsStatus status = mkdir(&node)) {
+        return status;
+    }
+
+    initNode(node, name, VfsNodeType::eFolder);
 
     if (OsStatus status = addNode(name, node)) {
         return status;

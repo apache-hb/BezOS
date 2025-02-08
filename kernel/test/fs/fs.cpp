@@ -41,6 +41,23 @@ struct RamFsFolder : public RamFsNode {
         *node = new RamFsFileNode();
         return OsStatusSuccess;
     }
+
+    OsStatus remove(IVfsNode *node) override {
+        auto it = children.find(node->name);
+        if (it == children.end()) {
+            return OsStatusNotFound;
+        }
+
+        children.erase(it);
+        delete node;
+
+        return OsStatusSuccess;
+    }
+
+    OsStatus mkdir(IVfsNode **node) override {
+        *node = new RamFsFolder();
+        return OsStatusSuccess;
+    }
 };
 
 struct RamFsMount : public IVfsMount {
@@ -103,7 +120,40 @@ TEST(Vfs2Test, CreateFile) {
     IVfsNode *file = nullptr;
 
     {
-        OsStatus status = vfs.createFile(BuildPath("Volatile", "motd.txt"), &file);
+        OsStatus status = vfs.create(BuildPath("Volatile", "motd.txt"), &file);
+        ASSERT_EQ(OsStatusSuccess, status);
+        ASSERT_NE(file, nullptr);
+    }
+
+    ASSERT_EQ(file->type, VfsNodeType::eFile);
+    ASSERT_EQ(file->name, "motd.txt");
+    ASSERT_EQ(file->mount, mount);
+
+    std::unique_ptr<IVfsNodeHandle> fd0;
+
+    {
+        OsStatus status = file->open(std::out_ptr(fd0));
+        ASSERT_EQ(OsStatusSuccess, status);
+        ASSERT_NE(fd0, nullptr);
+    }
+
+    ASSERT_EQ(fd0->node, file);
+}
+
+TEST(Vfs2Test, FileReadWrite) {
+    vfs2::VfsRoot vfs;
+
+    vfs2::IVfsMount *mount = nullptr;
+
+    {
+        OsStatus status = vfs.addMount(&gRamFs, "Volatile", &mount);
+        ASSERT_EQ(OsStatusSuccess, status);
+    }
+
+    IVfsNode *file = nullptr;
+
+    {
+        OsStatus status = vfs.create(BuildPath("Volatile", "motd.txt"), &file);
         ASSERT_EQ(OsStatusSuccess, status);
         ASSERT_NE(file, nullptr);
     }
@@ -152,5 +202,100 @@ TEST(Vfs2Test, CreateFile) {
         ASSERT_EQ(result.read, sizeof(data));
 
         ASSERT_EQ(std::string_view(readback, sizeof(data)), std::string_view(data, sizeof(data)));
+    }
+}
+
+TEST(Vfs2Test, MakePath) {
+    VfsRoot vfs;
+
+    IVfsMount *mount = nullptr;
+    IVfsNode *node = nullptr;
+
+    {
+        OsStatus status = vfs.addMount(&gRamFs, "System", &mount);
+        ASSERT_EQ(OsStatusSuccess, status);
+    }
+
+    {
+        auto path = BuildPath("System", "Devices", "CPU", "CPU0", "Firmware");
+        OsStatus status = vfs.mkpath(path, &node);
+        ASSERT_EQ(OsStatusSuccess, status);
+        ASSERT_NE(node, nullptr);
+    }
+
+    ASSERT_EQ(node->type, VfsNodeType::eFolder);
+    ASSERT_EQ(node->name, "Firmware");
+    ASSERT_EQ(node->mount, mount);
+
+    ASSERT_EQ(node->parent->name, "CPU0");
+
+    //
+    // Ensure that all the parent folders were created.
+    //
+
+    IVfsNode *folder = nullptr;
+    {
+        OsStatus status = vfs.lookup(BuildPath("System", "Devices", "CPU", "CPU0"), &folder);
+        ASSERT_EQ(OsStatusSuccess, status);
+
+        ASSERT_EQ(folder->type, VfsNodeType::eFolder);
+        ASSERT_EQ(folder->name, "CPU0");
+        ASSERT_EQ(folder->mount, mount);
+    }
+
+    {
+        OsStatus status = vfs.lookup(BuildPath("System", "Devices", "CPU"), &folder);
+        ASSERT_EQ(OsStatusSuccess, status);
+
+        ASSERT_EQ(folder->type, VfsNodeType::eFolder);
+        ASSERT_EQ(folder->name, "CPU");
+        ASSERT_EQ(folder->mount, mount);
+    }
+
+    {
+        OsStatus status = vfs.lookup(BuildPath("System", "Devices"), &folder);
+        ASSERT_EQ(OsStatusSuccess, status);
+
+        ASSERT_EQ(folder->type, VfsNodeType::eFolder);
+        ASSERT_EQ(folder->name, "Devices");
+        ASSERT_EQ(folder->mount, mount);
+    }
+
+    {
+        OsStatus status = vfs.lookup(BuildPath("System"), &folder);
+        ASSERT_EQ(OsStatusSuccess, status);
+
+        ASSERT_EQ(folder->type, VfsNodeType::eFolder);
+        ASSERT_EQ(folder->name, "System");
+        ASSERT_EQ(folder->mount, mount);
+    }
+}
+
+TEST(Vfs2Test, RemoveFile) {
+    VfsRoot vfs;
+
+    IVfsMount *mount = nullptr;
+    IVfsNode *node = nullptr;
+
+    {
+        OsStatus status = vfs.addMount(&gRamFs, "System", &mount);
+        ASSERT_EQ(OsStatusSuccess, status);
+    }
+
+    {
+        OsStatus status = vfs.create(BuildPath("System", "motd.txt"), &node);
+        ASSERT_EQ(OsStatusSuccess, status);
+    }
+
+    {
+        OsStatus status = vfs.remove(node);
+        ASSERT_EQ(OsStatusSuccess, status);
+    }
+
+    IVfsNode *lookup = nullptr;
+    {
+        OsStatus status = vfs.lookup(BuildPath("System", "motd.txt"), &lookup);
+        ASSERT_EQ(OsStatusNotFound, status);
+        ASSERT_EQ(lookup, nullptr);
     }
 }
