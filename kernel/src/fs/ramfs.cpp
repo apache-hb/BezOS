@@ -37,7 +37,7 @@ OsStatus vfs::RamFsFile::write(WriteRequest request, WriteResult *result) {
     uint64_t write = back - front;
     memcpy(mData.data() + front, request.buffer, write);
 
-    result->written = write;
+    result->write = write;
 
     return OsStatusSuccess;
 }
@@ -55,10 +55,6 @@ OsStatus vfs::RamFsFolder::create(stdx::StringView, INode **node) {
     return OsStatusOutOfMemory;
 }
 
-OsStatus vfs::RamFsFolder::remove(INode *) {
-    return OsStatusNotSupported;
-}
-
 OsStatus vfs::RamFsFolder::mkdir(stdx::StringView, INode **node) {
     if (RamFsFolder *child = new(std::nothrow) RamFsFolder(mount())) {
         *node = child;
@@ -66,14 +62,6 @@ OsStatus vfs::RamFsFolder::mkdir(stdx::StringView, INode **node) {
     }
 
     return OsStatusOutOfMemory;
-}
-
-OsStatus vfs::RamFsFolder::rmdir(stdx::StringView) {
-    return OsStatusNotSupported;
-}
-
-OsStatus vfs::RamFsFolder::find(stdx::StringView, INode **) {
-    return OsStatusNotFound;
 }
 
 vfs::RamFsMount::RamFsMount()

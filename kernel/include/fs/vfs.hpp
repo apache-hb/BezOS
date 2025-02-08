@@ -44,8 +44,8 @@ namespace km {
 
             OsStatus status = mNode->node()->write(request, &writeResult);
             if (status == OsStatusSuccess) {
-                mOffset += writeResult.written;
-                *result = writeResult.written;
+                mOffset += writeResult.write;
+                *result = writeResult.write;
             }
 
             return status;

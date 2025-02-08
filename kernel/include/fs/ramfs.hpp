@@ -1,6 +1,5 @@
 #pragma once
 
-#include "std/string.hpp"
 #include "std/vector.hpp"
 
 #include "fs/mount.hpp"
@@ -10,7 +9,7 @@ namespace vfs {
     class RamFsMount;
     class RamFs;
 
-    class RamFsNode : public EmptyNode {
+    class RamFsNode : public INode {
         RamFsMount *mMount;
 
     protected:
@@ -40,12 +39,8 @@ namespace vfs {
         km::VfsEntryType type() const override { return km::VfsEntryType::eFolder; }
 
         OsStatus create(stdx::StringView name, INode **node) override;
-        OsStatus remove(INode *node) override;
 
         OsStatus mkdir(stdx::StringView name, INode **node) override;
-        OsStatus rmdir(stdx::StringView name) override;
-
-        OsStatus find(stdx::StringView name, INode **node) override;
     };
 
     class RamFsMount final : public IFileSystemMount {

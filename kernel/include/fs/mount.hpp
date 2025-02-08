@@ -50,6 +50,14 @@ namespace vfs {
 
     };
 
+    struct CreateFolderRequest {
+
+    };
+
+    struct CreateFolderResult {
+
+    };
+
     using FileTime = std::chrono::utc_clock::time_point;
 
     struct NodeAttributes {
@@ -85,35 +93,16 @@ namespace vfs {
         virtual OsStatus open(OpenRequest, OpenResult*) { return OsStatusNotSupported; }
         virtual OsStatus close(CloseRequest, CloseResult*) { return OsStatusNotSupported; }
 
-        virtual OsStatus create(stdx::StringView name, INode **node) = 0;
-        virtual OsStatus remove(INode *node) = 0;
+        virtual OsStatus create(stdx::StringView, INode **) { return OsStatusNotSupported; }
+        virtual OsStatus remove(INode *) { return OsStatusNotSupported; }
 
-        virtual OsStatus mkdir(stdx::StringView name, INode **node) = 0;
-        virtual OsStatus rmdir(stdx::StringView name) = 0;
+        virtual OsStatus mkdir(CreateFolderRequest, CreateFolderResult*) { return OsStatusNotSupported; }
 
-        virtual OsStatus find(stdx::StringView name, INode **node) = 0;
-    };
+        virtual OsStatus mkdir(stdx::StringView, INode **) { return OsStatusNotSupported; }
 
-    class EmptyNode : public INode {
-        OsStatus create(stdx::StringView, INode **) override {
-            return OsStatusNotSupported;
-        }
+        virtual OsStatus find(stdx::StringView, INode **) { return OsStatusNotSupported; }
 
-        OsStatus remove(INode *) override {
-            return OsStatusNotSupported;
-        }
-
-        OsStatus mkdir(stdx::StringView, INode **) override {
-            return OsStatusNotSupported;
-        }
-
-        OsStatus rmdir(stdx::StringView) override {
-            return OsStatusNotSupported;
-        }
-
-        OsStatus find(stdx::StringView, INode **) override {
-            return OsStatusNotSupported;
-        }
+        virtual OsStatus iterate(INodeIterator**) { return OsStatusNotSupported; }
     };
 
     /// @brief An instance of a filesystem thats been mounted in the VFS.
