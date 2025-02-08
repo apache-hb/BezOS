@@ -68,24 +68,6 @@ namespace vfs2 {
         uint16_t blockSize;
     };
 
-    struct VfsNodeCallbacks {
-        OsStatus(*open)();
-        OsStatus(*close)();
-        OsStatus(*create)();
-        OsStatus(*remove)();
-        OsStatus(*stat)();
-        OsStatus(*read)();
-        OsStatus(*write)();
-
-        OsStatus(*mkdir)();
-        OsStatus(*rmdir)();
-        OsStatus(*lookup)();
-        OsStatus(*iterate)();
-        OsStatus(*next)();
-
-        OsStatus(*rename)();
-    };
-
     struct IVfsNodeHandle {
         IVfsNode *node;
         uint64_t offset{0};
@@ -118,9 +100,6 @@ namespace vfs2 {
 
         /// @brief The mount that this node is part of.
         IVfsMount *mount;
-
-        /// @brief Callbacks for the node.
-        const VfsNodeCallbacks *callbacks;
 
         /// @brief If this is a directory, these are all the entries.
         BTreeMap<VfsString, IVfsNode*, std::less<>> children;
