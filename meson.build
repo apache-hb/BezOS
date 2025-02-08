@@ -178,6 +178,8 @@ src = [
     # VFS rewrite
     'kernel/src/fs2/vfs.cpp',
     'kernel/src/fs2/path.cpp',
+    'kernel/src/fs2/node.cpp',
+    'kernel/src/fs2/handle.cpp',
 
     # Smp setup
     'kernel/src/smp.cpp',
@@ -352,6 +354,8 @@ testcases = {
         'kernel/test/fs/fs.cpp',
         'kernel/src/fs2/vfs.cpp',
         'kernel/src/fs2/path.cpp',
+        'kernel/src/fs2/node.cpp',
+        'kernel/src/fs2/handle.cpp',
     ],
     'vfs path': [
         'kernel/test/fs/path.cpp',

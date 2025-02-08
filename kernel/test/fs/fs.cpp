@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "fs2/vfs.hpp"
+#include "std/vector.hpp"
 
 using namespace vfs2;
 
@@ -12,8 +13,38 @@ struct RamFsNode : public IVfsNode {
     RamFsNode() : IVfsNode() { }
 };
 
+struct RamFsFileNode : public RamFsNode {
+    stdx::Vector2<std::byte> mData;
+
+    OsStatus read(ReadRequest request, ReadResult *result) override {
+        uintptr_t range = (uintptr_t)request.end - (uintptr_t)request.begin;
+        size_t size = std::min<size_t>(range, mData.count() - request.offset);
+        memcpy(request.begin, mData.data() + request.offset, size);
+        result->read = size;
+        return OsStatusSuccess;
+    }
+
+    OsStatus write(WriteRequest request, WriteResult *result) override {
+        uintptr_t range = (uintptr_t)request.end - (uintptr_t)request.begin;
+        if ((request.offset + range) > mData.count()) {
+            mData.resize(request.offset + range);
+        }
+
+        memcpy(mData.data() + request.offset, request.begin, range);
+        result->write = range;
+        return OsStatusSuccess;
+    }
+};
+
+struct RamFsFolder : public RamFsNode {
+    OsStatus create(IVfsNode **node) override {
+        *node = new RamFsFileNode();
+        return OsStatusSuccess;
+    }
+};
+
 struct RamFsMount : public IVfsMount {
-    RamFsNode *mRootNode;
+    RamFsFolder *mRootNode;
 
     RamFsMount(RamFs *fs);
 
@@ -41,7 +72,7 @@ static constinit RamFs gRamFs{};
 
 RamFsMount::RamFsMount(RamFs *fs)
     : IVfsMount(fs)
-    , mRootNode(new RamFsNode())
+    , mRootNode(new RamFsFolder())
 {
     mRootNode->mount = this;
     mRootNode->type = VfsNodeType::eFolder;
@@ -90,4 +121,36 @@ TEST(Vfs2Test, CreateFile) {
     }
 
     ASSERT_EQ(fd0->node, file);
+
+    char data[] = "Hello, World!";
+
+    {
+        WriteRequest request {
+            .begin = std::begin(data),
+            .end = std::end(data),
+            .offset = 0,
+        };
+
+        WriteResult result{};
+        OsStatus status = fd0->write(request, &result);
+        ASSERT_EQ(OsStatusSuccess, status);
+        ASSERT_EQ(result.write, sizeof(data));
+    }
+
+    char readback[sizeof(data)];
+
+    {
+        ReadRequest request {
+            .begin = std::begin(readback),
+            .end = std::end(readback),
+            .offset = 0,
+        };
+
+        ReadResult result{};
+        OsStatus status = fd0->read(request, &result);
+        ASSERT_EQ(OsStatusSuccess, status);
+        ASSERT_EQ(result.read, sizeof(data));
+
+        ASSERT_EQ(std::string_view(readback, sizeof(data)), std::string_view(data, sizeof(data)));
+    }
 }
