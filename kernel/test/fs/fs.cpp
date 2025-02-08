@@ -9,7 +9,7 @@ struct RamFsMount;
 struct RamFs;
 
 struct RamFsNode : public IVfsNode {
-
+    RamFsNode() : IVfsNode() { }
 };
 
 struct RamFsMount : public IVfsMount {
@@ -81,7 +81,7 @@ TEST(Vfs2Test, CreateFile) {
     ASSERT_EQ(file->name, "motd.txt");
     ASSERT_EQ(file->mount, mount);
 
-    std::unique_ptr<IVfsHandle> fd0;
+    std::unique_ptr<IVfsNodeHandle> fd0;
 
     {
         OsStatus status = file->open(std::out_ptr(fd0));

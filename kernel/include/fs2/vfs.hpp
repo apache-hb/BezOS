@@ -16,10 +16,10 @@
 namespace vfs2 {
     class VfsPath;
 
-    struct IVfsHandle;
+    struct IVfsNodeHandle;
 
     struct IVfsNodeIterator;
-    struct IVfsNode;
+    class IVfsNode;
 
     struct IVfsMount;
     struct IVfsDriver;
@@ -72,7 +72,7 @@ namespace vfs2 {
         OsStatus(*rename)();
     };
 
-    struct IVfsHandle {
+    struct IVfsNodeHandle {
         IVfsNode *node;
 
         OsStatus read(ReadRequest request, ReadResult *result);
@@ -83,7 +83,8 @@ namespace vfs2 {
         virtual ~IVfsNodeIterator() = default;
     };
 
-    struct IVfsNode {
+    class IVfsNode {
+    public:
         IVfsNode() = default;
 
         virtual ~IVfsNode();
@@ -109,7 +110,7 @@ namespace vfs2 {
         /// @brief If this is a directory, these are all the entries.
         BTreeMap<VfsString, IVfsNode*, std::less<>> children;
 
-        OsStatus open(IVfsHandle **handle);
+        OsStatus open(IVfsNodeHandle **handle);
 
         OsStatus lookup(VfsStringView name, IVfsNode **child);
         OsStatus addFile(VfsStringView name, IVfsNode **child);
@@ -125,8 +126,8 @@ namespace vfs2 {
 
         virtual ~IVfsMount() = default;
 
-        virtual OsStatus root([[maybe_unused]] IVfsNode **node) { return OsStatusNotSupported; }
-        virtual OsStatus stat([[maybe_unused]] VfsMountStat *stat) { return OsStatusNotSupported; }
+        virtual OsStatus root(IVfsNode**) { return OsStatusNotSupported; }
+        virtual OsStatus stat(VfsMountStat*) { return OsStatusNotSupported; }
         virtual OsStatus sync() { return OsStatusNotSupported; }
 
         virtual OsStatus fid() { return OsStatusNotSupported; }
@@ -142,8 +143,8 @@ namespace vfs2 {
 
         virtual ~IVfsDriver() = default;
 
-        virtual OsStatus mount([[maybe_unused]] IVfsMount **mount) { return OsStatusNotSupported; }
-        virtual OsStatus unmount([[maybe_unused]] IVfsMount *mount) { return OsStatusNotSupported; }
+        virtual OsStatus mount(IVfsMount**) { return OsStatusNotSupported; }
+        virtual OsStatus unmount(IVfsMount*) { return OsStatusNotSupported; }
     };
 
     class VfsRoot {

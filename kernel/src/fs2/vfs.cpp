@@ -10,10 +10,10 @@ IVfsNode::~IVfsNode() {
     }
 }
 
-OsStatus IVfsNode::open(IVfsHandle **handle) {
+OsStatus IVfsNode::open(IVfsNodeHandle **handle) {
     KM_ASSERT(type == VfsNodeType::eFile);
 
-    IVfsHandle *result = new(std::nothrow) IVfsHandle(this);
+    IVfsNodeHandle *result = new(std::nothrow) IVfsNodeHandle(this);
     if (!result) {
         return OsStatusOutOfMemory;
     }

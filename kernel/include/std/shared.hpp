@@ -3,13 +3,16 @@
 #include <atomic>
 #include <concepts>
 #include <cstddef>
-#include <memory>
 
 namespace sm {
     namespace detail {
         struct ControlBlock {
             std::atomic<size_t> count;
             void *value;
+        };
+
+        struct BaseIntrusiveCount {
+            std::atomic<uint32_t> mIntrusiveCount{1};
         };
     }
 
@@ -129,4 +132,101 @@ namespace sm {
             return !(*this == other);
         }
     };
+
+    template<std::derived_from<detail::BaseIntrusiveCount> T>
+    class SharedPtr<T> {
+        T *mObject;
+
+        void acquire();
+
+        void release();
+
+        SharedPtr(T *value)
+            : mObject(value)
+        {
+            acquire();
+        }
+
+    public:
+        SharedPtr()
+            : mObject(nullptr)
+        { }
+
+        SharedPtr(const SharedPtr& other)
+            : SharedPtr(other.mObject)
+        { }
+
+        SharedPtr(SharedPtr&& other)
+            : mObject(other.mObject)
+        {
+            other.mObject = nullptr;
+        }
+
+        SharedPtr& operator=(const SharedPtr& other) {
+            if (mObject != other.mObject) {
+                release();
+                mObject = other.mObject;
+                acquire();
+            }
+
+            return *this;
+        }
+
+        SharedPtr& operator=(SharedPtr&& other) {
+            if (mObject != other.mObject) {
+                release();
+                mObject = other.mObject;
+                other.mObject = nullptr;
+            }
+
+            return *this;
+        }
+
+        ~SharedPtr() {
+            release();
+        }
+
+        T *operator->() const {
+            return get();
+        }
+
+        T *get() const {
+            return mObject;
+        }
+
+        T& operator*() const {
+            return *get();
+        }
+
+        bool operator==(const SharedPtr& other) const {
+            if (mObject == other.mObject) {
+                return true;
+            }
+
+            if (mObject != nullptr && other.mObject != nullptr) {
+                return *mObject == *other.mObject;
+            }
+
+            return false;
+        }
+
+        bool operator!=(const SharedPtr& other) const {
+            return !(*this == other);
+        }
+    };
+
+    template<typename T>
+    class IntrusiveCount : private detail::BaseIntrusiveCount {
+        friend class SharedPtr<T>;
+
+    protected:
+        SharedPtr<T> share() {
+            return SharedPtr<T>(static_cast<T*>(this));
+        }
+    };
+
+    template<std::derived_from<detail::BaseIntrusiveCount> T, typename... Args>
+    SharedPtr<T> makeShared(Args&&... args) {
+        return SharedPtr<T>(new T(std::forward<Args>(args)...));
+    }
 }
