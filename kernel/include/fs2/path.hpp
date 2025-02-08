@@ -56,7 +56,13 @@ namespace vfs2 {
 
         VfsStringView string() const { return mPath; }
 
+        /// @brief The parent path for this path.
+        ///
+        /// @pre @a this->segmentCount() > 0
         VfsPath parent() const;
+
+        /// @brief The name of the current file or folder, including extensions.
+        VfsStringView name() const;
 
         friend constexpr auto operator<=>(const VfsPath& lhs, const VfsPath& rhs) {
             return lhs.mPath <=> rhs.mPath;

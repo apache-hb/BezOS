@@ -3,13 +3,6 @@
 #include "fs/vfs.hpp"
 #include "fs/ramfs.hpp"
 
-void DefaultInternalLog(absl::LogSeverity, const char *, int, std::string_view message) {
-    std::cout << "Internal log: " << message << std::endl;
-}
-
-constinit absl::base_internal::AtomicHook<absl::raw_log_internal::InternalLogFunction>
-    absl::raw_log_internal::internal_log_function(DefaultInternalLog);
-
 using namespace stdx::literals;
 
 TEST(VfsTest, Construct) {

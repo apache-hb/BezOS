@@ -1,4 +1,5 @@
 #include "fs2/path.hpp"
+#include <cassert>
 
 using namespace vfs2;
 
@@ -62,6 +63,16 @@ VfsPath VfsPath::parent() const {
     auto tail = std::ranges::find_last(mPath, OS_PATH_SEPARATOR);
 
     return VfsPath(VfsString(mPath.begin(), tail.begin()));
+}
+
+VfsStringView VfsPath::name() const {
+    auto tail = std::ranges::find_last(mPath, OS_PATH_SEPARATOR);
+
+    if (tail.empty()) {
+        return mPath;
+    }
+
+    return VfsStringView(tail.begin() + 1, mPath.end());
 }
 
 bool vfs2::VerifyPathText(VfsStringView text) {

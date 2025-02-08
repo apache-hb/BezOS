@@ -7,6 +7,8 @@
 #include "std/string_view.hpp"
 #include "std/vector.hpp"
 
+#include "absl/container/btree_map.h"
+
 /// @brief Virtual File System.
 ///
 /// This VFS derives from the original SunOS vnode design with some modifications.
@@ -23,7 +25,10 @@ namespace vfs2 {
     struct IVfsMount;
     struct IVfsDriver;
 
-    enum class FsNodeType {
+    template<typename TKey, typename TValue, typename TCompare = std::less<TKey>, typename TAllocator = mem::GlobalAllocator<std::pair<const TKey, TValue>>>
+    using BTreeMap = absl::btree_map<TKey, TValue, TCompare, TAllocator>;
+
+    enum class VfsNodeType {
         eNone,
         eFile,
         eFolder,
@@ -67,24 +72,33 @@ namespace vfs2 {
     };
 
     struct IVfsNodeIterator {
-
+        virtual ~IVfsNodeIterator() = default;
     };
 
     struct IVfsNode {
+        virtual ~IVfsNode() = default;
+
         /// @brief The name of the entry.
-        stdx::String name;
+        VfsString name;
 
         /// @brief The parent directory of the entry, nullptr if root.
         IVfsNode *parent;
 
         /// @brief The type of the entry.
-        FsNodeType type;
+        VfsNodeType type;
 
         /// @brief The mount that this node is part of.
         IVfsMount *mount;
 
         /// @brief Callbacks for the node.
         const VfsNodeCallbacks *callbacks;
+
+        /// @brief If this is a directory, these are all the entries.
+        BTreeMap<VfsString, IVfsNode*, std::less<>> children;
+
+        OsStatus lookup(VfsStringView name, IVfsNode **child);
+        OsStatus createFile(VfsStringView name, IVfsNode **child);
+        OsStatus addNode(VfsStringView name, IVfsNode *node);
     };
 
     struct IVfsMount {
@@ -117,14 +131,17 @@ namespace vfs2 {
         virtual OsStatus unmount([[maybe_unused]] IVfsMount *mount) { return OsStatusNotSupported; }
     };
 
-    class RootVfs {
-        stdx::Vector2<std::unique_ptr<IVfsMount>> mMounts;
+    class VfsRoot {
+        BTreeMap<VfsPath, std::unique_ptr<IVfsMount>> mMounts;
+        IVfsNode mRootNode;
+
+        OsStatus walk(const VfsPath& path, IVfsNode **parent);
 
     public:
-        RootVfs();
+        VfsRoot();
 
         OsStatus addMount(IVfsDriver *driver, const VfsPath& path, IVfsMount **mount);
 
-        OsStatus lookup(const VfsPath& path, IVfsNode **node);
+        OsStatus createFile(const VfsPath& path, IVfsNode **node);
     };
 }

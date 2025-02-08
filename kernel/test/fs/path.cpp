@@ -82,3 +82,24 @@ TEST(VfsPathTest, Parent) {
 
     ASSERT_EQ(parent, expected) << std::string_view(expected.string()) << " != " << std::string_view(parent.string());
 }
+
+TEST(VfsPathTest, FileName) {
+    auto path = BuildPath("System", "Init", "Drivers", "DriverConfig.db");
+
+    auto name = path.name();
+    ASSERT_EQ(name, "DriverConfig.db") << std::string_view(name);
+}
+
+TEST(VfsPathTest, FolderName) {
+    auto path = BuildPath("System", "Init", "Drivers");
+    auto name = path.name();
+
+    ASSERT_EQ(name, "Drivers") << std::string_view(name);
+}
+
+TEST(VfsPathTest, SingleName) {
+    auto path = BuildPath("Root");
+    auto name = path.name();
+
+    ASSERT_EQ(name, "Root") << std::string_view(name);
+}

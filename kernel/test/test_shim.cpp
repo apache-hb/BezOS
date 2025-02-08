@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include "absl/base/internal/raw_logging.h"
+
 #include "kernel.hpp"
 
 class TestStream final : public km::IOutStream {
@@ -27,4 +29,15 @@ void KmBugCheck(stdx::StringView message, stdx::StringView file, unsigned line) 
     GTEST_FAIL() << "Bugcheck: " << std::string_view(message) << " at " << std::string_view(file) << ":" << line;
 }
 
+void km::BugCheck(stdx::StringView message, std::source_location where) {
+    GTEST_FAIL() << "Bugcheck: " << std::string_view(message) << " at " << where.file_name() << ":" << where.line();
+}
+
 #pragma clang diagnostic pop
+
+void DefaultInternalLog(absl::LogSeverity, const char *, int, std::string_view message) {
+    std::cout << "Internal log: " << message << std::endl;
+}
+
+constinit absl::base_internal::AtomicHook<absl::raw_log_internal::InternalLogFunction>
+    absl::raw_log_internal::internal_log_function(DefaultInternalLog);

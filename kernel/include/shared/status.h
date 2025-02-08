@@ -18,6 +18,8 @@ enum OsStatusId {
     OsStatusInvalidInput = 3,
 
     OsStatusNotSupported = 4,
+
+    OsStatusAlreadyExists = 5,
 };
 
 inline bool OsStatusOk(OsStatus status) {
