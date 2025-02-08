@@ -78,7 +78,7 @@ sm::SharedPtr<vfs::INode> vfs::RamFsMount::root() const {
 
 stdx::StringView vfs::RamFs::name() const {
     using namespace stdx::literals;
-    return "ramfs"_sv;
+    return "ramfs";
 }
 
 OsStatus vfs::RamFs::mount(IFileSystemMount **mount) {

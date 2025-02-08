@@ -1,0 +1,83 @@
+#include "fs2/path.hpp"
+
+using namespace vfs2;
+
+VfsPathConstIterator::Iterator VfsPathConstIterator::nextSegment(Iterator front) const {
+    auto end = mString->end();
+
+    auto iter = front;
+    while (iter != end && *iter != OS_PATH_SEPARATOR) {
+        iter++;
+    }
+
+    return iter;
+}
+
+VfsStringView VfsPathConstIterator::segment() const {
+    auto back = nextSegment(mIter);
+    return VfsStringView(mIter, back);
+}
+
+VfsPathConstIterator::VfsPathConstIterator(const VfsString *string, Iterator iter)
+    : mString(string)
+    , mIter(iter)
+{ }
+
+VfsStringView VfsPathConstIterator::operator*() const {
+    return segment();
+}
+
+VfsPathConstIterator& VfsPathConstIterator::operator++() {
+    auto back = nextSegment(mIter);
+    mIter = back;
+
+    return *this;
+}
+
+bool VfsPathConstIterator::operator==(const VfsPathConstIterator& other) const {
+    return mIter == other.mIter;
+}
+
+VfsPath::VfsPath(stdx::String path)
+    : mPath(std::move(path))
+{ }
+
+VfsPathConstIterator VfsPath::begin() const {
+    return VfsPathConstIterator(&mPath, mPath.begin());
+}
+
+VfsPathConstIterator VfsPath::end() const {
+    return VfsPathConstIterator(&mPath, mPath.end());
+}
+
+bool vfs2::VerifyPathText(VfsStringView text) {
+    // Empty paths are invalid
+    if (text.isEmpty()) {
+        return false;
+    }
+
+    // Paths cannot start or end with a separator.
+    if (text.front() == OS_PATH_SEPARATOR || text.back() == OS_PATH_SEPARATOR) {
+        return false;
+    }
+
+    // Paths cannot contain any empty segments.
+    for (size_t i = 0; i < text.count() - 1; i++) {
+        if (text[i] == OS_PATH_SEPARATOR && text[i + 1] == OS_PATH_SEPARATOR) {
+            return false;
+        }
+    }
+
+    // Paths cannot contain any invalid characters.
+    for (size_t i = 0; i < text.count(); i++) {
+        if (text[i] == OS_PATH_SEPARATOR) {
+            continue;
+        }
+
+        if (std::ranges::contains(kPathInvalidChars, text[i])) {
+            return false;
+        }
+    }
+
+    return true;
+}

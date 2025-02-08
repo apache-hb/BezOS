@@ -14,7 +14,7 @@ static void formatFlag(stdx::StaticString<N>& result, bool set, stdx::StringView
     }
 }
 
-#define FORMAT_FLAG0(result, v, flag) formatFlag(result, v.test(x64::Cr0::flag), stdx::StringView::ofString(#flag))
+#define FORMAT_FLAG0(result, v, flag) formatFlag(result, v.test(x64::Cr0::flag), stdx::StringView(#flag))
 
 Cr0Format::String Cr0Format::toString(x64::Cr0 value) {
     Cr0Format::String result;
@@ -37,7 +37,7 @@ Cr0Format::String Cr0Format::toString(x64::Cr0 value) {
     return result;
 }
 
-#define FORMAT_FLAG4(result, v, flag) formatFlag(result, v.test(x64::Cr4::flag), stdx::StringView::ofString(#flag))
+#define FORMAT_FLAG4(result, v, flag) formatFlag(result, v.test(x64::Cr4::flag), stdx::StringView(#flag))
 
 Cr4Format::String Cr4Format::toString(x64::Cr4 value) {
     Cr4Format::String result;

@@ -14,34 +14,34 @@ IapcFormat::String IapcFormat::toString(acpi::IapcBootArch arch) {
     bool first = true;
 
     if (bool(arch & acpi::IapcBootArch::eLegacyDevices)) {
-        result.add("Legacy devices"_sv);
+        result.add("Legacy devices");
         first = false;
     }
 
     if (bool(arch & acpi::IapcBootArch::e8042Controller)) {
         if (!first) {
-            result.add(", "_sv);
+            result.add(", ");
         }
 
-        result.add("8042 controller"_sv);
+        result.add("8042 controller");
         first = false;
     }
 
     if (bool(arch & acpi::IapcBootArch::eVgaNotPresent)) {
         if (!first) {
-            result.add(", "_sv);
+            result.add(", ");
         }
 
-        result.add("VGA not present"_sv);
+        result.add("VGA not present");
         first = false;
     }
 
     if (bool(arch & acpi::IapcBootArch::eMsiNotPresent)) {
         if (!first) {
-            result.add(", "_sv);
+            result.add(", ");
         }
 
-        result.add("MSI not supported"_sv);
+        result.add("MSI not supported");
         first = false;
     }
 
@@ -55,29 +55,29 @@ IapcFormat::String IapcFormat::toString(acpi::IapcBootArch arch) {
 AddrSpaceFormat::String AddrSpaceFormat::toString(acpi::AddressSpaceId space) {
     switch (space) {
     case acpi::AddressSpaceId::eSystemMemory:
-        return "RAM"_sv;
+        return "RAM";
     case acpi::AddressSpaceId::eSystemIo:
-        return "IO"_sv;
+        return "IO";
     case acpi::AddressSpaceId::ePciConfig:
-        return "PCI"_sv;
+        return "PCI";
     case acpi::AddressSpaceId::eEmbeddedController:
-        return "IC"_sv;
+        return "IC";
     case acpi::AddressSpaceId::eSmbus:
-        return "SMB"_sv;
+        return "SMB";
     case acpi::AddressSpaceId::eSystemCmos:
-        return "CMOS"_sv;
+        return "CMOS";
     case acpi::AddressSpaceId::ePciBarTarget:
-        return "BAR"_sv;
+        return "BAR";
     case acpi::AddressSpaceId::eIpmi:
-        return "IPMI"_sv;
+        return "IPMI";
     case acpi::AddressSpaceId::eGeneralPurposeIo:
-        return "GPIO"_sv;
+        return "GPIO";
     case acpi::AddressSpaceId::eGenericSerialBus:
-        return "UART"_sv;
+        return "UART";
     case acpi::AddressSpaceId::ePlatformCommChannel:
-        return "PCC"_sv;
+        return "PCC";
     case acpi::AddressSpaceId::eFunctionalFixedHardware:
-        return "FFH"_sv;
+        return "FFH";
     default:
         return km::format(km::Hex(std::to_underlying(space)).pad(2, '0'));
     }
@@ -86,13 +86,13 @@ AddrSpaceFormat::String AddrSpaceFormat::toString(acpi::AddressSpaceId space) {
 AccessFormat::String AccessFormat::toString(acpi::AccessSize size) {
     switch (size) {
     case acpi::AccessSize::eByte:
-        return "Byte"_sv;
+        return "Byte";
     case acpi::AccessSize::eWord:
-        return "Word"_sv;
+        return "Word";
     case acpi::AccessSize::eDword:
-        return "Dword"_sv;
+        return "Dword";
     case acpi::AccessSize::eQword:
-        return "Qword"_sv;
+        return "Qword";
     default:
         return km::format(km::Hex(std::to_underlying(size)).pad(2, '0'));
     }
@@ -101,9 +101,9 @@ AccessFormat::String AccessFormat::toString(acpi::AccessSize size) {
 void AddressFormat::format(km::IOutStream& out, acpi::GenericAddress value) {
     auto as = km::format(value.addressSpace);
     for (size_t i = 0; i < 4 - as.count(); i++) {
-        out.write(" "_sv);
+        out.write(" ");
     }
-    out.format(as, ":"_sv, km::Hex(value.address).pad(16, '0'));
-    out.format("+"_sv, km::Int(value.offset).pad(3, '0'));
-    out.format("["_sv, km::Int(value.width).pad(3, '0'), "] "_sv, value.accessSize);
+    out.format(as, ":", km::Hex(value.address).pad(16, '0'));
+    out.format("+", km::Int(value.offset).pad(3, '0'));
+    out.format("[", km::Int(value.width).pad(3, '0'), "] ", value.accessSize);
 }

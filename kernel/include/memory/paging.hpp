@@ -137,27 +137,26 @@ struct km::Format<km::MemoryType> {
     static constexpr size_t kStringSize = 4;
 
     static void format(km::IOutStream& out, km::MemoryType value) {
-        using namespace stdx::literals;
         using enum km::MemoryType;
 
         switch (value) {
         case eUncached:
-            out.write("UC"_sv);
+            out.write("UC");
             break;
         case eWriteCombine:
-            out.write("WC"_sv);
+            out.write("WC");
             break;
         case eWriteThrough:
-            out.write("WT"_sv);
+            out.write("WT");
             break;
         case eWriteProtect:
-            out.write("WP"_sv);
+            out.write("WP");
             break;
         case eWriteBack:
-            out.write("WB"_sv);
+            out.write("WB");
             break;
         case eUncachedOverridable:
-            out.write("UC-"_sv);
+            out.write("UC-");
             break;
         default:
             out.write(km::Hex(std::to_underlying(value)).pad(2));

@@ -13,25 +13,25 @@ static constexpr size_t kRowSize = 16;
 
 static void FormatRow(km::IOutStream& out, std::span<const std::byte> row, uintptr_t address) {
     out.write(km::format(km::Hex(address).pad(16, '0')));
-    out.write(" : "_sv);
+    out.write(" : ");
 
     for (size_t i = 0; i < kRowSize; i++) {
         if (i >= row.size()) {
-            out.write("  "_sv);
+            out.write("  ");
         } else {
             out.write(km::FormatInt((uint8_t)row[i], 16, 2, '0'));
         }
 
         if (i % 2 == 1) {
-            out.write(" "_sv);
+            out.write(" ");
         }
     }
 
-    out.write("  "_sv);
+    out.write("  ");
 
     for (size_t i = 0; i < kRowSize; i++) {
         if (i >= row.size()) {
-            out.write(" "_sv);
+            out.write(" ");
         } else {
             uint8_t c = (uint8_t)row[i];
             out.write(IsText(c) ? (char)c : '.');
@@ -45,7 +45,7 @@ void HexDumpFormat::format(IOutStream &out, HexDump value) {
 
     while ((start + kRowSize) < size) {
         FormatRow(out, value.data.subspan(start, kRowSize), value.base + start);
-        out.write("\n"_sv);
+        out.write("\n");
         start += kRowSize;
     }
 

@@ -7,7 +7,7 @@
 using namespace stdx::literals;
 
 bool km::PlatformInfo::isOracleVirtualBox() const {
-    return vendor == "innotek GmbH"_sv;
+    return vendor == "innotek GmbH";
 }
 
 /// @brief Read an SMBIOS entry from the given pointer.
@@ -26,10 +26,10 @@ static const void *ReadSmbiosEntry(km::PlatformInfo& info, const void *ptr) {
 
     auto getString = [&](uint8_t index) -> stdx::StringView {
         if (index == 0)
-            return "Not specified"_sv;
+            return "Not specified";
 
         if (index >= strings.count())
-            return "Invalid index"_sv;
+            return "Invalid index";
 
         return strings[index - 1];
     };

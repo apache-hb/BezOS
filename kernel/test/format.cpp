@@ -75,7 +75,7 @@ static constexpr uint8_t kData[] = {
     0x0D, 0x00, 0x04, 0x06, 0xFF, 0x00, 0x00, 0x01,
 };
 
-static constexpr stdx::StringView kHexDump = stdx::StringView::ofString(
+static constexpr stdx::StringView kHexDump = stdx::StringView(
 "0xFFFF800007FE21E8 : 4150 4943 7800 0000 0388 424F 4348 5320   APICx.....BOCHS \n"
 "0xFFFF800007FE21F8 : 4258 5043 2020 2020 0100 0000 4258 5043   BXPC    ....BXPC\n"
 "0xFFFF800007FE2208 : 0100 0000 0000 E0FE 0100 0000 0008 0000   ................\n"

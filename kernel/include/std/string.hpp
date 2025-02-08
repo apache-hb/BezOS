@@ -29,6 +29,15 @@ namespace stdx {
         }
 
     public:
+        using iterator = T*;
+        using const_iterator = const T*;
+        using reference = T&;
+        using const_reference = const T&;
+        using value_type = T;
+        using allocator_type = Allocator;
+        using pointer = T*;
+        using const_pointer = const T*;
+
         constexpr StringBase(Allocator allocator = Allocator{})
             : mAllocator(allocator)
             , mFront(nullptr)
@@ -151,6 +160,19 @@ namespace stdx {
             std::uninitialized_move(first, last, mBack);
             mBack += last - first;
             mBack[0] = T{};
+        }
+
+        constexpr void append(const T *text, size_t size) {
+            insert(text, text + size);
+        }
+
+        constexpr void append(const T *text) {
+            append(text, std::char_traits<T>::length(text));
+        }
+
+        template<typename R> requires (IsRange<const T, R>)
+        constexpr void append(R&& range) {
+            insert(std::begin(range), std::end(range));
         }
 
         constexpr void remove(size_t index) {

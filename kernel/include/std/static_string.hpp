@@ -31,7 +31,7 @@ namespace stdx {
 
         template<size_t S> requires (S <= N)
         constexpr StaticStringBase(const T (&str)[S])
-            : StaticStringBase(str, str + S)
+            : StaticStringBase(str, str + S - 1)
         { }
 
         template<typename R> requires IsRange<const T, R>

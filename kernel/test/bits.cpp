@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "util/bits.hpp"
+#include "std/traits.hpp"
 
 TEST(BitsTest, SetRangeSimple) {
     uint8_t data[16] = { 0 };
@@ -37,11 +38,12 @@ TEST(BitsTest, BitMask) {
     ASSERT_EQ(sm::BitMask<uint64_t>(4, 8), 0b1111'0000);
 }
 
-constexpr size_t align_up(size_t x, size_t align)
-{
+constexpr size_t align_up(size_t x, size_t align) {
 	return (x + (align - 1)) & ~(align - 1);
 }
 
 TEST(ExtraTest, AlignUp) {
     ASSERT_EQ(align_up(16, 4), 16);
 }
+
+static_assert(stdx::IsRange<const char, decltype("hello")>);

@@ -21,6 +21,6 @@ template<>
 struct km::Format<km::CpuCoreId> {
     static void format(km::IOutStream& out, km::CpuCoreId id) {
         using namespace stdx::literals;
-        out.format("CPU"_sv, km::Int(std::to_underlying(id)).pad(3));
+        out.format("CPU", km::Int(std::to_underlying(id)).pad(3));
     }
 };

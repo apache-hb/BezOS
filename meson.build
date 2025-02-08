@@ -175,6 +175,10 @@ src = [
     'kernel/src/fs/ramfs.cpp',
     'kernel/src/fs/tarfs.cpp',
 
+    # VFS rewrite
+    'kernel/src/fs2/vfs.cpp',
+    'kernel/src/fs2/path.cpp',
+
     # Smp setup
     'kernel/src/smp.cpp',
     smp,
@@ -294,33 +298,16 @@ testcases = {
         'kernel/test/bits.cpp',
         'kernel/src/util/bits.cpp',
     ],
-    # 'memmap': [
-    #     'kernel/test/memmap.cpp',
-    #     'kernel/src/memory/layout.cpp',
-    #     'kernel/src/util/memory.cpp',
-    # ],
-    'string': [ 'kernel/test/string.cpp', ],
+    'string': [ 'kernel/test/std/string.cpp', ],
+    'static string': [ 'kernel/test/std/static_string.cpp', ],
+    'string view': [ 'kernel/test/std/string_view.cpp', ],
     'memory range': [ 'kernel/test/memory_range.cpp' ],
     'pat': [ 'kernel/test/page_attribute_table.cpp', 'kernel/src/pat.cpp', 'kernel/src/util/cpuid.cpp', ],
     'paging': [ 'kernel/test/paging.cpp', ],
-    # 'pmm': [
-    #     'kernel/test/pmm.cpp',
-    #     'kernel/src/memory/bitmap.cpp',
-    #     'kernel/src/util/bits.cpp',
-    # ],
     'arch cr': [ 'kernel/test/arch/cr.cpp', 'kernel/src/arch/cr.cpp', ],
     'arch gdt': [ 'kernel/test/arch/gdt.cpp', 'kernel/src/gdt.cpp', ],
     'framebuffer': [ 'kernel/test/display.cpp', 'kernel/src/canvas.cpp', ],
     'crt': [ 'kernel/test/crt.cpp', 'kernel/src/crt.cpp', ],
-    # TODO: re-enable once the page allocator design is finalized
-    # 'page allocator': [
-    #     'kernel/test/page_allocator.cpp',
-    #     'kernel/src/memory/page_allocator.cpp',
-    #     'kernel/src/memory/bitmap.cpp',
-    #     'kernel/src/memory/layout.cpp',
-    #     'kernel/src/util/bits.cpp',
-    #     'kernel/src/boot.cpp',
-    # ],
     'virtual allocator': [
         'kernel/test/memory/virtual_allocator.cpp',
         'kernel/src/memory/virtual_allocator.cpp',
@@ -360,6 +347,15 @@ testcases = {
         'kernel/src/fs/vfs.cpp',
         'kernel/src/fs/path.cpp',
         'kernel/src/fs/ramfs.cpp',
+    ],
+    'fs2': [
+        'kernel/test/fs/fs.cpp',
+        'kernel/src/fs2/vfs.cpp',
+        'kernel/src/fs2/path.cpp',
+    ],
+    'vfs path': [
+        'kernel/test/fs/path.cpp',
+        'kernel/src/fs2/path.cpp',
     ],
     'shared ptr': [
         'kernel/test/shared.cpp',

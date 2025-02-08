@@ -283,10 +283,10 @@ using namespace stdx::literals;
 StatusFormat::String StatusFormat::toString(hid::Ps2ControllerStatus status) {
     switch (status) {
     case hid::Ps2ControllerStatus::eOk:
-        return "Ok"_sv;
+        return "Ok";
     case hid::Ps2ControllerStatus::eControllerSelfTestFailed:
-        return "8042 Self Test Failed"_sv;
+        return "8042 Self Test Failed";
     case hid::Ps2ControllerStatus::ePortTestFailed:
-        return "Port Test Failed"_sv;
+        return "Port Test Failed";
     }
 }

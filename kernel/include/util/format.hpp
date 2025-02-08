@@ -46,8 +46,7 @@ namespace km {
 
         virtual void write(stdx::StringView message) = 0;
         virtual void write(char c) {
-            char buffer[1] = { c };
-            write(buffer);
+            write(std::to_array({ c }));
         }
 
         template<typename T> requires (!std::convertible_to<T, stdx::StringView>)

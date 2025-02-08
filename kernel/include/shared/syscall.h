@@ -1,5 +1,6 @@
 #pragma once
 
+#include "shared/compiler.h"
 #include "shared/status.h"
 
 #include <stddef.h>
@@ -11,14 +12,21 @@ extern "C" {
 
 #define OS_OBJECT_HANDLE(name) typedef struct name##Handle *name
 
-#ifdef __cplusplus
-#   define OS_STATIC_ASSERT(expr, message) static_assert(expr, message)
-#else
-#   define OS_STATIC_ASSERT(expr, message) _Static_assert(expr, message)
-#endif
-
 typedef uint8_t OsByte;
+typedef size_t OsSize;
 typedef char OsUtf8Char;
+
+typedef bool OsBool;
+typedef uint64_t OsUnsigned;
+typedef int64_t OsSigned;
+typedef float OsFloat;
+typedef double OsDouble;
+typedef void *OsAnyPointer;
+
+struct OsString {
+    OsSize Size;
+    OsUtf8Char Data[] OS_COUNTED_BY(Size);
+};
 
 enum {
     eOsCallFileOpen = 0x10,
@@ -72,6 +80,9 @@ OS_OBJECT_HANDLE(OsProcessHandle);
 
 /// @brief An invalid file handle.
 #define OS_FILE_INVALID ((OsFileHandle)(UINT64_MAX))
+
+/// @brief The path separator used by the operating system.
+#define OS_PATH_SEPARATOR '\0'
 
 /// @brief Seek modes.
 ///
@@ -127,6 +138,14 @@ enum {
 
     /// @brief Seek relative to the end of the file.
     eOsSeekEnd      = UINT64_C(2),
+};
+
+/// @brief A path on the filesystem.
+///
+/// A path is a sequence of segments separated by @a OS_PATH_SEPARATOR.
+struct OsPath {
+    const OsUtf8Char *PathFront;
+    const OsUtf8Char *PathBack;
 };
 
 /// @brief Open or create a file.
@@ -285,20 +304,58 @@ typedef uint32_t OsParamType;
 /// Bits [16:31] is the size of the array if the array flag is set. Otherwise it is reserved.
 typedef uint32_t OsParamFlags;
 
+#define OS_PARAM_TYPE(param) (param & 0x000000FF)
+#define OS_PARAM_ARRAY_SIZE(param) (param >> 16)
+
 /// @brief The value of the param.
 typedef uint64_t OsParamValue;
 
 enum {
-    eOsParamFlagVoid     = UINT32_C(0),
-    eOsParamFlagBoolean  = UINT32_C(1),
-    eOsParamFlagSigned   = UINT32_C(2),
-    eOsParamFlagUnsigned = UINT32_C(3),
-    eOsParamFlagFloat    = UINT32_C(4),
-    eOsParamFlagString   = UINT32_C(5),
+    /// @brief The param is a void type.
+    /// This type has no associated value.
+    eOsParamVoid     = UINT32_C(0),
 
-    eOsParamFlagError    = UINT32_C(1) << 13,
+    /// @brief The param is a boolean type.
+    /// The associated value is of type @a OsBool.
+    eOsParamBoolean  = UINT32_C(1),
+
+    /// @brief The param is a signed integer type.
+    /// The associated value is of type @a OsSigned.
+    eOsParamSigned   = UINT32_C(2),
+
+    /// @brief The param is an unsigned integer type.
+    /// The associated value is of type @a OsUnsigned.
+    eOsParamUnsigned = UINT32_C(3),
+
+    /// @brief The param is a float type.
+    /// The associated value is of type @a OsFloat.
+    eOsParamFloat    = UINT32_C(4),
+
+    /// @brief The param is a double type.
+    /// The associated value is of type @a OsDouble.
+    eOsParamDouble   = UINT32_C(5),
+
+    /// @brief The param is a string type.
+    /// The associated value is of type @a OsString.
+    eOsParamString   = UINT32_C(6),
+
+    /// @brief The param is a character type.
+    /// The associated value is of type @a OsUtf8Char.
+    eOsParamChar     = UINT32_C(7),
+
+    /// @brief The param is a pointer type.
+    /// The associated value is of type @a OsAnyPointer.
+    eOsParamPointer  = UINT32_C(8),
+
+    /// @brief The parameter is an array of values.
+    /// The associated value is a pointer of type @a OsAnyPointer to the first element of the array.
+    eOsParamFlagArray    = UINT32_C(1) << 13,
+
+    /// @brief The parameter is read only.
     eOsParamFlagConst    = UINT32_C(1) << 14,
-    eOsParamFlagArray    = UINT32_C(1) << 15,
+
+    /// @brief An error occurred while reading the parameter.
+    eOsParamFlagError    = UINT32_C(1) << 15,
 };
 
 enum {

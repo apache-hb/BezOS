@@ -19,9 +19,9 @@ namespace stdx {
             : StringViewBase(kEmpty, kEmpty)
         { }
 
-        template<size_t N>
+        template<size_t N> requires (N > 0)
         constexpr StringViewBase(const T (&str)[N])
-            : StringViewBase(std::begin(str), std::end(str))
+            : StringViewBase(std::begin(str), std::end(str) - 1)
         { }
 
         template<typename R> requires IsRange<const T, R>
@@ -33,11 +33,6 @@ namespace stdx {
             : mFront(front)
             , mBack(back)
         { }
-
-        template<size_t N>
-        static constexpr StringViewBase ofString(const T (&str)[N]) {
-            return StringViewBase(str, str + N - 1);
-        }
 
         constexpr size_t count() const { return mBack - mFront; }
         constexpr size_t sizeInBytes() const { return count() * sizeof(T); }

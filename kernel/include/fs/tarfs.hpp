@@ -74,7 +74,7 @@ namespace vfs {
 
         stdx::StringView name() const override {
             using namespace stdx::literals;
-            return "tarfs"_sv;
+            return "tarfs";
         }
 
         OsStatus mount(IFileSystemMount **mount) override;

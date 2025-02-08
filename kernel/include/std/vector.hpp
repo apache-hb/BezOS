@@ -235,6 +235,8 @@ namespace stdx {
         using const_reference = const T&;
         using pointer = T*;
         using const_pointer = const T*;
+        using iterator = T*;
+        using const_iterator = const T*;
 
         constexpr Vector2(Allocator allocator = Allocator{})
             : mAllocator(allocator)
@@ -377,6 +379,22 @@ namespace stdx {
 
         constexpr T& back() { return *(mBack - 1); }
         constexpr const T& back() const { return *(mBack - 1); }
+
+        constexpr iterator emplace_back() {
+            ensureExtra(1);
+            return std::uninitialized_default_construct(mBack++);
+        }
+
+        constexpr iterator emplace_back(T value) {
+            ensureExtra(1);
+            return std::construct_at(mBack++, std::move(value));
+        }
+
+        template<typename... Args> requires std::constructible_from<T, Args...>
+        constexpr iterator emplace_back(Args&&... args) {
+            ensureExtra(1);
+            return std::construct_at(mBack++, std::forward<Args>(args)...);
+        }
 
         constexpr void add(T value) {
             ensureExtra(1);
