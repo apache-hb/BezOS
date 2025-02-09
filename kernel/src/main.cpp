@@ -661,7 +661,6 @@ static Stage2MemoryInfo *InitStage2Memory(
     MemoryMap *earlyMemory = stage1.earlyMemory;
 
     PageBuilder pm = PageBuilder { processor.maxpaddr, processor.maxvaddr, layout.committedSlide(), GetDefaultPatLayout() };
-    // km::AddressMapping stackMapping = { (void*)((uintptr_t)stack.vaddr - stack.size), stack.paddr - stack.size, stack.size };
 
     // Create the global memory allocator
     mem::TlsfAllocator alloc{(void*)layout.committed.vaddr, layout.committed.size};
@@ -1042,9 +1041,14 @@ static void SetupInterruptStacks(uint16_t cs, mem::IAllocator *allocator) {
 }
 
 static void NormalizeProcessorState() {
-    x64::Cr0 cr0 = x64::Cr0::load();
-    cr0.set(x64::Cr0::WP | x64::Cr0::NE);
+    x64::Cr0 cr0 = x64::Cr0::of(x64::Cr0::PG | x64::Cr0::WP | x64::Cr0::NE | x64::Cr0::ET | x64::Cr0::PE);
     x64::Cr0::store(cr0);
+
+    x64::Cr4 cr4 = x64::Cr4::of(x64::Cr4::PAE);
+    x64::Cr4::store(cr4);
+
+    // Enable NXE bit
+    kEfer.store(kEfer.load() | (1 << 11));
 
     kGsBase.store(0);
 }

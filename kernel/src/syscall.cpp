@@ -6,7 +6,6 @@
 #include "log.hpp"
 #include "thread.hpp"
 
-static constexpr x64::ModelRegister<0xC0000080, x64::RegisterAccess::eReadWrite> kEfer;
 static constexpr x64::ModelRegister<0xC0000081, x64::RegisterAccess::eReadWrite> kStar;
 static constexpr x64::ModelRegister<0xC0000082, x64::RegisterAccess::eReadWrite> kLStar;
 static constexpr x64::ModelRegister<0xC0000084, x64::RegisterAccess::eReadWrite> kFMask;
@@ -28,11 +27,11 @@ extern "C" uint64_t KmSystemCallStackTlsOffset;
 
 extern "C" uint64_t KmSystemDispatchRoutine(km::SystemCallContext *context) {
     KmDebugMessage("[SYSCALL] Function: ", km::Hex(context->function), ", Arg0: ", km::Hex(context->arg0), ", Arg1: ", km::Hex(context->arg1), ", Arg2: ", km::Hex(context->arg2), ", Arg3: ", km::Hex(context->arg3), "\n");
-    
+
     if (km::SystemCallHandler handler = gSystemCalls[uint8_t(context->function)]) {
         return handler(context->arg0, context->arg1, context->arg2, context->arg3);
     }
-    
+
     return 0x1234;
 }
 

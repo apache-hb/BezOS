@@ -22,7 +22,10 @@ x64::page *PageTableManager::alloc4k() {
 }
 
 void PageTableManager::setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddress address) {
-    KM_CHECK(address.address < mPageManager->maxPhysicalAddress(), "Physical address out of range.");
+    if (address > mPageManager->maxPhysicalAddress()) {
+        KmDebugMessage("Physical address out of range: ", address, " > ", mPageManager->maxPhysicalAddress(), "\n");
+        KM_PANIC("Physical address out of range.");
+    }
 
     mPageManager->setAddress(entry, address.address);
 

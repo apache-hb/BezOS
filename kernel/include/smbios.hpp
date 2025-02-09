@@ -7,7 +7,7 @@
 
 namespace km {
     struct SmBiosHeader64 {
-        char anchor[5];
+        std::array<char, 5> anchor;
         uint8_t checksum;
         uint8_t length;
         uint8_t major;
@@ -20,7 +20,7 @@ namespace km {
     };
 
     struct SmBiosHeader32 {
-        char anchor0[4];
+        std::array<char, 4> anchor0;
         uint8_t checksum0;
 
         uint8_t length;

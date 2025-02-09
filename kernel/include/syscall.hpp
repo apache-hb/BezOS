@@ -1,11 +1,15 @@
 #pragma once
 
-#include "process.hpp"
+#include "allocator/allocator.hpp"
+#include "arch/arch.hpp"
+#include "arch/msr.hpp"
 
 #include <cstdint>
 
 namespace km {
     using SystemCallHandler = uint64_t(*)(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3);
+
+    static constexpr x64::ModelRegister<0xC0000080, x64::RegisterAccess::eReadWrite> kEfer;
 
     struct [[gnu::packed]] SystemCallContext {
         // user registers

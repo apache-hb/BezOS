@@ -177,6 +177,7 @@ extern "C" int HyperMain(ultra_boot_context *context, uint32_t) {
         .framebuffers = fbs,
         .memmap = { memory },
         .stack = stack,
+        .smbios32Address = platformInfo->smbios_address,
         .smbios64Address = platformInfo->smbios_address,
     };
 
