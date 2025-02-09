@@ -26,6 +26,8 @@ void KmBugCheck(stdx::StringView message, stdx::StringView file, unsigned line) 
 
 void km::BugCheck(stdx::StringView message, std::source_location where) {
     KmDebugMessage("[BUG] Assertion failed '", message, "'\n");
-    KmDebugMessage("[BUG] ", where.function_name(), " (", where.file_name(), ":", where.line(), ")\n");
+    stdx::StringView fn(where.function_name(), std::char_traits<char>::length(where.function_name()));
+    stdx::StringView file(where.file_name(), std::char_traits<char>::length(where.file_name()));
+    KmDebugMessage("[BUG] ", fn, " (", file, ":", where.line(), ")\n");
     KmHalt();
 }

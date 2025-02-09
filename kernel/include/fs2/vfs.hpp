@@ -110,6 +110,7 @@ namespace vfs2 {
         virtual OsStatus mkdir(IVfsNode**) { return OsStatusNotSupported; }
 
         virtual OsStatus remove(IVfsNode*) { return OsStatusNotSupported; }
+        virtual OsStatus rmdir(IVfsNode*) { return OsStatusNotSupported; }
 
         OsStatus open(IVfsNodeHandle **handle);
 

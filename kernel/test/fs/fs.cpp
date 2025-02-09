@@ -54,6 +54,18 @@ struct RamFsFolder : public RamFsNode {
         return OsStatusSuccess;
     }
 
+    OsStatus rmdir(IVfsNode* node) override {
+        auto it = children.find(node->name);
+        if (it == children.end()) {
+            return OsStatusNotFound;
+        }
+
+        children.erase(it);
+        delete node;
+
+        return OsStatusSuccess;
+    }
+
     OsStatus mkdir(IVfsNode **node) override {
         *node = new RamFsFolder();
         return OsStatusSuccess;
@@ -297,5 +309,40 @@ TEST(Vfs2Test, RemoveFile) {
         OsStatus status = vfs.lookup(BuildPath("System", "motd.txt"), &lookup);
         ASSERT_EQ(OsStatusNotFound, status);
         ASSERT_EQ(lookup, nullptr);
+    }
+}
+
+TEST(Vfs2Test, RemoveFolder) {
+    VfsRoot vfs;
+
+    IVfsMount *mount = nullptr;
+    IVfsNode *node = nullptr;
+
+    {
+        OsStatus status = vfs.addMount(&gRamFs, "System", &mount);
+        ASSERT_EQ(OsStatusSuccess, status);
+    }
+
+    {
+        OsStatus status = vfs.mkpath(BuildPath("System", "Devices", "CPU", "CPU0", "Firmware"), &node);
+        ASSERT_EQ(OsStatusSuccess, status);
+    }
+
+    {
+        OsStatus status = vfs.rmdir(node);
+        ASSERT_EQ(OsStatusSuccess, status);
+    }
+
+    IVfsNode *lookup = nullptr;
+    {
+        OsStatus status = vfs.lookup(BuildPath("System", "Devices", "CPU", "CPU0", "Firmware"), &lookup);
+        ASSERT_EQ(OsStatusNotFound, status);
+        ASSERT_EQ(lookup, nullptr);
+    }
+
+    {
+        OsStatus status = vfs.lookup(BuildPath("System", "Devices", "CPU", "CPU0"), &lookup);
+        ASSERT_EQ(OsStatusSuccess, status);
+        ASSERT_NE(lookup, nullptr);
     }
 }

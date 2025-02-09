@@ -173,6 +173,41 @@ OsStatus VfsRoot::mkdir(const VfsPath& path, IVfsNode **node) {
     return OsStatusSuccess;
 }
 
+OsStatus VfsRoot::rmdir(IVfsNode *node) {
+    //
+    // rmdir is only valid on folders, each inode type
+    // has its own method for removal.
+    //
+    if (node->type != VfsNodeType::eFolder) {
+        return OsStatusInvalidType;
+    }
+
+    //
+    // If the node has no parent, we are unable to remove it.
+    // This indicates an attempt to remove the fs root node.
+    //
+    if (node->parent == nullptr) {
+        return OsStatusInvalidInput;
+    }
+
+    //
+    // Ensure that no programs hold exclusive locks on the folder.
+    //
+    if (!node->readyForRemove()) {
+        return OsStatusHandleLocked;
+    }
+
+    //
+    // Once we know the node is ready for removal we can
+    // remove it from the parent folder.
+    //
+    if (OsStatus status = node->parent->rmdir(node)) {
+        return status;
+    }
+
+    return OsStatusSuccess;
+}
+
 OsStatus VfsRoot::mkpath(const VfsPath& path, IVfsNode **node) {
     IVfsNode *current = &mRootNode;
 

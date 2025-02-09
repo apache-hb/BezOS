@@ -34,6 +34,10 @@ namespace stdx {
             , mBack(back)
         { }
 
+        constexpr StringViewBase(const T *data, size_t size)
+            : StringViewBase(data, data + size)
+        { }
+
         constexpr size_t count() const { return mBack - mFront; }
         constexpr size_t sizeInBytes() const { return count() * sizeof(T); }
         constexpr bool isEmpty() const { return mBack == mFront; }

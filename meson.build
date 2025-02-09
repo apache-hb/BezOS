@@ -48,6 +48,7 @@ mp_units = dependency('mp-units')
 absl = subproject('abseil-cpp')
 
 inc = [ inc, absl.get_variable('absl_include_dir') ]
+deps = [ mp_units ]
 
 compiler = find_program(cc.get_id())
 objcopy = find_program('objcopy')
@@ -215,7 +216,7 @@ kernel = static_library('kernel', src,
     include_directories : inc,
     c_args : c_args + [ '-mllvm', '-asm-macro-max-nesting-depth=256', '-D__BEZOS__=1' ],
     cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
-    dependencies : [ mp_units ],
+    dependencies : deps,
     override_options : [ 'b_coverage=false' ],
 )
 
@@ -224,7 +225,7 @@ executable('bezos', 'kernel/src/boot/limine.cpp',
     cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
     include_directories : inc,
     link_with : kernel,
-    dependencies : [ limine, mp_units ],
+    dependencies : [ limine, deps ],
     link_depends : 'data/linker-x64.ld',
     link_args : [ '-T', meson.current_source_dir() / 'data/linker-x64.ld' ],
     install_dir : get_option('prefix') / 'image' / 'boot',
