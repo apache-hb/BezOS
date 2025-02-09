@@ -40,3 +40,15 @@ TEST(SharedPtrTest, AssignMove) {
     ASSERT_EQ(*ptr2, 5);
     ASSERT_EQ(ptr, nullptr);
 }
+
+TEST(SharedPtrTest, WeakPtr) {
+    sm::WeakPtr<int> weak;
+
+    {
+        sm::SharedPtr<int> ptr(new int(5));
+
+        weak = ptr.weak();
+    }
+
+    ASSERT_EQ(weak.lock(), nullptr);
+}
