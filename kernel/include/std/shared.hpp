@@ -103,8 +103,12 @@ namespace sm {
     class SharedPtr;
 
     template<typename T>
+    class IntrusiveCount;
+
+    template<typename T>
     class WeakPtr {
         friend class SharedPtr<T>;
+        friend class IntrusiveCount<T>;
 
         detail::ControlBlock *mControl;
 
@@ -169,6 +173,10 @@ namespace sm {
             return *this;
         }
 
+        WeakPtr(SharedPtr<T> shared)
+            : WeakPtr(shared.mControl)
+        { }
+
         ~WeakPtr() {
             release();
         }
@@ -227,13 +235,10 @@ namespace sm {
         SharedPtr(T *value) : SharedPtr() {
             if (value != nullptr) {
                 mControl = new detail::ControlBlock { 1, 1, value, +[](void *v) { delete static_cast<T*>(v); } };
-            }
-        }
 
-        template<std::derived_from<T> U>
-        SharedPtr(U *value) : SharedPtr() {
-            if (value != nullptr) {
-                mControl = new detail::ControlBlock { 1, 1, value, +[](void *v) { delete static_cast<T*>(v); } };
+                if constexpr (std::is_convertible_v<T*, IntrusiveCount<T>*>) {
+                    static_cast<IntrusiveCount<T>*>(value)->initWeak(mControl);
+                }
             }
         }
 
@@ -250,6 +255,10 @@ namespace sm {
             : mControl(std::exchange(other.mControl, nullptr))
         { }
 
+        SharedPtr(const WeakPtr<T>& weak)
+            : SharedPtr(weak.mControl)
+        { }
+
         SharedPtr& operator=(const SharedPtr& other) {
             if (mControl != other.mControl) {
                 release();
@@ -263,9 +272,9 @@ namespace sm {
         SharedPtr& operator=(SharedPtr&& other) {
             if (mControl != other.mControl) {
                 release();
-                mControl = other.mControl;
-                other.mControl = nullptr;
             }
+
+            mControl = std::exchange(other.mControl, nullptr);
 
             return *this;
         }
@@ -305,9 +314,13 @@ namespace sm {
 
         WeakPtr<T> mWeakThis;
 
+        void initWeak(detail::ControlBlock *control) {
+            mWeakThis = WeakPtr<T>(control);
+        }
+
     protected:
-        SharedPtr<T> share() {
-            return SharedPtr<T>(static_cast<T*>(this));
+        SharedPtr<T> strongShare() {
+            return SharedPtr<T>(mWeakThis);
         }
 
         WeakPtr<T> weakShare() {
