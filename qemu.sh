@@ -18,11 +18,10 @@ serial_canbus()
 }
 
 # Check if a different iso is requested
-echo $ARGS | grep -q "\-iso"
+echo $ARGS | grep -q "\-iso=hyper"
 if [ $? -eq 0 ]; then
-    ISO=$(echo $ARGS | sed s/.*-iso// | cut -d ' ' -f 1)
-    QEMUARGS="-cdrom $ISO"
-    ARGS=$(echo $ARGS | sed s/\-iso//)
+    QEMUARGS="-cdrom install/bezos-hyper.iso"
+    ARGS=$(echo $ARGS | sed s/\-iso=hyper//)
 else
     QEMUARGS="$QEMUARGS -cdrom $ISO"
 fi

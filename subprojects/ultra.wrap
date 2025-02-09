@@ -5,4 +5,4 @@ revision = head
 patch_directory = ultra
 
 [provide]
-dependency_names = hyper
+dependency_names = ultra

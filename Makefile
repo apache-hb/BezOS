@@ -1,8 +1,27 @@
 LIMINE_ISO=install/bezos-limine.iso
 HYPER_ISO=install/bezos-hyper.iso
 
+HYPER_BOOTX64=data/hyper/BOOTX64.EFI
+HYPER_ISOBOOT=data/hyper/hyper-iso-boot
+HYPER_INSTALL=data/hyper/hyper-install
+
+.DEFAULT_GOAL := build
+
+$(HYPER_BOOTX64):
+	mkdir -p data/hyper
+	wget https://github.com/UltraOS/Hyper/releases/download/v0.9.0/BOOTX64.EFI -O $(HYPER_BOOTX64)
+
+$(HYPER_ISOBOOT):
+	mkdir -p data/hyper
+	wget https://github.com/UltraOS/Hyper/releases/download/v0.9.0/hyper_iso_boot -O $(HYPER_ISOBOOT)
+
+$(HYPER_INSTALL):
+	mkdir -p data/hyper
+	wget https://github.com/UltraOS/Hyper/releases/download/v0.9.0/hyper_install-linux-x86_64 -O $(HYPER_INSTALL)
+	chmod +x $(HYPER_INSTALL)
+
 .PHONY: build
-build:
+build: $(HYPER_BOOTX64) $(HYPER_ISOBOOT) $(HYPER_INSTALL)
 	meson install -C build --quiet
 
 install/ovmf/ovmf-code-x86_64.fd:

@@ -44,7 +44,7 @@ c_args = cc.get_supported_arguments([ '-Wno-language-extension-token' ] + common
 cpp_args = cpp.get_supported_arguments([ '-Wno-c99-designator', '-Wno-c99-extensions' ] + common_args)
 
 limine = dependency('limine')
-hyper = dependency('hyper')
+ultra = dependency('ultra')
 mp_units = dependency('mp-units')
 absl = subproject('abseil-cpp')
 
@@ -221,6 +221,10 @@ kernel = static_library('kernel', src,
     override_options : [ 'b_coverage=false' ],
 )
 
+###
+### Limine version of the kernel image
+###
+
 executable('bezos-limine', 'kernel/src/boot/limine.cpp',
     c_args : c_args + [ '-D__BEZOS__=1' ],
     cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
@@ -234,12 +238,24 @@ executable('bezos-limine', 'kernel/src/boot/limine.cpp',
     override_options : [ 'b_coverage=false' ],
 )
 
+install_data('data/limine.conf',
+    install_dir : get_option('prefix') / 'limine' / 'image' / 'boot' / 'limine',
+)
+
+install_data('data/limine.conf',
+    install_dir : get_option('prefix') / 'pxe',
+)
+
+###
+### Hyper version of the kernel image
+###
+
 executable('bezos-hyper', 'kernel/src/boot/hyper.cpp',
     c_args : c_args + [ '-D__BEZOS__=1' ],
     cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
     include_directories : inc,
     link_with : kernel,
-    dependencies : [ hyper, deps ],
+    dependencies : [ ultra, deps ],
     link_depends : 'data/linker-hyper.ld',
     link_args : [ '-T', meson.current_source_dir() / 'data/linker-hyper.ld' ],
     install_dir : get_option('prefix') / 'hyper' / 'image' / 'boot',
@@ -247,12 +263,16 @@ executable('bezos-hyper', 'kernel/src/boot/hyper.cpp',
     override_options : [ 'b_coverage=false' ],
 )
 
-install_data('data/limine.conf',
-    install_dir : get_option('prefix') / 'limine' / 'image' / 'boot' / 'limine',
+install_data('data/hyper/hyper-iso-boot',
+    install_dir : get_option('prefix') / 'hyper' / 'image' / 'boot',
 )
 
-install_data('data/limine.conf',
-    install_dir : get_option('prefix') / 'pxe',
+install_data('data/hyper/BOOTX64.EFI',
+    install_dir : get_option('prefix') / 'hyper' / 'image' / 'EFI' / 'BOOT',
+)
+
+install_data('data/hyper.cfg',
+    install_dir : get_option('prefix') / 'hyper' / 'image' / 'boot',
 )
 
 meson.add_install_script('data/image.sh')
