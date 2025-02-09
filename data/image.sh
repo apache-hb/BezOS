@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Build disk image
+# Build limine disk image
 
 xorriso -as mkisofs -R -r -J -b boot/limine/limine-bios-cd.bin \
     -no-emul-boot -boot-load-size 4 -boot-info-table -hfsplus \
@@ -10,6 +10,10 @@ xorriso -as mkisofs -R -r -J -b boot/limine/limine-bios-cd.bin \
     > /dev/null 2>&1
 
 ${MESON_BUILD_ROOT}/subprojects/limine-8.6.1-binary/limine bios-install ${MESON_INSTALL_PREFIX}/bezos.iso > /dev/null 2>&1
+
+# Build hyper disk image
+
+# xorriso -as mkisofs -R -r -J -b boot/hyper/hyper-bios
 
 # Copy kernel to pxe directory
 

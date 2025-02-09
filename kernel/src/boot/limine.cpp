@@ -205,7 +205,7 @@ static km::MemoryRange GetInitDiskImage(const limine_module_response *modules, c
     return { };
 }
 
-extern "C" void kmain(void) {
+extern "C" void LimineMain(void) {
     // offset the stack pointer as limine pushes qword 0 to
     // the stack before jumping to the kernel. and builtin_frame_address
     // returns the address where call would store the return address.

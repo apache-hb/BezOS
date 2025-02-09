@@ -44,6 +44,7 @@ c_args = cc.get_supported_arguments([ '-Wno-language-extension-token' ] + common
 cpp_args = cpp.get_supported_arguments([ '-Wno-c99-designator', '-Wno-c99-extensions' ] + common_args)
 
 limine = dependency('limine')
+hyper = dependency('hyper')
 mp_units = dependency('mp-units')
 absl = subproject('abseil-cpp')
 
@@ -226,8 +227,21 @@ executable('bezos', 'kernel/src/boot/limine.cpp',
     include_directories : inc,
     link_with : kernel,
     dependencies : [ limine, deps ],
-    link_depends : 'data/linker-x64.ld',
-    link_args : [ '-T', meson.current_source_dir() / 'data/linker-x64.ld' ],
+    link_depends : 'data/linker-limine.ld',
+    link_args : [ '-T', meson.current_source_dir() / 'data/linker-limine.ld' ],
+    install_dir : get_option('prefix') / 'image' / 'boot',
+    install : true,
+    override_options : [ 'b_coverage=false' ],
+)
+
+executable('bezos-hyper', 'kernel/src/boot/hyper.cpp',
+    c_args : c_args + [ '-D__BEZOS__=1' ],
+    cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
+    include_directories : inc,
+    link_with : kernel,
+    dependencies : [ hyper, deps ],
+    link_depends : 'data/linker-hyper.ld',
+    link_args : [ '-T', meson.current_source_dir() / 'data/linker-hyper.ld' ],
     install_dir : get_option('prefix') / 'image' / 'boot',
     install : true,
     override_options : [ 'b_coverage=false' ],
