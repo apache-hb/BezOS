@@ -22,7 +22,7 @@ static constexpr uint32_t kX2ApicEnableBit = (1 << 10);
 static constexpr uint64_t kApicBspBit = (1 << 8);
 static constexpr uint32_t kApicSoftwareEnable = (1 << 8);
 
-static void Disable8259Pic() {
+void km::Disable8259Pic() {
     static constexpr uint16_t kCommandMasterPort = 0x20;
     static constexpr uint16_t kDataMasterPort = 0x21;
     static constexpr uint16_t kCommandSlavePort = 0xA0;
@@ -263,9 +263,6 @@ void km::IApic::setSpuriousVector(uint8_t vector) {
 // generic apic free functions
 
 km::Apic km::InitBspApic(km::SystemMemory& memory, bool useX2Apic) {
-    // Disable the 8259 PIC before starting up the local apic.
-    Disable8259Pic();
-
     if (useX2Apic) {
         km::EnableX2Apic();
         return km::X2Apic::get();

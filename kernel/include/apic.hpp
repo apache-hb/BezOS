@@ -104,6 +104,7 @@ namespace km {
         static constexpr uint16_t kIcr0 = 0x30;
     }
 
+    void Disable8259Pic();
     void EnableX2Apic();
     bool HasX2ApicSupport();
     bool IsX2ApicEnabled();

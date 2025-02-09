@@ -231,7 +231,7 @@ extern "C" void LimineMain(void) {
         .rsdpAddress = (uintptr_t)rsdp.address,
         .framebuffers = framebuffers,
         .memmap = { memmap },
-        .stack = { base, stack, kStackSize },
+        .stack = { base - kStackSize, stack - kStackSize, kStackSize },
         .smbios32Address = (uintptr_t)smbios.entry_32,
         .smbios64Address = (uintptr_t)smbios.entry_64,
         .initrd = initrd,

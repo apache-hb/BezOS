@@ -562,7 +562,7 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
     PageMemoryTypeLayout pat = SetupPat();
 
     km::AddressMapping stack = launch.stack;
-    km::AddressMapping stackMapping = { (void*)((uintptr_t)stack.vaddr - stack.size), stack.paddr - stack.size, stack.size };
+    // km::AddressMapping stackMapping = { (void*)((uintptr_t)stack.vaddr - stack.size), stack.paddr - stack.size, stack.size };
     PageBuilder pm = PageBuilder { processor.maxpaddr, processor.maxvaddr, launch.hhdmOffset, pat };
 
     WriteMtrrs(pm);
@@ -589,7 +589,7 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
     MapKernelRegions(vmm, layout);
 
     // move our stack out of reclaimable memory
-    MapDataRegion(vmm, stackMapping);
+    MapDataRegion(vmm, stack);
 
     // map the early allocator region
     MapDataRegion(vmm, earlyRegion);
@@ -661,7 +661,7 @@ static Stage2MemoryInfo *InitStage2Memory(
     MemoryMap *earlyMemory = stage1.earlyMemory;
 
     PageBuilder pm = PageBuilder { processor.maxpaddr, processor.maxvaddr, layout.committedSlide(), GetDefaultPatLayout() };
-    km::AddressMapping stackMapping = { (void*)((uintptr_t)stack.vaddr - stack.size), stack.paddr - stack.size, stack.size };
+    // km::AddressMapping stackMapping = { (void*)((uintptr_t)stack.vaddr - stack.size), stack.paddr - stack.size, stack.size };
 
     // Create the global memory allocator
     mem::TlsfAllocator alloc{(void*)layout.committed.vaddr, layout.committed.size};
@@ -679,12 +679,12 @@ static Stage2MemoryInfo *InitStage2Memory(
 
     // carry forward the mappings made in stage 1
     // that are still required for kernel runtime
-    memory->pmm.markUsed(stackMapping.physicalRange());
+    memory->pmm.markUsed(stack.physicalRange());
     memory->pmm.markUsed(layout.committed.physicalRange());
     memory->pmm.markUsed(layout.kernel.physicalRange());
     memory->pmm.markUsed({ 0zu, kLowMemory });
 
-    memory->vmm.markUsed(stackMapping.virtualRange());
+    memory->vmm.markUsed(stack.virtualRange());
     memory->vmm.markUsed(layout.committed.virtualRange());
     memory->vmm.markUsed(layout.kernel.virtualRange());
 
@@ -692,7 +692,7 @@ static Stage2MemoryInfo *InitStage2Memory(
     MapKernelRegions(memory->pt, layout);
 
     // map the stack again
-    MapDataRegion(memory->pt, stackMapping);
+    MapDataRegion(memory->pt, stack);
 
     // carry forward the non-pageable memory
     MapDataRegion(memory->pt, layout.committed);
@@ -983,6 +983,10 @@ static void LogSystemInfo(
     KmDebugMessage("| /SYS/MB/COM2  | Status               | ", com2Status, "\n");
     KmDebugMessage("| /SYS/MB/COM2  | Port                 | ", Hex(com2Info.port), "\n");
     KmDebugMessage("| /SYS/MB/COM2  | Baud rate            | ", km::com::kBaudRate / com2Info.divisor, "\n");
+
+    KmDebugMessage("| /BOOT         | Stack                | ", launch.stack, "\n");
+    KmDebugMessage("| /BOOT         | Kernel virtual       | ", launch.kernelVirtualBase, "\n");
+    KmDebugMessage("| /BOOT         | Kernel physical      | ", launch.kernelPhysicalBase, "\n");
 }
 
 static km::IsrAllocator InitStage1Idt(uint16_t cs) {
@@ -1189,6 +1193,10 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     gBootGdt = GetBootGdt();
     SetupInitialGdt();
+
+    // Need to disable the PIC before enabling interrupts otherwise we
+    // get flooded by timer interrupts.
+    Disable8259Pic();
 
     km::IsrAllocator isrs = InitStage1Idt(SystemGdt::eLongModeCode);
 

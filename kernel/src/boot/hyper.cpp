@@ -1,10 +1,8 @@
 #include "boot.hpp"
 
-#include <ultra_protocol.h>
+#include "allocator/tlsf.hpp"
 
-static constexpr size_t kStackSize = sm::kilobytes(16).bytes();
-static constexpr size_t kBootMemory = sm::kilobytes(64).bytes();
-static constexpr size_t kLowMemory = sm::megabytes(1).bytes();
+#include <ultra_protocol.h>
 
 template<typename T>
 static const T *GetAttribute(const ultra_boot_context *context, uint32_t type) {
@@ -17,17 +15,170 @@ static const T *GetAttribute(const ultra_boot_context *context, uint32_t type) {
         }
 
         header = ULTRA_NEXT_ATTRIBUTE(header);
+        i += 1;
     }
 
     return nullptr;
 }
 
-extern "C" int HyperMain(ultra_boot_context *context, uint32_t magic) {
-    const char *base = (char*)__builtin_frame_address(0) + (sizeof(void*) * 2);
+static const ultra_module_info_attribute *GetModule(const ultra_boot_context *context, stdx::StringView name) {
+    uint32_t i = 0;
+    const ultra_attribute_header *header = &context->attributes[0];
+
+    while (i < context->attribute_count) {
+        if (header->type == ULTRA_ATTRIBUTE_MODULE_INFO) {
+            const ultra_module_info_attribute *info = reinterpret_cast<const ultra_module_info_attribute*>(header);
+            if (strncmp(info->name, name.data(), name.count()) == 0) {
+                return info;
+            }
+        }
+
+        header = ULTRA_NEXT_ATTRIBUTE(header);
+        i += 1;
+    }
+
+    return nullptr;
+}
+
+static mem::TlsfAllocator MakeBootAllocator(const ultra_boot_context *context) {
+    auto bootstrap = GetModule(context, "allocator-bootstrap");
+    void *address = (void*)bootstrap->address;
+
+    return mem::TlsfAllocator{address, bootstrap->size};
+}
+
+static boot::MemoryRegion::Type BootGetEntryType(ultra_memory_map_entry entry) {
+    switch (entry.type) {
+    case ULTRA_MEMORY_TYPE_FREE:
+        return boot::MemoryRegion::eUsable;
+    case ULTRA_MEMORY_TYPE_RESERVED:
+        return boot::MemoryRegion::eReserved;
+    case ULTRA_MEMORY_TYPE_RECLAIMABLE:
+        return boot::MemoryRegion::eAcpiReclaimable;
+    case ULTRA_MEMORY_TYPE_NVS:
+        return boot::MemoryRegion::eAcpiNvs;
+    case ULTRA_MEMORY_TYPE_LOADER_RECLAIMABLE:
+        return boot::MemoryRegion::eBootloaderReclaimable;
+    case ULTRA_MEMORY_TYPE_MODULE:
+    case ULTRA_MEMORY_TYPE_KERNEL_STACK: // TODO: need to handle kernel stack better
+    case ULTRA_MEMORY_TYPE_KERNEL_BINARY:
+        return boot::MemoryRegion::eKernel;
+
+    case ULTRA_MEMORY_TYPE_INVALID:
+    default:
+        return boot::MemoryRegion::eBadMemory;
+    }
+}
+
+static std::span<boot::MemoryRegion> BootGetMemoryMap(mem::TlsfAllocator *alloc, const ultra_memory_map_attribute *memmap) {
+    size_t size = ULTRA_MEMORY_MAP_ENTRY_COUNT(memmap->header);
+
+    boot::MemoryRegion *result = (boot::MemoryRegion*)alloc->allocateArray<boot::MemoryRegion>(size);
+
+    for (uint64_t i = 0; i < size; i++) {
+        ultra_memory_map_entry entry = memmap->entries[i];
+
+        boot::MemoryRegion::Type type = BootGetEntryType(entry);
+        km::MemoryRange range = { entry.physical_address, entry.physical_address + entry.size };
+        boot::MemoryRegion region = { type, range };
+
+        result[i] = region;
+    }
+
+    return { result, size };
+}
+
+static std::span<boot::FrameBuffer> BootGetFrameBuffers(uintptr_t hhdmOffset, const ultra_framebuffer_attribute *framebuffer, mem::TlsfAllocator *allocator) {
+    ultra_framebuffer fb = framebuffer->fb;
+
+    boot::FrameBuffer result {
+        .width = fb.width,
+        .height = fb.height,
+        .pitch = fb.pitch,
+        .bpp = fb.bpp,
+        .paddr = fb.physical_address,
+        .vaddr = (void*)(fb.physical_address + hhdmOffset),
+    };
+
+    switch (fb.format) {
+    case ULTRA_FB_FORMAT_BGR888:
+        result.redMaskSize = 8;
+        result.redMaskShift = 16;
+        result.greenMaskSize = 8;
+        result.greenMaskShift = 8;
+        result.blueMaskSize = 8;
+        result.blueMaskShift = 0;
+        break;
+    case ULTRA_FB_FORMAT_RGB888:
+        result.redMaskSize = 8;
+        result.redMaskShift = 0;
+        result.greenMaskSize = 8;
+        result.greenMaskShift = 8;
+        result.blueMaskSize = 8;
+        result.blueMaskShift = 16;
+        break;
+    case ULTRA_FB_FORMAT_RGBX8888:
+        result.redMaskSize = 8;
+        result.redMaskShift = 0;
+        result.greenMaskSize = 8;
+        result.greenMaskShift = 8;
+        result.blueMaskSize = 8;
+        result.blueMaskShift = 16;
+        break;
+    case ULTRA_FB_FORMAT_XRGB8888:
+        result.redMaskSize = 8;
+        result.redMaskShift = 16;
+        result.greenMaskSize = 8;
+        result.greenMaskShift = 8;
+        result.blueMaskSize = 8;
+        result.blueMaskShift = 0;
+        break;
+    }
+
+    boot::FrameBuffer *fbs = allocator->construct<boot::FrameBuffer>();
+    fbs[0] = result;
+
+    return { fbs, 1 };
+}
+
+static km::AddressMapping BootGetStack(const ultra_memory_map_attribute *memmap, uintptr_t hhdmOffset) {
+    km::AddressMapping stack = { };
+
+    for (uint64_t i = 0; i < ULTRA_MEMORY_MAP_ENTRY_COUNT(memmap->header); i++) {
+        ultra_memory_map_entry entry = memmap->entries[i];
+
+        if (entry.type == ULTRA_MEMORY_TYPE_KERNEL_STACK) {
+            stack = { (void*)(entry.physical_address + hhdmOffset), km::PhysicalAddress { entry.physical_address }, entry.size };
+            break;
+        }
+    }
+
+    return stack;
+}
+
+extern "C" int HyperMain(ultra_boot_context *context, uint32_t) {
     auto framebuffer = GetAttribute<ultra_framebuffer_attribute>(context, ULTRA_ATTRIBUTE_FRAMEBUFFER_INFO);
     auto platformInfo = GetAttribute<ultra_platform_info_attribute>(context, ULTRA_ATTRIBUTE_PLATFORM_INFO);
     auto kernelInfo = GetAttribute<ultra_kernel_info_attribute>(context, ULTRA_ATTRIBUTE_KERNEL_INFO);
     auto memmap = GetAttribute<ultra_memory_map_attribute>(context, ULTRA_ATTRIBUTE_MEMORY_MAP);
 
-    while (1) { }
+    uintptr_t hhdmOffset = platformInfo->higher_half_base;
+    mem::TlsfAllocator allocator = MakeBootAllocator(context);
+    std::span memory = BootGetMemoryMap(&allocator, memmap);
+    std::span fbs = BootGetFrameBuffers(hhdmOffset, framebuffer, &allocator);
+
+    km::AddressMapping stack = BootGetStack(memmap, hhdmOffset);
+
+    boot::LaunchInfo info = {
+        .kernelPhysicalBase = kernelInfo->physical_base,
+        .kernelVirtualBase = (void*)kernelInfo->virtual_base,
+        .hhdmOffset = hhdmOffset,
+        .rsdpAddress = platformInfo->acpi_rsdp_address,
+        .framebuffers = fbs,
+        .memmap = { memory },
+        .stack = stack,
+        .smbios64Address = platformInfo->smbios_address,
+    };
+
+    LaunchKernel(info);
 }
