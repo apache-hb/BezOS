@@ -3,22 +3,32 @@
 MODE=$1
 ARGS=$@
 
+ISO=install/bezos-limine.iso
+CANBUS=/tmp/canbus
+QEMUARGS="-M q35 -display gtk"
+
 serial_chardev()
 {
     echo "-chardev stdio,id=uart0,logfile=$1,signal=off -serial chardev:uart0"
 }
-
-CANBUS=/tmp/canbus
 
 serial_canbus()
 {
     echo "-chardev serial,id=canbus0,path=$CANBUS -serial chardev:canbus0"
 }
 
-QEMUARGS="-M q35 -cdrom install/bezos.iso -display gtk"
+# Check if a different iso is requested
+echo $ARGS | grep -q "\-iso"
+if [ $? -eq 0 ]; then
+    ISO=$(echo $ARGS | sed s/.*-iso// | cut -d ' ' -f 1)
+    QEMUARGS="-cdrom $ISO"
+    ARGS=$(echo $ARGS | sed s/\-iso//)
+else
+    QEMUARGS="$QEMUARGS -cdrom $ISO"
+fi
 
+# Check if an hdd image is requested
 echo $ARGS | grep -q "\-disk"
-
 if [ $? -eq 0 ]; then
     # if the disk image is not present, create it
     DISKIMAGE="bezos.hdd"

@@ -221,7 +221,7 @@ kernel = static_library('kernel', src,
     override_options : [ 'b_coverage=false' ],
 )
 
-executable('bezos', 'kernel/src/boot/limine.cpp',
+executable('bezos-limine', 'kernel/src/boot/limine.cpp',
     c_args : c_args + [ '-D__BEZOS__=1' ],
     cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
     include_directories : inc,
@@ -229,7 +229,7 @@ executable('bezos', 'kernel/src/boot/limine.cpp',
     dependencies : [ limine, deps ],
     link_depends : 'data/linker-limine.ld',
     link_args : [ '-T', meson.current_source_dir() / 'data/linker-limine.ld' ],
-    install_dir : get_option('prefix') / 'image' / 'boot',
+    install_dir : get_option('prefix') / 'limine' / 'image' / 'boot',
     install : true,
     override_options : [ 'b_coverage=false' ],
 )
@@ -242,19 +242,17 @@ executable('bezos-hyper', 'kernel/src/boot/hyper.cpp',
     dependencies : [ hyper, deps ],
     link_depends : 'data/linker-hyper.ld',
     link_args : [ '-T', meson.current_source_dir() / 'data/linker-hyper.ld' ],
-    install_dir : get_option('prefix') / 'image' / 'boot',
+    install_dir : get_option('prefix') / 'hyper' / 'image' / 'boot',
     install : true,
     override_options : [ 'b_coverage=false' ],
 )
 
-install_data('data/limine-iso.conf',
-    install_dir : get_option('prefix') / 'image' / 'boot' / 'limine',
-    rename : 'limine.conf',
+install_data('data/limine.conf',
+    install_dir : get_option('prefix') / 'limine' / 'image' / 'boot' / 'limine',
 )
 
-install_data('data/limine-pxe.conf',
+install_data('data/limine.conf',
     install_dir : get_option('prefix') / 'pxe',
-    rename : 'limine.conf',
 )
 
 meson.add_install_script('data/image.sh')

@@ -10,11 +10,11 @@ limine_dep = declare_dependency(include_directories : '.')
 meson.override_dependency('limine', limine_dep)
 
 install_data('BOOTX64.EFI', 'BOOTIA32.EFI',
-    install_dir : get_option('prefix') / 'image' / 'EFI' / 'BOOT'
+    install_dir : get_option('prefix') / 'limine' / 'image' / 'EFI' / 'BOOT'
 )
 
 install_data('limine-bios.sys', 'limine-bios-cd.bin', 'limine-uefi-cd.bin',
-    install_dir : get_option('prefix') / 'image' / 'boot' / 'limine'
+    install_dir : get_option('prefix') / 'limine' / 'image' / 'boot' / 'limine'
 )
 
 install_data('limine-bios-pxe.bin', 'limine-bios.sys', 'BOOTX64.EFI', 'BOOTIA32.EFI',

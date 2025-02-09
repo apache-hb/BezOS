@@ -1,3 +1,6 @@
+LIMINE_ISO=install/bezos-limine.iso
+HYPER_ISO=install/bezos-hyper.iso
+
 .PHONY: build
 build:
 	meson install -C build --quiet
