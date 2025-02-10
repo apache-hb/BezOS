@@ -89,6 +89,11 @@ namespace km {
 
     using IsrCallback = km::IsrContext(*)(km::IsrContext*);
 
+    enum class Privilege : uint8_t {
+        eSupervisor = 0,
+        eUser = 3,
+    };
+
     class IsrHandle {
         CpuCoreId mCpuCore;
         uint32_t mIsr;
