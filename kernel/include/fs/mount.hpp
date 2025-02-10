@@ -1,6 +1,6 @@
 #pragma once
 
-#include "shared/status.h"
+#include <bezos/status.h>
 
 #include "std/shared.hpp"
 #include "std/string_view.hpp"

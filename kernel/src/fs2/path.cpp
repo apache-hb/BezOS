@@ -106,3 +106,11 @@ bool vfs2::VerifyPathText(VfsStringView text) {
 
     return true;
 }
+
+using PathFormat = km::Format<VfsPath>;
+
+void PathFormat::format(km::IOutStream& out, const vfs2::VfsPath& path) {
+    for (VfsStringView segment : path) {
+        out.format("/", segment);
+    }
+}

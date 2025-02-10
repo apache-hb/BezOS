@@ -1,8 +1,9 @@
 #pragma once
 
-#include "shared/syscall.h"
+#include <bezos/syscall.h>
 
 #include "std/string.hpp"
+#include "util/format.hpp"
 
 namespace vfs2 {
     class VfsPath;
@@ -122,3 +123,8 @@ namespace vfs2 {
 
     bool VerifyPathText(VfsStringView text);
 }
+
+template<>
+struct km::Format<vfs2::VfsPath> {
+    static void format(km::IOutStream& out, const vfs2::VfsPath& path);
+};

@@ -1,8 +1,9 @@
 #pragma once
 
+#include <bezos/status.h>
+
 #include "fs2/path.hpp"
 
-#include "shared/status.h"
 #include "std/string_view.hpp"
 
 #include "absl/container/btree_map.h"

@@ -1,17 +1,9 @@
 #include <cstddef>
 #include <cstdint>
 
+#include <bezos/syscall.h>
+
 extern "C" uint64_t OsSystemCall(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
-
-enum SystemCall : uint64_t {
-    eExitProcess = 0,
-
-    eSysOpen = 10,
-    eSysClose = 11,
-    eSysRead = 12,
-
-    eSysLog = 20,
-};
 
 size_t strlen(const char *str) {
     size_t len = 0;
@@ -22,7 +14,7 @@ size_t strlen(const char *str) {
 }
 
 static void OsDebugLog(const char *begin, const char *end) {
-    OsSystemCall(eSysLog, (uint64_t)begin, (uint64_t)end, 0, 0);
+    OsSystemCall(eOsCallDebugLog, (uint64_t)begin, (uint64_t)end, 0, 0);
 }
 
 static void OsDebugLog(const char *message) {
@@ -35,13 +27,13 @@ static void OsDebugLog(const char *message) {
 template<size_t N>
 static uint64_t OsOpenFile(const char (&path)[N]) {
     const char *begin = path;
-    const char *end = path + N;
+    const char *end = path + N - 1;
 
-    return OsSystemCall(eSysOpen, (uint64_t)begin, (uint64_t)end, 0, 0);
+    return OsSystemCall(eOsCallFileOpen, (uint64_t)begin, (uint64_t)end, 0, 0);
 }
 
 static size_t OsReadFile(uint64_t fd, void *buffer, size_t size) {
-    return OsSystemCall(eSysRead, fd, (uint64_t)buffer, size, 0);
+    return OsSystemCall(eOsCallFileRead, fd, (uint64_t)buffer, size, 0);
 }
 
 // rdi: first argument

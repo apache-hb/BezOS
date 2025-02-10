@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,6 +38,12 @@ enum OsStatusId {
     ///
     /// INodes with outstanding exclusive locks cannot be removed.
     OsStatusHandleLocked = 8,
+
+    /// @brief The path is malformed.
+    ///
+    /// Malformed paths are paths that contain invalid characters, empty segments,
+    /// or leading/trailing separators.
+    OsStatusInvalidPath = 9,
 };
 
 inline bool OsStatusOk(OsStatus status) {

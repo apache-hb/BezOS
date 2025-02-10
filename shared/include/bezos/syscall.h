@@ -1,7 +1,7 @@
 #pragma once
 
-#include "shared/compiler.h"
-#include "shared/status.h"
+#include <bezos/compiler.h>
+#include <bezos/status.h>
 
 #include <stddef.h>
 #include <stdint.h>
@@ -55,6 +55,8 @@ enum {
 
     eOsCallQueryParam = 0x60,
     eOsCallUpdateParam = 0x61,
+
+    eOsCallDebugLog = 0x90,
 
     eOsCallCount = 0x100,
 };

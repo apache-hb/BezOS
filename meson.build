@@ -23,6 +23,7 @@ cpp = meson.get_compiler('cpp')
 
 inc = include_directories(
     'kernel/include',
+    'shared/include',
     'kernel/subprojects/tlsf/include',
     'kernel/subprojects/concurrentqueue',
 )
@@ -63,6 +64,7 @@ init_blob = custom_target('init',
         compiler, '@INPUT@',
         '-ffreestanding', '-nostdlib', '-nostdlib++',
         '-fPIE', '-fno-pic', '-static', '-fno-rtti', '-fno-exceptions',
+        '-I', meson.current_source_dir() / 'shared/include',
         '-z', 'noexecstack',
         '-e', 'ClientStart',
         '-o', '@OUTPUT@',
@@ -182,6 +184,9 @@ src = [
     'kernel/src/fs2/path.cpp',
     'kernel/src/fs2/node.cpp',
     'kernel/src/fs2/handle.cpp',
+
+    # VFS drivers
+    'kernel/src/fs2/ramfs.cpp',
 
     # Smp setup
     'kernel/src/smp.cpp',

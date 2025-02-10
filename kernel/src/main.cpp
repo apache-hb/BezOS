@@ -30,7 +30,6 @@
 #include "pit.hpp"
 #include "processor.hpp"
 #include "schedule.hpp"
-#include "shared/status.h"
 #include "smp.hpp"
 #include "std/spinlock.hpp"
 #include "std/static_vector.hpp"
@@ -1056,11 +1055,7 @@ static void NormalizeProcessorState() {
 
 static uint32_t gSchedulerVector = 0;
 
-#if 0
 static vfs2::VfsRoot *gVfsRoot = nullptr;
-#else
-static VirtualFileSystem *gVfs = nullptr;
-#endif
 
 static SystemMemory *gMemory = nullptr;
 
@@ -1074,85 +1069,84 @@ const void *TranslateUserPointer(const void *userAddress) {
 }
 
 static void InitVfs() {
-#if 0
     gVfsRoot = new vfs2::VfsRoot();
 
     {
         vfs2::IVfsNode *node = nullptr;
-        gVfsRoot->mkpath(vfs2::BuildPath("System", "Config"), &node);
+        if (OsStatus status = gVfsRoot->mkpath(vfs2::BuildPath("System", "Config"), &node)) {
+            KmDebugMessage("[VFS] Failed to create path: ", status, "\n");
+        }
     }
 
     {
         vfs2::IVfsNode *node = nullptr;
-        gVfsRoot->mkpath(vfs2::BuildPath("Users", "Admin"), &node);
-        gVfsRoot->mkpath(vfs2::BuildPath("Users", "Guest"), &node);
+        if (OsStatus status = gVfsRoot->mkpath(vfs2::BuildPath("Users", "Admin"), &node)) {
+            KmDebugMessage("[VFS] Failed to create path: ", status, "\n");
+        }
+
+        if (OsStatus status = gVfsRoot->mkpath(vfs2::BuildPath("Users", "Guest"), &node)) {
+            KmDebugMessage("[VFS] Failed to create path: ", status, "\n");
+        }
     }
 
     {
         vfs2::IVfsNode *node = nullptr;
-        gVfsRoot->create(vfs2::BuildPath("Users", "Guest", "motd.txt"), &node);
+        if (OsStatus status = gVfsRoot->create(vfs2::BuildPath("Users", "Guest", "motd.txt"), &node)) {
+            KmDebugMessage("[VFS] Failed to create path: ", status, "\n");
+        }
 
         std::unique_ptr<vfs2::IVfsNodeHandle> motd;
-        node->open(std::out_ptr(motd));
+        if (OsStatus status = node->open(std::out_ptr(motd))) {
+            KmDebugMessage("[VFS] Failed to open file: ", status, "\n");
+        }
+
         char data[] = "Welcome.\n";
         vfs2::WriteRequest request {
             .begin = std::begin(data),
             .end = std::end(data),
         };
         vfs2::WriteResult result;
-        motd->write(request, &result);
+
+        if (OsStatus status = motd->write(request, &result)) {
+            KmDebugMessage("[VFS] Failed to write file: ", status, "\n");
+        }
     }
 
-#else
-    gVfs = new VirtualFileSystem();
-
-    gVfs->mkdir("/System"_sv);
-    gVfs->mkdir("/System/Config"_sv);
-
-    gVfs->mkdir("/Users"_sv);
-    gVfs->mkdir("/Users/Admin"_sv);
-    gVfs->mkdir("/Users/Guest"_sv);
-
-    std::unique_ptr<VfsHandle> motd {gVfs->open("/Users/Guest/motd.txt"_sv)};
-    stdx::StringView motdContent = "Welcome.\n";
-    size_t count = 0;
-    motd->write(motdContent.data(), motdContent.count(), &count);
-    gVfs->close(motd.release());
-
-#endif
-
-    enum {
-        kSysOpen = 10,
-        kSysClose = 11,
-        kSysRead = 12,
-
-        kSysLog = 20,
-    };
-
-    AddSystemCall(kSysOpen, [](uint64_t userArgPathBegin, uint64_t userArgPathEnd, uint64_t, uint64_t) -> uint64_t {
+    AddSystemCall(eOsCallFileOpen, [](uint64_t userArgPathBegin, uint64_t userArgPathEnd, uint64_t, uint64_t) -> uint64_t {
         const void *argPathBegin = TranslateUserPointer((const void*)userArgPathBegin);
         const void *argPathEnd = TranslateUserPointer((const void*)userArgPathEnd);
         if (argPathBegin == nullptr || argPathEnd == nullptr) {
+            KmDebugMessage("[VFS] Invalid path pointer.\n");
             return OsStatusInvalidInput;
         }
 
         if (argPathBegin >= argPathEnd) {
+            KmDebugMessage("[VFS] Invalid path range.\n");
             return OsStatusInvalidInput;
         }
 
-        VfsPath path = stdx::StringView((const char*)argPathBegin, (const char*)argPathEnd);
-        if (VfsHandle *node = gVfs->open(path)) {
-            return (uintptr_t)node;
+        vfs2::VfsString text((const char*)argPathBegin, (const char*)argPathEnd);
+        if (!vfs2::VerifyPathText(text)) {
+            KmDebugMessage("[VFS] Invalid path text. '", text, "'\n");
+            return OsStatusInvalidInput;
         }
 
-        return OsStatusNotFound;
+        vfs2::VfsPath path{std::move(text)};
+        vfs2::IVfsNodeHandle *node = nullptr;
+        KmDebugMessage("[VFS] Open path: '", path, "'\n");
+        if (OsStatus status = gVfsRoot->open(path, &node)) {
+            KmDebugMessage("[VFS] Failed to open path: ", status, "\n");
+            return status;
+        }
+
+        return (uintptr_t)node;
     });
 
-    AddSystemCall(kSysClose, [](uint64_t, uint64_t, uint64_t, uint64_t) -> uint64_t {
+    AddSystemCall(eOsCallFileClose, [](uint64_t, uint64_t, uint64_t, uint64_t) -> uint64_t {
         return 0;
     });
 
-    AddSystemCall(kSysRead, [](uint64_t userNodeId, uint64_t userBufferAddress, uint64_t userBufferSize, uint64_t) -> uint64_t {
+    AddSystemCall(eOsCallFileRead, [](uint64_t userNodeId, uint64_t userBufferAddress, uint64_t userBufferSize, uint64_t) -> uint64_t {
         const void *bufferBegin = TranslateUserPointer((const void*)userBufferAddress);
         if (bufferBegin == nullptr) {
             return OsStatusInvalidInput;
@@ -1163,19 +1157,20 @@ static void InitVfs() {
             return OsStatusInvalidInput;
         }
 
-        VfsHandle* nodeId = (VfsHandle*)userNodeId;
-        size_t bufferSize = userBufferSize;
-
-        size_t read = 0;
-        OsStatus status = nodeId->read((void*)bufferBegin, bufferSize, &read);
-        if (status == OsStatusSuccess) {
-            read = bufferSize;
+        vfs2::IVfsNodeHandle *node = (vfs2::IVfsNodeHandle*)userNodeId;
+        vfs2::ReadRequest request {
+            .begin = (void*)bufferBegin,
+            .end = (void*)bufferEnd,
+        };
+        vfs2::ReadResult result{};
+        if (OsStatus status = node->read(request, &result)) {
+            return status;
         }
 
-        return read;
+        return result.read;
     });
 
-    AddSystemCall(kSysLog, [](uint64_t userMessageBegin, uint64_t userMessageEnd, uint64_t, uint64_t) -> uint64_t {
+    AddSystemCall(eOsCallDebugLog, [](uint64_t userMessageBegin, uint64_t userMessageEnd, uint64_t, uint64_t) -> uint64_t {
         const void *messageBegin = TranslateUserPointer((const void*)userMessageBegin);
         const void *messageEnd = TranslateUserPointer((const void*)userMessageEnd);
 
