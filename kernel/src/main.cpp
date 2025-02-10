@@ -61,6 +61,10 @@ static constexpr bool kSelfTestIdt = true;
 static constexpr bool kSelfTestApic = true;
 static constexpr bool kDumpAddr2lineCmd = true;
 
+struct IA32_EFER final : x64::ModelRegister<0xC0000080, x64::RegisterAccess::eReadWrite> { 
+    static constexpr x64::RegisterBit<1 << 8> kLme;
+};
+
 class SerialLog final : public IOutStream {
     SerialPort mPort;
 

@@ -16,23 +16,22 @@ namespace x64 {
     UTIL_BITFLAGS(RegisterAccess);
 
     template<uint32_t R, RegisterAccess A>
-    class ModelRegister {
-    public:
-        static constexpr uint32_t kMsr = R;
+    struct ModelRegister {
+        static constexpr uint32_t kRegister = R;
         static constexpr RegisterAccess kAccess = A;
 
         /// @brief Load the value of the register.
         /// @return The value of the register.
         [[gnu::always_inline, gnu::nodebug]]
         uint64_t load() const requires (bool(A & RegisterAccess::eRead)) {
-            return __rdmsr(kMsr);
+            return __rdmsr(kRegister);
         }
 
         /// @brief Store a new value in the register.
         /// @param value The new value to store.
         [[gnu::always_inline, gnu::nodebug]]
         void store(uint64_t value) const requires (bool(A & RegisterAccess::eWrite)) {
-            __wrmsr(kMsr, value);
+            __wrmsr(kRegister, value);
         }
 
         /// @brief Update the value of the register.
@@ -67,5 +66,14 @@ namespace x64 {
         void operator|=(uint64_t mask) const requires (bool(A & RegisterAccess::eWrite)) {
             store(load() | mask);
         }
+        
+        void operator&=(uint64_t mask) const requires (bool(A & RegisterAccess::eWrite)) {
+            store(load() & mask);
+        }
+    };
+
+    template<uint64_t B>
+    struct RegisterBit {
+
     };
 }
