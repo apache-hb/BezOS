@@ -48,20 +48,43 @@ namespace vfs2 {
             : VfsPath(VfsString(std::begin(path), std::end(path) - 1))
         { }
 
+        /// @brief The length of the path in bytes.
+        ///
+        /// @see VfsPath::segmentCount for retrieving the number of segments instead.
+        ///
+        /// @return The length of the path.
         size_t count() const { return mPath.count(); }
+
+        /// @brief The number of segments in the path.
+        ///
+        /// @return The number of segments.
         size_t segmentCount() const;
 
+        /// @brief The iterator to the beginning of the path segments.
+        ///
+        /// @return The iterator to the beginning of the path segments.
         VfsPathConstIterator begin() const;
+
+        /// @brief The iterator to the end of the path segments.
+        ///
+        /// @return The iterator to the end of the path segments.
         VfsPathConstIterator end() const;
 
+        /// @brief The string representation of the path.
+        ///
+        /// @return The string representation of the path.
         VfsStringView string() const { return mPath; }
 
         /// @brief The parent path for this path.
         ///
         /// @pre @a this->segmentCount() > 0
+        ///
+        /// @return The parent path.
         VfsPath parent() const;
 
         /// @brief The name of the current file or folder, including extensions.
+        ///
+        /// @return The name of the current file or folder.
         VfsStringView name() const;
 
         friend constexpr auto operator<=>(const VfsPath& lhs, const VfsPath& rhs) {

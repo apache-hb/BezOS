@@ -17,6 +17,7 @@
 #include "delay.hpp"
 #include "display.hpp"
 #include "elf.hpp"
+#include "fs2/vfs.hpp"
 #include "gdt.hpp"
 #include "hid/ps2.hpp"
 #include "hypervisor.hpp"
@@ -60,10 +61,6 @@ static constexpr bool kUseX2Apic = true;
 static constexpr bool kSelfTestIdt = true;
 static constexpr bool kSelfTestApic = true;
 static constexpr bool kDumpAddr2lineCmd = true;
-
-struct IA32_EFER final : x64::ModelRegister<0xC0000080, x64::RegisterAccess::eReadWrite> { 
-    static constexpr x64::RegisterBit<1 << 8> kLme;
-};
 
 class SerialLog final : public IOutStream {
     SerialPort mPort;
@@ -1059,7 +1056,12 @@ static void NormalizeProcessorState() {
 
 static uint32_t gSchedulerVector = 0;
 
+#if 0
+static vfs2::VfsRoot *gVfsRoot = nullptr;
+#else
 static VirtualFileSystem *gVfs = nullptr;
+#endif
+
 static SystemMemory *gMemory = nullptr;
 
 const void *TranslateUserPointer(const void *userAddress) {
@@ -1072,6 +1074,36 @@ const void *TranslateUserPointer(const void *userAddress) {
 }
 
 static void InitVfs() {
+#if 0
+    gVfsRoot = new vfs2::VfsRoot();
+
+    {
+        vfs2::IVfsNode *node = nullptr;
+        gVfsRoot->mkpath(vfs2::BuildPath("System", "Config"), &node);
+    }
+
+    {
+        vfs2::IVfsNode *node = nullptr;
+        gVfsRoot->mkpath(vfs2::BuildPath("Users", "Admin"), &node);
+        gVfsRoot->mkpath(vfs2::BuildPath("Users", "Guest"), &node);
+    }
+
+    {
+        vfs2::IVfsNode *node = nullptr;
+        gVfsRoot->create(vfs2::BuildPath("Users", "Guest", "motd.txt"), &node);
+
+        std::unique_ptr<vfs2::IVfsNodeHandle> motd;
+        node->open(std::out_ptr(motd));
+        char data[] = "Welcome.\n";
+        vfs2::WriteRequest request {
+            .begin = std::begin(data),
+            .end = std::end(data),
+        };
+        vfs2::WriteResult result;
+        motd->write(request, &result);
+    }
+
+#else
     gVfs = new VirtualFileSystem();
 
     gVfs->mkdir("/System"_sv);
@@ -1086,6 +1118,8 @@ static void InitVfs() {
     size_t count = 0;
     motd->write(motdContent.data(), motdContent.count(), &count);
     gVfs->close(motd.release());
+
+#endif
 
     enum {
         kSysOpen = 10,

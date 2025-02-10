@@ -389,10 +389,25 @@ testcases = {
         'kernel/src/fs2/path.cpp',
         'kernel/src/fs2/node.cpp',
         'kernel/src/fs2/handle.cpp',
+        'kernel/src/fs2/ramfs.cpp',
     ],
     'vfs path': [
         'kernel/test/fs/path.cpp',
         'kernel/src/fs2/path.cpp',
+    ],
+    'vfs root': [
+        'kernel/test/fs/root.cpp',
+        'kernel/src/fs2/vfs.cpp',
+        'kernel/src/fs2/path.cpp',
+        'kernel/src/fs2/node.cpp',
+        'kernel/src/fs2/ramfs.cpp',
+    ],
+    'ramfs': [
+        'kernel/test/fs/ramfs.cpp',
+        'kernel/src/fs2/vfs.cpp',
+        'kernel/src/fs2/path.cpp',
+        'kernel/src/fs2/node.cpp',
+        'kernel/src/fs2/ramfs.cpp',
     ],
     'shared ptr': [
         'kernel/test/shared.cpp',

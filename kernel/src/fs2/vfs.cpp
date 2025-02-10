@@ -1,11 +1,22 @@
 #include "fs2/vfs.hpp"
+#include "fs2/ramfs.hpp"
+
+#include "log.hpp"
 
 using namespace vfs2;
 
-VfsRoot::VfsRoot()
-    : mRootNode()
-{
-    mRootNode.type = VfsNodeType::eFolder;
+VfsRoot::VfsRoot() {
+    // TODO: This isn't conducive to good error handling.
+    //       Need to find a way of propagating errors up, maybe enable exceptions?
+    if (OsStatus status = RamFs::instance().mount(std::out_ptr(mRootMount))) {
+        KmDebugMessage("Failed to mount root filesystem: ", unsigned(status), "\n");
+        KM_PANIC("Failed to mount root filesystem.");
+    }
+
+    if (OsStatus status = mRootMount->root(std::out_ptr(mRootNode))) {
+        KmDebugMessage("Failed to get root node: ", unsigned(status), "\n");
+        KM_PANIC("Failed to get root node.");
+    }
 }
 
 OsStatus VfsRoot::walk(const VfsPath& path, IVfsNode **parent) {
@@ -14,7 +25,7 @@ OsStatus VfsRoot::walk(const VfsPath& path, IVfsNode **parent) {
     // is the root node.
     //
     if (path.segmentCount() == 1) {
-        *parent = &mRootNode;
+        *parent = mRootNode.get();
         return OsStatusSuccess;
     }
 
@@ -158,6 +169,29 @@ OsStatus VfsRoot::remove(IVfsNode *node) {
     return OsStatusSuccess;
 }
 
+OsStatus VfsRoot::open(const VfsPath& path, IVfsNodeHandle **handle) {
+    IVfsNode *parent = nullptr;
+    if (OsStatus status = walk(path, &parent)) {
+        return status;
+    }
+
+    IVfsNode *file = nullptr;
+    if (OsStatus status = parent->lookup(path.name(), &file)) {
+        return status;
+    }
+
+    //
+    // open can only be used to open files, if the inode
+    // is not a file then we must return an error.
+    //
+
+    if (file->type != VfsNodeType::eFile) {
+        return OsStatusInvalidType;
+    }
+
+    return file->open(handle);
+}
+
 OsStatus VfsRoot::mkdir(const VfsPath& path, IVfsNode **node) {
     IVfsNode *parent = nullptr;
     if (OsStatus status = walk(path, &parent)) {
@@ -209,7 +243,7 @@ OsStatus VfsRoot::rmdir(IVfsNode *node) {
 }
 
 OsStatus VfsRoot::mkpath(const VfsPath& path, IVfsNode **node) {
-    IVfsNode *current = &mRootNode;
+    IVfsNode *current = mRootNode.get();
 
     for (auto segment : path) {
         IVfsNode *child = nullptr;
@@ -250,7 +284,7 @@ OsStatus VfsRoot::mkpath(const VfsPath& path, IVfsNode **node) {
 }
 
 OsStatus VfsRoot::lookup(const VfsPath& path, IVfsNode **node) {
-    IVfsNode *current = &mRootNode;
+    IVfsNode *current = mRootNode.get();
 
     for (auto segment : path) {
         //

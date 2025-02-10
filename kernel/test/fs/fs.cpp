@@ -1,111 +1,9 @@
 #include <gtest/gtest.h>
 
 #include "fs2/vfs.hpp"
-#include "std/vector.hpp"
+#include "fs2/ramfs.hpp"
 
 using namespace vfs2;
-
-struct RamFsNode;
-struct RamFsMount;
-struct RamFs;
-
-struct RamFsNode : public IVfsNode {
-    RamFsNode() : IVfsNode() { }
-};
-
-struct RamFsFileNode : public RamFsNode {
-    stdx::Vector2<std::byte> mData;
-
-    OsStatus read(ReadRequest request, ReadResult *result) override {
-        uintptr_t range = (uintptr_t)request.end - (uintptr_t)request.begin;
-        size_t size = std::min<size_t>(range, mData.count() - request.offset);
-        memcpy(request.begin, mData.data() + request.offset, size);
-        result->read = size;
-        return OsStatusSuccess;
-    }
-
-    OsStatus write(WriteRequest request, WriteResult *result) override {
-        uintptr_t range = (uintptr_t)request.end - (uintptr_t)request.begin;
-        if ((request.offset + range) > mData.count()) {
-            mData.resize(request.offset + range);
-        }
-
-        memcpy(mData.data() + request.offset, request.begin, range);
-        result->write = range;
-        return OsStatusSuccess;
-    }
-};
-
-struct RamFsFolder : public RamFsNode {
-    OsStatus create(IVfsNode **node) override {
-        *node = new RamFsFileNode();
-        return OsStatusSuccess;
-    }
-
-    OsStatus remove(IVfsNode *node) override {
-        auto it = children.find(node->name);
-        if (it == children.end()) {
-            return OsStatusNotFound;
-        }
-
-        children.erase(it);
-        delete node;
-
-        return OsStatusSuccess;
-    }
-
-    OsStatus rmdir(IVfsNode* node) override {
-        auto it = children.find(node->name);
-        if (it == children.end()) {
-            return OsStatusNotFound;
-        }
-
-        children.erase(it);
-        delete node;
-
-        return OsStatusSuccess;
-    }
-
-    OsStatus mkdir(IVfsNode **node) override {
-        *node = new RamFsFolder();
-        return OsStatusSuccess;
-    }
-};
-
-struct RamFsMount : public IVfsMount {
-    RamFsFolder *mRootNode;
-
-    RamFsMount(RamFs *fs);
-
-    OsStatus root(IVfsNode **node) override {
-        *node = mRootNode;
-        return OsStatusSuccess;
-    }
-};
-
-struct RamFs : public IVfsDriver {
-    constexpr RamFs() : IVfsDriver("ramfs") { }
-
-    OsStatus mount(IVfsMount **mount) override {
-        *mount = new RamFsMount(this);
-        return OsStatusSuccess;
-    }
-
-    OsStatus unmount(IVfsMount *mount) override {
-        delete mount;
-        return OsStatusSuccess;
-    }
-};
-
-static constinit RamFs gRamFs{};
-
-RamFsMount::RamFsMount(RamFs *fs)
-    : IVfsMount(fs)
-    , mRootNode(new RamFsFolder())
-{
-    mRootNode->mount = this;
-    mRootNode->type = VfsNodeType::eFolder;
-}
 
 TEST(Vfs2Test, Construct) {
     vfs2::VfsRoot vfs;
@@ -115,7 +13,7 @@ TEST(Vfs2Test, Mount) {
     vfs2::VfsRoot vfs;
 
     vfs2::IVfsMount *mount = nullptr;
-    OsStatus status = vfs.addMount(&gRamFs, "Volatile", &mount);
+    OsStatus status = vfs.addMount(&RamFs::instance(), "Volatile", &mount);
     ASSERT_EQ(OsStatusSuccess, status);
 }
 
@@ -125,7 +23,7 @@ TEST(Vfs2Test, CreateFile) {
     vfs2::IVfsMount *mount = nullptr;
 
     {
-        OsStatus status = vfs.addMount(&gRamFs, "Volatile", &mount);
+        OsStatus status = vfs.addMount(&RamFs::instance(), "Volatile", &mount);
         ASSERT_EQ(OsStatusSuccess, status);
     }
 
@@ -158,7 +56,7 @@ TEST(Vfs2Test, FileReadWrite) {
     vfs2::IVfsMount *mount = nullptr;
 
     {
-        OsStatus status = vfs.addMount(&gRamFs, "Volatile", &mount);
+        OsStatus status = vfs.addMount(&RamFs::instance(), "Volatile", &mount);
         ASSERT_EQ(OsStatusSuccess, status);
     }
 
@@ -224,7 +122,7 @@ TEST(Vfs2Test, MakePath) {
     IVfsNode *node = nullptr;
 
     {
-        OsStatus status = vfs.addMount(&gRamFs, "System", &mount);
+        OsStatus status = vfs.addMount(&RamFs::instance(), "System", &mount);
         ASSERT_EQ(OsStatusSuccess, status);
     }
 
@@ -290,7 +188,7 @@ TEST(Vfs2Test, RemoveFile) {
     IVfsNode *node = nullptr;
 
     {
-        OsStatus status = vfs.addMount(&gRamFs, "System", &mount);
+        OsStatus status = vfs.addMount(&RamFs::instance(), "System", &mount);
         ASSERT_EQ(OsStatusSuccess, status);
     }
 
@@ -319,7 +217,7 @@ TEST(Vfs2Test, RemoveFolder) {
     IVfsNode *node = nullptr;
 
     {
-        OsStatus status = vfs.addMount(&gRamFs, "System", &mount);
+        OsStatus status = vfs.addMount(&RamFs::instance(), "System", &mount);
         ASSERT_EQ(OsStatusSuccess, status);
     }
 
