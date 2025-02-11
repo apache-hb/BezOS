@@ -181,6 +181,7 @@ src = [
 
     # VFS drivers
     'kernel/src/fs2/ramfs.cpp',
+    'kernel/src/fs2/tarfs.cpp',
 
     # Smp setup
     'kernel/src/smp.cpp',
@@ -398,6 +399,16 @@ testcases = {
         'kernel/src/fs2/path.cpp',
         'kernel/src/fs2/node.cpp',
         'kernel/src/fs2/ramfs.cpp',
+    ],
+    'tarfs': [
+        'kernel/test/fs/ramfs.cpp',
+        'kernel/src/fs2/vfs.cpp',
+        'kernel/src/fs2/path.cpp',
+        'kernel/src/fs2/node.cpp',
+        'kernel/src/fs2/ramfs.cpp',
+        'kernel/src/fs2/tarfs.cpp',
+        'kernel/src/drivers/block/driver.cpp',
+        'kernel/src/drivers/block/ramblk.cpp',
     ],
     'shared ptr': [
         'kernel/test/shared.cpp',

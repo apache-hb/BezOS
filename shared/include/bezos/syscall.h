@@ -361,10 +361,10 @@ enum {
 };
 
 enum {
-    eOsParamPowerState = UINT32_C(0),
+    eOsParamPowerState     = UINT32_C(0),
     eOsParamPhysicalMemory = UINT32_C(1),
-    eOsParamMaxNameLength = UINT32_C(2),
-    eOsParamMaxPathLength = UINT32_C(3),
+    eOsParamMaxNameLength  = UINT32_C(2),
+    eOsParamMaxPathLength  = UINT32_C(3),
 };
 
 struct OsParamConfig {

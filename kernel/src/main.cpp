@@ -1194,9 +1194,7 @@ static void InitVfs() {
 
 void LaunchKernel(boot::LaunchInfo launch) {
     NormalizeProcessorState();
-
     SetDebugLogLock(DebugLogLockType::eNone);
-
     InitBootTerminal(launch.framebuffers);
 
     std::optional<HypervisorInfo> hvInfo = KmGetHypervisorInfo();

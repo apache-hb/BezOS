@@ -72,30 +72,11 @@ OsStatus VfsRoot::lookupUnlocked(const VfsPath& path, IVfsNode **node) {
     return OsStatusSuccess;
 }
 
-OsStatus VfsRoot::addMount(IVfsDriver *driver, const VfsPath& path, IVfsMount **mount) {
-    stdx::LockGuard guard(mLock);
-
-    //
-    // Mount points follow the same rules as other vfs objects
-    // and must therefore have a parent directory.
-    //
-    IVfsNode *parent = nullptr;
-    if (OsStatus status = walk(path, &parent)) {
-        return status;
-    }
-
-    //
-    // Create the new mount point object.
-    //
-    std::unique_ptr<IVfsMount> impl;
-    if (OsStatus status = driver->mount(std::out_ptr(impl))) {
-        return status;
-    }
-
+OsStatus VfsRoot::insertMount(IVfsNode *parent, const VfsPath& path, std::unique_ptr<IVfsMount> object, IVfsMount **mount) {
     //
     // Add the mount point to our internal mappings.
     //
-    auto [iter, ok] = mMounts.insert({ path, std::move(impl) });
+    auto [iter, ok] = mMounts.insert({ path, std::move(object) });
     if (!ok) {
         //
         // If the mount point wasn't added it must already exist.
@@ -144,6 +125,29 @@ OsStatus VfsRoot::addMount(IVfsDriver *driver, const VfsPath& path, IVfsMount **
     *mount = result.get();
 
     return OsStatusSuccess;
+}
+
+OsStatus VfsRoot::addMount(IVfsDriver *driver, const VfsPath& path, IVfsMount **mount) {
+    stdx::LockGuard guard(mLock);
+
+    //
+    // Mount points follow the same rules as other vfs objects
+    // and must therefore have a parent directory.
+    //
+    IVfsNode *parent = nullptr;
+    if (OsStatus status = walk(path, &parent)) {
+        return status;
+    }
+
+    //
+    // Create the new mount point object.
+    //
+    std::unique_ptr<IVfsMount> impl;
+    if (OsStatus status = driver->mount(std::out_ptr(impl))) {
+        return status;
+    }
+
+    return insertMount(parent, path, std::move(impl), mount);
 }
 
 OsStatus VfsRoot::create(const VfsPath& path, IVfsNode **node) {
