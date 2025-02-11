@@ -234,7 +234,6 @@ kernel = static_library('kernel', src,
     override_options : [ 'b_coverage=false' ],
 )
 
-
 ###
 ### sqlite
 ###

@@ -61,7 +61,6 @@ enum {
     eOsCallCount = 0x100,
 };
 
-#if 0
 struct OsCallResult {
     OsStatus Status;
     uint64_t Value;
@@ -73,8 +72,7 @@ struct OsCallResult {
 /// rdx - Arg1
 /// rcx - Arg2
 /// r8  - Arg3
-extern OsCallResult OsSystemCall(uint64_t Call, uint64_t, uint64_t, uint64_t, uint64_t);
-#endif
+extern struct OsCallResult OsSystemCall(uint64_t Call, uint64_t, uint64_t, uint64_t, uint64_t);
 
 /// @brief A handle to a file object.
 OS_OBJECT_HANDLE(OsFileHandle);

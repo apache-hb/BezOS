@@ -3,9 +3,7 @@
 
 #include <bezos/syscall.h>
 
-extern "C" uint64_t OsSystemCall(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
-
-size_t strlen(const char *str) {
+extern "C" size_t strlen(const char *str) {
     size_t len = 0;
     while (*str++) {
         len++;
@@ -25,25 +23,35 @@ static void OsDebugLog(const char *message) {
 }
 
 template<size_t N>
-static uint64_t OsOpenFile(const char (&path)[N]) {
+static OsStatus OpenFile(const char (&path)[N], OsFileHandle *OutHandle) {
     const char *begin = path;
     const char *end = path + N - 1;
 
-    return OsSystemCall(eOsCallFileOpen, (uint64_t)begin, (uint64_t)end, 0, 0);
-}
-
-static size_t OsReadFile(uint64_t fd, void *buffer, size_t size) {
-    return OsSystemCall(eOsCallFileRead, fd, (uint64_t)buffer, size, 0);
+    return OsFileOpen(begin, end, eOsFileRead, OutHandle);
 }
 
 // rdi: first argument
 // rsi: last argument
 // rdx: reserved
 extern "C" [[noreturn]] void ClientStart(uint64_t, uint64_t, uint64_t) {
-    uint64_t fd = OsOpenFile("Users\0Guest\0motd.txt");
+    OsFileHandle Handle = OS_FILE_INVALID;
+    if (OsStatus status = OpenFile("Users\0Guest\0motd.txt", &Handle)) {
+        (void)status;
+
+        OsDebugLog("Failed to open file /Users/Guest/motd.txt");
+        while (1) { }
+        __builtin_unreachable();
+    }
 
     char buffer[256];
-    size_t read = OsReadFile(fd, buffer, sizeof(buffer));
+    size_t read = SIZE_MAX;
+    if (OsStatus status = OsFileRead(Handle, buffer, buffer + sizeof(buffer), &read)) {
+        (void)status;
+
+        OsDebugLog("Failed to read file /Users/Guest/motd.txt");
+        while (1) { }
+        __builtin_unreachable();
+    }
 
     OsDebugLog("Reading file /Users/Guest/motd.txt");
     OsDebugLog(buffer, buffer + read);
