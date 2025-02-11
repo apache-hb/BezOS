@@ -2,6 +2,7 @@
 
 #include "absl/base/internal/raw_logging.h"
 
+#include "isr.hpp"
 #include "kernel.hpp"
 
 class TestStream final : public km::IOutStream {
@@ -41,3 +42,6 @@ void DefaultInternalLog(absl::LogSeverity, const char *, int, std::string_view m
 
 constinit absl::base_internal::AtomicHook<absl::raw_log_internal::InternalLogFunction>
     absl::raw_log_internal::internal_log_function(DefaultInternalLog);
+
+void km::DisableInterrupts() { }
+void km::EnableInterrupts() { }

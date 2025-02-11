@@ -412,7 +412,11 @@ testcases = {
     ],
     'shared ptr': [
         'kernel/test/shared.cpp',
-    ]
+    ],
+    'cmos': [
+        'kernel/test/cmos.cpp',
+        'kernel/src/cmos.cpp',
+    ],
 }
 
 if enable_aml

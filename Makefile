@@ -20,6 +20,8 @@ $(HYPER_INSTALL):
 	wget https://github.com/UltraOS/Hyper/releases/download/v0.9.0/hyper_install-linux-x86_64 -O $(HYPER_INSTALL)
 	chmod +x $(HYPER_INSTALL)
 
+hyper: $(HYPER_BOOTX64) $(HYPER_ISOBOOT) $(HYPER_INSTALL)
+
 .PHONY: build
 build: $(HYPER_BOOTX64) $(HYPER_ISOBOOT) $(HYPER_INSTALL)
 	meson install -C build --quiet

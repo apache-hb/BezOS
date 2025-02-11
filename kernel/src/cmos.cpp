@@ -40,22 +40,10 @@ static void DateComponentOverflow(uint8_t& value, uint8_t& next, uint8_t max) {
     }
 }
 
-struct CmosRegisters {
-    uint8_t regB;
-
-    uint8_t second;
-    uint8_t minute;
-    uint8_t hour;
-    uint8_t day;
-    uint8_t month;
-    uint16_t year;
-    uint8_t century;
-};
-
-static CmosRegisters ReadCmosRegisters() {
+km::detail::CmosRegisters km::detail::ReadCmosRegisters(uint8_t centuryRegister) {
     km::NmiGuard guard;
 
-    return CmosRegisters {
+    return km::detail::CmosRegisters {
         .regB = ReadCmosRegister(0x0B),
         .second = ReadCmosRegister(0x00),
         .minute = ReadCmosRegister(0x02),
@@ -63,28 +51,29 @@ static CmosRegisters ReadCmosRegisters() {
         .day = ReadCmosRegister(0x07),
         .month = ReadCmosRegister(0x08),
         .year = ReadCmosRegister(0x09),
-        .century = (gCenturyRegister != 0)
-            ? ReadCmosRegister(gCenturyRegister)
+        .century = (centuryRegister != 0)
+            ? ReadCmosRegister(centuryRegister)
             : uint8_t(0),
     };
 }
 
-km::DateTime km::ReadRtc() {
-    auto [regB, second, minute, hour, day, month, year, century] = ReadCmosRegisters();
+km::DateTime km::detail::ConvertCmosToDate(detail::CmosRegisters registers) {
+    auto [regB, second, minute, hour, day, month, year, century] = registers;
 
-    bool is24Hour = !(regB & (1 << 1));
-    bool isBcdFormat = !(regB & (1 << 2));
+    bool is12Hour = regB & k12HourClock;
+    bool isBcdFormat = !(regB & kDecimalMode);
+    bool isPm = (hour & kPmHour);
 
     if (isBcdFormat) {
         second = ConvertFromBcd(second);
         minute = ConvertFromBcd(minute);
-        hour = ConvertFromBcd(hour);
+        hour = ConvertFromBcd(hour & ~kPmHour);
         day = ConvertFromBcd(day);
         month = ConvertFromBcd(month);
         year = ConvertFromBcd(year);
     }
 
-    if (is24Hour && (hour & (1 << 7))) {
+    if (is12Hour && isPm) {
         hour = ((hour & 0x7F) + 12) % 24;
     }
 
@@ -98,7 +87,7 @@ km::DateTime km::ReadRtc() {
 
         year += century * 100;
     } else {
-        year += 2000;
+        year += kDefaultYear;
     }
 
     return DateTime {
@@ -109,4 +98,9 @@ km::DateTime km::ReadRtc() {
         .month = month,
         .year = year,
     };
+}
+
+km::DateTime km::ReadRtc() {
+    auto regs = detail::ReadCmosRegisters(gCenturyRegister);
+    return detail::ConvertCmosToDate(regs);
 }
