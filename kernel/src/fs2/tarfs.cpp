@@ -238,6 +238,8 @@ OsStatus TarFsMount::root(IVfsNode **node) {
 //
 
 OsStatus TarFs::mount(IVfsMount **) {
+    // TODO: until I have a good solution for passing mount parameters
+    // this will remain unimplemented.
     return OsStatusNotSupported;
 }
 

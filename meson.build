@@ -109,6 +109,22 @@ smp = custom_target('smp.o',
     ],
 )
 
+# Kernel c/c++ runtime functions
+
+# src = [
+#     # C and C++ Runtime
+#     'kernel/src/crt.cpp',
+#     'kernel/src/cxxrt.cpp',
+#     'kernel/src/crt_freestanding.cpp',
+# ]
+
+# kernel_runtime = library('kernel-cruntime', src,
+#     include_directories : inc,
+#     c_args : c_args + [ '-D__BEZOS__=1' ],
+#     cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
+#     override_options : [ 'b_coverage=false' ],
+# )
+
 # Kernel
 
 src = [
@@ -217,6 +233,32 @@ kernel = static_library('kernel', src,
     dependencies : deps,
     override_options : [ 'b_coverage=false' ],
 )
+
+
+###
+### sqlite
+###
+
+# sqlite = subproject('sqlite')
+# sqlite_args = [
+#     '-DSQLITE_OMIT_FLOATING_POINT=1',
+#     '-DSQLITE_OMIT_DEPRECATED=1',
+#     '-DSQLITE_OMIT_LOAD_EXTENSION=1',
+#     '-DSQLITE_OS_OTHER=1',
+#     '-DSQLITE_OMIT_JSON=1',
+#     '-DSQLITE_OMIT_EXPLAIN=1',
+#     '-DSQLITE_OMIT_DATETIME_FUNCS=1',
+#     '-DSQLITE_ZERO_MALLOC=1',
+#     '-Wno-keyword-macro',
+#     '-Wno-unused-parameter',
+#     '-Wno-literal-conversion',
+# ]
+# sqlite_kernel = library('sqlite', sqlite.get_variable('src'),
+#     include_directories : [ inc, sqlite.get_variable('inc') ],
+#     c_args : c_args + sqlite_args,
+#     cpp_args : cpp_args + sqlite_args,
+#     override_options : [ 'b_coverage=false' ],
+# )
 
 ###
 ### Limine version of the kernel image
