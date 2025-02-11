@@ -51,7 +51,7 @@
 
 #include "util/memory.hpp"
 
-#include "fs/vfs.hpp"
+#include "fs2/vfs.hpp"
 
 using namespace km;
 using namespace stdx::literals;

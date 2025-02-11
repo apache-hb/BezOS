@@ -2,6 +2,7 @@
 
 #include "fs2/path.hpp"
 #include "fs2/node.hpp"
+#include "std/spinlock.hpp"
 
 /// @brief Virtual File System.
 ///
@@ -14,7 +15,13 @@ namespace vfs2 {
         std::unique_ptr<IVfsMount> mRootMount;
         std::unique_ptr<IVfsNode> mRootNode;
 
+        /// @brief Global lock for the VFS.
+        /// @todo Use RCU instead.
+        stdx::SpinLock mLock;
+
         OsStatus walk(const VfsPath& path, IVfsNode **parent);
+
+        OsStatus lookupUnlocked(const VfsPath& path, IVfsNode **node);
 
     public:
         VfsRoot();

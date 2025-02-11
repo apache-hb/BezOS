@@ -33,10 +33,48 @@ OsStatus VfsRoot::walk(const VfsPath& path, IVfsNode **parent) {
     // Otherwise we need to walk the path to find the parent
     // which is deferred to lookup.
     //
-    return lookup(path.parent(), parent);
+    return lookupUnlocked(path.parent(), parent);
+}
+
+OsStatus VfsRoot::lookupUnlocked(const VfsPath& path, IVfsNode **node) {
+    //
+    // This function is expected to be called with the lock
+    // held. It is the responsibility of the caller to ensure
+    // that the lock is held.
+    //
+    IVfsNode *current = mRootNode.get();
+
+    for (auto segment : path) {
+        //
+        // Search the current folder for the segment name
+        // we are looking for.
+        //
+        IVfsNode *child = nullptr;
+        if (OsStatus status = current->lookup(segment, &child)) {
+            return status;
+        }
+
+        if (child->type == VfsNodeType::eFolder) {
+            //
+            // If the current node is a folder we can continue
+            // walking down the tree.
+            //
+            current = child;
+        } else {
+            //
+            // If the node is anything else then the path is malformed.
+            //
+            return OsStatusTraverseNonFolder;
+        }
+    }
+
+    *node = current;
+    return OsStatusSuccess;
 }
 
 OsStatus VfsRoot::addMount(IVfsDriver *driver, const VfsPath& path, IVfsMount **mount) {
+    stdx::LockGuard guard(mLock);
+
     //
     // Mount points follow the same rules as other vfs objects
     // and must therefore have a parent directory.
@@ -109,6 +147,8 @@ OsStatus VfsRoot::addMount(IVfsDriver *driver, const VfsPath& path, IVfsMount **
 }
 
 OsStatus VfsRoot::create(const VfsPath& path, IVfsNode **node) {
+    stdx::LockGuard guard(mLock);
+
     //
     // Walk along the fs to find the parent folder
     // to the requested path.
@@ -158,6 +198,8 @@ OsStatus VfsRoot::remove(IVfsNode *node) {
         return OsStatusHandleLocked;
     }
 
+    stdx::LockGuard guard(mLock);
+
     //
     // Once we know the node is ready for removal we can
     // remove it from the parent folder.
@@ -170,6 +212,8 @@ OsStatus VfsRoot::remove(IVfsNode *node) {
 }
 
 OsStatus VfsRoot::open(const VfsPath& path, IVfsNodeHandle **handle) {
+    stdx::LockGuard guard(mLock);
+
     IVfsNode *parent = nullptr;
     if (OsStatus status = walk(path, &parent)) {
         return status;
@@ -193,6 +237,8 @@ OsStatus VfsRoot::open(const VfsPath& path, IVfsNodeHandle **handle) {
 }
 
 OsStatus VfsRoot::mkdir(const VfsPath& path, IVfsNode **node) {
+    stdx::LockGuard guard(mLock);
+
     IVfsNode *parent = nullptr;
     if (OsStatus status = walk(path, &parent)) {
         return status;
@@ -208,6 +254,7 @@ OsStatus VfsRoot::mkdir(const VfsPath& path, IVfsNode **node) {
 }
 
 OsStatus VfsRoot::rmdir(IVfsNode *node) {
+
     //
     // rmdir is only valid on folders, each inode type
     // has its own method for removal.
@@ -231,6 +278,8 @@ OsStatus VfsRoot::rmdir(IVfsNode *node) {
         return OsStatusHandleLocked;
     }
 
+    stdx::LockGuard guard(mLock);
+
     //
     // Once we know the node is ready for removal we can
     // remove it from the parent folder.
@@ -243,6 +292,8 @@ OsStatus VfsRoot::rmdir(IVfsNode *node) {
 }
 
 OsStatus VfsRoot::mkpath(const VfsPath& path, IVfsNode **node) {
+    stdx::LockGuard guard(mLock);
+
     IVfsNode *current = mRootNode.get();
 
     for (auto segment : path) {
@@ -284,32 +335,7 @@ OsStatus VfsRoot::mkpath(const VfsPath& path, IVfsNode **node) {
 }
 
 OsStatus VfsRoot::lookup(const VfsPath& path, IVfsNode **node) {
-    IVfsNode *current = mRootNode.get();
+    stdx::LockGuard guard(mLock);
 
-    for (auto segment : path) {
-        //
-        // Search the current folder for the segment name
-        // we are looking for.
-        //
-        IVfsNode *child = nullptr;
-        if (OsStatus status = current->lookup(segment, &child)) {
-            return status;
-        }
-
-        if (child->type == VfsNodeType::eFolder) {
-            //
-            // If the current node is a folder we can continue
-            // walking down the tree.
-            //
-            current = child;
-        } else {
-            //
-            // If the node is anything else then the path is malformed.
-            //
-            return OsStatusTraverseNonFolder;
-        }
-    }
-
-    *node = current;
-    return OsStatusSuccess;
+    return lookupUnlocked(path, node);
 }
