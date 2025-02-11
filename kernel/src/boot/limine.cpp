@@ -187,22 +187,21 @@ static BootAllocator MakeBootAllocator(size_t size, const limine_memmap_response
     return BootAllocator { };
 }
 
-static km::MemoryRange GetInitDiskImage(const limine_module_response *modules, const char *path, uintptr_t hhdmOffset) {
+static km::MemoryRange GetInitDiskImage(const limine_module_response *modules, uintptr_t hhdmOffset) {
     if (modules == nullptr) {
         return { };
     }
 
-    for (uint64_t i = 0; i < modules->module_count; i++) {
-        limine_file file = *modules->modules[i];
-
-        if (strcmp(file.path, path) == 0) {
-            uintptr_t front = (uintptr_t)file.address - hhdmOffset;
-            uintptr_t back = front + file.size;
-            return { front, back };
-        }
+    if (modules->module_count == 0) {
+        return { };
     }
 
-    return { };
+    // For now we assume the first module is the initrd
+
+    limine_file file = *modules->modules[0];
+    uintptr_t front = (uintptr_t)file.address - hhdmOffset;
+    uintptr_t back = front + file.size;
+    return { front, back };
 }
 
 extern "C" void LimineMain(void) {
@@ -222,7 +221,7 @@ extern "C" void LimineMain(void) {
     BootAllocator alloc = MakeBootAllocator(kBootMemory, memory, hhdm.offset);
     std::span<boot::FrameBuffer> framebuffers = BootGetFrameBuffers(hhdm.offset, alloc);
     std::span<boot::MemoryRegion> memmap = BootGetMemoryMap(alloc);
-    km::MemoryRange initrd = GetInitDiskImage(modules, "/initrd", hhdm.offset);
+    km::MemoryRange initrd = GetInitDiskImage(modules, hhdm.offset);
 
     boot::LaunchInfo info = {
         .kernelPhysicalBase = kernelAddress.physical_base,

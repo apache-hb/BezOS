@@ -1,6 +1,16 @@
 #!/bin/sh
 
+# Create initrd by archiving the /system directory
+
+INITRD=${MESON_INSTALL_PREFIX}/initrd.tar
+
+rm ${INITRD}
+
+tar -cf ${INITRD} -C ${MESON_INSTALL_PREFIX}/system .
+
 # Build limine disk image
+
+cp ${INITRD} ${MESON_INSTALL_PREFIX}/limine/image/boot/initrd
 
 xorriso -as mkisofs -R -r -J -b boot/limine/limine-bios-cd.bin \
     -no-emul-boot -boot-load-size 4 -boot-info-table -hfsplus \
@@ -30,6 +40,8 @@ parted -s ${ESP_IMAGE} set 1 boot on
 ${MESON_SOURCE_ROOT}/data/hyper/hyper-install ${ESP_IMAGE}
 
 ## Create ISO hybrid image
+
+cp ${INITRD} ${MESON_INSTALL_PREFIX}/hyper/image/boot/initrd
 
 xorriso -as mkisofs -R -r -J -b boot/hyper-iso-boot \
     -no-emul-boot -boot-load-size 4 -boot-info-table -hfsplus \

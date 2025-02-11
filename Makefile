@@ -24,7 +24,8 @@ hyper: $(HYPER_BOOTX64) $(HYPER_ISOBOOT) $(HYPER_INSTALL)
 
 .PHONY: build
 build: $(HYPER_BOOTX64) $(HYPER_ISOBOOT) $(HYPER_INSTALL)
-	meson install -C build --quiet
+	meson install -C build/system --quiet
+	meson install -C build/kernel --quiet
 
 install/ovmf/ovmf-code-x86_64.fd:
 	mkdir -p install/ovmf
@@ -46,15 +47,15 @@ qemu-ovmf: install-ovmf
 
 .PHONY: vbox
 vbox: build
-	pwsh.exe -File data/test/vm/Test-VirtualBox.ps1 -KernelImage install/bezos.iso
+	pwsh.exe -File data/test/vm/Test-VirtualBox.ps1 -KernelImage install/kernel/bezos-limine.iso
 
 .PHONY: vmware
 vmware: build
-	pwsh.exe -File data/test/vm/Test-VMware.ps1 -KernelImage install/bezos.iso
+	pwsh.exe -File data/test/vm/Test-VMware.ps1 -KernelImage install/kernel/bezos-limine.iso
 
 .PHONY: hyperv
 hyperv: build
-	pwsh.exe -File data/test/vm/Test-HyperV.ps1 -KernelImage install/bezos.iso
+	pwsh.exe -File data/test/vm/Test-HyperV.ps1 -KernelImage install/kernel/bezos-limine.iso
 
 .PHONY: pxe
 pxe: build
@@ -62,16 +63,16 @@ pxe: build
 
 .PHONY: check
 check:
-	meson test -C build
+	meson test -C build/kernel
 
 .PHONY: coverage
 coverage:
-	ninja -C build coverage
+	ninja -C build/kernel coverage
 
 .PHONY: clean
 clean:
-	ninja -C build clean
-	rm -rf install
+	ninja -C build/kernel clean
+	rm -rf install/kernel
 
 .PHONY: integration
 integration: qemu vbox vmware hyperv

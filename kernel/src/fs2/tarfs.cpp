@@ -65,7 +65,7 @@ OsStatus vfs2::detail::ConvertTarPath(const char *path, VfsPath *result) {
     return OsStatusSuccess;
 }
 
-OsStatus vfs2::ParseTar(km::BlockDevice *media, TarParseOptions options, BTreeMap<VfsPath, TarPosixHeader> *result) {
+OsStatus vfs2::ParseTar(km::BlockDevice *media, TarParseOptions options, BTreeMap<VfsPath, TarEntry> *result) {
     TarPosixHeader header{};
     uint64_t offset = 0;
     const uint64_t mediaSize = media->size();
@@ -118,12 +118,27 @@ OsStatus vfs2::ParseTar(km::BlockDevice *media, TarParseOptions options, BTreeMa
             }
         }
 
+
         //
         // While the sizeof(TarPosixHeader) is 500 bytes, the tar format
         // operates on 512 byte blocks. We need to align ourselves to the
         // next block.
         //
         offset += kTarBlockSize;
+
+        //
+        // Save the offset of the data for this entry.
+        //
+        uint64_t dataOffset = offset;
+
+        if (header.getSize() + offset > mediaSize) {
+            //
+            // If the size of the file is larger than the media size,
+            // the tar file is corrupt.
+            //
+            KmDebugMessage("[TARFS] File size exceeds media size: ", header.name, "\n");
+            return OsStatusInvalidInput;
+        }
 
         //
         // This routine is only concerned with parsing headers,
@@ -146,9 +161,29 @@ OsStatus vfs2::ParseTar(km::BlockDevice *media, TarParseOptions options, BTreeMa
             return status;
         }
 
-        result->insert({ path, header });
+        result->insert({ path, TarEntry(header, dataOffset) });
     }
 
+    return OsStatusSuccess;
+}
+
+//
+// tarfs file implementation
+//
+
+OsStatus TarFsFile::read(ReadRequest request, ReadResult *result) {
+    if (request.offset >= header.getSize()) {
+        result->read = 0;
+        return OsStatusEndOfFile;
+    }
+
+    uint64_t remaining = header.getSize() - request.offset;
+    uint64_t toRead = std::min(remaining, (uintptr_t)request.end - (uintptr_t)request.begin);
+
+    TarFsMount *tarMount = static_cast<TarFsMount*>(mount);
+    km::BlockDevice *media = tarMount->media();
+    size_t read = media->read(mOffset + request.offset, request.begin, toRead);
+    result->read = read;
     return OsStatusSuccess;
 }
 
@@ -185,22 +220,23 @@ OsStatus TarFsMount::walk(const VfsPath& path, IVfsNode **folder) {
     return OsStatusSuccess;
 }
 
-TarFsMount::TarFsMount(TarFs *tarfs, km::IBlockDriver *block)
+TarFsMount::TarFsMount(TarFs *tarfs, sm::SharedPtr<km::IBlockDriver> block)
     : IVfsMount(tarfs)
-    , mMedia(block)
+    , mBlock(block)
+    , mMedia(mBlock.get())
     , mRootNode(new IVfsNode())
 {
     mRootNode->mount = this;
     mRootNode->type = VfsNodeType::eFolder;
 
-    BTreeMap<VfsPath, TarPosixHeader> headers;
+    BTreeMap<VfsPath, TarEntry> headers;
     if (OsStatus status = ParseTar(&mMedia, TarParseOptions{}, &headers)) {
         KmDebugMessage("[TARFS] Failed to parse tar archive: ", status, "\n");
         return;
     }
 
     for (auto& [path, header] : headers) {
-        VfsNodeType type = header.getType();
+        VfsNodeType type = header.header.getType();
         VfsStringView name = path.name();
 
         IVfsNode *parent = nullptr;
@@ -211,9 +247,9 @@ TarFsMount::TarFsMount(TarFs *tarfs, km::IBlockDriver *block)
 
         TarFsNode *node = nullptr;
         if (type == VfsNodeType::eFolder) {
-            node = new TarFsFolder(header);
+            node = new TarFsFolder(header.header);
         } else if (type == VfsNodeType::eFile) {
-            node = new TarFsFile(header);
+            node = new TarFsFile(header.header, header.offset);
         } else {
             KmDebugMessage("[TARFS] Invalid type for '", path, "' : ", (int)type, "\n");
             continue;
@@ -248,7 +284,7 @@ OsStatus TarFs::unmount(IVfsMount *mount) {
     return OsStatusSuccess;
 }
 
-OsStatus TarFs::createMount(IVfsMount **mount, km::IBlockDriver *block) {
+OsStatus TarFs::createMount(IVfsMount **mount, sm::SharedPtr<km::IBlockDriver> block) {
     TarFsMount *result = new(std::nothrow) TarFsMount(this, block);
     if (!result) {
         return OsStatusOutOfMemory;

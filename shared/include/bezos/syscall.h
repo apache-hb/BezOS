@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-#define OS_OBJECT_HANDLE(name) typedef struct name##Handle *name
+#define OS_OBJECT_HANDLE(name) typedef struct name##Opaque *name
 
 typedef uint8_t OsByte;
 typedef size_t OsSize;
@@ -72,7 +72,7 @@ struct OsCallResult {
 /// rdx - Arg1
 /// rcx - Arg2
 /// r8  - Arg3
-extern struct OsCallResult OsSystemCall(uint64_t Call, uint64_t, uint64_t, uint64_t, uint64_t);
+extern struct OsCallResult OsSystemCall(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
 
 /// @brief A handle to a file object.
 OS_OBJECT_HANDLE(OsFileHandle);
@@ -225,8 +225,34 @@ extern OsStatus OsFileRead(OsFileHandle Handle, void *BufferFront, void *BufferB
 /// @return The status of the operation.
 extern OsStatus OsFileWrite(OsFileHandle Handle, const void *BufferFront, const void *BufferBack, uint64_t *OutWritten);
 
+/// @brief Seek to a position in a file.
+///
+/// @pre @p Handle must be a valid file handle.
+/// @pre @p Mode must be a valid seek mode.
+/// @pre @p OutPosition must point to valid memory.
+///
+/// @post @p OutPosition will contain the new position in the file.
+///
+/// @param Handle The file handle to seek in.
+/// @param Mode The seek mode.
+/// @param Offset The offset to seek to.
+/// @param OutPosition The new position in the file.
+///
+/// @return The status of the operation.
 extern OsStatus OsFileSeek(OsFileHandle Handle, OsSeekMode Mode, int64_t Offset, uint64_t *OutPosition);
 
+/// @brief Perform a control operation on a file.
+///
+/// @pre @p Handle must be a valid file handle.
+/// @pre @p ControlData must point to valid memory.
+/// @pre @p ControlSize must be the size of the control data.
+///
+/// @param Handle The file handle to control.
+/// @param ControlCode The control code.
+/// @param ControlData The control data.
+/// @param ControlSize The size of the control data.
+///
+/// @return The status of the operation.
 extern OsStatus OsFileControl(OsFileHandle, uint64_t ControlCode, void *ControlData, size_t ControlSize);
 
 /// @} // group OsFile
@@ -239,6 +265,12 @@ extern OsStatus OsFileControl(OsFileHandle, uint64_t ControlCode, void *ControlD
 
 typedef uint16_t OsFolderEntryType;
 typedef uint16_t OsFolderEntryNameSize;
+
+enum {
+    eOsNodeFile   = UINT16_C(1),
+    eOsNodeFolder = UINT16_C(2),
+    eOsNodeLink   = UINT16_C(3),
+};
 
 struct OsFolderEntry {
     OsFolderEntryType Type;
@@ -265,8 +297,26 @@ struct OsFolderEntry {
 /// @return The status of the operation.
 extern OsStatus OsFolderIterate(const char *PathFront, const char *PathBack, OsFolderIteratorHandle *OutHandle);
 
+/// @brief Iterate to the next entry in the directory.
+///
+/// @pre @p Handle must be a valid folder iterator handle.
+/// @pre @p OutEntry must point to valid memory.
+///
+/// @post @p OutEntry will contain the next entry in the directory.
+///
+/// @param Handle The folder iterator handle.
+/// @param OutEntry The next entry in the directory.
+///
+/// @return The status of the operation.
 extern OsStatus OsFolderIterateNext(OsFolderIteratorHandle Handle, struct OsFolderEntry *OutEntry);
 
+/// @brief End the directory iteration.
+///
+/// @pre @p Handle must be a valid folder iterator handle.
+///
+/// @param Handle The folder iterator handle.
+///
+/// @return The status of the operation.
 extern OsStatus OsFolderIterateEnd(OsFolderIteratorHandle Handle);
 
 /// @} // group OsFolderIterator
@@ -285,12 +335,12 @@ typedef uint64_t OsTransactionMode;
 
 enum {
     eOsIsolateReadSerializable = UINT64_C(0),
-    eOsIsolateReadCommitted = UINT64_C(1),
-    eOsIsolateReadUncommitted = UINT64_C(2),
+    eOsIsolateReadCommitted    = UINT64_C(1),
+    eOsIsolateReadUncommitted  = UINT64_C(2),
 
     eOsIsolateWriteSerializable = UINT64_C(0) << 2,
-    eOsIsolateWriteCommitted = UINT64_C(1) << 2,
-    eOsIsolateWriteUncommitted = UINT64_C(2) << 2,
+    eOsIsolateWriteCommitted    = UINT64_C(1) << 2,
+    eOsIsolateWriteUncommitted  = UINT64_C(2) << 2,
 };
 
 extern OsStatus OsTransactBegin(const char *NameFront, const char *NameBack, OsTransactionMode Mode, OsTransactionHandle *OutHandle);

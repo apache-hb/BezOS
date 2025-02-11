@@ -25,10 +25,10 @@ KmEnterUserMode:
 
 /** syscall entry point
  * @param rax syscall number
- * @param rdi arg1
- * @param rsi arg2
- * @param rdx arg3
- * @param r8  arg4
+ * @param rdi arg0
+ * @param rsi arg1
+ * @param rdx arg2
+ * @param r8  arg3
  *
  * @clobber rax, rdi, rsi, rdx, r11, rcx, rsp, rbp, r15, r9
  *
@@ -64,7 +64,7 @@ KmSystemEntry:
     /* Call the dispatch routine, passing the context struct */
     mov %rsp, %rdi
     call KmSystemDispatchRoutine
-    /* Routine returns into rax, so no need to move it */
+    /* Routine returns into rax:rdx, so no need to move it */
 
     /* Restore general registers */
     popq %r14

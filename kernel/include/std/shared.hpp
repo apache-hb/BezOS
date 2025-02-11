@@ -234,7 +234,7 @@ namespace sm {
 
         SharedPtr(T *value) : SharedPtr() {
             if (value != nullptr) {
-                mControl = new detail::ControlBlock { 1, 1, value, +[](void *v) { delete static_cast<T*>(v); } };
+                mControl = new detail::ControlBlock { 1, 1, (void*)value, +[](void *v) { delete static_cast<T*>(v); } };
 
                 if constexpr (std::is_convertible_v<T*, IntrusiveCount<T>*>) {
                     static_cast<IntrusiveCount<T>*>(value)->initWeak(mControl);

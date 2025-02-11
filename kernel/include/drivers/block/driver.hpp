@@ -42,10 +42,6 @@ namespace km {
     public:
         virtual ~IBlockDriver() = default;
 
-        void operator delete(IBlockDriver*, std::destroying_delete_t) {
-            std::unreachable();
-        }
-
         virtual BlockDeviceCapability capability() const = 0;
 
         BlockDeviceStatus read(uint64_t block, void *buffer, size_t count);

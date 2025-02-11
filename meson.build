@@ -55,33 +55,6 @@ deps = [ mp_units ]
 compiler = find_program(cc.get_id())
 objcopy = find_program('objcopy')
 
-# Init program
-
-init_blob = custom_target('init',
-    input : [ 'system/init/init.S', 'system/init/init.cpp' ],
-    output : 'init.elf',
-    command : [
-        compiler, '@INPUT@',
-        '-ffreestanding', '-nostdlib', '-nostdlib++',
-        '-fPIE', '-fno-pic', '-static', '-fno-rtti', '-fno-exceptions',
-        '-I', meson.current_source_dir() / 'shared/include',
-        '-z', 'noexecstack',
-        '-e', 'ClientStart',
-        '-o', '@OUTPUT@',
-    ]
-)
-
-init = custom_target('init.o',
-    input : init_blob,
-    output : 'init.o',
-    command : [
-        objcopy, '-I', 'binary', '-O', 'elf64-x86-64',
-        '--set-section-flags', '.data.init=alloc,load,readonly,data',
-        '--rename-section', '.data=.rodata.init',
-        '@INPUT@', '@OUTPUT@'
-    ],
-)
-
 # Smp startup blob
 
 smp_blob = custom_target('smp',
@@ -212,9 +185,6 @@ src = [
     'kernel/src/syscall.cpp',
     'kernel/src/processor.cpp',
     'kernel/src/launch.cpp',
-
-    # Embedded init
-    init,
 
     # Kernel components
     'kernel/src/log.cpp',
@@ -372,6 +342,7 @@ testcases = {
         'kernel/src/util/bits.cpp',
     ],
     'string': [ 'kernel/test/std/string.cpp', ],
+    'spinlock': [ 'kernel/test/std/spinlock.cpp', ],
     'static string': [ 'kernel/test/std/static_string.cpp', ],
     'string view': [ 'kernel/test/std/string_view.cpp', ],
     'memory range': [ 'kernel/test/memory_range.cpp' ],

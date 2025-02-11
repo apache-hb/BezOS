@@ -2,13 +2,13 @@
 I thought it would be funny
 
 ## Building
-1. install `clang` (preferrably 19/20) and `meson`
+1. install `clang` 20 and `meson`
 2. execute
 ```sh
 ./setup.sh build
 make
 ```
-3. kernel will be in `install/bezos.iso`
+3. kernel will be at `install/bezos-limine.iso` or `install/bezos-hyper.iso`
 
 ## Running
 

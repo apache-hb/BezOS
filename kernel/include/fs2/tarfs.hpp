@@ -3,6 +3,7 @@
 #include "drivers/block/driver.hpp"
 
 #include "fs2/node.hpp"
+#include "std/shared.hpp"
 
 namespace vfs2 {
     namespace detail {
@@ -17,7 +18,7 @@ namespace vfs2 {
         ///
         /// @return The status of the operation.
         OsStatus ConvertTarPath(const char path[kTarNameSize], VfsPath *result);
-    
+
         template<typename T>
         T TarNumber(std::span<const char> text) {
             T result = 0;
@@ -125,10 +126,14 @@ namespace vfs2 {
     };
 
     class TarFsFile : public TarFsNode {
+        uint64_t mOffset;
     public:
-        TarFsFile(TarPosixHeader header)
+        TarFsFile(TarPosixHeader header, uint64_t offset)
             : TarFsNode(header)
+            , mOffset(offset)
         { }
+
+        OsStatus read(ReadRequest request, ReadResult *result) override;
     };
 
     class TarFsFolder : public TarFsNode {
@@ -142,6 +147,11 @@ namespace vfs2 {
         bool ignoreChecksum = false;
     };
 
+    struct TarEntry {
+        TarPosixHeader header;
+        uint64_t offset;
+    };
+
     /// @brief Parses a POSIX.1-1988 tar archive.
     ///
     /// @param media The block device containing the tar archive.
@@ -149,16 +159,17 @@ namespace vfs2 {
     /// @param result The parsed tar archive.
     ///
     /// @return The status of the operation.
-    OsStatus ParseTar(km::BlockDevice *media, TarParseOptions options, BTreeMap<VfsPath, TarPosixHeader> *result);
+    OsStatus ParseTar(km::BlockDevice *media, TarParseOptions options, BTreeMap<VfsPath, TarEntry> *result);
 
     class TarFsMount final : public IVfsMount {
+        sm::SharedPtr<km::IBlockDriver> mBlock;
         km::BlockDevice mMedia;
         IVfsNode *mRootNode;
 
         OsStatus walk(const VfsPath& path, IVfsNode **folder);
 
     public:
-        TarFsMount(TarFs *tarfs, km::IBlockDriver *block);
+        TarFsMount(TarFs *tarfs, sm::SharedPtr<km::IBlockDriver> block);
 
         km::BlockDevice *media() { return &mMedia; }
 
@@ -174,8 +185,8 @@ namespace vfs2 {
         OsStatus mount(IVfsMount **mount) override;
         OsStatus unmount(IVfsMount *mount) override;
 
-        OsStatus createMount(IVfsMount **mount, km::IBlockDriver *block);
-    
+        OsStatus createMount(IVfsMount **mount, sm::SharedPtr<km::IBlockDriver> block);
+
         static TarFs& instance();
     };
 }

@@ -104,7 +104,7 @@ static constexpr uint8_t kTestHeader[512] = {
 };
 
 TEST(TarFsTest, ParseHeader) {
-    BTreeMap<VfsPath, TarPosixHeader> result;
+    BTreeMap<VfsPath, TarEntry> result;
     km::MemoryBlk media((std::byte*)kTestHeader, sizeof(kTestHeader));
     km::BlockDevice block(&media);
 
@@ -114,8 +114,8 @@ TEST(TarFsTest, ParseHeader) {
     ASSERT_EQ(result.size(), 1);
 
     auto it = result.at(BuildPath("build"));
-    ASSERT_EQ(it.getType(), VfsNodeType::eFolder);
-    ASSERT_EQ(it.getSize(), 0);
+    ASSERT_EQ(it.header.getType(), VfsNodeType::eFolder);
+    ASSERT_EQ(it.header.getSize(), 0);
 }
 
 class FileBlk final : public km::IBlockDriver {
@@ -150,21 +150,21 @@ public:
 	FileBlk(const std::filesystem::path& path, uint32_t blockSize)
 		: mBlockSize(blockSize)
 	{
-		int fd = open(path.string().c_str(), O_RDONLY);
-		if (fd < 0) {
+		mFileHandle = open(path.string().c_str(), O_RDONLY);
+		if (mFileHandle < 0) {
 			std::cerr << "Failed to open file: " << path << " = " << errno << std::endl;
 			throw std::runtime_error("Failed to open file");
 		}
 
 		struct stat statbuf;
-		if (fstat(fd, &statbuf) < 0) {
+		if (fstat(mFileHandle, &statbuf) < 0) {
 			std::cerr << "Failed to stat file: " << path << " = " << errno << std::endl;
 			cleanup();
 			throw std::runtime_error("Failed to stat file");
 		}
 
 		mMemorySize = statbuf.st_size;
-		mMemoryMap = mmap(nullptr, mMemorySize, PROT_READ, MAP_SHARED, fd, 0);
+		mMemoryMap = mmap(nullptr, mMemorySize, PROT_READ, MAP_PRIVATE, mFileHandle, 0);
 		if (mMemoryMap == MAP_FAILED) {
 			std::cerr << "Failed to mmap file: " << path << " = " << errno << std::endl;
 			cleanup();
@@ -188,11 +188,11 @@ public:
 TEST(TarFsTest, MountTar) {
 	vfs2::VfsRoot vfs;
 
-	FileBlk file(getenv("TAR_TEST_ARCHIVE"), 512);
-	
+	sm::SharedPtr<FileBlk> file = new FileBlk(getenv("TAR_TEST_ARCHIVE"), 512);
+
 	{
 		IVfsMount *mount = nullptr;
-		OsStatus status = vfs.addMountWithParams(&TarFs::instance(), BuildPath("Mount"), &mount, &file);
+		OsStatus status = vfs.addMountWithParams(&TarFs::instance(), BuildPath("Mount"), &mount, file);
 		ASSERT_EQ(OsStatusSuccess, status);
 		ASSERT_NE(mount, nullptr);
 	}
@@ -233,11 +233,9 @@ TEST(TarFsTest, MountTar) {
 		ReadResult result{};
 		status = hello->read(request, &result);
 		ASSERT_EQ(OsStatusSuccess, status);
-		ASSERT_EQ(result.read, 0);
+		ASSERT_GT(result.read, 0);
 
 		char expected[] = "I am in a folder!\n";
 		ASSERT_EQ(memcmp(data, expected, sizeof(expected)), 0);
 	}
-
-	FAIL();
 }

@@ -16,6 +16,7 @@
 #include "cmos.hpp"
 #include "delay.hpp"
 #include "display.hpp"
+#include "drivers/block/ramblk.hpp"
 #include "elf.hpp"
 #include "fs2/vfs.hpp"
 #include "gdt.hpp"
@@ -52,6 +53,8 @@
 #include "util/memory.hpp"
 
 #include "fs2/vfs.hpp"
+#include "fs2/tarfs.hpp"
+#include "fs2/ramfs.hpp"
 
 using namespace km;
 using namespace stdx::literals;
@@ -909,13 +912,6 @@ static void InitPortDelay(const std::optional<HypervisorInfo>& hvInfo) {
     KmSetPortDelayMethod(delay);
 }
 
-extern const char _binary_init_elf_start[];
-extern const char _binary_init_elf_end[];
-
-static std::span<const uint8_t> GetInitProgram() {
-    return { (const uint8_t*)_binary_init_elf_start, (const uint8_t*)_binary_init_elf_end };
-}
-
 static void LogSystemInfo(
     const boot::LaunchInfo& launch,
     std::optional<HypervisorInfo> hvInfo,
@@ -1068,7 +1064,8 @@ const void *TranslateUserPointer(const void *userAddress) {
     return nullptr;
 }
 
-static void InitVfs() {
+static void MountRootVfs() {
+    KmDebugMessage("[VFS] Initializing VFS.\n");
     gVfsRoot = new vfs2::VfsRoot();
 
     {
@@ -1112,49 +1109,44 @@ static void InitVfs() {
         }
     }
 
-    AddSystemCall(eOsCallFileOpen, [](uint64_t userArgPathBegin, uint64_t userArgPathEnd, uint64_t, uint64_t) -> uint64_t {
+    AddSystemCall(eOsCallFileOpen, [](uint64_t userArgPathBegin, uint64_t userArgPathEnd, uint64_t, uint64_t) -> OsCallResult {
         const void *argPathBegin = TranslateUserPointer((const void*)userArgPathBegin);
         const void *argPathEnd = TranslateUserPointer((const void*)userArgPathEnd);
         if (argPathBegin == nullptr || argPathEnd == nullptr) {
-            KmDebugMessage("[VFS] Invalid path pointer.\n");
-            return OsStatusInvalidInput;
+            return CallError(OsStatusInvalidInput);
         }
 
         if (argPathBegin >= argPathEnd) {
-            KmDebugMessage("[VFS] Invalid path range.\n");
-            return OsStatusInvalidInput;
+            return CallError(OsStatusInvalidInput);
         }
 
         vfs2::VfsString text((const char*)argPathBegin, (const char*)argPathEnd);
         if (!vfs2::VerifyPathText(text)) {
-            KmDebugMessage("[VFS] Invalid path text. '", text, "'\n");
-            return OsStatusInvalidInput;
+            return CallError(OsStatusInvalidInput);
         }
 
         vfs2::VfsPath path{std::move(text)};
         vfs2::IVfsNodeHandle *node = nullptr;
-        KmDebugMessage("[VFS] Open path: '", path, "'\n");
         if (OsStatus status = gVfsRoot->open(path, &node)) {
-            KmDebugMessage("[VFS] Failed to open path: ", status, "\n");
-            return status;
+            return CallError(status);
         }
 
-        return (uintptr_t)node;
+        return CallOk(node);
     });
 
-    AddSystemCall(eOsCallFileClose, [](uint64_t, uint64_t, uint64_t, uint64_t) -> uint64_t {
-        return 0;
+    AddSystemCall(eOsCallFileClose, [](uint64_t, uint64_t, uint64_t, uint64_t) -> OsCallResult {
+        return CallOk(0zu);
     });
 
-    AddSystemCall(eOsCallFileRead, [](uint64_t userNodeId, uint64_t userBufferAddress, uint64_t userBufferSize, uint64_t) -> uint64_t {
+    AddSystemCall(eOsCallFileRead, [](uint64_t userNodeId, uint64_t userBufferAddress, uint64_t userBufferSize, uint64_t) -> OsCallResult {
         const void *bufferBegin = TranslateUserPointer((const void*)userBufferAddress);
         if (bufferBegin == nullptr) {
-            return OsStatusInvalidInput;
+            return CallError(OsStatusInvalidInput);
         }
 
         const void *bufferEnd = TranslateUserPointer((const void*)((uintptr_t)bufferBegin + userBufferSize));
         if (bufferEnd == nullptr) {
-            return OsStatusInvalidInput;
+            return CallError(OsStatusInvalidInput);
         }
 
         vfs2::IVfsNodeHandle *node = (vfs2::IVfsNodeHandle*)userNodeId;
@@ -1164,32 +1156,69 @@ static void InitVfs() {
         };
         vfs2::ReadResult result{};
         if (OsStatus status = node->read(request, &result)) {
-            return status;
+            return CallError(status);
         }
 
-        return result.read;
+        return CallOk(result.read);
     });
 
-    AddSystemCall(eOsCallDebugLog, [](uint64_t userMessageBegin, uint64_t userMessageEnd, uint64_t, uint64_t) -> uint64_t {
+    AddSystemCall(eOsCallDebugLog, [](uint64_t userMessageBegin, uint64_t userMessageEnd, uint64_t, uint64_t) -> OsCallResult {
         const void *messageBegin = TranslateUserPointer((const void*)userMessageBegin);
         const void *messageEnd = TranslateUserPointer((const void*)userMessageEnd);
 
         if (messageBegin == nullptr || messageEnd == nullptr) {
-            return OsStatusInvalidInput;
+            return CallError(OsStatusInvalidInput);
         }
 
         if (messageBegin >= messageEnd) {
-            return OsStatusInvalidInput;
+            return CallError(OsStatusInvalidInput);
         }
 
         stdx::StringView message = stdx::StringView((const char*)messageBegin, (const char*)messageEnd);
         while (message.back() == '\n')
             message = message.substr(message.count() - 1);
 
-        KmDebugMessage("[USER] ", message, "\n");
-
-        return 0;
+        return CallOk(0zu);
     });
+}
+
+static void MountInitArchive(MemoryRange initrd, SystemMemory& memory) {
+    KmDebugMessage("[INIT] Mounting '/Init'\n");
+
+    //
+    // If the initrd is empty then it probably wasn't found in the boot parameters.
+    //
+    if (initrd.isEmpty()) {
+        KmDebugMessage("[INIT] No initrd found.\n");
+        KM_PANIC("No initrd found.");
+    }
+
+    void *initrdMemory = memory.map(initrd, PageFlags::eRead);
+    sm::SharedPtr<MemoryBlk> block = new MemoryBlk{(std::byte*)initrdMemory, initrd.size()};
+
+    vfs2::IVfsMount *mount = nullptr;
+    if (OsStatus status = gVfsRoot->addMountWithParams(&vfs2::TarFs::instance(), vfs2::BuildPath("Init"), &mount, block)) {
+        KmDebugMessage("[VFS] Failed to mount initrd: ", status, "\n");
+        KM_PANIC("Failed to mount initrd.");
+    }
+}
+
+static void MountVolatileFolder() {
+    KmDebugMessage("[INIT] Mounting '/Volatile'\n");
+
+    vfs2::IVfsMount *mount = nullptr;
+    if (OsStatus status = gVfsRoot->addMountWithParams(&vfs2::RamFs::instance(), vfs2::BuildPath("Volatile"), &mount)) {
+        KmDebugMessage("[VFS] Failed to mount volatile folder: ", status, "\n");
+        KM_PANIC("Failed to mount volatile folder.");
+    }
+}
+
+static km::Process LaunchInitProcess() {
+    std::unique_ptr<vfs2::IVfsNodeHandle> init = nullptr;
+    if (OsStatus status = gVfsRoot->open(vfs2::BuildPath("Init", "init.elf"), std::out_ptr(init))) {
+        KmDebugMessage("[VFS] Failed to open init process: ", status, "\n");
+        KM_PANIC("Failed to open init process.");
+    }
 }
 
 void LaunchKernel(boot::LaunchInfo launch) {
@@ -1319,15 +1348,19 @@ void LaunchKernel(boot::LaunchInfo launch) {
         KmDebugMessage("| Revision     | ", hpet->revision(), "\n");
     }
 
+#if 0
     std::span init = GetInitProgram();
 
     auto process = LoadElf(init, 1, *stage2->memory);
     KM_CHECK(process.has_value(), "Failed to load init.elf");
+#endif
 
     DateTime time = ReadRtc();
     KmDebugMessage("[INIT] Current time: ", time.year, "-", time.month, "-", time.day, "T", time.hour, ":", time.minute, ":", time.second, "Z\n");
 
-    InitVfs();
+    MountRootVfs();
+    MountVolatileFolder();
+    MountInitArchive(launch.initrd, *stage2->memory);
 
     hid::Ps2Controller ps2Controller;
 
@@ -1346,7 +1379,9 @@ void LaunchKernel(boot::LaunchInfo launch) {
         KmDebugMessage("[INIT] No PS/2 controller found.\n");
     }
 
+#if 0
     km::EnterUserMode(process->main.regs);
+#endif
 
     if (ps2Controller.hasKeyboard()) {
         hid::Ps2Device keyboard = ps2Controller.keyboard();

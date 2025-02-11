@@ -44,6 +44,12 @@ enum OsStatusId {
     /// Malformed paths are paths that contain invalid characters, empty segments,
     /// or leading/trailing separators.
     OsStatusInvalidPath = 9,
+
+    /// @brief An invalid syscall was invoked.
+    OsStatusInvalidFunction = 10,
+
+    /// @brief The end of the file was reached.
+    OsStatusEndOfFile = 11,
 };
 
 inline bool OsStatusOk(OsStatus status) {

@@ -16,7 +16,7 @@ args = [
     '-z', 'noexecstack',
 ]
 
-executable('init', src,
+executable('init.elf', src,
     link_args : args,
     install : true,
     dependencies : shared.get_variable('sysapi'),

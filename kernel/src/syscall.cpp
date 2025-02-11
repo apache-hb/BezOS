@@ -25,14 +25,14 @@ extern "C" void KmSystemEntry(void);
 
 extern "C" uint64_t KmSystemCallStackTlsOffset;
 
-extern "C" uint64_t KmSystemDispatchRoutine(km::SystemCallContext *context) {
+extern "C" OsCallResult KmSystemDispatchRoutine(km::SystemCallContext *context) {
     KmDebugMessage("[SYSCALL] Function: ", km::Hex(context->function), ", Arg0: ", km::Hex(context->arg0), ", Arg1: ", km::Hex(context->arg1), ", Arg2: ", km::Hex(context->arg2), ", Arg3: ", km::Hex(context->arg3), "\n");
 
     if (km::SystemCallHandler handler = gSystemCalls[uint8_t(context->function)]) {
         return handler(context->arg0, context->arg1, context->arg2, context->arg3);
     }
 
-    return 0x1234;
+    return OsCallResult { .Status = OsStatusInvalidFunction, .Value = 0 };
 }
 
 void km::SetupUserMode(mem::IAllocator *allocator, uint8_t ist) {
