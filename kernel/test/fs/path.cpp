@@ -38,6 +38,10 @@ TEST(VfsPathTest, Verify) {
     ASSERT_TRUE(VerifyPathText(detail::BuildPathText("System", "Init")));
 }
 
+TEST(VfsPathTest, VerifySpecialNames) {
+    ASSERT_FALSE(VerifyPathText("Folder\0.\0Subfolder"));
+}
+
 TEST(VfsPathTest, SegmentCount) {
     auto path = BuildPath("System", "Init", "Drivers", "DriverConfig.db");
     ASSERT_EQ(path.segmentCount(), 4);

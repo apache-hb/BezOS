@@ -2,6 +2,7 @@
 
 #include "absl/base/internal/raw_logging.h"
 
+#include "absl/base/internal/throw_delegate.h"
 #include "isr.hpp"
 #include "kernel.hpp"
 
@@ -45,3 +46,7 @@ constinit absl::base_internal::AtomicHook<absl::raw_log_internal::InternalLogFun
 
 void km::DisableInterrupts() { }
 void km::EnableInterrupts() { }
+
+void absl::base_internal::ThrowStdOutOfRange(const char *message) {
+    throw std::out_of_range(message);
+}

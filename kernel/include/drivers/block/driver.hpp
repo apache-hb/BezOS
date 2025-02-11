@@ -32,6 +32,7 @@ namespace km {
         eReadOnly,
         eInternalError,
         eOutOfRange,
+        eInvalidBlock,
     };
 
     class IBlockDriver {

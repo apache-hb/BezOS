@@ -1,4 +1,4 @@
-#include "fs2/vfs.hpp"
+#include "fs2/node.hpp"
 
 #include "panic.hpp"
 

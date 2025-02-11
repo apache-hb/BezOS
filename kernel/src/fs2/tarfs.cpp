@@ -1,4 +1,6 @@
 #include "fs2/tarfs.hpp"
+#include "bezos/status.h"
+#include "fs2/node.hpp"
 #include "log.hpp"
 
 using namespace vfs2;
@@ -34,9 +36,27 @@ OsStatus vfs2::detail::ConvertTarPath(const char *path, VfsPath *result) {
     }
 
     //
-    // Validate the path to make sure it conforms to our path rules.
+    // Folder names in tar archives are always terminated with a
+    // '/' character. We need to remove this character from the
+    // path.
+    //
+    if (i > 0 && buffer[i - 1] == OS_PATH_SEPARATOR) {
+        i--;
+    }
+
+    //
+    // tar paths can contain '.' to indicate the current directory.
+    // We need to remove these segments from the path.
     //
     VfsStringView view(buffer.data(), i);
+
+    while (view.startsWith(".\0")) {
+        view = view.substr(2, view.count() - 2);
+    }
+
+    //
+    // Validate the path to make sure it conforms to our path rules.
+    //
     if (!VerifyPathText(view)) {
         return OsStatusInvalidPath;
     }
@@ -68,6 +88,22 @@ OsStatus vfs2::ParseTar(km::BlockDevice *media, TarParseOptions options, BTreeMa
             return OsStatusInvalidInput;
         }
 
+        if (header.name[0] == '\0') {
+            //
+            // If the name is empty, we have reached the end of the archive.
+            //
+            break;
+        }
+
+        if (header.magic != TarPosixHeader::kMagic) {
+            //
+            // If the magic is invalid, we may have overrun the tar file.
+            //
+            KmDebugMessage("[TARFS] Invalid magic for entry at offset: ", km::Hex(offset).pad(16), "\n");
+            KmDebugMessage("[TARFS] Expected: '", TarPosixHeader::kMagic, "' Actual: '", header.magic, "'\n");
+            break;
+        }
+
         if (!options.ignoreChecksum) {
             //
             // If the checksum is invalid, we should assume we have overrun
@@ -76,16 +112,10 @@ OsStatus vfs2::ParseTar(km::BlockDevice *media, TarParseOptions options, BTreeMa
             uint64_t checksum = header.reportedChecksum();
             uint64_t actual = header.actualChecksum();
             if (checksum != actual) {
-                KmDebugMessage("[TARFS] Invalid checksum for entry: ", header.name, "\n");
+                KmDebugMessage("[TARFS] Invalid checksum for entry: '", header.name, "'\n");
+                KmDebugMessage("[TARFS] Reported: ", km::Hex(checksum).pad(8), " Actual: ", km::Hex(actual).pad(8), "\n");
                 return OsStatusInvalidInput;
             }
-        }
-
-        if (header.name[0] == '\0') {
-            //
-            // If the name is empty, we have reached the end of the archive.
-            //
-            break;
         }
 
         //
@@ -112,6 +142,7 @@ OsStatus vfs2::ParseTar(km::BlockDevice *media, TarParseOptions options, BTreeMa
 
         VfsPath path;
         if (OsStatus status = detail::ConvertTarPath(header.name, &path)) {
+            KmDebugMessage("[TARFS] Failed to convert path: ", header.name, " = ", (int)status, "\n");
             return status;
         }
 
@@ -119,4 +150,113 @@ OsStatus vfs2::ParseTar(km::BlockDevice *media, TarParseOptions options, BTreeMa
     }
 
     return OsStatusSuccess;
+}
+
+//
+// tarfs mount implementation
+//
+
+OsStatus TarFsMount::walk(const VfsPath& path, IVfsNode **folder) {
+    if (path.segmentCount() == 1) {
+        *folder = mRootNode;
+        return OsStatusSuccess;
+    }
+
+    IVfsNode *current = mRootNode;
+
+    for (auto segment : path.parent()) {
+        IVfsNode *child = nullptr;
+        if (OsStatus status = current->lookup(segment, &child)) {
+            return status;
+        }
+
+        if (child->type != VfsNodeType::eFolder) {
+            return OsStatusTraverseNonFolder;
+        }
+
+        if (child->mount != this) {
+            return OsStatusInvalidType;
+        }
+
+        current = child;
+    }
+
+    *folder = current;
+    return OsStatusSuccess;
+}
+
+TarFsMount::TarFsMount(TarFs *tarfs, km::IBlockDriver *block)
+    : IVfsMount(tarfs)
+    , mMedia(block)
+    , mRootNode(new IVfsNode())
+{
+    mRootNode->mount = this;
+    mRootNode->type = VfsNodeType::eFolder;
+
+    BTreeMap<VfsPath, TarPosixHeader> headers;
+    if (OsStatus status = ParseTar(&mMedia, TarParseOptions{}, &headers)) {
+        KmDebugMessage("[TARFS] Failed to parse tar archive: ", status, "\n");
+        return;
+    }
+
+    for (auto& [path, header] : headers) {
+        VfsNodeType type = header.getType();
+        VfsStringView name = path.name();
+
+        IVfsNode *parent = nullptr;
+        if (OsStatus status = walk(path, &parent)) {
+            KmDebugMessage("[TARFS] Failed to find parent for '", path, "' : ", status, "\n");
+            continue;
+        }
+
+        TarFsNode *node = nullptr;
+        if (type == VfsNodeType::eFolder) {
+            node = new TarFsFolder(header);
+        } else if (type == VfsNodeType::eFile) {
+            node = new TarFsFile(header);
+        } else {
+            KmDebugMessage("[TARFS] Invalid type for '", path, "' : ", (int)type, "\n");
+            continue;
+        }
+
+        parent->initNode(node, name, type);
+
+        if (OsStatus status = parent->addNode(name, node)) {
+            KmDebugMessage("[TARFS] Failed to add folder '", path, "' : ", status, "\n");
+            delete node;
+        }
+    }
+}
+
+OsStatus TarFsMount::root(IVfsNode **node) {
+    *node = mRootNode;
+    return OsStatusSuccess;
+}
+
+//
+// tarfs driver implementation
+//
+
+OsStatus TarFs::mount(IVfsMount **) {
+    return OsStatusNotSupported;
+}
+
+OsStatus TarFs::unmount(IVfsMount *mount) {
+    delete mount;
+    return OsStatusSuccess;
+}
+
+OsStatus TarFs::createMount(IVfsMount **mount, km::IBlockDriver *block) {
+    TarFsMount *result = new(std::nothrow) TarFsMount(this, block);
+    if (!result) {
+        return OsStatusOutOfMemory;
+    }
+
+    *mount = result;
+    return OsStatusSuccess;
+}
+
+TarFs& TarFs::instance() {
+    static TarFs sDriver{};
+    return sDriver;
 }

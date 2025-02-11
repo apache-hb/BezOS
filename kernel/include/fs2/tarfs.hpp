@@ -17,9 +17,24 @@ namespace vfs2 {
         ///
         /// @return The status of the operation.
         OsStatus ConvertTarPath(const char path[kTarNameSize], VfsPath *result);
+    
+        template<typename T>
+        T TarNumber(std::span<const char> text) {
+            T result = 0;
+            for (size_t i = 0; i < 12; i++) {
+                if (text[i] < '0' || text[i] > '7') {
+                    break;
+                }
+
+                result = result * 8 + (text[i] - '0');
+            }
+            return result;
+        }
     }
 
     struct TarPosixHeader {
+        static constexpr std::array<char, 6> kMagic = { 'u', 's', 't', 'a', 'r', ' ' };
+
         char name[detail::kTarNameSize];
         char mode[8];
         char uid[8];
@@ -29,7 +44,7 @@ namespace vfs2 {
         char checksum[8];
         char typeflag;
         char linkname[100];
-        char magic[6];
+        std::array<char, 6> magic;
         char version[2];
         char uname[32];
         char gname[32];
@@ -38,21 +53,11 @@ namespace vfs2 {
         char prefix[155];
 
         size_t getSize() const {
-            size_t result = 0;
-            for (size_t i = 0; i < 12; i++) {
-                result = result * 8 + (size[i] - '0');
-            }
-
-            return result;
+            return detail::TarNumber<size_t>(size);
         }
 
         uint64_t reportedChecksum() const {
-            uint64_t result = 0;
-            for (size_t i = 0; i < 8; i++) {
-                result = result * 8 + (checksum[i] - '0');
-            }
-
-            return result;
+            return detail::TarNumber<uint64_t>(checksum);
         }
 
         uint64_t actualChecksum() const {
@@ -113,15 +118,24 @@ namespace vfs2 {
     class TarFsNode : public IVfsNode {
     public:
         TarPosixHeader header;
-        size_t offset;
+
+        TarFsNode(TarPosixHeader header)
+            : header(header)
+        { }
     };
 
     class TarFsFile : public TarFsNode {
-
+    public:
+        TarFsFile(TarPosixHeader header)
+            : TarFsNode(header)
+        { }
     };
 
     class TarFsFolder : public TarFsNode {
-
+    public:
+        TarFsFolder(TarPosixHeader header)
+            : TarFsNode(header)
+        { }
     };
 
     struct TarParseOptions {
@@ -139,7 +153,9 @@ namespace vfs2 {
 
     class TarFsMount final : public IVfsMount {
         km::BlockDevice mMedia;
-        BTreeMap<VfsPath, TarFsNode*> mEntries;
+        IVfsNode *mRootNode;
+
+        OsStatus walk(const VfsPath& path, IVfsNode **folder);
 
     public:
         TarFsMount(TarFs *tarfs, km::IBlockDriver *block);
@@ -149,24 +165,17 @@ namespace vfs2 {
         OsStatus root(IVfsNode **node) override;
     };
 
-    class TarFsDriver final : public IVfsDriver {
+    class TarFs final : public IVfsDriver {
     public:
-        constexpr TarFsDriver()
+        constexpr TarFs()
             : IVfsDriver("tarfs")
         { }
 
         OsStatus mount(IVfsMount **mount) override;
         OsStatus unmount(IVfsMount *mount) override;
 
-        template<typename... A>
-        OsStatus createMount(IVfsMount **mount, A&&... args) {
-            TarFsMount *result = new(std::nothrow) TarFsMount(this, std::forward<A>(args)...);
-            if (!result) {
-                return OsStatusOutOfMemory;
-            }
-
-            *mount = result;
-            return OsStatusSuccess;
-        }
+        OsStatus createMount(IVfsMount **mount, km::IBlockDriver *block);
+    
+        static TarFs& instance();
     };
 }

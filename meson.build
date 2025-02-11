@@ -400,16 +400,6 @@ testcases = {
         'kernel/src/fs2/node.cpp',
         'kernel/src/fs2/ramfs.cpp',
     ],
-    'tarfs': [
-        'kernel/test/fs/ramfs.cpp',
-        'kernel/src/fs2/vfs.cpp',
-        'kernel/src/fs2/path.cpp',
-        'kernel/src/fs2/node.cpp',
-        'kernel/src/fs2/ramfs.cpp',
-        'kernel/src/fs2/tarfs.cpp',
-        'kernel/src/drivers/block/driver.cpp',
-        'kernel/src/drivers/block/ramblk.cpp',
-    ],
     'shared ptr': [
         'kernel/test/shared.cpp',
     ],
@@ -452,6 +442,37 @@ foreach name, source : testcases
         kwargs : testkwargs
     )
 endforeach
+
+tar_test_script = find_program('data/test/tar/tar.sh')
+tar_test_data = custom_target('tar-test-data',
+    output : 'test.tar',
+    command : [ tar_test_script, meson.current_source_dir() / 'data/test/tar', '@OUTPUT@' ],
+)
+
+source = [
+    'kernel/test/fs/tarfs.cpp',
+    'kernel/src/fs2/vfs.cpp',
+    'kernel/src/fs2/path.cpp',
+    'kernel/src/fs2/node.cpp',
+    'kernel/src/fs2/handle.cpp',
+    'kernel/src/fs2/ramfs.cpp',
+    'kernel/src/fs2/tarfs.cpp',
+    'kernel/src/drivers/block/driver.cpp',
+    'kernel/src/drivers/block/ramblk.cpp',
+]
+
+exe = executable('test-kernel-tarfs', source,
+    kwargs : test_exe_kwargs,
+)
+
+test('tarfs', exe,
+    suite : 'kernel',
+    kwargs : testkwargs,
+    depends : tar_test_data,
+    env : {
+        'TAR_TEST_ARCHIVE': tar_test_data.full_path(),
+    }
+)
 
 testcases = {
     'terminal': {

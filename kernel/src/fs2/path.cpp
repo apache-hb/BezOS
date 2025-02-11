@@ -1,4 +1,6 @@
 #include "fs2/path.hpp"
+#include "bezos/syscall.h"
+#include <algorithm>
 #include <cassert>
 
 using namespace vfs2;
@@ -76,24 +78,44 @@ VfsStringView VfsPath::name() const {
 }
 
 bool vfs2::VerifyPathText(VfsStringView text) {
+    //
     // Empty paths are invalid
+    //
     if (text.isEmpty()) {
         return false;
     }
 
+    //
     // Paths cannot start or end with a separator.
+    //
     if (text.front() == OS_PATH_SEPARATOR || text.back() == OS_PATH_SEPARATOR) {
         return false;
     }
 
+    //
     // Paths cannot contain any empty segments.
+    //
     for (size_t i = 0; i < text.count() - 1; i++) {
         if (text[i] == OS_PATH_SEPARATOR && text[i + 1] == OS_PATH_SEPARATOR) {
             return false;
         }
     }
 
+    //
+    // Nodes cannot be named '.', We require the userspace
+    // to normalize paths before passing them to the kernel.
+    //
+    if (text.startsWith(".\0") || text.endsWith("\0.")) {
+        return false;
+    }
+
+    if (std::ranges::contains_subrange(text, stdx::StringView("\0.\0"))) {
+        return false;
+    }
+
+    //
     // Paths cannot contain any invalid characters.
+    //
     for (size_t i = 0; i < text.count(); i++) {
         if (text[i] == OS_PATH_SEPARATOR) {
             continue;

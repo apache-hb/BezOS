@@ -83,11 +83,16 @@ OsStatus RamFsMount::root(IVfsNode **node) {
 }
 
 //
-// ramfs implementation
+// ramfs driver implementation
 //
 
 OsStatus RamFs::mount(IVfsMount **mount) {
-    *mount = new RamFsMount(this);
+    RamFsMount *node = new(std::nothrow) RamFsMount(this);
+    if (!node) {
+        return OsStatusOutOfMemory;
+    }
+
+    *mount = node;
     return OsStatusSuccess;
 }
 
@@ -105,6 +110,6 @@ RamFsMount::RamFsMount(RamFs *fs)
 }
 
 RamFs& RamFs::instance() {
-    static RamFs sRamFs{};
-    return sRamFs;
+    static RamFs sDriver{};
+    return sDriver;
 }

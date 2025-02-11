@@ -48,8 +48,24 @@ namespace stdx {
         constexpr const T& front() const { return *mFront; }
         constexpr const T& back() const { return *(mBack - 1); }
 
-        constexpr StringViewBase substr(size_t first, size_t count) const {
-            return StringViewBase(begin() + first, begin() + first + count);
+        constexpr bool startsWith(StringViewBase search) const {
+            return count() >= search.count() && std::equal(search.begin(), search.end(), begin());
+        }
+
+        constexpr bool endsWith(StringViewBase search) const {
+            return count() >= search.count() && std::equal(search.begin(), search.end(), end() - search.count());
+        }
+
+        constexpr StringViewBase substr(size_t first, size_t elements) const {
+            if (first >= count()) {
+                return StringViewBase();
+            }
+
+            if (first + elements > count()) {
+                elements = count() - first;
+            }
+
+            return StringViewBase(begin() + first, begin() + first + elements);
         }
 
         constexpr StringViewBase substr(size_t count) const {
