@@ -5,8 +5,6 @@
 #include "util/signature.hpp"
 #include "util/uuid.hpp"
 
-#include "fs/types.hpp"
-
 #include <cstdint>
 
 #include <array>

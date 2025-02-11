@@ -173,12 +173,6 @@ src = [
     'kernel/src/arch/cr.cpp',
     'kernel/src/boot.cpp',
 
-    # VFS
-    'kernel/src/fs/path.cpp',
-    'kernel/src/fs/vfs.cpp',
-    'kernel/src/fs/ramfs.cpp',
-    'kernel/src/fs/tarfs.cpp',
-
     # VFS rewrite
     'kernel/src/fs2/vfs.cpp',
     'kernel/src/fs2/path.cpp',
@@ -196,9 +190,6 @@ src = [
     'kernel/src/drivers/block/driver.cpp',
     'kernel/src/drivers/block/virtio_blk.cpp',
     'kernel/src/drivers/block/ramblk.cpp',
-
-    # FS drviers
-    'kernel/src/drivers/fs/driver.cpp',
 
     # Process
     'kernel/src/syscall.cpp',
@@ -381,12 +372,6 @@ testcases = {
         'kernel/test/drivers/media.cpp',
         'kernel/src/drivers/block/driver.cpp',
         'kernel/src/drivers/block/ramblk.cpp',
-    ],
-    'vfs': [
-        'kernel/test/vfs.cpp',
-        'kernel/src/fs/vfs.cpp',
-        'kernel/src/fs/path.cpp',
-        'kernel/src/fs/ramfs.cpp',
     ],
     'fs2': [
         'kernel/test/fs/fs.cpp',
