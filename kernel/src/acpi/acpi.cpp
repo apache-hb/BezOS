@@ -255,9 +255,7 @@ acpi::AcpiTables::AcpiTables(const RsdpLocator *locator, km::SystemMemory& memor
 }
 
 uint32_t acpi::AcpiTables::lapicCount() const {
-    return std::count_if(mMadt->begin(), mMadt->end(), [](const acpi::MadtEntry *entry) {
-        return entry->type == acpi::MadtEntryType::eLocalApic;
-    });
+    return mMadt->lapicCount();
 }
 
 km::IoApic acpi::AcpiTables::mapIoApic(km::SystemMemory& memory, uint32_t index) const {
@@ -275,11 +273,21 @@ km::IoApic acpi::AcpiTables::mapIoApic(km::SystemMemory& memory, uint32_t index)
 }
 
 uint32_t acpi::AcpiTables::ioApicCount() const {
-    return std::count_if(mMadt->begin(), mMadt->end(), [](const acpi::MadtEntry *entry) {
-        return entry->type == acpi::MadtEntryType::eIoApic;
-    });
+    return mMadt->ioApicCount();
 }
 
 bool acpi::AcpiTables::has8042Controller() const {
     return bool(mFadt->iapcBootArch & acpi::IapcBootArch::e8042Controller);
+}
+
+uint32_t acpi::Madt::ioApicCount() const {
+    return std::count_if(begin(), end(), [](const MadtEntry *entry) {
+        return entry->type == MadtEntryType::eIoApic;
+    });
+}
+
+uint32_t acpi::Madt::lapicCount() const {
+    return std::count_if(begin(), end(), [](const acpi::MadtEntry *entry) {
+        return entry->type == acpi::MadtEntryType::eLocalApic;
+    });
 }

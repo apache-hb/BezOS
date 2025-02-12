@@ -1271,16 +1271,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     uint32_t ioApicCount = rsdt.ioApicCount();
     KM_CHECK(ioApicCount > 0, "No IOAPICs found.");
 
-    stdx::StaticVector<IoApic, 4> ioApics;
-
-    for (uint32_t i = 0; i < ioApicCount; i++) {
-        IoApic ioapic = rsdt.mapIoApic(*stage2->memory, 0);
-
-        KmDebugMessage("[INIT] IOAPIC ", i, " ID: ", ioapic.id(), ", Version: ", ioapic.version(), "\n");
-        KmDebugMessage("[INIT] ISR base: ", ioapic.isrBase(), ", Inputs: ", ioapic.inputCount(), "\n");
-
-        ioApics.add(ioapic);
-    }
+    IoApicSet ioApicSet{ rsdt.madt(), *stage2->memory };
 
     std::unique_ptr<pci::IConfigSpace> config{pci::InitConfigSpace(rsdt.mcfg(), *stage2->memory)};
     if (!config) {
@@ -1318,7 +1309,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
         .timer = apic::TimerMode::ePeriodic,
     });
 
-    km::InitPit(100 * si::hertz, rsdt.madt(), ioApics.front(), lapic.pointer(), timer, [](IsrContext *ctx) -> km::IsrContext {
+    km::InitPit(100 * si::hertz, rsdt.madt(), ioApicSet, lapic.pointer(), timer, [](IsrContext *ctx) -> km::IsrContext {
         IApic *apic = km::GetCpuLocalApic();
         apic->eoi();
         return *ctx;

@@ -107,6 +107,9 @@ namespace acpi {
         MadtIterator end() const {
             return MadtIterator { reinterpret_cast<const uint8_t*>(this) + header.length };
         }
+
+        uint32_t ioApicCount() const;
+        uint32_t lapicCount() const;
     };
 }
 

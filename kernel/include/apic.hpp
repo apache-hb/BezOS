@@ -1,5 +1,6 @@
 #pragma once
 
+#include "absl/container/fixed_array.h"
 #include "acpi/acpi.hpp"
 #include "util/combine.hpp"
 
@@ -263,6 +264,34 @@ namespace km {
         void setLegacyRedirect(apic::IvtConfig config, uint32_t redirect, const acpi::Madt *madt, const IApic *target);
 
         bool present() const { return mAddress != nullptr; }
+    };
+
+    class IoApicSet {
+        absl::FixedArray<IoApic, absl::kFixedArrayUseDefault, mem::GlobalAllocator<IoApic>> mIoApics;
+
+    public:
+        IoApicSet(const acpi::Madt *madt, km::SystemMemory& memory);
+
+        uint32_t count() const { return mIoApics.size(); }
+        auto&& operator[](this auto&& self, uint32_t index) { return self.mIoApics[index]; }
+
+        /// @brief Update the redirection table entry for the given ISR
+        ///
+        /// @param config The configuration for the ISR
+        /// @param redirect The redirection table entry to update
+        /// @param target The target APIC to send the interrupt to
+        void setRedirect(apic::IvtConfig config, uint32_t redirect, const IApic *target);
+
+        /// @brief Update the redirection table entry for the given ISR
+        ///
+        /// This function will attempt to use the MADT to find the
+        /// correct redirection table entry for the given ISR.
+        ///
+        /// @param config The configuration for the ISR
+        /// @param redirect The redirection table entry to update
+        /// @param madt The MADT table to search for the ISR
+        /// @param target The target APIC to send the interrupt to
+        void setLegacyRedirect(apic::IvtConfig config, uint32_t redirect, const acpi::Madt *madt, const IApic *target);
     };
 
     Apic InitBspApic(km::SystemMemory& memory, bool useX2Apic);

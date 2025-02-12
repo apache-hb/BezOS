@@ -431,3 +431,65 @@ void km::IoApic::setLegacyRedirect(apic::IvtConfig config, uint32_t redirect, co
 
     setRedirect(config, redirect, target);
 }
+
+static bool IoApicContainsGsi(km::IoApic& ioApic, uint32_t gsi) {
+    uint32_t first = ioApic.isrBase();
+    uint32_t last = first + ioApic.inputCount() - 1;
+    return gsi >= first && gsi <= last;
+}
+
+km::IoApicSet::IoApicSet(const acpi::Madt *madt, km::SystemMemory& memory)
+    : mIoApics(madt->ioApicCount())
+{
+    size_t index = 0;
+    for (const acpi::MadtEntry *entry : *madt) {
+        if (entry->type != acpi::MadtEntryType::eIoApic)
+            continue;
+
+        IoApic ioapic { entry, memory };
+
+        KmDebugMessage("[INIT] IOAPIC ", index, " ID: ", ioapic.id(), ", Version: ", ioapic.version(), "\n");
+        KmDebugMessage("[INIT] ISR base: ", ioapic.isrBase(), ", Inputs: ", ioapic.inputCount(), "\n");
+
+        mIoApics[index++] = ioapic;
+    }
+}
+
+void km::IoApicSet::setRedirect(apic::IvtConfig config, uint32_t redirect, const IApic *target) {
+    for (IoApic& ioApic : mIoApics) {
+        if (IoApicContainsGsi(ioApic, redirect)) {
+            ioApic.setRedirect(config, redirect, target);
+            return;
+        }
+    }
+
+    KmDebugMessage("[WARN] GSI ", redirect, " not found in any IOAPIC\n");
+}
+
+void km::IoApicSet::setLegacyRedirect(apic::IvtConfig config, uint32_t redirect, const acpi::Madt *madt, const IApic *target) {
+    for (const acpi::MadtEntry *entry : *madt) {
+        if (entry->type != acpi::MadtEntryType::eInterruptSourceOverride)
+            continue;
+
+        const acpi::MadtEntry::InterruptSourceOverride iso = entry->iso;
+        if (iso.source != redirect)
+            continue;
+
+        apic::IvtConfig fixup {
+            .vector = uint8_t(config.vector),
+            .polarity = GetIsoPolarity(iso),
+            .trigger = GetIsoTriggerMode(iso),
+            .enabled = true,
+        };
+
+        KmDebugMessage("[INIT] IRQ PIN ", redirect, " remapped to PIN ", iso.interrupt, " by MADT\n");
+
+        setRedirect(fixup, iso.interrupt, target);
+
+        return;
+    }
+
+    KmDebugMessage("[INIT] IRQ PIN ", redirect, " redirected to APIC ", target->id(), ":", config.vector, "\n");
+
+    setRedirect(config, redirect, target);
+}

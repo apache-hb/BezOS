@@ -122,5 +122,5 @@ namespace km {
 
     using TickSource = sm::Combine<ITickSource, IntervalTimer, HighPrecisionTimer>;
 
-    void InitPit(hertz frequency, const acpi::Madt *madt, IoApic& ioApic, IApic *apic, uint8_t irq, IsrCallback handler);
+    void InitPit(hertz frequency, const acpi::Madt *madt, IoApicSet& ioApicSet, IApic *apic, uint8_t irq, IsrCallback handler);
 }

@@ -40,7 +40,7 @@ void km::IntervalTimer::setCount(uint16_t value) {
     KmWriteByte(kChannel0, (value >> 8) & 0xFF);
 }
 
-void km::InitPit(hertz frequency, const acpi::Madt *madt, IoApic& ioApic, IApic *apic, uint8_t irq, IsrCallback callback) {
+void km::InitPit(hertz frequency, const acpi::Madt *madt, IoApicSet& ioApicSet, IApic *apic, uint8_t irq, IsrCallback callback) {
     IntervalTimer pit;
     pit.setFrequency(frequency);
 
@@ -53,5 +53,5 @@ void km::InitPit(hertz frequency, const acpi::Madt *madt, IoApic& ioApic, IApic 
 
     InstallIsrHandler(irq, callback);
 
-    ioApic.setLegacyRedirect(config, irq::kTimer, madt, apic);
+    ioApicSet.setLegacyRedirect(config, irq::kTimer, madt, apic);
 }
