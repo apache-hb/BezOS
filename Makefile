@@ -5,7 +5,20 @@ HYPER_BOOTX64=data/hyper/BOOTX64.EFI
 HYPER_ISOBOOT=data/hyper/hyper-iso-boot
 HYPER_INSTALL=data/hyper/hyper-install
 
+OVMF_CODE=install/ovmf/ovmf-code-x86_64.fd
+OVMF_VARS=install/ovmf/ovmf-vars-x86_64.fd
+
 .DEFAULT_GOAL := build
+
+$(OVMF_CODE):
+	mkdir -p install/ovmf
+	wget https://github.com/osdev0/edk2-ovmf-nightly/releases/latest/download/ovmf-code-x86_64.fd -O $(OVMF_CODE)
+
+$(OVMF_VARS):
+	mkdir -p install/ovmf
+	wget https://github.com/osdev0/edk2-ovmf-nightly/releases/latest/download/ovmf-vars-x86_64.fd -O $(OVMF_VARS)
+
+install-ovmf: $(OVMF_CODE) $(OVMF_VARS)
 
 $(HYPER_BOOTX64):
 	mkdir -p data/hyper
@@ -26,16 +39,6 @@ hyper: $(HYPER_BOOTX64) $(HYPER_ISOBOOT) $(HYPER_INSTALL)
 build: $(HYPER_BOOTX64) $(HYPER_ISOBOOT) $(HYPER_INSTALL)
 	meson install -C build/system --quiet
 	meson install -C build/kernel --quiet
-
-install/ovmf/ovmf-code-x86_64.fd:
-	mkdir -p install/ovmf
-	wget https://github.com/osdev0/edk2-ovmf-nightly/releases/latest/download/ovmf-code-x86_64.fd -O install/ovmf/ovmf-code-x86_64.fd
-
-install/ovmf/ovmf-vars-x86_64.fd:
-	mkdir -p install/ovmf
-	wget https://github.com/osdev0/edk2-ovmf-nightly/releases/latest/download/ovmf-vars-x86_64.fd -O install/ovmf/ovmf-vars-x86_64.fd
-
-install-ovmf: install/ovmf/ovmf-code-x86_64.fd install/ovmf/ovmf-vars-x86_64.fd
 
 .PHONY: qemu
 qemu: build
@@ -64,6 +67,7 @@ pxe: build
 .PHONY: check
 check:
 	meson test -C build/kernel
+	meson test -C build/system
 
 .PHONY: coverage
 coverage:
@@ -72,7 +76,8 @@ coverage:
 .PHONY: clean
 clean:
 	ninja -C build/kernel clean
-	rm -rf install/kernel
+	ninja -C build/system clean
+	rm -rf install
 
 .PHONY: integration
 integration: qemu vbox vmware hyperv
