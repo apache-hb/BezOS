@@ -1100,7 +1100,7 @@ static void MountRootVfs() {
         }
     }
 
-    AddSystemCall(eOsCallFileOpen, [](uint64_t userArgPathBegin, uint64_t userArgPathEnd, uint64_t, uint64_t) -> OsCallResult {
+    AddSystemCall(eOsCallFileOpen, [](uint64_t userArgPathBegin, uint64_t userArgPathEnd, [[maybe_unused]] uint64_t mode, uint64_t) -> OsCallResult {
         const void *argPathBegin = TranslateUserPointer((const void*)userArgPathBegin);
         const void *argPathEnd = TranslateUserPointer((const void*)userArgPathEnd);
         if (argPathBegin == nullptr || argPathEnd == nullptr) {
@@ -1129,14 +1129,10 @@ static void MountRootVfs() {
         return CallOk(0zu);
     });
 
-    AddSystemCall(eOsCallFileRead, [](uint64_t userNodeId, uint64_t userBufferAddress, uint64_t userBufferSize, uint64_t) -> OsCallResult {
-        const void *bufferBegin = TranslateUserPointer((const void*)userBufferAddress);
-        if (bufferBegin == nullptr) {
-            return CallError(OsStatusInvalidInput);
-        }
-
-        const void *bufferEnd = TranslateUserPointer((const void*)((uintptr_t)bufferBegin + userBufferSize));
-        if (bufferEnd == nullptr) {
+    AddSystemCall(eOsCallFileRead, [](uint64_t userNodeId, uint64_t userBufferBegin, uint64_t userBufferEnd, uint64_t) -> OsCallResult {
+        const void *bufferBegin = TranslateUserPointer((const void*)userBufferBegin);
+        const void *bufferEnd = TranslateUserPointer((const void*)userBufferEnd);
+        if (bufferBegin == nullptr || bufferEnd == nullptr) {
             return CallError(OsStatusInvalidInput);
         }
 

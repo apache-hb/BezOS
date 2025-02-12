@@ -43,7 +43,7 @@ extern "C" [[noreturn]] void ClientStart(uint64_t, uint64_t, uint64_t) {
     }
 
     char buffer[256];
-    size_t read = SIZE_MAX;
+    uint64_t read = UINT64_MAX;
     if (OsStatus status = OsFileRead(Handle, buffer, buffer + sizeof(buffer), &read)) {
         (void)status;
 
