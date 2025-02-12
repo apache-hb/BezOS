@@ -261,8 +261,6 @@ namespace km {
         /// @param target The target APIC to send the interrupt to
         void setRedirect(apic::IvtConfig config, uint32_t redirect, const IApic *target);
 
-        void setLegacyRedirect(apic::IvtConfig config, uint32_t redirect, const acpi::Madt *madt, const IApic *target);
-
         bool present() const { return mAddress != nullptr; }
     };
 

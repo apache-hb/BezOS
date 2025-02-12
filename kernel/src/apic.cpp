@@ -405,33 +405,6 @@ static km::apic::Polarity GetIsoPolarity(acpi::MadtEntry::InterruptSourceOverrid
     }
 }
 
-void km::IoApic::setLegacyRedirect(apic::IvtConfig config, uint32_t redirect, const acpi::Madt *madt, const IApic *target) {
-    for (const acpi::MadtEntry *entry : *madt) {
-        if (entry->type != acpi::MadtEntryType::eInterruptSourceOverride)
-            continue;
-
-        const acpi::MadtEntry::InterruptSourceOverride iso = entry->iso;
-        if (iso.source != (redirect - mIsrBase))
-            continue;
-
-        apic::IvtConfig fixup {
-            .vector = uint8_t(config.vector),
-            .polarity = GetIsoPolarity(iso),
-            .trigger = GetIsoTriggerMode(iso),
-            .enabled = true,
-        };
-
-        KmDebugMessage("[INIT] IRQ PIN ", redirect, " remapped to PIN ", iso.interrupt, " by MADT\n");
-
-        setRedirect(fixup, iso.interrupt, target);
-        return;
-    }
-
-    KmDebugMessage("[INIT] IRQ PIN ", redirect, " redirected to APIC ", target->id(), ":", config.vector, "\n");
-
-    setRedirect(config, redirect, target);
-}
-
 static bool IoApicContainsGsi(km::IoApic& ioApic, uint32_t gsi) {
     uint32_t first = ioApic.isrBase();
     uint32_t last = first + ioApic.inputCount() - 1;

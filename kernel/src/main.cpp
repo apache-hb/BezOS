@@ -1264,13 +1264,8 @@ void LaunchKernel(boot::LaunchInfo launch) {
     const acpi::Fadt *fadt = rsdt.fadt();
     InitCmos(fadt->century);
 
-    //
-    // TODO: use an io apic collection class rather than a list of io apics.
-    // Some systems have multiple and acpi tables will remap irqs to any io apic.
-    //
     uint32_t ioApicCount = rsdt.ioApicCount();
     KM_CHECK(ioApicCount > 0, "No IOAPICs found.");
-
     IoApicSet ioApicSet{ rsdt.madt(), *stage2->memory };
 
     std::unique_ptr<pci::IConfigSpace> config{pci::InitConfigSpace(rsdt.mcfg(), *stage2->memory)};
