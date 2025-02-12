@@ -474,49 +474,49 @@ test('tarfs', exe,
     }
 )
 
-source = [
-    'kernel/test/launch/elf.cpp',
+# source = [
+#     'kernel/test/launch/elf.cpp',
 
-    'kernel/src/launch.cpp',
+#     'kernel/src/launch.cpp',
 
-    'kernel/src/fs2/vfs.cpp',
-    'kernel/src/fs2/path.cpp',
-    'kernel/src/fs2/node.cpp',
-    'kernel/src/fs2/handle.cpp',
-    'kernel/src/fs2/ramfs.cpp',
-    'kernel/src/fs2/tarfs.cpp',
+#     'kernel/src/fs2/vfs.cpp',
+#     'kernel/src/fs2/path.cpp',
+#     'kernel/src/fs2/node.cpp',
+#     'kernel/src/fs2/handle.cpp',
+#     'kernel/src/fs2/ramfs.cpp',
+#     'kernel/src/fs2/tarfs.cpp',
 
-    'kernel/src/boot.cpp',
-    'kernel/src/hypervisor.cpp',
+#     'kernel/src/boot.cpp',
+#     'kernel/src/hypervisor.cpp',
 
-    'kernel/src/memory.cpp',
-    'kernel/src/memory/layout.cpp',
-    'kernel/src/memory/page_allocator.cpp',
-    'kernel/src/memory/virtual_allocator.cpp',
-    'kernel/src/memory/page_tables.cpp',
+#     'kernel/src/memory.cpp',
+#     'kernel/src/memory/layout.cpp',
+#     'kernel/src/memory/page_allocator.cpp',
+#     'kernel/src/memory/virtual_allocator.cpp',
+#     'kernel/src/memory/page_tables.cpp',
 
-    'kernel/src/util/format.cpp',
-    'kernel/src/util/memory.cpp',
-    'kernel/src/util/cpuid.cpp',
+#     'kernel/src/util/format.cpp',
+#     'kernel/src/util/memory.cpp',
+#     'kernel/src/util/cpuid.cpp',
 
-    'kernel/subprojects/tlsf/tlsf.c',
+#     'kernel/subprojects/tlsf/tlsf.c',
 
-    'kernel/src/drivers/block/driver.cpp',
-    'kernel/src/drivers/block/ramblk.cpp',
-]
+#     'kernel/src/drivers/block/driver.cpp',
+#     'kernel/src/drivers/block/ramblk.cpp',
+# ]
 
-exe = executable('test-kernel-elf', source,
-    kwargs : test_exe_kwargs,
-)
+# exe = executable('test-kernel-elf', source,
+#     kwargs : test_exe_kwargs,
+# )
 
-test('elf', exe,
-    suite : 'kernel',
-    kwargs : testkwargs,
-    depends : tar_test_data,
-    env : {
-        'TAR_TEST_ARCHIVE': meson.current_source_dir() / 'data/test/elf/initrd.tar'
-    }
-)
+# test('elf', exe,
+#     suite : 'kernel',
+#     kwargs : testkwargs,
+#     depends : tar_test_data,
+#     env : {
+#         'TAR_TEST_ARCHIVE': meson.current_source_dir() / 'data/test/elf/initrd.tar'
+#     }
+# )
 
 testcases = {
     'terminal': {

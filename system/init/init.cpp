@@ -37,14 +37,10 @@ static OsStatus OpenFile(const char (&path)[N], OsFileHandle *OutHandle) {
 extern "C" [[noreturn]] void ClientStart(uint64_t, uint64_t, uint64_t) {
     OsFileHandle Handle = OS_FILE_INVALID;
     if (OsStatus status = OpenFile("Users\0Guest\0motd.txt", &Handle)) {
-        (void)status;
-
         OsDebugLog("Failed to open file /Users/Guest/motd.txt");
         while (1) { }
         __builtin_unreachable();
     }
-
-    while (1) { }
 
     char buffer[256];
     size_t read = SIZE_MAX;

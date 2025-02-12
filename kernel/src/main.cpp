@@ -62,7 +62,6 @@ using namespace stdx::literals;
 static constexpr bool kUseX2Apic = true;
 static constexpr bool kSelfTestIdt = true;
 static constexpr bool kSelfTestApic = true;
-static constexpr bool kDumpAddr2lineCmd = true;
 
 class SerialLog final : public IOutStream {
     SerialPort mPort;
@@ -750,14 +749,6 @@ static void DumpStackTrace(const km::IsrContext *context) {
     x64::WalkStackFrames((void**)context->rbp, [](void **frame, void *pc) {
         KmDebugMessageUnlocked("| ", (void*)frame, " | ", pc, "\n");
     });
-
-    if (kDumpAddr2lineCmd) {
-        KmDebugMessageUnlocked("llvm-addr2line -e ./build/bezos");
-        x64::WalkStackFrames((void**)context->rbp, [](void **, void *pc) {
-            KmDebugMessageUnlocked(" ", pc);
-        });
-        KmDebugMessageUnlocked("\n");
-    }
 }
 
 struct ApicInfo {
@@ -1161,25 +1152,6 @@ static void MountRootVfs() {
 
         return CallOk(result.read);
     });
-
-    AddSystemCall(eOsCallDebugLog, [](uint64_t userMessageBegin, uint64_t userMessageEnd, uint64_t, uint64_t) -> OsCallResult {
-        const void *messageBegin = TranslateUserPointer((const void*)userMessageBegin);
-        const void *messageEnd = TranslateUserPointer((const void*)userMessageEnd);
-
-        if (messageBegin == nullptr || messageEnd == nullptr) {
-            return CallError(OsStatusInvalidInput);
-        }
-
-        if (messageBegin >= messageEnd) {
-            return CallError(OsStatusInvalidInput);
-        }
-
-        stdx::StringView message = stdx::StringView((const char*)messageBegin, (const char*)messageEnd);
-        while (message.back() == '\n')
-            message = message.substr(message.count() - 1);
-
-        return CallOk(0zu);
-    });
 }
 
 static void MountInitArchive(MemoryRange initrd, SystemMemory& memory) {
@@ -1358,6 +1330,23 @@ void LaunchKernel(boot::LaunchInfo launch) {
     MountRootVfs();
     MountVolatileFolder();
     MountInitArchive(launch.initrd, *stage2->memory);
+
+    AddSystemCall(eOsCallDebugLog, [](uint64_t arg0, uint64_t arg1, uint64_t, uint64_t) -> OsCallResult {
+        const char *front = (const char*)TranslateUserPointer((const void*)arg0);
+        const char *back = (const char*)TranslateUserPointer((const void*)arg1);
+
+        if (front == nullptr || back == nullptr) {
+            return CallError(OsStatusInvalidInput);
+        }
+
+        stdx::StringView message(front, back);
+        while (message.back() == '\n')
+            message = message.substr(message.count() - 1);
+
+        KmDebugMessage(message, "\n");
+
+        return CallOk(0zu);
+    });
 
     ProcessLaunch init{};
     if (OsStatus status = LaunchInitProcess(&init)) {

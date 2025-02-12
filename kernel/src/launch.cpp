@@ -47,11 +47,12 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
 
     Process *process = objects.createProcess("main", km::Privilege::eUser);
 
+    uint64_t entry = header.entry;
+
     x64::RegisterState regs {
+        .rip = entry,
         .rflags = 0x202,
     };
-
-    uint64_t entry = header.entry;
 
     KmDebugMessage("[ELF] Entry point: ", km::Hex(entry), "\n");
 
@@ -71,11 +72,12 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
         //
         size_t offset = (ph.vaddr % x64::kPageSize);
         size_t pages = Pages(ph.memsz + offset);
-        void *vaddr = memory.vmm.alloc4k(pages);
+        void *baseVaddr = (void*)(ph.vaddr - offset); // memory.vmm.alloc4k(pages);
+        void *vaddr = (void*)ph.vaddr;
         PhysicalAddress paddr = memory.pmm.alloc4k(pages);
 
         km::AddressMapping mapping {
-            .vaddr = vaddr,
+            .vaddr = baseVaddr,
             .paddr = paddr,
             .size = pages * x64::kPageSize,
         };
@@ -84,11 +86,11 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
         // Allocate all the memory as writable during the load phase.
         //
         memory.pt.map(mapping, PageFlags::eWrite);
-        std::uninitialized_fill_n((uint8_t*)vaddr, (mapping.size), 0xF0);
+        std::uninitialized_fill_n((uint8_t*)baseVaddr, mapping.size, 0xF0);
 
         vfs2::ReadRequest request {
-            .begin = (std::byte*)vaddr + offset,
-            .end = (std::byte*)vaddr + offset + ph.filesz,
+            .begin = (std::byte*)vaddr,
+            .end = (std::byte*)vaddr + ph.filesz,
             .offset = ph.offset,
         };
 
@@ -118,15 +120,6 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
 
         memory.pt.map(mapping, flags);
 
-        //
-        // TODO: im not sure if this is the correct way to find the entrypoint.
-        //
-        bool containsEntry = entry >= ph.vaddr && entry < ph.vaddr + ph.memsz;
-
-        if (containsEntry) {
-            regs.rip = ((uintptr_t)vaddr + (entry - ph.vaddr));
-        }
-
         AddressSpace *addressSpace = objects.createAddressSpace("main", mapping);
 
         process->memory.add(addressSpace->id);
@@ -143,8 +136,8 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
     static constexpr size_t kStackSize = 0x4000;
     void *stack = memory.allocate(kStackSize, 0x1000, PageFlags::eUser | PageFlags::eData);
 
-    regs.rbp = (uintptr_t)stack;
-    regs.rsp = (uintptr_t)stack;
+    regs.rbp = (uintptr_t)stack + kStackSize;
+    regs.rsp = (uintptr_t)stack + kStackSize;
 
     Thread *main = objects.createThread("main");
     main->state = regs;
