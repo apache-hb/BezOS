@@ -44,4 +44,34 @@ namespace stdx {
             mLock.fetch_sub(1, std::memory_order_release);
         }
     };
+
+    template<typename T>
+    class UniqueLock {
+        T& mLock;
+    public:
+        UniqueLock(T& lock)
+            : mLock(lock)
+        {
+            mLock.lock();
+        }
+
+        ~UniqueLock() {
+            mLock.unlock();
+        }
+    };
+
+    template<typename T>
+    class SharedLock {
+        T& mLock;
+    public:
+        SharedLock(T& lock)
+            : mLock(lock)
+        {
+            mLock.lock_shared();
+        }
+
+        ~SharedLock() {
+            mLock.unlock_shared();
+        }
+    };
 }

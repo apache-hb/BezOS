@@ -9,3 +9,7 @@ OsStatus IVfsNodeHandle::read(ReadRequest request, ReadResult *result) {
 OsStatus IVfsNodeHandle::write(WriteRequest request, WriteResult *result) {
     return node->write(request, result);
 }
+
+OsStatus IVfsNodeHandle::stat(VfsNodeStat *stat) {
+    return node->stat(stat);
+}

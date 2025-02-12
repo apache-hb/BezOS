@@ -1052,7 +1052,7 @@ static void NormalizeProcessorState() {
 static uint32_t gSchedulerVector = 0;
 
 static vfs2::VfsRoot *gVfsRoot = nullptr;
-
+static SystemObjects *gSystemObjects = nullptr;
 static SystemMemory *gMemory = nullptr;
 
 const void *TranslateUserPointer(const void *userAddress) {
@@ -1207,18 +1207,20 @@ static void MountVolatileFolder() {
     KmDebugMessage("[INIT] Mounting '/Volatile'\n");
 
     vfs2::IVfsMount *mount = nullptr;
-    if (OsStatus status = gVfsRoot->addMountWithParams(&vfs2::RamFs::instance(), vfs2::BuildPath("Volatile"), &mount)) {
+    if (OsStatus status = gVfsRoot->addMount(&vfs2::RamFs::instance(), vfs2::BuildPath("Volatile"), &mount)) {
         KmDebugMessage("[VFS] Failed to mount volatile folder: ", status, "\n");
         KM_PANIC("Failed to mount volatile folder.");
     }
 }
 
-static km::Process LaunchInitProcess() {
+static OsStatus LaunchInitProcess(ProcessLaunch *launch) {
     std::unique_ptr<vfs2::IVfsNodeHandle> init = nullptr;
     if (OsStatus status = gVfsRoot->open(vfs2::BuildPath("Init", "init.elf"), std::out_ptr(init))) {
-        KmDebugMessage("[VFS] Failed to open init process: ", status, "\n");
+        KmDebugMessage("[VFS] Failed to find '/Init/init.elf' ", status, "\n");
         KM_PANIC("Failed to open init process.");
     }
+
+    return LoadElf(std::move(init), *gMemory, *gSystemObjects, launch);
 }
 
 void LaunchKernel(boot::LaunchInfo launch) {
@@ -1358,9 +1360,17 @@ void LaunchKernel(boot::LaunchInfo launch) {
     DateTime time = ReadRtc();
     KmDebugMessage("[INIT] Current time: ", time.year, "-", time.month, "-", time.day, "T", time.hour, ":", time.minute, ":", time.second, "Z\n");
 
+    gSystemObjects = new SystemObjects();
+
     MountRootVfs();
     MountVolatileFolder();
     MountInitArchive(launch.initrd, *stage2->memory);
+
+    ProcessLaunch init{};
+    if (OsStatus status = LaunchInitProcess(&init)) {
+        KmDebugMessage("[INIT] Failed to launch init process: ", status, "\n");
+        KM_PANIC("Failed to launch init process.");
+    }
 
     hid::Ps2Controller ps2Controller;
 
@@ -1379,9 +1389,8 @@ void LaunchKernel(boot::LaunchInfo launch) {
         KmDebugMessage("[INIT] No PS/2 controller found.\n");
     }
 
-#if 0
-    km::EnterUserMode(process->main.regs);
-#endif
+    Thread *thread = gSystemObjects->getThread(init.main);
+    km::EnterUserMode(thread->state);
 
     if (ps2Controller.hasKeyboard()) {
         hid::Ps2Device keyboard = ps2Controller.keyboard();

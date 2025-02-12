@@ -15,9 +15,10 @@ static void OsDebugLog(const char *begin, const char *end) {
     OsSystemCall(eOsCallDebugLog, (uint64_t)begin, (uint64_t)end, 0, 0);
 }
 
-static void OsDebugLog(const char *message) {
+template<size_t N>
+static void OsDebugLog(const char (&message)[N]) {
     const char *begin = message;
-    const char *end = message + strlen(message);
+    const char *end = message + N - 1;
 
     OsDebugLog(begin, end);
 }
@@ -42,6 +43,8 @@ extern "C" [[noreturn]] void ClientStart(uint64_t, uint64_t, uint64_t) {
         while (1) { }
         __builtin_unreachable();
     }
+
+    while (1) { }
 
     char buffer[256];
     size_t read = SIZE_MAX;

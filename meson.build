@@ -50,6 +50,7 @@ mp_units = dependency('mp-units')
 absl = subproject('abseil-cpp')
 
 inc = [ inc, absl.get_variable('absl_include_dir') ]
+libs = [ absl.get_variable('absl_container_lib') ]
 deps = [ mp_units ]
 
 compiler = find_program(cc.get_id())
@@ -201,6 +202,7 @@ kernel = static_library('kernel', src,
     c_args : c_args + [ '-mllvm', '-asm-macro-max-nesting-depth=256', '-D__BEZOS__=1' ],
     cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
     dependencies : deps,
+    link_with : libs,
     override_options : [ 'b_coverage=false' ],
 )
 

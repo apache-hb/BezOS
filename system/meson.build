@@ -19,5 +19,6 @@ args = [
 executable('init.elf', src,
     link_args : args,
     install : true,
+    install_dir : get_option('prefix'),
     dependencies : shared.get_variable('sysapi'),
 )

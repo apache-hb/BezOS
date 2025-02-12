@@ -68,6 +68,10 @@ namespace vfs2 {
         uint16_t blockSize;
     };
 
+    struct VfsNodeStat {
+        uint64_t size;
+    };
+
     class IVfsNodeHandle {
     public:
         virtual ~IVfsNodeHandle() = default;
@@ -82,7 +86,48 @@ namespace vfs2 {
 
         OsStatus read(ReadRequest request, ReadResult *result);
         OsStatus write(WriteRequest request, WriteResult *result);
+        OsStatus stat(VfsNodeStat *stat);
     };
+
+    template<typename T> requires (std::is_trivial_v<T>)
+    OsStatus ReadObject(IVfsNodeHandle *handle, T *object, uint64_t offset) {
+        ReadRequest request {
+            .begin = object,
+            .end = (std::byte*)object + sizeof(T),
+            .offset = offset,
+        };
+
+        ReadResult result{};
+        if (OsStatus status = handle->read(request, &result)) {
+            return status;
+        }
+
+        if (result.read != sizeof(T)) {
+            return OsStatusEndOfFile;
+        }
+
+        return OsStatusSuccess;
+    }
+
+    template<typename T> requires (std::is_trivial_v<T>)
+    OsStatus ReadArray(IVfsNodeHandle *handle, T *array, size_t count, uint64_t offset) {
+        ReadRequest request {
+            .begin = array,
+            .end = (std::byte*)array + sizeof(T) * count,
+            .offset = offset,
+        };
+
+        ReadResult result{};
+        if (OsStatus status = handle->read(request, &result)) {
+            return status;
+        }
+
+        if (result.read != sizeof(T) * count) {
+            return OsStatusEndOfFile;
+        }
+
+        return OsStatusSuccess;
+    }
 
     class IVfsNodeIterator {
     public:
@@ -121,6 +166,8 @@ namespace vfs2 {
 
         virtual OsStatus remove(IVfsNode*) { return OsStatusNotSupported; }
         virtual OsStatus rmdir(IVfsNode*) { return OsStatusNotSupported; }
+
+        virtual OsStatus stat(VfsNodeStat*) { return OsStatusNotSupported; }
 
         OsStatus open(IVfsNodeHandle **handle);
 

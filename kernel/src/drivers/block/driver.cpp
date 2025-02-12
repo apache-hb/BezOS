@@ -59,6 +59,9 @@ km::BlockDevice::BlockDevice(IBlockDriver *device [[gnu::nonnull]])
     , mBuffer(new std::byte[size()])
 { }
 
+
+// TODO: something in here is broken and reads too far
+
 size_t km::BlockDevice::read(size_t offset, void *buffer, size_t size) {
     std::byte *dst = static_cast<std::byte*>(buffer);
 

@@ -2,7 +2,7 @@
 
 #include "crt.hpp"
 #include "isr.hpp"
-#include "process.hpp"
+#include "process/process.hpp"
 
 #define MOODYCAMEL_MALLOC ::malloc
 #define MOODYCAMEL_FREE ::free
@@ -18,13 +18,13 @@ namespace km {
     };
 
     class Scheduler {
-        moodycamel::ConcurrentQueue<km::ProcessThread*> mQueue;
+        moodycamel::ConcurrentQueue<ThreadId> mQueue;
 
     public:
         Scheduler();
 
-        void addWorkItem(km::ProcessThread *thread);
-        km::ProcessThread *getWorkItem();
+        void addWorkItem(km::ThreadId thread);
+        km::ThreadId getWorkItem();
     };
 
     void InitScheduler(IsrAllocator& isrs);

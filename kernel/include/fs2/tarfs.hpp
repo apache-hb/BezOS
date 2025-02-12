@@ -134,6 +134,7 @@ namespace vfs2 {
         { }
 
         OsStatus read(ReadRequest request, ReadResult *result) override;
+        OsStatus stat(VfsNodeStat *result) override;
     };
 
     class TarFsFolder : public TarFsNode {

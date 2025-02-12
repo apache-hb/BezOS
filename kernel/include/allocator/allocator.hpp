@@ -7,6 +7,8 @@
 #include <cstring>
 #include <cstddef>
 
+#include "crt.hpp"
+
 extern "C" void *malloc(size_t);
 extern "C" void free(void*);
 
@@ -155,3 +157,30 @@ namespace mem {
         }
     };
 }
+
+#if !__STDC_HOSTED__
+
+namespace std {
+    template<typename T>
+    struct allocator {
+        using value_type = T;
+        using size_type = size_t;
+        using difference_type = ptrdiff_t;
+
+        template<typename O>
+        allocator(const allocator<O>&) { }
+
+        template<typename O>
+        allocator(allocator<O>&&) { }
+
+        T *allocate(size_t n) {
+            return (T*)aligned_alloc(alignof(T), n * sizeof(T));
+        }
+
+        void deallocate(T *ptr, size_t) {
+            free(ptr);
+        }
+    };
+}
+
+#endif

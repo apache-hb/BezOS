@@ -50,6 +50,10 @@ enum OsStatusId {
 
     /// @brief The end of the file was reached.
     OsStatusEndOfFile = 11,
+
+    OsStatusInvalidData = 12,
+
+    OsStatusInvalidVersion = 13,
 };
 
 inline bool OsStatusOk(OsStatus status) {

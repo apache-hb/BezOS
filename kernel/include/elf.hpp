@@ -1,7 +1,7 @@
 #pragma once
 
 #include "memory.hpp"
-#include "process.hpp"
+#include "process/process.hpp"
 
 #include <bit>
 
@@ -123,5 +123,9 @@ namespace elf {
 }
 
 namespace km {
+    OsStatus LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory& memory, SystemObjects& objects, ProcessLaunch *result);
+
+#if 0
     std::expected<Process, bool> LoadElf(std::span<const uint8_t> program, uint32_t id, SystemMemory& memory);
+#endif
 }

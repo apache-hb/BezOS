@@ -187,6 +187,11 @@ OsStatus TarFsFile::read(ReadRequest request, ReadResult *result) {
     return OsStatusSuccess;
 }
 
+OsStatus TarFsFile::stat(VfsNodeStat *result) {
+    result->size = header.getSize();
+    return OsStatusSuccess;
+}
+
 //
 // tarfs mount implementation
 //
