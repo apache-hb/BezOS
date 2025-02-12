@@ -30,7 +30,7 @@
 #include "pat.hpp"
 #include "pit.hpp"
 #include "processor.hpp"
-#include "schedule.hpp"
+#include "process/schedule.hpp"
 #include "smp.hpp"
 #include "std/spinlock.hpp"
 #include "std/static_vector.hpp"
@@ -1040,7 +1040,7 @@ static void NormalizeProcessorState() {
     kGsBase.store(0);
 }
 
-static uint32_t gSchedulerVector = 0;
+static uint8_t gSchedulerVector = 0;
 
 static vfs2::VfsRoot *gVfsRoot = nullptr;
 static SystemObjects *gSystemObjects = nullptr;
@@ -1176,7 +1176,7 @@ static void MountVolatileFolder() {
 
     vfs2::IVfsMount *mount = nullptr;
     if (OsStatus status = gVfsRoot->addMount(&vfs2::RamFs::instance(), vfs2::BuildPath("Volatile"), &mount)) {
-        KmDebugMessage("[VFS] Failed to mount volatile folder: ", status, "\n");
+        KmDebugMessage("[VFS] Failed to mount '/Volatile' ", status, "\n");
         KM_PANIC("Failed to mount volatile folder.");
     }
 }
@@ -1191,11 +1191,7 @@ static OsStatus LaunchInitProcess(ProcessLaunch *launch) {
     return LoadElf(std::move(init), *gMemory, *gSystemObjects, launch);
 }
 
-void LaunchKernel(boot::LaunchInfo launch) {
-    NormalizeProcessorState();
-    SetDebugLogLock(DebugLogLockType::eNone);
-    InitBootTerminal(launch.framebuffers);
-
+static std::tuple<std::optional<HypervisorInfo>, bool> QueryHostHypervisor() {
     std::optional<HypervisorInfo> hvInfo = KmGetHypervisorInfo();
     bool hasDebugPort = false;
 
@@ -1206,6 +1202,15 @@ void LaunchKernel(boot::LaunchInfo launch) {
     if (hasDebugPort) {
         gLogTargets.add(&gDebugPortLog);
     }
+
+    return std::make_tuple(hvInfo, hasDebugPort);
+}
+
+void LaunchKernel(boot::LaunchInfo launch) {
+    NormalizeProcessorState();
+    SetDebugLogLock(DebugLogLockType::eNone);
+    InitBootTerminal(launch.framebuffers);
+    auto [hvInfo, hasDebugPort] = QueryHostHypervisor();
 
     ProcessorInfo processor = GetProcessorInfo();
     InitPortDelay(hvInfo);
@@ -1228,8 +1233,10 @@ void LaunchKernel(boot::LaunchInfo launch) {
     gBootGdt = GetBootGdt();
     SetupInitialGdt();
 
-    // Need to disable the PIC before enabling interrupts otherwise we
+    //
+    // I need to disable the PIC before enabling interrupts otherwise I
     // get flooded by timer interrupts.
+    //
     Disable8259Pic();
 
     km::IsrAllocator isrs = InitStage1Idt(SystemGdt::eLongModeCode);
@@ -1257,6 +1264,10 @@ void LaunchKernel(boot::LaunchInfo launch) {
     const acpi::Fadt *fadt = rsdt.fadt();
     InitCmos(fadt->century);
 
+    //
+    // TODO: use an io apic collection class rather than a list of io apics.
+    // Some systems have multiple and acpi tables will remap irqs to any io apic.
+    //
     uint32_t ioApicCount = rsdt.ioApicCount();
     KM_CHECK(ioApicCount > 0, "No IOAPICs found.");
 
@@ -1288,8 +1299,6 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     km::SetupUserMode(gAllocator, kIstTimer);
 
-    km::InitScheduler(isrs);
-
     uint8_t timer = isrs.allocateIsr();
 
     InstallIsrHandler(gSchedulerVector, [](km::IsrContext *ctx) -> km::IsrContext {
@@ -1298,11 +1307,20 @@ void LaunchKernel(boot::LaunchInfo launch) {
         return *ctx;
     });
 
+    lapic->setTimerDivisor(apic::TimerDivide::e32);
+    lapic->setInitialCount(0x10000);
+
+    lapic->cfgIvtTimer(apic::IvtConfig {
+        .vector = gSchedulerVector,
+        .polarity = apic::Polarity::eActiveHigh,
+        .trigger = apic::Trigger::eEdge,
+        .enabled = true,
+        .timer = apic::TimerMode::ePeriodic,
+    });
+
     km::InitPit(100 * si::hertz, rsdt.madt(), ioApics.front(), lapic.pointer(), timer, [](IsrContext *ctx) -> km::IsrContext {
         IApic *apic = km::GetCpuLocalApic();
         apic->eoi();
-
-        apic->sendIpi(apic::IcrDeliver::eOther, gSchedulerVector);
         return *ctx;
     });
 

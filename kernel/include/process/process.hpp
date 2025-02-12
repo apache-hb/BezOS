@@ -69,45 +69,11 @@ namespace km {
     public:
         SystemObjects() = default;
 
-        Thread *createThread(stdx::String name) {
-            stdx::UniqueLock guard(mLock);
+        Thread *createThread(stdx::String name);
+        AddressSpace *createAddressSpace(stdx::String name, km::AddressMapping mapping);
+        Process *createProcess(stdx::String name, km::Privilege privilege);
 
-            ThreadId id = mThreadIds.allocate();
-            std::unique_ptr<Thread> thread{new Thread{id, std::move(name)}};
-            Thread *result = thread.get();
-            mThreads.insert({id, std::move(thread)});
-            return result;
-        }
-
-        AddressSpace *createAddressSpace(stdx::String name, km::AddressMapping mapping) {
-            stdx::UniqueLock guard(mLock);
-
-            AddressSpaceId id = mAddressSpaceIds.allocate();
-            std::unique_ptr<AddressSpace> addressSpace{new AddressSpace{id, std::move(name), mapping}};
-            AddressSpace *result = addressSpace.get();
-            mAddressSpaces.insert({id, std::move(addressSpace)});
-            return result;
-        }
-
-        Process *createProcess(stdx::String name, km::Privilege privilege) {
-            stdx::UniqueLock guard(mLock);
-
-            ProcessId id = mProcessIds.allocate();
-            std::unique_ptr<Process> process{new Process{id, std::move(name), privilege}};
-            Process *result = process.get();
-            mProcesses.insert({id, std::move(process)});
-            return result;
-        }
-
-        Thread *getThread(ThreadId id) {
-            stdx::SharedLock guard(mLock);
-            if (auto it = mThreads.find(id); it != mThreads.end()) {
-                return it->second.get();
-            }
-
-            return nullptr;
-        }
-
+        Thread *getThread(ThreadId id);
         AddressSpace *getAddressSpace(AddressSpaceId id);
         Process *getProcess(ProcessId id);
     };

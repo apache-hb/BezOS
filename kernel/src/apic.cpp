@@ -100,11 +100,11 @@ bool km::IsX2ApicEnabled() {
 
 // x2apic methods
 
-uint32_t km::X2Apic::read(uint16_t offset) const {
-    return __rdmsr(k2xApicBaseMsr + offset) & UINT32_MAX;
+uint64_t km::X2Apic::read(uint16_t offset) const {
+    return __rdmsr(k2xApicBaseMsr + offset);
 }
 
-void km::X2Apic::write(uint16_t offset, uint32_t value) {
+void km::X2Apic::write(uint16_t offset, uint64_t value) {
     __wrmsr(k2xApicBaseMsr + offset, value);
 }
 
@@ -163,11 +163,11 @@ volatile uint32_t& km::LocalApic::reg(uint16_t offset) const {
     return *reinterpret_cast<volatile uint32_t*>((char*)mBaseAddress + offset);
 }
 
-uint32_t km::LocalApic::read(uint16_t offset) const {
+uint64_t km::LocalApic::read(uint16_t offset) const {
     return reg(offset << 4);
 }
 
-void km::LocalApic::write(uint16_t offset, uint32_t value) {
+void km::LocalApic::write(uint16_t offset, uint64_t value) {
     reg(offset << 4) = value;
 }
 
@@ -240,7 +240,25 @@ void km::IApic::configure(apic::Ivt ivt, apic::IvtConfig config) {
         | (std::to_underlying(config.trigger) << 15)
         | ((config.enabled ? 0 : 1) << 16);
 
+    if (ivt == apic::Ivt::eTimer && config.timer != apic::TimerMode::eNone) {
+        entry |= (std::to_underlying(config.timer) << 17);
+    }
+
     write(std::to_underlying(ivt), entry);
+}
+
+void km::IApic::setTimerDivisor(apic::TimerDivide timer) {
+    auto v = std::to_underlying(timer);
+    uint32_t msr = (v & 0b11) | ((v & 0b100) << 1);
+    write(apic::kDivide, msr);
+}
+
+void km::IApic::setInitialCount(uint64_t count) {
+    write(apic::kInitialCount, count);
+}
+
+uint64_t km::IApic::getCurrentCount() {
+    return read(apic::kCurrentCount);
 }
 
 void km::IApic::enableSpuriousInt() {

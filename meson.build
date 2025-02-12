@@ -125,7 +125,6 @@ src = [
 
     'kernel/src/thread.cpp',
     'kernel/src/user.S',
-    'kernel/src/schedule.cpp',
 
     # PCI
     'kernel/src/pci/pci.cpp',
@@ -167,6 +166,8 @@ src = [
     'kernel/src/drivers/block/ramblk.cpp',
 
     # Process
+    'kernel/src/process/process.cpp',
+    'kernel/src/process/schedule.cpp',
     'kernel/src/syscall.cpp',
     'kernel/src/processor.cpp',
     'kernel/src/launch.cpp',

@@ -40,6 +40,8 @@ namespace km {
 
         bool hasLocalApic;
         bool has2xApic;
+        bool tscDeadline;
+        bool invariantTsc;
 
         CoreMultiplier coreClock;
         uint32_t busClock; // in hz

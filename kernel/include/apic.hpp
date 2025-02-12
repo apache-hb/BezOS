@@ -52,11 +52,19 @@ namespace km {
             eAssert = 1,
         };
 
+        enum class TimerMode {
+            eOneShot = 0b00,
+            ePeriodic = 0b01,
+            eDeadline = 0b10,
+            eNone = 0b11
+        };
+
         struct IvtConfig {
             uint8_t vector;
             Polarity polarity;
             Trigger trigger;
             bool enabled;
+            TimerMode timer = TimerMode::eNone;
         };
 
         enum class Type {
@@ -92,6 +100,17 @@ namespace km {
             }
         };
 
+        enum class TimerDivide {
+            e1 = 0b111,
+            e2 = 0b000,
+            e4 = 0b001,
+            e8 = 0b010,
+            e16 = 0b011,
+            e32 = 0b100,
+            e64 = 0b101,
+            e128 = 0b110,
+        };
+
         // apic register offsets
 
         static constexpr uint16_t kApicVersion = 0x3;
@@ -100,8 +119,15 @@ namespace km {
         static constexpr uint16_t kTimerLvt = 0x32;
         static constexpr uint16_t kTaskPriority = 0x8;
 
-        static constexpr uint16_t kIcr1 = 0x31;
+        static constexpr uint16_t kInitialCount = 0x38;
+        static constexpr uint16_t kCurrentCount = 0x39;
+
+        static constexpr uint16_t kDivide = 0x3e;
+
+        static constexpr uint16_t kTscDeadline = 0x6e;
+
         static constexpr uint16_t kIcr0 = 0x30;
+        static constexpr uint16_t kIcr1 = 0x31;
     }
 
     void Disable8259Pic();
@@ -115,8 +141,8 @@ namespace km {
 
         virtual void writeIcr(uint32_t dst, uint32_t cmd) = 0;
 
-        virtual uint32_t read(uint16_t offset) const = 0;
-        virtual void write(uint16_t offset, uint32_t value) = 0;
+        virtual uint64_t read(uint16_t offset) const = 0;
+        virtual void write(uint16_t offset, uint64_t value) = 0;
 
     public:
         void operator delete(IApic*, std::destroying_delete_t) {
@@ -145,6 +171,11 @@ namespace km {
 
         void configure(apic::Ivt ivt, apic::IvtConfig config);
 
+        void setTimerDivisor(apic::TimerDivide timer);
+
+        void setInitialCount(uint64_t count);
+        uint64_t getCurrentCount();
+
         void eoi();
 
         void enable();
@@ -153,8 +184,8 @@ namespace km {
     };
 
     class X2Apic final : public IApic {
-        uint32_t read(uint16_t offset) const override;
-        void write(uint16_t offset, uint32_t value) override;
+        uint64_t read(uint16_t offset) const override;
+        void write(uint16_t offset, uint64_t value) override;
 
         void writeIcr(uint32_t icr0, uint32_t icr1) override;
 
@@ -179,8 +210,8 @@ namespace km {
 
         volatile uint32_t& reg(uint16_t offset) const;
 
-        uint32_t read(uint16_t offset) const override;
-        void write(uint16_t offset, uint32_t value) override;
+        uint64_t read(uint16_t offset) const override;
+        void write(uint16_t offset, uint64_t value) override;
 
         void writeIcr(uint32_t icr0, uint32_t icr1) override;
 

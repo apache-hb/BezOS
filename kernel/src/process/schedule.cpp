@@ -1,4 +1,4 @@
-#include "schedule.hpp"
+#include "process/schedule.hpp"
 
 km::Scheduler::Scheduler()
     : mQueue()
@@ -12,10 +12,4 @@ km::ThreadId km::Scheduler::getWorkItem() {
     km::ThreadId thread{};
     mQueue.try_dequeue(thread);
     return thread;
-}
-
-static constinit km::Scheduler *gScheduler = nullptr;
-
-void km::InitScheduler(IsrAllocator&) {
-    gScheduler = new km::Scheduler();
 }

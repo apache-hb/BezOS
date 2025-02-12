@@ -68,6 +68,7 @@ km::ProcessorInfo km::GetProcessorInfo() {
     CpuId cpuid = CpuId::of(1);
     bool isLocalApicPresent = cpuid.edx & (1 << 9);
     bool is2xApicPresent = cpuid.ecx & (1 << 21);
+    bool apicTscDeadline = cpuid.ecx & (1 << 24);
 
     CpuId ext = CpuId::of(0x80000000);
     BrandString brand = ext.eax < 0x80000004 ? "" : GetBrandString();
@@ -78,6 +79,12 @@ km::ProcessorInfo km::GetProcessorInfo() {
         CpuId leaf = CpuId::of(0x80000008);
         maxpaddr = (leaf.eax >> 0) & 0xFF;
         maxvaddr = (leaf.eax >> 8) & 0xFF;
+    }
+
+    bool invariantTsc = false;
+    if (maxleaf >= 0x6) {
+        CpuId timer = CpuId::of(0x6);
+        invariantTsc = timer.eax & (1 << 2);
     }
 
     CoreMultiplier coreClock = { 0, 0 };
@@ -112,6 +119,8 @@ km::ProcessorInfo km::GetProcessorInfo() {
         .maxvaddr = maxvaddr,
         .hasLocalApic = isLocalApicPresent,
         .has2xApic = is2xApicPresent,
+        .tscDeadline = apicTscDeadline,
+        .invariantTsc = invariantTsc,
         .coreClock = coreClock,
         .busClock = busClock,
         .baseFrequency = baseFrequency,

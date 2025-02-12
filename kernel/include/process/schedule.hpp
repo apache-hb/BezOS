@@ -26,6 +26,4 @@ namespace km {
         void addWorkItem(km::ThreadId thread);
         km::ThreadId getWorkItem();
     };
-
-    void InitScheduler(IsrAllocator& isrs);
 }

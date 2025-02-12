@@ -13,8 +13,6 @@
 
 #include <atomic>
 
-#include "crt.hpp"
-
 /// @brief The info passed to the smp startup blob.
 /// @warning MUST BE KEPT IN SYNC WITH KmSmpInfoStart
 struct SmpInfoHeader {
