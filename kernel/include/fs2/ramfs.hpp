@@ -1,6 +1,7 @@
 #pragma once
 
 #include "fs2/node.hpp"
+#include "std/shared_spinlock.hpp"
 #include "std/vector.hpp"
 
 namespace vfs2 {
@@ -17,12 +18,14 @@ namespace vfs2 {
 
     class RamFsFile : public RamFsNode {
         stdx::Vector2<std::byte> mData;
+        stdx::SharedSpinLock mLock;
 
     public:
         RamFsFile() : RamFsNode() { }
 
         OsStatus read(ReadRequest request, ReadResult *result) override;
         OsStatus write(WriteRequest request, WriteResult *result) override;
+        OsStatus stat(VfsNodeStat *stat) override;
     };
 
     class RamFsFolder : public RamFsNode {

@@ -84,9 +84,9 @@ namespace vfs2 {
         IVfsNode *node;
         uint64_t offset;
 
-        OsStatus read(ReadRequest request, ReadResult *result);
-        OsStatus write(WriteRequest request, WriteResult *result);
-        OsStatus stat(VfsNodeStat *stat);
+        virtual OsStatus read(ReadRequest request, ReadResult *result);
+        virtual OsStatus write(WriteRequest request, WriteResult *result);
+        virtual OsStatus stat(VfsNodeStat *stat);
     };
 
     template<typename T> requires (std::is_trivial_v<T>)

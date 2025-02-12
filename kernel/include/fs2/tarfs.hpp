@@ -127,6 +127,7 @@ namespace vfs2 {
 
     class TarFsFile : public TarFsNode {
         uint64_t mOffset;
+
     public:
         TarFsFile(TarPosixHeader header, uint64_t offset)
             : TarFsNode(header)

@@ -389,6 +389,7 @@ testcases = {
         'kernel/src/fs2/vfs.cpp',
         'kernel/src/fs2/path.cpp',
         'kernel/src/fs2/node.cpp',
+        'kernel/src/fs2/handle.cpp',
         'kernel/src/fs2/ramfs.cpp',
     ],
     'ramfs': [
@@ -396,6 +397,7 @@ testcases = {
         'kernel/src/fs2/vfs.cpp',
         'kernel/src/fs2/path.cpp',
         'kernel/src/fs2/node.cpp',
+        'kernel/src/fs2/handle.cpp',
         'kernel/src/fs2/ramfs.cpp',
         'kernel/test/fs/fs_test.cpp',
     ],

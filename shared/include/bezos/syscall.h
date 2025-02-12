@@ -10,12 +10,13 @@
 extern "C" {
 #endif
 
-#define OS_OBJECT_HANDLE(name) typedef struct name##Opaque *name
+#define OS_OBJECT_HANDLE(name) typedef OsHandle name
 
 typedef uint8_t OsByte;
 typedef size_t OsSize;
 typedef char OsUtf8Char;
 
+typedef uint64_t OsHandle;
 typedef bool OsBool;
 typedef uint64_t OsUnsigned;
 typedef int64_t OsSigned;
@@ -89,6 +90,8 @@ OS_OBJECT_HANDLE(OsThreadHandle);
 /// @brief A handle to a process.
 OS_OBJECT_HANDLE(OsProcessHandle);
 
+/// @brief A handle to an address space.
+OS_OBJECT_HANDLE(OsAddressSpaceHandle);
 
 /// @defgroup OsFile Files
 /// @{
@@ -428,6 +431,7 @@ enum {
     eOsParamPhysicalMemory = UINT32_C(1),
     eOsParamMaxNameLength  = UINT32_C(2),
     eOsParamMaxPathLength  = UINT32_C(3),
+    eOsParamPageSize       = UINT32_C(4),
 };
 
 struct OsParamConfig {
@@ -453,6 +457,22 @@ extern OsStatus OsParamSelect(struct OsParamConfig *ConfigFront, struct OsParamC
 extern OsStatus OsParamUpdate(struct OsParamConfig *ConfigFront, struct OsParamConfig *ConfigBack);
 
 /// @} // group OsParam
+
+/// @defgroup OsProcess Process
+/// @{
+
+extern OsStatus OsProcessCurrent(OsProcessHandle *OutHandle);
+
+extern OsStatus OsProcessTerminate(OsProcessHandle Handle);
+
+/// @} // group OsProcess
+
+/// @defgroup OsAddressSpace Address Space
+/// @{
+
+extern OsStatus OsAddressSpaceCreate(size_t Size, OsAddressSpaceHandle *OutHandle);
+
+/// @} // group OsAddressSpaceHandle
 
 #ifdef __cplusplus
 }

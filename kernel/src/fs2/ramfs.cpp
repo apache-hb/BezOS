@@ -7,6 +7,7 @@ using namespace vfs2;
 //
 
 OsStatus RamFsFile::read(ReadRequest request, ReadResult *result) {
+    stdx::SharedLock lock(mLock);
     uintptr_t range = (uintptr_t)request.end - (uintptr_t)request.begin;
     size_t size = std::min<size_t>(range, mData.count() - request.offset);
     memcpy(request.begin, mData.data() + request.offset, size);
@@ -15,6 +16,7 @@ OsStatus RamFsFile::read(ReadRequest request, ReadResult *result) {
 }
 
 OsStatus RamFsFile::write(WriteRequest request, WriteResult *result) {
+    stdx::UniqueLock lock(mLock);
     uintptr_t range = (uintptr_t)request.end - (uintptr_t)request.begin;
     if ((request.offset + range) > mData.count()) {
         mData.resize(request.offset + range);
@@ -22,6 +24,12 @@ OsStatus RamFsFile::write(WriteRequest request, WriteResult *result) {
 
     memcpy(mData.data() + request.offset, request.begin, range);
     result->write = range;
+    return OsStatusSuccess;
+}
+
+OsStatus RamFsFile::stat(VfsNodeStat *stat) {
+    stdx::SharedLock lock(mLock);
+    stat->size = mData.count();
     return OsStatusSuccess;
 }
 

@@ -9,8 +9,6 @@
 #include <cstdint>
 
 #include <cstring>
-#include <expected>
-#include <span>
 
 namespace elf {
     enum class ElfType : uint16_t {
@@ -124,8 +122,4 @@ namespace elf {
 
 namespace km {
     OsStatus LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory& memory, SystemObjects& objects, ProcessLaunch *result);
-
-#if 0
-    std::expected<Process, bool> LoadElf(std::span<const uint8_t> program, uint32_t id, SystemMemory& memory);
-#endif
 }
