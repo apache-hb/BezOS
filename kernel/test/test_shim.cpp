@@ -1,3 +1,4 @@
+#include <cstdarg>
 #include <gtest/gtest.h>
 
 #include "absl/base/internal/raw_logging.h"
@@ -49,4 +50,8 @@ void km::EnableInterrupts() { }
 
 void absl::base_internal::ThrowStdOutOfRange(const char *message) {
     throw std::out_of_range(message);
+}
+
+void absl::raw_log_internal::RawLog(absl::LogSeverity, const char *file, int line, const char *, ...) {
+    GTEST_FAIL() << "RawLog: " << file << ":" << line;
 }

@@ -1350,13 +1350,6 @@ void LaunchKernel(boot::LaunchInfo launch) {
         KmDebugMessage("| Revision     | ", hpet->revision(), "\n");
     }
 
-#if 0
-    std::span init = GetInitProgram();
-
-    auto process = LoadElf(init, 1, *stage2->memory);
-    KM_CHECK(process.has_value(), "Failed to load init.elf");
-#endif
-
     DateTime time = ReadRtc();
     KmDebugMessage("[INIT] Current time: ", time.year, "-", time.month, "-", time.day, "T", time.hour, ":", time.minute, ":", time.second, "Z\n");
 

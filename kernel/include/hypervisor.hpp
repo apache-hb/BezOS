@@ -58,7 +58,6 @@ namespace km {
             return (UINTPTR_MAX << maxpaddr);
         }
 
-
         bool isKvm() const;
 
         uint16_t baseFrequency; // in mhz

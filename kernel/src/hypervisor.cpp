@@ -15,15 +15,15 @@ bool km::IsHypervisorPresent() {
 }
 
 bool km::HypervisorInfo::isKvm() const {
-    return name == "KVMKVMKVM\0\0\0"_sv;
+    return name == "KVMKVMKVM\0\0\0";
 }
 
 bool km::HypervisorInfo::isQemu() const {
-    return name == "TCGTCGTCGTCG"_sv;
+    return name == "TCGTCGTCGTCG";
 }
 
 bool km::HypervisorInfo::isMicrosoftHyperV() const {
-    return name == "Microsoft Hv"_sv;
+    return name == "Microsoft Hv";
 }
 
 bool km::HypervisorInfo::platformHasDebugPort() const {
@@ -43,7 +43,7 @@ std::optional<km::HypervisorInfo> km::KmGetHypervisorInfo() {
     memcpy(vendor + 4, &cpuid.ecx, 4);
     memcpy(vendor + 8, &cpuid.edx, 4);
 
-    return HypervisorInfo { vendor, cpuid.eax };
+    return HypervisorInfo { std::to_array(vendor), cpuid.eax };
 }
 
 bool km::ProcessorInfo::isKvm() const {
@@ -53,7 +53,7 @@ bool km::ProcessorInfo::isKvm() const {
 km::BrandString km::GetBrandString() {
     char brand[sm::kBrandStringSize];
     sm::KmGetBrandString(brand);
-    return brand;
+    return std::to_array(brand);
 }
 
 km::ProcessorInfo km::GetProcessorInfo() {
@@ -105,7 +105,7 @@ km::ProcessorInfo km::GetProcessorInfo() {
     }
 
     return ProcessorInfo {
-        .vendor = vendor,
+        .vendor = std::to_array(vendor),
         .brand = brand,
         .maxleaf = maxleaf,
         .maxpaddr = maxpaddr,

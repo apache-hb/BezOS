@@ -34,6 +34,11 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
         return OsStatusInvalidData;
     }
 
+    if (header.phentsize != sizeof(elf::ElfProgramHeader)) {
+        KmDebugMessage("[ELF] Invalid program header size\n");
+        return OsStatusInvalidData;
+    }
+
     std::unique_ptr<elf::ElfProgramHeader[]> phs{new elf::ElfProgramHeader[header.phnum]};
 
     if (OsStatus status = vfs2::ReadArray(file.get(), phs.get(), header.phnum, phbegin)) {
@@ -60,25 +65,30 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
             ", physical address: ", km::Hex(ph.paddr), ", minimum alignment: ", km::Hex(ph.align), "\n");
 
         //
-        // This assumes that the program header isn't malicious and remaps
-        // itself over the kernel. TODO: use malloc with a hint.
+        // Allocate memory for the section. Ideally this would use
+        // malloc with a hint so that the memory is allocated in lower
+        // memory regions.
         //
-        void *vaddr = (void*)sm::roundup(ph.vaddr, x64::kPageSize);
-        PhysicalAddress paddr = memory.pmm.alloc4k(Pages(ph.memsz));
+        size_t offset = (ph.vaddr % x64::kPageSize);
+        size_t pages = Pages(ph.memsz + offset);
+        void *vaddr = memory.vmm.alloc4k(pages);
+        PhysicalAddress paddr = memory.pmm.alloc4k(pages);
 
         km::AddressMapping mapping {
             .vaddr = vaddr,
             .paddr = paddr,
-            .size = Pages(ph.memsz) * x64::kPageSize,
+            .size = pages * x64::kPageSize,
         };
 
         //
         // Allocate all the memory as writable during the load phase.
         //
         memory.pt.map(mapping, PageFlags::eWrite);
+        std::uninitialized_fill_n((uint8_t*)vaddr, (mapping.size), 0xF0);
+
         vfs2::ReadRequest request {
-            .begin = vaddr,
-            .end = (std::byte*)vaddr + ph.filesz,
+            .begin = (std::byte*)vaddr + offset,
+            .end = (std::byte*)vaddr + offset + ph.filesz,
             .offset = ph.offset,
         };
 
@@ -92,7 +102,6 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
         if (readResult.read != ph.filesz) {
             KmDebugMessage("[ELF] Failed to read section: ", readResult.read, " != ", ph.filesz, "\n");
             KmDebugMessage("[ELF] Section: ", mapping, "\n");
-            KmDebugMessage(km::HexDump(std::span((const uint8_t*)vaddr, ph.filesz)), "\n");
             return OsStatusInvalidData;
         }
 
@@ -134,9 +143,8 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
     static constexpr size_t kStackSize = 0x4000;
     void *stack = memory.allocate(kStackSize, 0x1000, PageFlags::eUser | PageFlags::eData);
 
-    // TODO: this is really dumb, figure out stack alignment when im less tired.
-    regs.rbp = (uintptr_t)stack + 0x3000;
-    regs.rsp = (uintptr_t)stack + 0x3000;
+    regs.rbp = (uintptr_t)stack;
+    regs.rsp = (uintptr_t)stack;
 
     Thread *main = objects.createThread("main");
     main->state = regs;

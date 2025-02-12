@@ -68,7 +68,7 @@ TEST_P(SectorRangeTest, SectorRange) {
     EXPECT_EQ(range.lastSector * capability.blockSize + range.lastSectorOffset, offset + size);
 }
 
-TEST(DriveMediaTest, ReadSector) {
+TEST(BlockDeviceTest, ReadSector) {
     static constexpr size_t kSize = 0x10000;
     std::unique_ptr<std::byte[]> data{new std::byte[kSize]()};
     for (size_t i = 0; i < kSize; i++) {
@@ -85,5 +85,39 @@ TEST(DriveMediaTest, ReadSector) {
 
     for (size_t i = 0; i < 512; i++) {
         ASSERT_EQ(buffer[i], std::byte(i));
+    }
+}
+
+TEST(BlockDeviceTest, SectorRange) {
+    auto range = km::detail::SectorRangeForSpan(315, 833, km::BlockDeviceCapability {
+        .protection = km::Protection::eReadWrite,
+        .blockSize = 512,
+        .blockCount = 0x10000,
+    });
+
+    ASSERT_EQ(range.firstSector, 0);
+    ASSERT_EQ(range.firstSectorOffset, 315);
+    ASSERT_EQ(range.lastSector, 2);
+    ASSERT_EQ(range.lastSectorOffset, 124);
+}
+
+TEST(BlockDeviceTest, ReadSectorOffset) {
+    static constexpr size_t kSize = 0x10000;
+    std::unique_ptr<std::byte[]> data{new std::byte[kSize]()};
+    for (size_t i = 0; i < kSize; i++) {
+        data[i] = std::byte(i % 256);
+    }
+
+    km::MemoryBlk ramblk(data.get(), kSize);
+    km::BlockDevice media(&ramblk);
+
+    ASSERT_EQ(media.size(), kSize);
+
+    std::byte buffer[1024];
+    std::uninitialized_fill(std::begin(buffer), std::end(buffer), std::byte(0xF0));
+    ASSERT_EQ(media.read(315, buffer, 833), 833);
+
+    for (size_t i = 0; i < 833; i++) {
+        ASSERT_EQ(buffer[i], std::byte((315 + i) % 256)) << "i = " << i;
     }
 }

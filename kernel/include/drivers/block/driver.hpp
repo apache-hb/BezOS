@@ -1,5 +1,6 @@
 #pragma once
 
+#include "bezos/status.h"
 #include "pci/pci.hpp"
 
 #include <new>

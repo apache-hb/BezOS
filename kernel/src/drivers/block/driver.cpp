@@ -59,9 +59,6 @@ km::BlockDevice::BlockDevice(IBlockDriver *device [[gnu::nonnull]])
     , mBuffer(new std::byte[size()])
 { }
 
-
-// TODO: something in here is broken and reads too far
-
 size_t km::BlockDevice::read(size_t offset, void *buffer, size_t size) {
     std::byte *dst = static_cast<std::byte*>(buffer);
 
@@ -69,7 +66,7 @@ size_t km::BlockDevice::read(size_t offset, void *buffer, size_t size) {
     if (offset + size > cap.size())
         return 0;
 
-    auto [firstSector, firstSectorOffset, lastSector, lastSectorOffset] = detail::SectorRangeForSpan(offset, size, cap);
+    auto [firstSector, firstSectorOffset, lastSector, lastSectorCount] = detail::SectorRangeForSpan(offset, size, cap);
 
     // read in the first sector to the temp buffer
     if (mDevice->read(firstSector, mBuffer.get(), 1) != BlockDeviceStatus::eOk)
@@ -77,7 +74,7 @@ size_t km::BlockDevice::read(size_t offset, void *buffer, size_t size) {
 
     // if the read is small then early exit here
     if (firstSector == lastSector) {
-        size_t readSize = (lastSectorOffset - firstSectorOffset);
+        size_t readSize = (lastSectorCount - firstSectorOffset);
         memcpy(dst, mBuffer.get() + firstSectorOffset, readSize);
         return readSize;
     }
@@ -88,7 +85,7 @@ size_t km::BlockDevice::read(size_t offset, void *buffer, size_t size) {
     // read any sectors after the first sector, not including the last sector
     size_t sectorCount = lastSector - firstSector - 1;
     if (sectorCount != 0) {
-        if (mDevice->read(firstSector + 1, dst + firstSectorOffset, sectorCount) != BlockDeviceStatus::eOk)
+        if (mDevice->read(firstSector + 1, dst + (cap.blockSize - firstSectorOffset), sectorCount) != BlockDeviceStatus::eOk)
             return readSize;
 
         readSize += (sectorCount * cap.blockSize);
@@ -98,10 +95,9 @@ size_t km::BlockDevice::read(size_t offset, void *buffer, size_t size) {
     if (mDevice->read(lastSector, mBuffer.get(), 1) != BlockDeviceStatus::eOk)
         return readSize;
 
-    size_t endSize = cap.blockSize - lastSectorOffset;
-    memcpy(dst + readSize, mBuffer.get(), endSize);
+    memcpy(dst + readSize, mBuffer.get(), lastSectorCount);
 
-    return readSize + endSize;
+    return readSize + lastSectorCount;
 }
 
 void km::BlockDevice::sync() {

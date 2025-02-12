@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include "test/fs/fs_test.hpp"
+
 #include <filesystem>
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -118,73 +120,6 @@ TEST(TarFsTest, ParseHeader) {
     ASSERT_EQ(it.header.getSize(), 0);
 }
 
-class FileBlk final : public km::IBlockDriver {
-	uint32_t mBlockSize;
-
-	int mFileHandle = 0;
-	void *mMemoryMap = nullptr;
-	size_t mMemorySize = 0;
-
-	void cleanup() {
-		if (mMemoryMap) {
-			munmap(mMemoryMap, mMemorySize);
-			mMemoryMap = nullptr;
-		}
-
-		if (mFileHandle >= 0) {
-			close(mFileHandle);
-			mFileHandle = -1;
-		}
-	}
-
-	km::BlockDeviceStatus readImpl(uint64_t block, void *buffer, size_t count) override {
-		memcpy(buffer, (uint8_t*)mMemoryMap + (block * mBlockSize), count * mBlockSize);
-		return km::BlockDeviceStatus::eOk;
-	}
-
-	km::BlockDeviceStatus writeImpl(uint64_t, const void *, size_t) override {
-		return km::BlockDeviceStatus::eReadOnly;
-	}
-
-public:
-	FileBlk(const std::filesystem::path& path, uint32_t blockSize)
-		: mBlockSize(blockSize)
-	{
-		mFileHandle = open(path.string().c_str(), O_RDONLY);
-		if (mFileHandle < 0) {
-			std::cerr << "Failed to open file: " << path << " = " << errno << std::endl;
-			throw std::runtime_error("Failed to open file");
-		}
-
-		struct stat statbuf;
-		if (fstat(mFileHandle, &statbuf) < 0) {
-			std::cerr << "Failed to stat file: " << path << " = " << errno << std::endl;
-			cleanup();
-			throw std::runtime_error("Failed to stat file");
-		}
-
-		mMemorySize = statbuf.st_size;
-		mMemoryMap = mmap(nullptr, mMemorySize, PROT_READ, MAP_PRIVATE, mFileHandle, 0);
-		if (mMemoryMap == MAP_FAILED) {
-			std::cerr << "Failed to mmap file: " << path << " = " << errno << std::endl;
-			cleanup();
-			throw std::runtime_error("Failed to mmap file");
-		}
-	}
-
-	~FileBlk() {
-		cleanup();
-	}
-
-	km::BlockDeviceCapability capability() const override {
-		return km::BlockDeviceCapability {
-			.protection = km::Protection::eRead,
-			.blockSize = mBlockSize,
-			.blockCount = mMemorySize / mBlockSize,
-		};
-	}
-};
-
 TEST(TarFsTest, MountTar) {
 	vfs2::VfsRoot vfs;
 
@@ -237,5 +172,36 @@ TEST(TarFsTest, MountTar) {
 
 		char expected[] = "I am in a folder!\n";
 		ASSERT_EQ(memcmp(data, expected, sizeof(expected)), 0);
+	}
+}
+
+TEST(TarFsTest, ReadLargeFile) {
+	vfs2::VfsRoot vfs;
+
+	sm::SharedPtr<FileBlk> file = new FileBlk(getenv("TAR_TEST_ARCHIVE"), 512);
+
+	{
+		IVfsMount *mount = nullptr;
+		OsStatus status = vfs.addMountWithParams(&TarFs::instance(), BuildPath("Mount"), &mount, file);
+		ASSERT_EQ(OsStatusSuccess, status);
+		ASSERT_NE(mount, nullptr);
+	}
+
+	{
+		std::unique_ptr<IVfsNodeHandle> hello;
+		OsStatus status = vfs.open(BuildPath("Mount", "subdir", "nested", "services.log"), std::out_ptr(hello));
+		ASSERT_EQ(OsStatusSuccess, status);
+		ASSERT_NE(hello, nullptr);
+
+		char data[1024];
+		ReadRequest request {
+			.begin = std::begin(data),
+			.end = data + 833,
+			.offset = 23,
+		};
+		ReadResult result{};
+		status = hello->read(request, &result);
+		ASSERT_EQ(OsStatusSuccess, status);
+		ASSERT_EQ(result.read, 833);
 	}
 }

@@ -83,22 +83,6 @@ smp = custom_target('smp.o',
     ],
 )
 
-# Kernel c/c++ runtime functions
-
-# src = [
-#     # C and C++ Runtime
-#     'kernel/src/crt.cpp',
-#     'kernel/src/cxxrt.cpp',
-#     'kernel/src/crt_freestanding.cpp',
-# ]
-
-# kernel_runtime = library('kernel-cruntime', src,
-#     include_directories : inc,
-#     c_args : c_args + [ '-D__BEZOS__=1' ],
-#     cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
-#     override_options : [ 'b_coverage=false' ],
-# )
-
 # Kernel
 
 src = [
@@ -314,13 +298,13 @@ test_shim = static_library('test_shim', src,
 )
 
 test_exe_kwargs = {
-    'include_directories': inc,
+    'include_directories': [ inc, include_directories('kernel') ],
     'c_args': test_c_args,
     'cpp_args': test_cpp_args,
     'dependencies': [ gtest_main, gmock ],
     'override_options': [ 'b_sanitize=address' ],
     'native': true,
-    'link_with': test_shim,
+    'link_with': [ test_shim ],
 }
 
 # Test cases
@@ -413,6 +397,7 @@ testcases = {
         'kernel/src/fs2/path.cpp',
         'kernel/src/fs2/node.cpp',
         'kernel/src/fs2/ramfs.cpp',
+        'kernel/test/fs/fs_test.cpp',
     ],
     'shared ptr': [
         'kernel/test/shared.cpp',
@@ -473,6 +458,7 @@ source = [
     'kernel/src/fs2/tarfs.cpp',
     'kernel/src/drivers/block/driver.cpp',
     'kernel/src/drivers/block/ramblk.cpp',
+    'kernel/test/fs/fs_test.cpp',
 ]
 
 exe = executable('test-kernel-tarfs', source,
@@ -485,6 +471,50 @@ test('tarfs', exe,
     depends : tar_test_data,
     env : {
         'TAR_TEST_ARCHIVE': tar_test_data.full_path(),
+    }
+)
+
+source = [
+    'kernel/test/launch/elf.cpp',
+
+    'kernel/src/launch.cpp',
+
+    'kernel/src/fs2/vfs.cpp',
+    'kernel/src/fs2/path.cpp',
+    'kernel/src/fs2/node.cpp',
+    'kernel/src/fs2/handle.cpp',
+    'kernel/src/fs2/ramfs.cpp',
+    'kernel/src/fs2/tarfs.cpp',
+
+    'kernel/src/boot.cpp',
+    'kernel/src/hypervisor.cpp',
+
+    'kernel/src/memory.cpp',
+    'kernel/src/memory/layout.cpp',
+    'kernel/src/memory/page_allocator.cpp',
+    'kernel/src/memory/virtual_allocator.cpp',
+    'kernel/src/memory/page_tables.cpp',
+
+    'kernel/src/util/format.cpp',
+    'kernel/src/util/memory.cpp',
+    'kernel/src/util/cpuid.cpp',
+
+    'kernel/subprojects/tlsf/tlsf.c',
+
+    'kernel/src/drivers/block/driver.cpp',
+    'kernel/src/drivers/block/ramblk.cpp',
+]
+
+exe = executable('test-kernel-elf', source,
+    kwargs : test_exe_kwargs,
+)
+
+test('elf', exe,
+    suite : 'kernel',
+    kwargs : testkwargs,
+    depends : tar_test_data,
+    env : {
+        'TAR_TEST_ARCHIVE': meson.current_source_dir() / 'data/test/elf/initrd.tar'
     }
 )
 
