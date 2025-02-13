@@ -1262,8 +1262,10 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     PlatformInfo platform = GetPlatformInfo(launch.smbios32Address, launch.smbios64Address, *stage2->memory);
 
+    //
     // On Oracle VirtualBox the COM1 port is functional but fails the loopback test.
     // If we are running on VirtualBox, retry the serial port initialization without the loopback test.
+    //
     if (com1Status == SerialPortStatus::eLoopbackTestFailed && platform.isOracleVirtualBox()) {
         UpdateSerialPort(com1Info);
         UpdateCanSerialPort(com2Info);
@@ -1288,7 +1290,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     pci::ProbeConfigSpace(config.get(), rsdt.mcfg());
 
-    InitSmp(*stage2->memory, lapic.pointer(), rsdt, spuriousInt);
+    InitSmp(*stage2->memory, lapic.pointer(), rsdt, ist, spuriousInt);
     SetDebugLogLock(DebugLogLockType::eRecursiveSpinLock);
 
     // Setup gdt that contains a TSS for this core

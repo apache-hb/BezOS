@@ -32,13 +32,13 @@ namespace km {
         static constexpr uint8_t CP = 0x15;
 
         /// @brief The number of exceptions reserved by the CPU
-        static constexpr uint8_t kExceptionCount = 0x20;
+        static constexpr auto kExceptionCount = 0x20;
 
         /// @brief The total number of ISRs the CPU supports
-        static constexpr uint8_t kIsrCount = 0xFF;
+        static constexpr auto kIsrCount = 256;
 
         /// @brief The number of ISRs available for use
-        static constexpr uint8_t kAvailableIsrCount = kIsrCount - kExceptionCount;
+        static constexpr auto kAvailableCount = kIsrCount - kExceptionCount;
     }
 
     namespace irq {
@@ -100,11 +100,13 @@ namespace km {
 
     km::IsrContext DefaultIsrHandler(km::IsrContext *context);
 
+    using IsrEntry = std::atomic<IsrCallback>;
+
     /// @brief A table containing isr handlers for a single cpu.
     class [[gnu::packed]] IsrTable {
     public:
-        static constexpr auto kCount = 256;
-        using Entry = std::atomic<IsrCallback>;
+        static constexpr auto kCount = isr::kIsrCount;
+        using Entry = IsrEntry;
 
     private:
         //
@@ -114,9 +116,9 @@ namespace km {
         // we have to employ this gnu extension. But now this class is constexpr
         // constructible.
         //
-    public:
         Entry mHandlers[kCount] = { [0 ... (kCount - 1)] = DefaultIsrHandler };
 
+    public:
         Entry *find(const Entry *handle);
 
         IsrCallback install(uint8_t isr, IsrCallback callback);
@@ -126,6 +128,12 @@ namespace km {
         void release(const Entry *callback);
 
         uint32_t index(const Entry *entry) const;
+
+        void copyExceptions(const IsrTable *from) {
+            for (uint8_t i = 0; i < isr::kExceptionCount; i++) {
+                mHandlers[i].store(from->mHandlers[i].load());
+            }
+        }
     };
 
     enum class Privilege : uint8_t {
