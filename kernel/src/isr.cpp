@@ -4,6 +4,7 @@
 #include "arch/isr.hpp"
 #include "panic.hpp"
 #include "thread.hpp"
+#include "util/bits.hpp"
 #include "util/digit.hpp"
 
 #include "gdt.h"
@@ -102,6 +103,10 @@ static km::IsrContext IsrDispatchRoutineCpuLocal(km::IsrContext *context) {
 // by the compiler.
 //
 extern "C" volatile km::IsrCallback KmIsrDispatchRoutine = IsrDispatchRoutineGlobal;
+
+km::IsrCallback km::InstallIsrHandler(uint8_t isr, IsrCallback handler) {
+    return gIsrTable->install(isr, handler);
+}
 
 void km::UpdateIdtEntry(uint8_t isr, uint16_t selector, Privilege dpl, uint8_t ist) {
     gIdt.entries[isr] = CreateIdtEntry((uintptr_t)KmIsrTable + (isr * kIsrTableStride), selector * 0x8, dpl, ist);
@@ -215,4 +220,19 @@ uint32_t km::IsrTable::index(const Entry *entry) const {
     }
 
     return std::distance(mHandlers, entry);
+}
+
+uint8_t km::IsrAllocator::claimIsr(uint8_t isr) {
+    sm::BitsSetBit(mFreeIsrs, sm::BitCount(isr));
+    return isr;
+}
+
+void km::IsrAllocator::releaseIsr(uint8_t isr) {
+    sm::BitsClearBit(mFreeIsrs, sm::BitCount(isr));
+}
+
+uint8_t km::IsrAllocator::allocateIsr() {
+    sm::BitCount bit = sm::BitsFindAndSetNextFree(mFreeIsrs, sm::BitCount { 0 }, sm::BitCount { kIsrCount });
+
+    return bit.count;
 }

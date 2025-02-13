@@ -3,6 +3,7 @@
 #include "util/util.hpp"
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <climits>
 
@@ -119,6 +120,16 @@ namespace km {
         eUser = 3,
     };
 
+    class IsrAllocator {
+        static constexpr size_t kIsrCount = 256;
+        uint8_t mFreeIsrs[kIsrCount / CHAR_BIT] = {};
+    public:
+        uint8_t claimIsr(uint8_t isr);
+        void releaseIsr(uint8_t isr);
+
+        uint8_t allocateIsr();
+    };
+
     void DisableNmi();
     void EnableNmi();
     void DisableInterrupts();
@@ -178,4 +189,6 @@ namespace km {
     void LoadIdt();
 
     void UpdateIdtEntry(uint8_t isr, uint16_t selector, Privilege dpl, uint8_t ist);
+
+    IsrCallback InstallIsrHandler(uint8_t isr, IsrCallback handler);
 }
