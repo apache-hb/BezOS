@@ -1,8 +1,8 @@
 #pragma once
 
 #include "util/util.hpp"
-#include "util/digit.hpp"
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <climits>
@@ -54,18 +54,6 @@ namespace km {
         static constexpr uint8_t kSecondaryAta = 0xF;
     }
 
-    struct [[gnu::packed]] IdtEntry {
-        uint16_t address0;
-        uint16_t selector;
-        uint8_t ist;
-        uint8_t flags;
-        sm::uint48_t address1;
-        uint32_t reserved;
-    };
-
-    static_assert(sizeof(IdtEntry) == 16);
-
-
     struct [[gnu::packed]] IsrContext {
         uint64_t rax;
         uint64_t rbx;
@@ -97,8 +85,28 @@ namespace km {
 
     using IsrCallback = km::IsrContext(*)(km::IsrContext*);
 
-    struct [[gnu::packed]] IsrTable {
-        IsrCallback handlers[isr::kAvailableIsrCount];
+    km::IsrContext DefaultIsrHandler(km::IsrContext *context);
+
+    class [[gnu::packed]] IsrTable {
+        using Entry = std::atomic<IsrCallback>;
+
+        //
+        // This syntax is to work around none of std::atomic<T>
+        // being constexpr except the constructor. C++ has no way of expressing
+        // an array with all its elements initialized to a single value so
+        // we have to employ this gnu extension. But now this class is constexpr
+        // constructible.
+        //
+        Entry mHandlers[256] = { [0 ... 255] = DefaultIsrHandler };
+
+        Entry *find(const Entry *handle);
+
+    public:
+        IsrCallback install(uint8_t isr, IsrCallback callback);
+        km::IsrContext invoke(km::IsrContext *context);
+
+        const Entry *allocate(IsrCallback callback);
+        void release(const Entry *callback);
     };
 
     enum class Privilege : uint8_t {
@@ -135,24 +143,34 @@ namespace km {
         }
     };
 
-    class NmiGuard {
+    class NmiGuard : public IntGuard {
     public:
         UTIL_NOMOVE(NmiGuard);
         UTIL_NOCOPY(NmiGuard);
 
         NmiGuard() {
-            DisableInterrupts();
             DisableNmi();
         }
 
         ~NmiGuard() {
             EnableNmi();
-            EnableInterrupts();
         }
     };
 
+    /// @brief Install the cpu local isr table for this cpu.
+    ///
+    /// @pre @a IsCpuStorageSetup() must return true.
+    ///
+    /// @param table The isr table for this cpu.
+    void InstallCpuIsrTable(IsrTable *table);
+
+    /// @brief Switch to using the cpu local isr table globally.
+    ///
+    /// @pre @a InstallCpuIsrTable() must have been called on all cpus.
+    void LoadCpuLocalIsr();
+
     void InitInterrupts(km::IsrAllocator& isrs, uint16_t codeSelector);
-    void LoadIdt(void);
+    void LoadIdt();
 
     void UpdateIdtEntry(uint8_t isr, uint16_t selector, Privilege dpl, uint8_t ist);
 

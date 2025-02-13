@@ -30,7 +30,7 @@ KmIsrStub:
     sub $176, %rsp /* sizeof(km::IsrContext) = 176 */
     mov %rsp, %rdi
 
-    call KmIsrDispatchRoutine
+    call *KmIsrDispatchRoutine
 
     /* As a convenience the systemv abi places the address of the returned struct in rax. */
     mov %rax, %rsp

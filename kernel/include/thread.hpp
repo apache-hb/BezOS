@@ -34,6 +34,10 @@ namespace km {
             return *reinterpret_cast<T*>(GetCpuLocalData(this));
         }
 
+        T& operator*() {
+            return get();
+        }
+
         T *operator&() {
             return &get();
         }

@@ -5,18 +5,17 @@
 
 struct KernelThreadData {
     uint32_t lapicId;
-    km::LocalApic lapic;
-    km::Apic pic;
+    km::Apic apic;
 };
 
 CPU_LOCAL
 static constinit km::CpuLocal<KernelThreadData> tlsCoreInfo;
 
-void km::InitKernelThread(Apic pic) {
-    uint32_t id = pic->id();
+void km::InitKernelThread(Apic apic) {
+    uint32_t id = apic->id();
     tlsCoreInfo = KernelThreadData {
         .lapicId = id,
-        .pic = pic,
+        .apic = apic,
     };
 }
 
@@ -25,5 +24,5 @@ km::CpuCoreId km::GetCurrentCoreId() {
 }
 
 km::IApic *km::GetCpuLocalApic() {
-    return *tlsCoreInfo->pic;
+    return *tlsCoreInfo->apic;
 }
