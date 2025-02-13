@@ -30,15 +30,19 @@ inc = include_directories(
 
 common_args = [
     '-fmacro-prefix-map=../=/',
+
     '-Wno-gnu-anonymous-struct',
+    '-Wno-gnu-case-range',
+    '-Wno-gcc-compat',
+    '-Wno-gnu-designator',
+
     '-Wno-missing-field-initializers',
     '-Wno-missing-designated-field-initializers',
     '-Wno-zero-length-array',
     '-Wno-nested-anon-types',
-    '-Wno-gnu-case-range',
-    '-fno-omit-frame-pointer',
     '-Wno-nullability-extension',
-    '-Wno-gcc-compat',
+
+    '-fno-omit-frame-pointer',
 ]
 
 c_args = cc.get_supported_arguments([ '-Wno-language-extension-token' ] + common_args)

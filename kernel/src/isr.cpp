@@ -1,6 +1,7 @@
 #include "isr.hpp"
 
 #include "arch/intrin.hpp"
+#include "panic.hpp"
 #include "util/bits.hpp"
 #include "util/digit.hpp"
 
@@ -55,7 +56,7 @@ static constexpr x64::IdtEntry CreateIdtEntry(uintptr_t handler, uint16_t codeSe
     };
 }
 
-static km::IsrContext DefaultIsrHandler(km::IsrContext *context) {
+km::IsrContext km::DefaultIsrHandler(km::IsrContext *context) {
     KmDebugMessage("[INT] Unhandled interrupt: ", context->vector, " Error: ", context->error, "\n");
     return *context;
 }
@@ -144,4 +145,75 @@ uint8_t km::IsrAllocator::allocateIsr() {
     sm::BitCount bit = sm::BitsFindAndSetNextFree(mFreeIsrs, sm::BitCount { 0 }, sm::BitCount { kIsrCount });
 
     return bit.count;
+}
+
+
+km::IsrTable::Entry *km::IsrTable::find(const Entry *handle) {
+    //
+    // We need to be very certain what we're about do is alright.
+    //
+    if (std::begin(mHandlers) > handle || handle >= std::end(mHandlers)) {
+        KmDebugMessage("The isr table (", (void*)std::begin(mHandlers), "-", (void*)std::end(mHandlers), ") does not contain isr ", (void*)handle, "\n");
+        KM_PANIC("IsrTable::release was given an entry that it was not responsible for.");
+    }
+
+    //
+    // This const_cast is sound as we are certain it points to a member of the
+    // array we own. And we are being executed in a non-const context, so this
+    // is exactly equal to doing the work required to constitute the array element.
+    //
+    return const_cast<Entry*>(handle);
+}
+
+km::IsrCallback km::IsrTable::install(uint8_t isr, IsrCallback callback) {
+    return mHandlers[isr].exchange(callback);
+}
+
+km::IsrContext km::IsrTable::invoke(km::IsrContext *context) {
+    km::IsrCallback isr = mHandlers[uint8_t(context->vector)];
+    return isr(context);
+}
+
+const km::IsrTable::Entry *km::IsrTable::allocate(IsrCallback callback) {
+    //
+    // We don't want to allow allocation in the architecturally reserved
+    // range of idt entries. So take a subspan that only includes the
+    // available area, which we will search for a free entry in.
+    //
+    std::span<Entry> available = std::span(mHandlers).subspan(isr::kExceptionCount);
+
+    for (Entry& entry : available) {
+
+        //
+        // Find the first entry that is free by swapping with the default handler.
+        // All free entries are denoted by containing `DefaultIsrHandler`.
+        //
+        IsrCallback expected = DefaultIsrHandler;
+        if (entry.compare_exchange_strong(expected, callback)) {
+            return &entry;
+        }
+    }
+
+    return nullptr;
+}
+
+void km::IsrTable::release(const Entry *callback) {
+    Entry *entry = find(callback);
+    IsrCallback expected = callback->load();
+
+    //
+    // Only swap out the ISR handler with the default one if
+    // it is still set to what the caller provided us. If it
+    // has changed since then another thread has beaten us to
+    // reusing it and we don't want to trample their work.
+    //
+    entry->compare_exchange_strong(expected, DefaultIsrHandler);
+}
+
+uint32_t km::IsrTable::index(const Entry *entry) const {
+    if (std::begin(mHandlers) > entry || entry >= std::end(mHandlers)) {
+        return UINT32_MAX;
+    }
+
+    return std::distance(mHandlers, entry);
 }
