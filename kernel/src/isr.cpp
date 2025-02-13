@@ -112,6 +112,14 @@ void km::LoadIdt(void) {
     __lidt(idtr);
 }
 
+void km::SetCpuLocalIsrTable(IsrTable *table) {
+    tlsIsrTable = table;
+}
+
+void km::EnableCpuLocalIsrTable() {
+    /* TODO */
+}
+
 void km::DisableInterrupts() {
     __cli();
 }

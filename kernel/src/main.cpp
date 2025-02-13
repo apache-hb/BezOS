@@ -1294,8 +1294,9 @@ void LaunchKernel(boot::LaunchInfo launch) {
     // Setup gdt that contains a TSS for this core
     SetupApGdt();
 
-    km::SetupUserMode(gAllocator);
+    SetCpuLocalIsrTable(ist);
 
+    km::SetupUserMode(gAllocator);
 
     static bool happened = false;
     uint8_t schedulerVec = isrs.allocateIsr();

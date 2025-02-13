@@ -176,6 +176,10 @@ namespace km {
         }
     };
 
+    void SetCpuLocalIsrTable(IsrTable *table);
+
+    void EnableCpuLocalIsrTable();
+
     /// @brief Setup the global IDT.
     ///
     /// Called once during startup to populate the global IDT.
