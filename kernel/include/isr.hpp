@@ -3,7 +3,7 @@
 #include "util/util.hpp"
 #include "util/digit.hpp"
 
-#include <cstddef>
+#include <atomic>
 #include <cstdint>
 #include <climits>
 
@@ -25,19 +25,19 @@ namespace km {
         static constexpr uint8_t PF = 0xE;
         static constexpr uint8_t MF = 0x10;
         static constexpr uint8_t AC = 0x11;
-        static constexpr uint8_t MC = 0x12;
+        static constexpr uint8_t MCE = 0x12;
         static constexpr uint8_t XM = 0x13;
         static constexpr uint8_t VE = 0x14;
         static constexpr uint8_t CP = 0x15;
 
         /// @brief The number of exceptions reserved by the CPU
-        static constexpr uint8_t kExceptionCount = 0x20;
+        static constexpr auto kExceptionCount = 0x20;
 
         /// @brief The total number of ISRs the CPU supports
-        static constexpr uint8_t kIsrCount = 0xFF;
+        static constexpr auto kIsrCount = 256;
 
         /// @brief The number of ISRs available for use
-        static constexpr uint8_t kAvailableIsrCount = kIsrCount - kExceptionCount;
+        static constexpr auto kAvailableCount = kIsrCount - kExceptionCount;
     }
 
     namespace irq {
@@ -97,23 +97,47 @@ namespace km {
 
     using IsrCallback = km::IsrContext(*)(km::IsrContext*);
 
-    struct [[gnu::packed]] IsrTable {
-        IsrCallback handlers[isr::kAvailableIsrCount];
+    km::IsrContext DefaultIsrHandler(km::IsrContext *context);
+
+    using IsrEntry = std::atomic<IsrCallback>;
+
+    /// @brief A table containing isr handlers for a single cpu.
+    class [[gnu::packed]] IsrTable {
+    public:
+        static constexpr auto kCount = isr::kIsrCount;
+        using Entry = IsrEntry;
+
+    private:
+        //
+        // This syntax is to work around none of std::atomic<T>
+        // being constexpr except the constructor. C++ has no way of expressing
+        // an array with all its elements initialized to a single value so
+        // we have to employ this gnu extension. But now this class is constexpr
+        // constructible.
+        //
+        Entry mHandlers[kCount] = { [0 ... (kCount - 1)] = DefaultIsrHandler };
+
+    public:
+        Entry *find(const Entry *handle);
+
+        IsrCallback install(uint8_t isr, IsrCallback callback);
+        km::IsrContext invoke(km::IsrContext *context);
+
+        const Entry *allocate(IsrCallback callback);
+        void release(const Entry *callback);
+
+        uint32_t index(const Entry *entry) const;
+
+        void copyExceptions(const IsrTable *from) {
+            for (uint8_t i = 0; i < isr::kExceptionCount; i++) {
+                mHandlers[i].store(from->mHandlers[i].load());
+            }
+        }
     };
 
     enum class Privilege : uint8_t {
         eSupervisor = 0,
         eUser = 3,
-    };
-
-    class IsrAllocator {
-        static constexpr size_t kIsrCount = 256;
-        uint8_t mFreeIsrs[kIsrCount / CHAR_BIT] = {};
-    public:
-        uint8_t claimIsr(uint8_t isr);
-        void releaseIsr(uint8_t isr);
-
-        uint8_t allocateIsr();
     };
 
     void DisableNmi();
@@ -135,26 +159,44 @@ namespace km {
         }
     };
 
-    class NmiGuard {
+    class NmiGuard : public IntGuard {
     public:
         UTIL_NOMOVE(NmiGuard);
         UTIL_NOCOPY(NmiGuard);
 
         NmiGuard() {
-            DisableInterrupts();
             DisableNmi();
         }
 
         ~NmiGuard() {
             EnableNmi();
-            EnableInterrupts();
         }
     };
 
-    void InitInterrupts(km::IsrAllocator& isrs, uint16_t codeSelector);
-    void LoadIdt(void);
+    void SetCpuLocalIsrTable(IsrTable *table);
 
+    void EnableCpuLocalIsrTable();
+
+    /// @brief Setup the global IDT.
+    ///
+    /// Called once during startup to populate the global IDT.
+    ///
+    /// @param isrs The isr allocator to populate.
+    /// @param codeSelector the kernel code selector to use as the isr execution selector.
+    void InitInterrupts(IsrTable *ist, uint16_t codeSelector);
+
+    /// @brief Setup the IDT for this core.
+    ///
+    /// Must be called before enabling interrupts or will lead to undefined behaviour.
+    void LoadIdt();
+
+    /// @brief Update an entry in the ist.
+    ///
+    /// Modify the global ist for a given entry to update its cs, dpl, and ist.
+    ///
+    /// @param isr The IDT entry to update.
+    /// @param selector The new code selector for this entry.
+    /// @param dpl The new privilige level for this entry.
+    /// @param ist The new IST to use for this entry.
     void UpdateIdtEntry(uint8_t isr, uint16_t selector, Privilege dpl, uint8_t ist);
-
-    IsrCallback InstallIsrHandler(uint8_t isr, IsrCallback handler);
 }

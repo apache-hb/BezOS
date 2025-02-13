@@ -768,7 +768,7 @@ struct ApicInfo {
     uint8_t spuriousInt;
 };
 
-static ApicInfo EnableBootApic(km::SystemMemory& memory, km::IsrAllocator& isrs, bool useX2Apic) {
+static ApicInfo EnableBootApic(km::SystemMemory& memory, km::IsrTable *ist, bool useX2Apic) {
     km::Apic pic = InitBspApic(memory, useX2Apic);
 
     // setup tls now that we have the lapic id
@@ -778,39 +778,38 @@ static ApicInfo EnableBootApic(km::SystemMemory& memory, km::IsrAllocator& isrs,
     SetDebugLogLock(DebugLogLockType::eSpinLock);
     km::InitKernelThread(pic);
 
-    uint8_t spuriousInt = isrs.allocateIsr();
-    KmDebugMessage("[INIT] APIC ID: ", pic->id(), ", Version: ", pic->version(), ", Spurious vector: ", spuriousInt, "\n");
-
-    InstallIsrHandler(spuriousInt, [](km::IsrContext *ctx) -> km::IsrContext {
+    const IsrTable::Entry *spuriousInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
         KmDebugMessage("[ISR] Spurious interrupt: ", ctx->vector, "\n");
         km::IApic *pic = km::GetCpuLocalApic();
         pic->eoi();
         return *ctx;
     });
+    uint8_t spuriousIdx = ist->index(spuriousInt);
+    KmDebugMessage("[INIT] APIC ID: ", pic->id(), ", Version: ", pic->version(), ", Spurious vector: ", spuriousIdx, "\n");
 
-    pic->setSpuriousVector(spuriousInt);
+    pic->setSpuriousVector(spuriousIdx);
 
     pic->enable();
 
     if (kSelfTestApic) {
-        uint8_t isr = isrs.allocateIsr();
-
-        IsrCallback old = InstallIsrHandler(isr, [](km::IsrContext *context) -> km::IsrContext {
+        const IsrTable::Entry *testInt = ist->allocate([](km::IsrContext *context) -> km::IsrContext {
             KmDebugMessage("[SELFTEST] Handled isr: ", context->vector, "\n");
             km::IApic *pic = km::GetCpuLocalApic();
             pic->eoi();
             return *context;
         });
+        uint8_t testIdx = ist->index(testInt);
 
-        pic->sendIpi(apic::IcrDeliver::eSelf, isr);
-        pic->sendIpi(apic::IcrDeliver::eSelf, isr);
-        pic->sendIpi(apic::IcrDeliver::eSelf, isr);
+        //
+        // Test that both self-IPI methods work.
+        //
+        pic->sendIpi(apic::IcrDeliver::eSelf, testIdx);
+        pic->selfIpi(testIdx);
 
-        InstallIsrHandler(isr, old);
-        isrs.releaseIsr(isr);
+        ist->release(testInt);
     }
 
-    return ApicInfo { pic, spuriousInt };
+    return ApicInfo { pic, spuriousIdx };
 }
 
 static void InitBootTerminal(std::span<const boot::FrameBuffer> framebuffers) {
@@ -869,38 +868,38 @@ static void DumpIsrContext(const km::IsrContext *context, stdx::StringView messa
     DumpIsrState(context);
 }
 
-static void InstallExceptionHandlers(void) {
-    InstallIsrHandler(0x0, [](km::IsrContext *context) -> km::IsrContext {
+static void InstallExceptionHandlers(IsrTable *ist) {
+    ist->install(0x0, [](km::IsrContext *context) -> km::IsrContext {
         DumpIsrContext(context, "Divide by zero (#DE)");
         DumpStackTrace(context);
         KM_PANIC("Kernel panic.");
     });
 
-    InstallIsrHandler(0x2, [](km::IsrContext *context) -> km::IsrContext {
+    ist->install(0x2, [](km::IsrContext *context) -> km::IsrContext {
         KmDebugMessageUnlocked("[INT] Non-maskable interrupt (#NM)\n");
         DumpIsrState(context);
         return *context;
     });
 
-    InstallIsrHandler(0x6, [](km::IsrContext *context) -> km::IsrContext {
+    ist->install(0x6, [](km::IsrContext *context) -> km::IsrContext {
         DumpIsrContext(context, "Invalid opcode (#UD)");
         DumpStackTrace(context);
         KM_PANIC("Kernel panic.");
     });
 
-    InstallIsrHandler(0x8, [](km::IsrContext *context) -> km::IsrContext {
+    ist->install(0x8, [](km::IsrContext *context) -> km::IsrContext {
         DumpIsrContext(context, "Double fault (#DF)");
         DumpStackTrace(context);
         KM_PANIC("Kernel panic.");
     });
 
-    InstallIsrHandler(0xD, [](km::IsrContext *context) -> km::IsrContext {
+    ist->install(0xD, [](km::IsrContext *context) -> km::IsrContext {
         DumpIsrContext(context, "General protection fault (#GP)");
         DumpStackTrace(context);
         KM_PANIC("Kernel panic.");
     });
 
-    InstallIsrHandler(0xE, [](km::IsrContext *context) -> km::IsrContext {
+    ist->install(0xE, [](km::IsrContext *context) -> km::IsrContext {
         KmDebugMessageUnlocked("[BUG] CR2: ", Hex(__get_cr2()).pad(16, '0'), "\n");
         DumpIsrContext(context, "Page fault (#PF)");
         DumpStackTrace(context);
@@ -987,27 +986,26 @@ static void LogSystemInfo(
     KmDebugMessage("| /BOOT         | Kernel physical      | ", launch.kernelPhysicalBase, "\n");
 }
 
-static km::IsrAllocator InitStage1Idt(uint16_t cs) {
-    km::IsrAllocator isrs;
-    InitInterrupts(isrs, cs);
-    InstallExceptionHandlers();
-    EnableInterrupts();
+static km::IsrTable* InitStage1Idt(uint16_t cs) {
+    km::IsrTable *ist = new IsrTable();
+    InitInterrupts(ist, cs);
+    InstallExceptionHandlers(ist);
 
     if (kSelfTestIdt) {
-        IsrCallback old = InstallIsrHandler(0x2, [](km::IsrContext *context) -> km::IsrContext {
+        IsrCallback old = ist->install(64, [](km::IsrContext *context) -> km::IsrContext {
             KmDebugMessage("[SELFTEST] Handled isr: ", context->vector, "\n");
             return *context;
         });
 
-        __int<0x2>();
+        __int<64>();
 
-        InstallIsrHandler(0x2, old);
+        ist->install(64, old);
     }
 
-    return isrs;
+    return ist;
 }
 
-static void SetupInterruptStacks(uint16_t cs, mem::IAllocator *allocator) {
+static void SetupInterruptStacks(km::IsrTable *ist, uint16_t cs, mem::IAllocator *allocator) {
     gBootTss = x64::TaskStateSegment{
         .ist1 = (uintptr_t)allocator->allocateAligned(kTssStackSize, x64::kPageSize) + kTssStackSize,
         .ist2 = (uintptr_t)allocator->allocateAligned(kTssStackSize, x64::kPageSize) + kTssStackSize,
@@ -1021,17 +1019,18 @@ static void SetupInterruptStacks(uint16_t cs, mem::IAllocator *allocator) {
         UpdateIdtEntry(i, cs, Privilege::eSupervisor, kIstTrap);
     }
 
-    UpdateIdtEntry(0x2, cs, Privilege::eSupervisor, kIstNmi);
+    UpdateIdtEntry(isr::NMI, cs, Privilege::eSupervisor, kIstNmi);
+    UpdateIdtEntry(isr::MCE, cs, Privilege::eSupervisor, kIstNmi);
 
     if (kSelfTestIdt) {
-        IsrCallback old = InstallIsrHandler(0x2, [](km::IsrContext *context) -> km::IsrContext {
+        IsrCallback old = ist->install(64, [](km::IsrContext *context) -> km::IsrContext {
             KmDebugMessage("[SELFTEST] Handled isr: ", context->vector, "\n");
             return *context;
         });
 
-        __int<0x2>();
+        __int<64>();
 
-        InstallIsrHandler(0x2, old);
+        ist->install(64, old);
     }
 }
 
@@ -1047,8 +1046,6 @@ static void NormalizeProcessorState() {
 
     kGsBase.store(0);
 }
-
-static uint8_t gSchedulerVector = 0;
 
 static vfs2::VfsRoot *gVfsRoot = nullptr;
 static SystemObjects *gSystemObjects = nullptr;
@@ -1242,23 +1239,29 @@ void LaunchKernel(boot::LaunchInfo launch) {
     SetupInitialGdt();
 
     //
+    // Once we have the initial gdt setup we create the global allocator.
+    // The IDT depends on the allocator to create its global ISR table.
+    //
+    Stage1MemoryInfo stage1 = InitStage1Memory(launch, processor);
+    Stage2MemoryInfo *stage2 = InitStage2Memory(launch, processor, stage1);
+    gMemory = stage2->memory;
+
+    //
     // I need to disable the PIC before enabling interrupts otherwise I
     // get flooded by timer interrupts.
     //
     Disable8259Pic();
 
-    km::IsrAllocator isrs = InitStage1Idt(SystemGdt::eLongModeCode);
-
-    Stage1MemoryInfo stage1 = InitStage1Memory(launch, processor);
-    Stage2MemoryInfo *stage2 = InitStage2Memory(launch, processor, stage1);
-    gMemory = stage2->memory;
-
-    SetupInterruptStacks(SystemGdt::eLongModeCode, gAllocator);
+    km::IsrTable *ist = InitStage1Idt(SystemGdt::eLongModeCode);
+    SetupInterruptStacks(ist, SystemGdt::eLongModeCode, gAllocator);
+    EnableInterrupts();
 
     PlatformInfo platform = GetPlatformInfo(launch.smbios32Address, launch.smbios64Address, *stage2->memory);
 
+    //
     // On Oracle VirtualBox the COM1 port is functional but fails the loopback test.
     // If we are running on VirtualBox, retry the serial port initialization without the loopback test.
+    //
     if (com1Status == SerialPortStatus::eLoopbackTestFailed && platform.isOracleVirtualBox()) {
         UpdateSerialPort(com1Info);
         UpdateCanSerialPort(com2Info);
@@ -1266,7 +1269,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     bool useX2Apic = kUseX2Apic && processor.has2xApic;
 
-    auto [lapic, spuriousInt] = EnableBootApic(*stage2->memory, isrs, useX2Apic);
+    auto [lapic, spuriousInt] = EnableBootApic(*stage2->memory, ist, useX2Apic);
 
     acpi::AcpiTables rsdt = acpi::InitAcpi(launch.rsdpAddress, *stage2->memory);
     const acpi::Fadt *fadt = rsdt.fadt();
@@ -1283,40 +1286,51 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     pci::ProbeConfigSpace(config.get(), rsdt.mcfg());
 
-    gSchedulerVector = isrs.allocateIsr();
+    SetCpuLocalIsrTable(ist);
 
-    InitSmp(*stage2->memory, lapic.pointer(), rsdt, gSchedulerVector, spuriousInt);
+    InitSmp(*stage2->memory, lapic.pointer(), rsdt, ist);
     SetDebugLogLock(DebugLogLockType::eRecursiveSpinLock);
+
+    EnableCpuLocalIsrTable();
 
     // Setup gdt that contains a TSS for this core
     SetupApGdt();
 
     km::SetupUserMode(gAllocator);
 
-    uint8_t timer = isrs.allocateIsr();
-
-    InstallIsrHandler(gSchedulerVector, [](km::IsrContext *ctx) -> km::IsrContext {
+    static bool happened = false;
+    const IsrTable::Entry *schedulerInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
+        happened = true;
         km::IApic *apic = km::GetCpuLocalApic();
         apic->eoi();
         return *ctx;
     });
 
+    uint8_t schedulerIdx = ist->index(schedulerInt);
+
+    lapic->selfIpi(schedulerIdx);
+
+    KM_CHECK(happened, "Failed to receive IPI.");
+
     lapic->setTimerDivisor(apic::TimerDivide::e32);
     lapic->setInitialCount(0x10000);
 
     lapic->cfgIvtTimer(apic::IvtConfig {
-        .vector = gSchedulerVector,
+        .vector = schedulerIdx,
         .polarity = apic::Polarity::eActiveHigh,
         .trigger = apic::Trigger::eEdge,
         .enabled = true,
         .timer = apic::TimerMode::ePeriodic,
     });
 
-    km::InitPit(100 * si::hertz, rsdt.madt(), ioApicSet, lapic.pointer(), timer, [](IsrContext *ctx) -> km::IsrContext {
-        IApic *apic = km::GetCpuLocalApic();
+    const IsrTable::Entry *timerInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
+        km::IApic *apic = km::GetCpuLocalApic();
         apic->eoi();
         return *ctx;
     });
+    uint8_t timerIdx = ist->index(timerInt);
+
+    km::InitPit(100 * si::hertz, rsdt.madt(), ioApicSet, lapic.pointer(), timerIdx);
 
     std::optional<km::HighPrecisionTimer> hpet = km::HighPrecisionTimer::find(rsdt, *stage2->memory);
     if (hpet.has_value()) {
