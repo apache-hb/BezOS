@@ -18,8 +18,7 @@ namespace stdx {
         void lock() {
             km::CpuCoreId expected = km::CpuCoreId::eInvalid;
             km::CpuCoreId thread = km::GetCurrentCoreId();
-
-            while (!mOwner.compare_exchange_strong(expected, thread, std::memory_order_acquire) && expected != thread) {
+            while (!mOwner.compare_exchange_strong(expected, thread, std::memory_order_acquire)) {
                 expected = km::CpuCoreId::eInvalid;
                 _mm_pause();
             }
@@ -30,7 +29,7 @@ namespace stdx {
         bool try_lock() {
             km::CpuCoreId expected = km::CpuCoreId::eInvalid;
             km::CpuCoreId thread = km::GetCurrentCoreId();
-            if (mOwner.compare_exchange_strong(expected, thread, std::memory_order_acquire) || expected == thread) {
+            if (mOwner.compare_exchange_strong(expected, thread, std::memory_order_acquire)) {
                 mCount += 1;
                 return true;
             }

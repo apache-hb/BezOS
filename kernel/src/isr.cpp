@@ -39,7 +39,7 @@ static constinit x64::Idt gIdt{};
 static constinit km::IsrTable *gIsrTable = nullptr;
 
 CPU_LOCAL
-static constinit km::CpuLocal<km::IsrTable*> tlsIsrTable;
+constinit static km::CpuLocal<km::IsrTable*> tlsIsrTable;
 
 static constexpr x64::IdtEntry CreateIdtEntry(uintptr_t handler, uint16_t codeSelector, km::Privilege dpl, uint8_t ist) {
     uint8_t flags = x64::idt::kFlagPresent | x64::idt::kInterruptGate | ((std::to_underlying(dpl) & 0b11) << 5);
@@ -90,8 +90,6 @@ static km::IsrContext IsrDispatchRoutineGlobal(km::IsrContext *context) {
 }
 
 static km::IsrContext IsrDispatchRoutineCpuLocal(km::IsrContext *context) {
-    // while (1) { }
-
     return DispatchIsr(context, [](km::IsrContext *context) {
         km::IsrTable *table = *tlsIsrTable;
         return table->invoke(context);
@@ -103,7 +101,7 @@ static km::IsrContext IsrDispatchRoutineCpuLocal(km::IsrContext *context) {
 // marked volatile to ensure stores to it are never messed with
 // by the compiler.
 //
-extern "C" volatile km::IsrCallback KmIsrDispatchRoutine = &IsrDispatchRoutineGlobal;
+extern "C" volatile km::IsrCallback KmIsrDispatchRoutine = IsrDispatchRoutineGlobal;
 
 void km::UpdateIdtEntry(uint8_t isr, uint16_t selector, Privilege dpl, uint8_t ist) {
     gIdt.entries[isr] = CreateIdtEntry((uintptr_t)KmIsrTable + (isr * kIsrTableStride), selector * 0x8, dpl, ist);
@@ -114,7 +112,7 @@ void km::InstallCpuIsrTable(IsrTable *table) {
 }
 
 void km::LoadCpuLocalIsrHandler() {
-    KmIsrDispatchRoutine = &IsrDispatchRoutineCpuLocal;
+    KmIsrDispatchRoutine = IsrDispatchRoutineCpuLocal;
 }
 
 void km::InitInterrupts(IsrTable *isrs, uint16_t codeSelector) {
