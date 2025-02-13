@@ -1290,7 +1290,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     pci::ProbeConfigSpace(config.get(), rsdt.mcfg());
 
-    InitSmp(*stage2->memory, lapic.pointer(), rsdt, ist, spuriousInt);
+    InitSmp(*stage2->memory, lapic.pointer(), rsdt, ist);
     SetDebugLogLock(DebugLogLockType::eRecursiveSpinLock);
 
     // Setup gdt that contains a TSS for this core

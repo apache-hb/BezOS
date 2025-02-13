@@ -19,5 +19,5 @@ namespace km {
     /// @param memory System memory information.
     /// @param bsp The APIC for the BSP.
     /// @param acpiTables The ACPI tables.
-    void InitSmp(km::SystemMemory& memory, km::IApic *bsp, acpi::AcpiTables& acpiTables, km::IsrTable *ist, uint8_t spuriousInt);
+    void InitSmp(km::SystemMemory& memory, km::IApic *bsp, acpi::AcpiTables& acpiTables, km::IsrTable *ist);
 }
