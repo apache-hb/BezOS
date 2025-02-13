@@ -39,6 +39,7 @@ static constinit km::IsrTable *gIsrTable = nullptr;
 
 CPU_LOCAL
 static constinit km::CpuLocal<km::IsrTable*> tlsIsrTable;
+static constinit bool gEnableLocalIsrTable = false;
 
 static constexpr x64::IdtEntry CreateIdtEntry(uintptr_t handler, uint16_t codeSelector, km::Privilege dpl, uint8_t ist) {
     uint8_t flags = x64::idt::kFlagPresent | x64::idt::kInterruptGate | ((std::to_underlying(dpl) & 0b11) << 5);
@@ -80,7 +81,8 @@ static km::IsrContext DispatchIsr(km::IsrContext *context, F&& handler) {
 
 extern "C" km::IsrContext KmIsrDispatchRoutine(km::IsrContext *context) {
     return DispatchIsr(context, [](km::IsrContext *context) {
-        return gIsrTable->invoke(context);
+        km::IsrTable *ist = gEnableLocalIsrTable ? tlsIsrTable.get() : gIsrTable;
+        return ist->invoke(context);
     });
 }
 
@@ -117,7 +119,7 @@ void km::SetCpuLocalIsrTable(IsrTable *table) {
 }
 
 void km::EnableCpuLocalIsrTable() {
-    /* TODO */
+    gEnableLocalIsrTable = true;
 }
 
 void km::DisableInterrupts() {

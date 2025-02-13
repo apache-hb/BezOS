@@ -1290,13 +1290,15 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     pci::ProbeConfigSpace(config.get(), rsdt.mcfg());
 
+    SetCpuLocalIsrTable(ist);
+
     InitSmp(*stage2->memory, lapic.pointer(), rsdt, ist);
     SetDebugLogLock(DebugLogLockType::eRecursiveSpinLock);
 
+    EnableCpuLocalIsrTable();
+
     // Setup gdt that contains a TSS for this core
     SetupApGdt();
-
-    SetCpuLocalIsrTable(ist);
 
     km::SetupUserMode(gAllocator);
 
