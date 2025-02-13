@@ -31,13 +31,13 @@ namespace km {
         static constexpr uint8_t CP = 0x15;
 
         /// @brief The number of exceptions reserved by the CPU
-        static constexpr uint8_t kExceptionCount = 0x20;
+        static constexpr auto kExceptionCount = 0x20;
 
         /// @brief The total number of ISRs the CPU supports
-        static constexpr uint8_t kIsrCount = 0xFF;
+        static constexpr auto kIsrCount = 256;
 
         /// @brief The number of ISRs available for use
-        static constexpr uint8_t kAvailableIsrCount = kIsrCount - kExceptionCount;
+        static constexpr auto kAvailableIsrCount = kIsrCount - kExceptionCount;
     }
 
     namespace irq {
@@ -87,9 +87,13 @@ namespace km {
 
     km::IsrContext DefaultIsrHandler(km::IsrContext *context);
 
+    /// @brief A table containing isr handlers for a single cpu.
     class [[gnu::packed]] IsrTable {
+    public:
+        static constexpr auto kCount = 256;
         using Entry = std::atomic<IsrCallback>;
 
+    private:
         //
         // This syntax is to work around none of std::atomic<T>
         // being constexpr except the constructor. C++ has no way of expressing
@@ -97,7 +101,7 @@ namespace km {
         // we have to employ this gnu extension. But now this class is constexpr
         // constructible.
         //
-        Entry mHandlers[256] = { [0 ... 255] = DefaultIsrHandler };
+        Entry mHandlers[kCount] = { [0 ... (kCount - 1)] = DefaultIsrHandler };
 
         Entry *find(const Entry *handle);
 
@@ -107,6 +111,8 @@ namespace km {
 
         const Entry *allocate(IsrCallback callback);
         void release(const Entry *callback);
+
+        uint32_t index(const Entry *entry) const;
     };
 
     enum class Privilege : uint8_t {
@@ -167,9 +173,19 @@ namespace km {
     /// @brief Switch to using the cpu local isr table globally.
     ///
     /// @pre @a InstallCpuIsrTable() must have been called on all cpus.
-    void LoadCpuLocalIsr();
+    void LoadCpuLocalIsrHandler();
 
-    void InitInterrupts(km::IsrAllocator& isrs, uint16_t codeSelector);
+    /// @brief Setup the global IDT.
+    ///
+    /// Called once during startup to populate the global IDT.
+    ///
+    /// @param isrs The isr allocator to populate.
+    /// @param codeSelector the kernel code selector to use as the isr execution selector.
+    void InitInterrupts(IsrTable *isrs, uint16_t codeSelector);
+
+    /// @brief Setup the IDT for this core.
+    ///
+    /// Must be called before enabling interrupts or will lead to undefined behaviour.
     void LoadIdt();
 
     void UpdateIdtEntry(uint8_t isr, uint16_t selector, Privilege dpl, uint8_t ist);

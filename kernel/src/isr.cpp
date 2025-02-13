@@ -37,7 +37,7 @@ static constexpr size_t kIsrTableStride = 16;
 extern "C" const char KmIsrTable[];
 static constinit x64::Idt gIdt{};
 
-static constinit km::IsrTable gIsrTable{};
+static constinit km::IsrTable *gIsrTable = nullptr;
 
 CPU_LOCAL
 constinit static km::CpuLocal<km::IsrTable*> tlsIsrTable;
@@ -86,7 +86,7 @@ static km::IsrContext DispatchIsr(km::IsrContext *context, auto&& handler) {
 
 static km::IsrContext IsrDispatchRoutineGlobal(km::IsrContext *context) {
     return DispatchIsr(context, [](km::IsrContext *context) {
-        return gIsrTable.invoke(context);
+        return gIsrTable->invoke(context);
     });
 }
 
@@ -105,7 +105,7 @@ static km::IsrContext IsrDispatchRoutineCpuLocal(km::IsrContext *context) {
 extern "C" volatile km::IsrCallback KmIsrDispatchRoutine = IsrDispatchRoutineGlobal;
 
 km::IsrCallback km::InstallIsrHandler(uint8_t isr, IsrCallback handler) {
-    return gIsrTable.install(isr, handler);
+    return gIsrTable->install(isr, handler);
 }
 
 void km::UpdateIdtEntry(uint8_t isr, uint16_t selector, Privilege dpl, uint8_t ist) {
@@ -116,11 +116,11 @@ void km::InstallCpuIsrTable(IsrTable *table) {
     tlsIsrTable = table;
 }
 
-void km::LoadCpuLocalIsr() {
+void km::LoadCpuLocalIsrHandler() {
     KmIsrDispatchRoutine = IsrDispatchRoutineCpuLocal;
 }
 
-void km::InitInterrupts(km::IsrAllocator& isrs, uint16_t codeSelector) {
+void km::InitInterrupts(IsrTable *isrs, uint16_t codeSelector) {
     //
     // Assign all the idt entries to point to our isr stubs.
     // All isrs are marked as supervisor, we are a 64 bit kernel so
@@ -130,13 +130,7 @@ void km::InitInterrupts(km::IsrAllocator& isrs, uint16_t codeSelector) {
         UpdateIdtEntry(i, codeSelector, Privilege::eSupervisor, 0);
     }
 
-    //
-    // Claim all the architectural interrupts before handing
-    // back the isr allocator.
-    //
-    for (uint8_t i = 0; i < 32; i++) {
-        isrs.claimIsr(i);
-    }
+    gIsrTable = isrs;
 
     LoadIdt();
 }
@@ -218,6 +212,14 @@ void km::IsrTable::release(const Entry *callback) {
     // reusing it and we don't want to trample their work.
     //
     entry->compare_exchange_strong(expected, DefaultIsrHandler);
+}
+
+uint32_t km::IsrTable::index(const Entry *entry) const {
+    if (std::begin(mHandlers) > entry || entry >= std::end(mHandlers)) {
+        return UINT32_MAX;
+    }
+
+    return std::distance(mHandlers, entry);
 }
 
 uint8_t km::IsrAllocator::claimIsr(uint8_t isr) {
