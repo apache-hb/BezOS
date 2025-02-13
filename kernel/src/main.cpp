@@ -30,6 +30,7 @@
 #include "pat.hpp"
 #include "pit.hpp"
 #include "processor.hpp"
+#include "process/schedule.hpp"
 #include "smp.hpp"
 #include "std/spinlock.hpp"
 #include "std/static_vector.hpp"
@@ -1222,13 +1223,13 @@ void LaunchKernel(boot::LaunchInfo launch) {
     ProcessorInfo processor = GetProcessorInfo();
     InitPortDelay(hvInfo);
 
-    ComPortInfo com1Info = {
-        .port = km::com::kComPort1,
+    ComPortInfo com2Info = {
+        .port = km::com::kComPort2,
         .divisor = km::com::kBaud9600,
     };
 
-    ComPortInfo com2Info = {
-        .port = km::com::kComPort2,
+    ComPortInfo com1Info = {
+        .port = km::com::kComPort1,
         .divisor = km::com::kBaud9600,
     };
 
@@ -1287,9 +1288,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     InitSmp(*stage2->memory, lapic.pointer(), rsdt, gSchedulerVector, spuriousInt);
     SetDebugLogLock(DebugLogLockType::eRecursiveSpinLock);
 
-    //
-    // Setup a GDT that contains a TSS for this core.
-    //
+    // Setup gdt that contains a TSS for this core
     SetupApGdt();
 
     km::SetupUserMode(gAllocator);
