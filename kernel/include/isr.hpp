@@ -1,15 +1,10 @@
 #pragma once
 
-#include "processor.hpp"
 #include "util/util.hpp"
 
-#include <bitset>
 #include <cstddef>
 #include <cstdint>
 #include <climits>
-
-#include <memory>
-#include <array>
 
 namespace km {
     namespace isr {
@@ -92,55 +87,6 @@ namespace km {
     enum class Privilege : uint8_t {
         eSupervisor = 0,
         eUser = 3,
-    };
-
-    class IsrHandle {
-        CpuCoreId mCpuCore;
-        uint32_t mIsr;
-
-    public:
-        IsrHandle(CpuCoreId core, uint32_t isr)
-            : mCpuCore(core)
-            , mIsr(isr)
-        { }
-
-        CpuCoreId core() const {
-            return mCpuCore;
-        }
-
-        uint32_t isr() const {
-            return mIsr + isr::kExceptionCount;
-        }
-
-        bool isValid() const {
-            return mIsr < isr::kAvailableIsrCount;
-        }
-
-        operator bool() const { return isValid(); }
-    };
-
-    class CpuLocalIsrSet {
-        std::array<IsrCallback, isr::kAvailableIsrCount> mIsrs;
-        std::bitset<isr::kAvailableIsrCount> mIsrUsed;
-
-    public:
-        CpuLocalIsrSet();
-
-        IsrHandle claimIsr(uint8_t isr, IsrCallback handler);
-
-        IsrHandle allocateIsr(IsrCallback handler);
-    };
-
-    class SystemIsrSet {
-        std::array<IsrCallback, isr::kExceptionCount> mExceptionHandlers;
-        std::unique_ptr<CpuLocalIsrSet[]> mIsrSets;
-
-    public:
-        SystemIsrSet(CpuCoreCount cpuCount);
-
-        CpuLocalIsrSet& getCpuIsrSet(CpuCoreId cpu);
-
-        IsrHandle claimException(uint8_t isr, IsrCallback handler);
     };
 
     class IsrAllocator {

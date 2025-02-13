@@ -3,10 +3,12 @@
 #include "arch/arch.hpp"
 #include "fs2/node.hpp"
 #include "isr.hpp"
+#include "memory/memory.hpp"
 #include "std/shared_spinlock.hpp"
 #include "std/string.hpp"
 
 #include "absl/container/flat_hash_map.h"
+#include "std/vector.hpp"
 
 namespace km {
     enum class ThreadId : uint64_t { };

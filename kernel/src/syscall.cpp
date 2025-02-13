@@ -1,7 +1,6 @@
 #include "syscall.hpp"
 
 #include "gdt.hpp"
-#include "isr.hpp"
 #include "kernel.hpp"
 #include "log.hpp"
 #include "thread.hpp"
