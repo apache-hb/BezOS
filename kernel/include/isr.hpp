@@ -114,11 +114,11 @@ namespace km {
         // we have to employ this gnu extension. But now this class is constexpr
         // constructible.
         //
+    public:
         Entry mHandlers[kCount] = { [0 ... (kCount - 1)] = DefaultIsrHandler };
 
         Entry *find(const Entry *handle);
 
-    public:
         IsrCallback install(uint8_t isr, IsrCallback callback);
         km::IsrContext invoke(km::IsrContext *context);
 
