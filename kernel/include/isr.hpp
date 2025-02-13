@@ -26,7 +26,7 @@ namespace km {
         static constexpr uint8_t PF = 0xE;
         static constexpr uint8_t MF = 0x10;
         static constexpr uint8_t AC = 0x11;
-        static constexpr uint8_t MC = 0x12;
+        static constexpr uint8_t MCE = 0x12;
         static constexpr uint8_t XM = 0x13;
         static constexpr uint8_t VE = 0x14;
         static constexpr uint8_t CP = 0x15;

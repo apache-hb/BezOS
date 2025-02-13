@@ -998,20 +998,20 @@ static std::tuple<km::IsrAllocator, km::IsrTable*> InitStage1Idt(uint16_t cs) {
     InstallExceptionHandlers(ist);
 
     if (kSelfTestIdt) {
-        IsrCallback old = InstallIsrHandler(0x2, [](km::IsrContext *context) -> km::IsrContext {
+        IsrCallback old = ist->install(64, [](km::IsrContext *context) -> km::IsrContext {
             KmDebugMessage("[SELFTEST] Handled isr: ", context->vector, "\n");
             return *context;
         });
 
-        __int<0x2>();
+        __int<64>();
 
-        InstallIsrHandler(0x2, old);
+        ist->install(64, old);
     }
 
     return std::make_tuple(isrs, ist);
 }
 
-static void SetupInterruptStacks(uint16_t cs, mem::IAllocator *allocator) {
+static void SetupInterruptStacks(km::IsrTable *ist, uint16_t cs, mem::IAllocator *allocator) {
     gBootTss = x64::TaskStateSegment{
         .ist1 = (uintptr_t)allocator->allocateAligned(kTssStackSize, x64::kPageSize) + kTssStackSize,
         .ist2 = (uintptr_t)allocator->allocateAligned(kTssStackSize, x64::kPageSize) + kTssStackSize,
@@ -1025,17 +1025,18 @@ static void SetupInterruptStacks(uint16_t cs, mem::IAllocator *allocator) {
         UpdateIdtEntry(i, cs, Privilege::eSupervisor, kIstTrap);
     }
 
-    UpdateIdtEntry(0x2, cs, Privilege::eSupervisor, kIstNmi);
+    UpdateIdtEntry(isr::NMI, cs, Privilege::eSupervisor, kIstNmi);
+    UpdateIdtEntry(isr::MCE, cs, Privilege::eSupervisor, kIstNmi);
 
     if (kSelfTestIdt) {
-        IsrCallback old = InstallIsrHandler(64, [](km::IsrContext *context) -> km::IsrContext {
+        IsrCallback old = ist->install(64, [](km::IsrContext *context) -> km::IsrContext {
             KmDebugMessage("[SELFTEST] Handled isr: ", context->vector, "\n");
             return *context;
         });
 
         __int<64>();
 
-        InstallIsrHandler(64, old);
+        ist->install(64, old);
     }
 }
 
@@ -1258,7 +1259,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     Disable8259Pic();
 
     auto [isrs, ist] = InitStage1Idt(SystemGdt::eLongModeCode);
-    SetupInterruptStacks(SystemGdt::eLongModeCode, gAllocator);
+    SetupInterruptStacks(ist, SystemGdt::eLongModeCode, gAllocator);
     EnableInterrupts();
 
     PlatformInfo platform = GetPlatformInfo(launch.smbios32Address, launch.smbios64Address, *stage2->memory);
