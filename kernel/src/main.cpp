@@ -1031,7 +1031,7 @@ static void LogSystemInfo(
 static std::tuple<km::IsrAllocator, km::IsrTable*> InitStage1Idt(uint16_t cs) {
     km::IsrTable *ist = new IsrTable();
     km::IsrAllocator isrs;
-    InitInterrupts(isrs, cs);
+    InitInterrupts(isrs, ist, cs);
     InstallExceptionHandlers();
     InstallExceptionHandlers2(ist);
 
@@ -1365,11 +1365,13 @@ void LaunchKernel(boot::LaunchInfo launch) {
         .timer = apic::TimerMode::ePeriodic,
     });
 
-    km::InitPit(100 * si::hertz, rsdt.madt(), ioApicSet, lapic.pointer(), timer, [](IsrContext *ctx) -> km::IsrContext {
+    InstallIsrHandler(timer, [](IsrContext *ctx) -> km::IsrContext {
         IApic *apic = km::GetCpuLocalApic();
         apic->eoi();
         return *ctx;
     });
+
+    km::InitPit(100 * si::hertz, rsdt.madt(), ioApicSet, lapic.pointer(), timer);
 
     std::optional<km::HighPrecisionTimer> hpet = km::HighPrecisionTimer::find(rsdt, *stage2->memory);
     if (hpet.has_value()) {
