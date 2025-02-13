@@ -1,11 +1,13 @@
 #include "isr.hpp"
 
 #include "arch/intrin.hpp"
-#include "panic.hpp"
+#include "arch/isr.hpp"
+
 #include "util/bits.hpp"
 #include "util/digit.hpp"
 
 #include "gdt.h"
+#include "panic.hpp"
 #include "log.hpp"
 
 #include <stdint.h>
@@ -20,17 +22,6 @@ namespace x64 {
         // static constexpr uint8_t kTrapGate = 0b1111;
         // static constexpr uint8_t kTaskGate = 0b0101;
     }
-
-    struct [[gnu::packed]] IdtEntry {
-        uint16_t address0;
-        uint16_t selector;
-        uint8_t ist;
-        uint8_t flags;
-        uint48_t address1;
-        uint32_t reserved;
-    };
-
-    static_assert(sizeof(IdtEntry) == 16);
 
     struct alignas(16) Idt {
         static constexpr size_t kCount = 256;
