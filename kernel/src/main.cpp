@@ -768,7 +768,7 @@ struct ApicInfo {
     uint8_t spuriousInt;
 };
 
-static ApicInfo EnableBootApic(km::SystemMemory& memory, km::IsrAllocator& isrs, bool useX2Apic) {
+static ApicInfo EnableBootApic(km::SystemMemory& memory, km::IsrAllocator& isrs, km::IsrTable *ist, bool useX2Apic) {
     km::Apic pic = InitBspApic(memory, useX2Apic);
 
     // setup tls now that we have the lapic id
@@ -778,17 +778,26 @@ static ApicInfo EnableBootApic(km::SystemMemory& memory, km::IsrAllocator& isrs,
     SetDebugLogLock(DebugLogLockType::eSpinLock);
     km::InitKernelThread(pic);
 
-    uint8_t spuriousInt = isrs.allocateIsr();
-    KmDebugMessage("[INIT] APIC ID: ", pic->id(), ", Version: ", pic->version(), ", Spurious vector: ", spuriousInt, "\n");
-
-    InstallIsrHandler(spuriousInt, [](km::IsrContext *ctx) -> km::IsrContext {
+    uint8_t spuriousVec = isrs.allocateIsr();
+    const IsrTable::Entry *spuriousInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
         KmDebugMessage("[ISR] Spurious interrupt: ", ctx->vector, "\n");
         km::IApic *pic = km::GetCpuLocalApic();
         pic->eoi();
         return *ctx;
     });
+    uint8_t spuriousIdx = ist->index(spuriousInt);
+    KmDebugMessage("[INIT] APIC ID: ", pic->id(), ", Version: ", pic->version(), ", Spurious vector: ", spuriousIdx, "\n");
 
-    pic->setSpuriousVector(spuriousInt);
+    KM_CHECK(spuriousVec == spuriousIdx, "Spurious interrupt vector mismatch.");
+
+    // InstallIsrHandler(spuriousVec, [](km::IsrContext *ctx) -> km::IsrContext {
+    //     KmDebugMessage("[ISR] Spurious interrupt: ", ctx->vector, "\n");
+    //     km::IApic *pic = km::GetCpuLocalApic();
+    //     pic->eoi();
+    //     return *ctx;
+    // });
+
+    pic->setSpuriousVector(spuriousIdx);
 
     pic->enable();
 
@@ -812,7 +821,7 @@ static ApicInfo EnableBootApic(km::SystemMemory& memory, km::IsrAllocator& isrs,
         isrs.releaseIsr(isr);
     }
 
-    return ApicInfo { pic, spuriousInt };
+    return ApicInfo { pic, spuriousIdx };
 }
 
 static void InitBootTerminal(std::span<const boot::FrameBuffer> framebuffers) {
@@ -1312,7 +1321,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     bool useX2Apic = kUseX2Apic && processor.has2xApic;
 
-    auto [lapic, spuriousInt] = EnableBootApic(*stage2->memory, isrs, useX2Apic);
+    auto [lapic, spuriousInt] = EnableBootApic(*stage2->memory, isrs, ist, useX2Apic);
 
     acpi::AcpiTables rsdt = acpi::InitAcpi(launch.rsdpAddress, *stage2->memory);
     const acpi::Fadt *fadt = rsdt.fadt();
