@@ -198,6 +198,4 @@ namespace km {
     /// @param dpl The new privilige level for this entry.
     /// @param ist The new IST to use for this entry.
     void UpdateIdtEntry(uint8_t isr, uint16_t selector, Privilege dpl, uint8_t ist);
-
-    IsrCallback InstallIsrHandler(uint8_t isr, IsrCallback handler);
 }

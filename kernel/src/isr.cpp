@@ -80,12 +80,6 @@ extern "C" km::IsrContext KmIsrDispatchRoutine(km::IsrContext *context) {
     });
 }
 
-km::IsrCallback km::InstallIsrHandler(uint8_t isr, IsrCallback handler) {
-    IsrCallback old = gIsrTable->mHandlers[isr];
-    gIsrTable->mHandlers[isr] = handler;
-    return old;
-}
-
 void km::UpdateIdtEntry(uint8_t isr, uint16_t selector, Privilege dpl, uint8_t ist) {
     gIdt.entries[isr] = CreateIdtEntry((uintptr_t)KmIsrTable + (isr * kIsrTableStride), selector * 0x8, dpl, ist);
 }

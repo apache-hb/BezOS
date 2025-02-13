@@ -795,23 +795,21 @@ static ApicInfo EnableBootApic(km::SystemMemory& memory, km::IsrAllocator& isrs,
     pic->enable();
 
     if (kSelfTestApic) {
-        uint8_t isr = isrs.allocateIsr();
-
-        IsrCallback old = InstallIsrHandler(isr, [](km::IsrContext *context) -> km::IsrContext {
+        const IsrTable::Entry *testInt = ist->allocate([](km::IsrContext *context) -> km::IsrContext {
             KmDebugMessage("[SELFTEST] Handled isr: ", context->vector, "\n");
             km::IApic *pic = km::GetCpuLocalApic();
             pic->eoi();
             return *context;
         });
+        uint8_t testIdx = ist->index(testInt);
 
         //
         // Test that both self-IPI methods work.
         //
-        pic->sendIpi(apic::IcrDeliver::eSelf, isr);
-        pic->selfIpi(isr);
+        pic->sendIpi(apic::IcrDeliver::eSelf, testIdx);
+        pic->selfIpi(testIdx);
 
-        InstallIsrHandler(isr, old);
-        isrs.releaseIsr(isr);
+        ist->release(testInt);
     }
 
     return ApicInfo { pic, spuriousIdx };
