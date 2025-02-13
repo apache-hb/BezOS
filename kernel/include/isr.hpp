@@ -177,5 +177,13 @@ namespace km {
     /// Must be called before enabling interrupts or will lead to undefined behaviour.
     void LoadIdt();
 
+    /// @brief Update an entry in the ist.
+    ///
+    /// Modify the global ist for a given entry to update its cs, dpl, and ist.
+    ///
+    /// @param isr The IDT entry to update.
+    /// @param selector The new code selector for this entry.
+    /// @param dpl The new privilige level for this entry.
+    /// @param ist The new IST to use for this entry.
     void UpdateIdtEntry(uint8_t isr, uint16_t selector, Privilege dpl, uint8_t ist);
 }

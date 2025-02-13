@@ -50,7 +50,6 @@ struct SmpInfoHeader {
 
     km::IApic *bspIntController;
     km::SystemMemory *memory;
-    uint8_t spuriousInt;
 };
 
 static_assert(offsetof(SmpInfoHeader, gdt) == 32);
@@ -74,19 +73,28 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
     km::SetupInitialGdt();
     km::LoadIdt();
 
-    std::unique_ptr<km::IsrTable> isrTable{new km::IsrTable()};
+    std::unique_ptr<km::IsrTable> isrs{new km::IsrTable()};
 
     km::Apic apic = km::InitApApic(*header->memory, header->bspIntController);
 
     km::InitCpuLocalRegion(*header->memory);
     km::InitKernelThread(apic);
-    km::InstallCpuIsrTable(isrTable.get());
+    km::InstallCpuIsrTable(isrs.get());
 
     km::SetupApGdt();
 
-    KmDebugMessage("[SMP] Started AP ", apic->id(), "\n");
+    const km::IsrTable::Entry *spuriousInt = isrs->allocate([](km::IsrContext *ctx) -> km::IsrContext {
+        KmDebugMessage("[ISR] Spurious interrupt: ", ctx->vector, "\n");
+        km::IApic *pic = km::GetCpuLocalApic();
+        pic->eoi();
+        return *ctx;
+    });
 
-    apic->setSpuriousVector(header->spuriousInt);
+    uint8_t spuriousIdx = isrs->index(spuriousInt);
+
+    KmDebugMessage("[SMP] Started AP ", apic->id(), ", Spurious int: ", spuriousIdx, "\n");
+
+    apic->setSpuriousVector(spuriousIdx);
     apic->enable();
     apic->eoi();
 
@@ -99,7 +107,7 @@ static uintptr_t AllocSmpStack() {
     return (uintptr_t)aligned_alloc(x64::kPageSize, km::kStartupStackSize);
 }
 
-static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::IApic *pic, uint8_t spuriousInt) {
+static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::IApic *pic) {
     km::PageTableManager& vmm = memory->pt;
 
     km::PhysicalAddress pml4 = vmm.rootPageTable();
@@ -116,7 +124,6 @@ static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::IApic *pic
         },
         .bspIntController = pic,
         .memory = memory,
-        .spuriousInt = spuriousInt,
     };
 }
 
@@ -125,7 +132,7 @@ size_t km::GetStartupMemorySize(const acpi::AcpiTables &acpiTables) {
     return apCount * kStartupMemorySize;
 }
 
-void km::InitSmp(km::SystemMemory& memory, km::IApic *bsp, acpi::AcpiTables& acpiTables, uint8_t spuriousInt) {
+void km::InitSmp(km::SystemMemory& memory, km::IApic *bsp, acpi::AcpiTables& acpiTables) {
     KmDebugMessage("[SMP] Starting APs.\n");
 
     // copy the SMP blob to the correct location
@@ -144,7 +151,7 @@ void km::InitSmp(km::SystemMemory& memory, km::IApic *bsp, acpi::AcpiTables& acp
     memory.pt.mapRange({ kSmpInfo, kSmpInfo + sizeof(SmpInfoHeader) }, (void*)kSmpInfo.address, km::PageFlags::eData);
     memory.pt.mapRange({ kSmpStart, kSmpStart + blobSize }, (void*)kSmpStart.address, km::PageFlags::eCode);
 
-    SmpInfoHeader header = SetupSmpInfoHeader(&memory, bsp, spuriousInt);
+    SmpInfoHeader header = SetupSmpInfoHeader(&memory, bsp);
     memcpy(smpInfo, &header, sizeof(header));
 
     for (const acpi::MadtEntry *madt : *acpiTables.madt()) {

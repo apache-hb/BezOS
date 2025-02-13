@@ -9,7 +9,7 @@ static constexpr x64::ModelRegister<0xC0000081, x64::RegisterAccess::eReadWrite>
 static constexpr x64::ModelRegister<0xC0000082, x64::RegisterAccess::eReadWrite> kLStar;
 static constexpr x64::ModelRegister<0xC0000084, x64::RegisterAccess::eReadWrite> kFMask;
 
-static constexpr size_t kStackSize = 0x1000;
+static constexpr size_t kStackSize = 0x4000;
 
 CPU_LOCAL
 static constinit km::CpuLocal<void*> tlsSystemCallStack;
