@@ -880,46 +880,7 @@ static void DumpIsrContext(const km::IsrContext *context, stdx::StringView messa
     DumpIsrState(context);
 }
 
-static void InstallExceptionHandlers(void) {
-    InstallIsrHandler(0x0, [](km::IsrContext *context) -> km::IsrContext {
-        DumpIsrContext(context, "Divide by zero (#DE)");
-        DumpStackTrace(context);
-        KM_PANIC("Kernel panic.");
-    });
-
-    InstallIsrHandler(0x2, [](km::IsrContext *context) -> km::IsrContext {
-        KmDebugMessageUnlocked("[INT] Non-maskable interrupt (#NM)\n");
-        DumpIsrState(context);
-        return *context;
-    });
-
-    InstallIsrHandler(0x6, [](km::IsrContext *context) -> km::IsrContext {
-        DumpIsrContext(context, "Invalid opcode (#UD)");
-        DumpStackTrace(context);
-        KM_PANIC("Kernel panic.");
-    });
-
-    InstallIsrHandler(0x8, [](km::IsrContext *context) -> km::IsrContext {
-        DumpIsrContext(context, "Double fault (#DF)");
-        DumpStackTrace(context);
-        KM_PANIC("Kernel panic.");
-    });
-
-    InstallIsrHandler(0xD, [](km::IsrContext *context) -> km::IsrContext {
-        DumpIsrContext(context, "General protection fault (#GP)");
-        DumpStackTrace(context);
-        KM_PANIC("Kernel panic.");
-    });
-
-    InstallIsrHandler(0xE, [](km::IsrContext *context) -> km::IsrContext {
-        KmDebugMessageUnlocked("[BUG] CR2: ", Hex(__get_cr2()).pad(16, '0'), "\n");
-        DumpIsrContext(context, "Page fault (#PF)");
-        DumpStackTrace(context);
-        KM_PANIC("Kernel panic.");
-    });
-}
-
-static void InstallExceptionHandlers2(IsrTable *ist) {
+static void InstallExceptionHandlers(IsrTable *ist) {
     ist->install(0x0, [](km::IsrContext *context) -> km::IsrContext {
         DumpIsrContext(context, "Divide by zero (#DE)");
         DumpStackTrace(context);
@@ -1041,8 +1002,7 @@ static std::tuple<km::IsrAllocator, km::IsrTable*> InitStage1Idt(uint16_t cs) {
     km::IsrTable *ist = new IsrTable();
     km::IsrAllocator isrs;
     InitInterrupts(isrs, ist, cs);
-    InstallExceptionHandlers();
-    InstallExceptionHandlers2(ist);
+    InstallExceptionHandlers(ist);
 
     if (kSelfTestIdt) {
         IsrCallback old = InstallIsrHandler(0x2, [](km::IsrContext *context) -> km::IsrContext {
