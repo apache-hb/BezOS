@@ -790,13 +790,6 @@ static ApicInfo EnableBootApic(km::SystemMemory& memory, km::IsrAllocator& isrs,
 
     KM_CHECK(spuriousVec == spuriousIdx, "Spurious interrupt vector mismatch.");
 
-    // InstallIsrHandler(spuriousVec, [](km::IsrContext *ctx) -> km::IsrContext {
-    //     KmDebugMessage("[ISR] Spurious interrupt: ", ctx->vector, "\n");
-    //     km::IApic *pic = km::GetCpuLocalApic();
-    //     pic->eoi();
-    //     return *ctx;
-    // });
-
     pic->setSpuriousVector(spuriousIdx);
 
     pic->enable();
@@ -1035,14 +1028,14 @@ static void SetupInterruptStacks(uint16_t cs, mem::IAllocator *allocator) {
     UpdateIdtEntry(0x2, cs, Privilege::eSupervisor, kIstNmi);
 
     if (kSelfTestIdt) {
-        IsrCallback old = InstallIsrHandler(0x2, [](km::IsrContext *context) -> km::IsrContext {
+        IsrCallback old = InstallIsrHandler(64, [](km::IsrContext *context) -> km::IsrContext {
             KmDebugMessage("[SELFTEST] Handled isr: ", context->vector, "\n");
             return *context;
         });
 
-        __int<0x2>();
+        __int<64>();
 
-        InstallIsrHandler(0x2, old);
+        InstallIsrHandler(64, old);
     }
 }
 
@@ -1332,14 +1325,16 @@ void LaunchKernel(boot::LaunchInfo launch) {
         .timer = apic::TimerMode::ePeriodic,
     });
 
-    uint8_t timer = isrs.allocateIsr();
-    InstallIsrHandler(timer, [](IsrContext *ctx) -> km::IsrContext {
-        IApic *apic = km::GetCpuLocalApic();
+    uint8_t timerVec = isrs.allocateIsr();
+    const IsrTable::Entry *timerInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
+        km::IApic *apic = km::GetCpuLocalApic();
         apic->eoi();
         return *ctx;
     });
+    uint8_t timerIdx = ist->index(timerInt);
+    KM_CHECK(timerVec == timerIdx, "Timer interrupt vector mismatch.");
 
-    km::InitPit(100 * si::hertz, rsdt.madt(), ioApicSet, lapic.pointer(), timer);
+    km::InitPit(100 * si::hertz, rsdt.madt(), ioApicSet, lapic.pointer(), timerIdx);
 
     std::optional<km::HighPrecisionTimer> hpet = km::HighPrecisionTimer::find(rsdt, *stage2->memory);
     if (hpet.has_value()) {
