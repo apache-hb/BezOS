@@ -768,7 +768,7 @@ struct ApicInfo {
     uint8_t spuriousInt;
 };
 
-static ApicInfo EnableBootApic(km::SystemMemory& memory, km::IsrAllocator& isrs, km::IsrTable *ist, bool useX2Apic) {
+static ApicInfo EnableBootApic(km::SystemMemory& memory, km::IsrTable *ist, bool useX2Apic) {
     km::Apic pic = InitBspApic(memory, useX2Apic);
 
     // setup tls now that we have the lapic id
@@ -778,7 +778,6 @@ static ApicInfo EnableBootApic(km::SystemMemory& memory, km::IsrAllocator& isrs,
     SetDebugLogLock(DebugLogLockType::eSpinLock);
     km::InitKernelThread(pic);
 
-    uint8_t spuriousVec = isrs.allocateIsr();
     const IsrTable::Entry *spuriousInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
         KmDebugMessage("[ISR] Spurious interrupt: ", ctx->vector, "\n");
         km::IApic *pic = km::GetCpuLocalApic();
@@ -787,8 +786,6 @@ static ApicInfo EnableBootApic(km::SystemMemory& memory, km::IsrAllocator& isrs,
     });
     uint8_t spuriousIdx = ist->index(spuriousInt);
     KmDebugMessage("[INIT] APIC ID: ", pic->id(), ", Version: ", pic->version(), ", Spurious vector: ", spuriousIdx, "\n");
-
-    KM_CHECK(spuriousVec == spuriousIdx, "Spurious interrupt vector mismatch.");
 
     pic->setSpuriousVector(spuriousIdx);
 
@@ -989,7 +986,7 @@ static void LogSystemInfo(
     KmDebugMessage("| /BOOT         | Kernel physical      | ", launch.kernelPhysicalBase, "\n");
 }
 
-static std::tuple<km::IsrAllocator, km::IsrTable*> InitStage1Idt(uint16_t cs) {
+static km::IsrTable* InitStage1Idt(uint16_t cs) {
     km::IsrTable *ist = new IsrTable();
     km::IsrAllocator isrs;
     InitInterrupts(isrs, ist, cs);
@@ -1006,7 +1003,7 @@ static std::tuple<km::IsrAllocator, km::IsrTable*> InitStage1Idt(uint16_t cs) {
         ist->install(64, old);
     }
 
-    return std::make_tuple(isrs, ist);
+    return ist;
 }
 
 static void SetupInterruptStacks(km::IsrTable *ist, uint16_t cs, mem::IAllocator *allocator) {
@@ -1256,7 +1253,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     //
     Disable8259Pic();
 
-    auto [isrs, ist] = InitStage1Idt(SystemGdt::eLongModeCode);
+    km::IsrTable *ist = InitStage1Idt(SystemGdt::eLongModeCode);
     SetupInterruptStacks(ist, SystemGdt::eLongModeCode, gAllocator);
     EnableInterrupts();
 
@@ -1273,7 +1270,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     bool useX2Apic = kUseX2Apic && processor.has2xApic;
 
-    auto [lapic, spuriousInt] = EnableBootApic(*stage2->memory, isrs, ist, useX2Apic);
+    auto [lapic, spuriousInt] = EnableBootApic(*stage2->memory, ist, useX2Apic);
 
     acpi::AcpiTables rsdt = acpi::InitAcpi(launch.rsdpAddress, *stage2->memory);
     const acpi::Fadt *fadt = rsdt.fadt();
@@ -1303,7 +1300,6 @@ void LaunchKernel(boot::LaunchInfo launch) {
     km::SetupUserMode(gAllocator);
 
     static bool happened = false;
-    uint8_t schedulerVec = isrs.allocateIsr();
     const IsrTable::Entry *schedulerInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
         happened = true;
         km::IApic *apic = km::GetCpuLocalApic();
@@ -1312,7 +1308,6 @@ void LaunchKernel(boot::LaunchInfo launch) {
     });
 
     uint8_t schedulerIdx = ist->index(schedulerInt);
-    KM_CHECK(schedulerVec == schedulerIdx, "Scheduler interrupt vector mismatch.");
 
     lapic->selfIpi(schedulerIdx);
 
@@ -1329,14 +1324,12 @@ void LaunchKernel(boot::LaunchInfo launch) {
         .timer = apic::TimerMode::ePeriodic,
     });
 
-    uint8_t timerVec = isrs.allocateIsr();
     const IsrTable::Entry *timerInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
         km::IApic *apic = km::GetCpuLocalApic();
         apic->eoi();
         return *ctx;
     });
     uint8_t timerIdx = ist->index(timerInt);
-    KM_CHECK(timerVec == timerIdx, "Timer interrupt vector mismatch.");
 
     km::InitPit(100 * si::hertz, rsdt.madt(), ioApicSet, lapic.pointer(), timerIdx);
 
