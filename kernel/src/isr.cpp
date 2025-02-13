@@ -3,6 +3,7 @@
 #include "arch/intrin.hpp"
 #include "arch/isr.hpp"
 
+#include "thread.hpp"
 #include "util/bits.hpp"
 #include "util/digit.hpp"
 
@@ -35,6 +36,9 @@ extern "C" const char KmIsrTable[];
 static x64::Idt gIdt;
 
 static constinit km::IsrTable *gIsrTable = nullptr;
+
+CPU_LOCAL
+static constinit km::CpuLocal<km::IsrTable*> tlsIsrTable;
 
 static constexpr x64::IdtEntry CreateIdtEntry(uintptr_t handler, uint16_t codeSelector, km::Privilege dpl, uint8_t ist) {
     uint8_t flags = x64::idt::kFlagPresent | x64::idt::kInterruptGate | ((std::to_underlying(dpl) & 0b11) << 5);
