@@ -34,7 +34,7 @@ extern "C" const char KmIsrTable[];
 
 static x64::Idt gIdt;
 
-static constinit km::IsrTable gIsrTable{};
+static constinit km::IsrTable *gIsrTable = nullptr;
 
 static constexpr x64::IdtEntry CreateIdtEntry(uintptr_t handler, uint16_t codeSelector, km::Privilege dpl, uint8_t ist) {
     uint8_t flags = x64::idt::kFlagPresent | x64::idt::kInterruptGate | ((std::to_underlying(dpl) & 0b11) << 5);
@@ -76,13 +76,13 @@ static km::IsrContext DispatchIsr(km::IsrContext *context, F&& handler) {
 
 extern "C" km::IsrContext KmIsrDispatchRoutine(km::IsrContext *context) {
     return DispatchIsr(context, [](km::IsrContext *context) {
-        return gIsrTable.invoke(context);
+        return gIsrTable->invoke(context);
     });
 }
 
 km::IsrCallback km::InstallIsrHandler(uint8_t isr, IsrCallback handler) {
-    IsrCallback old = gIsrTable.mHandlers[isr];
-    gIsrTable.mHandlers[isr] = handler;
+    IsrCallback old = gIsrTable->mHandlers[isr];
+    gIsrTable->mHandlers[isr] = handler;
     return old;
 }
 
@@ -91,6 +91,8 @@ void km::UpdateIdtEntry(uint8_t isr, uint16_t selector, Privilege dpl, uint8_t i
 }
 
 void km::InitInterrupts(km::IsrAllocator& isrs, uint16_t codeSelector) {
+    gIsrTable = new IsrTable();
+
     for (size_t i = 0; i < x64::Idt::kCount; i++) {
         UpdateIdtEntry(i, codeSelector, Privilege::eSupervisor, 0);
     }

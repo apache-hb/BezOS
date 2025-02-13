@@ -802,9 +802,11 @@ static ApicInfo EnableBootApic(km::SystemMemory& memory, km::IsrAllocator& isrs,
             return *context;
         });
 
+        //
+        // Test that both self-IPI methods work.
+        //
         pic->sendIpi(apic::IcrDeliver::eSelf, isr);
-        pic->sendIpi(apic::IcrDeliver::eSelf, isr);
-        pic->sendIpi(apic::IcrDeliver::eSelf, isr);
+        pic->selfIpi(isr);
 
         InstallIsrHandler(isr, old);
         isrs.releaseIsr(isr);
