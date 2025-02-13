@@ -767,7 +767,7 @@ struct ApicInfo {
     uint8_t spuriousInt;
 };
 
-static ApicInfo EnableBootApic(km::SystemMemory& memory, km::IsrTable *ist, bool useX2Apic) {
+static ApicInfo EnableBootApic(km::SystemMemory& memory, km::IsrAllocator& isrs, bool useX2Apic) {
     km::Apic pic = InitBspApic(memory, useX2Apic);
 
     // setup tls now that we have the lapic id
@@ -777,39 +777,39 @@ static ApicInfo EnableBootApic(km::SystemMemory& memory, km::IsrTable *ist, bool
     SetDebugLogLock(DebugLogLockType::eSpinLock);
     km::InitKernelThread(pic);
 
-    const IsrTable::Entry *spuriousInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
+    uint8_t spuriousInt = isrs.allocateIsr();
+    KmDebugMessage("[INIT] APIC ID: ", pic->id(), ", Version: ", pic->version(), ", Spurious vector: ", spuriousInt, "\n");
+
+    InstallIsrHandler(spuriousInt, [](km::IsrContext *ctx) -> km::IsrContext {
         KmDebugMessage("[ISR] Spurious interrupt: ", ctx->vector, "\n");
         km::IApic *pic = km::GetCpuLocalApic();
         pic->eoi();
         return *ctx;
     });
 
-    uint8_t spuriousIdx = ist->index(spuriousInt);
-
-    KmDebugMessage("[INIT] APIC ID: ", pic->id(), ", Version: ", pic->version(), ", Spurious vector: ", spuriousIdx, "\n");
-
-    pic->setSpuriousVector(spuriousIdx);
+    pic->setSpuriousVector(spuriousInt);
 
     pic->enable();
 
     if (kSelfTestApic) {
-        const IsrTable::Entry *testInt = ist->allocate([](km::IsrContext *context) -> km::IsrContext {
+        uint8_t isr = isrs.allocateIsr();
+
+        IsrCallback old = InstallIsrHandler(isr, [](km::IsrContext *context) -> km::IsrContext {
             KmDebugMessage("[SELFTEST] Handled isr: ", context->vector, "\n");
             km::IApic *pic = km::GetCpuLocalApic();
             pic->eoi();
             return *context;
         });
 
-        uint8_t testIdx = ist->index(testInt);
+        pic->sendIpi(apic::IcrDeliver::eSelf, isr);
+        pic->sendIpi(apic::IcrDeliver::eSelf, isr);
+        pic->sendIpi(apic::IcrDeliver::eSelf, isr);
 
-        pic->sendIpi(apic::IcrDeliver::eSelf, testIdx);
-        pic->sendIpi(apic::IcrDeliver::eSelf, testIdx);
-        pic->sendIpi(apic::IcrDeliver::eSelf, testIdx);
-
-        ist->release(testInt);
+        InstallIsrHandler(isr, old);
+        isrs.releaseIsr(isr);
     }
 
-    return ApicInfo { pic, spuriousIdx };
+    return ApicInfo { pic, spuriousInt };
 }
 
 static void InitBootTerminal(std::span<const boot::FrameBuffer> framebuffers) {
@@ -986,10 +986,9 @@ static void LogSystemInfo(
     KmDebugMessage("| /BOOT         | Kernel physical      | ", launch.kernelPhysicalBase, "\n");
 }
 
-static constinit IsrTable gBootIsrTable{};
-
-static km::IsrTable *InitStage1Idt(uint16_t cs) {
-    InitInterrupts(&gBootIsrTable, cs);
+static km::IsrAllocator InitStage1Idt(uint16_t cs) {
+    km::IsrAllocator isrs;
+    InitInterrupts(isrs, cs);
     InstallExceptionHandlers();
     EnableInterrupts();
 
@@ -1004,7 +1003,7 @@ static km::IsrTable *InitStage1Idt(uint16_t cs) {
         InstallIsrHandler(0x2, old);
     }
 
-    return &gBootIsrTable;
+    return isrs;
 }
 
 static void SetupInterruptStacks(uint16_t cs, mem::IAllocator *allocator) {
@@ -1048,7 +1047,7 @@ static void NormalizeProcessorState() {
     kGsBase.store(0);
 }
 
-static const IsrTable::Entry *gSchedulerInt = nullptr;
+static uint8_t gSchedulerVector = 0;
 
 static vfs2::VfsRoot *gVfsRoot = nullptr;
 static SystemObjects *gSystemObjects = nullptr;
@@ -1247,7 +1246,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     //
     Disable8259Pic();
 
-    km::IsrTable *ist = InitStage1Idt(SystemGdt::eLongModeCode);
+    km::IsrAllocator isrs = InitStage1Idt(SystemGdt::eLongModeCode);
 
     Stage1MemoryInfo stage1 = InitStage1Memory(launch, processor);
     Stage2MemoryInfo *stage2 = InitStage2Memory(launch, processor, stage1);
@@ -1266,7 +1265,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     bool useX2Apic = kUseX2Apic && processor.has2xApic;
 
-    auto [lapic, spuriousInt] = EnableBootApic(*stage2->memory, ist, useX2Apic);
+    auto [lapic, spuriousInt] = EnableBootApic(*stage2->memory, isrs, useX2Apic);
 
     acpi::AcpiTables rsdt = acpi::InitAcpi(launch.rsdpAddress, *stage2->memory);
     const acpi::Fadt *fadt = rsdt.fadt();
@@ -1276,8 +1275,6 @@ void LaunchKernel(boot::LaunchInfo launch) {
     KM_CHECK(ioApicCount > 0, "No IOAPICs found.");
     IoApicSet ioApicSet{ rsdt.madt(), *stage2->memory };
 
-    std::unique_ptr<IsrTable> isrTable{new IsrTable()};
-
     std::unique_ptr<pci::IConfigSpace> config{pci::InitConfigSpace(rsdt.mcfg(), *stage2->memory)};
     if (!config) {
         KM_PANIC("Failed to initialize PCI config space.");
@@ -1285,19 +1282,10 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     pci::ProbeConfigSpace(config.get(), rsdt.mcfg());
 
-    //
-    // Load the per cpu isr table for the bsp.
-    //
-    InstallCpuIsrTable(isrTable.get());
+    gSchedulerVector = isrs.allocateIsr();
 
-    InitSmp(*stage2->memory, lapic.pointer(), rsdt, spuriousInt);
+    InitSmp(*stage2->memory, lapic.pointer(), rsdt, gSchedulerVector, spuriousInt);
     SetDebugLogLock(DebugLogLockType::eRecursiveSpinLock);
-
-    //
-    // Now that all aps have been brought up we can switch
-    // to the cpu local isr handler.
-    //
-    // LoadCpuLocalIsrHandler();
 
     //
     // Setup a GDT that contains a TSS for this core.
@@ -1306,7 +1294,9 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     km::SetupUserMode(gAllocator);
 
-    gSchedulerInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
+    uint8_t timer = isrs.allocateIsr();
+
+    InstallIsrHandler(gSchedulerVector, [](km::IsrContext *ctx) -> km::IsrContext {
         km::IApic *apic = km::GetCpuLocalApic();
         apic->eoi();
         return *ctx;
@@ -1316,20 +1306,18 @@ void LaunchKernel(boot::LaunchInfo launch) {
     lapic->setInitialCount(0x10000);
 
     lapic->cfgIvtTimer(apic::IvtConfig {
-        .vector = uint8_t(ist->index(gSchedulerInt)),
+        .vector = gSchedulerVector,
         .polarity = apic::Polarity::eActiveHigh,
         .trigger = apic::Trigger::eEdge,
         .enabled = true,
         .timer = apic::TimerMode::ePeriodic,
     });
 
-    const IsrTable::Entry *timerInt = ist->allocate([](IsrContext *ctx) -> km::IsrContext {
+    km::InitPit(100 * si::hertz, rsdt.madt(), ioApicSet, lapic.pointer(), timer, [](IsrContext *ctx) -> km::IsrContext {
         IApic *apic = km::GetCpuLocalApic();
         apic->eoi();
         return *ctx;
     });
-
-    km::InitPit(100 * si::hertz, rsdt.madt(), ioApicSet, lapic.pointer(), ist->index(timerInt));
 
     std::optional<km::HighPrecisionTimer> hpet = km::HighPrecisionTimer::find(rsdt, *stage2->memory);
     if (hpet.has_value()) {

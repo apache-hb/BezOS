@@ -2,6 +2,7 @@
 
 #include "acpi/hpet.hpp"
 #include "apic.hpp"
+#include "isr.hpp"
 #include "pci/pci.hpp"
 
 #include <cstdint>
@@ -121,5 +122,5 @@ namespace km {
 
     using TickSource = sm::Combine<ITickSource, IntervalTimer, HighPrecisionTimer>;
 
-    void InitPit(hertz frequency, const acpi::Madt *madt, IoApicSet& ioApicSet, IApic *apic, uint8_t irq);
+    void InitPit(hertz frequency, const acpi::Madt *madt, IoApicSet& ioApicSet, IApic *apic, uint8_t irq, IsrCallback handler);
 }
