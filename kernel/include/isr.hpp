@@ -135,19 +135,17 @@ namespace km {
         }
     };
 
-    class NmiGuard {
+    class NmiGuard : public IntGuard {
     public:
         UTIL_NOMOVE(NmiGuard);
         UTIL_NOCOPY(NmiGuard);
 
         NmiGuard() {
-            DisableInterrupts();
             DisableNmi();
         }
 
         ~NmiGuard() {
             EnableNmi();
-            EnableInterrupts();
         }
     };
 

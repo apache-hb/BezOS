@@ -1295,11 +1295,18 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     uint8_t timer = isrs.allocateIsr();
 
+    static bool happened = false;
+
     InstallIsrHandler(gSchedulerVector, [](km::IsrContext *ctx) -> km::IsrContext {
+        happened = true;
         km::IApic *apic = km::GetCpuLocalApic();
         apic->eoi();
         return *ctx;
     });
+
+    lapic->selfIpi(gSchedulerVector);
+
+    KM_CHECK(happened, "Failed to receive IPI.");
 
     lapic->setTimerDivisor(apic::TimerDivide::e32);
     lapic->setInitialCount(0x10000);
