@@ -908,6 +908,45 @@ static void InstallExceptionHandlers(void) {
     });
 }
 
+static void InstallExceptionHandlers2(IsrTable *ist) {
+    ist->install(0x0, [](km::IsrContext *context) -> km::IsrContext {
+        DumpIsrContext(context, "Divide by zero (#DE)");
+        DumpStackTrace(context);
+        KM_PANIC("Kernel panic.");
+    });
+
+    ist->install(0x2, [](km::IsrContext *context) -> km::IsrContext {
+        KmDebugMessageUnlocked("[INT] Non-maskable interrupt (#NM)\n");
+        DumpIsrState(context);
+        return *context;
+    });
+
+    ist->install(0x6, [](km::IsrContext *context) -> km::IsrContext {
+        DumpIsrContext(context, "Invalid opcode (#UD)");
+        DumpStackTrace(context);
+        KM_PANIC("Kernel panic.");
+    });
+
+    ist->install(0x8, [](km::IsrContext *context) -> km::IsrContext {
+        DumpIsrContext(context, "Double fault (#DF)");
+        DumpStackTrace(context);
+        KM_PANIC("Kernel panic.");
+    });
+
+    ist->install(0xD, [](km::IsrContext *context) -> km::IsrContext {
+        DumpIsrContext(context, "General protection fault (#GP)");
+        DumpStackTrace(context);
+        KM_PANIC("Kernel panic.");
+    });
+
+    ist->install(0xE, [](km::IsrContext *context) -> km::IsrContext {
+        KmDebugMessageUnlocked("[BUG] CR2: ", Hex(__get_cr2()).pad(16, '0'), "\n");
+        DumpIsrContext(context, "Page fault (#PF)");
+        DumpStackTrace(context);
+        KM_PANIC("Kernel panic.");
+    });
+}
+
 static void InitPortDelay(const std::optional<HypervisorInfo>& hvInfo) {
     bool isKvm = hvInfo.transform([](const HypervisorInfo& hv) { return hv.isKvm(); }).value_or(false);
     x64::PortDelay delay = isKvm ? x64::PortDelay::eNone : x64::PortDelay::ePostCode;
@@ -992,7 +1031,7 @@ static std::tuple<km::IsrAllocator, km::IsrTable*> InitStage1Idt(uint16_t cs) {
     km::IsrAllocator isrs;
     InitInterrupts(isrs, cs);
     InstallExceptionHandlers();
-    EnableInterrupts();
+    InstallExceptionHandlers2(ist);
 
     if (kSelfTestIdt) {
         IsrCallback old = InstallIsrHandler(0x2, [](km::IsrContext *context) -> km::IsrContext {
@@ -1258,6 +1297,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     auto [isrs, ist] = InitStage1Idt(SystemGdt::eLongModeCode);
     SetupInterruptStacks(SystemGdt::eLongModeCode, gAllocator);
+    EnableInterrupts();
 
     PlatformInfo platform = GetPlatformInfo(launch.smbios32Address, launch.smbios64Address, *stage2->memory);
 
