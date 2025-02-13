@@ -4,7 +4,6 @@
 #include "util/digit.hpp"
 
 #include <atomic>
-#include <cstddef>
 #include <cstdint>
 #include <climits>
 
@@ -139,16 +138,6 @@ namespace km {
     enum class Privilege : uint8_t {
         eSupervisor = 0,
         eUser = 3,
-    };
-
-    class IsrAllocator {
-        static constexpr size_t kIsrCount = 256;
-        uint8_t mFreeIsrs[kIsrCount / CHAR_BIT] = {};
-    public:
-        uint8_t claimIsr(uint8_t isr);
-        void releaseIsr(uint8_t isr);
-
-        uint8_t allocateIsr();
     };
 
     void DisableNmi();

@@ -125,22 +125,6 @@ void km::EnableInterrupts() {
     __sti();
 }
 
-uint8_t km::IsrAllocator::claimIsr(uint8_t isr) {
-    sm::BitsSetBit(mFreeIsrs, sm::BitCount(isr));
-    return isr;
-}
-
-void km::IsrAllocator::releaseIsr(uint8_t isr) {
-    sm::BitsClearBit(mFreeIsrs, sm::BitCount(isr));
-}
-
-uint8_t km::IsrAllocator::allocateIsr() {
-    sm::BitCount bit = sm::BitsFindAndSetNextFree(mFreeIsrs, sm::BitCount { 0 }, sm::BitCount { kIsrCount });
-
-    return bit.count;
-}
-
-
 km::IsrTable::Entry *km::IsrTable::find(const Entry *handle) {
     //
     // We need to be very certain what we're about do is alright.
