@@ -987,8 +987,8 @@ static void LogSystemInfo(
     KmDebugMessage("| /BOOT         | Kernel physical      | ", launch.kernelPhysicalBase, "\n");
 }
 
-static km::IsrAllocator InitStage1Idt(uint16_t cs) {
-    // km::IsrTable *ist = new IsrTable();
+static std::tuple<km::IsrAllocator, km::IsrTable*> InitStage1Idt(uint16_t cs) {
+    km::IsrTable *ist = new IsrTable();
     km::IsrAllocator isrs;
     InitInterrupts(isrs, cs);
     InstallExceptionHandlers();
@@ -1005,7 +1005,7 @@ static km::IsrAllocator InitStage1Idt(uint16_t cs) {
         InstallIsrHandler(0x2, old);
     }
 
-    return isrs;
+    return std::make_tuple(isrs, ist);
 }
 
 static void SetupInterruptStacks(uint16_t cs, mem::IAllocator *allocator) {
@@ -1256,7 +1256,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     //
     Disable8259Pic();
 
-    km::IsrAllocator isrs = InitStage1Idt(SystemGdt::eLongModeCode);
+    auto [isrs, ist] = InitStage1Idt(SystemGdt::eLongModeCode);
     SetupInterruptStacks(SystemGdt::eLongModeCode, gAllocator);
 
     PlatformInfo platform = GetPlatformInfo(launch.smbios32Address, launch.smbios64Address, *stage2->memory);
