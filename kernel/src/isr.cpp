@@ -43,8 +43,8 @@ extern "C" const char KmIsrTable[];
 static x64::Idt gIdt;
 static km::IsrCallback gIsrHandlers[256];
 
-static constexpr x64::IdtEntry CreateIdtEntry(uintptr_t handler, uint16_t codeSelector, uint8_t dpl, uint8_t ist) {
-    uint8_t flags = x64::idt::kFlagPresent | x64::idt::kInterruptGate | ((dpl & 0b11) << 5);
+static constexpr x64::IdtEntry CreateIdtEntry(uintptr_t handler, uint16_t codeSelector, km::Privilege dpl, uint8_t ist) {
+    uint8_t flags = x64::idt::kFlagPresent | x64::idt::kInterruptGate | ((std::to_underlying(dpl) & 0b11) << 5);
 
     return x64::IdtEntry {
         .address0 = uint16_t(handler & 0xFFFF),
@@ -93,13 +93,13 @@ km::IsrCallback km::InstallIsrHandler(uint8_t isr, IsrCallback handler) {
     return old;
 }
 
-void km::UpdateIdtEntry(uint8_t isr, uint16_t selector, uint8_t dpl, uint8_t ist) {
+void km::UpdateIdtEntry(uint8_t isr, uint16_t selector, Privilege dpl, uint8_t ist) {
     gIdt.entries[isr] = CreateIdtEntry((uintptr_t)KmIsrTable + (isr * kIsrTableStride), selector * 0x8, dpl, ist);
 }
 
 void km::InitInterrupts(km::IsrAllocator& isrs, uint16_t codeSelector) {
     for (size_t i = 0; i < x64::Idt::kCount; i++) {
-        UpdateIdtEntry(i, codeSelector, 0, 0);
+        UpdateIdtEntry(i, codeSelector, Privilege::eSupervisor, 0);
     }
 
     for (size_t i = 0; i < x64::Idt::kCount; i++) {

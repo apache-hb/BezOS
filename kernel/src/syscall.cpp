@@ -39,11 +39,7 @@ void km::SetupUserMode(mem::IAllocator *allocator) {
     tlsSystemCallStack = allocator->allocateAligned(kStackSize, x64::kPageSize);
 
     void *rsp0 = allocator->allocateAligned(kStackSize, x64::kPageSize);
-
     tlsTaskState->rsp0 = (uintptr_t)rsp0 + kStackSize;
-
-    // nmis use the IST1 stack
-    km::UpdateIdtEntry(0x2, SystemGdt::eLongModeCode, 0, 1);
 
     KmSystemCallStackTlsOffset = tlsSystemCallStack.tlsOffset();
 

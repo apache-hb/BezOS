@@ -1018,10 +1018,10 @@ static void SetupInterruptStacks(uint16_t cs, mem::IAllocator *allocator) {
     __ltr(SystemGdt::eTaskState0 * 0x8);
 
     for (uint8_t i = 0; i < isr::kExceptionCount; i++) {
-        UpdateIdtEntry(i, cs, 0, kIstTrap);
+        UpdateIdtEntry(i, cs, Privilege::eSupervisor, kIstTrap);
     }
 
-    UpdateIdtEntry(0x2, cs, 0, kIstNmi);
+    UpdateIdtEntry(0x2, cs, Privilege::eSupervisor, kIstNmi);
 
     if (kSelfTestIdt) {
         IsrCallback old = InstallIsrHandler(0x2, [](km::IsrContext *context) -> km::IsrContext {

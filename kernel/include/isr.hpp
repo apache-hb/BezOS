@@ -191,7 +191,7 @@ namespace km {
     void InitInterrupts(km::IsrAllocator& isrs, uint16_t codeSelector);
     void LoadIdt(void);
 
-    void UpdateIdtEntry(uint8_t isr, uint16_t selector, uint8_t dpl, uint8_t ist);
+    void UpdateIdtEntry(uint8_t isr, uint16_t selector, Privilege dpl, uint8_t ist);
 
     IsrCallback InstallIsrHandler(uint8_t isr, IsrCallback handler);
 }
