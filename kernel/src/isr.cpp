@@ -90,16 +90,11 @@ void km::UpdateIdtEntry(uint8_t isr, uint16_t selector, Privilege dpl, uint8_t i
     gIdt.entries[isr] = CreateIdtEntry((uintptr_t)KmIsrTable + (isr * kIsrTableStride), selector * 0x8, dpl, ist);
 }
 
-void km::InitInterrupts(km::IsrAllocator& isrs, IsrTable *ist, uint16_t codeSelector) {
+void km::InitInterrupts(IsrTable *ist, uint16_t codeSelector) {
     gIsrTable = ist;
 
     for (size_t i = 0; i < x64::Idt::kCount; i++) {
         UpdateIdtEntry(i, codeSelector, Privilege::eSupervisor, 0);
-    }
-
-    // claim all the system interrupts
-    for (uint8_t i = 0; i < 32; i++) {
-        isrs.claimIsr(i);
     }
 
     LoadIdt();

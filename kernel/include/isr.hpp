@@ -194,7 +194,7 @@ namespace km {
     ///
     /// @param isrs The isr allocator to populate.
     /// @param codeSelector the kernel code selector to use as the isr execution selector.
-    void InitInterrupts(km::IsrAllocator& isrs, IsrTable *ist, uint16_t codeSelector);
+    void InitInterrupts(IsrTable *ist, uint16_t codeSelector);
 
     /// @brief Setup the IDT for this core.
     ///

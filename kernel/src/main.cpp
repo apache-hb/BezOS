@@ -988,8 +988,7 @@ static void LogSystemInfo(
 
 static km::IsrTable* InitStage1Idt(uint16_t cs) {
     km::IsrTable *ist = new IsrTable();
-    km::IsrAllocator isrs;
-    InitInterrupts(isrs, ist, cs);
+    InitInterrupts(ist, cs);
     InstallExceptionHandlers(ist);
 
     if (kSelfTestIdt) {
