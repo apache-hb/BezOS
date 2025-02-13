@@ -36,7 +36,7 @@ namespace km {
         uint64_t userStack;
     };
 
-    void SetupUserMode(mem::IAllocator *allocator, uint8_t ist);
+    void SetupUserMode(mem::IAllocator *allocator);
 
     void EnterUserMode(x64::RegisterState state);
 

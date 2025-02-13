@@ -145,6 +145,14 @@ static constinit SystemGdt gBootGdt{};
 static constinit SerialPort gCanBusPort;
 static constinit CanBus gCanBus{nullptr};
 
+static constexpr size_t kTssStackSize = x64::kPageSize * 4;
+
+enum {
+    kIstTrap = 1,
+    kIstTimer = 2,
+    kIstNmi = 3,
+};
+
 void km::SetupInitialGdt(void) {
     InitGdt(gBootGdt.entries, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
 }
@@ -154,8 +162,12 @@ void km::SetupApGdt(void) {
     CpuLocalRegisters tls = LoadTlsRegisters();
 
     tlsTaskState = x64::TaskStateSegment {
+        .ist1 = (uintptr_t)aligned_alloc(x64::kPageSize, kTssStackSize) + kTssStackSize,
+        .ist2 = (uintptr_t)aligned_alloc(x64::kPageSize, kTssStackSize) + kTssStackSize,
+        .ist3 = (uintptr_t)aligned_alloc(x64::kPageSize, kTssStackSize) + kTssStackSize,
         .iopbOffset = sizeof(x64::TaskStateSegment),
     };
+
     tlsSystemGdt = km::GetSystemGdt(&tlsTaskState);
     InitGdt(tlsSystemGdt->entries, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
     __ltr(SystemGdt::eTaskState0 * 0x8);
@@ -995,17 +1007,11 @@ static km::IsrAllocator InitStage1Idt(uint16_t cs) {
     return isrs;
 }
 
-static constexpr size_t kTssStackSize = x64::kPageSize * 4;
-
-enum {
-    kIstTrap = 1,
-    kIstTimer = 2,
-};
-
 static void SetupInterruptStacks(uint16_t cs, mem::IAllocator *allocator) {
     gBootTss = x64::TaskStateSegment{
-        .ist1 = (uintptr_t)allocator->allocateAligned(kTssStackSize, x64::kPageSize),
-        .ist2 = (uintptr_t)allocator->allocateAligned(kTssStackSize, x64::kPageSize),
+        .ist1 = (uintptr_t)allocator->allocateAligned(kTssStackSize, x64::kPageSize) + kTssStackSize,
+        .ist2 = (uintptr_t)allocator->allocateAligned(kTssStackSize, x64::kPageSize) + kTssStackSize,
+        .ist3 = (uintptr_t)allocator->allocateAligned(kTssStackSize, x64::kPageSize) + kTssStackSize,
     };
 
     gBootGdt.setTss(&gBootTss);
@@ -1014,6 +1020,8 @@ static void SetupInterruptStacks(uint16_t cs, mem::IAllocator *allocator) {
     for (uint8_t i = 0; i < isr::kExceptionCount; i++) {
         UpdateIdtEntry(i, cs, 0, kIstTrap);
     }
+
+    UpdateIdtEntry(0x2, cs, 0, kIstNmi);
 
     if (kSelfTestIdt) {
         IsrCallback old = InstallIsrHandler(0x2, [](km::IsrContext *context) -> km::IsrContext {
@@ -1283,7 +1291,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     // Setup gdt that contains a TSS for this core
     SetupApGdt();
 
-    km::SetupUserMode(gAllocator, kIstTimer);
+    km::SetupUserMode(gAllocator);
 
     uint8_t timer = isrs.allocateIsr();
 

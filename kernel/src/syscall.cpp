@@ -35,20 +35,15 @@ extern "C" OsCallResult KmSystemDispatchRoutine(km::SystemCallContext *context) 
     return OsCallResult { .Status = OsStatusInvalidFunction, .Value = 0 };
 }
 
-void km::SetupUserMode(mem::IAllocator *allocator, uint8_t ist) {
+void km::SetupUserMode(mem::IAllocator *allocator) {
     tlsSystemCallStack = allocator->allocateAligned(kStackSize, x64::kPageSize);
 
     void *rsp0 = allocator->allocateAligned(kStackSize, x64::kPageSize);
-    void *ist1 = allocator->allocateAligned(kStackSize, x64::kPageSize);
 
     tlsTaskState->rsp0 = (uintptr_t)rsp0 + kStackSize;
-    tlsTaskState->ist1 = (uintptr_t)ist1 + kStackSize;
 
     // nmis use the IST1 stack
-    km::UpdateIdtEntry(0x2, SystemGdt::eLongModeCode, 0, ist);
-
-    // reload the idt
-    km::LoadIdt();
+    km::UpdateIdtEntry(0x2, SystemGdt::eLongModeCode, 0, 1);
 
     KmSystemCallStackTlsOffset = tlsSystemCallStack.tlsOffset();
 
