@@ -76,7 +76,7 @@ static km::IsrContext DispatchIsr(km::IsrContext *context, F&& handler) {
 
 extern "C" km::IsrContext KmIsrDispatchRoutine(km::IsrContext *context) {
     return DispatchIsr(context, [](km::IsrContext *context) {
-        return gIsrTable.mHandlers[context->vector].load()(context);
+        return gIsrTable.invoke(context);
     });
 }
 

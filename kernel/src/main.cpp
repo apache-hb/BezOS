@@ -988,6 +988,7 @@ static void LogSystemInfo(
 }
 
 static km::IsrAllocator InitStage1Idt(uint16_t cs) {
+    // km::IsrTable *ist = new IsrTable();
     km::IsrAllocator isrs;
     InitInterrupts(isrs, cs);
     InstallExceptionHandlers();
@@ -1242,17 +1243,20 @@ void LaunchKernel(boot::LaunchInfo launch) {
     SetupInitialGdt();
 
     //
+    // Once we have the initial gdt setup we create the global allocator.
+    // The IDT depends on the allocator to create its global ISR table.
+    //
+    Stage1MemoryInfo stage1 = InitStage1Memory(launch, processor);
+    Stage2MemoryInfo *stage2 = InitStage2Memory(launch, processor, stage1);
+    gMemory = stage2->memory;
+
+    //
     // I need to disable the PIC before enabling interrupts otherwise I
     // get flooded by timer interrupts.
     //
     Disable8259Pic();
 
     km::IsrAllocator isrs = InitStage1Idt(SystemGdt::eLongModeCode);
-
-    Stage1MemoryInfo stage1 = InitStage1Memory(launch, processor);
-    Stage2MemoryInfo *stage2 = InitStage2Memory(launch, processor, stage1);
-    gMemory = stage2->memory;
-
     SetupInterruptStacks(SystemGdt::eLongModeCode, gAllocator);
 
     PlatformInfo platform = GetPlatformInfo(launch.smbios32Address, launch.smbios64Address, *stage2->memory);
