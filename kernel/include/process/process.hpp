@@ -38,6 +38,7 @@ namespace km {
     struct Thread {
         ThreadId id;
         stdx::String name;
+        ProcessId process;
         x64::RegisterState state;
         x64::MachineState machine;
     };
@@ -71,7 +72,7 @@ namespace km {
     public:
         SystemObjects() = default;
 
-        Thread *createThread(stdx::String name);
+        Thread *createThread(stdx::String name, Process *process);
         AddressSpace *createAddressSpace(stdx::String name, km::AddressMapping mapping);
         Process *createProcess(stdx::String name, km::Privilege privilege);
 

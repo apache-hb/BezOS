@@ -2,11 +2,11 @@
 
 using namespace km;
 
-Thread *SystemObjects::createThread(stdx::String name) {
+Thread *SystemObjects::createThread(stdx::String name, Process *process) {
     stdx::UniqueLock guard(mLock);
 
     ThreadId id = mThreadIds.allocate();
-    std::unique_ptr<Thread> thread{new Thread{id, std::move(name)}};
+    std::unique_ptr<Thread> thread{new Thread{id, std::move(name), process->id}};
     Thread *result = thread.get();
     mThreads.insert({id, std::move(thread)});
     return result;

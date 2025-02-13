@@ -75,18 +75,18 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
     km::SetupInitialGdt();
     km::LoadIdt();
 
-    km::Apic pic = km::InitApApic(*header->memory, header->bspIntController);
+    km::Apic apic = km::InitApApic(*header->memory, header->bspIntController);
 
     km::InitCpuLocalRegion(*header->memory);
-    km::InitKernelThread(pic);
+    km::InitKernelThread(apic);
 
     km::SetupApGdt();
 
-    KmDebugMessage("[SMP] Started AP ", pic->id(), "\n");
+    KmDebugMessage("[SMP] Started AP ", apic->id(), "\n");
 
-    pic->setSpuriousVector(header->spuriousInt);
-    pic->enable();
-    pic->eoi();
+    apic->setSpuriousVector(header->spuriousInt);
+    apic->enable();
+    apic->eoi();
 
     header->ready = 1;
 

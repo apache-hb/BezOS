@@ -45,7 +45,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
         return status;
     }
 
-    Process *process = objects.createProcess("main", km::Privilege::eUser);
+    Process *process = objects.createProcess("init.elf", km::Privilege::eUser);
 
     uint64_t entry = header.entry;
 
@@ -120,7 +120,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
 
         memory.pt.map(mapping, flags);
 
-        AddressSpace *addressSpace = objects.createAddressSpace("main", mapping);
+        AddressSpace *addressSpace = objects.createAddressSpace("ELF Section", mapping);
 
         process->memory.add(addressSpace->id);
     }
@@ -139,7 +139,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
     regs.rbp = (uintptr_t)stack + kStackSize;
     regs.rsp = (uintptr_t)stack + kStackSize;
 
-    Thread *main = objects.createThread("main");
+    Thread *main = objects.createThread("Main", process);
     main->state = regs;
 
     process->threads.add(main->id);

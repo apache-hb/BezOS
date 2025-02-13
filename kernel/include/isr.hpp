@@ -1,6 +1,7 @@
 #pragma once
 
 #include "util/util.hpp"
+#include "util/digit.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -53,6 +54,18 @@ namespace km {
         static constexpr uint8_t kSecondaryAta = 0xF;
     }
 
+    struct [[gnu::packed]] IdtEntry {
+        uint16_t address0;
+        uint16_t selector;
+        uint8_t ist;
+        uint8_t flags;
+        sm::uint48_t address1;
+        uint32_t reserved;
+    };
+
+    static_assert(sizeof(IdtEntry) == 16);
+
+
     struct [[gnu::packed]] IsrContext {
         uint64_t rax;
         uint64_t rbx;
@@ -83,6 +96,10 @@ namespace km {
     static_assert(sizeof(IsrContext) == 176, "Update isr.S");
 
     using IsrCallback = km::IsrContext(*)(km::IsrContext*);
+
+    struct [[gnu::packed]] IsrTable {
+        IsrCallback handlers[isr::kAvailableIsrCount];
+    };
 
     enum class Privilege : uint8_t {
         eSupervisor = 0,
