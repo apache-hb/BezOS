@@ -1099,8 +1099,6 @@ static void NormalizeProcessorState() {
     kGsBase.store(0);
 }
 
-static uint8_t gSchedulerVector = 0;
-
 static vfs2::VfsRoot *gVfsRoot = nullptr;
 static SystemObjects *gSystemObjects = nullptr;
 static SystemMemory *gMemory = nullptr;
@@ -1338,9 +1336,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     pci::ProbeConfigSpace(config.get(), rsdt.mcfg());
 
-    gSchedulerVector = isrs.allocateIsr();
-
-    InitSmp(*stage2->memory, lapic.pointer(), rsdt, gSchedulerVector, spuriousInt);
+    InitSmp(*stage2->memory, lapic.pointer(), rsdt, spuriousInt);
     SetDebugLogLock(DebugLogLockType::eRecursiveSpinLock);
 
     // Setup gdt that contains a TSS for this core
@@ -1348,18 +1344,20 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     km::SetupUserMode(gAllocator);
 
-    uint8_t timer = isrs.allocateIsr();
 
     static bool happened = false;
-
-    InstallIsrHandler(gSchedulerVector, [](km::IsrContext *ctx) -> km::IsrContext {
+    uint8_t schedulerVec = isrs.allocateIsr();
+    const IsrTable::Entry *schedulerInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
         happened = true;
         km::IApic *apic = km::GetCpuLocalApic();
         apic->eoi();
         return *ctx;
     });
 
-    lapic->selfIpi(gSchedulerVector);
+    uint8_t schedulerIdx = ist->index(schedulerInt);
+    KM_CHECK(schedulerVec == schedulerIdx, "Scheduler interrupt vector mismatch.");
+
+    lapic->selfIpi(schedulerIdx);
 
     KM_CHECK(happened, "Failed to receive IPI.");
 
@@ -1367,13 +1365,14 @@ void LaunchKernel(boot::LaunchInfo launch) {
     lapic->setInitialCount(0x10000);
 
     lapic->cfgIvtTimer(apic::IvtConfig {
-        .vector = gSchedulerVector,
+        .vector = schedulerIdx,
         .polarity = apic::Polarity::eActiveHigh,
         .trigger = apic::Trigger::eEdge,
         .enabled = true,
         .timer = apic::TimerMode::ePeriodic,
     });
 
+    uint8_t timer = isrs.allocateIsr();
     InstallIsrHandler(timer, [](IsrContext *ctx) -> km::IsrContext {
         IApic *apic = km::GetCpuLocalApic();
         apic->eoi();
