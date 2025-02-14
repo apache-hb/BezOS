@@ -35,6 +35,7 @@ common_args = [
     '-Wno-gnu-case-range',
     '-Wno-gcc-compat',
     '-Wno-gnu-designator',
+    '-Wno-gnu-conditional-omitted-operand',
 
     '-Wno-missing-field-initializers',
     '-Wno-missing-designated-field-initializers',
@@ -280,6 +281,7 @@ meson.add_install_script('data/image.sh')
 
 gtest = dependency('gtest', native : true)
 gmock = dependency('gmock', native : true)
+libvirt = dependency('libvirt', native : true)
 stb_image_write = dependency('stb_image_write')
 gtest_main = dependency('gtest_main', native : true)
 testkwargs = { 'protocol' : 'gtest', 'timeout': 5 }
@@ -534,6 +536,12 @@ testcases = {
             'kernel/src/terminal/buffered.cpp',
         ],
         'dependencies' : [ stb_image_write ]
+    },
+    'launch': {
+        'sources': [
+            'kernel/test/emulated/launch.cpp',
+        ],
+        'dependencies' : [ libvirt ],
     }
 }
 
@@ -548,7 +556,12 @@ foreach name, kwargs : testcases
 
     test(name, exe,
         suite : 'kernel',
-        kwargs : testkwargs
+        kwargs : testkwargs,
+        env : {
+            'LSAN_OPTIONS': 'suppressions=' + meson.current_source_dir() / 'data/test/sanitizer/glib.supp',
+            'MESON_SOURCE_ROOT': meson.current_source_dir(),
+            'MESON_PREFIX': get_option('prefix'),
+        }
     )
 endforeach
 
