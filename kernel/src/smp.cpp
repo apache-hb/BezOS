@@ -81,9 +81,7 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
 
     km::SetupApGdt();
 
-    // TODO: fill this out with entries from the boot ist
     km::IsrTable *ist = new km::IsrTable();
-    ist->copyExceptions(header->bootIst);
     km::SetCpuLocalIsrTable(ist);
 
     const km::IsrTable::Entry *spuriousInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {

@@ -101,10 +101,25 @@ namespace km {
 
     using IsrEntry = std::atomic<IsrCallback>;
 
+    class [[gnu::packed]] SharedIsrTable {
+        static constexpr auto kCount = isr::kExceptionCount;
+        IsrEntry mHandlers[kCount] = { [0 ... (kCount - 1)] = DefaultIsrHandler };
+
+    public:
+        void install(uint8_t isr, IsrCallback callback) {
+            mHandlers[isr].store(callback);
+        }
+
+        IsrContext invoke(km::IsrContext *context) {
+            km::IsrCallback isr = mHandlers[uint8_t(context->vector)];
+            return isr(context);
+        }
+    };
+
     /// @brief A table containing isr handlers for a single cpu.
     class [[gnu::packed]] IsrTable {
     public:
-        static constexpr auto kCount = isr::kIsrCount;
+        static constexpr auto kCount = isr::kAvailableCount;
         using Entry = IsrEntry;
 
     private:
@@ -127,12 +142,6 @@ namespace km {
         void release(const Entry *callback);
 
         uint32_t index(const Entry *entry) const;
-
-        void copyExceptions(const IsrTable *from) {
-            for (uint8_t i = 0; i < isr::kExceptionCount; i++) {
-                mHandlers[i].store(from->mHandlers[i].load());
-            }
-        }
     };
 
     enum class Privilege : uint8_t {
@@ -172,6 +181,8 @@ namespace km {
             EnableNmi();
         }
     };
+
+    SharedIsrTable *GetSharedIsrTable();
 
     void SetCpuLocalIsrTable(IsrTable *table);
 

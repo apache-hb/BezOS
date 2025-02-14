@@ -576,7 +576,6 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
     PageMemoryTypeLayout pat = SetupPat();
 
     km::AddressMapping stack = launch.stack;
-    // km::AddressMapping stackMapping = { (void*)((uintptr_t)stack.vaddr - stack.size), stack.paddr - stack.size, stack.size };
     PageBuilder pm = PageBuilder { processor.maxpaddr, processor.maxvaddr, launch.hhdmOffset, pat };
 
     WriteMtrrs(pm);
@@ -868,7 +867,7 @@ static void DumpIsrContext(const km::IsrContext *context, stdx::StringView messa
     DumpIsrState(context);
 }
 
-static void InstallExceptionHandlers(IsrTable *ist) {
+static void InstallExceptionHandlers(SharedIsrTable *ist) {
     ist->install(0x0, [](km::IsrContext *context) -> km::IsrContext {
         DumpIsrContext(context, "Divide by zero (#DE)");
         DumpStackTrace(context);
@@ -989,7 +988,7 @@ static void LogSystemInfo(
 static km::IsrTable* InitStage1Idt(uint16_t cs) {
     km::IsrTable *ist = new IsrTable();
     InitInterrupts(ist, cs);
-    InstallExceptionHandlers(ist);
+    InstallExceptionHandlers(GetSharedIsrTable());
 
     if (kSelfTestIdt) {
         IsrCallback old = ist->install(64, [](km::IsrContext *context) -> km::IsrContext {

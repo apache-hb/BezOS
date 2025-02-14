@@ -4,7 +4,6 @@
 #include "arch/isr.hpp"
 
 #include "thread.hpp"
-#include "util/bits.hpp"
 #include "util/digit.hpp"
 
 #include "gdt.h"
@@ -32,8 +31,9 @@ namespace x64 {
 
 static constexpr size_t kIsrTableStride = 16;
 extern "C" const char KmIsrTable[];
-
 static x64::Idt gIdt;
+
+static constinit km::SharedIsrTable gSharedIsrTable{};
 
 static constinit km::IsrTable *gIsrTable = nullptr;
 
@@ -81,6 +81,11 @@ static km::IsrContext DispatchIsr(km::IsrContext *context, F&& handler) {
 
 extern "C" km::IsrContext KmIsrDispatchRoutine(km::IsrContext *context) {
     return DispatchIsr(context, [](km::IsrContext *context) {
+        uint8_t vector = uint8_t(context->vector);
+        if (vector < km::isr::kExceptionCount) {
+            return gSharedIsrTable.invoke(context);
+        }
+
         km::IsrTable *ist = gEnableLocalIsrTable ? tlsIsrTable.get() : gIsrTable;
         return ist->invoke(context);
     });
@@ -107,6 +112,10 @@ void km::LoadIdt(void) {
     };
 
     __lidt(idtr);
+}
+
+km::SharedIsrTable *km::GetSharedIsrTable() {
+    return &gSharedIsrTable;
 }
 
 void km::SetCpuLocalIsrTable(IsrTable *table) {
@@ -143,23 +152,16 @@ km::IsrTable::Entry *km::IsrTable::find(const Entry *handle) {
 }
 
 km::IsrCallback km::IsrTable::install(uint8_t isr, IsrCallback callback) {
-    return mHandlers[isr].exchange(callback);
+    return mHandlers[isr - isr::kExceptionCount].exchange(callback);
 }
 
 km::IsrContext km::IsrTable::invoke(km::IsrContext *context) {
-    km::IsrCallback isr = mHandlers[uint8_t(context->vector)];
+    km::IsrCallback isr = mHandlers[uint8_t(context->vector) - isr::kExceptionCount];
     return isr(context);
 }
 
 const km::IsrTable::Entry *km::IsrTable::allocate(IsrCallback callback) {
-    //
-    // We don't want to allow allocation in the architecturally reserved
-    // range of idt entries. So take a subspan that only includes the
-    // available area, which we will search for a free entry in.
-    //
-    std::span<Entry> available = std::span(mHandlers).subspan(isr::kExceptionCount);
-
-    for (Entry& entry : available) {
+    for (Entry& entry : mHandlers) {
 
         //
         // Find the first entry that is free by swapping with the default handler.
@@ -192,5 +194,5 @@ uint32_t km::IsrTable::index(const Entry *entry) const {
         return UINT32_MAX;
     }
 
-    return std::distance(mHandlers, entry);
+    return std::distance(mHandlers, entry) + isr::kExceptionCount;
 }
