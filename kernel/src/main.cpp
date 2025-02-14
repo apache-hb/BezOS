@@ -1251,7 +1251,8 @@ static void StartupSmp(const acpi::AcpiTables& rsdt, km::IsrTable *ist) {
     // to using cpu local isr tables, which must happen after smp startup.
     //
     std::atomic_flag launchScheduler = ATOMIC_FLAG_INIT;
-    InitSmp(*gMemory, GetCpuLocalApic(), rsdt, ist, &launchScheduler);
+    std::atomic<uint32_t> remaining;
+    InitSmp(*gMemory, GetCpuLocalApic(), rsdt, ist, &launchScheduler, &remaining);
     SetDebugLogLock(DebugLogLockType::eRecursiveSpinLock);
 
     //
@@ -1270,6 +1271,13 @@ static void StartupSmp(const acpi::AcpiTables& rsdt, km::IsrTable *ist) {
     // Signal that the scheduler is now ready to accept work items.
     //
     launchScheduler.test_and_set();
+
+    while (remaining > 0) {
+        //
+        // Spin until all AP cores have started.
+        //
+        _mm_pause();
+    }
 }
 
 static OsStatus KernelMasterTask() {
