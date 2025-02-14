@@ -156,13 +156,13 @@ static km::AddressMapping BootGetStack(const ultra_memory_map_attribute *memmap,
     return stack;
 }
 
-static km::MemoryRange BootGetInitArchive(const ultra_boot_context *context, uintptr_t hhdmOffset) {
+static km::MemoryRange BootGetInitArchive(const ultra_boot_context *context) {
     auto mod = GetModule(context, "initrd");
     if (mod == nullptr) {
         return { };
     }
 
-    return { mod->address - hhdmOffset, mod->address + mod->size - hhdmOffset };
+    return { mod->address, mod->address + mod->size };
 }
 
 extern "C" int HyperMain(ultra_boot_context *context, uint32_t) {
@@ -177,7 +177,7 @@ extern "C" int HyperMain(ultra_boot_context *context, uint32_t) {
     std::span fbs = BootGetFrameBuffers(hhdmOffset, framebuffer, &allocator);
 
     km::AddressMapping stack = BootGetStack(memmap, hhdmOffset);
-    km::MemoryRange initrd = BootGetInitArchive(context, hhdmOffset);
+    km::MemoryRange initrd = BootGetInitArchive(context);
 
     boot::LaunchInfo info = {
         .kernelPhysicalBase = kernelInfo->physical_base,

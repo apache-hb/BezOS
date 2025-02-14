@@ -180,6 +180,11 @@ void km::LocalApic::selfIpi(uint8_t vector) {
     IApic::sendIpi(apic::IcrDeliver::eSelf, apic::IpiAlert { vector });
 }
 
+bool km::LocalApic::pendingIpi() {
+    static constexpr uint32_t kDeliveryStatus = (1 << 12);
+    return read(apic::kIcr0) & kDeliveryStatus;
+}
+
 void km::LocalApic::writeIcr(uint32_t dst, uint32_t cmd) {
     reg(kIcr1) = dst << 24;
     reg(kIcr0) = cmd;
@@ -231,6 +236,21 @@ void km::IApic::maskTaskPriority() {
     uint32_t value = read(apic::kTaskPriority);
     value |= kMaskTaskPriority;
     write(apic::kTaskPriority, value);
+}
+
+km::apic::ErrorState km::IApic::status() {
+    uint32_t esr = read(apic::kErrorStatus);
+
+    return apic::ErrorState {
+        .egressChecksum = bool(esr & (1 << 0)),
+        .ingressChecksum = bool(esr & (1 << 1)),
+        .egressAccept = bool(esr & (1 << 2)),
+        .ingressAccept = bool(esr & (1 << 3)),
+        .priorityIpi = bool(esr & (1 << 4)),
+        .egressVector = bool(esr & (1 << 5)),
+        .ingressVector = bool(esr & (1 << 6)),
+        .illegalRegister = bool(esr & (1 << 7)),
+    };
 }
 
 void km::IApic::configure(apic::Ivt ivt, apic::IvtConfig config) {
@@ -465,4 +485,30 @@ void km::IoApicSet::setLegacyRedirect(apic::IvtConfig config, uint32_t redirect,
     KmDebugMessage("[INIT] IRQ PIN ", redirect, " redirected to APIC ", target->id(), ":", config.vector, "\n");
 
     setRedirect(config, redirect, target);
+}
+
+using EsrFormat = km::Format<km::apic::ErrorState>;
+
+void EsrFormat::format(km::IOutStream& out, km::apic::ErrorState esr) {
+    out.format("ESR(");
+    bool first = true;
+    auto append = [&](bool value, stdx::StringView name) {
+        if (value) {
+            if (!first)
+                out.format(", ");
+            first = false;
+            out.format(name);
+        }
+    };
+
+    append(esr.egressChecksum, "EgressChecksum");
+    append(esr.ingressChecksum, "IngressChecksum");
+    append(esr.egressAccept, "EgressAccept");
+    append(esr.ingressAccept, "IngressAccept");
+    append(esr.priorityIpi, "PriorityIpi");
+    append(esr.egressVector, "EgressVector");
+    append(esr.ingressVector, "IngressVector");
+    append(esr.illegalRegister, "IllegalRegister");
+
+    out.format(")");
 }

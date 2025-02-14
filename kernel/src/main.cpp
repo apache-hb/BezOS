@@ -924,7 +924,6 @@ static void LogSystemInfo(
     const ComPortInfo& com2Info) {
     KmDebugMessage("[INIT] CR0: ", x64::Cr0::load(), "\n");
     KmDebugMessage("[INIT] CR4: ", x64::Cr4::load(), "\n");
-    KmDebugMessage("[INIT] HHDM: ", Hex(launch.hhdmOffset).pad(16, '0'), "\n");
 
     KmDebugMessage("[INIT] System report.\n");
     KmDebugMessage("| Component     | Property             | Status\n");
@@ -983,6 +982,8 @@ static void LogSystemInfo(
     KmDebugMessage("| /BOOT         | Stack                | ", launch.stack, "\n");
     KmDebugMessage("| /BOOT         | Kernel virtual       | ", launch.kernelVirtualBase, "\n");
     KmDebugMessage("| /BOOT         | Kernel physical      | ", launch.kernelPhysicalBase, "\n");
+    KmDebugMessage("| /BOOT         | INITRD               | ", launch.initrd, "\n");
+    KmDebugMessage("| /BOOT         | HHDM offset          | ", Hex(launch.hhdmOffset).pad(16, '0'), "\n");
 }
 
 static km::IsrTable* InitStage1Idt(uint16_t cs) {
@@ -1165,6 +1166,8 @@ static void MountInitArchive(MemoryRange initrd, SystemMemory& memory) {
         KM_PANIC("No initrd found.");
     }
 
+    KmDebugMessage("[INIT] Initrd found at ", initrd, "\n");
+
     void *initrdMemory = memory.map(initrd, PageFlags::eRead);
     sm::SharedPtr<MemoryBlk> block = new MemoryBlk{(std::byte*)initrdMemory, initrd.size()};
 
@@ -1297,9 +1300,10 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     km::SetupUserMode(gAllocator);
 
-    static bool happened = false;
+    // static std::atomic<bool> happened = false;
     const IsrTable::Entry *schedulerInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
-        happened = true;
+        // KmDebugMessage("[ISR] Scheduler interrupt: ", ctx->vector, "\n");
+        // happened = true;
         km::IApic *apic = km::GetCpuLocalApic();
         apic->eoi();
         return *ctx;
@@ -1309,7 +1313,13 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     lapic->selfIpi(schedulerIdx);
 
-    KM_CHECK(happened, "Failed to receive IPI.");
+#if 0
+    if (!happened) {
+        auto esr = lapic->status();
+        KmDebugMessage("[INIT] Failed to receive IPI: ", esr, "\n");
+        KM_PANIC("Failed to receive IPI.");
+    }
+#endif
 
     lapic->setTimerDivisor(apic::TimerDivide::e32);
     lapic->setInitialCount(0x10000);

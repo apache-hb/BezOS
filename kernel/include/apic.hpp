@@ -112,11 +112,23 @@ namespace km {
             e128 = 0b110,
         };
 
+        struct ErrorState {
+            bool egressChecksum:1;
+            bool ingressChecksum:1;
+            bool egressAccept:1;
+            bool ingressAccept:1;
+            bool priorityIpi:1;
+            bool egressVector:1;
+            bool ingressVector:1;
+            bool illegalRegister:1;
+        };
+
         // apic register offsets
 
         static constexpr uint16_t kApicVersion = 0x3;
-        static constexpr uint16_t kEndOfInt = 0xB;
-        static constexpr uint16_t kSpuriousInt = 0xF;
+        static constexpr uint16_t kEndOfInt = 0xb;
+        static constexpr uint16_t kSpuriousInt = 0xf;
+        static constexpr uint16_t kErrorStatus = 0x28;
         static constexpr uint16_t kTimerLvt = 0x32;
         static constexpr uint16_t kTaskPriority = 0x8;
 
@@ -170,6 +182,10 @@ namespace km {
         void cfgIvtLvt1(apic::IvtConfig config) { configure(apic::Ivt::eLvt1, config); }
         void cfgIvtError(apic::IvtConfig config) { configure(apic::Ivt::eError, config); }
 
+        virtual bool pendingIpi() = 0;
+
+        apic::ErrorState status();
+
         void configure(apic::Ivt ivt, apic::IvtConfig config);
 
         void setTimerDivisor(apic::TimerDivide timer);
@@ -199,6 +215,7 @@ namespace km {
         apic::Type type() const override { return apic::Type::eX2Apic; }
 
         void selfIpi(uint8_t vector) override;
+        bool pendingIpi() override { return false; }
     };
 
     class LocalApic final : public IApic {
@@ -227,6 +244,7 @@ namespace km {
         apic::Type type() const override { return apic::Type::eLocalApic; }
 
         void selfIpi(uint8_t vector) override;
+        bool pendingIpi() override;
 
         void *baseAddress(void) const { return mBaseAddress; }
     };
@@ -295,3 +313,8 @@ namespace km {
     Apic InitBspApic(km::SystemMemory& memory, bool useX2Apic);
     Apic InitApApic(km::SystemMemory& memory, const km::IApic *bsp);
 }
+
+template<>
+struct km::Format<km::apic::ErrorState> {
+    static void format(km::IOutStream& out, km::apic::ErrorState esr);
+};
