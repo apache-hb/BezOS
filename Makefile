@@ -50,15 +50,15 @@ qemu-ovmf: install-ovmf
 
 .PHONY: vbox
 vbox: build
-	pwsh.exe -File data/test/vm/Test-VirtualBox.ps1 -KernelImage install/kernel/bezos-limine.iso
+	pwsh.exe -File data/test/vm/Test-VirtualBox.ps1 -KernelImage $(LIMINE_ISO)
 
 .PHONY: vmware
 vmware: build
-	pwsh.exe -File data/test/vm/Test-VMware.ps1 -KernelImage install/kernel/bezos-limine.iso
+	pwsh.exe -File data/test/vm/Test-VMware.ps1 -KernelImage $(LIMINE_ISO)
 
 .PHONY: hyperv
 hyperv: build
-	pwsh.exe -File data/test/vm/Test-HyperV.ps1 -KernelImage install/kernel/bezos-limine.iso
+	pwsh.exe -File data/test/vm/Test-HyperV.ps1 -KernelImage $(LIMINE_ISO)
 
 .PHONY: pxe
 pxe: build

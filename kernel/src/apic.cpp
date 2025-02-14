@@ -14,7 +14,7 @@ static constexpr uint16_t k2xApicBaseMsr = 0x800;
 
 static constexpr x64::ModelRegister<k2xApicBaseMsr + 0x2, x64::RegisterAccess::eRead> k2xApicId;
 static constexpr x64::ModelRegister<k2xApicBaseMsr + 0x30, x64::RegisterAccess::eWrite> k2xApicIcr;
-static constexpr x64::ModelRegister<k2xApicBaseMsr + 0x83, x64::RegisterAccess::eWrite> k2xApicSelfIpi;
+static constexpr x64::ModelRegister<k2xApicBaseMsr + 0x3f, x64::RegisterAccess::eWrite> k2xApicSelfIpi;
 
 static constexpr uint64_t kApicAddressMask = 0xFFFFFFFFFFFFF000;
 static constexpr uint64_t kApicEnableBit = (1 << 11);
