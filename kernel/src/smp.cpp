@@ -8,7 +8,10 @@
 #include "panic.hpp"
 #include "log.hpp"
 #include "pat.hpp"
+#include "process/schedule.hpp"
 #include "processor.hpp"
+#include "std/concurrency.hpp"
+#include "syscall.hpp"
 #include "thread.hpp"
 
 #include <atomic>
@@ -51,6 +54,7 @@ struct SmpInfoHeader {
     km::IApic *bspIntController;
     km::SystemMemory *memory;
     km::IsrTable *bootIst;
+    std::atomic_flag *launchScheduler;
 };
 
 static_assert(offsetof(SmpInfoHeader, gdt) == 32);
@@ -99,6 +103,14 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
 
     header->ready = 1;
 
+    km::SetupUserMode();
+
+    while (!header->launchScheduler->test()) {
+        _mm_pause();
+    }
+
+    km::ScheduleWork(ist, apic.pointer());
+
     KmIdle();
 }
 
@@ -106,7 +118,7 @@ static uintptr_t AllocSmpStack() {
     return (uintptr_t)aligned_alloc(x64::kPageSize, km::kStartupStackSize);
 }
 
-static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::IApic *pic, km::IsrTable *ist) {
+static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::IApic *pic, km::IsrTable *ist, std::atomic_flag *launchScheduler) {
     km::PageTableManager& vmm = memory->pt;
 
     km::PhysicalAddress pml4 = vmm.rootPageTable();
@@ -124,6 +136,7 @@ static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::IApic *pic
         .bspIntController = pic,
         .memory = memory,
         .bootIst = ist,
+        .launchScheduler = launchScheduler,
     };
 }
 
@@ -132,7 +145,7 @@ size_t km::GetStartupMemorySize(const acpi::AcpiTables &acpiTables) {
     return apCount * kStartupMemorySize;
 }
 
-void km::InitSmp(km::SystemMemory& memory, km::IApic *bsp, acpi::AcpiTables& acpiTables, km::IsrTable *ist) {
+void km::InitSmp(km::SystemMemory& memory, km::IApic *bsp, acpi::AcpiTables& acpiTables, km::IsrTable *ist, std::atomic_flag *launchScheduler) {
     KmDebugMessage("[SMP] Starting APs.\n");
 
     // copy the SMP blob to the correct location
@@ -151,7 +164,7 @@ void km::InitSmp(km::SystemMemory& memory, km::IApic *bsp, acpi::AcpiTables& acp
     memory.pt.mapRange({ kSmpInfo, kSmpInfo + sizeof(SmpInfoHeader) }, (void*)kSmpInfo.address, km::PageFlags::eData);
     memory.pt.mapRange({ kSmpStart, kSmpStart + blobSize }, (void*)kSmpStart.address, km::PageFlags::eCode);
 
-    SmpInfoHeader header = SetupSmpInfoHeader(&memory, bsp, ist);
+    SmpInfoHeader header = SetupSmpInfoHeader(&memory, bsp, ist, launchScheduler);
     memcpy(smpInfo, &header, sizeof(header));
 
     for (const acpi::MadtEntry *madt : *acpiTables.madt()) {

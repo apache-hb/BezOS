@@ -20,5 +20,5 @@ namespace km {
     /// @param bsp The APIC for the BSP.
     /// @param acpiTables The ACPI tables.
     /// @param ist The ISR table.
-    void InitSmp(km::SystemMemory& memory, km::IApic *bsp, acpi::AcpiTables& acpiTables, km::IsrTable *ist);
+    void InitSmp(km::SystemMemory& memory, km::IApic *bsp, acpi::AcpiTables& acpiTables, km::IsrTable *ist, std::atomic_flag *launchScheduler);
 }

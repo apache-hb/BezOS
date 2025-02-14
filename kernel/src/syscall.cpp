@@ -9,7 +9,7 @@ static constexpr x64::ModelRegister<0xC0000081, x64::RegisterAccess::eReadWrite>
 static constexpr x64::ModelRegister<0xC0000082, x64::RegisterAccess::eReadWrite> kLStar;
 static constexpr x64::ModelRegister<0xC0000084, x64::RegisterAccess::eReadWrite> kFMask;
 
-static constexpr size_t kStackSize = 0x1000;
+static constexpr size_t kStackSize = 0x4000;
 
 CPU_LOCAL
 static constinit km::CpuLocal<void*> tlsSystemCallStack;
@@ -34,10 +34,10 @@ extern "C" OsCallResult KmSystemDispatchRoutine(km::SystemCallContext *context) 
     return OsCallResult { .Status = OsStatusInvalidFunction, .Value = 0 };
 }
 
-void km::SetupUserMode(mem::IAllocator *allocator) {
-    tlsSystemCallStack = allocator->allocateAligned(kStackSize, x64::kPageSize);
+void km::SetupUserMode() {
+    tlsSystemCallStack = aligned_alloc(kStackSize, x64::kPageSize);
 
-    void *rsp0 = allocator->allocateAligned(kStackSize, x64::kPageSize);
+    void *rsp0 = aligned_alloc(kStackSize, x64::kPageSize);
     tlsTaskState->rsp0 = (uintptr_t)rsp0 + kStackSize;
 
     KmSystemCallStackTlsOffset = tlsSystemCallStack.tlsOffset();

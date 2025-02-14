@@ -1347,7 +1347,15 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     SetCpuLocalIsrTable(ist);
 
-    InitSmp(*stage2->memory, lapic.pointer(), rsdt, ist);
+    //
+    // Create the scheduler and system objects before we startup SMP so that
+    // the AP cores have a scheduler to attach to.
+    //
+    gScheduler = new Scheduler();
+    gSystemObjects = new SystemObjects();
+
+    std::atomic_flag launchScheduler = ATOMIC_FLAG_INIT;
+    InitSmp(*stage2->memory, lapic.pointer(), rsdt, ist, &launchScheduler);
     SetDebugLogLock(DebugLogLockType::eRecursiveSpinLock);
 
     EnableCpuLocalIsrTable();
@@ -1355,31 +1363,9 @@ void LaunchKernel(boot::LaunchInfo launch) {
     // Setup gdt that contains a TSS for this core
     SetupApGdt();
 
-    km::SetupUserMode(gAllocator);
+    launchScheduler.test_and_set();
 
-    // static std::atomic<bool> happened = false;
-    const IsrTable::Entry *schedulerInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
-        // KmDebugMessage("[ISR] Scheduler interrupt: ", ctx->vector, "\n");
-        // happened = true;
-        km::IApic *apic = km::GetCpuLocalApic();
-        apic->eoi();
-        return *ctx;
-    });
-
-    uint8_t schedulerIdx = ist->index(schedulerInt);
-
-    lapic->selfIpi(schedulerIdx);
-
-    lapic->setTimerDivisor(apic::TimerDivide::e32);
-    lapic->setInitialCount(0x10000);
-
-    lapic->cfgIvtTimer(apic::IvtConfig {
-        .vector = schedulerIdx,
-        .polarity = apic::Polarity::eActiveHigh,
-        .trigger = apic::Trigger::eEdge,
-        .enabled = true,
-        .timer = apic::TimerMode::ePeriodic,
-    });
+    km::SetupUserMode();
 
     const IsrTable::Entry *timerInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
         km::IApic *apic = km::GetCpuLocalApic();
@@ -1404,9 +1390,6 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     DateTime time = ReadRtc();
     KmDebugMessage("[INIT] Current time: ", time.year, "-", time.month, "-", time.day, "T", time.hour, ":", time.minute, ":", time.second, "Z\n");
-
-    gScheduler = new Scheduler();
-    gSystemObjects = new SystemObjects();
 
     MountRootVfs();
     MountVolatileFolder();

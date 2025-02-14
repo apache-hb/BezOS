@@ -1,6 +1,5 @@
 #pragma once
 
-#include "allocator/allocator.hpp"
 #include "arch/arch.hpp"
 #include "arch/msr.hpp"
 #include "bezos/syscall.h"
@@ -37,7 +36,7 @@ namespace km {
         uint64_t userStack;
     };
 
-    void SetupUserMode(mem::IAllocator *allocator);
+    void SetupUserMode();
 
     void EnterUserMode(km::IsrContext state);
 
