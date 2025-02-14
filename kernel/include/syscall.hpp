@@ -4,6 +4,7 @@
 #include "arch/arch.hpp"
 #include "arch/msr.hpp"
 #include "bezos/syscall.h"
+#include "isr.hpp"
 
 #include <cstdint>
 
@@ -38,7 +39,7 @@ namespace km {
 
     void SetupUserMode(mem::IAllocator *allocator);
 
-    void EnterUserMode(x64::RegisterState state);
+    void EnterUserMode(km::IsrContext state);
 
     void AddSystemCall(uint8_t function, SystemCallHandler handler);
 

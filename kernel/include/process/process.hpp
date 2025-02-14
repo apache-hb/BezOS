@@ -38,9 +38,9 @@ namespace km {
     struct Thread {
         ThreadId id;
         stdx::String name;
-        ProcessId process;
-        x64::RegisterState state;
-        x64::MachineState machine;
+        Process *process;
+        km::IsrContext state;
+        std::unique_ptr<std::byte[]> stack;
     };
 
     struct AddressSpace {
@@ -53,8 +53,9 @@ namespace km {
         ProcessId id;
         stdx::String name;
         km::Privilege privilege;
-        stdx::Vector2<ThreadId> threads;
-        stdx::Vector2<AddressSpaceId> memory;
+        x64::MachineState machine;
+        stdx::Vector2<Thread*> threads;
+        stdx::Vector2<AddressSpace*> memory;
         stdx::Vector2<std::unique_ptr<vfs2::IVfsNodeHandle>> files;
     };
 
@@ -82,7 +83,7 @@ namespace km {
     };
 
     struct ProcessLaunch {
-        ProcessId process;
-        ThreadId main;
+        Process *process;
+        Thread *main;
     };
 }

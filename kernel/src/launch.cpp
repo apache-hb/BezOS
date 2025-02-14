@@ -49,7 +49,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
 
     uint64_t entry = header.entry;
 
-    x64::RegisterState regs {
+    km::IsrContext regs {
         .rip = entry,
         .rflags = 0x202,
     };
@@ -122,7 +122,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
 
         AddressSpace *addressSpace = objects.createAddressSpace("ELF Section", mapping);
 
-        process->memory.add(addressSpace->id);
+        process->memory.add(addressSpace);
     }
 
     if (regs.rip == 0) {
@@ -142,11 +142,11 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
     Thread *main = objects.createThread("Main", process);
     main->state = regs;
 
-    process->threads.add(main->id);
+    process->threads.add(main);
 
     ProcessLaunch launch = {
-        .process = process->id,
-        .main = main->id,
+        .process = process,
+        .main = main,
     };
 
     *result = launch;

@@ -1,9 +1,11 @@
 #pragma once
 
+#include <atomic>
 #include <bezos/status.h>
 
 #include "fs2/path.hpp"
 
+#include "std/spinlock.hpp"
 #include "std/string_view.hpp"
 
 #include "absl/container/btree_map.h"
@@ -27,6 +29,8 @@ namespace vfs2 {
 
     template<typename TKey, typename TValue, typename TCompare = std::less<TKey>, typename TAllocator = mem::GlobalAllocator<std::pair<const TKey, TValue>>>
     using BTreeMap = absl::btree_map<TKey, TValue, TCompare, TAllocator>;
+
+    enum class VfsNodeId : uint64_t { };
 
     struct ReadRequest {
         void *begin;
@@ -149,14 +153,14 @@ namespace vfs2 {
         /// @brief The parent directory of the entry, nullptr if root.
         IVfsNode *parent;
 
-        /// @brief The type of the entry.
-        VfsNodeType type;
-
         /// @brief The mount that this node is part of.
         IVfsMount *mount;
 
         /// @brief If this is a directory, these are all the entries.
         BTreeMap<VfsString, IVfsNode*, std::less<>> children;
+
+        /// @brief The type of the entry.
+        VfsNodeType type;
 
         virtual OsStatus read(ReadRequest, ReadResult*) { return OsStatusNotSupported; }
         virtual OsStatus write(WriteRequest, WriteResult*) { return OsStatusNotSupported; }

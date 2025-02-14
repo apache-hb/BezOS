@@ -63,7 +63,7 @@ void km::SetupUserMode(mem::IAllocator *allocator) {
     kStar.store(star);
 }
 
-void km::EnterUserMode(x64::RegisterState state) {
+void km::EnterUserMode(km::IsrContext state) {
     asm volatile (
         "movq %[mrsp], %%rsp\n"
         "movq %[mrbp], %%rbp\n"

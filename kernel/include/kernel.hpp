@@ -7,8 +7,12 @@
 #include "thread.hpp"
 
 namespace km {
+    class Scheduler;
+
     void SetupApGdt(void);
     void SetupInitialGdt(void);
+
+    Scheduler *GetScheduler();
 
     CPU_LOCAL
     extern constinit km::CpuLocal<SystemGdt> tlsSystemGdt;

@@ -986,30 +986,11 @@ static void LogSystemInfo(
     KmDebugMessage("| /BOOT         | HHDM offset          | ", Hex(launch.hhdmOffset).pad(16, '0'), "\n");
 }
 
-static km::IsrTable* InitStage1Idt(uint16_t cs) {
-    km::IsrTable *ist = new IsrTable();
-    InitInterrupts(ist, cs);
-    InstallExceptionHandlers(GetSharedIsrTable());
-
-    if (kSelfTestIdt) {
-        IsrCallback old = ist->install(64, [](km::IsrContext *context) -> km::IsrContext {
-            KmDebugMessage("[SELFTEST] Handled isr: ", context->vector, "\n");
-            return *context;
-        });
-
-        __int<64>();
-
-        ist->install(64, old);
-    }
-
-    return ist;
-}
-
-static void SetupInterruptStacks(km::IsrTable *ist, uint16_t cs, mem::IAllocator *allocator) {
+static void SetupInterruptStacks(km::IsrTable *ist, uint16_t cs) {
     gBootTss = x64::TaskStateSegment{
-        .ist1 = (uintptr_t)allocator->allocateAligned(kTssStackSize, x64::kPageSize) + kTssStackSize,
-        .ist2 = (uintptr_t)allocator->allocateAligned(kTssStackSize, x64::kPageSize) + kTssStackSize,
-        .ist3 = (uintptr_t)allocator->allocateAligned(kTssStackSize, x64::kPageSize) + kTssStackSize,
+        .ist1 = (uintptr_t)aligned_alloc(kTssStackSize, x64::kPageSize) + kTssStackSize,
+        .ist2 = (uintptr_t)aligned_alloc(kTssStackSize, x64::kPageSize) + kTssStackSize,
+        .ist3 = (uintptr_t)aligned_alloc(kTssStackSize, x64::kPageSize) + kTssStackSize,
     };
 
     gBootGdt.setTss(&gBootTss);
@@ -1034,6 +1015,26 @@ static void SetupInterruptStacks(km::IsrTable *ist, uint16_t cs, mem::IAllocator
     }
 }
 
+static km::IsrTable* InitStage1Idt(uint16_t cs) {
+    km::IsrTable *ist = new IsrTable();
+    InitInterrupts(ist, cs);
+    InstallExceptionHandlers(GetSharedIsrTable());
+    SetupInterruptStacks(ist, cs);
+
+    if (kSelfTestIdt) {
+        IsrCallback old = ist->install(64, [](km::IsrContext *context) -> km::IsrContext {
+            KmDebugMessage("[SELFTEST] Handled isr: ", context->vector, "\n");
+            return *context;
+        });
+
+        __int<64>();
+
+        ist->install(64, old);
+    }
+
+    return ist;
+}
+
 static void NormalizeProcessorState() {
     x64::Cr0 cr0 = x64::Cr0::of(x64::Cr0::PG | x64::Cr0::WP | x64::Cr0::NE | x64::Cr0::ET | x64::Cr0::PE);
     x64::Cr0::store(cr0);
@@ -1049,7 +1050,12 @@ static void NormalizeProcessorState() {
 
 static vfs2::VfsRoot *gVfsRoot = nullptr;
 static SystemObjects *gSystemObjects = nullptr;
+static Scheduler *gScheduler = nullptr;
 static SystemMemory *gMemory = nullptr;
+
+Scheduler *km::GetScheduler() {
+    return gScheduler;
+}
 
 const void *TranslateUserPointer(const void *userAddress) {
     PageTableManager& pt = gMemory->pt;
@@ -1159,14 +1165,13 @@ static void MountInitArchive(MemoryRange initrd, SystemMemory& memory) {
     KmDebugMessage("[INIT] Mounting '/Init'\n");
 
     //
-    // If the initrd is empty then it probably wasn't found in the boot parameters.
+    // If the initrd is empty then it wasn't found in the boot parameters.
+    // Not much we can do without an initrd.
     //
     if (initrd.isEmpty()) {
         KmDebugMessage("[INIT] No initrd found.\n");
         KM_PANIC("No initrd found.");
     }
-
-    KmDebugMessage("[INIT] Initrd found at ", initrd, "\n");
 
     void *initrdMemory = memory.map(initrd, PageFlags::eRead);
     sm::SharedPtr<MemoryBlk> block = new MemoryBlk{(std::byte*)initrdMemory, initrd.size()};
@@ -1213,6 +1218,31 @@ static std::tuple<std::optional<HypervisorInfo>, bool> QueryHostHypervisor() {
     return std::make_tuple(hvInfo, hasDebugPort);
 }
 
+static OsStatus KernelMasterTask() {
+    KmDebugMessage("[INIT] Kernel master task.\n");
+
+    while (true) {
+        //
+        // Spin forever for now, in the future this task will handle
+        // top level kernel events.
+        //
+    }
+
+    return OsStatusSuccess;
+}
+
+static void LaunchKernelProcess() {
+    static constexpr size_t kKernelStackSize = 0x4000;
+    Process *process = gSystemObjects->createProcess("SYSTEM", Privilege::eSupervisor);
+    Thread *thread = gSystemObjects->createThread("MASTER", process);
+    thread->stack = std::unique_ptr<std::byte[]>(new std::byte[kKernelStackSize]);
+    thread->state = km::IsrContext {
+        .rbp = (uintptr_t)(thread->stack.get() + kKernelStackSize),
+        .rip = (uintptr_t)&KernelMasterTask,
+        .rsp = (uintptr_t)(thread->stack.get() + kKernelStackSize),
+    };
+}
+
 void LaunchKernel(boot::LaunchInfo launch) {
     NormalizeProcessorState();
     SetDebugLogLock(DebugLogLockType::eNone);
@@ -1255,7 +1285,6 @@ void LaunchKernel(boot::LaunchInfo launch) {
     Disable8259Pic();
 
     km::IsrTable *ist = InitStage1Idt(SystemGdt::eLongModeCode);
-    SetupInterruptStacks(ist, SystemGdt::eLongModeCode, gAllocator);
     EnableInterrupts();
 
     PlatformInfo platform = GetPlatformInfo(launch.smbios32Address, launch.smbios64Address, *stage2->memory);
@@ -1356,6 +1385,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     DateTime time = ReadRtc();
     KmDebugMessage("[INIT] Current time: ", time.year, "-", time.month, "-", time.day, "T", time.hour, ":", time.minute, ":", time.second, "Z\n");
 
+    gScheduler = new Scheduler();
     gSystemObjects = new SystemObjects();
 
     MountRootVfs();
@@ -1402,7 +1432,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
         KmDebugMessage("[INIT] No PS/2 controller found.\n");
     }
 
-    Thread *thread = gSystemObjects->getThread(init.main);
+    Thread *thread = init.main;
     km::EnterUserMode(thread->state);
 
     if (ps2Controller.hasKeyboard()) {

@@ -6,7 +6,7 @@ Thread *SystemObjects::createThread(stdx::String name, Process *process) {
     stdx::UniqueLock guard(mLock);
 
     ThreadId id = mThreadIds.allocate();
-    std::unique_ptr<Thread> thread{new Thread{id, std::move(name), process->id}};
+    std::unique_ptr<Thread> thread{new Thread{id, std::move(name), process}};
     Thread *result = thread.get();
     mThreads.insert({id, std::move(thread)});
     return result;
