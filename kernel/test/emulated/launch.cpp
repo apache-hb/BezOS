@@ -53,6 +53,15 @@ static constexpr const char *kDomainXml = R"(
             <readonly/>
             <address type='drive' controller='0' bus='0' target='0' unit='0'/>
         </disk>
+
+        <serial type='file'>
+            <source path='/tmp/$0-serial.log'/>
+            <target port='0'/>
+        </serial>
+        <console type='file'>
+            <source path='/tmp/$0-serial.log'/>
+            <target type='serial' port='0'/>
+        </console>
     </devices>
 </domain>
 )";
