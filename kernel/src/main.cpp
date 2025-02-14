@@ -932,11 +932,11 @@ static void LogSystemInfo(
 
     if (hvInfo.has_value()) {
         KmDebugMessage("| /SYS/HV       | Hypervisor           | ", hvInfo->name, "\n");
-        KmDebugMessage("| /SYS/HV       | Max CPUID leaf       | ", Hex(hvInfo->maxleaf).pad(8, '0'), "\n");
+        KmDebugMessage("| /SYS/HV       | Max HvCPUID leaf     | ", Hex(hvInfo->maxleaf).pad(8, '0'), "\n");
         KmDebugMessage("| /SYS/HV       | e9 debug port        | ", enabled(hasDebugPort), "\n");
     } else {
         KmDebugMessage("| /SYS/HV       | Hypervisor           | Not present\n");
-        KmDebugMessage("| /SYS/HV       | Max CPUID leaf       | 0x00000000\n");
+        KmDebugMessage("| /SYS/HV       | Max HvCPUID leaf     | Not applicable\n");
         KmDebugMessage("| /SYS/HV       | e9 debug port        | Not applicable\n");
     }
 
