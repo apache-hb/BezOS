@@ -238,6 +238,13 @@ void km::IApic::maskTaskPriority() {
     write(apic::kTaskPriority, value);
 }
 
+void km::IApic::maskIvt(apic::Ivt ivt) {
+    static constexpr uint64_t kMaskBit = 1 << 16;
+    uint64_t value = read(std::to_underlying(ivt));
+    value |= kMaskBit;
+    write(std::to_underlying(ivt), value);
+}
+
 km::apic::ErrorState km::IApic::status() {
     uint32_t esr = read(apic::kErrorStatus);
 

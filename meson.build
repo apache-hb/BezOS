@@ -151,7 +151,7 @@ src = [
     'kernel/src/arch/cr.cpp',
     'kernel/src/boot.cpp',
 
-    # VFS rewrite
+    # VFS
     'kernel/src/fs2/vfs.cpp',
     'kernel/src/fs2/path.cpp',
     'kernel/src/fs2/node.cpp',
@@ -173,6 +173,7 @@ src = [
     # Process
     'kernel/src/process/process.cpp',
     'kernel/src/process/schedule.cpp',
+    'kernel/src/process/schedule.S',
     'kernel/src/syscall.cpp',
     'kernel/src/processor.cpp',
     'kernel/src/launch.cpp',

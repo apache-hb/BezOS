@@ -4,7 +4,7 @@
 CPU_LOCAL
 static constinit km::CpuLocal<km::Thread*> tlsCurrentThread;
 
-static constinit stdx::SpinLock gSchedulerLock;
+extern "C" [[noreturn]] void KmResumeThread(km::IsrContext *context);
 
 km::Scheduler::Scheduler()
     : mQueue()
@@ -26,23 +26,48 @@ km::Thread *km::GetCurrentThread() {
 
 static void SwitchThread(km::Thread *next) {
     tlsCurrentThread = next;
-    // RestoreThread(next);
+    km::IsrContext *state = &next->state;
+    //
+    // If we're transitioning out of kernel space then we need to swapgs.
+    //
+    if ((state->cs & 0b11) != 0) {
+        __swapgs();
+    }
+
+    KmResumeThread(state);
 }
 
 void km::ScheduleWork(IsrTable *table, IApic *apic) {
     const IsrTable::Entry *scheduleInt = table->allocate([](km::IsrContext *ctx) -> km::IsrContext {
-        Scheduler *scheduler = km::GetScheduler();
         IApic *apic = km::GetCpuLocalApic();
-        km::Thread *thread = scheduler->getWorkItem();
-        if (thread) {
-            stdx::LockGuard guard(gSchedulerLock);
+        apic->eoi();
 
-            km::Thread *current = km::GetCurrentThread();
-            current->state = *ctx;
-            scheduler->addWorkItem(current);
+        Scheduler *scheduler = km::GetScheduler();
+        km::Thread *thread = scheduler->getWorkItem();
+
+        if (thread) {
+            if (km::Thread *current = km::GetCurrentThread()) {
+                current->state = *ctx;
+                scheduler->addWorkItem(current);
+            }
+
             SwitchThread(thread);
         }
 
         return *ctx;
     });
+    uint8_t scheduleIdx = table->index(scheduleInt);
+
+    apic->setTimerDivisor(apic::TimerDivide::e32);
+    apic->setInitialCount(0x10000);
+
+    apic->cfgIvtTimer(apic::IvtConfig {
+        .vector = scheduleIdx,
+        .polarity = apic::Polarity::eActiveHigh,
+        .trigger = apic::Trigger::eEdge,
+        .enabled = true,
+        .timer = apic::TimerMode::ePeriodic,
+    });
+
+    KmIdle();
 }

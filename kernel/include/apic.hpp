@@ -182,6 +182,8 @@ namespace km {
         void cfgIvtLvt1(apic::IvtConfig config) { configure(apic::Ivt::eLvt1, config); }
         void cfgIvtError(apic::IvtConfig config) { configure(apic::Ivt::eError, config); }
 
+        void maskIvt(apic::Ivt ivt);
+
         virtual bool pendingIpi() = 0;
 
         apic::ErrorState status();

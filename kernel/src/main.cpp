@@ -62,6 +62,7 @@ using namespace stdx::literals;
 static constexpr bool kUseX2Apic = true;
 static constexpr bool kSelfTestIdt = true;
 static constexpr bool kSelfTestApic = true;
+static constexpr bool kEmitAddrToLine = true;
 
 class SerialLog final : public IOutStream {
     SerialPort mPort;
@@ -760,6 +761,16 @@ static void DumpStackTrace(const km::IsrContext *context) {
     x64::WalkStackFrames((void**)context->rbp, [](void **frame, void *pc) {
         KmDebugMessageUnlocked("| ", (void*)frame, " | ", pc, "\n");
     });
+
+    if (kEmitAddrToLine) {
+        KmDebugMessageUnlocked("llvm-addr2line -e ./build/kernel/bezos-limine");
+
+        x64::WalkStackFrames((void**)context->rbp, [](void **, void *pc) {
+            KmDebugMessageUnlocked(" ", pc);
+        });
+
+        KmDebugMessageUnlocked("\n");
+    }
 }
 
 struct ApicInfo {
@@ -868,37 +879,39 @@ static void DumpIsrContext(const km::IsrContext *context, stdx::StringView messa
 }
 
 static void InstallExceptionHandlers(SharedIsrTable *ist) {
-    ist->install(0x0, [](km::IsrContext *context) -> km::IsrContext {
+    ist->install(isr::DE, [](km::IsrContext *context) -> km::IsrContext {
         DumpIsrContext(context, "Divide by zero (#DE)");
         DumpStackTrace(context);
         KM_PANIC("Kernel panic.");
     });
 
-    ist->install(0x2, [](km::IsrContext *context) -> km::IsrContext {
+    ist->install(isr::NMI, [](km::IsrContext *context) -> km::IsrContext {
         KmDebugMessageUnlocked("[INT] Non-maskable interrupt (#NM)\n");
         DumpIsrState(context);
         return *context;
     });
 
-    ist->install(0x6, [](km::IsrContext *context) -> km::IsrContext {
+    ist->install(isr::UD, [](km::IsrContext *context) -> km::IsrContext {
         DumpIsrContext(context, "Invalid opcode (#UD)");
         DumpStackTrace(context);
         KM_PANIC("Kernel panic.");
     });
 
-    ist->install(0x8, [](km::IsrContext *context) -> km::IsrContext {
+    ist->install(isr::DF, [](km::IsrContext *context) -> km::IsrContext {
         DumpIsrContext(context, "Double fault (#DF)");
         DumpStackTrace(context);
         KM_PANIC("Kernel panic.");
     });
 
-    ist->install(0xD, [](km::IsrContext *context) -> km::IsrContext {
+    ist->install(isr::GP, [](km::IsrContext *context) -> km::IsrContext {
+        DisableInterrupts();
+
         DumpIsrContext(context, "General protection fault (#GP)");
         DumpStackTrace(context);
         KM_PANIC("Kernel panic.");
     });
 
-    ist->install(0xE, [](km::IsrContext *context) -> km::IsrContext {
+    ist->install(isr::PF, [](km::IsrContext *context) -> km::IsrContext {
         KmDebugMessageUnlocked("[BUG] CR2: ", Hex(__get_cr2()).pad(16, '0'), "\n");
         DumpIsrContext(context, "Page fault (#PF)");
         DumpStackTrace(context);
@@ -1221,6 +1234,14 @@ static std::tuple<std::optional<HypervisorInfo>, bool> QueryHostHypervisor() {
 static OsStatus KernelMasterTask() {
     KmDebugMessage("[INIT] Kernel master task.\n");
 
+    ProcessLaunch init{};
+    if (OsStatus status = LaunchInitProcess(&init)) {
+        KmDebugMessage("[INIT] Failed to launch init process: ", status, "\n");
+        KM_PANIC("Failed to launch init process.");
+    }
+
+    gScheduler->addWorkItem(init.main);
+
     while (true) {
         //
         // Spin forever for now, in the future this task will handle
@@ -1231,7 +1252,8 @@ static OsStatus KernelMasterTask() {
     return OsStatusSuccess;
 }
 
-static void LaunchKernelProcess() {
+[[noreturn]]
+static void LaunchKernelProcess(IsrTable *table, IApic *apic) {
     static constexpr size_t kKernelStackSize = 0x4000;
     Process *process = gSystemObjects->createProcess("SYSTEM", Privilege::eSupervisor);
     Thread *thread = gSystemObjects->createThread("MASTER", process);
@@ -1239,8 +1261,14 @@ static void LaunchKernelProcess() {
     thread->state = km::IsrContext {
         .rbp = (uintptr_t)(thread->stack.get() + kKernelStackSize),
         .rip = (uintptr_t)&KernelMasterTask,
+        .cs = SystemGdt::eLongModeCode * 0x8,
+        .rflags = 0x202,
         .rsp = (uintptr_t)(thread->stack.get() + kKernelStackSize),
+        .ss = SystemGdt::eLongModeData * 0x8,
     };
+
+    gScheduler->addWorkItem(thread);
+    ScheduleWork(table, apic);
 }
 
 void LaunchKernel(boot::LaunchInfo launch) {
@@ -1342,14 +1370,6 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     lapic->selfIpi(schedulerIdx);
 
-#if 0
-    if (!happened) {
-        auto esr = lapic->status();
-        KmDebugMessage("[INIT] Failed to receive IPI: ", esr, "\n");
-        KM_PANIC("Failed to receive IPI.");
-    }
-#endif
-
     lapic->setTimerDivisor(apic::TimerDivide::e32);
     lapic->setInitialCount(0x10000);
 
@@ -1408,6 +1428,8 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
         return CallOk(0zu);
     });
+
+    LaunchKernelProcess(ist, lapic.pointer());
 
     ProcessLaunch init{};
     if (OsStatus status = LaunchInitProcess(&init)) {

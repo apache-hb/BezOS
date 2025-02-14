@@ -83,6 +83,12 @@ static inline void __DEFAULT_FN_ATTRS __swapgs(void) {
     asm volatile("swapgs");
 }
 
+static inline uint64_t __DEFAULT_FN_ATTRS __gsbase(void) {
+    uint64_t value;
+    asm volatile("mov %%gs:0, %0" : "=r"(value));
+    return value;
+}
+
 static inline void __DEFAULT_FN_ATTRS __lgdt(struct GDTR gdtr) {
     asm volatile("lgdt %0" :: "m"(gdtr));
 }

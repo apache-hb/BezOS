@@ -1,5 +1,6 @@
 #include "elf.hpp"
 
+#include "gdt.hpp"
 #include "log.hpp"
 #include "memory/range.hpp"
 
@@ -51,7 +52,9 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
 
     km::IsrContext regs {
         .rip = entry,
+        .cs = (SystemGdt::eLongModeUserCode * 0x8) | 0b11,
         .rflags = 0x202,
+        .ss = (SystemGdt::eLongModeUserData * 0x8) | 0b11,
     };
 
     KmDebugMessage("[ELF] Entry point: ", km::Hex(entry), "\n");
