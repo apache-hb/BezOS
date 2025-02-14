@@ -1231,6 +1231,47 @@ static std::tuple<std::optional<HypervisorInfo>, bool> QueryHostHypervisor() {
     return std::make_tuple(hvInfo, hasDebugPort);
 }
 
+static void StartupSmp(const acpi::AcpiTables& rsdt, km::IsrTable *ist) {
+    //
+    // Set the local ISR table for the BSP core to prepare for switchover
+    // from a global ISR table to a CPU local ISR table.
+    //
+    SetCpuLocalIsrTable(ist);
+
+    //
+    // Create the scheduler and system objects before we startup SMP so that
+    // the AP cores have a scheduler to attach to.
+    //
+    gScheduler = new Scheduler();
+    gSystemObjects = new SystemObjects();
+
+    //
+    // We provide an atomic flag to the AP cores that we use to signal when the
+    // scheduler is ready to be used. The scheduler requires the system to switch
+    // to using cpu local isr tables, which must happen after smp startup.
+    //
+    std::atomic_flag launchScheduler = ATOMIC_FLAG_INIT;
+    InitSmp(*gMemory, GetCpuLocalApic(), rsdt, ist, &launchScheduler);
+    SetDebugLogLock(DebugLogLockType::eRecursiveSpinLock);
+
+    //
+    // Enable CPU local ISR tables now that the other threads have been started.
+    //
+    EnableCpuLocalIsrTable();
+
+    //
+    // Setup gdt that contains a TSS for this core and configure cpu state
+    // required to enter usermode on this thread.
+    //
+    SetupApGdt();
+    km::SetupUserMode();
+
+    //
+    // Signal that the scheduler is now ready to accept work items.
+    //
+    launchScheduler.test_and_set();
+}
+
 static OsStatus KernelMasterTask() {
     KmDebugMessage("[INIT] Kernel master task.\n");
 
@@ -1345,27 +1386,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     pci::ProbeConfigSpace(config.get(), rsdt.mcfg());
 
-    SetCpuLocalIsrTable(ist);
-
-    //
-    // Create the scheduler and system objects before we startup SMP so that
-    // the AP cores have a scheduler to attach to.
-    //
-    gScheduler = new Scheduler();
-    gSystemObjects = new SystemObjects();
-
-    std::atomic_flag launchScheduler = ATOMIC_FLAG_INIT;
-    InitSmp(*stage2->memory, lapic.pointer(), rsdt, ist, &launchScheduler);
-    SetDebugLogLock(DebugLogLockType::eRecursiveSpinLock);
-
-    EnableCpuLocalIsrTable();
-
-    // Setup gdt that contains a TSS for this core
-    SetupApGdt();
-
-    launchScheduler.test_and_set();
-
-    km::SetupUserMode();
+    StartupSmp(rsdt, ist);
 
     const IsrTable::Entry *timerInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
         km::IApic *apic = km::GetCpuLocalApic();
@@ -1414,12 +1435,6 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     LaunchKernelProcess(ist, lapic.pointer());
 
-    ProcessLaunch init{};
-    if (OsStatus status = LaunchInitProcess(&init)) {
-        KmDebugMessage("[INIT] Failed to launch init process: ", status, "\n");
-        KM_PANIC("Failed to launch init process.");
-    }
-
     hid::Ps2Controller ps2Controller;
 
     bool has8042 = rsdt.has8042Controller();
@@ -1436,9 +1451,6 @@ void LaunchKernel(boot::LaunchInfo launch) {
     } else {
         KmDebugMessage("[INIT] No PS/2 controller found.\n");
     }
-
-    Thread *thread = init.main;
-    km::EnterUserMode(thread->state);
 
     if (ps2Controller.hasKeyboard()) {
         hid::Ps2Device keyboard = ps2Controller.keyboard();
