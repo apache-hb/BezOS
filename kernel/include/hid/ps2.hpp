@@ -1,6 +1,7 @@
 #pragma once
 
-#include "uart.hpp"
+#include "apic.hpp"
+#include "isr.hpp"
 
 namespace hid {
     enum class Ps2ControllerStatus {
@@ -80,6 +81,8 @@ namespace hid {
         bool hasMouse() const { return mMouse.valid(); }
 
         uint8_t read() const;
+
+        void enableIrqs(bool first, bool second);
     };
 
     struct Ps2ControllerResult {
@@ -90,10 +93,17 @@ namespace hid {
     };
 
     Ps2ControllerResult EnablePs2Controller();
+
+    void InstallPs2DeviceIsr(km::IoApicSet& ioApicSet, Ps2Device& device, const km::IApic *target, uint8_t isr);
 }
 
 template<>
 struct km::Format<hid::Ps2ControllerStatus> {
     using String = stdx::StaticString<32>;
     static String toString(hid::Ps2ControllerStatus status);
+};
+
+template<>
+struct km::Format<hid::Ps2DeviceType> {
+    static void format(km::IOutStream& out, hid::Ps2DeviceType type);
 };

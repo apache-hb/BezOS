@@ -1,6 +1,5 @@
 #pragma once
 
-#include "arch/arch.hpp"
 #include "arch/msr.hpp"
 #include "bezos/syscall.h"
 #include "isr.hpp"

@@ -1301,6 +1301,45 @@ static OsStatus KernelMasterTask() {
     return OsStatusSuccess;
 }
 
+static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioApicSet, const IApic *apic, IsrTable *ist) {
+    static hid::Ps2Controller ps2Controller;
+
+    bool has8042 = rsdt.has8042Controller();
+
+    if (has8042) {
+        hid::Ps2ControllerResult result = hid::EnablePs2Controller();
+        KmDebugMessage("[INIT] PS/2 controller: ", result.status, "\n");
+        if (result.status == hid::Ps2ControllerStatus::eOk) {
+            ps2Controller = result.controller;
+
+            KmDebugMessage("[INIT] PS/2 channel 1: ", present(ps2Controller.hasKeyboard()), "\n");
+            KmDebugMessage("[INIT] PS/2 channel 2: ", present(ps2Controller.hasMouse()), "\n");
+        }
+    } else {
+        KmDebugMessage("[INIT] No PS/2 controller found.\n");
+    }
+
+    if (ps2Controller.hasKeyboard()) {
+        static hid::Ps2Device keyboard = ps2Controller.keyboard();
+        static hid::Ps2Device mouse = ps2Controller.mouse();
+        mouse.enable();
+        keyboard.enable();
+        ps2Controller.enableIrqs(true, true);
+
+        const IsrTable::Entry *keyboardInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
+            uint8_t scancode = ps2Controller.read();
+            KmDebugMessage("[PS2] Keyboard scancode: ", Hex(ctx->vector), " = ", Hex(scancode), "\n");
+            km::IApic *apic = km::GetCpuLocalApic();
+            apic->eoi();
+            return *ctx;
+        });
+
+        uint8_t keyboardIdx = ist->index(keyboardInt);
+        hid::InstallPs2DeviceIsr(ioApicSet, keyboard, apic, keyboardIdx);
+        hid::InstallPs2DeviceIsr(ioApicSet, mouse, apic, keyboardIdx);
+    }
+}
+
 [[noreturn]]
 static void LaunchKernelProcess(IsrTable *table, IApic *apic) {
     static constexpr size_t kKernelStackSize = 0x4000;
@@ -1403,7 +1442,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     });
     uint8_t timerIdx = ist->index(timerInt);
 
-    km::InitPit(100 * si::hertz, rsdt.madt(), ioApicSet, lapic.pointer(), timerIdx);
+    km::InitPit(100 * si::hertz, ioApicSet, lapic.pointer(), timerIdx);
 
     std::optional<km::HighPrecisionTimer> hpet = km::HighPrecisionTimer::find(rsdt, *stage2->memory);
     if (hpet.has_value()) {
@@ -1441,36 +1480,9 @@ void LaunchKernel(boot::LaunchInfo launch) {
         return CallOk(0zu);
     });
 
+    ConfigurePs2Controller(rsdt, ioApicSet, lapic.pointer(), ist);
+
     LaunchKernelProcess(ist, lapic.pointer());
-
-    hid::Ps2Controller ps2Controller;
-
-    bool has8042 = rsdt.has8042Controller();
-
-    if (has8042) {
-        hid::Ps2ControllerResult result = hid::EnablePs2Controller();
-        KmDebugMessage("[INIT] PS/2 controller: ", result.status, "\n");
-        if (result.status == hid::Ps2ControllerStatus::eOk) {
-            ps2Controller = result.controller;
-
-            KmDebugMessage("[INIT] PS/2 channel 1: ", present(ps2Controller.hasKeyboard()), "\n");
-            KmDebugMessage("[INIT] PS/2 channel 2: ", present(ps2Controller.hasMouse()), "\n");
-        }
-    } else {
-        KmDebugMessage("[INIT] No PS/2 controller found.\n");
-    }
-
-    if (ps2Controller.hasKeyboard()) {
-        hid::Ps2Device keyboard = ps2Controller.keyboard();
-        hid::Ps2Device mouse = ps2Controller.mouse();
-        mouse.disable();
-        keyboard.enable();
-
-        while (true) {
-            uint8_t scancode = ps2Controller.read();
-            KmDebugMessage("[PS2] Keyboard scancode: ", Hex(scancode), "\n");
-        }
-    }
 
     KM_PANIC("Test bugcheck.");
 

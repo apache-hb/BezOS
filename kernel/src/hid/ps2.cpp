@@ -78,6 +78,8 @@ static uint8_t ReadData() {
 }
 
 static uint8_t ReadCommand(uint8_t command) {
+    FlushData();
+
     KmWriteByte(kCommand, command);
 
     WaitUntilDataAvailable();
@@ -89,12 +91,12 @@ static void SetupFirstChannel() {
     uint8_t config = ReadCommand(kReadConfig);
 
     // Disable interrupts and translation
-    config &= ~(kFirstInt | kIbmPcCompat);
+    config &= ~(kFirstInt | kSecondInt | kIbmPcCompat);
 
     // Clear the reserved bits
     config &= ~(1 << 3 | 1 << 7);
 
-    // Enable clock
+    // Disable clock
     config |= kFirstClock;
 
     SendCommandData(kWriteConfig, config);
@@ -175,7 +177,6 @@ static hid::Ps2DeviceType CheckDeviceReset(stdx::StringView channel) {
     uint16_t type
         = uint16_t(b3) << 8
         | uint16_t(b2) << 0;
-
 
     switch (type) {
     case 0xAB83: case 0xABC1:
@@ -268,6 +269,26 @@ uint8_t hid::Ps2Controller::read() const {
     return ReadData();
 }
 
+void hid::Ps2Controller::enableIrqs(bool first, bool second) {
+    uint8_t config = ReadCommand(kReadConfig);
+
+    KmDebugMessage("[PS2] PS/2 Controller IRQs: ", km::present(first), " ", km::present(second), " (", km::Hex(config), ")\n");
+
+    if (first) {
+        config |= kFirstInt;
+    } else {
+        config &= ~kFirstInt;
+    }
+
+    if (second) {
+        config |= kSecondInt;
+    } else {
+        config &= ~kSecondInt;
+    }
+
+    SendCommandData(kWriteConfig, config);
+}
+
 void hid::Ps2Device::enable() {
     write(kEnableScanning);
 }
@@ -276,7 +297,17 @@ void hid::Ps2Device::disable() {
     write(kDisableScanning);
 }
 
+void hid::InstallPs2DeviceIsr(km::IoApicSet& ioApicSet, Ps2Device& device, const km::IApic *target, uint8_t isr) {
+    uint8_t irq = device.isKeyboard() ? km::irq::kKeyboard : km::irq::kMouse;
+    km::apic::IvtConfig config {
+        .vector = isr,
+        .enabled = true,
+    };
+    ioApicSet.setLegacyRedirect(config, irq, target);
+}
+
 using StatusFormat = km::Format<hid::Ps2ControllerStatus>;
+using DeviceFormat = km::Format<hid::Ps2DeviceType>;
 
 using namespace stdx::literals;
 
@@ -288,5 +319,52 @@ StatusFormat::String StatusFormat::toString(hid::Ps2ControllerStatus status) {
         return "8042 Self Test Failed";
     case hid::Ps2ControllerStatus::ePortTestFailed:
         return "Port Test Failed";
+    }
+}
+
+void DeviceFormat::format(km::IOutStream& out, hid::Ps2DeviceType type) {
+    switch (type) {
+    case hid::Ps2DeviceType::eDisabled:
+        out.write("Disabled");
+        break;
+    case hid::Ps2DeviceType::eAtKeyboard:
+        out.write("AT Keyboard");
+        break;
+    case hid::Ps2DeviceType::eMf2Keyboard:
+        out.write("MF2 Keyboard");
+        break;
+    case hid::Ps2DeviceType::eShortKeyboard:
+        out.write("Short Keyboard");
+        break;
+    case hid::Ps2DeviceType::eN97Keyboard:
+        out.write("N97 Keyboard");
+        break;
+    case hid::Ps2DeviceType::e122KeyKeyboard:
+        out.write("122 Key Keyboard");
+        break;
+    case hid::Ps2DeviceType::eJapaneseKeyboardG:
+        out.write("Japanese Keyboard G");
+        break;
+    case hid::Ps2DeviceType::eJapaneseKeyboardP:
+        out.write("Japanese Keyboard P");
+        break;
+    case hid::Ps2DeviceType::eJapaneseKeyboardA:
+        out.write("Japanese Keyboard A");
+        break;
+    case hid::Ps2DeviceType::eSunKeyboard:
+        out.write("Sun Keyboard");
+        break;
+    case hid::Ps2DeviceType::eMouse:
+        out.write("Mouse");
+        break;
+    case hid::Ps2DeviceType::eMouseWithScroll:
+        out.write("Mouse with Scroll Wheel");
+        break;
+    case hid::Ps2DeviceType::eMouse5Button:
+        out.write("5 Button Mouse");
+        break;
+    default:
+        out.write(km::Hex(std::to_underlying(type)));
+        break;
     }
 }

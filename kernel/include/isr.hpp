@@ -65,7 +65,6 @@ namespace km {
 
     static_assert(sizeof(IdtEntry) == 16);
 
-
     struct [[gnu::packed]] IsrContext {
         uint64_t rax;
         uint64_t rbx;

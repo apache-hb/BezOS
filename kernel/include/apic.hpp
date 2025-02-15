@@ -285,6 +285,7 @@ namespace km {
     };
 
     class IoApicSet {
+        const acpi::Madt *mMadt;
         absl::FixedArray<IoApic, absl::kFixedArrayUseDefault, mem::GlobalAllocator<IoApic>> mIoApics;
 
     public:
@@ -307,9 +308,8 @@ namespace km {
         ///
         /// @param config The configuration for the ISR
         /// @param redirect The redirection table entry to update
-        /// @param madt The MADT table to search for the ISR
         /// @param target The target APIC to send the interrupt to
-        void setLegacyRedirect(apic::IvtConfig config, uint32_t redirect, const acpi::Madt *madt, const IApic *target);
+        void setLegacyRedirect(apic::IvtConfig config, uint32_t redirect, const IApic *target);
     };
 
     Apic InitBspApic(km::SystemMemory& memory, bool useX2Apic);

@@ -439,10 +439,11 @@ static bool IoApicContainsGsi(km::IoApic& ioApic, uint32_t gsi) {
 }
 
 km::IoApicSet::IoApicSet(const acpi::Madt *madt, km::SystemMemory& memory)
-    : mIoApics(madt->ioApicCount())
+    : mMadt(madt)
+    , mIoApics(mMadt->ioApicCount())
 {
     size_t index = 0;
-    for (const acpi::MadtEntry *entry : *madt) {
+    for (const acpi::MadtEntry *entry : *mMadt) {
         if (entry->type != acpi::MadtEntryType::eIoApic)
             continue;
 
@@ -466,8 +467,8 @@ void km::IoApicSet::setRedirect(apic::IvtConfig config, uint32_t redirect, const
     KmDebugMessage("[WARN] GSI ", redirect, " not found in any IOAPIC\n");
 }
 
-void km::IoApicSet::setLegacyRedirect(apic::IvtConfig config, uint32_t redirect, const acpi::Madt *madt, const IApic *target) {
-    for (const acpi::MadtEntry *entry : *madt) {
+void km::IoApicSet::setLegacyRedirect(apic::IvtConfig config, uint32_t redirect, const IApic *target) {
+    for (const acpi::MadtEntry *entry : *mMadt) {
         if (entry->type != acpi::MadtEntryType::eInterruptSourceOverride)
             continue;
 
