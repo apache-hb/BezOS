@@ -415,6 +415,9 @@ testcases = {
     'atomic forward list': [
         'kernel/test/std/forward_list.cpp',
     ],
+    'rcu': [
+        'kernel/test/std/rcu.cpp',
+    ],
     'cmos': [
         'kernel/test/cmos.cpp',
         'kernel/src/cmos.cpp',

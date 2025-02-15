@@ -9,21 +9,11 @@ namespace sm {
     template<typename T, typename Allocator = mem::GlobalAllocator<T>>
     class AtomicForwardList {
         struct ListNode {
-            T mValue;
-            std::atomic<ListNode*> mNext;
+            T value;
+            std::atomic<ListNode*> next;
         };
-
-        std::atomic<ListNode*> mHead = nullptr;
-
-        constexpr void destroy() {
-            for (ListNode *node = mHead; node != nullptr; ) {
-                ListNode *next = node->mNext;
-                delete node;
-                node = next;
-            }
-        }
-
     public:
+
         UTIL_NOCOPY(AtomicForwardList);
 
         /// @brief Construct an empty list.
@@ -58,8 +48,8 @@ namespace sm {
                 // Swap the head with the next node. If the head hasn't changed
                 // since we read it, we can return the value.
                 //
-                if (mHead.compare_exchange_strong(head, head->mNext)) {
-                    T value = head->mValue;
+                if (mHead.compare_exchange_strong(head, head->next)) {
+                    T value = head->value;
                     delete head;
                     return value;
                 }
@@ -73,18 +63,52 @@ namespace sm {
         /// @details This is internally synchronized.
         void push(T value) {
             ListNode* head = mHead;
-            ListNode* node = new ListNode(std::move(value), head);
+            ListNode* node = new ListNode{ .value = std::move(value), .next = head };
             while (!mHead.compare_exchange_strong(head, node)) {
                 //
                 // If the head has changed, we need to update the next pointer.
                 //
-                node->mNext = head;
+                node->next = head;
             }
+        }
+
+        AtomicForwardList exchange(AtomicForwardList&& replace) {
+            //
+            // First we need to acquire the head node of the new list to ensure it doesnt
+            // change while we're doing the rest of the work.
+            //
+            ListNode *other = replace.mHead.exchange(nullptr);
+
+            //
+            // Now we can swap the head pointer of the other list, which we now own
+            // with the head pointer of ourselves.
+            //
+            ListNode *head = mHead.exchange(other);
+
+            //
+            // And now we return a newly created list with our old head pointer.
+            //
+            return AtomicForwardList(head);
         }
 
         /// @details This requires external synchronization.
         constexpr friend void swap(AtomicForwardList& lhs, AtomicForwardList& rhs) {
             std::swap(lhs.mHead, rhs.mHead);
+        }
+
+    private:
+        AtomicForwardList(ListNode *head)
+            : mHead(head)
+        { }
+
+        std::atomic<ListNode*> mHead = nullptr;
+
+        constexpr void destroy() {
+            for (ListNode *node = mHead; node != nullptr; ) {
+                ListNode *next = node->next;
+                delete node;
+                node = next;
+            }
         }
     };
 }
