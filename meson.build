@@ -412,6 +412,9 @@ testcases = {
     'shared ptr': [
         'kernel/test/shared.cpp',
     ],
+    'atomic forward list': [
+        'kernel/test/std/forward_list.cpp',
+    ],
     'cmos': [
         'kernel/test/cmos.cpp',
         'kernel/src/cmos.cpp',

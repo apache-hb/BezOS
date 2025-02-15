@@ -1,7 +1,6 @@
 #pragma once
 
 #include "apic.hpp"
-#include "isr.hpp"
 
 namespace hid {
     enum class Ps2ControllerStatus {

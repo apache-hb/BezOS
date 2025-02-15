@@ -319,12 +319,14 @@ namespace sm {
         }
 
     protected:
-        SharedPtr<T> strongShare() {
-            return SharedPtr<T>(mWeakThis);
+        template<typename Self> requires std::derived_from<std::remove_cvref_t<Self>, T>
+        SharedPtr<std::remove_cvref_t<Self>> strongShare(this Self&& self) {
+            return SharedPtr<std::remove_cvref_t<decltype(self)>>(self.mWeakThis);
         }
 
-        WeakPtr<T> weakShare() {
-            return mWeakThis;
+        template<typename Self> requires std::derived_from<std::remove_cvref_t<Self>, T>
+        WeakPtr<std::remove_cvref_t<Self>> weakShare(this Self&& self) {
+            return std::forward<Self>(self).mWeakThis;
         }
     };
 

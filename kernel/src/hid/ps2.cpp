@@ -2,6 +2,7 @@
 
 #include "delay.hpp"
 #include "log.hpp"
+#include "isr.hpp"
 
 #include <emmintrin.h>
 
@@ -257,6 +258,9 @@ hid::Ps2ControllerResult hid::EnablePs2Controller() {
     if (!device1.isKeyboard() && device2.isKeyboard()) {
         std::swap(device1, device2);
     }
+
+    KmDebugMessage("[PS2] PS/2 Controller channel 1: ", device1.type, "\n");
+    KmDebugMessage("[PS2] PS/2 Controller channel 2: ", device2.type, "\n");
 
     return Ps2ControllerResult { Ps2Controller(device1, device2), Ps2ControllerStatus::eOk };
 }
