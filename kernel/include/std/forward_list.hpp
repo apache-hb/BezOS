@@ -63,7 +63,7 @@ namespace sm {
         /// @details This is internally synchronized.
         void push(T value) {
             ListNode* head = mHead;
-            ListNode* node = new ListNode{ .value = std::move(value), .next = head };
+            ListNode* node = new ListNode{ std::move(value), head };
             while (!mHead.compare_exchange_strong(head, node)) {
                 //
                 // If the head has changed, we need to update the next pointer.

@@ -1,4 +1,3 @@
-#include <barrier>
 #include <gtest/gtest.h>
 
 #include <latch>

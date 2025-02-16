@@ -166,6 +166,11 @@ struct OsPath {
     const OsUtf8Char *PathBack;
 };
 
+struct OsFileCreateInfo {
+    const char *PathFront;
+    const char *PathBack;
+};
+
 /// @brief Open or create a file.
 ///
 /// @pre @p PathFront and @p PathBack must point to the front and back of a valid buffer.
@@ -346,7 +351,13 @@ enum {
     eOsIsolateWriteUncommitted  = UINT64_C(2) << 2,
 };
 
-extern OsStatus OsTransactBegin(const char *NameFront, const char *NameBack, OsTransactionMode Mode, OsTransactionHandle *OutHandle);
+struct OsTransactionCreateInfo {
+    const char *NameFront;
+    const char *NameBack;
+    OsTransactionMode Mode;
+};
+
+extern OsStatus OsTransactBegin(struct OsTransactionCreateInfo CreateInfo, OsTransactionHandle *OutHandle);
 
 extern OsStatus OsTransactCommit(OsTransactionHandle Handle);
 
@@ -461,16 +472,68 @@ extern OsStatus OsParamUpdate(struct OsParamConfig *ConfigFront, struct OsParamC
 /// @defgroup OsProcess Process
 /// @{
 
-extern OsStatus OsProcessCurrent(OsProcessHandle *OutHandle);
+struct OsProcessCreateInfo {
+    const char *NameFront;
+    const char *NameBack;
+};
+
+extern OsStatus OsProcessCurrent(struct OsProcessCreateInfo CreateInfo, OsProcessHandle *OutHandle);
 
 extern OsStatus OsProcessTerminate(OsProcessHandle Handle);
 
 /// @} // group OsProcess
 
+/// @defgroup OsThread Thread
+/// @{
+
+enum OsThreadCreateFlags {
+    eOsThreadNone = 0,
+
+    eOsThreadSuspended = (1 << 0),
+};
+
+struct OsThreadCreateInfo {
+    const char *NameFront;
+    const char *NameBack;
+
+    OsProcessHandle Process;
+    OsSize StackSize;
+    OsAnyPointer EntryPoint;
+    OsAnyPointer Argument;
+    uint32_t Flags;
+};
+
+extern OsStatus OsThreadCurrent(OsThreadHandle *OutHandle);
+
+extern OsStatus OsThreadYield(void);
+
+extern OsStatus OsThreadCreate(struct OsThreadCreateInfo CreateInfo, OsThreadHandle *OutHandle);
+
+extern OsStatus OsThreadSuspend(OsThreadHandle Handle, bool Suspend);
+
+extern OsStatus OsThreadDestroy(OsThreadHandle Handle);
+
+/// @} // group OsThread
+
 /// @defgroup OsAddressSpace Address Space
 /// @{
 
-extern OsStatus OsAddressSpaceCreate(size_t Size, OsAddressSpaceHandle *OutHandle);
+enum {
+    eOsMemoryNoAccess = 0,
+    eOsMemoryRead     = (1 << 0),
+    eOsMemoryWrite    = (1 << 1),
+    eOsMemoryExecute  = (1 << 2),
+};
+
+struct OsAddressSpaceCreateInfo {
+    const char *NameFront;
+    const char *NameBack;
+
+    OsSize Size;
+    uint32_t Flags;
+};
+
+extern OsStatus OsAddressSpaceCreate(struct OsAddressSpaceCreateInfo CreateInfo, OsAddressSpaceHandle *OutHandle);
 
 /// @} // group OsAddressSpaceHandle
 

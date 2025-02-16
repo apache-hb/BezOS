@@ -4,11 +4,14 @@
 #include <concurrentqueue.h>
 
 namespace km {
-    class IEvent : public sm::IntrusiveCount<IEvent> {
+    class IEvent {
 
     };
 
     class EventBuffer {
         moodycamel::ConcurrentQueue<sm::SharedPtr<IEvent>> mQueue;
+
+    public:
+        EventBuffer();
     };
 }

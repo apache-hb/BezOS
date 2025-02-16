@@ -66,6 +66,8 @@ namespace sm {
         /// reclaimed when all readers have finished with it.
         ///
         /// @param object The object to retire.
+        ///
+        /// @details This function is internally synchronized.
         void retire(T *object) {
             RcuGeneration *generation = acquire();
             generation->retired.push(object);
@@ -74,7 +76,7 @@ namespace sm {
 
     private:
         std::atomic<RcuGeneration*> mCurrent = new RcuGeneration();
-        stdx::SpinLock mCurrentMutex;
+        stdx::SharedSpinLock mCurrentMutex;
 
         void destroy(RcuGeneration *generation) {
             while (T *head = generation->retired.pop(nullptr)) {
@@ -90,14 +92,14 @@ namespace sm {
             // Ideally this would be totally lock free but the lock is held
             // for very short periods of time and infrequently.
             //
-            stdx::LockGuard guard(mCurrentMutex);
+            stdx::SharedLock guard(mCurrentMutex);
             RcuGeneration *current = mCurrent.load();
             current->guard += 1;
             return current;
         }
 
         RcuGeneration *exchange(RcuGeneration *generation) {
-            stdx::LockGuard guard(mCurrentMutex);
+            stdx::UniqueLock guard(mCurrentMutex);
             return mCurrent.exchange(generation);
         }
     };
@@ -116,7 +118,7 @@ namespace sm {
         }
 
         ~RcuGuard() {
-            mGeneration->unlock_shared();
+            mGeneration->guard -= 1;
         }
 
         UTIL_NOCOPY(RcuGuard);
