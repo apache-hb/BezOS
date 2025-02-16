@@ -20,12 +20,14 @@
 #include "elf.hpp"
 #include "fs2/vfs.hpp"
 #include "gdt.hpp"
+#include "hid/hid.hpp"
 #include "hid/ps2.hpp"
 #include "hypervisor.hpp"
 #include "isr.hpp"
 #include "log.hpp"
 #include "memory.hpp"
 #include "memory/memory.hpp"
+#include "notify.hpp"
 #include "panic.hpp"
 #include "pat.hpp"
 #include "pit.hpp"
@@ -1063,6 +1065,7 @@ static void NormalizeProcessorState() {
 
 static vfs2::VfsRoot *gVfsRoot = nullptr;
 static SystemObjects *gSystemObjects = nullptr;
+static NotificationStream *gNotificationStream = nullptr;
 static Scheduler *gScheduler = nullptr;
 static SystemMemory *gMemory = nullptr;
 
@@ -1070,7 +1073,11 @@ Scheduler *km::GetScheduler() {
     return gScheduler;
 }
 
-const void *TranslateUserPointer(const void *userAddress) {
+static void CreateNotificationQueue() {
+    gNotificationStream = new NotificationStream();
+}
+
+static const void *TranslateUserPointer(const void *userAddress) {
     PageTableManager& pt = gMemory->pt;
     if (bool(pt.getMemoryFlags(userAddress) & (PageFlags::eUser | PageFlags::eRead))) {
         return userAddress;
@@ -1312,8 +1319,8 @@ static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioAp
         if (result.status == hid::Ps2ControllerStatus::eOk) {
             ps2Controller = result.controller;
 
-            KmDebugMessage("[INIT] PS/2 channel 1: ", present(ps2Controller.hasKeyboard()), "\n");
-            KmDebugMessage("[INIT] PS/2 channel 2: ", present(ps2Controller.hasMouse()), "\n");
+            KmDebugMessage("[INIT] PS/2 keyboard: ", present(ps2Controller.hasKeyboard()), "\n");
+            KmDebugMessage("[INIT] PS/2 mouse: ", present(ps2Controller.hasMouse()), "\n");
         }
     } else {
         KmDebugMessage("[INIT] No PS/2 controller found.\n");
@@ -1322,21 +1329,16 @@ static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioAp
     if (ps2Controller.hasKeyboard()) {
         static hid::Ps2Device keyboard = ps2Controller.keyboard();
         static hid::Ps2Device mouse = ps2Controller.mouse();
-        mouse.enable();
+
+        ps2Controller.setMouseSampleRate(10);
+        ps2Controller.setMouseResolution(1);
+
+        hid::InstallPs2KeyboardIsr(ioApicSet, ps2Controller, apic, ist, gNotificationStream);
+        hid::InstallPs2MouseIsr(ioApicSet, ps2Controller, apic, ist, gNotificationStream);
+
+        mouse.disable();
         keyboard.enable();
         ps2Controller.enableIrqs(true, true);
-
-        const IsrTable::Entry *keyboardInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
-            uint8_t scancode = ps2Controller.read();
-            KmDebugMessage("[PS2] Keyboard scancode: ", Hex(ctx->vector), " = ", Hex(scancode), "\n");
-            km::IApic *apic = km::GetCpuLocalApic();
-            apic->eoi();
-            return *ctx;
-        });
-
-        uint8_t keyboardIdx = ist->index(keyboardInt);
-        hid::InstallPs2DeviceIsr(ioApicSet, keyboard, apic, keyboardIdx);
-        hid::InstallPs2DeviceIsr(ioApicSet, mouse, apic, keyboardIdx);
     }
 }
 
@@ -1479,6 +1481,8 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
         return CallOk(0zu);
     });
+
+    CreateNotificationQueue();
 
     ConfigurePs2Controller(rsdt, ioApicSet, lapic.pointer(), ist);
 

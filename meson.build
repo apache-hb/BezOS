@@ -144,6 +144,7 @@ src = [
     'kernel/src/acpi/format.cpp',
 
     # HID
+    'kernel/src/hid/hid.cpp',
     'kernel/src/hid/ps2.cpp',
 
     # Terminal

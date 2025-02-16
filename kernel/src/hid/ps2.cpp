@@ -10,6 +10,7 @@ static constexpr uint16_t kData = 0x60;
 static constexpr uint16_t kCommand = 0x64;
 
 static constexpr uint8_t kInputAvailable = (1 << 0);
+static constexpr uint8_t kOutputFull = (1 << 1);
 
 static constexpr uint8_t kSelfTest = 0xAA;
 static constexpr uint8_t kDisableChannel1 = 0xAD;
@@ -36,54 +37,74 @@ static constexpr uint8_t kFirstClock = (1 << 4);
 static constexpr uint8_t kSecondClock = (1 << 5);
 static constexpr uint8_t kIbmPcCompat = (1 << 6);
 
-static bool DataAvailable() {
+static bool InputBufferFull() {
     return KmReadByte(kCommand) & kInputAvailable;
 }
 
+static bool OutputBufferFull() {
+    return !(KmReadByte(kData) & kOutputFull);
+}
+
 static void FlushData() {
-    while (DataAvailable()) {
+    while (InputBufferFull()) {
         KmReadByte(kData);
     }
 }
 
-static void SendCommand(uint8_t command) {
-    KmWriteByte(kCommand, command);
-}
-
-static void SendDataPort1(uint8_t data) {
-    KmWriteByte(kData, data);
-}
-
-static void SendDataPort2(uint8_t data) {
-    SendCommand(kWriteSecond);
-    KmWriteByte(kData, data);
-}
-
-static void SendCommandData(uint8_t command, uint8_t data) {
-    SendCommand(command);
-    KmWriteByte(kData, data);
-}
-
-static bool WaitUntilDataAvailable(uint8_t timeout = 100) {
-    while (!DataAvailable() && timeout-- > 0) {
+static bool WaitUntilOutputEmpty(uint8_t timeout = 100) {
+    while (!OutputBufferFull() && timeout-- > 0) {
         _mm_pause();
     }
 
     return timeout > 0;
 }
 
+static bool WaitUntilInputFull(uint8_t timeout = 100) {
+    while (!InputBufferFull() && timeout-- > 0) {
+        _mm_pause();
+    }
+
+    return timeout > 0;
+}
+
+static void WritePort(uint8_t port, uint8_t data) {
+    WaitUntilOutputEmpty();
+    KmWriteByte(port, data);
+}
+
+static void SendCommand(uint8_t command) {
+    FlushData();
+
+    WritePort(kCommand, command);
+}
+
+static void SendDataPort1(uint8_t data) {
+    FlushData();
+    WritePort(kData, data);
+}
+
+static void SendDataPort2(uint8_t data) {
+    SendCommand(kWriteSecond);
+    WritePort(kData, data);
+}
+
+static void SendCommandData(uint8_t command, uint8_t data) {
+    SendCommand(command);
+    WritePort(kData, data);
+}
+
 static uint8_t ReadData() {
-    WaitUntilDataAvailable();
+    if (!WaitUntilInputFull())
+        return 0x00;
 
     return KmReadByte(kData);
 }
 
 static uint8_t ReadCommand(uint8_t command) {
-    FlushData();
+    SendCommand(command);
 
-    KmWriteByte(kCommand, command);
-
-    WaitUntilDataAvailable();
+    if (!WaitUntilInputFull())
+        return 0x00;
 
     return KmReadByte(kData);
 }
@@ -155,7 +176,7 @@ static hid::Ps2DeviceType CheckDeviceReset(stdx::StringView channel) {
         return hid::Ps2DeviceType::eDisabled;
     }
 
-    if (!WaitUntilDataAvailable()) {
+    if (!WaitUntilInputFull()) {
         return hid::Ps2DeviceType::eAtKeyboard;
     }
 
@@ -266,11 +287,35 @@ hid::Ps2ControllerResult hid::EnablePs2Controller() {
 }
 
 uint8_t hid::Ps2Controller::read() const {
-    while (!DataAvailable()) {
+    while (!InputBufferFull()) {
         _mm_pause();
     }
 
     return ReadData();
+}
+
+void hid::Ps2Controller::flush() {
+    FlushData();
+}
+
+void hid::Ps2Controller::setMouseSampleRate(uint8_t rate) {
+    hid::Ps2Device device = mouse();
+    if (!device.valid()) {
+        return;
+    }
+
+    device.write(0xF3);
+    device.write(rate);
+}
+
+void hid::Ps2Controller::setMouseResolution(uint8_t resolution) {
+    hid::Ps2Device device = mouse();
+    if (!device.valid()) {
+        return;
+    }
+
+    device.write(0xE8);
+    device.write(resolution);
 }
 
 void hid::Ps2Controller::enableIrqs(bool first, bool second) {
@@ -301,7 +346,7 @@ void hid::Ps2Device::disable() {
     write(kDisableScanning);
 }
 
-void hid::InstallPs2DeviceIsr(km::IoApicSet& ioApicSet, Ps2Device& device, const km::IApic *target, uint8_t isr) {
+void hid::InstallPs2DeviceIsr(km::IoApicSet& ioApicSet, const Ps2Device& device, const km::IApic *target, uint8_t isr) {
     uint8_t irq = device.isKeyboard() ? km::irq::kKeyboard : km::irq::kMouse;
     km::apic::IvtConfig config {
         .vector = isr,

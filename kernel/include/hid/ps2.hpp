@@ -63,12 +63,12 @@ namespace hid {
         Ps2Device mMouse;
 
     public:
-        Ps2Controller(Ps2Device channel1, Ps2Device channel2)
+        constexpr Ps2Controller(Ps2Device channel1, Ps2Device channel2)
             : mKeyboard(channel1)
             , mMouse(channel2)
         { }
 
-        Ps2Controller()
+        constexpr Ps2Controller()
             : mKeyboard(Ps2Device { Ps2DeviceType::eDisabled })
             , mMouse(Ps2Device { Ps2DeviceType::eDisabled })
         { }
@@ -79,7 +79,12 @@ namespace hid {
         bool hasKeyboard() const { return mKeyboard.valid(); }
         bool hasMouse() const { return mMouse.valid(); }
 
+        void setMouseSampleRate(uint8_t rate);
+        void setMouseResolution(uint8_t resolution);
+
         uint8_t read() const;
+
+        void flush();
 
         void enableIrqs(bool first, bool second);
     };
@@ -93,7 +98,7 @@ namespace hid {
 
     Ps2ControllerResult EnablePs2Controller();
 
-    void InstallPs2DeviceIsr(km::IoApicSet& ioApicSet, Ps2Device& device, const km::IApic *target, uint8_t isr);
+    void InstallPs2DeviceIsr(km::IoApicSet& ioApicSet, const Ps2Device& device, const km::IApic *target, uint8_t isr);
 }
 
 template<>
