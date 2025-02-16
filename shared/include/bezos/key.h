@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 enum {
-    eOsKeyUnknown = 0x00,
+    eKeyUnknown = 0x00,
 
     eKeyLButton   = 0x01,
     eKeyRButton   = 0x02,
@@ -56,6 +56,13 @@ enum {
     eKeySubtract  = 0x6D,
     eKeyDecimal   = 0x6E,
     eKeyDivide    = 0x6F,
+
+    eKeyLShift    = 0xA0,
+    eKeyRShift    = 0xA1,
+    eKeyLControl  = 0xA2,
+    eKeyRControl  = 0xA3,
+    eKeyLAlt      = 0xA4,
+    eKeyRAlt      = 0xA5,
 
     eKeyA         = 'A',
     eKeyB         = 'B',

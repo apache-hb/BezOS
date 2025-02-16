@@ -4,16 +4,92 @@
 
 static hid::Ps2Controller gController;
 static km::NotificationStream *gStream;
+static km::Topic *gHidTopic;
 
-const km::IsrTable::Entry *hid::InstallPs2KeyboardIsr(km::IoApicSet& ioApicSet, hid::Ps2Controller& controller, const km::IApic *target, km::IsrTable *ist, km::NotificationStream *stream) {
-    gController = controller;
+static constexpr OsKey kScanMap[UINT8_MAX] = {
+    [0x1C] = eKeyA,
+    [0x1B] = eKeyS,
+    [0x23] = eKeyD,
+    [0x2B] = eKeyF,
+    [0x34] = eKeyG,
+    [0x33] = eKeyH,
+    [0x3B] = eKeyJ,
+    [0x42] = eKeyK,
+    [0x4B] = eKeyL,
+
+    [0x15] = eKeyQ,
+    [0x1D] = eKeyW,
+    [0x24] = eKeyE,
+    [0x2D] = eKeyR,
+    [0x2C] = eKeyT,
+    [0x35] = eKeyY,
+    [0x3C] = eKeyU,
+    [0x43] = eKeyI,
+    [0x44] = eKeyO,
+    [0x4D] = eKeyP,
+
+    [0x1A] = eKeyZ,
+    [0x22] = eKeyX,
+    [0x21] = eKeyC,
+    [0x2A] = eKeyV,
+    [0x32] = eKeyB,
+    [0x31] = eKeyN,
+    [0x3A] = eKeyM,
+
+    [0x29] = eKeySpace,
+
+    [0x14] = eKeyLControl,
+    [0x11] = eKeyLAlt,
+    [0x12] = eKeyLShift,
+    [0x0D] = eKeyTab,
+    [0x66] = eKeyDelete,
+    [0x59] = eKeyRShift,
+    [0xE0] = eKeyRAlt,
+    [0x5A] = eKeyReturn,
+    [0x58] = eKeyCapital,
+};
+
+void hid::InitHidStream(km::NotificationStream *stream) {
     gStream = stream;
+    gHidTopic = new km::Topic(kHidEvent, "HID");
+}
+
+km::Topic *hid::GetHidTopic() {
+    return gHidTopic;
+}
+
+const km::IsrTable::Entry *hid::InstallPs2KeyboardIsr(km::IoApicSet& ioApicSet, hid::Ps2Controller& controller, const km::IApic *target, km::IsrTable *ist) {
+    gController = controller;
 
     const km::IsrTable::Entry *keyboardInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
-        uint8_t scancode = gController.read();
+        uint8_t scancode = 0;
+        bool pressed = true;
+
+        uint8_t segment = gController.read();
+        if (segment == 0xF0) {
+            pressed = false;
+            scancode = gController.read();
+        } else {
+            pressed = true;
+            scancode = segment;
+        }
+
         gController.flush();
 
-        KmDebugMessage("[PS2] Keyboard scancode: ", km::Hex(ctx->vector), " = ", km::Hex(scancode), "\n");
+        OsKey key = kScanMap[scancode];
+        if (key == eKeyUnknown) {
+            KmDebugMessage("[PS2] Unknown scancode: ", km::Hex(ctx->vector), " = ", km::Hex(scancode), "\n");
+        }
+
+        hid::HidEvent event {
+            .type = pressed ? hid::HidEventType::eKeyDown : hid::HidEventType::eKeyUp,
+            .key = {
+                .code = key,
+            },
+        };
+
+        gStream->publish<hid::HidNotification>(GetHidTopic(), event);
+
         km::IApic *apic = km::GetCpuLocalApic();
         apic->eoi();
         return *ctx;
@@ -24,9 +100,8 @@ const km::IsrTable::Entry *hid::InstallPs2KeyboardIsr(km::IoApicSet& ioApicSet, 
     return keyboardInt;
 }
 
-const km::IsrTable::Entry *hid::InstallPs2MouseIsr(km::IoApicSet& ioApicSet, hid::Ps2Controller& controller, const km::IApic *target, km::IsrTable *ist, km::NotificationStream *stream) {
+const km::IsrTable::Entry *hid::InstallPs2MouseIsr(km::IoApicSet& ioApicSet, hid::Ps2Controller& controller, const km::IApic *target, km::IsrTable *ist) {
     gController = controller;
-    gStream = stream;
 
     const km::IsrTable::Entry *mouseInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
         uint8_t code = gController.read();

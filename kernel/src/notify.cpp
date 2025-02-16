@@ -64,3 +64,16 @@ size_t NotificationStream::process(Topic *topic, size_t limit) {
 
     return count;
 }
+
+size_t NotificationStream::processAll(size_t limit) {
+    size_t count = 0;
+
+    for (auto& [key, topic] : mTopics) {
+        count += process(topic.get(), limit - count);
+        if (count >= limit) {
+            break;
+        }
+    }
+
+    return count;
+}

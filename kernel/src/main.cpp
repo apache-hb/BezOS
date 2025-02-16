@@ -1287,8 +1287,51 @@ static void StartupSmp(const acpi::AcpiTables& rsdt, km::IsrTable *ist) {
     }
 }
 
+static constexpr size_t kKernelStackSize = 0x4000;
+
+static OsStatus LaunchThread(OsStatus(*entry)(void*), void *arg, stdx::String name) {
+    Thread *thread = gSystemObjects->createThread(std::move(name), GetCurrentProcess());
+    thread->stack = std::unique_ptr<std::byte[]>(new std::byte[kKernelStackSize]);
+    thread->state = km::IsrContext {
+        .rdi = (uintptr_t)arg,
+        .rbp = (uintptr_t)(thread->stack.get() + kKernelStackSize),
+        .rip = (uintptr_t)entry,
+        .cs = SystemGdt::eLongModeCode * 0x8,
+        .rflags = 0x202,
+        .rsp = (uintptr_t)(thread->stack.get() + kKernelStackSize),
+        .ss = SystemGdt::eLongModeData * 0x8,
+    };
+
+    gScheduler->addWorkItem(thread);
+
+    return OsStatusSuccess;
+}
+
+static OsStatus NotificationWork(void *arg) {
+    NotificationStream *stream = (NotificationStream*)arg;
+    while (true) {
+        stream->processAll();
+    }
+
+    return OsStatusSuccess;
+}
+
+class EchoHidEvent final : public km::ISubscriber {
+    void notify(km::Topic*, sm::RcuSharedPtr<km::INotification> notification) override {
+        hid::HidNotification *hid = static_cast<hid::HidNotification*>(notification.get());
+        hid::HidEvent event = hid->event();
+        if (event.type == hid::HidEventType::eKeyDown) {
+            KmDebugMessage(char(event.key.code));
+        }
+    }
+};
+
 static OsStatus KernelMasterTask() {
     KmDebugMessage("[INIT] Kernel master task.\n");
+
+    gNotificationStream->subscribe(hid::GetHidTopic(), new EchoHidEvent());
+
+    LaunchThread(&NotificationWork, gNotificationStream, "NOTIFY");
 
     ProcessLaunch init{};
     if (OsStatus status = LaunchInitProcess(&init)) {
@@ -1333,8 +1376,10 @@ static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioAp
         ps2Controller.setMouseSampleRate(10);
         ps2Controller.setMouseResolution(1);
 
-        hid::InstallPs2KeyboardIsr(ioApicSet, ps2Controller, apic, ist, gNotificationStream);
-        hid::InstallPs2MouseIsr(ioApicSet, ps2Controller, apic, ist, gNotificationStream);
+        hid::InitHidStream(gNotificationStream);
+
+        hid::InstallPs2KeyboardIsr(ioApicSet, ps2Controller, apic, ist);
+        hid::InstallPs2MouseIsr(ioApicSet, ps2Controller, apic, ist);
 
         mouse.disable();
         keyboard.enable();
@@ -1344,7 +1389,6 @@ static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioAp
 
 [[noreturn]]
 static void LaunchKernelProcess(IsrTable *table, IApic *apic) {
-    static constexpr size_t kKernelStackSize = 0x4000;
     Process *process = gSystemObjects->createProcess("SYSTEM", Privilege::eSupervisor);
     Thread *thread = gSystemObjects->createThread("MASTER", process);
     thread->stack = std::unique_ptr<std::byte[]>(new std::byte[kKernelStackSize]);

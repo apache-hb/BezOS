@@ -20,6 +20,7 @@ namespace km {
     };
 
     km::Thread *GetCurrentThread();
+    km::Process *GetCurrentProcess();
 
     [[noreturn]]
     void ScheduleWork(IsrTable *table, IApic *apic);

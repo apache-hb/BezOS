@@ -117,5 +117,7 @@ namespace km {
         void unsubscribe(Topic *topic, ISubscriber *subscriber);
 
         size_t process(Topic *topic, size_t limit = 1024);
+
+        size_t processAll(size_t limit = 1024);
     };
 }

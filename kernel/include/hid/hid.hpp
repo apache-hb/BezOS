@@ -1,5 +1,7 @@
 #pragma once
 
+#include <bezos/key.h>
+
 #include "hid/ps2.hpp"
 #include "notify.hpp"
 #include "isr.hpp"
@@ -19,7 +21,7 @@ namespace hid {
     };
 
     struct HidKeyEvent {
-        uint32_t code;
+        OsKey code;
     };
 
     struct HidEvent {
@@ -34,13 +36,19 @@ namespace hid {
         HidEvent mEvent;
 
     public:
-        HidNotification(HidEvent event);
+        HidNotification(HidEvent event)
+            : INotification(km::SendTime{})
+            , mEvent(event)
+        { }
 
         HidEvent event() const {
             return mEvent;
         }
     };
 
-    const km::IsrTable::Entry *InstallPs2KeyboardIsr(km::IoApicSet& ioApicSet, hid::Ps2Controller& controller, const km::IApic *target, km::IsrTable *ist, km::NotificationStream *stream);
-    const km::IsrTable::Entry *InstallPs2MouseIsr(km::IoApicSet& ioApicSet, hid::Ps2Controller& controller, const km::IApic *target, km::IsrTable *ist, km::NotificationStream *stream);
+    void InitHidStream(km::NotificationStream *stream);
+    km::Topic *GetHidTopic();
+
+    const km::IsrTable::Entry *InstallPs2KeyboardIsr(km::IoApicSet& ioApicSet, hid::Ps2Controller& controller, const km::IApic *target, km::IsrTable *ist);
+    const km::IsrTable::Entry *InstallPs2MouseIsr(km::IoApicSet& ioApicSet, hid::Ps2Controller& controller, const km::IApic *target, km::IsrTable *ist);
 }

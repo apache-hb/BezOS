@@ -24,6 +24,10 @@ km::Thread *km::GetCurrentThread() {
     return tlsCurrentThread.get();
 }
 
+km::Process *km::GetCurrentProcess() {
+    return GetCurrentThread()->process;
+}
+
 static void SwitchThread(km::Thread *next) {
     tlsCurrentThread = next;
     km::IsrContext *state = &next->state;
