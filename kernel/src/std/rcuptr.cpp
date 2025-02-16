@@ -12,7 +12,12 @@ void rcu::RcuReleaseStrong(void *ptr) {
 }
 
 bool rcu::RcuAcqiureStrong(ControlBlock& control) {
-    return RcuAcquireWeak(control) && control.strong.increment();
+    bool result = RcuAcquireWeak(control) && control.strong.increment();
+    if (!result) {
+        RcuReleaseWeak(&control);
+    }
+
+    return result;
 }
 
 void rcu::RcuReleaseWeak(void *ptr) {
@@ -23,5 +28,6 @@ void rcu::RcuReleaseWeak(void *ptr) {
 }
 
 bool rcu::RcuAcquireWeak(ControlBlock& control) {
-    return control.weak.increment();
+    bool result = control.weak.increment();
+    return result;
 }

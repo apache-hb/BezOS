@@ -6,6 +6,14 @@
 #include <atomic>
 
 namespace sm {
+    /// @brief A multi-producer, single-consumer atomic forward list.
+    ///
+    /// This is a lock-free data structure that allows multiple threads to
+    /// push elements onto the front of the list and a single thread to pop
+    /// elements off the front of the list.
+    ///
+    /// @tparam T The type of the elements in the list.
+    /// @tparam Allocator The allocator to use for the list nodes.
     template<typename T, typename Allocator = mem::GlobalAllocator<T>>
     class AtomicForwardList {
         struct ListNode {

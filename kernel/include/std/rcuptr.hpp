@@ -12,8 +12,8 @@ namespace sm {
             std::atomic<T> mCount;
 
         public:
-            AtomicStickyZero() = default;
-            AtomicStickyZero(T initial)
+            constexpr AtomicStickyZero() = default;
+            constexpr AtomicStickyZero(T initial)
                 : mCount(initial)
             { }
 
@@ -35,13 +35,20 @@ namespace sm {
 
                 return false;
             }
+
+            /// @brief Peek at the current value of the counter.
+            ///
+            /// For debugging purposes only.
+            T peek() {
+                return mCount.load();
+            }
         };
 
         struct ControlBlock {
-            AtomicStickyZero<uint32_t> strong;
-            AtomicStickyZero<uint32_t> weak;
-            void *value;
-            void(*deleter)(void*);
+            AtomicStickyZero<uint32_t> strong = 1;
+            AtomicStickyZero<uint32_t> weak = 1;
+            void *value = nullptr;
+            void(*deleter)(void*) = nullptr;
         };
 
         void RcuReleaseStrong(void *ptr);
@@ -51,10 +58,16 @@ namespace sm {
     }
 
     template<typename T>
+    class RcuIntrusivePtr;
+
+    template<typename T>
     class RcuSharedPtr;
 
     template<typename T>
     class RcuWeakPtr;
+
+    template<typename T>
+    concept IsIntrusivePtr = std::derived_from<T, RcuIntrusivePtr<T>>;
 
     template<typename T>
     class RcuSharedPtr {
@@ -65,8 +78,8 @@ namespace sm {
         rcu::detail::ControlBlock *mControl;
 
         void release() {
-            if (mDomain != nullptr && mControl != nullptr) {
-                mDomain->call(mControl, rcu::detail::RcuReleaseStrong);
+            if (mControl != nullptr) {
+                rcu::detail::RcuReleaseStrong(mControl);
             }
 
             mDomain = nullptr;
@@ -74,14 +87,18 @@ namespace sm {
         }
 
         void acquire(RcuDomain *domain, rcu::detail::ControlBlock *control) {
-            if (domain != nullptr && control != nullptr) {
-                if (!RcuAcqiureStrong(*control)) {
+            if (control != nullptr) {
+                if (!rcu::detail::RcuAcqiureStrong(*control)) {
                     return;
                 }
             }
 
             mDomain = domain;
             mControl = control;
+        }
+
+        constexpr RcuSharedPtr(RcuDomain *domain, rcu::detail::ControlBlock *control) : RcuSharedPtr() {
+            acquire(domain, control);
         }
 
     public:
@@ -99,10 +116,7 @@ namespace sm {
             release();
         }
 
-        constexpr RcuSharedPtr(RcuDomain *domain, T *ptr)
-            : mDomain(domain)
-            , mControl(new rcu::detail::ControlBlock { 1, 1, ptr, [](void *ptr) { delete static_cast<T*>(ptr); } })
-        { }
+        constexpr RcuSharedPtr(RcuDomain *domain, T *ptr);
 
         constexpr RcuSharedPtr(const RcuSharedPtr& other) : RcuSharedPtr() {
             if (other.mDomain) {
@@ -111,11 +125,10 @@ namespace sm {
         }
 
         constexpr RcuSharedPtr& operator=(const RcuSharedPtr& other) {
+            release();
+
             if (other.mDomain) {
-                release();
                 acquire(other.mDomain, other.mControl);
-            } else {
-                release();
             }
 
             return *this;
@@ -129,16 +142,17 @@ namespace sm {
         }
 
         constexpr RcuSharedPtr& operator=(RcuSharedPtr&& other) {
+            release();
+
             if (other.mDomain) {
-                release();
                 mDomain = std::exchange(other.mDomain, nullptr);
                 mControl = std::exchange(other.mControl, nullptr);
-            } else {
-                release();
             }
 
             return *this;
         }
+
+        RcuWeakPtr<T> weak();
 
         constexpr T *operator->() {
             return static_cast<T*>(mControl->value);
@@ -146,6 +160,10 @@ namespace sm {
 
         constexpr T *get() {
             return static_cast<T*>(mControl->value);
+        }
+
+        constexpr T& operator*(this auto&& self) {
+            return *static_cast<T*>(self.mControl->value);
         }
 
         constexpr operator bool() const {
@@ -174,8 +192,8 @@ namespace sm {
         }
 
         void acquire(RcuDomain *domain, rcu::detail::ControlBlock *control) {
-            if (domain != nullptr && control != nullptr) {
-                if (!RcuAcquireWeak(*control)) {
+            if (control != nullptr) {
+                if (!rcu::detail::RcuAcquireWeak(*control)) {
                     return;
                 }
             }
@@ -195,7 +213,6 @@ namespace sm {
         }
 
         constexpr RcuWeakPtr(const RcuSharedPtr<T>& shared) : RcuWeakPtr() {
-            RcuGuard guard(*shared.mDomain);
             acquire(shared.mDomain, shared.mControl);
         }
 
@@ -204,9 +221,11 @@ namespace sm {
         }
 
         constexpr RcuWeakPtr& operator=(const RcuWeakPtr& other) {
-            RcuGuard guard(*other.mDomain);
             release();
+
             acquire(other.mDomain, other.mControl);
+
+            return *this;
         }
 
         constexpr RcuWeakPtr(RcuWeakPtr&& other) : RcuWeakPtr() {
@@ -215,14 +234,57 @@ namespace sm {
         }
 
         constexpr RcuWeakPtr& operator=(RcuWeakPtr&& other) {
-            RcuGuard guard(*other.mDomain);
             release();
+
             mDomain = std::exchange(other.mDomain, nullptr);
             mControl = std::exchange(other.mControl, nullptr);
+
+            return *this;
         }
 
         RcuSharedPtr<T> lock() {
             return RcuSharedPtr<T>(mDomain, mControl);
         }
     };
+
+    template<typename T>
+    class RcuIntrusivePtr {
+        friend class RcuSharedPtr<T>;
+        friend class RcuWeakPtr<T>;
+
+        RcuWeakPtr<T> mWeakThis;
+
+        void initWeak(RcuWeakPtr<T> weak) {
+            mWeakThis = weak;
+        }
+
+    public:
+        RcuWeakPtr<T> loanWeak() {
+            return mWeakThis;
+        }
+
+        RcuSharedPtr<T> loanShared() {
+            return mWeakThis.lock();
+        }
+    };
+
+    template<typename T, typename... Args>
+    RcuSharedPtr<T> makeRcuShared(RcuDomain *domain, Args&&... args) {
+        return RcuSharedPtr<T>(domain, new T(std::forward<Args>(args)...));
+    }
+
+    template<typename T>
+    constexpr RcuSharedPtr<T>::RcuSharedPtr(RcuDomain *domain, T *ptr)
+        : mDomain(domain)
+        , mControl(new rcu::detail::ControlBlock { 1, 1, ptr, [](void *ptr) { delete static_cast<T*>(ptr); } })
+    {
+        if constexpr (IsIntrusivePtr<T>) {
+            ptr->initWeak(weak());
+        }
+    }
+
+    template<typename T>
+    RcuWeakPtr<T> RcuSharedPtr<T>::weak() {
+        return RcuWeakPtr<T>(*this);
+    }
 }

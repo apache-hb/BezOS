@@ -59,35 +59,37 @@ TEST(AtomicForwardListTest, Threads) {
 
     for (int i = 0; i < kThreadCount; i++) {
         threads.emplace_back([&] {
-            // Wait for the writer thread to start so we can ensure
+            // Wait for the reader thread to start so we can ensure
             // both reading and writing are happening concurrently.
             latch.wait();
 
-            while (true) {
-                auto head = list.pop("");
-
-                if (head.empty()) {
-                    if (done) break;
-                    else continue;
-                }
-
-                // Add the element to the out set
-                {
-                    std::lock_guard guard(outMutex);
-                    outElements.insert(head);
-                }
+            for (const std::string& str : inElements) {
+                list.push(str);
             }
+
+            done = true;
         });
     }
 
     threads.emplace_back([&] {
+        // Wait for the writer thread to start so we can ensure
+        // both reading and writing are happening concurrently.
         latch.count_down();
 
-        for (const std::string& str : inElements) {
-            list.push(str);
-        }
+        while (true) {
+            auto head = list.pop("");
 
-        done = true;
+            if (head.empty()) {
+                if (done) break;
+                else continue;
+            }
+
+            // Add the element to the out set
+            {
+                std::lock_guard guard(outMutex);
+                outElements.insert(head);
+            }
+        }
     });
 
     threads.clear();
