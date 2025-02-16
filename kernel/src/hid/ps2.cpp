@@ -287,9 +287,8 @@ hid::Ps2ControllerResult hid::EnablePs2Controller() {
 }
 
 uint8_t hid::Ps2Controller::read() const {
-    while (!InputBufferFull()) {
-        _mm_pause();
-    }
+    if (!WaitUntilInputFull())
+        return 0x00;
 
     return ReadData();
 }
