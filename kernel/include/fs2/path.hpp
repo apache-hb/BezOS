@@ -13,7 +13,7 @@ namespace vfs2 {
     using VfsStringView = stdx::StringViewBase<OsUtf8Char>;
 
     static constexpr OsUtf8Char kPathSeparator = OS_PATH_SEPARATOR;
-    static constexpr OsUtf8Char kPathInvalidChars[] = { OS_PATH_SEPARATOR, '/', '\\' };
+    static constexpr OsUtf8Char kPathInvalidChars[] = { '/', '\\' };
 
     class VfsPathConstIterator {
         using Iterator = VfsString::const_iterator;

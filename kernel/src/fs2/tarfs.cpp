@@ -65,7 +65,7 @@ OsStatus vfs2::detail::ConvertTarPath(const char *path, VfsPath *result) {
     return OsStatusSuccess;
 }
 
-OsStatus vfs2::ParseTar(km::BlockDevice *media, TarParseOptions options, BTreeMap<VfsPath, TarEntry> *result) {
+OsStatus vfs2::ParseTar(km::BlockDevice *media, TarParseOptions options, sm::BTreeMap<VfsPath, TarEntry> *result) {
     TarPosixHeader header{};
     uint64_t offset = 0;
     const uint64_t mediaSize = media->size();
@@ -234,7 +234,7 @@ TarFsMount::TarFsMount(TarFs *tarfs, sm::SharedPtr<km::IBlockDriver> block)
     mRootNode->mount = this;
     mRootNode->type = VfsNodeType::eFolder;
 
-    BTreeMap<VfsPath, TarEntry> headers;
+    sm::BTreeMap<VfsPath, TarEntry> headers;
     if (OsStatus status = ParseTar(&mMedia, TarParseOptions{}, &headers)) {
         KmDebugMessage("[TARFS] Failed to parse tar archive: ", status, "\n");
         return;

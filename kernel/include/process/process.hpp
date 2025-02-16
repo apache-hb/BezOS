@@ -7,16 +7,13 @@
 #include "std/shared_spinlock.hpp"
 #include "std/string.hpp"
 
-#include "absl/container/flat_hash_map.h"
+#include "util/absl.hpp"
 #include "std/vector.hpp"
 
 namespace km {
     enum class ThreadId : uint64_t { };
     enum class AddressSpaceId : uint64_t { };
     enum class ProcessId : uint64_t { };
-
-    template<typename TKey, typename TValue, typename THash = std::hash<TKey>, typename TEqual = std::equal_to<TKey>, typename TAllocator = mem::GlobalAllocator<std::pair<const TKey, TValue>>>
-    using FlatHashMap = absl::flat_hash_map<TKey, TValue, THash, TEqual, TAllocator>;
 
     template<typename T>
     class IdAllocator {
@@ -66,9 +63,9 @@ namespace km {
         IdAllocator<AddressSpaceId> mAddressSpaceIds;
         IdAllocator<ProcessId> mProcessIds;
 
-        FlatHashMap<ThreadId, std::unique_ptr<Thread>> mThreads;
-        FlatHashMap<AddressSpaceId, std::unique_ptr<AddressSpace>> mAddressSpaces;
-        FlatHashMap<ProcessId, std::unique_ptr<Process>> mProcesses;
+        sm::FlatHashMap<ThreadId, std::unique_ptr<Thread>> mThreads;
+        sm::FlatHashMap<AddressSpaceId, std::unique_ptr<AddressSpace>> mAddressSpaces;
+        sm::FlatHashMap<ProcessId, std::unique_ptr<Process>> mProcesses;
 
     public:
         SystemObjects() = default;

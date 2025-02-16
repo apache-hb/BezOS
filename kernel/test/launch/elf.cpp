@@ -10,11 +10,6 @@
 #include "fs2/vfs.hpp"
 #include "fs2/tarfs.hpp"
 
-#include "absl/hash/internal/city.cc"
-#include "absl/hash/internal/hash.cc"
-#include "absl/hash/internal/low_level_hash.cc"
-#include "absl/container/internal/raw_hash_set.cc"
-
 static km::PageMemoryTypeLayout GetDefaultPatLayout(void) {
     enum {
         kEntryWriteBack,

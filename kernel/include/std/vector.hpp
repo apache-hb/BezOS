@@ -435,6 +435,13 @@ namespace stdx {
             std::destroy_at(--mBack);
         }
 
+        constexpr void erase(const T& value) {
+            auto it = std::find(mFront, mBack, value);
+            if (it != mBack) {
+                remove(it - mFront);
+            }
+        }
+
         constexpr friend void swap(Vector2& lhs, Vector2& rhs) {
             std::swap(lhs.mAllocator, rhs.mAllocator);
             std::swap(lhs.mFront, rhs.mFront);

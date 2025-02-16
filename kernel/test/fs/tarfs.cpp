@@ -106,7 +106,7 @@ static constexpr uint8_t kTestHeader[512] = {
 };
 
 TEST(TarFsTest, ParseHeader) {
-    BTreeMap<VfsPath, TarEntry> result;
+    sm::BTreeMap<VfsPath, TarEntry> result;
     km::MemoryBlk media((std::byte*)kTestHeader, sizeof(kTestHeader));
     km::BlockDevice block(&media);
 

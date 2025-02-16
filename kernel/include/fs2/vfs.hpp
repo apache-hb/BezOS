@@ -11,7 +11,7 @@
 /// @cite SunVNodes
 namespace vfs2 {
     class VfsRoot {
-        BTreeMap<VfsPath, std::unique_ptr<IVfsMount>> mMounts;
+        sm::BTreeMap<VfsPath, std::unique_ptr<IVfsMount>> mMounts;
         std::unique_ptr<IVfsMount> mRootMount;
         std::unique_ptr<IVfsNode> mRootNode;
 

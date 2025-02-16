@@ -288,3 +288,10 @@ namespace sm {
         return RcuWeakPtr<T>(*this);
     }
 }
+
+template<typename T>
+struct std::hash<sm::RcuSharedPtr<T>> {
+    constexpr size_t operator()(const sm::RcuSharedPtr<T>& ptr) const noexcept {
+        return std::hash<T*>{}(ptr.get());
+    }
+};

@@ -2,10 +2,15 @@
 #include <gtest/gtest.h>
 
 #include "absl/base/internal/raw_logging.h"
-
 #include "absl/base/internal/throw_delegate.h"
+
 #include "isr.hpp"
 #include "kernel.hpp"
+
+#include "absl/hash/internal/city.cc"
+#include "absl/hash/internal/hash.cc"
+#include "absl/hash/internal/low_level_hash.cc"
+#include "absl/container/internal/raw_hash_set.cc"
 
 class TestStream final : public km::IOutStream {
 public:

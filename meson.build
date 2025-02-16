@@ -174,6 +174,9 @@ src = [
     'kernel/src/drivers/block/virtio_blk.cpp',
     'kernel/src/drivers/block/ramblk.cpp',
 
+    # Services
+    'kernel/src/notify.cpp',
+
     # Process
     'kernel/src/process/process.cpp',
     'kernel/src/process/schedule.cpp',
@@ -293,7 +296,10 @@ testkwargs = { 'protocol' : 'gtest', 'timeout': 5 }
 
 # meson bug: native executables dont have all default_options applied
 test_c_args = c_args + [ '-std=gnu23', '-DUTIL_TESTING=1' ]
-test_cpp_args = cpp_args + [ '-std=c++26', '-DUTIL_TESTING=1' ]
+
+# use NDEBUG_SANITIZER to disable some abseil debug tools,
+# it causes issues with the freestanding patches ive made
+test_cpp_args = cpp_args + [ '-std=c++26', '-DUTIL_TESTING=1', '-DNDEBUG_SANITIZER=1' ]
 
 src = [
     'kernel/test/test_shim.cpp',
@@ -431,6 +437,12 @@ testcases = {
     'cmos': [
         'kernel/test/cmos.cpp',
         'kernel/src/cmos.cpp',
+    ],
+    'notify': [
+        'kernel/test/notify.cpp',
+        'kernel/src/notify.cpp',
+        'kernel/src/std/rcu.cpp',
+        'kernel/src/std/rcuptr.cpp',
     ],
 }
 

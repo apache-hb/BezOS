@@ -1,14 +1,13 @@
 #pragma once
 
-#include <atomic>
 #include <bezos/status.h>
 
 #include "fs2/path.hpp"
 
-#include "std/spinlock.hpp"
 #include "std/string_view.hpp"
 
-#include "absl/container/btree_map.h"
+#include "util/absl.hpp"
+
 #include "util/util.hpp"
 
 /// @brief Virtual File System.
@@ -26,9 +25,6 @@ namespace vfs2 {
 
     struct IVfsMount;
     struct IVfsDriver;
-
-    template<typename TKey, typename TValue, typename TCompare = std::less<TKey>, typename TAllocator = mem::GlobalAllocator<std::pair<const TKey, TValue>>>
-    using BTreeMap = absl::btree_map<TKey, TValue, TCompare, TAllocator>;
 
     enum class VfsNodeId : uint64_t { };
 
@@ -82,11 +78,9 @@ namespace vfs2 {
 
         IVfsNodeHandle(IVfsNode *it)
             : node(it)
-            , offset(0)
         { }
 
         IVfsNode *node;
-        uint64_t offset;
 
         virtual OsStatus read(ReadRequest request, ReadResult *result);
         virtual OsStatus write(WriteRequest request, WriteResult *result);
@@ -157,20 +151,74 @@ namespace vfs2 {
         IVfsMount *mount;
 
         /// @brief If this is a directory, these are all the entries.
-        BTreeMap<VfsString, IVfsNode*, std::less<>> children;
+        sm::BTreeMap<VfsString, IVfsNode*, std::less<>> children;
 
         /// @brief The type of the entry.
         VfsNodeType type;
 
+        /// @brief Read a range of bytes from the file.
+        ///
+        /// @details This function is expected to be internally synchronized.
+        ///
+        /// @param request The request to read from the file.
+        /// @param result The result of the read operation.
+        ///
+        /// @return The status of the read operation.
         virtual OsStatus read(ReadRequest, ReadResult*) { return OsStatusNotSupported; }
+
+        /// @brief Write a range of bytes to the file.
+        ///
+        /// @details This function is expected to be internally synchronized.
+        ///
+        /// @param request The request to write to the file.
+        /// @param result The result of the write operation.
+        ///
+        /// @return The status of the write operation.
         virtual OsStatus write(WriteRequest, WriteResult*) { return OsStatusNotSupported; }
 
+        /// @brief Create a new file.
+        ///
+        /// @details This function is expected to be internally synchronized.
+        ///
+        /// @param node The new file node.
+        ///
+        /// @return The status of the create operation.
         virtual OsStatus create(IVfsNode**) { return OsStatusNotSupported; }
+
+        /// @brief Create a new directory.
+        ///
+        /// @details This function is expected to be internally synchronized.
+        ///
+        /// @param node The new directory node.
+        ///
+        /// @return The status of the create operation.
         virtual OsStatus mkdir(IVfsNode**) { return OsStatusNotSupported; }
 
+        /// @brief Remove a file.
+        ///
+        /// @details This function is expected to be internally synchronized.
+        ///
+        /// @param node The file to remove.
+        ///
+        /// @return The status of the remove operation.
         virtual OsStatus remove(IVfsNode*) { return OsStatusNotSupported; }
+
+        /// @brief Remove a directory.
+        ///
+        /// @details This function is expected to be internally synchronized.
+        ///
+        /// @param node The directory to remove.
+        ///
+        /// @return The status of the remove operation.
         virtual OsStatus rmdir(IVfsNode*) { return OsStatusNotSupported; }
 
+        /// @brief Stat the file.
+        ///
+        /// @details This function is expected to be internally synchronized.
+        ///
+        /// @param stat The stat structure to fill.
+        ///
+        /// @return The status of the stat operation.
         virtual OsStatus stat(VfsNodeStat*) { return OsStatusNotSupported; }
 
         OsStatus open(IVfsNodeHandle **handle);

@@ -3,8 +3,9 @@
 #include <shared_mutex>
 #include <thread>
 
-#include "std/spinlock.hpp"
 #include "processor.hpp"
+
+#include "std/spinlock.hpp"
 #include "std/recursive_mutex.hpp"
 #include "std/shared_spinlock.hpp"
 

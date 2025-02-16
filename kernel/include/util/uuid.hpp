@@ -338,6 +338,16 @@ namespace sm {
 
             return tmp;
         }
+
+        constexpr friend std::strong_ordering operator<=>(const uuid& lhs, const uuid& rhs) noexcept {
+            for (size_t i = 0; i < 16; i++) {
+                if (lhs.octets[i] != rhs.octets[i]) {
+                    return lhs.octets[i] <=> rhs.octets[i];
+                }
+            }
+
+            return std::strong_ordering::equal;
+        }
     };
 
     static_assert(sizeof(uuidv1) == 16);
