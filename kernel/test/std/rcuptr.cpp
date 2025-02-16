@@ -5,33 +5,30 @@
 #include <thread>
 
 #include "std/rcu.hpp"
-
-TEST(RcuTest, Construct) {
-    sm::RcuDomain domain;
-}
+#include "std/rcuptr.hpp"
 
 struct Tree {
-    std::atomic<Tree*> left;
-    std::atomic<Tree*> right;
+    sm::RcuSharedPtr<Tree> left;
+    sm::RcuSharedPtr<Tree> right;
 
     std::atomic<uint64_t> data;
 };
 
-static void AddElement(sm::RcuDomain& domain, Tree *root, Tree *element) {
-    sm::RcuGuard guard(domain);
-    Tree *current = root;
+static void AddElement(sm::RcuDomain *domain, sm::RcuSharedPtr<Tree> root, Tree *element) {
+    sm::RcuGuard guard(*domain);
+    sm::RcuSharedPtr<Tree> current = root;
 
     while (true) {
         if (element->data < current->data) {
             if (current->left == nullptr) {
-                current->left = element;
+                current->left = {domain, element};
                 return;
             }
 
             current = current->left;
         } else {
             if (current->right == nullptr) {
-                current->right = element;
+                current->right = {domain, element};
                 return;
             }
 
@@ -40,10 +37,10 @@ static void AddElement(sm::RcuDomain& domain, Tree *root, Tree *element) {
     }
 }
 
-static void DeleteElement(sm::RcuDomain& domain, Tree *root, uint8_t data) {
-    sm::RcuGuard guard(domain);
-    Tree *parent = root;
-    Tree *current = root;
+static void DeleteElement(sm::RcuDomain *domain, sm::RcuSharedPtr<Tree> root, uint8_t data) {
+    sm::RcuGuard guard(*domain);
+    sm::RcuSharedPtr<Tree> parent = root;
+    sm::RcuSharedPtr<Tree> current = root;
     bool left = false;
 
     while (current != nullptr) {
@@ -62,8 +59,6 @@ static void DeleteElement(sm::RcuDomain& domain, Tree *root, uint8_t data) {
             } else {
                 parent->right = nullptr;
             }
-
-            domain.retire(current);
             return;
         }
     }
@@ -74,13 +69,11 @@ static void DeleteElement(sm::RcuDomain& domain, Tree *root, uint8_t data) {
     } else {
         parent->right = nullptr;
     }
-
-    domain.retire(current);
 }
 
-static bool FindElement(sm::RcuDomain& domain, Tree *root, uint64_t data) {
-    sm::RcuGuard guard(domain);
-    Tree *current = root;
+static bool FindElement(sm::RcuDomain *domain, sm::RcuSharedPtr<Tree> root, uint64_t data) {
+    sm::RcuGuard guard(*domain);
+    sm::RcuSharedPtr<Tree> current = root;
 
     while (current != nullptr) {
         if (current->data == data) {
@@ -97,22 +90,9 @@ static bool FindElement(sm::RcuDomain& domain, Tree *root, uint64_t data) {
     return false;
 }
 
-static void DestroyTree(sm::RcuDomain& domain, Tree *root) {
-    sm::RcuGuard guard(domain);
-
-    if (root == nullptr) {
-        return;
-    }
-
-    DestroyTree(domain, root->left);
-    DestroyTree(domain, root->right);
-
-    domain.retire(root);
-}
-
-TEST(RcuTest, Insert) {
+TEST(RcuPtrTest, Insert) {
     sm::RcuDomain domain;
-    Tree *root = new Tree { nullptr, nullptr };
+    sm::RcuSharedPtr<Tree> root = {&domain, new Tree { nullptr, nullptr }};
 
     std::mt19937 mt(0x1234);
     std::uniform_int_distribution<uint64_t> dist(0, UINT64_MAX);
@@ -120,7 +100,7 @@ TEST(RcuTest, Insert) {
     // Build out some initial data.
     for (int i = 0; i < 100000; i++) {
         Tree *element = new Tree { nullptr, nullptr, dist(mt) };
-        AddElement(domain, root, element);
+        AddElement(&domain, root, element);
     }
 
     std::vector<std::jthread> threads;
@@ -138,7 +118,7 @@ TEST(RcuTest, Insert) {
             // I don't care if it exists or not, just traverse the tree
             // so that we can see if the RCU domain is working correctly.
             for (int i = 0; i < 1000; i++) {
-                FindElement(domain, root, dist(mt));
+                FindElement(&domain, root, dist(mt));
             }
         });
     }
@@ -152,9 +132,9 @@ TEST(RcuTest, Insert) {
         for (int i = 0; i < 1000; i++) {
             if (i % 2) {
                 Tree *element = new Tree { nullptr, nullptr, dist(mt) };
-                AddElement(domain, root, element);
+                AddElement(&domain, root, element);
             } else {
-                DeleteElement(domain, root, dist(mt));
+                DeleteElement(&domain, root, dist(mt));
             }
         }
     });
@@ -170,9 +150,6 @@ TEST(RcuTest, Insert) {
     threads.clear();
     running = false;
     cleaner.join();
-
-    // cleanup the tree.
-    DestroyTree(domain, root);
 
     // If we get here without crashing chances are the RCU domain is working.
     SUCCEED();

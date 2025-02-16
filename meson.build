@@ -101,6 +101,10 @@ src = [
     'kernel/src/util/bits.cpp',
     'kernel/src/util/uuid.cpp',
 
+    # RCU
+    'kernel/src/std/rcu.cpp',
+    'kernel/src/std/rcuptr.cpp',
+
     # Memory management
     'kernel/src/memory/layout.cpp',
     'kernel/src/memory/allocator.cpp',
@@ -417,6 +421,12 @@ testcases = {
     ],
     'rcu': [
         'kernel/test/std/rcu.cpp',
+        'kernel/src/std/rcu.cpp',
+    ],
+    'rcuptr': [
+        'kernel/test/std/rcuptr.cpp',
+        'kernel/src/std/rcu.cpp',
+        'kernel/src/std/rcuptr.cpp',
     ],
     'cmos': [
         'kernel/test/cmos.cpp',
