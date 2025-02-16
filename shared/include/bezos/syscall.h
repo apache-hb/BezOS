@@ -23,6 +23,12 @@ typedef int64_t OsSigned;
 typedef float OsFloat;
 typedef double OsDouble;
 typedef void *OsAnyPointer;
+typedef uint64_t OsDuration;
+typedef uint64_t OsInstant;
+
+struct OsGuid {
+    OsByte Octets[16];
+};
 
 struct OsString {
     OsSize Size;
@@ -86,6 +92,9 @@ OS_OBJECT_HANDLE(OsTransactionHandle);
 
 /// @brief A handle to a thread.
 OS_OBJECT_HANDLE(OsThreadHandle);
+
+/// @brief A handle to a mutex.
+OS_OBJECT_HANDLE(OsMutexHandle);
 
 /// @brief A handle to a process.
 OS_OBJECT_HANDLE(OsProcessHandle);
@@ -438,11 +447,12 @@ enum {
 };
 
 enum {
-    eOsParamPowerState     = UINT32_C(0),
-    eOsParamPhysicalMemory = UINT32_C(1),
-    eOsParamMaxNameLength  = UINT32_C(2),
-    eOsParamMaxPathLength  = UINT32_C(3),
-    eOsParamPageSize       = UINT32_C(4),
+    eOsParamPowerState       = UINT32_C(0),
+    eOsParamPhysicalMemory   = UINT32_C(1),
+    eOsParamFileNameLength   = UINT32_C(2),
+    eOsParamPathLength       = UINT32_C(3),
+    eOsParamPageSize         = UINT32_C(4),
+    eOsParamObjectNameLength = UINT32_C(5),
 };
 
 struct OsParamConfig {
@@ -472,12 +482,27 @@ extern OsStatus OsParamUpdate(struct OsParamConfig *ConfigFront, struct OsParamC
 /// @defgroup OsProcess Process
 /// @{
 
+enum OsProcessCreateFlags {
+    eOsProcessNone = 0,
+
+    eOsProcessSuspended = (1 << 0),
+};
+
 struct OsProcessCreateInfo {
     const char *NameFront;
     const char *NameBack;
+
+    const char *ArgumentsFront;
+    const char *ArgumentsBack;
+
+    OsProcessCreateFlags Flags;
 };
 
-extern OsStatus OsProcessCurrent(struct OsProcessCreateInfo CreateInfo, OsProcessHandle *OutHandle);
+extern OsStatus OsProcessCurrent(OsProcessHandle *OutHandle);
+
+extern OsStatus OsProcessCreate(struct OsProcessCreateInfo CreateInfo, OsProcessHandle *OutHandle);
+
+extern OsStatus OsProcessSuspend(OsProcessHandle Handle, bool Suspend);
 
 extern OsStatus OsProcessTerminate(OsProcessHandle Handle);
 
@@ -507,6 +532,8 @@ extern OsStatus OsThreadCurrent(OsThreadHandle *OutHandle);
 
 extern OsStatus OsThreadYield(void);
 
+extern OsStatus OsThreadSleep(OsDuration Duration);
+
 extern OsStatus OsThreadCreate(struct OsThreadCreateInfo CreateInfo, OsThreadHandle *OutHandle);
 
 extern OsStatus OsThreadSuspend(OsThreadHandle Handle, bool Suspend);
@@ -514,6 +541,24 @@ extern OsStatus OsThreadSuspend(OsThreadHandle Handle, bool Suspend);
 extern OsStatus OsThreadDestroy(OsThreadHandle Handle);
 
 /// @} // group OsThread
+
+/// @defgroup OsMutex Mutex
+/// @{
+
+struct OsMutexCreateInfo {
+    const char *NameFront;
+    const char *NameBack;
+};
+
+extern OsStatus OsMutexCreate(struct OsMutexCreateInfo CreateInfo, OsMutexHandle *OutHandle);
+
+extern OsStatus OsMutexLock(OsMutexHandle Handle);
+
+extern OsStatus OsMutexUnlock(OsMutexHandle Handle);
+
+extern OsStatus OsMutexDestroy(OsMutexHandle Handle);
+
+/// @} // group OsMutex
 
 /// @defgroup OsAddressSpace Address Space
 /// @{
