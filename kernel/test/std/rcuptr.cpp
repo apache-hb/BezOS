@@ -232,3 +232,25 @@ TEST(RcuPtrTest, ConstructWeak) {
     ptr = nullptr;
     ASSERT_EQ(weak.lock(), nullptr);
 }
+
+class IntrusiveData : public sm::RcuIntrusivePtr<IntrusiveData> {
+    std::string mValue;
+
+public:
+    IntrusiveData(std::string value)
+        : mValue(std::move(value))
+    { }
+
+    const std::string& value() const {
+        return mValue;
+    }
+};
+
+TEST(RcuPtrTest, Intrusive) {
+    sm::RcuDomain domain;
+    sm::RcuSharedPtr<IntrusiveData> ptr = sm::makeRcuShared<IntrusiveData>(&domain, "Hello, World!");
+    ASSERT_EQ(ptr->value(), "Hello, World!");
+    sm::RcuWeakPtr<IntrusiveData> weak = ptr;
+    ptr = nullptr;
+    ASSERT_EQ(weak.lock(), nullptr);
+}
