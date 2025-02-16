@@ -495,7 +495,7 @@ struct OsProcessCreateInfo {
     const char *ArgumentsFront;
     const char *ArgumentsBack;
 
-    OsProcessCreateFlags Flags;
+    uint32_t Flags;
 };
 
 extern OsStatus OsProcessCurrent(OsProcessHandle *OutHandle);

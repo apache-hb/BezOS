@@ -1,5 +1,6 @@
 #pragma once
 
+#include "std/spinlock.hpp"
 #include "util/absl.hpp"
 
 #include "std/rcuptr.hpp"
@@ -25,7 +26,9 @@ namespace km {
         stdx::String mName;
 
         moodycamel::ConcurrentQueue<sm::RcuSharedPtr<INotification>> queue;
-        sm::FlatHashSet<ISubscriber*> subscribers;
+
+        stdx::SharedSpinLock mLock;
+        sm::FlatHashSet<ISubscriber*> mSubscribers;
 
         void addNotification(sm::RcuDomain *domain, INotification *notification);
         void subscribe(ISubscriber *subscriber);
@@ -92,7 +95,11 @@ namespace km {
         using TopicSet = sm::FlatHashMap<sm::uuid, std::unique_ptr<Topic>>;
 
         sm::RcuDomain mDomain;
+
+        stdx::SharedSpinLock mTopicLock;
         TopicSet mTopics;
+
+        stdx::SpinLock mSubscriberLock;
         sm::FlatHashSet<std::unique_ptr<ISubscriber>> mSubscribers;
 
         void addNotification(Topic *topic, INotification *notification);

@@ -9,11 +9,13 @@ void Topic::addNotification(sm::RcuDomain *domain, INotification *notification) 
 }
 
 void Topic::subscribe(ISubscriber *subscriber) {
-    subscribers.insert(subscriber);
+    stdx::UniqueLock guard(mLock);
+    mSubscribers.insert(subscriber);
 }
 
 void Topic::unsubscribe(ISubscriber *subscriber) {
-    subscribers.erase(subscriber);
+    stdx::UniqueLock guard(mLock);
+    mSubscribers.erase(subscriber);
 }
 
 void NotificationStream::addNotification(Topic *topic, INotification *notification) {
@@ -21,6 +23,8 @@ void NotificationStream::addNotification(Topic *topic, INotification *notificati
 }
 
 Topic *NotificationStream::createTopic(sm::uuid id, stdx::String name) {
+    stdx::UniqueLock guard(mTopicLock);
+
     auto [iter, ok] = mTopics.insert({ id, sm::makeUnique<Topic>(id, std::move(name)) });
     if (!ok) {
         KmDebugMessage("[AQ] Failed to create topic\n");
@@ -33,6 +37,8 @@ Topic *NotificationStream::createTopic(sm::uuid id, stdx::String name) {
 }
 
 Topic *NotificationStream::findTopic(sm::uuid id) {
+    stdx::SharedLock guard(mTopicLock);
+
     if (auto iter = mTopics.find(id); iter != mTopics.end()) {
         return iter->second.get();
     }
@@ -41,6 +47,8 @@ Topic *NotificationStream::findTopic(sm::uuid id) {
 }
 
 ISubscriber *NotificationStream::subscribe(Topic *topic, ISubscriber *subscriber) {
+    stdx::LockGuard guard(mSubscriberLock);
+
     auto [iter, ok] = mSubscribers.emplace(subscriber);
     KM_CHECK(ok, "Failed to subscribe to topic");
 
@@ -57,8 +65,10 @@ size_t NotificationStream::process(Topic *topic, size_t limit) {
     sm::RcuSharedPtr<INotification> notification = nullptr;
     size_t count = 0;
 
+    // TODO: make this thread safe
+
     while (topic->queue.try_dequeue(notification)) {
-        for (ISubscriber *subscriber : topic->subscribers) {
+        for (ISubscriber *subscriber : topic->mSubscribers) {
             subscriber->notify(topic, notification);
         }
 
@@ -72,6 +82,8 @@ size_t NotificationStream::process(Topic *topic, size_t limit) {
 
 size_t NotificationStream::processAll(size_t limit) {
     size_t count = 0;
+
+    // TODO: make this thread safe
 
     for (auto& [key, topic] : mTopics) {
         count += process(topic.get(), limit - count);

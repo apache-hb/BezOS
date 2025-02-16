@@ -47,6 +47,17 @@ static constexpr OsKey kScanMap[UINT8_MAX] = {
     [0xE0] = eKeyRAlt,
     [0x5A] = eKeyReturn,
     [0x58] = eKeyCapital,
+
+    [0x16] = eKey1,
+    [0x1E] = eKey2,
+    [0x26] = eKey3,
+    [0x25] = eKey4,
+    [0x2E] = eKey5,
+    [0x36] = eKey6,
+    [0x3D] = eKey7,
+    [0x3E] = eKey8,
+    [0x46] = eKey9,
+    [0x45] = eKey0,
 };
 
 void hid::InitHidStream(km::NotificationStream *stream) {
