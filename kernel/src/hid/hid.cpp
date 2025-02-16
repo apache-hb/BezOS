@@ -51,7 +51,7 @@ static constexpr OsKey kScanMap[UINT8_MAX] = {
 
 void hid::InitHidStream(km::NotificationStream *stream) {
     gStream = stream;
-    gHidTopic = new km::Topic(kHidEvent, "HID");
+    gHidTopic = gStream->createTopic(kHidEvent, "HID");
 }
 
 km::Topic *hid::GetHidTopic() {

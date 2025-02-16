@@ -1,4 +1,5 @@
 #include "notify.hpp"
+#include "log.hpp"
 
 using namespace km;
 
@@ -22,10 +23,12 @@ void NotificationStream::addNotification(Topic *topic, INotification *notificati
 Topic *NotificationStream::createTopic(sm::uuid id, stdx::String name) {
     auto [iter, ok] = mTopics.insert({ id, sm::makeUnique<Topic>(id, std::move(name)) });
     if (!ok) {
+        KmDebugMessage("[AQ] Failed to create topic\n");
         return nullptr;
     }
 
     auto& [key, value] = *iter;
+    KmDebugMessage("[AQ] Created topic '", value->name(), "'\n");
     return value.get();
 }
 
@@ -54,12 +57,14 @@ size_t NotificationStream::process(Topic *topic, size_t limit) {
     sm::RcuSharedPtr<INotification> notification = nullptr;
     size_t count = 0;
 
-    while (topic->queue.try_dequeue(notification) && count < limit) {
+    while (topic->queue.try_dequeue(notification)) {
         for (ISubscriber *subscriber : topic->subscribers) {
             subscriber->notify(topic, notification);
         }
 
-        count += 1;
+        if (++count >= limit) {
+            break;
+        }
     }
 
     return count;
