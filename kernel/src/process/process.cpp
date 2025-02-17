@@ -32,6 +32,16 @@ Process *SystemObjects::createProcess(stdx::String name, km::Privilege privilege
     return result;
 }
 
+Mutex *SystemObjects::createMutex(stdx::String name) {
+    stdx::UniqueLock guard(mLock);
+
+    MutexId id = mMutexIds.allocate();
+    std::unique_ptr<Mutex> mutex{new Mutex{id, std::move(name)}};
+    Mutex *result = mutex.get();
+    mMutexes.insert({id, std::move(mutex)});
+    return result;
+}
+
 Thread *SystemObjects::getThread(ThreadId id) {
     stdx::SharedLock guard(mLock);
     if (auto it = mThreads.find(id); it != mThreads.end()) {
@@ -53,6 +63,15 @@ AddressSpace *SystemObjects::getAddressSpace(AddressSpaceId id) {
 Process *SystemObjects::getProcess(ProcessId id) {
     stdx::SharedLock guard(mLock);
     if (auto it = mProcesses.find(id); it != mProcesses.end()) {
+        return it->second.get();
+    }
+
+    return nullptr;
+}
+
+Mutex *SystemObjects::getMutex(MutexId id) {
+    stdx::SharedLock guard(mLock);
+    if (auto it = mMutexes.find(id); it != mMutexes.end()) {
         return it->second.get();
     }
 

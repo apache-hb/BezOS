@@ -46,7 +46,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
         return status;
     }
 
-    Process *process = objects.createProcess("init.elf", km::Privilege::eUser);
+    Process *process = objects.createProcess("INIT", km::Privilege::eUser);
 
     uint64_t entry = header.entry;
 
@@ -75,7 +75,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
         //
         size_t offset = (ph.vaddr % x64::kPageSize);
         size_t pages = Pages(ph.memsz + offset);
-        void *baseVaddr = (void*)(ph.vaddr - offset); // memory.vmm.alloc4k(pages);
+        void *baseVaddr = (void*)(ph.vaddr - offset);
         void *vaddr = (void*)ph.vaddr;
         PhysicalAddress paddr = memory.pmm.alloc4k(pages);
 
@@ -85,11 +85,12 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
             .size = pages * x64::kPageSize,
         };
 
+        memory.vmm.markUsed(mapping.virtualRange());
+
         //
         // Allocate all the memory as writable during the load phase.
         //
         memory.pt.map(mapping, PageFlags::eWrite);
-        std::uninitialized_fill_n((uint8_t*)baseVaddr, mapping.size, 0xF0);
 
         vfs2::ReadRequest request {
             .begin = (std::byte*)vaddr,
