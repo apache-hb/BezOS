@@ -1,7 +1,8 @@
 project('bezos', 'c')
 
 src = [
-    'src/syscall.c',
+    'src/syscall_fs.c',
+    'src/syscall_threads.c',
     'src/syscall.S',
 ]
 

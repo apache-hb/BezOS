@@ -1,5 +1,5 @@
 #include "fs2/path.hpp"
-#include "bezos/syscall.h"
+
 #include <algorithm>
 #include <cassert>
 

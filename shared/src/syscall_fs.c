@@ -1,4 +1,6 @@
-#include <bezos/syscall.h>
+#include <bezos/facility/fs.h>
+
+#include <bezos/private.h>
 
 OsStatus OsFileOpen(const char *PathFront, const char *PathBack, OsFileOpenMode Mode, OsFileHandle *OutHandle) {
     struct OsCallResult result = OsSystemCall(eOsCallFileOpen, (uint64_t)PathFront, (uint64_t)PathBack, (uint64_t)Mode, 0);
@@ -32,4 +34,9 @@ OsStatus OsFileSeek(OsFileHandle Handle, OsSeekMode Mode, int64_t Offset, uint64
 OsStatus OsFileControl(OsFileHandle Handle, uint64_t ControlCode, void *ControlData, size_t ControlSize) {
     struct OsCallResult result = OsSystemCall(eOsCallFileControl, (uint64_t)Handle, ControlCode, (uint64_t)ControlData, (uint64_t)ControlSize);
     return result.Status;
+}
+
+// TODO: remove this
+void OsDebugLog(const char *Begin, const char *End) {
+    OsSystemCall(eOsCallDebugLog, (uint64_t)Begin, (uint64_t)End, 0, 0);
 }

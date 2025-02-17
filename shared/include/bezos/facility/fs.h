@@ -1,0 +1,247 @@
+#pragma once
+
+#include <bezos/handle.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/// @defgroup OsFile Files
+/// @{
+
+/// @brief An invalid file handle.
+#define OS_FILE_INVALID ((OsFileHandle)(UINT64_MAX))
+
+/// @brief The path separator used by the operating system.
+#define OS_PATH_SEPARATOR '\0'
+
+/// @brief Seek modes.
+///
+/// Bits [0:2] contain the seek mode.
+/// Bits [3:63] are reserved and must be zero.
+typedef uint64_t OsSeekMode;
+
+/// @brief Open file modes.
+///
+/// Bits [0:7] contain the access mode.
+/// Bits [8:15] contain the creation mode.
+/// Bits [16:63] are reserved and must be zero.
+typedef uint64_t OsFileOpenMode;
+
+enum {
+    /// @brief Open a file for reading.
+    eOsFileRead = (UINT64_C(1) << 0),
+
+    /// @brief Open a file for writing.
+    eOsFileWrite = (UINT64_C(1) << 1),
+
+    /// @brief Open a file in append mode.
+    /// This implies @a OsFileWrite.
+    eOsFileAppend = (UINT64_C(1) << 2),
+
+    /// @brief Truncate the file upon opening.
+    /// This implies @a OsFileWrite.
+    eOsFileTruncate = (UINT64_C(1) << 3),
+
+
+    /// @brief Always create a new file.
+    /// If the file already exists, it is truncated.
+    /// If the file does not exist, then it is created.
+    eOsFileCreateAlways = (UINT64_C(1) << 8),
+
+    /// @brief Open an existing file.
+    /// If the file does not exist, then the operation fails.
+    /// If the file exists, then it is opened.
+    eOsFileOpenExisting = (UINT64_C(2) << 8),
+
+    /// @brief Open a file if it exists.
+    /// If the file does not exist, then it is created.
+    /// If the file exists, then it is opened.
+    eOsFileOpenAlways = (UINT64_C(3) << 8),
+};
+
+enum {
+    /// @brief Seek relative to the beginning of the file.
+    eOsSeekAbsolute = UINT64_C(0),
+
+    /// @brief Seek relative to the current position.
+    eOsSeekRelative = UINT64_C(1),
+
+    /// @brief Seek relative to the end of the file.
+    eOsSeekEnd      = UINT64_C(2),
+};
+
+/// @brief A path on the filesystem.
+///
+/// A path is a sequence of segments separated by @a OS_PATH_SEPARATOR.
+struct OsPath {
+    const OsUtf8Char *PathFront;
+    const OsUtf8Char *PathBack;
+};
+
+struct OsFileCreateInfo {
+    const char *PathFront;
+    const char *PathBack;
+};
+
+/// @brief Open or create a file.
+///
+/// @pre @p PathFront and @p PathBack must point to the front and back of a valid buffer.
+/// @pre @p PathBack must be > @p PathFront.
+/// @pre @p OutHandle must point to valid memory.
+/// @pre @p Mode must be a valid combination of @a OsFileOpenMode flags.
+///
+/// @post @p OutHandle will be a valid file handle if the operation is successful.
+/// @post @p OutHandle will be @a OsFileHandleInvalid if the operation fails.
+///
+/// @param PathFront The front of the path.
+/// @param PathBack The back of the path.
+/// @param Mode The mode to open the file in.
+/// @param OutHandle The file handle.
+///
+/// @return The status of the operation.
+extern OsStatus OsFileOpen(const char *PathFront, const char *PathBack, OsFileOpenMode Mode, OsFileHandle *OutHandle);
+
+/// @brief Close a file handle.
+///
+/// @pre @p Handle must be a valid file handle.
+///
+/// @param Handle The file handle to close.
+///
+/// @return The status of the operation.
+extern OsStatus OsFileClose(OsFileHandle Handle);
+
+/// @brief Read from a file.
+///
+/// @pre @p Handle must be a valid file handle.
+/// @pre @p BufferFront and @p BufferBack must point to the front and back of a valid buffer.
+/// @pre @p BufferBack must be > @p BufferFront.
+/// @pre @p OutRead must point to valid memory.
+///
+/// @post @p OutRead will contain the number of bytes read.
+/// @post @p BufferFront to *@p OutRead will contain the data read, the remaining data is undefined.
+///
+/// @param Handle The file handle to read from.
+/// @param BufferFront The front of the buffer to read into.
+/// @param BufferBack The back of the buffer to read into.
+/// @param OutRead The number of bytes read.
+///
+/// @return The status of the operation.
+extern OsStatus OsFileRead(OsFileHandle Handle, void *BufferFront, void *BufferBack, uint64_t *OutRead);
+
+/// @brief Write to a file.
+///
+/// @pre @p Handle must be a valid file handle.
+/// @pre @p BufferFront and @p BufferBack must point to the front and back of a valid buffer.
+/// @pre @p BufferBack must be > @p BufferFront.
+/// @pre @p OutWritten must point to valid memory.
+///
+/// @post @p OutWritten will contain the number of bytes written.
+///
+/// @param Handle The file handle to write to.
+/// @param BufferFront The front of the buffer to write from.
+/// @param BufferBack The back of the buffer to write from.
+/// @param OutWritten The number of bytes written.
+///
+/// @return The status of the operation.
+extern OsStatus OsFileWrite(OsFileHandle Handle, const void *BufferFront, const void *BufferBack, uint64_t *OutWritten);
+
+/// @brief Seek to a position in a file.
+///
+/// @pre @p Handle must be a valid file handle.
+/// @pre @p Mode must be a valid seek mode.
+/// @pre @p OutPosition must point to valid memory.
+///
+/// @post @p OutPosition will contain the new position in the file.
+///
+/// @param Handle The file handle to seek in.
+/// @param Mode The seek mode.
+/// @param Offset The offset to seek to.
+/// @param OutPosition The new position in the file.
+///
+/// @return The status of the operation.
+extern OsStatus OsFileSeek(OsFileHandle Handle, OsSeekMode Mode, int64_t Offset, uint64_t *OutPosition);
+
+/// @brief Perform a control operation on a file.
+///
+/// @pre @p Handle must be a valid file handle.
+/// @pre @p ControlData must point to valid memory.
+/// @pre @p ControlSize must be the size of the control data.
+///
+/// @param Handle The file handle to control.
+/// @param ControlCode The control code.
+/// @param ControlData The control data.
+/// @param ControlSize The size of the control data.
+///
+/// @return The status of the operation.
+extern OsStatus OsFileControl(OsFileHandle, uint64_t ControlCode, void *ControlData, size_t ControlSize);
+
+/// @} // group OsFile
+
+
+
+
+/// @defgroup OsFolderIterator Folder Iterator
+/// @{
+
+typedef uint16_t OsFolderEntryType;
+typedef uint16_t OsFolderEntryNameSize;
+
+enum {
+    eOsNodeFile   = UINT16_C(1),
+    eOsNodeFolder = UINT16_C(2),
+    eOsNodeLink   = UINT16_C(3),
+};
+
+struct OsFolderEntry {
+    OsFolderEntryType Type;
+    OsFolderEntryNameSize NameSize;
+
+    OsUtf8Char Name[];
+};
+
+#define OS_FOLDER_ITERATOR_INVALID ((OsFolderIteratorHandle)(0))
+
+/// @brief Create a directory iterator.
+///
+/// @pre @p PathFront and @p PathBack must point to the front and back of a valid buffer.
+/// @pre @p PathBack must be > @p PathFront.
+/// @pre @p OutHandle must point to valid memory.
+///
+/// @post @p OutHandle will be a valid folder iterator handle if the operation is successful.
+/// @post @p OutHandle will be @a OsFolderIteratorHandleInvalid if the operation fails.
+///
+/// @param PathFront The front of the path.
+/// @param PathBack The back of the path.
+/// @param OutHandle The folder iterator handle.
+///
+/// @return The status of the operation.
+extern OsStatus OsFolderIterate(const char *PathFront, const char *PathBack, OsFolderIteratorHandle *OutHandle);
+
+/// @brief Iterate to the next entry in the directory.
+///
+/// @pre @p Handle must be a valid folder iterator handle.
+/// @pre @p OutEntry must point to valid memory.
+///
+/// @post @p OutEntry will contain the next entry in the directory.
+///
+/// @param Handle The folder iterator handle.
+/// @param OutEntry The next entry in the directory.
+///
+/// @return The status of the operation.
+extern OsStatus OsFolderIterateNext(OsFolderIteratorHandle Handle, struct OsFolderEntry *OutEntry);
+
+/// @brief End the directory iteration.
+///
+/// @pre @p Handle must be a valid folder iterator handle.
+///
+/// @param Handle The folder iterator handle.
+///
+/// @return The status of the operation.
+extern OsStatus OsFolderIterateEnd(OsFolderIteratorHandle Handle);
+
+/// @} // group OsFolderIterator
+
+#ifdef __cplusplus
+}
+#endif

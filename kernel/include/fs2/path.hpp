@@ -1,6 +1,6 @@
 #pragma once
 
-#include <bezos/syscall.h>
+#include <bezos/facility/fs.h>
 
 #include "std/string.hpp"
 #include "util/format.hpp"

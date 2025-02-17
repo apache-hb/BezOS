@@ -1,7 +1,8 @@
 #pragma once
 
+#include <bezos/private.h>
+
 #include "arch/msr.hpp"
-#include "bezos/syscall.h"
 #include "isr.hpp"
 
 #include <cstdint>

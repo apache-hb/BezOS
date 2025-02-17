@@ -1,7 +1,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include <bezos/syscall.h>
+#include <bezos/facility/fs.h>
 
 extern "C" size_t strlen(const char *str) {
     size_t len = 0;
@@ -9,10 +9,6 @@ extern "C" size_t strlen(const char *str) {
         len++;
     }
     return len;
-}
-
-static void OsDebugLog(const char *begin, const char *end) {
-    OsSystemCall(eOsCallDebugLog, (uint64_t)begin, (uint64_t)end, 0, 0);
 }
 
 template<size_t N>

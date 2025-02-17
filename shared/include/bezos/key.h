@@ -2,6 +2,10 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 enum {
     eKeyUnknown = 0x00,
 
@@ -103,4 +107,18 @@ enum {
     eKey9         = '9'
 };
 
+enum {
+    eModifierShift = (1 << 0),
+    eModifierControl = (1 << 1),
+    eModifierAlt = (1 << 2),
+    eModifierCapsLock = (1 << 3),
+    eModifierNumLock = (1 << 4),
+    eModifierScrollLock = (1 << 5),
+};
+
 typedef uint8_t OsKey;
+typedef uint8_t OsKeyModifier;
+
+#ifdef __cplusplus
+}
+#endif

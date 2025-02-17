@@ -1,6 +1,6 @@
 #pragma once
 
-#include <bezos/syscall.h>
+#include <bezos/handle.h>
 
 #ifdef __cplusplus
 extern "C" {
