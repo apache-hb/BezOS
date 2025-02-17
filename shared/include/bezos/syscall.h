@@ -63,6 +63,11 @@ enum {
     eOsCallQueryParam = 0x60,
     eOsCallUpdateParam = 0x61,
 
+    eOsCallMutexCreate = 0x70,
+    eOsCallMutexDestroy = 0x71,
+    eOsCallMutexLock = 0x72,
+    eOsCallMutexUnlock = 0x73,
+
     eOsCallDebugLog = 0x90,
 
     eOsCallCount = 0x100,
