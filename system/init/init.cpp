@@ -34,7 +34,7 @@ static OsStatus OpenFile(const char (&path)[N], OsFileHandle *OutHandle) {
 // rdi: first argument
 // rsi: last argument
 // rdx: reserved
-extern "C" [[noreturn]] void ClientStart(uint64_t, uint64_t, uint64_t) {
+extern "C" [[noreturn]] void ClientStart(const void*, const void*, uint64_t) {
     OsFileHandle Handle = OS_FILE_INVALID;
     if (OsStatus _ = OpenFile("Users\0Guest\0motd.txt", &Handle)) {
         OsDebugLog("Failed to open file /Users/Guest/motd.txt");

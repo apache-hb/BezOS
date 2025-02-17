@@ -497,8 +497,8 @@ struct OsProcessCreateInfo {
     const char *NameFront;
     const char *NameBack;
 
-    const char *ArgumentsFront;
-    const char *ArgumentsBack;
+    const char *ArgumentsBegin;
+    const char *ArgumentsEnd;
 
     uint32_t Flags;
 };
