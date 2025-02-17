@@ -128,7 +128,7 @@ OsStatus VfsRoot::insertMount(IVfsNode *parent, const VfsPath& path, std::unique
 }
 
 OsStatus VfsRoot::addMount(IVfsDriver *driver, const VfsPath& path, IVfsMount **mount) {
-    stdx::LockGuard guard(mLock);
+    stdx::UniqueLock guard(mLock);
 
     //
     // Mount points follow the same rules as other vfs objects
@@ -151,7 +151,7 @@ OsStatus VfsRoot::addMount(IVfsDriver *driver, const VfsPath& path, IVfsMount **
 }
 
 OsStatus VfsRoot::create(const VfsPath& path, IVfsNode **node) {
-    stdx::LockGuard guard(mLock);
+    stdx::UniqueLock guard(mLock);
 
     //
     // Walk along the fs to find the parent folder
@@ -202,7 +202,7 @@ OsStatus VfsRoot::remove(IVfsNode *node) {
         return OsStatusHandleLocked;
     }
 
-    stdx::LockGuard guard(mLock);
+    stdx::UniqueLock guard(mLock);
 
     //
     // Once we know the node is ready for removal we can
@@ -216,7 +216,7 @@ OsStatus VfsRoot::remove(IVfsNode *node) {
 }
 
 OsStatus VfsRoot::open(const VfsPath& path, IVfsNodeHandle **handle) {
-    stdx::LockGuard guard(mLock);
+    stdx::UniqueLock guard(mLock);
 
     IVfsNode *parent = nullptr;
     if (OsStatus status = walk(path, &parent)) {
@@ -241,7 +241,7 @@ OsStatus VfsRoot::open(const VfsPath& path, IVfsNodeHandle **handle) {
 }
 
 OsStatus VfsRoot::mkdir(const VfsPath& path, IVfsNode **node) {
-    stdx::LockGuard guard(mLock);
+    stdx::UniqueLock guard(mLock);
 
     IVfsNode *parent = nullptr;
     if (OsStatus status = walk(path, &parent)) {
@@ -282,7 +282,7 @@ OsStatus VfsRoot::rmdir(IVfsNode *node) {
         return OsStatusHandleLocked;
     }
 
-    stdx::LockGuard guard(mLock);
+    stdx::UniqueLock guard(mLock);
 
     //
     // Once we know the node is ready for removal we can
@@ -296,7 +296,7 @@ OsStatus VfsRoot::rmdir(IVfsNode *node) {
 }
 
 OsStatus VfsRoot::mkpath(const VfsPath& path, IVfsNode **node) {
-    stdx::LockGuard guard(mLock);
+    stdx::UniqueLock guard(mLock);
 
     IVfsNode *current = mRootNode.get();
 
@@ -339,7 +339,26 @@ OsStatus VfsRoot::mkpath(const VfsPath& path, IVfsNode **node) {
 }
 
 OsStatus VfsRoot::lookup(const VfsPath& path, IVfsNode **node) {
-    stdx::LockGuard guard(mLock);
+    stdx::SharedLock guard(mLock);
 
     return lookupUnlocked(path, node);
+}
+
+OsStatus VfsRoot::mkdevice(const VfsPath& path, IVfsDevice *device) {
+    stdx::UniqueLock guard(mLock);
+
+    IVfsNode *parent = nullptr;
+    if (OsStatus status = walk(path, &parent)) {
+        return status;
+    }
+
+    //
+    // We need to initialize the device node before adding it to the parent.
+    //
+    parent->initNode(device, path.name(), VfsNodeType::eDevice);
+
+    //
+    // If this call fails it is the responsibility of the caller to clean up the device.
+    //
+    return parent->addNode(path.name(), device);
 }

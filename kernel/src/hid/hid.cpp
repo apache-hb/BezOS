@@ -4,7 +4,7 @@
 
 static hid::Ps2Controller gController;
 static km::NotificationStream *gStream;
-static km::Topic *gHidTopic;
+static km::Topic *gHidPs2Topic;
 
 static constexpr OsKey kScanMap[UINT8_MAX] = {
     [0x1C] = eKeyA,
@@ -60,13 +60,13 @@ static constexpr OsKey kScanMap[UINT8_MAX] = {
     [0x45] = eKey0,
 };
 
-void hid::InitHidStream(km::NotificationStream *stream) {
+void hid::InitPs2HidStream(km::NotificationStream *stream) {
     gStream = stream;
-    gHidTopic = gStream->createTopic(kHidEvent, "HID");
+    gHidPs2Topic = gStream->createTopic(kHidEvent, "HID.PS2");
 }
 
-km::Topic *hid::GetHidTopic() {
-    return gHidTopic;
+km::Topic *hid::GetHidPs2Topic() {
+    return gHidPs2Topic;
 }
 
 const km::IsrTable::Entry *hid::InstallPs2KeyboardIsr(km::IoApicSet& ioApicSet, hid::Ps2Controller& controller, const km::IApic *target, km::IsrTable *ist) {
@@ -99,7 +99,7 @@ const km::IsrTable::Entry *hid::InstallPs2KeyboardIsr(km::IoApicSet& ioApicSet, 
             },
         };
 
-        gStream->publish<hid::HidNotification>(GetHidTopic(), event);
+        gStream->publish<hid::HidNotification>(GetHidPs2Topic(), event);
 
         km::IApic *apic = km::GetCpuLocalApic();
         apic->eoi();

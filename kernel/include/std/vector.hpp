@@ -442,6 +442,12 @@ namespace stdx {
             }
         }
 
+        constexpr void erase(size_t first, size_t last) {
+            std::destroy_n(mFront + first, last - first);
+            std::copy(mFront + last, mBack, mFront + first);
+            mBack -= last - first;
+        }
+
         constexpr friend void swap(Vector2& lhs, Vector2& rhs) {
             std::swap(lhs.mAllocator, rhs.mAllocator);
             std::swap(lhs.mFront, rhs.mFront);

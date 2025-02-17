@@ -1,5 +1,7 @@
 #pragma once
 
+#include <bezos/handle.h>
+
 #include "util/digit.hpp"
 #include "util/endian.hpp"
 #include "util/cxx_chrono.hpp" // IWYU pragma: keep
@@ -174,6 +176,12 @@ namespace sm {
         };
 
         // factory functions
+
+        constexpr uuid() noexcept = default;
+
+        constexpr uuid(OsGuid guid) noexcept : octets{} {
+            std::copy(guid.Octets, guid.Octets + sizeof(guid.Octets), octets);
+        }
 
         static constexpr uuid nil() noexcept {
             return uuid {

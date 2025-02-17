@@ -13,8 +13,11 @@
 
 #include "acpi/acpi.hpp"
 
+#include <bezos/subsystem/hid.h>
+
 #include "cmos.hpp"
 #include "delay.hpp"
+#include "devices/hid.hpp"
 #include "display.hpp"
 #include "drivers/block/ramblk.hpp"
 #include "elf.hpp"
@@ -1329,7 +1332,7 @@ class EchoHidEvent final : public km::ISubscriber {
 static OsStatus KernelMasterTask() {
     KmDebugMessage("[INIT] Kernel master task.\n");
 
-    gNotificationStream->subscribe(hid::GetHidTopic(), new EchoHidEvent());
+    gNotificationStream->subscribe(hid::GetHidPs2Topic(), new EchoHidEvent());
 
     LaunchThread(&NotificationWork, gNotificationStream, "NOTIFY");
 
@@ -1376,7 +1379,7 @@ static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioAp
         ps2Controller.setMouseSampleRate(10);
         ps2Controller.setMouseResolution(1);
 
-        hid::InitHidStream(gNotificationStream);
+        hid::InitPs2HidStream(gNotificationStream);
 
         hid::InstallPs2KeyboardIsr(ioApicSet, ps2Controller, apic, ist);
         hid::InstallPs2MouseIsr(ioApicSet, ps2Controller, apic, ist);
@@ -1384,6 +1387,24 @@ static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioAp
         mouse.disable();
         keyboard.enable();
         ps2Controller.enableIrqs(true, true);
+    }
+
+    vfs2::VfsPath hidPs2DevicePath{OS_DEVICE_PS2_KEYBOARD};
+
+    {
+        vfs2::IVfsNode *node = nullptr;
+        if (OsStatus status = gVfsRoot->mkpath(hidPs2DevicePath.parent(), &node)) {
+            KmDebugMessage("[VFS] Failed to create ", hidPs2DevicePath.parent(), " folder: ", status, "\n");
+            KM_PANIC("Failed to create keyboar device folder.");
+        }
+    }
+
+    {
+        dev::HidKeyboardDevice *device = new dev::HidKeyboardDevice();
+        if (OsStatus status = gVfsRoot->mkdevice(hidPs2DevicePath, device)) {
+            KmDebugMessage("[VFS] Failed to create ", hidPs2DevicePath, " device: ", status, "\n");
+            KM_PANIC("Failed to create keyboard device.");
+        }
     }
 }
 

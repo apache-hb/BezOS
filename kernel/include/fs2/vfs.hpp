@@ -1,8 +1,10 @@
 #pragma once
 
+#include "fs2/device.hpp"
 #include "fs2/path.hpp"
 #include "fs2/node.hpp"
-#include "std/spinlock.hpp"
+
+#include "std/shared_spinlock.hpp"
 
 /// @brief Virtual File System.
 ///
@@ -17,7 +19,7 @@ namespace vfs2 {
 
         /// @brief Global lock for the VFS.
         /// @todo Use RCU instead.
-        stdx::SpinLock mLock;
+        stdx::SharedSpinLock mLock;
 
         OsStatus walk(const VfsPath& path, IVfsNode **parent);
 
@@ -32,7 +34,7 @@ namespace vfs2 {
 
         template<std::derived_from<IVfsDriver> T>
         OsStatus addMountWithParams(T *driver, const VfsPath& path, IVfsMount **mount, auto&&... args) {
-            stdx::LockGuard guard(mLock);
+            stdx::UniqueLock guard(mLock);
 
             //
             // Find the parent to the mount point before creating the mount.
@@ -69,5 +71,7 @@ namespace vfs2 {
         OsStatus mkpath(const VfsPath& path, IVfsNode **node);
 
         OsStatus lookup(const VfsPath& path, IVfsNode **node);
+
+        OsStatus mkdevice(const VfsPath& path, IVfsDevice *device);
     };
 }

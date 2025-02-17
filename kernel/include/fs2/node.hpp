@@ -9,6 +9,7 @@
 #include "util/absl.hpp"
 
 #include "util/util.hpp"
+#include "util/uuid.hpp"
 
 /// @brief Virtual File System.
 ///
@@ -32,6 +33,8 @@ namespace vfs2 {
         void *begin;
         void *end;
         uint64_t offset;
+
+        intptr_t size() const { return (std::byte*)end - (std::byte*)begin; }
     };
 
     struct ReadResult {
@@ -52,6 +55,7 @@ namespace vfs2 {
         eNone,
         eFile,
         eFolder,
+        eDevice,
     };
 
     struct VfsMountStat {
@@ -221,7 +225,18 @@ namespace vfs2 {
         /// @return The status of the stat operation.
         virtual OsStatus stat(VfsNodeStat*) { return OsStatusNotSupported; }
 
-        OsStatus open(IVfsNodeHandle **handle);
+        /// @brief Open this node as a device.
+        ///
+        /// @details This function is expected to be internally synchronized.
+        ///
+        /// @param uuid The UUID of the interface being requested.
+        /// @param handle The handle to the device.
+        ///
+        /// @return The status of the open operation.
+        virtual OsStatus query(sm::uuid, IVfsNodeHandle**) { return OsStatusNotSupported; }
+
+        virtual OsStatus open(IVfsNodeHandle **handle);
+
 
         OsStatus lookup(VfsStringView name, IVfsNode **child);
         OsStatus addFile(VfsStringView name, IVfsNode **child);
