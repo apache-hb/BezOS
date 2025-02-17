@@ -10,12 +10,20 @@ extern "C" {
 /// @{
 
 enum {
-    eOsThreadNone = 0,
+    eOsThreadCreateDefault = 0,
+    eOsThreadCreateSuspended = (1 << 0),
+};
 
-    eOsThreadSuspended = (1 << 0),
+enum {
+    eOsThreadFinished  = 0,
+    eOsThreadRunning   = 1,
+    eOsThreadSuspended = 2,
+    eOsThreadWaiting   = 3,
+    eOsThreadQueued    = 4,
 };
 
 typedef uint32_t OsThreadCreateFlags;
+typedef uint32_t OsThreadState;
 
 struct OsThreadCreateInfo {
     const char *NameFront;

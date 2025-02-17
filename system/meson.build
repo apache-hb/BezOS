@@ -5,20 +5,33 @@ project('system', 'cpp',
     ]
 )
 
-src = [
-    'init/init.cpp',
-]
-
 shared = subproject('shared')
+sysapi = shared.get_variable('sysapi')
 
 args = [
     '-e', 'ClientStart',
     '-z', 'noexecstack',
 ]
 
+src = [
+    'init/init.cpp',
+]
+
+
 executable('init.elf', src,
     link_args : args,
     install : true,
     install_dir : get_option('prefix'),
-    dependencies : shared.get_variable('sysapi'),
+    dependencies : sysapi,
+)
+
+src = [
+    'shell/shell.cpp',
+]
+
+executable('shell.elf', src,
+    link_args : args,
+    install : true,
+    install_dir : get_option('prefix'),
+    dependencies : sysapi,
 )

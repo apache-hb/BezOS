@@ -31,8 +31,8 @@ OsStatus OsFileSeek(OsFileHandle Handle, OsSeekMode Mode, int64_t Offset, uint64
     return result.Status;
 }
 
-OsStatus OsFileControl(OsFileHandle Handle, uint64_t ControlCode, void *ControlData, size_t ControlSize) {
-    struct OsCallResult result = OsSystemCall(eOsCallFileControl, (uint64_t)Handle, ControlCode, (uint64_t)ControlData, (uint64_t)ControlSize);
+OsStatus OsFileStat(OsFileHandle Handle, struct OsFileStat *OutStat) {
+    struct OsCallResult result = OsSystemCall(eOsCallFileStat, (uint64_t)Handle, (uint64_t)OutStat, 0, 0);
     return result.Status;
 }
 

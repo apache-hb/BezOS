@@ -7,14 +7,9 @@
 extern "C" {
 #endif
 
-OS_DEFINE_GUID(kOsHidClassGuid, 0xdd4ece3c, 0xec81, 0x11ef, 0x8b71, 0xc761047b867e);
+#define OS_DEVICE_PS2_KEYBOARD "System\0Devices\0HID\0KEYBOARD0"
 
-enum {
-    eOsHidDeviceClassUnknown  = UINT8_C(0),
-    eOsHidDeviceClassKeyboard = UINT8_C(1),
-    eOsHidDeviceClassMouse    = UINT8_C(2),
-    eOsHidDeviceClassGamepad  = UINT8_C(3),
-};
+OS_DEFINE_GUID(kOsHidClassGuid, 0xdd4ece3c, 0xec81, 0x11ef, 0x8b71, 0xc761047b867e);
 
 enum {
     eOsHidEventUnknown   = UINT8_C(0),
@@ -23,11 +18,9 @@ enum {
     eOsHidEventMouseMove = UINT8_C(3),
 };
 
-typedef uint8_t OsHidDeviceClass;
 typedef uint8_t OsHidEventType;
 
 struct OsHidDeviceInfo {
-    OsHidDeviceClass DeviceClass;
     OsUtf8Char Name[OS_DEVICE_NAME_MAX];
 };
 

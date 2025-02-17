@@ -14,35 +14,41 @@ enum {
     eOsCallFileWrite = 0x13,
     eOsCallFileSeek = 0x14,
     eOsCallFileStat = 0x15,
-    eOsCallFileControl = 0x16,
 
     eOsCallDirIter = 0x20,
     eOsCallDirNext = 0x21,
 
-    eOsCallProcessGetCurrent = 0x30,
-    eOsCallProcessCreate = 0x31,
-    eOsCallProcessExit = 0x32,
+    eOsCallProcessCreate = 0x30,
+    eOsCallProcessDestroy = 0x31,
+    eOsCallProcessGetCurrent = 0x32,
+    eOsCallProcessExit = 0x33,
 
-    eOsCallThreadGetCurrent = 0x40,
-    eOsCallThreadCreate = 0x41,
-    eOsCallThreadControl = 0x42,
-    eOsCallThreadDestroy = 0x43,
+    eOsCallThreadCreate = 0x40,
+    eOsCallThreadDestroy = 0x41,
+    eOsCallThreadCurrent = 0x42,
+    eOsCallThreadSleep = 0x43,
 
     eOsCallTransactionBegin = 0x50,
     eOsCallTransactionCommit = 0x51,
     eOsCallTransactionRollback = 0x52,
-
-    eOsCallQueryParam = 0x60,
-    eOsCallUpdateParam = 0x61,
 
     eOsCallMutexCreate = 0x70,
     eOsCallMutexDestroy = 0x71,
     eOsCallMutexLock = 0x72,
     eOsCallMutexUnlock = 0x73,
 
-    eOsCallDebugLog = 0x90,
+    eOsCallDeviceOpen = 0x80,
+    eOsCallDeviceClose = 0x81,
+    eOsCallDeviceRead = 0x82,
+    eOsCallDeviceWrite = 0x83,
+    eOsCallDeviceCall = 0x84,
 
-    eOsCallCount = 0x100,
+    eOsCallClockGetTime = 0x90,
+    eOsCallClockStat = 0x91,
+
+    eOsCallDebugLog = 0x99,
+
+    eOsCallCount = 0xFF,
 };
 
 extern struct OsCallResult OsSystemCall(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);

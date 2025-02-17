@@ -108,12 +108,13 @@ enum {
 };
 
 enum {
-    eModifierShift = (1 << 0),
-    eModifierControl = (1 << 1),
-    eModifierAlt = (1 << 2),
-    eModifierCapsLock = (1 << 3),
-    eModifierNumLock = (1 << 4),
+    eModifierShift      = (1 << 0),
+    eModifierControl    = (1 << 1),
+    eModifierAlt        = (1 << 2),
+    eModifierCapsLock   = (1 << 3),
+    eModifierNumLock    = (1 << 4),
     eModifierScrollLock = (1 << 5),
+    eModifierRepeat     = (1 << 6),
 };
 
 typedef uint8_t OsKey;

@@ -70,6 +70,9 @@ OS_OBJECT_HANDLE(OsProcessHandle);
 /// @brief A handle to an address space.
 OS_OBJECT_HANDLE(OsAddressSpaceHandle);
 
+/// @brief A handle to a device.
+OS_OBJECT_HANDLE(OsDeviceHandle);
+
 // TODO: remove this
 extern void OsDebugLog(const char *Begin, const char *End);
 

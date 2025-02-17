@@ -79,6 +79,14 @@ struct OsPath {
     const OsUtf8Char *PathBack;
 };
 
+struct OsFileStat {
+    const char *PathFront;
+    const char *PathBack;
+
+    uint64_t LogicalSize;
+    uint64_t PhysicalSize;
+};
+
 struct OsFileCreateInfo {
     const char *PathFront;
     const char *PathBack;
@@ -162,19 +170,7 @@ extern OsStatus OsFileWrite(OsFileHandle Handle, const void *BufferFront, const 
 /// @return The status of the operation.
 extern OsStatus OsFileSeek(OsFileHandle Handle, OsSeekMode Mode, int64_t Offset, uint64_t *OutPosition);
 
-/// @brief Perform a control operation on a file.
-///
-/// @pre @p Handle must be a valid file handle.
-/// @pre @p ControlData must point to valid memory.
-/// @pre @p ControlSize must be the size of the control data.
-///
-/// @param Handle The file handle to control.
-/// @param ControlCode The control code.
-/// @param ControlData The control data.
-/// @param ControlSize The size of the control data.
-///
-/// @return The status of the operation.
-extern OsStatus OsFileControl(OsFileHandle, uint64_t ControlCode, void *ControlData, size_t ControlSize);
+extern OsStatus OsFileStat(OsFileHandle Handle, struct OsFileStat *OutStat);
 
 /// @} // group OsFile
 
