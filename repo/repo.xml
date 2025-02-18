@@ -1,4 +1,8 @@
-<repo name='bezos' build='build' install='install'>
-    <package path='packages/hyper.xml' />
+<repo name='bezos' build='build' install='install' sources='sources'>
+    <package path='packages/hyper.xml'  />
     <package path='packages/limine.xml' />
+
+    <package path='packages/sysapi.xml' />
+    <package path='packages/system.xml' />
+    <package path='packages/kernel.xml' />
 </repo>

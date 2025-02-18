@@ -1,3 +1,8 @@
 <package name='kernel'>
-    <folder path='kernel' />
+    <require package='limine' symlink='subprojects/limine' />
+    <require package='hyper'  symlink='subprojects/hyper' />
+    <require package='sysapi' symlink='subprojects/sysapi' />
+
+    <source path='kernel' />
+    <configure with='meson' />
 </package>

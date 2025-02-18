@@ -1,0 +1,4 @@
+<package name='sysapi'>
+    <source path='sysapi' />
+    <configure with='meson' />
+</package>

@@ -25,21 +25,69 @@ namespace fs = std::filesystem;
 namespace stdr = std::ranges;
 namespace stdv = std::views;
 
+struct RequirePackage {
+    std::string name;
+    fs::path symlink;
+};
+
+struct Download {
+    std::string url;
+    std::string file;
+    std::string archive;
+    bool trimRootFolder;
+};
+
+struct PackageInfo {
+    std::string name;
+    fs::path source;
+    fs::path build;
+    fs::path install;
+    fs::path cache;
+
+    std::vector<Download> downloads;
+    std::vector<RequirePackage> dependencies;
+
+    std::string GetWorkspaceFolder() const {
+        return source.empty() ? build.string() : source.string();
+    }
+};
+
 struct Workspace {
-    argo::json Workspace{argo::json::object_e};
+    std::map<std::string, PackageInfo> packages;
+
+    argo::json workspace{argo::json::object_e};
+
+    void AddPackage(PackageInfo info) {
+        packages.emplace(info.name, info);
+
+        argo::json folder{argo::json::object_e};
+        folder["path"] = info.GetWorkspaceFolder();
+        folder["name"] = info.name;
+
+        workspace["folders"].append(folder);
+    }
 
     void AddFolder(const fs::path& path, const std::string& name) {
         argo::json folder{argo::json::object_e};
         folder["path"] = path.string();
         folder["name"] = name;
 
-        Workspace["folders"].append(folder);
+        workspace["folders"].append(folder);
+    }
+
+    fs::path GetPackagePath(const std::string& name) {
+        if (!packages.contains(name)) {
+            throw std::runtime_error("Unknown package " + name);
+        }
+
+        return packages[name].GetWorkspaceFolder();
     }
 };
 
 static Workspace gWorkspace;
 static fs::path gRepoRoot;
 static fs::path gBuildRoot;
+static fs::path gSourceRoot;
 static fs::path gInstallPrefix;
 
 static fs::path PackageCacheRoot() {
@@ -208,7 +256,7 @@ static void DownloadFile(const std::string& url, const fs::path& dst) {
     }
 }
 
-static void LoadPackage(xmlNodePtr node) {
+static void ReadPackageConfig(xmlNodePtr node) {
     fs::path path = UnwrapOptional(GetProperty(node, "path"), "Missing package path property");
 
     XmlDocument package = xmlDocumentOpen(gRepoRoot / path);
@@ -223,26 +271,68 @@ static void LoadPackage(xmlNodePtr node) {
     MakeFolder(install);
     MakeFolder(cache);
 
-    gWorkspace.AddFolder(build, name);
+    PackageInfo packageInfo {
+        .name = name,
+        .build = build,
+        .install = install,
+        .cache = cache
+    };
 
     for (xmlNodePtr action : NodeChildren(root) | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
-        if (NodeName(action) == "download"sv) {
+        auto step = NodeName(action);
+        if (step == "download"sv) {
             auto url = ExpectProperty<std::string>(action, "url");
             auto file = ExpectProperty<std::string>(action, "file");
             auto archive = GetProperty(action, "archive");
-            auto path = cache / file;
+            auto trimRootFolder = GetProperty(action, "trim-root-folder").value_or("false") == "true";
 
-            if (!fs::exists(path)) {
-                DownloadFile(url, path);
+            packageInfo.downloads.push_back(Download{url, file, archive.value_or(""), trimRootFolder});
+        } else if (step == "require"sv) {
+            auto depname = ExpectProperty<std::string>(action, "package");
+            if (depname == name) {
+                throw std::runtime_error("Package " + name + " cannot require itself");
             }
 
-            if (archive.has_value()) {
-                auto trimRootFolder = GetProperty(action, "trim-root-folder").value_or("false");
-                ExtractArchive(name, path, build, trimRootFolder == "true");
-            } else {
-                fs::copy_file(path, build / file, fs::copy_options::overwrite_existing);
+            if (!gWorkspace.packages.contains(depname)) {
+                throw std::runtime_error("Package " + name + " requires unknown package " + depname);
             }
+
+            packageInfo.dependencies.push_back(RequirePackage{
+                .name = depname,
+                .symlink = build / ExpectProperty<std::string>(action, "symlink")
+            });
+        } else if (step == "source"sv) {
+            if (!packageInfo.source.empty()) {
+                throw std::runtime_error("Package " + name + " already has source folder");
+            }
+
+            auto src = ExpectProperty<std::string>(action, "path");
+            packageInfo.source = gSourceRoot / src;
         }
+    }
+
+    gWorkspace.AddPackage(packageInfo);
+}
+
+static void AcquirePackage(const PackageInfo& package) {
+    for (const auto& download : package.downloads) {
+        auto path = package.cache / download.file;
+
+        if (!fs::exists(path)) {
+            DownloadFile(download.url, path);
+        }
+
+        if (!download.archive.empty()) {
+            ExtractArchive(package.name, path, package.build, download.trimRootFolder);
+        } else {
+            fs::copy_file(path, package.build / download.file, fs::copy_options::overwrite_existing);
+        }
+    }
+}
+
+static void ConnectDependencies(const PackageInfo& package) {
+    for (const auto& dep : package.dependencies) {
+        fs::create_directory_symlink(gWorkspace.GetPackagePath(dep.name), package.GetWorkspaceFolder() / dep.symlink);
     }
 }
 
@@ -252,6 +342,9 @@ int main(int argc, const char **argv) try {
     parser.add_argument("--config")
         .help("Path to the configuration file")
         .default_value("repo.xml");
+
+    parser.add_argument("--workspace")
+        .help("Path to vscode workspace file to generate");
 
     parser.add_argument("--help")
         .help("Print this help message")
@@ -281,25 +374,39 @@ int main(int argc, const char **argv) try {
     auto name = UnwrapOptional(GetProperty(root, "name"), "Missing repo name property");
     auto output = UnwrapOptional(GetProperty(root, "build"), "Missing repo output property");
     auto install = UnwrapOptional(GetProperty(root, "install"), "Missing repo install property");
+    auto sources = UnwrapOptional(GetProperty(root, "sources"), "Missing repo sources property");
     auto pwd = std::filesystem::current_path();
     gRepoRoot = configPath.parent_path();
     gBuildRoot = pwd / output;
     gInstallPrefix = pwd / install;
+    gSourceRoot = pwd / sources;
 
     MakeFolder(gBuildRoot);
     MakeFolder(PackageCacheRoot());
     MakeFolder(PackageBuildRoot());
     MakeFolder(gInstallPrefix);
 
-    gWorkspace.Workspace["folders"] = argo::json::json_array();
+    gWorkspace.workspace["folders"] = argo::json::json_array();
+
+    gWorkspace.AddFolder(std::filesystem::current_path(), "root");
 
     for (xmlNodePtr child : NodeChildren(root) | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
         if (NodeName(child) == "package"sv) {
-            LoadPackage(child);
+            ReadPackageConfig(child);
         }
     }
 
-    argo::unparser::save(gWorkspace.Workspace, gBuildRoot / "workspace.code-workspace", " ", "\n", " ", 4);
+    for (auto& package : gWorkspace.packages) {
+        AcquirePackage(package.second);
+    }
+
+    for (auto& package : gWorkspace.packages) {
+        ConnectDependencies(package.second);
+    }
+
+    if (parser.present("--workspace")) {
+        argo::unparser::save(gWorkspace.workspace, parser.get<std::string>("--vscode-workspace"), " ", "\n", " ", 4);
+    }
 
 } catch (const std::exception &e) {
     std::cerr << "Error: " << e.what() << std::endl;
