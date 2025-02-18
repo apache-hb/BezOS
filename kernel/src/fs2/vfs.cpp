@@ -362,3 +362,28 @@ OsStatus VfsRoot::mkdevice(const VfsPath& path, IVfsDevice *device) {
     //
     return parent->addNode(path.name(), device);
 }
+
+OsStatus VfsRoot::device(const VfsPath& path, sm::uuid interface, IVfsNodeHandle **handle) {
+    stdx::UniqueLock guard(mLock);
+
+    IVfsNode *parent = nullptr;
+    if (OsStatus status = walk(path, &parent)) {
+        return status;
+    }
+
+    IVfsNode *device = nullptr;
+    if (OsStatus status = parent->lookup(path.name(), &device)) {
+        return status;
+    }
+
+    //
+    // device can only be used to open device nodes, if the inode
+    // is not a device then we must return an error.
+    //
+
+    if (device->type != VfsNodeType::eDevice) {
+        return OsStatusInvalidType;
+    }
+
+    return device->query(interface, handle);
+}

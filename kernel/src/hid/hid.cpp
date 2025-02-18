@@ -69,20 +69,23 @@ km::Topic *hid::GetHidPs2Topic() {
     return gHidPs2Topic;
 }
 
+struct KeyboardState {
+    bool released = false;
+};
+
+static KeyboardState gKeyboardState;
+
 const km::IsrTable::Entry *hid::InstallPs2KeyboardIsr(km::IoApicSet& ioApicSet, hid::Ps2Controller& controller, const km::IApic *target, km::IsrTable *ist) {
     gController = controller;
 
     const km::IsrTable::Entry *keyboardInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
-        uint8_t scancode = 0;
-        bool pressed = true;
+        km::IApic *apic = km::GetCpuLocalApic();
+        apic->eoi();
 
-        uint8_t segment = gController.read();
-        if (segment == 0xF0) {
-            pressed = false;
-            scancode = gController.read();
-        } else {
-            pressed = true;
-            scancode = segment;
+        uint8_t scancode = gController.read();
+        if (scancode == 0xF0) {
+            gKeyboardState.released = true;
+            return *ctx;
         }
 
         gController.flush();
@@ -92,17 +95,19 @@ const km::IsrTable::Entry *hid::InstallPs2KeyboardIsr(km::IoApicSet& ioApicSet, 
             KmDebugMessage("[PS2] Unknown scancode: ", km::Hex(ctx->vector), " = ", km::Hex(scancode), "\n");
         }
 
-        hid::HidEvent event {
-            .type = pressed ? hid::HidEventType::eKeyDown : hid::HidEventType::eKeyUp,
-            .key = {
-                .code = key,
-            },
+        OsHidKeyEvent body {
+            .Key = key,
         };
+
+        OsHidEvent event {
+            .Type = OsHidEventType(gKeyboardState.released ? eOsHidEventKeyUp : eOsHidEventKeyDown),
+            .Body = { .Key = body },
+        };
+
+        gKeyboardState.released = false;
 
         gStream->publish<hid::HidNotification>(GetHidPs2Topic(), event);
 
-        km::IApic *apic = km::GetCpuLocalApic();
-        apic->eoi();
         return *ctx;
     });
 

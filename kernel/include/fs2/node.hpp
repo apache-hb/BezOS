@@ -33,6 +33,7 @@ namespace vfs2 {
         void *begin;
         void *end;
         uint64_t offset;
+        OsInstant timeout;
 
         intptr_t size() const { return (std::byte*)end - (std::byte*)begin; }
     };

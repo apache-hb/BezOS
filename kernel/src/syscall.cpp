@@ -29,6 +29,7 @@ extern "C" OsCallResult KmSystemDispatchRoutine(km::SystemCallContext *context) 
         return handler(context->arg0, context->arg1, context->arg2, context->arg3);
     }
 
+    KmDebugMessage("[SYS] Unknown function ", km::Hex(context->function), "\n");
     return OsCallResult { .Status = OsStatusInvalidFunction, .Value = 0 };
 }
 

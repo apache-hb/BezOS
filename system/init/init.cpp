@@ -16,6 +16,24 @@ static void DebugLog(const char (&message)[N]) {
     OsDebugLog(message, message + N - 1);
 }
 
+template<typename T>
+static void DebugLog(T number) {
+    char buffer[32];
+    char *ptr = buffer + sizeof(buffer);
+    *--ptr = '\0';
+
+    if (number == 0) {
+        *--ptr = '0';
+    } else {
+        while (number != 0) {
+            *--ptr = '0' + (number % 10);
+            number /= 10;
+        }
+    }
+
+    OsDebugLog(ptr, buffer + sizeof(buffer));
+}
+
 template<size_t N>
 static void Assert(bool condition, const char (&message)[N]) {
     if (!condition) {
@@ -94,7 +112,7 @@ public:
         ASSERT_OS_SUCCESS(OsDeviceClose(mDevice));
     }
 
-    bool NextEvent(OsHidEvent& event, OsInstant timeout = 0) {
+    bool NextEvent(OsHidEvent& event, OsInstant timeout = OS_TIMEOUT_INFINITE) {
         if (IsBufferEmpty()) {
             if (FillBuffer(timeout)) {
                 return false;
@@ -145,7 +163,6 @@ extern "C" [[noreturn]] void ClientStart(const void*, const void*, uint64_t) {
         __builtin_unreachable();
     }
 
-    DebugLog("Reading file /Users/Guest/motd.txt");
     OsDebugLog(buffer, buffer + read);
 
     KeyboardDevice keyboard{};
@@ -164,4 +181,8 @@ extern "C" [[noreturn]] void ClientStart(const void*, const void*, uint64_t) {
 
         DebugLog("Key down event received\n");
     }
+
+    DebugLog("Shell exited\n");
+    while (true) { }
+    __builtin_unreachable();
 }

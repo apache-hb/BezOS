@@ -24,4 +24,6 @@ namespace km {
 
     [[noreturn]]
     void ScheduleWork(IsrTable *table, IApic *apic);
+
+    void YieldCurrentThread();
 }

@@ -5,6 +5,7 @@
 #include "fs2/device.hpp"
 #include "hid/hid.hpp"
 
+#include "log.hpp"
 #include "std/spinlock.hpp"
 #include "std/shared_spinlock.hpp"
 
@@ -13,14 +14,14 @@
 namespace dev {
     class HidKeyboardHandle : public vfs2::IVfsNodeHandle {
         stdx::SpinLock mLock;
-        stdx::Vector2<hid::HidEvent> mEvents;
+        stdx::Vector2<OsHidEvent> mEvents;
 
     public:
         HidKeyboardHandle(vfs2::IVfsNode *node)
             : vfs2::IVfsNodeHandle(node)
         { }
 
-        void notify(hid::HidEvent event) {
+        void notify(OsHidEvent event) {
             stdx::LockGuard guard(mLock);
             mEvents.add(event);
         }
@@ -30,16 +31,19 @@ namespace dev {
                 return OsStatusInvalidInput;
             }
 
-            if (request.size() % sizeof(hid::HidEvent) != 0) {
+            if (request.size() % sizeof(OsHidEvent) != 0) {
                 return OsStatusInvalidInput;
             }
 
-            size_t count = std::min(request.size() / sizeof(hid::HidEvent), mEvents.count());
+            size_t count = std::min(request.size() / sizeof(OsHidEvent), mEvents.count());
             stdx::LockGuard guard(mLock);
-            std::memcpy(request.begin, mEvents.data(), count * sizeof(hid::HidEvent));
-            mEvents.erase(0, count);
 
-            result->read = count * sizeof(hid::HidEvent);
+            if (!mEvents.isEmpty()) {
+                std::memcpy(request.begin, mEvents.data(), count * sizeof(OsHidEvent));
+                mEvents.erase(0, count);
+            }
+
+            result->read = count * sizeof(OsHidEvent);
             return OsStatusSuccess;
         }
     };
@@ -73,11 +77,10 @@ namespace dev {
         // km::ISubscriber interface
         void notify(km::Topic*, sm::RcuSharedPtr<km::INotification> notification) override {
             hid::HidNotification *hid = static_cast<hid::HidNotification*>(notification.get());
-            hid::HidEvent event = hid->event();
 
             stdx::SharedLock guard(mLock);
             for (HidKeyboardHandle *handle : mHandles) {
-                handle->notify(event);
+                handle->notify(hid->event());
             }
         }
     };

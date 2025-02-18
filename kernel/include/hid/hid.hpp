@@ -1,6 +1,7 @@
 #pragma once
 
 #include <bezos/key.h>
+#include <bezos/subsystem/hid.h>
 
 #include "hid/ps2.hpp"
 #include "notify.hpp"
@@ -9,39 +10,16 @@
 namespace hid {
     static constexpr sm::uuid kHidEvent = sm::uuid::of("dd4ece3c-ec81-11ef-8b71-c761047b867e");
 
-    enum class HidEventType {
-        eKeyDown,
-        eKeyUp,
-        eMouseMove,
-    };
-
-    struct HidMouseEvent {
-        int32_t dx;
-        int32_t dy;
-    };
-
-    struct HidKeyEvent {
-        OsKey code;
-    };
-
-    struct HidEvent {
-        HidEventType type;
-        union {
-            HidMouseEvent move;
-            HidKeyEvent key;
-        };
-    };
-
     class HidNotification : public km::INotification {
-        HidEvent mEvent;
+        OsHidEvent mEvent;
 
     public:
-        HidNotification(HidEvent event)
+        HidNotification(OsHidEvent event)
             : INotification(km::SendTime{})
             , mEvent(event)
         { }
 
-        HidEvent event() const {
+        OsHidEvent event() const {
             return mEvent;
         }
     };

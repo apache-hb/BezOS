@@ -14,6 +14,7 @@
 #include "acpi/acpi.hpp"
 
 #include <bezos/subsystem/hid.h>
+#include <bezos/facility/device.h>
 
 #include "cmos.hpp"
 #include "delay.hpp"
@@ -68,6 +69,9 @@ static constexpr bool kUseX2Apic = true;
 static constexpr bool kSelfTestIdt = true;
 static constexpr bool kSelfTestApic = true;
 static constexpr bool kEmitAddrToLine = true;
+
+// TODO: make this runtime configurable
+static constexpr size_t kMaxPathSize = 0x1000;
 
 class SerialLog final : public IOutStream {
     SerialPort mPort;
@@ -1080,6 +1084,23 @@ static void CreateNotificationQueue() {
     gNotificationStream = new NotificationStream();
 }
 
+static bool IsPageMapped(const km::PageTableManager& pt, const void *address, km::PageFlags flags) {
+    return (pt.getMemoryFlags(address) & flags) == flags;
+}
+
+static bool IsRangeMapped(const km::PageTableManager& pt, const void *begin, const void *end, km::PageFlags flags) {
+    uintptr_t front = (uintptr_t)begin;
+    uintptr_t back = (uintptr_t)end;
+
+    for (uintptr_t addr = front; addr < back; addr += x64::kPageSize) {
+        if (!IsPageMapped(pt, (void*)addr, flags)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 static const void *TranslateUserPointer(const void *userAddress) {
     PageTableManager& pt = gMemory->pt;
     if (bool(pt.getMemoryFlags(userAddress) & (PageFlags::eUser | PageFlags::eRead))) {
@@ -1133,55 +1154,6 @@ static void MountRootVfs() {
             KmDebugMessage("[VFS] Failed to write file: ", status, "\n");
         }
     }
-
-    AddSystemCall(eOsCallFileOpen, [](uint64_t userArgPathBegin, uint64_t userArgPathEnd, [[maybe_unused]] uint64_t mode, uint64_t) -> OsCallResult {
-        const void *argPathBegin = TranslateUserPointer((const void*)userArgPathBegin);
-        const void *argPathEnd = TranslateUserPointer((const void*)userArgPathEnd);
-        if (argPathBegin == nullptr || argPathEnd == nullptr) {
-            return CallError(OsStatusInvalidInput);
-        }
-
-        if (argPathBegin >= argPathEnd) {
-            return CallError(OsStatusInvalidInput);
-        }
-
-        vfs2::VfsString text((const char*)argPathBegin, (const char*)argPathEnd);
-        if (!vfs2::VerifyPathText(text)) {
-            return CallError(OsStatusInvalidInput);
-        }
-
-        vfs2::VfsPath path{std::move(text)};
-        vfs2::IVfsNodeHandle *node = nullptr;
-        if (OsStatus status = gVfsRoot->open(path, &node)) {
-            return CallError(status);
-        }
-
-        return CallOk(node);
-    });
-
-    AddSystemCall(eOsCallFileClose, [](uint64_t, uint64_t, uint64_t, uint64_t) -> OsCallResult {
-        return CallOk(0zu);
-    });
-
-    AddSystemCall(eOsCallFileRead, [](uint64_t userNodeId, uint64_t userBufferBegin, uint64_t userBufferEnd, uint64_t) -> OsCallResult {
-        const void *bufferBegin = TranslateUserPointer((const void*)userBufferBegin);
-        const void *bufferEnd = TranslateUserPointer((const void*)userBufferEnd);
-        if (bufferBegin == nullptr || bufferEnd == nullptr) {
-            return CallError(OsStatusInvalidInput);
-        }
-
-        vfs2::IVfsNodeHandle *node = (vfs2::IVfsNodeHandle*)userNodeId;
-        vfs2::ReadRequest request {
-            .begin = (void*)bufferBegin,
-            .end = (void*)bufferEnd,
-        };
-        vfs2::ReadResult result{};
-        if (OsStatus status = node->read(request, &result)) {
-            return CallError(status);
-        }
-
-        return CallOk(result.read);
-    });
 }
 
 static void MountInitArchive(MemoryRange initrd, SystemMemory& memory) {
@@ -1239,6 +1211,168 @@ static std::tuple<std::optional<HypervisorInfo>, bool> QueryHostHypervisor() {
     }
 
     return std::make_tuple(hvInfo, hasDebugPort);
+}
+
+static OsStatus CopyUserMemory(uint64_t address, size_t size, void *copy) {
+    uint64_t tail = address;
+    if (__builtin_add_overflow(address, size, &tail)) {
+        return OsStatusInvalidInput;
+    }
+
+    const void *front = (void*)address;
+    const void *back = (void*)tail;
+
+    if (!IsRangeMapped(gMemory->pt, front, back, PageFlags::eUser | PageFlags::eRead)) {
+        return OsStatusInvalidInput;
+    }
+
+    memcpy(copy, front, size);
+    return OsStatusSuccess;
+}
+
+template<typename Range>
+static OsStatus CopyUserRange(const void *front, const void *back, Range *dst, size_t limit) {
+    if (front >= back) {
+        return OsStatusInvalidInput;
+    }
+
+    size_t size = (uintptr_t)back - (uintptr_t)front;
+    if (size > limit) {
+        return OsStatusInvalidInput;
+    }
+
+    if (!IsRangeMapped(gMemory->pt, front, back, PageFlags::eUser | PageFlags::eRead)) {
+        return OsStatusInvalidInput;
+    }
+
+    dst->resize(size);
+    memcpy(dst->data(), front, size);
+    return OsStatusSuccess;
+}
+
+static void AddDebugSystemCalls() {
+    AddSystemCall(eOsCallDebugLog, [](uint64_t arg0, uint64_t arg1, uint64_t, uint64_t) -> OsCallResult {
+        const char *front = (const char*)TranslateUserPointer((const void*)arg0);
+        const char *back = (const char*)TranslateUserPointer((const void*)arg1);
+
+        if (front == nullptr || back == nullptr) {
+            return CallError(OsStatusInvalidInput);
+        }
+
+        stdx::StringView message(front, back);
+
+        KmDebugMessage(message);
+
+        return CallOk(0zu);
+    });
+}
+
+static void AddVfsSystemCalls() {
+    AddSystemCall(eOsCallFileOpen, [](uint64_t userArgPathBegin, uint64_t userArgPathEnd, [[maybe_unused]] uint64_t mode, uint64_t) -> OsCallResult {
+        const void *argPathBegin = TranslateUserPointer((const void*)userArgPathBegin);
+        const void *argPathEnd = TranslateUserPointer((const void*)userArgPathEnd);
+        if (argPathBegin == nullptr || argPathEnd == nullptr) {
+            return CallError(OsStatusInvalidInput);
+        }
+
+        if (argPathBegin >= argPathEnd) {
+            return CallError(OsStatusInvalidInput);
+        }
+
+        vfs2::VfsString text((const char*)argPathBegin, (const char*)argPathEnd);
+        if (!vfs2::VerifyPathText(text)) {
+            return CallError(OsStatusInvalidInput);
+        }
+
+        vfs2::VfsPath path{std::move(text)};
+        vfs2::IVfsNodeHandle *node = nullptr;
+        if (OsStatus status = gVfsRoot->open(path, &node)) {
+            return CallError(status);
+        }
+
+        return CallOk(node);
+    });
+
+    AddSystemCall(eOsCallFileRead, [](uint64_t userNodeId, uint64_t userBufferBegin, uint64_t userBufferEnd, uint64_t) -> OsCallResult {
+        const void *bufferBegin = TranslateUserPointer((const void*)userBufferBegin);
+        const void *bufferEnd = TranslateUserPointer((const void*)userBufferEnd);
+        if (bufferBegin == nullptr || bufferEnd == nullptr) {
+            return CallError(OsStatusInvalidInput);
+        }
+
+        vfs2::IVfsNodeHandle *node = (vfs2::IVfsNodeHandle*)userNodeId;
+        vfs2::ReadRequest request {
+            .begin = (void*)bufferBegin,
+            .end = (void*)bufferEnd,
+        };
+        vfs2::ReadResult result{};
+        if (OsStatus status = node->read(request, &result)) {
+            return CallError(status);
+        }
+
+        return CallOk(result.read);
+    });
+}
+
+static void AddDeviceSystemCalls() {
+    AddSystemCall(eOsCallDeviceOpen, [](uint64_t userCreateInfo, uint64_t, uint64_t, uint64_t) -> OsCallResult {
+        OsDeviceCreateInfo createInfo{};
+        if (OsStatus status = CopyUserMemory(userCreateInfo, sizeof(createInfo), &createInfo)) {
+            return CallError(status);
+        }
+
+        vfs2::VfsString userPath;
+        if (OsStatus status = CopyUserRange(createInfo.NameFront, createInfo.NameBack, &userPath, kMaxPathSize)) {
+            return CallError(status);
+        }
+
+        if (!vfs2::VerifyPathText(userPath)) {
+            return CallError(OsStatusInvalidInput);
+        }
+
+        vfs2::VfsPath path{std::move(userPath)};
+
+        sm::uuid uuid = createInfo.InterfaceGuid;
+
+        vfs2::IVfsNodeHandle *handle = nullptr;
+        if (OsStatus status = gVfsRoot->device(path, uuid, &handle)) {
+            return CallError(status);
+        }
+
+        return CallOk(handle);
+    });
+
+    AddSystemCall(eOsCallDeviceRead, [](uint64_t userHandle, uint64_t userRequest, uint64_t, uint64_t) -> OsCallResult {
+        vfs2::IVfsNodeHandle *handle = (vfs2::IVfsNodeHandle*)userHandle;
+
+        OsDeviceReadRequest request{};
+        if (OsStatus status = CopyUserMemory(userRequest, sizeof(request), &request)) {
+            return CallError(status);
+        }
+
+        if (!IsRangeMapped(gMemory->pt, request.BufferFront, request.BufferBack, PageFlags::eUser | PageFlags::eWrite)) {
+            return CallError(OsStatusInvalidInput);
+        }
+
+        vfs2::ReadRequest readRequest {
+            .begin = request.BufferFront,
+            .end = request.BufferBack,
+            .timeout = request.Timeout,
+        };
+        vfs2::ReadResult result{};
+        if (OsStatus status = handle->read(readRequest, &result)) {
+            return CallError(status);
+        }
+
+        return CallOk(result.read);
+    });
+}
+
+static void AddThreadSystemCalls() {
+    AddSystemCall(eOsCallThreadSleep, [](uint64_t, uint64_t, uint64_t, uint64_t) -> OsCallResult {
+        km::YieldCurrentThread();
+        return CallOk(0zu);
+    });
 }
 
 static void StartupSmp(const acpi::AcpiTables& rsdt, km::IsrTable *ist) {
@@ -1319,20 +1453,8 @@ static OsStatus NotificationWork(void *arg) {
     return OsStatusSuccess;
 }
 
-class EchoHidEvent final : public km::ISubscriber {
-    void notify(km::Topic*, sm::RcuSharedPtr<km::INotification> notification) override {
-        hid::HidNotification *hid = static_cast<hid::HidNotification*>(notification.get());
-        hid::HidEvent event = hid->event();
-        if (event.type == hid::HidEventType::eKeyDown) {
-            KmDebugMessage(char(event.key.code));
-        }
-    }
-};
-
 static OsStatus KernelMasterTask() {
     KmDebugMessage("[INIT] Kernel master task.\n");
-
-    gNotificationStream->subscribe(hid::GetHidPs2Topic(), new EchoHidEvent());
 
     LaunchThread(&NotificationWork, gNotificationStream, "NOTIFY");
 
@@ -1405,6 +1527,8 @@ static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioAp
             KmDebugMessage("[VFS] Failed to create ", hidPs2DevicePath, " device: ", status, "\n");
             KM_PANIC("Failed to create keyboard device.");
         }
+
+        gNotificationStream->subscribe(hid::GetHidPs2Topic(), device);
     }
 }
 
@@ -1530,22 +1654,10 @@ void LaunchKernel(boot::LaunchInfo launch) {
     MountVolatileFolder();
     MountInitArchive(launch.initrd, *stage2->memory);
 
-    AddSystemCall(eOsCallDebugLog, [](uint64_t arg0, uint64_t arg1, uint64_t, uint64_t) -> OsCallResult {
-        const char *front = (const char*)TranslateUserPointer((const void*)arg0);
-        const char *back = (const char*)TranslateUserPointer((const void*)arg1);
-
-        if (front == nullptr || back == nullptr) {
-            return CallError(OsStatusInvalidInput);
-        }
-
-        stdx::StringView message(front, back);
-        while (message.back() == '\n')
-            message = message.substr(message.count() - 1);
-
-        KmDebugMessage(message, "\n");
-
-        return CallOk(0zu);
-    });
+    AddDebugSystemCalls();
+    AddVfsSystemCalls();
+    AddDeviceSystemCalls();
+    AddThreadSystemCalls();
 
     CreateNotificationQueue();
 

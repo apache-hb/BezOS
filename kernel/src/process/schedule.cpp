@@ -4,6 +4,9 @@
 CPU_LOCAL
 static constinit km::CpuLocal<km::Thread*> tlsCurrentThread;
 
+CPU_LOCAL
+static constinit km::CpuLocal<uint8_t> tlsScheduleIdx;
+
 extern "C" [[noreturn]] void KmResumeThread(km::IsrContext *context);
 
 km::Scheduler::Scheduler()
@@ -62,13 +65,13 @@ void km::ScheduleWork(IsrTable *table, IApic *apic) {
 
         return *ctx;
     });
-    uint8_t scheduleIdx = table->index(scheduleInt);
+    tlsScheduleIdx = table->index(scheduleInt);
 
     apic->setTimerDivisor(apic::TimerDivide::e32);
     apic->setInitialCount(0x10000);
 
     apic->cfgIvtTimer(apic::IvtConfig {
-        .vector = scheduleIdx,
+        .vector = tlsScheduleIdx.get(),
         .polarity = apic::Polarity::eActiveHigh,
         .trigger = apic::Trigger::eEdge,
         .enabled = true,
@@ -76,4 +79,9 @@ void km::ScheduleWork(IsrTable *table, IApic *apic) {
     });
 
     KmIdle();
+}
+
+void km::YieldCurrentThread() {
+    IApic *apic = km::GetCpuLocalApic();
+    apic->selfIpi(tlsScheduleIdx.get());
 }
