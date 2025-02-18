@@ -90,6 +90,7 @@ namespace vfs2 {
         virtual OsStatus read(ReadRequest request, ReadResult *result);
         virtual OsStatus write(WriteRequest request, WriteResult *result);
         virtual OsStatus stat(VfsNodeStat *stat);
+        virtual OsStatus call(uint64_t, void*) { return OsStatusNotSupported; }
     };
 
     template<typename T> requires (std::is_trivial_v<T>)

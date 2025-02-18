@@ -13,6 +13,7 @@ namespace km {
     void SetupInitialGdt(void);
 
     Scheduler *GetScheduler();
+    SystemMemory *GetSystemMemory();
 
     CPU_LOCAL
     extern constinit km::CpuLocal<SystemGdt> tlsSystemGdt;

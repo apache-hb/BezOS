@@ -47,6 +47,7 @@
 #include "uart.hpp"
 #include "smbios.hpp"
 #include "pci/pci.hpp"
+#include "user/user.hpp"
 
 #include "memory/layout.hpp"
 #include "memory/allocator.hpp"
@@ -1082,25 +1083,12 @@ Scheduler *km::GetScheduler() {
     return gScheduler;
 }
 
+SystemMemory *km::GetSystemMemory() {
+    return gMemory;
+}
+
 static void CreateNotificationQueue() {
     gNotificationStream = new NotificationStream();
-}
-
-static bool IsPageMapped(const km::PageTableManager& pt, const void *address, km::PageFlags flags) {
-    return (pt.getMemoryFlags(address) & flags) == flags;
-}
-
-static bool IsRangeMapped(const km::PageTableManager& pt, const void *begin, const void *end, km::PageFlags flags) {
-    uintptr_t front = (uintptr_t)begin;
-    uintptr_t back = (uintptr_t)end;
-
-    for (uintptr_t addr = front; addr < back; addr += x64::kPageSize) {
-        if (!IsPageMapped(pt, (void*)addr, flags)) {
-            return false;
-        }
-    }
-
-    return true;
 }
 
 static const void *TranslateUserPointer(const void *userAddress) {
@@ -1215,43 +1203,6 @@ static std::tuple<std::optional<HypervisorInfo>, bool> QueryHostHypervisor() {
     return std::make_tuple(hvInfo, hasDebugPort);
 }
 
-static OsStatus CopyUserMemory(uint64_t address, size_t size, void *copy) {
-    uint64_t tail = address;
-    if (__builtin_add_overflow(address, size, &tail)) {
-        return OsStatusInvalidInput;
-    }
-
-    const void *front = (void*)address;
-    const void *back = (void*)tail;
-
-    if (!IsRangeMapped(gMemory->pt, front, back, PageFlags::eUser | PageFlags::eRead)) {
-        return OsStatusInvalidInput;
-    }
-
-    memcpy(copy, front, size);
-    return OsStatusSuccess;
-}
-
-template<typename Range>
-static OsStatus CopyUserRange(const void *front, const void *back, Range *dst, size_t limit) {
-    if (front >= back) {
-        return OsStatusInvalidInput;
-    }
-
-    size_t size = (uintptr_t)back - (uintptr_t)front;
-    if (size > limit) {
-        return OsStatusInvalidInput;
-    }
-
-    if (!IsRangeMapped(gMemory->pt, front, back, PageFlags::eUser | PageFlags::eRead)) {
-        return OsStatusInvalidInput;
-    }
-
-    dst->resize(size);
-    memcpy(dst->data(), front, size);
-    return OsStatusSuccess;
-}
-
 static void AddDebugSystemCalls() {
     AddSystemCall(eOsCallDebugLog, [](uint64_t arg0, uint64_t arg1, uint64_t, uint64_t) -> OsCallResult {
         const char *front = (const char*)TranslateUserPointer((const void*)arg0);
@@ -1319,12 +1270,12 @@ static void AddVfsSystemCalls() {
 static void AddDeviceSystemCalls() {
     AddSystemCall(eOsCallDeviceOpen, [](uint64_t userCreateInfo, uint64_t, uint64_t, uint64_t) -> OsCallResult {
         OsDeviceCreateInfo createInfo{};
-        if (OsStatus status = CopyUserMemory(userCreateInfo, sizeof(createInfo), &createInfo)) {
+        if (OsStatus status = km::CopyUserMemory(userCreateInfo, sizeof(createInfo), &createInfo)) {
             return CallError(status);
         }
 
         vfs2::VfsString userPath;
-        if (OsStatus status = CopyUserRange(createInfo.NameFront, createInfo.NameBack, &userPath, kMaxPathSize)) {
+        if (OsStatus status = km::CopyUserRange(createInfo.NameFront, createInfo.NameBack, &userPath, kMaxPathSize)) {
             return CallError(status);
         }
 
@@ -1348,7 +1299,7 @@ static void AddDeviceSystemCalls() {
         vfs2::IVfsNodeHandle *handle = (vfs2::IVfsNodeHandle*)userHandle;
 
         OsDeviceReadRequest request{};
-        if (OsStatus status = CopyUserMemory(userRequest, sizeof(request), &request)) {
+        if (OsStatus status = km::CopyUserMemory(userRequest, sizeof(request), &request)) {
             return CallError(status);
         }
 
@@ -1367,6 +1318,16 @@ static void AddDeviceSystemCalls() {
         }
 
         return CallOk(result.read);
+    });
+
+    AddSystemCall(eOsCallDeviceCall, [](uint64_t userHandle, uint64_t userFunction, uint64_t userData, uint64_t) -> OsCallResult {
+        vfs2::IVfsNodeHandle *handle = (vfs2::IVfsNodeHandle*)userHandle;
+
+        if (OsStatus status = handle->call(userFunction, (void*)userData)) {
+            return CallError(status);
+        }
+
+        return CallOk(0zu);
     });
 }
 

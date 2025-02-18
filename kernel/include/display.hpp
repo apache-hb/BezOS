@@ -65,6 +65,13 @@ namespace km {
         ChannelValue getGreenChannel(PixelValue value) const;
         ChannelValue getBlueChannel(PixelValue value) const;
 
+        uint8_t redMaskSize() const { return mRedChannel.size; }
+        uint8_t redMaskShift() const { return mRedChannel.shift; }
+        uint8_t greenMaskSize() const { return mGreenChannel.size; }
+        uint8_t greenMaskShift() const { return mGreenChannel.shift; }
+        uint8_t blueMaskSize() const { return mBlueChannel.size; }
+        uint8_t blueMaskShift() const { return mBlueChannel.shift; }
+
         Pixel pixelRead(PixelValue value) const;
     };
 
@@ -113,6 +120,13 @@ namespace km {
         size_t stride() const { return width() * bytesPerPixel(); }
 
         bool hasLinePadding() const { return mWidth != (pitch() / bytesPerPixel()); }
+
+        uint8_t redMaskSize() const { return mFormat.redMaskSize(); }
+        uint8_t redMaskShift() const { return mFormat.redMaskShift(); }
+        uint8_t greenMaskSize() const { return mFormat.greenMaskSize(); }
+        uint8_t greenMaskShift() const { return mFormat.greenMaskShift(); }
+        uint8_t blueMaskSize() const { return mFormat.blueMaskSize(); }
+        uint8_t blueMaskShift() const { return mFormat.blueMaskShift(); }
 
         Pixel read(uint64_t x, uint64_t y) const;
     };

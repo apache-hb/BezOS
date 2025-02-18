@@ -175,6 +175,9 @@ src = [
     'kernel/src/drivers/block/virtio_blk.cpp',
     'kernel/src/drivers/block/ramblk.cpp',
 
+    # Userspace
+    'kernel/src/user/user.cpp',
+
     # Services
     'kernel/src/notify.cpp',
 

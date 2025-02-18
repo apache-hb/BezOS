@@ -6,6 +6,7 @@
 #include <bezos/subsystem/ddi.h>
 
 #include <cstring>
+#include <algorithm>
 #include <iterator>
 
 static constexpr size_t kBufferSize = 16;
@@ -127,6 +128,55 @@ public:
         return true;
     }
 };
+static constexpr size_t kDisplayWidth = 80;
+static constexpr size_t kDisplayHeight = 25;
+static constexpr char kDisplayDevicePath[] = OS_DEVICE_DDI_RAMFB;
+
+class VtDisplay {
+    UTIL_NOCOPY(VtDisplay)
+    UTIL_NOMOVE(VtDisplay)
+
+    OsDeviceHandle mDevice;
+    char mTextBuffer[kDisplayWidth * kDisplayHeight];
+    uint16_t mColumn = 0;
+    uint16_t mRow = 0;
+
+    void Scroll() {
+        memmove(mTextBuffer, mTextBuffer + kDisplayWidth, kDisplayWidth * (kDisplayHeight - 1));
+        memset(mTextBuffer + kDisplayWidth * (kDisplayHeight - 1), ' ', kDisplayWidth);
+    }
+
+public:
+    VtDisplay() {
+        OsDeviceCreateInfo createInfo = {
+            .NameFront = std::begin(kDisplayDevicePath),
+            .NameBack = std::end(kDisplayDevicePath) - 1,
+
+            .InterfaceGuid = kOsDisplayClassGuid,
+        };
+
+        ASSERT_OS_SUCCESS(OsDeviceOpen(createInfo, &mDevice));
+
+        Clear();
+    }
+
+    ~VtDisplay() {
+        ASSERT_OS_SUCCESS(OsDeviceClose(mDevice));
+    }
+
+    void Clear() {
+        std::fill(std::begin(mTextBuffer), std::end(mTextBuffer), ' ');
+        mColumn = 0;
+        mRow = 0;
+
+        OsDdiFill fill = { .R = 100, .G = 100, .B = 100 };
+        ASSERT_OS_SUCCESS(OsDeviceCall(mDevice, eOsDdiFill, &fill));
+    }
+
+    void WriteChar(char c) {
+
+    }
+};
 
 extern "C" size_t strlen(const char *str) {
     size_t len = 0;
@@ -134,6 +184,17 @@ extern "C" size_t strlen(const char *str) {
         len++;
     }
     return len;
+}
+
+extern "C" void *memset(void *ptr, int value, size_t num) {
+    unsigned char *begin = static_cast<unsigned char *>(ptr);
+    unsigned char *end = begin + num;
+
+    for (unsigned char *it = begin; it != end; ++it) {
+        *it = static_cast<unsigned char>(value);
+    }
+
+    return ptr;
 }
 
 template<size_t N>
@@ -156,6 +217,10 @@ extern "C" [[noreturn]] void ClientStart(const void*, const void*, uint64_t) {
     ASSERT_OS_SUCCESS(OsFileRead(Handle, std::begin(buffer), std::end(buffer), &read));
 
     OsDebugLog(buffer, buffer + read);
+
+    VtDisplay display{};
+
+    display.Clear();
 
     KeyboardDevice keyboard{};
     OsHidEvent event{};
