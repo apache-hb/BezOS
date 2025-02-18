@@ -65,6 +65,14 @@ struct PackageInfo {
     fs::path GetWorkspaceFolder() const {
         return source.empty() ? imported.string() : source.string();
     }
+
+    fs::path GetBuildFolder() const {
+        return build;
+    }
+
+    bool HasCompileCommands() const {
+        return fs::exists(GetBuildFolder() / "compile_commands.json");
+    }
 };
 
 struct Workspace {
