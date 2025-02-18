@@ -4,4 +4,8 @@
               trim-root-folder='true'
               url='https://github.com/limine-bootloader/limine/archive/refs/tags/v8.6.1-binary.zip'
               sha256='ff28a6d44a075c856e79b4067af6b52263ae03f0d37840ad5a6d3486ee35196f' />
+
+    <overlay path='overlays/limine'  />
+    <configure with='meson' />
+    <provide tool='limine-install' />
 </package>

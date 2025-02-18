@@ -30,6 +30,10 @@ struct RequirePackage {
     fs::path symlink;
 };
 
+struct Overlay {
+    std::string folder;
+};
+
 struct Download {
     std::string url;
     std::string file;
@@ -45,6 +49,7 @@ struct PackageInfo {
     fs::path cache;
 
     std::vector<Download> downloads;
+    std::vector<Overlay> overlays;
     std::vector<RequirePackage> dependencies;
 
     std::string GetWorkspaceFolder() const {
@@ -309,6 +314,9 @@ static void ReadPackageConfig(xmlNodePtr node) {
 
             auto src = ExpectProperty<std::string>(action, "path");
             packageInfo.source = gSourceRoot / src;
+        } else if (step == "overlay"sv) {
+            auto folder = ExpectProperty<std::string>(action, "path");
+            packageInfo.overlays.push_back(Overlay{folder});
         }
     }
 
@@ -318,7 +326,6 @@ static void ReadPackageConfig(xmlNodePtr node) {
 static void AcquirePackage(const PackageInfo& package) {
     for (const auto& download : package.downloads) {
         auto path = package.cache / download.file;
-
 
         std::println(std::cout, "{}: download {} -> {}", package.name, download.url, path.string());
 
@@ -335,6 +342,15 @@ static void AcquirePackage(const PackageInfo& package) {
             fs::copy_file(path, dst, fs::copy_options::overwrite_existing);
         }
     }
+
+    for (const auto& overlay : package.overlays) {
+        auto src = gSourceRoot / overlay.folder;
+        fs::path dst = package.GetWorkspaceFolder();
+
+        std::println(std::cout, "{}: overlay {} -> {}", package.name, src.string(), dst.string());
+
+        fs::copy(src, dst.parent_path(), fs::copy_options::recursive | fs::copy_options::update_existing);
+    }
 }
 
 static void ConnectDependencies(const PackageInfo& package) {
@@ -344,7 +360,7 @@ static void ConnectDependencies(const PackageInfo& package) {
 
         std::println(std::cout, "{}: symlink {} -> {}", package.name, path.string(), dst.string());
 
-        if (fs::equivalent(path, dst)) {
+        if (fs::exists(dst) && fs::equivalent(path, dst)) {
             continue;
         }
 
