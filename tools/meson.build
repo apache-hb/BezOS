@@ -1,6 +1,7 @@
 project('tools', 'cpp',
     default_options : [
-        'cpp_std=gnu++26'
+        'cpp_std=gnu++26',
+        'default_library=static',
     ]
 )
 

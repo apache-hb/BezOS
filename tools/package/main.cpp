@@ -9,6 +9,8 @@
 #include <archive.h>
 #include <archive_entry.h>
 
+#include <argo.hpp>
+
 #include "defer.hpp"
 #include "libxml/tree.h"
 
@@ -23,6 +25,19 @@ namespace fs = std::filesystem;
 namespace stdr = std::ranges;
 namespace stdv = std::views;
 
+struct Workspace {
+    argo::json Workspace{argo::json::object_e};
+
+    void AddFolder(const fs::path& path, const std::string& name) {
+        argo::json folder{argo::json::object_e};
+        folder["path"] = path.string();
+        folder["name"] = name;
+
+        Workspace["folders"].append(folder);
+    }
+};
+
+static Workspace gWorkspace;
 static fs::path gRepoRoot;
 static fs::path gBuildRoot;
 static fs::path gInstallPrefix;
@@ -208,6 +223,8 @@ static void LoadPackage(xmlNodePtr node) {
     MakeFolder(install);
     MakeFolder(cache);
 
+    gWorkspace.AddFolder(build, name);
+
     for (xmlNodePtr action : NodeChildren(root) | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
         if (NodeName(action) == "download"sv) {
             auto url = ExpectProperty<std::string>(action, "url");
@@ -274,11 +291,15 @@ int main(int argc, const char **argv) try {
     MakeFolder(PackageBuildRoot());
     MakeFolder(gInstallPrefix);
 
+    gWorkspace.Workspace["folders"] = argo::json::json_array();
+
     for (xmlNodePtr child : NodeChildren(root) | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
         if (NodeName(child) == "package"sv) {
             LoadPackage(child);
         }
     }
+
+    argo::unparser::save(gWorkspace.Workspace, gBuildRoot / "workspace.code-workspace", " ", "\n", " ", 4);
 
 } catch (const std::exception &e) {
     std::cerr << "Error: " << e.what() << std::endl;
