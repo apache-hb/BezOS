@@ -401,17 +401,17 @@ static void AcquirePackage(const PackageInfo& package) {
 
 static void ConnectDependencies(const PackageInfo& package) {
     for (const auto& dep : package.dependencies) {
-        auto dst = package.GetWorkspaceFolder() / dep.symlink;
+        auto symlink = package.GetWorkspaceFolder() / dep.symlink;
         auto path = gWorkspace.GetPackagePath(dep.name);
 
-        std::println(std::cout, "{}: symlink {} -> {}", package.name, path.string(), dst.string());
+        std::println(std::cout, "{}: symlink {} -> {}", package.name, symlink.string(), path.string());
 
-        if (fs::exists(dst) && fs::equivalent(path, dst)) {
+        if (fs::exists(symlink) && fs::equivalent(path, symlink)) {
             continue;
         }
 
-        fs::create_directories(dst.parent_path());
-        fs::create_directory_symlink(path, dst);
+        fs::create_directories(symlink.parent_path());
+        fs::create_directory_symlink(path, symlink);
     }
 }
 
@@ -447,6 +447,14 @@ int main(int argc, const char **argv) try {
     parser.add_argument("--workspace")
         .help("Path to vscode workspace file to generate");
 
+    parser.add_argument("--build")
+        .help("Path to the intermediate build folder")
+        .default_value("build");
+
+    parser.add_argument("--prefix")
+        .help("Path to the installation prefix")
+        .default_value("install");
+
     parser.add_argument("--help")
         .help("Print this help message")
         .action([&](const std::string &) { std::cout << parser; std::exit(0); });
@@ -472,14 +480,18 @@ int main(int argc, const char **argv) try {
 
     xmlNodePtr root = xmlDocGetRootElement(document.get());
 
+    fs::path build = parser.get<std::string>("--build");
+    fs::path prefix = parser.get<std::string>("--prefix");
+
+    prefix = fs::absolute(prefix);
+    build = fs::absolute(build);
+
     auto name = UnwrapOptional(GetProperty(root, "name"), "Missing repo name property");
-    auto output = UnwrapOptional(GetProperty(root, "build"), "Missing repo output property");
-    auto install = UnwrapOptional(GetProperty(root, "install"), "Missing repo install property");
-    auto sources = UnwrapOptional(GetProperty(root, "sources"), "Missing repo sources property");
+    auto sources = UnwrapOptional(GetProperty(root, "sources"), "Missing sources property");
     auto pwd = std::filesystem::current_path();
     gRepoRoot = configPath.parent_path();
-    gBuildRoot = pwd / output;
-    gInstallPrefix = pwd / install;
+    gBuildRoot = build;
+    gInstallPrefix = prefix;
     gSourceRoot = pwd / sources;
 
     MakeFolder(gBuildRoot);

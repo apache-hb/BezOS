@@ -2,7 +2,6 @@ project('bezos', [ 'c', 'cpp' ],
     default_options : [
         'cpp_std=c++26',
         'c_std=c23',
-        'werror=true',
         'warning_level=3',
         'b_pie=false',
         'b_staticpic=false',

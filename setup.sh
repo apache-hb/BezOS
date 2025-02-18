@@ -4,10 +4,8 @@ shift
 prefix=$(pwd)/install
 builddir=$(pwd)/$builddir
 
-make install-hyper || exit 1
-
 (cd tools; meson setup $builddir/tools --prefix $prefix/tools $@)
 
-(cd system; meson setup $builddir/system --cross-file data/bezos.ini --prefix $prefix/system $@)
+make tools || exit 1
 
-(cd kernel; meson setup $builddir/kernel --native-file data/x64-clang.ini --cross-file data/kernel.ini --prefix $prefix $@)
+$prefix/tools/bin/package.elf --config repo/repo.xml --build build --prefix install --workspace repo.code-workspace

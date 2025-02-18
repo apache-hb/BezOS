@@ -4,5 +4,8 @@
     <require package='sysapi' symlink='subprojects/sysapi' />
 
     <source path='kernel' />
-    <configure with='meson' />
+
+    <configure with='meson'>
+        <cross file='@cross-file@' />
+    </configure>
 </package>
