@@ -9,10 +9,11 @@
 namespace km {
     /// @brief Allocates virtual memory address space.
     class VirtualAllocator {
-        RangeAllocator<const void*> mRangeAllocator;
+        RangeAllocator<const void*> mSupervisorRanges;
+        RangeAllocator<const void*> mUserRanges;
 
     public:
-        VirtualAllocator(VirtualRange range);
+        VirtualAllocator(VirtualRange range, VirtualRange user = VirtualRange{});
 
         void markUsed(VirtualRange range);
 
@@ -20,5 +21,10 @@ namespace km {
         void *alloc2m(size_t count);
 
         void release(VirtualRange range);
+
+        void *userAlloc4k(size_t count);
+        void *userAlloc2m(size_t count);
+
+        void userRelease(VirtualRange range);
     };
 }

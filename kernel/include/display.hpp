@@ -76,6 +76,7 @@ namespace km {
     };
 
     class Canvas {
+        km::PhysicalAddress mPhysical;
         uint8_t *mAddress;
 
         uint64_t mWidth;
@@ -95,7 +96,8 @@ namespace km {
         Canvas(Canvas geometry, uint8_t *address);
 
         constexpr Canvas(sm::noinit)
-            : mAddress(nullptr)
+            : mPhysical(nullptr)
+            , mAddress(nullptr)
             , mWidth(0)
             , mHeight(0)
             , mPitch(0)
@@ -106,6 +108,7 @@ namespace km {
 
         void fill(Pixel pixel);
 
+        km::PhysicalAddress physical() const { return mPhysical; }
         void *address() const { return mAddress; }
         void setAddress(void *address) { mAddress = (uint8_t*)address; }
         size_t size() const { return mPitch * mHeight; }

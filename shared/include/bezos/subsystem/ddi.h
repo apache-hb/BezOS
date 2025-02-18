@@ -11,9 +11,10 @@ extern "C" {
 OS_DEFINE_GUID(kOsDisplayClassGuid, 0x45a46f76, 0xed6a, 0x11ef, 0x8516, 0x33da61d08982);
 
 enum {
-    eOsDdiInfo = UINT64_C(0),
-    eOsDdiBlit = UINT64_C(1),
-    eOsDdiFill = UINT64_C(2),
+    eOsDdiInfo      = UINT64_C(0),
+    eOsDdiBlit      = UINT64_C(1),
+    eOsDdiFill      = UINT64_C(2),
+    eOsDdiGetCanvas = UINT64_C(3),
 };
 
 struct OsDdiDisplayInfo {
@@ -44,6 +45,10 @@ struct OsDdiFill {
     uint8_t R;
     uint8_t G;
     uint8_t B;
+};
+
+struct OsDdiGetCanvas {
+    void *Canvas;
 };
 
 #ifdef __cplusplus

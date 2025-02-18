@@ -1,0 +1,8 @@
+[wrap-git]
+url = https://github.com/mintsuki/flanterm.git
+revision = trunk
+
+patch_directory = flanterm
+
+[provide]
+dependency_names = flanterm

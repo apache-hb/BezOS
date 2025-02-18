@@ -9,6 +9,7 @@
 namespace dev {
     class DisplayHandle : public vfs2::IVfsNodeHandle {
         km::Canvas mCanvas;
+        void *mUserCanvas = nullptr;
 
         OsStatus blit(void *data) {
             OsDdiBlit request{};
@@ -48,11 +49,26 @@ namespace dev {
             return OsStatusSuccess;
         }
 
+        OsStatus getCanvas(void *data) {
+            OsDdiGetCanvas result {
+                .Canvas = mUserCanvas,
+            };
+
+            return km::WriteUserMemory(data, &result, sizeof(result));
+        }
+
     public:
         DisplayHandle(vfs2::IVfsNode *node, km::Canvas canvas)
             : vfs2::IVfsNodeHandle(node)
             , mCanvas(canvas)
-        { }
+        {
+            km::MemoryRange range = {
+                .front = mCanvas.physical(),
+                .back = mCanvas.physical() + mCanvas.size() * mCanvas.bytesPerPixel(),
+            };
+
+            mUserCanvas = km::GetSystemMemory()->map(range, km::PageFlags::eUser | km::PageFlags::eWrite, km::MemoryType::eWriteCombine);
+        }
 
         OsStatus call(uint64_t function, void *data) override {
             switch (function) {
@@ -62,6 +78,8 @@ namespace dev {
                 return info(data);
             case eOsDdiFill:
                 return fill(data);
+            case eOsDdiGetCanvas:
+                return getCanvas(data);
 
             default:
                 return OsStatusInvalidFunction;

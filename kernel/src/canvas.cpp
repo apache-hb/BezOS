@@ -47,7 +47,8 @@ km::Pixel km::PixelFormat::pixelRead(PixelValue value) const {
 }
 
 km::Canvas::Canvas(boot::FrameBuffer framebuffer, uint8_t *address)
-    : mAddress(address)
+    : mPhysical(framebuffer.paddr)
+    , mAddress(address)
     , mWidth(framebuffer.width)
     , mHeight(framebuffer.height)
     , mPitch(framebuffer.pitch)
@@ -55,7 +56,8 @@ km::Canvas::Canvas(boot::FrameBuffer framebuffer, uint8_t *address)
 { }
 
 km::Canvas::Canvas(Canvas geometry, uint8_t *address)
-    : mAddress(address)
+    : mPhysical(geometry.mPhysical)
+    , mAddress(address)
     , mWidth(geometry.width())
     , mHeight(geometry.height())
     , mPitch(geometry.pitch())

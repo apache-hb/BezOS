@@ -16,6 +16,7 @@
 #include <bezos/subsystem/hid.h>
 #include <bezos/facility/device.h>
 #include <bezos/subsystem/ddi.h>
+#include <bezos/facility/vmem.h>
 
 #include "cmos.hpp"
 #include "delay.hpp"
@@ -1222,22 +1223,16 @@ static void AddDebugSystemCalls() {
 
 static void AddVfsSystemCalls() {
     AddSystemCall(eOsCallFileOpen, [](uint64_t userArgPathBegin, uint64_t userArgPathEnd, [[maybe_unused]] uint64_t mode, uint64_t) -> OsCallResult {
-        const void *argPathBegin = TranslateUserPointer((const void*)userArgPathBegin);
-        const void *argPathEnd = TranslateUserPointer((const void*)userArgPathEnd);
-        if (argPathBegin == nullptr || argPathEnd == nullptr) {
+        vfs2::VfsString userPath;
+        if (OsStatus status = km::CopyUserRange((void*)userArgPathBegin, (void*)userArgPathEnd, &userPath, kMaxPathSize)) {
+            return CallError(status);
+        }
+
+        if (!vfs2::VerifyPathText(userPath)) {
             return CallError(OsStatusInvalidInput);
         }
 
-        if (argPathBegin >= argPathEnd) {
-            return CallError(OsStatusInvalidInput);
-        }
-
-        vfs2::VfsString text((const char*)argPathBegin, (const char*)argPathEnd);
-        if (!vfs2::VerifyPathText(text)) {
-            return CallError(OsStatusInvalidInput);
-        }
-
-        vfs2::VfsPath path{std::move(text)};
+        vfs2::VfsPath path{std::move(userPath)};
         vfs2::IVfsNodeHandle *node = nullptr;
         if (OsStatus status = gVfsRoot->open(path, &node)) {
             return CallError(status);
@@ -1334,6 +1329,66 @@ static void AddDeviceSystemCalls() {
 static void AddThreadSystemCalls() {
     AddSystemCall(eOsCallThreadSleep, [](uint64_t, uint64_t, uint64_t, uint64_t) -> OsCallResult {
         km::YieldCurrentThread();
+        return CallOk(0zu);
+    });
+}
+
+static void AddVmemSystemCalls() {
+    AddSystemCall(eOsCallAddressSpaceCreate, [](uint64_t userCreateInfo, uint64_t, uint64_t, uint64_t) -> OsCallResult {
+        OsAddressSpaceCreateInfo createInfo{};
+        if (OsStatus status = km::CopyUserMemory(userCreateInfo, sizeof(createInfo), &createInfo)) {
+            return CallError(status);
+        }
+
+        PageFlags flags = PageFlags::eUser;
+        if (createInfo.Access & eOsMemoryRead) {
+            flags |= PageFlags::eRead;
+            createInfo.Access &= ~eOsMemoryRead;
+        }
+
+        if (createInfo.Access & eOsMemoryWrite) {
+            flags |= PageFlags::eWrite;
+            createInfo.Access &= ~eOsMemoryWrite;
+        }
+
+        if (createInfo.Access & eOsMemoryExecute) {
+            flags |= PageFlags::eExecute;
+            createInfo.Access &= ~eOsMemoryExecute;
+        }
+
+        if (createInfo.Access != 0) {
+            return CallError(OsStatusInvalidInput);
+        }
+
+        stdx::String name;
+        if (OsStatus status = km::CopyUserRange(createInfo.NameFront, createInfo.NameBack, &name, kMaxPathSize)) {
+            return CallError(status);
+        }
+
+        AddressMapping mapping = gMemory->userAllocate(createInfo.Size, flags, MemoryType::eWriteBack);
+
+        if (mapping.isEmpty()) {
+            return CallError(OsStatusOutOfMemory);
+        }
+
+        AddressSpace *addressSpace = gSystemObjects->createAddressSpace(std::move(name), mapping);
+        return CallOk(addressSpace);
+    });
+
+    AddSystemCall(eOsCallAddressSpaceStat, [](uint64_t userSpace, uint64_t userStat, uint64_t, uint64_t) -> OsCallResult {
+        AddressSpace *space = (AddressSpace*)userSpace;
+        OsAddressSpaceInfo stat {
+            .Base = (OsAnyPointer)space->mapping.vaddr,
+            .Size = space->mapping.size,
+
+            // TODO: Report the actual access.
+            .Access = eOsMemoryRead | eOsMemoryWrite | eOsMemoryExecute,
+        };
+
+        if (OsStatus status = km::WriteUserMemory((void*)userStat, &stat, sizeof(stat))) {
+            return CallError(status);
+        }
+
         return CallOk(0zu);
     });
 }
@@ -1641,6 +1696,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     AddVfsSystemCalls();
     AddDeviceSystemCalls();
     AddThreadSystemCalls();
+    AddVmemSystemCalls();
 
     CreateNotificationQueue();
 

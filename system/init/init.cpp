@@ -1,9 +1,13 @@
 #include <bezos/facility/device.h>
 #include <bezos/facility/threads.h>
 #include <bezos/facility/fs.h>
+#include <bezos/facility/vmem.h>
 
 #include <bezos/subsystem/hid.h>
 #include <bezos/subsystem/ddi.h>
+
+#include <flanterm.h>
+#include <backends/fb.h>
 
 #include <cstring>
 #include <algorithm>
@@ -55,6 +59,25 @@ static void AssertOsSuccess(OsStatus status, const char (&message)[N]) {
 
 #define ASSERT_OS_SUCCESS(expr) AssertOsSuccess(expr, "Assertion failed: " #expr " != OsStatusSuccess")
 #define ASSERT(expr) Assert(expr, #expr)
+
+template<size_t N>
+OsAnyPointer VirtualAllocate(OsSize size, OsMemoryAccess access, const char (&name)[N]) {
+    OsAddressSpaceCreateInfo createInfo = {
+        .NameFront = std::begin(name),
+        .NameBack = std::end(name) - 1,
+
+        .Size = size,
+        .Access = access,
+    };
+
+    OsAddressSpaceHandle handle{};
+    ASSERT_OS_SUCCESS(OsAddressSpaceCreate(createInfo, &handle));
+
+    OsAddressSpaceInfo stat{};
+    ASSERT_OS_SUCCESS(OsAddressSpaceStat(handle, &stat));
+
+    return stat.Base;
+}
 
 #define UTIL_NOCOPY(cls) \
     cls(const cls &) = delete; \
@@ -128,8 +151,7 @@ public:
         return true;
     }
 };
-static constexpr size_t kDisplayWidth = 80;
-static constexpr size_t kDisplayHeight = 25;
+
 static constexpr char kDisplayDevicePath[] = OS_DEVICE_DDI_RAMFB;
 
 class VtDisplay {
@@ -137,14 +159,8 @@ class VtDisplay {
     UTIL_NOMOVE(VtDisplay)
 
     OsDeviceHandle mDevice;
-    char mTextBuffer[kDisplayWidth * kDisplayHeight];
-    uint16_t mColumn = 0;
-    uint16_t mRow = 0;
-
-    void Scroll() {
-        memmove(mTextBuffer, mTextBuffer + kDisplayWidth, kDisplayWidth * (kDisplayHeight - 1));
-        memset(mTextBuffer + kDisplayWidth * (kDisplayHeight - 1), ' ', kDisplayWidth);
-    }
+    void *mAddress;
+    flanterm_context *mContext;
 
 public:
     VtDisplay() {
@@ -157,7 +173,28 @@ public:
 
         ASSERT_OS_SUCCESS(OsDeviceOpen(createInfo, &mDevice));
 
-        Clear();
+        OsDdiGetCanvas canvas{};
+        ASSERT_OS_SUCCESS(OsDeviceCall(mDevice, eOsDdiGetCanvas, &canvas));
+
+        OsDdiDisplayInfo display{};
+        ASSERT_OS_SUCCESS(OsDeviceCall(mDevice, eOsDdiInfo, &display));
+
+        mAddress = canvas.Canvas;
+
+        mContext = flanterm_fb_init(
+            nullptr, nullptr,
+            (uint32_t*)mAddress, display.Width, display.Height, display.Stride,
+            display.RedMaskSize, display.RedMaskShift,
+            display.GreenMaskSize, display.GreenMaskShift,
+            display.BlueMaskSize, display.BlueMaskShift,
+            nullptr,
+            nullptr, nullptr,
+            nullptr, nullptr,
+            nullptr, nullptr,
+            nullptr, 0, 0, 0,
+            0, 0,
+            0
+        );
     }
 
     ~VtDisplay() {
@@ -165,16 +202,22 @@ public:
     }
 
     void Clear() {
-        std::fill(std::begin(mTextBuffer), std::end(mTextBuffer), ' ');
-        mColumn = 0;
-        mRow = 0;
-
         OsDdiFill fill = { .R = 100, .G = 100, .B = 100 };
         ASSERT_OS_SUCCESS(OsDeviceCall(mDevice, eOsDdiFill, &fill));
     }
 
     void WriteChar(char c) {
+        char buffer[1] = { c };
+        flanterm_write(mContext, buffer, 1);
+    }
 
+    void WriteString(const char *begin, const char *end) {
+        flanterm_write(mContext, begin, end - begin);
+    }
+
+    template<size_t N>
+    void WriteString(const char (&str)[N]) {
+        WriteString(str, str + N - 1);
     }
 };
 
@@ -197,12 +240,44 @@ extern "C" void *memset(void *ptr, int value, size_t num) {
     return ptr;
 }
 
+extern "C" void *memcpy(void *dest, const void *src, size_t num) {
+    unsigned char *d = static_cast<unsigned char *>(dest);
+    const unsigned char *s = static_cast<const unsigned char *>(src);
+
+    for (size_t i = 0; i < num; i++) {
+        d[i] = s[i];
+    }
+
+    return dest;
+}
+
 template<size_t N>
 static OsStatus OpenFile(const char (&path)[N], OsFileHandle *OutHandle) {
     const char *begin = path;
     const char *end = path + N - 1;
 
     return OsFileOpen(begin, end, eOsFileRead, OutHandle);
+}
+
+extern "C" bool isprint(int c) {
+    return c >= 0x20 && c <= 0x7E;
+}
+
+extern "C" bool isalnum(int c) {
+    return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
+}
+
+extern "C" int strcmp(const char *lhs, const char *rhs) {
+    while (*lhs && *rhs && *lhs == *rhs) {
+        lhs++;
+        rhs++;
+    }
+
+    return *lhs - *rhs;
+}
+
+static void Prompt(VtDisplay& display) {
+    display.WriteString("root@rainforest: ");
 }
 
 // rdi: first argument
@@ -216,11 +291,16 @@ extern "C" [[noreturn]] void ClientStart(const void*, const void*, uint64_t) {
     uint64_t read = UINT64_MAX;
     ASSERT_OS_SUCCESS(OsFileRead(Handle, std::begin(buffer), std::end(buffer), &read));
 
-    OsDebugLog(buffer, buffer + read);
-
     VtDisplay display{};
 
-    display.Clear();
+    display.WriteString(buffer, buffer + read);
+
+    Prompt(display);
+
+    // display.Clear();
+
+    char text[0x1000];
+    size_t index = 0;
 
     KeyboardDevice keyboard{};
     OsHidEvent event{};
@@ -236,7 +316,36 @@ extern "C" [[noreturn]] void ClientStart(const void*, const void*, uint64_t) {
             continue;
         }
 
-        DebugLog("Key down event received\n");
+        if (event.Body.Key.Key == eKeyReturn) {
+            if (index == 0) {
+                display.WriteString("\n");
+                continue;
+            }
+
+            size_t oldIndex = index;
+            text[index] = '\0';
+            index = 0;
+
+            display.WriteString("\n");
+
+            if (strcmp(text, "exit") == 0) {
+                break;
+            }
+
+            display.WriteString("Unknown command: ");
+            display.WriteString(text, text + oldIndex);
+            display.WriteString("\n");
+
+            Prompt(display);
+        } else if (event.Body.Key.Key == eKeyDelete) {
+            if (index > 0) {
+                index--;
+                display.WriteString("\b \b");
+            }
+        } else if (isprint(event.Body.Key.Key)) {
+            text[index++] = event.Body.Key.Key;
+            display.WriteChar(event.Body.Key.Key);
+        }
     }
 
     DebugLog("Shell exited\n");

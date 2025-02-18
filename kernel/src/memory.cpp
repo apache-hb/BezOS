@@ -9,13 +9,26 @@ km::SystemMemory::SystemMemory(const boot::MemoryMap& memmap, VirtualRange syste
     , vmm(systemArea)
 { }
 
-// TODO: respect align, dont allocate such large memory ranges
 void *km::SystemMemory::allocate(size_t size, size_t, PageFlags flags, MemoryType type) {
     PhysicalAddress paddr = pmm.alloc4k(Pages(size));
     void *vaddr = vmm.alloc4k(Pages(size));
     MemoryRange range { paddr, paddr + size };
     pt.mapRange(range, vaddr, flags, type);
     return vaddr;
+}
+
+km::AddressMapping km::SystemMemory::userAllocate(size_t size, PageFlags flags, MemoryType type) {
+    size_t pages = Pages(size);
+    PhysicalAddress paddr = pmm.alloc4k(Pages(size));
+    void *vaddr = vmm.userAlloc4k(Pages(size));
+    MemoryRange range { paddr, paddr + size };
+    pt.mapRange(range, vaddr, flags, type);
+
+    return AddressMapping {
+        .vaddr = vaddr,
+        .paddr = paddr,
+        .size = pages * x64::kPageSize
+    };
 }
 
 void km::SystemMemory::release(void *ptr, size_t size) {

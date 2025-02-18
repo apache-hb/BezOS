@@ -28,9 +28,13 @@ enum {
     eOsCallThreadCurrent = 0x42,
     eOsCallThreadSleep = 0x43,
 
-    eOsCallTransactionBegin = 0x50,
-    eOsCallTransactionCommit = 0x51,
-    eOsCallTransactionRollback = 0x52,
+    eOsCallAddressSpaceCreate = 0x50,
+    eOsCallAddressSpaceDestroy = 0x51,
+    eOsCallAddressSpaceStat = 0x52,
+
+    eOsCallTransactionBegin = 0x60,
+    eOsCallTransactionCommit = 0x61,
+    eOsCallTransactionRollback = 0x62,
 
     eOsCallMutexCreate = 0x70,
     eOsCallMutexDestroy = 0x71,

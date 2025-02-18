@@ -5,6 +5,7 @@ project('system', 'cpp',
     ]
 )
 
+flanterm = dependency('flanterm')
 shared = subproject('shared')
 sysapi = shared.get_variable('sysapi')
 
@@ -17,12 +18,11 @@ src = [
     'init/init.cpp',
 ]
 
-
 executable('init.elf', src,
     link_args : args,
     install : true,
     install_dir : get_option('prefix'),
-    dependencies : sysapi,
+    dependencies : [ sysapi, flanterm ],
 )
 
 src = [

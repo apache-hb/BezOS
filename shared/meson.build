@@ -5,6 +5,7 @@ src = [
     'src/syscall_threads.c',
     'src/syscall_device.c',
     'src/syscall_clock.c',
+    'src/syscall_vmem.c',
     'src/syscall.S',
 ]
 
