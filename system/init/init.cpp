@@ -267,6 +267,26 @@ extern "C" bool isalnum(int c) {
     return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
 }
 
+extern "C" int isalpha(int c) {
+    return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
+}
+
+extern "C" int toupper(int c) {
+    if (c >= 'a' && c <= 'z') {
+        return c - 'a' + 'A';
+    }
+
+    return c;
+}
+
+extern "C" int tolower(int c) {
+    if (c >= 'A' && c <= 'Z') {
+        return c - 'A' + 'a';
+    }
+
+    return c;
+}
+
 extern "C" int strcmp(const char *lhs, const char *rhs) {
     while (*lhs && *rhs && *lhs == *rhs) {
         lhs++;
@@ -277,7 +297,7 @@ extern "C" int strcmp(const char *lhs, const char *rhs) {
 }
 
 static void Prompt(VtDisplay& display) {
-    display.WriteString("root@rainforest: ");
+    display.WriteString("root@localhost: ");
 }
 
 // rdi: first argument
@@ -296,8 +316,6 @@ extern "C" [[noreturn]] void ClientStart(const void*, const void*, uint64_t) {
     display.WriteString(buffer, buffer + read);
 
     Prompt(display);
-
-    // display.Clear();
 
     char text[0x1000];
     size_t index = 0;
@@ -330,6 +348,10 @@ extern "C" [[noreturn]] void ClientStart(const void*, const void*, uint64_t) {
 
             if (strcmp(text, "exit") == 0) {
                 break;
+            } else if (strcmp(text, "uname") == 0) {
+                display.WriteString("BezOS localhost 0.0.1 amd64\n");
+                Prompt(display);
+                continue;
             }
 
             display.WriteString("Unknown command: ");
@@ -342,6 +364,16 @@ extern "C" [[noreturn]] void ClientStart(const void*, const void*, uint64_t) {
                 index--;
                 display.WriteString("\b \b");
             }
+        } else if (isalpha(event.Body.Key.Key)) {
+            char c = event.Body.Key.Key;
+            if (event.Body.Key.Modifiers & eModifierShift) {
+                c = toupper(c);
+            } else {
+                c = tolower(c);
+            }
+
+            text[index++] = c;
+            display.WriteChar(c);
         } else if (isprint(event.Body.Key.Key)) {
             text[index++] = event.Body.Key.Key;
             display.WriteChar(event.Body.Key.Key);

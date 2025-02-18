@@ -71,6 +71,7 @@ km::Topic *hid::GetHidPs2Topic() {
 
 struct KeyboardState {
     bool released = false;
+    bool shift = false;
 };
 
 static KeyboardState gKeyboardState;
@@ -95,9 +96,17 @@ const km::IsrTable::Entry *hid::InstallPs2KeyboardIsr(km::IoApicSet& ioApicSet, 
             KmDebugMessage("[PS2] Unknown scancode: ", km::Hex(ctx->vector), " = ", km::Hex(scancode), "\n");
         }
 
+        if (key == eKeyLShift || key == eKeyRShift) {
+            gKeyboardState.shift = !gKeyboardState.released;
+        }
+
         OsHidKeyEvent body {
             .Key = key,
         };
+
+        if (gKeyboardState.shift) {
+            body.Modifiers |= eModifierShift;
+        }
 
         OsHidEvent event {
             .Type = OsHidEventType(gKeyboardState.released ? eOsHidEventKeyUp : eOsHidEventKeyDown),
