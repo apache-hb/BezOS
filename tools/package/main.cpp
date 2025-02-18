@@ -210,16 +210,17 @@ static void ExtractArchive(std::string_view name, const fs::path& archive, const
             continue;
         }
 
-        std::println(std::cout, "{}: Extracting {}", name, entryPath);
-
         if (entryPath.ends_with('/')) {
             fs::create_directories(dst / entryPath);
             continue;
         }
 
         fs::path path = entryPath;
+        fs::path file = dst / path;
 
-        std::ofstream os(dst / path, std::ios::binary);
+        std::println(std::cout, "{}: extract {} -> {}", name, path.string(), file.string());
+
+        std::ofstream os(file, std::ios::binary);
         if (!os.is_open()) {
             throw std::runtime_error("Failed to open file "s + path.string());
         }
@@ -299,7 +300,7 @@ static void ReadPackageConfig(xmlNodePtr node) {
 
             packageInfo.dependencies.push_back(RequirePackage{
                 .name = depname,
-                .symlink = build / ExpectProperty<std::string>(action, "symlink")
+                .symlink = ExpectProperty<std::string>(action, "symlink")
             });
         } else if (step == "source"sv) {
             if (!packageInfo.source.empty()) {
@@ -318,6 +319,9 @@ static void AcquirePackage(const PackageInfo& package) {
     for (const auto& download : package.downloads) {
         auto path = package.cache / download.file;
 
+
+        std::println(std::cout, "{}: download {} -> {}", package.name, download.url, path.string());
+
         if (!fs::exists(path)) {
             DownloadFile(download.url, path);
         }
@@ -325,14 +329,27 @@ static void AcquirePackage(const PackageInfo& package) {
         if (!download.archive.empty()) {
             ExtractArchive(package.name, path, package.build, download.trimRootFolder);
         } else {
-            fs::copy_file(path, package.build / download.file, fs::copy_options::overwrite_existing);
+            auto dst = package.build / download.file;
+            std::println(std::cout, "{}: copy {} -> {}", package.name, path.string(), dst.string());
+
+            fs::copy_file(path, dst, fs::copy_options::overwrite_existing);
         }
     }
 }
 
 static void ConnectDependencies(const PackageInfo& package) {
     for (const auto& dep : package.dependencies) {
-        fs::create_directory_symlink(gWorkspace.GetPackagePath(dep.name), package.GetWorkspaceFolder() / dep.symlink);
+        auto dst = package.GetWorkspaceFolder() / dep.symlink;
+        auto path = gWorkspace.GetPackagePath(dep.name);
+
+        std::println(std::cout, "{}: symlink {} -> {}", package.name, path.string(), dst.string());
+
+        if (fs::equivalent(path, dst)) {
+            continue;
+        }
+
+        fs::create_directories(dst.parent_path());
+        fs::create_directory_symlink(path, dst);
     }
 }
 
