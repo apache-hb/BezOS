@@ -12,7 +12,6 @@ project('bezos', [ 'c', 'cpp' ],
     ],
     version : '0.0.1',
     license : 'GPL-3.0-only',
-    license_files : 'LICENSE',
     meson_version : '>=1.1.0',
 )
 
@@ -21,11 +20,16 @@ enable_aml = false
 cc = meson.get_compiler('c')
 cpp = meson.get_compiler('cpp')
 
+concurrentqueue = dependency('concurrentqueue')
+tlsf = dependency('tlsf')
+limine = dependency('limine')
+ultra = dependency('ultra')
+mp_units = dependency('mp-units')
+absl = subproject('abseil-cpp')
+sysapi = subproject('shared').get_variable('sysapi_dep')
+
 inc = include_directories(
-    'kernel/include',
-    'shared/include',
-    'kernel/subprojects/tlsf/include',
-    'kernel/subprojects/concurrentqueue',
+    'include',
 )
 
 common_args = [
@@ -49,14 +53,9 @@ common_args = [
 c_args = cc.get_supported_arguments([ '-Wno-language-extension-token' ] + common_args)
 cpp_args = cpp.get_supported_arguments([ '-Wno-c99-designator', '-Wno-c99-extensions' ] + common_args)
 
-limine = dependency('limine')
-ultra = dependency('ultra')
-mp_units = dependency('mp-units')
-absl = subproject('abseil-cpp')
-
 inc = [ inc, absl.get_variable('absl_include_dir') ]
 libs = [ absl.get_variable('absl_container_lib') ]
-deps = [ mp_units ]
+deps = [ mp_units, sysapi, concurrentqueue, tlsf ]
 
 compiler = find_program(cc.get_id())
 objcopy = find_program('objcopy')
@@ -64,13 +63,13 @@ objcopy = find_program('objcopy')
 # Smp startup blob
 
 smp_blob = custom_target('smp',
-    input : 'kernel/src/smp.S',
+    input : 'src/smp.S',
     output : 'smp',
     depend_files : 'data/smp.ld',
     command : [
         compiler, '@INPUT@', '-fPIC',
         '-T', meson.current_source_dir() / 'data/smp.ld',
-        '-I', meson.current_source_dir() / 'kernel/include',
+        '-I', meson.current_source_dir() / 'include',
         '-o', '@OUTPUT@',
         '-nostdlib', '-nostdlib++', '-ffreestanding',
     ],
@@ -91,112 +90,109 @@ smp = custom_target('smp.o',
 # Kernel
 
 src = [
-    # TLSF allocator
-    'kernel/subprojects/tlsf/tlsf.c',
-
     # Utilities
-    'kernel/src/util/cpuid.cpp',
-    'kernel/src/util/memory.cpp',
-    'kernel/src/util/format.cpp',
-    'kernel/src/util/bits.cpp',
-    'kernel/src/util/uuid.cpp',
+    'src/util/cpuid.cpp',
+    'src/util/memory.cpp',
+    'src/util/format.cpp',
+    'src/util/bits.cpp',
+    'src/util/uuid.cpp',
 
     # RCU
-    'kernel/src/std/rcu.cpp',
-    'kernel/src/std/rcuptr.cpp',
+    'src/std/rcu.cpp',
+    'src/std/rcuptr.cpp',
 
     # Memory management
-    'kernel/src/memory/layout.cpp',
-    'kernel/src/memory/allocator.cpp',
-    'kernel/src/memory/page_allocator.cpp',
-    'kernel/src/memory/virtual_allocator.cpp',
-    'kernel/src/memory/page_tables.cpp',
+    'src/memory/layout.cpp',
+    'src/memory/allocator.cpp',
+    'src/memory/page_allocator.cpp',
+    'src/memory/virtual_allocator.cpp',
+    'src/memory/page_tables.cpp',
 
     # C and C++ Runtime
-    'kernel/src/crt.cpp',
-    'kernel/src/cxxrt.cpp',
-    'kernel/src/crt_freestanding.cpp',
+    'src/crt.cpp',
+    'src/cxxrt.cpp',
+    'src/crt_freestanding.cpp',
 
     # Architecture features
-    'kernel/src/isr.cpp',
-    'kernel/src/isr.S',
-    'kernel/src/gdt.cpp',
-    'kernel/src/pat.cpp',
-    'kernel/src/check.cpp',
-    'kernel/src/apic.cpp',
-    'kernel/src/uart.cpp',
-    'kernel/src/hypervisor.cpp',
-    'kernel/src/smbios.cpp',
-    'kernel/src/delay.cpp',
-    'kernel/src/cmos.cpp',
-    'kernel/src/pit.cpp',
-    'kernel/src/hpet.cpp',
+    'src/isr.cpp',
+    'src/isr.S',
+    'src/gdt.cpp',
+    'src/pat.cpp',
+    'src/check.cpp',
+    'src/apic.cpp',
+    'src/uart.cpp',
+    'src/hypervisor.cpp',
+    'src/smbios.cpp',
+    'src/delay.cpp',
+    'src/cmos.cpp',
+    'src/pit.cpp',
+    'src/hpet.cpp',
 
-    'kernel/src/thread.cpp',
-    'kernel/src/user.S',
+    'src/thread.cpp',
+    'src/user.S',
 
     # PCI
-    'kernel/src/pci/pci.cpp',
-    'kernel/src/pci/config.cpp',
+    'src/pci/pci.cpp',
+    'src/pci/config.cpp',
 
     # ACPI
-    'kernel/src/acpi/acpi.cpp',
-    'kernel/src/acpi/format.cpp',
+    'src/acpi/acpi.cpp',
+    'src/acpi/format.cpp',
 
     # HID
-    'kernel/src/hid/hid.cpp',
-    'kernel/src/hid/ps2.cpp',
+    'src/hid/hid.cpp',
+    'src/hid/ps2.cpp',
 
     # Terminal
-    'kernel/src/canvas.cpp',
-    'kernel/src/terminal/terminal.cpp',
-    'kernel/src/terminal/buffered.cpp',
+    'src/canvas.cpp',
+    'src/terminal/terminal.cpp',
+    'src/terminal/buffered.cpp',
 
     # Wrappers
-    'kernel/src/arch/cr.cpp',
-    'kernel/src/boot.cpp',
+    'src/arch/cr.cpp',
+    'src/boot.cpp',
 
     # VFS
-    'kernel/src/fs2/vfs.cpp',
-    'kernel/src/fs2/path.cpp',
-    'kernel/src/fs2/node.cpp',
-    'kernel/src/fs2/handle.cpp',
+    'src/fs2/vfs.cpp',
+    'src/fs2/path.cpp',
+    'src/fs2/node.cpp',
+    'src/fs2/handle.cpp',
 
     # VFS drivers
-    'kernel/src/fs2/ramfs.cpp',
-    'kernel/src/fs2/tarfs.cpp',
+    'src/fs2/ramfs.cpp',
+    'src/fs2/tarfs.cpp',
 
     # Smp setup
-    'kernel/src/smp.cpp',
+    'src/smp.cpp',
     smp,
 
     # Device drivers
-    'kernel/src/drivers/block/driver.cpp',
-    'kernel/src/drivers/block/virtio_blk.cpp',
-    'kernel/src/drivers/block/ramblk.cpp',
+    'src/drivers/block/driver.cpp',
+    'src/drivers/block/virtio_blk.cpp',
+    'src/drivers/block/ramblk.cpp',
 
     # Userspace
-    'kernel/src/user/user.cpp',
+    'src/user/user.cpp',
 
     # Services
-    'kernel/src/notify.cpp',
+    'src/notify.cpp',
 
     # Process
-    'kernel/src/process/process.cpp',
-    'kernel/src/process/schedule.cpp',
-    'kernel/src/process/schedule.S',
-    'kernel/src/syscall.cpp',
-    'kernel/src/processor.cpp',
-    'kernel/src/launch.cpp',
+    'src/process/process.cpp',
+    'src/process/schedule.cpp',
+    'src/process/schedule.S',
+    'src/syscall.cpp',
+    'src/processor.cpp',
+    'src/launch.cpp',
 
     # Kernel components
-    'kernel/src/log.cpp',
-    'kernel/src/memory.cpp',
-    'kernel/src/main.cpp',
+    'src/log.cpp',
+    'src/memory.cpp',
+    'src/main.cpp',
 ]
 
 if enable_aml
-    src += [ 'kernel/src/acpi/aml.cpp', ]
+    src += [ 'src/acpi/aml.cpp', ]
 endif
 
 kernel = static_library('kernel', src,
@@ -237,7 +233,7 @@ kernel = static_library('kernel', src,
 ### Limine version of the kernel image
 ###
 
-executable('bezos-limine', 'kernel/src/boot/limine.cpp',
+executable('bezos-limine', 'src/boot/limine.cpp',
     c_args : c_args + [ '-D__BEZOS__=1' ],
     cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
     include_directories : inc,
@@ -250,19 +246,11 @@ executable('bezos-limine', 'kernel/src/boot/limine.cpp',
     override_options : [ 'b_coverage=false' ],
 )
 
-install_data('data/limine.conf',
-    install_dir : get_option('prefix') / 'limine' / 'image' / 'boot' / 'limine',
-)
-
-install_data('data/limine.conf',
-    install_dir : get_option('prefix') / 'pxe',
-)
-
 ###
 ### Hyper version of the kernel image
 ###
 
-executable('bezos-hyper', 'kernel/src/boot/hyper.cpp',
+executable('bezos-hyper', 'src/boot/hyper.cpp',
     c_args : c_args + [ '-D__BEZOS__=1' ],
     cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
     include_directories : inc,
@@ -275,19 +263,7 @@ executable('bezos-hyper', 'kernel/src/boot/hyper.cpp',
     override_options : [ 'b_coverage=false' ],
 )
 
-install_data('data/hyper/hyper-iso-boot',
-    install_dir : get_option('prefix') / 'hyper' / 'image' / 'boot',
-)
-
-install_data('data/hyper/BOOTX64.EFI',
-    install_dir : get_option('prefix') / 'hyper' / 'image' / 'EFI' / 'BOOT',
-)
-
-install_data('data/hyper.cfg',
-    install_dir : get_option('prefix') / 'hyper' / 'image' / 'boot',
-)
-
-meson.add_install_script('data/image.sh')
+subdir_done()
 
 # Unit tests
 
@@ -306,9 +282,9 @@ test_c_args = c_args + [ '-std=gnu23', '-DUTIL_TESTING=1' ]
 test_cpp_args = cpp_args + [ '-std=c++26', '-DUTIL_TESTING=1', '-DNDEBUG_SANITIZER=1' ]
 
 src = [
-    'kernel/test/test_shim.cpp',
-    'kernel/test/ports.cpp',
-    'kernel/src/delay.cpp',
+    'test/test_shim.cpp',
+    'test/ports.cpp',
+    'src/delay.cpp',
 ]
 
 test_shim = static_library('test_shim', src,
@@ -320,10 +296,10 @@ test_shim = static_library('test_shim', src,
 )
 
 test_exe_kwargs = {
-    'include_directories': [ inc, include_directories('kernel') ],
+    'include_directories': [ inc ],
     'c_args': test_c_args,
     'cpp_args': test_cpp_args,
-    'dependencies': [ gtest_main, gmock ],
+    'dependencies': [ gtest_main, gmock, dependency('tlsf', native : true), sysapi ],
     'override_options': [ 'b_sanitize=address' ],
     'native': true,
     'link_with': [ test_shim ],
@@ -333,142 +309,140 @@ test_exe_kwargs = {
 
 testcases = {
     'static vector': [
-        'kernel/test/static_vector.cpp',
+        'test/static_vector.cpp',
     ],
     'fixed deque': [
-        'kernel/test/fixed_deque.cpp',
+        'test/fixed_deque.cpp',
     ],
     'vector': [
-        'kernel/test/vector.cpp',
+        'test/vector.cpp',
     ],
     'format': [
-        'kernel/test/format.cpp',
-        'kernel/src/util/format.cpp',
+        'test/format.cpp',
+        'src/util/format.cpp',
     ],
     'bits': [
-        'kernel/test/bits.cpp',
-        'kernel/src/util/bits.cpp',
+        'test/bits.cpp',
+        'src/util/bits.cpp',
     ],
-    'string': [ 'kernel/test/std/string.cpp', ],
-    'spinlock': [ 'kernel/test/std/spinlock.cpp', ],
-    'static string': [ 'kernel/test/std/static_string.cpp', ],
-    'string view': [ 'kernel/test/std/string_view.cpp', ],
-    'memory range': [ 'kernel/test/memory_range.cpp' ],
-    'pat': [ 'kernel/test/page_attribute_table.cpp', 'kernel/src/pat.cpp', 'kernel/src/util/cpuid.cpp', ],
-    'paging': [ 'kernel/test/paging.cpp', ],
-    'arch cr': [ 'kernel/test/arch/cr.cpp', 'kernel/src/arch/cr.cpp', ],
-    'arch gdt': [ 'kernel/test/arch/gdt.cpp', 'kernel/src/gdt.cpp', ],
-    'framebuffer': [ 'kernel/test/display.cpp', 'kernel/src/canvas.cpp', ],
-    'crt': [ 'kernel/test/crt.cpp', 'kernel/src/crt.cpp', ],
+    'string': [ 'test/std/string.cpp', ],
+    'spinlock': [ 'test/std/spinlock.cpp', ],
+    'static string': [ 'test/std/static_string.cpp', ],
+    'string view': [ 'test/std/string_view.cpp', ],
+    'memory range': [ 'test/memory_range.cpp' ],
+    'pat': [ 'test/page_attribute_table.cpp', 'src/pat.cpp', 'src/util/cpuid.cpp', ],
+    'paging': [ 'test/paging.cpp', ],
+    'arch cr': [ 'test/arch/cr.cpp', 'src/arch/cr.cpp', ],
+    'arch gdt': [ 'test/arch/gdt.cpp', 'src/gdt.cpp', ],
+    'framebuffer': [ 'test/display.cpp', 'src/canvas.cpp', ],
+    'crt': [ 'test/crt.cpp', 'src/crt.cpp', ],
     'virtual allocator': [
-        'kernel/test/memory/virtual_allocator.cpp',
-        'kernel/src/memory/virtual_allocator.cpp',
-        'kernel/src/memory/page_allocator.cpp',
-        'kernel/src/memory/layout.cpp',
-        'kernel/src/util/bits.cpp',
-        'kernel/src/boot.cpp',
+        'test/memory/virtual_allocator.cpp',
+        'src/memory/virtual_allocator.cpp',
+        'src/memory/page_allocator.cpp',
+        'src/memory/layout.cpp',
+        'src/util/bits.cpp',
+        'src/boot.cpp',
     ],
-    'serial': [ 'kernel/test/serial.cpp', 'kernel/src/uart.cpp', ],
+    'serial': [ 'test/serial.cpp', 'src/uart.cpp', ],
     'range allocator': [
-        'kernel/test/memory/range_allocator.cpp',
-        'kernel/subprojects/tlsf/tlsf.c',
+        'test/memory/range_allocator.cpp',
     ],
     'page table': [
-        'kernel/test/memory/pte.cpp',
-        'kernel/src/memory/page_tables.cpp',
-        'kernel/subprojects/tlsf/tlsf.c',
+        'test/memory/pte.cpp',
+        'src/memory/page_tables.cpp',
     ],
     'partitions': [
-        'kernel/test/drivers/partitions.cpp',
-        'kernel/src/drivers/fs/driver.cpp',
-        'kernel/src/drivers/block/driver.cpp',
-        'kernel/src/drivers/block/ramblk.cpp',
+        'test/drivers/partitions.cpp',
+        'src/drivers/fs/driver.cpp',
+        'src/drivers/block/driver.cpp',
+        'src/drivers/block/ramblk.cpp',
     ],
     'ramblk': [
-        'kernel/test/drivers/ramblk.cpp',
-        'kernel/src/drivers/block/driver.cpp',
-        'kernel/src/drivers/block/ramblk.cpp',
+        'test/drivers/ramblk.cpp',
+        'src/drivers/block/driver.cpp',
+        'src/drivers/block/ramblk.cpp',
     ],
     'media': [
-        'kernel/test/drivers/media.cpp',
-        'kernel/src/drivers/block/driver.cpp',
-        'kernel/src/drivers/block/ramblk.cpp',
+        'test/drivers/media.cpp',
+        'src/drivers/block/driver.cpp',
+        'src/drivers/block/ramblk.cpp',
     ],
     'fs2': [
-        'kernel/test/fs/fs.cpp',
-        'kernel/src/fs2/vfs.cpp',
-        'kernel/src/fs2/path.cpp',
-        'kernel/src/fs2/node.cpp',
-        'kernel/src/fs2/handle.cpp',
-        'kernel/src/fs2/ramfs.cpp',
+        'test/fs/fs.cpp',
+        'src/fs2/vfs.cpp',
+        'src/fs2/path.cpp',
+        'src/fs2/node.cpp',
+        'src/fs2/handle.cpp',
+        'src/fs2/ramfs.cpp',
     ],
     'vfs path': [
-        'kernel/test/fs/path.cpp',
-        'kernel/src/fs2/path.cpp',
+        'test/fs/path.cpp',
+        'src/fs2/path.cpp',
     ],
     'vfs root': [
-        'kernel/test/fs/root.cpp',
-        'kernel/src/fs2/vfs.cpp',
-        'kernel/src/fs2/path.cpp',
-        'kernel/src/fs2/node.cpp',
-        'kernel/src/fs2/handle.cpp',
-        'kernel/src/fs2/ramfs.cpp',
+        'test/fs/root.cpp',
+        'src/fs2/vfs.cpp',
+        'src/fs2/path.cpp',
+        'src/fs2/node.cpp',
+        'src/fs2/handle.cpp',
+        'src/fs2/ramfs.cpp',
     ],
     'ramfs': [
-        'kernel/test/fs/ramfs.cpp',
-        'kernel/src/fs2/vfs.cpp',
-        'kernel/src/fs2/path.cpp',
-        'kernel/src/fs2/node.cpp',
-        'kernel/src/fs2/handle.cpp',
-        'kernel/src/fs2/ramfs.cpp',
-        'kernel/test/fs/fs_test.cpp',
+        'test/fs/ramfs.cpp',
+        'src/fs2/vfs.cpp',
+        'src/fs2/path.cpp',
+        'src/fs2/node.cpp',
+        'src/fs2/handle.cpp',
+        'src/fs2/ramfs.cpp',
+        'test/fs/fs_test.cpp',
     ],
     'shared ptr': [
-        'kernel/test/shared.cpp',
+        'test/shared.cpp',
     ],
     'atomic forward list': [
-        'kernel/test/std/forward_list.cpp',
+        'test/std/forward_list.cpp',
     ],
     'rcu': [
-        'kernel/test/std/rcu.cpp',
-        'kernel/src/std/rcu.cpp',
+        'test/std/rcu.cpp',
+        'src/std/rcu.cpp',
     ],
     'rcuptr': [
-        'kernel/test/std/rcuptr.cpp',
-        'kernel/src/std/rcu.cpp',
-        'kernel/src/std/rcuptr.cpp',
+        'test/std/rcuptr.cpp',
+        'src/std/rcu.cpp',
+        'src/std/rcuptr.cpp',
     ],
     'cmos': [
-        'kernel/test/cmos.cpp',
-        'kernel/src/cmos.cpp',
+        'test/cmos.cpp',
+        'src/cmos.cpp',
     ],
     'notify': [
-        'kernel/test/notify.cpp',
-        'kernel/src/notify.cpp',
-        'kernel/src/std/rcu.cpp',
-        'kernel/src/std/rcuptr.cpp',
+        'test/notify.cpp',
+        'src/notify.cpp',
+        'src/std/rcu.cpp',
+        'src/std/rcuptr.cpp',
     ],
 }
 
 if enable_aml
     testcases += {
         'aml details': [
-            'kernel/test/acpi/detail.cpp',
-            'kernel/src/acpi/format.cpp',
-            'kernel/src/acpi/aml.cpp',
-            'kernel/src/util/format.cpp',
+            'test/acpi/detail.cpp',
+            'src/acpi/format.cpp',
+            'src/acpi/aml.cpp',
+            'src/util/format.cpp',
         ],
         'aml names': [
-            'kernel/test/acpi/name.cpp',
-            'kernel/src/acpi/format.cpp',
-            'kernel/src/acpi/aml.cpp',
-            'kernel/src/util/format.cpp',
+            'test/acpi/name.cpp',
+            'src/acpi/format.cpp',
+            'src/acpi/aml.cpp',
+            'src/util/format.cpp',
         ],
         'aml nodes': [
-            'kernel/test/acpi/nodes.cpp',
-            'kernel/src/acpi/format.cpp',
-            'kernel/src/acpi/aml.cpp',
-            'kernel/src/util/format.cpp',
+            'test/acpi/nodes.cpp',
+            'src/acpi/format.cpp',
+            'src/acpi/aml.cpp',
+            'src/util/format.cpp',
         ]
     }
 endif
@@ -491,16 +465,16 @@ tar_test_data = custom_target('tar-test-data',
 )
 
 source = [
-    'kernel/test/fs/tarfs.cpp',
-    'kernel/src/fs2/vfs.cpp',
-    'kernel/src/fs2/path.cpp',
-    'kernel/src/fs2/node.cpp',
-    'kernel/src/fs2/handle.cpp',
-    'kernel/src/fs2/ramfs.cpp',
-    'kernel/src/fs2/tarfs.cpp',
-    'kernel/src/drivers/block/driver.cpp',
-    'kernel/src/drivers/block/ramblk.cpp',
-    'kernel/test/fs/fs_test.cpp',
+    'test/fs/tarfs.cpp',
+    'src/fs2/vfs.cpp',
+    'src/fs2/path.cpp',
+    'src/fs2/node.cpp',
+    'src/fs2/handle.cpp',
+    'src/fs2/ramfs.cpp',
+    'src/fs2/tarfs.cpp',
+    'src/drivers/block/driver.cpp',
+    'src/drivers/block/ramblk.cpp',
+    'test/fs/fs_test.cpp',
 ]
 
 exe = executable('test-kernel-tarfs', source,
@@ -517,34 +491,34 @@ test('tarfs', exe,
 )
 
 # source = [
-#     'kernel/test/launch/elf.cpp',
+#     'test/launch/elf.cpp',
 
-#     'kernel/src/launch.cpp',
+#     'src/launch.cpp',
 
-#     'kernel/src/fs2/vfs.cpp',
-#     'kernel/src/fs2/path.cpp',
-#     'kernel/src/fs2/node.cpp',
-#     'kernel/src/fs2/handle.cpp',
-#     'kernel/src/fs2/ramfs.cpp',
-#     'kernel/src/fs2/tarfs.cpp',
+#     'src/fs2/vfs.cpp',
+#     'src/fs2/path.cpp',
+#     'src/fs2/node.cpp',
+#     'src/fs2/handle.cpp',
+#     'src/fs2/ramfs.cpp',
+#     'src/fs2/tarfs.cpp',
 
-#     'kernel/src/boot.cpp',
-#     'kernel/src/hypervisor.cpp',
+#     'src/boot.cpp',
+#     'src/hypervisor.cpp',
 
-#     'kernel/src/memory.cpp',
-#     'kernel/src/memory/layout.cpp',
-#     'kernel/src/memory/page_allocator.cpp',
-#     'kernel/src/memory/virtual_allocator.cpp',
-#     'kernel/src/memory/page_tables.cpp',
+#     'src/memory.cpp',
+#     'src/memory/layout.cpp',
+#     'src/memory/page_allocator.cpp',
+#     'src/memory/virtual_allocator.cpp',
+#     'src/memory/page_tables.cpp',
 
-#     'kernel/src/util/format.cpp',
-#     'kernel/src/util/memory.cpp',
-#     'kernel/src/util/cpuid.cpp',
+#     'src/util/format.cpp',
+#     'src/util/memory.cpp',
+#     'src/util/cpuid.cpp',
 
-#     'kernel/subprojects/tlsf/tlsf.c',
+#     'subprojects/tlsf/tlsf.c',
 
-#     'kernel/src/drivers/block/driver.cpp',
-#     'kernel/src/drivers/block/ramblk.cpp',
+#     'src/drivers/block/driver.cpp',
+#     'src/drivers/block/ramblk.cpp',
 # ]
 
 # exe = executable('test-kernel-elf', source,
@@ -563,16 +537,16 @@ test('tarfs', exe,
 testcases = {
     'terminal': {
         'sources': [
-            'kernel/test/terminal.cpp',
-            'kernel/src/canvas.cpp',
-            'kernel/src/terminal/terminal.cpp',
-            'kernel/src/terminal/buffered.cpp',
+            'test/terminal.cpp',
+            'src/canvas.cpp',
+            'src/terminal/terminal.cpp',
+            'src/terminal/buffered.cpp',
         ],
         'dependencies' : [ stb_image_write ]
     },
     'launch': {
         'sources': [
-            'kernel/test/emulated/launch.cpp',
+            'test/emulated/launch.cpp',
         ],
         'dependencies' : [ libvirt ],
     }
@@ -611,12 +585,12 @@ if enable_aml
     acpixtract = find_program('data/test/acpi/dump.sh')
 
     src = [
-        'kernel/test/acpi/aml.cpp',
-        'kernel/src/acpi/aml.cpp',
-        'kernel/src/acpi/format.cpp',
-        'kernel/src/util/format.cpp',
-        'kernel/src/allocator/bitmap.cpp',
-        'kernel/subprojects/tlsf/tlsf.c',
+        'test/acpi/aml.cpp',
+        'src/acpi/aml.cpp',
+        'src/acpi/format.cpp',
+        'src/util/format.cpp',
+        'src/allocator/bitmap.cpp',
+        'subprojects/tlsf/tlsf.c',
     ]
 
     exe = executable('test-aml', src,

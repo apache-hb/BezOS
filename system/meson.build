@@ -7,7 +7,7 @@ project('system', 'cpp',
 
 flanterm = dependency('flanterm')
 shared = subproject('shared')
-sysapi = shared.get_variable('sysapi')
+sysapi = shared.get_variable('bezos_dep')
 
 args = [
     '-e', 'ClientStart',

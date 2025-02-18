@@ -8,7 +8,10 @@ HYPER_INSTALL=data/hyper/hyper-install
 OVMF_CODE=install/ovmf/ovmf-code-x86_64.fd
 OVMF_VARS=install/ovmf/ovmf-vars-x86_64.fd
 
-.DEFAULT_GOAL := build
+LIMINE_CONF=install/limine/image/boot/limine.conf
+HYPER_CONF=install/hyper/image/boot/hyper.conf
+
+.DEFAULT_GOAL := install
 
 $(OVMF_CODE):
 	mkdir -p install/ovmf
@@ -35,13 +38,25 @@ $(HYPER_INSTALL):
 
 hyper: $(HYPER_BOOTX64) $(HYPER_ISOBOOT) $(HYPER_INSTALL)
 
+$(HYPER_CONF): data/hyper.conf
+	mkdir -p install/hyper/image/boot
+	cp data/hyper.conf $(HYPER_CONF)
+
+$(LIMINE_CONF): data/limine.conf
+	mkdir -p install/limine/image/boot
+	cp data/limine.conf $(LIMINE_CONF)
+
 .PHONY: build
-build: $(HYPER_BOOTX64) $(HYPER_ISOBOOT) $(HYPER_INSTALL)
+build: hyper
 	meson install -C build/system --quiet
 	meson install -C build/kernel --quiet
 
+.PHONY: install
+install: build $(LIMINE_CONF) $(HYPER_CONF)
+	PREFIX=$(shell pwd)/install BUILD=$(shell pwd)/build ./data/image.sh
+
 .PHONY: qemu
-qemu: build
+qemu: install
 	./qemu.sh
 
 .PHONY: qemu-ovmf
@@ -49,19 +64,19 @@ qemu-ovmf: install-ovmf
 	./qemu.sh ovmf
 
 .PHONY: vbox
-vbox: build
+vbox: install
 	pwsh.exe -File data/test/vm/Test-VirtualBox.ps1 -KernelImage $(LIMINE_ISO)
 
 .PHONY: vmware
-vmware: build
+vmware: install
 	pwsh.exe -File data/test/vm/Test-VMware.ps1 -KernelImage $(LIMINE_ISO)
 
 .PHONY: hyperv
-hyperv: build
+hyperv: install
 	pwsh.exe -File data/test/vm/Test-HyperV.ps1 -KernelImage $(LIMINE_ISO)
 
 .PHONY: pxe
-pxe: build
+pxe: install
 	pwsh.exe -File data/test/pxe/Copy-PxeImage.ps1 -KernelFolder install/pxe -PxeServerFolder C:/Users/elliothb/Documents/tftpserver
 
 .PHONY: check

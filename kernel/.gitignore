@@ -1,0 +1,6 @@
+/subprojects/ultra/*
+/subprojects/packagecache/*
+/subprojects/mp-units*/*
+/subprojects/limine*/*
+/subprojects/googletest*/*
+/subprojects/stb*/*

@@ -15,3 +15,5 @@ concurrentqueue_dep = declare_dependency(
     # like moodycamel/ConcurrentQueue
     include_directories: [include_directories('.')],
 )
+
+meson.override_dependency('concurrentqueue', concurrentqueue_dep)

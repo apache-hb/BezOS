@@ -6,7 +6,5 @@ install*/
 /subprojects/*
 !/subprojects/*.wrap
 !/subprojects/packagefiles/
-!/subprojects/tlsf/
-!/subprojects/concurrentqueue/
 data/hyper/*
 *.hdd
