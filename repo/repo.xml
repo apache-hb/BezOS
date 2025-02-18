@@ -1,0 +1,4 @@
+<repo name='bezos' build='build' install='install'>
+    <package path='packages/hyper.xml' />
+    <package path='packages/limine.xml' />
+</repo>

@@ -7,3 +7,8 @@ If:
   PathMatch: [ system/.*, shared/.* ]
 CompileFlags:
   CompilationDatabase: build/system
+---
+If:
+  PathMatch: [ tools/.* ]
+CompileFlags:
+  CompilationDatabase: build/tools

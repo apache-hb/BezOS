@@ -36,7 +36,7 @@ $(HYPER_INSTALL):
 	wget https://github.com/UltraOS/Hyper/releases/download/v0.9.0/hyper_install-linux-x86_64 -O $(HYPER_INSTALL)
 	chmod +x $(HYPER_INSTALL)
 
-hyper: $(HYPER_BOOTX64) $(HYPER_ISOBOOT) $(HYPER_INSTALL)
+install-hyper: $(HYPER_BOOTX64) $(HYPER_ISOBOOT) $(HYPER_INSTALL)
 
 $(HYPER_CONF): data/hyper.conf
 	mkdir -p install/hyper/image/boot
@@ -47,13 +47,13 @@ $(LIMINE_CONF): data/limine.conf
 	cp data/limine.conf $(LIMINE_CONF)
 
 .PHONY: build
-build: hyper
+build:
 	meson install -C build/system --quiet
 	meson install -C build/kernel --quiet
 
 .PHONY: install
-install: build $(LIMINE_CONF) $(HYPER_CONF)
-	PREFIX=$(shell pwd)/install BUILD=$(shell pwd)/build ./data/image.sh
+install: build $(LIMINE_CONF) $(HYPER_CONF) install-hyper
+	PREFIX=$(shell pwd)/install BUILD=$(shell pwd)/build SOURCE=$(shell pwd)/kernel ./data/image.sh
 
 .PHONY: qemu
 qemu: install
@@ -96,3 +96,7 @@ clean:
 
 .PHONY: integration
 integration: qemu vbox vmware hyperv
+
+.PHONY: tools
+tools:
+	meson install -C build/tools --quiet

@@ -1,0 +1,7 @@
+<package name='limine'>
+    <download file='limine-8.6.1.zip'
+              archive='zip'
+              trim-root-folder='true'
+              url='https://github.com/limine-bootloader/limine/archive/refs/tags/v8.6.1-binary.zip'
+              sha256='' />
+</package>

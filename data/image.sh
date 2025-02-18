@@ -37,7 +37,7 @@ parted -s ${ESP_IMAGE} mkpart primary fat16 2048s 100%
 
 parted -s ${ESP_IMAGE} set 1 boot on
 
-${MESON_SOURCE_ROOT}/data/hyper/hyper-install ${ESP_IMAGE}
+${SOURCE}/data/hyper/hyper-install ${ESP_IMAGE}
 
 ## Create ISO hybrid image
 
@@ -49,7 +49,7 @@ xorriso -as mkisofs -R -r -J -b boot/hyper-iso-boot \
     -efi-boot-part --efi-boot-image --protective-msdos-label \
     ${PREFIX}/hyper/image -o ${PREFIX}/bezos-hyper.iso
 
-${MESON_SOURCE_ROOT}/data/hyper/hyper-install ${PREFIX}/bezos-hyper.iso
+${SOURCE}/data/hyper/hyper-install ${PREFIX}/bezos-hyper.iso
 
 # Copy kernel to pxe directory
 

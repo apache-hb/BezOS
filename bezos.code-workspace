@@ -1,10 +1,20 @@
 {
     "folders": [
         {
+            "path": ".",
+            "name": "root"
+        },
+        {
             "path": "kernel",
         },
         {
             "path": "system"
+        },
+        {
+            "path": "tools"
+        },
+        {
+            "path": "repo"
         }
     ]
 }

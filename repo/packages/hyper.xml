@@ -1,0 +1,5 @@
+<package name='hyper'>
+    <download file='BOOTX64.EFI' url='https://github.com/UltraOS/Hyper/releases/download/v0.9.0/BOOTX64.EFI' sha256='' />
+    <download file='hyper_iso_boot' url='https://github.com/UltraOS/Hyper/releases/download/v0.9.0/hyper_iso_boot' sha256='' />
+    <download file='hyper_install' url='https://github.com/UltraOS/Hyper/releases/download/v0.9.0/hyper_install-linux-x86_64' sha256='' />
+</package>

@@ -1,0 +1,11 @@
+[wrap-file]
+directory = argo-0c64d96dda0043fc66a287d75b9dbd001b4be415
+
+source_url = https://github.com/apache-hb/argo/archive/0c64d96dda0043fc66a287d75b9dbd001b4be415.zip
+source_filename = argo-0c64d96dda0043fc66a287d75b9dbd001b4be415.zip
+source_hash = a4f062dbddecefa7c02292b054d53a1928cb89984456a28e31ecba6ce1ba222c
+
+patch_directory = argo
+
+[provide]
+dependency_names = argo
