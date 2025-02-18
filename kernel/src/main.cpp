@@ -15,9 +15,11 @@
 
 #include <bezos/subsystem/hid.h>
 #include <bezos/facility/device.h>
+#include <bezos/subsystem/ddi.h>
 
 #include "cmos.hpp"
 #include "delay.hpp"
+#include "devices/ddi.hpp"
 #include "devices/hid.hpp"
 #include "display.hpp"
 #include "drivers/block/ramblk.hpp"
@@ -1532,6 +1534,26 @@ static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioAp
     }
 }
 
+static void CreateDisplayDevice() {
+    vfs2::VfsPath ddiPath{OS_DEVICE_DDI_RAMFB};
+
+    {
+        vfs2::IVfsNode *node = nullptr;
+        if (OsStatus status = gVfsRoot->mkpath(ddiPath.parent(), &node)) {
+            KmDebugMessage("[VFS] Failed to create ", ddiPath.parent(), " folder: ", status, "\n");
+            KM_PANIC("Failed to create display device folder.");
+        }
+    }
+
+    {
+        dev::DisplayDevice *device = new dev::DisplayDevice(gDirectTerminalLog.get().display());
+        if (OsStatus status = gVfsRoot->mkdevice(ddiPath, device)) {
+            KmDebugMessage("[VFS] Failed to create ", ddiPath, " device: ", status, "\n");
+            KM_PANIC("Failed to create display device.");
+        }
+    }
+}
+
 [[noreturn]]
 static void LaunchKernelProcess(IsrTable *table, IApic *apic) {
     Process *process = gSystemObjects->createProcess("SYSTEM", Privilege::eSupervisor);
@@ -1662,6 +1684,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     CreateNotificationQueue();
 
     ConfigurePs2Controller(rsdt, ioApicSet, lapic.pointer(), ist);
+    CreateDisplayDevice();
 
     LaunchKernelProcess(ist, lapic.pointer());
 

@@ -6,7 +6,7 @@
 extern "C" {
 #endif
 
-#define OS_DEVICE_FRAMEBUFFER "System\0Devices\0Display\0RAMFB0"
+#define OS_DEVICE_DDI_RAMFB "System\0Devices\0DDI\0RAMFB0"
 
 OS_DEFINE_GUID(kOsDisplayClassGuid, 0x45a46f76, 0xed6a, 0x11ef, 0x8516, 0x33da61d08982);
 

@@ -149,19 +149,11 @@ static OsStatus OpenFile(const char (&path)[N], OsFileHandle *OutHandle) {
 // rdx: reserved
 extern "C" [[noreturn]] void ClientStart(const void*, const void*, uint64_t) {
     OsFileHandle Handle = OS_FILE_INVALID;
-    if (OsStatus _ = OpenFile("Users\0Guest\0motd.txt", &Handle)) {
-        DebugLog("Failed to open file /Users/Guest/motd.txt");
-        while (1) { }
-        __builtin_unreachable();
-    }
+    ASSERT_OS_SUCCESS(OpenFile("Users\0Guest\0motd.txt", &Handle));
 
     char buffer[256];
     uint64_t read = UINT64_MAX;
-    if (OsStatus _ = OsFileRead(Handle, buffer, buffer + sizeof(buffer), &read)) {
-        DebugLog("Failed to read file /Users/Guest/motd.txt");
-        while (1) { }
-        __builtin_unreachable();
-    }
+    ASSERT_OS_SUCCESS(OsFileRead(Handle, std::begin(buffer), std::end(buffer), &read));
 
     OsDebugLog(buffer, buffer + read);
 

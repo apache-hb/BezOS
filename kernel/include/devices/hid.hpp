@@ -5,7 +5,6 @@
 #include "fs2/device.hpp"
 #include "hid/hid.hpp"
 
-#include "log.hpp"
 #include "std/spinlock.hpp"
 #include "std/shared_spinlock.hpp"
 
