@@ -22,6 +22,7 @@
 using namespace std::literals;
 
 namespace fs = std::filesystem;
+namespace sp = subprocess;
 namespace stdr = std::ranges;
 namespace stdv = std::views;
 
@@ -41,9 +42,17 @@ struct Download {
     bool trimRootFolder;
 };
 
+enum ConfigureProgram {
+    eNone,
+
+    eMeson,
+    eCMake,
+};
+
 struct PackageInfo {
     std::string name;
     fs::path source;
+    fs::path imported;
     fs::path build;
     fs::path install;
     fs::path cache;
@@ -51,9 +60,10 @@ struct PackageInfo {
     std::vector<Download> downloads;
     std::vector<Overlay> overlays;
     std::vector<RequirePackage> dependencies;
+    ConfigureProgram configure{eNone};
 
-    std::string GetWorkspaceFolder() const {
-        return source.empty() ? build.string() : source.string();
+    fs::path GetWorkspaceFolder() const {
+        return source.empty() ? imported.string() : source.string();
     }
 };
 
@@ -103,6 +113,10 @@ static fs::path PackageBuildRoot() {
     return gBuildRoot / "packages";
 }
 
+static fs::path PackageImportRoot() {
+    return gBuildRoot / "sources";
+}
+
 static fs::path PackageCachePath(const std::string &name) {
     return PackageCacheRoot() / name;
 }
@@ -113,6 +127,10 @@ static fs::path PackageBuildPath(const std::string &name) {
 
 static fs::path PackageInstallPath(const std::string &name) {
     return gInstallPrefix / name;
+}
+
+static fs::path PackageImportPath(const std::string &name) {
+    return PackageImportRoot() / name;
 }
 
 static std::generator<xmlNodePtr> NodeChildren(xmlNodePtr node) {
@@ -303,9 +321,14 @@ static void ReadPackageConfig(xmlNodePtr node) {
                 throw std::runtime_error("Package " + name + " requires unknown package " + depname);
             }
 
+            auto symlink = GetProperty(action, "symlink");
+            if (!symlink.has_value()) {
+                continue;
+            }
+
             packageInfo.dependencies.push_back(RequirePackage{
                 .name = depname,
-                .symlink = ExpectProperty<std::string>(action, "symlink")
+                .symlink = symlink.value()
             });
         } else if (step == "source"sv) {
             if (!packageInfo.source.empty()) {
@@ -317,7 +340,22 @@ static void ReadPackageConfig(xmlNodePtr node) {
         } else if (step == "overlay"sv) {
             auto folder = ExpectProperty<std::string>(action, "path");
             packageInfo.overlays.push_back(Overlay{folder});
+        } else if (step == "configure"sv) {
+            auto with = ExpectProperty<std::string>(action, "with");
+            if (with == "meson") {
+                packageInfo.configure = eMeson;
+            } else if (with == "cmake") {
+                packageInfo.configure = eCMake;
+            } else {
+                throw std::runtime_error("Unknown configure program " + with);
+            }
         }
+    }
+
+    if (packageInfo.source.empty()) {
+        auto source = PackageImportPath(name);
+        MakeFolder(source);
+        packageInfo.imported = source;
     }
 
     gWorkspace.AddPackage(packageInfo);
@@ -334,9 +372,9 @@ static void AcquirePackage(const PackageInfo& package) {
         }
 
         if (!download.archive.empty()) {
-            ExtractArchive(package.name, path, package.build, download.trimRootFolder);
+            ExtractArchive(package.name, path, package.GetWorkspaceFolder(), download.trimRootFolder);
         } else {
-            auto dst = package.build / download.file;
+            auto dst = package.GetWorkspaceFolder() / download.file;
             std::println(std::cout, "{}: copy {} -> {}", package.name, path.string(), dst.string());
 
             fs::copy_file(path, dst, fs::copy_options::overwrite_existing);
@@ -349,7 +387,7 @@ static void AcquirePackage(const PackageInfo& package) {
 
         std::println(std::cout, "{}: overlay {} -> {}", package.name, src.string(), dst.string());
 
-        fs::copy(src, dst.parent_path(), fs::copy_options::recursive | fs::copy_options::update_existing);
+        fs::copy(src, dst, fs::copy_options::recursive | fs::copy_options::update_existing);
     }
 }
 
@@ -366,6 +404,28 @@ static void ConnectDependencies(const PackageInfo& package) {
 
         fs::create_directories(dst.parent_path());
         fs::create_directory_symlink(path, dst);
+    }
+}
+
+static void ConfigurePackage(const PackageInfo& package) {
+    if (package.configure == eNone) {
+        return;
+    }
+
+    if (package.configure == eMeson) {
+        std::vector<std::string> args = {
+            "meson", "setup", package.build.string(),
+            "--prefix", package.install.string(),
+        };
+
+        auto cwd = package.GetWorkspaceFolder().string();
+
+        auto result = sp::call(args, sp::cwd{cwd});
+        if (result != 0) {
+            throw std::runtime_error("Failed to configure package " + package.name);
+        }
+    } else {
+        throw std::runtime_error("Unknown configure program for " + package.name);
     }
 }
 
@@ -437,8 +497,12 @@ int main(int argc, const char **argv) try {
         ConnectDependencies(package.second);
     }
 
+    for (auto& package : gWorkspace.packages) {
+        ConfigurePackage(package.second);
+    }
+
     if (parser.present("--workspace")) {
-        argo::unparser::save(gWorkspace.workspace, parser.get<std::string>("--vscode-workspace"), " ", "\n", " ", 4);
+        argo::unparser::save(gWorkspace.workspace, parser.get<std::string>("--workspace"), " ", "\n", " ", 4);
     }
 
 } catch (const std::exception &e) {

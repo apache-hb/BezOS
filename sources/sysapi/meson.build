@@ -1,4 +1,4 @@
-project('bezos', 'c')
+project('sysapi', 'c')
 
 src = [
     'src/syscall_fs.c',
@@ -26,3 +26,4 @@ bezos_dep = declare_dependency(
 )
 
 meson.override_dependency('sysapi', sysapi_dep)
+meson.override_dependency('bezos-sysapi', bezos_dep)

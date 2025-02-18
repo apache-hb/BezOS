@@ -26,7 +26,7 @@ limine = dependency('limine')
 ultra = dependency('ultra')
 mp_units = dependency('mp-units')
 absl = subproject('abseil-cpp')
-sysapi = subproject('shared').get_variable('sysapi_dep')
+sysapi = subproject('sysapi').get_variable('sysapi_dep')
 
 inc = include_directories(
     'include',

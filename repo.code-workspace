@@ -1,0 +1,29 @@
+{
+    "folders" :
+        [
+            {
+                "name" : "root",
+                "path" : "/home/elliothb/git/bezos"
+             },
+            {
+                "name" : "hyper",
+                "path" : "/home/elliothb/git/bezos/build/sources/hyper"
+             },
+            {
+                "name" : "limine",
+                "path" : "/home/elliothb/git/bezos/build/sources/limine"
+             },
+            {
+                "name" : "sysapi",
+                "path" : "/home/elliothb/git/bezos/sources/sysapi"
+             },
+            {
+                "name" : "system",
+                "path" : "/home/elliothb/git/bezos/sources/system"
+             },
+            {
+                "name" : "kernel",
+                "path" : "/home/elliothb/git/bezos/sources/kernel"
+             }
+         ]
+ }
