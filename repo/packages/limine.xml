@@ -7,5 +7,12 @@
 
     <overlay path='overlays/limine'  />
     <configure with='meson' />
-    <provide tool='limine-install' />
+
+    <provide tool='bin/limine-install' />
+
+    <provide data='BOOTX64.EFI' />
+    <provide data='limine-bios-cd.bin' />
+    <provide data='limine-bios-pxe.bin' />
+    <provide data='limine-bios.sys' />
+    <provide data='limine-uefi-cd.bin' />
 </package>

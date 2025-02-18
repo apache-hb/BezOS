@@ -3,4 +3,6 @@
 
     <source path='system' />
     <configure with='meson' />
+
+    <provide id='init.elf' data='bin/init.elf' />
 </package>

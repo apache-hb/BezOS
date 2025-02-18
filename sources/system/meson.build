@@ -21,7 +21,6 @@ src = [
 executable('init.elf', src,
     link_args : args,
     install : true,
-    install_dir : get_option('prefix'),
     dependencies : [ sysapi, flanterm ],
 )
 
@@ -32,6 +31,5 @@ src = [
 executable('shell.elf', src,
     link_args : args,
     install : true,
-    install_dir : get_option('prefix'),
     dependencies : sysapi,
 )
