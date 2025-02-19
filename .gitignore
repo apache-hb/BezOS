@@ -13,3 +13,6 @@ data/hyper/*
 /sources/kernel/subprojects/limine
 /sources/kernel/subprojects/sysapi
 /sources/system/subprojects/sysapi
+/sources/system/subprojects/flanterm
+/sources/kernel/subprojects/ultra
+/sources/kernel/subprojects/abseil-cpp
