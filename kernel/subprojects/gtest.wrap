@@ -1,0 +1,14 @@
+[wrap-file]
+directory = googletest-1.15.0
+
+source_url = https://github.com/google/googletest/archive/refs/tags/v1.15.0.tar.gz
+source_filename = gtest-1.15.0.tar.gz
+source_hash = 7315acb6bf10e99f332c8a43f00d5fbb1ee6ca48c52f6b936991b216c586aaad
+
+patch_directory = googletest-1.15.0
+
+[provide]
+gtest = gtest_dep
+gtest_main = gtest_main_dep
+gmock = gmock_dep
+gmock_main = gmock_main_dep

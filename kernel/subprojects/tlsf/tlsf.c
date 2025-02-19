@@ -6,7 +6,6 @@
 #include <string.h>
 
 #include "tlsf.h"
-#include "kernel.h"
 
 #if defined(__cplusplus)
 #define tlsf_decl inline

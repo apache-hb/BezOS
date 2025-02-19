@@ -6,8 +6,7 @@ project('system', 'cpp',
 )
 
 flanterm = dependency('flanterm')
-shared = subproject('shared')
-sysapi = shared.get_variable('sysapi')
+bezos = subproject('shared').get_variable('bezos_dep')
 
 args = [
     '-e', 'ClientStart',
@@ -22,7 +21,7 @@ executable('init.elf', src,
     link_args : args,
     install : true,
     install_dir : get_option('prefix'),
-    dependencies : [ sysapi, flanterm ],
+    dependencies : [ bezos, flanterm ],
 )
 
 src = [
@@ -33,5 +32,5 @@ executable('shell.elf', src,
     link_args : args,
     install : true,
     install_dir : get_option('prefix'),
-    dependencies : sysapi,
+    dependencies : bezos,
 )

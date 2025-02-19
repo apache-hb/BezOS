@@ -1,8 +1,0 @@
-[wrap-git]
-url = https://github.com/UltraOS/UltraProtocol.git
-revision = head
-
-patch_directory = ultra
-
-[provide]
-dependency_names = ultra

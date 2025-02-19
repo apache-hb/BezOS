@@ -3,10 +3,10 @@
 .cache/
 *-serial.txt
 install*/
-/subprojects/*
-!/subprojects/*.wrap
-!/subprojects/packagefiles/
-!/subprojects/tlsf/
-!/subprojects/concurrentqueue/
+/kernel/subprojects/*
+!/kernel/subprojects/packagefiles/
+!/kernel/subprojects/tlsf/
+!/kernel/subprojects/concurrentqueue/
 data/hyper/*
 *.hdd
+!*.wrap

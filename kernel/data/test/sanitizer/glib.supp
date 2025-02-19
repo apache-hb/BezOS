@@ -1,0 +1,2 @@
+leak:g_malloc
+leak:g_malloc0

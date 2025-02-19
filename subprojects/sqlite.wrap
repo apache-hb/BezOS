@@ -1,8 +1,0 @@
-[wrap-file]
-directory = sqlite-preprocessed-3490000
-
-source_url = https://sqlite.org/2025/sqlite-preprocessed-3490000.zip
-source_filename = sqlite-preprocessed-3490000.zip
-source_hash = ab6ca47a5b82373675e6001d31f762270de930c996b58bbd116a89edeb5e175e
-
-patch_directory = sqlite-3.49.0

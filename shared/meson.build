@@ -1,4 +1,4 @@
-project('bezos', 'c')
+project('sysapi', 'c')
 
 src = [
     'src/syscall_fs.c',
@@ -11,11 +11,19 @@ src = [
 
 inc = include_directories('include')
 
-libbezos = static_library('bezos-sysapi', src,
+sysapi_dep = declare_dependency(
     include_directories : inc,
 )
 
-sysapi = declare_dependency(
+libbezos = static_library('bezos-sysapi', src,
+    include_directories : inc,
+    build_by_default : false,
+)
+
+bezos_dep = declare_dependency(
     link_with : libbezos,
     include_directories : inc,
 )
+
+meson.override_dependency('bezos', bezos_dep)
+meson.override_dependency('sysapi', sysapi_dep)
