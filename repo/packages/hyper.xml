@@ -10,4 +10,7 @@
     <download file='hyper_install'
               url='https://github.com/UltraOS/Hyper/releases/download/v0.9.0/hyper_install-linux-x86_64'
               sha256='92b951f0af37ea1fa030d4109beef047df390afeefc1398d34ded782dba86f9f' />
+
+    <overlay path='overlays/hyper' />
+    <configure with='meson' />
 </package>

@@ -1510,6 +1510,7 @@ static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioAp
         }
     } else {
         KmDebugMessage("[INIT] No PS/2 controller found.\n");
+        return;
     }
 
     if (ps2Controller.hasKeyboard()) {

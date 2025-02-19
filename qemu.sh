@@ -20,7 +20,7 @@ serial_canbus()
 # Check if a different iso is requested
 echo $ARGS | grep -q "\-iso=hyper"
 if [ $? -eq 0 ]; then
-    QEMUARGS="-cdrom install/bezos-hyper.iso"
+    QEMUARGS="-cdrom install/image/bezos-hyper.iso"
     ARGS=$(echo $ARGS | sed s/\-iso=hyper//)
 else
     QEMUARGS="$QEMUARGS -cdrom $ISO"

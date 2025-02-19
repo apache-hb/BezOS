@@ -3,7 +3,7 @@
 # Create initrd by archiving the /system directory
 
 IMAGE=${PREFIX}/image
-INITRD=${IMAGE}/initrd.tar
+INITRD=${IMAGE}/limine/initrd.tar
 
 mkdir -p ${IMAGE}
 

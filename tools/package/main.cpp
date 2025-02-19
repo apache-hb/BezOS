@@ -1,8 +1,5 @@
 #include <argparse/argparse.hpp>
 
-#include <filesystem>
-#include <libxml/parser.h>
-
 #include <subprocess.hpp>
 
 #include <curl/curl.h>
@@ -11,9 +8,15 @@
 
 #include <argo.hpp>
 
-#include "defer.hpp"
-#include "libxml/tree.h"
+#include <SQLiteCpp/SQLiteCpp.h>
 
+#include <libxml/parser.h>
+#include <libxml/tree.h>
+#include <libxml/xinclude.h>
+
+#include "defer.hpp"
+
+#include <filesystem>
 #include <ranges>
 #include <generator>
 #include <iostream>
@@ -23,8 +26,8 @@ using namespace std::literals;
 
 namespace fs = std::filesystem;
 namespace sp = subprocess;
-namespace stdr = std::ranges;
 namespace stdv = std::views;
+namespace sql = SQLite;
 
 struct RequirePackage {
     std::string name;
@@ -89,6 +92,76 @@ struct PackageInfo {
         return fs::exists(GetBuildFolder() / "compile_commands.json");
     }
 };
+
+enum PackageStatus {
+    eUnknown,
+    eDownloaded,
+    eConfigured,
+    eBuilt,
+    eInstalled,
+};
+
+struct PackageDb {
+    sql::Database db;
+
+    PackageDb(const fs::path& path) : db(path, sql::OPEN_READWRITE | sql::OPEN_CREATE) {
+        db.exec(
+            "CREATE TABLE IF NOT EXISTS packages (\n"
+            "    name TEXT PRIMARY KEY,\n"
+            "    status TEXT\n"
+            ")\n"
+        );
+    }
+
+    PackageStatus GetPackageStatus(std::string_view name) {
+        sql::Statement query(db, "SELECT status FROM packages WHERE name = ?");
+        query.bind(1, name.data());
+
+        if (query.executeStep()) {
+            auto state = query.getColumn(0).getString();
+            if (state == "downloaded") {
+                return eDownloaded;
+            } else if (state == "configured") {
+                return eConfigured;
+            } else if (state == "built") {
+                return eBuilt;
+            } else if (state == "installed") {
+                return eInstalled;
+            } else {
+                return eUnknown;
+            }
+        }
+
+        return eUnknown;
+    }
+
+    void SetPackageStatus(std::string_view name, PackageStatus status) {
+        sql::Statement query(db, "INSERT OR REPLACE INTO packages (name, status) VALUES (?, ?)");
+        query.bind(1, std::string(name));
+
+        switch (status) {
+        case eDownloaded:
+            query.bind(2, "downloaded");
+            break;
+        case eConfigured:
+            query.bind(2, "configured");
+            break;
+        case eBuilt:
+            query.bind(2, "built");
+            break;
+        case eInstalled:
+            query.bind(2, "installed");
+            break;
+        default:
+            query.bind(2, "unknown");
+            break;
+        }
+
+        query.exec();
+    }
+};
+
+static PackageDb *gPackageDb;
 
 constexpr static void ReplaceAll(std::string& str, std::string_view from, std::string_view to) {
     size_t start_pos = 0;
@@ -231,13 +304,19 @@ static T ExpectProperty(xmlNodePtr node, const char *name) {
 
 using XmlDocument = std::unique_ptr<xmlDoc, decltype(&xmlFreeDoc)>;
 
-static XmlDocument xmlDocumentOpen(const std::filesystem::path &path) {
-    xmlDocPtr document = xmlReadFile(path.c_str(), nullptr, 0);
+static XmlDocument XmlDocumentOpen(const std::filesystem::path &path) {
+    xmlDocPtr document = xmlReadFile(path.c_str(), nullptr, XML_PARSE_XINCLUDE);
     if (document == nullptr) {
         throw std::runtime_error("Failed to parse " + path.string());
     }
 
-    return {document, xmlFreeDoc};
+    XmlDocument doc = {document, xmlFreeDoc};
+
+    if (xmlXIncludeProcess(doc.get()) <= 0) {
+        throw std::runtime_error("Failed to process xinclude in " + path.string());
+    }
+
+    return doc;
 }
 
 #define ARCHIVE_ASSERT(expr, archive) \
@@ -349,11 +428,7 @@ static bool ReadRequireTag(xmlNodePtr node, const std::string& name, std::vector
     return true;
 }
 
-static void ReadPackageConfig(xmlNodePtr node) {
-    fs::path path = UnwrapOptional(GetProperty(node, "path"), "Missing package path property");
-
-    XmlDocument package = xmlDocumentOpen(gRepoRoot / path);
-    xmlNodePtr root = xmlDocGetRootElement(package.get());
+static void ReadPackageConfig(xmlNodePtr root) {
     auto name = ExpectProperty<std::string>(root, "name");
 
     auto cache = PackageCachePath(name);
@@ -550,6 +625,44 @@ static void ReplaceArtifactPlaceholders(std::string& str) {
     ReplaceAll(str, "@SOURCE@", gSourceRoot.string());
 }
 
+static std::set<fs::path> gImportPaths;
+static std::vector<fs::path> gIncludePaths;
+static std::set<fs::path> gProcessedFiles;
+
+static std::optional<fs::path> findInclude(const fs::path& path) {
+    if (fs::exists(path)) {
+        return path;
+    }
+
+    for (const auto& include : gIncludePaths) {
+        fs::path inc = include / path;
+        if (fs::exists(inc)) {
+            return inc;
+        }
+    }
+
+    return {};
+}
+
+static int incMatch(const char *uri) {
+    return findInclude(uri).has_value();
+}
+
+static void *incOpen(const char *uri) {
+    fs::path path = findInclude(uri).value();
+    gProcessedFiles.emplace(path);
+    gImportPaths.insert(path);
+    return fopen(path.string().c_str(), "r");
+}
+
+static int incClose(void *context) {
+    return fclose((FILE*)context);
+}
+
+static int incRead(void *context, char *buffer, int size) {
+    return fread(buffer, 1, size, (FILE*)context);
+}
+
 int main(int argc, const char **argv) try {
     argparse::ArgumentParser parser{"BezOS package repository manager"};
 
@@ -560,9 +673,25 @@ int main(int argc, const char **argv) try {
     parser.add_argument("--workspace")
         .help("Path to vscode workspace file to generate");
 
-    parser.add_argument("--build")
+    parser.add_argument("--output")
         .help("Path to the intermediate build folder")
         .default_value("build");
+
+    parser.add_argument("--fetch")
+        .help("List of packages to fetch or update")
+        .nargs(argparse::nargs_pattern::any);
+
+    parser.add_argument("--reconfigure")
+        .help("List of packages to configure or reconfigure")
+        .nargs(argparse::nargs_pattern::any);
+
+    parser.add_argument("--rebuild")
+        .help("List of packages to build or rebuild")
+        .nargs(argparse::nargs_pattern::any);
+
+    parser.add_argument("--reinstall")
+        .help("List of packages to install or reinstall")
+        .nargs(argparse::nargs_pattern::any);
 
     parser.add_argument("--prefix")
         .help("Path to the installation prefix")
@@ -585,7 +714,14 @@ int main(int argc, const char **argv) try {
 
     fs::path configPath = parser.get<std::string>("--config");
 
-    XmlDocument document = xmlDocumentOpen(configPath);
+    gIncludePaths.push_back(configPath.parent_path());
+
+    if (xmlRegisterInputCallbacks(incMatch, incOpen, incRead, incClose) < 0) {
+        std::println(std::cerr, "Failed to register input callbacks");
+        return 1;
+    }
+
+    XmlDocument document = XmlDocumentOpen(configPath);
     if (document == nullptr) {
         std::println(std::cerr, "Error: Failed to parse {}", configPath.string());
         return 1;
@@ -593,11 +729,14 @@ int main(int argc, const char **argv) try {
 
     xmlNodePtr root = xmlDocGetRootElement(document.get());
 
-    fs::path build = parser.get<std::string>("--build");
+    fs::path build = parser.get<std::string>("--output");
     fs::path prefix = parser.get<std::string>("--prefix");
 
     prefix = fs::absolute(prefix);
     build = fs::absolute(build);
+
+    PackageDb packageDb(build / "packages.db");
+    gPackageDb = &packageDb;
 
     auto name = UnwrapOptional(GetProperty(root, "name"), "Missing repo name property");
     auto sources = UnwrapOptional(GetProperty(root, "sources"), "Missing sources property");
@@ -624,6 +763,8 @@ int main(int argc, const char **argv) try {
             ReadPackageConfig(child);
         } else if (type == "artifact"sv) {
             ReadArtifactConfig(child);
+        } else {
+            std::println(std::cerr, "Unknown tag {}", type);
         }
     }
 
