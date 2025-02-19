@@ -9,6 +9,7 @@ install*/
 data/hyper/*
 *.hdd
 *.code-workspace
+.clangd
 /sources/kernel/subprojects/limine
 /sources/kernel/subprojects/sysapi
 /sources/kernel/subprojects/ultra
