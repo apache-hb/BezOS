@@ -19,7 +19,7 @@ static void copyString(sm::CpuId cpuid, char dst[16]) {
     memcpy(dst, cpuid.ureg, sizeof(cpuid.ureg));
 }
 
-void sm::KmGetBrandString(char dst[kBrandStringSize]) {
+void sm::GetBrandString(char dst[kBrandStringSize]) {
     copyString(CpuId::of(0x80000002), dst + 0);
     copyString(CpuId::of(0x80000003), dst + 16);
     copyString(CpuId::of(0x80000004), dst + 32);

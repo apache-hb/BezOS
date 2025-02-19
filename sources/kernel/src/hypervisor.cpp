@@ -52,7 +52,7 @@ bool km::ProcessorInfo::isKvm() const {
 
 km::BrandString km::GetBrandString() {
     char brand[sm::kBrandStringSize];
-    sm::KmGetBrandString(brand);
+    sm::GetBrandString(brand);
     return std::to_array(brand);
 }
 

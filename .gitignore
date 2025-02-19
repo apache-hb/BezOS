@@ -12,7 +12,4 @@ data/hyper/*
 .clangd
 /sources/kernel/subprojects/limine
 /sources/kernel/subprojects/sysapi
-/sources/kernel/subprojects/ultra
-/sources/kernel/subprojects/abseil-cpp
 /sources/system/subprojects/sysapi
-/sources/system/subprojects/flanterm

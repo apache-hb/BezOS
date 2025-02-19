@@ -274,22 +274,34 @@ fs::path Workspace::GetArtifactPath(const std::string& name) {
     return PackageInstallPath(name);
 }
 
-static std::generator<xmlNodePtr> NodeChildren(xmlNodePtr node) {
-    for (xmlNodePtr child = node->children; child != nullptr; child = child->next) {
-        co_yield child;
+struct XmlNode {
+    xmlNodePtr node;
+
+    XmlNode(xmlNodePtr node) : node(node) {}
+
+    std::generator<XmlNode> children() const {
+        for (xmlNodePtr child = node->children; child != nullptr; child = child->next) {
+            co_yield child;
+        }
     }
-}
 
-static std::optional<std::string> GetProperty(xmlNodePtr node, const char *name) {
-    xmlChar *value = xmlGetProp(node, reinterpret_cast<const xmlChar *>(name));
-    if (value == nullptr) {
-        return std::nullopt;
+    std::optional<std::string> property(const char *name) const {
+        xmlChar *value = xmlGetProp(node, reinterpret_cast<const xmlChar *>(name));
+        if (value == nullptr) {
+            return std::nullopt;
+        }
+
+        defer { xmlFree(value); };
+
+        return reinterpret_cast<const char *>(value);
     }
 
-    defer { xmlFree(value); };
+    std::string_view name() const {
+        return reinterpret_cast<const char *>(node->name);
+    }
 
-    return reinterpret_cast<const char *>(value);
-}
+    operator xmlNodePtr() const { return node; }
+};
 
 static std::string_view NodeName(xmlNodePtr node) {
     return reinterpret_cast<const char *>(node->name);
@@ -317,8 +329,8 @@ static T UnwrapOptional(std::optional<T> opt, std::string_view message) {
 }
 
 template<typename T>
-static T ExpectProperty(xmlNodePtr node, const char *name) {
-    return UnwrapOptional(GetProperty(node, name), "Missing property " + std::string(name));
+static T ExpectProperty(XmlNode node, const char *name) {
+    return UnwrapOptional(node.property(name), "Node " + std::string(node.name()) + " is missing required property " + std::string(name));
 }
 
 using XmlDocument = std::unique_ptr<xmlDoc, decltype(&xmlFreeDoc)>;
@@ -427,9 +439,9 @@ static void DownloadFile(const std::string& url, const fs::path& dst) {
     }
 }
 
-static bool ReadRequireTag(xmlNodePtr node, const std::string& name, std::vector<RequirePackage>& deps) {
+static bool ReadRequireTag(XmlNode node, const std::string& name, std::vector<RequirePackage>& deps) {
     auto package = ExpectProperty<std::string>(node, "package");
-    auto symlink = GetProperty(node, "symlink");
+    auto symlink = node.property("symlink");
 
     if (package == name) {
         throw std::runtime_error("Package " + name + " cannot require itself");
@@ -447,7 +459,7 @@ static bool ReadRequireTag(xmlNodePtr node, const std::string& name, std::vector
     return true;
 }
 
-static void ReadPackageConfig(xmlNodePtr root) {
+static void ReadPackageConfig(XmlNode root) {
     auto name = ExpectProperty<std::string>(root, "name");
 
     auto cache = PackageCachePath(name);
@@ -465,13 +477,13 @@ static void ReadPackageConfig(xmlNodePtr root) {
         .cache = cache
     };
 
-    for (xmlNodePtr action : NodeChildren(root) | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
+    for (XmlNode action : root.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
         auto step = NodeName(action);
         if (step == "download"sv) {
             auto url = ExpectProperty<std::string>(action, "url");
             auto file = ExpectProperty<std::string>(action, "file");
-            auto archive = GetProperty(action, "archive");
-            auto trimRootFolder = GetProperty(action, "trim-root-folder").value_or("false") == "true";
+            auto archive = action.property("archive");
+            auto trimRootFolder = action.property("trim-root-folder").value_or("false") == "true";
 
             packageInfo.downloads.push_back(Download{url, file, archive.value_or(""), trimRootFolder});
         } else if (step == "require"sv) {
@@ -490,8 +502,8 @@ static void ReadPackageConfig(xmlNodePtr root) {
             auto with = ExpectProperty<std::string>(action, "with");
             if (with == "meson") {
                 packageInfo.configure = eMeson;
-                for (xmlNodePtr child : NodeChildren(action) | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
-                    if (NodeName(child) == "cross-file"sv) {
+                for (XmlNode child : action.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
+                    if (child.name() == "cross-file"sv) {
                         packageInfo.mesonCrossFile = ExpectProperty<std::string>(child, "path");
                     }
                 }
@@ -512,15 +524,15 @@ static void ReadPackageConfig(xmlNodePtr root) {
     gWorkspace.AddPackage(packageInfo);
 }
 
-static void ReadArtifactConfig(xmlNodePtr node) {
+static void ReadArtifactConfig(XmlNode node) {
     auto name = ExpectProperty<std::string>(node, "name");
 
     ArtifactInfo artifactInfo {
         .name = name
     };
 
-    for (xmlNodePtr action : NodeChildren(node) | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
-        auto step = NodeName(action);
+    for (XmlNode action : node.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
+        auto step = action.name();
         if (step == "require"sv) {
             ReadRequireTag(action, name, artifactInfo.dependencies);
         } else if (step == "script"sv) {
@@ -529,8 +541,8 @@ static void ReadArtifactConfig(xmlNodePtr node) {
                 .script = script
             };
 
-            for (xmlNodePtr child : NodeChildren(action) | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
-                auto type = NodeName(child);
+            for (XmlNode child : action.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
+                auto type = child.name();
                 if (type == "arg"sv) {
                     exec.args.push_back(ExpectProperty<std::string>(child, "value"));
                 } else if (type == "env"sv) {
@@ -864,7 +876,7 @@ int main(int argc, const char **argv) try {
         return 1;
     }
 
-    xmlNodePtr root = xmlDocGetRootElement(document.get());
+    XmlNode root = xmlDocGetRootElement(document.get());
 
     fs::path build = parser.get<std::string>("--output");
     fs::path prefix = parser.get<std::string>("--prefix");
@@ -875,8 +887,8 @@ int main(int argc, const char **argv) try {
     PackageDb packageDb(build / "packages.db");
     gPackageDb = &packageDb;
 
-    auto name = UnwrapOptional(GetProperty(root, "name"), "Missing repo name property");
-    auto sources = UnwrapOptional(GetProperty(root, "sources"), "Missing sources property");
+    auto name = ExpectProperty<std::string>(root, "name");
+    auto sources = ExpectProperty<std::string>(root, "sources");
     auto pwd = std::filesystem::current_path();
     gRepoRoot = fs::absolute(configPath.parent_path());
     gBuildRoot = build;
@@ -892,8 +904,8 @@ int main(int argc, const char **argv) try {
 
     gWorkspace.AddFolder(std::filesystem::current_path(), "root");
 
-    for (xmlNodePtr child : NodeChildren(root) | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
-        auto type = NodeName(child);
+    for (XmlNode child : root.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
+        auto type = child.name();
         if (type == "package"sv) {
             ReadPackageConfig(child);
         } else if (type == "artifact"sv) {
