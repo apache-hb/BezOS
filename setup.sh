@@ -8,4 +8,4 @@ builddir=$(pwd)/$builddir
 
 make tools > /dev/null || exit 1
 
-$prefix/tools/bin/package.elf --config repo/repo.xml --output build --prefix install --workspace repo.code-workspace $@
+$prefix/tools/bin/package.elf --config repo/repo.xml --output build --prefix install --workspace repo.code-workspace --clangd $@

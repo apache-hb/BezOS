@@ -805,6 +805,11 @@ int main(int argc, const char **argv) try {
     parser.add_argument("--workspace")
         .help("Path to vscode workspace file to generate");
 
+    parser.add_argument("--clangd")
+        .help("Generate .clangd file for clangd")
+        .default_value(false)
+        .implicit_value(true);
+
     parser.add_argument("--output")
         .help("Path to the intermediate build folder")
         .default_value("build");
@@ -941,6 +946,35 @@ int main(int argc, const char **argv) try {
 
     if (parser.present("--workspace")) {
         argo::unparser::save(gWorkspace.workspace, parser.get<std::string>("--workspace"), " ", "\n", " ", 4);
+    }
+
+    if (parser["--clangd"] == true) {
+        bool first = true;
+        std::ofstream file(".clangd", std::ios::out);
+        auto addClangdSection = [&](const fs::path& builddir, const fs::path& workspace) {
+            if (!first) {
+                file << "---\n";
+            }
+
+            first = false;
+
+            file << "If:\n"
+                    "  PathMatch: [ " << workspace.string() << "/.* ]\n"
+                    "CompileFlags:\n"
+                    "  CompilationDatabase: " << builddir.string() << "\n";
+        };
+
+        for (const auto& [name, pkg] : gWorkspace.packages) {
+            if (pkg.HasCompileCommands()) {
+                auto workspace = pkg.GetWorkspaceFolder().lexically_relative(fs::current_path());
+                auto builddir = pkg.GetBuildFolder();
+
+                addClangdSection(builddir, workspace);
+            }
+        }
+
+        // TODO: this isnt great, but idk how to figure out the build folder for the build tool.
+        addClangdSection(gBuildRoot / "tools", "tools");
     }
 
 } catch (const std::exception &e) {
