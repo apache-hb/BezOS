@@ -26,6 +26,7 @@ using namespace std::literals;
 
 namespace fs = std::filesystem;
 namespace sp = subprocess;
+namespace stdr = std::ranges;
 namespace stdv = std::views;
 namespace sql = SQLite;
 
@@ -58,13 +59,6 @@ struct ScriptExec {
     std::map<std::string, std::string> env;
 };
 
-struct ArtifactInfo {
-    std::string name;
-
-    std::vector<RequirePackage> dependencies;
-    std::vector<ScriptExec> scripts;
-};
-
 struct PackageInfo {
     std::string name;
     fs::path source;
@@ -80,6 +74,7 @@ struct PackageInfo {
     std::string version;
     std::string mesonCrossFile;
     std::string mesonNativeFile;
+    std::vector<ScriptExec> scripts;
 
     fs::path GetWorkspaceFolder() const {
         return source.empty() ? imported.string() : source.string();
@@ -188,6 +183,59 @@ struct PackageDb {
         return result;
     }
 
+    std::set<std::string> GetPackageDependencies(std::string_view name) {
+        std::set<std::string> result;
+
+        sql::Statement query(db, "SELECT dependency FROM dependencies WHERE package = ?");
+        query.bind(1, name.data());
+
+        while (query.executeStep()) {
+            result.insert(query.getColumn(0).getString());
+        }
+
+        return result;
+    }
+
+    /// @brief Order the packages in the correct build order
+    std::vector<std::string> OrderPackages() {
+
+        // gather top level packages
+        std::set<std::string> root;
+
+        // find all packages that have no dependant packages
+        sql::Statement query(db,
+            "SELECT name FROM targets\n"
+            "WHERE NOT EXISTS (\n"
+            "    SELECT 1 FROM dependencies WHERE dependency = targets.name\n"
+            ")"
+        );
+
+        while (query.executeStep()) {
+            root.insert(query.getColumn(0).getString());
+        }
+
+        std::vector<std::string> result;
+
+        auto visit = [&](this auto&& self, const std::string& name) {
+            if (stdr::contains(result, name)) {
+                return;
+            }
+
+            auto dependants = GetPackageDependencies(name);
+            for (const auto& dep : dependants) {
+                self(dep);
+            }
+
+            result.push_back(name);
+        };
+
+        for (const auto& name : root) {
+            visit(name);
+        }
+
+        return result;
+    }
+
     PackageStatus GetPackageStatus(std::string_view name) {
         sql::Statement query(db, "SELECT status FROM targets WHERE name = ?");
         query.bind(1, name.data());
@@ -253,7 +301,6 @@ static_assert(ReplaceText("@REPO@/data/image.sh", "@REPO@", "/repo") == "/repo/d
 
 struct Workspace {
     std::map<std::string, PackageInfo> packages;
-    std::map<std::string, ArtifactInfo> artifacts;
 
     argo::json workspace{argo::json::object_e};
 
@@ -276,12 +323,8 @@ struct Workspace {
     }
 
     fs::path GetPackagePath(const std::string& name) {
-        if (artifacts.contains(name)) {
-            return GetArtifactPath(name);
-        }
-
         if (!packages.contains(name)) {
-            throw std::runtime_error("Unknown package " + name);
+            throw std::runtime_error("Unknown target " + name);
         }
 
         return packages[name].GetWorkspaceFolder();
@@ -290,7 +333,34 @@ struct Workspace {
     fs::path GetArtifactPath(const std::string& name);
 
     bool HasBuildTarget(const std::string& name) {
-        return packages.contains(name) || artifacts.contains(name);
+        return packages.contains(name);
+    }
+
+    /// @brief Order the packages in the correct build order
+    std::vector<PackageInfo> OrderPackages() {
+        std::vector<PackageInfo> result;
+
+        std::set<std::string> visited;
+        auto visit = [&](this auto&& self, const std::string& name) {
+            if (visited.contains(name)) {
+                return;
+            }
+
+            visited.insert(name);
+
+            auto& package = packages[name];
+            for (const auto& dep : package.dependencies) {
+                self(dep.name);
+            }
+
+            result.push_back(package);
+        };
+
+        for (const auto& [name, _] : packages) {
+            visit(name);
+        }
+
+        return result;
     }
 };
 
@@ -326,14 +396,6 @@ static fs::path PackageInstallPath(const std::string &name) {
 
 static fs::path PackageImportPath(const std::string &name) {
     return PackageImportRoot() / name;
-}
-
-fs::path Workspace::GetArtifactPath(const std::string& name) {
-    if (!artifacts.contains(name)) {
-        throw std::runtime_error("Unknown artifact " + name);
-    }
-
-    return PackageInstallPath(name);
 }
 
 struct XmlNode {
@@ -593,7 +655,7 @@ static void ReadPackageConfig(XmlNode root) {
 static void ReadArtifactConfig(XmlNode node) {
     auto name = ExpectProperty<std::string>(node, "name");
 
-    ArtifactInfo artifactInfo {
+    PackageInfo artifactInfo {
         .name = name
     };
 
@@ -622,7 +684,7 @@ static void ReadArtifactConfig(XmlNode node) {
         }
     }
 
-    gWorkspace.artifacts.emplace(name, artifactInfo);
+    gWorkspace.packages.emplace(name, artifactInfo);
 }
 
 static void AcquirePackage(const PackageInfo& package) {
@@ -803,7 +865,7 @@ static void InstallPackage(const PackageInfo& package) {
     gPackageDb->RaiseTargetStatus(package.name, eInstalled);
 }
 
-static void GenerateArtifact(std::string_view name, const ArtifactInfo& artifact) {
+static void GenerateArtifact(std::string_view name, const PackageInfo& artifact) {
     if (!gPackageDb->ShouldRunStep(name, eInstalled)) {
         return;
     }
@@ -910,7 +972,7 @@ static void GenerateClangDaemonConfig() {
         }
 
         // TODO: this isnt great, but idk how to figure out the build folder for the build tool.
-        addClangdSection(gBuildRoot / "tools", "tools");
+        addClangdSection(gBuildRoot / "tool", "tool");
 
         return content;
     }();
@@ -1049,32 +1111,37 @@ int main(int argc, const char **argv) try {
 
     gPackageDb->DumpTargetStates();
 
+
     for (auto& package : gWorkspace.packages) {
         AcquirePackage(package.second);
     }
 
-    for (auto& package : gWorkspace.packages) {
-        ConnectDependencies(package.second);
+    auto pkgs = gPackageDb->OrderPackages()
+        | stdv::transform([&](const std::string& name) { return gWorkspace.packages[name]; })
+        | stdr::to<std::vector>();
+
+    for (auto& package : pkgs) {
+        ConnectDependencies(package);
     }
 
-    for (auto& package : gWorkspace.packages) {
-        ConfigurePackage(package.second);
+    for (auto& package : pkgs) {
+        ConfigurePackage(package);
     }
 
     if (parser["--clangd"] == true) {
         GenerateClangDaemonConfig();
     }
 
-    for (auto& package : gWorkspace.packages) {
-        BuildPackage(package.second);
+    for (auto& package : pkgs) {
+        BuildPackage(package);
     }
 
-    for (auto& package : gWorkspace.packages) {
-        InstallPackage(package.second);
+    for (auto& package : pkgs) {
+        InstallPackage(package);
     }
 
-    for (auto& artifact : gWorkspace.artifacts) {
-        GenerateArtifact(artifact.first, artifact.second);
+    for (auto& artifact : pkgs) {
+        GenerateArtifact(artifact.name, artifact);
     }
 
     if (parser.present("--workspace")) {

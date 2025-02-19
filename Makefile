@@ -10,7 +10,7 @@ OVMF_VARS=install/ovmf/ovmf-vars-x86_64.fd
 
 ROOT := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
-.DEFAULT_GOAL := build
+.DEFAULT_GOAL := repo
 
 $(OVMF_CODE):
 	mkdir -p install/ovmf
@@ -22,28 +22,8 @@ $(OVMF_VARS):
 
 install-ovmf: $(OVMF_CODE) $(OVMF_VARS)
 
-$(HYPER_BOOTX64):
-	mkdir -p data/hyper
-	wget https://github.com/UltraOS/Hyper/releases/download/v0.9.0/BOOTX64.EFI -O $(HYPER_BOOTX64)
-
-$(HYPER_ISOBOOT):
-	mkdir -p data/hyper
-	wget https://github.com/UltraOS/Hyper/releases/download/v0.9.0/hyper_iso_boot -O $(HYPER_ISOBOOT)
-
-$(HYPER_INSTALL):
-	mkdir -p data/hyper
-	wget https://github.com/UltraOS/Hyper/releases/download/v0.9.0/hyper_install-linux-x86_64 -O $(HYPER_INSTALL)
-	chmod +x $(HYPER_INSTALL)
-
-hyper: $(HYPER_BOOTX64) $(HYPER_ISOBOOT) $(HYPER_INSTALL)
-
-.PHONY: build
-build: $(HYPER_BOOTX64) $(HYPER_ISOBOOT) $(HYPER_INSTALL)
-	meson install -C build/system --quiet
-	meson install -C build/kernel --quiet
-
 .PHONY: qemu
-qemu: build
+qemu:
 	./qemu.sh
 
 .PHONY: qemu-ovmf
@@ -51,19 +31,19 @@ qemu-ovmf: install-ovmf
 	./qemu.sh ovmf
 
 .PHONY: vbox
-vbox: build
+vbox:
 	pwsh.exe -File data/test/vm/Test-VirtualBox.ps1 -KernelImage $(LIMINE_ISO)
 
 .PHONY: vmware
-vmware: build
+vmware:
 	pwsh.exe -File data/test/vm/Test-VMware.ps1 -KernelImage $(LIMINE_ISO)
 
 .PHONY: hyperv
-hyperv: build
+hyperv:
 	pwsh.exe -File data/test/vm/Test-HyperV.ps1 -KernelImage $(LIMINE_ISO)
 
 .PHONY: pxe
-pxe: build
+pxe:
 	pwsh.exe -File data/test/pxe/Copy-PxeImage.ps1 -KernelFolder install/pxe -PxeServerFolder C:/Users/elliothb/Documents/tftpserver
 
 .PHONY: check
@@ -75,15 +55,12 @@ check:
 coverage:
 	ninja -C build/kernel coverage
 
-.PHONY: clean
-clean:
-	ninja -C build/kernel clean
-	ninja -C build/system clean
-	rm -rf install
-
 .PHONY: integration
 integration: qemu vbox vmware hyperv
 
+
+BUILDDIR := build
+PREFIX := install
 
 
 PKGTOOL := install/tool/bin/package.elf
@@ -100,7 +77,6 @@ pkgtool: $(PKGTOOL)
 
 
 
-BUILDDIR := build
 REPO_DB := repo.db
 REPO := build/$(REPO_DB)
 
@@ -112,3 +88,8 @@ $(REPO): $(PKGTOOL) $(REPO_SRC)
 	$(PKGTOOL) --config $(REPO_CONFIG) --repo $(REPO_DB) --output build --prefix install --workspace bezos.code-workspace --clangd
 
 repo: $(REPO) $(REPO_SRC)
+
+
+.PHONY: clean
+clean:
+	rm -rf $(BUILDDIR) $(PREFIX)

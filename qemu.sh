@@ -42,7 +42,7 @@ fi
 
 if [ "$MODE" = "ovmf" ]; then
     ARGS=$(echo $ARGS | sed s/ovmf//)
-    make build install-ovmf
+    make install-ovmf
     qemu-system-x86_64 \
         -drive if=pflash,format=raw,unit=0,file=install/ovmf/ovmf-code-x86_64.fd,readonly=on \
         -drive if=pflash,format=raw,unit=1,file=install/ovmf/ovmf-vars-x86_64.fd \
@@ -51,7 +51,7 @@ if [ "$MODE" = "ovmf" ]; then
     exit
 elif [ "$MODE" = "numa" ]; then
     ARGS=$(echo $ARGS | sed s/numa//)
-    make build install-ovmf
+    make install-ovmf
     qemu-system-x86_64 \
         -drive if=pflash,format=raw,unit=0,file=install/ovmf/ovmf-code-x86_64.fd,readonly=on \
         -drive if=pflash,format=raw,unit=1,file=install/ovmf/ovmf-vars-x86_64.fd \
@@ -76,7 +76,7 @@ elif [ "$MODE" = "numa" ]; then
 elif [ "$MODE" = "test" ]; then
     ARGS=$(echo $ARGS | sed s/test//)
 
-    make build || exit 1
+    make repo || exit 1
 
     # Startup a socat instance to create a virtual CAN bus
     # that the guest can read data from.
@@ -84,7 +84,7 @@ elif [ "$MODE" = "test" ]; then
 
     qemu-system-x86_64 $QEMUARGS $(serial_chardev qemu-serial.txt) $(serial_canbus) -smp 4 $ARGS
 else
-    make build || exit 1
+    make repo || exit 1
 
     qemu-system-x86_64 $QEMUARGS $(serial_chardev qemu-serial.txt) -smp 4 $ARGS
 fi

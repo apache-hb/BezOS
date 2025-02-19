@@ -208,7 +208,7 @@ kernel = static_library('kernel', src,
 ### Limine version of the kernel image
 ###
 
-executable('bezos-limine', 'src/boot/limine.cpp',
+executable('bezos-limine.elf', 'src/boot/limine.cpp',
     c_args : c_args + [ '-D__BEZOS__=1' ],
     cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
     include_directories : inc,
@@ -216,7 +216,6 @@ executable('bezos-limine', 'src/boot/limine.cpp',
     dependencies : [ limine, deps ],
     link_depends : 'data/linker-limine.ld',
     link_args : [ '-T', meson.current_source_dir() / 'data/linker-limine.ld' ],
-    install_dir : get_option('prefix') / 'limine' / 'image' / 'boot',
     install : true,
     override_options : [ 'b_coverage=false' ],
 )
@@ -225,7 +224,7 @@ executable('bezos-limine', 'src/boot/limine.cpp',
 ### Hyper version of the kernel image
 ###
 
-executable('bezos-hyper', 'src/boot/hyper.cpp',
+executable('bezos-hyper.elf', 'src/boot/hyper.cpp',
     c_args : c_args + [ '-D__BEZOS__=1' ],
     cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
     include_directories : inc,
@@ -233,7 +232,6 @@ executable('bezos-hyper', 'src/boot/hyper.cpp',
     dependencies : [ ultra, deps ],
     link_depends : 'data/linker-hyper.ld',
     link_args : [ '-T', meson.current_source_dir() / 'data/linker-hyper.ld' ],
-    install_dir : get_option('prefix') / 'hyper' / 'image' / 'boot',
     install : true,
     override_options : [ 'b_coverage=false' ],
 )
