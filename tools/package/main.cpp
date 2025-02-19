@@ -590,7 +590,7 @@ static void AddGitignoreSymlink(const fs::path& path) {
     std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 
     // if the file doesn't contain the symlink, add it
-    std::string search = "\n" + path.string() + "\n";
+    std::string search = "\n/" + path.string() + "\n";
     if (content.find(search) == std::string::npos) {
         file << "/" + path.string() + "\n";
     }
@@ -605,8 +605,6 @@ static void ConnectDependencies(const PackageInfo& package) {
 
         auto cwd = fs::current_path();
         auto relative = symlink.lexically_relative(cwd);
-
-        std::println(std::cout, "{}: relative {} {}", package.name, cwd.string(), relative.string());
 
         AddGitignoreSymlink(relative);
 
