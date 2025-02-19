@@ -4,9 +4,9 @@
 
 INITRD=${MESON_INSTALL_PREFIX}/initrd.tar
 
-rm ${INITRD}
+rm ${INITRD} 2> /dev/null
 
-tar -cf ${INITRD} -C ${MESON_INSTALL_PREFIX}/system .
+tar -cf ${INITRD} -C ${MESON_INSTALL_PREFIX}/../system .
 
 # Build limine disk image
 

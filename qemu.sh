@@ -3,7 +3,7 @@
 MODE=$1
 ARGS=$@
 
-ISO=install/bezos-limine.iso
+ISO=install/kernel/bezos-limine.iso
 CANBUS=/tmp/canbus
 QEMUARGS="-M q35 -display gtk"
 
@@ -20,7 +20,7 @@ serial_canbus()
 # Check if a different iso is requested
 echo $ARGS | grep -q "\-iso=hyper"
 if [ $? -eq 0 ]; then
-    QEMUARGS="-cdrom install/bezos-hyper.iso"
+    QEMUARGS="-cdrom install/kernel/bezos-hyper.iso"
     ARGS=$(echo $ARGS | sed s/\-iso=hyper//)
 else
     QEMUARGS="$QEMUARGS -cdrom $ISO"
