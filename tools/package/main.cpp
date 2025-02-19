@@ -135,6 +135,11 @@ struct PackageDb {
         return eUnknown;
     }
 
+    bool ShouldRunStep(std::string_view name, PackageStatus status) {
+        auto current = GetPackageStatus(name);
+        return current == eUnknown || current < status;
+    }
+
     void SetPackageStatus(std::string_view name, PackageStatus status) {
         sql::Statement query(db, "INSERT OR REPLACE INTO packages (name, status) VALUES (?, ?)");
         query.bind(1, std::string(name));
@@ -158,6 +163,20 @@ struct PackageDb {
         }
 
         query.exec();
+    }
+
+    void LowerPackageStatus(std::string_view name, PackageStatus status) {
+        auto current = GetPackageStatus(name);
+        if (current == eUnknown || current > status) {
+            SetPackageStatus(name, status);
+        }
+    }
+
+    void RaisePackageStatus(std::string_view name, PackageStatus status) {
+        auto current = GetPackageStatus(name);
+        if (current == eUnknown || current < status) {
+            SetPackageStatus(name, status);
+        }
     }
 };
 
@@ -529,6 +548,10 @@ static void ReadArtifactConfig(xmlNodePtr node) {
 }
 
 static void AcquirePackage(const PackageInfo& package) {
+    if (!gPackageDb->ShouldRunStep(package.name, eDownloaded)) {
+        return;
+    }
+
     for (const auto& download : package.downloads) {
         auto path = package.cache / download.file;
 
@@ -556,6 +579,8 @@ static void AcquirePackage(const PackageInfo& package) {
 
         fs::copy(src, dst, fs::copy_options::recursive | fs::copy_options::update_existing);
     }
+
+    gPackageDb->RaisePackageStatus(package.name, eDownloaded);
 }
 
 static void ConnectDependencies(const PackageInfo& package) {
@@ -576,6 +601,10 @@ static void ConnectDependencies(const PackageInfo& package) {
 
 static void ConfigurePackage(const PackageInfo& package) {
     if (package.configure == eNone) {
+        return;
+    }
+
+    if (!gPackageDb->ShouldRunStep(package.name, eConfigured)) {
         return;
     }
 
@@ -600,6 +629,8 @@ static void ConfigurePackage(const PackageInfo& package) {
     } else {
         throw std::runtime_error("Unknown configure program for " + package.name);
     }
+
+    gPackageDb->RaisePackageStatus(package.name, eConfigured);
 }
 
 static void BuildPackage(const PackageInfo& package) {
@@ -607,15 +638,43 @@ static void BuildPackage(const PackageInfo& package) {
         return;
     }
 
+    if (!gPackageDb->ShouldRunStep(package.name, eBuilt)) {
+        return;
+    }
+
     if (package.configure == eMeson) {
         std::string builddir = package.build.string();
-        auto result = sp::call({ "meson", "install", "--quiet" }, sp::cwd{builddir});
+        auto result = sp::call({ "meson", "compile" }, sp::cwd{builddir});
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
     } else {
         throw std::runtime_error("Unknown configure program for " + package.name);
     }
+
+    gPackageDb->RaisePackageStatus(package.name, eBuilt);
+}
+
+static void InstallPackage(const PackageInfo& package) {
+    if (package.configure == eNone) {
+        return;
+    }
+
+    if (!gPackageDb->ShouldRunStep(package.name, eInstalled)) {
+        return;
+    }
+
+    if (package.configure == eMeson) {
+        std::string builddir = package.build.string();
+        auto result = sp::call({ "meson", "install", "--quiet" }, sp::cwd{builddir});
+        if (result != 0) {
+            throw std::runtime_error("Failed to install package " + package.name);
+        }
+    } else {
+        throw std::runtime_error("Unknown configure program for " + package.name);
+    }
+
+    gPackageDb->RaisePackageStatus(package.name, eInstalled);
 }
 
 static void ReplaceArtifactPlaceholders(std::string& str) {
@@ -623,6 +682,61 @@ static void ReplaceArtifactPlaceholders(std::string& str) {
     ReplaceAll(str, "@BUILD@", gBuildRoot.string());
     ReplaceAll(str, "@REPO@", gRepoRoot.string());
     ReplaceAll(str, "@SOURCE@", gSourceRoot.string());
+}
+
+static void GenerateArtifact(std::string_view name, const ArtifactInfo& artifact) {
+    if (!gPackageDb->ShouldRunStep(name, eInstalled)) {
+        return;
+    }
+
+    for (const auto& script : artifact.scripts) {
+        auto path = script.script.string();
+
+        std::vector<std::string> args = { "/bin/sh", path };
+        args.insert(args.end(), script.args.begin(), script.args.end());
+
+        for (std::string& arg : args) {
+            ReplaceArtifactPlaceholders(arg);
+        }
+
+        std::map env = script.env;
+        env["PREFIX"] = gInstallPrefix.string();
+        env["BUILD"] = gBuildRoot.string();
+        env["REPO"] = gRepoRoot.string();
+        env["SOURCE"] = gSourceRoot.string();
+
+        std::println(std::cout, "{}: execute {}", name, args[1]);
+        auto result = sp::call(args, sp::environment{env});
+        if (result != 0) {
+            throw std::runtime_error("Failed to run script " + args[1]);
+        }
+    }
+
+    gPackageDb->RaisePackageStatus(name, eInstalled);
+}
+
+static std::set<std::string> GetPackageDependencies(const std::string& name) {
+    std::set<std::string> deps;
+
+    std::function<void(const std::string&)> visit = [&](const std::string& name) {
+        if (deps.contains(name)) {
+            return;
+        }
+
+        deps.insert(name);
+
+        if (!gWorkspace.packages.contains(name)) {
+            return;
+        }
+
+        for (const auto& dep : gWorkspace.packages[name].dependencies) {
+            visit(dep.name);
+        }
+    };
+
+    visit(name);
+
+    return deps;
 }
 
 static std::set<fs::path> gImportPaths;
@@ -746,8 +860,6 @@ int main(int argc, const char **argv) try {
     gInstallPrefix = prefix;
     gSourceRoot = pwd / sources;
 
-    std::println(std::cout, "config: repo={}, build={}, prefix={}, sources={}", gRepoRoot.string(), gBuildRoot.string(), gInstallPrefix.string(), gSourceRoot.string());
-
     MakeFolder(gBuildRoot);
     MakeFolder(PackageCacheRoot());
     MakeFolder(PackageBuildRoot());
@@ -768,6 +880,23 @@ int main(int argc, const char **argv) try {
         }
     }
 
+    auto applyStateLowering = [&](std::string flag, PackageStatus status) {
+        auto all = parser.get<std::vector<std::string>>(flag);
+        for (const auto& name : all) {
+            if (gWorkspace.packages.contains(name)) {
+                auto deps = GetPackageDependencies(name);
+                for (const auto& dep : deps) {
+                    gPackageDb->LowerPackageStatus(dep, status);
+                }
+            }
+        }
+    };
+
+    applyStateLowering("--fetch", eUnknown);
+    applyStateLowering("--reconfigure", eDownloaded);
+    applyStateLowering("--rebuild", eConfigured);
+    applyStateLowering("--reinstall", eBuilt);
+
     for (auto& package : gWorkspace.packages) {
         AcquirePackage(package.second);
     }
@@ -784,29 +913,12 @@ int main(int argc, const char **argv) try {
         BuildPackage(package.second);
     }
 
+    for (auto& package : gWorkspace.packages) {
+        InstallPackage(package.second);
+    }
+
     for (auto& artifact : gWorkspace.artifacts) {
-        for (const auto& script : artifact.second.scripts) {
-            auto path = script.script.string();
-
-            std::vector<std::string> args = { "/bin/sh", path };
-            args.insert(args.end(), script.args.begin(), script.args.end());
-
-            for (std::string& arg : args) {
-                ReplaceArtifactPlaceholders(arg);
-            }
-
-            std::map env = script.env;
-            env["PREFIX"] = gInstallPrefix.string();
-            env["BUILD"] = gBuildRoot.string();
-            env["REPO"] = gRepoRoot.string();
-            env["SOURCE"] = gSourceRoot.string();
-
-            std::println(std::cout, "{}: execute {}", artifact.first, args[1]);
-            auto result = sp::call(args, sp::environment{env});
-            if (result != 0) {
-                throw std::runtime_error("Failed to run script " + args[1]);
-            }
-        }
+        GenerateArtifact(artifact.first, artifact.second);
     }
 
     if (parser.present("--workspace")) {
