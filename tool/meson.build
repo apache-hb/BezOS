@@ -13,8 +13,9 @@ argparse = dependency('argparse')
 subprocess = dependency('cpp-subprocess')
 libarchive = dependency('libarchive')
 sqlitecpp = dependency('sqlitecpp')
+pgbar = dependency('progressbar')
 
 executable('package.elf', 'package/main.cpp',
     install : true,
-    dependencies : [libxml2, openssl, curl, argo, argparse, subprocess, libarchive, sqlitecpp]
+    dependencies : [libxml2, openssl, curl, argo, argparse, subprocess, libarchive, sqlitecpp, pgbar]
 )

@@ -8,6 +8,8 @@
 
 #include <argo.hpp>
 
+#include <pgbar/pgbar.hpp>
+
 #include <SQLiteCpp/SQLiteCpp.h>
 
 #include <libxml/parser.h>
@@ -75,6 +77,12 @@ struct PackageInfo {
     std::string mesonCrossFile;
     std::string mesonNativeFile;
     std::vector<ScriptExec> scripts;
+    std::map<std::string, std::string> options;
+    std::string configureSourcePath;
+
+    std::string GetConfigureSourcePath() const {
+        return configureSourcePath.empty() ? GetWorkspaceFolder().string() : configureSourcePath;
+    }
 
     fs::path GetWorkspaceFolder() const {
         return source.empty() ? imported.string() : source.string();
@@ -262,7 +270,7 @@ struct PackageDb {
 
     void LowerPackageStatus(std::string_view name, PackageStatus status) {
         auto current = GetPackageStatus(name);
-        if (current == eUnknown || current > status) {
+        if (current > status) {
             SetPackageStatus(name, status);
         }
     }
@@ -409,6 +417,21 @@ struct XmlNode {
         }
     }
 
+    std::map<std::string, std::string> properties() const {
+        std::map<std::string, std::string> result;
+
+        for (xmlAttrPtr attr = node->properties; attr != nullptr; attr = attr->next) {
+            const xmlChar *name = attr->name;
+            xmlChar *value = xmlGetProp(node, name);
+
+            result[reinterpret_cast<const char *>(name)] = reinterpret_cast<const char *>(value);
+
+            xmlFree(value);
+        }
+
+        return result;
+    }
+
     std::optional<std::string> property(const char *name) const {
         xmlChar *value = xmlGetProp(node, reinterpret_cast<const xmlChar *>(name));
         if (value == nullptr) {
@@ -524,8 +547,6 @@ static void ExtractArchive(std::string_view name, const fs::path& archive, const
         fs::path path = entryPath;
         fs::path file = dst / path;
 
-        std::println(std::cout, "{}: extract {} -> {}", name, path.string(), file.string());
-
         std::ofstream os(file, std::ios::binary);
         if (!os.is_open()) {
             throw std::runtime_error("Failed to open file "s + path.string());
@@ -639,6 +660,14 @@ static void ReadPackageConfig(XmlNode root) {
                 packageInfo.configure = eCMake;
             } else {
                 throw std::runtime_error("Unknown configure program " + with);
+            }
+
+            for (XmlNode child : action.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
+                if (child.name() == "options"sv) {
+                    packageInfo.options = child.properties();
+                } else if (child.name() == "source"sv) {
+                    packageInfo.configureSourcePath = ExpectProperty<std::string>(child, "path");
+                }
             }
         }
     }
@@ -783,14 +812,15 @@ static void ConfigurePackage(const PackageInfo& package) {
         return;
     }
 
-    std::println(std::cout, "{}: configure", package.name);
+    auto cwd = package.GetConfigureSourcePath();
+    ReplacePackagePlaceholders(cwd, package);
+    std::println(std::cout, "{}: configure {}", package.name, cwd);
 
     if (package.configure == eMeson) {
         std::vector<std::string> args = {
             "meson", "setup", package.build.string(), "--wipe",
             "--prefix", package.install.string(),
         };
-        auto cwd = package.GetWorkspaceFolder().string();
 
         if (!package.mesonCrossFile.empty()) {
             args.push_back("--cross-file");
@@ -804,6 +834,36 @@ static void ConfigurePackage(const PackageInfo& package) {
             std::string nativeFile = package.mesonNativeFile;
             ReplacePackagePlaceholders(nativeFile, package);
             args.push_back(nativeFile);
+        }
+
+        for (auto& [key, value] : package.options) {
+            std::string val = value;
+            ReplacePackagePlaceholders(val, package);
+            args.push_back("-D" + key + "=" + val);
+        }
+
+        auto result = sp::call(args, sp::cwd{cwd});
+        if (result != 0) {
+            throw std::runtime_error("Failed to configure package " + package.name);
+        }
+    } else if (package.configure == eCMake) {
+        auto builddir = package.build.string();
+        if (fs::exists(builddir)) {
+            fs::remove_all(builddir);
+        }
+
+        std::vector<std::string> args = {
+            "cmake", "-S", cwd, "-B", builddir,
+            "-DCMAKE_INSTALL_PREFIX=" + package.install.string(),
+            "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+            "-G", "Ninja",
+            "-DCMAKE_BUILD_TYPE=MinSizeRel",
+        };
+
+        for (auto& [key, value] : package.options) {
+            std::string val = value;
+            ReplacePackagePlaceholders(val, package);
+            args.push_back("-D" + key + "=" + val);
         }
 
         auto result = sp::call(args, sp::cwd{cwd});
@@ -827,10 +887,15 @@ static void BuildPackage(const PackageInfo& package) {
     }
 
     std::println(std::cout, "{}: build", package.name);
+    std::string builddir = package.build.string();
 
     if (package.configure == eMeson) {
-        std::string builddir = package.build.string();
         auto result = sp::call({ "meson", "compile" }, sp::cwd{builddir});
+        if (result != 0) {
+            throw std::runtime_error("Failed to build package " + package.name);
+        }
+    } else if (package.configure == eCMake) {
+        auto result = sp::call({ "cmake", "--build", builddir }, sp::cwd{builddir});
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
@@ -851,10 +916,15 @@ static void InstallPackage(const PackageInfo& package) {
     }
 
     std::println(std::cout, "{}: install", package.name);
+    std::string builddir = package.build.string();
 
     if (package.configure == eMeson) {
-        std::string builddir = package.build.string();
         auto result = sp::call({ "meson", "install", "--quiet" }, sp::cwd{builddir});
+        if (result != 0) {
+            throw std::runtime_error("Failed to install package " + package.name);
+        }
+    } else if (package.configure == eCMake) {
+        auto result = sp::call({ "cmake", "--install", builddir }, sp::cwd{builddir});
         if (result != 0) {
             throw std::runtime_error("Failed to install package " + package.name);
         }
@@ -982,6 +1052,21 @@ static void GenerateClangDaemonConfig() {
     file << text;
 }
 
+static void ReadRepoElement(XmlNode root) {
+    for (XmlNode child : root.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
+        auto type = child.name();
+        if (type == "package"sv) {
+            ReadPackageConfig(child);
+        } else if (type == "artifact"sv) {
+            ReadArtifactConfig(child);
+        } else if (type == "collection"sv) {
+            ReadRepoElement(child);
+        } else {
+            std::println(std::cerr, "Unknown tag {}", type);
+        }
+    }
+}
+
 int main(int argc, const char **argv) try {
     argparse::ArgumentParser parser{"BezOS package repository manager"};
 
@@ -1083,16 +1168,7 @@ int main(int argc, const char **argv) try {
 
     gWorkspace.AddFolder(std::filesystem::current_path(), "root");
 
-    for (XmlNode child : root.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
-        auto type = child.name();
-        if (type == "package"sv) {
-            ReadPackageConfig(child);
-        } else if (type == "artifact"sv) {
-            ReadArtifactConfig(child);
-        } else {
-            std::println(std::cerr, "Unknown tag {}", type);
-        }
-    }
+    ReadRepoElement(root);
 
     auto applyStateLowering = [&](std::string flag, PackageStatus status) {
         auto all = parser.get<std::vector<std::string>>(flag);
@@ -1110,7 +1186,6 @@ int main(int argc, const char **argv) try {
     applyStateLowering("--fetch", eUnknown);
 
     gPackageDb->DumpTargetStates();
-
 
     for (auto& package : gWorkspace.packages) {
         AcquirePackage(package.second);

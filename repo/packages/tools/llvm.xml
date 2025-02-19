@@ -1,0 +1,15 @@
+<package name='llvm'>
+    <download file='llvm-project.zip'
+              url='https://github.com/llvm/llvm-project/archive/dca73063653ca7d35afb3226ae66623495086204.zip'
+              sha256='a92c202db56bf7839363c3b4aaaf753701d2731d20ec2d372f03ab26be915dd0'
+              trim-root-folder='true'
+              archive='zip' />
+
+    <configure with='cmake'>
+        <source path='@SOURCE_ROOT@/llvm' />
+        <options LLVM_ENABLE_PROJECTS='llvm;clang;lld'
+                 CMAKE_C_COMPILER="clang"
+                 CMAKE_CXX_COMPILER="clang++"
+                 CMAKE_LINKER="ld.lld" />
+    </configure>
+</package>

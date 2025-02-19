@@ -1,0 +1,8 @@
+[wrap-git]
+url = https://github.com/Konvt/pgbar.git
+revision = HEAD
+
+patch_directory = progressbar
+
+[provide]
+dependency_names = progressbar
