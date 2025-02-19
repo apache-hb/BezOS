@@ -16,3 +16,7 @@ data/hyper/*
 /sources/system/subprojects/flanterm
 /sources/kernel/subprojects/ultra
 /sources/kernel/subprojects/abseil-cpp
+*/packagecache/*
+/sources/kernel/subprojects/kernel-common
+/sources/kernel-common/subprojects/sysapi
+/sources/kernel-test/subprojects/kernel-common

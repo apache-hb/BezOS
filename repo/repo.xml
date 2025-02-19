@@ -4,15 +4,26 @@
 
     <xi:include href='packages/sysapi.xml' />
     <xi:include href='packages/system.xml' />
+
+    <xi:include href='packages/kernel-common.xml' />
     <xi:include href='packages/kernel.xml' />
+
+    <xi:include href='packages/kernel-test.xml' />
+
+    <artifact name='initrd'>
+        <require package='system' />
+        <script path='@REPO@/data/generate-initrd.sh' />
+    </artifact>
 
     <artifact name='bezos-limine'>
         <require package='kernel' />
+        <require package='initrd' />
         <script path='@REPO@/data/limine-image.sh' />
     </artifact>
 
     <artifact name='bezos-hyper'>
         <require package='kernel' />
+        <require package='initrd' />
         <script path='@REPO@/data/hyper-image.sh' />
     </artifact>
 </repo>

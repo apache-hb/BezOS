@@ -11,7 +11,6 @@ fs = import('fs')
 lib_image = static_library('stb_image', fs.copyfile('stb_image.h', 'stb_image.c'),
     c_args : [ '-DSTB_IMAGE_IMPLEMENTATION' ],
     build_by_default : false,
-    native : true,
 )
 
 image_dep = declare_dependency(
@@ -26,7 +25,6 @@ meson.override_dependency('stb_image', image_dep)
 lib_sprintf = static_library('stb_sprintf', fs.copyfile('stb_sprintf.h', 'stb_sprintf.c'),
     c_args : [ '-DSTB_SPRINTF_IMPLEMENTATION' ],
     build_by_default : false,
-    native : true,
 )
 
 sprintf_dep = declare_dependency(
@@ -41,7 +39,6 @@ meson.override_dependency('stb_sprintf', sprintf_dep)
 lib_perlin = static_library('stb_perlin', fs.copyfile('stb_perlin.h', 'stb_perlin.c'),
     c_args : [ '-DSTB_PERLIN_IMPLEMENTATION' ],
     build_by_default : false,
-    native : true,
 )
 
 perlin_dep = declare_dependency(
@@ -56,7 +53,6 @@ meson.override_dependency('stb_perlin', perlin_dep)
 lib_rectpack = static_library('stb_rect_pack', fs.copyfile('stb_rect_pack.h', 'stb_rect_pack.c'),
     c_args : [ '-DSTB_RECT_PACK_IMPLEMENTATION' ],
     build_by_default : false,
-    native : true,
 )
 
 rectpack_dep = declare_dependency(
@@ -71,7 +67,6 @@ meson.override_dependency('stb_rect_pack', rectpack_dep)
 lib_image_resize = static_library('stb_image_resize', fs.copyfile('stb_image_resize2.h', 'stb_image_resize2.c'),
     c_args : [ '-DSTB_IMAGE_RESIZE_IMPLEMENTATION' ],
     build_by_default : false,
-    native : true,
 )
 
 image_resize_dep = declare_dependency(
@@ -86,7 +81,6 @@ meson.override_dependency('stb_image_resize', image_resize_dep)
 lib_image_write = static_library('stb_image_write', fs.copyfile('stb_image_write.h', 'stb_image_write.c'),
     c_args : [ '-DSTB_IMAGE_WRITE_IMPLEMENTATION' ],
     build_by_default : false,
-    native : true,
 )
 
 image_write_dep = declare_dependency(
@@ -101,7 +95,6 @@ meson.override_dependency('stb_image_write', image_write_dep)
 lib_truetype = static_library('stb_truetype', fs.copyfile('stb_truetype.h', 'stb_truetype.c'),
     c_args : [ '-DSTB_TRUETYPE_IMPLEMENTATION' ],
     build_by_default : false,
-    native : true,
 )
 
 truetype_dep = declare_dependency(

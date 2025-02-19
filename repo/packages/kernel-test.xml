@@ -1,0 +1,9 @@
+<package name='kernel-test'>
+    <require package='kernel-common' symlink='subprojects/kernel-common' />
+
+    <source path='kernel-test' />
+
+    <configure with='meson'>
+        <native-file path='@REPO@/data/x64-clang.ini' />
+    </configure>
+</package>

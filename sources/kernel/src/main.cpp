@@ -1224,7 +1224,7 @@ static void AddDebugSystemCalls() {
 static void AddVfsSystemCalls() {
     AddSystemCall(eOsCallFileOpen, [](uint64_t userArgPathBegin, uint64_t userArgPathEnd, [[maybe_unused]] uint64_t mode, uint64_t) -> OsCallResult {
         vfs2::VfsString userPath;
-        if (OsStatus status = km::CopyUserRange((void*)userArgPathBegin, (void*)userArgPathEnd, &userPath, kMaxPathSize)) {
+        if (OsStatus status = km::CopyUserRange(km::GetSystemMemory()->pt, (void*)userArgPathBegin, (void*)userArgPathEnd, &userPath, kMaxPathSize)) {
             return CallError(status);
         }
 
@@ -1265,12 +1265,12 @@ static void AddVfsSystemCalls() {
 static void AddDeviceSystemCalls() {
     AddSystemCall(eOsCallDeviceOpen, [](uint64_t userCreateInfo, uint64_t, uint64_t, uint64_t) -> OsCallResult {
         OsDeviceCreateInfo createInfo{};
-        if (OsStatus status = km::CopyUserMemory(userCreateInfo, sizeof(createInfo), &createInfo)) {
+        if (OsStatus status = km::CopyUserMemory(km::GetSystemMemory()->pt, userCreateInfo, sizeof(createInfo), &createInfo)) {
             return CallError(status);
         }
 
         vfs2::VfsString userPath;
-        if (OsStatus status = km::CopyUserRange(createInfo.NameFront, createInfo.NameBack, &userPath, kMaxPathSize)) {
+        if (OsStatus status = km::CopyUserRange(km::GetSystemMemory()->pt, createInfo.NameFront, createInfo.NameBack, &userPath, kMaxPathSize)) {
             return CallError(status);
         }
 
@@ -1294,7 +1294,7 @@ static void AddDeviceSystemCalls() {
         vfs2::IVfsNodeHandle *handle = (vfs2::IVfsNodeHandle*)userHandle;
 
         OsDeviceReadRequest request{};
-        if (OsStatus status = km::CopyUserMemory(userRequest, sizeof(request), &request)) {
+        if (OsStatus status = km::CopyUserMemory(km::GetSystemMemory()->pt, userRequest, sizeof(request), &request)) {
             return CallError(status);
         }
 
@@ -1336,7 +1336,7 @@ static void AddThreadSystemCalls() {
 static void AddVmemSystemCalls() {
     AddSystemCall(eOsCallAddressSpaceCreate, [](uint64_t userCreateInfo, uint64_t, uint64_t, uint64_t) -> OsCallResult {
         OsAddressSpaceCreateInfo createInfo{};
-        if (OsStatus status = km::CopyUserMemory(userCreateInfo, sizeof(createInfo), &createInfo)) {
+        if (OsStatus status = km::CopyUserMemory(km::GetSystemMemory()->pt, userCreateInfo, sizeof(createInfo), &createInfo)) {
             return CallError(status);
         }
 
@@ -1361,7 +1361,7 @@ static void AddVmemSystemCalls() {
         }
 
         stdx::String name;
-        if (OsStatus status = km::CopyUserRange(createInfo.NameFront, createInfo.NameBack, &name, kMaxPathSize)) {
+        if (OsStatus status = km::CopyUserRange(km::GetSystemMemory()->pt, createInfo.NameFront, createInfo.NameBack, &name, kMaxPathSize)) {
             return CallError(status);
         }
 
@@ -1385,7 +1385,7 @@ static void AddVmemSystemCalls() {
             .Access = eOsMemoryRead | eOsMemoryWrite | eOsMemoryExecute,
         };
 
-        if (OsStatus status = km::WriteUserMemory((void*)userStat, &stat, sizeof(stat))) {
+        if (OsStatus status = km::WriteUserMemory(km::GetSystemMemory()->pt, (void*)userStat, &stat, sizeof(stat))) {
             return CallError(status);
         }
 

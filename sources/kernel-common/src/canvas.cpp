@@ -4,8 +4,6 @@
 
 #include "font.hpp"
 
-#include "kernel.hpp"
-
 uint16_t km::detail::Channel::maxValue() const { return (1 << size) - 1; }
 
 uint64_t km::detail::Channel::asValue(uint8_t value) const {

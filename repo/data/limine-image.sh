@@ -1,15 +1,7 @@
 #!/bin/sh
 
-# Create initrd by archiving the /system directory
-
 IMAGE=${PREFIX}/image
-INITRD=${IMAGE}/limine/initrd.tar
-
-mkdir -p ${IMAGE}
-
-rm ${INITRD} 2> /dev/null
-
-tar -cf ${INITRD} -C ${PREFIX}/system/bin .
+INITRD=${PREFIX}/initrd/initrd.tar
 
 # Build limine disk image
 

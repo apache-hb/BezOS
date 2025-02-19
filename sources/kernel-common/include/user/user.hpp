@@ -3,7 +3,6 @@
 #include <bezos/status.h>
 
 #include "memory/allocator.hpp"
-#include "kernel.hpp"
 
 #include <cstddef>
 
@@ -12,12 +11,12 @@ namespace km {
 
     bool IsRangeMapped(const km::PageTableManager& pt, const void *begin, const void *end, km::PageFlags flags);
 
-    OsStatus CopyUserMemory(uint64_t address, size_t size, void *copy);
+    OsStatus CopyUserMemory(const km::PageTableManager& pt, uint64_t address, size_t size, void *copy);
 
-    OsStatus ReadUserMemory(const void *front, const void *back, void *dst, size_t size);
+    OsStatus ReadUserMemory(const km::PageTableManager& pt, const void *front, const void *back, void *dst, size_t size);
 
     template<typename Range>
-    OsStatus CopyUserRange(const void *front, const void *back, Range *dst, size_t limit) {
+    OsStatus CopyUserRange(const km::PageTableManager& pt, const void *front, const void *back, Range *dst, size_t limit) {
         if (front >= back) {
             return OsStatusInvalidInput;
         }
@@ -27,7 +26,7 @@ namespace km {
             return OsStatusInvalidInput;
         }
 
-        if (!IsRangeMapped(GetSystemMemory()->pt, front, back, PageFlags::eUser | PageFlags::eRead)) {
+        if (!IsRangeMapped(pt, front, back, PageFlags::eUser | PageFlags::eRead)) {
             return OsStatusInvalidInput;
         }
 
@@ -37,5 +36,5 @@ namespace km {
     }
 
 
-    OsStatus WriteUserMemory(void *dst, const void *src, size_t size);
+    OsStatus WriteUserMemory(const km::PageTableManager& pt, void *dst, const void *src, size_t size);
 }

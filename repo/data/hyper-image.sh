@@ -1,23 +1,18 @@
 #!/bin/sh
 
-# Create initrd by archiving the /system directory
-
 IMAGE=${PREFIX}/image
-INITRD=${IMAGE}/hyper/initrd.tar
-
-mkdir -p ${IMAGE}
-
-rm ${INITRD} 2> /dev/null
-
-tar -cf ${INITRD} -C ${PREFIX}/system/bin .
+INITRD=${PREFIX}/initrd/initrd.tar
 
 # Build hyper disk image
+
+mkdir -p ${IMAGE}/hyper/image/boot/hyper
+mkdir -p ${IMAGE}/hyper/image/EFI/BOOT
 
 ## Create ESP image
 
 ESP_IMAGE=${IMAGE}/hyper/image/esp.fat32
 
-rm ${ESP_IMAGE}
+rm ${ESP_IMAGE} 2> /dev/null
 
 dd if=/dev/zero of=${ESP_IMAGE} bs=1M count=2
 
@@ -30,9 +25,6 @@ parted -s ${ESP_IMAGE} set 1 boot on
 ${PREFIX}/hyper/share/hyper_install ${ESP_IMAGE}
 
 ## Create ISO hybrid image
-
-mkdir -p ${IMAGE}/hyper/image/boot/hyper
-mkdir -p ${IMAGE}/hyper/image/EFI/BOOT
 
 cp ${PREFIX}/kernel/bin/bezos-hyper.elf ${IMAGE}/hyper/image/boot/bezos-hyper.elf
 

@@ -1,11 +1,15 @@
-#include <cstdarg>
 #include <gtest/gtest.h>
+
+#include <cstdarg>
+#include <source_location>
 
 #include "absl/base/internal/raw_logging.h"
 #include "absl/base/internal/throw_delegate.h"
 
 #include "isr.hpp"
-#include "kernel.hpp"
+
+#include "log.hpp"
+#include "panic.hpp"
 
 #include "absl/hash/internal/city.cc"
 #include "absl/hash/internal/hash.cc"

@@ -79,6 +79,7 @@ struct PackageInfo {
     ConfigureProgram configure{eNone};
     std::string version;
     std::string mesonCrossFile;
+    std::string mesonNativeFile;
 
     fs::path GetWorkspaceFolder() const {
         return source.empty() ? imported.string() : source.string();
@@ -101,35 +102,99 @@ enum PackageStatus {
     eInstalled,
 };
 
+static const char *GetPackageStatusString(PackageStatus status) {
+    switch (status) {
+    case eUnknown:
+        return "unknown";
+    case eDownloaded:
+        return "downloaded";
+    case eConfigured:
+        return "configured";
+    case eBuilt:
+        return "built";
+    case eInstalled:
+        return "installed";
+    default:
+        return "unknown";
+    }
+}
+
+static PackageStatus GetPackageStatusFromString(std::string_view status) {
+    if (status == "unknown") {
+        return eUnknown;
+    } else if (status == "downloaded") {
+        return eDownloaded;
+    } else if (status == "configured") {
+        return eConfigured;
+    } else if (status == "built") {
+        return eBuilt;
+    } else if (status == "installed") {
+        return eInstalled;
+    } else {
+        return eUnknown;
+    }
+}
+
 struct PackageDb {
     sql::Database db;
 
     PackageDb(const fs::path& path) : db(path, sql::OPEN_READWRITE | sql::OPEN_CREATE) {
         db.exec(
-            "CREATE TABLE IF NOT EXISTS packages (\n"
+            "CREATE TABLE IF NOT EXISTS targets (\n"
             "    name TEXT PRIMARY KEY,\n"
             "    status TEXT\n"
             ")\n"
         );
+
+        db.exec("DROP TABLE IF EXISTS dependencies");
+
+        db.exec(
+            "CREATE TABLE dependencies (\n"
+            "    package TEXT,\n"
+            "    dependency TEXT,\n"
+            "    UNIQUE(package, dependency)\n"
+            ")\n"
+        );
+    }
+
+    void AddDependency(std::string_view package, std::string_view dependency) {
+        sql::Statement query(db, "INSERT OR REPLACE INTO dependencies (package, dependency) VALUES (?, ?)");
+        query.bind(1, package.data());
+        query.bind(2, dependency.data());
+        query.exec();
+    }
+
+    /// @brief Walk up the dependency tree to find all dependant packages
+    std::set<std::string> GetDependantPackages(std::string_view name) {
+        std::set<std::string> result;
+
+        sql::Statement query(db,
+            "WITH RECURSIVE dependants AS (\n"
+            "    SELECT package, dependency FROM dependencies WHERE dependency = ?\n"
+            "    UNION\n"
+            "    SELECT d.package, d.dependency FROM dependencies d\n"
+            "    JOIN dependants ON d.dependency = dependants.package\n"
+            ")\n"
+            "SELECT package FROM dependants"
+        );
+        query.bind(1, name.data());
+
+        while (query.executeStep()) {
+            result.insert(query.getColumn(0).getString());
+        }
+
+        result.insert(std::string(name));
+
+        return result;
     }
 
     PackageStatus GetPackageStatus(std::string_view name) {
-        sql::Statement query(db, "SELECT status FROM packages WHERE name = ?");
+        sql::Statement query(db, "SELECT status FROM targets WHERE name = ?");
         query.bind(1, name.data());
 
         if (query.executeStep()) {
             auto state = query.getColumn(0).getString();
-            if (state == "downloaded") {
-                return eDownloaded;
-            } else if (state == "configured") {
-                return eConfigured;
-            } else if (state == "built") {
-                return eBuilt;
-            } else if (state == "installed") {
-                return eInstalled;
-            } else {
-                return eUnknown;
-            }
+            return GetPackageStatusFromString(state);
         }
 
         return eUnknown;
@@ -141,27 +206,9 @@ struct PackageDb {
     }
 
     void SetPackageStatus(std::string_view name, PackageStatus status) {
-        sql::Statement query(db, "INSERT OR REPLACE INTO packages (name, status) VALUES (?, ?)");
+        sql::Statement query(db, "INSERT OR REPLACE INTO targets (name, status) VALUES (?, ?)");
         query.bind(1, std::string(name));
-
-        switch (status) {
-        case eDownloaded:
-            query.bind(2, "downloaded");
-            break;
-        case eConfigured:
-            query.bind(2, "configured");
-            break;
-        case eBuilt:
-            query.bind(2, "built");
-            break;
-        case eInstalled:
-            query.bind(2, "installed");
-            break;
-        default:
-            query.bind(2, "unknown");
-            break;
-        }
-
+        query.bind(2, GetPackageStatusString(status));
         query.exec();
     }
 
@@ -172,10 +219,17 @@ struct PackageDb {
         }
     }
 
-    void RaisePackageStatus(std::string_view name, PackageStatus status) {
+    void RaiseTargetStatus(std::string_view name, PackageStatus status) {
         auto current = GetPackageStatus(name);
         if (current == eUnknown || current < status) {
             SetPackageStatus(name, status);
+        }
+    }
+
+    void DumpTargetStates() {
+        sql::Statement query(db, "SELECT name, status FROM targets");
+        while (query.executeStep()) {
+            std::cout << query.getColumn(0).getString() << ": " << query.getColumn(1).getString() << std::endl;
         }
     }
 };
@@ -222,6 +276,10 @@ struct Workspace {
     }
 
     fs::path GetPackagePath(const std::string& name) {
+        if (artifacts.contains(name)) {
+            return GetArtifactPath(name);
+        }
+
         if (!packages.contains(name)) {
             throw std::runtime_error("Unknown package " + name);
         }
@@ -230,6 +288,10 @@ struct Workspace {
     }
 
     fs::path GetArtifactPath(const std::string& name);
+
+    bool HasBuildTarget(const std::string& name) {
+        return packages.contains(name) || artifacts.contains(name);
+    }
 };
 
 static Workspace gWorkspace;
@@ -447,9 +509,11 @@ static bool ReadRequireTag(XmlNode node, const std::string& name, std::vector<Re
         throw std::runtime_error("Package " + name + " cannot require itself");
     }
 
-    if (!gWorkspace.packages.contains(package)) {
+    if (!gWorkspace.HasBuildTarget(package)) {
         throw std::runtime_error("Package " + name + " requires unknown package " + package);
     }
+
+    gPackageDb->AddDependency(name, package);
 
     if (!symlink.has_value()) {
         return false;
@@ -505,6 +569,8 @@ static void ReadPackageConfig(XmlNode root) {
                 for (XmlNode child : action.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
                     if (child.name() == "cross-file"sv) {
                         packageInfo.mesonCrossFile = ExpectProperty<std::string>(child, "path");
+                    } else if (child.name() == "native-file"sv) {
+                        packageInfo.mesonNativeFile = ExpectProperty<std::string>(child, "path");
                     }
                 }
             } else if (with == "cmake") {
@@ -564,6 +630,8 @@ static void AcquirePackage(const PackageInfo& package) {
         return;
     }
 
+    std::println(std::cout, "{}: acquire", package.name);
+
     for (const auto& download : package.downloads) {
         auto path = package.cache / download.file;
 
@@ -592,7 +660,7 @@ static void AcquirePackage(const PackageInfo& package) {
         fs::copy(src, dst, fs::copy_options::recursive | fs::copy_options::update_existing);
     }
 
-    gPackageDb->RaisePackageStatus(package.name, eDownloaded);
+    gPackageDb->RaiseTargetStatus(package.name, eDownloaded);
 }
 
 static void AddGitignoreSymlink(const fs::path& path) {
@@ -613,8 +681,6 @@ static void ConnectDependencies(const PackageInfo& package) {
         auto symlink = package.GetWorkspaceFolder() / dep.symlink;
         auto path = gWorkspace.GetPackagePath(dep.name);
 
-        std::println(std::cout, "{}: symlink {} -> {}", package.name, symlink.string(), path.string());
-
         auto cwd = fs::current_path();
         auto relative = symlink.lexically_relative(cwd);
 
@@ -624,9 +690,26 @@ static void ConnectDependencies(const PackageInfo& package) {
             continue;
         }
 
+        std::println(std::cout, "{}: symlink {} -> {}", package.name, symlink.string(), path.string());
+
         fs::create_directories(symlink.parent_path());
         fs::create_directory_symlink(path, symlink);
     }
+}
+
+static void ReplacePathPlaceholders(std::string& str) {
+    ReplaceAll(str, "@PREFIX@", gInstallPrefix.string());
+    ReplaceAll(str, "@BUILD@", gBuildRoot.string());
+    ReplaceAll(str, "@REPO@", gRepoRoot.string());
+    ReplaceAll(str, "@SOURCE@", gSourceRoot.string());
+}
+
+static void ReplacePackagePlaceholders(std::string& str, const PackageInfo& package) {
+    ReplacePathPlaceholders(str);
+    ReplaceAll(str, "@PACKAGE@", package.name);
+    ReplaceAll(str, "@SOURCE_ROOT@", package.GetWorkspaceFolder().string());
+    ReplaceAll(str, "@BUILD_ROOT@", package.GetBuildFolder().string());
+    ReplaceAll(str, "@INSTALL_ROOT@", package.install.string());
 }
 
 static void ConfigurePackage(const PackageInfo& package) {
@@ -638,6 +721,8 @@ static void ConfigurePackage(const PackageInfo& package) {
         return;
     }
 
+    std::println(std::cout, "{}: configure", package.name);
+
     if (package.configure == eMeson) {
         std::vector<std::string> args = {
             "meson", "setup", package.build.string(), "--wipe",
@@ -648,8 +733,15 @@ static void ConfigurePackage(const PackageInfo& package) {
         if (!package.mesonCrossFile.empty()) {
             args.push_back("--cross-file");
             std::string crossFile = package.mesonCrossFile;
-            ReplaceAll(crossFile, "@SOURCE_ROOT@", cwd);
+            ReplacePackagePlaceholders(crossFile, package);
             args.push_back(crossFile);
+        }
+
+        if (!package.mesonNativeFile.empty()) {
+            args.push_back("--native-file");
+            std::string nativeFile = package.mesonNativeFile;
+            ReplacePackagePlaceholders(nativeFile, package);
+            args.push_back(nativeFile);
         }
 
         auto result = sp::call(args, sp::cwd{cwd});
@@ -660,7 +752,7 @@ static void ConfigurePackage(const PackageInfo& package) {
         throw std::runtime_error("Unknown configure program for " + package.name);
     }
 
-    gPackageDb->RaisePackageStatus(package.name, eConfigured);
+    gPackageDb->RaiseTargetStatus(package.name, eConfigured);
 }
 
 static void BuildPackage(const PackageInfo& package) {
@@ -672,6 +764,8 @@ static void BuildPackage(const PackageInfo& package) {
         return;
     }
 
+    std::println(std::cout, "{}: build", package.name);
+
     if (package.configure == eMeson) {
         std::string builddir = package.build.string();
         auto result = sp::call({ "meson", "compile" }, sp::cwd{builddir});
@@ -682,7 +776,7 @@ static void BuildPackage(const PackageInfo& package) {
         throw std::runtime_error("Unknown configure program for " + package.name);
     }
 
-    gPackageDb->RaisePackageStatus(package.name, eBuilt);
+    gPackageDb->RaiseTargetStatus(package.name, eBuilt);
 }
 
 static void InstallPackage(const PackageInfo& package) {
@@ -694,6 +788,8 @@ static void InstallPackage(const PackageInfo& package) {
         return;
     }
 
+    std::println(std::cout, "{}: install", package.name);
+
     if (package.configure == eMeson) {
         std::string builddir = package.build.string();
         auto result = sp::call({ "meson", "install", "--quiet" }, sp::cwd{builddir});
@@ -704,20 +800,15 @@ static void InstallPackage(const PackageInfo& package) {
         throw std::runtime_error("Unknown configure program for " + package.name);
     }
 
-    gPackageDb->RaisePackageStatus(package.name, eInstalled);
-}
-
-static void ReplaceArtifactPlaceholders(std::string& str) {
-    ReplaceAll(str, "@PREFIX@", gInstallPrefix.string());
-    ReplaceAll(str, "@BUILD@", gBuildRoot.string());
-    ReplaceAll(str, "@REPO@", gRepoRoot.string());
-    ReplaceAll(str, "@SOURCE@", gSourceRoot.string());
+    gPackageDb->RaiseTargetStatus(package.name, eInstalled);
 }
 
 static void GenerateArtifact(std::string_view name, const ArtifactInfo& artifact) {
     if (!gPackageDb->ShouldRunStep(name, eInstalled)) {
         return;
     }
+
+    std::println(std::cout, "{}: generate", artifact.name);
 
     for (const auto& script : artifact.scripts) {
         auto path = script.script.string();
@@ -726,7 +817,7 @@ static void GenerateArtifact(std::string_view name, const ArtifactInfo& artifact
         args.insert(args.end(), script.args.begin(), script.args.end());
 
         for (std::string& arg : args) {
-            ReplaceArtifactPlaceholders(arg);
+            ReplacePathPlaceholders(arg);
         }
 
         std::map env = script.env;
@@ -742,31 +833,7 @@ static void GenerateArtifact(std::string_view name, const ArtifactInfo& artifact
         }
     }
 
-    gPackageDb->RaisePackageStatus(name, eInstalled);
-}
-
-static std::set<std::string> GetPackageDependencies(const std::string& name) {
-    std::set<std::string> deps;
-
-    std::function<void(const std::string&)> visit = [&](const std::string& name) {
-        if (deps.contains(name)) {
-            return;
-        }
-
-        deps.insert(name);
-
-        if (!gWorkspace.packages.contains(name)) {
-            return;
-        }
-
-        for (const auto& dep : gWorkspace.packages[name].dependencies) {
-            visit(dep.name);
-        }
-    };
-
-    visit(name);
-
-    return deps;
+    gPackageDb->RaiseTargetStatus(name, eInstalled);
 }
 
 static std::set<fs::path> gImportPaths;
@@ -805,6 +872,52 @@ static int incClose(void *context) {
 
 static int incRead(void *context, char *buffer, int size) {
     return fread(buffer, 1, size, (FILE*)context);
+}
+
+static void GenerateClangDaemonConfig() {
+    std::string text = []{
+        std::ifstream file(".clangd");
+
+        // read in the file
+        std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+
+        auto addClangdSection = [&](const fs::path& builddir, const fs::path& workspace) {
+            std::string fragment = std::format(
+                "If:\n"
+                "  PathMatch: [ {}/.* ]\n"
+                "CompileFlags:\n"
+                "  CompilationDatabase: {}\n",
+                workspace.string(),
+                builddir.string()
+            );
+
+            if (content.find(workspace.string()) == std::string::npos) {
+                if (!content.empty()) {
+                    content += "---\n";
+                }
+
+                content += fragment;
+            }
+        };
+
+        for (const auto& [name, pkg] : gWorkspace.packages) {
+            if (pkg.HasCompileCommands()) {
+                auto workspace = pkg.GetWorkspaceFolder().lexically_relative(fs::current_path());
+                auto builddir = pkg.GetBuildFolder();
+
+                addClangdSection(builddir, workspace);
+            }
+        }
+
+        // TODO: this isnt great, but idk how to figure out the build folder for the build tool.
+        addClangdSection(gBuildRoot / "tools", "tools");
+
+        return content;
+    }();
+
+    // truncate the file and write the new content
+    std::ofstream file(".clangd", std::ios::out | std::ios::trunc);
+    file << text;
 }
 
 int main(int argc, const char **argv) try {
@@ -918,19 +1031,19 @@ int main(int argc, const char **argv) try {
     auto applyStateLowering = [&](std::string flag, PackageStatus status) {
         auto all = parser.get<std::vector<std::string>>(flag);
         for (const auto& name : all) {
-            if (gWorkspace.packages.contains(name)) {
-                auto deps = GetPackageDependencies(name);
-                for (const auto& dep : deps) {
-                    gPackageDb->LowerPackageStatus(dep, status);
-                }
+            auto deps = gPackageDb->GetDependantPackages(name);
+            for (const auto& dep : deps) {
+                gPackageDb->LowerPackageStatus(dep, status);
             }
         }
     };
 
-    applyStateLowering("--fetch", eUnknown);
-    applyStateLowering("--reconfigure", eDownloaded);
-    applyStateLowering("--rebuild", eConfigured);
     applyStateLowering("--reinstall", eBuilt);
+    applyStateLowering("--rebuild", eConfigured);
+    applyStateLowering("--reconfigure", eDownloaded);
+    applyStateLowering("--fetch", eUnknown);
+
+    gPackageDb->DumpTargetStates();
 
     for (auto& package : gWorkspace.packages) {
         AcquirePackage(package.second);
@@ -942,6 +1055,10 @@ int main(int argc, const char **argv) try {
 
     for (auto& package : gWorkspace.packages) {
         ConfigurePackage(package.second);
+    }
+
+    if (parser["--clangd"] == true) {
+        GenerateClangDaemonConfig();
     }
 
     for (auto& package : gWorkspace.packages) {
@@ -958,35 +1075,6 @@ int main(int argc, const char **argv) try {
 
     if (parser.present("--workspace")) {
         argo::unparser::save(gWorkspace.workspace, parser.get<std::string>("--workspace"), " ", "\n", " ", 4);
-    }
-
-    if (parser["--clangd"] == true) {
-        bool first = true;
-        std::ofstream file(".clangd", std::ios::out);
-        auto addClangdSection = [&](const fs::path& builddir, const fs::path& workspace) {
-            if (!first) {
-                file << "---\n";
-            }
-
-            first = false;
-
-            file << "If:\n"
-                    "  PathMatch: [ " << workspace.string() << "/.* ]\n"
-                    "CompileFlags:\n"
-                    "  CompilationDatabase: " << builddir.string() << "\n";
-        };
-
-        for (const auto& [name, pkg] : gWorkspace.packages) {
-            if (pkg.HasCompileCommands()) {
-                auto workspace = pkg.GetWorkspaceFolder().lexically_relative(fs::current_path());
-                auto builddir = pkg.GetBuildFolder();
-
-                addClangdSection(builddir, workspace);
-            }
-        }
-
-        // TODO: this isnt great, but idk how to figure out the build folder for the build tool.
-        addClangdSection(gBuildRoot / "tools", "tools");
     }
 
 } catch (const std::exception &e) {

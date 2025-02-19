@@ -2,6 +2,7 @@
     <require package='hyper' />
     <require package='limine' symlink='subprojects/limine' />
     <require package='sysapi' symlink='subprojects/sysapi' />
+    <require package='kernel-common' symlink='subprojects/kernel-common' />
 
     <source path='kernel' />
 

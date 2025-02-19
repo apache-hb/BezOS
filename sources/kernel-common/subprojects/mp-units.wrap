@@ -1,0 +1,11 @@
+[wrap-file]
+directory = mp-units-2.4.0
+
+source_url = https://github.com/mpusz/mp-units/archive/refs/tags/v2.4.0.zip
+source_filename = mp-units-2.4.0.zip
+source_hash = 0ef588b77e4fab415aa58e20f1af6f75b20cf2ba67a0e7b7b81c37c3daf1bd1b
+
+patch_directory = mp-units-2.4.0
+
+[provide]
+dependency_names = mp-units

@@ -1,0 +1,5 @@
+<package name='kernel-common'>
+    <require package='sysapi' symlink='subprojects/sysapi' />
+
+    <source path='kernel-common' />
+</package>

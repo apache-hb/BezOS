@@ -6,6 +6,8 @@
 #include "fs2/device.hpp"
 #include "display.hpp"
 
+#include "kernel.hpp"
+
 namespace dev {
     class DisplayHandle : public vfs2::IVfsNodeHandle {
         km::Canvas mCanvas;
@@ -13,11 +15,11 @@ namespace dev {
 
         OsStatus blit(void *data) {
             OsDdiBlit request{};
-            if (OsStatus status = km::CopyUserMemory((uintptr_t)data, sizeof(request), &request)) {
+            if (OsStatus status = km::CopyUserMemory(km::GetSystemMemory()->pt, (uintptr_t)data, sizeof(request), &request)) {
                 return status;
             }
 
-            return km::ReadUserMemory(request.SourceFront, request.SourceBack, mCanvas.address(), mCanvas.size() * mCanvas.bytesPerPixel());
+            return km::ReadUserMemory(km::GetSystemMemory()->pt, request.SourceFront, request.SourceBack, mCanvas.address(), mCanvas.size() * mCanvas.bytesPerPixel());
         }
 
         OsStatus info(void *data) const {
@@ -35,12 +37,12 @@ namespace dev {
                 .BlueMaskShift = uint8_t(mCanvas.blueMaskShift()),
             };
 
-            return km::WriteUserMemory(data, &info, sizeof(info));
+            return km::WriteUserMemory(km::GetSystemMemory()->pt, data, &info, sizeof(info));
         }
 
         OsStatus fill(void *data) {
             OsDdiFill request{};
-            if (OsStatus status = km::CopyUserMemory((uintptr_t)data, sizeof(request), &request)) {
+            if (OsStatus status = km::CopyUserMemory(km::GetSystemMemory()->pt, (uintptr_t)data, sizeof(request), &request)) {
                 return status;
             }
 
@@ -54,7 +56,7 @@ namespace dev {
                 .Canvas = mUserCanvas,
             };
 
-            return km::WriteUserMemory(data, &result, sizeof(result));
+            return km::WriteUserMemory(km::GetSystemMemory()->pt, data, &result, sizeof(result));
         }
 
     public:
