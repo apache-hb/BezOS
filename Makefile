@@ -8,6 +8,8 @@ HYPER_INSTALL=data/hyper/hyper-install
 OVMF_CODE=install/ovmf/ovmf-code-x86_64.fd
 OVMF_VARS=install/ovmf/ovmf-vars-x86_64.fd
 
+ROOT := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
+
 .DEFAULT_GOAL := build
 
 $(OVMF_CODE):
@@ -81,3 +83,32 @@ clean:
 
 .PHONY: integration
 integration: qemu vbox vmware hyperv
+
+
+
+PKGTOOL := install/tool/bin/package.elf
+PKGTOOL_MESON := build/tool/build.ninja
+PKGTOOL_SRC := tool/package/main.cpp tool/meson.build
+
+$(PKGTOOL_MESON): $(PKGTOOL_SRC)
+	-(cd tool && meson setup $(ROOT)/build/tool --prefix $(ROOT)/install/tool) > /dev/null
+
+$(PKGTOOL): $(PKGTOOL_MESON) $(PKGTOOL_SRC)
+	meson install -C build/tool --quiet
+
+pkgtool: $(PKGTOOL)
+
+
+
+BUILDDIR := build
+REPO_DB := repo.db
+REPO := build/$(REPO_DB)
+
+REPO_CONFIG := repo/repo.xml
+REPO_SRC := repo/*.xml
+
+.PHONY: $(REPO)
+$(REPO): $(PKGTOOL) $(REPO_SRC)
+	$(PKGTOOL) --config $(REPO_CONFIG) --repo $(REPO_DB) --output build --prefix install --workspace bezos.code-workspace --clangd
+
+repo: $(REPO) $(REPO_SRC)

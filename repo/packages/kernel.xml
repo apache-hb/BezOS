@@ -1,0 +1,11 @@
+<package name='kernel'>
+    <require package='hyper' />
+    <require package='limine' symlink='subprojects/limine' />
+    <require package='sysapi' symlink='subprojects/sysapi' />
+
+    <source path='kernel' />
+
+    <configure with='meson'>
+        <cross-file path='@SOURCE_ROOT@/data/kernel.ini' />
+    </configure>
+</package>

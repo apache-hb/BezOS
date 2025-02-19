@@ -1,9 +1,0 @@
-[wrap-file]
-directory = libvirt-11.0.0
-
-source_url = https://download.libvirt.org/libvirt-11.0.0.tar.xz
-source_filename = libvirt-11.0.0.tar.xz
-source_hash = 01a176ff4042ad58cf83c09fe0925d6bc8eed0ecce1e0ee19b8ef4c1ffa3806e
-
-[provide]
-dependency_names = libvirt

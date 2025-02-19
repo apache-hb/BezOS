@@ -49,7 +49,7 @@ mp_units = dependency('mp-units')
 absl = subproject('abseil-cpp')
 concurrentqueue = dependency('concurrentqueue')
 tlsf = subproject('tlsf')
-sysapi = subproject('shared').get_variable('sysapi_dep')
+sysapi = subproject('sysapi').get_variable('sysapi_dep')
 
 inc = [ inc, absl.get_variable('absl_include_dir'), tlsf.get_variable('includes') ]
 libs = [ absl.get_variable('absl_container_lib') ]
@@ -203,31 +203,6 @@ kernel = static_library('kernel', src,
     link_with : libs,
     override_options : [ 'b_coverage=false' ],
 )
-
-###
-### sqlite
-###
-
-# sqlite = subproject('sqlite')
-# sqlite_args = [
-#     '-DSQLITE_OMIT_FLOATING_POINT=1',
-#     '-DSQLITE_OMIT_DEPRECATED=1',
-#     '-DSQLITE_OMIT_LOAD_EXTENSION=1',
-#     '-DSQLITE_OS_OTHER=1',
-#     '-DSQLITE_OMIT_JSON=1',
-#     '-DSQLITE_OMIT_EXPLAIN=1',
-#     '-DSQLITE_OMIT_DATETIME_FUNCS=1',
-#     '-DSQLITE_ZERO_MALLOC=1',
-#     '-Wno-keyword-macro',
-#     '-Wno-unused-parameter',
-#     '-Wno-literal-conversion',
-# ]
-# sqlite_kernel = library('sqlite', sqlite.get_variable('src'),
-#     include_directories : [ inc, sqlite.get_variable('inc') ],
-#     c_args : c_args + sqlite_args,
-#     cpp_args : cpp_args + sqlite_args,
-#     override_options : [ 'b_coverage=false' ],
-# )
 
 ###
 ### Limine version of the kernel image

@@ -1,0 +1,26 @@
+<repo name='bezos' sources='sources' xmlns:xi="http://www.w3.org/2003/XInclude">
+    <xi:include href='packages/hyper.xml' />
+    <xi:include href='packages/limine.xml' />
+
+    <xi:include href='packages/sysapi.xml' />
+    <xi:include href='packages/system.xml' />
+
+    <xi:include href='packages/kernel.xml' />
+
+    <artifact name='initrd'>
+        <require package='system' />
+        <script path='@REPO@/data/generate-initrd.sh' />
+    </artifact>
+
+    <artifact name='bezos-limine'>
+        <require package='kernel' />
+        <require package='initrd' />
+        <script path='@REPO@/data/limine-image.sh' />
+    </artifact>
+
+    <artifact name='bezos-hyper'>
+        <require package='kernel' />
+        <require package='initrd' />
+        <script path='@REPO@/data/hyper-image.sh' />
+    </artifact>
+</repo>

@@ -1,9 +1,0 @@
-If:
-  PathMatch: kernel/.*
-CompileFlags:
-  CompilationDatabase: build/kernel
----
-If:
-  PathMatch: [ system/.*, shared/.* ]
-CompileFlags:
-  CompilationDatabase: build/system
