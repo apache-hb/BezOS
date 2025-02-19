@@ -6,6 +6,6 @@
     <source path='kernel' />
 
     <configure with='meson'>
-        <cross file='@cross-file@' />
+        <cross-file path='@SOURCE_ROOT@/data/kernel.ini' />
     </configure>
 </package>

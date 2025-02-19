@@ -5,4 +5,9 @@
     <package path='packages/sysapi.xml' />
     <package path='packages/system.xml' />
     <package path='packages/kernel.xml' />
+
+    <artifact name='bezos-limine'>
+        <require package='kernel' />
+        <script path='@REPO@/data/limine-image.sh' />
+    </artifact>
 </repo>

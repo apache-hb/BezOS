@@ -2,7 +2,9 @@
     <require package='sysapi' symlink='subprojects/sysapi' />
 
     <source path='system' />
-    <configure with='meson' />
+    <configure with='meson'>
+        <cross-file path='@SOURCE_ROOT@/data/bezos.ini' />
+    </configure>
 
     <provide id='init.elf' data='bin/init.elf' />
 </package>

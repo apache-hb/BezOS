@@ -3,7 +3,7 @@
 MODE=$1
 ARGS=$@
 
-ISO=install/bezos-limine.iso
+ISO=install/image/bezos-limine.iso
 CANBUS=/tmp/canbus
 QEMUARGS="-M q35 -display gtk"
 
@@ -84,7 +84,7 @@ elif [ "$MODE" = "test" ]; then
 
     qemu-system-x86_64 $QEMUARGS $(serial_chardev qemu-serial.txt) $(serial_canbus) -smp 4 $ARGS
 else
-    make build || exit 1
+    # make build || exit 1
 
     qemu-system-x86_64 $QEMUARGS $(serial_chardev qemu-serial.txt) -smp 4 $ARGS
 fi

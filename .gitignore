@@ -8,3 +8,4 @@ install*/
 !/subprojects/packagefiles/
 data/hyper/*
 *.hdd
+*.code-workspace

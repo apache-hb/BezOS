@@ -7,10 +7,18 @@ project('limine', 'c',
 
 limine_dep = declare_dependency(include_directories : '.')
 
-executable('limine-install', 'limine.c',
-    native : true,
-    install : true
-)
-
 meson.override_dependency('limine', limine_dep)
 
+if not meson.is_subproject()
+    executable('limine-install', 'limine.c', install : true)
+
+    data = [
+        'BOOTX64.EFI',
+        'BOOTIA32.EFI',
+        'limine-bios-cd.bin',
+        'limine-bios-pxe.bin',
+        'limine-bios.sys',
+        'limine-uefi-cd.bin'
+    ]
+    install_data(data, install_dir : get_option('prefix') / 'share', install_tag : 'bin')
+endif

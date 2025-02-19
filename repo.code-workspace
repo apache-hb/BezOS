@@ -1,28 +1,29 @@
-{
-    "folders": [
-        {
-            "name": "root",
-            "path": "/home/elliothb/github/bezos"
-        },
-        {
-            "name": "hyper",
-            "path": "/home/elliothb/github/bezos/build/sources/hyper"
-        },
-        {
-            "name": "limine",
-            "path": "/home/elliothb/github/bezos/build/sources/limine"
-        },
-        {
-            "name": "sysapi",
-            "path": "/home/elliothb/github/bezos/sources/sysapi"
-        },
-        {
-            "name": "system",
-            "path": "/home/elliothb/github/bezos/sources/system"
-        },
-        {
-            "name": "kernel",
-            "path": "/home/elliothb/github/bezos/sources/kernel"
-        }
-    ]
-}
+{ 
+    "folders" : 
+        [ 
+            { 
+                "name" : "root",
+                "path" : "/home/elliothb/github/bezos"
+             }, 
+            { 
+                "name" : "hyper",
+                "path" : "/home/elliothb/github/bezos/build/sources/hyper"
+             }, 
+            { 
+                "name" : "limine",
+                "path" : "/home/elliothb/github/bezos/build/sources/limine"
+             }, 
+            { 
+                "name" : "sysapi",
+                "path" : "/home/elliothb/github/bezos/sources/sysapi"
+             }, 
+            { 
+                "name" : "system",
+                "path" : "/home/elliothb/github/bezos/sources/system"
+             }, 
+            { 
+                "name" : "kernel",
+                "path" : "/home/elliothb/github/bezos/sources/kernel"
+             }
+         ]
+ }

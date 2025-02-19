@@ -49,6 +49,19 @@ enum ConfigureProgram {
     eCMake,
 };
 
+struct ScriptExec {
+    fs::path script;
+    std::vector<std::string> args;
+    std::map<std::string, std::string> env;
+};
+
+struct ArtifactInfo {
+    std::string name;
+
+    std::vector<RequirePackage> dependencies;
+    std::vector<ScriptExec> scripts;
+};
+
 struct PackageInfo {
     std::string name;
     fs::path source;
@@ -61,6 +74,8 @@ struct PackageInfo {
     std::vector<Overlay> overlays;
     std::vector<RequirePackage> dependencies;
     ConfigureProgram configure{eNone};
+    std::string version;
+    std::string mesonCrossFile;
 
     fs::path GetWorkspaceFolder() const {
         return source.empty() ? imported.string() : source.string();
@@ -75,8 +90,24 @@ struct PackageInfo {
     }
 };
 
+constexpr static void ReplaceAll(std::string& str, std::string_view from, std::string_view to) {
+    size_t start_pos = 0;
+    while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
+        str.replace(start_pos, from.length(), to);
+        start_pos += to.length();
+    }
+}
+
+constexpr static std::string ReplaceText(std::string str, std::string_view from, std::string_view to) {
+    ReplaceAll(str, from, to);
+    return str;
+}
+
+static_assert(ReplaceText("@REPO@/data/image.sh", "@REPO@", "/repo") == "/repo/data/image.sh");
+
 struct Workspace {
     std::map<std::string, PackageInfo> packages;
+    std::map<std::string, ArtifactInfo> artifacts;
 
     argo::json workspace{argo::json::object_e};
 
@@ -105,6 +136,8 @@ struct Workspace {
 
         return packages[name].GetWorkspaceFolder();
     }
+
+    fs::path GetArtifactPath(const std::string& name);
 };
 
 static Workspace gWorkspace;
@@ -139,6 +172,14 @@ static fs::path PackageInstallPath(const std::string &name) {
 
 static fs::path PackageImportPath(const std::string &name) {
     return PackageImportRoot() / name;
+}
+
+fs::path Workspace::GetArtifactPath(const std::string& name) {
+    if (!artifacts.contains(name)) {
+        throw std::runtime_error("Unknown artifact " + name);
+    }
+
+    return PackageInstallPath(name);
 }
 
 static std::generator<xmlNodePtr> NodeChildren(xmlNodePtr node) {
@@ -288,6 +329,26 @@ static void DownloadFile(const std::string& url, const fs::path& dst) {
     }
 }
 
+static bool ReadRequireTag(xmlNodePtr node, const std::string& name, std::vector<RequirePackage>& deps) {
+    auto package = ExpectProperty<std::string>(node, "package");
+    auto symlink = GetProperty(node, "symlink");
+
+    if (package == name) {
+        throw std::runtime_error("Package " + name + " cannot require itself");
+    }
+
+    if (!gWorkspace.packages.contains(package)) {
+        throw std::runtime_error("Package " + name + " requires unknown package " + package);
+    }
+
+    if (!symlink.has_value()) {
+        return false;
+    }
+
+    deps.push_back(RequirePackage{package, symlink.value()});
+    return true;
+}
+
 static void ReadPackageConfig(xmlNodePtr node) {
     fs::path path = UnwrapOptional(GetProperty(node, "path"), "Missing package path property");
 
@@ -320,24 +381,7 @@ static void ReadPackageConfig(xmlNodePtr node) {
 
             packageInfo.downloads.push_back(Download{url, file, archive.value_or(""), trimRootFolder});
         } else if (step == "require"sv) {
-            auto depname = ExpectProperty<std::string>(action, "package");
-            if (depname == name) {
-                throw std::runtime_error("Package " + name + " cannot require itself");
-            }
-
-            if (!gWorkspace.packages.contains(depname)) {
-                throw std::runtime_error("Package " + name + " requires unknown package " + depname);
-            }
-
-            auto symlink = GetProperty(action, "symlink");
-            if (!symlink.has_value()) {
-                continue;
-            }
-
-            packageInfo.dependencies.push_back(RequirePackage{
-                .name = depname,
-                .symlink = symlink.value()
-            });
+            ReadRequireTag(action, name, packageInfo.dependencies);
         } else if (step == "source"sv) {
             if (!packageInfo.source.empty()) {
                 throw std::runtime_error("Package " + name + " already has source folder");
@@ -352,6 +396,11 @@ static void ReadPackageConfig(xmlNodePtr node) {
             auto with = ExpectProperty<std::string>(action, "with");
             if (with == "meson") {
                 packageInfo.configure = eMeson;
+                for (xmlNodePtr child : NodeChildren(action) | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
+                    if (NodeName(child) == "cross-file"sv) {
+                        packageInfo.mesonCrossFile = ExpectProperty<std::string>(child, "path");
+                    }
+                }
             } else if (with == "cmake") {
                 packageInfo.configure = eCMake;
             } else {
@@ -367,6 +416,41 @@ static void ReadPackageConfig(xmlNodePtr node) {
     }
 
     gWorkspace.AddPackage(packageInfo);
+}
+
+static void ReadArtifactConfig(xmlNodePtr node) {
+    auto name = ExpectProperty<std::string>(node, "name");
+
+    ArtifactInfo artifactInfo {
+        .name = name
+    };
+
+    for (xmlNodePtr action : NodeChildren(node) | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
+        auto step = NodeName(action);
+        if (step == "require"sv) {
+            ReadRequireTag(action, name, artifactInfo.dependencies);
+        } else if (step == "script"sv) {
+            auto script = ExpectProperty<std::string>(action, "path");
+            ScriptExec exec {
+                .script = script
+            };
+
+            for (xmlNodePtr child : NodeChildren(action) | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
+                auto type = NodeName(child);
+                if (type == "arg"sv) {
+                    exec.args.push_back(ExpectProperty<std::string>(child, "value"));
+                } else if (type == "env"sv) {
+                    auto key = ExpectProperty<std::string>(child, "key");
+                    auto value = ExpectProperty<std::string>(child, "value");
+                    exec.env[key] = value;
+                }
+            }
+
+            artifactInfo.scripts.push_back(exec);
+        }
+    }
+
+    gWorkspace.artifacts.emplace(name, artifactInfo);
 }
 
 static void AcquirePackage(const PackageInfo& package) {
@@ -422,11 +506,17 @@ static void ConfigurePackage(const PackageInfo& package) {
 
     if (package.configure == eMeson) {
         std::vector<std::string> args = {
-            "meson", "setup", package.build.string(),
+            "meson", "setup", package.build.string(), "--wipe",
             "--prefix", package.install.string(),
         };
-
         auto cwd = package.GetWorkspaceFolder().string();
+
+        if (!package.mesonCrossFile.empty()) {
+            args.push_back("--cross-file");
+            std::string crossFile = package.mesonCrossFile;
+            ReplaceAll(crossFile, "@SOURCE_ROOT@", cwd);
+            args.push_back(crossFile);
+        }
 
         auto result = sp::call(args, sp::cwd{cwd});
         if (result != 0) {
@@ -435,6 +525,29 @@ static void ConfigurePackage(const PackageInfo& package) {
     } else {
         throw std::runtime_error("Unknown configure program for " + package.name);
     }
+}
+
+static void BuildPackage(const PackageInfo& package) {
+    if (package.configure == eNone) {
+        return;
+    }
+
+    if (package.configure == eMeson) {
+        std::string builddir = package.build.string();
+        auto result = sp::call({ "meson", "install", "--quiet" }, sp::cwd{builddir});
+        if (result != 0) {
+            throw std::runtime_error("Failed to build package " + package.name);
+        }
+    } else {
+        throw std::runtime_error("Unknown configure program for " + package.name);
+    }
+}
+
+static void ReplaceArtifactPlaceholders(std::string& str) {
+    ReplaceAll(str, "@PREFIX@", gInstallPrefix.string());
+    ReplaceAll(str, "@BUILD@", gBuildRoot.string());
+    ReplaceAll(str, "@REPO@", gRepoRoot.string());
+    ReplaceAll(str, "@SOURCE@", gSourceRoot.string());
 }
 
 int main(int argc, const char **argv) try {
@@ -489,10 +602,12 @@ int main(int argc, const char **argv) try {
     auto name = UnwrapOptional(GetProperty(root, "name"), "Missing repo name property");
     auto sources = UnwrapOptional(GetProperty(root, "sources"), "Missing sources property");
     auto pwd = std::filesystem::current_path();
-    gRepoRoot = configPath.parent_path();
+    gRepoRoot = fs::absolute(configPath.parent_path());
     gBuildRoot = build;
     gInstallPrefix = prefix;
     gSourceRoot = pwd / sources;
+
+    std::println(std::cout, "config: repo={}, build={}, prefix={}, sources={}", gRepoRoot.string(), gBuildRoot.string(), gInstallPrefix.string(), gSourceRoot.string());
 
     MakeFolder(gBuildRoot);
     MakeFolder(PackageCacheRoot());
@@ -504,8 +619,11 @@ int main(int argc, const char **argv) try {
     gWorkspace.AddFolder(std::filesystem::current_path(), "root");
 
     for (xmlNodePtr child : NodeChildren(root) | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
-        if (NodeName(child) == "package"sv) {
+        auto type = NodeName(child);
+        if (type == "package"sv) {
             ReadPackageConfig(child);
+        } else if (type == "artifact"sv) {
+            ReadArtifactConfig(child);
         }
     }
 
@@ -519,6 +637,35 @@ int main(int argc, const char **argv) try {
 
     for (auto& package : gWorkspace.packages) {
         ConfigurePackage(package.second);
+    }
+
+    for (auto& package : gWorkspace.packages) {
+        BuildPackage(package.second);
+    }
+
+    for (auto& artifact : gWorkspace.artifacts) {
+        for (const auto& script : artifact.second.scripts) {
+            auto path = script.script.string();
+
+            std::vector<std::string> args = { "/bin/sh", path };
+            args.insert(args.end(), script.args.begin(), script.args.end());
+
+            for (std::string& arg : args) {
+                ReplaceArtifactPlaceholders(arg);
+            }
+
+            std::map env = script.env;
+            env["PREFIX"] = gInstallPrefix.string();
+            env["BUILD"] = gBuildRoot.string();
+            env["REPO"] = gRepoRoot.string();
+            env["SOURCE"] = gSourceRoot.string();
+
+            std::println(std::cout, "{}: execute {}", artifact.first, args[1]);
+            auto result = sp::call(args, sp::environment{env});
+            if (result != 0) {
+                throw std::runtime_error("Failed to run script " + args[1]);
+            }
+        }
     }
 
     if (parser.present("--workspace")) {
