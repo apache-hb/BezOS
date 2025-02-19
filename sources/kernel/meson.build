@@ -221,14 +221,6 @@ executable('bezos-limine', 'src/boot/limine.cpp',
     override_options : [ 'b_coverage=false' ],
 )
 
-install_data('data/limine.conf',
-    install_dir : get_option('prefix') / 'limine' / 'image' / 'boot' / 'limine',
-)
-
-install_data('data/limine.conf',
-    install_dir : get_option('prefix') / 'pxe',
-)
-
 ###
 ### Hyper version of the kernel image
 ###
@@ -245,20 +237,6 @@ executable('bezos-hyper', 'src/boot/hyper.cpp',
     install : true,
     override_options : [ 'b_coverage=false' ],
 )
-
-install_data('data/hyper/hyper-iso-boot',
-    install_dir : get_option('prefix') / 'hyper' / 'image' / 'boot',
-)
-
-install_data('data/hyper/BOOTX64.EFI',
-    install_dir : get_option('prefix') / 'hyper' / 'image' / 'EFI' / 'BOOT',
-)
-
-install_data('data/hyper.cfg',
-    install_dir : get_option('prefix') / 'hyper' / 'image' / 'boot',
-)
-
-meson.add_install_script('data/image.sh')
 
 # Unit tests
 

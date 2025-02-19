@@ -1,9 +1,7 @@
-builddir=$1
-shift
+#!/bin/sh
 
-prefix=$(pwd)/install
-builddir=$(pwd)/$builddir
+make pkgtool
 
-(cd sources/system; meson setup $builddir/system --cross-file data/bezos.ini --prefix $prefix/system)
-
-(cd sources/kernel; meson setup $builddir/kernel --native-file data/x64-clang.ini --cross-file data/kernel.ini --prefix $prefix/kernel)
+alias repopkg='install/tool/bin/package.elf --config repo/repo.xml --output build --prefix install --workspace repo.code-workspace --clangd'
+alias repobld='repopkg --rebuild'
+alias repocnf='repopkg --reconfigure'
