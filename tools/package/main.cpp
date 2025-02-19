@@ -583,12 +583,32 @@ static void AcquirePackage(const PackageInfo& package) {
     gPackageDb->RaisePackageStatus(package.name, eDownloaded);
 }
 
+static void AddGitignoreSymlink(const fs::path& path) {
+    std::fstream file(std::filesystem::current_path() / ".gitignore", std::ios::in | std::ios::out);
+
+    // read in the file
+    std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+
+    // if the file doesn't contain the symlink, add it
+    std::string search = "\n" + path.string() + "\n";
+    if (content.find(search) == std::string::npos) {
+        file << "/" + path.string() + "\n";
+    }
+}
+
 static void ConnectDependencies(const PackageInfo& package) {
     for (const auto& dep : package.dependencies) {
         auto symlink = package.GetWorkspaceFolder() / dep.symlink;
         auto path = gWorkspace.GetPackagePath(dep.name);
 
         std::println(std::cout, "{}: symlink {} -> {}", package.name, symlink.string(), path.string());
+
+        auto cwd = fs::current_path();
+        auto relative = symlink.lexically_relative(cwd);
+
+        std::println(std::cout, "{}: relative {} {}", package.name, cwd.string(), relative.string());
+
+        AddGitignoreSymlink(relative);
 
         if (fs::exists(symlink) && fs::equivalent(path, symlink)) {
             continue;
