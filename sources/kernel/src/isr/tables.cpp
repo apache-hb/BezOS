@@ -1,6 +1,5 @@
 #include "isr/startup.hpp"
 #include "isr/runtime.hpp"
-#include "log.hpp"
 #include "thread.hpp"
 
 static constinit km::LocalIsrTable gStartupIsrTable{};
@@ -39,4 +38,8 @@ km::LocalIsrTable *km::GetLocalIsrTable() {
 
 void km::SetIsrManager(km::ILocalIsrManager *manager) {
     gIsrManager = manager;
+}
+
+void km::EnableCpuLocalIsrTable() {
+    SetIsrManager(km::RuntimeIsrManager::instance());
 }

@@ -65,6 +65,9 @@ enum OsStatusId {
 
     /// @brief The version is invalid.
     OsStatusInvalidVersion = 0xd,
+
+    /// @brief The operation timed out.
+    OsStatusTimeout = 0xe,
 };
 
 inline bool OsStatusOk(OsStatus status) {

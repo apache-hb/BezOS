@@ -5,9 +5,6 @@
 
 #include "util/digit.hpp"
 
-#include "isr/runtime.hpp"
-#include "isr/startup.hpp"
-
 #include "log.hpp"
 
 #include <stdint.h>
@@ -116,10 +113,6 @@ void km::LoadIdt(void) {
 
 km::SharedIsrTable *km::GetSharedIsrTable() {
     return &gSharedIsrTable;
-}
-
-void km::EnableCpuLocalIsrTable() {
-    SetIsrManager(km::RuntimeIsrManager::instance());
 }
 
 void km::DisableInterrupts() {
