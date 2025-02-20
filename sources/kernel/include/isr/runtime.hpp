@@ -4,9 +4,10 @@
 
 namespace km {
     class RuntimeIsrManager : public ILocalIsrManager {
-        LocalIsrTable *getLocalIsrTable() override;
-
     public:
+        LocalIsrTable *getLocalIsrTable() override;
         static RuntimeIsrManager *instance();
+
+        static void cpuInit();
     };
 }

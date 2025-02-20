@@ -193,6 +193,9 @@ namespace km {
             IsrCallback isr = mHandlers[uint8_t(context->vector) - kOffset];
             return isr(context);
         }
+
+        IsrEntry *begin() { return mHandlers; }
+        IsrEntry *end() { return mHandlers + N; }
     };
 
     /// @brief A table containing x86 exception handlers for all cpus.
@@ -273,17 +276,15 @@ namespace km {
     LocalIsrTable *GetLocalIsrTable();
     void SetIsrManager(ILocalIsrManager *manager);
 
-    void SetCpuLocalIsrTable(LocalIsrTable *table);
-
     void EnableCpuLocalIsrTable();
+    void InitCpuLocalIsrTable();
 
     /// @brief Setup the global IDT.
     ///
     /// Called once during startup to populate the global IDT.
     ///
-    /// @param isrs The isr allocator to populate.
-    /// @param codeSelector the kernel code selector to use as the isr execution selector.
-    void InitInterrupts(LocalIsrTable *ist, uint16_t codeSelector);
+    /// @param cs the kernel code selector to use as the isr execution selector.
+    void InitInterrupts(uint16_t cs);
 
     /// @brief Setup the IDT for this core.
     ///

@@ -4,9 +4,8 @@
 
 namespace km {
     class StartupIsrManager : public ILocalIsrManager {
-        LocalIsrTable *getLocalIsrTable() override;
-
     public:
+        LocalIsrTable *getLocalIsrTable() override;
         static StartupIsrManager *instance();
     };
 }

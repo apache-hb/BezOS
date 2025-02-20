@@ -31,6 +31,7 @@
 #include "hid/ps2.hpp"
 #include "hypervisor.hpp"
 #include "isr/isr.hpp"
+#include "isr/runtime.hpp"
 #include "log.hpp"
 #include "memory.hpp"
 #include "memory/memory.hpp"
@@ -786,32 +787,38 @@ static void DumpStackTrace(const km::IsrContext *context) {
     }
 }
 
+static km::IsrContext SpuriousVector(km::IsrContext *ctx) {
+    KmDebugMessage("[ISR] Spurious interrupt: ", ctx->vector, "\n");
+    km::IApic *pic = km::GetCpuLocalApic();
+    pic->eoi();
+    return *ctx;
+}
+
 struct ApicInfo {
     km::Apic apic;
     uint8_t spuriousInt;
 };
 
-static ApicInfo EnableBootApic(km::SystemMemory& memory, km::LocalIsrTable *ist, bool useX2Apic) {
+static ApicInfo EnableBootApic(km::SystemMemory& memory, bool useX2Apic) {
     km::Apic pic = InitBspApic(memory, useX2Apic);
 
     // setup tls now that we have the lapic id
 
     km::InitCpuLocalRegion(memory);
+    km::RuntimeIsrManager::cpuInit();
+
+    km::EnableCpuLocalIsrTable();
 
     SetDebugLogLock(DebugLogLockType::eSpinLock);
     km::InitKernelThread(pic);
 
-    const IsrEntry *spuriousInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
-        KmDebugMessage("[ISR] Spurious interrupt: ", ctx->vector, "\n");
-        km::IApic *pic = km::GetCpuLocalApic();
-        pic->eoi();
-        return *ctx;
-    });
+    km::LocalIsrTable *ist = km::GetLocalIsrTable();
+
+    const IsrEntry *spuriousInt = ist->allocate(SpuriousVector);
     uint8_t spuriousIdx = ist->index(spuriousInt);
     KmDebugMessage("[INIT] APIC ID: ", pic->id(), ", Version: ", pic->version(), ", Spurious vector: ", spuriousIdx, "\n");
 
     pic->setSpuriousVector(spuriousIdx);
-
     pic->enable();
 
     if (kSelfTestApic) {
@@ -825,6 +832,7 @@ static ApicInfo EnableBootApic(km::SystemMemory& memory, km::LocalIsrTable *ist,
         const IsrEntry *testInt = ist->allocate(testIsr);
         uint8_t testIdx = ist->index(testInt);
 
+        KmDebugMessage("[TEST] Testing self-IPI.\n");
         //
         // Test that both self-IPI methods work.
         //
@@ -893,7 +901,7 @@ static void DumpIsrContext(const km::IsrContext *context, stdx::StringView messa
     DumpIsrState(context);
 }
 
-static void InstallExceptionHandlers(SharedIsrTable *ist) {
+static void InstallExceptionHandlers(LocalIsrTable *ist) {
     ist->install(isr::DE, [](km::IsrContext *context) -> km::IsrContext {
         DumpIsrContext(context, "Divide by zero (#DE)");
         DumpStackTrace(context);
@@ -1014,7 +1022,7 @@ static void LogSystemInfo(
     KmDebugMessage("| /BOOT         | HHDM offset          | ", Hex(launch.hhdmOffset).pad(16, '0'), "\n");
 }
 
-static void SetupInterruptStacks(km::LocalIsrTable *ist, uint16_t cs) {
+static void SetupInterruptStacks(uint16_t cs) {
     gBootTss = x64::TaskStateSegment{
         .ist1 = (uintptr_t)aligned_alloc(kTssStackSize, x64::kPageSize) + kTssStackSize,
         .ist2 = (uintptr_t)aligned_alloc(kTssStackSize, x64::kPageSize) + kTssStackSize,
@@ -1030,26 +1038,15 @@ static void SetupInterruptStacks(km::LocalIsrTable *ist, uint16_t cs) {
 
     UpdateIdtEntry(isr::NMI, cs, Privilege::eSupervisor, kIstNmi);
     UpdateIdtEntry(isr::MCE, cs, Privilege::eSupervisor, kIstNmi);
-
-    if (kSelfTestIdt) {
-        IsrCallback old = ist->install(64, [](km::IsrContext *context) -> km::IsrContext {
-            KmDebugMessage("[SELFTEST] Handled isr: ", context->vector, "\n");
-            return *context;
-        });
-
-        __int<64>();
-
-        ist->install(64, old);
-    }
 }
 
-static km::LocalIsrTable* InitStage1Idt(uint16_t cs) {
-    km::LocalIsrTable *ist = new LocalIsrTable();
-    InitInterrupts(ist, cs);
-    InstallExceptionHandlers(GetSharedIsrTable());
-    SetupInterruptStacks(ist, cs);
+static void InitStage1Idt(uint16_t cs) {
+    InitInterrupts(cs);
+    InstallExceptionHandlers(GetLocalIsrTable());
+    SetupInterruptStacks(cs);
 
     if (kSelfTestIdt) {
+        km::LocalIsrTable *ist = GetLocalIsrTable();
         IsrCallback old = ist->install(64, [](km::IsrContext *context) -> km::IsrContext {
             KmDebugMessage("[SELFTEST] Handled isr: ", context->vector, "\n");
             return *context;
@@ -1059,8 +1056,6 @@ static km::LocalIsrTable* InitStage1Idt(uint16_t cs) {
 
         ist->install(64, old);
     }
-
-    return ist;
 }
 
 static void NormalizeProcessorState() {
@@ -1395,13 +1390,7 @@ static void AddVmemSystemCalls() {
     });
 }
 
-static void StartupSmp(const acpi::AcpiTables& rsdt, km::LocalIsrTable *ist) {
-    //
-    // Set the local ISR table for the BSP core to prepare for switchover
-    // from a global ISR table to a CPU local ISR table.
-    //
-    SetCpuLocalIsrTable(ist);
-
+static void StartupSmp(const acpi::AcpiTables& rsdt) {
     //
     // Create the scheduler and system objects before we startup SMP so that
     // the AP cores have a scheduler to attach to.
@@ -1418,11 +1407,6 @@ static void StartupSmp(const acpi::AcpiTables& rsdt, km::LocalIsrTable *ist) {
     std::atomic<uint32_t> remaining;
     InitSmp(*gMemory, GetCpuLocalApic(), rsdt, &launchScheduler, &remaining);
     SetDebugLogLock(DebugLogLockType::eRecursiveSpinLock);
-
-    //
-    // Enable CPU local ISR tables now that the other threads have been started.
-    //
-    EnableCpuLocalIsrTable();
 
     //
     // Setup gdt that contains a TSS for this core and configure cpu state
@@ -1631,7 +1615,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     //
     Disable8259Pic();
 
-    km::LocalIsrTable *ist = InitStage1Idt(SystemGdt::eLongModeCode);
+    InitStage1Idt(SystemGdt::eLongModeCode);
     EnableInterrupts();
 
     PlatformInfo platform = GetPlatformInfo(launch.smbios32Address, launch.smbios64Address, *stage2->memory);
@@ -1647,7 +1631,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     bool useX2Apic = kUseX2Apic && processor.has2xApic;
 
-    auto [lapic, spuriousInt] = EnableBootApic(*stage2->memory, ist, useX2Apic);
+    auto [lapic, spuriousInt] = EnableBootApic(*stage2->memory, useX2Apic);
 
     acpi::AcpiTables rsdt = acpi::InitAcpi(launch.rsdpAddress, *stage2->memory);
     const acpi::Fadt *fadt = rsdt.fadt();
@@ -1664,8 +1648,9 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     pci::ProbeConfigSpace(config.get(), rsdt.mcfg());
 
-    StartupSmp(rsdt, ist);
+    StartupSmp(rsdt);
 
+    km::LocalIsrTable *ist = GetLocalIsrTable();
     const IsrEntry *timerInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
         km::IApic *apic = km::GetCpuLocalApic();
         apic->eoi();

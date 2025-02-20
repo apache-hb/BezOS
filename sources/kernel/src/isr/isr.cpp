@@ -3,8 +3,10 @@
 #include "arch/intrin.hpp"
 #include "arch/isr.hpp"
 
-#include "thread.hpp"
 #include "util/digit.hpp"
+
+#include "isr/runtime.hpp"
+#include "isr/startup.hpp"
 
 #include "log.hpp"
 
@@ -33,12 +35,6 @@ static constinit x64::Idt gIdt{};
 
 static constinit km::SharedIsrTable gSharedIsrTable{};
 
-static constinit km::LocalIsrTable *gIsrTable = nullptr;
-
-CPU_LOCAL
-static constinit km::CpuLocal<km::LocalIsrTable*> tlsIsrTable;
-static constinit bool gEnableLocalIsrTable = false;
-
 static constexpr x64::IdtEntry CreateIdtEntry(uintptr_t handler, uint16_t codeSelector, km::Privilege dpl, uint8_t ist) {
     uint8_t flags = x64::idt::kFlagPresent | x64::idt::kInterruptGate | ((std::to_underlying(dpl) & 0b11) << 5);
 
@@ -61,7 +57,7 @@ static km::IsrContext DispatchIsr(km::IsrContext *context, F&& handler) {
     //
     // Did this interrupt happen while in user space?
     //
-    bool userSpaceInt = context->cs & 0b11;
+    bool userSpaceInt = (context->cs & 0b11) != 0;
 
     //
     // If it did then the GS_BASE and KERNEL_GS_BASE registers need to be swapped.
@@ -92,7 +88,7 @@ extern "C" km::IsrContext KmIsrDispatchRoutine(km::IsrContext *context) {
             return gSharedIsrTable.invoke(context);
         }
 
-        km::LocalIsrTable *ist = gEnableLocalIsrTable ? tlsIsrTable.get() : gIsrTable;
+        km::LocalIsrTable *ist = km::GetLocalIsrTable();
         return ist->invoke(context);
     });
 }
@@ -101,11 +97,9 @@ void km::UpdateIdtEntry(uint8_t isr, uint16_t selector, Privilege dpl, uint8_t i
     gIdt.entries[isr] = CreateIdtEntry((uintptr_t)KmIsrTable + (isr * kIsrTableStride), selector * 0x8, dpl, ist);
 }
 
-void km::InitInterrupts(LocalIsrTable *ist, uint16_t codeSelector) {
-    gIsrTable = ist;
-
+void km::InitInterrupts(uint16_t cs) {
     for (size_t i = 0; i < x64::Idt::kCount; i++) {
-        UpdateIdtEntry(i, codeSelector, Privilege::eSupervisor, 0);
+        UpdateIdtEntry(i, cs, Privilege::eSupervisor, 0);
     }
 
     LoadIdt();
@@ -124,12 +118,8 @@ km::SharedIsrTable *km::GetSharedIsrTable() {
     return &gSharedIsrTable;
 }
 
-void km::SetCpuLocalIsrTable(LocalIsrTable *table) {
-    tlsIsrTable = table;
-}
-
 void km::EnableCpuLocalIsrTable() {
-    gEnableLocalIsrTable = true;
+    SetIsrManager(km::RuntimeIsrManager::instance());
 }
 
 void km::DisableInterrupts() {

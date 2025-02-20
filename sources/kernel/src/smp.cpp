@@ -2,8 +2,10 @@
 
 #include "arch/paging.hpp"
 
-#include "gdt.hpp"
 #include "isr/isr.hpp"
+#include "isr/runtime.hpp"
+
+#include "gdt.hpp"
 #include "kernel.hpp"
 #include "panic.hpp"
 #include "log.hpp"
@@ -80,13 +82,12 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
     km::Apic apic = km::InitApApic(*header->memory, header->bspIntController);
 
     km::InitCpuLocalRegion(*header->memory);
+    km::RuntimeIsrManager::cpuInit();
     km::InitKernelThread(apic);
 
     km::SetupApGdt();
 
-    km::LocalIsrTable *ist = new km::LocalIsrTable();
-    km::SetCpuLocalIsrTable(ist);
-
+    km::LocalIsrTable *ist = km::GetLocalIsrTable();
     const km::IsrEntry *spuriousInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
         KmDebugMessage("[ISR] Spurious interrupt: ", ctx->vector, "\n");
         km::IApic *apic = km::GetCpuLocalApic();
@@ -99,6 +100,8 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
     apic->setSpuriousVector(spuriousIdx);
     apic->enable();
     apic->eoi();
+
+    km::EnableInterrupts();
 
     // Copy the latch pointer
     std::atomic_flag *launchScheduler = header->launchScheduler;
