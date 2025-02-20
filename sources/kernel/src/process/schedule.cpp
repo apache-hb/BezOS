@@ -47,7 +47,7 @@ static void SwitchThread(km::Thread *next) {
 void km::ScheduleWork(IsrTable *table, IApic *apic) {
     tlsCurrentThread = nullptr;
 
-    const IsrTable::Entry *scheduleInt = table->allocate([](km::IsrContext *ctx) -> km::IsrContext {
+    const IsrEntry *scheduleInt = table->allocate([](km::IsrContext *ctx) -> km::IsrContext {
         IApic *apic = km::GetCpuLocalApic();
         apic->eoi();
 

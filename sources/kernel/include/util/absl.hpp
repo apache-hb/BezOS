@@ -20,4 +20,14 @@ namespace sm {
     std::unique_ptr<T> makeUnique(A&&... args) {
         return std::unique_ptr<T>(new T(std::forward<A>(args)...));
     }
+
+    template<typename T>
+    std::unique_ptr<T> makeUnique() {
+        return std::unique_ptr<T>(new T());
+    }
+
+    template<typename T>
+    std::unique_ptr<T[]> makeUnique(size_t size) {
+        return std::unique_ptr<T[]>(new T[size]);
+    }
 }

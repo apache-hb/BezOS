@@ -119,8 +119,6 @@ namespace km {
     class [[gnu::packed]] IsrTable {
     public:
         static constexpr auto kCount = isr::kAvailableCount;
-        using Entry = IsrEntry;
-
     private:
         //
         // This syntax is to work around none of std::atomic<T>
@@ -129,18 +127,18 @@ namespace km {
         // we have to employ this gnu extension. But now this class is constexpr
         // constructible.
         //
-        Entry mHandlers[kCount] = { [0 ... (kCount - 1)] = DefaultIsrHandler };
+        IsrEntry mHandlers[kCount] = { [0 ... (kCount - 1)] = DefaultIsrHandler };
 
     public:
-        Entry *find(const Entry *handle);
+        IsrEntry *find(const IsrEntry *handle);
 
         IsrCallback install(uint8_t isr, IsrCallback callback);
         km::IsrContext invoke(km::IsrContext *context);
 
-        const Entry *allocate(IsrCallback callback);
-        void release(const Entry *callback);
+        const IsrEntry *allocate(IsrCallback callback);
+        void release(const IsrEntry *callback);
 
-        uint32_t index(const Entry *entry) const;
+        uint32_t index(const IsrEntry *entry) const;
     };
 
     enum class Privilege : uint8_t {

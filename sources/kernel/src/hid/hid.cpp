@@ -76,10 +76,10 @@ struct KeyboardState {
 
 static KeyboardState gKeyboardState;
 
-const km::IsrTable::Entry *hid::InstallPs2KeyboardIsr(km::IoApicSet& ioApicSet, hid::Ps2Controller& controller, const km::IApic *target, km::IsrTable *ist) {
+const km::IsrEntry *hid::InstallPs2KeyboardIsr(km::IoApicSet& ioApicSet, hid::Ps2Controller& controller, const km::IApic *target, km::IsrTable *ist) {
     gController = controller;
 
-    const km::IsrTable::Entry *keyboardInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
+    const km::IsrEntry *keyboardInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
         km::IApic *apic = km::GetCpuLocalApic();
         apic->eoi();
 
@@ -125,10 +125,10 @@ const km::IsrTable::Entry *hid::InstallPs2KeyboardIsr(km::IoApicSet& ioApicSet, 
     return keyboardInt;
 }
 
-const km::IsrTable::Entry *hid::InstallPs2MouseIsr(km::IoApicSet& ioApicSet, hid::Ps2Controller& controller, const km::IApic *target, km::IsrTable *ist) {
+const km::IsrEntry *hid::InstallPs2MouseIsr(km::IoApicSet& ioApicSet, hid::Ps2Controller& controller, const km::IApic *target, km::IsrTable *ist) {
     gController = controller;
 
-    const km::IsrTable::Entry *mouseInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
+    const km::IsrEntry *mouseInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
         uint8_t code = gController.read();
         uint8_t x = gController.read();
         uint8_t y = gController.read();

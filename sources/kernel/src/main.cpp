@@ -801,7 +801,7 @@ static ApicInfo EnableBootApic(km::SystemMemory& memory, km::IsrTable *ist, bool
     SetDebugLogLock(DebugLogLockType::eSpinLock);
     km::InitKernelThread(pic);
 
-    const IsrTable::Entry *spuriousInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
+    const IsrEntry *spuriousInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
         KmDebugMessage("[ISR] Spurious interrupt: ", ctx->vector, "\n");
         km::IApic *pic = km::GetCpuLocalApic();
         pic->eoi();
@@ -815,7 +815,7 @@ static ApicInfo EnableBootApic(km::SystemMemory& memory, km::IsrTable *ist, bool
     pic->enable();
 
     if (kSelfTestApic) {
-        const IsrTable::Entry *testInt = ist->allocate([](km::IsrContext *context) -> km::IsrContext {
+        const IsrEntry *testInt = ist->allocate([](km::IsrContext *context) -> km::IsrContext {
             KmDebugMessage("[SELFTEST] Handled isr: ", context->vector, "\n");
             km::IApic *pic = km::GetCpuLocalApic();
             pic->eoi();
@@ -1414,7 +1414,7 @@ static void StartupSmp(const acpi::AcpiTables& rsdt, km::IsrTable *ist) {
     //
     std::atomic_flag launchScheduler = ATOMIC_FLAG_INIT;
     std::atomic<uint32_t> remaining;
-    InitSmp(*gMemory, GetCpuLocalApic(), rsdt, ist, &launchScheduler, &remaining);
+    InitSmp(*gMemory, GetCpuLocalApic(), rsdt, &launchScheduler, &remaining);
     SetDebugLogLock(DebugLogLockType::eRecursiveSpinLock);
 
     //
@@ -1664,7 +1664,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     StartupSmp(rsdt, ist);
 
-    const IsrTable::Entry *timerInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
+    const IsrEntry *timerInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
         km::IApic *apic = km::GetCpuLocalApic();
         apic->eoi();
         return *ctx;

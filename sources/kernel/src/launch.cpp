@@ -18,13 +18,25 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
     }
 
     if (!header.isValid()) {
-        KmDebugMessage("[ELF] Invalid ELF header\n");
+        KmDebugMessage(
+            "[ELF] Invalid ELF header. Invalid header magic {",
+            km::Hex(header.ident[0]).pad(2), ", ",
+            km::Hex(header.ident[1]).pad(2), ", ",
+            km::Hex(header.ident[2]).pad(2), ", ",
+            km::Hex(header.ident[3]).pad(2), "}.\n"
+        );
+
         return OsStatusInvalidData;
     }
 
     if (header.endian() != std::endian::little || header.elfClass() != elf::ElfClass::eClass64 || header.objVersion() != 1) {
-        KmDebugMessage("[ELF] Unsupported ELF format\n");
+        KmDebugMessage("[ELF] Unsupported ELF format. Only little endian, 64 bit, version 1 elf programs are supported.\n");
         return OsStatusInvalidVersion;
+    }
+
+    if (header.type != elf::ElfType::eExecutable) {
+        KmDebugMessage("[ELF] Invalid ELF type. Only EXEC elf programs can be launched.\n");
+        return OsStatusInvalidData;
     }
 
     uint64_t phbegin = header.phoff;
@@ -139,11 +151,11 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
     //
     static constexpr size_t kStackSize = 0x4000;
     void *stack = memory.allocate(kStackSize, 0x1000, PageFlags::eUser | PageFlags::eData);
+    Thread *main = objects.createThread("Main", process);
 
     regs.rbp = (uintptr_t)stack + kStackSize;
     regs.rsp = (uintptr_t)stack + kStackSize;
 
-    Thread *main = objects.createThread("Main", process);
     main->state = regs;
 
     process->threads.add(main);

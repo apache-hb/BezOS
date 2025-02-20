@@ -60,19 +60,27 @@ km::IsrContext km::DefaultIsrHandler(km::IsrContext *context) {
 
 template<typename F>
 static km::IsrContext DispatchIsr(km::IsrContext *context, F&& handler) {
-    // Did this interrupt happen while in kernel space?
-    bool kernelSpaceInt = (GDT_64BIT_CODE * 0x8) == context->cs;
+    //
+    // Did this interrupt happen while in user space?
+    //
+    bool userSpaceInt = context->cs & 0b11;
 
-    // If it didn't then the GS_BASE and KERNEL_GS_BASE registers need to be swapped
-    if (!kernelSpaceInt) {
+    //
+    // If it did then the GS_BASE and KERNEL_GS_BASE registers need to be swapped.
+    //
+    if (userSpaceInt) {
         __swapgs();
     }
 
-    // Then invoke the interrupt handler routine
+    //
+    // Then invoke the interrupt handler routine.
+    //
     km::IsrContext result = handler(context);
 
-    // And then swapped back again to avoid breaking userspace
-    if (!kernelSpaceInt) {
+    //
+    // And then swapped back again to avoid breaking userspace.
+    //
+    if (userSpaceInt) {
         __swapgs();
     }
 
@@ -134,7 +142,7 @@ void km::EnableInterrupts() {
     __sti();
 }
 
-km::IsrTable::Entry *km::IsrTable::find(const Entry *handle) {
+km::IsrEntry *km::IsrTable::find(const IsrEntry *handle) {
     //
     // We need to be very certain what we're about do is alright.
     //
@@ -148,7 +156,7 @@ km::IsrTable::Entry *km::IsrTable::find(const Entry *handle) {
     // array we own. And we are being executed in a non-const context, so this
     // is exactly equal to doing the work required to constitute the array element.
     //
-    return const_cast<Entry*>(handle);
+    return const_cast<IsrEntry*>(handle);
 }
 
 km::IsrCallback km::IsrTable::install(uint8_t isr, IsrCallback callback) {
@@ -160,8 +168,8 @@ km::IsrContext km::IsrTable::invoke(km::IsrContext *context) {
     return isr(context);
 }
 
-const km::IsrTable::Entry *km::IsrTable::allocate(IsrCallback callback) {
-    for (Entry& entry : mHandlers) {
+const km::IsrEntry *km::IsrTable::allocate(IsrCallback callback) {
+    for (IsrEntry& entry : mHandlers) {
 
         //
         // Find the first entry that is free by swapping with the default handler.
@@ -176,8 +184,8 @@ const km::IsrTable::Entry *km::IsrTable::allocate(IsrCallback callback) {
     return nullptr;
 }
 
-void km::IsrTable::release(const Entry *callback) {
-    Entry *entry = find(callback);
+void km::IsrTable::release(const IsrEntry *callback) {
+    IsrEntry *entry = find(callback);
     IsrCallback expected = callback->load();
 
     //
@@ -189,7 +197,7 @@ void km::IsrTable::release(const Entry *callback) {
     entry->compare_exchange_strong(expected, DefaultIsrHandler);
 }
 
-uint32_t km::IsrTable::index(const Entry *entry) const {
+uint32_t km::IsrTable::index(const IsrEntry *entry) const {
     if (std::begin(mHandlers) > entry || entry >= std::end(mHandlers)) {
         return UINT32_MAX;
     }

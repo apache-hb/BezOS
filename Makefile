@@ -46,11 +46,6 @@ hyperv:
 pxe:
 	pwsh.exe -File data/test/pxe/Copy-PxeImage.ps1 -KernelFolder install/pxe -PxeServerFolder C:/Users/elliothb/Documents/tftpserver
 
-.PHONY: check
-check:
-	meson test -C build/kernel
-	meson test -C build/system
-
 .PHONY: coverage
 coverage:
 	ninja -C build/kernel coverage
@@ -95,6 +90,6 @@ clean:
 	rm -rf $(BUILDDIR) $(PREFIX)
 
 
-.PHONY: kernel-test
-kernel-test:
+.PHONY: check
+check:
 	meson test -C build/packages/kernel

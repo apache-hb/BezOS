@@ -52,7 +52,6 @@ struct SmpInfoHeader {
 
     km::IApic *bspIntController;
     km::SystemMemory *memory;
-    km::IsrTable *bootIst;
     std::atomic_flag *launchScheduler;
     std::atomic<uint32_t> *remaining;
 };
@@ -88,7 +87,7 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
     km::IsrTable *ist = new km::IsrTable();
     km::SetCpuLocalIsrTable(ist);
 
-    const km::IsrTable::Entry *spuriousInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
+    const km::IsrEntry *spuriousInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
         KmDebugMessage("[ISR] Spurious interrupt: ", ctx->vector, "\n");
         km::IApic *apic = km::GetCpuLocalApic();
         apic->eoi();
@@ -124,7 +123,7 @@ static uintptr_t AllocSmpStack() {
     return (uintptr_t)aligned_alloc(x64::kPageSize, km::kStartupStackSize);
 }
 
-static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::IApic *pic, km::IsrTable *ist, std::atomic_flag *launchScheduler, std::atomic<uint32_t> *remaining) {
+static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::IApic *pic, std::atomic_flag *launchScheduler, std::atomic<uint32_t> *remaining) {
     km::PageTableManager& vmm = memory->pt;
 
     km::PhysicalAddress pml4 = vmm.rootPageTable();
@@ -141,7 +140,6 @@ static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::IApic *pic
         },
         .bspIntController = pic,
         .memory = memory,
-        .bootIst = ist,
         .launchScheduler = launchScheduler,
         .remaining = remaining,
     };
@@ -152,7 +150,7 @@ size_t km::GetStartupMemorySize(const acpi::AcpiTables &acpiTables) {
     return apCount * kStartupMemorySize;
 }
 
-void km::InitSmp(km::SystemMemory& memory, km::IApic *bsp, const acpi::AcpiTables& acpiTables, km::IsrTable *ist, std::atomic_flag *launchScheduler, std::atomic<uint32_t>* remaining) {
+void km::InitSmp(km::SystemMemory& memory, km::IApic *bsp, const acpi::AcpiTables& acpiTables, std::atomic_flag *launchScheduler, std::atomic<uint32_t>* remaining) {
     KmDebugMessage("[SMP] Starting APs.\n");
 
     // copy the SMP blob to the correct location
@@ -171,7 +169,7 @@ void km::InitSmp(km::SystemMemory& memory, km::IApic *bsp, const acpi::AcpiTable
     memory.pt.mapRange({ kSmpInfo, kSmpInfo + sizeof(SmpInfoHeader) }, (void*)kSmpInfo.address, km::PageFlags::eData);
     memory.pt.mapRange({ kSmpStart, kSmpStart + blobSize }, (void*)kSmpStart.address, km::PageFlags::eCode);
 
-    SmpInfoHeader header = SetupSmpInfoHeader(&memory, bsp, ist, launchScheduler, remaining);
+    SmpInfoHeader header = SetupSmpInfoHeader(&memory, bsp, launchScheduler, remaining);
     memcpy(smpInfo, &header, sizeof(header));
 
     for (const acpi::MadtEntry *madt : *acpiTables.madt()) {
