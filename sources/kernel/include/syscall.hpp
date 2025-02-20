@@ -3,7 +3,7 @@
 #include <bezos/private.h>
 
 #include "arch/msr.hpp"
-#include "isr.hpp"
+#include "isr/isr.hpp"
 
 #include <cstdint>
 

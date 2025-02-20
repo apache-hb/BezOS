@@ -113,9 +113,12 @@ src = [
     'src/cxxrt.cpp',
     'src/crt_freestanding.cpp',
 
+    # Interrupt handling
+    'src/isr/isr.cpp',
+    'src/isr/isr.S',
+    'src/isr/tables.cpp',
+
     # Architecture features
-    'src/isr.cpp',
-    'src/isr.S',
     'src/gdt.cpp',
     'src/pat.cpp',
     'src/check.cpp',

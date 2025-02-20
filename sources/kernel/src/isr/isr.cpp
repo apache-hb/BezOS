@@ -1,4 +1,4 @@
-#include "isr.hpp"
+#include "isr/isr.hpp"
 
 #include "arch/intrin.hpp"
 #include "arch/isr.hpp"
@@ -6,8 +6,6 @@
 #include "thread.hpp"
 #include "util/digit.hpp"
 
-#include "gdt.h"
-#include "panic.hpp"
 #include "log.hpp"
 
 #include <stdint.h>
@@ -31,7 +29,7 @@ namespace x64 {
 
 static constexpr size_t kIsrTableStride = 16;
 extern "C" const char KmIsrTable[];
-static x64::Idt gIdt;
+static constinit x64::Idt gIdt{};
 
 static constinit km::SharedIsrTable gSharedIsrTable{};
 

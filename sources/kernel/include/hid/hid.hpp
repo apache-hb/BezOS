@@ -5,7 +5,7 @@
 
 #include "hid/ps2.hpp"
 #include "notify.hpp"
-#include "isr.hpp"
+#include "isr/isr.hpp"
 
 namespace hid {
     static constexpr sm::uuid kHidEvent = sm::uuid::of("dd4ece3c-ec81-11ef-8b71-c761047b867e");

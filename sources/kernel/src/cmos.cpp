@@ -1,7 +1,7 @@
 #include "cmos.hpp"
 
 #include "delay.hpp"
-#include "isr.hpp"
+#include "isr/isr.hpp"
 
 static constexpr uint16_t kCmosSelect = 0x70;
 static constexpr uint16_t kCmosData = 0x71;

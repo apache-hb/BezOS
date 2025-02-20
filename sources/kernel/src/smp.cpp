@@ -3,7 +3,7 @@
 #include "arch/paging.hpp"
 
 #include "gdt.hpp"
-#include "isr.hpp"
+#include "isr/isr.hpp"
 #include "kernel.hpp"
 #include "panic.hpp"
 #include "log.hpp"

@@ -1,9 +1,9 @@
 #pragma once
 
 #include "apic.hpp"
-
-#include "isr.hpp"
 #include "memory.hpp"
+
+#include <atomic>
 
 namespace km {
     /// @brief The stack size for each AP.

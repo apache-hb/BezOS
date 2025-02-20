@@ -1,6 +1,6 @@
 #include "pit.hpp"
 #include "delay.hpp"
-#include "isr.hpp"
+#include "isr/isr.hpp"
 
 #include <cstdint>
 

@@ -2,7 +2,7 @@
 
 #include "arch/arch.hpp"
 #include "fs2/node.hpp"
-#include "isr.hpp"
+#include "isr/isr.hpp"
 #include "memory/memory.hpp"
 #include "std/shared_spinlock.hpp"
 #include "std/spinlock.hpp"

@@ -4,7 +4,7 @@
 #include "absl/base/internal/raw_logging.h"
 #include "absl/base/internal/throw_delegate.h"
 
-#include "isr.hpp"
+#include "isr/isr.hpp"
 #include "kernel.hpp"
 
 #include "absl/hash/internal/city.cc"

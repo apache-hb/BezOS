@@ -99,10 +99,17 @@ namespace km {
 
     static_assert(sizeof(IsrContext) == 176, "Update isr.S");
 
-    using IsrCallback = km::IsrContext(*)(km::IsrContext*);
+    using IsrCallback = IsrContext(*)(IsrContext*);
     using IsrEntry = std::atomic<IsrCallback>;
 
-    km::IsrContext DefaultIsrHandler(km::IsrContext *context);
+    /// @brief The default ISR handler.
+    ///
+    /// This handler is invoked when an ISR is not installed.
+    ///
+    /// @param context The ISR context.
+    ///
+    /// @return The ISR context.
+    IsrContext DefaultIsrHandler(IsrContext *context);
 
     /// @brief A table of interrupt service routines.
     ///
@@ -188,6 +195,13 @@ namespace km {
         }
     };
 
+    /// @brief A table containing x86 exception handlers for all cpus.
+    ///
+    /// The first 32 entries are reserved by the CPU for exceptions.
+    /// We share this table across all cpus as the handlers are the same.
+    ///
+    /// This table is preserved for the lifetime of the system, and is
+    /// never deallocated.
     class SharedIsrTable : public IsrTableBase<isr::kExceptionCount, 0> {
     public:
         using IsrTableBase::install;
@@ -195,6 +209,15 @@ namespace km {
     };
 
     /// @brief A table containing isr handlers for a single cpu.
+    ///
+    /// The remaining entries in the x86 idt are available for use as
+    /// interrupt service routines. Each cpu has its own table to allow
+    /// for per-cpu interrupt handling.
+    ///
+    /// This table is swapped out during the initial boot process and
+    /// replaced with a cpu local table. If you install an isr during
+    /// the initial boot sequence and want to keep it, you must reinstall
+    /// it on the cpu local table.
     class LocalIsrTable : public IsrTableBase<isr::kAvailableCount, isr::kExceptionCount> {
     public:
         using IsrTableBase::install;
@@ -204,6 +227,13 @@ namespace km {
         using IsrTableBase::find;
         using IsrTableBase::allocate;
         using IsrTableBase::release;
+    };
+
+    class ILocalIsrManager {
+    public:
+        virtual ~ILocalIsrManager() = default;
+
+        virtual LocalIsrTable *getLocalIsrTable() = 0;
     };
 
     void DisableNmi();
@@ -240,6 +270,8 @@ namespace km {
     };
 
     SharedIsrTable *GetSharedIsrTable();
+    LocalIsrTable *GetLocalIsrTable();
+    void SetIsrManager(ILocalIsrManager *manager);
 
     void SetCpuLocalIsrTable(LocalIsrTable *table);
 

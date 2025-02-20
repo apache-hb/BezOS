@@ -30,7 +30,7 @@
 #include "hid/hid.hpp"
 #include "hid/ps2.hpp"
 #include "hypervisor.hpp"
-#include "isr.hpp"
+#include "isr/isr.hpp"
 #include "log.hpp"
 #include "memory.hpp"
 #include "memory/memory.hpp"
@@ -848,8 +848,8 @@ static void InitBootTerminal(std::span<const boot::FrameBuffer> framebuffers) {
 
 static void UpdateSerialPort(ComPortInfo info) {
     info.skipLoopbackTest = true;
-    if (OpenSerialResult com1 = OpenSerial(info); com1.status == SerialPortStatus::eOk) {
-        gSerialLog = SerialLog(com1.port);
+    if (OpenSerialResult com = OpenSerial(info); com.status == SerialPortStatus::eOk) {
+        gSerialLog = SerialLog(com.port);
         gLogTargets.add(&gSerialLog);
     }
 }
