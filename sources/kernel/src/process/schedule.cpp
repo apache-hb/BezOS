@@ -44,7 +44,7 @@ static void SwitchThread(km::Thread *next) {
     KmResumeThread(state);
 }
 
-void km::ScheduleWork(IsrTable *table, IApic *apic) {
+void km::ScheduleWork(LocalIsrTable *table, IApic *apic) {
     tlsCurrentThread = nullptr;
 
     const IsrEntry *scheduleInt = table->allocate([](km::IsrContext *ctx) -> km::IsrContext {

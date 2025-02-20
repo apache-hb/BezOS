@@ -23,7 +23,7 @@ namespace km {
     km::Process *GetCurrentProcess();
 
     [[noreturn]]
-    void ScheduleWork(IsrTable *table, IApic *apic);
+    void ScheduleWork(LocalIsrTable *table, IApic *apic);
 
     void YieldCurrentThread();
 }

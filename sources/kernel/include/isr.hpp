@@ -54,6 +54,11 @@ namespace km {
         static constexpr uint8_t kSecondaryAta = 0xF;
     }
 
+    enum class Privilege : uint8_t {
+        eSupervisor = 0,
+        eUser = 3,
+    };
+
     struct [[gnu::packed]] IdtEntry {
         uint16_t address0;
         uint16_t selector;
@@ -99,26 +104,20 @@ namespace km {
 
     km::IsrContext DefaultIsrHandler(km::IsrContext *context);
 
-    class [[gnu::packed]] SharedIsrTable {
-        static constexpr auto kCount = isr::kExceptionCount;
-        IsrEntry mHandlers[kCount] = { [0 ... (kCount - 1)] = DefaultIsrHandler };
-
+    /// @brief A table of interrupt service routines.
+    ///
+    /// @tparam N The number of ISRs in the table.
+    /// @tparam Offset The offset between the public ISR number and the actual ISR number.
+    template<size_t N, size_t Offset>
+    class IsrTableBase {
     public:
-        void install(uint8_t isr, IsrCallback callback) {
-            mHandlers[isr].store(callback);
-        }
+        /// @brief The number of ISRs in this table.
+        static constexpr auto kCount = N;
 
-        IsrContext invoke(km::IsrContext *context) {
-            km::IsrCallback isr = mHandlers[uint8_t(context->vector)];
-            return isr(context);
-        }
-    };
+        /// @brief The offset between the public ISR number and the actual ISR number.
+        static constexpr auto kOffset = Offset;
 
-    /// @brief A table containing isr handlers for a single cpu.
-    class [[gnu::packed]] IsrTable {
-    public:
-        static constexpr auto kCount = isr::kAvailableCount;
-    private:
+    protected:
         //
         // This syntax is to work around none of std::atomic<T>
         // being constexpr except the constructor. C++ has no way of expressing
@@ -126,23 +125,85 @@ namespace km {
         // we have to employ this gnu extension. But now this class is constexpr
         // constructible.
         //
-        IsrEntry mHandlers[kCount] = { [0 ... (kCount - 1)] = DefaultIsrHandler };
+        IsrEntry mHandlers[N] = { [0 ... (N - 1)] = DefaultIsrHandler };
+
+        uint8_t index(const IsrEntry *entry) const {
+            return std::distance(mHandlers, entry) + kOffset;
+        }
+
+        IsrEntry *find(const IsrEntry *handle) {
+            //
+            // We need to be very certain what we're about do is alright.
+            //
+            if (std::begin(mHandlers) > handle || handle >= std::end(mHandlers)) {
+                return nullptr;
+            }
+
+            //
+            // This const_cast is sound as we are certain it points to a member of the
+            // array we own. And we are being executed in a non-const context, so this
+            // is exactly equal to doing the work required to constitute the array element.
+            //
+            return const_cast<IsrEntry*>(handle);
+        }
+
+        const IsrEntry *allocate(IsrCallback callback) {
+            for (IsrEntry& entry : mHandlers) {
+
+                //
+                // Find the first entry that is free by swapping with the default handler.
+                // All free entries are denoted by containing `DefaultIsrHandler`.
+                //
+                IsrCallback expected = DefaultIsrHandler;
+                if (entry.compare_exchange_strong(expected, callback)) {
+                    return &entry;
+                }
+            }
+
+            return nullptr;
+        }
+
+        void release(const IsrEntry *callback, IsrCallback expected) {
+            IsrEntry *entry = find(callback);
+
+            //
+            // Only swap out the ISR handler with the default one if
+            // it is still set to what the caller provided us. If it
+            // has changed since then another thread has beaten us to
+            // reusing it and we don't want to trample their work.
+            //
+            entry->compare_exchange_strong(expected, DefaultIsrHandler);
+        }
 
     public:
-        IsrEntry *find(const IsrEntry *handle);
+        constexpr IsrTableBase() = default;
 
-        IsrCallback install(uint8_t isr, IsrCallback callback);
-        km::IsrContext invoke(km::IsrContext *context);
+        IsrCallback install(uint8_t isr, IsrCallback callback) {
+            return mHandlers[isr - kOffset].exchange(callback);
+        }
 
-        const IsrEntry *allocate(IsrCallback callback);
-        void release(const IsrEntry *callback, IsrCallback expected);
-
-        uint32_t index(const IsrEntry *entry) const;
+        IsrContext invoke(IsrContext *context) {
+            IsrCallback isr = mHandlers[uint8_t(context->vector) - kOffset];
+            return isr(context);
+        }
     };
 
-    enum class Privilege : uint8_t {
-        eSupervisor = 0,
-        eUser = 3,
+    class SharedIsrTable : public IsrTableBase<isr::kExceptionCount, 0> {
+    public:
+        using IsrTableBase::install;
+        using IsrTableBase::invoke;
+    };
+
+    /// @brief A table containing isr handlers for a single cpu.
+    class LocalIsrTable : public IsrTableBase<isr::kAvailableCount, isr::kExceptionCount> {
+    public:
+        using IsrTableBase::install;
+        using IsrTableBase::invoke;
+        using IsrTableBase::index;
+
+        using IsrTableBase::find;
+        using IsrTableBase::allocate;
+        using IsrTableBase::release;
     };
 
     void DisableNmi();
@@ -180,7 +241,7 @@ namespace km {
 
     SharedIsrTable *GetSharedIsrTable();
 
-    void SetCpuLocalIsrTable(IsrTable *table);
+    void SetCpuLocalIsrTable(LocalIsrTable *table);
 
     void EnableCpuLocalIsrTable();
 
@@ -190,7 +251,7 @@ namespace km {
     ///
     /// @param isrs The isr allocator to populate.
     /// @param codeSelector the kernel code selector to use as the isr execution selector.
-    void InitInterrupts(IsrTable *ist, uint16_t codeSelector);
+    void InitInterrupts(LocalIsrTable *ist, uint16_t codeSelector);
 
     /// @brief Setup the IDT for this core.
     ///

@@ -27,6 +27,6 @@ namespace hid {
     void InitPs2HidStream(km::NotificationStream *stream);
     km::Topic *GetHidPs2Topic();
 
-    const km::IsrEntry *InstallPs2KeyboardIsr(km::IoApicSet& ioApicSet, hid::Ps2Controller& controller, const km::IApic *target, km::IsrTable *ist);
-    const km::IsrEntry *InstallPs2MouseIsr(km::IoApicSet& ioApicSet, hid::Ps2Controller& controller, const km::IApic *target, km::IsrTable *ist);
+    const km::IsrEntry *InstallPs2KeyboardIsr(km::IoApicSet& ioApicSet, hid::Ps2Controller& controller, const km::IApic *target, km::LocalIsrTable *ist);
+    const km::IsrEntry *InstallPs2MouseIsr(km::IoApicSet& ioApicSet, hid::Ps2Controller& controller, const km::IApic *target, km::LocalIsrTable *ist);
 }

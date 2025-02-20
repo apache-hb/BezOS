@@ -76,7 +76,7 @@ struct KeyboardState {
 
 static KeyboardState gKeyboardState;
 
-const km::IsrEntry *hid::InstallPs2KeyboardIsr(km::IoApicSet& ioApicSet, hid::Ps2Controller& controller, const km::IApic *target, km::IsrTable *ist) {
+const km::IsrEntry *hid::InstallPs2KeyboardIsr(km::IoApicSet& ioApicSet, hid::Ps2Controller& controller, const km::IApic *target, km::LocalIsrTable *ist) {
     gController = controller;
 
     const km::IsrEntry *keyboardInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
@@ -125,7 +125,7 @@ const km::IsrEntry *hid::InstallPs2KeyboardIsr(km::IoApicSet& ioApicSet, hid::Ps
     return keyboardInt;
 }
 
-const km::IsrEntry *hid::InstallPs2MouseIsr(km::IoApicSet& ioApicSet, hid::Ps2Controller& controller, const km::IApic *target, km::IsrTable *ist) {
+const km::IsrEntry *hid::InstallPs2MouseIsr(km::IoApicSet& ioApicSet, hid::Ps2Controller& controller, const km::IApic *target, km::LocalIsrTable *ist) {
     gController = controller;
 
     const km::IsrEntry *mouseInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {

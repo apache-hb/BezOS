@@ -791,7 +791,7 @@ struct ApicInfo {
     uint8_t spuriousInt;
 };
 
-static ApicInfo EnableBootApic(km::SystemMemory& memory, km::IsrTable *ist, bool useX2Apic) {
+static ApicInfo EnableBootApic(km::SystemMemory& memory, km::LocalIsrTable *ist, bool useX2Apic) {
     km::Apic pic = InitBspApic(memory, useX2Apic);
 
     // setup tls now that we have the lapic id
@@ -1014,7 +1014,7 @@ static void LogSystemInfo(
     KmDebugMessage("| /BOOT         | HHDM offset          | ", Hex(launch.hhdmOffset).pad(16, '0'), "\n");
 }
 
-static void SetupInterruptStacks(km::IsrTable *ist, uint16_t cs) {
+static void SetupInterruptStacks(km::LocalIsrTable *ist, uint16_t cs) {
     gBootTss = x64::TaskStateSegment{
         .ist1 = (uintptr_t)aligned_alloc(kTssStackSize, x64::kPageSize) + kTssStackSize,
         .ist2 = (uintptr_t)aligned_alloc(kTssStackSize, x64::kPageSize) + kTssStackSize,
@@ -1043,8 +1043,8 @@ static void SetupInterruptStacks(km::IsrTable *ist, uint16_t cs) {
     }
 }
 
-static km::IsrTable* InitStage1Idt(uint16_t cs) {
-    km::IsrTable *ist = new IsrTable();
+static km::LocalIsrTable* InitStage1Idt(uint16_t cs) {
+    km::LocalIsrTable *ist = new LocalIsrTable();
     InitInterrupts(ist, cs);
     InstallExceptionHandlers(GetSharedIsrTable());
     SetupInterruptStacks(ist, cs);
@@ -1395,7 +1395,7 @@ static void AddVmemSystemCalls() {
     });
 }
 
-static void StartupSmp(const acpi::AcpiTables& rsdt, km::IsrTable *ist) {
+static void StartupSmp(const acpi::AcpiTables& rsdt, km::LocalIsrTable *ist) {
     //
     // Set the local ISR table for the BSP core to prepare for switchover
     // from a global ISR table to a CPU local ISR table.
@@ -1496,7 +1496,7 @@ static OsStatus KernelMasterTask() {
     return OsStatusSuccess;
 }
 
-static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioApicSet, const IApic *apic, IsrTable *ist) {
+static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioApicSet, const IApic *apic, LocalIsrTable *ist) {
     static hid::Ps2Controller ps2Controller;
 
     bool has8042 = rsdt.has8042Controller();
@@ -1573,7 +1573,7 @@ static void CreateDisplayDevice() {
 }
 
 [[noreturn]]
-static void LaunchKernelProcess(IsrTable *table, IApic *apic) {
+static void LaunchKernelProcess(LocalIsrTable *table, IApic *apic) {
     Process *process = gSystemObjects->createProcess("SYSTEM", Privilege::eSupervisor);
     Thread *thread = gSystemObjects->createThread("MASTER", process);
     thread->stack = std::unique_ptr<std::byte[]>(new std::byte[kKernelStackSize]);
@@ -1631,7 +1631,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     //
     Disable8259Pic();
 
-    km::IsrTable *ist = InitStage1Idt(SystemGdt::eLongModeCode);
+    km::LocalIsrTable *ist = InitStage1Idt(SystemGdt::eLongModeCode);
     EnableInterrupts();
 
     PlatformInfo platform = GetPlatformInfo(launch.smbios32Address, launch.smbios64Address, *stage2->memory);

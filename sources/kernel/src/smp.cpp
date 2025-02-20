@@ -84,7 +84,7 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
 
     km::SetupApGdt();
 
-    km::IsrTable *ist = new km::IsrTable();
+    km::LocalIsrTable *ist = new km::LocalIsrTable();
     km::SetCpuLocalIsrTable(ist);
 
     const km::IsrEntry *spuriousInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {

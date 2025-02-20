@@ -35,10 +35,10 @@ static x64::Idt gIdt;
 
 static constinit km::SharedIsrTable gSharedIsrTable{};
 
-static constinit km::IsrTable *gIsrTable = nullptr;
+static constinit km::LocalIsrTable *gIsrTable = nullptr;
 
 CPU_LOCAL
-static constinit km::CpuLocal<km::IsrTable*> tlsIsrTable;
+static constinit km::CpuLocal<km::LocalIsrTable*> tlsIsrTable;
 static constinit bool gEnableLocalIsrTable = false;
 
 static constexpr x64::IdtEntry CreateIdtEntry(uintptr_t handler, uint16_t codeSelector, km::Privilege dpl, uint8_t ist) {
@@ -94,7 +94,7 @@ extern "C" km::IsrContext KmIsrDispatchRoutine(km::IsrContext *context) {
             return gSharedIsrTable.invoke(context);
         }
 
-        km::IsrTable *ist = gEnableLocalIsrTable ? tlsIsrTable.get() : gIsrTable;
+        km::LocalIsrTable *ist = gEnableLocalIsrTable ? tlsIsrTable.get() : gIsrTable;
         return ist->invoke(context);
     });
 }
@@ -103,7 +103,7 @@ void km::UpdateIdtEntry(uint8_t isr, uint16_t selector, Privilege dpl, uint8_t i
     gIdt.entries[isr] = CreateIdtEntry((uintptr_t)KmIsrTable + (isr * kIsrTableStride), selector * 0x8, dpl, ist);
 }
 
-void km::InitInterrupts(IsrTable *ist, uint16_t codeSelector) {
+void km::InitInterrupts(LocalIsrTable *ist, uint16_t codeSelector) {
     gIsrTable = ist;
 
     for (size_t i = 0; i < x64::Idt::kCount; i++) {
@@ -126,7 +126,7 @@ km::SharedIsrTable *km::GetSharedIsrTable() {
     return &gSharedIsrTable;
 }
 
-void km::SetCpuLocalIsrTable(IsrTable *table) {
+void km::SetCpuLocalIsrTable(LocalIsrTable *table) {
     tlsIsrTable = table;
 }
 
@@ -140,66 +140,4 @@ void km::DisableInterrupts() {
 
 void km::EnableInterrupts() {
     __sti();
-}
-
-km::IsrEntry *km::IsrTable::find(const IsrEntry *handle) {
-    //
-    // We need to be very certain what we're about do is alright.
-    //
-    if (std::begin(mHandlers) > handle || handle >= std::end(mHandlers)) {
-        KmDebugMessage("The isr table (", (void*)std::begin(mHandlers), "-", (void*)std::end(mHandlers), ") does not contain isr ", (void*)handle, "\n");
-        KM_PANIC("IsrTable::release was given an entry that it was not responsible for.");
-    }
-
-    //
-    // This const_cast is sound as we are certain it points to a member of the
-    // array we own. And we are being executed in a non-const context, so this
-    // is exactly equal to doing the work required to constitute the array element.
-    //
-    return const_cast<IsrEntry*>(handle);
-}
-
-km::IsrCallback km::IsrTable::install(uint8_t isr, IsrCallback callback) {
-    return mHandlers[isr - isr::kExceptionCount].exchange(callback);
-}
-
-km::IsrContext km::IsrTable::invoke(km::IsrContext *context) {
-    km::IsrCallback isr = mHandlers[uint8_t(context->vector) - isr::kExceptionCount];
-    return isr(context);
-}
-
-const km::IsrEntry *km::IsrTable::allocate(IsrCallback callback) {
-    for (IsrEntry& entry : mHandlers) {
-
-        //
-        // Find the first entry that is free by swapping with the default handler.
-        // All free entries are denoted by containing `DefaultIsrHandler`.
-        //
-        IsrCallback expected = DefaultIsrHandler;
-        if (entry.compare_exchange_strong(expected, callback)) {
-            return &entry;
-        }
-    }
-
-    return nullptr;
-}
-
-void km::IsrTable::release(const IsrEntry *callback, IsrCallback expected) {
-    IsrEntry *entry = find(callback);
-
-    //
-    // Only swap out the ISR handler with the default one if
-    // it is still set to what the caller provided us. If it
-    // has changed since then another thread has beaten us to
-    // reusing it and we don't want to trample their work.
-    //
-    entry->compare_exchange_strong(expected, DefaultIsrHandler);
-}
-
-uint32_t km::IsrTable::index(const IsrEntry *entry) const {
-    if (std::begin(mHandlers) > entry || entry >= std::end(mHandlers)) {
-        return UINT32_MAX;
-    }
-
-    return std::distance(mHandlers, entry) + isr::kExceptionCount;
 }
