@@ -95,10 +95,9 @@ namespace km {
     static_assert(sizeof(IsrContext) == 176, "Update isr.S");
 
     using IsrCallback = km::IsrContext(*)(km::IsrContext*);
+    using IsrEntry = std::atomic<IsrCallback>;
 
     km::IsrContext DefaultIsrHandler(km::IsrContext *context);
-
-    using IsrEntry = std::atomic<IsrCallback>;
 
     class [[gnu::packed]] SharedIsrTable {
         static constexpr auto kCount = isr::kExceptionCount;
