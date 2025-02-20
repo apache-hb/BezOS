@@ -815,12 +815,14 @@ static ApicInfo EnableBootApic(km::SystemMemory& memory, km::IsrTable *ist, bool
     pic->enable();
 
     if (kSelfTestApic) {
-        const IsrEntry *testInt = ist->allocate([](km::IsrContext *context) -> km::IsrContext {
-            KmDebugMessage("[SELFTEST] Handled isr: ", context->vector, "\n");
+        IsrCallback testIsr = [](km::IsrContext *ctx) -> km::IsrContext {
+            KmDebugMessage("[TEST] Handled isr: ", ctx->vector, "\n");
             km::IApic *pic = km::GetCpuLocalApic();
             pic->eoi();
-            return *context;
-        });
+            return *ctx;
+        };
+
+        const IsrEntry *testInt = ist->allocate(testIsr);
         uint8_t testIdx = ist->index(testInt);
 
         //
@@ -829,7 +831,7 @@ static ApicInfo EnableBootApic(km::SystemMemory& memory, km::IsrTable *ist, bool
         pic->sendIpi(apic::IcrDeliver::eSelf, testIdx);
         pic->selfIpi(testIdx);
 
-        ist->release(testInt);
+        ist->release(testInt, testIsr);
     }
 
     return ApicInfo { pic, spuriousIdx };

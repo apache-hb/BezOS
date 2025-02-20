@@ -184,9 +184,8 @@ const km::IsrEntry *km::IsrTable::allocate(IsrCallback callback) {
     return nullptr;
 }
 
-void km::IsrTable::release(const IsrEntry *callback) {
+void km::IsrTable::release(const IsrEntry *callback, IsrCallback expected) {
     IsrEntry *entry = find(callback);
-    IsrCallback expected = callback->load();
 
     //
     // Only swap out the ISR handler with the default one if
