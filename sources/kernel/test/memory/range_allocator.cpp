@@ -1,37 +1,11 @@
 #include <gtest/gtest.h>
+#include <mm_malloc.h>
 
 #include "memory/range_allocator.hpp"
 
-#include "allocator/tlsf.hpp"
-
 static constexpr size_t kSize = 0x10000;
 
-static auto GetAllocatorMemory() {
-    auto deleter = [](uint8_t *ptr) {
-        :: operator delete[] (ptr, std::align_val_t(16));
-    };
-
-    return std::unique_ptr<uint8_t[], decltype(deleter)>{
-        new (std::align_val_t(16)) uint8_t[kSize],
-        deleter
-    };
-}
-
-using TestMemory = decltype(GetAllocatorMemory());
-
-class RangeDetailTest : public testing::Test {
-protected:
-    void SetUp() override {
-        memory = GetAllocatorMemory();
-
-        alloc = mem::TlsfAllocator { memory.get(), kSize };
-    }
-
-    TestMemory memory;
-    mem::TlsfAllocator alloc;
-};
-
-TEST_F(RangeDetailTest, MergeOverlapping) {
+TEST(RangeDetailTest, MergeOverlapping) {
     stdx::Vector2<km::MemoryRange> ranges { };
     ranges.add({ 0x1000, 0x2000 });
     ranges.add({ 0x1500, 0x2500 });
@@ -43,7 +17,7 @@ TEST_F(RangeDetailTest, MergeOverlapping) {
     ASSERT_EQ(ranges[0].back, 0x2500);
 }
 
-TEST_F(RangeDetailTest, MergeContaining) {
+TEST(RangeDetailTest, MergeContaining) {
     stdx::Vector2<km::MemoryRange> ranges { };
     ranges.add({ 0x1000, 0x2000 });
     ranges.add({ 0x1500, 0x1800 });
@@ -55,7 +29,7 @@ TEST_F(RangeDetailTest, MergeContaining) {
     ASSERT_EQ(ranges[0].back, 0x2000);
 }
 
-TEST_F(RangeDetailTest, MergeAdjacent) {
+TEST(RangeDetailTest, MergeAdjacent) {
     stdx::Vector2<km::MemoryRange> ranges { };
     ranges.add({ 0x1000, 0x2000 });
     ranges.add({ 0x2000, 0x3000 });
@@ -67,7 +41,7 @@ TEST_F(RangeDetailTest, MergeAdjacent) {
     ASSERT_EQ(ranges[0].back, 0x3000);
 }
 
-TEST_F(RangeDetailTest, MultipleOverlapping) {
+TEST(RangeDetailTest, MultipleOverlapping) {
     stdx::Vector2<km::MemoryRange> ranges { };
     ranges.add({ 0x1000, 0x2000 });
     ranges.add({ 0x1500, 0x2500 });
@@ -175,9 +149,6 @@ INSTANTIATE_TEST_SUITE_P(MergeRange, MergeRangeTest, testing::Values(
 
 TEST_P(MergeRangeTest, Merge) {
     auto [input, output] = GetParam();
-    TestMemory memory = GetAllocatorMemory();
-
-    mem::TlsfAllocator alloc { memory.get(), kSize };
 
     stdx::Vector2<km::MemoryRange> ranges { input.begin(), input.end() };
 
@@ -261,9 +232,6 @@ INSTANTIATE_TEST_SUITE_P(MarkUsed, MarkUsedTest, testing::Values(
 
 TEST_P(MarkUsedTest, MarkUsedArea) {
     auto [input, used, output] = GetParam();
-    TestMemory memory = GetAllocatorMemory();
-
-    mem::TlsfAllocator alloc { memory.get(), kSize };
 
     stdx::Vector2<km::MemoryRange> ranges { input.begin(), input.end() };
 

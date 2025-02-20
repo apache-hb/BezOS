@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 
-#include "kernel/test/ports.hpp"
+#include "ports.hpp"
 
 #include "uart.hpp"
 

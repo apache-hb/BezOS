@@ -93,3 +93,8 @@ repo: $(REPO) $(REPO_SRC)
 .PHONY: clean
 clean:
 	rm -rf $(BUILDDIR) $(PREFIX)
+
+
+.PHONY: kernel-test
+kernel-test:
+	meson test -C build/packages/kernel

@@ -5,6 +5,14 @@
               archive='gz' />
 
     <configure with='shell'>
-
+        cd @BUILD_ROOT@
+        @SOURCE_ROOT@/gcc-14.2.0/configure \
+            --prefix=@INSTALL_ROOT@ \
+            --target=x86_64-elf \
+            --disable-nls \
+            --enable-languages=c,c++ \
+            --without-headers
     </configure>
+
+    <build with='make' />
 </package>

@@ -49,10 +49,18 @@ struct Download {
 };
 
 enum ConfigureProgram {
-    eNone,
+    eConfigureNone,
 
     eMeson,
     eCMake,
+    eShell,
+};
+
+enum BuildProgram {
+    eBuildNone,
+
+    eNinja,
+    eMake,
 };
 
 struct ScriptExec {
@@ -72,13 +80,16 @@ struct PackageInfo {
     std::vector<Download> downloads;
     std::vector<Overlay> overlays;
     std::vector<RequirePackage> dependencies;
-    ConfigureProgram configure{eNone};
+    ConfigureProgram configure{eConfigureNone};
+    BuildProgram buildProgram{eBuildNone};
     std::string version;
     std::string mesonCrossFile;
     std::string mesonNativeFile;
     std::vector<ScriptExec> scripts;
     std::map<std::string, std::string> options;
+    std::map<std::string, std::string> configureEnv;
     std::string configureSourcePath;
+    std::string shellConfigureScript;
 
     std::string GetConfigureSourcePath() const {
         return configureSourcePath.empty() ? GetWorkspaceFolder().string() : configureSourcePath;
@@ -148,6 +159,8 @@ struct PackageDb {
             "    status TEXT\n"
             ")\n"
         );
+
+        db.exec("DELETE FROM targets WHERE name = ''");
 
         db.exec("DROP TABLE IF EXISTS dependencies");
 
@@ -262,6 +275,7 @@ struct PackageDb {
     }
 
     void SetPackageStatus(std::string_view name, PackageStatus status) {
+        if (name.empty()) throw std::runtime_error("Empty package name");
         sql::Statement query(db, "INSERT OR REPLACE INTO targets (name, status) VALUES (?, ?)");
         query.bind(1, std::string(name));
         query.bind(2, GetPackageStatusString(status));
@@ -441,6 +455,10 @@ struct XmlNode {
         defer { xmlFree(value); };
 
         return reinterpret_cast<const char *>(value);
+    }
+
+    std::string content() const {
+        return reinterpret_cast<const char *>(node->content);
     }
 
     std::string_view name() const {
@@ -645,6 +663,15 @@ static void ReadPackageConfig(XmlNode root) {
         } else if (step == "overlay"sv) {
             auto folder = ExpectProperty<std::string>(action, "path");
             packageInfo.overlays.push_back(Overlay{folder});
+        } else if (step == "build") {
+            auto with = ExpectProperty<std::string>(action, "with");
+            if (with == "ninja") {
+                packageInfo.buildProgram = eNinja;
+            } else if (with == "make") {
+                packageInfo.buildProgram = eMake;
+            } else {
+                throw std::runtime_error("Unknown build program " + with);
+            }
         } else if (step == "configure"sv) {
             auto with = ExpectProperty<std::string>(action, "with");
             if (with == "meson") {
@@ -658,6 +685,9 @@ static void ReadPackageConfig(XmlNode root) {
                 }
             } else if (with == "cmake") {
                 packageInfo.configure = eCMake;
+            } else if (with == "shell") {
+                packageInfo.configure = eShell;
+                packageInfo.shellConfigureScript = action.content();
             } else {
                 throw std::runtime_error("Unknown configure program " + with);
             }
@@ -667,6 +697,8 @@ static void ReadPackageConfig(XmlNode root) {
                     packageInfo.options = child.properties();
                 } else if (child.name() == "source"sv) {
                     packageInfo.configureSourcePath = ExpectProperty<std::string>(child, "path");
+                } else if (child.name() == "env"sv) {
+                    packageInfo.configureEnv = child.properties();
                 }
             }
         }
@@ -804,7 +836,7 @@ static void ReplacePackagePlaceholders(std::string& str, const PackageInfo& pack
 }
 
 static void ConfigurePackage(const PackageInfo& package) {
-    if (package.configure == eNone) {
+    if (package.configure == eConfigureNone) {
         return;
     }
 
@@ -878,7 +910,7 @@ static void ConfigurePackage(const PackageInfo& package) {
 }
 
 static void BuildPackage(const PackageInfo& package) {
-    if (package.configure == eNone) {
+    if (package.configure == eConfigureNone) {
         return;
     }
 
@@ -907,7 +939,7 @@ static void BuildPackage(const PackageInfo& package) {
 }
 
 static void InstallPackage(const PackageInfo& package) {
-    if (package.configure == eNone) {
+    if (package.configure == eConfigureNone) {
         return;
     }
 
@@ -1110,6 +1142,10 @@ int main(int argc, const char **argv) try {
         .help("Name of the repository cache database")
         .default_value("repo.db");
 
+    parser.add_argument("--test")
+        .help("List of targets to run tests on")
+        .nargs(argparse::nargs_pattern::any);
+
     parser.add_argument("--help")
         .help("Print this help message")
         .action([&](const std::string &) { std::cout << parser; std::exit(0); });
@@ -1217,6 +1253,17 @@ int main(int argc, const char **argv) try {
 
     for (auto& artifact : pkgs) {
         GenerateArtifact(artifact.name, artifact);
+    }
+
+    if (parser.present("--test")) {
+        auto tests = parser.get<std::vector<std::string>>("--test");
+        for (const auto& test : tests) {
+            auto path = gWorkspace.GetPackagePath(test);
+            auto result = sp::call({ "meson", "test" }, sp::cwd{path});
+            if (result != 0) {
+                throw std::runtime_error("Failed to run tests for " + test);
+            }
+        }
     }
 
     if (parser.present("--workspace")) {

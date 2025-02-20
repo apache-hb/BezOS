@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <memory_resource>
 
 #include "memory/allocator.hpp"
 
@@ -19,15 +20,30 @@ static auto GetAllocatorMemory() {
 
 using TestMemory = decltype(GetAllocatorMemory());
 
+struct BufferAllocator final : public mem::IAllocator {
+    std::pmr::monotonic_buffer_resource mResource;
+
+public:
+    BufferAllocator(uint8_t *memory, size_t size)
+        : mResource(memory, size)
+    { }
+
+    void *allocateAligned(size_t size, size_t align) override {
+        return mResource.allocate(size, align);
+    }
+
+    void deallocate(void *ptr, size_t size) override {
+        mResource.deallocate(ptr, size);
+    }
+};
+
 class PageTableTest : public testing::Test {
 public:
     void SetUp() override {
-        memory = GetAllocatorMemory();
-        allocator = mem::TlsfAllocator { memory.get(), kSize };
     }
 
-    TestMemory memory;
-    mem::TlsfAllocator allocator;
+    TestMemory memory = GetAllocatorMemory();
+    BufferAllocator allocator { memory.get(), kSize };
     km::PageBuilder pm { 48, 48, 0, km::PageMemoryTypeLayout { 2, 3, 4, 1, 5, 0 } };
 };
 

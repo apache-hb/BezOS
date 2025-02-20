@@ -7,5 +7,6 @@
 
     <configure with='meson'>
         <cross-file path='@SOURCE_ROOT@/data/kernel.ini' />
+        <native-file path='@SOURCE_ROOT@/data/host.ini' />
     </configure>
 </package>

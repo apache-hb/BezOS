@@ -238,11 +238,9 @@ executable('bezos-hyper.elf', 'src/boot/hyper.cpp',
 
 # Unit tests
 
-subdir_done()
-
 gtest = dependency('gtest', native : true)
 gmock = dependency('gmock', native : true)
-libvirt = dependency('libvirt', native : true)
+# libvirt = dependency('libvirt', native : true)
 stb_image_write = dependency('stb_image_write')
 gtest_main = dependency('gtest_main', native : true)
 testkwargs = { 'protocol' : 'gtest', 'timeout': 5 }
@@ -264,7 +262,7 @@ test_shim = static_library('test_shim', src,
     include_directories : inc,
     c_args : test_c_args,
     cpp_args : test_cpp_args,
-    dependencies : [ gtest ],
+    dependencies : [ gtest, sysapi, concurrentqueue ],
     native : true,
 )
 
@@ -272,7 +270,7 @@ test_exe_kwargs = {
     'include_directories': [ inc ],
     'c_args': test_c_args,
     'cpp_args': test_cpp_args,
-    'dependencies': [ gtest_main, gmock ],
+    'dependencies': [ gtest_main, gmock, sysapi, concurrentqueue ],
     'override_options': [ 'b_sanitize=address' ],
     'native': true,
     'link_with': [ test_shim ],
@@ -517,12 +515,12 @@ testcases = {
         ],
         'dependencies' : [ stb_image_write ]
     },
-    'launch': {
-        'sources': [
-            'test/emulated/launch.cpp',
-        ],
-        'dependencies' : [ libvirt ],
-    }
+    # 'launch': {
+    #     'sources': [
+    #         'test/emulated/launch.cpp',
+    #     ],
+    #     'dependencies' : [ libvirt ],
+    # }
 }
 
 foreach name, kwargs : testcases
