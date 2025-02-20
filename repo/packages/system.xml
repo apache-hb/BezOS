@@ -5,6 +5,4 @@
     <configure with='meson'>
         <cross-file path='@SOURCE_ROOT@/data/bezos.ini' />
     </configure>
-
-    <provide id='init.elf' data='bin/init.elf' />
 </package>

@@ -1258,7 +1258,7 @@ int main(int argc, const char **argv) try {
     if (parser.present("--test")) {
         auto tests = parser.get<std::vector<std::string>>("--test");
         for (const auto& test : tests) {
-            auto path = gWorkspace.GetPackagePath(test);
+            auto path = gWorkspace.GetPackagePath(test).string();
             auto result = sp::call({ "meson", "test" }, sp::cwd{path});
             if (result != 0) {
                 throw std::runtime_error("Failed to run tests for " + test);
