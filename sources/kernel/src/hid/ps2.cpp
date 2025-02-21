@@ -52,19 +52,27 @@ static void FlushData() {
 }
 
 static bool WaitUntilOutputEmpty(uint8_t timeout = 100) {
-    while (!OutputBufferFull() && timeout-- > 0) {
+    while (OutputBufferFull()) {
+        if (timeout-- == 0) {
+            return false;
+        }
+
         _mm_pause();
     }
 
-    return timeout > 0;
+    return true;
 }
 
 static bool WaitUntilInputFull(uint8_t timeout = 100) {
-    while (!InputBufferFull() && timeout-- > 0) {
+    while (!InputBufferFull()) {
+        if (timeout-- == 0) {
+            return false;
+        }
+
         _mm_pause();
     }
 
-    return timeout > 0;
+    return true;
 }
 
 static OsStatus WritePort(uint8_t port, uint8_t data) {

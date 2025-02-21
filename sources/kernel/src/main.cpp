@@ -902,7 +902,7 @@ static void DumpIsrContext(const km::IsrContext *context, stdx::StringView messa
     DumpIsrState(context);
 }
 
-static void InstallExceptionHandlers(LocalIsrTable *ist) {
+static void InstallExceptionHandlers(SharedIsrTable *ist) {
     ist->install(isr::DE, [](km::IsrContext *context) -> km::IsrContext {
         DumpIsrContext(context, "Divide by zero (#DE)");
         DumpStackTrace(context);
@@ -1043,13 +1043,13 @@ static void SetupInterruptStacks(uint16_t cs) {
 
 static void InitStage1Idt(uint16_t cs) {
     InitInterrupts(cs);
-    InstallExceptionHandlers(GetLocalIsrTable());
+    InstallExceptionHandlers(GetSharedIsrTable());
     SetupInterruptStacks(cs);
 
     if (kSelfTestIdt) {
         km::LocalIsrTable *ist = GetLocalIsrTable();
         IsrCallback old = ist->install(64, [](km::IsrContext *context) -> km::IsrContext {
-            KmDebugMessage("[SELFTEST] Handled isr: ", context->vector, "\n");
+            KmDebugMessage("[TEST] Handled isr: ", context->vector, "\n");
             return *context;
         });
 
@@ -1494,9 +1494,12 @@ static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioAp
 
             KmDebugMessage("[INIT] PS/2 keyboard: ", present(ps2Controller.hasKeyboard()), "\n");
             KmDebugMessage("[INIT] PS/2 mouse: ", present(ps2Controller.hasMouse()), "\n");
+        } else {
+            return;
         }
     } else {
         KmDebugMessage("[INIT] No PS/2 controller found.\n");
+        return;
     }
 
     if (ps2Controller.hasKeyboard()) {
