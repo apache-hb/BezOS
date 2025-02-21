@@ -117,6 +117,7 @@ src = [
     'src/isr/isr.cpp',
     'src/isr/isr.S',
     'src/isr/tables.cpp',
+    'src/isr/default.cpp',
 
     # Architecture features
     'src/gdt.cpp',
@@ -396,6 +397,10 @@ testcases = {
         'src/std/rcu.cpp',
         'src/std/rcuptr.cpp',
     ],
+    'isr table': [
+        'test/isr/isr.cpp',
+        'src/isr/default.cpp',
+    ]
 }
 
 if enable_aml

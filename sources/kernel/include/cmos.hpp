@@ -20,7 +20,7 @@ namespace km {
     namespace detail {
         struct CmosRegisters {
             uint8_t regB;
-        
+
             uint8_t second;
             uint8_t minute;
             uint8_t hour;
@@ -39,5 +39,5 @@ namespace km {
 
     void InitCmos(uint8_t century);
 
-    DateTime ReadRtc();
+    DateTime ReadCmosClock();
 }

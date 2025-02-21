@@ -54,7 +54,7 @@ namespace km {
     struct Process {
         ProcessId id;
         stdx::String name;
-        km::Privilege privilege;
+        x64::Privilege privilege;
         x64::MachineState machine;
         stdx::Vector2<Thread*> threads;
         stdx::Vector2<AddressSpace*> memory;
@@ -87,7 +87,7 @@ namespace km {
 
         Thread *createThread(stdx::String name, Process *process);
         AddressSpace *createAddressSpace(stdx::String name, km::AddressMapping mapping);
-        Process *createProcess(stdx::String name, km::Privilege privilege);
+        Process *createProcess(stdx::String name, x64::Privilege privilege);
         Mutex *createMutex(stdx::String name);
 
         Thread *getThread(ThreadId id);

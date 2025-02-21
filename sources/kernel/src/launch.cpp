@@ -58,7 +58,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
         return status;
     }
 
-    Process *process = objects.createProcess("INIT", km::Privilege::eUser);
+    Process *process = objects.createProcess("INIT", x64::Privilege::eUser);
 
     uint64_t entry = header.entry;
 

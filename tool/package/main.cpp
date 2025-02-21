@@ -8,7 +8,8 @@
 
 #include <argo.hpp>
 
-#include <pgbar/pgbar.hpp>
+#include <indicators/indeterminate_progress_bar.hpp>
+#include <indicators/progress_bar.hpp>
 
 #include <SQLiteCpp/SQLiteCpp.h>
 
@@ -545,6 +546,16 @@ static void ExtractArchive(std::string_view name, const fs::path& archive, const
         archive_read_free(a);
     };
 
+    indicators::IndeterminateProgressBar bar{
+        indicators::option::BarWidth{40},
+        indicators::option::Start{"["},
+        indicators::option::Lead{"*"},
+        indicators::option::End{"]"},
+        indicators::option::PostfixText{std::format("Extracting {} - 0", name)},
+        indicators::option::ForegroundColor{indicators::Color::white},
+        indicators::option::FontStyles{std::vector<indicators::FontStyle>{indicators::FontStyle::bold}}
+    };
+
     struct archive_entry *entry;
     while (archive_read_next_header(a, &entry) == ARCHIVE_OK) {
         std::string entryPath = archive_entry_pathname(entry);
@@ -552,6 +563,8 @@ static void ExtractArchive(std::string_view name, const fs::path& archive, const
         if (trimRootFolder) {
             entryPath = entryPath.substr(entryPath.find('/') + 1);
         }
+
+        bar.tick();
 
         if (entryPath.empty()) {
             continue;
@@ -573,7 +586,12 @@ static void ExtractArchive(std::string_view name, const fs::path& archive, const
         if (archive_entry_size(entry) > 0) {
             CopyData(a, os);
         }
+
+        int count = archive_file_count(a);
+        bar.set_option(indicators::option::PostfixText{std::format("Extracting {} - {}", name, count)});
     }
+
+    bar.mark_as_completed();
 }
 
 static void DownloadFile(const std::string& url, const fs::path& dst) {
@@ -594,7 +612,26 @@ static void DownloadFile(const std::string& url, const fs::path& dst) {
 
     defer { fclose(file); };
 
+    indicators::ProgressBar bar{
+        indicators::option::BarWidth{40},
+        indicators::option::Start{"["},
+        indicators::option::Fill{"■"},
+        indicators::option::Lead{"■"},
+        indicators::option::Remainder{"-"},
+        indicators::option::End{" ]"},
+        indicators::option::PostfixText{std::format("Downloading {}", url)},
+        indicators::option::ForegroundColor{indicators::Color::white},
+        indicators::option::FontStyles{std::vector<indicators::FontStyle>{indicators::FontStyle::bold}}
+    };
+
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, file);
+    curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &bar);
+    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+    curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, +[](void *clientp, curl_off_t dltotal, curl_off_t dlnow, curl_off_t ultotal, curl_off_t ulnow) {
+        auto bar = static_cast<indicators::ProgressBar *>(clientp);
+        bar->set_progress(dltotal / dlnow);
+        return 0;
+    });
 
     CURLcode res = curl_easy_perform(curl);
     if (res != CURLE_OK) {

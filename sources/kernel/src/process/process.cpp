@@ -22,7 +22,7 @@ AddressSpace *SystemObjects::createAddressSpace(stdx::String name, km::AddressMa
     return result;
 }
 
-Process *SystemObjects::createProcess(stdx::String name, km::Privilege privilege) {
+Process *SystemObjects::createProcess(stdx::String name, x64::Privilege privilege) {
     stdx::UniqueLock guard(mLock);
 
     ProcessId id = mProcessIds.allocate();

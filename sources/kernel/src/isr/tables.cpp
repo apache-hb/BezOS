@@ -2,6 +2,7 @@
 #include "isr/runtime.hpp"
 #include "thread.hpp"
 
+static constinit km::SharedIsrTable gSharedIsrTable{};
 static constinit km::LocalIsrTable gStartupIsrTable{};
 
 CPU_LOCAL
@@ -42,4 +43,8 @@ void km::SetIsrManager(km::ILocalIsrManager *manager) {
 
 void km::EnableCpuLocalIsrTable() {
     SetIsrManager(km::RuntimeIsrManager::instance());
+}
+
+km::SharedIsrTable *km::GetSharedIsrTable() {
+    return &gSharedIsrTable;
 }

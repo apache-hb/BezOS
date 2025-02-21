@@ -100,7 +100,7 @@ km::DateTime km::detail::ConvertCmosToDate(detail::CmosRegisters registers) {
     };
 }
 
-km::DateTime km::ReadRtc() {
+km::DateTime km::ReadCmosClock() {
     auto regs = detail::ReadCmosRegisters(gCenturyRegister);
     return detail::ConvertCmosToDate(regs);
 }

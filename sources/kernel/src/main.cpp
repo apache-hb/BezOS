@@ -1033,11 +1033,11 @@ static void SetupInterruptStacks(uint16_t cs) {
     __ltr(SystemGdt::eTaskState0 * 0x8);
 
     for (uint8_t i = 0; i < isr::kExceptionCount; i++) {
-        UpdateIdtEntry(i, cs, Privilege::eSupervisor, kIstTrap);
+        UpdateIdtEntry(i, cs, x64::Privilege::eSupervisor, kIstTrap);
     }
 
-    UpdateIdtEntry(isr::NMI, cs, Privilege::eSupervisor, kIstNmi);
-    UpdateIdtEntry(isr::MCE, cs, Privilege::eSupervisor, kIstNmi);
+    UpdateIdtEntry(isr::NMI, cs, x64::Privilege::eSupervisor, kIstNmi);
+    UpdateIdtEntry(isr::MCE, cs, x64::Privilege::eSupervisor, kIstNmi);
 }
 
 static void InitStage1Idt(uint16_t cs) {
@@ -1558,7 +1558,7 @@ static void CreateDisplayDevice() {
 
 [[noreturn]]
 static void LaunchKernelProcess(LocalIsrTable *table, IApic *apic) {
-    Process *process = gSystemObjects->createProcess("SYSTEM", Privilege::eSupervisor);
+    Process *process = gSystemObjects->createProcess("SYSTEM", x64::Privilege::eSupervisor);
     Thread *thread = gSystemObjects->createThread("MASTER", process);
     thread->stack = std::unique_ptr<std::byte[]>(new std::byte[kKernelStackSize]);
     thread->state = km::IsrContext {
@@ -1672,7 +1672,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
         KmDebugMessage("| Revision     | ", hpet->revision(), "\n");
     }
 
-    DateTime time = ReadRtc();
+    DateTime time = ReadCmosClock();
     KmDebugMessage("[INIT] Current time: ", time.year, "-", time.month, "-", time.day, "T", time.hour, ":", time.minute, ":", time.second, "Z\n");
 
     MountRootVfs();

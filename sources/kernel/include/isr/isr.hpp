@@ -1,5 +1,6 @@
 #pragma once
 
+#include "arch/isr.hpp"
 #include "util/util.hpp"
 #include "util/digit.hpp"
 
@@ -8,6 +9,20 @@
 #include <climits>
 
 namespace km {
+    /// @brief Standard architectural exception vector numbers.
+    ///
+    /// @details The ISR implementations are split across 4 files:
+    /// - isr.S: The assembly ISR dispatch routine stubs.
+    /// - isr.cpp: The IDT setup and management routines.
+    /// - default.cpp: The default ISR handler.
+    /// - tables.cpp: The ISR table implementations.
+    ///
+    /// The ISR implementations are split across these files to allow for
+    /// testing of other components that require ISR functionality. ISRs
+    /// are difficult to test in isolation due to the need for a full system
+    /// to be running to invoke them. By seperating the implementation I can
+    /// provide a userspace implementation with posix signals, allowing for
+    /// comprehensive testing of the ISR table implementations in unit tests.
     namespace isr {
         static constexpr uint8_t DE = 0x0;
         static constexpr uint8_t DB = 0x1;
@@ -53,11 +68,6 @@ namespace km {
         static constexpr uint8_t kPrimaryAta = 0xE;
         static constexpr uint8_t kSecondaryAta = 0xF;
     }
-
-    enum class Privilege : uint8_t {
-        eSupervisor = 0,
-        eUser = 3,
-    };
 
     struct [[gnu::packed]] IdtEntry {
         uint16_t address0;
@@ -244,6 +254,7 @@ namespace km {
     void DisableInterrupts();
     void EnableInterrupts();
 
+    /// @brief RAII guard to disable interrupts.
     class IntGuard {
     public:
         UTIL_NOMOVE(IntGuard);
@@ -258,6 +269,7 @@ namespace km {
         }
     };
 
+    /// @brief RAII guard to disable NMI.
     class NmiGuard : public IntGuard {
     public:
         UTIL_NOMOVE(NmiGuard);
@@ -299,5 +311,5 @@ namespace km {
     /// @param selector The new code selector for this entry.
     /// @param dpl The new privilige level for this entry.
     /// @param ist The new IST to use for this entry.
-    void UpdateIdtEntry(uint8_t isr, uint16_t selector, Privilege dpl, uint8_t ist);
+    void UpdateIdtEntry(uint8_t isr, uint16_t selector, x64::Privilege dpl, uint8_t ist);
 }

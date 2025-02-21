@@ -1,53 +1,15 @@
 #include "isr/isr.hpp"
 
 #include "arch/intrin.hpp"
-#include "arch/isr.hpp"
 
-#include "util/digit.hpp"
-
-#include "log.hpp"
-
-#include <stdint.h>
-#include <stddef.h>
-
-using sm::uint48_t;
-
-namespace x64 {
-    namespace idt {
-        static constexpr uint8_t kFlagPresent = (1 << 7);
-        static constexpr uint8_t kInterruptGate = 0b1110;
-        // static constexpr uint8_t kTrapGate = 0b1111;
-        // static constexpr uint8_t kTaskGate = 0b0101;
-    }
-
-    struct alignas(16) Idt {
-        static constexpr size_t kCount = 256;
-        x64::IdtEntry entries[kCount];
-    };
-}
+struct alignas(16) Idt {
+    static constexpr size_t kCount = 256;
+    x64::IdtEntry entries[kCount];
+};
 
 static constexpr size_t kIsrTableStride = 16;
 extern "C" const char KmIsrTable[];
-static constinit x64::Idt gIdt{};
-
-static constinit km::SharedIsrTable gSharedIsrTable{};
-
-static constexpr x64::IdtEntry CreateIdtEntry(uintptr_t handler, uint16_t codeSelector, km::Privilege dpl, uint8_t ist) {
-    uint8_t flags = x64::idt::kFlagPresent | x64::idt::kInterruptGate | ((std::to_underlying(dpl) & 0b11) << 5);
-
-    return x64::IdtEntry {
-        .address0 = uint16_t(handler & 0xFFFF),
-        .selector = codeSelector,
-        .ist = ist,
-        .flags = flags,
-        .address1 = uint48_t((handler >> 16)),
-    };
-}
-
-km::IsrContext km::DefaultIsrHandler(km::IsrContext *context) {
-    KmDebugMessage("[INT] Unhandled interrupt: ", context->vector, " Error: ", context->error, "\n");
-    return *context;
-}
+static constinit Idt gIdt{};
 
 template<typename F>
 static km::IsrContext DispatchIsr(km::IsrContext *context, F&& handler) {
@@ -82,7 +44,8 @@ extern "C" km::IsrContext KmIsrDispatchRoutine(km::IsrContext *context) {
     return DispatchIsr(context, [](km::IsrContext *context) {
         uint8_t vector = uint8_t(context->vector);
         if (vector < km::isr::kExceptionCount) {
-            return gSharedIsrTable.invoke(context);
+            km::SharedIsrTable *ist = km::GetSharedIsrTable();
+            return ist->invoke(context);
         }
 
         km::LocalIsrTable *ist = km::GetLocalIsrTable();
@@ -90,13 +53,14 @@ extern "C" km::IsrContext KmIsrDispatchRoutine(km::IsrContext *context) {
     });
 }
 
-void km::UpdateIdtEntry(uint8_t isr, uint16_t selector, Privilege dpl, uint8_t ist) {
-    gIdt.entries[isr] = CreateIdtEntry((uintptr_t)KmIsrTable + (isr * kIsrTableStride), selector * 0x8, dpl, ist);
+
+void km::UpdateIdtEntry(uint8_t isr, uint16_t selector, x64::Privilege dpl, uint8_t ist) {
+    gIdt.entries[isr] = x64::CreateIdtEntry((uintptr_t)KmIsrTable + (isr * kIsrTableStride), selector * 0x8, dpl, ist);
 }
 
 void km::InitInterrupts(uint16_t cs) {
-    for (size_t i = 0; i < x64::Idt::kCount; i++) {
-        UpdateIdtEntry(i, cs, Privilege::eSupervisor, 0);
+    for (size_t i = 0; i < Idt::kCount; i++) {
+        UpdateIdtEntry(i, cs, x64::Privilege::eSupervisor, 0);
     }
 
     LoadIdt();
@@ -104,15 +68,11 @@ void km::InitInterrupts(uint16_t cs) {
 
 void km::LoadIdt(void) {
     IDTR idtr = {
-        .limit = (sizeof(x64::IdtEntry) * x64::Idt::kCount) - 1,
+        .limit = sizeof(Idt) - 1,
         .base = (uintptr_t)&gIdt,
     };
 
     __lidt(idtr);
-}
-
-km::SharedIsrTable *km::GetSharedIsrTable() {
-    return &gSharedIsrTable;
 }
 
 void km::DisableInterrupts() {
