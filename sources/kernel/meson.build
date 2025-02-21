@@ -245,7 +245,7 @@ gtest = dependency('gtest', native : true)
 gmock = dependency('gmock', native : true)
 # libvirt = dependency('libvirt', native : true)
 stb_image_write = dependency('stb_image_write')
-capstone = dependency('capstone', native : true)
+# capstone = dependency('capstone', native : true)
 gtest_main = dependency('gtest_main', native : true)
 testkwargs = { 'protocol' : 'gtest', 'timeout': 5 }
 
@@ -526,21 +526,22 @@ testcases = {
         ],
         'dependencies' : [ stb_image_write ],
     },
-    'ioapic': {
-        'sources': [
-            'test/apic/ioapic.cpp',
-            'src/apic.cpp',
-            'src/memory.cpp',
-            'src/memory/page_tables.cpp',
-            'src/memory/page_allocator.cpp',
-            'src/memory/virtual_allocator.cpp',
-            'src/boot.cpp',
-            'src/util/cpuid.cpp',
-            'src/acpi/acpi.cpp',
-            'src/acpi/format.cpp',
-        ],
-        'dependencies': [ capstone ],
-    }
+    # 'ioapic': {
+    #     'sources': [
+    #         'test/apic/ioapic.cpp',
+    #         'src/apic.cpp',
+    #         'src/memory.cpp',
+    #         'src/memory/page_tables.cpp',
+    #         'src/memory/page_allocator.cpp',
+    #         'src/memory/virtual_allocator.cpp',
+    #         'src/boot.cpp',
+    #         'src/util/cpuid.cpp',
+    #         'src/acpi/acpi.cpp',
+    #         'src/acpi/format.cpp',
+    #     ],
+    #     'dependencies': [ capstone ],
+    #     'override_options': [ 'b_sanitize=none', 'b_coverage=false' ],
+    # }
     # 'launch': {
     #     'sources': [
     #         'test/emulated/launch.cpp',

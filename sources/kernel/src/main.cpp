@@ -832,7 +832,8 @@ static ApicInfo EnableBootApic(km::SystemMemory& memory, bool useX2Apic) {
         const IsrEntry *testInt = ist->allocate(testIsr);
         uint8_t testIdx = ist->index(testInt);
 
-        KmDebugMessage("[TEST] Testing self-IPI.\n");
+        KmDebugMessage("[TEST] Testing self-IPI ", testIdx, "\n");
+
         //
         // Test that both self-IPI methods work.
         //

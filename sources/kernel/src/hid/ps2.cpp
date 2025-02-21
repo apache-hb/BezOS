@@ -289,7 +289,11 @@ hid::Ps2ControllerResult hid::EnablePs2Controller() {
 
     FlushData();
 
-    SetupFirstChannel();
+    if (!SetupFirstChannel()) {
+        KmDebugMessage("[PS2] PS/2 Controller first channel setup failed.\n");
+
+        return Ps2ControllerResult { Ps2Controller(), Ps2ControllerStatus::eControllerSelfTestFailed };
+    }
 
     if (!SelfTestController()) {
         return Ps2ControllerResult { Ps2Controller(), Ps2ControllerStatus::eControllerSelfTestFailed };
