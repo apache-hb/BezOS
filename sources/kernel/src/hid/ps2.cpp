@@ -9,7 +9,7 @@
 static constexpr uint16_t kData = 0x60;
 static constexpr uint16_t kCommand = 0x64;
 
-static constexpr uint8_t kInputAvailable = (1 << 0);
+static constexpr uint8_t kInputFull = (1 << 0);
 static constexpr uint8_t kOutputFull = (1 << 1);
 
 static constexpr uint8_t kSelfTest = 0xAA;
@@ -38,11 +38,11 @@ static constexpr uint8_t kSecondClock = (1 << 5);
 static constexpr uint8_t kIbmPcCompat = (1 << 6);
 
 static bool InputBufferFull() {
-    return KmReadByte(kCommand) & kInputAvailable;
+    return KmReadByte(kCommand) & kInputFull;
 }
 
 static bool OutputBufferFull() {
-    return !(KmReadByte(kData) & kOutputFull);
+    return KmReadByte(kCommand) & kOutputFull;
 }
 
 static void FlushData() {
@@ -297,8 +297,8 @@ hid::Ps2ControllerResult hid::EnablePs2Controller() {
 
     FlushData();
 
-    if (!SetupFirstChannel()) {
-        KmDebugMessage("[PS2] PS/2 Controller first channel setup failed.\n");
+    if (OsStatus status = SetupFirstChannel()) {
+        KmDebugMessage("[PS2] PS/2 Controller first channel setup failed. ", status, "\n");
 
         return Ps2ControllerResult { Ps2Controller(), Ps2ControllerStatus::eControllerSelfTestFailed };
     }
