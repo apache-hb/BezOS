@@ -254,7 +254,7 @@ namespace km {
     using Apic = sm::Combine<IApic, LocalApic, X2Apic>;
 
     class IoApic {
-        uint8_t *mAddress = nullptr;
+        std::byte *mAddress = nullptr;
         uint32_t mIsrBase;
         uint8_t mId;
 
@@ -267,9 +267,11 @@ namespace km {
     public:
         IoApic() = default;
         IoApic(const acpi::MadtEntry *entry, km::SystemMemory& memory);
+        IoApic(acpi::MadtEntry::IoApic entry, km::SystemMemory& memory);
 
         uint8_t id() const { return mId; }
         uint32_t isrBase() const { return mIsrBase; }
+        const void *address() const { return (void*)mAddress; }
 
         uint16_t inputCount();
         uint8_t version();

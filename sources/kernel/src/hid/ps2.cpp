@@ -67,30 +67,55 @@ static bool WaitUntilInputFull(uint8_t timeout = 100) {
     return timeout > 0;
 }
 
-static void WritePort(uint8_t port, uint8_t data) {
-    WaitUntilOutputEmpty();
+static OsStatus WritePort(uint8_t port, uint8_t data) {
+    if (!WaitUntilOutputEmpty())
+        return OsStatusTimeout;
+
     KmWriteByte(port, data);
+    return OsStatusSuccess;
 }
 
-static void SendCommand(uint8_t command) {
+static OsStatus SendCommand(uint8_t command) {
     FlushData();
 
-    WritePort(kCommand, command);
+    return WritePort(kCommand, command);
 }
 
-static void SendDataPort1(uint8_t data) {
+static OsStatus SendDataPort1(uint8_t data) {
     FlushData();
-    WritePort(kData, data);
+    return WritePort(kData, data);
 }
 
-static void SendDataPort2(uint8_t data) {
-    SendCommand(kWriteSecond);
-    WritePort(kData, data);
+static OsStatus SendDataPort2(uint8_t data) {
+    if (OsStatus status = SendCommand(kWriteSecond)) {
+        return status;
+    }
+
+    return WritePort(kData, data);
 }
 
-static void SendCommandData(uint8_t command, uint8_t data) {
-    SendCommand(command);
-    WritePort(kData, data);
+static OsStatus SendCommandData(uint8_t command, uint8_t data) {
+    if (OsStatus status = SendCommand(command)) {
+        return status;
+    }
+
+    return WritePort(kData, data);
+}
+
+static OsStatus ReadDataChecked(uint8_t *data [[gnu::nonnull]]) {
+    if (!WaitUntilInputFull())
+        return OsStatusTimeout;
+
+    *data = KmReadByte(kData);
+    return OsStatusSuccess;
+}
+
+static OsStatus ReadCommandChecked(uint8_t command, uint8_t *data [[gnu::nonnull]]) {
+    if (OsStatus status = SendCommand(command)) {
+        return status;
+    }
+
+    return ReadDataChecked(data);
 }
 
 static uint8_t ReadData() {
@@ -109,8 +134,11 @@ static uint8_t ReadCommand(uint8_t command) {
     return KmReadByte(kData);
 }
 
-static void SetupFirstChannel() {
-    uint8_t config = ReadCommand(kReadConfig);
+static OsStatus SetupFirstChannel() {
+    uint8_t config = 0;
+    if (OsStatus status = ReadCommandChecked(kReadConfig, &config)) {
+        return status;
+    }
 
     // Disable interrupts and translation
     config &= ~(kFirstInt | kSecondInt | kIbmPcCompat);
@@ -121,11 +149,16 @@ static void SetupFirstChannel() {
     // Disable clock
     config |= kFirstClock;
 
-    SendCommandData(kWriteConfig, config);
+    return SendCommandData(kWriteConfig, config);
 }
 
 static bool SelfTestController() {
-    uint8_t test = ReadCommand(kSelfTest);
+    uint8_t test = 0;
+    if (OsStatus status = ReadCommandChecked(kSelfTest, &test)) {
+        KmDebugMessage("[PS2] PS/2 Controller communication failed: ", status, "\n");
+        return false;
+    }
+
     if (test != kSelfTestOk) {
         KmDebugMessage("[PS2] PS/2 Controller self test failed: ", km::Hex(kSelfTestOk).pad(2, '0'), " != ", km::Hex(test).pad(2, '0'), "\n");
         return false;
@@ -168,8 +201,25 @@ static void TestPorts(bool *dualChannel [[gnu::nonnull]], bool *firstChannel [[g
 }
 
 static hid::Ps2DeviceType CheckDeviceReset(stdx::StringView channel) {
-    uint8_t b0 = ReadData();
-    uint8_t b1 = ReadData();
+    auto readData = [&](uint8_t *data) -> OsStatus {
+        if (OsStatus status = ReadDataChecked(data)) {
+            KmDebugMessage("[PS2] PS/2 Controller communication on ", channel, " failed: ", status, "\n");
+            return status;
+        }
+
+        return OsStatusSuccess;
+    };
+
+    uint8_t b0 = 0;
+    uint8_t b1 = 0;
+
+    if (readData(&b0) != OsStatusSuccess) {
+        return hid::Ps2DeviceType::eDisabled;
+    }
+
+    if (readData(&b1) != OsStatusSuccess) {
+        return hid::Ps2DeviceType::eDisabled;
+    }
 
     if (!(b0 == kDeviceOk && b1 == kAck) && !(b0 == kAck && b1 == kDeviceOk)) {
         KmDebugMessage("[PS2] PS/2 Controller ", channel, " reset failed: ", km::Hex(b0).pad(2, '0'), " ", km::Hex(b1).pad(2, '0'), "\n");
@@ -180,8 +230,16 @@ static hid::Ps2DeviceType CheckDeviceReset(stdx::StringView channel) {
         return hid::Ps2DeviceType::eAtKeyboard;
     }
 
-    uint8_t b2 = ReadData();
-    uint8_t b3 = ReadData();
+    uint8_t b2 = 0;
+    uint8_t b3 = 0;
+
+    if (readData(&b2) != OsStatusSuccess) {
+        return hid::Ps2DeviceType::eDisabled;
+    }
+
+    if (readData(&b3) != OsStatusSuccess) {
+        return hid::Ps2DeviceType::eDisabled;
+    }
 
     if (b3 == 0) {
         switch (b2) {
@@ -280,8 +338,8 @@ hid::Ps2ControllerResult hid::EnablePs2Controller() {
         std::swap(device1, device2);
     }
 
-    KmDebugMessage("[PS2] PS/2 Controller channel 1: ", device1.type, "\n");
-    KmDebugMessage("[PS2] PS/2 Controller channel 2: ", device2.type, "\n");
+    KmDebugMessage("[PS2] PS/2 Controller channel 1: ", device1.type(), "\n");
+    KmDebugMessage("[PS2] PS/2 Controller channel 2: ", device2.type(), "\n");
 
     return Ps2ControllerResult { Ps2Controller(device1, device2), Ps2ControllerStatus::eOk };
 }
@@ -338,11 +396,11 @@ void hid::Ps2Controller::enableIrqs(bool first, bool second) {
 }
 
 void hid::Ps2Device::enable() {
-    write(kEnableScanning);
+    mWrite(kEnableScanning);
 }
 
 void hid::Ps2Device::disable() {
-    write(kDisableScanning);
+    mWrite(kDisableScanning);
 }
 
 void hid::InstallPs2DeviceIsr(km::IoApicSet& ioApicSet, const Ps2Device& device, const km::IApic *target, uint8_t isr) {

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <bezos/status.h>
+
 #include "apic.hpp"
 
 namespace hid {
@@ -46,16 +48,25 @@ namespace hid {
         }
     }
 
-    struct Ps2Device {
-        Ps2DeviceType type;
-        void(*write)(uint8_t);
+    class Ps2Device {
+        Ps2DeviceType mType;
+        OsStatus(*mWrite)(uint8_t);
 
-        bool valid() const { return type != Ps2DeviceType::eDisabled; }
+    public:
+        constexpr Ps2Device(Ps2DeviceType type, OsStatus(*fnWrite)(uint8_t) = nullptr)
+            : mType(type)
+            , mWrite(fnWrite)
+        { }
 
-        bool isKeyboard() const { return isKeyboardDevice(type); }
+        bool valid() const { return mType != Ps2DeviceType::eDisabled; }
+
+        Ps2DeviceType type() const { return mType; }
+        bool isKeyboard() const { return isKeyboardDevice(mType); }
 
         void enable();
         void disable();
+
+        OsStatus write(uint8_t data) { return mWrite(data); }
     };
 
     class Ps2Controller {

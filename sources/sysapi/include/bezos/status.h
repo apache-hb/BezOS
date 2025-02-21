@@ -70,14 +70,6 @@ enum OsStatusId {
     OsStatusTimeout = 0xe,
 };
 
-inline bool OsStatusOk(OsStatus status) {
-    return status == OsStatusSuccess;
-}
-
-inline bool OsStatusError(OsStatus status) {
-    return !OsStatusOk(status);
-}
-
 #ifdef __cplusplus
 }
 #endif

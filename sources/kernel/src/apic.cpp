@@ -7,7 +7,6 @@
 #include "panic.hpp"
 #include "util/cpuid.hpp"
 
-
 static constexpr x64::ModelRegister<0x1b, x64::RegisterAccess::eReadWrite> kApicBase;
 
 static constexpr uint16_t k2xApicBaseMsr = 0x800;
@@ -340,18 +339,37 @@ km::Apic km::InitApApic(km::SystemMemory& memory, const km::IApic *bsp) {
 static constexpr uint32_t kIoApicSelect = 0x0;
 static constexpr uint32_t kIoApicWindow = 0x10;
 
+static constexpr uint32_t kIoApicId = 0x0;
 static constexpr uint32_t kIoApicVersion = 0x1;
 
-static uint8_t *mapIoApic(km::SystemMemory& memory, const acpi::MadtEntry *entry) {
-    const acpi::MadtEntry::IoApic ioApic = entry->ioapic;
-    return (uint8_t*)memory.map(ioApic.address, ioApic.address + entry->length);
+static std::byte *mapIoApic(km::SystemMemory& memory, acpi::MadtEntry::IoApic entry) {
+    return (std::byte*)memory.map(entry.address, entry.address + 0x20, km::PageFlags::eData, km::MemoryType::eUncached);
 }
 
 km::IoApic::IoApic(const acpi::MadtEntry *entry, km::SystemMemory& memory)
-    : mAddress(mapIoApic(memory, entry))
-    , mIsrBase(entry->ioapic.interruptBase)
-    , mId(entry->ioapic.ioApicId)
+    : IoApic(entry->ioapic, memory)
 { }
+
+km::IoApic::IoApic(acpi::MadtEntry::IoApic entry, km::SystemMemory& memory)
+    : mAddress(mapIoApic(memory, entry))
+{
+    uint32_t idreg = read(kIoApicId);
+
+    //
+    // Extract the IOAPIC ID from the ID register.
+    // The ID is in bits 24-27.
+    //
+    uint8_t ioapicId = (idreg & (0b111 << 24)) >> 24;
+    uint8_t acpiId = entry.ioApicId;
+
+    if (ioapicId != acpiId) {
+        KmDebugMessage("[APIC] IOAPIC ID mismatch between acpi tables and hardware: ", ioapicId, " != ", acpiId, "\n");
+        KmDebugMessage("[APIC] Prefering IOAPIC ID reported by hardware: ", ioapicId, "\n");
+    }
+
+    mId = ioapicId;
+    mIsrBase = entry.interruptBase;
+}
 
 volatile uint32_t& km::IoApic::reg(uint32_t offset) {
     return *(volatile uint32_t*)(mAddress + offset);

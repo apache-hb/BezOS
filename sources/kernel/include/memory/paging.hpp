@@ -129,6 +129,15 @@ namespace km {
             // bits must either be all 0 or all 1
             return bits == 0 || bits == mask;
         }
+
+        constexpr bool isHigherHalf(const void *ptr) const {
+            uintptr_t addr = reinterpret_cast<uintptr_t>(ptr);
+            uintptr_t mask = -(1ull << (mVaddrBits - 1));
+            uintptr_t bits = (addr & mask);
+
+            // higher half requires all the high bits to be set
+            return bits == mask;
+        }
     };
 }
 

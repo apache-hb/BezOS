@@ -94,7 +94,6 @@ src = [
     'src/util/cpuid.cpp',
     'src/util/memory.cpp',
     'src/util/format.cpp',
-    'src/util/bits.cpp',
     'src/util/uuid.cpp',
 
     # RCU
@@ -246,6 +245,7 @@ gtest = dependency('gtest', native : true)
 gmock = dependency('gmock', native : true)
 # libvirt = dependency('libvirt', native : true)
 stb_image_write = dependency('stb_image_write')
+capstone = dependency('capstone', native : true)
 gtest_main = dependency('gtest_main', native : true)
 testkwargs = { 'protocol' : 'gtest', 'timeout': 5 }
 
@@ -296,10 +296,6 @@ testcases = {
         'test/format.cpp',
         'src/util/format.cpp',
     ],
-    'bits': [
-        'test/bits.cpp',
-        'src/util/bits.cpp',
-    ],
     'string': [ 'test/std/string.cpp', ],
     'spinlock': [ 'test/std/spinlock.cpp', ],
     'static string': [ 'test/std/static_string.cpp', ],
@@ -316,7 +312,6 @@ testcases = {
         'src/memory/virtual_allocator.cpp',
         'src/memory/page_allocator.cpp',
         'src/memory/layout.cpp',
-        'src/util/bits.cpp',
         'src/boot.cpp',
     ],
     'serial': [ 'test/serial.cpp', 'src/uart.cpp', ],
@@ -400,7 +395,15 @@ testcases = {
     'isr table': [
         'test/isr/isr.cpp',
         'src/isr/default.cpp',
-    ]
+    ],
+    'memory': [
+        'test/memory.cpp',
+        'src/memory.cpp',
+        'src/memory/page_tables.cpp',
+        'src/memory/page_allocator.cpp',
+        'src/memory/virtual_allocator.cpp',
+        'src/boot.cpp',
+    ],
 }
 
 if enable_aml
@@ -521,8 +524,23 @@ testcases = {
             'src/terminal/terminal.cpp',
             'src/terminal/buffered.cpp',
         ],
-        'dependencies' : [ stb_image_write ]
+        'dependencies' : [ stb_image_write ],
     },
+    'ioapic': {
+        'sources': [
+            'test/apic/ioapic.cpp',
+            'src/apic.cpp',
+            'src/memory.cpp',
+            'src/memory/page_tables.cpp',
+            'src/memory/page_allocator.cpp',
+            'src/memory/virtual_allocator.cpp',
+            'src/boot.cpp',
+            'src/util/cpuid.cpp',
+            'src/acpi/acpi.cpp',
+            'src/acpi/format.cpp',
+        ],
+        'dependencies': [ capstone ],
+    }
     # 'launch': {
     #     'sources': [
     #         'test/emulated/launch.cpp',
@@ -535,6 +553,7 @@ foreach name, kwargs : testcases
     new_kwargs = test_exe_kwargs
     new_kwargs += { 'dependencies': new_kwargs['dependencies'] + kwargs['dependencies'] }
     new_kwargs += { 'sources': kwargs['sources'] }
+    new_kwargs += { 'override_options': kwargs.get('override_options', test_exe_kwargs['override_options']) }
 
     exe = executable('test-kernel-' + name.to_lower().replace(' ', '-'),
         kwargs : new_kwargs,

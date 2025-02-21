@@ -1,5 +1,8 @@
 #pragma once
 
+#include <bezos/facility/process.h>
+#include <bezos/facility/threads.h>
+
 #include "arch/arch.hpp"
 #include "fs2/node.hpp"
 #include "isr/isr.hpp"
@@ -100,4 +103,20 @@ namespace km {
         Process *process;
         Thread *main;
     };
+
+    OsStatus SysProcessCreate(OsProcessCreateInfo createInfo, OsProcessHandle *outHandle);
+    OsStatus SysProcessCurrent(OsProcessHandle *outHandle);
+    OsStatus SysProcessSuspend(OsProcessHandle handle, bool suspend);
+    OsStatus SysProcessTerminate(OsProcessHandle handle);
+
+    OsStatus SysThreadCreate(OsThreadCreateInfo createInfo, OsThreadHandle *outHandle);
+    OsStatus SysThreadDestroy(OsThreadHandle handle);
+    OsStatus SysThreadCurrent(OsThreadHandle *outHandle);
+    OsStatus SysThreadSleep(OsDuration duration);
+    OsStatus SysThreadSuspend(OsThreadHandle handle, bool suspend);
+
+    OsStatus SysMutexCreate(OsMutexCreateInfo createInfo, OsMutexHandle *outHandle);
+    OsStatus SysMutexDestroy(OsMutexHandle handle);
+    OsStatus SysMutexLock(OsMutexHandle handle);
+    OsStatus SysMutexUnlock(OsMutexHandle handle);
 }

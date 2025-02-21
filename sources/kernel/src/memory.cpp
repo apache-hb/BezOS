@@ -48,12 +48,18 @@ void km::SystemMemory::unmap(void *ptr, size_t size) {
 }
 
 void *km::SystemMemory::map(PhysicalAddress begin, PhysicalAddress end, PageFlags flags, MemoryType type) {
+    //
     // I may be asked to map a range that is not page aligned
     // so I need to save the offset to apply to the virtual address before giving it back.
+    //
     uintptr_t offset = (begin.address & 0xFFF);
 
     MemoryRange range { begin, end };
 
+    //
+    // If the range falls on a 2m boundary and is at least 2m in size, use a large page
+    // to save on page table entries.
+    //
     void *vaddr = [&] {
         if (begin.address % x64::kLargePageSize == 0 && range.size() >= x64::kLargePageSize) {
             return vmm.alloc2m(LargePages(range.size()));

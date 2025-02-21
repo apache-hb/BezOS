@@ -36,17 +36,17 @@ struct OsThreadCreateInfo {
     OsThreadCreateFlags Flags;
 };
 
+extern OsStatus OsThreadCreate(struct OsThreadCreateInfo CreateInfo, OsThreadHandle *OutHandle);
+
+extern OsStatus OsThreadDestroy(OsThreadHandle Handle);
+
 extern OsStatus OsThreadCurrent(OsThreadHandle *OutHandle);
 
 extern OsStatus OsThreadYield(void);
 
 extern OsStatus OsThreadSleep(OsDuration Duration);
 
-extern OsStatus OsThreadCreate(struct OsThreadCreateInfo CreateInfo, OsThreadHandle *OutHandle);
-
 extern OsStatus OsThreadSuspend(OsThreadHandle Handle, bool Suspend);
-
-extern OsStatus OsThreadDestroy(OsThreadHandle Handle);
 
 /// @} // group OsThread
 
