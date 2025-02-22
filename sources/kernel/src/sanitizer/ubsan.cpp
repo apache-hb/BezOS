@@ -151,8 +151,16 @@ extern "C" void __ubsan_handle_invalid_builtin(UbsanInvalidBuiltinData *data, ui
 }
 
 extern "C" void __ubsan_handle_type_mismatch_v1(UbsanTypeMismatchDataV1 *data, uintptr_t address) {
-    KmDebugMessage("[UBSAN] Type mismatch: ", data->location, "\n");
-    KmDebugMessage("[UBSAN] Type: ", *data->type, ", Address: ", (void*)address, "\n");
+    stdx::StringView reason = "type mismatch";
+    uintptr_t alignment = UINT64_C(1) << data->logAlignment;
+    if (address == 0x0) {
+        reason = "null pointer dereference";
+    } else if (alignment && (address & (alignment - 1))) {
+        reason = "misaligned access";
+    }
+
+    KmDebugMessage("[UBSAN] Type mismatch: ", data->location, " (", data->typeCheckKind, ")\n");
+    KmDebugMessage("[UBSAN] Type: ", *data->type, ", Address: ", (void*)address, ", Reason: ", reason, "\n");
     KM_PANIC("UBSAN Type Mismatch");
 }
 
