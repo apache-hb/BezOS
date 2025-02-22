@@ -22,13 +22,11 @@ namespace km {
 
     template<typename T>
     class IdAllocator {
-        T mCurrent = T();
+        std::atomic<std::underlying_type_t<T>> mCurrent = OS_HANDLE_INVALID + 1;
 
     public:
         T allocate() {
-            auto result = mCurrent;
-            mCurrent = T(std::to_underlying(mCurrent) + 1);
-            return result;
+            return T(mCurrent.fetch_add(1));
         }
     };
 
