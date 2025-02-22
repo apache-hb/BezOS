@@ -99,11 +99,13 @@ pci::IConfigSpace *pci::InitConfigSpace(const acpi::Mcfg *mcfg, km::SystemMemory
         return new PortConfigSpace{};
     }
 
-    if (mcfg->allocationCount() == 0) {
+    size_t count = mcfg->allocationCount();
+
+    if (count == 0) {
         KmDebugMessage("[PCI] No ECAM regions found in MCFG table.\n");
         return new PortConfigSpace{};
     }
 
-    KmDebugMessage("[PCI] ", mcfg->allocationCount(), " ECAM regions found in MCFG table.\n");
+    KmDebugMessage("[PCI] ", count, " ECAM regions found in MCFG table.\n");
     return new McfgConfigSpace{mcfg, memory};
 }

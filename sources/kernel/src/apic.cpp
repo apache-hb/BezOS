@@ -501,9 +501,11 @@ void km::IoApicSet::setLegacyRedirect(apic::IvtConfig config, uint32_t redirect,
             .enabled = true,
         };
 
-        KmDebugMessage("[INIT] IRQ PIN ", redirect, " remapped to PIN ", iso.interrupt, " by MADT\n");
+        uint32_t isoGsi = iso.interrupt;
 
-        setRedirect(fixup, iso.interrupt, target);
+        KmDebugMessage("[INIT] IRQ PIN ", redirect, " remapped to PIN ", isoGsi, " by MADT\n");
+
+        setRedirect(fixup, isoGsi, target);
 
         return;
     }

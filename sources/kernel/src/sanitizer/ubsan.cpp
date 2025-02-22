@@ -161,6 +161,8 @@ extern "C" void __ubsan_handle_type_mismatch_v1(UbsanTypeMismatchDataV1 *data, u
 
     KmDebugMessage("[UBSAN] Type mismatch: ", data->location, " (", data->typeCheckKind, ")\n");
     KmDebugMessage("[UBSAN] Type: ", *data->type, ", Address: ", (void*)address, ", Reason: ", reason, "\n");
+    KmDebugMessage("[UBSAN] Expected alignment: ", alignment, "\n");
+
     KM_PANIC("UBSAN Type Mismatch");
 }
 

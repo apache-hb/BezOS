@@ -38,13 +38,15 @@ static const acpi::RsdtHeader *MapTableEntry(km::PhysicalAddress paddr, km::Syst
 }
 
 static void DebugMadt(const acpi::Madt *madt) {
-    KmDebugMessage("| /SYS/ACPI/APIC     | Local APIC address          | ", km::Hex(madt->localApicAddress).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/APIC     | Flags                       | ", bool(madt->flags & acpi::MadtFlags::ePcatCompat) ? stdx::StringView("PCAT compatible") : stdx::StringView("None"), "\n");
+    acpi::Madt table = *madt;
+
+    KmDebugMessage("| /SYS/ACPI/APIC     | Local APIC address          | ", km::Hex(table.localApicAddress).pad(8, '0'), "\n");
+    KmDebugMessage("| /SYS/ACPI/APIC     | Flags                       | ", bool(table.flags & acpi::MadtFlags::ePcatCompat) ? stdx::StringView("PCAT compatible") : stdx::StringView("None"), "\n");
 
     uint32_t index = 0;
-    for (const acpi::MadtEntry *entry : *madt) {
-        KmDebugMessage("| /SYS/ACPI/APIC/", km::rpad(3) + index, " | Entry type                  | ", entry->type, "\n");
-        KmDebugMessage("| /SYS/ACPI/APIC/", km::rpad(3) + index, " | Entry length                | ", entry->length, "\n");
+    for (const acpi::MadtEntry *entry : table) {
+        KmDebugMessage("| /SYS/ACPI/APIC/", km::rpad(3) + index, " | Entry type                  | ", auto{entry->type}, "\n");
+        KmDebugMessage("| /SYS/ACPI/APIC/", km::rpad(3) + index, " | Entry length                | ", auto{entry->length}, "\n");
 
         index += 1;
     }
@@ -52,88 +54,93 @@ static void DebugMadt(const acpi::Madt *madt) {
 
 static void DebugMcfg(const acpi::Mcfg *mcfg) {
     for (size_t i = 0; i < mcfg->allocationCount(); i++) {
-        const acpi::McfgAllocation *allocation = &mcfg->allocations[i];
-        KmDebugMessage("| /SYS/ACPI/MCFG/", km::rpad(3) + i, " | Address                     | ", km::PhysicalAddress(allocation->address), "\n");
-        KmDebugMessage("| /SYS/ACPI/MCFG/", km::rpad(3) + i, " | PCI Segment                 | ", km::Hex(allocation->segment).pad(4, '0'), "\n");
+        acpi::McfgAllocation allocation = mcfg->allocations[i];
+        KmDebugMessage("| /SYS/ACPI/MCFG/", km::rpad(3) + i, " | Address                     | ", km::PhysicalAddress(allocation.address), "\n");
+        KmDebugMessage("| /SYS/ACPI/MCFG/", km::rpad(3) + i, " | PCI Segment                 | ", km::Hex(allocation.segment).pad(4, '0'), "\n");
         KmDebugMessage("| /SYS/ACPI/MCFG/", km::rpad(3) + i, " | Bus range                   | ",
-            km::Hex(allocation->startBusNumber).pad(2, '0'), "..", km::Hex(allocation->endBusNumber).pad(2, '0'), "\n");
+            km::Hex(allocation.startBusNumber).pad(2, '0'), "..", km::Hex(allocation.endBusNumber).pad(2, '0'), "\n");
     }
 }
 
 static void DebugFadt(const acpi::Fadt *fadt) {
-    KmDebugMessage("| /SYS/ACPI/FACP     | Firmware control            | ", km::Hex(fadt->firmwareCtrl).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | DSDT                        | ", km::Hex(fadt->dsdt).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Preferred PM profile        | ", fadt->preferredPmProfile, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | SCI interrupt               | ", fadt->sciInt, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | SMI command                 | ", km::Hex(fadt->smiCmd).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | ACPI enable                 | ", fadt->acpiEnable, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | ACPI disable                | ", fadt->acpiDisable, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | S4 BIOS request             | ", fadt->s4BiosReq, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | P-state control             | ", fadt->pstateCnt, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | PM1A event block            | ", km::Hex(fadt->pm1aEvtBlk).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | PM1B event block            | ", km::Hex(fadt->pm1bEvtBlk).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | PM1A control block          | ", km::Hex(fadt->pm1aCntBlk).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | PM1B control block          | ", km::Hex(fadt->pm1bCntBlk).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | PM2 control block           | ", km::Hex(fadt->pm2CntBlk).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | PM timer block              | ", km::Hex(fadt->pmTmrBlk).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | GPE0 block                  | ", km::Hex(fadt->gpe0Blk).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | GPE1 block                  | ", km::Hex(fadt->gpe1Blk).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | PM1 event length            | ", fadt->pm1EvtLen, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | PM1 control length          | ", fadt->pm1CntLen, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | PM2 control length          | ", fadt->pm2CntLen, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | PM timer length             | ", fadt->pmTmrLen, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | GPE0 block length           | ", fadt->gpe0BlkLen, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | GPE1 block length           | ", fadt->gpe1BlkLen, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | GPE1 base                   | ", fadt->gpe1Base, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | C-state control             | ", fadt->cstateCtl, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Worst C2 latency            | ", fadt->worstC2Latency, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Worst C3 latency            | ", fadt->worstC3Latency, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Flush size                  | ", fadt->flushSize, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Flush stride                | ", fadt->flushStride, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Duty offset                 | ", fadt->dutyOffset, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Duty width                  | ", fadt->dutyWidth, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Day alarm                   | ", fadt->dayAlrm, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Month alarm                 | ", fadt->monAlrm, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Century                     | ", fadt->century, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | IAPC boot arch              | ", fadt->iapcBootArch, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Flags                       | ", km::Hex(fadt->flags).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Reset register              | ", fadt->resetReg, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Reset value                 | ", km::Hex(fadt->resetValue).pad(2, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | ARM boot arch               | ", km::Hex(fadt->armBootArch).pad(4, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | FADT minor version          | ", fadt->fadtMinorVersion, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Extended firmware control   | ", km::Hex(fadt->x_firmwareCtrl).pad(16, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Extended DSDT               | ", km::Hex(fadt->x_dsdt).pad(16, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Extended PM1A event block   | ", fadt->x_pm1aEvtBlk, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Extended PM1B event block   | ", fadt->x_pm1bEvtBlk, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Extended PM1A control block | ", fadt->x_pm1aCntBlk, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Extended PM1B control block | ", fadt->x_pm1bCntBlk, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Extended PM2 control block  | ", fadt->x_pm2CntBlk, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Extended PM timer block     | ", fadt->x_pmTmrBlk, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Extended GPE0 block         | ", fadt->x_gpe0Blk, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Extended GPE1 block         | ", fadt->x_gpe1Blk, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Sleep control register      | ", fadt->sleepControlReg, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Sleep status register       | ", fadt->sleepStatusReg, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Hypervisor vendor ID        | ", fadt->hypervisorVendor, "\n");
+    acpi::Fadt table = *fadt;
+
+    KmDebugMessage("| /SYS/ACPI/FACP     | Firmware control            | ", km::Hex(table.firmwareCtrl).pad(8, '0'), "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | DSDT                        | ", km::Hex(table.dsdt).pad(8, '0'), "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | Preferred PM profile        | ", table.preferredPmProfile, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | SCI interrupt               | ", table.sciInt, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | SMI command                 | ", km::Hex(table.smiCmd).pad(8, '0'), "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | ACPI enable                 | ", table.acpiEnable, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | ACPI disable                | ", table.acpiDisable, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | S4 BIOS request             | ", table.s4BiosReq, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | P-state control             | ", table.pstateCnt, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | PM1A event block            | ", km::Hex(table.pm1aEvtBlk).pad(8, '0'), "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | PM1B event block            | ", km::Hex(table.pm1bEvtBlk).pad(8, '0'), "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | PM1A control block          | ", km::Hex(table.pm1aCntBlk).pad(8, '0'), "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | PM1B control block          | ", km::Hex(table.pm1bCntBlk).pad(8, '0'), "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | PM2 control block           | ", km::Hex(table.pm2CntBlk).pad(8, '0'), "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | PM timer block              | ", km::Hex(table.pmTmrBlk).pad(8, '0'), "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | GPE0 block                  | ", km::Hex(table.gpe0Blk).pad(8, '0'), "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | GPE1 block                  | ", km::Hex(table.gpe1Blk).pad(8, '0'), "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | PM1 event length            | ", table.pm1EvtLen, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | PM1 control length          | ", table.pm1CntLen, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | PM2 control length          | ", table.pm2CntLen, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | PM timer length             | ", table.pmTmrLen, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | GPE0 block length           | ", table.gpe0BlkLen, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | GPE1 block length           | ", table.gpe1BlkLen, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | GPE1 base                   | ", table.gpe1Base, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | C-state control             | ", table.cstateCtl, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | Worst C2 latency            | ", table.worstC2Latency, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | Worst C3 latency            | ", table.worstC3Latency, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | Flush size                  | ", table.flushSize, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | Flush stride                | ", table.flushStride, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | Duty offset                 | ", table.dutyOffset, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | Duty width                  | ", table.dutyWidth, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | Day alarm                   | ", table.dayAlrm, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | Month alarm                 | ", table.monAlrm, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | Century                     | ", table.century, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | IAPC boot arch              | ", auto{table.iapcBootArch}, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | Flags                       | ", km::Hex(table.flags).pad(8, '0'), "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | Reset register              | ", table.resetReg, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | Reset value                 | ", km::Hex(table.resetValue).pad(2, '0'), "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | ARM boot arch               | ", km::Hex(table.armBootArch).pad(4, '0'), "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | FADT minor version          | ", table.fadtMinorVersion, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | Extended firmware control   | ", km::Hex(table.x_firmwareCtrl).pad(16, '0'), "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | Extended DSDT               | ", km::Hex(table.x_dsdt).pad(16, '0'), "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | Extended PM1A event block   | ", table.x_pm1aEvtBlk, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | Extended PM1B event block   | ", table.x_pm1bEvtBlk, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | Extended PM1A control block | ", table.x_pm1aCntBlk, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | Extended PM1B control block | ", table.x_pm1bCntBlk, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | Extended PM2 control block  | ", table.x_pm2CntBlk, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | Extended PM timer block     | ", table.x_pmTmrBlk, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | Extended GPE0 block         | ", table.x_gpe0Blk, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | Extended GPE1 block         | ", table.x_gpe1Blk, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | Sleep control register      | ", table.sleepControlReg, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | Sleep status register       | ", table.sleepStatusReg, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | Hypervisor vendor ID        | ", table.hypervisorVendor, "\n");
 }
 
 static void DebugHpet(const acpi::Hpet *hpet) {
-    KmDebugMessage("| /SYS/ACPI/HPET     | Event timer block ID        | ", km::Hex(hpet->evtTimerBlockId).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/HPET     | Base address                | ", hpet->baseAddress, "\n");
-    KmDebugMessage("| /SYS/ACPI/HPET     | HPET number                 | ", hpet->hpetNumber, "\n");
-    KmDebugMessage("| /SYS/ACPI/HPET     | Clock tick                  | ", hpet->clockTick, "\n");
-    KmDebugMessage("| /SYS/ACPI/HPET     | Page protection             | ", hpet->pageProtection, "\n");
+    acpi::Hpet table = *hpet;
+
+    KmDebugMessage("| /SYS/ACPI/HPET     | Event timer block ID        | ", km::Hex(table.evtTimerBlockId).pad(8, '0'), "\n");
+    KmDebugMessage("| /SYS/ACPI/HPET     | Base address                | ", table.baseAddress, "\n");
+    KmDebugMessage("| /SYS/ACPI/HPET     | HPET number                 | ", table.hpetNumber, "\n");
+    KmDebugMessage("| /SYS/ACPI/HPET     | Clock tick                  | ", auto{table.clockTick}, "\n");
+    KmDebugMessage("| /SYS/ACPI/HPET     | Page protection             | ", table.pageProtection, "\n");
 }
 
 static void PrintRsdtEntry(const acpi::RsdtHeader *entry, km::PhysicalAddress paddr) {
-    KmDebugMessage("| /SYS/ACPI/", entry->signature, "     | Address                     | ", paddr, "\n");
-    KmDebugMessage("| /SYS/ACPI/", entry->signature, "     | Signature                   | '", stdx::StringView(entry->signature), "'\n");
-    KmDebugMessage("| /SYS/ACPI/", entry->signature, "     | Length                      | ", entry->length, "\n");
-    KmDebugMessage("| /SYS/ACPI/", entry->signature, "     | Revision                    | ", entry->revision, "\n");
-    KmDebugMessage("| /SYS/ACPI/", entry->signature, "     | OEM                         | ", stdx::StringView(entry->oemid), "\n");
-    KmDebugMessage("| /SYS/ACPI/", entry->signature, "     | Table ID                    | ", stdx::StringView(entry->tableId), "\n");
-    KmDebugMessage("| /SYS/ACPI/", entry->signature, "     | OEM revision                | ", entry->oemRevision, "\n");
-    KmDebugMessage("| /SYS/ACPI/", entry->signature, "     | Creator ID                  | ", km::Hex(entry->creatorId), "\n");
-    KmDebugMessage("| /SYS/ACPI/", entry->signature, "     | Creator revision            | ", entry->creatorRevision, "\n");
+    acpi::RsdtHeader table = *entry;
+    KmDebugMessage("| /SYS/ACPI/", table.signature, "     | Address                     | ", paddr, "\n");
+    KmDebugMessage("| /SYS/ACPI/", table.signature, "     | Signature                   | '", stdx::StringView(table.signature), "'\n");
+    KmDebugMessage("| /SYS/ACPI/", table.signature, "     | Length                      | ", table.length, "\n");
+    KmDebugMessage("| /SYS/ACPI/", table.signature, "     | Revision                    | ", table.revision, "\n");
+    KmDebugMessage("| /SYS/ACPI/", table.signature, "     | OEM                         | ", stdx::StringView(table.oemid), "\n");
+    KmDebugMessage("| /SYS/ACPI/", table.signature, "     | Table ID                    | ", stdx::StringView(table.tableId), "\n");
+    KmDebugMessage("| /SYS/ACPI/", table.signature, "     | OEM revision                | ", table.oemRevision, "\n");
+    KmDebugMessage("| /SYS/ACPI/", table.signature, "     | Creator ID                  | ", km::Hex(table.creatorId), "\n");
+    KmDebugMessage("| /SYS/ACPI/", table.signature, "     | Creator revision            | ", table.creatorRevision, "\n");
 
     if (auto *madt = acpi::TableCast<acpi::Madt>(entry)) {
         DebugMadt(madt);
@@ -146,7 +153,7 @@ static void PrintRsdtEntry(const acpi::RsdtHeader *entry, km::PhysicalAddress pa
     }
 
 #if 0
-    KmDebugMessage(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(entry), entry->length)), "\n");
+    KmDebugMessage(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(entry), table.length)), "\n");
 #endif
 }
 

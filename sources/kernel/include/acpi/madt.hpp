@@ -89,7 +89,7 @@ namespace acpi {
         friend bool operator!=(const MadtIterator& lhs, const MadtIterator& rhs);
     };
 
-    struct Madt {
+    struct [[gnu::packed]] Madt {
         static constexpr TableSignature kSignature = util::Signature("APIC");
 
         RsdtHeader header; // signature must be "APIC"

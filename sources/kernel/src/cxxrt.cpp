@@ -13,7 +13,7 @@ extern "C" void __cxa_pure_virtual() {
 const std::nothrow_t std::nothrow{};
 
 void* operator new(std::size_t size) {
-    if (void* ptr = malloc(size)) {
+    if (void* ptr = aligned_alloc(16, size)) {
         return ptr;
     }
 
@@ -22,7 +22,7 @@ void* operator new(std::size_t size) {
 }
 
 void* operator new[](std::size_t size) {
-    return operator new(size);
+    return operator new(size, std::align_val_t(16));
 }
 
 void operator delete(void* ptr) {
@@ -42,7 +42,7 @@ void operator delete[](void* ptr, std::size_t) {
 }
 
 void* operator new(std::size_t size, const std::nothrow_t&) noexcept {
-    return malloc(size);
+    return aligned_alloc(16, size);
 }
 
 void* operator new[](std::size_t size, const std::nothrow_t&) noexcept {
