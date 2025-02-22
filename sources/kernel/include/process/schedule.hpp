@@ -3,24 +3,21 @@
 #include "crt.hpp"
 #include "process/process.hpp"
 
-#define MOODYCAMEL_MALLOC ::malloc
-#define MOODYCAMEL_FREE ::free
-
-#include <concurrentqueue.h>
+#include "std/queue.hpp"
 
 namespace km {
     class Scheduler {
-        moodycamel::ConcurrentQueue<Thread*> mQueue;
+        moodycamel::ConcurrentQueue<sm::RcuWeakPtr<Thread>> mQueue;
 
     public:
         Scheduler();
 
-        void addWorkItem(km::Thread *thread);
-        km::Thread *getWorkItem();
+        void addWorkItem(sm::RcuSharedPtr<Thread> thread);
+        sm::RcuSharedPtr<km::Thread> getWorkItem();
     };
 
-    km::Thread *GetCurrentThread();
-    km::Process *GetCurrentProcess();
+    sm::RcuSharedPtr<Thread> GetCurrentThread();
+    sm::RcuSharedPtr<Process> GetCurrentProcess();
 
     [[noreturn]]
     void ScheduleWork(LocalIsrTable *table, IApic *apic);

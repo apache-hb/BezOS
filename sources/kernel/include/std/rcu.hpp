@@ -1,6 +1,7 @@
 #pragma once
 
-#include "concurrentqueue.h"
+#include "std/queue.hpp"
+
 #include "std/shared_spinlock.hpp"
 
 #include <atomic>

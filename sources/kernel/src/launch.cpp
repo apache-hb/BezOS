@@ -58,7 +58,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
         return status;
     }
 
-    Process *process = objects.createProcess("INIT", x64::Privilege::eUser);
+    sm::RcuSharedPtr<Process> process = objects.createProcess("INIT", x64::Privilege::eUser);
 
     uint64_t entry = header.entry;
 
@@ -151,7 +151,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
     //
     static constexpr size_t kStackSize = 0x4000;
     void *stack = memory.allocate(kStackSize, 0x1000, PageFlags::eUser | PageFlags::eData);
-    Thread *main = objects.createThread("Main", process);
+    sm::RcuSharedPtr<Thread> main = objects.createThread("Main", process);
 
     regs.rbp = (uintptr_t)stack + kStackSize;
     regs.rsp = (uintptr_t)stack + kStackSize;

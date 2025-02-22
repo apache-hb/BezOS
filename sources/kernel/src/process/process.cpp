@@ -2,14 +2,14 @@
 
 using namespace km;
 
-Thread *SystemObjects::createThread(stdx::String name, Process *process) {
+sm::RcuSharedPtr<Thread> SystemObjects::createThread(stdx::String name, sm::RcuSharedPtr<Process> process) {
+    ThreadId id = mThreadIds.allocate();
+    sm::RcuSharedPtr ptr = sm::rcuMakeShared<Thread>(&mDomain, id, std::move(name), process);
+
     stdx::UniqueLock guard(mLock);
 
-    ThreadId id = mThreadIds.allocate();
-    std::unique_ptr<Thread> thread{new Thread{id, std::move(name), process}};
-    Thread *result = thread.get();
-    mThreads.insert({id, std::move(thread)});
-    return result;
+    mThreads.insert({id, ptr});
+    return ptr;
 }
 
 AddressSpace *SystemObjects::createAddressSpace(stdx::String name, km::AddressMapping mapping) {
@@ -22,14 +22,14 @@ AddressSpace *SystemObjects::createAddressSpace(stdx::String name, km::AddressMa
     return result;
 }
 
-Process *SystemObjects::createProcess(stdx::String name, x64::Privilege privilege) {
+sm::RcuSharedPtr<Process> SystemObjects::createProcess(stdx::String name, x64::Privilege privilege) {
+    ProcessId id = mProcessIds.allocate();
+    sm::RcuSharedPtr ptr = sm::rcuMakeShared<Process>(&mDomain, id, std::move(name), privilege);
+
     stdx::UniqueLock guard(mLock);
 
-    ProcessId id = mProcessIds.allocate();
-    std::unique_ptr<Process> process{new Process{id, std::move(name), privilege}};
-    Process *result = process.get();
-    mProcesses.insert({id, std::move(process)});
-    return result;
+    mProcesses.insert({id, ptr});
+    return ptr;
 }
 
 Mutex *SystemObjects::createMutex(stdx::String name) {
@@ -42,10 +42,10 @@ Mutex *SystemObjects::createMutex(stdx::String name) {
     return result;
 }
 
-Thread *SystemObjects::getThread(ThreadId id) {
+sm::RcuSharedPtr<Thread> SystemObjects::getThread(ThreadId id) {
     stdx::SharedLock guard(mLock);
     if (auto it = mThreads.find(id); it != mThreads.end()) {
-        return it->second.get();
+        return it->second;
     }
 
     return nullptr;
@@ -60,10 +60,10 @@ AddressSpace *SystemObjects::getAddressSpace(AddressSpaceId id) {
     return nullptr;
 }
 
-Process *SystemObjects::getProcess(ProcessId id) {
+sm::RcuSharedPtr<Process> SystemObjects::getProcess(ProcessId id) {
     stdx::SharedLock guard(mLock);
     if (auto it = mProcesses.find(id); it != mProcesses.end()) {
-        return it->second.get();
+        return it->second;
     }
 
     return nullptr;

@@ -10,6 +10,7 @@
 #include "std/shared_spinlock.hpp"
 #include "std/spinlock.hpp"
 #include "std/string.hpp"
+#include "std/rcuptr.hpp"
 
 #include "util/absl.hpp"
 #include "std/vector.hpp"
@@ -37,11 +38,32 @@ namespace km {
 
     class SystemObjects;
 
-    struct Thread {
-        ThreadId id;
-        stdx::String name;
-        Process *process;
-        Mutex *wait;
+    class KernelObject : public sm::RcuIntrusivePtr<KernelObject> {
+        OsHandle mId;
+        stdx::String mName;
+
+    protected:
+        KernelObject(OsHandle id, stdx::String name)
+            : mId(id)
+            , mName(std::move(name))
+        { }
+
+    public:
+        virtual ~KernelObject() = default;
+
+
+        OsHandle id() const { return mId; }
+        stdx::StringView name() const { return mName; }
+    };
+
+    struct Thread : public KernelObject {
+        Thread(ThreadId id, stdx::String name, sm::RcuSharedPtr<Process> process)
+            : KernelObject(std::to_underlying(id) | (uint64_t(eOsHandleThread) << 56), std::move(name))
+            , process(process)
+        { }
+
+        sm::RcuWeakPtr<Process> process;
+        sm::RcuWeakPtr<Mutex> wait;
         km::IsrContext state;
         std::unique_ptr<std::byte[]> stack;
     };
@@ -52,12 +74,16 @@ namespace km {
         km::AddressMapping mapping;
     };
 
-    struct Process {
-        ProcessId id;
-        stdx::String name;
+    struct Process : public KernelObject {
         x64::Privilege privilege;
+
+        Process(ProcessId id, stdx::String name, x64::Privilege privilege)
+            : KernelObject(std::to_underlying(id) | (uint64_t(eOsHandleProcess) << 56), std::move(name))
+            , privilege(privilege)
+        { }
+
         x64::MachineState machine;
-        stdx::Vector2<Thread*> threads;
+        stdx::Vector2<sm::RcuSharedPtr<Thread>> threads;
         stdx::Vector2<AddressSpace*> memory;
         stdx::Vector2<std::unique_ptr<vfs2::IVfsNodeHandle>> files;
     };
@@ -72,34 +98,35 @@ namespace km {
 
     class SystemObjects {
         stdx::SharedSpinLock mLock;
+        sm::RcuDomain mDomain;
 
         IdAllocator<ThreadId> mThreadIds;
         IdAllocator<AddressSpaceId> mAddressSpaceIds;
         IdAllocator<ProcessId> mProcessIds;
         IdAllocator<MutexId> mMutexIds;
 
-        sm::FlatHashMap<ThreadId, std::unique_ptr<Thread>> mThreads;
+        sm::FlatHashMap<ThreadId, sm::RcuSharedPtr<Thread>> mThreads;
         sm::FlatHashMap<AddressSpaceId, std::unique_ptr<AddressSpace>> mAddressSpaces;
-        sm::FlatHashMap<ProcessId, std::unique_ptr<Process>> mProcesses;
+        sm::FlatHashMap<ProcessId, sm::RcuSharedPtr<Process>> mProcesses;
         sm::FlatHashMap<MutexId, std::unique_ptr<Mutex>> mMutexes;
 
     public:
         SystemObjects() = default;
 
-        Thread *createThread(stdx::String name, Process *process);
+        sm::RcuSharedPtr<Thread> createThread(stdx::String name, sm::RcuSharedPtr<Process> process);
         AddressSpace *createAddressSpace(stdx::String name, km::AddressMapping mapping);
-        Process *createProcess(stdx::String name, x64::Privilege privilege);
+        sm::RcuSharedPtr<Process> createProcess(stdx::String name, x64::Privilege privilege);
         Mutex *createMutex(stdx::String name);
 
-        Thread *getThread(ThreadId id);
+        sm::RcuSharedPtr<Thread> getThread(ThreadId id);
         AddressSpace *getAddressSpace(AddressSpaceId id);
-        Process *getProcess(ProcessId id);
+        sm::RcuSharedPtr<Process> getProcess(ProcessId id);
         Mutex *getMutex(MutexId id);
     };
 
     struct ProcessLaunch {
-        Process *process;
-        Thread *main;
+        sm::RcuSharedPtr<Process> process;
+        sm::RcuSharedPtr<Thread> main;
     };
 
     OsStatus SysProcessCreate(OsProcessCreateInfo createInfo, OsProcessHandle *outHandle);

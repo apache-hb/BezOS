@@ -2,7 +2,7 @@
 #include "kernel.hpp"
 
 CPU_LOCAL
-static constinit km::CpuLocal<km::Thread*> tlsCurrentThread;
+static constinit km::CpuLocal<sm::RcuSharedPtr<km::Thread>> tlsCurrentThread;
 
 CPU_LOCAL
 static constinit km::CpuLocal<uint8_t> tlsScheduleIdx;
@@ -13,25 +13,33 @@ km::Scheduler::Scheduler()
     : mQueue()
 { }
 
-void km::Scheduler::addWorkItem(km::Thread *thread) {
-    mQueue.enqueue(thread);
+void km::Scheduler::addWorkItem(sm::RcuSharedPtr<Thread> thread) {
+    if (thread) {
+        mQueue.enqueue(thread);
+    }
 }
 
-km::Thread *km::Scheduler::getWorkItem() {
-    km::Thread *thread = nullptr;
-    mQueue.try_dequeue(thread);
-    return thread;
+sm::RcuSharedPtr<km::Thread> km::Scheduler::getWorkItem() {
+
+    sm::RcuWeakPtr<Thread> thread;
+    while (mQueue.try_dequeue(thread)) {
+        if (sm::RcuSharedPtr<km::Thread> ptr = thread.lock()) {
+            return ptr;
+        }
+    }
+
+    return nullptr;
 }
 
-km::Thread *km::GetCurrentThread() {
+sm::RcuSharedPtr<km::Thread> km::GetCurrentThread() {
     return tlsCurrentThread.get();
 }
 
-km::Process *km::GetCurrentProcess() {
-    return GetCurrentThread()->process;
+sm::RcuSharedPtr<km::Process> km::GetCurrentProcess() {
+    return GetCurrentThread()->process.lock();
 }
 
-static void SwitchThread(km::Thread *next) {
+static void SwitchThread(sm::RcuSharedPtr<km::Thread> next) {
     tlsCurrentThread = next;
     km::IsrContext *state = &next->state;
     //
@@ -52,10 +60,10 @@ void km::ScheduleWork(LocalIsrTable *table, IApic *apic) {
         apic->eoi();
 
         Scheduler *scheduler = km::GetScheduler();
-        km::Thread *thread = scheduler->getWorkItem();
+        sm::RcuSharedPtr<km::Thread> thread = scheduler->getWorkItem();
 
         if (thread) {
-            if (km::Thread *current = km::GetCurrentThread()) {
+            if (sm::RcuSharedPtr<km::Thread> current = km::GetCurrentThread()) {
                 current->state = *ctx;
                 scheduler->addWorkItem(current);
             }

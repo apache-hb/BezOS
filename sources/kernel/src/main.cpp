@@ -1432,7 +1432,7 @@ static void StartupSmp(const acpi::AcpiTables& rsdt) {
 static constexpr size_t kKernelStackSize = 0x4000;
 
 static OsStatus LaunchThread(OsStatus(*entry)(void*), void *arg, stdx::String name) {
-    Thread *thread = gSystemObjects->createThread(std::move(name), GetCurrentProcess());
+    sm::RcuSharedPtr<Thread> thread = gSystemObjects->createThread(std::move(name), GetCurrentProcess());
     thread->stack = std::unique_ptr<std::byte[]>(new std::byte[kKernelStackSize]);
     thread->state = km::IsrContext {
         .rdi = (uintptr_t)arg,
@@ -1562,8 +1562,8 @@ static void CreateDisplayDevice() {
 
 [[noreturn]]
 static void LaunchKernelProcess(LocalIsrTable *table, IApic *apic) {
-    Process *process = gSystemObjects->createProcess("SYSTEM", x64::Privilege::eSupervisor);
-    Thread *thread = gSystemObjects->createThread("MASTER", process);
+    sm::RcuSharedPtr<Process> process = gSystemObjects->createProcess("SYSTEM", x64::Privilege::eSupervisor);
+    sm::RcuSharedPtr<Thread> thread = gSystemObjects->createThread("MASTER", process);
     thread->stack = std::unique_ptr<std::byte[]>(new std::byte[kKernelStackSize]);
     thread->state = km::IsrContext {
         .rbp = (uintptr_t)(thread->stack.get() + kKernelStackSize),

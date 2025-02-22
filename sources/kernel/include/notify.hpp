@@ -5,14 +5,10 @@
 
 #include "std/rcuptr.hpp"
 #include "std/string.hpp"
+#include "std/queue.hpp"
 
 #include "util/cxx_chrono.hpp"
 #include "util/uuid.hpp"
-
-#define MOODYCAMEL_MALLOC ::malloc
-#define MOODYCAMEL_FREE ::free
-
-#include <concurrentqueue.h>
 
 namespace km {
     class NotificationStream;

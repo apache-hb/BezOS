@@ -52,6 +52,18 @@ struct OsGuid {
 #define OS_TIMEOUT_INFINITE ((OsInstant)(UINT64_MAX))
 #define OS_HANDLE_INVALID ((OsHandle)(0))
 
+enum {
+    eOsHandleUnknown      = UINT8_C(0x0),
+    eOsHandleNode         = UINT8_C(0x1),
+    eOsHandleMutex        = UINT8_C(0x2),
+    eOsHandleThread       = UINT8_C(0x3),
+    eOsHandleProcess      = UINT8_C(0x4),
+    eOsHandleDevice       = UINT8_C(0x5),
+    eOsHandleAddressSpace = UINT8_C(0x6),
+};
+
+typedef uint8_t OsHandleType;
+
 /// @brief A handle to a file object.
 OS_OBJECT_HANDLE(OsFileHandle);
 
