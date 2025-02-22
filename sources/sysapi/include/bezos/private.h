@@ -27,6 +27,7 @@ enum {
     eOsCallThreadDestroy = 0x41,
     eOsCallThreadCurrent = 0x42,
     eOsCallThreadSleep = 0x43,
+    eOsCallThreadStat = 0x44,
 
     eOsCallAddressSpaceCreate = 0x50,
     eOsCallAddressSpaceDestroy = 0x51,

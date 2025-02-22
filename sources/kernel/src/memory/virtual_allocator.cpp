@@ -2,7 +2,7 @@
 
 #include "arch/paging.hpp"
 
-km::VirtualAllocator::VirtualAllocator(VirtualRange range,  VirtualRange user)
+km::VirtualAllocator::VirtualAllocator(VirtualRange range, VirtualRange user)
     : mSupervisorRanges(range)
     , mUserRanges(user)
 { }

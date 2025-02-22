@@ -28,7 +28,7 @@ static void Assert(bool condition, const char (&message)[N]) {
 
 template<size_t N>
 static void AssertOsSuccess(OsStatus status, const char (&message)[N]) {
-    if (OsStatusError(status)) {
+    if (status) {
         Assert(false, message);
     }
 }

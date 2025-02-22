@@ -52,7 +52,7 @@ static void Assert(bool condition, const char (&message)[N]) {
 
 template<size_t N>
 static void AssertOsSuccess(OsStatus status, const char (&message)[N]) {
-    if (OsStatusError(status)) {
+    if (status != OsStatusSuccess) {
         Assert(false, message);
     }
 }
@@ -180,6 +180,7 @@ public:
         ASSERT_OS_SUCCESS(OsDeviceCall(mDevice, eOsDdiInfo, &display));
 
         mAddress = canvas.Canvas;
+        ASSERT(mAddress != nullptr);
 
         mContext = flanterm_fb_init(
             nullptr, nullptr,
@@ -195,6 +196,8 @@ public:
             0, 0,
             0
         );
+
+        ASSERT(mContext != nullptr);
     }
 
     ~VtDisplay() {

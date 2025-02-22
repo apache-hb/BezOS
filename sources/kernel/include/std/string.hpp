@@ -203,6 +203,12 @@ namespace stdx {
         constexpr T *data() { return mFront; }
         constexpr const T *data() const { return mFront; }
 
+        constexpr friend StringBase operator+(const StringBase& lhs, const StringBase& rhs) {
+            StringBase result(lhs);
+            result.insert(rhs.begin(), rhs.end());
+            return result;
+        }
+
         constexpr T *cString() {
             ensureExtra(1);
             mBack[0] = T{};

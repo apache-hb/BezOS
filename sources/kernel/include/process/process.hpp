@@ -65,7 +65,7 @@ namespace km {
         sm::RcuWeakPtr<Process> process;
         sm::RcuWeakPtr<Mutex> wait;
         km::IsrContext state;
-        std::unique_ptr<std::byte[]> stack;
+        sm::RcuSharedPtr<AddressSpace> stack;
     };
 
     struct AddressSpace : public KernelObject {

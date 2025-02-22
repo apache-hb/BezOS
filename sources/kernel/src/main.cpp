@@ -1329,6 +1329,63 @@ static void AddThreadSystemCalls() {
         km::YieldCurrentThread();
         return CallOk(0zu);
     });
+
+    AddSystemCall(eOsCallThreadCreate, [](uint64_t userCreateInfo, uint64_t, uint64_t, uint64_t) -> OsCallResult {
+        OsThreadCreateInfo createInfo{};
+        if (OsStatus status = km::CopyUserMemory(userCreateInfo, sizeof(createInfo), &createInfo)) {
+            return CallError(status);
+        }
+
+        if ((createInfo.StackSize % x64::kPageSize != 0) || (createInfo.StackSize < x64::kPageSize)) {
+            return CallError(OsStatusInvalidInput);
+        }
+
+        stdx::String name;
+        if (OsStatus status = km::CopyUserRange(createInfo.NameFront, createInfo.NameBack, &name, kMaxPathSize)) {
+            return CallError(status);
+        }
+
+        sm::RcuSharedPtr<Process> process;
+        if (createInfo.Process != OS_HANDLE_INVALID) {
+            process = gSystemObjects->getProcess(ProcessId(createInfo.Process & 0x00FF'FFFF'FFFF'FFFF));
+        } else {
+            process = GetCurrentProcess();
+        }
+
+        if (process == nullptr) {
+            return CallError(OsStatusNotFound);
+        }
+
+        stdx::String stackName = name + " STACK";
+        sm::RcuSharedPtr<Thread> thread = gSystemObjects->createThread(std::move(name), process);
+
+        PageFlags flags = PageFlags::eUser | PageFlags::eData;
+        MemoryType type = MemoryType::eWriteBack;
+        km::AddressMapping mapping = gMemory->userAllocate(createInfo.StackSize, flags, type);
+        sm::RcuSharedPtr<AddressSpace> stackSpace = gSystemObjects->createAddressSpace(std::move(stackName), mapping, flags, type, process);
+        thread->stack = stackSpace;
+        thread->state = km::IsrContext {
+            .rbp = (uintptr_t)(thread->stack.get() + createInfo.StackSize),
+            .rip = (uintptr_t)createInfo.EntryPoint,
+            .cs = SystemGdt::eLongModeUserCode * 0x8,
+            .rflags = 0x202,
+            .rsp = (uintptr_t)(thread->stack.get() + createInfo.StackSize),
+            .ss = SystemGdt::eLongModeUserData * 0x8,
+        };
+        return CallError(OsStatusInvalidFunction);
+    });
+
+    AddSystemCall(eOsCallThreadDestroy, [](uint64_t, uint64_t, uint64_t, uint64_t) -> OsCallResult {
+        return CallError(OsStatusInvalidFunction);
+    });
+
+    AddSystemCall(eOsCallThreadCurrent, [](uint64_t, uint64_t, uint64_t, uint64_t) -> OsCallResult {
+        return CallError(OsStatusInvalidFunction);
+    });
+
+    AddSystemCall(eOsCallThreadStat, [](uint64_t, uint64_t, uint64_t, uint64_t) -> OsCallResult {
+        return CallError(OsStatusInvalidFunction);
+    });
 }
 
 static OsStatus GetMemoryAccess(OsMemoryAccess access, PageFlags *result) {
@@ -1471,15 +1528,22 @@ static void StartupSmp(const acpi::AcpiTables& rsdt) {
 static constexpr size_t kKernelStackSize = 0x4000;
 
 static OsStatus LaunchThread(OsStatus(*entry)(void*), void *arg, stdx::String name) {
-    sm::RcuSharedPtr<Thread> thread = gSystemObjects->createThread(std::move(name), GetCurrentProcess());
-    thread->stack = std::unique_ptr<std::byte[]>(new std::byte[kKernelStackSize]);
+    stdx::String stackName = name + " STACK";
+    sm::RcuSharedPtr<Process> process = GetCurrentProcess();
+    sm::RcuSharedPtr<Thread> thread = gSystemObjects->createThread(std::move(name), process);
+
+    PageFlags flags = PageFlags::eData;
+    MemoryType type = MemoryType::eWriteBack;
+    km::AddressMapping mapping = gMemory->kernelAllocate(kKernelStackSize, flags, type);
+    sm::RcuSharedPtr<AddressSpace> stackSpace = gSystemObjects->createAddressSpace(std::move(stackName), mapping, flags, type, process);
+
     thread->state = km::IsrContext {
         .rdi = (uintptr_t)arg,
-        .rbp = (uintptr_t)(thread->stack.get() + kKernelStackSize),
+        .rbp = (uintptr_t)mapping.vaddr + kKernelStackSize,
         .rip = (uintptr_t)entry,
         .cs = SystemGdt::eLongModeCode * 0x8,
         .rflags = 0x202,
-        .rsp = (uintptr_t)(thread->stack.get() + kKernelStackSize),
+        .rsp = (uintptr_t)mapping.vaddr + kKernelStackSize,
         .ss = SystemGdt::eLongModeData * 0x8,
     };
 
@@ -1603,7 +1667,13 @@ static void CreateDisplayDevice() {
 static void LaunchKernelProcess(LocalIsrTable *table, IApic *apic) {
     sm::RcuSharedPtr<Process> process = gSystemObjects->createProcess("SYSTEM", x64::Privilege::eSupervisor);
     sm::RcuSharedPtr<Thread> thread = gSystemObjects->createThread("MASTER", process);
-    thread->stack = std::unique_ptr<std::byte[]>(new std::byte[kKernelStackSize]);
+
+    PageFlags flags = PageFlags::eData;
+    MemoryType type = MemoryType::eWriteBack;
+    km::AddressMapping mapping = gMemory->kernelAllocate(kKernelStackSize, flags, type);
+    sm::RcuSharedPtr<AddressSpace> stackSpace = gSystemObjects->createAddressSpace("MASTER STACK", mapping, flags, type, process);
+
+    thread->stack = stackSpace;
     thread->state = km::IsrContext {
         .rbp = (uintptr_t)(thread->stack.get() + kKernelStackSize),
         .rip = (uintptr_t)&KernelMasterTask,

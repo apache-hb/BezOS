@@ -23,6 +23,7 @@ namespace km {
             MemoryType type = MemoryType::eWriteBack
         );
 
+        AddressMapping kernelAllocate(size_t size, PageFlags flags, MemoryType type);
         AddressMapping userAllocate(size_t size, PageFlags flags, MemoryType type);
 
         void release(void *ptr, size_t size);

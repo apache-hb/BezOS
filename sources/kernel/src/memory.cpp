@@ -6,7 +6,7 @@ km::SystemMemory::SystemMemory(const boot::MemoryMap& memmap, VirtualRange syste
     , pager(pm)
     , pmm(memmap)
     , pt(&pager, allocator)
-    , vmm(systemArea)
+    , vmm(systemArea, VirtualRange { (void*)sm::megabytes(1).bytes(), (void*)sm::gigabytes(4).bytes() })
 { }
 
 void *km::SystemMemory::allocate(size_t size, size_t, PageFlags flags, MemoryType type) {
@@ -15,6 +15,20 @@ void *km::SystemMemory::allocate(size_t size, size_t, PageFlags flags, MemoryTyp
     MemoryRange range { paddr, paddr + size };
     pt.mapRange(range, vaddr, flags, type);
     return vaddr;
+}
+
+km::AddressMapping km::SystemMemory::kernelAllocate(size_t size, PageFlags flags, MemoryType type) {
+    size_t pages = Pages(size);
+    PhysicalAddress paddr = pmm.alloc4k(Pages(size));
+    void *vaddr = vmm.alloc4k(Pages(size));
+    MemoryRange range { paddr, paddr + size };
+    pt.mapRange(range, vaddr, flags, type);
+
+    return AddressMapping {
+        .vaddr = vaddr,
+        .paddr = paddr,
+        .size = pages * x64::kPageSize
+    };
 }
 
 km::AddressMapping km::SystemMemory::userAllocate(size_t size, PageFlags flags, MemoryType type) {

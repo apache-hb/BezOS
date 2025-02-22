@@ -107,9 +107,9 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
     std::atomic_flag *launchScheduler = header->launchScheduler;
     std::atomic<uint32_t> *remaining = header->remaining;
 
-    header->ready = 1;
-
     km::SetupUserMode();
+
+    header->ready = 1;
 
     while (!launchScheduler->test()) {
         _mm_pause();

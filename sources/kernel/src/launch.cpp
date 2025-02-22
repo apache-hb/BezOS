@@ -72,7 +72,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
     KmDebugMessage("[ELF] Entry point: ", km::Hex(entry), "\n");
 
     for (const elf::ElfProgramHeader &ph : std::span(phs.get(), header.phnum)) {
-        if (ph.type != 1)
+        if (ph.type != 0x1)
             continue;
 
         KmDebugMessage("[ELF] Program Header type: ",
@@ -123,6 +123,11 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
             return OsStatusInvalidData;
         }
 
+        uint64_t bssSize = ph.memsz - ph.filesz;
+        if (bssSize > 0) {
+            memset((char*)ph.vaddr + ph.filesz, 0x00, bssSize);
+        }
+
         //
         // Now we can set the correct flags.
         //
@@ -136,7 +141,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
 
         memory.pt.map(mapping, flags);
 
-        sm::RcuSharedPtr<AddressSpace> addressSpace = objects.createAddressSpace("ELF Section", mapping, flags, km::MemoryType::eWriteBack, process);
+        objects.createAddressSpace("ELF SECTION", mapping, flags, km::MemoryType::eWriteBack, process);
     }
 
     if (regs.rip == 0) {
@@ -147,16 +152,22 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
     //
     // Now allocate the stack for the main thread.
     //
-    static constexpr size_t kStackSize = 0x4000;
-    void *stack = memory.allocate(kStackSize, 0x1000, PageFlags::eUser | PageFlags::eData);
-    sm::RcuSharedPtr<Thread> main = objects.createThread("Main", process);
 
-    regs.rbp = (uintptr_t)stack + kStackSize;
-    regs.rsp = (uintptr_t)stack + kStackSize;
+    static constexpr size_t kStackSize = 0x4000;
+    PageFlags flags = PageFlags::eUser | PageFlags::eData;
+    MemoryType type = MemoryType::eWriteBack;
+    km::AddressMapping mapping = memory.userAllocate(kStackSize, flags, type);
+    memset((void*)mapping.vaddr, 0x00, kStackSize);
+
+    sm::RcuSharedPtr<AddressSpace> stackSpace = objects.createAddressSpace("MAIN STACK", mapping, flags, type, process);
+
+    sm::RcuSharedPtr<Thread> main = objects.createThread("MAIN", process);
+    main->stack = stackSpace;
+
+    regs.rbp = (uintptr_t)mapping.vaddr + kStackSize;
+    regs.rsp = (uintptr_t)mapping.vaddr + kStackSize;
 
     main->state = regs;
-
-    process->threads.add(main);
 
     ProcessLaunch launch = {
         .process = process,
