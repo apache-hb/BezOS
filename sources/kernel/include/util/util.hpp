@@ -36,6 +36,11 @@ namespace sm {
         return value + 1;
     }
 
+    template<std::integral T>
+    constexpr T magnitude(T value) {
+        return value < 0 ? -value : value;
+    }
+
     template<typename T>
     struct AlwaysFalse {
         static constexpr bool Value = false;

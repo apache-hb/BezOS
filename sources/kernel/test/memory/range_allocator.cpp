@@ -3,8 +3,6 @@
 
 #include "memory/range_allocator.hpp"
 
-static constexpr size_t kSize = 0x10000;
-
 TEST(RangeDetailTest, MergeOverlapping) {
     stdx::Vector2<km::MemoryRange> ranges { };
     ranges.add({ 0x1000, 0x2000 });
@@ -56,6 +54,86 @@ TEST(RangeDetailTest, MultipleOverlapping) {
     ASSERT_EQ(ranges[1].front, 0x3000);
     ASSERT_EQ(ranges[1].back, 0x4500);
 }
+
+TEST(RangeDetailTest, AllocateHintContains) {
+    stdx::Vector2<km::MemoryRange> ranges {};
+    ranges.add({ 0x1000, 0x2000 });
+    ranges.add({ 0x3000, 0x4000 });
+
+    km::MemoryRange hint { 0x1500, 0x2000 };
+    km::MemoryRange range = km::detail::AllocateSpaceHint(ranges, 0x500, hint);
+    ASSERT_EQ(range.front, 0x1500);
+    ASSERT_EQ(range.back, 0x2000);
+}
+
+TEST(RangeDetailTest, AllocateHintSteps) {
+    size_t align = 0x100;
+    km::MemoryRange hint { 0x2000, 0x2400 };
+    km::MemoryRange range0 = { 0x1000, 0x2000 };
+    km::MemoryRange range1 = { 0x3000, 0x4000 };
+
+    km::MemoryRange align0 = km::aligned(range0, align);
+    ASSERT_EQ(align0.front, 0x1000);
+    ASSERT_EQ(align0.back, 0x2000);
+
+    km::MemoryRange align1 = km::aligned(range1, align);
+    ASSERT_EQ(align1.front, 0x3000);
+    ASSERT_EQ(align1.back, 0x4000);
+
+    ASSERT_GE(align0.size(), hint.size());
+    ASSERT_GE(align1.size(), hint.size());
+
+    intptr_t distance0 = km::detail::FitDistance(align0, hint);
+    ASSERT_EQ(distance0, -0x400);
+
+    intptr_t distance1 = km::detail::FitDistance(align1, hint);
+    ASSERT_EQ(distance1, 0x1000);
+}
+
+TEST(RangeDetailTest, AllocateHintBestFit) {
+    stdx::Vector2<km::MemoryRange> ranges {};
+    ranges.add({ 0x1000, 0x2000 });
+    ranges.add({ 0x3000, 0x4000 });
+
+    km::MemoryRange hint { 0x2000, 0x2400 };
+    km::MemoryRange range = km::detail::AllocateSpaceHint(ranges, 0x100, hint);
+    ASSERT_EQ(range.front.address, 0x1C00);
+    ASSERT_EQ(range.back.address, 0x2000);
+}
+
+TEST(RangeDetailTest, AllocateHintNoFit) {
+    stdx::Vector2<km::MemoryRange> ranges {};
+    ranges.add({ 0x1000, 0x2000 });
+    ranges.add({ 0x3000, 0x4000 });
+
+    km::MemoryRange hint { 0x2000, 0x12500 };
+    km::MemoryRange range = km::detail::AllocateSpaceHint(ranges, 0x500, hint);
+    ASSERT_TRUE(range.isEmpty());
+}
+
+//
+// Tests for km::detail::FitDistance can all be constexpr
+//
+
+// other after range
+static_assert(km::detail::FitDistance(km::MemoryRange { 0x1000, 0x2000 }, km::MemoryRange { 0x2500, 0x3000 }) == -0x1000);
+
+// other before range
+static_assert(km::detail::FitDistance(km::MemoryRange { 0x2500, 0x4500 }, km::MemoryRange { 0x1000, 0x2000 }) == 0x1500);
+
+// other after range + same size
+static_assert(km::detail::FitDistance(km::MemoryRange { 0x2000, 0x3000 }, km::MemoryRange { 0x8000, 0x9000 }) == -0x6000);
+
+// other before range + same size
+static_assert(km::detail::FitDistance(km::MemoryRange { 0x8000, 0x9000 }, km::MemoryRange { 0x2000, 0x3000 }) == 0x6000);
+
+// other before range + overlaps
+static_assert(km::detail::FitDistance(km::MemoryRange { 0x2500, 0x4500 }, km::MemoryRange { 0x2000, 0x3000 }) == 0x500);
+
+// other after range + overlaps
+static_assert(km::detail::FitDistance(km::MemoryRange { 0x2000, 0x4000 }, km::MemoryRange { 0x2500, 0x4500 }) == -0x500);
+
+static_assert(sm::magnitude(std::numeric_limits<intptr_t>::max()) == std::numeric_limits<intptr_t>::max());
 
 class MergeRangeTest : public testing::TestWithParam<
     std::tuple<

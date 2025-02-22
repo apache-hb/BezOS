@@ -42,6 +42,7 @@ sm::RcuSharedPtr<km::Process> km::GetCurrentProcess() {
 static void SwitchThread(sm::RcuSharedPtr<km::Thread> next) {
     tlsCurrentThread = next;
     km::IsrContext *state = &next->state;
+
     //
     // If we're transitioning out of kernel space then we need to swapgs.
     //

@@ -2,41 +2,85 @@
 
 #include "arch/paging.hpp"
 
+using VmemRange = km::AnyRange<const std::byte*>;
+
 km::VirtualAllocator::VirtualAllocator(VirtualRange range, VirtualRange user)
-    : mSupervisorRanges(range)
-    , mUserRanges(user)
+    : mSupervisorRanges(VmemRange((const std::byte*)range.front, (const std::byte*)range.back))
+    , mUserRanges(VmemRange((const std::byte*)user.front, (const std::byte*)user.back))
 { }
 
 void km::VirtualAllocator::markUsed(VirtualRange range) {
-    mSupervisorRanges.markUsed(range);
-    mUserRanges.markUsed(range);
+    VmemRange vrange = { (const std::byte*)range.front, (const std::byte*)range.back };
+    mSupervisorRanges.markUsed(vrange);
+    mUserRanges.markUsed(vrange);
 }
 
-void *km::VirtualAllocator::alloc4k(size_t count) {
-    size_t size = (count * x64::kPageSize);
-    return (void*)mSupervisorRanges.allocateAligned(size, x64::kPageSize).front;
+void *km::VirtualAllocator::alloc4k(size_t count, const void *hint) {
+    VmemRange range = mSupervisorRanges.allocate({
+        .size = (count * x64::kPageSize),
+        .align = x64::kPageSize,
+        .hint = (const std::byte*)hint,
+    });
+
+    if (range.isEmpty()) {
+        return KM_INVALID_ADDRESS;
+    }
+
+    return (void*)range.front;
 }
 
-void *km::VirtualAllocator::alloc2m(size_t count) {
-    size_t size = (count * x64::kLargePageSize);
-    return (void*)mSupervisorRanges.allocateAligned(size, x64::kLargePageSize).front;
+void *km::VirtualAllocator::alloc2m(size_t count, const void *hint) {
+    VmemRange range = mSupervisorRanges.allocate({
+        .size = (count * x64::kLargePageSize),
+        .align = x64::kLargePageSize,
+        .hint = (const std::byte*)hint,
+    });
+
+    if (range.isEmpty()) {
+        return KM_INVALID_ADDRESS;
+    }
+
+    return (void*)range.front;
 }
 
 void km::VirtualAllocator::release(VirtualRange range) {
-    mSupervisorRanges.release(range);
+    VmemRange vrange = { (const std::byte*)range.front, (const std::byte*)range.back };
+    mSupervisorRanges.release(vrange);
 }
 
+//
+// User virtual memory management.
+//
 
-void *km::VirtualAllocator::userAlloc4k(size_t count) {
-    size_t size = (count * x64::kPageSize);
-    return (void*)mUserRanges.allocateAligned(size, x64::kPageSize).front;
+void *km::VirtualAllocator::userAlloc4k(size_t count, const void *hint) {
+    VmemRange range = mUserRanges.allocate({
+        .size = (count * x64::kPageSize),
+        .align = x64::kPageSize,
+        .hint = (const std::byte*)hint,
+    });
+
+    if (range.isEmpty()) {
+        return KM_INVALID_ADDRESS;
+    }
+
+    return (void*)range.front;
 }
 
-void *km::VirtualAllocator::userAlloc2m(size_t count) {
-    size_t size = (count * x64::kLargePageSize);
-    return (void*)mUserRanges.allocateAligned(size, x64::kLargePageSize).front;
+void *km::VirtualAllocator::userAlloc2m(size_t count, const void *hint) {
+    VmemRange range = mUserRanges.allocate({
+        .size = (count * x64::kLargePageSize),
+        .align = x64::kLargePageSize,
+        .hint = (const std::byte*)hint,
+    });
+
+    if (range.isEmpty()) {
+        return KM_INVALID_ADDRESS;
+    }
+
+    return (void*)range.front;
 }
 
 void km::VirtualAllocator::userRelease(VirtualRange range) {
-    mUserRanges.release(range);
+    VmemRange vrange = { (const std::byte*)range.front, (const std::byte*)range.back };
+    mUserRanges.release(vrange);
 }

@@ -1,6 +1,11 @@
 <repo name='bezos' sources='sources' xmlns:xi="http://www.w3.org/2003/XInclude">
+    <!--
+    We use the same terminology as meson for naming targets.
+    - `host` is the bezos kernel.
+    - `native` is the machine currently running the build.
+    -->
+
     <xi:include href='packages/tools/llvm.xml' />
-    <!-- <xi:include href='packages/tools/gcc.xml' /> -->
 
     <xi:include href='packages/hyper.xml' />
     <xi:include href='packages/limine.xml' />

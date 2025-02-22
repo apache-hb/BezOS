@@ -7,6 +7,20 @@
 #include <cstddef>
 
 namespace km {
+    // TODO: use this to unify the system memory allocator interface
+    struct AllocateRequest {
+        size_t size;
+        size_t align = x64::kPageSize;
+        const std::byte *hint = nullptr;
+        bool user = false;
+        PageFlags flags = PageFlags::eNone;
+        MemoryType type = MemoryType::eWriteBack;
+    };
+
+    inline VirtualRange DefaultUserArea() {
+        return VirtualRange { (void*)sm::megabytes(1).bytes(), (void*)sm::gigabytes(4).bytes() };
+    }
+
     struct SystemMemory {
         mem::IAllocator *allocator;
         PageBuilder pager;
@@ -14,17 +28,23 @@ namespace km {
         PageTableManager pt;
         VirtualAllocator vmm;
 
-        SystemMemory(const boot::MemoryMap& memmap, VirtualRange systemArea, PageBuilder pm, mem::IAllocator *allocator);
+        SystemMemory(const boot::MemoryMap& memmap, VirtualRange systemArea, VirtualRange userArea, PageBuilder pm, mem::IAllocator *allocator);
 
         void *allocate(
             size_t size,
-            size_t align = alignof(std::max_align_t),
             PageFlags flags = PageFlags::eData,
             MemoryType type = MemoryType::eWriteBack
         );
 
         AddressMapping kernelAllocate(size_t size, PageFlags flags, MemoryType type);
         AddressMapping userAllocate(size_t size, PageFlags flags, MemoryType type);
+
+        AddressMapping allocateWithHint(
+            const void *hint,
+            size_t size,
+            PageFlags flags = PageFlags::eData,
+            MemoryType type = MemoryType::eWriteBack
+        );
 
         void release(void *ptr, size_t size);
 

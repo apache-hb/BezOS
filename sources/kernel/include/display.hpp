@@ -209,7 +209,7 @@ namespace km {
         /// @return The allocated canvas.
         static km::Canvas InMemoryCanvas(km::Canvas geometry, km::SystemMemory& memory) {
             size_t size = geometry.size();
-            uint8_t *data = (uint8_t*)memory.allocate(size, x64::kPageSize);
+            uint8_t *data = (uint8_t*)memory.allocate(size);
             memset(data, 0, size);
             return km::Canvas(geometry, data);
         }

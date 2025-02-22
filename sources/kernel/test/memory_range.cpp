@@ -243,3 +243,13 @@ TEST(MemoryRangeTest, SplitRangeBefore) {
     EXPECT_EQ(second.front.address, 0x1500);
     EXPECT_EQ(second.back.address, 0x2000);
 }
+
+TEST(MemoryRangeTest, Align) {
+    km::MemoryRange range = { 0x1111, 0x3111 };
+    km::MemoryRange aligned = km::aligned(range, 0x1000);
+    ASSERT_EQ(aligned.front.address, 0x2000);
+    ASSERT_EQ(aligned.back.address, 0x3000);
+}
+
+static_assert(sm::rounddown(0x2111, 0x1000) == 0x2000);
+static_assert(sm::roundup(0x1111, 0x1000) == 0x2000);

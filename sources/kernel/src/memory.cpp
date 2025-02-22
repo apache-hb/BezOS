@@ -1,15 +1,15 @@
 #include "memory.hpp"
 #include "log.hpp"
 
-km::SystemMemory::SystemMemory(const boot::MemoryMap& memmap, VirtualRange systemArea, PageBuilder pm, mem::IAllocator *alloc)
+km::SystemMemory::SystemMemory(const boot::MemoryMap& memmap, VirtualRange systemArea, VirtualRange userArea, PageBuilder pm, mem::IAllocator *alloc)
     : allocator(alloc)
     , pager(pm)
     , pmm(memmap)
     , pt(&pager, allocator)
-    , vmm(systemArea, VirtualRange { (void*)sm::megabytes(1).bytes(), (void*)sm::gigabytes(4).bytes() })
+    , vmm(systemArea, userArea)
 { }
 
-void *km::SystemMemory::allocate(size_t size, size_t, PageFlags flags, MemoryType type) {
+void *km::SystemMemory::allocate(size_t size, PageFlags flags, MemoryType type) {
     PhysicalAddress paddr = pmm.alloc4k(Pages(size));
     void *vaddr = vmm.alloc4k(Pages(size));
     MemoryRange range { paddr, paddr + size };
@@ -33,9 +33,43 @@ km::AddressMapping km::SystemMemory::kernelAllocate(size_t size, PageFlags flags
 
 km::AddressMapping km::SystemMemory::userAllocate(size_t size, PageFlags flags, MemoryType type) {
     size_t pages = Pages(size);
-    PhysicalAddress paddr = pmm.alloc4k(Pages(size));
-    void *vaddr = vmm.userAlloc4k(Pages(size));
+
+    PhysicalAddress paddr = pmm.alloc4k(pages);
     MemoryRange range { paddr, paddr + size };
+    if (paddr == KM_INVALID_MEMORY) {
+        return AddressMapping{};
+    }
+
+    void *vaddr = vmm.userAlloc4k(pages);
+    if (vaddr == KM_INVALID_ADDRESS) {
+        pmm.release(range);
+        return AddressMapping{};
+    }
+
+    pt.mapRange(range, vaddr, flags, type);
+
+    return AddressMapping {
+        .vaddr = vaddr,
+        .paddr = paddr,
+        .size = pages * x64::kPageSize
+    };
+}
+
+km::AddressMapping km::SystemMemory::allocateWithHint(const void *hint, size_t size, PageFlags flags, MemoryType type) {
+    size_t pages = Pages(size);
+
+    PhysicalAddress paddr = pmm.alloc4k(pages);
+    if (paddr == KM_INVALID_MEMORY) {
+        return AddressMapping{};
+    }
+
+    void *vaddr = vmm.userAlloc4k(pages, hint);
+    MemoryRange range { paddr, paddr + size };
+    if (vaddr == KM_INVALID_ADDRESS) {
+        pmm.release(range);
+        return AddressMapping{};
+    }
+
     pt.mapRange(range, vaddr, flags, type);
 
     return AddressMapping {

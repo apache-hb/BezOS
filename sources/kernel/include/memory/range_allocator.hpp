@@ -4,10 +4,14 @@
 #include "std/vector.hpp"
 #include "util/util.hpp"
 
+#include <cstdlib>
 #include <numeric>
 
 namespace km {
     namespace detail {
+        template<typename T>
+        using RangeList = stdx::Vector2<AnyRange<T>>;
+
         template<typename T>
         void SortRanges(std::span<AnyRange<T>> ranges) {
             std::sort(ranges.begin(), ranges.end(), [](const AnyRange<T>& a, const AnyRange<T>& b) {
@@ -15,8 +19,14 @@ namespace km {
             });
         }
 
+        /// @brief Merges adjacent or overlapping ranges together.
+        ///
+        /// @pre @p ranges must be sorted.
+        ///
+        /// @param ranges The ranges to merge.
+        /// @tparam T The type of the range point.
         template<typename T>
-        void MergeRanges(stdx::Vector2<AnyRange<T>>& ranges) {
+        void MergeRanges(RangeList<T>& ranges) {
             SortRanges(std::span(ranges));
 
             for (size_t i = 0; i < ranges.count(); i++) {
@@ -50,14 +60,16 @@ namespace km {
         /// @param used The range that is used.
         /// @tparam T The type of the range.
         template<typename T>
-        void MarkUsedArea(stdx::Vector2<AnyRange<T>>& ranges, AnyRange<T> used) {
+        void MarkUsedArea(RangeList<T>& ranges, AnyRange<T> used) {
             using Range = AnyRange<T>;
 
             for (size_t i = 0; i < ranges.count(); i++) {
                 Range& available = ranges[i];
 
+                //
                 // Remove any ranges that would be completely covered
-                // by the new used range
+                // by the new used range.
+                //
                 if (used.contains(available)) {
                     ranges.remove(i);
                     i--;
@@ -65,25 +77,31 @@ namespace km {
                 }
 
                 if (available.contains(used)) {
-                    // if this range is fully contained in another range
-                    // then split the range
+                    //
+                    // If this range is fully contained in another range
+                    // then split the range.
+                    //
                     auto [left, right] = split(available, used);
 
                     ranges.remove(i);
                     ranges.add(left);
                     ranges.add(right);
                 } else if (available.overlaps(used)) {
-                    // if this range overlaps with another range
-                    // then trim off the overlapping parts
+                    //
+                    // If this range overlaps with another range
+                    // then trim off the overlapping parts.
+                    //
                     available = available.cut(used);
 
-                    // multiple ranges can overlap, so don't break here
+                    //
+                    // Multiple ranges can overlap, so don't break here.
+                    //
                 }
             }
         }
 
         template<typename T>
-        AnyRange<T> AllocateSpaceAligned(stdx::Vector2<AnyRange<T>>& ranges, size_t size, size_t align) {
+        AnyRange<T> AllocateSpaceAligned(RangeList<T>& ranges, size_t size, size_t align) {
             using Range = AnyRange<T>;
 
             for (size_t i = 0; i < ranges.count(); i++) {
@@ -101,12 +119,8 @@ namespace km {
 
                     // split the range
                     auto [left, right] = split(range, aligned);
-                    if (!left.isEmpty())
-                        ranges.add(left);
-
-                    if (!right.isEmpty())
-                        ranges.add(right);
-
+                    ranges.add(left);
+                    ranges.add(right);
                     ranges.remove(i);
 
                     return aligned;
@@ -116,11 +130,132 @@ namespace km {
             return Range{};
         }
 
+        /// @brief Allocate the requested space if it is available.
+        ///
+        /// This function will attempt to allocate the requested space
+        /// if it is available in the ranges. If the space is not available
+        /// then an empty range is returned.
+        ///
+        /// @param ranges The ranges to allocate from.
+        /// @param request The requested range.
+        /// @tparam T The type of the range point.
         template<typename T>
-        AnyRange<T> AllocateSpace(stdx::Vector2<AnyRange<T>>& ranges, size_t size) {
-            return AllocateSpaceAligned(ranges, size, 1);
+        AnyRange<T> ClaimRangeIfAvailable(RangeList<T>& ranges, AnyRange<T> request) {
+            using Range = AnyRange<T>;
+
+            for (size_t i = 0; i < ranges.count(); i++) {
+                //
+                // This does not handle the case where ranges have not been merged
+                // but adjacent ranges would fulfill the request.
+                //
+                Range range = ranges[i];
+                if (range.contains(request)) {
+                    auto [left, right] = split(range, request);
+                    ranges.add(left);
+                    ranges.add(right);
+                    ranges.remove(i);
+
+                    return request;
+                }
+            }
+
+            return Range{};
+        }
+
+        /// @brief Returns the offset required to move a range into a given area.
+        ///
+        /// This function will return the offset required to move @p other
+        /// into @p range.
+        ///
+        /// @pre @p range does not contain @p other.
+        ///
+        /// @param range The range to move into.
+        /// @param other The range to move.
+        /// @return The offset required to move @p other into @p range.
+        /// @tparam T The type of the range point.
+        template<typename T>
+        constexpr intptr_t FitDistance(AnyRange<T> range, AnyRange<T> other) {
+            if (other.front < range.front) {
+                return range.front - other.front;
+            } else {
+                return range.back - other.back;
+            }
+        }
+
+        /// @brief Allocate space based on a hint.
+        ///
+        /// @pre @p hint is aligned to @p align.
+        template<typename T>
+        AnyRange<T> AllocateSpaceHint(RangeList<T>& ranges, size_t align, AnyRange<T> hint) {
+            using Range = AnyRange<T>;
+
+            AnyRange closest = Range{};
+            intptr_t closestDistance = std::numeric_limits<intptr_t>::max();
+            size_t closestIdx = SIZE_MAX;
+
+            for (size_t i = 0; i < ranges.count(); i++) {
+                //
+                // If the range totally contains the hint then we can split
+                // and return the hint.
+                //
+                Range range = ranges[i];
+                if (range.contains(hint)) {
+                    auto [left, right] = split(range, hint);
+                    ranges.add(left);
+                    ranges.add(right);
+                    ranges.remove(i);
+
+                    return hint;
+                }
+
+                //
+                // If the range is large enough to contain the hint then we can
+                // record it as a possible candidate.
+                //
+                Range alignedRange = aligned(range, align);
+
+                if (alignedRange.size() >= hint.size()) {
+                    intptr_t distance = FitDistance(alignedRange, hint);
+                    if (sm::magnitude(distance) < sm::magnitude(closestDistance)) {
+                        closest = hint;
+                        closest.front += distance;
+                        closest.back += distance;
+
+                        closestDistance = distance;
+                        closestIdx = i;
+                    }
+                }
+            }
+
+            //
+            // If a candidate range was found then use the range fitted to it
+            // based on the hint.
+            //
+            if (closestIdx != SIZE_MAX) {
+                auto [left, right] = split(ranges[closestIdx], closest);
+                ranges.add(left);
+                ranges.add(right);
+                ranges.remove(closestIdx);
+
+                return closest;
+            }
+
+            return Range{};
         }
     }
+
+    template<typename T>
+    struct RangeAllocateRequest {
+        size_t size;
+        size_t align;
+        T hint;
+
+        constexpr AnyRange<T> hintRange() const {
+            T front = hint;
+            T back = std::bit_cast<T>(std::bit_cast<uintptr_t>(front) + size);
+            return { front, back };
+        }
+    };
 
     template<typename T>
     class RangeAllocator {
@@ -132,6 +267,8 @@ namespace km {
     public:
         RangeAllocator() = default;
 
+        using Request = RangeAllocateRequest<T>;
+
         RangeAllocator(Range range) {
             mAvailable.add(range);
         }
@@ -142,11 +279,15 @@ namespace km {
         }
 
         Range allocate(size_t size) {
-            return detail::AllocateSpace(mAvailable, size);
+            return allocate({ size, 1, T() });
         }
 
-        Range allocateAligned(size_t size, size_t align) {
-            return detail::AllocateSpaceAligned(mAvailable, size, align);
+        Range allocate(Request request) {
+            if (request.hint == T()) {
+                return detail::AllocateSpaceAligned(mAvailable, request.size, request.align);
+            } else {
+                return detail::AllocateSpaceHint(mAvailable, request.align, request.hintRange());
+            }
         }
 
         void release(Range range) {

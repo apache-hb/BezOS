@@ -118,8 +118,6 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
     remaining->fetch_sub(1);
 
     km::ScheduleWork(ist, apic.pointer());
-
-    KmIdle();
 }
 
 static uintptr_t AllocSmpStack() {

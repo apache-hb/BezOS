@@ -17,7 +17,7 @@ size_t km::CpuLocalDataSize() {
 
 void *km::AllocateCpuLocalRegion(SystemMemory& memory) {
     size_t size = CpuLocalDataSize();
-    return memory.allocate(size, x64::kPageSize);
+    return memory.allocate(size);
 }
 
 static std::byte *GetCpuLocalBase() {

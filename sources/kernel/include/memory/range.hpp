@@ -6,6 +6,10 @@
 #include <cstdint>
 
 #include "util/format.hpp"
+#include "util/util.hpp"
+
+#define KM_INVALID_MEMORY km::PhysicalAddress(UINTPTR_MAX)
+#define KM_INVALID_ADDRESS (void*)UINTPTR_MAX
 
 namespace km {
     struct PhysicalAddress {
@@ -62,6 +66,7 @@ namespace km {
     /// - intersects: A range that shares any area with another range, not including touching.
     /// - contiguous: A range that shares any area with another range, or is adjacent to it.
     /// - adjacent: Two ranges that share no area, but are next to each other.
+    /// - interval: A range that shares any area with another range, or is a subset of it.
     ///
     /// @pre @a AnyRange::front < @a AnyRange::back
     template<typename T>
@@ -203,6 +208,23 @@ namespace km {
     template<typename T>
     constexpr bool interval(AnyRange<T> a, AnyRange<T> b) {
         return adjacent(a, b) || overlaps(a, b) || a.contains(b) || b.contains(a);
+    }
+
+    /// @brief Aligns the given memory range to the given alignment.
+    ///
+    /// Aligns the given memory range to the given alignment. The front
+    /// of the range is rounded up and the back is rounded down.
+    ///
+    /// @param range The memory range.
+    /// @param align The alignment to use.
+    /// @return The aligned memory range.
+    /// @tparam T The type of the range point.
+    template<typename T>
+    constexpr AnyRange<T> aligned(AnyRange<T> range, size_t align) {
+        T front = (T)sm::roundup(std::bit_cast<uintptr_t>(range.front), align);
+        T back = (T)sm::rounddown(std::bit_cast<uintptr_t>(range.back), align);
+
+        return {front, back};
     }
 
     /// @brief Splits the given memory range at the given address.

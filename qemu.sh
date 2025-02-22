@@ -85,6 +85,7 @@ elif [ "$MODE" = "test" ]; then
     qemu-system-x86_64 $QEMUARGS $(serial_chardev qemu-serial.txt) $(serial_canbus) -smp 4 $ARGS
 else
     # make repo || exit 1
+    install/tool/bin/package.elf --config repo/repo.xml --output build --prefix install --rebuild kernel || exit 1
 
     qemu-system-x86_64 $QEMUARGS $(serial_chardev qemu-serial.txt) -smp 4 $ARGS
 fi

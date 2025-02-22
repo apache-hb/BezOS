@@ -2,6 +2,26 @@
 
 #include "memory.hpp"
 
+static km::PageMemoryTypeLayout GetDefaultPatLayout(void) {
+    enum {
+        kEntryWriteBack,
+        kEntryWriteThrough,
+        kEntryUncachedOverridable,
+        kEntryUncached,
+        kEntryWriteCombined,
+        kEntryWriteProtect,
+    };
+
+    return km::PageMemoryTypeLayout {
+        .deferred = kEntryUncachedOverridable,
+        .uncached = kEntryUncached,
+        .writeCombined = kEntryWriteCombined,
+        .writeThrough = kEntryWriteThrough,
+        .writeProtect = kEntryWriteProtect,
+        .writeBack = kEntryWriteBack,
+    };
+}
+
 struct BufferAllocator final : public mem::IAllocator {
     std::pmr::monotonic_buffer_resource mResource;
 
@@ -39,10 +59,10 @@ struct SystemMemoryTestBody {
     BufferAllocator allocator;
     km::PageBuilder pm;
 
-    SystemMemoryTestBody()
-        : allocatorMemory { (uint8_t*)_mm_malloc(0x10000, 0x1000), &_mm_free }
+    SystemMemoryTestBody(size_t size = 0x10000)
+        : allocatorMemory { (uint8_t*)_mm_malloc(size, 0x1000), &_mm_free }
         , allocator { allocatorMemory.get(), 0x10000 }
-        , pm { 48, 48, 0, km::PageMemoryTypeLayout { 2, 3, 4, 1, 5, 0 } }
+        , pm { 48, 48, 0, GetDefaultPatLayout() }
     { }
 
     km::MemoryRange addSegment(size_t size, boot::MemoryRegion::Type type) {
@@ -52,7 +72,25 @@ struct SystemMemoryTestBody {
         return km::MemoryRange {(uintptr_t)ptr, (uintptr_t)ptr + size};
     }
 
-    km::SystemMemory make() {
+    km::SystemMemory make(size_t systemArea = 0x10000, size_t userArea = 0x10000) {
+        std::vector<boot::MemoryRegion> regions;
+        for (const MemorySegment& seg : memory) {
+            regions.push_back(seg.region());
+        }
+
+        auto systemSegment = addSegment(systemArea, boot::MemoryRegion::eUsable);
+        auto userSegment = addSegment(userArea, boot::MemoryRegion::eUsable);
+
+        uintptr_t dataFront = systemSegment.front.address;
+        uintptr_t dataBack = systemSegment.back.address;
+        km::VirtualRange system{(void*)dataFront, (void*)dataBack};
+        uintptr_t userFront = userSegment.front.address;
+        uintptr_t userBack = userSegment.back.address;
+        km::VirtualRange user{(void*)userFront, (void*)userBack};
+        return km::SystemMemory(boot::MemoryMap{regions}, system, user, pm, &allocator);
+    }
+
+    km::SystemMemory makeNoAlloc(km::VirtualRange userArea) {
         std::vector<boot::MemoryRegion> regions;
         for (const MemorySegment& seg : memory) {
             regions.push_back(seg.region());
@@ -60,6 +98,7 @@ struct SystemMemoryTestBody {
 
         uintptr_t dataFront = -(1ull << (48 - 1));
         uintptr_t dataBack = -(1ull << (48 - 2));
-        return km::SystemMemory(boot::MemoryMap{regions}, km::VirtualRange{(void*)dataFront, (void*)dataBack}, pm, &allocator);
+        km::VirtualRange system{(void*)dataFront, (void*)dataBack};
+        return km::SystemMemory(boot::MemoryMap{regions}, system, userArea, pm, &allocator);
     }
 };

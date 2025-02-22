@@ -15,7 +15,7 @@ TEST(MemoryTest, MapKernelAddress) {
     auto s0 = body.addSegment(0x100000, boot::MemoryRegion::eUsable);
     body.addSegment(0x100000, boot::MemoryRegion::eUsable);
 
-    km::SystemMemory memory = body.make();
+    km::SystemMemory memory = body.makeNoAlloc(km::DefaultUserArea());
 
     void *kptr = memory.map(s0.front, s0.front + 0x1000);
     ASSERT_NE(kptr, nullptr);

@@ -698,7 +698,7 @@ static Stage2MemoryInfo *InitStage2Memory(
 
     InitGlobalAllocator(&stage2->allocator);
 
-    SystemMemory *memory = stage2->allocator.construct<SystemMemory>(boot::MemoryMap{earlyMemory->memmap}, stage1.layout.system, pm, &stage2->allocator);
+    SystemMemory *memory = stage2->allocator.construct<SystemMemory>(boot::MemoryMap{earlyMemory->memmap}, stage1.layout.system, DefaultUserArea(), pm, &stage2->allocator);
     KM_CHECK(memory != nullptr, "Failed to allocate memory for SystemMemory.");
 
     stage2->memory = memory;

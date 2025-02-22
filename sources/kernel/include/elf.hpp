@@ -11,6 +11,17 @@
 #include <cstring>
 
 namespace elf {
+    struct Elf64Rela {
+        uint64_t offset;
+        uint64_t info;
+        int64_t addend;
+    };
+
+    struct Elf64Dyn {
+        uint64_t tag;
+        uint64_t value;
+    };
+
     enum class ElfType : uint16_t {
         eNone = 0,
         eRelocatable = 1,
@@ -91,8 +102,13 @@ namespace elf {
         }
     };
 
+    enum class ElfProgramHeaderType : uint32_t {
+        eLoad = 0x1,
+        eDynamic = 0x2,
+    };
+
     struct ElfProgramHeader {
-        uint32_t type;
+        ElfProgramHeaderType type;
         uint32_t flags;
         uint64_t offset;
         uint64_t vaddr;
