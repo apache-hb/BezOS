@@ -26,7 +26,9 @@ extern "C" uint64_t KmSystemCallStackTlsOffset;
 
 extern "C" OsCallResult KmSystemDispatchRoutine(km::SystemCallContext *context) {
     if (km::SystemCallHandler handler = gSystemCalls[uint8_t(context->function)]) {
-        return handler(context->arg0, context->arg1, context->arg2, context->arg3);
+        OsCallResult result = handler(context->arg0, context->arg1, context->arg2, context->arg3);
+        KmDebugMessage("[SYS] Function ", km::Hex(context->function), " returned ", km::Hex(result.Status), " with value ", km::Hex(result.Value), "\n");
+        return result;
     }
 
     KmDebugMessage("[SYS] Unknown function ", km::Hex(context->function), "\n");
@@ -45,7 +47,7 @@ void km::SetupUserMode() {
     uint64_t efer = kEfer.load();
     kEfer.store(efer | (1 << 0));
 
-    kFMask.store(0xFFFF'FFFF);
+    kFMask.store(0x0);
 
     // Store the syscall entry point in the LSTAR MSR
     kLStar.store((uint64_t)KmSystemEntry);

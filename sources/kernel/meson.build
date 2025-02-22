@@ -22,7 +22,7 @@ cpp = meson.get_compiler('cpp')
 inc = include_directories('include')
 
 common_args = [
-    '-fmacro-prefix-map=../=/',
+    '-fmacro-prefix-map=../../../=/',
 
     '-Wno-gnu-anonymous-struct',
     '-Wno-gnu-case-range',
@@ -198,10 +198,19 @@ if enable_aml
     src += [ 'src/acpi/aml.cpp', ]
 endif
 
+kernel_c_args = c_args
+kernel_cpp_args = cpp_args
+
+if get_option('buildtype').contains('debug')
+    src += [ 'src/sanitizer/ubsan.cpp' ]
+    kernel_c_args += [ '-fsanitize=undefined', '-fno-sanitize=function' ]
+    kernel_cpp_args += [ '-fsanitize=undefined', '-fno-sanitize=function' ]
+endif
+
 kernel = static_library('kernel', src,
     include_directories : inc,
-    c_args : c_args + [ '-mllvm', '-asm-macro-max-nesting-depth=256', '-D__BEZOS__=1' ],
-    cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
+    c_args : kernel_c_args + [ '-mllvm', '-asm-macro-max-nesting-depth=256', '-D__BEZOS__=1' ],
+    cpp_args : kernel_cpp_args + [ '-D__BEZOS__=1' ],
     dependencies : deps,
     link_with : libs,
     override_options : [ 'b_coverage=false' ],
@@ -212,8 +221,8 @@ kernel = static_library('kernel', src,
 ###
 
 executable('bezos-limine.elf', 'src/boot/limine.cpp',
-    c_args : c_args + [ '-D__BEZOS__=1' ],
-    cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
+    c_args : kernel_c_args + [ '-D__BEZOS__=1' ],
+    cpp_args : kernel_cpp_args + [ '-D__BEZOS__=1' ],
     include_directories : inc,
     link_with : kernel,
     dependencies : [ limine, deps ],
@@ -228,8 +237,8 @@ executable('bezos-limine.elf', 'src/boot/limine.cpp',
 ###
 
 executable('bezos-hyper.elf', 'src/boot/hyper.cpp',
-    c_args : c_args + [ '-D__BEZOS__=1' ],
-    cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
+    c_args : kernel_c_args + [ '-D__BEZOS__=1' ],
+    cpp_args : kernel_cpp_args + [ '-D__BEZOS__=1' ],
     include_directories : inc,
     link_with : kernel,
     dependencies : [ ultra, deps ],

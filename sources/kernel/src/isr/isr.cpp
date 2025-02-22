@@ -53,7 +53,6 @@ extern "C" km::IsrContext KmIsrDispatchRoutine(km::IsrContext *context) {
     });
 }
 
-
 void km::UpdateIdtEntry(uint8_t isr, uint16_t selector, x64::Privilege dpl, uint8_t ist) {
     gIdt.entries[isr] = x64::CreateIdtEntry((uintptr_t)KmIsrTable + (isr * kIsrTableStride), selector * 0x8, dpl, ist);
 }

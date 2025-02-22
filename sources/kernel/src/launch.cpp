@@ -129,11 +129,18 @@ static OsStatus ApplyRelocations(vfs2::IVfsNodeHandle *file, std::span<const elf
         return OsStatusInvalidData;
     }
 
+    if (relaEnt != sizeof(elf::Elf64Rela)) {
+        KmDebugMessage("[ELF] Invalid dynamic section relocation entry size: ", relaEnt, " != ", sizeof(elf::Elf64Rela), "\n");
+        return OsStatusInvalidData;
+    }
+
     size_t count = relaSize / relaEnt;
     std::unique_ptr<elf::Elf64Rela[]> relas{new elf::Elf64Rela[count]};
     if (OsStatus status = vfs2::ReadArray(file, relas.get(), count, relaStart)) {
         return status;
     }
+
+    KmDebugMessage("[ELF] Applying ", count, " relocations\n");
 
     for (size_t i = 0; i < count; i++) {
         const elf::Elf64Rela &rela = relas[i];

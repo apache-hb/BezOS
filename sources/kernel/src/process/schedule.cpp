@@ -73,6 +73,7 @@ void km::ScheduleWork(LocalIsrTable *table, IApic *apic) {
                 scheduler->addWorkItem(current);
             }
 
+            KmDebugMessageUnlocked("[ISR] Switching to thread: ", thread->name(), " - ", GetCurrentCoreId(), "\n");
             SwitchThread(thread);
         }
 
@@ -80,7 +81,7 @@ void km::ScheduleWork(LocalIsrTable *table, IApic *apic) {
     });
     tlsScheduleIdx = table->index(scheduleInt);
 
-    apic->setTimerDivisor(apic::TimerDivide::e32);
+    apic->setTimerDivisor(apic::TimerDivide::e64);
     apic->setInitialCount(0x10000);
 
     apic->cfgIvtTimer(apic::IvtConfig {

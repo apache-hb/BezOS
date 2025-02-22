@@ -280,7 +280,7 @@ static void WriteMtrrs(const km::PageBuilder& pm) {
                     KmDebugMessage("| ");
                 }
 
-                KmDebugMessage(mtrrs.fixedMtrr(i), " ");
+                KmDebugMessage(mtrrs.fixedMtrr((i * 11) + j), " ");
             }
             KmDebugMessage("\n");
         }
@@ -1267,10 +1267,14 @@ static void AddDeviceSystemCalls() {
             return CallError(status);
         }
 
+        KmDebugMessage("[VFS] Opening device.\n");
+
         vfs2::VfsString userPath;
         if (OsStatus status = km::CopyUserRange(createInfo.NameFront, createInfo.NameBack, &userPath, kMaxPathSize)) {
             return CallError(status);
         }
+
+        KmDebugMessage("[VFS] Opening device: ", userPath, "\n");
 
         if (!vfs2::VerifyPathText(userPath)) {
             return CallError(OsStatusInvalidInput);
@@ -1278,12 +1282,16 @@ static void AddDeviceSystemCalls() {
 
         vfs2::VfsPath path{std::move(userPath)};
 
+        KmDebugMessage("[VFS] Opening device: ", path, "\n");
+
         sm::uuid uuid = createInfo.InterfaceGuid;
 
         vfs2::IVfsNodeHandle *handle = nullptr;
         if (OsStatus status = gVfsRoot->device(path, uuid, &handle)) {
             return CallError(status);
         }
+
+        KmDebugMessage("[VFS] Device opened. ", (void*)handle, "\n");
 
         return CallOk(handle);
     });
