@@ -36,7 +36,11 @@ sm::RcuSharedPtr<km::Thread> km::GetCurrentThread() {
 }
 
 sm::RcuSharedPtr<km::Process> km::GetCurrentProcess() {
-    return GetCurrentThread()->process.lock();
+    if (sm::RcuSharedPtr<km::Thread> thread = GetCurrentThread()) {
+        return thread->process.lock();
+    }
+
+    return nullptr;
 }
 
 static void SwitchThread(sm::RcuSharedPtr<km::Thread> next) {

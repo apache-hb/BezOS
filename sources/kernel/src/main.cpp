@@ -928,7 +928,7 @@ static void InstallExceptionHandlers(SharedIsrTable *ist) {
     });
 
     ist->install(isr::GP, [](km::IsrContext *context) -> km::IsrContext {
-        DisableInterrupts();
+        NmiGuard guard;
 
         DumpIsrContext(context, "General protection fault (#GP)");
         DumpStackTrace(context);
