@@ -50,6 +50,7 @@ struct OsGuid {
     }
 
 #define OS_TIMEOUT_INFINITE ((OsInstant)(UINT64_MAX))
+#define OS_HANDLE_INVALID ((OsHandle)(0))
 
 /// @brief A handle to a file object.
 OS_OBJECT_HANDLE(OsFileHandle);

@@ -13,6 +13,7 @@ enum {
     eOsProcessNone = 0,
 
     eOsProcessSuspended = (1 << 0),
+    eOsProcessSupervisor = (1 << 1),
 };
 
 typedef uint32_t OsProcessCreateFlags;
@@ -25,6 +26,7 @@ struct OsProcessCreateInfo {
     const char *ArgumentsEnd;
 
     OsProcessCreateFlags Flags;
+    OsProcessHandle Parent;
 };
 
 extern OsStatus OsProcessCurrent(OsProcessHandle *OutHandle);

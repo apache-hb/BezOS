@@ -1,6 +1,6 @@
 #pragma once
 
-#include "std/forward_list.hpp"
+#include "concurrentqueue.h"
 #include "std/shared_spinlock.hpp"
 
 #include <atomic>
@@ -34,7 +34,7 @@ namespace sm {
             friend RcuGuard;
 
             std::atomic<uint32_t> guard;
-            AtomicForwardList<RcuCall> retired;
+            moodycamel::ConcurrentQueue<RcuCall> retired;
         };
 
         UTIL_NOCOPY(RcuDomain);

@@ -269,17 +269,27 @@ namespace sm {
     };
 
     template<typename T, typename... Args>
-    RcuSharedPtr<T> makeRcuShared(RcuDomain *domain, Args&&... args) {
-        return RcuSharedPtr<T>(domain, new T(std::forward<Args>(args)...));
+    RcuSharedPtr<T> rcuMakeShared(RcuDomain *domain, Args&&... args) {
+        if (T *ptr = new(std::nothrow) T(std::forward<Args>(args)...)) {
+            if (RcuSharedPtr rcu = RcuSharedPtr<T>{domain, ptr}) {
+                return rcu;
+            }
+
+            delete ptr;
+        }
+
+        return nullptr;
     }
 
     template<typename T>
     constexpr RcuSharedPtr<T>::RcuSharedPtr(RcuDomain *domain, T *ptr)
         : mDomain(domain)
-        , mControl(new rcu::detail::ControlBlock { 1, 1, ptr, [](void *ptr) { delete static_cast<T*>(ptr); } })
+        , mControl(new (std::nothrow) rcu::detail::ControlBlock { 1, 1, ptr, [](void *ptr) { delete static_cast<T*>(ptr); } })
     {
-        if constexpr (IsIntrusivePtr<T>) {
-            ptr->initWeak(weak());
+        if (mControl != nullptr && ptr != nullptr) {
+            if constexpr (IsIntrusivePtr<T>) {
+                ptr->initWeak(weak());
+            }
         }
     }
 

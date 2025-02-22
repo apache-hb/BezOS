@@ -248,7 +248,7 @@ public:
 
 TEST(RcuPtrTest, Intrusive) {
     sm::RcuDomain domain;
-    sm::RcuSharedPtr<IntrusiveData> ptr = sm::makeRcuShared<IntrusiveData>(&domain, "Hello, World!");
+    sm::RcuSharedPtr<IntrusiveData> ptr = sm::rcuMakeShared<IntrusiveData>(&domain, "Hello, World!");
     ASSERT_EQ(ptr->value(), "Hello, World!");
     sm::RcuWeakPtr<IntrusiveData> weak = ptr;
     ptr = nullptr;

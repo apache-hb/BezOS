@@ -21,12 +21,13 @@ void sm::RcuDomain::synchronize() {
 void sm::RcuDomain::call(void *data, void(*fn)(void*)) {
     RcuCall call = { data, fn };
     RcuGeneration *generation = acquire();
-    generation->retired.push(call);
+    generation->retired.enqueue(call);
     generation->guard -= 1;
 }
 
 void sm::RcuDomain::destroy(RcuGeneration *generation) {
-    while (RcuCall head = generation->retired.pop(RcuCall{})) {
+    RcuCall head{};
+    while (generation->retired.try_dequeue(head)) {
         head.call(head.value);
     }
 
