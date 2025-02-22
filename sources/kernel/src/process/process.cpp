@@ -6,20 +6,23 @@ sm::RcuSharedPtr<Thread> SystemObjects::createThread(stdx::String name, sm::RcuS
     ThreadId id = mThreadIds.allocate();
     sm::RcuSharedPtr ptr = sm::rcuMakeShared<Thread>(&mDomain, id, std::move(name), process);
 
-    stdx::UniqueLock guard(mLock);
+    process->addThread(ptr);
 
+    stdx::UniqueLock guard(mLock);
     mThreads.insert({id, ptr});
+
     return ptr;
 }
 
-AddressSpace *SystemObjects::createAddressSpace(stdx::String name, km::AddressMapping mapping) {
-    stdx::UniqueLock guard(mLock);
-
+sm::RcuSharedPtr<AddressSpace> SystemObjects::createAddressSpace(stdx::String name, km::AddressMapping mapping, km::PageFlags flags, km::MemoryType type, sm::RcuSharedPtr<Process> process) {
     AddressSpaceId id = mAddressSpaceIds.allocate();
-    std::unique_ptr<AddressSpace> addressSpace{new AddressSpace{id, std::move(name), mapping}};
-    AddressSpace *result = addressSpace.get();
-    mAddressSpaces.insert({id, std::move(addressSpace)});
-    return result;
+    sm::RcuSharedPtr ptr = sm::rcuMakeShared<AddressSpace>(&mDomain, id, std::move(name), mapping, flags, type);
+
+    process->addAddressSpace(ptr);
+
+    stdx::UniqueLock guard(mLock);
+    mAddressSpaces.insert({id, ptr});
+    return ptr;
 }
 
 sm::RcuSharedPtr<Process> SystemObjects::createProcess(stdx::String name, x64::Privilege privilege) {
@@ -32,17 +35,16 @@ sm::RcuSharedPtr<Process> SystemObjects::createProcess(stdx::String name, x64::P
     return ptr;
 }
 
-Mutex *SystemObjects::createMutex(stdx::String name) {
-    stdx::UniqueLock guard(mLock);
-
+sm::RcuSharedPtr<Mutex> SystemObjects::createMutex(stdx::String name) {
     MutexId id = mMutexIds.allocate();
-    std::unique_ptr<Mutex> mutex{new Mutex{id, std::move(name)}};
-    Mutex *result = mutex.get();
-    mMutexes.insert({id, std::move(mutex)});
-    return result;
+    sm::RcuSharedPtr ptr = sm::rcuMakeShared<Mutex>(&mDomain, id, std::move(name));
+
+    stdx::UniqueLock guard(mLock);
+    mMutexes.insert({id, ptr});
+    return ptr;
 }
 
-sm::RcuSharedPtr<Thread> SystemObjects::getThread(ThreadId id) {
+sm::RcuWeakPtr<Thread> SystemObjects::getThread(ThreadId id) {
     stdx::SharedLock guard(mLock);
     if (auto it = mThreads.find(id); it != mThreads.end()) {
         return it->second;
@@ -51,10 +53,10 @@ sm::RcuSharedPtr<Thread> SystemObjects::getThread(ThreadId id) {
     return nullptr;
 }
 
-AddressSpace *SystemObjects::getAddressSpace(AddressSpaceId id) {
+sm::RcuSharedPtr<AddressSpace> SystemObjects::getAddressSpace(AddressSpaceId id) {
     stdx::SharedLock guard(mLock);
     if (auto it = mAddressSpaces.find(id); it != mAddressSpaces.end()) {
-        return it->second.get();
+        return it->second;
     }
 
     return nullptr;
@@ -69,10 +71,10 @@ sm::RcuSharedPtr<Process> SystemObjects::getProcess(ProcessId id) {
     return nullptr;
 }
 
-Mutex *SystemObjects::getMutex(MutexId id) {
+sm::RcuSharedPtr<Mutex> SystemObjects::getMutex(MutexId id) {
     stdx::SharedLock guard(mLock);
     if (auto it = mMutexes.find(id); it != mMutexes.end()) {
-        return it->second.get();
+        return it->second;
     }
 
     return nullptr;

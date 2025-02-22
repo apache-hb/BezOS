@@ -1331,6 +1331,48 @@ static void AddThreadSystemCalls() {
     });
 }
 
+static OsStatus GetMemoryAccess(OsMemoryAccess access, PageFlags *result) {
+    PageFlags flags = PageFlags::eUser;
+    if (access & eOsMemoryRead) {
+        flags |= PageFlags::eRead;
+        access &= ~eOsMemoryRead;
+    }
+
+    if (access & eOsMemoryWrite) {
+        flags |= PageFlags::eWrite;
+        access &= ~eOsMemoryWrite;
+    }
+
+    if (access & eOsMemoryExecute) {
+        flags |= PageFlags::eExecute;
+        access &= ~eOsMemoryExecute;
+    }
+
+    if (access != 0) {
+        return OsStatusInvalidInput;
+    }
+
+    *result = flags;
+    return OsStatusSuccess;
+}
+
+static OsMemoryAccess MakeMemoryAccess(PageFlags flags) {
+    OsMemoryAccess access = 0;
+    if (bool(flags & PageFlags::eRead)) {
+        access |= eOsMemoryRead;
+    }
+
+    if (bool(flags & PageFlags::eWrite)) {
+        access |= eOsMemoryWrite;
+    }
+
+    if (bool(flags & PageFlags::eExecute)) {
+        access |= eOsMemoryExecute;
+    }
+
+    return access;
+}
+
 static void AddVmemSystemCalls() {
     AddSystemCall(eOsCallAddressSpaceCreate, [](uint64_t userCreateInfo, uint64_t, uint64_t, uint64_t) -> OsCallResult {
         OsAddressSpaceCreateInfo createInfo{};
@@ -1339,23 +1381,19 @@ static void AddVmemSystemCalls() {
         }
 
         PageFlags flags = PageFlags::eUser;
-        if (createInfo.Access & eOsMemoryRead) {
-            flags |= PageFlags::eRead;
-            createInfo.Access &= ~eOsMemoryRead;
+        if (OsStatus status = GetMemoryAccess(createInfo.Access, &flags)) {
+            return CallError(status);
         }
 
-        if (createInfo.Access & eOsMemoryWrite) {
-            flags |= PageFlags::eWrite;
-            createInfo.Access &= ~eOsMemoryWrite;
+        sm::RcuSharedPtr<Process> process;
+        if (createInfo.Process != OS_HANDLE_INVALID) {
+            process = gSystemObjects->getProcess(ProcessId(createInfo.Process & 0x00FF'FFFF'FFFF'FFFF));
+        } else {
+            process = GetCurrentProcess();
         }
 
-        if (createInfo.Access & eOsMemoryExecute) {
-            flags |= PageFlags::eExecute;
-            createInfo.Access &= ~eOsMemoryExecute;
-        }
-
-        if (createInfo.Access != 0) {
-            return CallError(OsStatusInvalidInput);
+        if (process == nullptr) {
+            return CallError(OsStatusNotFound);
         }
 
         stdx::String name;
@@ -1369,18 +1407,19 @@ static void AddVmemSystemCalls() {
             return CallError(OsStatusOutOfMemory);
         }
 
-        AddressSpace *addressSpace = gSystemObjects->createAddressSpace(std::move(name), mapping);
-        return CallOk(addressSpace);
+        sm::RcuSharedPtr<AddressSpace> addressSpace = gSystemObjects->createAddressSpace(std::move(name), mapping, flags, MemoryType::eWriteBack, process);
+        return CallOk(addressSpace->id());
     });
 
-    AddSystemCall(eOsCallAddressSpaceStat, [](uint64_t userSpace, uint64_t userStat, uint64_t, uint64_t) -> OsCallResult {
-        AddressSpace *space = (AddressSpace*)userSpace;
-        OsAddressSpaceInfo stat {
-            .Base = (OsAnyPointer)space->mapping.vaddr,
-            .Size = space->mapping.size,
+    AddSystemCall(eOsCallAddressSpaceStat, [](uint64_t id, uint64_t userStat, uint64_t, uint64_t) -> OsCallResult {
+        sm::RcuSharedPtr<AddressSpace> space = gSystemObjects->getAddressSpace(AddressSpaceId(id & 0x00FF'FFFF'FFFF'FFFF));
+        km::AddressMapping mapping = space->mapping;
 
-            // TODO: Report the actual access.
-            .Access = eOsMemoryRead | eOsMemoryWrite | eOsMemoryExecute,
+        OsAddressSpaceInfo stat {
+            .Base = (OsAnyPointer)mapping.vaddr,
+            .Size = mapping.size,
+
+            .Access = MakeMemoryAccess(space->flags),
         };
 
         if (OsStatus status = km::WriteUserMemory((void*)userStat, &stat, sizeof(stat))) {

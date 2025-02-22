@@ -136,9 +136,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
 
         memory.pt.map(mapping, flags);
 
-        AddressSpace *addressSpace = objects.createAddressSpace("ELF Section", mapping);
-
-        process->memory.add(addressSpace);
+        sm::RcuSharedPtr<AddressSpace> addressSpace = objects.createAddressSpace("ELF Section", mapping, flags, km::MemoryType::eWriteBack, process);
     }
 
     if (regs.rip == 0) {

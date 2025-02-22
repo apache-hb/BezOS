@@ -24,6 +24,7 @@ struct OsAddressSpaceCreateInfo {
 
     OsSize Size;
     OsMemoryAccess Access;
+    OsProcessHandle Process;
 };
 
 struct OsAddressSpaceInfo {

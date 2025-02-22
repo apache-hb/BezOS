@@ -68,14 +68,22 @@ namespace km {
         std::unique_ptr<std::byte[]> stack;
     };
 
-    struct AddressSpace {
-        AddressSpaceId id;
-        stdx::String name;
+    struct AddressSpace : public KernelObject {
         km::AddressMapping mapping;
+        km::PageFlags flags;
+        km::MemoryType type;
+
+        AddressSpace(AddressSpaceId id, stdx::String name, km::AddressMapping mapping, km::PageFlags flags, km::MemoryType type)
+            : KernelObject(std::to_underlying(id) | (uint64_t(eOsHandleAddressSpace) << 56), std::move(name))
+            , mapping(mapping)
+            , flags(flags)
+            , type(type)
+        { }
     };
 
     struct Process : public KernelObject {
         x64::Privilege privilege;
+        stdx::SharedSpinLock lock;
 
         Process(ProcessId id, stdx::String name, x64::Privilege privilege)
             : KernelObject(std::to_underlying(id) | (uint64_t(eOsHandleProcess) << 56), std::move(name))
@@ -84,14 +92,26 @@ namespace km {
 
         x64::MachineState machine;
         stdx::Vector2<sm::RcuSharedPtr<Thread>> threads;
-        stdx::Vector2<AddressSpace*> memory;
+        stdx::Vector2<sm::RcuSharedPtr<AddressSpace>> memory;
         stdx::Vector2<std::unique_ptr<vfs2::IVfsNodeHandle>> files;
+
+        void addThread(sm::RcuSharedPtr<Thread> thread) {
+            stdx::UniqueLock guard(lock);
+            threads.add(thread);
+        }
+
+        void addAddressSpace(sm::RcuSharedPtr<AddressSpace> addressSpace) {
+            stdx::UniqueLock guard(lock);
+            memory.add(addressSpace);
+        }
     };
 
-    struct Mutex {
-        MutexId id;
-        stdx::String name;
+    struct Mutex : public KernelObject {
         stdx::SpinLock lock;
+
+        Mutex(MutexId id, stdx::String name)
+            : KernelObject(std::to_underlying(id) | (uint64_t(eOsHandleMutex) << 56), std::move(name))
+        { }
 
         // TODO: store a list of all the threads waiting on this mutex
     };
@@ -105,23 +125,23 @@ namespace km {
         IdAllocator<ProcessId> mProcessIds;
         IdAllocator<MutexId> mMutexIds;
 
-        sm::FlatHashMap<ThreadId, sm::RcuSharedPtr<Thread>> mThreads;
-        sm::FlatHashMap<AddressSpaceId, std::unique_ptr<AddressSpace>> mAddressSpaces;
+        sm::FlatHashMap<ThreadId, sm::RcuWeakPtr<Thread>> mThreads;
+        sm::FlatHashMap<AddressSpaceId, sm::RcuSharedPtr<AddressSpace>> mAddressSpaces;
         sm::FlatHashMap<ProcessId, sm::RcuSharedPtr<Process>> mProcesses;
-        sm::FlatHashMap<MutexId, std::unique_ptr<Mutex>> mMutexes;
+        sm::FlatHashMap<MutexId, sm::RcuSharedPtr<Mutex>> mMutexes;
 
     public:
         SystemObjects() = default;
 
         sm::RcuSharedPtr<Thread> createThread(stdx::String name, sm::RcuSharedPtr<Process> process);
-        AddressSpace *createAddressSpace(stdx::String name, km::AddressMapping mapping);
+        sm::RcuSharedPtr<AddressSpace> createAddressSpace(stdx::String name, km::AddressMapping mapping, km::PageFlags flags, km::MemoryType type, sm::RcuSharedPtr<Process> process);
         sm::RcuSharedPtr<Process> createProcess(stdx::String name, x64::Privilege privilege);
-        Mutex *createMutex(stdx::String name);
+        sm::RcuSharedPtr<Mutex> createMutex(stdx::String name);
 
-        sm::RcuSharedPtr<Thread> getThread(ThreadId id);
-        AddressSpace *getAddressSpace(AddressSpaceId id);
+        sm::RcuWeakPtr<Thread> getThread(ThreadId id);
+        sm::RcuSharedPtr<AddressSpace> getAddressSpace(AddressSpaceId id);
         sm::RcuSharedPtr<Process> getProcess(ProcessId id);
-        Mutex *getMutex(MutexId id);
+        sm::RcuSharedPtr<Mutex> getMutex(MutexId id);
     };
 
     struct ProcessLaunch {

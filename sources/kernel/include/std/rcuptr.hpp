@@ -208,6 +208,11 @@ namespace sm {
             , mControl(nullptr)
         { }
 
+        constexpr RcuWeakPtr(std::nullptr_t)
+            : mDomain(nullptr)
+            , mControl(nullptr)
+        { }
+
         constexpr ~RcuWeakPtr() {
             release();
         }
