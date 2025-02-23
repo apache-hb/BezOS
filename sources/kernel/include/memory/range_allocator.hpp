@@ -1,6 +1,7 @@
 #pragma once
 
 #include "memory/range.hpp"
+#include "std/spinlock.hpp"
 #include "std/vector.hpp"
 #include "util/util.hpp"
 
@@ -262,6 +263,7 @@ namespace km {
         using Range = AnyRange<T>;
         using Type = T;
 
+        stdx::SpinLock mLock;
         stdx::Vector2<Range> mAvailable;
 
     public:
@@ -274,6 +276,7 @@ namespace km {
         }
 
         void markUsed(Range range) {
+            stdx::LockGuard guard(mLock);
             detail::MarkUsedArea(mAvailable, range);
             detail::SortRanges(std::span(mAvailable));
         }
@@ -283,6 +286,7 @@ namespace km {
         }
 
         Range allocate(Request request) {
+            stdx::LockGuard guard(mLock);
             if (request.hint == T()) {
                 return detail::AllocateSpaceAligned(mAvailable, request.size, request.align);
             } else {
@@ -291,12 +295,14 @@ namespace km {
         }
 
         void release(Range range) {
+            stdx::LockGuard guard(mLock);
             mAvailable.add(range);
 
             detail::MergeRanges(mAvailable);
         }
 
         size_t freeSpace() const {
+            stdx::LockGuard guard(mLock);
             return std::accumulate(mAvailable.begin(), mAvailable.end(), size_t(0), [](size_t acc, const Range& range) {
                 return acc + range.size();
             });

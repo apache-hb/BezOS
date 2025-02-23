@@ -171,7 +171,7 @@ TEST(TarFsTest, MountTar) {
 		ASSERT_GT(result.read, 0);
 
 		char expected[] = "I am in a folder!\n";
-		ASSERT_EQ(memcmp(data, expected, sizeof(expected)), 0);
+		ASSERT_EQ(memcmp(data, expected, sizeof(expected) - 1), 0);
 	}
 }
 

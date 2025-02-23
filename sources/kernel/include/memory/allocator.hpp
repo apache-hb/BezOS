@@ -15,6 +15,7 @@ namespace km {
     };
 
     class PageTableManager {
+        mutable stdx::SpinLock mLock;
         const km::PageBuilder *mPageManager;
         mem::IAllocator *mAllocator;
         x64::PageMapLevel4 *mRootPageTable;

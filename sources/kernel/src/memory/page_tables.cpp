@@ -121,6 +121,8 @@ void PageTableManager::mapRange1g(MemoryRange range, const void *vaddr, PageFlag
 }
 
 void PageTableManager::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type) {
+    stdx::LockGuard guard(mLock);
+
     uintptr_t addr = (uintptr_t)vaddr;
 
     if (!mPageManager->isCanonicalAddress(vaddr)) {
@@ -152,6 +154,8 @@ void PageTableManager::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags
 }
 
 void PageTableManager::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type) {
+    stdx::LockGuard guard(mLock);
+
     uintptr_t addr = (uintptr_t)vaddr;
 
     if (!mPageManager->isCanonicalAddress(vaddr)) {
@@ -174,6 +178,8 @@ void PageTableManager::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags
 }
 
 void PageTableManager::map1g(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type) {
+    stdx::LockGuard guard(mLock);
+
     uintptr_t addr = (uintptr_t)vaddr;
     uint16_t pml4e = (addr >> 39) & 0b0001'1111'1111;
     uint16_t pdpte = (addr >> 30) & 0b0001'1111'1111;
@@ -230,6 +236,8 @@ void PageTableManager::mapRange(MemoryRange range, const void *vaddr, PageFlags 
 }
 
 void PageTableManager::unmap(void *ptr, size_t size) {
+    stdx::LockGuard guard(mLock);
+
     uintptr_t front = sm::rounddown((uintptr_t)ptr, x64::kPageSize);
     uintptr_t back = sm::roundup((uintptr_t)ptr + size, x64::kPageSize);
 
@@ -257,6 +265,8 @@ void PageTableManager::unmap(void *ptr, size_t size) {
 }
 
 km::PhysicalAddress PageTableManager::getBackingAddress(const void *ptr) const {
+    stdx::LockGuard guard(mLock);
+
     uintptr_t address = reinterpret_cast<uintptr_t>(ptr);
     uintptr_t pml4e = (address >> 39) & 0b0001'1111'1111;
     uintptr_t pdpte = (address >> 30) & 0b0001'1111'1111;
@@ -291,6 +301,8 @@ km::PhysicalAddress PageTableManager::getBackingAddress(const void *ptr) const {
 }
 
 PageFlags PageTableManager::getMemoryFlags(const void *ptr) const {
+    stdx::LockGuard guard(mLock);
+
     uintptr_t address = reinterpret_cast<uintptr_t>(ptr);
     uintptr_t pml4e = (address >> 39) & 0b0001'1111'1111;
     uintptr_t pdpte = (address >> 30) & 0b0001'1111'1111;
@@ -338,6 +350,8 @@ PageFlags PageTableManager::getMemoryFlags(const void *ptr) const {
 }
 
 PageSize PageTableManager::getPageSize(const void *ptr) const {
+    stdx::LockGuard guard(mLock);
+
     uintptr_t address = reinterpret_cast<uintptr_t>(ptr);
     uintptr_t pml4e = (address >> 39) & 0b0001'1111'1111;
     uintptr_t pdpte = (address >> 30) & 0b0001'1111'1111;
