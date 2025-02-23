@@ -23,6 +23,7 @@
 #include "devices/hid.hpp"
 #include "display.hpp"
 #include "drivers/block/ramblk.hpp"
+#include "elf.hpp"
 #include "fs2/vfs.hpp"
 #include "gdt.hpp"
 #include "hid/hid.hpp"
@@ -554,11 +555,6 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
     return Stage1MemoryInfo { earlyMemory, layout, std::span(framebuffers, launch.framebuffers.size()) };
 }
 
-struct Stage2MemoryInfo {
-    SystemMemory *memory;
-    KernelLayout layout;
-};
-
 static constinit mem::IAllocator *gAllocator = nullptr;
 static constinit stdx::SpinLock gAllocatorLock;
 
@@ -583,9 +579,13 @@ extern "C" void *aligned_alloc(size_t alignment, size_t size) {
 }
 
 static void InitGlobalAllocator(mem::IAllocator *allocator) {
-    stdx::LockGuard guard(gAllocatorLock);
     gAllocator = allocator;
 }
+
+struct Stage2MemoryInfo {
+    SystemMemory *memory;
+    KernelLayout layout;
+};
 
 static Stage2MemoryInfo *InitStage2Memory(
     const boot::LaunchInfo& launch,
@@ -598,7 +598,6 @@ static Stage2MemoryInfo *InitStage2Memory(
     MemoryMap *earlyMemory = stage1.earlyMemory;
 
     PageBuilder pm = PageBuilder { processor.maxpaddr, processor.maxvaddr, layout.committedSlide(), GetDefaultPatLayout() };
-
 
     // Create the global memory allocator
     {
@@ -1336,6 +1335,7 @@ static void StartupSmp(const acpi::AcpiTables& rsdt) {
     gScheduler = new Scheduler();
     gSystemObjects = new SystemObjects();
 
+#if 0
     //
     // We provide an atomic flag to the AP cores that we use to signal when the
     // scheduler is ready to be used. The scheduler requires the system to switch
@@ -1344,6 +1344,7 @@ static void StartupSmp(const acpi::AcpiTables& rsdt) {
     std::atomic_flag launchScheduler = ATOMIC_FLAG_INIT;
     std::atomic<uint32_t> remaining;
     InitSmp(*gMemory, GetCpuLocalApic(), rsdt, &launchScheduler, &remaining);
+#endif
     SetDebugLogLock(DebugLogLockType::eRecursiveSpinLock);
 
     //
@@ -1353,6 +1354,7 @@ static void StartupSmp(const acpi::AcpiTables& rsdt) {
     SetupApGdt();
     km::SetupUserMode();
 
+#if 0
     //
     // Signal that the scheduler is now ready to accept work items.
     //
@@ -1364,6 +1366,7 @@ static void StartupSmp(const acpi::AcpiTables& rsdt) {
         //
         _mm_pause();
     }
+#endif
 }
 
 static constexpr size_t kKernelStackSize = 0x4000;
@@ -1402,10 +1405,28 @@ static OsStatus NotificationWork(void *arg) {
     return OsStatusSuccess;
 }
 
+static OsStatus LaunchInitProcess(ProcessLaunch *launch) {
+    std::unique_ptr<vfs2::IVfsNodeHandle> init = nullptr;
+    if (OsStatus status = gVfsRoot->open(vfs2::BuildPath("Init", "init.elf"), std::out_ptr(init))) {
+        KmDebugMessage("[VFS] Failed to find '/Init/init.elf' ", status, "\n");
+        KM_PANIC("Failed to open init process.");
+    }
+
+    return LoadElf(std::move(init), *gMemory, *gSystemObjects, launch);
+}
+
 static OsStatus KernelMasterTask() {
     KmDebugMessage("[INIT] Kernel master task.\n");
 
     LaunchThread(&NotificationWork, gNotificationStream, "NOTIFY");
+
+    ProcessLaunch init{};
+    if (OsStatus status = LaunchInitProcess(&init)) {
+        KmDebugMessage("[INIT] Failed to launch init process: ", status, "\n");
+        KM_PANIC("Failed to launch init process.");
+    }
+
+    gScheduler->addWorkItem(init.main);
 
     KmDebugMessage("[INIT] Dispatch NOTIFY thread.\n");
 

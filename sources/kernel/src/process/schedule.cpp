@@ -73,11 +73,13 @@ void km::ScheduleWork(LocalIsrTable *table, IApic *apic) {
                 scheduler->addWorkItem(current);
             }
 
-            SwitchThread(thread);
+            tlsCurrentThread = thread;
+            return thread->state;
+        } else {
+            return *ctx;
         }
-
-        return *ctx;
     });
+
     tlsScheduleIdx = table->index(scheduleInt);
 
     apic->setTimerDivisor(apic::TimerDivide::e64);

@@ -644,39 +644,38 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
     return Stage1MemoryInfo { earlyMemory, layout, std::span(framebuffers, launch.framebuffers.size()) };
 }
 
-struct Stage2MemoryInfo {
-    SystemMemory *memory;
-    mem::TlsfAllocator allocator;
-    KernelLayout layout;
-};
-
 static constinit mem::IAllocator *gAllocator = nullptr;
 static constinit stdx::SpinLock gAllocatorLock;
 
 extern "C" void *malloc(size_t size) {
-    stdx::LockGuard _(gAllocatorLock);
+    stdx::LockGuard guard(gAllocatorLock);
     return gAllocator->allocate(size);
 }
 
 extern "C" void *realloc(void *old, size_t size) {
-    stdx::LockGuard _(gAllocatorLock);
+    stdx::LockGuard guard(gAllocatorLock);
     return gAllocator->reallocate(old, 0, size);
 }
 
 extern "C" void free(void *ptr) {
-    stdx::LockGuard _(gAllocatorLock);
+    stdx::LockGuard guard(gAllocatorLock);
     gAllocator->deallocate(ptr, 0);
 }
 
 extern "C" void *aligned_alloc(size_t alignment, size_t size) {
-    stdx::LockGuard _(gAllocatorLock);
+    stdx::LockGuard guard(gAllocatorLock);
     return gAllocator->allocateAligned(size, alignment);
 }
 
 static void InitGlobalAllocator(mem::IAllocator *allocator) {
-    stdx::LockGuard _(gAllocatorLock);
+    stdx::LockGuard guard(gAllocatorLock);
     gAllocator = allocator;
 }
+
+struct Stage2MemoryInfo {
+    SystemMemory *memory;
+    KernelLayout layout;
+};
 
 static Stage2MemoryInfo *InitStage2Memory(
     const boot::LaunchInfo& launch,
@@ -691,14 +690,18 @@ static Stage2MemoryInfo *InitStage2Memory(
     PageBuilder pm = PageBuilder { processor.maxpaddr, processor.maxvaddr, layout.committedSlide(), GetDefaultPatLayout() };
 
     // Create the global memory allocator
-    mem::TlsfAllocator alloc{(void*)layout.committed.vaddr, layout.committed.size};
+    {
+        mem::TlsfAllocator alloc{(void*)layout.committed.vaddr, layout.committed.size};
+        void *mem = alloc.allocateAligned(sizeof(mem::TlsfAllocator), alignof(mem::TlsfAllocator));
+        InitGlobalAllocator(new (mem) mem::TlsfAllocator(std::move(alloc)));
+    }
 
-    Stage2MemoryInfo *stage2 = alloc.construct<Stage2MemoryInfo>();
-    stage2->allocator = std::move(alloc);
+    Stage2MemoryInfo *stage2 = new Stage2MemoryInfo();
 
-    InitGlobalAllocator(&stage2->allocator);
+    static constexpr size_t kPtAllocSize = sm::megabytes(1).bytes();
+    mem::TlsfAllocator *ptAllocator = new mem::TlsfAllocator(aligned_alloc(x64::kPageSize, kPtAllocSize), kPtAllocSize);
 
-    SystemMemory *memory = stage2->allocator.construct<SystemMemory>(boot::MemoryMap{earlyMemory->memmap}, stage1.layout.system, DefaultUserArea(), pm, &stage2->allocator);
+    SystemMemory *memory = new SystemMemory(boot::MemoryMap{earlyMemory->memmap}, stage1.layout.system, DefaultUserArea(), pm, ptAllocator);
     KM_CHECK(memory != nullptr, "Failed to allocate memory for SystemMemory.");
 
     stage2->memory = memory;
