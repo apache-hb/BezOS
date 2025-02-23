@@ -22,7 +22,6 @@ namespace km {
     }
 
     struct SystemMemory {
-        mem::IAllocator *allocator;
         PageBuilder pager;
         PageAllocator pmm;
         PageTableManager pt;

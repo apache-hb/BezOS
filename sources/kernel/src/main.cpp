@@ -760,6 +760,38 @@ static void DumpIsrState(const km::IsrContext *context) {
     KmDebugMessageUnlocked("| Error    | ", Hex(context->error).pad(16, '0'), "\n");
     KmDebugMessageUnlocked("\n");
 
+    if (context->vector == isr::PF) {
+        KmDebugMessageUnlocked("| Faulting address | ", Hex(__get_cr2()).pad(16, '0'), "\n");
+
+        if (context->error & (1 << 0)) {
+            KmDebugMessageUnlocked("PRESENT ");
+        } else {
+            KmDebugMessageUnlocked("NOT PRESENT ");
+        }
+
+        if (context->error & (1 << 1)) {
+            KmDebugMessageUnlocked("WRITE ");
+        } else {
+            KmDebugMessageUnlocked("READ ");
+        }
+
+        if (context->error & (1 << 2)) {
+            KmDebugMessageUnlocked("USER ");
+        } else {
+            KmDebugMessageUnlocked("SUPERVISOR ");
+        }
+
+        if (context->error & (1 << 3)) {
+            KmDebugMessageUnlocked("RESERVED ");
+        }
+
+        if (context->error & (1 << 4)) {
+            KmDebugMessageUnlocked("FETCH ");
+        }
+
+        KmDebugMessageUnlocked("\n");
+    }
+
     KmDebugMessageUnlocked("| MSR                 | Value\n");
     KmDebugMessageUnlocked("|---------------------+------\n");
     KmDebugMessageUnlocked("| IA32_GS_BASE        | ", Hex(kGsBase.load()).pad(16, '0'), "\n");

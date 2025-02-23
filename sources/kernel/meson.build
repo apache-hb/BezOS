@@ -202,9 +202,10 @@ kernel_c_args = c_args
 kernel_cpp_args = cpp_args
 
 if get_option('buildtype').contains('debug')
-    src += [ 'src/sanitizer/ubsan.cpp' ]
-    kernel_c_args += [ '-fsanitize=undefined', '-fno-sanitize=function' ]
-    kernel_cpp_args += [ '-fsanitize=undefined', '-fno-sanitize=function' ]
+    src += [ 'src/sanitizer/ubsan.cpp', ]
+    san_args = [ '-fsanitize=undefined', '-fno-sanitize=function', ]
+    kernel_c_args += san_args
+    kernel_cpp_args += san_args
 endif
 
 kernel = static_library('kernel', src,
