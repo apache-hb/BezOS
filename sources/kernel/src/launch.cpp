@@ -334,6 +334,8 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
         .main = main,
     };
 
+    KmDebugMessage("[ELF] Launching process: ", km::Hex(process->id()), "\n");
+
     *result = launch;
     return OsStatusSuccess;
 }

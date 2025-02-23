@@ -31,4 +31,10 @@
         <require package='initrd' />
         <script path='@REPO@/data/hyper-image.sh' />
     </artifact>
+
+    <artifact name='test-images'>
+        <require package='kernel' />
+        <require package='initrd' />
+        <script path='@REPO@/data/test-images.sh' />
+    </artifact>
 </repo>

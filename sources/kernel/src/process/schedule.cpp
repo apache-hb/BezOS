@@ -73,7 +73,6 @@ void km::ScheduleWork(LocalIsrTable *table, IApic *apic) {
                 scheduler->addWorkItem(current);
             }
 
-            KmDebugMessageUnlocked("[ISR] Switching to thread: ", thread->name(), " - ", GetCurrentCoreId(), "\n");
             SwitchThread(thread);
         }
 

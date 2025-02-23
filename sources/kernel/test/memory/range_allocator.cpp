@@ -2,6 +2,7 @@
 #include <mm_malloc.h>
 
 #include "memory/range_allocator.hpp"
+#include "memory/virtual_allocator.hpp"
 
 TEST(RangeDetailTest, MergeOverlapping) {
     stdx::Vector2<km::MemoryRange> ranges { };

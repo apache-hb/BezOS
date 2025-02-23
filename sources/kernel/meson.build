@@ -191,7 +191,6 @@ src = [
     # Kernel components
     'src/log.cpp',
     'src/memory.cpp',
-    'src/main.cpp',
 ]
 
 if enable_aml
@@ -217,6 +216,15 @@ kernel = static_library('kernel', src,
     override_options : [ 'b_coverage=false' ],
 )
 
+kmain = static_library('kernel-main', 'src/main.cpp',
+    include_directories : inc,
+    c_args : kernel_c_args + [ '-D__BEZOS__=1' ],
+    cpp_args : kernel_cpp_args + [ '-D__BEZOS__=1' ],
+    dependencies : deps,
+    link_with : libs + [ kernel ],
+    override_options : [ 'b_coverage=false' ],
+)
+
 ###
 ### Limine version of the kernel image
 ###
@@ -225,7 +233,7 @@ executable('bezos-limine.elf', 'src/boot/limine.cpp',
     c_args : kernel_c_args + [ '-D__BEZOS__=1' ],
     cpp_args : kernel_cpp_args + [ '-D__BEZOS__=1' ],
     include_directories : inc,
-    link_with : kernel,
+    link_with : kmain,
     dependencies : [ limine, deps ],
     link_depends : 'data/linker-limine.ld',
     link_args : [ '-T', meson.current_source_dir() / 'data/linker-limine.ld' ],
@@ -241,7 +249,7 @@ executable('bezos-hyper.elf', 'src/boot/hyper.cpp',
     c_args : kernel_c_args + [ '-D__BEZOS__=1' ],
     cpp_args : kernel_cpp_args + [ '-D__BEZOS__=1' ],
     include_directories : inc,
-    link_with : kernel,
+    link_with : kmain,
     dependencies : [ ultra, deps ],
     link_depends : 'data/linker-hyper.ld',
     link_args : [ '-T', meson.current_source_dir() / 'data/linker-hyper.ld' ],
@@ -628,3 +636,24 @@ if enable_aml
         )
     endforeach
 endif
+
+
+images = {
+    'base': [
+        'test/image/base.cpp'
+    ]
+}
+
+foreach name, source : images
+    executable('bezos-test-' + name + '.elf', source + [ 'src/boot/hyper.cpp', ],
+        c_args : kernel_c_args + [ '-D__BEZOS__=1' ],
+        cpp_args : kernel_cpp_args + [ '-D__BEZOS__=1' ],
+        include_directories : inc,
+        link_with : kernel,
+        dependencies : [ ultra, deps ],
+        link_depends : 'data/linker-hyper.ld',
+        link_args : [ '-T', meson.current_source_dir() / 'data/linker-hyper.ld' ],
+        install : true,
+        override_options : [ 'b_coverage=false' ],
+    )
+endforeach

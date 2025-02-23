@@ -1,6 +1,5 @@
 .extern KmSystemDispatchRoutine
 
-.global KmEnterUserMode
 .global KmSystemEntry
 
 .global KmSystemCallStackTlsOffset
@@ -11,17 +10,6 @@ KmSystemCallStackTlsOffset:
     .quad 0
 
 .section .text
-
-/* Enter ring 3, jumping to a supplied address. */
-/* rdi: address to jump to */
-/* rsi: eflags */
-KmEnterUserMode:
-    mov %rdi, %rcx
-    mov %rsi, %r11
-
-    swapgs
-
-    sysretq
 
 /** syscall entry point
  * @param rax syscall number

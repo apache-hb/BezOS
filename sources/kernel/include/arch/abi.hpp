@@ -25,12 +25,12 @@ namespace x64 {
             }
 
             if (pt.getMemoryFlags(frame) == km::PageFlags::eNone) {
-                callback(nullptr, nullptr, "Invalid stack frame");
+                callback(frame, nullptr, "Invalid stack frame");
                 break;
             }
 
             if (pt.getMemoryFlags(*frame) == km::PageFlags::eNone) {
-                callback(nullptr, nullptr, "Invalid stack frame");
+                callback(frame, *frame, "Invalid stack frame");
                 break;
             }
 

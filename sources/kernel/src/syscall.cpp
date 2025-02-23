@@ -25,9 +25,10 @@ extern "C" void KmSystemEntry(void);
 extern "C" uint64_t KmSystemCallStackTlsOffset;
 
 extern "C" OsCallResult KmSystemDispatchRoutine(km::SystemCallContext *context) {
-    if (km::SystemCallHandler handler = gSystemCalls[uint8_t(context->function)]) {
+    volatile uint8_t function = context->function;
+    if (km::SystemCallHandler handler = gSystemCalls[function]) {
         OsCallResult result = handler(context->arg0, context->arg1, context->arg2, context->arg3);
-        KmDebugMessage("[SYS] Function ", km::Hex(context->function), " returned ", km::Hex(result.Status), " with value ", km::Hex(result.Value), "\n");
+        KM_CHECK(context->function == function, "System call handler changed function number.");
         return result;
     }
 
