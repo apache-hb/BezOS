@@ -20,11 +20,12 @@ void KmMemorySet(void *dst, uint8_t value, size_t size);
 
 // libc headers define these prototypes only in C code
 // In C++ I need to define them myself
-extern "C" void *malloc(size_t size);
-extern "C" void *realloc(void *old, size_t size);
-extern "C" void free(void *ptr);
+
+extern "C" void *malloc(size_t size) [[clang::allocating]];
+extern "C" void *realloc(void *old, size_t size) [[clang::allocating]];
+extern "C" void free(void *ptr) [[clang::allocating]];
 
 // aligned allocation
-extern "C" void *aligned_alloc(size_t alignment, size_t size);
+extern "C" void *aligned_alloc(size_t alignment, size_t size) [[clang::allocating]];
 
 #endif

@@ -9,9 +9,6 @@
 
 #include "crt.hpp"
 
-extern "C" void *malloc(size_t);
-extern "C" void free(void*);
-
 namespace mem {
     class IAllocator {
     public:
@@ -21,14 +18,14 @@ namespace mem {
             std::unreachable();
         }
 
-        virtual void *allocate(size_t size) {
+        virtual void *allocate(size_t size) [[clang::allocating]] {
             return allocateAligned(size, alignof(std::max_align_t));
         }
 
-        virtual void *allocateAligned(size_t size, size_t align) = 0;
-        virtual void deallocate(void *ptr, size_t size) = 0;
+        virtual void *allocateAligned(size_t size, size_t align) [[clang::allocating]] = 0;
+        virtual void deallocate(void *ptr, size_t size) [[clang::allocating]] = 0;
 
-        virtual void *reallocate(void *old, size_t oldSize, size_t newSize) {
+        virtual void *reallocate(void *old, size_t oldSize, size_t newSize) [[clang::allocating]] {
             void *ptr = allocate(newSize);
             if (ptr) {
                 std::memcpy(ptr, old, oldSize);
@@ -105,7 +102,7 @@ namespace mem {
         IAllocator *allocator;
 
     public:
-        void operator()(T *ptr) {
+        void operator()(T *ptr) [[clang::allocating]] {
             allocator->deallocate(ptr, 0);
         }
 

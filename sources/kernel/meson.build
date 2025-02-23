@@ -37,6 +37,8 @@ common_args = [
     '-Wno-nullability-extension',
 
     '-fno-omit-frame-pointer',
+    '-Wthread-safety',
+    '-Wfunction-effects',
 ]
 
 c_args = cc.get_supported_arguments([ '-Wno-language-extension-token' ] + common_args)

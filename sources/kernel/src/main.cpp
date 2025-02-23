@@ -645,8 +645,10 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
     return Stage1MemoryInfo { earlyMemory, layout, std::span(framebuffers, launch.framebuffers.size()) };
 }
 
-static constinit mem::IAllocator *gAllocator = nullptr;
 static constinit stdx::SpinLock gAllocatorLock;
+
+__attribute__((pt_guarded_by(gAllocatorLock)))
+static constinit mem::IAllocator *gAllocator = nullptr;
 
 extern "C" void *malloc(size_t size) {
     stdx::LockGuard guard(gAllocatorLock);

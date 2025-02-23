@@ -13,7 +13,7 @@ namespace km {
         Scheduler();
 
         void addWorkItem(sm::RcuSharedPtr<Thread> thread);
-        sm::RcuSharedPtr<km::Thread> getWorkItem();
+        sm::RcuSharedPtr<km::Thread> getWorkItem() noexcept;
     };
 
     sm::RcuSharedPtr<Thread> GetCurrentThread();

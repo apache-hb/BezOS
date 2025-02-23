@@ -1,5 +1,7 @@
 #pragma once
 
+#include "std/compiler.hpp"
+
 #include "arch/isr.hpp"
 #include "util/util.hpp"
 #include "util/digit.hpp"

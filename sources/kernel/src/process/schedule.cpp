@@ -19,7 +19,7 @@ void km::Scheduler::addWorkItem(sm::RcuSharedPtr<Thread> thread) {
     }
 }
 
-sm::RcuSharedPtr<km::Thread> km::Scheduler::getWorkItem() {
+sm::RcuSharedPtr<km::Thread> km::Scheduler::getWorkItem() noexcept {
 
     sm::RcuWeakPtr<Thread> thread;
     while (mQueue.try_dequeue(thread)) {
@@ -60,7 +60,7 @@ void km::SwitchThread(sm::RcuSharedPtr<km::Thread> next) {
 void km::ScheduleWork(LocalIsrTable *table, IApic *apic, sm::RcuSharedPtr<km::Thread> initial) {
     tlsCurrentThread = initial;
 
-    const IsrEntry *scheduleInt = table->allocate([](km::IsrContext *ctx) -> km::IsrContext {
+    const IsrEntry *scheduleInt = table->allocate([](km::IsrContext *ctx) noexcept -> km::IsrContext {
         IApic *apic = km::GetCpuLocalApic();
         apic->eoi();
 

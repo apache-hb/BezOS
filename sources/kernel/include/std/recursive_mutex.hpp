@@ -27,6 +27,7 @@ namespace stdx {
             mCount += 1;
         }
 
+        [[nodiscard]]
         bool try_lock() {
             km::CpuCoreId expected = km::CpuCoreId::eInvalid;
             km::CpuCoreId thread = km::GetCurrentCoreId();
