@@ -43,7 +43,7 @@ sm::RcuSharedPtr<km::Process> km::GetCurrentProcess() {
     return nullptr;
 }
 
-static void SwitchThread(sm::RcuSharedPtr<km::Thread> next) {
+void km::SwitchThread(sm::RcuSharedPtr<km::Thread> next) {
     tlsCurrentThread = next;
     km::IsrContext *state = &next->state;
 

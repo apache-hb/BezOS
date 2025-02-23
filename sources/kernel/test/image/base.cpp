@@ -17,11 +17,15 @@
 #include <bezos/facility/vmem.h>
 
 #include "delay.hpp"
+#include "devices/ddi.hpp"
+#include "devices/hid.hpp"
 #include "display.hpp"
 #include "drivers/block/ramblk.hpp"
 #include "elf.hpp"
 #include "fs2/vfs.hpp"
 #include "gdt.hpp"
+#include "hid/hid.hpp"
+#include "hid/ps2.hpp"
 #include "hypervisor.hpp"
 #include "isr/isr.hpp"
 #include "isr/runtime.hpp"
@@ -81,14 +85,6 @@ public:
     }
 };
 
-class DebugPortLog final : public IOutStream {
-    void write(stdx::StringView message) override {
-        for (char c : message) {
-            __outbyte(0xE9, c);
-        }
-    }
-};
-
 template<typename T>
 class TerminalLog final : public IOutStream {
     T mTerminal;
@@ -113,7 +109,6 @@ public:
 // where it doesnt emit a warning for global constructors in all cases.
 constinit static SerialLog gSerialLog;
 constinit static TerminalLog<DirectTerminal> gDirectTerminalLog;
-constinit static DebugPortLog gDebugPortLog;
 
 constinit static stdx::StaticVector<IOutStream*, 4> gLogTargets;
 
@@ -377,6 +372,12 @@ static KernelLayout BuildKernelLayout(
 
     AddressMapping kernel = { kernelVirtualBase, kernelPhysicalBase, GetKernelSize() };
 
+    KmDebugMessage("[INIT] Kernel layout:\n");
+    KmDebugMessage("[INIT] Data         : ", data, "\n");
+    KmDebugMessage("[INIT] Committed    : ", committed, "\n");
+    KmDebugMessage("[INIT] Framebuffers : ", framebuffers, "\n");
+    KmDebugMessage("[INIT] Kernel       : ", kernel, "\n");
+
     KM_CHECK(data.isValid(), "Invalid data range.");
     KM_CHECK(committedVirtualRange.isValid(), "Invalid committed range.");
     KM_CHECK(framebuffers.isValid(), "Invalid framebuffers range.");
@@ -592,7 +593,10 @@ static Stage2MemoryInfo *InitStage2Memory(
 
     InitGlobalAllocator(&stage2->allocator);
 
-    SystemMemory *memory = stage2->allocator.construct<SystemMemory>(boot::MemoryMap{earlyMemory->memmap}, stage1.layout.system, DefaultUserArea(), pm, &stage2->allocator);
+    static constexpr size_t kPtAllocSize = sm::megabytes(1).bytes();
+    mem::TlsfAllocator *ptAllocator = new mem::TlsfAllocator(aligned_alloc(x64::kPageSize, kPtAllocSize), kPtAllocSize);
+
+    SystemMemory *memory = new SystemMemory(boot::MemoryMap{earlyMemory->memmap}, stage1.layout.system, DefaultUserArea(), pm, ptAllocator);
     KM_CHECK(memory != nullptr, "Failed to allocate memory for SystemMemory.");
 
     stage2->memory = memory;
@@ -857,11 +861,8 @@ static void InstallExceptionHandlers(SharedIsrTable *ist) {
     });
 }
 
-static void InitPortDelay(const std::optional<HypervisorInfo>& hvInfo) {
-    bool isKvm = hvInfo.transform([](const HypervisorInfo& hv) { return hv.isKvm(); }).value_or(false);
-    x64::PortDelay delay = isKvm ? x64::PortDelay::eNone : x64::PortDelay::ePostCode;
-
-    KmSetPortDelayMethod(delay);
+static void InitPortDelay() {
+    KmSetPortDelayMethod(x64::PortDelay::ePostCode);
 }
 
 static void SetupInterruptStacks(uint16_t cs) {
@@ -1027,21 +1028,6 @@ static OsStatus LaunchInitProcess(ProcessLaunch *launch) {
     }
 
     return LoadElf(std::move(init), *gMemory, *gSystemObjects, launch);
-}
-
-static std::tuple<std::optional<HypervisorInfo>, bool> QueryHostHypervisor() {
-    std::optional<HypervisorInfo> hvInfo = KmGetHypervisorInfo();
-    bool hasDebugPort = false;
-
-    if (hvInfo.transform([](const HypervisorInfo& info) { return info.platformHasDebugPort(); }).value_or(false)) {
-        hasDebugPort = KmTestDebugPort();
-    }
-
-    if (hasDebugPort) {
-        gLogTargets.add(&gDebugPortLog);
-    }
-
-    return std::make_tuple(hvInfo, hasDebugPort);
 }
 
 static void AddDebugSystemCalls() {
@@ -1364,6 +1350,83 @@ static OsStatus LaunchThread(OsStatus(*entry)(void*), void *arg, stdx::String na
     return OsStatusSuccess;
 }
 
+static void ConfigurePs2Controller(bool has8042, IoApicSet& ioApicSet, const IApic *apic, LocalIsrTable *ist) {
+    static hid::Ps2Controller ps2Controller;
+
+    if (has8042) {
+        hid::Ps2ControllerResult result = hid::EnablePs2Controller();
+        KmDebugMessage("[INIT] PS/2 controller: ", result.status, "\n");
+        if (result.status == hid::Ps2ControllerStatus::eOk) {
+            ps2Controller = result.controller;
+
+            KmDebugMessage("[INIT] PS/2 keyboard: ", present(ps2Controller.hasKeyboard()), "\n");
+            KmDebugMessage("[INIT] PS/2 mouse: ", present(ps2Controller.hasMouse()), "\n");
+        } else {
+            return;
+        }
+    } else {
+        KmDebugMessage("[INIT] No PS/2 controller found.\n");
+        return;
+    }
+
+    if (ps2Controller.hasKeyboard()) {
+        static hid::Ps2Device keyboard = ps2Controller.keyboard();
+        static hid::Ps2Device mouse = ps2Controller.mouse();
+
+        ps2Controller.setMouseSampleRate(10);
+        ps2Controller.setMouseResolution(1);
+
+        hid::InitPs2HidStream(gNotificationStream);
+
+        hid::InstallPs2KeyboardIsr(ioApicSet, ps2Controller, apic, ist);
+        hid::InstallPs2MouseIsr(ioApicSet, ps2Controller, apic, ist);
+
+        mouse.disable();
+        keyboard.enable();
+        ps2Controller.enableIrqs(true, true);
+    }
+
+    vfs2::VfsPath hidPs2DevicePath{OS_DEVICE_PS2_KEYBOARD};
+
+    {
+        vfs2::IVfsNode *node = nullptr;
+        if (OsStatus status = gVfsRoot->mkpath(hidPs2DevicePath.parent(), &node)) {
+            KmDebugMessage("[VFS] Failed to create ", hidPs2DevicePath.parent(), " folder: ", status, "\n");
+            KM_PANIC("Failed to create keyboar device folder.");
+        }
+    }
+
+    {
+        dev::HidKeyboardDevice *device = new dev::HidKeyboardDevice();
+        if (OsStatus status = gVfsRoot->mkdevice(hidPs2DevicePath, device)) {
+            KmDebugMessage("[VFS] Failed to create ", hidPs2DevicePath, " device: ", status, "\n");
+            KM_PANIC("Failed to create keyboard device.");
+        }
+
+        gNotificationStream->subscribe(hid::GetHidPs2Topic(), device);
+    }
+}
+
+static void CreateDisplayDevice() {
+    vfs2::VfsPath ddiPath{OS_DEVICE_DDI_RAMFB};
+
+    {
+        vfs2::IVfsNode *node = nullptr;
+        if (OsStatus status = gVfsRoot->mkpath(ddiPath.parent(), &node)) {
+            KmDebugMessage("[VFS] Failed to create ", ddiPath.parent(), " folder: ", status, "\n");
+            KM_PANIC("Failed to create display device folder.");
+        }
+    }
+
+    {
+        dev::DisplayDevice *device = new dev::DisplayDevice(gDirectTerminalLog.get().display());
+        if (OsStatus status = gVfsRoot->mkdevice(ddiPath, device)) {
+            KmDebugMessage("[VFS] Failed to create ", ddiPath, " device: ", status, "\n");
+            KM_PANIC("Failed to create display device.");
+        }
+    }
+}
+
 static OsStatus NotificationWork(void *arg) {
     NotificationStream *stream = (NotificationStream*)arg;
     while (true) {
@@ -1384,7 +1447,7 @@ static OsStatus KernelMasterTask() {
         KM_PANIC("Failed to launch init process.");
     }
 
-    gScheduler->addWorkItem(init.main);
+    SwitchThread(init.main);
 
     while (true) {
         //
@@ -1416,18 +1479,16 @@ static void LaunchKernelProcess(LocalIsrTable *table, IApic *apic) {
         .ss = SystemGdt::eLongModeData * 0x8,
     };
 
-    gScheduler->addWorkItem(thread);
-    ScheduleWork(table, apic);
+    SwitchThread(thread);
 }
 
 void LaunchKernel(boot::LaunchInfo launch) {
     NormalizeProcessorState();
     SetDebugLogLock(DebugLogLockType::eNone);
     InitBootTerminal(launch.framebuffers);
-    auto [hvInfo, hasDebugPort] = QueryHostHypervisor();
 
     ProcessorInfo processor = GetProcessorInfo();
-    InitPortDelay(hvInfo);
+    InitPortDelay();
 
     ComPortInfo com1Info = {
         .port = km::com::kComPort1,
@@ -1462,6 +1523,11 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     km::LocalIsrTable *ist = GetLocalIsrTable();
 
+    acpi::AcpiTables rsdt = acpi::InitAcpi(launch.rsdpAddress, *stage2->memory);
+    uint32_t ioApicCount = rsdt.ioApicCount();
+    KM_CHECK(ioApicCount > 0, "No IOAPICs found.");
+    IoApicSet ioApicSet{ rsdt.madt(), *stage2->memory };
+
     MountRootVfs();
     MountVolatileFolder();
     MountInitArchive(launch.initrd);
@@ -1474,8 +1540,13 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     gScheduler = new Scheduler();
     gSystemObjects = new SystemObjects();
+    SetDebugLogLock(DebugLogLockType::eRecursiveSpinLock);
+    SetupApGdt();
+    km::SetupUserMode();
 
     CreateNotificationQueue();
+    ConfigurePs2Controller(true, ioApicSet, lapic.pointer(), ist);
+    CreateDisplayDevice();
 
     LaunchKernelProcess(ist, lapic.pointer());
 

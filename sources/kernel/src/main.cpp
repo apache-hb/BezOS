@@ -792,6 +792,13 @@ static void DumpIsrState(const km::IsrContext *context) {
         KmDebugMessageUnlocked("\n");
     }
 
+    if (context->vector == isr::UD) {
+        std::byte data[16];
+        memcpy(data, (void*)context->rip, sizeof(data));
+        KmDebugMessageUnlocked(km::HexDump(data));
+        KmDebugMessageUnlocked("\n");
+    }
+
     KmDebugMessageUnlocked("| MSR                 | Value\n");
     KmDebugMessageUnlocked("|---------------------+------\n");
     KmDebugMessageUnlocked("| IA32_GS_BASE        | ", Hex(kGsBase.load()).pad(16, '0'), "\n");
@@ -804,16 +811,24 @@ static void DumpStackTrace(const km::IsrContext *context) {
     KmDebugMessageUnlocked("|----Stack trace-----+----------------\n");
     KmDebugMessageUnlocked("| Frame              | Program Counter\n");
     KmDebugMessageUnlocked("|--------------------+----------------\n");
-    x64::WalkStackFrames((void**)context->rbp, [](void **frame, void *pc) {
-        KmDebugMessageUnlocked("| ", (void*)frame, " | ", pc, "\n");
-    });
+    if (SystemMemory *memory = km::GetSystemMemory()) {
+        x64::WalkStackFramesChecked(memory->pt, (void**)context->rbp, [](void **frame, void *pc, stdx::StringView note) {
+            KmDebugMessageUnlocked("| ", (void*)frame, " | ", pc);
+            if (!note.isEmpty()) {
+                KmDebugMessageUnlocked(" ", note);
+            }
+            KmDebugMessageUnlocked("\n");
+        });
+    }
 
     if (kEmitAddrToLine) {
         KmDebugMessageUnlocked("llvm-addr2line -e ./build/kernel/bezos-limine");
 
-        x64::WalkStackFrames((void**)context->rbp, [](void **, void *pc) {
-            KmDebugMessageUnlocked(" ", pc);
-        });
+        if (SystemMemory *memory = km::GetSystemMemory()) {
+            x64::WalkStackFramesChecked(memory->pt, (void**)context->rbp, [](void **, void *pc, stdx::StringView) {
+                KmDebugMessageUnlocked(" ", pc);
+            });
+        }
 
         KmDebugMessageUnlocked("\n");
     }

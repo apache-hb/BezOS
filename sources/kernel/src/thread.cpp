@@ -22,6 +22,7 @@ void *km::AllocateCpuLocalRegion(SystemMemory& memory) {
 
 static std::byte *GetCpuLocalBase() {
     std::byte *tls = nullptr;
+    KM_CHECK(km::IsCpuStorageSetup(), "CPU local storage not setup.");
     asm volatile ("mov %%gs:0, %0" : "=r"(tls));
     return tls;
 }

@@ -18,6 +18,8 @@ x64::page *PageTableManager::alloc4k() {
         return page;
     }
 
+    KM_ASSERT("Failed to allocate page table.");
+
     return nullptr;
 }
 

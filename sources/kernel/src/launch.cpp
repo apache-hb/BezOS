@@ -234,7 +234,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
             continue;
 
         KmDebugMessage("[ELF] Program Header type: ",
-            km::Hex(std::to_underlying(ph.type)), ", flags: ", ph.flags, ", offset: ", km::Hex(ph.offset), ", filesize: ", km::Hex(ph.filesz),
+            km::Hex(std::to_underlying(ph.type)), ", flags: ", km::Hex(ph.flags), ", offset: ", km::Hex(ph.offset), ", filesize: ", km::Hex(ph.filesz),
             ", memorysize: ", km::Hex(ph.memsz), ", virtual address: ", km::Hex(ph.vaddr),
             ", physical address: ", km::Hex(ph.paddr), ", minimum alignment: ", km::Hex(ph.align), "\n");
 
