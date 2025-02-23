@@ -118,7 +118,6 @@ OsStatus vfs2::ParseTar(km::BlockDevice *media, TarParseOptions options, sm::BTr
             }
         }
 
-
         //
         // While the sizeof(TarPosixHeader) is 500 bytes, the tar format
         // operates on 512 byte blocks. We need to align ourselves to the

@@ -6,6 +6,47 @@
 #include "panic.hpp"
 #include "util/format.hpp"
 
+/// LLVM Project begin - SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+/// Situations in which we might emit a check for the suitability of a
+/// pointer or glvalue. Needs to be kept in sync with CodeGenFunction.h in
+/// clang.
+enum TypeCheckKind : unsigned char {
+    /// Checking the operand of a load. Must be suitably sized and aligned.
+    TCK_Load,
+    /// Checking the destination of a store. Must be suitably sized and aligned.
+    TCK_Store,
+    /// Checking the bound value in a reference binding. Must be suitably sized
+    /// and aligned, but is not required to refer to an object (until the
+    /// reference is used), per core issue 453.
+    TCK_ReferenceBinding,
+    /// Checking the object expression in a non-static data member access. Must
+    /// be an object within its lifetime.
+    TCK_MemberAccess,
+    /// Checking the 'this' pointer for a call to a non-static member function.
+    /// Must be an object within its lifetime.
+    TCK_MemberCall,
+    /// Checking the 'this' pointer for a constructor call.
+    TCK_ConstructorCall,
+    /// Checking the operand of a static_cast to a derived pointer type. Must be
+    /// null or an object within its lifetime.
+    TCK_DowncastPointer,
+    /// Checking the operand of a static_cast to a derived reference type. Must
+    /// be an object within its lifetime.
+    TCK_DowncastReference,
+    /// Checking the operand of a cast to a base object. Must be suitably sized
+    /// and aligned.
+    TCK_Upcast,
+    /// Checking the operand of a cast to a virtual base object. Must be an
+    /// object within its lifetime.
+    TCK_UpcastToVirtualBase,
+    /// Checking the value assigned to a _Nonnull pointer. Must not be null.
+    TCK_NonnullAssign,
+    /// Checking the operand of a dynamic_cast or a typeid expression.  Must be
+    /// null or an object within its lifetime.
+    TCK_DynamicOperation
+};
+/// LLVM Project end - SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 struct UbsanTypeDescriptor {
     uint16_t kind;
     uint16_t info;
@@ -56,7 +97,7 @@ struct UbsanTypeMismatchDataV1 {
     UbsanSourceLocation location;
     UbsanTypeDescriptor *type;
     unsigned char logAlignment;
-    unsigned char typeCheckKind;
+    TypeCheckKind typeCheckKind;
 };
 
 struct UbsanAlignmentAssumptionData {
@@ -69,6 +110,53 @@ struct UbsanShiftOutOfBoundsData {
     UbsanSourceLocation location;
     UbsanTypeDescriptor *lhsType;
     UbsanTypeDescriptor *rhsType;
+};
+
+template<>
+struct km::Format<TypeCheckKind> {
+    static void format(km::IOutStream& out, TypeCheckKind kind) {
+        switch (kind) {
+        case TCK_Load:
+            out.format("Load");
+            break;
+        case TCK_Store:
+            out.format("Store");
+            break;
+        case TCK_ReferenceBinding:
+            out.format("ReferenceBinding");
+            break;
+        case TCK_MemberAccess:
+            out.format("MemberAccess");
+            break;
+        case TCK_MemberCall:
+            out.format("MemberCall");
+            break;
+        case TCK_ConstructorCall:
+            out.format("ConstructorCall");
+            break;
+        case TCK_DowncastPointer:
+            out.format("DowncastPointer");
+            break;
+        case TCK_DowncastReference:
+            out.format("DowncastReference");
+            break;
+        case TCK_Upcast:
+            out.format("Upcast");
+            break;
+        case TCK_UpcastToVirtualBase:
+            out.format("UpcastToVirtualBase");
+            break;
+        case TCK_NonnullAssign:
+            out.format("NonnullAssign");
+            break;
+        case TCK_DynamicOperation:
+            out.format("DynamicOperation");
+            break;
+        default:
+            out.format("Unknown(", (int)kind, ")");
+            break;
+        }
+    }
 };
 
 template<>

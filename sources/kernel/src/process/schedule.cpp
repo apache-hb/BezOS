@@ -1,6 +1,5 @@
 #include "process/schedule.hpp"
 #include "kernel.hpp"
-#include "util/defer.hpp"
 
 CPU_LOCAL
 static constinit km::CpuLocal<sm::RcuSharedPtr<km::Thread>> tlsCurrentThread;
@@ -58,8 +57,8 @@ void km::SwitchThread(sm::RcuSharedPtr<km::Thread> next) {
     KmResumeThread(state);
 }
 
-void km::ScheduleWork(LocalIsrTable *table, IApic *apic) {
-    tlsCurrentThread = nullptr;
+void km::ScheduleWork(LocalIsrTable *table, IApic *apic, sm::RcuSharedPtr<km::Thread> initial) {
+    tlsCurrentThread = initial;
 
     const IsrEntry *scheduleInt = table->allocate([](km::IsrContext *ctx) -> km::IsrContext {
         IApic *apic = km::GetCpuLocalApic();
@@ -67,18 +66,20 @@ void km::ScheduleWork(LocalIsrTable *table, IApic *apic) {
 
         Scheduler *scheduler = km::GetScheduler();
 
-        if (sm::RcuSharedPtr<km::Thread> thread = scheduler->getWorkItem()) {
+        if (sm::RcuSharedPtr<km::Thread> next = scheduler->getWorkItem()) {
             if (sm::RcuSharedPtr<km::Thread> current = km::GetCurrentThread()) {
+                KmDebugMessage("\bS");
                 current->state = *ctx;
                 scheduler->addWorkItem(current);
+                tlsCurrentThread = next;
+                return next->state;
             } else {
-                scheduler->addWorkItem(thread);
-                return *ctx;
+                KmDebugMessage("\bC");
+                tlsCurrentThread = next;
+                return next->state;
             }
-
-            tlsCurrentThread = thread;
-            return thread->state;
         } else {
+            KmDebugMessage("\bX");
             return *ctx;
         }
     });

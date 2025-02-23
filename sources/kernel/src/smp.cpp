@@ -117,6 +117,8 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
 
     remaining->fetch_sub(1);
 
+    KmHalt();
+
     km::ScheduleWork(ist, apic.pointer());
 }
 

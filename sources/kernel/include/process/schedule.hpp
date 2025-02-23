@@ -23,7 +23,7 @@ namespace km {
     void SwitchThread(sm::RcuSharedPtr<Thread> next);
 
     [[noreturn]]
-    void ScheduleWork(LocalIsrTable *table, IApic *apic);
+    void ScheduleWork(LocalIsrTable *table, IApic *apic, sm::RcuSharedPtr<km::Thread> initial = nullptr);
 
     void YieldCurrentThread();
 }

@@ -1550,6 +1550,8 @@ static void LaunchKernelProcess(LocalIsrTable *table, IApic *apic) {
 
     gScheduler->addWorkItem(thread);
     ScheduleWork(table, apic);
+
+    KM_PANIC("Failed to schedule work.");
 }
 
 void LaunchKernel(boot::LaunchInfo launch) {

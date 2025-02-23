@@ -130,7 +130,7 @@ namespace mem {
         GlobalAllocator(GlobalAllocator<O> &&) { }
 
         T *allocate(size_t n) {
-            return (T*)malloc(n * sizeof(T));
+            return (T*)aligned_alloc(alignof(T), n * sizeof(T));
         }
 
         void deallocate(T *ptr, size_t) {
@@ -149,7 +149,7 @@ namespace mem {
         { }
 
         T *allocate(size_t n) {
-            return (T*)mAllocator->allocate(n * sizeof(T));
+            return (T*)mAllocator->allocateAligned(n * sizeof(T), alignof(T));
         }
 
         void deallocate(T *ptr, size_t n) {
