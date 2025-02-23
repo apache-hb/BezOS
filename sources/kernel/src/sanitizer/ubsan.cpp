@@ -1,5 +1,7 @@
 #include <sanitizer/ubsan_interface.h>
 
+#include "arch/abi.hpp"
+#include "kernel.hpp"
 #include "log.hpp"
 #include "panic.hpp"
 #include "util/format.hpp"
@@ -85,69 +87,85 @@ struct km::Format<UbsanTypeDescriptor> {
     }
 };
 
+[[noreturn]]
+static void UbsanReportError(stdx::StringView message) {
+    if (km::SystemMemory *memory = km::GetSystemMemory()) {
+        void *rbp = __builtin_frame_address(0);
+        x64::WalkStackFramesChecked(memory->pt, (void**)rbp, [](void **frame, void *pc, stdx::StringView note) {
+            KmDebugMessageUnlocked("| ", (void*)frame, " | ", pc);
+            if (!note.isEmpty()) {
+                KmDebugMessageUnlocked(" ", note);
+            }
+            KmDebugMessageUnlocked("\n");
+        });
+    }
+
+    KM_PANIC(message);
+}
+
 extern "C" void __ubsan_handle_add_overflow(UbsanOverflowData *data, uintptr_t, uintptr_t) {
     KmDebugMessage("[UBSAN] Add overflow: ", data->location, "\n");
-    KM_PANIC("UBSAN Add Overflow");
+    UbsanReportError("UBSAN Add Overflow");
 }
 
 extern "C" void __ubsan_handle_sub_overflow(UbsanOverflowData *data, uintptr_t, uintptr_t) {
     KmDebugMessage("[UBSAN] Sub overflow: ", data->location, "\n");
-    KM_PANIC("UBSAN Sub Overflow");
+    UbsanReportError("UBSAN Sub Overflow");
 }
 
 extern "C" void __ubsan_handle_mul_overflow(UbsanOverflowData *data, uintptr_t, uintptr_t) {
     KmDebugMessage("[UBSAN] Mul overflow: ", data->location, "\n");
-    KM_PANIC("UBSAN Mul Overflow");
+    UbsanReportError("UBSAN Mul Overflow");
 }
 
 extern "C" void __ubsan_handle_divrem_overflow(UbsanOverflowData *data, uintptr_t, uintptr_t) {
     KmDebugMessage("[UBSAN] Divrem overflow: ", data->location, "\n");
-    KM_PANIC("UBSAN Divrem Overflow");
+    UbsanReportError("UBSAN Divrem Overflow");
 }
 
 extern "C" void __ubsan_handle_negate_overflow(UbsanOverflowData *data, uintptr_t) {
     KmDebugMessage("[UBSAN] Negate overflow: ", data->location, "\n");
-    KM_PANIC("UBSAN Negate Overflow");
+    UbsanReportError("UBSAN Negate Overflow");
 }
 
 extern "C" void __ubsan_handle_pointer_overflow(UbsanOverflowData *data, uintptr_t, uintptr_t) {
     KmDebugMessage("[UBSAN] Pointer overflow: ", data->location, "\n");
-    KM_PANIC("UBSAN Pointer Overflow");
+    UbsanReportError("UBSAN Pointer Overflow");
 }
 
 extern "C" void __ubsan_handle_builtin_unreachable(UbsanUnreachableData *data) {
     KmDebugMessage("[UBSAN] Unreachable: ", data->location, "\n");
-    KM_PANIC("UBSAN Unreachable");
+    UbsanReportError("UBSAN Unreachable");
 }
 
 extern "C" void __ubsan_handle_missing_return(UbsanUnreachableData *data) {
     KmDebugMessage("[UBSAN] Missing return: ", data->location, "\n");
-    KM_PANIC("UBSAN Missing Return");
+    UbsanReportError("UBSAN Missing Return");
 }
 
 extern "C" void __ubsan_handle_nonnull_arg(UbsanNonnullArgData *data) {
     KmDebugMessage("[UBSAN] Nonnull arg: ", data->location, "\n");
-    KM_PANIC("UBSAN Nonnull Arg");
+    UbsanReportError("UBSAN Nonnull Arg");
 }
 
 extern "C" void __ubsan_handle_load_invalid_value(UbsanInvalidValueData *data, uintptr_t) {
     KmDebugMessage("[UBSAN] Load invalid value: ", data->location, "\n");
-    KM_PANIC("UBSAN Load Invalid Value");
+    UbsanReportError("UBSAN Load Invalid Value");
 }
 
 extern "C" void __ubsan_handle_nonnull_return(UbsanNonnullReturnData *data) {
     KmDebugMessage("[UBSAN] Nonnull return: ", data->location, "\n");
-    KM_PANIC("UBSAN Nonnull Return");
+    UbsanReportError("UBSAN Nonnull Return");
 }
 
 extern "C" void __ubsan_handle_out_of_bounds(UbsanOutOfBoundsData *data, uintptr_t, uintptr_t) {
     KmDebugMessage("[UBSAN] Out of bounds: ", data->location, "\n");
-    KM_PANIC("UBSAN Out of Bounds");
+    UbsanReportError("UBSAN Out of Bounds");
 }
 
 extern "C" void __ubsan_handle_invalid_builtin(UbsanInvalidBuiltinData *data, uintptr_t) {
     KmDebugMessage("[UBSAN] Invalid builtin: ", data->location, "\n");
-    KM_PANIC("UBSAN Invalid Builtin");
+    UbsanReportError("UBSAN Invalid Builtin");
 }
 
 extern "C" void __ubsan_handle_type_mismatch_v1(UbsanTypeMismatchDataV1 *data, uintptr_t address) {
@@ -163,21 +181,21 @@ extern "C" void __ubsan_handle_type_mismatch_v1(UbsanTypeMismatchDataV1 *data, u
     KmDebugMessage("[UBSAN] Type: ", *data->type, ", Address: ", (void*)address, ", Reason: ", reason, "\n");
     KmDebugMessage("[UBSAN] Expected alignment: ", alignment, "\n");
 
-    KM_PANIC("UBSAN Type Mismatch");
+    UbsanReportError("UBSAN Type Mismatch");
 }
 
 extern "C" void __ubsan_handle_nonnull_return_v1(UbsanNonnullReturnData *data, UbsanSourceLocation *) {
     KmDebugMessage("[UBSAN] Nonnull return: ", data->location, "\n");
-    KM_PANIC("UBSAN Nonnull Return");
+    UbsanReportError("UBSAN Nonnull Return");
 }
 
 extern "C" void __ubsan_handle_alignment_assumption(UbsanAlignmentAssumptionData *data, uintptr_t, uintptr_t) {
     KmDebugMessage("[UBSAN] Alignment assumption: ", data->location, "\n");
-    KM_PANIC("UBSAN Alignment Assumption");
+    UbsanReportError("UBSAN Alignment Assumption");
 }
 
 extern "C" void __ubsan_handle_shift_out_of_bounds(UbsanShiftOutOfBoundsData *data, uintptr_t lhs, uintptr_t rhs) {
     KmDebugMessage("[UBSAN] Shift out of bounds: ", data->location, "\n");
     KmDebugMessage("[UBSAN] Shift ", lhs, " by ", rhs, "\n");
-    KM_PANIC("UBSAN Shift Out of Bounds");
+    UbsanReportError("UBSAN Shift Out of Bounds");
 }

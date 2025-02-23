@@ -69,6 +69,7 @@ static constexpr bool kUseX2Apic = true;
 static constexpr bool kSelfTestIdt = true;
 static constexpr bool kSelfTestApic = true;
 static constexpr bool kEmitAddrToLine = true;
+static constexpr bool kEnableSmp = true;
 
 // TODO: make this runtime configurable
 static constexpr size_t kMaxPathSize = 0x1000;
@@ -1335,16 +1336,18 @@ static void StartupSmp(const acpi::AcpiTables& rsdt) {
     gScheduler = new Scheduler();
     gSystemObjects = new SystemObjects();
 
-#if 0
-    //
-    // We provide an atomic flag to the AP cores that we use to signal when the
-    // scheduler is ready to be used. The scheduler requires the system to switch
-    // to using cpu local isr tables, which must happen after smp startup.
-    //
     std::atomic_flag launchScheduler = ATOMIC_FLAG_INIT;
     std::atomic<uint32_t> remaining;
-    InitSmp(*gMemory, GetCpuLocalApic(), rsdt, &launchScheduler, &remaining);
-#endif
+
+    if constexpr (kEnableSmp) {
+        //
+        // We provide an atomic flag to the AP cores that we use to signal when the
+        // scheduler is ready to be used. The scheduler requires the system to switch
+        // to using cpu local isr tables, which must happen after smp startup.
+        //
+        InitSmp(*gMemory, GetCpuLocalApic(), rsdt, &launchScheduler, &remaining);
+    }
+
     SetDebugLogLock(DebugLogLockType::eRecursiveSpinLock);
 
     //
@@ -1354,19 +1357,19 @@ static void StartupSmp(const acpi::AcpiTables& rsdt) {
     SetupApGdt();
     km::SetupUserMode();
 
-#if 0
-    //
-    // Signal that the scheduler is now ready to accept work items.
-    //
-    launchScheduler.test_and_set();
+    if constexpr (kEnableSmp) {
+        //
+        // Signal that the scheduler is now ready to accept work items.
+        //
+        launchScheduler.test_and_set();
 
-    while (remaining > 0) {
-        //
-        // Spin until all AP cores have started.
-        //
-        _mm_pause();
+        while (remaining > 0) {
+            //
+            // Spin until all AP cores have started.
+            //
+            _mm_pause();
+        }
     }
-#endif
 }
 
 static constexpr size_t kKernelStackSize = 0x4000;

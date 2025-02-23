@@ -1,5 +1,6 @@
 #include "process/schedule.hpp"
 #include "kernel.hpp"
+#include "util/defer.hpp"
 
 CPU_LOCAL
 static constinit km::CpuLocal<sm::RcuSharedPtr<km::Thread>> tlsCurrentThread;
@@ -65,12 +66,14 @@ void km::ScheduleWork(LocalIsrTable *table, IApic *apic) {
         apic->eoi();
 
         Scheduler *scheduler = km::GetScheduler();
-        sm::RcuSharedPtr<km::Thread> thread = scheduler->getWorkItem();
 
-        if (thread) {
+        if (sm::RcuSharedPtr<km::Thread> thread = scheduler->getWorkItem()) {
             if (sm::RcuSharedPtr<km::Thread> current = km::GetCurrentThread()) {
                 current->state = *ctx;
                 scheduler->addWorkItem(current);
+            } else {
+                scheduler->addWorkItem(thread);
+                return *ctx;
             }
 
             tlsCurrentThread = thread;
