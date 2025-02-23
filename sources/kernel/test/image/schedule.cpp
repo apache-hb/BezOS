@@ -11,6 +11,8 @@
 #include "arch/cr0.hpp"
 #include "arch/cr4.hpp"
 
+#include "acpi/acpi.hpp"
+
 #include <bezos/subsystem/hid.h>
 #include <bezos/facility/device.h>
 #include <bezos/subsystem/ddi.h>
@@ -21,7 +23,6 @@
 #include "devices/hid.hpp"
 #include "display.hpp"
 #include "drivers/block/ramblk.hpp"
-#include "elf.hpp"
 #include "fs2/vfs.hpp"
 #include "gdt.hpp"
 #include "hid/hid.hpp"
@@ -37,6 +38,7 @@
 #include "pat.hpp"
 #include "processor.hpp"
 #include "process/schedule.hpp"
+#include "smp.hpp"
 #include "std/spinlock.hpp"
 #include "std/static_vector.hpp"
 #include "syscall.hpp"
@@ -208,6 +210,22 @@ static PageMemoryTypeLayout SetupPat(void) {
     return layout;
 }
 
+static void WriteMemoryMap(const boot::MemoryMap& memmap) {
+    KmDebugMessage("[INIT] ", memmap.regions.size(), " memory map entries.\n");
+
+    KmDebugMessage("| Entry | Address            | Size               | Type\n");
+    KmDebugMessage("|-------+--------------------+--------------------+-----------------------\n");
+
+    for (size_t i = 0; i < memmap.regions.size(); i++) {
+        boot::MemoryRegion entry = memmap.regions[i];
+        MemoryRange range = entry.range;
+
+        KmDebugMessage("| ", Int(i).pad(4, '0'), "  | ", Hex(range.front.address).pad(16, '0'), " | ", rpad(18) + sm::bytes(range.size()), " | ", entry.type, "\n");
+    }
+
+    KmDebugMessage("[INIT] Usable memory: ", memmap.usableMemory(), ", Reclaimable memory: ", memmap.reclaimableMemory(), "\n");
+}
+
 static constexpr size_t kStage1AllocMinSize = sm::megabytes(1).bytes();
 static constexpr size_t kCommittedRegionSize = sm::megabytes(16).bytes();
 
@@ -356,6 +374,7 @@ static KernelLayout BuildKernelLayout(
 
     km::MemoryRange committedPhysicalMemory = memory.reserve(kCommittedRegionSize);
     if (committedPhysicalMemory.isEmpty()) {
+        WriteMemoryMap(boot::MemoryMap{memory.memmap});
         KmDebugMessage("[INIT] Failed to reserve memory for committed region ", sm::bytes(kCommittedRegionSize), ".\n");
         KM_PANIC("Failed to reserve memory for committed region.");
     }
@@ -421,6 +440,7 @@ static boot::MemoryRegion FindEarlyAllocatorRegion(const boot::MemoryMap& memmap
         return entry;
     }
 
+    WriteMemoryMap(memmap);
     KM_PANIC("No suitable memory region found for early allocator.");
 }
 
@@ -536,7 +556,6 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
 
 struct Stage2MemoryInfo {
     SystemMemory *memory;
-    mem::TlsfAllocator allocator;
     KernelLayout layout;
 };
 
@@ -544,27 +563,27 @@ static constinit mem::IAllocator *gAllocator = nullptr;
 static constinit stdx::SpinLock gAllocatorLock;
 
 extern "C" void *malloc(size_t size) {
-    stdx::LockGuard _(gAllocatorLock);
+    stdx::LockGuard guard(gAllocatorLock);
     return gAllocator->allocate(size);
 }
 
 extern "C" void *realloc(void *old, size_t size) {
-    stdx::LockGuard _(gAllocatorLock);
+    stdx::LockGuard guard(gAllocatorLock);
     return gAllocator->reallocate(old, 0, size);
 }
 
 extern "C" void free(void *ptr) {
-    stdx::LockGuard _(gAllocatorLock);
+    stdx::LockGuard guard(gAllocatorLock);
     gAllocator->deallocate(ptr, 0);
 }
 
 extern "C" void *aligned_alloc(size_t alignment, size_t size) {
-    stdx::LockGuard _(gAllocatorLock);
+    stdx::LockGuard guard(gAllocatorLock);
     return gAllocator->allocateAligned(size, alignment);
 }
 
 static void InitGlobalAllocator(mem::IAllocator *allocator) {
-    stdx::LockGuard _(gAllocatorLock);
+    stdx::LockGuard guard(gAllocatorLock);
     gAllocator = allocator;
 }
 
@@ -580,13 +599,15 @@ static Stage2MemoryInfo *InitStage2Memory(
 
     PageBuilder pm = PageBuilder { processor.maxpaddr, processor.maxvaddr, layout.committedSlide(), GetDefaultPatLayout() };
 
+
     // Create the global memory allocator
-    mem::TlsfAllocator alloc{(void*)layout.committed.vaddr, layout.committed.size};
+    {
+        mem::TlsfAllocator alloc{(void*)layout.committed.vaddr, layout.committed.size};
+        void *mem = alloc.allocateAligned(sizeof(mem::TlsfAllocator), alignof(mem::TlsfAllocator));
+        InitGlobalAllocator(new (mem) mem::TlsfAllocator(std::move(alloc)));
+    }
 
-    Stage2MemoryInfo *stage2 = alloc.construct<Stage2MemoryInfo>();
-    stage2->allocator = std::move(alloc);
-
-    InitGlobalAllocator(&stage2->allocator);
+    Stage2MemoryInfo *stage2 = new Stage2MemoryInfo();
 
     static constexpr size_t kPtAllocSize = sm::megabytes(1).bytes();
     mem::TlsfAllocator *ptAllocator = new mem::TlsfAllocator(aligned_alloc(x64::kPageSize, kPtAllocSize), kPtAllocSize);
@@ -982,7 +1003,7 @@ static void MountRootVfs() {
     }
 }
 
-static void MountInitArchive(MemoryRange initrd) {
+static void MountInitArchive(MemoryRange initrd, SystemMemory& memory) {
     KmDebugMessage("[INIT] Mounting '/Init'\n");
 
     //
@@ -994,8 +1015,7 @@ static void MountInitArchive(MemoryRange initrd) {
         KM_PANIC("No initrd found.");
     }
 
-    SystemMemory *memory = GetSystemMemory();
-    void *initrdMemory = memory->map(initrd, PageFlags::eRead);
+    void *initrdMemory = memory.map(initrd, PageFlags::eRead);
     sm::SharedPtr<MemoryBlk> block = new MemoryBlk{(std::byte*)initrdMemory, initrd.size()};
 
     vfs2::IVfsMount *mount = nullptr;
@@ -1013,16 +1033,6 @@ static void MountVolatileFolder() {
         KmDebugMessage("[VFS] Failed to mount '/Volatile' ", status, "\n");
         KM_PANIC("Failed to mount volatile folder.");
     }
-}
-
-static OsStatus LaunchInitProcess(ProcessLaunch *launch) {
-    std::unique_ptr<vfs2::IVfsNodeHandle> init = nullptr;
-    if (OsStatus status = gVfsRoot->open(vfs2::BuildPath("Init", "init.elf"), std::out_ptr(init))) {
-        KmDebugMessage("[VFS] Failed to find '/Init/init.elf' ", status, "\n");
-        KM_PANIC("Failed to open init process.");
-    }
-
-    return LoadElf(std::move(init), *gMemory, *gSystemObjects, launch);
 }
 
 static void AddDebugSystemCalls() {
@@ -1318,6 +1328,44 @@ static void AddVmemSystemCalls() {
     });
 }
 
+static void StartupSmp(const acpi::AcpiTables& rsdt) {
+    //
+    // Create the scheduler and system objects before we startup SMP so that
+    // the AP cores have a scheduler to attach to.
+    //
+    gScheduler = new Scheduler();
+    gSystemObjects = new SystemObjects();
+
+    //
+    // We provide an atomic flag to the AP cores that we use to signal when the
+    // scheduler is ready to be used. The scheduler requires the system to switch
+    // to using cpu local isr tables, which must happen after smp startup.
+    //
+    std::atomic_flag launchScheduler = ATOMIC_FLAG_INIT;
+    std::atomic<uint32_t> remaining;
+    InitSmp(*gMemory, GetCpuLocalApic(), rsdt, &launchScheduler, &remaining);
+    SetDebugLogLock(DebugLogLockType::eRecursiveSpinLock);
+
+    //
+    // Setup gdt that contains a TSS for this core and configure cpu state
+    // required to enter usermode on this thread.
+    //
+    SetupApGdt();
+    km::SetupUserMode();
+
+    //
+    // Signal that the scheduler is now ready to accept work items.
+    //
+    launchScheduler.test_and_set();
+
+    while (remaining > 0) {
+        //
+        // Spin until all AP cores have started.
+        //
+        _mm_pause();
+    }
+}
+
 static constexpr size_t kKernelStackSize = 0x4000;
 
 static OsStatus LaunchThread(OsStatus(*entry)(void*), void *arg, stdx::String name) {
@@ -1345,8 +1393,42 @@ static OsStatus LaunchThread(OsStatus(*entry)(void*), void *arg, stdx::String na
     return OsStatusSuccess;
 }
 
-static void ConfigurePs2Controller(bool has8042, IoApicSet& ioApicSet, const IApic *apic, LocalIsrTable *ist) {
+static OsStatus NotificationWork(void *arg) {
+    NotificationStream *stream = (NotificationStream*)arg;
+    while (true) {
+        stream->processAll();
+    }
+
+    return OsStatusSuccess;
+}
+
+static OsStatus KernelMasterTask() {
+    KmDebugMessage("[INIT] Kernel master task.\n");
+
+    LaunchThread(&NotificationWork, gNotificationStream, "NOTIFY");
+
+    KmDebugMessage("[INIT] Dispatch NOTIFY thread.\n");
+
+    for (int i = 0; i < 100; i++) {
+        LaunchThread(&NotificationWork, gNotificationStream, "STRESS");
+    }
+
+    KmDebugMessage("[INIT] Dispatch STRESS threads.\n");
+
+    while (true) {
+        //
+        // Spin forever for now, in the future this task will handle
+        // top level kernel events.
+        //
+    }
+
+    return OsStatusSuccess;
+}
+
+static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioApicSet, const IApic *apic, LocalIsrTable *ist) {
     static hid::Ps2Controller ps2Controller;
+
+    bool has8042 = rsdt.has8042Controller();
 
     if (has8042) {
         hid::Ps2ControllerResult result = hid::EnablePs2Controller();
@@ -1422,40 +1504,8 @@ static void CreateDisplayDevice() {
     }
 }
 
-static OsStatus NotificationWork(void *arg) {
-    NotificationStream *stream = (NotificationStream*)arg;
-    while (true) {
-        stream->processAll();
-    }
-
-    return OsStatusSuccess;
-}
-
-static OsStatus KernelMasterTask() {
-    KmDebugMessage("[INIT] Kernel master task.\n");
-
-    LaunchThread(&NotificationWork, gNotificationStream, "NOTIFY");
-
-    ProcessLaunch init{};
-    if (OsStatus status = LaunchInitProcess(&init)) {
-        KmDebugMessage("[INIT] Failed to launch init process: ", status, "\n");
-        KM_PANIC("Failed to launch init process.");
-    }
-
-    SwitchThread(init.main);
-
-    while (true) {
-        //
-        // Spin forever for now, in the future this task will handle
-        // top level kernel events.
-        //
-    }
-
-    return OsStatusSuccess;
-}
-
 [[noreturn]]
-static void LaunchKernelProcess() {
+static void LaunchKernelProcess(LocalIsrTable *table, IApic *apic) {
     sm::RcuSharedPtr<Process> process = gSystemObjects->createProcess("SYSTEM", x64::Privilege::eSupervisor);
     sm::RcuSharedPtr<Thread> thread = gSystemObjects->createThread("MASTER", process);
 
@@ -1474,7 +1524,8 @@ static void LaunchKernelProcess() {
         .ss = SystemGdt::eLongModeData * 0x8,
     };
 
-    SwitchThread(thread);
+    gScheduler->addWorkItem(thread);
+    ScheduleWork(table, apic);
 }
 
 void LaunchKernel(boot::LaunchInfo launch) {
@@ -1514,18 +1565,20 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     bool useX2Apic = kUseX2Apic && processor.has2xApic;
 
-    auto [lapic, spuriousInt] = EnableBootApic(*GetSystemMemory(), useX2Apic);
-
-    km::LocalIsrTable *ist = GetLocalIsrTable();
+    auto [lapic, spuriousInt] = EnableBootApic(*stage2->memory, useX2Apic);
 
     acpi::AcpiTables rsdt = acpi::InitAcpi(launch.rsdpAddress, *stage2->memory);
     uint32_t ioApicCount = rsdt.ioApicCount();
     KM_CHECK(ioApicCount > 0, "No IOAPICs found.");
     IoApicSet ioApicSet{ rsdt.madt(), *stage2->memory };
 
+    StartupSmp(rsdt);
+
+    km::LocalIsrTable *ist = GetLocalIsrTable();
+
     MountRootVfs();
     MountVolatileFolder();
-    MountInitArchive(launch.initrd);
+    MountInitArchive(launch.initrd, *stage2->memory);
 
     AddDebugSystemCalls();
     AddVfsSystemCalls();
@@ -1533,17 +1586,12 @@ void LaunchKernel(boot::LaunchInfo launch) {
     AddThreadSystemCalls();
     AddVmemSystemCalls();
 
-    gScheduler = new Scheduler();
-    gSystemObjects = new SystemObjects();
-    SetDebugLogLock(DebugLogLockType::eRecursiveSpinLock);
-    SetupApGdt();
-    km::SetupUserMode();
-
     CreateNotificationQueue();
-    ConfigurePs2Controller(true, ioApicSet, lapic.pointer(), ist);
+
+    ConfigurePs2Controller(rsdt, ioApicSet, lapic.pointer(), ist);
     CreateDisplayDevice();
 
-    LaunchKernelProcess();
+    LaunchKernelProcess(ist, lapic.pointer());
 
     KM_PANIC("Test bugcheck.");
 

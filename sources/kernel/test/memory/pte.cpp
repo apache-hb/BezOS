@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 #include <memory_resource>
+#include <random>
+#include <thread>
 
 #include "memory/allocator.hpp"
 
@@ -355,4 +357,39 @@ TEST(MemoryRoundTest, RoundDown) {
     ASSERT_EQ(sm::rounddown(0x1FFF, 0x1000), 0x1000);
     ASSERT_EQ(sm::rounddown(0x2000, 0x1000), 0x2000);
     ASSERT_EQ(sm::rounddown(0, 0x1000), 0);
+}
+
+
+TEST_F(PageTableTest, ThreadSafe) {
+    km::PageTableManager pt { &pm, &allocator };
+
+    std::vector<std::jthread> threads;
+    for (int i = 0; i < 4; i++) {
+        threads.emplace_back([&pt, i] {
+            std::mt19937 gen { size_t(i) };
+            for (int i = 0; i < 1000; i++) {
+                auto paddr = gen();
+                auto vaddr = gen();
+
+                // align to 4k
+                paddr &= ~0xFFF;
+                vaddr &= ~0xFFF;
+
+                const void *ptr = (void*)vaddr;
+
+                pt.map4k(paddr, ptr, km::PageFlags::eAll);
+
+                km::PhysicalAddress addr = pt.getBackingAddress(ptr);
+
+                ASSERT_EQ(paddr, addr.address);
+
+                km::PageSize size = pt.getPageSize(ptr);
+                ASSERT_EQ(km::PageSize::eDefault, size);
+
+                ASSERT_NE(km::PageFlags::eNone, pt.getMemoryFlags(ptr));
+            }
+        });
+    }
+
+    threads.clear();
 }

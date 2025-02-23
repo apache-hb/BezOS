@@ -640,7 +640,10 @@ endif
 
 images = {
     'base': [
-        'test/image/base.cpp'
+        'test/image/base.cpp',
+    ],
+    'scheduler': [
+        'test/image/schedule.cpp',
     ]
 }
 

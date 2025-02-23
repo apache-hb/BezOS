@@ -3,7 +3,7 @@
 MODE=$1
 ARGS=$@
 
-ISO=install/image/bezos-test-base/bezos-test-base.iso
+ISO=install/image/bezos-test-scheduler/bezos-test-scheduler.iso
 CANBUS=/tmp/canbus
 QEMUARGS="-M q35 -display gtk"
 
