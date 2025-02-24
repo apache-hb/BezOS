@@ -1266,8 +1266,6 @@ static void StartupSmp(const acpi::AcpiTables& rsdt) {
                 _mm_pause();
             }
 
-            KmHalt();
-
             km::ScheduleWork(ist, apic);
         });
     }

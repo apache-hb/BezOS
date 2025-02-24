@@ -112,7 +112,7 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
     header->ready = 1;
 
     callback(ist, apic.pointer(), user);
-    KmHalt();
+    KM_PANIC("SMP callback returned.");
 }
 
 static uintptr_t AllocSmpStack(km::SystemMemory& memory) {
