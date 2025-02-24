@@ -8,6 +8,8 @@
 #include <cstdint>
 
 namespace km {
+    struct SystemMemory;
+
     using SystemCallHandler = OsCallResult(*)(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3);
 
     static constexpr x64::ModelRegister<0xC0000080, x64::RegisterAccess::eReadWrite> kEfer;
@@ -36,7 +38,7 @@ namespace km {
         uint64_t userStack;
     };
 
-    void SetupUserMode();
+    void SetupUserMode(SystemMemory *memory);
 
     void EnterUserMode(km::IsrContext state);
 

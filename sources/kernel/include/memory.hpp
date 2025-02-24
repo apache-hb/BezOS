@@ -49,6 +49,8 @@ namespace km {
 
         void unmap(void *ptr, size_t size);
 
+        AddressMapping allocateStack(size_t size);
+
         void *map(PhysicalAddress begin, PhysicalAddress end, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eWriteBack);
 
         void *map(MemoryRange range, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eWriteBack) {

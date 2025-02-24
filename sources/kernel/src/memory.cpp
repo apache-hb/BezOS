@@ -79,6 +79,38 @@ km::AddressMapping km::SystemMemory::allocateWithHint(const void *hint, size_t s
     };
 }
 
+km::AddressMapping km::SystemMemory::allocateStack(size_t size) {
+    size_t pages = Pages(size);
+
+    PhysicalAddress paddr = pmm.alloc4k(pages);
+    if (paddr == KM_INVALID_MEMORY) {
+        return AddressMapping{};
+    }
+
+    //
+    // Allocate an extra page for the guard page
+    //
+    void *vaddr = vmm.alloc4k(pages + 1);
+    MemoryRange range { paddr, paddr + (pages * x64::kPageSize) };
+    if (vaddr == KM_INVALID_ADDRESS) {
+        pmm.release(range);
+        return AddressMapping{};
+    }
+
+    //
+    // The stack grows down, so the guard page is at the top of the stack.
+    //
+    char *base = (char*)vaddr + x64::kPageSize;
+
+    pt.mapRange(range, base, PageFlags::eData, MemoryType::eWriteBack);
+
+    return AddressMapping {
+        .vaddr = base,
+        .paddr = paddr,
+        .size = pages * x64::kPageSize
+    };
+}
+
 void km::SystemMemory::release(void *ptr, size_t size) {
     PhysicalAddress start = pt.getBackingAddress(ptr);
     if (start == nullptr) {

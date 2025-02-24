@@ -1,7 +1,30 @@
 #include "notify.hpp"
+
+#include "allocator/synchronized.hpp"
+#include "allocator/tlsf.hpp"
 #include "log.hpp"
 
 using namespace km;
+
+using SynchronizedTlsfAllocator = mem::SynchronizedAllocator<mem::TlsfAllocator>;
+
+static mem::IAllocator *gNotificationAllocator = nullptr;
+
+void *km::NotificationQueueTraits::malloc(size_t size) {
+    return gNotificationAllocator->allocate(size);
+}
+
+void km::NotificationQueueTraits::free(void *ptr) {
+    gNotificationAllocator->deallocate(ptr, 0);
+}
+
+void km::InitAqAllocator(void *memory, size_t size) {
+    KM_CHECK(memory != nullptr, "Invalid memory for notification allocator.");
+    KM_CHECK(size > 0, "Invalid size for notification allocator.");
+    KM_CHECK(gNotificationAllocator == nullptr, "Notification allocator already initialized.");
+
+    gNotificationAllocator = new SynchronizedTlsfAllocator(memory, size);
+}
 
 void Topic::addNotification(sm::RcuDomain *domain, INotification *notification) {
     sm::RcuSharedPtr<INotification> ptr = {domain, notification};

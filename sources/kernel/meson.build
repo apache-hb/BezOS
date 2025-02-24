@@ -422,6 +422,7 @@ testcases = {
         'src/notify.cpp',
         'src/std/rcu.cpp',
         'src/std/rcuptr.cpp',
+        tlsf.get_variable('sources'),
     ],
     'isr table': [
         'test/isr/isr.cpp',

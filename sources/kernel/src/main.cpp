@@ -174,11 +174,12 @@ void km::SetupInitialGdt(void) {
 void km::SetupApGdt(void) {
     // Save the gs/fs/kgsbase values, as setting the GDT will clear them
     CpuLocalRegisters tls = LoadTlsRegisters();
+    SystemMemory *memory = GetSystemMemory();
 
     tlsTaskState = x64::TaskStateSegment {
-        .ist1 = (uintptr_t)aligned_alloc(x64::kPageSize, kTssStackSize) + kTssStackSize,
-        .ist2 = (uintptr_t)aligned_alloc(x64::kPageSize, kTssStackSize) + kTssStackSize,
-        .ist3 = (uintptr_t)aligned_alloc(x64::kPageSize, kTssStackSize) + kTssStackSize,
+        .ist1 = (uintptr_t)memory->allocateStack(kTssStackSize).vaddr + kTssStackSize,
+        .ist2 = (uintptr_t)memory->allocateStack(kTssStackSize).vaddr + kTssStackSize,
+        .ist3 = (uintptr_t)memory->allocateStack(kTssStackSize).vaddr + kTssStackSize,
         .iopbOffset = sizeof(x64::TaskStateSegment),
     };
 
@@ -768,10 +769,11 @@ static void LogSystemInfo(
 }
 
 static void SetupInterruptStacks(uint16_t cs) {
+    SystemMemory *memory = GetSystemMemory();
     gBootTss = x64::TaskStateSegment{
-        .ist1 = (uintptr_t)aligned_alloc(kTssStackSize, x64::kPageSize) + kTssStackSize,
-        .ist2 = (uintptr_t)aligned_alloc(kTssStackSize, x64::kPageSize) + kTssStackSize,
-        .ist3 = (uintptr_t)aligned_alloc(kTssStackSize, x64::kPageSize) + kTssStackSize,
+        .ist1 = (uintptr_t)memory->allocateStack(kTssStackSize).vaddr + kTssStackSize,
+        .ist2 = (uintptr_t)memory->allocateStack(kTssStackSize).vaddr + kTssStackSize,
+        .ist3 = (uintptr_t)memory->allocateStack(kTssStackSize).vaddr + kTssStackSize,
     };
 
     gBootGdt.setTss(&gBootTss);
@@ -831,6 +833,10 @@ SystemMemory *km::GetSystemMemory() {
 }
 
 static void CreateNotificationQueue() {
+    static constexpr size_t kAqMemorySize = sm::kilobytes(128).bytes();
+    void *memory = aligned_alloc(x64::kPageSize, kAqMemorySize);
+    InitAqAllocator(memory, kAqMemorySize);
+
     gNotificationStream = new NotificationStream();
 }
 
@@ -1273,7 +1279,7 @@ static void StartupSmp(const acpi::AcpiTables& rsdt) {
     // required to enter usermode on this thread.
     //
     SetupApGdt();
-    km::SetupUserMode();
+    km::SetupUserMode(GetSystemMemory());
 
     if constexpr (kEnableSmp) {
         //
@@ -1292,7 +1298,7 @@ static OsStatus LaunchThread(OsStatus(*entry)(void*), void *arg, stdx::String na
 
     PageFlags flags = PageFlags::eData;
     MemoryType type = MemoryType::eWriteBack;
-    km::AddressMapping mapping = gMemory->kernelAllocate(kKernelStackSize, flags, type);
+    km::AddressMapping mapping = gMemory->allocateStack(kKernelStackSize);
     sm::RcuSharedPtr<AddressSpace> stackSpace = gSystemObjects->createAddressSpace(std::move(stackName), mapping, flags, type, process);
 
     thread->state = km::IsrContext {
@@ -1428,7 +1434,7 @@ static void LaunchKernelProcess(LocalIsrTable *table, IApic *apic) {
 
     PageFlags flags = PageFlags::eData;
     MemoryType type = MemoryType::eWriteBack;
-    km::AddressMapping mapping = gMemory->kernelAllocate(kKernelStackSize, flags, type);
+    km::AddressMapping mapping = gMemory->allocateStack(kKernelStackSize);
     sm::RcuSharedPtr<AddressSpace> stackSpace = gSystemObjects->createAddressSpace("MASTER STACK", mapping, flags, type, process);
 
     thread->stack = stackSpace;

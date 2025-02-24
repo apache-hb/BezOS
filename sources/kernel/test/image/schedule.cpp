@@ -703,6 +703,10 @@ SystemMemory *km::GetSystemMemory() {
 }
 
 static void CreateNotificationQueue() {
+    static constexpr size_t kAqMemorySize = sm::kilobytes(128).bytes();
+    void *memory = aligned_alloc(x64::kPageSize, kAqMemorySize);
+    InitAqAllocator(memory, kAqMemorySize);
+
     gNotificationStream = new NotificationStream();
 }
 
@@ -1102,7 +1106,7 @@ static void StartupSmp(const acpi::AcpiTables& rsdt) {
         // scheduler is ready to be used. The scheduler requires the system to switch
         // to using cpu local isr tables, which must happen after smp startup.
         //
-        InitSmp(*gMemory, GetCpuLocalApic(), rsdt, [&launchScheduler](LocalIsrTable *ist, IApic *apic) {
+        InitSmp(*GetSystemMemory(), GetCpuLocalApic(), rsdt, [&launchScheduler](LocalIsrTable *ist, IApic *apic) {
             while (!launchScheduler.test()) {
                 _mm_pause();
             }
@@ -1120,7 +1124,7 @@ static void StartupSmp(const acpi::AcpiTables& rsdt) {
     // required to enter usermode on this thread.
     //
     SetupApGdt();
-    km::SetupUserMode();
+    km::SetupUserMode(GetSystemMemory());
 
     if constexpr (kEnableSmp) {
         //

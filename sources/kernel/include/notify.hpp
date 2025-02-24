@@ -15,13 +15,18 @@ namespace km {
     class INotification;
     class ISubscriber;
 
+    struct NotificationQueueTraits : public moodycamel::ConcurrentQueueDefaultTraits {
+        static void *malloc(size_t size);
+        static void free(void *ptr);
+    };
+
     class Topic {
         friend class NotificationStream;
 
         sm::uuid mId;
         stdx::String mName;
 
-        moodycamel::ConcurrentQueue<sm::RcuSharedPtr<INotification>> queue;
+        moodycamel::ConcurrentQueue<sm::RcuSharedPtr<INotification>, NotificationQueueTraits> queue;
 
         stdx::SharedSpinLock mLock;
         sm::FlatHashSet<ISubscriber*> mSubscribers;
@@ -123,4 +128,6 @@ namespace km {
 
         size_t processAll(size_t limit = 1024);
     };
+
+    void InitAqAllocator(void *memory, size_t size);
 }

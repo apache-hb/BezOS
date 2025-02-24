@@ -107,7 +107,7 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
     km::SmpInitCallback callback = header->callback;
     void *user = header->user;
 
-    km::SetupUserMode();
+    km::SetupUserMode(header->memory);
 
     header->ready = 1;
 
@@ -115,8 +115,8 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
     KmHalt();
 }
 
-static uintptr_t AllocSmpStack() {
-    return (uintptr_t)aligned_alloc(x64::kPageSize, km::kStartupStackSize);
+static uintptr_t AllocSmpStack(km::SystemMemory& memory) {
+    return (uintptr_t)memory.allocateStack(km::kStartupStackSize).vaddr + km::kStartupStackSize;
 }
 
 static SmpInfoHeader SetupSmpInfoHeader(
@@ -194,7 +194,7 @@ void km::InitSmp(
             continue;
         }
 
-        smpInfo->stack = AllocSmpStack();
+        smpInfo->stack = AllocSmpStack(memory);
         smpInfo->ready = 0;
 
         KmDebugMessage("[SMP] Starting APIC ID: ", localApic.apicId, "\n");

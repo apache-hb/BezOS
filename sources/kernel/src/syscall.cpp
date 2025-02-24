@@ -33,7 +33,10 @@ extern "C" OsCallResult KmSystemDispatchRoutine(km::SystemCallContext *context) 
     volatile uint8_t function = context->function;
     if (km::SystemCallHandler handler = gSystemCalls[function]) {
         OsCallResult result = handler(context->arg0, context->arg1, context->arg2, context->arg3);
-        KM_CHECK(context->function == function, "System call handler changed function number.");
+        if (context->function != function) {
+            KmDebugMessage("[SYS] System call handler changed function number ", km::Hex(function), " -> ", km::Hex(context->function), "\n");
+            KM_PANIC("System call handler changed function number.");
+        }
         return result;
     }
 
@@ -41,10 +44,10 @@ extern "C" OsCallResult KmSystemDispatchRoutine(km::SystemCallContext *context) 
     return OsCallResult { .Status = OsStatusInvalidFunction, .Value = 0 };
 }
 
-void km::SetupUserMode() {
-    tlsSystemCallStack = aligned_alloc(kStackSize, x64::kPageSize);
+void km::SetupUserMode(SystemMemory *memory) {
+    tlsSystemCallStack = (void*)((uintptr_t)memory->allocateStack(kStackSize).vaddr + kStackSize);
 
-    void *rsp0 = aligned_alloc(kStackSize, x64::kPageSize);
+    void *rsp0 = (void*)memory->allocateStack(kStackSize).vaddr;
     tlsTaskState->rsp0 = (uintptr_t)rsp0 + kStackSize;
 
     KmSystemCallStackTlsOffset = tlsSystemCallStack.tlsOffset();
