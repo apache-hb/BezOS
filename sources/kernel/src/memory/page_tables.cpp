@@ -278,7 +278,7 @@ km::PhysicalAddress PageTableManager::getBackingAddress(const void *ptr) const {
 
     const x64::PageMapLevel4 *l4 = getRootTable();
     const x64::PageMapLevel3 *l3 = findPageMap3(l4, pml4e);
-    if (!l3) return nullptr;
+    if (!l3) return KM_INVALID_MEMORY;
 
     if (l3->entries[pdpte].is1g()) {
         uintptr_t pdpteOffset = address & 0x3FF'000;
@@ -286,7 +286,7 @@ km::PhysicalAddress PageTableManager::getBackingAddress(const void *ptr) const {
     }
 
     const x64::PageMapLevel2 *l2 = findPageMap2(l3, pdpte);
-    if (!l2) return nullptr;
+    if (!l2) return KM_INVALID_MEMORY;
 
     if (l2->entries[pdte].is2m()) {
         uintptr_t pdteOffset = address & 0x1FF'000;
@@ -294,10 +294,10 @@ km::PhysicalAddress PageTableManager::getBackingAddress(const void *ptr) const {
     }
 
     const x64::PageTable *pt = findPageTable(l2, pdte);
-    if (!pt) return nullptr;
+    if (!pt) return KM_INVALID_MEMORY;
 
     const x64::pte& t1 = pt->entries[pte];
-    if (!t1.present()) return nullptr;
+    if (!t1.present()) return KM_INVALID_MEMORY;
 
     return km::PhysicalAddress { mPageManager->address(t1) + offset };
 }

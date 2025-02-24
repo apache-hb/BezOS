@@ -2,13 +2,26 @@
 
 #include "notify.hpp"
 
-TEST(NotifyTest, Construct) {
+class NotifyTest : public testing::Test {
+    static inline void *ptr = nullptr;
+public:
+    static void SetUpTestSuite() {
+        ptr = malloc(0x10000);
+        km::InitAqAllocator(ptr, 0x10000);
+    }
+
+    static void TearDownTestSuite() {
+        free(ptr);
+    }
+};
+
+TEST_F(NotifyTest, Construct) {
     km::NotificationStream stream;
 }
 
 static constexpr sm::uuid kTestTopicId = sm::uuid::of("d79a9420-ec7d-11ef-97a0-00155d0cb009");
 
-TEST(NotifyTest, CreateTopic) {
+TEST_F(NotifyTest, CreateTopic) {
     km::NotificationStream stream;
     km::Topic *topic = stream.createTopic(kTestTopicId, "Test");
     ASSERT_NE(topic, nullptr);
@@ -17,7 +30,7 @@ TEST(NotifyTest, CreateTopic) {
     ASSERT_EQ(topic->name(), "Test");
 }
 
-TEST(NotifyTest, Subscribe) {
+TEST_F(NotifyTest, Subscribe) {
     km::NotificationStream stream;
     km::Topic *topic = stream.createTopic(kTestTopicId, "Test");
     ASSERT_NE(topic, nullptr);

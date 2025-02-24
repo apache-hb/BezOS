@@ -9,26 +9,19 @@ km::SystemMemory::SystemMemory(const boot::MemoryMap& memmap, VirtualRange syste
 { }
 
 void *km::SystemMemory::allocate(size_t size, PageFlags flags, MemoryType type) {
-    size_t pages = Pages(size);
-    PhysicalAddress paddr = pmm.alloc4k(pages);
-    void *vaddr = vmm.alloc4k(pages);
-    MemoryRange range { paddr, paddr + size };
-    pt.mapRange(range, vaddr, flags, type);
-    return vaddr;
+    return (void*)allocate(AllocateRequest {
+        .size = size,
+        .flags = flags,
+        .type = type
+    }).vaddr;
 }
 
 km::AddressMapping km::SystemMemory::kernelAllocate(size_t size, PageFlags flags, MemoryType type) {
-    size_t pages = Pages(size);
-    PhysicalAddress paddr = pmm.alloc4k(pages);
-    void *vaddr = vmm.alloc4k(pages);
-    MemoryRange range { paddr, paddr + size };
-    pt.mapRange(range, vaddr, flags, type);
-
-    return AddressMapping {
-        .vaddr = vaddr,
-        .paddr = paddr,
-        .size = pages * x64::kPageSize
-    };
+    return allocate(AllocateRequest {
+        .size = size,
+        .flags = flags,
+        .type = type
+    });
 }
 
 km::AddressMapping km::SystemMemory::userAllocate(size_t size, PageFlags flags, MemoryType type) {
@@ -56,27 +49,12 @@ km::AddressMapping km::SystemMemory::userAllocate(size_t size, PageFlags flags, 
 }
 
 km::AddressMapping km::SystemMemory::allocateWithHint(const void *hint, size_t size, PageFlags flags, MemoryType type) {
-    size_t pages = Pages(size);
-
-    PhysicalAddress paddr = pmm.alloc4k(pages);
-    if (paddr == KM_INVALID_MEMORY) {
-        return AddressMapping{};
-    }
-
-    void *vaddr = vmm.userAlloc4k(pages, hint);
-    MemoryRange range { paddr, paddr + size };
-    if (vaddr == KM_INVALID_ADDRESS) {
-        pmm.release(range);
-        return AddressMapping{};
-    }
-
-    pt.mapRange(range, vaddr, flags, type);
-
-    return AddressMapping {
-        .vaddr = vaddr,
-        .paddr = paddr,
-        .size = pages * x64::kPageSize
-    };
+    return allocate(AllocateRequest {
+        .size = size,
+        .hint = hint,
+        .flags = flags,
+        .type = type
+    });
 }
 
 km::AddressMapping km::SystemMemory::allocateStack(size_t size) {
@@ -111,9 +89,33 @@ km::AddressMapping km::SystemMemory::allocateStack(size_t size) {
     };
 }
 
+km::AddressMapping km::SystemMemory::allocate(AllocateRequest request) {
+    size_t pages = Pages(request.size);
+
+    PhysicalAddress paddr = pmm.alloc4k(pages);
+    if (paddr == KM_INVALID_MEMORY) {
+        return AddressMapping{};
+    }
+
+    void *vaddr = vmm.alloc4k(pages, request.hint);
+    MemoryRange range { paddr, paddr + request.size };
+    if (vaddr == KM_INVALID_ADDRESS) {
+        pmm.release(range);
+        return AddressMapping{};
+    }
+
+    pt.mapRange(range, vaddr, request.flags, request.type);
+
+    return AddressMapping {
+        .vaddr = vaddr,
+        .paddr = paddr,
+        .size = pages * x64::kPageSize
+    };
+}
+
 void km::SystemMemory::release(void *ptr, size_t size) {
     PhysicalAddress start = pt.getBackingAddress(ptr);
-    if (start == nullptr) {
+    if (start == KM_INVALID_MEMORY) {
         KmDebugMessage("[WARN] Attempted to release ", ptr, " but it is not mapped.\n");
         return;
     }

@@ -7,12 +7,10 @@
 #include <cstddef>
 
 namespace km {
-    // TODO: use this to unify the system memory allocator interface
     struct AllocateRequest {
         size_t size;
         size_t align = x64::kPageSize;
-        const std::byte *hint = nullptr;
-        bool user = false;
+        const void *hint = nullptr;
         PageFlags flags = PageFlags::eNone;
         MemoryType type = MemoryType::eWriteBack;
     };
@@ -44,6 +42,8 @@ namespace km {
             PageFlags flags = PageFlags::eData,
             MemoryType type = MemoryType::eWriteBack
         );
+
+        AddressMapping allocate(AllocateRequest request);
 
         void release(void *ptr, size_t size);
 
