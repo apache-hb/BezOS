@@ -23,7 +23,13 @@ KmSystemCallStackTlsOffset:
  * @return rax - result
  */
 KmSystemEntry:
+    /* FMASK is expected to mask out interrupts before we get here */
+    /* We need to re-enable them so that the kernel remains pre-emptible. */
+    /* But NOT BEFORE SWAPGS, the interrupt handlers expect gsbase to be the kernel gs */
+    /* when an interrupt arrives with cpl=0. If an interrupt happened before this swapgs */
+    /* that precondition would be violated, causing an incorrect swapgs and a crash */
     swapgs
+    sti
 
     movq %rsp, %r15
     movq KmSystemCallStackTlsOffset, %r9
@@ -73,6 +79,10 @@ KmSystemEntry:
 
     /* Restore the user stack */
     popq %rsp
+
+    /* Clear the interrupt flag before swapgs, otherwise an interrupt */
+    /* could observe the violated precondition. */
+    cli
 
     swapgs
 
