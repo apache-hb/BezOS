@@ -10,7 +10,6 @@
 #include "panic.hpp"
 #include "log.hpp"
 #include "pat.hpp"
-#include "process/schedule.hpp"
 #include "processor.hpp"
 #include "syscall.hpp"
 #include "thread.hpp"
@@ -54,8 +53,8 @@ struct SmpInfoHeader {
 
     km::IApic *bspIntController;
     km::SystemMemory *memory;
-    std::atomic_flag *launchScheduler;
-    std::atomic<uint32_t> *remaining;
+    km::SmpInitCallback callback;
+    void *user;
 };
 
 static_assert(offsetof(SmpInfoHeader, gdt) == 32);
@@ -104,29 +103,27 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
     km::EnableInterrupts();
 
     // Copy the latch pointer
-    std::atomic_flag *launchScheduler = header->launchScheduler;
-    std::atomic<uint32_t> *remaining = header->remaining;
+    km::SmpInitCallback callback = header->callback;
+    void *user = header->user;
 
     km::SetupUserMode();
 
     header->ready = 1;
 
-    while (!launchScheduler->test()) {
-        _mm_pause();
-    }
-
-    remaining->fetch_sub(1);
-
+    callback(ist, apic.pointer(), user);
     KmHalt();
-
-    km::ScheduleWork(ist, apic.pointer());
 }
 
 static uintptr_t AllocSmpStack() {
     return (uintptr_t)aligned_alloc(x64::kPageSize, km::kStartupStackSize);
 }
 
-static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::IApic *pic, std::atomic_flag *launchScheduler, std::atomic<uint32_t> *remaining) {
+static SmpInfoHeader SetupSmpInfoHeader(
+    km::SystemMemory *memory,
+    km::IApic *pic,
+    km::SmpInitCallback callback,
+    void *user
+) {
     km::PageTableManager& vmm = memory->pt;
 
     km::PhysicalAddress pml4 = vmm.rootPageTable();
@@ -143,8 +140,8 @@ static SmpInfoHeader SetupSmpInfoHeader(km::SystemMemory *memory, km::IApic *pic
         },
         .bspIntController = pic,
         .memory = memory,
-        .launchScheduler = launchScheduler,
-        .remaining = remaining,
+        .callback = callback,
+        .user = user,
     };
 }
 
@@ -153,7 +150,13 @@ size_t km::GetStartupMemorySize(const acpi::AcpiTables &acpiTables) {
     return apCount * kStartupMemorySize;
 }
 
-void km::InitSmp(km::SystemMemory& memory, km::IApic *bsp, const acpi::AcpiTables& acpiTables, std::atomic_flag *launchScheduler, std::atomic<uint32_t>* remaining) {
+void km::InitSmp(
+    km::SystemMemory& memory,
+    km::IApic *bsp,
+    const acpi::AcpiTables& acpiTables,
+    SmpInitCallback callback,
+    void *user
+) {
     KmDebugMessage("[SMP] Starting APs.\n");
 
     // copy the SMP blob to the correct location
@@ -172,7 +175,7 @@ void km::InitSmp(km::SystemMemory& memory, km::IApic *bsp, const acpi::AcpiTable
     memory.pt.mapRange({ kSmpInfo, kSmpInfo + sizeof(SmpInfoHeader) }, (void*)kSmpInfo.address, km::PageFlags::eData);
     memory.pt.mapRange({ kSmpStart, kSmpStart + blobSize }, (void*)kSmpStart.address, km::PageFlags::eCode);
 
-    SmpInfoHeader header = SetupSmpInfoHeader(&memory, bsp, launchScheduler, remaining);
+    SmpInfoHeader header = SetupSmpInfoHeader(&memory, bsp, callback, user);
     memcpy(smpInfo, &header, sizeof(header));
 
     for (const acpi::MadtEntry *madt : *acpiTables.madt()) {
@@ -192,7 +195,6 @@ void km::InitSmp(km::SystemMemory& memory, km::IApic *bsp, const acpi::AcpiTable
 
         smpInfo->stack = AllocSmpStack();
         smpInfo->ready = 0;
-        remaining->fetch_add(1);
 
         KmDebugMessage("[SMP] Starting APIC ID: ", localApic.apicId, "\n");
 

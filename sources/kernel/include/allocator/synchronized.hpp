@@ -11,23 +11,27 @@ namespace mem {
     public:
         using T::T;
 
+        SynchronizedAllocator(T self)
+            : T(std::move(self))
+        { }
+
         void *allocate(size_t size) override {
-            stdx::LockGuard _(mLock);
+            stdx::LockGuard guard(mLock);
             return T::allocate(size);
         }
 
         void *allocateAligned(size_t size, size_t align) override {
-            stdx::LockGuard _(mLock);
+            stdx::LockGuard guard(mLock);
             return T::allocateAligned(size, align);
         }
 
         void deallocate(void *ptr, size_t size) override {
-            stdx::LockGuard _(mLock);
+            stdx::LockGuard guard(mLock);
             T::deallocate(ptr, size);
         }
 
         void *reallocate(void *old, size_t oldSize, size_t newSize) override {
-            stdx::LockGuard _(mLock);
+            stdx::LockGuard guard(mLock);
             return T::reallocate(old, oldSize, newSize);
         }
     };

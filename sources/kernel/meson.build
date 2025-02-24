@@ -193,6 +193,7 @@ src = [
     # Kernel components
     'src/log.cpp',
     'src/memory.cpp',
+    'src/setup.cpp',
 ]
 
 if enable_aml

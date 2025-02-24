@@ -1,5 +1,7 @@
 #include "process/schedule.hpp"
 #include "kernel.hpp"
+#include "allocator/synchronized.hpp"
+#include "allocator/tlsf.hpp"
 
 CPU_LOCAL
 static constinit km::CpuLocal<sm::RcuSharedPtr<km::Thread>> tlsCurrentThread;
@@ -8,6 +10,26 @@ CPU_LOCAL
 static constinit km::CpuLocal<uint8_t> tlsScheduleIdx;
 
 extern "C" [[noreturn]] void KmResumeThread(km::IsrContext *context);
+
+using SynchronizedTlsfAllocator = mem::SynchronizedAllocator<mem::TlsfAllocator>;
+
+static constinit mem::IAllocator *gSchedulerAllocator = nullptr;
+
+void km::InitSchedulerMemory(void *memory, size_t size) {
+    KM_CHECK(memory != nullptr, "Invalid memory for scheduler allocator.");
+    KM_CHECK(size > 0, "Invalid size for scheduler allocator.");
+    KM_CHECK(gSchedulerAllocator == nullptr, "Scheduler allocator already initialized.");
+
+    gSchedulerAllocator = new SynchronizedTlsfAllocator(memory, size);
+}
+
+void *km::SchedulerQueueTraits::malloc(size_t size) {
+    return gSchedulerAllocator->allocate(size);
+}
+
+void km::SchedulerQueueTraits::free(void *ptr) {
+    gSchedulerAllocator->deallocate(ptr, 0);
+}
 
 km::Scheduler::Scheduler()
     : mQueue()
@@ -68,18 +90,15 @@ void km::ScheduleWork(LocalIsrTable *table, IApic *apic, sm::RcuSharedPtr<km::Th
 
         if (sm::RcuSharedPtr<km::Thread> next = scheduler->getWorkItem()) {
             if (sm::RcuSharedPtr<km::Thread> current = km::GetCurrentThread()) {
-                KmDebugMessage("\bS");
                 current->state = *ctx;
                 scheduler->addWorkItem(current);
                 tlsCurrentThread = next;
                 return next->state;
             } else {
-                KmDebugMessage("\bC");
                 tlsCurrentThread = next;
                 return next->state;
             }
         } else {
-            KmDebugMessage("\bX");
             return *ctx;
         }
     });

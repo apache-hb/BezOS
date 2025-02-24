@@ -24,13 +24,15 @@ public:
     void unlock() override { }
 };
 
-class SpinLockDebugLock final : public IDebugLock {
+class [[clang::capability("mutex")]] SpinLockDebugLock final : public IDebugLock {
     stdx::SpinLock mLock;
 public:
+    [[clang::acquire_capability]]
     void lock() override {
         mLock.lock();
     }
 
+    [[clang::release_capability]]
     void unlock() override {
         mLock.unlock();
     }

@@ -359,7 +359,6 @@ TEST(MemoryRoundTest, RoundDown) {
     ASSERT_EQ(sm::rounddown(0, 0x1000), 0);
 }
 
-
 TEST_F(PageTableTest, ThreadSafe) {
     km::PageTableManager pt { &pm, &allocator };
 
@@ -392,4 +391,22 @@ TEST_F(PageTableTest, ThreadSafe) {
     }
 
     threads.clear();
+}
+
+TEST_F(PageTableTest, AddressMapping) {
+    km::PageTableManager pt { &pm, &allocator };
+
+    km::AddressMapping fb = {
+        .vaddr = (void*)0xFFFFC00001000000,
+        .paddr = 0x00000000FD000000,
+        .size = 0x00000000FD3E8000 - 0x00000000FD000000,
+    };
+
+    pt.map(fb, km::PageFlags::eData, km::MemoryType::eWriteCombine);
+
+    km::PageFlags front = pt.getMemoryFlags(fb.vaddr);
+    ASSERT_EQ(km::PageFlags::eData, front);
+
+    km::PageFlags back = pt.getMemoryFlags((char*)fb.vaddr + fb.size - 1);
+    ASSERT_EQ(km::PageFlags::eData, back);
 }

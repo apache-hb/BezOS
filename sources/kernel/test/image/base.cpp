@@ -7,7 +7,6 @@
 
 #include "apic.hpp"
 
-#include "arch/abi.hpp"
 #include "arch/cr0.hpp"
 #include "arch/cr4.hpp"
 
@@ -16,6 +15,7 @@
 #include <bezos/subsystem/ddi.h>
 #include <bezos/facility/vmem.h>
 
+#include "setup.hpp"
 #include "delay.hpp"
 #include "devices/ddi.hpp"
 #include "devices/hid.hpp"
@@ -34,7 +34,6 @@
 #include "memory/memory.hpp"
 #include "notify.hpp"
 #include "panic.hpp"
-#include "pat.hpp"
 #include "processor.hpp"
 #include "process/schedule.hpp"
 #include "std/spinlock.hpp"
@@ -65,7 +64,6 @@ using namespace stdx::literals;
 static constexpr bool kUseX2Apic = true;
 static constexpr bool kSelfTestIdt = true;
 static constexpr bool kSelfTestApic = true;
-static constexpr bool kEmitAddrToLine = true;
 
 // TODO: make this runtime configurable
 static constexpr size_t kMaxPathSize = 0x1000;
@@ -163,49 +161,6 @@ void km::SetupApGdt(void) {
     __ltr(SystemGdt::eTaskState0 * 0x8);
 
     StoreTlsRegisters(tls);
-}
-
-static PageMemoryTypeLayout GetDefaultPatLayout(void) {
-    enum {
-        kEntryWriteBack,
-        kEntryWriteThrough,
-        kEntryUncachedOverridable,
-        kEntryUncached,
-        kEntryWriteCombined,
-        kEntryWriteProtect,
-    };
-
-    return PageMemoryTypeLayout {
-        .deferred = kEntryUncachedOverridable,
-        .uncached = kEntryUncached,
-        .writeCombined = kEntryWriteCombined,
-        .writeThrough = kEntryWriteThrough,
-        .writeProtect = kEntryWriteProtect,
-        .writeBack = kEntryWriteBack,
-    };
-}
-
-static PageMemoryTypeLayout SetupPat(void) {
-    if (!x64::HasPatSupport()) {
-        return PageMemoryTypeLayout { };
-    }
-
-    x64::PageAttributeTable pat = x64::PageAttributeTable::get();
-
-    auto layout = GetDefaultPatLayout();
-
-    pat.setEntry(layout.uncached, MemoryType::eUncached);
-    pat.setEntry(layout.writeCombined, MemoryType::eWriteCombine);
-    pat.setEntry(layout.writeProtect, MemoryType::eWriteThrough);
-    pat.setEntry(layout.writeBack, MemoryType::eWriteBack);
-    pat.setEntry(layout.writeProtect, MemoryType::eWriteProtect);
-    pat.setEntry(layout.deferred, MemoryType::eUncachedOverridable);
-
-    // PAT[6] and PAT[7] are unused for now, so just set them to UC-
-    pat.setEntry(6, MemoryType::eUncachedOverridable);
-    pat.setEntry(7, MemoryType::eUncachedOverridable);
-
-    return layout;
 }
 
 static constexpr size_t kStage1AllocMinSize = sm::megabytes(1).bytes();
@@ -536,37 +491,8 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
 
 struct Stage2MemoryInfo {
     SystemMemory *memory;
-    mem::TlsfAllocator allocator;
     KernelLayout layout;
 };
-
-static constinit mem::IAllocator *gAllocator = nullptr;
-static constinit stdx::SpinLock gAllocatorLock;
-
-extern "C" void *malloc(size_t size) {
-    stdx::LockGuard _(gAllocatorLock);
-    return gAllocator->allocate(size);
-}
-
-extern "C" void *realloc(void *old, size_t size) {
-    stdx::LockGuard _(gAllocatorLock);
-    return gAllocator->reallocate(old, 0, size);
-}
-
-extern "C" void free(void *ptr) {
-    stdx::LockGuard _(gAllocatorLock);
-    gAllocator->deallocate(ptr, 0);
-}
-
-extern "C" void *aligned_alloc(size_t alignment, size_t size) {
-    stdx::LockGuard _(gAllocatorLock);
-    return gAllocator->allocateAligned(size, alignment);
-}
-
-static void InitGlobalAllocator(mem::IAllocator *allocator) {
-    stdx::LockGuard _(gAllocatorLock);
-    gAllocator = allocator;
-}
 
 static Stage2MemoryInfo *InitStage2Memory(
     const boot::LaunchInfo& launch,
@@ -581,12 +507,9 @@ static Stage2MemoryInfo *InitStage2Memory(
     PageBuilder pm = PageBuilder { processor.maxpaddr, processor.maxvaddr, layout.committedSlide(), GetDefaultPatLayout() };
 
     // Create the global memory allocator
-    mem::TlsfAllocator alloc{(void*)layout.committed.vaddr, layout.committed.size};
+    InitGlobalAllocator((void*)layout.committed.vaddr, layout.committed.size);
 
-    Stage2MemoryInfo *stage2 = alloc.construct<Stage2MemoryInfo>();
-    stage2->allocator = std::move(alloc);
-
-    InitGlobalAllocator(&stage2->allocator);
+    Stage2MemoryInfo *stage2 = new Stage2MemoryInfo();
 
     static constexpr size_t kPtAllocSize = sm::megabytes(1).bytes();
     mem::TlsfAllocator *ptAllocator = new mem::TlsfAllocator(aligned_alloc(x64::kPageSize, kPtAllocSize), kPtAllocSize);
@@ -624,107 +547,6 @@ static Stage2MemoryInfo *InitStage2Memory(
     KmUpdateRootPageTable(memory->pager, memory->pt);
 
     return stage2;
-}
-
-static void DumpIsrState(const km::IsrContext *context) {
-    KmDebugMessageUnlocked("| Register | Value\n");
-    KmDebugMessageUnlocked("|----------+------\n");
-    KmDebugMessageUnlocked("| %RAX     | ", Hex(context->rax).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %RBX     | ", Hex(context->rbx).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %RCX     | ", Hex(context->rcx).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %RDX     | ", Hex(context->rdx).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %RDI     | ", Hex(context->rdi).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %RSI     | ", Hex(context->rsi).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %R8      | ", Hex(context->r8).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %R9      | ", Hex(context->r9).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %R10     | ", Hex(context->r10).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %R11     | ", Hex(context->r11).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %R12     | ", Hex(context->r12).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %R13     | ", Hex(context->r13).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %R14     | ", Hex(context->r14).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %R15     | ", Hex(context->r15).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %RBP     | ", Hex(context->rbp).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %RIP     | ", Hex(context->rip).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %CS      | ", Hex(context->cs).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %RFLAGS  | ", Hex(context->rflags).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %RSP     | ", Hex(context->rsp).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %SS      | ", Hex(context->ss).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| Vector   | ", Hex(context->vector).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| Error    | ", Hex(context->error).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("\n");
-
-    if (context->vector == isr::PF) {
-        KmDebugMessageUnlocked("| Faulting address | ", Hex(__get_cr2()).pad(16, '0'), "\n");
-
-        if (context->error & (1 << 0)) {
-            KmDebugMessageUnlocked("PRESENT ");
-        } else {
-            KmDebugMessageUnlocked("NOT PRESENT ");
-        }
-
-        if (context->error & (1 << 1)) {
-            KmDebugMessageUnlocked("WRITE ");
-        } else {
-            KmDebugMessageUnlocked("READ ");
-        }
-
-        if (context->error & (1 << 2)) {
-            KmDebugMessageUnlocked("USER ");
-        } else {
-            KmDebugMessageUnlocked("SUPERVISOR ");
-        }
-
-        if (context->error & (1 << 3)) {
-            KmDebugMessageUnlocked("RESERVED ");
-        }
-
-        if (context->error & (1 << 4)) {
-            KmDebugMessageUnlocked("FETCH ");
-        }
-
-        KmDebugMessageUnlocked("\n");
-    }
-
-    if (context->vector == isr::UD) {
-        std::byte data[16];
-        memcpy(data, (void*)context->rip, sizeof(data));
-        KmDebugMessageUnlocked(km::HexDump(data));
-        KmDebugMessageUnlocked("\n");
-    }
-
-    KmDebugMessageUnlocked("| MSR                 | Value\n");
-    KmDebugMessageUnlocked("|---------------------+------\n");
-    KmDebugMessageUnlocked("| IA32_GS_BASE        | ", Hex(kGsBase.load()).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| IA32_FS_BASE        | ", Hex(kFsBase.load()).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| IA32_KERNEL_GS_BASE | ", Hex(kKernelGsBase.load()).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("\n");
-}
-
-static void DumpStackTrace(const km::IsrContext *context) {
-    KmDebugMessageUnlocked("|----Stack trace-----+----------------\n");
-    KmDebugMessageUnlocked("| Frame              | Program Counter\n");
-    KmDebugMessageUnlocked("|--------------------+----------------\n");
-    if (SystemMemory *memory = km::GetSystemMemory()) {
-        x64::WalkStackFramesChecked(memory->pt, (void**)context->rbp, [](void **frame, void *pc, stdx::StringView note) {
-            KmDebugMessageUnlocked("| ", (void*)frame, " | ", pc);
-            if (!note.isEmpty()) {
-                KmDebugMessageUnlocked(" ", note);
-            }
-            KmDebugMessageUnlocked("\n");
-        });
-    }
-
-    if (kEmitAddrToLine) {
-        KmDebugMessageUnlocked("llvm-addr2line -e ./build/kernel/bezos-limine");
-
-        if (SystemMemory *memory = km::GetSystemMemory()) {
-            x64::WalkStackFramesChecked(memory->pt, (void**)context->rbp, [](void **, void *pc, stdx::StringView) {
-                KmDebugMessageUnlocked(" ", pc);
-            });
-        }
-
-        KmDebugMessageUnlocked("\n");
-    }
 }
 
 static km::IsrContext SpuriousVector(km::IsrContext *ctx) {
@@ -803,57 +625,6 @@ static SerialPortStatus InitSerialPort(ComPortInfo info) {
         gLogTargets.add(&gSerialLog);
         return SerialPortStatus::eOk;
     }
-}
-
-static void DumpIsrContext(const km::IsrContext *context, stdx::StringView message) {
-    if (km::IsCpuStorageSetup()) {
-        KmDebugMessageUnlocked("\n[BUG] ", message, " - On ", km::GetCurrentCoreId(), "\n");
-    } else {
-        KmDebugMessageUnlocked("\n[BUG] ", message, "\n");
-    }
-
-    DumpIsrState(context);
-}
-
-static void InstallExceptionHandlers(SharedIsrTable *ist) {
-    ist->install(isr::DE, [](km::IsrContext *context) -> km::IsrContext {
-        DumpIsrContext(context, "Divide by zero (#DE)");
-        DumpStackTrace(context);
-        KM_PANIC("Kernel panic.");
-    });
-
-    ist->install(isr::NMI, [](km::IsrContext *context) -> km::IsrContext {
-        KmDebugMessageUnlocked("[INT] Non-maskable interrupt (#NM)\n");
-        DumpIsrState(context);
-        return *context;
-    });
-
-    ist->install(isr::UD, [](km::IsrContext *context) -> km::IsrContext {
-        DumpIsrContext(context, "Invalid opcode (#UD)");
-        DumpStackTrace(context);
-        KM_PANIC("Kernel panic.");
-    });
-
-    ist->install(isr::DF, [](km::IsrContext *context) -> km::IsrContext {
-        DumpIsrContext(context, "Double fault (#DF)");
-        DumpStackTrace(context);
-        KM_PANIC("Kernel panic.");
-    });
-
-    ist->install(isr::GP, [](km::IsrContext *context) -> km::IsrContext {
-        NmiGuard guard;
-
-        DumpIsrContext(context, "General protection fault (#GP)");
-        DumpStackTrace(context);
-        KM_PANIC("Kernel panic.");
-    });
-
-    ist->install(isr::PF, [](km::IsrContext *context) -> km::IsrContext {
-        KmDebugMessageUnlocked("[BUG] CR2: ", Hex(__get_cr2()).pad(16, '0'), "\n");
-        DumpIsrContext(context, "Page fault (#PF)");
-        DumpStackTrace(context);
-        KM_PANIC("Kernel panic.");
-    });
 }
 
 static void InitPortDelay() {

@@ -6,8 +6,13 @@
 #include "std/queue.hpp"
 
 namespace km {
+    struct SchedulerQueueTraits : moodycamel::ConcurrentQueueDefaultTraits {
+        static void *malloc(size_t size);
+        static void free(void *ptr);
+    };
+
     class Scheduler {
-        moodycamel::ConcurrentQueue<sm::RcuWeakPtr<Thread>> mQueue;
+        moodycamel::ConcurrentQueue<sm::RcuWeakPtr<Thread>, SchedulerQueueTraits> mQueue;
 
     public:
         Scheduler();
@@ -15,6 +20,8 @@ namespace km {
         void addWorkItem(sm::RcuSharedPtr<Thread> thread);
         sm::RcuSharedPtr<km::Thread> getWorkItem() noexcept;
     };
+
+    void InitSchedulerMemory(void *memory, size_t size);
 
     sm::RcuSharedPtr<Thread> GetCurrentThread();
     sm::RcuSharedPtr<Process> GetCurrentProcess();
