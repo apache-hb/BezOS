@@ -340,6 +340,7 @@ extern "C" [[noreturn]] void ClientStart(const void*, const void*, uint64_t) {
         if (event.Body.Key.Key == eKeyReturn) {
             if (index == 0) {
                 display.WriteString("\n");
+                Prompt(display);
                 continue;
             }
 

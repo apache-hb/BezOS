@@ -14,14 +14,10 @@ static constinit Idt gIdt{};
 template<typename F>
 static km::IsrContext DispatchIsr(km::IsrContext *context, F&& handler) {
     //
-    // Did this interrupt happen while in user space?
+    // If this interrupt happened while in userspace then the
+    // GS_BASE and KERNEL_GS_BASE registers need to be swapped.
     //
-    bool userSpaceInt = (context->cs & 0b11) != 0;
-
-    //
-    // If it did then the GS_BASE and KERNEL_GS_BASE registers need to be swapped.
-    //
-    if (userSpaceInt) {
+    if ((context->cs & 0b11) != 0) {
         __swapgs();
     }
 
@@ -31,9 +27,13 @@ static km::IsrContext DispatchIsr(km::IsrContext *context, F&& handler) {
     km::IsrContext result = handler(context);
 
     //
-    // And then swapped back again to avoid breaking userspace.
+    // If the interrupt will be returning to userspace then swap
+    // again to restore the GS_BASE register. This is a distinct
+    // check from the one above because the interrupt handler may
+    // have been a part of scheduling, which can switch between
+    // kernel and userspace.
     //
-    if (userSpaceInt) {
+    if ((result.cs & 0b11) != 0) {
         __swapgs();
     }
 

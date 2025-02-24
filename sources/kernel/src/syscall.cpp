@@ -9,7 +9,7 @@ static constexpr x64::ModelRegister<0xC0000081, x64::RegisterAccess::eReadWrite>
 static constexpr x64::ModelRegister<0xC0000082, x64::RegisterAccess::eReadWrite> kLStar;
 static constexpr x64::ModelRegister<0xC0000084, x64::RegisterAccess::eReadWrite> kFMask;
 
-static constexpr size_t kStackSize = 0x4000;
+static constexpr size_t kStackSize = 0x4000 * 4;
 
 CPU_LOCAL
 static constinit km::CpuLocal<void*> tlsSystemCallStack;
@@ -25,6 +25,11 @@ extern "C" void KmSystemEntry(void);
 extern "C" uint64_t KmSystemCallStackTlsOffset;
 
 extern "C" OsCallResult KmSystemDispatchRoutine(km::SystemCallContext *context) {
+    if (__gsbase() == 0) {
+        KmDebugMessageUnlocked("[SYS] System call stack not setup.\n");
+        KmHalt();
+    }
+
     volatile uint8_t function = context->function;
     if (km::SystemCallHandler handler = gSystemCalls[function]) {
         OsCallResult result = handler(context->arg0, context->arg1, context->arg2, context->arg3);
@@ -44,15 +49,6 @@ void km::SetupUserMode() {
 
     KmSystemCallStackTlsOffset = tlsSystemCallStack.tlsOffset();
 
-    // Enable syscall/sysret
-    uint64_t efer = kEfer.load();
-    kEfer.store(efer | (1 << 0));
-
-    kFMask.store(0x0);
-
-    // Store the syscall entry point in the LSTAR MSR
-    kLStar.store((uint64_t)KmSystemEntry);
-
     uint64_t star = 0;
 
     // Store the kernel mode code segment and stack segment in the STAR MSR
@@ -61,6 +57,18 @@ void km::SetupUserMode() {
 
     // And the user mode code segment and stack segment
     star |= uint64_t(((SystemGdt::eLongModeUserCode * 0x8) - 0x10) | 0b11) << 48;
+
+    // Enable syscall/sysret
+    uint64_t efer = kEfer.load();
+    kEfer.store(efer | (1 << 0));
+
+    // Mask the interrupt flag in RFLAGS
+    uint64_t fmask = (1 << 9);
+
+    kFMask.store(fmask);
+
+    // Store the syscall entry point in the LSTAR MSR
+    kLStar.store((uintptr_t)KmSystemEntry);
 
     kStar.store(star);
 }

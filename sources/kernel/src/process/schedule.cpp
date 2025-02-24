@@ -99,6 +99,7 @@ void km::ScheduleWork(LocalIsrTable *table, IApic *apic, sm::RcuSharedPtr<km::Th
                 return next->state;
             }
         } else {
+            KmDebugMessage("[TASK] No work items available.\n");
             return *ctx;
         }
     });

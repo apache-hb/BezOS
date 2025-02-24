@@ -66,6 +66,7 @@ KmSystemEntry:
 
     popq %rcx /* userReturnAddress */
     popq %r11 /* eflags */
+    or $0x200, %r11 /* set the IF flag before returning control */
 
     /* pop the rest of the context we dont need to preserve */
     add $(5 * 8), %rsp
