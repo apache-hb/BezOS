@@ -159,7 +159,7 @@ static constinit SystemGdt gBootGdt{};
 static constinit SerialPort gCanBusPort;
 static constinit CanBus gCanBus{nullptr};
 
-static constexpr size_t kTssStackSize = x64::kPageSize * 4;
+static constexpr size_t kTssStackSize = x64::kPageSize * 8;
 
 enum {
     kIstTrap = 1,
@@ -435,13 +435,7 @@ static void MapDisplayRegions(PageTableManager& vmm, std::span<const boot::Frame
     for (const boot::FrameBuffer& framebuffer : framebuffers) {
         // remap the framebuffer into its final location
         km::AddressMapping fb = { (void*)framebufferBase, framebuffer.paddr, framebuffer.size() };
-        KmDebugMessage("[INIT] Mapping framebuffer ", fb, ".\n");
         vmm.map(fb, PageFlags::eData, MemoryType::eWriteCombine);
-
-        PageFlags flags = vmm.getMemoryFlags(fb.vaddr);
-        KM_CHECK(bool(flags & PageFlags::eWrite), "Failed to map framebuffer memory.");
-        flags = vmm.getMemoryFlags((char*)fb.vaddr + fb.size - 1);
-        KM_CHECK(bool(flags & PageFlags::eWrite), "Failed to map framebuffer memory.");
 
         framebufferBase += framebuffer.size();
     }
@@ -514,11 +508,6 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
 
     // once it is safe to remap the boot memory, do so
     KmUpdateRootPageTable(pm, vmm);
-
-    PageFlags flags = vmm.getMemoryFlags(layout.framebuffers.front);
-    KM_CHECK(bool(flags & PageFlags::eWrite), "Failed to map framebuffer memory.");
-    flags = vmm.getMemoryFlags((char*)layout.framebuffers.back - 1);
-    KM_CHECK(bool(flags & PageFlags::eWrite), "Failed to map framebuffer memory.");
 
     // can't log anything here as we need to move the framebuffer first
 

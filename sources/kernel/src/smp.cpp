@@ -51,7 +51,7 @@ struct SmpInfoHeader {
     /// the BSP that the next core can be started safely.
     std::atomic<uint32_t> ready;
 
-    km::IApic *bspIntController;
+    km::IApic *bspApic;
     km::SystemMemory *memory;
     km::SmpInitCallback callback;
     void *user;
@@ -78,7 +78,7 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
     km::SetupInitialGdt();
     km::LoadIdt();
 
-    km::Apic apic = km::InitApApic(*header->memory, header->bspIntController);
+    km::Apic apic = km::InitApApic(*header->memory, header->bspApic);
 
     km::InitCpuLocalRegion();
 
@@ -139,7 +139,7 @@ static SmpInfoHeader SetupSmpInfoHeader(
             .limit = sizeof(SmpInfoHeader::gdt) - 1,
             .base = offsetof(SmpInfoHeader, gdt) + kSmpInfo.address,
         },
-        .bspIntController = pic,
+        .bspApic = pic,
         .memory = memory,
         .callback = callback,
         .user = user,

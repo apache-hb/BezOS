@@ -575,6 +575,8 @@ static block_header_t* search_suitable_block(control_t* control, int* fli, int* 
 /* Remove a free block from the free list.*/
 static void remove_free_block(control_t* control, block_header_t* block, int fl, int sl)
 {
+	// printf("remove_free_block: %p\n", block);
+
 	block_header_t* prev = block->prev_free;
 	block_header_t* next = block->next_free;
 	tlsf_assert(prev && "prev_free field can not be null");

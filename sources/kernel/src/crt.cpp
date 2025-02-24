@@ -2,6 +2,8 @@
 #include <stdint.h>
 
 #include "crt.hpp"
+#include "log.hpp"
+#include "panic.hpp"
 
 static bool HaveEqualAlignment(const void *lhs, const void *rhs, size_t alignment) {
     return ((uintptr_t)lhs % alignment) == ((uintptr_t)rhs % alignment);

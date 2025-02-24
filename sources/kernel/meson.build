@@ -51,11 +51,12 @@ mp_units = dependency('mp-units')
 absl = subproject('abseil-cpp')
 concurrentqueue = dependency('concurrentqueue')
 tlsf = subproject('tlsf')
+stb_sprintf = dependency('stb_sprintf')
 sysapi = subproject('sysapi').get_variable('sysapi_dep')
 
 inc = [ inc, absl.get_variable('absl_include_dir'), tlsf.get_variable('includes') ]
 libs = [ absl.get_variable('absl_container_lib') ]
-deps = [ mp_units, sysapi, concurrentqueue ]
+deps = [ mp_units, sysapi, concurrentqueue, stb_sprintf ]
 
 compiler = find_program(cc.get_id())
 objcopy = find_program('objcopy')

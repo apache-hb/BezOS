@@ -23,15 +23,8 @@ meson.override_dependency('stb_image', image_dep)
 
 # stb_sprintf
 
-lib_sprintf = static_library('stb_sprintf', fs.copyfile('stb_sprintf.h', 'stb_sprintf.c'),
-    c_args : [ '-DSTB_SPRINTF_IMPLEMENTATION' ],
-    build_by_default : false,
-    native : true,
-)
-
 sprintf_dep = declare_dependency(
-    include_directories : '.',
-    link_with : lib_sprintf
+    include_directories : '.'
 )
 
 meson.override_dependency('stb_sprintf', sprintf_dep)

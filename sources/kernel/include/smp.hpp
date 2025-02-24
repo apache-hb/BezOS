@@ -6,7 +6,7 @@
 
 namespace km {
     /// @brief The stack size for each AP.
-    constexpr size_t kStartupStackSize = x64::kPageSize * 4;
+    constexpr size_t kStartupStackSize = x64::kPageSize * 8;
 
     /// @brief The amount of memory required to startup a single AP.
     constexpr size_t kStartupMemorySize = kStartupStackSize;

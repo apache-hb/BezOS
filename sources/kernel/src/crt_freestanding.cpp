@@ -2,7 +2,34 @@
 #include <stdint.h>
 
 #include "crt.hpp"
+#include "log.hpp"
 #include "panic.hpp"
+
+#define STB_SPRINTF_IMPLEMENTATION
+#define STB_SPRINTF_NOFLOAT
+#define STB_SPRINTF_NOUNALIGNED
+#include "stb_sprintf.h"
+
+extern "C" int printf(const char *fmt, ...) {
+    char buffer[1024];
+    va_list va;
+    va_start(va, fmt);
+    int result = STB_SPRINTF_DECORATE(vsnprintf)(buffer, sizeof(buffer), fmt, va);
+    va_end(va);
+
+    stdx::StringView message(buffer, buffer + result);
+    KmDebugMessage(message);
+
+    return result;
+}
+
+extern "C" void tlsf_default_assert(int cond, const char *msg) {
+    if (!cond) {
+        stdx::StringView message(msg, msg + std::char_traits<char>::length(msg));
+        KmDebugMessage("TLSF assertion failed: ", message, "\n");
+        KM_PANIC("TLSF assertion failed.");
+    }
+}
 
 void std::terminate() noexcept {
     KM_PANIC("std::terminate() called");
