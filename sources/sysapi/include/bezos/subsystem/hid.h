@@ -35,14 +35,14 @@ struct OsHidMouseEvent {
 };
 
 union OsHidEventData {
-    OsHidKeyEvent Key;
-    OsHidMouseEvent MouseMove;
+    struct OsHidKeyEvent Key;
+    struct OsHidMouseEvent MouseMove;
 };
 
 struct OsHidEvent {
     OsHidEventType Type;
     OsInstant Time;
-    OsHidEventData Body;
+    union OsHidEventData Body;
 };
 
 #ifdef __cplusplus

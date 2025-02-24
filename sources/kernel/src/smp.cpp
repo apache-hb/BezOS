@@ -1,7 +1,5 @@
 #include "smp.hpp"
 
-#include "arch/paging.hpp"
-
 #include "isr/isr.hpp"
 #include "isr/runtime.hpp"
 
@@ -49,7 +47,7 @@ struct SmpInfoHeader {
     /// @brief The ready flag.
     /// Once an AP has been fully started it will set this flag, which signals to
     /// the BSP that the next core can be started safely.
-    std::atomic<uint32_t> ready;
+    std::atomic_flag ready;
 
     km::IApic *bspApic;
     km::SystemMemory *memory;
@@ -103,13 +101,16 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
 
     km::EnableInterrupts();
 
-    // Copy the latch pointer
+    //
+    // Copy the callback and user pointer, the header will be unmapped after
+    // header->ready is set on the last cpu.
+    //
     km::SmpInitCallback callback = header->callback;
     void *user = header->user;
 
     km::SetupUserMode(header->memory);
 
-    header->ready = 1;
+    header->ready.test_and_set();
 
     callback(ist, apic.pointer(), user);
     KM_PANIC("SMP callback returned.");
@@ -160,7 +161,9 @@ void km::InitSmp(
 ) {
     KmDebugMessage("[SMP] Starting APs.\n");
 
-    // copy the SMP blob to the correct location
+    //
+    // Copy the SMP blob to the correct location.
+    //
     size_t blobSize = GetSmpBlobSize();
     void *smpStartBlob = memory.map(kSmpStart, kSmpStart + blobSize, km::PageFlags::eAll);
     memcpy(smpStartBlob, _binary_smp_start, blobSize);
@@ -171,8 +174,10 @@ void km::InitSmp(
 
     SmpInfoHeader *smpInfo = memory.mapObject<SmpInfoHeader>(kSmpInfo);
 
+    //
     // Also identity map the SMP blob and info regions, it makes jumping to compatibility mode easier.
     // I think theres a better way to do this, but I'm not sure what it is.
+    //
     memory.pt.mapRange({ kSmpInfo, kSmpInfo + sizeof(SmpInfoHeader) }, (void*)kSmpInfo.address, km::PageFlags::eData);
     memory.pt.mapRange({ kSmpStart, kSmpStart + blobSize }, (void*)kSmpStart.address, km::PageFlags::eCode);
 
@@ -185,7 +190,9 @@ void km::InitSmp(
 
         const acpi::MadtEntry::LocalApic localApic = madt->apic;
 
-        // No need to start the BSP
+        //
+        // No need to start the BSP.
+        //
         if (localApic.apicId == bspId)
             continue;
 
@@ -195,36 +202,48 @@ void km::InitSmp(
         }
 
         smpInfo->stack = AllocSmpStack(memory);
-        smpInfo->ready = 0;
+        smpInfo->ready.clear();
 
         KmDebugMessage("[SMP] Starting APIC ID: ", localApic.apicId, "\n");
 
+        //
         // Send the INIT IPI
+        //
         bsp->sendIpi(localApic.apicId, apic::IpiAlert::init());
 
         // TODO: sleep
 
         KmDebugMessage("[SMP] Sending SIPI to APIC ID: ", localApic.apicId, "\n");
 
+        //
         // Send the start IPI
+        //
         bsp->sendIpi(localApic.apicId, apic::IpiAlert::sipi(kSmpStart));
 
         KmDebugMessage("[SMP] Waiting for APIC ID: ", localApic.apicId, " to start.\n");
 
         // TODO: should really have a condition variable here
-        while (!smpInfo->ready) {
-            _mm_pause();
+        while (!smpInfo->ready.test()) {
+            //
             // Spin until the core is ready
+            //
+            _mm_pause();
         }
     }
 
+    //
     // Now that we're finished, cleanup the smp blob and startup area.
+    //
 
-    // Unmap the smp blob and info regions
+    //
+    // Unmap the smp blob and info regions.
+    //
     memory.unmap(smpStartBlob, blobSize);
     memory.unmap(smpInfo, sizeof(SmpInfoHeader));
 
-    // And unmap the identity mappings
+    //
+    // And unmap the identity mappings.
+    //
     memory.pt.unmap((void*)kSmpInfo.address, sizeof(SmpInfoHeader));
     memory.pt.unmap((void*)kSmpStart.address, blobSize);
 }

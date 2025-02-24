@@ -38,8 +38,29 @@ struct OsGuid {
     OsByte Octets[16];
 };
 
+/// @brief A version tag.
+///
+/// All versioning is done using a single 32-bit integer and semantic versioning.
+/// The version is stored as follows:
+/// - Bits 31-24: Major version.
+/// - Bits 23-16: Minor version.
+/// - Bits 15-0: Patch version.
+///
+/// @see OS_VERSION_MAJOR
+/// @see OS_VERSION_MINOR
+/// @see OS_VERSION_PATCH
+/// @see OS_VERSION
+typedef uint32_t OsVersionTag;
+
+#define OS_VERSION_MAJOR(version) (((OsVersionTag)(version) & 0xff000000) >> 24)
+#define OS_VERSION_MINOR(version) (((OsVersionTag)(version) & 0x00ff0000) >> 16)
+#define OS_VERSION_PATCH(version) (((OsVersionTag)(version) & 0x0000ffff))
+
+#define OS_VERSION(major, minor, patch) \
+    (((OsVersionTag)(major) << 24) | ((OsVersionTag)(minor) << 16) | (OsVersionTag)(patch))
+
 #define OS_DEFINE_GUID(NAME, P0, P1, P2, P3, P4) \
-    static const inline OsGuid NAME = { \
+    static const struct OsGuid NAME = { \
         .Octets = { \
             ((P0 >> 24) & 0xff), ((P0 >> 16) & 0xff), ((P0 >> 8) & 0xff), (P0 & 0xff), \
             ((P1 >> 8) & 0xff), (P1 & 0xff), \

@@ -58,17 +58,7 @@ namespace dev {
         }
 
     public:
-        DisplayHandle(vfs2::IVfsNode *node, km::Canvas canvas)
-            : vfs2::IVfsNodeHandle(node)
-            , mCanvas(canvas)
-        {
-            km::MemoryRange range = {
-                .front = mCanvas.physical(),
-                .back = mCanvas.physical() + mCanvas.size() * mCanvas.bytesPerPixel(),
-            };
-
-            mUserCanvas = km::GetSystemMemory()->map(range, km::PageFlags::eUser | km::PageFlags::eWrite, km::MemoryType::eWriteCombine);
-        }
+        DisplayHandle(vfs2::IVfsDevice *node);
 
         OsStatus call(uint64_t function, void *data) override {
             switch (function) {
@@ -90,24 +80,21 @@ namespace dev {
     class DisplayDevice : public vfs2::IVfsDevice {
         km::Canvas mCanvas;
 
-        // vfs2::IVfsDevice interface
-        OsStatus query(sm::uuid uuid, vfs2::IVfsNodeHandle **handle) override {
-            if (uuid != kOsDisplayClassGuid) {
-                return OsStatusNotSupported;
-            }
-
-            DisplayHandle *ddiHandle = new (std::nothrow) DisplayHandle(this, mCanvas);
-            if (!ddiHandle) {
-                return OsStatusOutOfMemory;
-            }
-
-            *handle = ddiHandle;
-            return OsStatusSuccess;
-        }
-
     public:
         DisplayDevice(km::Canvas canvas)
             : mCanvas(canvas)
-        { }
+        {
+            addInterface<DisplayHandle>(kOsDisplayClassGuid);
+
+            mIdentifyInfo = OsIdentifyInfo {
+                .DisplayName = "Generic RAM framebuffer display",
+                .Model = "Generic RAM framebuffer display",
+                .DeviceVendor = "Generic",
+                .DriverVendor = "BezOS",
+                .DriverVersion = OS_VERSION(1, 0, 0),
+            };
+        }
+
+        km::Canvas getCanvas() const { return mCanvas; }
     };
 }

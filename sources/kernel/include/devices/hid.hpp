@@ -16,35 +16,11 @@ namespace dev {
         stdx::Vector2<OsHidEvent> mEvents;
 
     public:
-        HidKeyboardHandle(vfs2::IVfsNode *node)
-            : vfs2::IVfsNodeHandle(node)
-        { }
+        HidKeyboardHandle(vfs2::IVfsDevice *node);
 
-        void notify(OsHidEvent event) {
-            stdx::LockGuard guard(mLock);
-            mEvents.add(event);
-        }
+        void notify(OsHidEvent event);
 
-        OsStatus read(vfs2::ReadRequest request, vfs2::ReadResult *result) override {
-            if (request.size() <= 0 || request.offset != 0) {
-                return OsStatusInvalidInput;
-            }
-
-            if (request.size() % sizeof(OsHidEvent) != 0) {
-                return OsStatusInvalidInput;
-            }
-
-            size_t count = std::min(request.size() / sizeof(OsHidEvent), mEvents.count());
-            stdx::LockGuard guard(mLock);
-
-            if (!mEvents.isEmpty()) {
-                std::memcpy(request.begin, mEvents.data(), count * sizeof(OsHidEvent));
-                mEvents.erase(0, count);
-            }
-
-            result->read = count * sizeof(OsHidEvent);
-            return OsStatusSuccess;
-        }
+        OsStatus read(vfs2::ReadRequest request, vfs2::ReadResult *result) override;
     };
 
     class HidKeyboardDevice
@@ -54,25 +30,6 @@ namespace dev {
         stdx::SharedSpinLock mLock;
         stdx::Vector2<HidKeyboardHandle*> mHandles;
 
-        // vfs2::IVfsDevice interface
-        OsStatus query(sm::uuid uuid, vfs2::IVfsNodeHandle **handle) override {
-            if (uuid != kOsHidClassGuid) {
-                return OsStatusNotSupported;
-            }
-
-            HidKeyboardHandle *hidHandle = new (std::nothrow) HidKeyboardHandle(this);
-            if (!hidHandle) {
-                return OsStatusOutOfMemory;
-            }
-
-            stdx::UniqueLock guard(mLock);
-
-            mHandles.push_back(hidHandle);
-            *handle = hidHandle;
-
-            return OsStatusSuccess;
-        }
-
         // km::ISubscriber interface
         void notify(km::Topic*, sm::RcuSharedPtr<km::INotification> notification) override {
             hid::HidNotification *hid = static_cast<hid::HidNotification*>(notification.get());
@@ -81,6 +38,25 @@ namespace dev {
             for (HidKeyboardHandle *handle : mHandles) {
                 handle->notify(hid->event());
             }
+        }
+
+    public:
+        HidKeyboardDevice() {
+            addInterface<HidKeyboardHandle>(kOsHidClassGuid);
+
+            mIdentifyInfo = OsIdentifyInfo {
+                .DisplayName = "PS/2 Keyboard",
+                .Model = "Generic 101/102-Key (Intl) PC",
+                .DeviceVendor = "Generic",
+                .FirmwareRevision = "Generic",
+                .DriverVendor = "BezOS",
+                .DriverVersion = OS_VERSION(1, 0, 0),
+            };
+        }
+
+        void attach(HidKeyboardHandle *handle) {
+            stdx::UniqueLock guard(mLock);
+            mHandles.add(handle);
         }
     };
 }

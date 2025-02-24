@@ -163,10 +163,15 @@ src = [
     'src/fs2/path.cpp',
     'src/fs2/node.cpp',
     'src/fs2/handle.cpp',
+    'src/fs2/device.cpp',
 
     # VFS drivers
     'src/fs2/ramfs.cpp',
     'src/fs2/tarfs.cpp',
+
+    # Devices
+    'src/devices/ddi.cpp',
+    'src/devices/hid.cpp',
 
     # Smp setup
     'src/smp.cpp',

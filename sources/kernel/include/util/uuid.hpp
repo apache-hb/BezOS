@@ -356,6 +356,12 @@ namespace sm {
 
             return std::strong_ordering::equal;
         }
+
+        constexpr operator OsGuid() const noexcept {
+            OsGuid guid;
+            std::copy(octets, octets + sizeof(octets), guid.Octets);
+            return guid;
+        }
     };
 
     static_assert(sizeof(uuidv1) == 16);

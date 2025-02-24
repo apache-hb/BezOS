@@ -68,6 +68,10 @@ enum OsStatusId {
 
     /// @brief The operation timed out.
     OsStatusTimeout = 0xe,
+
+    OsStatusOutOfBounds = 0xf,
+
+    OsStatusMoreData = 0x10,
 };
 
 #ifdef __cplusplus
