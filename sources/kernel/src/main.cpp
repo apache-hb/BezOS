@@ -470,9 +470,6 @@ static boot::FrameBuffer *CloneFrameBuffers(mem::IAllocator *alloc, std::span<co
     return fbs;
 }
 
-__attribute__((noinline))
-void DebugBreak() { }
-
 static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const km::ProcessorInfo& processor) {
     PageMemoryTypeLayout pat = SetupPat();
 
@@ -515,8 +512,6 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
 
     MapDisplayRegions(vmm, launch.framebuffers, layout.framebuffers);
 
-    DebugBreak();
-
     // once it is safe to remap the boot memory, do so
     KmUpdateRootPageTable(pm, vmm);
 
@@ -524,8 +519,6 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
     KM_CHECK(bool(flags & PageFlags::eWrite), "Failed to map framebuffer memory.");
     flags = vmm.getMemoryFlags((char*)layout.framebuffers.back - 1);
     KM_CHECK(bool(flags & PageFlags::eWrite), "Failed to map framebuffer memory.");
-
-    DebugBreak();
 
     // can't log anything here as we need to move the framebuffer first
 
@@ -594,12 +587,8 @@ static Stage2MemoryInfo *InitStage2Memory(
     // remap framebuffers
     MapDisplayRegions(memory->pt, framebuffers, layout.framebuffers);
 
-    DebugBreak();
-
     // once it is safe to remap the boot memory, do so
     KmUpdateRootPageTable(memory->pager, memory->pt);
-
-    DebugBreak();
 
     return stage2;
 }
@@ -621,7 +610,7 @@ static ApicInfo EnableBootApic(km::SystemMemory& memory, bool useX2Apic) {
 
     // setup tls now that we have the lapic id
 
-    km::InitCpuLocalRegion(memory);
+    km::InitCpuLocalRegion();
     km::RuntimeIsrManager::cpuInit();
 
     km::EnableCpuLocalIsrTable();
@@ -1277,7 +1266,7 @@ static void StartupSmp(const acpi::AcpiTables& rsdt) {
         // scheduler is ready to be used. The scheduler requires the system to switch
         // to using cpu local isr tables, which must happen after smp startup.
         //
-        InitSmp(*gMemory, GetCpuLocalApic(), rsdt, [&launchScheduler](LocalIsrTable *ist, IApic *apic) {
+        InitSmp(*GetSystemMemory(), GetCpuLocalApic(), rsdt, [&launchScheduler](LocalIsrTable *ist, IApic *apic) {
             while (!launchScheduler.test()) {
                 _mm_pause();
             }
@@ -1510,8 +1499,6 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     InitStage1Idt(SystemGdt::eLongModeCode);
     EnableInterrupts();
-
-    KmHalt();
 
     PlatformInfo platform = GetPlatformInfo(launch.smbios32Address, launch.smbios64Address, *stage2->memory);
 

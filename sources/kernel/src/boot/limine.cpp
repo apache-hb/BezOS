@@ -83,6 +83,7 @@ struct BootAllocator {
     }
 };
 
+[[gnu::no_sanitize_address]]
 static boot::FrameBuffer BootGetDisplay(int index, uintptr_t hhdmOffset) {
     limine_framebuffer_response response = *gFramebufferRequest.response;
     limine_framebuffer framebuffer = *response.framebuffers[index];
@@ -106,6 +107,7 @@ static boot::FrameBuffer BootGetDisplay(int index, uintptr_t hhdmOffset) {
     };
 }
 
+[[gnu::no_sanitize_address]]
 static std::span<boot::FrameBuffer> BootGetFrameBuffers(uintptr_t hhdmOffset, BootAllocator& alloc) {
     limine_framebuffer_response response = *gFramebufferRequest.response;
     boot::FrameBuffer *fbs = (boot::FrameBuffer*)alloc.malloc(sizeof(boot::FrameBuffer) * response.framebuffer_count, alignof(boot::FrameBuffer));
@@ -117,6 +119,7 @@ static std::span<boot::FrameBuffer> BootGetFrameBuffers(uintptr_t hhdmOffset, Bo
     return { fbs, response.framebuffer_count };
 }
 
+[[gnu::no_sanitize_address]]
 static boot::MemoryRegion::Type BootGetEntryType(limine_memmap_entry entry) {
     switch (entry.type) {
     case LIMINE_MEMMAP_USABLE:
@@ -140,6 +143,7 @@ static boot::MemoryRegion::Type BootGetEntryType(limine_memmap_entry entry) {
     }
 }
 
+[[gnu::no_sanitize_address]]
 static std::span<boot::MemoryRegion> BootGetMemoryMap(BootAllocator& alloc) {
     limine_memmap_response response = *gMemmoryMapRequest.response;
     boot::MemoryRegion *memmap = (boot::MemoryRegion*)alloc.malloc(sizeof(boot::MemoryRegion) * response.entry_count + 1, alignof(boot::MemoryRegion));
@@ -165,6 +169,7 @@ static std::span<boot::MemoryRegion> BootGetMemoryMap(BootAllocator& alloc) {
     return { memmap, response.entry_count + 1 };
 }
 
+[[gnu::no_sanitize_address]]
 static BootAllocator MakeBootAllocator(size_t size, const limine_memmap_response& memmap, uintptr_t hhdmOffset) {
     // Find a free memory range to use as a buffer
     for (uint64_t i = 0; i < memmap.entry_count; i++) {
@@ -187,6 +192,7 @@ static BootAllocator MakeBootAllocator(size_t size, const limine_memmap_response
     return BootAllocator { };
 }
 
+[[gnu::no_sanitize_address]]
 static km::MemoryRange GetInitDiskImage(const limine_module_response *modules, uintptr_t hhdmOffset) {
     if (modules == nullptr) {
         return { };
@@ -204,7 +210,7 @@ static km::MemoryRange GetInitDiskImage(const limine_module_response *modules, u
     return { front, back };
 }
 
-extern "C" void LimineMain(void) {
+extern "C" [[gnu::no_sanitize_address]] void LimineMain(void) {
     // offset the stack pointer as limine pushes qword 0 to
     // the stack before jumping to the kernel. and builtin_frame_address
     // returns the address where call would store the return address.

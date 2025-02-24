@@ -204,8 +204,17 @@ kernel_c_args = c_args
 kernel_cpp_args = cpp_args
 
 if get_option('buildtype').contains('debug')
-    src += [ 'src/sanitizer/ubsan.cpp', ]
-    san_args = [ '-fsanitize=undefined', '-fno-sanitize=function', ]
+    src += [
+        'src/sanitizer/ubsan.cpp',
+        # 'src/sanitizer/asan.cpp',
+    ]
+    san_args = [
+        '-fsanitize=undefined',
+        '-fno-sanitize=function',
+        # '-fsanitize=kernel-address',
+        # '-mllvm', '-asan-globals=false',
+        # '-mllvm', '-asan-mapping-offset=0xdfffe00000000000',
+    ]
     kernel_c_args += san_args
     kernel_cpp_args += san_args
 endif
@@ -221,8 +230,8 @@ kernel = static_library('kernel', src,
 
 kmain = static_library('kernel-main', 'src/main.cpp',
     include_directories : inc,
-    c_args : kernel_c_args + [ '-D__BEZOS__=1' ],
-    cpp_args : kernel_cpp_args + [ '-D__BEZOS__=1' ],
+    c_args : c_args + [ '-D__BEZOS__=1' ],
+    cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
     dependencies : deps,
     link_with : libs + [ kernel ],
     override_options : [ 'b_coverage=false' ],
@@ -233,8 +242,8 @@ kmain = static_library('kernel-main', 'src/main.cpp',
 ###
 
 executable('bezos-limine.elf', 'src/boot/limine.cpp',
-    c_args : kernel_c_args + [ '-D__BEZOS__=1' ],
-    cpp_args : kernel_cpp_args + [ '-D__BEZOS__=1' ],
+    c_args : c_args + [ '-D__BEZOS__=1' ],
+    cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
     include_directories : inc,
     link_with : kmain,
     dependencies : [ limine, deps ],
@@ -249,8 +258,8 @@ executable('bezos-limine.elf', 'src/boot/limine.cpp',
 ###
 
 executable('bezos-hyper.elf', 'src/boot/hyper.cpp',
-    c_args : kernel_c_args + [ '-D__BEZOS__=1' ],
-    cpp_args : kernel_cpp_args + [ '-D__BEZOS__=1' ],
+    c_args : c_args + [ '-D__BEZOS__=1' ],
+    cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
     include_directories : inc,
     link_with : kmain,
     dependencies : [ ultra, deps ],
@@ -652,8 +661,8 @@ images = {
 
 foreach name, source : images
     executable('bezos-test-' + name + '.elf', source + [ 'src/boot/hyper.cpp', ],
-        c_args : kernel_c_args + [ '-D__BEZOS__=1' ],
-        cpp_args : kernel_cpp_args + [ '-D__BEZOS__=1' ],
+        c_args : c_args + [ '-D__BEZOS__=1' ],
+        cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
         include_directories : inc,
         link_with : kernel,
         dependencies : [ ultra, deps ],

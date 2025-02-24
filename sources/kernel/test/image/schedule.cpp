@@ -574,7 +574,7 @@ static ApicInfo EnableBootApic(km::SystemMemory& memory, bool useX2Apic) {
 
     // setup tls now that we have the lapic id
 
-    km::InitCpuLocalRegion(memory);
+    km::InitCpuLocalRegion();
     km::RuntimeIsrManager::cpuInit();
 
     km::EnableCpuLocalIsrTable();

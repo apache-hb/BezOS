@@ -19,7 +19,11 @@ PageAllocator::PageAllocator(const boot::MemoryMap& memmap) {
 }
 
 PhysicalAddress PageAllocator::alloc4k(size_t count) {
-    MemoryRange range = mMemory.allocate(count * x64::kPageSize);
+    MemoryRange range = mMemory.allocate({
+        .size = count * x64::kPageSize,
+        .align = x64::kPageSize,
+    });
+
     if (range.isEmpty()) {
         return KM_INVALID_MEMORY;
     }
@@ -41,7 +45,11 @@ void PageAllocator::release(MemoryRange range) {
 }
 
 PhysicalAddress PageAllocator::lowMemoryAlloc4k() {
-    MemoryRange range = mLowMemory.allocate(x64::kPageSize);
+    MemoryRange range = mLowMemory.allocate({
+        .size = x64::kPageSize,
+        .align = x64::kPageSize,
+    });
+
     if (range.isEmpty()) {
         return KM_INVALID_MEMORY;
     }

@@ -15,9 +15,9 @@ size_t km::CpuLocalDataSize() {
     return (uintptr_t)__cpudata_end - (uintptr_t)__cpudata_start;
 }
 
-void *km::AllocateCpuLocalRegion(SystemMemory& memory) {
+void *km::AllocateCpuLocalRegion() {
     size_t size = CpuLocalDataSize();
-    return memory.allocate(size);
+    return malloc(size);
 }
 
 static std::byte *GetCpuLocalBase() {
@@ -27,8 +27,8 @@ static std::byte *GetCpuLocalBase() {
     return tls;
 }
 
-void km::InitCpuLocalRegion(SystemMemory& memory) {
-    void *data = AllocateCpuLocalRegion(memory);
+void km::InitCpuLocalRegion() {
+    void *data = AllocateCpuLocalRegion();
     kGsBase.store((uintptr_t)data);
     asm volatile ("mov %0, %%gs:0" :: "r"(data));
 }

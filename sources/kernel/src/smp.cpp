@@ -80,7 +80,8 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
 
     km::Apic apic = km::InitApApic(*header->memory, header->bspIntController);
 
-    km::InitCpuLocalRegion(*header->memory);
+    km::InitCpuLocalRegion();
+
     km::RuntimeIsrManager::cpuInit();
     km::InitKernelThread(apic);
 

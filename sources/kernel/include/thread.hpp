@@ -56,7 +56,7 @@ namespace km {
     /// @return The size of a cpu tls data block.
     size_t CpuLocalDataSize();
 
-    void *AllocateCpuLocalRegion(SystemMemory& memory);
+    void *AllocateCpuLocalRegion();
 
-    void InitCpuLocalRegion(SystemMemory& memory);
+    void InitCpuLocalRegion();
 }
