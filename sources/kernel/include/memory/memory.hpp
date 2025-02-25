@@ -139,7 +139,7 @@ namespace km {
 
     /// @brief Manages page tables for an address space.
     ///
-    /// @details All ptes are allocated from a single memory pool that is provided at construction.
+    /// @details All ptes are allocated from a memory pool that is provided at construction.
     ///          The current implementation expects that the virtual and physical addresses have a fixed
     ///          offset between them.
     class PageTables {
@@ -195,8 +195,6 @@ namespace km {
 
         OsStatus map1g(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
 
-        void unmap(void *ptr, size_t size);
-
     public:
         PageTables(AddressMapping pteMemory, const PageBuilder *pm);
 
@@ -213,7 +211,7 @@ namespace km {
         PageSize2 getPageSize(const void *ptr);
 
         OsStatus map(MappingRequest request);
-        OsStatus unmap(AddressMapping mapping);
+        OsStatus unmap(VirtualRange range);
 
         OsStatus walk(const void *ptr, PageWalk *walk);
     };

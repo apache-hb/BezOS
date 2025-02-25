@@ -269,32 +269,6 @@ OsStatus PageTables::map1g(PhysicalAddress paddr, const void *vaddr, PageFlags f
     return OsStatusSuccess;
 }
 
-void PageTables::unmap(void *ptr, size_t size) {
-    uintptr_t front = sm::rounddown((uintptr_t)ptr, x64::kPageSize);
-    uintptr_t back = sm::roundup((uintptr_t)ptr + size, x64::kPageSize);
-
-    stdx::LockGuard guard(mLock);
-
-    x64::PageMapLevel4 *l4 = getRootTable();
-
-    for (uintptr_t i = front; i < back; i += x64::kPageSize) {
-        auto [pml4e, pdpte, pdte, pte] = GetAddressParts(i);
-
-        const x64::PageMapLevel3 *l3 = findPageMap3(l4, pml4e);
-        if (!l3) continue;
-
-        const x64::PageMapLevel2 *l2 = findPageMap2(l3, pdpte);
-        if (!l2) continue;
-
-        x64::PageTable *pt = findPageTable(l2, pdte);
-        if (!pt) continue;
-
-        x64::pte& t1 = pt->entries[pte];
-        t1.setPresent(false);
-        x64::invlpg(i);
-    }
-}
-
 km::PhysicalAddress PageTables::getBackingAddress(const void *ptr) {
     uintptr_t address = reinterpret_cast<uintptr_t>(ptr);
     auto [pml4e, pdpte, pdte, pte] = GetAddressParts(ptr);
@@ -415,8 +389,30 @@ OsStatus PageTables::map(MappingRequest request) {
     return mapRange4k(mapping, flags, type);
 }
 
-OsStatus PageTables::unmap(AddressMapping mapping) {
-    unmap((void*)mapping.vaddr, mapping.size);
+OsStatus PageTables::unmap(VirtualRange range) {
+    KM_CHECK(range.size() % x64::kPageSize == 0, "Range size must be page aligned.");
+    KM_CHECK((uintptr_t)range.front % x64::kPageSize == 0, "Virtual address must be page aligned.");
+
+    stdx::LockGuard guard(mLock);
+
+    x64::PageMapLevel4 *l4 = getRootTable();
+
+    for (uintptr_t i = (uintptr_t)range.front; i < (uintptr_t)range.back; i += x64::kPageSize) {
+        auto [pml4e, pdpte, pdte, pte] = GetAddressParts(i);
+
+        const x64::PageMapLevel3 *l3 = findPageMap3(l4, pml4e);
+        if (!l3) continue;
+
+        const x64::PageMapLevel2 *l2 = findPageMap2(l3, pdpte);
+        if (!l2) continue;
+
+        x64::PageTable *pt = findPageTable(l2, pdte);
+        if (!pt) continue;
+
+        x64::pte& t1 = pt->entries[pte];
+        t1.setPresent(false);
+        x64::invlpg(i);
+    }
 
     return OsStatusSuccess;
 }
