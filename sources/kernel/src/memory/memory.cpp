@@ -3,6 +3,76 @@
 
 using PageTables = km::PageTables;
 
+km::PageWalkIndices km::GetAddressParts(const void *ptr) {
+    return GetAddressParts(reinterpret_cast<uintptr_t>(ptr));
+}
+
+km::AddressMapping km::detail::AlignLargeRangeHead(AddressMapping mapping) {
+    uintptr_t vaddr = reinterpret_cast<uintptr_t>(mapping.vaddr);
+    uintptr_t aligned = sm::roundup(vaddr, x64::kLargePageSize);
+
+    return AddressMapping {
+        .vaddr = mapping.vaddr,
+        .paddr = mapping.paddr,
+        .size = aligned - vaddr,
+    };
+}
+
+km::AddressMapping km::detail::AlignLargeRangeBody(AddressMapping mapping) {
+    uintptr_t vaddr = reinterpret_cast<uintptr_t>(mapping.vaddr);
+    PhysicalAddress paddr = mapping.paddr;
+
+    uintptr_t head2m = sm::roundup(vaddr, x64::kLargePageSize);
+    uintptr_t tail2m = sm::rounddown(vaddr + mapping.size, x64::kLargePageSize);
+    size_t offset = head2m - vaddr;
+    size_t size = tail2m - head2m;
+
+    return AddressMapping {
+        .vaddr = reinterpret_cast<void*>(head2m),
+        .paddr = paddr + offset,
+        .size = size
+    };
+}
+
+km::AddressMapping km::detail::AlignLargeRangeTail(AddressMapping mapping) {
+    uintptr_t vaddr = reinterpret_cast<uintptr_t>(mapping.vaddr);
+    uintptr_t tail2m = sm::rounddown(vaddr + mapping.size, x64::kLargePageSize);
+    size_t size = vaddr + mapping.size - tail2m;
+
+    return AddressMapping {
+        .vaddr = reinterpret_cast<void*>(tail2m),
+        .paddr = mapping.paddr + mapping.size - size,
+        .size = size
+    };
+}
+
+bool km::detail::IsLargePageEligible(AddressMapping mapping) {
+    //
+    // Ranges smaller than 2m are not eligible for large pages.
+    //
+    if (mapping.size < x64::kLargePageSize) return false;
+
+    uintptr_t paddr = mapping.paddr.address;
+    uintptr_t vaddr = reinterpret_cast<uintptr_t>(mapping.vaddr);
+
+    //
+    // If the addresses are not aligned equally, the range is not eligible for large pages.
+    // e.g. if the physical address is at 0x202000 and the virtual address is at 0x202000, the range is eligible.
+    // But if the physical address is at 0x202000 and the virtual address is at 0x203000, the range is not eligible.
+    //
+    uintptr_t mask = x64::kLargePageSize - 1;
+    if ((paddr & mask) != (vaddr & mask)) return false;
+
+    //
+    // After aligning the front of the range up to a 2m boundary and the size of the range down
+    // to a 2m boundary, the range must still be larger than 2m to be eligible for large pages.
+    //
+    uintptr_t front2m = sm::roundup(paddr, x64::kLargePageSize);
+    uintptr_t back2m = sm::rounddown(paddr + mapping.size, x64::kLargePageSize);
+
+    return front2m < back2m;
+}
+
 km::PageTables::PageTables(km::AddressMapping pteMemory, const km::PageBuilder *pm)
     : mSlide(pteMemory.slide())
     , mAllocator((void*)pteMemory.vaddr, pteMemory.size)
@@ -17,17 +87,10 @@ x64::page *PageTables::allocPage() {
         return page;
     }
 
-    KM_ASSERT("Failed to allocate page table.");
-
     return nullptr;
 }
 
 void PageTables::setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddress address) {
-    if (address > mPageManager->maxPhysicalAddress()) {
-        KmDebugMessage("Physical address out of range: ", address, " > ", mPageManager->maxPhysicalAddress(), "\n");
-        KM_PANIC("Physical address out of range.");
-    }
-
     mPageManager->setAddress(entry, address.address);
 
     entry.setWriteable(bool(flags & PageFlags::eWrite));
@@ -85,7 +148,7 @@ const x64::PageMapLevel2 *PageTables::findPageMap2(const x64::PageMapLevel3 *l3,
 }
 
 x64::PageTable *PageTables::findPageTable(const x64::PageMapLevel2 *l2, uint16_t pdte) const {
-    const x64::pde& pde = l2->entries[pdte];
+    const x64::pdte& pde = l2->entries[pdte];
     if (pde.present() && !pde.is2m()) {
         uintptr_t base = mPageManager->address(pde);
         return asVirtual<x64::PageTable>(base);
@@ -134,26 +197,23 @@ OsStatus PageTables::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags f
         KM_PANIC("Invalid memory mapping.");
     }
 
-    uint16_t pml4e = (addr >> 39) & 0b0001'1111'1111;
-    uint16_t pdpte = (addr >> 30) & 0b0001'1111'1111;
-    uint16_t pdte = (addr >> 21) & 0b0001'1111'1111;
-    uint16_t pte = (addr >> 12) & 0b0001'1111'1111;
+    auto [pml4e, pdpte, pdte, pte] = GetAddressParts(vaddr);
 
     x64::PageMapLevel4 *l4 = getRootTable();
-    x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e, PageFlags::eAllUser);
+    x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e, PageFlags::eUserAll);
     if (!l3) return OsStatusOutOfMemory;
 
-    x64::PageMapLevel2 *l2 = getPageMap2(l3, pdpte, PageFlags::eAllUser);
+    x64::PageMapLevel2 *l2 = getPageMap2(l3, pdpte, PageFlags::eUserAll);
     if (!l2) return OsStatusOutOfMemory;
 
     x64::PageTable *pt;
 
-    x64::pde& t2 = l2->entries[pdte];
+    x64::pdte& t2 = l2->entries[pdte];
     if (!t2.present()) {
         pt = std::bit_cast<x64::PageTable*>(allocPage());
         if (!pt) return OsStatusOutOfMemory;
 
-        setEntryFlags(t2, PageFlags::eAllUser, asPhysical(pt));
+        setEntryFlags(t2, PageFlags::eUserAll, asPhysical(pt));
     } else {
         pt = asVirtual<x64::PageTable>(mPageManager->address(t2));
     }
@@ -175,18 +235,16 @@ OsStatus PageTables::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags f
         KM_PANIC("Invalid memory mapping.");
     }
 
-    uint16_t pml4e = (addr >> 39) & 0b0001'1111'1111;
-    uint16_t pdpte = (addr >> 30) & 0b0001'1111'1111;
-    uint16_t pdte = (addr >> 21) & 0b0001'1111'1111;
+    auto [pml4e, pdpte, pdte, _] = GetAddressParts(vaddr);
 
     x64::PageMapLevel4 *l4 = getRootTable();
-    x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e, PageFlags::eAllUser);
+    x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e, PageFlags::eUserAll);
     if (!l3) return OsStatusOutOfMemory;
 
-    x64::PageMapLevel2 *l2 = getPageMap2(l3, pdpte, PageFlags::eAllUser);
+    x64::PageMapLevel2 *l2 = getPageMap2(l3, pdpte, PageFlags::eUserAll);
     if (!l2) return OsStatusOutOfMemory;
 
-    x64::pde& t2 = l2->entries[pdte];
+    x64::pdte& t2 = l2->entries[pdte];
     t2.set2m(true);
     mPageManager->setMemoryType(t2, type);
     setEntryFlags(t2, flags, paddr);
@@ -197,80 +255,16 @@ OsStatus PageTables::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags f
 OsStatus PageTables::map1g(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type) {
     stdx::LockGuard guard(mLock);
 
-    uintptr_t addr = (uintptr_t)vaddr;
-    uint16_t pml4e = (addr >> 39) & 0b0001'1111'1111;
-    uint16_t pdpte = (addr >> 30) & 0b0001'1111'1111;
+    auto [pml4e, pdpte, _, _] = GetAddressParts(vaddr);
 
     x64::PageMapLevel4 *l4 = getRootTable();
-    x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e, PageFlags::eAllUser);
+    x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e, PageFlags::eUserAll);
     if (!l3) return OsStatusOutOfMemory;
 
     x64::pdpte& t3 = l3->entries[pdpte];
     t3.set1g(true);
     mPageManager->setMemoryType(t3, type);
     setEntryFlags(t3, flags, paddr);
-
-    return OsStatusSuccess;
-}
-
-static bool IsLargePageAligned(km::PhysicalAddress paddr, const void *vaddr) {
-    uintptr_t addr = (uintptr_t)vaddr;
-    return (paddr.address & (x64::kLargePageSize - 1)) == 0 && (addr & (x64::kLargePageSize - 1)) == 0;
-}
-
-OsStatus PageTables::mapRange(AddressMapping mapping, PageFlags flags, MemoryType type) {
-    KM_CHECK(mapping.size % x64::kPageSize == 0, "Range size must be page aligned.");
-    KM_CHECK((uintptr_t)mapping.vaddr % x64::kPageSize == 0, "Virtual address must be page aligned.");
-    KM_CHECK(mapping.paddr.address % x64::kPageSize == 0, "Physical address must be page aligned.");
-
-    //
-    // We can use large pages if the range is larger than 2m and both the physical and virtual
-    // addresses are aligned to 2m boundaries.
-    // TODO: This check could be less strict, and only check that the alignment is equal
-    //       relative to the large page size.
-    //
-    if ((uintptr_t)mapping.size >= x64::kLargePageSize && IsLargePageAligned(mapping.paddr, mapping.vaddr)) {
-        //
-        // If the range is larger than 2m in total, check if
-        // the range is still larger than 2m after aligning the range.
-        //
-        MemoryRange range = mapping.physicalRange();
-        PhysicalAddress front2m = sm::roundup(range.front.address, x64::kLargePageSize);
-        PhysicalAddress back2m = sm::rounddown(range.back.address, x64::kLargePageSize);
-
-        //
-        // If the range is still larger than 2m, we can use 2m pages.
-        //
-        if (front2m < back2m) {
-            //
-            // Map the leading 4k pages we need to map to fulfill our api contract.
-            //
-            AddressMapping head = { mapping.vaddr, mapping.paddr, size_t(front2m - range.front) };
-            if (!head.isEmpty())
-                mapRange4k(head, flags, type);
-
-            //
-            // Then map the middle 2m pages.
-            //
-            AddressMapping body = { (char*)mapping.vaddr + head.size, front2m, size_t(back2m - front2m) };
-            mapRange2m(body, flags, type);
-
-            //
-            // Finally map the trailing 4k pages.
-            //
-            AddressMapping tail = { (char*)mapping.vaddr + head.size + body.size, back2m, size_t(range.back - back2m) };
-            if (!tail.isEmpty())
-                mapRange4k(tail, flags, type);
-
-            return OsStatusSuccess;
-        }
-    }
-
-    //
-    // If we get to this point its not worth using 2m pages
-    // so we just map the range with 4k pages.
-    //
-    mapRange4k(mapping, flags, type);
 
     return OsStatusSuccess;
 }
@@ -284,10 +278,7 @@ void PageTables::unmap(void *ptr, size_t size) {
     x64::PageMapLevel4 *l4 = getRootTable();
 
     for (uintptr_t i = front; i < back; i += x64::kPageSize) {
-        uint16_t pml4e = (i >> 39) & 0b0001'1111'1111;
-        uint16_t pdpte = (i >> 30) & 0b0001'1111'1111;
-        uint16_t pdte = (i >> 21) & 0b0001'1111'1111;
-        uint16_t pte = (i >> 12) & 0b0001'1111'1111;
+        auto [pml4e, pdpte, pdte, pte] = GetAddressParts(i);
 
         const x64::PageMapLevel3 *l3 = findPageMap3(l4, pml4e);
         if (!l3) continue;
@@ -304,12 +295,9 @@ void PageTables::unmap(void *ptr, size_t size) {
     }
 }
 
-km::PhysicalAddress PageTables::getBackingAddress(const void *ptr) const {
+km::PhysicalAddress PageTables::getBackingAddress(const void *ptr) {
     uintptr_t address = reinterpret_cast<uintptr_t>(ptr);
-    uintptr_t pml4e = (address >> 39) & 0b0001'1111'1111;
-    uintptr_t pdpte = (address >> 30) & 0b0001'1111'1111;
-    uintptr_t pdte = (address >> 21) & 0b0001'1111'1111;
-    uintptr_t pte = (address >> 12) & 0b0001'1111'1111;
+    auto [pml4e, pdpte, pdte, pte] = GetAddressParts(ptr);
     uintptr_t offset = address & 0xFFF;
 
     stdx::LockGuard guard(mLock);
@@ -340,86 +328,22 @@ km::PhysicalAddress PageTables::getBackingAddress(const void *ptr) const {
     return km::PhysicalAddress { mPageManager->address(t1) + offset };
 }
 
-km::PageFlags PageTables::getMemoryFlags(const void *ptr) const {
-    uintptr_t address = reinterpret_cast<uintptr_t>(ptr);
-    uintptr_t pml4e = (address >> 39) & 0b0001'1111'1111;
-    uintptr_t pdpte = (address >> 30) & 0b0001'1111'1111;
-    uintptr_t pdte = (address >> 21) & 0b0001'1111'1111;
-    uintptr_t pte = (address >> 12) & 0b0001'1111'1111;
-
-    PageFlags flags = PageFlags::eAllUser;
-
-    auto applyFlags = [&](auto entry) {
-        if (!entry.writeable()) flags &= ~PageFlags::eWrite;
-        if (!entry.executable()) flags &= ~PageFlags::eExecute;
-        if (!entry.user()) flags &= ~PageFlags::eUser;
-    };
-
-    stdx::LockGuard guard(mLock);
-
-    const x64::PageMapLevel4 *l4 = getRootTable();
-    const x64::PageMapLevel3 *l3 = findPageMap3(l4, pml4e);
-    if (!l3) return PageFlags::eNone;
-
-    applyFlags(l3->entries[pdpte]);
-
-    if (l3->entries[pdpte].is1g()) {
-        return flags;
+km::PageFlags PageTables::getMemoryFlags(const void *ptr) {
+    PageWalk result;
+    if (walk(ptr, &result) != OsStatusSuccess) {
+        return PageFlags::eNone;
     }
 
-    const x64::PageMapLevel2 *l2 = findPageMap2(l3, pdpte);
-    if (!l2) return PageFlags::eNone;
-
-    applyFlags(l2->entries[pdte]);
-
-    if (l2->entries[pdte].is2m()) {
-        return flags;
-    }
-
-    const x64::PageTable *pt = findPageTable(l2, pdte);
-    if (!pt) return PageFlags::eNone;
-
-    applyFlags(pt->entries[pte]);
-
-    const x64::pte& t1 = pt->entries[pte];
-    if (!t1.present()) return PageFlags::eNone;
-
-    applyFlags(t1);
-
-    return flags;
+    return result.flags();
 }
 
-km::PageSize2 PageTables::getPageSize(const void *ptr) const {
-    uintptr_t address = reinterpret_cast<uintptr_t>(ptr);
-    uintptr_t pml4e = (address >> 39) & 0b0001'1111'1111;
-    uintptr_t pdpte = (address >> 30) & 0b0001'1111'1111;
-    uintptr_t pdte = (address >> 21) & 0b0001'1111'1111;
-    uintptr_t pte = (address >> 12) & 0b0001'1111'1111;
-
-    stdx::LockGuard guard(mLock);
-
-    const x64::PageMapLevel4 *l4 = getRootTable();
-    const x64::PageMapLevel3 *l3 = findPageMap3(l4, pml4e);
-    if (!l3) return PageSize2::eNone;
-
-    if (l3->entries[pdpte].is1g()) {
-        return PageSize2::eHuge;
+km::PageSize2 PageTables::getPageSize(const void *ptr) {
+    PageWalk result;
+    if (walk(ptr, &result) != OsStatusSuccess) {
+        return PageSize2::eNone;
     }
 
-    const x64::PageMapLevel2 *l2 = findPageMap2(l3, pdpte);
-    if (!l2) return PageSize2::eNone;
-
-    if (l2->entries[pdte].is2m()) {
-        return PageSize2::eLarge;
-    }
-
-    const x64::PageTable *pt = findPageTable(l2, pdte);
-    if (!pt) return PageSize2::eNone;
-
-    const x64::pte& t1 = pt->entries[pte];
-    if (!t1.present()) return PageSize2::eNone;
-
-    return PageSize2::eRegular;
+    return result.pageSize();
 }
 
 km::PhysicalAddress PageTables::asPhysical(const void *ptr) const {
@@ -436,12 +360,10 @@ OsStatus PageTables::map(MappingRequest request) {
     KM_CHECK(mapping.paddr.address % x64::kPageSize == 0, "Physical address must be page aligned.");
 
     //
-    // We can use large pages if the range is larger than 2m and both the physical and virtual
-    // addresses are aligned to 2m boundaries.
-    // TODO: This check could be less strict, and only check that the alignment is equal
-    //       relative to the large page size.
+    // We can use large pages if the range is larger than 2m after alignment and the mapping
+    // has equal alignment between the physical and virtual addresses relative to the 2m boundary.
     //
-    if ((uintptr_t)mapping.size >= x64::kLargePageSize && IsLargePageAligned(mapping.paddr, mapping.vaddr)) {
+    if (detail::IsLargePageEligible(mapping)) {
         //
         // If the range is larger than 2m in total, check if
         // the range is still larger than 2m after aligning the range.
@@ -457,22 +379,30 @@ OsStatus PageTables::map(MappingRequest request) {
             //
             // Map the leading 4k pages we need to map to fulfill our api contract.
             //
-            AddressMapping head = { mapping.vaddr, mapping.paddr, size_t(front2m - range.front) };
-            if (!head.isEmpty())
-                mapRange4k(head, flags, type);
+            AddressMapping head = detail::AlignLargeRangeHead(mapping);
+            if (!head.isEmpty()) {
+                if (OsStatus status = mapRange4k(head, flags, type)) {
+                    return status;
+                }
+            }
 
             //
             // Then map the middle 2m pages.
             //
-            AddressMapping body = { (char*)mapping.vaddr + head.size, front2m, size_t(back2m - front2m) };
-            mapRange2m(body, flags, type);
+            AddressMapping body = detail::AlignLargeRangeBody(mapping);
+            if (OsStatus status = mapRange2m(body, flags, type)) {
+                return status;
+            }
 
             //
             // Finally map the trailing 4k pages.
             //
-            AddressMapping tail = { (char*)mapping.vaddr + head.size + body.size, back2m, size_t(range.back - back2m) };
-            if (!tail.isEmpty())
-                mapRange4k(tail, flags, type);
+            AddressMapping tail = detail::AlignLargeRangeTail(mapping);
+            if (!tail.isEmpty()) {
+                if (OsStatus status = mapRange4k(tail, flags, type)) {
+                    return status;
+                }
+            }
 
             return OsStatusSuccess;
         }
@@ -480,15 +410,61 @@ OsStatus PageTables::map(MappingRequest request) {
 
     //
     // If we get to this point its not worth using 2m pages
-    // so we just map the range with 4k pages.
+    // so we map the range with 4k pages.
     //
-    mapRange4k(mapping, flags, type);
-
-    return OsStatusSuccess;
+    return mapRange4k(mapping, flags, type);
 }
 
 OsStatus PageTables::unmap(AddressMapping mapping) {
     unmap((void*)mapping.vaddr, mapping.size);
 
+    return OsStatusSuccess;
+}
+
+OsStatus PageTables::walk(const void *ptr, PageWalk *walk) {
+    auto [pml4eIndex, pdpteIndex, pdteIndex, pteIndex] = GetAddressParts(ptr);
+    x64::pml4e pml4e{};
+    x64::pdpte pdpte{};
+    x64::pdte pdte{};
+    x64::pte pte{};
+
+    stdx::LockGuard guard(mLock);
+
+    //
+    // Small trick with do { } while loops to achive goto-like behaviour while avoiding
+    // undefined behaviour from jumping over variable initialization.
+    // If any of these steps fail we want to return the data we have so far, so
+    // we break out of the loop and return the data we've collected.
+    //
+    do {
+        const x64::PageMapLevel4 *l4 = getRootTable();
+        pml4e = l4->entries[pml4eIndex];
+        if (!pml4e.present()) break;
+
+        const x64::PageMapLevel3 *l3 = getPageEntry<x64::PageMapLevel3>(l4, pml4eIndex);
+        pdpte = l3->entries[pdpteIndex];
+        if (!pdpte.present() || pdpte.is1g()) break;
+
+        const x64::PageMapLevel2 *l2 = getPageEntry<x64::PageMapLevel2>(l3, pdpteIndex);
+        pdte = l2->entries[pdteIndex];
+        if (!pdte.present() || pdte.is2m()) break;
+
+        x64::PageTable *pt = getPageEntry<x64::PageTable>(l2, pdteIndex);
+        pte = pt->entries[pteIndex];
+    } while (false);
+
+    PageWalk result {
+        .address = reinterpret_cast<uintptr_t>(ptr),
+        .pml4eIndex = pml4eIndex,
+        .pml4e = pml4e,
+        .pdpteIndex = pdpteIndex,
+        .pdpte = pdpte,
+        .pdteIndex = pdteIndex,
+        .pdte = pdte,
+        .pteIndex = pteIndex,
+        .pte = pte,
+    };
+
+    *walk = result;
     return OsStatusSuccess;
 }

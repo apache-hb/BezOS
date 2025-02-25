@@ -1,5 +1,6 @@
 #include "memory.hpp"
 #include "log.hpp"
+#include "memory/memory.hpp"
 
 km::SystemMemory::SystemMemory(const boot::MemoryMap& memmap, VirtualRange systemArea, VirtualRange userArea, PageBuilder pm, mem::IAllocator *alloc)
     : pager(pm)

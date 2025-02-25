@@ -1,5 +1,6 @@
 #pragma once
 
+#include "memory/page_allocator.hpp"
 #include "memory/pte.hpp"
 #include "memory/paging.hpp"
 #include "memory/virtual_allocator.hpp"

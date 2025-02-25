@@ -5,21 +5,6 @@
 #include "memory/range_allocator.hpp"
 
 namespace km {
-    enum class PageFlags : uint8_t {
-        eNone = 0,
-        eRead = 1 << 0,
-        eWrite = 1 << 1,
-        eExecute = 1 << 2,
-        eUser = 1 << 3,
-
-        eCode = eRead | eExecute,
-        eData = eRead | eWrite,
-        eAll = eRead | eWrite | eExecute,
-        eAllUser = eRead | eWrite | eExecute | eUser,
-    };
-
-    UTIL_BITFLAGS(PageFlags);
-
     class PageAllocator {
         /// @brief Allocator for memory below 1M.
         RangeAllocator<PhysicalAddress> mLowMemory;

@@ -107,7 +107,7 @@ namespace km {
             entry.setPatEntry(getMemoryTypeIndex(type));
         }
 
-        constexpr void setMemoryType(x64::pde& entry, MemoryType type) const {
+        constexpr void setMemoryType(x64::pdte& entry, MemoryType type) const {
             entry.setPatEntry(getMemoryTypeIndex(type));
         }
 

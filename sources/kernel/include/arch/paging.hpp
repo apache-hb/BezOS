@@ -100,7 +100,7 @@ namespace x64 {
     };
 
     /// @brief Page directory entry
-    struct pde : Entry {
+    struct pdte : Entry {
         static constexpr uint64_t kLargePage = 1ull << 7;
         bool is2m() const noexcept [[clang::nonblocking]] { return underlying & kLargePage; }
         void set2m(bool large) noexcept [[clang::nonblocking]] { setmask(underlying, kLargePage, large); }
@@ -146,7 +146,7 @@ namespace x64 {
     };
 
     struct alignas(kPageSize) PageMapLevel2 {
-        pde entries[kPageSize / sizeof(pde)];
+        pdte entries[kPageSize / sizeof(pdte)];
     };
 
     struct alignas(kPageSize) PageMapLevel3 {

@@ -32,7 +32,7 @@ TEST(PageManagerTest, PdeMemoryType) {
 
     km::PageBuilder pm = { 40, 40, 0, layout };
 
-    x64::pde pte;
+    x64::pdte pte;
     pm.setMemoryType(pte, km::MemoryType::eUncached);
 
     ASSERT_EQ(pte.memoryType(), layout.uncached);
@@ -67,7 +67,7 @@ TEST(PageManagerTest, PteEntryMemoryType) {
 
 TEST(PageManagerTest, PdeEntryMemoryType) {
     for (uint8_t i = 0; i < 6; i++) {
-        x64::pde pde;
+        x64::pdte pde;
         pde.setPatEntry(i);
 
         ASSERT_EQ(pde.memoryType(), i);

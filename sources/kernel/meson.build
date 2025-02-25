@@ -447,6 +447,11 @@ testcases = {
         'src/process/process.cpp',
         'src/std/rcu.cpp',
         'src/std/rcuptr.cpp',
+    ],
+    'pte': [
+        'test/memory/memory.cpp',
+        'src/memory/memory.cpp',
+        tlsf.get_variable('sources'),
     ]
 }
 

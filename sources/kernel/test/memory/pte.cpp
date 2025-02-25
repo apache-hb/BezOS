@@ -7,7 +7,7 @@
 
 static constexpr size_t kSize = 0x10000;
 
-static auto GetAllocatorMemory() {
+auto GetAllocatorMemory() {
     auto deleter = [](uint8_t *ptr) {
         :: operator delete[] (ptr, std::align_val_t(16));
     };
