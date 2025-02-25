@@ -1,4 +1,4 @@
-#include "memory/allocator.hpp"
+#include "memory/pte.hpp"
 
 #include "log.hpp"
 #include "memory/paging.hpp"

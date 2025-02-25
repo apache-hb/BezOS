@@ -1,10 +1,11 @@
 #pragma once
 
 #include "boot.hpp"
+
 #include "memory/range_allocator.hpp"
 
 namespace km {
-    enum class PageFlags {
+    enum class PageFlags : uint8_t {
         eNone = 0,
         eRead = 1 << 0,
         eWrite = 1 << 1,

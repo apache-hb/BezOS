@@ -9,7 +9,7 @@
 #include "util/util.hpp"
 
 #define KM_INVALID_MEMORY km::PhysicalAddress(UINTPTR_MAX)
-#define KM_INVALID_ADDRESS (void*)UINTPTR_MAX
+#define KM_INVALID_ADDRESS ((void*)UINTPTR_MAX)
 
 namespace km {
     struct PhysicalAddress {

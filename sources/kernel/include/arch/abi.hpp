@@ -1,6 +1,6 @@
 #pragma once
 
-#include "memory/allocator.hpp"
+#include "memory/pte.hpp"
 
 namespace x64 {
     template<typename F>

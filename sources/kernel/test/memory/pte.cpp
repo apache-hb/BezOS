@@ -3,9 +3,7 @@
 #include <random>
 #include <thread>
 
-#include "memory/allocator.hpp"
-
-#include "allocator/tlsf.hpp"
+#include "memory/pte.hpp"
 
 static constexpr size_t kSize = 0x10000;
 

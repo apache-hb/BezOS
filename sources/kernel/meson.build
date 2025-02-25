@@ -108,7 +108,8 @@ src = [
     'src/memory/allocator.cpp',
     'src/memory/page_allocator.cpp',
     'src/memory/virtual_allocator.cpp',
-    'src/memory/page_tables.cpp',
+    'src/memory/pte.cpp',
+    'src/memory/memory.cpp',
 
     # C and C++ Runtime
     'src/crt.cpp',
@@ -356,7 +357,7 @@ testcases = {
     ],
     'page table': [
         'test/memory/pte.cpp',
-        'src/memory/page_tables.cpp',
+        'src/memory/pte.cpp',
     ],
     'partitions': [
         'test/drivers/partitions.cpp',
@@ -436,7 +437,7 @@ testcases = {
     'memory': [
         'test/memory.cpp',
         'src/memory.cpp',
-        'src/memory/page_tables.cpp',
+        'src/memory/pte.cpp',
         'src/memory/page_allocator.cpp',
         'src/memory/virtual_allocator.cpp',
         'src/boot.cpp',
@@ -538,7 +539,7 @@ source = [
     'src/memory/layout.cpp',
     'src/memory/page_allocator.cpp',
     'src/memory/virtual_allocator.cpp',
-    'src/memory/page_tables.cpp',
+    'src/memory/pte.cpp',
 
     'src/util/format.cpp',
     'src/util/memory.cpp',
@@ -576,7 +577,7 @@ testcases = {
     #         'test/apic/ioapic.cpp',
     #         'src/apic.cpp',
     #         'src/memory.cpp',
-    #         'src/memory/page_tables.cpp',
+    #         'src/memory/pte.cpp',
     #         'src/memory/page_allocator.cpp',
     #         'src/memory/virtual_allocator.cpp',
     #         'src/boot.cpp',

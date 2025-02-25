@@ -89,6 +89,10 @@ static inline uint64_t __DEFAULT_FN_ATTRS __gsbase(void) {
     return value;
 }
 
+static inline __DEFAULT_FN_ATTRS void __invlpg(uintptr_t address) {
+    asm volatile("invlpg (%0)" : : "r"(address) : "memory");
+}
+
 static inline void __DEFAULT_FN_ATTRS __lgdt(struct GDTR gdtr) {
     asm volatile("lgdt %0" :: "m"(gdtr));
 }

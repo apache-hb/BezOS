@@ -1,5 +1,6 @@
+#include "memory/pte.hpp"
+
 #include "log.hpp"
-#include "memory/allocator.hpp"
 
 #include "arch/paging.hpp"
 #include "memory/paging.hpp"

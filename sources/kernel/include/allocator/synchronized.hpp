@@ -15,22 +15,22 @@ namespace mem {
             : T(std::move(self))
         { }
 
-        void *allocate(size_t size) override {
+        void *allocate(size_t size) [[clang::allocating]] override {
             stdx::LockGuard guard(mLock);
             return T::allocate(size);
         }
 
-        void *allocateAligned(size_t size, size_t align) override {
+        void *allocateAligned(size_t size, size_t align) [[clang::allocating]] override {
             stdx::LockGuard guard(mLock);
             return T::allocateAligned(size, align);
         }
 
-        void deallocate(void *ptr, size_t size) override {
+        void deallocate(void *ptr, size_t size) [[clang::allocating]] override {
             stdx::LockGuard guard(mLock);
             T::deallocate(ptr, size);
         }
 
-        void *reallocate(void *old, size_t oldSize, size_t newSize) override {
+        void *reallocate(void *old, size_t oldSize, size_t newSize) [[clang::allocating]] override {
             stdx::LockGuard guard(mLock);
             return T::reallocate(old, oldSize, newSize);
         }

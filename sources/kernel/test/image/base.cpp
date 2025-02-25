@@ -44,7 +44,6 @@
 #include "user/user.hpp"
 
 #include "memory/layout.hpp"
-#include "memory/allocator.hpp"
 
 #include "allocator/tlsf.hpp"
 

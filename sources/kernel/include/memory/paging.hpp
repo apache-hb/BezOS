@@ -99,6 +99,10 @@ namespace km {
             entry.underlying = (entry.underlying & ~mAddressMask) | (address & mAddressMask);
         }
 
+        constexpr void setAddress(x64::Entry& entry, PhysicalAddress address) const {
+            setAddress(entry, address.address);
+        }
+
         constexpr void setMemoryType(x64::pte& entry, MemoryType type) const {
             entry.setPatEntry(getMemoryTypeIndex(type));
         }
@@ -111,11 +115,11 @@ namespace km {
             entry.setPatEntry(getMemoryTypeIndex(type));
         }
 
-        km::PhysicalAddress activeMap() const {
+        PhysicalAddress activeMap() const {
             return (__get_cr3() & mAddressMask);
         }
 
-        void setActiveMap(km::PhysicalAddress map) const {
+        void setActiveMap(PhysicalAddress map) const {
             uint64_t reg = __get_cr3();
             reg = (reg & ~mAddressMask) | map.address;
             __set_cr3(reg);

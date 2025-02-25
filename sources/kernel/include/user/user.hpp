@@ -2,7 +2,6 @@
 
 #include <bezos/status.h>
 
-#include "memory/allocator.hpp"
 #include "kernel.hpp"
 
 #include <cstddef>
@@ -35,7 +34,6 @@ namespace km {
         memcpy(dst->data(), front, size);
         return OsStatusSuccess;
     }
-
 
     OsStatus WriteUserMemory(void *dst, const void *src, size_t size);
 }

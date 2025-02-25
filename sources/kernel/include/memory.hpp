@@ -1,6 +1,6 @@
 #pragma once
 
-#include "memory/allocator.hpp"
+#include "memory/pte.hpp"
 #include "memory/paging.hpp"
 #include "memory/virtual_allocator.hpp"
 

@@ -10,7 +10,7 @@ namespace stdx {
 
     public:
         [[clang::acquire_capability]]
-        void lock() {
+        void lock() [[clang::blocking]] {
             while (mLock.test_and_set(std::memory_order_acquire)) {
                 _mm_pause();
             }
@@ -32,7 +32,7 @@ namespace stdx {
         T& mLock;
 
     public:
-        LockGuard(T& lock) __attribute__((acquire_capability(lock)))
+        LockGuard(T& lock) [[clang::blocking]] __attribute__((acquire_capability(lock)))
             : mLock(lock)
         {
             mLock.lock();

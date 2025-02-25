@@ -34,7 +34,6 @@
 #include "isr/runtime.hpp"
 #include "log.hpp"
 #include "memory.hpp"
-#include "memory/memory.hpp"
 #include "notify.hpp"
 #include "panic.hpp"
 #include "pit.hpp"
@@ -51,7 +50,6 @@
 #include "user/user.hpp"
 
 #include "memory/layout.hpp"
-#include "memory/allocator.hpp"
 
 #include "allocator/tlsf.hpp"
 

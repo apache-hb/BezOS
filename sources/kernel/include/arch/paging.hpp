@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 namespace x64 {
-    constexpr void setmask(uint64_t& value, uint64_t mask, bool state) {
+    constexpr void setmask(uint64_t& value, uint64_t mask, bool state) noexcept [[clang::nonblocking]] {
         if (state) {
             value |= mask;
         } else {
@@ -58,11 +58,11 @@ namespace x64 {
     struct Entry {
         uint64_t underlying;
 
-        bool present() const { return underlying & paging::kPresentBit; }
-        void setPresent(bool present) { setmask(underlying, paging::kPresentBit, present); }
+        bool present() const noexcept [[clang::nonblocking]] { return underlying & paging::kPresentBit; }
+        void setPresent(bool present) noexcept [[clang::nonblocking]] { setmask(underlying, paging::kPresentBit, present); }
 
-        bool writeable() const { return (underlying & paging::kReadOnlyBit); }
-        void setWriteable(bool readonly) { setmask(underlying, paging::kReadOnlyBit, readonly); }
+        bool writeable() const noexcept [[clang::nonblocking]] { return (underlying & paging::kReadOnlyBit); }
+        void setWriteable(bool readonly) noexcept [[clang::nonblocking]] { setmask(underlying, paging::kReadOnlyBit, readonly); }
 
         bool writeThrough() const { return underlying & paging::kWriteThroughBit; }
         void setWriteThrough(bool writeThrough) { setmask(underlying, paging::kWriteThroughBit, writeThrough); }
@@ -70,8 +70,8 @@ namespace x64 {
         bool cacheDisable() const { return underlying & paging::kCacheDisableBit; }
         void setCacheDisable(bool cacheDisable) { setmask(underlying, paging::kCacheDisableBit, cacheDisable); }
 
-        bool user() const { return underlying & paging::kUserBit; }
-        void setUser(bool user) { setmask(underlying, paging::kUserBit, user); }
+        bool user() const noexcept [[clang::nonblocking]] { return underlying & paging::kUserBit; }
+        void setUser(bool user) noexcept [[clang::nonblocking]] { setmask(underlying, paging::kUserBit, user); }
 
         bool accessed() const { return underlying & paging::kAccessedBit; }
         void setAccessed(bool accessed) { setmask(underlying, paging::kAccessedBit, accessed); }
@@ -79,8 +79,8 @@ namespace x64 {
         bool written() const { return underlying & paging::kWrittenBit; }
         void setWritten(bool written) { setmask(underlying, paging::kWrittenBit, written); }
 
-        bool executable() const { return !(underlying & paging::kExecuteDisableBit); }
-        void setExecutable(bool exec) { setmask(underlying, paging::kExecuteDisableBit, !exec); }
+        bool executable() const noexcept [[clang::nonblocking]] { return !(underlying & paging::kExecuteDisableBit); }
+        void setExecutable(bool exec) noexcept [[clang::nonblocking]] { setmask(underlying, paging::kExecuteDisableBit, !exec); }
     };
 
     /// @brief Page table entry
@@ -102,8 +102,8 @@ namespace x64 {
     /// @brief Page directory entry
     struct pde : Entry {
         static constexpr uint64_t kLargePage = 1ull << 7;
-        bool is2m() const { return underlying & kLargePage; }
-        void set2m(bool large) { setmask(underlying, kLargePage, large); }
+        bool is2m() const noexcept [[clang::nonblocking]] { return underlying & kLargePage; }
+        void set2m(bool large) noexcept [[clang::nonblocking]] { setmask(underlying, kLargePage, large); }
 
         static constexpr uint64_t kPageAttributeBit = 12;
 
@@ -122,8 +122,8 @@ namespace x64 {
     struct pdpte : Entry {
         static constexpr uint64_t kHugePage = 1ull << 7;
 
-        bool is1g() const { return underlying & kHugePage; }
-        void set1g(bool huge) { setmask(underlying, kHugePage, huge); }
+        bool is1g() const noexcept [[clang::nonblocking]] { return underlying & kHugePage; }
+        void set1g(bool huge) noexcept [[clang::nonblocking]] { setmask(underlying, kHugePage, huge); }
 
         static constexpr uint64_t kPageAttributeBit = 12;
 
