@@ -44,9 +44,9 @@ namespace km {
         const x64::PageMapLevel2 *findPageMap2(const x64::PageMapLevel3 *l3, uint16_t pdpte) const;
         x64::PageTable *findPageTable(const x64::PageMapLevel2 *l2, uint16_t pdte) const;
 
-        OsStatus mapRange4k(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type);
-        OsStatus mapRange2m(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type);
-        OsStatus mapRange1g(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type);
+        OsStatus mapRange4k(AddressMapping mapping, PageFlags flags, MemoryType type);
+        OsStatus mapRange2m(AddressMapping mapping, PageFlags flags, MemoryType type);
+        OsStatus mapRange1g(AddressMapping mapping, PageFlags flags, MemoryType type);
 
         x64::PageMapLevel4 *getRootTable() const {
             return mRootPageTable;
@@ -65,7 +65,7 @@ namespace km {
 
         OsStatus map1g(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
 
-        OsStatus mapRange(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
+        OsStatus mapRange(AddressMapping mapping, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
 
         void unmap(void *ptr, size_t size);
 
@@ -73,18 +73,18 @@ namespace km {
         PageTables(AddressMapping pteMemory, const km::PageBuilder *pm);
 
         PhysicalAddress root() const {
-            return asPhysical(getRootTable());
+            return asPhysical(mRootPageTable);
         }
 
-        const x64::PageMapLevel4 *pml4() const {
-            return mRootPageTable;
+        auto&& pml4(this auto&& self) {
+            return self.mRootPageTable;
         }
 
         PhysicalAddress getBackingAddress(const void *ptr) const;
         PageFlags getMemoryFlags(const void *ptr) const;
         PageSize2 getPageSize(const void *ptr) const;
 
-        OsStatus map(MappingRequest request, AddressMapping *mapping);
+        OsStatus map(MappingRequest request);
         OsStatus unmap(AddressMapping mapping);
     };
 
@@ -95,13 +95,20 @@ namespace km {
     /// Kernel addresses are identified by having the top bits set in the canonical address.
     class KernelPageTables {
         PageTables mSystemTables;
-        RangeAllocator<const std::byte*> mVmemAllocator;
+        RangeAllocator<const void*> mVmemAllocator;
 
     public:
-        KernelPageTables();
+        KernelPageTables(AddressMapping pteMemory, const km::PageBuilder *pm, VirtualRange systemArea)
+            : mSystemTables(pteMemory, pm)
+            , mVmemAllocator(systemArea)
+        { }
 
         OsStatus map(MappingRequest request, AddressMapping *mapping);
         OsStatus unmap(AddressMapping mapping);
+
+        PageTables& ptes() {
+            return mSystemTables;
+        }
     };
 
     /// @brief Per process address space.
@@ -112,10 +119,30 @@ namespace km {
     class ProcessPageTables {
         KernelPageTables *mSystemTables;
         PageTables mProcessTables;
-        RangeAllocator<const std::byte*> mVmemAllocator;
+        RangeAllocator<const void*> mVmemAllocator;
 
     public:
-        ProcessPageTables(KernelPageTables *kernel);
+        ProcessPageTables(KernelPageTables *kernel, AddressMapping pteMemory, const km::PageBuilder *pm, VirtualRange processArea)
+            : mSystemTables(kernel)
+            , mProcessTables(pteMemory, pm)
+            , mVmemAllocator(processArea)
+        {
+            //
+            // Copy the higher half mappings from the kernel ptes to the process ptes.
+            //
+
+            PageTables& system = mSystemTables->ptes();
+            PageTables& process = mProcessTables;
+
+            x64::PageMapLevel4 *pml4 = system.pml4();
+            x64::PageMapLevel4 *self = process.pml4();
+
+            //
+            // Only copy the higher half mappings, which are 256-511.
+            //
+            static constexpr size_t kCount = (sizeof(x64::PageMapLevel4) / sizeof(x64::pml4e)) / 2;
+            std::copy_n(pml4->entries + kCount, kCount, self->entries + kCount);
+        }
 
         OsStatus map(MappingRequest request, AddressMapping *mapping);
         OsStatus unmap(AddressMapping mapping);
