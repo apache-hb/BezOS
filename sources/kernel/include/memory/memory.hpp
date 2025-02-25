@@ -19,48 +19,73 @@ namespace km {
         MemoryType type = MemoryType::eWriteBack;
     };
 
+    enum class PageSize2 {
+        eNone,
+        eRegular,
+        eLarge,
+        eHuge,
+    };
+
     class PageTables {
-        uintptr_t mSlide = 0;
+        uintptr_t mSlide;
         mem::SynchronizedAllocator<mem::TlsfAllocator> mAllocator;
         const km::PageBuilder *mPageManager;
         x64::PageMapLevel4 *mRootPageTable;
         stdx::SpinLock mLock;
 
-        x64::page *allocPage() [[clang::allocating]];
+        x64::page *allocPage();
 
-        void setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddress address, bool present) noexcept [[clang::nonblocking]];
+        void setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddress address);
 
         x64::PageMapLevel3 *getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e, PageFlags flags);
         x64::PageMapLevel2 *getPageMap2(x64::PageMapLevel3 *l3, uint16_t pdpte, PageFlags flags);
-        x64::PageTable *getPageTable(x64::PageMapLevel2 *l2, uint16_t pdte, PageFlags flags);
 
-        const x64::PageMapLevel3 *findPageMap3(const x64::PageMapLevel4 *l4, uint16_t pml4e) const noexcept [[clang::nonblocking]];
-        const x64::PageMapLevel2 *findPageMap2(const x64::PageMapLevel3 *l3, uint16_t pdpte) const noexcept [[clang::nonblocking]];
-        x64::PageTable *findPageTable(const x64::PageMapLevel2 *l2, uint16_t pdte) const noexcept [[clang::nonblocking]];
+        const x64::PageMapLevel3 *findPageMap3(const x64::PageMapLevel4 *l4, uint16_t pml4e) const;
+        const x64::PageMapLevel2 *findPageMap2(const x64::PageMapLevel3 *l3, uint16_t pdpte) const;
+        x64::PageTable *findPageTable(const x64::PageMapLevel2 *l2, uint16_t pdte) const;
+
+        OsStatus mapRange4k(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type);
+        OsStatus mapRange2m(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type);
+        OsStatus mapRange1g(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type);
+
+        x64::PageMapLevel4 *getRootTable() const {
+            return mRootPageTable;
+        }
 
         template<typename T>
-        T *asVirtual(km::PhysicalAddress addr) const noexcept [[clang::nonblocking]] {
+        T *asVirtual(km::PhysicalAddress addr) const {
             return (T*)(addr.address + mSlide);
         }
 
-        PhysicalAddress asPhysical(const void *ptr) const noexcept [[clang::nonblocking]];
+        PhysicalAddress asPhysical(const void *ptr) const;
 
-        OsStatus map4k(const void *vaddr, PhysicalAddress paddr, PageFlags flags, MemoryType type, PageFlags middle);
-        OsStatus map2m(const void *vaddr, PhysicalAddress paddr, PageFlags flags, MemoryType type, PageFlags middle);
+        OsStatus map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
+
+        OsStatus map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
+
+        OsStatus map1g(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
+
+        OsStatus mapRange(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
+
+        void unmap(void *ptr, size_t size);
 
     public:
         PageTables(AddressMapping pteMemory, const km::PageBuilder *pm);
 
-        const x64::PageMapLevel4 *root() const {
+        PhysicalAddress root() const {
+            return asPhysical(getRootTable());
+        }
+
+        const x64::PageMapLevel4 *pml4() const {
             return mRootPageTable;
         }
 
-        km::PhysicalAddress rootPageTable() const {
-            return km::PhysicalAddress { (uintptr_t)mRootPageTable - mSlide };
-        }
+        PhysicalAddress getBackingAddress(const void *ptr) const;
+        PageFlags getMemoryFlags(const void *ptr) const;
+        PageSize2 getPageSize(const void *ptr) const;
 
         OsStatus map(MappingRequest request, AddressMapping *mapping);
-        OsStatus unmap(VirtualRange range) noexcept;
+        OsStatus unmap(AddressMapping mapping);
     };
 
     /// @brief Kernel address space.
