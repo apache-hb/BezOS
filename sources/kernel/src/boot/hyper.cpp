@@ -1,7 +1,5 @@
 #include "boot.hpp"
 
-#include "allocator/tlsf.hpp"
-
 #include <ultra_protocol.h>
 
 template<typename T>
@@ -40,11 +38,11 @@ static const ultra_module_info_attribute *GetModule(const ultra_boot_context *co
     return nullptr;
 }
 
-static mem::TlsfAllocator MakeBootAllocator(const ultra_boot_context *context) {
+static km::AddressMapping GetBootMemory(const ultra_boot_context *context) {
     auto bootstrap = GetModule(context, "allocator-bootstrap");
     void *address = (void*)bootstrap->address;
 
-    return mem::TlsfAllocator{address, bootstrap->size};
+    return { address, (uintptr_t)address, bootstrap->size };
 }
 
 static boot::MemoryRegion::Type BootGetEntryType(ultra_memory_map_entry entry) {
@@ -60,9 +58,10 @@ static boot::MemoryRegion::Type BootGetEntryType(ultra_memory_map_entry entry) {
     case ULTRA_MEMORY_TYPE_LOADER_RECLAIMABLE:
         return boot::MemoryRegion::eBootloaderReclaimable;
     case ULTRA_MEMORY_TYPE_MODULE:
-    case ULTRA_MEMORY_TYPE_KERNEL_STACK: // TODO: need to handle kernel stack better
     case ULTRA_MEMORY_TYPE_KERNEL_BINARY:
         return boot::MemoryRegion::eKernel;
+    case ULTRA_MEMORY_TYPE_KERNEL_STACK:
+        return boot::MemoryRegion::eKernelStack;
 
     case ULTRA_MEMORY_TYPE_INVALID:
     default:
@@ -70,10 +69,8 @@ static boot::MemoryRegion::Type BootGetEntryType(ultra_memory_map_entry entry) {
     }
 }
 
-static std::span<boot::MemoryRegion> BootGetMemoryMap(mem::TlsfAllocator *alloc, const ultra_memory_map_attribute *memmap) {
+static void BootGetMemoryMap(const ultra_memory_map_attribute *memmap, boot::BootInfoBuilder& builder) {
     size_t size = ULTRA_MEMORY_MAP_ENTRY_COUNT(memmap->header);
-
-    boot::MemoryRegion *result = (boot::MemoryRegion*)alloc->allocateArray<boot::MemoryRegion>(size);
 
     for (uint64_t i = 0; i < size; i++) {
         ultra_memory_map_entry entry = memmap->entries[i];
@@ -82,13 +79,11 @@ static std::span<boot::MemoryRegion> BootGetMemoryMap(mem::TlsfAllocator *alloc,
         km::MemoryRange range = { entry.physical_address, entry.physical_address + entry.size };
         boot::MemoryRegion region = { type, range };
 
-        result[i] = region;
+        builder.addRegion(region);
     }
-
-    return { result, size };
 }
 
-static std::span<boot::FrameBuffer> BootGetFrameBuffers(uintptr_t hhdmOffset, const ultra_framebuffer_attribute *framebuffer, mem::TlsfAllocator *allocator) {
+static void BootGetFrameBuffers(uintptr_t hhdmOffset, const ultra_framebuffer_attribute *framebuffer, boot::BootInfoBuilder& builder) {
     ultra_framebuffer fb = framebuffer->fb;
 
     boot::FrameBuffer result {
@@ -135,10 +130,7 @@ static std::span<boot::FrameBuffer> BootGetFrameBuffers(uintptr_t hhdmOffset, co
         break;
     }
 
-    boot::FrameBuffer *fbs = allocator->construct<boot::FrameBuffer>();
-    fbs[0] = result;
-
-    return { fbs, 1 };
+    builder.addDisplay(result);
 }
 
 static km::AddressMapping BootGetStack(const ultra_memory_map_attribute *memmap, uintptr_t hhdmOffset) {
@@ -172,9 +164,11 @@ extern "C" int HyperMain(ultra_boot_context *context, uint32_t) {
     auto memmap = GetAttribute<ultra_memory_map_attribute>(context, ULTRA_ATTRIBUTE_MEMORY_MAP);
 
     uintptr_t hhdmOffset = platformInfo->higher_half_base;
-    mem::TlsfAllocator allocator = MakeBootAllocator(context);
-    std::span memory = BootGetMemoryMap(&allocator, memmap);
-    std::span fbs = BootGetFrameBuffers(hhdmOffset, framebuffer, &allocator);
+    km::AddressMapping bootMemory = GetBootMemory(context);
+    boot::BootInfoBuilder builder { bootMemory, bootMemory.size - boot::kPrebootMemory };
+
+    BootGetMemoryMap(memmap, builder);
+    BootGetFrameBuffers(hhdmOffset, framebuffer, builder);
 
     km::AddressMapping stack = BootGetStack(memmap, hhdmOffset);
     km::MemoryRange initrd = BootGetInitArchive(context);
@@ -184,13 +178,16 @@ extern "C" int HyperMain(ultra_boot_context *context, uint32_t) {
         .kernelVirtualBase = (void*)kernelInfo->virtual_base,
         .hhdmOffset = hhdmOffset,
         .rsdpAddress = platformInfo->acpi_rsdp_address,
-        .framebuffers = fbs,
-        .memmap = { memory },
+        .framebuffers = builder.framebuffers,
+        .memmap = { builder.regions },
         .stack = stack,
         .smbios32Address = platformInfo->smbios_address,
         .smbios64Address = platformInfo->smbios_address,
         .initrd = initrd,
+        .earlyMemory = builder.bootMemory,
     };
+
+    leak(std::move(builder));
 
     LaunchKernel(info);
 }

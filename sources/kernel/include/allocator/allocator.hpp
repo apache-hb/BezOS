@@ -139,9 +139,7 @@ namespace mem {
     class AllocatorPointer {
         mem::IAllocator *mAllocator;
     public:
-        AllocatorPointer() = delete;
-
-        AllocatorPointer(mem::IAllocator *allocator)
+        AllocatorPointer(mem::IAllocator *allocator = nullptr)
             : mAllocator(allocator)
         { }
 

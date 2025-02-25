@@ -1,10 +1,24 @@
 #pragma once
 
 #include "memory/layout.hpp"
+#include "std/vector.hpp"
+#include "allocator/tlsf.hpp"
 
 #include <cstddef>
 
+template<typename T>
+void leak(T&& it) {
+    union LeakHelper {
+        ~LeakHelper() { }
+        std::remove_cvref_t<T> value;
+    };
+
+    LeakHelper helper { std::move(it) };
+}
+
 namespace boot {
+    static constexpr size_t kPrebootMemory = sm::kilobytes(64).bytes();
+
     struct FrameBuffer {
         uint64_t width;
         uint64_t height;
@@ -28,6 +42,10 @@ namespace boot {
         size_t size() const {
             return pitch * height;
         }
+
+        km::AddressMapping mapping() const {
+            return { vaddr, paddr, size() };
+        }
     };
 
     struct MemoryRegion {
@@ -41,6 +59,7 @@ namespace boot {
             eKernel,
             eFrameBuffer,
             eKernelRuntimeData,
+            eKernelStack,
         };
 
         Type type;
@@ -51,6 +70,51 @@ namespace boot {
         bool isUsable() const;
         bool isReclaimable() const;
         bool isAccessible() const;
+    };
+
+    struct BootInfoBuilder {
+        km::AddressMapping prebootMemory;
+        km::AddressMapping bootMemory;
+        mem::TlsfAllocator allocator;
+        stdx::Vector3<MemoryRegion> regions;
+        stdx::Vector3<FrameBuffer> framebuffers;
+
+        BootInfoBuilder(km::AddressMapping mapping, size_t bootSize)
+            : prebootMemory(km::AddressMapping { mapping.vaddr, mapping.paddr, kPrebootMemory })
+            , bootMemory(km::AddressMapping { (void*)((uintptr_t)mapping.vaddr + kPrebootMemory), mapping.paddr + kPrebootMemory, bootSize })
+            , allocator((void*)prebootMemory.vaddr, prebootMemory.size)
+            , regions(&allocator)
+            , framebuffers(&allocator)
+        {
+            regions.add(MemoryRegion {
+                .type = MemoryRegion::eBootloaderReclaimable,
+                .range = mapping.physicalRange(),
+            });
+
+            regions.add(MemoryRegion {
+                .type = MemoryRegion::eReserved,
+                .range = { 0zu, km::kLowMemory },
+            });
+        }
+
+        void addRegion(MemoryRegion region) {
+            if (region.range.overlaps(prebootMemory.physicalRange())) {
+                region.range = region.range.cut(prebootMemory.physicalRange());
+            }
+
+            if (region.range.isEmpty()) return;
+
+            regions.add(region);
+        }
+
+        void addDisplay(FrameBuffer fb) {
+            framebuffers.add(fb);
+
+            addRegion(MemoryRegion {
+                .type = MemoryRegion::eFrameBuffer,
+                .range = fb.mapping().physicalRange(),
+            });
+        }
     };
 
     struct MemoryMap {
@@ -79,6 +143,9 @@ namespace boot {
         km::PhysicalAddress smbios64Address;
 
         km::MemoryRange initrd;
+
+        /// @brief Memory available to the kernel for use as an early allocator.
+        km::AddressMapping earlyMemory;
     };
 }
 
@@ -108,6 +175,8 @@ struct km::Format<boot::MemoryRegion::Type> {
             return "Framebuffer";
         case boot::MemoryRegion::eKernelRuntimeData:
             return "Kernel runtime data";
+        case boot::MemoryRegion::eKernelStack:
+            return "Kernel stack";
         default:
             return "Unknown";
         }
