@@ -12,7 +12,7 @@ namespace km {
     void SetupMtrrs(x64::MemoryTypeRanges& mtrrs, const km::PageBuilder& pm);
     void WriteMtrrs(const km::PageBuilder& pm);
 
-    void WriteMemoryMap(const boot::MemoryMap& memmap);
+    void WriteMemoryMap(std::span<const boot::MemoryRegion> memmap);
 
     void DumpIsrState(const km::IsrContext *context);
     void DumpStackTrace(const km::IsrContext *context);

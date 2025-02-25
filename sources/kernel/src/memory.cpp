@@ -2,10 +2,10 @@
 #include "log.hpp"
 #include "memory/memory.hpp"
 
-km::SystemMemory::SystemMemory(const boot::MemoryMap& memmap, VirtualRange systemArea, VirtualRange userArea, PageBuilder pm, mem::IAllocator *alloc)
+km::SystemMemory::SystemMemory(std::span<const boot::MemoryRegion> memmap, VirtualRange systemArea, VirtualRange userArea, PageBuilder pm, AddressMapping pteMemory)
     : pager(pm)
     , pmm(memmap)
-    , pt(&pager, alloc)
+    , pt(&pager, pteMemory)
     , vmm(systemArea, userArea)
 { }
 

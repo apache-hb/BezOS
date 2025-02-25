@@ -36,7 +36,6 @@
 #include "panic.hpp"
 #include "processor.hpp"
 #include "process/schedule.hpp"
-#include "std/spinlock.hpp"
 #include "std/static_vector.hpp"
 #include "syscall.hpp"
 #include "thread.hpp"
@@ -345,9 +344,9 @@ static KernelLayout BuildKernelLayout(
     return layout;
 }
 
-static size_t GetEarlyMemorySize(const boot::MemoryMap& memmap) {
+static size_t GetEarlyMemorySize(std::span<const boot::MemoryRegion> memmap) {
     size_t size = 0;
-    for (const boot::MemoryRegion& entry : memmap.regions) {
+    for (const boot::MemoryRegion& entry : memmap) {
         if (!entry.isUsable() && !entry.isReclaimable())
             continue;
 
@@ -361,8 +360,8 @@ static size_t GetEarlyMemorySize(const boot::MemoryMap& memmap) {
     return sm::roundup(size / 100, x64::kPageSize);
 }
 
-static boot::MemoryRegion FindEarlyAllocatorRegion(const boot::MemoryMap& memmap, size_t size) {
-    for (const boot::MemoryRegion& entry : memmap.regions) {
+static boot::MemoryRegion FindEarlyAllocatorRegion(std::span<const boot::MemoryRegion> memmap, size_t size) {
+    for (const boot::MemoryRegion& entry : memmap) {
         if (!entry.isUsable())
             continue;
 
@@ -386,7 +385,7 @@ static MemoryMap *AllocateEarlyMemory(void *vaddr, size_t size) {
     return new (mem) MemoryMap(std::move(allocator));
 }
 
-static std::tuple<MemoryMap*, km::AddressMapping> CreateEarlyAllocator(const boot::MemoryMap& memmap, uintptr_t hhdmOffset) {
+static std::tuple<MemoryMap*, km::AddressMapping> CreateEarlyAllocator(std::span<const boot::MemoryRegion> memmap, uintptr_t hhdmOffset) {
     size_t earlyAllocSize = std::max(GetEarlyMemorySize(memmap), kStage1AllocMinSize);
 
     boot::MemoryRegion region = FindEarlyAllocatorRegion(memmap, earlyAllocSize);
@@ -394,7 +393,7 @@ static std::tuple<MemoryMap*, km::AddressMapping> CreateEarlyAllocator(const boo
 
     void *vaddr = std::bit_cast<void*>(region.range.front + hhdmOffset);
     MemoryMap *memory = AllocateEarlyMemory(vaddr, earlyAllocSize);
-    std::copy(memmap.regions.begin(), memmap.regions.end(), std::back_inserter(memory->memmap));
+    std::copy(memmap.begin(), memmap.end(), std::back_inserter(memory->memmap));
 
     memory->insert({ boot::MemoryRegion::eKernelRuntimeData, range });
 
@@ -513,7 +512,7 @@ static Stage2MemoryInfo *InitStage2Memory(
     static constexpr size_t kPtAllocSize = sm::megabytes(1).bytes();
     mem::TlsfAllocator *ptAllocator = new mem::TlsfAllocator(aligned_alloc(x64::kPageSize, kPtAllocSize), kPtAllocSize);
 
-    SystemMemory *memory = new SystemMemory(boot::MemoryMap{earlyMemory->memmap}, stage1.layout.system, DefaultUserArea(), pm, ptAllocator);
+    SystemMemory *memory = new SystemMemory(earlyMemory->memmap, stage1.layout.system, DefaultUserArea(), pm, ptAllocator);
     KM_CHECK(memory != nullptr, "Failed to allocate memory for SystemMemory.");
 
     stage2->memory = memory;

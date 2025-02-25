@@ -26,33 +26,3 @@ bool boot::MemoryRegion::isReclaimable() const {
 bool boot::MemoryRegion::isAccessible() const {
     return type != eBadMemory;
 }
-
-sm::Memory boot::MemoryMap::usableMemory() const {
-    size_t result = 0;
-    for (const MemoryRegion& entry : regions) {
-        if (entry.isUsable()) {
-            result += entry.size();
-        }
-    }
-    return sm::bytes(result);
-}
-
-sm::Memory boot::MemoryMap::reclaimableMemory() const {
-    size_t result = 0;
-    for (const MemoryRegion& entry : regions) {
-        if (entry.isReclaimable()) {
-            result += entry.size();
-        }
-    }
-    return sm::bytes(result);
-}
-
-km::PhysicalAddress boot::MemoryMap::maxPhysicalAddress() const {
-    km::PhysicalAddress result = nullptr;
-    for (const MemoryRegion& entry : regions) {
-        if (entry.isAccessible()) {
-            result = std::max(result, entry.range.back);
-        }
-    }
-    return result;
-}

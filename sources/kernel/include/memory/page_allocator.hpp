@@ -13,7 +13,7 @@ namespace km {
         RangeAllocator<PhysicalAddress> mMemory;
 
     public:
-        PageAllocator(const boot::MemoryMap& memmap);
+        PageAllocator(std::span<const boot::MemoryRegion> memmap);
 
         /// @brief Allocate a 4k page of memory above 1M.
         ///

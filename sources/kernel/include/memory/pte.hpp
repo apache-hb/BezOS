@@ -15,9 +15,10 @@ namespace km {
     };
 
     class PageTableManager {
+        uintptr_t mSlide;
         mutable stdx::SpinLock mLock;
         const km::PageBuilder *mPageManager;
-        mem::IAllocator *mAllocator;
+        mem::SynchronizedAllocator<mem::TlsfAllocator> mAllocator;
         x64::PageMapLevel4 *mRootPageTable;
 
         x64::page *alloc4k();
@@ -41,15 +42,15 @@ namespace km {
 
         template<typename T>
         T *getVirtualAddress(km::PhysicalAddress addr) const {
-            return (T*)(addr.address + mPageManager->hhdmOffset());
+            return (T*)(addr.address + mSlide);
         }
 
         km::PhysicalAddress getPhysicalAddress(const void *ptr) const {
-            return km::PhysicalAddress { (uintptr_t)ptr - mPageManager->hhdmOffset() };
+            return km::PhysicalAddress { (uintptr_t)ptr - mSlide };
         }
 
     public:
-        PageTableManager(const km::PageBuilder *pm, mem::IAllocator *allocator);
+        PageTableManager(const km::PageBuilder *pm, AddressMapping pteMemory);
 
         km::PhysicalAddress rootPageTable() const {
             return getPhysicalAddress(getRootTable());
@@ -73,15 +74,15 @@ namespace km {
             mapRange(mapping.physicalRange(), mapping.vaddr, flags, type);
         }
     };
+
+    /// @brief Remap the kernel to replace the boot page tables.
+    /// @param vmm The virtual memory manager
+    /// @param paddr The physical address of the kernel
+    /// @param vaddr The virtual address of the kernel
+    void MapKernel(km::PageTableManager& vmm, km::PhysicalAddress paddr, const void *vaddr);
+
+    /// @brief Reclaim bootloader memory.
+    /// @param pm The page manager
+    /// @param vmm The virtual memory manager
+    void UpdateRootPageTable(const km::PageBuilder& pm, km::PageTableManager& vmm);
 }
-
-/// @brief Remap the kernel to replace the boot page tables.
-/// @param vmm The virtual memory manager
-/// @param paddr The physical address of the kernel
-/// @param vaddr The virtual address of the kernel
-void KmMapKernel(km::PageTableManager& vmm, km::PhysicalAddress paddr, const void *vaddr);
-
-/// @brief Reclaim bootloader memory.
-/// @param pm The page manager
-/// @param vmm The virtual memory manager
-void KmUpdateRootPageTable(const km::PageBuilder& pm, km::PageTableManager& vmm);

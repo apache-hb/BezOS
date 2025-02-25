@@ -71,10 +71,6 @@ namespace km {
             , mLayout(layout)
         { }
 
-        constexpr bool has3LevelPaging() const {
-            return mAddressMask == x64::paging::addressMask(40);
-        }
-
         constexpr bool has4LevelPaging() const {
             return mAddressMask == x64::paging::addressMask(48);
         }

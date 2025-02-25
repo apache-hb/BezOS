@@ -9,8 +9,8 @@ using namespace km;
 
 /// page allocator
 
-PageAllocator::PageAllocator(const boot::MemoryMap& memmap) {
-    for (boot::MemoryRegion region : memmap.regions) {
+PageAllocator::PageAllocator(std::span<const boot::MemoryRegion> memmap) {
+    for (boot::MemoryRegion region : memmap) {
         if (!region.isUsable())
             continue;
 

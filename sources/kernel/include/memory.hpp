@@ -26,7 +26,7 @@ namespace km {
         PageTableManager pt;
         VirtualAllocator vmm;
 
-        SystemMemory(const boot::MemoryMap& memmap, VirtualRange systemArea, VirtualRange userArea, PageBuilder pm, mem::IAllocator *allocator);
+        SystemMemory(std::span<const boot::MemoryRegion> memmap, VirtualRange systemArea, VirtualRange userArea, PageBuilder pm, AddressMapping pteMemory);
 
         void *allocate(
             size_t size,

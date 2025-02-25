@@ -55,7 +55,6 @@ struct MemorySegment {
 struct SystemMemoryTestBody {
     mmUniquePtr<uint8_t[]> allocatorMemory;
     std::vector<MemorySegment> memory;
-    boot::MemoryMap memmap;
     BufferAllocator allocator;
     km::PageBuilder pm;
 
@@ -87,7 +86,7 @@ struct SystemMemoryTestBody {
         uintptr_t userFront = userSegment.front.address;
         uintptr_t userBack = userSegment.back.address;
         km::VirtualRange user{(void*)userFront, (void*)userBack};
-        return km::SystemMemory(boot::MemoryMap{regions}, system, user, pm, &allocator);
+        return km::SystemMemory(regions, system, user, pm, &allocator);
     }
 
     km::SystemMemory makeNoAlloc(km::VirtualRange userArea) {
@@ -99,6 +98,6 @@ struct SystemMemoryTestBody {
         uintptr_t dataFront = -(1ull << (48 - 1));
         uintptr_t dataBack = -(1ull << (48 - 2));
         km::VirtualRange system{(void*)dataFront, (void*)dataBack};
-        return km::SystemMemory(boot::MemoryMap{regions}, system, userArea, pm, &allocator);
+        return km::SystemMemory(regions, system, userArea, pm, &allocator);
     }
 };

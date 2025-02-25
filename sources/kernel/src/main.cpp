@@ -188,7 +188,6 @@ void km::SetupApGdt(void) {
     StoreTlsRegisters(tls);
 }
 
-static constexpr size_t kStage1AllocMinSize = sm::megabytes(1).bytes();
 static constexpr size_t kCommittedRegionSize = sm::megabytes(16).bytes();
 
 struct KernelLayout {
@@ -261,12 +260,10 @@ static size_t TotalDisplaySize(std::span<const boot::FrameBuffer> displays) {
 }
 
 struct MemoryMap {
-    mem::TlsfAllocator allocator;
     stdx::Vector3<boot::MemoryRegion> memmap;
 
-    MemoryMap(mem::TlsfAllocator alloc)
-        : allocator(std::move(alloc))
-        , memmap(&allocator)
+    MemoryMap(mem::IAllocator *allocator)
+        : memmap(allocator)
     { }
 
     void sortMemoryMap() {
@@ -336,7 +333,7 @@ static KernelLayout BuildKernelLayout(
 
     km::MemoryRange committedPhysicalMemory = memory.reserve(kCommittedRegionSize);
     if (committedPhysicalMemory.isEmpty()) {
-        WriteMemoryMap(boot::MemoryMap{memory.memmap});
+        WriteMemoryMap(memory.memmap);
         KmDebugMessage("[INIT] Failed to reserve memory for committed region ", sm::bytes(kCommittedRegionSize), ".\n");
         KM_PANIC("Failed to reserve memory for committed region.");
     }
@@ -372,64 +369,25 @@ static KernelLayout BuildKernelLayout(
     return layout;
 }
 
-static size_t GetEarlyMemorySize(const boot::MemoryMap& memmap) {
-    size_t size = 0;
-    for (const boot::MemoryRegion& entry : memmap.regions) {
-        if (!entry.isUsable() && !entry.isReclaimable())
-            continue;
+static mem::TlsfAllocator *MakeEarlyAllocator(km::AddressMapping memory) {
+    mem::TlsfAllocator allocator { (void*)memory.vaddr, memory.size };
 
-        if (IsLowMemory(entry.range))
-            continue;
+    void *mem = allocator.allocateAligned(sizeof(mem::TlsfAllocator), alignof(mem::TlsfAllocator));
 
-        size += entry.size();
-    }
-
-    // should only need around 1% of total memory for the early allocator
-    return sm::roundup(size / 100, x64::kPageSize);
+    return new (mem) mem::TlsfAllocator(std::move(allocator));
 }
 
-static boot::MemoryRegion FindEarlyAllocatorRegion(const boot::MemoryMap& memmap, size_t size) {
-    for (const boot::MemoryRegion& entry : memmap.regions) {
-        if (!entry.isUsable())
-            continue;
+static MemoryMap* CreateEarlyAllocator(const boot::LaunchInfo& launch, mem::TlsfAllocator *allocator) {
+    const auto& memmap = launch.memmap;
+    km::AddressMapping bootMemory = launch.earlyMemory;
+    km::MemoryRange range = bootMemory.physicalRange();
 
-        if (IsLowMemory(entry.range))
-            continue;
-
-        if (entry.range.size() < size)
-            continue;
-
-        return entry;
-    }
-
-    WriteMemoryMap(memmap);
-    KM_PANIC("No suitable memory region found for early allocator.");
-}
-
-static MemoryMap *AllocateEarlyMemory(void *vaddr, size_t size) {
-    mem::TlsfAllocator allocator { vaddr, size };
-
-    void *mem = allocator.allocateAligned(sizeof(MemoryMap), alignof(MemoryMap));
-
-    return new (mem) MemoryMap(std::move(allocator));
-}
-
-static std::tuple<MemoryMap*, km::AddressMapping> CreateEarlyAllocator(const boot::LaunchInfo& launch) {
-    const boot::MemoryMap& memmap = launch.memmap;
-    uintptr_t hhdmOffset = launch.hhdmOffset;
-
-    size_t earlyAllocSize = std::max(GetEarlyMemorySize(memmap), kStage1AllocMinSize);
-
-    boot::MemoryRegion region = FindEarlyAllocatorRegion(memmap, earlyAllocSize);
-    km::MemoryRange range = { region.range.front, region.range.front + earlyAllocSize };
-
-    void *vaddr = std::bit_cast<void*>(region.range.front + hhdmOffset);
-    MemoryMap *memory = AllocateEarlyMemory(vaddr, earlyAllocSize);
-    std::copy(memmap.regions.begin(), memmap.regions.end(), std::back_inserter(memory->memmap));
+    MemoryMap *memory = allocator->construct<MemoryMap>(allocator);
+    std::copy(memmap.begin(), memmap.end(), std::back_inserter(memory->memmap));
 
     memory->insert({ boot::MemoryRegion::eKernelRuntimeData, range });
 
-    return std::make_tuple(memory, km::AddressMapping { vaddr, range.front, earlyAllocSize });
+    return memory;
 }
 
 static void MapDisplayRegions(PageTableManager& vmm, std::span<const boot::FrameBuffer> framebuffers, VirtualRange range) {
@@ -445,7 +403,7 @@ static void MapDisplayRegions(PageTableManager& vmm, std::span<const boot::Frame
 
 static void MapKernelRegions(PageTableManager &vmm, const KernelLayout& layout) {
     auto [kernelVirtualBase, kernelPhysicalBase, _] = layout.kernel;
-    KmMapKernel(vmm, kernelPhysicalBase, kernelVirtualBase);
+    MapKernel(vmm, kernelPhysicalBase, kernelVirtualBase);
 }
 
 static void MapDataRegion(PageTableManager &vmm, km::AddressMapping mapping) {
@@ -455,6 +413,7 @@ static void MapDataRegion(PageTableManager &vmm, km::AddressMapping mapping) {
 /// Everything in this structure is owned by the stage1 memory allocator.
 /// Once that allocator is destroyed this memory is no longer mapped.
 struct Stage1MemoryInfo {
+    mem::TlsfAllocator *allocator;
     MemoryMap *earlyMemory;
     KernelLayout layout;
     std::span<boot::FrameBuffer> framebuffers;
@@ -474,7 +433,8 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
 
     WriteMtrrs(pm);
 
-    auto [earlyMemory, earlyRegion] = CreateEarlyAllocator(launch);
+    mem::TlsfAllocator *allocator = MakeEarlyAllocator(launch.earlyMemory);
+    MemoryMap *earlyMemory = CreateEarlyAllocator(launch, allocator);
 
     KernelLayout layout = BuildKernelLayout(
         processor.maxvaddr,
@@ -484,13 +444,24 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
         launch.framebuffers
     );
 
-    WriteMemoryMap(boot::MemoryMap{earlyMemory->memmap});
+    WriteMemoryMap(earlyMemory->memmap);
 
-    mem::IAllocator *alloc = &earlyMemory->allocator;
+    boot::FrameBuffer *framebuffers = CloneFrameBuffers(allocator, launch.framebuffers);
 
-    boot::FrameBuffer *framebuffers = CloneFrameBuffers(alloc, launch.framebuffers);
+    static constexpr size_t kPtAllocSize = sm::kilobytes(256).bytes();
+    void *pteMemory = allocator->allocateAligned(kPtAllocSize, x64::kPageSize);
+    KM_CHECK(pteMemory != nullptr, "Failed to allocate memory for page tables.");
 
-    PageTableManager vmm(&pm, &earlyMemory->allocator);
+    size_t offset = (uintptr_t)pteMemory - (uintptr_t)launch.earlyMemory.vaddr;
+    KM_CHECK(offset < launch.earlyMemory.size, "Page table memory is out of bounds.");
+
+    AddressMapping pteMapping {
+        .vaddr = pteMemory,
+        .paddr = launch.earlyMemory.paddr + offset,
+        .size = kPtAllocSize
+    };
+
+    PageTableManager vmm(&pm, pteMapping);
 
     // initialize our own page tables and remap everything into it
     MapKernelRegions(vmm, layout);
@@ -499,17 +470,16 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
     MapDataRegion(vmm, stack);
 
     // map the early allocator region
-    MapDataRegion(vmm, earlyRegion);
+    MapDataRegion(vmm, launch.earlyMemory);
 
     // map the non-pageable memory
     MapDataRegion(vmm, layout.committed);
 
     // remap framebuffers
-
     MapDisplayRegions(vmm, launch.framebuffers, layout.framebuffers);
 
     // once it is safe to remap the boot memory, do so
-    KmUpdateRootPageTable(pm, vmm);
+    UpdateRootPageTable(pm, vmm);
 
     // can't log anything here as we need to move the framebuffer first
 
@@ -520,7 +490,7 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
             .setAddress(layout.getFrameBuffer(launch.framebuffers, 0));
     }
 
-    return Stage1MemoryInfo { earlyMemory, layout, std::span(framebuffers, launch.framebuffers.size()) };
+    return Stage1MemoryInfo { allocator, earlyMemory, layout, std::span(framebuffers, launch.framebuffers.size()) };
 }
 
 using TlsfAllocatorSync = mem::SynchronizedAllocator<mem::TlsfAllocator>;
@@ -530,11 +500,8 @@ struct Stage2MemoryInfo {
     KernelLayout layout;
 };
 
-static Stage2MemoryInfo *InitStage2Memory(
-    const boot::LaunchInfo& launch,
-    const km::ProcessorInfo& processor,
-    const Stage1MemoryInfo& stage1
-) {
+static Stage2MemoryInfo *InitStage2Memory(const boot::LaunchInfo& launch, const km::ProcessorInfo& processor) {
+    Stage1MemoryInfo stage1 = InitStage1Memory(launch, processor);
     km::AddressMapping stack = launch.stack;
     KernelLayout layout = stage1.layout;
     std::span<boot::FrameBuffer> framebuffers = stage1.framebuffers;
@@ -547,9 +514,21 @@ static Stage2MemoryInfo *InitStage2Memory(
     Stage2MemoryInfo *stage2 = new Stage2MemoryInfo();
 
     static constexpr size_t kPtAllocSize = sm::megabytes(1).bytes();
-    TlsfAllocatorSync *ptAllocator = new TlsfAllocatorSync(aligned_alloc(x64::kPageSize, kPtAllocSize), kPtAllocSize);
+    void *pteMemory = aligned_alloc(x64::kPageSize, kPtAllocSize);
+    KM_CHECK(pteMemory != nullptr, "Failed to allocate memory for page tables.");
 
-    SystemMemory *memory = new SystemMemory(boot::MemoryMap{earlyMemory->memmap}, stage1.layout.system, DefaultUserArea(), pm, ptAllocator);
+    size_t offset = (uintptr_t)pteMemory - (uintptr_t)layout.committed.vaddr;
+    KM_CHECK(offset < layout.committed.size, "Page table memory is out of bounds.");
+
+    AddressMapping pteMapping {
+        .vaddr = pteMemory,
+        .paddr = layout.committed.paddr + offset,
+        .size = kPtAllocSize
+    };
+
+    KmDebugMessage("[INIT] Page table memory: ", pteMapping, "\n");
+
+    SystemMemory *memory = new SystemMemory(earlyMemory->memmap, stage1.layout.system, DefaultUserArea(), pm, pteMapping);
     KM_CHECK(memory != nullptr, "Failed to allocate memory for SystemMemory.");
 
     stage2->memory = memory;
@@ -579,7 +558,7 @@ static Stage2MemoryInfo *InitStage2Memory(
     MapDisplayRegions(memory->pt, framebuffers, layout.framebuffers);
 
     // once it is safe to remap the boot memory, do so
-    KmUpdateRootPageTable(memory->pager, memory->pt);
+    UpdateRootPageTable(memory->pager, memory->pt);
 
     return stage2;
 }
@@ -1473,8 +1452,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     // Once we have the initial gdt setup we create the global allocator.
     // The IDT depends on the allocator to create its global ISR table.
     //
-    Stage1MemoryInfo stage1 = InitStage1Memory(launch, processor);
-    Stage2MemoryInfo *stage2 = InitStage2Memory(launch, processor, stage1);
+    Stage2MemoryInfo *stage2 = InitStage2Memory(launch, processor);
     gMemory = stage2->memory;
 
     //

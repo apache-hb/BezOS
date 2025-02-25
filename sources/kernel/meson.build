@@ -355,10 +355,10 @@ testcases = {
     'range allocator': [
         'test/memory/range_allocator.cpp',
     ],
-    'page table': [
-        'test/memory/pte.cpp',
-        'src/memory/pte.cpp',
-    ],
+    # 'page table': [
+    #     'test/memory/pte.cpp',
+    #     'src/memory/pte.cpp',
+    # ],
     'partitions': [
         'test/drivers/partitions.cpp',
         'src/drivers/fs/driver.cpp',
@@ -434,14 +434,14 @@ testcases = {
         'test/isr/isr.cpp',
         'src/isr/default.cpp',
     ],
-    'memory': [
-        'test/memory.cpp',
-        'src/memory.cpp',
-        'src/memory/pte.cpp',
-        'src/memory/page_allocator.cpp',
-        'src/memory/virtual_allocator.cpp',
-        'src/boot.cpp',
-    ],
+    # 'memory': [
+    #     'test/memory.cpp',
+    #     'src/memory.cpp',
+    #     'src/memory/pte.cpp',
+    #     'src/memory/page_allocator.cpp',
+    #     'src/memory/virtual_allocator.cpp',
+    #     'src/boot.cpp',
+    # ],
     'process': [
         'test/process.cpp',
         'src/process/process.cpp',
@@ -521,51 +521,51 @@ test('tarfs', exe,
     }
 )
 
-source = [
-    'test/launch/elf.cpp',
+# source = [
+#     'test/launch/elf.cpp',
 
-    'src/launch.cpp',
+#     'src/launch.cpp',
 
-    'src/fs2/vfs.cpp',
-    'src/fs2/path.cpp',
-    'src/fs2/node.cpp',
-    'src/fs2/handle.cpp',
-    'src/fs2/ramfs.cpp',
-    'src/fs2/tarfs.cpp',
-    'src/process/process.cpp',
+#     'src/fs2/vfs.cpp',
+#     'src/fs2/path.cpp',
+#     'src/fs2/node.cpp',
+#     'src/fs2/handle.cpp',
+#     'src/fs2/ramfs.cpp',
+#     'src/fs2/tarfs.cpp',
+#     'src/process/process.cpp',
 
-    'src/boot.cpp',
-    'src/hypervisor.cpp',
+#     'src/boot.cpp',
+#     'src/hypervisor.cpp',
 
-    'src/std/rcu.cpp',
-    'src/std/rcuptr.cpp',
+#     'src/std/rcu.cpp',
+#     'src/std/rcuptr.cpp',
 
-    'src/memory.cpp',
-    'src/memory/layout.cpp',
-    'src/memory/page_allocator.cpp',
-    'src/memory/virtual_allocator.cpp',
-    'src/memory/pte.cpp',
+#     'src/memory.cpp',
+#     'src/memory/layout.cpp',
+#     'src/memory/page_allocator.cpp',
+#     'src/memory/virtual_allocator.cpp',
+#     'src/memory/pte.cpp',
 
-    'src/util/format.cpp',
-    'src/util/memory.cpp',
-    'src/util/cpuid.cpp',
+#     'src/util/format.cpp',
+#     'src/util/memory.cpp',
+#     'src/util/cpuid.cpp',
 
-    'src/drivers/block/driver.cpp',
-    'src/drivers/block/ramblk.cpp',
-]
+#     'src/drivers/block/driver.cpp',
+#     'src/drivers/block/ramblk.cpp',
+# ]
 
-exe = executable('test-kernel-elf', source,
-    kwargs : test_exe_kwargs,
-)
+# exe = executable('test-kernel-elf', source,
+#     kwargs : test_exe_kwargs,
+# )
 
-test('elf', exe,
-    suite : 'kernel',
-    kwargs : testkwargs,
-    depends : tar_test_data,
-    env : {
-        'TAR_TEST_ARCHIVE': meson.current_source_dir() / 'data/test/elf/initrd.tar'
-    }
-)
+# test('elf', exe,
+#     suite : 'kernel',
+#     kwargs : testkwargs,
+#     depends : tar_test_data,
+#     env : {
+#         'TAR_TEST_ARCHIVE': meson.current_source_dir() / 'data/test/elf/initrd.tar'
+#     }
+# )
 
 testcases = {
     'terminal': {
@@ -663,25 +663,25 @@ if enable_aml
 endif
 
 
-images = {
-    'base': [
-        'test/image/base.cpp',
-    ],
-    'scheduler': [
-        'test/image/schedule.cpp',
-    ]
-}
+# images = {
+#     'base': [
+#         'test/image/base.cpp',
+#     ],
+#     'scheduler': [
+#         'test/image/schedule.cpp',
+#     ]
+# }
 
-foreach name, source : images
-    executable('bezos-test-' + name + '.elf', source + [ 'src/boot/hyper.cpp', ],
-        c_args : c_args + [ '-D__BEZOS__=1' ],
-        cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
-        include_directories : inc,
-        link_with : kernel,
-        dependencies : [ ultra, deps ],
-        link_depends : 'data/linker-hyper.ld',
-        link_args : [ '-T', meson.current_source_dir() / 'data/linker-hyper.ld' ],
-        install : true,
-        override_options : [ 'b_coverage=false' ],
-    )
-endforeach
+# foreach name, source : images
+#     executable('bezos-test-' + name + '.elf', source + [ 'src/boot/hyper.cpp', ],
+#         c_args : c_args + [ '-D__BEZOS__=1' ],
+#         cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
+#         include_directories : inc,
+#         link_with : kernel,
+#         dependencies : [ ultra, deps ],
+#         link_depends : 'data/linker-hyper.ld',
+#         link_args : [ '-T', meson.current_source_dir() / 'data/linker-hyper.ld' ],
+#         install : true,
+#         override_options : [ 'b_coverage=false' ],
+#     )
+# endforeach

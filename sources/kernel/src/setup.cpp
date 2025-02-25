@@ -114,20 +114,20 @@ void km::WriteMtrrs(const km::PageBuilder& pm) {
     // SetupMtrrs(mtrrs, pm);
 }
 
-void km::WriteMemoryMap(const boot::MemoryMap& memmap) {
-    KmDebugMessage("[INIT] ", memmap.regions.size(), " memory map entries.\n");
+void km::WriteMemoryMap(std::span<const boot::MemoryRegion> memmap) {
+    KmDebugMessage("[INIT] ", memmap.size(), " memory map entries.\n");
 
     KmDebugMessage("| Entry | Address            | Size               | Type\n");
     KmDebugMessage("|-------+--------------------+--------------------+-----------------------\n");
 
-    for (size_t i = 0; i < memmap.regions.size(); i++) {
-        boot::MemoryRegion entry = memmap.regions[i];
+    for (size_t i = 0; i < memmap.size(); i++) {
+        boot::MemoryRegion entry = memmap[i];
         MemoryRange range = entry.range;
 
         KmDebugMessage("| ", Int(i).pad(4, '0'), "  | ", Hex(range.front.address).pad(16, '0'), " | ", rpad(18) + sm::bytes(range.size()), " | ", entry.type, "\n");
     }
 
-    KmDebugMessage("[INIT] Usable memory: ", memmap.usableMemory(), ", Reclaimable memory: ", memmap.reclaimableMemory(), "\n");
+    KmDebugMessage("[INIT] Usable memory: ", boot::UsableMemory(memmap), ", Reclaimable memory: ", boot::ReclaimableMemory(memmap), "\n");
 }
 
 void km::DumpIsrState(const km::IsrContext *context) {

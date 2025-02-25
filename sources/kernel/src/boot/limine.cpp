@@ -3,7 +3,7 @@
 #include <limine.h>
 
 static constexpr size_t kStackSize = sm::kilobytes(16).bytes();
-static constexpr size_t kBootMemory = sm::kilobytes(256).bytes();
+static constexpr size_t kBootMemory = sm::megabytes(1).bytes();
 
 [[gnu::used, gnu::section(".limine_requests")]]
 static volatile LIMINE_BASE_REVISION(3)

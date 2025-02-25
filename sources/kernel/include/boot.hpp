@@ -117,17 +117,35 @@ namespace boot {
         }
     };
 
-    struct MemoryMap {
-        std::span<MemoryRegion> regions;
+    constexpr sm::Memory UsableMemory(std::span<const MemoryRegion> regions) {
+        size_t result = 0;
+        for (const MemoryRegion& entry : regions) {
+            if (entry.isUsable()) {
+                result += entry.size();
+            }
+        }
+        return sm::bytes(result);
+    }
 
-        sm::Memory usableMemory() const;
-        sm::Memory reclaimableMemory() const;
+    constexpr sm::Memory ReclaimableMemory(std::span<const MemoryRegion> regions) {
+        size_t result = 0;
+        for (const MemoryRegion& entry : regions) {
+            if (entry.isReclaimable()) {
+                result += entry.size();
+            }
+        }
+        return sm::bytes(result);
+    }
 
-        km::PhysicalAddress maxPhysicalAddress() const;
-
-        auto begin(this auto&& self) { return self.regions.begin(); }
-        auto end(this auto&& self) { return self.regions.end(); }
-    };
+    constexpr km::PhysicalAddress MaxPhysicalAddress(std::span<const MemoryRegion> regions) {
+        km::PhysicalAddress result = nullptr;
+        for (const MemoryRegion& entry : regions) {
+            if (entry.isAccessible()) {
+                result = std::max(result, entry.range.back);
+            }
+        }
+        return result;
+    }
 
     struct LaunchInfo {
         km::PhysicalAddress kernelPhysicalBase;
@@ -138,7 +156,7 @@ namespace boot {
         km::PhysicalAddress rsdpAddress;
 
         std::span<FrameBuffer> framebuffers;
-        MemoryMap memmap;
+        std::span<MemoryRegion> memmap;
 
         km::AddressMapping stack;
 

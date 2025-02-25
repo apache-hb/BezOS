@@ -13,7 +13,7 @@
 using namespace km;
 
 x64::page *PageTableManager::alloc4k() {
-    if (x64::page *page = mAllocator->allocate<x64::page>()) {
+    if (x64::page *page = mAllocator.construct<x64::page>()) {
         memset(page, 0, sizeof(x64::page));
 
         return page;
@@ -39,9 +39,10 @@ void PageTableManager::setEntryFlags(x64::Entry& entry, PageFlags flags, Physica
     entry.setPresent(true);
 }
 
-PageTableManager::PageTableManager(const km::PageBuilder *pm, mem::IAllocator *allocator)
-    : mPageManager(pm)
-    , mAllocator(allocator)
+PageTableManager::PageTableManager(const km::PageBuilder *pm, AddressMapping pteMemory)
+    : mSlide(pm->hhdmOffset())
+    , mPageManager(pm)
+    , mAllocator((void*)pteMemory.vaddr, pteMemory.size)
     , mRootPageTable((x64::PageMapLevel4*)alloc4k())
 { }
 

@@ -38,12 +38,12 @@ static void MapKernelPages(PageTableManager& memory, km::PhysicalAddress paddr, 
     mapKernelRange(__data_start, __data_end, PageFlags::eData, ".data");
 }
 
-void KmMapKernel(km::PageTableManager& vmm, km::PhysicalAddress paddr, const void *vaddr) {
+void km::MapKernel(km::PageTableManager& vmm, km::PhysicalAddress paddr, const void *vaddr) {
     // first map the kernel pages
     MapKernelPages(vmm, paddr, vaddr);
 }
 
-void KmUpdateRootPageTable(const km::PageBuilder& pm, km::PageTableManager& vmm) {
+void km::UpdateRootPageTable(const km::PageBuilder& pm, km::PageTableManager& vmm) {
     KmDebugMessage("[INIT] PML4: ", vmm.rootPageTable(), "\n");
     pm.setActiveMap(vmm.rootPageTable());
 }
