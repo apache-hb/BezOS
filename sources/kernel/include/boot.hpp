@@ -124,6 +124,9 @@ namespace boot {
         sm::Memory reclaimableMemory() const;
 
         km::PhysicalAddress maxPhysicalAddress() const;
+
+        auto begin(this auto&& self) { return self.regions.begin(); }
+        auto end(this auto&& self) { return self.regions.end(); }
     };
 
     struct LaunchInfo {

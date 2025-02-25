@@ -414,7 +414,10 @@ static MemoryMap *AllocateEarlyMemory(void *vaddr, size_t size) {
     return new (mem) MemoryMap(std::move(allocator));
 }
 
-static std::tuple<MemoryMap*, km::AddressMapping> CreateEarlyAllocator(const boot::MemoryMap& memmap, uintptr_t hhdmOffset) {
+static std::tuple<MemoryMap*, km::AddressMapping> CreateEarlyAllocator(const boot::LaunchInfo& launch) {
+    const boot::MemoryMap& memmap = launch.memmap;
+    uintptr_t hhdmOffset = launch.hhdmOffset;
+
     size_t earlyAllocSize = std::max(GetEarlyMemorySize(memmap), kStage1AllocMinSize);
 
     boot::MemoryRegion region = FindEarlyAllocatorRegion(memmap, earlyAllocSize);
@@ -471,7 +474,7 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
 
     WriteMtrrs(pm);
 
-    auto [earlyMemory, earlyRegion] = CreateEarlyAllocator(launch.memmap, launch.hhdmOffset);
+    auto [earlyMemory, earlyRegion] = CreateEarlyAllocator(launch);
 
     KernelLayout layout = BuildKernelLayout(
         processor.maxvaddr,
