@@ -5,7 +5,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#include "allocator/synchronized.hpp"
 #include "apic.hpp"
 
 #include "arch/cr0.hpp"
@@ -493,8 +492,6 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
     return Stage1MemoryInfo { allocator, earlyMemory, layout, std::span(framebuffers, launch.framebuffers.size()) };
 }
 
-using TlsfAllocatorSync = mem::SynchronizedAllocator<mem::TlsfAllocator>;
-
 struct Stage2MemoryInfo {
     SystemMemory *memory;
     KernelLayout layout;
@@ -744,6 +741,7 @@ static void LogSystemInfo(
     KmDebugMessage("| /BOOT         | Stack                | ", launch.stack, "\n");
     KmDebugMessage("| /BOOT         | Kernel virtual       | ", launch.kernelVirtualBase, "\n");
     KmDebugMessage("| /BOOT         | Kernel physical      | ", launch.kernelPhysicalBase, "\n");
+    KmDebugMessage("| /BOOT         | Boot Allocator       | ", launch.earlyMemory, "\n");
     KmDebugMessage("| /BOOT         | INITRD               | ", launch.initrd, "\n");
     KmDebugMessage("| /BOOT         | HHDM offset          | ", Hex(launch.hhdmOffset).pad(16, '0'), "\n");
 }

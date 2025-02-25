@@ -38,11 +38,11 @@ static const ultra_module_info_attribute *GetModule(const ultra_boot_context *co
     return nullptr;
 }
 
-static km::AddressMapping GetBootMemory(const ultra_boot_context *context) {
+static km::AddressMapping GetBootMemory(const ultra_boot_context *context, uintptr_t hhdmOffset) {
     auto bootstrap = GetModule(context, "allocator-bootstrap");
     void *address = (void*)bootstrap->address;
 
-    return { address, (uintptr_t)address, bootstrap->size };
+    return { address, (uintptr_t)address - hhdmOffset, bootstrap->size };
 }
 
 static boot::MemoryRegion::Type BootGetEntryType(ultra_memory_map_entry entry) {
@@ -148,13 +148,13 @@ static km::AddressMapping BootGetStack(const ultra_memory_map_attribute *memmap,
     return stack;
 }
 
-static km::MemoryRange BootGetInitArchive(const ultra_boot_context *context) {
+static km::MemoryRange BootGetInitArchive(const ultra_boot_context *context, uintptr_t hhdmOffset) {
     auto mod = GetModule(context, "initrd");
     if (mod == nullptr) {
         return { };
     }
 
-    return { mod->address, mod->address + mod->size };
+    return { mod->address - hhdmOffset, mod->address + mod->size - hhdmOffset };
 }
 
 extern "C" int HyperMain(ultra_boot_context *context, uint32_t) {
@@ -164,14 +164,14 @@ extern "C" int HyperMain(ultra_boot_context *context, uint32_t) {
     auto memmap = GetAttribute<ultra_memory_map_attribute>(context, ULTRA_ATTRIBUTE_MEMORY_MAP);
 
     uintptr_t hhdmOffset = platformInfo->higher_half_base;
-    km::AddressMapping bootMemory = GetBootMemory(context);
+    km::AddressMapping bootMemory = GetBootMemory(context, hhdmOffset);
     boot::BootInfoBuilder builder { bootMemory, bootMemory.size - boot::kPrebootMemory };
 
     BootGetMemoryMap(memmap, builder);
     BootGetFrameBuffers(hhdmOffset, framebuffer, builder);
 
     km::AddressMapping stack = BootGetStack(memmap, hhdmOffset);
-    km::MemoryRange initrd = BootGetInitArchive(context);
+    km::MemoryRange initrd = BootGetInitArchive(context, hhdmOffset);
 
     boot::LaunchInfo info = {
         .kernelPhysicalBase = kernelInfo->physical_base,
