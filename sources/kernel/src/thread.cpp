@@ -17,7 +17,9 @@ size_t km::CpuLocalDataSize() {
 
 void *km::AllocateCpuLocalRegion() {
     size_t size = CpuLocalDataSize();
-    return malloc(size);
+    void *ptr = aligned_alloc(1024, size);
+    memset(ptr, 0, size);
+    return ptr;
 }
 
 static std::byte *GetCpuLocalBase() {
