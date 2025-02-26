@@ -5,8 +5,7 @@
 km::SystemMemory::SystemMemory(std::span<const boot::MemoryRegion> memmap, VirtualRange systemArea, VirtualRange userArea, PageBuilder pm, AddressMapping pteMemory)
     : pager(pm)
     , pmm(memmap)
-    , pt(&pager, pteMemory, PageFlags::eUserAll)
-    , vmm(systemArea, userArea)
+    , ptes(pteMemory, &pager, systemArea)
 { }
 
 void *km::SystemMemory::allocate(size_t size, PageFlags flags, MemoryType type) {
@@ -26,6 +25,8 @@ km::AddressMapping km::SystemMemory::kernelAllocate(size_t size, PageFlags flags
 }
 
 km::AddressMapping km::SystemMemory::userAllocate(size_t size, PageFlags flags, MemoryType type) {
+    KM_CHECK(false, "Not implemented.");
+#if 0
     size_t pages = Pages(size);
 
     PhysicalAddress paddr = pmm.alloc4k(pages);
@@ -47,6 +48,7 @@ km::AddressMapping km::SystemMemory::userAllocate(size_t size, PageFlags flags, 
         .paddr = paddr,
         .size = pages * x64::kPageSize
     };
+#endif
 }
 
 km::AddressMapping km::SystemMemory::allocateWithHint(const void *hint, size_t size, PageFlags flags, MemoryType type) {
@@ -60,28 +62,46 @@ km::AddressMapping km::SystemMemory::allocateWithHint(const void *hint, size_t s
 
 km::AddressMapping km::SystemMemory::allocateStack(size_t size) {
     size_t pages = Pages(size);
+    OsStatus status = OsStatusSuccess;
 
     PhysicalAddress paddr = pmm.alloc4k(pages);
     if (paddr == KM_INVALID_MEMORY) {
         return AddressMapping{};
     }
 
+    MemoryRange range { paddr, paddr + (pages * x64::kPageSize) };
+
     //
     // Allocate an extra page for the guard page
     //
-    void *vaddr = vmm.alloc4k(pages + 1);
-    MemoryRange range { paddr, paddr + (pages * x64::kPageSize) };
-    if (vaddr == KM_INVALID_ADDRESS) {
+    VirtualRange vmem = ptes.vmemAllocate(pages + 1);
+
+    //
+    // First reserve the memory for the stack and the guard page.
+    //
+    AddressMapping vmemMapping = MappingOf(vmem, 0zu);
+    status = ptes.map(vmemMapping, PageFlags::eNone);
+    if (status != OsStatusSuccess) {
         pmm.release(range);
         return AddressMapping{};
     }
 
     //
-    // The stack grows down, so the guard page is at the top of the stack.
+    // Then remap the usable area of stack memory.
+    // The stack grows down, so the guard page is the first page in the range.
     //
-    char *base = (char*)vaddr + x64::kPageSize;
+    char *base = (char*)vmem.front + x64::kPageSize;
+    AddressMapping mapping {
+        .vaddr = base,
+        .paddr = paddr,
+        .size = range.size(),
+    };
 
-    pt.map(range, base, PageFlags::eData, MemoryType::eWriteBack);
+    status = ptes.map(mapping, PageFlags::eData, MemoryType::eWriteBack);
+    if (status != OsStatusSuccess) {
+        pmm.release(range);
+        return AddressMapping{};
+    }
 
     return AddressMapping {
         .vaddr = base,
@@ -98,36 +118,30 @@ km::AddressMapping km::SystemMemory::allocate(AllocateRequest request) {
         return AddressMapping{};
     }
 
-    void *vaddr = vmm.alloc4k(pages, request.hint);
-    MemoryRange range { paddr, paddr + request.size };
-    if (vaddr == KM_INVALID_ADDRESS) {
+    AddressMapping mapping{};
+    auto range = MemoryRange::of(paddr, request.size);
+    OsStatus status = ptes.map(range, request.flags, request.type, &mapping);
+    if (status != OsStatusSuccess) {
         pmm.release(range);
         return AddressMapping{};
     }
 
-    pt.map(range, vaddr, request.flags, request.type);
-
-    return AddressMapping {
-        .vaddr = vaddr,
-        .paddr = paddr,
-        .size = pages * x64::kPageSize
-    };
+    return mapping;
 }
 
 void km::SystemMemory::release(void *ptr, size_t size) {
-    PhysicalAddress start = pt.getBackingAddress(ptr);
+    PhysicalAddress start = systemTables().getBackingAddress(ptr);
     if (start == KM_INVALID_MEMORY) {
         KmDebugMessage("[WARN] Attempted to release ", ptr, " but it is not mapped.\n");
         return;
     }
 
-    MemoryRange range { start, start + size };
-    pt.unmap(ptr, size);
-    pmm.release(range);
+    ptes.unmap(VirtualRange::of(ptr, size));
+    pmm.release(MemoryRange::of(start, size));
 }
 
 void km::SystemMemory::unmap(void *ptr, size_t size) {
-    pt.unmap(ptr, size);
+    ptes.unmap(VirtualRange::of(ptr, size));
 }
 
 void *km::SystemMemory::map(PhysicalAddress begin, PhysicalAddress end, PageFlags flags, MemoryType type) {
@@ -137,23 +151,15 @@ void *km::SystemMemory::map(PhysicalAddress begin, PhysicalAddress end, PageFlag
     //
     uintptr_t offset = (begin.address & 0xFFF);
 
-    MemoryRange range { begin, end };
+    MemoryRange range { sm::rounddown(begin.address, x64::kPageSize), sm::roundup(end.address, x64::kPageSize) };
 
-    //
-    // If the range falls on a 2m boundary and is at least 2m in size, use a large page
-    // to save on page table entries.
-    //
-    void *vaddr = [&] {
-        if (begin.address % x64::kLargePageSize == 0 && range.size() >= x64::kLargePageSize) {
-            return vmm.alloc2m(LargePages(range.size()));
-        }
+    reservePhysical(range);
 
-        return vmm.alloc4k(Pages(range.size()));
-    }();
+    AddressMapping mapping{};
+    OsStatus status = ptes.map(range, flags, type, &mapping);
+    if (status != OsStatusSuccess) {
+        return nullptr;
+    }
 
-    pt.map(range, vaddr, flags, type);
-    pmm.markUsed(range);
-
-    // Apply the offset to the virtual address
-    return (void*)((uintptr_t)vaddr + offset);
+    return (void*)((uintptr_t)mapping.vaddr + offset);
 }

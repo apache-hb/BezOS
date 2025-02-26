@@ -3,7 +3,7 @@
 
 km::HighPrecisionTimer::HighPrecisionTimer(const acpi::Hpet *hpet, SystemMemory& memory)
     : mTable(*hpet)
-    , mMmioRegion(memory.mmioRegion<HpetRegisters>(km::PhysicalAddress { hpet->baseAddress.address }))
+    , mMmioRegion(memory.mmioRegion<HpetRegisters>(km::PhysicalAddress { mTable.baseAddress.address }))
 { }
 
 km::pit::Type km::HighPrecisionTimer::type() const { return pit::Type::HPET; }

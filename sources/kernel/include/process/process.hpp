@@ -90,7 +90,6 @@ namespace km {
             , privilege(privilege)
         { }
 
-        x64::MachineState machine;
         stdx::Vector2<sm::RcuSharedPtr<Thread>> threads;
         stdx::Vector2<sm::RcuSharedPtr<AddressSpace>> memory;
         stdx::Vector2<std::unique_ptr<vfs2::IVfsNodeHandle>> files;

@@ -18,7 +18,7 @@ namespace km {
     class PageTables {
         uintptr_t mSlide;
         mem::SynchronizedAllocator<mem::TlsfAllocator> mAllocator;
-        const km::PageBuilder *mPageManager;
+        const PageBuilder *mPageManager;
         x64::PageMapLevel4 *mRootPageTable;
         stdx::SpinLock mLock;
         PageFlags mMiddleFlags;
@@ -57,27 +57,26 @@ namespace km {
         OsStatus map1g(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
 
         template<typename T>
-        T *asVirtual(km::PhysicalAddress addr) const {
+        T *asVirtual(PhysicalAddress addr) const {
             return (T*)(addr.address + mSlide);
         }
 
-        km::PhysicalAddress asPhysical(const void *ptr) const;
+        PhysicalAddress asPhysical(const void *ptr) const;
 
     public:
-        PageTables(const km::PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags);
+        PageTables(const PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags);
 
         const x64::PageMapLevel4 *pml4() const { return mRootPageTable; }
         x64::PageMapLevel4 *pml4() { return mRootPageTable; }
 
-        km::PhysicalAddress root() const {
-            return asPhysical(pml4());
-        }
+        PhysicalAddress root() const { return asPhysical(pml4()); }
+        const PageBuilder *pageManager() const { return mPageManager; }
 
         OsStatus map(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
         OsStatus unmap(VirtualRange range);
         OsStatus walk(const void *ptr, PageWalk *walk);
 
-        km::PhysicalAddress getBackingAddress(const void *ptr);
+        PhysicalAddress getBackingAddress(const void *ptr);
         PageFlags getMemoryFlags(const void *ptr);
         PageSize2 getPageSize(const void *ptr);
 
@@ -85,7 +84,7 @@ namespace km {
             unmap(VirtualRange { ptr, (char*)ptr + size });
         }
 
-        OsStatus map(km::AddressMapping mapping, PageFlags flags, MemoryType type = MemoryType::eWriteBack) {
+        OsStatus map(AddressMapping mapping, PageFlags flags, MemoryType type = MemoryType::eWriteBack) {
             return map(mapping.physicalRange(), mapping.vaddr, flags, type);
         }
     };
@@ -94,10 +93,10 @@ namespace km {
     /// @param vmm The virtual memory manager
     /// @param paddr The physical address of the kernel
     /// @param vaddr The virtual address of the kernel
-    void MapKernel(km::PageTables& vmm, km::PhysicalAddress paddr, const void *vaddr);
+    void MapKernel(PageTables& vmm, PhysicalAddress paddr, const void *vaddr);
 
     /// @brief Reclaim bootloader memory.
     /// @param pm The page manager
     /// @param vmm The virtual memory manager
-    void UpdateRootPageTable(const km::PageBuilder& pm, km::PageTables& vmm);
+    void UpdateRootPageTable(const PageBuilder& pm, PageTables& vmm);
 }

@@ -60,6 +60,16 @@ namespace km {
         constexpr bool isEmpty() const {
             return size == 0;
         }
+
+        AddressMapping first(size_t bytes) const {
+            return { vaddr, paddr, bytes };
+        }
+
+        AddressMapping last(size_t bytes) const {
+            const char *vbegin = (const char*)vaddr + size - bytes;
+            PhysicalAddress pbegin = paddr + size - bytes;
+            return { vbegin, pbegin, bytes };
+        }
     };
 
     constexpr AddressMapping MappingOf(MemoryRange range, const void *vaddr) {

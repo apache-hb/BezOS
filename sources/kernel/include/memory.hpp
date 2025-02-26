@@ -16,10 +16,9 @@ namespace km {
     class SystemMemory {
         PageBuilder pager;
         PageAllocator pmm;
-        PageTables pt;
-        VirtualAllocator vmm;
-    public:
+        SystemPageTables ptes;
 
+    public:
         SystemMemory(std::span<const boot::MemoryRegion> memmap, VirtualRange systemArea, VirtualRange userArea, PageBuilder pm, AddressMapping pteMemory);
 
         void *allocate(
@@ -56,12 +55,12 @@ namespace km {
         }
 
         void reserveVirtual(VirtualRange range) {
-            vmm.markUsed(range);
+            ptes.reserve(range);
         }
 
         PageBuilder& getPager() { return pager; }
 
-        PageTables& systemTables() { return pt; }
+        PageTables& systemTables() { return ptes.ptes(); }
 
         void *map(PhysicalAddress begin, PhysicalAddress end, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eWriteBack);
 

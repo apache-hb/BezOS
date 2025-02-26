@@ -161,6 +161,16 @@ namespace km {
 
         constexpr bool operator==(const AnyRange& other) const = default;
         constexpr bool operator!=(const AnyRange& other) const = default;
+
+        constexpr static AnyRange of(T front, uintptr_t size) {
+            T back = std::bit_cast<T>(std::bit_cast<uintptr_t>(front) + size);
+            return {front, back};
+        }
+
+        template<typename U>
+        constexpr AnyRange<U> cast() const {
+            return {std::bit_cast<U>(front), std::bit_cast<U>(back)};
+        }
     };
 
     /// @brief Find the intersection of two ranges.
