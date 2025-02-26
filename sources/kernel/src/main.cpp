@@ -389,7 +389,7 @@ static MemoryMap* CreateEarlyAllocator(const boot::LaunchInfo& launch, mem::Tlsf
     return memory;
 }
 
-static void MapDisplayRegions(PageTableManager& vmm, std::span<const boot::FrameBuffer> framebuffers, VirtualRange range) {
+static void MapDisplayRegions(PageTables& vmm, std::span<const boot::FrameBuffer> framebuffers, VirtualRange range) {
     uintptr_t framebufferBase = (uintptr_t)range.front;
     for (const boot::FrameBuffer& framebuffer : framebuffers) {
         // remap the framebuffer into its final location
@@ -400,12 +400,12 @@ static void MapDisplayRegions(PageTableManager& vmm, std::span<const boot::Frame
     }
 }
 
-static void MapKernelRegions(PageTableManager &vmm, const KernelLayout& layout) {
+static void MapKernelRegions(PageTables &vmm, const KernelLayout& layout) {
     auto [kernelVirtualBase, kernelPhysicalBase, _] = layout.kernel;
     MapKernel(vmm, kernelPhysicalBase, kernelVirtualBase);
 }
 
-static void MapDataRegion(PageTableManager &vmm, km::AddressMapping mapping) {
+static void MapDataRegion(PageTables &vmm, km::AddressMapping mapping) {
     vmm.map(mapping, PageFlags::eData);
 }
 
@@ -460,7 +460,7 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
         .size = kPtAllocSize
     };
 
-    PageTableManager vmm(&pm, pteMapping, PageFlags::eAll);
+    PageTables vmm(&pm, pteMapping, PageFlags::eAll);
 
     // initialize our own page tables and remap everything into it
     MapKernelRegions(vmm, layout);
@@ -819,7 +819,7 @@ static void CreateNotificationQueue() {
 }
 
 static const void *TranslateUserPointer(const void *userAddress) {
-    PageTableManager& pt = gMemory->pt;
+    PageTables& pt = gMemory->pt;
     if (bool(pt.getMemoryFlags(userAddress) & (PageFlags::eUser | PageFlags::eRead))) {
         return userAddress;
     }

@@ -23,7 +23,7 @@ namespace km {
     struct SystemMemory {
         PageBuilder pager;
         PageAllocator pmm;
-        PageTableManager pt;
+        PageTables pt;
         VirtualAllocator vmm;
 
         SystemMemory(std::span<const boot::MemoryRegion> memmap, VirtualRange systemArea, VirtualRange userArea, PageBuilder pm, AddressMapping pteMemory);

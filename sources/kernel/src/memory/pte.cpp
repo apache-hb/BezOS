@@ -4,7 +4,7 @@
 
 using namespace km;
 
-x64::page *PageTableManager::alloc4k() {
+x64::page *PageTables::alloc4k() {
     if (x64::page *page = mAllocator.construct<x64::page>()) {
         memset(page, 0, sizeof(x64::page));
 
@@ -14,7 +14,7 @@ x64::page *PageTableManager::alloc4k() {
     return nullptr;
 }
 
-void PageTableManager::setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddress address) {
+void PageTables::setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddress address) {
     if (address > mPageManager->maxPhysicalAddress()) {
         KmDebugMessage("Physical address out of range: ", address, " > ", mPageManager->maxPhysicalAddress(), "\n");
         KM_PANIC("Physical address out of range.");
@@ -29,7 +29,7 @@ void PageTableManager::setEntryFlags(x64::Entry& entry, PageFlags flags, Physica
     entry.setPresent(true);
 }
 
-PageTableManager::PageTableManager(const km::PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags)
+PageTables::PageTables(const km::PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags)
     : mSlide(pteMemory.slide())
     , mPageManager(pm)
     , mAllocator((void*)pteMemory.vaddr, pteMemory.size)
@@ -37,7 +37,7 @@ PageTableManager::PageTableManager(const km::PageBuilder *pm, AddressMapping pte
     , mMiddleFlags(middleFlags)
 { }
 
-x64::PageMapLevel3 *PageTableManager::getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e) {
+x64::PageMapLevel3 *PageTables::getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e) {
     x64::PageMapLevel3 *l3;
 
     x64::pml4e& t4 = l4->entries[pml4e];
@@ -51,7 +51,7 @@ x64::PageMapLevel3 *PageTableManager::getPageMap3(x64::PageMapLevel4 *l4, uint16
     return l3;
 }
 
-x64::PageMapLevel2 *PageTableManager::getPageMap2(x64::PageMapLevel3 *l3, uint16_t pdpte) {
+x64::PageMapLevel2 *PageTables::getPageMap2(x64::PageMapLevel3 *l3, uint16_t pdpte) {
     x64::PageMapLevel2 *l2;
 
     x64::pdpte& t3 = l3->entries[pdpte];
@@ -65,7 +65,7 @@ x64::PageMapLevel2 *PageTableManager::getPageMap2(x64::PageMapLevel3 *l3, uint16
     return l2;
 }
 
-const x64::PageMapLevel3 *PageTableManager::findPageMap3(const x64::PageMapLevel4 *l4, uint16_t pml4e) const {
+const x64::PageMapLevel3 *PageTables::findPageMap3(const x64::PageMapLevel4 *l4, uint16_t pml4e) const {
     if (l4->entries[pml4e].present()) {
         uintptr_t base = mPageManager->address(l4->entries[pml4e]);
         return asVirtual<x64::PageMapLevel3>(base);
@@ -74,7 +74,7 @@ const x64::PageMapLevel3 *PageTableManager::findPageMap3(const x64::PageMapLevel
     return nullptr;
 }
 
-const x64::PageMapLevel2 *PageTableManager::findPageMap2(const x64::PageMapLevel3 *l3, uint16_t pdpte) const {
+const x64::PageMapLevel2 *PageTables::findPageMap2(const x64::PageMapLevel3 *l3, uint16_t pdpte) const {
     const x64::pdpte& t3 = l3->entries[pdpte];
     if (t3.present() && !t3.is1g()) {
         uintptr_t base = mPageManager->address(t3);
@@ -84,7 +84,7 @@ const x64::PageMapLevel2 *PageTableManager::findPageMap2(const x64::PageMapLevel
     return nullptr;
 }
 
-x64::PageTable *PageTableManager::findPageTable(const x64::PageMapLevel2 *l2, uint16_t pdte) const {
+x64::PageTable *PageTables::findPageTable(const x64::PageMapLevel2 *l2, uint16_t pdte) const {
     const x64::pdte& pde = l2->entries[pdte];
     if (pde.present() && !pde.is2m()) {
         uintptr_t base = mPageManager->address(pde);
@@ -94,7 +94,7 @@ x64::PageTable *PageTableManager::findPageTable(const x64::PageMapLevel2 *l2, ui
     return nullptr;
 }
 
-OsStatus PageTableManager::mapRange4k(AddressMapping mapping, PageFlags flags, MemoryType type) {
+OsStatus PageTables::mapRange4k(AddressMapping mapping, PageFlags flags, MemoryType type) {
     for (size_t i = 0; i < mapping.size; i += x64::kPageSize) {
         if (OsStatus status = map4k(mapping.paddr + i, (char*)mapping.vaddr + i, flags, type)) {
             return status;
@@ -104,7 +104,7 @@ OsStatus PageTableManager::mapRange4k(AddressMapping mapping, PageFlags flags, M
     return OsStatusSuccess;
 }
 
-OsStatus PageTableManager::mapRange2m(AddressMapping mapping, PageFlags flags, MemoryType type) {
+OsStatus PageTables::mapRange2m(AddressMapping mapping, PageFlags flags, MemoryType type) {
     for (size_t i = 0; i < mapping.size; i += x64::kLargePageSize) {
         if (OsStatus status = map2m(mapping.paddr + i, (char*)mapping.vaddr + i, flags, type)) {
             return status;
@@ -114,7 +114,7 @@ OsStatus PageTableManager::mapRange2m(AddressMapping mapping, PageFlags flags, M
     return OsStatusSuccess;
 }
 
-OsStatus PageTableManager::mapRange1g(AddressMapping mapping, PageFlags flags, MemoryType type) {
+OsStatus PageTables::mapRange1g(AddressMapping mapping, PageFlags flags, MemoryType type) {
     for (size_t i = 0; i < mapping.size; i += x64::kHugePageSize) {
         if (OsStatus status = map1g(mapping.paddr + i, (char*)mapping.vaddr + i, flags, type)) {
             return status;
@@ -124,7 +124,7 @@ OsStatus PageTableManager::mapRange1g(AddressMapping mapping, PageFlags flags, M
     return OsStatusSuccess;
 }
 
-OsStatus PageTableManager::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type) {
+OsStatus PageTables::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type) {
     stdx::LockGuard guard(mLock);
 
     uintptr_t addr = (uintptr_t)vaddr;
@@ -162,7 +162,7 @@ OsStatus PageTableManager::map4k(PhysicalAddress paddr, const void *vaddr, PageF
     return OsStatusSuccess;
 }
 
-OsStatus PageTableManager::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type) {
+OsStatus PageTables::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type) {
     stdx::LockGuard guard(mLock);
 
     uintptr_t addr = (uintptr_t)vaddr;
@@ -189,7 +189,7 @@ OsStatus PageTableManager::map2m(PhysicalAddress paddr, const void *vaddr, PageF
     return OsStatusSuccess;
 }
 
-OsStatus PageTableManager::map1g(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type) {
+OsStatus PageTables::map1g(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type) {
     stdx::LockGuard guard(mLock);
 
     auto [pml4e, pdpte, _, _] = GetAddressParts(vaddr);
@@ -206,7 +206,7 @@ OsStatus PageTableManager::map1g(PhysicalAddress paddr, const void *vaddr, PageF
     return OsStatusSuccess;
 }
 
-OsStatus PageTableManager::map(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type) {
+OsStatus PageTables::map(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type) {
     //
     // Align memory to 4k page boundaries
     //
@@ -271,7 +271,7 @@ OsStatus PageTableManager::map(MemoryRange range, const void *vaddr, PageFlags f
     return mapRange4k(mapping, flags, type);
 }
 
-OsStatus PageTableManager::unmap(VirtualRange range) {
+OsStatus PageTables::unmap(VirtualRange range) {
     range = alignedOut(range, x64::kPageSize);
 
     stdx::LockGuard guard(mLock);
@@ -298,7 +298,7 @@ OsStatus PageTableManager::unmap(VirtualRange range) {
     return OsStatusSuccess;
 }
 
-km::PhysicalAddress PageTableManager::getBackingAddress(const void *ptr) {
+km::PhysicalAddress PageTables::getBackingAddress(const void *ptr) {
     uintptr_t address = reinterpret_cast<uintptr_t>(ptr);
     auto [pml4e, pdpte, pdte, pte] = GetAddressParts(ptr);
     uintptr_t offset = address & 0xFFF;
@@ -331,7 +331,7 @@ km::PhysicalAddress PageTableManager::getBackingAddress(const void *ptr) {
     return km::PhysicalAddress { mPageManager->address(t1) + offset };
 }
 
-km::PageFlags PageTableManager::getMemoryFlags(const void *ptr) {
+km::PageFlags PageTables::getMemoryFlags(const void *ptr) {
     PageWalk result;
     if (walk(ptr, &result) != OsStatusSuccess) {
         return PageFlags::eNone;
@@ -340,7 +340,7 @@ km::PageFlags PageTableManager::getMemoryFlags(const void *ptr) {
     return result.flags();
 }
 
-km::PageSize2 PageTableManager::getPageSize(const void *ptr) {
+km::PageSize2 PageTables::getPageSize(const void *ptr) {
     PageWalk result;
     if (walk(ptr, &result) != OsStatusSuccess) {
         return PageSize2::eNone;
@@ -349,11 +349,11 @@ km::PageSize2 PageTableManager::getPageSize(const void *ptr) {
     return result.pageSize();
 }
 
-km::PhysicalAddress PageTableManager::asPhysical(const void *ptr) const {
+km::PhysicalAddress PageTables::asPhysical(const void *ptr) const {
     return km::PhysicalAddress { (uintptr_t)ptr - mSlide };
 }
 
-OsStatus PageTableManager::walk(const void *ptr, PageWalk *walk) {
+OsStatus PageTables::walk(const void *ptr, PageWalk *walk) {
     auto [pml4eIndex, pdpteIndex, pdteIndex, pteIndex] = GetAddressParts(ptr);
     x64::pml4e pml4e{};
     x64::pdpte pdpte{};

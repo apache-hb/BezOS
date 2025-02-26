@@ -16,7 +16,7 @@ namespace km {
     /// Each process has the kernel address space mapped into the higher half.
     /// Kernel addresses are identified by having the top bits set in the canonical address.
     class KernelPageTables {
-        PageTableManager mSystemTables;
+        PageTables mSystemTables;
         RangeAllocator<const void*> mVmemAllocator;
 
     public:
@@ -28,7 +28,7 @@ namespace km {
         OsStatus map(MappingRequest request, AddressMapping *mapping);
         OsStatus unmap(AddressMapping mapping);
 
-        PageTableManager& ptes() {
+        PageTables& ptes() {
             return mSystemTables;
         }
     };
@@ -40,7 +40,7 @@ namespace km {
     /// Process addresses are identified by having the top bits clear in the canonical address.
     class ProcessPageTables {
         KernelPageTables *mSystemTables;
-        PageTableManager mProcessTables;
+        PageTables mProcessTables;
         RangeAllocator<const void*> mVmemAllocator;
 
     public:
@@ -53,8 +53,8 @@ namespace km {
             // Copy the higher half mappings from the kernel ptes to the process ptes.
             //
 
-            PageTableManager& system = mSystemTables->ptes();
-            PageTableManager& process = mProcessTables;
+            PageTables& system = mSystemTables->ptes();
+            PageTables& process = mProcessTables;
 
             x64::PageMapLevel4 *pml4 = system.pml4();
             x64::PageMapLevel4 *self = process.pml4();

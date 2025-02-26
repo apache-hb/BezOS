@@ -1,10 +1,10 @@
 #include "user/user.hpp"
 
-bool km::IsPageMapped(km::PageTableManager& pt, const void *address, km::PageFlags flags) {
+bool km::IsPageMapped(km::PageTables& pt, const void *address, km::PageFlags flags) {
     return (pt.getMemoryFlags(address) & flags) == flags;
 }
 
-bool km::IsRangeMapped(km::PageTableManager& pt, const void *begin, const void *end, km::PageFlags flags) {
+bool km::IsRangeMapped(km::PageTables& pt, const void *begin, const void *end, km::PageFlags flags) {
     uintptr_t front = (uintptr_t)begin;
     uintptr_t back = (uintptr_t)end;
 

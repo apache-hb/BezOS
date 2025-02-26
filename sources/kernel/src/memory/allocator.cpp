@@ -21,7 +21,7 @@ extern "C" {
     extern char __kernel_end[];
 }
 
-static void MapKernelPages(PageTableManager& memory, km::PhysicalAddress paddr, const void *vaddr) {
+static void MapKernelPages(PageTables& memory, km::PhysicalAddress paddr, const void *vaddr) {
     auto mapKernelRange = [&](const void *begin, const void *end, PageFlags flags, stdx::StringView name) {
         km::PhysicalAddress front = km::PhysicalAddress {  (uintptr_t)begin - (uintptr_t)__kernel_start };
         km::PhysicalAddress back = km::PhysicalAddress { (uintptr_t)end - (uintptr_t)__kernel_start };
@@ -38,12 +38,12 @@ static void MapKernelPages(PageTableManager& memory, km::PhysicalAddress paddr, 
     mapKernelRange(__data_start, __data_end, PageFlags::eData, ".data");
 }
 
-void km::MapKernel(km::PageTableManager& vmm, km::PhysicalAddress paddr, const void *vaddr) {
+void km::MapKernel(km::PageTables& vmm, km::PhysicalAddress paddr, const void *vaddr) {
     // first map the kernel pages
     MapKernelPages(vmm, paddr, vaddr);
 }
 
-void km::UpdateRootPageTable(const km::PageBuilder& pm, km::PageTableManager& vmm) {
+void km::UpdateRootPageTable(const km::PageBuilder& pm, km::PageTables& vmm) {
     KmDebugMessage("[INIT] PML4: ", vmm.root(), "\n");
     pm.setActiveMap(vmm.root());
 }

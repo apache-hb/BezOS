@@ -48,7 +48,7 @@ public:
 };
 
 TEST_F(PageTableTest, GetBackingAddress) {
-    km::PageTableManager pt { &pm, &allocator };
+    km::PageTables pt { &pm, &allocator };
 
     const void *vaddr = (void*)0xFFFF800000000000;
     km::PhysicalAddress paddr = 0x1000000;
@@ -63,7 +63,7 @@ TEST_F(PageTableTest, GetBackingAddress) {
 }
 
 TEST_F(PageTableTest, MapPage) {
-    km::PageTableManager pt { &pm, &allocator };
+    km::PageTables pt { &pm, &allocator };
 
     const void *vaddr = (void*)0xFFFF800000000000;
     km::PhysicalAddress paddr = 0x1000000;
@@ -79,7 +79,7 @@ TEST_F(PageTableTest, MapPage) {
 }
 
 TEST_F(PageTableTest, MapPageOffset) {
-    km::PageTableManager pt { &pm, &allocator };
+    km::PageTables pt { &pm, &allocator };
 
     const void *vaddr = (void*)0xFFFF800000000000;
     km::PhysicalAddress paddr = 0x1000000;
@@ -95,7 +95,7 @@ TEST_F(PageTableTest, MapPageOffset) {
 }
 
 TEST_F(PageTableTest, MapSmallRange) {
-    km::PageTableManager pt { &pm, &allocator };
+    km::PageTables pt { &pm, &allocator };
 
     const void *vaddr = (void*)0xFFFF800000000000;
     km::PhysicalAddress paddr = 0x1000000;
@@ -114,7 +114,7 @@ TEST_F(PageTableTest, MapSmallRange) {
 }
 
 TEST_F(PageTableTest, MapLargePage) {
-    km::PageTableManager pt { &pm, &allocator };
+    km::PageTables pt { &pm, &allocator };
 
     const void *vaddr = (void*)0xFFFF800000000000;
     km::PhysicalAddress paddr = 0x1000000;
@@ -130,7 +130,7 @@ TEST_F(PageTableTest, MapLargePage) {
 }
 
 TEST_F(PageTableTest, MapLargePageOffset) {
-    km::PageTableManager pt { &pm, &allocator };
+    km::PageTables pt { &pm, &allocator };
 
     const void *vaddr = (void*)0xFFFF800000000000;
     km::PhysicalAddress paddr = 0x1000000;
@@ -146,7 +146,7 @@ TEST_F(PageTableTest, MapLargePageOffset) {
 }
 
 TEST_F(PageTableTest, MapHugePage) {
-    km::PageTableManager pt { &pm, &allocator };
+    km::PageTables pt { &pm, &allocator };
 
     const void *vaddr = (void*)0xFFFF800000000000;
     km::PhysicalAddress paddr = 0x1000000;
@@ -162,7 +162,7 @@ TEST_F(PageTableTest, MapHugePage) {
 }
 
 TEST_F(PageTableTest, MapHugePageOffset) {
-    km::PageTableManager pt { &pm, &allocator };
+    km::PageTables pt { &pm, &allocator };
 
     const void *vaddr = (void*)0xFFFF800000000000;
     km::PhysicalAddress paddr = 0x1000000;
@@ -178,7 +178,7 @@ TEST_F(PageTableTest, MapHugePageOffset) {
 }
 
 TEST_F(PageTableTest, MapRangeLarge) {
-    km::PageTableManager pt { &pm, &allocator };
+    km::PageTables pt { &pm, &allocator };
 
     const void *vaddr = (void*)0xFFFF800000000000;
     km::PhysicalAddress paddr = 0x1000000;
@@ -199,7 +199,7 @@ TEST_F(PageTableTest, MapRangeLarge) {
 }
 
 TEST_F(PageTableTest, MemoryFlags) {
-    km::PageTableManager pt { &pm, &allocator };
+    km::PageTables pt { &pm, &allocator };
 
     const void *vaddr = (void*)0xFFFF800000000000;
     km::PhysicalAddress paddr = 0x1000000;
@@ -215,7 +215,7 @@ TEST_F(PageTableTest, MemoryFlags) {
 }
 
 TEST_F(PageTableTest, MemoryFlagsOnRange) {
-    km::PageTableManager pt { &pm, &allocator };
+    km::PageTables pt { &pm, &allocator };
 
     const void *vaddr = (void*)0xFFFF800000000000;
     km::PhysicalAddress paddr = 0x1000000;
@@ -234,7 +234,7 @@ TEST_F(PageTableTest, MemoryFlagsOnRange) {
 }
 
 TEST_F(PageTableTest, MemoryFlagsOnLargeRange) {
-    km::PageTableManager pt { &pm, &allocator };
+    km::PageTables pt { &pm, &allocator };
 
     const void *vaddr = (void*)0xFFFF800000000000;
     km::PhysicalAddress paddr = 0x1000000;
@@ -255,7 +255,7 @@ TEST_F(PageTableTest, MemoryFlagsOnLargeRange) {
 }
 
 TEST_F(PageTableTest, MemoryFlagsOnNullMapping) {
-    km::PageTableManager pt { &pm, &allocator };
+    km::PageTables pt { &pm, &allocator };
 
     const void *vaddr = (void*)0xFFFF800000000000;
 
@@ -265,7 +265,7 @@ TEST_F(PageTableTest, MemoryFlagsOnNullMapping) {
 }
 
 TEST_F(PageTableTest, PageSizeOnNullMapping) {
-    km::PageTableManager pt { &pm, &allocator };
+    km::PageTables pt { &pm, &allocator };
 
     const void *vaddr = (void*)0xFFFF800000000000;
 
@@ -296,7 +296,7 @@ TEST_F(PageTableTest, MemoryFlagsKernelMapping) {
         .size = (0xFFFFFFFF80049E40 - 0xFFFFFFFF80048000),
     };
 
-    km::PageTableManager pt { &pm, &allocator };
+    km::PageTables pt { &pm, &allocator };
 
     pt.map(text, km::PageFlags::eCode);
     pt.map(rodata, km::PageFlags::eRead);
@@ -358,7 +358,7 @@ TEST(MemoryRoundTest, RoundDown) {
 }
 
 TEST_F(PageTableTest, ThreadSafe) {
-    km::PageTableManager pt { &pm, &allocator };
+    km::PageTables pt { &pm, &allocator };
 
     std::vector<std::jthread> threads;
     for (int i = 0; i < 4; i++) {
@@ -392,7 +392,7 @@ TEST_F(PageTableTest, ThreadSafe) {
 }
 
 TEST_F(PageTableTest, AddressMapping) {
-    km::PageTableManager pt { &pm, &allocator };
+    km::PageTables pt { &pm, &allocator };
 
     km::AddressMapping fb = {
         .vaddr = (void*)0xFFFFC00001000000,

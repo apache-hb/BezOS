@@ -17,7 +17,7 @@ namespace x64 {
     }
 
     template<typename F>
-    void WalkStackFramesChecked(km::PageTableManager& pt, void **frame, F&& callback) {
+    void WalkStackFramesChecked(km::PageTables& pt, void **frame, F&& callback) {
         while (true) {
             if (frame == nullptr) {
                 callback(nullptr, nullptr, "End of stack");

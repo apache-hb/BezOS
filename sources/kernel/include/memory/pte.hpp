@@ -15,7 +15,7 @@ namespace km {
     /// @details All ptes are allocated from a memory pool that is provided at construction.
     ///          The current implementation expects that the virtual and physical addresses have a fixed
     ///          offset between them.
-    class PageTableManager {
+    class PageTables {
         uintptr_t mSlide;
         stdx::SpinLock mLock;
         const km::PageBuilder *mPageManager;
@@ -64,7 +64,7 @@ namespace km {
         km::PhysicalAddress asPhysical(const void *ptr) const;
 
     public:
-        PageTableManager(const km::PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags);
+        PageTables(const km::PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags);
 
         const x64::PageMapLevel4 *pml4() const { return mRootPageTable; }
         x64::PageMapLevel4 *pml4() { return mRootPageTable; }
@@ -94,10 +94,10 @@ namespace km {
     /// @param vmm The virtual memory manager
     /// @param paddr The physical address of the kernel
     /// @param vaddr The virtual address of the kernel
-    void MapKernel(km::PageTableManager& vmm, km::PhysicalAddress paddr, const void *vaddr);
+    void MapKernel(km::PageTables& vmm, km::PhysicalAddress paddr, const void *vaddr);
 
     /// @brief Reclaim bootloader memory.
     /// @param pm The page manager
     /// @param vmm The virtual memory manager
-    void UpdateRootPageTable(const km::PageBuilder& pm, km::PageTableManager& vmm);
+    void UpdateRootPageTable(const km::PageBuilder& pm, km::PageTables& vmm);
 }
