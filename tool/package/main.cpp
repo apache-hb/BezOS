@@ -91,6 +91,7 @@ struct PackageInfo {
     std::vector<ScriptExec> scripts;
     std::map<std::string, std::string> options;
     std::map<std::string, std::string> configureEnv;
+    std::vector<fs::path> patches;
     std::string configureSourcePath;
     std::string shellConfigureScript;
 
@@ -330,6 +331,10 @@ struct Workspace {
     argo::json workspace{argo::json::object_e};
 
     void AddPackage(PackageInfo info) {
+        if (packages.contains(info.name)) {
+            throw std::runtime_error("Duplicate package " + info.name);
+        }
+
         packages.emplace(info.name, info);
 
         argo::json folder{argo::json::object_e};
@@ -695,6 +700,9 @@ static void ReadPackageConfig(XmlNode root) {
             auto install = action.property("install").value_or("false") == "true";
 
             packageInfo.downloads.push_back(Download{url, file, archive.value_or(""), trimRootFolder, install});
+        } else if (step == "patch"sv) {
+            auto file = ExpectProperty<std::string>(action, "file");
+            packageInfo.patches.push_back(file);
         } else if (step == "require"sv) {
             ReadRequireTag(action, name, packageInfo.dependencies);
         } else if (step == "source"sv) {
@@ -794,6 +802,21 @@ static void ReadArtifactConfig(XmlNode node) {
     gWorkspace.packages.emplace(name, artifactInfo);
 }
 
+static void ReplacePathPlaceholders(std::string& str) {
+    ReplaceAll(str, "@PREFIX@", gInstallPrefix.string());
+    ReplaceAll(str, "@BUILD@", gBuildRoot.string());
+    ReplaceAll(str, "@REPO@", gRepoRoot.string());
+    ReplaceAll(str, "@SOURCE@", gSourceRoot.string());
+}
+
+static void ReplacePackagePlaceholders(std::string& str, const PackageInfo& package) {
+    ReplacePathPlaceholders(str);
+    ReplaceAll(str, "@PACKAGE@", package.name);
+    ReplaceAll(str, "@SOURCE_ROOT@", package.GetWorkspaceFolder().string());
+    ReplaceAll(str, "@BUILD_ROOT@", package.GetBuildFolder().string());
+    ReplaceAll(str, "@INSTALL_ROOT@", package.install.string());
+}
+
 static void AcquirePackage(const PackageInfo& package) {
     if (!gPackageDb->ShouldRunStep(package.name, eDownloaded)) {
         return;
@@ -827,6 +850,24 @@ static void AcquirePackage(const PackageInfo& package) {
         std::println(std::cout, "{}: overlay {} -> {}", package.name, src.string(), dst.string());
 
         fs::copy(src, dst, fs::copy_options::recursive | fs::copy_options::update_existing);
+    }
+
+    for (const auto& patch : package.patches) {
+        auto path = patch.string();
+        ReplacePackagePlaceholders(path, package);
+
+        std::println(std::cout, "{}: patch {}", package.name, path);
+
+        std::vector<std::string> args = {
+            "patch", "-p1", "-i", path
+        };
+
+        auto ws = package.GetWorkspaceFolder().string();
+
+        auto result = sp::call(args, sp::cwd{ws});
+        if (result != 0) {
+            throw std::runtime_error("Failed to apply patch " + patch.string());
+        }
     }
 
     gPackageDb->RaiseTargetStatus(package.name, eDownloaded);
@@ -864,21 +905,6 @@ static void ConnectDependencies(const PackageInfo& package) {
         fs::create_directories(symlink.parent_path());
         fs::create_directory_symlink(path, symlink);
     }
-}
-
-static void ReplacePathPlaceholders(std::string& str) {
-    ReplaceAll(str, "@PREFIX@", gInstallPrefix.string());
-    ReplaceAll(str, "@BUILD@", gBuildRoot.string());
-    ReplaceAll(str, "@REPO@", gRepoRoot.string());
-    ReplaceAll(str, "@SOURCE@", gSourceRoot.string());
-}
-
-static void ReplacePackagePlaceholders(std::string& str, const PackageInfo& package) {
-    ReplacePathPlaceholders(str);
-    ReplaceAll(str, "@PACKAGE@", package.name);
-    ReplaceAll(str, "@SOURCE_ROOT@", package.GetWorkspaceFolder().string());
-    ReplaceAll(str, "@BUILD_ROOT@", package.GetBuildFolder().string());
-    ReplaceAll(str, "@INSTALL_ROOT@", package.install.string());
 }
 
 static void ConfigurePackage(const PackageInfo& package) {

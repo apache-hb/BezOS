@@ -5,6 +5,9 @@
               trim-root-folder='true'
               archive='zip' />
 
+    <patch file='@REPO@/patches/llvm/0001-add-llvm-target.patch' />
+    <patch file='@REPO@/patches/llvm/0002-add-clang-target.patch' />
+
     <configure with='cmake'>
         <source path='@SOURCE_ROOT@/llvm' />
         <options LLVM_ENABLE_PROJECTS='llvm;clang;lld'

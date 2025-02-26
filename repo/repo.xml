@@ -5,7 +5,6 @@
     - `native` is the machine currently running the build.
     -->
 
-
     <xi:include href='packages/tools/llvm.xml' />
 
     <xi:include href='packages/ovmf.xml' />
