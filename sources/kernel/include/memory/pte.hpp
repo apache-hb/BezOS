@@ -1,9 +1,13 @@
 #pragma once
 
+#include "allocator/synchronized.hpp"
+#include "allocator/tlsf.hpp"
+
 #include "arch/paging.hpp"
 
 #include "memory/memory.hpp"
 #include "memory/paging.hpp"
+#include "std/spinlock.hpp"
 
 namespace km {
     /// @brief Manages page tables for an address space.
@@ -13,7 +17,7 @@ namespace km {
     ///          offset between them.
     class PageTableManager {
         uintptr_t mSlide;
-        mutable stdx::SpinLock mLock;
+        stdx::SpinLock mLock;
         const km::PageBuilder *mPageManager;
         mem::SynchronizedAllocator<mem::TlsfAllocator> mAllocator;
         x64::PageMapLevel4 *mRootPageTable;

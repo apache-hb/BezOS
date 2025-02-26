@@ -2,15 +2,10 @@
 
 #include <bezos/status.h>
 
-#include "allocator/synchronized.hpp"
-#include "allocator/tlsf.hpp"
 #include "arch/paging.hpp"
 
 #include "memory/layout.hpp"
-#include "memory/range_allocator.hpp"
 #include "memory/paging.hpp"
-
-#include "std/spinlock.hpp"
 
 namespace km {
     enum class PageFlags : uint8_t {
