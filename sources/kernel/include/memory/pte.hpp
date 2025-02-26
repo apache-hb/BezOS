@@ -71,7 +71,7 @@ namespace km {
             return asPhysical(getRootTable());
         }
 
-        void map(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
+        OsStatus map(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
 
         void unmap(void *ptr, size_t size);
 
@@ -79,8 +79,8 @@ namespace km {
         PageFlags getMemoryFlags(const void *ptr);
         PageSize2 getPageSize(const void *ptr);
 
-        void map(km::AddressMapping mapping, PageFlags flags, MemoryType type = MemoryType::eWriteBack) {
-            map(mapping.physicalRange(), mapping.vaddr, flags, type);
+        OsStatus map(km::AddressMapping mapping, PageFlags flags, MemoryType type = MemoryType::eWriteBack) {
+            return map(mapping.physicalRange(), mapping.vaddr, flags, type);
         }
 
         OsStatus walk(const void *ptr, PageWalk *walk);
