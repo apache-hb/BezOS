@@ -280,19 +280,15 @@ OsStatus PageTableManager::map(MemoryRange range, const void *vaddr, PageFlags f
     return mapRange4k(mapping, flags, type);
 }
 
-void PageTableManager::unmap(void *ptr, size_t size) {
-    stdx::LockGuard guard(mLock);
+OsStatus PageTableManager::unmap(VirtualRange range) {
+    range = alignedOut(range, x64::kPageSize);
 
-    uintptr_t front = sm::rounddown((uintptr_t)ptr, x64::kPageSize);
-    uintptr_t back = sm::roundup((uintptr_t)ptr + size, x64::kPageSize);
+    stdx::LockGuard guard(mLock);
 
     x64::PageMapLevel4 *l4 = getRootTable();
 
-    for (uintptr_t i = front; i < back; i += x64::kPageSize) {
-        uint16_t pml4e = (i >> 39) & 0b0001'1111'1111;
-        uint16_t pdpte = (i >> 30) & 0b0001'1111'1111;
-        uint16_t pdte = (i >> 21) & 0b0001'1111'1111;
-        uint16_t pte = (i >> 12) & 0b0001'1111'1111;
+    for (uintptr_t i = (uintptr_t)range.front; i < (uintptr_t)range.back; i += x64::kPageSize) {
+        auto [pml4e, pdpte, pdte, pte] = GetAddressParts(i);
 
         const x64::PageMapLevel3 *l3 = findPageMap3(l4, pml4e);
         if (!l3) continue;
@@ -307,6 +303,8 @@ void PageTableManager::unmap(void *ptr, size_t size) {
         t1.setPresent(false);
         x64::invlpg(i);
     }
+
+    return OsStatusSuccess;
 }
 
 km::PhysicalAddress PageTableManager::getBackingAddress(const void *ptr) {

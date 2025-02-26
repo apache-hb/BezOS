@@ -227,6 +227,14 @@ namespace km {
         return {front, back};
     }
 
+    template<typename T>
+    constexpr AnyRange<T> alignedOut(AnyRange<T> range, size_t align) {
+        T front = (T)sm::rounddown(std::bit_cast<uintptr_t>(range.front), align);
+        T back = (T)sm::roundup(std::bit_cast<uintptr_t>(range.back), align);
+
+        return {front, back};
+    }
+
     /// @brief Splits the given memory range at the given address.
     ///
     /// @pre @p range contains @p at

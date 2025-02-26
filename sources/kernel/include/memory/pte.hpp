@@ -72,18 +72,20 @@ namespace km {
         }
 
         OsStatus map(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
-
-        void unmap(void *ptr, size_t size);
+        OsStatus unmap(VirtualRange range);
+        OsStatus walk(const void *ptr, PageWalk *walk);
 
         km::PhysicalAddress getBackingAddress(const void *ptr);
         PageFlags getMemoryFlags(const void *ptr);
         PageSize2 getPageSize(const void *ptr);
 
+        void unmap(void *ptr, size_t size) {
+            unmap(VirtualRange { ptr, (char*)ptr + size });
+        }
+
         OsStatus map(km::AddressMapping mapping, PageFlags flags, MemoryType type = MemoryType::eWriteBack) {
             return map(mapping.physicalRange(), mapping.vaddr, flags, type);
         }
-
-        OsStatus walk(const void *ptr, PageWalk *walk);
     };
 
     /// @brief Remap the kernel to replace the boot page tables.
