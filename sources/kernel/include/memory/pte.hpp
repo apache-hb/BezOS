@@ -49,6 +49,10 @@ namespace km {
         void mapRange2m(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type);
         void mapRange1g(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type);
 
+        OsStatus map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
+        OsStatus map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
+        OsStatus map1g(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
+
         x64::PageMapLevel4 *getRootTable() const {
             return mRootPageTable;
         }
@@ -66,12 +70,6 @@ namespace km {
         km::PhysicalAddress root() const {
             return asPhysical(getRootTable());
         }
-
-        void map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
-
-        void map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
-
-        void map1g(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
 
         void map(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
 

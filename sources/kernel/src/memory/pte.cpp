@@ -124,7 +124,7 @@ void PageTableManager::mapRange1g(MemoryRange range, const void *vaddr, PageFlag
     }
 }
 
-void PageTableManager::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type) {
+OsStatus PageTableManager::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type) {
     stdx::LockGuard guard(mLock);
 
     uintptr_t addr = (uintptr_t)vaddr;
@@ -134,19 +134,22 @@ void PageTableManager::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags
         KM_PANIC("Invalid memory mapping.");
     }
 
-    uint16_t pml4e = (addr >> 39) & 0b0001'1111'1111;
-    uint16_t pdpte = (addr >> 30) & 0b0001'1111'1111;
-    uint16_t pdte = (addr >> 21) & 0b0001'1111'1111;
-    uint16_t pte = (addr >> 12) & 0b0001'1111'1111;
+    auto [pml4e, pdpte, pdte, pte] = GetAddressParts(vaddr);
 
     x64::PageMapLevel4 *l4 = getRootTable();
     x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e, PageFlags::eUserAll);
+    if (!l3) return OsStatusOutOfMemory;
+
     x64::PageMapLevel2 *l2 = getPageMap2(l3, pdpte, PageFlags::eUserAll);
+    if (!l2) return OsStatusOutOfMemory;
+
     x64::PageTable *pt;
 
     x64::pdte& t2 = l2->entries[pdte];
     if (!t2.present()) {
         pt = std::bit_cast<x64::PageTable*>(alloc4k());
+        if (!pt) return OsStatusOutOfMemory;
+
         setEntryFlags(t2, PageFlags::eUserAll, asPhysical(pt));
     } else {
         pt = asVirtual<x64::PageTable>(mPageManager->address(t2));
@@ -155,9 +158,11 @@ void PageTableManager::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags
     x64::pte& t1 = pt->entries[pte];
     mPageManager->setMemoryType(t1, type);
     setEntryFlags(t1, flags, paddr);
+
+    return OsStatusSuccess;
 }
 
-void PageTableManager::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type) {
+OsStatus PageTableManager::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type) {
     stdx::LockGuard guard(mLock);
 
     uintptr_t addr = (uintptr_t)vaddr;
@@ -167,34 +172,38 @@ void PageTableManager::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags
         KM_PANIC("Invalid memory mapping.");
     }
 
-    uint16_t pml4e = (addr >> 39) & 0b0001'1111'1111;
-    uint16_t pdpte = (addr >> 30) & 0b0001'1111'1111;
-    uint16_t pdte = (addr >> 21) & 0b0001'1111'1111;
+    auto [pml4e, pdpte, pdte, _] = GetAddressParts(vaddr);
 
     x64::PageMapLevel4 *l4 = getRootTable();
     x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e, PageFlags::eUserAll);
+    if (!l3) return OsStatusOutOfMemory;
+
     x64::PageMapLevel2 *l2 = getPageMap2(l3, pdpte, PageFlags::eUserAll);
+    if (!l2) return OsStatusOutOfMemory;
 
     x64::pdte& t2 = l2->entries[pdte];
     t2.set2m(true);
     mPageManager->setMemoryType(t2, type);
     setEntryFlags(t2, flags, paddr);
+
+    return OsStatusSuccess;
 }
 
-void PageTableManager::map1g(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type) {
+OsStatus PageTableManager::map1g(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type) {
     stdx::LockGuard guard(mLock);
 
-    uintptr_t addr = (uintptr_t)vaddr;
-    uint16_t pml4e = (addr >> 39) & 0b0001'1111'1111;
-    uint16_t pdpte = (addr >> 30) & 0b0001'1111'1111;
+    auto [pml4e, pdpte, _, _] = GetAddressParts(vaddr);
 
     x64::PageMapLevel4 *l4 = getRootTable();
     x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e, PageFlags::eUserAll);
+    if (!l3) return OsStatusOutOfMemory;
 
     x64::pdpte& t3 = l3->entries[pdpte];
     t3.set1g(true);
     mPageManager->setMemoryType(t3, type);
     setEntryFlags(t3, flags, paddr);
+
+    return OsStatusSuccess;
 }
 
 static bool IsLargePageAligned(PhysicalAddress paddr, const void *vaddr) {
