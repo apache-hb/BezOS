@@ -46,13 +46,13 @@ PageTableManager::PageTableManager(const km::PageBuilder *pm, AddressMapping pte
     , mRootPageTable((x64::PageMapLevel4*)alloc4k())
 { }
 
-x64::PageMapLevel3 *PageTableManager::getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e) {
+x64::PageMapLevel3 *PageTableManager::getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e, PageFlags flags) {
     x64::PageMapLevel3 *l3;
 
     x64::pml4e& t4 = l4->entries[pml4e];
     if (!t4.present()) {
         l3 = std::bit_cast<x64::PageMapLevel3*>(alloc4k());
-        setEntryFlags(t4, PageFlags::eUserAll, asPhysical(l3));
+        if (l3) setEntryFlags(t4, flags, asPhysical(l3));
     } else {
         l3 = asVirtual<x64::PageMapLevel3>(mPageManager->address(t4));
     }
@@ -60,13 +60,13 @@ x64::PageMapLevel3 *PageTableManager::getPageMap3(x64::PageMapLevel4 *l4, uint16
     return l3;
 }
 
-x64::PageMapLevel2 *PageTableManager::getPageMap2(x64::PageMapLevel3 *l3, uint16_t pdpte) {
+x64::PageMapLevel2 *PageTableManager::getPageMap2(x64::PageMapLevel3 *l3, uint16_t pdpte, PageFlags flags) {
     x64::PageMapLevel2 *l2;
 
     x64::pdpte& t3 = l3->entries[pdpte];
     if (!t3.present()) {
         l2 = std::bit_cast<x64::PageMapLevel2*>(alloc4k());
-        setEntryFlags(t3, PageFlags::eUserAll, asPhysical(l2));
+        if (l2) setEntryFlags(t3, flags, asPhysical(l2));
     } else {
         l2 = asVirtual<x64::PageMapLevel2>(mPageManager->address(t3));
     }
@@ -140,8 +140,8 @@ void PageTableManager::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags
     uint16_t pte = (addr >> 12) & 0b0001'1111'1111;
 
     x64::PageMapLevel4 *l4 = getRootTable();
-    x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e);
-    x64::PageMapLevel2 *l2 = getPageMap2(l3, pdpte);
+    x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e, PageFlags::eUserAll);
+    x64::PageMapLevel2 *l2 = getPageMap2(l3, pdpte, PageFlags::eUserAll);
     x64::PageTable *pt;
 
     x64::pdte& t2 = l2->entries[pdte];
@@ -172,8 +172,8 @@ void PageTableManager::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags
     uint16_t pdte = (addr >> 21) & 0b0001'1111'1111;
 
     x64::PageMapLevel4 *l4 = getRootTable();
-    x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e);
-    x64::PageMapLevel2 *l2 = getPageMap2(l3, pdpte);
+    x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e, PageFlags::eUserAll);
+    x64::PageMapLevel2 *l2 = getPageMap2(l3, pdpte, PageFlags::eUserAll);
 
     x64::pdte& t2 = l2->entries[pdte];
     t2.set2m(true);
@@ -189,7 +189,7 @@ void PageTableManager::map1g(PhysicalAddress paddr, const void *vaddr, PageFlags
     uint16_t pdpte = (addr >> 30) & 0b0001'1111'1111;
 
     x64::PageMapLevel4 *l4 = getRootTable();
-    x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e);
+    x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e, PageFlags::eUserAll);
 
     x64::pdpte& t3 = l3->entries[pdpte];
     t3.set1g(true);
