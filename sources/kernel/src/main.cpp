@@ -533,29 +533,25 @@ static Stage2MemoryInfo *InitStage2Memory(const boot::LaunchInfo& launch, const 
 
     // carry forward the mappings made in stage 1
     // that are still required for kernel runtime
-    memory->pmm.markUsed(stack.physicalRange());
-    memory->pmm.markUsed(layout.committed.physicalRange());
-    memory->pmm.markUsed(layout.kernel.physicalRange());
-    memory->pmm.markUsed({ 0zu, kLowMemory });
-
-    memory->vmm.markUsed(stack.virtualRange());
-    memory->vmm.markUsed(layout.committed.virtualRange());
-    memory->vmm.markUsed(layout.kernel.virtualRange());
+    memory->reserve(stack);
+    memory->reserve(layout.committed);
+    memory->reserve(layout.kernel);
+    memory->reservePhysical({ 0zu, kLowMemory });
 
     // initialize our own page tables and remap everything into it
-    MapKernelRegions(memory->pt, layout);
+    MapKernelRegions(memory->systemTables(), layout);
 
     // map the stack again
-    MapDataRegion(memory->pt, stack);
+    MapDataRegion(memory->systemTables(), stack);
 
     // carry forward the non-pageable memory
-    MapDataRegion(memory->pt, layout.committed);
+    MapDataRegion(memory->systemTables(), layout.committed);
 
     // remap framebuffers
-    MapDisplayRegions(memory->pt, framebuffers, layout.framebuffers);
+    MapDisplayRegions(memory->systemTables(), framebuffers, layout.framebuffers);
 
     // once it is safe to remap the boot memory, do so
-    UpdateRootPageTable(memory->pager, memory->pt);
+    UpdateRootPageTable(memory->getPager(), memory->systemTables());
 
     return stage2;
 }
@@ -819,7 +815,7 @@ static void CreateNotificationQueue() {
 }
 
 static const void *TranslateUserPointer(const void *userAddress) {
-    PageTables& pt = gMemory->pt;
+    PageTables& pt = gMemory->systemTables();
     if (bool(pt.getMemoryFlags(userAddress) & (PageFlags::eUser | PageFlags::eRead))) {
         return userAddress;
     }
@@ -1024,7 +1020,7 @@ static void AddDeviceSystemCalls() {
             return CallError(status);
         }
 
-        if (!IsRangeMapped(gMemory->pt, request.BufferFront, request.BufferBack, PageFlags::eUser | PageFlags::eWrite)) {
+        if (!IsRangeMapped(gMemory->systemTables(), request.BufferFront, request.BufferBack, PageFlags::eUser | PageFlags::eWrite)) {
             return CallError(OsStatusInvalidInput);
         }
 

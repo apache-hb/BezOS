@@ -179,7 +179,7 @@ struct km::Format<UbsanTypeDescriptor> {
 static void UbsanReportError(stdx::StringView message) {
     if (km::SystemMemory *memory = km::GetSystemMemory()) {
         void *rbp = __builtin_frame_address(0);
-        x64::WalkStackFramesChecked(memory->pt, (void**)rbp, [](void **frame, void *pc, stdx::StringView note) {
+        x64::WalkStackFramesChecked(memory->systemTables(), (void**)rbp, [](void **frame, void *pc, stdx::StringView note) {
             KmDebugMessageUnlocked("| ", (void*)frame, " | ", pc);
             if (!note.isEmpty()) {
                 KmDebugMessageUnlocked(" ", note);

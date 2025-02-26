@@ -10,17 +10,25 @@
 #include "memory/paging.hpp"
 
 namespace km {
+    struct AllocateRequest {
+        size_t size;
+        size_t align = x64::kPageSize;
+        const void *hint = nullptr;
+        PageFlags flags = PageFlags::eNone;
+        MemoryType type = MemoryType::eWriteBack;
+    };
+
     /// @brief Kernel address space.
     ///
     /// The top half of address space is reserved for the kernel.
     /// Each process has the kernel address space mapped into the higher half.
     /// Kernel addresses are identified by having the top bits set in the canonical address.
-    class KernelPageTables {
+    class SystemPageTables {
         PageTables mSystemTables;
         RangeAllocator<const void*> mVmemAllocator;
 
     public:
-        KernelPageTables(AddressMapping pteMemory, const km::PageBuilder *pm, VirtualRange systemArea)
+        SystemPageTables(AddressMapping pteMemory, const km::PageBuilder *pm, VirtualRange systemArea)
             : mSystemTables(pm, pteMemory, PageFlags::eAll)
             , mVmemAllocator(systemArea)
         { }
@@ -28,9 +36,8 @@ namespace km {
         OsStatus map(MappingRequest request, AddressMapping *mapping);
         OsStatus unmap(AddressMapping mapping);
 
-        PageTables& ptes() {
-            return mSystemTables;
-        }
+        PageTables& ptes() { return mSystemTables; }
+        PhysicalAddress root() const { return mSystemTables.root(); }
     };
 
     /// @brief Per process address space.
@@ -39,12 +46,12 @@ namespace km {
     /// The lower half of the address space is reserved for the process.
     /// Process addresses are identified by having the top bits clear in the canonical address.
     class ProcessPageTables {
-        KernelPageTables *mSystemTables;
+        SystemPageTables *mSystemTables;
         PageTables mProcessTables;
         RangeAllocator<const void*> mVmemAllocator;
 
     public:
-        ProcessPageTables(KernelPageTables *kernel, AddressMapping pteMemory, const km::PageBuilder *pm, VirtualRange processArea)
+        ProcessPageTables(SystemPageTables *kernel, AddressMapping pteMemory, const km::PageBuilder *pm, VirtualRange processArea)
             : mSystemTables(kernel)
             , mProcessTables(pm, pteMemory, PageFlags::eUserAll)
             , mVmemAllocator(processArea)
@@ -68,5 +75,9 @@ namespace km {
 
         OsStatus map(MappingRequest request, AddressMapping *mapping);
         OsStatus unmap(AddressMapping mapping);
+
+        OsStatus allocate(AllocateRequest request, AddressMapping *mapping);
+
+        PhysicalAddress root() const { return mProcessTables.root(); }
     };
 }

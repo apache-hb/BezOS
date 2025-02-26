@@ -126,7 +126,7 @@ static SmpInfoHeader SetupSmpInfoHeader(
     km::SmpInitCallback callback,
     void *user
 ) {
-    km::PageTables& vmm = memory->pt;
+    km::PageTables& vmm = memory->systemTables();
 
     km::PhysicalAddress pml4 = vmm.root();
     KM_CHECK(pml4 < UINT32_MAX, "PML4 address is above the 4G range.");
@@ -178,8 +178,8 @@ void km::InitSmp(
     // Also identity map the SMP blob and info regions, it makes jumping to compatibility mode easier.
     // I think theres a better way to do this, but I'm not sure what it is.
     //
-    memory.pt.map({ kSmpInfo, kSmpInfo + sizeof(SmpInfoHeader) }, (void*)kSmpInfo.address, km::PageFlags::eData);
-    memory.pt.map({ kSmpStart, kSmpStart + blobSize }, (void*)kSmpStart.address, km::PageFlags::eCode);
+    memory.systemTables().map({ kSmpInfo, kSmpInfo + sizeof(SmpInfoHeader) }, (void*)kSmpInfo.address, km::PageFlags::eData);
+    memory.systemTables().map({ kSmpStart, kSmpStart + blobSize }, (void*)kSmpStart.address, km::PageFlags::eCode);
 
     SmpInfoHeader header = SetupSmpInfoHeader(&memory, bsp, callback, user);
     memcpy(smpInfo, &header, sizeof(header));
@@ -244,6 +244,6 @@ void km::InitSmp(
     //
     // And unmap the identity mappings.
     //
-    memory.pt.unmap((void*)kSmpInfo.address, sizeof(SmpInfoHeader));
-    memory.pt.unmap((void*)kSmpStart.address, blobSize);
+    memory.systemTables().unmap((void*)kSmpInfo.address, sizeof(SmpInfoHeader));
+    memory.systemTables().unmap((void*)kSmpStart.address, blobSize);
 }

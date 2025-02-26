@@ -21,8 +21,7 @@ namespace km {
 
         eUserData = eData | eUser,
         eUserCode = eCode | eUser,
-
-        eUserAll = eRead | eWrite | eExecute | eUser,
+        eUserAll = eAll | eUser,
     };
 
     UTIL_BITFLAGS(PageFlags);
@@ -31,9 +30,16 @@ namespace km {
         /// @brief Create the head of a large page mapping.
         /// @pre @p mapping must be @ref AlignLargeRangeEligible.
         AddressMapping AlignLargeRangeHead(AddressMapping mapping);
+
+        /// @brief Create the body of a large page mapping.
+        /// @pre @p mapping must be @ref AlignLargeRangeEligible.
         AddressMapping AlignLargeRangeBody(AddressMapping mapping);
+
+        /// @brief Create the tail of a large page mapping.
+        /// @pre @p mapping must be @ref AlignLargeRangeEligible.
         AddressMapping AlignLargeRangeTail(AddressMapping mapping);
 
+        /// @brief Check if a mapping is eligible for large pages.
         bool IsLargePageEligible(AddressMapping mapping);
     }
 

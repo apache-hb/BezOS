@@ -209,7 +209,7 @@ void km::DumpStackTrace(const km::IsrContext *context) {
     KmDebugMessageUnlocked("| Frame              | Program Counter\n");
     KmDebugMessageUnlocked("|--------------------+----------------\n");
     if (SystemMemory *memory = km::GetSystemMemory()) {
-        x64::WalkStackFramesChecked(memory->pt, (void**)context->rbp, [](void **frame, void *pc, stdx::StringView note) {
+        x64::WalkStackFramesChecked(memory->systemTables(), (void**)context->rbp, [](void **frame, void *pc, stdx::StringView note) {
             KmDebugMessageUnlocked("| ", (void*)frame, " | ", pc);
             if (!note.isEmpty()) {
                 KmDebugMessageUnlocked(" ", note);
@@ -222,7 +222,7 @@ void km::DumpStackTrace(const km::IsrContext *context) {
         KmDebugMessageUnlocked("llvm-addr2line -e ./build/kernel/bezos-limine");
 
         if (SystemMemory *memory = km::GetSystemMemory()) {
-            x64::WalkStackFramesChecked(memory->pt, (void**)context->rbp, [](void **, void *pc, stdx::StringView) {
+            x64::WalkStackFramesChecked(memory->systemTables(), (void**)context->rbp, [](void **, void *pc, stdx::StringView) {
                 KmDebugMessageUnlocked(" ", pc);
             });
         }

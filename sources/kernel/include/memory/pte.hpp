@@ -17,10 +17,10 @@ namespace km {
     ///          offset between them.
     class PageTables {
         uintptr_t mSlide;
-        stdx::SpinLock mLock;
-        const km::PageBuilder *mPageManager;
         mem::SynchronizedAllocator<mem::TlsfAllocator> mAllocator;
+        const km::PageBuilder *mPageManager;
         x64::PageMapLevel4 *mRootPageTable;
+        stdx::SpinLock mLock;
         PageFlags mMiddleFlags;
 
         x64::page *alloc4k();

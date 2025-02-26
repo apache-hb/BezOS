@@ -184,7 +184,6 @@ namespace km {
         return {front, back};
     }
 
-
     template<typename T>
     constexpr AnyRange<T> merge(AnyRange<T> a, AnyRange<T> b) {
         return {std::min(a.front, b.front), std::max(a.back, b.back)};

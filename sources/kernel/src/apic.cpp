@@ -327,7 +327,7 @@ km::Apic km::InitApApic(km::SystemMemory& memory, const km::IApic *bsp) {
 
         // Move every AP lapic at the same address as the BSP lapic.
         // This makes accessing it less error prone.
-        km::PhysicalAddress bspBaseAddress = memory.pt.getBackingAddress(vaddr);
+        km::PhysicalAddress bspBaseAddress = memory.systemTables().getBackingAddress(vaddr);
         EnableLocalApic(bspBaseAddress);
 
         return km::LocalApic { vaddr };

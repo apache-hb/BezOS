@@ -8,7 +8,7 @@
 #include <cstdint>
 
 namespace km {
-    struct SystemMemory;
+    class SystemMemory;
 
     using SystemCallHandler = OsCallResult(*)(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3);
 

@@ -26,7 +26,7 @@ OsStatus km::CopyUserMemory(uint64_t address, size_t size, void *copy) {
     const void *front = (void*)address;
     const void *back = (void*)tail;
 
-    if (!IsRangeMapped(GetSystemMemory()->pt, front, back, PageFlags::eUser | PageFlags::eRead)) {
+    if (!IsRangeMapped(GetSystemMemory()->systemTables(), front, back, PageFlags::eUser | PageFlags::eRead)) {
         return OsStatusInvalidInput;
     }
 
@@ -44,7 +44,7 @@ OsStatus km::ReadUserMemory(const void *front, const void *back, void *dst, size
         return OsStatusInvalidInput;
     }
 
-    if (!IsRangeMapped(GetSystemMemory()->pt, front, back, PageFlags::eUser | PageFlags::eRead)) {
+    if (!IsRangeMapped(GetSystemMemory()->systemTables(), front, back, PageFlags::eUser | PageFlags::eRead)) {
         return OsStatusInvalidInput;
     }
 
@@ -58,7 +58,7 @@ OsStatus km::WriteUserMemory(void *dst, const void *src, size_t size) {
         return OsStatusInvalidInput;
     }
 
-    if (!IsRangeMapped(GetSystemMemory()->pt, dst, (void*)back, PageFlags::eUser | PageFlags::eWrite)) {
+    if (!IsRangeMapped(GetSystemMemory()->systemTables(), dst, (void*)back, PageFlags::eUser | PageFlags::eWrite)) {
         return OsStatusInvalidInput;
     }
 

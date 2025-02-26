@@ -31,8 +31,8 @@ void PageTables::setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddre
 
 PageTables::PageTables(const km::PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags)
     : mSlide(pteMemory.slide())
-    , mPageManager(pm)
     , mAllocator((void*)pteMemory.vaddr, pteMemory.size)
+    , mPageManager(pm)
     , mRootPageTable((x64::PageMapLevel4*)alloc4k())
     , mMiddleFlags(middleFlags)
 { }

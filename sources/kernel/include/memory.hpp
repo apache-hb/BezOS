@@ -3,28 +3,22 @@
 #include "memory/page_allocator.hpp"
 #include "memory/pte.hpp"
 #include "memory/paging.hpp"
+#include "memory/tables.hpp"
 #include "memory/virtual_allocator.hpp"
 
 #include <cstddef>
 
 namespace km {
-    struct AllocateRequest {
-        size_t size;
-        size_t align = x64::kPageSize;
-        const void *hint = nullptr;
-        PageFlags flags = PageFlags::eNone;
-        MemoryType type = MemoryType::eWriteBack;
-    };
-
     inline VirtualRange DefaultUserArea() {
         return VirtualRange { (void*)sm::megabytes(1).bytes(), (void*)sm::gigabytes(4).bytes() };
     }
 
-    struct SystemMemory {
+    class SystemMemory {
         PageBuilder pager;
         PageAllocator pmm;
         PageTables pt;
         VirtualAllocator vmm;
+    public:
 
         SystemMemory(std::span<const boot::MemoryRegion> memmap, VirtualRange systemArea, VirtualRange userArea, PageBuilder pm, AddressMapping pteMemory);
 
@@ -51,6 +45,23 @@ namespace km {
         void unmap(void *ptr, size_t size);
 
         AddressMapping allocateStack(size_t size);
+
+        void reserve(AddressMapping mapping) {
+            reserveVirtual(mapping.virtualRange());
+            reservePhysical(mapping.physicalRange());
+        }
+
+        void reservePhysical(MemoryRange range) {
+            pmm.markUsed(range);
+        }
+
+        void reserveVirtual(VirtualRange range) {
+            vmm.markUsed(range);
+        }
+
+        PageBuilder& getPager() { return pager; }
+
+        PageTables& systemTables() { return pt; }
 
         void *map(PhysicalAddress begin, PhysicalAddress end, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eWriteBack);
 

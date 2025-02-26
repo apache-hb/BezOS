@@ -293,7 +293,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
         if (ph.flags & (1 << 2))
             flags |= PageFlags::eRead;
 
-        memory.pt.map(mapping, flags);
+        memory.systemTables().map(mapping, flags);
 
         objects.createAddressSpace("ELF SECTION", mapping, flags, km::MemoryType::eWriteBack, process);
     }

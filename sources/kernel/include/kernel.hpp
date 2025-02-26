@@ -4,6 +4,7 @@
 
 #include "log.hpp" // IWYU pragma: export
 #include "gdt.hpp"
+#include "memory.hpp"
 #include "thread.hpp"
 
 namespace km {

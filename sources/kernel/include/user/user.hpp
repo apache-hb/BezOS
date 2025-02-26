@@ -26,7 +26,7 @@ namespace km {
             return OsStatusInvalidInput;
         }
 
-        if (!IsRangeMapped(GetSystemMemory()->pt, front, back, PageFlags::eUser | PageFlags::eRead)) {
+        if (!IsRangeMapped(GetSystemMemory()->systemTables(), front, back, PageFlags::eUser | PageFlags::eRead)) {
             return OsStatusInvalidInput;
         }
 

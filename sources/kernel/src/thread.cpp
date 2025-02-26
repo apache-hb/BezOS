@@ -1,5 +1,9 @@
 #include "thread.hpp"
 
+#include "crt.hpp"
+#include "panic.hpp"
+#include <cstring>
+
 extern "C" char __cpudata_start[];
 extern "C" char __cpudata_end[];
 
