@@ -5,7 +5,7 @@
 km::SystemMemory::SystemMemory(std::span<const boot::MemoryRegion> memmap, VirtualRange systemArea, VirtualRange userArea, PageBuilder pm, AddressMapping pteMemory)
     : pager(pm)
     , pmm(memmap)
-    , pt(&pager, pteMemory)
+    , pt(&pager, pteMemory, PageFlags::eUserAll)
     , vmm(systemArea, userArea)
 { }
 

@@ -460,7 +460,7 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
         .size = kPtAllocSize
     };
 
-    PageTableManager vmm(&pm, pteMapping);
+    PageTableManager vmm(&pm, pteMapping, PageFlags::eAll);
 
     // initialize our own page tables and remap everything into it
     MapKernelRegions(vmm, layout);

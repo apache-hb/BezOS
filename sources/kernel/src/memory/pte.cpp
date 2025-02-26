@@ -39,20 +39,21 @@ void PageTableManager::setEntryFlags(x64::Entry& entry, PageFlags flags, Physica
     entry.setPresent(true);
 }
 
-PageTableManager::PageTableManager(const km::PageBuilder *pm, AddressMapping pteMemory)
+PageTableManager::PageTableManager(const km::PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags)
     : mSlide(pteMemory.slide())
     , mPageManager(pm)
     , mAllocator((void*)pteMemory.vaddr, pteMemory.size)
     , mRootPageTable((x64::PageMapLevel4*)alloc4k())
+    , mMiddleFlags(middleFlags)
 { }
 
-x64::PageMapLevel3 *PageTableManager::getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e, PageFlags flags) {
+x64::PageMapLevel3 *PageTableManager::getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e) {
     x64::PageMapLevel3 *l3;
 
     x64::pml4e& t4 = l4->entries[pml4e];
     if (!t4.present()) {
         l3 = std::bit_cast<x64::PageMapLevel3*>(alloc4k());
-        if (l3) setEntryFlags(t4, flags, asPhysical(l3));
+        if (l3) setEntryFlags(t4, mMiddleFlags, asPhysical(l3));
     } else {
         l3 = asVirtual<x64::PageMapLevel3>(mPageManager->address(t4));
     }
@@ -60,13 +61,13 @@ x64::PageMapLevel3 *PageTableManager::getPageMap3(x64::PageMapLevel4 *l4, uint16
     return l3;
 }
 
-x64::PageMapLevel2 *PageTableManager::getPageMap2(x64::PageMapLevel3 *l3, uint16_t pdpte, PageFlags flags) {
+x64::PageMapLevel2 *PageTableManager::getPageMap2(x64::PageMapLevel3 *l3, uint16_t pdpte) {
     x64::PageMapLevel2 *l2;
 
     x64::pdpte& t3 = l3->entries[pdpte];
     if (!t3.present()) {
         l2 = std::bit_cast<x64::PageMapLevel2*>(alloc4k());
-        if (l2) setEntryFlags(t3, flags, asPhysical(l2));
+        if (l2) setEntryFlags(t3, mMiddleFlags, asPhysical(l2));
     } else {
         l2 = asVirtual<x64::PageMapLevel2>(mPageManager->address(t3));
     }
@@ -146,10 +147,10 @@ OsStatus PageTableManager::map4k(PhysicalAddress paddr, const void *vaddr, PageF
     auto [pml4e, pdpte, pdte, pte] = GetAddressParts(vaddr);
 
     x64::PageMapLevel4 *l4 = getRootTable();
-    x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e, PageFlags::eUserAll);
+    x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e);
     if (!l3) return OsStatusOutOfMemory;
 
-    x64::PageMapLevel2 *l2 = getPageMap2(l3, pdpte, PageFlags::eUserAll);
+    x64::PageMapLevel2 *l2 = getPageMap2(l3, pdpte);
     if (!l2) return OsStatusOutOfMemory;
 
     x64::PageTable *pt;
@@ -159,7 +160,7 @@ OsStatus PageTableManager::map4k(PhysicalAddress paddr, const void *vaddr, PageF
         pt = std::bit_cast<x64::PageTable*>(alloc4k());
         if (!pt) return OsStatusOutOfMemory;
 
-        setEntryFlags(t2, PageFlags::eUserAll, asPhysical(pt));
+        setEntryFlags(t2, mMiddleFlags, asPhysical(pt));
     } else {
         pt = asVirtual<x64::PageTable>(mPageManager->address(t2));
     }
@@ -184,10 +185,10 @@ OsStatus PageTableManager::map2m(PhysicalAddress paddr, const void *vaddr, PageF
     auto [pml4e, pdpte, pdte, _] = GetAddressParts(vaddr);
 
     x64::PageMapLevel4 *l4 = getRootTable();
-    x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e, PageFlags::eUserAll);
+    x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e);
     if (!l3) return OsStatusOutOfMemory;
 
-    x64::PageMapLevel2 *l2 = getPageMap2(l3, pdpte, PageFlags::eUserAll);
+    x64::PageMapLevel2 *l2 = getPageMap2(l3, pdpte);
     if (!l2) return OsStatusOutOfMemory;
 
     x64::pdte& t2 = l2->entries[pdte];
@@ -204,7 +205,7 @@ OsStatus PageTableManager::map1g(PhysicalAddress paddr, const void *vaddr, PageF
     auto [pml4e, pdpte, _, _] = GetAddressParts(vaddr);
 
     x64::PageMapLevel4 *l4 = getRootTable();
-    x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e, PageFlags::eUserAll);
+    x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e);
     if (!l3) return OsStatusOutOfMemory;
 
     x64::pdpte& t3 = l3->entries[pdpte];

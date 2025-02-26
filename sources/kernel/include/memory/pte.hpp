@@ -6,19 +6,13 @@
 #include "memory/paging.hpp"
 
 namespace km {
-    enum class PageSize {
-        eNone = 0,
-        eDefault = x64::kPageSize,
-        eLarge = x64::kLargePageSize,
-        eHuge = x64::kHugePageSize,
-    };
-
     class PageTableManager {
         uintptr_t mSlide;
         mutable stdx::SpinLock mLock;
         const km::PageBuilder *mPageManager;
         mem::SynchronizedAllocator<mem::TlsfAllocator> mAllocator;
         x64::PageMapLevel4 *mRootPageTable;
+        PageFlags mMiddleFlags;
 
         x64::page *alloc4k();
 
@@ -38,8 +32,8 @@ namespace km {
 
         void setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddress address);
 
-        x64::PageMapLevel3 *getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e, PageFlags flags);
-        x64::PageMapLevel2 *getPageMap2(x64::PageMapLevel3 *l3, uint16_t pdpte, PageFlags flags);
+        x64::PageMapLevel3 *getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e);
+        x64::PageMapLevel2 *getPageMap2(x64::PageMapLevel3 *l3, uint16_t pdpte);
 
         const x64::PageMapLevel3 *findPageMap3(const x64::PageMapLevel4 *l4, uint16_t pml4e) const;
         const x64::PageMapLevel2 *findPageMap2(const x64::PageMapLevel3 *l3, uint16_t pdpte) const;
@@ -65,7 +59,7 @@ namespace km {
         km::PhysicalAddress asPhysical(const void *ptr) const;
 
     public:
-        PageTableManager(const km::PageBuilder *pm, AddressMapping pteMemory);
+        PageTableManager(const km::PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags);
 
         km::PhysicalAddress root() const {
             return asPhysical(getRootTable());
