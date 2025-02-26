@@ -2,14 +2,6 @@
 
 #include "log.hpp"
 
-#include "arch/paging.hpp"
-#include "memory/paging.hpp"
-
-#include <limits.h>
-#include <string.h>
-
-#include <bit>
-
 using namespace km;
 
 x64::page *PageTableManager::alloc4k() {
@@ -18,8 +10,6 @@ x64::page *PageTableManager::alloc4k() {
 
         return page;
     }
-
-    KM_ASSERT("Failed to allocate page table.");
 
     return nullptr;
 }
@@ -146,7 +136,7 @@ OsStatus PageTableManager::map4k(PhysicalAddress paddr, const void *vaddr, PageF
 
     auto [pml4e, pdpte, pdte, pte] = GetAddressParts(vaddr);
 
-    x64::PageMapLevel4 *l4 = getRootTable();
+    x64::PageMapLevel4 *l4 = pml4();
     x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e);
     if (!l3) return OsStatusOutOfMemory;
 
@@ -184,7 +174,7 @@ OsStatus PageTableManager::map2m(PhysicalAddress paddr, const void *vaddr, PageF
 
     auto [pml4e, pdpte, pdte, _] = GetAddressParts(vaddr);
 
-    x64::PageMapLevel4 *l4 = getRootTable();
+    x64::PageMapLevel4 *l4 = pml4();
     x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e);
     if (!l3) return OsStatusOutOfMemory;
 
@@ -204,7 +194,7 @@ OsStatus PageTableManager::map1g(PhysicalAddress paddr, const void *vaddr, PageF
 
     auto [pml4e, pdpte, _, _] = GetAddressParts(vaddr);
 
-    x64::PageMapLevel4 *l4 = getRootTable();
+    x64::PageMapLevel4 *l4 = pml4();
     x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e);
     if (!l3) return OsStatusOutOfMemory;
 
@@ -286,7 +276,7 @@ OsStatus PageTableManager::unmap(VirtualRange range) {
 
     stdx::LockGuard guard(mLock);
 
-    x64::PageMapLevel4 *l4 = getRootTable();
+    x64::PageMapLevel4 *l4 = pml4();
 
     for (uintptr_t i = (uintptr_t)range.front; i < (uintptr_t)range.back; i += x64::kPageSize) {
         auto [pml4e, pdpte, pdte, pte] = GetAddressParts(i);
@@ -315,7 +305,7 @@ km::PhysicalAddress PageTableManager::getBackingAddress(const void *ptr) {
 
     stdx::LockGuard guard(mLock);
 
-    const x64::PageMapLevel4 *l4 = getRootTable();
+    const x64::PageMapLevel4 *l4 = pml4();
     const x64::PageMapLevel3 *l3 = findPageMap3(l4, pml4e);
     if (!l3) return KM_INVALID_MEMORY;
 
@@ -379,7 +369,7 @@ OsStatus PageTableManager::walk(const void *ptr, PageWalk *walk) {
     // we break out of the loop and return the data we've collected.
     //
     do {
-        const x64::PageMapLevel4 *l4 = getRootTable();
+        const x64::PageMapLevel4 *l4 = pml4();
         pml4e = l4->entries[pml4eIndex];
         if (!pml4e.present()) break;
 

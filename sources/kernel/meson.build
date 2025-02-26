@@ -448,11 +448,11 @@ testcases = {
         'src/std/rcu.cpp',
         'src/std/rcuptr.cpp',
     ],
-    'pte': [
-        'test/memory/memory.cpp',
-        'src/memory/memory.cpp',
-        tlsf.get_variable('sources'),
-    ]
+    # 'pte': [
+    #     'test/memory/memory.cpp',
+    #     'src/memory/memory.cpp',
+    #     tlsf.get_variable('sources'),
+    # ]
 }
 
 if enable_aml

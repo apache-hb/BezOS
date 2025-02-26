@@ -6,6 +6,11 @@
 #include "memory/paging.hpp"
 
 namespace km {
+    /// @brief Manages page tables for an address space.
+    ///
+    /// @details All ptes are allocated from a memory pool that is provided at construction.
+    ///          The current implementation expects that the virtual and physical addresses have a fixed
+    ///          offset between them.
     class PageTableManager {
         uintptr_t mSlide;
         mutable stdx::SpinLock mLock;
@@ -47,10 +52,6 @@ namespace km {
         OsStatus map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
         OsStatus map1g(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
 
-        x64::PageMapLevel4 *getRootTable() const {
-            return mRootPageTable;
-        }
-
         template<typename T>
         T *asVirtual(km::PhysicalAddress addr) const {
             return (T*)(addr.address + mSlide);
@@ -61,8 +62,11 @@ namespace km {
     public:
         PageTableManager(const km::PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags);
 
+        const x64::PageMapLevel4 *pml4() const { return mRootPageTable; }
+        x64::PageMapLevel4 *pml4() { return mRootPageTable; }
+
         km::PhysicalAddress root() const {
-            return asPhysical(getRootTable());
+            return asPhysical(pml4());
         }
 
         OsStatus map(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
