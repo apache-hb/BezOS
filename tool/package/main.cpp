@@ -56,6 +56,7 @@ enum ConfigureProgram {
     eMeson,
     eCMake,
     eShell,
+    eAutoconf,
 };
 
 enum BuildProgram {
@@ -731,6 +732,8 @@ static void ReadPackageConfig(XmlNode root) {
             } else if (with == "shell") {
                 packageInfo.configure = eShell;
                 packageInfo.shellConfigureScript = action.content();
+            } else if (with == "autoconf") {
+                packageInfo.configure = eAutoconf;
             } else {
                 throw std::runtime_error("Unknown configure program " + with);
             }
@@ -942,6 +945,35 @@ static void ConfigurePackage(const PackageInfo& package) {
         }
 
         auto result = sp::call(args, sp::cwd{cwd});
+        if (result != 0) {
+            throw std::runtime_error("Failed to configure package " + package.name);
+        }
+    } else if (package.configure == eAutoconf) {
+        auto builddir = package.build.string();
+        if (fs::exists(builddir)) {
+            fs::remove_all(builddir);
+        }
+
+        std::vector<std::string> args = {
+            "autoreconf", "--install"
+        };
+
+        auto result = sp::call(args, sp::cwd{cwd});
+        if (result != 0) {
+            throw std::runtime_error("Failed to configure package " + package.name);
+        }
+
+        args = {
+            "./configure", "--prefix=" + package.install.string()
+        };
+
+        for (auto& [key, value] : package.options) {
+            std::string val = value;
+            ReplacePackagePlaceholders(val, package);
+            args.push_back("--" + key + "=" + val);
+        }
+
+        result = sp::call(args, sp::cwd{cwd});
         if (result != 0) {
             throw std::runtime_error("Failed to configure package " + package.name);
         }

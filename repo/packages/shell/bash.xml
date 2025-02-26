@@ -1,0 +1,9 @@
+<package name='bash'>
+    <download file='bash-5.2.tar.gz'
+              url='https://git.savannah.gnu.org/cgit/bash.git/snapshot/bash-5.2.tar.gz'
+              sha256='b0c3cb709ec2dbc9f13ba03f10a0526d71800090ad3fad82ae2c27722a2531c3'
+              trim-root-folder='true'
+              archive='tar' />
+
+    <configure with='autoconf' />
+</package>

@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-#define OS_DEVICE_PS2_KEYBOARD "System\0Devices\0HID\0KEYBOARD0"
+#define OS_DEVICE_PS2_KEYBOARD "Devices\0HID\0KEYBOARD0"
 
 OS_DEFINE_GUID(kOsHidClassGuid, 0xdd4ece3c, 0xec81, 0x11ef, 0x8b71, 0xc761047b867e);
 
