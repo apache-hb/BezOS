@@ -1,12 +1,12 @@
-project('sysapi', 'c')
+project('sysapi', [ 'c', 'cpp' ])
 
 src = [
-    'src/syscall_fs.c',
-    'src/syscall_threads.c',
-    'src/syscall_device.c',
-    'src/syscall_clock.c',
-    'src/syscall_vmem.c',
-    'src/syscall.S',
+    'src/bezos/syscall_fs.c',
+    'src/bezos/syscall_threads.c',
+    'src/bezos/syscall_device.c',
+    'src/bezos/syscall_clock.c',
+    'src/bezos/syscall_vmem.c',
+    'src/bezos/syscall.S',
 ]
 
 inc = include_directories('include')
@@ -15,9 +15,12 @@ sysapi_dep = declare_dependency(
     include_directories : inc,
 )
 
+# TODO: once pkg-config is part of the build process we can remove the
+# build by default flags
+
 libbezos = static_library('bezos-sysapi', src,
     include_directories : inc,
-    build_by_default : false,
+    build_by_default : not meson.is_subproject(),
 )
 
 bezos_dep = declare_dependency(
@@ -25,5 +28,19 @@ bezos_dep = declare_dependency(
     include_directories : inc,
 )
 
+src = [
+    'src/posix/fcntl.cpp',
+    'src/posix/stdio.cpp',
+    'src/posix/errno.cpp',
+]
+
+libposix = static_library('bezos-posix', src,
+    include_directories : inc,
+    build_by_default : not meson.is_subproject(),
+)
+
 meson.override_dependency('bezos', bezos_dep)
 meson.override_dependency('sysapi', sysapi_dep)
+
+install_subdir('include/posix', install_dir : 'include/posix')
+install_subdir('include/bezos', install_dir : 'include/bezos')

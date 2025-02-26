@@ -153,22 +153,23 @@ static PackageStatus GetPackageStatusFromString(std::string_view status) {
     }
 }
 
-struct PackageDb {
-    sql::Database db;
+class PackageDb {
+    sql::Database mDatabase;
 
-    PackageDb(const fs::path& path) : db(path, sql::OPEN_READWRITE | sql::OPEN_CREATE) {
-        db.exec(
+public:
+    PackageDb(const fs::path& path) : mDatabase(path, sql::OPEN_READWRITE | sql::OPEN_CREATE) {
+        mDatabase.exec(
             "CREATE TABLE IF NOT EXISTS targets (\n"
             "    name TEXT PRIMARY KEY,\n"
             "    status TEXT\n"
             ")\n"
         );
 
-        db.exec("DELETE FROM targets WHERE name = ''");
+        mDatabase.exec("DELETE FROM targets WHERE name = ''");
 
-        db.exec("DROP TABLE IF EXISTS dependencies");
+        mDatabase.exec("DROP TABLE IF EXISTS dependencies");
 
-        db.exec(
+        mDatabase.exec(
             "CREATE TABLE dependencies (\n"
             "    package TEXT,\n"
             "    dependency TEXT,\n"
@@ -178,7 +179,7 @@ struct PackageDb {
     }
 
     void AddDependency(std::string_view package, std::string_view dependency) {
-        sql::Statement query(db, "INSERT OR REPLACE INTO dependencies (package, dependency) VALUES (?, ?)");
+        sql::Statement query(mDatabase, "INSERT OR REPLACE INTO dependencies (package, dependency) VALUES (?, ?)");
         query.bind(1, package.data());
         query.bind(2, dependency.data());
         query.exec();
@@ -188,7 +189,7 @@ struct PackageDb {
     std::set<std::string> GetDependantPackages(std::string_view name) {
         std::set<std::string> result;
 
-        sql::Statement query(db,
+        sql::Statement query(mDatabase,
             "WITH RECURSIVE dependants AS (\n"
             "    SELECT package, dependency FROM dependencies WHERE dependency = ?\n"
             "    UNION\n"
@@ -211,7 +212,7 @@ struct PackageDb {
     std::set<std::string> GetPackageDependencies(std::string_view name) {
         std::set<std::string> result;
 
-        sql::Statement query(db, "SELECT dependency FROM dependencies WHERE package = ?");
+        sql::Statement query(mDatabase, "SELECT dependency FROM dependencies WHERE package = ?");
         query.bind(1, name.data());
 
         while (query.executeStep()) {
@@ -228,7 +229,7 @@ struct PackageDb {
         std::set<std::string> root;
 
         // find all packages that have no dependant packages
-        sql::Statement query(db,
+        sql::Statement query(mDatabase,
             "SELECT name FROM targets\n"
             "WHERE NOT EXISTS (\n"
             "    SELECT 1 FROM dependencies WHERE dependency = targets.name\n"
@@ -262,7 +263,7 @@ struct PackageDb {
     }
 
     PackageStatus GetPackageStatus(std::string_view name) {
-        sql::Statement query(db, "SELECT status FROM targets WHERE name = ?");
+        sql::Statement query(mDatabase, "SELECT status FROM targets WHERE name = ?");
         query.bind(1, name.data());
 
         if (query.executeStep()) {
@@ -280,7 +281,7 @@ struct PackageDb {
 
     void SetPackageStatus(std::string_view name, PackageStatus status) {
         if (name.empty()) throw std::runtime_error("Empty package name");
-        sql::Statement query(db, "INSERT OR REPLACE INTO targets (name, status) VALUES (?, ?)");
+        sql::Statement query(mDatabase, "INSERT OR REPLACE INTO targets (name, status) VALUES (?, ?)");
         query.bind(1, std::string(name));
         query.bind(2, GetPackageStatusString(status));
         query.exec();
@@ -301,7 +302,7 @@ struct PackageDb {
     }
 
     void DumpTargetStates() {
-        sql::Statement query(db, "SELECT name, status FROM targets");
+        sql::Statement query(mDatabase, "SELECT name, status FROM targets");
         while (query.executeStep()) {
             std::cout << query.getColumn(0).getString() << ": " << query.getColumn(1).getString() << std::endl;
         }
@@ -1063,7 +1064,7 @@ static void InstallPackage(const PackageInfo& package) {
     std::string builddir = package.build.string();
 
     if (package.configure == eMeson) {
-        auto result = sp::call({ "meson", "install", "--quiet" }, sp::cwd{builddir});
+        auto result = sp::call({ "meson", "install", "--quiet", "--no-rebuild", "--skip-subprojects" }, sp::cwd{builddir});
         if (result != 0) {
             throw std::runtime_error("Failed to install package " + package.name);
         }
