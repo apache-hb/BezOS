@@ -1,4 +1,5 @@
 #include "devices/ddi.hpp"
+#include "panic.hpp"
 
 dev::DisplayHandle::DisplayHandle(vfs2::IVfsDevice *node)
     : vfs2::IVfsNodeHandle(node)
@@ -9,5 +10,9 @@ dev::DisplayHandle::DisplayHandle(vfs2::IVfsDevice *node)
         .back = mCanvas.physical() + mCanvas.size() * mCanvas.bytesPerPixel(),
     };
 
-    mUserCanvas = km::GetSystemMemory()->map(range, km::PageFlags::eUser | km::PageFlags::eWrite, km::MemoryType::eWriteCombine);
+    auto& pm = km::GetProcessPageManager();
+    if (OsStatus status = pm.map(range, km::PageFlags::eUser | km::PageFlags::eWrite, km::MemoryType::eWriteCombine, &mUserCanvas)) {
+        KmDebugMessage("[DDI] Failed to map display canvas: ", status, "\n");
+        KM_PANIC("Failed to map display canvas.");
+    }
 }

@@ -4,7 +4,6 @@
 #include "memory/pte.hpp"
 #include "memory/paging.hpp"
 #include "memory/tables.hpp"
-#include "memory/virtual_allocator.hpp"
 
 #include <cstddef>
 
@@ -19,7 +18,7 @@ namespace km {
         SystemPageTables ptes;
 
     public:
-        SystemMemory(std::span<const boot::MemoryRegion> memmap, VirtualRange systemArea, VirtualRange userArea, PageBuilder pm, AddressMapping pteMemory);
+        SystemMemory(std::span<const boot::MemoryRegion> memmap, VirtualRange systemArea, PageBuilder pm, AddressMapping pteMemory);
 
         void *allocate(
             size_t size,
@@ -28,7 +27,6 @@ namespace km {
         );
 
         AddressMapping kernelAllocate(size_t size, PageFlags flags, MemoryType type);
-        AddressMapping userAllocate(size_t size, PageFlags flags, MemoryType type);
 
         AddressMapping allocateWithHint(
             const void *hint,
@@ -44,6 +42,11 @@ namespace km {
         void unmap(void *ptr, size_t size);
 
         AddressMapping allocateStack(size_t size);
+
+        MemoryRange pmmAllocate(size_t pages) {
+            PhysicalAddress base = pmm.alloc4k(pages);
+            return MemoryRange::of(base, pages * x64::kPageSize);
+        }
 
         void reserve(AddressMapping mapping) {
             reserveVirtual(mapping.virtualRange());
@@ -61,6 +64,8 @@ namespace km {
         PageBuilder& getPager() { return pager; }
 
         PageTables& systemTables() { return ptes.ptes(); }
+        SystemPageTables& pageTables() { return ptes; }
+        PageAllocator& pmmAllocator() { return pmm; }
 
         void *map(PhysicalAddress begin, PhysicalAddress end, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eWriteBack);
 
@@ -93,4 +98,46 @@ namespace km {
             return mapConst<T>(paddr, paddr + sizeof(T), type);
         }
     };
+
+    inline OsStatus AllocateMemory(PageAllocator& pmm, IPageTables *ptes, size_t pages, AddressMapping *mapping) {
+        PhysicalAddress address = pmm.alloc4k(pages);
+        if (address == KM_INVALID_MEMORY) {
+            return OsStatusOutOfMemory;
+        }
+
+        MemoryRange range = MemoryRange::of(address, pages * x64::kPageSize);
+
+        OsStatus status = ptes->map(range, PageFlags::eUserData, MemoryType::eWriteBack, mapping);
+        if (status != OsStatusSuccess) {
+            pmm.release(range);
+        }
+
+        return status;
+    }
+
+    inline OsStatus AllocateMemory(PageAllocator& pmm, IPageTables *ptes, size_t pages, const void *hint, AddressMapping *mapping) {
+        PhysicalAddress address = pmm.alloc4k(pages);
+        if (address == KM_INVALID_MEMORY) {
+            return OsStatusOutOfMemory;
+        }
+
+        MemoryRange range = MemoryRange::of(address, pages * x64::kPageSize);
+        VirtualRange vmem = ptes->vmemAllocate({
+            .size = range.size(),
+            .align = x64::kPageSize,
+            .hint = hint,
+        });
+
+        // TODO: vmem leaks on error
+
+        AddressMapping map = MappingOf(vmem, range.front);
+
+        OsStatus status = ptes->map(map, PageFlags::eUserData, MemoryType::eWriteBack);
+        if (status != OsStatusSuccess) {
+            pmm.release(range);
+        }
+
+        *mapping = map;
+        return status;
+    }
 }

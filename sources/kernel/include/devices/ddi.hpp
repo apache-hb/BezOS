@@ -9,15 +9,15 @@
 namespace dev {
     class DisplayHandle : public vfs2::IVfsNodeHandle {
         km::Canvas mCanvas;
-        void *mUserCanvas = nullptr;
+        km::AddressMapping mUserCanvas;
 
         OsStatus blit(void *data) {
             OsDdiBlit request{};
-            if (OsStatus status = km::CopyUserMemory((uintptr_t)data, sizeof(request), &request)) {
+            if (OsStatus status = km::CopyUserMemory(km::GetProcessPageTables(), (uintptr_t)data, sizeof(request), &request)) {
                 return status;
             }
 
-            return km::ReadUserMemory(request.SourceFront, request.SourceBack, mCanvas.address(), mCanvas.size() * mCanvas.bytesPerPixel());
+            return km::ReadUserMemory(km::GetProcessPageTables(), request.SourceFront, request.SourceBack, mCanvas.address(), mCanvas.size() * mCanvas.bytesPerPixel());
         }
 
         OsStatus info(void *data) const {
@@ -35,12 +35,12 @@ namespace dev {
                 .BlueMaskShift = uint8_t(mCanvas.blueMaskShift()),
             };
 
-            return km::WriteUserMemory(data, &info, sizeof(info));
+            return km::WriteUserMemory(km::GetProcessPageTables(), data, &info, sizeof(info));
         }
 
         OsStatus fill(void *data) {
             OsDdiFill request{};
-            if (OsStatus status = km::CopyUserMemory((uintptr_t)data, sizeof(request), &request)) {
+            if (OsStatus status = km::CopyUserMemory(km::GetProcessPageTables(), (uintptr_t)data, sizeof(request), &request)) {
                 return status;
             }
 
@@ -51,10 +51,10 @@ namespace dev {
 
         OsStatus getCanvas(void *data) {
             OsDdiGetCanvas result {
-                .Canvas = mUserCanvas,
+                .Canvas = (void*)mUserCanvas.vaddr,
             };
 
-            return km::WriteUserMemory(data, &result, sizeof(result));
+            return km::WriteUserMemory(km::GetProcessPageTables(), data, &result, sizeof(result));
         }
 
     public:

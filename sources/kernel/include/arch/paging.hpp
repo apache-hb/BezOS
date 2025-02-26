@@ -33,6 +33,9 @@ namespace x64 {
             return ((1ull << width) - 1) & ~(kPageSize - 1);
         }
 
+        static_assert(addressMask(40) == 0x0000'00ff'ffff'f000ull);
+        static_assert(addressMask(48) == 0x0000'ffff'ffff'f000ull);
+
         // See Vol 3A Table 13-11. Selection of PAT Entries with PAT, PCD, and PWT Flags
         constexpr void setMemoryType(uint64_t& entry, uint64_t pat, uint8_t type) {
             uint64_t mask

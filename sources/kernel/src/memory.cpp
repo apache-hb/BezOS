@@ -2,7 +2,7 @@
 #include "log.hpp"
 #include "memory/memory.hpp"
 
-km::SystemMemory::SystemMemory(std::span<const boot::MemoryRegion> memmap, VirtualRange systemArea, VirtualRange userArea, PageBuilder pm, AddressMapping pteMemory)
+km::SystemMemory::SystemMemory(std::span<const boot::MemoryRegion> memmap, VirtualRange systemArea, PageBuilder pm, AddressMapping pteMemory)
     : pager(pm)
     , pmm(memmap)
     , ptes(pteMemory, &pager, systemArea)
@@ -22,33 +22,6 @@ km::AddressMapping km::SystemMemory::kernelAllocate(size_t size, PageFlags flags
         .flags = flags,
         .type = type
     });
-}
-
-km::AddressMapping km::SystemMemory::userAllocate(size_t size, PageFlags flags, MemoryType type) {
-    KM_CHECK(false, "Not implemented.");
-#if 0
-    size_t pages = Pages(size);
-
-    PhysicalAddress paddr = pmm.alloc4k(pages);
-    MemoryRange range { paddr, paddr + size };
-    if (paddr == KM_INVALID_MEMORY) {
-        return AddressMapping{};
-    }
-
-    void *vaddr = vmm.userAlloc4k(pages);
-    if (vaddr == KM_INVALID_ADDRESS) {
-        pmm.release(range);
-        return AddressMapping{};
-    }
-
-    pt.map(range, vaddr, flags, type);
-
-    return AddressMapping {
-        .vaddr = vaddr,
-        .paddr = paddr,
-        .size = pages * x64::kPageSize
-    };
-#endif
 }
 
 km::AddressMapping km::SystemMemory::allocateWithHint(const void *hint, size_t size, PageFlags flags, MemoryType type) {

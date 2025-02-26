@@ -525,7 +525,7 @@ static Stage2MemoryInfo *InitStage2Memory(const boot::LaunchInfo& launch, const 
 
     KmDebugMessage("[INIT] Page table memory: ", pteMapping, "\n");
 
-    SystemMemory *memory = new SystemMemory(earlyMemory->memmap, stage1.layout.system, DefaultUserArea(), pm, pteMapping);
+    SystemMemory *memory = new SystemMemory(earlyMemory->memmap, stage1.layout.system, pm, pteMapping);
     KM_CHECK(memory != nullptr, "Failed to allocate memory for SystemMemory.");
 
     stage2->memory = memory;
@@ -806,6 +806,18 @@ SystemMemory *km::GetSystemMemory() {
     return gMemory;
 }
 
+IPageTables& km::GetProcessPageManager() {
+    if (auto process = GetCurrentProcess()) {
+        return process->ptes;
+    }
+
+    return gMemory->pageTables();
+}
+
+PageTables& km::GetProcessPageTables() {
+    return GetProcessPageManager().ptes();
+}
+
 static void CreateNotificationQueue() {
     static constexpr size_t kAqMemorySize = sm::kilobytes(128).bytes();
     void *memory = aligned_alloc(x64::kPageSize, kAqMemorySize);
@@ -946,17 +958,20 @@ static void AddDebugSystemCalls() {
 static void AddVfsSystemCalls() {
     AddSystemCall(eOsCallFileOpen, [](uint64_t userArgPathBegin, uint64_t userArgPathEnd, [[maybe_unused]] uint64_t mode, uint64_t) -> OsCallResult {
         vfs2::VfsString userPath;
-        if (OsStatus status = km::CopyUserRange((void*)userArgPathBegin, (void*)userArgPathEnd, &userPath, kMaxPathSize)) {
+        if (OsStatus status = km::CopyUserRange(GetProcessPageTables(), (void*)userArgPathBegin, (void*)userArgPathEnd, &userPath, kMaxPathSize)) {
+            KmDebugMessage("[VFS] Failed to copy path: ", status, "\n");
             return CallError(status);
         }
 
         if (!vfs2::VerifyPathText(userPath)) {
+            KmDebugMessage("[VFS] Invalid path.\n");
             return CallError(OsStatusInvalidInput);
         }
 
         vfs2::VfsPath path{std::move(userPath)};
         vfs2::IVfsNodeHandle *node = nullptr;
         if (OsStatus status = gVfsRoot->open(path, &node)) {
+            KmDebugMessage("[VFS] Failed to open file: ", status, "\n");
             return CallError(status);
         }
 
@@ -967,6 +982,7 @@ static void AddVfsSystemCalls() {
         const void *bufferBegin = TranslateUserPointer((const void*)userBufferBegin);
         const void *bufferEnd = TranslateUserPointer((const void*)userBufferEnd);
         if (bufferBegin == nullptr || bufferEnd == nullptr) {
+            KmDebugMessage("[VFS] Invalid buffer range.\n");
             return CallError(OsStatusInvalidInput);
         }
 
@@ -977,8 +993,11 @@ static void AddVfsSystemCalls() {
         };
         vfs2::ReadResult result{};
         if (OsStatus status = node->read(request, &result)) {
+            KmDebugMessage("[VFS] Failed to read file: ", status, "\n");
             return CallError(status);
         }
+
+        KmDebugMessage("[VFS] Read ", result.read, " bytes.\n");
 
         return CallOk(result.read);
     });
@@ -986,13 +1005,14 @@ static void AddVfsSystemCalls() {
 
 static void AddDeviceSystemCalls() {
     AddSystemCall(eOsCallDeviceOpen, [](uint64_t userCreateInfo, uint64_t, uint64_t, uint64_t) -> OsCallResult {
+        auto& pt = GetProcessPageTables();
         OsDeviceCreateInfo createInfo{};
-        if (OsStatus status = km::CopyUserMemory(userCreateInfo, sizeof(createInfo), &createInfo)) {
+        if (OsStatus status = km::CopyUserMemory(pt, userCreateInfo, sizeof(createInfo), &createInfo)) {
             return CallError(status);
         }
 
         vfs2::VfsString userPath;
-        if (OsStatus status = km::CopyUserRange(createInfo.NameFront, createInfo.NameBack, &userPath, kMaxPathSize)) {
+        if (OsStatus status = km::CopyUserRange(pt, createInfo.NameFront, createInfo.NameBack, &userPath, kMaxPathSize)) {
             return CallError(status);
         }
 
@@ -1014,13 +1034,14 @@ static void AddDeviceSystemCalls() {
 
     AddSystemCall(eOsCallDeviceRead, [](uint64_t userHandle, uint64_t userRequest, uint64_t, uint64_t) -> OsCallResult {
         vfs2::IVfsNodeHandle *handle = (vfs2::IVfsNodeHandle*)userHandle;
+        auto& pt = GetProcessPageTables();
 
         OsDeviceReadRequest request{};
-        if (OsStatus status = km::CopyUserMemory(userRequest, sizeof(request), &request)) {
+        if (OsStatus status = km::CopyUserMemory(pt, userRequest, sizeof(request), &request)) {
             return CallError(status);
         }
 
-        if (!IsRangeMapped(gMemory->systemTables(), request.BufferFront, request.BufferBack, PageFlags::eUser | PageFlags::eWrite)) {
+        if (!IsRangeMapped(pt, request.BufferFront, request.BufferBack, PageFlags::eUser | PageFlags::eWrite)) {
             return CallError(OsStatusInvalidInput);
         }
 
@@ -1055,8 +1076,10 @@ static void AddThreadSystemCalls() {
     });
 
     AddSystemCall(eOsCallThreadCreate, [](uint64_t userCreateInfo, uint64_t, uint64_t, uint64_t) -> OsCallResult {
+        auto& pt = GetProcessPageTables();
+
         OsThreadCreateInfo createInfo{};
-        if (OsStatus status = km::CopyUserMemory(userCreateInfo, sizeof(createInfo), &createInfo)) {
+        if (OsStatus status = km::CopyUserMemory(pt, userCreateInfo, sizeof(createInfo), &createInfo)) {
             return CallError(status);
         }
 
@@ -1065,7 +1088,7 @@ static void AddThreadSystemCalls() {
         }
 
         stdx::String name;
-        if (OsStatus status = km::CopyUserRange(createInfo.NameFront, createInfo.NameBack, &name, kMaxPathSize)) {
+        if (OsStatus status = km::CopyUserRange(pt, createInfo.NameFront, createInfo.NameBack, &name, kMaxPathSize)) {
             return CallError(status);
         }
 
@@ -1085,7 +1108,14 @@ static void AddThreadSystemCalls() {
 
         PageFlags flags = PageFlags::eUser | PageFlags::eData;
         MemoryType type = MemoryType::eWriteBack;
-        km::AddressMapping mapping = gMemory->userAllocate(createInfo.StackSize, flags, type);
+
+        AddressMapping mapping{};
+        SystemMemory *memory = GetSystemMemory();
+        OsStatus status = AllocateMemory(memory->pmmAllocator(), &process->ptes, createInfo.StackSize / x64::kPageSize, &mapping);
+        if (status != OsStatusSuccess) {
+            return CallError(status);
+        }
+
         sm::RcuSharedPtr<AddressSpace> stackSpace = gSystemObjects->createAddressSpace(std::move(stackName), mapping, flags, type, process);
         thread->stack = stackSpace;
         thread->state = km::IsrContext {
@@ -1156,8 +1186,9 @@ static OsMemoryAccess MakeMemoryAccess(PageFlags flags) {
 
 static void AddVmemSystemCalls() {
     AddSystemCall(eOsCallAddressSpaceCreate, [](uint64_t userCreateInfo, uint64_t, uint64_t, uint64_t) -> OsCallResult {
+        auto& pt = GetProcessPageTables();
         OsAddressSpaceCreateInfo createInfo{};
-        if (OsStatus status = km::CopyUserMemory(userCreateInfo, sizeof(createInfo), &createInfo)) {
+        if (OsStatus status = km::CopyUserMemory(pt, userCreateInfo, sizeof(createInfo), &createInfo)) {
             return CallError(status);
         }
 
@@ -1178,14 +1209,15 @@ static void AddVmemSystemCalls() {
         }
 
         stdx::String name;
-        if (OsStatus status = km::CopyUserRange(createInfo.NameFront, createInfo.NameBack, &name, kMaxPathSize)) {
+        if (OsStatus status = km::CopyUserRange(pt, createInfo.NameFront, createInfo.NameBack, &name, kMaxPathSize)) {
             return CallError(status);
         }
 
-        AddressMapping mapping = gMemory->userAllocate(createInfo.Size, flags, MemoryType::eWriteBack);
-
-        if (mapping.isEmpty()) {
-            return CallError(OsStatusOutOfMemory);
+        AddressMapping mapping{};
+        SystemMemory *memory = GetSystemMemory();
+        OsStatus status = AllocateMemory(memory->pmmAllocator(), &process->ptes, createInfo.Size / x64::kPageSize, &mapping);
+        if (status != OsStatusSuccess) {
+            return CallError(status);
         }
 
         sm::RcuSharedPtr<AddressSpace> addressSpace = gSystemObjects->createAddressSpace(std::move(name), mapping, flags, MemoryType::eWriteBack, process);
@@ -1193,6 +1225,7 @@ static void AddVmemSystemCalls() {
     });
 
     AddSystemCall(eOsCallAddressSpaceStat, [](uint64_t id, uint64_t userStat, uint64_t, uint64_t) -> OsCallResult {
+        auto& pt = GetProcessPageTables();
         sm::RcuSharedPtr<AddressSpace> space = gSystemObjects->getAddressSpace(AddressSpaceId(id & 0x00FF'FFFF'FFFF'FFFF));
         km::AddressMapping mapping = space->mapping;
 
@@ -1203,7 +1236,7 @@ static void AddVmemSystemCalls() {
             .Access = MakeMemoryAccess(space->flags),
         };
 
-        if (OsStatus status = km::WriteUserMemory((void*)userStat, &stat, sizeof(stat))) {
+        if (OsStatus status = km::WriteUserMemory(pt, (void*)userStat, &stat, sizeof(stat))) {
             return CallError(status);
         }
 
@@ -1393,7 +1426,9 @@ static void CreateDisplayDevice() {
 
 [[noreturn]]
 static void LaunchKernelProcess(LocalIsrTable *table, IApic *apic) {
-    sm::RcuSharedPtr<Process> process = gSystemObjects->createProcess("SYSTEM", x64::Privilege::eSupervisor);
+    MemoryRange pteMemory = gMemory->pmmAllocate(256);
+
+    sm::RcuSharedPtr<Process> process = gSystemObjects->createProcess("SYSTEM", x64::Privilege::eSupervisor, &gMemory->pageTables(), pteMemory);
     sm::RcuSharedPtr<Thread> thread = gSystemObjects->createThread("MASTER", process);
 
     PageFlags flags = PageFlags::eData;

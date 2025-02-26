@@ -15,6 +15,8 @@ namespace km {
 
     Scheduler *GetScheduler();
     SystemMemory *GetSystemMemory();
+    IPageTables& GetProcessPageManager();
+    PageTables& GetProcessPageTables();
 
     CPU_LOCAL
     extern constinit km::CpuLocal<SystemGdt> tlsSystemGdt;

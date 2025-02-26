@@ -89,6 +89,10 @@ void km::ScheduleWork(LocalIsrTable *table, IApic *apic, sm::RcuSharedPtr<km::Th
         Scheduler *scheduler = km::GetScheduler();
 
         if (sm::RcuSharedPtr<km::Thread> next = scheduler->getWorkItem()) {
+            PhysicalAddress cr3 = next->process.lock()->ptes.root();
+            SystemMemory *memory = GetSystemMemory();
+            memory->getPager().setActiveMap(cr3);
+
             if (sm::RcuSharedPtr<km::Thread> current = km::GetCurrentThread()) {
                 current->state = *ctx;
                 scheduler->addWorkItem(current);

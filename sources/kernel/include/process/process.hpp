@@ -85,11 +85,13 @@ namespace km {
         x64::Privilege privilege;
         stdx::SharedSpinLock lock;
 
-        Process(ProcessId id, stdx::String name, x64::Privilege privilege)
+        Process(ProcessId id, stdx::String name, x64::Privilege privilege, SystemPageTables *kernel, AddressMapping pteMemory, VirtualRange processArea)
             : KernelObject(std::to_underlying(id) | (uint64_t(eOsHandleProcess) << 56), std::move(name))
             , privilege(privilege)
+            , ptes(kernel, pteMemory, processArea)
         { }
 
+        ProcessPageTables ptes;
         stdx::Vector2<sm::RcuSharedPtr<Thread>> threads;
         stdx::Vector2<sm::RcuSharedPtr<AddressSpace>> memory;
         stdx::Vector2<std::unique_ptr<vfs2::IVfsNodeHandle>> files;
@@ -134,7 +136,7 @@ namespace km {
 
         sm::RcuSharedPtr<Thread> createThread(stdx::String name, sm::RcuSharedPtr<Process> process);
         sm::RcuSharedPtr<AddressSpace> createAddressSpace(stdx::String name, km::AddressMapping mapping, km::PageFlags flags, km::MemoryType type, sm::RcuSharedPtr<Process> process);
-        sm::RcuSharedPtr<Process> createProcess(stdx::String name, x64::Privilege privilege);
+        sm::RcuSharedPtr<Process> createProcess(stdx::String name, x64::Privilege privilege, SystemPageTables *systemTables, MemoryRange pteMemory);
         sm::RcuSharedPtr<Mutex> createMutex(stdx::String name);
 
         sm::RcuWeakPtr<Thread> getThread(ThreadId id);

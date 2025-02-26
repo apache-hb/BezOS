@@ -189,28 +189,32 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
         return status;
     }
 
+    MemoryRange pteMemory = memory.pmmAllocate(256);
+
+    sm::RcuSharedPtr<Process> process = objects.createProcess("INIT", x64::Privilege::eUser, &memory.pageTables(), pteMemory);
+
+    // TODO: use a window rather than swapping the active map.
+    memory.getPager().setActiveMap(process->ptes.root());
+
     KmDebugMessage("[ELF] Load memory range: ", loadMemory, "\n");
 
-    km::AddressMapping loadMapping = memory.allocateWithHint(loadMemory.front, loadMemory.size(), PageFlags::eData, MemoryType::eWriteBack);
-    if (loadMapping.isEmpty()) {
-        KmDebugMessage("[ELF] Failed to allocate ", sm::bytes(loadMemory.size()), " for ELF program load sections.\n");
-        return OsStatusOutOfMemory;
+    km::AddressMapping loadMapping{};
+    OsStatus status = AllocateMemory(memory.pmmAllocator(), &process->ptes, Pages(loadMemory.size()), loadMemory.front, &loadMapping);
+    if (status != OsStatusSuccess) {
+        KmDebugMessage("[ELF] Failed to allocate ", sm::bytes(loadMemory.size()), " for ELF program load sections. ", status, "\n");
+        return status;
     }
 
     KmDebugMessage("[ELF] Load memory mapping: ", loadMapping, "\n");
 
-    sm::RcuSharedPtr<Process> process = objects.createProcess("INIT", x64::Privilege::eUser);
-
-    uint64_t entry = header.entry;
-
     km::IsrContext regs {
-        .rip = ((uintptr_t)entry - (uintptr_t)loadMemory.front) + (uintptr_t)loadMapping.vaddr,
+        .rip = ((uintptr_t)header.entry - (uintptr_t)loadMemory.front) + (uintptr_t)loadMapping.vaddr,
         .cs = (SystemGdt::eLongModeUserCode * 0x8) | 0b11,
         .rflags = 0x202,
         .ss = (SystemGdt::eLongModeUserData * 0x8) | 0b11,
     };
 
-    KmDebugMessage("[ELF] Entry point: ", km::Hex(entry), "\n");
+    KmDebugMessage("[ELF] Entry point: ", km::Hex(regs.rip), "\n");
 
     const elf::ElfProgramHeader *dynamic = FindDynamicSection(programHeaders);
     std::unique_ptr<elf::Elf64Dyn[]> dyn;
@@ -293,7 +297,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
         if (ph.flags & (1 << 2))
             flags |= PageFlags::eRead;
 
-        memory.systemTables().map(mapping, flags);
+        process->ptes.map(mapping, flags);
 
         objects.createAddressSpace("ELF SECTION", mapping, flags, km::MemoryType::eWriteBack, process);
     }
@@ -316,7 +320,12 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
     static constexpr size_t kStackSize = 0x4000;
     PageFlags flags = PageFlags::eUser | PageFlags::eData;
     MemoryType type = MemoryType::eWriteBack;
-    km::AddressMapping mapping = memory.userAllocate(kStackSize, flags, type);
+    AddressMapping mapping{};
+    if (OsStatus status = AllocateMemory(memory.pmmAllocator(), &process->ptes, 4, &mapping)) {
+        KmDebugMessage("[ELF] Failed to allocate stack memory: ", status, "\n");
+        return status;
+    }
+
     memset((void*)mapping.vaddr, 0x00, kStackSize);
 
     sm::RcuSharedPtr<AddressSpace> stackSpace = objects.createAddressSpace("MAIN STACK", mapping, flags, type, process);

@@ -17,7 +17,7 @@ OsStatus vfs2::IVfsDevice::query(sm::uuid uuid, IVfsNodeHandle **handle) {
 
 OsStatus vfs2::VfsIdentifyHandle::serveInterfaceList(void *data) {
     uint32_t count{};
-    if (OsStatus status = km::ReadUserMemory(data, (char*)data + sizeof(uint32_t), &count, sizeof(uint32_t))) {
+    if (OsStatus status = km::ReadUserMemory(km::GetProcessPageTables(), data, (char*)data + sizeof(uint32_t), &count, sizeof(uint32_t))) {
         return status;
     }
 
@@ -50,7 +50,7 @@ OsStatus vfs2::VfsIdentifyHandle::serveInterfaceList(void *data) {
     }
 
     list.count = i;
-    if (OsStatus status = km::WriteUserMemory(data, &list, sizeof(uint32_t) + i * sizeof(OsGuid))) {
+    if (OsStatus status = km::WriteUserMemory(km::GetProcessPageTables(), data, &list, sizeof(uint32_t) + i * sizeof(OsGuid))) {
         return status;
     }
 
@@ -58,7 +58,7 @@ OsStatus vfs2::VfsIdentifyHandle::serveInterfaceList(void *data) {
 }
 
 OsStatus vfs2::VfsIdentifyHandle::serveInfo(void *data) {
-    return km::WriteUserMemory(data, &mDevice->mIdentifyInfo, sizeof(OsIdentifyInfo));
+    return km::WriteUserMemory(km::GetProcessPageTables(), data, &mDevice->mIdentifyInfo, sizeof(OsIdentifyInfo));
 }
 
 OsStatus vfs2::VfsIdentifyHandle::call(uint64_t function, void *data) {

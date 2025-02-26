@@ -46,6 +46,16 @@ namespace km {
             return range.cast<const void*>();
         }
 
+        VirtualRange vmemAllocate(RangeAllocateRequest<const void*> request) {
+            auto range = mVmemAllocator.allocate({
+                .size = request.size,
+                .align = request.align,
+                .hint = (const std::byte*)request.hint,
+            });
+
+            return range.cast<const void*>();
+        }
+
         OsStatus map(AddressMapping mapping, PageFlags flags, MemoryType type = MemoryType::eWriteBack) {
             return mTables.map(mapping, flags, type);
         }
@@ -115,6 +125,14 @@ namespace km {
             //
             static constexpr size_t kCount = (sizeof(x64::PageMapLevel4) / sizeof(x64::pml4e)) / 2;
             std::copy_n(pml4->entries + kCount, kCount, self->entries + kCount);
+        }
+
+        OsStatus map(AddressMapping mapping, PageFlags flags, MemoryType type = MemoryType::eWriteBack) {
+            return IPageTables::map(mapping, flags | PageFlags::eUser, type);
+        }
+
+        OsStatus map(MemoryRange range, PageFlags flags, MemoryType type, AddressMapping *mapping) {
+            return IPageTables::map(range, flags | PageFlags::eUser, type, mapping);
         }
     };
 }

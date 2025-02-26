@@ -1,10 +1,10 @@
 #include "user/user.hpp"
 
-bool km::IsPageMapped(km::PageTables& pt, const void *address, km::PageFlags flags) {
+bool km::IsPageMapped(PageTables& pt, const void *address, km::PageFlags flags) {
     return (pt.getMemoryFlags(address) & flags) == flags;
 }
 
-bool km::IsRangeMapped(km::PageTables& pt, const void *begin, const void *end, km::PageFlags flags) {
+bool km::IsRangeMapped(PageTables& pt, const void *begin, const void *end, km::PageFlags flags) {
     uintptr_t front = (uintptr_t)begin;
     uintptr_t back = (uintptr_t)end;
 
@@ -17,7 +17,7 @@ bool km::IsRangeMapped(km::PageTables& pt, const void *begin, const void *end, k
     return true;
 }
 
-OsStatus km::CopyUserMemory(uint64_t address, size_t size, void *copy) {
+OsStatus km::CopyUserMemory(PageTables& pt, uint64_t address, size_t size, void *copy) {
     uint64_t tail = address;
     if (__builtin_add_overflow(address, size, &tail)) {
         return OsStatusInvalidInput;
@@ -26,7 +26,7 @@ OsStatus km::CopyUserMemory(uint64_t address, size_t size, void *copy) {
     const void *front = (void*)address;
     const void *back = (void*)tail;
 
-    if (!IsRangeMapped(GetSystemMemory()->systemTables(), front, back, PageFlags::eUser | PageFlags::eRead)) {
+    if (!IsRangeMapped(pt, front, back, PageFlags::eUser | PageFlags::eRead)) {
         return OsStatusInvalidInput;
     }
 
@@ -34,7 +34,7 @@ OsStatus km::CopyUserMemory(uint64_t address, size_t size, void *copy) {
     return OsStatusSuccess;
 }
 
-OsStatus km::ReadUserMemory(const void *front, const void *back, void *dst, size_t size) {
+OsStatus km::ReadUserMemory(PageTables& pt, const void *front, const void *back, void *dst, size_t size) {
     if (front >= back) {
         return OsStatusInvalidInput;
     }
@@ -44,7 +44,7 @@ OsStatus km::ReadUserMemory(const void *front, const void *back, void *dst, size
         return OsStatusInvalidInput;
     }
 
-    if (!IsRangeMapped(GetSystemMemory()->systemTables(), front, back, PageFlags::eUser | PageFlags::eRead)) {
+    if (!IsRangeMapped(pt, front, back, PageFlags::eUser | PageFlags::eRead)) {
         return OsStatusInvalidInput;
     }
 
@@ -52,13 +52,13 @@ OsStatus km::ReadUserMemory(const void *front, const void *back, void *dst, size
     return OsStatusSuccess;
 }
 
-OsStatus km::WriteUserMemory(void *dst, const void *src, size_t size) {
+OsStatus km::WriteUserMemory(PageTables& pt, void *dst, const void *src, size_t size) {
     uintptr_t back = (uintptr_t)dst;
     if (__builtin_add_overflow(back, size, &back)) {
         return OsStatusInvalidInput;
     }
 
-    if (!IsRangeMapped(GetSystemMemory()->systemTables(), dst, (void*)back, PageFlags::eUser | PageFlags::eWrite)) {
+    if (!IsRangeMapped(pt, dst, (void*)back, PageFlags::eUser | PageFlags::eWrite)) {
         return OsStatusInvalidInput;
     }
 

@@ -127,10 +127,8 @@ OsStatus PageTables::mapRange1g(AddressMapping mapping, PageFlags flags, MemoryT
 OsStatus PageTables::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type) {
     stdx::LockGuard guard(mLock);
 
-    uintptr_t addr = (uintptr_t)vaddr;
-
     if (!mPageManager->isCanonicalAddress(vaddr)) {
-        KmDebugMessage("Attempting to map address that isn't canonical: ", Hex(addr).pad(16), "\n");
+        KmDebugMessage("Attempting to map address that isn't canonical: ", vaddr, "\n");
         KM_PANIC("Invalid memory mapping.");
     }
 
@@ -165,10 +163,8 @@ OsStatus PageTables::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags f
 OsStatus PageTables::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type) {
     stdx::LockGuard guard(mLock);
 
-    uintptr_t addr = (uintptr_t)vaddr;
-
     if (!mPageManager->isCanonicalAddress(vaddr)) {
-        KmDebugMessage("Attempting to map address that isn't canonical: ", Hex(addr).pad(16), "\n");
+        KmDebugMessage("Attempting to map address that isn't canonical: ", vaddr, "\n");
         KM_PANIC("Invalid memory mapping.");
     }
 

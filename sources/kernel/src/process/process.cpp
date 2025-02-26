@@ -1,4 +1,5 @@
 #include "process/process.hpp"
+#include "log.hpp"
 
 using namespace km;
 
@@ -14,7 +15,7 @@ sm::RcuSharedPtr<Thread> SystemObjects::createThread(stdx::String name, sm::RcuS
     return ptr;
 }
 
-sm::RcuSharedPtr<AddressSpace> SystemObjects::createAddressSpace(stdx::String name, km::AddressMapping mapping, km::PageFlags flags, km::MemoryType type, sm::RcuSharedPtr<Process> process) {
+sm::RcuSharedPtr<AddressSpace> SystemObjects::createAddressSpace(stdx::String name, AddressMapping mapping, PageFlags flags, MemoryType type, sm::RcuSharedPtr<Process> process) {
     AddressSpaceId id = mAddressSpaceIds.allocate();
     sm::RcuSharedPtr ptr = sm::rcuMakeShared<AddressSpace>(&mDomain, id, std::move(name), mapping, flags, type);
 
@@ -25,9 +26,18 @@ sm::RcuSharedPtr<AddressSpace> SystemObjects::createAddressSpace(stdx::String na
     return ptr;
 }
 
-sm::RcuSharedPtr<Process> SystemObjects::createProcess(stdx::String name, x64::Privilege privilege) {
+sm::RcuSharedPtr<Process> SystemObjects::createProcess(stdx::String name, x64::Privilege privilege, SystemPageTables *systemTables, MemoryRange pteMemory) {
+    AddressMapping mapping{};
+    OsStatus status = systemTables->map(pteMemory, PageFlags::eData, MemoryType::eWriteBack, &mapping);
+    if (status != OsStatusSuccess) {
+        KmDebugMessage("[PROC] Failed to map process page tables: ", status, "\n");
+        return nullptr;
+    }
+
+    KmDebugMessage("[PROC] Process page tables: ", mapping, ", ", Hex(mapping.slide()), "\n");
+
     ProcessId id = mProcessIds.allocate();
-    sm::RcuSharedPtr ptr = sm::rcuMakeShared<Process>(&mDomain, id, std::move(name), privilege);
+    sm::RcuSharedPtr ptr = sm::rcuMakeShared<Process>(&mDomain, id, std::move(name), privilege, systemTables, mapping, DefaultUserArea());
 
     stdx::UniqueLock guard(mLock);
 

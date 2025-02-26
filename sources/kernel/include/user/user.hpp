@@ -7,16 +7,16 @@
 #include <cstddef>
 
 namespace km {
-    bool IsPageMapped(km::PageTables& pt, const void *address, km::PageFlags flags);
+    bool IsPageMapped(PageTables& pt, const void *address, PageFlags flags);
 
-    bool IsRangeMapped(km::PageTables& pt, const void *begin, const void *end, km::PageFlags flags);
+    bool IsRangeMapped(PageTables& pt, const void *begin, const void *end, PageFlags flags);
 
-    OsStatus CopyUserMemory(uint64_t address, size_t size, void *copy);
+    OsStatus CopyUserMemory(PageTables& pt, uint64_t address, size_t size, void *copy);
 
-    OsStatus ReadUserMemory(const void *front, const void *back, void *dst, size_t size);
+    OsStatus ReadUserMemory(PageTables& pt, const void *front, const void *back, void *dst, size_t size);
 
     template<typename Range>
-    OsStatus CopyUserRange(const void *front, const void *back, Range *dst, size_t limit) {
+    OsStatus CopyUserRange(PageTables& ptes, const void *front, const void *back, Range *dst, size_t limit) {
         if (front >= back) {
             return OsStatusInvalidInput;
         }
@@ -26,7 +26,7 @@ namespace km {
             return OsStatusInvalidInput;
         }
 
-        if (!IsRangeMapped(GetSystemMemory()->systemTables(), front, back, PageFlags::eUser | PageFlags::eRead)) {
+        if (!IsRangeMapped(ptes, front, back, PageFlags::eUser | PageFlags::eRead)) {
             return OsStatusInvalidInput;
         }
 
@@ -35,5 +35,5 @@ namespace km {
         return OsStatusSuccess;
     }
 
-    OsStatus WriteUserMemory(void *dst, const void *src, size_t size);
+    OsStatus WriteUserMemory(PageTables& pt, void *dst, const void *src, size_t size);
 }
