@@ -7,9 +7,9 @@
 #include <cstddef>
 
 namespace km {
-    bool IsPageMapped(const km::PageTableManager& pt, const void *address, km::PageFlags flags);
+    bool IsPageMapped(km::PageTableManager& pt, const void *address, km::PageFlags flags);
 
-    bool IsRangeMapped(const km::PageTableManager& pt, const void *begin, const void *end, km::PageFlags flags);
+    bool IsRangeMapped(km::PageTableManager& pt, const void *begin, const void *end, km::PageFlags flags);
 
     OsStatus CopyUserMemory(uint64_t address, size_t size, void *copy);
 

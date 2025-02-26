@@ -304,84 +304,72 @@ km::PhysicalAddress PageTableManager::getBackingAddress(const void *ptr) const {
     return km::PhysicalAddress { mPageManager->address(t1) + offset };
 }
 
-PageFlags PageTableManager::getMemoryFlags(const void *ptr) const {
-    stdx::LockGuard guard(mLock);
-
-    uintptr_t address = reinterpret_cast<uintptr_t>(ptr);
-    uintptr_t pml4e = (address >> 39) & 0b0001'1111'1111;
-    uintptr_t pdpte = (address >> 30) & 0b0001'1111'1111;
-    uintptr_t pdte = (address >> 21) & 0b0001'1111'1111;
-    uintptr_t pte = (address >> 12) & 0b0001'1111'1111;
-
-    PageFlags flags = PageFlags::eUserAll;
-
-    auto applyFlags = [&](auto entry) {
-        if (!entry.writeable()) flags &= ~PageFlags::eWrite;
-        if (!entry.executable()) flags &= ~PageFlags::eExecute;
-        if (!entry.user()) flags &= ~PageFlags::eUser;
-    };
-
-    const x64::PageMapLevel4 *l4 = getRootTable();
-    const x64::PageMapLevel3 *l3 = findPageMap3(l4, pml4e);
-    if (!l3) return PageFlags::eNone;
-
-    applyFlags(l3->entries[pdpte]);
-
-    if (l3->entries[pdpte].is1g()) {
-        return flags;
+km::PageFlags PageTableManager::getMemoryFlags(const void *ptr) {
+    PageWalk result;
+    if (walk(ptr, &result) != OsStatusSuccess) {
+        return PageFlags::eNone;
     }
 
-    const x64::PageMapLevel2 *l2 = findPageMap2(l3, pdpte);
-    if (!l2) return PageFlags::eNone;
-
-    applyFlags(l2->entries[pdte]);
-
-    if (l2->entries[pdte].is2m()) {
-        return flags;
-    }
-
-    const x64::PageTable *pt = findPageTable(l2, pdte);
-    if (!pt) return PageFlags::eNone;
-
-    applyFlags(pt->entries[pte]);
-
-    const x64::pte& t1 = pt->entries[pte];
-    if (!t1.present()) return PageFlags::eNone;
-
-    applyFlags(t1);
-
-    return flags;
+    return result.flags();
 }
 
-PageSize PageTableManager::getPageSize(const void *ptr) const {
+km::PageSize2 PageTableManager::getPageSize(const void *ptr) {
+    PageWalk result;
+    if (walk(ptr, &result) != OsStatusSuccess) {
+        return PageSize2::eNone;
+    }
+
+    return result.pageSize();
+}
+
+km::PhysicalAddress PageTableManager::asPhysical(const void *ptr) const {
+    return km::PhysicalAddress { (uintptr_t)ptr - mSlide };
+}
+
+OsStatus PageTableManager::walk(const void *ptr, PageWalk *walk) {
+    auto [pml4eIndex, pdpteIndex, pdteIndex, pteIndex] = GetAddressParts(ptr);
+    x64::pml4e pml4e{};
+    x64::pdpte pdpte{};
+    x64::pdte pdte{};
+    x64::pte pte{};
+
     stdx::LockGuard guard(mLock);
 
-    uintptr_t address = reinterpret_cast<uintptr_t>(ptr);
-    uintptr_t pml4e = (address >> 39) & 0b0001'1111'1111;
-    uintptr_t pdpte = (address >> 30) & 0b0001'1111'1111;
-    uintptr_t pdte = (address >> 21) & 0b0001'1111'1111;
-    uintptr_t pte = (address >> 12) & 0b0001'1111'1111;
+    //
+    // Small trick with do { } while loops to achive goto-like behaviour while avoiding
+    // undefined behaviour from jumping over variable initialization.
+    // If any of these steps fail we want to return the data we have so far, so
+    // we break out of the loop and return the data we've collected.
+    //
+    do {
+        const x64::PageMapLevel4 *l4 = getRootTable();
+        pml4e = l4->entries[pml4eIndex];
+        if (!pml4e.present()) break;
 
-    const x64::PageMapLevel4 *l4 = getRootTable();
-    const x64::PageMapLevel3 *l3 = findPageMap3(l4, pml4e);
-    if (!l3) return PageSize::eNone;
+        const x64::PageMapLevel3 *l3 = getPageEntry<x64::PageMapLevel3>(l4, pml4eIndex);
+        pdpte = l3->entries[pdpteIndex];
+        if (!pdpte.present() || pdpte.is1g()) break;
 
-    if (l3->entries[pdpte].is1g()) {
-        return PageSize::eHuge;
-    }
+        const x64::PageMapLevel2 *l2 = getPageEntry<x64::PageMapLevel2>(l3, pdpteIndex);
+        pdte = l2->entries[pdteIndex];
+        if (!pdte.present() || pdte.is2m()) break;
 
-    const x64::PageMapLevel2 *l2 = findPageMap2(l3, pdpte);
-    if (!l2) return PageSize::eNone;
+        x64::PageTable *pt = getPageEntry<x64::PageTable>(l2, pdteIndex);
+        pte = pt->entries[pteIndex];
+    } while (false);
 
-    if (l2->entries[pdte].is2m()) {
-        return PageSize::eLarge;
-    }
+    PageWalk result {
+        .address = reinterpret_cast<uintptr_t>(ptr),
+        .pml4eIndex = pml4eIndex,
+        .pml4e = pml4e,
+        .pdpteIndex = pdpteIndex,
+        .pdpte = pdpte,
+        .pdteIndex = pdteIndex,
+        .pdte = pdte,
+        .pteIndex = pteIndex,
+        .pte = pte,
+    };
 
-    const x64::PageTable *pt = findPageTable(l2, pdte);
-    if (!pt) return PageSize::eNone;
-
-    const x64::pte& t1 = pt->entries[pte];
-    if (!t1.present()) return PageSize::eNone;
-
-    return PageSize::eDefault;
+    *walk = result;
+    return OsStatusSuccess;
 }
