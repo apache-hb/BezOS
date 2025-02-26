@@ -75,7 +75,7 @@ namespace km {
 
         void unmap(void *ptr, size_t size);
 
-        km::PhysicalAddress getBackingAddress(const void *ptr) const;
+        km::PhysicalAddress getBackingAddress(const void *ptr);
         PageFlags getMemoryFlags(const void *ptr);
         PageSize2 getPageSize(const void *ptr);
 

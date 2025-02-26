@@ -277,15 +277,12 @@ void PageTableManager::unmap(void *ptr, size_t size) {
     }
 }
 
-km::PhysicalAddress PageTableManager::getBackingAddress(const void *ptr) const {
-    stdx::LockGuard guard(mLock);
-
+km::PhysicalAddress PageTableManager::getBackingAddress(const void *ptr) {
     uintptr_t address = reinterpret_cast<uintptr_t>(ptr);
-    uintptr_t pml4e = (address >> 39) & 0b0001'1111'1111;
-    uintptr_t pdpte = (address >> 30) & 0b0001'1111'1111;
-    uintptr_t pdte = (address >> 21) & 0b0001'1111'1111;
-    uintptr_t pte = (address >> 12) & 0b0001'1111'1111;
+    auto [pml4e, pdpte, pdte, pte] = GetAddressParts(ptr);
     uintptr_t offset = address & 0xFFF;
+
+    stdx::LockGuard guard(mLock);
 
     const x64::PageMapLevel4 *l4 = getRootTable();
     const x64::PageMapLevel3 *l3 = findPageMap3(l4, pml4e);
