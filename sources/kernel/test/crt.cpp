@@ -109,6 +109,22 @@ TEST_P(CrtUnalignedTest, MemoryCopyBothUnaligned) {
     }
 }
 
+TEST(CrtTest, MemoryCopyUnaligned) {
+    alignas(uint64_t) uint8_t buffer[1024];
+
+    for (size_t i = 0; i < sizeof(buffer); i++) {
+        buffer[i] = i % 256;
+    }
+
+    alignas(uint64_t) uint8_t copy[sizeof(buffer)];
+
+    KmMemoryCopy(copy + 7, buffer + 7, 65);
+
+    for (size_t i = 7; i < 65; i++) {
+        ASSERT_EQ(copy[i], (i) % 256);
+    }
+}
+
 TEST(CrtTest, MemorySetSlop) {
     uint8_t value[16] = { 0x0 };
     KmMemorySet(value + 4, 0xFF, 4);

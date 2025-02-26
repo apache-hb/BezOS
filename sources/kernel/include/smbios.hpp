@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 namespace km {
-    struct SmBiosHeader64 {
+    struct [[gnu::packed]] SmBiosHeader64 {
         std::array<char, 5> anchor;
         uint8_t checksum;
         uint8_t length;
@@ -19,7 +19,7 @@ namespace km {
         uint64_t tableAddress;
     };
 
-    struct SmBiosHeader32 {
+    struct [[gnu::packed]] SmBiosHeader32 {
         std::array<char, 4> anchor0;
         uint8_t checksum0;
 
@@ -39,13 +39,13 @@ namespace km {
         uint8_t bcdRevision;
     };
 
-    struct SmBiosEntryHeader {
+    struct [[gnu::packed]] SmBiosEntryHeader {
         uint8_t type;
         uint8_t length;
         uint16_t handle;
     };
 
-    struct SmBiosFirmwareInfo {
+    struct [[gnu::packed]] SmBiosFirmwareInfo {
         SmBiosEntryHeader header;
         uint8_t vendor;
         uint8_t version;
@@ -56,7 +56,7 @@ namespace km {
         uint8_t reserved0[1];
     };
 
-    struct SmBiosSystemInfo {
+    struct [[gnu::packed]] SmBiosSystemInfo {
         SmBiosEntryHeader header;
         uint8_t manufacturer;
         uint8_t productName;

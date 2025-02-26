@@ -17,7 +17,7 @@ bool km::PlatformInfo::isOracleVirtualBox() const {
 /// @return The start of the next entry.
 static const void *ReadSmbiosEntry(km::PlatformInfo& info, const void *ptr) {
     const km::SmBiosEntryHeader *header = (const km::SmBiosEntryHeader*)ptr;
-    KmDebugMessage("[SMBIOS] Type: ", header->type, ", Length: ", header->length, ", Handle: ", header->handle, "\n");
+    KmDebugMessage("[SMBIOS] Type: ", header->type, ", Length: ", header->length, ", Handle: ", auto{header->handle}, "\n");
 
     const char *front = (const char*)((uintptr_t)ptr + header->length);
     const char *back = front;
@@ -26,10 +26,10 @@ static const void *ReadSmbiosEntry(km::PlatformInfo& info, const void *ptr) {
 
     auto getString = [&](uint8_t index) -> stdx::StringView {
         if (index == 0)
-            return "Not specified";
+            return "Not specified"_sv;
 
-        if (index >= strings.count())
-            return "Invalid index";
+        if (index > strings.count())
+            return "Invalid index"_sv;
 
         return strings[index - 1];
     };
@@ -46,20 +46,32 @@ static const void *ReadSmbiosEntry(km::PlatformInfo& info, const void *ptr) {
         stdx::StringView entry = stdx::StringView(front, back);
         strings.add(entry);
 
+        KmDebugMessage("[SMBIOS] String: ", entry, "\n");
+
         back++;
         front = back;
     }
 
+    KmDebugMessage("[SMBIOS] Strings: ", strings.count(), "\n");
+
     if (header->type == 0) {
         const km::SmBiosFirmwareInfo *firmware = (const km::SmBiosFirmwareInfo*)ptr;
         info.vendor = getString(firmware->vendor);
+        KmDebugMessage("[SMBIOS] Vendor: ", info.vendor, "\n");
         info.version = getString(firmware->version);
+        KmDebugMessage("[SMBIOS] Version: ", info.version, "\n");
     } else if (header->type == 1) {
         const km::SmBiosSystemInfo *system = (const km::SmBiosSystemInfo*)ptr;
         info.manufacturer = getString(system->manufacturer);
+        KmDebugMessage("[SMBIOS] Manufacturer: ", info.manufacturer, "\n");
         info.product = getString(system->productName);
+        KmDebugMessage("[SMBIOS] Product: ", info.product, "\n");
+        KmDebugMessage("[SMBIOS] Serial: ", system->serialNumber, "\n");
         info.serial = getString(system->serialNumber);
+        KmDebugMessage("[SMBIOS] Serial: ", info.serial, "\n");
     }
+
+    KmDebugMessage("[SMBIOS] Read entry.\n");
 
     return back + 2;
 }
@@ -74,7 +86,7 @@ static std::optional<km::PlatformInfo> ReadSmbios64(km::PhysicalAddress address,
     }
 
     void *tableAddress = memory.map(smbios->tableAddress, smbios->tableAddress + smbios->tableSize);
-    KmDebugMessage("[SMBIOS] Table address: ", km::Hex(smbios->tableAddress).pad(16, '0'), ", Size: ", smbios->tableSize, "\n");
+    KmDebugMessage("[SMBIOS] Table address: ", km::Hex(smbios->tableAddress).pad(16, '0'), ", Size: ", auto{smbios->tableSize}, "\n");
     KmDebugMessage(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(tableAddress), smbios->tableSize)), "\n");
 
     const void *ptr = tableAddress;
@@ -100,7 +112,7 @@ static km::PlatformInfo ReadSmbios32(km::PhysicalAddress address, km::SystemMemo
     }
 
     void *tableAddress = memory.map(smbios->tableAddress, smbios->tableAddress + smbios->tableSize);
-    KmDebugMessage("[SMBIOS] Table address: ", km::Hex(smbios->tableAddress).pad(8, '0'), ", Size: ", smbios->tableSize, "\n");
+    KmDebugMessage("[SMBIOS] Table address: ", km::Hex(smbios->tableAddress).pad(8, '0'), ", Size: ", auto{smbios->tableSize}, "\n");
     KmDebugMessage(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(tableAddress), smbios->tableSize)), "\n");
 
     const void *ptr = tableAddress;

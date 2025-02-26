@@ -1,0 +1,9 @@
+<package name='ovmf'>
+    <download file='ovmf-code-x86_64.fd'
+              url='https://github.com/osdev0/edk2-ovmf-nightly/releases/latest/download/ovmf-code-x86_64.fd'
+              install='true' />
+
+    <download file='ovmf-vars-x86_64.fd'
+              url='https://github.com/osdev0/edk2-ovmf-nightly/releases/latest/download/ovmf-vars-x86_64.fd'
+              install='true' />
+</package>

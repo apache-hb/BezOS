@@ -312,7 +312,7 @@ test_exe_kwargs = {
     'c_args': test_c_args,
     'cpp_args': test_cpp_args,
     'dependencies': [ gtest_main, gmock, sysapi, concurrentqueue ],
-    'override_options': [ 'b_sanitize=address' ],
+    'override_options': [ 'b_sanitize=address,undefined' ],
     'native': true,
     'link_with': [ test_shim ],
 }
@@ -445,6 +445,11 @@ testcases = {
     'process': [
         'test/process.cpp',
         'src/process/process.cpp',
+        'src/fs2/vfs.cpp',
+        'src/fs2/path.cpp',
+        'src/fs2/node.cpp',
+        'src/fs2/handle.cpp',
+        'src/fs2/ramfs.cpp',
         'src/std/rcu.cpp',
         'src/std/rcuptr.cpp',
     ],

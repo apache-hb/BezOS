@@ -71,6 +71,9 @@ namespace sm {
 
     template<typename T>
     class RcuSharedPtr {
+        static_assert(std::is_same_v<T, std::remove_cvref_t<T>>, "Cannot use RcuSharedPtr with reference types");
+        static_assert(!std::is_same_v<T, rcu::detail::ControlBlock>, "Cannot use RcuSharedPtr with ControlBlock");
+
         template<typename O>
         friend class RcuWeakPtr;
 

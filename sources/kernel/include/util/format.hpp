@@ -126,7 +126,7 @@ namespace km {
             stdx::Unsigned<T> value;
 
             if (negative) {
-                value = -input;
+                value = (stdx::Unsigned<T>)input;
             } else {
                 value = input;
             }

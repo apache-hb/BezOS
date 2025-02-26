@@ -127,4 +127,7 @@ namespace stdx {
 
     template<typename T>
     concept StaticStringType = IsStaticString<T>::value;
+
+    static_assert(sizeof(StaticString<16>) == 17);
+    static_assert(sizeof(StaticString<64>) == 65);
 }

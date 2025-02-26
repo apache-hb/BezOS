@@ -26,11 +26,13 @@ static size_t CopyQword(uint64_t *dst, const uint64_t *src, size_t n) {
 
 static void CopyLarge(uint8_t *dst, const uint8_t *src, size_t n) {
     // copy enough to align the destination to 8 bytes
-    size_t align = (uintptr_t)dst % sizeof(uint64_t);
-    CopySmall(dst, src, align);
-    dst += align;
-    src += align;
-    n -= align;
+    if (size_t head = ((uintptr_t)dst % sizeof(uint64_t))) {
+        size_t offset = sizeof(uint64_t) - head;
+        CopySmall(dst, src, offset);
+        dst += offset;
+        src += offset;
+        n -= offset;
+    }
 
     // copy 8 bytes at a time
     size_t remaining = CopyQword((uint64_t *)dst, (const uint64_t *)src, n);
@@ -63,10 +65,12 @@ static void SetSmall(uint8_t *dst, uint8_t value, size_t n) {
 
 static void SetLarge(uint8_t *dst, uint8_t value, size_t n) {
     // align the destination to 8 bytes
-    size_t align = (uintptr_t)dst % sizeof(uint64_t);
-    SetSmall(dst, value, align);
-    dst += align;
-    n -= align;
+    if (size_t align = (uintptr_t)dst % sizeof(uint64_t)) {
+        size_t offset = sizeof(uint64_t) - align;
+        SetSmall(dst, value, offset);
+        dst += offset;
+        n -= offset;
+    }
 
     // set 8 bytes at a time
     uint64_t v64 = uint64_t(value) * 0x0101010101010101;

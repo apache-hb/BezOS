@@ -47,6 +47,7 @@ struct Download {
     std::string file;
     std::string archive;
     bool trimRootFolder;
+    bool install;
 };
 
 enum ConfigureProgram {
@@ -628,8 +629,12 @@ static void DownloadFile(const std::string& url, const fs::path& dst) {
     curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &bar);
     curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
     curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, +[](void *clientp, curl_off_t dltotal, curl_off_t dlnow, curl_off_t ultotal, curl_off_t ulnow) {
-        auto bar = static_cast<indicators::ProgressBar *>(clientp);
-        bar->set_progress(dltotal / dlnow);
+        if (dlnow == 0 || dltotal == 0) {
+            return 0;
+        }
+
+        // auto bar = static_cast<indicators::ProgressBar *>(clientp);
+        // bar->set_progress(dltotal / dlnow);
         return 0;
     });
 
@@ -686,8 +691,9 @@ static void ReadPackageConfig(XmlNode root) {
             auto file = ExpectProperty<std::string>(action, "file");
             auto archive = action.property("archive");
             auto trimRootFolder = action.property("trim-root-folder").value_or("false") == "true";
+            auto install = action.property("install").value_or("false") == "true";
 
-            packageInfo.downloads.push_back(Download{url, file, archive.value_or(""), trimRootFolder});
+            packageInfo.downloads.push_back(Download{url, file, archive.value_or(""), trimRootFolder, install});
         } else if (step == "require"sv) {
             ReadRequireTag(action, name, packageInfo.dependencies);
         } else if (step == "source"sv) {
@@ -975,8 +981,21 @@ static void BuildPackage(const PackageInfo& package) {
     gPackageDb->RaiseTargetStatus(package.name, eBuilt);
 }
 
+static void CopyInstallFiles(const PackageInfo& package) {
+    for (const auto& download : package.downloads) {
+        if (download.install) {
+            auto path = package.GetWorkspaceFolder() / download.file;
+            auto dst = package.install / download.file;
+
+            std::println(std::cout, "{}: copy {} -> {}", package.name, path.string(), dst.string());
+            fs::copy_file(path, dst, fs::copy_options::overwrite_existing);
+        }
+    }
+}
+
 static void InstallPackage(const PackageInfo& package) {
     if (package.configure == eConfigureNone) {
+        CopyInstallFiles(package);
         return;
     }
 
@@ -1000,6 +1019,8 @@ static void InstallPackage(const PackageInfo& package) {
     } else {
         throw std::runtime_error("Unknown configure program for " + package.name);
     }
+
+    CopyInstallFiles(package);
 
     gPackageDb->RaiseTargetStatus(package.name, eInstalled);
 }
