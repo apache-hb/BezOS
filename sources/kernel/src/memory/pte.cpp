@@ -103,25 +103,34 @@ x64::PageTable *PageTableManager::findPageTable(const x64::PageMapLevel2 *l2, ui
     return nullptr;
 }
 
-void PageTableManager::mapRange4k(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type) {
-    for (PhysicalAddress i = range.front; i < range.back; i += x64::kPageSize) {
-        map4k(i, vaddr, flags, type);
-        vaddr = (char*)vaddr + x64::kPageSize;
+OsStatus PageTableManager::mapRange4k(AddressMapping mapping, PageFlags flags, MemoryType type) {
+    for (size_t i = 0; i < mapping.size; i += x64::kPageSize) {
+        if (OsStatus status = map4k(mapping.paddr + i, (char*)mapping.vaddr + i, flags, type)) {
+            return status;
+        }
     }
+
+    return OsStatusSuccess;
 }
 
-void PageTableManager::mapRange2m(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type) {
-    for (PhysicalAddress i = range.front; i < range.back; i += x64::kLargePageSize) {
-        map2m(i, vaddr, flags, type);
-        vaddr = (char*)vaddr + x64::kLargePageSize;
+OsStatus PageTableManager::mapRange2m(AddressMapping mapping, PageFlags flags, MemoryType type) {
+    for (size_t i = 0; i < mapping.size; i += x64::kLargePageSize) {
+        if (OsStatus status = map2m(mapping.paddr + i, (char*)mapping.vaddr + i, flags, type)) {
+            return status;
+        }
     }
+
+    return OsStatusSuccess;
 }
 
-void PageTableManager::mapRange1g(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type) {
-    for (PhysicalAddress i = range.front; i < range.back; i += x64::kHugePageSize) {
-        map1g(i, vaddr, flags, type);
-        vaddr = (char*)vaddr + x64::kHugePageSize;
+OsStatus PageTableManager::mapRange1g(AddressMapping mapping, PageFlags flags, MemoryType type) {
+    for (size_t i = 0; i < mapping.size; i += x64::kHugePageSize) {
+        if (OsStatus status = map1g(mapping.paddr + i, (char*)mapping.vaddr + i, flags, type)) {
+            return status;
+        }
     }
+
+    return OsStatusSuccess;
 }
 
 OsStatus PageTableManager::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type) {
@@ -228,16 +237,16 @@ void PageTableManager::map(MemoryRange range, const void *vaddr, PageFlags flags
             // map the leading 4k pages we need to map to fulfill our api contract
             MemoryRange head = {range.front, front2m};
             if (!head.isEmpty())
-                mapRange4k(head, vaddr, flags, type);
+                mapRange4k(MappingOf(head, vaddr), flags, type);
 
             // then map the 2m pages
             MemoryRange body = {front2m, back2m};
-            mapRange2m(body, (char*)vaddr + head.size(), flags, type);
+            mapRange2m(MappingOf(body, (char*)vaddr + head.size()), flags, type);
 
             // finally map the trailing 4k pages
             MemoryRange tail = {back2m, range.back};
             if (!tail.isEmpty())
-                mapRange4k(tail, (char*)vaddr + head.size() + body.size(), flags, type);
+                mapRange4k(MappingOf(tail, (char*)vaddr + head.size() + body.size()), flags, type);
 
             return;
         }
@@ -245,7 +254,7 @@ void PageTableManager::map(MemoryRange range, const void *vaddr, PageFlags flags
 
     // if we get to this point its not worth using 2m pages
     // so we just map the range with 4k pages
-    mapRange4k(range, vaddr, flags, type);
+    mapRange4k(MappingOf(range, vaddr), flags, type);
 }
 
 void PageTableManager::unmap(void *ptr, size_t size) {

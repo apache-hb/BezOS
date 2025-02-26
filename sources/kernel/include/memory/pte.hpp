@@ -45,9 +45,9 @@ namespace km {
         const x64::PageMapLevel2 *findPageMap2(const x64::PageMapLevel3 *l3, uint16_t pdpte) const;
         x64::PageTable *findPageTable(const x64::PageMapLevel2 *l2, uint16_t pdte) const;
 
-        void mapRange4k(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type);
-        void mapRange2m(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type);
-        void mapRange1g(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type);
+        OsStatus mapRange4k(AddressMapping mapping, PageFlags flags, MemoryType type);
+        OsStatus mapRange2m(AddressMapping mapping, PageFlags flags, MemoryType type);
+        OsStatus mapRange1g(AddressMapping mapping, PageFlags flags, MemoryType type);
 
         OsStatus map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
         OsStatus map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
