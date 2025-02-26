@@ -548,12 +548,14 @@ static void ExtractArchive(std::string_view name, const fs::path& archive, const
         archive_read_free(a);
     };
 
+    auto fname = archive.filename().string();
+
     indicators::IndeterminateProgressBar bar{
         indicators::option::BarWidth{40},
         indicators::option::Start{"["},
         indicators::option::Lead{"*"},
         indicators::option::End{"]"},
-        indicators::option::PostfixText{std::format("Extracting {} - 0", name)},
+        indicators::option::PrefixText{std::format("Extracting {}", fname)},
         indicators::option::ForegroundColor{indicators::Color::white},
         indicators::option::FontStyles{std::vector<indicators::FontStyle>{indicators::FontStyle::bold}}
     };
@@ -590,7 +592,7 @@ static void ExtractArchive(std::string_view name, const fs::path& archive, const
         }
 
         int count = archive_file_count(a);
-        bar.set_option(indicators::option::PostfixText{std::format("Extracting {} - {}", name, count)});
+        bar.set_option(indicators::option::PostfixText{std::format("{}", count)});
     }
 
     bar.mark_as_completed();
@@ -614,14 +616,12 @@ static void DownloadFile(const std::string& url, const fs::path& dst) {
 
     defer { fclose(file); };
 
-    indicators::ProgressBar bar{
+    indicators::IndeterminateProgressBar bar{
         indicators::option::BarWidth{40},
         indicators::option::Start{"["},
-        indicators::option::Fill{"■"},
-        indicators::option::Lead{"■"},
-        indicators::option::Remainder{"-"},
-        indicators::option::End{" ]"},
-        indicators::option::PostfixText{std::format("Downloading {}", url)},
+        indicators::option::Lead{"*"},
+        indicators::option::End{"]"},
+        indicators::option::PrefixText{std::format("Downloading {}", url)},
         indicators::option::ForegroundColor{indicators::Color::white},
         indicators::option::FontStyles{std::vector<indicators::FontStyle>{indicators::FontStyle::bold}}
     };
@@ -634,8 +634,8 @@ static void DownloadFile(const std::string& url, const fs::path& dst) {
             return 0;
         }
 
-        // auto bar = static_cast<indicators::ProgressBar *>(clientp);
-        // bar->set_progress(dltotal / dlnow);
+        auto bar = static_cast<indicators::ProgressBar *>(clientp);
+        bar->set_option(indicators::option::PostfixText{std::format("{} / {}", dlnow, dltotal)});
         return 0;
     });
 
@@ -954,17 +954,10 @@ static void ConfigurePackage(const PackageInfo& package) {
             fs::remove_all(builddir);
         }
 
+        fs::create_directories(builddir);
+
         std::vector<std::string> args = {
-            "autoreconf", "--install"
-        };
-
-        auto result = sp::call(args, sp::cwd{cwd});
-        if (result != 0) {
-            throw std::runtime_error("Failed to configure package " + package.name);
-        }
-
-        args = {
-            "./configure", "--prefix=" + package.install.string()
+            package.GetConfigureSourcePath() + "/configure", "--prefix=" + package.install.string()
         };
 
         for (auto& [key, value] : package.options) {
@@ -973,7 +966,7 @@ static void ConfigurePackage(const PackageInfo& package) {
             args.push_back("--" + key + "=" + val);
         }
 
-        result = sp::call(args, sp::cwd{cwd});
+        auto result = sp::call(args, sp::cwd{builddir});
         if (result != 0) {
             throw std::runtime_error("Failed to configure package " + package.name);
         }
@@ -1006,8 +999,13 @@ static void BuildPackage(const PackageInfo& package) {
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
+    } else if (package.configure == eAutoconf) {
+        auto result = sp::call({ "make", "-j", std::to_string(std::thread::hardware_concurrency()) }, sp::cwd{builddir});
+        if (result != 0) {
+            throw std::runtime_error("Failed to build package " + package.name);
+        }
     } else {
-        throw std::runtime_error("Unknown configure program for " + package.name);
+        throw std::runtime_error("Unknown build program for " + package.name);
     }
 
     gPackageDb->RaiseTargetStatus(package.name, eBuilt);
@@ -1048,8 +1046,13 @@ static void InstallPackage(const PackageInfo& package) {
         if (result != 0) {
             throw std::runtime_error("Failed to install package " + package.name);
         }
+    } else if (package.configure == eAutoconf) {
+        auto result = sp::call({ "make", "install" }, sp::cwd{builddir});
+        if (result != 0) {
+            throw std::runtime_error("Failed to install package " + package.name);
+        }
     } else {
-        throw std::runtime_error("Unknown configure program for " + package.name);
+        throw std::runtime_error("Unknown install program for " + package.name);
     }
 
     CopyInstallFiles(package);
