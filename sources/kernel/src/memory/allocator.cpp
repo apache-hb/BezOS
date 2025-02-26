@@ -28,7 +28,7 @@ static void MapKernelPages(PageTableManager& memory, km::PhysicalAddress paddr, 
 
         KmDebugMessage("[INIT] Mapping ", Hex((uintptr_t)begin), "-", Hex((uintptr_t)end), " - ", name, "\n");
 
-        memory.mapRange({ paddr + front.address, paddr + back.address }, (char*)vaddr + front.address, flags, MemoryType::eWriteBack);
+        memory.map({ paddr + front.address, paddr + back.address }, (char*)vaddr + front.address, flags, MemoryType::eWriteBack);
     };
 
     KmDebugMessage("[INIT] Mapping kernel pages.\n");
@@ -44,6 +44,6 @@ void km::MapKernel(km::PageTableManager& vmm, km::PhysicalAddress paddr, const v
 }
 
 void km::UpdateRootPageTable(const km::PageBuilder& pm, km::PageTableManager& vmm) {
-    KmDebugMessage("[INIT] PML4: ", vmm.rootPageTable(), "\n");
-    pm.setActiveMap(vmm.rootPageTable());
+    KmDebugMessage("[INIT] PML4: ", vmm.root(), "\n");
+    pm.setActiveMap(vmm.root());
 }

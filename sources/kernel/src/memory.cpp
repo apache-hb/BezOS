@@ -40,7 +40,7 @@ km::AddressMapping km::SystemMemory::userAllocate(size_t size, PageFlags flags, 
         return AddressMapping{};
     }
 
-    pt.mapRange(range, vaddr, flags, type);
+    pt.map(range, vaddr, flags, type);
 
     return AddressMapping {
         .vaddr = vaddr,
@@ -81,7 +81,7 @@ km::AddressMapping km::SystemMemory::allocateStack(size_t size) {
     //
     char *base = (char*)vaddr + x64::kPageSize;
 
-    pt.mapRange(range, base, PageFlags::eData, MemoryType::eWriteBack);
+    pt.map(range, base, PageFlags::eData, MemoryType::eWriteBack);
 
     return AddressMapping {
         .vaddr = base,
@@ -105,7 +105,7 @@ km::AddressMapping km::SystemMemory::allocate(AllocateRequest request) {
         return AddressMapping{};
     }
 
-    pt.mapRange(range, vaddr, request.flags, request.type);
+    pt.map(range, vaddr, request.flags, request.type);
 
     return AddressMapping {
         .vaddr = vaddr,
@@ -151,7 +151,7 @@ void *km::SystemMemory::map(PhysicalAddress begin, PhysicalAddress end, PageFlag
         return vmm.alloc4k(Pages(range.size()));
     }();
 
-    pt.mapRange(range, vaddr, flags, type);
+    pt.map(range, vaddr, flags, type);
     pmm.markUsed(range);
 
     // Apply the offset to the virtual address

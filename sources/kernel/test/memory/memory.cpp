@@ -201,7 +201,7 @@ public:
     AddressMapping pteMemory() {
         return AddressMapping { (void*)buffer, (uintptr_t)buffer, kPteMemorySize };
     }
-    km::PageBuilder pm { 48, 48, 0, km::PageMemoryTypeLayout { 2, 3, 4, 1, 5, 0 } };
+    km::PageBuilder pm { 48, 48, km::PageMemoryTypeLayout { 2, 3, 4, 1, 5, 0 } };
 };
 
 TEST_F(PageTablesTest, Construct) {

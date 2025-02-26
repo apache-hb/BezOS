@@ -428,7 +428,7 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
     PageMemoryTypeLayout pat = SetupPat();
 
     km::AddressMapping stack = launch.stack;
-    PageBuilder pm = PageBuilder { processor.maxpaddr, processor.maxvaddr, launch.hhdmOffset, pat };
+    PageBuilder pm = PageBuilder { processor.maxpaddr, processor.maxvaddr, pat };
 
     WriteMtrrs(pm);
 
@@ -504,7 +504,7 @@ static Stage2MemoryInfo *InitStage2Memory(const boot::LaunchInfo& launch, const 
     std::span<boot::FrameBuffer> framebuffers = stage1.framebuffers;
     MemoryMap *earlyMemory = stage1.earlyMemory;
 
-    PageBuilder pm = PageBuilder { processor.maxpaddr, processor.maxvaddr, layout.committedSlide(), GetDefaultPatLayout() };
+    PageBuilder pm = PageBuilder { processor.maxpaddr, processor.maxvaddr, GetDefaultPatLayout() };
 
     InitGlobalAllocator((void*)layout.committed.vaddr, layout.committed.size);
 

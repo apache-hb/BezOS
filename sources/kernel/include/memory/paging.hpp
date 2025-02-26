@@ -43,7 +43,6 @@ namespace km {
     class PageBuilder {
         uintptr_t mAddressMask;
         uintptr_t mVaddrBits;
-        uint64_t mHigherHalfOffset;
         PageMemoryTypeLayout mLayout;
 
         uint8_t getMemoryTypeIndex(MemoryType type) const {
@@ -64,10 +63,9 @@ namespace km {
         }
 
     public:
-        PageBuilder(uintptr_t paddrbits, uintptr_t vaddrbits, uint64_t hhdmOffset, PageMemoryTypeLayout layout)
+        PageBuilder(uintptr_t paddrbits, uintptr_t vaddrbits, PageMemoryTypeLayout layout)
             : mAddressMask(x64::paging::addressMask(paddrbits))
             , mVaddrBits(vaddrbits)
-            , mHigherHalfOffset(hhdmOffset)
             , mLayout(layout)
         { }
 
@@ -81,10 +79,6 @@ namespace km {
 
         uintptr_t getAddressMask() const {
             return mAddressMask;
-        }
-
-        uint64_t hhdmOffset() const {
-            return mHigherHalfOffset;
         }
 
         constexpr uintptr_t address(x64::Entry entry) const {

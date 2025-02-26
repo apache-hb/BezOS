@@ -61,6 +61,14 @@ namespace km {
             return size == 0;
         }
     };
+
+    constexpr AddressMapping MappingOf(MemoryRange range, const void *vaddr) {
+        return AddressMapping { vaddr, range.front, range.size() };
+    }
+
+    constexpr AddressMapping MappingOf(VirtualRange range, PhysicalAddress paddr) {
+        return AddressMapping { range.front, paddr, range.size() };
+    }
 }
 
 template<>

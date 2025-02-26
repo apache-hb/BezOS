@@ -102,7 +102,7 @@ TEST_F(PageTableTest, MapSmallRange) {
     size_t pages = 64;
     km::MemoryRange range { paddr, paddr + (pages * x64::kPageSize) };
 
-    pt.mapRange(range, vaddr, km::PageFlags::eAll);
+    pt.map(range, vaddr, km::PageFlags::eAll);
 
     for (size_t i = 0; i < pages; i++) {
         km::PhysicalAddress addr = pt.getBackingAddress((char*)vaddr + (i * x64::kPageSize));
@@ -187,7 +187,7 @@ TEST_F(PageTableTest, MapRangeLarge) {
     size_t pages = 1024;
     km::MemoryRange range { paddr, paddr + (pages * x64::kPageSize) };
 
-    pt.mapRange(range, vaddr, km::PageFlags::eAll);
+    pt.map(range, vaddr, km::PageFlags::eAll);
 
     for (size_t i = 0; i < pages; i++) {
         km::PhysicalAddress addr = pt.getBackingAddress((char*)vaddr + (i * x64::kPageSize));
@@ -222,7 +222,7 @@ TEST_F(PageTableTest, MemoryFlagsOnRange) {
     size_t pages = 64;
     km::MemoryRange range { paddr, paddr + (pages * x64::kPageSize) };
 
-    pt.mapRange(range, vaddr, km::PageFlags::eAll);
+    pt.map(range, vaddr, km::PageFlags::eAll);
 
     for (size_t i = 0; i < pages; i++) {
         km::PageFlags flags = pt.getMemoryFlags((char*)vaddr + (i * x64::kPageSize));
@@ -243,7 +243,7 @@ TEST_F(PageTableTest, MemoryFlagsOnLargeRange) {
     size_t pages = 1024;
     km::MemoryRange range { paddr, paddr + (pages * x64::kPageSize) };
 
-    pt.mapRange(range, vaddr, km::PageFlags::eCode);
+    pt.map(range, vaddr, km::PageFlags::eCode);
 
     for (size_t i = 0; i < pages; i++) {
         km::PageFlags flags = pt.getMemoryFlags((char*)vaddr + (i * x64::kPageSize));

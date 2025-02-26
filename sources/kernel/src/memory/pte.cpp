@@ -40,7 +40,7 @@ void PageTableManager::setEntryFlags(x64::Entry& entry, PageFlags flags, Physica
 }
 
 PageTableManager::PageTableManager(const km::PageBuilder *pm, AddressMapping pteMemory)
-    : mSlide(pm->hhdmOffset())
+    : mSlide(pteMemory.slide())
     , mPageManager(pm)
     , mAllocator((void*)pteMemory.vaddr, pteMemory.size)
     , mRootPageTable((x64::PageMapLevel4*)alloc4k())
@@ -52,9 +52,9 @@ x64::PageMapLevel3 *PageTableManager::getPageMap3(x64::PageMapLevel4 *l4, uint16
     x64::pml4e& t4 = l4->entries[pml4e];
     if (!t4.present()) {
         l3 = std::bit_cast<x64::PageMapLevel3*>(alloc4k());
-        setEntryFlags(t4, PageFlags::eUserAll, getPhysicalAddress(l3));
+        setEntryFlags(t4, PageFlags::eUserAll, asPhysical(l3));
     } else {
-        l3 = getVirtualAddress<x64::PageMapLevel3>(mPageManager->address(t4));
+        l3 = asVirtual<x64::PageMapLevel3>(mPageManager->address(t4));
     }
 
     return l3;
@@ -66,9 +66,9 @@ x64::PageMapLevel2 *PageTableManager::getPageMap2(x64::PageMapLevel3 *l3, uint16
     x64::pdpte& t3 = l3->entries[pdpte];
     if (!t3.present()) {
         l2 = std::bit_cast<x64::PageMapLevel2*>(alloc4k());
-        setEntryFlags(t3, PageFlags::eUserAll, getPhysicalAddress(l2));
+        setEntryFlags(t3, PageFlags::eUserAll, asPhysical(l2));
     } else {
-        l2 = getVirtualAddress<x64::PageMapLevel2>(mPageManager->address(t3));
+        l2 = asVirtual<x64::PageMapLevel2>(mPageManager->address(t3));
     }
 
     return l2;
@@ -77,7 +77,7 @@ x64::PageMapLevel2 *PageTableManager::getPageMap2(x64::PageMapLevel3 *l3, uint16
 const x64::PageMapLevel3 *PageTableManager::findPageMap3(const x64::PageMapLevel4 *l4, uint16_t pml4e) const {
     if (l4->entries[pml4e].present()) {
         uintptr_t base = mPageManager->address(l4->entries[pml4e]);
-        return getVirtualAddress<x64::PageMapLevel3>(base);
+        return asVirtual<x64::PageMapLevel3>(base);
     }
 
     return nullptr;
@@ -87,7 +87,7 @@ const x64::PageMapLevel2 *PageTableManager::findPageMap2(const x64::PageMapLevel
     const x64::pdpte& t3 = l3->entries[pdpte];
     if (t3.present() && !t3.is1g()) {
         uintptr_t base = mPageManager->address(t3);
-        return getVirtualAddress<x64::PageMapLevel2>(base);
+        return asVirtual<x64::PageMapLevel2>(base);
     }
 
     return nullptr;
@@ -97,7 +97,7 @@ x64::PageTable *PageTableManager::findPageTable(const x64::PageMapLevel2 *l2, ui
     const x64::pdte& pde = l2->entries[pdte];
     if (pde.present() && !pde.is2m()) {
         uintptr_t base = mPageManager->address(pde);
-        return getVirtualAddress<x64::PageTable>(base);
+        return asVirtual<x64::PageTable>(base);
     }
 
     return nullptr;
@@ -147,9 +147,9 @@ void PageTableManager::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags
     x64::pdte& t2 = l2->entries[pdte];
     if (!t2.present()) {
         pt = std::bit_cast<x64::PageTable*>(alloc4k());
-        setEntryFlags(t2, PageFlags::eUserAll, getPhysicalAddress(pt));
+        setEntryFlags(t2, PageFlags::eUserAll, asPhysical(pt));
     } else {
-        pt = getVirtualAddress<x64::PageTable>(mPageManager->address(t2));
+        pt = asVirtual<x64::PageTable>(mPageManager->address(t2));
     }
 
     x64::pte& t1 = pt->entries[pte];
@@ -202,7 +202,7 @@ static bool IsLargePageAligned(PhysicalAddress paddr, const void *vaddr) {
     return (paddr.address & (x64::kLargePageSize - 1)) == 0 && (addr & (x64::kLargePageSize - 1)) == 0;
 }
 
-void PageTableManager::mapRange(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type) {
+void PageTableManager::map(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type) {
     // align everything to 4k page boundaries
     range.front = sm::rounddown(range.front.address, x64::kPageSize);
     range.back = sm::roundup(range.back.address, x64::kPageSize);

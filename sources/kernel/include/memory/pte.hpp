@@ -1,6 +1,5 @@
 #pragma once
 
-#include "allocator/allocator.hpp"
 #include "arch/paging.hpp"
 
 #include "memory/memory.hpp"
@@ -41,19 +40,19 @@ namespace km {
         }
 
         template<typename T>
-        T *getVirtualAddress(km::PhysicalAddress addr) const {
+        T *asVirtual(km::PhysicalAddress addr) const {
             return (T*)(addr.address + mSlide);
         }
 
-        km::PhysicalAddress getPhysicalAddress(const void *ptr) const {
+        km::PhysicalAddress asPhysical(const void *ptr) const {
             return km::PhysicalAddress { (uintptr_t)ptr - mSlide };
         }
 
     public:
         PageTableManager(const km::PageBuilder *pm, AddressMapping pteMemory);
 
-        km::PhysicalAddress rootPageTable() const {
-            return getPhysicalAddress(getRootTable());
+        km::PhysicalAddress root() const {
+            return asPhysical(getRootTable());
         }
 
         void map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
@@ -62,7 +61,7 @@ namespace km {
 
         void map1g(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
 
-        void mapRange(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
+        void map(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
 
         void unmap(void *ptr, size_t size);
 
@@ -71,7 +70,7 @@ namespace km {
         PageSize getPageSize(const void *ptr) const;
 
         void map(km::AddressMapping mapping, PageFlags flags, MemoryType type = MemoryType::eWriteBack) {
-            mapRange(mapping.physicalRange(), mapping.vaddr, flags, type);
+            map(mapping.physicalRange(), mapping.vaddr, flags, type);
         }
     };
 
