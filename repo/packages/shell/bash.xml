@@ -5,6 +5,8 @@
               trim-root-folder='true'
               archive='tar' />
 
+    <require package='llvm' />
+
     <configure with='autoconf'>
         <env cross_compiling='xyes'
              CC='@PREFIX@/llvm/bin/clang'

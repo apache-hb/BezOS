@@ -47,7 +47,7 @@ static fs::path gSourceRoot;
 static fs::path gInstallPrefix;
 
 static fs::path PackageCacheRoot() {
-    return gBuildRoot / "cache";
+    return fs::absolute(gBuildRoot / "cache");
 }
 
 static fs::path PackageBuildRoot() {
@@ -55,11 +55,11 @@ static fs::path PackageBuildRoot() {
 }
 
 static fs::path PackageImportRoot() {
-    return gBuildRoot / "sources";
+    return fs::absolute(gBuildRoot / "sources");
 }
 
 static fs::path PackageLogRoot() {
-    return gBuildRoot / "logs";
+    return fs::absolute(gBuildRoot / "logs");
 }
 
 static fs::path PackageCachePath(const std::string &name) {
@@ -161,6 +161,15 @@ struct PackageInfo {
 
     bool HasCompileCommands() const {
         return fs::exists(GetBuildFolder() / "compile_commands.json");
+    }
+
+    std::tuple<fs::path, fs::path> GetLogFiles(const std::string& stage) const {
+        auto out = PackageLogPath(name) / (stage + ".out");
+        auto err = PackageLogPath(name) / (stage + ".err");
+        fs::remove(out);
+        fs::remove(err);
+
+        return {out, err};
     }
 };
 
@@ -1033,10 +1042,7 @@ static void ConfigurePackage(const PackageInfo& package) {
         ReplacePackagePlaceholders(value, package);
     }
 
-    auto configureLog = (PackageLogPath(package.name) / "configure.log").string();
-    auto configureErrLog = (PackageLogPath(package.name) / "configure.err").string();
-    fs::remove(configureLog);
-    fs::remove(configureErrLog);
+    auto [out, err] = package.GetLogFiles("configure");
 
     std::jthread spinner([&](std::stop_token stop) {
         indicators::IndeterminateProgressBar bar{
@@ -1083,7 +1089,7 @@ static void ConfigurePackage(const PackageInfo& package) {
             args.push_back("-D" + key + "=" + val);
         }
 
-        auto result = sp::call(args, sp::cwd{cwd}, sp::environment{env}, sp::output{configureLog.c_str()}, sp::error{configureErrLog.c_str()});
+        auto result = sp::call(args, sp::cwd{cwd}, sp::environment{env}, sp::output{out.c_str()}, sp::error{err.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to configure package " + package.name);
         }
@@ -1106,7 +1112,7 @@ static void ConfigurePackage(const PackageInfo& package) {
             args.push_back("-D" + key + "=" + val);
         }
 
-        auto result = sp::call(args, sp::cwd{cwd}, sp::environment{env}, sp::output{configureLog.c_str()}, sp::error{configureErrLog.c_str()});
+        auto result = sp::call(args, sp::cwd{cwd}, sp::environment{env}, sp::output{out.c_str()}, sp::error{err.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to configure package " + package.name);
         }
@@ -1131,7 +1137,9 @@ static void ConfigurePackage(const PackageInfo& package) {
 #endif
 
         std::vector<std::string> args = {
-            "/bin/sh", (fs::current_path() / package.GetConfigureSourcePath() / "configure").string(), "--prefix=" + PackageInstallPath(package.name).string()
+            "/bin/sh",
+            (fs::current_path() / package.GetConfigureSourcePath() / "configure").string(),
+            "--prefix=" + package.GetInstallPath().string()
         };
 
         for (auto& [key, value] : package.options) {
@@ -1140,7 +1148,7 @@ static void ConfigurePackage(const PackageInfo& package) {
             args.push_back("--" + key + "=" + val);
         }
 
-        auto result = sp::call(args, sp::cwd{builddir}, sp::environment{env}, sp::output{configureLog.c_str()}, sp::error{configureErrLog.c_str()});
+        auto result = sp::call(args, sp::cwd{builddir}, sp::environment{env}, sp::output{out.c_str()}, sp::error{err.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to configure package " + package.name);
         }
@@ -1162,10 +1170,7 @@ static void BuildPackage(const PackageInfo& package) {
 
     std::println(std::cout, "{}: build", package.name);
 
-    auto buildOutLog = (PackageLogPath(package.name) / "build.log").string();
-    auto buildErrLog = (PackageLogPath(package.name) / "build.err").string();
-    fs::remove(buildOutLog);
-    fs::remove(buildErrLog);
+    auto [out, err] = package.GetLogFiles("build");
 
     std::jthread spinner([&](std::stop_token stop) {
         indicators::IndeterminateProgressBar bar{
@@ -1187,17 +1192,17 @@ static void BuildPackage(const PackageInfo& package) {
     std::string builddir = package.GetBuildFolder().string();
 
     if (package.configure == eMeson) {
-        auto result = sp::call({ "meson", "compile" }, sp::cwd{builddir}, sp::output{buildOutLog.c_str()}, sp::error{buildErrLog.c_str()});
+        auto result = sp::call({ "meson", "compile" }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
     } else if (package.configure == eCMake) {
-        auto result = sp::call({ "cmake", "--build", builddir }, sp::cwd{builddir}, sp::output{buildOutLog.c_str()}, sp::error{buildErrLog.c_str()});
+        auto result = sp::call({ "cmake", "--build", builddir }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
     } else if (package.configure == eAutoconf) {
-        auto result = sp::call({ "make", "-s" }, sp::cwd{builddir}, sp::output{buildOutLog.c_str()}, sp::error{buildErrLog.c_str()});
+        auto result = sp::call({ "make", "-s" }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
@@ -1232,10 +1237,7 @@ static void InstallPackage(const PackageInfo& package) {
 
     std::println(std::cout, "{}: install", package.name);
 
-    auto installOutLog = (PackageLogPath(package.name) / "install.log").string();
-    auto installErrLog = (PackageLogPath(package.name) / "install.err").string();
-    fs::remove(installOutLog);
-    fs::remove(installErrLog);
+    auto [out, err] = package.GetLogFiles("install");
 
     std::jthread spinner([&](std::stop_token stop) {
         indicators::IndeterminateProgressBar bar{
@@ -1257,17 +1259,17 @@ static void InstallPackage(const PackageInfo& package) {
     std::string builddir = package.GetBuildFolder().string();
 
     if (package.configure == eMeson) {
-        auto result = sp::call({ "meson", "install", "--quiet", "--no-rebuild", "--skip-subprojects" }, sp::cwd{builddir}, sp::output{installOutLog.c_str()}, sp::error{installErrLog.c_str()});
+        auto result = sp::call({ "meson", "install", "--quiet", "--no-rebuild", "--skip-subprojects" }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to install package " + package.name);
         }
     } else if (package.configure == eCMake) {
-        auto result = sp::call({ "cmake", "--install", builddir }, sp::cwd{builddir}, sp::output{installOutLog.c_str()}, sp::error{installErrLog.c_str()});
+        auto result = sp::call({ "cmake", "--install", builddir }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to install package " + package.name);
         }
     } else if (package.configure == eAutoconf) {
-        auto result = sp::call({ "make", "install" }, sp::cwd{builddir}, sp::output{installOutLog.c_str()}, sp::error{installErrLog.c_str()});
+        auto result = sp::call({ "make", "install" }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to install package " + package.name);
         }
@@ -1285,11 +1287,8 @@ static void GenerateArtifact(std::string_view name, const PackageInfo& artifact)
         return;
     }
 
-    auto buildOutLog = (PackageLogPath(std::string(name)) / "generate.log").string();
-    auto buildErrLog = (PackageLogPath(std::string(name)) / "generate.err").string();
     MakeFolder(PackageLogPath(std::string(name)));
-    fs::remove(buildOutLog);
-    fs::remove(buildErrLog);
+    auto [out, err] = artifact.GetLogFiles("generate");
 
     std::println(std::cout, "{}: generate", artifact.name);
 
@@ -1327,7 +1326,7 @@ static void GenerateArtifact(std::string_view name, const PackageInfo& artifact)
         env["SOURCE"] = gSourceRoot.string();
 
         std::println(std::cout, "{}: execute {}", name, args[1]);
-        auto result = sp::call(args, sp::environment{env}, sp::output{buildOutLog.c_str()}, sp::error{buildErrLog.c_str()});
+        auto result = sp::call(args, sp::environment{env}, sp::output{out.c_str()}, sp::error{err.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to run script " + args[1]);
         }
