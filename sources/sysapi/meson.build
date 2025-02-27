@@ -15,6 +15,8 @@ sysapi_dep = declare_dependency(
     include_directories : inc,
 )
 
+inc = include_directories('include', 'include/posix')
+
 # TODO: once pkg-config is part of the build process we can remove the
 # build by default flags
 

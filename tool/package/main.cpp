@@ -1202,7 +1202,7 @@ static void BuildPackage(const PackageInfo& package) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
     } else if (package.configure == eAutoconf) {
-        auto result = sp::call({ "make", "-s" }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
+        auto result = sp::call({ "make" }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
@@ -1259,7 +1259,7 @@ static void InstallPackage(const PackageInfo& package) {
     std::string builddir = package.GetBuildFolder().string();
 
     if (package.configure == eMeson) {
-        auto result = sp::call({ "meson", "install", "--quiet", "--no-rebuild", "--skip-subprojects" }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
+        auto result = sp::call({ "meson", "install", "--no-rebuild", "--skip-subprojects" }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to install package " + package.name);
         }
