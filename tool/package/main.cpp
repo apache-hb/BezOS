@@ -1283,6 +1283,7 @@ static void GenerateArtifact(std::string_view name, const PackageInfo& artifact)
 
     auto buildOutLog = (PackageLogPath(std::string(name)) / "generate.log").string();
     auto buildErrLog = (PackageLogPath(std::string(name)) / "generate.err").string();
+    MakeFolder(PackageLogPath(std::string(name)));
     fs::remove(buildOutLog);
     fs::remove(buildErrLog);
 
@@ -1436,7 +1437,6 @@ static void VisitPackage(const PackageInfo& packageInfo) {
         VisitPackage(gWorkspace.packages[dep]);
     }
 
-    AcquirePackage(packageInfo);
     ConnectDependencies(packageInfo);
     ConfigurePackage(packageInfo);
     BuildPackage(packageInfo);
@@ -1572,6 +1572,14 @@ int main(int argc, const char **argv) try {
     applyStateLowering("--fetch", eUnknown);
 
     gPackageDb->DumpTargetStates();
+
+    // Download and extract everything first, we do this now
+    // so that we can setup a chroot without it requiring internet
+    // access.
+    // TODO: actually setup a chroot
+    for (auto& package : gWorkspace.packages) {
+        AcquirePackage(package.second);
+    }
 
     for (auto& package : gPackageDb->GetToplevelPackages()) {
         VisitPackage(gWorkspace.packages[package]);
