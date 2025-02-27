@@ -41,6 +41,47 @@ namespace stdr = std::ranges;
 namespace stdv = std::views;
 namespace sql = SQLite;
 
+static fs::path gRepoRoot;
+static fs::path gBuildRoot;
+static fs::path gSourceRoot;
+static fs::path gInstallPrefix;
+
+static fs::path PackageCacheRoot() {
+    return gBuildRoot / "cache";
+}
+
+static fs::path PackageBuildRoot() {
+    return fs::absolute(gBuildRoot / "packages");
+}
+
+static fs::path PackageImportRoot() {
+    return gBuildRoot / "sources";
+}
+
+static fs::path PackageLogRoot() {
+    return gBuildRoot / "logs";
+}
+
+static fs::path PackageCachePath(const std::string &name) {
+    return PackageCacheRoot() / name;
+}
+
+static fs::path PackageBuildPath(const std::string &name) {
+    return PackageBuildRoot() / name;
+}
+
+static fs::path PackageInstallPath(const std::string &name) {
+    return fs::absolute(gInstallPrefix / name);
+}
+
+static fs::path PackageLogPath(const std::string &name) {
+    return PackageLogRoot() / name;
+}
+
+static fs::path PackageImportPath(const std::string &name) {
+    return PackageImportRoot() / name;
+}
+
 struct RequirePackage {
     std::string name;
     fs::path symlink;
@@ -85,8 +126,6 @@ struct PackageInfo {
     std::string name;
     fs::path source;
     fs::path imported;
-    fs::path build;
-    fs::path install;
     fs::path cache;
 
     std::vector<Download> downloads;
@@ -109,11 +148,15 @@ struct PackageInfo {
     }
 
     fs::path GetWorkspaceFolder() const {
-        return source.empty() ? imported.string() : source.string();
+        return fs::absolute(source.empty() ? imported : source).string();
     }
 
     fs::path GetBuildFolder() const {
-        return build;
+        return PackageBuildPath(name);
+    }
+
+    fs::path GetInstallPath() const {
+        return PackageInstallPath(name);
     }
 
     bool HasCompileCommands() const {
@@ -436,46 +479,6 @@ struct Workspace {
 };
 
 static Workspace gWorkspace;
-static fs::path gRepoRoot;
-static fs::path gBuildRoot;
-static fs::path gSourceRoot;
-static fs::path gInstallPrefix;
-
-static fs::path PackageCacheRoot() {
-    return gBuildRoot / "cache";
-}
-
-static fs::path PackageBuildRoot() {
-    return gBuildRoot / "packages";
-}
-
-static fs::path PackageImportRoot() {
-    return gBuildRoot / "sources";
-}
-
-static fs::path PackageLogRoot() {
-    return gBuildRoot / "logs";
-}
-
-static fs::path PackageCachePath(const std::string &name) {
-    return PackageCacheRoot() / name;
-}
-
-static fs::path PackageBuildPath(const std::string &name) {
-    return PackageBuildRoot() / name;
-}
-
-static fs::path PackageInstallPath(const std::string &name) {
-    return gInstallPrefix / name;
-}
-
-static fs::path PackageLogPath(const std::string &name) {
-    return PackageLogRoot() / name;
-}
-
-static fs::path PackageImportPath(const std::string &name) {
-    return PackageImportRoot() / name;
-}
 
 struct XmlNode {
     xmlNodePtr node;
@@ -785,8 +788,6 @@ static void ReadPackageConfig(XmlNode root) {
 
     PackageInfo packageInfo {
         .name = name,
-        .build = build,
-        .install = install,
         .cache = cache
     };
 
@@ -904,10 +905,10 @@ static void ReadArtifactConfig(XmlNode node) {
 }
 
 static void ReplacePathPlaceholders(std::string& str) {
-    ReplaceAll(str, "@PREFIX@", gInstallPrefix.string());
-    ReplaceAll(str, "@BUILD@", gBuildRoot.string());
-    ReplaceAll(str, "@REPO@", gRepoRoot.string());
-    ReplaceAll(str, "@SOURCE@", gSourceRoot.string());
+    ReplaceAll(str, "@PREFIX@", fs::absolute(gInstallPrefix).string());
+    ReplaceAll(str, "@BUILD@", fs::absolute(gBuildRoot).string());
+    ReplaceAll(str, "@REPO@", fs::absolute(gRepoRoot).string());
+    ReplaceAll(str, "@SOURCE@", fs::absolute(gSourceRoot).string());
 }
 
 static void ReplacePackagePlaceholders(std::string& str, const PackageInfo& package) {
@@ -915,7 +916,7 @@ static void ReplacePackagePlaceholders(std::string& str, const PackageInfo& pack
     ReplaceAll(str, "@PACKAGE@", package.name);
     ReplaceAll(str, "@SOURCE_ROOT@", package.GetWorkspaceFolder().string());
     ReplaceAll(str, "@BUILD_ROOT@", package.GetBuildFolder().string());
-    ReplaceAll(str, "@INSTALL_ROOT@", package.install.string());
+    ReplaceAll(str, "@INSTALL_ROOT@", PackageInstallPath(package.name).string());
 }
 
 static void AcquirePackage(const PackageInfo& package) {
@@ -981,7 +982,7 @@ static void AcquirePackage(const PackageInfo& package) {
 }
 
 static void AddGitignoreSymlink(const fs::path& path) {
-    std::fstream file(std::filesystem::current_path() / ".gitignore", std::ios::in | std::ios::out);
+    std::fstream file(".gitignore", std::ios::in | std::ios::out);
 
     // read in the file
     std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
@@ -1054,10 +1055,12 @@ static void ConfigurePackage(const PackageInfo& package) {
         }
     });
 
+    auto builddir = package.GetBuildFolder().string();
+
     if (package.configure == eMeson) {
         std::vector<std::string> args = {
-            "meson", "setup", package.build.string(), "--wipe",
-            "--prefix", package.install.string(),
+            "meson", "setup", builddir, "--wipe",
+            "--prefix", package.GetInstallPath(),
         };
 
         if (!package.mesonCrossFile.empty()) {
@@ -1085,14 +1088,13 @@ static void ConfigurePackage(const PackageInfo& package) {
             throw std::runtime_error("Failed to configure package " + package.name);
         }
     } else if (package.configure == eCMake) {
-        auto builddir = package.build.string();
         if (fs::exists(builddir)) {
             fs::remove_all(builddir);
         }
 
         std::vector<std::string> args = {
             "cmake", "-S", cwd, "-B", builddir,
-            "-DCMAKE_INSTALL_PREFIX=" + package.install.string(),
+            "-DCMAKE_INSTALL_PREFIX=" + package.GetInstallPath().string(),
             "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
             "-G", "Ninja",
             "-DCMAKE_BUILD_TYPE=MinSizeRel",
@@ -1109,7 +1111,6 @@ static void ConfigurePackage(const PackageInfo& package) {
             throw std::runtime_error("Failed to configure package " + package.name);
         }
     } else if (package.configure == eAutoconf) {
-        auto builddir = package.build.string();
         if (fs::exists(builddir)) {
             fs::remove_all(builddir);
         }
@@ -1130,7 +1131,7 @@ static void ConfigurePackage(const PackageInfo& package) {
 #endif
 
         std::vector<std::string> args = {
-            "/bin/sh", package.GetConfigureSourcePath() + "/configure", "--prefix=" + package.install.string()
+            "/bin/sh", (fs::current_path() / package.GetConfigureSourcePath() / "configure").string(), "--prefix=" + PackageInstallPath(package.name).string()
         };
 
         for (auto& [key, value] : package.options) {
@@ -1183,7 +1184,7 @@ static void BuildPackage(const PackageInfo& package) {
         }
     });
 
-    std::string builddir = package.build.string();
+    std::string builddir = package.GetBuildFolder().string();
 
     if (package.configure == eMeson) {
         auto result = sp::call({ "meson", "compile" }, sp::cwd{builddir}, sp::output{buildOutLog.c_str()}, sp::error{buildErrLog.c_str()});
@@ -1211,7 +1212,7 @@ static void CopyInstallFiles(const PackageInfo& package) {
     for (const auto& download : package.downloads) {
         if (download.install) {
             auto path = package.GetWorkspaceFolder() / download.file;
-            auto dst = package.install / download.file;
+            auto dst = package.GetInstallPath() / download.file;
 
             std::println(std::cout, "{}: copy {} -> {}", package.name, path.string(), dst.string());
             fs::copy_file(path, dst, fs::copy_options::overwrite_existing);
@@ -1253,7 +1254,7 @@ static void InstallPackage(const PackageInfo& package) {
         }
     });
 
-    std::string builddir = package.build.string();
+    std::string builddir = package.GetBuildFolder().string();
 
     if (package.configure == eMeson) {
         auto result = sp::call({ "meson", "install", "--quiet", "--no-rebuild", "--skip-subprojects" }, sp::cwd{builddir}, sp::output{installOutLog.c_str()}, sp::error{installErrLog.c_str()});
@@ -1534,11 +1535,10 @@ int main(int argc, const char **argv) try {
 
     auto name = ExpectProperty<std::string>(root, "name");
     auto sources = ExpectProperty<std::string>(root, "sources");
-    auto pwd = std::filesystem::current_path();
     gRepoRoot = configPath.parent_path();
     gBuildRoot = build;
     gInstallPrefix = prefix;
-    gSourceRoot = pwd / sources;
+    gSourceRoot = sources;
 
     MakeFolder(gBuildRoot);
     MakeFolder(PackageCacheRoot());
@@ -1551,7 +1551,7 @@ int main(int argc, const char **argv) try {
 
     gWorkspace.workspace["folders"] = argo::json::json_array();
 
-    gWorkspace.AddFolder(std::filesystem::current_path(), "root");
+    gWorkspace.AddFolder(".", "root");
 
     ReadRepoElement(root);
 
