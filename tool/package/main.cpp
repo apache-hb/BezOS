@@ -675,6 +675,12 @@ static void ExtractArchive(std::string_view name, const fs::path& archive, const
             utime(file.c_str(), &utimes);
         }
 
+        // preserve permissions
+        auto mode = archive_entry_mode(entry);
+        if (mode > 0) {
+            chmod(file.c_str(), mode);
+        }
+
         int count = archive_file_count(a);
         bar.set_option(indicators::option::PostfixText{std::format("{}", count)});
     }
@@ -1024,6 +1030,15 @@ static void ConnectDependencies(const PackageInfo& package) {
     }
 }
 
+static void ReplaceFilePlaceholders(const fs::path& path, const fs::path& dst, const PackageInfo& package) {
+    std::ifstream file(path);
+    std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    ReplacePackagePlaceholders(content, package);
+
+    std::ofstream out(dst);
+    out << content;
+}
+
 static void ConfigurePackage(const PackageInfo& package) {
     if (package.configure == eConfigureNone) {
         return;
@@ -1062,6 +1077,8 @@ static void ConfigurePackage(const PackageInfo& package) {
     });
 
     auto builddir = package.GetBuildFolder().string();
+    auto cfgdir = fs::absolute(gBuildRoot / "configure" / package.name);
+    fs::create_directories(cfgdir);
 
     if (package.configure == eMeson) {
         std::vector<std::string> args = {
@@ -1073,14 +1090,18 @@ static void ConfigurePackage(const PackageInfo& package) {
             args.push_back("--cross-file");
             std::string crossFile = package.mesonCrossFile;
             ReplacePackagePlaceholders(crossFile, package);
-            args.push_back(crossFile);
+            fs::path dst = cfgdir / "crossfile.txt";
+            ReplaceFilePlaceholders(crossFile, dst, package);
+            args.push_back(dst.string());
         }
 
         if (!package.mesonNativeFile.empty()) {
             args.push_back("--native-file");
             std::string nativeFile = package.mesonNativeFile;
             ReplacePackagePlaceholders(nativeFile, package);
-            args.push_back(nativeFile);
+            fs::path dst = cfgdir / "nativefile.txt";
+            ReplaceFilePlaceholders(nativeFile, dst, package);
+            args.push_back(dst.string());
         }
 
         for (auto& [key, value] : package.options) {
@@ -1089,6 +1110,7 @@ static void ConfigurePackage(const PackageInfo& package) {
             args.push_back("-D" + key + "=" + val);
         }
 
+        std::println(std::cout, "{}", (args | stdv::join_with(' ')) | stdr::to<std::string>());
         auto result = sp::call(args, sp::cwd{cwd}, sp::environment{env}, sp::output{out.c_str()}, sp::error{err.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to configure package " + package.name);
@@ -1112,6 +1134,7 @@ static void ConfigurePackage(const PackageInfo& package) {
             args.push_back("-D" + key + "=" + val);
         }
 
+        std::println(std::cout, "{}", (args | stdv::join_with(' ')) | stdr::to<std::string>());
         auto result = sp::call(args, sp::cwd{cwd}, sp::environment{env}, sp::output{out.c_str()}, sp::error{err.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to configure package " + package.name);
@@ -1144,10 +1167,15 @@ static void ConfigurePackage(const PackageInfo& package) {
 
         for (auto& [key, value] : package.options) {
             std::string val = value;
-            ReplacePackagePlaceholders(val, package);
-            args.push_back("--" + key + "=" + val);
+            if (val.empty()) {
+                args.push_back("--" + key);
+            } else {
+                ReplacePackagePlaceholders(val, package);
+                args.push_back("--" + key + "=" + val);
+            }
         }
 
+        std::println(std::cout, "{}", (args | stdv::join_with(' ')) | stdr::to<std::string>());
         auto result = sp::call(args, sp::cwd{builddir}, sp::environment{env}, sp::output{out.c_str()}, sp::error{err.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to configure package " + package.name);
@@ -1202,7 +1230,7 @@ static void BuildPackage(const PackageInfo& package) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
     } else if (package.configure == eAutoconf) {
-        auto result = sp::call({ "make" }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
+        auto result = sp::call({ "make", "-j", std::to_string(std::thread::hardware_concurrency()) }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
         }

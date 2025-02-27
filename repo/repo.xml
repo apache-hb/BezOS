@@ -7,6 +7,7 @@
 
     <xi:include href='packages/tools/pkg-config.xml' />
     <xi:include href='packages/tools/llvm.xml' />
+    <xi:include href='packages/tools/gcc.xml' />
 
     <xi:include href='packages/ovmf.xml' />
 

@@ -10,7 +10,7 @@
 
     <configure with='cmake'>
         <source path='@SOURCE_ROOT@/llvm' />
-        <options LLVM_ENABLE_PROJECTS='llvm;clang;lld'
+        <options LLVM_ENABLE_PROJECTS='llvm;clang;lld;compiler-rt'
                  CMAKE_C_COMPILER="clang"
                  CMAKE_CXX_COMPILER="clang++"
                  CMAKE_LINKER="ld.lld" />
