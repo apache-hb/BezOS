@@ -262,6 +262,37 @@ public:
         return result;
     }
 
+    /// @brief Get all packages that have no dependant packages
+    std::set<std::string> GetToplevelPackages() {
+        std::set<std::string> result;
+
+        sql::Statement query(mDatabase,
+            "SELECT name FROM targets\n"
+            "WHERE NOT EXISTS (\n"
+            "    SELECT 1 FROM dependencies WHERE dependency = targets.name\n"
+            ")"
+        );
+
+        while (query.executeStep()) {
+            result.insert(query.getColumn(0).getString());
+        }
+
+        return result;
+    }
+
+    std::set<std::string> GetPackageDependencies(const std::string& name) {
+        std::set<std::string> result;
+
+        sql::Statement query(mDatabase, "SELECT dependency FROM dependencies WHERE package = ?");
+        query.bind(1, name);
+
+        while (query.executeStep()) {
+            result.insert(query.getColumn(0).getString());
+        }
+
+        return result;
+    }
+
     PackageStatus GetPackageStatus(std::string_view name) {
         sql::Statement query(mDatabase, "SELECT status FROM targets WHERE name = ?");
         query.bind(1, name.data());
@@ -1219,6 +1250,20 @@ static void ReadRepoElement(XmlNode root) {
     }
 }
 
+static void VisitPackage(const PackageInfo& packageInfo) {
+    auto deps = gPackageDb->GetPackageDependencies(packageInfo.name);
+    for (const auto& dep : deps) {
+        VisitPackage(gWorkspace.packages[dep]);
+    }
+
+    AcquirePackage(packageInfo);
+    ConnectDependencies(packageInfo);
+    ConfigurePackage(packageInfo);
+    BuildPackage(packageInfo);
+    InstallPackage(packageInfo);
+    GenerateArtifact(packageInfo.name, packageInfo);
+}
+
 int main(int argc, const char **argv) try {
     argparse::ArgumentParser parser{"BezOS package repository manager"};
 
@@ -1343,12 +1388,17 @@ int main(int argc, const char **argv) try {
 
     gPackageDb->DumpTargetStates();
 
+    for (auto& package : gPackageDb->GetToplevelPackages()) {
+        VisitPackage(gWorkspace.packages[package]);
+    }
+
+#if 0
     for (auto& package : gWorkspace.packages) {
         AcquirePackage(package.second);
     }
 
     auto pkgs = gPackageDb->OrderPackages()
-        | stdv::transform([&](const std::string& name) { return gWorkspace.packages[name]; })
+        | stdv::transform([](const std::string& name) { return gWorkspace.packages[name]; })
         | stdr::to<std::vector>();
 
     for (auto& package : pkgs) {
@@ -1357,10 +1407,6 @@ int main(int argc, const char **argv) try {
 
     for (auto& package : pkgs) {
         ConfigurePackage(package);
-    }
-
-    if (parser["--clangd"] == true) {
-        GenerateClangDaemonConfig();
     }
 
     for (auto& package : pkgs) {
@@ -1373,6 +1419,11 @@ int main(int argc, const char **argv) try {
 
     for (auto& artifact : pkgs) {
         GenerateArtifact(artifact.name, artifact);
+    }
+#endif
+
+    if (parser["--clangd"] == true) {
+        GenerateClangDaemonConfig();
     }
 
     if (parser.present("--test")) {

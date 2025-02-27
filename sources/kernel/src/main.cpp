@@ -959,19 +959,16 @@ static void AddVfsSystemCalls() {
     AddSystemCall(eOsCallFileOpen, [](uint64_t userArgPathBegin, uint64_t userArgPathEnd, [[maybe_unused]] uint64_t mode, uint64_t) -> OsCallResult {
         vfs2::VfsString userPath;
         if (OsStatus status = km::CopyUserRange(GetProcessPageTables(), (void*)userArgPathBegin, (void*)userArgPathEnd, &userPath, kMaxPathSize)) {
-            KmDebugMessage("[VFS] Failed to copy path: ", status, "\n");
             return CallError(status);
         }
 
         if (!vfs2::VerifyPathText(userPath)) {
-            KmDebugMessage("[VFS] Invalid path.\n");
             return CallError(OsStatusInvalidInput);
         }
 
         vfs2::VfsPath path{std::move(userPath)};
         vfs2::IVfsNodeHandle *node = nullptr;
         if (OsStatus status = gVfsRoot->open(path, &node)) {
-            KmDebugMessage("[VFS] Failed to open file: ", status, "\n");
             return CallError(status);
         }
 
@@ -982,7 +979,6 @@ static void AddVfsSystemCalls() {
         const void *bufferBegin = TranslateUserPointer((const void*)userBufferBegin);
         const void *bufferEnd = TranslateUserPointer((const void*)userBufferEnd);
         if (bufferBegin == nullptr || bufferEnd == nullptr) {
-            KmDebugMessage("[VFS] Invalid buffer range.\n");
             return CallError(OsStatusInvalidInput);
         }
 
@@ -993,11 +989,8 @@ static void AddVfsSystemCalls() {
         };
         vfs2::ReadResult result{};
         if (OsStatus status = node->read(request, &result)) {
-            KmDebugMessage("[VFS] Failed to read file: ", status, "\n");
             return CallError(status);
         }
-
-        KmDebugMessage("[VFS] Read ", result.read, " bytes.\n");
 
         return CallOk(result.read);
     });
