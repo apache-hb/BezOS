@@ -5,5 +5,10 @@
               trim-root-folder='true'
               archive='tar' />
 
-    <configure with='autoconf' />
+    <configure with='autoconf'>
+        <env cross_compiling='xyes'
+             CC='@PREFIX@/llvm/bin/clang'
+             LD='@PREFIX@/llvm/bin/ld.lld'
+             CFLAGS='-Wno-deprecated-non-prototype -Wno-parentheses -Wno-tautological-pointer-compare -Wno-pointer-to-int-cast' />
+    </configure>
 </package>

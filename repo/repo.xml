@@ -1,10 +1,11 @@
 <repo name='bezos' sources='sources' xmlns:xi="http://www.w3.org/2003/XInclude">
     <!--
     We use the same terminology as meson for naming targets.
-    - `host` is the bezos kernel.
-    - `native` is the machine currently running the build.
+    - `host` programs will be run in bezos.
+    - `native` programs will run on the build machine.
     -->
 
+    <xi:include href='packages/tools/pkg-config.xml' />
     <xi:include href='packages/tools/llvm.xml' />
 
     <xi:include href='packages/ovmf.xml' />

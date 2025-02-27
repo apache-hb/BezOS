@@ -17,7 +17,12 @@
 #include <libxml/tree.h>
 #include <libxml/xinclude.h>
 
+#include <openssl/sha.h>
+#include <openssl/crypto.h>
+
 #include "defer.hpp"
+
+#include <sys/mman.h>
 
 #include <filesystem>
 #include <ranges>
@@ -46,6 +51,7 @@ struct Download {
     std::string url;
     std::string file;
     std::string archive;
+    std::optional<std::string> sha256;
     bool trimRootFolder;
     bool install;
 };
@@ -577,7 +583,7 @@ static void ExtractArchive(std::string_view name, const fs::path& archive, const
     archive_read_support_format_all(a);
 
     if (archive_read_open_filename(a, archive.c_str(), 10240) != ARCHIVE_OK) {
-        throw std::runtime_error("Failed to open archive " + archive.string());
+        throw std::runtime_error("Failed to open archive " + archive.string() + " " + archive_error_string(a));
     }
 
     defer {
@@ -635,6 +641,36 @@ static void ExtractArchive(std::string_view name, const fs::path& archive, const
     bar.mark_as_completed();
 }
 
+static void VerifySha256(const fs::path& path, const std::string& expected) {
+    FILE *file = fopen(path.c_str(), "rb");
+    if (file == nullptr) {
+        throw std::runtime_error("Failed to open file " + path.string());
+    }
+    defer { fclose(file); };
+
+    size_t size = fs::file_size(path);
+
+    void *ptr = mmap(nullptr, size, PROT_READ, MAP_PRIVATE, fileno(file), 0);
+    if (ptr == MAP_FAILED) {
+        throw std::runtime_error("Failed to map file " + path.string());
+    }
+
+    unsigned char buffer[SHA256_DIGEST_LENGTH];
+    unsigned char *sha = SHA256((const unsigned char *)ptr, size, buffer);
+    if (sha == nullptr) {
+        throw std::runtime_error("Failed to calculate sha256 for " + path.string());
+    }
+
+    std::string hash;
+    for (int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
+        hash += std::format("{:02x}", buffer[i]);
+    }
+
+    if (hash != expected) {
+        throw std::runtime_error("Hash mismatch for " + path.string() + ": expected " + expected + " got " + hash);
+    }
+}
+
 static void DownloadFile(const std::string& url, const fs::path& dst) {
     CURL *curl = curl_easy_init();
     if (curl == nullptr) {
@@ -658,7 +694,7 @@ static void DownloadFile(const std::string& url, const fs::path& dst) {
         indicators::option::Start{"["},
         indicators::option::Lead{"*"},
         indicators::option::End{"]"},
-        indicators::option::PrefixText{std::format("Downloading {}", url)},
+        indicators::option::PrefixText{std::format("Downloading {} ", url)},
         indicators::option::ForegroundColor{indicators::Color::white},
         indicators::option::FontStyles{std::vector<indicators::FontStyle>{indicators::FontStyle::bold}}
     };
@@ -671,7 +707,7 @@ static void DownloadFile(const std::string& url, const fs::path& dst) {
             return 0;
         }
 
-        auto bar = static_cast<indicators::ProgressBar *>(clientp);
+        auto bar = static_cast<indicators::IndeterminateProgressBar *>(clientp);
         bar->set_option(indicators::option::PostfixText{std::format("{} / {}", dlnow, dltotal)});
         return 0;
     });
@@ -706,6 +742,7 @@ static bool ReadRequireTag(XmlNode node, const std::string& name, std::vector<Re
 
 static void ReadPackageConfig(XmlNode root) {
     auto name = ExpectProperty<std::string>(root, "name");
+    gPackageDb->RaiseTargetStatus(name, eUnknown);
 
     auto cache = PackageCachePath(name);
     auto build = PackageBuildPath(name);
@@ -730,8 +767,9 @@ static void ReadPackageConfig(XmlNode root) {
             auto archive = action.property("archive");
             auto trimRootFolder = action.property("trim-root-folder").value_or("false") == "true";
             auto install = action.property("install").value_or("false") == "true";
+            auto sha256 = action.property("sha256");
 
-            packageInfo.downloads.push_back(Download{url, file, archive.value_or(""), trimRootFolder, install});
+            packageInfo.downloads.push_back(Download{url, file, archive.value_or(""), sha256, trimRootFolder, install});
         } else if (step == "patch"sv) {
             auto file = ExpectProperty<std::string>(action, "file");
             packageInfo.patches.push_back(file);
@@ -863,6 +901,11 @@ static void AcquirePackage(const PackageInfo& package) {
 
         if (!fs::exists(path)) {
             DownloadFile(download.url, path);
+
+            if (download.sha256.has_value()) {
+                std::println(std::cout, "{}: verify sha256 {}", package.name, download.sha256.value());
+                VerifySha256(path, download.sha256.value());
+            }
         }
 
         if (!download.archive.empty()) {
@@ -952,6 +995,11 @@ static void ConfigurePackage(const PackageInfo& package) {
     ReplacePackagePlaceholders(cwd, package);
     std::println(std::cout, "{}: configure {}", package.name, cwd);
 
+    auto env = package.configureEnv;
+    for (auto& [key, value] : env) {
+        ReplacePackagePlaceholders(value, package);
+    }
+
     if (package.configure == eMeson) {
         std::vector<std::string> args = {
             "meson", "setup", package.build.string(), "--wipe",
@@ -978,7 +1026,7 @@ static void ConfigurePackage(const PackageInfo& package) {
             args.push_back("-D" + key + "=" + val);
         }
 
-        auto result = sp::call(args, sp::cwd{cwd});
+        auto result = sp::call(args, sp::cwd{cwd}, sp::environment{env});
         if (result != 0) {
             throw std::runtime_error("Failed to configure package " + package.name);
         }
@@ -1002,7 +1050,7 @@ static void ConfigurePackage(const PackageInfo& package) {
             args.push_back("-D" + key + "=" + val);
         }
 
-        auto result = sp::call(args, sp::cwd{cwd});
+        auto result = sp::call(args, sp::cwd{cwd}, sp::environment{env});
         if (result != 0) {
             throw std::runtime_error("Failed to configure package " + package.name);
         }
@@ -1024,7 +1072,7 @@ static void ConfigurePackage(const PackageInfo& package) {
             args.push_back("--" + key + "=" + val);
         }
 
-        auto result = sp::call(args, sp::cwd{builddir});
+        auto result = sp::call(args, sp::cwd{builddir}, sp::environment{env});
         if (result != 0) {
             throw std::runtime_error("Failed to configure package " + package.name);
         }
@@ -1058,7 +1106,7 @@ static void BuildPackage(const PackageInfo& package) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
     } else if (package.configure == eAutoconf) {
-        auto result = sp::call({ "make", "-j", std::to_string(std::thread::hardware_concurrency()) }, sp::cwd{builddir});
+        auto result = sp::call({ "gmake", "-s", "-j", std::to_string(std::thread::hardware_concurrency()) }, sp::cwd{builddir});
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
@@ -1265,6 +1313,9 @@ static void VisitPackage(const PackageInfo& packageInfo) {
 }
 
 int main(int argc, const char **argv) try {
+    OPENSSL_init_crypto(OPENSSL_INIT_ADD_ALL_DIGESTS, nullptr);
+    defer { OPENSSL_cleanup(); };
+
     argparse::ArgumentParser parser{"BezOS package repository manager"};
 
     parser.add_argument("--config")
@@ -1391,36 +1442,6 @@ int main(int argc, const char **argv) try {
     for (auto& package : gPackageDb->GetToplevelPackages()) {
         VisitPackage(gWorkspace.packages[package]);
     }
-
-#if 0
-    for (auto& package : gWorkspace.packages) {
-        AcquirePackage(package.second);
-    }
-
-    auto pkgs = gPackageDb->OrderPackages()
-        | stdv::transform([](const std::string& name) { return gWorkspace.packages[name]; })
-        | stdr::to<std::vector>();
-
-    for (auto& package : pkgs) {
-        ConnectDependencies(package);
-    }
-
-    for (auto& package : pkgs) {
-        ConfigurePackage(package);
-    }
-
-    for (auto& package : pkgs) {
-        BuildPackage(package);
-    }
-
-    for (auto& package : pkgs) {
-        InstallPackage(package);
-    }
-
-    for (auto& artifact : pkgs) {
-        GenerateArtifact(artifact.name, artifact);
-    }
-#endif
 
     if (parser["--clangd"] == true) {
         GenerateClangDaemonConfig();
