@@ -23,6 +23,9 @@
 #include "defer.hpp"
 
 #include <sys/mman.h>
+#include <sys/mount.h>
+#include <utime.h>
+#include <sys/stat.h>
 
 #include <filesystem>
 #include <ranges>
@@ -437,6 +440,7 @@ static fs::path gRepoRoot;
 static fs::path gBuildRoot;
 static fs::path gSourceRoot;
 static fs::path gInstallPrefix;
+static fs::path gLogRoot;
 
 static fs::path PackageCacheRoot() {
     return gBuildRoot / "cache";
@@ -460,6 +464,10 @@ static fs::path PackageBuildPath(const std::string &name) {
 
 static fs::path PackageInstallPath(const std::string &name) {
     return gInstallPrefix / name;
+}
+
+static fs::path PackageLogPath(const std::string &name) {
+    return gLogRoot / name;
 }
 
 static fs::path PackageImportPath(const std::string &name) {
@@ -583,7 +591,7 @@ static void ExtractArchive(std::string_view name, const fs::path& archive, const
     archive_read_support_format_all(a);
 
     if (archive_read_open_filename(a, archive.c_str(), 10240) != ARCHIVE_OK) {
-        throw std::runtime_error("Failed to open archive " + archive.string() + " " + archive_error_string(a));
+        throw std::runtime_error("Failed to open archive " + archive.string() + " " + (archive_error_string(a) ?: "unknown error"));
     }
 
     defer {
@@ -598,14 +606,18 @@ static void ExtractArchive(std::string_view name, const fs::path& archive, const
         indicators::option::Start{"["},
         indicators::option::Lead{"*"},
         indicators::option::End{"]"},
-        indicators::option::PrefixText{std::format("Extracting {}", fname)},
+        indicators::option::PrefixText{std::format("Extracting {} ", fname)},
         indicators::option::ForegroundColor{indicators::Color::white},
         indicators::option::FontStyles{std::vector<indicators::FontStyle>{indicators::FontStyle::bold}}
     };
 
     struct archive_entry *entry;
     while (archive_read_next_header(a, &entry) == ARCHIVE_OK) {
-        std::string entryPath = archive_entry_pathname(entry);
+        const char *it = archive_entry_pathname(entry);
+        if (it == nullptr) {
+            throw std::runtime_error("Failed to get entry path");
+        }
+        std::string entryPath = it;
 
         if (trimRootFolder) {
             entryPath = entryPath.substr(entryPath.find('/') + 1);
@@ -625,13 +637,27 @@ static void ExtractArchive(std::string_view name, const fs::path& archive, const
         fs::path path = entryPath;
         fs::path file = dst / path;
 
-        std::ofstream os(file, std::ios::binary);
-        if (!os.is_open()) {
-            throw std::runtime_error("Failed to open file "s + path.string());
+        {
+            std::ofstream os(file, std::ios::binary);
+            if (!os.is_open()) {
+                throw std::runtime_error("Failed to open file "s + path.string());
+            }
+
+            if (archive_entry_size(entry) > 0) {
+                CopyData(a, os);
+            }
         }
 
-        if (archive_entry_size(entry) > 0) {
-            CopyData(a, os);
+        // preserve mtime
+        auto mtime = archive_entry_mtime(entry);
+        if (mtime > 0) {
+            struct stat times;
+            stat(file.c_str(), &times);
+
+            struct utimbuf utimes;
+            utimes.actime = times.st_atime;
+            utimes.modtime = mtime / 1000000;
+            utime(file.c_str(), &utimes);
         }
 
         int count = archive_file_count(a);
@@ -714,7 +740,7 @@ static void DownloadFile(const std::string& url, const fs::path& dst) {
 
     CURLcode res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
-        throw std::runtime_error("Failed to download " + url + ": " + curl_easy_strerror(res));
+        throw std::runtime_error("Failed to download " + url + ": " + (curl_easy_strerror(res) ?: "unknown error"));
     }
 }
 
@@ -747,10 +773,12 @@ static void ReadPackageConfig(XmlNode root) {
     auto cache = PackageCachePath(name);
     auto build = PackageBuildPath(name);
     auto install = PackageInstallPath(name);
+    auto log = PackageLogPath(name);
 
     MakeFolder(build);
     MakeFolder(install);
     MakeFolder(cache);
+    MakeFolder(log);
 
     PackageInfo packageInfo {
         .name = name,
@@ -914,6 +942,7 @@ static void AcquirePackage(const PackageInfo& package) {
             auto dst = package.GetWorkspaceFolder() / download.file;
             std::println(std::cout, "{}: copy {} -> {}", package.name, path.string(), dst.string());
 
+            fs::remove_all(dst);
             fs::copy_file(path, dst, fs::copy_options::overwrite_existing);
         }
     }
@@ -1000,6 +1029,28 @@ static void ConfigurePackage(const PackageInfo& package) {
         ReplacePackagePlaceholders(value, package);
     }
 
+    auto configureLog = (PackageLogPath(package.name) / "configure.log").string();
+    auto configureErrLog = (PackageLogPath(package.name) / "configure.err").string();
+    fs::remove(configureLog);
+    fs::remove(configureErrLog);
+
+    std::jthread spinner([&](std::stop_token stop) {
+        indicators::IndeterminateProgressBar bar{
+            indicators::option::BarWidth{40},
+            indicators::option::Start{"["},
+            indicators::option::Lead{"*"},
+            indicators::option::End{"]"},
+            indicators::option::PrefixText{std::format("Configuring {} ", package.name)},
+            indicators::option::ForegroundColor{indicators::Color::white},
+            indicators::option::FontStyles{std::vector<indicators::FontStyle>{indicators::FontStyle::bold}}
+        };
+
+        while (!stop.stop_requested()) {
+            bar.tick();
+            std::this_thread::sleep_for(100ms);
+        }
+    });
+
     if (package.configure == eMeson) {
         std::vector<std::string> args = {
             "meson", "setup", package.build.string(), "--wipe",
@@ -1026,7 +1077,7 @@ static void ConfigurePackage(const PackageInfo& package) {
             args.push_back("-D" + key + "=" + val);
         }
 
-        auto result = sp::call(args, sp::cwd{cwd}, sp::environment{env});
+        auto result = sp::call(args, sp::cwd{cwd}, sp::environment{env}, sp::output{configureLog.c_str()}, sp::error{configureErrLog.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to configure package " + package.name);
         }
@@ -1050,7 +1101,7 @@ static void ConfigurePackage(const PackageInfo& package) {
             args.push_back("-D" + key + "=" + val);
         }
 
-        auto result = sp::call(args, sp::cwd{cwd}, sp::environment{env});
+        auto result = sp::call(args, sp::cwd{cwd}, sp::environment{env}, sp::output{configureLog.c_str()}, sp::error{configureErrLog.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to configure package " + package.name);
         }
@@ -1062,8 +1113,21 @@ static void ConfigurePackage(const PackageInfo& package) {
 
         fs::create_directories(builddir);
 
+#if 0
+        {
+            std::vector<std::string> args = {
+                "autoreconf", "--install", "--force"
+            };
+
+            auto result = sp::call(args, sp::cwd{cwd}, sp::output{configureLog.c_str()}, sp::error{configureErrLog.c_str()});
+            if (result != 0) {
+                throw std::runtime_error("Failed to autoreconf package " + package.name);
+            }
+        }
+#endif
+
         std::vector<std::string> args = {
-            package.GetConfigureSourcePath() + "/configure", "--prefix=" + package.install.string()
+            "/bin/sh", package.GetConfigureSourcePath() + "/configure", "--prefix=" + package.install.string()
         };
 
         for (auto& [key, value] : package.options) {
@@ -1072,7 +1136,7 @@ static void ConfigurePackage(const PackageInfo& package) {
             args.push_back("--" + key + "=" + val);
         }
 
-        auto result = sp::call(args, sp::cwd{builddir}, sp::environment{env});
+        auto result = sp::call(args, sp::cwd{builddir}, sp::environment{env}, sp::output{configureLog.c_str()}, sp::error{configureErrLog.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to configure package " + package.name);
         }
@@ -1093,20 +1157,43 @@ static void BuildPackage(const PackageInfo& package) {
     }
 
     std::println(std::cout, "{}: build", package.name);
+
+    auto buildOutLog = (PackageLogPath(package.name) / "build.log").string();
+    auto buildErrLog = (PackageLogPath(package.name) / "build.err").string();
+    fs::remove(buildOutLog);
+    fs::remove(buildErrLog);
+
+    std::jthread spinner([&](std::stop_token stop) {
+        indicators::IndeterminateProgressBar bar{
+            indicators::option::BarWidth{40},
+            indicators::option::Start{"["},
+            indicators::option::Lead{"*"},
+            indicators::option::End{"]"},
+            indicators::option::PrefixText{std::format("Building {} ", package.name)},
+            indicators::option::ForegroundColor{indicators::Color::white},
+            indicators::option::FontStyles{std::vector<indicators::FontStyle>{indicators::FontStyle::bold}}
+        };
+
+        while (!stop.stop_requested()) {
+            bar.tick();
+            std::this_thread::sleep_for(100ms);
+        }
+    });
+
     std::string builddir = package.build.string();
 
     if (package.configure == eMeson) {
-        auto result = sp::call({ "meson", "compile" }, sp::cwd{builddir});
+        auto result = sp::call({ "meson", "compile" }, sp::cwd{builddir}, sp::output{buildOutLog.c_str()}, sp::error{buildErrLog.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
     } else if (package.configure == eCMake) {
-        auto result = sp::call({ "cmake", "--build", builddir }, sp::cwd{builddir});
+        auto result = sp::call({ "cmake", "--build", builddir }, sp::cwd{builddir}, sp::output{buildOutLog.c_str()}, sp::error{buildErrLog.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
     } else if (package.configure == eAutoconf) {
-        auto result = sp::call({ "gmake", "-s", "-j", std::to_string(std::thread::hardware_concurrency()) }, sp::cwd{builddir});
+        auto result = sp::call({ "make", "-s" }, sp::cwd{builddir}, sp::output{buildOutLog.c_str()}, sp::error{buildErrLog.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
@@ -1140,20 +1227,43 @@ static void InstallPackage(const PackageInfo& package) {
     }
 
     std::println(std::cout, "{}: install", package.name);
+
+    auto installOutLog = (PackageLogPath(package.name) / "install.log").string();
+    auto installErrLog = (PackageLogPath(package.name) / "install.err").string();
+    fs::remove(installOutLog);
+    fs::remove(installErrLog);
+
+    std::jthread spinner([&](std::stop_token stop) {
+        indicators::IndeterminateProgressBar bar{
+            indicators::option::BarWidth{40},
+            indicators::option::Start{"["},
+            indicators::option::Lead{"*"},
+            indicators::option::End{"]"},
+            indicators::option::PrefixText{std::format("Installing {} ", package.name)},
+            indicators::option::ForegroundColor{indicators::Color::white},
+            indicators::option::FontStyles{std::vector<indicators::FontStyle>{indicators::FontStyle::bold}}
+        };
+
+        while (!stop.stop_requested()) {
+            bar.tick();
+            std::this_thread::sleep_for(100ms);
+        }
+    });
+
     std::string builddir = package.build.string();
 
     if (package.configure == eMeson) {
-        auto result = sp::call({ "meson", "install", "--quiet", "--no-rebuild", "--skip-subprojects" }, sp::cwd{builddir});
+        auto result = sp::call({ "meson", "install", "--quiet", "--no-rebuild", "--skip-subprojects" }, sp::cwd{builddir}, sp::output{installOutLog.c_str()}, sp::error{installErrLog.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to install package " + package.name);
         }
     } else if (package.configure == eCMake) {
-        auto result = sp::call({ "cmake", "--install", builddir }, sp::cwd{builddir});
+        auto result = sp::call({ "cmake", "--install", builddir }, sp::cwd{builddir}, sp::output{installOutLog.c_str()}, sp::error{installErrLog.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to install package " + package.name);
         }
     } else if (package.configure == eAutoconf) {
-        auto result = sp::call({ "make", "install" }, sp::cwd{builddir});
+        auto result = sp::call({ "make", "install" }, sp::cwd{builddir}, sp::output{installOutLog.c_str()}, sp::error{installErrLog.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to install package " + package.name);
         }
@@ -1171,7 +1281,29 @@ static void GenerateArtifact(std::string_view name, const PackageInfo& artifact)
         return;
     }
 
+    auto buildOutLog = (PackageLogPath(std::string(name)) / "generate.log").string();
+    auto buildErrLog = (PackageLogPath(std::string(name)) / "generate.err").string();
+    fs::remove(buildOutLog);
+    fs::remove(buildErrLog);
+
     std::println(std::cout, "{}: generate", artifact.name);
+
+    std::jthread spinner([&](std::stop_token stop) {
+        indicators::IndeterminateProgressBar bar{
+            indicators::option::BarWidth{40},
+            indicators::option::Start{"["},
+            indicators::option::Lead{"*"},
+            indicators::option::End{"]"},
+            indicators::option::PrefixText{std::format("Generating {} ", artifact.name)},
+            indicators::option::ForegroundColor{indicators::Color::white},
+            indicators::option::FontStyles{std::vector<indicators::FontStyle>{indicators::FontStyle::bold}}
+        };
+
+        while (!stop.stop_requested()) {
+            bar.tick();
+            std::this_thread::sleep_for(100ms);
+        }
+    });
 
     for (const auto& script : artifact.scripts) {
         auto path = script.script.string();
@@ -1190,7 +1322,7 @@ static void GenerateArtifact(std::string_view name, const PackageInfo& artifact)
         env["SOURCE"] = gSourceRoot.string();
 
         std::println(std::cout, "{}: execute {}", name, args[1]);
-        auto result = sp::call(args, sp::environment{env});
+        auto result = sp::call(args, sp::environment{env}, sp::output{buildOutLog.c_str()}, sp::error{buildErrLog.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to run script " + args[1]);
         }
@@ -1400,14 +1532,12 @@ int main(int argc, const char **argv) try {
     prefix = fs::absolute(prefix);
     build = fs::absolute(build);
 
-    PackageDb packageDb(build / parser.get<std::string>("--repo"));
-    gPackageDb = &packageDb;
-
     auto name = ExpectProperty<std::string>(root, "name");
     auto sources = ExpectProperty<std::string>(root, "sources");
     auto pwd = std::filesystem::current_path();
     gRepoRoot = fs::absolute(configPath.parent_path());
     gBuildRoot = build;
+    gLogRoot = gBuildRoot / "logs";
     gInstallPrefix = prefix;
     gSourceRoot = pwd / sources;
 
@@ -1415,6 +1545,10 @@ int main(int argc, const char **argv) try {
     MakeFolder(PackageCacheRoot());
     MakeFolder(PackageBuildRoot());
     MakeFolder(gInstallPrefix);
+    MakeFolder(gLogRoot);
+
+    PackageDb packageDb(build / parser.get<std::string>("--repo"));
+    gPackageDb = &packageDb;
 
     gWorkspace.workspace["folders"] = argo::json::json_array();
 
