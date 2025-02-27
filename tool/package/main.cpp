@@ -1571,7 +1571,7 @@ int main(int argc, const char **argv) try {
     applyStateLowering("--reconfigure", eDownloaded);
     applyStateLowering("--fetch", eUnknown);
 
-    gPackageDb->DumpTargetStates();
+    // gPackageDb->DumpTargetStates();
 
     // Download and extract everything first, we do this now
     // so that we can setup a chroot without it requiring internet
