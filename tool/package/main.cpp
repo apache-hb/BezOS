@@ -440,7 +440,6 @@ static fs::path gRepoRoot;
 static fs::path gBuildRoot;
 static fs::path gSourceRoot;
 static fs::path gInstallPrefix;
-static fs::path gLogRoot;
 
 static fs::path PackageCacheRoot() {
     return gBuildRoot / "cache";
@@ -452,6 +451,10 @@ static fs::path PackageBuildRoot() {
 
 static fs::path PackageImportRoot() {
     return gBuildRoot / "sources";
+}
+
+static fs::path PackageLogRoot() {
+    return gBuildRoot / "logs";
 }
 
 static fs::path PackageCachePath(const std::string &name) {
@@ -467,7 +470,7 @@ static fs::path PackageInstallPath(const std::string &name) {
 }
 
 static fs::path PackageLogPath(const std::string &name) {
-    return gLogRoot / name;
+    return PackageLogRoot() / name;
 }
 
 static fs::path PackageImportPath(const std::string &name) {
@@ -1529,15 +1532,11 @@ int main(int argc, const char **argv) try {
     fs::path build = parser.get<std::string>("--output");
     fs::path prefix = parser.get<std::string>("--prefix");
 
-    prefix = fs::absolute(prefix);
-    build = fs::absolute(build);
-
     auto name = ExpectProperty<std::string>(root, "name");
     auto sources = ExpectProperty<std::string>(root, "sources");
     auto pwd = std::filesystem::current_path();
-    gRepoRoot = fs::absolute(configPath.parent_path());
+    gRepoRoot = configPath.parent_path();
     gBuildRoot = build;
-    gLogRoot = gBuildRoot / "logs";
     gInstallPrefix = prefix;
     gSourceRoot = pwd / sources;
 
@@ -1545,7 +1544,7 @@ int main(int argc, const char **argv) try {
     MakeFolder(PackageCacheRoot());
     MakeFolder(PackageBuildRoot());
     MakeFolder(gInstallPrefix);
-    MakeFolder(gLogRoot);
+    MakeFolder(PackageLogRoot());
 
     PackageDb packageDb(build / parser.get<std::string>("--repo"));
     gPackageDb = &packageDb;
