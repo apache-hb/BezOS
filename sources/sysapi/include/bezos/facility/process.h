@@ -35,7 +35,7 @@ extern OsStatus OsProcessCreate(struct OsProcessCreateInfo CreateInfo, OsProcess
 
 extern OsStatus OsProcessSuspend(OsProcessHandle Handle, bool Suspend);
 
-extern OsStatus OsProcessTerminate(OsProcessHandle Handle);
+extern OsStatus OsProcessTerminate(OsProcessHandle Handle, int64_t ExitCode);
 
 /// @} // group OsProcess
 
