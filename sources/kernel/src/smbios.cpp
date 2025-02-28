@@ -240,29 +240,6 @@ static OsStatus ReadSmbios32(km::PhysicalAddress address, bool ignoreChecksum, k
     return OsStatusSuccess;
 }
 
-km::PlatformInfo km::GetPlatformInfo(
-    km::PhysicalAddress smbios32Address,
-    km::PhysicalAddress smbios64Address,
-    km::SystemMemory& memory
-) {
-    km::PlatformInfo result{};
-
-    SmBiosLoadOptions options {
-        .smbios32Address = smbios32Address,
-        .smbios64Address = smbios64Address,
-        .ignoreChecksum = false,
-        .ignore32BitEntry = false,
-        .ignore64BitEntry = false,
-    };
-
-    OsStatus status = ReadSmbiosTables(options, memory, &result);
-    if (status != OsStatusSuccess) {
-        KmDebugMessage("[SMBIOS] Failed to read SMBIOS tables: ", status, "\n");
-    }
-
-    return result;
-}
-
 OsStatus km::ReadSmbiosTables(SmBiosLoadOptions options, km::SystemMemory& memory, PlatformInfo *info [[gnu::nonnull]]) {
     //
     // Store the status as a local so that we can return the last error if both fail.

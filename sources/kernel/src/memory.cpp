@@ -117,10 +117,6 @@ void km::SystemMemory::unmap(void *ptr, size_t size) {
     ptes.unmap(VirtualRange::of(ptr, size));
 }
 
-void *km::SystemMemory::map(PhysicalAddress begin, PhysicalAddress end, PageFlags flags, MemoryType type) {
-    return map(MemoryRange { begin, end }, flags, type);
-}
-
 void *km::SystemMemory::map(MemoryRange range, PageFlags flags, MemoryType type) {
     //
     // I may be asked to map a range that is not page aligned

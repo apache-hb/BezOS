@@ -23,12 +23,6 @@ namespace km {
         bool ignore64BitEntry;
     };
 
-    PlatformInfo GetPlatformInfo(
-        km::PhysicalAddress smbios32Address,
-        km::PhysicalAddress smbios64Address,
-        km::SystemMemory& memory
-    );
-
     [[nodiscard]]
     OsStatus ReadSmbiosTables(SmBiosLoadOptions options, km::SystemMemory& memory, PlatformInfo *info [[gnu::nonnull]]);
 }

@@ -15,7 +15,7 @@ namespace km {
 
     Scheduler *GetScheduler();
     SystemMemory *GetSystemMemory();
-    IPageTables& GetProcessPageManager();
+    AddressSpaceAllocator& GetProcessPageManager();
     PageTables& GetProcessPageTables();
 
     CPU_LOCAL

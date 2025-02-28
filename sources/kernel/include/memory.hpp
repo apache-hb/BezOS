@@ -69,8 +69,6 @@ namespace km {
 
         void *map(MemoryRange range, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eWriteBack);
 
-        void *map(PhysicalAddress begin, PhysicalAddress end, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eWriteBack);
-
         template<typename T>
         T *mapObject(MemoryRange range, MemoryType type = MemoryType::eWriteBack) {
             return (T*)map(range, PageFlags::eData, type);
@@ -97,7 +95,7 @@ namespace km {
         }
     };
 
-    inline OsStatus AllocateMemory(PageAllocator& pmm, IPageTables *ptes, size_t pages, AddressMapping *mapping) {
+    inline OsStatus AllocateMemory(PageAllocator& pmm, AddressSpaceAllocator *ptes, size_t pages, AddressMapping *mapping) {
         PhysicalAddress address = pmm.alloc4k(pages);
         if (address == KM_INVALID_MEMORY) {
             return OsStatusOutOfMemory;
@@ -113,7 +111,7 @@ namespace km {
         return status;
     }
 
-    inline OsStatus AllocateMemory(PageAllocator& pmm, IPageTables *ptes, size_t pages, const void *hint, AddressMapping *mapping) {
+    inline OsStatus AllocateMemory(PageAllocator& pmm, AddressSpaceAllocator *ptes, size_t pages, const void *hint, AddressMapping *mapping) {
         PhysicalAddress address = pmm.alloc4k(pages);
         if (address == KM_INVALID_MEMORY) {
             return OsStatusOutOfMemory;

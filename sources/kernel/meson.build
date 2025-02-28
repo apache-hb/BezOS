@@ -107,8 +107,8 @@ src = [
     'src/memory/layout.cpp',
     'src/memory/allocator.cpp',
     'src/memory/page_allocator.cpp',
-    'src/memory/virtual_allocator.cpp',
     'src/memory/pte.cpp',
+    'src/memory/tables.cpp',
     'src/memory/memory.cpp',
 
     # C and C++ Runtime
@@ -346,13 +346,6 @@ testcases = {
     'arch gdt': [ 'test/arch/gdt.cpp', 'src/gdt.cpp', ],
     'framebuffer': [ 'test/display.cpp', 'src/canvas.cpp', ],
     'crt': [ 'test/crt.cpp', 'src/crt.cpp', ],
-    'virtual allocator': [
-        'test/memory/virtual_allocator.cpp',
-        'src/memory/virtual_allocator.cpp',
-        'src/memory/page_allocator.cpp',
-        'src/memory/layout.cpp',
-        'src/boot.cpp',
-    ],
     'serial': [ 'test/serial.cpp', 'src/uart.cpp', ],
     'range allocator': [
         'test/memory/range_allocator.cpp',

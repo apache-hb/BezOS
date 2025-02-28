@@ -806,7 +806,7 @@ SystemMemory *km::GetSystemMemory() {
     return gMemory;
 }
 
-IPageTables& km::GetProcessPageManager() {
+AddressSpaceAllocator& km::GetProcessPageManager() {
     if (auto process = GetCurrentProcess()) {
         return process->ptes;
     }
@@ -1486,7 +1486,15 @@ void LaunchKernel(boot::LaunchInfo launch) {
     InitStage1Idt(SystemGdt::eLongModeCode);
     EnableInterrupts();
 
-    PlatformInfo platform = GetPlatformInfo(launch.smbios32Address, launch.smbios64Address, *stage2->memory);
+    PlatformInfo platform{};
+    SmBiosLoadOptions smbiosOptions {
+        .smbios32Address = launch.smbios32Address,
+        .smbios64Address = launch.smbios64Address,
+    };
+
+    if (OsStatus status = ReadSmbiosTables(smbiosOptions, *gMemory, &platform)) {
+        KmDebugMessage("[INIT] Failed to read SMBIOS tables: ", status, "\n");
+    }
 
     //
     // On Oracle VirtualBox the COM1 port is functional but fails the loopback test.

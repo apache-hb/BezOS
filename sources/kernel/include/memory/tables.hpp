@@ -18,13 +18,15 @@ namespace km {
         MemoryType type = MemoryType::eWriteBack;
     };
 
-    class IPageTables {
+    class AddressSpaceAllocator {
         PageTables mTables;
+        PageFlags mExtraFlags;
         RangeAllocator<const std::byte*> mVmemAllocator;
 
     public:
-        IPageTables(AddressMapping pteMemory, const PageBuilder *pm, PageFlags flags, VirtualRange vmemArea)
+        AddressSpaceAllocator(AddressMapping pteMemory, const PageBuilder *pm, PageFlags flags, PageFlags extra, VirtualRange vmemArea)
             : mTables(pm, pteMemory, flags)
+            , mExtraFlags(extra)
             , mVmemAllocator(vmemArea.cast<const std::byte*>())
         { }
 
@@ -57,9 +59,16 @@ namespace km {
         }
 
         OsStatus map(AddressMapping mapping, PageFlags flags, MemoryType type = MemoryType::eWriteBack) {
-            return mTables.map(mapping, flags, type);
+            return mTables.map(mapping, flags | mExtraFlags, type);
         }
 
+        /// @brief Map a physical memory range into the virtual memory space.
+        ///
+        /// @param range the physical memory range to map.
+        /// @param flags the page flags to use.
+        /// @param type the memory type to use.
+        /// @param mapping the resulting virtual memory mapping.
+        /// @return The status of the operation.
         OsStatus map(MemoryRange range, PageFlags flags, MemoryType type, AddressMapping *mapping) {
             size_t pages = Pages(range.size());
             VirtualRange vmem = vmemAllocate(pages);
@@ -89,12 +98,9 @@ namespace km {
     /// The top half of address space is reserved for the kernel.
     /// Each process has the kernel address space mapped into the higher half.
     /// Kernel addresses are identified by having the top bits set in the canonical address.
-    class SystemPageTables : public IPageTables {
-
+    class SystemPageTables : public AddressSpaceAllocator {
     public:
-        SystemPageTables(AddressMapping pteMemory, const PageBuilder *pm, VirtualRange systemArea)
-            : IPageTables(pteMemory, pm, PageFlags::eAll, systemArea)
-        { }
+        SystemPageTables(AddressMapping pteMemory, const PageBuilder *pm, VirtualRange systemArea);
     };
 
     /// @brief Per process address space.
@@ -102,37 +108,9 @@ namespace km {
     /// Each process has its own address space, which has the kernel address space mapped into the higher half.
     /// The lower half of the address space is reserved for the process.
     /// Process addresses are identified by having the top bits clear in the canonical address.
-    class ProcessPageTables : public IPageTables {
+    class ProcessPageTables : public AddressSpaceAllocator {
         SystemPageTables *mSystemTables;
-
     public:
-        ProcessPageTables(SystemPageTables *kernel, AddressMapping pteMemory, VirtualRange processArea)
-            : IPageTables(pteMemory, kernel->pageManager(), PageFlags::eUserAll, processArea)
-            , mSystemTables(kernel)
-        {
-            //
-            // Copy the higher half mappings from the kernel ptes to the process ptes.
-            //
-
-            PageTables& system = mSystemTables->ptes();
-            PageTables& process = ptes();
-
-            x64::PageMapLevel4 *pml4 = system.pml4();
-            x64::PageMapLevel4 *self = process.pml4();
-
-            //
-            // Only copy the higher half mappings, which are 256-511.
-            //
-            static constexpr size_t kCount = (sizeof(x64::PageMapLevel4) / sizeof(x64::pml4e)) / 2;
-            std::copy_n(pml4->entries + kCount, kCount, self->entries + kCount);
-        }
-
-        OsStatus map(AddressMapping mapping, PageFlags flags, MemoryType type = MemoryType::eWriteBack) {
-            return IPageTables::map(mapping, flags | PageFlags::eUser, type);
-        }
-
-        OsStatus map(MemoryRange range, PageFlags flags, MemoryType type, AddressMapping *mapping) {
-            return IPageTables::map(range, flags | PageFlags::eUser, type, mapping);
-        }
+        ProcessPageTables(SystemPageTables *kernel, AddressMapping pteMemory, VirtualRange processArea);
     };
 }
