@@ -434,6 +434,9 @@ testcases = {
         'test/isr/isr.cpp',
         'src/isr/default.cpp',
     ],
+    'layout': [
+        'test/memory/layout.cpp',
+    ],
     # 'memory': [
     #     'test/memory.cpp',
     #     'src/memory.cpp',

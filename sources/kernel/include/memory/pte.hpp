@@ -23,7 +23,30 @@ namespace km {
         stdx::SpinLock mLock;
         PageFlags mMiddleFlags;
 
+        /// @brief Allocate a new page table, garanteed to be aligned to 4k and zeroed.
+        ///
+        /// @return The new page table, or @c nullptr if no memory is available.
         x64::page *alloc4k();
+
+        /// @brief Convert the physical address of a page table to a virtual address.
+        ///
+        /// All page tables are allocated from a memory pool which has a fixed offset.
+        /// We can use that to convert between physical and virtual addresses.
+        ///
+        /// @param addr The physical address of the page table.
+        /// @return The virtual address of the page table.
+        template<typename T>
+        T *asVirtual(PhysicalAddress addr) const {
+            return (T*)(addr.address + mSlide);
+        }
+
+        /// @brief Convert the virtual address of a page table to a physical address.
+        ///
+        /// This can be used for storing a new page table in a pte.
+        ///
+        /// @param ptr The virtual address of the page table.
+        /// @return The physical address of the page table.
+        PhysicalAddress asPhysical(const void *ptr) const;
 
         /// @brief Get the virtual address of a sub-table from a table entry.
         ///
@@ -52,25 +75,18 @@ namespace km {
         OsStatus mapRange2m(AddressMapping mapping, PageFlags flags, MemoryType type);
         OsStatus mapRange1g(AddressMapping mapping, PageFlags flags, MemoryType type);
 
-        OsStatus map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
-        OsStatus map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
-        OsStatus map1g(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
-
-        template<typename T>
-        T *asVirtual(PhysicalAddress addr) const {
-            return (T*)(addr.address + mSlide);
-        }
-
-        PhysicalAddress asPhysical(const void *ptr) const;
+        OsStatus map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type);
+        OsStatus map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type);
+        OsStatus map1g(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type);
 
     public:
         PageTables(const PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags);
 
+        const PageBuilder *pageManager() const { return mPageManager; }
+
         const x64::PageMapLevel4 *pml4() const { return mRootPageTable; }
         x64::PageMapLevel4 *pml4() { return mRootPageTable; }
-
         PhysicalAddress root() const { return asPhysical(pml4()); }
-        const PageBuilder *pageManager() const { return mPageManager; }
 
         OsStatus map(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
         OsStatus unmap(VirtualRange range);
@@ -84,9 +100,7 @@ namespace km {
             unmap(VirtualRange { ptr, (char*)ptr + size });
         }
 
-        OsStatus map(AddressMapping mapping, PageFlags flags, MemoryType type = MemoryType::eWriteBack) {
-            return map(mapping.physicalRange(), mapping.vaddr, flags, type);
-        }
+        OsStatus map(AddressMapping mapping, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
     };
 
     /// @brief Remap the kernel to replace the boot page tables.

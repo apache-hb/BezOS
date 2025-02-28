@@ -53,8 +53,8 @@ namespace km {
             return { vaddr, (const char*)vaddr + size };
         }
 
-        constexpr uintptr_t slide() const {
-            return (uintptr_t)vaddr - paddr.address;
+        constexpr intptr_t slide() const {
+            return (intptr_t)vaddr - paddr.address;
         }
 
         constexpr bool isEmpty() const {
@@ -70,7 +70,43 @@ namespace km {
             PhysicalAddress pbegin = paddr + size - bytes;
             return { vbegin, pbegin, bytes };
         }
+
+        constexpr AddressMapping offset(intptr_t offset) const {
+            return { (const char*)vaddr + offset, paddr + offset, size };
+        }
+
+        /// @brief Return a new mapping that is aligned to the given size.
+        ///
+        /// The new mapping is garunteed to be aligned to the given size and will
+        /// cover at least the same range as the original mapping.
+        ///
+        /// @pre @e equalOffsetTo(align) must be true.
+        ///
+        /// @param align The alignment size.
+        /// @return The aligned mapping.
+        constexpr AddressMapping aligned(size_t align) const {
+            PhysicalAddress alignedHead = sm::rounddown(paddr.address, align);
+            size_t alignedTail = sm::roundup(size + paddr.address, align);
+            size_t alignedSize = (alignedTail - alignedHead.address);
+
+            const void *alignedVaddr = (void*)sm::rounddown(uintptr_t(vaddr), align);
+            return { alignedVaddr, alignedHead, alignedSize };
+        }
+
+        /// @brief Are the virtual and physical addresses aligned to the given size.
+        constexpr bool alignsExactlyTo(size_t align) const {
+            return (uintptr_t)vaddr % align == 0 && paddr.address % align == 0;
+        }
+
+        /// @brief Do the virtual and physical addresses have the same alignment relative to the given size.
+        constexpr bool equalOffsetTo(size_t align) const {
+            return ((uintptr_t)vaddr % align) == (paddr.address % align);
+        }
     };
+
+    constexpr AddressMapping MappingOf(const void *vaddr, PhysicalAddress paddr, size_t size) {
+        return AddressMapping { vaddr, paddr, size };
+    }
 
     constexpr AddressMapping MappingOf(MemoryRange range, const void *vaddr) {
         return AddressMapping { vaddr, range.front, range.size() };

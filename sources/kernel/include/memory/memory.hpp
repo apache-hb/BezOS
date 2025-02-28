@@ -10,6 +10,7 @@
 namespace km {
     enum class PageFlags : uint8_t {
         eNone = 0,
+
         eRead = 1 << 0,
         eWrite = 1 << 1,
         eExecute = 1 << 2,
@@ -49,7 +50,7 @@ namespace km {
         MemoryType type = MemoryType::eWriteBack;
     };
 
-    enum class PageSize {
+    enum class PageSize : uint8_t {
         eNone,
         eRegular,
         eLarge,
@@ -79,7 +80,7 @@ namespace km {
     /// @note If any address is not found, all addresses afterwards will also be invalid.
     struct PageWalk {
         /// @brief The virtual address that was walked.
-        uintptr_t address;
+        const void *address;
 
         /// @brief The entry in the pml4 that contains the address.
         uint16_t pml4eIndex;
@@ -138,3 +139,29 @@ namespace km {
         }
     };
 }
+
+template<>
+struct km::Format<km::PageSize> {
+    static void format(km::IOutStream& out, km::PageSize value) {
+        switch (value) {
+        case km::PageSize::eNone: out.format("None"); break;
+        case km::PageSize::eRegular: out.format("4k"); break;
+        case km::PageSize::eLarge: out.format("2m"); break;
+        case km::PageSize::eHuge: out.format("1g"); break;
+        }
+    }
+};
+
+template<>
+struct km::Format<km::PageFlags> {
+    static void format(km::IOutStream& out, km::PageFlags value) {
+        if (bool(value & km::PageFlags::eRead)) out.format("R");
+        if (bool(value & km::PageFlags::eWrite)) out.format("W");
+        if (bool(value & km::PageFlags::eExecute)) out.format("X");
+
+        if (bool(value & km::PageFlags::eUser))
+            out.format("U");
+        else
+            out.format("S");
+    }
+};

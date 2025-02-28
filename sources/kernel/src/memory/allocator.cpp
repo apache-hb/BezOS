@@ -3,8 +3,6 @@
 #include "log.hpp"
 #include "memory/paging.hpp"
 
-#include <limits.h>
-
 using namespace km;
 
 extern "C" {
@@ -23,12 +21,24 @@ extern "C" {
 
 static void MapKernelPages(PageTables& memory, km::PhysicalAddress paddr, const void *vaddr) {
     auto mapKernelRange = [&](const void *begin, const void *end, PageFlags flags, stdx::StringView name) {
-        km::PhysicalAddress front = km::PhysicalAddress {  (uintptr_t)begin - (uintptr_t)__kernel_start };
-        km::PhysicalAddress back = km::PhysicalAddress { (uintptr_t)end - (uintptr_t)__kernel_start };
+        PhysicalAddress front = (uintptr_t)begin - (uintptr_t)__kernel_start;
+        PhysicalAddress back = (uintptr_t)end - (uintptr_t)__kernel_start;
 
-        KmDebugMessage("[INIT] Mapping ", Hex((uintptr_t)begin), "-", Hex((uintptr_t)end), " - ", name, "\n");
+        MemoryRange range = { paddr + front.address, paddr + back.address };
+        const void *section = (char*)vaddr + front.address;
 
-        memory.map({ paddr + front.address, paddr + back.address }, (char*)vaddr + front.address, flags, MemoryType::eWriteBack);
+        AddressMapping mapping = MappingOf(range, section);
+        if (!mapping.alignsExactlyTo(x64::kPageSize)) {
+            KmDebugMessage("[INIT] Damaged kernel image detected: ", name, " is not page aligned.\n");
+            KmDebugMessage("[DATA] ", mapping, "\n");
+            KM_PANIC("Kernel image is not page aligned.");
+        }
+
+        AddressMapping aligned = mapping.aligned(x64::kPageSize);
+
+        KmDebugMessage("[INIT] Mapping ", aligned, " - ", name, "\n");
+
+        memory.map(aligned, flags, MemoryType::eWriteBack);
     };
 
     KmDebugMessage("[INIT] Mapping kernel pages.\n");
@@ -39,7 +49,6 @@ static void MapKernelPages(PageTables& memory, km::PhysicalAddress paddr, const 
 }
 
 void km::MapKernel(km::PageTables& vmm, km::PhysicalAddress paddr, const void *vaddr) {
-    // first map the kernel pages
     MapKernelPages(vmm, paddr, vaddr);
 }
 

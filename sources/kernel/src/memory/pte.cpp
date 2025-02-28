@@ -202,14 +202,16 @@ OsStatus PageTables::map1g(PhysicalAddress paddr, const void *vaddr, PageFlags f
     return OsStatusSuccess;
 }
 
-OsStatus PageTables::map(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type) {
-    //
-    // Align memory to 4k page boundaries
-    //
-    range.front = sm::rounddown(range.front.address, x64::kPageSize);
-    range.back = sm::roundup(range.back.address, x64::kPageSize);
+OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType type) {
+    bool valid = (mapping.size % x64::kPageSize == 0)
+        && (mapping.paddr.address % x64::kPageSize == 0)
+        && ((uintptr_t)mapping.vaddr % x64::kPageSize == 0)
+        && mPageManager->isCanonicalAddress(mapping.vaddr);
 
-    AddressMapping mapping = MappingOf(range, vaddr);
+    if (!valid) {
+        KmDebugMessage("[MEM] Invalid mapping request ", mapping, "\n");
+        KM_PANIC("Invalid memory mapping.");
+    }
 
     //
     // We can use large pages if the range is larger than 2m after alignment and the mapping
@@ -265,6 +267,10 @@ OsStatus PageTables::map(MemoryRange range, const void *vaddr, PageFlags flags, 
     // so we map the range with 4k pages.
     //
     return mapRange4k(mapping, flags, type);
+}
+
+OsStatus PageTables::map(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type) {
+    return map(MappingOf(range, vaddr), flags, type);
 }
 
 OsStatus PageTables::unmap(VirtualRange range) {
@@ -382,7 +388,7 @@ OsStatus PageTables::walk(const void *ptr, PageWalk *walk) {
     } while (false);
 
     PageWalk result {
-        .address = reinterpret_cast<uintptr_t>(ptr),
+        .address = ptr,
         .pml4eIndex = pml4eIndex,
         .pml4e = pml4e,
         .pdpteIndex = pdpteIndex,
