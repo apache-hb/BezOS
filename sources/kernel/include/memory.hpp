@@ -26,15 +26,6 @@ namespace km {
             MemoryType type = MemoryType::eWriteBack
         );
 
-        AddressMapping kernelAllocate(size_t size, PageFlags flags, MemoryType type);
-
-        AddressMapping allocateWithHint(
-            const void *hint,
-            size_t size,
-            PageFlags flags = PageFlags::eData,
-            MemoryType type = MemoryType::eWriteBack
-        );
-
         AddressMapping allocate(AllocateRequest request);
 
         void release(void *ptr, size_t size);

@@ -1403,8 +1403,14 @@ static int incRead(void *context, char *buffer, int size) {
     return fread(buffer, 1, size, (FILE*)context);
 }
 
-static void GenerateClangDaemonConfig() {
-    std::string text = []{
+static void GenerateClangDaemonConfig(const std::vector<std::string>& args) {
+    auto shouldIncludeFragment = [&](const std::string& name) {
+        if (args.empty()) return true;
+
+        return stdr::find(args, name) != args.end();
+    };
+
+    std::string text = [&] {
         std::ifstream file(".clangd");
 
         // read in the file
@@ -1430,6 +1436,10 @@ static void GenerateClangDaemonConfig() {
         };
 
         for (const auto& [name, pkg] : gWorkspace.packages) {
+            if (!shouldIncludeFragment(name)) {
+                continue;
+            }
+
             if (pkg.HasCompileCommands()) {
                 auto workspace = pkg.GetWorkspaceFolder().lexically_relative(fs::current_path());
                 auto builddir = pkg.GetBuildFolder();
@@ -1492,8 +1502,7 @@ int main(int argc, const char **argv) try {
 
     parser.add_argument("--clangd")
         .help("Generate .clangd file for clangd")
-        .default_value(false)
-        .implicit_value(true);
+        .nargs(argparse::nargs_pattern::any);
 
     parser.add_argument("--output")
         .help("Path to the intermediate build folder")
@@ -1613,8 +1622,8 @@ int main(int argc, const char **argv) try {
         VisitPackage(gWorkspace.packages[package]);
     }
 
-    if (parser["--clangd"] == true) {
-        GenerateClangDaemonConfig();
+    if (parser.present("--clangd")) {
+        GenerateClangDaemonConfig(parser.get<std::vector<std::string>>("--clangd"));
     }
 
     if (parser.present("--test")) {

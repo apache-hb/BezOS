@@ -80,9 +80,11 @@ static void LogApicStartup(uint64_t msr) {
 // x2apic free functions
 
 void km::EnableX2Apic() {
+    //
     // Intel® 64 Architecture x2APIC Specification
     // Table 2-1. x2APIC Operating Mode Configurations
     // Both IA32_APIC_BASE[11] (xAPIC global enable) and IA32_APIC_BASE[10] (x2APIC enable) must be set.
+    //
     kApicBase |= (kX2ApicEnableBit | kApicEnableBit);
 
     LogApicStartup(kApicBase.load());
@@ -130,10 +132,12 @@ static km::LocalApic MapLocalApic(uint64_t msr, km::SystemMemory& memory) {
 
     uintptr_t base = msr & kApicAddressMask;
 
+    //
     // Intel SDM Vol 3A 12-4 12.4.1
     // For correct APIC operation, this address space must
     // be mapped to an area of memory that has
     // been designated as strong uncacheable (UC)
+    //
     void *addr = memory.map(km::MemoryRange::of(base, kApicSize), km::PageFlags::eData, km::MemoryType::eUncached);
 
     return km::LocalApic { addr };

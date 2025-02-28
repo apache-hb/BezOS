@@ -16,23 +16,6 @@ void *km::SystemMemory::allocate(size_t size, PageFlags flags, MemoryType type) 
     }).vaddr;
 }
 
-km::AddressMapping km::SystemMemory::kernelAllocate(size_t size, PageFlags flags, MemoryType type) {
-    return allocate(AllocateRequest {
-        .size = size,
-        .flags = flags,
-        .type = type
-    });
-}
-
-km::AddressMapping km::SystemMemory::allocateWithHint(const void *hint, size_t size, PageFlags flags, MemoryType type) {
-    return allocate(AllocateRequest {
-        .size = size,
-        .hint = hint,
-        .flags = flags,
-        .type = type
-    });
-}
-
 km::AddressMapping km::SystemMemory::allocateStack(size_t size) {
     size_t pages = Pages(size);
     OsStatus status = OsStatusSuccess;

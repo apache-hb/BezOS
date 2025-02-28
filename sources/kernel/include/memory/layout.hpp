@@ -40,6 +40,7 @@ namespace km {
         return sm::roundup(bytes, x64::kLargePageSize) / x64::kLargePageSize;
     }
 
+    /// @brief A mapping of a virtual address to a physical address.
     struct AddressMapping {
         const void *vaddr;
         PhysicalAddress paddr;

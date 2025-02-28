@@ -22,13 +22,3 @@ executable('init.elf', src,
     install_dir : get_option('prefix'),
     dependencies : [ flanterm ],
 )
-
-src = [
-    'shell/shell.cpp',
-]
-
-executable('shell.elf', src,
-    link_args : args,
-    install : true,
-    install_dir : get_option('prefix'),
-)

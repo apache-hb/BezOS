@@ -31,6 +31,8 @@ src = [
     'src/posix/fcntl.cpp',
     'src/posix/stdio.cpp',
     'src/posix/errno.cpp',
+    'src/posix/string.cpp',
+    'src/posix/ctype.cpp',
 ]
 
 libposix = static_library('bezos-posix', src,

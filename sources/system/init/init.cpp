@@ -9,8 +9,8 @@
 #include <flanterm.h>
 #include <backends/fb.h>
 
+#include <ctype.h>
 #include <string.h>
-#include <algorithm>
 #include <iterator>
 
 static constexpr size_t kBufferSize = 16;
@@ -224,79 +224,12 @@ public:
     }
 };
 
-extern "C" size_t strlen(const char *str) {
-    size_t len = 0;
-    while (*str++) {
-        len++;
-    }
-    return len;
-}
-
-extern "C" void *memset(void *ptr, int value, size_t num) {
-    unsigned char *begin = static_cast<unsigned char *>(ptr);
-    unsigned char *end = begin + num;
-
-    for (unsigned char *it = begin; it != end; ++it) {
-        *it = static_cast<unsigned char>(value);
-    }
-
-    return ptr;
-}
-
-extern "C" void *memcpy(void *dest, const void *src, size_t num) {
-    unsigned char *d = static_cast<unsigned char *>(dest);
-    const unsigned char *s = static_cast<const unsigned char *>(src);
-
-    for (size_t i = 0; i < num; i++) {
-        d[i] = s[i];
-    }
-
-    return dest;
-}
-
 template<size_t N>
 static OsStatus OpenFile(const char (&path)[N], OsFileHandle *OutHandle) {
     const char *begin = path;
     const char *end = path + N - 1;
 
     return OsFileOpen(begin, end, eOsFileRead, OutHandle);
-}
-
-extern "C" bool isprint(int c) {
-    return c >= 0x20 && c <= 0x7E;
-}
-
-extern "C" bool isalnum(int c) {
-    return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
-}
-
-extern "C" int isalpha(int c) {
-    return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
-}
-
-extern "C" int toupper(int c) {
-    if (c >= 'a' && c <= 'z') {
-        return c - 'a' + 'A';
-    }
-
-    return c;
-}
-
-extern "C" int tolower(int c) {
-    if (c >= 'A' && c <= 'Z') {
-        return c - 'A' + 'a';
-    }
-
-    return c;
-}
-
-extern "C" int strcmp(const char *lhs, const char *rhs) {
-    while (*lhs && *rhs && *lhs == *rhs) {
-        lhs++;
-        rhs++;
-    }
-
-    return *lhs - *rhs;
 }
 
 static void Prompt(VtDisplay& display) {
