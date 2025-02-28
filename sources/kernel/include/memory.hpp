@@ -130,7 +130,7 @@ namespace km {
 
         // TODO: vmem leaks on error
 
-        AddressMapping map = MappingOf(vmem, range.front);
+        AddressMapping map = MappingOf(vmem, address);
 
         OsStatus status = ptes->map(map, PageFlags::eUserData, MemoryType::eWriteBack);
         if (status != OsStatusSuccess) {

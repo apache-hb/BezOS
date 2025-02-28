@@ -65,7 +65,7 @@ static OsStatus LoadMemorySize(std::span<const elf::ElfProgramHeader> phs, km::V
         return OsStatusInvalidData;
     }
 
-    *range = result;
+    *range = km::alignedOut(result, x64::kPageSize);
     return OsStatusSuccess;
 }
 
@@ -247,7 +247,8 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
         //
 
         // Distance between this program header load base and the ELF load base.
-        uintptr_t distance = (uintptr_t)ph.vaddr - (uintptr_t)loadMemory.front;
+        uintptr_t alignedVaddr = ph.vaddr;
+        uintptr_t distance = (uintptr_t)alignedVaddr - (uintptr_t)loadMemory.front;
 
         // The virtual address of the program header load address.
         uintptr_t base = (uintptr_t)loadMapping.vaddr + distance;
@@ -290,12 +291,12 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
         // Now we can set the correct flags.
         //
         PageFlags flags = PageFlags::eUser;
-        if (ph.flags & (1 << 0))
-            flags |= PageFlags::eExecute;
-        if (ph.flags & (1 << 1))
-            flags |= PageFlags::eWrite;
-        if (ph.flags & (1 << 2))
-            flags |= PageFlags::eRead;
+        // if (ph.flags & (1 << 0))
+        flags |= PageFlags::eExecute;
+        // if (ph.flags & (1 << 1))
+        flags |= PageFlags::eWrite;
+        // if (ph.flags & (1 << 2))
+        flags |= PageFlags::eRead;
 
         process->ptes.map(mapping, flags);
 
