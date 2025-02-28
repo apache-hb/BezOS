@@ -118,18 +118,22 @@ void km::SystemMemory::unmap(void *ptr, size_t size) {
 }
 
 void *km::SystemMemory::map(PhysicalAddress begin, PhysicalAddress end, PageFlags flags, MemoryType type) {
+    return map(MemoryRange { begin, end }, flags, type);
+}
+
+void *km::SystemMemory::map(MemoryRange range, PageFlags flags, MemoryType type) {
     //
     // I may be asked to map a range that is not page aligned
     // so I need to save the offset to apply to the virtual address before giving it back.
     //
-    uintptr_t offset = (begin.address & 0xFFF);
+    uintptr_t offset = (range.front.address & 0xFFF);
 
-    MemoryRange range { sm::rounddown(begin.address, x64::kPageSize), sm::roundup(end.address, x64::kPageSize) };
+    MemoryRange aligned = PageAligned(range);
 
-    reservePhysical(range);
+    reservePhysical(aligned);
 
     AddressMapping mapping{};
-    OsStatus status = ptes.map(range, flags, type, &mapping);
+    OsStatus status = ptes.map(aligned, flags, type, &mapping);
     if (status != OsStatusSuccess) {
         return nullptr;
     }

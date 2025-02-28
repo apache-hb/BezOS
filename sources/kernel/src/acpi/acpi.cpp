@@ -32,9 +32,11 @@ static bool ValidateRsdpLocator(const acpi::RsdpLocator *rsdp) {
 static const acpi::RsdtHeader *MapTableEntry(km::PhysicalAddress paddr, km::SystemMemory& memory) {
     // first map the header
     const acpi::RsdtHeader *header = memory.mapConst<acpi::RsdtHeader>(paddr);
+    uint32_t length = header->length;
+    memory.unmap((void*)header, sizeof(acpi::RsdtHeader));
 
     // then use the headers length to ensure we map the entire table
-    return memory.mapConst<acpi::RsdtHeader>(paddr, paddr + header->length);
+    return memory.mapConst<acpi::RsdtHeader>(km::MemoryRange::of(paddr, length));
 }
 
 static void DebugMadt(const acpi::Madt *madt) {

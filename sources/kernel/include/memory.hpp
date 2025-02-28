@@ -67,35 +67,33 @@ namespace km {
         SystemPageTables& pageTables() { return ptes; }
         PageAllocator& pmmAllocator() { return pmm; }
 
+        void *map(MemoryRange range, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eWriteBack);
+
         void *map(PhysicalAddress begin, PhysicalAddress end, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eWriteBack);
 
-        void *map(MemoryRange range, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eWriteBack) {
-            return map(range.front, range.back, flags, type);
-        }
-
         template<typename T>
-        T *mapObject(PhysicalAddress begin, PhysicalAddress end, MemoryType type = MemoryType::eWriteBack) {
-            return (T*)map(begin, end, PageFlags::eData, type);
+        T *mapObject(MemoryRange range, MemoryType type = MemoryType::eWriteBack) {
+            return (T*)map(range, PageFlags::eData, type);
         }
 
         template<typename T>
         T *mapObject(PhysicalAddress paddr, MemoryType type = MemoryType::eWriteBack) {
-            return mapObject<T>(paddr, paddr + sizeof(T), type);
+            return mapObject<T>(MemoryRange::of(paddr, sizeof(T)), type);
         }
 
         template<typename T>
         T *mmioRegion(PhysicalAddress begin) {
-            return mapObject<T>(begin, begin + sizeof(T), MemoryType::eUncached);
+            return mapObject<T>(MemoryRange::of(begin, sizeof(T)), MemoryType::eUncached);
         }
 
         template<typename T>
-        const T *mapConst(PhysicalAddress begin, PhysicalAddress end, MemoryType type = MemoryType::eWriteBack) {
-            return (const T*)map(begin, end, PageFlags::eRead, type);
+        const T *mapConst(MemoryRange range, MemoryType type = MemoryType::eWriteBack) {
+            return (const T*)map(range, PageFlags::eRead, type);
         }
 
         template<typename T>
         const T *mapConst(PhysicalAddress paddr, MemoryType type = MemoryType::eWriteBack) {
-            return mapConst<T>(paddr, paddr + sizeof(T), type);
+            return mapConst<T>(MemoryRange::of(paddr, sizeof(T)), type);
         }
     };
 

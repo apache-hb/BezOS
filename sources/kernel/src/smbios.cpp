@@ -3,8 +3,104 @@
 #include "log.hpp"
 
 #include "std/static_vector.hpp"
+#include "util/defer.hpp"
+#include "util/signature.hpp"
+
+#include <stdint.h>
 
 using namespace stdx::literals;
+
+namespace smbios {
+    struct [[gnu::packed]] Entry64 {
+        static constexpr auto kAnchor0 = util::Signature("_SM3_");
+
+        std::array<char, 5> anchor;
+        uint8_t checksum;
+        uint8_t length;
+        uint8_t major;
+        uint8_t minor;
+        uint8_t revision;
+        uint8_t entryRevision;
+        uint8_t reserved0[1];
+        uint32_t tableSize;
+        uint64_t tableAddress;
+    };
+
+    struct [[gnu::packed]] Entry32 {
+        static constexpr auto kAnchor0 = util::Signature("_SM_");
+        static constexpr auto kAnchor1 = util::Signature("_DMI_");
+
+        std::array<char, 4> anchor0;
+        uint8_t checksum0;
+
+        uint8_t length;
+        uint8_t major;
+        uint8_t minor;
+        uint16_t tableSize;
+        uint8_t entryRevision;
+        uint8_t reserved0[5];
+
+        std::array<char, 5> anchor1;
+        uint8_t checksum1;
+
+        uint16_t tableLength;
+        uint32_t tableAddress;
+        uint16_t entryCount;
+        uint8_t bcdRevision;
+    };
+
+    enum class StructType : uint8_t {
+        eFirmwareInfo = 0,
+        eSystemInfo = 1,
+        eSystemEnclosure = 3,
+        eProcessor = 4,
+        eSystemSlots = 9,
+        eMemoryDevice = 17,
+        eBootInfo = 32,
+    };
+
+    struct [[gnu::packed]] StructHeader {
+        smbios::StructType type;
+        uint8_t length;
+        uint16_t handle;
+    };
+
+    struct [[gnu::packed]] FirmwareInfo {
+        StructHeader header;
+        uint8_t vendor;
+        uint8_t version;
+        uint16_t start;
+        uint8_t build;
+        uint8_t romSize;
+        uint64_t characteristics;
+        uint8_t reserved0[1];
+    };
+
+    struct [[gnu::packed]] SystemInfo {
+        StructHeader header;
+        uint8_t manufacturer;
+        uint8_t productName;
+        uint8_t version;
+        uint8_t serialNumber;
+        uint8_t uuid[16];
+        uint8_t wakeUpType;
+        uint8_t skuNumber;
+        uint8_t family;
+    };
+}
+
+template<typename T>
+constexpr km::MemoryRange SmBiosTableRange(const T *table) {
+    return km::MemoryRange::of(table->tableAddress, table->tableSize);
+}
+
+template<typename T>
+static km::VirtualRange SmBiosMapTable(const T *table, km::SystemMemory& memory) {
+    void *address = memory.map(SmBiosTableRange(table));
+    KmDebugMessage("[SMBIOS] Table address: ", km::Hex(table->tableAddress).pad(sizeof(T::tableAddress) * 2), ", Size: ", auto{table->tableSize}, "\n");
+    KmDebugMessage(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(address), table->tableSize)), "\n");
+    return km::VirtualRange::of(address, table->tableSize);
+}
 
 bool km::PlatformInfo::isOracleVirtualBox() const {
     return vendor == "innotek GmbH";
@@ -16,8 +112,8 @@ bool km::PlatformInfo::isOracleVirtualBox() const {
 /// @param ptr The pointer to read the entry from.
 /// @return The start of the next entry.
 static const void *ReadSmbiosEntry(km::PlatformInfo& info, const void *ptr) {
-    const km::SmBiosEntryHeader *header = (const km::SmBiosEntryHeader*)ptr;
-    KmDebugMessage("[SMBIOS] Type: ", header->type, ", Length: ", header->length, ", Handle: ", auto{header->handle}, "\n");
+    const smbios::StructHeader *header = (const smbios::StructHeader*)ptr;
+    KmDebugMessage("[SMBIOS] Type: ", std::to_underlying(header->type), ", Length: ", header->length, ", Handle: ", auto{header->handle}, "\n");
 
     const char *front = (const char*)((uintptr_t)ptr + header->length);
     const char *back = front;
@@ -46,51 +142,34 @@ static const void *ReadSmbiosEntry(km::PlatformInfo& info, const void *ptr) {
         stdx::StringView entry = stdx::StringView(front, back);
         strings.add(entry);
 
-        KmDebugMessage("[SMBIOS] String: ", entry, "\n");
-
         back++;
         front = back;
     }
 
-    KmDebugMessage("[SMBIOS] Strings: ", strings.count(), "\n");
-
-    if (header->type == 0) {
-        const km::SmBiosFirmwareInfo *firmware = (const km::SmBiosFirmwareInfo*)ptr;
+    if (header->type == smbios::StructType::eFirmwareInfo) {
+        const smbios::FirmwareInfo *firmware = (const smbios::FirmwareInfo*)ptr;
         info.vendor = getString(firmware->vendor);
-        KmDebugMessage("[SMBIOS] Vendor: ", info.vendor, "\n");
         info.version = getString(firmware->version);
-        KmDebugMessage("[SMBIOS] Version: ", info.version, "\n");
-    } else if (header->type == 1) {
-        const km::SmBiosSystemInfo *system = (const km::SmBiosSystemInfo*)ptr;
+    } else if (header->type == smbios::StructType::eSystemInfo) {
+        const smbios::SystemInfo *system = (const smbios::SystemInfo*)ptr;
         info.manufacturer = getString(system->manufacturer);
-        KmDebugMessage("[SMBIOS] Manufacturer: ", info.manufacturer, "\n");
         info.product = getString(system->productName);
-        KmDebugMessage("[SMBIOS] Product: ", info.product, "\n");
-        KmDebugMessage("[SMBIOS] Serial: ", system->serialNumber, "\n");
         info.serial = getString(system->serialNumber);
-        KmDebugMessage("[SMBIOS] Serial: ", info.serial, "\n");
     }
-
-    KmDebugMessage("[SMBIOS] Read entry.\n");
 
     return back + 2;
 }
 
 static std::optional<km::PlatformInfo> ReadSmbios64(km::PhysicalAddress address, km::SystemMemory& memory) {
-    const km::SmBiosHeader64 *smbios = memory.mapObject<km::SmBiosHeader64>(address);
+    const auto *smbios = memory.mapConst<smbios::Entry64>(address);
+    defer { memory.unmap((void*)smbios, sizeof(smbios::Entry64)); };
 
     if (smbios->anchor != stdx::StringView("_SM3_")) {
         KmDebugMessage("[SMBIOS] Invalid anchor: ", smbios->anchor, "\n");
-        memory.unmap((void*)smbios, sizeof(km::SmBiosHeader64));
         return std::nullopt;
     }
 
-    void *tableAddress = memory.map(smbios->tableAddress, smbios->tableAddress + smbios->tableSize);
-    KmDebugMessage("[SMBIOS] Table address: ", km::Hex(smbios->tableAddress).pad(16, '0'), ", Size: ", auto{smbios->tableSize}, "\n");
-    KmDebugMessage(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(tableAddress), smbios->tableSize)), "\n");
-
-    const void *ptr = tableAddress;
-    const void *end = (const void*)((uintptr_t)ptr + smbios->tableSize);
+    auto [ptr, end] = SmBiosMapTable(smbios, memory);
 
     km::PlatformInfo info;
 
@@ -98,25 +177,19 @@ static std::optional<km::PlatformInfo> ReadSmbios64(km::PhysicalAddress address,
         ptr = ReadSmbiosEntry(info, ptr);
     }
 
-    memory.unmap((void*)smbios, sizeof(km::SmBiosHeader64));
     return info;
 }
 
 static km::PlatformInfo ReadSmbios32(km::PhysicalAddress address, km::SystemMemory& memory) {
-    const km::SmBiosHeader32 *smbios = memory.mapObject<km::SmBiosHeader32>(address);
+    const auto *smbios = memory.mapConst<smbios::Entry32>(address);
+    defer { memory.unmap((void*)smbios, sizeof(smbios::Entry32)); };
 
-    if (smbios->anchor0 != stdx::StringView("_SM_")) {
+    if (smbios->anchor0 != smbios::Entry32::kAnchor0) {
         KmDebugMessage("[SMBIOS] Invalid anchor0: ", smbios->anchor0, "\n");
-        memory.unmap((void*)smbios, sizeof(km::SmBiosHeader32));
         return km::PlatformInfo{};
     }
 
-    void *tableAddress = memory.map(smbios->tableAddress, smbios->tableAddress + smbios->tableSize);
-    KmDebugMessage("[SMBIOS] Table address: ", km::Hex(smbios->tableAddress).pad(8, '0'), ", Size: ", auto{smbios->tableSize}, "\n");
-    KmDebugMessage(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(tableAddress), smbios->tableSize)), "\n");
-
-    const void *ptr = tableAddress;
-    const void *end = (const void*)((uintptr_t)ptr + smbios->tableSize);
+    auto [ptr, end] = SmBiosMapTable(smbios, memory);
 
     km::PlatformInfo info;
 
@@ -124,7 +197,6 @@ static km::PlatformInfo ReadSmbios32(km::PhysicalAddress address, km::SystemMemo
         ptr = ReadSmbiosEntry(info, ptr);
     }
 
-    memory.unmap((void*)smbios, sizeof(km::SmBiosHeader32));
     return info;
 }
 

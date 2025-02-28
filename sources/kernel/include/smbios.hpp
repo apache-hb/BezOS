@@ -3,71 +3,7 @@
 #include "memory.hpp"
 #include "std/static_string.hpp"
 
-#include <stdint.h>
-
 namespace km {
-    struct [[gnu::packed]] SmBiosHeader64 {
-        std::array<char, 5> anchor;
-        uint8_t checksum;
-        uint8_t length;
-        uint8_t major;
-        uint8_t minor;
-        uint8_t revision;
-        uint8_t entryRevision;
-        uint8_t reserved0[1];
-        uint32_t tableSize;
-        uint64_t tableAddress;
-    };
-
-    struct [[gnu::packed]] SmBiosHeader32 {
-        std::array<char, 4> anchor0;
-        uint8_t checksum0;
-
-        uint8_t length;
-        uint8_t major;
-        uint8_t minor;
-        uint16_t tableSize;
-        uint8_t entryRevision;
-        uint8_t reserved0[5];
-
-        char anchor1[5];
-        uint8_t checksum1;
-
-        uint16_t tableLength;
-        uint32_t tableAddress;
-        uint16_t entryCount;
-        uint8_t bcdRevision;
-    };
-
-    struct [[gnu::packed]] SmBiosEntryHeader {
-        uint8_t type;
-        uint8_t length;
-        uint16_t handle;
-    };
-
-    struct [[gnu::packed]] SmBiosFirmwareInfo {
-        SmBiosEntryHeader header;
-        uint8_t vendor;
-        uint8_t version;
-        uint16_t start;
-        uint8_t build;
-        uint8_t romSize;
-        uint64_t characteristics;
-        uint8_t reserved0[1];
-    };
-
-    struct [[gnu::packed]] SmBiosSystemInfo {
-        SmBiosEntryHeader header;
-        uint8_t manufacturer;
-        uint8_t productName;
-        uint8_t version;
-        uint8_t serialNumber;
-        uint8_t uuid[16];
-        uint8_t wakeUpType;
-        uint8_t skuNumber;
-        uint8_t family;
-    };
-
     struct PlatformInfo {
         stdx::StaticString<64> vendor;
         stdx::StaticString<64> version;
