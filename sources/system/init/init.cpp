@@ -9,7 +9,7 @@
 #include <flanterm.h>
 #include <backends/fb.h>
 
-#include <cstring>
+#include <string.h>
 #include <algorithm>
 #include <iterator>
 

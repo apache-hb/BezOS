@@ -17,12 +17,9 @@ sysapi_dep = declare_dependency(
 
 inc = include_directories('include', 'include/posix')
 
-# TODO: once pkg-config is part of the build process we can remove the
-# build by default flags
-
 libbezos = static_library('bezos-sysapi', src,
     include_directories : inc,
-    build_by_default : not meson.is_subproject(),
+    install : true,
 )
 
 bezos_dep = declare_dependency(
@@ -38,7 +35,7 @@ src = [
 
 libposix = static_library('bezos-posix', src,
     include_directories : inc,
-    build_by_default : not meson.is_subproject(),
+    install : true,
 )
 
 meson.override_dependency('bezos', bezos_dep)
