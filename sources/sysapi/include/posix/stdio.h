@@ -7,6 +7,8 @@
 extern "C" {
 #endif
 
+struct OsImplPosixFile;
+
 typedef struct OsImplPosixFile FILE;
 
 #define EOF (-1)
@@ -19,30 +21,32 @@ extern FILE *OsImplPosixStandardError(void);
 #define stdout (OsImplPosixStandardOut())
 #define stderr (OsImplPosixStandardError())
 
-extern int fclose(FILE*);
-extern FILE *fopen(const char*, const char*);
+extern int fclose(FILE *);
+extern FILE *fopen(const char *, const char *);
 
-extern int fflush(FILE*);
+extern int fflush(FILE *);
 
-extern int fprintf(FILE*, const char*, ...);
+extern int fprintf(FILE *, const char *, ...);
 
-extern int printf(const char*, ...);
+extern int printf(const char *, ...);
 
-extern int sprintf(char*, const char*, ...);
+extern int sprintf(char *, const char *, ...);
 
-extern size_t fread(void*, size_t, size_t, FILE*);
+extern size_t fread(void *, size_t, size_t, FILE *);
 
-extern size_t fwrite(const void*, size_t, size_t, FILE*);
+extern size_t fwrite(const void *, size_t, size_t, FILE *);
 
-extern int fseek(FILE*, long int, int);
+extern int fseek(FILE *, long int, int);
 
-extern long int ftell(FILE*);
+extern long int ftell(FILE *);
 
-extern int feof(FILE*);
+extern int feof(FILE *);
 
-extern int ferror(FILE*);
+extern int ferror(FILE *);
 
-extern void perror(const char*);
+extern int remove(const char *);
+
+extern void perror(const char *);
 
 #ifdef __cplusplus
 }

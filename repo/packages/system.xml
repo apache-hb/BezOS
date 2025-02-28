@@ -1,5 +1,5 @@
 <package name='system'>
-    <require package='sysapi' symlink='subprojects/sysapi' />
+    <require package='sysapi' />
 
     <source path='system' />
     <configure with='meson'>

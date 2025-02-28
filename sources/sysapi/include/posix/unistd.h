@@ -9,9 +9,9 @@ extern "C" {
 
 typedef signed long int ssize_t;
 
-extern ssize_t read(int, void*, size_t);
+extern ssize_t read(int, void *, size_t);
 
-extern ssize_t write(int, const void*, size_t);
+extern ssize_t write(int, const void *, size_t);
 
 #ifdef __cplusplus
 }

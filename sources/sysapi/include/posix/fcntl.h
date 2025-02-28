@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-extern int open(const char*, int, ...);
+extern int open(const char *, int, ...);
 
 extern int fcntl(int, int, ...);
 

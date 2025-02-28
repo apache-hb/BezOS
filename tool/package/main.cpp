@@ -33,6 +33,8 @@
 #include <iostream>
 #include <fstream>
 
+ldiv_t a;
+
 using namespace std::literals;
 
 namespace fs = std::filesystem;

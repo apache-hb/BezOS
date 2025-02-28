@@ -4,7 +4,7 @@
 #include <bezos/subsystem/hid.h>
 #include <bezos/subsystem/ddi.h>
 
-#include <cstring>
+#include <string.h>
 #include <iterator>
 
 static constexpr size_t kBufferSize = 16;

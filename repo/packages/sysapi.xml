@@ -1,6 +1,9 @@
 <package name='sysapi'>
     <source path='sysapi' />
 
+    <require package='llvm' />
+    <require package='gcc' />
+
     <configure with='meson'>
         <cross-file path='@SOURCE_ROOT@/data/bezos.ini' />
     </configure>

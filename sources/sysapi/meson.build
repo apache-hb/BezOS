@@ -41,5 +41,5 @@ libposix = static_library('bezos-posix', src,
 meson.override_dependency('bezos', bezos_dep)
 meson.override_dependency('sysapi', sysapi_dep)
 
-install_subdir('include/posix', install_dir : 'include/posix')
-install_subdir('include/bezos', install_dir : 'include/bezos')
+install_subdir('include/posix', install_dir : 'include')
+install_subdir('include/bezos', install_dir : 'include')
