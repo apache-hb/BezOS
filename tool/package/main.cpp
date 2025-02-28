@@ -33,7 +33,7 @@
 #include <iostream>
 #include <fstream>
 
-ldiv_t a;
+#include <setjmp.h>
 
 using namespace std::literals;
 
@@ -603,6 +603,9 @@ static void CopyData(struct archive *a, std::ostream& os) {
 }
 
 static void ExtractArchive(std::string_view name, const fs::path& archive, const fs::path& dst, bool trimRootFolder) {
+    fs::remove_all(dst);
+    fs::create_directories(dst);
+
     struct archive *a = archive_read_new();
     archive_read_support_filter_all(a);
     archive_read_support_format_all(a);
@@ -1113,7 +1116,7 @@ static void ConfigurePackage(const PackageInfo& package) {
         }
 
         std::println(std::cout, "{}", (args | stdv::join_with(' ')) | stdr::to<std::string>());
-        auto result = sp::call(args, sp::cwd{cwd}, sp::environment{env}, sp::output{out.c_str()}, sp::error{err.c_str()});
+        auto result = sp::call(args, sp::cwd{cwd}, sp::environment{env});
         if (result != 0) {
             throw std::runtime_error("Failed to configure package " + package.name);
         }
@@ -1137,7 +1140,7 @@ static void ConfigurePackage(const PackageInfo& package) {
         }
 
         std::println(std::cout, "{}", (args | stdv::join_with(' ')) | stdr::to<std::string>());
-        auto result = sp::call(args, sp::cwd{cwd}, sp::environment{env}, sp::output{out.c_str()}, sp::error{err.c_str()});
+        auto result = sp::call(args, sp::cwd{cwd}, sp::environment{env});
         if (result != 0) {
             throw std::runtime_error("Failed to configure package " + package.name);
         }
@@ -1222,17 +1225,17 @@ static void BuildPackage(const PackageInfo& package) {
     std::string builddir = package.GetBuildFolder().string();
 
     if (package.configure == eMeson) {
-        auto result = sp::call({ "meson", "compile" }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
+        auto result = sp::call({ "meson", "compile" }, sp::cwd{builddir});
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
     } else if (package.configure == eCMake) {
-        auto result = sp::call({ "cmake", "--build", builddir }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
+        auto result = sp::call({ "cmake", "--build", builddir }, sp::cwd{builddir});
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
     } else if (package.configure == eAutoconf) {
-        auto result = sp::call({ "make", "-j", std::to_string(std::thread::hardware_concurrency()) }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
+        auto result = sp::call({ "make", "-j", std::to_string(std::thread::hardware_concurrency()) }, sp::cwd{builddir});
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
@@ -1317,9 +1320,6 @@ static void GenerateArtifact(std::string_view name, const PackageInfo& artifact)
         return;
     }
 
-    MakeFolder(PackageLogPath(std::string(name)));
-    auto [out, err] = artifact.GetLogFiles("generate");
-
     std::println(std::cout, "{}: generate", artifact.name);
 
     std::jthread spinner([&](std::stop_token stop) {
@@ -1356,7 +1356,7 @@ static void GenerateArtifact(std::string_view name, const PackageInfo& artifact)
         env["SOURCE"] = gSourceRoot.string();
 
         std::println(std::cout, "{}: execute {}", name, args[1]);
-        auto result = sp::call(args, sp::environment{env}, sp::output{out.c_str()}, sp::error{err.c_str()});
+        auto result = sp::call(args, sp::environment{env});
         if (result != 0) {
             throw std::runtime_error("Failed to run script " + args[1]);
         }

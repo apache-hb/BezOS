@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-struct mbstate_t;
+typedef struct mbstate_t { void *state; } mbstate_t;
 
 typedef __WINT_TYPE__ wint_t;
 

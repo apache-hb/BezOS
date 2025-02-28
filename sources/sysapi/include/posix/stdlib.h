@@ -1,6 +1,9 @@
 #ifndef BEZOS_POSIX_STDLIB_H
 #define BEZOS_POSIX_STDLIB_H 1
 
+#include <detail/size.h>
+#include <detail/null.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -26,6 +29,11 @@ typedef struct {
 extern div_t div(int, int);
 extern ldiv_t ldiv(long int, long int);
 extern lldiv_t lldiv(long long int, long long int);
+
+extern void *malloc(size_t);
+extern void *calloc(size_t, size_t);
+extern void *realloc(void *, size_t);
+extern void free(void *);
 
 #ifdef __cplusplus
 }
