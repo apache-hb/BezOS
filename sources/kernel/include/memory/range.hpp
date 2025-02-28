@@ -230,16 +230,16 @@ namespace km {
     /// @tparam T The type of the range point.
     template<typename T>
     constexpr AnyRange<T> aligned(AnyRange<T> range, size_t align) {
-        T front = (T)sm::roundup(std::bit_cast<uintptr_t>(range.front), align);
-        T back = (T)sm::rounddown(std::bit_cast<uintptr_t>(range.back), align);
+        T front = std::bit_cast<T>(sm::roundup(std::bit_cast<uintptr_t>(range.front), align));
+        T back = std::bit_cast<T>(sm::rounddown(std::bit_cast<uintptr_t>(range.back), align));
 
         return {front, back};
     }
 
     template<typename T>
     constexpr AnyRange<T> alignedOut(AnyRange<T> range, size_t align) {
-        T front = (T)sm::rounddown(std::bit_cast<uintptr_t>(range.front), align);
-        T back = (T)sm::roundup(std::bit_cast<uintptr_t>(range.back), align);
+        T front = std::bit_cast<T>(sm::rounddown(std::bit_cast<uintptr_t>(range.front), align));
+        T back = std::bit_cast<T>(sm::roundup(std::bit_cast<uintptr_t>(range.back), align));
 
         return {front, back};
     }

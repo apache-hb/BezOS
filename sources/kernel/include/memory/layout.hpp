@@ -25,7 +25,7 @@ namespace km {
     /// @param range The memory range.
     /// @return The page aligned memory range.
     constexpr MemoryRange PageAligned(MemoryRange range) {
-        return {sm::rounddown(range.front.address, x64::kPageSize), sm::roundup(range.back.address, x64::kPageSize)};
+        return km::alignedOut(range, x64::kPageSize);
     }
 
     /// @brief Returns the number of pages required to store the given number of bytes.
@@ -45,7 +45,7 @@ namespace km {
         PhysicalAddress paddr;
         size_t size;
 
-        MemoryRange physicalRange() const {
+        constexpr MemoryRange physicalRange() const {
             return { paddr, paddr + size };
         }
 
@@ -61,7 +61,7 @@ namespace km {
             return size == 0;
         }
 
-        AddressMapping first(size_t bytes) const {
+        constexpr AddressMapping first(size_t bytes) const {
             return { vaddr, paddr, bytes };
         }
 
