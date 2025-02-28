@@ -15,9 +15,20 @@ namespace km {
         bool isOracleVirtualBox() const;
     };
 
+    struct SmBiosLoadOptions {
+        PhysicalAddress smbios32Address;
+        PhysicalAddress smbios64Address;
+        bool ignoreChecksum;
+        bool ignore32BitEntry;
+        bool ignore64BitEntry;
+    };
+
     PlatformInfo GetPlatformInfo(
         km::PhysicalAddress smbios32Address,
         km::PhysicalAddress smbios64Address,
         km::SystemMemory& memory
     );
+
+    [[nodiscard]]
+    OsStatus ReadSmbiosTables(SmBiosLoadOptions options, km::SystemMemory& memory, PlatformInfo *info [[gnu::nonnull]]);
 }

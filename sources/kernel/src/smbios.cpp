@@ -102,6 +102,24 @@ static km::VirtualRange SmBiosMapTable(const T *table, km::SystemMemory& memory)
     return km::VirtualRange::of(address, table->tableSize);
 }
 
+constexpr bool TestEntryChecksum(std::span<const uint8_t> bytes, stdx::StringView name, bool ignoreChecksum) {
+    uint8_t sum = 0;
+    for (uint8_t byte : bytes) {
+        sum += byte;
+    }
+
+    if (sum != 0) {
+        KmDebugMessage("[SMBIOS] Invalid checksum for ", name, ": ", sum, "\n");
+
+        if (ignoreChecksum) {
+            KmDebugMessage("[SMBIOS] The system operator has indicated that this checksum should be ignored. continuing...\n");
+            return true;
+        }
+    }
+
+    return sum == 0;
+}
+
 bool km::PlatformInfo::isOracleVirtualBox() const {
     return vendor == "innotek GmbH";
 }
@@ -160,44 +178,66 @@ static const void *ReadSmbiosEntry(km::PlatformInfo& info, const void *ptr) {
     return back + 2;
 }
 
-static std::optional<km::PlatformInfo> ReadSmbios64(km::PhysicalAddress address, km::SystemMemory& memory) {
+static OsStatus ReadSmbios64(km::PhysicalAddress address, bool ignoreChecksum, km::SystemMemory& memory, km::PlatformInfo *info) {
     const auto *smbios = memory.mapConst<smbios::Entry64>(address);
     defer { memory.unmap((void*)smbios, sizeof(smbios::Entry64)); };
 
-    if (smbios->anchor != stdx::StringView("_SM3_")) {
+    if (smbios->anchor != smbios::Entry64::kAnchor0) {
         KmDebugMessage("[SMBIOS] Invalid anchor: ", smbios->anchor, "\n");
-        return std::nullopt;
+        return OsStatusInvalidData;
+    }
+
+    std::span<const uint8_t> bytes = std::span(reinterpret_cast<const uint8_t*>(smbios), sizeof(smbios::Entry64));
+    if (!TestEntryChecksum(bytes, "SMBIOS64", ignoreChecksum)) {
+        return OsStatusChecksumError;
     }
 
     auto [ptr, end] = SmBiosMapTable(smbios, memory);
 
-    km::PlatformInfo info;
+    km::PlatformInfo result{};
 
     while (ptr < end) {
-        ptr = ReadSmbiosEntry(info, ptr);
+        ptr = ReadSmbiosEntry(result, ptr);
     }
 
-    return info;
+    *info = result;
+    return OsStatusSuccess;
 }
 
-static km::PlatformInfo ReadSmbios32(km::PhysicalAddress address, km::SystemMemory& memory) {
+static OsStatus ReadSmbios32(km::PhysicalAddress address, bool ignoreChecksum, km::SystemMemory& memory, km::PlatformInfo *info) {
     const auto *smbios = memory.mapConst<smbios::Entry32>(address);
     defer { memory.unmap((void*)smbios, sizeof(smbios::Entry32)); };
 
     if (smbios->anchor0 != smbios::Entry32::kAnchor0) {
-        KmDebugMessage("[SMBIOS] Invalid anchor0: ", smbios->anchor0, "\n");
-        return km::PlatformInfo{};
+        KmDebugMessage("[SMBIOS] Invalid anchor: ", smbios->anchor0, "\n");
+        return OsStatusInvalidData;
+    }
+
+    //
+    // The SMBIOS32 entry point structure is split into a base header and an extended header.
+    // Each of these headers needs to be checksummed individually. The first header is 0x00:0x10
+    // and the extended header is afterwards at 0x10:0x1e.
+    //
+    std::span<const uint8_t> bytes = std::span(reinterpret_cast<const uint8_t*>(smbios), 0x10);
+    if (!TestEntryChecksum(bytes, "SMBIOS32", ignoreChecksum)) {
+        return OsStatusChecksumError;
+    }
+
+    bytes = std::span(reinterpret_cast<const uint8_t*>(smbios) + 0x10, 0xf);
+    if (!TestEntryChecksum(bytes, "SMBIOS32 Extended", ignoreChecksum)) {
+        return OsStatusChecksumError;
     }
 
     auto [ptr, end] = SmBiosMapTable(smbios, memory);
 
-    km::PlatformInfo info;
+    km::PlatformInfo result;
 
     while (ptr < end) {
-        ptr = ReadSmbiosEntry(info, ptr);
+        ptr = ReadSmbiosEntry(result, ptr);
     }
 
-    return info;
+    *info = result;
+    return OsStatusSuccess;
 }
 
 km::PlatformInfo km::GetPlatformInfo(
@@ -205,15 +245,43 @@ km::PlatformInfo km::GetPlatformInfo(
     km::PhysicalAddress smbios64Address,
     km::SystemMemory& memory
 ) {
-    if (smbios64Address != nullptr) {
-        if (auto result = ReadSmbios64(smbios64Address, memory)) {
-            return result.value();
+    km::PlatformInfo result{};
+
+    SmBiosLoadOptions options {
+        .smbios32Address = smbios32Address,
+        .smbios64Address = smbios64Address,
+        .ignoreChecksum = false,
+        .ignore32BitEntry = false,
+        .ignore64BitEntry = false,
+    };
+
+    OsStatus status = ReadSmbiosTables(options, memory, &result);
+    if (status != OsStatusSuccess) {
+        KmDebugMessage("[SMBIOS] Failed to read SMBIOS tables: ", status, "\n");
+    }
+
+    return result;
+}
+
+OsStatus km::ReadSmbiosTables(SmBiosLoadOptions options, km::SystemMemory& memory, PlatformInfo *info [[gnu::nonnull]]) {
+    //
+    // Store the status as a local so that we can return the last error if both fail.
+    //
+    OsStatus status = OsStatusNotFound;
+
+    if (options.smbios64Address != nullptr && !options.ignore64BitEntry) {
+        status = ReadSmbios64(options.smbios64Address, options.ignoreChecksum, memory, info);
+        if (status == OsStatusSuccess) {
+            return status;
         }
     }
 
-    if (smbios32Address != nullptr) {
-        return ReadSmbios32(smbios32Address, memory);
+    if (options.smbios32Address != nullptr && !options.ignore32BitEntry) {
+        status = ReadSmbios32(options.smbios32Address, options.ignoreChecksum, memory, info);
+        if (status == OsStatusSuccess) {
+            return status;
+        }
     }
 
-    return PlatformInfo { };
+    return OsStatusNotFound;
 }

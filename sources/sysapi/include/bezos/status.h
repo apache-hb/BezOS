@@ -11,67 +11,69 @@ typedef uint64_t OsStatus;
 
 enum OsStatusId {
     /// @brief The operation was successful.
-    OsStatusSuccess = 0x0,
+    OsStatusSuccess = 0x0000,
 
     /// @brief The operation could not be completed due to a lack of memory.
-    OsStatusOutOfMemory = 0x1,
+    OsStatusOutOfMemory = 0x0001,
 
     /// @brief The requested resource could not be found.
-    OsStatusNotFound = 0x2,
+    OsStatusNotFound = 0x0002,
 
     /// @brief The input to the operation was invalid.
-    OsStatusInvalidInput = 0x3,
+    OsStatusInvalidInput = 0x0003,
 
     /// @brief The resource does not support the operation.
-    OsStatusNotSupported = 0x4,
+    OsStatusNotSupported = 0x0004,
 
     /// @brief The resource already exists.
-    OsStatusAlreadyExists = 0x5,
+    OsStatusAlreadyExists = 0x0005,
 
     /// @brief Attempted to traverse over a non-folder inode.
     ///
     /// When walking a path an inode that wasnt a folder was encountered.
-    OsStatusTraverseNonFolder = 0x6,
+    OsStatusTraverseNonFolder = 0x0006,
 
     /// @brief Attempted to perform an operation on an inode of the wrong type.
     ///
     /// When performing an operation on an inode the type of the inode
     /// was not what was expected.
-    OsStatusInvalidType = 0x7,
+    OsStatusInvalidType = 0x0007,
 
     /// @brief Attempted to remove an inode that was not ready for removal.
     ///
     /// INodes with outstanding exclusive locks cannot be removed.
-    OsStatusHandleLocked = 0x8,
+    OsStatusHandleLocked = 0x0008,
 
     /// @brief The path is malformed.
     ///
     /// Malformed paths are paths that contain invalid characters, empty segments,
     /// or leading/trailing separators.
-    OsStatusInvalidPath = 0x9,
+    OsStatusInvalidPath = 0x0009,
 
     /// @brief An invalid syscall was invoked.
-    OsStatusInvalidFunction = 0xa,
+    OsStatusInvalidFunction = 0x000a,
 
     /// @brief The end of the file was reached.
-    OsStatusEndOfFile = 0xb,
+    OsStatusEndOfFile = 0x000b,
 
     /// @brief The data is invalid.
     ///
     /// Data required for the operation is invalid, distinct from @ref OsStatusInvalidInput.
     /// This status is used for when a resource is in an invalid state, rather than the input
     /// parameters being invalid.
-    OsStatusInvalidData = 0xc,
+    OsStatusInvalidData = 0x000c,
 
     /// @brief The version is invalid.
-    OsStatusInvalidVersion = 0xd,
+    OsStatusInvalidVersion = 0x000d,
 
     /// @brief The operation timed out.
-    OsStatusTimeout = 0xe,
+    OsStatusTimeout = 0x000e,
 
-    OsStatusOutOfBounds = 0xf,
+    OsStatusOutOfBounds = 0x000f,
 
-    OsStatusMoreData = 0x10,
+    OsStatusMoreData = 0x0010,
+
+    OsStatusChecksumError = 0x0011,
 };
 
 #ifdef __cplusplus
