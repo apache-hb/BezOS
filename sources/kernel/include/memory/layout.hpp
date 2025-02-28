@@ -16,7 +16,7 @@
 namespace km {
     static constexpr size_t kLowMemory = sm::megabytes(1).bytes();
 
-    constexpr bool IsLowMemory(km::MemoryRange range) {
+    constexpr bool IsLowMemory(MemoryRange range) {
         return range.front < kLowMemory;
     }
 
@@ -25,7 +25,7 @@ namespace km {
     /// @param range The memory range.
     /// @return The page aligned memory range.
     constexpr MemoryRange PageAligned(MemoryRange range) {
-        return km::alignedOut(range, x64::kPageSize);
+        return alignedOut(range, x64::kPageSize);
     }
 
     /// @brief Returns the number of pages required to store the given number of bytes.

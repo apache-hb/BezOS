@@ -49,7 +49,7 @@ namespace km {
         MemoryType type = MemoryType::eWriteBack;
     };
 
-    enum class PageSize2 {
+    enum class PageSize {
         eNone,
         eRegular,
         eLarge,
@@ -111,11 +111,11 @@ namespace km {
         /// @note If @a pte->present() is false, the address is invalid.
         x64::pte pte;
 
-        constexpr PageSize2 pageSize() const {
-            if (pdpte.present() && pdpte.is1g()) return PageSize2::eHuge;
-            if (pdte.present() && pdte.is2m()) return PageSize2::eLarge;
-            if (pte.present()) return PageSize2::eRegular;
-            return PageSize2::eNone;
+        constexpr PageSize pageSize() const {
+            if (pdpte.present() && pdpte.is1g()) return PageSize::eHuge;
+            if (pdte.present() && pdte.is2m()) return PageSize::eLarge;
+            if (pte.present()) return PageSize::eRegular;
+            return PageSize::eNone;
         }
 
         constexpr PageFlags flags() const {

@@ -40,30 +40,36 @@ namespace km {
         uint8_t writeBack;
     };
 
+    namespace detail {
+        constexpr uint8_t GetMemoryPatIndex(const PageMemoryTypeLayout& layout, MemoryType type) {
+            switch (type) {
+            case MemoryType::eUncached:
+                return layout.uncached;
+            case MemoryType::eWriteCombine:
+                return layout.writeCombined;
+            case MemoryType::eWriteThrough:
+                return layout.writeThrough;
+            case MemoryType::eWriteProtect:
+                return layout.writeProtect;
+            case MemoryType::eWriteBack:
+                return layout.writeBack;
+            default:
+                return layout.deferred;
+            }
+        }
+    }
+
     class PageBuilder {
         uintptr_t mAddressMask;
         uintptr_t mVaddrBits;
         PageMemoryTypeLayout mLayout;
 
-        uint8_t getMemoryTypeIndex(MemoryType type) const {
-            switch (type) {
-            case MemoryType::eUncached:
-                return mLayout.uncached;
-            case MemoryType::eWriteCombine:
-                return mLayout.writeCombined;
-            case MemoryType::eWriteThrough:
-                return mLayout.writeThrough;
-            case MemoryType::eWriteProtect:
-                return mLayout.writeProtect;
-            case MemoryType::eWriteBack:
-                return mLayout.writeBack;
-            default:
-                return mLayout.deferred;
-            }
+        constexpr uint8_t getMemoryTypeIndex(MemoryType type) const {
+            return detail::GetMemoryPatIndex(mLayout, type);
         }
 
     public:
-        PageBuilder(uintptr_t paddrbits, uintptr_t vaddrbits, PageMemoryTypeLayout layout)
+        constexpr PageBuilder(uintptr_t paddrbits, uintptr_t vaddrbits, PageMemoryTypeLayout layout)
             : mAddressMask(x64::paging::addressMask(paddrbits))
             , mVaddrBits(vaddrbits)
             , mLayout(layout)
@@ -73,11 +79,11 @@ namespace km {
             return mAddressMask == x64::paging::addressMask(48);
         }
 
-        km::PhysicalAddress maxPhysicalAddress() const {
-            return km::PhysicalAddress { mAddressMask };
+        constexpr PhysicalAddress maxPhysicalAddress() const {
+            return PhysicalAddress { mAddressMask };
         }
 
-        uintptr_t getAddressMask() const {
+        constexpr uintptr_t getAddressMask() const {
             return mAddressMask;
         }
 
@@ -115,8 +121,7 @@ namespace km {
             __set_cr3(reg);
         }
 
-        bool isCanonicalAddress(const void *ptr) const {
-            uintptr_t addr = reinterpret_cast<uintptr_t>(ptr);
+        constexpr bool isCanonicalAddress(uintptr_t addr) const {
             uintptr_t mask = -(1ull << (mVaddrBits - 1));
             uintptr_t bits = (addr & mask);
 
@@ -124,13 +129,20 @@ namespace km {
             return bits == 0 || bits == mask;
         }
 
-        constexpr bool isHigherHalf(const void *ptr) const {
-            uintptr_t addr = reinterpret_cast<uintptr_t>(ptr);
+        constexpr bool isHigherHalf(uintptr_t addr) const {
             uintptr_t mask = -(1ull << (mVaddrBits - 1));
             uintptr_t bits = (addr & mask);
 
             // higher half requires all the high bits to be set
             return bits == mask;
+        }
+
+        bool isCanonicalAddress(const void *ptr) const {
+            return isCanonicalAddress(reinterpret_cast<uintptr_t>(ptr));
+        }
+
+        constexpr bool isHigherHalf(const void *ptr) const {
+            return isHigherHalf(reinterpret_cast<uintptr_t>(ptr));
         }
     };
 }

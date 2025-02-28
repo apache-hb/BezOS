@@ -336,10 +336,10 @@ km::PageFlags PageTables::getMemoryFlags(const void *ptr) {
     return result.flags();
 }
 
-km::PageSize2 PageTables::getPageSize(const void *ptr) {
+km::PageSize PageTables::getPageSize(const void *ptr) {
     PageWalk result;
     if (walk(ptr, &result) != OsStatusSuccess) {
-        return PageSize2::eNone;
+        return PageSize::eNone;
     }
 
     return result.pageSize();

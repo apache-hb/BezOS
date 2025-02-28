@@ -119,7 +119,7 @@ static void DebugFadt(const acpi::Fadt *fadt) {
     KmDebugMessage("| /SYS/ACPI/FACP     | Extended GPE1 block         | ", table.x_gpe1Blk, "\n");
     KmDebugMessage("| /SYS/ACPI/FACP     | Sleep control register      | ", table.sleepControlReg, "\n");
     KmDebugMessage("| /SYS/ACPI/FACP     | Sleep status register       | ", table.sleepStatusReg, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Hypervisor vendor ID        | ", table.hypervisorVendor, "\n");
+    KmDebugMessage("| /SYS/ACPI/FACP     | Hypervisor vendor ID        | ", km::Hex(table.hypervisorVendor).pad(16), "\n");
 }
 
 static void DebugHpet(const acpi::Hpet *hpet) {
