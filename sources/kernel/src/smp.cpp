@@ -165,7 +165,8 @@ void km::InitSmp(
     // Copy the SMP blob to the correct location.
     //
     size_t blobSize = GetSmpBlobSize();
-    void *smpStartBlob = memory.map(kSmpStart, kSmpStart + blobSize, km::PageFlags::eAll);
+    MemoryRange smpStartRange = km::PageAligned(MemoryRange::of(kSmpStart, blobSize));
+    void *smpStartBlob = memory.map(smpStartRange, km::PageFlags::eAll);
     memcpy(smpStartBlob, _binary_smp_start, blobSize);
 
     uint32_t bspId = bsp->id();
@@ -173,13 +174,14 @@ void km::InitSmp(
     KmDebugMessage("[SMP] BSP ID: ", bspId, "\n");
 
     SmpInfoHeader *smpInfo = memory.mapObject<SmpInfoHeader>(kSmpInfo);
+    MemoryRange smpInfoRange = MemoryRange::of(kSmpInfo, x64::kPageSize);
 
     //
     // Also identity map the SMP blob and info regions, it makes jumping to compatibility mode easier.
     // I think theres a better way to do this, but I'm not sure what it is.
     //
-    memory.systemTables().map({ kSmpInfo, kSmpInfo + sizeof(SmpInfoHeader) }, (void*)kSmpInfo.address, km::PageFlags::eData);
-    memory.systemTables().map({ kSmpStart, kSmpStart + blobSize }, (void*)kSmpStart.address, km::PageFlags::eCode);
+    memory.systemTables().map(smpInfoRange, (void*)kSmpInfo.address, km::PageFlags::eData);
+    memory.systemTables().map(smpStartRange, (void*)kSmpStart.address, km::PageFlags::eCode);
 
     SmpInfoHeader header = SetupSmpInfoHeader(&memory, bsp, callback, user);
     memcpy(smpInfo, &header, sizeof(header));

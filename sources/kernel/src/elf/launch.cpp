@@ -6,7 +6,7 @@
 
 #include "util/format.hpp"
 
-static OsStatus ValidateElfHeader(const elf::ElfHeader &header, size_t size) {
+static OsStatus ValidateElfHeader(const elf::Header &header, size_t size) {
     if (!header.isValid()) {
         KmDebugMessage(
             "[ELF] Invalid ELF header. Invalid header magic {",
@@ -19,12 +19,12 @@ static OsStatus ValidateElfHeader(const elf::ElfHeader &header, size_t size) {
         return OsStatusInvalidData;
     }
 
-    if (header.endian() != std::endian::little || header.elfClass() != elf::ElfClass::eClass64 || header.objVersion() != 1) {
+    if (header.endian() != std::endian::little || header.elfClass() != elf::Class::eClass64 || header.objVersion() != 1) {
         KmDebugMessage("[ELF] Unsupported ELF format. Only little endian, 64 bit, version 1 elf programs are supported.\n");
         return OsStatusInvalidVersion;
     }
 
-    if (header.type != elf::ElfType::eExecutable && header.type != elf::ElfType::eShared) {
+    if (header.type != elf::Type::eExecutable && header.type != elf::Type::eShared) {
         KmDebugMessage("[ELF] Invalid ELF type. Only EXEC & DYN elf programs can be launched.\n");
         return OsStatusInvalidData;
     }
@@ -37,7 +37,7 @@ static OsStatus ValidateElfHeader(const elf::ElfHeader &header, size_t size) {
         return OsStatusInvalidData;
     }
 
-    if (header.phentsize != sizeof(elf::ElfProgramHeader)) {
+    if (header.phentsize != sizeof(elf::ProgramHeader)) {
         KmDebugMessage("[ELF] Invalid program header size\n");
         return OsStatusInvalidData;
     }
@@ -50,28 +50,9 @@ static OsStatus ValidateElfHeader(const elf::ElfHeader &header, size_t size) {
     return OsStatusSuccess;
 }
 
-static OsStatus LoadMemorySize(std::span<const elf::ElfProgramHeader> phs, km::VirtualRange *range) {
-    km::VirtualRange result{(void*)UINTPTR_MAX, 0};
-
+static const elf::ProgramHeader *FindDynamicSection(std::span<const elf::ProgramHeader> phs) {
     for (const auto& header : phs) {
-        if (header.type != elf::ElfProgramHeaderType::eLoad) continue;
-
-        result.front = (void*)std::min((uintptr_t)result.front, header.vaddr);
-        result.back = (void*)std::max((uintptr_t)result.back, header.vaddr + header.memsz);
-    }
-
-    if (!result.isValid() || result.isEmpty()) {
-        KmDebugMessage("[ELF] Failed to compute ELF memory range.\n");
-        return OsStatusInvalidData;
-    }
-
-    *range = km::alignedOut(result, x64::kPageSize);
-    return OsStatusSuccess;
-}
-
-static const elf::ElfProgramHeader *FindDynamicSection(std::span<const elf::ElfProgramHeader> phs) {
-    for (const auto& header : phs) {
-        if (header.type == elf::ElfProgramHeaderType::eDynamic) {
+        if (header.type == elf::ProgramHeaderType::eDynamic) {
             return &header;
         }
     }
@@ -168,7 +149,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
         return status;
     }
 
-    elf::ElfHeader header{};
+    elf::Header header{};
     if (OsStatus status = vfs2::ReadObject(file.get(), &header, 0)) {
         return status;
     }
@@ -177,15 +158,16 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
         return status;
     }
 
-    std::unique_ptr<elf::ElfProgramHeader[]> phs{new elf::ElfProgramHeader[header.phnum]};
-    std::span<const elf::ElfProgramHeader> programHeaders = std::span(phs.get(), header.phnum);
+    std::unique_ptr<elf::ProgramHeader[]> phs{new elf::ProgramHeader[header.phnum]};
+    std::span<const elf::ProgramHeader> programHeaders = std::span(phs.get(), header.phnum);
 
     if (OsStatus status = vfs2::ReadArray(file.get(), phs.get(), header.phnum, header.phoff)) {
         return status;
     }
 
     km::VirtualRange loadMemory{};
-    if (OsStatus status = LoadMemorySize(programHeaders, &loadMemory)) {
+    if (OsStatus status = detail::LoadMemorySize(programHeaders, &loadMemory)) {
+        KmDebugMessage("[ELF] Failed to calculate load memory size. ", status, "\n");
         return status;
     }
 
@@ -216,7 +198,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
 
     KmDebugMessage("[ELF] Entry point: ", km::Hex(regs.rip), "\n");
 
-    const elf::ElfProgramHeader *dynamic = FindDynamicSection(programHeaders);
+    const elf::ProgramHeader *dynamic = FindDynamicSection(programHeaders);
     std::unique_ptr<elf::Elf64Dyn[]> dyn;
     if (dynamic == nullptr) {
         KmDebugMessage("[ELF] Dynamic section not found\n");
@@ -233,8 +215,8 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
         }
     }
 
-    for (const elf::ElfProgramHeader &ph : programHeaders) {
-        if (ph.type != elf::ElfProgramHeaderType::eLoad)
+    for (const elf::ProgramHeader &ph : programHeaders) {
+        if (ph.type != elf::ProgramHeaderType::eLoad)
             continue;
 
         KmDebugMessage("[ELF] Program Header type: ",
@@ -291,14 +273,16 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
         // Now we can set the correct flags.
         //
         PageFlags flags = PageFlags::eUser;
-        // if (ph.flags & (1 << 0))
-        flags |= PageFlags::eExecute;
-        // if (ph.flags & (1 << 1))
-        flags |= PageFlags::eWrite;
-        // if (ph.flags & (1 << 2))
-        flags |= PageFlags::eRead;
+        if (ph.flags & (1 << 0))
+            flags |= PageFlags::eExecute;
+        if (ph.flags & (1 << 1))
+            flags |= PageFlags::eWrite;
+        if (ph.flags & (1 << 2))
+            flags |= PageFlags::eRead;
 
+#if 0
         process->ptes.map(mapping, flags);
+#endif
 
         objects.createAddressSpace("ELF SECTION", mapping, flags, km::MemoryType::eWriteBack, process);
     }

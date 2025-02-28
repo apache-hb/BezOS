@@ -195,7 +195,9 @@ src = [
     'src/process/schedule.S',
     'src/syscall.cpp',
     'src/processor.cpp',
-    'src/launch.cpp',
+
+    'src/elf/elf.cpp',
+    'src/elf/launch.cpp',
 
     # Kernel components
     'src/log.cpp',
@@ -436,6 +438,10 @@ testcases = {
     ],
     'layout': [
         'test/memory/layout.cpp',
+    ],
+    'elf': [
+        'test/elf.cpp',
+        'src/elf/elf.cpp',
     ],
     # 'memory': [
     #     'test/memory.cpp',

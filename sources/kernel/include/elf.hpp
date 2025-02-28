@@ -22,7 +22,7 @@ namespace elf {
         uint64_t value;
     };
 
-    enum class ElfType : uint16_t {
+    enum class Type : uint16_t {
         eNone = 0,
         eRelocatable = 1,
         eExecutable = 2,
@@ -30,7 +30,7 @@ namespace elf {
         eCore = 4,
     };
 
-    enum class ElfMachine : uint16_t {
+    enum class Machine : uint16_t {
         eNone = 0,
         eSparc = 2,
         eSparcV9 = 43,
@@ -38,12 +38,12 @@ namespace elf {
         eArm64 = 183,
     };
 
-    enum class ElfVersion : uint32_t {
+    enum class Version : uint32_t {
         eNone = 0,
         eCurrent = 1,
     };
 
-    enum class ElfClass {
+    enum class Class {
         eNone = 0,
         eClass32 = 1,
         eClass64 = 2,
@@ -53,7 +53,7 @@ namespace elf {
         eNone = 0,
     };
 
-    struct ElfHeader {
+    struct Header {
         static constexpr size_t kClassIdent = 4;
         static constexpr size_t kDataIdent = 5;
         static constexpr size_t kObjVersionIdent = 6;
@@ -63,9 +63,9 @@ namespace elf {
         static constexpr uint8_t kMagic[4] = { 0x7F, 'E', 'L', 'F' };
 
         uint8_t ident[16];
-        ElfType type;
-        ElfMachine machine;
-        ElfVersion version;
+        Type type;
+        Machine machine;
+        Version version;
         uint64_t entry;
         uint64_t phoff;
         uint64_t shoff;
@@ -81,8 +81,8 @@ namespace elf {
             return ident[kDataIdent] == 1 ? std::endian::little : std::endian::big;
         }
 
-        ElfClass elfClass() const {
-            return ElfClass(ident[kClassIdent]);
+        Class elfClass() const {
+            return Class(ident[kClassIdent]);
         }
 
         ElfOsAbi osAbi() const {
@@ -102,13 +102,13 @@ namespace elf {
         }
     };
 
-    enum class ElfProgramHeaderType : uint32_t {
+    enum class ProgramHeaderType : uint32_t {
         eLoad = 0x1,
         eDynamic = 0x2,
     };
 
-    struct ElfProgramHeader {
-        ElfProgramHeaderType type;
+    struct ProgramHeader {
+        ProgramHeaderType type;
         uint32_t flags;
         uint64_t offset;
         uint64_t vaddr;
@@ -118,7 +118,7 @@ namespace elf {
         uint64_t align;
     };
 
-    struct ElfSectionHeader {
+    struct SectionHeader {
         uint32_t name;
         uint32_t type;
         uint64_t flags;
@@ -131,11 +131,15 @@ namespace elf {
         uint64_t entsize;
     };
 
-    static_assert(sizeof(ElfHeader) == 64);
-    static_assert(sizeof(ElfProgramHeader) == 56);
-    static_assert(sizeof(ElfSectionHeader) == 64);
+    static_assert(sizeof(Header) == 64);
+    static_assert(sizeof(ProgramHeader) == 56);
+    static_assert(sizeof(SectionHeader) == 64);
 }
 
 namespace km {
+    namespace detail {
+        OsStatus LoadMemorySize(std::span<const elf::ProgramHeader> phs, VirtualRange *range);
+    }
+
     OsStatus LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory& memory, SystemObjects& objects, ProcessLaunch *result);
 }

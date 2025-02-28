@@ -105,7 +105,7 @@ namespace km {
 
         MemoryRange range = MemoryRange::of(address, pages * x64::kPageSize);
 
-        OsStatus status = ptes->map(range, PageFlags::eUserData, MemoryType::eWriteBack, mapping);
+        OsStatus status = ptes->map(range, PageFlags::eUserAll, MemoryType::eWriteBack, mapping);
         if (status != OsStatusSuccess) {
             pmm.release(range);
         }
@@ -130,7 +130,7 @@ namespace km {
 
         AddressMapping map = MappingOf(vmem, address);
 
-        OsStatus status = ptes->map(map, PageFlags::eUserData, MemoryType::eWriteBack);
+        OsStatus status = ptes->map(map, PageFlags::eUserAll, MemoryType::eWriteBack);
         if (status != OsStatusSuccess) {
             pmm.release(range);
         }
