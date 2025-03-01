@@ -3,6 +3,7 @@
 #include <bezos/facility/process.h>
 #include <bezos/facility/threads.h>
 
+#include "util/defer.hpp"
 #include "arch/arch.hpp"
 #include "fs2/node.hpp"
 #include "isr/isr.hpp"
@@ -94,7 +95,7 @@ namespace km {
         ProcessPageTables ptes;
         stdx::Vector2<sm::RcuSharedPtr<Thread>> threads;
         stdx::Vector2<sm::RcuSharedPtr<AddressSpace>> memory;
-        stdx::Vector2<std::unique_ptr<vfs2::IVfsNodeHandle>> files;
+        sm::FlatHashSet<std::unique_ptr<vfs2::IVfsNodeHandle>> files;
 
         void addThread(sm::RcuSharedPtr<Thread> thread) {
             stdx::UniqueLock guard(lock);
@@ -104,6 +105,26 @@ namespace km {
         void addAddressSpace(sm::RcuSharedPtr<AddressSpace> addressSpace) {
             stdx::UniqueLock guard(lock);
             memory.add(addressSpace);
+        }
+
+        vfs2::IVfsNodeHandle *addFile(std::unique_ptr<vfs2::IVfsNodeHandle> handle) {
+            stdx::UniqueLock guard(lock);
+            vfs2::IVfsNodeHandle *ptr = handle.get();
+            files.insert(std::move(handle));
+            return ptr;
+        }
+
+        vfs2::IVfsNodeHandle *findFile(const vfs2::IVfsNodeHandle *ptr) {
+            // This is awful, but theres no transparent lookup for unique pointers
+            std::unique_ptr<vfs2::IVfsNodeHandle> handle(const_cast<vfs2::IVfsNodeHandle*>(ptr));
+            defer { (void)handle.release(); }; // NOLINT(bugprone-unused-return-value)
+
+            stdx::SharedLock guard(lock);
+            if (auto it = files.find(handle); it != files.end()) {
+                return it->get();
+            }
+
+            return nullptr;
         }
     };
 

@@ -74,6 +74,9 @@ enum OsStatusId {
     OsStatusMoreData = 0x0010,
 
     OsStatusChecksumError = 0x0011,
+
+    /// @brief The handle is stale or invalid.
+    OsStatusInvalidHandle = 0x0012,
 };
 
 #ifdef __cplusplus

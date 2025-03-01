@@ -16,6 +16,17 @@ namespace sm {
     template<typename TKey, typename THash = std::hash<TKey>, typename TEqual = std::equal_to<TKey>, typename TAllocator = mem::GlobalAllocator<TKey>>
     using FlatHashSet = absl::flat_hash_set<TKey, THash, TEqual, TAllocator>;
 
+    template<typename T>
+    struct TransparentPointerHash {
+        constexpr size_t operator()(const T *ptr) const noexcept {
+            return std::hash<const T*>{}(ptr);
+        }
+
+        constexpr size_t operator()(const std::unique_ptr<T>& ptr) const noexcept {
+            return std::hash<const T*>{}(ptr.get());
+        }
+    };
+
     template<typename T, typename... A> requires (std::constructible_from<T, A...>)
     std::unique_ptr<T> makeUnique(A&&... args) {
         return std::unique_ptr<T>(new T(std::forward<A>(args)...));

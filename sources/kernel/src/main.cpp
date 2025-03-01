@@ -955,40 +955,55 @@ static void AddDebugSystemCalls() {
     });
 }
 
+static_assert(absl::container_internal::IsTransparent<
+    absl::DefaultHashContainerHash<std::unique_ptr<vfs2::IVfsNodeHandle>>
+    >::value);
+
 static void AddVfsSystemCalls() {
-    AddSystemCall(eOsCallFileOpen, [](uint64_t userArgPathBegin, uint64_t userArgPathEnd, [[maybe_unused]] uint64_t mode, uint64_t) -> OsCallResult {
-        vfs2::VfsString userPath;
-        if (OsStatus status = km::CopyUserRange(GetProcessPageTables(), (void*)userArgPathBegin, (void*)userArgPathEnd, &userPath, kMaxPathSize)) {
+    AddNewSystemCall(eOsCallFileOpen, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        uint64_t front = regs->arg0;
+        uint64_t back = regs->arg1;
+
+        vfs2::VfsString pathText;
+        if (OsStatus status = context->readString(front, back, kMaxPathSize, &pathText)) {
             return CallError(status);
         }
 
-        if (!vfs2::VerifyPathText(userPath)) {
+        if (!vfs2::VerifyPathText(pathText)) {
             return CallError(OsStatusInvalidInput);
         }
 
-        vfs2::VfsPath path{std::move(userPath)};
-        vfs2::IVfsNodeHandle *node = nullptr;
-        if (OsStatus status = gVfsRoot->open(path, &node)) {
+        vfs2::VfsPath path{std::move(pathText)};
+        std::unique_ptr<vfs2::IVfsNodeHandle> node = nullptr;
+        if (OsStatus status = gVfsRoot->open(path, std::out_ptr(node))) {
             return CallError(status);
         }
 
-        return CallOk(node);
+        vfs2::IVfsNodeHandle *ptr = context->process()->addFile(std::move(node));
+
+        return CallOk(ptr);
     });
 
-    AddSystemCall(eOsCallFileRead, [](uint64_t userNodeId, uint64_t userBufferBegin, uint64_t userBufferEnd, uint64_t) -> OsCallResult {
-        const void *bufferBegin = TranslateUserPointer((const void*)userBufferBegin);
-        const void *bufferEnd = TranslateUserPointer((const void*)userBufferEnd);
-        if (bufferBegin == nullptr || bufferEnd == nullptr) {
+    AddNewSystemCall(eOsCallFileRead, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        uint64_t nodeId = regs->arg0;
+        uint64_t front = regs->arg1;
+        uint64_t back = regs->arg2;
+
+        if (!context->isMapped(front, back, PageFlags::eUser | PageFlags::eWrite)) {
             return CallError(OsStatusInvalidInput);
         }
 
-        vfs2::IVfsNodeHandle *node = (vfs2::IVfsNodeHandle*)userNodeId;
+        auto file = context->process()->findFile((const vfs2::IVfsNodeHandle*)nodeId);
+        if (file == nullptr) {
+            return CallError(OsStatusInvalidHandle);
+        }
+
         vfs2::ReadRequest request {
-            .begin = (void*)bufferBegin,
-            .end = (void*)bufferEnd,
+            .begin = (void*)front,
+            .end = (void*)back,
         };
         vfs2::ReadResult result{};
-        if (OsStatus status = node->read(request, &result)) {
+        if (OsStatus status = file->read(request, &result)) {
             return CallError(status);
         }
 

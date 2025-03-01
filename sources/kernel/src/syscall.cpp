@@ -111,6 +111,10 @@ km::PageTables& km::CallContext::ptes() {
     return km::GetProcessPageTables();
 }
 
+bool km::CallContext::isMapped(uint64_t front, uint64_t back, PageFlags flags) {
+    return km::IsRangeMapped(ptes(), (void*)front, (void*)back, flags);
+}
+
 OsStatus km::CallContext::readMemory(uint64_t address, size_t size, void *dst) {
     return km::CopyUserMemory(ptes(), address, size, dst);
 }

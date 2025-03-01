@@ -54,6 +54,8 @@ namespace km {
         /// @brief Get the address space allocator for the calling process.
         PageTables& ptes();
 
+        bool isMapped(uint64_t front, uint64_t back, PageFlags flags);
+
         /// @brief Read user memory.
         OsStatus readMemory(uint64_t address, size_t size, void *dst);
 
