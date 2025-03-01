@@ -2,6 +2,7 @@
 
 #include <bezos/subsystem/ddi.h>
 
+#include "kernel.hpp"
 #include "user/user.hpp"
 #include "fs2/device.hpp"
 #include "display.hpp"

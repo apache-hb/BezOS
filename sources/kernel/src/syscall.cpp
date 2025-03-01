@@ -3,7 +3,9 @@
 #include "gdt.hpp"
 #include "kernel.hpp"
 #include "log.hpp"
+#include "process/schedule.hpp"
 #include "thread.hpp"
+#include "user/user.hpp"
 
 static constexpr x64::ModelRegister<0xC0000081, x64::RegisterAccess::eReadWrite> kStar;
 static constexpr x64::ModelRegister<0xC0000082, x64::RegisterAccess::eReadWrite> kLStar;
@@ -15,23 +17,33 @@ CPU_LOCAL
 static constinit km::CpuLocal<void*> tlsSystemCallStack;
 
 static constinit km::SystemCallHandler gSystemCalls[256] = { nullptr };
+static constinit km::BetterCallHandler gNewSystemCalls[256] = { nullptr };
 
 void km::AddSystemCall(uint8_t function, SystemCallHandler handler) {
     gSystemCalls[function] = handler;
+}
+
+void km::AddNewSystemCall(uint8_t function, BetterCallHandler handler) {
+    gNewSystemCalls[function] = handler;
 }
 
 extern "C" void KmSystemEntry(void);
 
 extern "C" uint64_t KmSystemCallStackTlsOffset;
 
-extern "C" OsCallResult KmSystemDispatchRoutine(km::SystemCallRegisterSet *context) {
-    uint8_t function = context->function;
+extern "C" OsCallResult KmSystemDispatchRoutine(km::SystemCallRegisterSet *regs) {
+    uint8_t function = regs->function;
+    if (km::BetterCallHandler handler = gNewSystemCalls[function]) {
+        km::CallContext context{};
+        return handler(&context, regs);
+    }
+
     if (km::SystemCallHandler handler = gSystemCalls[function]) {
-        OsCallResult result = handler(context->arg0, context->arg1, context->arg2, context->arg3);
+        OsCallResult result = handler(regs->arg0, regs->arg1, regs->arg2, regs->arg3);
         return result;
     }
 
-    KmDebugMessage("[SYS] Unknown function ", km::Hex(context->function), "\n");
+    KmDebugMessage("[SYS] Unknown function ", km::Hex(regs->function), "\n");
     return OsCallResult { .Status = OsStatusInvalidFunction, .Value = 0 };
 }
 
@@ -85,4 +97,36 @@ void km::EnterUserMode(km::IsrContext state) {
           [mrdx] "m" (state.rdx)
         : "memory", "cc"
     );
+}
+
+sm::RcuSharedPtr<km::Process> km::CallContext::process() {
+    return km::GetCurrentProcess();
+}
+
+sm::RcuSharedPtr<km::Thread> km::CallContext::thread() {
+    return km::GetCurrentThread();
+}
+
+km::PageTables& km::CallContext::ptes() {
+    return km::GetProcessPageTables();
+}
+
+OsStatus km::CallContext::readMemory(uint64_t address, size_t size, void *dst) {
+    return km::CopyUserMemory(ptes(), address, size, dst);
+}
+
+OsStatus km::CallContext::writeMemory(uint64_t address, const void *src, size_t size) {
+    return km::WriteUserMemory(ptes(), (void*)address, src, size);
+}
+
+OsStatus km::CallContext::readString(uint64_t front, uint64_t back, size_t limit, stdx::String *dst) {
+    return readArray(front, back, limit, dst);
+}
+
+OsStatus km::CallContext::readRange(uint64_t front, uint64_t back, void *dst, size_t size) {
+    return km::ReadUserMemory(ptes(), (void*)front, (void*)back, dst, size);
+}
+
+OsStatus km::CallContext::writeRange(uint64_t address, const void *front, const void *back) {
+    return km::WriteUserMemory(ptes(), (void*)address, front, (uintptr_t)back - (uintptr_t)front);
 }

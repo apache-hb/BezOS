@@ -1,4 +1,5 @@
 #include "fs2/device.hpp"
+#include "kernel.hpp"
 #include "user/user.hpp"
 
 static constexpr size_t kMaxInterfaceCount = 16;

@@ -6,6 +6,7 @@
 #include "isr/isr.hpp"
 #include "process/process.hpp"
 #include "std/rcuptr.hpp"
+#include "user/user.hpp"
 
 #include <cstdint>
 
@@ -40,31 +41,44 @@ namespace km {
         uint64_t userStack;
     };
 
-    template<typename T>
-    class UserAddress {
-        uintptr_t mValue;
-    };
-
-    template<typename T>
-    class UserValue {
-        uint64_t mValue;
-    };
+    static_assert(sizeof(SystemCallRegisterSet) == 112, "Update user.S to reflect changes in SystemCallRegisterSet");
 
     class CallContext {
     public:
+        /// @brief Get the calling process.
         sm::RcuSharedPtr<Process> process();
+
+        /// @brief Get the calling thread.
         sm::RcuSharedPtr<Thread> thread();
+
+        /// @brief Get the address space allocator for the calling process.
         PageTables& ptes();
 
+        /// @brief Read user memory.
         OsStatus readMemory(uint64_t address, size_t size, void *dst);
+
+        /// @brief Write to user memory.
         OsStatus writeMemory(uint64_t address, const void *src, size_t size);
 
+        /// @brief Read a single object from user memory.
         template<typename T>
-        OsStatus readObject(uint64_t address, T *dst);
+        OsStatus readObject(uint64_t address, T *dst) {
+            return readMemory(address, sizeof(T), dst);
+        }
 
-        OsStatus readString(uint64_t front, uint64_t back, stdx::String *dst);
+        /// @brief Read an array of memory into a container.
+        template<typename T>
+        OsStatus readArray(uint64_t front, uint64_t back, size_t limit, T *dst) {
+            return km::CopyUserRange(ptes(), (void*)front, (void*)back, dst, limit);
+        }
 
+        /// @brief Read a string from user memory.
+        OsStatus readString(uint64_t front, uint64_t back, size_t limit, stdx::String *dst);
+
+        /// @brief Read a range of memory into a pre-allocated buffer.
         OsStatus readRange(uint64_t front, uint64_t back, void *dst, size_t size);
+
+        /// @brief Write a range of memory.
         OsStatus writeRange(uint64_t address, const void *front, const void *back);
     };
 
@@ -75,6 +89,8 @@ namespace km {
     void EnterUserMode(km::IsrContext state);
 
     void AddSystemCall(uint8_t function, SystemCallHandler handler);
+
+    void AddNewSystemCall(uint8_t function, BetterCallHandler handler);
 
     template<typename T> requires (sizeof(T) <= sizeof(uint64_t))
     inline OsCallResult CallOk(T value) {

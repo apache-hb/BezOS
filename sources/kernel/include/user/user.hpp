@@ -2,7 +2,7 @@
 
 #include <bezos/status.h>
 
-#include "kernel.hpp"
+#include "memory/pte.hpp"
 
 #include <cstddef>
 

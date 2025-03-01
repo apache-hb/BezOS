@@ -8,6 +8,12 @@ bool km::IsRangeMapped(PageTables& pt, const void *begin, const void *end, km::P
     uintptr_t front = (uintptr_t)begin;
     uintptr_t back = (uintptr_t)end;
 
+    const PageBuilder *pm = pt.pageManager();
+
+    if (!pm->isCanonicalAddress(begin) || !pm->isCanonicalAddress(end)) {
+        return false;
+    }
+
     for (uintptr_t addr = front; addr < back; addr += x64::kPageSize) {
         if (!IsPageMapped(pt, (void*)addr, flags)) {
             return false;
