@@ -9,7 +9,7 @@
 #include <flanterm.h>
 #include <backends/fb.h>
 
-#include <rpmalloc.h>
+#include <tlsf.h>
 
 #include <ctype.h>
 #include <string.h>
@@ -292,8 +292,6 @@ static void ListCurrentFolder(VtDisplay& display, const char *path) {
 // rsi: last argument
 // rdx: reserved
 extern "C" [[noreturn]] void ClientStart(const void*, const void*, uint64_t) {
-    rpmalloc_initialize();
-
     OsFileHandle Handle = OS_FILE_INVALID;
     ASSERT_OS_SUCCESS(OpenFile("Users\0Guest\0motd.txt", &Handle));
 

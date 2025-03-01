@@ -6,7 +6,7 @@ project('system', 'cpp',
 )
 
 flanterm = dependency('flanterm')
-rpmalloc = dependency('rpmalloc')
+tlsf = dependency('tlsf')
 
 args = [
     '-e', 'ClientStart',
@@ -19,5 +19,5 @@ executable('init.elf', src,
     link_args : args,
     install : true,
     install_dir : get_option('prefix'),
-    dependencies : [ flanterm, rpmalloc ],
+    dependencies : [ flanterm, tlsf ],
 )

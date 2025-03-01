@@ -1,8 +1,6 @@
 #ifndef BEZOS_POSIX_ERRNO_H
 #define BEZOS_POSIX_ERRNO_H 1
 
-#include <stddef.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
