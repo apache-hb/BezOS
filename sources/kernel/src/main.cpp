@@ -1012,15 +1012,15 @@ static void AddVfsSystemCalls() {
 }
 
 static void AddDeviceSystemCalls() {
-    AddSystemCall(eOsCallDeviceOpen, [](uint64_t userCreateInfo, uint64_t, uint64_t, uint64_t) -> OsCallResult {
-        auto& pt = GetProcessPageTables();
+    AddNewSystemCall(eOsCallDeviceOpen, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        uint64_t userCreateInfo = regs->arg0;
         OsDeviceCreateInfo createInfo{};
-        if (OsStatus status = km::CopyUserMemory(pt, userCreateInfo, sizeof(createInfo), &createInfo)) {
+        if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {
             return CallError(status);
         }
 
         vfs2::VfsString userPath;
-        if (OsStatus status = km::CopyUserRange(pt, createInfo.NameFront, createInfo.NameBack, &userPath, kMaxPathSize)) {
+        if (OsStatus status = context->readString((uint64_t)createInfo.NameFront, (uint64_t)createInfo.NameBack, kMaxPathSize, &userPath)) {
             return CallError(status);
         }
 
@@ -1032,25 +1032,32 @@ static void AddDeviceSystemCalls() {
 
         sm::uuid uuid = createInfo.InterfaceGuid;
 
-        vfs2::IVfsNodeHandle *handle = nullptr;
-        if (OsStatus status = gVfsRoot->device(path, uuid, &handle)) {
+        std::unique_ptr<vfs2::IVfsNodeHandle> handle = nullptr;
+        if (OsStatus status = gVfsRoot->device(path, uuid, std::out_ptr(handle))) {
             return CallError(status);
         }
 
-        return CallOk(handle);
+        vfs2::IVfsNodeHandle *ptr = context->process()->addFile(std::move(handle));
+
+        return CallOk(ptr);
     });
 
-    AddSystemCall(eOsCallDeviceRead, [](uint64_t userHandle, uint64_t userRequest, uint64_t, uint64_t) -> OsCallResult {
-        vfs2::IVfsNodeHandle *handle = (vfs2::IVfsNodeHandle*)userHandle;
-        auto& pt = GetProcessPageTables();
+    AddNewSystemCall(eOsCallDeviceRead, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        uint64_t userHandle = regs->arg0;
+        uint64_t userRequest = regs->arg1;
 
         OsDeviceReadRequest request{};
-        if (OsStatus status = km::CopyUserMemory(pt, userRequest, sizeof(request), &request)) {
+        if (OsStatus status = context->readObject(userRequest, &request)) {
             return CallError(status);
         }
 
-        if (!IsRangeMapped(pt, request.BufferFront, request.BufferBack, PageFlags::eUser | PageFlags::eWrite)) {
+        if (!context->isMapped((uint64_t)request.BufferFront, (uint64_t)request.BufferBack, PageFlags::eUser | PageFlags::eWrite)) {
             return CallError(OsStatusInvalidInput);
+        }
+
+        vfs2::IVfsNodeHandle *handle = context->process()->findFile((const vfs2::IVfsNodeHandle*)userHandle);
+        if (handle == nullptr) {
+            return CallError(OsStatusInvalidHandle);
         }
 
         vfs2::ReadRequest readRequest {
@@ -1066,8 +1073,15 @@ static void AddDeviceSystemCalls() {
         return CallOk(result.read);
     });
 
-    AddSystemCall(eOsCallDeviceCall, [](uint64_t userHandle, uint64_t userFunction, uint64_t userData, uint64_t) -> OsCallResult {
-        vfs2::IVfsNodeHandle *handle = (vfs2::IVfsNodeHandle*)userHandle;
+    AddNewSystemCall(eOsCallDeviceCall, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        uint64_t userHandle = regs->arg0;
+        uint64_t userFunction = regs->arg1;
+        uint64_t userData = regs->arg2;
+
+        vfs2::IVfsNodeHandle *handle = context->process()->findFile((const vfs2::IVfsNodeHandle*)userHandle);
+        if (handle == nullptr) {
+            return CallError(OsStatusInvalidHandle);
+        }
 
         if (OsStatus status = handle->call(userFunction, (void*)userData)) {
             return CallError(status);
@@ -1078,16 +1092,16 @@ static void AddDeviceSystemCalls() {
 }
 
 static void AddThreadSystemCalls() {
-    AddSystemCall(eOsCallThreadSleep, [](uint64_t, uint64_t, uint64_t, uint64_t) -> OsCallResult {
+    AddNewSystemCall(eOsCallThreadSleep, [](CallContext *, SystemCallRegisterSet *) -> OsCallResult {
         km::YieldCurrentThread();
         return CallOk(0zu);
     });
 
-    AddSystemCall(eOsCallThreadCreate, [](uint64_t userCreateInfo, uint64_t, uint64_t, uint64_t) -> OsCallResult {
-        auto& pt = GetProcessPageTables();
+    AddNewSystemCall(eOsCallThreadCreate, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        uint64_t userCreateInfo = regs->arg0;
 
         OsThreadCreateInfo createInfo{};
-        if (OsStatus status = km::CopyUserMemory(pt, userCreateInfo, sizeof(createInfo), &createInfo)) {
+        if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {
             return CallError(status);
         }
 
@@ -1096,7 +1110,7 @@ static void AddThreadSystemCalls() {
         }
 
         stdx::String name;
-        if (OsStatus status = km::CopyUserRange(pt, createInfo.NameFront, createInfo.NameBack, &name, kMaxPathSize)) {
+        if (OsStatus status = context->readString((uint64_t)createInfo.NameFront, (uint64_t)createInfo.NameBack, kMaxPathSize, &name)) {
             return CallError(status);
         }
 
@@ -1134,18 +1148,6 @@ static void AddThreadSystemCalls() {
             .rsp = (uintptr_t)(thread->stack.get() + createInfo.StackSize),
             .ss = SystemGdt::eLongModeUserData * 0x8,
         };
-        return CallError(OsStatusInvalidFunction);
-    });
-
-    AddSystemCall(eOsCallThreadDestroy, [](uint64_t, uint64_t, uint64_t, uint64_t) -> OsCallResult {
-        return CallError(OsStatusInvalidFunction);
-    });
-
-    AddSystemCall(eOsCallThreadCurrent, [](uint64_t, uint64_t, uint64_t, uint64_t) -> OsCallResult {
-        return CallError(OsStatusInvalidFunction);
-    });
-
-    AddSystemCall(eOsCallThreadStat, [](uint64_t, uint64_t, uint64_t, uint64_t) -> OsCallResult {
         return CallError(OsStatusInvalidFunction);
     });
 }
@@ -1193,10 +1195,10 @@ static OsMemoryAccess MakeMemoryAccess(PageFlags flags) {
 }
 
 static void AddVmemSystemCalls() {
-    AddSystemCall(eOsCallAddressSpaceCreate, [](uint64_t userCreateInfo, uint64_t, uint64_t, uint64_t) -> OsCallResult {
-        auto& pt = GetProcessPageTables();
+    AddNewSystemCall(eOsCallAddressSpaceCreate, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        uint64_t userCreateInfo = regs->arg0;
         OsAddressSpaceCreateInfo createInfo{};
-        if (OsStatus status = km::CopyUserMemory(pt, userCreateInfo, sizeof(createInfo), &createInfo)) {
+        if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {
             return CallError(status);
         }
 
@@ -1217,7 +1219,7 @@ static void AddVmemSystemCalls() {
         }
 
         stdx::String name;
-        if (OsStatus status = km::CopyUserRange(pt, createInfo.NameFront, createInfo.NameBack, &name, kMaxPathSize)) {
+        if (OsStatus status = context->readString((uint64_t)createInfo.NameFront, (uint64_t)createInfo.NameBack, kMaxPathSize, &name)) {
             return CallError(status);
         }
 
@@ -1232,8 +1234,10 @@ static void AddVmemSystemCalls() {
         return CallOk(addressSpace->id());
     });
 
-    AddSystemCall(eOsCallAddressSpaceStat, [](uint64_t id, uint64_t userStat, uint64_t, uint64_t) -> OsCallResult {
-        auto& pt = GetProcessPageTables();
+    AddNewSystemCall(eOsCallAddressSpaceStat, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        uint64_t id = regs->arg0;
+        uint64_t userStat = regs->arg1;
+
         sm::RcuSharedPtr<AddressSpace> space = gSystemObjects->getAddressSpace(AddressSpaceId(id & 0x00FF'FFFF'FFFF'FFFF));
         km::AddressMapping mapping = space->mapping;
 
@@ -1244,7 +1248,7 @@ static void AddVmemSystemCalls() {
             .Access = MakeMemoryAccess(space->flags),
         };
 
-        if (OsStatus status = km::WriteUserMemory(pt, (void*)userStat, &stat, sizeof(stat))) {
+        if (OsStatus status = context->writeObject(userStat, stat)) {
             return CallError(status);
         }
 

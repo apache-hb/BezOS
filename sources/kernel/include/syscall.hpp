@@ -74,6 +74,11 @@ namespace km {
             return km::CopyUserRange(ptes(), (void*)front, (void*)back, dst, limit);
         }
 
+        template<typename T>
+        OsStatus writeObject(uint64_t address, const T& src) {
+            return writeMemory(address, &src, sizeof(T));
+        }
+
         /// @brief Read a string from user memory.
         OsStatus readString(uint64_t front, uint64_t back, size_t limit, stdx::String *dst);
 

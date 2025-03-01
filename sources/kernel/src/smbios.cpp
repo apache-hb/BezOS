@@ -10,6 +10,9 @@
 
 using namespace stdx::literals;
 
+/// @brief Structures defined by the DMTF SMBIOS specification.
+///
+/// @cite DSP0134
 namespace smbios {
     struct [[gnu::packed]] Entry64 {
         static constexpr auto kAnchor0 = util::Signature("_SM3_");
