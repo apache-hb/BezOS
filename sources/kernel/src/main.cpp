@@ -1302,6 +1302,40 @@ static void AddMutexSystemCalls() {
 #pragma clang diagnostic pop
 }
 
+static void AddProcessSystemCalls() {
+    AddSystemCall(eOsCallProcessCreate, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        uint64_t userCreateInfo = regs->arg0;
+        OsProcessCreateInfo createInfo{};
+        if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {
+            return CallError(status);
+        }
+
+        vfs2::VfsPath path;
+        if (OsStatus status = UserReadPath(context, createInfo.PathFront, createInfo.PathBack, &path)) {
+            return CallError(status);
+        }
+
+        // stdx::String args;
+        // if (OsStatus status = context->readString((uint64_t)createInfo.ArgumentsBegin, (uint64_t)createInfo.ArgumentsEnd, kMaxPathSize, &args)) {
+        //     return CallError(status);
+        // }
+
+        std::unique_ptr<vfs2::IVfsNodeHandle> node = nullptr;
+        if (OsStatus status = gVfsRoot->open(path, std::out_ptr(node))) {
+            return CallError(status);
+        }
+
+        ProcessLaunch launch{};
+        if (OsStatus status = LoadElf(std::move(node), *gMemory, *gSystemObjects, &launch)) {
+            return CallError(status);
+        }
+
+        GetScheduler()->addWorkItem(launch.main);
+
+        return CallOk(launch.process->id());
+    });
+}
+
 static OsStatus GetMemoryAccess(OsMemoryAccess access, PageFlags *result) {
     PageFlags flags = PageFlags::eUser;
     if (access & eOsMemoryRead) {
@@ -1733,6 +1767,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     AddThreadSystemCalls();
     AddVmemSystemCalls();
     AddMutexSystemCalls();
+    AddProcessSystemCalls();
 
     CreateNotificationQueue();
 

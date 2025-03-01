@@ -899,8 +899,13 @@ int tlsf_check(tlsf_t tlsf)
 
 #undef tlsf_insist
 
-static void default_walker(void*, size_t, int, void*)
+static void default_walker(void* _0, size_t _1, int _2, void* _3)
 {
+	(void)_0;
+	(void)_1;
+	(void)_2;
+	(void)_3;
+
 	// printf("\t%p %s size: %x (%p)\n", ptr, used ? "used" : "free", (unsigned int)size, block_from_ptr(ptr));
 }
 

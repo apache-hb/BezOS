@@ -87,7 +87,7 @@ enum {
     R_AMD64_PC8 = 15,
 };
 
-static OsStatus ApplyRelocations(vfs2::IVfsNodeHandle *file, std::span<const elf::Elf64Dyn> relocs, km::AddressMapping mapping) {
+static OsStatus ApplyRelocations(vfs2::IVfsNodeHandle *file, std::span<const elf::Elf64Dyn> relocs, km::AddressMapping mapping, uintptr_t windowOffset) {
     uint64_t relaSize = 0;
     uint64_t relaCount = 0;
     uint64_t relaStart = 0;
@@ -106,6 +106,10 @@ static OsStatus ApplyRelocations(vfs2::IVfsNodeHandle *file, std::span<const elf
 
     if (relaCount == 0 && relaEnt != 0) {
         relaCount = relaSize / relaEnt;
+    }
+
+    if (relaCount == 0 && relaStart == 0 && relaSize == 0 && relaEnt == 0) {
+        return OsStatusSuccess;
     }
 
     if (relaCount == 0 || relaStart == 0 || relaSize == 0 || relaEnt == 0) {
@@ -133,7 +137,7 @@ static OsStatus ApplyRelocations(vfs2::IVfsNodeHandle *file, std::span<const elf
 
     for (size_t i = 0; i < count; i++) {
         const elf::Elf64Rela &rela = relas[i];
-        uint64_t *target = (uint64_t*)((uintptr_t)mapping.vaddr + rela.offset);
+        uint64_t *target = (uint64_t*)((uintptr_t)mapping.vaddr + windowOffset + rela.offset);
         // uint64_t *symbol = (uint64_t*)((uintptr_t)mapping.vaddr + rela.addend);
 
         switch (rela.info & 0xFFFF) {
@@ -219,9 +223,6 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
 
     sm::RcuSharedPtr<Process> process = objects.createProcess("INIT", x64::Privilege::eUser, &memory.pageTables(), pteMemory);
 
-    // TODO: use a window rather than swapping the active map.
-    memory.getPager().setActiveMap(process->ptes.root());
-
     KmDebugMessage("[ELF] Load memory range: ", loadMemory, "\n");
 
     km::AddressMapping loadMapping{};
@@ -232,6 +233,9 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
     }
 
     KmDebugMessage("[ELF] Load memory mapping: ", loadMapping, "\n");
+
+    char *userWindow = (char*)memory.map(loadMapping.physicalRange(), PageFlags::eData);
+    uintptr_t windowOffset = (uintptr_t)userWindow - (uintptr_t)loadMapping.vaddr;
 
     km::IsrContext regs {
         .rip = ((uintptr_t)header.entry - (uintptr_t)loadMemory.front) + (uintptr_t)loadMapping.vaddr,
@@ -295,8 +299,8 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
         };
 
         vfs2::ReadRequest request {
-            .begin = (std::byte*)vaddr,
-            .end = (std::byte*)vaddr + ph.filesz,
+            .begin = (std::byte*)vaddr + windowOffset,
+            .end = (std::byte*)vaddr + windowOffset + ph.filesz,
             .offset = ph.offset,
         };
 
@@ -307,6 +311,8 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
             return status;
         }
 
+        KmDebugMessage("[ELF] Read ", readResult.read, " bytes\n");
+
         if (readResult.read != ph.filesz) {
             KmDebugMessage("[ELF] Failed to read section: ", readResult.read, " != ", ph.filesz, "\n");
             KmDebugMessage("[ELF] Section: ", mapping, "\n");
@@ -315,8 +321,10 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
 
         if (ph.memsz > ph.filesz) {
             uint64_t bssSize = ph.memsz - ph.filesz;
-            memset((char*)vaddr + ph.filesz, 0x00, bssSize);
+            memset((char*)vaddr + windowOffset + ph.filesz, 0x00, bssSize);
         }
+
+        KmDebugMessage("[ELF] Fill .bss\n");
 
         //
         // Now we can set the correct flags.
@@ -337,15 +345,12 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
     }
 
     if (dyn != nullptr) {
-        if (OsStatus status = ApplyRelocations(file.get(), std::span(dyn.get(), dynamic->filesz / sizeof(elf::Elf64Dyn)), loadMapping)) {
+        if (OsStatus status = ApplyRelocations(file.get(), std::span(dyn.get(), dynamic->filesz / sizeof(elf::Elf64Dyn)), loadMapping, windowOffset)) {
             return status;
         }
     }
 
-    if (regs.rip == 0) {
-        KmDebugMessage("[ELF] Entry point not found\n");
-        return OsStatusInvalidData;
-    }
+    memory.unmap(userWindow, loadMemory.size());
 
     //
     // Now allocate the stack for the main thread.
@@ -360,7 +365,9 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
         return status;
     }
 
-    memset((void*)mapping.vaddr, 0x00, kStackSize);
+    char *stack = (char*)memory.map(mapping.physicalRange(), flags);
+    memset(stack, 0x00, kStackSize);
+    memory.unmap(stack, kStackSize);
 
     sm::RcuSharedPtr<AddressSpace> stackSpace = objects.createAddressSpace("MAIN STACK", mapping, flags, type, process);
 
@@ -387,6 +394,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
     };
 
     KmDebugMessage("[ELF] Launching process: ", km::Hex(process->id()), "\n");
+    KmDebugMessage("[ELF] Entry: ", km::Hex(regs.rip), "\n");
 
     *result = launch;
     return OsStatusSuccess;
