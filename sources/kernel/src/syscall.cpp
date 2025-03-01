@@ -16,15 +16,10 @@ static constexpr size_t kStackSize = 0x4000 * 4;
 CPU_LOCAL
 static constinit km::CpuLocal<void*> tlsSystemCallStack;
 
-static constinit km::SystemCallHandler gSystemCalls[256] = { nullptr };
-static constinit km::BetterCallHandler gNewSystemCalls[256] = { nullptr };
+static constinit km::BetterCallHandler gSystemCalls[256] = { nullptr };
 
-void km::AddSystemCall(uint8_t function, SystemCallHandler handler) {
+void km::AddSystemCall(uint8_t function, BetterCallHandler handler) {
     gSystemCalls[function] = handler;
-}
-
-void km::AddNewSystemCall(uint8_t function, BetterCallHandler handler) {
-    gNewSystemCalls[function] = handler;
 }
 
 extern "C" void KmSystemEntry(void);
@@ -33,14 +28,9 @@ extern "C" uint64_t KmSystemCallStackTlsOffset;
 
 extern "C" OsCallResult KmSystemDispatchRoutine(km::SystemCallRegisterSet *regs) {
     uint8_t function = regs->function;
-    if (km::BetterCallHandler handler = gNewSystemCalls[function]) {
+    if (km::BetterCallHandler handler = gSystemCalls[function]) {
         km::CallContext context{};
         return handler(&context, regs);
-    }
-
-    if (km::SystemCallHandler handler = gSystemCalls[function]) {
-        OsCallResult result = handler(regs->arg0, regs->arg1, regs->arg2, regs->arg3);
-        return result;
     }
 
     KmDebugMessage("[SYS] Unknown function ", km::Hex(regs->function), "\n");

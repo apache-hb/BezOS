@@ -46,7 +46,6 @@
 #include "uart.hpp"
 #include "smbios.hpp"
 #include "pci/pci.hpp"
-#include "user/user.hpp"
 
 #include "memory/layout.hpp"
 
@@ -73,6 +72,7 @@ static constexpr bool kEnableSmp = true;
 
 // TODO: make this runtime configurable
 static constexpr size_t kMaxPathSize = 0x1000;
+static constexpr size_t kMaxMessageSize = 0x1000;
 
 class SerialLog final : public IOutStream {
     SerialPort mPort;
@@ -826,15 +826,6 @@ static void CreateNotificationQueue() {
     gNotificationStream = new NotificationStream();
 }
 
-static const void *TranslateUserPointer(const void *userAddress) {
-    PageTables& pt = gMemory->systemTables();
-    if (bool(pt.getMemoryFlags(userAddress) & (PageFlags::eUser | PageFlags::eRead))) {
-        return userAddress;
-    }
-
-    return nullptr;
-}
-
 static void MountRootVfs() {
     KmDebugMessage("[VFS] Initializing VFS.\n");
     gVfsRoot = new vfs2::VfsRoot();
@@ -939,15 +930,14 @@ static std::tuple<std::optional<HypervisorInfo>, bool> QueryHostHypervisor() {
 }
 
 static void AddDebugSystemCalls() {
-    AddSystemCall(eOsCallDebugLog, [](uint64_t arg0, uint64_t arg1, uint64_t, uint64_t) -> OsCallResult {
-        const char *front = (const char*)TranslateUserPointer((const void*)arg0);
-        const char *back = (const char*)TranslateUserPointer((const void*)arg1);
+    AddSystemCall(eOsCallDebugLog, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        uint64_t front = regs->arg0;
+        uint64_t back = regs->arg1;
 
-        if (front == nullptr || back == nullptr) {
-            return CallError(OsStatusInvalidInput);
+        stdx::String message;
+        if (OsStatus status = context->readString(front, back, kMaxMessageSize, &message)) {
+            return CallError(status);
         }
-
-        stdx::StringView message(front, back);
 
         KmDebugMessage(message);
 
@@ -960,7 +950,7 @@ static_assert(absl::container_internal::IsTransparent<
     >::value);
 
 static void AddVfsSystemCalls() {
-    AddNewSystemCall(eOsCallFileOpen, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+    AddSystemCall(eOsCallFileOpen, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t front = regs->arg0;
         uint64_t back = regs->arg1;
 
@@ -984,7 +974,7 @@ static void AddVfsSystemCalls() {
         return CallOk(ptr);
     });
 
-    AddNewSystemCall(eOsCallFileRead, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+    AddSystemCall(eOsCallFileRead, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t nodeId = regs->arg0;
         uint64_t front = regs->arg1;
         uint64_t back = regs->arg2;
@@ -1012,7 +1002,7 @@ static void AddVfsSystemCalls() {
 }
 
 static void AddDeviceSystemCalls() {
-    AddNewSystemCall(eOsCallDeviceOpen, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+    AddSystemCall(eOsCallDeviceOpen, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t userCreateInfo = regs->arg0;
         OsDeviceCreateInfo createInfo{};
         if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {
@@ -1042,7 +1032,7 @@ static void AddDeviceSystemCalls() {
         return CallOk(ptr);
     });
 
-    AddNewSystemCall(eOsCallDeviceRead, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+    AddSystemCall(eOsCallDeviceRead, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t userHandle = regs->arg0;
         uint64_t userRequest = regs->arg1;
 
@@ -1073,7 +1063,7 @@ static void AddDeviceSystemCalls() {
         return CallOk(result.read);
     });
 
-    AddNewSystemCall(eOsCallDeviceCall, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+    AddSystemCall(eOsCallDeviceCall, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t userHandle = regs->arg0;
         uint64_t userFunction = regs->arg1;
         uint64_t userData = regs->arg2;
@@ -1092,12 +1082,12 @@ static void AddDeviceSystemCalls() {
 }
 
 static void AddThreadSystemCalls() {
-    AddNewSystemCall(eOsCallThreadSleep, [](CallContext *, SystemCallRegisterSet *) -> OsCallResult {
+    AddSystemCall(eOsCallThreadSleep, [](CallContext *, SystemCallRegisterSet *) -> OsCallResult {
         km::YieldCurrentThread();
         return CallOk(0zu);
     });
 
-    AddNewSystemCall(eOsCallThreadCreate, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+    AddSystemCall(eOsCallThreadCreate, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t userCreateInfo = regs->arg0;
 
         OsThreadCreateInfo createInfo{};
@@ -1195,7 +1185,7 @@ static OsMemoryAccess MakeMemoryAccess(PageFlags flags) {
 }
 
 static void AddVmemSystemCalls() {
-    AddNewSystemCall(eOsCallAddressSpaceCreate, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+    AddSystemCall(eOsCallAddressSpaceCreate, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t userCreateInfo = regs->arg0;
         OsAddressSpaceCreateInfo createInfo{};
         if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {
@@ -1234,7 +1224,7 @@ static void AddVmemSystemCalls() {
         return CallOk(addressSpace->id());
     });
 
-    AddNewSystemCall(eOsCallAddressSpaceStat, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+    AddSystemCall(eOsCallAddressSpaceStat, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t id = regs->arg0;
         uint64_t userStat = regs->arg1;
 

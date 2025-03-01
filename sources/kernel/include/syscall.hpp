@@ -13,8 +13,6 @@
 namespace km {
     class SystemMemory;
 
-    using SystemCallHandler = OsCallResult(*)(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3);
-
     static constexpr x64::ModelRegister<0xC0000080, x64::RegisterAccess::eReadWrite> kEfer;
 
     struct [[gnu::packed]] SystemCallRegisterSet {
@@ -95,9 +93,7 @@ namespace km {
 
     void EnterUserMode(km::IsrContext state);
 
-    void AddSystemCall(uint8_t function, SystemCallHandler handler);
-
-    void AddNewSystemCall(uint8_t function, BetterCallHandler handler);
+    void AddSystemCall(uint8_t function, BetterCallHandler handler);
 
     template<typename T> requires (sizeof(T) <= sizeof(uint64_t))
     inline OsCallResult CallOk(T value) {
