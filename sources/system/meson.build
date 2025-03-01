@@ -6,19 +6,18 @@ project('system', 'cpp',
 )
 
 flanterm = dependency('flanterm')
+rpmalloc = dependency('rpmalloc')
 
 args = [
     '-e', 'ClientStart',
     '-z', 'noexecstack',
 ]
 
-src = [
-    'init/init.cpp',
-]
+src = [ 'init/init.cpp', ]
 
 executable('init.elf', src,
     link_args : args,
     install : true,
     install_dir : get_option('prefix'),
-    dependencies : [ flanterm ],
+    dependencies : [ flanterm, rpmalloc ],
 )

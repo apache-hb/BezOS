@@ -90,25 +90,23 @@ struct OsFileStat {
 struct OsFileCreateInfo {
     const char *PathFront;
     const char *PathBack;
+
+    OsFileOpenMode Mode;
 };
 
 /// @brief Open or create a file.
 ///
-/// @pre @p PathFront and @p PathBack must point to the front and back of a valid buffer.
-/// @pre @p PathBack must be > @p PathFront.
-/// @pre @p OutHandle must point to valid memory.
-/// @pre @p Mode must be a valid combination of @a OsFileOpenMode flags.
+/// @pre @p CreateInfo.PathFront and @p CreateInfo.PathBack must point to the front and back of a valid buffer.
+/// @pre @p CreateInfo.Mode must be a valid combination of @a OsFileOpenMode flags.
 ///
 /// @post @p OutHandle will be a valid file handle if the operation is successful.
 /// @post @p OutHandle will be @a OsFileHandleInvalid if the operation fails.
 ///
-/// @param PathFront The front of the path.
-/// @param PathBack The back of the path.
-/// @param Mode The mode to open the file in.
+/// @param CreateInfo The create information for the file.
 /// @param OutHandle The file handle.
 ///
 /// @return The status of the operation.
-extern OsStatus OsFileOpen(const char *PathFront, const char *PathBack, OsFileOpenMode Mode, OsFileHandle *OutHandle);
+extern OsStatus OsFileOpen(struct OsFileCreateInfo CreateInfo, OsFileHandle *OutHandle);
 
 /// @brief Close a file handle.
 ///
@@ -187,6 +185,12 @@ enum {
     eOsNodeFile   = UINT16_C(1),
     eOsNodeFolder = UINT16_C(2),
     eOsNodeLink   = UINT16_C(3),
+    eOsNodeDevice = UINT16_C(4),
+};
+
+struct OsFolderIterateCreateInfo {
+    const char *PathFront;
+    const char *PathBack;
 };
 
 struct OsFolderEntry {
@@ -200,19 +204,26 @@ struct OsFolderEntry {
 
 /// @brief Create a directory iterator.
 ///
-/// @pre @p PathFront and @p PathBack must point to the front and back of a valid buffer.
-/// @pre @p PathBack must be > @p PathFront.
+/// @pre @p CreateInfo.PathFront and @p CreateInfo.PathBack must point to the front and back of a valid buffer.
 /// @pre @p OutHandle must point to valid memory.
 ///
 /// @post @p OutHandle will be a valid folder iterator handle if the operation is successful.
 /// @post @p OutHandle will be @a OsFolderIteratorHandleInvalid if the operation fails.
 ///
-/// @param PathFront The front of the path.
-/// @param PathBack The back of the path.
+/// @param OsFolderIterateCreateInfo The create information for the folder iterator.
 /// @param OutHandle The folder iterator handle.
 ///
 /// @return The status of the operation.
-extern OsStatus OsFolderIterate(const char *PathFront, const char *PathBack, OsFolderIteratorHandle *OutHandle);
+extern OsStatus OsFolderIterateCreate(struct OsFolderIterateCreateInfo CreateInfo, OsFolderIteratorHandle *OutHandle);
+
+/// @brief End the directory iteration.
+///
+/// @pre @p Handle must be a valid folder iterator handle.
+///
+/// @param Handle The folder iterator handle.
+///
+/// @return The status of the operation.
+extern OsStatus OsFolderIterateDestroy(OsFolderIteratorHandle Handle);
 
 /// @brief Iterate to the next entry in the directory.
 ///
@@ -226,15 +237,6 @@ extern OsStatus OsFolderIterate(const char *PathFront, const char *PathBack, OsF
 ///
 /// @return The status of the operation.
 extern OsStatus OsFolderIterateNext(OsFolderIteratorHandle Handle, struct OsFolderEntry *OutEntry);
-
-/// @brief End the directory iteration.
-///
-/// @pre @p Handle must be a valid folder iterator handle.
-///
-/// @param Handle The folder iterator handle.
-///
-/// @return The status of the operation.
-extern OsStatus OsFolderIterateEnd(OsFolderIteratorHandle Handle);
 
 /// @} // group OsFolderIterator
 

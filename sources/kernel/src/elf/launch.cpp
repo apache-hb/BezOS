@@ -50,14 +50,22 @@ static OsStatus ValidateElfHeader(const elf::Header &header, size_t size) {
     return OsStatusSuccess;
 }
 
-static const elf::ProgramHeader *FindDynamicSection(std::span<const elf::ProgramHeader> phs) {
+static const elf::ProgramHeader *FindProgramHeader(std::span<const elf::ProgramHeader> phs, elf::ProgramHeaderType type) {
     for (const auto& header : phs) {
-        if (header.type == elf::ProgramHeaderType::eDynamic) {
+        if (header.type == type) {
             return &header;
         }
     }
 
     return nullptr;
+}
+
+static const elf::ProgramHeader *FindDynamicSection(std::span<const elf::ProgramHeader> phs) {
+    return FindProgramHeader(phs, elf::ProgramHeaderType::eDynamic);
+}
+
+static const elf::ProgramHeader *FindTlsSection(std::span<const elf::ProgramHeader> phs) {
+    return FindProgramHeader(phs, elf::ProgramHeaderType::eTls);
 }
 
 enum {
@@ -143,6 +151,42 @@ static OsStatus ApplyRelocations(vfs2::IVfsNodeHandle *file, std::span<const elf
     return OsStatusSuccess;
 }
 
+static OsStatus AllocateTlsMemory(vfs2::IVfsNodeHandle *file, const elf::ProgramHeader *tls, km::SystemMemory& memory, km::ProcessPageTables& ptes, km::AddressMapping *mapping) {
+    km::AddressMapping tlsMapping{};
+    OsStatus status = AllocateMemory(memory.pmmAllocator(), &ptes, km::Pages(tls->memsz + sizeof(uintptr_t)), &tlsMapping);
+    if (status != OsStatusSuccess) {
+        KmDebugMessage("[ELF] Failed to allocate ", sm::bytes(tls->memsz), " for ELF program load sections. ", status, "\n");
+        return status;
+    }
+
+    vfs2::ReadRequest request {
+        .begin = (std::byte*)tlsMapping.vaddr + sizeof(uintptr_t),
+        .end = (std::byte*)tlsMapping.vaddr + tls->filesz + sizeof(uintptr_t),
+        .offset = tls->offset,
+    };
+
+    vfs2::ReadResult result{};
+    if (OsStatus status = file->read(request, &result)) {
+        return status;
+    }
+
+    if (result.read != tls->filesz) {
+        KmDebugMessage("[ELF] Failed to read TLS section\n");
+        return OsStatusInvalidData;
+    }
+
+    if (tls->memsz > tls->filesz) {
+        size_t bssSize = tls->memsz - tls->filesz;
+        memset(((char*)tlsMapping.vaddr + tls->filesz + sizeof(uintptr_t)), 0, bssSize);
+    }
+
+    const void *vaddr = tlsMapping.vaddr;
+    memcpy((char*)tlsMapping.vaddr, &vaddr, sizeof(uintptr_t));
+
+    *mapping = tlsMapping;
+    return OsStatusSuccess;
+}
+
 OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &memory, SystemObjects &objects, ProcessLaunch *result) {
     vfs2::VfsNodeStat stat{};
     if (OsStatus status = file->stat(&stat)) {
@@ -197,6 +241,11 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
     };
 
     KmDebugMessage("[ELF] Entry point: ", km::Hex(regs.rip), "\n");
+
+    const elf::ProgramHeader *tls = FindTlsSection(programHeaders);
+    if (tls != nullptr) {
+        KmDebugMessage("[ELF] TLS section found\n");
+    }
 
     const elf::ProgramHeader *dynamic = FindDynamicSection(programHeaders);
     std::unique_ptr<elf::Elf64Dyn[]> dyn;
@@ -320,6 +369,15 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
 
     regs.rbp = (uintptr_t)mapping.vaddr + kStackSize;
     regs.rsp = (uintptr_t)mapping.vaddr + kStackSize;
+
+    if (tls != nullptr) {
+        AddressMapping mapping{};
+        if (OsStatus status = AllocateTlsMemory(file.get(), tls, memory, process->ptes, &mapping)) {
+            return status;
+        }
+
+        main->tlsAddress = (uint64_t)((char*)mapping.vaddr);
+    }
 
     main->state = regs;
 

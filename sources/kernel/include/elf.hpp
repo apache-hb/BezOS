@@ -105,6 +105,7 @@ namespace elf {
     enum class ProgramHeaderType : uint32_t {
         eLoad = 0x1,
         eDynamic = 0x2,
+        eTls = 0x7,
     };
 
     struct ProgramHeader {

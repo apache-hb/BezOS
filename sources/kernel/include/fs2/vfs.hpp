@@ -65,6 +65,8 @@ namespace vfs2 {
 
         OsStatus open(const VfsPath& path, IVfsNodeHandle **handle);
 
+        OsStatus opendir(const VfsPath& path, IVfsNodeHandle **handle);
+
         OsStatus mkdir(const VfsPath& path, IVfsNode **node);
         OsStatus rmdir(IVfsNode *node);
 

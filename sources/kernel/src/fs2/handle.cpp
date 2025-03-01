@@ -13,3 +13,20 @@ OsStatus IVfsNodeHandle::write(WriteRequest request, WriteResult *result) {
 OsStatus IVfsNodeHandle::stat(VfsNodeStat *stat) {
     return node->stat(stat);
 }
+
+VfsFolderHandle::VfsFolderHandle(IVfsNode *node)
+    : IVfsNodeHandle(node)
+{
+    for (const auto& [name, _] : node->children) {
+        mEntries.add(VfsString(name));
+    }
+}
+
+OsStatus VfsFolderHandle::next(VfsString *name) {
+    if (mIndex >= mEntries.count()) {
+        return OsStatusEndOfFile;
+    }
+
+    *name = mEntries[mIndex++];
+    return OsStatusSuccess;
+}

@@ -9,6 +9,8 @@
 #include <flanterm.h>
 #include <backends/fb.h>
 
+#include <rpmalloc.h>
+
 #include <ctype.h>
 #include <string.h>
 #include <iterator>
@@ -53,7 +55,12 @@ static void Assert(bool condition, const char (&message)[N]) {
 template<size_t N>
 static void AssertOsSuccess(OsStatus status, const char (&message)[N]) {
     if (status != OsStatusSuccess) {
-        Assert(false, message);
+        DebugLog(message);
+        DebugLog("\nStatus: ");
+        DebugLog(status);
+        while (true) {
+            OsThreadYield();
+        }
     }
 }
 
@@ -225,21 +232,68 @@ public:
 };
 
 template<size_t N>
-static OsStatus OpenFile(const char (&path)[N], OsFileHandle *OutHandle) {
-    const char *begin = path;
-    const char *end = path + N - 1;
+static OsStatus OpenFile(const char (&path)[N], OsFileHandle *outHandle) {
+    OsFileCreateInfo createInfo {
+        .PathFront = std::begin(path),
+        .PathBack = std::end(path) - 1,
+        .Mode = eOsFileRead,
+    };
 
-    return OsFileOpen(begin, end, eOsFileRead, OutHandle);
+    return OsFileOpen(createInfo, outHandle);
 }
 
 static void Prompt(VtDisplay& display) {
     display.WriteString("root@localhost: ");
 }
 
+static void ListCurrentFolder(VtDisplay& display, const char *path) {
+    alignas(OsFolderEntry) char buffer[1024];
+
+    char copy[1024];
+    memcpy(copy, path, sizeof(copy));
+    for (char *ptr = copy; *ptr != '\0'; ptr++) {
+        if (*ptr == '/') {
+            *ptr = '\0';
+        }
+    }
+
+    size_t front = 0;
+    size_t len = strlen(path);
+
+    if (copy[0] == '\0') {
+        front += 1;
+    }
+
+    OsFolderIterateCreateInfo createInfo {
+        .PathFront = copy + front,
+        .PathBack = copy + len,
+    };
+
+    OsFolderIteratorHandle handle = OS_FOLDER_ITERATOR_INVALID;
+    ASSERT_OS_SUCCESS(OsFolderIterateCreate(createInfo, &handle));
+
+    OsFolderEntry *iter = reinterpret_cast<OsFolderEntry*>(buffer);
+    iter->NameSize = sizeof(buffer) - sizeof(OsFolderEntry);
+
+    while (true) {
+        OsStatus status = OsFolderIterateNext(handle, iter);
+        if (status == OsStatusEndOfFile) {
+            break;
+        }
+
+        ASSERT_OS_SUCCESS(status);
+
+        display.WriteString(iter->Name, iter->Name + iter->NameSize);
+        display.WriteString("\n");
+    }
+}
+
 // rdi: first argument
 // rsi: last argument
 // rdx: reserved
 extern "C" [[noreturn]] void ClientStart(const void*, const void*, uint64_t) {
+    rpmalloc_initialize();
+
     OsFileHandle Handle = OS_FILE_INVALID;
     ASSERT_OS_SUCCESS(OpenFile("Users\0Guest\0motd.txt", &Handle));
 
@@ -255,6 +309,8 @@ extern "C" [[noreturn]] void ClientStart(const void*, const void*, uint64_t) {
 
     char text[0x1000];
     size_t index = 0;
+
+    char cwd[1024] = "/Users/Guest";
 
     KeyboardDevice keyboard{};
     OsHidEvent event{};
@@ -287,6 +343,15 @@ extern "C" [[noreturn]] void ClientStart(const void*, const void*, uint64_t) {
                 break;
             } else if (strcmp(text, "uname") == 0) {
                 display.WriteString("BezOS localhost 0.0.1 amd64\n");
+                Prompt(display);
+                continue;
+            } else if (strcmp(text, "pwd") == 0) {
+                display.WriteString(cwd);
+                display.WriteString("\n");
+                Prompt(display);
+                continue;
+            } else if (strcmp(text, "ls") == 0) {
+                ListCurrentFolder(display, cwd);
                 Prompt(display);
                 continue;
             }

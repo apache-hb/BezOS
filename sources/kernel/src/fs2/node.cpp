@@ -29,6 +29,18 @@ OsStatus IVfsNode::open(IVfsNodeHandle **handle) {
     return OsStatusSuccess;
 }
 
+OsStatus IVfsNode::opendir(IVfsNodeHandle **handle) {
+    KM_ASSERT(type == VfsNodeType::eFolder);
+
+    VfsFolderHandle *result = new(std::nothrow) VfsFolderHandle(this);
+    if (!result) {
+        return OsStatusOutOfMemory;
+    }
+
+    *handle = result;
+    return OsStatusSuccess;
+}
+
 OsStatus IVfsNode::lookup(VfsStringView name, IVfsNode **child) {
     KM_ASSERT(type == VfsNodeType::eFolder);
 

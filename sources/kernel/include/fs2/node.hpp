@@ -6,6 +6,7 @@
 
 #include "std/string_view.hpp"
 
+#include "std/vector.hpp"
 #include "util/absl.hpp"
 
 #include "util/util.hpp"
@@ -21,7 +22,7 @@ namespace vfs2 {
 
     class IVfsNodeHandle;
 
-    class IVfsNodeIterator;
+    class VfsFolderHandle;
     class IVfsNode;
 
     struct IVfsMount;
@@ -91,6 +92,7 @@ namespace vfs2 {
         virtual OsStatus write(WriteRequest request, WriteResult *result);
         virtual OsStatus stat(VfsNodeStat *stat);
         virtual OsStatus call(uint64_t, void*) { return OsStatusNotSupported; }
+        virtual OsStatus next(VfsString *) { return OsStatusNotSupported; }
     };
 
     template<typename T> requires (std::is_trivial_v<T>)
@@ -133,9 +135,14 @@ namespace vfs2 {
         return OsStatusSuccess;
     }
 
-    class IVfsNodeIterator {
+    class VfsFolderHandle : public IVfsNodeHandle {
+        size_t mIndex = 0;
+        stdx::Vector2<VfsString> mEntries;
+
     public:
-        virtual ~IVfsNodeIterator() = default;
+        VfsFolderHandle(IVfsNode *node);
+
+        OsStatus next(VfsString *name) override;
     };
 
     class IVfsNode {
@@ -239,6 +246,7 @@ namespace vfs2 {
 
         virtual OsStatus open(IVfsNodeHandle **handle);
 
+        virtual OsStatus opendir(IVfsNodeHandle **handle);
 
         OsStatus lookup(VfsStringView name, IVfsNode **child);
         OsStatus addFile(VfsStringView name, IVfsNode **child);

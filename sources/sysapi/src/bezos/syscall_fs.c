@@ -2,8 +2,12 @@
 
 #include <bezos/private.h>
 
-OsStatus OsFileOpen(const char *PathFront, const char *PathBack, OsFileOpenMode Mode, OsFileHandle *OutHandle) {
-    struct OsCallResult result = OsSystemCall(eOsCallFileOpen, (uint64_t)PathFront, (uint64_t)PathBack, (uint64_t)Mode, 0);
+//
+// File related syscalls
+//
+
+OsStatus OsFileOpen(struct OsFileCreateInfo CreateInfo, OsFileHandle *OutHandle) {
+    struct OsCallResult result = OsSystemCall(eOsCallFileOpen, (uint64_t)&CreateInfo, 0, 0, 0);
     *OutHandle = (OsFileHandle)result.Value;
     return result.Status;
 }
@@ -35,6 +39,28 @@ OsStatus OsFileStat(OsFileHandle Handle, struct OsFileStat *OutStat) {
     struct OsCallResult result = OsSystemCall(eOsCallFileStat, (uint64_t)Handle, (uint64_t)OutStat, 0, 0);
     return result.Status;
 }
+
+//
+// Folder related syscalls
+//
+
+OsStatus OsFolderIterateCreate(struct OsFolderIterateCreateInfo CreateInfo, OsFolderIteratorHandle *OutHandle) {
+    struct OsCallResult result = OsSystemCall(eOsCallFolderIterateCreate, (uint64_t)&CreateInfo, 0, 0, 0);
+    *OutHandle = (OsFolderIteratorHandle)result.Value;
+    return result.Status;
+}
+
+OsStatus OsFolderIterateDestroy(OsFolderIteratorHandle Handle) {
+    struct OsCallResult result = OsSystemCall(eOsCallFolderIterateDestroy, (uint64_t)Handle, 0, 0, 0);
+    return result.Status;
+}
+
+OsStatus OsFolderIterateNext(OsFolderIteratorHandle Handle, struct OsFolderEntry *OutEntry) {
+    struct OsCallResult result = OsSystemCall(eOsCallFolderIterateNext, (uint64_t)Handle, (uint64_t)OutEntry, 0, 0);
+    return result.Status;
+}
+
+
 
 // TODO: remove this
 void OsDebugLog(const char *Begin, const char *End) {

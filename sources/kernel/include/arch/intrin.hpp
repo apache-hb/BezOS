@@ -89,6 +89,12 @@ static inline uint64_t __DEFAULT_FN_ATTRS __gsbase(void) {
     return value;
 }
 
+static inline uint64_t __DEFAULT_FN_ATTRS __fsbase(void) {
+    uint64_t value;
+    asm volatile("mov %%fs:0, %0" : "=r"(value));
+    return value;
+}
+
 static inline __DEFAULT_FN_ATTRS void __invlpg(uintptr_t address) {
     asm volatile("invlpg (%0)" : : "r"(address) : "memory");
 }

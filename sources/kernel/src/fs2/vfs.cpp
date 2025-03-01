@@ -240,6 +240,31 @@ OsStatus VfsRoot::open(const VfsPath& path, IVfsNodeHandle **handle) {
     return file->open(handle);
 }
 
+OsStatus VfsRoot::opendir(const VfsPath& path, IVfsNodeHandle **handle) {
+    stdx::UniqueLock guard(mLock);
+
+    IVfsNode *parent = nullptr;
+    if (OsStatus status = walk(path, &parent)) {
+        return status;
+    }
+
+    IVfsNode *folder = nullptr;
+    if (OsStatus status = parent->lookup(path.name(), &folder)) {
+        return status;
+    }
+
+    //
+    // open can only be used to open folders, if the inode
+    // is not a folder then we must return an error.
+    //
+
+    if (folder->type != VfsNodeType::eFolder) {
+        return OsStatusInvalidType;
+    }
+
+    return folder->opendir(handle);
+}
+
 OsStatus VfsRoot::mkdir(const VfsPath& path, IVfsNode **node) {
     stdx::UniqueLock guard(mLock);
 

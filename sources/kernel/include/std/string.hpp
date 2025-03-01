@@ -183,9 +183,11 @@ namespace stdx {
         }
 
         constexpr void clear() {
-            std::destroy_n(mFront, count());
-            mBack = mFront;
-            mBack[0] = T{};
+            if (!isEmpty()) {
+                std::destroy(mFront, mBack);
+                mBack = mFront;
+                mBack[0] = T{};
+            }
         }
 
         constexpr T *begin() { return mFront; }

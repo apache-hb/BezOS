@@ -929,6 +929,20 @@ static std::tuple<std::optional<HypervisorInfo>, bool> QueryHostHypervisor() {
     return std::make_tuple(hvInfo, hasDebugPort);
 }
 
+static OsStatus UserReadPath(CallContext *context, const char *front, const char *back, vfs2::VfsPath *path) {
+    vfs2::VfsString text;
+    if (OsStatus status = context->readString((uint64_t)front, (uint64_t)back, kMaxPathSize, &text)) {
+        return status;
+    }
+
+    if (!vfs2::VerifyPathText(text)) {
+        return OsStatusInvalidPath;
+    }
+
+    *path = vfs2::VfsPath{std::move(text)};
+    return OsStatusSuccess;
+}
+
 static void AddDebugSystemCalls() {
     AddSystemCall(eOsCallDebugLog, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t front = regs->arg0;
@@ -945,25 +959,19 @@ static void AddDebugSystemCalls() {
     });
 }
 
-static_assert(absl::container_internal::IsTransparent<
-    absl::DefaultHashContainerHash<std::unique_ptr<vfs2::IVfsNodeHandle>>
-    >::value);
-
-static void AddVfsSystemCalls() {
+static void AddVfsFileSystemCalls() {
     AddSystemCall(eOsCallFileOpen, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
-        uint64_t front = regs->arg0;
-        uint64_t back = regs->arg1;
-
-        vfs2::VfsString pathText;
-        if (OsStatus status = context->readString(front, back, kMaxPathSize, &pathText)) {
+        uint64_t userCreateInfo = regs->arg0;
+        OsFileCreateInfo createInfo{};
+        if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {
             return CallError(status);
         }
 
-        if (!vfs2::VerifyPathText(pathText)) {
-            return CallError(OsStatusInvalidInput);
+        vfs2::VfsPath path;
+        if (OsStatus status = UserReadPath(context, createInfo.PathFront, createInfo.PathBack, &path)) {
+            return CallError(status);
         }
 
-        vfs2::VfsPath path{std::move(pathText)};
         std::unique_ptr<vfs2::IVfsNodeHandle> node = nullptr;
         if (OsStatus status = gVfsRoot->open(path, std::out_ptr(node))) {
             return CallError(status);
@@ -1001,6 +1009,103 @@ static void AddVfsSystemCalls() {
     });
 }
 
+static OsStatus ConvertVfsNodeType(vfs2::VfsNodeType type, OsFolderEntryType *result) {
+    switch (type) {
+    case vfs2::VfsNodeType::eFile:
+        *result = eOsNodeFile;
+        break;
+    case vfs2::VfsNodeType::eFolder:
+        *result = eOsNodeFolder;
+        break;
+    case vfs2::VfsNodeType::eDevice:
+        *result = eOsNodeDevice;
+        break;
+    default:
+        return OsStatusInvalidInput;
+    }
+
+    return OsStatusSuccess;
+}
+
+static void AddVfsFolderSystemCalls() {
+    AddSystemCall(eOsCallFolderIterateCreate, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        uint64_t userCreateInfo = regs->arg0;
+
+        OsFolderIterateCreateInfo createInfo{};
+        if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {
+            return CallError(status);
+        }
+
+        vfs2::VfsPath path;
+        if (OsStatus status = UserReadPath(context, createInfo.PathFront, createInfo.PathBack, &path)) {
+            return CallError(status);
+        }
+
+        std::unique_ptr<vfs2::IVfsNodeHandle> node = nullptr;
+        if (OsStatus status = gVfsRoot->opendir(path, std::out_ptr(node))) {
+            return CallError(status);
+        }
+
+        vfs2::IVfsNodeHandle *ptr = context->process()->addFile(std::move(node));
+
+        return CallOk(ptr);
+    });
+
+    AddSystemCall(eOsCallFolderIterateNext, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        uint64_t userHandle = regs->arg0;
+        uint64_t userEntry = regs->arg1;
+
+        vfs2::IVfsNodeHandle *handle = context->process()->findFile((const vfs2::IVfsNodeHandle*)userHandle);
+        if (handle == nullptr) {
+            return CallError(OsStatusInvalidHandle);
+        }
+
+        OsFolderEntry header{};
+        if (OsStatus status = context->readObject(userEntry, &header)) {
+            return CallError(status);
+        }
+
+        OsFolderEntryNameSize size = header.NameSize;
+        if (size > kMaxPathSize) {
+            return CallError(OsStatusInvalidInput);
+        }
+
+        vfs2::VfsString name;
+        if (OsStatus status = handle->next(&name)) {
+            return CallError(status);
+        }
+
+        OsFolderEntryNameSize limit = std::min<OsFolderEntryNameSize>(size, name.count());
+
+        OsFolderEntry result { .NameSize = limit, };
+
+        if (OsStatus status = ConvertVfsNodeType(handle->node->type, &result.Type)) {
+            return CallError(status);
+        }
+
+        //
+        // First write back the header.
+        //
+        if (OsStatus status = context->writeObject(userEntry, result)) {
+            return CallError(status);
+        }
+
+        //
+        // Then write the name itself.
+        //
+        if (OsStatus status = context->writeRange(userEntry + sizeof(OsFolderEntry), name.begin(), name.data() + limit)) {
+            return CallError(status);
+        }
+
+        return CallOk(0zu);
+    });
+}
+
+static void AddVfsSystemCalls() {
+    AddVfsFileSystemCalls();
+    AddVfsFolderSystemCalls();
+}
+
 static void AddDeviceSystemCalls() {
     AddSystemCall(eOsCallDeviceOpen, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t userCreateInfo = regs->arg0;
@@ -1009,16 +1114,10 @@ static void AddDeviceSystemCalls() {
             return CallError(status);
         }
 
-        vfs2::VfsString userPath;
-        if (OsStatus status = context->readString((uint64_t)createInfo.NameFront, (uint64_t)createInfo.NameBack, kMaxPathSize, &userPath)) {
+        vfs2::VfsPath path;
+        if (OsStatus status = UserReadPath(context, createInfo.NameFront, createInfo.NameBack, &path)) {
             return CallError(status);
         }
-
-        if (!vfs2::VerifyPathText(userPath)) {
-            return CallError(OsStatusInvalidInput);
-        }
-
-        vfs2::VfsPath path{std::move(userPath)};
 
         sm::uuid uuid = createInfo.InterfaceGuid;
 
@@ -1133,13 +1232,74 @@ static void AddThreadSystemCalls() {
         thread->state = km::IsrContext {
             .rbp = (uintptr_t)(thread->stack.get() + createInfo.StackSize),
             .rip = (uintptr_t)createInfo.EntryPoint,
-            .cs = SystemGdt::eLongModeUserCode * 0x8,
+            .cs = (SystemGdt::eLongModeUserCode * 0x8) | 0b11,
             .rflags = 0x202,
             .rsp = (uintptr_t)(thread->stack.get() + createInfo.StackSize),
-            .ss = SystemGdt::eLongModeUserData * 0x8,
+            .ss = (SystemGdt::eLongModeUserData * 0x8) | 0b11,
         };
         return CallError(OsStatusInvalidFunction);
     });
+}
+
+static void AddMutexSystemCalls() {
+    AddSystemCall(eOsCallMutexCreate, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        uint64_t userCreateInfo = regs->arg0;
+
+        OsMutexCreateInfo createInfo{};
+        if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {
+            return CallError(status);
+        }
+
+        stdx::String name;
+        if (OsStatus status = context->readString((uint64_t)createInfo.NameFront, (uint64_t)createInfo.NameBack, kMaxPathSize, &name)) {
+            return CallError(status);
+        }
+
+        sm::RcuSharedPtr<Mutex> mutex = gSystemObjects->createMutex(std::move(name));
+        return CallOk(mutex->id());
+    });
+
+    //
+    // Clang can't analyze the control flow here because its all very non-local.
+    //
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wthread-safety-analysis"
+
+    AddSystemCall(eOsCallMutexLock, [](CallContext*, SystemCallRegisterSet *regs) -> OsCallResult {
+        uint64_t id = regs->arg0;
+        sm::RcuSharedPtr<Mutex> mutex = gSystemObjects->getMutex(MutexId(id & 0x00FF'FFFF'FFFF'FFFF));
+        if (mutex == nullptr) {
+            return CallError(OsStatusNotFound);
+        }
+
+        //
+        // Try a few times to acquire the lock before putting the thread to sleep.
+        //
+        for (int i = 0; i < 10; i++) {
+            if (mutex->lock.try_lock()) {
+                return CallOk(0zu);
+            }
+        }
+
+        while (!mutex->lock.try_lock()) {
+            km::YieldCurrentThread();
+        }
+
+        return CallOk(0zu);
+    });
+
+    AddSystemCall(eOsCallMutexUnlock, [](CallContext*, SystemCallRegisterSet *regs) -> OsCallResult {
+        uint64_t id = regs->arg0;
+        sm::RcuSharedPtr<Mutex> mutex = gSystemObjects->getMutex(MutexId(id & 0x00FF'FFFF'FFFF'FFFF));
+        if (mutex == nullptr) {
+            return CallError(OsStatusNotFound);
+        }
+
+        mutex->lock.unlock();
+        return CallOk(0zu);
+    });
+
+#pragma clang diagnostic pop
 }
 
 static OsStatus GetMemoryAccess(OsMemoryAccess access, PageFlags *result) {
@@ -1572,6 +1732,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     AddDeviceSystemCalls();
     AddThreadSystemCalls();
     AddVmemSystemCalls();
+    AddMutexSystemCalls();
 
     CreateNotificationQueue();
 

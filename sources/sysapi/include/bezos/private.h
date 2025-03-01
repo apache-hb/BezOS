@@ -15,8 +15,9 @@ enum {
     eOsCallFileSeek = 0x14,
     eOsCallFileStat = 0x15,
 
-    eOsCallDirIter = 0x20,
-    eOsCallDirNext = 0x21,
+    eOsCallFolderIterateCreate = 0x20,
+    eOsCallFolderIterateDestroy = 0x21,
+    eOsCallFolderIterateNext = 0x22,
 
     eOsCallProcessCreate = 0x30,
     eOsCallProcessDestroy = 0x31,

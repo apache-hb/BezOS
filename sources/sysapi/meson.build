@@ -45,10 +45,13 @@ src = [
     'src/posix/errno.cpp',
     'src/posix/string.cpp',
     'src/posix/ctype.cpp',
+    'src/posix/unistd.cpp',
+    'src/posix/sys_mman.cpp',
 ]
 
 libposix = static_library('bezos-posix', src,
     include_directories : inc,
+    dependencies : [ bezos_dep ],
     install : true,
 )
 

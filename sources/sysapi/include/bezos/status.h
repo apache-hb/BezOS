@@ -77,6 +77,12 @@ enum OsStatusId {
 
     /// @brief The handle is stale or invalid.
     OsStatusInvalidHandle = 0x0012,
+
+    /// @brief The memory address is not available.
+    OsStatusInvalidAddress = 0x0013,
+
+    /// @brief The memory span specified is invalid.
+    OsStatusInvalidSpan = 0x0014,
 };
 
 #ifdef __cplusplus

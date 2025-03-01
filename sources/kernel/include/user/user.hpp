@@ -18,16 +18,16 @@ namespace km {
     template<typename Range>
     OsStatus CopyUserRange(PageTables& ptes, const void *front, const void *back, Range *dst, size_t limit) {
         if (front >= back) {
-            return OsStatusInvalidInput;
+            return OsStatusInvalidSpan;
         }
 
         size_t size = (uintptr_t)back - (uintptr_t)front;
         if (size > limit) {
-            return OsStatusInvalidInput;
+            return OsStatusInvalidSpan;
         }
 
         if (!IsRangeMapped(ptes, front, back, PageFlags::eUser | PageFlags::eRead)) {
-            return OsStatusInvalidInput;
+            return OsStatusInvalidAddress;
         }
 
         dst->resize(size);

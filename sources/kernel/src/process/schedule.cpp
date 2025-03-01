@@ -36,13 +36,18 @@ km::Scheduler::Scheduler()
     : mQueue()
 { }
 
+// TODO: remove these interrupt guards when i figure out how to write an allocator
+// thats reentrant and doesn't deadlock
+
 void km::Scheduler::addWorkItem(sm::RcuSharedPtr<Thread> thread) {
     if (thread) {
+        IntGuard guard;
         mQueue.enqueue(thread);
     }
 }
 
 sm::RcuSharedPtr<km::Thread> km::Scheduler::getWorkItem() noexcept {
+    IntGuard guard;
 
     sm::RcuWeakPtr<Thread> thread;
     while (mQueue.try_dequeue(thread)) {
@@ -68,6 +73,7 @@ sm::RcuSharedPtr<km::Process> km::GetCurrentProcess() {
 
 void km::SwitchThread(sm::RcuSharedPtr<km::Thread> next) {
     tlsCurrentThread = next;
+    kFsBase.store(next->tlsAddress);
     km::IsrContext *state = &next->state;
 
     //
@@ -96,13 +102,13 @@ void km::ScheduleWork(LocalIsrTable *table, IApic *apic, sm::RcuSharedPtr<km::Th
 
             if (sm::RcuSharedPtr<km::Thread> current = km::GetCurrentThread()) {
                 current->state = *ctx;
+                current->tlsAddress = kFsBase.load();
                 scheduler->addWorkItem(current);
-                tlsCurrentThread = next;
-                return next->state;
-            } else {
-                tlsCurrentThread = next;
-                return next->state;
             }
+
+            tlsCurrentThread = next;
+            kFsBase.store(next->tlsAddress);
+            return next->state;
         } else {
             return *ctx;
         }

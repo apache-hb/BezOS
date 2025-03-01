@@ -34,8 +34,6 @@ sm::RcuSharedPtr<Process> SystemObjects::createProcess(stdx::String name, x64::P
         return nullptr;
     }
 
-    KmDebugMessage("[PROC] Process page tables: ", mapping, ", ", Hex(mapping.slide()), "\n");
-
     ProcessId id = mProcessIds.allocate();
     sm::RcuSharedPtr ptr = sm::rcuMakeShared<Process>(&mDomain, id, std::move(name), privilege, systemTables, mapping, DefaultUserArea());
 

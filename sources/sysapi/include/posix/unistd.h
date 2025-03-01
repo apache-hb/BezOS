@@ -11,6 +11,8 @@
 extern "C" {
 #endif
 
+#define _SC_PAGESIZE 0x100
+
 extern int execve(const char *, char *const[], char *const[]);
 
 extern int dup(int);
@@ -62,6 +64,8 @@ extern ssize_t read(int, void *, size_t);
 extern ssize_t write(int, const void *, size_t);
 
 extern int access(const char *, int);
+
+extern long sysconf(int);
 
 #ifdef __cplusplus
 }

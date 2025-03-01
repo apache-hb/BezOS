@@ -66,6 +66,7 @@ namespace km {
         sm::RcuWeakPtr<Process> process;
         sm::RcuWeakPtr<Mutex> wait;
         km::IsrContext state;
+        uint64_t tlsAddress;
         sm::RcuSharedPtr<AddressSpace> stack;
     };
 
