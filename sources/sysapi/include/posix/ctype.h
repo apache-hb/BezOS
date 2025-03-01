@@ -15,6 +15,8 @@ extern int isdigit(int);
 
 extern int isspace(int);
 
+extern int ispunct(int);
+
 extern int isupper(int);
 extern int islower(int);
 

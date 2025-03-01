@@ -49,7 +49,13 @@ extern char *strcpy(char *, const char *);
 
 extern char *strncpy(char *, const char *, size_t);
 
+extern char *strdup(const char *);
+
+extern char *strndup(const char *, size_t);
+
 extern char *strerror(int);
+
+extern char *strsignal(int);
 
 #ifdef __cplusplus
 }

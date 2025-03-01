@@ -6,6 +6,7 @@ src = [
     'src/bezos/syscall_device.c',
     'src/bezos/syscall_clock.c',
     'src/bezos/syscall_vmem.c',
+    'src/bezos/syscall_process.c',
     'src/bezos/syscall.S',
 ]
 
@@ -16,6 +17,17 @@ sysapi_dep = declare_dependency(
 )
 
 inc = include_directories('include', 'include/posix')
+
+cc = meson.get_compiler('c')
+
+custom_target('crtstart',
+    input : 'src/crt/start.cpp',
+    output : 'crtstart.o',
+    command : cc.cmd_array() + [ '-c', '-o', '@OUTPUT@', '@INPUT@', '-I' + meson.current_source_dir() / 'include' ],
+    install : true,
+    build_by_default : true,
+    install_dir : get_option('libdir'),
+)
 
 libbezos = static_library('bezos-sysapi', src,
     include_directories : inc,

@@ -9,19 +9,32 @@
     <require package='sysapi' />
 
     <configure with='autoconf'>
-        <env cross_compiling='xyes'
+        <env cross_compiling='yes'
+             ac_cv_func_strerror='yes'
+             ac_cv_func_vprintf='yes'
+             bash_cv_have_strsignal='yes'
+             bash_cv_struct_timeval='yes'
+             ac_cv_func_gettimeofday='yes'
+             bash_cv_posix_signals='yes'
+             ac_cv_func_strpbrk='yes'
+             ac_cv_func_gethostname='yes'
              CC='@PREFIX@/llvm/bin/clang'
              LD='@PREFIX@/llvm/bin/ld.lld'
-             LDFLAGS='@PREFIX@/sysapi/lib/libbezos-posix.a
-                     -nostartfiles
-                     -nostdlib
-                     -Wl,-z,norelro'
+             LDFLAGS='@PREFIX@/sysapi/lib/crtstart.o
+                      @PREFIX@/sysapi/lib/libbezos-sysapi.a
+                      @PREFIX@/sysapi/lib/libbezos-posix.a
+                      -e ProgramMain
+                      -nostartfiles
+                      -nostdlib
+                      -Wl,-z,norelro'
              CFLAGS='--sysroot @PREFIX@/llvm
                      -isystem @PREFIX@/sysapi/include/posix
                      -nostdlib
                      -Wno-deprecated-non-prototype
                      -Wno-parentheses
                      -Wno-tautological-pointer-compare
+                     -Wno-incompatible-pointer-types-discards-qualifiers
+                     -Wno-implicit-int
                      -Wno-pointer-to-int-cast' />
 
         <options host='x86_64-bezos-elf'

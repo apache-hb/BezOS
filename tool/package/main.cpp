@@ -34,6 +34,9 @@
 #include <fstream>
 
 #include <setjmp.h>
+#include <string.h>
+
+char *s = strerror(5);
 
 using namespace std::literals;
 
@@ -1205,23 +1208,6 @@ static void BuildPackage(const PackageInfo& package) {
 
     auto [out, err] = package.GetLogFiles("build");
 
-    std::jthread spinner([&](std::stop_token stop) {
-        indicators::IndeterminateProgressBar bar{
-            indicators::option::BarWidth{40},
-            indicators::option::Start{"["},
-            indicators::option::Lead{"*"},
-            indicators::option::End{"]"},
-            indicators::option::PrefixText{std::format("Building {} ", package.name)},
-            indicators::option::ForegroundColor{indicators::Color::white},
-            indicators::option::FontStyles{std::vector<indicators::FontStyle>{indicators::FontStyle::bold}}
-        };
-
-        while (!stop.stop_requested()) {
-            bar.tick();
-            std::this_thread::sleep_for(100ms);
-        }
-    });
-
     std::string builddir = package.GetBuildFolder().string();
 
     if (package.configure == eMeson) {
@@ -1235,7 +1221,7 @@ static void BuildPackage(const PackageInfo& package) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
     } else if (package.configure == eAutoconf) {
-        auto result = sp::call({ "make", "-j", std::to_string(std::thread::hardware_concurrency()) }, sp::cwd{builddir});
+        auto result = sp::call({ "make", "-j", std::to_string(std::thread::hardware_concurrency()), "-Otarget" }, sp::cwd{builddir});
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
