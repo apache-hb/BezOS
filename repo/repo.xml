@@ -19,7 +19,7 @@
     <xi:include href='packages/sysapi.xml' />
     <xi:include href='packages/system.xml' />
 
-    <xi:include href='packages/shell/bash.xml' />
+    <!-- <xi:include href='packages/shell/bash.xml' /> -->
 
     <xi:include href='packages/kernel.xml' />
 
@@ -40,9 +40,9 @@
         <script path='@REPO@/data/hyper-image.sh' />
     </artifact>
 
-    <artifact name='test-images'>
+    <!-- <artifact name='test-images'>
         <require package='kernel' />
         <require package='initrd' />
         <script path='@REPO@/data/test-images.sh' />
-    </artifact>
+    </artifact> -->
 </repo>

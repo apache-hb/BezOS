@@ -36,7 +36,7 @@ KmSystemEntry:
 
     movq %gs:(%r9), %rsp
 
-    /* Construct a SystemCallContext */
+    /* Construct a SystemCallRegisterSet */
 
     pushq %r15 /* userStack */
     pushq %rax /* function */

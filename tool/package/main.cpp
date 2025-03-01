@@ -385,6 +385,8 @@ public:
     }
 
     void LowerPackageStatus(std::string_view name, PackageStatus status) {
+        if (name.empty()) return;
+
         auto current = GetPackageStatus(name);
         if (current > status) {
             SetPackageStatus(name, status);
@@ -392,6 +394,8 @@ public:
     }
 
     void RaiseTargetStatus(std::string_view name, PackageStatus status) {
+        if (name.empty()) return;
+
         auto current = GetPackageStatus(name);
         if (current == eUnknown || current < status) {
             SetPackageStatus(name, status);
@@ -943,6 +947,8 @@ static void ReplacePackagePlaceholders(std::string& str, const PackageInfo& pack
 }
 
 static void AcquirePackage(const PackageInfo& package) {
+    if (package.name.empty()) return;
+
     if (!gPackageDb->ShouldRunStep(package.name, eDownloaded)) {
         return;
     }
@@ -1461,6 +1467,8 @@ static void ReadRepoElement(XmlNode root) {
 }
 
 static void VisitPackage(const PackageInfo& packageInfo) {
+    if (packageInfo.name.empty()) return;
+
     auto deps = gPackageDb->GetPackageDependencies(packageInfo.name);
     for (const auto& dep : deps) {
         VisitPackage(gWorkspace.packages[dep]);

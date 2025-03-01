@@ -4,6 +4,8 @@
 
 #include "arch/msr.hpp"
 #include "isr/isr.hpp"
+#include "process/process.hpp"
+#include "std/rcuptr.hpp"
 
 #include <cstdint>
 
@@ -14,7 +16,7 @@ namespace km {
 
     static constexpr x64::ModelRegister<0xC0000080, x64::RegisterAccess::eReadWrite> kEfer;
 
-    struct [[gnu::packed]] SystemCallContext {
+    struct [[gnu::packed]] SystemCallRegisterSet {
         // user registers
         // r15 is clobbered by syscall
         uint64_t r14;
@@ -37,6 +39,36 @@ namespace km {
         uint64_t function;
         uint64_t userStack;
     };
+
+    template<typename T>
+    class UserAddress {
+        uintptr_t mValue;
+    };
+
+    template<typename T>
+    class UserValue {
+        uint64_t mValue;
+    };
+
+    class CallContext {
+    public:
+        sm::RcuSharedPtr<Process> process();
+        sm::RcuSharedPtr<Thread> thread();
+        PageTables& ptes();
+
+        OsStatus readMemory(uint64_t address, size_t size, void *dst);
+        OsStatus writeMemory(uint64_t address, const void *src, size_t size);
+
+        template<typename T>
+        OsStatus readObject(uint64_t address, T *dst);
+
+        OsStatus readString(uint64_t front, uint64_t back, stdx::String *dst);
+
+        OsStatus readRange(uint64_t front, uint64_t back, void *dst, size_t size);
+        OsStatus writeRange(uint64_t address, const void *front, const void *back);
+    };
+
+    using BetterCallHandler = OsCallResult(*)(CallContext *ctx, SystemCallRegisterSet *regs);
 
     void SetupUserMode(SystemMemory *memory);
 

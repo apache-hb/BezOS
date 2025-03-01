@@ -1,7 +1,7 @@
 #include <posix/fcntl.h>
 #include <posix/errno.h>
 
-int open(const char *path, int, ...) {
+int open(const char *, int, ...) {
     errno = ENOSYS;
     return -1;
 }

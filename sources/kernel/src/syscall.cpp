@@ -24,19 +24,10 @@ extern "C" void KmSystemEntry(void);
 
 extern "C" uint64_t KmSystemCallStackTlsOffset;
 
-extern "C" OsCallResult KmSystemDispatchRoutine(km::SystemCallContext *context) {
-    if (__gsbase() == 0) {
-        KmDebugMessageUnlocked("[SYS] System call stack not setup.\n");
-        KmHalt();
-    }
-
-    volatile uint8_t function = context->function;
+extern "C" OsCallResult KmSystemDispatchRoutine(km::SystemCallRegisterSet *context) {
+    uint8_t function = context->function;
     if (km::SystemCallHandler handler = gSystemCalls[function]) {
         OsCallResult result = handler(context->arg0, context->arg1, context->arg2, context->arg3);
-        if (context->function != function) {
-            KmDebugMessage("[SYS] System call handler changed function number ", km::Hex(function), " -> ", km::Hex(context->function), "\n");
-            KM_PANIC("System call handler changed function number.");
-        }
         return result;
     }
 
