@@ -6,6 +6,8 @@
 #include "memory/pte.hpp"
 #include "setup.hpp"
 
+using namespace km;
+
 static constexpr size_t kSize = 0x10000;
 
 auto GetAllocatorMemory() {
@@ -46,11 +48,153 @@ public:
     TestMemory memory = GetAllocatorMemory();
     km::PageBuilder pm { 48, 48, km::GetDefaultPatLayout() };
 
-    km::PageTables ptes(km::PageFlags flags) const {
+    km::PageTables ptes(km::PageFlags flags = km::PageFlags::eAll) const {
         km::AddressMapping mapping { memory.get(), (uintptr_t)memory.get(), kSize };
         return km::PageTables { &pm, mapping, flags };
     }
 };
+
+static AddressMapping MapArea(
+    km::PageTables& ptes,
+    uintptr_t vaddr, uintptr_t paddr, size_t size,
+    PageFlags flags = PageFlags::eAll,
+    MemoryType type = MemoryType::eWriteBack
+) {
+    const void *v = (void*)vaddr;
+    km::PhysicalAddress p = paddr;
+    km::AddressMapping mapping { v, p, size };
+
+    OsStatus status = ptes.map(mapping, flags, type);
+    if (status != OsStatusSuccess) {
+        throw std::runtime_error("Failed to map memory");
+    }
+
+    return mapping;
+}
+
+static void IsMapped(PageTables& ptes, AddressMapping mapping, PageFlags flags) {
+    for (uintptr_t i = (uintptr_t)mapping.vaddr; i < (uintptr_t)mapping.vaddr + mapping.size; i += x64::kPageSize) {
+        uintptr_t offset = i - (uintptr_t)mapping.vaddr;
+
+        km::PageFlags f = ptes.getMemoryFlags((void*)i);
+        ASSERT_EQ(flags, f);
+
+        km::PhysicalAddress addr = ptes.getBackingAddress((void*)i);
+        PhysicalAddress expected = mapping.paddr + offset;
+        ASSERT_EQ(expected.address, addr.address)
+            << "Address: " << (void*)i
+            << " Expected: " << (void*)(expected.address)
+            << " Got: " << (void*)(addr.address);
+    }
+}
+
+static void IsNotMapped(PageTables& ptes, VirtualRange range) {
+    for (uintptr_t i = (uintptr_t)range.front; i < (uintptr_t)range.back; i += x64::kPageSize) {
+        km::PageFlags f = ptes.getMemoryFlags((void*)i);
+        ASSERT_EQ(PageFlags::eNone, f);
+
+        PageSize size = ptes.getPageSize((void*)i);
+        ASSERT_EQ(PageSize::eNone, size);
+
+        km::PhysicalAddress addr = ptes.getBackingAddress((void*)i);
+        ASSERT_EQ(KM_INVALID_MEMORY, addr) << "Address: " << (void*)i;
+    }
+}
+
+TEST_F(PageTableTest, PartialUnmapHead) {
+    km::PageTables pt = ptes(km::PageFlags::eAll);
+
+    auto mapping = MapArea(pt, 0xFFFF800000000000, 0x1000000, x64::kLargePageSize);
+    auto [vaddr, paddr, size] = mapping;
+
+    IsMapped(pt, mapping, km::PageFlags::eAll);
+
+    ASSERT_EQ(km::PageSize::eLarge, pt.getPageSize(vaddr));
+
+    // unmap the first 4k of the 2m page
+    km::VirtualRange range = km::VirtualRange::of(vaddr, x64::kPageSize);
+    pt.unmap(range);
+
+    // the first page should be unmaped, with the remaining pages still mapped
+    IsNotMapped(pt, range);
+
+    // the remaining pages should still be mapped as 4k pages
+    IsMapped(pt, mapping.last(mapping.size - range.size()), km::PageFlags::eAll);
+}
+
+TEST_F(PageTableTest, PartialUnmapTail) {
+    km::PageTables pt = ptes(km::PageFlags::eAll);
+
+    auto mapping = MapArea(pt, 0xFFFF800000000000, 0x1000000, x64::kLargePageSize);
+    auto [vaddr, paddr, size] = mapping;
+
+    IsMapped(pt, mapping, km::PageFlags::eAll);
+    ASSERT_EQ(km::PageSize::eLarge, pt.getPageSize(vaddr));
+
+    // unmap the first 4k of the 2m page
+    auto tail = mapping.last(x64::kPageSize);
+    km::VirtualRange range = tail.virtualRange();
+    pt.unmap(range);
+
+    // the first page should be unmaped, with the remaining pages still mapped
+    IsNotMapped(pt, range);
+
+    // the remaining pages should still be mapped as 4k pages
+    IsMapped(pt, mapping.first(mapping.size - range.size()), km::PageFlags::eAll);
+}
+
+TEST_F(PageTableTest, PartialUnmapMiddle) {
+    km::PageTables pt = ptes(km::PageFlags::eAll);
+
+    auto mapping = MapArea(pt, 0xFFFF800000000000, 0x1000000, x64::kLargePageSize);
+    auto [vaddr, paddr, size] = mapping;
+
+    pt.map(mapping, km::PageFlags::eAll);
+    IsMapped(pt, mapping, km::PageFlags::eAll);
+    ASSERT_EQ(km::PageSize::eLarge, pt.getPageSize(vaddr));
+
+    // unmap some 4k pages in the middle of the mapping
+    const void *middle = (void*)((uintptr_t)vaddr + (x64::kPageSize * 8));
+    km::VirtualRange range = km::VirtualRange::of(middle, x64::kPageSize);
+    pt.unmap(range);
+
+    // the first page should still be mapped
+    IsMapped(pt, km::AddressMapping { vaddr, paddr, (x64::kPageSize * 8) }, km::PageFlags::eAll);
+
+    // the middle page should be unmapped
+    IsNotMapped(pt, range);
+
+    // the remaining pages should still be mapped as 4k pages
+    IsMapped(pt, km::AddressMapping { range.back, paddr + (x64::kPageSize * 8) + range.size(), mapping.size - (x64::kPageSize * 9) }, km::PageFlags::eAll);
+}
+
+TEST_F(PageTableTest, PartialUnmapAcrossPageBounds) {
+    km::PageTables pt = ptes(km::PageFlags::eAll);
+
+    auto mapping = MapArea(pt, 0xFFFF800000000000, 0x1000000, x64::kLargePageSize * 4);
+    auto [vaddr, paddr, size] = mapping;
+
+    pt.map(mapping, km::PageFlags::eAll);
+    IsMapped(pt, mapping, km::PageFlags::eAll);
+    ASSERT_EQ(km::PageSize::eLarge, pt.getPageSize(vaddr));
+
+    // unmap a range that crosses a 2m page boundary
+    const void *middle = (void*)((uintptr_t)vaddr + (x64::kLargePageSize - (x64::kPageSize * 8)));
+    uintptr_t offset = (uintptr_t)middle - (uintptr_t)vaddr;
+    km::VirtualRange range = km::VirtualRange::of(middle, (x64::kPageSize * 16));
+    pt.unmap(range);
+
+    // the first page should still be mapped
+    size_t headSize = offset;
+    IsMapped(pt, km::AddressMapping { vaddr, paddr, headSize }, km::PageFlags::eAll);
+
+    // the middle page should be unmapped
+    IsNotMapped(pt, range);
+
+    // the remaining pages should still be mapped as 4k pages
+    size_t tailSize = mapping.size - offset - range.size();
+    IsMapped(pt, km::AddressMapping { range.back, paddr + offset + range.size(), tailSize }, km::PageFlags::eAll);
+}
 
 TEST_F(PageTableTest, GetBackingAddress) {
     km::PageTables pt = ptes(km::PageFlags::eAll);

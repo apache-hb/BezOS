@@ -67,8 +67,8 @@ namespace km {
         x64::PageMapLevel3 *getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e);
         x64::PageMapLevel2 *getPageMap2(x64::PageMapLevel3 *l3, uint16_t pdpte);
 
-        const x64::PageMapLevel3 *findPageMap3(const x64::PageMapLevel4 *l4, uint16_t pml4e) const;
-        const x64::PageMapLevel2 *findPageMap2(const x64::PageMapLevel3 *l3, uint16_t pdpte) const;
+        x64::PageMapLevel3 *findPageMap3(const x64::PageMapLevel4 *l4, uint16_t pml4e) const;
+        x64::PageMapLevel2 *findPageMap2(const x64::PageMapLevel3 *l3, uint16_t pdpte) const;
         x64::PageTable *findPageTable(const x64::PageMapLevel2 *l2, uint16_t pdte) const;
 
         OsStatus mapRange4k(AddressMapping mapping, PageFlags flags, MemoryType type);
@@ -79,6 +79,32 @@ namespace km {
         OsStatus map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type);
         OsStatus map1g(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type);
 
+        void partialRemap2m(x64::PageTable *pt, VirtualRange range, PhysicalAddress paddr, MemoryType type);
+
+        /// @brief Split a 2m page mapping into 4k pages.
+        ///
+        /// @pre @p pde.is2m() must be true.
+        /// @pre @p page.contains(erase) must be true.
+        ///
+        /// @param pde The 2m page directory entry to split.
+        /// @param page The range of the 2m page.
+        /// @param erase The range to unmap.
+        /// @return The status of the operation.
+        OsStatus split2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange erase);
+
+        /// @brief Cut off one end of a 2m page mapping and replace it with 4k pages.
+        ///
+        /// @pre @p pde.is2m() must be true.
+        /// @pre @p page.intersects(erase) must be true.
+        ///
+        /// @param pde The 2m page directory entry to split.
+        /// @param page The range of the 2m page.
+        /// @param erase The range to unmap.
+        /// @return The status of the operation.
+        OsStatus cut2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange erase);
+
+        OsStatus unmap2mRegion(x64::pdte& pde, uintptr_t address, VirtualRange range);
+
     public:
         PageTables(const PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags);
 
@@ -88,7 +114,7 @@ namespace km {
         x64::PageMapLevel4 *pml4() { return mRootPageTable; }
         PhysicalAddress root() const { return asPhysical(pml4()); }
 
-        OsStatus map(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
+        OsStatus map(AddressMapping mapping, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
         OsStatus unmap(VirtualRange range);
         OsStatus walk(const void *ptr, PageWalk *walk);
 
@@ -100,7 +126,7 @@ namespace km {
             unmap(VirtualRange { ptr, (char*)ptr + size });
         }
 
-        OsStatus map(AddressMapping mapping, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
+        OsStatus map(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
     };
 
     /// @brief Remap the kernel to replace the boot page tables.

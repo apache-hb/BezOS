@@ -57,6 +57,17 @@ namespace km {
                 return layout.deferred;
             }
         }
+
+        constexpr MemoryType GetMemoryType(const PageMemoryTypeLayout& layout, uint8_t index) {
+            if (layout.deferred == index) return MemoryType::eUncachedOverridable;
+            if (layout.uncached == index) return MemoryType::eUncached;
+            if (layout.writeCombined == index) return MemoryType::eWriteCombine;
+            if (layout.writeThrough == index) return MemoryType::eWriteThrough;
+            if (layout.writeProtect == index) return MemoryType::eWriteProtect;
+            if (layout.writeBack == index) return MemoryType::eWriteBack;
+
+            return MemoryType::eUncachedOverridable;
+        }
     }
 
     class PageBuilder {
@@ -109,6 +120,18 @@ namespace km {
 
         constexpr void setMemoryType(x64::pdpte& entry, MemoryType type) const {
             entry.setPatEntry(getMemoryTypeIndex(type));
+        }
+
+        constexpr MemoryType getMemoryType(x64::pte entry) const {
+            return static_cast<MemoryType>(entry.memoryType());
+        }
+
+        constexpr MemoryType getMemoryType(x64::pdte entry) const {
+            return static_cast<MemoryType>(entry.memoryType());
+        }
+
+        constexpr MemoryType getMemoryType(x64::pdpte entry) const {
+            return static_cast<MemoryType>(entry.memoryType());
         }
 
         PhysicalAddress activeMap() const {

@@ -65,7 +65,7 @@ x64::PageMapLevel2 *PageTables::getPageMap2(x64::PageMapLevel3 *l3, uint16_t pdp
     return l2;
 }
 
-const x64::PageMapLevel3 *PageTables::findPageMap3(const x64::PageMapLevel4 *l4, uint16_t pml4e) const {
+x64::PageMapLevel3 *PageTables::findPageMap3(const x64::PageMapLevel4 *l4, uint16_t pml4e) const {
     if (l4->entries[pml4e].present()) {
         uintptr_t base = mPageManager->address(l4->entries[pml4e]);
         return asVirtual<x64::PageMapLevel3>(base);
@@ -74,7 +74,7 @@ const x64::PageMapLevel3 *PageTables::findPageMap3(const x64::PageMapLevel4 *l4,
     return nullptr;
 }
 
-const x64::PageMapLevel2 *PageTables::findPageMap2(const x64::PageMapLevel3 *l3, uint16_t pdpte) const {
+x64::PageMapLevel2 *PageTables::findPageMap2(const x64::PageMapLevel3 *l3, uint16_t pdpte) const {
     const x64::pdpte& t3 = l3->entries[pdpte];
     if (t3.present() && !t3.is1g()) {
         uintptr_t base = mPageManager->address(t3);
@@ -273,6 +273,106 @@ OsStatus PageTables::map(MemoryRange range, const void *vaddr, PageFlags flags, 
     return map(MappingOf(range, vaddr), flags, type);
 }
 
+void PageTables::partialRemap2m(x64::PageTable *pt, VirtualRange range, PhysicalAddress paddr, MemoryType type) {
+    KM_CHECK(!range.isEmpty(), "Cannot remap empty range.");
+
+    for (uintptr_t i = (uintptr_t)range.front; i < (uintptr_t)range.back; i += x64::kPageSize) {
+        auto [pml4e, pdpte, pdte, pte] = GetAddressParts(i);
+        x64::pte& t1 = pt->entries[pte];
+        mPageManager->setMemoryType(t1, type);
+        setEntryFlags(t1, mMiddleFlags, paddr + (i - (uintptr_t)range.front));
+    }
+}
+
+OsStatus PageTables::split2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange erase) {
+    auto [lo, hi] = km::split(page, erase);
+    MemoryType type = mPageManager->getMemoryType(pde);
+    PhysicalAddress paddr = mPageManager->address(pde);
+    uintptr_t hiOffset = (uintptr_t)erase.back - (uintptr_t)page.front;
+
+    x64::PageTable *pt = std::bit_cast<x64::PageTable*>(alloc4k());
+    if (!pt) return OsStatusOutOfMemory;
+
+    //
+    // Map the lo part of the remaining area.
+    //
+    partialRemap2m(pt, lo, paddr, type);
+
+    //
+    // The map the hi part of the area.
+    //
+    partialRemap2m(pt, hi, paddr + hiOffset, type);
+
+    //
+    // Finally, update the 2m page to point to the new 4k page table.
+    //
+    setEntryFlags(pde, mMiddleFlags, asPhysical(pt));
+    pde.set2m(false);
+
+    return OsStatusSuccess;
+}
+
+OsStatus PageTables::cut2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange erase) {
+    VirtualRange remaining = page.cut(erase);
+
+    MemoryType type = mPageManager->getMemoryType(pde);
+    PhysicalAddress paddr = mPageManager->address(pde);
+    uintptr_t offset = (uintptr_t)remaining.front - (uintptr_t)page.front;
+
+    x64::PageTable *pt = std::bit_cast<x64::PageTable*>(alloc4k());
+    if (!pt) return OsStatusOutOfMemory;
+
+    //
+    // Remap the area that is still valid.
+    //
+    partialRemap2m(pt, remaining, paddr + offset, type);
+
+    //
+    // Update the 2m page to point to the new 4k page table.
+    //
+    setEntryFlags(pde, mMiddleFlags, asPhysical(pt));
+    pde.set2m(false);
+
+    return OsStatusSuccess;
+}
+
+OsStatus PageTables::unmap2mRegion(x64::pdte& pde, uintptr_t address, VirtualRange range) {
+    VirtualRange page = VirtualRange::of((void*)sm::rounddown(address, x64::kLargePageSize), x64::kLargePageSize);
+
+    //
+    // If the 2m page is entirely contained within the unmap request we can remove it
+    // without any extra work.
+    //
+    if (range.contains(page)) {
+        pde.setPresent(false);
+        pde.set2m(false);
+        x64::invlpg(address);
+
+        return OsStatusSuccess;
+    }
+
+    //
+    // If the unmap range is a subset of the page range then we need to replace
+    // the 2m page with 4k pages that map the equivalent area. If the unmap range
+    // borders the 2m page then we need to cut rather than split.
+    //
+    if (page.contains(range) && page.front != range.front && page.back != range.back) {
+        return split2mMapping(pde, page, range);
+    } else {
+        //
+        // If the page isnt fully contained within the unmap range then we need to remove
+        // either the front or back of the range and replace it with 4k pages.
+        //
+        return cut2mMapping(pde, page, range);
+    }
+}
+
+template<typename T>
+constexpr T nextMultiple(T value, T multiple) {
+    if (value % multiple == 0) return value + multiple;
+    return (value + multiple - 1) / multiple * multiple;
+}
+
 OsStatus PageTables::unmap(VirtualRange range) {
     range = alignedOut(range, x64::kPageSize);
 
@@ -280,21 +380,57 @@ OsStatus PageTables::unmap(VirtualRange range) {
 
     x64::PageMapLevel4 *l4 = pml4();
 
-    for (uintptr_t i = (uintptr_t)range.front; i < (uintptr_t)range.back; i += x64::kPageSize) {
+    uintptr_t i = (uintptr_t)range.front;
+    uintptr_t end = (uintptr_t)range.back;
+
+    //
+    // Iterate over the range we want to unmap and unmap the pages.
+    //
+    while (i < end) {
         auto [pml4e, pdpte, pdte, pte] = GetAddressParts(i);
 
-        const x64::PageMapLevel3 *l3 = findPageMap3(l4, pml4e);
-        if (!l3) continue;
+        //
+        // If we can't find the page table for this range, then skip over the inaccessable address space.
+        //
+        x64::PageMapLevel3 *l3 = findPageMap3(l4, pml4e);
+        if (!l3) {
+            i += x64::kHugePageSize * 512;
+            continue;
+        }
 
-        const x64::PageMapLevel2 *l2 = findPageMap2(l3, pdpte);
-        if (!l2) continue;
+        x64::PageMapLevel2 *l2 = findPageMap2(l3, pdpte);
+        if (!l2) {
+            i += x64::kHugePageSize;
+            continue;
+        }
+
+        x64::pdte& pde = l2->entries[pdte];
+        if (!pde.present()) {
+            i += x64::kLargePageSize;
+            continue;
+        }
+
+        //
+        // If we are unmapping a 2m page, we need to determine if we can unmap the entire page
+        // or if we need to remap part of the 2m page as 4k pages.
+        //
+        if (pde.is2m()) {
+            unmap2mRegion(pde, i, range);
+            i = nextMultiple(i, x64::kLargePageSize);
+            continue;
+        }
 
         x64::PageTable *pt = findPageTable(l2, pdte);
-        if (!pt) continue;
+        if (!pt) {
+            i += x64::kPageSize;
+            continue;
+        }
 
         x64::pte& t1 = pt->entries[pte];
         t1.setPresent(false);
         x64::invlpg(i);
+
+        i += x64::kPageSize;
     }
 
     return OsStatusSuccess;
