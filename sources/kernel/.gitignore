@@ -1,1 +1,2 @@
 !subprojects/*.wrap
+!subprojects/rpmalloc

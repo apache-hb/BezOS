@@ -8,6 +8,7 @@
 #include "thread.hpp"
 
 static constexpr bool kEmitAddrToLine = true;
+static constexpr stdx::StringView kImagePath = "install/kernel/bin/bezos-limine.elf";
 
 km::PageMemoryTypeLayout km::SetupPat() {
     if (!x64::HasPatSupport()) {
@@ -199,7 +200,7 @@ void km::DumpStackTrace(const km::IsrContext *context) {
     }
 
     if (kEmitAddrToLine) {
-        KmDebugMessageUnlocked("llvm-addr2line -e ./build/kernel/bezos-limine");
+        KmDebugMessageUnlocked("llvm-addr2line -e ", kImagePath);
 
         if (SystemMemory *memory = km::GetSystemMemory()) {
             x64::WalkStackFramesChecked(memory->systemTables(), (void**)context->rbp, [](void **, void *pc, stdx::StringView) {
