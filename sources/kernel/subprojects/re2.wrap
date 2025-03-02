@@ -1,0 +1,11 @@
+[wrap-file]
+directory = re2-2024-07-02
+
+source_url = https://github.com/google/re2/releases/download/2024-07-02/re2-2024-07-02.tar.gz
+source_filename = re2-2024-07-02.tar.gz
+source_hash = eb2df807c781601c14a260a507a5bb4509be1ee626024cb45acbd57cb9d4032b
+
+patch_directory = re2-2024-07-02
+
+[provide]
+re2 = re2_dep

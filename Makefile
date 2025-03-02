@@ -46,10 +46,6 @@ hyperv:
 pxe:
 	pwsh.exe -File data/test/pxe/Copy-PxeImage.ps1 -KernelFolder install/pxe -PxeServerFolder C:/Users/elliothb/Documents/tftpserver
 
-.PHONY: coverage
-coverage:
-	ninja -C build/kernel coverage
-
 .PHONY: integration
 integration: qemu vbox vmware hyperv
 
@@ -90,6 +86,12 @@ clean:
 	rm -rf $(BUILDDIR) $(PREFIX)
 
 
+KERNEL_PATH := build/packages/kernel
+
 .PHONY: check
 check:
-	meson test -C build/packages/kernel
+	meson test -C $(KERNEL_PATH)
+
+.PHONY: coverage
+coverage:
+	ninja -C $(KERNEL_PATH) coverage

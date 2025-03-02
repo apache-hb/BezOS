@@ -7,7 +7,13 @@ project('bezos', [ 'c', 'cpp' ],
         'b_staticpic=false',
         'b_ndebug=true',
         'cpp_eh=none',
-        'cpp_rtti=false'
+        'cpp_rtti=false',
+        'b_coverage=true',
+        're2:warning_level=0',
+        'fuzztest:warning_level=0',
+        'abseil-cpp:b_coverage=false',
+        're2:b_coverage=false',
+        'fuzztest:b_coverage=false',
     ],
     version : '0.0.1',
     license : 'GPL-3.0-only',
@@ -29,6 +35,7 @@ common_args = [
     '-Wno-gcc-compat',
     '-Wno-gnu-designator',
     '-Wno-gnu-conditional-omitted-operand',
+    '-Wno-gnu-include-next',
 
     '-Wno-missing-field-initializers',
     '-Wno-missing-designated-field-initializers',
@@ -212,11 +219,12 @@ endif
 kernel_c_args = c_args
 kernel_cpp_args = cpp_args
 
-if get_option('buildtype').contains('debug')
-    src += [
+ubsan = get_option('ubsan').disable_auto_if(not get_option('buildtype').contains('debug'))
+if ubsan.allowed()
+    src += files(
         'src/sanitizer/ubsan.cpp',
         # 'src/sanitizer/asan.cpp',
-    ]
+    )
     san_args = [
         '-fsanitize=undefined',
         '-fno-sanitize=function',
@@ -314,7 +322,7 @@ test_exe_kwargs = {
     'c_args': test_c_args,
     'cpp_args': test_cpp_args,
     'dependencies': [ gtest_main, gmock, sysapi, concurrentqueue ],
-    'override_options': [ 'b_sanitize=address,undefined' ],
+    'override_options': [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
     'native': true,
     'link_with': [ test_shim ],
 }
@@ -497,6 +505,27 @@ foreach name, source : testcases
         kwargs : testkwargs
     )
 endforeach
+
+# fuzztest = dependency('fuzztest', native : true)
+# fuzz_cpp_args = [
+#     '-Wno-sign-compare',
+#     '-Wno-missing-field-initializers',
+#     '-Wno-unused-parameter',
+#     '-Wno-gcc-compat',
+# ]
+
+# fuzz_exe_kwargs = test_exe_kwargs
+# fuzz_exe_kwargs += { 'dependencies': fuzz_exe_kwargs['dependencies'] + [ fuzztest ] }
+# fuzz_exe_kwargs += { 'cpp_args': fuzz_exe_kwargs['cpp_args'] + fuzz_cpp_args }
+
+# exe = executable('test-kernel-fuzz', 'test/fuzz.cpp',
+#     kwargs : fuzz_exe_kwargs,
+# )
+
+# test('fuzz', exe,
+#     suite : 'kernel',
+#     kwargs : testkwargs
+# )
 
 tar_test_script = find_program('data/test/tar/tar.sh')
 tar_test_data = custom_target('tar-test-data',

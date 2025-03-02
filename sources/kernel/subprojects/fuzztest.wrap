@@ -1,0 +1,11 @@
+[wrap-file]
+directory = fuzztest-2025-02-14
+
+source_url = https://github.com/google/fuzztest/releases/download/2025-02-14/fuzztest-2025-02-14.tar.gz
+source_filename = fuzztest-2025-02-14.tar.gz
+source_hash = 95a18d843f1b46323dd8a08d091febe2b42541a2702a1aaf33ac385d57260bcc
+
+patch_directory = fuzztest-2025-02-14
+
+[provide]
+fuzztest = fuzztest_dep

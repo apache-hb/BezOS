@@ -103,3 +103,15 @@ TEST(GdtTest, FormatAll) {
     EXPECT_EQ(entry.flags(), flags);
     EXPECT_EQ(entry.access(), access);
 }
+
+TEST(GdtTest, FormatBase) {
+    x64::GdtEntry entry = x64::GdtEntry(x64::Flags::eRealMode, x64::Access::eData, 0xFFFF, 0xFFFF);
+    auto result = km::format(entry);
+    EXPECT_EQ(result, "0x00009300FFFFFFFF [ LIMIT = 0x00FFFF BASE = 0x0000FFFF ACCESS = [ CODE/DATA READ/WRITE PRESENT ACCESSED ] RING 0 ]"_sv) << std::string_view(result);
+
+    EXPECT_EQ(entry.base(), 0xFFFF);
+    EXPECT_EQ(entry.limit(), 0xFFFF);
+    EXPECT_EQ(entry.flags(), x64::Flags::eRealMode);
+    EXPECT_EQ(entry.access(), x64::Access::eData);
+    EXPECT_EQ(entry.value(), 0x00009300FFFFFFFF);
+}

@@ -36,6 +36,9 @@ TEST(VfsPathTest, Verify) {
     ASSERT_FALSE(VerifyPathText(detail::BuildPathText("System", "", "Init")));
 
     ASSERT_TRUE(VerifyPathText(detail::BuildPathText("System", "Init")));
+
+    ASSERT_FALSE(VerifyPathText(".\0Folder"));
+    ASSERT_FALSE(VerifyPathText("Folder\0."));
 }
 
 TEST(VfsPathTest, VerifySpecialNames) {
@@ -106,4 +109,20 @@ TEST(VfsPathTest, SingleName) {
     auto name = path.name();
 
     ASSERT_EQ(name, "Root") << std::string_view(name);
+}
+
+struct StringStream : public km::IOutStream {
+    std::string buffer;
+
+    void write(stdx::StringView message) override {
+        buffer.append(std::string_view(message));
+    }
+};
+
+TEST(VfsPathTest, FormatOut) {
+    auto path = BuildPath("System", "Init", "Drivers", "DriverConfig.db");
+    StringStream result;
+    result.format(path);
+
+    ASSERT_EQ(result.buffer, "/System/Init/Drivers/DriverConfig.db");
 }

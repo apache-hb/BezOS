@@ -171,3 +171,45 @@ TEST(CmosTest, MultiRollover) {
     ASSERT_EQ(date.month, 12);
     ASSERT_EQ(date.year, kDefaultYear + 99);
 }
+
+TEST(CmosTest, BcdCentury) {
+    detail::CmosRegisters regs = {
+        .regB = 0,
+        .second = 0x50,
+        .minute = 0x50,
+        .hour = 0x20,
+        .day = 0x10,
+        .month = 0x11,
+        .year = 0x24,
+        .century = 0x20,
+    };
+
+    DateTime date = detail::ConvertCmosToDate(regs);
+    ASSERT_EQ(date.second, 50);
+    ASSERT_EQ(date.minute, 50);
+    ASSERT_EQ(date.hour, 20);
+    ASSERT_EQ(date.day, 10);
+    ASSERT_EQ(date.month, 11);
+    ASSERT_EQ(date.year, 2024);
+}
+
+TEST(CmosTest, DecimalCentury) {
+    detail::CmosRegisters regs = {
+        .regB = kDecimalMode,
+        .second = 50,
+        .minute = 50,
+        .hour = 20,
+        .day = 10,
+        .month = 11,
+        .year = 24,
+        .century = 20,
+    };
+
+    DateTime date = detail::ConvertCmosToDate(regs);
+    ASSERT_EQ(date.second, 50);
+    ASSERT_EQ(date.minute, 50);
+    ASSERT_EQ(date.hour, 20);
+    ASSERT_EQ(date.day, 10);
+    ASSERT_EQ(date.month, 11);
+    ASSERT_EQ(date.year, 2024);
+}
