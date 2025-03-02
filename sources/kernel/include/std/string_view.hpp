@@ -38,6 +38,10 @@ namespace stdx {
             : StringViewBase(data, data + size)
         { }
 
+        static constexpr StringViewBase ofString(const T *str) {
+            return StringViewBase(str, str + std::char_traits<T>::length(str));
+        }
+
         constexpr size_t count() const { return mBack - mFront; }
         constexpr size_t sizeInBytes() const { return count() * sizeof(T); }
         constexpr bool isEmpty() const { return mBack == mFront; }
