@@ -210,7 +210,7 @@ OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType typ
 
     if (!valid) {
         KmDebugMessage("[MEM] Invalid mapping request ", mapping, "\n");
-        KM_PANIC("Invalid memory mapping.");
+        return OsStatusInvalidInput;
     }
 
     //

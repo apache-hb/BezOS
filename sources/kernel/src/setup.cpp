@@ -9,26 +9,6 @@
 
 static constexpr bool kEmitAddrToLine = true;
 
-km::PageMemoryTypeLayout km::GetDefaultPatLayout() {
-    enum {
-        kEntryWriteBack,
-        kEntryWriteThrough,
-        kEntryUncachedOverridable,
-        kEntryUncached,
-        kEntryWriteCombined,
-        kEntryWriteProtect,
-    };
-
-    return PageMemoryTypeLayout {
-        .deferred = kEntryUncachedOverridable,
-        .uncached = kEntryUncached,
-        .writeCombined = kEntryWriteCombined,
-        .writeThrough = kEntryWriteThrough,
-        .writeProtect = kEntryWriteProtect,
-        .writeBack = kEntryWriteBack,
-    };
-}
-
 km::PageMemoryTypeLayout km::SetupPat() {
     if (!x64::HasPatSupport()) {
         return PageMemoryTypeLayout { };

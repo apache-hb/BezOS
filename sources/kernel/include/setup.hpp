@@ -6,7 +6,27 @@
 #include "pat.hpp"
 
 namespace km {
-    PageMemoryTypeLayout GetDefaultPatLayout();
+
+    constexpr km::PageMemoryTypeLayout GetDefaultPatLayout() {
+        enum {
+            kEntryWriteBack,
+            kEntryWriteThrough,
+            kEntryUncachedOverridable,
+            kEntryUncached,
+            kEntryWriteCombined,
+            kEntryWriteProtect,
+        };
+
+        return PageMemoryTypeLayout {
+            .deferred = kEntryUncachedOverridable,
+            .uncached = kEntryUncached,
+            .writeCombined = kEntryWriteCombined,
+            .writeThrough = kEntryWriteThrough,
+            .writeProtect = kEntryWriteProtect,
+            .writeBack = kEntryWriteBack,
+        };
+    }
+
     PageMemoryTypeLayout SetupPat();
 
     void SetupMtrrs(x64::MemoryTypeRanges& mtrrs, const km::PageBuilder& pm);

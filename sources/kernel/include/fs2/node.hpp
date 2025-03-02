@@ -12,6 +12,10 @@
 #include "util/util.hpp"
 #include "util/uuid.hpp"
 
+namespace km {
+    class CallContext;
+}
+
 /// @brief Virtual File System.
 ///
 /// This VFS derives from the original SunOS vnode design with some modifications.

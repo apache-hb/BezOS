@@ -1,18 +1,18 @@
 #include <posix/ctype.h>
 
-int isprint(int c) {
+int isprint(int c) noexcept {
     return c >= 0x20 && c <= 0x7E;
 }
 
-int isalnum(int c) {
+int isalnum(int c) noexcept {
     return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
 }
 
-int isalpha(int c) {
+int isalpha(int c) noexcept {
     return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
 }
 
-int toupper(int c) {
+int toupper(int c) noexcept {
     if (c >= 'a' && c <= 'z') {
         return c - 'a' + 'A';
     }
@@ -20,7 +20,7 @@ int toupper(int c) {
     return c;
 }
 
-int tolower(int c) {
+int tolower(int c) noexcept {
     if (c >= 'A' && c <= 'Z') {
         return c - 'A' + 'a';
     }

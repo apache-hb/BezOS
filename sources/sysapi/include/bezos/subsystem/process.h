@@ -12,11 +12,37 @@ OS_DEFINE_GUID(kOsProcessGuid, 0xbef63de4, 0xf474, 0x11ef, 0x81ad, 0xd7f28f5e928
 
 typedef uint64_t OsProcessId;
 
+enum {
+    eOsProcessInfo = UINT64_C(0),
+};
+
 struct OsProcessInfo {
     OsProcessId Id;
+    OsProcessId ParentId;
     OsInstant StartTime;
     struct OsGuid User;
 };
+
+inline OsStatus OsInvokeProcessGetInfo(OsDeviceHandle Handle, struct OsProcessInfo *OutInfo) {
+    return OsDeviceCall(Handle, eOsProcessInfo, OutInfo);
+}
+
+#define OS_DEVICE_PROCESS_LIST "Processes"
+
+OS_DEFINE_GUID(kOsSystemTasksGuid, 0x0e36758a, 0xf70a, 0x11ef, 0x9b0c, 0x0b306adc6cfa);
+
+enum {
+    eOsProcessListGet = UINT64_C(0),
+};
+
+struct OsProcessListData {
+    uint32_t Count;
+    OsProcessId Processes[];
+};
+
+inline OsStatus OsInvokeProcessListGet(OsDeviceHandle Handle, struct OsProcessListData *OutData) {
+    return OsDeviceCall(Handle, eOsProcessListGet, OutData);
+}
 
 #ifdef __cplusplus
 }

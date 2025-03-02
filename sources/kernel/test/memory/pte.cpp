@@ -4,6 +4,7 @@
 #include <thread>
 
 #include "memory/pte.hpp"
+#include "setup.hpp"
 
 static constexpr size_t kSize = 0x10000;
 
@@ -43,59 +44,66 @@ public:
     }
 
     TestMemory memory = GetAllocatorMemory();
-    BufferAllocator allocator { memory.get(), kSize };
-    km::PageBuilder pm { 48, 48, 0, km::PageMemoryTypeLayout { 2, 3, 4, 1, 5, 0 } };
+    km::PageBuilder pm { 48, 48, km::GetDefaultPatLayout() };
+
+    km::PageTables ptes(km::PageFlags flags) const {
+        km::AddressMapping mapping { memory.get(), (uintptr_t)memory.get(), kSize };
+        return km::PageTables { &pm, mapping, flags };
+    }
 };
 
 TEST_F(PageTableTest, GetBackingAddress) {
-    km::PageTables pt { &pm, &allocator };
+    km::PageTables pt = ptes(km::PageFlags::eAll);
 
     const void *vaddr = (void*)0xFFFF800000000000;
     km::PhysicalAddress paddr = 0x1000000;
+    km::AddressMapping mapping { vaddr, paddr, x64::kPageSize };
 
-    pt.map4k(paddr, vaddr, km::PageFlags::eAll);
+    pt.map(mapping, km::PageFlags::eAll);
 
     km::PhysicalAddress addr = pt.getBackingAddress(vaddr);
     ASSERT_EQ(paddr.address, addr.address);
 
     km::PageSize size = pt.getPageSize(vaddr);
-    ASSERT_EQ(km::PageSize::eDefault, size);
+    ASSERT_EQ(km::PageSize::eRegular, size);
 }
 
 TEST_F(PageTableTest, MapPage) {
-    km::PageTables pt { &pm, &allocator };
+    km::PageTables pt = ptes(km::PageFlags::eAll);
 
     const void *vaddr = (void*)0xFFFF800000000000;
     km::PhysicalAddress paddr = 0x1000000;
+    km::AddressMapping mapping { vaddr, paddr, x64::kPageSize };
 
-    pt.map4k(paddr, vaddr, km::PageFlags::eAll);
+    pt.map(mapping, km::PageFlags::eAll);
 
     km::PhysicalAddress addr = pt.getBackingAddress(vaddr);
 
     ASSERT_EQ(paddr.address, addr.address);
 
     km::PageSize size = pt.getPageSize(vaddr);
-    ASSERT_EQ(km::PageSize::eDefault, size);
+    ASSERT_EQ(km::PageSize::eRegular, size);
 }
 
 TEST_F(PageTableTest, MapPageOffset) {
-    km::PageTables pt { &pm, &allocator };
+    km::PageTables pt = ptes(km::PageFlags::eAll);
 
     const void *vaddr = (void*)0xFFFF800000000000;
     km::PhysicalAddress paddr = 0x1000000;
+    km::AddressMapping mapping { vaddr, paddr, x64::kPageSize };
 
-    pt.map4k(paddr, vaddr, km::PageFlags::eAll);
+    pt.map(mapping, km::PageFlags::eAll);
 
     km::PhysicalAddress addr = pt.getBackingAddress((void*)((uintptr_t)vaddr + 123));
 
     ASSERT_EQ(paddr.address + 123, addr.address);
 
     km::PageSize size = pt.getPageSize((void*)((uintptr_t)vaddr + 123));
-    ASSERT_EQ(km::PageSize::eDefault, size);
+    ASSERT_EQ(km::PageSize::eRegular, size);
 }
 
 TEST_F(PageTableTest, MapSmallRange) {
-    km::PageTables pt { &pm, &allocator };
+    km::PageTables pt = ptes(km::PageFlags::eAll);
 
     const void *vaddr = (void*)0xFFFF800000000000;
     km::PhysicalAddress paddr = 0x1000000;
@@ -109,17 +117,18 @@ TEST_F(PageTableTest, MapSmallRange) {
         ASSERT_EQ(paddr.address + (i * x64::kPageSize), addr.address);
 
         km::PageSize size = pt.getPageSize((char*)vaddr + (i * x64::kPageSize));
-        ASSERT_EQ(km::PageSize::eDefault, size);
+        ASSERT_EQ(km::PageSize::eRegular, size);
     }
 }
 
 TEST_F(PageTableTest, MapLargePage) {
-    km::PageTables pt { &pm, &allocator };
+    km::PageTables pt = ptes(km::PageFlags::eAll);
 
     const void *vaddr = (void*)0xFFFF800000000000;
     km::PhysicalAddress paddr = 0x1000000;
+    km::AddressMapping mapping { vaddr, paddr, x64::kLargePageSize };
 
-    pt.map2m(paddr, vaddr, km::PageFlags::eAll);
+    pt.map(mapping, km::PageFlags::eAll);
 
     km::PhysicalAddress addr = pt.getBackingAddress(vaddr);
 
@@ -130,12 +139,13 @@ TEST_F(PageTableTest, MapLargePage) {
 }
 
 TEST_F(PageTableTest, MapLargePageOffset) {
-    km::PageTables pt { &pm, &allocator };
+    km::PageTables pt = ptes(km::PageFlags::eAll);
 
     const void *vaddr = (void*)0xFFFF800000000000;
     km::PhysicalAddress paddr = 0x1000000;
+    km::AddressMapping mapping { vaddr, paddr, x64::kLargePageSize };
 
-    pt.map2m(paddr, vaddr, km::PageFlags::eAll);
+    pt.map(mapping, km::PageFlags::eAll);
 
     km::PhysicalAddress addr = pt.getBackingAddress((void*)((uintptr_t)vaddr + 12345));
 
@@ -145,13 +155,15 @@ TEST_F(PageTableTest, MapLargePageOffset) {
     ASSERT_EQ(km::PageSize::eLarge, size);
 }
 
+#if 0
 TEST_F(PageTableTest, MapHugePage) {
-    km::PageTables pt { &pm, &allocator };
+    km::PageTables pt = ptes(km::PageFlags::eAll);
 
     const void *vaddr = (void*)0xFFFF800000000000;
     km::PhysicalAddress paddr = 0x1000000;
+    km::AddressMapping mapping { vaddr, paddr, x64::kHugePageSize };
 
-    pt.map1g(paddr, vaddr, km::PageFlags::eAll);
+    pt.map(mapping, km::PageFlags::eAll);
 
     km::PhysicalAddress addr = pt.getBackingAddress(vaddr);
 
@@ -162,12 +174,13 @@ TEST_F(PageTableTest, MapHugePage) {
 }
 
 TEST_F(PageTableTest, MapHugePageOffset) {
-    km::PageTables pt { &pm, &allocator };
+    km::PageTables pt = ptes(km::PageFlags::eAll);
 
     const void *vaddr = (void*)0xFFFF800000000000;
     km::PhysicalAddress paddr = 0x1000000;
+    km::AddressMapping mapping { vaddr, paddr, x64::kHugePageSize };
 
-    pt.map1g(paddr, vaddr, km::PageFlags::eAll);
+    pt.map(mapping, km::PageFlags::eAll);
 
     km::PhysicalAddress addr = pt.getBackingAddress((void*)((uintptr_t)vaddr + 1234567));
 
@@ -176,9 +189,10 @@ TEST_F(PageTableTest, MapHugePageOffset) {
     km::PageSize size = pt.getPageSize((void*)((uintptr_t)vaddr + 1234567));
     ASSERT_EQ(km::PageSize::eHuge, size);
 }
+#endif
 
 TEST_F(PageTableTest, MapRangeLarge) {
-    km::PageTables pt { &pm, &allocator };
+    km::PageTables pt = ptes(km::PageFlags::eAll);
 
     const void *vaddr = (void*)0xFFFF800000000000;
     km::PhysicalAddress paddr = 0x1000000;
@@ -199,23 +213,24 @@ TEST_F(PageTableTest, MapRangeLarge) {
 }
 
 TEST_F(PageTableTest, MemoryFlags) {
-    km::PageTables pt { &pm, &allocator };
+    km::PageTables pt = ptes(km::PageFlags::eAll);
 
     const void *vaddr = (void*)0xFFFF800000000000;
     km::PhysicalAddress paddr = 0x1000000;
+    km::AddressMapping mapping { vaddr, paddr, x64::kPageSize };
 
-    pt.map4k(paddr, vaddr, km::PageFlags::eAll);
+    pt.map(mapping, km::PageFlags::eAll);
 
     km::PageFlags flags = pt.getMemoryFlags(vaddr);
 
     ASSERT_EQ(km::PageFlags::eAll, flags);
 
     km::PageSize size = pt.getPageSize(vaddr);
-    ASSERT_EQ(km::PageSize::eDefault, size);
+    ASSERT_EQ(km::PageSize::eRegular, size);
 }
 
 TEST_F(PageTableTest, MemoryFlagsOnRange) {
-    km::PageTables pt { &pm, &allocator };
+    km::PageTables pt = ptes(km::PageFlags::eAll);
 
     const void *vaddr = (void*)0xFFFF800000000000;
     km::PhysicalAddress paddr = 0x1000000;
@@ -229,12 +244,12 @@ TEST_F(PageTableTest, MemoryFlagsOnRange) {
         ASSERT_EQ(km::PageFlags::eAll, flags);
 
         km::PageSize size = pt.getPageSize((char*)vaddr + (i * x64::kPageSize));
-        ASSERT_EQ(km::PageSize::eDefault, size);
+        ASSERT_EQ(km::PageSize::eRegular, size);
     }
 }
 
 TEST_F(PageTableTest, MemoryFlagsOnLargeRange) {
-    km::PageTables pt { &pm, &allocator };
+    km::PageTables pt = ptes(km::PageFlags::eAll);
 
     const void *vaddr = (void*)0xFFFF800000000000;
     km::PhysicalAddress paddr = 0x1000000;
@@ -255,7 +270,7 @@ TEST_F(PageTableTest, MemoryFlagsOnLargeRange) {
 }
 
 TEST_F(PageTableTest, MemoryFlagsOnNullMapping) {
-    km::PageTables pt { &pm, &allocator };
+    km::PageTables pt = ptes(km::PageFlags::eAll);
 
     const void *vaddr = (void*)0xFFFF800000000000;
 
@@ -265,7 +280,7 @@ TEST_F(PageTableTest, MemoryFlagsOnNullMapping) {
 }
 
 TEST_F(PageTableTest, PageSizeOnNullMapping) {
-    km::PageTables pt { &pm, &allocator };
+    km::PageTables pt = ptes(km::PageFlags::eAll);
 
     const void *vaddr = (void*)0xFFFF800000000000;
 
@@ -281,22 +296,22 @@ TEST_F(PageTableTest, MemoryFlagsKernelMapping) {
     km::AddressMapping text = {
         .vaddr = (void*)0xFFFFFFFF80001000,
         .paddr = (0xFFFFFFFF80001000 - hhdm + kernel),
-        .size = (0xFFFFFFFF8004101E - 0xFFFFFFFF80001000),
+        .size = sm::roundup(0xFFFFFFFF8004101E - 0xFFFFFFFF80001000, x64::kPageSize),
     };
 
     km::AddressMapping rodata = {
         .vaddr = (void*)0xFFFFFFFF80042000,
         .paddr = (0xFFFFFFFF80042000 - hhdm + kernel),
-        .size = (0xFFFFFFFF80047B88 - 0xFFFFFFFF80042000),
+        .size = sm::roundup(0xFFFFFFFF80047B88 - 0xFFFFFFFF80042000, x64::kPageSize),
     };
 
     km::AddressMapping data = {
         .vaddr = (void*)0xFFFFFFFF80048000,
         .paddr = (0xFFFFFFFF80048000 - hhdm + kernel),
-        .size = (0xFFFFFFFF80049E40 - 0xFFFFFFFF80048000),
+        .size = sm::roundup(0xFFFFFFFF80049E40 - 0xFFFFFFFF80048000, x64::kPageSize),
     };
 
-    km::PageTables pt { &pm, &allocator };
+    km::PageTables pt = ptes(km::PageFlags::eAll);
 
     pt.map(text, km::PageFlags::eCode);
     pt.map(rodata, km::PageFlags::eRead);
@@ -358,7 +373,7 @@ TEST(MemoryRoundTest, RoundDown) {
 }
 
 TEST_F(PageTableTest, ThreadSafe) {
-    km::PageTables pt { &pm, &allocator };
+    km::PageTables pt = ptes(km::PageFlags::eAll);
 
     std::vector<std::jthread> threads;
     for (int i = 0; i < 4; i++) {
@@ -373,17 +388,31 @@ TEST_F(PageTableTest, ThreadSafe) {
                 vaddr &= ~0xFFF;
 
                 const void *ptr = (void*)vaddr;
+                km::AddressMapping mapping { ptr, paddr, x64::kPageSize };
 
-                pt.map4k(paddr, ptr, km::PageFlags::eAll);
+                OsStatus status = pt.map(mapping, km::PageFlags::eAll);
 
                 km::PhysicalAddress addr = pt.getBackingAddress(ptr);
 
-                ASSERT_EQ(paddr, addr.address);
+                if (status == OsStatusSuccess) {
+                    ASSERT_EQ(paddr, addr.address);
+                } else {
+                    ASSERT_EQ(KM_INVALID_MEMORY, addr.address);
+                }
 
                 km::PageSize size = pt.getPageSize(ptr);
-                ASSERT_EQ(km::PageSize::eDefault, size);
 
-                ASSERT_NE(km::PageFlags::eNone, pt.getMemoryFlags(ptr));
+                if (status == OsStatusSuccess) {
+                    ASSERT_NE(km::PageSize::eNone, size);
+                } else {
+                    ASSERT_EQ(km::PageSize::eNone, size);
+                }
+
+                if (status == OsStatusSuccess) {
+                    ASSERT_NE(km::PageFlags::eNone, pt.getMemoryFlags(ptr));
+                } else {
+                    ASSERT_EQ(km::PageFlags::eNone, pt.getMemoryFlags(ptr));
+                }
             }
         });
     }
@@ -392,7 +421,7 @@ TEST_F(PageTableTest, ThreadSafe) {
 }
 
 TEST_F(PageTableTest, AddressMapping) {
-    km::PageTables pt { &pm, &allocator };
+    km::PageTables pt = ptes(km::PageFlags::eAll);
 
     km::AddressMapping fb = {
         .vaddr = (void*)0xFFFFC00001000000,

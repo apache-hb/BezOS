@@ -350,10 +350,13 @@ testcases = {
     'range allocator': [
         'test/memory/range_allocator.cpp',
     ],
-    # 'page table': [
-    #     'test/memory/pte.cpp',
-    #     'src/memory/pte.cpp',
-    # ],
+    'page table': [
+        'test/memory/pte.cpp',
+        'src/memory/pte.cpp',
+        'src/memory/memory.cpp',
+        'src/util/memory.cpp',
+        tlsf.get_variable('sources'),
+    ],
     'partitions': [
         'test/drivers/partitions.cpp',
         'src/drivers/fs/driver.cpp',
