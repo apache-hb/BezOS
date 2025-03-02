@@ -51,8 +51,7 @@ extern "C" [[noreturn]] void ClientStart() {
     char args[] = "";
 
     OsProcessCreateInfo createInfo {
-        .PathFront = std::begin(path),
-        .PathBack = std::end(path) - 1,
+        .Executable = { std::begin(path), std::end(path) - 1 },
 
         .ArgumentsBegin = std::begin(args),
         .ArgumentsEnd = std::end(args) - 1,

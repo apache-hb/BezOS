@@ -71,14 +71,6 @@ enum {
     eOsSeekEnd      = UINT64_C(2),
 };
 
-/// @brief A path on the filesystem.
-///
-/// A path is a sequence of segments separated by @a OS_PATH_SEPARATOR.
-struct OsPath {
-    const OsUtf8Char *PathFront;
-    const OsUtf8Char *PathBack;
-};
-
 struct OsFileStat {
     const char *PathFront;
     const char *PathBack;

@@ -19,8 +19,8 @@ enum {
 typedef uint32_t OsProcessCreateFlags;
 
 struct OsProcessCreateInfo {
-    const char *PathFront;
-    const char *PathBack;
+    struct OsPath Executable;
+    struct OsPath WorkingDirectory;
 
     const char *ArgumentsBegin;
     const char *ArgumentsEnd;

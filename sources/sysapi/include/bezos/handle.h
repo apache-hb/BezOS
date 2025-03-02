@@ -34,6 +34,14 @@ struct OsString {
     OsUtf8Char Data[] OS_COUNTED_BY(Size);
 };
 
+/// @brief A path in the filesystem.
+///
+/// A path is a sequence of segments separated by @a OS_PATH_SEPARATOR.
+struct OsPath {
+    const OsUtf8Char *Front;
+    const OsUtf8Char *Back;
+};
+
 struct OsGuid {
     OsByte Octets[16];
 };

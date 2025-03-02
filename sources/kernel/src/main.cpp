@@ -1311,7 +1311,7 @@ static void AddProcessSystemCalls() {
         }
 
         vfs2::VfsPath path;
-        if (OsStatus status = UserReadPath(context, createInfo.PathFront, createInfo.PathBack, &path)) {
+        if (OsStatus status = UserReadPath(context, createInfo.Executable.Front, createInfo.Executable.Back, &path)) {
             return CallError(status);
         }
 
