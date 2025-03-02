@@ -516,6 +516,14 @@ TEST(MemoryRoundTest, RoundDown) {
     ASSERT_EQ(sm::rounddown(0, 0x1000), 0);
 }
 
+TEST(MemoryRoundTest, NextMultiple) {
+    ASSERT_EQ(sm::nextMultiple(0, 0x1000), 0x1000);
+    ASSERT_EQ(sm::nextMultiple(0x1000, 0x1000), 0x2000);
+    ASSERT_EQ(sm::nextMultiple(0x100, 0x1000), 0x1000);
+    ASSERT_EQ(sm::nextMultiple(0x1001, 0x1000), 0x2000);
+    ASSERT_EQ(sm::nextMultiple(0x1FFF, 0x1000), 0x2000);
+}
+
 TEST_F(PageTableTest, ThreadSafe) {
     km::PageTables pt = ptes(km::PageFlags::eAll);
 

@@ -36,6 +36,12 @@ namespace sm {
         return value + 1;
     }
 
+    template<typename T>
+    constexpr T nextMultiple(T value, T multiple) {
+        if (value % multiple == 0) return value + multiple;
+        return (value + multiple - 1) / multiple * multiple;
+    }
+
     template<std::integral T>
     constexpr T magnitude(T value) {
         return value < 0 ? -value : value;

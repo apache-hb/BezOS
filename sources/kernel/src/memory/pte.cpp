@@ -367,12 +367,6 @@ OsStatus PageTables::unmap2mRegion(x64::pdte& pde, uintptr_t address, VirtualRan
     }
 }
 
-template<typename T>
-constexpr T nextMultiple(T value, T multiple) {
-    if (value % multiple == 0) return value + multiple;
-    return (value + multiple - 1) / multiple * multiple;
-}
-
 OsStatus PageTables::unmap(VirtualRange range) {
     range = alignedOut(range, x64::kPageSize);
 
@@ -394,19 +388,19 @@ OsStatus PageTables::unmap(VirtualRange range) {
         //
         x64::PageMapLevel3 *l3 = findPageMap3(l4, pml4e);
         if (!l3) {
-            i += x64::kHugePageSize * 512;
+            i += sm::nextMultiple(i, x64::kHugePageSize * 512);
             continue;
         }
 
         x64::PageMapLevel2 *l2 = findPageMap2(l3, pdpte);
         if (!l2) {
-            i += x64::kHugePageSize;
+            i += sm::nextMultiple(i, x64::kHugePageSize);
             continue;
         }
 
         x64::pdte& pde = l2->entries[pdte];
         if (!pde.present()) {
-            i += x64::kLargePageSize;
+            i += sm::nextMultiple(i, x64::kLargePageSize);
             continue;
         }
 
@@ -416,7 +410,7 @@ OsStatus PageTables::unmap(VirtualRange range) {
         //
         if (pde.is2m()) {
             unmap2mRegion(pde, i, range);
-            i = nextMultiple(i, x64::kLargePageSize);
+            i = sm::nextMultiple(i, x64::kLargePageSize);
             continue;
         }
 
