@@ -308,12 +308,18 @@ public:
 
         std::vector<std::string> result;
 
+        // workaround for clang bug, lambdas with deducing this cannot access
+        // member variables.
+        auto getPackageDependencies = [&](const auto& id) {
+            return GetPackageDependencies(id);
+        };
+
         auto visit = [&](this auto&& self, const std::string& name) {
             if (stdr::contains(result, name)) {
                 return;
             }
 
-            auto dependants = GetPackageDependencies(name);
+            auto dependants = getPackageDependencies(name);
             for (const auto& dep : dependants) {
                 self(dep);
             }
@@ -473,6 +479,9 @@ struct Workspace {
         std::vector<PackageInfo> result;
 
         std::set<std::string> visited;
+
+        const auto& pkgs = this->packages;
+
         auto visit = [&](this auto&& self, const std::string& name) {
             if (visited.contains(name)) {
                 return;
@@ -480,7 +489,7 @@ struct Workspace {
 
             visited.insert(name);
 
-            auto& package = packages[name];
+            auto& package = pkgs.at(name);
             for (const auto& dep : package.dependencies) {
                 self(dep.name);
             }
