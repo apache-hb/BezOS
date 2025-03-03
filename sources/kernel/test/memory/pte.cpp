@@ -304,6 +304,44 @@ TEST_F(PageTableTest, UnmapLargePageOnly) {
     IsMapped(pt, km::AddressMapping { range.back, paddr + offset + range.size(), tailSize }, km::PageFlags::eAll);
 }
 
+TEST_F(PageTableTest, UnmapLargePageOverSmallPages) {
+    km::PageTables pt = ptes(km::PageFlags::eAll);
+
+    auto mapping = MapArea(pt, 0xFFFF800000000000, 0x1000000, x64::kLargePageSize * 4);
+    auto [vaddr, paddr, size] = mapping;
+
+    // test to ensure that unmapping a 2m range page of 4k pages works
+
+    {
+        OsStatus status = pt.map(mapping, km::PageFlags::eAll);
+        ASSERT_EQ(OsStatusSuccess, status);
+        IsMapped(pt, mapping, km::PageFlags::eAll);
+        ASSERT_EQ(km::PageSize::eLarge, pt.getPageSize(vaddr));
+    }
+
+    {
+        // unmap a small region inside the large page to replace with 4k pages
+        const void *middle = (void*)((uintptr_t)vaddr + x64::kPageSize);
+        km::VirtualRange range = km::VirtualRange::of(middle, x64::kPageSize * 2);
+        OsStatus status = pt.unmap(range);
+        ASSERT_EQ(OsStatusSuccess, status);
+
+        // verify
+        IsMapped(pt, km::AddressMapping { vaddr, paddr, x64::kPageSize }, km::PageFlags::eAll);
+        IsNotMapped(pt, range);
+        IsMapped(pt, km::AddressMapping { range.back, paddr + x64::kPageSize * 3, x64::kPageSize }, km::PageFlags::eAll);
+    }
+
+    {
+        // now perform a 2m unmap over the whole range
+        OsStatus status = pt.unmap2m(mapping.virtualRange());
+        ASSERT_EQ(OsStatusSuccess, status);
+
+        // verify
+        IsNotMapped(pt, mapping.virtualRange());
+    }
+}
+
 TEST_F(PageTableTest, GetBackingAddress) {
     km::PageTables pt = ptes(km::PageFlags::eAll);
 

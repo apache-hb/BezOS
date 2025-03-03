@@ -89,6 +89,7 @@ namespace x64 {
     /// @brief Page table entry
     struct pte : Entry {
         static constexpr uint64_t kPageAttributeBit = 7;
+        static constexpr uintptr_t kAddressMask = ~((1ull << 12) - 1);
 
         /// @brief Set the PAT entry to use for this page
         void setPatEntry(uint8_t entry) {
@@ -105,6 +106,7 @@ namespace x64 {
     /// @brief Page directory entry
     struct pdte : Entry {
         static constexpr uint64_t kLargePage = 1ull << 7;
+        static constexpr uintptr_t kAddressMask = ~((1ull << 21) - 1);
 
         bool is2m() const noexcept [[clang::nonblocking]] { return underlying & kLargePage; }
         void set2m(bool large) noexcept [[clang::nonblocking]] { setmask(underlying, kLargePage, large); }
@@ -125,6 +127,7 @@ namespace x64 {
     /// @brief Page directory pointer table entry
     struct pdpte : Entry {
         static constexpr uint64_t kHugePage = 1ull << 7;
+        static constexpr uintptr_t kAddressMask = ~((1ull << 30) - 1);
 
         bool is1g() const noexcept [[clang::nonblocking]] { return underlying & kHugePage; }
         void set1g(bool huge) noexcept [[clang::nonblocking]] { setmask(underlying, kHugePage, huge); }

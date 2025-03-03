@@ -199,9 +199,30 @@ namespace km {
         return {std::min(a.front, b.front), std::max(a.back, b.back)};
     }
 
+    /// @brief Tests if the given ranges are adjacent.
+    ///
+    /// Tests if the given ranges are adjacent. Adjacent ranges have a touching
+    /// front or back, but do not overlap.
+    ///
+    /// @param a The first range.
+    /// @param b The second range.
+    /// @return True if the ranges are adjacent, false otherwise.
     template<typename T>
-    constexpr bool adjacent(AnyRange<T> a, AnyRange<T> b) {
+    constexpr bool outerAdjacent(AnyRange<T> a, AnyRange<T> b) {
         return a.back == b.front || b.back == a.front;
+    }
+
+    /// @brief Tests if the given ranges are adjacent on the inside.
+    ///
+    /// Tests if the given ranges are adjacent on the inside. Inner adjacent ranges
+    /// have an equal front or back, and overlap.
+    ///
+    /// @param a The first range.
+    /// @param b The second range.
+    /// @return True if the ranges are adjacent on the inside, false otherwise.
+    template<typename T>
+    constexpr bool innerAdjacent(AnyRange<T> a, AnyRange<T> b) {
+        return a.front == b.front || a.back == b.back;
     }
 
     template<typename T>
@@ -211,18 +232,18 @@ namespace km {
 
     template<typename T>
     constexpr bool contiguous(AnyRange<T> a, AnyRange<T> b) {
-        return adjacent(a, b) || overlaps(a, b);
+        return outerAdjacent(a, b) || overlaps(a, b);
     }
 
     template<typename T>
     constexpr bool interval(AnyRange<T> a, AnyRange<T> b) {
-        return adjacent(a, b) || overlaps(a, b) || a.contains(b) || b.contains(a);
+        return outerAdjacent(a, b) || overlaps(a, b) || a.contains(b) || b.contains(a);
     }
 
     /// @brief Aligns the given memory range to the given alignment.
     ///
-    /// Aligns the given memory range to the given alignment. The front
-    /// of the range is rounded up and the back is rounded down.
+    /// Aligns the given memory range to the given alignment. Aligns the range by shrinking
+    /// the range to the next multiple of the given alignment.
     ///
     /// @param range The memory range.
     /// @param align The alignment to use.
@@ -236,6 +257,13 @@ namespace km {
         return {front, back};
     }
 
+    /// @brief Aligns the given range to the given alignment.
+    ///
+    /// Aligns the range by expanding its size to the next multiple of the given alignment.
+    ///
+    /// @param range The range to align.
+    /// @param align The alignment to use.
+    /// @return The aligned range.
     template<typename T>
     constexpr AnyRange<T> alignedOut(AnyRange<T> range, size_t align) {
         T front = std::bit_cast<T>(sm::rounddown(std::bit_cast<uintptr_t>(range.front), align));

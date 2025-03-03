@@ -116,7 +116,7 @@ namespace km {
 
         PageWalk walkUnlocked(const void *ptr) const;
 
-        OsStatus earlyUnmap(VirtualRange range);
+        OsStatus earlyUnmap(VirtualRange range, VirtualRange *remaining);
 
         PhysicalAddress getBackingAddressUnlocked(const void *ptr) const;
 

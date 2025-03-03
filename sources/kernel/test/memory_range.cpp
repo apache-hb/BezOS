@@ -2,6 +2,8 @@
 
 #include "memory/range.hpp"
 
+using namespace km;
+
 TEST(MemoryRangeTest, Contains) {
     km::MemoryRange range { 0x1000, 0x2000 };
 
@@ -137,23 +139,34 @@ TEST(MemoryRangeTest, IntersectAtEdge) {
     ASSERT_FALSE(committed.intersects(data));
 }
 
-TEST(MemoryRangeTest, Adjacent) {
-    km::MemoryRange first = { 0x1000, 0x2000 };
-    km::MemoryRange second = { 0x2000, 0x3000 };
-    km::MemoryRange notAdjacent = { 0x3000, 0x4000 };
+TEST(MemoryRangeTest, OuterAdjacent) {
+    MemoryRange a = { 0x1000, 0x2000 };
+    MemoryRange b = { 0x2000, 0x3000 };
+    MemoryRange c = { 0x2500, 0x3000 };
+    MemoryRange d = { 0x2500, 0x3500 };
 
-    ASSERT_TRUE(km::adjacent(first, second));
-    ASSERT_TRUE(km::adjacent(second, first));
-    ASSERT_FALSE(km::adjacent(first, notAdjacent));
-    ASSERT_FALSE(km::adjacent(notAdjacent, first));
+    {
+        ASSERT_TRUE(km::outerAdjacent(a, b));
+        ASSERT_TRUE(km::outerAdjacent(b, a));
+
+        ASSERT_FALSE(km::outerAdjacent(b, c));
+        ASSERT_FALSE(km::outerAdjacent(c, d));
+    }
 }
 
-TEST(MemoryRangeTest, AdjacentOverlapping) {
-    km::MemoryRange first = { 0x1000, 0x2000 };
-    km::MemoryRange second = { 0x1F00, 0x3000 };
+TEST(MemoryRangeTest, InnerAdjacent) {
+    MemoryRange a = { 0x1000, 0x2000 };
+    MemoryRange b = { 0x1500, 0x2000 };
+    MemoryRange c = { 0x2000, 0x3000 };
+    MemoryRange d = { 0x500, 0x1500 };
 
-    ASSERT_FALSE(km::adjacent(first, second));
-    ASSERT_FALSE(km::adjacent(second, first));
+    {
+        ASSERT_TRUE(km::innerAdjacent(a, b));
+        ASSERT_TRUE(km::innerAdjacent(b, a));
+
+        ASSERT_FALSE(km::innerAdjacent(b, c));
+        ASSERT_FALSE(km::innerAdjacent(a, d));
+    }
 }
 
 TEST(MemoryRangeTest, Contiguous) {
