@@ -68,6 +68,7 @@ namespace km {
         km::IsrContext state;
         uint64_t tlsAddress;
         sm::RcuSharedPtr<AddressSpace> stack;
+        AddressMapping syscallStack; // TODO: populate this and use it for syscalls
     };
 
     struct AddressSpace : public KernelObject {
