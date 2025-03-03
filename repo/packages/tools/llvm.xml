@@ -13,6 +13,7 @@
         <options LLVM_ENABLE_PROJECTS='llvm;clang;lld'
                  LLVM_ENABLE_RUNTIMES="libcxx;libcxxabi;libunwind;compiler-rt"
                  LLVM_TARGETS_TO_BUILD="X86"
+                 CLANG_ENABLE_STATIC_ANALYZER="OFF"
                  LIBCXX_ENABLE_THREADS="OFF"
                  LIBCXX_ENABLE_MONOTONIC_CLOCK="OFF"
                  LIBCXX_ENABLE_FILESYSTEM="OFF"
