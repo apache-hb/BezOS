@@ -110,6 +110,7 @@ src = [
     'src/memory/layout.cpp',
     'src/memory/allocator.cpp',
     'src/memory/page_allocator.cpp',
+    'src/memory/table_allocator.cpp',
     'src/memory/pte.cpp',
     'src/memory/tables.cpp',
     'src/memory/memory.cpp',
@@ -465,6 +466,10 @@ testcases = {
     'pte': [
         'test/memory/memory.cpp',
         'src/memory/memory.cpp',
+    ],
+    'table allocator': [
+        'test/memory/table_allocator.cpp',
+        'src/memory/table_allocator.cpp',
     ]
 }
 
