@@ -52,7 +52,7 @@ INSTANTIATE_TEST_SUITE_P(SectorRangeTest, SectorRangeTest, testing::Values(
         .firstSectorOffset = 100,
         .lastSector = 0,
         .lastSectorOffset = 500,
-    }),
+    })
 ));
 
 TEST_P(SectorRangeTest, SectorRange) {

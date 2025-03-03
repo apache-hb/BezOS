@@ -171,7 +171,7 @@ INSTANTIATE_TEST_SUITE_P(
         // 6 bit formats with 18 bpp
         km::PixelFormat(18, 6, 10, 6, 10, 6, 0),
         km::PixelFormat(18, 6, 0, 6, 10, 6, 10),
-        km::PixelFormat(18, 6, 10, 6, 10, 6, 10),
+        km::PixelFormat(18, 6, 10, 6, 10, 6, 10)
     ));
 
 INSTANTIATE_TEST_SUITE_P(
@@ -193,7 +193,7 @@ INSTANTIATE_TEST_SUITE_P(
         // True colour (64-bit)
         km::PixelFormat(64, 8, 0, 8, 8, 8, 16),
         km::PixelFormat(64, 8, 16, 8, 8, 8, 0),
-        km::PixelFormat(64, 8, 8, 8, 8, 8, 8),
+        km::PixelFormat(64, 8, 8, 8, 8, 8, 8)
     ));
 
 TEST_P(PixelFormatValueTest, PixelValue) {

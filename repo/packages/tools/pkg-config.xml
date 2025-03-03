@@ -5,5 +5,7 @@
               trim-root-folder='true'
               archive='tar' />
 
-    <configure with='autoconf' />
+    <configure with='autoconf'>
+        <options with-internal-glib='' />
+    </configure>
 </package>
