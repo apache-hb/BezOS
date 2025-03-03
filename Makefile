@@ -81,12 +81,11 @@ $(REPO): $(PKGTOOL) $(REPO_SRC)
 repo: $(REPO) $(REPO_SRC)
 
 
+KERNEL_PATH := build/packages/kernel
+
 .PHONY: clean
 clean:
-	rm -rf $(BUILDDIR) $(PREFIX)
-
-
-KERNEL_PATH := build/packages/kernel
+	ninja -C $(KERNEL_PATH) clean
 
 .PHONY: check
 check:

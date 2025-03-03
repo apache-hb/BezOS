@@ -333,6 +333,22 @@ void PageTables::cut2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange er
     pde.set2m(false);
 }
 
+void PageTables::reclaim2m(x64::pdte& pde) {
+    //
+    // When unmapping a 2m page we need to determine if we can reclaim a page table.
+    //
+    if (!pde.is2m()) {
+        //
+        // If the page is a set of 4k pages we can reclaim the page table.
+        //
+        x64::PageTable *pt = asVirtual<x64::PageTable>(mPageManager->address(pde));
+        mAllocator.deallocate(pt, sizeof(x64::PageTable));
+    }
+
+    pde.setPresent(false);
+    pde.set2m(false);
+}
+
 OsStatus PageTables::unmap2mRegion(x64::pdte& pde, uintptr_t address, VirtualRange range) {
     VirtualRange page = VirtualRange::of((void*)sm::rounddown(address, x64::kLargePageSize), x64::kLargePageSize);
 
@@ -341,8 +357,7 @@ OsStatus PageTables::unmap2mRegion(x64::pdte& pde, uintptr_t address, VirtualRan
     // without any extra work.
     //
     if (range.contains(page)) {
-        pde.setPresent(false);
-        pde.set2m(false);
+        reclaim2m(pde);
         x64::invlpg(address);
 
         return OsStatusSuccess;
@@ -356,6 +371,11 @@ OsStatus PageTables::unmap2mRegion(x64::pdte& pde, uintptr_t address, VirtualRan
 }
 
 int PageTables::earlyAllocatePageTables(VirtualRange range) {
+    auto isMappedUsingLargePage = [&](const void *address) {
+        PageWalk walk = walkUnlocked(address);
+        return walk.pageSize() == PageSize::eLarge;
+    };
+
     //
     // If either the front or back of the range is aligned to a 2m page boundary then we
     // dont need to pre-allocate any page tables.
@@ -370,7 +390,7 @@ int PageTables::earlyAllocatePageTables(VirtualRange range) {
     // If both ends of the range are in the same 2m page then only 1 page table is required.
     //
     if (sm::rounddown((uintptr_t)range.front, x64::kLargePageSize) == sm::rounddown((uintptr_t)range.back, x64::kLargePageSize)) {
-        return 1;
+        return isMappedUsingLargePage(range.front) ? 1 : 0;
     }
 
     //
@@ -378,18 +398,12 @@ int PageTables::earlyAllocatePageTables(VirtualRange range) {
     // are not 2m aligned so we need to check if the mappings are 2m pages.
     //
     int count = 0;
-    if (!frontAligned) {
-        PageWalk head = walkUnlocked(range.front);
-        if (head.pageSize() == PageSize::eLarge) {
-            count += 1;
-        }
+    if (!frontAligned && isMappedUsingLargePage(range.front)) {
+        count += 1;
     }
 
-    if (!backAligned) {
-        PageWalk tail = walkUnlocked(range.back);
-        if (tail.pageSize() == PageSize::eLarge) {
-            count += 1;
-        }
+    if (!backAligned && isMappedUsingLargePage(range.back)) {
+        count += 1;
     }
 
     return count;
@@ -649,17 +663,10 @@ OsStatus PageTables::unmap2m(VirtualRange range) {
         }
 
         //
-        // If we are unmapping a 2m page, we need to determine if we can reclaim a page table.
+        // When unmapping a 2m page we need to determine if we can reclaim a page table.
         //
-        if (!pde.is2m()) {
-            //
-            // If the page is a set of 4k pages we can reclaim the page table.
-            //
-            x64::PageTable *pt = asVirtual<x64::PageTable>(mPageManager->address(pde));
-            mAllocator.deallocate(pt, sizeof(x64::PageTable));
-        }
+        reclaim2m(pde);
 
-        pde.setPresent(false);
         x64::invlpg(i);
         i += x64::kLargePageSize;
     }

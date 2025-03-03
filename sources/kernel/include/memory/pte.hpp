@@ -120,6 +120,8 @@ namespace km {
 
         PhysicalAddress getBackingAddressUnlocked(const void *ptr) const;
 
+        void reclaim2m(x64::pdte& pde);
+
     public:
         PageTables(const PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags);
 

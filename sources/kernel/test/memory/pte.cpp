@@ -10,13 +10,13 @@ using namespace km;
 
 static constexpr size_t kSize = 0x10000;
 
-auto GetAllocatorMemory() {
+auto GetAllocatorMemory(size_t size = kSize) {
     auto deleter = [](uint8_t *ptr) {
         :: operator delete[] (ptr, std::align_val_t(16));
     };
 
     return std::unique_ptr<uint8_t[], decltype(deleter)>{
-        new (std::align_val_t(16)) uint8_t[kSize],
+        new (std::align_val_t(16)) uint8_t[size],
         deleter
     };
 }
@@ -45,11 +45,12 @@ public:
     void SetUp() override {
     }
 
-    TestMemory memory = GetAllocatorMemory();
+    TestMemory memory;
     km::PageBuilder pm { 48, 48, km::GetDefaultPatLayout() };
 
-    km::PageTables ptes(km::PageFlags flags = km::PageFlags::eAll) const {
-        km::AddressMapping mapping { memory.get(), (uintptr_t)memory.get(), kSize };
+    km::PageTables ptes(km::PageFlags flags = km::PageFlags::eAll, size_t size = kSize) {
+        memory = GetAllocatorMemory(size);
+        km::AddressMapping mapping { memory.get(), (uintptr_t)memory.get(), size };
         return km::PageTables { &pm, mapping, flags };
     }
 };
@@ -106,6 +107,54 @@ static void IsNotMapped(PageTables& ptes, VirtualRange range) {
             << "Address: " << (void*)i
             << " Got: " << (void*)(addr.address);
     }
+}
+
+TEST_F(PageTableTest, Unmap4kPage) {
+    km::PageTables pt = ptes(km::PageFlags::eAll);
+
+    auto mapping = MapArea(pt, 0xFFFF800000000000, 0x1000000, x64::kPageSize * 32);
+    auto [vaddr, paddr, size] = mapping;
+
+    IsMapped(pt, mapping, km::PageFlags::eAll);
+
+    ASSERT_EQ(km::PageSize::eRegular, pt.getPageSize(vaddr));
+
+    // unmap a few 4k pages
+    km::VirtualRange range = km::VirtualRange::of((void*)((uintptr_t)vaddr + x64::kPageSize * 4), x64::kPageSize * 4);
+    OsStatus status = pt.unmap(range);
+    ASSERT_EQ(OsStatusSuccess, status);
+
+    // the first and third 2m pages should still be mapped
+    IsMapped(pt, mapping.first(x64::kPageSize * 4), km::PageFlags::eAll);
+
+    IsNotMapped(pt, range);
+
+    // the remaining pages should still be mapped as 4k pages
+    IsMapped(pt, mapping.last(mapping.size - ((x64::kPageSize * 4) + range.size())), km::PageFlags::eAll);
+}
+
+TEST_F(PageTableTest, Unmap2mPage) {
+    km::PageTables pt = ptes(km::PageFlags::eAll);
+
+    auto mapping = MapArea(pt, 0xFFFF800000000000, 0x1000000, x64::kLargePageSize * 4);
+    auto [vaddr, paddr, size] = mapping;
+
+    IsMapped(pt, mapping, km::PageFlags::eAll);
+
+    ASSERT_EQ(km::PageSize::eLarge, pt.getPageSize(vaddr));
+
+    // unmap the second 2m page
+    km::VirtualRange range = km::VirtualRange::of((void*)((uintptr_t)vaddr + x64::kLargePageSize), x64::kLargePageSize);
+    OsStatus status = pt.unmap(range);
+    ASSERT_EQ(OsStatusSuccess, status);
+
+    // the first and third 2m pages should still be mapped
+    IsMapped(pt, mapping.first(x64::kLargePageSize), km::PageFlags::eAll);
+
+    IsNotMapped(pt, range);
+
+    // the remaining pages should still be mapped as 4k pages
+    IsMapped(pt, mapping.last(x64::kLargePageSize * 2), km::PageFlags::eAll);
 }
 
 TEST_F(PageTableTest, PartialUnmapHead) {
@@ -340,6 +389,52 @@ TEST_F(PageTableTest, UnmapLargePageOverSmallPages) {
         // verify
         IsNotMapped(pt, mapping.virtualRange());
     }
+}
+
+TEST_F(PageTableTest, UnmapOomHandling) {
+    km::PageTables pt = ptes(km::PageFlags::eAll, x64::kPageSize * 8);
+
+    // allocate pages to exhaust memory
+    uintptr_t vbase = 0xFFFF800000000000;
+    uintptr_t pbase = 0x1000000;
+    while (true) {
+        AddressMapping mapping = { (void*)vbase, pbase, x64::kLargePageSize };
+
+        OsStatus status = pt.map(mapping, km::PageFlags::eAll);
+        if (status == OsStatusOutOfMemory) {
+            break;
+        }
+
+        vbase += x64::kLargePageSize;
+        pbase += x64::kLargePageSize;
+    }
+
+    // now try to unmap the last 4k of the last 2m page
+    const void *middle = (void*)(vbase - x64::kPageSize);
+    km::VirtualRange range = km::VirtualRange::of(middle, x64::kPageSize);
+    OsStatus status = pt.unmap(range);
+    ASSERT_EQ(OsStatusOutOfMemory, status);
+
+    // verify that the last 2m page is still mapped
+    IsMapped(pt, km::AddressMapping { (void*)(vbase - x64::kLargePageSize), pbase - x64::kLargePageSize, x64::kLargePageSize }, km::PageFlags::eAll);
+}
+
+TEST_F(PageTableTest, UnmapUnmappedRange) {
+    km::PageTables pt = ptes(km::PageFlags::eAll);
+
+    // ensure that unmapping an unmapped range is a no-op
+    km::VirtualRange range = km::VirtualRange::of((void*)0xFFFF800000000000, x64::kPageSize);
+    OsStatus status = pt.unmap(range);
+    ASSERT_EQ(OsStatusSuccess, status);
+}
+
+TEST_F(PageTableTest, UnmapUnmapped2mRange) {
+    km::PageTables pt = ptes(km::PageFlags::eAll);
+
+    // ensure that unmapping an unmapped range is a no-op
+    km::VirtualRange range = km::VirtualRange::of((void*)0xFFFF800000000000, x64::kLargePageSize);
+    OsStatus status = pt.unmap2m(range);
+    ASSERT_EQ(OsStatusSuccess, status);
 }
 
 TEST_F(PageTableTest, GetBackingAddress) {
