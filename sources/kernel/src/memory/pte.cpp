@@ -515,21 +515,21 @@ OsStatus PageTables::unmap(VirtualRange range) {
             return OsStatusOutOfMemory;
         }
 
-        VirtualRange inner {
+        VirtualRange page {
             (void*)sm::rounddown((uintptr_t)range.front, x64::kLargePageSize),
             (void*)sm::roundup((uintptr_t)range.back, x64::kLargePageSize)
         };
 
-        if (inner.front != range.front) {
+        if (page.front != range.front) {
             x64::pdte& entry = getLargePageEntry(range.front);
-            cut2mMapping(entry, inner, range, pt);
+            cut2mMapping(entry, page, range, pt);
         } else {
-            KM_CHECK(inner.back != range.back, "Invalid range.");
+            KM_CHECK(page.back != range.back, "Invalid range.");
             x64::pdte& entry = getLargePageEntry(range.front);
-            cut2mMapping(entry, inner, range, pt);
+            cut2mMapping(entry, page, range, pt);
         }
 
-        range = inner;
+        range = page;
     }
 
     //
