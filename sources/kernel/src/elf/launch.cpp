@@ -365,6 +365,8 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
         return status;
     }
 
+    KmDebugMessage("[ELF] Stack: ", mapping, "\n");
+
     char *stack = (char*)memory.map(mapping.physicalRange(), flags);
     memset(stack, 0x00, kStackSize);
     memory.unmap(stack, kStackSize);

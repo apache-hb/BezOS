@@ -1,5 +1,5 @@
-LIMINE_ISO=install/bezos-limine.iso
-HYPER_ISO=install/bezos-hyper.iso
+LIMINE_ISO=install/image/bezos-limine.iso
+HYPER_ISO=install/image/bezos-hyper.iso
 
 HYPER_BOOTX64=data/hyper/BOOTX64.EFI
 HYPER_ISOBOOT=data/hyper/hyper-iso-boot

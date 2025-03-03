@@ -39,14 +39,14 @@ namespace smbios {
         uint8_t length;
         uint8_t major;
         uint8_t minor;
-        uint16_t tableSize;
+        uint16_t entrySize;
         uint8_t entryRevision;
         uint8_t reserved0[5];
 
         std::array<char, 5> anchor1;
         uint8_t checksum1;
 
-        uint16_t tableLength;
+        uint16_t tableSize;
         uint32_t tableAddress;
         uint16_t entryCount;
         uint8_t bcdRevision;
@@ -99,6 +99,9 @@ constexpr km::MemoryRange SmBiosTableRange(const T *table) {
 
 template<typename T>
 static km::VirtualRange SmBiosMapTable(const T *table, km::SystemMemory& memory) {
+    KmDebugMessage("[SMBIOS] Table: ", (void*)table, "\n");
+    KmDebugMessage(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(table), sizeof(T))), "\n");
+
     void *address = memory.map(SmBiosTableRange(table));
     KmDebugMessage("[SMBIOS] Table address: ", km::Hex(table->tableAddress).pad(sizeof(T::tableAddress) * 2), ", Size: ", auto{table->tableSize}, "\n");
     KmDebugMessage(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(address), table->tableSize)), "\n");

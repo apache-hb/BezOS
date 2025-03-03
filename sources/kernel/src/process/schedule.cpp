@@ -41,13 +41,13 @@ km::Scheduler::Scheduler()
 
 void km::Scheduler::addWorkItem(sm::RcuSharedPtr<Thread> thread) {
     if (thread) {
-        IntGuard guard;
+        // IntGuard guard;
         mQueue.enqueue(thread);
     }
 }
 
 sm::RcuSharedPtr<km::Thread> km::Scheduler::getWorkItem() noexcept {
-    IntGuard guard;
+    // IntGuard guard;
 
     sm::RcuWeakPtr<Thread> thread;
     while (mQueue.try_dequeue(thread)) {

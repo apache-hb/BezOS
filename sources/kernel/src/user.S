@@ -29,7 +29,9 @@ KmSystemEntry:
     /* when an interrupt arrives with cpl=0. If an interrupt happened before this swapgs */
     /* that precondition would be violated, causing an incorrect swapgs and a crash */
     swapgs
-    sti
+
+    /* disabled for now, we need to have a syscall stack per thread rather than per cpu */
+    /* sti */
 
     movq %rsp, %r15
     movq KmSystemCallStackTlsOffset, %r9
@@ -82,7 +84,8 @@ KmSystemEntry:
 
     /* Clear the interrupt flag before swapgs, otherwise an interrupt */
     /* could observe the violated precondition. */
-    cli
+    /* disabled for now, see above */
+    /* cli */
 
     swapgs
 

@@ -74,7 +74,7 @@ SECTIONS
     /* Move to the next memory page for .cpudata */
     . = ALIGN(CONSTANT(MAXPAGESIZE));
 
-    .cpudata : {
+    .cpudata (NOLOAD) : {
         __cpudata_start = .;
         *(.cpuroot .cpuroot.*)
         . = ALIGN(8);
