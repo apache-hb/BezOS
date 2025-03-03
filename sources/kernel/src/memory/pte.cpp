@@ -312,15 +312,12 @@ OsStatus PageTables::split2mMapping(x64::pdte& pde, VirtualRange page, VirtualRa
     return OsStatusSuccess;
 }
 
-OsStatus PageTables::cut2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange erase) {
+void PageTables::cut2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange erase, x64::PageTable *pt) {
     VirtualRange remaining = page.cut(erase);
 
     MemoryType type = mPageManager->getMemoryType(pde);
     PhysicalAddress paddr = mPageManager->address(pde);
     uintptr_t offset = (uintptr_t)remaining.front - (uintptr_t)page.front;
-
-    x64::PageTable *pt = std::bit_cast<x64::PageTable*>(alloc4k());
-    if (!pt) return OsStatusOutOfMemory;
 
     //
     // Remap the area that is still valid.
@@ -332,8 +329,6 @@ OsStatus PageTables::cut2mMapping(x64::pdte& pde, VirtualRange page, VirtualRang
     //
     setEntryFlags(pde, mMiddleFlags, asPhysical(pt));
     pde.set2m(false);
-
-    return OsStatusSuccess;
 }
 
 OsStatus PageTables::unmap2mRegion(x64::pdte& pde, uintptr_t address, VirtualRange range) {
@@ -352,19 +347,107 @@ OsStatus PageTables::unmap2mRegion(x64::pdte& pde, uintptr_t address, VirtualRan
     }
 
     //
-    // If the unmap range is a subset of the page range then we need to replace
-    // the 2m page with 4k pages that map the equivalent area. If the unmap range
-    // borders the 2m page then we need to cut rather than split.
+    // If we reach this point we know that the unmap request is entirely within a 2m page.
     //
-    if (page.contains(range) && page.front != range.front && page.back != range.back) {
-        return split2mMapping(pde, page, range);
-    } else {
-        //
-        // If the page isnt fully contained within the unmap range then we need to remove
-        // either the front or back of the range and replace it with 4k pages.
-        //
-        return cut2mMapping(pde, page, range);
+    KM_CHECK(page.contains(range) && page.front != range.front && page.back != range.back, "Invalid unmap range.");
+    return split2mMapping(pde, page, range);
+}
+
+int PageTables::earlyAllocatePageTables(VirtualRange range) {
+    //
+    // If either the front or back of the range is aligned to a 2m page boundary then we
+    // dont need to pre-allocate any page tables.
+    //
+    bool frontAligned = (uintptr_t)range.front % x64::kLargePageSize == 0;
+    bool backAligned = (uintptr_t)range.back % x64::kLargePageSize == 0;
+    if (frontAligned && backAligned) {
+        return 0;
     }
+
+    //
+    // If both ends of the range are in the same 2m page then only 1 page table is required.
+    //
+    if (sm::rounddown((uintptr_t)range.front, x64::kLargePageSize) == sm::rounddown((uintptr_t)range.back, x64::kLargePageSize)) {
+        return 1;
+    }
+
+    //
+    // Check if the head and tail ranges are mapped. We know both these addresses
+    // are not 2m aligned so we need to check if the mappings are 2m pages.
+    //
+    int count = 0;
+    if (!frontAligned) {
+        PageWalk head = walkUnlocked(range.front);
+        if (head.pageSize() == PageSize::eLarge) {
+            count += 1;
+        }
+    }
+
+    if (!backAligned) {
+        PageWalk tail = walkUnlocked(range.back);
+        if (tail.pageSize() == PageSize::eLarge) {
+            count += 1;
+        }
+    }
+
+    return count;
+}
+
+x64::pdte& PageTables::getLargePageEntry(const void *address) {
+    auto [pml4e, pdpte, pdte, _] = GetAddressParts(address);
+
+    x64::PageMapLevel4 *l4 = pml4();
+
+    x64::PageMapLevel3 *l3 = findPageMap3(l4, pml4e);
+    KM_CHECK(l3 != nullptr, "Failed to find page map level 3.");
+
+    x64::PageMapLevel2 *l2 = findPageMap2(l3, pdpte);
+    KM_CHECK(l2 != nullptr, "Failed to find page map level 2.");
+
+    return l2->entries[pdte];
+}
+
+PageWalk PageTables::walkUnlocked(const void *ptr) const {
+    auto [pml4eIndex, pdpteIndex, pdteIndex, pteIndex] = GetAddressParts(ptr);
+    x64::pml4e pml4e{};
+    x64::pdpte pdpte{};
+    x64::pdte pdte{};
+    x64::pte pte{};
+
+    //
+    // Small trick with do { } while loops to achive goto-like behaviour while avoiding
+    // undefined behaviour from jumping over variable initialization.
+    // If any of these steps fail we want to return the data we have so far, so
+    // we break out of the loop and return the data we've collected.
+    //
+    do {
+        const x64::PageMapLevel4 *l4 = pml4();
+        pml4e = l4->entries[pml4eIndex];
+        if (!pml4e.present()) break;
+
+        const x64::PageMapLevel3 *l3 = getPageEntry<x64::PageMapLevel3>(l4, pml4eIndex);
+        pdpte = l3->entries[pdpteIndex];
+        if (!pdpte.present() || pdpte.is1g()) break;
+
+        const x64::PageMapLevel2 *l2 = getPageEntry<x64::PageMapLevel2>(l3, pdpteIndex);
+        pdte = l2->entries[pdteIndex];
+        if (!pdte.present() || pdte.is2m()) break;
+
+        x64::PageTable *pt = getPageEntry<x64::PageTable>(l2, pdteIndex);
+        pte = pt->entries[pteIndex];
+    } while (false);
+
+    return PageWalk {
+        .address = ptr,
+        .pml4eIndex = pml4eIndex,
+        .pml4e = pml4e,
+        .pdpteIndex = pdpteIndex,
+        .pdpte = pdpte,
+        .pdteIndex = pdteIndex,
+        .pdte = pdte,
+        .pteIndex = pteIndex,
+        .pte = pte,
+    };
 }
 
 OsStatus PageTables::unmap(VirtualRange range) {
@@ -376,6 +459,78 @@ OsStatus PageTables::unmap(VirtualRange range) {
 
     uintptr_t i = (uintptr_t)range.front;
     uintptr_t end = (uintptr_t)range.back;
+
+    //
+    // Fun edge case when unampping a range of memory that isnt 2m aligned but intersects with 2 2m pages.
+    // As this requires allocating 2 new page tables to store the 4k mappings required: the first allocation
+    // can succeed and the second can fail. If we did the allocating while iterating we could reach a state
+    // where the second allocation fails but page tables have already been manipulated. So we need to allocate both
+    // required page tables upfront to ensure both exist before unmapping the remaining area.
+    //
+    int earlyAllocations = earlyAllocatePageTables(range);
+    if (earlyAllocations == 2) {
+        x64::PageTable *ptlow = std::bit_cast<x64::PageTable*>(alloc4k());
+        if (ptlow == nullptr) {
+            return OsStatusOutOfMemory;
+        }
+
+        x64::PageTable *pthigh = std::bit_cast<x64::PageTable*>(alloc4k());
+        if (pthigh == nullptr) {
+            mAllocator.deallocate(ptlow, sizeof(x64::PageTable));
+            return OsStatusOutOfMemory;
+        }
+
+        //
+        // We rebuild the first and last mappings early here, then shrink the range and continue the
+        // unmapping iteration.
+        //
+        VirtualRange low { range.front, (void*)sm::roundup((uintptr_t)range.front, x64::kLargePageSize) };
+        VirtualRange high { (void*)sm::rounddown((uintptr_t)range.back, x64::kLargePageSize), range.back };
+
+        VirtualRange lowPage {
+            (void*)sm::rounddown((uintptr_t)range.front, x64::kLargePageSize),
+            (void*)sm::roundup((uintptr_t)range.front, x64::kLargePageSize)
+        };
+
+        VirtualRange highPage {
+            (void*)sm::rounddown((uintptr_t)range.back, x64::kLargePageSize),
+            (void*)sm::roundup((uintptr_t)range.back, x64::kLargePageSize)
+        };
+
+        x64::pdte& lowEntry = getLargePageEntry(low.front);
+        x64::pdte& highEntry = getLargePageEntry(high.front);
+
+        cut2mMapping(lowEntry, lowPage, low, ptlow);
+        cut2mMapping(highEntry, highPage, high, pthigh);
+
+        range.front = low.back;
+        range.back = high.front;
+    } else if (earlyAllocations == 1) {
+        //
+        // If we only need to allocate one page table we still need to do it early in the case
+        // that its the last page in the unmap range rather than the first.
+        //
+        x64::PageTable *pt = std::bit_cast<x64::PageTable*>(alloc4k());
+        if (pt == nullptr) {
+            return OsStatusOutOfMemory;
+        }
+
+        VirtualRange inner {
+            (void*)sm::rounddown((uintptr_t)range.front, x64::kLargePageSize),
+            (void*)sm::roundup((uintptr_t)range.back, x64::kLargePageSize)
+        };
+
+        if (inner.front != range.front) {
+            x64::pdte& entry = getLargePageEntry(range.front);
+            cut2mMapping(entry, inner, range, pt);
+        } else {
+            KM_CHECK(inner.back != range.back, "Invalid range.");
+            x64::pdte& entry = getLargePageEntry(range.front);
+            cut2mMapping(entry, inner, range, pt);
+        }
+
+        range = inner;
+    }
 
     //
     // Iterate over the range we want to unmap and unmap the pages.
@@ -486,49 +641,8 @@ km::PhysicalAddress PageTables::asPhysical(const void *ptr) const {
 }
 
 OsStatus PageTables::walk(const void *ptr, PageWalk *walk) {
-    auto [pml4eIndex, pdpteIndex, pdteIndex, pteIndex] = GetAddressParts(ptr);
-    x64::pml4e pml4e{};
-    x64::pdpte pdpte{};
-    x64::pdte pdte{};
-    x64::pte pte{};
-
     stdx::LockGuard guard(mLock);
 
-    //
-    // Small trick with do { } while loops to achive goto-like behaviour while avoiding
-    // undefined behaviour from jumping over variable initialization.
-    // If any of these steps fail we want to return the data we have so far, so
-    // we break out of the loop and return the data we've collected.
-    //
-    do {
-        const x64::PageMapLevel4 *l4 = pml4();
-        pml4e = l4->entries[pml4eIndex];
-        if (!pml4e.present()) break;
-
-        const x64::PageMapLevel3 *l3 = getPageEntry<x64::PageMapLevel3>(l4, pml4eIndex);
-        pdpte = l3->entries[pdpteIndex];
-        if (!pdpte.present() || pdpte.is1g()) break;
-
-        const x64::PageMapLevel2 *l2 = getPageEntry<x64::PageMapLevel2>(l3, pdpteIndex);
-        pdte = l2->entries[pdteIndex];
-        if (!pdte.present() || pdte.is2m()) break;
-
-        x64::PageTable *pt = getPageEntry<x64::PageTable>(l2, pdteIndex);
-        pte = pt->entries[pteIndex];
-    } while (false);
-
-    PageWalk result {
-        .address = ptr,
-        .pml4eIndex = pml4eIndex,
-        .pml4e = pml4e,
-        .pdpteIndex = pdpteIndex,
-        .pdpte = pdpte,
-        .pdteIndex = pdteIndex,
-        .pdte = pdte,
-        .pteIndex = pteIndex,
-        .pte = pte,
-    };
-
-    *walk = result;
+    *walk = walkUnlocked(ptr);
     return OsStatusSuccess;
 }

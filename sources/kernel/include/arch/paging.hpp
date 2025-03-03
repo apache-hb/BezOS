@@ -105,6 +105,7 @@ namespace x64 {
     /// @brief Page directory entry
     struct pdte : Entry {
         static constexpr uint64_t kLargePage = 1ull << 7;
+
         bool is2m() const noexcept [[clang::nonblocking]] { return underlying & kLargePage; }
         void set2m(bool large) noexcept [[clang::nonblocking]] { setmask(underlying, kLargePage, large); }
 
@@ -164,7 +165,9 @@ namespace x64 {
         uint8_t data[kPageSize];
     };
 
-    static inline __DEFAULT_FN_ATTRS void invlpg(uintptr_t address) {
+    static inline __DEFAULT_FN_ATTRS void invlpg([[maybe_unused]] uintptr_t address) {
+#if __STDC_HOSTED__ == 0
         asm volatile("invlpg (%0)" : : "r"(address) : "memory");
+#endif
     }
 }
