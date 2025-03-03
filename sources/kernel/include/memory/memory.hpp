@@ -132,11 +132,11 @@ namespace km {
 
             applyFlags(pml4e);
 
-            if (!pdpte.present() && !pdpte.is1g()) return PageFlags::eNone;
+            if (!pdpte.present()) return PageFlags::eNone;
             applyFlags(pdpte);
             if (pdpte.is1g()) return flags;
 
-            if (!pdte.present() && !pdte.is2m()) return PageFlags::eNone;
+            if (!pdte.present()) return PageFlags::eNone;
             applyFlags(pdte);
             if (pdte.is2m()) return flags;
 

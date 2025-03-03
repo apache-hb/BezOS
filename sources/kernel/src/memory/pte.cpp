@@ -639,8 +639,15 @@ OsStatus PageTables::unmap2m(VirtualRange range) {
             mAllocator.deallocate(pt, sizeof(x64::PageTable));
         }
 
+        KmDebugMessage("Unmapping 2m page at ", (void*)i, "\n");
+
         pde.setPresent(false);
         x64::invlpg(i);
+
+        {
+            PhysicalAddress paddr = getBackingAddressUnlocked((void*)i);
+            KmDebugMessage("Unmapped 2m page at ", (void*)i, " backing address: ", paddr, "\n");
+        }
 
         i += x64::kLargePageSize;
     }
@@ -648,28 +655,31 @@ OsStatus PageTables::unmap2m(VirtualRange range) {
     return OsStatusSuccess;
 }
 
-km::PhysicalAddress PageTables::getBackingAddress(const void *ptr) {
+PhysicalAddress PageTables::getBackingAddressUnlocked(const void *ptr) const {
     uintptr_t address = reinterpret_cast<uintptr_t>(ptr);
     auto [pml4e, pdpte, pdte, pte] = GetAddressParts(ptr);
     uintptr_t offset = address & 0xFFF;
 
-    stdx::LockGuard guard(mLock);
-
     const x64::PageMapLevel4 *l4 = pml4();
-    const x64::PageMapLevel3 *l3 = findPageMap3(l4, pml4e);
-    if (!l3) return KM_INVALID_MEMORY;
+    const x64::pml4e& t4 = l4->entries[pml4e];
+    if (!t4.present()) return KM_INVALID_MEMORY;
 
-    if (l3->entries[pdpte].is1g()) {
+    const x64::PageMapLevel3 *l3 = asVirtual<x64::PageMapLevel3>(mPageManager->address(t4));
+    const x64::pdpte& t3 = l3->entries[pdpte];
+    if (!t3.present()) return KM_INVALID_MEMORY;
+
+    if (t3.is1g()) {
         uintptr_t pdpteOffset = address & 0x3FF'000;
-        return km::PhysicalAddress { mPageManager->address(l3->entries[pdpte]) + pdpteOffset + offset };
+        return km::PhysicalAddress { mPageManager->address(t3) + pdpteOffset + offset };
     }
 
-    const x64::PageMapLevel2 *l2 = findPageMap2(l3, pdpte);
-    if (!l2) return KM_INVALID_MEMORY;
+    const x64::PageMapLevel2 *l2 = asVirtual<x64::PageMapLevel2>(mPageManager->address(t3));
+    const x64::pdte& t2 = l2->entries[pdte];
+    if (!t2.present()) return KM_INVALID_MEMORY;
 
-    if (l2->entries[pdte].is2m()) {
+    if (t2.is2m()) {
         uintptr_t pdteOffset = address & 0x1FF'000;
-        return km::PhysicalAddress { mPageManager->address(l2->entries[pdte]) + pdteOffset + offset };
+        return km::PhysicalAddress { mPageManager->address(t2) + pdteOffset + offset };
     }
 
     const x64::PageTable *pt = findPageTable(l2, pdte);
@@ -679,6 +689,11 @@ km::PhysicalAddress PageTables::getBackingAddress(const void *ptr) {
     if (!t1.present()) return KM_INVALID_MEMORY;
 
     return km::PhysicalAddress { mPageManager->address(t1) + offset };
+}
+
+km::PhysicalAddress PageTables::getBackingAddress(const void *ptr) {
+    stdx::LockGuard guard(mLock);
+    return getBackingAddressUnlocked(ptr);
 }
 
 km::PageFlags PageTables::getMemoryFlags(const void *ptr) {

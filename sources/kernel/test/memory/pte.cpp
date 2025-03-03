@@ -94,13 +94,17 @@ static void IsMapped(PageTables& ptes, AddressMapping mapping, PageFlags flags) 
 static void IsNotMapped(PageTables& ptes, VirtualRange range) {
     for (uintptr_t i = (uintptr_t)range.front; i < (uintptr_t)range.back; i += x64::kPageSize) {
         km::PageFlags f = ptes.getMemoryFlags((void*)i);
-        ASSERT_EQ(PageFlags::eNone, f);
+        EXPECT_EQ(PageFlags::eNone, f)
+            << "Address: " << (void*)i;
 
         PageSize size = ptes.getPageSize((void*)i);
-        ASSERT_EQ(PageSize::eNone, size);
+        EXPECT_EQ(PageSize::eNone, size)
+            << "Address: " << (void*)i;
 
         km::PhysicalAddress addr = ptes.getBackingAddress((void*)i);
-        ASSERT_EQ(KM_INVALID_MEMORY, addr) << "Address: " << (void*)i;
+        ASSERT_EQ(KM_INVALID_MEMORY, addr)
+            << "Address: " << (void*)i
+            << " Got: " << (void*)(addr.address);
     }
 }
 
@@ -116,7 +120,8 @@ TEST_F(PageTableTest, PartialUnmapHead) {
 
     // unmap the first 4k of the 2m page
     km::VirtualRange range = km::VirtualRange::of(vaddr, x64::kPageSize);
-    pt.unmap(range);
+    OsStatus status = pt.unmap(range);
+    ASSERT_EQ(OsStatusSuccess, status);
 
     // the first page should be unmaped, with the remaining pages still mapped
     IsNotMapped(pt, range);
@@ -137,7 +142,8 @@ TEST_F(PageTableTest, PartialUnmapTail) {
     // unmap the first 4k of the 2m page
     auto tail = mapping.last(x64::kPageSize);
     km::VirtualRange range = tail.virtualRange();
-    pt.unmap(range);
+    OsStatus status = pt.unmap(range);
+    ASSERT_EQ(OsStatusSuccess, status);
 
     // the first page should be unmaped, with the remaining pages still mapped
     IsNotMapped(pt, range);
@@ -152,14 +158,16 @@ TEST_F(PageTableTest, PartialUnmapMiddle) {
     auto mapping = MapArea(pt, 0xFFFF800000000000, 0x1000000, x64::kLargePageSize);
     auto [vaddr, paddr, size] = mapping;
 
-    pt.map(mapping, km::PageFlags::eAll);
+    OsStatus status = pt.map(mapping, km::PageFlags::eAll);
+    ASSERT_EQ(OsStatusSuccess, status);
     IsMapped(pt, mapping, km::PageFlags::eAll);
     ASSERT_EQ(km::PageSize::eLarge, pt.getPageSize(vaddr));
 
     // unmap some 4k pages in the middle of the mapping
     const void *middle = (void*)((uintptr_t)vaddr + (x64::kPageSize * 8));
     km::VirtualRange range = km::VirtualRange::of(middle, x64::kPageSize);
-    pt.unmap(range);
+    status = pt.unmap(range);
+    ASSERT_EQ(OsStatusSuccess, status);
 
     // the first page should still be mapped
     IsMapped(pt, km::AddressMapping { vaddr, paddr, (x64::kPageSize * 8) }, km::PageFlags::eAll);
@@ -177,7 +185,8 @@ TEST_F(PageTableTest, PartialUnmapAcrossPageBounds) {
     auto mapping = MapArea(pt, 0xFFFF800000000000, 0x1000000, x64::kLargePageSize * 4);
     auto [vaddr, paddr, size] = mapping;
 
-    pt.map(mapping, km::PageFlags::eAll);
+    OsStatus status = pt.map(mapping, km::PageFlags::eAll);
+    ASSERT_EQ(OsStatusSuccess, status);
     IsMapped(pt, mapping, km::PageFlags::eAll);
     ASSERT_EQ(km::PageSize::eLarge, pt.getPageSize(vaddr));
 
@@ -185,7 +194,103 @@ TEST_F(PageTableTest, PartialUnmapAcrossPageBounds) {
     const void *middle = (void*)((uintptr_t)vaddr + (x64::kLargePageSize - (x64::kPageSize * 8)));
     uintptr_t offset = (uintptr_t)middle - (uintptr_t)vaddr;
     km::VirtualRange range = km::VirtualRange::of(middle, (x64::kPageSize * 16));
-    pt.unmap(range);
+    status = pt.unmap(range);
+    ASSERT_EQ(OsStatusSuccess, status);
+
+    // the first page should still be mapped
+    size_t headSize = offset;
+    IsMapped(pt, km::AddressMapping { vaddr, paddr, headSize }, km::PageFlags::eAll);
+
+    // the middle page should be unmapped
+    IsNotMapped(pt, range);
+
+    // the remaining pages should still be mapped as 4k pages
+    size_t tailSize = mapping.size - offset - range.size();
+    IsMapped(pt, km::AddressMapping { range.back, paddr + offset + range.size(), tailSize }, km::PageFlags::eAll);
+}
+
+TEST_F(PageTableTest, UnmapLargeRejectBadRange) {
+    km::PageTables pt = ptes(km::PageFlags::eAll);
+
+    auto mapping = MapArea(pt, 0xFFFF800000000000, 0x1000000, x64::kLargePageSize * 4);
+    auto [vaddr, paddr, size] = mapping;
+
+    OsStatus status = pt.map(mapping, km::PageFlags::eAll);
+    ASSERT_EQ(OsStatusSuccess, status);
+    IsMapped(pt, mapping, km::PageFlags::eAll);
+    ASSERT_EQ(km::PageSize::eLarge, pt.getPageSize(vaddr));
+
+    // should reject a range that is not 2m aligned
+    const void *middle = (void*)((uintptr_t)vaddr + (x64::kLargePageSize - (x64::kPageSize * 8)));
+    km::VirtualRange range = km::VirtualRange::of(middle, (x64::kPageSize * 16));
+    status = pt.unmap2m(range);
+    ASSERT_EQ(OsStatusInvalidInput, status);
+
+    // mapping should still be valid
+    IsMapped(pt, mapping, km::PageFlags::eAll);
+}
+
+TEST_F(PageTableTest, UnmapLargeRejectUnalignedTail) {
+    km::PageTables pt = ptes(km::PageFlags::eAll);
+
+    auto mapping = MapArea(pt, 0xFFFF800000000000, 0x1000000, x64::kLargePageSize * 4);
+    auto [vaddr, paddr, size] = mapping;
+
+    OsStatus status = pt.map(mapping, km::PageFlags::eAll);
+    ASSERT_EQ(OsStatusSuccess, status);
+    IsMapped(pt, mapping, km::PageFlags::eAll);
+    ASSERT_EQ(km::PageSize::eLarge, pt.getPageSize(vaddr));
+
+    // should reject a range that doesnt have a 2m aligned tail
+    const void *middle = (void*)((uintptr_t)vaddr + x64::kLargePageSize);
+    km::VirtualRange range = km::VirtualRange::of(middle, x64::kLargePageSize + (x64::kPageSize * 16));
+    status = pt.unmap2m(range);
+    ASSERT_EQ(OsStatusInvalidInput, status);
+
+    // mapping should still be valid
+    IsMapped(pt, mapping, km::PageFlags::eAll);
+}
+
+TEST_F(PageTableTest, UnmapLargeRejectSmallRange) {
+    km::PageTables pt = ptes(km::PageFlags::eAll);
+
+    auto mapping = MapArea(pt, 0xFFFF800000000000, 0x1000000, x64::kLargePageSize * 4);
+    auto [vaddr, paddr, size] = mapping;
+
+    OsStatus status = pt.map(mapping, km::PageFlags::eAll);
+    ASSERT_EQ(OsStatusSuccess, status);
+
+    IsMapped(pt, mapping, km::PageFlags::eAll);
+    ASSERT_EQ(km::PageSize::eLarge, pt.getPageSize(vaddr));
+
+    // should reject a range that isnt at least 2m large
+    const void *middle = (void*)((uintptr_t)vaddr + x64::kLargePageSize);
+    km::VirtualRange range = km::VirtualRange::of(middle, (x64::kPageSize * 16));
+    status = pt.unmap2m(range);
+    ASSERT_EQ(OsStatusInvalidInput, status);
+
+    // mapping should still be valid
+    IsMapped(pt, mapping, km::PageFlags::eAll);
+}
+
+TEST_F(PageTableTest, UnmapLargePageOnly) {
+    km::PageTables pt = ptes(km::PageFlags::eAll);
+
+    auto mapping = MapArea(pt, 0xFFFF800000000000, 0x1000000, x64::kLargePageSize * 4);
+    auto [vaddr, paddr, size] = mapping;
+
+    OsStatus status = pt.map(mapping, km::PageFlags::eAll);
+    ASSERT_EQ(OsStatusSuccess, status);
+
+    IsMapped(pt, mapping, km::PageFlags::eAll);
+    ASSERT_EQ(km::PageSize::eLarge, pt.getPageSize(vaddr));
+
+    const void *middle = (void*)((uintptr_t)vaddr + x64::kLargePageSize);
+    uintptr_t offset = (uintptr_t)middle - (uintptr_t)vaddr;
+    km::VirtualRange range = km::VirtualRange::of(middle, x64::kLargePageSize);
+
+    status = pt.unmap2m(range);
+    ASSERT_EQ(OsStatusSuccess, status);
 
     // the first page should still be mapped
     size_t headSize = offset;

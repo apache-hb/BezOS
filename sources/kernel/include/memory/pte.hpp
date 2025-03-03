@@ -118,6 +118,8 @@ namespace km {
 
         OsStatus earlyUnmap(VirtualRange range);
 
+        PhysicalAddress getBackingAddressUnlocked(const void *ptr) const;
+
     public:
         PageTables(const PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags);
 
