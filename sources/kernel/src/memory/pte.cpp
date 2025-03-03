@@ -4,11 +4,14 @@
 
 using namespace km;
 
-x64::page *PageTables::alloc4k() {
-    if (x64::page *page = mAllocator.construct<x64::page>()) {
-        memset(page, 0, sizeof(x64::page));
+/// @brief The amount of memory a single pml4 entry can cover.
+static constexpr auto kPml4MemorySize = x64::kHugePageSize * 512;
 
-        return page;
+x64::page *PageTables::alloc4k(size_t pages) {
+    if (x64::page *it = (x64::page*)mAllocator.allocate(pages)) {
+        memset(it, 0, sizeof(x64::page) * pages);
+
+        return it;
     }
 
     return nullptr;
@@ -31,7 +34,7 @@ void PageTables::setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddre
 
 PageTables::PageTables(const km::PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags)
     : mSlide(pteMemory.slide())
-    , mAllocator((void*)pteMemory.vaddr, pteMemory.size)
+    , mAllocator(pteMemory.virtualRange())
     , mPageManager(pm)
     , mRootPageTable((x64::PageMapLevel4*)alloc4k())
     , mMiddleFlags(middleFlags)
@@ -124,6 +127,16 @@ OsStatus PageTables::mapRange1g(AddressMapping mapping, PageFlags flags, MemoryT
     return OsStatusSuccess;
 }
 
+#if 0
+size_t PageTables::maxPagesForMapping(VirtualRange range) const {
+    size_t count = 0;
+
+    for (uintptr_t i = (uintptr_t)range.front; i < (uintptr_t)range.back; i += kPml4MemorySize) {
+        count++;
+    }
+}
+#endif
+
 OsStatus PageTables::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type) {
     stdx::LockGuard guard(mLock);
 
@@ -178,6 +191,12 @@ OsStatus PageTables::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags f
     if (!l2) return OsStatusOutOfMemory;
 
     x64::pdte& t2 = l2->entries[pdte];
+
+    if (t2.present() && !t2.is2m()) {
+        void *ptr = asVirtual<x64::PageTable>(mPageManager->address(t2));
+        mAllocator.deallocate(ptr, 1);
+    }
+
     t2.set2m(true);
     mPageManager->setMemoryType(t2, type);
     setEntryFlags(t2, flags, paddr);
@@ -342,7 +361,7 @@ void PageTables::reclaim2m(x64::pdte& pde) {
         // If the page is a set of 4k pages we can reclaim the page table.
         //
         x64::PageTable *pt = asVirtual<x64::PageTable>(mPageManager->address(pde));
-        mAllocator.deallocate(pt, sizeof(x64::PageTable));
+        mAllocator.deallocate(pt, 1);
     }
 
     pde.setPresent(false);
@@ -476,16 +495,13 @@ OsStatus PageTables::earlyUnmap(VirtualRange range, VirtualRange *remaining) {
     //
     int earlyAllocations = earlyAllocatePageTables(range);
     if (earlyAllocations == 2) {
-        x64::PageTable *ptlow = std::bit_cast<x64::PageTable*>(alloc4k());
-        if (ptlow == nullptr) {
+        x64::page *ptMemory = alloc4k(2);
+        if (ptMemory == nullptr) {
             return OsStatusOutOfMemory;
         }
 
-        x64::PageTable *pthigh = std::bit_cast<x64::PageTable*>(alloc4k());
-        if (pthigh == nullptr) {
-            mAllocator.deallocate(ptlow, sizeof(x64::PageTable));
-            return OsStatusOutOfMemory;
-        }
+        x64::PageTable *ptlow = std::bit_cast<x64::PageTable*>(ptMemory);
+        x64::PageTable *pthigh = std::bit_cast<x64::PageTable*>(ptMemory + 1);
 
         //
         // We rebuild the first and last mappings early here, then shrink the range and continue the

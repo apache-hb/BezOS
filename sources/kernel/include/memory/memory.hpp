@@ -42,6 +42,11 @@ namespace km {
 
         /// @brief Check if a mapping is eligible for large pages.
         bool IsLargePageEligible(AddressMapping mapping);
+
+        /// @brief Calculate the maximum possible number of pages required to map a range of memory.
+        size_t MaxPagesForMapping(VirtualRange range);
+
+        size_t GetCoveredSegments(VirtualRange range, size_t segment);
     }
 
     struct MappingRequest {

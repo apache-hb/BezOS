@@ -12,11 +12,11 @@ static constexpr size_t kSize = 0x10000;
 
 auto GetAllocatorMemory(size_t size = kSize) {
     auto deleter = [](uint8_t *ptr) {
-        :: operator delete[] (ptr, std::align_val_t(16));
+        :: operator delete[] (ptr, std::align_val_t(x64::kPageSize));
     };
 
     return std::unique_ptr<uint8_t[], decltype(deleter)>{
-        new (std::align_val_t(16)) uint8_t[size],
+        new (std::align_val_t(x64::kPageSize)) uint8_t[size],
         deleter
     };
 }

@@ -1,12 +1,10 @@
 #pragma once
 
-#include "allocator/synchronized.hpp"
-#include "allocator/tlsf.hpp"
-
 #include "arch/paging.hpp"
 
 #include "memory/memory.hpp"
 #include "memory/paging.hpp"
+#include "memory/table_allocator.hpp"
 #include "std/spinlock.hpp"
 
 namespace km {
@@ -17,7 +15,7 @@ namespace km {
     ///          offset between them.
     class PageTables {
         uintptr_t mSlide;
-        mem::SynchronizedAllocator<mem::TlsfAllocator> mAllocator;
+        PageTableAllocator mAllocator;
         const PageBuilder *mPageManager;
         x64::PageMapLevel4 *mRootPageTable;
         stdx::SpinLock mLock;
@@ -25,8 +23,10 @@ namespace km {
 
         /// @brief Allocate a new page table, garanteed to be aligned to 4k and zeroed.
         ///
+        /// @param pages The number of pages to allocate.
+        ///
         /// @return The new page table, or @c nullptr if no memory is available.
-        x64::page *alloc4k();
+        x64::page *alloc4k(size_t pages = 1);
 
         /// @brief Convert the physical address of a page table to a virtual address.
         ///
@@ -58,7 +58,7 @@ namespace km {
         /// @return The virtual address of the sub-table.
         template<typename U, typename T>
         auto *getPageEntry(const T *table, uint16_t index) const {
-            uintptr_t address = mPageManager->address(table->entries[index]);
+            PhysicalAddress address = mPageManager->address(table->entries[index]);
             return asVirtual<U>(address);
         }
 
@@ -121,6 +121,8 @@ namespace km {
         PhysicalAddress getBackingAddressUnlocked(const void *ptr) const;
 
         void reclaim2m(x64::pdte& pde);
+
+        size_t maxPagesForMapping(VirtualRange range) const;
 
     public:
         PageTables(const PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags);

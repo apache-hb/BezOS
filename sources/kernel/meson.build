@@ -360,7 +360,7 @@ testcases = {
         'src/memory/pte.cpp',
         'src/memory/memory.cpp',
         'src/util/memory.cpp',
-        tlsf.get_variable('sources'),
+        'src/memory/table_allocator.cpp',
     ],
     'partitions': [
         'test/drivers/partitions.cpp',

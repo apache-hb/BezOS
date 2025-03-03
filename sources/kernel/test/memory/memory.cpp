@@ -183,3 +183,60 @@ TEST(MemoryDetailTest, AddressParts) {
     ASSERT_EQ(indices.pdte, 0x0);
     ASSERT_EQ(indices.pte, 0x0);
 }
+
+TEST(MemoryDetailTest, CoveredSegmentsPml4) {
+    VirtualRange range = { (void*)0xFFFF'8000'0000'0000, (void*)0xFFFF'C000'0000'0000 };
+    size_t segments = detail::GetCoveredSegments(range, (x64::kHugePageSize * 512));
+
+    ASSERT_EQ(segments, 128);
+}
+
+TEST(MemoryDetailTest, CoveredSegmentsPml4Spill) {
+    VirtualRange range = { (void*)0xFFFF'8000'0000'0000, (void*)0xFFFF'C000'0000'0001 };
+    size_t segments = detail::GetCoveredSegments(range, (x64::kHugePageSize * 512));
+
+    ASSERT_EQ(segments, 129);
+}
+
+static size_t GetMaxPages(uintptr_t front, uintptr_t back) {
+    VirtualRange range = { (void*)front, (void*)back };
+    return detail::MaxPagesForMapping(range);
+}
+
+TEST(MemoryDetailTest, MaxPagesSmallMapping) {
+    size_t pages = GetMaxPages(0x1000, 0x2000);
+
+    // pml4, pdpt, pd, pt
+    ASSERT_EQ(pages, 1 + 1 + 1 + 1);
+}
+
+TEST(MemoryDetailTest, MaxPagesSmallMappingSpill) {
+    size_t pages = GetMaxPages(x64::kLargePageSize - 0x1000, x64::kLargePageSize + 0x1000);
+
+    // pml4, pdpt, pd, pt
+    ASSERT_EQ(pages, 1 + 1 + 2 + 2);
+}
+
+TEST(MemoryDetailTest, MaxPages2mMapping) {
+    size_t pages = GetMaxPages(x64::kLargePageSize, x64::kLargePageSize * 2);
+
+    // pml4, pdpt, pd, pt
+    ASSERT_EQ(pages, 1 + 1 + 1);
+}
+
+TEST(MemoryDetailTest, MaxPages2mMappingSpill) {
+    size_t pages = GetMaxPages(x64::kLargePageSize, (x64::kLargePageSize * 2) + 1);
+
+    // pml4, pdpt, pd, pt
+    ASSERT_EQ(pages, 1 + 1 + 2 + 1);
+}
+
+TEST(MemoryDetailTest, SpillPml4) {
+    size_t pages = GetMaxPages(0xFFFF'8000'0000'0000, 0xFFFF'C000'0000'0001);
+    size_t pml4e = 128;
+    size_t pdpte = pml4e * 512;
+    size_t pdte = pdpte * 512;
+
+    // one extra pml4e, pdpt, pd, and pt
+    ASSERT_EQ(pages, pml4e + pdpte + pdte + 1 + 1 + 1 + 1);
+}

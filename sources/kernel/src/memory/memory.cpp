@@ -1,5 +1,8 @@
 #include "memory/memory.hpp"
 
+/// @brief The amount of memory a single pml4 entry can cover.
+static constexpr auto kPml4MemorySize = x64::kHugePageSize * 512;
+
 km::PageWalkIndices km::GetAddressParts(const void *ptr) {
     return GetAddressParts(reinterpret_cast<uintptr_t>(ptr));
 }
@@ -68,4 +71,61 @@ bool km::detail::IsLargePageEligible(AddressMapping mapping) {
     uintptr_t back2m = sm::rounddown(paddr + mapping.size, x64::kLargePageSize);
 
     return front2m < back2m;
+}
+
+size_t km::detail::GetCoveredSegments(VirtualRange range, size_t segment) {
+    uintptr_t front = sm::rounddown(reinterpret_cast<uintptr_t>(range.front), segment);
+    uintptr_t back = sm::roundup(reinterpret_cast<uintptr_t>(range.back), segment);
+
+    return (back - front) / segment;
+}
+
+size_t km::detail::MaxPagesForMapping(VirtualRange range) {
+    size_t count = 0;
+
+    //
+    // The range can cross over a pml4 boundary, in this case a simple modulo wont work so
+    // we need to check which pml4 entries the range covers.
+    //
+    count += GetCoveredSegments(range, kPml4MemorySize);
+
+    count += GetCoveredSegments(range, x64::kHugePageSize);
+
+    //
+    // If the range is smaller than 2m, we need to check if it crosses a page boundary
+    // to know how many pages are required.
+    //
+    if (range.size() < x64::kLargePageSize) {
+        uintptr_t front = sm::rounddown(reinterpret_cast<uintptr_t>(range.front), x64::kLargePageSize);
+        uintptr_t back = sm::rounddown(reinterpret_cast<uintptr_t>(range.back), x64::kLargePageSize);
+
+        if (front != back) {
+            //
+            // 2 pages for the pdte entries and 2 pages for the pte entries.
+            //
+            return count + 4;
+        } else {
+            //
+            // We don't cross a boundary, so we only need 2 pages.
+            //
+            return count + 2;
+        }
+    }
+
+    //
+    // The range is larger than 2m, once again check if its aligned to a 2m boundary.
+    // If it is aligned it will only require 1 page, otherwise it will require 2 pages.
+    //
+
+    if ((uintptr_t)range.front % x64::kLargePageSize != 0) {
+        count += 1;
+    }
+
+    if ((uintptr_t)range.back % x64::kLargePageSize != 0) {
+        count += 1;
+    }
+
+    count += GetCoveredSegments(range, x64::kLargePageSize);
+
+    return count;
 }
