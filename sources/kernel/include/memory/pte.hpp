@@ -116,6 +116,8 @@ namespace km {
 
         PageWalk walkUnlocked(const void *ptr) const;
 
+        OsStatus earlyUnmap(VirtualRange range);
+
     public:
         PageTables(const PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags);
 
@@ -126,7 +128,26 @@ namespace km {
         PhysicalAddress root() const { return asPhysical(pml4()); }
 
         OsStatus map(AddressMapping mapping, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
+
+        /// @brief Unmap a range of memory.
+        ///
+        /// Unmaps the given range of memory, if any part of the range is not already mapped it is ignored.
+        /// Can partially unmap larger pages and will allocate new page tables as needed, hence the unmap
+        /// operation can fail if memory is exhausted.
+        ///
+        /// @param range The range to unmap.
+        /// @return The status of the operation.
         OsStatus unmap(VirtualRange range);
+
+        /// @brief Unmap a 2m aligned range of memory.
+        ///
+        /// Unmaps the given 2m aligned range of memory, if any part of the range is not already mapped it is ignored.
+        /// Unlike @c unmap this function will not allocate new page tables, but as a result @p range must be 2m aligned.
+        ///
+        /// @param range The range to unmap.
+        /// @return The status of the operation.
+        OsStatus unmap2m(VirtualRange range);
+
         OsStatus walk(const void *ptr, PageWalk *walk);
 
         PhysicalAddress getBackingAddress(const void *ptr);

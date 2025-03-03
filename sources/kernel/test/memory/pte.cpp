@@ -77,7 +77,10 @@ static void IsMapped(PageTables& ptes, AddressMapping mapping, PageFlags flags) 
         uintptr_t offset = i - (uintptr_t)mapping.vaddr;
 
         km::PageFlags f = ptes.getMemoryFlags((void*)i);
-        ASSERT_EQ(flags, f);
+        ASSERT_EQ(flags, f)
+            << "Address: " << (void*)i
+            << " Expected: " << (int)flags
+            << " Got: " << (int)f;
 
         km::PhysicalAddress addr = ptes.getBackingAddress((void*)i);
         PhysicalAddress expected = mapping.paddr + offset;

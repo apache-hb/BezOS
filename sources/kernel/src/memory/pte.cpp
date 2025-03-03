@@ -450,16 +450,7 @@ PageWalk PageTables::walkUnlocked(const void *ptr) const {
     };
 }
 
-OsStatus PageTables::unmap(VirtualRange range) {
-    range = alignedOut(range, x64::kPageSize);
-
-    stdx::LockGuard guard(mLock);
-
-    x64::PageMapLevel4 *l4 = pml4();
-
-    uintptr_t i = (uintptr_t)range.front;
-    uintptr_t end = (uintptr_t)range.back;
-
+OsStatus PageTables::earlyUnmap(VirtualRange range) {
     //
     // Fun edge case when unampping a range of memory that isnt 2m aligned but intersects with 2 2m pages.
     // As this requires allocating 2 new page tables to store the 4k mappings required: the first allocation
@@ -502,9 +493,6 @@ OsStatus PageTables::unmap(VirtualRange range) {
 
         cut2mMapping(lowEntry, lowPage, low, ptlow);
         cut2mMapping(highEntry, highPage, high, pthigh);
-
-        range.front = low.back;
-        range.back = high.front;
     } else if (earlyAllocations == 1) {
         //
         // If we only need to allocate one page table we still need to do it early in the case
@@ -528,8 +516,23 @@ OsStatus PageTables::unmap(VirtualRange range) {
             x64::pdte& entry = getLargePageEntry(range.front);
             cut2mMapping(entry, page, range, pt);
         }
+    }
 
-        range = page;
+    return OsStatusSuccess;
+}
+
+OsStatus PageTables::unmap(VirtualRange range) {
+    range = alignedOut(range, x64::kPageSize);
+
+    stdx::LockGuard guard(mLock);
+
+    x64::PageMapLevel4 *l4 = pml4();
+
+    uintptr_t i = (uintptr_t)range.front;
+    uintptr_t end = (uintptr_t)range.back;
+
+    if (OsStatus status = earlyUnmap(range)) {
+        return status;
     }
 
     //
@@ -580,6 +583,66 @@ OsStatus PageTables::unmap(VirtualRange range) {
         x64::invlpg(i);
 
         i += x64::kPageSize;
+    }
+
+    return OsStatusSuccess;
+}
+
+OsStatus PageTables::unmap2m(VirtualRange range) {
+    //
+    // Test preconditions to ensure the range is valid for 2m unmap.
+    //
+    bool valid = ((uintptr_t)range.front % x64::kLargePageSize == 0)
+        && ((uintptr_t)range.back % x64::kLargePageSize == 0)
+        && range.size() >= x64::kLargePageSize;
+
+    if (!valid) {
+        return OsStatusInvalidInput;
+    }
+
+    stdx::LockGuard guard(mLock);
+
+    x64::PageMapLevel4 *l4 = pml4();
+
+    for (uintptr_t i = (uintptr_t)range.front; i < (uintptr_t)range.back; i += x64::kLargePageSize) {
+        auto [pml4e, pdpte, pdte, _] = GetAddressParts(i);
+
+        //
+        // If we can't find the page table for this range, then skip over the inaccessable address space.
+        //
+        x64::PageMapLevel3 *l3 = findPageMap3(l4, pml4e);
+        if (!l3) {
+            i += x64::kHugePageSize * 512;
+            continue;
+        }
+
+        x64::PageMapLevel2 *l2 = findPageMap2(l3, pdpte);
+        if (!l2) {
+            i += x64::kHugePageSize;
+            continue;
+        }
+
+        x64::pdte& pde = l2->entries[pdte];
+        if (!pde.present()) {
+            i += x64::kLargePageSize;
+            continue;
+        }
+
+        //
+        // If we are unmapping a 2m page, we need to determine if we can reclaim a page table.
+        //
+        if (!pde.is2m()) {
+            //
+            // If the page is a set of 4k pages we can reclaim the page table.
+            //
+            x64::PageTable *pt = asVirtual<x64::PageTable>(mPageManager->address(pde));
+            mAllocator.deallocate(pt, sizeof(x64::PageTable));
+        }
+
+        pde.setPresent(false);
+        x64::invlpg(i);
+
+        i += x64::kLargePageSize;
     }
 
     return OsStatusSuccess;
