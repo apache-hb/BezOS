@@ -36,6 +36,7 @@
 #include "notify.hpp"
 #include "panic.hpp"
 #include "pit.hpp"
+#include "process/process.hpp"
 #include "processor.hpp"
 #include "process/schedule.hpp"
 #include "setup.hpp"
@@ -1111,13 +1112,15 @@ static void AddDeviceSystemCalls() {
         }
 
         sm::uuid uuid = createInfo.InterfaceGuid;
+        km::Process *process = context->process().get();
 
         std::unique_ptr<vfs2::IVfsNodeHandle> handle = nullptr;
+        KmDebugMessage("[VFS] Opening device: '", path, "':", uuid, "\n");
         if (OsStatus status = gVfsRoot->device(path, uuid, std::out_ptr(handle))) {
             return CallError(status);
         }
 
-        vfs2::IVfsNodeHandle *ptr = context->process()->addFile(std::move(handle));
+        vfs2::IVfsNodeHandle *ptr = process->addFile(std::move(handle));
 
         return CallOk(ptr);
     });

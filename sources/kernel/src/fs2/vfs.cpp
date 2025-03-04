@@ -399,7 +399,6 @@ OsStatus VfsRoot::device(const VfsPath& path, sm::uuid interface, IVfsNodeHandle
 
     IVfsNode *device = nullptr;
     if (OsStatus status = parent->lookup(path.name(), &device)) {
-        KmDebugMessage("[VFS] Failed to lookup device: '", path, "' ", status, "\n");
         return status;
     }
 
@@ -409,7 +408,7 @@ OsStatus VfsRoot::device(const VfsPath& path, sm::uuid interface, IVfsNodeHandle
 
     OsStatus status = device->query(interface, handle);
     if (status != OsStatusSuccess) {
-        KmDebugMessage("[VFS] Failed to query device: '", path, "'@", interface, " ", status, "\n");
+        KmDebugMessage("[VFS] Failed to query device: '", path, "':", interface, " ", status, "\n");
     }
 
     return status;
