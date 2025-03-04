@@ -3,6 +3,7 @@
 #include "delay.hpp"
 
 #include "log.hpp"
+#include <emmintrin.h>
 
 using namespace km::uart::detail;
 
@@ -23,6 +24,8 @@ bool km::SerialPort::put(uint8_t byte) {
         if (timeout-- == 0) {
             return false;
         }
+
+        _mm_pause();
     }
 
     KmWriteByteNoDelay(mBasePort, byte);
@@ -36,6 +39,8 @@ bool km::SerialPort::get(uint8_t& byte) {
         if (timeout-- == 0) {
             return false;
         }
+
+        _mm_pause();
     }
 
     byte = KmReadByte(mBasePort);

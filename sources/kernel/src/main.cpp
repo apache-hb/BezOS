@@ -1541,6 +1541,8 @@ static OsStatus KernelMasterTask() {
     return OsStatusSuccess;
 }
 
+static constexpr bool kEnableMouse = false;
+
 static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioApicSet, const IApic *apic, LocalIsrTable *ist) {
     static hid::Ps2Controller ps2Controller;
 
@@ -1568,15 +1570,17 @@ static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioAp
         static hid::Ps2Device keyboard = ps2Controller.keyboard();
         static hid::Ps2Device mouse = ps2Controller.mouse();
 
-        ps2Controller.setMouseSampleRate(10);
-        ps2Controller.setMouseResolution(1);
+        if constexpr (kEnableMouse) {
+            ps2Controller.setMouseSampleRate(10);
+            ps2Controller.setMouseResolution(1);
+            hid::InstallPs2MouseIsr(ioApicSet, ps2Controller, apic, ist);
+        }
 
         hid::InstallPs2KeyboardIsr(ioApicSet, ps2Controller, apic, ist);
-        hid::InstallPs2MouseIsr(ioApicSet, ps2Controller, apic, ist);
 
         mouse.disable();
         keyboard.enable();
-        ps2Controller.enableIrqs(true, true);
+        ps2Controller.enableIrqs(true, kEnableMouse);
     }
 
     vfs2::VfsPath hidPs2DevicePath{OS_DEVICE_PS2_KEYBOARD};

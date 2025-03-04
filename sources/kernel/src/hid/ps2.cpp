@@ -75,8 +75,8 @@ static bool WaitUntilInputFull(uint8_t timeout = 100) {
     return true;
 }
 
-static OsStatus WritePort(uint8_t port, uint8_t data) {
-    if (!WaitUntilOutputEmpty())
+static OsStatus WritePort(uint8_t port, uint8_t data, bool timeout = true) {
+    if (timeout && !WaitUntilOutputEmpty())
         return OsStatusTimeout;
 
     KmWriteByte(port, data);
@@ -110,20 +110,20 @@ static OsStatus SendCommandData(uint8_t command, uint8_t data) {
     return WritePort(kData, data);
 }
 
-static OsStatus ReadDataChecked(uint8_t *data [[gnu::nonnull]]) {
-    if (!WaitUntilInputFull())
+static OsStatus ReadDataChecked(uint8_t *data [[gnu::nonnull]], bool timeout = true) {
+    if (timeout && !WaitUntilInputFull())
         return OsStatusTimeout;
 
     *data = KmReadByte(kData);
     return OsStatusSuccess;
 }
 
-static OsStatus ReadCommandChecked(uint8_t command, uint8_t *data [[gnu::nonnull]]) {
+static OsStatus ReadCommandChecked(uint8_t command, uint8_t *data [[gnu::nonnull]], bool timeout = true) {
     if (OsStatus status = SendCommand(command)) {
         return status;
     }
 
-    return ReadDataChecked(data);
+    return ReadDataChecked(data, timeout);
 }
 
 static uint8_t ReadData() {
@@ -209,8 +209,8 @@ static void TestPorts(bool *dualChannel [[gnu::nonnull]], bool *firstChannel [[g
 }
 
 static hid::Ps2DeviceType CheckDeviceReset(stdx::StringView channel) {
-    auto readData = [&](uint8_t *data) -> OsStatus {
-        if (OsStatus status = ReadDataChecked(data)) {
+    auto readData = [&](uint8_t *data, bool timeout = false) -> OsStatus {
+        if (OsStatus status = ReadDataChecked(data, timeout)) {
             KmDebugMessage("[PS2] PS/2 Controller communication on ", channel, " failed: ", status, "\n");
             return status;
         }
@@ -227,6 +227,24 @@ static hid::Ps2DeviceType CheckDeviceReset(stdx::StringView channel) {
 
     if (readData(&b1) != OsStatusSuccess) {
         return hid::Ps2DeviceType::eDisabled;
+    }
+
+    //
+    // Oracle VirtualBox misbehaves and generates lots of ack bytes for some reason.
+    //
+    unsigned timeout = 100;
+    while (b0 == kAck && b1 == kAck) {
+        OsStatus status = ReadDataChecked(&b0, true);
+        if (status == OsStatusSuccess) break;
+        if (status != OsStatusTimeout) {
+            KmDebugMessage("[PS2] PS/2 Controller ", channel, " communication error: ", status, "\n");
+            return hid::Ps2DeviceType::eDisabled;
+        }
+
+        if (timeout-- == 0) {
+            KmDebugMessage("[PS2] PS/2 Controller ", channel, " misbehaving: too many acks!\n");
+            return hid::Ps2DeviceType::eDisabled;
+        }
     }
 
     if (!(b0 == kDeviceOk && b1 == kAck) && !(b0 == kAck && b1 == kDeviceOk)) {
