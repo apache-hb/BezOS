@@ -2,8 +2,6 @@
 
 #include "util/format.hpp"
 
-#include "std/span.hpp"
-
 #include <stddef.h>
 #include <stdint.h>
 

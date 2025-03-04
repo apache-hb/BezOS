@@ -33,8 +33,8 @@ static constexpr uint8_t kDisableScanning = 0xF5;
 
 static constexpr uint8_t kFirstInt = (1 << 0);
 static constexpr uint8_t kSecondInt = (1 << 1);
-static constexpr uint8_t kFirstClock = (1 << 4);
-static constexpr uint8_t kSecondClock = (1 << 5);
+static constexpr uint8_t kFirstClockMask = (1 << 4);
+static constexpr uint8_t kSecondClockMask = (1 << 5);
 static constexpr uint8_t kIbmPcCompat = (1 << 6);
 
 static bool InputBufferFull() {
@@ -155,7 +155,7 @@ static OsStatus SetupFirstChannel() {
     config &= ~(1 << 3 | 1 << 7);
 
     // Disable clock
-    config |= kFirstClock;
+    config |= kFirstClockMask;
 
     return SendCommandData(kWriteConfig, config);
 }
@@ -179,13 +179,13 @@ static bool TestSecondChannel() {
     SendCommand(kEnableChannel2);
 
     uint8_t config = ReadCommand(kReadConfig);
-    if (config & kSecondClock) {
+    if (config & kSecondClockMask) {
         return false;
     }
 
     SendCommand(kDisableChannel2);
 
-    config &= ~(kSecondClock | kSecondInt);
+    config &= ~(kSecondClockMask | kSecondInt);
 
     SendCommandData(kWriteConfig, config);
 
@@ -412,14 +412,18 @@ void hid::Ps2Controller::enableIrqs(bool first, bool second) {
 
     if (first) {
         config |= kFirstInt;
+        config &= ~kFirstClockMask;
     } else {
         config &= ~kFirstInt;
+        config |= kFirstClockMask;
     }
 
     if (second) {
         config |= kSecondInt;
+        config &= ~kSecondClockMask;
     } else {
         config &= ~kSecondInt;
+        config |= kSecondClockMask;
     }
 
     SendCommandData(kWriteConfig, config);
