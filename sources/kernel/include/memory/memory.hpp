@@ -44,6 +44,14 @@ namespace km {
         bool IsLargePageEligible(AddressMapping mapping);
 
         /// @brief Calculate the maximum possible number of pages required to map a range of memory.
+        ///
+        /// This is used to determine the number of pages to pre-allocate when mapping memory to
+        /// avoid partial mapping in low memory conditions. The implementation is closely tied to
+        /// @ref PageTables::map and when that function is changed this function must be updated if
+        /// the mapping strategy changes.
+        ///
+        /// @param range The range to map.
+        /// @return The maximum number of pages required to map the range.
         size_t MaxPagesForMapping(VirtualRange range);
 
         size_t GetCoveredSegments(VirtualRange range, size_t segment);

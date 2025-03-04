@@ -2,10 +2,28 @@
 
 #include "log.hpp"
 
+#include "util/defer.hpp"
+
 using namespace km;
 
-/// @brief The amount of memory a single pml4 entry can cover.
-static constexpr auto kPml4MemorySize = x64::kHugePageSize * 512;
+detail::PageTableBuffer::PageTableBuffer(x64::page *table, [[maybe_unused]] size_t count)
+    : mTable(table)
+#if KM_PTE_DEBUG
+    , mEnd(table + count)
+#endif
+{ }
+
+x64::page *detail::PageTableBuffer::next() {
+#if KM_PTE_DEBUG
+    if (mTable >= mEnd) {
+        KM_PANIC("Page table buffer exhausted.");
+    }
+#endif
+
+    x64::page *it = mTable;
+    mTable += 1;
+    return it;
+}
 
 x64::page *PageTables::alloc4k(size_t pages) {
     if (x64::page *it = (x64::page*)mAllocator.allocate(pages)) {
@@ -40,13 +58,13 @@ PageTables::PageTables(const km::PageBuilder *pm, AddressMapping pteMemory, Page
     , mMiddleFlags(middleFlags)
 { }
 
-x64::PageMapLevel3 *PageTables::getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e) {
+x64::PageMapLevel3 *PageTables::getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e, detail::PageTableBuffer& buffer) {
     x64::PageMapLevel3 *l3;
 
     x64::pml4e& t4 = l4->entries[pml4e];
     if (!t4.present()) {
-        l3 = std::bit_cast<x64::PageMapLevel3*>(alloc4k());
-        if (l3) setEntryFlags(t4, mMiddleFlags, asPhysical(l3));
+        l3 = std::bit_cast<x64::PageMapLevel3*>(buffer.next());
+        setEntryFlags(t4, mMiddleFlags, asPhysical(l3));
     } else {
         l3 = asVirtual<x64::PageMapLevel3>(mPageManager->address(t4));
     }
@@ -54,13 +72,13 @@ x64::PageMapLevel3 *PageTables::getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml
     return l3;
 }
 
-x64::PageMapLevel2 *PageTables::getPageMap2(x64::PageMapLevel3 *l3, uint16_t pdpte) {
+x64::PageMapLevel2 *PageTables::getPageMap2(x64::PageMapLevel3 *l3, uint16_t pdpte, detail::PageTableBuffer& buffer) {
     x64::PageMapLevel2 *l2;
 
     x64::pdpte& t3 = l3->entries[pdpte];
     if (!t3.present()) {
-        l2 = std::bit_cast<x64::PageMapLevel2*>(alloc4k());
-        if (l2) setEntryFlags(t3, mMiddleFlags, asPhysical(l2));
+        l2 = std::bit_cast<x64::PageMapLevel2*>(buffer.next());
+        setEntryFlags(t3, mMiddleFlags, asPhysical(l2));
     } else {
         l2 = asVirtual<x64::PageMapLevel2>(mPageManager->address(t3));
     }
@@ -97,34 +115,22 @@ x64::PageTable *PageTables::findPageTable(const x64::PageMapLevel2 *l2, uint16_t
     return nullptr;
 }
 
-OsStatus PageTables::mapRange4k(AddressMapping mapping, PageFlags flags, MemoryType type) {
+void PageTables::mapRange4k(AddressMapping mapping, PageFlags flags, MemoryType type, detail::PageTableBuffer& buffer) {
     for (size_t i = 0; i < mapping.size; i += x64::kPageSize) {
-        if (OsStatus status = map4k(mapping.paddr + i, (char*)mapping.vaddr + i, flags, type)) {
-            return status;
-        }
+        map4k(mapping.paddr + i, (char*)mapping.vaddr + i, flags, type, buffer);
     }
-
-    return OsStatusSuccess;
 }
 
-OsStatus PageTables::mapRange2m(AddressMapping mapping, PageFlags flags, MemoryType type) {
+void PageTables::mapRange2m(AddressMapping mapping, PageFlags flags, MemoryType type, detail::PageTableBuffer& buffer) {
     for (size_t i = 0; i < mapping.size; i += x64::kLargePageSize) {
-        if (OsStatus status = map2m(mapping.paddr + i, (char*)mapping.vaddr + i, flags, type)) {
-            return status;
-        }
+        map2m(mapping.paddr + i, (char*)mapping.vaddr + i, flags, type, buffer);
     }
-
-    return OsStatusSuccess;
 }
 
-OsStatus PageTables::mapRange1g(AddressMapping mapping, PageFlags flags, MemoryType type) {
+void PageTables::mapRange1g(AddressMapping mapping, PageFlags flags, MemoryType type, detail::PageTableBuffer& buffer) {
     for (size_t i = 0; i < mapping.size; i += x64::kHugePageSize) {
-        if (OsStatus status = map1g(mapping.paddr + i, (char*)mapping.vaddr + i, flags, type)) {
-            return status;
-        }
+        map1g(mapping.paddr + i, (char*)mapping.vaddr + i, flags, type, buffer);
     }
-
-    return OsStatusSuccess;
 }
 
 #if 0
@@ -137,7 +143,7 @@ size_t PageTables::maxPagesForMapping(VirtualRange range) const {
 }
 #endif
 
-OsStatus PageTables::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type) {
+void PageTables::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableBuffer& buffer) {
     stdx::LockGuard guard(mLock);
 
     if (!mPageManager->isCanonicalAddress(vaddr)) {
@@ -148,19 +154,13 @@ OsStatus PageTables::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags f
     auto [pml4e, pdpte, pdte, pte] = GetAddressParts(vaddr);
 
     x64::PageMapLevel4 *l4 = pml4();
-    x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e);
-    if (!l3) return OsStatusOutOfMemory;
-
-    x64::PageMapLevel2 *l2 = getPageMap2(l3, pdpte);
-    if (!l2) return OsStatusOutOfMemory;
-
+    x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e, buffer);
+    x64::PageMapLevel2 *l2 = getPageMap2(l3, pdpte, buffer);
     x64::PageTable *pt;
 
     x64::pdte& t2 = l2->entries[pdte];
     if (!t2.present()) {
-        pt = std::bit_cast<x64::PageTable*>(alloc4k());
-        if (!pt) return OsStatusOutOfMemory;
-
+        pt = std::bit_cast<x64::PageTable*>(buffer.next());
         setEntryFlags(t2, mMiddleFlags, asPhysical(pt));
     } else {
         pt = asVirtual<x64::PageTable>(mPageManager->address(t2));
@@ -169,11 +169,9 @@ OsStatus PageTables::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags f
     x64::pte& t1 = pt->entries[pte];
     mPageManager->setMemoryType(t1, type);
     setEntryFlags(t1, flags, paddr);
-
-    return OsStatusSuccess;
 }
 
-OsStatus PageTables::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type) {
+void PageTables::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableBuffer& buffer) {
     stdx::LockGuard guard(mLock);
 
     if (!mPageManager->isCanonicalAddress(vaddr)) {
@@ -184,12 +182,8 @@ OsStatus PageTables::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags f
     auto [pml4e, pdpte, pdte, _] = GetAddressParts(vaddr);
 
     x64::PageMapLevel4 *l4 = pml4();
-    x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e);
-    if (!l3) return OsStatusOutOfMemory;
-
-    x64::PageMapLevel2 *l2 = getPageMap2(l3, pdpte);
-    if (!l2) return OsStatusOutOfMemory;
-
+    x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e, buffer);
+    x64::PageMapLevel2 *l2 = getPageMap2(l3, pdpte, buffer);
     x64::pdte& t2 = l2->entries[pdte];
 
     if (t2.present() && !t2.is2m()) {
@@ -200,25 +194,29 @@ OsStatus PageTables::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags f
     t2.set2m(true);
     mPageManager->setMemoryType(t2, type);
     setEntryFlags(t2, flags, paddr);
-
-    return OsStatusSuccess;
 }
 
-OsStatus PageTables::map1g(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type) {
+void PageTables::map1g(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableBuffer& buffer) {
     stdx::LockGuard guard(mLock);
 
     auto [pml4e, pdpte, _, _] = GetAddressParts(vaddr);
 
     x64::PageMapLevel4 *l4 = pml4();
-    x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e);
-    if (!l3) return OsStatusOutOfMemory;
+    x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e, buffer);
 
     x64::pdpte& t3 = l3->entries[pdpte];
     t3.set1g(true);
     mPageManager->setMemoryType(t3, type);
     setEntryFlags(t3, flags, paddr);
+}
 
-    return OsStatusSuccess;
+size_t PageTables::maxPagesForMapping(VirtualRange range) const {
+    //
+    // Pre allocate enough tables to map the entire range, in cases of oom we want to not map anything
+    // rather than partially map the range. TODO: use a more accurate calculation rather than overallocating
+    // and releasing the unused tables.
+    //
+    return detail::MaxPagesForMapping(range);
 }
 
 OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType type) {
@@ -231,6 +229,21 @@ OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType typ
         KmDebugMessage("[MEM] Invalid mapping request ", mapping, "\n");
         return OsStatusInvalidInput;
     }
+
+    size_t requiredPages = maxPagesForMapping(mapping.virtualRange());
+    x64::page *tables = alloc4k(requiredPages);
+    if (!tables) return OsStatusOutOfMemory;
+
+    detail::PageTableBuffer buffer { tables, requiredPages };
+
+    //
+    // Once we are done we need to deallocate the unused tables.
+    //
+    defer {
+        x64::page *current = buffer.table();
+        size_t count = (current - tables);
+        mAllocator.deallocate(current, requiredPages - count);
+    };
 
     //
     // We can use large pages if the range is larger than 2m after alignment and the mapping
@@ -254,27 +267,21 @@ OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType typ
             //
             AddressMapping head = detail::AlignLargeRangeHead(mapping);
             if (!head.isEmpty()) {
-                if (OsStatus status = mapRange4k(head, flags, type)) {
-                    return status;
-                }
+                mapRange4k(head, flags, type, buffer);
             }
 
             //
             // Then map the middle 2m pages.
             //
             AddressMapping body = detail::AlignLargeRangeBody(mapping);
-            if (OsStatus status = mapRange2m(body, flags, type)) {
-                return status;
-            }
+            mapRange2m(body, flags, type, buffer);
 
             //
             // Finally map the trailing 4k pages.
             //
             AddressMapping tail = detail::AlignLargeRangeTail(mapping);
             if (!tail.isEmpty()) {
-                if (OsStatus status = mapRange4k(tail, flags, type)) {
-                    return status;
-                }
+                mapRange4k(tail, flags, type, buffer);
             }
 
             return OsStatusSuccess;
@@ -285,7 +292,9 @@ OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType typ
     // If we get to this point its not worth using 2m pages
     // so we map the range with 4k pages.
     //
-    return mapRange4k(mapping, flags, type);
+    mapRange4k(mapping, flags, type, buffer);
+
+    return OsStatusSuccess;
 }
 
 OsStatus PageTables::map(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type) {

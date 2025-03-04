@@ -2,6 +2,7 @@
 #include <random>
 
 #include "memory/table_allocator.hpp"
+#include "log.hpp"
 
 using namespace km;
 
@@ -23,6 +24,79 @@ using TestMemory = decltype(GetAllocatorMemory());
 static void IsValidPtr(const void *ptr) {
     ASSERT_NE(ptr, nullptr);
     ASSERT_EQ((uintptr_t)ptr % x64::kPageSize, 0);
+}
+
+TEST(TableAllocatorDetailTest, SortBlocks) {
+    TestMemory memory = GetAllocatorMemory(kSize);
+
+    std::vector<detail::ControlBlock*> blocks;
+
+    for (size_t i = 0; i < (kSize / detail::kBlockSize); i++) {
+        detail::ControlBlock *block = (detail::ControlBlock*)(memory.get() + (i * detail::kBlockSize));
+        block->address = (void*)block;
+        block->next = nullptr;
+        block->prev = nullptr;
+        block->blocks = 1;
+
+        blocks.push_back(block);
+    }
+
+    std::mt19937 gen { 0x1234 };
+    std::shuffle(blocks.begin(), blocks.end(), gen);
+
+    for (size_t i = 0; i < blocks.size() - 1; i++) {
+        blocks[i]->next = blocks[i + 1];
+        blocks[i + 1]->prev = blocks[i];
+    }
+
+    detail::SortBlocks(blocks[0]);
+    std::sort(blocks.begin(), blocks.end());
+    detail::ControlBlock *block = blocks[0]->head();
+    ASSERT_NE(block, nullptr);
+    ASSERT_EQ(block->prev, nullptr);
+    ASSERT_EQ((void*)block->address, memory.get());
+
+    // ensure its sorted
+    size_t count = 0;
+    detail::ControlBlock *next = block;
+    while (next != nullptr) {
+        detail::ControlBlock *tmp = next->next;
+        count += 1;
+        if (tmp == nullptr) break;
+
+        ASSERT_GT(tmp->address, next->address);
+        next = tmp;
+    }
+
+    ASSERT_EQ(count, kSize / detail::kBlockSize);
+}
+
+TEST(TableAllocatorDetailTest, MergeBlocks) {
+    TestMemory memory = GetAllocatorMemory(kSize);
+
+    std::vector<detail::ControlBlock*> blocks;
+
+    for (size_t i = 0; i < (kSize / detail::kBlockSize); i++) {
+        detail::ControlBlock *block = (detail::ControlBlock*)(memory.get() + (i * detail::kBlockSize));
+        block->address = (void*)block;
+        block->next = nullptr;
+        block->prev = nullptr;
+        block->blocks = 1;
+
+        blocks.push_back(block);
+    }
+
+    for (size_t i = 0; i < blocks.size() - 1; i++) {
+        blocks[i]->next = blocks[i + 1];
+        blocks[i + 1]->prev = blocks[i];
+    }
+
+    detail::ControlBlock *head = blocks[0];
+    detail::MergeAdjacentBlocks(head);
+
+    // ensure everything has been merged
+    ASSERT_EQ(head->blocks, kSize / detail::kBlockSize);
+    ASSERT_EQ(head->next, nullptr);
 }
 
 TEST(TableAllocatorTest, Construct) {
@@ -152,4 +226,50 @@ TEST(TableAllocatorTest, PartialDeallocate) {
 
         allocator.deallocate(ptr, 1);
     }
+}
+
+TEST(TableAllocateTest, Defragment) {
+    size_t count = 16;
+    size_t size = x64::kPageSize * count;
+    TestMemory memory = GetAllocatorMemory(size);
+    PageTableAllocator allocator { VirtualRange::of(memory.get(), kSize) };
+
+    std::mt19937 gen { 0x1234 };
+    std::uniform_int_distribution<size_t> dist { 1, 4 };
+
+    std::set<void*> ranges;
+    std::map<void*, size_t> ptrs;
+    for (size_t i = 0; i < count; i++) {
+        size_t alloc = dist(gen);
+        void *ptr = allocator.allocate(alloc);
+        KmDebugMessage("Allocated: ", ptr, " size: ", alloc, "\n");
+        if (ptr == nullptr) continue;
+
+        IsValidPtr(ptr);
+
+        ASSERT_FALSE(ptrs.contains(ptr));
+        ASSERT_FALSE(ranges.contains(ptr));
+
+        ptrs[ptr] = alloc;
+
+        for (size_t j = 0; j < alloc; j++) {
+            ranges.insert((void*)((uintptr_t)ptr + (j * x64::kPageSize)));
+        }
+    }
+
+    for (auto& [ptr, size] : ptrs) {
+        KmDebugMessage("Deallocating: ", ptr, " size: ", size, "\n");
+        allocator.deallocate(ptr, size);
+    }
+
+    // memory should be fragmented, so this will fail.
+    // this detail function does not do defragmentation as part of its allocation
+    void *ptr = detail::AllocateBlock(allocator, count);
+    ASSERT_EQ(ptr, nullptr);
+
+    // after defragmenting we should be able to allocate the whole block
+    allocator.defragment();
+
+    ptr = detail::AllocateBlock(allocator, count);
+    IsValidPtr(ptr);
 }
