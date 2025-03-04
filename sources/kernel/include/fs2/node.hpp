@@ -61,7 +61,6 @@ namespace vfs2 {
         eNone,
         eFile,
         eFolder,
-        eDevice,
     };
 
     struct VfsNodeStat {

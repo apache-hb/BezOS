@@ -381,7 +381,7 @@ OsStatus VfsRoot::mkdevice(const VfsPath& path, IVfsDevice *device) {
     //
     // We need to initialize the device node before adding it to the parent.
     //
-    parent->initNode(device, path.name(), VfsNodeType::eDevice);
+    parent->initNode(device, path.name(), VfsNodeType::eNone);
 
     //
     // If this call fails it is the responsibility of the caller to clean up the device.
@@ -403,13 +403,8 @@ OsStatus VfsRoot::device(const VfsPath& path, sm::uuid interface, IVfsNodeHandle
     }
 
     //
-    // device can only be used to open device nodes, if the inode
-    // is not a device then we must return an error.
+    // All vfs nodes are devices, so there is no need to check before querying for an interface.
     //
-
-    if (!device->isA(VfsNodeType::eDevice)) {
-        return OsStatusInvalidType;
-    }
 
     return device->query(interface, handle);
 }

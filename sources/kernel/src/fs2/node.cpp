@@ -1,7 +1,5 @@
 #include "fs2/node.hpp"
 
-#include "panic.hpp"
-
 using namespace vfs2;
 
 IVfsNode::~IVfsNode() {
@@ -18,7 +16,9 @@ void IVfsNode::initNode(IVfsNode *node, VfsStringView name, VfsNodeType type) {
 }
 
 OsStatus IVfsNode::open(IVfsNodeHandle **handle) {
-    KM_ASSERT(isA(VfsNodeType::eFile));
+    if (!isA(VfsNodeType::eFile)) {
+        return OsStatusInvalidType;
+    }
 
     IVfsNodeHandle *result = new(std::nothrow) IVfsNodeHandle(this);
     if (!result) {
@@ -30,7 +30,9 @@ OsStatus IVfsNode::open(IVfsNodeHandle **handle) {
 }
 
 OsStatus IVfsNode::opendir(IVfsNodeHandle **handle) {
-    KM_ASSERT(isA(VfsNodeType::eFolder));
+    if (!isA(VfsNodeType::eFolder)) {
+        return OsStatusInvalidType;
+    }
 
     VfsFolderHandle *result = new(std::nothrow) VfsFolderHandle(this);
     if (!result) {
@@ -42,7 +44,9 @@ OsStatus IVfsNode::opendir(IVfsNodeHandle **handle) {
 }
 
 OsStatus IVfsNode::lookup(VfsStringView name, IVfsNode **child) {
-    KM_ASSERT(isA(VfsNodeType::eFolder));
+    if (!isA(VfsNodeType::eFolder)) {
+        return OsStatusInvalidType;
+    }
 
     auto it = mChildren.find(name);
     if (it == mChildren.end()) {
@@ -55,7 +59,9 @@ OsStatus IVfsNode::lookup(VfsStringView name, IVfsNode **child) {
 }
 
 OsStatus IVfsNode::addFile(VfsStringView name, IVfsNode **child) {
-    KM_ASSERT(isA(VfsNodeType::eFolder));
+    if (!isA(VfsNodeType::eFolder)) {
+        return OsStatusInvalidType;
+    }
 
     //
     // Create the file object and fill out its fields.
@@ -84,7 +90,9 @@ OsStatus IVfsNode::addFile(VfsStringView name, IVfsNode **child) {
 }
 
 OsStatus IVfsNode::addFolder(VfsStringView name, IVfsNode **child) {
-    KM_ASSERT(isA(VfsNodeType::eFolder));
+    if (!isA(VfsNodeType::eFolder)) {
+        return OsStatusInvalidType;
+    }
 
     IVfsNode *node = nullptr;
     if (OsStatus status = mkdir(&node)) {
@@ -102,7 +110,9 @@ OsStatus IVfsNode::addFolder(VfsStringView name, IVfsNode **child) {
 }
 
 OsStatus IVfsNode::addNode(VfsStringView name, IVfsNode *node) {
-    KM_ASSERT(isA(VfsNodeType::eFolder));
+    if (!isA(VfsNodeType::eFolder)) {
+        return OsStatusInvalidType;
+    }
 
     auto [it, ok] = mChildren.insert({ VfsString(name), node });
     if (!ok) {
