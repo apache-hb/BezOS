@@ -141,8 +141,8 @@ namespace vfs2 {
 
         IVfsNode() = default;
 
-        IVfsNode(VfsNodeType inType)
-            : type(inType)
+        IVfsNode(VfsNodeType type)
+            : mType(type)
         { }
 
         virtual ~IVfsNode();
@@ -161,16 +161,16 @@ namespace vfs2 {
 
     protected:
         /// @brief If this is a directory, these are all the entries.
-        FolderContainer children;
+        FolderContainer mChildren;
 
         /// @brief The type of the entry.
-        VfsNodeType type;
+        VfsNodeType mType;
 
     public:
-        auto begin() const { return children.begin(); }
-        auto end() const { return children.end(); }
+        auto begin() const { return mChildren.begin(); }
+        auto end() const { return mChildren.end(); }
 
-        bool isA(VfsNodeType category) const { return type == category; }
+        bool isA(VfsNodeType category) const { return mType == category; }
 
         /// @brief Read a range of bytes from the file.
         ///

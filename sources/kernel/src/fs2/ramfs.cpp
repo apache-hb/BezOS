@@ -48,24 +48,24 @@ OsStatus RamFsFolder::create(IVfsNode **node) {
 }
 
 OsStatus RamFsFolder::remove(IVfsNode *node) {
-    auto it = children.find(node->name);
-    if (it == children.end()) {
+    auto it = mChildren.find(node->name);
+    if (it == mChildren.end()) {
         return OsStatusNotFound;
     }
 
-    children.erase(it);
+    mChildren.erase(it);
     delete node;
 
     return OsStatusSuccess;
 }
 
 OsStatus RamFsFolder::rmdir(IVfsNode* node) {
-    auto it = children.find(node->name);
-    if (it == children.end()) {
+    auto it = mChildren.find(node->name);
+    if (it == mChildren.end()) {
         return OsStatusNotFound;
     }
 
-    children.erase(it);
+    mChildren.erase(it);
     delete node;
 
     return OsStatusSuccess;

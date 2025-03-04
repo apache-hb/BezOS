@@ -5,7 +5,7 @@
 using namespace vfs2;
 
 IVfsNode::~IVfsNode() {
-    for (auto& [_, inode] : children) {
+    for (auto& [_, inode] : mChildren) {
         delete inode;
     }
 }
@@ -13,7 +13,7 @@ IVfsNode::~IVfsNode() {
 void IVfsNode::initNode(IVfsNode *node, VfsStringView name, VfsNodeType type) {
     node->name = VfsString(name);
     node->parent = this;
-    node->type = type;
+    node->mType = type;
     node->mount = mount;
 }
 
@@ -44,8 +44,8 @@ OsStatus IVfsNode::opendir(IVfsNodeHandle **handle) {
 OsStatus IVfsNode::lookup(VfsStringView name, IVfsNode **child) {
     KM_ASSERT(isA(VfsNodeType::eFolder));
 
-    auto it = children.find(name);
-    if (it == children.end()) {
+    auto it = mChildren.find(name);
+    if (it == mChildren.end()) {
         return OsStatusNotFound;
     }
 
@@ -104,7 +104,7 @@ OsStatus IVfsNode::addFolder(VfsStringView name, IVfsNode **child) {
 OsStatus IVfsNode::addNode(VfsStringView name, IVfsNode *node) {
     KM_ASSERT(isA(VfsNodeType::eFolder));
 
-    auto [it, ok] = children.insert({ VfsString(name), node });
+    auto [it, ok] = mChildren.insert({ VfsString(name), node });
     if (!ok) {
         return OsStatusAlreadyExists;
     }
