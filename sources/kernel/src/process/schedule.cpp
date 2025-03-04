@@ -107,7 +107,6 @@ void km::ScheduleWork(LocalIsrTable *table, IApic *apic, sm::RcuSharedPtr<km::Th
             }
 
             tlsCurrentThread = next;
-            KmDebugMessage("FSBASE: ", Hex(next->tlsAddress).pad(16, '0'), "\n");
             kFsBase.store(next->tlsAddress);
             return next->state;
         } else {

@@ -76,7 +76,7 @@ REPO_SRC := repo/*.xml
 
 .PHONY: $(REPO)
 $(REPO): $(PKGTOOL) $(REPO_SRC)
-	$(PKGTOOL) --config $(REPO_CONFIG) --repo $(REPO_DB) --output build --prefix install --workspace bezos.code-workspace --clangd
+	$(PKGTOOL) --config $(REPO_CONFIG) --repo $(REPO_DB) --output build --prefix install --workspace bezos.code-workspace --clangd kernel sysapi system
 
 repo: $(REPO) $(REPO_SRC)
 

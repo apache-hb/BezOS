@@ -5,12 +5,19 @@
 
 namespace km {
     struct PlatformInfo {
-        stdx::StaticString<64> vendor;
-        stdx::StaticString<64> version;
+        static constexpr stdx::StringView kOracleVirtualBox = "innotek GmbH";
 
-        stdx::StaticString<64> manufacturer;
-        stdx::StaticString<64> product;
-        stdx::StaticString<64> serial;
+        using BiosString = stdx::StaticString<64>;
+
+        /// @brief The vendor of the BIOS.
+        BiosString vendor;
+
+        /// @brief The version of the BIOS.
+        BiosString version;
+
+        BiosString manufacturer;
+        BiosString product;
+        BiosString serial;
 
         bool isOracleVirtualBox() const;
     };

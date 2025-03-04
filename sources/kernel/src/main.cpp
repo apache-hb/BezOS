@@ -1546,6 +1546,8 @@ static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioAp
 
     bool has8042 = rsdt.has8042Controller();
 
+    hid::InitPs2HidStream(gNotificationStream);
+
     if (has8042) {
         hid::Ps2ControllerResult result = hid::EnablePs2Controller();
         KmDebugMessage("[INIT] PS/2 controller: ", result.status, "\n");
@@ -1568,8 +1570,6 @@ static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioAp
 
         ps2Controller.setMouseSampleRate(10);
         ps2Controller.setMouseResolution(1);
-
-        hid::InitPs2HidStream(gNotificationStream);
 
         hid::InstallPs2KeyboardIsr(ioApicSet, ps2Controller, apic, ist);
         hid::InstallPs2MouseIsr(ioApicSet, ps2Controller, apic, ist);

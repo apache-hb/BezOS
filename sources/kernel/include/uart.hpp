@@ -59,6 +59,12 @@ namespace km {
     class SerialPort {
         uint16_t mBasePort = 0xFFFF;
 
+        /// @brief Returns true if the transmit buffer is empty.
+        bool waitForTransmit();
+
+        /// @brief Returns true if the receive buffer has data.
+        bool waitForReceive();
+
     public:
         constexpr SerialPort() = default;
 

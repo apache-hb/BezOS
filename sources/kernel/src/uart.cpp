@@ -6,9 +6,23 @@
 
 using namespace km::uart::detail;
 
+bool km::SerialPort::waitForTransmit() {
+    uint8_t status = KmReadByte(mBasePort + kLineStatus);
+    return status & kEmptyTransmit;
+}
+
+bool km::SerialPort::waitForReceive() {
+    uint8_t status = KmReadByte(mBasePort + kLineStatus);
+    return status & kDataReady;
+}
+
 bool km::SerialPort::put(uint8_t byte) {
-    if (!(KmReadByte(mBasePort + kLineStatus) & kEmptyTransmit)) {
-        return false;
+    // TODO: make this timeout configurable
+    unsigned timeout = 100;
+    while (!waitForTransmit()) {
+        if (timeout-- == 0) {
+            return false;
+        }
     }
 
     KmWriteByteNoDelay(mBasePort, byte);
@@ -17,8 +31,11 @@ bool km::SerialPort::put(uint8_t byte) {
 }
 
 bool km::SerialPort::get(uint8_t& byte) {
-    if (!(KmReadByte(mBasePort + kLineStatus) & kDataReady)) {
-        return false;
+    unsigned timeout = 100;
+    while (!waitForReceive()) {
+        if (timeout-- == 0) {
+            return false;
+        }
     }
 
     byte = KmReadByte(mBasePort);

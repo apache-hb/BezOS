@@ -110,6 +110,7 @@ namespace stdx {
             return mStorage[index];
         }
 
+        // TODO: this is annoying to use with string literals, it tries to compare the null terminator.
         template<typename R> requires IsRange<const T, R>
         constexpr bool operator==(const R& other) const {
             return std::equal(begin(), end(), std::begin(other), std::end(other));

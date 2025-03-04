@@ -32,7 +32,7 @@ void KmDebugWrite(const T& value) {
     KmDebugWrite(km::Format<T>::toString(buffer, value));
 }
 
-template<km::IsFormatEx T>
+template<km::IsFormatEx T> requires (!km::IsStreamFormat<T>)
 void KmDebugWrite(const T& value) {
     auto result = km::format(value);
     KmDebugWrite(result);

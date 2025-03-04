@@ -127,7 +127,7 @@ constexpr bool TestEntryChecksum(std::span<const uint8_t> bytes, stdx::StringVie
 }
 
 bool km::PlatformInfo::isOracleVirtualBox() const {
-    return vendor == "innotek GmbH";
+    return vendor == kOracleVirtualBox;
 }
 
 /// @brief Read an SMBIOS entry from the given pointer.
