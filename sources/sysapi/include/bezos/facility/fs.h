@@ -173,20 +173,12 @@ extern OsStatus OsFileStat(OsFileHandle Handle, struct OsFileStat *OutStat);
 typedef uint16_t OsFolderEntryType;
 typedef uint16_t OsFolderEntryNameSize;
 
-enum {
-    eOsNodeFile   = UINT16_C(1),
-    eOsNodeFolder = UINT16_C(2),
-    eOsNodeLink   = UINT16_C(3),
-    eOsNodeDevice = UINT16_C(4),
-};
-
 struct OsFolderIterateCreateInfo {
     const char *PathFront;
     const char *PathBack;
 };
 
 struct OsFolderEntry {
-    OsFolderEntryType Type;
     OsFolderEntryNameSize NameSize;
 
     OsUtf8Char Name[];

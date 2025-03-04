@@ -172,6 +172,8 @@ namespace vfs2 {
 
         VfsNodeType getType() const { return type; }
 
+        bool isA(VfsNodeType type) const { return getType() == type; }
+
         /// @brief Read a range of bytes from the file.
         ///
         /// @details This function is expected to be internally synchronized.

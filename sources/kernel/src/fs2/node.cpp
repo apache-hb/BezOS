@@ -18,7 +18,7 @@ void IVfsNode::initNode(IVfsNode *node, VfsStringView name, VfsNodeType type) {
 }
 
 OsStatus IVfsNode::open(IVfsNodeHandle **handle) {
-    KM_ASSERT(type == VfsNodeType::eFile);
+    KM_ASSERT(isA(VfsNodeType::eFile));
 
     IVfsNodeHandle *result = new(std::nothrow) IVfsNodeHandle(this);
     if (!result) {
@@ -30,7 +30,7 @@ OsStatus IVfsNode::open(IVfsNodeHandle **handle) {
 }
 
 OsStatus IVfsNode::opendir(IVfsNodeHandle **handle) {
-    KM_ASSERT(type == VfsNodeType::eFolder);
+    KM_ASSERT(isA(VfsNodeType::eFolder));
 
     VfsFolderHandle *result = new(std::nothrow) VfsFolderHandle(this);
     if (!result) {
@@ -42,7 +42,7 @@ OsStatus IVfsNode::opendir(IVfsNodeHandle **handle) {
 }
 
 OsStatus IVfsNode::lookup(VfsStringView name, IVfsNode **child) {
-    KM_ASSERT(type == VfsNodeType::eFolder);
+    KM_ASSERT(isA(VfsNodeType::eFolder));
 
     auto it = children.find(name);
     if (it == children.end()) {
@@ -55,7 +55,7 @@ OsStatus IVfsNode::lookup(VfsStringView name, IVfsNode **child) {
 }
 
 OsStatus IVfsNode::addFile(VfsStringView name, IVfsNode **child) {
-    KM_ASSERT(type == VfsNodeType::eFolder);
+    KM_ASSERT(isA(VfsNodeType::eFolder));
 
     //
     // Create the file object and fill out its fields.
@@ -84,7 +84,7 @@ OsStatus IVfsNode::addFile(VfsStringView name, IVfsNode **child) {
 }
 
 OsStatus IVfsNode::addFolder(VfsStringView name, IVfsNode **child) {
-    KM_ASSERT(type == VfsNodeType::eFolder);
+    KM_ASSERT(isA(VfsNodeType::eFolder));
 
     IVfsNode *node = nullptr;
     if (OsStatus status = mkdir(&node)) {
@@ -102,7 +102,7 @@ OsStatus IVfsNode::addFolder(VfsStringView name, IVfsNode **child) {
 }
 
 OsStatus IVfsNode::addNode(VfsStringView name, IVfsNode *node) {
-    KM_ASSERT(type == VfsNodeType::eFolder);
+    KM_ASSERT(isA(VfsNodeType::eFolder));
 
     auto [it, ok] = children.insert({ VfsString(name), node });
     if (!ok) {

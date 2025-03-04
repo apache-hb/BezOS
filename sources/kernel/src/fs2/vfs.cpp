@@ -1,4 +1,5 @@
 #include "fs2/vfs.hpp"
+#include "fs2/node.hpp"
 #include "fs2/ramfs.hpp"
 
 #include "log.hpp"
@@ -54,7 +55,7 @@ OsStatus VfsRoot::lookupUnlocked(const VfsPath& path, IVfsNode **node) {
             return status;
         }
 
-        if (child->getType() == VfsNodeType::eFolder) {
+        if (child->isA(VfsNodeType::eFolder)) {
             //
             // If the current node is a folder we can continue
             // walking down the tree.
@@ -182,7 +183,7 @@ OsStatus VfsRoot::remove(IVfsNode *node) {
     // remove is only valid on files, each inode type
     // has its own method for removal.
     //
-    if (node->getType() != VfsNodeType::eFile) {
+    if (!node->isA(VfsNodeType::eFile)) {
         return OsStatusInvalidType;
     }
 
@@ -233,7 +234,7 @@ OsStatus VfsRoot::open(const VfsPath& path, IVfsNodeHandle **handle) {
     // is not a file then we must return an error.
     //
 
-    if (file->getType() != VfsNodeType::eFile) {
+    if (!file->isA(VfsNodeType::eFile)) {
         return OsStatusInvalidType;
     }
 
@@ -258,7 +259,7 @@ OsStatus VfsRoot::opendir(const VfsPath& path, IVfsNodeHandle **handle) {
     // is not a folder then we must return an error.
     //
 
-    if (folder->getType() != VfsNodeType::eFolder) {
+    if (!folder->isA(VfsNodeType::eFolder)) {
         return OsStatusInvalidType;
     }
 
@@ -288,7 +289,7 @@ OsStatus VfsRoot::rmdir(IVfsNode *node) {
     // rmdir is only valid on folders, each inode type
     // has its own method for removal.
     //
-    if (node->getType() != VfsNodeType::eFolder) {
+    if (!node->isA(VfsNodeType::eFolder)) {
         return OsStatusInvalidType;
     }
 
@@ -334,7 +335,7 @@ OsStatus VfsRoot::mkpath(const VfsPath& path, IVfsNode **node) {
             // If there is an inode then we must ensure it's
             // a folder before continuing traversal.
             //
-            if (child->getType() != VfsNodeType::eFolder) {
+            if (!child->isA(VfsNodeType::eFolder)) {
                 return OsStatusTraverseNonFolder;
             }
         } else if (lookupStatus == OsStatusNotFound) {
@@ -406,7 +407,7 @@ OsStatus VfsRoot::device(const VfsPath& path, sm::uuid interface, IVfsNodeHandle
     // is not a device then we must return an error.
     //
 
-    if (device->getType() != VfsNodeType::eDevice) {
+    if (!device->isA(VfsNodeType::eDevice)) {
         return OsStatusInvalidType;
     }
 

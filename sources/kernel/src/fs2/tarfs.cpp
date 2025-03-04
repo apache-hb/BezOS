@@ -209,7 +209,7 @@ OsStatus TarFsMount::walk(const VfsPath& path, IVfsNode **folder) {
             return status;
         }
 
-        if (child->getType() != VfsNodeType::eFolder) {
+        if (!child->isA(VfsNodeType::eFolder)) {
             return OsStatusTraverseNonFolder;
         }
 

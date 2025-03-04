@@ -35,7 +35,7 @@ TEST(Vfs2Test, CreateFile) {
         ASSERT_NE(file, nullptr);
     }
 
-    ASSERT_EQ(file->getType(), VfsNodeType::eFile);
+    ASSERT_TRUE(file->isA(VfsNodeType::eFile));
     ASSERT_EQ(file->name, "motd.txt");
     ASSERT_EQ(file->mount, mount);
 
@@ -68,7 +68,7 @@ TEST(Vfs2Test, FileReadWrite) {
         ASSERT_NE(file, nullptr);
     }
 
-    ASSERT_EQ(file->getType(), VfsNodeType::eFile);
+    ASSERT_TRUE(file->isA(VfsNodeType::eFile));
     ASSERT_EQ(file->name, "motd.txt");
     ASSERT_EQ(file->mount, mount);
 
@@ -133,7 +133,7 @@ TEST(Vfs2Test, MakePath) {
         ASSERT_NE(node, nullptr);
     }
 
-    ASSERT_EQ(node->getType(), VfsNodeType::eFolder);
+    ASSERT_TRUE(node->isA(VfsNodeType::eFolder));
     ASSERT_EQ(node->name, "Firmware");
     ASSERT_EQ(node->mount, mount);
 
@@ -148,7 +148,7 @@ TEST(Vfs2Test, MakePath) {
         OsStatus status = vfs.lookup(BuildPath("System", "Devices", "CPU", "CPU0"), &folder);
         ASSERT_EQ(OsStatusSuccess, status);
 
-        ASSERT_EQ(folder->getType(), VfsNodeType::eFolder);
+        ASSERT_TRUE(folder->isA(VfsNodeType::eFolder));
         ASSERT_EQ(folder->name, "CPU0");
         ASSERT_EQ(folder->mount, mount);
     }
@@ -157,7 +157,7 @@ TEST(Vfs2Test, MakePath) {
         OsStatus status = vfs.lookup(BuildPath("System", "Devices", "CPU"), &folder);
         ASSERT_EQ(OsStatusSuccess, status);
 
-        ASSERT_EQ(folder->getType(), VfsNodeType::eFolder);
+        ASSERT_TRUE(folder->isA(VfsNodeType::eFolder));
         ASSERT_EQ(folder->name, "CPU");
         ASSERT_EQ(folder->mount, mount);
     }
@@ -166,7 +166,7 @@ TEST(Vfs2Test, MakePath) {
         OsStatus status = vfs.lookup(BuildPath("System", "Devices"), &folder);
         ASSERT_EQ(OsStatusSuccess, status);
 
-        ASSERT_EQ(folder->getType(), VfsNodeType::eFolder);
+        ASSERT_TRUE(folder->isA(VfsNodeType::eFolder));
         ASSERT_EQ(folder->name, "Devices");
         ASSERT_EQ(folder->mount, mount);
     }
@@ -175,7 +175,7 @@ TEST(Vfs2Test, MakePath) {
         OsStatus status = vfs.lookup(BuildPath("System"), &folder);
         ASSERT_EQ(OsStatusSuccess, status);
 
-        ASSERT_EQ(folder->getType(), VfsNodeType::eFolder);
+        ASSERT_TRUE(folder->isA(VfsNodeType::eFolder));
         ASSERT_EQ(folder->name, "System");
         ASSERT_EQ(folder->mount, mount);
     }

@@ -1009,24 +1009,6 @@ static void AddVfsFileSystemCalls() {
     });
 }
 
-static OsStatus ConvertVfsNodeType(vfs2::VfsNodeType type, OsFolderEntryType *result) {
-    switch (type) {
-    case vfs2::VfsNodeType::eFile:
-        *result = eOsNodeFile;
-        break;
-    case vfs2::VfsNodeType::eFolder:
-        *result = eOsNodeFolder;
-        break;
-    case vfs2::VfsNodeType::eDevice:
-        *result = eOsNodeDevice;
-        break;
-    default:
-        return OsStatusInvalidInput;
-    }
-
-    return OsStatusSuccess;
-}
-
 static void AddVfsFolderSystemCalls() {
     AddSystemCall(eOsCallFolderIterateCreate, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t userCreateInfo = regs->arg0;
@@ -1078,10 +1060,6 @@ static void AddVfsFolderSystemCalls() {
         OsFolderEntryNameSize limit = std::min<OsFolderEntryNameSize>(size, name.count());
 
         OsFolderEntry result { .NameSize = limit, };
-
-        if (OsStatus status = ConvertVfsNodeType(handle->node->getType(), &result.Type)) {
-            return CallError(status);
-        }
 
         //
         // First write back the header.
