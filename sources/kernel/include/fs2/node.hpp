@@ -170,9 +170,7 @@ namespace vfs2 {
         auto begin() const { return children.begin(); }
         auto end() const { return children.end(); }
 
-        VfsNodeType getType() const { return type; }
-
-        bool isA(VfsNodeType type) const { return getType() == type; }
+        bool isA(VfsNodeType category) const { return type == category; }
 
         /// @brief Read a range of bytes from the file.
         ///
