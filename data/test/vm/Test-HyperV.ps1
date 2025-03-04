@@ -64,4 +64,6 @@ Set-VMFirmware -VMName $VmName -FirstBootDevice $BootDrive -EnableSecureBoot Off
 
 Set-VMProcessor -VMName $VmName -Count 4
 
+Set-VMVideo -VMName $VmName -HorizontalResolution 1920 -VerticalResolution 1080 -ResolutionType Single
+
 Start-VM -Name $VmName
