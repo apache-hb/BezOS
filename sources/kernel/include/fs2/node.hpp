@@ -64,20 +64,6 @@ namespace vfs2 {
         eDevice,
     };
 
-    struct VfsMountStat {
-        /// @brief The maximum size of the filesystem.
-        uint64_t maxMountSize;
-
-        /// @brief The maximum size of a single file.
-        uint64_t maxFileSize;
-
-        /// @brief The maximum length of a path segment.
-        uint16_t maxNameSize;
-
-        /// @brief The size of a block in the mount.
-        uint16_t blockSize;
-    };
-
     struct VfsNodeStat {
         uint64_t size;
     };
@@ -151,7 +137,13 @@ namespace vfs2 {
 
     class IVfsNode {
     public:
+        using FolderContainer = sm::BTreeMap<VfsString, IVfsNode*, std::less<>>;
+
         IVfsNode() = default;
+
+        IVfsNode(VfsNodeType inType)
+            : type(inType)
+        { }
 
         virtual ~IVfsNode();
 
@@ -167,11 +159,18 @@ namespace vfs2 {
         /// @brief The mount that this node is part of.
         IVfsMount *mount;
 
+    protected:
         /// @brief If this is a directory, these are all the entries.
-        sm::BTreeMap<VfsString, IVfsNode*, std::less<>> children;
+        FolderContainer children;
 
         /// @brief The type of the entry.
         VfsNodeType type;
+
+    public:
+        auto begin() const { return children.begin(); }
+        auto end() const { return children.end(); }
+
+        VfsNodeType getType() const { return type; }
 
         /// @brief Read a range of bytes from the file.
         ///
@@ -252,7 +251,7 @@ namespace vfs2 {
 
         virtual OsStatus opendir(IVfsNodeHandle **handle);
 
-        OsStatus lookup(VfsStringView name, IVfsNode **child);
+        virtual OsStatus lookup(VfsStringView name, IVfsNode **child);
         OsStatus addFile(VfsStringView name, IVfsNode **child);
         OsStatus addFolder(VfsStringView name, IVfsNode **child);
         OsStatus addNode(VfsStringView name, IVfsNode *node);

@@ -114,7 +114,6 @@ RamFsMount::RamFsMount(RamFs *fs)
     , mRootNode(new RamFsFolder())
 {
     mRootNode->mount = this;
-    mRootNode->type = VfsNodeType::eFolder;
 }
 
 RamFs& RamFs::instance() {

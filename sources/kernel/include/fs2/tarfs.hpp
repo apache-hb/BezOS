@@ -120,8 +120,9 @@ namespace vfs2 {
     public:
         TarPosixHeader header;
 
-        TarFsNode(TarPosixHeader header)
-            : header(header)
+        TarFsNode(TarPosixHeader header, VfsNodeType type)
+            : IVfsNode(type)
+            , header(header)
         { }
     };
 
@@ -130,7 +131,7 @@ namespace vfs2 {
 
     public:
         TarFsFile(TarPosixHeader header, uint64_t offset)
-            : TarFsNode(header)
+            : TarFsNode(header, VfsNodeType::eFile)
             , mOffset(offset)
         { }
 
@@ -141,7 +142,7 @@ namespace vfs2 {
     class TarFsFolder : public TarFsNode {
     public:
         TarFsFolder(TarPosixHeader header)
-            : TarFsNode(header)
+            : TarFsNode(header, VfsNodeType::eFolder)
         { }
     };
 

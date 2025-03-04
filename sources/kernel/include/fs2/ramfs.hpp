@@ -30,7 +30,9 @@ namespace vfs2 {
 
     class RamFsFolder : public RamFsNode {
     public:
-        RamFsFolder() : RamFsNode() { }
+        RamFsFolder() : RamFsNode() {
+            type = VfsNodeType::eFolder;
+        }
 
         OsStatus create(IVfsNode **node) override;
         OsStatus remove(IVfsNode *node) override;

@@ -1079,7 +1079,7 @@ static void AddVfsFolderSystemCalls() {
 
         OsFolderEntry result { .NameSize = limit, };
 
-        if (OsStatus status = ConvertVfsNodeType(handle->node->type, &result.Type)) {
+        if (OsStatus status = ConvertVfsNodeType(handle->node->getType(), &result.Type)) {
             return CallError(status);
         }
 

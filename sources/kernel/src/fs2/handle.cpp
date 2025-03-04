@@ -17,7 +17,7 @@ OsStatus IVfsNodeHandle::stat(VfsNodeStat *stat) {
 VfsFolderHandle::VfsFolderHandle(IVfsNode *node)
     : IVfsNodeHandle(node)
 {
-    for (const auto& [name, _] : node->children) {
+    for (const auto& [name, _] : *node) {
         mEntries.add(VfsString(name));
     }
 }

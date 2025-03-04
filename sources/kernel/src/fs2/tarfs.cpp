@@ -209,7 +209,7 @@ OsStatus TarFsMount::walk(const VfsPath& path, IVfsNode **folder) {
             return status;
         }
 
-        if (child->type != VfsNodeType::eFolder) {
+        if (child->getType() != VfsNodeType::eFolder) {
             return OsStatusTraverseNonFolder;
         }
 
@@ -228,10 +228,9 @@ TarFsMount::TarFsMount(TarFs *tarfs, sm::SharedPtr<km::IBlockDriver> block)
     : IVfsMount(tarfs)
     , mBlock(block)
     , mMedia(mBlock.get())
-    , mRootNode(new IVfsNode())
+    , mRootNode(new IVfsNode(VfsNodeType::eFolder))
 {
     mRootNode->mount = this;
-    mRootNode->type = VfsNodeType::eFolder;
 
     sm::BTreeMap<VfsPath, TarEntry> headers;
     if (OsStatus status = ParseTar(&mMedia, TarParseOptions{}, &headers)) {
