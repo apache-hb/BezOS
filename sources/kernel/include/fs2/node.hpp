@@ -1,6 +1,7 @@
 #pragma once
 
 #include <bezos/status.h>
+#include <bezos/subsystem/identify.h>
 
 #include "fs2/path.hpp"
 
@@ -34,6 +35,8 @@ namespace vfs2 {
 
     enum class VfsNodeId : uint64_t { };
 
+    using VfsCreateHandle = OsStatus(*)(IVfsNode*, IVfsNodeHandle**);
+
     struct ReadRequest {
         void *begin;
         void *end;
@@ -51,6 +54,8 @@ namespace vfs2 {
         const void *begin;
         const void *end;
         uint64_t offset;
+
+        uintptr_t size() const { return (std::byte*)end - (std::byte*)begin; }
     };
 
     struct WriteResult {
@@ -80,7 +85,7 @@ namespace vfs2 {
         virtual OsStatus read(ReadRequest request, ReadResult *result);
         virtual OsStatus write(WriteRequest request, WriteResult *result);
         virtual OsStatus stat(VfsNodeStat *stat);
-        virtual OsStatus call(uint64_t, void*) { return OsStatusNotSupported; }
+        virtual OsStatus call(uint64_t, void*, size_t) { return OsStatusNotSupported; }
         virtual OsStatus next(VfsString *) { return OsStatusNotSupported; }
     };
 
@@ -135,14 +140,16 @@ namespace vfs2 {
     };
 
     class IVfsNode {
+        friend class VfsIdentifyHandle;
+
     public:
         using FolderContainer = sm::BTreeMap<VfsString, IVfsNode*, std::less<>>;
 
-        IVfsNode() = default;
-
-        IVfsNode(VfsNodeType type)
-            : mType(type)
+        IVfsNode()
+            : IVfsNode(VfsNodeType::eNone)
         { }
+
+        IVfsNode(VfsNodeType type);
 
         virtual ~IVfsNode();
 
@@ -165,11 +172,35 @@ namespace vfs2 {
         /// @brief The type of the entry.
         VfsNodeType mType;
 
+        OsIdentifyInfo mIdentifyInfo;
+
+        sm::FlatHashMap<sm::uuid, VfsCreateHandle> mInterfaces;
+
+        template<std::derived_from<IVfsNodeHandle> T>
+        void addInterface(sm::uuid uuid) {
+            VfsCreateHandle callback = [](IVfsNode *node, IVfsNodeHandle **handle) -> OsStatus {
+                T *objHandle = new (std::nothrow) T(node);
+                if (objHandle == nullptr) {
+                    return OsStatusOutOfMemory;
+                }
+
+                *handle = objHandle;
+                return OsStatusSuccess;
+            };
+
+            auto [_, ok] = mInterfaces.insert({ uuid, callback });
+            KM_CHECK(ok, "Failed to add interface.");
+        }
+
     public:
         auto begin() const { return mChildren.begin(); }
         auto end() const { return mChildren.end(); }
 
+        OsIdentifyInfo info() const { return mIdentifyInfo; }
+
         bool isA(VfsNodeType category) const { return mType == category; }
+
+        virtual bool isA(sm::uuid) const { return false; }
 
         /// @brief Read a range of bytes from the file.
         ///
@@ -244,7 +275,7 @@ namespace vfs2 {
         /// @param handle The handle to the device.
         ///
         /// @return The status of the open operation.
-        virtual OsStatus query(sm::uuid, IVfsNodeHandle**) { return OsStatusNotSupported; }
+        virtual OsStatus query(sm::uuid uuid, IVfsNodeHandle **handle);
 
         virtual OsStatus open(IVfsNodeHandle **handle);
 

@@ -826,27 +826,40 @@ static void CreateNotificationQueue() {
     gNotificationStream = new NotificationStream();
 }
 
+static void MakeFolder(const vfs2::VfsPath& path) {
+    vfs2::IVfsNode *node = nullptr;
+    if (OsStatus status = gVfsRoot->mkpath(path, &node)) {
+        KmDebugMessage("[VFS] Failed to create path: '", path, "' ", status, "\n");
+    }
+}
+
+template<typename... Args>
+static void MakePath(Args&&... args) {
+    MakeFolder(vfs2::BuildPath(std::forward<Args>(args)...));
+}
+
+static void MakeUser(vfs2::VfsStringView name) {
+    MakePath("Users", name);
+    MakePath("Users", name, "Programs");
+    MakePath("Users", name, "Documents");
+    MakePath("Users", name, "Options", "Local");
+    MakePath("Users", name, "Options", "Domain");
+}
+
 static void MountRootVfs() {
     KmDebugMessage("[VFS] Initializing VFS.\n");
     gVfsRoot = new vfs2::VfsRoot();
 
-    {
-        vfs2::IVfsNode *node = nullptr;
-        if (OsStatus status = gVfsRoot->mkpath(vfs2::BuildPath("System", "Config"), &node)) {
-            KmDebugMessage("[VFS] Failed to create path: ", status, "\n");
-        }
-    }
+    MakePath("System", "Options");
+    MakePath("System", "NT");
+    MakePath("System", "UNIX");
 
-    {
-        vfs2::IVfsNode *node = nullptr;
-        if (OsStatus status = gVfsRoot->mkpath(vfs2::BuildPath("Users", "Admin"), &node)) {
-            KmDebugMessage("[VFS] Failed to create path: ", status, "\n");
-        }
+    MakePath("Devices");
+    MakePath("Computer");
+    MakePath("Processes");
 
-        if (OsStatus status = gVfsRoot->mkpath(vfs2::BuildPath("Users", "Guest"), &node)) {
-            KmDebugMessage("[VFS] Failed to create path: ", status, "\n");
-        }
-    }
+    MakeUser("Guest");
+    MakeUser("Operator");
 
     {
         vfs2::IVfsNode *node = nullptr;
@@ -862,7 +875,7 @@ static void MountRootVfs() {
         char data[] = "Welcome.\n";
         vfs2::WriteRequest request {
             .begin = std::begin(data),
-            .end = std::end(data),
+            .end = std::end(data) - 1,
         };
         vfs2::WriteResult result;
 
@@ -1144,13 +1157,20 @@ static void AddDeviceSystemCalls() {
         uint64_t userHandle = regs->arg0;
         uint64_t userFunction = regs->arg1;
         uint64_t userData = regs->arg2;
+        uint64_t userSize = regs->arg3;
 
-        vfs2::IVfsNodeHandle *handle = context->process()->findFile((const vfs2::IVfsNodeHandle*)userHandle);
+        km::Process *process = context->process().get();
+
+        if (!context->isMapped((uint64_t)userData, (uint64_t)userData + userSize, PageFlags::eUserData)) {
+            return CallError(OsStatusInvalidInput);
+        }
+
+        vfs2::IVfsNodeHandle *handle = process->findFile((const vfs2::IVfsNodeHandle*)userHandle);
         if (handle == nullptr) {
             return CallError(OsStatusInvalidHandle);
         }
 
-        if (OsStatus status = handle->call(userFunction, (void*)userData)) {
+        if (OsStatus status = handle->call(userFunction, (void*)userData, userSize)) {
             return CallError(status);
         }
 

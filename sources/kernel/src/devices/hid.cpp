@@ -1,6 +1,6 @@
 #include "devices/hid.hpp"
 
-dev::HidKeyboardHandle::HidKeyboardHandle(vfs2::IVfsDevice *node)
+dev::HidKeyboardHandle::HidKeyboardHandle(vfs2::IVfsNode *node)
     : vfs2::IVfsNodeHandle(node)
 {
     static_cast<HidKeyboardDevice*>(node)->attach(this);

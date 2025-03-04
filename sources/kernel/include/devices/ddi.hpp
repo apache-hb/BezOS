@@ -2,9 +2,7 @@
 
 #include <bezos/subsystem/ddi.h>
 
-#include "kernel.hpp"
-#include "user/user.hpp"
-#include "fs2/device.hpp"
+#include "fs2/node.hpp"
 #include "display.hpp"
 
 namespace dev {
@@ -12,16 +10,27 @@ namespace dev {
         km::Canvas mCanvas;
         km::AddressMapping mUserCanvas;
 
-        OsStatus blit(void *data) {
-            OsDdiBlit request{};
-            if (OsStatus status = km::CopyUserMemory(km::GetProcessPageTables(), (uintptr_t)data, sizeof(request), &request)) {
-                return status;
+        OsStatus blit(void *data, size_t size) {
+            if (size != sizeof(OsDdiBlit)) {
+                return OsStatusInvalidInput;
             }
 
-            return km::ReadUserMemory(km::GetProcessPageTables(), request.SourceFront, request.SourceBack, mCanvas.address(), mCanvas.size() * mCanvas.bytesPerPixel());
+            OsDdiBlit request{};
+            memcpy(&request, data, sizeof(request));
+
+            void *dst = (std::byte*)mCanvas.address() + mCanvas.bytesPerPixel();
+            uintptr_t canvas = (std::byte*)request.SourceBack - (std::byte*)request.SourceFront;
+
+            memcpy(dst, request.SourceFront, canvas);
+
+            return OsStatusSuccess;
         }
 
-        OsStatus info(void *data) const {
+        OsStatus info(void *data, size_t size) const {
+            if (size != sizeof(OsDdiDisplayInfo)) {
+                return OsStatusInvalidInput;
+            }
+
             OsDdiDisplayInfo info {
                 .Name = "RAMFB",
                 .Width = uint32_t(mCanvas.width()),
@@ -36,41 +45,50 @@ namespace dev {
                 .BlueMaskShift = uint8_t(mCanvas.blueMaskShift()),
             };
 
-            return km::WriteUserMemory(km::GetProcessPageTables(), data, &info, sizeof(info));
+            memcpy(data, &info, sizeof(OsDdiDisplayInfo));
+            return OsStatusSuccess;
         }
 
-        OsStatus fill(void *data) {
-            OsDdiFill request{};
-            if (OsStatus status = km::CopyUserMemory(km::GetProcessPageTables(), (uintptr_t)data, sizeof(request), &request)) {
-                return status;
+        OsStatus fill(void *data, size_t size) {
+            if (size != sizeof(OsDdiFill)) {
+                return OsStatusInvalidInput;
             }
+
+            OsDdiFill request{};
+            memcpy(&request, data, sizeof(request));
 
             km::Pixel pixel = { request.R, request.G, request.B };
             mCanvas.fill(pixel);
             return OsStatusSuccess;
         }
 
-        OsStatus getCanvas(void *data) {
+        OsStatus getCanvas(void *data, size_t size) {
+            if (size != sizeof(OsDdiGetCanvas)) {
+                return OsStatusInvalidInput;
+            }
+
             OsDdiGetCanvas result {
                 .Canvas = (void*)mUserCanvas.vaddr,
             };
 
-            return km::WriteUserMemory(km::GetProcessPageTables(), data, &result, sizeof(result));
+            memcpy(data, &result, sizeof(result));
+
+            return OsStatusSuccess;
         }
 
     public:
-        DisplayHandle(vfs2::IVfsDevice *node);
+        DisplayHandle(vfs2::IVfsNode *node);
 
-        OsStatus call(uint64_t function, void *data) override {
+        OsStatus call(uint64_t function, void *data, size_t size) override {
             switch (function) {
             case eOsDdiBlit:
-                return blit(data);
+                return blit(data, size);
             case eOsDdiInfo:
-                return info(data);
+                return info(data, size);
             case eOsDdiFill:
-                return fill(data);
+                return fill(data, size);
             case eOsDdiGetCanvas:
-                return getCanvas(data);
+                return getCanvas(data, size);
 
             default:
                 return OsStatusInvalidFunction;
@@ -78,7 +96,7 @@ namespace dev {
         }
     };
 
-    class DisplayDevice : public vfs2::IVfsDevice {
+    class DisplayDevice : public vfs2::IVfsNode {
         km::Canvas mCanvas;
 
     public:

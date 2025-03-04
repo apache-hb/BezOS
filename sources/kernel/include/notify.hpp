@@ -5,9 +5,13 @@
 
 #include "std/rcuptr.hpp"
 #include "std/string.hpp"
-#include "std/queue.hpp"
 
-#include "util/cxx_chrono.hpp"
+#if __STDC_HOSTED__
+#   include <chrono>
+#else
+#   include "util/cxx_chrono.hpp"
+#endif
+
 #include "util/uuid.hpp"
 
 namespace km {

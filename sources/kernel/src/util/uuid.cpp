@@ -2,14 +2,19 @@
 
 using namespace sm;
 
+#if 0
 namespace chrono = std::chrono;
+#endif
 
 using namespace std::chrono_literals;
 
+#if 0
 static constexpr std::chrono::sys_days kGregorianReform = std::chrono::sys_days{1582y/10/15};
+#endif
 
 // time handling
 
+#if 0
 detail::rfc9562_clock::time_point detail::rfc9562_clock::from_sys(std::chrono::system_clock::time_point time) {
     // our epoch is 1582-10-15T00:00:00Z, the gregorian reform
     // we need to convert from the system clock epoch to the rfc9562 epoch.
@@ -123,6 +128,7 @@ std::chrono::system_clock::time_point uuid::v7Time() const noexcept {
 
     return chrono::system_clock::time_point{chrono::milliseconds{ts}};
 }
+#endif
 
 // string formatting
 

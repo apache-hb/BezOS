@@ -370,7 +370,7 @@ OsStatus VfsRoot::lookup(const VfsPath& path, IVfsNode **node) {
     return lookupUnlocked(path, node);
 }
 
-OsStatus VfsRoot::mkdevice(const VfsPath& path, IVfsDevice *device) {
+OsStatus VfsRoot::mkdevice(const VfsPath& path, IVfsNode *device) {
     stdx::UniqueLock guard(mLock);
 
     IVfsNode *parent = nullptr;
@@ -399,6 +399,7 @@ OsStatus VfsRoot::device(const VfsPath& path, sm::uuid interface, IVfsNodeHandle
 
     IVfsNode *device = nullptr;
     if (OsStatus status = parent->lookup(path.name(), &device)) {
+        KmDebugMessage("[VFS] Failed to lookup device: '", path, "' ", status, "\n");
         return status;
     }
 
@@ -406,5 +407,10 @@ OsStatus VfsRoot::device(const VfsPath& path, sm::uuid interface, IVfsNodeHandle
     // All vfs nodes are devices, so there is no need to check before querying for an interface.
     //
 
-    return device->query(interface, handle);
+    OsStatus status = device->query(interface, handle);
+    if (status != OsStatusSuccess) {
+        KmDebugMessage("[VFS] Failed to query device: '", path, "'@", interface, " ", status, "\n");
+    }
+
+    return status;
 }

@@ -1,4 +1,6 @@
 #include "fs2/node.hpp"
+#include "fs2/device.hpp"
+#include "log.hpp"
 
 using namespace vfs2;
 
@@ -8,11 +10,30 @@ IVfsNode::~IVfsNode() {
     }
 }
 
+IVfsNode::IVfsNode(VfsNodeType type)
+    : mType(type)
+{
+    addInterface<VfsIdentifyHandle>(kOsIdentifyGuid);
+}
+
 void IVfsNode::initNode(IVfsNode *node, VfsStringView name, VfsNodeType type) {
     node->name = VfsString(name);
     node->parent = this;
     node->mType = type;
     node->mount = mount;
+}
+
+OsStatus IVfsNode::query(sm::uuid uuid, IVfsNodeHandle **handle) {
+    KmDebugMessage("[VFS] Query Interface: ", uuid, "\n");
+
+    if (auto it = mInterfaces.find(uuid); it != mInterfaces.end()) {
+        KmDebugMessage("[VFS] Found Interface: ", it->first, "\n");
+        return it->second(this, handle);
+    }
+
+    KmDebugMessage("[VFS] Interface not found: ", uuid, "\n");
+
+    return OsStatusNotSupported;
 }
 
 OsStatus IVfsNode::open(IVfsNodeHandle **handle) {

@@ -75,7 +75,7 @@ struct OsIdentifyInfo {
 ///
 /// @return Returns an error code on failure.
 inline OsStatus OsInvokeIdentifyInterfaceList(OsDeviceHandle Handle, struct OsIdentifyInterfaceList *OutList) {
-    return OsDeviceCall(Handle, eOsIdentifyInterfaceList, OutList);
+    return OsDeviceCall(Handle, eOsIdentifyInterfaceList, OutList, sizeof(struct OsIdentifyInterfaceList) + (OutList->InterfaceCount * sizeof(struct OsGuid)));
 }
 
 /// @brief Query device information.
@@ -87,7 +87,7 @@ inline OsStatus OsInvokeIdentifyInterfaceList(OsDeviceHandle Handle, struct OsId
 ///
 /// @return Returns an error code on failure.
 inline OsStatus OsInvokeIdentifyDeviceInfo(OsDeviceHandle Handle, struct OsIdentifyInfo *OutInfo) {
-    return OsDeviceCall(Handle, eOsIdentifyInfo, OutInfo);
+    return OsDeviceCall(Handle, eOsIdentifyInfo, OutInfo, sizeof(struct OsIdentifyInfo));
 }
 
 #ifdef __cplusplus

@@ -1,7 +1,8 @@
 #include "devices/ddi.hpp"
+#include "kernel.hpp"
 #include "panic.hpp"
 
-dev::DisplayHandle::DisplayHandle(vfs2::IVfsDevice *node)
+dev::DisplayHandle::DisplayHandle(vfs2::IVfsNode *node)
     : vfs2::IVfsNodeHandle(node)
     , mCanvas(static_cast<DisplayDevice*>(node)->getCanvas())
 {

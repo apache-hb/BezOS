@@ -385,6 +385,8 @@ testcases = {
         'src/fs2/node.cpp',
         'src/fs2/handle.cpp',
         'src/fs2/ramfs.cpp',
+        'src/fs2/device.cpp',
+        'src/util/uuid.cpp',
     ],
     'vfs path': [
         'test/fs/path.cpp',
@@ -397,6 +399,8 @@ testcases = {
         'src/fs2/node.cpp',
         'src/fs2/handle.cpp',
         'src/fs2/ramfs.cpp',
+        'src/fs2/device.cpp',
+        'src/util/uuid.cpp',
     ],
     'ramfs': [
         'test/fs/ramfs.cpp',
@@ -405,7 +409,9 @@ testcases = {
         'src/fs2/node.cpp',
         'src/fs2/handle.cpp',
         'src/fs2/ramfs.cpp',
+        'src/fs2/device.cpp',
         'test/fs/fs_test.cpp',
+        'src/util/uuid.cpp',
     ],
     'shared ptr': [
         'test/shared.cpp',
@@ -537,6 +543,7 @@ tar_test_data = custom_target('tar-test-data',
 source = [
     'test/fs/tarfs.cpp',
     'src/fs2/vfs.cpp',
+    'src/fs2/device.cpp',
     'src/fs2/path.cpp',
     'src/fs2/node.cpp',
     'src/fs2/handle.cpp',
@@ -545,6 +552,7 @@ source = [
     'src/drivers/block/driver.cpp',
     'src/drivers/block/ramblk.cpp',
     'test/fs/fs_test.cpp',
+    'src/util/uuid.cpp',
 ]
 
 exe = executable('test-kernel-tarfs', source,

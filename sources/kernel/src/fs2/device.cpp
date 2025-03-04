@@ -1,26 +1,10 @@
 #include "fs2/device.hpp"
 #include "kernel.hpp"
-#include "user/user.hpp"
 
 static constexpr size_t kMaxInterfaceCount = 16;
 
-vfs2::IVfsDevice::IVfsDevice() {
-    addInterface<VfsIdentifyHandle>(kOsIdentifyGuid);
-}
-
-OsStatus vfs2::IVfsDevice::query(sm::uuid uuid, IVfsNodeHandle **handle) {
-    if (auto it = mInterfaces.find(uuid); it != mInterfaces.end()) {
-        return it->second(this, handle);
-    }
-
-    return OsStatusNotSupported;
-}
-
-OsStatus vfs2::VfsIdentifyHandle::serveInterfaceList(void *data) {
-    uint32_t count{};
-    if (OsStatus status = km::ReadUserMemory(km::GetProcessPageTables(), data, (char*)data + sizeof(uint32_t), &count, sizeof(uint32_t))) {
-        return status;
-    }
+OsStatus vfs2::VfsIdentifyHandle::serveInterfaceList(void *data, size_t size) {
+    uint32_t count = (size - sizeof(OsIdentifyInterfaceList)) / sizeof(OsGuid);
 
     if (count <= 0 || count > kMaxInterfaceCount) {
         return OsStatusOutOfBounds;
@@ -35,7 +19,7 @@ OsStatus vfs2::VfsIdentifyHandle::serveInterfaceList(void *data) {
 
     size_t i = 0;
     OsStatus status = OsStatusSuccess;
-    for (auto [uuid, _] : mDevice->mInterfaces) {
+    for (auto [uuid, _] : node->mInterfaces) {
         if (i >= count) {
             i += 1;
             status = OsStatusMoreData;
@@ -43,7 +27,7 @@ OsStatus vfs2::VfsIdentifyHandle::serveInterfaceList(void *data) {
         }
 
         if (i >= kMaxInterfaceCount) {
-            KmDebugMessage("[VFS] Device ", mDevice->name, " has more than ", kMaxInterfaceCount, " interfaces.\n");
+            KmDebugMessage("[VFS] Device ", node->name, " has more than ", kMaxInterfaceCount, " interfaces.\n");
             break;
         }
 
@@ -51,29 +35,28 @@ OsStatus vfs2::VfsIdentifyHandle::serveInterfaceList(void *data) {
     }
 
     list.count = i;
-    if (OsStatus status = km::WriteUserMemory(km::GetProcessPageTables(), data, &list, sizeof(uint32_t) + i * sizeof(OsGuid))) {
-        return status;
-    }
+    memcpy(data, &list, sizeof(uint32_t) + i * sizeof(OsGuid));
 
     return status;
 }
 
-OsStatus vfs2::VfsIdentifyHandle::serveInfo(void *data) {
-    return km::WriteUserMemory(km::GetProcessPageTables(), data, &mDevice->mIdentifyInfo, sizeof(OsIdentifyInfo));
+OsStatus vfs2::VfsIdentifyHandle::serveInfo(void *data, size_t size) {
+    if (size != sizeof(OsIdentifyInfo)) {
+        return OsStatusInvalidInput;
+    }
+
+    OsIdentifyInfo info = node->info();
+    memcpy(data, &info, sizeof(OsIdentifyInfo));
+    return OsStatusSuccess;
 }
 
-OsStatus vfs2::VfsIdentifyHandle::call(uint64_t function, void *data) {
+OsStatus vfs2::VfsIdentifyHandle::call(uint64_t function, void *data, size_t size) {
     switch (function) {
     case eOsIdentifyInterfaceList:
-        return serveInterfaceList(data);
+        return serveInterfaceList(data, size);
     case eOsIdentifyInfo:
-        return serveInfo(data);
+        return serveInfo(data, size);
     default:
         return OsStatusInvalidFunction;
     }
 }
-
-vfs2::VfsIdentifyHandle::VfsIdentifyHandle(IVfsDevice *device)
-    : IVfsNodeHandle(device)
-    , mDevice(device)
-{ }

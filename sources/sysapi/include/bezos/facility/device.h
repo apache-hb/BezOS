@@ -42,7 +42,7 @@ extern OsStatus OsDeviceRead(OsDeviceHandle Handle, struct OsDeviceReadRequest R
 
 extern OsStatus OsDeviceWrite(OsDeviceHandle Handle, struct OsDeviceWriteRequest Request, OsSize *OutWritten);
 
-extern OsStatus OsDeviceCall(OsDeviceHandle Handle, uint64_t Function, void *Request);
+extern OsStatus OsDeviceCall(OsDeviceHandle Handle, uint64_t Function, void *Data, OsSize DataSize);
 
 #ifdef __cplusplus
 }

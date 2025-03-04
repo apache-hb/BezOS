@@ -1,6 +1,5 @@
 #pragma once
 
-#include "fs2/device.hpp"
 #include "fs2/path.hpp"
 #include "fs2/node.hpp"
 
@@ -74,7 +73,7 @@ namespace vfs2 {
 
         OsStatus lookup(const VfsPath& path, IVfsNode **node);
 
-        OsStatus mkdevice(const VfsPath& path, IVfsDevice *device);
+        OsStatus mkdevice(const VfsPath& path, IVfsNode *device);
         OsStatus device(const VfsPath& path, sm::uuid interface, IVfsNodeHandle **handle);
     };
 }

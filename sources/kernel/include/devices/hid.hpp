@@ -2,7 +2,7 @@
 
 #include <bezos/subsystem/hid.h>
 
-#include "fs2/device.hpp"
+#include "fs2/node.hpp"
 #include "hid/hid.hpp"
 
 #include "std/spinlock.hpp"
@@ -16,7 +16,7 @@ namespace dev {
         stdx::Vector2<OsHidEvent> mEvents;
 
     public:
-        HidKeyboardHandle(vfs2::IVfsDevice *node);
+        HidKeyboardHandle(vfs2::IVfsNode *node);
 
         void notify(OsHidEvent event);
 
@@ -24,7 +24,7 @@ namespace dev {
     };
 
     class HidKeyboardDevice
-        : public vfs2::IVfsDevice
+        : public vfs2::IVfsNode
         , public km::ISubscriber
     {
         stdx::SharedSpinLock mLock;

@@ -4,7 +4,14 @@
 
 #include "util/digit.hpp"
 #include "util/endian.hpp"
-#include "util/cxx_chrono.hpp" // IWYU pragma: keep
+
+#if __STDC_HOSTED__
+#   include <chrono>
+#else
+#   include "util/cxx_chrono.hpp" // IWYU pragma: keep
+#endif
+
+#include "util/format.hpp"
 
 #include <cassert>
 #include <cstdint>
@@ -380,5 +387,14 @@ struct std::hash<sm::uuid> {
         }
 
         return hash;
+    }
+};
+
+template<>
+struct km::Format<sm::uuid> {
+    static void format(IOutStream& out, sm::uuid value) {
+        char buffer[sm::uuid::kStringSize];
+        sm::uuid::strfuid(buffer, value);
+        out.write(stdx::StringView(buffer, buffer + sizeof(buffer)));
     }
 };

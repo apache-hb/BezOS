@@ -48,3 +48,40 @@ int strcmp(const char *lhs, const char *rhs) {
 
     return *lhs - *rhs;
 }
+
+int strncmp(const char *lhs, const char *rhs, size_t n) {
+    for (size_t i = 0; i < n; i++) {
+        char l = lhs[i];
+        char r = rhs[i];
+
+        if (l != r) {
+            return l - r;
+        }
+
+        if (l == '\0' || r == '\0') {
+            return 0;
+        }
+    }
+
+    return 0;
+}
+
+char *strcpy(char *dst, const char *src) {
+    while (*src) {
+        *dst++ = *src++;
+    }
+
+    return dst;
+}
+
+char *strncpy(char *dst, const char *src, size_t n) {
+    for (size_t i = 0; i < n; i++) {
+        dst[i] = src[i];
+
+        if (src[i] == '\0') {
+            return dst + i;
+        }
+    }
+
+    return (dst + n);
+}

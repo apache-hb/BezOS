@@ -48,6 +48,9 @@ static constexpr OsKey kScanMap[UINT8_MAX] = {
     [0x5A] = eKeyReturn,
     [0x58] = eKeyCapital,
 
+    [0x4A] = eKeyDivide,
+    [0x76] = eKeyEscape,
+
     [0x16] = eKey1,
     [0x1E] = eKey2,
     [0x26] = eKey3,

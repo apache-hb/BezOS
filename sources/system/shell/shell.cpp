@@ -3,8 +3,11 @@
 #include <bezos/facility/fs.h>
 #include <bezos/facility/vmem.h>
 
+#include <bezos/handle.h>
+#include <bezos/status.h>
 #include <bezos/subsystem/hid.h>
 #include <bezos/subsystem/ddi.h>
+#include <bezos/subsystem/identify.h>
 
 #include <flanterm.h>
 #include <backends/fb.h>
@@ -181,10 +184,10 @@ public:
         ASSERT_OS_SUCCESS(OsDeviceOpen(createInfo, &mDevice));
 
         OsDdiGetCanvas canvas{};
-        ASSERT_OS_SUCCESS(OsDeviceCall(mDevice, eOsDdiGetCanvas, &canvas));
+        ASSERT_OS_SUCCESS(OsDeviceCall(mDevice, eOsDdiGetCanvas, &canvas, sizeof(canvas)));
 
         OsDdiDisplayInfo display{};
-        ASSERT_OS_SUCCESS(OsDeviceCall(mDevice, eOsDdiInfo, &display));
+        ASSERT_OS_SUCCESS(OsDeviceCall(mDevice, eOsDdiInfo, &display, sizeof(display)));
 
         mAddress = canvas.Canvas;
         ASSERT(mAddress != nullptr);
@@ -213,7 +216,7 @@ public:
 
     void Clear() {
         OsDdiFill fill = { .R = 100, .G = 100, .B = 100 };
-        ASSERT_OS_SUCCESS(OsDeviceCall(mDevice, eOsDdiFill, &fill));
+        ASSERT_OS_SUCCESS(OsDeviceCall(mDevice, eOsDdiFill, &fill, sizeof(fill)));
     }
 
     void WriteChar(char c) {
@@ -288,6 +291,36 @@ static void ListCurrentFolder(VtDisplay& display, const char *path) {
     }
 }
 
+static bool VfsNodeExists(const char *path) {
+    OsDeviceCreateInfo createInfo {
+        .NameFront = path,
+        .NameBack = path + strlen(path),
+        .InterfaceGuid = kOsIdentifyGuid,
+    };
+
+    OsDeviceHandle handle = OS_HANDLE_INVALID;
+    OsStatus status = OsDeviceOpen(createInfo, &handle);
+    if (status != OsStatusSuccess) {
+        return false;
+    }
+
+    ASSERT_OS_SUCCESS(OsDeviceClose(handle));
+    return true;
+}
+
+static constexpr size_t kCwdSize = 1024;
+
+static void SetCurrentFolder(VtDisplay& display, const char *path, char *cwd) {
+    if (!VfsNodeExists(path)) {
+        display.WriteString("Path '");
+        display.WriteString(path, path + strlen(path));
+        display.WriteString("' does not exist.\n");
+        return;
+    } else {
+        strncpy(cwd, path, kCwdSize);
+    }
+}
+
 // rdi: first argument
 // rsi: last argument
 // rdx: reserved
@@ -308,7 +341,12 @@ extern "C" [[noreturn]] void ClientStart(const void*, const void*, uint64_t) {
     char text[0x1000];
     size_t index = 0;
 
-    char cwd[1024] = "/Users/Guest";
+    char cwd[kCwdSize] = "/Users/Guest";
+
+    auto addChar = [&](char c) {
+        text[index++] = c;
+        display.WriteChar(c);
+    };
 
     KeyboardDevice keyboard{};
     OsHidEvent event{};
@@ -324,7 +362,10 @@ extern "C" [[noreturn]] void ClientStart(const void*, const void*, uint64_t) {
             continue;
         }
 
-        if (event.Body.Key.Key == eKeyReturn) {
+        OsKey key = event.Body.Key.Key;
+        if (key == eKeyDivide) {
+            addChar('/');
+        } else if (key == eKeyReturn) {
             if (index == 0) {
                 display.WriteString("\n");
                 Prompt(display);
@@ -352,6 +393,11 @@ extern "C" [[noreturn]] void ClientStart(const void*, const void*, uint64_t) {
                 ListCurrentFolder(display, cwd);
                 Prompt(display);
                 continue;
+            } else if (strncmp(text, "cd", 2) == 0) {
+                const char *path = text + 3;
+                SetCurrentFolder(display, path, cwd);
+                Prompt(display);
+                continue;
             }
 
             display.WriteString("Unknown command: ");
@@ -359,24 +405,22 @@ extern "C" [[noreturn]] void ClientStart(const void*, const void*, uint64_t) {
             display.WriteString("\n");
 
             Prompt(display);
-        } else if (event.Body.Key.Key == eKeyDelete) {
+        } else if (key == eKeyDelete) {
             if (index > 0) {
                 index--;
                 display.WriteString("\b \b");
             }
-        } else if (isalpha(event.Body.Key.Key)) {
-            char c = event.Body.Key.Key;
+        } else if (isalpha(key)) {
+            char c = key;
             if (event.Body.Key.Modifiers & eModifierShift) {
                 c = toupper(c);
             } else {
                 c = tolower(c);
             }
 
-            text[index++] = c;
-            display.WriteChar(c);
-        } else if (isprint(event.Body.Key.Key)) {
-            text[index++] = event.Body.Key.Key;
-            display.WriteChar(event.Body.Key.Key);
+            addChar(c);
+        } else if (isprint(key)) {
+            addChar(key);
         }
     }
 
