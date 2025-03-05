@@ -24,6 +24,63 @@ static km::VirtualRange SmBiosMapTable(const T *table, km::SystemMemory& memory)
     return km::VirtualRange::of(address, table->tableSize);
 }
 
+const char *km::SmBiosIterator::next(const char *address) {
+    const auto *info = reinterpret_cast<const smbios::StructHeader*>(address);
+    address += info->length;
+    while (true) {
+        while (*address != '\0')
+            address += 1;
+
+        if (*(address + 1) == '\0')
+            break;
+
+        address += 1;
+    }
+
+    address += 2;
+
+    return address;
+}
+
+const smbios::StructHeader *km::SmBiosIterator::operator*() const {
+    return reinterpret_cast<const smbios::StructHeader*>(mAddress - mSize);
+}
+
+km::SmBiosIterator& km::SmBiosIterator::operator++() {
+    const char *address = next(mAddress);
+    mSize = address - mAddress;
+    mAddress = address;
+    return *this;
+}
+
+const smbios::FirmwareInfo *km::SmBiosTables::firmwareInfo() const {
+    for (const smbios::StructHeader *header : *this) {
+        if (header->type == smbios::StructType::eFirmwareInfo) {
+            return reinterpret_cast<const smbios::FirmwareInfo*>(header);
+        }
+    }
+
+    return nullptr;
+}
+
+const smbios::SystemInfo *km::SmBiosTables::systemInfo() const {
+    for (const smbios::StructHeader *header : *this) {
+        if (header->type == smbios::StructType::eSystemInfo) {
+            return reinterpret_cast<const smbios::SystemInfo*>(header);
+        }
+    }
+
+    return nullptr;
+}
+
+bool km::SmBiosTables::isOracleVirtualBox() const {
+    if (const smbios::SystemInfo *system = systemInfo()) {
+        return smbios::GetStringEntry(system, system->manufacturer) == smbios::kOracleVirtualBox;
+    }
+
+    return false;
+}
+
 constexpr bool TestEntryChecksum(std::span<const uint8_t> bytes, stdx::StringView name, bool ignoreChecksum) {
     uint8_t sum = 0;
     for (uint8_t byte : bytes) {

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "memory.hpp"
-#include "std/static_string.hpp"
 #include "util/signature.hpp"
 
 namespace km {
@@ -114,22 +113,6 @@ namespace km {
         static constexpr stdx::StringView kOracleVirtualBox = "innotek GmbH";
     }
 
-    struct PlatformInfo {
-        using BiosString = stdx::StaticString<64>;
-
-        /// @brief The vendor of the BIOS.
-        BiosString vendor;
-
-        /// @brief The version of the BIOS.
-        BiosString version;
-
-        BiosString manufacturer;
-        BiosString product;
-        BiosString serial;
-
-        bool isOracleVirtualBox() const;
-    };
-
     struct SmBiosLoadOptions {
         PhysicalAddress smbios32Address;
         PhysicalAddress smbios64Address;
@@ -142,23 +125,7 @@ namespace km {
         size_t mSize;
         const char *mAddress;
 
-        const char *next(const char *address) {
-            const auto *info = reinterpret_cast<const smbios::StructHeader*>(address);
-            address += info->length;
-            while (true) {
-                while (*address != '\0')
-                    address += 1;
-
-                if (*(address + 1) == '\0')
-                    break;
-
-                address += 1;
-            }
-
-            address += 2;
-
-            return address;
-        }
+        const char *next(const char *address);
 
     public:
         SmBiosIterator(const void *address)
@@ -166,16 +133,9 @@ namespace km {
             , mAddress((char*)address)
         { }
 
-        const smbios::StructHeader *operator*() const {
-            return reinterpret_cast<const smbios::StructHeader*>(mAddress - mSize);
-        }
+        const smbios::StructHeader *operator*() const;
 
-        SmBiosIterator& operator++() {
-            const char *address = next(mAddress);
-            mSize = address - mAddress;
-            mAddress = address;
-            return *this;
-        }
+        SmBiosIterator& operator++();
 
         constexpr bool operator!=(const SmBiosIterator& other) const {
             return mAddress < other.mAddress;
@@ -195,33 +155,10 @@ namespace km {
             return SmBiosIterator(tables.back);
         }
 
-        const smbios::FirmwareInfo *firmwareInfo() const {
-            for (const smbios::StructHeader *header : *this) {
-                if (header->type == smbios::StructType::eFirmwareInfo) {
-                    return reinterpret_cast<const smbios::FirmwareInfo*>(header);
-                }
-            }
+        const smbios::FirmwareInfo *firmwareInfo() const;
+        const smbios::SystemInfo *systemInfo() const;
 
-            return nullptr;
-        }
-
-        const smbios::SystemInfo *systemInfo() const {
-            for (const smbios::StructHeader *header : *this) {
-                if (header->type == smbios::StructType::eSystemInfo) {
-                    return reinterpret_cast<const smbios::SystemInfo*>(header);
-                }
-            }
-
-            return nullptr;
-        }
-
-        bool isOracleVirtualBox() const {
-            if (const smbios::SystemInfo *system = systemInfo()) {
-                return smbios::GetStringEntry(system, system->manufacturer) == smbios::kOracleVirtualBox;
-            }
-
-            return false;
-        }
+        bool isOracleVirtualBox() const;
     };
 
     [[nodiscard]]
