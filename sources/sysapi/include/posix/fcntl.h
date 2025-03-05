@@ -1,11 +1,9 @@
 #ifndef BEZOS_POSIX_FCNTL_H
 #define BEZOS_POSIX_FCNTL_H 1
 
-#include <stddef.h>
+#include <detail/cxx.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+BZP_API_BEGIN
 
 #define F_SETFD 0x1
 #define F_GETFD 0x2
@@ -26,16 +24,14 @@ extern "C" {
 #define O_EXCL (1 << 5)
 #define O_RDWR (O_RDONLY | O_WRONLY)
 
-extern int open(const char *, int, ...);
+extern int open(const char *, int, ...) BZP_NOEXCEPT;
 
-extern int fcntl(int, int, ...);
+extern int fcntl(int, int, ...) BZP_NOEXCEPT;
 
-extern int close(int);
+extern int close(int) BZP_NOEXCEPT;
 
-extern int rename(const char *, const char *);
+extern int rename(const char *, const char *) BZP_NOEXCEPT;
 
-#ifdef __cplusplus
-}
-#endif
+BZP_API_END
 
 #endif /* BEZOS_POSIX_FCNTL_H */

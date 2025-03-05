@@ -1,12 +1,12 @@
 #ifndef BEZOS_POSIX_STDIO_H
 #define BEZOS_POSIX_STDIO_H 1
 
+#include <detail/cxx.h>
+
 #include <stddef.h>
 #include <stdarg.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+BZP_API_BEGIN
 
 struct OsImplPosixFile;
 
@@ -26,62 +26,60 @@ extern FILE *OsImplPosixStandardError(void);
 #define stdout (OsImplPosixStandardOut())
 #define stderr (OsImplPosixStandardError())
 
-extern int fclose(FILE *);
+extern int fclose(FILE *) BZP_NOEXCEPT;
 
-extern FILE *fdopen(int, const char *);
+extern FILE *fdopen(int, const char *) BZP_NOEXCEPT;
 
-extern FILE *fopen(const char *, const char *);
+extern FILE *fopen(const char *, const char *) BZP_NOEXCEPT;
 
-extern void clearerr(FILE *);
+extern void clearerr(FILE *) BZP_NOEXCEPT;
 
-extern int fflush(FILE *);
+extern int fflush(FILE *) BZP_NOEXCEPT;
 
-extern int fileno(FILE *);
+extern int fileno(FILE *) BZP_NOEXCEPT;
 
-extern int fputs(const char *, FILE *);
+extern int fputs(const char *, FILE *) BZP_NOEXCEPT;
 
-extern int fprintf(FILE *, const char *, ...);
+extern int fprintf(FILE *, const char *, ...) BZP_NOEXCEPT;
 
-extern int printf(const char *, ...);
+extern int printf(const char *, ...) BZP_NOEXCEPT;
 
-extern int sprintf(char *, const char *, ...);
+extern int sprintf(char *, const char *, ...) BZP_NOEXCEPT;
 
-extern int snprintf(char *, size_t, const char *, ...);
+extern int snprintf(char *, size_t, const char *, ...) BZP_NOEXCEPT;
 
-extern int vsprintf(char *, const char *, va_list);
+extern int vsprintf(char *, const char *, va_list) BZP_NOEXCEPT;
 
-extern int vsnprintf(char *, size_t, const char *, va_list);
+extern int vsnprintf(char *, size_t, const char *, va_list) BZP_NOEXCEPT;
 
-extern int vprintf(const char *, va_list);
+extern int vprintf(const char *, va_list) BZP_NOEXCEPT;
 
-extern int vfprintf(FILE *, const char *, va_list);
+extern int vfprintf(FILE *, const char *, va_list) BZP_NOEXCEPT;
 
-extern size_t fread(void *, size_t, size_t, FILE *);
+extern size_t fread(void *, size_t, size_t, FILE *) BZP_NOEXCEPT;
 
-extern size_t fwrite(const void *, size_t, size_t, FILE *);
+extern size_t fwrite(const void *, size_t, size_t, FILE *) BZP_NOEXCEPT;
 
-extern int fseek(FILE *, long int, int);
+extern int fseek(FILE *, long int, int) BZP_NOEXCEPT;
 
-extern long int ftell(FILE *);
+extern long int ftell(FILE *) BZP_NOEXCEPT;
 
-extern int feof(FILE *);
+extern int feof(FILE *) BZP_NOEXCEPT;
 
-extern int ferror(FILE *);
+extern int ferror(FILE *) BZP_NOEXCEPT;
 
-extern int remove(const char *);
+extern int remove(const char *) BZP_NOEXCEPT;
 
-extern void perror(const char *);
+extern void perror(const char *) BZP_NOEXCEPT;
 
-extern int puts(const char*);
+extern int puts(const char*) BZP_NOEXCEPT;
 
-extern int putc(int, FILE *);
+extern int putc(int, FILE *) BZP_NOEXCEPT;
 
-extern char *fgets(char *, int, FILE *);
+extern char *fgets(char *, int, FILE *) BZP_NOEXCEPT;
 
-extern int putchar(int);
+extern int putchar(int) BZP_NOEXCEPT;
 
-#ifdef __cplusplus
-}
-#endif
+BZP_API_END
 
 #endif /* BEZOS_POSIX_STDIO_H */

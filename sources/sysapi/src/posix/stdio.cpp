@@ -5,12 +5,12 @@ struct OsImplPosixFile {
 
 };
 
-int fclose(FILE *) {
+int fclose(FILE *) noexcept {
     errno = ENOSYS;
     return -1;
 }
 
-FILE *fopen(const char *, const char *) {
+FILE *fopen(const char *, const char *) noexcept {
     errno = ENOSYS;
     return nullptr;
 }

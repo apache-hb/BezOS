@@ -1,12 +1,11 @@
 #ifndef BEZOS_POSIX_SYS_MMAN_H
 #define BEZOS_POSIX_SYS_MMAN_H 1
 
+#include <detail/cxx.h>
 #include <detail/size.h>
 #include <detail/node.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+BZP_API_BEGIN
 
 #define PROT_NONE 0
 #define PROT_READ  (1 << 0)
@@ -25,14 +24,12 @@ extern "C" {
 
 #define MAP_FAILED ((void*)-1)
 
-extern void *mmap(void *, size_t, int, int, int, off_t);
+extern void *mmap(void *, size_t, int, int, int, off_t) BZP_NOEXCEPT;
 
-extern int munmap(void *, size_t);
+extern int munmap(void *, size_t) BZP_NOEXCEPT;
 
-extern int posix_madvise(void *, size_t, int);
+extern int posix_madvise(void *, size_t, int) BZP_NOEXCEPT;
 
-#ifdef __cplusplus
-}
-#endif
+BZP_API_END
 
 #endif /* BEZOS_POSIX_SYS_MMAN_H */

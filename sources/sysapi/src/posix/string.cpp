@@ -1,6 +1,6 @@
 #include <posix/string.h>
 
-size_t strlen(const char *s) {
+size_t strlen(const char *s) noexcept {
     size_t len = 0;
     while (*s++) {
         len++;
@@ -8,7 +8,7 @@ size_t strlen(const char *s) {
     return len;
 }
 
-void *memset(void *ptr, int v, size_t size) {
+void *memset(void *ptr, int v, size_t size) noexcept {
     unsigned char *p = static_cast<unsigned char *>(ptr);
     for (size_t i = 0; i < size; i++) {
         p[i] = static_cast<unsigned char>(v);
@@ -16,7 +16,7 @@ void *memset(void *ptr, int v, size_t size) {
     return ptr;
 }
 
-void *memcpy(void *dst, const void *src, size_t size) {
+void *memcpy(void *dst, const void *src, size_t size) noexcept {
     unsigned char *d = static_cast<unsigned char *>(dst);
     const unsigned char *s = static_cast<const unsigned char *>(src);
     for (size_t i = 0; i < size; i++) {
@@ -25,7 +25,7 @@ void *memcpy(void *dst, const void *src, size_t size) {
     return dst;
 }
 
-void *memmove(void *dst, const void *src, size_t size) {
+void *memmove(void *dst, const void *src, size_t size) noexcept {
     unsigned char *d = static_cast<unsigned char *>(dst);
     const unsigned char *s = static_cast<const unsigned char *>(src);
     if (d < s) {
@@ -40,7 +40,7 @@ void *memmove(void *dst, const void *src, size_t size) {
     return dst;
 }
 
-int strcmp(const char *lhs, const char *rhs) {
+int strcmp(const char *lhs, const char *rhs) noexcept {
     while (*lhs && *rhs && *lhs == *rhs) {
         lhs++;
         rhs++;
@@ -49,7 +49,7 @@ int strcmp(const char *lhs, const char *rhs) {
     return *lhs - *rhs;
 }
 
-int strncmp(const char *lhs, const char *rhs, size_t n) {
+int strncmp(const char *lhs, const char *rhs, size_t n) noexcept {
     for (size_t i = 0; i < n; i++) {
         char l = lhs[i];
         char r = rhs[i];
@@ -66,7 +66,7 @@ int strncmp(const char *lhs, const char *rhs, size_t n) {
     return 0;
 }
 
-char *strcpy(char *dst, const char *src) {
+char *strcpy(char *dst, const char *src) noexcept {
     while (*src) {
         *dst++ = *src++;
     }
@@ -74,7 +74,7 @@ char *strcpy(char *dst, const char *src) {
     return dst;
 }
 
-char *strncpy(char *dst, const char *src, size_t n) {
+char *strncpy(char *dst, const char *src, size_t n) noexcept {
     for (size_t i = 0; i < n; i++) {
         dst[i] = src[i];
 

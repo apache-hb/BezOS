@@ -1,11 +1,11 @@
 #ifndef BEZOS_POSIX_ERRNO_H
 #define BEZOS_POSIX_ERRNO_H 1
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <detail/cxx.h>
 
-extern int *OsImplPosixErrnoAddress(void);
+BZP_API_BEGIN
+
+extern int *OsImplPosixErrnoAddress(void) BZP_NOEXCEPT;
 #define errno (*OsImplPosixErrnoAddress())
 
 /**
@@ -37,8 +37,6 @@ extern int *OsImplPosixErrnoAddress(void);
 #define EACCES 0x12 /* Permission denied */
 #define EEXIST 0x13 /* File exists */
 
-#ifdef __cplusplus
-}
-#endif
+BZP_API_END
 
 #endif /* BEZOS_POSIX_ERRNO_H */

@@ -1,20 +1,20 @@
 #ifndef BEZOS_POSIX_STDLIB_H
 #define BEZOS_POSIX_STDLIB_H 1
 
+#include <detail/cxx.h>
+#include <detail/attributes.h>
 #include <detail/size.h>
 #include <detail/null.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+BZP_API_BEGIN
 
 #define MB_CUR_MAX 1
 
-[[noreturn]]
-extern void abort(void);
+BZP_NORETURN
+extern void abort(void) BZP_NOEXCEPT;
 
-[[noreturn]]
-extern void exit(int);
+BZP_NORETURN
+extern void exit(int) BZP_NOEXCEPT;
 
 typedef struct {
     int quot;
@@ -31,25 +31,23 @@ typedef struct {
     long long int rem;
 } lldiv_t;
 
-extern div_t div(int, int);
-extern ldiv_t ldiv(long int, long int);
-extern lldiv_t lldiv(long long int, long long int);
+extern div_t div(int, int) BZP_NOEXCEPT;
+extern ldiv_t ldiv(long int, long int) BZP_NOEXCEPT;
+extern lldiv_t lldiv(long long int, long long int) BZP_NOEXCEPT;
 
-extern void *malloc(size_t);
-extern void *calloc(size_t, size_t);
-extern void *realloc(void *, size_t);
-extern void free(void *);
+extern void *malloc(size_t) BZP_NOEXCEPT;
+extern void *calloc(size_t, size_t) BZP_NOEXCEPT;
+extern void *realloc(void *, size_t) BZP_NOEXCEPT;
+extern void free(void *) BZP_NOEXCEPT BZP_NONNULL(1);
 
-extern void qsort(void *, size_t, size_t, int (*)(const void *, const void *));
+extern void qsort(void *, size_t, size_t, int (*)(const void *, const void *)); /* Not noexcept, callback may throw when used in c++ */
 
-extern char *getenv(const char *);
+extern char *getenv(const char *) BZP_NOEXCEPT BZP_NONNULL(1);
 
-extern int atoi(const char *);
+extern int atoi(const char *) BZP_NOEXCEPT BZP_NONNULL(1);
 
-extern long strtol(const char *, char **, int);
+extern long strtol(const char *, char **, int) BZP_NOEXCEPT;
 
-#ifdef __cplusplus
-}
-#endif
+BZP_API_END
 
 #endif /* BEZOS_POSIX_STDLIB_H */
