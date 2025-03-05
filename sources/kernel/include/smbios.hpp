@@ -175,7 +175,6 @@ namespace km {
         SmBiosIterator& operator++() {
             const char *address = next(mAddress);
             mSize = address - mAddress;
-            KmDebugMessage("[SMBIOS] Next: ", mSize, "\n");
             mAddress = address;
             return *this;
         }

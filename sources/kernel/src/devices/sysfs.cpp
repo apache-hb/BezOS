@@ -1,7 +1,6 @@
 #include "devices/sysfs.hpp"
 
 #include "acpi/header.hpp"
-#include "log.hpp"
 #include "smbios.hpp"
 
 namespace smbios = km::smbios;

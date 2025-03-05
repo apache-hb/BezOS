@@ -1127,7 +1127,6 @@ static void AddDeviceSystemCalls() {
         km::Process *process = context->process().get();
 
         std::unique_ptr<vfs2::IVfsNodeHandle> handle = nullptr;
-        KmDebugMessage("[VFS] Opening device: '", path, "':", uuid, "\n");
         if (OsStatus status = gVfsRoot->device(path, uuid, std::out_ptr(handle))) {
             return CallError(status);
         }
