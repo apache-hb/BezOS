@@ -63,6 +63,7 @@ namespace acpi {
     public:
         AcpiTables(const RsdpLocator *locator, km::SystemMemory& memory);
 
+        const RsdpLocator *locator() const { return mRsdpLocator; }
         uint32_t revision() const { return mRsdpLocator->revision; }
 
         uint32_t lapicCount() const;

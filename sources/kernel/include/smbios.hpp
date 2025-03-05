@@ -1,6 +1,5 @@
 #pragma once
 
-#include "log.hpp"
 #include "memory.hpp"
 #include "std/static_string.hpp"
 #include "util/signature.hpp"
@@ -116,7 +115,6 @@ namespace km {
     }
 
     struct PlatformInfo {
-
         using BiosString = stdx::StaticString<64>;
 
         /// @brief The vendor of the BIOS.
@@ -225,9 +223,6 @@ namespace km {
             return false;
         }
     };
-
-    [[nodiscard]]
-    OsStatus ReadSmbiosTables(SmBiosLoadOptions options, km::SystemMemory& memory, PlatformInfo *info [[gnu::nonnull]]);
 
     [[nodiscard]]
     OsStatus FindSmbiosTables(SmBiosLoadOptions options, km::SystemMemory& memory, SmBiosTables *tables [[gnu::nonnull]]);

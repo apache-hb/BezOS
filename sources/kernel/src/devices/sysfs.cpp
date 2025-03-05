@@ -1,5 +1,6 @@
 #include "devices/sysfs.hpp"
 
+#include "acpi/acpi.hpp"
 #include "acpi/header.hpp"
 #include "smbios.hpp"
 
@@ -15,15 +16,42 @@ dev::AcpiTable::AcpiTable(const acpi::RsdtHeader *table)
         .DriverVersion = OS_VERSION(1, 0, 0),
     };
 
-    memcpy(mIdentifyInfo.DisplayName, mHeader->signature.data(), 4);
-    memcpy(mIdentifyInfo.Model, mHeader->tableId, 8);
-    memcpy(mIdentifyInfo.DeviceVendor, mHeader->oemid, 6);
+    stdr::copy(mHeader->signature, mIdentifyInfo.DisplayName);
+    stdr::copy(mHeader->oemid, mIdentifyInfo.DeviceVendor);
+    stdr::copy(mHeader->tableId, mIdentifyInfo.Model);
+
+    if (mHeader->revision == 0) {
+        stdr::copy("1.0", mIdentifyInfo.FirmwareRevision);
+    } else {
+        stdr::copy("2.0", mIdentifyInfo.FirmwareRevision);
+    }
 }
 
 dev::AcpiRoot::AcpiRoot(const acpi::AcpiTables *tables)
     : mTables(tables)
 {
     installFolderInterface();
+
+    const auto *rsdp = mTables->locator();
+
+    mIdentifyInfo = OsIdentifyInfo {
+        .DisplayName = "ACPI",
+        .DriverVendor = "BezOS",
+        .DriverVersion = OS_VERSION(1, 0, 0),
+    };
+
+    stdr::copy(rsdp->oemid, mIdentifyInfo.DeviceVendor);
+
+    if (rsdp->revision == 0) {
+        stdr::copy("1.0", mIdentifyInfo.FirmwareRevision);
+    } else {
+        stdr::copy("2.0", mIdentifyInfo.FirmwareRevision);
+    }
+
+    for (const acpi::RsdtHeader *header : mTables->entries()) {
+        dev::AcpiTable *table = new dev::AcpiTable(header);
+        addNode(vfs2::VfsString(header->signature), table);
+    }
 }
 
 dev::SmBiosTable::SmBiosTable(const km::smbios::StructHeader *header, const OsIdentifyInfo& info)

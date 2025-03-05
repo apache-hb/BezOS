@@ -2,9 +2,6 @@
 
 #include "log.hpp"
 
-#include "std/static_vector.hpp"
-#include "util/defer.hpp"
-
 #include <stdint.h>
 
 using namespace stdx::literals;
@@ -75,60 +72,6 @@ stdx::StringView km::smbios::detail::GetStringEntry(const StructHeader *header, 
     return "Invalid index"_sv;
 }
 
-/// @brief Read an SMBIOS entry from the given pointer.
-///
-/// @param info The platform info to write the entry to.
-/// @param ptr The pointer to read the entry from.
-/// @return The start of the next entry.
-static const void *ReadSmbiosEntry(km::PlatformInfo& info, const void *ptr) {
-    const smbios::StructHeader *header = (const smbios::StructHeader*)ptr;
-    KmDebugMessage("[SMBIOS] Type: ", std::to_underlying(header->type), ", Length: ", header->length, ", Handle: ", auto{header->handle}, "\n");
-
-    const char *front = (const char*)((uintptr_t)ptr + header->length);
-    const char *back = front;
-
-    stdx::StaticVector<stdx::StringView, 16> strings;
-
-    auto getString = [&](uint8_t index) -> stdx::StringView {
-        if (index == 0)
-            return "Not specified"_sv;
-
-        if (index > strings.count())
-            return "Invalid index"_sv;
-
-        return strings[index - 1];
-    };
-
-    while (true) {
-        while (*back != '\0') {
-            back++;
-        }
-
-        if (*(back + 1) == '\0') {
-            break;
-        }
-
-        stdx::StringView entry = stdx::StringView(front, back);
-        strings.add(entry);
-
-        back++;
-        front = back;
-    }
-
-    if (header->type == smbios::StructType::eFirmwareInfo) {
-        const smbios::FirmwareInfo *firmware = (const smbios::FirmwareInfo*)ptr;
-        info.vendor = getString(firmware->vendor);
-        info.version = getString(firmware->version);
-    } else if (header->type == smbios::StructType::eSystemInfo) {
-        const smbios::SystemInfo *system = (const smbios::SystemInfo*)ptr;
-        info.manufacturer = getString(system->manufacturer);
-        info.product = getString(system->productName);
-        info.serial = getString(system->serialNumber);
-    }
-
-    return back + 2;
-}
-
 static OsStatus FindSmbios64(km::PhysicalAddress address, bool ignoreChecksum, km::SystemMemory& memory, const smbios::Entry64 **entry) {
     const auto *smbios = memory.mapConst<smbios::Entry64>(address);
 
@@ -170,37 +113,6 @@ static OsStatus FindSmbios32(km::PhysicalAddress address, bool ignoreChecksum, k
     }
 
     *entry = smbios;
-    return OsStatusSuccess;
-}
-
-OsStatus km::ReadSmbiosTables(SmBiosLoadOptions options, km::SystemMemory& memory, PlatformInfo *info [[gnu::nonnull]]) {
-    SmBiosTables tables{};
-    if (OsStatus status = FindSmbiosTables(options, memory, &tables)) {
-        return status;
-    }
-
-    defer {
-        if (!tables.tables.isEmpty()) {
-            memory.unmap(tables.tables);
-        }
-
-        if (tables.entry32 != nullptr) {
-            memory.unmap((void*)tables.entry32, sizeof(smbios::Entry32));
-        }
-
-        if (tables.entry64 != nullptr) {
-            memory.unmap((void*)tables.entry64, sizeof(smbios::Entry64));
-        }
-    };
-
-    auto [ptr, end] = tables.tables;
-    km::PlatformInfo result{};
-
-    while (ptr < end) {
-        ptr = ReadSmbiosEntry(result, ptr);
-    }
-
-    *info = result;
     return OsStatusSuccess;
 }
 

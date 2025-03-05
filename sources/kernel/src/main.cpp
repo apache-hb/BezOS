@@ -886,7 +886,7 @@ static void MountRootVfs() {
     }
 }
 
-static void CreatePlatformVfsNodes(const km::SmBiosTables *smbios) {
+static void CreatePlatformVfsNodes(const km::SmBiosTables *smbios, const acpi::AcpiTables *acpi) {
     MakePath("Platform");
 
     {
@@ -894,6 +894,13 @@ static void CreatePlatformVfsNodes(const km::SmBiosTables *smbios) {
 
         if (OsStatus status = gVfsRoot->mkdevice(vfs2::BuildPath("Platform", "SMBIOS"), node)) {
             KmDebugMessage("[VFS] Failed to create SMBIOS device: ", status, "\n");
+        }
+    }
+
+    {
+        vfs2::IVfsNode *node = new dev::AcpiRoot(acpi);
+        if (OsStatus status = gVfsRoot->mkdevice(vfs2::BuildPath("Platform", "ACPI"), node)) {
+            KmDebugMessage("[VFS] Failed to create ACPI device: ", status, "\n");
         }
     }
 }
@@ -1785,7 +1792,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     KmDebugMessage("[INIT] Current time: ", time.year, "-", time.month, "-", time.day, "T", time.hour, ":", time.minute, ":", time.second, "Z\n");
 
     MountRootVfs();
-    CreatePlatformVfsNodes(&smbios);
+    CreatePlatformVfsNodes(&smbios, &rsdt);
     MountVolatileFolder();
     MountInitArchive(launch.initrd, *stage2->memory);
 
