@@ -116,6 +116,20 @@ namespace km {
             return ptr;
         }
 
+        OsStatus closeFile(vfs2::IVfsNodeHandle *ptr) {
+            stdx::UniqueLock guard(lock);
+            // This is awful, but theres no transparent lookup for unique pointers
+            std::unique_ptr<vfs2::IVfsNodeHandle> handle(const_cast<vfs2::IVfsNodeHandle*>(ptr));
+            defer { (void)handle.release(); }; // NOLINT(bugprone-unused-return-value)
+
+            if (auto it = files.find(handle); it != files.end()) {
+                files.erase(it);
+                return OsStatusSuccess;
+            }
+
+            return OsStatusNotFound;
+        }
+
         vfs2::IVfsNodeHandle *findFile(const vfs2::IVfsNodeHandle *ptr) {
             // This is awful, but theres no transparent lookup for unique pointers
             std::unique_ptr<vfs2::IVfsNodeHandle> handle(const_cast<vfs2::IVfsNodeHandle*>(ptr));

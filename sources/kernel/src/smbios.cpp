@@ -4,93 +4,12 @@
 
 #include "std/static_vector.hpp"
 #include "util/defer.hpp"
-#include "util/signature.hpp"
 
 #include <stdint.h>
 
 using namespace stdx::literals;
 
-/// @brief Structures defined by the DMTF SMBIOS specification.
-///
-/// @cite DSP0134
-namespace smbios {
-    struct [[gnu::packed]] Entry64 {
-        static constexpr auto kAnchor0 = util::Signature("_SM3_");
-
-        std::array<char, 5> anchor;
-        uint8_t checksum;
-        uint8_t length;
-        uint8_t major;
-        uint8_t minor;
-        uint8_t revision;
-        uint8_t entryRevision;
-        uint8_t reserved0[1];
-        uint32_t tableSize;
-        uint64_t tableAddress;
-    };
-
-    struct [[gnu::packed]] Entry32 {
-        static constexpr auto kAnchor0 = util::Signature("_SM_");
-        static constexpr auto kAnchor1 = util::Signature("_DMI_");
-
-        std::array<char, 4> anchor0;
-        uint8_t checksum0;
-
-        uint8_t length;
-        uint8_t major;
-        uint8_t minor;
-        uint16_t entrySize;
-        uint8_t entryRevision;
-        uint8_t reserved0[5];
-
-        std::array<char, 5> anchor1;
-        uint8_t checksum1;
-
-        uint16_t tableSize;
-        uint32_t tableAddress;
-        uint16_t entryCount;
-        uint8_t bcdRevision;
-    };
-
-    enum class StructType : uint8_t {
-        eFirmwareInfo = 0,
-        eSystemInfo = 1,
-        eSystemEnclosure = 3,
-        eProcessor = 4,
-        eSystemSlots = 9,
-        eMemoryDevice = 17,
-        eBootInfo = 32,
-    };
-
-    struct [[gnu::packed]] StructHeader {
-        smbios::StructType type;
-        uint8_t length;
-        uint16_t handle;
-    };
-
-    struct [[gnu::packed]] FirmwareInfo {
-        StructHeader header;
-        uint8_t vendor;
-        uint8_t version;
-        uint16_t start;
-        uint8_t build;
-        uint8_t romSize;
-        uint64_t characteristics;
-        uint8_t reserved0[1];
-    };
-
-    struct [[gnu::packed]] SystemInfo {
-        StructHeader header;
-        uint8_t manufacturer;
-        uint8_t productName;
-        uint8_t version;
-        uint8_t serialNumber;
-        uint8_t uuid[16];
-        uint8_t wakeUpType;
-        uint8_t skuNumber;
-        uint8_t family;
-    };
-}
+namespace smbios = km::smbios;
 
 template<typename T>
 constexpr km::MemoryRange SmBiosTableRange(const T *table) {
@@ -184,9 +103,8 @@ static const void *ReadSmbiosEntry(km::PlatformInfo& info, const void *ptr) {
     return back + 2;
 }
 
-static OsStatus ReadSmbios64(km::PhysicalAddress address, bool ignoreChecksum, km::SystemMemory& memory, km::PlatformInfo *info) {
+static OsStatus FindSmbios64(km::PhysicalAddress address, bool ignoreChecksum, km::SystemMemory& memory, const smbios::Entry64 **entry) {
     const auto *smbios = memory.mapConst<smbios::Entry64>(address);
-    defer { memory.unmap((void*)smbios, sizeof(smbios::Entry64)); };
 
     if (smbios->anchor != smbios::Entry64::kAnchor0) {
         KmDebugMessage("[SMBIOS] Invalid anchor: ", smbios->anchor, "\n");
@@ -197,6 +115,18 @@ static OsStatus ReadSmbios64(km::PhysicalAddress address, bool ignoreChecksum, k
     if (!TestEntryChecksum(bytes, "SMBIOS64", ignoreChecksum)) {
         return OsStatusChecksumError;
     }
+
+    *entry = smbios;
+    return OsStatusSuccess;
+}
+
+static OsStatus ReadSmbios64(km::PhysicalAddress address, bool ignoreChecksum, km::SystemMemory& memory, km::PlatformInfo *info) {
+    const smbios::Entry64 *smbios = nullptr;
+    if (OsStatus status = FindSmbios64(address, ignoreChecksum, memory, &smbios)) {
+        return status;
+    }
+
+    defer { memory.unmap((void*)smbios, sizeof(smbios::Entry64)); };
 
     auto [ptr, end] = SmBiosMapTable(smbios, memory);
 
@@ -210,9 +140,8 @@ static OsStatus ReadSmbios64(km::PhysicalAddress address, bool ignoreChecksum, k
     return OsStatusSuccess;
 }
 
-static OsStatus ReadSmbios32(km::PhysicalAddress address, bool ignoreChecksum, km::SystemMemory& memory, km::PlatformInfo *info) {
+static OsStatus FindSmbios32(km::PhysicalAddress address, bool ignoreChecksum, km::SystemMemory& memory, const smbios::Entry32 **entry) {
     const auto *smbios = memory.mapConst<smbios::Entry32>(address);
-    defer { memory.unmap((void*)smbios, sizeof(smbios::Entry32)); };
 
     if (smbios->anchor0 != smbios::Entry32::kAnchor0) {
         KmDebugMessage("[SMBIOS] Invalid anchor: ", smbios->anchor0, "\n");
@@ -233,6 +162,18 @@ static OsStatus ReadSmbios32(km::PhysicalAddress address, bool ignoreChecksum, k
     if (!TestEntryChecksum(bytes, "SMBIOS32 Extended", ignoreChecksum)) {
         return OsStatusChecksumError;
     }
+
+    *entry = smbios;
+    return OsStatusSuccess;
+}
+
+static OsStatus ReadSmbios32(km::PhysicalAddress address, bool ignoreChecksum, km::SystemMemory& memory, km::PlatformInfo *info) {
+    const smbios::Entry32 *smbios = nullptr;
+    if (OsStatus status = FindSmbios32(address, ignoreChecksum, memory, &smbios)) {
+        return status;
+    }
+
+    defer { memory.unmap((void*)smbios, sizeof(smbios::Entry32)); };
 
     auto [ptr, end] = SmBiosMapTable(smbios, memory);
 
@@ -262,6 +203,35 @@ OsStatus km::ReadSmbiosTables(SmBiosLoadOptions options, km::SystemMemory& memor
     if (options.smbios32Address != nullptr && !options.ignore32BitEntry) {
         status = ReadSmbios32(options.smbios32Address, options.ignoreChecksum, memory, info);
         if (status == OsStatusSuccess) {
+            return status;
+        }
+    }
+
+    return OsStatusNotFound;
+}
+
+OsStatus km::FindSmbiosTables(SmBiosLoadOptions options, km::SystemMemory& memory, SmBiosTables *tables [[gnu::nonnull]]) {
+    //
+    // Store the status as a local so that we can return the last error if both fail.
+    //
+    OsStatus status = OsStatusNotFound;
+
+    SmBiosTables result{};
+
+    if (options.smbios64Address != nullptr && !options.ignore64BitEntry) {
+        status = FindSmbios64(options.smbios64Address, options.ignoreChecksum, memory, &result.entry64);
+        if (status == OsStatusSuccess) {
+            result.tables = SmBiosMapTable(result.entry64, memory);
+            *tables = result;
+            return status;
+        }
+    }
+
+    if (options.smbios32Address != nullptr && !options.ignore32BitEntry) {
+        status = FindSmbios32(options.smbios32Address, options.ignoreChecksum, memory, &result.entry32);
+        if (status == OsStatusSuccess) {
+            result.tables = SmBiosMapTable(result.entry32, memory);
+            *tables = result;
             return status;
         }
     }

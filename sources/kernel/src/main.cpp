@@ -1125,6 +1125,16 @@ static void AddDeviceSystemCalls() {
         return CallOk(ptr);
     });
 
+    AddSystemCall(eOsCallDeviceClose, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        uint64_t userDevice = regs->arg0;
+        km::Process *process = context->process().get();
+        if (OsStatus status = process->closeFile((vfs2::IVfsNodeHandle*)userDevice)) {
+            return CallError(status);
+        }
+
+        return CallOk(0zu);
+    });
+
     AddSystemCall(eOsCallDeviceRead, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t userHandle = regs->arg0;
         uint64_t userRequest = regs->arg1;

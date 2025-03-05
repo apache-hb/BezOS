@@ -276,9 +276,9 @@ static void ListCurrentFolder(VtDisplay& display, const char *path) {
     ASSERT_OS_SUCCESS(OsFolderIterateCreate(createInfo, &handle));
 
     OsFolderEntry *iter = reinterpret_cast<OsFolderEntry*>(buffer);
-    iter->NameSize = sizeof(buffer) - sizeof(OsFolderEntry);
 
     while (true) {
+        iter->NameSize = sizeof(buffer) - sizeof(OsFolderEntry);
         OsStatus status = OsFolderIterateNext(handle, iter);
         if (status == OsStatusEndOfFile) {
             break;
@@ -292,9 +292,24 @@ static void ListCurrentFolder(VtDisplay& display, const char *path) {
 }
 
 static bool VfsNodeExists(const char *path) {
+    char copy[1024];
+    memcpy(copy, path, sizeof(copy));
+    for (char *ptr = copy; *ptr != '\0'; ptr++) {
+        if (*ptr == '/') {
+            *ptr = '\0';
+        }
+    }
+
+    size_t front = 0;
+    size_t len = strlen(path);
+
+    if (copy[0] == '\0') {
+        front += 1;
+    }
+
     OsDeviceCreateInfo createInfo {
-        .NameFront = path,
-        .NameBack = path + strlen(path),
+        .NameFront = copy + front,
+        .NameBack = copy + len,
         .InterfaceGuid = kOsIdentifyGuid,
     };
 
@@ -317,6 +332,7 @@ static void SetCurrentFolder(VtDisplay& display, const char *path, char *cwd) {
         display.WriteString("' does not exist.\n");
         return;
     } else {
+        memset(cwd, 0, kCwdSize);
         strncpy(cwd, path, kCwdSize);
     }
 }
@@ -380,16 +396,16 @@ extern "C" [[noreturn]] void ClientStart(const void*, const void*, uint64_t) {
 
             if (strcmp(text, "exit") == 0) {
                 break;
-            } else if (strcmp(text, "uname") == 0) {
+            } else if (strncmp(text, "uname", 5) == 0) {
                 display.WriteString("BezOS localhost 0.0.1 amd64\n");
                 Prompt(display);
                 continue;
-            } else if (strcmp(text, "pwd") == 0) {
+            } else if (strncmp(text, "pwd", 3) == 0) {
                 display.WriteString(cwd);
                 display.WriteString("\n");
                 Prompt(display);
                 continue;
-            } else if (strcmp(text, "ls") == 0) {
+            } else if (strncmp(text, "ls", 2) == 0) {
                 ListCurrentFolder(display, cwd);
                 Prompt(display);
                 continue;
