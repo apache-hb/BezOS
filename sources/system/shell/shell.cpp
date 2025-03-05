@@ -139,7 +139,7 @@ public:
             .InterfaceGuid = kOsHidClassGuid,
         };
 
-        ASSERT_OS_SUCCESS(OsDeviceOpen(createInfo, &mDevice));
+        ASSERT_OS_SUCCESS(OsDeviceOpen(createInfo, NULL, 0, &mDevice));
     }
 
     ~KeyboardDevice() {
@@ -180,7 +180,7 @@ public:
             .InterfaceGuid = kOsDisplayClassGuid,
         };
 
-        ASSERT_OS_SUCCESS(OsDeviceOpen(createInfo, &mDevice));
+        ASSERT_OS_SUCCESS(OsDeviceOpen(createInfo, NULL, 0, &mDevice));
 
         OsDdiGetCanvas canvas{};
         ASSERT_OS_SUCCESS(OsDeviceCall(mDevice, eOsDdiGetCanvas, &canvas, sizeof(canvas)));
@@ -355,7 +355,7 @@ static bool VfsNodeExists(const char *path, const char *cwd) {
     }
 
     OsDeviceHandle handle = OS_HANDLE_INVALID;
-    OsStatus status = OsDeviceOpen(createInfo, &handle);
+    OsStatus status = OsDeviceOpen(createInfo, NULL, 0, &handle);
     if (status != OsStatusSuccess) {
         return false;
     }
@@ -410,7 +410,7 @@ static void ShowCurrentInfo(VtDisplay& display, const char *cwd) {
     };
 
     OsDeviceHandle handle = OS_HANDLE_INVALID;
-    ASSERT_OS_SUCCESS(OsDeviceOpen(createInfo, &handle));
+    ASSERT_OS_SUCCESS(OsDeviceOpen(createInfo, NULL, 0, &handle));
 
     OsIdentifyInfo info{};
     ASSERT_OS_SUCCESS(OsInvokeIdentifyDeviceInfo(handle, &info));
@@ -450,10 +450,7 @@ static void ShowCurrentInfo(VtDisplay& display, const char *cwd) {
     ASSERT_OS_SUCCESS(OsDeviceClose(handle));
 }
 
-// rdi: first argument
-// rsi: last argument
-// rdx: reserved
-extern "C" [[noreturn]] void ClientStart(const void*, const void*, uint64_t) {
+OS_NORETURN void ClientStart(const struct OsClientStartInfo *) {
     OsFileHandle Handle = OS_FILE_INVALID;
     ASSERT_OS_SUCCESS(OpenFile("Users\0Guest\0motd.txt", &Handle));
 

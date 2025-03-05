@@ -31,6 +31,7 @@ namespace dev {
     };
 
     class SmBiosTable : public vfs2::IVfsNode {
+        [[maybe_unused]]
         const km::smbios::StructHeader *mHeader;
 
     public:

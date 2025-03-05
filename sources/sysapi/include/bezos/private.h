@@ -47,7 +47,8 @@ enum {
     eOsCallDeviceClose = 0x81,
     eOsCallDeviceRead = 0x82,
     eOsCallDeviceWrite = 0x83,
-    eOsCallDeviceCall = 0x84,
+    eOsCallDeviceInvoke = 0x84,
+    eOsCallDeviceQuery = 0x85,
 
     eOsCallClockGetTime = 0x90,
     eOsCallClockStat = 0x91,

@@ -46,22 +46,37 @@ static void AssertOsSuccess(OsStatus status, const char (&message)[N]) {
 
 #define ASSERT_OS_SUCCESS(expr) AssertOsSuccess(expr, "Assertion failed: " #expr " != OsStatusSuccess")
 
-extern "C" [[noreturn]] void ClientStart() {
-    char path[] = "Init\0shell.elf";
-    char args[] = "";
-
+static void LaunchShell() {
     OsProcessCreateInfo createInfo {
-        .Executable = { std::begin(path), std::end(path) - 1 },
-
-        .ArgumentsBegin = std::begin(args),
-        .ArgumentsEnd = std::end(args) - 1,
-
+        .Executable = OsMakePath("Init\0shell.elf"),
         .Flags = eOsProcessNone,
     };
 
     OsProcessHandle handle = OS_HANDLE_INVALID;
     ASSERT_OS_SUCCESS(OsProcessCreate(createInfo, &handle));
 
+    while (true) {
+        OsThreadYield();
+    }
+}
+
+static void LaunchTerminalService() {
+    OsProcessCreateInfo createInfo {
+        .Executable = OsMakePath("Init\0tty.elf"),
+        .Flags = eOsProcessNone,
+    };
+
+    OsProcessHandle handle = OS_HANDLE_INVALID;
+    ASSERT_OS_SUCCESS(OsProcessCreate(createInfo, &handle));
+
+    while (true) {
+        OsThreadYield();
+    }
+}
+
+OS_NORETURN void ClientStart(const struct OsClientStartInfo *) {
+    LaunchTerminalService();
+    LaunchShell();
     while (true) {
         OsThreadYield();
     }

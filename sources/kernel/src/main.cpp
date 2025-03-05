@@ -857,6 +857,8 @@ static void MountRootVfs() {
     MakePath("System", "UNIX");
 
     MakePath("Devices");
+    MakePath("Devices", "Terminal");
+
     MakePath("Processes");
 
     MakeUser("Guest");
@@ -1184,7 +1186,7 @@ static void AddDeviceSystemCalls() {
         return CallOk(result.read);
     });
 
-    AddSystemCall(eOsCallDeviceCall, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+    AddSystemCall(eOsCallDeviceInvoke, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t userHandle = regs->arg0;
         uint64_t userFunction = regs->arg1;
         uint64_t userData = regs->arg2;
