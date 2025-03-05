@@ -4,8 +4,12 @@ int isprint(int c) noexcept {
     return c >= 0x20 && c <= 0x7E;
 }
 
+int isdigit(int c) noexcept {
+    return c >= '0' && c <= '9';
+}
+
 int isalnum(int c) noexcept {
-    return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
+    return isdigit(c) || isalpha(c);
 }
 
 int isalpha(int c) noexcept {

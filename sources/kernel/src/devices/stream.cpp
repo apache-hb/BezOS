@@ -1,5 +1,12 @@
 #include "devices/stream.hpp"
 
+dev::StreamDevice::StreamDevice(size_t size)
+    : mBuffer(new std::byte[size])
+    , mQueue(mBuffer.get(), size)
+{
+    addInterface<vfs2::IVfsNodeHandle>(kOsStreamGuid);
+}
+
 OsStatus dev::StreamDevice::read(vfs2::ReadRequest request, vfs2::ReadResult *result) {
     stdx::LockGuard guard(mLock);
 

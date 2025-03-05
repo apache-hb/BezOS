@@ -4,6 +4,7 @@
 #include <bezos/facility/vmem.h>
 #include <bezos/facility/process.h>
 
+#include <bezos/subsystem/fs.h>
 #include <bezos/subsystem/hid.h>
 #include <bezos/subsystem/ddi.h>
 
@@ -44,7 +45,24 @@ static void AssertOsSuccess(OsStatus status, const char (&message)[N]) {
     }
 }
 
-#define ASSERT_OS_SUCCESS(expr) AssertOsSuccess(expr, "Assertion failed: " #expr " != OsStatusSuccess")
+#define ASSERT_OS_SUCCESS(expr) AssertOsSuccess(expr, "init.elf: Assertion failed: " #expr " != OsStatusSuccess")
+
+static bool DeviceExists(OsPath path, OsGuid guid) {
+    OsDeviceCreateInfo createInfo {
+        .Path = path,
+        .InterfaceGuid = guid,
+        .Flags = eOsDeviceOpenAlways,
+    };
+
+    OsDeviceHandle handle = OS_HANDLE_INVALID;
+    OsStatus status = OsDeviceOpen(createInfo, NULL, 0, &handle);
+    if (status != OsStatusSuccess) {
+        return false;
+    }
+
+    ASSERT_OS_SUCCESS(OsDeviceClose(handle));
+    return true;
+}
 
 static void LaunchShell() {
     OsProcessCreateInfo createInfo {
@@ -74,8 +92,21 @@ static void LaunchTerminalService() {
     }
 }
 
-OS_NORETURN void ClientStart(const struct OsClientStartInfo *) {
+OS_EXTERN OS_NORETURN void ClientStart(const struct OsClientStartInfo *) {
     LaunchTerminalService();
+
+    DebugLog("Waiting for TTY0 devices...\n");
+
+    while (!DeviceExists(OsMakePath("Devices\0Terminal\0TTY0\0Input"), kOsStreamGuid)) {
+        DebugLog("Waiting for TTY0 input device...\n");
+        OsThreadYield();
+    }
+
+    while (!DeviceExists(OsMakePath("Devices\0Terminal\0TTY0\0Output"), kOsStreamGuid)) {
+        DebugLog("Waiting for TTY0 output device...\n");
+        OsThreadYield();
+    }
+
     LaunchShell();
     while (true) {
         OsThreadYield();

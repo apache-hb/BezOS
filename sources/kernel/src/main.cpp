@@ -21,6 +21,7 @@
 #include "delay.hpp"
 #include "devices/ddi.hpp"
 #include "devices/hid.hpp"
+#include "devices/stream.hpp"
 #include "devices/sysfs.hpp"
 #include "display.hpp"
 #include "drivers/block/ramblk.hpp"
@@ -857,7 +858,7 @@ static void MountRootVfs() {
     MakePath("System", "UNIX");
 
     MakePath("Devices");
-    MakePath("Devices", "Terminal");
+    MakePath("Devices", "Terminal", "TTY0");
 
     MakePath("Processes");
 
@@ -1119,6 +1120,15 @@ static void AddVfsSystemCalls() {
     AddVfsFolderSystemCalls();
 }
 
+// TODO: there should be a global registry of these, and they should be loaded from shared objects
+static vfs2::IVfsNode *GetDefaultClass(sm::uuid uuid) {
+    if (uuid == kOsStreamGuid) {
+        return new dev::StreamDevice(1024);
+    } else {
+        return nullptr;
+    }
+}
+
 static void AddDeviceSystemCalls() {
     AddSystemCall(eOsCallDeviceOpen, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t userCreateInfo = regs->arg0;
@@ -1136,7 +1146,23 @@ static void AddDeviceSystemCalls() {
         km::Process *process = context->process().get();
 
         std::unique_ptr<vfs2::IVfsNodeHandle> handle = nullptr;
-        if (OsStatus status = gVfsRoot->device(path, uuid, std::out_ptr(handle))) {
+        OsStatus status = gVfsRoot->device(path, uuid, std::out_ptr(handle));
+
+        if ((status == OsStatusNotFound) && (createInfo.Flags & eOsDeviceCreateNew)) {
+            vfs2::IVfsNode *node = GetDefaultClass(uuid);
+            if (node == nullptr) {
+                return CallError(OsStatusNotFound);
+            }
+
+            status = gVfsRoot->mkdevice(path, node);
+            if (status != OsStatusSuccess) {
+                return CallError(status);
+            }
+
+            status = gVfsRoot->device(path, uuid, std::out_ptr(handle));
+        }
+
+        if (status != OsStatusSuccess) {
             return CallError(status);
         }
 
@@ -1184,6 +1210,37 @@ static void AddDeviceSystemCalls() {
         }
 
         return CallOk(result.read);
+    });
+
+    AddSystemCall(eOsCallDeviceWrite, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        uint64_t userHandle = regs->arg0;
+        uint64_t userRequest = regs->arg1;
+
+        OsDeviceReadRequest request{};
+        if (OsStatus status = context->readObject(userRequest, &request)) {
+            return CallError(status);
+        }
+
+        if (!context->isMapped((uint64_t)request.BufferFront, (uint64_t)request.BufferBack, PageFlags::eUser | PageFlags::eRead)) {
+            return CallError(OsStatusInvalidInput);
+        }
+
+        vfs2::IVfsNodeHandle *handle = context->process()->findFile((const vfs2::IVfsNodeHandle*)userHandle);
+        if (handle == nullptr) {
+            return CallError(OsStatusInvalidHandle);
+        }
+
+        vfs2::WriteRequest writeRequest {
+            .begin = request.BufferFront,
+            .end = request.BufferBack,
+            .timeout = request.Timeout,
+        };
+        vfs2::WriteResult result{};
+        if (OsStatus status = handle->write(writeRequest, &result)) {
+            return CallError(status);
+        }
+
+        return CallOk(result.write);
     });
 
     AddSystemCall(eOsCallDeviceInvoke, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
@@ -1567,6 +1624,7 @@ static OsStatus KernelMasterTask() {
         // Spin forever for now, in the future this task will handle
         // top level kernel events.
         //
+        km::YieldCurrentThread();
     }
 
     return OsStatusSuccess;
@@ -1660,12 +1718,12 @@ static void LaunchKernelProcess(LocalIsrTable *table, IApic *apic) {
     MemoryRange pteMemory = gMemory->pmmAllocate(256);
 
     sm::RcuSharedPtr<Process> process = gSystemObjects->createProcess("SYSTEM", x64::Privilege::eSupervisor, &gMemory->pageTables(), pteMemory);
-    sm::RcuSharedPtr<Thread> thread = gSystemObjects->createThread("MASTER", process);
+    sm::RcuSharedPtr<Thread> thread = gSystemObjects->createThread("SYSTEM MASTER TASK", process);
 
     PageFlags flags = PageFlags::eData;
     MemoryType type = MemoryType::eWriteBack;
     km::AddressMapping mapping = gMemory->allocateStack(kKernelStackSize);
-    sm::RcuSharedPtr<AddressSpace> stackSpace = gSystemObjects->createAddressSpace("MASTER STACK", mapping, flags, type, process);
+    sm::RcuSharedPtr<AddressSpace> stackSpace = gSystemObjects->createAddressSpace("SYSTEM MASTER STACK", mapping, flags, type, process);
 
     thread->stack = stackSpace;
     thread->state = km::IsrContext {

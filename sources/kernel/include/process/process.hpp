@@ -3,6 +3,7 @@
 #include <bezos/facility/process.h>
 #include <bezos/facility/threads.h>
 
+#include "log.hpp"
 #include "util/defer.hpp"
 #include "arch/arch.hpp"
 #include "fs2/node.hpp"

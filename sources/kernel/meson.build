@@ -178,6 +178,7 @@ src = [
     'src/devices/ddi.cpp',
     'src/devices/hid.cpp',
     'src/devices/sysfs.cpp',
+    'src/devices/stream.cpp',
 
     # Smp setup
     'src/smp.cpp',

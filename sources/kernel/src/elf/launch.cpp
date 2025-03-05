@@ -191,6 +191,14 @@ static OsStatus AllocateTlsMemory(vfs2::IVfsNodeHandle *file, const elf::Program
     return OsStatusSuccess;
 }
 
+static char toupper(char c) {
+    if (c >= 'a' && c <= 'z') {
+        return c - 'a' + 'A';
+    }
+
+    return c;
+}
+
 OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &memory, SystemObjects &objects, ProcessLaunch *result) {
     vfs2::VfsNodeStat stat{};
     if (OsStatus status = file->stat(&stat)) {
@@ -221,7 +229,12 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
 
     MemoryRange pteMemory = memory.pmmAllocate(256);
 
-    sm::RcuSharedPtr<Process> process = objects.createProcess("INIT", x64::Privilege::eUser, &memory.pageTables(), pteMemory);
+    stdx::String name = stdx::String(file->node->name);
+    for (char& c : name) {
+        c = toupper(c);
+    }
+
+    sm::RcuSharedPtr<Process> process = objects.createProcess(stdx::String(name), x64::Privilege::eUser, &memory.pageTables(), pteMemory);
 
     KmDebugMessage("[ELF] Load memory range: ", loadMemory, "\n");
 
@@ -371,9 +384,10 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
     memset(stack, 0x00, kStackSize);
     memory.unmap(stack, kStackSize);
 
+    name.append(" MAIN");
     sm::RcuSharedPtr<AddressSpace> stackSpace = objects.createAddressSpace("MAIN STACK", mapping, flags, type, process);
 
-    sm::RcuSharedPtr<Thread> main = objects.createThread("MAIN", process);
+    sm::RcuSharedPtr<Thread> main = objects.createThread(stdx::String(name), process);
     main->stack = stackSpace;
 
     regs.rbp = (uintptr_t)mapping.vaddr + kStackSize;

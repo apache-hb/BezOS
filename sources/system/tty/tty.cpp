@@ -75,7 +75,7 @@ static void AssertOsSuccess(OsStatus status, const char (&message)[N]) {
     }
 }
 
-#define ASSERT_OS_SUCCESS(expr) AssertOsSuccess(expr, "Assertion failed: " #expr " != OsStatusSuccess")
+#define ASSERT_OS_SUCCESS(expr) AssertOsSuccess(expr, "tty.elf: Assertion failed: " #expr " != OsStatusSuccess")
 #define ASSERT(expr) Assert(expr, #expr)
 
 static constexpr char kDisplayDevicePath[] = OS_DEVICE_DDI_RAMFB;
@@ -104,6 +104,8 @@ class KeyboardDevice {
 
             mBufferIndex = 0;
             mBufferCount = read / sizeof(OsHidEvent);
+        } else {
+            return OsStatusEndOfFile;
         }
 
         return status;
@@ -249,11 +251,10 @@ public:
         ASSERT_OS_SUCCESS(OsDeviceClose(mDevice));
     }
 
-    OsStatus Write(char c) {
-        char buffer[1] = { c };
+    OsStatus Write(const char *front, const char *back) {
         OsDeviceWriteRequest request {
-            .BufferFront = std::begin(buffer),
-            .BufferBack = std::end(buffer),
+            .BufferFront = front,
+            .BufferBack = back,
             .Timeout = OS_TIMEOUT_INFINITE,
         };
 
@@ -295,26 +296,30 @@ static char ConvertVkToAscii(OsHidKeyEvent event) {
     }
 }
 
-OS_NORETURN void ClientStart(const struct OsClientStartInfo *) {
+OS_EXTERN OS_NORETURN void ClientStart(const struct OsClientStartInfo *) {
     VtDisplay display{};
     KeyboardDevice keyboard{};
 
     OsHidEvent event{};
     char buffer[256];
 
-    StreamDevice tty{OsMakePath("Devices\0Terminal\0TTY0")};
+    StreamDevice ttyin{OsMakePath("Devices\0Terminal\0TTY0\0Input")};
+    StreamDevice ttyout{OsMakePath("Devices\0Terminal\0TTY0\0Output")};
+
+    display.WriteString("Device '/Devices/Terminal/TTY0' is ready.\n");
 
     while (true) {
         while (keyboard.NextEvent(&event)) {
             if (event.Type == eOsHidEventKeyDown) {
                 if (char c = ConvertVkToAscii(event.Body.Key)) {
-                    tty.Write(c);
+                    char buffer[1] = { c };
+                    ttyin.Write(std::begin(buffer), std::end(buffer));
                 }
             }
         }
 
         size_t read = 0;
-        while (tty.Read(std::begin(buffer), std::end(buffer), &read) == OsStatusSuccess) {
+        while (ttyout.Read(std::begin(buffer), std::end(buffer), &read) == OsStatusSuccess && read != 0) {
             display.WriteString(buffer, buffer + read);
         }
 
