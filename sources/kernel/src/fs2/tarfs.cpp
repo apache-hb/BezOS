@@ -156,7 +156,7 @@ OsStatus vfs2::ParseTar(km::BlockDevice *media, TarParseOptions options, sm::BTr
 
         VfsPath path;
         if (OsStatus status = detail::ConvertTarPath(header.name, &path)) {
-            KmDebugMessage("[TARFS] Failed to convert path: ", header.name, " = ", (int)status, "\n");
+            KmDebugMessage("[TARFS] Failed to convert path: ", header.name, " = ", status, "\n");
             return status;
         }
 
@@ -209,7 +209,7 @@ OsStatus TarFsMount::walk(const VfsPath& path, IVfsNode **folder) {
             return status;
         }
 
-        if (!child->isA(VfsNodeType::eFolder)) {
+        if (!child->isA(kOsFolderGuid)) {
             return OsStatusTraverseNonFolder;
         }
 

@@ -9,6 +9,7 @@
 #include <bezos/subsystem/ddi.h>
 #include <bezos/subsystem/identify.h>
 
+#include <concepts>
 #include <flanterm.h>
 #include <backends/fb.h>
 
@@ -232,6 +233,24 @@ public:
     void WriteString(const char (&str)[N]) {
         WriteString(str, str + N - 1);
     }
+
+    template<std::integral T>
+    void WriteNumber(T number) {
+        char buffer[32];
+        char *ptr = buffer + sizeof(buffer);
+        *--ptr = '\0';
+
+        if (number == 0) {
+            *--ptr = '0';
+        } else {
+            while (number != 0) {
+                *--ptr = '0' + (number % 10);
+                number /= 10;
+            }
+        }
+
+        WriteString(ptr, buffer + sizeof(buffer));
+    }
 };
 
 template<size_t N>
@@ -337,6 +356,69 @@ static void SetCurrentFolder(VtDisplay& display, const char *path, char *cwd) {
     }
 }
 
+static void ShowCurrentInfo(VtDisplay& display, const char *cwd) {
+    char copy[1024];
+    memcpy(copy, cwd, sizeof(copy));
+    for (char *ptr = copy; *ptr != '\0'; ptr++) {
+        if (*ptr == '/') {
+            *ptr = '\0';
+        }
+    }
+
+    size_t front = 0;
+    size_t len = strlen(cwd);
+
+    if (copy[0] == '\0') {
+        front += 1;
+    }
+
+    OsDeviceCreateInfo createInfo {
+        .NameFront = copy + front,
+        .NameBack = copy + len,
+        .InterfaceGuid = kOsIdentifyGuid,
+    };
+
+    OsDeviceHandle handle = OS_HANDLE_INVALID;
+    ASSERT_OS_SUCCESS(OsDeviceOpen(createInfo, &handle));
+
+    OsIdentifyInfo info{};
+    ASSERT_OS_SUCCESS(OsInvokeIdentifyDeviceInfo(handle, &info));
+
+    display.WriteString("Name = ");
+    display.WriteString(info.DisplayName, info.DisplayName + strlen(info.DisplayName));
+    display.WriteString("\n");
+
+    display.WriteString("Model = ");
+    display.WriteString(info.Model, info.Model + strlen(info.Model));
+    display.WriteString("\n");
+
+    display.WriteString("Serial = ");
+    display.WriteString(info.Serial, info.Serial + strlen(info.Serial));
+    display.WriteString("\n");
+
+    display.WriteString("DeviceVendor = ");
+    display.WriteString(info.DeviceVendor, info.DeviceVendor + strlen(info.DeviceVendor));
+    display.WriteString("\n");
+
+    display.WriteString("FirmwareRevision = ");
+    display.WriteString(info.FirmwareRevision, info.FirmwareRevision + strlen(info.FirmwareRevision));
+    display.WriteString("\n");
+
+    display.WriteString("DriverVendor = ");
+    display.WriteString(info.DriverVendor, info.DriverVendor + strlen(info.DriverVendor));
+    display.WriteString("\n");
+
+    display.WriteString("DriverVersion = ");
+    display.WriteNumber(OS_VERSION_MAJOR(info.DriverVersion));
+    display.WriteString(".");
+    display.WriteNumber(OS_VERSION_MINOR(info.DriverVersion));
+    display.WriteString(".");
+    display.WriteNumber(OS_VERSION_PATCH(info.DriverVersion));
+    display.WriteString("\n");
+
+    ASSERT_OS_SUCCESS(OsDeviceClose(handle));
+}
+
 // rdi: first argument
 // rsi: last argument
 // rdx: reserved
@@ -412,6 +494,10 @@ extern "C" [[noreturn]] void ClientStart(const void*, const void*, uint64_t) {
             } else if (strncmp(text, "cd", 2) == 0) {
                 const char *path = text + 3;
                 SetCurrentFolder(display, path, cwd);
+                Prompt(display);
+                continue;
+            } else if (strncmp(text, "show", 4) == 0) {
+                ShowCurrentInfo(display, cwd);
                 Prompt(display);
                 continue;
             }

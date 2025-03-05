@@ -2,6 +2,7 @@
 
 #include <bezos/status.h>
 #include <bezos/subsystem/identify.h>
+#include <bezos/subsystem/fs.h>
 
 #include "fs2/path.hpp"
 
@@ -145,9 +146,7 @@ namespace vfs2 {
     public:
         using FolderContainer = sm::BTreeMap<VfsString, IVfsNode*, std::less<>>;
 
-        IVfsNode()
-            : IVfsNode(VfsNodeType::eNone)
-        { }
+        IVfsNode() : IVfsNode(VfsNodeType::eNone) { }
 
         IVfsNode(VfsNodeType type);
 
@@ -192,15 +191,18 @@ namespace vfs2 {
             KM_CHECK(ok, "Failed to add interface.");
         }
 
+        void installFolderInterface();
+        void installFileInterface();
+
     public:
         auto begin() const { return mChildren.begin(); }
         auto end() const { return mChildren.end(); }
 
         OsIdentifyInfo info() const { return mIdentifyInfo; }
 
-        bool isA(VfsNodeType category) const { return mType == category; }
-
-        virtual bool isA(sm::uuid) const { return false; }
+        virtual bool isA(sm::uuid guid) const {
+            return mInterfaces.contains(guid);
+        }
 
         /// @brief Read a range of bytes from the file.
         ///

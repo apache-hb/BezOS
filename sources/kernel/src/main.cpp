@@ -21,6 +21,7 @@
 #include "delay.hpp"
 #include "devices/ddi.hpp"
 #include "devices/hid.hpp"
+#include "devices/sysfs.hpp"
 #include "display.hpp"
 #include "drivers/block/ramblk.hpp"
 #include "elf.hpp"
@@ -856,7 +857,6 @@ static void MountRootVfs() {
     MakePath("System", "UNIX");
 
     MakePath("Devices");
-    MakePath("Computer");
     MakePath("Processes");
 
     MakeUser("Guest");
@@ -882,6 +882,18 @@ static void MountRootVfs() {
 
         if (OsStatus status = motd->write(request, &result)) {
             KmDebugMessage("[VFS] Failed to write file: ", status, "\n");
+        }
+    }
+}
+
+static void CreatePlatformVfsNodes(const km::SmBiosTables *smbios) {
+    MakePath("Platform");
+
+    {
+        vfs2::IVfsNode *node = new dev::SmBiosTables(smbios);
+
+        if (OsStatus status = gVfsRoot->mkdevice(vfs2::BuildPath("Platform", "SMBIOS"), node)) {
+            KmDebugMessage("[VFS] Failed to create SMBIOS device: ", status, "\n");
         }
     }
 }
@@ -1704,21 +1716,22 @@ void LaunchKernel(boot::LaunchInfo launch) {
     InitStage1Idt(SystemGdt::eLongModeCode);
     EnableInterrupts();
 
-    PlatformInfo platform{};
     SmBiosLoadOptions smbiosOptions {
         .smbios32Address = launch.smbios32Address,
         .smbios64Address = launch.smbios64Address,
     };
 
-    if (OsStatus status = ReadSmbiosTables(smbiosOptions, *gMemory, &platform)) {
-        KmDebugMessage("[INIT] Failed to read SMBIOS tables: ", status, "\n");
+    km::SmBiosTables smbios{};
+
+    if (OsStatus status = FindSmbiosTables(smbiosOptions, *gMemory, &smbios)) {
+        KmDebugMessage("[INIT] Failed to find SMBIOS tables: ", status, "\n");
     }
 
     //
     // On Oracle VirtualBox the COM1 port is functional but fails the loopback test.
     // If we are running on VirtualBox, retry the serial port initialization without the loopback test.
     //
-    if (com1Status == SerialPortStatus::eLoopbackTestFailed && platform.isOracleVirtualBox()) {
+    if (com1Status == SerialPortStatus::eLoopbackTestFailed && smbios.isOracleVirtualBox()) {
         UpdateSerialPort(com1Info);
         UpdateCanSerialPort(com2Info);
     }
@@ -1773,6 +1786,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     KmDebugMessage("[INIT] Current time: ", time.year, "-", time.month, "-", time.day, "T", time.hour, ":", time.minute, ":", time.second, "Z\n");
 
     MountRootVfs();
+    CreatePlatformVfsNodes(&smbios);
     MountVolatileFolder();
     MountInitArchive(launch.initrd, *stage2->memory);
 

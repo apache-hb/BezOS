@@ -55,7 +55,7 @@ OsStatus VfsRoot::lookupUnlocked(const VfsPath& path, IVfsNode **node) {
             return status;
         }
 
-        if (child->isA(VfsNodeType::eFolder)) {
+        if (child->isA(kOsFolderGuid)) {
             //
             // If the current node is a folder we can continue
             // walking down the tree.
@@ -183,7 +183,7 @@ OsStatus VfsRoot::remove(IVfsNode *node) {
     // remove is only valid on files, each inode type
     // has its own method for removal.
     //
-    if (!node->isA(VfsNodeType::eFile)) {
+    if (!node->isA(kOsFileGuid)) {
         return OsStatusInvalidType;
     }
 
@@ -234,7 +234,7 @@ OsStatus VfsRoot::open(const VfsPath& path, IVfsNodeHandle **handle) {
     // is not a file then we must return an error.
     //
 
-    if (!file->isA(VfsNodeType::eFile)) {
+    if (!file->isA(kOsFileGuid)) {
         return OsStatusInvalidType;
     }
 
@@ -259,7 +259,7 @@ OsStatus VfsRoot::opendir(const VfsPath& path, IVfsNodeHandle **handle) {
     // is not a folder then we must return an error.
     //
 
-    if (!folder->isA(VfsNodeType::eFolder)) {
+    if (!folder->isA(kOsFolderGuid)) {
         return OsStatusInvalidType;
     }
 
@@ -289,7 +289,7 @@ OsStatus VfsRoot::rmdir(IVfsNode *node) {
     // rmdir is only valid on folders, each inode type
     // has its own method for removal.
     //
-    if (!node->isA(VfsNodeType::eFolder)) {
+    if (!node->isA(kOsFolderGuid)) {
         return OsStatusInvalidType;
     }
 
@@ -335,7 +335,7 @@ OsStatus VfsRoot::mkpath(const VfsPath& path, IVfsNode **node) {
             // If there is an inode then we must ensure it's
             // a folder before continuing traversal.
             //
-            if (!child->isA(VfsNodeType::eFolder)) {
+            if (!child->isA(kOsFolderGuid)) {
                 return OsStatusTraverseNonFolder;
             }
         } else if (lookupStatus == OsStatusNotFound) {

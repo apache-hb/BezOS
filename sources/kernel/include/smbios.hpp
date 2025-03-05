@@ -1,5 +1,6 @@
 #pragma once
 
+#include "log.hpp"
 #include "memory.hpp"
 #include "std/static_string.hpp"
 #include "util/signature.hpp"
@@ -71,7 +72,6 @@ namespace km {
             uint8_t build;
             uint8_t romSize;
             uint64_t characteristics;
-            uint8_t reserved0[1];
         };
 
         struct [[gnu::packed]] SystemInfo {
@@ -85,10 +85,37 @@ namespace km {
             uint8_t skuNumber;
             uint8_t family;
         };
+
+        constexpr stdx::StringView TableName(StructType type) {
+            switch (type) {
+            case StructType::eFirmwareInfo: return "Firmware Information";
+            case StructType::eSystemInfo: return "System Information";
+            case StructType::eSystemEnclosure: return "System Enclosure";
+            case StructType::eProcessor: return "Processor Information";
+            case StructType::eSystemSlots: return "System Slots";
+            case StructType::eMemoryDevice: return "Memory Device";
+            case StructType::eBootInfo: return "Boot Information";
+            default: return "Unknown";
+            }
+        }
+
+        namespace detail {
+            stdx::StringView GetStringEntry(const StructHeader *header, uint8_t string);
+        }
+
+        template<typename T>
+        stdx::StringView GetStringEntry(const T *entry, uint8_t string) {
+            return detail::GetStringEntry(reinterpret_cast<const StructHeader*>(entry), string);
+        }
+
+        // TODO: the firmware table can have extended fields
+        static_assert(sizeof(FirmwareInfo) == 18);
+        static_assert(sizeof(SystemInfo) == 27);
+
+        static constexpr stdx::StringView kOracleVirtualBox = "innotek GmbH";
     }
 
     struct PlatformInfo {
-        static constexpr stdx::StringView kOracleVirtualBox = "innotek GmbH";
 
         using BiosString = stdx::StaticString<64>;
 
@@ -114,29 +141,47 @@ namespace km {
     };
 
     class SmBiosIterator {
+        size_t mSize;
         const char *mAddress;
+
+        const char *next(const char *address) {
+            const auto *info = reinterpret_cast<const smbios::StructHeader*>(address);
+            address += info->length;
+            while (true) {
+                while (*address != '\0')
+                    address += 1;
+
+                if (*(address + 1) == '\0')
+                    break;
+
+                address += 1;
+            }
+
+            address += 2;
+
+            return address;
+        }
 
     public:
         SmBiosIterator(const void *address)
-            : mAddress((char*)address)
+            : mSize(0)
+            , mAddress((char*)address)
         { }
 
-        const smbios::StructHeader *header() const {
-            return reinterpret_cast<const smbios::StructHeader*>(mAddress);
-        }
-
         const smbios::StructHeader *operator*() const {
-            return header();
+            return reinterpret_cast<const smbios::StructHeader*>(mAddress - mSize);
         }
 
         SmBiosIterator& operator++() {
-            const auto *info = header();
-            mAddress += info->length;
+            const char *address = next(mAddress);
+            mSize = address - mAddress;
+            KmDebugMessage("[SMBIOS] Next: ", mSize, "\n");
+            mAddress = address;
             return *this;
         }
 
         constexpr bool operator!=(const SmBiosIterator& other) const {
-            return mAddress >= other.mAddress;
+            return mAddress < other.mAddress;
         }
     };
 
@@ -151,6 +196,34 @@ namespace km {
 
         SmBiosIterator end() const {
             return SmBiosIterator(tables.back);
+        }
+
+        const smbios::FirmwareInfo *firmwareInfo() const {
+            for (const smbios::StructHeader *header : *this) {
+                if (header->type == smbios::StructType::eFirmwareInfo) {
+                    return reinterpret_cast<const smbios::FirmwareInfo*>(header);
+                }
+            }
+
+            return nullptr;
+        }
+
+        const smbios::SystemInfo *systemInfo() const {
+            for (const smbios::StructHeader *header : *this) {
+                if (header->type == smbios::StructType::eSystemInfo) {
+                    return reinterpret_cast<const smbios::SystemInfo*>(header);
+                }
+            }
+
+            return nullptr;
+        }
+
+        bool isOracleVirtualBox() const {
+            if (const smbios::SystemInfo *system = systemInfo()) {
+                return smbios::GetStringEntry(system, system->manufacturer) == smbios::kOracleVirtualBox;
+            }
+
+            return false;
         }
     };
 

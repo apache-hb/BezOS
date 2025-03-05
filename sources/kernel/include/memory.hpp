@@ -31,6 +31,7 @@ namespace km {
         void release(void *ptr, size_t size);
 
         void unmap(void *ptr, size_t size);
+        void unmap(VirtualRange range) { ptes.unmap(range); }
 
         AddressMapping allocateStack(size_t size);
 

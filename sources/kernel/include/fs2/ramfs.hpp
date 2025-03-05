@@ -13,7 +13,9 @@ namespace vfs2 {
 
     class RamFsNode : public IVfsNode {
     public:
-        RamFsNode() : IVfsNode() { }
+        RamFsNode(VfsNodeType type)
+            : IVfsNode(type)
+        { }
     };
 
     class RamFsFile : public RamFsNode {
@@ -21,7 +23,9 @@ namespace vfs2 {
         stdx::SharedSpinLock mLock;
 
     public:
-        RamFsFile() : RamFsNode() { }
+        RamFsFile()
+            : RamFsNode(VfsNodeType::eFile)
+        { }
 
         OsStatus read(ReadRequest request, ReadResult *result) override;
         OsStatus write(WriteRequest request, WriteResult *result) override;
@@ -30,9 +34,9 @@ namespace vfs2 {
 
     class RamFsFolder : public RamFsNode {
     public:
-        RamFsFolder() : RamFsNode() {
-            mType = VfsNodeType::eFolder;
-        }
+        RamFsFolder()
+            : RamFsNode(VfsNodeType::eFolder)
+        { }
 
         OsStatus create(IVfsNode **node) override;
         OsStatus remove(IVfsNode *node) override;

@@ -6,7 +6,7 @@
         * `/System/NT` windows NT compatibility
         * `/System/UNIX` unix compatibility
     * `/Devices` device objects. `/dev/`, global fs namespace on NT.
-    * `/Computer` installed hardware. `/sys/`
+    * `/Platform` installed hardware. `/sys/`
     * `/Processes` process filesystem. `/proc/`
     * `/Users` per user data.
         * `/Users/Guest`

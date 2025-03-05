@@ -45,8 +45,34 @@ constexpr bool TestEntryChecksum(std::span<const uint8_t> bytes, stdx::StringVie
     return sum == 0;
 }
 
-bool km::PlatformInfo::isOracleVirtualBox() const {
-    return vendor == kOracleVirtualBox;
+stdx::StringView km::smbios::detail::GetStringEntry(const StructHeader *header, uint8_t string) {
+    if (string == 0) {
+        return "Not specified"_sv;
+    }
+
+    const char *front = (const char*)((const char*)header + header->length);
+    const char *back = front;
+
+    while (true) {
+        while (*back != '\0') {
+            back++;
+        }
+
+        if (*(back + 1) == '\0') {
+            break;
+        }
+
+        stdx::StringView entry = stdx::StringView(front, back);
+
+        if (--string == 0) {
+            return entry;
+        }
+
+        back++;
+        front = back;
+    }
+
+    return "Invalid index"_sv;
 }
 
 /// @brief Read an SMBIOS entry from the given pointer.
@@ -120,26 +146,6 @@ static OsStatus FindSmbios64(km::PhysicalAddress address, bool ignoreChecksum, k
     return OsStatusSuccess;
 }
 
-static OsStatus ReadSmbios64(km::PhysicalAddress address, bool ignoreChecksum, km::SystemMemory& memory, km::PlatformInfo *info) {
-    const smbios::Entry64 *smbios = nullptr;
-    if (OsStatus status = FindSmbios64(address, ignoreChecksum, memory, &smbios)) {
-        return status;
-    }
-
-    defer { memory.unmap((void*)smbios, sizeof(smbios::Entry64)); };
-
-    auto [ptr, end] = SmBiosMapTable(smbios, memory);
-
-    km::PlatformInfo result{};
-
-    while (ptr < end) {
-        ptr = ReadSmbiosEntry(result, ptr);
-    }
-
-    *info = result;
-    return OsStatusSuccess;
-}
-
 static OsStatus FindSmbios32(km::PhysicalAddress address, bool ignoreChecksum, km::SystemMemory& memory, const smbios::Entry32 **entry) {
     const auto *smbios = memory.mapConst<smbios::Entry32>(address);
 
@@ -167,17 +173,28 @@ static OsStatus FindSmbios32(km::PhysicalAddress address, bool ignoreChecksum, k
     return OsStatusSuccess;
 }
 
-static OsStatus ReadSmbios32(km::PhysicalAddress address, bool ignoreChecksum, km::SystemMemory& memory, km::PlatformInfo *info) {
-    const smbios::Entry32 *smbios = nullptr;
-    if (OsStatus status = FindSmbios32(address, ignoreChecksum, memory, &smbios)) {
+OsStatus km::ReadSmbiosTables(SmBiosLoadOptions options, km::SystemMemory& memory, PlatformInfo *info [[gnu::nonnull]]) {
+    SmBiosTables tables{};
+    if (OsStatus status = FindSmbiosTables(options, memory, &tables)) {
         return status;
     }
 
-    defer { memory.unmap((void*)smbios, sizeof(smbios::Entry32)); };
+    defer {
+        if (!tables.tables.isEmpty()) {
+            memory.unmap(tables.tables);
+        }
 
-    auto [ptr, end] = SmBiosMapTable(smbios, memory);
+        if (tables.entry32 != nullptr) {
+            memory.unmap((void*)tables.entry32, sizeof(smbios::Entry32));
+        }
 
-    km::PlatformInfo result;
+        if (tables.entry64 != nullptr) {
+            memory.unmap((void*)tables.entry64, sizeof(smbios::Entry64));
+        }
+    };
+
+    auto [ptr, end] = tables.tables;
+    km::PlatformInfo result{};
 
     while (ptr < end) {
         ptr = ReadSmbiosEntry(result, ptr);
@@ -185,29 +202,6 @@ static OsStatus ReadSmbios32(km::PhysicalAddress address, bool ignoreChecksum, k
 
     *info = result;
     return OsStatusSuccess;
-}
-
-OsStatus km::ReadSmbiosTables(SmBiosLoadOptions options, km::SystemMemory& memory, PlatformInfo *info [[gnu::nonnull]]) {
-    //
-    // Store the status as a local so that we can return the last error if both fail.
-    //
-    OsStatus status = OsStatusNotFound;
-
-    if (options.smbios64Address != nullptr && !options.ignore64BitEntry) {
-        status = ReadSmbios64(options.smbios64Address, options.ignoreChecksum, memory, info);
-        if (status == OsStatusSuccess) {
-            return status;
-        }
-    }
-
-    if (options.smbios32Address != nullptr && !options.ignore32BitEntry) {
-        status = ReadSmbios32(options.smbios32Address, options.ignoreChecksum, memory, info);
-        if (status == OsStatusSuccess) {
-            return status;
-        }
-    }
-
-    return OsStatusNotFound;
 }
 
 OsStatus km::FindSmbiosTables(SmBiosLoadOptions options, km::SystemMemory& memory, SmBiosTables *tables [[gnu::nonnull]]) {

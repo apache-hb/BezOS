@@ -24,12 +24,12 @@ struct OsProcessInfo {
 };
 
 inline OsStatus OsInvokeProcessGetInfo(OsDeviceHandle Handle, struct OsProcessInfo *OutInfo) {
-    return OsDeviceCall(Handle, eOsProcessInfo, OutInfo);
+    return OsDeviceCall(Handle, eOsProcessInfo, OutInfo, sizeof(struct OsProcessInfo));
 }
 
 #define OS_DEVICE_PROCESS_LIST "Processes"
 
-OS_DEFINE_GUID(kOsSystemTasksGuid, 0x0e36758a, 0xf70a, 0x11ef, 0x9b0c, 0x0b306adc6cfa);
+OS_DEFINE_GUID(kOsTaskListGuid, 0x0e36758a, 0xf70a, 0x11ef, 0x9b0c, 0x0b306adc6cfa);
 
 enum {
     eOsProcessListGet = UINT64_C(0),
@@ -41,7 +41,7 @@ struct OsProcessListData {
 };
 
 inline OsStatus OsInvokeProcessListGet(OsDeviceHandle Handle, struct OsProcessListData *OutData) {
-    return OsDeviceCall(Handle, eOsProcessListGet, OutData);
+    return OsDeviceCall(Handle, eOsProcessListGet, OutData, sizeof(struct OsProcessListData));
 }
 
 #ifdef __cplusplus

@@ -177,6 +177,7 @@ src = [
     # Devices
     'src/devices/ddi.cpp',
     'src/devices/hid.cpp',
+    'src/devices/sysfs.cpp',
 
     # Smp setup
     'src/smp.cpp',

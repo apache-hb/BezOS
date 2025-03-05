@@ -1,8 +1,15 @@
 #include "fs2/node.hpp"
 #include "fs2/device.hpp"
-#include "log.hpp"
 
 using namespace vfs2;
+
+static OsStatus OpenCallback(IVfsNode *node, IVfsNodeHandle **handle) {
+    return node->open(handle);
+}
+
+static OsStatus FolderCallback(IVfsNode *node, IVfsNodeHandle **handle) {
+    return node->opendir(handle);
+}
 
 IVfsNode::~IVfsNode() {
     for (auto& [_, inode] : mChildren) {
@@ -14,6 +21,20 @@ IVfsNode::IVfsNode(VfsNodeType type)
     : mType(type)
 {
     addInterface<VfsIdentifyHandle>(kOsIdentifyGuid);
+
+    if (type == vfs2::VfsNodeType::eFile) {
+        installFileInterface();
+    } else if (type == vfs2::VfsNodeType::eFolder) {
+        installFolderInterface();
+    }
+}
+
+void IVfsNode::installFolderInterface() {
+    mInterfaces.insert({ kOsFolderGuid, FolderCallback });
+}
+
+void IVfsNode::installFileInterface() {
+    mInterfaces.insert({ kOsFileGuid, OpenCallback });
 }
 
 void IVfsNode::initNode(IVfsNode *node, VfsStringView name, VfsNodeType type) {
@@ -21,23 +42,24 @@ void IVfsNode::initNode(IVfsNode *node, VfsStringView name, VfsNodeType type) {
     node->parent = this;
     node->mType = type;
     node->mount = mount;
+
+    if (node->mType == vfs2::VfsNodeType::eFile) {
+        node->installFileInterface();
+    } else if (node->mType == vfs2::VfsNodeType::eFolder) {
+        node->installFolderInterface();
+    }
 }
 
 OsStatus IVfsNode::query(sm::uuid uuid, IVfsNodeHandle **handle) {
-    KmDebugMessage("[VFS] Query Interface: ", uuid, "\n");
-
     if (auto it = mInterfaces.find(uuid); it != mInterfaces.end()) {
-        KmDebugMessage("[VFS] Found Interface: ", it->first, "\n");
         return it->second(this, handle);
     }
-
-    KmDebugMessage("[VFS] Interface not found: ", uuid, "\n");
 
     return OsStatusNotSupported;
 }
 
 OsStatus IVfsNode::open(IVfsNodeHandle **handle) {
-    if (!isA(VfsNodeType::eFile)) {
+    if (!isA(kOsFileGuid)) {
         return OsStatusInvalidType;
     }
 
@@ -51,7 +73,7 @@ OsStatus IVfsNode::open(IVfsNodeHandle **handle) {
 }
 
 OsStatus IVfsNode::opendir(IVfsNodeHandle **handle) {
-    if (!isA(VfsNodeType::eFolder)) {
+    if (!isA(kOsFolderGuid)) {
         return OsStatusInvalidType;
     }
 
@@ -65,7 +87,7 @@ OsStatus IVfsNode::opendir(IVfsNodeHandle **handle) {
 }
 
 OsStatus IVfsNode::lookup(VfsStringView name, IVfsNode **child) {
-    if (!isA(VfsNodeType::eFolder)) {
+    if (!isA(kOsFolderGuid)) {
         return OsStatusInvalidType;
     }
 
@@ -80,7 +102,7 @@ OsStatus IVfsNode::lookup(VfsStringView name, IVfsNode **child) {
 }
 
 OsStatus IVfsNode::addFile(VfsStringView name, IVfsNode **child) {
-    if (!isA(VfsNodeType::eFolder)) {
+    if (!isA(kOsFolderGuid)) {
         return OsStatusInvalidType;
     }
 
@@ -111,7 +133,7 @@ OsStatus IVfsNode::addFile(VfsStringView name, IVfsNode **child) {
 }
 
 OsStatus IVfsNode::addFolder(VfsStringView name, IVfsNode **child) {
-    if (!isA(VfsNodeType::eFolder)) {
+    if (!isA(kOsFolderGuid)) {
         return OsStatusInvalidType;
     }
 
@@ -131,7 +153,7 @@ OsStatus IVfsNode::addFolder(VfsStringView name, IVfsNode **child) {
 }
 
 OsStatus IVfsNode::addNode(VfsStringView name, IVfsNode *node) {
-    if (!isA(VfsNodeType::eFolder)) {
+    if (!isA(kOsFolderGuid)) {
         return OsStatusInvalidType;
     }
 
