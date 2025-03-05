@@ -332,9 +332,6 @@ static bool VfsNodeExists(const char *path, const char *cwd) {
         strcat(copy, path);
     }
 
-    OsDebugLog(copy, copy + strlen(copy));
-    DebugLog("\n");
-
     size_t front = 0;
     size_t len = strlen(copy);
 
