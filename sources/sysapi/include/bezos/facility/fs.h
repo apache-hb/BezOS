@@ -72,18 +72,48 @@ enum {
 };
 
 struct OsFileStat {
-    const char *PathFront;
-    const char *PathBack;
-
+    /// @brief The logical size of the file.
+    ///
+    /// This is the size of the files contents ignoring any bookkeeping data.
     uint64_t LogicalSize;
-    uint64_t PhysicalSize;
+
+    /// @brief The number of blocks on disk used by the file.
+    uint64_t BlockCount;
+
+    /// @brief The size of a block on the disk and filesystem.
+    uint64_t BlockSize;
+
+    /// @brief When the file was created.
+    OsInstant CreationTime;
+
+    /// @brief The last time the file was read or written.
+    OsInstant LastAccessTime;
+
+    /// @brief The last time the file was written to.
+    OsInstant LastWriteTime;
 };
 
 struct OsFileCreateInfo {
-    const char *PathFront;
-    const char *PathBack;
+    struct OsPath Path;
 
     OsFileOpenMode Mode;
+};
+
+struct OsFileReadRequest {
+    void *BufferFront;
+    void *BufferBack;
+    OsInstant Timeout;
+};
+
+struct OsFileWriteRequest {
+    const void *BufferFront;
+    const void *BufferBack;
+    OsInstant Timeout;
+};
+
+struct OsFileSeekRequest {
+    OsSeekMode Mode;
+    int64_t Offset;
 };
 
 /// @brief Open or create a file.
@@ -174,8 +204,7 @@ typedef uint16_t OsFolderEntryType;
 typedef uint16_t OsFolderEntryNameSize;
 
 struct OsFolderIterateCreateInfo {
-    const char *PathFront;
-    const char *PathBack;
+    struct OsPath Path;
 };
 
 struct OsFolderEntry {

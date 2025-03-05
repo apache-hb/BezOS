@@ -9,7 +9,11 @@ extern "C" {
 struct OsClientStartInfo {
     const char *ArgumentsFront;
     const char *ArgumentsBack;
+
+    OsProcessHandle ParentProcess;
 };
+
+OS_EXTERN OS_NORETURN void ClientStart(const struct OsClientStartInfo *);
 
 #ifdef __cplusplus
 }

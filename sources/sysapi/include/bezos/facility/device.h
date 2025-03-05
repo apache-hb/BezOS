@@ -6,11 +6,18 @@
 extern "C" {
 #endif
 
+typedef uint64_t OsDeviceCreateFlags;
+
+enum {
+    eOsDeviceCreateNone = 0,
+};
+
 struct OsDeviceCreateInfo {
-    const char *NameFront;
-    const char *NameBack;
+    struct OsPath Path;
 
     struct OsGuid InterfaceGuid;
+
+    OsDeviceCreateFlags Flags;
 };
 
 struct OsDeviceReadRequest {

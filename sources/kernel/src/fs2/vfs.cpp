@@ -244,6 +244,10 @@ OsStatus VfsRoot::open(const VfsPath& path, IVfsNodeHandle **handle) {
 OsStatus VfsRoot::opendir(const VfsPath& path, IVfsNodeHandle **handle) {
     stdx::UniqueLock guard(mLock);
 
+    if (path.segmentCount() == 0) {
+        return mRootNode->opendir(handle);
+    }
+
     IVfsNode *parent = nullptr;
     if (OsStatus status = walk(path, &parent)) {
         return status;
@@ -392,6 +396,13 @@ OsStatus VfsRoot::mkdevice(const VfsPath& path, IVfsNode *device) {
 OsStatus VfsRoot::device(const VfsPath& path, sm::uuid interface, IVfsNodeHandle **handle) {
     stdx::UniqueLock guard(mLock);
 
+    //
+    // If the path is empty then we are querying the root node.
+    //
+    if (path.segmentCount() == 0) {
+        return mRootNode->query(interface, handle);
+    }
+
     IVfsNode *parent = nullptr;
     if (OsStatus status = walk(path, &parent)) {
         return status;
@@ -406,10 +417,5 @@ OsStatus VfsRoot::device(const VfsPath& path, sm::uuid interface, IVfsNodeHandle
     // All vfs nodes are devices, so there is no need to check before querying for an interface.
     //
 
-    OsStatus status = device->query(interface, handle);
-    if (status != OsStatusSuccess) {
-        KmDebugMessage("[VFS] Failed to query device: '", path, "':", interface, " ", status, "\n");
-    }
-
-    return status;
+    return device->query(interface, handle);
 }

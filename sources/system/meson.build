@@ -31,3 +31,12 @@ executable('shell.elf', src,
     install_dir : get_option('prefix'),
     dependencies : [ flanterm, tlsf ],
 )
+
+src = [ 'tty/tty.cpp', ]
+
+executable('tty.elf', src,
+    link_args : args,
+    install : true,
+    install_dir : get_option('prefix'),
+    dependencies : [ flanterm, tlsf ],
+)

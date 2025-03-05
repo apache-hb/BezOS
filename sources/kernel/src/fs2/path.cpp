@@ -58,6 +58,11 @@ VfsPathConstIterator VfsPath::end() const {
 }
 
 size_t VfsPath::segmentCount() const {
+    //
+    // The root path is represented by the empty string.
+    //
+    if (mPath.isEmpty()) return 0;
+
     return std::ranges::count(mPath, OS_PATH_SEPARATOR) + 1;
 }
 
@@ -79,10 +84,10 @@ VfsStringView VfsPath::name() const {
 
 bool vfs2::VerifyPathText(VfsStringView text) {
     //
-    // Empty paths are invalid
+    // Empty paths are the root path.
     //
     if (text.isEmpty()) {
-        return false;
+        return true;
     }
 
     //

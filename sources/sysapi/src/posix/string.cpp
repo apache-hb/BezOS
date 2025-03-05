@@ -85,3 +85,41 @@ char *strncpy(char *dst, const char *src, size_t n) noexcept {
 
     return (dst + n);
 }
+
+char *strcat(char *dst, const char *src) noexcept {
+    char *result = dst;
+
+    while (*dst) {
+        dst++;
+    }
+
+    while (*src) {
+        *dst++ = *src++;
+    }
+
+    *dst = '\0';
+
+    return result;
+}
+
+char *strncat(char *dst, const char *src, size_t n) noexcept {
+    char *result = dst;
+
+    while (*dst) {
+        dst++;
+    }
+
+    for (size_t i = 0; i < n; i++) {
+        *dst = src[i];
+
+        if (src[i] == '\0') {
+            return result;
+        }
+
+        dst++;
+    }
+
+    *dst = '\0';
+
+    return result;
+}

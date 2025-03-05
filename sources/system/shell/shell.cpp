@@ -134,8 +134,7 @@ class KeyboardDevice {
 public:
     KeyboardDevice() {
         OsDeviceCreateInfo createInfo = {
-            .NameFront = std::begin(kKeyboardDevicePath),
-            .NameBack = std::end(kKeyboardDevicePath) - 1,
+            .Path = OsMakePath(kKeyboardDevicePath),
 
             .InterfaceGuid = kOsHidClassGuid,
         };
@@ -176,8 +175,7 @@ class VtDisplay {
 public:
     VtDisplay() {
         OsDeviceCreateInfo createInfo = {
-            .NameFront = std::begin(kDisplayDevicePath),
-            .NameBack = std::end(kDisplayDevicePath) - 1,
+            .Path = OsMakePath(kDisplayDevicePath),
 
             .InterfaceGuid = kOsDisplayClassGuid,
         };
@@ -256,8 +254,7 @@ public:
 template<size_t N>
 static OsStatus OpenFile(const char (&path)[N], OsFileHandle *outHandle) {
     OsFileCreateInfo createInfo {
-        .PathFront = std::begin(path),
-        .PathBack = std::end(path) - 1,
+        .Path = OsMakePath(path),
         .Mode = eOsFileRead,
     };
 
@@ -271,7 +268,7 @@ static void Prompt(VtDisplay& display) {
 static void ListCurrentFolder(VtDisplay& display, const char *path) {
     alignas(OsFolderEntry) char buffer[1024];
 
-    char copy[1024];
+    char copy[1024]{};
     memcpy(copy, path, sizeof(copy));
     for (char *ptr = copy; *ptr != '\0'; ptr++) {
         if (*ptr == '/') {
@@ -287,12 +284,24 @@ static void ListCurrentFolder(VtDisplay& display, const char *path) {
     }
 
     OsFolderIterateCreateInfo createInfo {
-        .PathFront = copy + front,
-        .PathBack = copy + len,
+        .Path = { copy + front, copy + len },
     };
 
+    if (strncmp(path, "/", 2) == 0) {
+        createInfo.Path = OsMakePath("");
+    }
+
     OsFolderIteratorHandle handle = OS_FOLDER_ITERATOR_INVALID;
-    ASSERT_OS_SUCCESS(OsFolderIterateCreate(createInfo, &handle));
+    if (OsStatus status = OsFolderIterateCreate(createInfo, &handle)) {
+        display.WriteString("Error: '");
+        display.WriteString(path, path + strlen(path));
+        display.WriteString("' is not a folder.\n");
+        display.WriteString("Status: ");
+        display.WriteNumber(status);
+        display.WriteString("\n");
+
+        return;
+    }
 
     OsFolderEntry *iter = reinterpret_cast<OsFolderEntry*>(buffer);
 
@@ -310,27 +319,43 @@ static void ListCurrentFolder(VtDisplay& display, const char *path) {
     }
 }
 
-static bool VfsNodeExists(const char *path) {
-    char copy[1024];
-    memcpy(copy, path, sizeof(copy));
-    for (char *ptr = copy; *ptr != '\0'; ptr++) {
-        if (*ptr == '/') {
-            *ptr = '\0';
-        }
+static bool VfsNodeExists(const char *path, const char *cwd) {
+    char copy[1024]{};
+
+    if (path[0] == '/') {
+        strcpy(copy, path);
+    } else if (strncmp(cwd, "/", 2) == 0) {
+        strcpy(copy, path);
+    } else {
+        strcpy(copy, cwd);
+        strcat(copy, "/");
+        strcat(copy, path);
     }
 
+    OsDebugLog(copy, copy + strlen(copy));
+    DebugLog("\n");
+
     size_t front = 0;
-    size_t len = strlen(path);
+    size_t len = strlen(copy);
+
+    for (char& c : copy) {
+        if (c == '/') {
+            c = '\0';
+        }
+    }
 
     if (copy[0] == '\0') {
         front += 1;
     }
 
     OsDeviceCreateInfo createInfo {
-        .NameFront = copy + front,
-        .NameBack = copy + len,
+        .Path = { copy + front, copy + len },
         .InterfaceGuid = kOsIdentifyGuid,
     };
+
+    if (strncmp(path, "/", 2) == 0) {
+        createInfo.Path = OsMakePath("");
+    }
 
     OsDeviceHandle handle = OS_HANDLE_INVALID;
     OsStatus status = OsDeviceOpen(createInfo, &handle);
@@ -345,14 +370,24 @@ static bool VfsNodeExists(const char *path) {
 static constexpr size_t kCwdSize = 1024;
 
 static void SetCurrentFolder(VtDisplay& display, const char *path, char *cwd) {
-    if (!VfsNodeExists(path)) {
+    if (!VfsNodeExists(path, cwd)) {
         display.WriteString("Path '");
         display.WriteString(path, path + strlen(path));
         display.WriteString("' does not exist.\n");
-        return;
     } else {
-        memset(cwd, 0, kCwdSize);
-        strncpy(cwd, path, kCwdSize);
+        if (path[0] == '/') {
+            strncpy(cwd, path, kCwdSize);
+        } else if (strncmp(cwd, "/", 2) == 0) {
+            strcat(cwd, path);
+        } else {
+            strcat(cwd, "/");
+            strcat(cwd, path);
+        }
+
+        size_t len = strlen(cwd);
+        char *end = cwd + len;
+        size_t size = kCwdSize - len;
+        memset(end, 0, size);
     }
 }
 
@@ -373,8 +408,7 @@ static void ShowCurrentInfo(VtDisplay& display, const char *cwd) {
     }
 
     OsDeviceCreateInfo createInfo {
-        .NameFront = copy + front,
-        .NameBack = copy + len,
+        .Path = { copy + front, copy + len },
         .InterfaceGuid = kOsIdentifyGuid,
     };
 

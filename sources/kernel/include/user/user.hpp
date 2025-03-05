@@ -17,7 +17,12 @@ namespace km {
 
     template<typename Range>
     OsStatus CopyUserRange(PageTables& ptes, const void *front, const void *back, Range *dst, size_t limit) {
-        if (front >= back) {
+        if (front == back) {
+            dst->clear();
+            return OsStatusSuccess;
+        }
+
+        if (front > back) {
             return OsStatusInvalidSpan;
         }
 

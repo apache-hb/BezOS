@@ -20,8 +20,8 @@ TEST(VfsPathTest, StringFormat) {
 TEST(VfsPathTest, Verify) {
     ASSERT_TRUE(VerifyPathText("System"));
 
-    // No empty paths
-    ASSERT_FALSE(VerifyPathText(""));
+    // Empty paths are the root path
+    ASSERT_TRUE(VerifyPathText(""));
 
     // No invalid characters
     ASSERT_FALSE(VerifyPathText("Sys/tem"));
@@ -125,4 +125,9 @@ TEST(VfsPathTest, FormatOut) {
     result.format(path);
 
     ASSERT_EQ(result.buffer, "/System/Init/Drivers/DriverConfig.db");
+}
+
+TEST(VfsPathTest, RootPath) {
+    auto path = BuildPath("");
+    ASSERT_EQ(path.segmentCount(), 0);
 }

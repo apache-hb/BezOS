@@ -962,9 +962,9 @@ static std::tuple<std::optional<HypervisorInfo>, bool> QueryHostHypervisor() {
     return std::make_tuple(hvInfo, hasDebugPort);
 }
 
-static OsStatus UserReadPath(CallContext *context, const char *front, const char *back, vfs2::VfsPath *path) {
+static OsStatus UserReadPath(CallContext *context, OsPath user, vfs2::VfsPath *path) {
     vfs2::VfsString text;
-    if (OsStatus status = context->readString((uint64_t)front, (uint64_t)back, kMaxPathSize, &text)) {
+    if (OsStatus status = context->readString((uint64_t)user.Front, (uint64_t)user.Back, kMaxPathSize, &text)) {
         return status;
     }
 
@@ -1001,7 +1001,7 @@ static void AddVfsFileSystemCalls() {
         }
 
         vfs2::VfsPath path;
-        if (OsStatus status = UserReadPath(context, createInfo.PathFront, createInfo.PathBack, &path)) {
+        if (OsStatus status = UserReadPath(context, createInfo.Path, &path)) {
             return CallError(status);
         }
 
@@ -1052,7 +1052,7 @@ static void AddVfsFolderSystemCalls() {
         }
 
         vfs2::VfsPath path;
-        if (OsStatus status = UserReadPath(context, createInfo.PathFront, createInfo.PathBack, &path)) {
+        if (OsStatus status = UserReadPath(context, createInfo.Path, &path)) {
             return CallError(status);
         }
 
@@ -1126,7 +1126,7 @@ static void AddDeviceSystemCalls() {
         }
 
         vfs2::VfsPath path;
-        if (OsStatus status = UserReadPath(context, createInfo.NameFront, createInfo.NameBack, &path)) {
+        if (OsStatus status = UserReadPath(context, createInfo.Path, &path)) {
             return CallError(status);
         }
 
@@ -1340,7 +1340,7 @@ static void AddProcessSystemCalls() {
         }
 
         vfs2::VfsPath path;
-        if (OsStatus status = UserReadPath(context, createInfo.Executable.Front, createInfo.Executable.Back, &path)) {
+        if (OsStatus status = UserReadPath(context, createInfo.Executable, &path)) {
             return CallError(status);
         }
 

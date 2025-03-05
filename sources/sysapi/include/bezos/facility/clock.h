@@ -6,8 +6,10 @@
 extern "C" {
 #endif
 
+typedef uint64_t OsClockFrequency;
+
 struct OsClockStat {
-    uint64_t FrequencyHz;
+    OsClockFrequency FrequencyHz;
 };
 
 extern OsStatus OsClockGetTime(OsInstant *OutTime);

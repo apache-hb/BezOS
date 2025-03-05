@@ -18,16 +18,33 @@ extern "C" {
 typedef uint8_t OsByte;
 typedef size_t OsSize;
 typedef char OsUtf8Char;
-
-typedef uint64_t OsHandle;
 typedef bool OsBool;
 typedef uint64_t OsUnsigned;
 typedef int64_t OsSigned;
 typedef float OsFloat;
 typedef double OsDouble;
 typedef void *OsAnyPointer;
+
+/// @brief A duration of time.
+///
+/// Duration is measured in nanoseconds and can be used for timeouts.
 typedef uint64_t OsDuration;
-typedef uint64_t OsInstant;
+
+/// @brief A point in time.
+///
+/// The time is represented as the number of 100 nanosecond intervals since
+/// the gregorian calendar reform of 1582-10-15T00:00:00Z.
+typedef int64_t OsInstant;
+
+/// @brief A generic handle.
+///
+/// A handle is a unique identifier for a resource that is managed by the operating system.
+/// The handle contains a type and a unique identifier.
+/// - bits [0:55] contain the unique identifier.
+/// - bits [56:63] contain the type as specified by @a OsHandleType.
+///
+/// @see OsHandleType
+typedef uint64_t OsHandle;
 
 struct OsString {
     OsSize Size;
@@ -78,7 +95,12 @@ typedef uint32_t OsVersionTag;
         } \
     }
 
-#define OS_TIMEOUT_INFINITE ((OsInstant)(UINT64_MAX))
+/// @brief Used to indicate that a timeout should be infinite.
+#define OS_TIMEOUT_INFINITE ((OsInstant)(0))
+
+/// @brief Used to indicate that a timeout should be instant, i.e. non-blocking.
+#define OS_TIMEOUT_INSTANT ((OsInstant)(INT64_MAX))
+
 #define OS_HANDLE_INVALID ((OsHandle)(0))
 
 enum {
@@ -121,5 +143,14 @@ OS_OBJECT_HANDLE(OsDeviceHandle);
 extern void OsDebugLog(const char *Begin, const char *End);
 
 #ifdef __cplusplus
+}
+#endif
+
+#if defined(__cplusplus)
+template<size_t N>
+constexpr OsPath OsMakePath(const char (&Path)[N]) {
+    const char *front = Path;
+    const char *back = Path + N - 1;
+    return OsPath { front, back };
 }
 #endif
