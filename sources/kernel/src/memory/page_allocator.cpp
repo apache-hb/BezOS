@@ -1,5 +1,6 @@
 #include "memory/page_allocator.hpp"
 
+#include "debug/debug.hpp"
 #include "memory/layout.hpp"
 
 #include <climits>
@@ -24,6 +25,13 @@ PhysicalAddress PageAllocator::alloc4k(size_t count) {
         .align = x64::kPageSize,
     });
 
+    debug::SendEvent(debug::AllocatePhysicalMemory {
+        .size = range.size(),
+        .address = range.front.address,
+        .alignment = x64::kPageSize,
+        .tag = 0,
+    });
+
     if (range.isEmpty()) {
         return KM_INVALID_MEMORY;
     }
@@ -42,12 +50,25 @@ void PageAllocator::release(MemoryRange range) {
     } else {
         mMemory.release(range);
     }
+
+    debug::SendEvent(debug::ReleasePhysicalMemory {
+        .begin = range.front.address,
+        .end = range.back.address,
+        .tag = 0,
+    });
 }
 
 PhysicalAddress PageAllocator::lowMemoryAlloc4k() {
     MemoryRange range = mLowMemory.allocate({
         .size = x64::kPageSize,
         .align = x64::kPageSize,
+    });
+
+    debug::SendEvent(debug::AllocatePhysicalMemory {
+        .size = range.size(),
+        .address = range.front.address,
+        .alignment = x64::kPageSize,
+        .tag = 0,
     });
 
     if (range.isEmpty()) {

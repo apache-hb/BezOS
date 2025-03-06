@@ -1,7 +1,5 @@
 #pragma once
 
-#include <bezos/status.h>
-
 #include <stdint.h>
 
 namespace km::debug {
@@ -14,23 +12,29 @@ namespace km::debug {
     };
 
     struct AllocatePhysicalMemory {
-        uint64_t begin;
-        uint64_t end;
+        uint64_t size;
+        uint64_t address;
+        uint32_t alignment;
+        uint32_t tag;
     };
 
     struct AllocateVirtualMemory {
-        uint64_t begin;
-        uint64_t end;
+        uint64_t size;
+        uint64_t address;
+        uint32_t alignment;
+        uint32_t tag;
     };
 
     struct ReleasePhysicalMemory {
         uint64_t begin;
         uint64_t end;
+        uint32_t tag;
     };
 
     struct ReleaseVirtualMemory {
         uint64_t begin;
         uint64_t end;
+        uint32_t tag;
     };
 
     struct EventPacket {
@@ -40,8 +44,6 @@ namespace km::debug {
             AllocateVirtualMemory allocateVirtualMemory;
             ReleasePhysicalMemory releasePhysicalMemory;
             ReleaseVirtualMemory releaseVirtualMemory;
-        };
+        } data;
     };
-
-    OsStatus SendEvent(const EventPacket &packet);
 }

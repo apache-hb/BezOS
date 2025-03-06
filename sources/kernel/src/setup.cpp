@@ -2,6 +2,8 @@
 #include "allocator/synchronized.hpp"
 #include "allocator/tlsf.hpp"
 #include "arch/abi.hpp"
+#include "debug/debug.hpp"
+#include "debug/packet.hpp"
 #include "kernel.hpp"
 #include "log.hpp"
 #include "processor.hpp"
@@ -268,7 +270,14 @@ using TlsfAllocatorSync = mem::SynchronizedAllocator<mem::TlsfAllocator>;
 static constinit mem::IAllocator *gAllocator = nullptr;
 
 extern "C" void *malloc(size_t size) {
-    return gAllocator->allocate(size);
+    void *ptr = gAllocator->allocate(size);
+    km::debug::SendEvent(km::debug::AllocateVirtualMemory {
+        .size = size,
+        .address = (uintptr_t)ptr,
+        .alignment = 0,
+        .tag = 0,
+    });
+    return ptr;
 }
 
 extern "C" void *realloc(void *old, size_t size) {
@@ -276,11 +285,24 @@ extern "C" void *realloc(void *old, size_t size) {
 }
 
 extern "C" void free(void *ptr) {
+    km::debug::SendEvent(km::debug::ReleaseVirtualMemory {
+        .begin = (uintptr_t)ptr,
+        .end = (uintptr_t)ptr + tlsf_block_size(ptr) - tlsf_alloc_overhead(),
+        .tag = 0,
+    });
+
     gAllocator->deallocate(ptr, 0);
 }
 
 extern "C" void *aligned_alloc(size_t alignment, size_t size) {
-    return gAllocator->allocateAligned(size, alignment);
+    void *ptr = gAllocator->allocateAligned(size, alignment);
+    km::debug::SendEvent(km::debug::AllocateVirtualMemory {
+        .size = size,
+        .address = (uintptr_t)ptr,
+        .alignment = static_cast<uint32_t>(alignment),
+        .tag = 0,
+    });
+    return ptr;
 }
 
 void km::InitGlobalAllocator(void *memory, size_t size) {

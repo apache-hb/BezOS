@@ -18,6 +18,7 @@
 #include <bezos/facility/vmem.h>
 
 #include "cmos.hpp"
+#include "debug/debug.hpp"
 #include "delay.hpp"
 #include "devices/ddi.hpp"
 #include "devices/hid.hpp"
@@ -55,7 +56,6 @@
 #include "allocator/tlsf.hpp"
 
 #include "arch/intrin.hpp"
-#include "can.hpp"
 
 #include "kernel.hpp"
 
@@ -155,9 +155,6 @@ constinit km::CpuLocal<x64::TaskStateSegment> km::tlsTaskState;
 
 static constinit x64::TaskStateSegment gBootTss{};
 static constinit SystemGdt gBootGdt{};
-
-static constinit SerialPort gCanBusPort;
-static constinit CanBus gCanBus{nullptr};
 
 // static constexpr auto kRspStackSize = x64::kPageSize * 8;
 static constexpr auto kTssStackSize = x64::kPageSize * 16;
@@ -649,25 +646,6 @@ static SerialPortStatus InitSerialPort(ComPortInfo info) {
     }
 }
 
-static SerialPortStatus InitCanSerialPort(ComPortInfo info) {
-    if (OpenSerialResult com1 = OpenSerial(info)) {
-        return com1.status;
-    } else {
-        gCanBusPort = com1.port;
-        gCanBus = CanBus(&gCanBusPort);
-        gCanBus.sendDataFrame(0x123, 0x9988776655443322);
-        return SerialPortStatus::eOk;
-    }
-}
-
-static void UpdateCanSerialPort(ComPortInfo info) {
-    info.skipLoopbackTest = true;
-    if (OpenSerialResult com1 = OpenSerial(info); com1.status == SerialPortStatus::eOk) {
-        gCanBusPort = com1.port;
-        gCanBus = CanBus(&gCanBusPort);
-    }
-}
-
 static void InitPortDelay(const std::optional<HypervisorInfo>& hvInfo) {
     bool isKvm = hvInfo.transform([](const HypervisorInfo& hv) { return hv.isKvm(); }).value_or(false);
     x64::PortDelay delay = isKvm ? x64::PortDelay::eNone : x64::PortDelay::ePostCode;
@@ -681,9 +659,7 @@ static void LogSystemInfo(
     ProcessorInfo processor,
     bool hasDebugPort,
     SerialPortStatus com1Status,
-    const ComPortInfo& com1Info,
-    SerialPortStatus com2Status,
-    const ComPortInfo& com2Info) {
+    const ComPortInfo& com1Info) {
     KmDebugMessage("[INIT] CR0: ", x64::Cr0::load(), "\n");
     KmDebugMessage("[INIT] CR4: ", x64::Cr4::load(), "\n");
 
@@ -737,9 +713,6 @@ static void LogSystemInfo(
     KmDebugMessage("| /SYS/MB/COM1  | Status               | ", com1Status, "\n");
     KmDebugMessage("| /SYS/MB/COM1  | Port                 | ", Hex(com1Info.port), "\n");
     KmDebugMessage("| /SYS/MB/COM1  | Baud rate            | ", km::com::kBaudRate / com1Info.divisor, "\n");
-    KmDebugMessage("| /SYS/MB/COM2  | Status               | ", com2Status, "\n");
-    KmDebugMessage("| /SYS/MB/COM2  | Port                 | ", Hex(com2Info.port), "\n");
-    KmDebugMessage("| /SYS/MB/COM2  | Baud rate            | ", km::com::kBaudRate / com2Info.divisor, "\n");
 
     KmDebugMessage("| /BOOT         | Stack                | ", launch.stack, "\n");
     KmDebugMessage("| /BOOT         | Kernel virtual       | ", launch.kernelVirtualBase, "\n");
@@ -1769,9 +1742,12 @@ void LaunchKernel(boot::LaunchInfo launch) {
     };
 
     SerialPortStatus com1Status = InitSerialPort(com1Info);
-    SerialPortStatus com2Status = InitCanSerialPort(com2Info);
 
-    LogSystemInfo(launch, hvInfo, processor, hasDebugPort, com1Status, com1Info, com2Status, com2Info);
+    if (OsStatus status = debug::InitDebugStream(com2Info)) {
+        KmDebugMessage("[INIT] Failed to initialize debug port: ", status, "\n");
+    }
+
+    LogSystemInfo(launch, hvInfo, processor, hasDebugPort, com1Status, com1Info);
 
     gBootGdt = GetBootGdt();
     SetupInitialGdt();
@@ -1809,7 +1785,6 @@ void LaunchKernel(boot::LaunchInfo launch) {
     //
     if (com1Status == SerialPortStatus::eLoopbackTestFailed && smbios.isOracleVirtualBox()) {
         UpdateSerialPort(com1Info);
-        UpdateCanSerialPort(com2Info);
     }
 
     bool useX2Apic = kUseX2Apic && processor.has2xApic;

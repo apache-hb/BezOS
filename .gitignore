@@ -17,3 +17,4 @@ data/hyper/*
 /sources/system/subprojects/flanterm
 *.code-workspace
 .clangd
+soak/

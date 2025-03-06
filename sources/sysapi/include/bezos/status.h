@@ -83,6 +83,13 @@ enum OsStatusId {
 
     /// @brief The memory span specified is invalid.
     OsStatusInvalidSpan = 0x0014,
+
+    /// @brief The device has misbehaved.
+    OsStatusDeviceFault = 0x0015,
+
+    OsStatusDeviceBusy = 0x0016,
+
+    OsStatusDeviceNotReady = 0x0017,
 };
 
 #ifdef __cplusplus

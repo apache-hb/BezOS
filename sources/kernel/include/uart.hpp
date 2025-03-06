@@ -1,5 +1,7 @@
 #pragma once
 
+#include <bezos/status.h>
+
 #include "util/format.hpp"
 
 #include <stddef.h>
@@ -68,9 +70,11 @@ namespace km {
 
         /// @warning Do not use this constructor directly.
         ///          Use @ref openSerial instead.
-        SerialPort(ComPortInfo info)
+        constexpr SerialPort(ComPortInfo info)
             : mBasePort(info.port)
         { }
+
+        constexpr bool isReady() const noexcept { return mBasePort != 0xFFFF; }
 
         size_t write(std::span<const uint8_t> src);
         size_t read(std::span<uint8_t> dst);
@@ -79,6 +83,12 @@ namespace km {
         bool get(uint8_t& byte);
 
         size_t print(stdx::StringView src);
+
+        template<typename T> requires (std::is_standard_layout_v<T>)
+        OsStatus write(const T& src) {
+            size_t result = write(std::span(reinterpret_cast<const uint8_t*>(&src), sizeof(T)));
+            return result == sizeof(T) ? OsStatusSuccess : OsStatusTimeout;
+        }
     };
 
     struct OpenSerialResult {
@@ -94,6 +104,8 @@ namespace km {
     ///
     /// @pre @a divisor is not 0
     OpenSerialResult OpenSerial(ComPortInfo info);
+
+    OsStatus OpenSerial(ComPortInfo info, SerialPort *port);
 }
 
 template<>

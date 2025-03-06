@@ -138,6 +138,7 @@ src = [
     'src/cmos.cpp',
     'src/pit.cpp',
     'src/hpet.cpp',
+    'src/debug.cpp',
 
     'src/thread.cpp',
     'src/user.S',
