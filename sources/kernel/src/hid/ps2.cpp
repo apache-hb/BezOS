@@ -408,7 +408,7 @@ void hid::Ps2Controller::setMouseResolution(uint8_t resolution) {
 void hid::Ps2Controller::enableIrqs(bool first, bool second) {
     uint8_t config = ReadCommand(kReadConfig);
 
-    KmDebugMessage("[PS2] PS/2 Controller IRQs: ", km::present(first), " ", km::present(second), " (", km::Hex(config), ")\n");
+    KmDebugMessage("[PS2] PS/2 Controller IRQs: ", km::present(first), ", ", km::present(second), " (", km::Hex(config), ")\n");
 
     if (first) {
         config |= kFirstInt;

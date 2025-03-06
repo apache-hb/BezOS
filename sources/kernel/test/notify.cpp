@@ -71,5 +71,5 @@ TEST_F(NotifyTest, Subscribe) {
     ASSERT_NE(sub, nullptr);
 
     stream.publish<TestNotification>(topic, "Test");
-    stream.process(topic, 1);
+    stream.processAll(1);
 }

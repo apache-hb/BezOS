@@ -41,6 +41,27 @@ void Topic::unsubscribe(ISubscriber *subscriber) {
     mSubscribers.erase(subscriber);
 }
 
+size_t Topic::process(size_t limit) {
+    sm::RcuSharedPtr<INotification> notification = nullptr;
+    size_t count = 0;
+
+    stdx::SharedLock guard(mLock);
+
+    while (queue.try_dequeue(notification)) {
+        KmDebugMessage("[AQ] Processing notification\n");
+
+        for (ISubscriber *subscriber : mSubscribers) {
+            subscriber->notify(this, notification);
+        }
+
+        if (++count >= limit) {
+            break;
+        }
+    }
+
+    return count;
+}
+
 void NotificationStream::addNotification(Topic *topic, INotification *notification) {
     topic->addNotification(&mDomain, notification);
 }
@@ -84,32 +105,15 @@ void NotificationStream::unsubscribe(Topic *topic, ISubscriber *subscriber) {
     topic->unsubscribe(subscriber);
 }
 
-size_t NotificationStream::process(Topic *topic, size_t limit) {
-    sm::RcuSharedPtr<INotification> notification = nullptr;
-    size_t count = 0;
-
-    // TODO: make this thread safe
-
-    while (topic->queue.try_dequeue(notification)) {
-        for (ISubscriber *subscriber : topic->mSubscribers) {
-            subscriber->notify(topic, notification);
-        }
-
-        if (++count >= limit) {
-            break;
-        }
-    }
-
-    return count;
-}
-
 size_t NotificationStream::processAll(size_t limit) {
     size_t count = 0;
 
     // TODO: make this thread safe
 
+    stdx::SharedLock guard(mTopicLock);
+
     for (auto& [key, topic] : mTopics) {
-        count += process(topic.get(), limit - count);
+        count += topic->process(limit - count);
         if (count >= limit) {
             break;
         }

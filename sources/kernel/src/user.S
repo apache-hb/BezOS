@@ -30,13 +30,13 @@ KmSystemEntry:
     /* that precondition would be violated, causing an incorrect swapgs and a crash */
     swapgs
 
-    /* disabled for now, we need to have a syscall stack per thread rather than per cpu */
-    /* sti */
-
     movq %rsp, %r15
     movq KmSystemCallStackTlsOffset, %r9
 
     movq %gs:(%r9), %rsp
+
+    /* disabled for now, we need to have a syscall stack per thread rather than per cpu */
+    sti
 
     /* Construct a SystemCallRegisterSet */
 
@@ -85,7 +85,7 @@ KmSystemEntry:
     /* Clear the interrupt flag before swapgs, otherwise an interrupt */
     /* could observe the violated precondition. */
     /* disabled for now, see above */
-    /* cli */
+    cli
 
     swapgs
 

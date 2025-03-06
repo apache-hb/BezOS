@@ -175,6 +175,9 @@ struct km::Format<UbsanTypeDescriptor> {
     }
 };
 
+static constexpr bool kEmitAddrToLine = true;
+static constexpr stdx::StringView kImagePath = "install/kernel/bin/bezos-limine.elf";
+
 [[noreturn]]
 static void UbsanReportError(stdx::StringView message) {
     if (km::SystemMemory *memory = km::GetSystemMemory()) {
@@ -186,6 +189,17 @@ static void UbsanReportError(stdx::StringView message) {
             }
             KmDebugMessageUnlocked("\n");
         });
+
+
+        if (kEmitAddrToLine) {
+            KmDebugMessageUnlocked("llvm-addr2line -e ", kImagePath);
+
+            x64::WalkStackFramesChecked(memory->systemTables(), (void**)rbp, [](void **, void *pc, stdx::StringView) {
+                KmDebugMessageUnlocked(" ", pc);
+            });
+
+            KmDebugMessageUnlocked("\n");
+        }
     }
 
     KM_PANIC(message);
@@ -236,8 +250,9 @@ extern "C" void __ubsan_handle_nonnull_arg(UbsanNonnullArgData *data) {
     UbsanReportError("UBSAN Nonnull Arg");
 }
 
-extern "C" void __ubsan_handle_load_invalid_value(UbsanInvalidValueData *data, uintptr_t) {
+extern "C" void __ubsan_handle_load_invalid_value(UbsanInvalidValueData *data, uintptr_t address) {
     KmDebugMessage("[UBSAN] Load invalid value: ", data->location, "\n");
+    KmDebugMessage("[UBSAN] Type: ", *data->type, ", Address: ", (void*)address, "\n");
     UbsanReportError("UBSAN Load Invalid Value");
 }
 

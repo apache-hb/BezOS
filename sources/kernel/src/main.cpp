@@ -1597,10 +1597,9 @@ static OsStatus LaunchThread(OsStatus(*entry)(void*), void *arg, stdx::String na
     return OsStatusSuccess;
 }
 
-static OsStatus NotificationWork(void *arg) {
-    NotificationStream *stream = (NotificationStream*)arg;
+static OsStatus NotificationWork(void *) {
     while (true) {
-        stream->processAll();
+        gNotificationStream->processAll();
     }
 
     return OsStatusSuccess;

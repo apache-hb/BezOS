@@ -2,6 +2,8 @@
 
 #include "log.hpp"
 
+#include "util/defer.hpp"
+
 static hid::Ps2Controller gController;
 static km::NotificationStream *gStream;
 static km::Topic *gHidPs2Topic;
@@ -83,8 +85,11 @@ const km::IsrEntry *hid::InstallPs2KeyboardIsr(km::IoApicSet& ioApicSet, hid::Ps
     gController = controller;
 
     const km::IsrEntry *keyboardInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
+        KmDebugMessage("[PS2] Keyboard ISR\n");
+        defer { KmDebugMessage("[PS2] Keyboard ISR end\n"); };
+
         km::IApic *apic = km::GetCpuLocalApic();
-        apic->eoi();
+        defer { apic->eoi(); };
 
         uint8_t scancode = gController.read();
         if (scancode == 0xF0) {
@@ -118,12 +123,17 @@ const km::IsrEntry *hid::InstallPs2KeyboardIsr(km::IoApicSet& ioApicSet, hid::Ps
 
         gKeyboardState.released = false;
 
+        KmDebugMessage("[PS2] Publish ", (void*)gStream, "\n");
         gStream->publish<hid::HidNotification>(GetHidPs2Topic(), event);
 
         return *ctx;
     });
 
-    hid::InstallPs2DeviceIsr(ioApicSet, controller.keyboard(), target, ist->index(keyboardInt));
+
+    uint8_t index = ist->index(keyboardInt);
+    hid::InstallPs2DeviceIsr(ioApicSet, controller.keyboard(), target, index);
+
+    KmDebugMessage("[PS2] Keyboard ISR: ", index, "\n");
 
     return keyboardInt;
 }
@@ -146,7 +156,10 @@ const km::IsrEntry *hid::InstallPs2MouseIsr(km::IoApicSet& ioApicSet, hid::Ps2Co
         return *ctx;
     });
 
-    hid::InstallPs2DeviceIsr(ioApicSet, controller.mouse(), target, ist->index(mouseInt));
+    uint8_t index = ist->index(mouseInt);
+    hid::InstallPs2DeviceIsr(ioApicSet, controller.mouse(), target, index);
+
+    KmDebugMessage("[PS2] Mouse ISR: ", index, "\n");
 
     return mouseInt;
 }

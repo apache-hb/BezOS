@@ -46,21 +46,15 @@ km::Scheduler::Scheduler()
 
 void km::Scheduler::addWorkItem(sm::RcuSharedPtr<Thread> thread) {
     if (thread) {
-        // IntGuard guard;
-        KmDebugMessage("[SCHED] Adding work item: ", thread->name(), "\n");
-
         bool ok = mQueue.enqueue(thread);
         KM_CHECK(ok, "Failed to add work item to scheduler.");
     }
 }
 
 sm::RcuSharedPtr<km::Thread> km::Scheduler::getWorkItem() noexcept {
-    // IntGuard guard;
-
     sm::RcuWeakPtr<Thread> thread;
     while (mQueue.try_dequeue(thread)) {
         if (sm::RcuSharedPtr<km::Thread> ptr = thread.lock()) {
-            KmDebugMessage("[SCHED] Found work item: ", ptr->name(), "\n");
             return ptr;
         }
     }
@@ -123,8 +117,6 @@ void km::ScheduleWork(LocalIsrTable *table, IApic *apic, sm::RcuSharedPtr<km::Th
                 current->state = *ctx;
                 current->tlsAddress = kFsBase.load();
                 scheduler->addWorkItem(current);
-            } else {
-                KmDebugMessage("[SCHED] No current thread to switch from - ", km::GetCurrentCoreId(), "\n");
             }
 
             SetCurrentThread(next);

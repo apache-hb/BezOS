@@ -86,10 +86,6 @@ static void LaunchTerminalService() {
 
     OsProcessHandle handle = OS_HANDLE_INVALID;
     ASSERT_OS_SUCCESS(OsProcessCreate(createInfo, &handle));
-
-    while (true) {
-        OsThreadYield();
-    }
 }
 
 OS_EXTERN OS_NORETURN void ClientStart(const struct OsClientStartInfo *) {

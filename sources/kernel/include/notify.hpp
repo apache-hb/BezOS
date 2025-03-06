@@ -60,6 +60,8 @@ namespace km {
         constexpr bool operator==(sm::uuid id) const {
             return mId == id;
         }
+
+        size_t process(size_t limit);
     };
 }
 
@@ -127,8 +129,6 @@ namespace km {
         ISubscriber *subscribe(Topic *topic, ISubscriber *subscriber);
 
         void unsubscribe(Topic *topic, ISubscriber *subscriber);
-
-        size_t process(Topic *topic, size_t limit = 1024);
 
         size_t processAll(size_t limit = 1024);
     };
