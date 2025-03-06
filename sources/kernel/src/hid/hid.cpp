@@ -85,9 +85,6 @@ const km::IsrEntry *hid::InstallPs2KeyboardIsr(km::IoApicSet& ioApicSet, hid::Ps
     gController = controller;
 
     const km::IsrEntry *keyboardInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
-        KmDebugMessage("[PS2] Keyboard ISR\n");
-        defer { KmDebugMessage("[PS2] Keyboard ISR end\n"); };
-
         km::IApic *apic = km::GetCpuLocalApic();
         defer { apic->eoi(); };
 
@@ -123,7 +120,6 @@ const km::IsrEntry *hid::InstallPs2KeyboardIsr(km::IoApicSet& ioApicSet, hid::Ps
 
         gKeyboardState.released = false;
 
-        KmDebugMessage("[PS2] Publish ", (void*)gStream, "\n");
         gStream->publish<hid::HidNotification>(GetHidPs2Topic(), event);
 
         return *ctx;

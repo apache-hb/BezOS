@@ -274,14 +274,6 @@ public:
 };
 
 static char ConvertVkToAscii(OsHidKeyEvent event) {
-    if (isalpha(event.Key)) {
-        return (event.Modifiers & eModifierShift) ? toupper(event.Key) : tolower(event.Key);
-    }
-
-    if (isdigit(event.Key)) {
-        return (event.Modifiers & eModifierShift) ? ")!@#$%^&*("[event.Key - '0'] : event.Key;
-    }
-
     switch (event.Key) {
     case eKeyDivide: return '/';
     case eKeyMultiply: return '*';
@@ -292,8 +284,18 @@ static char ConvertVkToAscii(OsHidKeyEvent event) {
     case eKeySpace: return ' ';
     case eKeyTab: return '\t';
     case eKeyDelete: return '\b';
-    default: return '\0';
+    default: break;
     }
+
+    if (isalpha(event.Key)) {
+        return (event.Modifiers & eModifierShift) ? toupper(event.Key) : tolower(event.Key);
+    }
+
+    if (isdigit(event.Key)) {
+        return (event.Modifiers & eModifierShift) ? ")!@#$%^&*("[event.Key - '0'] : event.Key;
+    }
+
+    return '\0';
 }
 
 OS_EXTERN OS_NORETURN void ClientStart(const struct OsClientStartInfo *) {

@@ -159,12 +159,13 @@ static constinit SystemGdt gBootGdt{};
 static constinit SerialPort gCanBusPort;
 static constinit CanBus gCanBus{nullptr};
 
-static constexpr size_t kTssStackSize = x64::kPageSize * 8;
+static constexpr size_t kTssStackSize = x64::kPageSize * 16;
 
 enum {
     kIstTrap = 1,
     kIstTimer = 2,
     kIstNmi = 3,
+    kIstIrq = 4,
 };
 
 void km::SetupInitialGdt(void) {
@@ -180,6 +181,7 @@ void km::SetupApGdt(void) {
         .ist1 = (uintptr_t)memory->allocateStack(kTssStackSize).vaddr + kTssStackSize,
         .ist2 = (uintptr_t)memory->allocateStack(kTssStackSize).vaddr + kTssStackSize,
         .ist3 = (uintptr_t)memory->allocateStack(kTssStackSize).vaddr + kTssStackSize,
+        .ist4 = (uintptr_t)memory->allocateStack(kTssStackSize).vaddr + kTssStackSize,
         .iopbOffset = sizeof(x64::TaskStateSegment),
     };
 
@@ -751,6 +753,7 @@ static void SetupInterruptStacks(uint16_t cs) {
         .ist1 = (uintptr_t)memory->allocateStack(kTssStackSize).vaddr + kTssStackSize,
         .ist2 = (uintptr_t)memory->allocateStack(kTssStackSize).vaddr + kTssStackSize,
         .ist3 = (uintptr_t)memory->allocateStack(kTssStackSize).vaddr + kTssStackSize,
+        .ist4 = (uintptr_t)memory->allocateStack(kTssStackSize).vaddr + kTssStackSize,
     };
 
     gBootGdt.setTss(&gBootTss);
@@ -758,6 +761,10 @@ static void SetupInterruptStacks(uint16_t cs) {
 
     for (uint8_t i = 0; i < isr::kExceptionCount; i++) {
         UpdateIdtEntry(i, cs, x64::Privilege::eSupervisor, kIstTrap);
+    }
+
+    for (auto i = isr::kExceptionCount; i < isr::kIsrCount; i++) {
+        UpdateIdtEntry(i, cs, x64::Privilege::eSupervisor, kIstIrq);
     }
 
     UpdateIdtEntry(isr::NMI, cs, x64::Privilege::eSupervisor, kIstNmi);

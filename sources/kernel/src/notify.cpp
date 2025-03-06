@@ -48,8 +48,6 @@ size_t Topic::process(size_t limit) {
     stdx::SharedLock guard(mLock);
 
     while (queue.try_dequeue(notification)) {
-        KmDebugMessage("[AQ] Processing notification\n");
-
         for (ISubscriber *subscriber : mSubscribers) {
             subscriber->notify(this, notification);
         }
