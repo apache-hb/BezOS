@@ -574,7 +574,7 @@ struct ApicInfo {
 };
 
 static ApicInfo EnableBootApic(km::SystemMemory& memory, bool useX2Apic) {
-    km::Apic pic = InitBspApic(memory, useX2Apic);
+    km::Apic apic = InitBspApic(memory, useX2Apic);
 
     // setup tls now that we have the lapic id
 
@@ -584,16 +584,16 @@ static ApicInfo EnableBootApic(km::SystemMemory& memory, bool useX2Apic) {
     km::EnableCpuLocalIsrTable();
 
     SetDebugLogLock(DebugLogLockType::eSpinLock);
-    km::InitKernelThread(pic);
+    km::InitKernelThread(apic);
 
     km::LocalIsrTable *ist = km::GetLocalIsrTable();
 
     const IsrEntry *spuriousInt = ist->allocate(SpuriousVector);
     uint8_t spuriousIdx = ist->index(spuriousInt);
-    KmDebugMessage("[INIT] APIC ID: ", pic->id(), ", Version: ", pic->version(), ", Spurious vector: ", spuriousIdx, "\n");
+    KmDebugMessage("[INIT] APIC ID: ", apic->id(), ", Version: ", apic->version(), ", Spurious vector: ", spuriousIdx, "\n");
 
-    pic->setSpuriousVector(spuriousIdx);
-    pic->enable();
+    apic->setSpuriousVector(spuriousIdx);
+    apic->enable();
 
     if (kSelfTestApic) {
         IsrCallback testIsr = [](km::IsrContext *ctx) -> km::IsrContext {
@@ -611,13 +611,14 @@ static ApicInfo EnableBootApic(km::SystemMemory& memory, bool useX2Apic) {
         //
         // Test that both self-IPI methods work.
         //
-        pic->sendIpi(apic::IcrDeliver::eSelf, testIdx);
-        pic->selfIpi(testIdx);
+        apic->sendIpi(apic::IcrDeliver::eSelf, testIdx);
+        apic->selfIpi(testIdx);
 
-        ist->release(testInt, testIsr);
+        bool ok = ist->release(testInt, testIsr);
+        KM_CHECK(ok, "Failed to release test ISR.");
     }
 
-    return ApicInfo { pic, spuriousIdx };
+    return ApicInfo { apic, spuriousIdx };
 }
 
 static void InitBootTerminal(std::span<const boot::FrameBuffer> framebuffers) {
@@ -1780,7 +1781,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     gMemory = stage2->memory;
 
     //
-    // I need to disable the PIC before enabling interrupts otherwise I
+    // Disable the PIC before enabling interrupts otherwise we
     // get flooded by timer interrupts.
     //
     Disable8259Pic();
@@ -1830,15 +1831,18 @@ void LaunchKernel(boot::LaunchInfo launch) {
     static constexpr size_t kSchedulerMemorySize = 0x10000;
     InitSchedulerMemory(aligned_alloc(x64::kPageSize, kSchedulerMemorySize), kSchedulerMemorySize);
 
+    km::LocalIsrTable *ist = GetLocalIsrTable();
+
+    InstallSchedulerIsr(ist);
     StartupSmp(rsdt);
 
-    km::LocalIsrTable *ist = GetLocalIsrTable();
     const IsrEntry *timerInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
         km::IApic *apic = km::GetCpuLocalApic();
         apic->eoi();
         return *ctx;
     });
     uint8_t timerIdx = ist->index(timerInt);
+    KmDebugMessage("[INIT] Timer ISR: ", timerIdx, "\n");
 
     km::InitPit(100 * si::hertz, ioApicSet, lapic.pointer(), timerIdx);
 

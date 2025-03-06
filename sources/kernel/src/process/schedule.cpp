@@ -1,5 +1,6 @@
 #include "process/schedule.hpp"
 
+#include "isr/isr.hpp"
 #include "kernel.hpp"
 #include "allocator/synchronized.hpp"
 #include "allocator/tlsf.hpp"
@@ -12,9 +13,6 @@ extern "C" uint64_t KmSystemCallStackTlsOffset;
 
 CPU_LOCAL
 static constinit km::CpuLocal<sm::RcuSharedPtr<km::Thread>> tlsCurrentThread;
-
-CPU_LOCAL
-static constinit km::CpuLocal<uint8_t> tlsScheduleIdx;
 
 CPU_LOCAL
 static constinit km::CpuLocal<void*> tlsSystemCallStack;
@@ -97,42 +95,50 @@ void km::SwitchThread(sm::RcuSharedPtr<km::Thread> next) {
     KmResumeThread(state);
 }
 
+static km::IsrContext SchedulerIsr(km::IsrContext *ctx) noexcept {
+    km::IApic *apic = km::GetCpuLocalApic();
+    apic->eoi();
+
+    km::Scheduler *scheduler = km::GetScheduler();
+
+    if (sm::RcuSharedPtr<km::Thread> next = scheduler->getWorkItem()) {
+        km::PhysicalAddress cr3 = next->process.lock()->ptes.root();
+        km::SystemMemory *memory = km::GetSystemMemory();
+        memory->getPager().setActiveMap(cr3);
+
+        if (sm::RcuSharedPtr<km::Thread> current = km::GetCurrentThread()) {
+            current->state = *ctx;
+            current->tlsAddress = km::kFsBase.load();
+            scheduler->addWorkItem(current);
+        }
+
+        SetCurrentThread(next);
+        return next->state;
+    } else {
+        return *ctx;
+    }
+}
+
+void km::InstallSchedulerIsr(LocalIsrTable *table) {
+    IsrCallback old = table->install(isr::kTimerVector, SchedulerIsr);
+
+    if (old != km::DefaultIsrHandler && old != SchedulerIsr) {
+        KmDebugMessage("Failed to install scheduler isr ", (void*)old, " != ", (void*)km::DefaultIsrHandler, "\n");
+        KM_PANIC("Failed to install scheduler isr.");
+    }
+}
+
 void km::ScheduleWork(LocalIsrTable *table, IApic *apic, sm::RcuSharedPtr<km::Thread> initial) {
     KmSystemCallStackTlsOffset = tlsSystemCallStack.tlsOffset();
 
     SetCurrentThread(initial);
-
-    const IsrEntry *scheduleInt = table->allocate([](km::IsrContext *ctx) noexcept -> km::IsrContext {
-        IApic *apic = km::GetCpuLocalApic();
-        apic->eoi();
-
-        Scheduler *scheduler = km::GetScheduler();
-
-        if (sm::RcuSharedPtr<km::Thread> next = scheduler->getWorkItem()) {
-            PhysicalAddress cr3 = next->process.lock()->ptes.root();
-            SystemMemory *memory = GetSystemMemory();
-            memory->getPager().setActiveMap(cr3);
-
-            if (sm::RcuSharedPtr<km::Thread> current = km::GetCurrentThread()) {
-                current->state = *ctx;
-                current->tlsAddress = kFsBase.load();
-                scheduler->addWorkItem(current);
-            }
-
-            SetCurrentThread(next);
-            return next->state;
-        } else {
-            return *ctx;
-        }
-    });
-
-    tlsScheduleIdx = table->index(scheduleInt);
+    InstallSchedulerIsr(table);
 
     apic->setTimerDivisor(apic::TimerDivide::e64);
     apic->setInitialCount(0x10000);
 
     apic->cfgIvtTimer(apic::IvtConfig {
-        .vector = tlsScheduleIdx.get(),
+        .vector = isr::kTimerVector,
         .polarity = apic::Polarity::eActiveHigh,
         .trigger = apic::Trigger::eEdge,
         .enabled = true,
@@ -144,5 +150,5 @@ void km::ScheduleWork(LocalIsrTable *table, IApic *apic, sm::RcuSharedPtr<km::Th
 
 void km::YieldCurrentThread() {
     IApic *apic = km::GetCpuLocalApic();
-    apic->selfIpi(tlsScheduleIdx.get());
+    apic->selfIpi(isr::kTimerVector);
 }

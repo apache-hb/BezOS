@@ -48,6 +48,8 @@ namespace km {
         /// @brief The number of exceptions reserved by the CPU
         static constexpr auto kExceptionCount = 0x20;
 
+        static constexpr auto kTimerVector = 0x21;
+
         /// @brief The total number of ISRs the CPU supports
         static constexpr auto kIsrCount = 256;
 
@@ -180,7 +182,7 @@ namespace km {
             return nullptr;
         }
 
-        void release(const IsrEntry *callback, IsrCallback expected) {
+        bool release(const IsrEntry *callback, IsrCallback expected) {
             IsrEntry *entry = find(callback);
 
             //
@@ -189,7 +191,7 @@ namespace km {
             // has changed since then another thread has beaten us to
             // reusing it and we don't want to trample their work.
             //
-            entry->compare_exchange_strong(expected, DefaultIsrHandler);
+            return entry->compare_exchange_strong(expected, DefaultIsrHandler);
         }
 
     public:

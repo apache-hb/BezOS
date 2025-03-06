@@ -3,8 +3,6 @@
 #include "crt.hpp"
 #include "process/process.hpp"
 
-#include "std/queue.hpp"
-
 namespace km {
     struct SchedulerQueueTraits : moodycamel::ConcurrentQueueDefaultTraits {
         static void *malloc(size_t size);
@@ -28,6 +26,8 @@ namespace km {
 
     [[noreturn]]
     void SwitchThread(sm::RcuSharedPtr<Thread> next);
+
+    void InstallSchedulerIsr(LocalIsrTable *table);
 
     [[noreturn]]
     void ScheduleWork(LocalIsrTable *table, IApic *apic, sm::RcuSharedPtr<km::Thread> initial = nullptr);

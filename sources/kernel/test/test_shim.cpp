@@ -11,6 +11,7 @@
 #include "absl/hash/internal/hash.cc"
 #include "absl/hash/internal/low_level_hash.cc"
 #include "absl/container/internal/raw_hash_set.cc"
+#include "processor.hpp"
 
 class TestStream final : public km::IOutStream {
 public:
@@ -59,4 +60,8 @@ void absl::base_internal::ThrowStdOutOfRange(const char *message) {
 
 void absl::raw_log_internal::RawLog(absl::LogSeverity, const char *file, int line, const char *, ...) {
     GTEST_FAIL() << "RawLog: " << file << ":" << line;
+}
+
+km::CpuCoreId km::GetCurrentCoreId() {
+    return km::CpuCoreId(0);
 }
