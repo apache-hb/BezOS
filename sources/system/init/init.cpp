@@ -8,8 +8,6 @@
 #include <bezos/subsystem/hid.h>
 #include <bezos/subsystem/ddi.h>
 
-#include <iterator>
-
 template<size_t N>
 static void DebugLog(const char (&message)[N]) {
     OsDebugLog(message, message + N - 1);
@@ -72,10 +70,6 @@ static void LaunchShell() {
 
     OsProcessHandle handle = OS_HANDLE_INVALID;
     ASSERT_OS_SUCCESS(OsProcessCreate(createInfo, &handle));
-
-    while (true) {
-        OsThreadYield();
-    }
 }
 
 static void LaunchTerminalService() {
