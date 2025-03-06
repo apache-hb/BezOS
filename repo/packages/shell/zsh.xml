@@ -10,6 +10,10 @@
     <require package='automake' />
     <require package='autoconf' />
 
+    <configure with='shell' path='@REPO@/data/autotools-reconf.sh'>
+        <arg>@SOURCE_ROOT@</arg>
+    </configure>
+
     <configure with='autoconf' using='@PREFIX@/automake/bin/automake'>
         <env CC='@PREFIX@/llvm/bin/clang'
              LD='@PREFIX@/llvm/bin/ld.lld'

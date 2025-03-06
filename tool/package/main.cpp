@@ -33,11 +33,6 @@
 #include <iostream>
 #include <fstream>
 
-#include <setjmp.h>
-#include <string.h>
-
-char *s = strerror(5);
-
 using namespace std::literals;
 
 namespace fs = std::filesystem;
@@ -127,29 +122,86 @@ struct ScriptExec {
     std::map<std::string, std::string> env;
 };
 
+struct ConfigureStep {
+    // type of configure step
+    ConfigureProgram configure{eConfigureNone};
+
+    // path to shell script to use if shell configure step
+    fs::path shellScript;
+
+    // args to pass to shell script
+    std::vector<std::string> args;
+
+    // environment variables to set
+    std::map<std::string, std::string> env;
+
+    // options to pass to configure tool
+    std::map<std::string, std::string> options;
+
+    // path to the configure tool if not default
+    std::string configureToolPath;
+
+    // path to the source folder to configure if not toplevel
+    std::string configureSourcePath;
+
+    // path to meson/cmake cross file
+    std::string crossFile;
+
+    // path to meson/cmake native file
+    std::string nativeFile;
+};
+
+static ConfigureStep ShellStep(fs::path path) {
+    return ConfigureStep {
+        .configure = eShell,
+        .shellScript = path,
+    };
+}
+
 struct PackageInfo {
     std::string name;
     fs::path source;
     fs::path imported;
     fs::path cache;
 
-    std::vector<Download> downloads;
-    std::vector<Overlay> overlays;
-    std::vector<RequirePackage> dependencies;
-    ConfigureProgram configure{eConfigureNone};
-    BuildProgram buildProgram{eBuildNone};
+    // package version
     std::string version;
+
+    // files to download
+    std::vector<Download> downloads;
+
+    // folders to overlay after downloads are extracted
+    std::vector<Overlay> overlays;
+
+    // git diffs to apply after applying overlays
+    std::vector<fs::path> patches;
+
+    // packages to build before configuring
+    std::vector<RequirePackage> dependencies;
+
+    std::vector<ConfigureStep> configureSteps;
+
+    BuildProgram buildProgram{eBuildNone};
+
+    std::vector<ScriptExec> scripts;
+
+#if 0
+    // configure tool to use
+    ConfigureProgram configure{eConfigureNone};
+
+    // path to configure tool if not using the native one
+    std::string configureToolPath;
+
     std::string mesonCrossFile;
     std::string mesonNativeFile;
-    std::vector<ScriptExec> scripts;
     std::map<std::string, std::string> options;
     std::map<std::string, std::string> configureEnv;
-    std::vector<fs::path> patches;
     std::string configureSourcePath;
     std::string shellConfigureScript;
+#endif
 
-    std::string GetConfigureSourcePath() const {
-        return configureSourcePath.empty() ? GetWorkspaceFolder().string() : configureSourcePath;
+    std::string GetConfigureSourcePath(const ConfigureStep& step) const {
+        return step.configureSourcePath.empty() ? GetWorkspaceFolder().string() : step.configureSourcePath;
     }
 
     fs::path GetWorkspaceFolder() const {
@@ -162,6 +214,18 @@ struct PackageInfo {
 
     fs::path GetInstallPath() const {
         return PackageInstallPath(name);
+    }
+
+    fs::path GetCacheFolder() const {
+        return PackageCachePath(name);
+    }
+
+    ConfigureProgram guessBuildProgram() const {
+        if (configureSteps.empty()) {
+            return eConfigureNone;
+        }
+
+        return configureSteps.back().configure;
     }
 
     bool HasCompileCommands() const {
@@ -545,7 +609,13 @@ struct XmlNode {
     }
 
     std::string content() const {
-        return reinterpret_cast<const char *>(node->content);
+        auto data = xmlNodeGetContent(node);
+
+        if (data == nullptr) {
+            throw std::runtime_error(std::format("Node {} has no content", name()));
+        }
+
+        return reinterpret_cast<const char *>(data);
     }
 
     std::string_view name() const {
@@ -808,6 +878,50 @@ static bool ReadRequireTag(XmlNode node, const std::string& name, std::vector<Re
     return true;
 }
 
+static ConfigureStep ReadConfigureStep(XmlNode action, const PackageInfo& packageInfo) {
+    ConfigureStep step{};
+
+    auto with = ExpectProperty<std::string>(action, "with");
+    if (with == "meson") {
+        step.configure = eMeson;
+        for (XmlNode child : action.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
+            if (child.name() == "cross-file"sv) {
+                step.crossFile = ExpectProperty<std::string>(child, "path");
+            } else if (child.name() == "native-file"sv) {
+                step.nativeFile = ExpectProperty<std::string>(child, "path");
+            }
+        }
+    } else if (with == "cmake") {
+        step.configure = eCMake;
+    } else if (with == "shell") {
+        step.configure = eShell;
+        step.configureToolPath = ExpectProperty<std::string>(action, "path");
+    } else if (with == "autoconf") {
+        step.configure = eAutoconf;
+    } else {
+        throw std::runtime_error("Unknown configure program " + with);
+    }
+
+    auto tool = action.property("using");
+    if (tool.has_value()) {
+        step.configureToolPath = tool.value();
+    }
+
+    for (XmlNode child : action.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
+        if (child.name() == "options"sv) {
+            step.options = child.properties();
+        } else if (child.name() == "source"sv) {
+            step.configureSourcePath = ExpectProperty<std::string>(child, "path");
+        } else if (child.name() == "env"sv) {
+            step.env = child.properties();
+        } else if (child.name() == "arg"sv) {
+            step.args.push_back(child.content());
+        }
+    }
+
+    return step;
+}
+
 static void ReadPackageConfig(XmlNode root) {
     auto name = ExpectProperty<std::string>(root, "name");
     gPackageDb->RaiseTargetStatus(name, eUnknown);
@@ -824,8 +938,11 @@ static void ReadPackageConfig(XmlNode root) {
 
     PackageInfo packageInfo {
         .name = name,
-        .cache = cache
     };
+
+    if (auto version = root.property("version")) {
+        packageInfo.version = version.value();
+    }
 
     for (XmlNode action : root.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
         auto step = NodeName(action);
@@ -863,6 +980,9 @@ static void ReadPackageConfig(XmlNode root) {
                 throw std::runtime_error("Unknown build program " + with);
             }
         } else if (step == "configure"sv) {
+            packageInfo.configureSteps.push_back(ReadConfigureStep(action, packageInfo));
+
+#if 0
             auto with = ExpectProperty<std::string>(action, "with");
             if (with == "meson") {
                 packageInfo.configure = eMeson;
@@ -884,6 +1004,11 @@ static void ReadPackageConfig(XmlNode root) {
                 throw std::runtime_error("Unknown configure program " + with);
             }
 
+            auto tool = action.property("using");
+            if (tool.has_value()) {
+                packageInfo.configureToolPath = tool.value();
+            }
+
             for (XmlNode child : action.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
                 if (child.name() == "options"sv) {
                     packageInfo.options = child.properties();
@@ -893,6 +1018,25 @@ static void ReadPackageConfig(XmlNode root) {
                     packageInfo.configureEnv = child.properties();
                 }
             }
+#endif
+        } else if (step == "script"sv) {
+            auto script = ExpectProperty<std::string>(action, "path");
+            ScriptExec exec {
+                .script = script
+            };
+
+            for (XmlNode child : action.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
+                auto type = child.name();
+                if (type == "arg"sv) {
+                    exec.args.push_back(ExpectProperty<std::string>(child, "value"));
+                } else if (type == "env"sv) {
+                    auto key = ExpectProperty<std::string>(child, "key");
+                    auto value = ExpectProperty<std::string>(child, "value");
+                    exec.env[key] = value;
+                }
+            }
+
+            packageInfo.scripts.push_back(exec);
         }
     }
 
@@ -933,7 +1077,7 @@ static void ReadArtifactConfig(XmlNode node) {
                 }
             }
 
-            artifactInfo.scripts.push_back(exec);
+            artifactInfo.configureSteps.push_back(ShellStep(script));
         }
     }
 
@@ -965,7 +1109,7 @@ static void AcquirePackage(const PackageInfo& package) {
     std::println(std::cout, "{}: acquire", package.name);
 
     for (const auto& download : package.downloads) {
-        auto path = package.cache / download.file;
+        auto path = package.GetCacheFolder() / download.file;
 
         std::println(std::cout, "{}: download {} -> {}", package.name, download.url, path.string());
 
@@ -1062,8 +1206,8 @@ static void ReplaceFilePlaceholders(const fs::path& path, const fs::path& dst, c
     out << content;
 }
 
-static void ConfigurePackage(const PackageInfo& package) {
-    if (package.configure == eConfigureNone) {
+static void RunConfigureStep(const PackageInfo& package, const ConfigureStep& step) {
+    if (step.configure == eConfigureNone) {
         return;
     }
 
@@ -1071,63 +1215,51 @@ static void ConfigurePackage(const PackageInfo& package) {
         return;
     }
 
-    auto cwd = package.GetConfigureSourcePath();
+    auto cwd = package.GetConfigureSourcePath(step);
     ReplacePackagePlaceholders(cwd, package);
     std::println(std::cout, "{}: configure {}", package.name, cwd);
 
-    auto env = package.configureEnv;
+    auto env = step.env;
     for (auto& [key, value] : env) {
         ReplacePackagePlaceholders(value, package);
     }
+    env["PREFIX"] = gInstallPrefix.string();
+    env["BUILD"] = gBuildRoot.string();
+    env["REPO"] = gRepoRoot.string();
+    env["SOURCE"] = gSourceRoot.string();
 
     auto [out, err] = package.GetLogFiles("configure");
-
-    std::jthread spinner([&](std::stop_token stop) {
-        indicators::IndeterminateProgressBar bar{
-            indicators::option::BarWidth{40},
-            indicators::option::Start{"["},
-            indicators::option::Lead{"*"},
-            indicators::option::End{"]"},
-            indicators::option::PrefixText{std::format("Configuring {} ", package.name)},
-            indicators::option::ForegroundColor{indicators::Color::white},
-            indicators::option::FontStyles{std::vector<indicators::FontStyle>{indicators::FontStyle::bold}}
-        };
-
-        while (!stop.stop_requested()) {
-            bar.tick();
-            std::this_thread::sleep_for(100ms);
-        }
-    });
 
     auto builddir = package.GetBuildFolder().string();
     auto cfgdir = fs::absolute(gBuildRoot / "configure" / package.name);
     fs::create_directories(cfgdir);
 
-    if (package.configure == eMeson) {
+    if (step.configure == eMeson) {
+        std::string configureTool = step.configureToolPath.empty() ? "meson" : step.configureToolPath;
         std::vector<std::string> args = {
-            "meson", "setup", builddir, "--wipe",
+            configureTool, "setup", builddir, "--wipe",
             "--prefix", package.GetInstallPath(),
         };
 
-        if (!package.mesonCrossFile.empty()) {
+        if (!step.crossFile.empty()) {
             args.push_back("--cross-file");
-            std::string crossFile = package.mesonCrossFile;
+            std::string crossFile = step.crossFile;
             ReplacePackagePlaceholders(crossFile, package);
             fs::path dst = cfgdir / "crossfile.txt";
             ReplaceFilePlaceholders(crossFile, dst, package);
             args.push_back(dst.string());
         }
 
-        if (!package.mesonNativeFile.empty()) {
+        if (!step.nativeFile.empty()) {
             args.push_back("--native-file");
-            std::string nativeFile = package.mesonNativeFile;
+            std::string nativeFile = step.nativeFile;
             ReplacePackagePlaceholders(nativeFile, package);
             fs::path dst = cfgdir / "nativefile.txt";
             ReplaceFilePlaceholders(nativeFile, dst, package);
             args.push_back(dst.string());
         }
 
-        for (auto& [key, value] : package.options) {
+        for (auto& [key, value] : step.options) {
             std::string val = value;
             ReplacePackagePlaceholders(val, package);
             args.push_back("-D" + key + "=" + val);
@@ -1138,20 +1270,21 @@ static void ConfigurePackage(const PackageInfo& package) {
         if (result != 0) {
             throw std::runtime_error("Failed to configure package " + package.name);
         }
-    } else if (package.configure == eCMake) {
+    } else if (step.configure == eCMake) {
+        std::string configureTool = step.configureToolPath.empty() ? "cmake" : step.configureToolPath;
         if (fs::exists(builddir)) {
             fs::remove_all(builddir);
         }
 
         std::vector<std::string> args = {
-            "cmake", "-S", cwd, "-B", builddir,
+            configureTool, "-S", cwd, "-B", builddir,
             "-DCMAKE_INSTALL_PREFIX=" + package.GetInstallPath().string(),
             "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
             "-G", "Ninja",
             "-DCMAKE_BUILD_TYPE=MinSizeRel",
         };
 
-        for (auto& [key, value] : package.options) {
+        for (auto& [key, value] : step.options) {
             std::string val = value;
             ReplacePackagePlaceholders(val, package);
             args.push_back("-D" + key + "=" + val);
@@ -1162,17 +1295,19 @@ static void ConfigurePackage(const PackageInfo& package) {
         if (result != 0) {
             throw std::runtime_error("Failed to configure package " + package.name);
         }
-    } else if (package.configure == eAutoconf) {
+    } else if (step.configure == eAutoconf) {
         if (fs::exists(builddir)) {
             fs::remove_all(builddir);
         }
 
         fs::create_directories(builddir);
 
+        std::string configureTool = step.configureToolPath.empty() ? "autoreconf" : step.configureToolPath;
+
 #if 0
         {
             std::vector<std::string> args = {
-                "autoreconf", "--install", "--force"
+                configureTool, "--install", "--force"
             };
 
             auto result = sp::call(args, sp::cwd{cwd}, sp::output{configureLog.c_str()}, sp::error{configureErrLog.c_str()});
@@ -1184,11 +1319,11 @@ static void ConfigurePackage(const PackageInfo& package) {
 
         std::vector<std::string> args = {
             "/bin/sh",
-            (fs::current_path() / package.GetConfigureSourcePath() / "configure").string(),
+            (fs::current_path() / package.GetConfigureSourcePath(step) / "configure").string(),
             "--prefix=" + package.GetInstallPath().string()
         };
 
-        for (auto& [key, value] : package.options) {
+        for (auto& [key, value] : step.options) {
             std::string val = value;
             if (val.empty()) {
                 args.push_back("--" + key);
@@ -1203,18 +1338,39 @@ static void ConfigurePackage(const PackageInfo& package) {
         if (result != 0) {
             throw std::runtime_error("Failed to configure package " + package.name);
         }
+    } else if (step.configure == eShell) {
+        auto path = step.configureToolPath;
+
+        std::vector<std::string> args = { "/bin/sh", path };
+        args.insert(args.end(), step.args.begin(), step.args.end());
+
+        for (std::string& arg : args) {
+            ReplacePackagePlaceholders(arg, package);
+        }
+
+        std::println(std::cout, "{}", (args | stdv::join_with(' ')) | stdr::to<std::string>());
+        auto result = sp::call(args, sp::environment{env});
+        if (result != 0) {
+            throw std::runtime_error("Failed to run script " + args[1]);
+        }
     } else {
         throw std::runtime_error("Unknown configure program for " + package.name);
+    }
+}
+
+static void ConfigurePackage(const PackageInfo& package) {
+    if (!gPackageDb->ShouldRunStep(package.name, eConfigured)) {
+        return;
+    }
+
+    for (const auto& step : package.configureSteps) {
+        RunConfigureStep(package, step);
     }
 
     gPackageDb->RaiseTargetStatus(package.name, eConfigured);
 }
 
 static void BuildPackage(const PackageInfo& package) {
-    if (package.configure == eConfigureNone) {
-        return;
-    }
-
     if (!gPackageDb->ShouldRunStep(package.name, eBuilt)) {
         return;
     }
@@ -1225,17 +1381,19 @@ static void BuildPackage(const PackageInfo& package) {
 
     std::string builddir = package.GetBuildFolder().string();
 
-    if (package.configure == eMeson) {
+    auto buildProgram = package.guessBuildProgram();
+
+    if (buildProgram == eMeson) {
         auto result = sp::call({ "meson", "compile" }, sp::cwd{builddir});
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
-    } else if (package.configure == eCMake) {
+    } else if (buildProgram == eCMake) {
         auto result = sp::call({ "cmake", "--build", builddir }, sp::cwd{builddir});
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
-    } else if (package.configure == eAutoconf) {
+    } else if (buildProgram == eAutoconf) {
         auto result = sp::call({ "make", "-j", std::to_string(std::thread::hardware_concurrency()), "-Otarget" }, sp::cwd{builddir});
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
@@ -1260,7 +1418,8 @@ static void CopyInstallFiles(const PackageInfo& package) {
 }
 
 static void InstallPackage(const PackageInfo& package) {
-    if (package.configure == eConfigureNone) {
+    auto buildProgram = package.guessBuildProgram();
+    if (buildProgram == eConfigureNone) {
         CopyInstallFiles(package);
         return;
     }
@@ -1292,17 +1451,17 @@ static void InstallPackage(const PackageInfo& package) {
 
     std::string builddir = package.GetBuildFolder().string();
 
-    if (package.configure == eMeson) {
+    if (buildProgram == eMeson) {
         auto result = sp::call({ "meson", "install", "--no-rebuild", "--skip-subprojects" }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to install package " + package.name);
         }
-    } else if (package.configure == eCMake) {
+    } else if (buildProgram == eCMake) {
         auto result = sp::call({ "cmake", "--install", builddir }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to install package " + package.name);
         }
-    } else if (package.configure == eAutoconf) {
+    } else if (buildProgram == eAutoconf) {
         auto result = sp::call({ "make", "install" }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to install package " + package.name);
@@ -1322,23 +1481,6 @@ static void GenerateArtifact(std::string_view name, const PackageInfo& artifact)
     }
 
     std::println(std::cout, "{}: generate", artifact.name);
-
-    std::jthread spinner([&](std::stop_token stop) {
-        indicators::IndeterminateProgressBar bar{
-            indicators::option::BarWidth{40},
-            indicators::option::Start{"["},
-            indicators::option::Lead{"*"},
-            indicators::option::End{"]"},
-            indicators::option::PrefixText{std::format("Generating {} ", artifact.name)},
-            indicators::option::ForegroundColor{indicators::Color::white},
-            indicators::option::FontStyles{std::vector<indicators::FontStyle>{indicators::FontStyle::bold}}
-        };
-
-        while (!stop.stop_requested()) {
-            bar.tick();
-            std::this_thread::sleep_for(100ms);
-        }
-    });
 
     for (const auto& script : artifact.scripts) {
         auto path = script.script.string();
