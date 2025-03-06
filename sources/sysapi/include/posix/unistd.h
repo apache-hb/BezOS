@@ -2,6 +2,7 @@
 #define BEZOS_POSIX_UNISTD_H 1
 
 #include <detail/cxx.h>
+#include <detail/attributes.h>
 #include <detail/id.h>
 #include <detail/size.h>
 #include <detail/node.h>
@@ -11,6 +12,9 @@
 BZP_API_BEGIN
 
 #define _SC_PAGESIZE 0x100
+
+BZP_NORETURN
+extern void _exit(int) BZP_NOEXCEPT;
 
 extern int execve(const char *, char *const[], char *const[]) BZP_NOEXCEPT;
 
@@ -65,6 +69,8 @@ extern ssize_t write(int, const void *, size_t) BZP_NOEXCEPT;
 extern int access(const char *, int) BZP_NOEXCEPT;
 
 extern long sysconf(int) BZP_NOEXCEPT;
+
+extern size_t confstr(int, char *, size_t) BZP_NOEXCEPT;
 
 extern int getopt(int, char *const[], const char *) BZP_NOEXCEPT;
 

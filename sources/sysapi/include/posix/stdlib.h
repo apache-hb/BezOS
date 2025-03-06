@@ -10,6 +10,9 @@ BZP_API_BEGIN
 
 #define MB_CUR_MAX 1
 
+#define EXIT_SUCCESS 0
+#define EXIT_FAILURE 1
+
 BZP_NORETURN
 extern void abort(void) BZP_NOEXCEPT;
 

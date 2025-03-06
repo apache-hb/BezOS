@@ -57,6 +57,12 @@ extern int vprintf(const char *, va_list) BZP_NOEXCEPT;
 
 extern int vfprintf(FILE *, const char *, va_list) BZP_NOEXCEPT;
 
+extern int fscanf(FILE * BZP_RESTRICT, const char * BZP_RESTRICT, ...) BZP_NOEXCEPT;
+
+extern int scanf(const char * BZP_RESTRICT, ...) BZP_NOEXCEPT;
+
+extern int sscanf(const char * BZP_RESTRICT, const char * BZP_RESTRICT, ...) BZP_NOEXCEPT;
+
 extern size_t fread(void *, size_t, size_t, FILE *) BZP_NOEXCEPT;
 
 extern size_t fwrite(const void *, size_t, size_t, FILE *) BZP_NOEXCEPT;

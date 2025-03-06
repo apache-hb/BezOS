@@ -36,6 +36,7 @@ extern int *OsImplPosixErrnoAddress(void) BZP_NOEXCEPT;
 #define EIEIO 0x11 /* Computer bought the farm */
 #define EACCES 0x12 /* Permission denied */
 #define EEXIST 0x13 /* File exists */
+#define ENODEV 0x14 /* No such device */
 
 BZP_API_END
 

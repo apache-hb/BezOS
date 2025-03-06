@@ -151,13 +151,6 @@ struct ConfigureStep {
     std::string nativeFile;
 };
 
-static ConfigureStep ShellStep(fs::path path) {
-    return ConfigureStep {
-        .configure = eShell,
-        .shellScript = path,
-    };
-}
-
 struct PackageInfo {
     std::string name;
     fs::path source;
@@ -1235,10 +1228,10 @@ static void RunConfigureStep(const PackageInfo& package, const ConfigureStep& st
     for (auto& [key, value] : env) {
         ReplacePackagePlaceholders(value, package);
     }
-    env["PREFIX"] = gInstallPrefix.string();
-    env["BUILD"] = gBuildRoot.string();
-    env["REPO"] = gRepoRoot.string();
-    env["SOURCE"] = gSourceRoot.string();
+    env["PREFIX"] = fs::absolute(gInstallPrefix).string();
+    env["BUILD"] = fs::absolute(gBuildRoot).string();
+    env["REPO"] = fs::absolute(gRepoRoot).string();
+    env["SOURCE"] = fs::absolute(gSourceRoot).string();
 
     auto [out, err] = package.GetLogFiles("configure");
 
@@ -1361,7 +1354,7 @@ static void RunConfigureStep(const PackageInfo& package, const ConfigureStep& st
         }
 
         std::println(std::cout, "{}", (args | stdv::join_with(' ')) | stdr::to<std::string>());
-        auto result = sp::call(args, sp::environment{env});
+        auto result = sp::call(args, sp::environment{env}, sp::cwd{builddir});
         if (result != 0) {
             throw std::runtime_error("Failed to run script " + args[1]);
         }

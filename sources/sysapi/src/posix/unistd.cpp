@@ -10,7 +10,7 @@ long sysconf(int param) noexcept {
     }
 }
 
-int getopt(int argc, char *const argv[], const char *opts) noexcept {
+int getopt(int, char *const[], const char *) noexcept {
     errno = ENOSYS;
     return -1;
 }
