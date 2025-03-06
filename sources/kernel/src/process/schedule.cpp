@@ -4,15 +4,20 @@
 #include "allocator/synchronized.hpp"
 #include "allocator/tlsf.hpp"
 
+using SynchronizedTlsfAllocator = mem::SynchronizedAllocator<mem::TlsfAllocator>;
+
+extern "C" [[noreturn]] void KmResumeThread(km::IsrContext *context);
+
+extern "C" uint64_t KmSystemCallStackTlsOffset;
+
 CPU_LOCAL
 static constinit km::CpuLocal<sm::RcuSharedPtr<km::Thread>> tlsCurrentThread;
 
 CPU_LOCAL
 static constinit km::CpuLocal<uint8_t> tlsScheduleIdx;
 
-extern "C" [[noreturn]] void KmResumeThread(km::IsrContext *context);
-
-using SynchronizedTlsfAllocator = mem::SynchronizedAllocator<mem::TlsfAllocator>;
+CPU_LOCAL
+static constinit km::CpuLocal<void*> tlsSystemCallStack;
 
 static constinit mem::IAllocator *gSchedulerAllocator = nullptr;
 
@@ -75,9 +80,17 @@ sm::RcuSharedPtr<km::Process> km::GetCurrentProcess() {
     return nullptr;
 }
 
+static void SetCurrentThread(sm::RcuSharedPtr<km::Thread> thread) {
+    tlsCurrentThread = thread;
+
+    if (thread != nullptr) {
+        km::kFsBase.store(thread->tlsAddress);
+        tlsSystemCallStack = thread->getSyscallStack();
+    }
+}
+
 void km::SwitchThread(sm::RcuSharedPtr<km::Thread> next) {
-    tlsCurrentThread = next;
-    kFsBase.store(next->tlsAddress);
+    SetCurrentThread(next);
     km::IsrContext *state = &next->state;
 
     //
@@ -91,7 +104,9 @@ void km::SwitchThread(sm::RcuSharedPtr<km::Thread> next) {
 }
 
 void km::ScheduleWork(LocalIsrTable *table, IApic *apic, sm::RcuSharedPtr<km::Thread> initial) {
-    tlsCurrentThread = initial;
+    KmSystemCallStackTlsOffset = tlsSystemCallStack.tlsOffset();
+
+    SetCurrentThread(initial);
 
     const IsrEntry *scheduleInt = table->allocate([](km::IsrContext *ctx) noexcept -> km::IsrContext {
         IApic *apic = km::GetCpuLocalApic();
@@ -112,8 +127,7 @@ void km::ScheduleWork(LocalIsrTable *table, IApic *apic, sm::RcuSharedPtr<km::Th
                 KmDebugMessage("[SCHED] No current thread to switch from - ", km::GetCurrentCoreId(), "\n");
             }
 
-            tlsCurrentThread = next;
-            kFsBase.store(next->tlsAddress);
+            SetCurrentThread(next);
             return next->state;
         } else {
             return *ctx;

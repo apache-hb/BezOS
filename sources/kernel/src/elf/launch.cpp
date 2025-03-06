@@ -257,7 +257,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
         .ss = (SystemGdt::eLongModeUserData * 0x8) | 0b11,
     };
 
-    KmDebugMessage("[ELF] Entry point: ", km::Hex(regs.rip), "\n");
+    KmDebugMessage("[ELF] Entry point: ", km::Hex(regs.rip), ", offset: ", windowOffset, "\n");
 
     const elf::ProgramHeader *tls = FindTlsSection(programHeaders);
     if (tls != nullptr) {

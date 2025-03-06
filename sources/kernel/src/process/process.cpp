@@ -1,4 +1,5 @@
 #include "process/process.hpp"
+#include "kernel.hpp"
 #include "log.hpp"
 
 using namespace km;
@@ -6,6 +7,11 @@ using namespace km;
 sm::RcuSharedPtr<Thread> SystemObjects::createThread(stdx::String name, sm::RcuSharedPtr<Process> process) {
     ThreadId id = mThreadIds.allocate();
     sm::RcuSharedPtr ptr = sm::rcuMakeShared<Thread>(&mDomain, id, std::move(name), process);
+
+    SystemMemory *memory = GetSystemMemory();
+
+    AddressMapping stackMapping = memory->allocateStack(0x4000 * 4);
+    ptr->syscallStack = stackMapping;
 
     process->addThread(ptr);
 

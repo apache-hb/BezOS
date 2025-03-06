@@ -13,9 +13,6 @@ static constexpr x64::ModelRegister<0xC0000084, x64::RegisterAccess::eReadWrite>
 
 static constexpr size_t kStackSize = 0x4000 * 4;
 
-CPU_LOCAL
-static constinit km::CpuLocal<void*> tlsSystemCallStack;
-
 static constinit km::BetterCallHandler gSystemCalls[256] = { nullptr };
 
 void km::AddSystemCall(uint8_t function, BetterCallHandler handler) {
@@ -23,8 +20,6 @@ void km::AddSystemCall(uint8_t function, BetterCallHandler handler) {
 }
 
 extern "C" void KmSystemEntry(void);
-
-extern "C" uint64_t KmSystemCallStackTlsOffset;
 
 extern "C" OsCallResult KmSystemDispatchRoutine(km::SystemCallRegisterSet *regs) {
     uint8_t function = regs->function;
@@ -38,12 +33,8 @@ extern "C" OsCallResult KmSystemDispatchRoutine(km::SystemCallRegisterSet *regs)
 }
 
 void km::SetupUserMode(SystemMemory *memory) {
-    tlsSystemCallStack = (void*)((uintptr_t)memory->allocateStack(kStackSize).vaddr + kStackSize);
-
     void *rsp0 = (void*)memory->allocateStack(kStackSize).vaddr;
     tlsTaskState->rsp0 = (uintptr_t)rsp0 + kStackSize;
-
-    KmSystemCallStackTlsOffset = tlsSystemCallStack.tlsOffset();
 
     uint64_t star = 0;
 

@@ -70,6 +70,10 @@ namespace km {
         uint64_t tlsAddress = 0;
         sm::RcuSharedPtr<AddressSpace> stack;
         AddressMapping syscallStack; // TODO: populate this and use it for syscalls
+
+        void *getSyscallStack() const {
+            return (void*)((uintptr_t)syscallStack.vaddr + syscallStack.size - x64::kPageSize);
+        }
     };
 
     struct AddressSpace : public KernelObject {
