@@ -205,6 +205,10 @@ struct PackageInfo {
     }
 
     fs::path GetWorkspaceFolder() const {
+        if (source.empty() && imported.empty()) {
+            throw std::runtime_error(std::format("Package {} has no source or imported folder", name));
+        }
+
         return fs::absolute(source.empty() ? imported : source).string();
     }
 
@@ -1077,11 +1081,17 @@ static void ReadArtifactConfig(XmlNode node) {
                 }
             }
 
-            artifactInfo.configureSteps.push_back(ShellStep(script));
+            artifactInfo.scripts.push_back(exec);
         }
     }
 
-    gWorkspace.packages.emplace(name, artifactInfo);
+    if (artifactInfo.source.empty()) {
+        auto source = PackageImportPath(name);
+        MakeFolder(source);
+        artifactInfo.imported = source;
+    }
+
+    gWorkspace.AddPackage(artifactInfo);
 }
 
 static void ReplacePathPlaceholders(std::string& str) {
@@ -1178,6 +1188,8 @@ static void AddGitignoreSymlink(const fs::path& path) {
 
 static void ConnectDependencies(const PackageInfo& package) {
     for (const auto& dep : package.dependencies) {
+        if (dep.symlink.empty()) continue;
+
         auto symlink = package.GetWorkspaceFolder() / dep.symlink;
         auto path = gWorkspace.GetPackagePath(dep.name);
 
@@ -1384,16 +1396,19 @@ static void BuildPackage(const PackageInfo& package) {
     auto buildProgram = package.guessBuildProgram();
 
     if (buildProgram == eMeson) {
+        std::println(std::cout, "{}: build program meson", package.name);
         auto result = sp::call({ "meson", "compile" }, sp::cwd{builddir});
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
     } else if (buildProgram == eCMake) {
+        std::println(std::cout, "{}: build program cmake", package.name);
         auto result = sp::call({ "cmake", "--build", builddir }, sp::cwd{builddir});
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
     } else if (buildProgram == eAutoconf) {
+        std::println(std::cout, "{}: build program autoconf", package.name);
         auto result = sp::call({ "make", "-j", std::to_string(std::thread::hardware_concurrency()), "-Otarget" }, sp::cwd{builddir});
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
@@ -1406,10 +1421,11 @@ static void BuildPackage(const PackageInfo& package) {
 static void CopyInstallFiles(const PackageInfo& package) {
     for (const auto& download : package.downloads) {
         if (download.install) {
+            std::println(std::cout, "{}: copy {}", package.name, download.file);
+
             auto path = package.GetWorkspaceFolder() / download.file;
             auto dst = package.GetInstallPath() / download.file;
 
-            std::println(std::cout, "{}: copy {} -> {}", package.name, path.string(), dst.string());
             fs::copy_file(path, dst, fs::copy_options::overwrite_existing);
         }
     }
@@ -1450,16 +1466,19 @@ static void InstallPackage(const PackageInfo& package) {
     std::string builddir = package.GetBuildFolder().string();
 
     if (buildProgram == eMeson) {
+        std::println(std::cout, "{}: install with meson", package.name);
         auto result = sp::call({ "meson", "install", "--no-rebuild", "--skip-subprojects" }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to install package " + package.name);
         }
     } else if (buildProgram == eCMake) {
+        std::println(std::cout, "{}: install with cmake", package.name);
         auto result = sp::call({ "cmake", "--install", builddir }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to install package " + package.name);
         }
     } else if (buildProgram == eAutoconf) {
+        std::println(std::cout, "{}: install with make", package.name);
         auto result = sp::call({ "make", "install" }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to install package " + package.name);

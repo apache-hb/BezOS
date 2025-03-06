@@ -1,5 +1,5 @@
 #!/bin/sh
 
 cd $1
-autoreconf -i
+$PREFIX/autoconf/bin/autoreconf -i -f
 cd -

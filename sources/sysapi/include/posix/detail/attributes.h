@@ -27,4 +27,10 @@
 #   define BZP_RETURNS_NONNULL
 #endif
 
+#if defined(__GNUC__) || defined(__clang__)
+#   define BZP_RESTRICT __restrict__
+#else
+#   define BZP_RESTRICT
+#endif
+
 #endif /* BEZOS_POSIX_DETAIL_ATTRIBUTES_H */

@@ -6,6 +6,8 @@
                 trim-root-folder='true'
                 archive='tar' />
 
+        <patch file='@REPO@/patches/autoconf/0001-add-bezos.patch' />
+
         <require package='llvm' />
 
         <configure with='autoconf' />

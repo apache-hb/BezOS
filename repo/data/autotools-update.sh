@@ -1,5 +1,5 @@
 #!/bin/sh
 
 cd $1
-autoupdate
+$PREFIX/autoconf/bin/autoupdate
 cd -

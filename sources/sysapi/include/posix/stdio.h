@@ -2,6 +2,7 @@
 #define BEZOS_POSIX_STDIO_H 1
 
 #include <detail/cxx.h>
+#include <detail/attributes.h>
 
 #include <stddef.h>
 #include <stdarg.h>
@@ -44,13 +45,13 @@ extern int fprintf(FILE *, const char *, ...) BZP_NOEXCEPT;
 
 extern int printf(const char *, ...) BZP_NOEXCEPT;
 
-extern int sprintf(char *, const char *, ...) BZP_NOEXCEPT;
+extern int sprintf(char * BZP_RESTRICT, const char * BZP_RESTRICT, ...) BZP_NOEXCEPT;
 
-extern int snprintf(char *, size_t, const char *, ...) BZP_NOEXCEPT;
+extern int snprintf(char * BZP_RESTRICT, size_t, const char * BZP_RESTRICT, ...) BZP_NOEXCEPT;
 
-extern int vsprintf(char *, const char *, va_list) BZP_NOEXCEPT;
+extern int vsprintf(char * BZP_RESTRICT, const char * BZP_RESTRICT, va_list) BZP_NOEXCEPT;
 
-extern int vsnprintf(char *, size_t, const char *, va_list) BZP_NOEXCEPT;
+extern int vsnprintf(char * BZP_RESTRICT, size_t, const char * BZP_RESTRICT, va_list) BZP_NOEXCEPT;
 
 extern int vprintf(const char *, va_list) BZP_NOEXCEPT;
 
