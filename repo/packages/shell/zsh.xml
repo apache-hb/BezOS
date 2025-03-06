@@ -1,0 +1,28 @@
+<package name='zsh'>
+    <download file='zsh-5.9.tar.gz'
+              url='https://github.com/zsh-users/zsh/archive/refs/tags/zsh-5.9.tar.gz'
+              sha256='11ea641122396836441375f41f6cb2954890546857936b734ccad353ab62bf88'
+              trim-root-folder='true'
+              archive='tar' />
+
+    <require package='llvm' />
+    <require package='sysapi' />
+    <require package='automake' />
+    <require package='autoconf' />
+
+    <configure with='autoconf' using='@PREFIX@/automake/bin/automake'>
+        <env CC='@PREFIX@/llvm/bin/clang'
+             LD='@PREFIX@/llvm/bin/ld.lld'
+             LDFLAGS='@PREFIX@/sysapi/lib/crtstart.o
+                      @PREFIX@/sysapi/lib/libbezos-sysapi.a
+                      @PREFIX@/sysapi/lib/libbezos-posix.a
+                      -e ProgramMain
+                      -nostartfiles
+                      -nostdlib
+                      -Wl,-z,norelro'
+             CFLAGS='--sysroot @PREFIX@/llvm
+                     -isystem @PREFIX@/sysapi/include/posix
+                     -nostdlib' />
+        <options host='x86_64-bezos-elf' />
+    </configure>
+</package>
