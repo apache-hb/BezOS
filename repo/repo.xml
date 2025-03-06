@@ -19,6 +19,8 @@
     <xi:include href='packages/sysapi.xml' />
     <xi:include href='packages/system.xml' />
 
+    <xi:include href='packages/lib/ncurses.xml' />
+
     <!-- <xi:include href='packages/shell/bash.xml' /> -->
     <xi:include href='packages/shell/zsh.xml' />
 

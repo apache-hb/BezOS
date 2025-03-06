@@ -66,6 +66,13 @@ extern int access(const char *, int) BZP_NOEXCEPT;
 
 extern long sysconf(int) BZP_NOEXCEPT;
 
+extern int getopt(int, char *const[], const char *) BZP_NOEXCEPT;
+
+extern char *optarg;
+extern int opterr;
+extern int optind;
+extern int optopt;
+
 BZP_API_END
 
 #endif /* BEZOS_POSIX_UNISTD_H */

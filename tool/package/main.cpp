@@ -1398,8 +1398,6 @@ static void BuildPackage(const PackageInfo& package) {
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
-    } else {
-        throw std::runtime_error("Unknown build program for " + package.name);
     }
 
     gPackageDb->RaiseTargetStatus(package.name, eBuilt);
@@ -1466,8 +1464,6 @@ static void InstallPackage(const PackageInfo& package) {
         if (result != 0) {
             throw std::runtime_error("Failed to install package " + package.name);
         }
-    } else {
-        throw std::runtime_error("Unknown install program for " + package.name);
     }
 
     CopyInstallFiles(package);

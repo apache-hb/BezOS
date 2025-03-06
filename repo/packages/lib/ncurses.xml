@@ -1,7 +1,7 @@
-<package name='zsh'>
-    <download file='zsh-5.9.tar.gz'
-              url='https://github.com/zsh-users/zsh/archive/refs/tags/zsh-5.9.tar.gz'
-              sha256='11ea641122396836441375f41f6cb2954890546857936b734ccad353ab62bf88'
+<package name='ncurses' version='6.4'>
+    <download file='ncurses-6.4.tar.gz'
+              url='https://github.com/mirror/ncurses/archive/refs/tags/v6.4.tar.gz'
+              sha256='39893846139518e6c2d00ac1d354d4889f0f394acd44885d70b14eaef4e23e8e'
               trim-root-folder='true'
               archive='tar' />
 
@@ -9,7 +9,10 @@
     <require package='sysapi' />
     <require package='automake' />
     <require package='autoconf' />
-    <require package='ncurses' />
+
+    <configure with='shell' path='@REPO@/data/autotools-update.sh'>
+        <arg>@SOURCE_ROOT@</arg>
+    </configure>
 
     <configure with='shell' path='@REPO@/data/autotools-reconf.sh'>
         <arg>@SOURCE_ROOT@</arg>
