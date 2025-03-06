@@ -145,7 +145,7 @@ const km::IsrEntry *hid::InstallPs2MouseIsr(km::IoApicSet& ioApicSet, hid::Ps2Co
         gController.flush();
 
         km::IApic *apic = km::GetCpuLocalApic();
-        apic->eoi();
+        defer { apic->eoi(); };
 
         KmDebugMessage("[PS2] Mouse code: ", km::Hex(ctx->vector), " = ", km::Hex(code), " (", x, ", ", y, ")\n");
 

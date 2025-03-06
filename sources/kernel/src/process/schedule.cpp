@@ -97,7 +97,7 @@ void km::SwitchThread(sm::RcuSharedPtr<km::Thread> next) {
 
 static km::IsrContext SchedulerIsr(km::IsrContext *ctx) noexcept {
     km::IApic *apic = km::GetCpuLocalApic();
-    apic->eoi();
+    defer { apic->eoi(); };
 
     km::Scheduler *scheduler = km::GetScheduler();
 

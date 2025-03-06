@@ -159,7 +159,7 @@ static constinit SystemGdt gBootGdt{};
 static constinit SerialPort gCanBusPort;
 static constinit CanBus gCanBus{nullptr};
 
-static constexpr auto kRspStackSize = x64::kPageSize * 8;
+// static constexpr auto kRspStackSize = x64::kPageSize * 8;
 static constexpr auto kTssStackSize = x64::kPageSize * 16;
 
 enum {
@@ -751,7 +751,7 @@ static void LogSystemInfo(
 
 static void SetupInterruptStacks(uint16_t cs) {
     SystemMemory *memory = GetSystemMemory();
-    gBootTss = x64::TaskStateSegment{
+    gBootTss = x64::TaskStateSegment {
         .ist1 = (uintptr_t)memory->allocateStack(kTssStackSize).vaddr + kTssStackSize,
         .ist2 = (uintptr_t)memory->allocateStack(kTssStackSize).vaddr + kTssStackSize,
         .ist3 = (uintptr_t)memory->allocateStack(kTssStackSize).vaddr + kTssStackSize,
