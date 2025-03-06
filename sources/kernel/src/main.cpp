@@ -159,7 +159,8 @@ static constinit SystemGdt gBootGdt{};
 static constinit SerialPort gCanBusPort;
 static constinit CanBus gCanBus{nullptr};
 
-static constexpr size_t kTssStackSize = x64::kPageSize * 16;
+static constexpr auto kRspStackSize = x64::kPageSize * 8;
+static constexpr auto kTssStackSize = x64::kPageSize * 16;
 
 enum {
     kIstTrap = 1,
@@ -755,6 +756,8 @@ static void SetupInterruptStacks(uint16_t cs) {
         .ist2 = (uintptr_t)memory->allocateStack(kTssStackSize).vaddr + kTssStackSize,
         .ist3 = (uintptr_t)memory->allocateStack(kTssStackSize).vaddr + kTssStackSize,
         .ist4 = (uintptr_t)memory->allocateStack(kTssStackSize).vaddr + kTssStackSize,
+
+        .iopbOffset = sizeof(x64::TaskStateSegment),
     };
 
     gBootGdt.setTss(&gBootTss);
