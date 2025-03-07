@@ -80,11 +80,11 @@ void km::EnterUserMode(km::IsrContext state) {
     );
 }
 
-sm::RcuSharedPtr<km::Process> km::CallContext::process() {
+km::Process *km::CallContext::process() {
     return km::GetCurrentProcess();
 }
 
-sm::RcuSharedPtr<km::Thread> km::CallContext::thread() {
+km::Thread *km::CallContext::thread() {
     return km::GetCurrentThread();
 }
 

@@ -941,7 +941,7 @@ static void AddThreadSystemCalls() {
             return CallError(status);
         }
 
-        sm::RcuSharedPtr<Process> process;
+        Process * process;
         if (createInfo.Process != OS_HANDLE_INVALID) {
             process = gSystemObjects->getProcess(ProcessId(createInfo.Process & 0x00FF'FFFF'FFFF'FFFF));
         } else {
@@ -953,12 +953,12 @@ static void AddThreadSystemCalls() {
         }
 
         stdx::String stackName = name + " STACK";
-        sm::RcuSharedPtr<Thread> thread = gSystemObjects->createThread(std::move(name), process);
+        Thread * thread = gSystemObjects->createThread(std::move(name), process);
 
         PageFlags flags = PageFlags::eUser | PageFlags::eData;
         MemoryType type = MemoryType::eWriteBack;
         km::AddressMapping mapping = gMemory->userAllocate(createInfo.StackSize, flags, type);
-        sm::RcuSharedPtr<AddressSpace> stackSpace = gSystemObjects->createAddressSpace(std::move(stackName), mapping, flags, type, process);
+        AddressSpace * stackSpace = gSystemObjects->createAddressSpace(std::move(stackName), mapping, flags, type, process);
         thread->stack = stackSpace;
         thread->state = km::IsrContext {
             .rbp = (uintptr_t)(thread->stack.get() + createInfo.StackSize),
@@ -1038,7 +1038,7 @@ static void AddVmemSystemCalls() {
             return CallError(status);
         }
 
-        sm::RcuSharedPtr<Process> process;
+        Process * process;
         if (createInfo.Process != OS_HANDLE_INVALID) {
             process = gSystemObjects->getProcess(ProcessId(createInfo.Process & 0x00FF'FFFF'FFFF'FFFF));
         } else {
@@ -1060,12 +1060,12 @@ static void AddVmemSystemCalls() {
             return CallError(OsStatusOutOfMemory);
         }
 
-        sm::RcuSharedPtr<AddressSpace> addressSpace = gSystemObjects->createAddressSpace(std::move(name), mapping, flags, MemoryType::eWriteBack, process);
+        AddressSpace * addressSpace = gSystemObjects->createAddressSpace(std::move(name), mapping, flags, MemoryType::eWriteBack, process);
         return CallOk(addressSpace->id());
     });
 
     AddSystemCall(eOsCallAddressSpaceStat, [](uint64_t id, uint64_t userStat, uint64_t, uint64_t) -> OsCallResult {
-        sm::RcuSharedPtr<AddressSpace> space = gSystemObjects->getAddressSpace(AddressSpaceId(id & 0x00FF'FFFF'FFFF'FFFF));
+        AddressSpace * space = gSystemObjects->getAddressSpace(AddressSpaceId(id & 0x00FF'FFFF'FFFF'FFFF));
         km::AddressMapping mapping = space->mapping;
 
         OsAddressSpaceInfo stat {
@@ -1087,13 +1087,13 @@ static constexpr size_t kKernelStackSize = 0x4000;
 
 static OsStatus LaunchThread(OsStatus(*entry)(void*), void *arg, stdx::String name) {
     stdx::String stackName = name + " STACK";
-    sm::RcuSharedPtr<Process> process = GetCurrentProcess();
-    sm::RcuSharedPtr<Thread> thread = gSystemObjects->createThread(std::move(name), process);
+    Process * process = GetCurrentProcess();
+    Thread * thread = gSystemObjects->createThread(std::move(name), process);
 
     PageFlags flags = PageFlags::eData;
     MemoryType type = MemoryType::eWriteBack;
     km::AddressMapping mapping = gMemory->kernelAllocate(kKernelStackSize, flags, type);
-    sm::RcuSharedPtr<AddressSpace> stackSpace = gSystemObjects->createAddressSpace(std::move(stackName), mapping, flags, type, process);
+    AddressSpace * stackSpace = gSystemObjects->createAddressSpace(std::move(stackName), mapping, flags, type, process);
 
     thread->state = km::IsrContext {
         .rdi = (uintptr_t)arg,
@@ -1221,13 +1221,13 @@ static OsStatus KernelMasterTask() {
 
 [[noreturn]]
 static void LaunchKernelProcess() {
-    sm::RcuSharedPtr<Process> process = gSystemObjects->createProcess("SYSTEM", x64::Privilege::eSupervisor);
-    sm::RcuSharedPtr<Thread> thread = gSystemObjects->createThread("MASTER", process);
+    Process * process = gSystemObjects->createProcess("SYSTEM", x64::Privilege::eSupervisor);
+    Thread * thread = gSystemObjects->createThread("MASTER", process);
 
     PageFlags flags = PageFlags::eData;
     MemoryType type = MemoryType::eWriteBack;
     km::AddressMapping mapping = gMemory->kernelAllocate(kKernelStackSize, flags, type);
-    sm::RcuSharedPtr<AddressSpace> stackSpace = gSystemObjects->createAddressSpace("MASTER STACK", mapping, flags, type, process);
+    AddressSpace * stackSpace = gSystemObjects->createAddressSpace("MASTER STACK", mapping, flags, type, process);
 
     thread->stack = stackSpace;
     thread->state = km::IsrContext {

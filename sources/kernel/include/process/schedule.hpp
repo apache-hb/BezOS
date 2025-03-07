@@ -1,5 +1,7 @@
 #pragma once
 
+#include "std/queue.hpp"
+
 #include "crt.hpp"
 #include "process/process.hpp"
 
@@ -10,27 +12,27 @@ namespace km {
     };
 
     class Scheduler {
-        moodycamel::ConcurrentQueue<sm::RcuWeakPtr<Thread>, SchedulerQueueTraits> mQueue;
+        moodycamel::ConcurrentQueue<Thread*, SchedulerQueueTraits> mQueue;
 
     public:
         Scheduler();
 
-        void addWorkItem(sm::RcuSharedPtr<Thread> thread);
-        sm::RcuSharedPtr<km::Thread> getWorkItem() noexcept;
+        void addWorkItem(km::Thread *thread);
+        km::Thread *getWorkItem() noexcept;
     };
 
     void InitSchedulerMemory(void *memory, size_t size);
 
-    sm::RcuSharedPtr<Thread> GetCurrentThread();
-    sm::RcuSharedPtr<Process> GetCurrentProcess();
+    km::Thread *GetCurrentThread();
+    Process * GetCurrentProcess();
 
     [[noreturn]]
-    void SwitchThread(sm::RcuSharedPtr<Thread> next);
+    void SwitchThread(Thread *next);
 
     void InstallSchedulerIsr(LocalIsrTable *table);
 
     [[noreturn]]
-    void ScheduleWork(LocalIsrTable *table, IApic *apic, sm::RcuSharedPtr<km::Thread> initial = nullptr);
+    void ScheduleWork(LocalIsrTable *table, IApic *apic, km::Thread *initial = nullptr);
 
     void YieldCurrentThread();
 }

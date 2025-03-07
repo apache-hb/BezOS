@@ -234,7 +234,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
         c = toupper(c);
     }
 
-    sm::RcuSharedPtr<Process> process = objects.createProcess(stdx::String(name), x64::Privilege::eUser, &memory.pageTables(), pteMemory);
+    Process * process = objects.createProcess(stdx::String(name), x64::Privilege::eUser, &memory.pageTables(), pteMemory);
 
     KmDebugMessage("[ELF] Load memory range: ", loadMemory, "\n");
 
@@ -385,9 +385,9 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
     memory.unmap(stack, kStackSize);
 
     name.append(" MAIN");
-    sm::RcuSharedPtr<AddressSpace> stackSpace = objects.createAddressSpace("MAIN STACK", mapping, flags, type, process);
+    AddressSpace * stackSpace = objects.createAddressSpace("MAIN STACK", mapping, flags, type, process);
 
-    sm::RcuSharedPtr<Thread> main = objects.createThread(stdx::String(name), process);
+    Thread * main = objects.createThread(stdx::String(name), process);
     main->stack = stackSpace;
 
     regs.rbp = (uintptr_t)mapping.vaddr + kStackSize;

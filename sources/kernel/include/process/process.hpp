@@ -3,6 +3,7 @@
 #include <bezos/facility/process.h>
 #include <bezos/facility/threads.h>
 
+#include "memory/tables.hpp"
 #include "util/defer.hpp"
 #include "fs2/node.hpp"
 #include "isr/isr.hpp"
@@ -10,7 +11,6 @@
 #include "std/shared_spinlock.hpp"
 #include "std/spinlock.hpp"
 #include "std/string.hpp"
-#include "std/rcuptr.hpp"
 
 #include "util/absl.hpp"
 #include "std/vector.hpp"
@@ -38,7 +38,7 @@ namespace km {
 
     class SystemObjects;
 
-    class KernelObject : public sm::RcuIntrusivePtr<KernelObject> {
+    class KernelObject {
         OsHandle mId;
         stdx::String mName;
 
@@ -57,16 +57,16 @@ namespace km {
     };
 
     struct Thread : public KernelObject {
-        Thread(ThreadId id, stdx::String name, sm::RcuSharedPtr<Process> process)
+        Thread(ThreadId id, stdx::String name, Process *process)
             : KernelObject(std::to_underlying(id) | (uint64_t(eOsHandleThread) << 56), std::move(name))
             , process(process)
         { }
 
-        sm::RcuWeakPtr<Process> process;
-        sm::RcuWeakPtr<Mutex> wait;
+        Process *process;
+        Mutex *wait;
         km::IsrContext state;
         uint64_t tlsAddress = 0;
-        sm::RcuSharedPtr<AddressSpace> stack;
+        AddressSpace *stack;
         AddressMapping syscallStack; // TODO: populate this and use it for syscalls
 
         void *getSyscallStack() const {
@@ -98,16 +98,16 @@ namespace km {
         { }
 
         ProcessPageTables ptes;
-        stdx::Vector2<sm::RcuSharedPtr<Thread>> threads;
-        stdx::Vector2<sm::RcuSharedPtr<AddressSpace>> memory;
+        stdx::Vector2<Thread*> threads;
+        stdx::Vector2<AddressSpace*> memory;
         sm::FlatHashSet<std::unique_ptr<vfs2::IVfsNodeHandle>> files;
 
-        void addThread(sm::RcuSharedPtr<Thread> thread) {
+        void addThread(Thread *thread) {
             stdx::UniqueLock guard(lock);
             threads.add(thread);
         }
 
-        void addAddressSpace(sm::RcuSharedPtr<AddressSpace> addressSpace) {
+        void addAddressSpace(AddressSpace *addressSpace) {
             stdx::UniqueLock guard(lock);
             memory.add(addressSpace);
         }
@@ -159,35 +159,34 @@ namespace km {
 
     class SystemObjects {
         stdx::SharedSpinLock mLock;
-        sm::RcuDomain mDomain;
 
         IdAllocator<ThreadId> mThreadIds;
         IdAllocator<AddressSpaceId> mAddressSpaceIds;
         IdAllocator<ProcessId> mProcessIds;
         IdAllocator<MutexId> mMutexIds;
 
-        sm::FlatHashMap<ThreadId, sm::RcuWeakPtr<Thread>> mThreads;
-        sm::FlatHashMap<AddressSpaceId, sm::RcuSharedPtr<AddressSpace>> mAddressSpaces;
-        sm::FlatHashMap<ProcessId, sm::RcuSharedPtr<Process>> mProcesses;
-        sm::FlatHashMap<MutexId, sm::RcuSharedPtr<Mutex>> mMutexes;
+        sm::FlatHashMap<ThreadId, Thread*> mThreads;
+        sm::FlatHashMap<AddressSpaceId, AddressSpace*> mAddressSpaces;
+        sm::FlatHashMap<ProcessId, Process*> mProcesses;
+        sm::FlatHashMap<MutexId, Mutex*> mMutexes;
 
     public:
         SystemObjects() = default;
 
-        sm::RcuSharedPtr<Thread> createThread(stdx::String name, sm::RcuSharedPtr<Process> process);
-        sm::RcuSharedPtr<AddressSpace> createAddressSpace(stdx::String name, km::AddressMapping mapping, km::PageFlags flags, km::MemoryType type, sm::RcuSharedPtr<Process> process);
-        sm::RcuSharedPtr<Process> createProcess(stdx::String name, x64::Privilege privilege, SystemPageTables *systemTables, MemoryRange pteMemory);
-        sm::RcuSharedPtr<Mutex> createMutex(stdx::String name);
+        Thread *createThread(stdx::String name, Process* process);
+        AddressSpace *createAddressSpace(stdx::String name, km::AddressMapping mapping, km::PageFlags flags, km::MemoryType type, Process* process);
+        Process *createProcess(stdx::String name, x64::Privilege privilege, SystemPageTables *systemTables, MemoryRange pteMemory);
+        Mutex *createMutex(stdx::String name);
 
-        sm::RcuWeakPtr<Thread> getThread(ThreadId id);
-        sm::RcuSharedPtr<AddressSpace> getAddressSpace(AddressSpaceId id);
-        sm::RcuSharedPtr<Process> getProcess(ProcessId id);
-        sm::RcuSharedPtr<Mutex> getMutex(MutexId id);
+        Thread *getThread(ThreadId id);
+        AddressSpace *getAddressSpace(AddressSpaceId id);
+        Process *getProcess(ProcessId id);
+        Mutex *getMutex(MutexId id);
     };
 
     struct ProcessLaunch {
-        sm::RcuSharedPtr<Process> process;
-        sm::RcuSharedPtr<Thread> main;
+        Process *process;
+        Thread *main;
     };
 
     OsStatus SysProcessCreate(OsProcessCreateInfo createInfo, OsProcessHandle *outHandle);

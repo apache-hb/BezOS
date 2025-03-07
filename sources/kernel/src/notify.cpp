@@ -32,7 +32,7 @@ OsStatus Topic::addNotification(INotification *notification) {
         return OsStatusOutOfMemory;
     }
 
-    stdx::LockGuard guard(mQueueLock);
+    // stdx::LockGuard guard(mQueueLock);
     if (mQueue.enqueue(std::unique_ptr<INotification>{notification})) {
         return OsStatusSuccess;
     } else {
@@ -54,8 +54,8 @@ size_t Topic::process(size_t limit) {
     std::unique_ptr<INotification> notification = nullptr;
     size_t count = 0;
 
-    stdx::LockGuard guard2(mQueueLock);
     stdx::SharedLock guard(mLock);
+    // stdx::LockGuard guard2(mQueueLock);
 
     while (mQueue.try_dequeue(notification)) {
         for (ISubscriber *subscriber : mSubscribers) {

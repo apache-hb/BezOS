@@ -1133,7 +1133,7 @@ static void AddDeviceSystemCalls() {
         }
 
         sm::uuid uuid = createInfo.InterfaceGuid;
-        km::Process *process = context->process().get();
+        km::Process *process = context->process();
 
         std::unique_ptr<vfs2::IVfsNodeHandle> handle = nullptr;
         OsStatus status = gVfsRoot->device(path, uuid, std::out_ptr(handle));
@@ -1163,7 +1163,7 @@ static void AddDeviceSystemCalls() {
 
     AddSystemCall(eOsCallDeviceClose, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t userDevice = regs->arg0;
-        km::Process *process = context->process().get();
+        km::Process *process = context->process();
         if (OsStatus status = process->closeFile((vfs2::IVfsNodeHandle*)userDevice)) {
             return CallError(status);
         }
@@ -1239,7 +1239,7 @@ static void AddDeviceSystemCalls() {
         uint64_t userData = regs->arg2;
         uint64_t userSize = regs->arg3;
 
-        km::Process *process = context->process().get();
+        km::Process *process = context->process();
 
         if (!context->isMapped((uint64_t)userData, (uint64_t)userData + userSize, PageFlags::eUserData)) {
             return CallError(OsStatusInvalidInput);
@@ -1281,7 +1281,7 @@ static void AddThreadSystemCalls() {
             return CallError(status);
         }
 
-        sm::RcuSharedPtr<Process> process;
+        Process * process;
         if (createInfo.Process != OS_HANDLE_INVALID) {
             process = gSystemObjects->getProcess(ProcessId(createInfo.Process & 0x00FF'FFFF'FFFF'FFFF));
         } else {
@@ -1293,7 +1293,7 @@ static void AddThreadSystemCalls() {
         }
 
         stdx::String stackName = name + " STACK";
-        sm::RcuSharedPtr<Thread> thread = gSystemObjects->createThread(std::move(name), process);
+        Thread * thread = gSystemObjects->createThread(std::move(name), process);
 
         PageFlags flags = PageFlags::eUser | PageFlags::eData;
         MemoryType type = MemoryType::eWriteBack;
@@ -1305,14 +1305,14 @@ static void AddThreadSystemCalls() {
             return CallError(status);
         }
 
-        sm::RcuSharedPtr<AddressSpace> stackSpace = gSystemObjects->createAddressSpace(std::move(stackName), mapping, flags, type, process);
+        AddressSpace* stackSpace = gSystemObjects->createAddressSpace(std::move(stackName), mapping, flags, type, process);
         thread->stack = stackSpace;
         thread->state = km::IsrContext {
-            .rbp = (uintptr_t)(thread->stack.get() + createInfo.StackSize),
+            .rbp = (uintptr_t)((uintptr_t)thread->stack->mapping.vaddr + createInfo.StackSize),
             .rip = (uintptr_t)createInfo.EntryPoint,
             .cs = (SystemGdt::eLongModeUserCode * 0x8) | 0b11,
             .rflags = 0x202,
-            .rsp = (uintptr_t)(thread->stack.get() + createInfo.StackSize),
+            .rsp = (uintptr_t)((uintptr_t)thread->stack->mapping.vaddr + createInfo.StackSize),
             .ss = (SystemGdt::eLongModeUserData * 0x8) | 0b11,
         };
         return CallError(OsStatusInvalidFunction);
@@ -1333,7 +1333,7 @@ static void AddMutexSystemCalls() {
             return CallError(status);
         }
 
-        sm::RcuSharedPtr<Mutex> mutex = gSystemObjects->createMutex(std::move(name));
+        Mutex * mutex = gSystemObjects->createMutex(std::move(name));
         return CallOk(mutex->id());
     });
 
@@ -1345,7 +1345,7 @@ static void AddMutexSystemCalls() {
 
     AddSystemCall(eOsCallMutexLock, [](CallContext*, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t id = regs->arg0;
-        sm::RcuSharedPtr<Mutex> mutex = gSystemObjects->getMutex(MutexId(id & 0x00FF'FFFF'FFFF'FFFF));
+        Mutex * mutex = gSystemObjects->getMutex(MutexId(id & 0x00FF'FFFF'FFFF'FFFF));
         if (mutex == nullptr) {
             return CallError(OsStatusNotFound);
         }
@@ -1368,7 +1368,7 @@ static void AddMutexSystemCalls() {
 
     AddSystemCall(eOsCallMutexUnlock, [](CallContext*, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t id = regs->arg0;
-        sm::RcuSharedPtr<Mutex> mutex = gSystemObjects->getMutex(MutexId(id & 0x00FF'FFFF'FFFF'FFFF));
+        Mutex * mutex = gSystemObjects->getMutex(MutexId(id & 0x00FF'FFFF'FFFF'FFFF));
         if (mutex == nullptr) {
             return CallError(OsStatusNotFound);
         }
@@ -1469,7 +1469,7 @@ static void AddVmemSystemCalls() {
             return CallError(status);
         }
 
-        sm::RcuSharedPtr<Process> process;
+        Process * process;
         if (createInfo.Process != OS_HANDLE_INVALID) {
             process = gSystemObjects->getProcess(ProcessId(createInfo.Process & 0x00FF'FFFF'FFFF'FFFF));
         } else {
@@ -1492,7 +1492,7 @@ static void AddVmemSystemCalls() {
             return CallError(status);
         }
 
-        sm::RcuSharedPtr<AddressSpace> addressSpace = gSystemObjects->createAddressSpace(std::move(name), mapping, flags, MemoryType::eWriteBack, process);
+        AddressSpace * addressSpace = gSystemObjects->createAddressSpace(std::move(name), mapping, flags, MemoryType::eWriteBack, process);
         return CallOk(addressSpace->id());
     });
 
@@ -1500,7 +1500,7 @@ static void AddVmemSystemCalls() {
         uint64_t id = regs->arg0;
         uint64_t userStat = regs->arg1;
 
-        sm::RcuSharedPtr<AddressSpace> space = gSystemObjects->getAddressSpace(AddressSpaceId(id & 0x00FF'FFFF'FFFF'FFFF));
+        AddressSpace * space = gSystemObjects->getAddressSpace(AddressSpaceId(id & 0x00FF'FFFF'FFFF'FFFF));
         km::AddressMapping mapping = space->mapping;
 
         OsAddressSpaceInfo stat {
@@ -1564,13 +1564,13 @@ static constexpr size_t kKernelStackSize = 0x4000;
 
 static OsStatus LaunchThread(OsStatus(*entry)(void*), void *arg, stdx::String name) {
     stdx::String stackName = name + " STACK";
-    sm::RcuSharedPtr<Process> process = GetCurrentProcess();
-    sm::RcuSharedPtr<Thread> thread = gSystemObjects->createThread(std::move(name), process);
+    Process * process = GetCurrentProcess();
+    Thread * thread = gSystemObjects->createThread(std::move(name), process);
 
     PageFlags flags = PageFlags::eData;
     MemoryType type = MemoryType::eWriteBack;
     km::AddressMapping mapping = gMemory->allocateStack(kKernelStackSize);
-    sm::RcuSharedPtr<AddressSpace> stackSpace = gSystemObjects->createAddressSpace(std::move(stackName), mapping, flags, type, process);
+    AddressSpace * stackSpace = gSystemObjects->createAddressSpace(std::move(stackName), mapping, flags, type, process);
 
     thread->state = km::IsrContext {
         .rdi = (uintptr_t)arg,
@@ -1706,21 +1706,21 @@ static void CreateDisplayDevice() {
 static void LaunchKernelProcess(LocalIsrTable *table, IApic *apic) {
     MemoryRange pteMemory = gMemory->pmmAllocate(256);
 
-    sm::RcuSharedPtr<Process> process = gSystemObjects->createProcess("SYSTEM", x64::Privilege::eSupervisor, &gMemory->pageTables(), pteMemory);
-    sm::RcuSharedPtr<Thread> thread = gSystemObjects->createThread("SYSTEM MASTER TASK", process);
+    Process * process = gSystemObjects->createProcess("SYSTEM", x64::Privilege::eSupervisor, &gMemory->pageTables(), pteMemory);
+    Thread * thread = gSystemObjects->createThread("SYSTEM MASTER TASK", process);
 
     PageFlags flags = PageFlags::eData;
     MemoryType type = MemoryType::eWriteBack;
     km::AddressMapping mapping = gMemory->allocateStack(kKernelStackSize);
-    sm::RcuSharedPtr<AddressSpace> stackSpace = gSystemObjects->createAddressSpace("SYSTEM MASTER STACK", mapping, flags, type, process);
+    AddressSpace * stackSpace = gSystemObjects->createAddressSpace("SYSTEM MASTER STACK", mapping, flags, type, process);
 
     thread->stack = stackSpace;
     thread->state = km::IsrContext {
-        .rbp = (uintptr_t)(thread->stack.get() + kKernelStackSize),
+        .rbp = (uintptr_t)((uintptr_t)thread->stack->mapping.vaddr + kKernelStackSize),
         .rip = (uintptr_t)&KernelMasterTask,
         .cs = SystemGdt::eLongModeCode * 0x8,
         .rflags = 0x202,
-        .rsp = (uintptr_t)(thread->stack.get() + kKernelStackSize),
+        .rsp = (uintptr_t)((uintptr_t)thread->stack->mapping.vaddr + kKernelStackSize),
         .ss = SystemGdt::eLongModeData * 0x8,
     };
 

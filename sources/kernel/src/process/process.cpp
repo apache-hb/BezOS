@@ -4,9 +4,9 @@
 
 using namespace km;
 
-sm::RcuSharedPtr<Thread> SystemObjects::createThread(stdx::String name, sm::RcuSharedPtr<Process> process) {
+Thread * SystemObjects::createThread(stdx::String name, Process * process) {
     ThreadId id = mThreadIds.allocate();
-    sm::RcuSharedPtr ptr = sm::rcuMakeShared<Thread>(&mDomain, id, std::move(name), process);
+    Thread *ptr = new Thread(id, std::move(name), process);
 
     SystemMemory *memory = GetSystemMemory();
 
@@ -21,9 +21,9 @@ sm::RcuSharedPtr<Thread> SystemObjects::createThread(stdx::String name, sm::RcuS
     return ptr;
 }
 
-sm::RcuSharedPtr<AddressSpace> SystemObjects::createAddressSpace(stdx::String name, AddressMapping mapping, PageFlags flags, MemoryType type, sm::RcuSharedPtr<Process> process) {
+AddressSpace * SystemObjects::createAddressSpace(stdx::String name, AddressMapping mapping, PageFlags flags, MemoryType type, Process * process) {
     AddressSpaceId id = mAddressSpaceIds.allocate();
-    sm::RcuSharedPtr ptr = sm::rcuMakeShared<AddressSpace>(&mDomain, id, std::move(name), mapping, flags, type);
+    AddressSpace *ptr = new AddressSpace(id, std::move(name), mapping, flags, type);
 
     process->addAddressSpace(ptr);
 
@@ -32,7 +32,7 @@ sm::RcuSharedPtr<AddressSpace> SystemObjects::createAddressSpace(stdx::String na
     return ptr;
 }
 
-sm::RcuSharedPtr<Process> SystemObjects::createProcess(stdx::String name, x64::Privilege privilege, SystemPageTables *systemTables, MemoryRange pteMemory) {
+Process * SystemObjects::createProcess(stdx::String name, x64::Privilege privilege, SystemPageTables *systemTables, MemoryRange pteMemory) {
     AddressMapping mapping{};
     OsStatus status = systemTables->map(pteMemory, PageFlags::eData, MemoryType::eWriteBack, &mapping);
     if (status != OsStatusSuccess) {
@@ -41,7 +41,7 @@ sm::RcuSharedPtr<Process> SystemObjects::createProcess(stdx::String name, x64::P
     }
 
     ProcessId id = mProcessIds.allocate();
-    sm::RcuSharedPtr ptr = sm::rcuMakeShared<Process>(&mDomain, id, std::move(name), privilege, systemTables, mapping, DefaultUserArea());
+    Process *ptr = new Process(id, std::move(name), privilege, systemTables, mapping, DefaultUserArea());
 
     stdx::UniqueLock guard(mLock);
 
@@ -49,16 +49,16 @@ sm::RcuSharedPtr<Process> SystemObjects::createProcess(stdx::String name, x64::P
     return ptr;
 }
 
-sm::RcuSharedPtr<Mutex> SystemObjects::createMutex(stdx::String name) {
+Mutex * SystemObjects::createMutex(stdx::String name) {
     MutexId id = mMutexIds.allocate();
-    sm::RcuSharedPtr ptr = sm::rcuMakeShared<Mutex>(&mDomain, id, std::move(name));
+    Mutex *ptr = new Mutex(id, std::move(name));
 
     stdx::UniqueLock guard(mLock);
     mMutexes.insert({id, ptr});
     return ptr;
 }
 
-sm::RcuWeakPtr<Thread> SystemObjects::getThread(ThreadId id) {
+Thread * SystemObjects::getThread(ThreadId id) {
     stdx::SharedLock guard(mLock);
     if (auto it = mThreads.find(id); it != mThreads.end()) {
         return it->second;
@@ -67,7 +67,7 @@ sm::RcuWeakPtr<Thread> SystemObjects::getThread(ThreadId id) {
     return nullptr;
 }
 
-sm::RcuSharedPtr<AddressSpace> SystemObjects::getAddressSpace(AddressSpaceId id) {
+AddressSpace * SystemObjects::getAddressSpace(AddressSpaceId id) {
     stdx::SharedLock guard(mLock);
     if (auto it = mAddressSpaces.find(id); it != mAddressSpaces.end()) {
         return it->second;
@@ -76,7 +76,7 @@ sm::RcuSharedPtr<AddressSpace> SystemObjects::getAddressSpace(AddressSpaceId id)
     return nullptr;
 }
 
-sm::RcuSharedPtr<Process> SystemObjects::getProcess(ProcessId id) {
+Process * SystemObjects::getProcess(ProcessId id) {
     stdx::SharedLock guard(mLock);
     if (auto it = mProcesses.find(id); it != mProcesses.end()) {
         return it->second;
@@ -85,7 +85,7 @@ sm::RcuSharedPtr<Process> SystemObjects::getProcess(ProcessId id) {
     return nullptr;
 }
 
-sm::RcuSharedPtr<Mutex> SystemObjects::getMutex(MutexId id) {
+Mutex * SystemObjects::getMutex(MutexId id) {
     stdx::SharedLock guard(mLock);
     if (auto it = mMutexes.find(id); it != mMutexes.end()) {
         return it->second;

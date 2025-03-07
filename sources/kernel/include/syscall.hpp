@@ -44,10 +44,10 @@ namespace km {
     class CallContext {
     public:
         /// @brief Get the calling process.
-        sm::RcuSharedPtr<Process> process();
+        Process *process();
 
         /// @brief Get the calling thread.
-        sm::RcuSharedPtr<Thread> thread();
+        Thread *thread();
 
         /// @brief Get the address space allocator for the calling process.
         PageTables& ptes();

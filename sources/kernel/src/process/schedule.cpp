@@ -12,7 +12,7 @@ extern "C" [[noreturn]] void KmResumeThread(km::IsrContext *context);
 extern "C" uint64_t KmSystemCallStackTlsOffset;
 
 CPU_LOCAL
-static constinit km::CpuLocal<sm::RcuSharedPtr<km::Thread>> tlsCurrentThread;
+static constinit km::CpuLocal<km::Thread*> tlsCurrentThread;
 
 CPU_LOCAL
 static constinit km::CpuLocal<void*> tlsSystemCallStack;
@@ -42,37 +42,35 @@ km::Scheduler::Scheduler()
 // TODO: remove these interrupt guards when i figure out how to write an allocator
 // thats reentrant and doesn't deadlock
 
-void km::Scheduler::addWorkItem(sm::RcuSharedPtr<Thread> thread) {
+void km::Scheduler::addWorkItem(Thread * thread) {
     if (thread) {
         bool ok = mQueue.enqueue(thread);
         KM_CHECK(ok, "Failed to add work item to scheduler.");
     }
 }
 
-sm::RcuSharedPtr<km::Thread> km::Scheduler::getWorkItem() noexcept {
-    sm::RcuWeakPtr<Thread> thread;
+km::Thread *km::Scheduler::getWorkItem() noexcept {
+    Thread *thread;
     while (mQueue.try_dequeue(thread)) {
-        if (sm::RcuSharedPtr<km::Thread> ptr = thread.lock()) {
-            return ptr;
-        }
+        return thread;
     }
 
     return nullptr;
 }
 
-sm::RcuSharedPtr<km::Thread> km::GetCurrentThread() {
+km::Thread *km::GetCurrentThread() {
     return tlsCurrentThread.get();
 }
 
-sm::RcuSharedPtr<km::Process> km::GetCurrentProcess() {
-    if (sm::RcuSharedPtr<km::Thread> thread = GetCurrentThread()) {
-        return thread->process.lock();
+km::Process *km::GetCurrentProcess() {
+    if (km::Thread *thread = GetCurrentThread()) {
+        return thread->process;
     }
 
     return nullptr;
 }
 
-static void SetCurrentThread(sm::RcuSharedPtr<km::Thread> thread) {
+static void SetCurrentThread(km::Thread *thread) {
     tlsCurrentThread = thread;
 
     if (thread != nullptr) {
@@ -81,7 +79,7 @@ static void SetCurrentThread(sm::RcuSharedPtr<km::Thread> thread) {
     }
 }
 
-void km::SwitchThread(sm::RcuSharedPtr<km::Thread> next) {
+void km::SwitchThread(km::Thread *next) {
     SetCurrentThread(next);
     km::IsrContext *state = &next->state;
 
@@ -101,12 +99,12 @@ static km::IsrContext SchedulerIsr(km::IsrContext *ctx) noexcept {
 
     km::Scheduler *scheduler = km::GetScheduler();
 
-    if (sm::RcuSharedPtr<km::Thread> next = scheduler->getWorkItem()) {
-        km::PhysicalAddress cr3 = next->process.lock()->ptes.root();
+    if (km::Thread *next = scheduler->getWorkItem()) {
+        km::PhysicalAddress cr3 = next->process->ptes.root();
         km::SystemMemory *memory = km::GetSystemMemory();
         memory->getPager().setActiveMap(cr3);
 
-        if (sm::RcuSharedPtr<km::Thread> current = km::GetCurrentThread()) {
+        if (km::Thread *current = km::GetCurrentThread()) {
             current->state = *ctx;
             current->tlsAddress = km::kFsBase.load();
             scheduler->addWorkItem(current);
@@ -128,7 +126,7 @@ void km::InstallSchedulerIsr(LocalIsrTable *table) {
     }
 }
 
-void km::ScheduleWork(LocalIsrTable *table, IApic *apic, sm::RcuSharedPtr<km::Thread> initial) {
+void km::ScheduleWork(LocalIsrTable *table, IApic *apic, km::Thread *initial) {
     KmSystemCallStackTlsOffset = tlsSystemCallStack.tlsOffset();
 
     SetCurrentThread(initial);
