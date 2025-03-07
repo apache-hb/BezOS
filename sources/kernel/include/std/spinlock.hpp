@@ -3,6 +3,7 @@
 #include <atomic>
 
 #include <emmintrin.h>
+#include <tuple>
 
 namespace stdx {
     class [[clang::capability("mutex")]] SpinLock {

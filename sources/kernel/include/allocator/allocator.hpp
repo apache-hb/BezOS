@@ -65,7 +65,7 @@ namespace mem {
         template<typename T>
         T *allocateArray(size_t count) {
             if (void *ptr = allocateAligned(sizeof(T) * count, alignof(T))) {
-                return new (ptr) T[count]();
+                return new (ptr) T[count];
             }
 
             return nullptr;

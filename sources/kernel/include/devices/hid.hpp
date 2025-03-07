@@ -31,8 +31,8 @@ namespace dev {
         stdx::Vector2<HidKeyboardHandle*> mHandles;
 
         // km::ISubscriber interface
-        void notify(km::Topic*, sm::RcuSharedPtr<km::INotification> notification) override {
-            hid::HidNotification *hid = static_cast<hid::HidNotification*>(notification.get());
+        void notify(km::Topic*, km::INotification *notification) override {
+            hid::HidNotification *hid = static_cast<hid::HidNotification*>(notification);
 
             stdx::SharedLock guard(mLock);
             for (HidKeyboardHandle *handle : mHandles) {

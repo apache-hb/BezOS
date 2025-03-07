@@ -807,8 +807,14 @@ PageTables& km::GetProcessPageTables() {
 
 static void CreateNotificationQueue() {
     static constexpr size_t kAqMemorySize = sm::kilobytes(128).bytes();
-    void *memory = aligned_alloc(x64::kPageSize, kAqMemorySize);
-    InitAqAllocator(memory, kAqMemorySize);
+    SystemMemory *memory = GetSystemMemory();
+    void *aqMemory = memory->allocate(kAqMemorySize + (x64::kPageSize * 2));
+    // unmap first and last pages to catch buffer overruns
+    memory->unmap(aqMemory, x64::kPageSize);
+    memory->unmap((void*)((uintptr_t)aqMemory + kAqMemorySize + x64::kPageSize), x64::kPageSize);
+
+    void *base = (void*)((uintptr_t)aqMemory + x64::kPageSize);
+    InitAqAllocator(base, kAqMemorySize - x64::kPageSize);
 
     gNotificationStream = new NotificationStream();
 }
@@ -1806,8 +1812,18 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     pci::ProbeConfigSpace(config.get(), rsdt.mcfg());
 
-    static constexpr size_t kSchedulerMemorySize = 0x10000;
-    InitSchedulerMemory(aligned_alloc(x64::kPageSize, kSchedulerMemorySize), kSchedulerMemorySize);
+    // TODO: this wastes some real memory
+    {
+        static constexpr size_t kSchedulerMemorySize = 0x10000;
+        void *mapping = gMemory->allocate(kSchedulerMemorySize + (x64::kPageSize * 2));
+        // unmap the first and last page to guard against buffer overruns
+        gMemory->unmap(mapping, x64::kPageSize);
+        gMemory->unmap((void*)((uintptr_t)mapping + kSchedulerMemorySize + x64::kPageSize), x64::kPageSize);
+
+        void *ptr = (void*)((uintptr_t)mapping + x64::kPageSize);
+
+        InitSchedulerMemory(ptr, kSchedulerMemorySize);
+    }
 
     km::LocalIsrTable *ist = GetLocalIsrTable();
 

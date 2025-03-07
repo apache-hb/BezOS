@@ -30,12 +30,14 @@ namespace km {
         sm::uuid mId;
         stdx::String mName;
 
-        moodycamel::ConcurrentQueue<sm::RcuSharedPtr<INotification>, NotificationQueueTraits> queue;
+        stdx::SpinLock mQueueLock;
+
+        moodycamel::ConcurrentQueue<std::unique_ptr<INotification>, NotificationQueueTraits> mQueue;
 
         stdx::SharedSpinLock mLock;
         sm::FlatHashSet<ISubscriber*> mSubscribers;
 
-        OsStatus addNotification(sm::RcuDomain *domain, INotification *notification);
+        OsStatus addNotification(INotification *notification);
         void subscribe(ISubscriber *subscriber);
         void unsubscribe(ISubscriber *subscriber);
 
@@ -95,7 +97,7 @@ namespace km {
     public:
         virtual ~ISubscriber() = default;
 
-        virtual void notify(Topic *topic, sm::RcuSharedPtr<INotification> notification) = 0;
+        virtual void notify(Topic *topic, INotification *notification) = 0;
     };
 
     class NotificationStream {

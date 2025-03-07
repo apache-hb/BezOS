@@ -56,11 +56,11 @@ TEST_F(NotifyTest, Subscribe) {
             : mTopic(topic)
         { }
 
-        void notify(km::Topic *topic, sm::RcuSharedPtr<km::INotification> notification) override {
+        void notify(km::Topic *topic, km::INotification *notification) override {
             ASSERT_EQ(topic, mTopic);
             ASSERT_NE(notification, nullptr);
 
-            TestNotification *test = dynamic_cast<TestNotification*>(notification.get());
+            TestNotification *test = dynamic_cast<TestNotification*>(notification);
             ASSERT_NE(test, nullptr);
 
             ASSERT_EQ(test->message(), "Test");

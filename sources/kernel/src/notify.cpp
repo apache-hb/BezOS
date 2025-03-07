@@ -26,14 +26,14 @@ void km::InitAqAllocator(void *memory, size_t size) {
     gNotificationAllocator = new SynchronizedTlsfAllocator(memory, size);
 }
 
-OsStatus Topic::addNotification(sm::RcuDomain *domain, INotification *notification) {
+OsStatus Topic::addNotification(INotification *notification) {
     if (notification == nullptr) {
         KmDebugMessage("[AQ] Dropped notification due to memory exhaustion\n");
         return OsStatusOutOfMemory;
     }
 
-    sm::RcuSharedPtr<INotification> ptr = {domain, notification};
-    if (queue.enqueue(ptr)) {
+    stdx::LockGuard guard(mQueueLock);
+    if (mQueue.enqueue(std::unique_ptr<INotification>{notification})) {
         return OsStatusSuccess;
     } else {
         return OsStatusOutOfMemory;
@@ -51,14 +51,15 @@ void Topic::unsubscribe(ISubscriber *subscriber) {
 }
 
 size_t Topic::process(size_t limit) {
-    sm::RcuSharedPtr<INotification> notification = nullptr;
+    std::unique_ptr<INotification> notification = nullptr;
     size_t count = 0;
 
+    stdx::LockGuard guard2(mQueueLock);
     stdx::SharedLock guard(mLock);
 
-    while (queue.try_dequeue(notification)) {
+    while (mQueue.try_dequeue(notification)) {
         for (ISubscriber *subscriber : mSubscribers) {
-            subscriber->notify(this, notification);
+            subscriber->notify(this, notification.get());
         }
 
         if (++count >= limit) {
@@ -70,7 +71,7 @@ size_t Topic::process(size_t limit) {
 }
 
 OsStatus NotificationStream::addNotification(Topic *topic, INotification *notification) {
-    return topic->addNotification(&mDomain, notification);
+    return topic->addNotification(notification);
 }
 
 Topic *NotificationStream::createTopic(sm::uuid id, stdx::String name) {
