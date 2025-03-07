@@ -41,6 +41,14 @@ if [ $? -eq 0 ]; then
     ARGS="$(echo $ARGS | sed s/\-disk//)"
 fi
 
+# If events are requested then create the second serial port
+echo $ARGS | grep -q "\-events"
+if [ $? -eq 0 ]; then
+    QEMUARGS="$QEMUARGS -chardev file,id=events,path=events.bin -serial chardev:events"
+    ARGS="$(echo $ARGS | sed s/\-events//)"
+fi
+
+
 if [ "$MODE" = "ovmf" ]; then
     ARGS=$(echo $ARGS | sed s/ovmf//)
     install/tool/bin/package.elf --config repo/repo.xml --output build --prefix install --rebuild ovmf kernel test-images || exit 1

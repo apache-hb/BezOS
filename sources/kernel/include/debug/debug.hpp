@@ -32,6 +32,11 @@ namespace km::debug {
         return Event::eReleaseVirtualMemory;
     }
 
+    template<>
+    constexpr Event EventType<ScheduleTask>() {
+        return Event::eScheduleTask;
+    }
+
     OsStatus InitDebugStream(ComPortInfo info);
     OsStatus SendEvent(const EventPacket &packet);
 

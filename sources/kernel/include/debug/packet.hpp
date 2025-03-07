@@ -9,6 +9,8 @@ namespace km::debug {
         eAllocateVirtualMemory = 2,
         eReleasePhysicalMemory = 3,
         eReleaseVirtualMemory = 4,
+
+        eScheduleTask = 5,
     };
 
     struct AllocatePhysicalMemory {
@@ -37,6 +39,11 @@ namespace km::debug {
         uint32_t tag;
     };
 
+    struct ScheduleTask {
+        uint64_t previous;
+        uint64_t next;
+    };
+
     struct EventPacket {
         Event event;
         union {
@@ -44,6 +51,7 @@ namespace km::debug {
             AllocateVirtualMemory allocateVirtualMemory;
             ReleasePhysicalMemory releasePhysicalMemory;
             ReleaseVirtualMemory releaseVirtualMemory;
+            ScheduleTask scheduleTask;
         } data;
     };
 }

@@ -18,3 +18,4 @@ data/hyper/*
 *.code-workspace
 .clangd
 soak/
+events.bin

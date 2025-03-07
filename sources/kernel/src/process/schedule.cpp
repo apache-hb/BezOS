@@ -4,6 +4,7 @@
 #include "kernel.hpp"
 #include "allocator/synchronized.hpp"
 #include "allocator/tlsf.hpp"
+#include "debug/debug.hpp"
 
 using SynchronizedTlsfAllocator = mem::SynchronizedAllocator<mem::TlsfAllocator>;
 
@@ -108,6 +109,16 @@ static km::IsrContext SchedulerIsr(km::IsrContext *ctx) noexcept {
             current->state = *ctx;
             current->tlsAddress = km::kFsBase.load();
             scheduler->addWorkItem(current);
+
+            km::debug::SendEvent(km::debug::ScheduleTask {
+                .previous = uint64_t(current->id()),
+                .next = uint64_t(next->id()),
+            });
+        } else {
+            km::debug::SendEvent(km::debug::ScheduleTask {
+                .previous = 0,
+                .next = uint64_t(next->id()),
+            });
         }
 
         SetCurrentThread(next);

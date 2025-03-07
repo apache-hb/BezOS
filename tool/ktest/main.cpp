@@ -83,16 +83,22 @@ static int ParseEvents(const argparse::ArgumentParser& parser) {
                 std::cout << "Ack" << std::endl;
                 break;
             case km::debug::Event::eAllocatePhysicalMemory:
-                    pmem += packet.data.allocatePhysicalMemory.size;
+                pmem += packet.data.allocatePhysicalMemory.size;
                 break;
             case km::debug::Event::eAllocateVirtualMemory:
-                    vmem += packet.data.allocateVirtualMemory.size;
+                vmem += packet.data.allocateVirtualMemory.size;
                 break;
             case km::debug::Event::eReleasePhysicalMemory:
-                    pmem = std::clamp<ssize_t>(pmem - (packet.data.releasePhysicalMemory.end - packet.data.releasePhysicalMemory.begin), ssize_t(0), pmem);
+                pmem = std::clamp<ssize_t>(pmem - (packet.data.releasePhysicalMemory.end - packet.data.releasePhysicalMemory.begin), ssize_t(0), pmem);
                 break;
             case km::debug::Event::eReleaseVirtualMemory:
-                    vmem = std::clamp<ssize_t>(vmem - (packet.data.releaseVirtualMemory.end - packet.data.releaseVirtualMemory.begin), ssize_t(0), vmem);
+                vmem = std::clamp<ssize_t>(vmem - (packet.data.releaseVirtualMemory.end - packet.data.releaseVirtualMemory.begin), ssize_t(0), vmem);
+                break;
+            case km::debug::Event::eScheduleTask:
+                std::cout << "ScheduleTask("
+                    << std::hex << (packet.data.scheduleTask.previous & 0x00FF'FFFF'FFFF'FFFF)
+                    << ", " << (packet.data.scheduleTask.next & 0x00FF'FFFF'FFFF'FFFF) << ")"
+                    << std::dec << std::endl;
                 break;
             default:
                 std::cout << "Unknown(" << static_cast<int>(packet.event) << ")" << std::endl;
