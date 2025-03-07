@@ -1,19 +1,29 @@
 #ifndef BEZOS_POSIX_ASSERT_H
 #define BEZOS_POSIX_ASSERT_H 1
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <detail/attributes.h>
+#include <detail/cxx.h>
+
+BZP_API_BEGIN
+
+/**
+ * @brief Assertion handler.
+ *
+ * @param expr The expression that failed.
+ * @param file The file where the assertion failed.
+ * @param line The line where the assertion failed.
+ *
+ * @note This function is not marked as noreturn or nothrow as user defined
+ *       assertion handlers may throw exceptions or return to the calling code.
+ */
+extern void OsImplPosixAssert(const char *, const char *, unsigned) BZP_NONNULL(1, 2);
 
 #ifdef NDEBUG
 #   define assert(x) ((void)0)
 #else
-    /* TODO: implement assert */
-#   define assert(x) ((void)0)
+#   define assert(x) do { if (!(x)) { OsImplPosixAssert(#x, __FILE__, __LINE__); } } while (0)
 #endif
 
-#ifdef __cplusplus
-}
-#endif
+BZP_API_END
 
 #endif /* BEZOS_POSIX_ASSERT_H */
