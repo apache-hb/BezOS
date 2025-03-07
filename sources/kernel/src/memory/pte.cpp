@@ -219,6 +219,95 @@ size_t PageTables::maxPagesForMapping(VirtualRange range) const {
     return detail::MaxPagesForMapping(range);
 }
 
+size_t PageTables::countPagesForMapping(VirtualRange range) {
+    size_t count = 0;
+
+    stdx::LockGuard guard(mLock);
+
+    //
+    // Walks page tables to figure out how many tables would need to be allocated
+    // to map a range. This is used if allocating the worst case number of tables fails.
+    // TODO: this could be more efficient with better table walking logic.
+    //
+
+    const x64::PageMapLevel4 *l4 = pml4();
+
+    {
+        //
+        // First count the number of pml4 entries we need to allocate.
+        //
+        constexpr static auto kTopPageSize = x64::kHugePageSize * 512;
+        VirtualRange aligned = km::alignedOut(range, kTopPageSize);
+        for (uintptr_t i = (uintptr_t)aligned.front; i < (uintptr_t)aligned.back; i += kTopPageSize) {
+            size_t index = (i / kTopPageSize);
+            const x64::pml4e& t4 = l4->entries[index];
+            if (!t4.present()) {
+                count += 1;
+            }
+        }
+    }
+
+    {
+        //
+        // Then count the number of pdpt entries we need to allocate.
+        //
+        VirtualRange aligned = km::alignedOut(range, x64::kHugePageSize);
+        for (uintptr_t i = (uintptr_t)aligned.front; i < (uintptr_t)aligned.back; i += x64::kHugePageSize) {
+            auto [pml4e, pdpte, _, _] = GetAddressParts((void*)i);
+            const x64::PageMapLevel3 *l3 = findPageMap3(l4, pml4e);
+            if (l3 == nullptr) {
+                count += 1;
+                continue;
+            }
+
+            const x64::pdpte& t3 = l3->entries[pdpte];
+            if (!t3.present()) {
+                count += 1;
+            }
+        }
+    }
+
+    {
+        //
+        // Then count the number of pd entries we need to allocate.
+        //
+        VirtualRange aligned = km::alignedOut(range, x64::kLargePageSize);
+        for (uintptr_t i = (uintptr_t)aligned.front; i < (uintptr_t)aligned.back; i += x64::kLargePageSize) {
+            auto [pml4e, pdpte, pdte, _] = GetAddressParts((void*)i);
+            const x64::PageMapLevel3 *l3 = findPageMap3(l4, pml4e);
+            if (l3 == nullptr) {
+                count += 1;
+                continue;
+            }
+
+            const x64::PageMapLevel2 *l2 = findPageMap2(l3, pdpte);
+            if (l2 == nullptr) {
+                count += 1;
+                continue;
+            }
+
+            const x64::pdte& t2 = l2->entries[pdte];
+            if (!t2.present()) {
+                count += 1;
+            }
+        }
+    }
+
+    //
+    // If the front or back of the range is not aligned to a 2m boundary we need to allocate
+    // extra tables to map the ends.
+    //
+    if ((uintptr_t)range.front % x64::kLargePageSize != 0) {
+        count += 1;
+    }
+
+    if ((uintptr_t)range.back % x64::kLargePageSize != 0) {
+        count += 1;
+    }
+
+    return count;
+}
+
 OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType type) {
     bool valid = (mapping.size % x64::kPageSize == 0)
         && (mapping.paddr.address % x64::kPageSize == 0)
@@ -230,9 +319,29 @@ OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType typ
         return OsStatusInvalidInput;
     }
 
+    //
+    // Pre-allocate enough page tables to fullfill the request.
+    //
     size_t requiredPages = maxPagesForMapping(mapping.virtualRange());
     x64::page *tables = alloc4k(requiredPages);
-    if (!tables) return OsStatusOutOfMemory;
+
+    //
+    // If the fast path fails then do a more expensive page table scan to
+    // figure out the exact number of tables we need to allocate.
+    //
+    if (tables == nullptr) {
+        KmDebugMessage("[MEM] Low memory, failed to allocate ", requiredPages, " page tables. Retrying using slow path.\n");
+        requiredPages = countPagesForMapping(mapping.virtualRange());
+        tables = alloc4k(requiredPages);
+    }
+
+    //
+    // If both allocations fail then we are out of memory.
+    //
+    if (tables == nullptr) {
+        KmDebugMessage("[MEM] Out of memory, failed to allocate ", requiredPages, " page tables.\n");
+        return OsStatusOutOfMemory;
+    }
 
     detail::PageTableBuffer buffer { tables, requiredPages };
 
@@ -242,7 +351,9 @@ OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType typ
     defer {
         x64::page *current = buffer.table();
         size_t count = (current - tables);
-        mAllocator.deallocate(current, requiredPages - count);
+        if (count != 0) {
+            mAllocator.deallocate(current, requiredPages - count);
+        }
     };
 
     //

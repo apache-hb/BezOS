@@ -453,25 +453,17 @@ testcases = {
         'test/elf.cpp',
         'src/elf/elf.cpp',
     ],
-    # 'memory': [
-    #     'test/memory.cpp',
-    #     'src/memory.cpp',
-    #     'src/memory/pte.cpp',
-    #     'src/memory/page_allocator.cpp',
-    #     'src/memory/virtual_allocator.cpp',
-    #     'src/boot.cpp',
-    # ],
-    # 'process': [
-    #     'test/process.cpp',
-    #     'src/process/process.cpp',
-    #     'src/fs2/vfs.cpp',
-    #     'src/fs2/path.cpp',
-    #     'src/fs2/node.cpp',
-    #     'src/fs2/handle.cpp',
-    #     'src/fs2/ramfs.cpp',
-    #     'src/std/rcu.cpp',
-    #     'src/std/rcuptr.cpp',
-    # ],
+    'memory': [
+        'test/memory.cpp',
+        'src/memory.cpp',
+        'src/memory/pte.cpp',
+        'src/memory/tables.cpp',
+        'src/memory/memory.cpp',
+        'src/memory/table_allocator.cpp',
+        'src/memory/page_allocator.cpp',
+        'src/util/memory.cpp',
+        'src/boot.cpp',
+    ],
     'pte': [
         'test/memory/memory.cpp',
         'src/memory/memory.cpp',
@@ -479,6 +471,28 @@ testcases = {
     'table allocator': [
         'test/memory/table_allocator.cpp',
         'src/memory/table_allocator.cpp',
+    ],
+    'process': [
+        'test/process/process.cpp',
+
+        'src/process/process.cpp',
+
+        'src/memory.cpp',
+        'src/memory/pte.cpp',
+        'src/memory/tables.cpp',
+        'src/memory/memory.cpp',
+        'src/memory/table_allocator.cpp',
+        'src/memory/page_allocator.cpp',
+
+        'src/fs2/vfs.cpp',
+        'src/fs2/path.cpp',
+        'src/fs2/node.cpp',
+        'src/fs2/handle.cpp',
+        'src/fs2/ramfs.cpp',
+        'src/fs2/device.cpp',
+
+        'src/util/memory.cpp',
+        'src/boot.cpp',
     ]
 }
 

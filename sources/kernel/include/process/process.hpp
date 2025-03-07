@@ -16,10 +16,12 @@
 #include "std/vector.hpp"
 
 namespace km {
-    enum class ThreadId : uint64_t { };
-    enum class AddressSpaceId : uint64_t { };
-    enum class ProcessId : uint64_t { };
-    enum class MutexId : uint64_t { };
+    class SystemMemory;
+
+    enum class ThreadId : OsThreadHandle { };
+    enum class AddressSpaceId : OsAddressSpaceHandle { };
+    enum class ProcessId : OsProcessHandle { };
+    enum class MutexId : OsMutexHandle { };
 
     template<typename T>
     class IdAllocator {
@@ -51,8 +53,8 @@ namespace km {
     public:
         virtual ~KernelObject() = default;
 
-
-        OsHandle id() const { return mId; }
+        OsHandle handleId() const { return mId; }
+        OsHandle internalId() const { return mId & 0x00FF'FFFF'FFFF'FFFF; }
         stdx::StringView name() const { return mName; }
     };
 
@@ -67,7 +69,7 @@ namespace km {
         km::IsrContext state;
         uint64_t tlsAddress = 0;
         AddressSpace *stack;
-        AddressMapping syscallStack; // TODO: populate this and use it for syscalls
+        AddressMapping syscallStack;
 
         void *getSyscallStack() const {
             return (void*)((uintptr_t)syscallStack.vaddr + syscallStack.size - x64::kPageSize);
@@ -159,6 +161,7 @@ namespace km {
 
     class SystemObjects {
         stdx::SharedSpinLock mLock;
+        SystemMemory *mMemory = nullptr;
 
         IdAllocator<ThreadId> mThreadIds;
         IdAllocator<AddressSpaceId> mAddressSpaceIds;
@@ -171,16 +174,21 @@ namespace km {
         sm::FlatHashMap<MutexId, Mutex*> mMutexes;
 
     public:
-        SystemObjects() = default;
+        SystemObjects(SystemMemory *memory)
+            : mMemory(memory)
+        { }
+
+        OsStatus createProcess(stdx::String name, x64::Privilege privilege, MemoryRange pteMemory, Process **process);
+        OsStatus destroyProcess(Process *process);
+        Process *getProcess(ProcessId id);
 
         Thread *createThread(stdx::String name, Process* process);
         AddressSpace *createAddressSpace(stdx::String name, km::AddressMapping mapping, km::PageFlags flags, km::MemoryType type, Process* process);
-        Process *createProcess(stdx::String name, x64::Privilege privilege, SystemPageTables *systemTables, MemoryRange pteMemory);
+        Process *createProcess(stdx::String name, x64::Privilege privilege, MemoryRange pteMemory);
         Mutex *createMutex(stdx::String name);
 
         Thread *getThread(ThreadId id);
         AddressSpace *getAddressSpace(AddressSpaceId id);
-        Process *getProcess(ProcessId id);
         Mutex *getMutex(MutexId id);
     };
 

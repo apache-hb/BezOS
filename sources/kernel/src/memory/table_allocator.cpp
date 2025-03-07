@@ -33,6 +33,10 @@ void *km::detail::AllocateBlock(PageTableAllocator& allocator, size_t blocks) {
         .blocks = block->blocks - blocks
     };
 
+    if (next->next == next) {
+        next->next = next->next->next;
+    }
+
     allocator.mHead = next->head();
 
     return block->address;

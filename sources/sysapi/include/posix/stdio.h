@@ -21,9 +21,9 @@ typedef struct OsImplPosixFile FILE;
 
 #define EOF (-1)
 
-extern FILE *OsImplPosixStandardIn(void);
-extern FILE *OsImplPosixStandardOut(void);
-extern FILE *OsImplPosixStandardError(void);
+extern FILE *OsImplPosixStandardIn(void) BZP_NOEXCEPT;
+extern FILE *OsImplPosixStandardOut(void) BZP_NOEXCEPT;
+extern FILE *OsImplPosixStandardError(void) BZP_NOEXCEPT;
 
 #define stdin (OsImplPosixStandardIn())
 #define stdout (OsImplPosixStandardOut())

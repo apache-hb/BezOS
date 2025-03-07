@@ -1,4 +1,10 @@
-project('sysapi', [ 'c', 'cpp' ])
+project('sysapi', [ 'c', 'cpp' ],
+    default_options : [
+        'cpp_std=c++20',
+        'cpp_rtti=false',
+        'cpp_eh=none',
+    ]
+)
 
 src = [
     'src/bezos/syscall_fs.c',

@@ -111,13 +111,13 @@ static km::IsrContext SchedulerIsr(km::IsrContext *ctx) noexcept {
             scheduler->addWorkItem(current);
 
             km::debug::SendEvent(km::debug::ScheduleTask {
-                .previous = uint64_t(current->id()),
-                .next = uint64_t(next->id()),
+                .previous = uint64_t(current->handleId()),
+                .next = uint64_t(next->handleId()),
             });
         } else {
             km::debug::SendEvent(km::debug::ScheduleTask {
                 .previous = 0,
-                .next = uint64_t(next->id()),
+                .next = uint64_t(next->handleId()),
             });
         }
 

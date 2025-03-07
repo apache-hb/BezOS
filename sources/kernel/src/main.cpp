@@ -1334,7 +1334,7 @@ static void AddMutexSystemCalls() {
         }
 
         Mutex * mutex = gSystemObjects->createMutex(std::move(name));
-        return CallOk(mutex->id());
+        return CallOk(mutex->handleId());
     });
 
     //
@@ -1410,7 +1410,7 @@ static void AddProcessSystemCalls() {
 
         GetScheduler()->addWorkItem(launch.main);
 
-        return CallOk(launch.process->id());
+        return CallOk(launch.process->handleId());
     });
 }
 
@@ -1493,7 +1493,7 @@ static void AddVmemSystemCalls() {
         }
 
         AddressSpace * addressSpace = gSystemObjects->createAddressSpace(std::move(name), mapping, flags, MemoryType::eWriteBack, process);
-        return CallOk(addressSpace->id());
+        return CallOk(addressSpace->handleId());
     });
 
     AddSystemCall(eOsCallAddressSpaceStat, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
@@ -1524,7 +1524,7 @@ static void StartupSmp(const acpi::AcpiTables& rsdt) {
     // the AP cores have a scheduler to attach to.
     //
     gScheduler = new Scheduler();
-    gSystemObjects = new SystemObjects();
+    gSystemObjects = new SystemObjects(gMemory);
 
     std::atomic_flag launchScheduler = ATOMIC_FLAG_INIT;
 

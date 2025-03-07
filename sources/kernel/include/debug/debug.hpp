@@ -6,8 +6,16 @@
 
 #include "uart.hpp"
 
+#if UTIL_TESTING
+#   define KM_DEBUG_EVENTS 0
+#else
+#   define KM_DEBUG_EVENTS 1
+#endif
+
 namespace km::debug {
-    static constexpr bool kEnableDebugEvents = true;
+    namespace detail {
+        OsStatus SendEvent(const EventPacket &packet);
+    }
 
     template<typename T>
     constexpr Event EventType() = delete;
@@ -38,22 +46,21 @@ namespace km::debug {
     }
 
     OsStatus InitDebugStream(ComPortInfo info);
-    OsStatus SendEvent(const EventPacket &packet);
 
     template<typename T>
-    OsStatus SendEvent(const T& event) {
-        if constexpr (kEnableDebugEvents) {
-            //
-            // Subobject initialization weirdness, can't be bothered to fix it.
-            //
-            EventPacket packet {
-                .event = EventType<T>(),
-            };
-            memcpy(&packet.data, &event, sizeof(T));
+    OsStatus SendEvent([[maybe_unused]] const T& event) {
+#if KM_DEBUG_EVENTS
+        //
+        // Subobject initialization weirdness, can't be bothered to fix it.
+        //
+        EventPacket packet {
+            .event = EventType<T>(),
+        };
+        memcpy(&packet.data, &event, sizeof(T));
 
-            return SendEvent(packet);
-        }
-
+        return detail::SendEvent(packet);
+#else
         return OsStatusSuccess;
+#endif
     }
 }

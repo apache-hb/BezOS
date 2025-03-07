@@ -79,6 +79,7 @@ namespace km {
             AddressMapping m = MappingOf(vmem, range.front);
             OsStatus status = map(m, flags, type);
             if (status != OsStatusSuccess) {
+                mVmemAllocator.release(vmem.cast<const std::byte*>());
                 return status;
             }
 

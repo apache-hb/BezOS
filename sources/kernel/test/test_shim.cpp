@@ -14,8 +14,11 @@
 #include "processor.hpp"
 
 class TestStream final : public km::IOutStream {
+    std::mutex mLock;
 public:
     void write(stdx::StringView message) override {
+        std::lock_guard guard(mLock);
+
         for (char c : message) {
             if (c == '\0') continue;
             std::cout << c;

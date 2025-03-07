@@ -143,7 +143,11 @@ namespace km {
 
         void reclaim2m(x64::pdte& pde);
 
+        /// @brief Calculate the worst case memory usage for mapping a range.
         size_t maxPagesForMapping(VirtualRange range) const;
+
+        /// @brief Walk the page tables to calculate the number of pages required to map the given range.
+        size_t countPagesForMapping(VirtualRange range);
 
     public:
         PageTables(const PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags);
