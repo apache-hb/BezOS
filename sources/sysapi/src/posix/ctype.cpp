@@ -31,3 +31,15 @@ int tolower(int c) noexcept {
 
     return c;
 }
+
+int isspace(int c) noexcept {
+    return c == ' ' || c == '\t' || c == '\n' || c == '\v' || c == '\f' || c == '\r';
+}
+
+int ispunct(int c) noexcept {
+    return (c >= '!' && c <= '/') || (c >= ':' && c <= '@') || (c >= '[' && c <= '`') || (c >= '{' && c <= '~');
+}
+
+int iscntrl(int c) noexcept {
+    return c < 0x20 || c == 0x7F;
+}

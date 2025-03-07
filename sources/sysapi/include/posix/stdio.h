@@ -13,6 +13,8 @@ struct OsImplPosixFile;
 
 typedef struct OsImplPosixFile FILE;
 
+#define BUFSIZ 1024
+
 #define SEEK_CUR 0x100
 #define SEEK_END 0x200
 #define SEEK_SET 0x300
@@ -82,6 +84,10 @@ extern void perror(const char *) BZP_NOEXCEPT;
 extern int puts(const char*) BZP_NOEXCEPT;
 
 extern int putc(int, FILE *) BZP_NOEXCEPT;
+
+extern int fputc(int, FILE *) BZP_NOEXCEPT;
+
+extern int fgetc(FILE *) BZP_NOEXCEPT;
 
 extern char *fgets(char *, int, FILE *) BZP_NOEXCEPT;
 

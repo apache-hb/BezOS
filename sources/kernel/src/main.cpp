@@ -1570,7 +1570,8 @@ static OsStatus LaunchThread(OsStatus(*entry)(void*), void *arg, stdx::String na
     PageFlags flags = PageFlags::eData;
     MemoryType type = MemoryType::eWriteBack;
     km::AddressMapping mapping = gMemory->allocateStack(kKernelStackSize);
-    AddressSpace * stackSpace = gSystemObjects->createAddressSpace(std::move(stackName), mapping, flags, type, process);
+    // TODO: fix this
+    AddressSpace * _ = gSystemObjects->createAddressSpace(std::move(stackName), mapping, flags, type, process);
 
     thread->state = km::IsrContext {
         .rdi = (uintptr_t)arg,

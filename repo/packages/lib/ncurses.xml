@@ -23,6 +23,8 @@
              CFLAGS='--sysroot @PREFIX@/llvm
                      -isystem @PREFIX@/sysapi/include/posix' />
 
-        <options host='x86_64-bezos-elf' />
+        <options host='x86_64-bezos-elf'
+                 without-progs=''
+                 without-tests='' />
     </configure>
 </package>

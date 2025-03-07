@@ -47,6 +47,7 @@ src = [
     'src/posix/ctype.cpp',
     'src/posix/unistd.cpp',
     'src/posix/termios.cpp',
+    'src/posix/stdlib.cpp',
     'src/posix/sys_mman.cpp',
 ]
 

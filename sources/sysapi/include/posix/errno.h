@@ -37,6 +37,8 @@ extern int *OsImplPosixErrnoAddress(void) BZP_NOEXCEPT;
 #define EACCES 0x12 /* Permission denied */
 #define EEXIST 0x13 /* File exists */
 #define ENODEV 0x14 /* No such device */
+#define EAGAIN 0x15 /* Resource temporarily unavailable */
+#define ENOTTY 0x16 /* Not a tty */
 
 BZP_API_END
 

@@ -74,6 +74,8 @@ extern size_t confstr(int, char *, size_t) BZP_NOEXCEPT;
 
 extern int getopt(int, char *const[], const char *) BZP_NOEXCEPT;
 
+extern char *getcwd(char *, size_t) BZP_NOEXCEPT;
+
 extern char *optarg;
 extern int opterr;
 extern int optind;

@@ -17,6 +17,10 @@ extern int isspace(int) BZP_NOEXCEPT;
 
 extern int ispunct(int) BZP_NOEXCEPT;
 
+extern int iscntrl(int) BZP_NOEXCEPT;
+
+extern int isgraph(int) BZP_NOEXCEPT;
+
 extern int isupper(int) BZP_NOEXCEPT;
 extern int islower(int) BZP_NOEXCEPT;
 

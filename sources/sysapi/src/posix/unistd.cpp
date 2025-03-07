@@ -15,6 +15,11 @@ int getopt(int, char *const[], const char *) noexcept {
     return -1;
 }
 
+char *getcwd(char *, size_t) noexcept {
+    errno = ENOSYS;
+    return nullptr;
+}
+
 extern "C" char *optarg = nullptr;
 extern "C" int opterr = 0;
 extern "C" int optind = 1;
