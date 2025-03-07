@@ -26,9 +26,18 @@ void km::InitAqAllocator(void *memory, size_t size) {
     gNotificationAllocator = new SynchronizedTlsfAllocator(memory, size);
 }
 
-void Topic::addNotification(sm::RcuDomain *domain, INotification *notification) {
+OsStatus Topic::addNotification(sm::RcuDomain *domain, INotification *notification) {
+    if (notification == nullptr) {
+        KmDebugMessage("[AQ] Dropped notification due to memory exhaustion\n");
+        return OsStatusOutOfMemory;
+    }
+
     sm::RcuSharedPtr<INotification> ptr = {domain, notification};
-    queue.enqueue(ptr);
+    if (queue.enqueue(ptr)) {
+        return OsStatusSuccess;
+    } else {
+        return OsStatusOutOfMemory;
+    }
 }
 
 void Topic::subscribe(ISubscriber *subscriber) {
@@ -60,8 +69,8 @@ size_t Topic::process(size_t limit) {
     return count;
 }
 
-void NotificationStream::addNotification(Topic *topic, INotification *notification) {
-    topic->addNotification(&mDomain, notification);
+OsStatus NotificationStream::addNotification(Topic *topic, INotification *notification) {
+    return topic->addNotification(&mDomain, notification);
 }
 
 Topic *NotificationStream::createTopic(sm::uuid id, stdx::String name) {

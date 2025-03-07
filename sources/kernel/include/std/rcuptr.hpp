@@ -278,7 +278,7 @@ namespace sm {
 
     template<typename T, typename... Args>
     RcuSharedPtr<T> rcuMakeShared(RcuDomain *domain, Args&&... args) {
-        if (T *ptr = new(std::nothrow) T(std::forward<Args>(args)...)) {
+        if (T *ptr = new (std::nothrow) T(std::forward<Args>(args)...)) {
             if (RcuSharedPtr rcu = RcuSharedPtr<T>{domain, ptr}) {
                 return rcu;
             }

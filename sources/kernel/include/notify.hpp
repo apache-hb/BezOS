@@ -35,7 +35,7 @@ namespace km {
         stdx::SharedSpinLock mLock;
         sm::FlatHashSet<ISubscriber*> mSubscribers;
 
-        void addNotification(sm::RcuDomain *domain, INotification *notification);
+        OsStatus addNotification(sm::RcuDomain *domain, INotification *notification);
         void subscribe(ISubscriber *subscriber);
         void unsubscribe(ISubscriber *subscriber);
 
@@ -109,7 +109,7 @@ namespace km {
         stdx::SpinLock mSubscriberLock;
         sm::FlatHashSet<std::unique_ptr<ISubscriber>> mSubscribers;
 
-        void addNotification(Topic *topic, INotification *notification);
+        OsStatus addNotification(Topic *topic, INotification *notification);
 
     public:
         UTIL_NOCOPY(NotificationStream);
@@ -118,9 +118,8 @@ namespace km {
         NotificationStream() = default;
 
         template<std::derived_from<INotification> T, typename... Args>
-        void publish(Topic *topic, Args&&... args) {
-            auto notification = new T(std::forward<Args>(args)...);
-            addNotification(topic, notification);
+        OsStatus publish(Topic *topic, Args&&... args) {
+            return addNotification(topic, new (std::nothrow) T(std::forward<Args>(args)...));
         }
 
         Topic *createTopic(sm::uuid id, stdx::String name);

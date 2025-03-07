@@ -58,6 +58,7 @@ namespace km {
 
     class SerialPort {
         uint16_t mBasePort = 0xFFFF;
+        uint8_t mIrq = 0xFF;
 
         /// @brief Returns true if the transmit buffer is empty.
         bool waitForTransmit();
@@ -72,21 +73,23 @@ namespace km {
         ///          Use @ref openSerial instead.
         constexpr SerialPort(ComPortInfo info)
             : mBasePort(info.port)
+            , mIrq(info.irq)
         { }
 
         constexpr bool isReady() const noexcept { return mBasePort != 0xFFFF; }
+        uint8_t irq() const noexcept { return mIrq; }
 
-        size_t write(std::span<const uint8_t> src);
+        size_t write(std::span<const uint8_t> src, unsigned timeout = 100);
         size_t read(std::span<uint8_t> dst);
 
-        bool put(uint8_t byte);
-        bool get(uint8_t& byte);
+        OsStatus put(uint8_t byte, unsigned timeout = 100);
+        OsStatus get(uint8_t& byte, unsigned timeout = 100);
 
-        size_t print(stdx::StringView src);
+        size_t print(stdx::StringView src, unsigned timeout = 100);
 
         template<typename T> requires (std::is_standard_layout_v<T>)
-        OsStatus write(const T& src) {
-            size_t result = write(std::span(reinterpret_cast<const uint8_t*>(&src), sizeof(T)));
+        OsStatus write(const T& src, unsigned timeout = 100) {
+            size_t result = write(std::span(reinterpret_cast<const uint8_t*>(&src), sizeof(T)), timeout);
             return result == sizeof(T) ? OsStatusSuccess : OsStatusTimeout;
         }
     };

@@ -12,7 +12,7 @@
 namespace sp = subprocess;
 namespace fs = std::filesystem;
 
-static int RunInstances(const argparse::ArgumentParser& parser) {
+static int RunInstances(const argparse::ArgumentParser& parser, std::span<std::string> extra) {
     fs::create_directories(parser.get<std::string>("--output"));
 
     auto image = fs::absolute(parser.get<std::string>("--image"));
@@ -22,14 +22,14 @@ static int RunInstances(const argparse::ArgumentParser& parser) {
     std::unique_ptr<int[]> results(new int[instances]);
 
     for (auto i = 0; i < instances; i++) {
-        threads.emplace_back([image, i, &parser, &results] {
+        threads.emplace_back([image, i, &parser, &results, &extra] {
             auto output = fs::absolute(parser.get<std::string>("--output")) / std::format("instance{:04d}", i);
             fs::create_directories(output);
 
             std::vector<std::string> args = {
                 "qemu-system-x86_64",
                 "-M", "q35",
-                "-nographic", "-no-reboot",
+                "-no-reboot",
                 "-m", "128M",
                 "-smp", "4",
                 "-chardev", std::format("file,id=log,path={},signal=off", (output / "uart.log").string()),
@@ -39,10 +39,7 @@ static int RunInstances(const argparse::ArgumentParser& parser) {
                 "-cdrom", image.string(),
             };
 
-            try {
-                auto tail = parser.get<std::vector<std::string>>("extra");
-                args.insert(args.end(), tail.begin(), tail.end());
-            } catch (std::logic_error&) { }
+            args.insert(args.end(), extra.begin(), extra.end());
 
             auto cwd = output.string();
             auto result = sp::call(args, sp::cwd{cwd});
@@ -135,18 +132,12 @@ int main(int argc, const char **argv) try {
         .help("Print this help message")
         .action([&](const std::string &) { std::cout << parser; std::exit(0); });
 
-    try {
-        parser.parse_args(argc, argv);
-    } catch (const std::runtime_error &err) {
-        std::cerr << err.what() << std::endl;
-        std::cerr << parser;
-        return 1;
-    }
+    auto unknown = parser.parse_known_args(argc, argv);
 
     if (parser.present("--parse")) {
         return ParseEvents(parser);
     } else if (parser.present("--image")) {
-        return RunInstances(parser);
+        return RunInstances(parser, unknown);
     }
 } catch (const std::exception &e) {
     std::cerr << "Error: " << e.what() << std::endl;

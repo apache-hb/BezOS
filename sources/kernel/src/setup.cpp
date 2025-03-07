@@ -187,16 +187,27 @@ void km::DumpIsrState(const km::IsrContext *context) {
     KmDebugMessageUnlocked("\n");
 }
 
-void km::DumpStackTrace(const km::IsrContext *context) {
+void km::DumpCurrentStack() {
+    void *rbp = __builtin_frame_address(0);
+    PrintStackTrace(rbp);
+}
+
+void km::PrintStackTrace(const void *rbp) {
     KmDebugMessageUnlocked("|----Stack trace-----+----------------\n");
     KmDebugMessageUnlocked("| Frame              | Program Counter\n");
     KmDebugMessageUnlocked("|--------------------+----------------\n");
+
     if (SystemMemory *memory = km::GetSystemMemory()) {
-        x64::WalkStackFramesChecked(memory->systemTables(), (void**)context->rbp, [](void **frame, void *pc, stdx::StringView note) {
+        x64::WalkStackFramesChecked(memory->systemTables(), (void**)rbp, [](void **frame, void *pc, stdx::StringView note) {
             KmDebugMessageUnlocked("| ", (void*)frame, " | ", pc);
             if (!note.isEmpty()) {
                 KmDebugMessageUnlocked(" ", note);
             }
+            KmDebugMessageUnlocked("\n");
+        });
+    } else {
+        x64::WalkStackFrames((void**)rbp, [](void **frame, void *pc) {
+            KmDebugMessageUnlocked("| ", (void*)frame, " | ", pc);
             KmDebugMessageUnlocked("\n");
         });
     }
@@ -205,13 +216,21 @@ void km::DumpStackTrace(const km::IsrContext *context) {
         KmDebugMessageUnlocked("llvm-addr2line -e ", kImagePath);
 
         if (SystemMemory *memory = km::GetSystemMemory()) {
-            x64::WalkStackFramesChecked(memory->systemTables(), (void**)context->rbp, [](void **, void *pc, stdx::StringView) {
+            x64::WalkStackFramesChecked(memory->systemTables(), (void**)rbp, [](void **, void *pc, stdx::StringView) {
+                KmDebugMessageUnlocked(" ", pc);
+            });
+        } else {
+            x64::WalkStackFrames((void**)rbp, [](void **, void *pc) {
                 KmDebugMessageUnlocked(" ", pc);
             });
         }
 
         KmDebugMessageUnlocked("\n");
     }
+}
+
+void km::DumpStackTrace(const km::IsrContext *context) {
+    PrintStackTrace((void*)context->rbp);
 }
 
 void km::DumpIsrContext(const km::IsrContext *context, stdx::StringView message) {

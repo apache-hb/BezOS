@@ -34,6 +34,9 @@ namespace km {
 
     void WriteMemoryMap(std::span<const boot::MemoryRegion> memmap);
 
+    void DumpCurrentStack();
+    void PrintStackTrace(const void *rbp);
+
     void DumpIsrState(const km::IsrContext *context);
     void DumpStackTrace(const km::IsrContext *context);
     void DumpIsrContext(const km::IsrContext *context, stdx::StringView message);
