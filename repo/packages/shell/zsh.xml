@@ -29,6 +29,15 @@
                      -isystem @PREFIX@/sysapi/include/posix
                      -I@PREFIX@/ncurses/include
                      -nostdlib' />
-        <options host='x86_64-bezos-elf' />
+        <options host='x86_64-bezos-jlibc'
+                 disable-etcdir=''
+                 disable-zshenv=''
+                 disable-zshrc=''
+                 disable-zprofile=''
+                 disable-zlogin=''
+                 disable-zlogout=''
+                 disable-dynamic=''
+                 disable-locale=''
+                 disable-dynamic-nss='' />
     </configure>
 </package>

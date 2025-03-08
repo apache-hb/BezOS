@@ -1,9 +1,9 @@
 #ifndef BEZOS_POSIX_SETJMP_H
 #define BEZOS_POSIX_SETJMP_H 1
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <detail/cxx.h>
+
+BZP_API_BEGIN
 
 typedef struct OsImplPosixJmpBuf {
     long long r[8];
@@ -14,18 +14,16 @@ typedef struct OsImplPosixSigJmpBuf {
     int mask_was_saved;
 } sigjmp_buf[1];
 
-extern int setjmp(jmp_buf);
+extern int setjmp(jmp_buf) BZP_NOEXCEPT;
 
 [[noreturn]]
-extern void longjmp(jmp_buf, int);
+extern void longjmp(jmp_buf, int) BZP_NOEXCEPT;
 
-extern int sigsetjmp(sigjmp_buf, int);
+extern int sigsetjmp(sigjmp_buf, int) BZP_NOEXCEPT;
 
 [[noreturn]]
-extern void siglongjmp(sigjmp_buf, int);
+extern void siglongjmp(sigjmp_buf, int) BZP_NOEXCEPT;
 
-#ifdef __cplusplus
-}
-#endif
+BZP_API_END
 
 #endif /* BEZOS_POSIX_SETJMP_H */

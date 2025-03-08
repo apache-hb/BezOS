@@ -11,3 +11,13 @@ int stat(const char*, struct stat*) noexcept {
     errno = ENOSYS;
     return -1;
 }
+
+int mkdir(const char*, mode_t) noexcept {
+    errno = ENOSYS;
+    return -1;
+}
+
+mode_t umask(mode_t) noexcept {
+    errno = ENOSYS;
+    return 0;
+}

@@ -53,7 +53,11 @@ src = [
     'src/posix/fcntl.cpp',
     'src/posix/stdio.cpp',
     'src/posix/errno.cpp',
+    'src/posix/math.cpp',
     'src/posix/string.cpp',
+    'src/posix/setjmp.cpp',
+    'src/posix/strings.cpp',
+    'src/posix/signal.cpp',
     'src/posix/ctype.cpp',
     'src/posix/unistd.cpp',
     'src/posix/termios.cpp',
@@ -65,6 +69,8 @@ src = [
     'src/posix/sys_time.cpp',
     'src/posix/sys_times.cpp',
     'src/posix/sys_utsname.cpp',
+    'src/posix/sys_wait.cpp',
+    'src/posix/sys_resource.cpp',
 ]
 
 libposix = static_library('bezos-posix', src,

@@ -33,6 +33,25 @@ FILE *fopen(const char *, const char *) noexcept {
     return nullptr;
 }
 
+void clearerr(FILE *) noexcept {
+    errno = ENOSYS;
+}
+
+FILE *fdopen(int, const char *) noexcept {
+    errno = ENOSYS;
+    return nullptr;
+}
+
+int fseek(FILE *, long, int) noexcept {
+    errno = ENOSYS;
+    return -1;
+}
+
+long ftell(FILE *) noexcept {
+    errno = ENOSYS;
+    return -1;
+}
+
 int fflush(FILE *) noexcept {
     errno = ENOSYS;
     return -1;
@@ -134,7 +153,25 @@ char *fgets(char *, int, FILE *) noexcept {
     return nullptr;
 }
 
+int fputs(const char *, FILE *) noexcept {
+    errno = ENOSYS;
+    return -1;
+}
+
 int putchar(int) noexcept {
     errno = ENOSYS;
     return -1;
+}
+
+void setbuffer(FILE *, char *, int) noexcept {
+    errno = ENOSYS;
+}
+
+void setlinebuf(FILE *) noexcept {
+    errno = ENOSYS;
+}
+
+char *cuserid(char *) noexcept {
+    errno = ENOSYS;
+    return nullptr;
 }

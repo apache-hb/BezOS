@@ -10,3 +10,13 @@ int close(int) noexcept {
     errno = ENOSYS;
     return -1;
 }
+
+int fcntl(int, int, ...) noexcept {
+    errno = ENOSYS;
+    return -1;
+}
+
+int rename(const char *, const char *) noexcept {
+    errno = ENOSYS;
+    return -1;
+}

@@ -69,9 +69,9 @@ extern size_t fread(void *, size_t, size_t, FILE *) BZP_NOEXCEPT;
 
 extern size_t fwrite(const void *, size_t, size_t, FILE *) BZP_NOEXCEPT;
 
-extern int fseek(FILE *, long int, int) BZP_NOEXCEPT;
+extern int fseek(FILE *, long, int) BZP_NOEXCEPT;
 
-extern long int ftell(FILE *) BZP_NOEXCEPT;
+extern long ftell(FILE *) BZP_NOEXCEPT;
 
 extern int feof(FILE *) BZP_NOEXCEPT;
 
@@ -96,6 +96,8 @@ extern int putchar(int) BZP_NOEXCEPT;
 extern void setbuffer(FILE *, char *, int) BZP_NOEXCEPT;
 
 extern void setlinebuf(FILE *) BZP_NOEXCEPT;
+
+extern char *cuserid(char *) BZP_NOEXCEPT;
 
 BZP_API_END
 

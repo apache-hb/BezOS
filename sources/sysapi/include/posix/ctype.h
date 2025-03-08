@@ -5,6 +5,8 @@
 
 BZP_API_BEGIN
 
+extern int isascii(int) BZP_NOEXCEPT;
+
 extern int isprint(int) BZP_NOEXCEPT;
 
 extern int isalpha(int) BZP_NOEXCEPT;
@@ -12,6 +14,8 @@ extern int isalpha(int) BZP_NOEXCEPT;
 extern int isalnum(int) BZP_NOEXCEPT;
 
 extern int isdigit(int) BZP_NOEXCEPT;
+
+extern int isxdigit(int) BZP_NOEXCEPT;
 
 extern int isspace(int) BZP_NOEXCEPT;
 

@@ -3,10 +3,9 @@
 
 #include <detail/time.h>
 #include <detail/size.h>
+#include <detail/cxx.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+BZP_API_BEGIN
 
 struct tm {
     int tm_sec;
@@ -20,14 +19,12 @@ struct tm {
     int tm_isdst;
 };
 
-extern time_t time(time_t *);
+extern time_t time(time_t *) BZP_NOEXCEPT;
 
-struct tm *localtime(const time_t *);
+struct tm *localtime(const time_t *) BZP_NOEXCEPT;
 
-extern size_t strftime(char *, size_t, const char *, const struct tm *);
+extern size_t strftime(char *, size_t, const char *, const struct tm *) BZP_NOEXCEPT;
 
-#ifdef __cplusplus
-}
-#endif
+BZP_API_END
 
 #endif /* BEZOS_POSIX_TIME_H */

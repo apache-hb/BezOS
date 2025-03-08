@@ -1,13 +1,72 @@
+diff --git a/build-aux/config.guess b/build-aux/config.guess
+index cdfc439..b670557 100755
+--- a/build-aux/config.guess
++++ b/build-aux/config.guess
+@@ -165,6 +165,8 @@ Linux|GNU|GNU/*)
+ 	LIBC=dietlibc
+ 	#elif defined(__GLIBC__)
+ 	LIBC=gnu
++	#elif defined(__JEFF__)
++	LIBC=jlibc
+ 	#else
+ 	#include <stdarg.h>
+ 	/* First heuristic to detect musl libc.  */
+@@ -976,6 +978,12 @@ EOF
+     *:[Mm]anagarm:*:*)
+ 	GUESS="$UNAME_MACHINE-unknown-managarm-mlibc"
+ 	;;
++	x86_64:[Bb]ezos:*:*|i?86:[Bb]ezos:*:*)
++	GUESS="$UNAME_MACHINE-pc-bezos-$LIBC"
++	;;
++	*:[Bb]ezos:*:*)
++	GUESS="$UNAME_MACHINE-unknown-bezos-$LIBC"
++	;;
+     *:Minix:*:*)
+ 	GUESS=$UNAME_MACHINE-unknown-minix
+ 	;;
 diff --git a/build-aux/config.sub b/build-aux/config.sub
-index defe52c..7ebf81e 100755
+index defe52c..b8dca5d 100755
 --- a/build-aux/config.sub
 +++ b/build-aux/config.sub
-@@ -1766,7 +1766,7 @@ case $os in
+@@ -146,7 +146,7 @@ case $1 in
+ 			| uclinux-gnu* | kfreebsd*-gnu* | knetbsd*-gnu* | netbsd*-gnu* \
+ 			| netbsd*-eabi* | kopensolaris*-gnu* | cloudabi*-eabi* \
+ 			| storm-chaos* | os2-emx* | rtmk-nova* | managarm-* \
+-			| windows-* )
++			| windows-* | bezos-* )
+ 				basic_machine=$field1
+ 				basic_os=$maybe_os
+ 				;;
+@@ -1325,6 +1325,10 @@ EOF
+ 		kernel=managarm
+ 		os=`echo "$basic_os" | sed -e 's|managarm|mlibc|'`
+ 		;;
++	bezos*)
++		kernel=bezos
++		os=`echo "$basic_os" | sed -e 's|bezos|jlibc|'`
++		;;
+ 	*)
+ 		kernel=
+ 		os=$basic_os
+@@ -1766,7 +1770,7 @@ case $os in
  	     | onefs* | tirtos* | phoenix* | fuchsia* | redox* | bme* \
  	     | midnightbsd* | amdhsa* | unleashed* | emscripten* | wasi* \
  	     | nsk* | powerunix* | genode* | zvmoe* | qnx* | emx* | zephyr* \
 -	     | fiwix* | mlibc* | cos* | mbr* )
-+	     | fiwix* | mlibc* | cos* | mbr* | bezos* )
++	     | fiwix* | mlibc* | cos* | mbr* | jlibc* )
  		;;
  	# This one is extra strict with allowed versions
  	sco3.2v2 | sco3.2v[4-9]* | sco5v6*)
+@@ -1825,9 +1829,11 @@ case $kernel-$os-$obj in
+ 		;;
+ 	managarm-mlibc*- | managarm-kernel*- )
+ 		;;
++	bezos-jlibc*- )
++		;;
+ 	windows*-msvc*-)
+ 		;;
+-	-dietlibc*- | -newlib*- | -musl*- | -relibc*- | -uclibc*- | -mlibc*- )
++	-dietlibc*- | -newlib*- | -musl*- | -relibc*- | -uclibc*- | -mlibc*- | -jlibc*- )
+ 		# These are just libc implementations, not actual OSes, and thus
+ 		# require a kernel.
+ 		echo "Invalid configuration '$1': libc '$os' needs explicit kernel." 1>&2

@@ -3,6 +3,8 @@
 
 #include <detail/cxx.h>
 
+#include <asm/termbits.h> /* TIOC* definitions */
+
 BZP_API_BEGIN
 
 extern int ioctl(int, int, ...) BZP_NOEXCEPT;

@@ -13,6 +13,8 @@ BZP_API_BEGIN
 #define EXIT_SUCCESS 0
 #define EXIT_FAILURE 1
 
+#define RAND_MAX 32767
+
 BZP_NORETURN
 extern void abort(void) BZP_NOEXCEPT;
 
@@ -71,6 +73,12 @@ extern int setenv(const char *, const char *, int) BZP_NOEXCEPT BZP_NONNULL(1, 2
 extern int unsetenv(const char *) BZP_NOEXCEPT BZP_NONNULL(1);
 
 extern void srand(unsigned) BZP_NOEXCEPT;
+extern int rand(void) BZP_NOEXCEPT;
+extern int rand_r(unsigned *) BZP_NOEXCEPT BZP_NONNULL(1);
+
+extern char *mkdtemp(char *) BZP_NOEXCEPT;
+extern int mkstemp(char *) BZP_NOEXCEPT;
+extern char *mktemp(char *) BZP_NOEXCEPT;
 
 BZP_API_END
 

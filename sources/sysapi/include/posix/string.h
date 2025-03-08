@@ -6,6 +6,16 @@
 
 #include <stddef.h>
 
+/*
+ * strcasecmp and strncasecmp in BSD4.4 originally appeared in string.h
+ * maintain compatibility when _DEFAULT_SOURCE or _BSD_SOURCE is defined.
+ * TODO: for now this is always enabled due to zsh not correctly defining
+ *       _DEFAULT_SOURCE or _BSD_SOURCE.
+ */
+#if defined(_DEFAULT_SOURCE) || defined(_BSD_SOURCE) || 1
+#   include <strings.h>
+#endif /* _DEFAULT_SOURCE || _BSD_SOURCE */
+
 BZP_API_BEGIN
 
 extern void *memcpy(void *, const void *, size_t) BZP_NOEXCEPT BZP_NONNULL_ALL;

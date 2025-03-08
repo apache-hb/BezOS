@@ -40,6 +40,8 @@ extern int *OsImplPosixErrnoAddress(void) BZP_NOEXCEPT;
 #define EAGAIN 0x15 /* Resource temporarily unavailable */
 #define ENOTTY 0x16 /* Not a tty */
 #define ENAMETOOLONG 0x17 /* File name too long */
+#define ECHILD 0x18 /* No child processes */
+#define EWOULDBLOCK 0x19 /* Operation would block */
 
 BZP_API_END
 

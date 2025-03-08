@@ -105,6 +105,10 @@ void free(void *) noexcept {
     //
 }
 
+void qsort(void *, size_t, size_t, int (*)(const void *, const void *)) {
+    errno = ENOSYS;
+}
+
 char *getenv(const char *) noexcept {
     errno = ENOSYS;
     return nullptr;
@@ -123,4 +127,33 @@ extern int setenv(const char *, const char *, int) noexcept {
 extern int unsetenv(const char *) noexcept {
     errno = ENOSYS;
     return -1;
+}
+
+void srand(unsigned) noexcept {
+    errno = ENOSYS;
+}
+
+int rand(void) noexcept {
+    errno = ENOSYS;
+    return 0;
+}
+
+int rand_r(unsigned *) noexcept {
+    errno = ENOSYS;
+    return 0;
+}
+
+char *mkdtemp(char *) noexcept {
+    errno = ENOSYS;
+    return nullptr;
+}
+
+int mkstemp(char *) noexcept {
+    errno = ENOSYS;
+    return -1;
+}
+
+char *mktemp(char *) noexcept {
+    errno = ENOSYS;
+    return nullptr;
 }

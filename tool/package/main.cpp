@@ -105,7 +105,8 @@ enum ConfigureProgram {
 
     eMeson,
     eCMake,
-    eShell,
+    eShell, // run a shell script
+    eScript,
     eAutoconf,
 };
 
@@ -149,6 +150,8 @@ struct ConfigureStep {
 
     // path to meson/cmake native file
     std::string nativeFile;
+
+    std::string scriptBody;
 };
 
 struct PackageInfo {
@@ -895,6 +898,9 @@ static ConfigureStep ReadConfigureStep(XmlNode action, const PackageInfo& packag
         step.configureToolPath = ExpectProperty<std::string>(action, "path");
     } else if (with == "autoconf") {
         step.configure = eAutoconf;
+    } else if (with == "script") {
+        step.configure = eScript;
+        step.scriptBody = action.content();
     } else {
         throw std::runtime_error("Unknown configure program " + with);
     }
@@ -1211,7 +1217,7 @@ static void ReplaceFilePlaceholders(const fs::path& path, const fs::path& dst, c
     out << content;
 }
 
-static void RunConfigureStep(const PackageInfo& package, const ConfigureStep& step) {
+static void RunConfigureStep(const PackageInfo& package, const ConfigureStep& step, int index) {
     if (step.configure == eConfigureNone) {
         return;
     }
@@ -1309,19 +1315,6 @@ static void RunConfigureStep(const PackageInfo& package, const ConfigureStep& st
 
         std::string configureTool = step.configureToolPath.empty() ? "autoreconf" : step.configureToolPath;
 
-#if 0
-        {
-            std::vector<std::string> args = {
-                configureTool, "--install", "--force"
-            };
-
-            auto result = sp::call(args, sp::cwd{cwd}, sp::output{configureLog.c_str()}, sp::error{configureErrLog.c_str()});
-            if (result != 0) {
-                throw std::runtime_error("Failed to autoreconf package " + package.name);
-            }
-        }
-#endif
-
         std::vector<std::string> args = {
             "/bin/sh",
             (fs::current_path() / package.GetConfigureSourcePath(step) / "configure").string(),
@@ -1358,6 +1351,22 @@ static void RunConfigureStep(const PackageInfo& package, const ConfigureStep& st
         if (result != 0) {
             throw std::runtime_error("Failed to run script " + args[1]);
         }
+    } else if (step.configure == eScript) {
+        std::string scriptBody = step.scriptBody;
+        ReplacePackagePlaceholders(scriptBody, package);
+
+        auto path = cfgdir / std::format("configure-{}.sh", index);
+        {
+            std::ofstream file(path);
+            file << scriptBody;
+        }
+
+        std::vector<std::string> args = { "/bin/sh", path };
+        std::println(std::cout, "{}", (args | stdv::join_with(' ')) | stdr::to<std::string>());
+        auto result = sp::call(args, sp::environment{env}, sp::cwd{builddir});
+        if (result != 0) {
+            throw std::runtime_error("Failed to run script " + path.string());
+        }
     } else {
         throw std::runtime_error("Unknown configure program for " + package.name);
     }
@@ -1368,8 +1377,9 @@ static void ConfigurePackage(const PackageInfo& package) {
         return;
     }
 
+    int index = 0;
     for (const auto& step : package.configureSteps) {
-        RunConfigureStep(package, step);
+        RunConfigureStep(package, step, index++);
     }
 
     gPackageDb->RaiseTargetStatus(package.name, eConfigured);
@@ -1760,6 +1770,29 @@ int main(int argc, const char **argv) try {
     applyStateLowering("--rebuild", eConfigured);
     applyStateLowering("--reconfigure", eDownloaded);
     applyStateLowering("--fetch", eUnknown);
+
+    for (const auto& name : parser.get<std::vector<std::string>>("--fetch")) {
+        if (fs::exists(PackageBuildPath(name))) {
+            fs::remove_all(PackageBuildPath(name));
+        }
+
+        if (fs::exists(PackageInstallPath(name))) {
+            fs::remove_all(PackageInstallPath(name));
+        }
+
+        if (fs::exists(PackageLogPath(name))) {
+            fs::remove_all(PackageLogPath(name));
+        }
+
+        if (fs::exists(PackageImportPath(name))) {
+            fs::remove_all(PackageImportPath(name));
+        }
+
+        fs::create_directories(PackageBuildPath(name));
+        fs::create_directories(PackageInstallPath(name));
+        fs::create_directories(PackageLogPath(name));
+        fs::create_directories(PackageImportPath(name));
+    }
 
     // gPackageDb->DumpTargetStates();
 

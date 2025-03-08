@@ -10,6 +10,13 @@
     <require package='automake' />
     <require package='autoconf' />
 
+    <configure with='script'>
+        rm @SOURCE_ROOT@/config.guess
+        rm @SOURCE_ROOT@/config.sub
+        cp @PREFIX@/autoconf/share/autoconf/build-aux/config.guess @SOURCE_ROOT@/config.guess
+        cp @PREFIX@/autoconf/share/autoconf/build-aux/config.sub @SOURCE_ROOT@/config.sub
+    </configure>
+
     <!-- TODO: the start-group thing isnt great, need to update llvm to do this for me -->
     <configure with='autoconf' using='@PREFIX@/automake/bin/automake'>
         <env CC='@PREFIX@/llvm/bin/clang'
@@ -23,7 +30,7 @@
              CFLAGS='--sysroot @PREFIX@/llvm
                      -isystem @PREFIX@/sysapi/include/posix' />
 
-        <options host='x86_64-bezos-elf'
+        <options host='x86_64-bezos-jlibc'
                  without-progs=''
                  without-tests='' />
     </configure>

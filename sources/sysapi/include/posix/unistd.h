@@ -8,6 +8,7 @@
 #include <detail/node.h>
 
 #include <stddef.h>
+#include <features.h>
 
 BZP_API_BEGIN
 
@@ -20,6 +21,8 @@ extern void _exit(int) BZP_NOEXCEPT;
 extern int execve(const char *, char *const[], char *const[]) BZP_NOEXCEPT;
 
 extern int dup(int) BZP_NOEXCEPT;
+
+extern int dup2(int, int) BZP_NOEXCEPT;
 
 extern int close(int) BZP_NOEXCEPT;
 
@@ -57,8 +60,13 @@ extern int setgid(gid_t) BZP_NOEXCEPT;
 
 extern int setegid(gid_t) BZP_NOEXCEPT;
 
+#if JEFF_OPTION_BSD
+
 extern int setpgrp(pid_t, pid_t) BZP_NOEXCEPT;
+
 extern int getpgrp(pid_t) BZP_NOEXCEPT;
+
+#endif
 
 extern unsigned sleep(unsigned) BZP_NOEXCEPT;
 
@@ -78,6 +86,12 @@ extern long sysconf(int) BZP_NOEXCEPT;
 
 extern size_t confstr(int, char *, size_t) BZP_NOEXCEPT;
 
+extern char *getlogin(void) BZP_NOEXCEPT;
+
+extern int getlogin_r(char *, size_t) BZP_NOEXCEPT;
+
+extern int pause(void) BZP_NOEXCEPT;
+
 extern int getopt(int, char *const[], const char *) BZP_NOEXCEPT;
 
 extern char *getcwd(char *, size_t) BZP_NOEXCEPT;
@@ -86,6 +100,8 @@ extern char *optarg;
 extern int opterr;
 extern int optind;
 extern int optopt;
+
+extern char **environ;
 
 BZP_API_END
 

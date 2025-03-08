@@ -2,17 +2,15 @@
 #define BEZOS_POSIX_STRINGS_H 1
 
 #include <detail/size.h>
+#include <detail/cxx.h>
+#include <detail/attributes.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+BZP_API_BEGIN
 
-extern int strcasecmp(const char *, const char *);
+extern int strcasecmp(const char *, const char *) BZP_NOEXCEPT BZP_NONNULL_ALL;
 
-extern int strncasecmp(const char *, const char *, size_t);
+extern int strncasecmp(const char *, const char *, size_t) BZP_NOEXCEPT BZP_NONNULL_ALL;
 
-#ifdef __cplusplus
-}
-#endif
+BZP_API_END
 
 #endif /* BEZOS_POSIX_STRINGS_H */

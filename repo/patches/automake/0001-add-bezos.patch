@@ -1,13 +1,73 @@
-diff --git a/lib/config.sub b/lib/config.sub
-index 2c6a07a..9d3560b 100755
+diff --git a/lib/config.guess b/lib-new/config.guess
+index f6d217a..9da85b9 100755
+--- a/lib/config.guess
++++ b/lib-new/config.guess
+@@ -165,6 +165,8 @@ Linux|GNU|GNU/*)
+ 	LIBC=dietlibc
+ 	#elif defined(__GLIBC__)
+ 	LIBC=gnu
++	#elif defined(__JEFF__)
++	LIBC=jlibc
+ 	#elif defined(__LLVM_LIBC__)
+ 	LIBC=llvm
+ 	#else
+@@ -978,6 +980,12 @@ EOF
+     *:[Mm]anagarm:*:*)
+ 	GUESS="$UNAME_MACHINE-unknown-managarm-mlibc"
+ 	;;
++	x86_64:[Bb]ezos:*:*|i?86:[Bb]ezos:*:*)
++	GUESS="$UNAME_MACHINE-pc-bezos-$LIBC"
++	;;
++	*:[Bb]ezos:*:*)
++	GUESS="$UNAME_MACHINE-unknown-bezos-$LIBC"
++	;;
+     *:Minix:*:*)
+ 	GUESS=$UNAME_MACHINE-unknown-minix
+ 	;;
+diff --git a/lib/config.sub b/lib-new/config.sub
+index 2c6a07a..b0913a1 100755
 --- a/lib/config.sub
-+++ b/lib/config.sub
-@@ -1768,7 +1768,7 @@ case $os in
++++ b/lib-new/config.sub
+@@ -146,7 +146,7 @@ case $1 in
+ 			| uclinux-gnu* | kfreebsd*-gnu* | knetbsd*-gnu* | netbsd*-gnu* \
+ 			| netbsd*-eabi* | kopensolaris*-gnu* | cloudabi*-eabi* \
+ 			| storm-chaos* | os2-emx* | rtmk-nova* | managarm-* \
+-			| windows-* )
++			| windows-* | bezos-* )
+ 				basic_machine=$field1
+ 				basic_os=$maybe_os
+ 				;;
+@@ -1327,6 +1327,10 @@ EOF
+ 		kernel=managarm
+ 		os=`echo "$basic_os" | sed -e 's|managarm|mlibc|'`
+ 		;;
++	bezos*)
++		kernel=bezos
++		os=`echo "$basic_os" | sed -e 's|bezos|jlibc|'`
++		;;
+ 	*)
+ 		kernel=
+ 		os=$basic_os
+@@ -1768,7 +1772,7 @@ case $os in
  	     | onefs* | tirtos* | phoenix* | fuchsia* | redox* | bme* \
  	     | midnightbsd* | amdhsa* | unleashed* | emscripten* | wasi* \
  	     | nsk* | powerunix* | genode* | zvmoe* | qnx* | emx* | zephyr* \
 -	     | fiwix* | mlibc* | cos* | mbr* | ironclad* )
-+	     | fiwix* | mlibc* | cos* | mbr* | ironclad* | bezos* )
++	     | fiwix* | mlibc* | cos* | mbr* | ironclad* | jlibc* )
  		;;
  	# This one is extra strict with allowed versions
  	sco3.2v2 | sco3.2v[4-9]* | sco5v6*)
+@@ -1835,10 +1839,12 @@ case $kernel-$os-$obj in
+ 		;;
+ 	managarm-mlibc*- | managarm-kernel*- )
+ 		;;
++	bezos-jlibc*- )
++		;;
+ 	windows*-msvc*-)
+ 		;;
+ 	-dietlibc*- | -llvm*- | -mlibc*- | -musl*- | -newlib*- | -relibc*- \
+-		    | -uclibc*- )
++		    | -uclibc*- | -jlibc*- )
+ 		# These are just libc implementations, not actual OSes, and thus
+ 		# require a kernel.
+ 		echo "Invalid configuration '$1': libc '$os' needs explicit kernel." 1>&2

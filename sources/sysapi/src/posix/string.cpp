@@ -43,6 +43,29 @@ void *memmove(void *dst, const void *src, size_t size) noexcept {
     return dst;
 }
 
+void *memchr(const void *s, int c, size_t n) noexcept {
+    const unsigned char *p = static_cast<const unsigned char *>(s);
+    for (size_t i = 0; i < n; i++) {
+        if (p[i] == c) {
+            return const_cast<unsigned char *>(p + i);
+        }
+    }
+
+    return nullptr;
+}
+
+int memcmp(const void *lhs, const void *rhs, size_t n) noexcept {
+    const unsigned char *l = static_cast<const unsigned char *>(lhs);
+    const unsigned char *r = static_cast<const unsigned char *>(rhs);
+    for (size_t i = 0; i < n; i++) {
+        if (l[i] != r[i]) {
+            return l[i] - r[i];
+        }
+    }
+
+    return 0;
+}
+
 int strcmp(const char *lhs, const char *rhs) noexcept {
     while (*lhs && *rhs && *lhs == *rhs) {
         lhs++;
@@ -172,4 +195,26 @@ char *strndup(const char *str, size_t len) noexcept {
     }
 
     return nullptr;
+}
+
+static constexpr bool ImplStringContains(const char *str, char c) noexcept {
+    while (*str) {
+        if (*str == c) {
+            return true;
+        }
+
+        str++;
+    }
+
+    return false;
+}
+
+size_t strspn(const char *str, const char *accept) noexcept {
+    size_t count = 0;
+    while (*str && ImplStringContains(accept, *str)) {
+        count++;
+        str++;
+    }
+
+    return count;
 }
