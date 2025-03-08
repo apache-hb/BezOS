@@ -89,6 +89,12 @@ namespace km {
         { }
     };
 
+    enum class ProcessStatus {
+        eSuspended,
+        eRunning,
+        eExited,
+    };
+
     struct Process : public KernelObject {
         x64::Privilege privilege;
         stdx::SharedSpinLock lock;
@@ -103,6 +109,8 @@ namespace km {
         stdx::Vector2<Thread*> threads;
         stdx::Vector2<AddressSpace*> memory;
         sm::FlatHashSet<std::unique_ptr<vfs2::IVfsNodeHandle>> files;
+        int64_t exitStatus = 0;
+        ProcessStatus status = ProcessStatus::eRunning;
 
         void addThread(Thread *thread) {
             stdx::UniqueLock guard(lock);
@@ -181,6 +189,7 @@ namespace km {
         OsStatus createProcess(stdx::String name, x64::Privilege privilege, MemoryRange pteMemory, Process **process);
         OsStatus destroyProcess(Process *process);
         Process *getProcess(ProcessId id);
+        OsStatus exitProcess(Process *process, int64_t status);
 
         Thread *createThread(stdx::String name, Process* process);
         AddressSpace *createAddressSpace(stdx::String name, km::AddressMapping mapping, km::PageFlags flags, km::MemoryType type, Process* process);

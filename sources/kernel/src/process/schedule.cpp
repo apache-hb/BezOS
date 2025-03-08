@@ -53,6 +53,13 @@ void km::Scheduler::addWorkItem(Thread * thread) {
 km::Thread *km::Scheduler::getWorkItem() noexcept {
     Thread *thread;
     while (mQueue.try_dequeue(thread)) {
+        //
+        // If the process is exited then drop the thread from the scheduler.
+        //
+        if (thread->process->status == km::ProcessStatus::eExited) {
+            continue;
+        }
+
         return thread;
     }
 

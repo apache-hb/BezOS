@@ -1283,7 +1283,7 @@ static void AddThreadSystemCalls() {
             return CallError(status);
         }
 
-        Process * process;
+        Process *process;
         if (createInfo.Process != OS_HANDLE_INVALID) {
             process = gSystemObjects->getProcess(ProcessId(createInfo.Process & 0x00FF'FFFF'FFFF'FFFF));
         } else {
@@ -1335,7 +1335,7 @@ static void AddMutexSystemCalls() {
             return CallError(status);
         }
 
-        Mutex * mutex = gSystemObjects->createMutex(std::move(name));
+        Mutex *mutex = gSystemObjects->createMutex(std::move(name));
         return CallOk(mutex->handleId());
     });
 
@@ -1347,7 +1347,7 @@ static void AddMutexSystemCalls() {
 
     AddSystemCall(eOsCallMutexLock, [](CallContext*, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t id = regs->arg0;
-        Mutex * mutex = gSystemObjects->getMutex(MutexId(id & 0x00FF'FFFF'FFFF'FFFF));
+        Mutex *mutex = gSystemObjects->getMutex(MutexId(id & 0x00FF'FFFF'FFFF'FFFF));
         if (mutex == nullptr) {
             return CallError(OsStatusNotFound);
         }
@@ -1370,7 +1370,7 @@ static void AddMutexSystemCalls() {
 
     AddSystemCall(eOsCallMutexUnlock, [](CallContext*, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t id = regs->arg0;
-        Mutex * mutex = gSystemObjects->getMutex(MutexId(id & 0x00FF'FFFF'FFFF'FFFF));
+        Mutex *mutex = gSystemObjects->getMutex(MutexId(id & 0x00FF'FFFF'FFFF'FFFF));
         if (mutex == nullptr) {
             return CallError(OsStatusNotFound);
         }
@@ -1413,6 +1413,39 @@ static void AddProcessSystemCalls() {
         GetScheduler()->addWorkItem(launch.main);
 
         return CallOk(launch.process->handleId());
+    });
+
+    AddSystemCall(eOsCallProcessCurrent, [](CallContext*, SystemCallRegisterSet*) -> OsCallResult {
+        Process *process = GetCurrentProcess();
+        if (process == nullptr) {
+            return CallError(OsStatusNotFound);
+        }
+
+        return CallOk(process->handleId());
+    });
+
+    AddSystemCall(eOsCallProcessDestroy, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        uint64_t userProcess = regs->arg0;
+        uint64_t userExitCode = regs->arg1;
+
+        Process *process;
+        if (userProcess != OS_HANDLE_INVALID) {
+            process = gSystemObjects->getProcess(ProcessId(userProcess & 0x00FF'FFFF'FFFF'FFFF));
+        } else {
+            process = GetCurrentProcess();
+        }
+
+        if (process == nullptr) {
+            return CallError(OsStatusNotFound);
+        }
+
+        gSystemObjects->exitProcess(process, userExitCode);
+
+        if (process == GetCurrentProcess()) {
+            km::YieldCurrentThread();
+        }
+
+        return CallOk(0zu);
     });
 }
 

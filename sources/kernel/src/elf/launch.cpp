@@ -163,9 +163,19 @@ static OsStatus AllocateTlsMemory(vfs2::IVfsNodeHandle *file, const elf::Program
         return status;
     }
 
+    void *tlsWindow = memory.map(tlsMapping.physicalRange(), km::PageFlags::eData);
+    if (tlsWindow == nullptr) {
+        KmDebugMessage("[ELF] Failed to map TLS memory\n");
+        return OsStatusOutOfMemory;
+    }
+
+    defer {
+        memory.unmap(tlsWindow, tlsMapping.size);
+    };
+
     vfs2::ReadRequest request {
-        .begin = (std::byte*)tlsMapping.vaddr + sizeof(uintptr_t),
-        .end = (std::byte*)tlsMapping.vaddr + tls->filesz + sizeof(uintptr_t),
+        .begin = (std::byte*)tlsWindow + sizeof(uintptr_t),
+        .end = (std::byte*)tlsWindow + tls->filesz + sizeof(uintptr_t),
         .offset = tls->offset,
     };
 
@@ -181,11 +191,15 @@ static OsStatus AllocateTlsMemory(vfs2::IVfsNodeHandle *file, const elf::Program
 
     if (tls->memsz > tls->filesz) {
         size_t bssSize = tls->memsz - tls->filesz;
-        memset(((char*)tlsMapping.vaddr + tls->filesz + sizeof(uintptr_t)), 0, bssSize);
+        KmDebugMessage("[ELF] TLS BSS size: ", bssSize, " ", tlsMapping, "\n");
+        memset(((char*)tlsWindow + tls->filesz + sizeof(uintptr_t)), 0, bssSize);
     }
 
+    KmDebugMessage("[ELF] TLS configure pointer\n");
     const void *vaddr = tlsMapping.vaddr;
-    memcpy((char*)tlsMapping.vaddr, &vaddr, sizeof(uintptr_t));
+    memcpy((char*)tlsWindow, &vaddr, sizeof(uintptr_t));
+
+    KmDebugMessage("[ELF] TLS memory mapping: ", tlsMapping, "\n");
 
     *mapping = tlsMapping;
     return OsStatusSuccess;

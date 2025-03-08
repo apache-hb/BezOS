@@ -84,6 +84,13 @@ Process *SystemObjects::getProcess(ProcessId id) {
     return nullptr;
 }
 
+OsStatus SystemObjects::exitProcess(Process *process, int64_t status) {
+    process->status = ProcessStatus::eExited;
+    process->exitStatus = status;
+
+    return OsStatusSuccess;
+}
+
 Mutex *SystemObjects::createMutex(stdx::String name) {
     MutexId id = mMutexIds.allocate();
     Mutex *ptr = new Mutex(id, std::move(name));
