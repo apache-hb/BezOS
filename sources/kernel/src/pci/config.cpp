@@ -62,6 +62,8 @@ pci::McfgConfigSpace::McfgConfigSpace(const acpi::Mcfg *mcfg, km::SystemMemory& 
     : mMcfg(mcfg)
     , mRegions(new (std::nothrow) EcamRegion[mMcfg->allocationCount()])
 {
+    KM_CHECK(mRegions != nullptr, "Failed to allocate ECAM region control blocks.");
+
     for (size_t i = 0; i < mMcfg->allocationCount(); i++) {
         const acpi::McfgAllocation& allocation = mMcfg->allocations[i];
 
@@ -72,6 +74,11 @@ pci::McfgConfigSpace::McfgConfigSpace(const acpi::Mcfg *mcfg, km::SystemMemory& 
             .last = allocation.endBusNumber,
             .base = memory.map(range, km::PageFlags::eData, km::MemoryType::eWriteThrough)
         };
+
+        if (region.base == nullptr) {
+            KmDebugMessage("[PCI] Failed to map ECAM region ", range, "\n");
+            KM_PANIC("Failed to map ECAM region.");
+        }
 
         mRegions[i] = region;
 

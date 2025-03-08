@@ -513,7 +513,9 @@ static Stage2MemoryInfo *InitStage2Memory(const boot::LaunchInfo& launch, const 
 
     Stage2MemoryInfo *stage2 = new Stage2MemoryInfo();
 
-    static constexpr size_t kPtAllocSize = sm::megabytes(1).bytes();
+    // TODO: rather than increasing this size we should use 1g pages for the big things
+    // pcie ecam regions are the culprit here
+    static constexpr size_t kPtAllocSize = sm::megabytes(3).bytes();
     void *pteMemory = aligned_alloc(x64::kPageSize, kPtAllocSize);
     KM_CHECK(pteMemory != nullptr, "Failed to allocate memory for page tables.");
 

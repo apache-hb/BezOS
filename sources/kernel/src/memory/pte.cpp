@@ -239,8 +239,8 @@ size_t PageTables::countPagesForMapping(VirtualRange range) {
         constexpr static auto kTopPageSize = x64::kHugePageSize * 512;
         VirtualRange aligned = km::alignedOut(range, kTopPageSize);
         for (uintptr_t i = (uintptr_t)aligned.front; i < (uintptr_t)aligned.back; i += kTopPageSize) {
-            size_t index = (i / kTopPageSize);
-            const x64::pml4e& t4 = l4->entries[index];
+            auto [pml4e, _, _, _] = GetAddressParts((void*)i);
+            const x64::pml4e& t4 = l4->entries[pml4e];
             if (!t4.present()) {
                 count += 1;
             }
@@ -339,7 +339,7 @@ OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType typ
     // If both allocations fail then we are out of memory.
     //
     if (tables == nullptr) {
-        KmDebugMessage("[MEM] Out of memory, failed to allocate ", requiredPages, " page tables.\n");
+        KmDebugMessage("[MEM] Out of memory, failed to allocate ", requiredPages, " page tables for ", mapping.virtualRange(), "\n");
         return OsStatusOutOfMemory;
     }
 
