@@ -4,6 +4,7 @@
 #include <detail/time.h>
 #include <detail/id.h>
 #include <detail/node.h>
+#include <detail/cxx.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -59,12 +60,12 @@ struct stat {
     blkcnt_t st_blocks;
 };
 
-extern int fstat(int, struct stat*);
-extern int stat(const char*, struct stat*);
+extern int fstat(int, struct stat*) BZP_NOEXCEPT;
+extern int stat(const char*, struct stat*) BZP_NOEXCEPT;
 
-extern int mkdir(const char*, mode_t);
+extern int mkdir(const char*, mode_t) BZP_NOEXCEPT;
 
-extern mode_t umask(mode_t);
+extern mode_t umask(mode_t) BZP_NOEXCEPT;
 
 #ifdef __cplusplus
 }

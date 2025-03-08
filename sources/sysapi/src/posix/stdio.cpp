@@ -33,6 +33,35 @@ FILE *fopen(const char *, const char *) noexcept {
     return nullptr;
 }
 
+int fflush(FILE *) noexcept {
+    errno = ENOSYS;
+    return -1;
+}
+
+int feof(FILE *) noexcept {
+    errno = ENOSYS;
+    return 0;
+}
+
+int ferror(FILE *) noexcept {
+    errno = ENOSYS;
+    return 0;
+}
+
+int fileno(FILE *file) noexcept {
+    return file->fd;
+}
+
+size_t fread(void *, size_t, size_t, FILE *) noexcept {
+    errno = ENOSYS;
+    return 0;
+}
+
+size_t fwrite(const void *, size_t, size_t, FILE *) noexcept {
+    errno = ENOSYS;
+    return 0;
+}
+
 int fprintf(FILE *, const char *, ...) noexcept {
     errno = ENOSYS;
     return -1;
@@ -76,6 +105,36 @@ int vprintf(const char *format, va_list args) noexcept {
 }
 
 int vfprintf(FILE *, const char *, va_list) noexcept {
+    errno = ENOSYS;
+    return -1;
+}
+
+int puts(const char*) noexcept {
+    errno = ENOSYS;
+    return -1;
+}
+
+int putc(int, FILE *) noexcept {
+    errno = ENOSYS;
+    return -1;
+}
+
+int fputc(int, FILE *) noexcept {
+    errno = ENOSYS;
+    return -1;
+}
+
+int fgetc(FILE *) noexcept {
+    errno = ENOSYS;
+    return -1;
+}
+
+char *fgets(char *, int, FILE *) noexcept {
+    errno = ENOSYS;
+    return nullptr;
+}
+
+int putchar(int) noexcept {
     errno = ENOSYS;
     return -1;
 }

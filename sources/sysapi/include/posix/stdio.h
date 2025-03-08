@@ -93,6 +93,10 @@ extern char *fgets(char *, int, FILE *) BZP_NOEXCEPT;
 
 extern int putchar(int) BZP_NOEXCEPT;
 
+extern void setbuffer(FILE *, char *, int) BZP_NOEXCEPT;
+
+extern void setlinebuf(FILE *) BZP_NOEXCEPT;
+
 BZP_API_END
 
 #endif /* BEZOS_POSIX_STDIO_H */

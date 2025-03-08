@@ -43,9 +43,18 @@ extern long labs(long) BZP_NOEXCEPT;
 extern long long llabs(long long) BZP_NOEXCEPT;
 
 extern double atof(const char *) BZP_NOEXCEPT BZP_NONNULL(1);
+
 extern int atoi(const char *) BZP_NOEXCEPT BZP_NONNULL(1);
 extern long int atol(const char *) BZP_NOEXCEPT BZP_NONNULL(1);
 extern long long int atoll(const char *) BZP_NOEXCEPT BZP_NONNULL(1);
+
+extern double strtod(const char *, char **) BZP_NOEXCEPT;
+extern float strtof(const char *, char **) BZP_NOEXCEPT;
+
+extern long strtol(const char *, char **, int) BZP_NOEXCEPT;
+extern long long strtoll(const char *, char **, int) BZP_NOEXCEPT;
+extern unsigned long strtoul(const char *, char **, int) BZP_NOEXCEPT;
+extern unsigned long long strtoull(const char *, char **, int) BZP_NOEXCEPT;
 
 extern void *malloc(size_t) BZP_NOEXCEPT;
 extern void *calloc(size_t, size_t) BZP_NOEXCEPT;
@@ -61,9 +70,7 @@ extern int putenv(char *) BZP_NOEXCEPT BZP_NONNULL(1);
 extern int setenv(const char *, const char *, int) BZP_NOEXCEPT BZP_NONNULL(1, 2);
 extern int unsetenv(const char *) BZP_NOEXCEPT BZP_NONNULL(1);
 
-extern int atoi(const char *) BZP_NOEXCEPT BZP_NONNULL(1);
-
-extern long strtol(const char *, char **, int) BZP_NOEXCEPT;
+extern void srand(unsigned) BZP_NOEXCEPT;
 
 BZP_API_END
 

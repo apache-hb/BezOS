@@ -18,15 +18,16 @@
     <configure with='autoconf' using='@PREFIX@/automake/bin/automake'>
         <env CC='@PREFIX@/llvm/bin/clang'
              LD='@PREFIX@/llvm/bin/ld.lld'
-             LDFLAGS='@PREFIX@/sysapi/lib/crtstart.o
+             LDFLAGS='-nostartfiles -nostdlib
+                      -Wl,--start-group
+                      -L@PREFIX@/ncurses/lib
+                      @PREFIX@/sysapi/lib/crtstart.o
                       @PREFIX@/sysapi/lib/libbezos-sysapi.a
                       @PREFIX@/sysapi/lib/libbezos-posix.a
-                      -e ProgramMain
-                      -nostartfiles
-                      -nostdlib
-                      -Wl,-z,norelro'
+                      -e ProgramMain'
              CFLAGS='--sysroot @PREFIX@/llvm
                      -isystem @PREFIX@/sysapi/include/posix
+                     -I@PREFIX@/ncurses/include
                      -nostdlib' />
         <options host='x86_64-bezos-elf' />
     </configure>

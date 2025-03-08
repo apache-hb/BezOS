@@ -1,5 +1,8 @@
 #include <posix/string.h>
 
+#include <posix/stdint.h>
+#include <posix/stdlib.h>
+
 size_t strlen(const char *s) noexcept {
     size_t len = 0;
     while (*s++) {
@@ -122,4 +125,51 @@ char *strncat(char *dst, const char *src, size_t n) noexcept {
     *dst = '\0';
 
     return result;
+}
+
+char *strchr(const char *str, int c) noexcept {
+    for (size_t i = 0; str[i]; i++) {
+        if (str[i] == c) {
+            return const_cast<char *>(str + i);
+        }
+    }
+
+    return nullptr;
+}
+
+char *strrchr(const char *str, int c) noexcept {
+    const char *last = nullptr;
+    for (size_t i = 0; str[i]; i++) {
+        if (str[i] == c) {
+            last = str + i;
+        }
+    }
+
+    return const_cast<char *>(last);
+}
+
+char *strdup(const char *str) noexcept {
+    size_t len = strlen(str);
+    if (char *result = (char*)malloc(len + 1)) {
+        memcpy(result, str, len);
+        result[len] = '\0';
+        return result;
+    }
+
+    return nullptr;
+}
+
+char *strndup(const char *str, size_t len) noexcept {
+    if (char *result = (char*)malloc(len + 1)) {
+        size_t i;
+        for (i = 0; i < len && str[i]; i++) {
+            result[i] = str[i];
+        }
+
+        result[i] = '\0';
+
+        return result;
+    }
+
+    return nullptr;
 }

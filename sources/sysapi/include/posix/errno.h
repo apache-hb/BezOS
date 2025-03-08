@@ -39,6 +39,7 @@ extern int *OsImplPosixErrnoAddress(void) BZP_NOEXCEPT;
 #define ENODEV 0x14 /* No such device */
 #define EAGAIN 0x15 /* Resource temporarily unavailable */
 #define ENOTTY 0x16 /* Not a tty */
+#define ENAMETOOLONG 0x17 /* File name too long */
 
 BZP_API_END
 

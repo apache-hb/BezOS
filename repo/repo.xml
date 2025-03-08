@@ -22,7 +22,7 @@
     <xi:include href='packages/lib/ncurses.xml' />
 
     <!-- <xi:include href='packages/shell/bash.xml' /> -->
-    <!-- <xi:include href='packages/shell/zsh.xml' /> -->
+    <xi:include href='packages/shell/zsh.xml' />
 
     <xi:include href='packages/kernel.xml' />
 

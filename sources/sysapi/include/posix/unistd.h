@@ -12,6 +12,7 @@
 BZP_API_BEGIN
 
 #define _SC_PAGESIZE 0x100
+#define _SC_OPEN_MAX 0x101
 
 BZP_NORETURN
 extern void _exit(int) BZP_NOEXCEPT;
@@ -56,6 +57,9 @@ extern int setgid(gid_t) BZP_NOEXCEPT;
 
 extern int setegid(gid_t) BZP_NOEXCEPT;
 
+extern int setpgrp(pid_t, pid_t) BZP_NOEXCEPT;
+extern int getpgrp(pid_t) BZP_NOEXCEPT;
+
 extern unsigned sleep(unsigned) BZP_NOEXCEPT;
 
 extern unsigned alarm(unsigned) BZP_NOEXCEPT;
@@ -67,6 +71,8 @@ extern ssize_t read(int, void *, size_t) BZP_NOEXCEPT;
 extern ssize_t write(int, const void *, size_t) BZP_NOEXCEPT;
 
 extern int access(const char *, int) BZP_NOEXCEPT;
+
+extern pid_t fork(void) BZP_NOEXCEPT;
 
 extern long sysconf(int) BZP_NOEXCEPT;
 

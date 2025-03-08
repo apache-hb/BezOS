@@ -234,7 +234,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
         c = toupper(c);
     }
 
-    Process * process = objects.createProcess(stdx::String(name), x64::Privilege::eUser, &memory.pageTables(), pteMemory);
+    Process *process = objects.createProcess(stdx::String(name), x64::Privilege::eUser, pteMemory);
 
     KmDebugMessage("[ELF] Load memory range: ", loadMemory, "\n");
 

@@ -30,14 +30,15 @@ custom_target('crtstart',
     input : 'src/crt/start.cpp',
     output : 'crtstart.o',
     command : cc.cmd_array() + [ '-c', '-o', '@OUTPUT@', '@INPUT@', '-I' + meson.current_source_dir() / 'include' ],
-    install : true,
-    build_by_default : true,
+    install : not meson.is_subproject(),
+    build_by_default : not meson.is_subproject(),
     install_dir : get_option('libdir'),
 )
 
 libbezos = static_library('bezos-sysapi', src,
     include_directories : inc,
-    install : true,
+    install : not meson.is_subproject(),
+    build_by_default : not meson.is_subproject(),
 )
 
 bezos_dep = declare_dependency(
@@ -46,6 +47,9 @@ bezos_dep = declare_dependency(
 )
 
 src = [
+    'src/posix/assert.cpp',
+    'src/posix/locale.cpp',
+    'src/posix/dirent.cpp',
     'src/posix/fcntl.cpp',
     'src/posix/stdio.cpp',
     'src/posix/errno.cpp',
@@ -54,13 +58,20 @@ src = [
     'src/posix/unistd.cpp',
     'src/posix/termios.cpp',
     'src/posix/stdlib.cpp',
+    'src/posix/time.cpp',
+    'src/posix/stropts.cpp',
     'src/posix/sys_mman.cpp',
+    'src/posix/sys_stat.cpp',
+    'src/posix/sys_time.cpp',
+    'src/posix/sys_times.cpp',
+    'src/posix/sys_utsname.cpp',
 ]
 
 libposix = static_library('bezos-posix', src,
     include_directories : inc,
     dependencies : [ bezos_dep ],
-    install : true,
+    install : not meson.is_subproject(),
+    build_by_default : not meson.is_subproject(),
 )
 
 meson.override_dependency('bezos', bezos_dep)

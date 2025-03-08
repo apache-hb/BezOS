@@ -23,6 +23,15 @@ extern "C" {
 #define SIGQUIT 0x5
 #define SIGCHLD 0x6
 #define SIGHUP 0x7
+#define SIGKILL 0x8
+#define SIGSTOP 0x9
+#define SIGTSTP 0xA
+#define SIGTTOU 0xB
+#define SIGTTIN 0xC
+#define SIGPIPE 0xD
+#define SIGCONT 0xE
+
+#define NSIG 0xF
 
 typedef int sig_atomic_t;
 typedef int sigset_t;
