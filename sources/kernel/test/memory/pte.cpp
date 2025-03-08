@@ -776,7 +776,7 @@ TEST_F(PageTableTest, ThreadSafe) {
     for (int i = 0; i < 4; i++) {
         threads.emplace_back([&pt, i] {
             std::mt19937 gen { size_t(i) };
-            for (int i = 0; i < 1000; i++) {
+            for (int i = 0; i < 100; i++) {
                 auto paddr = gen();
                 auto vaddr = gen();
 

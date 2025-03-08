@@ -10,10 +10,7 @@ namespace km {
     namespace detail {
         static constexpr auto kBlockSize = x64::kPageSize;
 
-        // TODO: address is kinda stupid, the block itself is the address
-        // i just cant be arsed to write a sort algorithm that sorts the blocks themselves
         struct ControlBlock {
-            void *address;
             ControlBlock *next;
             ControlBlock *prev;
             size_t blocks;
@@ -25,12 +22,21 @@ namespace km {
                 }
                 return result;
             }
+
+            const ControlBlock *head() const noexcept {
+                const ControlBlock *result = this;
+                while (result->prev != nullptr) {
+                    result = result->prev;
+                }
+                return result;
+            }
         };
 
         void *AllocateBlock(PageTableAllocator& allocator, size_t blocks);
         void SortBlocks(ControlBlock *head);
         void MergeAdjacentBlocks(ControlBlock *head);
-        void SwapBlocks(ControlBlock *a, ControlBlock *b);
+        void SwapAdjacentBlocks(ControlBlock *a, ControlBlock *b);
+        void SwapAnyBlocks(ControlBlock *a, ControlBlock *b);
     }
 
     /// @brief An allocator for page tables.

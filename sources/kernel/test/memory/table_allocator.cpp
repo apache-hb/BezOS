@@ -28,6 +28,71 @@ static void IsValidPtr(const void *ptr) {
     ASSERT_EQ((uintptr_t)ptr % x64::kPageSize, 0);
 }
 
+TEST(TableAllocatorDetailTest, SwapBlocks) {
+    TestMemory memory = GetAllocatorMemory(kSize);
+
+    std::vector<detail::ControlBlock*> blocks;
+
+    for (size_t i = 0; i < (kSize / detail::kBlockSize); i++) {
+        detail::ControlBlock *block = (detail::ControlBlock*)(memory.get() + (i * detail::kBlockSize));
+        block->next = nullptr;
+        block->prev = nullptr;
+        block->blocks = 1;
+
+        blocks.push_back(block);
+    }
+
+    for (size_t i = 0; i < blocks.size() - 1; i++) {
+        blocks[i]->next = blocks[i + 1];
+        blocks[i + 1]->prev = blocks[i];
+    }
+
+    detail::SwapAdjacentBlocks(blocks[1], blocks[2]);
+
+    ASSERT_EQ(blocks[2]->next, blocks[1]);
+    ASSERT_EQ(blocks[1]->prev, blocks[2]);
+
+    ASSERT_EQ(blocks[3]->prev, blocks[1]);
+    ASSERT_EQ(blocks[1]->next, blocks[3]);
+
+    ASSERT_EQ(blocks[0]->next, blocks[2]);
+    ASSERT_EQ(blocks[2]->prev, blocks[0]);
+}
+
+TEST(TableAllocatorDetailTest, SwapAnyBlocks) {
+    TestMemory memory = GetAllocatorMemory(kSize);
+
+    std::vector<detail::ControlBlock*> blocks;
+
+    for (size_t i = 0; i < (kSize / detail::kBlockSize); i++) {
+        detail::ControlBlock *block = (detail::ControlBlock*)(memory.get() + (i * detail::kBlockSize));
+        block->next = nullptr;
+        block->prev = nullptr;
+        block->blocks = 1;
+
+        blocks.push_back(block);
+    }
+
+    for (size_t i = 0; i < blocks.size() - 1; i++) {
+        blocks[i]->next = blocks[i + 1];
+        blocks[i + 1]->prev = blocks[i];
+    }
+
+    detail::SwapAnyBlocks(blocks[1], blocks[4]);
+
+    ASSERT_EQ(blocks[0]->next, blocks[4]);
+    ASSERT_EQ(blocks[4]->prev, blocks[0]);
+
+    ASSERT_EQ(blocks[2]->prev, blocks[4]);
+    ASSERT_EQ(blocks[4]->next, blocks[2]);
+
+    ASSERT_EQ(blocks[3]->next, blocks[1]);
+    ASSERT_EQ(blocks[1]->prev, blocks[3]);
+
+    ASSERT_EQ(blocks[5]->prev, blocks[1]);
+    ASSERT_EQ(blocks[1]->next, blocks[5]);
+}
+
 TEST(TableAllocatorDetailTest, SortBlocks) {
     TestMemory memory = GetAllocatorMemory(kSize);
 
@@ -35,7 +100,6 @@ TEST(TableAllocatorDetailTest, SortBlocks) {
 
     for (size_t i = 0; i < (kSize / detail::kBlockSize); i++) {
         detail::ControlBlock *block = (detail::ControlBlock*)(memory.get() + (i * detail::kBlockSize));
-        block->address = (void*)block;
         block->next = nullptr;
         block->prev = nullptr;
         block->blocks = 1;
@@ -51,12 +115,13 @@ TEST(TableAllocatorDetailTest, SortBlocks) {
         blocks[i + 1]->prev = blocks[i];
     }
 
-    detail::SortBlocks(blocks[0]);
+    detail::ControlBlock *head = blocks[0];
+    detail::SortBlocks(head);
     std::sort(blocks.begin(), blocks.end());
-    detail::ControlBlock *block = blocks[0]->head();
+    detail::ControlBlock *block = head->head();
     ASSERT_NE(block, nullptr);
     ASSERT_EQ(block->prev, nullptr);
-    ASSERT_EQ((void*)block->address, memory.get());
+    ASSERT_EQ((void*)block, memory.get());
 
     // ensure its sorted
     size_t count = 0;
@@ -66,7 +131,7 @@ TEST(TableAllocatorDetailTest, SortBlocks) {
         count += 1;
         if (tmp == nullptr) break;
 
-        ASSERT_GT(tmp->address, next->address);
+        ASSERT_GT(tmp, next);
         next = tmp;
     }
 
@@ -80,7 +145,6 @@ TEST(TableAllocatorDetailTest, MergeBlocks) {
 
     for (size_t i = 0; i < (kSize / detail::kBlockSize); i++) {
         detail::ControlBlock *block = (detail::ControlBlock*)(memory.get() + (i * detail::kBlockSize));
-        block->address = (void*)block;
         block->next = nullptr;
         block->prev = nullptr;
         block->blocks = 1;
@@ -127,7 +191,9 @@ TEST(TableAllocatorTest, AllocateMany) {
         void *ptr = allocator.allocate(1);
         IsValidPtr(ptr);
 
-        ASSERT_FALSE(ptrs.contains(ptr));
+        KmDebugMessage("Allocated: ", ptr, "\n");
+
+        ASSERT_FALSE(ptrs.contains(ptr)) << "Duplicate pointer: " << ptr;
 
         ptrs.insert(ptr);
     }

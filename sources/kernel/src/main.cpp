@@ -1707,8 +1707,8 @@ static void CreateDisplayDevice() {
 static void LaunchKernelProcess(LocalIsrTable *table, IApic *apic) {
     MemoryRange pteMemory = gMemory->pmmAllocate(256);
 
-    Process * process = gSystemObjects->createProcess("SYSTEM", x64::Privilege::eSupervisor, &gMemory->pageTables(), pteMemory);
-    Thread * thread = gSystemObjects->createThread("SYSTEM MASTER TASK", process);
+    Process *process = gSystemObjects->createProcess("SYSTEM", x64::Privilege::eSupervisor, pteMemory);
+    Thread *thread = gSystemObjects->createThread("SYSTEM MASTER TASK", process);
 
     PageFlags flags = PageFlags::eData;
     MemoryType type = MemoryType::eWriteBack;
