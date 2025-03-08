@@ -2,6 +2,7 @@
 #include <bezos/facility/threads.h>
 #include <bezos/facility/fs.h>
 #include <bezos/facility/vmem.h>
+#include <bezos/facility/process.h>
 
 #include <bezos/handle.h>
 #include <bezos/status.h>
@@ -362,6 +363,18 @@ static void ShowCurrentInfo(StreamDevice& display, const char *cwd) {
     ASSERT_OS_SUCCESS(OsDeviceClose(handle));
 }
 
+static void LaunchZsh() {
+    OsProcessCreateInfo createInfo {
+        .Executable = OsMakePath("Init\0zsh.elf"),
+        .Flags = eOsProcessNone,
+    };
+
+    OsProcessHandle handle = OS_HANDLE_INVALID;
+    ASSERT_OS_SUCCESS(OsProcessCreate(createInfo, &handle));
+
+    while (true) { }
+}
+
 OS_EXTERN OS_NORETURN void ClientStart(const struct OsClientStartInfo *) {
 
     StreamDevice tty{OsMakePath("Devices\0Terminal\0TTY0\0Output")};
@@ -434,6 +447,10 @@ OS_EXTERN OS_NORETURN void ClientStart(const struct OsClientStartInfo *) {
                 continue;
             } else if (strncmp(text, "show", 4) == 0) {
                 ShowCurrentInfo(tty, cwd);
+                Prompt(tty);
+                continue;
+            } else if (strncmp(text, "zsh", 3) == 0) {
+                LaunchZsh();
                 Prompt(tty);
                 continue;
             }

@@ -181,6 +181,8 @@ struct PackageInfo {
 
     std::vector<ScriptExec> scripts;
 
+    std::string installTargets;
+
 #if 0
     // configure tool to use
     ConfigureProgram configure{eConfigureNone};
@@ -1040,6 +1042,8 @@ static void ReadPackageConfig(XmlNode root) {
             }
 
             packageInfo.scripts.push_back(exec);
+        } else if (step == "install") {
+            packageInfo.installTargets = ExpectProperty<std::string>(action, "targets");
         }
     }
 
@@ -1481,8 +1485,16 @@ static void InstallPackage(const PackageInfo& package) {
             throw std::runtime_error("Failed to install package " + package.name);
         }
     } else if (buildProgram == eAutoconf) {
-        std::println(std::cout, "{}: install with make", package.name);
-        auto result = sp::call({ "make", "install" }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
+        std::vector<std::string> args = { "make" };
+        if (package.installTargets.empty()) {
+            args.push_back("install");
+        } else {
+            for (auto target : (package.installTargets | stdv::split(' '))) {
+                args.push_back(std::string(std::string_view(target)));
+            }
+        }
+        std::println(std::cout, "{}", (args | stdv::join_with(' ')) | stdr::to<std::string>());
+        auto result = sp::call(args, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to install package " + package.name);
         }

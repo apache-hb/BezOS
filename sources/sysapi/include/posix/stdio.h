@@ -81,7 +81,7 @@ extern int remove(const char *) BZP_NOEXCEPT;
 
 extern void perror(const char *) BZP_NOEXCEPT;
 
-extern int puts(const char*) BZP_NOEXCEPT;
+extern int puts(const char *) BZP_NOEXCEPT;
 
 extern int putc(int, FILE *) BZP_NOEXCEPT;
 

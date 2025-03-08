@@ -40,4 +40,6 @@
                  disable-locale=''
                  disable-dynamic-nss='' />
     </configure>
+
+    <install targets='install.bin install.modules install.fns' />
 </package>

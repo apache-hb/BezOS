@@ -1,12 +1,19 @@
 #!/bin/sh
 
-# Create initrd by archiving the /system/bin directory
+# Create initrd
 
 IMAGE=${PREFIX}/initrd
 INITRD=${IMAGE}/initrd.tar
 
-mkdir -p ${IMAGE}
+# Create directories
+mkdir -p ${IMAGE}/image
 
+# Copy over init programs
+cp -r ${PREFIX}/system/*.elf ${IMAGE}/image/
+cp ${PREFIX}/zsh/bin/zsh ${IMAGE}/image/zsh.elf
+
+# Delete old initrd
 rm ${INITRD} 2> /dev/null
 
-tar -cf ${INITRD} -C ${PREFIX}/system .
+# Create new initrd
+tar -cf ${INITRD} -C ${IMAGE}/image .
