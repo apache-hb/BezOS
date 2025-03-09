@@ -79,3 +79,9 @@ OsStatus Process::removeHandle(OsHandle id) {
 
     return OsStatusNotFound;
 }
+
+void Thread::init(ThreadId id, stdx::String name, Process *process, AddressMapping kernelStack) {
+    initHeader(std::to_underlying(id), eOsHandleThread, std::move(name));
+    this->process = process;
+    this->kernelStack = kernelStack;
+}

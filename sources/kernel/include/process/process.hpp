@@ -87,15 +87,17 @@ namespace km {
             , process(process)
         { }
 
+        void init(ThreadId id, stdx::String name, Process *process, AddressMapping kernelStack);
+
         Process *process;
         HandleWait wait;
         km::IsrContext state;
         uint64_t tlsAddress = 0;
         AddressSpace *stack;
-        AddressMapping syscallStack;
+        AddressMapping kernelStack;
 
         void *getSyscallStack() const {
-            return (void*)((uintptr_t)syscallStack.vaddr + syscallStack.size - x64::kPageSize);
+            return (void*)((uintptr_t)kernelStack.vaddr + kernelStack.size - x64::kPageSize);
         }
     };
 

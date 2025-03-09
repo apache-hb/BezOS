@@ -31,6 +31,10 @@ km::AddressMapping km::SystemMemory::allocateStack(size_t size) {
     // Allocate an extra page for the guard page
     //
     VirtualRange vmem = ptes.vmemAllocate(pages + 1);
+    if (vmem.isEmpty()) {
+        pmm.release(range);
+        return AddressMapping{};
+    }
 
     //
     // First reserve the memory for the stack and the guard page.

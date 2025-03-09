@@ -6,18 +6,13 @@
 using namespace km;
 
 Thread *SystemObjects::createThread(stdx::String name, Process *process) {
-    ThreadId id = mThreadIds.allocate();
-    Thread *ptr = new Thread(id, std::move(name), process);
+    Thread *result = nullptr;
+    if (OsStatus status = createThread(std::move(name), process, &result)) {
+        KmDebugMessage("[PROC] Failed to create thread: ", status, "\n");
+        return nullptr;
+    }
 
-    AddressMapping stackMapping = mMemory->allocateStack(0x4000 * 4);
-    ptr->syscallStack = stackMapping;
-
-    process->addThread(ptr);
-
-    stdx::UniqueLock guard(mLock);
-    mThreads.insert({id, ptr});
-
-    return ptr;
+    return result;
 }
 
 AddressSpace *SystemObjects::createAddressSpace(stdx::String name, AddressMapping mapping, PageFlags flags, MemoryType type, Process *process) {
@@ -61,13 +56,7 @@ OsStatus SystemObjects::createProcess(stdx::String name, x64::Privilege privileg
 OsStatus SystemObjects::destroyProcess(Process *process) {
     stdx::UniqueLock guard(mLock);
 
-    if (auto it = mProcesses.find(ProcessId(process->internalId())); it == mProcesses.end()) {
-        return OsStatusNotFound;
-    } else {
-        if (releaseHandle(process)) {
-            mProcesses.erase(it);
-        }
-    }
+    releaseHandle(process);
 
     return OsStatusSuccess;
 }
@@ -85,6 +74,29 @@ OsStatus SystemObjects::exitProcess(Process *process, int64_t status) {
     OsProcessStateFlags state = (process->state.Status & ~eOsProcessStatusMask) | eOsProcessExited;
     process->state.Status = state;
     process->state.ExitCode = status;
+    return OsStatusSuccess;
+}
+
+OsStatus SystemObjects::createThread(stdx::String name, Process *process, Thread **thread) {
+    stdx::UniqueLock guard(mLock);
+
+    std::unique_ptr<Thread> result{ new (std::nothrow) Thread };
+    if (result == nullptr) {
+        return OsStatusOutOfMemory;
+    }
+
+    AddressMapping kernelStack = mMemory->allocateStack(0x4000 * 4);
+    ThreadId id = mThreadIds.allocate();
+    result->init(id, std::move(name), process, kernelStack);
+
+    Thread *ptr = result.release();
+
+    process->addThread(ptr);
+    process->addHandle(ptr);
+
+    mThreads.insert({id, ptr});
+    *thread = ptr;
+
     return OsStatusSuccess;
 }
 
@@ -126,9 +138,24 @@ Mutex *SystemObjects::getMutex(MutexId id) {
 
 bool SystemObjects::releaseHandle(KernelObject *handle) {
     if (handle->releaseStrong()) {
-        delete handle;
+        destroyHandle(handle);
         return true;
     }
 
     return false;
+}
+
+void SystemObjects::destroyHandle(KernelObject *object) {
+    if (object->handleType() == eOsHandleProcess) {
+        Process *process = static_cast<Process*>(object);
+        for (auto& [_, handle] : process->handles) {
+            releaseHandle(handle);
+        }
+
+        mProcesses.erase(ProcessId(object->internalId()));
+    } else if (object->handleType() == eOsHandleThread) {
+        mThreads.erase(ThreadId(object->internalId()));
+    }
+
+    delete object;
 }

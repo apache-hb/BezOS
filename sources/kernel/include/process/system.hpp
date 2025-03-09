@@ -25,6 +25,7 @@ namespace km {
         sm::FlatHashMap<DeviceId, VNode*> mNodes;
 
         bool releaseHandle(KernelObject *object);
+        void destroyHandle(KernelObject *object);
 
     public:
         SystemObjects(SystemMemory *memory, vfs2::VfsRoot *vfs)
