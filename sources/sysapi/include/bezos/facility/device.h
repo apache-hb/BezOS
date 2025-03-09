@@ -9,13 +9,10 @@ extern "C" {
 typedef uint64_t OsDeviceCreateFlags;
 
 enum {
-    eOsDeviceNone = 0,
+    eOsDeviceOpenDefault = 0,
 
     /// @brief Create the device using the default interface if the device does not exist.
     eOsDeviceCreateNew = (1 << 0),
-
-    /// @brief Open the device only if it exists.
-    eOsDeviceOpenAlways = (1 << 1),
 };
 
 struct OsDeviceCreateInfo {
@@ -24,6 +21,8 @@ struct OsDeviceCreateInfo {
     struct OsGuid InterfaceGuid;
 
     OsDeviceCreateFlags Flags;
+
+    OsProcessHandle Process;
 };
 
 struct OsDeviceReadRequest {
