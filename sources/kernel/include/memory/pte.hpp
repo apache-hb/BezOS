@@ -2,33 +2,14 @@
 
 #include "arch/paging.hpp"
 
+#include "memory/detail/table_list.hpp"
+
 #include "memory/memory.hpp"
 #include "memory/paging.hpp"
 #include "memory/table_allocator.hpp"
 #include "std/spinlock.hpp"
 
-#define KM_PTE_DEBUG 1
-
 namespace km {
-    namespace detail {
-        class PageTableBuffer {
-            x64::page *mTable;
-
-#if KM_PTE_DEBUG
-            x64::page *mEnd;
-#endif
-
-        public:
-            PageTableBuffer(x64::page *table, size_t count);
-
-            x64::page *next();
-
-            x64::page *table() const {
-                return mTable;
-            }
-        };
-    }
-
     /// @brief Manages page tables for an address space.
     ///
     /// @details All ptes are allocated from a memory pool that is provided at construction.
@@ -85,20 +66,20 @@ namespace km {
 
         void setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddress address);
 
-        x64::PageMapLevel3 *getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e, detail::PageTableBuffer& buffer);
-        x64::PageMapLevel2 *getPageMap2(x64::PageMapLevel3 *l3, uint16_t pdpte, detail::PageTableBuffer& buffer);
+        x64::PageMapLevel3 *getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e, detail::PageTableList& buffer);
+        x64::PageMapLevel2 *getPageMap2(x64::PageMapLevel3 *l3, uint16_t pdpte, detail::PageTableList& buffer);
 
         x64::PageMapLevel3 *findPageMap3(const x64::PageMapLevel4 *l4, uint16_t pml4e) const;
         x64::PageMapLevel2 *findPageMap2(const x64::PageMapLevel3 *l3, uint16_t pdpte) const;
         x64::PageTable *findPageTable(const x64::PageMapLevel2 *l2, uint16_t pdte) const;
 
-        void mapRange4k(AddressMapping mapping, PageFlags flags, MemoryType type, detail::PageTableBuffer& buffer);
-        void mapRange2m(AddressMapping mapping, PageFlags flags, MemoryType type, detail::PageTableBuffer& buffer);
-        void mapRange1g(AddressMapping mapping, PageFlags flags, MemoryType type, detail::PageTableBuffer& buffer);
+        void mapRange4k(AddressMapping mapping, PageFlags flags, MemoryType type, detail::PageTableList& buffer);
+        void mapRange2m(AddressMapping mapping, PageFlags flags, MemoryType type, detail::PageTableList& buffer);
+        void mapRange1g(AddressMapping mapping, PageFlags flags, MemoryType type, detail::PageTableList& buffer);
 
-        void map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableBuffer& buffer);
-        void map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableBuffer& buffer);
-        void map1g(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableBuffer& buffer);
+        void map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableList& buffer);
+        void map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableList& buffer);
+        void map1g(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableList& buffer);
 
         void partialRemap2m(x64::PageTable *pt, VirtualRange range, PhysicalAddress paddr, MemoryType type);
 

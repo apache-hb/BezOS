@@ -114,6 +114,7 @@ src = [
     'src/memory/pte.cpp',
     'src/memory/tables.cpp',
     'src/memory/memory.cpp',
+    'src/memory/detail/table_list.cpp',
 
     # C and C++ Runtime
     'src/crt.cpp',
@@ -364,6 +365,7 @@ testcases = {
         'src/memory/memory.cpp',
         'src/util/memory.cpp',
         'src/memory/table_allocator.cpp',
+        'src/memory/detail/table_list.cpp',
     ],
     'partitions': [
         'test/drivers/partitions.cpp',
@@ -461,6 +463,7 @@ testcases = {
         'src/memory/memory.cpp',
         'src/memory/table_allocator.cpp',
         'src/memory/page_allocator.cpp',
+        'src/memory/detail/table_list.cpp',
         'src/util/memory.cpp',
         'src/boot.cpp',
     ],
@@ -471,6 +474,10 @@ testcases = {
     'table allocator': [
         'test/memory/table_allocator.cpp',
         'src/memory/table_allocator.cpp',
+    ],
+    'page table list': [
+        'test/memory/table_list.cpp',
+        'src/memory/detail/table_list.cpp'
     ],
     'process': [
         'test/process/process.cpp',
@@ -483,6 +490,7 @@ testcases = {
         'src/memory/memory.cpp',
         'src/memory/table_allocator.cpp',
         'src/memory/page_allocator.cpp',
+        'src/memory/detail/table_list.cpp',
 
         'src/fs2/vfs.cpp',
         'src/fs2/path.cpp',

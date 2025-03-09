@@ -6,25 +6,6 @@
 
 using namespace km;
 
-detail::PageTableBuffer::PageTableBuffer(x64::page *table, [[maybe_unused]] size_t count)
-    : mTable(table)
-#if KM_PTE_DEBUG
-    , mEnd(table + count)
-#endif
-{ }
-
-x64::page *detail::PageTableBuffer::next() {
-#if KM_PTE_DEBUG
-    if (mTable >= mEnd) {
-        KM_PANIC("Page table buffer exhausted.");
-    }
-#endif
-
-    x64::page *it = mTable;
-    mTable += 1;
-    return it;
-}
-
 x64::page *PageTables::alloc4k(size_t pages) {
     if (x64::page *it = (x64::page*)mAllocator.allocate(pages)) {
         memset(it, 0, sizeof(x64::page) * pages);
@@ -58,7 +39,7 @@ PageTables::PageTables(const km::PageBuilder *pm, AddressMapping pteMemory, Page
     , mMiddleFlags(middleFlags)
 { }
 
-x64::PageMapLevel3 *PageTables::getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e, detail::PageTableBuffer& buffer) {
+x64::PageMapLevel3 *PageTables::getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e, detail::PageTableList& buffer) {
     x64::PageMapLevel3 *l3;
 
     x64::pml4e& t4 = l4->entries[pml4e];
@@ -72,7 +53,7 @@ x64::PageMapLevel3 *PageTables::getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml
     return l3;
 }
 
-x64::PageMapLevel2 *PageTables::getPageMap2(x64::PageMapLevel3 *l3, uint16_t pdpte, detail::PageTableBuffer& buffer) {
+x64::PageMapLevel2 *PageTables::getPageMap2(x64::PageMapLevel3 *l3, uint16_t pdpte, detail::PageTableList& buffer) {
     x64::PageMapLevel2 *l2;
 
     x64::pdpte& t3 = l3->entries[pdpte];
@@ -115,19 +96,19 @@ x64::PageTable *PageTables::findPageTable(const x64::PageMapLevel2 *l2, uint16_t
     return nullptr;
 }
 
-void PageTables::mapRange4k(AddressMapping mapping, PageFlags flags, MemoryType type, detail::PageTableBuffer& buffer) {
+void PageTables::mapRange4k(AddressMapping mapping, PageFlags flags, MemoryType type, detail::PageTableList& buffer) {
     for (size_t i = 0; i < mapping.size; i += x64::kPageSize) {
         map4k(mapping.paddr + i, (char*)mapping.vaddr + i, flags, type, buffer);
     }
 }
 
-void PageTables::mapRange2m(AddressMapping mapping, PageFlags flags, MemoryType type, detail::PageTableBuffer& buffer) {
+void PageTables::mapRange2m(AddressMapping mapping, PageFlags flags, MemoryType type, detail::PageTableList& buffer) {
     for (size_t i = 0; i < mapping.size; i += x64::kLargePageSize) {
         map2m(mapping.paddr + i, (char*)mapping.vaddr + i, flags, type, buffer);
     }
 }
 
-void PageTables::mapRange1g(AddressMapping mapping, PageFlags flags, MemoryType type, detail::PageTableBuffer& buffer) {
+void PageTables::mapRange1g(AddressMapping mapping, PageFlags flags, MemoryType type, detail::PageTableList& buffer) {
     for (size_t i = 0; i < mapping.size; i += x64::kHugePageSize) {
         map1g(mapping.paddr + i, (char*)mapping.vaddr + i, flags, type, buffer);
     }
@@ -143,7 +124,7 @@ size_t PageTables::maxPagesForMapping(VirtualRange range) const {
 }
 #endif
 
-void PageTables::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableBuffer& buffer) {
+void PageTables::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableList& buffer) {
     if (!mPageManager->isCanonicalAddress(vaddr)) {
         KmDebugMessage("Attempting to map address that isn't canonical: ", vaddr, "\n");
         KM_PANIC("Invalid memory mapping.");
@@ -169,7 +150,7 @@ void PageTables::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags
     setEntryFlags(t1, flags, paddr);
 }
 
-void PageTables::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableBuffer& buffer) {
+void PageTables::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableList& buffer) {
     if (!mPageManager->isCanonicalAddress(vaddr)) {
         KmDebugMessage("Attempting to map address that isn't canonical: ", vaddr, "\n");
         KM_PANIC("Invalid memory mapping.");
@@ -192,7 +173,7 @@ void PageTables::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags
     setEntryFlags(t2, flags, paddr);
 }
 
-void PageTables::map1g(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableBuffer& buffer) {
+void PageTables::map1g(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableList& buffer) {
     auto [pml4e, pdpte, _, _] = GetAddressParts(vaddr);
 
     x64::PageMapLevel4 *l4 = pml4();
@@ -337,16 +318,14 @@ OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType typ
         return OsStatusOutOfMemory;
     }
 
-    detail::PageTableBuffer buffer { tables, requiredPages };
+    detail::PageTableList buffer { tables, requiredPages };
 
     //
     // Once we are done we need to deallocate the unused tables.
     //
     defer {
-        x64::page *current = buffer.table();
-        size_t count = (current - tables);
-        if (count != 0) {
-            mAllocator.deallocate(current, requiredPages - count);
+        while (x64::page *table = buffer.drain()) {
+            mAllocator.deallocate(table, 1);
         }
     };
 

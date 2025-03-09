@@ -43,6 +43,7 @@ namespace km {
     class KernelObject {
         OsHandle mId;
         stdx::String mName;
+        stdx::SpinLock mMonitor;
 
     protected:
         KernelObject(OsHandle id, stdx::String name)
@@ -51,10 +52,9 @@ namespace km {
         { }
 
     public:
-        virtual ~KernelObject() = default;
-
         OsHandle handleId() const { return mId; }
-        OsHandle internalId() const { return mId & 0x00FF'FFFF'FFFF'FFFF; }
+        OsHandleType handleType() const { return OS_HANDLE_TYPE(mId); }
+        OsHandle internalId() const { return OS_HANDLE_ID(mId); }
         stdx::StringView name() const { return mName; }
     };
 
@@ -65,7 +65,7 @@ namespace km {
         { }
 
         Process *process;
-        Mutex *wait;
+        KernelObject *wait;
         km::IsrContext state;
         uint64_t tlsAddress = 0;
         AddressSpace *stack;
