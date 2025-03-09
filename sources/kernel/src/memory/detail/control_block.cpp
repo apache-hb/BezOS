@@ -2,9 +2,11 @@
 
 #include "panic.hpp"
 
+#define KM_ENABLE_QUICKSORT 0
+
 using ControlBlock = km::detail::ControlBlock;
 
-static bool AreBlocksAdjacent(const km::detail::ControlBlock *a, const km::detail::ControlBlock *b) {
+static bool AreBlocksAdjacent(const ControlBlock *a, const ControlBlock *b) {
     if (a->next == b && b->prev == a) {
         return true;
     }
@@ -67,6 +69,128 @@ void km::detail::SwapAnyBlocks(ControlBlock *a, ControlBlock *b) {
     }
 }
 
+#if KM_ENABLE_QUICKSORT
+
+void partition(ControlBlock **mid, ControlBlock **lte, ControlBlock **gt, ControlBlock *l)
+{
+    ControlBlock *result = nullptr;
+    ControlBlock *next = nullptr;
+    ControlBlock *value = l;
+
+    *mid = *gt = *lte = nullptr;
+
+    if (l != nullptr)
+    {
+        *mid = l;
+        l = l->next;
+    }
+
+    while (l != nullptr)
+    {
+        next = l->next;
+
+        if (l > value)
+        {
+            if (l->prev != nullptr)
+            {
+                l->prev->next = l->next;
+            }
+            if (l->next != nullptr)
+            {
+                l->next->prev = l->prev;
+            }
+
+            if (result == nullptr)
+            {
+                l->next = nullptr;
+            }
+            else
+            {
+                l->next = result;
+                result->prev = l;
+            }
+
+            l->prev = nullptr;
+            result = l;
+        }
+        else
+        {
+            if (*lte == nullptr)
+            {
+                *lte = l;
+            }
+        }
+
+        l = next;
+    }
+
+    *gt = result;
+}
+
+/// @brief Sort a list of control blocks by their address using quicksort
+///
+/// @author Andrew Haisley
+void quicksort(ControlBlock *l, ControlBlock **begin, ControlBlock **end)
+{
+    if (l == nullptr)
+    {
+        *begin = *end = nullptr;
+    }
+    else if (l->next == nullptr)
+    {
+        *begin = *end = l;
+    }
+    else
+    {
+        ControlBlock *lte = nullptr;
+        ControlBlock *lte_end = nullptr;
+        ControlBlock *gt = nullptr;
+        ControlBlock *gt_end = nullptr;
+        ControlBlock *mid = nullptr;
+
+        partition(&mid, &lte, &gt, l);
+
+        quicksort(lte, &lte, &lte_end);
+        quicksort(gt, &gt, &gt_end);
+
+        if (gt == nullptr)
+        {
+            mid->next = nullptr;
+            mid->prev = nullptr;
+            gt = mid;
+            *end = mid;
+        }
+        else
+        {
+            mid->next = gt;
+            mid->prev = nullptr;
+            gt->prev = mid;
+            gt = mid;
+            *end = gt_end;
+        }
+
+        if (lte == nullptr)
+        {
+            *begin = gt;
+        }
+        else
+        {
+            lte_end->next = gt;
+            gt->prev = lte_end;
+            *begin = lte;
+        }
+    }
+}
+
+void km::detail::SortBlocks(ControlBlock *block) {
+    ControlBlock *begin = nullptr;
+    ControlBlock *end = nullptr;
+
+    quicksort(block, &begin, &end);
+}
+
+#else
+
 void km::detail::SortBlocks(ControlBlock *block) {
     ControlBlock *front = block->head();
 
@@ -79,6 +203,8 @@ void km::detail::SortBlocks(ControlBlock *block) {
         }
     }
 }
+
+#endif
 
 void km::detail::MergeAdjacentBlocks(ControlBlock *head) {
     ControlBlock *block = head;
