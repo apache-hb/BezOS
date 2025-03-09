@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 
 #include <random>
-#include <thread>
 
 #include "memory/table_allocator.hpp"
 #include "log.hpp"
@@ -37,7 +36,7 @@ TEST(TableAllocatorDetailTest, SwapBlocks) {
         detail::ControlBlock *block = (detail::ControlBlock*)(memory.get() + (i * detail::kBlockSize));
         block->next = nullptr;
         block->prev = nullptr;
-        block->blocks = 1;
+        block->blocks = detail::kBlockSize;
 
         blocks.push_back(block);
     }
@@ -68,7 +67,7 @@ TEST(TableAllocatorDetailTest, SwapAnyBlocks) {
         detail::ControlBlock *block = (detail::ControlBlock*)(memory.get() + (i * detail::kBlockSize));
         block->next = nullptr;
         block->prev = nullptr;
-        block->blocks = 1;
+        block->blocks = detail::kBlockSize;
 
         blocks.push_back(block);
     }
@@ -102,7 +101,7 @@ TEST(TableAllocatorDetailTest, SortBlocks) {
         detail::ControlBlock *block = (detail::ControlBlock*)(memory.get() + (i * detail::kBlockSize));
         block->next = nullptr;
         block->prev = nullptr;
-        block->blocks = 1;
+        block->blocks = detail::kBlockSize;
 
         blocks.push_back(block);
     }
@@ -147,7 +146,7 @@ TEST(TableAllocatorDetailTest, MergeBlocks) {
         detail::ControlBlock *block = (detail::ControlBlock*)(memory.get() + (i * detail::kBlockSize));
         block->next = nullptr;
         block->prev = nullptr;
-        block->blocks = 1;
+        block->blocks = detail::kBlockSize;
 
         blocks.push_back(block);
     }
@@ -161,7 +160,7 @@ TEST(TableAllocatorDetailTest, MergeBlocks) {
     detail::MergeAdjacentBlocks(head);
 
     // ensure everything has been merged
-    ASSERT_EQ(head->blocks, kSize / detail::kBlockSize);
+    ASSERT_EQ(head->blocks, kSize);
     ASSERT_EQ(head->next, nullptr);
 }
 
@@ -332,12 +331,12 @@ TEST(TableAllocateTest, Defragment) {
 
     // memory should be fragmented, so this will fail.
     // this detail function does not do defragmentation as part of its allocation
-    void *ptr = detail::AllocateBlock(allocator, count);
+    void *ptr = detail::AllocateBlock(allocator, count * x64::kPageSize);
     ASSERT_EQ(ptr, nullptr);
 
     // after defragmenting we should be able to allocate the whole block
     allocator.defragment();
 
-    ptr = detail::AllocateBlock(allocator, count);
+    ptr = detail::AllocateBlock(allocator, count * x64::kPageSize);
     IsValidPtr(ptr);
 }

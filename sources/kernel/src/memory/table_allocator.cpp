@@ -2,11 +2,11 @@
 #include "log.hpp"
 
 /// @brief Split a block and return the newly created block
-static km::detail::ControlBlock *SplitBlock(km::detail::ControlBlock *block, size_t blocks) {
-    KM_CHECK(block->blocks > blocks, "Block is too small to split.");
+static km::detail::ControlBlock *SplitBlock(km::detail::ControlBlock *block, size_t size) {
+    KM_CHECK(block->blocks > size, "Block is too small to split.");
 
-    auto *next = (km::detail::ControlBlock*)((uintptr_t)block + ((block->blocks - blocks) * km::detail::kBlockSize));
-    block->blocks -= blocks;
+    auto *next = (km::detail::ControlBlock*)((uintptr_t)block + ((block->blocks - size)));
+    block->blocks -= size;
 
     if (block->next) {
         block->next->prev = next;
@@ -17,7 +17,7 @@ static km::detail::ControlBlock *SplitBlock(km::detail::ControlBlock *block, siz
     block->next = next;
 
     next->prev = block;
-    next->blocks = blocks;
+    next->blocks = size;
 
     return next;
 }
@@ -32,8 +32,8 @@ static void RemoveBlock(km::detail::ControlBlock *block) {
     }
 }
 
-void *km::detail::AllocateBlock(PageTableAllocator& allocator, size_t blocks) {
-    if (blocks == 0) {
+void *km::detail::AllocateBlock(PageTableAllocator& allocator, size_t size) {
+    if (size == 0) {
         return nullptr;
     }
 
@@ -45,15 +45,15 @@ void *km::detail::AllocateBlock(PageTableAllocator& allocator, size_t blocks) {
 
     KM_CHECK(block->prev == nullptr, "Invalid head block.");
 
-    if (block->blocks < blocks) {
+    if (block->blocks < size) {
         return nullptr;
-    } else if (block->blocks == blocks) {
+    } else if (block->blocks == size) {
         void *result = block;
         if (block->next) block->next->prev = nullptr;
         allocator.mHead = block->next;
         return result;
     } else {
-        ControlBlock *next = SplitBlock(block, blocks);
+        ControlBlock *next = SplitBlock(block, size);
         RemoveBlock(next);
         return next;
     }
@@ -145,7 +145,7 @@ void km::detail::MergeAdjacentBlocks(ControlBlock *head) {
             break;
         }
 
-        if ((uintptr_t)block + (block->blocks * kBlockSize) == (uintptr_t)next) {
+        if ((uintptr_t)block + block->blocks == (uintptr_t)next) {
             block->blocks += next->blocks;
             block->next = next->next;
 
@@ -174,12 +174,12 @@ km::PageTableAllocator::PageTableAllocator(VirtualRange memory)
     mHead = (detail::ControlBlock*)mMemory.front;
 
     *mHead = detail::ControlBlock {
-        .blocks = (mMemory.size()) / detail::kBlockSize
+        .blocks = mMemory.size()
     };
 }
 
 void *km::PageTableAllocator::allocate(size_t blocks) {
-    if (void *result = detail::AllocateBlock(*this, blocks)) {
+    if (void *result = detail::AllocateBlock(*this, (blocks * detail::kBlockSize))) {
         return result;
     }
 
@@ -187,7 +187,7 @@ void *km::PageTableAllocator::allocate(size_t blocks) {
     // If we failed to allocate we may yet still have enough memory, defragment and retry.
     //
     defragmentUnlocked();
-    return detail::AllocateBlock(*this, blocks);
+    return detail::AllocateBlock(*this, (blocks * detail::kBlockSize));
 }
 
 void km::PageTableAllocator::deallocate(void *ptr, size_t blocks) {
@@ -201,7 +201,7 @@ void km::PageTableAllocator::deallocate(void *ptr, size_t blocks) {
     detail::ControlBlock *block = (detail::ControlBlock*)ptr;
     *block = detail::ControlBlock {
         .next = mHead,
-        .blocks = blocks
+        .blocks = blocks * km::detail::kBlockSize,
     };
     if (mHead) mHead->prev = block;
 
