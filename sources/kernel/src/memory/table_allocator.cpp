@@ -158,13 +158,14 @@ void km::detail::MergeAdjacentBlocks(ControlBlock *head) {
     }
 }
 
-km::PageTableAllocator::PageTableAllocator(VirtualRange memory)
+km::PageTableAllocator::PageTableAllocator(VirtualRange memory, size_t blockSize)
     : mMemory(memory)
+    , mBlockSize(blockSize)
     , mHead(nullptr)
 {
-    bool valid = (memory.size() >= detail::kBlockSize)
-        && ((uintptr_t)memory.front % detail::kBlockSize == 0)
-        && ((uintptr_t)memory.back % detail::kBlockSize == 0);
+    bool valid = (memory.size() >= mBlockSize)
+        && ((uintptr_t)memory.front % mBlockSize == 0)
+        && ((uintptr_t)memory.back % mBlockSize == 0);
 
     if (!valid) {
         KmDebugMessage("PageTableAllocator: Memory range invalid. ", memory, "\n");
@@ -179,7 +180,7 @@ km::PageTableAllocator::PageTableAllocator(VirtualRange memory)
 }
 
 void *km::PageTableAllocator::allocate(size_t blocks) {
-    if (void *result = detail::AllocateBlock(*this, (blocks * detail::kBlockSize))) {
+    if (void *result = detail::AllocateBlock(*this, (blocks * mBlockSize))) {
         return result;
     }
 
@@ -187,7 +188,7 @@ void *km::PageTableAllocator::allocate(size_t blocks) {
     // If we failed to allocate we may yet still have enough memory, defragment and retry.
     //
     defragmentUnlocked();
-    return detail::AllocateBlock(*this, (blocks * detail::kBlockSize));
+    return detail::AllocateBlock(*this, (blocks * mBlockSize));
 }
 
 void km::PageTableAllocator::deallocate(void *ptr, size_t blocks) {
@@ -201,7 +202,7 @@ void km::PageTableAllocator::deallocate(void *ptr, size_t blocks) {
     detail::ControlBlock *block = (detail::ControlBlock*)ptr;
     *block = detail::ControlBlock {
         .next = mHead,
-        .blocks = blocks * km::detail::kBlockSize,
+        .blocks = blocks * mBlockSize,
     };
     if (mHead) mHead->prev = block;
 
