@@ -199,6 +199,7 @@ src = [
     'src/notify.cpp',
 
     # Process
+    'src/process/system.cpp',
     'src/process/process.cpp',
     'src/process/schedule.cpp',
     'src/process/schedule.S',
@@ -486,6 +487,7 @@ testcases = {
     'process': [
         'test/process/process.cpp',
 
+        'src/process/system.cpp',
         'src/process/process.cpp',
 
         'src/memory.cpp',

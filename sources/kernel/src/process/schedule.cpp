@@ -5,6 +5,7 @@
 #include "allocator/synchronized.hpp"
 #include "allocator/tlsf.hpp"
 #include "debug/debug.hpp"
+#include "util/defer.hpp"
 
 using SynchronizedTlsfAllocator = mem::SynchronizedAllocator<mem::TlsfAllocator>;
 

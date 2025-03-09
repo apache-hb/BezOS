@@ -21,6 +21,7 @@ OS_DEFINE_GUID(kOsIdentifyGuid, 0xba72898c, 0xf2d8, 0x11ef, 0x8520, 0x0b9e4d54e5
 enum {
     eOsIdentifyInterfaceList = UINT64_C(0),
     eOsIdentifyInfo          = UINT64_C(1),
+    eOsIdentifyPropertyList  = UINT64_C(2),
 };
 
 struct OsIdentifyInterfaceList {
@@ -58,6 +59,18 @@ struct OsIdentifyInfo {
     OsVersionTag DriverVersion;
 };
 
+struct OsIdentifyPropertyEntry {
+    uint32_t NameStart;
+    uint32_t DataStart;
+};
+
+struct OsIdentifyPropertyList {
+    uint32_t PropertyCount;
+    uint32_t BufferSize;
+
+    OsByte Buffer[] OS_COUNTED_BY(BufferSize);
+};
+
 /// @brief Identify the interfaces supported by the device.
 ///
 /// This function is used to query the list of interfaces supported by the device.
@@ -88,6 +101,10 @@ inline OsStatus OsInvokeIdentifyInterfaceList(OsDeviceHandle Handle, struct OsId
 /// @return Returns an error code on failure.
 inline OsStatus OsInvokeIdentifyDeviceInfo(OsDeviceHandle Handle, struct OsIdentifyInfo *OutInfo) {
     return OsDeviceCall(Handle, eOsIdentifyInfo, OutInfo, sizeof(struct OsIdentifyInfo));
+}
+
+inline OsStatus OsInvokeIdentifyPropertyList(OsDeviceHandle Handle, struct OsIdentifyPropertyList *OutList) {
+    return OsDeviceCall(Handle, eOsIdentifyPropertyList, OutList, sizeof(struct OsIdentifyPropertyList) + OutList->BufferSize);
 }
 
 #ifdef __cplusplus

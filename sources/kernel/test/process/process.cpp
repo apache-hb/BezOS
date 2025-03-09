@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "process/process.hpp"
+#include "process/system.hpp"
 
 #include "test/test_memory.hpp"
 

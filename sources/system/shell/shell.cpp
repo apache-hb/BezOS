@@ -3,6 +3,7 @@
 #include <bezos/facility/fs.h>
 #include <bezos/facility/vmem.h>
 #include <bezos/facility/process.h>
+#include <bezos/facility/handle.h>
 
 #include <bezos/handle.h>
 #include <bezos/status.h>
@@ -372,7 +373,8 @@ static void LaunchZsh() {
     OsProcessHandle handle = OS_HANDLE_INVALID;
     ASSERT_OS_SUCCESS(OsProcessCreate(createInfo, &handle));
 
-    while (true) { }
+    OsStatus status = OsHandleWait(handle, OS_TIMEOUT_INFINITE);
+    ASSERT_OS_SUCCESS(status);
 }
 
 OS_EXTERN OS_NORETURN void ClientStart(const struct OsClientStartInfo *) {

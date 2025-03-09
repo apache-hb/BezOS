@@ -1,130 +1,59 @@
 #include "process/process.hpp"
-#include "kernel.hpp"
-#include "log.hpp"
+
+#include "util/defer.hpp"
 
 using namespace km;
 
-Thread *SystemObjects::createThread(stdx::String name, Process *process) {
-    ThreadId id = mThreadIds.allocate();
-    Thread *ptr = new Thread(id, std::move(name), process);
+void Process::init(ProcessId id, stdx::String name, x64::Privilege protection, SystemPageTables *kernel, AddressMapping pteMemory, VirtualRange processArea) {
+    initHeader(std::to_underlying(id), eOsHandleProcess, std::move(name));
+    privilege = protection;
+    ptes.init(kernel, pteMemory, processArea);
+}
 
-    AddressMapping stackMapping = mMemory->allocateStack(0x4000 * 4);
-    ptr->syscallStack = stackMapping;
+bool Process::isComplete() const {
+    auto status = OS_PROCESS_STATUS(state.Status);
+    return status != eOsProcessRunning && status != eOsProcessSuspended;
+}
 
-    process->addThread(ptr);
+void Process::addThread(Thread *thread) {
+    stdx::UniqueLock guard(lock);
+    threads.add(thread);
+}
 
-    stdx::UniqueLock guard(mLock);
-    mThreads.insert({id, ptr});
+void Process::addAddressSpace(AddressSpace *addressSpace) {
+    stdx::UniqueLock guard(lock);
+    memory.add(addressSpace);
+}
 
+vfs2::IVfsNodeHandle *Process::addFile(std::unique_ptr<vfs2::IVfsNodeHandle> handle) {
+    stdx::UniqueLock guard(lock);
+    vfs2::IVfsNodeHandle *ptr = handle.get();
+    files.insert(std::move(handle));
     return ptr;
 }
 
-AddressSpace *SystemObjects::createAddressSpace(stdx::String name, AddressMapping mapping, PageFlags flags, MemoryType type, Process *process) {
-    AddressSpaceId id = mAddressSpaceIds.allocate();
-    AddressSpace *ptr = new AddressSpace(id, std::move(name), mapping, flags, type);
+OsStatus Process::closeFile(vfs2::IVfsNodeHandle *ptr) {
+    stdx::UniqueLock guard(lock);
+    // This is awful, but theres no transparent lookup for unique pointers
+    std::unique_ptr<vfs2::IVfsNodeHandle> handle(const_cast<vfs2::IVfsNodeHandle*>(ptr));
+    defer { (void)handle.release(); }; // NOLINT(bugprone-unused-return-value)
 
-    process->addAddressSpace(ptr);
-
-    stdx::UniqueLock guard(mLock);
-    mAddressSpaces.insert({id, ptr});
-    return ptr;
-}
-
-Process *SystemObjects::createProcess(stdx::String name, x64::Privilege privilege, MemoryRange pteMemory) {
-    Process *process = nullptr;
-    if (createProcess(std::move(name), privilege, pteMemory, &process) != OsStatusSuccess) {
-        return nullptr;
-    }
-
-    return process;
-}
-
-OsStatus SystemObjects::createProcess(stdx::String name, x64::Privilege privilege, MemoryRange pteMemory, Process **process) {
-    SystemPageTables& systemTables = mMemory->pageTables();
-
-    std::unique_ptr<Process> result{ new (std::nothrow) Process };
-    if (result == nullptr) {
-        return OsStatusOutOfMemory;
-    }
-
-    AddressMapping pteMapping{};
-    if (OsStatus status = systemTables.map(pteMemory, PageFlags::eData, MemoryType::eWriteBack, &pteMapping)) {
-        KmDebugMessage("[PROC] Failed to map process page tables: ", status, "\n");
-        return status;
-    }
-
-    ProcessId id = mProcessIds.allocate();
-    result->init(id, std::move(name), privilege, &systemTables, pteMapping, DefaultUserArea());
-
-    Process *handle = result.release();
-
-    stdx::UniqueLock guard(mLock);
-
-    mProcesses.insert({id, handle});
-
-    *process = handle;
-    return OsStatusSuccess;
-}
-
-OsStatus SystemObjects::destroyProcess(Process *process) {
-    stdx::UniqueLock guard(mLock);
-
-    if (auto it = mProcesses.find(ProcessId(process->internalId())); it == mProcesses.end()) {
-        return OsStatusNotFound;
-    } else {
-        mProcesses.erase(it);
-        delete process;
+    if (auto it = files.find(handle); it != files.end()) {
+        files.erase(it);
         return OsStatusSuccess;
     }
+
+    return OsStatusNotFound;
 }
 
-Process *SystemObjects::getProcess(ProcessId id) {
-    stdx::SharedLock guard(mLock);
-    if (auto it = mProcesses.find(id); it != mProcesses.end()) {
-        return it->second;
-    }
+vfs2::IVfsNodeHandle *Process::findFile(const vfs2::IVfsNodeHandle *ptr) {
+    // This is awful, but theres no transparent lookup for unique pointers
+    std::unique_ptr<vfs2::IVfsNodeHandle> handle(const_cast<vfs2::IVfsNodeHandle*>(ptr));
+    defer { (void)handle.release(); }; // NOLINT(bugprone-unused-return-value)
 
-    return nullptr;
-}
-
-OsStatus SystemObjects::exitProcess(Process *process, int64_t status) {
-    OsProcessStateFlags state = (process->state.Status & ~eOsProcessStatusMask) | eOsProcessExited;
-    process->state.Status = state;
-    process->state.ExitCode = status;
-    return OsStatusSuccess;
-}
-
-Mutex *SystemObjects::createMutex(stdx::String name) {
-    MutexId id = mMutexIds.allocate();
-    Mutex *ptr = new Mutex(id, std::move(name));
-
-    stdx::UniqueLock guard(mLock);
-    mMutexes.insert({id, ptr});
-    return ptr;
-}
-
-Thread *SystemObjects::getThread(ThreadId id) {
-    stdx::SharedLock guard(mLock);
-    if (auto it = mThreads.find(id); it != mThreads.end()) {
-        return it->second;
-    }
-
-    return nullptr;
-}
-
-AddressSpace *SystemObjects::getAddressSpace(AddressSpaceId id) {
-    stdx::SharedLock guard(mLock);
-    if (auto it = mAddressSpaces.find(id); it != mAddressSpaces.end()) {
-        return it->second;
-    }
-
-    return nullptr;
-}
-
-Mutex *SystemObjects::getMutex(MutexId id) {
-    stdx::SharedLock guard(mLock);
-    if (auto it = mMutexes.find(id); it != mMutexes.end()) {
-        return it->second;
+    stdx::SharedLock guard(lock);
+    if (auto it = files.find(handle); it != files.end()) {
+        return it->get();
     }
 
     return nullptr;

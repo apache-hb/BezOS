@@ -4,7 +4,6 @@
 #include <bezos/facility/threads.h>
 
 #include "memory/tables.hpp"
-#include "util/defer.hpp"
 #include "fs2/node.hpp"
 #include "isr/isr.hpp"
 #include "memory/memory.hpp"
@@ -22,6 +21,7 @@ namespace km {
     enum class AddressSpaceId : OsAddressSpaceHandle { };
     enum class ProcessId : OsProcessHandle { };
     enum class MutexId : OsMutexHandle { };
+    enum class DeviceId : OsDeviceHandle { };
 
     template<typename T>
     class IdAllocator {
@@ -33,6 +33,7 @@ namespace km {
         }
     };
 
+    class KernelObject;
     struct Thread;
     struct AddressSpace;
     struct Process;
@@ -40,11 +41,17 @@ namespace km {
 
     class SystemObjects;
 
-    struct KernelObject {
+    struct HandleWait {
+        KernelObject *object = nullptr;
+        OsInstant timeout = OS_TIMEOUT_INSTANT;
+    };
+
+    class KernelObject {
         OsHandle mId;
         stdx::String mName;
         stdx::SpinLock mMonitor;
 
+    public:
         KernelObject() = default;
 
         KernelObject(OsHandle id, stdx::String name)
@@ -65,13 +72,15 @@ namespace km {
     };
 
     struct Thread : public KernelObject {
+        Thread() = default;
+
         Thread(ThreadId id, stdx::String name, Process *process)
             : KernelObject(std::to_underlying(id) | (uint64_t(eOsHandleThread) << 56), std::move(name))
             , process(process)
         { }
 
         Process *process;
-        KernelObject *wait;
+        HandleWait wait;
         km::IsrContext state;
         uint64_t tlsAddress = 0;
         AddressSpace *stack;
@@ -98,12 +107,6 @@ namespace km {
     struct Process : public KernelObject {
         Process() = default;
 
-        void init(ProcessId id, stdx::String name, x64::Privilege protection, SystemPageTables *kernel, AddressMapping pteMemory, VirtualRange processArea) {
-            initHeader(std::to_underlying(id), eOsHandleProcess, std::move(name));
-            privilege = protection;
-            ptes.init(kernel, pteMemory, processArea);
-        }
-
         x64::Privilege privilege;
         stdx::SharedSpinLock lock;
         ProcessPageTables ptes;
@@ -112,54 +115,16 @@ namespace km {
         sm::FlatHashSet<std::unique_ptr<vfs2::IVfsNodeHandle>> files;
         OsProcessState state = { eOsProcessRunning };
 
-        bool isComplete() const {
-            auto status = OS_PROCESS_STATUS(state.Status);
-            return status != eOsProcessRunning && status != eOsProcessSuspended;
-        }
+        void init(ProcessId id, stdx::String name, x64::Privilege protection, SystemPageTables *kernel, AddressMapping pteMemory, VirtualRange processArea);
 
-        void addThread(Thread *thread) {
-            stdx::UniqueLock guard(lock);
-            threads.add(thread);
-        }
+        bool isComplete() const;
 
-        void addAddressSpace(AddressSpace *addressSpace) {
-            stdx::UniqueLock guard(lock);
-            memory.add(addressSpace);
-        }
+        void addThread(Thread *thread);
+        void addAddressSpace(AddressSpace *addressSpace);
 
-        vfs2::IVfsNodeHandle *addFile(std::unique_ptr<vfs2::IVfsNodeHandle> handle) {
-            stdx::UniqueLock guard(lock);
-            vfs2::IVfsNodeHandle *ptr = handle.get();
-            files.insert(std::move(handle));
-            return ptr;
-        }
-
-        OsStatus closeFile(vfs2::IVfsNodeHandle *ptr) {
-            stdx::UniqueLock guard(lock);
-            // This is awful, but theres no transparent lookup for unique pointers
-            std::unique_ptr<vfs2::IVfsNodeHandle> handle(const_cast<vfs2::IVfsNodeHandle*>(ptr));
-            defer { (void)handle.release(); }; // NOLINT(bugprone-unused-return-value)
-
-            if (auto it = files.find(handle); it != files.end()) {
-                files.erase(it);
-                return OsStatusSuccess;
-            }
-
-            return OsStatusNotFound;
-        }
-
-        vfs2::IVfsNodeHandle *findFile(const vfs2::IVfsNodeHandle *ptr) {
-            // This is awful, but theres no transparent lookup for unique pointers
-            std::unique_ptr<vfs2::IVfsNodeHandle> handle(const_cast<vfs2::IVfsNodeHandle*>(ptr));
-            defer { (void)handle.release(); }; // NOLINT(bugprone-unused-return-value)
-
-            stdx::SharedLock guard(lock);
-            if (auto it = files.find(handle); it != files.end()) {
-                return it->get();
-            }
-
-            return nullptr;
-        }
+        vfs2::IVfsNodeHandle *addFile(std::unique_ptr<vfs2::IVfsNodeHandle> handle);
+        OsStatus closeFile(vfs2::IVfsNodeHandle *ptr);
+        vfs2::IVfsNodeHandle *findFile(const vfs2::IVfsNodeHandle *ptr);
     };
 
     struct Mutex : public KernelObject {
@@ -172,38 +137,8 @@ namespace km {
         // TODO: store a list of all the threads waiting on this mutex
     };
 
-    class SystemObjects {
-        stdx::SharedSpinLock mLock;
-        SystemMemory *mMemory = nullptr;
-
-        IdAllocator<ThreadId> mThreadIds;
-        IdAllocator<AddressSpaceId> mAddressSpaceIds;
-        IdAllocator<ProcessId> mProcessIds;
-        IdAllocator<MutexId> mMutexIds;
-
-        sm::FlatHashMap<ThreadId, Thread*> mThreads;
-        sm::FlatHashMap<AddressSpaceId, AddressSpace*> mAddressSpaces;
-        sm::FlatHashMap<ProcessId, Process*> mProcesses;
-        sm::FlatHashMap<MutexId, Mutex*> mMutexes;
-
-    public:
-        SystemObjects(SystemMemory *memory)
-            : mMemory(memory)
-        { }
-
-        OsStatus createProcess(stdx::String name, x64::Privilege privilege, MemoryRange pteMemory, Process **process);
-        OsStatus destroyProcess(Process *process);
-        Process *getProcess(ProcessId id);
-        OsStatus exitProcess(Process *process, int64_t status);
-
-        Thread *createThread(stdx::String name, Process* process);
-        AddressSpace *createAddressSpace(stdx::String name, km::AddressMapping mapping, km::PageFlags flags, km::MemoryType type, Process* process);
-        Process *createProcess(stdx::String name, x64::Privilege privilege, MemoryRange pteMemory);
-        Mutex *createMutex(stdx::String name);
-
-        Thread *getThread(ThreadId id);
-        AddressSpace *getAddressSpace(AddressSpaceId id);
-        Mutex *getMutex(MutexId id);
+    struct VNode : public KernelObject {
+        vfs2::IVfsNodeHandle *node;
     };
 
     struct ProcessLaunch {

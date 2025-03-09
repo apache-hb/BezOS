@@ -39,8 +39,9 @@
 #include "notify.hpp"
 #include "panic.hpp"
 #include "pit.hpp"
-#include "process/process.hpp"
 #include "processor.hpp"
+#include "process/system.hpp"
+#include "process/process.hpp"
 #include "process/schedule.hpp"
 #include "setup.hpp"
 #include "smp.hpp"
@@ -977,6 +978,15 @@ static OsStatus UserReadPath(CallContext *context, OsPath user, vfs2::VfsPath *p
     return OsStatusSuccess;
 }
 
+static void AddHandleSystemCalls() {
+    AddSystemCall(eOsCallHandleWait, [](CallContext *, SystemCallRegisterSet *) -> OsCallResult {
+        // uint64_t userHandle = regs->arg0;
+        // uint64_t userTimeout = regs->arg1;
+
+        return CallError(OsStatusNotSupported);
+    });
+}
+
 static void AddDebugSystemCalls() {
     AddSystemCall(eOsCallDebugLog, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t front = regs->arg0;
@@ -1510,7 +1520,7 @@ static void AddVmemSystemCalls() {
             return CallError(status);
         }
 
-        Process * process;
+        Process *process;
         if (createInfo.Process != OS_HANDLE_INVALID) {
             process = gSystemObjects->getProcess(ProcessId(OS_HANDLE_ID(createInfo.Process)));
         } else {
@@ -1533,7 +1543,7 @@ static void AddVmemSystemCalls() {
             return CallError(status);
         }
 
-        AddressSpace * addressSpace = gSystemObjects->createAddressSpace(std::move(name), mapping, flags, MemoryType::eWriteBack, process);
+        AddressSpace *addressSpace = gSystemObjects->createAddressSpace(std::move(name), mapping, flags, MemoryType::eWriteBack, process);
         return CallOk(addressSpace->publicId());
     });
 
@@ -1748,7 +1758,13 @@ static void CreateDisplayDevice() {
 static void LaunchKernelProcess(LocalIsrTable *table, IApic *apic) {
     MemoryRange pteMemory = gMemory->pmmAllocate(256);
 
-    Process *process = gSystemObjects->createProcess("SYSTEM", x64::Privilege::eSupervisor, pteMemory);
+    Process *process = nullptr;
+    OsStatus status = gSystemObjects->createProcess("SYSTEM", x64::Privilege::eSupervisor, pteMemory, &process);
+    if (status != OsStatusSuccess) {
+        KmDebugMessage("[INIT] Failed to create SYSTEM process: ", status, "\n");
+        KM_PANIC("Failed to create SYSTEM process.");
+    }
+
     Thread *thread = gSystemObjects->createThread("SYSTEM MASTER TASK", process);
 
     PageFlags flags = PageFlags::eData;
@@ -1902,6 +1918,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     MountVolatileFolder();
     MountInitArchive(launch.initrd, *stage2->memory);
 
+    AddHandleSystemCalls();
     AddDebugSystemCalls();
     AddVfsSystemCalls();
     AddDeviceSystemCalls();

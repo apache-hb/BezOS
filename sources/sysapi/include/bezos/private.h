@@ -8,6 +8,8 @@ struct OsCallResult {
 };
 
 enum {
+    eOsCallHandleWait = 0x1,
+
     eOsCallFileOpen = 0x10,
     eOsCallFileClose = 0x11,
     eOsCallFileRead = 0x12,

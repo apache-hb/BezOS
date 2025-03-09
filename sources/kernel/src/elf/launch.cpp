@@ -2,9 +2,13 @@
 
 #include "gdt.hpp"
 #include "log.hpp"
+
+#include "process/system.hpp"
+
 #include "memory/range.hpp"
 
 #include "util/format.hpp"
+#include "util/defer.hpp"
 
 static OsStatus ValidateElfHeader(const elf::Header &header, size_t size) {
     if (!header.isValid()) {

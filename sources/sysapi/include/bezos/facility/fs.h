@@ -97,6 +97,8 @@ struct OsFileCreateInfo {
     struct OsPath Path;
 
     OsFileOpenMode Mode;
+
+    OsProcessHandle Process;
 };
 
 struct OsFileReadRequest {
@@ -207,11 +209,20 @@ struct OsFolderIterateCreateInfo {
     struct OsPath Path;
 };
 
+#if defined(__clang__) && defined(__cplusplus)
+#   pragma clang diagnostic push
+#   pragma clang diagnostic ignored "-Wc99-extensions"
+#endif
+
 struct OsFolderEntry {
     OsFolderEntryNameSize NameSize;
 
-    OsUtf8Char Name[];
+    OsUtf8Char Name[] OS_COUNTED_BY(NameSize);
 };
+
+#if defined(__clang__) && defined(__cplusplus)
+#   pragma clang diagnostic pop
+#endif
 
 #define OS_FOLDER_ITERATOR_INVALID ((OsFolderIteratorHandle)(0))
 
