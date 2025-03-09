@@ -115,6 +115,7 @@ src = [
     'src/memory/tables.cpp',
     'src/memory/memory.cpp',
     'src/memory/detail/table_list.cpp',
+    'src/memory/detail/control_block.cpp',
 
     # C and C++ Runtime
     'src/crt.cpp',
@@ -366,6 +367,7 @@ testcases = {
         'src/util/memory.cpp',
         'src/memory/table_allocator.cpp',
         'src/memory/detail/table_list.cpp',
+        'src/memory/detail/control_block.cpp',
     ],
     'partitions': [
         'test/drivers/partitions.cpp',
@@ -464,6 +466,7 @@ testcases = {
         'src/memory/table_allocator.cpp',
         'src/memory/page_allocator.cpp',
         'src/memory/detail/table_list.cpp',
+        'src/memory/detail/control_block.cpp',
         'src/util/memory.cpp',
         'src/boot.cpp',
     ],
@@ -474,6 +477,7 @@ testcases = {
     'table allocator': [
         'test/memory/table_allocator.cpp',
         'src/memory/table_allocator.cpp',
+        'src/memory/detail/control_block.cpp',
     ],
     'page table list': [
         'test/memory/table_list.cpp',
@@ -491,6 +495,7 @@ testcases = {
         'src/memory/table_allocator.cpp',
         'src/memory/page_allocator.cpp',
         'src/memory/detail/table_list.cpp',
+        'src/memory/detail/control_block.cpp',
 
         'src/fs2/vfs.cpp',
         'src/fs2/path.cpp',

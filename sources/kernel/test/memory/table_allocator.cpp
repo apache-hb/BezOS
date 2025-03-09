@@ -32,11 +32,11 @@ TEST(TableAllocatorDetailTest, SwapBlocks) {
 
     std::vector<detail::ControlBlock*> blocks;
 
-    for (size_t i = 0; i < (kSize / detail::kBlockSize); i++) {
-        detail::ControlBlock *block = (detail::ControlBlock*)(memory.get() + (i * detail::kBlockSize));
+    for (size_t i = 0; i < (kSize / x64::kPageSize); i++) {
+        detail::ControlBlock *block = (detail::ControlBlock*)(memory.get() + (i * x64::kPageSize));
         block->next = nullptr;
         block->prev = nullptr;
-        block->blocks = detail::kBlockSize;
+        block->size = x64::kPageSize;
 
         blocks.push_back(block);
     }
@@ -63,11 +63,11 @@ TEST(TableAllocatorDetailTest, SwapAnyBlocks) {
 
     std::vector<detail::ControlBlock*> blocks;
 
-    for (size_t i = 0; i < (kSize / detail::kBlockSize); i++) {
-        detail::ControlBlock *block = (detail::ControlBlock*)(memory.get() + (i * detail::kBlockSize));
+    for (size_t i = 0; i < (kSize / x64::kPageSize); i++) {
+        detail::ControlBlock *block = (detail::ControlBlock*)(memory.get() + (i * x64::kPageSize));
         block->next = nullptr;
         block->prev = nullptr;
-        block->blocks = detail::kBlockSize;
+        block->size = x64::kPageSize;
 
         blocks.push_back(block);
     }
@@ -97,11 +97,11 @@ TEST(TableAllocatorDetailTest, SortBlocks) {
 
     std::vector<detail::ControlBlock*> blocks;
 
-    for (size_t i = 0; i < (kSize / detail::kBlockSize); i++) {
-        detail::ControlBlock *block = (detail::ControlBlock*)(memory.get() + (i * detail::kBlockSize));
+    for (size_t i = 0; i < (kSize / x64::kPageSize); i++) {
+        detail::ControlBlock *block = (detail::ControlBlock*)(memory.get() + (i * x64::kPageSize));
         block->next = nullptr;
         block->prev = nullptr;
-        block->blocks = detail::kBlockSize;
+        block->size = x64::kPageSize;
 
         blocks.push_back(block);
     }
@@ -134,7 +134,7 @@ TEST(TableAllocatorDetailTest, SortBlocks) {
         next = tmp;
     }
 
-    ASSERT_EQ(count, kSize / detail::kBlockSize);
+    ASSERT_EQ(count, kSize / x64::kPageSize);
 }
 
 TEST(TableAllocatorDetailTest, MergeBlocks) {
@@ -142,11 +142,11 @@ TEST(TableAllocatorDetailTest, MergeBlocks) {
 
     std::vector<detail::ControlBlock*> blocks;
 
-    for (size_t i = 0; i < (kSize / detail::kBlockSize); i++) {
-        detail::ControlBlock *block = (detail::ControlBlock*)(memory.get() + (i * detail::kBlockSize));
+    for (size_t i = 0; i < (kSize / x64::kPageSize); i++) {
+        detail::ControlBlock *block = (detail::ControlBlock*)(memory.get() + (i * x64::kPageSize));
         block->next = nullptr;
         block->prev = nullptr;
-        block->blocks = detail::kBlockSize;
+        block->size = x64::kPageSize;
 
         blocks.push_back(block);
     }
@@ -160,7 +160,7 @@ TEST(TableAllocatorDetailTest, MergeBlocks) {
     detail::MergeAdjacentBlocks(head);
 
     // ensure everything has been merged
-    ASSERT_EQ(head->blocks, kSize);
+    ASSERT_EQ(head->size, kSize);
     ASSERT_EQ(head->next, nullptr);
 }
 

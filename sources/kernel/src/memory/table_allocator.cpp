@@ -3,10 +3,10 @@
 
 /// @brief Split a block and return the newly created block
 static km::detail::ControlBlock *SplitBlock(km::detail::ControlBlock *block, size_t size) {
-    KM_CHECK(block->blocks > size, "Block is too small to split.");
+    KM_CHECK(block->size > size, "Block is too small to split.");
 
-    auto *next = (km::detail::ControlBlock*)((uintptr_t)block + ((block->blocks - size)));
-    block->blocks -= size;
+    auto *next = (km::detail::ControlBlock*)((uintptr_t)block + ((block->size - size)));
+    block->size -= size;
 
     if (block->next) {
         block->next->prev = next;
@@ -17,7 +17,7 @@ static km::detail::ControlBlock *SplitBlock(km::detail::ControlBlock *block, siz
     block->next = next;
 
     next->prev = block;
-    next->blocks = size;
+    next->size = size;
 
     return next;
 }
@@ -45,9 +45,9 @@ void *km::detail::AllocateBlock(PageTableAllocator& allocator, size_t size) {
 
     KM_CHECK(block->prev == nullptr, "Invalid head block.");
 
-    if (block->blocks < size) {
+    if (block->size < size) {
         return nullptr;
-    } else if (block->blocks == size) {
+    } else if (block->size == size) {
         void *result = block;
         if (block->next) block->next->prev = nullptr;
         allocator.mHead = block->next;
@@ -56,105 +56,6 @@ void *km::detail::AllocateBlock(PageTableAllocator& allocator, size_t size) {
         ControlBlock *next = SplitBlock(block, size);
         RemoveBlock(next);
         return next;
-    }
-}
-
-static bool AreBlocksAdjacent(const km::detail::ControlBlock *a, const km::detail::ControlBlock *b) {
-    if (a->next == b && b->prev == a) {
-        return true;
-    }
-
-    if (b->next == a && a->prev == b) {
-        return true;
-    }
-
-    return false;
-}
-
-void km::detail::SwapAdjacentBlocks(ControlBlock *a, ControlBlock *b) {
-    KM_CHECK(a->next == b, "Blocks are not adjacent.");
-    KM_CHECK(b->prev == a, "Blocks are not adjacent.");
-
-    ControlBlock tmpa = *a;
-    ControlBlock tmpb = *b;
-
-    if (tmpa.prev) {
-        tmpa.prev->next = b;
-    }
-
-    if (tmpb.next) {
-        tmpb.next->prev = a;
-    }
-
-    a->next = tmpb.next;
-    a->prev = b;
-
-    b->next = a;
-    b->prev = tmpa.prev;
-}
-
-void km::detail::SwapAnyBlocks(ControlBlock *a, ControlBlock *b) {
-    if (AreBlocksAdjacent(a, b)) {
-        SwapAdjacentBlocks(a, b);
-    } else {
-        ControlBlock tmpa = *a;
-        ControlBlock tmpb = *b;
-
-        if (tmpa.prev) {
-            tmpa.prev->next = b;
-        }
-        b->prev = tmpa.prev;
-
-        if (tmpa.next) {
-            tmpa.next->prev = b;
-        }
-        b->next = tmpa.next;
-
-        if (tmpb.prev) {
-            tmpb.prev->next = a;
-        }
-        a->prev = tmpb.prev;
-
-        if (tmpb.next) {
-            tmpb.next->prev = a;
-        }
-        a->next = tmpb.next;
-    }
-}
-
-void km::detail::SortBlocks(ControlBlock *block) {
-    ControlBlock *front = block->head();
-
-    for (ControlBlock *it = front; it != nullptr; it = it->next) {
-        for (ControlBlock *inner = it; inner != nullptr; inner = inner->next) {
-            if (it > inner) {
-                SwapAnyBlocks(it, inner);
-                it = inner;
-            }
-        }
-    }
-}
-
-void km::detail::MergeAdjacentBlocks(ControlBlock *head) {
-    ControlBlock *block = head;
-
-    while (block != nullptr) {
-        detail::ControlBlock *next = block->next;
-
-        if (next == nullptr) {
-            break;
-        }
-
-        if ((uintptr_t)block + block->blocks == (uintptr_t)next) {
-            block->blocks += next->blocks;
-            block->next = next->next;
-
-            if (next->next != nullptr) {
-                next->next->prev = block;
-            }
-        } else {
-            block = block->next;
-        }
     }
 }
 
@@ -175,7 +76,7 @@ km::PageTableAllocator::PageTableAllocator(VirtualRange memory, size_t blockSize
     mHead = (detail::ControlBlock*)mMemory.front;
 
     *mHead = detail::ControlBlock {
-        .blocks = mMemory.size()
+        .size = mMemory.size()
     };
 }
 
@@ -202,7 +103,7 @@ void km::PageTableAllocator::deallocate(void *ptr, size_t blocks) {
     detail::ControlBlock *block = (detail::ControlBlock*)ptr;
     *block = detail::ControlBlock {
         .next = mHead,
-        .blocks = blocks * mBlockSize,
+        .size = blocks * mBlockSize,
     };
     if (mHead) mHead->prev = block;
 
