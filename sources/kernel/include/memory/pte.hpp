@@ -10,6 +10,12 @@
 #include "std/spinlock.hpp"
 
 namespace km {
+    struct PageTableCreateInfo {
+        AddressMapping pteMemory;
+        const PageBuilder *pager;
+        PageFlags intermediateFlags;
+    };
+
     /// @brief Manages page tables for an address space.
     ///
     /// @details All ptes are allocated from a memory pool that is provided at construction.
@@ -20,8 +26,8 @@ namespace km {
         PageTableAllocator mAllocator;
         const PageBuilder *mPageManager;
         x64::PageMapLevel4 *mRootPageTable;
-        stdx::SpinLock mLock;
         PageFlags mMiddleFlags;
+        stdx::SpinLock mLock;
 
         /// @brief Allocate a new page table, garanteed to be aligned to 4k and zeroed.
         ///
@@ -131,7 +137,11 @@ namespace km {
         size_t countPagesForMapping(VirtualRange range);
 
     public:
+        PageTables() = default;
+
         PageTables(const PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags);
+
+        void init(PageTableCreateInfo createInfo);
 
         const PageBuilder *pageManager() const { return mPageManager; }
 
@@ -139,6 +149,7 @@ namespace km {
         x64::PageMapLevel4 *pml4() { return mRootPageTable; }
         PhysicalAddress root() const { return asPhysical(pml4()); }
 
+        [[nodiscard]]
         OsStatus map(AddressMapping mapping, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
 
         /// @brief Unmap a range of memory.
@@ -160,7 +171,10 @@ namespace km {
         /// @return The status of the operation.
         OsStatus unmap2m(VirtualRange range);
 
+        [[deprecated]]
         OsStatus walk(const void *ptr, PageWalk *walk);
+
+        PageWalk walk(const void *ptr);
 
         PhysicalAddress getBackingAddress(const void *ptr);
         PageFlags getMemoryFlags(const void *ptr);

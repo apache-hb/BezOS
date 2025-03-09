@@ -53,7 +53,7 @@ km::Thread *km::Scheduler::getWorkItem() noexcept {
         //
         // If the process is exited then drop the thread from the scheduler.
         //
-        if (thread->process->status == km::ProcessStatus::eExited) {
+        if (thread->process->isComplete()) {
             continue;
         }
 
@@ -115,13 +115,13 @@ static km::IsrContext SchedulerIsr(km::IsrContext *ctx) noexcept {
             scheduler->addWorkItem(current);
 
             km::debug::SendEvent(km::debug::ScheduleTask {
-                .previous = uint64_t(current->handleId()),
-                .next = uint64_t(next->handleId()),
+                .previous = uint64_t(current->publicId()),
+                .next = uint64_t(next->publicId()),
             });
         } else {
             km::debug::SendEvent(km::debug::ScheduleTask {
                 .previous = 0,
-                .next = uint64_t(next->handleId()),
+                .next = uint64_t(next->publicId()),
             });
         }
 

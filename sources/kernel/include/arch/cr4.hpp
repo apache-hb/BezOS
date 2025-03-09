@@ -4,7 +4,7 @@
 #include "util/format.hpp"
 #include "util/util.hpp"
 
-#include <cstdint>
+#include <stdint.h>
 
 namespace x64 {
     using cr4_t = uint32_t;

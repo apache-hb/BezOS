@@ -39,6 +39,14 @@ PageTables::PageTables(const km::PageBuilder *pm, AddressMapping pteMemory, Page
     , mMiddleFlags(middleFlags)
 { }
 
+void PageTables::init(PageTableCreateInfo createInfo) {
+    mSlide = createInfo.pteMemory.slide();
+    mAllocator = PageTableAllocator(createInfo.pteMemory.virtualRange());
+    mPageManager = createInfo.pager;
+    mRootPageTable = (x64::PageMapLevel4*)alloc4k();
+    mMiddleFlags = createInfo.intermediateFlags;
+}
+
 x64::PageMapLevel3 *PageTables::getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e, detail::PageTableList& buffer) {
     x64::PageMapLevel3 *l3;
 
@@ -825,20 +833,12 @@ km::PhysicalAddress PageTables::getBackingAddress(const void *ptr) {
 }
 
 km::PageFlags PageTables::getMemoryFlags(const void *ptr) {
-    PageWalk result;
-    if (walk(ptr, &result) != OsStatusSuccess) {
-        return PageFlags::eNone;
-    }
-
+    PageWalk result = walk(ptr);
     return result.flags();
 }
 
 km::PageSize PageTables::getPageSize(const void *ptr) {
-    PageWalk result;
-    if (walk(ptr, &result) != OsStatusSuccess) {
-        return PageSize::eNone;
-    }
-
+    PageWalk result = walk(ptr);
     return result.pageSize();
 }
 
@@ -851,4 +851,9 @@ OsStatus PageTables::walk(const void *ptr, PageWalk *walk) {
 
     *walk = walkUnlocked(ptr);
     return OsStatusSuccess;
+}
+
+PageWalk PageTables::walk(const void *ptr) {
+    stdx::LockGuard guard(mLock);
+    return walkUnlocked(ptr);
 }

@@ -448,7 +448,8 @@ TEST_F(PageTableTest, GetBackingAddress) {
     km::PhysicalAddress paddr = 0x1000000;
     km::AddressMapping mapping { vaddr, paddr, x64::kPageSize };
 
-    pt.map(mapping, km::PageFlags::eAll);
+    OsStatus status = pt.map(mapping, km::PageFlags::eAll);
+    ASSERT_EQ(OsStatusSuccess, status);
 
     km::PhysicalAddress addr = pt.getBackingAddress(vaddr);
     ASSERT_EQ(paddr.address, addr.address);
@@ -464,7 +465,8 @@ TEST_F(PageTableTest, MapPage) {
     km::PhysicalAddress paddr = 0x1000000;
     km::AddressMapping mapping { vaddr, paddr, x64::kPageSize };
 
-    pt.map(mapping, km::PageFlags::eAll);
+    OsStatus status = pt.map(mapping, km::PageFlags::eAll);
+    ASSERT_EQ(OsStatusSuccess, status);
 
     km::PhysicalAddress addr = pt.getBackingAddress(vaddr);
 
@@ -481,7 +483,8 @@ TEST_F(PageTableTest, MapPageOffset) {
     km::PhysicalAddress paddr = 0x1000000;
     km::AddressMapping mapping { vaddr, paddr, x64::kPageSize };
 
-    pt.map(mapping, km::PageFlags::eAll);
+    OsStatus status = pt.map(mapping, km::PageFlags::eAll);
+    ASSERT_EQ(OsStatusSuccess, status);
 
     km::PhysicalAddress addr = pt.getBackingAddress((void*)((uintptr_t)vaddr + 123));
 
@@ -517,7 +520,8 @@ TEST_F(PageTableTest, MapLargePage) {
     km::PhysicalAddress paddr = 0x1000000;
     km::AddressMapping mapping { vaddr, paddr, x64::kLargePageSize };
 
-    pt.map(mapping, km::PageFlags::eAll);
+    OsStatus status = pt.map(mapping, km::PageFlags::eAll);
+    ASSERT_EQ(OsStatusSuccess, status);
 
     km::PhysicalAddress addr = pt.getBackingAddress(vaddr);
 
@@ -534,7 +538,8 @@ TEST_F(PageTableTest, MapLargePageOffset) {
     km::PhysicalAddress paddr = 0x1000000;
     km::AddressMapping mapping { vaddr, paddr, x64::kLargePageSize };
 
-    pt.map(mapping, km::PageFlags::eAll);
+    OsStatus status = pt.map(mapping, km::PageFlags::eAll);
+    ASSERT_EQ(OsStatusSuccess, status);
 
     km::PhysicalAddress addr = pt.getBackingAddress((void*)((uintptr_t)vaddr + 12345));
 
@@ -608,7 +613,8 @@ TEST_F(PageTableTest, MemoryFlags) {
     km::PhysicalAddress paddr = 0x1000000;
     km::AddressMapping mapping { vaddr, paddr, x64::kPageSize };
 
-    pt.map(mapping, km::PageFlags::eAll);
+    OsStatus status = pt.map(mapping, km::PageFlags::eAll);
+    ASSERT_EQ(OsStatusSuccess, status);
 
     km::PageFlags flags = pt.getMemoryFlags(vaddr);
 
@@ -702,9 +708,18 @@ TEST_F(PageTableTest, MemoryFlagsKernelMapping) {
 
     km::PageTables pt = ptes(km::PageFlags::eAll);
 
-    pt.map(text, km::PageFlags::eCode);
-    pt.map(rodata, km::PageFlags::eRead);
-    pt.map(data, km::PageFlags::eData);
+    {
+        OsStatus status = pt.map(text, km::PageFlags::eCode);
+        ASSERT_EQ(OsStatusSuccess, status);
+    }
+    {
+        OsStatus status = pt.map(rodata, km::PageFlags::eRead);
+        ASSERT_EQ(OsStatusSuccess, status);
+    }
+    {
+        OsStatus status = pt.map(data, km::PageFlags::eData);
+        ASSERT_EQ(OsStatusSuccess, status);
+    }
 
     // ensure that all memory is mapped
     for (uintptr_t i = (uintptr_t)text.vaddr; i < (uintptr_t)text.vaddr + text.size; i += x64::kPageSize) {
@@ -826,7 +841,8 @@ TEST_F(PageTableTest, AddressMapping) {
         .size = 0x00000000FD3E8000 - 0x00000000FD000000,
     };
 
-    pt.map(fb, km::PageFlags::eData, km::MemoryType::eWriteCombine);
+    OsStatus status = pt.map(fb, km::PageFlags::eData, km::MemoryType::eWriteCombine);
+    ASSERT_EQ(OsStatusSuccess, status);
 
     km::PageFlags front = pt.getMemoryFlags(fb.vaddr);
     ASSERT_EQ(km::PageFlags::eData, front);

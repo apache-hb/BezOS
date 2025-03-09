@@ -60,7 +60,7 @@ struct OsString {
     OsUtf8Char Data[] OS_COUNTED_BY(Size);
 };
 
-#if defined(__clang__)
+#if defined(__clang__) && defined(__cplusplus)
 #   pragma clang diagnostic pop
 #endif
 

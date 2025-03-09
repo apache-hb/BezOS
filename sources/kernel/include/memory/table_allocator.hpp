@@ -23,7 +23,14 @@ namespace km {
         void defragmentUnlocked();
 
         friend void *detail::AllocateBlock(PageTableAllocator& allocator, size_t blocks);
+
     public:
+        constexpr PageTableAllocator()
+            : mMemory(VirtualRange{})
+            , mBlockSize(0)
+            , mHead(nullptr)
+        { }
+
         PageTableAllocator(VirtualRange memory, size_t blockSize = x64::kPageSize);
 
         void *allocate(size_t blocks);

@@ -1,8 +1,10 @@
 #include "arch/cr0.hpp"
 #include "arch/cr4.hpp"
+#include "arch/xcr0.hpp"
 
 using Cr0Format = km::Format<x64::Cr0>;
 using Cr4Format = km::Format<x64::Cr4>;
+using Xcr0Format = km::Format<x64::Xcr0>;
 
 using namespace stdx::literals;
 
@@ -69,4 +71,19 @@ Cr4Format::String Cr4Format::toString(x64::Cr4 value) {
     result.add("]"_sv);
 
     return result;
+}
+
+void Xcr0Format::format(km::IOutStream& out, x64::Xcr0 value) {
+    out.format(Hex(value.value()).pad(16));
+    out.format(" [ "_sv);
+
+    if (value.test(x64::Xcr0::FPU)) out.format("FPU "_sv);
+    if (value.test(x64::Xcr0::SSE)) out.format("SSE "_sv);
+    if (value.test(x64::Xcr0::AVX)) out.format("AVX "_sv);
+    if (value.test(x64::Xcr0::MPX)) out.format("MPX "_sv);
+    if (value.test(x64::Xcr0::AVX512)) out.format("AVX512 "_sv);
+    if (value.test(x64::Xcr0::PKRU)) out.format("PKRU "_sv);
+    if (value.test(x64::Xcr0::AMX)) out.format("AMX "_sv);
+
+    out.format("]"_sv);
 }

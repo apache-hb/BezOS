@@ -34,7 +34,7 @@ TEST(ProcessTest, CreateProcess) {
     ASSERT_EQ(process->name(), "test");
     ASSERT_EQ(process->privilege, x64::Privilege::eUser);
 
-    ASSERT_TRUE(process->handleId() != OS_HANDLE_INVALID);
+    ASSERT_TRUE(process->publicId() != OS_HANDLE_INVALID);
 
     {
         OsStatus status = objects.destroyProcess(process);

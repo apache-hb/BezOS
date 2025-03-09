@@ -29,7 +29,7 @@ static void MapKernelPages(PageTables& memory, km::PhysicalAddress paddr, const 
 
         AddressMapping mapping = MappingOf(range, section);
         if (!mapping.alignsExactlyTo(x64::kPageSize)) {
-            KmDebugMessage("[INIT] Damaged kernel image detected: ", name, " is not page aligned.\n");
+            KmDebugMessage("[INIT] Damaged kernel image: ", name, " is not page aligned.\n");
             KmDebugMessage("[DATA] ", mapping, "\n");
             KM_PANIC("Kernel image is not page aligned.");
         }
@@ -38,7 +38,10 @@ static void MapKernelPages(PageTables& memory, km::PhysicalAddress paddr, const 
 
         KmDebugMessage("[INIT] Mapping ", aligned, " - ", name, "\n");
 
-        memory.map(aligned, flags, MemoryType::eWriteBack);
+        if (OsStatus status = memory.map(aligned, flags)) {
+            KmDebugMessage("[INIT] Failed to map ", name, ": ", status, "\n");
+            KM_PANIC("Failed to map kernel image.");
+        }
     };
 
     KmDebugMessage("[INIT] Mapping kernel pages.\n");

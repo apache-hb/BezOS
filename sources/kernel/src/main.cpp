@@ -397,7 +397,10 @@ static void MapDisplayRegions(PageTables& vmm, std::span<const boot::FrameBuffer
     for (const boot::FrameBuffer& framebuffer : framebuffers) {
         // remap the framebuffer into its final location
         km::AddressMapping fb = { (void*)framebufferBase, framebuffer.paddr, framebuffer.size() };
-        vmm.map(fb, PageFlags::eData, MemoryType::eWriteCombine);
+        if (OsStatus status = vmm.map(fb, PageFlags::eData, MemoryType::eWriteCombine)) {
+            KmDebugMessage("[INIT] Failed to map framebuffer: ", fb, " ", status, "\n");
+            KM_PANIC("Failed to map framebuffer.");
+        }
 
         framebufferBase += framebuffer.size();
     }
@@ -409,7 +412,10 @@ static void MapKernelRegions(PageTables &vmm, const KernelLayout& layout) {
 }
 
 static void MapDataRegion(PageTables &vmm, km::AddressMapping mapping) {
-    vmm.map(mapping, PageFlags::eData);
+    if (OsStatus status = vmm.map(mapping, PageFlags::eData)) {
+        KmDebugMessage("[INIT] Failed to map data region: ", mapping, " ", status, "\n");
+        KM_PANIC("Failed to map data region.");
+    }
 }
 
 /// Everything in this structure is owned by the stage1 memory allocator.
@@ -1285,9 +1291,9 @@ static void AddThreadSystemCalls() {
 
         Process *process;
         if (createInfo.Process != OS_HANDLE_INVALID) {
-            process = gSystemObjects->getProcess(ProcessId(createInfo.Process & 0x00FF'FFFF'FFFF'FFFF));
+            process = gSystemObjects->getProcess(ProcessId(OS_HANDLE_ID(createInfo.Process)));
         } else {
-            process = GetCurrentProcess();
+            process = context->process();
         }
 
         if (process == nullptr) {
@@ -1336,7 +1342,7 @@ static void AddMutexSystemCalls() {
         }
 
         Mutex *mutex = gSystemObjects->createMutex(std::move(name));
-        return CallOk(mutex->handleId());
+        return CallOk(mutex->publicId());
     });
 
     //
@@ -1347,7 +1353,7 @@ static void AddMutexSystemCalls() {
 
     AddSystemCall(eOsCallMutexLock, [](CallContext*, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t id = regs->arg0;
-        Mutex *mutex = gSystemObjects->getMutex(MutexId(id & 0x00FF'FFFF'FFFF'FFFF));
+        Mutex *mutex = gSystemObjects->getMutex(MutexId(OS_HANDLE_ID(id)));
         if (mutex == nullptr) {
             return CallError(OsStatusNotFound);
         }
@@ -1370,7 +1376,7 @@ static void AddMutexSystemCalls() {
 
     AddSystemCall(eOsCallMutexUnlock, [](CallContext*, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t id = regs->arg0;
-        Mutex *mutex = gSystemObjects->getMutex(MutexId(id & 0x00FF'FFFF'FFFF'FFFF));
+        Mutex *mutex = gSystemObjects->getMutex(MutexId(OS_HANDLE_ID(id)));
         if (mutex == nullptr) {
             return CallError(OsStatusNotFound);
         }
@@ -1412,16 +1418,16 @@ static void AddProcessSystemCalls() {
 
         GetScheduler()->addWorkItem(launch.main);
 
-        return CallOk(launch.process->handleId());
+        return CallOk(launch.process->publicId());
     });
 
-    AddSystemCall(eOsCallProcessCurrent, [](CallContext*, SystemCallRegisterSet*) -> OsCallResult {
-        Process *process = GetCurrentProcess();
+    AddSystemCall(eOsCallProcessCurrent, [](CallContext *context, SystemCallRegisterSet*) -> OsCallResult {
+        Process *process = context->process();
         if (process == nullptr) {
             return CallError(OsStatusNotFound);
         }
 
-        return CallOk(process->handleId());
+        return CallOk(process->publicId());
     });
 
     AddSystemCall(eOsCallProcessDestroy, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
@@ -1430,9 +1436,9 @@ static void AddProcessSystemCalls() {
 
         Process *process;
         if (userProcess != OS_HANDLE_INVALID) {
-            process = gSystemObjects->getProcess(ProcessId(userProcess & 0x00FF'FFFF'FFFF'FFFF));
+            process = gSystemObjects->getProcess(ProcessId(OS_HANDLE_ID(userProcess)));
         } else {
-            process = GetCurrentProcess();
+            process = context->process();
         }
 
         if (process == nullptr) {
@@ -1441,7 +1447,7 @@ static void AddProcessSystemCalls() {
 
         gSystemObjects->exitProcess(process, userExitCode);
 
-        if (process == GetCurrentProcess()) {
+        if (process == context->process()) {
             km::YieldCurrentThread();
         }
 
@@ -1506,9 +1512,9 @@ static void AddVmemSystemCalls() {
 
         Process * process;
         if (createInfo.Process != OS_HANDLE_INVALID) {
-            process = gSystemObjects->getProcess(ProcessId(createInfo.Process & 0x00FF'FFFF'FFFF'FFFF));
+            process = gSystemObjects->getProcess(ProcessId(OS_HANDLE_ID(createInfo.Process)));
         } else {
-            process = GetCurrentProcess();
+            process = context->process();
         }
 
         if (process == nullptr) {
@@ -1528,14 +1534,14 @@ static void AddVmemSystemCalls() {
         }
 
         AddressSpace * addressSpace = gSystemObjects->createAddressSpace(std::move(name), mapping, flags, MemoryType::eWriteBack, process);
-        return CallOk(addressSpace->handleId());
+        return CallOk(addressSpace->publicId());
     });
 
     AddSystemCall(eOsCallAddressSpaceStat, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t id = regs->arg0;
         uint64_t userStat = regs->arg1;
 
-        AddressSpace * space = gSystemObjects->getAddressSpace(AddressSpaceId(id & 0x00FF'FFFF'FFFF'FFFF));
+        AddressSpace *space = gSystemObjects->getAddressSpace(AddressSpaceId(OS_HANDLE_ID(id)));
         km::AddressMapping mapping = space->mapping;
 
         OsAddressSpaceInfo stat {

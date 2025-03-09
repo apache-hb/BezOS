@@ -40,26 +40,29 @@ Process *SystemObjects::createProcess(stdx::String name, x64::Privilege privileg
 }
 
 OsStatus SystemObjects::createProcess(stdx::String name, x64::Privilege privilege, MemoryRange pteMemory, Process **process) {
-    AddressMapping mapping{};
     SystemPageTables& systemTables = mMemory->pageTables();
-    OsStatus status = systemTables.map(pteMemory, PageFlags::eData, MemoryType::eWriteBack, &mapping);
-    if (status != OsStatusSuccess) {
+
+    std::unique_ptr<Process> result{ new (std::nothrow) Process };
+    if (result == nullptr) {
+        return OsStatusOutOfMemory;
+    }
+
+    AddressMapping pteMapping{};
+    if (OsStatus status = systemTables.map(pteMemory, PageFlags::eData, MemoryType::eWriteBack, &pteMapping)) {
         KmDebugMessage("[PROC] Failed to map process page tables: ", status, "\n");
         return status;
     }
 
     ProcessId id = mProcessIds.allocate();
-    Process *result = new (std::nothrow) Process(id, std::move(name), privilege, &systemTables, mapping, DefaultUserArea());
-    if (!result) {
-        systemTables.unmap(mapping.virtualRange());
-        return OsStatusOutOfMemory;
-    }
+    result->init(id, std::move(name), privilege, &systemTables, pteMapping, DefaultUserArea());
+
+    Process *handle = result.release();
 
     stdx::UniqueLock guard(mLock);
 
-    mProcesses.insert({id, result});
+    mProcesses.insert({id, handle});
 
-    *process = result;
+    *process = handle;
     return OsStatusSuccess;
 }
 
@@ -85,9 +88,9 @@ Process *SystemObjects::getProcess(ProcessId id) {
 }
 
 OsStatus SystemObjects::exitProcess(Process *process, int64_t status) {
-    process->status = ProcessStatus::eExited;
-    process->exitStatus = status;
-
+    OsProcessStateFlags state = (process->state.Status & ~eOsProcessStatusMask) | eOsProcessExited;
+    process->state.Status = state;
+    process->state.ExitCode = status;
     return OsStatusSuccess;
 }
 

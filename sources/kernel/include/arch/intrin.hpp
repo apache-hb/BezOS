@@ -112,6 +112,16 @@ static inline void __DEFAULT_FN_ATTRS __int() {
     asm volatile("int %0" :: "N"(N));
 }
 
+static inline uint64_t __DEFAULT_FN_ATTRS __get_xcr0() {
+    uint64_t value;
+    asm volatile("xgetbv" : "=a"(value) : "c"(0));
+    return value;
+}
+
+static inline void __DEFAULT_FN_ATTRS __set_xcr0(uint64_t value) {
+    asm volatile("xsetbv" :: "a"(value), "c"(0) : "memory");
+}
+
 #define X64_CONTROL_REGISTER(name) \
     static inline uint64_t __DEFAULT_FN_ATTRS __get_##name() { \
         uint64_t value; \

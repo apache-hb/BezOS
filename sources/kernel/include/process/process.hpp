@@ -40,21 +40,27 @@ namespace km {
 
     class SystemObjects;
 
-    class KernelObject {
+    struct KernelObject {
         OsHandle mId;
         stdx::String mName;
         stdx::SpinLock mMonitor;
 
-    protected:
+        KernelObject() = default;
+
         KernelObject(OsHandle id, stdx::String name)
             : mId(id)
             , mName(std::move(name))
         { }
 
-    public:
-        OsHandle handleId() const { return mId; }
+        void initHeader(OsHandle id, OsHandleType type, stdx::String name) {
+            mId = OS_HANDLE_NEW(type, id);
+            mName = std::move(name);
+        }
+
+        OsHandle publicId() const { return mId; }
         OsHandleType handleType() const { return OS_HANDLE_TYPE(mId); }
         OsHandle internalId() const { return OS_HANDLE_ID(mId); }
+
         stdx::StringView name() const { return mName; }
     };
 
@@ -89,28 +95,27 @@ namespace km {
         { }
     };
 
-    enum class ProcessStatus {
-        eSuspended,
-        eRunning,
-        eExited,
-    };
-
     struct Process : public KernelObject {
+        Process() = default;
+
+        void init(ProcessId id, stdx::String name, x64::Privilege protection, SystemPageTables *kernel, AddressMapping pteMemory, VirtualRange processArea) {
+            initHeader(std::to_underlying(id), eOsHandleProcess, std::move(name));
+            privilege = protection;
+            ptes.init(kernel, pteMemory, processArea);
+        }
+
         x64::Privilege privilege;
         stdx::SharedSpinLock lock;
-
-        Process(ProcessId id, stdx::String name, x64::Privilege privilege, SystemPageTables *kernel, AddressMapping pteMemory, VirtualRange processArea)
-            : KernelObject(std::to_underlying(id) | (uint64_t(eOsHandleProcess) << 56), std::move(name))
-            , privilege(privilege)
-            , ptes(kernel, pteMemory, processArea)
-        { }
-
         ProcessPageTables ptes;
         stdx::Vector2<Thread*> threads;
         stdx::Vector2<AddressSpace*> memory;
         sm::FlatHashSet<std::unique_ptr<vfs2::IVfsNodeHandle>> files;
-        int64_t exitStatus = 0;
-        ProcessStatus status = ProcessStatus::eRunning;
+        OsProcessState state = { eOsProcessRunning };
+
+        bool isComplete() const {
+            auto status = OS_PROCESS_STATUS(state.Status);
+            return status != eOsProcessRunning && status != eOsProcessSuspended;
+        }
 
         void addThread(Thread *thread) {
             stdx::UniqueLock guard(lock);
