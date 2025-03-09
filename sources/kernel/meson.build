@@ -200,6 +200,7 @@ src = [
 
     # Process
     'src/process/system.cpp',
+    'src/process/object.cpp',
     'src/process/process.cpp',
     'src/process/schedule.cpp',
     'src/process/schedule.S',
@@ -489,6 +490,7 @@ testcases = {
 
         'src/process/system.cpp',
         'src/process/process.cpp',
+        'src/process/object.cpp',
 
         'src/memory.cpp',
         'src/memory/pte.cpp',

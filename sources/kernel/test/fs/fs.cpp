@@ -244,3 +244,69 @@ TEST(Vfs2Test, RemoveFolder) {
         ASSERT_NE(lookup, nullptr);
     }
 }
+
+static void CreateFile(VfsRoot *vfs, const VfsPath& path, stdx::StringView content) {
+    IVfsNode *node = nullptr;
+    OsStatus status = vfs->create(path, &node);
+    ASSERT_EQ(OsStatusSuccess, status);
+
+    std::unique_ptr<IVfsNodeHandle> handle;
+    status = node->open(std::out_ptr(handle));
+    ASSERT_EQ(OsStatusSuccess, status);
+
+    WriteRequest request {
+        .begin = content.begin(),
+        .end = content.end(),
+        .offset = 0,
+    };
+
+    WriteResult result{};
+    status = handle->write(request, &result);
+    ASSERT_EQ(OsStatusSuccess, status);
+
+    ASSERT_EQ(result.write, content.count());
+}
+
+TEST(Vfs2Test, OpenFolder) {
+    VfsRoot vfs;
+
+    IVfsMount *mount = nullptr;
+    IVfsNode *node = nullptr;
+
+    {
+        OsStatus status = vfs.addMount(&RamFs::instance(), "System", &mount);
+        ASSERT_EQ(OsStatusSuccess, status);
+    }
+
+    {
+        OsStatus status = vfs.mkpath(BuildPath("Test"), &node);
+        ASSERT_EQ(OsStatusSuccess, status);
+    }
+
+    CreateFile(&vfs, BuildPath("Test", "file1.txt"), "Hello, World!");
+    CreateFile(&vfs, BuildPath("Test", "file2.txt"), "Goodbye, World!");
+    CreateFile(&vfs, BuildPath("Test", "file3.txt"), "Hello, World!");
+
+    {
+        std::unique_ptr<IVfsNodeHandle> handle;
+        OsStatus status = node->opendir(std::out_ptr(handle));
+        ASSERT_EQ(OsStatusSuccess, status);
+        ASSERT_NE(handle, nullptr);
+
+        VfsString name;
+        status = handle->next(&name);
+        ASSERT_EQ(OsStatusSuccess, status);
+        ASSERT_EQ(name, "file1.txt");
+
+        status = handle->next(&name);
+        ASSERT_EQ(OsStatusSuccess, status);
+        ASSERT_EQ(name, "file2.txt");
+
+        status = handle->next(&name);
+        ASSERT_EQ(OsStatusSuccess, status);
+        ASSERT_EQ(name, "file3.txt");
+
+        status = handle->next(&name);
+        ASSERT_EQ(OsStatusEndOfFile, status);
+    }
+}

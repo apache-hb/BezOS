@@ -64,10 +64,12 @@ OsStatus SystemObjects::destroyProcess(Process *process) {
     if (auto it = mProcesses.find(ProcessId(process->internalId())); it == mProcesses.end()) {
         return OsStatusNotFound;
     } else {
-        mProcesses.erase(it);
-        delete process;
-        return OsStatusSuccess;
+        if (releaseHandle(process)) {
+            mProcesses.erase(it);
+        }
     }
+
+    return OsStatusSuccess;
 }
 
 Process *SystemObjects::getProcess(ProcessId id) {
@@ -120,4 +122,13 @@ Mutex *SystemObjects::getMutex(MutexId id) {
     }
 
     return nullptr;
+}
+
+bool SystemObjects::releaseHandle(KernelObject *handle) {
+    if (handle->releaseStrong()) {
+        delete handle;
+        return true;
+    }
+
+    return false;
 }

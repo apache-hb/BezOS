@@ -217,57 +217,11 @@ OsStatus VfsRoot::remove(IVfsNode *node) {
 }
 
 OsStatus VfsRoot::open(const VfsPath& path, IVfsNodeHandle **handle) {
-    stdx::UniqueLock guard(mLock);
-
-    IVfsNode *parent = nullptr;
-    if (OsStatus status = walk(path, &parent)) {
-        return status;
-    }
-
-    IVfsNode *file = nullptr;
-    if (OsStatus status = parent->lookup(path.name(), &file)) {
-        return status;
-    }
-
-    //
-    // open can only be used to open files, if the inode
-    // is not a file then we must return an error.
-    //
-
-    if (!file->isA(kOsFileGuid)) {
-        return OsStatusInvalidType;
-    }
-
-    return file->open(handle);
+    return device(path, kOsFileGuid, handle);
 }
 
 OsStatus VfsRoot::opendir(const VfsPath& path, IVfsNodeHandle **handle) {
-    stdx::UniqueLock guard(mLock);
-
-    if (path.segmentCount() == 0) {
-        return mRootNode->opendir(handle);
-    }
-
-    IVfsNode *parent = nullptr;
-    if (OsStatus status = walk(path, &parent)) {
-        return status;
-    }
-
-    IVfsNode *folder = nullptr;
-    if (OsStatus status = parent->lookup(path.name(), &folder)) {
-        return status;
-    }
-
-    //
-    // open can only be used to open folders, if the inode
-    // is not a folder then we must return an error.
-    //
-
-    if (!folder->isA(kOsFolderGuid)) {
-        return OsStatusInvalidType;
-    }
-
-    return folder->opendir(handle);
+    return device(path, kOsFolderGuid, handle);
 }
 
 OsStatus VfsRoot::mkdir(const VfsPath& path, IVfsNode **node) {

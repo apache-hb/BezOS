@@ -3,26 +3,30 @@
 #include "process/process.hpp"
 #include "process/system.hpp"
 
+#include "fs2/vfs.hpp"
+
 #include "test/test_memory.hpp"
 
 TEST(ProcessTest, Construct) {
+    vfs2::VfsRoot vfs;
     SystemMemoryTestBody body;
     body.addSegment(0x100000, boot::MemoryRegion::eUsable);
     body.addSegment(0x100000, boot::MemoryRegion::eUsable);
 
     auto memory = body.make();
 
-    km::SystemObjects objects { &memory };
+    km::SystemObjects objects { &memory, &vfs };
 }
 
 TEST(ProcessTest, CreateProcess) {
+    vfs2::VfsRoot vfs;
     SystemMemoryTestBody body;
     auto s0 = body.addSegment(0x100000, boot::MemoryRegion::eUsable);
     body.addSegment(0x100000, boot::MemoryRegion::eUsable);
 
     auto memory = body.make(0x10000 * 16);
 
-    km::SystemObjects objects { &memory };
+    km::SystemObjects objects { &memory, &vfs };
 
     km::Process *process = nullptr;
     {

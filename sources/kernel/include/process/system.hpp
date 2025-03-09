@@ -2,10 +2,15 @@
 
 #include "process/process.hpp"
 
+namespace vfs2 {
+    class VfsRoot;
+}
+
 namespace km {
     class SystemObjects {
         stdx::SharedSpinLock mLock;
         SystemMemory *mMemory = nullptr;
+        vfs2::VfsRoot *mVfs = nullptr;
 
         IdAllocator<ThreadId> mThreadIds;
         IdAllocator<AddressSpaceId> mAddressSpaceIds;
@@ -19,9 +24,12 @@ namespace km {
         sm::FlatHashMap<MutexId, Mutex*> mMutexes;
         sm::FlatHashMap<DeviceId, VNode*> mNodes;
 
+        bool releaseHandle(KernelObject *object);
+
     public:
-        SystemObjects(SystemMemory *memory)
+        SystemObjects(SystemMemory *memory, vfs2::VfsRoot *vfs)
             : mMemory(memory)
+            , mVfs(vfs)
         { }
 
         OsStatus createProcess(stdx::String name, x64::Privilege privilege, MemoryRange pteMemory, Process **process);

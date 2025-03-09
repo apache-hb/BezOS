@@ -58,3 +58,24 @@ vfs2::IVfsNodeHandle *Process::findFile(const vfs2::IVfsNodeHandle *ptr) {
 
     return nullptr;
 }
+
+void Process::addHandle(KernelObject *object) {
+    handles.insert({ object->publicId(), object });
+}
+
+KernelObject *Process::findHandle(OsHandle id) {
+    if (auto it = handles.find(id); it != handles.end()) {
+        return it->second;
+    }
+
+    return nullptr;
+}
+
+OsStatus Process::removeHandle(OsHandle id) {
+    if (auto it = handles.find(id); it != handles.end()) {
+        handles.erase(it);
+        return OsStatusSuccess;
+    }
+
+    return OsStatusNotFound;
+}

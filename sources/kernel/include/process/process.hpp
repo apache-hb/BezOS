@@ -51,7 +51,12 @@ namespace km {
         stdx::String mName;
         stdx::SpinLock mMonitor;
 
+        uint32_t mStrongCount = 1;
+        uint32_t mWeakCount = 1;
+
     public:
+        virtual ~KernelObject() = default;
+
         KernelObject() = default;
 
         KernelObject(OsHandle id, stdx::String name)
@@ -59,16 +64,19 @@ namespace km {
             , mName(std::move(name))
         { }
 
-        void initHeader(OsHandle id, OsHandleType type, stdx::String name) {
-            mId = OS_HANDLE_NEW(type, id);
-            mName = std::move(name);
-        }
+        void initHeader(OsHandle id, OsHandleType type, stdx::String name);
 
         OsHandle publicId() const { return mId; }
         OsHandleType handleType() const { return OS_HANDLE_TYPE(mId); }
         OsHandle internalId() const { return OS_HANDLE_ID(mId); }
 
         stdx::StringView name() const { return mName; }
+
+        bool retainStrong();
+        void retainWeak();
+
+        bool releaseStrong();
+        bool releaseWeak();
     };
 
     struct Thread : public KernelObject {
@@ -113,6 +121,7 @@ namespace km {
         stdx::Vector2<Thread*> threads;
         stdx::Vector2<AddressSpace*> memory;
         sm::FlatHashSet<std::unique_ptr<vfs2::IVfsNodeHandle>> files;
+        sm::FlatHashMap<OsHandle, KernelObject*> handles;
         OsProcessState state = { eOsProcessRunning };
 
         void init(ProcessId id, stdx::String name, x64::Privilege protection, SystemPageTables *kernel, AddressMapping pteMemory, VirtualRange processArea);
@@ -125,6 +134,10 @@ namespace km {
         vfs2::IVfsNodeHandle *addFile(std::unique_ptr<vfs2::IVfsNodeHandle> handle);
         OsStatus closeFile(vfs2::IVfsNodeHandle *ptr);
         vfs2::IVfsNodeHandle *findFile(const vfs2::IVfsNodeHandle *ptr);
+
+        void addHandle(KernelObject *object);
+        KernelObject *findHandle(OsHandle id);
+        OsStatus removeHandle(OsHandle id);
     };
 
     struct Mutex : public KernelObject {
@@ -138,7 +151,7 @@ namespace km {
     };
 
     struct VNode : public KernelObject {
-        vfs2::IVfsNodeHandle *node;
+        std::unique_ptr<vfs2::IVfsNodeHandle> node;
     };
 
     struct ProcessLaunch {

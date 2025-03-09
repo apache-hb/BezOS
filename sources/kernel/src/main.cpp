@@ -1575,7 +1575,7 @@ static void StartupSmp(const acpi::AcpiTables& rsdt) {
     // the AP cores have a scheduler to attach to.
     //
     gScheduler = new Scheduler();
-    gSystemObjects = new SystemObjects(gMemory);
+    gSystemObjects = new SystemObjects(gMemory, gVfsRoot);
 
     std::atomic_flag launchScheduler = ATOMIC_FLAG_INIT;
 
