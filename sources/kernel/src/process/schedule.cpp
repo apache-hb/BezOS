@@ -40,10 +40,7 @@ km::Scheduler::Scheduler()
     : mQueue()
 { }
 
-// TODO: remove these interrupt guards when i figure out how to write an allocator
-// thats reentrant and doesn't deadlock
-
-void km::Scheduler::addWorkItem(Thread * thread) {
+void km::Scheduler::addWorkItem(Thread *thread) {
     if (thread) {
         bool ok = mQueue.enqueue(thread);
         KM_CHECK(ok, "Failed to add work item to scheduler.");

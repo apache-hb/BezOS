@@ -297,7 +297,10 @@ namespace stdx {
 
         constexpr Vector2& operator=(Vector2&& other) {
             if (this != &other) {
-                std::swap(*this, other);
+                mAllocator = std::exchange(other.mAllocator, Allocator{});
+                mFront = std::exchange(other.mFront, nullptr);
+                mBack = std::exchange(other.mBack, nullptr);
+                mCapacity = std::exchange(other.mCapacity, nullptr);
             }
 
             return *this;
