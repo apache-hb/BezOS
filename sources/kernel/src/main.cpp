@@ -1192,6 +1192,7 @@ static void AddDeviceSystemCalls() {
     AddSystemCall(eOsCallDeviceRead, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t userHandle = regs->arg0;
         uint64_t userRequest = regs->arg1;
+        Process *process = context->process();
 
         OsDeviceReadRequest request{};
         if (OsStatus status = context->readObject(userRequest, &request)) {
@@ -1202,7 +1203,7 @@ static void AddDeviceSystemCalls() {
             return CallError(OsStatusInvalidInput);
         }
 
-        vfs2::IVfsNodeHandle *handle = context->process()->findFile((const vfs2::IVfsNodeHandle*)userHandle);
+        vfs2::IVfsNodeHandle *handle = process->findFile((const vfs2::IVfsNodeHandle*)userHandle);
         if (handle == nullptr) {
             return CallError(OsStatusInvalidHandle);
         }
@@ -1223,6 +1224,7 @@ static void AddDeviceSystemCalls() {
     AddSystemCall(eOsCallDeviceWrite, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t userHandle = regs->arg0;
         uint64_t userRequest = regs->arg1;
+        Process *process = context->process();
 
         OsDeviceReadRequest request{};
         if (OsStatus status = context->readObject(userRequest, &request)) {
@@ -1233,7 +1235,7 @@ static void AddDeviceSystemCalls() {
             return CallError(OsStatusInvalidInput);
         }
 
-        vfs2::IVfsNodeHandle *handle = context->process()->findFile((const vfs2::IVfsNodeHandle*)userHandle);
+        vfs2::IVfsNodeHandle *handle = process->findFile((const vfs2::IVfsNodeHandle*)userHandle);
         if (handle == nullptr) {
             return CallError(OsStatusInvalidHandle);
         }
