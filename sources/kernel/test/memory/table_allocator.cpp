@@ -341,29 +341,3 @@ TEST(TableAllocateTest, Defragment) {
     ptr = detail::AllocateBlock(allocator, count);
     IsValidPtr(ptr);
 }
-
-TEST(TableAllocateTest, ThreadSafe) {
-    size_t count = 256;
-    size_t size = x64::kPageSize * count;
-    TestMemory memory = GetAllocatorMemory(size);
-    PageTableAllocator allocator { VirtualRange::of(memory.get(), kSize) };
-
-    std::vector<std::jthread> threads;
-    for (size_t i = 0; i < 10; i++) {
-        threads.emplace_back([&allocator, i] {
-            std::mt19937 gen { i };
-            std::uniform_int_distribution<size_t> dist { 1, 4 };
-            for (size_t i = 0; i < 25; i++) {
-                size_t size = dist(gen);
-                void *ptr = allocator.allocate(size);
-                if (ptr != nullptr) {
-                    allocator.deallocate(ptr, size);
-                }
-            }
-        });
-    }
-
-    threads.clear();
-
-    ASSERT_TRUE(true) << "No crashes";
-}

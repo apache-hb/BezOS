@@ -144,8 +144,6 @@ size_t PageTables::maxPagesForMapping(VirtualRange range) const {
 #endif
 
 void PageTables::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableBuffer& buffer) {
-    stdx::LockGuard guard(mLock);
-
     if (!mPageManager->isCanonicalAddress(vaddr)) {
         KmDebugMessage("Attempting to map address that isn't canonical: ", vaddr, "\n");
         KM_PANIC("Invalid memory mapping.");
@@ -172,8 +170,6 @@ void PageTables::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags
 }
 
 void PageTables::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableBuffer& buffer) {
-    stdx::LockGuard guard(mLock);
-
     if (!mPageManager->isCanonicalAddress(vaddr)) {
         KmDebugMessage("Attempting to map address that isn't canonical: ", vaddr, "\n");
         KM_PANIC("Invalid memory mapping.");
@@ -197,8 +193,6 @@ void PageTables::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags
 }
 
 void PageTables::map1g(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableBuffer& buffer) {
-    stdx::LockGuard guard(mLock);
-
     auto [pml4e, pdpte, _, _] = GetAddressParts(vaddr);
 
     x64::PageMapLevel4 *l4 = pml4();
@@ -221,8 +215,6 @@ size_t PageTables::maxPagesForMapping(VirtualRange range) const {
 
 size_t PageTables::countPagesForMapping(VirtualRange range) {
     size_t count = 0;
-
-    stdx::LockGuard guard(mLock);
 
     //
     // Walks page tables to figure out how many tables would need to be allocated
@@ -318,6 +310,8 @@ OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType typ
         KmDebugMessage("[MEM] Invalid mapping request ", mapping, "\n");
         return OsStatusInvalidInput;
     }
+
+    stdx::LockGuard guard(mLock);
 
     //
     // Pre-allocate enough page tables to fullfill the request.

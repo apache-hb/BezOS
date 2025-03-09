@@ -2,7 +2,6 @@
 
 #include "arch/paging.hpp"
 #include "memory/range.hpp"
-#include "std/spinlock.hpp"
 
 namespace km {
     class PageTableAllocator;
@@ -43,8 +42,6 @@ namespace km {
     ///
     /// An allocator for page tables that allows partially freeing larger allocations.
     class PageTableAllocator {
-        stdx::SpinLock mLock;
-
         VirtualRange mMemory;
         detail::ControlBlock *mHead;
 

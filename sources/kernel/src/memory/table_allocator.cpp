@@ -179,7 +179,6 @@ km::PageTableAllocator::PageTableAllocator(VirtualRange memory)
 }
 
 void *km::PageTableAllocator::allocate(size_t blocks) {
-    stdx::LockGuard guard(mLock);
     if (void *result = detail::AllocateBlock(*this, blocks)) {
         return result;
     }
@@ -195,8 +194,6 @@ void km::PageTableAllocator::deallocate(void *ptr, size_t blocks) {
     if (ptr == nullptr || blocks == 0) {
         return;
     }
-
-    stdx::LockGuard guard(mLock);
 
     if (mHead)
         KM_CHECK(mHead->prev == nullptr, "Invalid head block.");
@@ -239,6 +236,5 @@ void km::PageTableAllocator::defragmentUnlocked() {
 }
 
 void km::PageTableAllocator::defragment() {
-    stdx::LockGuard guard(mLock);
     defragmentUnlocked();
 }
