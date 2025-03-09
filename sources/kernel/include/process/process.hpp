@@ -95,6 +95,12 @@ namespace km {
         uint64_t tlsAddress = 0;
         AddressSpace *stack;
         AddressMapping kernelStack;
+        OsThreadState threadState = eOsThreadRunning;
+
+        OsStatus waitOnHandle(KernelObject *object, OsInstant timeout);
+        bool isComplete() const {
+            return threadState != eOsThreadFinished;
+        }
 
         void *getSyscallStack() const {
             return (void*)((uintptr_t)kernelStack.vaddr + kernelStack.size - x64::kPageSize);
@@ -120,7 +126,6 @@ namespace km {
         x64::Privilege privilege;
         stdx::SharedSpinLock lock;
         ProcessPageTables ptes;
-        stdx::Vector2<Thread*> threads;
         stdx::Vector2<AddressSpace*> memory;
         sm::FlatHashSet<std::unique_ptr<vfs2::IVfsNodeHandle>> files;
         sm::FlatHashMap<OsHandle, KernelObject*> handles;
@@ -130,7 +135,6 @@ namespace km {
 
         bool isComplete() const;
 
-        void addThread(Thread *thread);
         void addAddressSpace(AddressSpace *addressSpace);
 
         vfs2::IVfsNodeHandle *addFile(std::unique_ptr<vfs2::IVfsNodeHandle> handle);

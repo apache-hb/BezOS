@@ -49,7 +49,7 @@ static bool DeviceExists(OsPath path, OsGuid guid) {
     OsDeviceCreateInfo createInfo {
         .Path = path,
         .InterfaceGuid = guid,
-        .Flags = eOsDeviceOpenAlways,
+        .Flags = eOsDeviceOpenDefault,
     };
 
     OsDeviceHandle handle = OS_HANDLE_INVALID;

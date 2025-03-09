@@ -52,5 +52,7 @@ namespace km {
 
         AddressSpace *getAddressSpace(AddressSpaceId id);
         Mutex *getMutex(MutexId id);
+
+        KernelObject *getHandle(OsHandle id);
     };
 }

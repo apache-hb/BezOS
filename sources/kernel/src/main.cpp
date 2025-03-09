@@ -979,11 +979,21 @@ static OsStatus UserReadPath(CallContext *context, OsPath user, vfs2::VfsPath *p
 }
 
 static void AddHandleSystemCalls() {
-    AddSystemCall(eOsCallHandleWait, [](CallContext *, SystemCallRegisterSet *) -> OsCallResult {
-        // uint64_t userHandle = regs->arg0;
-        // uint64_t userTimeout = regs->arg1;
+    AddSystemCall(eOsCallHandleWait, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        uint64_t userHandle = regs->arg0;
+        uint64_t userTimeout = regs->arg1;
+        Thread *thread = context->thread();
 
-        return CallError(OsStatusNotSupported);
+        KernelObject *object = gSystemObjects->getHandle(userHandle);
+        if (object == nullptr) {
+            return CallError(OsStatusInvalidHandle);
+        }
+
+        if (OsStatus status = thread->waitOnHandle(object, userTimeout)) {
+            return CallError(status);
+        }
+
+        return CallOk(0zu);
     });
 }
 

@@ -137,7 +137,6 @@ OsStatus SystemObjects::createThread(stdx::String name, Process *process, Thread
 
     Thread *ptr = result.release();
 
-    process->addThread(ptr);
     process->addHandle(ptr);
 
     mThreads.insert({id, ptr});
@@ -206,4 +205,23 @@ void SystemObjects::destroyHandle(KernelObject *object) {
     }
 
     delete object;
+}
+
+KernelObject *SystemObjects::getHandle(OsHandle id) {
+    // TODO: this is stupid, use generic handle lookup
+
+    switch (OS_HANDLE_TYPE(id)) {
+    case eOsHandleProcess:
+        return getProcess(ProcessId(OS_HANDLE_ID(id)));
+    case eOsHandleThread:
+        return getThread(ThreadId(OS_HANDLE_ID(id)));
+    case eOsHandleDevice:
+        return getVNode(VNodeId(OS_HANDLE_ID(id)));
+    case eOsHandleMutex:
+        return getMutex(MutexId(OS_HANDLE_ID(id)));
+    case eOsHandleAddressSpace:
+        return getAddressSpace(AddressSpaceId(OS_HANDLE_ID(id)));
+    default:
+        return nullptr;
+    }
 }

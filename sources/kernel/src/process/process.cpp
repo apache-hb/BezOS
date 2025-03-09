@@ -1,5 +1,6 @@
 #include "process/process.hpp"
 
+#include "process/schedule.hpp"
 #include "util/defer.hpp"
 
 using namespace km;
@@ -13,11 +14,6 @@ void Process::init(ProcessId id, stdx::String name, x64::Privilege protection, S
 bool Process::isComplete() const {
     auto status = OS_PROCESS_STATUS(state.Status);
     return status != eOsProcessRunning && status != eOsProcessSuspended;
-}
-
-void Process::addThread(Thread *thread) {
-    stdx::UniqueLock guard(lock);
-    threads.add(thread);
 }
 
 void Process::addAddressSpace(AddressSpace *addressSpace) {
@@ -84,6 +80,27 @@ void Thread::init(ThreadId id, stdx::String name, Process *process, AddressMappi
     initHeader(std::to_underlying(id), eOsHandleThread, std::move(name));
     this->process = process;
     this->kernelStack = kernelStack;
+}
+
+OsStatus Thread::waitOnHandle(KernelObject *object, OsInstant _) {
+    // TODO: timeout
+    if (object->handleType() == eOsHandleProcess) {
+        Process *process = static_cast<Process*>(object);
+        while (!process->isComplete()) {
+            YieldCurrentThread();
+        }
+
+        return OsStatusSuccess;
+    } else if (object->handleType() == eOsHandleThread) {
+        Thread *thread = static_cast<Thread*>(object);
+        while (!thread->isComplete()) {
+            YieldCurrentThread();
+        }
+
+        return OsStatusSuccess;
+    } else {
+        return OsStatusInvalidHandle;
+    }
 }
 
 void VNode::init(VNodeId id, stdx::String name, std::unique_ptr<vfs2::IVfsNodeHandle> handle) {
