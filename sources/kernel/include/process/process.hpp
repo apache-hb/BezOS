@@ -21,7 +21,7 @@ namespace km {
     enum class AddressSpaceId : OsAddressSpaceHandle { };
     enum class ProcessId : OsProcessHandle { };
     enum class MutexId : OsMutexHandle { };
-    enum class DeviceId : OsDeviceHandle { };
+    enum class VNodeId : OsDeviceHandle { };
 
     template<typename T>
     class IdAllocator {
@@ -154,6 +154,8 @@ namespace km {
 
     struct VNode : public KernelObject {
         std::unique_ptr<vfs2::IVfsNodeHandle> node;
+
+        void init(VNodeId id, stdx::String name, std::unique_ptr<vfs2::IVfsNodeHandle> node);
     };
 
     struct ProcessLaunch {

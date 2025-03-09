@@ -1,9 +1,55 @@
 #include "process/system.hpp"
 
+#include "fs2/vfs.hpp"
+
 #include "kernel.hpp"
 #include "log.hpp"
 
 using namespace km;
+
+OsStatus SystemObjects::createVNode(const vfs2::VfsPath &path, Process *process, VNode **node) {
+    std::unique_ptr<VNode> result { new (std::nothrow) VNode };
+    if (result == nullptr) {
+        return OsStatusOutOfMemory;
+    }
+
+    if (OsStatus status = mVfs->open(path, std::out_ptr(result->node))) {
+        return status;
+    }
+
+    VNodeId id = mDeviceIds.allocate();
+
+    result->init(id, stdx::String(path.name()), std::move(result->node));
+
+    VNode *ptr = result.release();
+
+    stdx::UniqueLock guard(mLock);
+    process->addHandle(ptr);
+    mNodes.insert({id, ptr});
+    *node = ptr;
+
+    return OsStatusSuccess;
+}
+
+OsStatus SystemObjects::destroyVNode(Process *process, VNode *node) {
+    stdx::UniqueLock guard(mLock);
+
+    OsHandle vnodeId = node->publicId();
+    if (releaseHandle(node)) {
+        process->removeHandle(vnodeId);
+    }
+
+    return OsStatusSuccess;
+}
+
+VNode *SystemObjects::getVNode(VNodeId id) {
+    stdx::SharedLock guard(mLock);
+    if (auto it = mNodes.find(id); it != mNodes.end()) {
+        return it->second;
+    }
+
+    return nullptr;
+}
 
 Thread *SystemObjects::createThread(stdx::String name, Process *process) {
     Thread *result = nullptr;
@@ -155,6 +201,8 @@ void SystemObjects::destroyHandle(KernelObject *object) {
         mProcesses.erase(ProcessId(object->internalId()));
     } else if (object->handleType() == eOsHandleThread) {
         mThreads.erase(ThreadId(object->internalId()));
+    } else if (object->handleType() == eOsHandleDevice) {
+        mNodes.erase(VNodeId(object->internalId()));
     }
 
     delete object;

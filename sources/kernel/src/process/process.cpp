@@ -85,3 +85,8 @@ void Thread::init(ThreadId id, stdx::String name, Process *process, AddressMappi
     this->process = process;
     this->kernelStack = kernelStack;
 }
+
+void VNode::init(VNodeId id, stdx::String name, std::unique_ptr<vfs2::IVfsNodeHandle> handle) {
+    initHeader(std::to_underlying(id), eOsHandleDevice, std::move(name));
+    node = std::move(handle);
+}
