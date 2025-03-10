@@ -48,6 +48,10 @@ namespace km {
         uint32_t l1ecx;
         uint32_t l1edx;
 
+        uint32_t l7ebx;
+        uint32_t l7ecx;
+        uint32_t l7edx;
+
         bool lapic() const { return l1edx & (1 << 9); }
         bool fxsave() const { return l1edx & (1 << 24); }
         bool sse() const { return l1edx & (1 << 25); }
@@ -68,6 +72,11 @@ namespace km {
         bool f16c() const { return l1ecx & (1 << 29); }
         bool rdrand() const { return l1ecx & (1 << 30); }
         bool hypervisor() const { return l1ecx & (1 << 31); }
+
+        bool avx2() const { return l7ebx & (1 << 5); }
+        bool avx512f() const { return l7ebx & (1 << 16); }
+        bool la57() const { return l7ecx & (1 << 16); }
+        bool umip() const { return l7ecx & (1 << 2); }
 
         bool hasNominalFrequency() const {
             return busClock != (0 * si::hertz);

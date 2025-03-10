@@ -84,6 +84,11 @@ km::ProcessorInfo km::GetProcessorInfo() {
         invariantTsc = timer.eax & (1 << 2);
     }
 
+    CpuId leaf7{};
+    if (maxleaf >= 0x7) {
+        leaf7 = CpuId::of(0x7);
+    }
+
     CoreMultiplier coreClock = { 0, 0 };
     uint32_t busClock = 0;
     uint16_t baseFrequency = 0;
@@ -120,6 +125,10 @@ km::ProcessorInfo km::GetProcessorInfo() {
 
         .l1ecx = cpuid.ecx,
         .l1edx = cpuid.edx,
+
+        .l7ebx = leaf7.ebx,
+        .l7ecx = leaf7.ecx,
+        .l7edx = leaf7.edx,
 
         .baseFrequency = baseFrequency * si::megahertz,
         .maxFrequency = maxFrequency * si::megahertz,

@@ -793,7 +793,7 @@ static void NormalizeProcessorState() {
     x64::Cr0 cr0 = x64::Cr0::of(x64::Cr0::PG | x64::Cr0::WP | x64::Cr0::NE | x64::Cr0::ET | x64::Cr0::PE);
     x64::Cr0::store(cr0);
 
-    x64::Cr4 cr4 = x64::Cr4::of(x64::Cr4::PAE | x64::Cr4::UMIP);
+    x64::Cr4 cr4 = x64::Cr4::of(x64::Cr4::PAE);
     x64::Cr4::store(cr4);
 
     // Enable NXE bit
@@ -1837,6 +1837,13 @@ void LaunchKernel(boot::LaunchInfo launch) {
     auto [hvInfo, hasDebugPort] = QueryHostHypervisor();
 
     ProcessorInfo processor = GetProcessorInfo();
+
+    if (processor.umip()) {
+        x64::Cr4 cr4 = x64::Cr4::load();
+        cr4.set(x64::Cr4::UMIP);
+        x64::Cr4::store(cr4);
+    }
+
     InitPortDelay(hvInfo);
 
     ComPortInfo com2Info = {
