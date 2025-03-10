@@ -19,11 +19,29 @@ namespace km {
         bool platformHasDebugPort() const;
     };
 
-    std::optional<HypervisorInfo> KmGetHypervisorInfo();
+    std::optional<HypervisorInfo> GetHypervisorInfo();
 
     struct CoreMultiplier {
         uint32_t tsc;
         uint32_t core;
+    };
+
+    enum class XSaveFeature {
+        FP = 0,
+        SSE = 1,
+
+        YMM = 2,
+        BNDREGS = 3,
+        BNDCSR = 4,
+        OPMASK = 5,
+        ZMM_HI256 = 6,
+        HI16_ZMM = 7,
+        PKRU = 9,
+        PASID = 10,
+        CET = 11,
+        LBR = 15,
+        XTILECFG = 17,
+        XTILEDATA = 18,
     };
 
     using VendorString = stdx::StaticString<12>;
@@ -45,6 +63,12 @@ namespace km {
 
         CoreMultiplier coreClock;
         uint32_t busClock; // in hz
+
+        bool xsave;
+        bool xsaveopt;
+        bool xsavec;
+        bool xsaves;
+        bool xgetbvext;
 
         bool hasNominalFrequency() const {
             return busClock != 0;

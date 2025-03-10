@@ -31,7 +31,7 @@ bool km::HypervisorInfo::platformHasDebugPort() const {
     return isQemu() || isKvm();
 }
 
-std::optional<km::HypervisorInfo> km::KmGetHypervisorInfo() {
+std::optional<km::HypervisorInfo> km::GetHypervisorInfo() {
     if (!IsHypervisorPresent()) {
         return std::nullopt;
     }
@@ -69,6 +69,7 @@ km::ProcessorInfo km::GetProcessorInfo() {
     bool isLocalApicPresent = cpuid.edx & (1 << 9);
     bool is2xApicPresent = cpuid.ecx & (1 << 21);
     bool apicTscDeadline = cpuid.ecx & (1 << 24);
+    bool xsave = cpuid.ecx & (1 << 26);
 
     CpuId ext = CpuId::of(0x80000000);
     BrandString brand = ext.eax < 0x80000004 ? "" : GetBrandString();
@@ -85,6 +86,19 @@ km::ProcessorInfo km::GetProcessorInfo() {
     if (maxleaf >= 0x6) {
         CpuId timer = CpuId::of(0x6);
         invariantTsc = timer.eax & (1 << 2);
+    }
+
+    bool xsaveopt = false;
+    bool xsavec = false;
+    bool xsaves = false;
+    bool xgetbvext = false;
+
+    if (maxleaf >= 0xD) {
+        CpuId xscpuid = CpuId::count(0xD, 1);
+        xsaveopt = xscpuid.eax & (1 << 0);
+        xsavec = xscpuid.eax & (1 << 1);
+        xgetbvext = xscpuid.eax & (1 << 2);
+        xsaves = xscpuid.eax & (1 << 3);
     }
 
     CoreMultiplier coreClock = { 0, 0 };
@@ -123,8 +137,15 @@ km::ProcessorInfo km::GetProcessorInfo() {
         .invariantTsc = invariantTsc,
         .coreClock = coreClock,
         .busClock = busClock,
+
+        .xsave = xsave,
+        .xsaveopt = xsaveopt,
+        .xsavec = xsavec,
+        .xsaves = xsaves,
+        .xgetbvext = xgetbvext,
+
         .baseFrequency = baseFrequency,
         .maxFrequency = maxFrequency,
-        .busFrequency = busFrequency
+        .busFrequency = busFrequency,
     };
 }

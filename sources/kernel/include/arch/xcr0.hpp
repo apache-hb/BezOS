@@ -19,10 +19,14 @@ namespace x64 {
             FPU = (1 << 0),
             SSE = (1 << 1),
             AVX = (1 << 2),
-            MPX = (0b11 << 3),
-            AVX512 = (0b111 << 5),
+            BNDREG = (1 << 3),
+            BNDCSR = (1 << 4),
+            OPMASK = (1 << 5),
+            ZMM_HI256 = (1 << 6),
+            HI16_ZMM = (1 << 7),
             PKRU = (1 << 9),
-            AMX = (0b11 << 17),
+            TILECONFIG = (1 << 17),
+            TILEDATA = (1 << 18),
         };
 
         constexpr xcr0_t value() const { return mValue; }

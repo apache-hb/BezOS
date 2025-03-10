@@ -956,7 +956,7 @@ static OsStatus LaunchInitProcess(ProcessLaunch *launch) {
 }
 
 static std::tuple<std::optional<HypervisorInfo>, bool> QueryHostHypervisor() {
-    std::optional<HypervisorInfo> hvInfo = KmGetHypervisorInfo();
+    std::optional<HypervisorInfo> hvInfo = GetHypervisorInfo();
     bool hasDebugPort = false;
 
     if (hvInfo.transform([](const HypervisorInfo& info) { return info.platformHasDebugPort(); }).value_or(false)) {

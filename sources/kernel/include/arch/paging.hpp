@@ -168,7 +168,8 @@ namespace x64 {
         uint8_t data[kPageSize];
     };
 
-    static inline __DEFAULT_FN_ATTRS void invlpg([[maybe_unused]] uintptr_t address) {
+    [[gnu::always_inline, gnu::nodebug]]
+    static inline void invlpg([[maybe_unused]] uintptr_t address) {
 #if __STDC_HOSTED__ == 0
         asm volatile("invlpg (%0)" : : "r"(address) : "memory");
 #endif
