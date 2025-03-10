@@ -15,6 +15,10 @@ BZP_API_BEGIN
 #define _SC_PAGESIZE 0x100
 #define _SC_OPEN_MAX 0x101
 
+#define STDIN_FILENO 0
+#define STDOUT_FILENO 1
+#define STDERR_FILENO 2
+
 BZP_NORETURN
 extern void _exit(int) BZP_NOEXCEPT;
 

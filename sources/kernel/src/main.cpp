@@ -758,6 +758,12 @@ static void SetupInterruptStacks(uint16_t cs) {
 }
 
 static void InitStage1Idt(uint16_t cs) {
+    //
+    // Disable the PIC before enabling interrupts otherwise we
+    // get flooded by timer interrupts.
+    //
+    Disable8259Pic();
+
     InitInterrupts(cs);
     InstallExceptionHandlers(GetSharedIsrTable());
     SetupInterruptStacks(cs);
@@ -1798,6 +1804,24 @@ static void LaunchKernelProcess(LocalIsrTable *table, IApic *apic) {
     ScheduleWork(table, apic);
 }
 
+static void InitVfs(const km::SmBiosTables *smbios, const acpi::AcpiTables *acpi, MemoryRange initrd) {
+    MountRootVfs();
+    CreatePlatformVfsNodes(smbios, acpi);
+    MountVolatileFolder();
+    MountInitArchive(initrd, *GetSystemMemory());
+}
+
+static void InitUserApi() {
+    AddHandleSystemCalls();
+    AddDebugSystemCalls();
+    AddVfsSystemCalls();
+    AddDeviceSystemCalls();
+    AddThreadSystemCalls();
+    AddVmemSystemCalls();
+    AddMutexSystemCalls();
+    AddProcessSystemCalls();
+}
+
 void LaunchKernel(boot::LaunchInfo launch) {
     NormalizeProcessorState();
     SetDebugLogLock(DebugLogLockType::eNone);
@@ -1834,12 +1858,6 @@ void LaunchKernel(boot::LaunchInfo launch) {
     //
     Stage2MemoryInfo *stage2 = InitStage2Memory(launch, processor);
     gMemory = stage2->memory;
-
-    //
-    // Disable the PIC before enabling interrupts otherwise we
-    // get flooded by timer interrupts.
-    //
-    Disable8259Pic();
 
     InitStage1Idt(SystemGdt::eLongModeCode);
     EnableInterrupts();
@@ -1925,19 +1943,8 @@ void LaunchKernel(boot::LaunchInfo launch) {
     DateTime time = ReadCmosClock();
     KmDebugMessage("[INIT] Current time: ", time.year, "-", time.month, "-", time.day, "T", time.hour, ":", time.minute, ":", time.second, "Z\n");
 
-    MountRootVfs();
-    CreatePlatformVfsNodes(&smbios, &rsdt);
-    MountVolatileFolder();
-    MountInitArchive(launch.initrd, *stage2->memory);
-
-    AddHandleSystemCalls();
-    AddDebugSystemCalls();
-    AddVfsSystemCalls();
-    AddDeviceSystemCalls();
-    AddThreadSystemCalls();
-    AddVmemSystemCalls();
-    AddMutexSystemCalls();
-    AddProcessSystemCalls();
+    InitVfs(&smbios, &rsdt, launch.initrd);
+    InitUserApi();
 
     CreateNotificationQueue();
 

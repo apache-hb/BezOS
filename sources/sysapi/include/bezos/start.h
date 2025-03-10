@@ -10,6 +10,7 @@ struct OsClientStartInfo {
     const char *ArgumentsFront;
     const char *ArgumentsBack;
 
+    OsProcessHandle ThisProcess;
     OsProcessHandle ParentProcess;
 };
 
