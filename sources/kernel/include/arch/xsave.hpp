@@ -4,18 +4,56 @@
 #include <xmmintrin.h>
 #include <immintrin.h>
 
+#include "arch/msr.hpp"
 #include "util/util.hpp"
 
+#include <concepts>
+
+static constexpr x64::RwModelRegister<0x00000DA0> IA32_XSS;
+
 namespace x64 {
-    enum class XSaveMask : uint64_t {
-        FPU = (1 << 0),
-        SSE = (1 << 1),
-        AVX = (1 << 2),
-        MPX = (0b11 << 3),
-        AVX512 = (0b111 << 5),
-        PKRU = (1 << 9),
-        AMX = (0b11 << 17),
+    /// @brief XSAVE feature mask.
+    ///
+    /// Specified in Intel SDM Vol 1, Chapter 13.1.
+    enum XSaveFeature {
+        FPU = 0,
+        SSE = 1,
+        AVX = 2,
+
+        BNDREGS = 3,
+        BNDCSR = 4,
+
+        OPMASK = 5,
+        ZMM_HI256 = 6,
+        HI16_ZMM = 7,
+
+        PT = 8,
+        PKRU = 9,
+        PASID = 10,
+
+        CET_U = 11,
+        CET_S = 12,
+
+        HDC = 13,
+        UINTR = 14,
+        LBR = 15,
+        HWP = 16,
+
+        TILECFG = 17,
+        TILEDATA = 18,
+
+        eSaveCount = 19
     };
+
+    template<typename... A> requires (std::same_as<A, XSaveFeature> && ...)
+    static constexpr uint64_t XSaveMask(A&&... args) {
+        return ((UINT64_C(1) << std::to_underlying(args)) | ...);
+    }
+
+    static constexpr uint64_t kSaveMpx = XSaveMask(BNDREGS, BNDCSR);
+    static constexpr uint64_t kSaveAvx512 = XSaveMask(OPMASK, ZMM_HI256, HI16_ZMM);
+    static constexpr uint64_t kSaveCet = XSaveMask(CET_U, CET_S);
+    static constexpr uint64_t kSaveAmx = XSaveMask(TILECFG, TILEDATA);
 
     struct [[gnu::packed]] FpuRegister {
         uint8_t reg[10];
@@ -64,4 +102,4 @@ static inline void __xrstor(x64::FxSave *buffer, uint64_t mask) {
     _xrstor64(buffer, mask);
 }
 
-UTIL_BITFLAGS(x64::XSaveMask);
+UTIL_BITFLAGS(x64::XSaveFeature);

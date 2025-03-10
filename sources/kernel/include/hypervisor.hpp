@@ -48,6 +48,13 @@ namespace km {
         CoreMultiplier coreClock;
         mp::quantity<si::hertz, uint32_t> busClock; // in hz
 
+        bool sse;
+        bool sse2;
+        bool sse3;
+        bool ssse3;
+        bool sse4_1;
+        bool sse4_2;
+        bool popcnt;
         bool xsave;
 
         bool hasNominalFrequency() const {
