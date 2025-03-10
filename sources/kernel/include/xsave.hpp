@@ -25,6 +25,7 @@ namespace km {
         virtual size_t size() const noexcept = 0;
         virtual void save(void *buffer) const noexcept = 0;
         virtual void restore(void *buffer) const noexcept = 0;
+        virtual void init() const noexcept { }
     };
 
     struct XSaveConfig {
@@ -34,7 +35,11 @@ namespace km {
     };
 
     IFpuSave *InitFpuSave(const XSaveConfig& config);
-    IFpuSave *FpuSaveManager();
+
+    void XSaveInitApCore();
+    size_t XSaveSize();
+    void XSaveStoreState(x64::XSave *area);
+    void XSaveLoadState(x64::XSave *area);
 }
 
 template<>

@@ -23,12 +23,16 @@ class FxSave final : public km::IFpuSave {
 
 public:
     size_t size() const noexcept override { return sizeof(x64::FxSave); }
-    void save(void *buffer) const noexcept override { __fxsave(reinterpret_cast<x64::FxSave *>(buffer)); }
-    void restore(void *buffer) const noexcept override { __fxrstor(reinterpret_cast<x64::FxSave *>(buffer)); }
 
-    static constinit FxSave gInstance;
+    void save(void *buffer) const noexcept override {
+        __fxsave(reinterpret_cast<x64::FxSave *>(buffer));
+    }
 
-    static void initInstance() {
+    void restore(void *buffer) const noexcept override {
+        __fxrstor(reinterpret_cast<x64::FxSave *>(buffer));
+    }
+
+    void init() const noexcept override {
         //
         // Before continuing on we need to inform the processor
         // that we will be using fxsave.
@@ -36,6 +40,12 @@ public:
         x64::Cr4 cr4 = x64::Cr4::load();
         cr4.set(x64::Cr4::OSFXSR | x64::Cr4::OSXMMEXCPT);
         x64::Cr4::store(cr4);
+    }
+
+    static constinit FxSave gInstance;
+
+    static void initInstance() {
+        gInstance.init();
     }
 };
 
@@ -59,7 +69,7 @@ class XSave final : public km::IFpuSave {
         return cpuid.ebx;
     }
 
-    void setComponentMask(uint64_t mask) {
+    uint64_t storeComponentState(uint64_t mask) const {
         //
         // The XSAVE bitmask is split across xcr0 and IA32_XSS depending on if the state is
         // user visible or not. So we need to pick the correct place to enable state.
@@ -70,7 +80,11 @@ class XSave final : public km::IFpuSave {
         x64::Xcr0::store(x64::Xcr0::of(xcr0Mask));
         IA32_XSS = xssMask;
 
-        mEnabled = (xcr0Mask | xssMask);
+        return (xcr0Mask | xssMask);
+    }
+
+    void setComponentMask(uint64_t mask) {
+        mEnabled = storeComponentState(mask);
     }
 
     void loadUserFeatureMask() {
@@ -88,7 +102,7 @@ class XSave final : public km::IFpuSave {
         mBufferSize = leaf.ebx;
     }
 
-    void init(uint64_t mask) {
+    void initBootCore(uint64_t mask) {
         loadUserFeatureMask();
         loadSystemFeatureMask();
         setComponentMask(mask);
@@ -99,18 +113,7 @@ class XSave final : public km::IFpuSave {
         KmDebugMessage("[XSAVE] Enabled: ", km::Hex(mEnabled), "\n");
     }
 
-public:
-    size_t size() const noexcept override { return sizeof(x64::XSave) + mBufferSize; }
-
-    [[gnu::target("xsave")]]
-    void save(void *buffer) const noexcept override { __xsave(reinterpret_cast<x64::XSave *>(buffer), mEnabled); }
-
-    [[gnu::target("xsave")]]
-    void restore(void *buffer) const noexcept override { __xrstor(reinterpret_cast<x64::XSave *>(buffer), mEnabled); }
-
-    static constinit XSave gInstance;
-
-    static void initInstance(uint64_t mask) {
+    void initControlState() const {
         //
         // Before continuing on we need to enable these 3 bits to inform the processor
         // that we can support fxsave.
@@ -118,8 +121,31 @@ public:
         x64::Cr4 cr4 = x64::Cr4::load();
         cr4.set(x64::Cr4::OSFXSR | x64::Cr4::OSXMMEXCPT | x64::Cr4::OSXSAVE);
         x64::Cr4::store(cr4);
+    }
 
-        gInstance.init(mask);
+public:
+    size_t size() const noexcept override { return sizeof(x64::XSave) + mBufferSize; }
+
+    [[gnu::target("xsave")]]
+    void save(void *buffer) const noexcept override {
+        __xsave(reinterpret_cast<x64::XSave *>(buffer), mEnabled);
+    }
+
+    [[gnu::target("xsave")]]
+    void restore(void *buffer) const noexcept override {
+        __xrstor(reinterpret_cast<x64::XSave *>(buffer), mEnabled);
+    }
+
+    void init() const noexcept override {
+        initControlState();
+        storeComponentState(mEnabled);
+    }
+
+    static constinit XSave gInstance;
+
+    static void initInstance(uint64_t mask) {
+        gInstance.initControlState();
+        gInstance.initBootCore(mask);
     }
 };
 
@@ -161,11 +187,23 @@ km::IFpuSave *km::InitFpuSave(const XSaveConfig& config) {
         KM_PANIC("Invalid FPU save mode.");
     }
 
-    return FpuSaveManager();
+    return gFpuSave;
 }
 
-km::IFpuSave *km::FpuSaveManager() {
-    return gFpuSave;
+void km::XSaveInitApCore() {
+    gFpuSave->init();
+}
+
+size_t km::XSaveSize() {
+    return gFpuSave->size();
+}
+
+void km::XSaveStoreState(x64::XSave *area) {
+    gFpuSave->save(area);
+}
+
+void km::XSaveLoadState(x64::XSave *area) {
+    gFpuSave->restore(area);
 }
 
 void km::Format<km::SaveMode>::format(km::IOutStream &out, km::SaveMode mode) {

@@ -203,6 +203,7 @@ src = [
     'src/process/system.cpp',
     'src/process/object.cpp',
     'src/process/process.cpp',
+    'src/process/thread.cpp',
     'src/process/schedule.cpp',
     'src/process/schedule.S',
     'src/syscall.cpp',
@@ -318,7 +319,7 @@ test_shim = static_library('test_shim', src,
     include_directories : inc,
     c_args : test_c_args,
     cpp_args : test_cpp_args,
-    dependencies : [ gtest, sysapi, concurrentqueue ],
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units ],
     native : true,
 )
 
@@ -326,7 +327,7 @@ test_exe_kwargs = {
     'include_directories': [ inc ],
     'c_args': test_c_args,
     'cpp_args': test_cpp_args,
-    'dependencies': [ gtest_main, gmock, sysapi, concurrentqueue ],
+    'dependencies': [ gtest_main, gmock, sysapi, concurrentqueue, mp_units ],
     'override_options': [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
     'native': true,
     'link_with': [ test_shim ],
@@ -491,6 +492,7 @@ testcases = {
 
         'src/process/system.cpp',
         'src/process/process.cpp',
+        'src/process/thread.cpp',
         'src/process/object.cpp',
 
         'src/memory.cpp',

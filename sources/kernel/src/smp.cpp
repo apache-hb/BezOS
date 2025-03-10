@@ -11,6 +11,7 @@
 #include "processor.hpp"
 #include "syscall.hpp"
 #include "thread.hpp"
+#include "xsave.hpp"
 
 #include <atomic>
 
@@ -84,6 +85,7 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
     km::InitKernelThread(apic);
 
     km::SetupApGdt();
+    km::XSaveInitApCore();
 
     km::LocalIsrTable *ist = km::GetLocalIsrTable();
     const km::IsrEntry *spuriousInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {

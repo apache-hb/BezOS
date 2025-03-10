@@ -1,6 +1,5 @@
 #include "process/process.hpp"
 
-#include "process/schedule.hpp"
 #include "util/defer.hpp"
 
 using namespace km;
@@ -74,33 +73,6 @@ OsStatus Process::removeHandle(OsHandle id) {
     }
 
     return OsStatusNotFound;
-}
-
-void Thread::init(ThreadId id, stdx::String name, Process *process, AddressMapping kernelStack) {
-    initHeader(std::to_underlying(id), eOsHandleThread, std::move(name));
-    this->process = process;
-    this->kernelStack = kernelStack;
-}
-
-OsStatus Thread::waitOnHandle(KernelObject *object, OsInstant _) {
-    // TODO: timeout
-    if (object->handleType() == eOsHandleProcess) {
-        Process *process = static_cast<Process*>(object);
-        while (!process->isComplete()) {
-            YieldCurrentThread();
-        }
-
-        return OsStatusSuccess;
-    } else if (object->handleType() == eOsHandleThread) {
-        Thread *thread = static_cast<Thread*>(object);
-        while (!thread->isComplete()) {
-            YieldCurrentThread();
-        }
-
-        return OsStatusSuccess;
-    } else {
-        return OsStatusInvalidHandle;
-    }
 }
 
 void VNode::init(VNodeId id, stdx::String name, std::unique_ptr<vfs2::IVfsNodeHandle> handle) {

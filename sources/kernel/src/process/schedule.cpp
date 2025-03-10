@@ -6,6 +6,7 @@
 #include "allocator/tlsf.hpp"
 #include "debug/debug.hpp"
 #include "util/defer.hpp"
+#include "xsave.hpp"
 
 using SynchronizedTlsfAllocator = mem::SynchronizedAllocator<mem::TlsfAllocator>;
 
@@ -80,8 +81,12 @@ static void SetCurrentThread(km::Thread *thread) {
     tlsCurrentThread = thread;
 
     if (thread != nullptr) {
-        IA32_FS_BASE.store(thread->tlsAddress);
+        IA32_FS_BASE = thread->tlsAddress;
         tlsSystemCallStack = thread->getSyscallStack();
+
+        if (thread->xsave) {
+            km::XSaveLoadState(thread->xsave.get());
+        }
     }
 }
 
@@ -113,6 +118,8 @@ static km::IsrContext SchedulerIsr(km::IsrContext *ctx) noexcept {
         if (km::Thread *current = km::GetCurrentThread()) {
             current->state = *ctx;
             current->tlsAddress = IA32_FS_BASE.load();
+            if (current->xsave) km::XSaveStoreState(current->xsave.get());
+
             scheduler->addWorkItem(current);
 
             km::debug::SendEvent(km::debug::ScheduleTask {

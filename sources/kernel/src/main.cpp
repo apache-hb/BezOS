@@ -77,10 +77,6 @@ static constexpr bool kEnableSmp = true;
 
 static constexpr bool kEnableXSave = true;
 
-static constexpr bool kEnableMmx = true;
-static constexpr bool kEnableSse = true;
-static constexpr bool kEnableAvx = true;
-
 // TODO: make this runtime configurable
 static constexpr size_t kMaxPathSize = 0x1000;
 static constexpr size_t kMaxMessageSize = 0x1000;
@@ -676,9 +672,6 @@ static void LogSystemInfo(
     bool hasDebugPort,
     SerialPortStatus com1Status,
     const ComPortInfo& com1Info) {
-    KmDebugMessage("[INIT] CR0: ", x64::Cr0::load(), "\n");
-    KmDebugMessage("[INIT] CR4: ", x64::Cr4::load(), "\n");
-
     KmDebugMessage("[INIT] System report.\n");
     KmDebugMessage("| Component     | Property             | Status\n");
     KmDebugMessage("|---------------+----------------------+-------\n");
@@ -804,9 +797,9 @@ static void NormalizeProcessorState() {
     x64::Cr4::store(cr4);
 
     // Enable NXE bit
-    IA32_EFER.store(IA32_EFER.load() | (1 << 11));
+    IA32_EFER |= (1 << 11);
 
-    IA32_GS_BASE.store(0);
+    IA32_GS_BASE = 0;
 }
 
 static vfs2::VfsRoot *gVfsRoot = nullptr;
@@ -1874,6 +1867,9 @@ void LaunchKernel(boot::LaunchInfo launch) {
     };
 
     InitFpuSave(xsaveConfig);
+
+    KmDebugMessage("[INIT] CR0: ", x64::Cr0::load(), "\n");
+    KmDebugMessage("[INIT] CR4: ", x64::Cr4::load(), "\n");
 
     //
     // Once we have the initial gdt setup we create the global allocator.

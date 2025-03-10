@@ -3,6 +3,7 @@
 #include <bezos/facility/process.h>
 #include <bezos/facility/threads.h>
 
+#include "arch/xsave.hpp"
 #include "memory/tables.hpp"
 #include "fs2/node.hpp"
 #include "isr/isr.hpp"
@@ -92,12 +93,21 @@ namespace km {
         Process *process;
         HandleWait wait;
         km::IsrContext state;
+
+        /// @brief Pointer to the xsave state for this thread
+        //
+        // This points to a block of memory that will be larger than sizeof(x64::XSave) as the xsave
+        // area changes size based on enabled features and processor feature support.
+        //
+        std::unique_ptr<x64::XSave, decltype(&free)> xsave{nullptr, &free};
+
         uint64_t tlsAddress = 0;
         AddressSpace *stack;
         AddressMapping kernelStack;
         OsThreadState threadState = eOsThreadRunning;
 
         OsStatus waitOnHandle(KernelObject *object, OsInstant timeout);
+
         bool isComplete() const {
             return threadState != eOsThreadFinished;
         }
