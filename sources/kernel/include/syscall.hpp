@@ -10,10 +10,10 @@
 
 #include <cstdint>
 
+static constexpr x64::RwModelRegister<0xC0000080> IA32_EFER;
+
 namespace km {
     class SystemMemory;
-
-    static constexpr x64::ModelRegister<0xC0000080, x64::RegisterAccess::eReadWrite> kEfer;
 
     struct [[gnu::packed]] SystemCallRegisterSet {
         // user registers

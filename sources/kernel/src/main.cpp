@@ -694,14 +694,21 @@ static void LogSystemInfo(
     KmDebugMessage("| /SYS/MB/CPU0  | TSC ratio            | ", processor.coreClock.tsc, "/", processor.coreClock.core, "\n");
 
     if (processor.hasNominalFrequency()) {
-        KmDebugMessage("| /SYS/MB/CPU0  | Bus clock            | ", processor.busClock, "hz\n");
+        KmDebugMessage("| /SYS/MB/CPU0  | Bus clock            | ", uint32_t(processor.busClock / si::hertz), "hz\n");
     } else {
         KmDebugMessage("| /SYS/MB/CPU0  | Bus clock            | Not available\n");
     }
 
-    KmDebugMessage("| /SYS/MB/CPU0  | Base frequency       | ", processor.baseFrequency, "mhz\n");
-    KmDebugMessage("| /SYS/MB/CPU0  | Max frequency        | ", processor.maxFrequency, "mhz\n");
-    KmDebugMessage("| /SYS/MB/CPU0  | Bus frequency        | ", processor.busFrequency, "mhz\n");
+    if (processor.hasBusFrequency()) {
+        KmDebugMessage("| /SYS/MB/CPU0  | Base frequency       | ", uint16_t(processor.baseFrequency / si::megahertz), "mhz\n");
+        KmDebugMessage("| /SYS/MB/CPU0  | Max frequency        | ", uint16_t(processor.maxFrequency / si::megahertz), "mhz\n");
+        KmDebugMessage("| /SYS/MB/CPU0  | Bus frequency        | ", uint16_t(processor.busFrequency / si::megahertz), "mhz\n");
+    } else {
+        KmDebugMessage("| /SYS/MB/CPU0  | Base frequency       | Not reported via CPUID\n");
+        KmDebugMessage("| /SYS/MB/CPU0  | Max frequency        | Not reported via CPUID\n");
+        KmDebugMessage("| /SYS/MB/CPU0  | Bus frequency        | Not reported via CPUID\n");
+    }
+
     KmDebugMessage("| /SYS/MB/CPU0  | Local APIC           | ", present(processor.hasLocalApic), "\n");
     KmDebugMessage("| /SYS/MB/CPU0  | 2x APIC              | ", present(processor.has2xApic), "\n");
     KmDebugMessage("| /SYS/MB/CPU0  | SMBIOS 32 address    | ", launch.smbios32Address, "\n");
@@ -789,9 +796,9 @@ static void NormalizeProcessorState() {
     x64::Cr4::store(cr4);
 
     // Enable NXE bit
-    kEfer.store(kEfer.load() | (1 << 11));
+    IA32_EFER.store(IA32_EFER.load() | (1 << 11));
 
-    kGsBase.store(0);
+    IA32_GS_BASE.store(0);
 }
 
 static vfs2::VfsRoot *gVfsRoot = nullptr;

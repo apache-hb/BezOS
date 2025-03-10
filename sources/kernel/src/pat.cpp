@@ -4,10 +4,10 @@
 
 #include "arch/msr.hpp"
 
-static constexpr x64::ModelRegister<0x277, x64::RegisterAccess::eReadWrite> kPatMsr;
+static constexpr x64::RwModelRegister<0x277> IA32_PAT;
 
-static constexpr x64::ModelRegister<0xFE, x64::RegisterAccess::eRead> kMtrrMsrCap;
-static constexpr x64::ModelRegister<0x2FF, x64::RegisterAccess::eReadWrite> kMtrrMsrDefaultType;
+static constexpr x64::RoModelRegister<0xFE> IA32_MTRRCAP;
+static constexpr x64::RwModelRegister<0x2FF> IA32_MTRR_DEF_TYPE;
 
 static constexpr uint32_t kMtrrBaseMsrStart = 0x200;
 static constexpr uint32_t kMtrrMaskMsrStart = 0x201;
@@ -43,7 +43,7 @@ bool x64::HasMtrrSupport() {
 }
 
 uint64_t x64::LoadPatMsr(void) {
-    return kPatMsr.load();
+    return IA32_PAT.load();
 }
 
 /// PAT
@@ -63,7 +63,7 @@ x64::PageAttributeTable::PageAttributeTable()
 { }
 
 void x64::PageAttributeTable::setEntry(uint8_t index, km::MemoryType type) {
-    kPatMsr.update(mValue, [&](uint64_t& mValue) {
+    IA32_PAT.update(mValue, [&](uint64_t& mValue) {
         detail::SetPatEntry(mValue, index, type);
     });
 }
@@ -75,8 +75,8 @@ km::MemoryType x64::PageAttributeTable::getEntry(uint8_t index) const {
 /// MTRR
 
 x64::MemoryTypeRanges::MemoryTypeRanges()
-    : mMtrrCap(kMtrrMsrCap.load())
-    , mMtrrDefault(kMtrrMsrDefaultType.load())
+    : mMtrrCap(IA32_MTRRCAP.load())
+    , mMtrrDefault(IA32_MTRR_DEF_TYPE.load())
 { }
 
 uint8_t x64::MemoryTypeRanges::variableMtrrCount() const {
@@ -95,7 +95,7 @@ bool x64::MemoryTypeRanges::fixedMtrrEnabled() const {
 }
 
 void x64::MemoryTypeRanges::enableFixedMtrrs(bool enabled) {
-    kMtrrMsrDefaultType.updateBits(mMtrrDefault, kFixedRangeEnabledBit, enabled);
+    IA32_MTRR_DEF_TYPE.updateBits(mMtrrDefault, kFixedRangeEnabledBit, enabled);
 }
 
 bool x64::MemoryTypeRanges::hasWriteCombining() const {
@@ -116,13 +116,13 @@ km::MemoryType x64::MemoryTypeRanges::defaultType() const {
 }
 
 void x64::MemoryTypeRanges::setDefaultType(km::MemoryType type) {
-    kMtrrMsrDefaultType.update(mMtrrDefault, [&](uint64_t& value) {
+    IA32_MTRR_DEF_TYPE.update(mMtrrDefault, [&](uint64_t& value) {
         value = (value & ~kDefaultTypeMask) | (uint8_t)type;
     });
 }
 
 void x64::MemoryTypeRanges::enable(bool enabled) {
-    kMtrrMsrDefaultType.updateBits(mMtrrDefault, kMtrrEnabledBit, enabled);
+    IA32_MTRR_DEF_TYPE.updateBits(mMtrrDefault, kMtrrEnabledBit, enabled);
 }
 
 /// fixed mtrrs

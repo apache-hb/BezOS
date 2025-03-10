@@ -36,7 +36,7 @@ static std::byte *GetCpuLocalBase() {
 
 void km::InitCpuLocalRegion() {
     void *data = AllocateCpuLocalRegion();
-    kGsBase.store((uintptr_t)data);
+    IA32_GS_BASE.store((uintptr_t)data);
     asm volatile ("mov %0, %%gs:0" :: "r"(data));
 }
 
@@ -52,13 +52,13 @@ void *km::GetCpuLocalData(void *object) {
 }
 
 bool km::IsCpuStorageSetup() {
-    return kGsBase.load() != 0;
+    return IA32_GS_BASE.load() != 0;
 }
 
 km::CpuLocalRegisters km::LoadTlsRegisters() {
-    uint64_t gsBase = kGsBase.load();
-    uint64_t fsBase = kFsBase.load();
-    uint64_t kernelGsBase = kKernelGsBase.load();
+    uint64_t gsBase = IA32_GS_BASE.load();
+    uint64_t fsBase = IA32_FS_BASE.load();
+    uint64_t kernelGsBase = IA32_KERNEL_GS_BASE.load();
 
     return CpuLocalRegisters {
         .fsBase = fsBase,
@@ -68,7 +68,7 @@ km::CpuLocalRegisters km::LoadTlsRegisters() {
 }
 
 void km::StoreTlsRegisters(CpuLocalRegisters registers) {
-    kFsBase.store(registers.fsBase);
-    kGsBase.store(registers.gsBase);
-    kKernelGsBase.store(registers.kernelGsBase);
+    IA32_FS_BASE.store(registers.fsBase);
+    IA32_GS_BASE.store(registers.gsBase);
+    IA32_KERNEL_GS_BASE.store(registers.kernelGsBase);
 }

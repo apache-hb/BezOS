@@ -4,18 +4,9 @@
 #include "apic.hpp"
 #include "pci/pci.hpp"
 
+#include "units.hpp"
+
 #include <cstdint>
-
-// workaround for clang bug, nodiscard in a requires clause triggers a warning
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-result"
-
-#include <mp-units/systems/si.h>
-
-#pragma clang diagnostic pop
-
-namespace mp = mp_units;
-namespace si = mp_units::si;
 
 namespace km {
     using hertz = mp::quantity<si::hertz, int64_t>;

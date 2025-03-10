@@ -7,13 +7,13 @@
 #include "panic.hpp"
 #include "util/cpuid.hpp"
 
-static constexpr x64::ModelRegister<0x1b, x64::RegisterAccess::eReadWrite> kApicBase;
+static constexpr x64::RwModelRegister<0x1b> IA32_APIC_BASE;
 
 static constexpr uint16_t k2xApicBaseMsr = 0x800;
 
-static constexpr x64::ModelRegister<k2xApicBaseMsr + 0x2, x64::RegisterAccess::eRead> k2xApicId;
-static constexpr x64::ModelRegister<k2xApicBaseMsr + 0x30, x64::RegisterAccess::eWrite> k2xApicIcr;
-static constexpr x64::ModelRegister<k2xApicBaseMsr + 0x3f, x64::RegisterAccess::eWrite> k2xApicSelfIpi;
+static constexpr x64::RoModelRegister<k2xApicBaseMsr + 0x2> IA32_X2APIC_ID;
+static constexpr x64::ModelRegister<k2xApicBaseMsr + 0x30, x64::RegisterAccess::eWrite> IA32_X2APIC_ICR;
+static constexpr x64::ModelRegister<k2xApicBaseMsr + 0x3f, x64::RegisterAccess::eWrite> IA32_X2APIC_SELF_IPI;
 
 static constexpr uint64_t kApicAddressMask = 0xFFFFFFFFFFFFF000;
 static constexpr uint64_t kApicEnableBit = (1 << 11);
@@ -85,9 +85,9 @@ void km::EnableX2Apic() {
     // Table 2-1. x2APIC Operating Mode Configurations
     // Both IA32_APIC_BASE[11] (xAPIC global enable) and IA32_APIC_BASE[10] (x2APIC enable) must be set.
     //
-    kApicBase |= (kX2ApicEnableBit | kApicEnableBit);
+    IA32_APIC_BASE |= (kX2ApicEnableBit | kApicEnableBit);
 
-    LogApicStartup(kApicBase.load());
+    LogApicStartup(IA32_APIC_BASE.load());
 }
 
 bool km::HasX2ApicSupport() {
@@ -96,7 +96,7 @@ bool km::HasX2ApicSupport() {
 }
 
 bool km::IsX2ApicEnabled() {
-    return kApicBase.load() & kX2ApicEnableBit;
+    return IA32_APIC_BASE.load() & kX2ApicEnableBit;
 }
 
 // x2apic methods
@@ -110,16 +110,16 @@ void km::X2Apic::write(uint16_t offset, uint64_t value) {
 }
 
 uint32_t km::X2Apic::id() const {
-    return k2xApicId.load();
+    return IA32_X2APIC_ID.load();
 }
 
 void km::X2Apic::selfIpi(uint8_t vector) {
-    k2xApicSelfIpi.store(vector);
+    IA32_X2APIC_SELF_IPI.store(vector);
 }
 
 void km::X2Apic::writeIcr(uint32_t dst, uint32_t cmd) {
     uint64_t icr = uint64_t(dst) << 32 | cmd;
-    k2xApicIcr.store(icr);
+    IA32_X2APIC_ICR.store(icr);
 }
 
 // local apic free functions
@@ -144,9 +144,9 @@ static km::LocalApic MapLocalApic(uint64_t msr, km::SystemMemory& memory) {
 }
 
 static uint64_t EnableLocalApic(km::PhysicalAddress baseAddress = 0uz) {
-    uint64_t msr = kApicBase.load();
+    uint64_t msr = IA32_APIC_BASE.load();
 
-    kApicBase.update(msr, [&](uint64_t& value) {
+    IA32_APIC_BASE.update(msr, [&](uint64_t& value) {
         value |= kApicEnableBit;
 
         if (baseAddress != 0uz) {

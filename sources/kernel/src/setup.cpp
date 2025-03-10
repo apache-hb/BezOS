@@ -181,9 +181,9 @@ void km::DumpIsrState(const km::IsrContext *context) {
 
     KmDebugMessageUnlocked("| MSR                 | Value\n");
     KmDebugMessageUnlocked("|---------------------+------\n");
-    KmDebugMessageUnlocked("| IA32_GS_BASE        | ", Hex(kGsBase.load()).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| IA32_FS_BASE        | ", Hex(kFsBase.load()).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| IA32_KERNEL_GS_BASE | ", Hex(kKernelGsBase.load()).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("| IA32_GS_BASE        | ", Hex(IA32_GS_BASE.load()).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("| IA32_FS_BASE        | ", Hex(IA32_FS_BASE.load()).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("| IA32_KERNEL_GS_BASE | ", Hex(IA32_KERNEL_GS_BASE.load()).pad(16, '0'), "\n");
     KmDebugMessageUnlocked("\n");
 }
 

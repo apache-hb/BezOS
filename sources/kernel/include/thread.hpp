@@ -4,11 +4,11 @@
 
 #define CPU_LOCAL [[gnu::section(".cpudata")]]
 
-namespace km {
-    constexpr x64::ModelRegister<0xC0000100, x64::RegisterAccess::eReadWrite> kFsBase;
-    constexpr x64::ModelRegister<0xC0000101, x64::RegisterAccess::eReadWrite> kGsBase;
-    constexpr x64::ModelRegister<0xC0000102, x64::RegisterAccess::eReadWrite> kKernelGsBase;
+constexpr x64::RwModelRegister<0xC0000100> IA32_FS_BASE;
+constexpr x64::RwModelRegister<0xC0000101> IA32_GS_BASE;
+constexpr x64::RwModelRegister<0xC0000102> IA32_KERNEL_GS_BASE;
 
+namespace km {
     struct CpuLocalRegisters {
         uint64_t fsBase;
         uint64_t gsBase;

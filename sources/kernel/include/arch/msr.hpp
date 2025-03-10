@@ -71,4 +71,10 @@ namespace x64 {
             store(load() & mask);
         }
     };
+
+    template<uint32_t R>
+    using RwModelRegister = ModelRegister<R, RegisterAccess::eReadWrite>;
+
+    template<uint32_t R>
+    using RoModelRegister = ModelRegister<R, RegisterAccess::eRead>;
 }

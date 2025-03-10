@@ -80,7 +80,7 @@ static void SetCurrentThread(km::Thread *thread) {
     tlsCurrentThread = thread;
 
     if (thread != nullptr) {
-        km::kFsBase.store(thread->tlsAddress);
+        IA32_FS_BASE.store(thread->tlsAddress);
         tlsSystemCallStack = thread->getSyscallStack();
     }
 }
@@ -112,7 +112,7 @@ static km::IsrContext SchedulerIsr(km::IsrContext *ctx) noexcept {
 
         if (km::Thread *current = km::GetCurrentThread()) {
             current->state = *ctx;
-            current->tlsAddress = km::kFsBase.load();
+            current->tlsAddress = IA32_FS_BASE.load();
             scheduler->addWorkItem(current);
 
             km::debug::SendEvent(km::debug::ScheduleTask {

@@ -2,6 +2,8 @@
 
 #include "std/static_string.hpp"
 
+#include "units.hpp"
+
 #include <stdint.h>
 
 namespace km {
@@ -26,24 +28,6 @@ namespace km {
         uint32_t core;
     };
 
-    enum class XSaveFeature {
-        FP = 0,
-        SSE = 1,
-
-        YMM = 2,
-        BNDREGS = 3,
-        BNDCSR = 4,
-        OPMASK = 5,
-        ZMM_HI256 = 6,
-        HI16_ZMM = 7,
-        PKRU = 9,
-        PASID = 10,
-        CET = 11,
-        LBR = 15,
-        XTILECFG = 17,
-        XTILEDATA = 18,
-    };
-
     using VendorString = stdx::StaticString<12>;
     using BrandString = stdx::StaticString<48>;
 
@@ -62,16 +46,12 @@ namespace km {
         bool invariantTsc;
 
         CoreMultiplier coreClock;
-        uint32_t busClock; // in hz
+        mp::quantity<si::hertz, uint32_t> busClock; // in hz
 
         bool xsave;
-        bool xsaveopt;
-        bool xsavec;
-        bool xsaves;
-        bool xgetbvext;
 
         bool hasNominalFrequency() const {
-            return busClock != 0;
+            return busClock != (0 * si::hertz);
         }
 
         /// @brief The canonical maximum virtual address.
@@ -86,9 +66,13 @@ namespace km {
 
         bool isKvm() const;
 
-        uint16_t baseFrequency; // in mhz
-        uint16_t maxFrequency; // in mhz
-        uint16_t busFrequency; // in mhz
+        bool hasBusFrequency() const {
+            return maxleaf >= 0x16;
+        }
+
+        mp::quantity<si::megahertz, uint16_t> baseFrequency;
+        mp::quantity<si::megahertz, uint16_t> maxFrequency;
+        mp::quantity<si::megahertz, uint16_t> busFrequency;
     };
 
     BrandString GetBrandString();

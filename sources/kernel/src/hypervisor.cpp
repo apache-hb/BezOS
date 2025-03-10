@@ -88,19 +88,6 @@ km::ProcessorInfo km::GetProcessorInfo() {
         invariantTsc = timer.eax & (1 << 2);
     }
 
-    bool xsaveopt = false;
-    bool xsavec = false;
-    bool xsaves = false;
-    bool xgetbvext = false;
-
-    if (maxleaf >= 0xD) {
-        CpuId xscpuid = CpuId::count(0xD, 1);
-        xsaveopt = xscpuid.eax & (1 << 0);
-        xsavec = xscpuid.eax & (1 << 1);
-        xgetbvext = xscpuid.eax & (1 << 2);
-        xsaves = xscpuid.eax & (1 << 3);
-    }
-
     CoreMultiplier coreClock = { 0, 0 };
     uint32_t busClock = 0;
     uint16_t baseFrequency = 0;
@@ -136,16 +123,12 @@ km::ProcessorInfo km::GetProcessorInfo() {
         .tscDeadline = apicTscDeadline,
         .invariantTsc = invariantTsc,
         .coreClock = coreClock,
-        .busClock = busClock,
+        .busClock = busClock * si::hertz,
 
         .xsave = xsave,
-        .xsaveopt = xsaveopt,
-        .xsavec = xsavec,
-        .xsaves = xsaves,
-        .xgetbvext = xgetbvext,
 
-        .baseFrequency = baseFrequency,
-        .maxFrequency = maxFrequency,
-        .busFrequency = busFrequency,
+        .baseFrequency = baseFrequency * si::megahertz,
+        .maxFrequency = maxFrequency * si::megahertz,
+        .busFrequency = busFrequency * si::megahertz,
     };
 }

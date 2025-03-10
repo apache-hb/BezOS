@@ -7,9 +7,9 @@
 #include "thread.hpp"
 #include "user/user.hpp"
 
-static constexpr x64::ModelRegister<0xC0000081, x64::RegisterAccess::eReadWrite> kStar;
-static constexpr x64::ModelRegister<0xC0000082, x64::RegisterAccess::eReadWrite> kLStar;
-static constexpr x64::ModelRegister<0xC0000084, x64::RegisterAccess::eReadWrite> kFMask;
+static constexpr x64::RwModelRegister<0xC0000081> IA32_STAR;
+static constexpr x64::RwModelRegister<0xC0000082> IA32_LSTAR;
+static constexpr x64::RwModelRegister<0xC0000084> IA32_FMASK;
 
 static constexpr size_t kStackSize = 0x4000 * 4;
 
@@ -46,18 +46,18 @@ void km::SetupUserMode(SystemMemory *memory) {
     star |= uint64_t(((SystemGdt::eLongModeUserCode * 0x8) - 0x10) | 0b11) << 48;
 
     // Enable syscall/sysret
-    uint64_t efer = kEfer.load();
-    kEfer.store(efer | (1 << 0));
+    uint64_t efer = IA32_EFER.load();
+    IA32_EFER.store(efer | (1 << 0));
 
     // Mask the interrupt flag in RFLAGS
     uint64_t fmask = (1 << 9);
 
-    kFMask.store(fmask);
+    IA32_FMASK.store(fmask);
 
     // Store the syscall entry point in the LSTAR MSR
-    kLStar.store((uintptr_t)KmSystemEntry);
+    IA32_LSTAR.store((uintptr_t)KmSystemEntry);
 
-    kStar.store(star);
+    IA32_STAR.store(star);
 }
 
 void km::EnterUserMode(km::IsrContext state) {

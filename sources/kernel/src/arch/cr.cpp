@@ -80,10 +80,14 @@ void Xcr0Format::format(km::IOutStream& out, x64::Xcr0 value) {
     if (value.test(x64::Xcr0::FPU)) out.format("FPU "_sv);
     if (value.test(x64::Xcr0::SSE)) out.format("SSE "_sv);
     if (value.test(x64::Xcr0::AVX)) out.format("AVX "_sv);
-    if (value.test(x64::Xcr0::MPX)) out.format("MPX "_sv);
-    if (value.test(x64::Xcr0::AVX512)) out.format("AVX512 "_sv);
+    if (value.test(x64::Xcr0::BNDREG)) out.format("BNDREG "_sv);
+    if (value.test(x64::Xcr0::BNDCSR)) out.format("BNDCSR "_sv);
+    if (value.test(x64::Xcr0::OPMASK)) out.format("OPMASK "_sv);
+    if (value.test(x64::Xcr0::ZMM_HI256)) out.format("ZMM_HI256 "_sv);
+    if (value.test(x64::Xcr0::HI16_ZMM)) out.format("HI16_ZMM "_sv);
     if (value.test(x64::Xcr0::PKRU)) out.format("PKRU "_sv);
-    if (value.test(x64::Xcr0::AMX)) out.format("AMX "_sv);
+    if (value.test(x64::Xcr0::TILECONFIG)) out.format("TILECONFIG "_sv);
+    if (value.test(x64::Xcr0::TILEDATA)) out.format("TILEDATA "_sv);
 
     out.format("]"_sv);
 }
