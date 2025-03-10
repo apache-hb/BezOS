@@ -77,17 +77,23 @@ void Xcr0Format::format(km::IOutStream& out, x64::Xcr0 value) {
     out.format(Hex(value.value()).pad(16));
     out.format(" [ "_sv);
 
-    if (value.test(x64::Xcr0::FPU)) out.format("FPU "_sv);
-    if (value.test(x64::Xcr0::SSE)) out.format("SSE "_sv);
-    if (value.test(x64::Xcr0::AVX)) out.format("AVX "_sv);
-    if (value.test(x64::Xcr0::BNDREG)) out.format("BNDREG "_sv);
-    if (value.test(x64::Xcr0::BNDCSR)) out.format("BNDCSR "_sv);
-    if (value.test(x64::Xcr0::OPMASK)) out.format("OPMASK "_sv);
-    if (value.test(x64::Xcr0::ZMM_HI256)) out.format("ZMM_HI256 "_sv);
-    if (value.test(x64::Xcr0::HI16_ZMM)) out.format("HI16_ZMM "_sv);
-    if (value.test(x64::Xcr0::PKRU)) out.format("PKRU "_sv);
-    if (value.test(x64::Xcr0::TILECONFIG)) out.format("TILECONFIG "_sv);
-    if (value.test(x64::Xcr0::TILEDATA)) out.format("TILEDATA "_sv);
+    if (value.test(x64::FPU)) out.format("FPU "_sv);
+    if (value.test(x64::SSE)) out.format("SSE "_sv);
+    if (value.test(x64::AVX)) out.format("AVX "_sv);
+
+    if (value.test(x64::BNDREG)) out.format("BNDREG "_sv);
+    if (value.test(x64::BNDCSR)) out.format("BNDCSR "_sv);
+
+    if (value.test(x64::OPMASK)) out.format("OPMASK "_sv);
+    if (value.test(x64::ZMM_HI256)) out.format("ZMM_HI256 "_sv);
+    if (value.test(x64::HI16_ZMM)) out.format("HI16_ZMM "_sv);
+
+    if (value.test(x64::PKRU)) out.format("PKRU "_sv);
+
+    if (value.test(x64::TILECFG)) out.format("TILECFG "_sv);
+    if (value.test(x64::TILEDATA)) out.format("TILEDATA "_sv);
+
+    if (value.test(x64::APX)) out.format("APX "_sv);
 
     out.format("]"_sv);
 }

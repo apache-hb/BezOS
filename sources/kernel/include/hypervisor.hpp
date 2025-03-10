@@ -40,22 +40,34 @@ namespace km {
         /// @brief The bits of the maximum virtual address.
         uintptr_t maxvaddr;
 
-        bool hasLocalApic;
-        bool has2xApic;
-        bool tscDeadline;
         bool invariantTsc;
 
         CoreMultiplier coreClock;
-        mp::quantity<si::hertz, uint32_t> busClock; // in hz
+        mp::quantity<si::hertz, uint32_t> busClock;
 
-        bool sse;
-        bool sse2;
-        bool sse3;
-        bool ssse3;
-        bool sse4_1;
-        bool sse4_2;
-        bool popcnt;
-        bool xsave;
+        uint32_t l1ecx;
+        uint32_t l1edx;
+
+        bool lapic() const { return l1edx & (1 << 9); }
+        bool fxsave() const { return l1edx & (1 << 24); }
+        bool sse() const { return l1edx & (1 << 25); }
+        bool sse2() const { return l1edx & (1 << 26); }
+
+        bool sse3() const { return l1ecx & (1 << 0); }
+        bool ssse3() const { return l1ecx & (1 << 9); }
+        bool sse4_1() const { return l1ecx & (1 << 19); }
+        bool sse4_2() const { return l1ecx & (1 << 20); }
+        bool x2apic() const { return l1ecx & (1 << 21); }
+        bool movbe() const { return l1ecx & (1 << 22); }
+        bool popcnt() const { return l1ecx & (1 << 23); }
+        bool tscDeadline() const { return l1ecx & (1 << 24); }
+        bool aesni() const { return l1ecx & (1 << 25); }
+        bool xsave() const { return l1ecx & (1 << 26); }
+        bool osxsave() const { return l1ecx & (1 << 27); }
+        bool avx() const { return l1ecx & (1 << 28); }
+        bool f16c() const { return l1ecx & (1 << 29); }
+        bool rdrand() const { return l1ecx & (1 << 30); }
+        bool hypervisor() const { return l1ecx & (1 << 31); }
 
         bool hasNominalFrequency() const {
             return busClock != (0 * si::hertz);

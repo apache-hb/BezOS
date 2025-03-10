@@ -70,6 +70,11 @@ namespace x64 {
         void operator&=(uint64_t mask) const requires (bool(A & RegisterAccess::eWrite)) {
             store(load() & mask);
         }
+
+        [[gnu::always_inline, gnu::nodebug]]
+        void operator=(uint64_t value) const requires (bool(A & RegisterAccess::eWrite)) {
+            store(value);
+        }
     };
 
     template<uint32_t R>

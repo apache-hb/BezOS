@@ -20,7 +20,7 @@ namespace x64 {
         SSE = 1,
         AVX = 2,
 
-        BNDREGS = 3,
+        BNDREG = 3,
         BNDCSR = 4,
 
         OPMASK = 5,
@@ -42,18 +42,39 @@ namespace x64 {
         TILECFG = 17,
         TILEDATA = 18,
 
-        eSaveCount = 19
+        APX = 19,
+
+        eSaveCount = 20,
     };
 
-    template<typename... A> requires (std::same_as<A, XSaveFeature> && ...)
+    template<typename... A> requires ((std::same_as<A, XSaveFeature> && ...) && sizeof...(A) > 0)
     static constexpr uint64_t XSaveMask(A&&... args) {
         return ((UINT64_C(1) << std::to_underlying(args)) | ...);
     }
 
-    static constexpr uint64_t kSaveMpx = XSaveMask(BNDREGS, BNDCSR);
+    static constexpr uint64_t kSaveMpx = XSaveMask(BNDREG, BNDCSR);
     static constexpr uint64_t kSaveAvx512 = XSaveMask(OPMASK, ZMM_HI256, HI16_ZMM);
     static constexpr uint64_t kSaveCet = XSaveMask(CET_U, CET_S);
     static constexpr uint64_t kSaveAmx = XSaveMask(TILECFG, TILEDATA);
+
+    static constexpr uint64_t kXcr0Mask = XSaveMask(
+        FPU, SSE, AVX,
+        BNDREG, BNDCSR,
+        OPMASK, ZMM_HI256, HI16_ZMM,
+        PKRU,
+        TILECFG, TILEDATA,
+        APX
+    );
+
+    static constexpr uint64_t kXssMask = XSaveMask(
+        PT,
+        PASID,
+        CET_U, CET_S,
+        HDC,
+        UINTR,
+        LBR,
+        HWP
+    );
 
     struct [[gnu::packed]] FpuRegister {
         uint8_t reg[10];
@@ -92,13 +113,31 @@ namespace x64 {
     };
 
     static_assert(sizeof(XSaveHeader) == 64);
+
+    struct [[gnu::packed]] alignas(64) XSave {
+        FxSave fpu;
+        XSaveHeader header;
+        std::byte data[];
+    };
 }
 
-static inline void __xsave(x64::FxSave *buffer, uint64_t mask) {
+[[gnu::nodebug, gnu::always_inline]]
+static inline void __fxsave(x64::FxSave *buffer) {
+    _fxsave(buffer);
+}
+
+[[gnu::nodebug, gnu::always_inline]]
+static inline void __fxrstor(x64::FxSave *buffer) {
+    _fxrstor(buffer);
+}
+
+[[gnu::nodebug, gnu::always_inline, gnu::target("xsave")]]
+static inline void __xsave(x64::XSave *buffer, uint64_t mask) {
     _xsave64(buffer, mask);
 }
 
-static inline void __xrstor(x64::FxSave *buffer, uint64_t mask) {
+[[gnu::nodebug, gnu::always_inline, gnu::target("xsave")]]
+static inline void __xrstor(x64::XSave *buffer, uint64_t mask) {
     _xrstor64(buffer, mask);
 }
 

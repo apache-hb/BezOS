@@ -52,12 +52,12 @@ bool km::ProcessorInfo::isKvm() const {
 
 km::BrandString km::GetBrandString() {
     char brand[sm::kBrandStringSize];
-    sm::KmGetBrandString(brand);
+    sm::GetBrandString(brand);
     return std::to_array(brand);
 }
 
 km::ProcessorInfo km::GetProcessorInfo() {
-    CpuId vendorId = CpuId::of(0);
+    CpuId vendorId = CpuId::of(0x0);
 
     char vendor[12];
     memcpy(vendor + 0, &vendorId.ebx, 4);
@@ -65,11 +65,7 @@ km::ProcessorInfo km::GetProcessorInfo() {
     memcpy(vendor + 8, &vendorId.ecx, 4);
     uint32_t maxleaf = vendorId.eax;
 
-    CpuId cpuid = CpuId::of(1);
-    bool isLocalApicPresent = cpuid.edx & (1 << 9);
-    bool is2xApicPresent = cpuid.ecx & (1 << 21);
-    bool apicTscDeadline = cpuid.ecx & (1 << 24);
-    bool xsave = cpuid.ecx & (1 << 26);
+    CpuId cpuid = CpuId::of(0x1);
 
     CpuId ext = CpuId::of(0x80000000);
     BrandString brand = ext.eax < 0x80000004 ? "" : GetBrandString();
@@ -118,14 +114,12 @@ km::ProcessorInfo km::GetProcessorInfo() {
         .maxleaf = maxleaf,
         .maxpaddr = maxpaddr,
         .maxvaddr = maxvaddr,
-        .hasLocalApic = isLocalApicPresent,
-        .has2xApic = is2xApicPresent,
-        .tscDeadline = apicTscDeadline,
         .invariantTsc = invariantTsc,
         .coreClock = coreClock,
         .busClock = busClock * si::hertz,
 
-        .xsave = xsave,
+        .l1ecx = cpuid.ecx,
+        .l1edx = cpuid.edx,
 
         .baseFrequency = baseFrequency * si::megahertz,
         .maxFrequency = maxFrequency * si::megahertz,

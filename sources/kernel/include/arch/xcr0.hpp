@@ -1,7 +1,8 @@
 #pragma once
 
 #include "arch/intrin.hpp"
-#include "util/util.hpp"
+#include "arch/xsave.hpp"
+
 #include "util/format.hpp"
 
 #include <stdint.h>
@@ -15,35 +16,21 @@ namespace x64 {
         constexpr Xcr0(xcr0_t value) : mValue(value) { }
 
     public:
-        enum Bit : xcr0_t {
-            FPU = (1 << 0),
-            SSE = (1 << 1),
-            AVX = (1 << 2),
-            BNDREG = (1 << 3),
-            BNDCSR = (1 << 4),
-            OPMASK = (1 << 5),
-            ZMM_HI256 = (1 << 6),
-            HI16_ZMM = (1 << 7),
-            PKRU = (1 << 9),
-            TILECONFIG = (1 << 17),
-            TILEDATA = (1 << 18),
-        };
-
         constexpr xcr0_t value() const { return mValue; }
 
         constexpr static Xcr0 of(xcr0_t value) {
             return Xcr0(value);
         }
 
-        constexpr bool test(Bit flag) const {
+        constexpr bool test(XSaveFeature flag) const {
             return mValue & flag;
         }
 
-        constexpr void set(Bit flag) {
+        constexpr void set(XSaveFeature flag) {
             mValue |= flag;
         }
 
-        constexpr void clear(Bit bit) {
+        constexpr void clear(XSaveFeature bit) {
             mValue &= ~bit;
         }
 
@@ -57,8 +44,6 @@ namespace x64 {
             __set_xcr0(xcr0.value());
         }
     };
-
-    UTIL_BITFLAGS(Xcr0::Bit);
 }
 
 template<>

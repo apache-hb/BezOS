@@ -65,6 +65,7 @@
 #include "fs2/vfs.hpp"
 #include "fs2/tarfs.hpp"
 #include "fs2/ramfs.hpp"
+#include "xsave.hpp"
 
 using namespace km;
 using namespace stdx::literals;
@@ -73,6 +74,12 @@ static constexpr bool kUseX2Apic = true;
 static constexpr bool kSelfTestIdt = true;
 static constexpr bool kSelfTestApic = true;
 static constexpr bool kEnableSmp = true;
+
+static constexpr bool kEnableXSave = true;
+
+static constexpr bool kEnableMmx = true;
+static constexpr bool kEnableSse = true;
+static constexpr bool kEnableAvx = true;
 
 // TODO: make this runtime configurable
 static constexpr size_t kMaxPathSize = 0x1000;
@@ -691,6 +698,7 @@ static void LogSystemInfo(
     KmDebugMessage("| /SYS/MB/CPU0  | Max CPUID leaf       | ", Hex(processor.maxleaf).pad(8, '0'), "\n");
     KmDebugMessage("| /SYS/MB/CPU0  | Max physical address | ", processor.maxpaddr, "\n");
     KmDebugMessage("| /SYS/MB/CPU0  | Max virtual address  | ", processor.maxvaddr, "\n");
+    KmDebugMessage("| /SYS/MB/CPU0  | XSAVE                | ", present(processor.xsave()), "\n");
     KmDebugMessage("| /SYS/MB/CPU0  | TSC ratio            | ", processor.coreClock.tsc, "/", processor.coreClock.core, "\n");
 
     if (processor.hasNominalFrequency()) {
@@ -709,8 +717,8 @@ static void LogSystemInfo(
         KmDebugMessage("| /SYS/MB/CPU0  | Bus frequency        | Not reported via CPUID\n");
     }
 
-    KmDebugMessage("| /SYS/MB/CPU0  | Local APIC           | ", present(processor.hasLocalApic), "\n");
-    KmDebugMessage("| /SYS/MB/CPU0  | 2x APIC              | ", present(processor.has2xApic), "\n");
+    KmDebugMessage("| /SYS/MB/CPU0  | Local APIC           | ", present(processor.lapic()), "\n");
+    KmDebugMessage("| /SYS/MB/CPU0  | 2x APIC              | ", present(processor.x2apic()), "\n");
     KmDebugMessage("| /SYS/MB/CPU0  | SMBIOS 32 address    | ", launch.smbios32Address, "\n");
     KmDebugMessage("| /SYS/MB/CPU0  | SMBIOS 64 address    | ", launch.smbios64Address, "\n");
 
@@ -792,7 +800,7 @@ static void NormalizeProcessorState() {
     x64::Cr0 cr0 = x64::Cr0::of(x64::Cr0::PG | x64::Cr0::WP | x64::Cr0::NE | x64::Cr0::ET | x64::Cr0::PE);
     x64::Cr0::store(cr0);
 
-    x64::Cr4 cr4 = x64::Cr4::of(x64::Cr4::PAE);
+    x64::Cr4 cr4 = x64::Cr4::of(x64::Cr4::PAE | x64::Cr4::UMIP);
     x64::Cr4::store(cr4);
 
     // Enable NXE bit
@@ -1859,6 +1867,14 @@ void LaunchKernel(boot::LaunchInfo launch) {
     gBootGdt = GetBootGdt();
     SetupInitialGdt();
 
+    XSaveConfig xsaveConfig {
+        .target = kEnableXSave ? SaveMode::eXSave : SaveMode::eFxSave,
+        .features = XSaveMask(x64::FPU, x64::SSE, x64::AVX) | x64::kSaveAvx512,
+        .cpuInfo = &processor,
+    };
+
+    InitFpuSave(xsaveConfig);
+
     //
     // Once we have the initial gdt setup we create the global allocator.
     // The IDT depends on the allocator to create its global ISR table.
@@ -1888,7 +1904,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
         UpdateSerialPort(com1Info);
     }
 
-    bool useX2Apic = kUseX2Apic && processor.has2xApic;
+    bool useX2Apic = kUseX2Apic && processor.x2apic();
 
     auto [lapic, spuriousInt] = EnableBootApic(*stage2->memory, useX2Apic);
 

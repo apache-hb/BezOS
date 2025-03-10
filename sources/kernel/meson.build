@@ -141,6 +141,7 @@ src = [
     'src/pit.cpp',
     'src/hpet.cpp',
     'src/debug.cpp',
+    'src/xsave.cpp',
 
     'src/thread.cpp',
     'src/user.S',
