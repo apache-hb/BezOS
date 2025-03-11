@@ -89,9 +89,12 @@ size_t fwrite(const void *, size_t, size_t, FILE *) noexcept {
     return 0;
 }
 
-int fprintf(FILE *, const char *, ...) noexcept {
-    Unimplemented();
-    return -1;
+int fprintf(FILE *file, const char *format, ...) noexcept {
+    va_list args;
+    va_start(args, format);
+    int result = vfprintf(file, format, args);
+    va_end(args);
+    return result;
 }
 
 int printf(const char *format, ...) noexcept {

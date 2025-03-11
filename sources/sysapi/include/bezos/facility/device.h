@@ -32,36 +32,32 @@ struct OsDeviceCreateInfo {
     /// @brief The interface GUID to query for.
     struct OsGuid InterfaceGuid;
 
-    /// @brief The class GUID to use if creating a new device.
-    struct OsGuid ClassGuid;
-
     /// @brief Creation disposition flags.
     OsDeviceCreateFlags Flags;
 
     /// @brief The process to associate the device handle with.
     /// @note If this is @a OS_HANDLE_INVALID, then the device handle is created in the current process.
     OsProcessHandle Process;
+
+    /// @brief Data to pass to the device during creation.
+    const void *OpenData;
+
+    /// @brief The size of the data to pass to the device creation.
+    OsSize OpenDataSize;
 };
 
 struct OsDeviceReadRequest {
     void *BufferFront;
     void *BufferBack;
+    uint64_t Offset;
     OsInstant Timeout;
 };
 
 struct OsDeviceWriteRequest {
     const void *BufferFront;
     const void *BufferBack;
+    uint64_t Offset;
     OsInstant Timeout;
-};
-
-struct OsDeviceCallRequest {
-    uint64_t Function;
-    const void *InputFront;
-    const void *InputBack;
-
-    void *OutputFront;
-    void *OutputBack;
 };
 
 extern OsStatus OsDeviceOpen(struct OsDeviceCreateInfo CreateInfo, OsAnyPointer Data, OsSize DataSize, OsDeviceHandle *OutHandle);

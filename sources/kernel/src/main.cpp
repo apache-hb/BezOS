@@ -1645,7 +1645,15 @@ static void AddVmemSystemCalls() {
     });
 }
 
-static void StartupSmp(const acpi::AcpiTables& rsdt) {
+static void EnableUmip(bool enable) {
+    if (enable) {
+        x64::Cr4 cr4 = x64::Cr4::load();
+        cr4.set(x64::Cr4::UMIP);
+        x64::Cr4::store(cr4);
+    }
+}
+
+static void StartupSmp(const acpi::AcpiTables& rsdt, bool umip) {
     //
     // Create the scheduler and system objects before we startup SMP so that
     // the AP cores have a scheduler to attach to.
@@ -1661,10 +1669,12 @@ static void StartupSmp(const acpi::AcpiTables& rsdt) {
         // scheduler is ready to be used. The scheduler requires the system to switch
         // to using cpu local isr tables, which must happen after smp startup.
         //
-        InitSmp(*GetSystemMemory(), GetCpuLocalApic(), rsdt, [&launchScheduler](LocalIsrTable *ist, IApic *apic) {
+        InitSmp(*GetSystemMemory(), GetCpuLocalApic(), rsdt, [&launchScheduler, umip](LocalIsrTable *ist, IApic *apic) {
             while (!launchScheduler.test()) {
                 _mm_pause();
             }
+
+            EnableUmip(umip);
 
             km::ScheduleWork(ist, apic);
         });
@@ -1889,11 +1899,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     ProcessorInfo processor = GetProcessorInfo();
 
-    if (processor.umip()) {
-        x64::Cr4 cr4 = x64::Cr4::load();
-        cr4.set(x64::Cr4::UMIP);
-        x64::Cr4::store(cr4);
-    }
+    EnableUmip(processor.umip());
 
     InitPortDelay(hvInfo);
 
@@ -1995,7 +2001,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     km::LocalIsrTable *ist = GetLocalIsrTable();
 
     InstallSchedulerIsr(ist);
-    StartupSmp(rsdt);
+    StartupSmp(rsdt, processor.umip());
 
     const IsrEntry *timerInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
         km::IApic *apic = km::GetCpuLocalApic();
