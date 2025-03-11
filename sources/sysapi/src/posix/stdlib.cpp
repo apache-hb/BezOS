@@ -103,9 +103,6 @@ void *realloc(void *, size_t) noexcept {
 
 void free(void *) noexcept {
     Unimplemented();
-    //
-    // Empty for now
-    //
 }
 
 void qsort(void *, size_t, size_t, int (*)(const void *, const void *)) {

@@ -1048,14 +1048,18 @@ static void AddDebugSystemCalls() {
             return CallError(status);
         }
 
+        LockDebugLog();
+
         for (const auto& segment : stdv::split(message, "\n"sv)) {
             std::string_view segmentView{segment};
             if (segmentView.empty()) {
                 continue;
             }
 
-            KmDebugMessage("[DBG:", process->internalId(), ":", thread->internalId(), "] ", message, "\n");
+            KmDebugMessageUnlocked("[DBG:", process->internalId(), ":", thread->internalId(), "] ", message, "\n");
         }
+
+        UnlockDebugLog();
 
         return CallOk(0zu);
     });
@@ -1665,8 +1669,6 @@ static void StartupSmp(const acpi::AcpiTables& rsdt) {
             km::ScheduleWork(ist, apic);
         });
     }
-
-    SetDebugLogLock(DebugLogLockType::eRecursiveSpinLock);
 
     //
     // Setup gdt that contains a TSS for this core and configure cpu state

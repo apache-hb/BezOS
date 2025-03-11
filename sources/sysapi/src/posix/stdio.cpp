@@ -5,6 +5,9 @@
 
 #include "private.hpp"
 
+#define STB_SPRINTF_IMPLEMENTATION 1
+#include "stb_sprintf.h"
+
 struct OsImplPosixFile {
     int fd;
 };
@@ -119,18 +122,30 @@ int vsprintf(char *dst, const char *format, va_list args) noexcept {
     return vsnprintf(dst, SIZE_MAX, format, args);
 }
 
-int vsnprintf(char *, size_t, const char *, va_list) noexcept {
-    Unimplemented();
-    return -1;
+int vsnprintf(char *dst, size_t size, const char *format, va_list args) noexcept {
+    return STB_SPRINTF_DECORATE(vsnprintf)(dst, size, format, args);
 }
 
 int vprintf(const char *format, va_list args) noexcept {
     return vfprintf(stdout, format, args);
 }
 
-int vfprintf(FILE *, const char *, va_list) noexcept {
-    Unimplemented();
-    return -1;
+struct UserPrintBuffer {
+    char *buffer;
+    FILE *file;
+};
+
+static char *OsPrintCallback(const char *buffer, void *user, int length) {
+    UserPrintBuffer *data = static_cast<UserPrintBuffer*>(user);
+    fwrite(buffer, 1, length, data->file);
+    return data->buffer;
+}
+
+int vfprintf(FILE *file, const char *format, va_list args) noexcept {
+    char buffer[STB_SPRINTF_MIN]{};
+
+    UserPrintBuffer user { buffer, file };
+    return STB_SPRINTF_DECORATE(vsprintfcb)(OsPrintCallback, &user, buffer, format, args);
 }
 
 int puts(const char*) noexcept {

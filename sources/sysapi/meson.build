@@ -49,44 +49,49 @@ bezos_dep = declare_dependency(
     include_directories : inc,
 )
 
-src = [
-    'src/posix/private.cpp',
-
-    'src/posix/assert.cpp',
-    'src/posix/locale.cpp',
-    'src/posix/dirent.cpp',
-    'src/posix/fcntl.cpp',
-    'src/posix/stdio.cpp',
-    'src/posix/errno.cpp',
-    'src/posix/math.cpp',
-    'src/posix/string.cpp',
-    'src/posix/setjmp.cpp',
-    'src/posix/strings.cpp',
-    'src/posix/signal.cpp',
-    'src/posix/ctype.cpp',
-    'src/posix/unistd.cpp',
-    'src/posix/termios.cpp',
-    'src/posix/stdlib.cpp',
-    'src/posix/time.cpp',
-    'src/posix/stropts.cpp',
-    'src/posix/sys_mman.cpp',
-    'src/posix/sys_stat.cpp',
-    'src/posix/sys_time.cpp',
-    'src/posix/sys_times.cpp',
-    'src/posix/sys_utsname.cpp',
-    'src/posix/sys_wait.cpp',
-    'src/posix/sys_resource.cpp',
-]
-
-libposix = static_library('bezos-posix', src,
-    include_directories : inc,
-    dependencies : [ bezos_dep ],
-    install : not meson.is_subproject(),
-    build_by_default : not meson.is_subproject(),
-)
-
 meson.override_dependency('bezos', bezos_dep)
-meson.override_dependency('sysapi', sysapi_dep)
 
-install_subdir('include/posix', install_dir : 'include')
-install_subdir('include/bezos', install_dir : 'include')
+if not meson.is_subproject()
+    stb = dependency('stb')
+
+    src = [
+        'src/posix/private.cpp',
+
+        'src/posix/assert.cpp',
+        'src/posix/locale.cpp',
+        'src/posix/dirent.cpp',
+        'src/posix/fcntl.cpp',
+        'src/posix/stdio.cpp',
+        'src/posix/errno.cpp',
+        'src/posix/math.cpp',
+        'src/posix/string.cpp',
+        'src/posix/setjmp.cpp',
+        'src/posix/strings.cpp',
+        'src/posix/signal.cpp',
+        'src/posix/ctype.cpp',
+        'src/posix/unistd.cpp',
+        'src/posix/termios.cpp',
+        'src/posix/stdlib.cpp',
+        'src/posix/time.cpp',
+        'src/posix/stropts.cpp',
+        'src/posix/sys_mman.cpp',
+        'src/posix/sys_stat.cpp',
+        'src/posix/sys_time.cpp',
+        'src/posix/sys_times.cpp',
+        'src/posix/sys_utsname.cpp',
+        'src/posix/sys_wait.cpp',
+        'src/posix/sys_resource.cpp',
+    ]
+
+    libposix = static_library('bezos-posix', src,
+        include_directories : inc,
+        dependencies : [ bezos_dep, stb ],
+        install : not meson.is_subproject(),
+        build_by_default : not meson.is_subproject(),
+    )
+
+    meson.override_dependency('sysapi', sysapi_dep)
+
+    install_subdir('include/posix', install_dir : 'include')
+    install_subdir('include/bezos', install_dir : 'include')
+endif

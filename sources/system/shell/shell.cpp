@@ -372,10 +372,50 @@ static void LaunchZsh() {
     };
 
     OsProcessHandle handle = OS_HANDLE_INVALID;
-    ASSERT_OS_SUCCESS(OsProcessCreate(createInfo, &handle));
+    OsStatus status = OsStatusSuccess;
 
-    OsStatus status = OsHandleWait(handle, OS_TIMEOUT_INFINITE);
+    status = OsProcessCreate(createInfo, &handle);
+    if (status != OsStatusSuccess) {
+        DebugLog("Failed to create zsh process\n");
+        DebugLog("Status: ");
+        DebugLog(status);
+        return;
+    }
+
+    //
+    // Create stdin, stdout, and stderr files in the new processes runfs.
+    //
+
+    #if 0
+    //
+    // Resume the process now that it has the necessary environment.
+    //
+    status = OsProcessSuspend(handle, false);
+    if (status != OsStatusSuccess) {
+        DebugLog("Failed to resume zsh process\n");
+        DebugLog("Status: ");
+        DebugLog(status);
+        return;
+    }
+    #endif
+
+    status = OsHandleWait(handle, OS_TIMEOUT_INFINITE);
     ASSERT_OS_SUCCESS(status);
+
+    #if 0
+    OsProcessState state{};
+    status = OsProcessStat(handle, &state);
+    if (status != OsStatusSuccess) {
+        DebugLog("Failed to stat zsh process\n");
+        DebugLog("Status: ");
+        DebugLog(status);
+        return;
+    }
+
+    DebugLog("zsh exited with code ");
+    DebugLog(state.ExitCode);
+    DebugLog("\n");
+    #endif
 }
 
 static void EchoFile(StreamDevice& tty, const char *cwd, const char *path) {
