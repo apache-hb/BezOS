@@ -4,7 +4,7 @@
 
 using ControlBlock = km::detail::ControlBlock;
 
-void partition(ControlBlock **mid, ControlBlock **lte, ControlBlock **gt, ControlBlock *l)
+void Partition(ControlBlock **mid, ControlBlock **lte, ControlBlock **gt, ControlBlock *l)
 {
     ControlBlock *result = nullptr;
     ControlBlock *next = nullptr;
@@ -63,7 +63,7 @@ void partition(ControlBlock **mid, ControlBlock **lte, ControlBlock **gt, Contro
 /// @brief Sort a list of control blocks by their address using quicksort
 ///
 /// @author Andrew Haisley
-void quicksort_inner(ControlBlock *l, ControlBlock **begin, ControlBlock **end)
+void QuicksortInner(ControlBlock *l, ControlBlock **begin, ControlBlock **end)
 {
     if (l == nullptr)
     {
@@ -81,10 +81,10 @@ void quicksort_inner(ControlBlock *l, ControlBlock **begin, ControlBlock **end)
         ControlBlock *gt_end = nullptr;
         ControlBlock *mid = nullptr;
 
-        partition(&mid, &lte, &gt, l);
+        Partition(&mid, &lte, &gt, l);
 
-        quicksort_inner(lte, &lte, &lte_end);
-        quicksort_inner(gt, &gt, &gt_end);
+        QuicksortInner(lte, &lte, &lte_end);
+        QuicksortInner(gt, &gt, &gt_end);
 
         if (gt == nullptr)
         {
@@ -115,11 +115,11 @@ void quicksort_inner(ControlBlock *l, ControlBlock **begin, ControlBlock **end)
     }
 }
 
-ControlBlock *quicksort(ControlBlock *head) {
+ControlBlock *Quicksort(ControlBlock *head) {
     ControlBlock *begin = nullptr;
     ControlBlock *end = nullptr;
 
-    quicksort_inner(head, &begin, &end);
+    QuicksortInner(head, &begin, &end);
 
     if (begin) {
         begin->prev = nullptr;
@@ -135,7 +135,7 @@ ControlBlock *quicksort(ControlBlock *head) {
 void km::detail::SortBlocks(ControlBlock *block) {
     block = block->head();
 
-    quicksort(block);
+    Quicksort(block);
 }
 
 void km::detail::MergeAdjacentBlocks(ControlBlock *head) {

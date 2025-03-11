@@ -120,12 +120,6 @@ void km::PageTableAllocator::defragmentUnlocked() {
         return;
     }
 
-    detail::ControlBlock *l = block;
-    while (l != nullptr) {
-        KmDebugMessage("Block: ", (void*)l, " Next: ", (void*)l->next, " Prev: ", (void*)l->prev, " Size: ", l->size, "\n");
-        l = l->next;
-    }
-
     //
     // Sort the blocks by address.
     //

@@ -17,6 +17,8 @@
 
     <configure with='autoconf' using='@PREFIX@/automake/bin/automake'>
         <env CC='@PREFIX@/llvm/bin/clang'
+             CXX='@PREFIX@/llvm/bin/clang++'
+             AR='@PREFIX@/llvm/bin/llvm-ar'
              LD='@PREFIX@/llvm/bin/ld.lld'
              LDFLAGS='-nostartfiles -nostdlib
                       -Wl,--start-group

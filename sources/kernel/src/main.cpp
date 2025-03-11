@@ -1995,7 +1995,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     pci::ProbeConfigSpace(config.get(), rsdt.mcfg());
 
-    // TODO: this wastes some real memory
+    // TODO: this wastes some physical memory
     {
         static constexpr size_t kSchedulerMemorySize = 0x10000;
         void *mapping = gMemory->allocate(kSchedulerMemorySize + (x64::kPageSize * 2));
