@@ -123,7 +123,6 @@ enum {
     eOsHandleThread       = UINT8_C(0x3),
     eOsHandleProcess      = UINT8_C(0x4),
     eOsHandleDevice       = UINT8_C(0x5),
-    eOsHandleAddressSpace = UINT8_C(0x6),
 };
 
 typedef uint8_t OsHandleType;
@@ -145,9 +144,6 @@ OS_OBJECT_HANDLE(OsMutexHandle);
 
 /// @brief A handle to a process.
 OS_OBJECT_HANDLE(OsProcessHandle);
-
-/// @brief A handle to an address space.
-OS_OBJECT_HANDLE(OsAddressSpaceHandle);
 
 /// @brief A handle to a device.
 OS_OBJECT_HANDLE(OsDeviceHandle);

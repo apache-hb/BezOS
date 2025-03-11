@@ -52,20 +52,6 @@ struct OsAddressSpaceCreateInfo {
     OsProcessHandle Process;
 };
 
-struct OsAddressSpaceInfo {
-    OsAnyPointer Base;
-    OsSize Size;
-    OsMemoryAccess Access;
-};
-
-extern OsStatus OsAddressSpaceCreate(struct OsAddressSpaceCreateInfo CreateInfo, OsAddressSpaceHandle *OutHandle);
-
-extern OsStatus OsAddressSpaceDestroy(OsAddressSpaceHandle Handle);
-
-extern OsStatus OsAddressSpaceStat(OsAddressSpaceHandle Handle, struct OsAddressSpaceInfo *OutStat);
-
-/// @} // group OsAddressSpaceHandle
-
 struct OsVmemCreateInfo {
     const char *NameFront;
     const char *NameBack;
@@ -101,6 +87,8 @@ struct OsVmemCreateInfo {
 ///
 /// @return The status of the operation.
 extern OsStatus OsVmemCreate(struct OsVmemCreateInfo CreateInfo, OsAnyPointer *OutBase);
+
+/// @} // group OsAddressSpace
 
 #ifdef __cplusplus
 }

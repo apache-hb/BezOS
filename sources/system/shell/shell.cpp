@@ -72,25 +72,6 @@ static void AssertOsSuccess(OsStatus status, const char (&message)[N]) {
 #define ASSERT_OS_SUCCESS(expr) AssertOsSuccess(expr, "shell.elf: Assertion failed: " #expr " != OsStatusSuccess")
 #define ASSERT(expr) Assert(expr, #expr)
 
-template<size_t N>
-OsAnyPointer VirtualAllocate(OsSize size, OsMemoryAccess access, const char (&name)[N]) {
-    OsAddressSpaceCreateInfo createInfo = {
-        .NameFront = std::begin(name),
-        .NameBack = std::end(name) - 1,
-
-        .Size = size,
-        .Access = access,
-    };
-
-    OsAddressSpaceHandle handle{};
-    ASSERT_OS_SUCCESS(OsAddressSpaceCreate(createInfo, &handle));
-
-    OsAddressSpaceInfo stat{};
-    ASSERT_OS_SUCCESS(OsAddressSpaceStat(handle, &stat));
-
-    return stat.Base;
-}
-
 #define UTIL_NOCOPY(cls) \
     cls(const cls &) = delete; \
     cls &operator=(const cls &) = delete;

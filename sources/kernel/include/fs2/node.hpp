@@ -5,6 +5,7 @@
 #include <bezos/subsystem/fs.h>
 
 #include "fs2/path.hpp"
+#include "fs2/base.hpp"
 
 #include "std/string_view.hpp"
 
@@ -24,11 +25,6 @@ namespace km {
 ///
 /// @cite SunVNodes
 namespace vfs2 {
-    class VfsPath;
-
-    class IVfsNodeHandleBase;
-    class IVfsNodeBase;
-
     class IVfsNodeHandle;
 
     class VfsFolderHandle;
@@ -40,32 +36,6 @@ namespace vfs2 {
     enum class VfsNodeId : uint64_t { };
 
     using VfsCreateHandle = OsStatus(*)(IVfsNode*, IVfsNodeHandle**);
-
-    struct ReadRequest {
-        void *begin;
-        void *end;
-        uint64_t offset;
-        OsInstant timeout;
-
-        intptr_t size() const { return (std::byte*)end - (std::byte*)begin; }
-    };
-
-    struct ReadResult {
-        uint64_t read;
-    };
-
-    struct WriteRequest {
-        const void *begin;
-        const void *end;
-        uint64_t offset;
-        OsInstant timeout;
-
-        uintptr_t size() const { return (std::byte*)end - (std::byte*)begin; }
-    };
-
-    struct WriteResult {
-        uint64_t write;
-    };
 
     enum class VfsNodeType {
         eNone,
@@ -80,56 +50,10 @@ namespace vfs2 {
     };
 
     struct HandleInfo {
-        IVfsNodeBase *node;
+        INode *node;
     };
 
-    struct NodeInfo {
-        IVfsMount *mount;
-        IVfsNodeBase *parent;
-    };
-
-    class IVfsNodeHandleBase {
-    public:
-        virtual ~IVfsNodeHandleBase() = default;
-
-        /// @brief Query this handle for an alternate interface.
-        ///
-        /// @param uuid The interface to query for.
-        /// @param data The data to pass to the interface.
-        /// @param size The size of the data.
-        /// @param handle The handle to the interface.
-        ///
-        /// @return The status of the query operation.
-        virtual OsStatus query(sm::uuid, const void *, size_t, IVfsNodeHandleBase **) { return OsStatusNotSupported; }
-
-        /// @brief Invoke a method on the handle.
-        ///
-        /// @param method The method to invoke.
-        /// @param data The data to pass to the method.
-        /// @param size The size of the data.
-        ///
-        /// @return The status of the invocation.
-        virtual OsStatus invoke(uint64_t, void *, size_t) { return OsStatusNotSupported; }
-    };
-
-    class IVfsNodeBase {
-    public:
-        virtual ~IVfsNodeBase() = default;
-
-        /// @brief Query this node for an interface.
-        ///
-        /// @param uuid The interface to query for.
-        /// @param data The data to pass to the interface.
-        /// @param size The size of the data.
-        /// @param handle The handle to the interface.
-        ///
-        /// @return The status of the query operation.
-        virtual OsStatus query(sm::uuid, const void *, size_t, IVfsNodeHandleBase **) { return OsStatusNotSupported; }
-
-        virtual NodeInfo info() = 0;
-    };
-
-    class IVfsNodeHandle : public IVfsNodeHandleBase {
+    class IVfsNodeHandle : public IHandle {
     public:
         virtual ~IVfsNodeHandle() = default;
 
@@ -139,51 +63,11 @@ namespace vfs2 {
 
         IVfsNode *node;
 
-        virtual OsStatus read(ReadRequest request, ReadResult *result);
-        virtual OsStatus write(WriteRequest request, WriteResult *result);
+        virtual OsStatus read(ReadRequest request, ReadResult *result) override;
+        virtual OsStatus write(WriteRequest request, WriteResult *result) override;
         virtual OsStatus stat(VfsNodeStat *stat);
         virtual OsStatus next(VfsString *) { return OsStatusNotSupported; }
     };
-
-    template<typename T> requires (std::is_trivial_v<T>)
-    OsStatus ReadObject(IVfsNodeHandle *handle, T *object, uint64_t offset) {
-        ReadRequest request {
-            .begin = object,
-            .end = (std::byte*)object + sizeof(T),
-            .offset = offset,
-        };
-
-        ReadResult result{};
-        if (OsStatus status = handle->read(request, &result)) {
-            return status;
-        }
-
-        if (result.read != sizeof(T)) {
-            return OsStatusEndOfFile;
-        }
-
-        return OsStatusSuccess;
-    }
-
-    template<typename T> requires (std::is_trivial_v<T>)
-    OsStatus ReadArray(IVfsNodeHandle *handle, T *array, size_t count, uint64_t offset) {
-        ReadRequest request {
-            .begin = array,
-            .end = (std::byte*)array + sizeof(T) * count,
-            .offset = offset,
-        };
-
-        ReadResult result{};
-        if (OsStatus status = handle->read(request, &result)) {
-            return status;
-        }
-
-        if (result.read != sizeof(T) * count) {
-            return OsStatusEndOfFile;
-        }
-
-        return OsStatusSuccess;
-    }
 
     class VfsFolderHandle : public IVfsNodeHandle {
         size_t mIndex = 0;
@@ -361,7 +245,7 @@ namespace vfs2 {
 
         virtual OsStatus root(IVfsNode**) { return OsStatusNotSupported; }
 
-        virtual OsStatus create(const void *, size_t, IVfsNodeBase **) { return OsStatusNotSupported; }
+        virtual OsStatus create(const void *, size_t, INode **) { return OsStatusNotSupported; }
     };
 
     struct IVfsDriver {
@@ -376,4 +260,44 @@ namespace vfs2 {
         virtual OsStatus mount(IVfsMount**) { return OsStatusNotSupported; }
         virtual OsStatus unmount(IVfsMount*) { return OsStatusNotSupported; }
     };
+
+    template<typename T> requires (std::is_trivial_v<T>)
+    OsStatus ReadObject(IVfsNodeHandle *handle, T *object, uint64_t offset) {
+        ReadRequest request {
+            .begin = object,
+            .end = (std::byte*)object + sizeof(T),
+            .offset = offset,
+        };
+
+        ReadResult result{};
+        if (OsStatus status = handle->read(request, &result)) {
+            return status;
+        }
+
+        if (result.read != sizeof(T)) {
+            return OsStatusEndOfFile;
+        }
+
+        return OsStatusSuccess;
+    }
+
+    template<typename T> requires (std::is_trivial_v<T>)
+    OsStatus ReadArray(IVfsNodeHandle *handle, T *array, size_t count, uint64_t offset) {
+        ReadRequest request {
+            .begin = array,
+            .end = (std::byte*)array + sizeof(T) * count,
+            .offset = offset,
+        };
+
+        ReadResult result{};
+        if (OsStatus status = handle->read(request, &result)) {
+            return status;
+        }
+
+        if (result.read != sizeof(T) * count) {
+            return OsStatusEndOfFile;
+        }
+
+        return OsStatusSuccess;
+    }
 }

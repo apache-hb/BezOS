@@ -13,13 +13,11 @@ namespace km {
         vfs2::VfsRoot *mVfs = nullptr;
 
         IdAllocator<ThreadId> mThreadIds;
-        IdAllocator<AddressSpaceId> mAddressSpaceIds;
         IdAllocator<ProcessId> mProcessIds;
         IdAllocator<MutexId> mMutexIds;
         IdAllocator<VNodeId> mDeviceIds;
 
         sm::FlatHashMap<ThreadId, Thread*> mThreads;
-        sm::FlatHashMap<AddressSpaceId, AddressSpace*> mAddressSpaces;
         sm::FlatHashMap<ProcessId, Process*> mProcesses;
         sm::FlatHashMap<MutexId, Mutex*> mMutexes;
         sm::FlatHashMap<VNodeId, VNode*> mNodes;
@@ -47,10 +45,8 @@ namespace km {
         VNode *getVNode(VNodeId id);
 
         Thread *createThread(stdx::String name, Process* process);
-        AddressSpace *createAddressSpace(stdx::String name, km::AddressMapping mapping, km::PageFlags flags, km::MemoryType type, Process* process);
         Mutex *createMutex(stdx::String name);
 
-        AddressSpace *getAddressSpace(AddressSpaceId id);
         Mutex *getMutex(MutexId id);
 
         KernelObject *getHandle(OsHandle id);

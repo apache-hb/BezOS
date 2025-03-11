@@ -7,19 +7,16 @@
 #include "memory/tables.hpp"
 #include "fs2/node.hpp"
 #include "isr/isr.hpp"
-#include "memory/memory.hpp"
 #include "std/shared_spinlock.hpp"
 #include "std/spinlock.hpp"
 #include "std/string.hpp"
 
 #include "util/absl.hpp"
-#include "std/vector.hpp"
 
 namespace km {
     class SystemMemory;
 
     enum class ThreadId : OsThreadHandle { };
-    enum class AddressSpaceId : OsAddressSpaceHandle { };
     enum class ProcessId : OsProcessHandle { };
     enum class MutexId : OsMutexHandle { };
     enum class VNodeId : OsDeviceHandle { };
@@ -36,7 +33,6 @@ namespace km {
 
     class KernelObject;
     struct Thread;
-    struct AddressSpace;
     struct Process;
     struct Mutex;
 
@@ -102,7 +98,7 @@ namespace km {
         std::unique_ptr<x64::XSave, decltype(&free)> xsave{nullptr, &free};
 
         uint64_t tlsAddress = 0;
-        AddressSpace *stack;
+        AddressMapping userStack;
         AddressMapping kernelStack;
         OsThreadState threadState = eOsThreadRunning;
 
@@ -117,26 +113,12 @@ namespace km {
         }
     };
 
-    struct AddressSpace : public KernelObject {
-        km::AddressMapping mapping;
-        km::PageFlags flags;
-        km::MemoryType type;
-
-        AddressSpace(AddressSpaceId id, stdx::String name, km::AddressMapping mapping, km::PageFlags flags, km::MemoryType type)
-            : KernelObject(std::to_underlying(id) | (uint64_t(eOsHandleAddressSpace) << 56), std::move(name))
-            , mapping(mapping)
-            , flags(flags)
-            , type(type)
-        { }
-    };
-
     struct Process : public KernelObject {
         Process() = default;
 
         x64::Privilege privilege;
         stdx::SharedSpinLock lock;
         ProcessPageTables ptes;
-        stdx::Vector2<AddressSpace*> memory;
         sm::FlatHashSet<std::unique_ptr<vfs2::IVfsNodeHandle>> files;
         sm::FlatHashMap<OsHandle, KernelObject*> handles;
         OsProcessState state = { eOsProcessRunning };
@@ -144,8 +126,6 @@ namespace km {
         void init(ProcessId id, stdx::String name, x64::Privilege protection, SystemPageTables *kernel, AddressMapping pteMemory, VirtualRange processArea);
 
         bool isComplete() const;
-
-        void addAddressSpace(AddressSpace *addressSpace);
 
         vfs2::IVfsNodeHandle *addFile(std::unique_ptr<vfs2::IVfsNodeHandle> handle);
         OsStatus closeFile(vfs2::IVfsNodeHandle *ptr);

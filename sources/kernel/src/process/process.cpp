@@ -15,11 +15,6 @@ bool Process::isComplete() const {
     return status != eOsProcessRunning && status != eOsProcessSuspended;
 }
 
-void Process::addAddressSpace(AddressSpace *addressSpace) {
-    stdx::UniqueLock guard(lock);
-    memory.add(addressSpace);
-}
-
 vfs2::IVfsNodeHandle *Process::addFile(std::unique_ptr<vfs2::IVfsNodeHandle> handle) {
     stdx::UniqueLock guard(lock);
     vfs2::IVfsNodeHandle *ptr = handle.get();

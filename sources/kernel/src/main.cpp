@@ -1395,10 +1395,7 @@ static void AddThreadSystemCalls() {
         }
 
         stdx::String stackName = name + " STACK";
-        Thread * thread = gSystemObjects->createThread(std::move(name), process);
-
-        PageFlags flags = PageFlags::eUser | PageFlags::eData;
-        MemoryType type = MemoryType::eWriteBack;
+        Thread *thread = gSystemObjects->createThread(std::move(name), process);
 
         AddressMapping mapping{};
         SystemMemory *memory = GetSystemMemory();
@@ -1407,14 +1404,13 @@ static void AddThreadSystemCalls() {
             return CallError(status);
         }
 
-        AddressSpace* stackSpace = gSystemObjects->createAddressSpace(std::move(stackName), mapping, flags, type, process);
-        thread->stack = stackSpace;
+        thread->userStack = mapping;
         thread->state = km::IsrContext {
-            .rbp = (uintptr_t)((uintptr_t)thread->stack->mapping.vaddr + createInfo.StackSize),
+            .rbp = (uintptr_t)((uintptr_t)mapping.vaddr + createInfo.StackSize),
             .rip = (uintptr_t)createInfo.EntryPoint,
             .cs = (SystemGdt::eLongModeUserCode * 0x8) | 0b11,
             .rflags = 0x202,
-            .rsp = (uintptr_t)((uintptr_t)thread->stack->mapping.vaddr + createInfo.StackSize),
+            .rsp = (uintptr_t)((uintptr_t)mapping.vaddr + createInfo.StackSize),
             .ss = (SystemGdt::eLongModeUserData * 0x8) | 0b11,
         };
         return CallError(OsStatusInvalidFunction);
@@ -1551,6 +1547,7 @@ static void AddProcessSystemCalls() {
     });
 }
 
+#if 0
 static OsStatus GetMemoryAccess(OsMemoryAccess access, PageFlags *result) {
     PageFlags flags = PageFlags::eUser;
     if (access & eOsMemoryRead) {
@@ -1592,67 +1589,9 @@ static OsMemoryAccess MakeMemoryAccess(PageFlags flags) {
 
     return access;
 }
-
+#endif
 static void AddVmemSystemCalls() {
-    AddSystemCall(eOsCallAddressSpaceCreate, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
-        uint64_t userCreateInfo = regs->arg0;
-        OsAddressSpaceCreateInfo createInfo{};
-        if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {
-            return CallError(status);
-        }
 
-        PageFlags flags = PageFlags::eUser;
-        if (OsStatus status = GetMemoryAccess(createInfo.Access, &flags)) {
-            return CallError(status);
-        }
-
-        Process *process;
-        if (createInfo.Process != OS_HANDLE_INVALID) {
-            process = gSystemObjects->getProcess(ProcessId(OS_HANDLE_ID(createInfo.Process)));
-        } else {
-            process = context->process();
-        }
-
-        if (process == nullptr) {
-            return CallError(OsStatusNotFound);
-        }
-
-        stdx::String name;
-        if (OsStatus status = context->readString((uint64_t)createInfo.NameFront, (uint64_t)createInfo.NameBack, kMaxPathSize, &name)) {
-            return CallError(status);
-        }
-
-        AddressMapping mapping{};
-        SystemMemory *memory = GetSystemMemory();
-        OsStatus status = AllocateMemory(memory->pmmAllocator(), &process->ptes, createInfo.Size / x64::kPageSize, &mapping);
-        if (status != OsStatusSuccess) {
-            return CallError(status);
-        }
-
-        AddressSpace *addressSpace = gSystemObjects->createAddressSpace(std::move(name), mapping, flags, MemoryType::eWriteBack, process);
-        return CallOk(addressSpace->publicId());
-    });
-
-    AddSystemCall(eOsCallAddressSpaceStat, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
-        uint64_t id = regs->arg0;
-        uint64_t userStat = regs->arg1;
-
-        AddressSpace *space = gSystemObjects->getAddressSpace(AddressSpaceId(OS_HANDLE_ID(id)));
-        km::AddressMapping mapping = space->mapping;
-
-        OsAddressSpaceInfo stat {
-            .Base = (OsAnyPointer)mapping.vaddr,
-            .Size = mapping.size,
-
-            .Access = MakeMemoryAccess(space->flags),
-        };
-
-        if (OsStatus status = context->writeObject(userStat, stat)) {
-            return CallError(status);
-        }
-
-        return CallOk(0zu);
-    });
 }
 
 static void EnableUmip(bool enable) {
@@ -1712,12 +1651,9 @@ static OsStatus LaunchThread(OsStatus(*entry)(void*), void *arg, stdx::String na
     Process * process = GetCurrentProcess();
     Thread * thread = gSystemObjects->createThread(std::move(name), process);
 
-    PageFlags flags = PageFlags::eData;
-    MemoryType type = MemoryType::eWriteBack;
     km::AddressMapping mapping = gMemory->allocateStack(kKernelStackSize);
-    // TODO: fix this
-    AddressSpace * _ = gSystemObjects->createAddressSpace(std::move(stackName), mapping, flags, type, process);
 
+    thread->userStack = mapping;
     thread->state = km::IsrContext {
         .rdi = (uintptr_t)arg,
         .rbp = (uintptr_t)mapping.vaddr + kKernelStackSize,
@@ -1861,18 +1797,15 @@ static void LaunchKernelProcess(LocalIsrTable *table, IApic *apic) {
 
     Thread *thread = gSystemObjects->createThread("SYSTEM MASTER TASK", process);
 
-    PageFlags flags = PageFlags::eData;
-    MemoryType type = MemoryType::eWriteBack;
     km::AddressMapping mapping = gMemory->allocateStack(kKernelStackSize);
-    AddressSpace * stackSpace = gSystemObjects->createAddressSpace("SYSTEM MASTER STACK", mapping, flags, type, process);
 
-    thread->stack = stackSpace;
+    thread->userStack = mapping;
     thread->state = km::IsrContext {
-        .rbp = (uintptr_t)((uintptr_t)thread->stack->mapping.vaddr + kKernelStackSize),
+        .rbp = (uintptr_t)((uintptr_t)mapping.vaddr + kKernelStackSize),
         .rip = (uintptr_t)&KernelMasterTask,
         .cs = SystemGdt::eLongModeCode * 0x8,
         .rflags = 0x202,
-        .rsp = (uintptr_t)((uintptr_t)thread->stack->mapping.vaddr + kKernelStackSize),
+        .rsp = (uintptr_t)((uintptr_t)mapping.vaddr + kKernelStackSize),
         .ss = SystemGdt::eLongModeData * 0x8,
     };
 

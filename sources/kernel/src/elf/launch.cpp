@@ -374,8 +374,6 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
 #if 0
         process->ptes.map(mapping, flags);
 #endif
-
-        objects.createAddressSpace("ELF SECTION", mapping, flags, km::MemoryType::eWriteBack, process);
     }
 
     if (dyn != nullptr) {
@@ -392,7 +390,6 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
 
     static constexpr size_t kStackSize = 0x4000;
     PageFlags flags = PageFlags::eUser | PageFlags::eData;
-    MemoryType type = MemoryType::eWriteBack;
     AddressMapping mapping{};
     if (OsStatus status = AllocateMemory(memory.pmmAllocator(), &process->ptes, 4, &mapping)) {
         KmDebugMessage("[ELF] Failed to allocate stack memory: ", status, "\n");
@@ -406,10 +403,9 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
     memory.unmap(stack, kStackSize);
 
     name.append(" MAIN");
-    AddressSpace * stackSpace = objects.createAddressSpace("MAIN STACK", mapping, flags, type, process);
 
     Thread * main = objects.createThread(stdx::String(name), process);
-    main->stack = stackSpace;
+    main->userStack = mapping;
 
     regs.rbp = (uintptr_t)mapping.vaddr + kStackSize;
     regs.rsp = (uintptr_t)mapping.vaddr + kStackSize;
