@@ -18,6 +18,8 @@ BZP_API_BEGIN
  */
 extern void OsImplPosixAssert(const char *, const char *, unsigned) BZP_NONNULL(1, 2);
 
+extern void OsImplPosixInstall(void(*)(const char *, const char *, unsigned)) BZP_NOEXCEPT BZP_NONNULL(1);
+
 #ifdef NDEBUG
 #   define assert(x) ((void)0)
 #else

@@ -37,6 +37,8 @@ enum {
     eOsCallAddressSpaceDestroy = 0x51,
     eOsCallAddressSpaceStat = 0x52,
 
+    eOsCallVmemCreate = 0x53,
+
     eOsCallTransactionBegin = 0x60,
     eOsCallTransactionCommit = 0x61,
     eOsCallTransactionRollback = 0x62,

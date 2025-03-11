@@ -5,6 +5,8 @@
 
 #include <bezos/facility/process.h>
 
+#include "private.hpp"
+
 void abort(void) noexcept {
     exit(EXIT_FAILURE);
 }
@@ -35,125 +37,126 @@ long long llabs(long long v) noexcept {
 }
 
 double atof(const char *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return 0.0;
 }
 
 int atoi(const char *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return 0;
 }
 
 long int atol(const char *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return 0;
 }
 
 long long int atoll(const char *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return 0;
 }
 
 double strtod(const char *, char **) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return 0.0;
 }
 
 float strtof(const char *, char **) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return 0.0f;
 }
 
 long strtol(const char *, char **, int) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return 0;
 }
 
 long long strtoll(const char *, char **, int) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return 0;
 }
 
 unsigned long strtoul(const char *, char **, int) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return 0;
 }
 
 unsigned long long strtoull(const char *, char **, int) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return 0;
 }
 
 void *malloc(size_t) noexcept {
-    errno = ENOMEM;
+    Unimplemented(ENOMEM);
     return nullptr;
 }
 
 void *calloc(size_t, size_t) noexcept {
-    errno = ENOMEM;
+    Unimplemented(ENOMEM);
     return nullptr;
 }
 
 void *realloc(void *, size_t) noexcept {
-    errno = ENOMEM;
+    Unimplemented(ENOMEM);
     return nullptr;
 }
 
 void free(void *) noexcept {
+    Unimplemented();
     //
     // Empty for now
     //
 }
 
 void qsort(void *, size_t, size_t, int (*)(const void *, const void *)) {
-    errno = ENOSYS;
+    Unimplemented();
 }
 
 char *getenv(const char *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return nullptr;
 }
 
 extern int putenv(char *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return -1;
 }
 
 extern int setenv(const char *, const char *, int) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return -1;
 }
 
 extern int unsetenv(const char *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return -1;
 }
 
 void srand(unsigned) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
 }
 
 int rand(void) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return 0;
 }
 
 int rand_r(unsigned *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return 0;
 }
 
 char *mkdtemp(char *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return nullptr;
 }
 
 int mkstemp(char *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return -1;
 }
 
 char *mktemp(char *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return nullptr;
 }

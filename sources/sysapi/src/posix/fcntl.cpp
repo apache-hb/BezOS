@@ -1,27 +1,28 @@
 #include <posix/fcntl.h>
-#include <posix/errno.h>
+
+#include "private.hpp"
 
 int open(const char *, int, ...) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return -1;
 }
 
 int close(int) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return -1;
 }
 
 int fcntl(int, int, ...) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return -1;
 }
 
 int rename(const char *, const char *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return -1;
 }
 
 int mkfifoat(int, const char *, mode_t) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return -1;
 }

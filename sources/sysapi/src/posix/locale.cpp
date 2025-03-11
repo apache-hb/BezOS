@@ -1,8 +1,8 @@
 #include <posix/locale.h>
 
-#include <posix/errno.h>
+#include "private.hpp"
 
 char *setlocale(int, const char *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return nullptr;
 }

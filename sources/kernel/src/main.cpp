@@ -74,7 +74,6 @@ using namespace km;
 using namespace stdx::literals;
 using namespace std::string_view_literals;
 
-namespace stdr = std::ranges;
 namespace stdv = std::ranges::views;
 
 static constexpr bool kUseX2Apic = true;
@@ -1045,7 +1044,7 @@ static void AddDebugSystemCalls() {
         }
 
         stdx::String message;
-        if (OsStatus status = context->readString((uint64_t)messageInfo.Front, (uint64_t)messageInfo.Back, 1024, &message)) {
+        if (OsStatus status = context->readString((uint64_t)messageInfo.Front, (uint64_t)messageInfo.Back, kMaxMessageSize, &message)) {
             return CallError(status);
         }
 
@@ -1525,6 +1524,8 @@ static void AddProcessSystemCalls() {
         if (process == nullptr) {
             return CallError(OsStatusNotFound);
         }
+
+        KmDebugMessage("[PROC] Process ", process->internalId(), " exited with code ", userExitCode, "\n");
 
         gSystemObjects->exitProcess(process, userExitCode);
 

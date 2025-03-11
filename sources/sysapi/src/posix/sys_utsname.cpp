@@ -1,8 +1,8 @@
 #include <posix/sys/utsname.h>
 
-#include <posix/errno.h>
+#include "private.hpp"
 
 int uname(struct utsname *) {
-    errno = ENOSYS;
+    Unimplemented();
     return -1;
 }

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stddef.h> // IWYU pragma: keep size_t
+
 #include <bezos/status.h>
 
 #ifdef __cplusplus

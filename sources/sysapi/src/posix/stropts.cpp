@@ -1,8 +1,8 @@
 #include <posix/stropts.h>
 
-#include <posix/errno.h>
+#include "private.hpp"
 
 int ioctl(int, int, ...) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return -1;
 }

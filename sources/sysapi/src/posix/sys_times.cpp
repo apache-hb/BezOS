@@ -1,8 +1,8 @@
 #include <posix/sys/times.h>
 
-#include <posix/errno.h>
+#include "private.hpp"
 
 clock_t times(struct tms *) {
-    errno = ENOSYS;
+    Unimplemented();
     return -1;
 }

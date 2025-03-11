@@ -1,6 +1,7 @@
 project('sysapi', [ 'c', 'cpp' ],
     default_options : [
         'cpp_std=c++20',
+        'c_std=gnu23',
         'cpp_rtti=false',
         'cpp_eh=none',
     ]
@@ -49,6 +50,8 @@ bezos_dep = declare_dependency(
 )
 
 src = [
+    'src/posix/private.cpp',
+
     'src/posix/assert.cpp',
     'src/posix/locale.cpp',
     'src/posix/dirent.cpp',

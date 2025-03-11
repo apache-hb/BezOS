@@ -1,37 +1,37 @@
 #include <posix/dirent.h>
 
-#include <posix/errno.h>
+#include "private.hpp"
 
 int closedir(DIR *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return -1;
 }
 
 int dirfd(DIR *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return -1;
 }
 
 DIR *opendir(const char *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return nullptr;
 }
 
 struct dirent *readdir(DIR *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return nullptr;
 }
 
 void rewinddir(DIR *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
 }
 
 
 void seekdir(DIR *, long) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
 }
 
 long telldir(DIR *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return -1;
 }

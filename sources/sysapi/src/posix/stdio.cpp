@@ -3,6 +3,8 @@
 #include <posix/errno.h>
 #include <posix/stdint.h>
 
+#include "private.hpp"
+
 struct OsImplPosixFile {
     int fd;
 };
@@ -12,58 +14,61 @@ static constinit OsImplPosixFile kStandardOut = { 1 };
 static constinit OsImplPosixFile kStandardError = { 2 };
 
 FILE *OsImplPosixStandardIn(void) noexcept {
+    Unimplemented();
     return &kStandardIn;
 }
 
 FILE *OsImplPosixStandardOut(void) noexcept {
+    Unimplemented();
     return &kStandardOut;
 }
 
 FILE *OsImplPosixStandardError(void) noexcept {
+    Unimplemented();
     return &kStandardError;
 }
 
 int fclose(FILE *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return -1;
 }
 
 FILE *fopen(const char *, const char *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return nullptr;
 }
 
 void clearerr(FILE *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
 }
 
 FILE *fdopen(int, const char *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return nullptr;
 }
 
 int fseek(FILE *, long, int) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return -1;
 }
 
 long ftell(FILE *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return -1;
 }
 
 int fflush(FILE *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return -1;
 }
 
 int feof(FILE *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return 0;
 }
 
 int ferror(FILE *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return 0;
 }
 
@@ -72,17 +77,17 @@ int fileno(FILE *file) noexcept {
 }
 
 size_t fread(void *, size_t, size_t, FILE *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return 0;
 }
 
 size_t fwrite(const void *, size_t, size_t, FILE *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return 0;
 }
 
 int fprintf(FILE *, const char *, ...) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return -1;
 }
 
@@ -115,7 +120,7 @@ int vsprintf(char *dst, const char *format, va_list args) noexcept {
 }
 
 int vsnprintf(char *, size_t, const char *, va_list) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return -1;
 }
 
@@ -124,54 +129,54 @@ int vprintf(const char *format, va_list args) noexcept {
 }
 
 int vfprintf(FILE *, const char *, va_list) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return -1;
 }
 
 int puts(const char*) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return -1;
 }
 
 int putc(int, FILE *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return -1;
 }
 
 int fputc(int, FILE *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return -1;
 }
 
 int fgetc(FILE *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return -1;
 }
 
 char *fgets(char *, int, FILE *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return nullptr;
 }
 
 int fputs(const char *, FILE *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return -1;
 }
 
 int putchar(int) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return -1;
 }
 
 void setbuffer(FILE *, char *, int) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
 }
 
 void setlinebuf(FILE *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
 }
 
 char *cuserid(char *) noexcept {
-    errno = ENOSYS;
+    Unimplemented();
     return nullptr;
 }

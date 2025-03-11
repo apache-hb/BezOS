@@ -1,8 +1,8 @@
 #include <posix/sys/time.h>
 
-#include <posix/errno.h>
+#include "private.hpp"
 
 int gettimeofday(struct timeval *, void *) {
-    errno = ENOSYS;
+    Unimplemented();
     return -1;
 }
