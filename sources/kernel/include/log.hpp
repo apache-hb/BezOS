@@ -9,7 +9,6 @@ namespace km {
     enum class DebugLogLockType {
         eNone,
         eSpinLock,
-        eRecursiveSpinLock,
     };
 
     void SetDebugLogLock(DebugLogLockType type);
