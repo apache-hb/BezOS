@@ -48,6 +48,8 @@ extern int close(int) BZP_NOEXCEPT;
 
 extern int rename(const char *, const char *) BZP_NOEXCEPT;
 
+extern int mkfifoat(int, const char *, mode_t) BZP_NOEXCEPT;
+
 BZP_API_END
 
 #endif /* BEZOS_POSIX_FCNTL_H */

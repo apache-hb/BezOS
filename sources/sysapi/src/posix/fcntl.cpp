@@ -20,3 +20,8 @@ int rename(const char *, const char *) noexcept {
     errno = ENOSYS;
     return -1;
 }
+
+int mkfifoat(int, const char *, mode_t) noexcept {
+    errno = ENOSYS;
+    return -1;
+}

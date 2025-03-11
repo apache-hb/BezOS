@@ -1,7 +1,5 @@
 #pragma once
 
-#include <bezos/status.h>
-
 #include "arch/xsave.hpp"
 
 #include "hypervisor.hpp"
