@@ -4,6 +4,7 @@
 #include <bezos/facility/vmem.h>
 #include <bezos/facility/process.h>
 #include <bezos/facility/handle.h>
+#include <bezos/facility/debug.h>
 
 #include <bezos/handle.h>
 #include <bezos/status.h>
@@ -24,7 +25,7 @@
 
 template<size_t N>
 static void DebugLog(const char (&message)[N]) {
-    OsDebugLog(message, message + N - 1);
+    OsDebugMessage(eOsLogDebug, message);
 }
 
 template<typename T>
@@ -42,7 +43,7 @@ static void DebugLog(T number) {
         }
     }
 
-    OsDebugLog(ptr, buffer + sizeof(buffer));
+    OsDebugMessage({ ptr, buffer + sizeof(buffer), eOsLogDebug });
 }
 
 template<size_t N>
@@ -377,8 +378,77 @@ static void LaunchZsh() {
     ASSERT_OS_SUCCESS(status);
 }
 
-OS_EXTERN OS_NORETURN void ClientStart(const struct OsClientStartInfo *) {
+static void EchoFile(StreamDevice& tty, const char *cwd, const char *path) {
+    char copy[1024]{};
 
+    if (path[0] == '/') {
+        strcpy(copy, path);
+    } else if (strncmp(cwd, "/", 2) == 0) {
+        strcpy(copy, path);
+    } else {
+        strcpy(copy, cwd);
+        strcat(copy, "/");
+        strcat(copy, path);
+    }
+
+    size_t front = 0;
+    size_t len = strlen(copy);
+
+    for (char& c : copy) {
+        if (c == '/') {
+            c = '\0';
+        }
+    }
+
+    if (copy[0] == '\0') {
+        front += 1;
+    }
+
+    OsHandle handle = OS_HANDLE_INVALID;
+    OsFileCreateInfo createInfo {
+        .Path = { copy + front, copy + len },
+        .Mode = eOsFileRead | eOsFileOpenExisting,
+    };
+
+    if (strncmp(path, "/", 2) == 0) {
+        createInfo.Path = OsMakePath("");
+    }
+
+    OsStatus status = OsFileOpen(createInfo, &handle);
+    if (status != OsStatusSuccess) {
+        WriteString(tty, "Error failed to open: '");
+        WriteString(tty, path, path + strlen(path));
+        WriteString(tty, "' ");
+        WriteNumber(tty, status);
+        WriteString(tty, "\n");
+        return;
+    }
+
+    char buffer[1024];
+    size_t read = 0;
+    while (true) {
+        status = OsFileRead(handle, buffer, buffer + sizeof(buffer), &read);
+        if (status != OsStatusSuccess) {
+            WriteString(tty, "Error failed to read: '");
+            WriteString(tty, path, path + strlen(path));
+            WriteString(tty, "' ");
+            WriteNumber(tty, status);
+            WriteString(tty, "\n");
+            break;
+        }
+
+        if (read == 0) {
+            break;
+        }
+
+        WriteString(tty, buffer, buffer + read);
+    }
+
+    ASSERT_OS_SUCCESS(OsFileClose(handle));
+}
+
+OS_EXTERN OS_NORETURN
+void ClientStart(const struct OsClientStartInfo *) {
     StreamDevice tty{OsMakePath("Devices\0Terminal\0TTY0\0Output")};
     StreamDevice ttyin{OsMakePath("Devices\0Terminal\0TTY0\0Input")};
 
@@ -453,6 +523,10 @@ OS_EXTERN OS_NORETURN void ClientStart(const struct OsClientStartInfo *) {
                 continue;
             } else if (strncmp(text, "zsh", 3) == 0) {
                 LaunchZsh();
+                Prompt(tty);
+                continue;
+            } else if (strncmp(text, "cat", 3) == 0) {
+                EchoFile(tty, cwd, text + 4);
                 Prompt(tty);
                 continue;
             }

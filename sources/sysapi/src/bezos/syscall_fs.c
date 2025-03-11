@@ -59,10 +59,3 @@ OsStatus OsFolderIterateNext(OsFolderIteratorHandle Handle, struct OsFolderEntry
     struct OsCallResult result = OsSystemCall(eOsCallFolderIterateNext, (uint64_t)Handle, (uint64_t)OutEntry, 0, 0);
     return result.Status;
 }
-
-
-
-// TODO: remove this
-void OsDebugLog(const char *Begin, const char *End) {
-    OsSystemCall(eOsCallDebugLog, (uint64_t)Begin, (uint64_t)End, 0, 0);
-}

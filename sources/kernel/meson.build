@@ -24,7 +24,7 @@ cpp = meson.get_compiler('cpp')
 inc = include_directories('include')
 
 common_args = [
-    '-fmacro-prefix-map=../../../=/',
+    '-ffile-prefix-map=' + meson.current_source_dir() + '=/',
 
     '-Wno-gnu-anonymous-struct',
     '-Wno-gnu-case-range',

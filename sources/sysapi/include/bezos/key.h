@@ -61,6 +61,8 @@ enum {
     eKeyDecimal   = 0x6E,
     eKeyDivide    = 0x6F,
 
+    eKeyPeriod    = 0xBE,
+
     eKeyLShift    = 0xA0,
     eKeyRShift    = 0xA1,
     eKeyLControl  = 0xA2,

@@ -2,6 +2,7 @@
 #include <bezos/facility/threads.h>
 #include <bezos/facility/fs.h>
 #include <bezos/facility/vmem.h>
+#include <bezos/facility/debug.h>
 
 #include <bezos/subsystem/hid.h>
 #include <bezos/subsystem/ddi.h>
@@ -31,7 +32,7 @@ static constexpr char kKeyboardDevicePath[] = OS_DEVICE_PS2_KEYBOARD;
 
 template<size_t N>
 static void DebugLog(const char (&message)[N]) {
-    OsDebugLog(message, message + N - 1);
+    OsDebugMessage(eOsLogDebug, message);
 }
 
 template<typename T>
@@ -49,7 +50,7 @@ static void DebugLog(T number) {
         }
     }
 
-    OsDebugLog(ptr, buffer + sizeof(buffer));
+    OsDebugMessage({ ptr, buffer + sizeof(buffer), eOsLogDebug });
 }
 
 template<size_t N>
@@ -279,7 +280,7 @@ static char ConvertVkToAscii(OsHidKeyEvent event) {
     case eKeyMultiply: return '*';
     case eKeySubtract: return '-';
     case eKeyAdd: return '+';
-    case eKeyDecimal: return '.';
+    case eKeyPeriod: return '.';
     case eKeyReturn: return '\n';
     case eKeySpace: return ' ';
     case eKeyTab: return '\t';

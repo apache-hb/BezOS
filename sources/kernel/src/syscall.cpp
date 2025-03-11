@@ -13,9 +13,9 @@ static constexpr x64::RwModelRegister<0xC0000084> IA32_FMASK;
 
 static constexpr size_t kStackSize = 0x4000 * 4;
 
-static constinit km::BetterCallHandler gSystemCalls[256] = { nullptr };
+static constinit km::CallHandler gSystemCalls[256] = { nullptr };
 
-void km::AddSystemCall(uint8_t function, BetterCallHandler handler) {
+void km::AddSystemCall(uint8_t function, CallHandler handler) {
     gSystemCalls[function] = handler;
 }
 
@@ -23,7 +23,7 @@ extern "C" void KmSystemEntry(void);
 
 extern "C" OsCallResult KmSystemDispatchRoutine(km::SystemCallRegisterSet *regs) {
     uint8_t function = regs->function;
-    if (km::BetterCallHandler handler = gSystemCalls[function]) {
+    if (km::CallHandler handler = gSystemCalls[function]) {
         km::CallContext context{};
         return handler(&context, regs);
     }

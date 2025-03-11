@@ -5,7 +5,6 @@
 #include "arch/msr.hpp"
 #include "isr/isr.hpp"
 #include "process/process.hpp"
-#include "std/rcuptr.hpp"
 #include "user/user.hpp"
 
 #include <cstdint>
@@ -87,13 +86,13 @@ namespace km {
         OsStatus writeRange(uint64_t address, const void *front, const void *back);
     };
 
-    using BetterCallHandler = OsCallResult(*)(CallContext *ctx, SystemCallRegisterSet *regs);
+    using CallHandler = OsCallResult(*)(CallContext *ctx, SystemCallRegisterSet *regs);
 
     void SetupUserMode(SystemMemory *memory);
 
     void EnterUserMode(km::IsrContext state);
 
-    void AddSystemCall(uint8_t function, BetterCallHandler handler);
+    void AddSystemCall(uint8_t function, CallHandler handler);
 
     template<typename T> requires (sizeof(T) <= sizeof(uint64_t))
     inline OsCallResult CallOk(T value) {

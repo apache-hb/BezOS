@@ -3,6 +3,7 @@
 #include <bezos/facility/fs.h>
 #include <bezos/facility/vmem.h>
 #include <bezos/facility/process.h>
+#include <bezos/facility/debug.h>
 
 #include <bezos/subsystem/fs.h>
 #include <bezos/subsystem/hid.h>
@@ -10,7 +11,7 @@
 
 template<size_t N>
 static void DebugLog(const char (&message)[N]) {
-    OsDebugLog(message, message + N - 1);
+    OsDebugMessage(eOsLogDebug, message);
 }
 
 template<typename T>
@@ -28,7 +29,7 @@ static void DebugLog(T number) {
         }
     }
 
-    OsDebugLog(ptr, buffer + sizeof(buffer));
+    OsDebugMessage({ ptr, buffer + sizeof(buffer), eOsLogDebug });
 }
 
 template<size_t N>
@@ -85,15 +86,15 @@ static void LaunchTerminalService() {
 OS_EXTERN OS_NORETURN void ClientStart(const struct OsClientStartInfo *) {
     LaunchTerminalService();
 
-    DebugLog("Waiting for TTY0 devices...\n");
+    DebugLog("Waiting for TTY0 devices...");
 
     while (!DeviceExists(OsMakePath("Devices\0Terminal\0TTY0\0Input"), kOsStreamGuid)) {
-        DebugLog("Waiting for TTY0 input device...\n");
+        DebugLog("Waiting for TTY0 input device...");
         OsThreadYield();
     }
 
     while (!DeviceExists(OsMakePath("Devices\0Terminal\0TTY0\0Output"), kOsStreamGuid)) {
-        DebugLog("Waiting for TTY0 output device...\n");
+        DebugLog("Waiting for TTY0 output device...");
         OsThreadYield();
     }
 

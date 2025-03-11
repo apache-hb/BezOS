@@ -12,10 +12,12 @@
 
 #include "acpi/acpi.hpp"
 
-#include <bezos/subsystem/hid.h>
 #include <bezos/facility/device.h>
-#include <bezos/subsystem/ddi.h>
 #include <bezos/facility/vmem.h>
+#include <bezos/facility/debug.h>
+
+#include <bezos/subsystem/hid.h>
+#include <bezos/subsystem/ddi.h>
 
 #include "cmos.hpp"
 #include "debug/debug.hpp"
@@ -27,6 +29,7 @@
 #include "display.hpp"
 #include "drivers/block/ramblk.hpp"
 #include "elf.hpp"
+#include "fs2/path.hpp"
 #include "fs2/vfs.hpp"
 #include "gdt.hpp"
 #include "hid/hid.hpp"
@@ -69,6 +72,10 @@
 
 using namespace km;
 using namespace stdx::literals;
+using namespace std::string_view_literals;
+
+namespace stdr = std::ranges;
+namespace stdv = std::ranges::views;
 
 static constexpr bool kUseX2Apic = true;
 static constexpr bool kSelfTestIdt = true;
@@ -869,6 +876,7 @@ static void MountRootVfs() {
     MakePath("System", "Options");
     MakePath("System", "NT");
     MakePath("System", "UNIX");
+    MakePath("System", "Audit");
 
     MakePath("Devices");
     MakePath("Devices", "Terminal", "TTY0");
@@ -880,8 +888,22 @@ static void MountRootVfs() {
 
     {
         vfs2::IVfsNode *node = nullptr;
-        if (OsStatus status = gVfsRoot->create(vfs2::BuildPath("Users", "Guest", "motd.txt"), &node)) {
-            KmDebugMessage("[VFS] Failed to create path: ", status, "\n");
+        vfs2::VfsPath path = vfs2::BuildPath("System", "Audit", "System.log");
+        if (OsStatus status = gVfsRoot->create(path, &node)) {
+            KmDebugMessage("[VFS] Failed to create ", path, ": ", status, "\n");
+        }
+
+        std::unique_ptr<vfs2::IVfsNodeHandle> log;
+        if (OsStatus status = node->open(std::out_ptr(log))) {
+            KmDebugMessage("[VFS] Failed to open log file: ", status, "\n");
+        }
+    }
+
+    {
+        vfs2::IVfsNode *node = nullptr;
+        vfs2::VfsPath path = vfs2::BuildPath("Users", "Guest", "motd.txt");
+        if (OsStatus status = gVfsRoot->create(path, &node)) {
+            KmDebugMessage("[VFS] Failed to create ", path, ": ", status, "\n");
         }
 
         std::unique_ptr<vfs2::IVfsNodeHandle> motd;
@@ -1012,16 +1034,29 @@ static void AddHandleSystemCalls() {
 }
 
 static void AddDebugSystemCalls() {
-    AddSystemCall(eOsCallDebugLog, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
-        uint64_t front = regs->arg0;
-        uint64_t back = regs->arg1;
+    AddSystemCall(eOsCallDebugMessage, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        uint64_t userMessage = regs->arg0;
+        OsDebugMessageInfo messageInfo{};
+        Process *process = context->process();
+        Thread *thread = context->thread();
 
-        stdx::String message;
-        if (OsStatus status = context->readString(front, back, kMaxMessageSize, &message)) {
+        if (OsStatus status = context->readObject(userMessage, &messageInfo)) {
             return CallError(status);
         }
 
-        KmDebugMessage(message);
+        stdx::String message;
+        if (OsStatus status = context->readString((uint64_t)messageInfo.Front, (uint64_t)messageInfo.Back, 1024, &message)) {
+            return CallError(status);
+        }
+
+        for (const auto& segment : stdv::split(message, "\n"sv)) {
+            std::string_view segmentView{segment};
+            if (segmentView.empty()) {
+                continue;
+            }
+
+            KmDebugMessage("[DBG:", process->internalId(), ":", thread->internalId(), "] ", message, "\n");
+        }
 
         return CallOk(0zu);
     });
@@ -1074,6 +1109,16 @@ static void AddVfsFileSystemCalls() {
         }
 
         return CallOk(result.read);
+    });
+
+    AddSystemCall(eOsCallFileClose, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        uint64_t userHandle = regs->arg0;
+        km::Process *process = context->process();
+        if (OsStatus status = process->closeFile((vfs2::IVfsNodeHandle*)userHandle)) {
+            return CallError(status);
+        }
+
+        return CallOk(0zu);
     });
 }
 
@@ -1812,10 +1857,13 @@ static void LaunchKernelProcess(LocalIsrTable *table, IApic *apic) {
     ScheduleWork(table, apic);
 }
 
-static void InitVfs(const km::SmBiosTables *smbios, const acpi::AcpiTables *acpi, MemoryRange initrd) {
+static void InitVfs() {
     MountRootVfs();
-    CreatePlatformVfsNodes(smbios, acpi);
     MountVolatileFolder();
+}
+
+static void CreateVfsDevices(const km::SmBiosTables *smbios, const acpi::AcpiTables *acpi, MemoryRange initrd) {
+    CreatePlatformVfsNodes(smbios, acpi);
     MountInitArchive(initrd, *GetSystemMemory());
 }
 
@@ -1887,6 +1935,8 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     InitStage1Idt(SystemGdt::eLongModeCode);
     EnableInterrupts();
+
+    InitVfs();
 
     SmBiosLoadOptions smbiosOptions {
         .smbios32Address = launch.smbios32Address,
@@ -1969,7 +2019,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     DateTime time = ReadCmosClock();
     KmDebugMessage("[INIT] Current time: ", time.year, "-", time.month, "-", time.day, "T", time.hour, ":", time.minute, ":", time.second, "Z\n");
 
-    InitVfs(&smbios, &rsdt, launch.initrd);
+    CreateVfsDevices(&smbios, &rsdt, launch.initrd);
     InitUserApi();
 
     CreateNotificationQueue();

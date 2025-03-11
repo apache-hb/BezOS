@@ -5,6 +5,7 @@
         * `/System/Options` global options and driver options
         * `/System/NT` windows NT compatibility
         * `/System/UNIX` unix compatibility
+        * `/System/Audit` system logs
     * `/Devices` device objects. `/dev/`, global fs namespace on NT.
     * `/Platform` installed hardware. `/sys/`
     * `/Processes` process filesystem. `/proc/`
@@ -18,3 +19,4 @@
         * `/Users/Operator`
     * `/Programs` globally available programs. `C:\Program Files` or `/bin/`
     * `/Volatile` temporary files. `/tmp/`
+    * `/Init` initrd mount point

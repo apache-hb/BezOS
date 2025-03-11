@@ -9,6 +9,7 @@ struct OsCallResult {
 
 enum {
     eOsCallHandleWait = 0x1,
+    eOsCallDebugMessage = 0x2,
 
     eOsCallFileOpen = 0x10,
     eOsCallFileClose = 0x11,
@@ -54,8 +55,6 @@ enum {
 
     eOsCallClockGetTime = 0x90,
     eOsCallClockStat = 0x91,
-
-    eOsCallDebugLog = 0x99,
 
     eOsCallCount = 0xFF,
 };

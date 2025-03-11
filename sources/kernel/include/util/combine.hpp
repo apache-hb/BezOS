@@ -14,6 +14,9 @@ namespace sm {
         alignas(std::max(alignof(U)...)) char mStorage[std::max(sizeof(U)...)] {};
 
         /// @brief Checks if the vtable pointer is valid.
+        ///
+        /// @note This is valid only under the itanium x64 abi, and only
+        ///       for classes with single inheritance.
         bool isValid() const {
             char zero[sizeof(void*)]{};
             return std::memcmp(mStorage, zero, sizeof(void*)) != 0;

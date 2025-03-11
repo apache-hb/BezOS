@@ -152,8 +152,7 @@ OS_OBJECT_HANDLE(OsAddressSpaceHandle);
 /// @brief A handle to a device.
 OS_OBJECT_HANDLE(OsDeviceHandle);
 
-// TODO: remove this
-extern void OsDebugLog(const char *Begin, const char *End);
+#define OS_GUID_NULL { .Octets = { 0 } }
 
 #ifdef __cplusplus
 }
