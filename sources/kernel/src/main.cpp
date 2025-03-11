@@ -1217,6 +1217,16 @@ static void AddDeviceSystemCalls() {
             return CallError(status);
         }
 
+        if (createInfo.OpenDataSize == 0) {
+            if (createInfo.OpenData != nullptr) {
+                return CallError(OsStatusInvalidInput);
+            }
+        } else {
+            if (!context->isMapped((uint64_t)createInfo.OpenData, (uint64_t)createInfo.OpenData + createInfo.OpenDataSize, PageFlags::eUser | PageFlags::eRead)) {
+                return CallError(OsStatusInvalidInput);
+            }
+        }
+
         vfs2::VfsPath path;
         if (OsStatus status = UserReadPath(context, createInfo.Path, &path)) {
             return CallError(status);
@@ -1226,7 +1236,7 @@ static void AddDeviceSystemCalls() {
         km::Process *process = context->process();
 
         std::unique_ptr<vfs2::IVfsNodeHandle> handle = nullptr;
-        OsStatus status = gVfsRoot->device(path, uuid, std::out_ptr(handle));
+        OsStatus status = gVfsRoot->device(path, uuid, createInfo.OpenData, createInfo.OpenDataSize, std::out_ptr(handle));
 
         if ((status == OsStatusNotFound) && (createInfo.Flags & eOsDeviceCreateNew)) {
             vfs2::IVfsNode *node = GetDefaultClass(uuid);
@@ -1239,7 +1249,7 @@ static void AddDeviceSystemCalls() {
                 return CallError(status);
             }
 
-            status = gVfsRoot->device(path, uuid, std::out_ptr(handle));
+            status = gVfsRoot->device(path, uuid, createInfo.OpenData, createInfo.OpenDataSize, std::out_ptr(handle));
         }
 
         if (status != OsStatusSuccess) {
@@ -1342,7 +1352,7 @@ static void AddDeviceSystemCalls() {
             return CallError(OsStatusInvalidHandle);
         }
 
-        if (OsStatus status = handle->call(userFunction, (void*)userData, userSize)) {
+        if (OsStatus status = handle->invoke(userFunction, (void*)userData, userSize)) {
             return CallError(status);
         }
 

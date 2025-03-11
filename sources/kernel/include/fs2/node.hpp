@@ -26,6 +26,9 @@ namespace km {
 namespace vfs2 {
     class VfsPath;
 
+    class IVfsNodeHandleBase;
+    class IVfsNodeBase;
+
     class IVfsNodeHandle;
 
     class VfsFolderHandle;
@@ -76,17 +79,57 @@ namespace vfs2 {
         uint64_t size;
     };
 
+    struct HandleInfo {
+        IVfsNodeBase *node;
+    };
+
+    struct NodeInfo {
+        IVfsMount *mount;
+        IVfsNodeBase *parent;
+    };
+
     class IVfsNodeHandleBase {
     public:
         virtual ~IVfsNodeHandleBase() = default;
+
+        /// @brief Query this handle for an alternate interface.
+        ///
+        /// @param uuid The interface to query for.
+        /// @param data The data to pass to the interface.
+        /// @param size The size of the data.
+        /// @param handle The handle to the interface.
+        ///
+        /// @return The status of the query operation.
+        virtual OsStatus query(sm::uuid, const void *, size_t, IVfsNodeHandleBase **) { return OsStatusNotSupported; }
+
+        /// @brief Invoke a method on the handle.
+        ///
+        /// @param method The method to invoke.
+        /// @param data The data to pass to the method.
+        /// @param size The size of the data.
+        ///
+        /// @return The status of the invocation.
+        virtual OsStatus invoke(uint64_t, void *, size_t) { return OsStatusNotSupported; }
     };
 
     class IVfsNodeBase {
     public:
         virtual ~IVfsNodeBase() = default;
+
+        /// @brief Query this node for an interface.
+        ///
+        /// @param uuid The interface to query for.
+        /// @param data The data to pass to the interface.
+        /// @param size The size of the data.
+        /// @param handle The handle to the interface.
+        ///
+        /// @return The status of the query operation.
+        virtual OsStatus query(sm::uuid, const void *, size_t, IVfsNodeHandleBase **) { return OsStatusNotSupported; }
+
+        virtual NodeInfo info() = 0;
     };
 
-    class IVfsNodeHandle {
+    class IVfsNodeHandle : public IVfsNodeHandleBase {
     public:
         virtual ~IVfsNodeHandle() = default;
 
@@ -99,7 +142,6 @@ namespace vfs2 {
         virtual OsStatus read(ReadRequest request, ReadResult *result);
         virtual OsStatus write(WriteRequest request, WriteResult *result);
         virtual OsStatus stat(VfsNodeStat *stat);
-        virtual OsStatus call(uint64_t, void*, size_t) { return OsStatusNotSupported; }
         virtual OsStatus next(VfsString *) { return OsStatusNotSupported; }
     };
 
@@ -211,7 +253,7 @@ namespace vfs2 {
         auto begin() const { return mChildren.begin(); }
         auto end() const { return mChildren.end(); }
 
-        OsIdentifyInfo info() const { return mIdentifyInfo; }
+        OsIdentifyInfo identity() const { return mIdentifyInfo; }
 
         virtual bool isA(sm::uuid guid) const {
             return mInterfaces.contains(guid);
@@ -287,10 +329,12 @@ namespace vfs2 {
         /// @details This function is expected to be internally synchronized.
         ///
         /// @param uuid The UUID of the interface being requested.
+        /// @param data The data to pass to the device on open.
+        /// @param size The size of the data.
         /// @param handle The handle to the device.
         ///
         /// @return The status of the open operation.
-        virtual OsStatus query(sm::uuid uuid, IVfsNodeHandle **handle);
+        virtual OsStatus query(sm::uuid uuid, const void *data, size_t size, IVfsNodeHandle **handle);
 
         virtual OsStatus open(IVfsNodeHandle **handle);
 
@@ -316,6 +360,8 @@ namespace vfs2 {
         virtual ~IVfsMount() = default;
 
         virtual OsStatus root(IVfsNode**) { return OsStatusNotSupported; }
+
+        virtual OsStatus create(const void *, size_t, IVfsNodeBase **) { return OsStatusNotSupported; }
     };
 
     struct IVfsDriver {

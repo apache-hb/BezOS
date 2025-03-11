@@ -74,6 +74,6 @@ namespace vfs2 {
         OsStatus lookup(const VfsPath& path, IVfsNode **node);
 
         OsStatus mkdevice(const VfsPath& path, IVfsNode *device);
-        OsStatus device(const VfsPath& path, sm::uuid interface, IVfsNodeHandle **handle);
+        OsStatus device(const VfsPath& path, sm::uuid interface, const void *data, size_t size, IVfsNodeHandle **handle);
     };
 }

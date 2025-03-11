@@ -92,6 +92,90 @@ TEST(TableAllocatorDetailTest, SwapAnyBlocks) {
     ASSERT_EQ(blocks[1]->next, blocks[5]);
 }
 
+TEST(TableAllocatorDetailTest, SingleBlock) {
+    static constexpr size_t kListSize = x64::kPageSize;
+    TestMemory memory = GetAllocatorMemory(kListSize);
+
+    std::vector<detail::ControlBlock*> blocks;
+
+    for (size_t i = 0; i < (kListSize / x64::kPageSize); i++) {
+        detail::ControlBlock *block = (detail::ControlBlock*)(memory.get() + (i * x64::kPageSize));
+        block->next = nullptr;
+        block->prev = nullptr;
+        block->size = x64::kPageSize;
+
+        blocks.push_back(block);
+    }
+
+    detail::ControlBlock *head = blocks[0];
+    detail::SortBlocks(head);
+    std::sort(blocks.begin(), blocks.end());
+    detail::ControlBlock *block = head->head();
+    ASSERT_NE(block, nullptr);
+    ASSERT_EQ(block->prev, nullptr);
+    ASSERT_EQ((void*)block, memory.get());
+
+    // ensure its sorted
+    size_t count = 0;
+    detail::ControlBlock *next = block;
+    while (next != nullptr) {
+        detail::ControlBlock *tmp = next->next;
+        count += 1;
+        if (tmp == nullptr) break;
+
+        ASSERT_GT(tmp, next);
+        next = tmp;
+    }
+
+    ASSERT_EQ(count, kListSize / x64::kPageSize);
+}
+
+TEST(TableAllocatorDetailTest, TwoBlocks) {
+    static constexpr size_t kListSize = 2 * x64::kPageSize;
+    TestMemory memory = GetAllocatorMemory(kListSize);
+
+    std::vector<detail::ControlBlock*> blocks;
+
+    for (size_t i = 0; i < (kListSize / x64::kPageSize); i++) {
+        detail::ControlBlock *block = (detail::ControlBlock*)(memory.get() + (i * x64::kPageSize));
+        block->next = nullptr;
+        block->prev = nullptr;
+        block->size = x64::kPageSize;
+
+        blocks.push_back(block);
+    }
+
+    std::mt19937 gen { 0x1234 };
+    std::shuffle(blocks.begin(), blocks.end(), gen);
+
+    for (size_t i = 0; i < blocks.size() - 1; i++) {
+        blocks[i]->next = blocks[i + 1];
+        blocks[i + 1]->prev = blocks[i];
+    }
+
+    detail::ControlBlock *head = blocks[0];
+    detail::SortBlocks(head);
+    std::sort(blocks.begin(), blocks.end());
+    detail::ControlBlock *block = head->head();
+    ASSERT_NE(block, nullptr);
+    ASSERT_EQ(block->prev, nullptr);
+    ASSERT_EQ((void*)block, memory.get());
+
+    // ensure its sorted
+    size_t count = 0;
+    detail::ControlBlock *next = block;
+    while (next != nullptr) {
+        detail::ControlBlock *tmp = next->next;
+        count += 1;
+        if (tmp == nullptr) break;
+
+        ASSERT_GT(tmp, next);
+        next = tmp;
+    }
+
+    ASSERT_EQ(count, kListSize / x64::kPageSize);
+}
+
 TEST(TableAllocatorDetailTest, SortBlocks) {
     TestMemory memory = GetAllocatorMemory(kSize);
 

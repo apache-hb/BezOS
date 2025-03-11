@@ -79,7 +79,7 @@ namespace dev {
     public:
         DisplayHandle(vfs2::IVfsNode *node);
 
-        OsStatus call(uint64_t function, void *data, size_t size) override {
+        OsStatus invoke(uint64_t function, void *data, size_t size) override {
             switch (function) {
             case eOsDdiBlit:
                 return blit(data, size);

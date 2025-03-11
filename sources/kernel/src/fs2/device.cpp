@@ -45,12 +45,12 @@ OsStatus vfs2::VfsIdentifyHandle::serveInfo(void *data, size_t size) {
         return OsStatusInvalidInput;
     }
 
-    OsIdentifyInfo info = node->info();
+    OsIdentifyInfo info = node->identity();
     memcpy(data, &info, sizeof(OsIdentifyInfo));
     return OsStatusSuccess;
 }
 
-OsStatus vfs2::VfsIdentifyHandle::call(uint64_t function, void *data, size_t size) {
+OsStatus vfs2::VfsIdentifyHandle::invoke(uint64_t function, void *data, size_t size) {
     switch (function) {
     case eOsIdentifyInterfaceList:
         return serveInterfaceList(data, size);

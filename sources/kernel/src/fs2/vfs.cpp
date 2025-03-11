@@ -217,11 +217,11 @@ OsStatus VfsRoot::remove(IVfsNode *node) {
 }
 
 OsStatus VfsRoot::open(const VfsPath& path, IVfsNodeHandle **handle) {
-    return device(path, kOsFileGuid, handle);
+    return device(path, kOsFileGuid, nullptr, 0, handle);
 }
 
 OsStatus VfsRoot::opendir(const VfsPath& path, IVfsNodeHandle **handle) {
-    return device(path, kOsFolderGuid, handle);
+    return device(path, kOsFolderGuid, nullptr, 0, handle);
 }
 
 OsStatus VfsRoot::mkdir(const VfsPath& path, IVfsNode **node) {
@@ -347,14 +347,14 @@ OsStatus VfsRoot::mkdevice(const VfsPath& path, IVfsNode *device) {
     return parent->addNode(path.name(), device);
 }
 
-OsStatus VfsRoot::device(const VfsPath& path, sm::uuid interface, IVfsNodeHandle **handle) {
+OsStatus VfsRoot::device(const VfsPath& path, sm::uuid interface, const void *data, size_t size, IVfsNodeHandle **handle) {
     stdx::UniqueLock guard(mLock);
 
     //
     // If the path is empty then we are querying the root node.
     //
     if (path.segmentCount() == 0) {
-        return mRootNode->query(interface, handle);
+        return mRootNode->query(interface, data, size, handle);
     }
 
     IVfsNode *parent = nullptr;
@@ -371,5 +371,5 @@ OsStatus VfsRoot::device(const VfsPath& path, sm::uuid interface, IVfsNodeHandle
     // All vfs nodes are devices, so there is no need to check before querying for an interface.
     //
 
-    return device->query(interface, handle);
+    return device->query(interface, data, size, handle);
 }

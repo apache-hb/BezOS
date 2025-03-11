@@ -107,7 +107,7 @@ public:
         OsDeviceCreateInfo createInfo {
             .Path = path,
             .InterfaceGuid = kOsStreamGuid,
-            .Flags = eOsDeviceOpenDefault,
+            .Flags = eOsDeviceOpenExisting,
         };
 
         ASSERT_OS_SUCCESS(OsDeviceOpen(createInfo, NULL, 0, &mDevice));

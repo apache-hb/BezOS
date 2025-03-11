@@ -50,7 +50,7 @@ void IVfsNode::initNode(IVfsNode *node, VfsStringView name, VfsNodeType type) {
     }
 }
 
-OsStatus IVfsNode::query(sm::uuid uuid, IVfsNodeHandle **handle) {
+OsStatus IVfsNode::query(sm::uuid uuid, [[maybe_unused]] const void *data, [[maybe_unused]] size_t size, IVfsNodeHandle **handle) {
     if (auto it = mInterfaces.find(uuid); it != mInterfaces.end()) {
         return it->second(this, handle);
     }

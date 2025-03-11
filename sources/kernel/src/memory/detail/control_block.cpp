@@ -2,7 +2,7 @@
 
 #include "panic.hpp"
 
-#define KM_ENABLE_QUICKSORT 0
+#define KM_ENABLE_QUICKSORT 1
 
 using ControlBlock = km::detail::ControlBlock;
 
@@ -130,7 +130,7 @@ void partition(ControlBlock **mid, ControlBlock **lte, ControlBlock **gt, Contro
 /// @brief Sort a list of control blocks by their address using quicksort
 ///
 /// @author Andrew Haisley
-void quicksort(ControlBlock *l, ControlBlock **begin, ControlBlock **end)
+void quicksort_inner(ControlBlock *l, ControlBlock **begin, ControlBlock **end)
 {
     if (l == nullptr)
     {
@@ -150,8 +150,8 @@ void quicksort(ControlBlock *l, ControlBlock **begin, ControlBlock **end)
 
         partition(&mid, &lte, &gt, l);
 
-        quicksort(lte, &lte, &lte_end);
-        quicksort(gt, &gt, &gt_end);
+        quicksort_inner(lte, &lte, &lte_end);
+        quicksort_inner(gt, &gt, &gt_end);
 
         if (gt == nullptr)
         {
@@ -182,11 +182,27 @@ void quicksort(ControlBlock *l, ControlBlock **begin, ControlBlock **end)
     }
 }
 
-void km::detail::SortBlocks(ControlBlock *block) {
+ControlBlock *quicksort(ControlBlock *head) {
     ControlBlock *begin = nullptr;
     ControlBlock *end = nullptr;
 
-    quicksort(block, &begin, &end);
+    quicksort_inner(head, &begin, &end);
+
+    if (begin) {
+        begin->prev = nullptr;
+    }
+
+    if (end) {
+        end->next = nullptr;
+    }
+
+    return begin;
+}
+
+void km::detail::SortBlocks(ControlBlock *block) {
+    block = block->head();
+
+    quicksort(block);
 }
 
 #else

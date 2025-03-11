@@ -14,6 +14,6 @@ namespace vfs2 {
             : IVfsNodeHandle(node)
         { }
 
-        OsStatus call(uint64_t function, void *data, size_t size) override;
+        OsStatus invoke(uint64_t function, void *data, size_t size) override;
     };
 }

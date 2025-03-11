@@ -22,6 +22,6 @@ TEST(VfsRootTest, QueryRoot) {
     vfs2::VfsRoot vfs;
 
     std::unique_ptr<vfs2::IVfsNodeHandle> handle = nullptr;
-    OsStatus status = vfs.device(vfs2::VfsPath{}, kOsIdentifyGuid, std::out_ptr(handle));
+    OsStatus status = vfs.device(vfs2::VfsPath{}, kOsIdentifyGuid, nullptr, 0, std::out_ptr(handle));
     ASSERT_EQ(OsStatusSuccess, status);
 }
