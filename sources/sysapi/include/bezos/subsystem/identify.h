@@ -8,8 +8,9 @@
 extern "C" {
 #endif
 
-#define OS_SERIAL_NAME_MAX 128
+#define OS_SERIAL_NAME_MAX 64
 #define OS_VENDOR_NAME_MAX 64
+#define OS_FIELD_NAME_MAX 64
 #define OS_INTERFACE_NAME_MAX 64
 
 /// @brief The GUID for device capability identification.
@@ -32,11 +33,11 @@ struct OsIdentifyInterfaceList {
 struct OsIdentifyInfo {
     /// @brief The device name to display to the user.
     /// @example "Samsung SSD 990 EVO 2TB"
-    OsUtf8Char DisplayName[OS_OBJECT_NAME_MAX];
+    OsUtf8Char DisplayName[OS_FIELD_NAME_MAX];
 
     /// @brief The device model name.
     /// @example "MZ-V9E2T0B/AM"
-    OsUtf8Char Model[OS_OBJECT_NAME_MAX];
+    OsUtf8Char Model[OS_FIELD_NAME_MAX];
 
     /// @brief The device serial number.
     /// @example "S7M4NS0X202344T"
@@ -48,7 +49,7 @@ struct OsIdentifyInfo {
 
     /// @brief The device firmware revision.
     /// @example "0B2QKXJ7"
-    OsUtf8Char FirmwareRevision[OS_OBJECT_NAME_MAX];
+    OsUtf8Char FirmwareRevision[OS_FIELD_NAME_MAX];
 
     /// @brief The name of the device driver vendor.
     /// @example "Microsoft Corporation"
