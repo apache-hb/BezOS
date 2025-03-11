@@ -16,11 +16,21 @@ enum {
     eOsMemoryWrite    = (1 << 1),
     eOsMemoryExecute  = (1 << 2),
 
+    /// @brief Reserve virtual address space
+    /// Reserved space is not accessible, but can be committed later.
     eOsMemoryReserve  = (1 << 4),
-    eOsMemoryCommit   = (1 << 5),
-    eOsMemoryDiscard  = (1 << 6),
-    eOsMemoryRelease  = (1 << 7),
 
+    /// @brief Commit virtual address space
+    /// Committed space is accessible and can be read or written.
+    eOsMemoryCommit   = (1 << 5),
+
+    /// @brief Discard a range of memory.
+    /// Discarded memory remains committed, and will be zeroed on first access.
+    eOsMemoryDiscard  = (1 << 6),
+
+    /// @brief Is the base address a hint.
+    /// If this is set, the base address is a hint and the system will choose the address.
+    /// Otherwise, the base address is the address to map the memory at.
     eOsMemoryAddressHint = (1 << 8),
 };
 
@@ -32,30 +42,7 @@ enum {
 /// Bits [9:31] are reserved and must be zero.
 typedef uint32_t OsMemoryAccess;
 
-struct OsAddressSpaceCreateInfo {
-    const char *NameFront;
-    const char *NameBack;
-
-    /// @brief The minimum size of the address space.
-    /// Must be a multiple of the page size.
-    OsSize Size;
-
-    /// @brief The alignment of the address space.
-    /// Must be a multiple of the page size.
-    OsSize Alignment;
-
-    /// @brief The access flags for the address space.
-    OsMemoryAccess Access;
-
-    /// @brief The process handle to create the address space for.
-    /// If this is OS_HANDLE_INVALID, then the address space is created for the current process.
-    OsProcessHandle Process;
-};
-
 struct OsVmemCreateInfo {
-    const char *NameFront;
-    const char *NameBack;
-
     /// @brief The base address to map the memory at.
     /// If @c eOsMemoryAddressHint is set in the access flags, then this is a hint. If the range is already in use
     /// another address will be chosen. Otherwise, this is the base address to map the memory at. If the address is already
