@@ -27,6 +27,4 @@ namespace km::detail {
 
     void SortBlocks(ControlBlock *head);
     void MergeAdjacentBlocks(ControlBlock *head);
-    void SwapAdjacentBlocks(ControlBlock *a, ControlBlock *b);
-    void SwapAnyBlocks(ControlBlock *a, ControlBlock *b);
 }
