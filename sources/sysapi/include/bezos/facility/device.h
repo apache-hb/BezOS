@@ -13,8 +13,6 @@ extern "C" {
 typedef uint64_t OsDeviceCreateFlags;
 
 enum {
-    eOsDeviceOpenDefault = 0,
-
     /// @brief Open the device if it exists, otherwise fail.
     eOsDeviceOpenExisting = 0x0,
 

@@ -68,10 +68,22 @@ namespace vfs2 {
         eNone,
         eFile,
         eFolder,
+        eHardLink,
+        eSymbolicLink,
     };
 
     struct VfsNodeStat {
         uint64_t size;
+    };
+
+    class IVfsNodeHandleBase {
+    public:
+        virtual ~IVfsNodeHandleBase() = default;
+    };
+
+    class IVfsNodeBase {
+    public:
+        virtual ~IVfsNodeBase() = default;
     };
 
     class IVfsNodeHandle {
