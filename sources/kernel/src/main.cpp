@@ -1079,14 +1079,12 @@ static void AddVfsFileSystemCalls() {
             return CallError(status);
         }
 
-        std::unique_ptr<vfs2::IFileHandle> node = nullptr;
-        if (OsStatus status = gVfsRoot->open(path, std::out_ptr(node))) {
+        VNode *vnode = nullptr;
+        if (OsStatus status = gSystemObjects->createVNode(path, kOsFileGuid, nullptr, 0, context->process(), &vnode)) {
             return CallError(status);
         }
 
-        vfs2::IHandle *ptr = context->process()->addFile(std::move(node));
-
-        return CallOk(ptr);
+        return CallOk(vnode->publicId());
     });
 
     AddSystemCall(eOsCallFileRead, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
@@ -1098,8 +1096,8 @@ static void AddVfsFileSystemCalls() {
             return CallError(OsStatusInvalidInput);
         }
 
-        auto file = context->process()->findFile((const vfs2::IHandle*)nodeId);
-        if (file == nullptr) {
+        VNode *node = gSystemObjects->getVNode(VNodeId(OS_HANDLE_ID(nodeId)));
+        if (node == nullptr) {
             return CallError(OsStatusInvalidHandle);
         }
 
@@ -1108,7 +1106,7 @@ static void AddVfsFileSystemCalls() {
             .end = (void*)back,
         };
         vfs2::ReadResult result{};
-        if (OsStatus status = file->read(request, &result)) {
+        if (OsStatus status = node->node->read(request, &result)) {
             return CallError(status);
         }
 
@@ -1118,7 +1116,13 @@ static void AddVfsFileSystemCalls() {
     AddSystemCall(eOsCallFileClose, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t userHandle = regs->arg0;
         km::Process *process = context->process();
-        if (OsStatus status = process->closeFile((vfs2::IHandle*)userHandle)) {
+
+        VNode *node = gSystemObjects->getVNode(VNodeId(OS_HANDLE_ID(userHandle)));
+        if (node == nullptr) {
+            return CallError(OsStatusInvalidHandle);
+        }
+
+        if (OsStatus status = gSystemObjects->destroyVNode(process, node)) {
             return CallError(status);
         }
 
@@ -1127,7 +1131,10 @@ static void AddVfsFileSystemCalls() {
 }
 
 static void AddVfsFolderSystemCalls() {
-    AddSystemCall(eOsCallFolderIterateCreate, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+    AddSystemCall(eOsCallFolderIterateCreate, [](CallContext *, SystemCallRegisterSet *) -> OsCallResult {
+        return CallError(OsStatusNotSupported);
+
+#if 0
         uint64_t userCreateInfo = regs->arg0;
 
         OsFolderIterateCreateInfo createInfo{};
@@ -1148,6 +1155,7 @@ static void AddVfsFolderSystemCalls() {
         vfs2::IHandle *ptr = context->process()->addFile(std::move(node));
 
         return CallOk(ptr);
+#endif
     });
 
     AddSystemCall(eOsCallFolderIterateNext, [](CallContext *, SystemCallRegisterSet *) -> OsCallResult {
@@ -1261,15 +1269,24 @@ static void AddDeviceSystemCalls() {
             return CallError(status);
         }
 
-        vfs2::IHandle *ptr = process->addFile(std::move(handle));
+        VNode *vnode = nullptr;
+        if (OsStatus status = gSystemObjects->addVNode(process, std::move(handle), &vnode)) {
+            return CallError(status);
+        }
 
-        return CallOk(ptr);
+        return CallOk(vnode->publicId());
     });
 
     AddSystemCall(eOsCallDeviceClose, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t userDevice = regs->arg0;
         km::Process *process = context->process();
-        if (OsStatus status = process->closeFile((vfs2::IHandle*)userDevice)) {
+
+        VNode *node = gSystemObjects->getVNode(VNodeId(OS_HANDLE_ID(userDevice)));
+        if (node == nullptr) {
+            return CallError(OsStatusInvalidHandle);
+        }
+
+        if (OsStatus status = gSystemObjects->destroyVNode(process, node)) {
             return CallError(status);
         }
 
@@ -1279,7 +1296,6 @@ static void AddDeviceSystemCalls() {
     AddSystemCall(eOsCallDeviceRead, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t userHandle = regs->arg0;
         uint64_t userRequest = regs->arg1;
-        Process *process = context->process();
 
         OsDeviceReadRequest request{};
         if (OsStatus status = context->readObject(userRequest, &request)) {
@@ -1290,8 +1306,8 @@ static void AddDeviceSystemCalls() {
             return CallError(OsStatusInvalidInput);
         }
 
-        vfs2::IHandle *handle = process->findFile((const vfs2::IHandle*)userHandle);
-        if (handle == nullptr) {
+        VNode *node = gSystemObjects->getVNode(VNodeId(OS_HANDLE_ID(userHandle)));
+        if (node == nullptr) {
             return CallError(OsStatusInvalidHandle);
         }
 
@@ -1301,7 +1317,7 @@ static void AddDeviceSystemCalls() {
             .timeout = request.Timeout,
         };
         vfs2::ReadResult result{};
-        if (OsStatus status = handle->read(readRequest, &result)) {
+        if (OsStatus status = node->node->read(readRequest, &result)) {
             return CallError(status);
         }
 
@@ -1311,7 +1327,6 @@ static void AddDeviceSystemCalls() {
     AddSystemCall(eOsCallDeviceWrite, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t userHandle = regs->arg0;
         uint64_t userRequest = regs->arg1;
-        Process *process = context->process();
 
         OsDeviceReadRequest request{};
         if (OsStatus status = context->readObject(userRequest, &request)) {
@@ -1322,8 +1337,8 @@ static void AddDeviceSystemCalls() {
             return CallError(OsStatusInvalidInput);
         }
 
-        vfs2::IHandle *handle = process->findFile((const vfs2::IHandle*)userHandle);
-        if (handle == nullptr) {
+        VNode *node = gSystemObjects->getVNode(VNodeId(OS_HANDLE_ID(userHandle)));
+        if (node == nullptr) {
             return CallError(OsStatusInvalidHandle);
         }
 
@@ -1333,7 +1348,7 @@ static void AddDeviceSystemCalls() {
             .timeout = request.Timeout,
         };
         vfs2::WriteResult result{};
-        if (OsStatus status = handle->write(writeRequest, &result)) {
+        if (OsStatus status = node->node->write(writeRequest, &result)) {
             return CallError(status);
         }
 
@@ -1346,18 +1361,16 @@ static void AddDeviceSystemCalls() {
         uint64_t userData = regs->arg2;
         uint64_t userSize = regs->arg3;
 
-        km::Process *process = context->process();
-
         if (!context->isMapped((uint64_t)userData, (uint64_t)userData + userSize, PageFlags::eUserData)) {
             return CallError(OsStatusInvalidInput);
         }
 
-        vfs2::IHandle *handle = process->findFile((const vfs2::IHandle*)userHandle);
-        if (handle == nullptr) {
+        VNode *node = gSystemObjects->getVNode(VNodeId(OS_HANDLE_ID(userHandle)));
+        if (node == nullptr) {
             return CallError(OsStatusInvalidHandle);
         }
 
-        if (OsStatus status = handle->invoke(userFunction, (void*)userData, userSize)) {
+        if (OsStatus status = node->node->invoke(userFunction, (void*)userData, userSize)) {
             return CallError(status);
         }
 

@@ -119,17 +119,12 @@ namespace km {
         x64::Privilege privilege;
         stdx::SharedSpinLock lock;
         ProcessPageTables ptes;
-        sm::FlatHashSet<std::unique_ptr<vfs2::IHandle>> files;
         sm::FlatHashMap<OsHandle, KernelObject*> handles;
         OsProcessState state = { eOsProcessRunning };
 
         void init(ProcessId id, stdx::String name, x64::Privilege protection, SystemPageTables *kernel, AddressMapping pteMemory, VirtualRange processArea);
 
         bool isComplete() const;
-
-        vfs2::IHandle *addFile(std::unique_ptr<vfs2::IHandle> handle);
-        OsStatus closeFile(vfs2::IHandle *ptr);
-        vfs2::IHandle *findFile(const vfs2::IHandle *ptr);
 
         void addHandle(KernelObject *object);
         KernelObject *findHandle(OsHandle id);

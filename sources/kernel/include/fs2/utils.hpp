@@ -4,6 +4,7 @@
 
 namespace vfs2 {
     class INode;
+    class IHandle;
     class IFileHandle;
     class IFolderHandle;
 

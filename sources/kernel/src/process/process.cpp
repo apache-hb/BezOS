@@ -15,40 +15,6 @@ bool Process::isComplete() const {
     return status != eOsProcessRunning && status != eOsProcessSuspended;
 }
 
-vfs2::IHandle *Process::addFile(std::unique_ptr<vfs2::IHandle> handle) {
-    stdx::UniqueLock guard(lock);
-    vfs2::IHandle *ptr = handle.get();
-    files.insert(std::move(handle));
-    return ptr;
-}
-
-OsStatus Process::closeFile(vfs2::IHandle *ptr) {
-    stdx::UniqueLock guard(lock);
-    // This is awful, but theres no transparent lookup for unique pointers
-    std::unique_ptr<vfs2::IHandle> handle(const_cast<vfs2::IHandle*>(ptr));
-    defer { (void)handle.release(); }; // NOLINT(bugprone-unused-return-value)
-
-    if (auto it = files.find(handle); it != files.end()) {
-        files.erase(it);
-        return OsStatusSuccess;
-    }
-
-    return OsStatusNotFound;
-}
-
-vfs2::IHandle *Process::findFile(const vfs2::IHandle *ptr) {
-    // This is awful, but theres no transparent lookup for unique pointers
-    std::unique_ptr<vfs2::IHandle> handle(const_cast<vfs2::IHandle*>(ptr));
-    defer { (void)handle.release(); }; // NOLINT(bugprone-unused-return-value)
-
-    stdx::SharedLock guard(lock);
-    if (auto it = files.find(handle); it != files.end()) {
-        return it->get();
-    }
-
-    return nullptr;
-}
-
 void Process::addHandle(KernelObject *object) {
     handles.insert({ object->publicId(), object });
 }

@@ -43,6 +43,7 @@ namespace km {
         OsStatus createVNode(const vfs2::VfsPath &path, sm::uuid uuid, const void *data, size_t size, Process *process, VNode **node);
         OsStatus destroyVNode(Process *process, VNode *node);
         VNode *getVNode(VNodeId id);
+        OsStatus addVNode(Process *process, std::unique_ptr<vfs2::IHandle> handle, VNode **node);
 
         Thread *createThread(stdx::String name, Process* process);
         Mutex *createMutex(stdx::String name);

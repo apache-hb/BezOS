@@ -51,6 +51,28 @@ VNode *SystemObjects::getVNode(VNodeId id) {
     return nullptr;
 }
 
+OsStatus SystemObjects::addVNode(Process *process, std::unique_ptr<vfs2::IHandle> handle, VNode **node) {
+    stdx::UniqueLock guard(mLock);
+
+    vfs2::HandleInfo handleInfo = handle->info();
+    vfs2::NodeInfo nodeInfo = handleInfo.node->info();
+
+    VNode *result = new (std::nothrow) VNode;
+    if (result == nullptr) {
+        return OsStatusOutOfMemory;
+    }
+
+    VNodeId id = mDeviceIds.allocate();
+    result->init(id, stdx::String(nodeInfo.name), std::move(handle));
+
+    process->addHandle(result);
+
+    mNodes.insert({id, result});
+    *node = result;
+
+    return OsStatusSuccess;
+}
+
 Thread *SystemObjects::createThread(stdx::String name, Process *process) {
     Thread *result = nullptr;
     if (OsStatus status = createThread(std::move(name), process, &result)) {
