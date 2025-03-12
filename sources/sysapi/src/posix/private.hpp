@@ -9,3 +9,6 @@
 
 [[gnu::visibility("hidden")]]
 void Unimplemented(int error = ENOSYS, std::source_location location = std::source_location::current());
+
+[[gnu::visibility("hidden")]]
+void Unimplemented(int error, const char *message, std::source_location location = std::source_location::current());

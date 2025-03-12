@@ -80,6 +80,8 @@ extern char *mkdtemp(char *) BZP_NOEXCEPT;
 extern int mkstemp(char *) BZP_NOEXCEPT;
 extern char *mktemp(char *) BZP_NOEXCEPT;
 
+extern int atexit(void (*)(void)) BZP_NOEXCEPT;
+
 BZP_API_END
 
 #endif /* BEZOS_POSIX_STDLIB_H */

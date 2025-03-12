@@ -5,7 +5,21 @@
 
 #include <bezos/facility/process.h>
 
+#include "rpmalloc/rpmalloc.h"
+
 #include "private.hpp"
+
+struct InitMalloc {
+    InitMalloc() {
+        rpmalloc_initialize();
+    }
+
+    ~InitMalloc() {
+        rpmalloc_finalize();
+    }
+};
+
+static const InitMalloc kInitMalloc{};
 
 void abort(void) noexcept {
     exit(EXIT_FAILURE);
@@ -86,23 +100,20 @@ unsigned long long strtoull(const char *, char **, int) noexcept {
     return 0;
 }
 
-void *malloc(size_t) noexcept {
-    Unimplemented(ENOMEM);
-    return nullptr;
+void *malloc(size_t size) noexcept {
+    return rpmalloc(size);
 }
 
-void *calloc(size_t, size_t) noexcept {
-    Unimplemented(ENOMEM);
-    return nullptr;
+void *calloc(size_t n, size_t size) noexcept {
+    return rpcalloc(n, size);
 }
 
-void *realloc(void *, size_t) noexcept {
-    Unimplemented(ENOMEM);
-    return nullptr;
+void *realloc(void *ptr, size_t size) noexcept {
+    return rprealloc(ptr, size);
 }
 
-void free(void *) noexcept {
-    Unimplemented();
+void free(void *ptr) noexcept {
+    rpfree(ptr);
 }
 
 void qsort(void *, size_t, size_t, int (*)(const void *, const void *)) {
@@ -157,3 +168,15 @@ char *mktemp(char *) noexcept {
     Unimplemented();
     return nullptr;
 }
+
+int atexit(void (*)(void)) noexcept {
+    Unimplemented();
+    return -1;
+}
+
+extern "C" int __cxa_atexit(void (*)(void *), void *, void *) noexcept {
+    Unimplemented();
+    return 0;
+}
+
+extern "C" void *__dso_handle = nullptr;

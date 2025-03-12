@@ -142,7 +142,6 @@ static OsStatus ApplyRelocations(vfs2::IHandle *file, std::span<const elf::Elf64
     for (size_t i = 0; i < count; i++) {
         const elf::Elf64Rela &rela = relas[i];
         uint64_t *target = (uint64_t*)((uintptr_t)mapping.vaddr + windowOffset + rela.offset);
-        // uint64_t *symbol = (uint64_t*)((uintptr_t)mapping.vaddr + rela.addend);
 
         switch (rela.info & 0xFFFF) {
         case R_AMD64_NONE:
@@ -178,8 +177,8 @@ static OsStatus AllocateTlsMemory(vfs2::IHandle *file, const elf::ProgramHeader 
     };
 
     vfs2::ReadRequest request {
-        .begin = (std::byte*)tlsWindow + sizeof(uintptr_t),
-        .end = (std::byte*)tlsWindow + tls->filesz + sizeof(uintptr_t),
+        .begin = (std::byte*)tlsWindow,
+        .end = (std::byte*)tlsWindow + tls->filesz,
         .offset = tls->offset,
     };
 
@@ -196,12 +195,14 @@ static OsStatus AllocateTlsMemory(vfs2::IHandle *file, const elf::ProgramHeader 
     if (tls->memsz > tls->filesz) {
         size_t bssSize = tls->memsz - tls->filesz;
         KmDebugMessage("[ELF] TLS BSS size: ", bssSize, " ", tlsMapping, "\n");
-        memset(((char*)tlsWindow + tls->filesz + sizeof(uintptr_t)), 0, bssSize);
+        memset(((char*)tlsWindow + tls->filesz), 0, bssSize);
     }
 
-    KmDebugMessage("[ELF] TLS configure pointer\n");
-    const void *vaddr = tlsMapping.vaddr;
-    memcpy((char*)tlsWindow, &vaddr, sizeof(uintptr_t));
+    const void *vaddr = (char*)tlsMapping.vaddr + tls->memsz;
+    KmDebugMessage("[ELF] TLS configure pointer ", vaddr, "\n");
+    memcpy((char*)tlsWindow + tls->memsz, &vaddr, sizeof(uintptr_t));
+
+    KmDebugMessage(km::HexDump(std::span((const uint8_t*)tlsWindow, tls->memsz + sizeof(uintptr_t))), "\n");
 
     KmDebugMessage("[ELF] TLS memory mapping: ", tlsMapping, "\n");
 
@@ -419,7 +420,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory &memo
             return status;
         }
 
-        main->tlsAddress = (uint64_t)((char*)mapping.vaddr);
+        main->tlsAddress = (uint64_t)((char*)mapping.vaddr + tls->memsz);
     }
 
     main->state = regs;

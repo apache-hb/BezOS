@@ -21,6 +21,7 @@
              AR='@PREFIX@/llvm/bin/llvm-ar'
              LD='@PREFIX@/llvm/bin/ld.lld'
              LDFLAGS='-nostartfiles -nostdlib
+                      -static-pie
                       -Wl,--start-group
                       -L@PREFIX@/ncurses/lib
                       @PREFIX@/sysapi/lib/crtstart.o
@@ -30,6 +31,9 @@
              CFLAGS='--sysroot @PREFIX@/llvm
                      -isystem @PREFIX@/sysapi/include/posix
                      -I@PREFIX@/ncurses/include
+                     -static
+                     -fPIE
+                     -fPIC
                      -nostdlib' />
         <options host='x86_64-bezos-jlibc'
                  disable-etcdir=''

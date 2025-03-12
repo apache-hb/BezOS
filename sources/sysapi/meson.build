@@ -53,8 +53,10 @@ meson.override_dependency('bezos', bezos_dep)
 
 if not meson.is_subproject()
     stb = dependency('stb')
+    rpmalloc = subproject('rpmalloc')
 
     src = [
+        rpmalloc.get_variable('sources'),
         'src/posix/private.cpp',
 
         'src/posix/assert.cpp',
@@ -84,7 +86,7 @@ if not meson.is_subproject()
     ]
 
     libposix = static_library('bezos-posix', src,
-        include_directories : inc,
+        include_directories : [ inc, rpmalloc.get_variable('includes') ],
         dependencies : [ bezos_dep, stb ],
         install : not meson.is_subproject(),
         build_by_default : not meson.is_subproject(),

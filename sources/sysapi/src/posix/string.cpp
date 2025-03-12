@@ -171,6 +171,17 @@ char *strrchr(const char *str, int c) noexcept {
     return const_cast<char *>(last);
 }
 
+char *strstr(const char *haystack, const char *needle) noexcept {
+    size_t sublen = strlen(needle);
+    for (size_t i = 0; haystack[i]; i++) {
+        if (strncmp(haystack + i, needle, sublen) == 0) {
+            return const_cast<char *>(haystack + i);
+        }
+    }
+
+    return nullptr;
+}
+
 char *strdup(const char *str) noexcept {
     size_t len = strlen(str);
     if (char *result = (char*)malloc(len + 1)) {
