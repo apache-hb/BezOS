@@ -20,14 +20,9 @@ extern "C" {
 OS_DEFINE_GUID(kOsIdentifyGuid, 0xba72898c, 0xf2d8, 0x11ef, 0x8520, 0x0b9e4d54e5a1);
 
 enum {
-    eOsIdentifyInterfaceList = UINT64_C(0),
-    eOsIdentifyInfo          = UINT64_C(1),
+    eOsIdentifyInfo          = UINT64_C(0),
+    eOsIdentifyInterfaceList = UINT64_C(1),
     eOsIdentifyPropertyList  = UINT64_C(2),
-};
-
-struct OsIdentifyInterfaceList {
-    uint32_t InterfaceCount;
-    struct OsGuid InterfaceGuids[];
 };
 
 struct OsIdentifyInfo {
@@ -58,6 +53,11 @@ struct OsIdentifyInfo {
     /// @brief The version of the device driver.
     /// @example "1.0.0"
     OsVersionTag DriverVersion;
+};
+
+struct OsIdentifyInterfaceList {
+    uint32_t InterfaceCount;
+    struct OsGuid InterfaceGuids[];
 };
 
 struct OsIdentifyPropertyEntry {

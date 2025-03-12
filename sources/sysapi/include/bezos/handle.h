@@ -97,8 +97,14 @@ typedef uint32_t OsVersionTag;
 #define OS_VERSION(major, minor, patch) \
     (((OsVersionTag)(major) << 24) | ((OsVersionTag)(minor) << 16) | (OsVersionTag)(patch))
 
+#if defined(__cplusplus) && __cplusplus >= 201402L
+#   define OS_CXX_CONSTEXPR constexpr
+#else
+#   define OS_CXX_CONSTEXPR const
+#endif
+
 #define OS_DEFINE_GUID(NAME, P0, P1, P2, P3, P4) \
-    static const struct OsGuid NAME = { \
+    static OS_CXX_CONSTEXPR struct OsGuid NAME = { \
         .Octets = { \
             ((P0 >> 24) & 0xff), ((P0 >> 16) & 0xff), ((P0 >> 8) & 0xff), (P0 & 0xff), \
             ((P1 >> 8) & 0xff), (P1 & 0xff), \

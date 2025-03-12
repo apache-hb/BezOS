@@ -2,7 +2,7 @@
 
 #include "drivers/block/driver.hpp"
 
-#include "fs2/interface.hpp"
+#include "fs2/folder.hpp"
 #include "fs2/node.hpp"
 #include "std/shared.hpp"
 
@@ -126,36 +126,72 @@ namespace vfs2 {
     class TarFsMount;
     class TarFs;
 
+    static constexpr inline OsIdentifyInfo kTarFsInfo {
+        .DisplayName = "TAR File System",
+        .Model = "POSIX.1-1988 TAR Archive",
+        .DeviceVendor = "BezOS",
+        .FirmwareRevision = "1.0.0",
+        .DriverVendor = "BezOS",
+        .DriverVersion = OS_VERSION(1, 0, 0),
+    };
+
     class TarFsNode : public INode {
         INode *mParent;
-        TarPosixHeader mHeader;
-        uint64_t mOffset;
-        TarFsMount *mMount;
         Access mAccess = Access::R;
+
+    protected:
+        TarFsMount *mMount;
+        TarPosixHeader mHeader;
 
     public:
         TarFsNode(TarEntry entry, INode *parent, TarFsMount *mount)
             : mParent(parent)
-            , mHeader(entry.header)
-            , mOffset(entry.offset)
             , mMount(mount)
+            , mHeader(entry.header)
+        { }
+
+        NodeInfo info() override;
+        void init(INode *parent, VfsString name, Access access) override;
+
+        OsStatus identify(OsIdentifyInfo *info) {
+            *info = kTarFsInfo;
+            return OsStatusSuccess;
+        }
+    };
+
+    class TarFsFile : public TarFsNode {
+        static constexpr inline auto kInterfaceList = std::to_array({
+            kOsIdentifyGuid,
+            kOsFileGuid,
+        });
+
+        uint64_t mOffset;
+
+    public:
+        TarFsFile(TarEntry entry, INode *parent, TarFsMount *mount)
+            : TarFsNode(entry, parent, mount)
+            , mOffset(entry.offset)
         { }
 
         OsStatus query(sm::uuid uuid, const void *data, size_t size, IHandle **handle) override;
-        NodeInfo info() override;
-        void init(INode *parent, VfsString name, Access access) override;
+        std::span<const OsGuid> interfaces() const { return kInterfaceList; }
 
         OsStatus stat(NodeStat *result);
         OsStatus read(ReadRequest request, ReadResult *result);
     };
 
     class TarFsFolder : public TarFsNode, public FolderMixin {
+        static constexpr inline auto kInterfaceList = std::to_array({
+            kOsIdentifyGuid,
+            kOsFolderGuid,
+        });
     public:
         TarFsFolder(TarEntry entry, INode *parent, TarFsMount *mount)
             : TarFsNode(entry, parent, mount)
         { }
 
         OsStatus query(sm::uuid uuid, const void *data, size_t size, IHandle **handle) override;
+        std::span<const OsGuid> interfaces() const { return kInterfaceList; }
 
         using FolderMixin::lookup;
         using FolderMixin::mknode;

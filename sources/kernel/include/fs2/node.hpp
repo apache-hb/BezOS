@@ -49,6 +49,7 @@ namespace vfs2 {
         uint64_t logical;
         uint64_t blksize;
         uint64_t blocks;
+        Access access;
     };
 
     class IVfsNodeHandle : public IHandle {

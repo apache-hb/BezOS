@@ -1,4 +1,6 @@
 #include "fs2/ramfs.hpp"
+#include "fs2/file.hpp"
+#include "fs2/identify.hpp"
 #include "fs2/utils.hpp"
 
 using namespace vfs2;
@@ -8,6 +10,16 @@ using namespace vfs2;
 //
 
 OsStatus RamFsFile::query(sm::uuid uuid, const void *, size_t, IHandle **handle) {
+    if (uuid == kOsIdentifyGuid) {
+        auto *identify = new(std::nothrow) TIdentifyHandle<RamFsFile>(this);
+        if (!identify) {
+            return OsStatusOutOfMemory;
+        }
+
+        *handle = identify;
+        return OsStatusSuccess;
+    }
+
     if (uuid == kOsFileGuid) {
         auto *file = new(std::nothrow) TFileHandle<RamFsFile>(this);
         if (!file) {
@@ -57,6 +69,16 @@ OsStatus RamFsFile::stat(NodeStat *stat) {
 //
 
 OsStatus RamFsFolder::query(sm::uuid uuid, const void *, size_t, IHandle **handle) {
+    if (uuid == kOsIdentifyGuid) {
+        auto *identify = new(std::nothrow) TIdentifyHandle<RamFsFolder>(this);
+        if (!identify) {
+            return OsStatusOutOfMemory;
+        }
+
+        *handle = identify;
+        return OsStatusSuccess;
+    }
+
     if (uuid == kOsFolderGuid) {
         auto *folder = new(std::nothrow) TFolderHandle<RamFsFolder>(this);
         if (!folder) {

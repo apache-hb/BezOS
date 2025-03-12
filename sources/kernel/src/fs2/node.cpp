@@ -1,5 +1,7 @@
 #include "fs2/node.hpp"
 #include "fs2/device.hpp"
+#include "fs2/file.hpp"
+#include "fs2/folder.hpp"
 #include "fs2/interface.hpp"
 
 using namespace vfs2;

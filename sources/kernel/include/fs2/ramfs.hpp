@@ -1,6 +1,6 @@
 #pragma once
 
-#include "fs2/interface.hpp"
+#include "fs2/folder.hpp"
 #include "fs2/node.hpp"
 #include "std/shared_spinlock.hpp"
 #include "std/vector.hpp"
@@ -11,6 +11,15 @@ namespace vfs2 {
     class RamFsFolder;
     class RamFsMount;
     class RamFs;
+
+    static constexpr inline OsIdentifyInfo kRamFsInfo {
+        .DisplayName = "In-Memory File System",
+        .Model = "In-Memory File System",
+        .DeviceVendor = "BezOS",
+        .FirmwareRevision = "1.0.0",
+        .DriverVendor = "BezOS",
+        .DriverVersion = OS_VERSION(1, 0, 0),
+    };
 
     class RamFsNode : public INode {
         INode *mParent;
@@ -37,9 +46,19 @@ namespace vfs2 {
             mParent = parent;
             mName = std::move(name);
         }
+
+        OsStatus identify(OsIdentifyInfo *info) {
+            *info = kRamFsInfo;
+            return OsStatusSuccess;
+        }
     };
 
     class RamFsFile : public RamFsNode {
+        static constexpr inline auto kInterfaceList = std::to_array({
+            kOsIdentifyGuid,
+            kOsFileGuid,
+        });
+
         stdx::Vector2<std::byte> mData;
         stdx::SharedSpinLock mLock;
 
@@ -49,6 +68,7 @@ namespace vfs2 {
         { }
 
         OsStatus query(sm::uuid uuid, const void *, size_t, IHandle **handle) override;
+        std::span<const OsGuid> interfaces() const { return kInterfaceList; }
 
         OsStatus read(ReadRequest request, ReadResult *result);
         OsStatus write(WriteRequest request, WriteResult *result);
@@ -56,12 +76,18 @@ namespace vfs2 {
     };
 
     class RamFsFolder : public RamFsNode, public FolderMixin {
+        static constexpr inline auto kInterfaceList = std::to_array({
+            kOsIdentifyGuid,
+            kOsFolderGuid,
+        });
+
     public:
         RamFsFolder(INode *parent, IVfsMount *mount, VfsString name)
             : RamFsNode(parent, mount, std::move(name))
         { }
 
         OsStatus query(sm::uuid uuid, const void *, size_t, IHandle **handle) override;
+        std::span<const OsGuid> interfaces() const { return kInterfaceList; }
 
         using FolderMixin::lookup;
         using FolderMixin::mknode;

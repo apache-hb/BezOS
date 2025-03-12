@@ -1,0 +1,102 @@
+#pragma once
+
+#include "fs2/interface.hpp"
+
+namespace vfs2 {
+    template<typename T>
+    concept FolderLookup = requires (T it) {
+        { it.lookup(std::declval<VfsStringView>(), std::declval<INode**>()) } -> std::same_as<OsStatus>;
+    };
+
+    template<typename T>
+    concept FolderMkNode = requires (T it) {
+        { it.mknode(std::declval<VfsStringView>(), std::declval<INode*>()) } -> std::same_as<OsStatus>;
+    };
+
+    template<typename T>
+    concept FolderRmNode = requires (T it) {
+        { it.rmnode(std::declval<INode*>()) } -> std::same_as<OsStatus>;
+    };
+
+    template<typename T>
+    concept FolderNodeType = FolderLookup<T> && std::derived_from<T, INode>;
+
+    class FolderMixin {
+        using FolderContainer = sm::BTreeMap<VfsString, std::unique_ptr<INode>, std::less<>>;
+
+        FolderContainer mChildren;
+
+    public:
+        OsStatus lookup(VfsStringView name, INode **child);
+        OsStatus mknode(VfsStringView name, INode *child);
+        OsStatus rmnode(INode *child);
+    };
+
+    template<FolderNodeType T>
+    class TFolderHandle : public IFolderHandle {
+        T *mNode;
+    public:
+        TFolderHandle(T *node)
+            : mNode(node)
+        { }
+
+        virtual OsStatus lookup(VfsStringView name, INode **child) override {
+            return mNode->lookup(name, child);
+        }
+
+        virtual OsStatus mknode(VfsStringView name, INode *child) override {
+            if constexpr (FolderMkNode<T>) {
+                return mNode->mknode(name, child);
+            } else {
+                return OsStatusFunctionNotSupported;
+            }
+        }
+
+        virtual OsStatus rmnode(INode *child) override {
+            if constexpr (FolderRmNode<T>) {
+                return mNode->rmnode(child);
+            } else {
+                return OsStatusFunctionNotSupported;
+            }
+        }
+
+        virtual HandleInfo info() override {
+            return HandleInfo { mNode };
+        }
+    };
+
+    class FolderIterator : public IHandle {
+    public:
+    };
+
+    class FolderNode final : public INode, public FolderMixin {
+        NodeInfo mInfo;
+
+    public:
+        FolderNode(NodeInfo info)
+            : mInfo(info)
+        { }
+
+        virtual OsStatus query(sm::uuid uuid, const void *, size_t, IHandle **handle) override {
+            if (uuid == kOsFolderGuid) {
+                auto *folder = new (std::nothrow) TFolderHandle<FolderNode>(this);
+                if (!folder) {
+                    return OsStatusOutOfMemory;
+                }
+
+                *handle = folder;
+                return OsStatusSuccess;
+            }
+
+            return OsStatusInterfaceNotSupported;
+        }
+
+        void init(INode *parent, VfsString name, Access access) override {
+            mInfo = NodeInfo { name, mInfo.mount, parent, access };
+        }
+
+        NodeInfo info() override {
+            return mInfo;
+        }
+    };
+}

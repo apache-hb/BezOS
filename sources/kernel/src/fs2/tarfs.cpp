@@ -1,5 +1,7 @@
 #include "fs2/tarfs.hpp"
 #include "bezos/status.h"
+#include "fs2/file.hpp"
+#include "fs2/identify.hpp"
 #include "fs2/node.hpp"
 #include "fs2/utils.hpp"
 #include "log.hpp"
@@ -172,37 +174,8 @@ OsStatus vfs2::ParseTar(km::BlockDevice *media, TarParseOptions options, sm::BTr
 }
 
 //
-// tarfs file implementation
+// tarfs node implementation
 //
-
-OsStatus TarFsNode::read(ReadRequest request, ReadResult *result) {
-    if (request.offset >= mHeader.getSize()) {
-        result->read = 0;
-        return OsStatusEndOfFile;
-    }
-
-    uint64_t remaining = mHeader.getSize() - request.offset;
-    uint64_t toRead = std::min(remaining, (uintptr_t)request.end - (uintptr_t)request.begin);
-
-    km::BlockDevice *media = mMount->media();
-    size_t read = media->read(mOffset + request.offset, request.begin, toRead);
-    result->read = read;
-    return OsStatusSuccess;
-}
-
-OsStatus TarFsNode::query(sm::uuid uuid, const void *, size_t, IHandle **handle) {
-    if (uuid == kOsFileGuid) {
-        auto *file = new (std::nothrow) TFileHandle<TarFsNode>(this);
-        if (!file) {
-            return OsStatusOutOfMemory;
-        }
-
-        *handle = file;
-        return OsStatusSuccess;
-    }
-
-    return OsStatusInterfaceNotSupported;
-}
 
 void TarFsNode::init(INode *parent, VfsString name, Access access) {
     mParent = parent;
@@ -218,7 +191,50 @@ NodeInfo TarFsNode::info() {
     };
 }
 
-OsStatus TarFsNode::stat(NodeStat *result) {
+//
+// tarfs file implementation
+//
+
+OsStatus TarFsFile::read(ReadRequest request, ReadResult *result) {
+    if (request.offset >= mHeader.getSize()) {
+        result->read = 0;
+        return OsStatusEndOfFile;
+    }
+
+    uint64_t remaining = mHeader.getSize() - request.offset;
+    uint64_t toRead = std::min(remaining, (uintptr_t)request.end - (uintptr_t)request.begin);
+
+    km::BlockDevice *media = mMount->media();
+    size_t read = media->read(mOffset + request.offset, request.begin, toRead);
+    result->read = read;
+    return OsStatusSuccess;
+}
+
+OsStatus TarFsFile::query(sm::uuid uuid, const void *, size_t, IHandle **handle) {
+    if (uuid == kOsIdentifyGuid) {
+        auto *identify = new(std::nothrow) TIdentifyHandle<TarFsFile>(this);
+        if (!identify) {
+            return OsStatusOutOfMemory;
+        }
+
+        *handle = identify;
+        return OsStatusSuccess;
+    }
+
+    if (uuid == kOsFileGuid) {
+        auto *file = new (std::nothrow) TFileHandle<TarFsFile>(this);
+        if (!file) {
+            return OsStatusOutOfMemory;
+        }
+
+        *handle = file;
+        return OsStatusSuccess;
+    }
+
+    return OsStatusInterfaceNotSupported;
+}
+
+OsStatus TarFsFile::stat(NodeStat *result) {
     size_t size = mHeader.getSize();
 
     *result = NodeStat {
@@ -230,7 +246,21 @@ OsStatus TarFsNode::stat(NodeStat *result) {
     return OsStatusSuccess;
 }
 
+//
+// tarfs folder implementation
+//
+
 OsStatus TarFsFolder::query(sm::uuid uuid, const void *, size_t, IHandle **handle) {
+    if (uuid == kOsIdentifyGuid) {
+        auto *identify = new(std::nothrow) TIdentifyHandle<TarFsFolder>(this);
+        if (!identify) {
+            return OsStatusOutOfMemory;
+        }
+
+        *handle = identify;
+        return OsStatusSuccess;
+    }
+
     if (uuid == kOsFolderGuid) {
         auto *folder = new (std::nothrow) TFolderHandle<TarFsFolder>(this);
         if (!folder) {
@@ -304,7 +334,7 @@ TarFsMount::TarFsMount(TarFs *tarfs, sm::SharedPtr<km::IBlockDriver> block)
 
         std::unique_ptr<INode> node = nullptr;
         if (type == VfsNodeType::eFile) {
-            node.reset(new (std::nothrow) TarFsNode(header, parent, this));
+            node.reset(new (std::nothrow) TarFsFile(header, parent, this));
         } else if (type == VfsNodeType::eFolder) {
             node.reset(new (std::nothrow) TarFsFolder(header, parent, this));
         } else {

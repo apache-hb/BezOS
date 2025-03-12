@@ -1,4 +1,4 @@
-#include "fs2/interface.hpp"
+#include "fs2/folder.hpp"
 
 using namespace vfs2;
 
