@@ -27,6 +27,13 @@ namespace vfs2 {
 
         OsStatus insertMount(INode *parent, const VfsPath& path, std::unique_ptr<IVfsMount> object, IVfsMount **mount);
 
+        OsStatus createFolder(IFolderHandle *folder, VfsString name, INode **node);
+        OsStatus createFile(IFolderHandle *folder, VfsString name, INode **node);
+        OsStatus addNode(INode *parent, VfsString name, INode *child);
+
+        OsStatus queryFolder(INode *parent, IFolderHandle **handle);
+        bool hasInterface(INode *node, sm::uuid uuid, const void *data = nullptr, size_t size = 0);
+
     public:
         VfsRoot();
 

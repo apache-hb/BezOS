@@ -173,6 +173,8 @@ src = [
     'src/fs2/node.cpp',
     'src/fs2/handle.cpp',
     'src/fs2/device.cpp',
+    'src/fs2/folder.cpp',
+    'src/fs2/utils.cpp',
 
     # VFS drivers
     'src/fs2/ramfs.cpp',
@@ -397,6 +399,8 @@ testcases = {
         'src/fs2/handle.cpp',
         'src/fs2/ramfs.cpp',
         'src/fs2/device.cpp',
+        'src/fs2/folder.cpp',
+        'src/fs2/utils.cpp',
         'src/util/uuid.cpp',
     ],
     'vfs path': [
@@ -411,6 +415,8 @@ testcases = {
         'src/fs2/handle.cpp',
         'src/fs2/ramfs.cpp',
         'src/fs2/device.cpp',
+        'src/fs2/folder.cpp',
+        'src/fs2/utils.cpp',
         'src/util/uuid.cpp',
     ],
     'ramfs': [
@@ -421,6 +427,8 @@ testcases = {
         'src/fs2/handle.cpp',
         'src/fs2/ramfs.cpp',
         'src/fs2/device.cpp',
+        'src/fs2/folder.cpp',
+        'src/fs2/utils.cpp',
         'test/fs/fs_test.cpp',
         'src/util/uuid.cpp',
     ],
@@ -510,6 +518,8 @@ testcases = {
         'src/fs2/handle.cpp',
         'src/fs2/ramfs.cpp',
         'src/fs2/device.cpp',
+        'src/fs2/folder.cpp',
+        'src/fs2/utils.cpp',
 
         'src/util/memory.cpp',
         'src/boot.cpp',
@@ -586,6 +596,8 @@ source = [
     'src/fs2/handle.cpp',
     'src/fs2/ramfs.cpp',
     'src/fs2/tarfs.cpp',
+    'src/fs2/folder.cpp',
+    'src/fs2/utils.cpp',
     'src/drivers/block/driver.cpp',
     'src/drivers/block/ramblk.cpp',
     'test/fs/fs_test.cpp',

@@ -131,6 +131,7 @@ namespace vfs2 {
         TarPosixHeader mHeader;
         uint64_t mOffset;
         TarFsMount *mMount;
+        Access mAccess = Access::R;
 
     public:
         TarFsNode(TarEntry entry, INode *parent, TarFsMount *mount)
@@ -142,6 +143,7 @@ namespace vfs2 {
 
         OsStatus query(sm::uuid uuid, const void *data, size_t size, IHandle **handle) override;
         NodeInfo info() override;
+        void init(INode *parent, VfsString name, Access access) override;
 
         OsStatus stat(NodeStat *result);
         OsStatus read(ReadRequest request, ReadResult *result);

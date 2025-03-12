@@ -4,6 +4,8 @@
 #include <bezos/subsystem/identify.h>
 #include <bezos/subsystem/fs.h>
 
+#include "fs2/path.hpp"
+#include "util/util.hpp"
 #include "util/uuid.hpp"
 
 /// @brief Virtual File System.
@@ -37,6 +39,23 @@ namespace vfs2 {
         uintptr_t size() const { return (std::byte*)end - (std::byte*)begin; }
     };
 
+    enum class Access {
+        eNone = 0,
+
+        eRead = (1 << 0),
+        eWrite = (1 << 1),
+        eExecute = (1 << 2),
+
+        R = eRead,
+        W = eWrite,
+        X = eExecute,
+        RW = eRead | eWrite,
+        RX = eRead | eExecute,
+        RWX = eRead | eWrite | eExecute,
+    };
+
+    UTIL_BITFLAGS(Access);
+
     struct WriteResult {
         uint64_t write;
     };
@@ -49,8 +68,13 @@ namespace vfs2 {
         stdx::StringView name;
         IVfsMount *mount;
         INode *parent;
+        Access access;
     };
 
+    /// @brief A handle to a file or folder.
+    ///
+    /// @note All handles that advertise as @a kOsFolderGuid must inherit from @a IFolderHandle.
+    /// @note All handles that advertise as @a kOsFileGuid must inherit from @a IFileHandle.
     class IHandle {
     public:
         virtual ~IHandle() = default;
@@ -71,7 +95,7 @@ namespace vfs2 {
     };
 
     class INode {
-    public:
+        public:
         virtual ~INode() = default;
 
         /// @brief Query this node for an interface.
@@ -81,8 +105,13 @@ namespace vfs2 {
         /// @param size The size of the data.
         /// @param handle The handle to the interface.
         ///
+        /// @retval OsStatusSuccess The interface was found, and the handle has been set.
+        /// @retval OsStatusInterfaceNotSupported The interface is not supported.
+        ///
         /// @return The status of the query operation.
         virtual OsStatus query(sm::uuid, const void *, size_t, IHandle **) = 0;
+
+        virtual void init(INode *parent, VfsString name, Access access) = 0;
 
         virtual NodeInfo info() = 0;
     };

@@ -73,6 +73,64 @@ OsStatus VfsRoot::lookupUnlocked(const VfsPath& path, INode **node) {
     return OsStatusSuccess;
 }
 
+OsStatus VfsRoot::createFolder(IFolderHandle *folder, VfsString name, INode **node) {
+    HandleInfo hInfo = folder->info();
+    INode *parent = hInfo.node;
+    NodeInfo pInfo = parent->info();
+    IVfsMount *mount = pInfo.mount;
+
+    std::unique_ptr<INode> child;
+    if (OsStatus status = mount->mkdir(parent, name, nullptr, 0, std::out_ptr(child))) {
+        return status;
+    }
+
+    *node = child.release();
+    return OsStatusSuccess;
+}
+
+OsStatus VfsRoot::createFile(IFolderHandle *folder, VfsString name, INode **node) {
+    HandleInfo hInfo = folder->info();
+    INode *parent = hInfo.node;
+    NodeInfo pInfo = parent->info();
+    IVfsMount *mount = pInfo.mount;
+
+    std::unique_ptr<INode> child;
+    if (OsStatus status = mount->create(parent, name, nullptr, 0, std::out_ptr(child))) {
+        return status;
+    }
+
+    *node = child.release();
+    return OsStatusSuccess;
+}
+
+OsStatus VfsRoot::addNode(INode *parent, VfsString name, INode *child) {
+    std::unique_ptr<IFolderHandle> handle;
+    if (OsStatus status = queryFolder(parent, std::out_ptr(handle))) {
+        return status;
+    }
+
+    return handle->mknode(name, child);
+}
+
+OsStatus VfsRoot::queryFolder(INode *parent, IFolderHandle **handle) {
+    std::unique_ptr<IHandle> result;
+    if (OsStatus status = parent->query(kOsFolderGuid, nullptr, 0, std::out_ptr(result))) {
+        return status;
+    }
+
+    *handle = static_cast<IFolderHandle*>(result.release());
+    return OsStatusSuccess;
+}
+
+bool VfsRoot::hasInterface(INode *node, sm::uuid uuid, const void *data, size_t size) {
+    std::unique_ptr<IHandle> handle;
+    if (node->query(uuid, data, size, std::out_ptr(handle)) != OsStatusSuccess) {
+        return false;
+    }
+
+    return true;
+}
+
 OsStatus VfsRoot::insertMount(INode *parent, const VfsPath& path, std::unique_ptr<IVfsMount> object, IVfsMount **mount) {
     //
     // Add the mount point to our internal mappings.
@@ -112,10 +170,7 @@ OsStatus VfsRoot::insertMount(INode *parent, const VfsPath& path, std::unique_pt
     // to where its mounted.
     //
 
-    root->name = VfsString(path.name());
-    root->parent = parent;
-
-    if (OsStatus status = parent->addNode(path.name(), root)) {
+    if (OsStatus status = addNode(parent, VfsString(path.name()), root)) {
         mMounts.erase(iter);
         return status;
     }
@@ -167,7 +222,9 @@ OsStatus VfsRoot::create(const VfsPath& path, INode **node) {
     // Create the new file inside the parent folder.
     //
     INode *child = nullptr;
-    if (OsStatus status = parent->addFile(path.name(), &child)) {
+    NodeInfo cInfo = parent->info();
+    IVfsMount *mount = cInfo.mount;
+    if (OsStatus status = mount->create(parent, path.name(), nullptr, 0, &child)) {
         return status;
     }
 
@@ -179,11 +236,14 @@ OsStatus VfsRoot::create(const VfsPath& path, INode **node) {
 }
 
 OsStatus VfsRoot::remove(INode *node) {
+    NodeInfo nInfo = node->info();
+    INode *parent = nInfo.parent;
+
     //
     // remove is only valid on files, each inode type
     // has its own method for removal.
     //
-    if (!node->isA(kOsFileGuid)) {
+    if (!hasInterface(node, kOsFileGuid)) {
         return OsStatusInvalidType;
     }
 
@@ -192,24 +252,22 @@ OsStatus VfsRoot::remove(INode *node) {
     // Additionally this is a contract violation as all nodes
     // aside from the root node must have a parent.
     //
-    if (node->parent == nullptr) {
+    if (parent == nullptr) {
         return OsStatusInvalidInput;
     }
 
-    //
-    // Ensure that no programs hold exclusive locks on the file.
-    //
-    if (!node->readyForRemove()) {
-        return OsStatusHandleLocked;
-    }
-
     stdx::UniqueLock guard(mLock);
+
+    std::unique_ptr<IFolderHandle> folder;
+    if (OsStatus status = queryFolder(parent, std::out_ptr(folder))) {
+        return status;
+    }
 
     //
     // Once we know the node is ready for removal we can
     // remove it from the parent folder.
     //
-    if (OsStatus status = node->parent->remove(node)) {
+    if (OsStatus status = folder->rmnode(node)) {
         return status;
     }
 
@@ -241,8 +299,13 @@ OsStatus VfsRoot::mkdir(const VfsPath& path, INode **node) {
         return status;
     }
 
+    std::unique_ptr<IFolderHandle> folder;
+    if (OsStatus status = queryFolder(parent, std::out_ptr(folder))) {
+        return status;
+    }
+
     INode *child = nullptr;
-    if (OsStatus status = parent->addFolder(path.name(), &child)) {
+    if (OsStatus status = createFolder(folder.get(), VfsString(path.name()), &child)) {
         return status;
     }
 
@@ -251,12 +314,14 @@ OsStatus VfsRoot::mkdir(const VfsPath& path, INode **node) {
 }
 
 OsStatus VfsRoot::rmdir(INode *node) {
+    NodeInfo nInfo = node->info();
+    INode *parent = nInfo.parent;
 
     //
     // rmdir is only valid on folders, each inode type
     // has its own method for removal.
     //
-    if (!node->isA(kOsFolderGuid)) {
+    if (!hasInterface(node, kOsFolderGuid)) {
         return OsStatusInvalidType;
     }
 
@@ -264,24 +329,22 @@ OsStatus VfsRoot::rmdir(INode *node) {
     // If the node has no parent, we are unable to remove it.
     // This indicates an attempt to remove the fs root node.
     //
-    if (node->parent == nullptr) {
+    if (parent == nullptr) {
         return OsStatusInvalidInput;
     }
 
-    //
-    // Ensure that no programs hold exclusive locks on the folder.
-    //
-    if (!node->readyForRemove()) {
-        return OsStatusHandleLocked;
-    }
-
     stdx::UniqueLock guard(mLock);
+
+    std::unique_ptr<IFolderHandle> folder;
+    if (OsStatus status = queryFolder(parent, std::out_ptr(folder))) {
+        return status;
+    }
 
     //
     // Once we know the node is ready for removal we can
     // remove it from the parent folder.
     //
-    if (OsStatus status = node->parent->rmdir(node)) {
+    if (OsStatus status = folder->rmnode(node)) {
         return status;
     }
 
@@ -294,24 +357,34 @@ OsStatus VfsRoot::mkpath(const VfsPath& path, INode **node) {
     INode *current = mRootNode.get();
 
     for (auto segment : path) {
+        std::unique_ptr<IHandle> handle;
+        if (OsStatus status = current->query(kOsFolderGuid, nullptr, 0, std::out_ptr(handle))) {
+            //
+            // If this node is not a folder then the path is malformed.
+            //
+            if (status == OsStatusNotSupported) {
+                return OsStatusTraverseNonFolder;
+            }
+
+            return status;
+        }
+
+        IFolderHandle *folder = static_cast<IFolderHandle*>(handle.get());
+
         INode *child = nullptr;
-        OsStatus lookupStatus = current->lookup(segment, &child);
+        OsStatus lookupStatus = folder->lookup(segment, &child);
 
         if (lookupStatus == OsStatusSuccess) {
             //
-            // If there is an inode then we must ensure it's
-            // a folder before continuing traversal.
+            // We can keep walking the path. This if block is left
+            // intentionally empty.
             //
-            if (!child->isA(kOsFolderGuid)) {
-                return OsStatusTraverseNonFolder;
-            }
         } else if (lookupStatus == OsStatusNotFound) {
             //
             // If there is no inode with this name then
             // we need to create a folder.
             //
-
-            if (OsStatus status = current->addFolder(segment, &child)) {
+            if (OsStatus status = createFolder(folder, VfsString(segment), &child)) {
                 return status;
             }
 
@@ -345,15 +418,20 @@ OsStatus VfsRoot::mkdevice(const VfsPath& path, INode *device) {
         return status;
     }
 
+    std::unique_ptr<IFolderHandle> folder;
+    if (OsStatus status = queryFolder(parent, std::out_ptr(folder))) {
+        return status;
+    }
+
     //
     // We need to initialize the device node before adding it to the parent.
     //
-    parent->initNode(device, path.name(), VfsNodeType::eNone);
+    parent->init(device, VfsString(path.name()), vfs2::Access::RWX);
 
     //
     // If this call fails it is the responsibility of the caller to clean up the device.
     //
-    return parent->addNode(path.name(), device);
+    return folder->mknode(path.name(), device);
 }
 
 OsStatus VfsRoot::device(const VfsPath& path, sm::uuid interface, const void *data, size_t size, IHandle **handle) {
@@ -371,8 +449,13 @@ OsStatus VfsRoot::device(const VfsPath& path, sm::uuid interface, const void *da
         return status;
     }
 
+    std::unique_ptr<IFolderHandle> folder;
+    if (OsStatus status = queryFolder(parent, std::out_ptr(folder))) {
+        return status;
+    }
+
     INode *device = nullptr;
-    if (OsStatus status = parent->lookup(path.name(), &device)) {
+    if (OsStatus status = folder->lookup(path.name(), &device)) {
         return status;
     }
 

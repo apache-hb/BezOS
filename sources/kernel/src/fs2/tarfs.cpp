@@ -1,7 +1,12 @@
 #include "fs2/tarfs.hpp"
 #include "bezos/status.h"
 #include "fs2/node.hpp"
+#include "fs2/utils.hpp"
 #include "log.hpp"
+
+#include <ranges>
+
+namespace stdr = std::ranges;
 
 using namespace vfs2;
 
@@ -209,6 +214,12 @@ OsStatus TarFsNode::query(sm::uuid uuid, const void *, size_t, IHandle **handle)
     return OsStatusNotSupported;
 }
 
+void TarFsNode::init(INode *parent, VfsString name, Access access) {
+    mParent = parent;
+    stdr::copy(name, mHeader.name);
+    mAccess = access;
+}
+
 NodeInfo TarFsNode::info() {
     return NodeInfo {
         .name = mHeader.name,
@@ -242,12 +253,10 @@ OsStatus TarFsMount::walk(const VfsPath& path, INode **folder) {
     INode *current = mRootNode;
 
     for (auto segment : path.parent()) {
-        std::unique_ptr<IHandle> handle;
-        if (OsStatus status = current->query(kOsFolderGuid, nullptr, 0, std::out_ptr(handle))) {
+        std::unique_ptr<IFolderHandle> folder;
+        if (OsStatus status = OpenFolderInterface(current, nullptr, 0, std::out_ptr(folder))) {
             return status;
         }
-
-        IFolderHandle *folder = static_cast<IFolderHandle*>(handle.get());
 
         INode *child = nullptr;
         if (OsStatus status = folder->lookup(segment, &child)) {
@@ -271,7 +280,7 @@ TarFsMount::TarFsMount(TarFs *tarfs, sm::SharedPtr<km::IBlockDriver> block)
     : IVfsMount(tarfs)
     , mBlock(block)
     , mMedia(mBlock.get())
-    , mRootNode(new FolderNode(nullptr, this, VfsString("")))
+    , mRootNode(new FolderNode(NodeInfo { "", this, nullptr, Access::RWX }))
 {
     sm::BTreeMap<VfsPath, TarEntry> headers;
     if (OsStatus status = ParseTar(&mMedia, TarParseOptions{}, &headers)) {

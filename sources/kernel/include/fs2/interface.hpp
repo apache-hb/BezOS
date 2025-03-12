@@ -42,12 +42,12 @@ namespace vfs2 {
         }
 
         virtual OsStatus stat(NodeStat *stat) override {
-            return static_cast<T*>(mNode)->stat(stat);
+            return mNode->stat(stat);
         }
 
         virtual OsStatus read(ReadRequest request, ReadResult *result) override {
             if constexpr (FileNodeRead<T>) {
-                return static_cast<T*>(mNode)->read(request, result);
+                return mNode->read(request, result);
             } else {
                 return OsStatusNotSupported;
             }
@@ -55,7 +55,7 @@ namespace vfs2 {
 
         virtual OsStatus write(WriteRequest request, WriteResult *result) override {
             if constexpr (FileNodeWrite<T>) {
-                return static_cast<T*>(mNode)->write(request, result);
+                return mNode->write(request, result);
             } else {
                 return OsStatusNotSupported;
             }
@@ -72,6 +72,11 @@ namespace vfs2 {
         { it.mknode(std::declval<VfsStringView>(), std::declval<INode*>()) } -> std::same_as<OsStatus>;
     };
 
+    template<typename T>
+    concept FolderRmNode = requires (T it) {
+        { it.rmnode(std::declval<INode*>()) } -> std::same_as<OsStatus>;
+    };
+
     class FolderMixin {
         using FolderContainer = sm::BTreeMap<VfsString, INode*, std::less<>>;
 
@@ -80,6 +85,7 @@ namespace vfs2 {
     public:
         OsStatus lookup(VfsStringView name, INode **child);
         OsStatus mknode(VfsStringView name, INode *child);
+        OsStatus rmnode(INode *child);
     };
 
     class IFolderHandle : public IHandle {
@@ -88,6 +94,7 @@ namespace vfs2 {
 
         virtual OsStatus lookup(VfsStringView name, INode **child) = 0;
         virtual OsStatus mknode(VfsStringView name, INode *child) = 0;
+        virtual OsStatus rmnode(INode *child) = 0;
     };
 
     template<std::derived_from<INode> T>
@@ -100,17 +107,25 @@ namespace vfs2 {
 
         virtual OsStatus lookup(VfsStringView name, INode **child) override {
             if constexpr (FolderLookup<T>) {
-                return static_cast<T*>(mNode)->lookup(name, child);
+                return mNode->lookup(name, child);
             } else {
-                return OsStatusNotSupported;
+                return OsStatusFunctionNotSupported;
             }
         }
 
         virtual OsStatus mknode(VfsStringView name, INode *child) override {
             if constexpr (FolderMkNode<T>) {
-                return static_cast<T*>(mNode)->mknode(name, child);
+                return mNode->mknode(name, child);
             } else {
-                return OsStatusNotSupported;
+                return OsStatusFunctionNotSupported;
+            }
+        }
+
+        virtual OsStatus rmnode(INode *child) override {
+            if constexpr (FolderRmNode<T>) {
+                return mNode->rmnode(child);
+            } else {
+                return OsStatusFunctionNotSupported;
             }
         }
 
@@ -124,15 +139,11 @@ namespace vfs2 {
     };
 
     class FolderNode final : public INode, public FolderMixin {
-        INode *mParent;
-        IVfsMount *mMount;
-        VfsString mName;
+        NodeInfo mInfo;
 
     public:
-        FolderNode(INode *parent, IVfsMount *mount, VfsString name)
-            : mParent(parent)
-            , mMount(mount)
-            , mName(name)
+        FolderNode(NodeInfo info)
+            : mInfo(info)
         { }
 
         virtual OsStatus query(sm::uuid uuid, const void *, size_t, IHandle **handle) override {
@@ -146,11 +157,15 @@ namespace vfs2 {
                 return OsStatusSuccess;
             }
 
-            return OsStatusNotSupported;
+            return OsStatusInterfaceNotSupported;
+        }
+
+        void init(INode *parent, VfsString name, Access access) override {
+            mInfo = NodeInfo { name, mInfo.mount, parent, access };
         }
 
         NodeInfo info() override {
-            return NodeInfo { .name = mName, .mount = mMount, .parent = mParent };
+            return mInfo;
         }
     };
 }

@@ -250,6 +250,9 @@ namespace vfs2 {
 
         virtual ~IVfsMount() = default;
 
+        virtual OsStatus mkdir(INode *, VfsStringView, const void *, size_t, INode **) { return OsStatusNotSupported; }
+        virtual OsStatus create(INode *, VfsStringView, const void *, size_t, INode **) { return OsStatusNotSupported; }
+
         virtual OsStatus root(INode **) { return OsStatusNotSupported; }
 
         virtual OsStatus create(const void *, size_t, INode **) { return OsStatusNotSupported; }
@@ -264,8 +267,8 @@ namespace vfs2 {
 
         virtual ~IVfsDriver() = default;
 
-        virtual OsStatus mount(IVfsMount**) { return OsStatusNotSupported; }
-        virtual OsStatus unmount(IVfsMount*) { return OsStatusNotSupported; }
+        virtual OsStatus mount(IVfsMount **) { return OsStatusNotSupported; }
+        virtual OsStatus unmount(IVfsMount *) { return OsStatusNotSupported; }
     };
 
     template<typename T> requires (std::is_trivial_v<T>)

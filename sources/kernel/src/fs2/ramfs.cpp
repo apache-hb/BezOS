@@ -6,6 +6,20 @@ using namespace vfs2;
 // ramfs file implementation
 //
 
+OsStatus RamFsFile::query(sm::uuid uuid, const void *, size_t, IHandle **handle) {
+    if (uuid == kOsFileGuid) {
+        auto *file = new(std::nothrow) TFileHandle<RamFsFile>(this);
+        if (!file) {
+            return OsStatusOutOfMemory;
+        }
+
+        *handle = file;
+        return OsStatusSuccess;
+    }
+
+    return OsStatusNotSupported;
+}
+
 OsStatus RamFsFile::read(ReadRequest request, ReadResult *result) {
     stdx::SharedLock lock(mLock);
     uintptr_t range = (uintptr_t)request.end - (uintptr_t)request.begin;
@@ -41,42 +55,26 @@ OsStatus RamFsFile::stat(NodeStat *stat) {
 // ramfs folder implementation
 //
 
-OsStatus RamFsFolder::create(IVfsNode **node) {
-    IVfsNode *file = new(std::nothrow) RamFsFile();
-    if (!file) {
-        return OsStatusOutOfMemory;
+OsStatus RamFsFolder::query(sm::uuid uuid, const void *, size_t, IHandle **handle) {
+    if (uuid == kOsFolderGuid) {
+        auto *folder = new(std::nothrow) TFolderHandle<RamFsFolder>(this);
+        if (!folder) {
+            return OsStatusOutOfMemory;
+        }
+
+        *handle = folder;
+        return OsStatusSuccess;
     }
 
-    *node = file;
-    return OsStatusSuccess;
+    return OsStatusNotSupported;
 }
 
-OsStatus RamFsFolder::remove(IVfsNode *node) {
-    auto it = mChildren.find(node->name);
-    if (it == mChildren.end()) {
-        return OsStatusNotFound;
-    }
+//
+// ramfs mount implementation
+//
 
-    mChildren.erase(it);
-    delete node;
-
-    return OsStatusSuccess;
-}
-
-OsStatus RamFsFolder::rmdir(IVfsNode* node) {
-    auto it = mChildren.find(node->name);
-    if (it == mChildren.end()) {
-        return OsStatusNotFound;
-    }
-
-    mChildren.erase(it);
-    delete node;
-
-    return OsStatusSuccess;
-}
-
-OsStatus RamFsFolder::mkdir(IVfsNode **node) {
-    IVfsNode *folder = new(std::nothrow) RamFsFolder();
+OsStatus RamFsMount::mkdir(INode *parent, VfsStringView name, const void *, size_t, INode **node) {
+    RamFsFolder *folder = new(std::nothrow) RamFsFolder(parent, this, VfsString(name));
     if (!folder) {
         return OsStatusOutOfMemory;
     }
@@ -85,9 +83,15 @@ OsStatus RamFsFolder::mkdir(IVfsNode **node) {
     return OsStatusSuccess;
 }
 
-//
-// ramfs mount implementation
-//
+OsStatus RamFsMount::create(INode *parent, VfsStringView name, const void *, size_t, INode **node) {
+    RamFsFile *file = new(std::nothrow) RamFsFile(parent, this, VfsString(name));
+    if (!file) {
+        return OsStatusOutOfMemory;
+    }
+
+    *node = file;
+    return OsStatusSuccess;
+}
 
 OsStatus RamFsMount::root(INode **node) {
     *node = mRootNode;
@@ -115,10 +119,8 @@ OsStatus RamFs::unmount(IVfsMount *mount) {
 
 RamFsMount::RamFsMount(RamFs *fs)
     : IVfsMount(fs)
-    , mRootNode(new RamFsFolder())
-{
-    mRootNode->mount = this;
-}
+    , mRootNode(new RamFsFolder(nullptr, this, ""))
+{ }
 
 RamFs& RamFs::instance() {
     static RamFs sDriver{};

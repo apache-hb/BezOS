@@ -90,6 +90,15 @@ enum OsStatusId {
     OsStatusDeviceBusy = 0x0016,
 
     OsStatusDeviceNotReady = 0x0017,
+
+    /// @brief The node does not support the requested interface.
+    OsStatusInterfaceNotSupported = 0x0018,
+
+    /// @brief The interface does not support the requested function.
+    OsStatusFunctionNotSupported  = 0x0019,
+
+    /// @brief The function does not support the requested operation.
+    OsStatusOperationNotSupported = 0x001a,
 };
 
 #ifdef __cplusplus

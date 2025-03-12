@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include "fs2/utils.hpp"
 #include "fs2/vfs.hpp"
 #include "fs2/ramfs.hpp"
 
@@ -35,14 +36,15 @@ TEST(Vfs2Test, CreateFile) {
         ASSERT_NE(file, nullptr);
     }
 
-    ASSERT_TRUE(file->isA(kOsFileGuid));
-    ASSERT_EQ(file->name, "motd.txt");
-    ASSERT_EQ(file->mount, mount);
+    ASSERT_TRUE(vfs2::HasInterface(file, kOsFileGuid));
+    NodeInfo info = file->info();
+    ASSERT_EQ(info.name, "motd.txt");
+    ASSERT_EQ(info.mount, mount);
 
-    std::unique_ptr<IHandle> fd0;
+    std::unique_ptr<IFileHandle> fd0;
 
     {
-        OsStatus status = file->open(std::out_ptr(fd0));
+        OsStatus status = vfs2::OpenFileInterface(file, nullptr, 0, std::out_ptr(fd0));
         ASSERT_EQ(OsStatusSuccess, status);
         ASSERT_NE(fd0, nullptr);
     }
@@ -66,14 +68,16 @@ TEST(Vfs2Test, FileReadWrite) {
         ASSERT_NE(file, nullptr);
     }
 
-    ASSERT_TRUE(file->isA(kOsFileGuid));
-    ASSERT_EQ(file->name, "motd.txt");
-    ASSERT_EQ(file->mount, mount);
 
-    std::unique_ptr<IHandle> fd0;
+    ASSERT_TRUE(vfs2::HasInterface(file, kOsFileGuid));
+    NodeInfo info = file->info();
+    ASSERT_EQ(info.name, "motd.txt");
+    ASSERT_EQ(info.mount, mount);
+
+    std::unique_ptr<IFileHandle> fd0;
 
     {
-        OsStatus status = file->open(std::out_ptr(fd0));
+        OsStatus status = vfs2::OpenFileInterface(file, nullptr, 0, std::out_ptr(fd0));
         ASSERT_EQ(OsStatusSuccess, status);
         ASSERT_NE(fd0, nullptr);
     }
@@ -129,11 +133,14 @@ TEST(Vfs2Test, MakePath) {
         ASSERT_NE(node, nullptr);
     }
 
-    ASSERT_TRUE(node->isA(kOsFolderGuid));
-    ASSERT_EQ(node->name, "Firmware");
-    ASSERT_EQ(node->mount, mount);
+    ASSERT_TRUE(vfs2::HasInterface(node, kOsFolderGuid));
+    NodeInfo info = node->info();
+    ASSERT_EQ(info.name, "Firmware");
+    ASSERT_EQ(info.mount, mount);
 
-    ASSERT_EQ(node->parent->name, "CPU0");
+    NodeInfo pInfo = info.parent->info();
+
+    ASSERT_EQ(pInfo.name, "CPU0");
 
     //
     // Ensure that all the parent folders were created.
@@ -144,36 +151,40 @@ TEST(Vfs2Test, MakePath) {
         OsStatus status = vfs.lookup(BuildPath("System", "Devices", "CPU", "CPU0"), &folder);
         ASSERT_EQ(OsStatusSuccess, status);
 
-        ASSERT_TRUE(folder->isA(kOsFolderGuid));
-        ASSERT_EQ(folder->name, "CPU0");
-        ASSERT_EQ(folder->mount, mount);
+        ASSERT_TRUE(vfs2::HasInterface(folder, kOsFolderGuid));
+        NodeInfo info = folder->info();
+        ASSERT_EQ(info.name, "CPU0");
+        ASSERT_EQ(info.mount, mount);
     }
 
     {
         OsStatus status = vfs.lookup(BuildPath("System", "Devices", "CPU"), &folder);
         ASSERT_EQ(OsStatusSuccess, status);
 
-        ASSERT_TRUE(folder->isA(kOsFolderGuid));
-        ASSERT_EQ(folder->name, "CPU");
-        ASSERT_EQ(folder->mount, mount);
+        ASSERT_TRUE(vfs2::HasInterface(folder, kOsFolderGuid));
+        NodeInfo info = folder->info();
+        ASSERT_EQ(info.name, "CPU");
+        ASSERT_EQ(info.mount, mount);
     }
 
     {
         OsStatus status = vfs.lookup(BuildPath("System", "Devices"), &folder);
         ASSERT_EQ(OsStatusSuccess, status);
 
-        ASSERT_TRUE(folder->isA(kOsFolderGuid));
-        ASSERT_EQ(folder->name, "Devices");
-        ASSERT_EQ(folder->mount, mount);
+        ASSERT_TRUE(vfs2::HasInterface(folder, kOsFolderGuid));
+        NodeInfo info = folder->info();
+        ASSERT_EQ(info.name, "Devices");
+        ASSERT_EQ(info.mount, mount);
     }
 
     {
         OsStatus status = vfs.lookup(BuildPath("System"), &folder);
         ASSERT_EQ(OsStatusSuccess, status);
 
-        ASSERT_TRUE(folder->isA(kOsFolderGuid));
-        ASSERT_EQ(folder->name, "System");
-        ASSERT_EQ(folder->mount, mount);
+        ASSERT_TRUE(vfs2::HasInterface(folder, kOsFolderGuid));
+        NodeInfo info = folder->info();
+        ASSERT_EQ(info.name, "System");
+        ASSERT_EQ(info.mount, mount);
     }
 }
 
@@ -247,7 +258,7 @@ static void CreateFile(VfsRoot *vfs, const VfsPath& path, stdx::StringView conte
     ASSERT_EQ(OsStatusSuccess, status);
 
     std::unique_ptr<IFileHandle> handle;
-    status = node->open(std::out_ptr(handle));
+    status = vfs2::OpenFileInterface(node, nullptr, 0, std::out_ptr(handle));
     ASSERT_EQ(OsStatusSuccess, status);
 
     WriteRequest request {
@@ -268,7 +279,7 @@ TEST(Vfs2Test, OpenFolder) {
     VfsRoot vfs;
 
     IVfsMount *mount = nullptr;
-    IVfsNode *node = nullptr;
+    INode *node = nullptr;
 
     {
         OsStatus status = vfs.addMount(&RamFs::instance(), "System", &mount);
