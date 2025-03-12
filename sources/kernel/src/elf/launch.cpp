@@ -91,7 +91,7 @@ enum {
     R_AMD64_PC8 = 15,
 };
 
-static OsStatus ApplyRelocations(vfs2::IVfsNodeHandle *file, std::span<const elf::Elf64Dyn> relocs, km::AddressMapping mapping, uintptr_t windowOffset) {
+static OsStatus ApplyRelocations(vfs2::IHandle *file, std::span<const elf::Elf64Dyn> relocs, km::AddressMapping mapping, uintptr_t windowOffset) {
     uint64_t relaSize = 0;
     uint64_t relaCount = 0;
     uint64_t relaStart = 0;
@@ -159,7 +159,7 @@ static OsStatus ApplyRelocations(vfs2::IVfsNodeHandle *file, std::span<const elf
     return OsStatusSuccess;
 }
 
-static OsStatus AllocateTlsMemory(vfs2::IVfsNodeHandle *file, const elf::ProgramHeader *tls, km::SystemMemory& memory, km::ProcessPageTables& ptes, km::AddressMapping *mapping) {
+static OsStatus AllocateTlsMemory(vfs2::IHandle *file, const elf::ProgramHeader *tls, km::SystemMemory& memory, km::ProcessPageTables& ptes, km::AddressMapping *mapping) {
     km::AddressMapping tlsMapping{};
     OsStatus status = AllocateMemory(memory.pmmAllocator(), &ptes, km::Pages(tls->memsz + sizeof(uintptr_t)), &tlsMapping);
     if (status != OsStatusSuccess) {
@@ -217,18 +217,21 @@ static char toupper(char c) {
     return c;
 }
 
-OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &memory, SystemObjects &objects, ProcessLaunch *result) {
-    vfs2::VfsNodeStat stat{};
+OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory &memory, SystemObjects &objects, ProcessLaunch *result) {
+    vfs2::NodeStat stat{};
     if (OsStatus status = file->stat(&stat)) {
         return status;
     }
+
+    vfs2::HandleInfo hInfo = file->info();
+    vfs2::NodeInfo nInfo = hInfo.node->info();
 
     elf::Header header{};
     if (OsStatus status = vfs2::ReadObject(file.get(), &header, 0)) {
         return status;
     }
 
-    if (OsStatus status = ValidateElfHeader(header, stat.size)) {
+    if (OsStatus status = ValidateElfHeader(header, stat.logical)) {
         return status;
     }
 
@@ -247,7 +250,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory &m
 
     MemoryRange pteMemory = memory.pmmAllocate(256);
 
-    stdx::String name = stdx::String(file->node->name);
+    stdx::String name = stdx::String(nInfo.name);
     for (char& c : name) {
         c = toupper(c);
     }

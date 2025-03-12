@@ -1,5 +1,6 @@
 #pragma once
 
+#include "fs2/interface.hpp"
 #include "fs2/path.hpp"
 #include "fs2/node.hpp"
 
@@ -14,17 +15,17 @@ namespace vfs2 {
     class VfsRoot {
         sm::BTreeMap<VfsPath, std::unique_ptr<IVfsMount>> mMounts;
         std::unique_ptr<IVfsMount> mRootMount;
-        std::unique_ptr<IVfsNode> mRootNode;
+        std::unique_ptr<INode> mRootNode;
 
         /// @brief Global lock for the VFS.
         /// @todo Use RCU instead.
         stdx::SharedSpinLock mLock;
 
-        OsStatus walk(const VfsPath& path, IVfsNode **parent);
+        OsStatus walk(const VfsPath& path, INode **parent);
 
-        OsStatus lookupUnlocked(const VfsPath& path, IVfsNode **node);
+        OsStatus lookupUnlocked(const VfsPath& path, INode **node);
 
-        OsStatus insertMount(IVfsNode *parent, const VfsPath& path, std::unique_ptr<IVfsMount> object, IVfsMount **mount);
+        OsStatus insertMount(INode *parent, const VfsPath& path, std::unique_ptr<IVfsMount> object, IVfsMount **mount);
 
     public:
         VfsRoot();
@@ -40,7 +41,7 @@ namespace vfs2 {
             // This is done as an optimization to avoid creating the mount
             // point if it is not needed.
             //
-            IVfsNode *parent = nullptr;
+            INode *parent = nullptr;
             if (OsStatus status = walk(path, &parent)) {
                 return status;
             }
@@ -59,21 +60,21 @@ namespace vfs2 {
             return insertMount(parent, path, std::move(impl), mount);
         }
 
-        OsStatus create(const VfsPath& path, IVfsNode **node);
-        OsStatus remove(IVfsNode *node);
+        OsStatus create(const VfsPath& path, INode **node);
+        OsStatus remove(INode *node);
 
-        OsStatus open(const VfsPath& path, IVfsNodeHandle **handle);
+        OsStatus open(const VfsPath& path, IFileHandle **handle);
 
-        OsStatus opendir(const VfsPath& path, IVfsNodeHandle **handle);
+        OsStatus opendir(const VfsPath& path, IHandle **handle);
 
-        OsStatus mkdir(const VfsPath& path, IVfsNode **node);
-        OsStatus rmdir(IVfsNode *node);
+        OsStatus mkdir(const VfsPath& path, INode **node);
+        OsStatus rmdir(INode *node);
 
-        OsStatus mkpath(const VfsPath& path, IVfsNode **node);
+        OsStatus mkpath(const VfsPath& path, INode **node);
 
-        OsStatus lookup(const VfsPath& path, IVfsNode **node);
+        OsStatus lookup(const VfsPath& path, INode **node);
 
-        OsStatus mkdevice(const VfsPath& path, IVfsNode *device);
-        OsStatus device(const VfsPath& path, sm::uuid interface, const void *data, size_t size, IVfsNodeHandle **handle);
+        OsStatus mkdevice(const VfsPath& path, INode *device);
+        OsStatus device(const VfsPath& path, sm::uuid interface, const void *data, size_t size, IHandle **handle);
     };
 }

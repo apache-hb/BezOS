@@ -2,6 +2,7 @@
 
 #include "drivers/block/driver.hpp"
 
+#include "fs2/interface.hpp"
 #include "fs2/node.hpp"
 #include "std/shared.hpp"
 
@@ -108,6 +109,15 @@ namespace vfs2 {
         }
     };
 
+    struct TarParseOptions {
+        bool ignoreChecksum = false;
+    };
+
+    struct TarEntry {
+        TarPosixHeader header;
+        uint64_t offset;
+    };
+
     static_assert(sizeof(TarPosixHeader) == 500);
 
     class TarFsNode;
@@ -116,43 +126,35 @@ namespace vfs2 {
     class TarFsMount;
     class TarFs;
 
-    class TarFsNode : public IVfsNode {
-    public:
-        TarPosixHeader header;
-
-        TarFsNode(TarPosixHeader header, VfsNodeType type)
-            : IVfsNode(type)
-            , header(header)
-        { }
-    };
-
-    class TarFsFile : public TarFsNode {
+    class TarFsNode : public INode {
+        INode *mParent;
+        TarPosixHeader mHeader;
         uint64_t mOffset;
+        TarFsMount *mMount;
 
     public:
-        TarFsFile(TarPosixHeader header, uint64_t offset)
-            : TarFsNode(header, VfsNodeType::eFile)
-            , mOffset(offset)
+        TarFsNode(TarEntry entry, INode *parent, TarFsMount *mount)
+            : mParent(parent)
+            , mHeader(entry.header)
+            , mOffset(entry.offset)
+            , mMount(mount)
         { }
 
-        OsStatus read(ReadRequest request, ReadResult *result) override;
-        OsStatus stat(VfsNodeStat *result) override;
+        OsStatus query(sm::uuid uuid, const void *data, size_t size, IHandle **handle) override;
+        NodeInfo info() override;
+
+        OsStatus stat(NodeStat *result);
+        OsStatus read(ReadRequest request, ReadResult *result);
     };
 
-    class TarFsFolder : public TarFsNode {
+    class TarFsFolder : public TarFsNode, public FolderMixin {
     public:
-        TarFsFolder(TarPosixHeader header)
-            : TarFsNode(header, VfsNodeType::eFolder)
+        TarFsFolder(TarEntry entry, INode *parent, TarFsMount *mount)
+            : TarFsNode(entry, parent, mount)
         { }
-    };
 
-    struct TarParseOptions {
-        bool ignoreChecksum = false;
-    };
-
-    struct TarEntry {
-        TarPosixHeader header;
-        uint64_t offset;
+        using FolderMixin::lookup;
+        using FolderMixin::mknode;
     };
 
     /// @brief Parses a POSIX.1-1988 tar archive.
@@ -167,16 +169,16 @@ namespace vfs2 {
     class TarFsMount final : public IVfsMount {
         sm::SharedPtr<km::IBlockDriver> mBlock;
         km::BlockDevice mMedia;
-        IVfsNode *mRootNode;
+        FolderNode *mRootNode;
 
-        OsStatus walk(const VfsPath& path, IVfsNode **folder);
+        OsStatus walk(const VfsPath& path, INode **folder);
 
     public:
         TarFsMount(TarFs *tarfs, sm::SharedPtr<km::IBlockDriver> block);
 
         km::BlockDevice *media() { return &mMedia; }
 
-        OsStatus root(IVfsNode **node) override;
+        OsStatus root(INode **node) override;
     };
 
     class TarFs final : public IVfsDriver {

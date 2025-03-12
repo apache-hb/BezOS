@@ -40,7 +40,7 @@ namespace km {
         OsStatus destroyThread(Thread *thread);
         Thread *getThread(ThreadId id);
 
-        OsStatus createVNode(const vfs2::VfsPath &path, Process *process, VNode **node);
+        OsStatus createVNode(const vfs2::VfsPath &path, sm::uuid uuid, const void *data, size_t size, Process *process, VNode **node);
         OsStatus destroyVNode(Process *process, VNode *node);
         VNode *getVNode(VNodeId id);
 

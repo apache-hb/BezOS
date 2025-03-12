@@ -27,9 +27,13 @@ OsStatus RamFsFile::write(WriteRequest request, WriteResult *result) {
     return OsStatusSuccess;
 }
 
-OsStatus RamFsFile::stat(VfsNodeStat *stat) {
+OsStatus RamFsFile::stat(NodeStat *stat) {
     stdx::SharedLock lock(mLock);
-    stat->size = mData.count();
+    *stat = NodeStat {
+        .logical = mData.count(),
+        .blksize = 1,
+        .blocks = mData.count(),
+    };
     return OsStatusSuccess;
 }
 
@@ -85,7 +89,7 @@ OsStatus RamFsFolder::mkdir(IVfsNode **node) {
 // ramfs mount implementation
 //
 
-OsStatus RamFsMount::root(IVfsNode **node) {
+OsStatus RamFsMount::root(INode **node) {
     *node = mRootNode;
     return OsStatusSuccess;
 }

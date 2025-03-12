@@ -1,5 +1,6 @@
 #pragma once
 
+#include "fs2/interface.hpp"
 #include "memory.hpp"
 #include "process/process.hpp"
 
@@ -142,5 +143,5 @@ namespace km {
         OsStatus LoadMemorySize(std::span<const elf::ProgramHeader> phs, VirtualRange *range);
     }
 
-    OsStatus LoadElf(std::unique_ptr<vfs2::IVfsNodeHandle> file, SystemMemory& memory, SystemObjects& objects, ProcessLaunch *result);
+    OsStatus LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory& memory, SystemObjects& objects, ProcessLaunch *result);
 }

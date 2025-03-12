@@ -15,17 +15,17 @@ bool Process::isComplete() const {
     return status != eOsProcessRunning && status != eOsProcessSuspended;
 }
 
-vfs2::IVfsNodeHandle *Process::addFile(std::unique_ptr<vfs2::IVfsNodeHandle> handle) {
+vfs2::IHandle *Process::addFile(std::unique_ptr<vfs2::IHandle> handle) {
     stdx::UniqueLock guard(lock);
-    vfs2::IVfsNodeHandle *ptr = handle.get();
+    vfs2::IHandle *ptr = handle.get();
     files.insert(std::move(handle));
     return ptr;
 }
 
-OsStatus Process::closeFile(vfs2::IVfsNodeHandle *ptr) {
+OsStatus Process::closeFile(vfs2::IHandle *ptr) {
     stdx::UniqueLock guard(lock);
     // This is awful, but theres no transparent lookup for unique pointers
-    std::unique_ptr<vfs2::IVfsNodeHandle> handle(const_cast<vfs2::IVfsNodeHandle*>(ptr));
+    std::unique_ptr<vfs2::IHandle> handle(const_cast<vfs2::IHandle*>(ptr));
     defer { (void)handle.release(); }; // NOLINT(bugprone-unused-return-value)
 
     if (auto it = files.find(handle); it != files.end()) {
@@ -36,9 +36,9 @@ OsStatus Process::closeFile(vfs2::IVfsNodeHandle *ptr) {
     return OsStatusNotFound;
 }
 
-vfs2::IVfsNodeHandle *Process::findFile(const vfs2::IVfsNodeHandle *ptr) {
+vfs2::IHandle *Process::findFile(const vfs2::IHandle *ptr) {
     // This is awful, but theres no transparent lookup for unique pointers
-    std::unique_ptr<vfs2::IVfsNodeHandle> handle(const_cast<vfs2::IVfsNodeHandle*>(ptr));
+    std::unique_ptr<vfs2::IHandle> handle(const_cast<vfs2::IHandle*>(ptr));
     defer { (void)handle.release(); }; // NOLINT(bugprone-unused-return-value)
 
     stdx::SharedLock guard(lock);
@@ -70,7 +70,7 @@ OsStatus Process::removeHandle(OsHandle id) {
     return OsStatusNotFound;
 }
 
-void VNode::init(VNodeId id, stdx::String name, std::unique_ptr<vfs2::IVfsNodeHandle> handle) {
+void VNode::init(VNodeId id, stdx::String name, std::unique_ptr<vfs2::IHandle> handle) {
     initHeader(std::to_underlying(id), eOsHandleDevice, std::move(name));
     node = std::move(handle);
 }

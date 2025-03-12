@@ -41,7 +41,12 @@ namespace vfs2 {
         uint64_t write;
     };
 
+    struct HandleInfo {
+        INode *node;
+    };
+
     struct NodeInfo {
+        stdx::StringView name;
         IVfsMount *mount;
         INode *parent;
     };
@@ -61,6 +66,8 @@ namespace vfs2 {
 
         virtual OsStatus read(ReadRequest, ReadResult *) { return OsStatusNotSupported; }
         virtual OsStatus write(WriteRequest, WriteResult *) { return OsStatusNotSupported; }
+
+        virtual HandleInfo info() = 0;
     };
 
     class INode {
@@ -75,6 +82,8 @@ namespace vfs2 {
         /// @param handle The handle to the interface.
         ///
         /// @return The status of the query operation.
-        virtual OsStatus query(sm::uuid, const void *, size_t, IHandle **) { return OsStatusNotSupported; }
+        virtual OsStatus query(sm::uuid, const void *, size_t, IHandle **) = 0;
+
+        virtual NodeInfo info() = 0;
     };
 }

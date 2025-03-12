@@ -119,7 +119,7 @@ namespace km {
         x64::Privilege privilege;
         stdx::SharedSpinLock lock;
         ProcessPageTables ptes;
-        sm::FlatHashSet<std::unique_ptr<vfs2::IVfsNodeHandle>> files;
+        sm::FlatHashSet<std::unique_ptr<vfs2::IHandle>> files;
         sm::FlatHashMap<OsHandle, KernelObject*> handles;
         OsProcessState state = { eOsProcessRunning };
 
@@ -127,9 +127,9 @@ namespace km {
 
         bool isComplete() const;
 
-        vfs2::IVfsNodeHandle *addFile(std::unique_ptr<vfs2::IVfsNodeHandle> handle);
-        OsStatus closeFile(vfs2::IVfsNodeHandle *ptr);
-        vfs2::IVfsNodeHandle *findFile(const vfs2::IVfsNodeHandle *ptr);
+        vfs2::IHandle *addFile(std::unique_ptr<vfs2::IHandle> handle);
+        OsStatus closeFile(vfs2::IHandle *ptr);
+        vfs2::IHandle *findFile(const vfs2::IHandle *ptr);
 
         void addHandle(KernelObject *object);
         KernelObject *findHandle(OsHandle id);
@@ -147,9 +147,9 @@ namespace km {
     };
 
     struct VNode : public KernelObject {
-        std::unique_ptr<vfs2::IVfsNodeHandle> node;
+        std::unique_ptr<vfs2::IHandle> node;
 
-        void init(VNodeId id, stdx::String name, std::unique_ptr<vfs2::IVfsNodeHandle> node);
+        void init(VNodeId id, stdx::String name, std::unique_ptr<vfs2::IHandle> node);
     };
 
     struct ProcessLaunch {

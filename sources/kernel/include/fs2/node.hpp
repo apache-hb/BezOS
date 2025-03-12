@@ -35,7 +35,7 @@ namespace vfs2 {
 
     enum class VfsNodeId : uint64_t { };
 
-    using VfsCreateHandle = OsStatus(*)(IVfsNode*, IVfsNodeHandle**);
+    using VfsCreateHandle = OsStatus(*)(IVfsNode*, IHandle**);
 
     enum class VfsNodeType {
         eNone,
@@ -45,12 +45,10 @@ namespace vfs2 {
         eSymbolicLink,
     };
 
-    struct VfsNodeStat {
-        uint64_t size;
-    };
-
-    struct HandleInfo {
-        INode *node;
+    struct NodeStat {
+        uint64_t logical;
+        uint64_t blksize;
+        uint64_t blocks;
     };
 
     class IVfsNodeHandle : public IHandle {
@@ -65,8 +63,9 @@ namespace vfs2 {
 
         virtual OsStatus read(ReadRequest request, ReadResult *result) override;
         virtual OsStatus write(WriteRequest request, WriteResult *result) override;
-        virtual OsStatus stat(VfsNodeStat *stat);
+        virtual OsStatus stat(NodeStat *stat);
         virtual OsStatus next(VfsString *) { return OsStatusNotSupported; }
+        virtual HandleInfo info() override;
     };
 
     class VfsFolderHandle : public IVfsNodeHandle {
@@ -79,7 +78,7 @@ namespace vfs2 {
         OsStatus next(VfsString *name) override;
     };
 
-    class IVfsNode {
+    class IVfsNode : public INode {
         friend class VfsIdentifyHandle;
 
     public:
@@ -114,9 +113,9 @@ namespace vfs2 {
 
         sm::FlatHashMap<sm::uuid, VfsCreateHandle> mInterfaces;
 
-        template<std::derived_from<IVfsNodeHandle> T>
+        template<std::derived_from<IHandle> T>
         void addInterface(sm::uuid uuid) {
-            VfsCreateHandle callback = [](IVfsNode *node, IVfsNodeHandle **handle) -> OsStatus {
+            VfsCreateHandle callback = [](IVfsNode *node, IHandle **handle) -> OsStatus {
                 T *objHandle = new (std::nothrow) T(node);
                 if (objHandle == nullptr) {
                     return OsStatusOutOfMemory;
@@ -206,7 +205,7 @@ namespace vfs2 {
         /// @param stat The stat structure to fill.
         ///
         /// @return The status of the stat operation.
-        virtual OsStatus stat(VfsNodeStat*) { return OsStatusNotSupported; }
+        virtual OsStatus stat(NodeStat*) { return OsStatusNotSupported; }
 
         /// @brief Open this node as a device.
         ///
@@ -218,11 +217,19 @@ namespace vfs2 {
         /// @param handle The handle to the device.
         ///
         /// @return The status of the open operation.
-        virtual OsStatus query(sm::uuid uuid, const void *data, size_t size, IVfsNodeHandle **handle);
+        virtual OsStatus query(sm::uuid uuid, const void *data, size_t size, IHandle **handle) override;
 
-        virtual OsStatus open(IVfsNodeHandle **handle);
+        virtual NodeInfo info() override {
+            return NodeInfo {
+                .name = name,
+                .mount = mount,
+                .parent = parent,
+            };
+        }
 
-        virtual OsStatus opendir(IVfsNodeHandle **handle);
+        virtual OsStatus open(IHandle **handle);
+
+        virtual OsStatus opendir(IHandle **handle);
 
         virtual OsStatus lookup(VfsStringView name, IVfsNode **child);
         OsStatus addFile(VfsStringView name, IVfsNode **child);
@@ -243,7 +250,7 @@ namespace vfs2 {
 
         virtual ~IVfsMount() = default;
 
-        virtual OsStatus root(IVfsNode**) { return OsStatusNotSupported; }
+        virtual OsStatus root(INode **) { return OsStatusNotSupported; }
 
         virtual OsStatus create(const void *, size_t, INode **) { return OsStatusNotSupported; }
     };
@@ -262,7 +269,7 @@ namespace vfs2 {
     };
 
     template<typename T> requires (std::is_trivial_v<T>)
-    OsStatus ReadObject(IVfsNodeHandle *handle, T *object, uint64_t offset) {
+    OsStatus ReadObject(IHandle *handle, T *object, uint64_t offset) {
         ReadRequest request {
             .begin = object,
             .end = (std::byte*)object + sizeof(T),
@@ -282,7 +289,7 @@ namespace vfs2 {
     }
 
     template<typename T> requires (std::is_trivial_v<T>)
-    OsStatus ReadArray(IVfsNodeHandle *handle, T *array, size_t count, uint64_t offset) {
+    OsStatus ReadArray(IHandle *handle, T *array, size_t count, uint64_t offset) {
         ReadRequest request {
             .begin = array,
             .end = (std::byte*)array + sizeof(T) * count,

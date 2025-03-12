@@ -29,7 +29,7 @@ namespace vfs2 {
 
         OsStatus read(ReadRequest request, ReadResult *result) override;
         OsStatus write(WriteRequest request, WriteResult *result) override;
-        OsStatus stat(VfsNodeStat *stat) override;
+        OsStatus stat(NodeStat *stat) override;
     };
 
     class RamFsFolder : public RamFsNode {
@@ -50,7 +50,7 @@ namespace vfs2 {
     public:
         RamFsMount(RamFs *fs);
 
-        OsStatus root(IVfsNode **node) override;
+        OsStatus root(INode **node) override;
     };
 
     class RamFs : public IVfsDriver {

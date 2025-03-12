@@ -892,7 +892,7 @@ static void MountRootVfs() {
             KmDebugMessage("[VFS] Failed to create ", path, ": ", status, "\n");
         }
 
-        std::unique_ptr<vfs2::IVfsNodeHandle> log;
+        std::unique_ptr<vfs2::IHandle> log;
         if (OsStatus status = node->open(std::out_ptr(log))) {
             KmDebugMessage("[VFS] Failed to open log file: ", status, "\n");
         }
@@ -905,7 +905,7 @@ static void MountRootVfs() {
             KmDebugMessage("[VFS] Failed to create ", path, ": ", status, "\n");
         }
 
-        std::unique_ptr<vfs2::IVfsNodeHandle> motd;
+        std::unique_ptr<vfs2::IHandle> motd;
         if (OsStatus status = node->open(std::out_ptr(motd))) {
             KmDebugMessage("[VFS] Failed to open file: ", status, "\n");
         }
@@ -975,7 +975,7 @@ static void MountVolatileFolder() {
 }
 
 static OsStatus LaunchInitProcess(ProcessLaunch *launch) {
-    std::unique_ptr<vfs2::IVfsNodeHandle> init = nullptr;
+    std::unique_ptr<vfs2::IFileHandle> init = nullptr;
     if (OsStatus status = gVfsRoot->open(vfs2::BuildPath("Init", "init.elf"), std::out_ptr(init))) {
         KmDebugMessage("[VFS] Failed to find '/Init/init.elf' ", status, "\n");
         KM_PANIC("Failed to open init process.");
@@ -1078,12 +1078,12 @@ static void AddVfsFileSystemCalls() {
             return CallError(status);
         }
 
-        std::unique_ptr<vfs2::IVfsNodeHandle> node = nullptr;
+        std::unique_ptr<vfs2::IFileHandle> node = nullptr;
         if (OsStatus status = gVfsRoot->open(path, std::out_ptr(node))) {
             return CallError(status);
         }
 
-        vfs2::IVfsNodeHandle *ptr = context->process()->addFile(std::move(node));
+        vfs2::IHandle *ptr = context->process()->addFile(std::move(node));
 
         return CallOk(ptr);
     });
@@ -1097,7 +1097,7 @@ static void AddVfsFileSystemCalls() {
             return CallError(OsStatusInvalidInput);
         }
 
-        auto file = context->process()->findFile((const vfs2::IVfsNodeHandle*)nodeId);
+        auto file = context->process()->findFile((const vfs2::IHandle*)nodeId);
         if (file == nullptr) {
             return CallError(OsStatusInvalidHandle);
         }
@@ -1117,7 +1117,7 @@ static void AddVfsFileSystemCalls() {
     AddSystemCall(eOsCallFileClose, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t userHandle = regs->arg0;
         km::Process *process = context->process();
-        if (OsStatus status = process->closeFile((vfs2::IVfsNodeHandle*)userHandle)) {
+        if (OsStatus status = process->closeFile((vfs2::IHandle*)userHandle)) {
             return CallError(status);
         }
 
@@ -1139,21 +1139,24 @@ static void AddVfsFolderSystemCalls() {
             return CallError(status);
         }
 
-        std::unique_ptr<vfs2::IVfsNodeHandle> node = nullptr;
+        std::unique_ptr<vfs2::IHandle> node = nullptr;
         if (OsStatus status = gVfsRoot->opendir(path, std::out_ptr(node))) {
             return CallError(status);
         }
 
-        vfs2::IVfsNodeHandle *ptr = context->process()->addFile(std::move(node));
+        vfs2::IHandle *ptr = context->process()->addFile(std::move(node));
 
         return CallOk(ptr);
     });
 
-    AddSystemCall(eOsCallFolderIterateNext, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+    AddSystemCall(eOsCallFolderIterateNext, [](CallContext *, SystemCallRegisterSet *) -> OsCallResult {
+        return CallError(OsStatusNotSupported);
+
+#if 0
         uint64_t userHandle = regs->arg0;
         uint64_t userEntry = regs->arg1;
 
-        vfs2::IVfsNodeHandle *handle = context->process()->findFile((const vfs2::IVfsNodeHandle*)userHandle);
+        vfs2::IHandle *handle = context->process()->findFile((const vfs2::IHandle*)userHandle);
         if (handle == nullptr) {
             return CallError(OsStatusInvalidHandle);
         }
@@ -1192,6 +1195,7 @@ static void AddVfsFolderSystemCalls() {
         }
 
         return CallOk(0zu);
+#endif
     });
 }
 
@@ -1235,7 +1239,7 @@ static void AddDeviceSystemCalls() {
         sm::uuid uuid = createInfo.InterfaceGuid;
         km::Process *process = context->process();
 
-        std::unique_ptr<vfs2::IVfsNodeHandle> handle = nullptr;
+        std::unique_ptr<vfs2::IHandle> handle = nullptr;
         OsStatus status = gVfsRoot->device(path, uuid, createInfo.OpenData, createInfo.OpenDataSize, std::out_ptr(handle));
 
         if ((status == OsStatusNotFound) && (createInfo.Flags & eOsDeviceCreateNew)) {
@@ -1256,7 +1260,7 @@ static void AddDeviceSystemCalls() {
             return CallError(status);
         }
 
-        vfs2::IVfsNodeHandle *ptr = process->addFile(std::move(handle));
+        vfs2::IHandle *ptr = process->addFile(std::move(handle));
 
         return CallOk(ptr);
     });
@@ -1264,7 +1268,7 @@ static void AddDeviceSystemCalls() {
     AddSystemCall(eOsCallDeviceClose, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t userDevice = regs->arg0;
         km::Process *process = context->process();
-        if (OsStatus status = process->closeFile((vfs2::IVfsNodeHandle*)userDevice)) {
+        if (OsStatus status = process->closeFile((vfs2::IHandle*)userDevice)) {
             return CallError(status);
         }
 
@@ -1285,7 +1289,7 @@ static void AddDeviceSystemCalls() {
             return CallError(OsStatusInvalidInput);
         }
 
-        vfs2::IVfsNodeHandle *handle = process->findFile((const vfs2::IVfsNodeHandle*)userHandle);
+        vfs2::IHandle *handle = process->findFile((const vfs2::IHandle*)userHandle);
         if (handle == nullptr) {
             return CallError(OsStatusInvalidHandle);
         }
@@ -1317,7 +1321,7 @@ static void AddDeviceSystemCalls() {
             return CallError(OsStatusInvalidInput);
         }
 
-        vfs2::IVfsNodeHandle *handle = process->findFile((const vfs2::IVfsNodeHandle*)userHandle);
+        vfs2::IHandle *handle = process->findFile((const vfs2::IHandle*)userHandle);
         if (handle == nullptr) {
             return CallError(OsStatusInvalidHandle);
         }
@@ -1347,7 +1351,7 @@ static void AddDeviceSystemCalls() {
             return CallError(OsStatusInvalidInput);
         }
 
-        vfs2::IVfsNodeHandle *handle = process->findFile((const vfs2::IVfsNodeHandle*)userHandle);
+        vfs2::IHandle *handle = process->findFile((const vfs2::IHandle*)userHandle);
         if (handle == nullptr) {
             return CallError(OsStatusInvalidHandle);
         }
@@ -1496,7 +1500,7 @@ static void AddProcessSystemCalls() {
         //     return CallError(status);
         // }
 
-        std::unique_ptr<vfs2::IVfsNodeHandle> node = nullptr;
+        std::unique_ptr<vfs2::IFileHandle> node = nullptr;
         if (OsStatus status = gVfsRoot->open(path, std::out_ptr(node))) {
             return CallError(status);
         }

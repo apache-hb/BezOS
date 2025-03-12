@@ -170,24 +170,62 @@ OsStatus vfs2::ParseTar(km::BlockDevice *media, TarParseOptions options, sm::BTr
 // tarfs file implementation
 //
 
-OsStatus TarFsFile::read(ReadRequest request, ReadResult *result) {
-    if (request.offset >= header.getSize()) {
+OsStatus TarFsNode::read(ReadRequest request, ReadResult *result) {
+    if (request.offset >= mHeader.getSize()) {
         result->read = 0;
         return OsStatusEndOfFile;
     }
 
-    uint64_t remaining = header.getSize() - request.offset;
+    uint64_t remaining = mHeader.getSize() - request.offset;
     uint64_t toRead = std::min(remaining, (uintptr_t)request.end - (uintptr_t)request.begin);
 
-    TarFsMount *tarMount = static_cast<TarFsMount*>(mount);
-    km::BlockDevice *media = tarMount->media();
+    km::BlockDevice *media = mMount->media();
     size_t read = media->read(mOffset + request.offset, request.begin, toRead);
     result->read = read;
     return OsStatusSuccess;
 }
 
-OsStatus TarFsFile::stat(VfsNodeStat *result) {
-    result->size = header.getSize();
+OsStatus TarFsNode::query(sm::uuid uuid, const void *, size_t, IHandle **handle) {
+    if (uuid == kOsFileGuid) {
+        auto *file = new (std::nothrow) TFileHandle<TarFsNode>(this);
+        if (!file) {
+            return OsStatusOutOfMemory;
+        }
+
+        *handle = file;
+        return OsStatusSuccess;
+    }
+
+    if (uuid == kOsFolderGuid) {
+        auto *folder = new (std::nothrow) TFolderHandle<TarFsNode>(this);
+        if (!folder) {
+            return OsStatusOutOfMemory;
+        }
+
+        *handle = folder;
+        return OsStatusSuccess;
+    }
+
+    return OsStatusNotSupported;
+}
+
+NodeInfo TarFsNode::info() {
+    return NodeInfo {
+        .name = mHeader.name,
+        .mount = mMount,
+        .parent = mParent,
+    };
+}
+
+OsStatus TarFsNode::stat(NodeStat *result) {
+    size_t size = mHeader.getSize();
+
+    *result = NodeStat {
+        .logical = size,
+        .blksize = kTarBlockSize,
+        .blocks = sm::roundup(size, kTarBlockSize) / kTarBlockSize,
+    };
+
     return OsStatusSuccess;
 }
 
@@ -195,25 +233,30 @@ OsStatus TarFsFile::stat(VfsNodeStat *result) {
 // tarfs mount implementation
 //
 
-OsStatus TarFsMount::walk(const VfsPath& path, IVfsNode **folder) {
+OsStatus TarFsMount::walk(const VfsPath& path, INode **folder) {
     if (path.segmentCount() == 1) {
         *folder = mRootNode;
         return OsStatusSuccess;
     }
 
-    IVfsNode *current = mRootNode;
+    INode *current = mRootNode;
 
     for (auto segment : path.parent()) {
-        IVfsNode *child = nullptr;
-        if (OsStatus status = current->lookup(segment, &child)) {
+        std::unique_ptr<IHandle> handle;
+        if (OsStatus status = current->query(kOsFolderGuid, nullptr, 0, std::out_ptr(handle))) {
             return status;
         }
 
-        if (!child->isA(kOsFolderGuid)) {
-            return OsStatusTraverseNonFolder;
+        IFolderHandle *folder = static_cast<IFolderHandle*>(handle.get());
+
+        INode *child = nullptr;
+        if (OsStatus status = folder->lookup(segment, &child)) {
+            return status;
         }
 
-        if (child->mount != this) {
+        NodeInfo info = child->info();
+
+        if (info.mount != this) {
             return OsStatusInvalidType;
         }
 
@@ -228,10 +271,8 @@ TarFsMount::TarFsMount(TarFs *tarfs, sm::SharedPtr<km::IBlockDriver> block)
     : IVfsMount(tarfs)
     , mBlock(block)
     , mMedia(mBlock.get())
-    , mRootNode(new IVfsNode(VfsNodeType::eFolder))
+    , mRootNode(new FolderNode(nullptr, this, VfsString("")))
 {
-    mRootNode->mount = this;
-
     sm::BTreeMap<VfsPath, TarEntry> headers;
     if (OsStatus status = ParseTar(&mMedia, TarParseOptions{}, &headers)) {
         KmDebugMessage("[TARFS] Failed to parse tar archive: ", status, "\n");
@@ -242,32 +283,41 @@ TarFsMount::TarFsMount(TarFs *tarfs, sm::SharedPtr<km::IBlockDriver> block)
         VfsNodeType type = header.header.getType();
         VfsStringView name = path.name();
 
-        IVfsNode *parent = nullptr;
+        INode *parent = nullptr;
         if (OsStatus status = walk(path, &parent)) {
             KmDebugMessage("[TARFS] Failed to find parent for '", path, "' : ", status, "\n");
             continue;
         }
 
-        TarFsNode *node = nullptr;
-        if (type == VfsNodeType::eFolder) {
-            node = new TarFsFolder(header.header);
-        } else if (type == VfsNodeType::eFile) {
-            node = new TarFsFile(header.header, header.offset);
+        std::unique_ptr<INode> node = nullptr;
+        if (type == VfsNodeType::eFile) {
+            node.reset(new (std::nothrow) TarFsNode(header, parent, this));
+        } else if (type == VfsNodeType::eFolder) {
+            node.reset(new (std::nothrow) TarFsFolder(header, parent, this));
         } else {
-            KmDebugMessage("[TARFS] Invalid type for '", path, "' : ", (int)type, "\n");
+            KmDebugMessage("[TARFS] Invalid node type for '", path, "'\n");
             continue;
         }
 
-        parent->initNode(node, name, type);
+        if (node == nullptr) {
+            KmDebugMessage("[TARFS] Failed to create node for '", path, "'\n");
+            continue;
+        }
 
-        if (OsStatus status = parent->addNode(name, node)) {
+        std::unique_ptr<vfs2::IHandle> folder;
+        if (OsStatus status = parent->query(kOsFolderGuid, nullptr, 0, std::out_ptr(folder))) {
+            KmDebugMessage("[TARFS] Failed to query folder for '", path, "' : ", status, "\n");
+            continue;
+        }
+
+        vfs2::IFolderHandle *handle = static_cast<vfs2::IFolderHandle*>(folder.get());
+        if (OsStatus status = handle->mknode(name, node.release())) {
             KmDebugMessage("[TARFS] Failed to add folder '", path, "' : ", status, "\n");
-            delete node;
         }
     }
 }
 
-OsStatus TarFsMount::root(IVfsNode **node) {
+OsStatus TarFsMount::root(INode **node) {
     *node = mRootNode;
     return OsStatusSuccess;
 }

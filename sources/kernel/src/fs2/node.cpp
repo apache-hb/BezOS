@@ -1,13 +1,14 @@
 #include "fs2/node.hpp"
 #include "fs2/device.hpp"
+#include "fs2/interface.hpp"
 
 using namespace vfs2;
 
-static OsStatus OpenCallback(IVfsNode *node, IVfsNodeHandle **handle) {
+static OsStatus OpenCallback(IVfsNode *node, IHandle **handle) {
     return node->open(handle);
 }
 
-static OsStatus FolderCallback(IVfsNode *node, IVfsNodeHandle **handle) {
+static OsStatus FolderCallback(IVfsNode *node, IHandle **handle) {
     return node->opendir(handle);
 }
 
@@ -50,7 +51,7 @@ void IVfsNode::initNode(IVfsNode *node, VfsStringView name, VfsNodeType type) {
     }
 }
 
-OsStatus IVfsNode::query(sm::uuid uuid, [[maybe_unused]] const void *data, [[maybe_unused]] size_t size, IVfsNodeHandle **handle) {
+OsStatus IVfsNode::query(sm::uuid uuid, [[maybe_unused]] const void *data, [[maybe_unused]] size_t size, IHandle **handle) {
     if (auto it = mInterfaces.find(uuid); it != mInterfaces.end()) {
         return it->second(this, handle);
     }
@@ -58,12 +59,12 @@ OsStatus IVfsNode::query(sm::uuid uuid, [[maybe_unused]] const void *data, [[may
     return OsStatusNotSupported;
 }
 
-OsStatus IVfsNode::open(IVfsNodeHandle **handle) {
+OsStatus IVfsNode::open(IHandle **handle) {
     if (!isA(kOsFileGuid)) {
         return OsStatusInvalidType;
     }
 
-    IVfsNodeHandle *result = new(std::nothrow) IVfsNodeHandle(this);
+    IFileHandle *result = new (std::nothrow) TFileHandle<IVfsNode>(this);
     if (!result) {
         return OsStatusOutOfMemory;
     }
@@ -72,12 +73,12 @@ OsStatus IVfsNode::open(IVfsNodeHandle **handle) {
     return OsStatusSuccess;
 }
 
-OsStatus IVfsNode::opendir(IVfsNodeHandle **handle) {
+OsStatus IVfsNode::opendir(IHandle **handle) {
     if (!isA(kOsFolderGuid)) {
         return OsStatusInvalidType;
     }
 
-    VfsFolderHandle *result = new(std::nothrow) VfsFolderHandle(this);
+    IFolderHandle *result = new(std::nothrow) TFolderHandle<IVfsNode>(this);
     if (!result) {
         return OsStatusOutOfMemory;
     }

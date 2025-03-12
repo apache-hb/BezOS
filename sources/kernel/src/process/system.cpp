@@ -7,13 +7,13 @@
 
 using namespace km;
 
-OsStatus SystemObjects::createVNode(const vfs2::VfsPath &path, Process *process, VNode **node) {
+OsStatus SystemObjects::createVNode(const vfs2::VfsPath &path, sm::uuid uuid, const void *data, size_t size, Process *process, VNode **node) {
     std::unique_ptr<VNode> result { new (std::nothrow) VNode };
     if (result == nullptr) {
         return OsStatusOutOfMemory;
     }
 
-    if (OsStatus status = mVfs->open(path, std::out_ptr(result->node))) {
+    if (OsStatus status = mVfs->device(path, uuid, data, size, std::out_ptr(result->node))) {
         return status;
     }
 

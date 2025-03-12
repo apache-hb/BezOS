@@ -10,8 +10,12 @@ OsStatus IVfsNodeHandle::write(WriteRequest request, WriteResult *result) {
     return node->write(request, result);
 }
 
-OsStatus IVfsNodeHandle::stat(VfsNodeStat *stat) {
+OsStatus IVfsNodeHandle::stat(NodeStat *stat) {
     return node->stat(stat);
+}
+
+HandleInfo IVfsNodeHandle::info() {
+    return HandleInfo { node };
 }
 
 VfsFolderHandle::VfsFolderHandle(IVfsNode *node)

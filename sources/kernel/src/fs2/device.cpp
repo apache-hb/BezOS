@@ -19,7 +19,7 @@ OsStatus vfs2::VfsIdentifyHandle::serveInterfaceList(void *data, size_t size) {
 
     size_t i = 0;
     OsStatus status = OsStatusSuccess;
-    for (auto [uuid, _] : node->mInterfaces) {
+    for (auto [uuid, _] : mNode->mInterfaces) {
         if (i >= count) {
             i += 1;
             status = OsStatusMoreData;
@@ -27,7 +27,7 @@ OsStatus vfs2::VfsIdentifyHandle::serveInterfaceList(void *data, size_t size) {
         }
 
         if (i >= kMaxInterfaceCount) {
-            KmDebugMessage("[VFS] Device ", node->name, " has more than ", kMaxInterfaceCount, " interfaces.\n");
+            KmDebugMessage("[VFS] Device ", mNode->name, " has more than ", kMaxInterfaceCount, " interfaces.\n");
             break;
         }
 
@@ -45,7 +45,7 @@ OsStatus vfs2::VfsIdentifyHandle::serveInfo(void *data, size_t size) {
         return OsStatusInvalidInput;
     }
 
-    OsIdentifyInfo info = node->identity();
+    OsIdentifyInfo info = mNode->identity();
     memcpy(data, &info, sizeof(OsIdentifyInfo));
     return OsStatusSuccess;
 }

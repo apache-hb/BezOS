@@ -133,7 +133,7 @@ TEST(TarFsTest, MountTar) {
 	}
 
 	{
-		std::unique_ptr<IVfsNodeHandle> motd;
+		std::unique_ptr<IFileHandle> motd;
 		OsStatus status = vfs.open(BuildPath("Mount", "motd.txt"), std::out_ptr(motd));
 		ASSERT_EQ(OsStatusSuccess, status);
 		ASSERT_NE(motd, nullptr);
@@ -154,7 +154,7 @@ TEST(TarFsTest, MountTar) {
 	}
 
 	{
-		std::unique_ptr<IVfsNodeHandle> hello;
+		std::unique_ptr<IFileHandle> hello;
 		OsStatus status = vfs.open(BuildPath("Mount", "subdir", "nested", "hello.txt"), std::out_ptr(hello));
 		ASSERT_EQ(OsStatusSuccess, status);
 		ASSERT_NE(hello, nullptr);
@@ -188,7 +188,7 @@ TEST(TarFsTest, ReadLargeFile) {
 	}
 
 	{
-		std::unique_ptr<IVfsNodeHandle> hello;
+		std::unique_ptr<IFileHandle> hello;
 		OsStatus status = vfs.open(BuildPath("Mount", "subdir", "nested", "services.log"), std::out_ptr(hello));
 		ASSERT_EQ(OsStatusSuccess, status);
 		ASSERT_NE(hello, nullptr);

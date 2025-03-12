@@ -106,13 +106,13 @@ TEST(ProcessTest, OpenFile) {
     km::SystemObjects objects { &memory, &vfs };
 
     {
-        vfs2::IVfsNode *node = nullptr;
+        vfs2::INode *node = nullptr;
         OsStatus status = vfs.mkpath(vfs2::BuildPath("Test"), &node);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
     {
-        vfs2::IVfsNode *node = nullptr;
+        vfs2::INode *node = nullptr;
         OsStatus status = vfs.create(vfs2::BuildPath("Test", "File.txt"), &node);
         ASSERT_EQ(status, OsStatusSuccess);
     }
@@ -141,7 +141,7 @@ TEST(ProcessTest, OpenFile) {
     ASSERT_NE(thread->publicId(), OS_HANDLE_INVALID);
 
     {
-        OsStatus status = objects.createVNode(vfs2::BuildPath("Test", "File.txt"), process, &vnode);
+        OsStatus status = objects.createVNode(vfs2::BuildPath("Test", "File.txt"), kOsFileGuid, nullptr, 0, process, &vnode);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
@@ -179,13 +179,13 @@ TEST(ProcessTest, CloseFileInProcess) {
     km::SystemObjects objects { &memory, &vfs };
 
     {
-        vfs2::IVfsNode *node = nullptr;
+        vfs2::INode *node = nullptr;
         OsStatus status = vfs.mkpath(vfs2::BuildPath("Test"), &node);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
     {
-        vfs2::IVfsNode *node = nullptr;
+        vfs2::INode *node = nullptr;
         OsStatus status = vfs.create(vfs2::BuildPath("Test", "File.txt"), &node);
         ASSERT_EQ(status, OsStatusSuccess);
     }
@@ -214,7 +214,7 @@ TEST(ProcessTest, CloseFileInProcess) {
     ASSERT_NE(thread->publicId(), OS_HANDLE_INVALID);
 
     {
-        OsStatus status = objects.createVNode(vfs2::BuildPath("Test", "File.txt"), process, &vnode);
+        OsStatus status = objects.createVNode(vfs2::BuildPath("Test", "File.txt"), kOsFileGuid, nullptr, 0, process, &vnode);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 

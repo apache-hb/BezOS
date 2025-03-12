@@ -10,6 +10,8 @@
 
 struct OsImplPosixFile {
     int fd;
+    int error;
+    int eof;
 };
 
 static constinit OsImplPosixFile kStandardIn = { 0 };
@@ -65,14 +67,12 @@ int fflush(FILE *) noexcept {
     return -1;
 }
 
-int feof(FILE *) noexcept {
-    Unimplemented();
-    return 0;
+int feof(FILE *file) noexcept {
+    return file->eof;
 }
 
-int ferror(FILE *) noexcept {
-    Unimplemented();
-    return 0;
+int ferror(FILE *file) noexcept {
+    return file->error;
 }
 
 int fileno(FILE *file) noexcept {
