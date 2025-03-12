@@ -232,6 +232,8 @@ namespace vfs2 {
         virtual OsStatus opendir(IHandle **handle);
 
         virtual OsStatus lookup(VfsStringView name, IVfsNode **child);
+        virtual OsStatus lookup(VfsStringView name, INode **child);
+
         OsStatus addFile(VfsStringView name, IVfsNode **child);
         OsStatus addFolder(VfsStringView name, IVfsNode **child);
         OsStatus addNode(VfsStringView name, IVfsNode *node);

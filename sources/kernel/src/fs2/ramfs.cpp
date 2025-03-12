@@ -1,4 +1,5 @@
 #include "fs2/ramfs.hpp"
+#include "fs2/utils.hpp"
 
 using namespace vfs2;
 
@@ -17,7 +18,7 @@ OsStatus RamFsFile::query(sm::uuid uuid, const void *, size_t, IHandle **handle)
         return OsStatusSuccess;
     }
 
-    return OsStatusNotSupported;
+    return OsStatusInterfaceNotSupported;
 }
 
 OsStatus RamFsFile::read(ReadRequest request, ReadResult *result) {
@@ -66,7 +67,7 @@ OsStatus RamFsFolder::query(sm::uuid uuid, const void *, size_t, IHandle **handl
         return OsStatusSuccess;
     }
 
-    return OsStatusNotSupported;
+    return OsStatusInterfaceNotSupported;
 }
 
 //
@@ -74,22 +75,40 @@ OsStatus RamFsFolder::query(sm::uuid uuid, const void *, size_t, IHandle **handl
 //
 
 OsStatus RamFsMount::mkdir(INode *parent, VfsStringView name, const void *, size_t, INode **node) {
-    RamFsFolder *folder = new(std::nothrow) RamFsFolder(parent, this, VfsString(name));
-    if (!folder) {
+    std::unique_ptr<IFolderHandle> folder;
+    if (OsStatus status = OpenFolderInterface(parent, nullptr, 0, std::out_ptr(folder))) {
+        return status;
+    }
+
+    std::unique_ptr<RamFsFolder> child { new(std::nothrow) RamFsFolder(parent, this, VfsString(name)) };
+    if (!child) {
         return OsStatusOutOfMemory;
     }
 
-    *node = folder;
+    if (OsStatus status = folder->mknode(name, child.get())) {
+        return status;
+    }
+
+    *node = child.release();
     return OsStatusSuccess;
 }
 
 OsStatus RamFsMount::create(INode *parent, VfsStringView name, const void *, size_t, INode **node) {
-    RamFsFile *file = new(std::nothrow) RamFsFile(parent, this, VfsString(name));
+    std::unique_ptr<IFolderHandle> folder;
+    if (OsStatus status = OpenFolderInterface(parent, nullptr, 0, std::out_ptr(folder))) {
+        return status;
+    }
+
+    std::unique_ptr<RamFsFile> file { new(std::nothrow) RamFsFile(parent, this, VfsString(name)) };
     if (!file) {
         return OsStatusOutOfMemory;
     }
 
-    *node = file;
+    if (OsStatus status = folder->mknode(name, file.get())) {
+        return status;
+    }
+
+    *node = file.release();
     return OsStatusSuccess;
 }
 

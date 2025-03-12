@@ -102,6 +102,16 @@ OsStatus IVfsNode::lookup(VfsStringView name, IVfsNode **child) {
     return OsStatusSuccess;
 }
 
+OsStatus IVfsNode::lookup(VfsStringView name, INode **child) {
+    IVfsNode *result = nullptr;
+    if (OsStatus status = lookup(name, &result)) {
+        return status;
+    }
+
+    *child = result;
+    return OsStatusSuccess;
+}
+
 OsStatus IVfsNode::addFile(VfsStringView name, IVfsNode **child) {
     if (!isA(kOsFolderGuid)) {
         return OsStatusInvalidType;

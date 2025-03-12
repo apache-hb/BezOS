@@ -169,6 +169,7 @@ OsStatus VfsRoot::insertMount(INode *parent, const VfsPath& path, std::unique_pt
     // Fill out the root node with its information relative
     // to where its mounted.
     //
+    root->init(parent, VfsString(path.name()), Access::RWX);
 
     if (OsStatus status = addNode(parent, VfsString(path.name()), root)) {
         mMounts.erase(iter);
@@ -218,12 +219,13 @@ OsStatus VfsRoot::create(const VfsPath& path, INode **node) {
         return status;
     }
 
+    NodeInfo cInfo = parent->info();
+    IVfsMount *mount = cInfo.mount;
+
     //
     // Create the new file inside the parent folder.
     //
     INode *child = nullptr;
-    NodeInfo cInfo = parent->info();
-    IVfsMount *mount = cInfo.mount;
     if (OsStatus status = mount->create(parent, path.name(), nullptr, 0, &child)) {
         return status;
     }

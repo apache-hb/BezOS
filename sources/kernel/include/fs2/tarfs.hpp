@@ -155,6 +155,8 @@ namespace vfs2 {
             : TarFsNode(entry, parent, mount)
         { }
 
+        OsStatus query(sm::uuid uuid, const void *data, size_t size, IHandle **handle) override;
+
         using FolderMixin::lookup;
         using FolderMixin::mknode;
     };

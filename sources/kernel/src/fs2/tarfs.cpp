@@ -201,17 +201,7 @@ OsStatus TarFsNode::query(sm::uuid uuid, const void *, size_t, IHandle **handle)
         return OsStatusSuccess;
     }
 
-    if (uuid == kOsFolderGuid) {
-        auto *folder = new (std::nothrow) TFolderHandle<TarFsNode>(this);
-        if (!folder) {
-            return OsStatusOutOfMemory;
-        }
-
-        *handle = folder;
-        return OsStatusSuccess;
-    }
-
-    return OsStatusNotSupported;
+    return OsStatusInterfaceNotSupported;
 }
 
 void TarFsNode::init(INode *parent, VfsString name, Access access) {
@@ -238,6 +228,20 @@ OsStatus TarFsNode::stat(NodeStat *result) {
     };
 
     return OsStatusSuccess;
+}
+
+OsStatus TarFsFolder::query(sm::uuid uuid, const void *, size_t, IHandle **handle) {
+    if (uuid == kOsFolderGuid) {
+        auto *folder = new (std::nothrow) TFolderHandle<TarFsFolder>(this);
+        if (!folder) {
+            return OsStatusOutOfMemory;
+        }
+
+        *handle = folder;
+        return OsStatusSuccess;
+    }
+
+    return OsStatusInterfaceNotSupported;
 }
 
 //
@@ -313,8 +317,8 @@ TarFsMount::TarFsMount(TarFs *tarfs, sm::SharedPtr<km::IBlockDriver> block)
             continue;
         }
 
-        std::unique_ptr<vfs2::IHandle> folder;
-        if (OsStatus status = parent->query(kOsFolderGuid, nullptr, 0, std::out_ptr(folder))) {
+        std::unique_ptr<vfs2::IFolderHandle> folder;
+        if (OsStatus status = OpenFolderInterface(parent, nullptr, 0, std::out_ptr(folder))) {
             KmDebugMessage("[TARFS] Failed to query folder for '", path, "' : ", status, "\n");
             continue;
         }

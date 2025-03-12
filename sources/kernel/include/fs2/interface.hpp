@@ -77,8 +77,11 @@ namespace vfs2 {
         { it.rmnode(std::declval<INode*>()) } -> std::same_as<OsStatus>;
     };
 
+    template<typename T>
+    concept FolderNodeType = FolderLookup<T> && std::derived_from<T, INode>;
+
     class FolderMixin {
-        using FolderContainer = sm::BTreeMap<VfsString, INode*, std::less<>>;
+        using FolderContainer = sm::BTreeMap<VfsString, std::unique_ptr<INode>, std::less<>>;
 
         FolderContainer mChildren;
 
@@ -97,7 +100,7 @@ namespace vfs2 {
         virtual OsStatus rmnode(INode *child) = 0;
     };
 
-    template<std::derived_from<INode> T>
+    template<FolderNodeType T>
     class TFolderHandle : public IFolderHandle {
         T *mNode;
     public:
@@ -106,11 +109,7 @@ namespace vfs2 {
         { }
 
         virtual OsStatus lookup(VfsStringView name, INode **child) override {
-            if constexpr (FolderLookup<T>) {
-                return mNode->lookup(name, child);
-            } else {
-                return OsStatusFunctionNotSupported;
-            }
+            return mNode->lookup(name, child);
         }
 
         virtual OsStatus mknode(VfsStringView name, INode *child) override {

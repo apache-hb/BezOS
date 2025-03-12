@@ -4,7 +4,7 @@ using namespace vfs2;
 
 OsStatus FolderMixin::lookup(VfsStringView name, INode **child) {
     if (auto it = mChildren.find(name); it != mChildren.end()) {
-        *child = it->second;
+        *child = it->second.get();
         return OsStatusSuccess;
     }
 
@@ -16,7 +16,7 @@ OsStatus FolderMixin::mknode(VfsStringView name, INode *child) {
         return OsStatusAlreadyExists;
     }
 
-    mChildren.insert({ VfsString(name), child });
+    mChildren.insert({ VfsString(name), std::unique_ptr<INode>(child) });
     return OsStatusSuccess;
 }
 
