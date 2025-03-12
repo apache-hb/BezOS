@@ -2,7 +2,8 @@
 
 #include <bezos/subsystem/hid.h>
 
-#include "fs2/node.hpp"
+#include "fs2/device.hpp"
+#include "fs2/identify.hpp"
 #include "hid/hid.hpp"
 
 #include "std/spinlock.hpp"
@@ -11,24 +12,44 @@
 #include "notify.hpp"
 
 namespace dev {
-    class HidKeyboardHandle : public vfs2::IVfsNodeHandle {
+    class HidKeyboardDevice;
+    class HidKeyboardHandle;
+
+    static constexpr inline OsIdentifyInfo kHidInfo {
+        .DisplayName = "PS/2 Keyboard",
+        .Model = "Generic 101/102-Key (Intl) PC",
+        .DeviceVendor = "Generic",
+        .FirmwareRevision = "Generic",
+        .DriverVendor = "BezOS",
+        .DriverVersion = OS_VERSION(1, 0, 0),
+    };
+
+    class HidKeyboardHandle : public vfs2::IHandle {
+        HidKeyboardDevice *mNode;
         stdx::SpinLock mLock;
         stdx::Vector2<OsHidEvent> mEvents;
 
     public:
-        HidKeyboardHandle(vfs2::IVfsNode *node);
+        HidKeyboardHandle(HidKeyboardDevice *node);
 
         void notify(OsHidEvent event);
 
         OsStatus read(vfs2::ReadRequest request, vfs2::ReadResult *result) override;
+        vfs2::HandleInfo info() override;
     };
 
     class HidKeyboardDevice
-        : public vfs2::IVfsNode
+        : public vfs2::BasicNode
+        , public vfs2::ConstIdentifyMixin<kHidInfo>
         , public km::ISubscriber
     {
         stdx::SharedSpinLock mLock;
         stdx::Vector2<HidKeyboardHandle*> mHandles;
+
+        static constexpr inline auto kInterfaceList = std::to_array({
+            kOsIdentifyGuid,
+            kOsHidClassGuid,
+        });
 
         // km::ISubscriber interface
         void notify(km::Topic*, km::INotification *notification) override {
@@ -41,22 +62,14 @@ namespace dev {
         }
 
     public:
-        HidKeyboardDevice() {
-            addInterface<HidKeyboardHandle>(kOsHidClassGuid);
-
-            mIdentifyInfo = OsIdentifyInfo {
-                .DisplayName = "PS/2 Keyboard",
-                .Model = "Generic 101/102-Key (Intl) PC",
-                .DeviceVendor = "Generic",
-                .FirmwareRevision = "Generic",
-                .DriverVendor = "BezOS",
-                .DriverVersion = OS_VERSION(1, 0, 0),
-            };
-        }
+        HidKeyboardDevice() = default;
 
         void attach(HidKeyboardHandle *handle) {
             stdx::UniqueLock guard(mLock);
             mHandles.add(handle);
         }
+
+        std::span<const OsGuid> interfaces() { return kInterfaceList; }
+        OsStatus query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) override;
     };
 }

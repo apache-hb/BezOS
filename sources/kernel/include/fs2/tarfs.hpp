@@ -3,6 +3,7 @@
 #include "drivers/block/driver.hpp"
 
 #include "fs2/folder.hpp"
+#include "fs2/identify.hpp"
 #include "fs2/node.hpp"
 #include "std/shared.hpp"
 
@@ -135,7 +136,7 @@ namespace vfs2 {
         .DriverVersion = OS_VERSION(1, 0, 0),
     };
 
-    class TarFsNode : public INode {
+    class TarFsNode : public INode, public ConstIdentifyMixin<kTarFsInfo> {
         INode *mParent;
         Access mAccess = Access::R;
 
@@ -152,11 +153,6 @@ namespace vfs2 {
 
         NodeInfo info() override;
         void init(INode *parent, VfsString name, Access access) override;
-
-        OsStatus identify(OsIdentifyInfo *info) {
-            *info = kTarFsInfo;
-            return OsStatusSuccess;
-        }
     };
 
     class TarFsFile : public TarFsNode {
@@ -209,7 +205,7 @@ namespace vfs2 {
     class TarFsMount final : public IVfsMount {
         sm::SharedPtr<km::IBlockDriver> mBlock;
         km::BlockDevice mMedia;
-        FolderNode *mRootNode;
+        TarFsFolder *mRootNode;
 
         OsStatus walk(const VfsPath& path, INode **folder);
 

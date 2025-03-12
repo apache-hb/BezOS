@@ -1,9 +1,13 @@
 #include "devices/hid.hpp"
 
-dev::HidKeyboardHandle::HidKeyboardHandle(vfs2::IVfsNode *node)
-    : vfs2::IVfsNodeHandle(node)
+dev::HidKeyboardHandle::HidKeyboardHandle(HidKeyboardDevice *node)
+    : mNode(node)
 {
-    static_cast<HidKeyboardDevice*>(node)->attach(this);
+    mNode->attach(this);
+}
+
+vfs2::HandleInfo dev::HidKeyboardHandle::info() {
+    return vfs2::HandleInfo { mNode };
 }
 
 void dev::HidKeyboardHandle::notify(OsHidEvent event) {
@@ -30,4 +34,28 @@ OsStatus dev::HidKeyboardHandle::read(vfs2::ReadRequest request, vfs2::ReadResul
 
     result->read = count * sizeof(OsHidEvent);
     return OsStatusSuccess;
+}
+
+OsStatus dev::HidKeyboardDevice::query(sm::uuid uuid, const void *, size_t, vfs2::IHandle **handle) {
+    if (uuid == kOsIdentifyGuid) {
+        auto *identify = new(std::nothrow) vfs2::TIdentifyHandle<HidKeyboardDevice>(this);
+        if (!identify) {
+            return OsStatusOutOfMemory;
+        }
+
+        *handle = identify;
+        return OsStatusSuccess;
+    }
+
+    if (uuid == kOsHidClassGuid) {
+        auto *hid = new(std::nothrow) HidKeyboardHandle(this);
+        if (!hid) {
+            return OsStatusOutOfMemory;
+        }
+
+        *handle = hid;
+        return OsStatusSuccess;
+    }
+
+    return OsStatusInterfaceNotSupported;
 }

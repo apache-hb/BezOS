@@ -75,6 +75,8 @@ namespace vfs2 {
     ///
     /// @note All handles that advertise as @a kOsFolderGuid must inherit from @a IFolderHandle.
     /// @note All handles that advertise as @a kOsFileGuid must inherit from @a IFileHandle.
+    /// @note All handles that advertise as @a kOsIdentifyGuid must inherit from @a IIdentifyHandle.
+    /// @note All nodes must provide @a kOsIdentifyGuid.
     class IHandle {
     public:
         virtual ~IHandle() = default;
@@ -88,14 +90,27 @@ namespace vfs2 {
         /// @return The status of the invocation.
         virtual OsStatus invoke(uint64_t, void *, size_t) { return OsStatusNotSupported; }
 
+        /// @brief Read data from the handle.
+        ///
+        /// @param request The read request.
+        /// @param result The read result.
+        ///
+        /// @return The status of the read operation.
         virtual OsStatus read(ReadRequest, ReadResult *) { return OsStatusNotSupported; }
+
+        /// @brief Write data to the handle.
+        ///
+        /// @param request The write request.
+        /// @param result The write result.
+        ///
+        /// @return The status of the write operation.
         virtual OsStatus write(WriteRequest, WriteResult *) { return OsStatusNotSupported; }
 
         virtual HandleInfo info() = 0;
     };
 
     class INode {
-        public:
+    public:
         virtual ~INode() = default;
 
         /// @brief Query this node for an interface.
@@ -111,6 +126,11 @@ namespace vfs2 {
         /// @return The status of the query operation.
         virtual OsStatus query(sm::uuid, const void *, size_t, IHandle **) = 0;
 
+        /// @brief Connect a node to its parent.
+        ///
+        /// @param parent The parent node.
+        /// @param name The name of the node.
+        /// @param access The access rights of the node.
         virtual void init(INode *parent, VfsString name, Access access) = 0;
 
         virtual NodeInfo info() = 0;

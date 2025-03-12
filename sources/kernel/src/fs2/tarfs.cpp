@@ -314,7 +314,7 @@ TarFsMount::TarFsMount(TarFs *tarfs, sm::SharedPtr<km::IBlockDriver> block)
     : IVfsMount(tarfs)
     , mBlock(block)
     , mMedia(mBlock.get())
-    , mRootNode(new FolderNode(NodeInfo { "", this, nullptr, Access::RWX }))
+    , mRootNode(new TarFsFolder(TarEntry{}, nullptr, this))
 {
     sm::BTreeMap<VfsPath, TarEntry> headers;
     if (OsStatus status = ParseTar(&mMedia, TarParseOptions{}, &headers)) {

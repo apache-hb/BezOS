@@ -106,6 +106,8 @@ namespace km {
             return detail::GetStringEntry(reinterpret_cast<const StructHeader*>(entry), string);
         }
 
+        size_t GetStructSize(const StructHeader *header);
+
         // TODO: the firmware table can have extended fields
         static_assert(sizeof(FirmwareInfo) == 18);
         static_assert(sizeof(SystemInfo) == 27);
@@ -154,6 +156,8 @@ namespace km {
         SmBiosIterator end() const {
             return SmBiosIterator(tables.back);
         }
+
+        size_t size() const { return tables.size(); }
 
         const smbios::FirmwareInfo *firmwareInfo() const;
         const smbios::SystemInfo *systemInfo() const;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "fs2/folder.hpp"
+#include "fs2/identify.hpp"
 #include "fs2/node.hpp"
 #include "std/shared_spinlock.hpp"
 #include "std/vector.hpp"
@@ -21,7 +22,7 @@ namespace vfs2 {
         .DriverVersion = OS_VERSION(1, 0, 0),
     };
 
-    class RamFsNode : public INode {
+    class RamFsNode : public INode, public ConstIdentifyMixin<kRamFsInfo> {
         INode *mParent;
         IVfsMount *mMount;
         VfsString mName;
@@ -45,11 +46,6 @@ namespace vfs2 {
         void init(INode *parent, VfsString name, Access) override {
             mParent = parent;
             mName = std::move(name);
-        }
-
-        OsStatus identify(OsIdentifyInfo *info) {
-            *info = kRamFsInfo;
-            return OsStatusSuccess;
         }
     };
 

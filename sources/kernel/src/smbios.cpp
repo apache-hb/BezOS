@@ -129,6 +129,21 @@ stdx::StringView km::smbios::detail::GetStringEntry(const StructHeader *header, 
     return "Invalid index"_sv;
 }
 
+size_t km::smbios::GetStructSize(const StructHeader *header) {
+    size_t size = header->length;
+    const char *address = reinterpret_cast<const char*>(header) + size;
+
+    while (true) {
+        if (*address == '\0' && *(address + 1) == '\0') {
+            break;
+        }
+
+        address++;
+    }
+
+    return size;
+}
+
 static OsStatus FindSmbios64(km::PhysicalAddress address, bool ignoreChecksum, km::SystemMemory& memory, const smbios::Entry64 **entry) {
     const auto *smbios = memory.mapConst<smbios::Entry64>(address);
 

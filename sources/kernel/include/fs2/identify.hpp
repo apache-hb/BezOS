@@ -5,10 +5,23 @@
 #include "fs2/interface.hpp"
 
 namespace vfs2 {
+    namespace detail {
+        OsStatus InterfaceList(void *data, size_t size, std::span<const OsGuid> interfaces);
+    }
+
     template<typename T>
     concept IdentifyNode = requires (T it) {
         { it.identify(std::declval<OsIdentifyInfo*>()) } -> std::same_as<OsStatus>;
         { it.interfaces() } -> std::same_as<std::span<const OsGuid>>;
+    };
+
+    template<const OsIdentifyInfo& Info>
+    class ConstIdentifyMixin {
+    public:
+        OsStatus identify(OsIdentifyInfo *info) {
+            *info = Info;
+            return OsStatusSuccess;
+        }
     };
 
     class IdentifyMixin {
@@ -31,23 +44,19 @@ namespace vfs2 {
             : mNode(node)
         { }
 
-        OsStatus identify(OsIdentifyInfo *info) override {
-            return mNode->identify(info);
+        OsStatus identify(void *data, size_t size) override {
+            if (size != sizeof(OsIdentifyInfo)) {
+                return OsStatusInvalidInput;
+            }
+
+            return mNode->identify(static_cast<OsIdentifyInfo*>(data));
         }
 
-        OsStatus interfaces(OsIdentifyInterfaceList *list) override {
-            std::span interfaces = mNode->interfaces();
-            uint32_t count = std::min<uint32_t>(interfaces.size(), list->InterfaceCount);
-            for (uint32_t i = 0; i < count; i++) {
-                list->InterfaceGuids[i] = interfaces[i];
-            }
-
-            list->InterfaceCount = count;
-            if (count < interfaces.size()) {
-                return OsStatusMoreData;
-            }
-
-            return OsStatusSuccess;
+        OsStatus interfaces(void *data, size_t size) override {
+            //
+            // Forward implementation to detail function to reduce code size.
+            //
+            return detail::InterfaceList(data, size, mNode->interfaces());
         }
 
         HandleInfo info() override {

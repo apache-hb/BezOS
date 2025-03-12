@@ -68,35 +68,4 @@ namespace vfs2 {
     class FolderIterator : public IHandle {
     public:
     };
-
-    class FolderNode final : public INode, public FolderMixin {
-        NodeInfo mInfo;
-
-    public:
-        FolderNode(NodeInfo info)
-            : mInfo(info)
-        { }
-
-        virtual OsStatus query(sm::uuid uuid, const void *, size_t, IHandle **handle) override {
-            if (uuid == kOsFolderGuid) {
-                auto *folder = new (std::nothrow) TFolderHandle<FolderNode>(this);
-                if (!folder) {
-                    return OsStatusOutOfMemory;
-                }
-
-                *handle = folder;
-                return OsStatusSuccess;
-            }
-
-            return OsStatusInterfaceNotSupported;
-        }
-
-        void init(INode *parent, VfsString name, Access access) override {
-            mInfo = NodeInfo { name, mInfo.mount, parent, access };
-        }
-
-        NodeInfo info() override {
-            return mInfo;
-        }
-    };
 }

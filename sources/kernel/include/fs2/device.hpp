@@ -19,4 +19,38 @@ namespace vfs2 {
         OsStatus invoke(uint64_t function, void *data, size_t size) override;
         HandleInfo info() override { return HandleInfo { mNode }; }
     };
+
+    class BasicNode : public INode {
+    protected:
+        INode *mParent;
+        IVfsMount *mMount;
+        VfsString mName;
+        Access mAccess;
+
+    public:
+        BasicNode(INode *parent, IVfsMount *mount, VfsString name)
+            : mParent(parent)
+            , mMount(mount)
+            , mName(std::move(name))
+        { }
+
+        BasicNode()
+            : BasicNode(nullptr, nullptr, "")
+        { }
+
+        void init(INode *parent, VfsString name, Access access) override {
+            mParent = parent;
+            mName = std::move(name);
+            mAccess = access;
+        }
+
+        NodeInfo info() override {
+            return NodeInfo {
+                .name = mName,
+                .mount = mMount,
+                .parent = mParent,
+                .access = mAccess,
+            };
+        }
+    };
 }

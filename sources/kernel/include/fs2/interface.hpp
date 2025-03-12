@@ -23,7 +23,14 @@ namespace vfs2 {
     public:
         virtual ~IIdentifyHandle() = default;
 
-        virtual OsStatus identify(OsIdentifyInfo *info) = 0;
-        virtual OsStatus interfaces(OsIdentifyInterfaceList *list) = 0;
+        virtual OsStatus identify(void *data, size_t size) = 0;
+        virtual OsStatus interfaces(void *data, size_t size) = 0;
+
+        OsStatus invoke(uint64_t function, void *data, size_t size) override;
+    };
+
+    class IStreamHandle : public IHandle {
+    public:
+        virtual ~IStreamHandle() = default;
     };
 }

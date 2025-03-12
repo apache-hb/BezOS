@@ -30,6 +30,7 @@
 #include "drivers/block/ramblk.hpp"
 #include "elf.hpp"
 #include "fs2/path.hpp"
+#include "fs2/utils.hpp"
 #include "fs2/vfs.hpp"
 #include "gdt.hpp"
 #include "hid/hid.hpp"
@@ -849,7 +850,7 @@ static void CreateNotificationQueue() {
 }
 
 static void MakeFolder(const vfs2::VfsPath& path) {
-    vfs2::IVfsNode *node = nullptr;
+    vfs2::INode *node = nullptr;
     if (OsStatus status = gVfsRoot->mkpath(path, &node)) {
         KmDebugMessage("[VFS] Failed to create path: '", path, "' ", status, "\n");
     }
@@ -886,27 +887,27 @@ static void MountRootVfs() {
     MakeUser("Operator");
 
     {
-        vfs2::IVfsNode *node = nullptr;
+        vfs2::INode *node = nullptr;
         vfs2::VfsPath path = vfs2::BuildPath("System", "Audit", "System.log");
         if (OsStatus status = gVfsRoot->create(path, &node)) {
             KmDebugMessage("[VFS] Failed to create ", path, ": ", status, "\n");
         }
 
-        std::unique_ptr<vfs2::IHandle> log;
-        if (OsStatus status = node->open(std::out_ptr(log))) {
+        std::unique_ptr<vfs2::IFileHandle> log;
+        if (OsStatus status = vfs2::OpenFileInterface(node, nullptr, 0, std::out_ptr(log))) {
             KmDebugMessage("[VFS] Failed to open log file: ", status, "\n");
         }
     }
 
     {
-        vfs2::IVfsNode *node = nullptr;
+        vfs2::INode *node = nullptr;
         vfs2::VfsPath path = vfs2::BuildPath("Users", "Guest", "motd.txt");
         if (OsStatus status = gVfsRoot->create(path, &node)) {
             KmDebugMessage("[VFS] Failed to create ", path, ": ", status, "\n");
         }
 
-        std::unique_ptr<vfs2::IHandle> motd;
-        if (OsStatus status = node->open(std::out_ptr(motd))) {
+        std::unique_ptr<vfs2::IFileHandle> motd;
+        if (OsStatus status = vfs2::OpenFileInterface(node, nullptr, 0, std::out_ptr(motd))) {
             KmDebugMessage("[VFS] Failed to open file: ", status, "\n");
         }
 
@@ -927,7 +928,7 @@ static void CreatePlatformVfsNodes(const km::SmBiosTables *smbios, const acpi::A
     MakePath("Platform");
 
     {
-        vfs2::IVfsNode *node = new dev::SmBiosTables(smbios);
+        vfs2::INode *node = new dev::SmBiosRoot(smbios);
 
         if (OsStatus status = gVfsRoot->mkdevice(vfs2::BuildPath("Platform", "SMBIOS"), node)) {
             KmDebugMessage("[VFS] Failed to create SMBIOS device: ", status, "\n");
@@ -935,7 +936,7 @@ static void CreatePlatformVfsNodes(const km::SmBiosTables *smbios, const acpi::A
     }
 
     {
-        vfs2::IVfsNode *node = new dev::AcpiRoot(acpi);
+        vfs2::INode *node = new dev::AcpiRoot(acpi);
         if (OsStatus status = gVfsRoot->mkdevice(vfs2::BuildPath("Platform", "ACPI"), node)) {
             KmDebugMessage("[VFS] Failed to create ACPI device: ", status, "\n");
         }
@@ -1205,7 +1206,7 @@ static void AddVfsSystemCalls() {
 }
 
 // TODO: there should be a global registry of these, and they should be loaded from shared objects
-static vfs2::IVfsNode *GetDefaultClass(sm::uuid uuid) {
+static vfs2::INode *GetDefaultClass(sm::uuid uuid) {
     if (uuid == kOsStreamGuid) {
         return new dev::StreamDevice(1024);
     } else {
@@ -1243,7 +1244,7 @@ static void AddDeviceSystemCalls() {
         OsStatus status = gVfsRoot->device(path, uuid, createInfo.OpenData, createInfo.OpenDataSize, std::out_ptr(handle));
 
         if ((status == OsStatusNotFound) && (createInfo.Flags & eOsDeviceCreateNew)) {
-            vfs2::IVfsNode *node = GetDefaultClass(uuid);
+            vfs2::INode *node = GetDefaultClass(uuid);
             if (node == nullptr) {
                 return CallError(OsStatusNotFound);
             }
@@ -1781,7 +1782,7 @@ static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioAp
     vfs2::VfsPath hidPs2DevicePath{OS_DEVICE_PS2_KEYBOARD};
 
     {
-        vfs2::IVfsNode *node = nullptr;
+        vfs2::INode *node = nullptr;
         if (OsStatus status = gVfsRoot->mkpath(hidPs2DevicePath.parent(), &node)) {
             KmDebugMessage("[VFS] Failed to create ", hidPs2DevicePath.parent(), " folder: ", status, "\n");
             KM_PANIC("Failed to create keyboar device folder.");
@@ -1803,7 +1804,7 @@ static void CreateDisplayDevice() {
     vfs2::VfsPath ddiPath{OS_DEVICE_DDI_RAMFB};
 
     {
-        vfs2::IVfsNode *node = nullptr;
+        vfs2::INode *node = nullptr;
         if (OsStatus status = gVfsRoot->mkpath(ddiPath.parent(), &node)) {
             KmDebugMessage("[VFS] Failed to create ", ddiPath.parent(), " folder: ", status, "\n");
             KM_PANIC("Failed to create display device folder.");
