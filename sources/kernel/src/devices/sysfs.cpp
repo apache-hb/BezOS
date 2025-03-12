@@ -176,6 +176,16 @@ OsStatus dev::AcpiRoot::query(sm::uuid uuid, const void *, size_t, vfs2::IHandle
         return OsStatusSuccess;
     }
 
+    if (uuid == kOsFolderGuid) {
+        auto *folder = new vfs2::TFolderHandle<AcpiRoot>(this);
+        if (!folder) {
+            return OsStatusOutOfMemory;
+        }
+
+        *handle = folder;
+        return OsStatusSuccess;
+    }
+
     if (uuid == kOsFileGuid) {
         auto *file = new vfs2::TFileHandle<AcpiRoot>(this);
         if (!file) {
