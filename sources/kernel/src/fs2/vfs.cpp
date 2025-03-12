@@ -73,7 +73,7 @@ OsStatus VfsRoot::lookupUnlocked(const VfsPath& path, INode **node) {
     return OsStatusSuccess;
 }
 
-OsStatus VfsRoot::insertMount(IVfsNode *parent, const VfsPath& path, std::unique_ptr<IVfsMount> object, IVfsMount **mount) {
+OsStatus VfsRoot::insertMount(INode *parent, const VfsPath& path, std::unique_ptr<IVfsMount> object, IVfsMount **mount) {
     //
     // Add the mount point to our internal mappings.
     //
@@ -151,7 +151,7 @@ OsStatus VfsRoot::addMount(IVfsDriver *driver, const VfsPath& path, IVfsMount **
     return insertMount(parent, path, std::move(impl), mount);
 }
 
-OsStatus VfsRoot::create(const VfsPath& path, IVfsNode **node) {
+OsStatus VfsRoot::create(const VfsPath& path, INode **node) {
     stdx::UniqueLock guard(mLock);
 
     //
@@ -366,12 +366,12 @@ OsStatus VfsRoot::device(const VfsPath& path, sm::uuid interface, const void *da
         return mRootNode->query(interface, data, size, handle);
     }
 
-    IVfsNode *parent = nullptr;
+    INode *parent = nullptr;
     if (OsStatus status = walk(path, &parent)) {
         return status;
     }
 
-    IVfsNode *device = nullptr;
+    INode *device = nullptr;
     if (OsStatus status = parent->lookup(path.name(), &device)) {
         return status;
     }
