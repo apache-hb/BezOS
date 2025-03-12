@@ -7,3 +7,8 @@ OsStatus OsVmemCreate(struct OsVmemCreateInfo CreateInfo, OsAnyPointer *OutBase)
     *OutBase = (OsAnyPointer)result.Value;
     return result.Status;
 }
+
+OsStatus OsVmemRelease(OsAnyPointer BaseAddress, OsSize Size) {
+    struct OsCallResult result = OsSystemCall(eOsCallVmemRelease, (uint64_t)BaseAddress, Size, 0, 0);
+    return result.Status;
+}

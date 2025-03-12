@@ -1590,8 +1590,39 @@ static OsMemoryAccess MakeMemoryAccess(PageFlags flags) {
     return access;
 }
 #endif
-static void AddVmemSystemCalls() {
 
+static void AddVmemSystemCalls() {
+    AddSystemCall(eOsCallVmemCreate, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        uint64_t userCreateInfo = regs->arg0;
+        OsVmemCreateInfo createInfo{};
+        if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {
+            return CallError(status);
+        }
+
+        if ((createInfo.Size % x64::kPageSize != 0) || (createInfo.Size < x64::kPageSize)) {
+            return CallError(OsStatusInvalidInput);
+        }
+
+        Process *process = nullptr;
+        if (createInfo.Process != OS_HANDLE_INVALID) {
+            process = gSystemObjects->getProcess(ProcessId(OS_HANDLE_ID(createInfo.Process)));
+        } else {
+            process = context->process();
+        }
+
+        if (process == nullptr) {
+            return CallError(OsStatusNotFound);
+        }
+
+        AddressMapping mapping{};
+        SystemMemory *memory = GetSystemMemory();
+        OsStatus status = AllocateMemory(memory->pmmAllocator(), &process->ptes, createInfo.Size / x64::kPageSize, &mapping);
+        if (status != OsStatusSuccess) {
+            return CallError(status);
+        }
+
+        return CallOk(mapping.vaddr);
+    });
 }
 
 static void EnableUmip(bool enable) {

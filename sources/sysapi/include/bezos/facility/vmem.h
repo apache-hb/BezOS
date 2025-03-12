@@ -38,7 +38,7 @@ enum {
 ///
 /// Bits [0:2] contain the memory access flags.
 /// Bits [3:7] contain the memory allocation flags.
-/// Bit [8] controls whether the base address is a hint.
+/// Bit  [8] controls whether the base address is a hint.
 /// Bits [9:31] are reserved and must be zero.
 typedef uint32_t OsMemoryAccess;
 
@@ -74,6 +74,14 @@ struct OsVmemCreateInfo {
 ///
 /// @return The status of the operation.
 extern OsStatus OsVmemCreate(struct OsVmemCreateInfo CreateInfo, OsAnyPointer *OutBase);
+
+/// @brief Unmap a range of memory.
+///
+/// @param BaseAddress The base address of the memory to unmap.
+/// @param Size The size of the memory to unmap.
+///
+/// @return The status of the operation.
+extern OsStatus OsVmemRelease(OsAnyPointer BaseAddress, OsSize Size);
 
 /// @} // group OsAddressSpace
 
