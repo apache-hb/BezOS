@@ -197,6 +197,27 @@ extern OsStatus OsFileStat(OsFileHandle Handle, struct OsFileStat *OutStat);
 /// @} // group OsFile
 
 
+/// @defgroup OsNode VNodes
+/// @{
+
+struct OsNodeCreateInfo {
+    struct OsPath Path;
+};
+
+struct OsNodeQueryInterfaceInfo {
+    struct OsGuid InterfaceGuid;
+    OsProcessHandle Process;
+    const void *OpenData;
+    size_t OpenDataSize;
+};
+
+extern OsStatus OsNodeOpen(struct OsNodeCreateInfo CreateInfo, OsNodeHandle *OutHandle);
+
+extern OsStatus OsNodeQueryInterface(OsNodeHandle Handle, struct OsNodeQueryInterfaceInfo Query, OsDeviceHandle *OutHandle);
+
+extern OsStatus OsNodeClose(OsNodeHandle Handle);
+
+/// @} // group OsNode
 
 
 /// @defgroup OsFolderIterator Folder Iterator

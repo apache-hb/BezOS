@@ -4,6 +4,7 @@
 #include "acpi/header.hpp"
 #include "fs2/file.hpp"
 #include "fs2/identify.hpp"
+#include "fs2/iterator.hpp"
 #include "fs2/query.hpp"
 #include "smbios.hpp"
 
@@ -111,6 +112,7 @@ static constexpr inline vfs2::InterfaceList kAcpiRootInterfaceList = std::to_arr
     vfs2::InterfaceOf<vfs2::TIdentifyHandle<dev::AcpiRoot>, dev::AcpiRoot>(kOsIdentifyGuid),
     vfs2::InterfaceOf<vfs2::TFileHandle<dev::AcpiRoot>, dev::AcpiRoot>(kOsFileGuid),
     vfs2::InterfaceOf<vfs2::TFolderHandle<dev::AcpiRoot>, dev::AcpiRoot>(kOsFolderGuid),
+    vfs2::InterfaceOf<vfs2::TIteratorHandle<dev::AcpiRoot>, dev::AcpiRoot>(kOsIteratorGuid),
 });
 
 static constexpr inline vfs2::InterfaceList kSmbTableInterfaceList = std::to_array({
@@ -122,6 +124,7 @@ static constexpr inline vfs2::InterfaceList kSmbRootInterfaceList = std::to_arra
     vfs2::InterfaceOf<vfs2::TIdentifyHandle<dev::SmBiosRoot>, dev::SmBiosRoot>(kOsIdentifyGuid),
     vfs2::InterfaceOf<vfs2::TFileHandle<dev::SmBiosRoot>, dev::SmBiosRoot>(kOsFileGuid),
     vfs2::InterfaceOf<vfs2::TFolderHandle<dev::SmBiosRoot>, dev::SmBiosRoot>(kOsFolderGuid),
+    vfs2::InterfaceOf<vfs2::TIteratorHandle<dev::SmBiosRoot>, dev::SmBiosRoot>(kOsIteratorGuid),
 });
 
 dev::AcpiTable::AcpiTable(const acpi::RsdtHeader *table)

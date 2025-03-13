@@ -191,7 +191,7 @@ static void ListCurrentFolder(StreamDevice& tty, const char *path) {
     if (OsStatus status = OsFolderIterateCreate(createInfo, &handle)) {
         WriteString(tty, "Error: '");
         WriteString(tty, path, path + strlen(path));
-        WriteString(tty, "' is not a folder.\n");
+        WriteString(tty, "' is not iterable.\n");
         WriteString(tty, "Status: ");
         WriteNumber(tty, status);
         WriteString(tty, "\n");
