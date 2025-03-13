@@ -19,7 +19,10 @@ namespace dev {
         .DriverVersion = OS_VERSION(1, 0, 0),
     };
 
-    class RunFsProcess : public vfs2::INode {
+    class RunFsProcess
+        : public vfs2::INode
+        , public vfs2::FolderMixin
+    {
         km::SystemObjects *mSystem;
         OsProcessHandle mProcess;
 
