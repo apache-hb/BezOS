@@ -5,6 +5,7 @@
 #include "fs2/node.hpp"
 
 #include "std/shared_spinlock.hpp"
+#include "util/absl.hpp"
 
 /// @brief Virtual File System.
 ///

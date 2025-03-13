@@ -9,12 +9,6 @@
 
 #include "std/string_view.hpp"
 
-#include "std/vector.hpp"
-#include "util/absl.hpp"
-
-#include "util/util.hpp"
-#include "util/uuid.hpp"
-
 namespace km {
     class CallContext;
 }
@@ -25,17 +19,10 @@ namespace km {
 ///
 /// @cite SunVNodes
 namespace vfs2 {
-    class IVfsNodeHandle;
-
-    class VfsFolderHandle;
-    class IVfsNode;
-
     struct IVfsMount;
     struct IVfsDriver;
 
     enum class VfsNodeId : uint64_t { };
-
-    using VfsCreateHandle = OsStatus(*)(IVfsNode*, IHandle**);
 
     enum class VfsNodeType {
         eNone,
@@ -50,198 +37,6 @@ namespace vfs2 {
         uint64_t blksize;
         uint64_t blocks;
         Access access;
-    };
-
-    class IVfsNodeHandle : public IHandle {
-    public:
-        virtual ~IVfsNodeHandle() = default;
-
-        IVfsNodeHandle(IVfsNode *it)
-            : node(it)
-        { }
-
-        IVfsNode *node;
-
-        virtual OsStatus read(ReadRequest request, ReadResult *result) override;
-        virtual OsStatus write(WriteRequest request, WriteResult *result) override;
-        virtual OsStatus stat(NodeStat *stat);
-        virtual OsStatus next(VfsString *) { return OsStatusNotSupported; }
-        virtual HandleInfo info() override;
-    };
-
-    class VfsFolderHandle : public IVfsNodeHandle {
-        size_t mIndex = 0;
-        stdx::Vector2<VfsString> mEntries;
-
-    public:
-        VfsFolderHandle(IVfsNode *node);
-
-        OsStatus next(VfsString *name) override;
-    };
-
-    class IVfsNode : public INode {
-        friend class VfsIdentifyHandle;
-
-    public:
-        using FolderContainer = sm::BTreeMap<VfsString, IVfsNode*, std::less<>>;
-
-        IVfsNode() : IVfsNode(VfsNodeType::eNone) { }
-
-        IVfsNode(VfsNodeType type);
-
-        virtual ~IVfsNode();
-
-        UTIL_NOCOPY(IVfsNode);
-        UTIL_NOMOVE(IVfsNode);
-
-        /// @brief The name of the entry.
-        VfsString name;
-
-        /// @brief The parent directory of the entry, nullptr if root.
-        IVfsNode *parent;
-
-        /// @brief The mount that this node is part of.
-        IVfsMount *mount;
-
-    protected:
-        /// @brief If this is a directory, these are all the entries.
-        FolderContainer mChildren;
-
-        /// @brief The type of the entry.
-        VfsNodeType mType;
-
-        OsIdentifyInfo mIdentifyInfo;
-
-        sm::FlatHashMap<sm::uuid, VfsCreateHandle> mInterfaces;
-
-        template<std::derived_from<IHandle> T>
-        void addInterface(sm::uuid uuid) {
-            VfsCreateHandle callback = [](IVfsNode *node, IHandle **handle) -> OsStatus {
-                T *objHandle = new (std::nothrow) T(node);
-                if (objHandle == nullptr) {
-                    return OsStatusOutOfMemory;
-                }
-
-                *handle = objHandle;
-                return OsStatusSuccess;
-            };
-
-            auto [_, ok] = mInterfaces.insert({ uuid, callback });
-            KM_CHECK(ok, "Failed to add interface.");
-        }
-
-        void installFolderInterface();
-        void installFileInterface();
-
-    public:
-        auto begin() const { return mChildren.begin(); }
-        auto end() const { return mChildren.end(); }
-
-        OsIdentifyInfo identity() const { return mIdentifyInfo; }
-
-        virtual bool isA(sm::uuid guid) const {
-            return mInterfaces.contains(guid);
-        }
-
-        /// @brief Read a range of bytes from the file.
-        ///
-        /// @details This function is expected to be internally synchronized.
-        ///
-        /// @param request The request to read from the file.
-        /// @param result The result of the read operation.
-        ///
-        /// @return The status of the read operation.
-        virtual OsStatus read(ReadRequest, ReadResult*) { return OsStatusNotSupported; }
-
-        /// @brief Write a range of bytes to the file.
-        ///
-        /// @details This function is expected to be internally synchronized.
-        ///
-        /// @param request The request to write to the file.
-        /// @param result The result of the write operation.
-        ///
-        /// @return The status of the write operation.
-        virtual OsStatus write(WriteRequest, WriteResult*) { return OsStatusNotSupported; }
-
-        /// @brief Create a new file.
-        ///
-        /// @details This function is expected to be internally synchronized.
-        ///
-        /// @param node The new file node.
-        ///
-        /// @return The status of the create operation.
-        virtual OsStatus create(IVfsNode**) { return OsStatusNotSupported; }
-
-        /// @brief Create a new directory.
-        ///
-        /// @details This function is expected to be internally synchronized.
-        ///
-        /// @param node The new directory node.
-        ///
-        /// @return The status of the create operation.
-        virtual OsStatus mkdir(IVfsNode**) { return OsStatusNotSupported; }
-
-        /// @brief Remove a file.
-        ///
-        /// @details This function is expected to be internally synchronized.
-        ///
-        /// @param node The file to remove.
-        ///
-        /// @return The status of the remove operation.
-        virtual OsStatus remove(IVfsNode*) { return OsStatusNotSupported; }
-
-        /// @brief Remove a directory.
-        ///
-        /// @details This function is expected to be internally synchronized.
-        ///
-        /// @param node The directory to remove.
-        ///
-        /// @return The status of the remove operation.
-        virtual OsStatus rmdir(IVfsNode*) { return OsStatusNotSupported; }
-
-        /// @brief Stat the file.
-        ///
-        /// @details This function is expected to be internally synchronized.
-        ///
-        /// @param stat The stat structure to fill.
-        ///
-        /// @return The status of the stat operation.
-        virtual OsStatus stat(NodeStat*) { return OsStatusNotSupported; }
-
-        /// @brief Open this node as a device.
-        ///
-        /// @details This function is expected to be internally synchronized.
-        ///
-        /// @param uuid The UUID of the interface being requested.
-        /// @param data The data to pass to the device on open.
-        /// @param size The size of the data.
-        /// @param handle The handle to the device.
-        ///
-        /// @return The status of the open operation.
-        virtual OsStatus query(sm::uuid uuid, const void *data, size_t size, IHandle **handle) override;
-
-        virtual NodeInfo info() override {
-            return NodeInfo {
-                .name = name,
-                .mount = mount,
-                .parent = parent,
-            };
-        }
-
-        virtual OsStatus open(IHandle **handle);
-
-        virtual OsStatus opendir(IHandle **handle);
-
-        virtual OsStatus lookup(VfsStringView name, IVfsNode **child);
-        virtual OsStatus lookup(VfsStringView name, INode **child);
-
-        OsStatus addFile(VfsStringView name, IVfsNode **child);
-        OsStatus addFolder(VfsStringView name, IVfsNode **child);
-        OsStatus addNode(VfsStringView name, IVfsNode *node);
-
-        void initNode(IVfsNode *node, VfsStringView name, VfsNodeType type);
-
-        bool readyForRemove() const { return true; }
     };
 
     struct IVfsMount {

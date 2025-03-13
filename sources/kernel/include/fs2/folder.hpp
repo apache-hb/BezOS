@@ -1,6 +1,7 @@
 #pragma once
 
 #include "fs2/interface.hpp"
+#include "util/absl.hpp"
 
 namespace vfs2 {
     template<typename T>
