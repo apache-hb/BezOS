@@ -19,7 +19,8 @@ namespace km {
     enum class ThreadId : OsThreadHandle { };
     enum class ProcessId : OsProcessHandle { };
     enum class MutexId : OsMutexHandle { };
-    enum class VNodeId : OsDeviceHandle { };
+    enum class NodeId : OsNodeHandle { };
+    enum class DeviceId : OsDeviceHandle { };
 
     template<typename T>
     class IdAllocator {
@@ -94,7 +95,6 @@ namespace km {
         //
         // This points to a block of memory that will be larger than sizeof(x64::XSave) as the xsave
         // area changes size based on enabled features and processor feature support.
-        //
         std::unique_ptr<x64::XSave, decltype(&free)> xsave{nullptr, &free};
 
         uint64_t tlsAddress = 0;
@@ -137,14 +137,18 @@ namespace km {
         Mutex(MutexId id, stdx::String name)
             : KernelObject(std::to_underlying(id) | (uint64_t(eOsHandleMutex) << 56), std::move(name))
         { }
-
-        // TODO: store a list of all the threads waiting on this mutex
     };
 
-    struct VNode : public KernelObject {
-        std::unique_ptr<vfs2::IHandle> node;
+    struct Node : public KernelObject {
+        vfs2::INode *node = nullptr;
 
-        void init(VNodeId id, stdx::String name, std::unique_ptr<vfs2::IHandle> node);
+        void init(NodeId id, stdx::String name, vfs2::INode *vfsNode);
+    };
+
+    struct Device : public KernelObject {
+        std::unique_ptr<vfs2::IHandle> handle;
+
+        void init(DeviceId id, stdx::String name, std::unique_ptr<vfs2::IHandle> vfsHandle);
     };
 
     struct ProcessLaunch {

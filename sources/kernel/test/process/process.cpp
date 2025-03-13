@@ -119,7 +119,7 @@ TEST(ProcessTest, OpenFile) {
 
     km::Process *process = nullptr;
     km::Thread *thread = nullptr;
-    km::VNode *vnode = nullptr;
+    km::Device *vnode = nullptr;
     {
         OsStatus status = objects.createProcess("test", x64::Privilege::eUser, s0, &process);
         ASSERT_EQ(status, OsStatusSuccess);
@@ -141,7 +141,7 @@ TEST(ProcessTest, OpenFile) {
     ASSERT_NE(thread->publicId(), OS_HANDLE_INVALID);
 
     {
-        OsStatus status = objects.createVNode(vfs2::BuildPath("Test", "File.txt"), kOsFileGuid, nullptr, 0, process, &vnode);
+        OsStatus status = objects.createDevice(vfs2::BuildPath("Test", "File.txt"), kOsFileGuid, nullptr, 0, process, &vnode);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
@@ -165,7 +165,7 @@ TEST(ProcessTest, OpenFile) {
 
     ASSERT_EQ(objects.getProcess(km::ProcessId(OS_HANDLE_ID(processId))), nullptr);
     ASSERT_EQ(objects.getThread(km::ThreadId(OS_HANDLE_ID(threadId))), nullptr);
-    ASSERT_EQ(objects.getVNode(km::VNodeId(OS_HANDLE_ID(vnodeId))), nullptr);
+    ASSERT_EQ(objects.getDevice(km::DeviceId(OS_HANDLE_ID(vnodeId))), nullptr);
 }
 
 TEST(ProcessTest, CloseFileInProcess) {
@@ -192,7 +192,7 @@ TEST(ProcessTest, CloseFileInProcess) {
 
     km::Process *process = nullptr;
     km::Thread *thread = nullptr;
-    km::VNode *vnode = nullptr;
+    km::Device *vnode = nullptr;
     {
         OsStatus status = objects.createProcess("test", x64::Privilege::eUser, s0, &process);
         ASSERT_EQ(status, OsStatusSuccess);
@@ -214,7 +214,7 @@ TEST(ProcessTest, CloseFileInProcess) {
     ASSERT_NE(thread->publicId(), OS_HANDLE_INVALID);
 
     {
-        OsStatus status = objects.createVNode(vfs2::BuildPath("Test", "File.txt"), kOsFileGuid, nullptr, 0, process, &vnode);
+        OsStatus status = objects.createDevice(vfs2::BuildPath("Test", "File.txt"), kOsFileGuid, nullptr, 0, process, &vnode);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
@@ -230,12 +230,12 @@ TEST(ProcessTest, CloseFileInProcess) {
     ASSERT_NE(process->findHandle(vnodeId), nullptr);
 
     {
-        OsStatus status = objects.destroyVNode(process, vnode);
+        OsStatus status = objects.destroyDevice(process, vnode);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
     ASSERT_EQ(process->findHandle(vnodeId), nullptr);
-    ASSERT_EQ(objects.getVNode(km::VNodeId(OS_HANDLE_ID(vnodeId))), nullptr);
+    ASSERT_EQ(objects.getDevice(km::DeviceId(OS_HANDLE_ID(vnodeId))), nullptr);
 
     {
         OsStatus status = objects.destroyProcess(process);
@@ -246,5 +246,5 @@ TEST(ProcessTest, CloseFileInProcess) {
 
     ASSERT_EQ(objects.getProcess(km::ProcessId(OS_HANDLE_ID(processId))), nullptr);
     ASSERT_EQ(objects.getThread(km::ThreadId(OS_HANDLE_ID(threadId))), nullptr);
-    ASSERT_EQ(objects.getVNode(km::VNodeId(OS_HANDLE_ID(vnodeId))), nullptr);
+    ASSERT_EQ(objects.getDevice(km::DeviceId(OS_HANDLE_ID(vnodeId))), nullptr);
 }

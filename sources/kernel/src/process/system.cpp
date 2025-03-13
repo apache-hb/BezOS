@@ -7,31 +7,28 @@
 
 using namespace km;
 
-OsStatus SystemObjects::createVNode(const vfs2::VfsPath &path, sm::uuid uuid, const void *data, size_t size, Process *process, VNode **node) {
-    std::unique_ptr<VNode> result { new (std::nothrow) VNode };
-    if (result == nullptr) {
+OsStatus SystemObjects::createNode(Process *process, vfs2::INode *vfsNode, Node **result) {
+    std::unique_ptr<Node> node { new (std::nothrow) Node };
+    if (node == nullptr) {
         return OsStatusOutOfMemory;
     }
 
-    if (OsStatus status = mVfs->device(path, uuid, data, size, std::out_ptr(result->node))) {
-        return status;
-    }
+    NodeId id = mNodeIds.allocate();
+    vfs2::NodeInfo info = vfsNode->info();
+    node->init(id, stdx::String(info.name), vfsNode);
 
-    VNodeId id = mDeviceIds.allocate();
-
-    result->init(id, stdx::String(path.name()), std::move(result->node));
-
-    VNode *ptr = result.release();
+    Node *ptr = node.release();
 
     stdx::UniqueLock guard(mLock);
     process->addHandle(ptr);
     mNodes.insert({id, ptr});
-    *node = ptr;
+    mVfsNodes.insert({vfsNode, ptr});
+    *result = ptr;
 
     return OsStatusSuccess;
 }
 
-OsStatus SystemObjects::destroyVNode(Process *process, VNode *node) {
+OsStatus SystemObjects::destroyNode(Process *process, Node *node) {
     stdx::UniqueLock guard(mLock);
 
     OsHandle vnodeId = node->publicId();
@@ -42,7 +39,7 @@ OsStatus SystemObjects::destroyVNode(Process *process, VNode *node) {
     return OsStatusSuccess;
 }
 
-VNode *SystemObjects::getVNode(VNodeId id) {
+Node *SystemObjects::getNode(NodeId id) {
     stdx::SharedLock guard(mLock);
     if (auto it = mNodes.find(id); it != mNodes.end()) {
         return it->second;
@@ -51,23 +48,67 @@ VNode *SystemObjects::getVNode(VNodeId id) {
     return nullptr;
 }
 
-OsStatus SystemObjects::addVNode(Process *process, std::unique_ptr<vfs2::IHandle> handle, VNode **node) {
+OsStatus SystemObjects::createDevice(const vfs2::VfsPath &path, sm::uuid uuid, const void *data, size_t size, Process *process, Device **node) {
+    std::unique_ptr<Device> result { new (std::nothrow) Device };
+    if (result == nullptr) {
+        return OsStatusOutOfMemory;
+    }
+
+    if (OsStatus status = mVfs->device(path, uuid, data, size, std::out_ptr(result->handle))) {
+        return status;
+    }
+
+    DeviceId id = mDeviceIds.allocate();
+
+    result->init(id, stdx::String(path.name()), std::move(result->handle));
+
+    Device *ptr = result.release();
+
+    stdx::UniqueLock guard(mLock);
+    process->addHandle(ptr);
+    mDevices.insert({id, ptr});
+    *node = ptr;
+
+    return OsStatusSuccess;
+}
+
+OsStatus SystemObjects::destroyDevice(Process *process, Device *node) {
+    stdx::UniqueLock guard(mLock);
+
+    OsHandle vnodeId = node->publicId();
+    if (releaseHandle(node)) {
+        process->removeHandle(vnodeId);
+    }
+
+    return OsStatusSuccess;
+}
+
+Device *SystemObjects::getDevice(DeviceId id) {
+    stdx::SharedLock guard(mLock);
+    if (auto it = mDevices.find(id); it != mDevices.end()) {
+        return it->second;
+    }
+
+    return nullptr;
+}
+
+OsStatus SystemObjects::addDevice(Process *process, std::unique_ptr<vfs2::IHandle> handle, Device **node) {
     stdx::UniqueLock guard(mLock);
 
     vfs2::HandleInfo handleInfo = handle->info();
     vfs2::NodeInfo nodeInfo = handleInfo.node->info();
 
-    VNode *result = new (std::nothrow) VNode;
+    Device *result = new (std::nothrow) Device;
     if (result == nullptr) {
         return OsStatusOutOfMemory;
     }
 
-    VNodeId id = mDeviceIds.allocate();
+    DeviceId id = mDeviceIds.allocate();
     result->init(id, stdx::String(nodeInfo.name), std::move(handle));
 
     process->addHandle(result);
 
-    mNodes.insert({id, result});
+    mDevices.insert({id, result});
     *node = result;
 
     return OsStatusSuccess;
@@ -203,7 +244,12 @@ void SystemObjects::destroyHandle(KernelObject *object) {
     } else if (object->handleType() == eOsHandleThread) {
         mThreads.erase(ThreadId(object->internalId()));
     } else if (object->handleType() == eOsHandleDevice) {
-        mNodes.erase(VNodeId(object->internalId()));
+        mDevices.erase(DeviceId(object->internalId()));
+    } else if (object->handleType() == eOsHandleNode) {
+        mNodes.erase(NodeId(object->internalId()));
+        mVfsNodes.erase(static_cast<Node*>(object)->node);
+    } else if (object->handleType() == eOsHandleMutex) {
+        mMutexes.erase(MutexId(object->internalId()));
     }
 
     delete object;
@@ -218,7 +264,9 @@ KernelObject *SystemObjects::getHandle(OsHandle id) {
     case eOsHandleThread:
         return getThread(ThreadId(OS_HANDLE_ID(id)));
     case eOsHandleDevice:
-        return getVNode(VNodeId(OS_HANDLE_ID(id)));
+        return getDevice(DeviceId(OS_HANDLE_ID(id)));
+    case eOsHandleNode:
+        return getNode(NodeId(OS_HANDLE_ID(id)));
     case eOsHandleMutex:
         return getMutex(MutexId(OS_HANDLE_ID(id)));
     default:

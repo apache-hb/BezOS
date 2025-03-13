@@ -1079,8 +1079,8 @@ static void AddVfsFileSystemCalls() {
             return CallError(status);
         }
 
-        VNode *vnode = nullptr;
-        if (OsStatus status = gSystemObjects->createVNode(path, kOsFileGuid, nullptr, 0, context->process(), &vnode)) {
+        Device *vnode = nullptr;
+        if (OsStatus status = gSystemObjects->createDevice(path, kOsFileGuid, nullptr, 0, context->process(), &vnode)) {
             return CallError(status);
         }
 
@@ -1096,7 +1096,7 @@ static void AddVfsFileSystemCalls() {
             return CallError(OsStatusInvalidInput);
         }
 
-        VNode *node = gSystemObjects->getVNode(VNodeId(OS_HANDLE_ID(nodeId)));
+        Device *node = gSystemObjects->getDevice(DeviceId(OS_HANDLE_ID(nodeId)));
         if (node == nullptr) {
             return CallError(OsStatusInvalidHandle);
         }
@@ -1106,7 +1106,7 @@ static void AddVfsFileSystemCalls() {
             .end = (void*)back,
         };
         vfs2::ReadResult result{};
-        if (OsStatus status = node->node->read(request, &result)) {
+        if (OsStatus status = node->handle->read(request, &result)) {
             return CallError(status);
         }
 
@@ -1117,12 +1117,12 @@ static void AddVfsFileSystemCalls() {
         uint64_t userHandle = regs->arg0;
         km::Process *process = context->process();
 
-        VNode *node = gSystemObjects->getVNode(VNodeId(OS_HANDLE_ID(userHandle)));
+        Device *node = gSystemObjects->getDevice(DeviceId(OS_HANDLE_ID(userHandle)));
         if (node == nullptr) {
             return CallError(OsStatusInvalidHandle);
         }
 
-        if (OsStatus status = gSystemObjects->destroyVNode(process, node)) {
+        if (OsStatus status = gSystemObjects->destroyDevice(process, node)) {
             return CallError(status);
         }
 
@@ -1269,8 +1269,8 @@ static void AddDeviceSystemCalls() {
             return CallError(status);
         }
 
-        VNode *vnode = nullptr;
-        if (OsStatus status = gSystemObjects->addVNode(process, std::move(handle), &vnode)) {
+        Device *vnode = nullptr;
+        if (OsStatus status = gSystemObjects->addDevice(process, std::move(handle), &vnode)) {
             return CallError(status);
         }
 
@@ -1281,12 +1281,12 @@ static void AddDeviceSystemCalls() {
         uint64_t userDevice = regs->arg0;
         km::Process *process = context->process();
 
-        VNode *node = gSystemObjects->getVNode(VNodeId(OS_HANDLE_ID(userDevice)));
+        Device *node = gSystemObjects->getDevice(DeviceId(OS_HANDLE_ID(userDevice)));
         if (node == nullptr) {
             return CallError(OsStatusInvalidHandle);
         }
 
-        if (OsStatus status = gSystemObjects->destroyVNode(process, node)) {
+        if (OsStatus status = gSystemObjects->destroyDevice(process, node)) {
             return CallError(status);
         }
 
@@ -1306,7 +1306,7 @@ static void AddDeviceSystemCalls() {
             return CallError(OsStatusInvalidInput);
         }
 
-        VNode *node = gSystemObjects->getVNode(VNodeId(OS_HANDLE_ID(userHandle)));
+        Device *node = gSystemObjects->getDevice(DeviceId(OS_HANDLE_ID(userHandle)));
         if (node == nullptr) {
             return CallError(OsStatusInvalidHandle);
         }
@@ -1317,7 +1317,7 @@ static void AddDeviceSystemCalls() {
             .timeout = request.Timeout,
         };
         vfs2::ReadResult result{};
-        if (OsStatus status = node->node->read(readRequest, &result)) {
+        if (OsStatus status = node->handle->read(readRequest, &result)) {
             return CallError(status);
         }
 
@@ -1337,7 +1337,7 @@ static void AddDeviceSystemCalls() {
             return CallError(OsStatusInvalidInput);
         }
 
-        VNode *node = gSystemObjects->getVNode(VNodeId(OS_HANDLE_ID(userHandle)));
+        Device *node = gSystemObjects->getDevice(DeviceId(OS_HANDLE_ID(userHandle)));
         if (node == nullptr) {
             return CallError(OsStatusInvalidHandle);
         }
@@ -1348,7 +1348,7 @@ static void AddDeviceSystemCalls() {
             .timeout = request.Timeout,
         };
         vfs2::WriteResult result{};
-        if (OsStatus status = node->node->write(writeRequest, &result)) {
+        if (OsStatus status = node->handle->write(writeRequest, &result)) {
             return CallError(status);
         }
 
@@ -1365,12 +1365,12 @@ static void AddDeviceSystemCalls() {
             return CallError(OsStatusInvalidInput);
         }
 
-        VNode *node = gSystemObjects->getVNode(VNodeId(OS_HANDLE_ID(userHandle)));
+        Device *node = gSystemObjects->getDevice(DeviceId(OS_HANDLE_ID(userHandle)));
         if (node == nullptr) {
             return CallError(OsStatusInvalidHandle);
         }
 
-        if (OsStatus status = node->node->invoke(userFunction, (void*)userData, userSize)) {
+        if (OsStatus status = node->handle->invoke(userFunction, (void*)userData, userSize)) {
             return CallError(status);
         }
 

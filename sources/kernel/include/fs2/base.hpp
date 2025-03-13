@@ -8,6 +8,8 @@
 #include "util/util.hpp"
 #include "util/uuid.hpp"
 
+#include "system/object.hpp"
+
 /// @brief Virtual File System.
 ///
 /// This VFS derives from the original SunOS vnode design with some modifications.
@@ -71,14 +73,11 @@ namespace vfs2 {
         IVfsMount *mount;
         INode *parent;
         Access access;
-        uint64_t generation;
+        uint32_t generation;
     };
 
     /// @brief A handle to a file or folder.
     ///
-    /// @note All handles that advertise as @a kOsFolderGuid must inherit from @a IFolderHandle.
-    /// @note All handles that advertise as @a kOsFileGuid must inherit from @a IFileHandle.
-    /// @note All handles that advertise as @a kOsIdentifyGuid must inherit from @a IIdentifyHandle.
     /// @note All nodes must provide @a kOsIdentifyGuid.
     class IHandle {
     public:
@@ -91,7 +90,7 @@ namespace vfs2 {
         /// @param size The size of the data.
         ///
         /// @return The status of the invocation.
-        virtual OsStatus invoke(uint64_t, void *, size_t) { return OsStatusNotSupported; }
+        virtual OsStatus invoke(uint64_t, void *, size_t) { return OsStatusFunctionNotSupported; }
 
         /// @brief Read data from the handle.
         ///
@@ -109,6 +108,9 @@ namespace vfs2 {
         /// @return The status of the write operation.
         virtual OsStatus write(WriteRequest, WriteResult *) { return OsStatusNotSupported; }
 
+        /// @brief Get information about the handle.
+        ///
+        /// @return The information about the handle.
         virtual HandleInfo info() = 0;
     };
 
@@ -127,7 +129,7 @@ namespace vfs2 {
         /// @retval OsStatusInterfaceNotSupported The interface is not supported.
         ///
         /// @return The status of the query operation.
-        virtual OsStatus query(sm::uuid, const void *, size_t, IHandle **) = 0;
+        virtual OsStatus query(sm::uuid uuid, const void *data, size_t size, IHandle **handle) = 0;
 
         /// @brief Connect a node to its parent.
         ///
@@ -136,6 +138,9 @@ namespace vfs2 {
         /// @param access The access rights of the node.
         virtual void init(INode *parent, VfsString name, Access access) = 0;
 
+        /// @brief Get information about the node.
+        ///
+        /// @return The information about the node.
         virtual NodeInfo info() = 0;
     };
 }

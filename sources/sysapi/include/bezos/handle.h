@@ -124,38 +124,44 @@ typedef uint32_t OsVersionTag;
 
 enum {
     eOsHandleUnknown      = UINT8_C(0x0),
+
     eOsHandleNode         = UINT8_C(0x1),
-    eOsHandleMutex        = UINT8_C(0x2),
-    eOsHandleThread       = UINT8_C(0x3),
-    eOsHandleProcess      = UINT8_C(0x4),
-    eOsHandleDevice       = UINT8_C(0x5),
+    eOsHandleDevice       = UINT8_C(0x2),
+    eOsHandleMutex        = UINT8_C(0x3),
+    eOsHandleThread       = UINT8_C(0x4),
+    eOsHandleProcess      = UINT8_C(0x5),
+    eOsHandleTsx          = UINT8_C(0x6),
+
+    eOsHandleCount        = UINT8_C(0x7),
 };
 
 typedef uint8_t OsHandleType;
 
-/// @brief A handle to a file object.
-OS_OBJECT_HANDLE(OsFileHandle);
-
 /// @brief A handle to a vnode.
 OS_OBJECT_HANDLE(OsNodeHandle);
 
-/// @brief A handle to a folder iterator.
-OS_OBJECT_HANDLE(OsFolderIteratorHandle);
-
-/// @brief A handle to a transaction.
-OS_OBJECT_HANDLE(OsTransactionHandle);
-
-/// @brief A handle to a thread.
-OS_OBJECT_HANDLE(OsThreadHandle);
+/// @brief A handle to a device.
+OS_OBJECT_HANDLE(OsDeviceHandle);
 
 /// @brief A handle to a mutex.
 OS_OBJECT_HANDLE(OsMutexHandle);
 
+/// @brief A handle to a thread.
+OS_OBJECT_HANDLE(OsThreadHandle);
+
 /// @brief A handle to a process.
 OS_OBJECT_HANDLE(OsProcessHandle);
 
-/// @brief A handle to a device.
-OS_OBJECT_HANDLE(OsDeviceHandle);
+/// @brief A handle to a transaction.
+OS_OBJECT_HANDLE(OsTransactionHandle);
+
+/// @brief A handle to a file object.
+/// @deprecated Use OsDeviceHandle instead.
+OS_OBJECT_HANDLE(OsFileHandle);
+
+/// @brief A handle to a folder iterator.
+/// @deprecated Use OsDeviceHandle instead.
+OS_OBJECT_HANDLE(OsFolderIteratorHandle);
 
 #define OS_GUID_NULL { .Octets = { 0 } }
 

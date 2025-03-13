@@ -29,9 +29,9 @@ namespace vfs2 {
 
     public:
         struct Iterator {
-            uint64_t generation;
             VfsString name;
             Container::iterator current;
+            uint32_t generation;
         };
 
         OsStatus lookup(VfsStringView name, INode **child);

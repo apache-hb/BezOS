@@ -22,8 +22,6 @@ namespace vfs2 {
     struct IVfsMount;
     struct IVfsDriver;
 
-    enum class VfsNodeId : uint64_t { };
-
     enum class VfsNodeType {
         eNone,
         eFile,

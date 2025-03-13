@@ -36,7 +36,12 @@ OsStatus Process::removeHandle(OsHandle id) {
     return OsStatusNotFound;
 }
 
-void VNode::init(VNodeId id, stdx::String name, std::unique_ptr<vfs2::IHandle> handle) {
+void Node::init(NodeId id, stdx::String name, vfs2::INode *vfsNode) {
+    initHeader(std::to_underlying(id), eOsHandleNode, std::move(name));
+    node = vfsNode;
+}
+
+void Device::init(DeviceId id, stdx::String name, std::unique_ptr<vfs2::IHandle> vfsHandle) {
     initHeader(std::to_underlying(id), eOsHandleDevice, std::move(name));
-    node = std::move(handle);
+    handle = std::move(vfsHandle);
 }
