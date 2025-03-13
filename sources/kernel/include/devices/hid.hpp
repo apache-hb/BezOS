@@ -46,11 +46,6 @@ namespace dev {
         stdx::SharedSpinLock mLock;
         stdx::Vector2<HidKeyboardHandle*> mHandles;
 
-        static constexpr inline auto kInterfaceList = std::to_array({
-            kOsIdentifyGuid,
-            kOsHidClassGuid,
-        });
-
         // km::ISubscriber interface
         void notify(km::Topic*, km::INotification *notification) override {
             hid::HidNotification *hid = static_cast<hid::HidNotification*>(notification);
@@ -69,7 +64,7 @@ namespace dev {
             mHandles.add(handle);
         }
 
-        std::span<const OsGuid> interfaces() { return kInterfaceList; }
         OsStatus query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) override;
+        OsStatus interfaces(OsIdentifyInterfaceList *list);
     };
 }

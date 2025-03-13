@@ -1,6 +1,8 @@
 #include "devices/stream.hpp"
+
 #include "fs2/identify.hpp"
 #include "fs2/stream.hpp"
+#include "fs2/query.hpp"
 
 dev::StreamDevice::StreamDevice(size_t size)
     : mBuffer(new std::byte[size])
@@ -31,26 +33,15 @@ OsStatus dev::StreamDevice::write(vfs2::WriteRequest request, vfs2::WriteResult 
     return OsStatusSuccess;
 }
 
-OsStatus dev::StreamDevice::query(sm::uuid uuid, const void *, size_t, vfs2::IHandle **handle) {
-    if (uuid == kOsIdentifyGuid) {
-        auto *identify = new(std::nothrow) vfs2::TIdentifyHandle<StreamDevice>(this);
-        if (!identify) {
-            return OsStatusOutOfMemory;
-        }
+static constexpr inline vfs2::InterfaceList kInterfaceList = std::to_array({
+    vfs2::InterfaceOf<vfs2::TIdentifyHandle<dev::StreamDevice>, dev::StreamDevice>(kOsIdentifyGuid),
+    vfs2::InterfaceOf<vfs2::TStreamHandle<dev::StreamDevice>, dev::StreamDevice>(kOsStreamGuid),
+});
 
-        *handle = identify;
-        return OsStatusSuccess;
-    }
+OsStatus dev::StreamDevice::query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) {
+    return kInterfaceList.query(this, uuid, data, size, handle);
+}
 
-    if (uuid == kOsStreamGuid) {
-        auto *stream = new(std::nothrow) vfs2::TStreamHandle<StreamDevice>(this);
-        if (!stream) {
-            return OsStatusOutOfMemory;
-        }
-
-        *handle = stream;
-        return OsStatusSuccess;
-    }
-
-    return OsStatusInterfaceNotSupported;
+OsStatus dev::StreamDevice::interfaces(OsIdentifyInterfaceList *list) {
+    return kInterfaceList.list(list);
 }

@@ -2,6 +2,7 @@
 
 #include "fs2/device.hpp"
 #include "fs2/folder.hpp"
+
 #include "memory/range.hpp"
 
 namespace km::smbios {
@@ -34,51 +35,32 @@ namespace dev {
 
     class AcpiTable final : public vfs2::BasicNode {
         const acpi::RsdtHeader *mHeader;
-
-        static constexpr inline auto kInterfaceList = std::to_array({
-            kOsIdentifyGuid,
-            kOsFileGuid,
-        });
-
     public:
         AcpiTable(const acpi::RsdtHeader *header);
 
         OsStatus query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) override;
+        OsStatus interfaces(OsIdentifyInterfaceList *list);
         OsStatus identify(OsIdentifyInfo *info);
 
         OsStatus stat(vfs2::NodeStat *stat);
         OsStatus read(vfs2::ReadRequest request, vfs2::ReadResult *result);
-
-        std::span<const OsGuid> interfaces() { return kInterfaceList; }
     };
 
     class AcpiRoot final : public vfs2::BasicNode, public vfs2::FolderMixin {
         const acpi::AcpiTables *mTables;
 
-        static constexpr inline auto kInterfaceList = std::to_array({
-            kOsIdentifyGuid,
-            kOsFolderGuid,
-            kOsFileGuid,
-        });
-
     public:
         AcpiRoot(const acpi::AcpiTables *tables);
 
         OsStatus query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) override;
+        OsStatus interfaces(OsIdentifyInterfaceList *list);
         OsStatus identify(OsIdentifyInfo *info);
 
         OsStatus stat(vfs2::NodeStat *stat);
         OsStatus read(vfs2::ReadRequest request, vfs2::ReadResult *result);
-
-        std::span<const OsGuid> interfaces() { return kInterfaceList; }
     };
 
     class SmBiosTable final : public vfs2::BasicNode {
-        static constexpr inline auto kInterfaceList = std::to_array({
-            kOsIdentifyGuid,
-            kOsFileGuid,
-        });
-
         const km::smbios::StructHeader *mHeader;
         const km::SmBiosTables *mTables;
 
@@ -86,12 +68,11 @@ namespace dev {
         SmBiosTable(const km::smbios::StructHeader *header, const km::SmBiosTables *tables);
 
         OsStatus query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) override;
+        OsStatus interfaces(OsIdentifyInterfaceList *list);
         OsStatus identify(OsIdentifyInfo *info);
 
         OsStatus stat(vfs2::NodeStat *stat);
         OsStatus read(vfs2::ReadRequest request, vfs2::ReadResult *result);
-
-        std::span<const OsGuid> interfaces() { return kInterfaceList; }
     };
 
     class SmBiosRoot final : public vfs2::BasicNode, public vfs2::FolderMixin {
@@ -99,21 +80,14 @@ namespace dev {
 
         vfs2::NodeInfo mInfo;
 
-        static constexpr inline auto kInterfaceList = std::to_array({
-            kOsIdentifyGuid,
-            kOsFolderGuid,
-            kOsFileGuid,
-        });
-
     public:
         SmBiosRoot(const km::SmBiosTables *tables);
 
         OsStatus query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) override;
+        OsStatus interfaces(OsIdentifyInterfaceList *list);
         OsStatus identify(OsIdentifyInfo *info);
 
         OsStatus stat(vfs2::NodeStat *stat);
         OsStatus read(vfs2::ReadRequest request, vfs2::ReadResult *result);
-
-        std::span<const OsGuid> interfaces() { return kInterfaceList; }
     };
 }

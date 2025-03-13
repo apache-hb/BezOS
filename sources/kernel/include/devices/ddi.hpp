@@ -47,6 +47,6 @@ namespace dev {
         km::Canvas getCanvas() const { return mCanvas; }
 
         OsStatus query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) override;
-        OsStatus interfaces(void *data, size_t size);
+        OsStatus interfaces(OsIdentifyInterfaceList *list);
     };
 }

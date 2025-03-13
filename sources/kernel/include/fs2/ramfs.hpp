@@ -60,7 +60,7 @@ namespace vfs2 {
         { }
 
         OsStatus query(sm::uuid uuid, const void *, size_t, IHandle **handle) override;
-        OsStatus interfaces(void *data, size_t size);
+        OsStatus interfaces(OsIdentifyInterfaceList *list);
 
         OsStatus read(ReadRequest request, ReadResult *result);
         OsStatus write(WriteRequest request, WriteResult *result);
@@ -74,7 +74,7 @@ namespace vfs2 {
         { }
 
         OsStatus query(sm::uuid uuid, const void *data, size_t size, IHandle **handle) override;
-        OsStatus interfaces(void *data, size_t size);
+        OsStatus interfaces(OsIdentifyInterfaceList *list);
 
         using FolderMixin::lookup;
         using FolderMixin::mknode;

@@ -205,8 +205,8 @@ OsStatus TarFsFile::query(sm::uuid uuid, const void *data, size_t size, IHandle 
     return kFileInterfaceList.query(this, uuid, data, size, handle);
 }
 
-OsStatus TarFsFile::interfaces(void *data, size_t size) {
-    return kFileInterfaceList.list(data, size);
+OsStatus TarFsFile::interfaces(OsIdentifyInterfaceList *list) {
+    return kFileInterfaceList.list(list);
 }
 
 OsStatus TarFsFile::read(ReadRequest request, ReadResult *result) {
@@ -249,8 +249,8 @@ OsStatus TarFsFolder::query(sm::uuid uuid, const void *data, size_t size, IHandl
     return kFolderInterfaceList.query(this, uuid, data, size, handle);
 }
 
-OsStatus TarFsFolder::interfaces(void *data, size_t size) {
-    return kFileInterfaceList.list(data, size);
+OsStatus TarFsFolder::interfaces(OsIdentifyInterfaceList *list) {
+    return kFileInterfaceList.list(list);
 }
 
 //

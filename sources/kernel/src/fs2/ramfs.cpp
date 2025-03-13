@@ -18,8 +18,8 @@ OsStatus RamFsFile::query(sm::uuid uuid, const void *data, size_t size, IHandle 
     return kFileInterfaceList.query(this, uuid, data, size, handle);
 }
 
-OsStatus RamFsFile::interfaces(void *data, size_t size) {
-    return kFileInterfaceList.list(data, size);
+OsStatus RamFsFile::interfaces(OsIdentifyInterfaceList *list) {
+    return kFileInterfaceList.list(list);
 }
 
 OsStatus RamFsFile::read(ReadRequest request, ReadResult *result) {
@@ -66,8 +66,8 @@ OsStatus RamFsFolder::query(sm::uuid uuid, const void *data, size_t size, IHandl
     return kFolderInterfaceList.query(this, uuid, data, size, handle);
 }
 
-OsStatus RamFsFolder::interfaces(void *data, size_t size) {
-    return kFolderInterfaceList.list(data, size);
+OsStatus RamFsFolder::interfaces(OsIdentifyInterfaceList *list) {
+    return kFolderInterfaceList.list(list);
 }
 
 //

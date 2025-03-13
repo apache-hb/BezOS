@@ -1,5 +1,32 @@
 #include "fs2/identify.hpp"
 
+OsStatus vfs2::detail::ValidateInterfaceList(void *data, size_t size) {
+    //
+    // Reject input buffers that are too small to contain the header.
+    //
+    if ((data == nullptr) || (size < sizeof(OsIdentifyInterfaceList))) {
+        return OsStatusInvalidInput;
+    }
+
+    //
+    // Reject input buffers that have a suspicious size.
+    //
+    size_t bodySize = size - sizeof(OsIdentifyInterfaceList);
+    if (bodySize % sizeof(OsGuid) != 0) {
+        return OsStatusInvalidInput;
+    }
+
+    //
+    // If the header doesnt report the correct size, reject the input.
+    //
+    OsIdentifyInterfaceList *list = static_cast<OsIdentifyInterfaceList*>(data);
+    if (list->InterfaceCount != (bodySize / sizeof(OsGuid))) {
+        return OsStatusInvalidInput;
+    }
+
+    return OsStatusSuccess;
+}
+
 OsStatus vfs2::detail::InterfaceList(void *data, size_t size, std::span<const OsGuid> interfaces) {
     //
     // Reject any input buffers that are too small to contain the header.

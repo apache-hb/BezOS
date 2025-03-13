@@ -121,6 +121,6 @@ OsStatus dev::DisplayDevice::query(sm::uuid uuid, const void *data, size_t size,
     return kInterfaceList.query(this, uuid, data, size, handle);
 }
 
-OsStatus dev::DisplayDevice::interfaces(void *data, size_t size) {
-    return kInterfaceList.list(data, size);
+OsStatus dev::DisplayDevice::interfaces(OsIdentifyInterfaceList *list) {
+    return kInterfaceList.list(list);
 }

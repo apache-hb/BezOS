@@ -1,5 +1,7 @@
 #include "devices/hid.hpp"
 
+#include "fs2/query.hpp"
+
 dev::HidKeyboardHandle::HidKeyboardHandle(HidKeyboardDevice *node)
     : mNode(node)
 {
@@ -36,26 +38,15 @@ OsStatus dev::HidKeyboardHandle::read(vfs2::ReadRequest request, vfs2::ReadResul
     return OsStatusSuccess;
 }
 
-OsStatus dev::HidKeyboardDevice::query(sm::uuid uuid, const void *, size_t, vfs2::IHandle **handle) {
-    if (uuid == kOsIdentifyGuid) {
-        auto *identify = new(std::nothrow) vfs2::TIdentifyHandle<HidKeyboardDevice>(this);
-        if (!identify) {
-            return OsStatusOutOfMemory;
-        }
+static constexpr inline vfs2::InterfaceList kInterfaceList = std::to_array({
+    vfs2::InterfaceOf<vfs2::TIdentifyHandle<dev::HidKeyboardDevice>, dev::HidKeyboardDevice>(kOsIdentifyGuid),
+    vfs2::InterfaceOf<dev::HidKeyboardHandle, dev::HidKeyboardDevice>(kOsHidClassGuid),
+});
 
-        *handle = identify;
-        return OsStatusSuccess;
-    }
+OsStatus dev::HidKeyboardDevice::query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) {
+    return kInterfaceList.query(this, uuid, data, size, handle);
+}
 
-    if (uuid == kOsHidClassGuid) {
-        auto *hid = new(std::nothrow) HidKeyboardHandle(this);
-        if (!hid) {
-            return OsStatusOutOfMemory;
-        }
-
-        *handle = hid;
-        return OsStatusSuccess;
-    }
-
-    return OsStatusInterfaceNotSupported;
+OsStatus dev::HidKeyboardDevice::interfaces(OsIdentifyInterfaceList *list) {
+    return kInterfaceList.list(list);
 }

@@ -4,6 +4,7 @@
 #include "acpi/header.hpp"
 #include "fs2/file.hpp"
 #include "fs2/identify.hpp"
+#include "fs2/query.hpp"
 #include "smbios.hpp"
 
 namespace smbios = km::smbios;
@@ -101,32 +102,38 @@ void dev::detail::IdentifySmbRoot(const km::SmBiosTables *header, OsIdentifyInfo
     *info = result;
 }
 
+static constexpr inline vfs2::InterfaceList kAcpiTableInterfaceList = std::to_array({
+    vfs2::InterfaceOf<vfs2::TIdentifyHandle<dev::AcpiTable>, dev::AcpiTable>(kOsIdentifyGuid),
+    vfs2::InterfaceOf<vfs2::TFileHandle<dev::AcpiTable>, dev::AcpiTable>(kOsFileGuid),
+});
+
+static constexpr inline vfs2::InterfaceList kAcpiRootInterfaceList = std::to_array({
+    vfs2::InterfaceOf<vfs2::TIdentifyHandle<dev::AcpiRoot>, dev::AcpiRoot>(kOsIdentifyGuid),
+    vfs2::InterfaceOf<vfs2::TFileHandle<dev::AcpiRoot>, dev::AcpiRoot>(kOsFileGuid),
+    vfs2::InterfaceOf<vfs2::TFolderHandle<dev::AcpiRoot>, dev::AcpiRoot>(kOsFolderGuid),
+});
+
+static constexpr inline vfs2::InterfaceList kSmbTableInterfaceList = std::to_array({
+    vfs2::InterfaceOf<vfs2::TIdentifyHandle<dev::SmBiosTable>, dev::SmBiosTable>(kOsIdentifyGuid),
+    vfs2::InterfaceOf<vfs2::TFileHandle<dev::SmBiosTable>, dev::SmBiosTable>(kOsFileGuid),
+});
+
+static constexpr inline vfs2::InterfaceList kSmbRootInterfaceList = std::to_array({
+    vfs2::InterfaceOf<vfs2::TIdentifyHandle<dev::SmBiosRoot>, dev::SmBiosRoot>(kOsIdentifyGuid),
+    vfs2::InterfaceOf<vfs2::TFileHandle<dev::SmBiosRoot>, dev::SmBiosRoot>(kOsFileGuid),
+    vfs2::InterfaceOf<vfs2::TFolderHandle<dev::SmBiosRoot>, dev::SmBiosRoot>(kOsFolderGuid),
+});
+
 dev::AcpiTable::AcpiTable(const acpi::RsdtHeader *table)
     : mHeader(table)
 { }
 
-OsStatus dev::AcpiTable::query(sm::uuid uuid, const void *, size_t, vfs2::IHandle **handle) {
-    if (uuid == kOsIdentifyGuid) {
-        auto *identify = new vfs2::TIdentifyHandle<AcpiTable>(this);
-        if (!identify) {
-            return OsStatusOutOfMemory;
-        }
+OsStatus dev::AcpiTable::query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) {
+    return kAcpiTableInterfaceList.query(this, uuid, data, size, handle);
+}
 
-        *handle = identify;
-        return OsStatusSuccess;
-    }
-
-    if (uuid == kOsFileGuid) {
-        auto *file = new vfs2::TFileHandle<AcpiTable>(this);
-        if (!file) {
-            return OsStatusOutOfMemory;
-        }
-
-        *handle = file;
-        return OsStatusSuccess;
-    }
-
-    return OsStatusInterfaceNotSupported;
+OsStatus dev::AcpiTable::interfaces(OsIdentifyInterfaceList *list) {
+    return kAcpiTableInterfaceList.list(list);
 }
 
 OsStatus dev::AcpiTable::identify(OsIdentifyInfo *info) {
@@ -165,38 +172,12 @@ dev::AcpiRoot::AcpiRoot(const acpi::AcpiTables *tables)
     }
 }
 
-OsStatus dev::AcpiRoot::query(sm::uuid uuid, const void *, size_t, vfs2::IHandle **handle) {
-    if (uuid == kOsIdentifyGuid) {
-        auto *identify = new vfs2::TIdentifyHandle<AcpiRoot>(this);
-        if (!identify) {
-            return OsStatusOutOfMemory;
-        }
+OsStatus dev::AcpiRoot::query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) {
+    return kAcpiRootInterfaceList.query(this, uuid, data, size, handle);
+}
 
-        *handle = identify;
-        return OsStatusSuccess;
-    }
-
-    if (uuid == kOsFolderGuid) {
-        auto *folder = new vfs2::TFolderHandle<AcpiRoot>(this);
-        if (!folder) {
-            return OsStatusOutOfMemory;
-        }
-
-        *handle = folder;
-        return OsStatusSuccess;
-    }
-
-    if (uuid == kOsFileGuid) {
-        auto *file = new vfs2::TFileHandle<AcpiRoot>(this);
-        if (!file) {
-            return OsStatusOutOfMemory;
-        }
-
-        *handle = file;
-        return OsStatusSuccess;
-    }
-
-    return OsStatusInterfaceNotSupported;
+OsStatus dev::AcpiRoot::interfaces(OsIdentifyInterfaceList *list) {
+    return kAcpiRootInterfaceList.list(list);
 }
 
 OsStatus dev::AcpiRoot::identify(OsIdentifyInfo *info) {
@@ -233,28 +214,13 @@ dev::SmBiosTable::SmBiosTable(const km::smbios::StructHeader *header, const km::
     , mTables(tables)
 { }
 
-OsStatus dev::SmBiosTable::query(sm::uuid uuid, const void *, size_t, vfs2::IHandle **handle) {
-    if (uuid == kOsIdentifyGuid) {
-        auto *identify = new vfs2::TIdentifyHandle<SmBiosTable>(this);
-        if (!identify) {
-            return OsStatusOutOfMemory;
-        }
 
-        *handle = identify;
-        return OsStatusSuccess;
-    }
+OsStatus dev::SmBiosTable::query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) {
+    return kSmbTableInterfaceList.query(this, uuid, data, size, handle);
+}
 
-    if (uuid == kOsFileGuid) {
-        auto *file = new vfs2::TFileHandle<SmBiosTable>(this);
-        if (!file) {
-            return OsStatusOutOfMemory;
-        }
-
-        *handle = file;
-        return OsStatusSuccess;
-    }
-
-    return OsStatusInterfaceNotSupported;
+OsStatus dev::SmBiosTable::interfaces(OsIdentifyInterfaceList *list) {
+    return kSmbTableInterfaceList.list(list);
 }
 
 OsStatus dev::SmBiosTable::identify(OsIdentifyInfo *info) {
@@ -294,38 +260,13 @@ dev::SmBiosRoot::SmBiosRoot(const km::SmBiosTables *tables)
     }
 }
 
-OsStatus dev::SmBiosRoot::query(sm::uuid uuid, const void *, size_t, vfs2::IHandle **handle) {
-    if (uuid == kOsIdentifyGuid) {
-        auto *identify = new vfs2::TIdentifyHandle<SmBiosRoot>(this);
-        if (!identify) {
-            return OsStatusOutOfMemory;
-        }
 
-        *handle = identify;
-        return OsStatusSuccess;
-    }
+OsStatus dev::SmBiosRoot::query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) {
+    return kSmbRootInterfaceList.query(this, uuid, data, size, handle);
+}
 
-    if (uuid == kOsFolderGuid) {
-        auto *folder = new vfs2::TFolderHandle<SmBiosRoot>(this);
-        if (!folder) {
-            return OsStatusOutOfMemory;
-        }
-
-        *handle = folder;
-        return OsStatusSuccess;
-    }
-
-    if (uuid == kOsFileGuid) {
-        auto *file = new vfs2::TFileHandle<SmBiosRoot>(this);
-        if (!file) {
-            return OsStatusOutOfMemory;
-        }
-
-        *handle = file;
-        return OsStatusSuccess;
-    }
-
-    return OsStatusInterfaceNotSupported;
+OsStatus dev::SmBiosRoot::interfaces(OsIdentifyInterfaceList *list) {
+    return kSmbRootInterfaceList.list(list);
 }
 
 OsStatus dev::SmBiosRoot::identify(OsIdentifyInfo *info) {

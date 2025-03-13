@@ -7,16 +7,13 @@
 namespace vfs2 {
     namespace detail {
         OsStatus InterfaceList(void *data, size_t size, std::span<const OsGuid> interfaces);
+        OsStatus ValidateInterfaceList(void *data, size_t size);
     }
 
     template<typename T>
     concept IdentifyNode = requires (T it) {
         { it.identify(std::declval<OsIdentifyInfo*>()) } -> std::same_as<OsStatus>;
-    };
-
-    template<typename T>
-    concept IdentifyInterfaceList = requires (T it) {
-        { it.interfaces() } -> std::same_as<std::span<const OsGuid>>;
+        { it.interfaces(std::declval<OsIdentifyInterfaceList*>()) } -> std::same_as<OsStatus>;
     };
 
     template<const OsIdentifyInfo& Info>
@@ -49,7 +46,7 @@ namespace vfs2 {
         { }
 
         OsStatus identify(void *data, size_t size) override {
-            if (size != sizeof(OsIdentifyInfo)) {
+            if (data == nullptr || size != sizeof(OsIdentifyInfo)) {
                 return OsStatusInvalidInput;
             }
 
@@ -57,17 +54,12 @@ namespace vfs2 {
         }
 
         OsStatus interfaces(void *data, size_t size) override {
-            if constexpr (IdentifyInterfaceList<T>) {
-                //
-                // Forward implementation to detail function to reduce code size.
-                //
-                return detail::InterfaceList(data, size, mNode->interfaces());
-            } else {
-                //
-                // The class provides its own interfaces method.
-                //
-                return mNode->interfaces(data, size);
+            if (OsStatus status = detail::ValidateInterfaceList(data, size)) {
+                return status;
             }
+
+            OsIdentifyInterfaceList *list = static_cast<OsIdentifyInterfaceList*>(data);
+            return mNode->interfaces(list);
         }
 
         HandleInfo info() override {

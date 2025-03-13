@@ -6,6 +6,8 @@
 #include <array>
 #include <span>
 
+struct OsIdentifyInterfaceList;
+
 namespace vfs2 {
     class IHandle;
     class INode;
@@ -34,19 +36,19 @@ namespace vfs2 {
             : mInterfaces(interfaces)
         { }
 
-        OsStatus list(void *data, size_t size) const;
+        OsStatus list(OsIdentifyInterfaceList *list) const;
         OsStatus query(INode *node, sm::uuid uuid, const void *data, size_t size, IHandle **handle) const;
     };
 
     namespace detail {
-        OsStatus ServiceInterfaceList(std::span<const InterfaceEntry> interfaces, void *data, size_t size);
+        OsStatus ServiceInterfaceList(std::span<const InterfaceEntry> interfaces, OsIdentifyInterfaceList *list);
         OsStatus ServiceQuery(std::span<const InterfaceEntry> interfaces, INode *node, sm::uuid uuid, const void *data, size_t size, IHandle **handle);
     }
 }
 
 template<size_t N>
-OsStatus vfs2::InterfaceList<N>::list(void *data, size_t size) const {
-    return detail::ServiceInterfaceList(mInterfaces, data, size);
+OsStatus vfs2::InterfaceList<N>::list(OsIdentifyInterfaceList *list) const {
+    return detail::ServiceInterfaceList(mInterfaces, list);
 }
 
 template<size_t N>

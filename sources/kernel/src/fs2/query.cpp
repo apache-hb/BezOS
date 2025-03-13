@@ -2,25 +2,7 @@
 
 #include <bezos/subsystem/identify.h>
 
-OsStatus vfs2::detail::ServiceInterfaceList(std::span<const InterfaceEntry> interfaces, void *data, size_t size) {
-    //
-    // Reject any input buffers that are too small to contain the header.
-    //
-    if (size < sizeof(OsIdentifyInterfaceList)) {
-        return OsStatusInvalidInput;
-    }
-
-    //
-    // Reject any input that has a suspicious size.
-    // * Any buffer that is not a multiple of the size of a GUID is invalid.
-    // * Any buffer thats reported size is less than the size of the data structure is invalid.
-    //
-    OsIdentifyInterfaceList *list = reinterpret_cast<OsIdentifyInterfaceList*>(data);
-    size_t listSize = (size - sizeof(OsIdentifyInterfaceList));
-    if ((listSize % sizeof(OsGuid) != 0) || (listSize / sizeof(OsGuid) < list->InterfaceCount)) {
-        return OsStatusInvalidInput;
-    }
-
+OsStatus vfs2::detail::ServiceInterfaceList(std::span<const InterfaceEntry> interfaces, OsIdentifyInterfaceList *list) {
     //
     // Copy the interface list into the buffer.
     //
