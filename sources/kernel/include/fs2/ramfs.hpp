@@ -3,6 +3,7 @@
 #include "fs2/folder.hpp"
 #include "fs2/identify.hpp"
 #include "fs2/node.hpp"
+#include "fs2/query.hpp"
 #include "std/shared_spinlock.hpp"
 #include "std/vector.hpp"
 
@@ -72,18 +73,13 @@ namespace vfs2 {
     };
 
     class RamFsFolder : public RamFsNode, public FolderMixin {
-        static constexpr inline auto kInterfaceList = std::to_array({
-            kOsIdentifyGuid,
-            kOsFolderGuid,
-        });
-
     public:
         RamFsFolder(INode *parent, IVfsMount *mount, VfsString name)
             : RamFsNode(parent, mount, std::move(name))
         { }
 
-        OsStatus query(sm::uuid uuid, const void *, size_t, IHandle **handle) override;
-        std::span<const OsGuid> interfaces() const { return kInterfaceList; }
+        OsStatus query(sm::uuid uuid, const void *data, size_t size, IHandle **handle) override;
+        OsStatus interfaces(void *data, size_t size);
 
         using FolderMixin::lookup;
         using FolderMixin::mknode;

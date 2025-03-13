@@ -97,7 +97,7 @@ OsStatus vfs2::ParseTar(km::BlockDevice *media, TarParseOptions options, sm::BTr
 
         if (header.name[0] == '\0') {
             //
-            // If the name is empty, we have reached the end of the archive.
+            // If the name is empty, we have probably reached the end of the archive.
             //
             break;
         }
@@ -353,8 +353,7 @@ TarFsMount::TarFsMount(TarFs *tarfs, sm::SharedPtr<km::IBlockDriver> block)
             continue;
         }
 
-        vfs2::IFolderHandle *handle = static_cast<vfs2::IFolderHandle*>(folder.get());
-        if (OsStatus status = handle->mknode(name, node.release())) {
+        if (OsStatus status = folder->mknode(name, node.release())) {
             KmDebugMessage("[TARFS] Failed to add folder '", path, "' : ", status, "\n");
         }
     }

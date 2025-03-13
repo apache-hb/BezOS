@@ -68,28 +68,17 @@ OsStatus RamFsFile::stat(NodeStat *stat) {
 // ramfs folder implementation
 //
 
+static constexpr inline InterfaceList kFolderInterfaceList = std::to_array({
+    InterfaceOf<TIdentifyHandle<RamFsFolder>, RamFsFolder>(kOsIdentifyGuid),
+    InterfaceOf<TFolderHandle<RamFsFolder>, RamFsFolder>(kOsFolderGuid),
+});
+
 OsStatus RamFsFolder::query(sm::uuid uuid, const void *, size_t, IHandle **handle) {
-    if (uuid == kOsIdentifyGuid) {
-        auto *identify = new(std::nothrow) TIdentifyHandle<RamFsFolder>(this);
-        if (!identify) {
-            return OsStatusOutOfMemory;
-        }
+    return kFolderInterfaceList.query(this, uuid, nullptr, 0, handle);
+}
 
-        *handle = identify;
-        return OsStatusSuccess;
-    }
-
-    if (uuid == kOsFolderGuid) {
-        auto *folder = new(std::nothrow) TFolderHandle<RamFsFolder>(this);
-        if (!folder) {
-            return OsStatusOutOfMemory;
-        }
-
-        *handle = folder;
-        return OsStatusSuccess;
-    }
-
-    return OsStatusInterfaceNotSupported;
+OsStatus RamFsFolder::interfaces(void *data, size_t size) {
+    return kFolderInterfaceList.list(data, size);
 }
 
 //

@@ -103,9 +103,14 @@ namespace vfs2 {
 
         VfsNodeType getType() const {
             switch (typeflag) {
-            case '0': return VfsNodeType::eFile;
-            case '5': return VfsNodeType::eFolder;
-            default: return VfsNodeType::eNone;
+            case '\0': case '0':
+                return VfsNodeType::eFile;
+            case '1':
+                return VfsNodeType::eSymbolicLink;
+            case '5':
+                return VfsNodeType::eFolder;
+            default:
+                return VfsNodeType::eNone;
             }
         }
     };

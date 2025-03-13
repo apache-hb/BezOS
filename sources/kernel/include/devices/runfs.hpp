@@ -27,24 +27,19 @@ namespace dev {
         OsProcessHandle mProcess;
 
     public:
-        RunFsProcess(km::SystemObjects *system, OsProcessHandle process)
-            : mSystem(system)
-            , mProcess(process)
-        { }
+        RunFsProcess(km::SystemObjects *system, OsProcessHandle process);
 
         OsStatus query(sm::uuid uuid, const void *, size_t, vfs2::IHandle **handle) override;
     };
 
     class RunFsProcessList
-        : public vfs2::INode
+        : public vfs2::BasicNode
         , public vfs2::ConstIdentifyMixin<kRunFsInfo>
     {
         km::SystemObjects *mSystem;
 
     public:
-        RunFsProcessList(km::SystemObjects *system)
-            : mSystem(system)
-        { }
+        RunFsProcessList(km::SystemObjects *system);
 
         OsStatus query(sm::uuid uuid, const void *, size_t, vfs2::IHandle **handle) override;
     };
@@ -57,9 +52,7 @@ namespace dev {
         km::SystemObjects *mSystem;
 
     public:
-        RunFsRoot(km::SystemObjects *system)
-            : mSystem(system)
-        { }
+        RunFsRoot(km::SystemObjects *system);
 
         OsStatus query(sm::uuid uuid, const void *, size_t, vfs2::IHandle **handle) override;
     };

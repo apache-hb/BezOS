@@ -5,12 +5,17 @@ I thought it would be funny
 1. install `clang` 20 and `meson`
 2. execute
 ```sh
-./setup.sh build
-make
+source ./setup.sh
+repobld kernel
 ```
-3. kernel will be at `install/bezos-limine.iso` or `install/bezos-hyper.iso`
+3. kernel will be at `install/image/bezos-limine.iso` or `install/image/bezos-hyper.iso`
 
 ## Running
+
+### Tests
+```
+make check
+```
 
 ### On qemu
 ```sh

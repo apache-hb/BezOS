@@ -12,6 +12,10 @@ namespace vfs2 {
     template<typename T>
     concept IdentifyNode = requires (T it) {
         { it.identify(std::declval<OsIdentifyInfo*>()) } -> std::same_as<OsStatus>;
+    };
+
+    template<typename T>
+    concept IdentifyInterfaceList = requires (T it) {
         { it.interfaces() } -> std::same_as<std::span<const OsGuid>>;
     };
 
@@ -53,10 +57,17 @@ namespace vfs2 {
         }
 
         OsStatus interfaces(void *data, size_t size) override {
-            //
-            // Forward implementation to detail function to reduce code size.
-            //
-            return detail::InterfaceList(data, size, mNode->interfaces());
+            if constexpr (IdentifyInterfaceList<T>) {
+                //
+                // Forward implementation to detail function to reduce code size.
+                //
+                return detail::InterfaceList(data, size, mNode->interfaces());
+            } else {
+                //
+                // The class provides its own interfaces method.
+                //
+                return mNode->interfaces(data, size);
+            }
         }
 
         HandleInfo info() override {
