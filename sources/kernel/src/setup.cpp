@@ -6,6 +6,7 @@
 #include "debug/packet.hpp"
 #include "kernel.hpp"
 #include "log.hpp"
+#include "process/schedule.hpp"
 #include "processor.hpp"
 #include "thread.hpp"
 
@@ -243,8 +244,21 @@ void km::DumpIsrContext(const km::IsrContext *context, stdx::StringView message)
     DumpIsrState(context);
 }
 
+static bool IsSupervisorFault(const km::IsrContext *context) {
+    return (context->cs & 0b11) == 0;
+}
+
 void km::InstallExceptionHandlers(SharedIsrTable *ist) {
     ist->install(isr::DE, [](km::IsrContext *context) -> km::IsrContext {
+        if (!IsSupervisorFault(context)) {
+            if (auto process = GetCurrentProcess()) {
+                process->state.Status = eOsProcessFaulted;
+                process->state.ExitCode = 0x80000003;
+            }
+
+            return *context;
+        }
+
         DumpIsrContext(context, "Divide by zero (#DE)");
         DumpStackTrace(context);
         KM_PANIC("Kernel panic.");
@@ -257,12 +271,30 @@ void km::InstallExceptionHandlers(SharedIsrTable *ist) {
     });
 
     ist->install(isr::UD, [](km::IsrContext *context) -> km::IsrContext {
+        if (!IsSupervisorFault(context)) {
+            if (auto process = GetCurrentProcess()) {
+                process->state.Status = eOsProcessFaulted;
+                process->state.ExitCode = 0x80000003;
+            }
+
+            return *context;
+        }
+
         DumpIsrContext(context, "Invalid opcode (#UD)");
         DumpStackTrace(context);
         KM_PANIC("Kernel panic.");
     });
 
     ist->install(isr::DF, [](km::IsrContext *context) -> km::IsrContext {
+        if (!IsSupervisorFault(context)) {
+            if (auto process = GetCurrentProcess()) {
+                process->state.Status = eOsProcessFaulted;
+                process->state.ExitCode = 0x80000003;
+            }
+
+            return *context;
+        }
+
         DumpIsrContext(context, "Double fault (#DF)");
         DumpStackTrace(context);
         KM_PANIC("Kernel panic.");
@@ -271,12 +303,30 @@ void km::InstallExceptionHandlers(SharedIsrTable *ist) {
     ist->install(isr::GP, [](km::IsrContext *context) -> km::IsrContext {
         NmiGuard guard;
 
+        if (!IsSupervisorFault(context)) {
+            if (auto process = GetCurrentProcess()) {
+                process->state.Status = eOsProcessFaulted;
+                process->state.ExitCode = 0x80000003;
+            }
+
+            return *context;
+        }
+
         DumpIsrContext(context, "General protection fault (#GP)");
         DumpStackTrace(context);
         KM_PANIC("Kernel panic.");
     });
 
     ist->install(isr::PF, [](km::IsrContext *context) -> km::IsrContext {
+        if (!IsSupervisorFault(context)) {
+            if (auto process = GetCurrentProcess()) {
+                process->state.Status = eOsProcessFaulted;
+                process->state.ExitCode = 0x80000003;
+            }
+
+            return *context;
+        }
+
         KmDebugMessageUnlocked("[BUG] CR2: ", Hex(__get_cr2()).pad(16, '0'), "\n");
         DumpIsrContext(context, "Page fault (#PF)");
         DumpStackTrace(context);

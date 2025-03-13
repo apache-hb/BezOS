@@ -1697,8 +1697,8 @@ static constexpr size_t kKernelStackSize = 0x4000;
 
 static OsStatus LaunchThread(OsStatus(*entry)(void*), void *arg, stdx::String name) {
     stdx::String stackName = name + " STACK";
-    Process * process = GetCurrentProcess();
-    Thread * thread = gSystemObjects->createThread(std::move(name), process);
+    Process *process = GetCurrentProcess();
+    Thread *thread = gSystemObjects->createThread(std::move(name), process);
 
     km::AddressMapping mapping = gMemory->allocateStack(kKernelStackSize);
 

@@ -202,8 +202,6 @@ static OsStatus AllocateTlsMemory(vfs2::IHandle *file, const elf::ProgramHeader 
     KmDebugMessage("[ELF] TLS configure pointer ", vaddr, "\n");
     memcpy((char*)tlsWindow + tls->memsz, &vaddr, sizeof(uintptr_t));
 
-    KmDebugMessage(km::HexDump(std::span((const uint8_t*)tlsWindow, tls->memsz + sizeof(uintptr_t))), "\n");
-
     KmDebugMessage("[ELF] TLS memory mapping: ", tlsMapping, "\n");
 
     *mapping = tlsMapping;

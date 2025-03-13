@@ -18,6 +18,20 @@ static constinit OsImplPosixFile kStandardIn = { 0 };
 static constinit OsImplPosixFile kStandardOut = { 1 };
 static constinit OsImplPosixFile kStandardError = { 2 };
 
+namespace {
+struct InitStandardIo {
+    InitStandardIo() {
+
+    }
+
+    ~InitStandardIo() {
+
+    }
+};
+
+static const InitStandardIo kInitIo{};
+}
+
 FILE *OsImplPosixStandardIn(void) noexcept {
     Unimplemented();
     return &kStandardIn;

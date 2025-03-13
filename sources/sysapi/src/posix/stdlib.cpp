@@ -9,6 +9,7 @@
 
 #include "private.hpp"
 
+namespace {
 struct InitMalloc {
     InitMalloc() {
         rpmalloc_initialize();
@@ -20,6 +21,7 @@ struct InitMalloc {
 };
 
 static const InitMalloc kInitMalloc{};
+}
 
 void abort(void) noexcept {
     exit(EXIT_FAILURE);
