@@ -23,6 +23,10 @@ namespace vfs2 {
     public:
         virtual ~IIdentifyHandle() = default;
 
+        OsStatus identify(OsIdentifyInfo *info) {
+            return identify(info, sizeof(OsIdentifyInfo));
+        }
+
         virtual OsStatus identify(void *data, size_t size) = 0;
         virtual OsStatus interfaces(void *data, size_t size) = 0;
 

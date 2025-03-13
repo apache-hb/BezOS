@@ -327,6 +327,51 @@ test_shim = static_library('test_shim', src,
     native : true,
 )
 
+src = [
+    'src/fs2/vfs.cpp',
+    'src/fs2/path.cpp',
+    'src/fs2/node.cpp',
+    'src/fs2/handle.cpp',
+    'src/fs2/ramfs.cpp',
+    'src/fs2/device.cpp',
+    'src/fs2/folder.cpp',
+    'src/fs2/utils.cpp',
+    'src/fs2/identify.cpp',
+    'src/fs2/query.cpp',
+
+    'src/util/uuid.cpp',
+]
+
+fs_test_shim = static_library('fs_test_shim', src,
+    include_directories : inc,
+    c_args : test_c_args,
+    cpp_args : test_cpp_args,
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units ],
+    override_options: [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
+    native : true,
+)
+
+src = [
+    'src/memory/pte.cpp',
+    'src/memory/tables.cpp',
+    'src/memory/memory.cpp',
+    'src/memory/table_allocator.cpp',
+    'src/memory/page_allocator.cpp',
+    'src/memory/detail/table_list.cpp',
+    'src/memory/detail/control_block.cpp',
+
+    'src/util/memory.cpp',
+]
+
+memory_test_shim = static_library('memory_test_shim', src,
+    include_directories : inc,
+    c_args : test_c_args,
+    cpp_args : test_cpp_args,
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units ],
+    override_options: [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
+    native : true,
+)
+
 test_exe_kwargs = {
     'include_directories': [ inc ],
     'c_args': test_c_args,
@@ -334,7 +379,7 @@ test_exe_kwargs = {
     'dependencies': [ gtest_main, gmock, sysapi, concurrentqueue, mp_units ],
     'override_options': [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
     'native': true,
-    'link_with': [ test_shim ],
+    'link_with': [ test_shim, fs_test_shim, memory_test_shim ],
 }
 
 # Test cases
@@ -370,12 +415,6 @@ testcases = {
     ],
     'page table': [
         'test/memory/pte.cpp',
-        'src/memory/pte.cpp',
-        'src/memory/memory.cpp',
-        'src/util/memory.cpp',
-        'src/memory/table_allocator.cpp',
-        'src/memory/detail/table_list.cpp',
-        'src/memory/detail/control_block.cpp',
     ],
     'partitions': [
         'test/drivers/partitions.cpp',
@@ -395,50 +434,22 @@ testcases = {
     ],
     'fs2': [
         'test/fs/fs.cpp',
-        'src/fs2/vfs.cpp',
-        'src/fs2/path.cpp',
-        'src/fs2/node.cpp',
-        'src/fs2/handle.cpp',
-        'src/fs2/ramfs.cpp',
-        'src/fs2/device.cpp',
-        'src/fs2/folder.cpp',
-        'src/fs2/utils.cpp',
-        'src/fs2/identify.cpp',
-        'src/fs2/query.cpp',
-        'src/util/uuid.cpp',
     ],
     'vfs path': [
         'test/fs/path.cpp',
-        'src/fs2/path.cpp',
     ],
     'vfs root': [
         'test/fs/root.cpp',
-        'src/fs2/vfs.cpp',
-        'src/fs2/path.cpp',
-        'src/fs2/node.cpp',
-        'src/fs2/handle.cpp',
-        'src/fs2/ramfs.cpp',
-        'src/fs2/device.cpp',
-        'src/fs2/folder.cpp',
-        'src/fs2/utils.cpp',
-        'src/fs2/identify.cpp',
-        'src/fs2/query.cpp',
-        'src/util/uuid.cpp',
     ],
     'ramfs': [
         'test/fs/ramfs.cpp',
-        'src/fs2/vfs.cpp',
-        'src/fs2/path.cpp',
-        'src/fs2/node.cpp',
-        'src/fs2/handle.cpp',
-        'src/fs2/ramfs.cpp',
-        'src/fs2/device.cpp',
-        'src/fs2/folder.cpp',
-        'src/fs2/utils.cpp',
-        'src/fs2/identify.cpp',
-        'src/fs2/query.cpp',
-        'test/fs/fs_test.cpp',
-        'src/util/uuid.cpp',
+    ],
+    'identify': [
+        'test/fs/ramfs.cpp',
+    ],
+    'verify': [
+        'test/user/verify.cpp',
+        'src/user/context.cpp',
     ],
     'shared ptr': [
         'test/shared.cpp',
@@ -480,13 +491,6 @@ testcases = {
     'memory': [
         'test/memory.cpp',
         'src/memory.cpp',
-        'src/memory/pte.cpp',
-        'src/memory/tables.cpp',
-        'src/memory/memory.cpp',
-        'src/memory/table_allocator.cpp',
-        'src/memory/page_allocator.cpp',
-        'src/memory/detail/table_list.cpp',
-        'src/memory/detail/control_block.cpp',
         'src/util/memory.cpp',
         'src/boot.cpp',
     ],
@@ -496,12 +500,9 @@ testcases = {
     ],
     'table allocator': [
         'test/memory/table_allocator.cpp',
-        'src/memory/table_allocator.cpp',
-        'src/memory/detail/control_block.cpp',
     ],
     'page table list': [
         'test/memory/table_list.cpp',
-        'src/memory/detail/table_list.cpp'
     ],
     'process': [
         'test/process/process.cpp',
@@ -512,24 +513,6 @@ testcases = {
         'src/process/object.cpp',
 
         'src/memory.cpp',
-        'src/memory/pte.cpp',
-        'src/memory/tables.cpp',
-        'src/memory/memory.cpp',
-        'src/memory/table_allocator.cpp',
-        'src/memory/page_allocator.cpp',
-        'src/memory/detail/table_list.cpp',
-        'src/memory/detail/control_block.cpp',
-
-        'src/fs2/vfs.cpp',
-        'src/fs2/path.cpp',
-        'src/fs2/node.cpp',
-        'src/fs2/handle.cpp',
-        'src/fs2/ramfs.cpp',
-        'src/fs2/device.cpp',
-        'src/fs2/folder.cpp',
-        'src/fs2/utils.cpp',
-        'src/fs2/identify.cpp',
-        'src/fs2/query.cpp',
 
         'src/util/memory.cpp',
         'src/boot.cpp',

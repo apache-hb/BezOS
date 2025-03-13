@@ -164,7 +164,7 @@ namespace km {
             return isCanonicalAddress(reinterpret_cast<uintptr_t>(ptr));
         }
 
-        constexpr bool isHigherHalf(const void *ptr) const {
+        bool isHigherHalf(const void *ptr) const {
             return isHigherHalf(reinterpret_cast<uintptr_t>(ptr));
         }
     };
