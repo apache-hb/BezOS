@@ -1,6 +1,7 @@
 #include "fs2/ramfs.hpp"
 #include "fs2/file.hpp"
 #include "fs2/identify.hpp"
+#include "fs2/iterator.hpp"
 #include "fs2/utils.hpp"
 
 using namespace vfs2;
@@ -60,6 +61,7 @@ OsStatus RamFsFile::stat(NodeStat *stat) {
 static constexpr inline InterfaceList kFolderInterfaceList = std::to_array({
     InterfaceOf<TIdentifyHandle<RamFsFolder>, RamFsFolder>(kOsIdentifyGuid),
     InterfaceOf<TFolderHandle<RamFsFolder>, RamFsFolder>(kOsFolderGuid),
+    InterfaceOf<TIteratorHandle<RamFsFolder>, RamFsFolder>(kOsIteratorGuid),
 });
 
 OsStatus RamFsFolder::query(sm::uuid uuid, const void *data, size_t size, IHandle **handle) {

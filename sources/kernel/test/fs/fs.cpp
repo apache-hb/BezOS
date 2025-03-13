@@ -274,7 +274,11 @@ static void CreateFile(VfsRoot *vfs, const VfsPath& path, stdx::StringView conte
     ASSERT_EQ(result.write, content.count());
 }
 
-#if 0
+static VfsString GetName(INode *node) {
+    NodeInfo info = node->info();
+    return VfsString(info.name);
+}
+
 TEST(Vfs2Test, OpenFolder) {
     VfsRoot vfs;
 
@@ -296,26 +300,25 @@ TEST(Vfs2Test, OpenFolder) {
     CreateFile(&vfs, BuildPath("Test", "file3.txt"), "Hello, World!");
 
     {
-        std::unique_ptr<IHandle> handle;
-        OsStatus status = node->opendir(std::out_ptr(handle));
+        std::unique_ptr<IIteratorHandle> handle;
+        OsStatus status = vfs2::OpenIteratorInterface(node, nullptr, 0, std::out_ptr(handle));
         ASSERT_EQ(OsStatusSuccess, status);
         ASSERT_NE(handle, nullptr);
 
-        VfsString name;
-        status = handle->next(&name);
+        INode *child = nullptr;
+        status = handle->next(&child);
         ASSERT_EQ(OsStatusSuccess, status);
-        ASSERT_EQ(name, "file1.txt");
+        ASSERT_EQ(GetName(child), "file1.txt");
 
-        status = handle->next(&name);
+        status = handle->next(&child);
         ASSERT_EQ(OsStatusSuccess, status);
-        ASSERT_EQ(name, "file2.txt");
+        ASSERT_EQ(GetName(child), "file2.txt");
 
-        status = handle->next(&name);
+        status = handle->next(&child);
         ASSERT_EQ(OsStatusSuccess, status);
-        ASSERT_EQ(name, "file3.txt");
+        ASSERT_EQ(GetName(child), "file3.txt");
 
-        status = handle->next(&name);
-        ASSERT_EQ(OsStatusEndOfFile, status);
+        status = handle->next(&child);
+        ASSERT_EQ(OsStatusCompleted, status);
     }
 }
-#endif

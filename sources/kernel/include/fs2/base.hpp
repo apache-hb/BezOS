@@ -14,8 +14,10 @@
 ///
 /// @cite SunVNodes
 namespace vfs2 {
-    struct IVfsMount;
     class INode;
+    class IHandle;
+
+    struct IVfsMount;
 
     struct ReadRequest {
         void *begin;
@@ -69,6 +71,7 @@ namespace vfs2 {
         IVfsMount *mount;
         INode *parent;
         Access access;
+        uint64_t generation;
     };
 
     /// @brief A handle to a file or folder.

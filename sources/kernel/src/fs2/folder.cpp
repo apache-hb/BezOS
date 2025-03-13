@@ -29,3 +29,20 @@ OsStatus FolderMixin::rmnode(INode *child) {
 
     return OsStatusNotFound;
 }
+
+OsStatus FolderMixin::next(Iterator *iterator, INode **node) {
+    if (iterator->name.isEmpty()) {
+        iterator->current = mChildren.begin();
+    } else {
+        iterator->current++;
+    }
+
+    if (iterator->current == mChildren.end()) {
+        return OsStatusCompleted;
+    }
+
+    auto& [name, child] = *iterator->current;
+    iterator->name = name;
+    *node = child.get();
+    return OsStatusSuccess;
+}

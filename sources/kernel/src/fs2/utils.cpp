@@ -32,6 +32,26 @@ OsStatus vfs2::OpenFolderInterface(INode *node, const void *data, size_t size, I
     return OsStatusSuccess;
 }
 
+OsStatus vfs2::OpenIteratorInterface(INode *node, const void *data, size_t size, IIteratorHandle **handle) {
+    std::unique_ptr<IHandle> result;
+    if (OsStatus status = node->query(kOsIteratorGuid, data, size, std::out_ptr(result))) {
+        return status;
+    }
+
+    *handle = static_cast<IIteratorHandle*>(result.release());
+    return OsStatusSuccess;
+}
+
+OsStatus vfs2::OpenIdentifyInterface(INode *node, const void *data, size_t size, IIdentifyHandle **handle) {
+    std::unique_ptr<IHandle> result;
+    if (OsStatus status = node->query(kOsIdentifyGuid, data, size, std::out_ptr(result))) {
+        return status;
+    }
+
+    *handle = static_cast<IIdentifyHandle*>(result.release());
+    return OsStatusSuccess;
+}
+
 vfs2::INode *vfs2::GetParentNode(INode *node) {
     NodeInfo info = node->info();
     return info.parent;

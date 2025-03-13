@@ -99,6 +99,9 @@ enum OsStatusId {
 
     /// @brief The function does not support the requested operation.
     OsStatusOperationNotSupported = 0x001a,
+
+    /// @brief The operation was completed.
+    OsStatusCompleted = 0x001b,
 };
 
 #ifdef __cplusplus

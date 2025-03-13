@@ -23,14 +23,22 @@ namespace vfs2 {
     concept FolderNodeType = FolderLookup<T> && std::derived_from<T, INode>;
 
     class FolderMixin {
-        using FolderContainer = sm::BTreeMap<VfsString, std::unique_ptr<INode>, std::less<>>;
+        using Container = sm::BTreeMap<VfsString, std::unique_ptr<INode>, std::less<>>;
 
-        FolderContainer mChildren;
+        Container mChildren;
 
     public:
+        struct Iterator {
+            uint64_t generation;
+            VfsString name;
+            Container::iterator current;
+        };
+
         OsStatus lookup(VfsStringView name, INode **child);
         OsStatus mknode(VfsStringView name, INode *child);
         OsStatus rmnode(INode *child);
+
+        OsStatus next(Iterator *iterator, INode **node);
     };
 
     template<FolderNodeType T>
@@ -64,9 +72,5 @@ namespace vfs2 {
         virtual HandleInfo info() override {
             return HandleInfo { mNode };
         }
-    };
-
-    class FolderIterator : public IHandle {
-    public:
     };
 }

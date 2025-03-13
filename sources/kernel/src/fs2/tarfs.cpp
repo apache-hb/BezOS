@@ -2,6 +2,7 @@
 #include "bezos/status.h"
 #include "fs2/file.hpp"
 #include "fs2/identify.hpp"
+#include "fs2/iterator.hpp"
 #include "fs2/node.hpp"
 #include "fs2/query.hpp"
 #include "fs2/utils.hpp"
@@ -243,6 +244,7 @@ OsStatus TarFsFile::stat(NodeStat *result) {
 static constexpr inline InterfaceList kFolderInterfaceList = std::to_array({
     InterfaceOf<TIdentifyHandle<TarFsFolder>, TarFsFolder>(kOsIdentifyGuid),
     InterfaceOf<TFolderHandle<TarFsFolder>, TarFsFolder>(kOsFolderGuid),
+    InterfaceOf<TIteratorHandle<TarFsFolder>, TarFsFolder>(kOsIteratorGuid),
 });
 
 OsStatus TarFsFolder::query(sm::uuid uuid, const void *data, size_t size, IHandle **handle) {
