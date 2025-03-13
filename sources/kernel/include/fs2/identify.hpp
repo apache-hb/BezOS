@@ -6,7 +6,6 @@
 
 namespace vfs2 {
     namespace detail {
-        OsStatus InterfaceList(void *data, size_t size, std::span<const OsGuid> interfaces);
         OsStatus ValidateInterfaceList(void *data, size_t size);
     }
 
@@ -45,20 +44,11 @@ namespace vfs2 {
             : mNode(node)
         { }
 
-        OsStatus identify(void *data, size_t size) override {
-            if (data == nullptr || size != sizeof(OsIdentifyInfo)) {
-                return OsStatusInvalidInput;
-            }
-
-            return mNode->identify(static_cast<OsIdentifyInfo*>(data));
+        OsStatus identify(OsIdentifyInfo *info) override {
+            return mNode->identify(info);
         }
 
-        OsStatus interfaces(void *data, size_t size) override {
-            if (OsStatus status = detail::ValidateInterfaceList(data, size)) {
-                return status;
-            }
-
-            OsIdentifyInterfaceList *list = static_cast<OsIdentifyInterfaceList*>(data);
+        OsStatus interfaces(OsIdentifyInterfaceList *list) override {
             return mNode->interfaces(list);
         }
 

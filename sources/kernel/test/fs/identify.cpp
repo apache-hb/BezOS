@@ -12,7 +12,7 @@ static void CheckIdentify(INode *node) {
 
     IIdentifyHandle *identify = static_cast<IIdentifyHandle*>(handle.get());
     OsIdentifyInfo info;
-    status = identify->identify(&info, sizeof(info));
+    status = identify->identify(&info);
     ASSERT_EQ(OsStatusSuccess, status);
 
     struct ListQuery {

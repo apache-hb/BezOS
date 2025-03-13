@@ -27,42 +27,21 @@ OsStatus vfs2::detail::ValidateInterfaceList(void *data, size_t size) {
     return OsStatusSuccess;
 }
 
-OsStatus vfs2::detail::InterfaceList(void *data, size_t size, std::span<const OsGuid> interfaces) {
-    //
-    // Reject any input buffers that are too small to contain the header.
-    //
-    if (size < sizeof(OsIdentifyInterfaceList)) {
+OsStatus vfs2::IIdentifyHandle::identify(void *data, size_t size) {
+    if (data == nullptr || size != sizeof(OsIdentifyInfo)) {
         return OsStatusInvalidInput;
     }
 
-    //
-    // Reject any input that has a suspicious size.
-    // * Any buffer that is not a multiple of the size of a GUID is invalid.
-    // * Any buffer thats reported size is less than the size of the data structure is invalid.
-    //
-    OsIdentifyInterfaceList *list = reinterpret_cast<OsIdentifyInterfaceList*>(data);
-    size_t listSize = (size - sizeof(OsIdentifyInterfaceList));
-    if ((listSize % sizeof(OsGuid) != 0) || (listSize / sizeof(OsGuid) < list->InterfaceCount)) {
-        return OsStatusInvalidInput;
+    return identify(static_cast<OsIdentifyInfo*>(data));
+}
+
+OsStatus vfs2::IIdentifyHandle::interfaces(void *data, size_t size) {
+    if (OsStatus status = detail::ValidateInterfaceList(data, size)) {
+        return status;
     }
 
-    //
-    // Copy the interface list into the buffer.
-    //
-    uint32_t count = std::min<uint32_t>(interfaces.size(), list->InterfaceCount);
-    for (uint32_t i = 0; i < count; i++) {
-        list->InterfaceGuids[i] = interfaces[i];
-    }
-
-    //
-    // If there are more interfaces than the buffer can hold report this back to the caller.
-    //
-    list->InterfaceCount = count;
-    if (count < interfaces.size()) {
-        return OsStatusMoreData;
-    }
-
-    return OsStatusSuccess;
+    OsIdentifyInterfaceList *list = static_cast<OsIdentifyInterfaceList*>(data);
+    return interfaces(list);
 }
 
 OsStatus vfs2::IIdentifyHandle::invoke(uint64_t function, void *data, size_t size) {

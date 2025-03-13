@@ -19,16 +19,26 @@ namespace vfs2 {
         virtual OsStatus rmnode(INode *child) = 0;
     };
 
+    class IIteratorHandle : public IHandle {
+    public:
+        virtual ~IIteratorHandle() = default;
+
+        virtual OsStatus next(INode **node) = 0;
+
+        OsStatus next(void *data, size_t size);
+
+        OsStatus invoke(uint64_t function, void *data, size_t size) override;
+    };
+
     class IIdentifyHandle : public IHandle {
     public:
         virtual ~IIdentifyHandle() = default;
 
-        OsStatus identify(OsIdentifyInfo *info) {
-            return identify(info, sizeof(OsIdentifyInfo));
-        }
+        virtual OsStatus identify(OsIdentifyInfo *info) = 0;
+        virtual OsStatus interfaces(OsIdentifyInterfaceList *list) = 0;
 
-        virtual OsStatus identify(void *data, size_t size) = 0;
-        virtual OsStatus interfaces(void *data, size_t size) = 0;
+        OsStatus identify(void *data, size_t size);
+        OsStatus interfaces(void *data, size_t size);
 
         OsStatus invoke(uint64_t function, void *data, size_t size) override;
     };

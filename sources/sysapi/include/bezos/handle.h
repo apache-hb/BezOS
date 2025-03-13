@@ -136,6 +136,9 @@ typedef uint8_t OsHandleType;
 /// @brief A handle to a file object.
 OS_OBJECT_HANDLE(OsFileHandle);
 
+/// @brief A handle to a vnode.
+OS_OBJECT_HANDLE(OsNodeHandle);
+
 /// @brief A handle to a folder iterator.
 OS_OBJECT_HANDLE(OsFolderIteratorHandle);
 
