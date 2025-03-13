@@ -51,11 +51,6 @@ namespace vfs2 {
     };
 
     class RamFsFile : public RamFsNode {
-        static constexpr inline auto kInterfaceList = std::to_array({
-            kOsIdentifyGuid,
-            kOsFileGuid,
-        });
-
         stdx::Vector2<std::byte> mData;
         stdx::SharedSpinLock mLock;
 
@@ -65,7 +60,7 @@ namespace vfs2 {
         { }
 
         OsStatus query(sm::uuid uuid, const void *, size_t, IHandle **handle) override;
-        std::span<const OsGuid> interfaces() const { return kInterfaceList; }
+        OsStatus interfaces(void *data, size_t size);
 
         OsStatus read(ReadRequest request, ReadResult *result);
         OsStatus write(WriteRequest request, WriteResult *result);

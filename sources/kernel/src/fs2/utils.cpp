@@ -31,3 +31,26 @@ OsStatus vfs2::OpenFolderInterface(INode *node, const void *data, size_t size, I
     *handle = static_cast<IFolderHandle*>(result.release());
     return OsStatusSuccess;
 }
+
+vfs2::INode *vfs2::GetParentNode(INode *node) {
+    NodeInfo info = node->info();
+    return info.parent;
+}
+
+vfs2::INode *vfs2::GetParentNode(IHandle *handle) {
+    return GetParentNode(GetHandleNode(handle));
+}
+
+vfs2::INode *vfs2::GetHandleNode(IHandle *handle) {
+    HandleInfo info = handle->info();
+    return info.node;
+}
+
+vfs2::IVfsMount *vfs2::GetMount(INode *node) {
+    NodeInfo info = node->info();
+    return info.mount;
+}
+
+vfs2::IVfsMount *vfs2::GetMount(IHandle *handle) {
+    return GetMount(GetHandleNode(handle));
+}

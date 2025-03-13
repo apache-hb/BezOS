@@ -9,28 +9,17 @@ using namespace vfs2;
 // ramfs file implementation
 //
 
-OsStatus RamFsFile::query(sm::uuid uuid, const void *, size_t, IHandle **handle) {
-    if (uuid == kOsIdentifyGuid) {
-        auto *identify = new(std::nothrow) TIdentifyHandle<RamFsFile>(this);
-        if (!identify) {
-            return OsStatusOutOfMemory;
-        }
+static constexpr inline InterfaceList kFileInterfaceList = std::to_array({
+    InterfaceOf<TIdentifyHandle<RamFsFile>, RamFsFile>(kOsIdentifyGuid),
+    InterfaceOf<TFileHandle<RamFsFile>, RamFsFile>(kOsFileGuid),
+});
 
-        *handle = identify;
-        return OsStatusSuccess;
-    }
+OsStatus RamFsFile::query(sm::uuid uuid, const void *data, size_t size, IHandle **handle) {
+    return kFileInterfaceList.query(this, uuid, data, size, handle);
+}
 
-    if (uuid == kOsFileGuid) {
-        auto *file = new(std::nothrow) TFileHandle<RamFsFile>(this);
-        if (!file) {
-            return OsStatusOutOfMemory;
-        }
-
-        *handle = file;
-        return OsStatusSuccess;
-    }
-
-    return OsStatusInterfaceNotSupported;
+OsStatus RamFsFile::interfaces(void *data, size_t size) {
+    return kFileInterfaceList.list(data, size);
 }
 
 OsStatus RamFsFile::read(ReadRequest request, ReadResult *result) {
@@ -73,8 +62,8 @@ static constexpr inline InterfaceList kFolderInterfaceList = std::to_array({
     InterfaceOf<TFolderHandle<RamFsFolder>, RamFsFolder>(kOsFolderGuid),
 });
 
-OsStatus RamFsFolder::query(sm::uuid uuid, const void *, size_t, IHandle **handle) {
-    return kFolderInterfaceList.query(this, uuid, nullptr, 0, handle);
+OsStatus RamFsFolder::query(sm::uuid uuid, const void *data, size_t size, IHandle **handle) {
+    return kFolderInterfaceList.query(this, uuid, data, size, handle);
 }
 
 OsStatus RamFsFolder::interfaces(void *data, size_t size) {

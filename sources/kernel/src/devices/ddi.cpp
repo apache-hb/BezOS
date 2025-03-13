@@ -1,4 +1,5 @@
 #include "devices/ddi.hpp"
+#include "fs2/query.hpp"
 #include "kernel.hpp"
 #include "panic.hpp"
 
@@ -111,26 +112,15 @@ vfs2::HandleInfo dev::DisplayHandle::info() {
     return vfs2::HandleInfo { mNode };
 }
 
-OsStatus dev::DisplayDevice::query(sm::uuid uuid, const void *, size_t, vfs2::IHandle **handle) {
-    if (uuid == kOsIdentifyGuid) {
-        auto *identify = new(std::nothrow) vfs2::TIdentifyHandle<DisplayDevice>(this);
-        if (!identify) {
-            return OsStatusOutOfMemory;
-        }
+static constexpr inline vfs2::InterfaceList kInterfaceList = std::to_array({
+    vfs2::InterfaceOf<vfs2::TIdentifyHandle<dev::DisplayDevice>, dev::DisplayDevice>(kOsIdentifyGuid),
+    vfs2::InterfaceOf<dev::DisplayHandle, dev::DisplayDevice>(kOsDisplayClassGuid),
+});
 
-        *handle = identify;
-        return OsStatusSuccess;
-    }
+OsStatus dev::DisplayDevice::query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) {
+    return kInterfaceList.query(this, uuid, data, size, handle);
+}
 
-    if (uuid == kOsDisplayClassGuid) {
-        auto *display = new(std::nothrow) DisplayHandle(this);
-        if (!display) {
-            return OsStatusOutOfMemory;
-        }
-
-        *handle = display;
-        return OsStatusSuccess;
-    }
-
-    return OsStatusInterfaceNotSupported;
+OsStatus dev::DisplayDevice::interfaces(void *data, size_t size) {
+    return kInterfaceList.list(data, size);
 }

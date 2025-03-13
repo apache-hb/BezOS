@@ -161,11 +161,6 @@ namespace vfs2 {
     };
 
     class TarFsFile : public TarFsNode {
-        static constexpr inline auto kInterfaceList = std::to_array({
-            kOsIdentifyGuid,
-            kOsFileGuid,
-        });
-
         uint64_t mOffset;
 
     public:
@@ -175,24 +170,20 @@ namespace vfs2 {
         { }
 
         OsStatus query(sm::uuid uuid, const void *data, size_t size, IHandle **handle) override;
-        std::span<const OsGuid> interfaces() const { return kInterfaceList; }
+        OsStatus interfaces(void *data, size_t size);
 
         OsStatus stat(NodeStat *result);
         OsStatus read(ReadRequest request, ReadResult *result);
     };
 
     class TarFsFolder : public TarFsNode, public FolderMixin {
-        static constexpr inline auto kInterfaceList = std::to_array({
-            kOsIdentifyGuid,
-            kOsFolderGuid,
-        });
     public:
         TarFsFolder(TarEntry entry, INode *parent, TarFsMount *mount)
             : TarFsNode(entry, parent, mount)
         { }
 
         OsStatus query(sm::uuid uuid, const void *data, size_t size, IHandle **handle) override;
-        std::span<const OsGuid> interfaces() const { return kInterfaceList; }
+        OsStatus interfaces(void *data, size_t size);
 
         using FolderMixin::lookup;
         using FolderMixin::mknode;

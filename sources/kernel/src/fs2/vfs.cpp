@@ -2,6 +2,7 @@
 #include "fs2/node.hpp"
 #include "fs2/ramfs.hpp"
 
+#include "fs2/utils.hpp"
 #include "log.hpp"
 
 using namespace vfs2;
@@ -74,10 +75,8 @@ OsStatus VfsRoot::lookupUnlocked(const VfsPath& path, INode **node) {
 }
 
 OsStatus VfsRoot::createFolder(IFolderHandle *folder, VfsString name, INode **node) {
-    HandleInfo hInfo = folder->info();
-    INode *parent = hInfo.node;
-    NodeInfo pInfo = parent->info();
-    IVfsMount *mount = pInfo.mount;
+    INode *parent = GetHandleNode(folder);
+    IVfsMount *mount = GetMount(folder);
 
     std::unique_ptr<INode> child;
     if (OsStatus status = mount->mkdir(parent, name, nullptr, 0, std::out_ptr(child))) {
@@ -89,10 +88,8 @@ OsStatus VfsRoot::createFolder(IFolderHandle *folder, VfsString name, INode **no
 }
 
 OsStatus VfsRoot::createFile(IFolderHandle *folder, VfsString name, INode **node) {
-    HandleInfo hInfo = folder->info();
-    INode *parent = hInfo.node;
-    NodeInfo pInfo = parent->info();
-    IVfsMount *mount = pInfo.mount;
+    INode *parent = GetHandleNode(folder);
+    IVfsMount *mount = GetMount(folder);
 
     std::unique_ptr<INode> child;
     if (OsStatus status = mount->create(parent, name, nullptr, 0, std::out_ptr(child))) {
@@ -118,6 +115,9 @@ OsStatus VfsRoot::queryFolder(INode *parent, IFolderHandle **handle) {
         return status;
     }
 
+    //
+    // All folders must inherit from the folder handle interface, so this cast is ok.
+    //
     *handle = static_cast<IFolderHandle*>(result.release());
     return OsStatusSuccess;
 }
@@ -359,19 +359,17 @@ OsStatus VfsRoot::mkpath(const VfsPath& path, INode **node) {
     INode *current = mRootNode.get();
 
     for (auto segment : path) {
-        std::unique_ptr<IHandle> handle;
-        if (OsStatus status = current->query(kOsFolderGuid, nullptr, 0, std::out_ptr(handle))) {
+        std::unique_ptr<IFolderHandle> folder;
+        if (OsStatus status = OpenFolderInterface(current, nullptr, 0, std::out_ptr(folder)))  {
             //
             // If this node is not a folder then the path is malformed.
             //
-            if (status == OsStatusNotSupported) {
+            if (status == OsStatusInterfaceNotSupported) {
                 return OsStatusTraverseNonFolder;
             }
 
             return status;
         }
-
-        IFolderHandle *folder = static_cast<IFolderHandle*>(handle.get());
 
         INode *child = nullptr;
         OsStatus lookupStatus = folder->lookup(segment, &child);
@@ -386,7 +384,7 @@ OsStatus VfsRoot::mkpath(const VfsPath& path, INode **node) {
             // If there is no inode with this name then
             // we need to create a folder.
             //
-            if (OsStatus status = createFolder(folder, VfsString(segment), &child)) {
+            if (OsStatus status = createFolder(folder.get(), VfsString(segment), &child)) {
                 return status;
             }
 

@@ -3,6 +3,7 @@
 #include "fs2/file.hpp"
 #include "fs2/identify.hpp"
 #include "fs2/node.hpp"
+#include "fs2/query.hpp"
 #include "fs2/utils.hpp"
 #include "log.hpp"
 
@@ -195,6 +196,19 @@ NodeInfo TarFsNode::info() {
 // tarfs file implementation
 //
 
+static constexpr inline InterfaceList kFileInterfaceList = std::to_array({
+    InterfaceOf<TIdentifyHandle<TarFsFile>, TarFsFile>(kOsIdentifyGuid),
+    InterfaceOf<TFileHandle<TarFsFile>, TarFsFile>(kOsFileGuid),
+});
+
+OsStatus TarFsFile::query(sm::uuid uuid, const void *data, size_t size, IHandle **handle) {
+    return kFileInterfaceList.query(this, uuid, data, size, handle);
+}
+
+OsStatus TarFsFile::interfaces(void *data, size_t size) {
+    return kFileInterfaceList.list(data, size);
+}
+
 OsStatus TarFsFile::read(ReadRequest request, ReadResult *result) {
     if (request.offset >= mHeader.getSize()) {
         result->read = 0;
@@ -208,30 +222,6 @@ OsStatus TarFsFile::read(ReadRequest request, ReadResult *result) {
     size_t read = media->read(mOffset + request.offset, request.begin, toRead);
     result->read = read;
     return OsStatusSuccess;
-}
-
-OsStatus TarFsFile::query(sm::uuid uuid, const void *, size_t, IHandle **handle) {
-    if (uuid == kOsIdentifyGuid) {
-        auto *identify = new(std::nothrow) TIdentifyHandle<TarFsFile>(this);
-        if (!identify) {
-            return OsStatusOutOfMemory;
-        }
-
-        *handle = identify;
-        return OsStatusSuccess;
-    }
-
-    if (uuid == kOsFileGuid) {
-        auto *file = new (std::nothrow) TFileHandle<TarFsFile>(this);
-        if (!file) {
-            return OsStatusOutOfMemory;
-        }
-
-        *handle = file;
-        return OsStatusSuccess;
-    }
-
-    return OsStatusInterfaceNotSupported;
 }
 
 OsStatus TarFsFile::stat(NodeStat *result) {
@@ -250,28 +240,17 @@ OsStatus TarFsFile::stat(NodeStat *result) {
 // tarfs folder implementation
 //
 
-OsStatus TarFsFolder::query(sm::uuid uuid, const void *, size_t, IHandle **handle) {
-    if (uuid == kOsIdentifyGuid) {
-        auto *identify = new(std::nothrow) TIdentifyHandle<TarFsFolder>(this);
-        if (!identify) {
-            return OsStatusOutOfMemory;
-        }
+static constexpr inline InterfaceList kFolderInterfaceList = std::to_array({
+    InterfaceOf<TIdentifyHandle<TarFsFolder>, TarFsFolder>(kOsIdentifyGuid),
+    InterfaceOf<TFolderHandle<TarFsFolder>, TarFsFolder>(kOsFolderGuid),
+});
 
-        *handle = identify;
-        return OsStatusSuccess;
-    }
+OsStatus TarFsFolder::query(sm::uuid uuid, const void *data, size_t size, IHandle **handle) {
+    return kFolderInterfaceList.query(this, uuid, data, size, handle);
+}
 
-    if (uuid == kOsFolderGuid) {
-        auto *folder = new (std::nothrow) TFolderHandle<TarFsFolder>(this);
-        if (!folder) {
-            return OsStatusOutOfMemory;
-        }
-
-        *handle = folder;
-        return OsStatusSuccess;
-    }
-
-    return OsStatusInterfaceNotSupported;
+OsStatus TarFsFolder::interfaces(void *data, size_t size) {
+    return kFileInterfaceList.list(data, size);
 }
 
 //

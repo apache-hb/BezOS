@@ -37,11 +37,6 @@ namespace dev {
     };
 
     class DisplayDevice : public vfs2::BasicNode, public vfs2::ConstIdentifyMixin<kDdiIdentifyInfo> {
-        static constexpr inline auto kInterfaceList = std::to_array({
-            kOsIdentifyGuid,
-            kOsDisplayClassGuid,
-        });
-
         km::Canvas mCanvas;
 
     public:
@@ -51,7 +46,7 @@ namespace dev {
 
         km::Canvas getCanvas() const { return mCanvas; }
 
-        OsStatus query(sm::uuid uuid, const void *, size_t size, vfs2::IHandle **handle) override;
-        std::span<const OsGuid> interfaces() { return kInterfaceList; }
+        OsStatus query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) override;
+        OsStatus interfaces(void *data, size_t size);
     };
 }
