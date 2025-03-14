@@ -1,9 +1,14 @@
 #include "devices/hid.hpp"
 
 #include "fs2/query.hpp"
+#include "hid/hid.hpp"
 
-dev::HidKeyboardHandle::HidKeyboardHandle(HidKeyboardDevice *node)
-    : mNode(node)
+//
+// Handle
+//
+
+dev::HidKeyboardHandle::HidKeyboardHandle(HidKeyboardDevice *node, const void *, size_t)
+    : vfs2::BasicHandle<HidKeyboardDevice>(node)
 {
     mNode->attach(this);
 }
@@ -36,6 +41,24 @@ OsStatus dev::HidKeyboardHandle::read(vfs2::ReadRequest request, vfs2::ReadResul
 
     result->read = count * sizeof(OsHidEvent);
     return OsStatusSuccess;
+}
+
+//
+// Device node
+//
+
+void dev::HidKeyboardDevice::notify(km::Topic*, km::INotification *notification) {
+    hid::HidNotification *hid = static_cast<hid::HidNotification*>(notification);
+
+    stdx::SharedLock guard(mLock);
+    for (HidKeyboardHandle *handle : mHandles) {
+        handle->notify(hid->event());
+    }
+}
+
+void dev::HidKeyboardDevice::attach(HidKeyboardHandle *handle) {
+    stdx::UniqueLock guard(mLock);
+    mHandles.add(handle);
 }
 
 static constexpr inline vfs2::InterfaceList kInterfaceList = std::to_array({

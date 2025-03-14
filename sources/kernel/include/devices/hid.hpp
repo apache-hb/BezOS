@@ -4,7 +4,6 @@
 
 #include "fs2/device.hpp"
 #include "fs2/identify.hpp"
-#include "hid/hid.hpp"
 
 #include "std/spinlock.hpp"
 #include "std/shared_spinlock.hpp"
@@ -24,20 +23,6 @@ namespace dev {
         .DriverVersion = OS_VERSION(1, 0, 0),
     };
 
-    class HidKeyboardHandle : public vfs2::IHandle {
-        HidKeyboardDevice *mNode;
-        stdx::SpinLock mLock;
-        stdx::Vector2<OsHidEvent> mEvents;
-
-    public:
-        HidKeyboardHandle(HidKeyboardDevice *node);
-
-        void notify(OsHidEvent event);
-
-        OsStatus read(vfs2::ReadRequest request, vfs2::ReadResult *result) override;
-        vfs2::HandleInfo info() override;
-    };
-
     class HidKeyboardDevice
         : public vfs2::BasicNode
         , public vfs2::ConstIdentifyMixin<kHidInfo>
@@ -47,24 +32,28 @@ namespace dev {
         stdx::Vector2<HidKeyboardHandle*> mHandles;
 
         // km::ISubscriber interface
-        void notify(km::Topic*, km::INotification *notification) override {
-            hid::HidNotification *hid = static_cast<hid::HidNotification*>(notification);
-
-            stdx::SharedLock guard(mLock);
-            for (HidKeyboardHandle *handle : mHandles) {
-                handle->notify(hid->event());
-            }
-        }
+        void notify(km::Topic*, km::INotification *notification) override;
 
     public:
         HidKeyboardDevice() = default;
 
-        void attach(HidKeyboardHandle *handle) {
-            stdx::UniqueLock guard(mLock);
-            mHandles.add(handle);
-        }
+        void attach(HidKeyboardHandle *handle);
 
         OsStatus query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) override;
         OsStatus interfaces(OsIdentifyInterfaceList *list);
+    };
+
+    class HidKeyboardHandle : public vfs2::BasicHandle<HidKeyboardDevice> {
+        using vfs2::BasicHandle<HidKeyboardDevice>::mNode;
+        stdx::SpinLock mLock;
+        stdx::Vector2<OsHidEvent> mEvents;
+
+    public:
+        HidKeyboardHandle(HidKeyboardDevice *node, const void *data, size_t size);
+
+        void notify(OsHidEvent event);
+
+        OsStatus read(vfs2::ReadRequest request, vfs2::ReadResult *result) override;
+        vfs2::HandleInfo info() override;
     };
 }

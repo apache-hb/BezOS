@@ -56,7 +56,7 @@ namespace vfs2 {
         }
     };
 
-    template<std::derived_from<INode> Node, std::derived_from<IHandle> Interface>
+    template<std::derived_from<INode> Node, std::derived_from<IHandle> Interface = IHandle>
     class BasicHandle : public Interface {
     protected:
         Node *mNode;

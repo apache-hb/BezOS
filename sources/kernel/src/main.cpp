@@ -1465,6 +1465,43 @@ static void AddNodeSystemCalls() {
         return CallOk(result->publicId());
     });
 
+    AddSystemCall(eOsCallNodeClose, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        uint64_t userHandle = regs->arg0;
+
+        Node *node = gSystemObjects->getNode(NodeId(OS_HANDLE_ID(userHandle)));
+        if (node == nullptr) {
+            return CallError(OsStatusInvalidHandle);
+        }
+
+        if (OsStatus status = gSystemObjects->destroyNode(context->process(), node)) {
+            return CallError(status);
+        }
+
+        return CallOk(0zu);
+    });
+
+    AddSystemCall(eOsCallNodeQuery, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        uint64_t userHandle = regs->arg0;
+        uint64_t userQuery = regs->arg1;
+
+        Node *node = gSystemObjects->getNode(NodeId(OS_HANDLE_ID(userHandle)));
+        if (node == nullptr) {
+            return CallError(OsStatusInvalidHandle);
+        }
+
+        vfs2::NodeInfo info = node->node->info();
+
+        OsNodeInfo result{};
+        size_t len = std::min(sizeof(result.Name), info.name.count());
+        std::memcpy(result.Name, info.name.data(), len);
+
+        if (OsStatus status = context->writeObject(userQuery, result)) {
+            return CallError(status);
+        }
+
+        return CallOk(0zu);
+    });
+
     AddSystemCall(eOsCallNodeStat, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t userHandle = regs->arg0;
         uint64_t userStat = regs->arg1;

@@ -3,8 +3,8 @@
 #include "kernel.hpp"
 #include "panic.hpp"
 
-dev::DisplayHandle::DisplayHandle(DisplayDevice *node)
-    : mNode(node)
+dev::DisplayHandle::DisplayHandle(DisplayDevice *node, const void *, size_t)
+    : vfs2::BasicHandle<DisplayDevice>(node)
 {
     km::Canvas canvas = mNode->getCanvas();
 
