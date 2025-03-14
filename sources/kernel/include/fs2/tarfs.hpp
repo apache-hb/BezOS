@@ -142,8 +142,8 @@ namespace vfs2 {
     };
 
     class TarFsNode : public INode, public ConstIdentifyMixin<kTarFsInfo> {
+        std::atomic<uint32_t> mPublicRefCount { 1 };
         INode *mParent;
-        Access mAccess = Access::R;
 
     protected:
         TarFsMount *mMount;
@@ -158,6 +158,9 @@ namespace vfs2 {
 
         NodeInfo info() override;
         void init(INode *parent, VfsString name, Access access) override;
+
+        void retain() override;
+        unsigned release() override;
     };
 
     class TarFsFile : public TarFsNode {

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "fs2/fsptr.hpp"
 #include "fs2/interface.hpp"
 #include "util/absl.hpp"
 
@@ -23,7 +24,7 @@ namespace vfs2 {
     concept FolderNodeType = FolderLookup<T> && std::derived_from<T, INode>;
 
     class FolderMixin {
-        using Container = sm::BTreeMap<VfsString, std::unique_ptr<INode>, std::less<>>;
+        using Container = sm::BTreeMap<VfsString, AutoRelease<INode>, std::less<>>;
 
         Container mChildren;
 

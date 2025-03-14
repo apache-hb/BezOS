@@ -1,11 +1,15 @@
 #pragma once
 
+#include <atomic>
+
 #include <bezos/subsystem/identify.h>
 
 #include "fs2/node.hpp"
 
 namespace vfs2 {
     class BasicNode : public INode {
+        std::atomic<unsigned> mPublicRefCount { 1 };
+
     protected:
         INode *mParent;
         IVfsMount *mMount;
@@ -36,6 +40,19 @@ namespace vfs2 {
                 .parent = mParent,
                 .access = mAccess,
             };
+        }
+
+        void retain() override {
+            mPublicRefCount.fetch_add(1, std::memory_order_relaxed);
+        }
+
+        unsigned release() override {
+            unsigned count = mPublicRefCount.fetch_sub(1, std::memory_order_acq_rel);
+            if (count == 1) {
+                delete this;
+            }
+
+            return count - 1;
         }
     };
 }

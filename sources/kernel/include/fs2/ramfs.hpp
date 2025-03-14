@@ -1,5 +1,6 @@
 #pragma once
 
+#include "fs2/device.hpp"
 #include "fs2/folder.hpp"
 #include "fs2/identify.hpp"
 #include "fs2/node.hpp"
@@ -23,31 +24,11 @@ namespace vfs2 {
         .DriverVersion = OS_VERSION(1, 0, 0),
     };
 
-    class RamFsNode : public INode, public ConstIdentifyMixin<kRamFsInfo> {
-        INode *mParent;
-        IVfsMount *mMount;
-        VfsString mName;
-
+    class RamFsNode : public BasicNode, public ConstIdentifyMixin<kRamFsInfo> {
     public:
         RamFsNode(INode *parent, IVfsMount *mount, VfsString name)
-            : mParent(parent)
-            , mMount(mount)
-            , mName(std::move(name))
+            : BasicNode(parent, mount, std::move(name))
         { }
-
-        NodeInfo info() override {
-            return NodeInfo {
-                .name = mName,
-                .mount = mMount,
-                .parent = mParent,
-                .access = Access::RWX,
-            };
-        }
-
-        void init(INode *parent, VfsString name, Access) override {
-            mParent = parent;
-            mName = std::move(name);
-        }
     };
 
     class RamFsFile : public RamFsNode {

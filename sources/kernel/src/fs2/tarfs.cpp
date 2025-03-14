@@ -179,18 +179,34 @@ OsStatus vfs2::ParseTar(km::BlockDevice *media, TarParseOptions options, sm::BTr
 // tarfs node implementation
 //
 
-void TarFsNode::init(INode *parent, VfsString name, Access access) {
+void TarFsNode::init(INode *parent, VfsString name, Access) {
     mParent = parent;
     stdr::copy(name, mHeader.name);
-    mAccess = access;
 }
 
 NodeInfo TarFsNode::info() {
+    //
+    // TarFs does not currently support writing so we always return RX.
+    //
     return NodeInfo {
         .name = mHeader.name,
         .mount = mMount,
         .parent = mParent,
+        .access = Access::RX,
     };
+}
+
+void TarFsNode::retain() {
+    mPublicRefCount.fetch_add(1, std::memory_order_relaxed);
+}
+
+unsigned TarFsNode::release() {
+    unsigned count = mPublicRefCount.fetch_sub(1, std::memory_order_acq_rel);
+    if (count == 1) {
+        delete this;
+    }
+
+    return count - 1;
 }
 
 //

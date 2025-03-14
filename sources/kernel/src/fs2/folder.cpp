@@ -18,7 +18,7 @@ OsStatus FolderMixin::mknode(INode *parent, VfsStringView name, INode *child) {
 
     child->init(parent, VfsString(name), Access::RWX);
 
-    mChildren.insert({ VfsString(name), std::unique_ptr<INode>(child) });
+    mChildren.insert({ VfsString(name), child });
     return OsStatusSuccess;
 }
 

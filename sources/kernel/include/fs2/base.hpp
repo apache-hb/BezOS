@@ -134,18 +134,6 @@ namespace vfs2 {
         ///
         /// @return The information about the handle.
         virtual HandleInfo info() = 0;
-
-        /// @brief Retain a reference to the handle.
-        ///
-        /// Increment the public reference count of the handle.
-        virtual void retain() { }
-
-        /// @brief Release a reference to the handle.
-        ///
-        /// If this function returns 0 the handle is destroyed and must not be used.
-        ///
-        /// @return The number of references remaining.
-        virtual unsigned release() { return UINT_MAX; }
     };
 
     class INode {
@@ -182,7 +170,7 @@ namespace vfs2 {
         /// @brief Retain a reference to the handle.
         ///
         /// Increment the public reference count of the handle.
-        virtual void retain() { }
+        virtual void retain() = 0;
 
         /// @brief Release a reference to the handle.
         ///
@@ -192,6 +180,6 @@ namespace vfs2 {
         /// the node will be destroyed.
         ///
         /// @return The number of references remaining.
-        virtual unsigned release() { return UINT_MAX; }
+        virtual unsigned release() = 0;
     };
 }
