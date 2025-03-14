@@ -8,8 +8,6 @@
 
         <patch file='@REPO@/patches/autoconf/0001-add-bezos.patch' />
 
-        <require package='llvm' />
-
         <configure with='autoconf' />
     </package>
 
@@ -22,7 +20,6 @@
 
         <patch file='@REPO@/patches/automake/0001-add-bezos.patch' />
 
-        <require package='llvm' />
         <require package='autoconf' />
 
         <configure with='autoconf' />

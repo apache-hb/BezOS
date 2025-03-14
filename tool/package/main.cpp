@@ -142,7 +142,7 @@ struct ConfigureStep {
     // path to the configure tool if not default
     std::string configureToolPath;
 
-    // path to the source folder to configure if not toplevel
+    // path to the source folder to configure from if not toplevel
     std::string configureSourcePath;
 
     // path to meson/cmake cross file
@@ -183,6 +183,8 @@ struct PackageInfo {
 
     std::string installTargets;
 
+    std::string fromSource;
+
 #if 0
     // configure tool to use
     ConfigureProgram configure{eConfigureNone};
@@ -199,15 +201,15 @@ struct PackageInfo {
 #endif
 
     std::string GetConfigureSourcePath(const ConfigureStep& step) const {
-        return step.configureSourcePath.empty() ? GetWorkspaceFolder().string() : step.configureSourcePath;
+        return step.configureSourcePath.empty() ? GetSourceFolder().string() : step.configureSourcePath;
     }
 
-    fs::path GetWorkspaceFolder() const {
+    fs::path GetSourceFolder() const {
         if (source.empty() && imported.empty()) {
             throw std::runtime_error(std::format("Package {} has no source or imported folder", name));
         }
 
-        return fs::absolute(source.empty() ? imported : source).string();
+        return fs::absolute(source.empty() ? imported : source);
     }
 
     fs::path GetBuildFolder() const {
@@ -502,6 +504,14 @@ static_assert(ReplaceText("@REPO@/data/image.sh", "@REPO@", "/repo") == "/repo/d
 struct Workspace {
     std::map<std::string, PackageInfo> packages;
 
+    auto& getPackage(const std::string& name) {
+        if (!packages.contains(name)) {
+            throw std::runtime_error("Unknown package " + name);
+        }
+
+        return packages.at(name);
+    }
+
     argo::json workspace{argo::json::object_e};
 
     void AddPackage(PackageInfo info) {
@@ -512,7 +522,7 @@ struct Workspace {
         packages.emplace(info.name, info);
 
         argo::json folder{argo::json::object_e};
-        folder["path"] = info.GetWorkspaceFolder();
+        folder["path"] = info.GetSourceFolder();
         folder["name"] = info.name;
 
         workspace["folders"].append(folder);
@@ -531,7 +541,7 @@ struct Workspace {
             throw std::runtime_error("Unknown target " + name);
         }
 
-        return packages[name].GetWorkspaceFolder();
+        return getPackage(name).GetSourceFolder();
     }
 
     fs::path GetArtifactPath(const std::string& name);
@@ -555,6 +565,7 @@ struct Workspace {
 
             visited.insert(name);
 
+            assert(pkgs.contains(name) && "Unknown package");
             auto& package = pkgs.at(name);
             for (const auto& dep : package.dependencies) {
                 self(dep.name);
@@ -927,6 +938,54 @@ static ConfigureStep ReadConfigureStep(XmlNode action, const PackageInfo& packag
     return step;
 }
 
+static void ReadDownloadConfig(XmlNode root) {
+    auto name = ExpectProperty<std::string>(root, "name");
+    gPackageDb->RaiseTargetStatus(name, eUnknown);
+
+    MakeFolder(PackageCachePath(name));
+    MakeFolder(PackageBuildPath(name));
+    MakeFolder(PackageInstallPath(name));
+    MakeFolder(PackageLogPath(name));
+
+    auto url = ExpectProperty<std::string>(root, "url");
+    auto file = ExpectProperty<std::string>(root, "file");
+    auto archive = root.property("archive");
+    auto trimRootFolder = root.property("trim-root-folder").value_or("false") == "true";
+    auto install = root.property("install").value_or("false") == "true";
+    auto sha256 = root.property("sha256");
+
+    PackageInfo packageInfo {
+        .name = name,
+    };
+
+    if (auto version = root.property("version")) {
+        packageInfo.version = version.value();
+    }
+
+    packageInfo.downloads.push_back(Download{url, file, archive.value_or(""), sha256, trimRootFolder, install});
+
+    for (XmlNode action : root.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
+        auto step = NodeName(action);
+        if (step == "patch"sv) {
+            auto file = ExpectProperty<std::string>(action, "file");
+            packageInfo.patches.push_back(file);
+        } else if (step == "require"sv) {
+            ReadRequireTag(action, name, packageInfo.dependencies);
+        } else if (step == "overlay"sv) {
+            auto folder = ExpectProperty<std::string>(action, "path");
+            packageInfo.overlays.push_back(Overlay{folder});
+        }
+    }
+
+    if (packageInfo.source.empty()) {
+        auto source = PackageImportPath(name);
+        MakeFolder(source);
+        packageInfo.imported = source;
+    }
+
+    gWorkspace.AddPackage(packageInfo);
+}
+
 static void ReadPackageConfig(XmlNode root) {
     auto name = ExpectProperty<std::string>(root, "name");
     gPackageDb->RaiseTargetStatus(name, eUnknown);
@@ -945,6 +1004,12 @@ static void ReadPackageConfig(XmlNode root) {
         .name = name,
     };
 
+    if (auto from = root.property("from")) {
+        packageInfo.fromSource = from.value();
+        packageInfo.imported = gSourceRoot / from.value();
+        gPackageDb->AddDependency(name, from.value());
+    }
+
     if (auto version = root.property("version")) {
         packageInfo.version = version.value();
     }
@@ -952,6 +1017,8 @@ static void ReadPackageConfig(XmlNode root) {
     for (XmlNode action : root.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
         auto step = NodeName(action);
         if (step == "download"sv) {
+            assert(packageInfo.fromSource.empty() && "Package cannot have both source and download steps");
+
             auto url = ExpectProperty<std::string>(action, "url");
             auto file = ExpectProperty<std::string>(action, "file");
             auto archive = action.property("archive");
@@ -961,6 +1028,8 @@ static void ReadPackageConfig(XmlNode root) {
 
             packageInfo.downloads.push_back(Download{url, file, archive.value_or(""), sha256, trimRootFolder, install});
         } else if (step == "patch"sv) {
+            assert(packageInfo.fromSource.empty() && "Package cannot have both source and patch steps");
+
             auto file = ExpectProperty<std::string>(action, "file");
             packageInfo.patches.push_back(file);
         } else if (step == "require"sv) {
@@ -973,6 +1042,8 @@ static void ReadPackageConfig(XmlNode root) {
             auto src = ExpectProperty<std::string>(action, "path");
             packageInfo.source = gSourceRoot / src;
         } else if (step == "overlay"sv) {
+            assert(packageInfo.fromSource.empty() && "Package cannot have both source and overlay steps");
+
             auto folder = ExpectProperty<std::string>(action, "path");
             packageInfo.overlays.push_back(Overlay{folder});
         } else if (step == "build") {
@@ -1107,13 +1178,13 @@ static void ReplacePathPlaceholders(std::string& str) {
 static void ReplacePackagePlaceholders(std::string& str, const PackageInfo& package) {
     ReplacePathPlaceholders(str);
     ReplaceAll(str, "@PACKAGE@", package.name);
-    ReplaceAll(str, "@SOURCE_ROOT@", package.GetWorkspaceFolder().string());
+    ReplaceAll(str, "@SOURCE_ROOT@", package.GetSourceFolder().string());
     ReplaceAll(str, "@BUILD_ROOT@", package.GetBuildFolder().string());
     ReplaceAll(str, "@INSTALL_ROOT@", PackageInstallPath(package.name).string());
 }
 
 static void AcquirePackage(const PackageInfo& package) {
-    if (package.name.empty()) return;
+    assert(!package.name.empty() && "Package name cannot be empty");
 
     if (!gPackageDb->ShouldRunStep(package.name, eDownloaded)) {
         return;
@@ -1136,9 +1207,9 @@ static void AcquirePackage(const PackageInfo& package) {
         }
 
         if (!download.archive.empty()) {
-            ExtractArchive(package.name, path, package.GetWorkspaceFolder(), download.trimRootFolder);
+            ExtractArchive(package.name, path, package.GetSourceFolder(), download.trimRootFolder);
         } else {
-            auto dst = package.GetWorkspaceFolder() / download.file;
+            auto dst = package.GetSourceFolder() / download.file;
             std::println(std::cout, "{}: copy {} -> {}", package.name, path.string(), dst.string());
 
             fs::remove_all(dst);
@@ -1148,7 +1219,7 @@ static void AcquirePackage(const PackageInfo& package) {
 
     for (const auto& overlay : package.overlays) {
         auto src = gSourceRoot / overlay.folder;
-        fs::path dst = package.GetWorkspaceFolder();
+        fs::path dst = package.GetSourceFolder();
 
         std::println(std::cout, "{}: overlay {} -> {}", package.name, src.string(), dst.string());
 
@@ -1165,7 +1236,7 @@ static void AcquirePackage(const PackageInfo& package) {
             "patch", "-p1", "-i", path
         };
 
-        auto ws = package.GetWorkspaceFolder().string();
+        auto ws = package.GetSourceFolder().string();
 
         auto result = sp::call(args, sp::cwd{ws});
         if (result != 0) {
@@ -1193,7 +1264,7 @@ static void ConnectDependencies(const PackageInfo& package) {
     for (const auto& dep : package.dependencies) {
         if (dep.symlink.empty()) continue;
 
-        auto symlink = package.GetWorkspaceFolder() / dep.symlink;
+        auto symlink = package.GetSourceFolder() / dep.symlink;
         auto path = gWorkspace.GetPackagePath(dep.name);
 
         auto cwd = fs::current_path();
@@ -1430,7 +1501,7 @@ static void CopyInstallFiles(const PackageInfo& package) {
         if (download.install) {
             std::println(std::cout, "{}: copy {}", package.name, download.file);
 
-            auto path = package.GetWorkspaceFolder() / download.file;
+            auto path = package.GetSourceFolder() / download.file;
             auto dst = package.GetInstallPath() / download.file;
 
             fs::copy_file(path, dst, fs::copy_options::overwrite_existing);
@@ -1614,7 +1685,7 @@ static void GenerateClangDaemonConfig(const std::vector<std::string>& args) {
             }
 
             if (pkg.HasCompileCommands()) {
-                auto workspace = pkg.GetWorkspaceFolder().lexically_relative(fs::current_path());
+                auto workspace = pkg.GetSourceFolder().lexically_relative(fs::current_path());
                 auto builddir = pkg.GetBuildFolder();
 
                 addClangdSection(builddir, workspace);
@@ -1637,22 +1708,27 @@ static void ReadRepoElement(XmlNode root) {
         auto type = child.name();
         if (type == "package"sv) {
             ReadPackageConfig(child);
+        } else if (type == "download"sv) {
+            ReadDownloadConfig(child);
         } else if (type == "artifact"sv) {
             ReadArtifactConfig(child);
         } else if (type == "collection"sv) {
             ReadRepoElement(child);
         } else {
             std::println(std::cerr, "Unknown tag {}", type);
+            assert(false && "Unknown tag");
         }
     }
 }
 
 static void VisitPackage(const PackageInfo& packageInfo) {
-    if (packageInfo.name.empty()) return;
+    assert(!packageInfo.name.empty() && "Package name cannot be empty");
 
     auto deps = gPackageDb->GetPackageDependencies(packageInfo.name);
     for (const auto& dep : deps) {
-        VisitPackage(gWorkspace.packages[dep]);
+        assert(!dep.empty() && "Dependency name cannot be empty");
+
+        VisitPackage(gWorkspace.getPackage(dep));
     }
 
     ConnectDependencies(packageInfo);
@@ -1816,8 +1892,17 @@ int main(int argc, const char **argv) try {
         AcquirePackage(package.second);
     }
 
+    for (auto& [name, package] : gWorkspace.packages) {
+        if (!package.fromSource.empty()) {
+            package.imported = fs::absolute(gWorkspace.GetPackagePath(package.fromSource));
+        }
+    }
+
     for (auto& package : gPackageDb->GetToplevelPackages()) {
-        VisitPackage(gWorkspace.packages[package]);
+        assert(!package.empty() && "Package name cannot be empty");
+        assert(gWorkspace.packages.contains(package) && "Package must exist in workspace");
+
+        VisitPackage(gWorkspace.getPackage(package));
     }
 
     if (parser.present("--clangd")) {

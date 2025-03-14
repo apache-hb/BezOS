@@ -1,0 +1,13 @@
+<package name='abseil' version='2025.01.27'>
+    <download file='abseil-cpp.tar.gz'
+              url='https://github.com/abseil/abseil-cpp/releases/download/20250127.0/abseil-cpp-20250127.0.tar.gz'
+              sha256='16242f394245627e508ec6bb296b433c90f8d914f73b9c026fddb905e27276e8'
+              trim-root-folder='true'
+              archive='tar' />
+
+    <configure with='cmake'>
+        <options CMAKE_C_COMPILER='@PREFIX@/llvm/bin/clang'
+                 CMAKE_CXX_COMPILER='@PREFIX@/llvm/bin/clang++'
+                 CMAKE_LINKER='@PREFIX@/llvm/bin/ld.lld' />
+    </configure>
+</package>

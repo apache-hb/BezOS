@@ -17,6 +17,10 @@
     <xi:include href='packages/limine.xml' />
 
     <xi:include href='packages/sysapi.xml' />
+
+    <!-- <xi:include href='packages/lib/abseil.xml' /> -->
+    <!-- <xi:include href='packages/tools/protobuf.xml' /> -->
+
     <xi:include href='packages/system.xml' />
 
     <xi:include href='packages/lib/ncurses.xml' />
