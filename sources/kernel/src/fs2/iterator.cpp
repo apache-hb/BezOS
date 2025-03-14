@@ -13,7 +13,6 @@ OsStatus vfs2::IIteratorHandle::next(km::SystemObjects *context, void *data, siz
         return status;
     }
 
-    // TODO: invoke needs to be aware of the system context
     iterator->Node = context->getNodeId(node);
     return OsStatusSuccess;
 }

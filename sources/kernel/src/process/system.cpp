@@ -19,6 +19,8 @@ OsStatus SystemObjects::createNode(Process *process, vfs2::INode *vfsNode, Node 
 
     Node *ptr = node.release();
 
+    KmDebugMessage("[PROC] Created node ", ptr->publicId(), " for ", info.name, "\n");
+
     stdx::UniqueLock guard(mLock);
     process->addHandle(ptr);
     mNodes.insert({id, ptr});
@@ -58,11 +60,26 @@ OsStatus SystemObjects::createDevice(const vfs2::VfsPath &path, sm::uuid uuid, c
         return status;
     }
 
+    //
+    // Every device is associated with a node, if that node hasnt been created yet
+    // we need to create it now.
+    //
+
+    vfs2::HandleInfo handleInfo = result->handle->info();
+    if (auto it = mVfsNodes.find(handleInfo.node); it == mVfsNodes.end()) {
+        Node *node = nullptr;
+        if (OsStatus status = createNode(process, handleInfo.node, &node)) {
+            return status;
+        }
+    }
+
     DeviceId id = mDeviceIds.allocate();
 
     result->init(id, stdx::String(path.name()), std::move(result->handle));
 
     Device *ptr = result.release();
+
+    KmDebugMessage("[PROC] Created device ", km::Hex(ptr->publicId()), " for ", path.name(), "\n");
 
     stdx::UniqueLock guard(mLock);
     process->addHandle(ptr);
@@ -94,8 +111,6 @@ Device *SystemObjects::getDevice(DeviceId id) {
 }
 
 OsStatus SystemObjects::addDevice(Process *process, std::unique_ptr<vfs2::IHandle> handle, Device **node) {
-    stdx::UniqueLock guard(mLock);
-
     vfs2::HandleInfo handleInfo = handle->info();
     vfs2::NodeInfo nodeInfo = handleInfo.node->info();
 
@@ -104,11 +119,27 @@ OsStatus SystemObjects::addDevice(Process *process, std::unique_ptr<vfs2::IHandl
         return OsStatusOutOfMemory;
     }
 
+    //
+    // Every device is associated with a node, if that node hasnt been created yet
+    // we need to create it now.
+    //
+
+    if (auto it = mVfsNodes.find(handleInfo.node); it == mVfsNodes.end()) {
+        Node *node = nullptr;
+        if (OsStatus status = createNode(process, handleInfo.node, &node)) {
+            return status;
+        }
+    }
+
     DeviceId id = mDeviceIds.allocate();
     result->init(id, stdx::String(nodeInfo.name), std::move(handle));
 
-    process->addHandle(result);
+    KmDebugMessage("[PROC] Created device ", km::Hex(result->publicId()), " for ", nodeInfo.name, "\n");
 
+    stdx::UniqueLock guard(mLock);
+
+    process->addHandle(result);
+    mVfsHandles.insert({result->handle.get(), result});
     mDevices.insert({id, result});
     *node = result;
 

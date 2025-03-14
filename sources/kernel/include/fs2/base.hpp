@@ -79,6 +79,17 @@ namespace vfs2 {
         uint32_t generation;
     };
 
+    class IInvokeContext {
+    public:
+        virtual ~IInvokeContext() = default;
+
+        virtual OsProcessHandle process() = 0;
+        virtual OsThreadHandle thread() = 0;
+
+        virtual OsNodeHandle resolveNode(INode *node) = 0;
+        virtual OsDeviceHandle resolveHandle(IHandle *handle) = 0;
+    };
+
     /// @brief A handle to a file or folder.
     ///
     /// @note All nodes must provide @a kOsIdentifyGuid.

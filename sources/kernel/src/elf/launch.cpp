@@ -199,10 +199,7 @@ static OsStatus AllocateTlsMemory(vfs2::IHandle *file, const elf::ProgramHeader 
     }
 
     const void *vaddr = (char*)tlsMapping.vaddr + tls->memsz;
-    KmDebugMessage("[ELF] TLS configure pointer ", vaddr, "\n");
     memcpy((char*)tlsWindow + tls->memsz, &vaddr, sizeof(uintptr_t));
-
-    KmDebugMessage("[ELF] TLS memory mapping: ", tlsMapping, "\n");
 
     *mapping = tlsMapping;
     return OsStatusSuccess;
@@ -347,8 +344,6 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory &memo
             return status;
         }
 
-        KmDebugMessage("[ELF] Read ", readResult.read, " bytes\n");
-
         if (readResult.read != ph.filesz) {
             KmDebugMessage("[ELF] Failed to read section: ", readResult.read, " != ", ph.filesz, "\n");
             KmDebugMessage("[ELF] Section: ", mapping, "\n");
@@ -359,8 +354,6 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory &memo
             uint64_t bssSize = ph.memsz - ph.filesz;
             memset((char*)vaddr + windowOffset + ph.filesz, 0x00, bssSize);
         }
-
-        KmDebugMessage("[ELF] Fill .bss\n");
 
         //
         // Now we can set the correct flags.

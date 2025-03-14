@@ -1516,6 +1516,7 @@ static void AddNodeSystemCalls() {
 
         Node *node = gSystemObjects->getNode(NodeId(OS_HANDLE_ID(userHandle)));
         if (node == nullptr) {
+            KmDebugMessage("[VFS] Failed to find node ", km::Hex(userHandle), "\n");
             return CallError(OsStatusInvalidHandle);
         }
 
@@ -1704,7 +1705,10 @@ static OsMemoryAccess MakeMemoryAccess(PageFlags flags) {
 static void AddVmemSystemCalls() {
     AddSystemCall(eOsCallVmemCreate, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t userCreateInfo = regs->arg0;
+
         OsVmemCreateInfo createInfo{};
+        Process *process = nullptr;
+
         if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {
             return CallError(status);
         }
@@ -1713,15 +1717,8 @@ static void AddVmemSystemCalls() {
             return CallError(OsStatusInvalidInput);
         }
 
-        Process *process = nullptr;
-        if (createInfo.Process != OS_HANDLE_INVALID) {
-            process = gSystemObjects->getProcess(ProcessId(OS_HANDLE_ID(createInfo.Process)));
-        } else {
-            process = context->process();
-        }
-
-        if (process == nullptr) {
-            return CallError(OsStatusNotFound);
+        if (OsStatus status = SelectOwningProcess(context, createInfo.Process, &process)) {
+            return CallError(status);
         }
 
         AddressMapping mapping{};
