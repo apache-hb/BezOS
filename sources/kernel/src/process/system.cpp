@@ -67,6 +67,7 @@ OsStatus SystemObjects::createDevice(const vfs2::VfsPath &path, sm::uuid uuid, c
     stdx::UniqueLock guard(mLock);
     process->addHandle(ptr);
     mDevices.insert({id, ptr});
+    mVfsHandles.insert({ptr->handle.get(), ptr});
     *node = ptr;
 
     return OsStatusSuccess;
@@ -245,6 +246,7 @@ void SystemObjects::destroyHandle(KernelObject *object) {
         mThreads.erase(ThreadId(object->internalId()));
     } else if (object->handleType() == eOsHandleDevice) {
         mDevices.erase(DeviceId(object->internalId()));
+        mVfsHandles.erase(static_cast<Device*>(object)->handle.get());
     } else if (object->handleType() == eOsHandleNode) {
         mNodes.erase(NodeId(object->internalId()));
         mVfsNodes.erase(static_cast<Node*>(object)->node);

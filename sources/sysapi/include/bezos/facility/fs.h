@@ -202,6 +202,7 @@ extern OsStatus OsFileStat(OsFileHandle Handle, struct OsFileStat *OutStat);
 
 struct OsNodeCreateInfo {
     struct OsPath Path;
+    OsProcessHandle Process;
 };
 
 struct OsNodeQueryInterfaceInfo {
@@ -211,11 +212,17 @@ struct OsNodeQueryInterfaceInfo {
     size_t OpenDataSize;
 };
 
+struct OsNodeInfo {
+    OsUtf8Char Name[OS_DEVICE_NAME_MAX];
+};
+
 extern OsStatus OsNodeOpen(struct OsNodeCreateInfo CreateInfo, OsNodeHandle *OutHandle);
+
+extern OsStatus OsNodeClose(OsNodeHandle Handle);
 
 extern OsStatus OsNodeQueryInterface(OsNodeHandle Handle, struct OsNodeQueryInterfaceInfo Query, OsDeviceHandle *OutHandle);
 
-extern OsStatus OsNodeClose(OsNodeHandle Handle);
+extern OsStatus OsNodeStat(OsNodeHandle Handle, struct OsNodeInfo *OutInfo);
 
 /// @} // group OsNode
 

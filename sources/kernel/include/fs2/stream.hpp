@@ -33,7 +33,7 @@ namespace vfs2 {
         }
 
         HandleInfo info() override {
-            return HandleInfo { mNode };
+            return HandleInfo { mNode, kOsStreamGuid };
         }
     };
 }

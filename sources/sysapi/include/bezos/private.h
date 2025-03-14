@@ -21,6 +21,7 @@ enum {
     eOsCallNodeOpen = 0x16,
     eOsCallNodeClose = 0x17,
     eOsCallNodeQuery = 0x18,
+    eOsCallNodeStat = 0x19,
 
     eOsCallFolderIterateCreate = 0x20,
     eOsCallFolderIterateDestroy = 0x21,
@@ -55,6 +56,7 @@ enum {
     eOsCallDeviceWrite = 0x83,
     eOsCallDeviceInvoke = 0x84,
     eOsCallDeviceQuery = 0x85,
+    eOsCallDeviceStat = 0x86,
 
     eOsCallClockGetTime = 0x90,
     eOsCallClockStat = 0x91,

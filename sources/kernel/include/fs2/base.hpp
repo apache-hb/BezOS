@@ -8,7 +8,9 @@
 #include "util/util.hpp"
 #include "util/uuid.hpp"
 
-#include "system/object.hpp"
+namespace km {
+    class SystemObjects;
+}
 
 /// @brief Virtual File System.
 ///
@@ -66,6 +68,7 @@ namespace vfs2 {
 
     struct HandleInfo {
         INode *node;
+        OsGuid guid;
     };
 
     struct NodeInfo {
@@ -85,12 +88,13 @@ namespace vfs2 {
 
         /// @brief Invoke a method on the handle.
         ///
+        /// @param system the system context.
         /// @param method The method to invoke.
         /// @param data The data to pass to the method.
         /// @param size The size of the data.
         ///
         /// @return The status of the invocation.
-        virtual OsStatus invoke(uint64_t, void *, size_t) { return OsStatusFunctionNotSupported; }
+        virtual OsStatus invoke(km::SystemObjects *, uint64_t, void *, size_t) { return OsStatusFunctionNotSupported; }
 
         /// @brief Read data from the handle.
         ///

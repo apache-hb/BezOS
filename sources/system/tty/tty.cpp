@@ -166,10 +166,10 @@ public:
         ASSERT_OS_SUCCESS(OsDeviceOpen(createInfo, NULL, 0, &mDevice));
 
         OsDdiGetCanvas canvas{};
-        ASSERT_OS_SUCCESS(OsDeviceCall(mDevice, eOsDdiGetCanvas, &canvas, sizeof(canvas)));
+        ASSERT_OS_SUCCESS(OsDeviceInvoke(mDevice, eOsDdiGetCanvas, &canvas, sizeof(canvas)));
 
         OsDdiDisplayInfo display{};
-        ASSERT_OS_SUCCESS(OsDeviceCall(mDevice, eOsDdiInfo, &display, sizeof(display)));
+        ASSERT_OS_SUCCESS(OsDeviceInvoke(mDevice, eOsDdiInfo, &display, sizeof(display)));
 
         mAddress = canvas.Canvas;
         ASSERT(mAddress != nullptr);
@@ -198,7 +198,7 @@ public:
 
     void Clear() {
         OsDdiFill fill = { .R = 100, .G = 100, .B = 100 };
-        ASSERT_OS_SUCCESS(OsDeviceCall(mDevice, eOsDdiFill, &fill, sizeof(fill)));
+        ASSERT_OS_SUCCESS(OsDeviceInvoke(mDevice, eOsDdiFill, &fill, sizeof(fill)));
     }
 
     void WriteChar(char c) {

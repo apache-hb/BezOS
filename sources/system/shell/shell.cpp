@@ -161,9 +161,55 @@ static void Prompt(StreamDevice& tty) {
     WriteString(tty, "root@localhost: ");
 }
 
-static void ListCurrentFolder(StreamDevice& tty, const char *path) {
-    alignas(OsFolderEntry) char buffer[1024];
+class FolderIterator {
+    OsDeviceHandle mHandle;
 
+public:
+    FolderIterator() : mHandle(OS_HANDLE_INVALID) {}
+
+    FolderIterator(FolderIterator &&other) : mHandle(other.mHandle) {
+        other.mHandle = OS_HANDLE_INVALID;
+    }
+
+    FolderIterator& operator=(FolderIterator &&other) {
+        std::swap(mHandle, other.mHandle);
+        return *this;
+    }
+
+    FolderIterator(const FolderIterator&) = delete;
+    FolderIterator& operator=(const FolderIterator&) = delete;
+
+    ~FolderIterator() {
+        if (mHandle != OS_HANDLE_INVALID) {
+            OsDeviceClose(mHandle);
+        }
+    }
+
+    static OsStatus Create(OsPath path, FolderIterator *iterator) {
+        OsDeviceCreateInfo createInfo {
+            .Path = path,
+            .InterfaceGuid = kOsIteratorGuid,
+            .Flags = eOsDeviceOpenExisting,
+        };
+
+        return OsDeviceOpen(createInfo, NULL, 0, &iterator->mHandle);
+    }
+
+    OsStatus Next(OsNodeHandle *outNode) {
+        OsIteratorNext request {
+            .Node = OS_HANDLE_INVALID,
+        };
+
+        if (OsStatus status = OsInvokeIteratorNext(mHandle, &request)) {
+            return status;
+        }
+
+        *outNode = request.Node;
+        return OsStatusSuccess;
+    }
+};
+
+static void ListCurrentFolder(StreamDevice& tty, const char *path) {
     char copy[1024]{};
     memcpy(copy, path, sizeof(copy));
     for (char *ptr = copy; *ptr != '\0'; ptr++) {
@@ -179,16 +225,14 @@ static void ListCurrentFolder(StreamDevice& tty, const char *path) {
         front += 1;
     }
 
-    OsFolderIterateCreateInfo createInfo {
-        .Path = { copy + front, copy + len },
-    };
+    OsPath iteratorPath = { copy + front, copy + len };
 
     if (strncmp(path, "/", 2) == 0) {
-        createInfo.Path = OsMakePath("");
+        iteratorPath = OsMakePath("");
     }
 
-    OsFolderIteratorHandle handle = OS_FOLDER_ITERATOR_INVALID;
-    if (OsStatus status = OsFolderIterateCreate(createInfo, &handle)) {
+    FolderIterator iterator{};
+    if (OsStatus status = FolderIterator::Create(iteratorPath, &iterator)) {
         WriteString(tty, "Error: '");
         WriteString(tty, path, path + strlen(path));
         WriteString(tty, "' is not iterable.\n");
@@ -199,18 +243,30 @@ static void ListCurrentFolder(StreamDevice& tty, const char *path) {
         return;
     }
 
-    OsFolderEntry *iter = reinterpret_cast<OsFolderEntry*>(buffer);
-
     while (true) {
-        iter->NameSize = sizeof(buffer) - sizeof(OsFolderEntry);
-        OsStatus status = OsFolderIterateNext(handle, iter);
-        if (status == OsStatusEndOfFile) {
-            break;
+        OsNodeHandle node = OS_HANDLE_INVALID;
+        if (OsStatus status = iterator.Next(&node)) {
+            if (status == OsStatusCompleted) {
+                break;
+            }
+
+            WriteString(tty, "Error: Failed to iterate folder.\n");
+            WriteString(tty, "Status: ");
+            WriteNumber(tty, status);
+            WriteString(tty, "\n");
+            return;
         }
 
-        ASSERT_OS_SUCCESS(status);
+        OsNodeInfo info{};
+        if (OsStatus status = OsNodeStat(node, &info)) {
+            WriteString(tty, "Error: Failed to get node info.\n");
+            WriteString(tty, "Status: ");
+            WriteNumber(tty, status);
+            WriteString(tty, "\n");
+            return;
+        }
 
-        WriteString(tty, iter->Name, iter->Name + iter->NameSize);
+        WriteString(tty, info.Name, info.Name + strnlen(info.Name, sizeof(info.Name)));
         WriteString(tty, "\n");
     }
 }

@@ -4,8 +4,8 @@
 #include <bezos/facility/threads.h>
 
 #include "arch/xsave.hpp"
+#include "fs2/base.hpp"
 #include "memory/tables.hpp"
-#include "fs2/node.hpp"
 #include "isr/isr.hpp"
 #include "std/shared_spinlock.hpp"
 #include "std/spinlock.hpp"

@@ -1,4 +1,5 @@
 #include "process/process.hpp"
+#include "process/system.hpp"
 
 using KernelObject = km::KernelObject;
 
@@ -39,4 +40,22 @@ bool KernelObject::releaseWeak() {
     }
 
     return false;
+}
+
+OsHandle km::SystemObjects::getNodeId(vfs2::INode *node) {
+    stdx::SharedLock guard(mLock);
+    if (auto it = mVfsNodes.find(node); it != mVfsNodes.end()) {
+        return it->second->publicId();
+    }
+
+    return OS_HANDLE_INVALID;
+}
+
+OsHandle km::SystemObjects::getHandleId(vfs2::IHandle *handle) {
+    stdx::SharedLock guard(mLock);
+    if (auto it = mVfsHandles.find(handle); it != mVfsHandles.end()) {
+        return it->second->publicId();
+    }
+
+    return OS_HANDLE_INVALID;
 }

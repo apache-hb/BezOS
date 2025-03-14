@@ -31,7 +31,7 @@ namespace vfs2 {
         { }
 
         virtual HandleInfo info() override {
-            return HandleInfo { mNode };
+            return HandleInfo { mNode, kOsFileGuid };
         }
 
         virtual OsStatus stat(NodeStat *stat) override {

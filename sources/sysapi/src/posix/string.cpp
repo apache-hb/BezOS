@@ -11,6 +11,14 @@ size_t strlen(const char *s) noexcept {
     return len;
 }
 
+size_t strnlen(const char *s, size_t n) noexcept {
+    size_t len = 0;
+    while (n-- && *s++) {
+        len++;
+    }
+    return len;
+}
+
 void *memset(void *ptr, int v, size_t size) noexcept {
     unsigned char *p = static_cast<unsigned char *>(ptr);
     for (size_t i = 0; i < size; i++) {

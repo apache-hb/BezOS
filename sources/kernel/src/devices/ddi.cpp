@@ -92,7 +92,7 @@ OsStatus dev::DisplayHandle::getCanvas(void *data, size_t size) {
     return OsStatusSuccess;
 }
 
-OsStatus dev::DisplayHandle::invoke(uint64_t function, void *data, size_t size) {
+OsStatus dev::DisplayHandle::invoke(km::SystemObjects *, uint64_t function, void *data, size_t size) {
     switch (function) {
     case eOsDdiBlit:
         return blit(data, size);
@@ -109,7 +109,7 @@ OsStatus dev::DisplayHandle::invoke(uint64_t function, void *data, size_t size) 
 }
 
 vfs2::HandleInfo dev::DisplayHandle::info() {
-    return vfs2::HandleInfo { mNode };
+    return vfs2::HandleInfo { mNode, kOsDisplayClassGuid };
 }
 
 static constexpr inline vfs2::InterfaceList kInterfaceList = std::to_array({

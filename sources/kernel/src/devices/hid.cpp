@@ -9,7 +9,7 @@ dev::HidKeyboardHandle::HidKeyboardHandle(HidKeyboardDevice *node)
 }
 
 vfs2::HandleInfo dev::HidKeyboardHandle::info() {
-    return vfs2::HandleInfo { mNode };
+    return vfs2::HandleInfo { mNode, kOsHidClassGuid };
 }
 
 void dev::HidKeyboardHandle::notify(OsHidEvent event) {

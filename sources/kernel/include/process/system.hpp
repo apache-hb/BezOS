@@ -24,7 +24,8 @@ namespace km {
         sm::FlatHashMap<NodeId, Node*> mNodes;
         sm::FlatHashMap<DeviceId, Device*> mDevices;
 
-        sm::FlatHashMap<vfs2::INode*, Node*> mVfsNodes;
+        sm::FlatHashMap<vfs2::INode*, KernelObject*> mVfsNodes;
+        sm::FlatHashMap<vfs2::IHandle*, KernelObject*> mVfsHandles;
 
         bool releaseHandle(KernelObject *object);
         void destroyHandle(KernelObject *object);
@@ -52,6 +53,9 @@ namespace km {
         OsStatus addDevice(Process *process, std::unique_ptr<vfs2::IHandle> handle, Device **node);
         OsStatus destroyDevice(Process *process, Device *node);
         Device *getDevice(DeviceId id);
+
+        OsHandle getNodeId(vfs2::INode *node);
+        OsHandle getHandleId(vfs2::IHandle *handle);
 
         Thread *createThread(stdx::String name, Process* process);
         Mutex *createMutex(stdx::String name);

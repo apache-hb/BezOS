@@ -44,7 +44,7 @@ OsStatus vfs2::IIdentifyHandle::interfaces(void *data, size_t size) {
     return interfaces(list);
 }
 
-OsStatus vfs2::IIdentifyHandle::invoke(uint64_t function, void *data, size_t size) {
+OsStatus vfs2::IIdentifyHandle::invoke(km::SystemObjects *, uint64_t function, void *data, size_t size) {
     switch (function) {
     case eOsIdentifyInfo:
         return identify(data, size);

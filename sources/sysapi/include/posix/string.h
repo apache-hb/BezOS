@@ -30,6 +30,8 @@ extern void *memchr(const void *, int, size_t) BZP_NOEXCEPT BZP_NONNULL_ALL;
 
 extern size_t strlen(const char *) BZP_NOEXCEPT BZP_NONNULL_ALL;
 
+extern size_t strnlen(const char *, size_t) BZP_NOEXCEPT BZP_NONNULL_ALL;
+
 extern int strcmp(const char *, const char *) BZP_NOEXCEPT BZP_NONNULL_ALL;
 
 extern int strncmp(const char *, const char *, size_t) BZP_NOEXCEPT BZP_NONNULL_ALL;

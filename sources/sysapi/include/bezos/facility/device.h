@@ -58,6 +58,12 @@ struct OsDeviceWriteRequest {
     OsInstant Timeout;
 };
 
+struct OsDeviceInfo {
+    OsUtf8Char Name[OS_DEVICE_NAME_MAX];
+    struct OsGuid InterfaceGuid;
+    OsNodeHandle Node;
+};
+
 extern OsStatus OsDeviceOpen(struct OsDeviceCreateInfo CreateInfo, OsAnyPointer Data, OsSize DataSize, OsDeviceHandle *OutHandle);
 
 extern OsStatus OsDeviceClose(OsDeviceHandle Handle);
@@ -66,7 +72,9 @@ extern OsStatus OsDeviceRead(OsDeviceHandle Handle, struct OsDeviceReadRequest R
 
 extern OsStatus OsDeviceWrite(OsDeviceHandle Handle, struct OsDeviceWriteRequest Request, OsSize *OutWritten);
 
-extern OsStatus OsDeviceCall(OsDeviceHandle Handle, uint64_t Function, void *Data, OsSize DataSize);
+extern OsStatus OsDeviceInvoke(OsDeviceHandle Handle, uint64_t Function, void *Data, OsSize DataSize);
+
+extern OsStatus OsDeviceStat(OsDeviceHandle Handle, struct OsDeviceInfo *OutInfo);
 
 #ifdef __cplusplus
 }

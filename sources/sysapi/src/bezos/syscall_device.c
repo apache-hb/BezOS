@@ -25,7 +25,12 @@ OsStatus OsDeviceWrite(OsDeviceHandle Handle, struct OsDeviceWriteRequest Reques
     return result.Status;
 }
 
-OsStatus OsDeviceCall(OsDeviceHandle Handle, uint64_t Function, void *Data, OsSize DataSize) {
+OsStatus OsDeviceInvoke(OsDeviceHandle Handle, uint64_t Function, void *Data, OsSize DataSize) {
     struct OsCallResult result = OsSystemCall(eOsCallDeviceInvoke, (uintptr_t)Handle, Function, (uintptr_t)Data, DataSize);
+    return result.Status;
+}
+
+OsStatus OsDeviceStat(OsDeviceHandle Handle, struct OsDeviceInfo *OutInfo) {
+    struct OsCallResult result = OsSystemCall(eOsCallDeviceStat, (uintptr_t)Handle, (uintptr_t)OutInfo, 0, 0);
     return result.Status;
 }

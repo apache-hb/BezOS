@@ -24,7 +24,7 @@ struct OsIteratorNext {
 };
 
 inline OsStatus OsInvokeIteratorNext(OsDeviceHandle Handle, struct OsIteratorNext *Next) {
-    return OsDeviceCall(Handle, eOsIteratorNext, Next, sizeof(*Next));
+    return OsDeviceInvoke(Handle, eOsIteratorNext, Next, sizeof(*Next));
 }
 
 struct OsStreamCreateInfo {

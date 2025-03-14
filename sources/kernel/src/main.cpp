@@ -1014,6 +1014,22 @@ static OsStatus UserReadPath(CallContext *context, OsPath user, vfs2::VfsPath *p
     return OsStatusSuccess;
 }
 
+static OsStatus SelectOwningProcess(CallContext *context, OsProcessHandle handle, Process **result) {
+    Process *process = nullptr;
+    if (handle != OS_HANDLE_INVALID) {
+        process = gSystemObjects->getProcess(ProcessId(OS_HANDLE_ID(handle)));
+    } else {
+        process = context->process();
+    }
+
+    if (process == nullptr) {
+        return OsStatusInvalidHandle;
+    }
+
+    *result = process;
+    return OsStatusSuccess;
+}
+
 static void AddHandleSystemCalls() {
     AddSystemCall(eOsCallHandleWait, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t userHandle = regs->arg0;
@@ -1370,7 +1386,34 @@ static void AddDeviceSystemCalls() {
             return CallError(OsStatusInvalidHandle);
         }
 
-        if (OsStatus status = node->handle->invoke(userFunction, (void*)userData, userSize)) {
+        if (OsStatus status = node->handle->invoke(gSystemObjects, userFunction, (void*)userData, userSize)) {
+            return CallError(status);
+        }
+
+        return CallOk(0zu);
+    });
+
+    AddSystemCall(eOsCallDeviceStat, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        uint64_t userHandle = regs->arg0;
+        uint64_t userStat = regs->arg1;
+
+        Device *device = gSystemObjects->getDevice(DeviceId(OS_HANDLE_ID(userHandle)));
+        if (device == nullptr) {
+            return CallError(OsStatusInvalidHandle);
+        }
+
+        vfs2::HandleInfo handleInfo = device->handle->info();
+        vfs2::NodeInfo nodeInfo = handleInfo.node->info();
+
+        OsDeviceInfo result{};
+        size_t len = std::min(sizeof(result.Name), nodeInfo.name.count());
+        std::memcpy(result.Name, nodeInfo.name.data(), len);
+
+        result.InterfaceGuid = handleInfo.guid;
+
+        // TODO: fill in the rest of the fields
+
+        if (OsStatus status = context->writeObject(userStat, result)) {
             return CallError(status);
         }
 
@@ -1401,15 +1444,10 @@ static void AddThreadSystemCalls() {
             return CallError(status);
         }
 
-        Process *process;
-        if (createInfo.Process != OS_HANDLE_INVALID) {
-            process = gSystemObjects->getProcess(ProcessId(OS_HANDLE_ID(createInfo.Process)));
-        } else {
-            process = context->process();
-        }
+        Process *process = nullptr;
 
-        if (process == nullptr) {
-            return CallError(OsStatusNotFound);
+        if (OsStatus status = SelectOwningProcess(context, createInfo.Process, &process)) {
+            return CallError(status);
         }
 
         stdx::String stackName = name + " STACK";
@@ -1432,6 +1470,66 @@ static void AddThreadSystemCalls() {
             .ss = (SystemGdt::eLongModeUserData * 0x8) | 0b11,
         };
         return CallError(OsStatusInvalidFunction);
+    });
+}
+
+static void AddNodeSystemCalls() {
+    AddSystemCall(eOsCallNodeOpen, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        uint64_t userCreateInfo = regs->arg0;
+
+        Process *process = nullptr;
+        vfs2::INode *node = nullptr;
+        Node *result = nullptr;
+        vfs2::VfsPath path;
+        OsNodeCreateInfo createInfo{};
+
+        if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {
+            return CallError(status);
+        }
+
+        if (OsStatus status = SelectOwningProcess(context, createInfo.Process, &process)) {
+            return CallError(status);
+        }
+
+        if (OsStatus status = UserReadPath(context, createInfo.Path, &path)) {
+            return CallError(status);
+        }
+
+        if (OsStatus status = gVfsRoot->lookup(path, &node)) {
+            return CallError(status);
+        }
+
+        if (OsNodeHandle existing = gSystemObjects->getNodeId(node)) {
+            return CallOk(existing);
+        }
+
+        if (OsStatus status = gSystemObjects->createNode(process, std::move(node), &result)) {
+            return CallError(status);
+        }
+
+        return CallOk(result->publicId());
+    });
+
+    AddSystemCall(eOsCallNodeStat, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        uint64_t userHandle = regs->arg0;
+        uint64_t userStat = regs->arg1;
+
+        Node *node = gSystemObjects->getNode(NodeId(OS_HANDLE_ID(userHandle)));
+        if (node == nullptr) {
+            return CallError(OsStatusInvalidHandle);
+        }
+
+        vfs2::NodeInfo info = node->node->info();
+
+        OsNodeInfo result{};
+        size_t len = std::min(sizeof(result.Name), info.name.count());
+        std::memcpy(result.Name, info.name.data(), len);
+
+        if (OsStatus status = context->writeObject(userStat, result)) {
+            return CallError(status);
+        }
+
+        return CallOk(0zu);
     });
 }
 
@@ -1543,14 +1641,8 @@ static void AddProcessSystemCalls() {
         uint64_t userExitCode = regs->arg1;
 
         Process *process;
-        if (userProcess != OS_HANDLE_INVALID) {
-            process = gSystemObjects->getProcess(ProcessId(OS_HANDLE_ID(userProcess)));
-        } else {
-            process = context->process();
-        }
-
-        if (process == nullptr) {
-            return CallError(OsStatusNotFound);
+        if (OsStatus status = SelectOwningProcess(context, userProcess, &process)) {
+            return CallError(status);
         }
 
         KmDebugMessage("[PROC] Process ", process->internalId(), " exited with code ", userExitCode, "\n");
@@ -1877,6 +1969,7 @@ static void InitUserApi() {
     AddDebugSystemCalls();
     AddVfsSystemCalls();
     AddDeviceSystemCalls();
+    AddNodeSystemCalls();
     AddThreadSystemCalls();
     AddVmemSystemCalls();
     AddMutexSystemCalls();
