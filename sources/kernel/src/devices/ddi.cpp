@@ -92,7 +92,7 @@ OsStatus dev::DisplayHandle::getCanvas(void *data, size_t size) {
     return OsStatusSuccess;
 }
 
-OsStatus dev::DisplayHandle::invoke(km::SystemObjects *, uint64_t function, void *data, size_t size) {
+OsStatus dev::DisplayHandle::invoke(vfs2::IInvokeContext *, uint64_t function, void *data, size_t size) {
     switch (function) {
     case eOsDdiBlit:
         return blit(data, size);

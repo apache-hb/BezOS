@@ -1000,6 +1000,38 @@ static std::tuple<std::optional<HypervisorInfo>, bool> QueryHostHypervisor() {
     return std::make_tuple(hvInfo, hasDebugPort);
 }
 
+class SystemInvokeContext final : public vfs2::IInvokeContext {
+    CallContext *mContext;
+    km::SystemObjects *mSystem;
+
+    OsProcessHandle process() override {
+        return mContext->process()->publicId();
+    }
+
+    OsThreadHandle thread() override {
+        return mContext->thread()->publicId();
+    }
+
+    OsNodeHandle resolveNode(vfs2::INode *node) override {
+        if (OsNodeHandle handle = mSystem->getNodeId(node)) {
+            return handle;
+        }
+
+        Node *result = nullptr;
+        if (mSystem->createNode(mContext->process(), node, &result) != OsStatusSuccess) {
+            return OS_HANDLE_INVALID;
+        }
+
+        return result->publicId();
+    }
+
+public:
+    SystemInvokeContext(CallContext *context, km::SystemObjects *system)
+        : mContext(context)
+        , mSystem(system)
+    { }
+};
+
 static OsStatus UserReadPath(CallContext *context, OsPath user, vfs2::VfsPath *path) {
     vfs2::VfsString text;
     if (OsStatus status = context->readString((uint64_t)user.Front, (uint64_t)user.Back, kMaxPathSize, &text)) {
@@ -1386,7 +1418,9 @@ static void AddDeviceSystemCalls() {
             return CallError(OsStatusInvalidHandle);
         }
 
-        if (OsStatus status = node->handle->invoke(gSystemObjects, userFunction, (void*)userData, userSize)) {
+        SystemInvokeContext invoke { context, gSystemObjects };
+
+        if (OsStatus status = node->handle->invoke(&invoke, userFunction, (void*)userData, userSize)) {
             return CallError(status);
         }
 

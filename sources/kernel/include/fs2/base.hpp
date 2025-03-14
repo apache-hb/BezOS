@@ -83,11 +83,18 @@ namespace vfs2 {
     public:
         virtual ~IInvokeContext() = default;
 
+        /// @brief The process that is invoking the method.
         virtual OsProcessHandle process() = 0;
+
+        /// @brief The thread that is invoking the method.
         virtual OsThreadHandle thread() = 0;
 
+        /// @brief Insert or retrieve the handle associated with this node.
+        ///
+        /// @param node The node to resolve.
+        ///
+        /// @return The handle associated with the node.
         virtual OsNodeHandle resolveNode(INode *node) = 0;
-        virtual OsDeviceHandle resolveHandle(IHandle *handle) = 0;
     };
 
     /// @brief A handle to a file or folder.
@@ -99,13 +106,13 @@ namespace vfs2 {
 
         /// @brief Invoke a method on the handle.
         ///
-        /// @param system the system context.
+        /// @param context the invocation context.
         /// @param method The method to invoke.
         /// @param data The data to pass to the method.
         /// @param size The size of the data.
         ///
         /// @return The status of the invocation.
-        virtual OsStatus invoke(km::SystemObjects *, uint64_t, void *, size_t) { return OsStatusFunctionNotSupported; }
+        virtual OsStatus invoke(IInvokeContext *, uint64_t, void *, size_t) { return OsStatusFunctionNotSupported; }
 
         /// @brief Read data from the handle.
         ///

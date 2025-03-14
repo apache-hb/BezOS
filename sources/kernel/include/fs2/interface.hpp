@@ -28,9 +28,9 @@ namespace vfs2 {
 
         virtual OsStatus next(INode **node) = 0;
 
-        OsStatus next(km::SystemObjects *context, void *data, size_t size);
+        OsStatus next(IInvokeContext *context, void *data, size_t size);
 
-        OsStatus invoke(km::SystemObjects *context, uint64_t function, void *data, size_t size) override;
+        OsStatus invoke(IInvokeContext *context, uint64_t function, void *data, size_t size) override;
     };
 
     /// @note All interfaces of @a kOsIdentifyGuid must implement this interface.
@@ -44,7 +44,7 @@ namespace vfs2 {
         OsStatus identify(void *data, size_t size);
         OsStatus interfaces(void *data, size_t size);
 
-        OsStatus invoke(km::SystemObjects *context, uint64_t function, void *data, size_t size) override;
+        OsStatus invoke(IInvokeContext *context, uint64_t function, void *data, size_t size) override;
     };
 
     /// @note All interfaces of @a kOsStreamGuid must implement this interface.

@@ -341,8 +341,6 @@ src = [
     'src/fs2/query.cpp',
     'src/fs2/iterator.cpp',
 
-    'src/process/object.cpp',
-
     'src/util/uuid.cpp',
 ]
 

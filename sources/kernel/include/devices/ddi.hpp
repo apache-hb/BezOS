@@ -31,7 +31,7 @@ namespace dev {
     public:
         DisplayHandle(DisplayDevice *node);
 
-        OsStatus invoke(km::SystemObjects *context, uint64_t function, void *data, size_t size) override;
+        OsStatus invoke(vfs2::IInvokeContext *context, uint64_t function, void *data, size_t size) override;
 
         vfs2::HandleInfo info() override;
     };
