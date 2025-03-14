@@ -1178,87 +1178,8 @@ static void AddVfsFileSystemCalls() {
     });
 }
 
-static void AddVfsFolderSystemCalls() {
-    AddSystemCall(eOsCallFolderIterateCreate, [](CallContext *, SystemCallRegisterSet *) -> OsCallResult {
-        return CallError(OsStatusNotSupported);
-
-#if 0
-        uint64_t userCreateInfo = regs->arg0;
-
-        OsFolderIterateCreateInfo createInfo{};
-        if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {
-            return CallError(status);
-        }
-
-        vfs2::VfsPath path;
-        if (OsStatus status = UserReadPath(context, createInfo.Path, &path)) {
-            return CallError(status);
-        }
-
-        std::unique_ptr<vfs2::IHandle> node = nullptr;
-        if (OsStatus status = gVfsRoot->opendir(path, std::out_ptr(node))) {
-            return CallError(status);
-        }
-
-        vfs2::IHandle *ptr = context->process()->addFile(std::move(node));
-
-        return CallOk(ptr);
-#endif
-    });
-
-    AddSystemCall(eOsCallFolderIterateNext, [](CallContext *, SystemCallRegisterSet *) -> OsCallResult {
-        return CallError(OsStatusNotSupported);
-
-#if 0
-        uint64_t userHandle = regs->arg0;
-        uint64_t userEntry = regs->arg1;
-
-        vfs2::IHandle *handle = context->process()->findFile((const vfs2::IHandle*)userHandle);
-        if (handle == nullptr) {
-            return CallError(OsStatusInvalidHandle);
-        }
-
-        OsFolderEntry header{};
-        if (OsStatus status = context->readObject(userEntry, &header)) {
-            return CallError(status);
-        }
-
-        OsFolderEntryNameSize size = header.NameSize;
-        if (size > kMaxPathSize) {
-            return CallError(OsStatusInvalidInput);
-        }
-
-        vfs2::VfsString name;
-        if (OsStatus status = handle->next(&name)) {
-            return CallError(status);
-        }
-
-        OsFolderEntryNameSize limit = std::min<OsFolderEntryNameSize>(size, name.count());
-
-        OsFolderEntry result { .NameSize = limit, };
-
-        //
-        // First write back the header.
-        //
-        if (OsStatus status = context->writeObject(userEntry, result)) {
-            return CallError(status);
-        }
-
-        //
-        // Then write the name itself.
-        //
-        if (OsStatus status = context->writeRange(userEntry + sizeof(OsFolderEntry), name.begin(), name.data() + limit)) {
-            return CallError(status);
-        }
-
-        return CallOk(0zu);
-#endif
-    });
-}
-
 static void AddVfsSystemCalls() {
     AddVfsFileSystemCalls();
-    AddVfsFolderSystemCalls();
 }
 
 // TODO: there should be a global registry of these, and they should be loaded from shared objects

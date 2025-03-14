@@ -11,7 +11,7 @@ namespace vfs2 {
 
     template<typename T>
     concept FolderMkNode = requires (T it) {
-        { it.mknode(std::declval<VfsStringView>(), std::declval<INode*>()) } -> std::same_as<OsStatus>;
+        { it.mknode(std::declval<INode*>(), std::declval<VfsStringView>(), std::declval<INode*>()) } -> std::same_as<OsStatus>;
     };
 
     template<typename T>
@@ -35,7 +35,7 @@ namespace vfs2 {
         };
 
         OsStatus lookup(VfsStringView name, INode **child);
-        OsStatus mknode(VfsStringView name, INode *child);
+        OsStatus mknode(INode *parent, VfsStringView name, INode *child);
         OsStatus rmnode(INode *child);
 
         OsStatus next(Iterator *iterator, INode **node);
@@ -55,7 +55,7 @@ namespace vfs2 {
 
         virtual OsStatus mknode(VfsStringView name, INode *child) override {
             if constexpr (FolderMkNode<T>) {
-                return mNode->mknode(name, child);
+                return mNode->mknode(mNode, name, child);
             } else {
                 return OsStatusFunctionNotSupported;
             }

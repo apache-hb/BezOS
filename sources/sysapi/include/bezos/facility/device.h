@@ -18,9 +18,6 @@ enum {
 
     /// @brief Create the device if it does not exist.
     eOsDeviceCreateNew = 0x1,
-
-    /// @brief Create the device if it does not exist, otherwise open it.
-    eOsDeviceCreateAlways = 0x2,
 };
 
 struct OsDeviceCreateInfo {

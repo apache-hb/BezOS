@@ -11,10 +11,12 @@ OsStatus FolderMixin::lookup(VfsStringView name, INode **child) {
     return OsStatusNotFound;
 }
 
-OsStatus FolderMixin::mknode(VfsStringView name, INode *child) {
+OsStatus FolderMixin::mknode(INode *parent, VfsStringView name, INode *child) {
     if (mChildren.contains(name)) {
         return OsStatusAlreadyExists;
     }
+
+    child->init(parent, VfsString(name), Access::RWX);
 
     mChildren.insert({ VfsString(name), std::unique_ptr<INode>(child) });
     return OsStatusSuccess;

@@ -159,8 +159,8 @@ OsStatus VfsRoot::insertMount(INode *parent, const VfsPath& path, std::unique_pt
     // its root node present in its parent folder.
     //
 
-    INode *root = nullptr;
-    if (OsStatus status = point->root(&root)) {
+    INode *mountBase = nullptr;
+    if (OsStatus status = point->root(&mountBase)) {
         mMounts.erase(iter);
         return status;
     }
@@ -169,9 +169,9 @@ OsStatus VfsRoot::insertMount(INode *parent, const VfsPath& path, std::unique_pt
     // Fill out the root node with its information relative
     // to where its mounted.
     //
-    root->init(parent, VfsString(path.name()), Access::RWX);
+    parent->init(mountBase, VfsString(path.name()), Access::RWX);
 
-    if (OsStatus status = addNode(parent, VfsString(path.name()), root)) {
+    if (OsStatus status = addNode(parent, VfsString(path.name()), mountBase)) {
         mMounts.erase(iter);
         return status;
     }
@@ -426,7 +426,7 @@ OsStatus VfsRoot::mkdevice(const VfsPath& path, INode *device) {
     //
     // We need to initialize the device node before adding it to the parent.
     //
-    parent->init(device, VfsString(path.name()), vfs2::Access::RWX);
+    device->init(parent, VfsString(path.name()), vfs2::Access::RWX);
 
     //
     // If this call fails it is the responsibility of the caller to clean up the device.

@@ -171,7 +171,7 @@ dev::AcpiRoot::AcpiRoot(const acpi::AcpiTables *tables)
 {
     for (const acpi::RsdtHeader *header : mTables->entries()) {
         dev::AcpiTable *table = new dev::AcpiTable(header);
-        mknode(vfs2::VfsStringView(header->signature), table);
+        mknode(this, vfs2::VfsStringView(header->signature), table);
     }
 }
 
@@ -259,10 +259,9 @@ dev::SmBiosRoot::SmBiosRoot(const km::SmBiosTables *tables)
     for (const km::smbios::StructHeader *header : *mTables) {
         dev::SmBiosTable *table = new dev::SmBiosTable(header, mTables);
         auto handle = km::format(km::Hex(header->handle).pad(4));
-        mknode(vfs2::VfsStringView(handle), table);
+        mknode(this, vfs2::VfsStringView(handle), table);
     }
 }
-
 
 OsStatus dev::SmBiosRoot::query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) {
     return kSmbRootInterfaceList.query(this, uuid, data, size, handle);

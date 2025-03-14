@@ -159,8 +159,8 @@ public:
     VtDisplay() {
         OsDeviceCreateInfo createInfo = {
             .Path = OsMakePath(kDisplayDevicePath),
-
             .InterfaceGuid = kOsDisplayClassGuid,
+            .Flags = eOsDeviceCreateNew,
         };
 
         ASSERT_OS_SUCCESS(OsDeviceOpen(createInfo, NULL, 0, &mDevice));

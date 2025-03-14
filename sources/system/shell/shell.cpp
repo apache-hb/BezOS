@@ -13,6 +13,8 @@
 #include <bezos/subsystem/ddi.h>
 #include <bezos/subsystem/identify.h>
 
+#include "defer.hpp"
+
 #include <concepts>
 #include <flanterm.h>
 #include <backends/fb.h>
@@ -84,6 +86,9 @@ class StreamDevice {
     OsDeviceHandle mDevice;
 
 public:
+    UTIL_NOCOPY(StreamDevice);
+    UTIL_NOMOVE(StreamDevice);
+
     StreamDevice(OsPath path) {
         OsDeviceCreateInfo createInfo {
             .Path = path,
@@ -165,6 +170,8 @@ class FolderIterator {
     OsDeviceHandle mHandle;
 
 public:
+    UTIL_NOCOPY(FolderIterator);
+
     FolderIterator() : mHandle(OS_HANDLE_INVALID) {}
 
     FolderIterator(FolderIterator &&other) : mHandle(other.mHandle) {
@@ -175,9 +182,6 @@ public:
         std::swap(mHandle, other.mHandle);
         return *this;
     }
-
-    FolderIterator(const FolderIterator&) = delete;
-    FolderIterator& operator=(const FolderIterator&) = delete;
 
     ~FolderIterator() {
         if (mHandle != OS_HANDLE_INVALID) {
@@ -245,6 +249,12 @@ static void ListCurrentFolder(StreamDevice& tty, const char *path) {
 
     while (true) {
         OsNodeHandle node = OS_HANDLE_INVALID;
+        defer {
+            if (node != OS_HANDLE_INVALID) {
+                ASSERT_OS_SUCCESS(OsNodeClose(node));
+            }
+        };
+
         if (OsStatus status = iterator.Next(&node)) {
             if (status == OsStatusCompleted) {
                 break;

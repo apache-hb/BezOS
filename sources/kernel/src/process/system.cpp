@@ -19,7 +19,7 @@ OsStatus SystemObjects::createNode(Process *process, vfs2::INode *vfsNode, Node 
 
     Node *ptr = node.release();
 
-    KmDebugMessage("[PROC] Created node ", ptr->publicId(), " for ", info.name, "\n");
+    KmDebugMessage("[PROC] Created node ", km::Hex(ptr->publicId()), " for '", info.name, "'\n");
 
     stdx::UniqueLock guard(mLock);
     process->addHandle(ptr);
@@ -79,7 +79,7 @@ OsStatus SystemObjects::createDevice(const vfs2::VfsPath &path, sm::uuid uuid, c
 
     Device *ptr = result.release();
 
-    KmDebugMessage("[PROC] Created device ", km::Hex(ptr->publicId()), " for ", path.name(), "\n");
+    KmDebugMessage("[PROC] Created device ", km::Hex(ptr->publicId()), "::", sm::uuid(handleInfo.guid), " for '", path.name(), "'\n");
 
     stdx::UniqueLock guard(mLock);
     process->addHandle(ptr);
@@ -134,7 +134,7 @@ OsStatus SystemObjects::addDevice(Process *process, std::unique_ptr<vfs2::IHandl
     DeviceId id = mDeviceIds.allocate();
     result->init(id, stdx::String(nodeInfo.name), std::move(handle));
 
-    KmDebugMessage("[PROC] Created device ", km::Hex(result->publicId()), " for ", nodeInfo.name, "\n");
+    KmDebugMessage("[PROC] Created device ", km::Hex(result->publicId()), "::", sm::uuid(handleInfo.guid), " for '", nodeInfo.name, "'\n");
 
     stdx::UniqueLock guard(mLock);
 
