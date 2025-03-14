@@ -21,8 +21,8 @@ namespace vfs2 {
 
     template<typename THandle, typename TNode>
     constexpr InterfaceEntry InterfaceOf(OsGuid guid) {
-        CreateHandle callback = [](INode *node, const void *, size_t) -> IHandle* {
-            return new (std::nothrow) THandle(static_cast<TNode *>(node));
+        CreateHandle callback = [](INode *node, const void *data, size_t size) -> IHandle* {
+            return new (std::nothrow) THandle(static_cast<TNode *>(node), data, size);
         };
 
         return InterfaceEntry { guid, callback, };

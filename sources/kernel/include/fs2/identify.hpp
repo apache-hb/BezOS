@@ -2,6 +2,7 @@
 
 #include <bezos/subsystem/identify.h>
 
+#include "fs2/device.hpp"
 #include "fs2/interface.hpp"
 
 namespace vfs2 {
@@ -36,12 +37,12 @@ namespace vfs2 {
     };
 
     template<IdentifyNode T>
-    class TIdentifyHandle : public IIdentifyHandle {
-        T *mNode;
+    class TIdentifyHandle : public BasicHandle<T, IIdentifyHandle> {
+        using BasicHandle<T, IIdentifyHandle>::mNode;
 
     public:
-        TIdentifyHandle(T *node)
-            : mNode(node)
+        TIdentifyHandle(T *node, const void *, size_t)
+            : BasicHandle<T, IIdentifyHandle>(node)
         { }
 
         OsStatus identify(OsIdentifyInfo *info) override {

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "fs2/device.hpp"
 #include "fs2/interface.hpp"
 
 namespace vfs2 {
@@ -22,12 +23,11 @@ namespace vfs2 {
     concept FileNode = FileNodeStat<T> && std::derived_from<T, INode>;
 
     template<FileNode T>
-    class TFileHandle : public IFileHandle {
-        T *mNode;
-
+    class TFileHandle : public BasicHandle<T, IFileHandle> {
+        using BasicHandle<T, IFileHandle>::mNode;
     public:
-        TFileHandle(T *node)
-            : mNode(node)
+        TFileHandle(T *node, const void *, size_t)
+            : BasicHandle<T, IFileHandle>(node)
         { }
 
         virtual HandleInfo info() override {

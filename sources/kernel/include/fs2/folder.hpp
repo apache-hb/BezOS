@@ -1,5 +1,6 @@
 #pragma once
 
+#include "fs2/device.hpp"
 #include "fs2/fsptr.hpp"
 #include "fs2/interface.hpp"
 #include "util/absl.hpp"
@@ -43,11 +44,12 @@ namespace vfs2 {
     };
 
     template<FolderNodeType T>
-    class TFolderHandle : public IFolderHandle {
-        T *mNode;
+    class TFolderHandle : public BasicHandle<T, IFolderHandle> {
+        using BasicHandle<T, IFolderHandle>::mNode;
+
     public:
-        TFolderHandle(T *node)
-            : mNode(node)
+        TFolderHandle(T *node, const void *, size_t)
+            : BasicHandle<T, IFolderHandle>(node)
         { }
 
         virtual OsStatus lookup(VfsStringView name, INode **child) override {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "fs2/base.hpp"
+#include "fs2/device.hpp"
 
 namespace vfs2 {
     template<typename T>
@@ -17,11 +18,11 @@ namespace vfs2 {
     concept StreamNode = std::derived_from<T, INode> && StreamNodeRead<T> && StreamNodeWrite<T>;
 
     template<StreamNode T>
-    class TStreamHandle : public IHandle {
-        T *mNode;
+    class TStreamHandle : public BasicHandle<T, IHandle> {
+        using BasicHandle<T, IHandle>::mNode;
     public:
-        TStreamHandle(T *node)
-            : mNode(node)
+        TStreamHandle(T *node, const void *, size_t)
+            : BasicHandle<T, IHandle>(node)
         { }
 
         virtual OsStatus read(ReadRequest request, ReadResult *result) override {

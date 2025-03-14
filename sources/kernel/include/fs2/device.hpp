@@ -55,4 +55,21 @@ namespace vfs2 {
             return count - 1;
         }
     };
+
+    template<std::derived_from<INode> Node, std::derived_from<IHandle> Interface>
+    class BasicHandle : public Interface {
+    protected:
+        Node *mNode;
+
+    public:
+        BasicHandle(Node *node)
+            : mNode(node)
+        {
+            mNode->retain();
+        }
+
+        virtual ~BasicHandle() override {
+            mNode->release();
+        }
+    };
 }
