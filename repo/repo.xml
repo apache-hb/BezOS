@@ -18,6 +18,8 @@
 
     <xi:include href='packages/sysapi.xml' />
 
+    <xi:include href='packages/tools/llvm-compiler-rt.xml' />
+
     <!-- <xi:include href='packages/lib/abseil.xml' /> -->
     <!-- <xi:include href='packages/tools/protobuf.xml' /> -->
 

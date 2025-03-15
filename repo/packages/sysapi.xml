@@ -2,6 +2,7 @@
     <source path='sysapi' />
 
     <require package='llvm' />
+    <require package='llvm-libcxx' />
     <require package='gcc' />
 
     <configure with='meson'>

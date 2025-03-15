@@ -23,14 +23,15 @@
              CXX='@PREFIX@/llvm/bin/clang++'
              AR='@PREFIX@/llvm/bin/llvm-ar'
              LD='@PREFIX@/llvm/bin/ld.lld'
-             LDFLAGS='-nostartfiles -nostdlib
-                      -Wl,--start-group
+             CFLAGS='--sysroot @PREFIX@' />
+
+            <!-- LDFLAGS='-nostartfiles -nostdlib
+                      -Wl,-\-start-group
                       @PREFIX@/sysapi/lib/crtstart.o
                       @PREFIX@/sysapi/lib/libbezos-sysapi.a
                       @PREFIX@/sysapi/lib/libbezos-posix.a
                       -e ProgramMain'
-             CFLAGS='--sysroot @PREFIX@/llvm
-                     -isystem @PREFIX@/sysapi/include/posix' />
+                       -->
 
         <options host='x86_64-bezos-jlibc'
                  without-progs=''

@@ -1,0 +1,227 @@
+diff --git a/clang/lib/Driver/ToolChains/BezOS.cpp b/clang/lib/Driver/ToolChains/BezOS.cpp
+new file mode 100644
+index 0000000..2617e19
+--- /dev/null
++++ b/clang/lib/Driver/ToolChains/BezOS.cpp
+@@ -0,0 +1,221 @@
++//===--- BezOS.cpp - BezOS ToolChain Implementations --------*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++
++#include "BezOS.h"
++#include "CommonArgs.h"
++#include "clang/Config/config.h"
++#include "clang/Driver/Driver.h"
++#include "clang/Driver/Options.h"
++#include "clang/Driver/Compilation.h"
++#include "llvm/Support/Path.h"
++#include "llvm/Support/VirtualFileSystem.h"
++
++using namespace clang::driver;
++using namespace clang::driver::toolchains;
++using namespace clang;
++using namespace llvm::opt;
++
++using tools::addPathIfExists;
++
++/// Get our best guess at the multiarch triple for a target.
++std::string BezOS::getMultiarchTriple(const Driver &D,
++                                      const llvm::Triple &TargetTriple,
++                                      StringRef SysRoot) const {
++  switch (TargetTriple.getArch()) {
++  default:
++    break;
++
++    // Only x86_64 is supported for now.
++  case llvm::Triple::x86_64:
++    return "x86_64-bezos";
++  }
++
++  llvm_unreachable("unsupported architecture");
++}
++
++BezOS::BezOS(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
++    : ToolChain(D, Triple, Args) {
++#ifdef ENABLE_LINKER_BUILD_ID
++  ExtraOpts.push_back("--build-id");
++#endif
++  std::string SysRoot = computeSysRoot();
++  path_list &Paths = getFilePaths();
++
++  addPathIfExists(D, SysRoot + "/sysapi/lib", Paths);
++  addPathIfExists(D, SysRoot + "/llvm-libcxx/lib", Paths);
++}
++
++std::string BezOS::getCompilerRTPath() const {
++  return computeSysRoot() + "/llvm-libcxx/lib";
++}
++
++bool BezOS::HasNativeLLVMSupport() const { return true; }
++
++Tool *BezOS::buildStaticLibTool() const {
++  return new tools::bezos::StaticLibTool(*this);
++}
++
++Tool *BezOS::buildLinker() const { return new tools::bezos::Linker(*this); }
++
++void BezOS::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
++                                      ArgStringList &CC1Args) const {
++  std::string SysRoot = computeSysRoot();
++
++  if (!DriverArgs.hasArg(options::OPT_nobuiltininc)) {
++    SmallString<128> Dir(getDriver().ResourceDir);
++    llvm::sys::path::append(Dir, "include");
++    addSystemInclude(DriverArgs, CC1Args, Dir.str());
++  }
++
++  if (!DriverArgs.hasArg(options::OPT_nostdlibinc)) {
++    // BezOS has no concept of /include or /lib directories, so we add only
++    // the toolchain include directories.
++    addSystemInclude(DriverArgs, CC1Args, SysRoot + "/sysapi/include");
++    addSystemInclude(DriverArgs, CC1Args, SysRoot + "/sysapi/include/posix");
++
++    // Check for configure-time C include directories.
++    StringRef CIncludeDirs(C_INCLUDE_DIRS);
++    if (CIncludeDirs != "") {
++      SmallVector<StringRef, 5> Dirs;
++      CIncludeDirs.split(Dirs, ":");
++      for (StringRef Dir : Dirs) {
++        StringRef Prefix =
++            llvm::sys::path::is_absolute(Dir) ? "" : StringRef(SysRoot);
++        addExternCSystemInclude(DriverArgs, CC1Args, Prefix + Dir);
++      }
++    }
++  }
++}
++
++void BezOS::AddClangCXXStdlibIncludeArgs(
++    const llvm::opt::ArgList &DriverArgs,
++    llvm::opt::ArgStringList &CC1Args) const {
++
++  if (DriverArgs.hasArg(options::OPT_nostdincxx, options::OPT_nostdlibinc, options::OPT_nostdincxx))
++    return;
++
++  std::string SysRoot = computeSysRoot();
++  addSystemInclude(DriverArgs, CC1Args,
++                   SysRoot + "/llvm-libcxx/include/" + getTripleString() +
++                       "/c++/v1");
++  addSystemInclude(DriverArgs, CC1Args,
++                   SysRoot + "/llvm-libcxx/include/c++/v1");
++}
++
++void tools::bezos::StaticLibTool::ConstructJob(Compilation &C, const JobAction &JA,
++                                            const InputInfo &Output,
++                                            const InputInfoList &Inputs,
++                                            const ArgList &Args,
++                                            const char *LinkingOutput) const {
++  const Driver &D = getToolChain().getDriver();
++
++  // Silence warning for "clang -g foo.o -o foo"
++  Args.ClaimAllArgs(options::OPT_g_Group);
++  // and "clang -emit-llvm foo.o -o foo"
++  Args.ClaimAllArgs(options::OPT_emit_llvm);
++  // and for "clang -w foo.o -o foo". Other warning options are already
++  // handled somewhere else.
++  Args.ClaimAllArgs(options::OPT_w);
++  // Silence warnings when linking C code with a C++ '-stdlib' argument.
++  Args.ClaimAllArgs(options::OPT_stdlib_EQ);
++
++  // ar tool command "llvm-ar <options> <output_file> <input_files>".
++  ArgStringList CmdArgs;
++  // Create and insert file members with a deterministic index.
++  CmdArgs.push_back("rcsD");
++  CmdArgs.push_back(Output.getFilename());
++
++  for (const auto &II : Inputs) {
++    if (II.isFilename()) {
++      CmdArgs.push_back(II.getFilename());
++    }
++  }
++
++  // Delete old output archive file if it already exists before generating a new
++  // archive file.
++  const char *OutputFileName = Output.getFilename();
++  if (Output.isFilename() && llvm::sys::fs::exists(OutputFileName)) {
++    if (std::error_code EC = llvm::sys::fs::remove(OutputFileName)) {
++      D.Diag(diag::err_drv_unable_to_remove_file) << EC.message();
++      return;
++    }
++  }
++
++  const char *Exec = Args.MakeArgString(getToolChain().GetStaticLibToolPath());
++  C.addCommand(std::make_unique<Command>(JA, *this,
++                                         ResponseFileSupport::AtFileCurCP(),
++                                         Exec, CmdArgs, Inputs, Output));
++}
++
++void tools::bezos::Linker::ConstructJob(Compilation &C, const JobAction &JA,
++                                     const InputInfo &Output,
++                                     const InputInfoList &Inputs,
++                                     const ArgList &Args,
++                                     const char *LinkingOutput) const {
++  ArgStringList CmdArgs;
++
++  auto &TC = getToolChain();
++  const Driver &D = getToolChain().getDriver();
++
++  AddLinkerInputs(TC, Inputs, Args, CmdArgs, JA);
++
++  CmdArgs.push_back("-Bstatic");
++
++  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles,
++                   options::OPT_r)) {
++    CmdArgs.push_back("-e");
++    CmdArgs.push_back("ProgramMain");
++    CmdArgs.push_back(Args.MakeArgString(TC.GetFilePath("crtbegin.o")));
++  }
++
++  Args.addAllArgs(CmdArgs, {options::OPT_L, options::OPT_T_Group,
++                            options::OPT_s, options::OPT_t, options::OPT_r});
++
++  TC.AddFilePathLibArgs(Args, CmdArgs);
++
++  for (const auto &LibPath : TC.getLibraryPaths())
++    CmdArgs.push_back(Args.MakeArgString(llvm::Twine("-L", LibPath)));
++
++  if (TC.ShouldLinkCXXStdlib(Args)) {
++    bool OnlyLibstdcxxStatic = Args.hasArg(options::OPT_static_libstdcxx) &&
++                               !Args.hasArg(options::OPT_static);
++    if (OnlyLibstdcxxStatic)
++      CmdArgs.push_back("-Bstatic");
++    TC.AddCXXStdlibLibArgs(Args, CmdArgs);
++    if (OnlyLibstdcxxStatic)
++      CmdArgs.push_back("-Bdynamic");
++  }
++
++  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
++    AddRunTimeLibs(TC, D, CmdArgs, Args);
++
++    CmdArgs.push_back(Args.MakeArgString(D.SysRoot + "/sysapi/lib/libbezos-posix.a"));
++    CmdArgs.push_back(Args.MakeArgString(D.SysRoot + "/sysapi/lib/libbezos-sysapi.a"));
++  }
++
++  if (D.isUsingLTO()) {
++    assert(!Inputs.empty() && "Must have at least one input.");
++    // Find the first filename InputInfo object.
++    auto Input = llvm::find_if(
++        Inputs, [](const InputInfo &II) -> bool { return II.isFilename(); });
++    if (Input == Inputs.end())
++      // For a very rare case, all of the inputs to the linker are
++      // InputArg. If that happens, just use the first InputInfo.
++      Input = Inputs.begin();
++
++    addLTOOptions(TC, Args, CmdArgs, Output, *Input,
++                  D.getLTOMode() == LTOK_Thin);
++  }
++
++  CmdArgs.push_back("-o");
++  CmdArgs.push_back(Output.getFilename());
++
++  C.addCommand(std::make_unique<Command>(
++      JA, *this, ResponseFileSupport::AtFileCurCP(),
++      Args.MakeArgString(TC.GetLinkerPath()), CmdArgs, Inputs, Output));
++}

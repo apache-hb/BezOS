@@ -19,24 +19,13 @@ src = [
     'src/bezos/syscall.S',
 ]
 
-inc = include_directories('include')
+inc = include_directories('include', 'include/posix')
 
 sysapi_dep = declare_dependency(
     include_directories : inc,
 )
 
-inc = include_directories('include', 'include/posix')
-
 cc = meson.get_compiler('c')
-
-custom_target('crtstart',
-    input : 'src/crt/start.cpp',
-    output : 'crtstart.o',
-    command : cc.cmd_array() + [ '-c', '-o', '@OUTPUT@', '@INPUT@', '-I' + meson.current_source_dir() / 'include' ],
-    install : not meson.is_subproject(),
-    build_by_default : not meson.is_subproject(),
-    install_dir : get_option('libdir'),
-)
 
 libbezos = static_library('bezos-sysapi', src,
     include_directories : inc,
@@ -52,6 +41,15 @@ bezos_dep = declare_dependency(
 meson.override_dependency('bezos', bezos_dep)
 
 if not meson.is_subproject()
+    custom_target('crtstart',
+        input : 'src/crt/start.cpp',
+        output : 'crtstart.o',
+        command : cc.cmd_array() + [ '-c', '-o', '@OUTPUT@', '@INPUT@', '-I' + meson.current_source_dir() / 'include', '--sysroot', meson.get_external_property('sysroot') ],
+        install : not meson.is_subproject(),
+        build_by_default : not meson.is_subproject(),
+        install_dir : get_option('libdir'),
+    )
+
     stb = dependency('stb')
     rpmalloc = subproject('rpmalloc')
 
