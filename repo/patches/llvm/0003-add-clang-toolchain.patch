@@ -27,17 +27,17 @@ index 50941d2..7b5011d 100644
        TC = std::make_unique<toolchains::Solaris>(*this, Target, Args);
        break;
 +    case llvm::Triple::BezOS:
-+      TC = std::make_unique<toolchains::BezOS>(*this, Target, Args);
++      TC = toolchains::getBezOSToolChain(*this, Target, Args);
 +      break;
      case llvm::Triple::CUDA:
        TC = std::make_unique<toolchains::NVPTXToolChain>(*this, Target, Args);
        break;
 diff --git a/clang/lib/Driver/ToolChains/BezOS.h b/clang/lib/Driver/ToolChains/BezOS.h
 new file mode 100644
-index 0000000..00f81a1
+index 0000000..515a3c2
 --- /dev/null
 +++ b/clang/lib/Driver/ToolChains/BezOS.h
-@@ -0,0 +1,86 @@
+@@ -0,0 +1,27 @@
 +//===--- BezOS.h - BezOS ToolChain Implementations ----------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -56,10 +56,50 @@ index 0000000..00f81a1
 +namespace driver {
 +namespace toolchains {
 +
++std::unique_ptr<ToolChain> getBezOSToolChain(const Driver &D,
++                                             const llvm::Triple &Triple,
++                                             const llvm::opt::ArgList &Args);
++
++} // end namespace toolchains
++} // end namespace driver
++} // end namespace clang
++
++#endif // LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_BezOS_H
+diff --git a/clang/lib/Driver/ToolChains/BezOS.cpp b/clang/lib/Driver/ToolChains/BezOS.cpp
+new file mode 100644
+index 0000000..856a246
+--- /dev/null
++++ b/clang/lib/Driver/ToolChains/BezOS.cpp
+@@ -0,0 +1,299 @@
++//===--- BezOS.cpp - BezOS ToolChain Implementations --------*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++
++#include "BezOS.h"
++#include "CommonArgs.h"
++#include "clang/Config/config.h"
++#include "clang/Driver/Compilation.h"
++#include "clang/Driver/Driver.h"
++#include "clang/Driver/Options.h"
++#include "llvm/Support/Path.h"
++#include "llvm/Support/VirtualFileSystem.h"
++
++using namespace clang::driver;
++using namespace clang::driver::toolchains;
++using namespace clang;
++using namespace llvm::opt;
++
 +class LLVM_LIBRARY_VISIBILITY BezOS : public ToolChain {
 +public:
-+  BezOS(const Driver &D, const llvm::Triple &Triple,
-+       const llvm::opt::ArgList &Args);
++  BezOS(
++    const Driver &D,
++    const llvm::Triple &Triple,
++    const llvm::opt::ArgList &Args
++  );
 +
 +  bool HasNativeLLVMSupport() const override;
 +
@@ -74,6 +114,10 @@ index 0000000..00f81a1
 +  bool isPIEDefault(const llvm::opt::ArgList &Args) const override { return true; }
 +  bool isPICDefaultForced() const override { return true; }
 +
++  std::string getCompilerRTPath() const override {
++    return getDriver().SysRoot + "/llvm-compiler-rt/lib";
++  }
++
 +  void AddClangCXXStdlibIncludeArgs(
 +    const llvm::opt::ArgList &DriverArgs,
 +    llvm::opt::ArgStringList &CC1Args) const override;
@@ -85,18 +129,18 @@ index 0000000..00f81a1
 +  Tool *buildLinker() const override;
 +
 +  std::string getMultiarchTriple(const Driver &D,
-+                                 const llvm::Triple &TargetTriple,
-+                                 StringRef SysRoot) const override;
++                                  const llvm::Triple &TargetTriple,
++                                  StringRef SysRoot) const override;
 +};
 +
-+} // end namespace toolchains
 +namespace tools {
 +namespace bezos {
 +
 +class LLVM_LIBRARY_VISIBILITY StaticLibTool : public Tool {
 +public:
 +  StaticLibTool(const ToolChain &TC)
-+      : Tool("bezos::StaticLibTool", "llvm-ar", TC) {}
++    : Tool("bezos::StaticLibTool", "llvm-ar", TC)
++  {}
 +
 +  bool hasIntegratedCPP() const override { return false; }
 +  bool isLinkJob() const override { return true; }
@@ -109,7 +153,9 @@ index 0000000..00f81a1
 +
 +class LLVM_LIBRARY_VISIBILITY Linker final : public Tool {
 +public:
-+  Linker(const ToolChain &TC) : Tool("bezos::Linker", "ld.lld", TC) {}
++  Linker(const ToolChain &TC)
++    : Tool("bezos::Linker", "ld.lld", TC)
++  {}
 +  bool isLinkJob() const override { return true; }
 +  bool hasIntegratedCPP() const override { return false; }
 +  void ConstructJob(Compilation &C, const JobAction &JA,
@@ -120,38 +166,6 @@ index 0000000..00f81a1
 +
 +} // end namespace bezos
 +} // end namespace tools
-+} // end namespace driver
-+} // end namespace clang
-+
-+#endif // LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_BezOS_H
-diff --git a/clang/lib/Driver/ToolChains/BezOS.cpp b/clang/lib/Driver/ToolChains/BezOS.cpp
-new file mode 100644
-index 0000000..d1a61ac
---- /dev/null
-+++ b/clang/lib/Driver/ToolChains/BezOS.cpp
-@@ -0,0 +1,217 @@
-+//===--- BezOS.cpp - BezOS ToolChain Implementations --------*- C++ -*-===//
-+//
-+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-+// See https://llvm.org/LICENSE.txt for license information.
-+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-+//
-+//===----------------------------------------------------------------------===//
-+
-+#include "BezOS.h"
-+#include "CommonArgs.h"
-+#include "clang/Config/config.h"
-+#include "clang/Driver/Driver.h"
-+#include "clang/Driver/Options.h"
-+#include "clang/Driver/Compilation.h"
-+#include "llvm/Support/Path.h"
-+#include "llvm/Support/VirtualFileSystem.h"
-+
-+using namespace clang::driver;
-+using namespace clang::driver::toolchains;
-+using namespace clang;
-+using namespace llvm::opt;
-+
 +/// Get our best guess at the multiarch triple for a target.
 +std::string BezOS::getMultiarchTriple(const Driver &D,
 +                                      const llvm::Triple &TargetTriple,
@@ -178,16 +192,22 @@ index 0000000..d1a61ac
 +    // We need to add the path to the crt1.o file, etc., so that the driver can
 +    // use these to build the initial inputs to the link.
 +    getLibraryPaths().push_back(getDriver().SysRoot + "/sysapi/lib");
++    getLibraryPaths().push_back(getDriver().SysRoot + "/llvm-compiler-rt/lib");
++    getLibraryPaths().push_back(getDriver().SysRoot + "/llvm-compiler-rt/lib/" + getTripleString());
++  }
++
++  if (!Args.hasArg(options::OPT_nostdlibxx)) {
++    getLibraryPaths().push_back(getDriver().SysRoot + "/llvm-libcxx/lib");
 +  }
 +}
 +
 +bool BezOS::HasNativeLLVMSupport() const { return true; }
 +
 +Tool *BezOS::buildStaticLibTool() const {
-+  return new tools::bezos::StaticLibTool(*this);
++  return new ::tools::bezos::StaticLibTool(*this);
 +}
 +
-+Tool *BezOS::buildLinker() const { return new tools::bezos::Linker(*this); }
++Tool *BezOS::buildLinker() const { return new ::tools::bezos::Linker(*this); }
 +
 +void BezOS::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
 +                                      ArgStringList &CC1Args) const {
@@ -234,7 +254,7 @@ index 0000000..d1a61ac
 +                   SysRoot + "/llvm-libcxx/include/c++/v1");
 +}
 +
-+void tools::bezos::StaticLibTool::ConstructJob(Compilation &C, const JobAction &JA,
++void ::tools::bezos::StaticLibTool::ConstructJob(Compilation &C, const JobAction &JA,
 +                                            const InputInfo &Output,
 +                                            const InputInfoList &Inputs,
 +                                            const ArgList &Args,
@@ -279,7 +299,7 @@ index 0000000..d1a61ac
 +                                         Exec, CmdArgs, Inputs, Output));
 +}
 +
-+void tools::bezos::Linker::ConstructJob(Compilation &C, const JobAction &JA,
++void ::tools::bezos::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 +                                     const InputInfo &Output,
 +                                     const InputInfoList &Inputs,
 +                                     const ArgList &Args,
@@ -289,13 +309,13 @@ index 0000000..d1a61ac
 +  auto &TC = getToolChain();
 +  const Driver &D = getToolChain().getDriver();
 +
-+  AddLinkerInputs(TC, Inputs, Args, CmdArgs, JA);
++  clang::driver::tools::AddLinkerInputs(TC, Inputs, Args, CmdArgs, JA);
 +
 +  CmdArgs.push_back("-Bstatic");
 +
 +  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles,
 +                   options::OPT_r)) {
-+    CmdArgs.push_back(Args.MakeArgString(TC.GetFilePath("crtbegin.o")));
++    CmdArgs.push_back(Args.MakeArgString(D.SysRoot + "/sysapi/lib/crtstart.o"));
 +    CmdArgs.push_back("-e");
 +    CmdArgs.push_back("ProgramMain");
 +  }
@@ -316,27 +336,26 @@ index 0000000..d1a61ac
 +    TC.AddCXXStdlibLibArgs(Args, CmdArgs);
 +    if (OnlyLibstdcxxStatic)
 +      CmdArgs.push_back("-Bdynamic");
-+    CmdArgs.push_back("-lm");
 +  }
 +
 +  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
-+    AddRunTimeLibs(TC, D, CmdArgs, Args);
++    clang::driver::tools::AddRunTimeLibs(TC, D, CmdArgs, Args);
 +
-+    CmdArgs.push_back("-lbezos-posix");
-+    CmdArgs.push_back("-lbezos-sysapi");
++    CmdArgs.push_back(Args.MakeArgString(D.SysRoot + "/sysapi/lib/libbezos-sysapi.a"));
++    CmdArgs.push_back(Args.MakeArgString(D.SysRoot + "/sysapi/lib/libbezos-posix.a"));
 +  }
 +
 +  if (D.isUsingLTO()) {
 +    assert(!Inputs.empty() && "Must have at least one input.");
 +    // Find the first filename InputInfo object.
-+    auto Input = llvm::find_if(
++    const auto *Input = llvm::find_if(
 +        Inputs, [](const InputInfo &II) -> bool { return II.isFilename(); });
 +    if (Input == Inputs.end())
 +      // For a very rare case, all of the inputs to the linker are
 +      // InputArg. If that happens, just use the first InputInfo.
 +      Input = Inputs.begin();
 +
-+    addLTOOptions(TC, Args, CmdArgs, Output, *Input,
++    clang::driver::tools::addLTOOptions(TC, Args, CmdArgs, Output, *Input,
 +                  D.getLTOMode() == LTOK_Thin);
 +  }
 +
@@ -346,4 +365,8 @@ index 0000000..d1a61ac
 +  C.addCommand(std::make_unique<Command>(
 +      JA, *this, ResponseFileSupport::AtFileCurCP(),
 +      Args.MakeArgString(TC.GetLinkerPath()), CmdArgs, Inputs, Output));
++}
++
++std::unique_ptr<ToolChain> toolchains::getBezOSToolChain(const Driver &D, const llvm::Triple &Triple, const llvm::opt::ArgList &Args) {
++  return std::make_unique<BezOS>(D, Triple, Args);
 +}

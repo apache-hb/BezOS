@@ -16,24 +16,10 @@
         <configure with='cmake'>
             <source path='@SOURCE_ROOT@/llvm' />
             <options LLVM_ENABLE_PROJECTS='llvm;clang;lld'
-                     LLVM_ENABLE_RUNTIMES="compiler-rt"
                      LLVM_TARGETS_TO_BUILD="X86"
                      LLVM_DEFAULT_TARGET_TRIPLE="x86_64-bezos"
 
                      CLANG_ENABLE_STATIC_ANALYZER="OFF"
-
-                     COMPILER_RT_BUILD_BUILTINS="ON"
-                     COMPILER_RT_HAS_SANITIZER_COMMON="OFF"
-                     COMPILER_RT_BUILD_CTX_PROFILE="OFF"
-                     COMPILER_RT_BUILD_SANITIZERS="OFF"
-                     COMPILER_RT_BUILD_LIBFUZZER="OFF"
-                     COMPILER_RT_BUILD_MEMPROF="OFF"
-                     COMPILER_RT_BUILD_PROFILE="OFF"
-                     COMPILER_RT_BUILD_XRAY="OFF"
-                     COMPILER_RT_BUILD_ORC="OFF"
-                     COMPILER_RT_DEFAULT_TARGET_ONLY="ON"
-                     LLVM_BUILD_EXTERNAL_COMPILER_RT="ON"
-                     COMPILER_RT_DEFAULT_TARGET_TRIPLE="x86_64-bezos"
 
                      CMAKE_C_COMPILER="clang"
                      CMAKE_CXX_COMPILER="clang++"
@@ -49,19 +35,6 @@
             <options LLVM_ENABLE_RUNTIMES="libcxx;libcxxabi;libunwind"
                      LLVM_RUNTIME_TARGETS="x86_64-bezos"
                      LLVM_DEFAULT_TARGET_TRIPLE="x86_64-bezos"
-
-                     LLVM_BUILD_EXTERNAL_COMPILER_RT="ON"
-
-                     COMPILER_RT_BUILD_BUILTINS="ON"
-                     COMPILER_RT_HAS_SANITIZER_COMMON="OFF"
-                     COMPILER_RT_BUILD_CTX_PROFILE="OFF"
-                     COMPILER_RT_BUILD_SANITIZERS="OFF"
-                     COMPILER_RT_BUILD_LIBFUZZER="OFF"
-                     COMPILER_RT_BUILD_MEMPROF="OFF"
-                     COMPILER_RT_BUILD_PROFILE="OFF"
-                     COMPILER_RT_BUILD_XRAY="OFF"
-                     COMPILER_RT_BUILD_ORC="OFF"
-                     COMPILER_RT_DEFAULT_TARGET_ONLY="ON"
 
                      LIBCXX_ENABLE_THREADS="OFF"
                      LIBCXX_ENABLE_MONOTONIC_CLOCK="OFF"
