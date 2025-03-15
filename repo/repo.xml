@@ -34,6 +34,7 @@
 
     <artifact name='initrd'>
         <require package='system' />
+        <require package='zsh' />
         <script path='@REPO@/data/generate-initrd.sh' />
     </artifact>
 

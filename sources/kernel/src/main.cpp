@@ -1605,10 +1605,14 @@ static void AddProcessSystemCalls() {
         //     return CallError(status);
         // }
 
+        KmDebugMessage("[PROC] Creating process for ", path, "\n");
+
         std::unique_ptr<vfs2::IFileHandle> node = nullptr;
         if (OsStatus status = gVfsRoot->open(path, std::out_ptr(node))) {
             return CallError(status);
         }
+
+        KmDebugMessage("[PROC] Loading ELF file.\n");
 
         ProcessLaunch launch{};
         if (OsStatus status = LoadElf(std::move(node), *gMemory, *gSystemObjects, &launch)) {

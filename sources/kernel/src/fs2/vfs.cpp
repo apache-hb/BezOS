@@ -169,7 +169,7 @@ OsStatus VfsRoot::insertMount(INode *parent, const VfsPath& path, std::unique_pt
     // Fill out the root node with its information relative
     // to where its mounted.
     //
-    parent->init(mountBase, VfsString(path.name()), Access::RWX);
+    mountBase->init(parent, VfsString(path.name()), Access::RWX);
 
     if (OsStatus status = addNode(parent, VfsString(path.name()), mountBase)) {
         mMounts.erase(iter);
@@ -453,6 +453,10 @@ OsStatus VfsRoot::device(const VfsPath& path, sm::uuid interface, const void *da
     if (OsStatus status = queryFolder(parent, std::out_ptr(folder))) {
         return status;
     }
+
+    NodeInfo pInfo = parent->info();
+
+    KmDebugMessage("Device lookup: ", path, " ", pInfo.name, "\n");
 
     INode *device = nullptr;
     if (OsStatus status = folder->lookup(path.name(), &device)) {
