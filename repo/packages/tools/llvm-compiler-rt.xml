@@ -11,9 +11,8 @@
                      LLVM_DEFAULT_TARGET_TRIPLE="x86_64-bezos"
 
                      COMPILER_RT_BUILD_BUILTINS="ON"
-                     COMPILER_RT_HAS_SANITIZER_COMMON="OFF"
+                     COMPILER_RT_BUILD_SANITIZERS="ON"
                      COMPILER_RT_BUILD_CTX_PROFILE="OFF"
-                     COMPILER_RT_BUILD_SANITIZERS="OFF"
                      COMPILER_RT_BUILD_LIBFUZZER="OFF"
                      COMPILER_RT_BUILD_MEMPROF="OFF"
                      COMPILER_RT_BUILD_PROFILE="OFF"

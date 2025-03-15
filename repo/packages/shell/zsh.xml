@@ -20,21 +20,8 @@
              CXX='@PREFIX@/llvm/bin/clang++'
              AR='@PREFIX@/llvm/bin/llvm-ar'
              LD='@PREFIX@/llvm/bin/ld.lld'
-             LDFLAGS='-nostartfiles -nostdlib
-                      -static-pie
-                      -Wl,--start-group
-                      -L@PREFIX@/ncurses/lib
-                      @PREFIX@/sysapi/lib/crtstart.o
-                      @PREFIX@/sysapi/lib/libbezos-sysapi.a
-                      @PREFIX@/sysapi/lib/libbezos-posix.a
-                      -e ProgramMain'
-             CFLAGS='--sysroot @PREFIX@/llvm
-                     -isystem @PREFIX@/sysapi/include/posix
-                     -I@PREFIX@/ncurses/include
-                     -static
-                     -fPIE
-                     -fPIC
-                     -nostdlib' />
+             CFLAGS='--sysroot @PREFIX@ -I@PREFIX@/ncurses/include'
+             LDFLAGS='--sysroot @PREFIX@ -L@PREFIX@/ncurses/lib' />
         <options host='x86_64-bezos-jlibc'
                  disable-etcdir=''
                  disable-zshenv=''

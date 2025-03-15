@@ -70,7 +70,7 @@ new file mode 100644
 index 0000000..e0e198b
 --- /dev/null
 +++ b/clang/lib/Driver/ToolChains/BezOS.cpp
-@@ -0,0 +1,300 @@
+@@ -0,0 +1,301 @@
 +//===--- BezOS.cpp - BezOS ToolChain Implementations --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -225,6 +225,7 @@ index 0000000..e0e198b
 +    // the toolchain include directories.
 +    addSystemInclude(DriverArgs, CC1Args, SysRoot + "/sysapi/include");
 +    addSystemInclude(DriverArgs, CC1Args, SysRoot + "/sysapi/include/posix");
++    addSystemInclude(DriverArgs, CC1Args, SysRoot + "/llvm-compiler-rt/include");
 +
 +    // Check for configure-time C include directories.
 +    StringRef CIncludeDirs(C_INCLUDE_DIRS);
@@ -315,7 +316,7 @@ index 0000000..e0e198b
 +  CmdArgs.push_back("-Bstatic");
 +
 +  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles,
-+                   options::OPT_r)) {
++                   options::OPT_r, options::OPT_nodefaultlibs)) {
 +    CmdArgs.push_back(Args.MakeArgString(D.SysRoot + "/sysapi/lib/crtstart.o"));
 +    CmdArgs.push_back("-e");
 +    CmdArgs.push_back("ProgramMain");
