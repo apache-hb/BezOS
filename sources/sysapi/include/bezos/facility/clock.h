@@ -9,6 +9,11 @@ extern "C" {
 typedef uint64_t OsClockFrequency;
 
 struct OsClockStat {
+    /// @brief Display name of the clock.
+    OsUtf8Char DisplayName[OS_DEVICE_NAME_MAX];
+
+    /// @brief The frequency of the clock.
+    /// @note This may not be accurate, it is provided as a best effort.
     OsClockFrequency FrequencyHz;
 };
 

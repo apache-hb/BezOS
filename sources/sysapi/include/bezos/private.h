@@ -31,6 +31,7 @@ enum {
     eOsCallProcessDestroy = 0x31,
     eOsCallProcessCurrent = 0x32,
     eOsCallProcessSuspend = 0x33,
+    eOsCallProcessStat = 0x34,
 
     eOsCallThreadCreate = 0x40,
     eOsCallThreadDestroy = 0x41,

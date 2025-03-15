@@ -9,6 +9,8 @@ extern "C" {
 /// @defgroup OsProcess Process
 /// @{
 
+OS_DEFINE_GUID(kOsCommandLineParamGuid, 0x768582ba, 0x0197, 0x11f0, 0xbc84, 0x7f8e0b26baac);
+
 enum {
     eOsProcessNone = 0,
 
@@ -46,21 +48,25 @@ enum {
 /// bits [8:11] - Privilege
 typedef uint32_t OsProcessStateFlags;
 
+/// @brief A parameter passed to a process at creation time
+struct OsProcessParam {
+    struct OsGuid Guid;
+    uint32_t DataSize;
+    OsByte Data[];
+};
+
 struct OsProcessCreateInfo {
     struct OsPath Executable;
     struct OsPath WorkingDirectory;
 
-    const char *ArgumentsBegin;
-    const char *ArgumentsEnd;
-
-    const void *ObjectParametersBegin;
-    const void *ObjectParametersEnd;
+    const struct OsProcessParam *ObjectParametersBegin;
+    const struct OsProcessParam *ObjectParametersEnd;
 
     OsProcessStateFlags Flags;
     OsProcessHandle Parent;
 };
 
-struct OsProcessState {
+struct OsProcessInfo {
     OsProcessStateFlags Status;
     int64_t ExitCode;
 };
@@ -73,7 +79,9 @@ extern OsStatus OsProcessSuspend(OsProcessHandle Handle, bool Suspend);
 
 extern OsStatus OsProcessTerminate(OsProcessHandle Handle, int64_t ExitCode);
 
-extern OsStatus OsProcessStat(OsProcessHandle Handle, struct OsProcessState *OutState);
+extern OsStatus OsProcessStat(OsProcessHandle Handle, struct OsProcessInfo *OutState);
+
+extern OsStatus OsProcessArg(OsProcessHandle Handle, struct OsGuid Guid, void *OutData, OsSize *OutSize);
 
 /// @} // group OsProcess
 

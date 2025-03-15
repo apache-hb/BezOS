@@ -23,3 +23,8 @@ OsStatus OsProcessTerminate(OsProcessHandle Handle, int64_t ExitCode) {
     struct OsCallResult result = OsSystemCall(eOsCallProcessDestroy, (uint64_t)Handle, ExitCode, 0, 0);
     return result.Status;
 }
+
+OsStatus OsProcessStat(OsProcessHandle Handle, struct OsProcessInfo *OutState) {
+    struct OsCallResult result = OsSystemCall(eOsCallProcessStat, (uint64_t)Handle, (uint64_t)OutState, 0, 0);
+    return result.Status;
+}

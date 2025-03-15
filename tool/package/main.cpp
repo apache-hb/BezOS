@@ -185,21 +185,6 @@ struct PackageInfo {
 
     std::string fromSource;
 
-#if 0
-    // configure tool to use
-    ConfigureProgram configure{eConfigureNone};
-
-    // path to configure tool if not using the native one
-    std::string configureToolPath;
-
-    std::string mesonCrossFile;
-    std::string mesonNativeFile;
-    std::map<std::string, std::string> options;
-    std::map<std::string, std::string> configureEnv;
-    std::string configureSourcePath;
-    std::string shellConfigureScript;
-#endif
-
     std::string GetConfigureSourcePath(const ConfigureStep& step) const {
         return step.configureSourcePath.empty() ? GetSourceFolder().string() : step.configureSourcePath;
     }
@@ -314,8 +299,8 @@ public:
 
     void AddDependency(std::string_view package, std::string_view dependency) {
         sql::Statement query(mDatabase, "INSERT OR REPLACE INTO dependencies (package, dependency) VALUES (?, ?)");
-        query.bind(1, package.data());
-        query.bind(2, dependency.data());
+        query.bind(1, std::string(package));
+        query.bind(2, std::string(dependency));
         query.exec();
     }
 
@@ -332,7 +317,7 @@ public:
             ")\n"
             "SELECT package FROM dependants"
         );
-        query.bind(1, name.data());
+        query.bind(1, std::string(name));
 
         while (query.executeStep()) {
             result.insert(query.getColumn(0).getString());
@@ -347,7 +332,7 @@ public:
         std::set<std::string> result;
 
         sql::Statement query(mDatabase, "SELECT dependency FROM dependencies WHERE package = ?");
-        query.bind(1, name.data());
+        query.bind(1, std::string(name));
 
         while (query.executeStep()) {
             result.insert(query.getColumn(0).getString());
@@ -435,7 +420,7 @@ public:
 
     PackageStatus GetPackageStatus(std::string_view name) {
         sql::Statement query(mDatabase, "SELECT status FROM targets WHERE name = ?");
-        query.bind(1, name.data());
+        query.bind(1, std::string(name));
 
         if (query.executeStep()) {
             auto state = query.getColumn(0).getString();
@@ -938,6 +923,16 @@ static ConfigureStep ReadConfigureStep(XmlNode action, const PackageInfo& packag
     return step;
 }
 
+static void AddWorkspacePackage(PackageInfo packageInfo, std::string name) {
+    if (packageInfo.source.empty()) {
+        auto source = PackageImportPath(name);
+        MakeFolder(source);
+        packageInfo.imported = source;
+    }
+
+    gWorkspace.AddPackage(packageInfo);
+}
+
 static void ReadDownloadConfig(XmlNode root) {
     auto name = ExpectProperty<std::string>(root, "name");
     gPackageDb->RaiseTargetStatus(name, eUnknown);
@@ -977,13 +972,7 @@ static void ReadDownloadConfig(XmlNode root) {
         }
     }
 
-    if (packageInfo.source.empty()) {
-        auto source = PackageImportPath(name);
-        MakeFolder(source);
-        packageInfo.imported = source;
-    }
-
-    gWorkspace.AddPackage(packageInfo);
+    AddWorkspacePackage(packageInfo, name);
 }
 
 static void ReadPackageConfig(XmlNode root) {
@@ -1057,44 +1046,6 @@ static void ReadPackageConfig(XmlNode root) {
             }
         } else if (step == "configure"sv) {
             packageInfo.configureSteps.push_back(ReadConfigureStep(action, packageInfo));
-
-#if 0
-            auto with = ExpectProperty<std::string>(action, "with");
-            if (with == "meson") {
-                packageInfo.configure = eMeson;
-                for (XmlNode child : action.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
-                    if (child.name() == "cross-file"sv) {
-                        packageInfo.mesonCrossFile = ExpectProperty<std::string>(child, "path");
-                    } else if (child.name() == "native-file"sv) {
-                        packageInfo.mesonNativeFile = ExpectProperty<std::string>(child, "path");
-                    }
-                }
-            } else if (with == "cmake") {
-                packageInfo.configure = eCMake;
-            } else if (with == "shell") {
-                packageInfo.configure = eShell;
-                packageInfo.shellConfigureScript = action.content();
-            } else if (with == "autoconf") {
-                packageInfo.configure = eAutoconf;
-            } else {
-                throw std::runtime_error("Unknown configure program " + with);
-            }
-
-            auto tool = action.property("using");
-            if (tool.has_value()) {
-                packageInfo.configureToolPath = tool.value();
-            }
-
-            for (XmlNode child : action.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
-                if (child.name() == "options"sv) {
-                    packageInfo.options = child.properties();
-                } else if (child.name() == "source"sv) {
-                    packageInfo.configureSourcePath = ExpectProperty<std::string>(child, "path");
-                } else if (child.name() == "env"sv) {
-                    packageInfo.configureEnv = child.properties();
-                }
-            }
-#endif
         } else if (step == "script"sv) {
             auto script = ExpectProperty<std::string>(action, "path");
             ScriptExec exec {
@@ -1118,13 +1069,7 @@ static void ReadPackageConfig(XmlNode root) {
         }
     }
 
-    if (packageInfo.source.empty()) {
-        auto source = PackageImportPath(name);
-        MakeFolder(source);
-        packageInfo.imported = source;
-    }
-
-    gWorkspace.AddPackage(packageInfo);
+    AddWorkspacePackage(packageInfo, name);
 }
 
 static void ReadArtifactConfig(XmlNode node) {
@@ -1388,8 +1333,6 @@ static void RunConfigureStep(const PackageInfo& package, const ConfigureStep& st
 
         fs::create_directories(builddir);
 
-        std::string configureTool = step.configureToolPath.empty() ? "autoreconf" : step.configureToolPath;
-
         std::vector<std::string> args = {
             "/bin/sh",
             (fs::current_path() / package.GetConfigureSourcePath(step) / "configure").string(),
@@ -1487,7 +1430,7 @@ static void BuildPackage(const PackageInfo& package) {
         }
     } else if (buildProgram == eAutoconf) {
         std::println(std::cout, "{}: build program autoconf", package.name);
-        auto result = sp::call({ "make", "-j", std::to_string(std::thread::hardware_concurrency()), "-Otarget" }, sp::cwd{builddir});
+        auto result = sp::call({ "make", "-j" + std::to_string(std::thread::hardware_concurrency()), "-Otarget" }, sp::cwd{builddir});
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
@@ -1524,50 +1467,52 @@ static void InstallPackage(const PackageInfo& package) {
 
     auto [out, err] = package.GetLogFiles("install");
 
-    std::jthread spinner([&](std::stop_token stop) {
-        indicators::IndeterminateProgressBar bar{
-            indicators::option::BarWidth{40},
-            indicators::option::Start{"["},
-            indicators::option::Lead{"*"},
-            indicators::option::End{"]"},
-            indicators::option::PrefixText{std::format("Installing {} ", package.name)},
-            indicators::option::ForegroundColor{indicators::Color::white},
-            indicators::option::FontStyles{std::vector<indicators::FontStyle>{indicators::FontStyle::bold}}
-        };
-
-        while (!stop.stop_requested()) {
-            bar.tick();
-            std::this_thread::sleep_for(100ms);
-        }
-    });
-
     std::string builddir = package.GetBuildFolder().string();
 
-    if (buildProgram == eMeson) {
-        std::println(std::cout, "{}: install with meson", package.name);
-        auto result = sp::call({ "meson", "install", "--no-rebuild", "--skip-subprojects" }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
-        if (result != 0) {
-            throw std::runtime_error("Failed to install package " + package.name);
-        }
-    } else if (buildProgram == eCMake) {
-        std::println(std::cout, "{}: install with cmake", package.name);
-        auto result = sp::call({ "cmake", "--install", builddir }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
-        if (result != 0) {
-            throw std::runtime_error("Failed to install package " + package.name);
-        }
-    } else if (buildProgram == eAutoconf) {
-        std::vector<std::string> args = { "make" };
-        if (package.installTargets.empty()) {
-            args.push_back("install");
-        } else {
-            for (auto target : (package.installTargets | stdv::split(' '))) {
-                args.push_back(std::string(std::string_view(target)));
+    {
+        std::jthread spinner([&](std::stop_token stop) {
+            indicators::IndeterminateProgressBar bar{
+                indicators::option::BarWidth{40},
+                indicators::option::Start{"["},
+                indicators::option::Lead{"*"},
+                indicators::option::End{"]"},
+                indicators::option::PrefixText{std::format("Installing {} ", package.name)},
+                indicators::option::ForegroundColor{indicators::Color::white},
+                indicators::option::FontStyles{std::vector<indicators::FontStyle>{indicators::FontStyle::bold}}
+            };
+
+            while (!stop.stop_requested()) {
+                bar.tick();
+                std::this_thread::sleep_for(100ms);
             }
-        }
-        std::println(std::cout, "{}", (args | stdv::join_with(' ')) | stdr::to<std::string>());
-        auto result = sp::call(args, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
-        if (result != 0) {
-            throw std::runtime_error("Failed to install package " + package.name);
+        });
+
+        if (buildProgram == eMeson) {
+            std::println(std::cout, "{}: install with meson", package.name);
+            auto result = sp::call({ "meson", "install", "--no-rebuild", "--skip-subprojects" }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
+            if (result != 0) {
+                throw std::runtime_error("Failed to install package " + package.name);
+            }
+        } else if (buildProgram == eCMake) {
+            std::println(std::cout, "{}: install with cmake", package.name);
+            auto result = sp::call({ "cmake", "--install", builddir }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
+            if (result != 0) {
+                throw std::runtime_error("Failed to install package " + package.name);
+            }
+        } else if (buildProgram == eAutoconf) {
+            std::vector<std::string> args = { "make" };
+            if (package.installTargets.empty()) {
+                args.push_back("install");
+            } else {
+                for (auto target : (package.installTargets | stdv::split(' '))) {
+                    args.push_back(std::string(std::string_view(target)));
+                }
+            }
+            std::println(std::cout, "{}", (args | stdv::join_with(' ')) | stdr::to<std::string>());
+            auto result = sp::call(args, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
+            if (result != 0) {
+                throw std::runtime_error("Failed to install package " + package.name);
+            }
         }
     }
 

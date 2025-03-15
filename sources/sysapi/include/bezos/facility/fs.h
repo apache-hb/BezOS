@@ -36,11 +36,12 @@ enum {
     eOsFileWrite = (UINT64_C(1) << 1),
 
     /// @brief Open a file in append mode.
-    /// This implies @a OsFileWrite.
+    /// When specifying this, @a OsFileWrite must also be specified.
     eOsFileAppend = (UINT64_C(1) << 2),
 
     /// @brief Truncate the file upon opening.
-    /// This implies @a OsFileWrite.
+    /// If the file already exists, it is truncated.
+    /// When specifying this, @a OsFileWrite must also be specified.
     eOsFileTruncate = (UINT64_C(1) << 3),
 
 
@@ -205,92 +206,70 @@ struct OsNodeCreateInfo {
     OsProcessHandle Process;
 };
 
+/// @brief Query for an interface on a vnode.
 struct OsNodeQueryInterfaceInfo {
+    /// @brief The GUID of the interface to query.
     struct OsGuid InterfaceGuid;
+
+    /// @brief The process to open the interface for.
     OsProcessHandle Process;
+
+    /// @brief The data to open the interface with.
     const void *OpenData;
+
+    /// @brief The size of the open data.
     size_t OpenDataSize;
 };
 
+/// @brief Information about a vnode.
 struct OsNodeInfo {
+    /// @brief The name of the vnode.
     OsUtf8Char Name[OS_DEVICE_NAME_MAX];
 };
 
+/// @brief Open a vnode.
+///
+/// Open a vnode in the filesystem, later this vnode can be queried for interfaces.
+///
+/// @param CreateInfo The create information for the vnode.
+/// @param OutHandle The vnode handle.
+///
+/// @return The status of the operation.
 extern OsStatus OsNodeOpen(struct OsNodeCreateInfo CreateInfo, OsNodeHandle *OutHandle);
 
+/// @brief Close a vnode handle.
+///
+/// Closes a vnode handle, any device handles will remain valid. The vnode will only
+/// be discarded when all device handles are closed.
+///
+/// @param Handle The vnode handle to close.
+///
+/// @return The status of the operation.
 extern OsStatus OsNodeClose(OsNodeHandle Handle);
 
+/// @brief Query an interface on a vnode.
+///
+/// Queries an interface on a vnode, this will return a device handle that can be used
+/// to interact with the device.
+///
+/// @param Handle The vnode handle to query the interface on.
+/// @param Query The query information for the interface.
+/// @param OutHandle The device handle.
+///
+/// @return The status of the operation.
 extern OsStatus OsNodeQueryInterface(OsNodeHandle Handle, struct OsNodeQueryInterfaceInfo Query, OsDeviceHandle *OutHandle);
 
+/// @brief Query information about a vnode.
+///
+/// Queries information about a vnode, this can be used to get the name of the vnode.
+///
+/// @param Handle The vnode handle to query.
+/// @param OutInfo The information about the vnode.
+///
+/// @return The status of the operation.
 extern OsStatus OsNodeStat(OsNodeHandle Handle, struct OsNodeInfo *OutInfo);
 
 /// @} // group OsNode
-
-
-/// @defgroup OsFolderIterator Folder Iterator
-/// @{
-
-typedef uint16_t OsFolderEntryType;
-typedef uint16_t OsFolderEntryNameSize;
-
-struct OsFolderIterateCreateInfo {
-    struct OsPath Path;
-};
-
-#if defined(__clang__) && defined(__cplusplus)
-#   pragma clang diagnostic push
-#   pragma clang diagnostic ignored "-Wc99-extensions"
-#endif
-
-struct OsFolderEntry {
-    OsFolderEntryNameSize NameSize;
-
-    OsUtf8Char Name[] OS_COUNTED_BY(NameSize);
-};
-
-#if defined(__clang__) && defined(__cplusplus)
-#   pragma clang diagnostic pop
-#endif
-
-#define OS_FOLDER_ITERATOR_INVALID ((OsFolderIteratorHandle)(0))
-
-/// @brief Create a directory iterator.
-///
-/// @pre @p CreateInfo.PathFront and @p CreateInfo.PathBack must point to the front and back of a valid buffer.
-/// @pre @p OutHandle must point to valid memory.
-///
-/// @post @p OutHandle will be a valid folder iterator handle if the operation is successful.
-/// @post @p OutHandle will be @a OsFolderIteratorHandleInvalid if the operation fails.
-///
-/// @param OsFolderIterateCreateInfo The create information for the folder iterator.
-/// @param OutHandle The folder iterator handle.
-///
-/// @return The status of the operation.
-extern OsStatus OsFolderIterateCreate(struct OsFolderIterateCreateInfo CreateInfo, OsFolderIteratorHandle *OutHandle);
-
-/// @brief End the directory iteration.
-///
-/// @pre @p Handle must be a valid folder iterator handle.
-///
-/// @param Handle The folder iterator handle.
-///
-/// @return The status of the operation.
-extern OsStatus OsFolderIterateDestroy(OsFolderIteratorHandle Handle);
-
-/// @brief Iterate to the next entry in the directory.
-///
-/// @pre @p Handle must be a valid folder iterator handle.
-/// @pre @p OutEntry must point to valid memory.
-///
-/// @post @p OutEntry will contain the next entry in the directory.
-///
-/// @param Handle The folder iterator handle.
-/// @param OutEntry The next entry in the directory.
-///
-/// @return The status of the operation.
-extern OsStatus OsFolderIterateNext(OsFolderIteratorHandle Handle, struct OsFolderEntry *OutEntry);
-
-/// @} // group OsFolderIterator
 
 #ifdef __cplusplus
 }

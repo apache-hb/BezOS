@@ -5,6 +5,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -158,10 +159,6 @@ OS_OBJECT_HANDLE(OsTransactionHandle);
 /// @brief A handle to a file object.
 /// @deprecated Use OsDeviceHandle instead.
 OS_OBJECT_HANDLE(OsFileHandle);
-
-/// @brief A handle to a folder iterator.
-/// @deprecated Use OsDeviceHandle instead.
-OS_OBJECT_HANDLE(OsFolderIteratorHandle);
 
 #define OS_GUID_NULL { .Octets = { 0 } }
 

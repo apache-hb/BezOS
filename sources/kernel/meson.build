@@ -200,6 +200,8 @@ src = [
 
     # Userspace
     'src/user/user.cpp',
+    'src/user/sysapi/node.cpp',
+    'src/user/sysapi/device.cpp',
 
     # Services
     'src/notify.cpp',

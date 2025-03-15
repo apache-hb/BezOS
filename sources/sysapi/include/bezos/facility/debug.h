@@ -30,6 +30,11 @@ struct OsDebugMessageInfo {
     OsDebugMessageFlags Info;
 };
 
+/// @brief Submit a message to the process log.
+///
+/// @param Message The message to log.
+///
+/// @return The status of the operation.
 extern OsStatus OsDebugMessage(struct OsDebugMessageInfo Message);
 
 #ifdef __cplusplus

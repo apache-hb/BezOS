@@ -120,7 +120,7 @@ namespace km {
         stdx::SharedSpinLock lock;
         ProcessPageTables ptes;
         sm::FlatHashMap<OsHandle, KernelObject*> handles;
-        OsProcessState state = { eOsProcessRunning };
+        OsProcessInfo state = { eOsProcessRunning };
 
         void init(ProcessId id, stdx::String name, x64::Privilege protection, SystemPageTables *kernel, AddressMapping pteMemory, VirtualRange processArea);
 

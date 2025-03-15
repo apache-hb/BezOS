@@ -24,7 +24,6 @@
 #include "delay.hpp"
 #include "devices/ddi.hpp"
 #include "devices/hid.hpp"
-#include "devices/stream.hpp"
 #include "devices/sysfs.hpp"
 #include "display.hpp"
 #include "drivers/block/ramblk.hpp"
@@ -64,6 +63,7 @@
 
 #include "kernel.hpp"
 
+#include "user/sysapi.hpp"
 #include "util/memory.hpp"
 
 #include "fs2/vfs.hpp"
@@ -1182,197 +1182,43 @@ static void AddVfsSystemCalls() {
     AddVfsFileSystemCalls();
 }
 
-// TODO: there should be a global registry of these, and they should be loaded from shared objects
-static vfs2::INode *GetDefaultClass(sm::uuid uuid) {
-    if (uuid == kOsStreamGuid) {
-        return new dev::StreamDevice(1024);
-    } else {
-        return nullptr;
-    }
+static km::System GetSystem() {
+    return km::System {
+        .vfs = gVfsRoot,
+        .objects = gSystemObjects,
+        .memory = gMemory,
+    };
 }
 
 static void AddDeviceSystemCalls() {
     AddSystemCall(eOsCallDeviceOpen, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
-        uint64_t userCreateInfo = regs->arg0;
-        OsDeviceCreateInfo createInfo{};
-        if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {
-            return CallError(status);
-        }
-
-        if (createInfo.OpenDataSize == 0) {
-            if (createInfo.OpenData != nullptr) {
-                return CallError(OsStatusInvalidInput);
-            }
-        } else {
-            if (!context->isMapped((uint64_t)createInfo.OpenData, (uint64_t)createInfo.OpenData + createInfo.OpenDataSize, PageFlags::eUser | PageFlags::eRead)) {
-                return CallError(OsStatusInvalidInput);
-            }
-        }
-
-        vfs2::VfsPath path;
-        if (OsStatus status = UserReadPath(context, createInfo.Path, &path)) {
-            return CallError(status);
-        }
-
-        sm::uuid uuid = createInfo.InterfaceGuid;
-        km::Process *process = context->process();
-
-        std::unique_ptr<vfs2::IHandle> handle = nullptr;
-        OsStatus status = gVfsRoot->device(path, uuid, createInfo.OpenData, createInfo.OpenDataSize, std::out_ptr(handle));
-
-        if ((status == OsStatusNotFound) && (createInfo.Flags & eOsDeviceCreateNew)) {
-            vfs2::INode *node = GetDefaultClass(uuid);
-            if (node == nullptr) {
-                return CallError(OsStatusNotFound);
-            }
-
-            status = gVfsRoot->mkdevice(path, node);
-            if (status != OsStatusSuccess) {
-                return CallError(status);
-            }
-
-            status = gVfsRoot->device(path, uuid, createInfo.OpenData, createInfo.OpenDataSize, std::out_ptr(handle));
-        }
-
-        if (status != OsStatusSuccess) {
-            return CallError(status);
-        }
-
-        Device *vnode = nullptr;
-        if (OsStatus status = gSystemObjects->addDevice(process, std::move(handle), &vnode)) {
-            return CallError(status);
-        }
-
-        return CallOk(vnode->publicId());
+        km::System system = GetSystem();
+        return um::DeviceOpen(&system, context, regs);
     });
 
     AddSystemCall(eOsCallDeviceClose, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
-        uint64_t userDevice = regs->arg0;
-        km::Process *process = context->process();
-
-        Device *node = gSystemObjects->getDevice(DeviceId(OS_HANDLE_ID(userDevice)));
-        if (node == nullptr) {
-            return CallError(OsStatusInvalidHandle);
-        }
-
-        if (OsStatus status = gSystemObjects->destroyDevice(process, node)) {
-            return CallError(status);
-        }
-
-        return CallOk(0zu);
+        km::System system = GetSystem();
+        return um::DeviceClose(&system, context, regs);
     });
 
     AddSystemCall(eOsCallDeviceRead, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
-        uint64_t userHandle = regs->arg0;
-        uint64_t userRequest = regs->arg1;
-
-        OsDeviceReadRequest request{};
-        if (OsStatus status = context->readObject(userRequest, &request)) {
-            return CallError(status);
-        }
-
-        if (!context->isMapped((uint64_t)request.BufferFront, (uint64_t)request.BufferBack, PageFlags::eUser | PageFlags::eWrite)) {
-            return CallError(OsStatusInvalidInput);
-        }
-
-        Device *node = gSystemObjects->getDevice(DeviceId(OS_HANDLE_ID(userHandle)));
-        if (node == nullptr) {
-            return CallError(OsStatusInvalidHandle);
-        }
-
-        vfs2::ReadRequest readRequest {
-            .begin = request.BufferFront,
-            .end = request.BufferBack,
-            .timeout = request.Timeout,
-        };
-        vfs2::ReadResult result{};
-        if (OsStatus status = node->handle->read(readRequest, &result)) {
-            return CallError(status);
-        }
-
-        return CallOk(result.read);
+        km::System system = GetSystem();
+        return um::DeviceRead(&system, context, regs);
     });
 
     AddSystemCall(eOsCallDeviceWrite, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
-        uint64_t userHandle = regs->arg0;
-        uint64_t userRequest = regs->arg1;
-
-        OsDeviceReadRequest request{};
-        if (OsStatus status = context->readObject(userRequest, &request)) {
-            return CallError(status);
-        }
-
-        if (!context->isMapped((uint64_t)request.BufferFront, (uint64_t)request.BufferBack, PageFlags::eUser | PageFlags::eRead)) {
-            return CallError(OsStatusInvalidInput);
-        }
-
-        Device *node = gSystemObjects->getDevice(DeviceId(OS_HANDLE_ID(userHandle)));
-        if (node == nullptr) {
-            return CallError(OsStatusInvalidHandle);
-        }
-
-        vfs2::WriteRequest writeRequest {
-            .begin = request.BufferFront,
-            .end = request.BufferBack,
-            .timeout = request.Timeout,
-        };
-        vfs2::WriteResult result{};
-        if (OsStatus status = node->handle->write(writeRequest, &result)) {
-            return CallError(status);
-        }
-
-        return CallOk(result.write);
+        km::System system = GetSystem();
+        return um::DeviceWrite(&system, context, regs);
     });
 
     AddSystemCall(eOsCallDeviceInvoke, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
-        uint64_t userHandle = regs->arg0;
-        uint64_t userFunction = regs->arg1;
-        uint64_t userData = regs->arg2;
-        uint64_t userSize = regs->arg3;
-
-        if (!context->isMapped((uint64_t)userData, (uint64_t)userData + userSize, PageFlags::eUserData)) {
-            return CallError(OsStatusInvalidInput);
-        }
-
-        Device *node = gSystemObjects->getDevice(DeviceId(OS_HANDLE_ID(userHandle)));
-        if (node == nullptr) {
-            return CallError(OsStatusInvalidHandle);
-        }
-
-        SystemInvokeContext invoke { context, gSystemObjects };
-
-        if (OsStatus status = node->handle->invoke(&invoke, userFunction, (void*)userData, userSize)) {
-            return CallError(status);
-        }
-
-        return CallOk(0zu);
+        km::System system = GetSystem();
+        return um::DeviceInvoke(&system, context, regs);
     });
 
     AddSystemCall(eOsCallDeviceStat, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
-        uint64_t userHandle = regs->arg0;
-        uint64_t userStat = regs->arg1;
-
-        Device *device = gSystemObjects->getDevice(DeviceId(OS_HANDLE_ID(userHandle)));
-        if (device == nullptr) {
-            return CallError(OsStatusInvalidHandle);
-        }
-
-        vfs2::HandleInfo handleInfo = device->handle->info();
-        vfs2::NodeInfo nodeInfo = handleInfo.node->info();
-
-        OsDeviceInfo result{};
-        size_t len = std::min(sizeof(result.Name), nodeInfo.name.count());
-        std::memcpy(result.Name, nodeInfo.name.data(), len);
-
-        result.InterfaceGuid = handleInfo.guid;
-
-        // TODO: fill in the rest of the fields
-
-        if (OsStatus status = context->writeObject(userStat, result)) {
-            return CallError(status);
-        }
-
-        return CallOk(0zu);
+        km::System system = GetSystem();
+        return um::DeviceStat(&system, context, regs);
     });
 }
 
@@ -1429,100 +1275,24 @@ static void AddThreadSystemCalls() {
 }
 
 static void AddNodeSystemCalls() {
-    AddSystemCall(eOsCallNodeOpen, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
-        uint64_t userCreateInfo = regs->arg0;
-
-        Process *process = nullptr;
-        vfs2::INode *node = nullptr;
-        Node *result = nullptr;
-        vfs2::VfsPath path;
-        OsNodeCreateInfo createInfo{};
-
-        if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {
-            return CallError(status);
-        }
-
-        if (OsStatus status = SelectOwningProcess(context, createInfo.Process, &process)) {
-            return CallError(status);
-        }
-
-        if (OsStatus status = UserReadPath(context, createInfo.Path, &path)) {
-            return CallError(status);
-        }
-
-        if (OsStatus status = gVfsRoot->lookup(path, &node)) {
-            return CallError(status);
-        }
-
-        if (OsNodeHandle existing = gSystemObjects->getNodeId(node)) {
-            return CallOk(existing);
-        }
-
-        if (OsStatus status = gSystemObjects->createNode(process, std::move(node), &result)) {
-            return CallError(status);
-        }
-
-        return CallOk(result->publicId());
+    AddSystemCall(eOsCallNodeOpen, [](CallContext *context, SystemCallRegisterSet *regs) {
+        km::System system = GetSystem();
+        return um::NodeOpen(&system, context, regs);
     });
 
-    AddSystemCall(eOsCallNodeClose, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
-        uint64_t userHandle = regs->arg0;
-
-        Node *node = gSystemObjects->getNode(NodeId(OS_HANDLE_ID(userHandle)));
-        if (node == nullptr) {
-            return CallError(OsStatusInvalidHandle);
-        }
-
-        if (OsStatus status = gSystemObjects->destroyNode(context->process(), node)) {
-            return CallError(status);
-        }
-
-        return CallOk(0zu);
+    AddSystemCall(eOsCallNodeClose, [](CallContext *context, SystemCallRegisterSet *regs) {
+        km::System system = GetSystem();
+        return um::NodeClose(&system, context, regs);
     });
 
-    AddSystemCall(eOsCallNodeQuery, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
-        uint64_t userHandle = regs->arg0;
-        uint64_t userQuery = regs->arg1;
-
-        Node *node = gSystemObjects->getNode(NodeId(OS_HANDLE_ID(userHandle)));
-        if (node == nullptr) {
-            return CallError(OsStatusInvalidHandle);
-        }
-
-        vfs2::NodeInfo info = node->node->info();
-
-        OsNodeInfo result{};
-        size_t len = std::min(sizeof(result.Name), info.name.count());
-        std::memcpy(result.Name, info.name.data(), len);
-
-        if (OsStatus status = context->writeObject(userQuery, result)) {
-            return CallError(status);
-        }
-
-        return CallOk(0zu);
+    AddSystemCall(eOsCallNodeQuery, [](CallContext *context, SystemCallRegisterSet *regs) {
+        km::System system = GetSystem();
+        return um::NodeQuery(&system, context, regs);
     });
 
-    AddSystemCall(eOsCallNodeStat, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
-        uint64_t userHandle = regs->arg0;
-        uint64_t userStat = regs->arg1;
-
-        Node *node = gSystemObjects->getNode(NodeId(OS_HANDLE_ID(userHandle)));
-        if (node == nullptr) {
-            KmDebugMessage("[VFS] Failed to find node ", km::Hex(userHandle), "\n");
-            return CallError(OsStatusInvalidHandle);
-        }
-
-        vfs2::NodeInfo info = node->node->info();
-
-        OsNodeInfo result{};
-        size_t len = std::min(sizeof(result.Name), info.name.count());
-        std::memcpy(result.Name, info.name.data(), len);
-
-        if (OsStatus status = context->writeObject(userStat, result)) {
-            return CallError(status);
-        }
-
-        return CallOk(0zu);
+    AddSystemCall(eOsCallNodeStat, [](CallContext *context, SystemCallRegisterSet *regs) {
+        km::System system = GetSystem();
+        return um::NodeStat(&system, context, regs);
     });
 }
 
@@ -1653,50 +1423,6 @@ static void AddProcessSystemCalls() {
         return CallOk(0zu);
     });
 }
-
-#if 0
-static OsStatus GetMemoryAccess(OsMemoryAccess access, PageFlags *result) {
-    PageFlags flags = PageFlags::eUser;
-    if (access & eOsMemoryRead) {
-        flags |= PageFlags::eRead;
-        access &= ~eOsMemoryRead;
-    }
-
-    if (access & eOsMemoryWrite) {
-        flags |= PageFlags::eWrite;
-        access &= ~eOsMemoryWrite;
-    }
-
-    if (access & eOsMemoryExecute) {
-        flags |= PageFlags::eExecute;
-        access &= ~eOsMemoryExecute;
-    }
-
-    if (access != 0) {
-        return OsStatusInvalidInput;
-    }
-
-    *result = flags;
-    return OsStatusSuccess;
-}
-
-static OsMemoryAccess MakeMemoryAccess(PageFlags flags) {
-    OsMemoryAccess access = 0;
-    if (bool(flags & PageFlags::eRead)) {
-        access |= eOsMemoryRead;
-    }
-
-    if (bool(flags & PageFlags::eWrite)) {
-        access |= eOsMemoryWrite;
-    }
-
-    if (bool(flags & PageFlags::eExecute)) {
-        access |= eOsMemoryExecute;
-    }
-
-    return access;
-}
-#endif
 
 static void AddVmemSystemCalls() {
     AddSystemCall(eOsCallVmemCreate, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {

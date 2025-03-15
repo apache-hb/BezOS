@@ -19,8 +19,6 @@
                      LLVM_TARGETS_TO_BUILD="X86"
                      LLVM_DEFAULT_TARGET_TRIPLE="x86_64-bezos"
 
-                     CLANG_ENABLE_STATIC_ANALYZER="OFF"
-
                      CMAKE_C_COMPILER="clang"
                      CMAKE_CXX_COMPILER="clang++"
                      CMAKE_LINKER="ld.lld" />
