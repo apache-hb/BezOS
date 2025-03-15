@@ -1,9 +1,9 @@
 diff --git a/clang/lib/Driver/ToolChains/BezOS.cpp b/clang/lib/Driver/ToolChains/BezOS.cpp
 new file mode 100644
-index 0000000..856a246
+index 0000000..e0e198b
 --- /dev/null
 +++ b/clang/lib/Driver/ToolChains/BezOS.cpp
-@@ -0,0 +1,299 @@
+@@ -0,0 +1,300 @@
 +//===--- BezOS.cpp - BezOS ToolChain Implementations --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -126,6 +126,7 @@ index 0000000..856a246
 +    // use these to build the initial inputs to the link.
 +    getLibraryPaths().push_back(getDriver().SysRoot + "/sysapi/lib");
 +    getLibraryPaths().push_back(getDriver().SysRoot + "/llvm-compiler-rt/lib");
++    getLibraryPaths().push_back(getDriver().SysRoot + "/llvm-compiler-rt/lib/generic");
 +    getLibraryPaths().push_back(getDriver().SysRoot + "/llvm-compiler-rt/lib/" + getTripleString());
 +  }
 +
@@ -272,7 +273,7 @@ index 0000000..856a246
 +  }
 +
 +  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
-+    clang::driver::tools::AddRunTimeLibs(TC, D, CmdArgs, Args);
++    CmdArgs.push_back(Args.MakeArgString(D.SysRoot + "/llvm-compiler-rt/lib/generic/libclang_rt.builtins-" + TC.getArchName() + ".a"));
 +
 +    CmdArgs.push_back(Args.MakeArgString(D.SysRoot + "/sysapi/lib/libbezos-sysapi.a"));
 +    CmdArgs.push_back(Args.MakeArgString(D.SysRoot + "/sysapi/lib/libbezos-posix.a"));

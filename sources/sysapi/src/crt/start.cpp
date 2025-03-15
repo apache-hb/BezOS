@@ -8,7 +8,7 @@ extern "C" void (*__init_array_end[])(void) __attribute__((weak));
 extern "C" void (*__fini_array_start[])(void) __attribute__((weak));
 extern "C" void (*__fini_array_end[])(void) __attribute__((weak));
 
-extern "C" int CrtEntry(int argc, const char *const *argv) asm("main");
+extern int main(int argc, const char *const *argv);
 
 static const char *const kDefaultArgs[] = { "program.elf", nullptr };
 
@@ -35,7 +35,7 @@ static void CallFiniArray() {
 extern "C" [[noreturn]] void ProgramMain(const OsClientStartInfo *StartInfo) {
     CallInitArray();
 
-    int result = CrtEntry(1, kDefaultArgs);
+    int result = main(1, kDefaultArgs);
 
     CallFiniArray();
 
