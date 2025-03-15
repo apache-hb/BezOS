@@ -36,7 +36,7 @@ namespace km {
             , mVfs(vfs)
         { }
 
-        OsStatus createProcess(stdx::String name, x64::Privilege privilege, MemoryRange pteMemory, Process **process);
+        OsStatus createProcess(stdx::String name, MemoryRange pteMemory, ProcessCreateInfo createInfo, Process **process);
         OsStatus destroyProcess(Process *process);
         Process *getProcess(ProcessId id);
         OsStatus exitProcess(Process *process, int64_t status);

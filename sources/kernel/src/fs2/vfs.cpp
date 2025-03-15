@@ -454,10 +454,6 @@ OsStatus VfsRoot::device(const VfsPath& path, sm::uuid interface, const void *da
         return status;
     }
 
-    NodeInfo pInfo = parent->info();
-
-    KmDebugMessage("Device lookup: ", path, " ", pInfo.name, "\n");
-
     INode *device = nullptr;
     if (OsStatus status = folder->lookup(path.name(), &device)) {
         return status;

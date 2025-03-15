@@ -113,18 +113,38 @@ namespace km {
         }
     };
 
+    struct ProcessCreateInfo {
+        Process *parent;
+        x64::Privilege privilege;
+        uintptr_t userArgsBegin;
+        uintptr_t userArgsEnd;
+    };
+
     struct Process : public KernelObject {
         Process() = default;
+
+        Process *parent = nullptr;
 
         x64::Privilege privilege;
         stdx::SharedSpinLock lock;
         ProcessPageTables ptes;
         sm::FlatHashMap<OsHandle, KernelObject*> handles;
-        OsProcessInfo state = { eOsProcessRunning };
+        OsProcessStateFlags state = eOsProcessRunning;
+        int64_t exitCode = 0;
 
-        void init(ProcessId id, stdx::String name, x64::Privilege protection, SystemPageTables *kernel, AddressMapping pteMemory, VirtualRange processArea);
+        // a pair of pointers into the process address space that contain the arguments for the process
+        uintptr_t userArgsBegin;
+        uintptr_t userArgsEnd;
+
+        void init(ProcessId id, stdx::String name, SystemPageTables *kernel, AddressMapping pteMemory, VirtualRange processArea, ProcessCreateInfo createInfo);
 
         bool isComplete() const;
+
+        OsProcessHandle parentId() const {
+            return parent ? parent->publicId() : OS_HANDLE_INVALID;
+        }
+
+        void terminate(OsProcessStateFlags state, int64_t exitCode);
 
         void addHandle(KernelObject *object);
         KernelObject *findHandle(OsHandle id);

@@ -252,8 +252,7 @@ void km::InstallExceptionHandlers(SharedIsrTable *ist) {
     ist->install(isr::DE, [](km::IsrContext *context) -> km::IsrContext {
         if (!IsSupervisorFault(context)) {
             if (auto process = GetCurrentProcess()) {
-                process->state.Status = eOsProcessFaulted;
-                process->state.ExitCode = 0x80000003;
+                process->terminate(eOsProcessFaulted, 0x80000003);
             }
 
             return *context;
@@ -273,8 +272,7 @@ void km::InstallExceptionHandlers(SharedIsrTable *ist) {
     ist->install(isr::UD, [](km::IsrContext *context) -> km::IsrContext {
         if (!IsSupervisorFault(context)) {
             if (auto process = GetCurrentProcess()) {
-                process->state.Status = eOsProcessFaulted;
-                process->state.ExitCode = 0x80000003;
+                process->terminate(eOsProcessFaulted, 0x80000003);
             }
 
             return *context;
@@ -288,8 +286,7 @@ void km::InstallExceptionHandlers(SharedIsrTable *ist) {
     ist->install(isr::DF, [](km::IsrContext *context) -> km::IsrContext {
         if (!IsSupervisorFault(context)) {
             if (auto process = GetCurrentProcess()) {
-                process->state.Status = eOsProcessFaulted;
-                process->state.ExitCode = 0x80000003;
+                process->terminate(eOsProcessFaulted, 0x80000003);
             }
 
             return *context;
@@ -305,8 +302,7 @@ void km::InstallExceptionHandlers(SharedIsrTable *ist) {
 
         if (!IsSupervisorFault(context)) {
             if (auto process = GetCurrentProcess()) {
-                process->state.Status = eOsProcessFaulted;
-                process->state.ExitCode = 0x80000003;
+                process->terminate(eOsProcessFaulted, 0x80000003);
             }
 
             return *context;
@@ -320,8 +316,7 @@ void km::InstallExceptionHandlers(SharedIsrTable *ist) {
     ist->install(isr::PF, [](km::IsrContext *context) -> km::IsrContext {
         if (!IsSupervisorFault(context)) {
             if (auto process = GetCurrentProcess()) {
-                process->state.Status = eOsProcessFaulted;
-                process->state.ExitCode = 0x80000003;
+                process->terminate(eOsProcessFaulted, 0x80000003);
             }
 
             return *context;

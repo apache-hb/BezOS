@@ -57,16 +57,20 @@ struct OsProcessParam {
 
 struct OsProcessCreateInfo {
     struct OsPath Executable;
-    struct OsPath WorkingDirectory;
 
-    const struct OsProcessParam *ObjectParametersBegin;
-    const struct OsProcessParam *ObjectParametersEnd;
+    const struct OsProcessParam *ArgsBegin;
+    const struct OsProcessParam *ArgsEnd;
 
     OsProcessStateFlags Flags;
     OsProcessHandle Parent;
 };
 
 struct OsProcessInfo {
+    OsProcessHandle Parent;
+
+    const struct OsProcessParam *ArgsBegin;
+    const struct OsProcessParam *ArgsEnd;
+
     OsProcessStateFlags Status;
     int64_t ExitCode;
 };
@@ -75,13 +79,11 @@ extern OsStatus OsProcessCurrent(OsProcessHandle *OutHandle);
 
 extern OsStatus OsProcessCreate(struct OsProcessCreateInfo CreateInfo, OsProcessHandle *OutHandle);
 
-extern OsStatus OsProcessSuspend(OsProcessHandle Handle, bool Suspend);
-
 extern OsStatus OsProcessTerminate(OsProcessHandle Handle, int64_t ExitCode);
 
-extern OsStatus OsProcessStat(OsProcessHandle Handle, struct OsProcessInfo *OutState);
+extern OsStatus OsProcessSuspend(OsProcessHandle Handle, bool Suspend);
 
-extern OsStatus OsProcessArg(OsProcessHandle Handle, struct OsGuid Guid, void *OutData, OsSize *OutSize);
+extern OsStatus OsProcessStat(OsProcessHandle Handle, struct OsProcessInfo *OutState);
 
 /// @} // group OsProcess
 

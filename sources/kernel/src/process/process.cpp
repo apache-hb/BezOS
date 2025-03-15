@@ -1,18 +1,24 @@
 #include "process/process.hpp"
 
-#include "util/defer.hpp"
-
 using namespace km;
 
-void Process::init(ProcessId id, stdx::String name, x64::Privilege protection, SystemPageTables *kernel, AddressMapping pteMemory, VirtualRange processArea) {
+void Process::init(ProcessId id, stdx::String name, SystemPageTables *kernel, AddressMapping pteMemory, VirtualRange processArea, ProcessCreateInfo createInfo) {
     initHeader(std::to_underlying(id), eOsHandleProcess, std::move(name));
-    privilege = protection;
     ptes.init(kernel, pteMemory, processArea);
+    privilege = createInfo.privilege;
+    parent = createInfo.parent;
+    userArgsBegin = createInfo.userArgsBegin;
+    userArgsEnd = createInfo.userArgsEnd;
 }
 
 bool Process::isComplete() const {
-    auto status = OS_PROCESS_STATUS(state.Status);
+    auto status = OS_PROCESS_STATUS(state);
     return status != eOsProcessRunning && status != eOsProcessSuspended;
+}
+
+void Process::terminate(OsProcessStateFlags state, int64_t exitCode) {
+    this->state = state;
+    this->exitCode = exitCode;
 }
 
 void Process::addHandle(KernelObject *object) {

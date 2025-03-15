@@ -156,7 +156,7 @@ Thread *SystemObjects::createThread(stdx::String name, Process *process) {
     return result;
 }
 
-OsStatus SystemObjects::createProcess(stdx::String name, x64::Privilege privilege, MemoryRange pteMemory, Process **process) {
+OsStatus SystemObjects::createProcess(stdx::String name, MemoryRange pteMemory, ProcessCreateInfo createInfo, Process **process) {
     SystemPageTables& systemTables = mMemory->pageTables();
 
     std::unique_ptr<Process> result{ new (std::nothrow) Process };
@@ -171,7 +171,7 @@ OsStatus SystemObjects::createProcess(stdx::String name, x64::Privilege privileg
     }
 
     ProcessId id = mProcessIds.allocate();
-    result->init(id, std::move(name), privilege, &systemTables, pteMapping, DefaultUserArea());
+    result->init(id, std::move(name), &systemTables, pteMapping, DefaultUserArea(), createInfo);
 
     Process *handle = result.release();
 
@@ -201,9 +201,9 @@ Process *SystemObjects::getProcess(ProcessId id) {
 }
 
 OsStatus SystemObjects::exitProcess(Process *process, int64_t status) {
-    OsProcessStateFlags state = (process->state.Status & ~eOsProcessStatusMask) | eOsProcessExited;
-    process->state.Status = state;
-    process->state.ExitCode = status;
+    OsProcessStateFlags state = (process->state & ~eOsProcessStatusMask) | eOsProcessExited;
+    process->state = state;
+    process->exitCode = status;
     return OsStatusSuccess;
 }
 

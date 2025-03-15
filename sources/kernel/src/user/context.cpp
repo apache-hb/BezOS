@@ -70,6 +70,10 @@ OsStatus km::VerifyUserRange(const VerifyRules& rules, uintptr_t begin, uintptr_
 }
 
 OsStatus km::VerifyRangeMapped(uintptr_t begin, uintptr_t end, PageFlags flags, PageTables *pt) {
+    //
+    // Walk the range and test each page.
+    // TODO: this could be more efficiently implemented inside PageTables as a single call.
+    //
     for (uintptr_t addr = begin; addr < end; addr += x64::kPageSize) {
         PageFlags pf = pt->getMemoryFlags((void*)addr);
         if ((pf & flags) != flags) {
@@ -80,7 +84,7 @@ OsStatus km::VerifyRangeMapped(uintptr_t begin, uintptr_t end, PageFlags flags, 
     return OsStatusSuccess;
 }
 
-OsStatus km::ReadUserRange(const VerifyRules& rules, uintptr_t begin, uintptr_t end, void *dst, const PageBuilder *pm, PageTables *pt) {
+OsStatus km::VerifyRangeValid(const VerifyRules& rules, uintptr_t begin, uintptr_t end, PageFlags flags, const PageBuilder *pm, PageTables *pt) {
     //
     // First sanitize the input parameters.
     //
@@ -91,14 +95,50 @@ OsStatus km::ReadUserRange(const VerifyRules& rules, uintptr_t begin, uintptr_t 
     //
     // Then verify that they are mapped.
     //
-    if (OsStatus status = VerifyRangeMapped(begin, end, PageFlags::eUser | PageFlags::eRead, pt)) {
+    if (OsStatus status = VerifyRangeMapped(begin, end, flags, pt)) {
         return status;
     }
 
     //
-    // After we know the memory is safe to use we can copy the data.
+    // If the memory is mapped and the range is valid then all is good.
     //
+    return OsStatusSuccess;
+}
+
+OsStatus km::ReadUserRange(const VerifyRules& rules, uintptr_t begin, uintptr_t end, void *dst, const PageBuilder *pm, PageTables *pt) {
+    if (OsStatus status = VerifyRangeValid(rules, begin, end, PageFlags::eUser | PageFlags::eRead, pm, pt)) {
+        return status;
+    }
+
     size_t size = end - begin;
     memcpy(dst, (void*)begin, size);
     return OsStatusSuccess;
+}
+
+OsStatus km::WriteUserRange(const VerifyRules& rules, uintptr_t begin, uintptr_t end, const void *src, const PageBuilder *pm, PageTables *pt) {
+    if (OsStatus status = VerifyRangeValid(rules, begin, end, PageFlags::eUser | PageFlags::eWrite, pm, pt)) {
+        return status;
+    }
+
+    size_t size = end - begin;
+    memcpy((void*)begin, src, size);
+    return OsStatusSuccess;
+}
+
+OsStatus km::ReadUserObject(const VerifyRules& rules, uintptr_t address, size_t size, void *dst, const PageBuilder *pm, PageTables *pt) {
+    uintptr_t end;
+    if (__builtin_add_overflow(address, size, &end)) {
+        return OsStatusInvalidSpan;
+    }
+
+    return ReadUserRange(rules, address, end, dst, pm, pt);
+}
+
+OsStatus km::WriteUserObject(const VerifyRules& rules, uintptr_t address, size_t size, const void *src, const PageBuilder *pm, PageTables *pt) {
+    uintptr_t end;
+    if (__builtin_add_overflow(address, size, &end)) {
+        return OsStatusInvalidSpan;
+    }
+
+    return WriteUserRange(rules, address, end, src, pm, pt);
 }

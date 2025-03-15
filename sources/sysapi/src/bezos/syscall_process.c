@@ -14,13 +14,13 @@ OsStatus OsProcessCreate(struct OsProcessCreateInfo CreateInfo, OsProcessHandle 
     return result.Status;
 }
 
-OsStatus OsProcessSuspend(OsProcessHandle Handle, bool Suspend) {
-    struct OsCallResult result = OsSystemCall(eOsCallProcessSuspend, (uint64_t)Handle, Suspend, 0, 0);
+OsStatus OsProcessTerminate(OsProcessHandle Handle, int64_t ExitCode) {
+    struct OsCallResult result = OsSystemCall(eOsCallProcessDestroy, (uint64_t)Handle, ExitCode, 0, 0);
     return result.Status;
 }
 
-OsStatus OsProcessTerminate(OsProcessHandle Handle, int64_t ExitCode) {
-    struct OsCallResult result = OsSystemCall(eOsCallProcessDestroy, (uint64_t)Handle, ExitCode, 0, 0);
+OsStatus OsProcessSuspend(OsProcessHandle Handle, bool Suspend) {
+    struct OsCallResult result = OsSystemCall(eOsCallProcessSuspend, (uint64_t)Handle, Suspend, 0, 0);
     return result.Status;
 }
 

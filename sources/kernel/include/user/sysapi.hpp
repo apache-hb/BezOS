@@ -15,11 +15,13 @@ namespace km {
     struct SystemCallRegisterSet;
     class SystemObjects;
     class SystemMemory;
+    class Scheduler;
 
     struct System {
         vfs2::VfsRoot *vfs;
         SystemObjects *objects;
         SystemMemory *memory;
+        Scheduler *scheduler;
     };
 }
 
@@ -42,4 +44,9 @@ namespace um {
     OsCallResult DeviceWrite(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
     OsCallResult DeviceInvoke(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
     OsCallResult DeviceStat(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
+
+    OsCallResult ProcessCreate(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
+    OsCallResult ProcessDestroy(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
+    OsCallResult ProcessCurrent(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
+    OsCallResult ProcessStat(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
 }

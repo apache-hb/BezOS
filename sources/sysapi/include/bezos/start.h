@@ -7,8 +7,8 @@ extern "C" {
 #endif
 
 struct OsClientStartInfo {
-    const char *ArgumentsFront;
-    const char *ArgumentsBack;
+    const struct OsProcessParam *ArgsBegin;
+    const struct OsProcessParam *ArgsEnd;
 
     OsProcessHandle ThisProcess;
     OsProcessHandle ParentProcess;

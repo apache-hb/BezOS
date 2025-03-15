@@ -251,8 +251,13 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory &memo
         c = toupper(c);
     }
 
+    ProcessCreateInfo createInfo {
+        .parent = nullptr,
+        .privilege = x64::Privilege::eUser,
+    };
+
     Process *process = nullptr;
-    if (OsStatus status = objects.createProcess(stdx::String(name), x64::Privilege::eUser, pteMemory, &process)) {
+    if (OsStatus status = objects.createProcess(stdx::String(name), pteMemory, createInfo, &process)) {
         return status;
     }
 

@@ -28,9 +28,12 @@ TEST(ProcessTest, CreateProcess) {
 
     km::SystemObjects objects { &memory, &vfs };
 
+    km::ProcessCreateInfo createInfo {
+        .privilege = x64::Privilege::eUser,
+    };
     km::Process *process = nullptr;
     {
-        OsStatus status = objects.createProcess("test", x64::Privilege::eUser, s0, &process);
+        OsStatus status = objects.createProcess("test", s0, createInfo, &process);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
@@ -57,10 +60,13 @@ TEST(ProcessTest, CreateThread) {
 
     km::SystemObjects objects { &memory, &vfs };
 
+    km::ProcessCreateInfo createInfo {
+        .privilege = x64::Privilege::eUser,
+    };
     km::Process *process = nullptr;
     km::Thread *thread = nullptr;
     {
-        OsStatus status = objects.createProcess("test", x64::Privilege::eUser, s0, &process);
+        OsStatus status = objects.createProcess("test", s0, createInfo, &process);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
@@ -117,11 +123,14 @@ TEST(ProcessTest, OpenFile) {
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
+    km::ProcessCreateInfo createInfo {
+        .privilege = x64::Privilege::eUser,
+    };
     km::Process *process = nullptr;
     km::Thread *thread = nullptr;
     km::Device *vnode = nullptr;
     {
-        OsStatus status = objects.createProcess("test", x64::Privilege::eUser, s0, &process);
+        OsStatus status = objects.createProcess("test", s0, createInfo, &process);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
@@ -190,11 +199,14 @@ TEST(ProcessTest, CloseFileInProcess) {
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
+    km::ProcessCreateInfo createInfo {
+        .privilege = x64::Privilege::eUser,
+    };
     km::Process *process = nullptr;
     km::Thread *thread = nullptr;
     km::Device *vnode = nullptr;
     {
-        OsStatus status = objects.createProcess("test", x64::Privilege::eUser, s0, &process);
+        OsStatus status = objects.createProcess("test", s0, createInfo, &process);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 

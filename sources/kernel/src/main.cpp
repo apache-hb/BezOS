@@ -1648,8 +1648,13 @@ static void CreateDisplayDevice() {
 static void LaunchKernelProcess(LocalIsrTable *table, IApic *apic) {
     MemoryRange pteMemory = gMemory->pmmAllocate(256);
 
+    ProcessCreateInfo createInfo {
+        .parent = nullptr,
+        .privilege = x64::Privilege::eSupervisor,
+    };
+
     Process *process = nullptr;
-    OsStatus status = gSystemObjects->createProcess("SYSTEM", x64::Privilege::eSupervisor, pteMemory, &process);
+    OsStatus status = gSystemObjects->createProcess("SYSTEM", pteMemory, createInfo, &process);
     if (status != OsStatusSuccess) {
         KmDebugMessage("[INIT] Failed to create SYSTEM process: ", status, "\n");
         KM_PANIC("Failed to create SYSTEM process.");
