@@ -36,7 +36,7 @@ template<size_t N>
 static void AssertOsSuccess(OsStatus status, const char (&message)[N]) {
     if (status != OsStatusSuccess) {
         DebugLog(message);
-        DebugLog("\nStatus: ");
+        DebugLog("Status: ");
         DebugLog(status);
         while (true) {
             OsThreadYield();

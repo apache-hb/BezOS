@@ -118,10 +118,33 @@ extern "C" char *strcpy(char *dest, const char *src) {
     return dest;
 }
 
+extern "C" char *strncpy(char *dest, const char *src, size_t n) {
+    char *pdest = dest;
+    const char *psrc = src;
+
+    while (n-- > 0 && *psrc != '\0') {
+        *pdest++ = *psrc++;
+    }
+
+    while (n-- > 0) {
+        *pdest++ = '\0';
+    }
+
+    return dest;
+}
+
 extern "C" size_t strlen(const char *str) {
     const char *back = str;
 
     while (*back++) { /* empty */ }
+
+    return back - str - 1;
+}
+
+extern "C" size_t strnlen(const char *str, size_t maxlen) {
+    const char *back = str;
+
+    while (maxlen-- && *back++) { /* empty */ }
 
     return back - str - 1;
 }

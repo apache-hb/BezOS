@@ -163,6 +163,13 @@ OsStatus vfs2::ParseTar(km::BlockDevice *media, TarParseOptions options, sm::BTr
             continue;
         }
 
+        if (strncmp(header.name, "./", 3) == 0) {
+            //
+            // Skip the current directory entry.
+            //
+            continue;
+        }
+
         VfsPath path;
         if (OsStatus status = detail::ConvertTarPath(header.name, &path)) {
             KmDebugMessage("[TARFS] Failed to convert path: ", header.name, " = ", status, "\n");
@@ -181,7 +188,7 @@ OsStatus vfs2::ParseTar(km::BlockDevice *media, TarParseOptions options, sm::BTr
 
 void TarFsNode::init(INode *parent, VfsString name, Access) {
     mParent = parent;
-    stdr::copy(name, mHeader.name);
+    strncpy(mHeader.name, name.data(), sizeof(mHeader.name));
 }
 
 NodeInfo TarFsNode::info() {
@@ -189,7 +196,7 @@ NodeInfo TarFsNode::info() {
     // TarFs does not currently support writing so we always return RX.
     //
     return NodeInfo {
-        .name = mHeader.name,
+        .name = stdx::StringView(mHeader.name, mHeader.name + strnlen(mHeader.name, sizeof(mHeader.name))),
         .mount = mMount,
         .parent = mParent,
         .access = Access::RX,
