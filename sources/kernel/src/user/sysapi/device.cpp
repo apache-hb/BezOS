@@ -1,5 +1,8 @@
 #include "user/sysapi.hpp"
 
+#include "process/device.hpp"
+#include "process/thread.hpp"
+
 #include "devices/stream.hpp"
 #include "process/system.hpp"
 #include "fs2/vfs.hpp"

@@ -2,11 +2,23 @@
 
 #include "process/process.hpp"
 
+#include "fs2/path.hpp"
+#include "std/shared_spinlock.hpp"
+#include "util/uuid.hpp"
+
 namespace vfs2 {
     class VfsRoot;
+    class INode;
+    class IHandle;
 }
 
 namespace km {
+    struct Process;
+    struct Thread;
+    struct Mutex;
+    struct Node;
+    struct Device;
+
     class SystemObjects {
         stdx::SharedSpinLock mLock;
         SystemMemory *mMemory = nullptr;

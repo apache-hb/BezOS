@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
 
 #include "process/process.hpp"
+#include "process/device.hpp"
 #include "process/system.hpp"
+#include "process/thread.hpp"
 
 #include "fs2/vfs.hpp"
 

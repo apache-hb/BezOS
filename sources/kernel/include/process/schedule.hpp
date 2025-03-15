@@ -1,8 +1,10 @@
 #pragma once
 
-#include "std/queue.hpp"
+#include "isr/isr.hpp"
 
-#include "crt.hpp"
+#include "std/queue.hpp" // IWYU pragma: keep
+#include "crt.hpp" // IWYU pragma: keep
+
 #include "process/process.hpp"
 
 namespace km {

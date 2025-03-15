@@ -5,6 +5,7 @@
 #include "allocator/synchronized.hpp"
 #include "allocator/tlsf.hpp"
 #include "debug/debug.hpp"
+#include "process/thread.hpp"
 #include "util/defer.hpp"
 #include "xsave.hpp"
 

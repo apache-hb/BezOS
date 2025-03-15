@@ -1,14 +1,14 @@
 #include "process/process.hpp"
 
+#include "kernel.hpp"
+#include "process/device.hpp"
+
 using namespace km;
 
 void Process::init(ProcessId id, stdx::String name, SystemPageTables *kernel, AddressMapping pteMemory, VirtualRange processArea, ProcessCreateInfo createInfo) {
     initHeader(std::to_underlying(id), eOsHandleProcess, std::move(name));
     ptes.init(kernel, pteMemory, processArea);
-    privilege = createInfo.privilege;
     parent = createInfo.parent;
-    userArgsBegin = createInfo.userArgsBegin;
-    userArgsEnd = createInfo.userArgsEnd;
 }
 
 bool Process::isComplete() const {
@@ -40,6 +40,25 @@ OsStatus Process::removeHandle(OsHandle id) {
     }
 
     return OsStatusNotFound;
+}
+
+OsStatus Process::map(size_t pages, PageFlags flags, MemoryType type, AddressMapping *mapping) {
+    MemoryRange range = pmm.allocate(pages);
+    if (range.isEmpty()) {
+        SystemMemory *memory = GetSystemMemory();
+        range = memory->pmmAllocate(pages);
+    }
+
+    if (range.isEmpty()) {
+        return OsStatusOutOfMemory;
+    }
+
+    OsStatus status = ptes.map(range, flags, type, mapping);
+    if (status != OsStatusSuccess) {
+        pmm.release(range);
+    }
+
+    return status;
 }
 
 void Node::init(NodeId id, stdx::String name, vfs2::INode *vfsNode) {

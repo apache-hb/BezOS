@@ -5,6 +5,10 @@
 #include "kernel.hpp"
 #include "log.hpp"
 
+#include "process/device.hpp"
+#include "process/mutex.hpp"
+#include "process/thread.hpp"
+
 using namespace km;
 
 OsStatus SystemObjects::createNode(Process *process, vfs2::INode *vfsNode, Node **result) {
