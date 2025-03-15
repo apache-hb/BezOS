@@ -5,10 +5,9 @@
 
         <configure with='cmake'>
             <source path='@SOURCE_ROOT@/compiler-rt' />
+            <!-- TODO: patch cmake to recognize -DCMAKE_SYSTEM_NAME="BezOS" -->
             <options LLVM_ENABLE_RUNTIMES="compiler-rt"
                      LLVM_RUNTIME_TARGETS="x86_64-bezos"
-                     CMAKE_C_COMPILER_TARGET="x86_64-bezos"
-                     CMAKE_CXX_COMPILER_TARGET="x86_64-bezos"
                      LLVM_DEFAULT_TARGET_TRIPLE="x86_64-bezos"
 
                      COMPILER_RT_BUILD_BUILTINS="ON"
@@ -22,11 +21,18 @@
                      COMPILER_RT_BUILD_ORC="OFF"
                      COMPILER_RT_DEFAULT_TARGET_ONLY="ON"
                      COMPILER_RT_DEFAULT_TARGET_ARCH="x86_64"
-                     COMPILER_RT_DEFAULT_TARGET_OS="bezos"
+                     COMPILER_RT_BAREMETAL_BUILD="ON"
 
+                     CMAKE_C_COMPILER_TARGET="x86_64-bezos"
+                     CMAKE_CXX_COMPILER_TARGET="x86_64-bezos"
+
+                     CMAKE_SYSTEM_NAME="Generic"
                      CMAKE_C_FLAGS="--sysroot=@PREFIX@"
                      CMAKE_CXX_FLAGS="--sysroot=@PREFIX@"
                      CMAKE_LD_FLAGS="--sysroot=@PREFIX@"
+                     CMAKE_CXX_COMPILER_FORCED="ON"
+                     CMAKE_C_COMPILER_WORKS="1"
+                     CMAKE_CXX_COMPILER_WORKS="1"
 
                      CMAKE_C_COMPILER="@PREFIX@/llvm/bin/clang"
                      CMAKE_CXX_COMPILER="@PREFIX@/llvm/bin/clang++"

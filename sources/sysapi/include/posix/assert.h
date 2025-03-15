@@ -26,6 +26,8 @@ extern void OsImplPosixInstall(void(*)(const char *, const char *, unsigned)) BZ
 #   define assert(x) do { if (!(x)) { OsImplPosixAssert(#x, __FILE__, __LINE__); } } while (0)
 #endif
 
+#define static_assert _Static_assert
+
 BZP_API_END
 
 #endif /* BEZOS_POSIX_ASSERT_H */
