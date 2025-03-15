@@ -19,11 +19,13 @@ src = [
     'src/bezos/syscall.S',
 ]
 
-inc = include_directories('include', 'include/posix')
+inc = include_directories('include')
 
 sysapi_dep = declare_dependency(
     include_directories : inc,
 )
+
+inc = include_directories('include', 'include/posix')
 
 cc = meson.get_compiler('c')
 
