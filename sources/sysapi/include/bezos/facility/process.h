@@ -53,6 +53,9 @@ struct OsProcessCreateInfo {
     const char *ArgumentsBegin;
     const char *ArgumentsEnd;
 
+    const void *ObjectParametersBegin;
+    const void *ObjectParametersEnd;
+
     OsProcessStateFlags Flags;
     OsProcessHandle Parent;
 };
