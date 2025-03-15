@@ -46,7 +46,7 @@ namespace km {
         }
 
         void reservePhysical(MemoryRange range) {
-            pmm.markUsed(range);
+            pmm.reserve(range);
         }
 
         void reserveVirtual(VirtualRange range) {

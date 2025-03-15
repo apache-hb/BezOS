@@ -88,7 +88,7 @@ void *km::PageTableAllocator::allocate(size_t blocks) {
     //
     // If we failed to allocate we may yet still have enough memory, defragment and retry.
     //
-    defragmentUnlocked();
+    defragment();
     return detail::AllocateBlock(*this, (blocks * mBlockSize));
 }
 
@@ -110,7 +110,7 @@ void km::PageTableAllocator::deallocate(void *ptr, size_t blocks) {
     mHead = block;
 }
 
-void km::PageTableAllocator::defragmentUnlocked() {
+void km::PageTableAllocator::defragment() {
     detail::ControlBlock *block = mHead;
 
     //
@@ -137,6 +137,16 @@ void km::PageTableAllocator::defragmentUnlocked() {
     mHead = block;
 }
 
-void km::PageTableAllocator::defragment() {
-    defragmentUnlocked();
+km::PteAllocatorStats km::PageTableAllocator::stats() const {
+    PteAllocatorStats stats{};
+
+    for (detail::ControlBlock *block = mHead; block != nullptr; block = block->next) {
+        size_t blockSize = block->size / mBlockSize;
+
+        stats.freeBlocks += blockSize;
+        stats.chainLength += 1;
+        stats.largestBlock = std::max(stats.largestBlock, blockSize);
+    }
+
+    return stats;
 }

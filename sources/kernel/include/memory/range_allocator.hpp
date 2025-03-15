@@ -275,7 +275,7 @@ namespace km {
             mAvailable.add(range);
         }
 
-        void markUsed(Range range) {
+        void reserve(Range range) {
             stdx::LockGuard guard(mLock);
             detail::MarkUsedArea(mAvailable, range);
             detail::SortRanges(std::span(mAvailable));

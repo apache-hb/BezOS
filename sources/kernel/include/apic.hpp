@@ -1,8 +1,8 @@
 #pragma once
 
-#include "absl/container/fixed_array.h"
 #include "acpi/acpi.hpp"
 #include "util/combine.hpp"
+#include "util/absl.hpp"
 
 #include <utility>
 
@@ -288,7 +288,7 @@ namespace km {
 
     class IoApicSet {
         const acpi::Madt *mMadt;
-        absl::FixedArray<IoApic, absl::kFixedArrayUseDefault, mem::GlobalAllocator<IoApic>> mIoApics;
+        sm::FixedArray<IoApic> mIoApics;
 
     public:
         IoApicSet(const acpi::Madt *madt, km::SystemMemory& memory);

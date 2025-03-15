@@ -33,21 +33,21 @@ static OsStatus ValidateElfHeader(const elf::Header &header, size_t size) {
         return OsStatusInvalidData;
     }
 
+    if (header.phentsize != sizeof(elf::ProgramHeader)) {
+        KmDebugMessage("[ELF] Invalid program header size.\n");
+        return OsStatusInvalidData;
+    }
+
     uint64_t phbegin = header.phoff;
     uint64_t phend = phbegin + header.phnum * header.phentsize;
 
     if (phend > size) {
-        KmDebugMessage("[ELF] Invalid program header range\n");
-        return OsStatusInvalidData;
-    }
-
-    if (header.phentsize != sizeof(elf::ProgramHeader)) {
-        KmDebugMessage("[ELF] Invalid program header size\n");
+        KmDebugMessage("[ELF] Invalid program header range.\n");
         return OsStatusInvalidData;
     }
 
     if (header.entry == 0) {
-        KmDebugMessage("[ELF] Invalid entry point\n");
+        KmDebugMessage("[ELF] Program has no entry point.\n");
         return OsStatusInvalidData;
     }
 
@@ -430,5 +430,47 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory &memo
     KmDebugMessage("[ELF] Entry: ", km::Hex(regs.rip), "\n");
 
     *result = launch;
+    return OsStatusSuccess;
+}
+
+OsStatus km::LoadElfProgram(vfs2::IFileHandle *file, SystemMemory *memory, ProcessPageTables *ptes, Program *) {
+    vfs2::NodeStat stat{};
+    elf::Header header{};
+
+    if (OsStatus status = file->stat(&stat)) {
+        return status;
+    }
+
+    if (OsStatus status = vfs2::ReadObject(file, &header, 0)) {
+        return status;
+    }
+
+    if (OsStatus status = ValidateElfHeader(header, stat.logical)) {
+        return status;
+    }
+
+    sm::FixedArray<elf::ProgramHeader> phs{header.phnum};
+
+    if (OsStatus status = vfs2::ReadArray(file, phs.data(), header.phnum, header.phoff)) {
+        return status;
+    }
+
+    km::VirtualRange loadMemory{};
+    if (OsStatus status = detail::LoadMemorySize(phs, &loadMemory)) {
+        KmDebugMessage("[ELF] Failed to calculate load memory size. ", status, "\n");
+        return status;
+    }
+
+    KmDebugMessage("[ELF] Load memory range: ", loadMemory, "\n");
+
+    km::AddressMapping loadMapping{};
+    OsStatus status = AllocateMemory(memory->pmmAllocator(), ptes, Pages(loadMemory.size()), loadMemory.front, &loadMapping);
+    if (status != OsStatusSuccess) {
+        KmDebugMessage("[ELF] Failed to allocate ", sm::bytes(loadMemory.size()), " for ELF program load sections. ", status, "\n");
+        return status;
+    }
+
+    KmDebugMessage("[ELF] Load memory mapping: ", loadMapping, "\n");
+
     return OsStatusSuccess;
 }

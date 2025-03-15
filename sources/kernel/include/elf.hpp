@@ -143,5 +143,20 @@ namespace km {
         OsStatus LoadMemorySize(std::span<const elf::ProgramHeader> phs, VirtualRange *range);
     }
 
+    struct Program {
+        /// @brief TLS init data if present.
+        /// Pointer into process address space, marked as read-only.
+        VirtualRange tls;
+
+        /// @brief Process address space that has been allocated to load the program.
+        AddressMapping loadMapping;
+
+        /// @brief Entry point for the program.
+        /// Pointer into process address space.
+        const void *entry;
+    };
+
+    OsStatus LoadElfProgram(vfs2::IFileHandle *file, SystemMemory *memory, ProcessPageTables *ptes, Program *result);
+
     OsStatus LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory& memory, SystemObjects& objects, ProcessLaunch *result);
 }

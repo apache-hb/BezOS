@@ -58,6 +58,9 @@ struct OsProcessParam {
 struct OsProcessCreateInfo {
     struct OsPath Executable;
 
+    const char *NameBegin;
+    const char *NameEnd;
+
     const struct OsProcessParam *ArgsBegin;
     const struct OsProcessParam *ArgsEnd;
 

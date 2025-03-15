@@ -33,6 +33,6 @@ namespace km {
         /// @brief Mark a range of memory as used.
         ///
         /// @param range The range to mark as used.
-        void markUsed(MemoryRange range);
+        void reserve(MemoryRange range);
     };
 }

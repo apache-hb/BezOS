@@ -78,7 +78,7 @@ PhysicalAddress PageAllocator::lowMemoryAlloc4k() {
     return range.front;
 }
 
-void PageAllocator::markUsed(MemoryRange range) {
-    mLowMemory.markUsed(range);
-    mMemory.markUsed(range);
+void PageAllocator::reserve(MemoryRange range) {
+    mLowMemory.reserve(range);
+    mMemory.reserve(range);
 }

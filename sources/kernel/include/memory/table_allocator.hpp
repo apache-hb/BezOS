@@ -12,6 +12,17 @@ namespace km {
         void *AllocateBlock(PageTableAllocator& allocator, size_t blocks);
     }
 
+    struct PteAllocatorStats {
+        /// @brief The number of blocks currently available.
+        size_t freeBlocks;
+
+        /// @brief Number of freelist entries.
+        size_t chainLength;
+
+        /// @brief Size of the largest free block.
+        size_t largestBlock;
+    };
+
     /// @brief An allocator for page tables.
     ///
     /// An allocator for page tables that allows partially freeing larger allocations.
@@ -19,8 +30,6 @@ namespace km {
         VirtualRange mMemory;
         size_t mBlockSize;
         detail::ControlBlock *mHead;
-
-        void defragmentUnlocked();
 
         friend void *detail::AllocateBlock(PageTableAllocator& allocator, size_t blocks);
 
@@ -37,5 +46,7 @@ namespace km {
         void deallocate(void *ptr, size_t blocks);
 
         void defragment();
+
+        PteAllocatorStats stats() const;
     };
 }

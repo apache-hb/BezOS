@@ -29,43 +29,18 @@ namespace km {
     public:
         AddressSpaceAllocator() = default;
 
-        AddressSpaceAllocator(AddressMapping pteMemory, const PageBuilder *pm, PageFlags flags, PageFlags extra, VirtualRange vmemArea)
-            : mTables(pm, pteMemory, flags)
-            , mExtraFlags(extra)
-            , mVmemAllocator(vmemArea.cast<const std::byte*>())
-        { }
+        AddressSpaceAllocator(AddressMapping pteMemory, const PageBuilder *pm, PageFlags flags, PageFlags extra, VirtualRange vmemArea);
 
         PageTables& ptes() { return mTables; }
         PhysicalAddress root() const { return mTables.root(); }
         const PageBuilder *pageManager() const { return mTables.pageManager(); }
 
-        void reserve(VirtualRange range) {
-            mVmemAllocator.markUsed(range.cast<const std::byte*>());
-        }
+        void reserve(VirtualRange range);
+        VirtualRange vmemAllocate(size_t pages);
+        VirtualRange vmemAllocate(RangeAllocateRequest<const void*> request);
+        void vmemRelease(VirtualRange range);
 
-        VirtualRange vmemAllocate(size_t pages) {
-            size_t align = (pages > (x64::kLargePageSize / x64::kPageSize)) ? x64::kLargePageSize : x64::kPageSize;
-            auto range = mVmemAllocator.allocate({
-                .size = pages * x64::kPageSize,
-                .align = align,
-            });
-
-            return range.cast<const void*>();
-        }
-
-        VirtualRange vmemAllocate(RangeAllocateRequest<const void*> request) {
-            auto range = mVmemAllocator.allocate({
-                .size = request.size,
-                .align = request.align,
-                .hint = (const std::byte*)request.hint,
-            });
-
-            return range.cast<const void*>();
-        }
-
-        OsStatus map(AddressMapping mapping, PageFlags flags, MemoryType type = MemoryType::eWriteBack) {
-            return mTables.map(mapping, flags | mExtraFlags, type);
-        }
+        OsStatus map(AddressMapping mapping, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
 
         /// @brief Map a physical memory range into the virtual memory space.
         ///
@@ -74,29 +49,9 @@ namespace km {
         /// @param type the memory type to use.
         /// @param mapping the resulting virtual memory mapping.
         /// @return The status of the operation.
-        OsStatus map(MemoryRange range, PageFlags flags, MemoryType type, AddressMapping *mapping) {
-            size_t pages = Pages(range.size());
-            VirtualRange vmem = vmemAllocate(pages);
-            if (vmem.isEmpty()) {
-                return OsStatusOutOfMemory;
-            }
+        OsStatus map(MemoryRange range, PageFlags flags, MemoryType type, AddressMapping *mapping);
 
-            AddressMapping m = MappingOf(vmem, range.front);
-            OsStatus status = map(m, flags, type);
-            if (status != OsStatusSuccess) {
-                mVmemAllocator.release(vmem.cast<const std::byte*>());
-                return status;
-            }
-
-            *mapping = m;
-            return OsStatusSuccess;
-        }
-
-        OsStatus unmap(VirtualRange range) {
-            mTables.unmap(range);
-            mVmemAllocator.release(range.cast<const std::byte*>());
-            return OsStatusSuccess;
-        }
+        OsStatus unmap(VirtualRange range);
     };
 
     /// @brief Kernel address space.

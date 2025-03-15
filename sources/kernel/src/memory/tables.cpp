@@ -13,6 +13,68 @@ void AddressSpaceAllocator::init(AddressMapping pteMemory, const PageBuilder *pa
     mVmemAllocator.release(vmemArea.cast<const std::byte*>());
 }
 
+AddressSpaceAllocator::AddressSpaceAllocator(AddressMapping pteMemory, const PageBuilder *pm, PageFlags flags, PageFlags extra, VirtualRange vmemArea)
+    : mTables(pm, pteMemory, flags)
+    , mExtraFlags(extra)
+    , mVmemAllocator(vmemArea.cast<const std::byte*>())
+{ }
+
+void AddressSpaceAllocator::reserve(VirtualRange range) {
+    mVmemAllocator.reserve(range.cast<const std::byte*>());
+}
+
+VirtualRange AddressSpaceAllocator::vmemAllocate(size_t pages) {
+    size_t align = (pages > (x64::kLargePageSize / x64::kPageSize)) ? x64::kLargePageSize : x64::kPageSize;
+    auto range = mVmemAllocator.allocate({
+        .size = pages * x64::kPageSize,
+        .align = align,
+    });
+
+    return range.cast<const void*>();
+}
+
+VirtualRange AddressSpaceAllocator::vmemAllocate(RangeAllocateRequest<const void*> request) {
+    auto range = mVmemAllocator.allocate({
+        .size = request.size,
+        .align = request.align,
+        .hint = (const std::byte*)request.hint,
+    });
+
+    return range.cast<const void*>();
+}
+
+void AddressSpaceAllocator::vmemRelease(VirtualRange range) {
+    mVmemAllocator.release(range.cast<const std::byte*>());
+}
+
+OsStatus AddressSpaceAllocator::map(AddressMapping mapping, PageFlags flags, MemoryType type) {
+    return mTables.map(mapping, flags | mExtraFlags, type);
+}
+
+OsStatus AddressSpaceAllocator::map(MemoryRange range, PageFlags flags, MemoryType type, AddressMapping *mapping) {
+    size_t pages = Pages(range.size());
+    VirtualRange vmem = vmemAllocate(pages);
+    if (vmem.isEmpty()) {
+        return OsStatusOutOfMemory;
+    }
+
+    AddressMapping m = MappingOf(vmem, range.front);
+    OsStatus status = map(m, flags, type);
+    if (status != OsStatusSuccess) {
+        vmemRelease(vmem);
+        return status;
+    }
+
+    *mapping = m;
+    return OsStatusSuccess;
+}
+
+OsStatus AddressSpaceAllocator::unmap(VirtualRange range) {
+    mTables.unmap(range);
+    vmemRelease(range);
+    return OsStatusSuccess;
+}
+
 SystemPageTables::SystemPageTables(AddressMapping pteMemory, const PageBuilder *pm, VirtualRange systemArea)
     : AddressSpaceAllocator(pteMemory, pm, PageFlags::eAll, PageFlags::eNone, systemArea)
 { }

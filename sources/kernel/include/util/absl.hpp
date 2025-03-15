@@ -6,6 +6,8 @@
 #include <absl/container/flat_hash_map.h>
 #include <absl/container/flat_hash_set.h>
 
+#include <absl/container/fixed_array.h>
+
 namespace sm {
     template<typename TKey, typename TValue, typename TCompare = std::less<TKey>, typename TAllocator = mem::GlobalAllocator<std::pair<const TKey, TValue>>>
     using BTreeMap = absl::btree_map<TKey, TValue, TCompare, TAllocator>;
@@ -15,6 +17,9 @@ namespace sm {
 
     template<typename TKey, typename THash = std::hash<TKey>, typename TEqual = std::equal_to<TKey>, typename TAllocator = mem::GlobalAllocator<TKey>>
     using FlatHashSet = absl::flat_hash_set<TKey, THash, TEqual, TAllocator>;
+
+    template<typename T, size_t N = absl::kFixedArrayUseDefault, typename TAllocator = mem::GlobalAllocator<T>>
+    using FixedArray = absl::FixedArray<T, N, TAllocator>;
 
     template<typename T>
     struct TransparentPointerHash {
