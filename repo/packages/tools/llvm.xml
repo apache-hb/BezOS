@@ -9,9 +9,9 @@
               git='https://github.com/llvm/llvm-project.git'
               commit='dca73063653ca7d35afb3226ae66623495086204'>
 
-        <patch file='@REPO@/patches/llvm/0001-add-llvm-target.patch' />
-        <patch file='@REPO@/patches/llvm/0002-add-clang-target.patch' />
-        <patch file='@REPO@/patches/llvm/0003-add-clang-toolchain.patch' />
+        <patch file='@REPO@/patches/llvm/add-bezos.patch' />
+        <!-- <patch file='@REPO@/patches/llvm/0002-add-clang-target.patch' /> -->
+        <!-- <patch file='@REPO@/patches/llvm/0003-add-clang-toolchain.patch' /> -->
     </download>
 
     <package name='llvm' from='llvm-project-src'>
@@ -32,7 +32,7 @@
         <configure with='cmake'>
             <source path='@SOURCE_ROOT@/runtimes' />
             <options LLVM_ENABLE_RUNTIMES="libcxx;libcxxabi;libunwind"
-                     LLVM_RUNTIME_TARGETS="x86_64-bezos"
+                     LLVM_RUNTIME_TARGETS="x86_64-unknown-bezos-jlibc"
 
                      LIBCXX_ENABLE_THREADS="OFF"
                      LIBCXX_ENABLE_MONOTONIC_CLOCK="OFF"

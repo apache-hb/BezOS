@@ -46,7 +46,7 @@ if not meson.is_subproject()
     custom_target('crtstart',
         input : 'src/crt/start.cpp',
         output : 'crtstart.o',
-        command : cc.cmd_array() + [ '-c', '-o', '@OUTPUT@', '@INPUT@', '-I' + meson.current_source_dir() / 'include', '--sysroot', meson.get_external_property('sysroot') ],
+        command : cc.cmd_array() + [ '-c', '-o', '@OUTPUT@', '@INPUT@', '-I' + meson.current_source_dir() / 'include', '--sysroot', meson.get_external_property('sys_root') ],
         install : not meson.is_subproject(),
         build_by_default : not meson.is_subproject(),
         install_dir : get_option('libdir'),

@@ -23,8 +23,8 @@
              CXX='@PREFIX@/llvm/bin/clang++'
              AR='@PREFIX@/llvm/bin/llvm-ar'
              LD='@PREFIX@/llvm/bin/ld.lld'
-             CFLAGS='--sysroot @PREFIX@ -target x86_64-bezos'
-             LDFLAGS='--sysroot @PREFIX@ -target x86_64-bezos' />
+             CFLAGS='--sysroot @PREFIX@ --target=x86_64-unknown-bezos-jlibc'
+             LDFLAGS='--sysroot @PREFIX@ --target=x86_64-unknown-bezos-jlibc' />
 
             <!-- LDFLAGS='-nostartfiles -nostdlib
                       -Wl,-\-start-group
@@ -34,7 +34,7 @@
                       -e ProgramMain'
                        -->
 
-        <options host='x86_64-bezos-jlibc'
+        <options host='x86_64-unknown-bezos-jlibc'
                  without-progs=''
                  without-tests='' />
     </configure>

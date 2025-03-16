@@ -1,0 +1,172 @@
+diff --git a/clang/lib/Basic/Targets.cpp b/clang/lib/Basic/Targets.cpp
+index 281aebdb1c35..ea36cbbc7f6a 100644
+--- a/clang/lib/Basic/Targets.cpp
++++ b/clang/lib/Basic/Targets.cpp
+@@ -633,6 +633,9 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
+     case llvm::Triple::UEFI:
+       return std::make_unique<UEFIX86_64TargetInfo>(Triple, Opts);
+ 
++    case llvm::Triple::BezOS:
++        return std::make_unique<BezOSTargetInfo<X86_64TargetInfo>>(Triple, Opts);
++
+     case llvm::Triple::Win32: {
+       switch (Triple.getEnvironment()) {
+       case llvm::Triple::Cygnus:
+diff --git a/clang/lib/Basic/Targets/OSTargets.h b/clang/lib/Basic/Targets/OSTargets.h
+index 991efd2bde01..a796ea3d47fe 100644
+--- a/clang/lib/Basic/Targets/OSTargets.h
++++ b/clang/lib/Basic/Targets/OSTargets.h
+@@ -1040,6 +1040,21 @@ public:
+   }
+ };
+ 
++template<typename Target>
++class LLVM_LIBRARY_VISIBILITY BezOSTargetInfo : public OSTargetInfo<Target> {
++protected:
++  void getOSDefines(const LangOptions &Opts, const llvm::Triple &Triple,
++    MacroBuilder &Builder) const override {
++    DefineStd(Builder, "bezos", Opts);
++    if (Opts.POSIXThreads)
++      Builder.defineMacro("_REENTRANT");
++    if (Opts.CPlusPlus)
++      Builder.defineMacro("_GNU_SOURCE");
++  }
++public:
++  using OSTargetInfo<Target>::OSTargetInfo;
++};
++
+ } // namespace targets
+ } // namespace clang
+ #endif // LLVM_CLANG_LIB_BASIC_TARGETS_OSTARGETS_H
+diff --git a/clang/lib/Driver/CMakeLists.txt b/clang/lib/Driver/CMakeLists.txt
+index 5bdb6614389c..58a97dcec61f 100644
+--- a/clang/lib/Driver/CMakeLists.txt
++++ b/clang/lib/Driver/CMakeLists.txt
+@@ -46,6 +46,7 @@ add_clang_library(clangDriver
+   ToolChains/AMDGPUOpenMP.cpp
+   ToolChains/AVR.cpp
+   ToolChains/BareMetal.cpp
++  ToolChains/BezOS.cpp
+   ToolChains/Clang.cpp
+   ToolChains/CommonArgs.cpp
+   ToolChains/CrossWindows.cpp
+diff --git a/clang/lib/Driver/Driver.cpp b/clang/lib/Driver/Driver.cpp
+index 50941d2aaa42..685a5a0f5693 100644
+--- a/clang/lib/Driver/Driver.cpp
++++ b/clang/lib/Driver/Driver.cpp
+@@ -13,6 +13,7 @@
+ #include "ToolChains/AVR.h"
+ #include "ToolChains/Arch/RISCV.h"
+ #include "ToolChains/BareMetal.h"
++#include "ToolChains/BezOS.h"
+ #include "ToolChains/CSKYToolChain.h"
+ #include "ToolChains/Clang.h"
+ #include "ToolChains/CrossWindows.h"
+@@ -6709,6 +6710,9 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
+     case llvm::Triple::Solaris:
+       TC = std::make_unique<toolchains::Solaris>(*this, Target, Args);
+       break;
++    case llvm::Triple::BezOS:
++      TC = toolchains::getBezOSToolChain(*this, Target, Args);
++      break;
+     case llvm::Triple::CUDA:
+       TC = std::make_unique<toolchains::NVPTXToolChain>(*this, Target, Args);
+       break;
+diff --git a/llvm/include/llvm/TargetParser/Triple.h b/llvm/include/llvm/TargetParser/Triple.h
+index 09c0d223d9b4..dce805f0e440 100644
+--- a/llvm/include/llvm/TargetParser/Triple.h
++++ b/llvm/include/llvm/TargetParser/Triple.h
+@@ -239,7 +239,8 @@ public:
+     LiteOS,
+     Serenity,
+     Vulkan, // Vulkan SPIR-V
+-    LastOSType = Vulkan
++    BezOS, // https://github.com/apache-hb/bezos
++    LastOSType = BezOS
+   };
+   enum EnvironmentType {
+     UnknownEnvironment,
+@@ -299,6 +300,7 @@ public:
+     Amplification,
+     OpenCL,
+     OpenHOS,
++    JLibc,
+ 
+     PAuthTest,
+ 
+@@ -846,6 +848,8 @@ public:
+ 
+   bool isVulkanOS() const { return getOS() == Triple::Vulkan; }
+ 
++  bool isBezOS() const { return getOS() == Triple::BezOS; }
++
+   bool isShaderStageEnvironment() const {
+     EnvironmentType Env = getEnvironment();
+     return Env == Triple::Pixel || Env == Triple::Vertex ||
+diff --git a/llvm/lib/TargetParser/Triple.cpp b/llvm/lib/TargetParser/Triple.cpp
+index e9e6f130f757..3fa0a2f3cad4 100644
+--- a/llvm/lib/TargetParser/Triple.cpp
++++ b/llvm/lib/TargetParser/Triple.cpp
+@@ -319,6 +319,7 @@ StringRef Triple::getOSTypeName(OSType Kind) {
+   case LiteOS: return "liteos";
+   case XROS: return "xros";
+   case Vulkan: return "vulkan";
++  case BezOS: return "bezos";
+   }
+ 
+   llvm_unreachable("Invalid OSType");
+@@ -382,6 +383,8 @@ StringRef Triple::getEnvironmentTypeName(EnvironmentType Kind) {
+   case OpenHOS: return "ohos";
+   case PAuthTest:
+     return "pauthtest";
++  case JLibc:
++    return "jlibc";
+   case LLVM:
+     return "llvm";
+   }
+@@ -711,6 +714,7 @@ static Triple::OSType parseOS(StringRef OSName) {
+     .StartsWith("liteos", Triple::LiteOS)
+     .StartsWith("serenity", Triple::Serenity)
+     .StartsWith("vulkan", Triple::Vulkan)
++    .StartsWith("bezos", Triple::BezOS)
+     .Default(Triple::UnknownOS);
+ }
+ 
+@@ -766,6 +770,7 @@ static Triple::EnvironmentType parseEnvironment(StringRef EnvironmentName) {
+       .StartsWith("ohos", Triple::OpenHOS)
+       .StartsWith("pauthtest", Triple::PAuthTest)
+       .StartsWith("llvm", Triple::LLVM)
++      .StartsWith("jlibc", Triple::JLibc)
+       .Default(Triple::UnknownEnvironment);
+ }
+ 
+diff --git a/llvm/unittests/TargetParser/TripleTest.cpp b/llvm/unittests/TargetParser/TripleTest.cpp
+index 61b3637bb48e..3283520472c1 100644
+--- a/llvm/unittests/TargetParser/TripleTest.cpp
++++ b/llvm/unittests/TargetParser/TripleTest.cpp
+@@ -1313,6 +1313,17 @@ TEST(TripleTest, ParsedIDs) {
+   EXPECT_EQ(Triple::Serenity, T.getOS());
+   EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
+ 
++  T = Triple("x86_64-unknown-bezos-jlibc");
++  EXPECT_EQ(Triple::x86_64, T.getArch());
++  EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
++  EXPECT_EQ(Triple::BezOS, T.getOS());
++  EXPECT_EQ(Triple::JLibc, T.getEnvironment());
++
++  T = Triple("x86_64-unknown-bezos");
++  EXPECT_EQ(Triple::x86_64, T.getArch());
++  EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
++  EXPECT_EQ(Triple::BezOS, T.getOS());
++
+   T = Triple("aarch64-unknown-linux-pauthtest");
+   EXPECT_EQ(Triple::aarch64, T.getArch());
+   EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
+@@ -2463,6 +2474,7 @@ TEST(TripleTest, FileFormat) {
+   EXPECT_EQ(Triple::ELF, Triple("i686-unknown-netbsd").getObjectFormat());
+   EXPECT_EQ(Triple::ELF, Triple("i686--win32-elf").getObjectFormat());
+   EXPECT_EQ(Triple::ELF, Triple("i686---elf").getObjectFormat());
++  EXPECT_EQ(Triple::ELF, Triple("x86_64-bezos-elf").getObjectFormat());
+ 
+   EXPECT_EQ(Triple::MachO, Triple("i686-apple-macosx").getObjectFormat());
+   EXPECT_EQ(Triple::MachO, Triple("i686-apple-ios").getObjectFormat());
