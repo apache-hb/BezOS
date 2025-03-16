@@ -176,7 +176,7 @@ namespace km {
     struct Program {
         /// @brief TLS init data if present.
         /// Pointer into process address space, marked as read-only.
-        TlsMapping tlsMapping;
+        TlsInit tlsInit;
 
         /// @brief Process address space that has been allocated to load the program.
         AddressMapping loadMapping;

@@ -342,7 +342,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory &memo
 
         KmDebugMessage("[ELF] Program Header type: ",
             km::Hex(std::to_underlying(ph.type)), ", flags: ", km::Hex(ph.flags), ", offset: ", km::Hex(ph.offset), ", filesize: ", km::Hex(ph.filesz),
-            ", memorysize: ", km::Hex(ph.memsz), ", virtual address: ", km::Hex(ph.vaddr), "\n");
+            ", memorysize: ", km::Hex(ph.memsz), ", virtual address: ", km::Hex(ph.vaddr), ", align: ", km::Hex(ph.align), "\n");
 
         //
         // Distance between this program header load base and the ELF load base.
@@ -414,7 +414,6 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory &memo
     //
     // Now allocate the stack for the main thread.
     //
-
     km::TlsInit tlsInit{};
 
     if (tls) {
@@ -423,12 +422,19 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory &memo
         }
     }
 
+    uintptr_t entry = ((uintptr_t)header.entry - (uintptr_t)loadMemory.front) + (uintptr_t)loadMapping.vaddr;
+
+    [[maybe_unused]] Program program {
+        .tlsInit = tlsInit,
+        .loadMapping = loadMapping,
+        .entry = (void*)entry,
+    };
+
     km::TlsMapping tlsMapping{};
 
     InitNewThreadTls(tlsInit, memory, process->ptes, &tlsMapping);
 
     Thread *main = nullptr;
-    uintptr_t entry = ((uintptr_t)header.entry - (uintptr_t)loadMemory.front) + (uintptr_t)loadMapping.vaddr;
     if (OsStatus status = CreateThread(process, memory, objects, entry, stdx::String(name), &main)) {
         return status;
     }
