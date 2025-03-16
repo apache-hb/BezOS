@@ -46,18 +46,15 @@ void km::SetupUserMode(SystemMemory *memory) {
     star |= uint64_t(((SystemGdt::eLongModeUserCode * 0x8) - 0x10) | 0b11) << 48;
 
     // Enable syscall/sysret
-    uint64_t efer = IA32_EFER.load();
-    IA32_EFER.store(efer | (1 << 0));
+    IA32_EFER |= (1 << 0);
 
     // Mask the interrupt flag in RFLAGS
-    uint64_t fmask = (1 << 9);
-
-    IA32_FMASK.store(fmask);
+    IA32_FMASK = (1 << 9);
 
     // Store the syscall entry point in the LSTAR MSR
-    IA32_LSTAR.store((uintptr_t)KmSystemEntry);
+    IA32_LSTAR = (uintptr_t)KmSystemEntry;
 
-    IA32_STAR.store(star);
+    IA32_STAR = star;
 }
 
 void km::EnterUserMode(km::IsrContext state) {

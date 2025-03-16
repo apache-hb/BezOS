@@ -171,6 +171,54 @@ static char toupper(char c) {
     return c;
 }
 
+OsStatus CreateThread(vfs2::IFileHandle *file, km::Process *process, km::SystemMemory& memory, km::SystemObjects& objects, uintptr_t entry, stdx::String name, const elf::ProgramHeader *tls, km::Thread **result) {
+    km::IsrContext regs {
+        .rip = entry,
+        .cs = (km::SystemGdt::eLongModeUserCode * 0x8) | 0b11,
+        .rflags = 0x202,
+        .ss = (km::SystemGdt::eLongModeUserData * 0x8) | 0b11,
+    };
+
+    KmDebugMessage("[ELF] Entry point: ", km::Hex(regs.rip), "\n");
+
+    //
+    // Now allocate the stack for the main thread.
+    //
+
+    static constexpr size_t kStackSize = 0x4000;
+    km::PageFlags flags = km::PageFlags::eUser | km::PageFlags::eData;
+    km::AddressMapping mapping{};
+    if (OsStatus status = AllocateMemory(memory.pmmAllocator(), &process->ptes, 4, &mapping)) {
+        KmDebugMessage("[ELF] Failed to allocate stack memory: ", status, "\n");
+        return status;
+    }
+
+    KmDebugMessage("[ELF] Stack: ", mapping, "\n");
+
+    char *stack = (char*)memory.map(mapping.physicalRange(), flags);
+    memset(stack, 0x00, kStackSize);
+    memory.unmap(stack, kStackSize);
+
+    km::Thread *main = objects.createThread(stdx::String(name), process);
+    main->userStack = mapping;
+
+    regs.rbp = (uintptr_t)mapping.vaddr + kStackSize;
+    regs.rsp = (uintptr_t)mapping.vaddr + kStackSize;
+
+    if (tls != nullptr) {
+        km::AddressMapping mapping{};
+        if (OsStatus status = AllocateTlsMemory(file, tls, memory, process->ptes, &mapping)) {
+            return status;
+        }
+
+        main->tlsAddress = (uint64_t)((char*)mapping.vaddr + tls->memsz);
+    }
+
+    main->state = regs;
+    *result = main;
+    return OsStatusSuccess;
+}
+
 OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory &memory, SystemObjects &objects, ProcessLaunch *result) {
     vfs2::NodeStat stat{};
     if (OsStatus status = file->stat(&stat)) {
@@ -237,16 +285,16 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory &memo
     KmDebugMessage("[ELF] Load memory mapping: ", loadMapping, "\n");
 
     char *userWindow = (char*)memory.map(loadMapping.physicalRange(), PageFlags::eData);
-    uintptr_t windowOffset = (uintptr_t)userWindow - (uintptr_t)loadMapping.vaddr;
+    if (userWindow == nullptr) {
+        KmDebugMessage("[ELF] Failed to map user window\n");
+        return OsStatusOutOfMemory;
+    }
 
-    km::IsrContext regs {
-        .rip = ((uintptr_t)header.entry - (uintptr_t)loadMemory.front) + (uintptr_t)loadMapping.vaddr,
-        .cs = (SystemGdt::eLongModeUserCode * 0x8) | 0b11,
-        .rflags = 0x202,
-        .ss = (SystemGdt::eLongModeUserData * 0x8) | 0b11,
+    defer {
+        memory.unmap(userWindow, loadMemory.size());
     };
 
-    KmDebugMessage("[ELF] Entry point: ", km::Hex(regs.rip), ", offset: ", windowOffset, "\n");
+    uintptr_t windowOffset = (uintptr_t)userWindow - (uintptr_t)loadMapping.vaddr;
 
     const elf::ProgramHeader *tls = FindTlsSection(programHeaders);
     if (tls != nullptr) {
@@ -346,44 +394,15 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory &memo
         }
     }
 
-    memory.unmap(userWindow, loadMemory.size());
-
     //
     // Now allocate the stack for the main thread.
     //
 
-    static constexpr size_t kStackSize = 0x4000;
-    PageFlags flags = PageFlags::eUser | PageFlags::eData;
-    AddressMapping mapping{};
-    if (OsStatus status = AllocateMemory(memory.pmmAllocator(), &process->ptes, 4, &mapping)) {
-        KmDebugMessage("[ELF] Failed to allocate stack memory: ", status, "\n");
+    Thread *main = nullptr;
+    uintptr_t entry = ((uintptr_t)header.entry - (uintptr_t)loadMemory.front) + (uintptr_t)loadMapping.vaddr;
+    if (OsStatus status = CreateThread(file.get(), process, memory, objects, entry, stdx::String(name), tls, &main)) {
         return status;
     }
-
-    KmDebugMessage("[ELF] Stack: ", mapping, "\n");
-
-    char *stack = (char*)memory.map(mapping.physicalRange(), flags);
-    memset(stack, 0x00, kStackSize);
-    memory.unmap(stack, kStackSize);
-
-    name.append(" MAIN");
-
-    Thread * main = objects.createThread(stdx::String(name), process);
-    main->userStack = mapping;
-
-    regs.rbp = (uintptr_t)mapping.vaddr + kStackSize;
-    regs.rsp = (uintptr_t)mapping.vaddr + kStackSize;
-
-    if (tls != nullptr) {
-        AddressMapping mapping{};
-        if (OsStatus status = AllocateTlsMemory(file.get(), tls, memory, process->ptes, &mapping)) {
-            return status;
-        }
-
-        main->tlsAddress = (uint64_t)((char*)mapping.vaddr + tls->memsz);
-    }
-
-    main->state = regs;
 
     ProcessLaunch launch = {
         .process = process,
@@ -391,7 +410,6 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory &memo
     };
 
     KmDebugMessage("[ELF] Launching process: ", km::Hex(process->publicId()), "\n");
-    KmDebugMessage("[ELF] Entry: ", km::Hex(regs.rip), "\n");
 
     *result = launch;
     return OsStatusSuccess;
