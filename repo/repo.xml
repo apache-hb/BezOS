@@ -6,7 +6,11 @@
     -->
 
     <xi:include href='packages/tools/pkg-config.xml' />
+
     <xi:include href='packages/tools/llvm.xml' />
+    <xi:include href='packages/sysapi-headers.xml' />
+    <xi:include href='packages/tools/llvm-libcxx.xml' />
+
     <xi:include href='packages/tools/gcc.xml' />
 
     <xi:include href='packages/tools/autotools.xml' />

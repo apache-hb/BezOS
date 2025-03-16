@@ -18,9 +18,32 @@ struct InitMalloc {
     ~InitMalloc() {
         rpmalloc_finalize();
     }
+
+    void *malloc(size_t size) {
+        return rpmalloc(size);
+    }
+
+    void *aligned_alloc(size_t alignment, size_t size) {
+        return rpaligned_alloc(alignment, size);
+    }
+
+    void *calloc(size_t n, size_t size) {
+        return rpcalloc(n, size);
+    }
+
+    void *realloc(void *ptr, size_t size) {
+        return rprealloc(ptr, size);
+    }
+
+    void free(void *ptr) {
+        rpfree(ptr);
+    }
 };
 
-static const InitMalloc kInitMalloc{};
+static InitMalloc& GlobalMalloc() {
+    static InitMalloc sMalloc;
+    return sMalloc;
+}
 }
 
 void abort(void) noexcept {
@@ -103,15 +126,19 @@ unsigned long long strtoull(const char *, char **, int) noexcept {
 }
 
 void *malloc(size_t size) noexcept {
-    return rpmalloc(size);
+    return GlobalMalloc().malloc(size);
+}
+
+void *aligned_alloc(size_t alignment, size_t size) noexcept {
+    return GlobalMalloc().aligned_alloc(alignment, size);
 }
 
 void *calloc(size_t n, size_t size) noexcept {
-    return rpcalloc(n, size);
+    return GlobalMalloc().calloc(n, size);
 }
 
 void *realloc(void *ptr, size_t size) noexcept {
-    return rprealloc(ptr, size);
+    return GlobalMalloc().realloc(ptr, size);
 }
 
 void free(void *ptr) noexcept {

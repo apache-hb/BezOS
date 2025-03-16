@@ -52,6 +52,7 @@ extern long long int atoll(const char *) BZP_NOEXCEPT BZP_NONNULL(1);
 
 extern double strtod(const char *, char **) BZP_NOEXCEPT;
 extern float strtof(const char *, char **) BZP_NOEXCEPT;
+extern long double strtold(const char *, char **) BZP_NOEXCEPT;
 
 extern long strtol(const char *, char **, int) BZP_NOEXCEPT;
 extern long long strtoll(const char *, char **, int) BZP_NOEXCEPT;
@@ -59,6 +60,7 @@ extern unsigned long strtoul(const char *, char **, int) BZP_NOEXCEPT;
 extern unsigned long long strtoull(const char *, char **, int) BZP_NOEXCEPT;
 
 extern void *malloc(size_t) BZP_NOEXCEPT;
+extern void *aligned_alloc(size_t, size_t) BZP_NOEXCEPT;
 extern void *calloc(size_t, size_t) BZP_NOEXCEPT;
 extern void *realloc(void *, size_t) BZP_NOEXCEPT;
 extern void free(void *) BZP_NOEXCEPT BZP_NONNULL(1);

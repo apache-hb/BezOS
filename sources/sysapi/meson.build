@@ -86,6 +86,7 @@ if not meson.is_subproject()
         'src/posix/termios.cpp',
         'src/posix/stdlib.cpp',
         'src/posix/time.cpp',
+        'src/posix/dlfcn.cpp',
         'src/posix/stropts.cpp',
         'src/posix/sys_mman.cpp',
         'src/posix/sys_stat.cpp',
@@ -105,6 +106,7 @@ if not meson.is_subproject()
 
     meson.override_dependency('sysapi', sysapi_dep)
 
-    install_subdir('include/posix', install_dir : 'include')
-    install_subdir('include/bezos', install_dir : 'include')
 endif
+
+install_subdir('include/posix', install_dir : 'include', install_tag : 'headers')
+install_subdir('include/bezos', install_dir : 'include', install_tag : 'headers')

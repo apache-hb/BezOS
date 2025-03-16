@@ -13,6 +13,8 @@
 #include <bezos/subsystem/ddi.h>
 #include <bezos/subsystem/identify.h>
 
+#include <posix/ext/args.h>
+
 #include "defer.hpp"
 
 #include <concepts>
@@ -88,6 +90,8 @@ class StreamDevice {
 public:
     UTIL_NOCOPY(StreamDevice);
     UTIL_NOMOVE(StreamDevice);
+
+    OsDeviceHandle Handle() const { return mDevice; }
 
     StreamDevice(OsPath path) {
         OsDeviceCreateInfo createInfo {
@@ -412,9 +416,25 @@ static void ShowCurrentInfo(StreamDevice& display, const char *cwd) {
     ASSERT_OS_SUCCESS(OsDeviceClose(handle));
 }
 
-static void LaunchZsh() {
+static void LaunchZsh(OsDeviceHandle in, OsDeviceHandle out, OsDeviceHandle err) {
+    struct CreateOptions {
+        OsProcessParam param;
+        OsPosixInitArgs args;
+    };
+
+    CreateOptions options {
+        .param = { kPosixInitGuid, sizeof(OsPosixInitArgs) },
+        .args = {
+            .StandardIn = in,
+            .StandardOut = out,
+            .StandardError = err,
+        },
+    };
+
     OsProcessCreateInfo createInfo {
         .Executable = OsMakePath("Init\0zsh.elf"),
+        .ArgsBegin = &options.param,
+        .ArgsEnd = &options.param + 1,
         .Flags = eOsProcessNone,
     };
 
@@ -609,7 +629,7 @@ void ClientStart(const struct OsClientStartInfo *) {
                 Prompt(tty);
                 continue;
             } else if (strncmp(text, "zsh", 3) == 0) {
-                LaunchZsh();
+                LaunchZsh(ttyin.Handle(), tty.Handle(), tty.Handle());
                 Prompt(tty);
                 continue;
             } else if (strncmp(text, "cat", 3) == 0) {

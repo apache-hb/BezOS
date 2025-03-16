@@ -25,29 +25,4 @@
                      CMAKE_LINKER="ld.lld" />
         </configure>
     </package>
-
-    <package name='llvm-libcxx' from='llvm-project-src'>
-        <require package='llvm' />
-
-        <configure with='cmake'>
-            <source path='@SOURCE_ROOT@/runtimes' />
-            <options LLVM_ENABLE_RUNTIMES="libcxx;libcxxabi;libunwind"
-                     LLVM_RUNTIME_TARGETS="x86_64-unknown-bezos-jlibc"
-
-                     LIBCXX_ENABLE_THREADS="OFF"
-                     LIBCXX_ENABLE_MONOTONIC_CLOCK="OFF"
-                     LIBCXX_ENABLE_FILESYSTEM="OFF"
-                     LIBCXX_ENABLE_RANDOM_DEVICE="OFF"
-                     LIBCXX_ENABLE_UNICODE="OFF"
-                     LIBCXX_ENABLE_WIDE_CHARACTERS="OFF"
-                     LIBCXX_ENABLE_LOCALIZATION="OFF"
-                     LIBCXX_PSTL_BACKEND="serial"
-                     LIBCXX_ENABLE_TIME_ZONE_DATABASE="OFF"
-                     LIBCXXABI_ENABLE_THREADS="OFF"
-
-                     CMAKE_C_COMPILER="clang"
-                     CMAKE_CXX_COMPILER="clang++"
-                     CMAKE_LINKER="ld.lld" />
-        </configure>
-    </package>
 </collection>

@@ -43,6 +43,8 @@ extern int *OsImplPosixErrnoAddress(void) BZP_NOEXCEPT;
 #define ECHILD 0x18 /* No child processes */
 #define EWOULDBLOCK 0x19 /* Operation would block */
 
+#define ELAST 0x19 /* Must be equal to the highest errno value */
+
 BZP_API_END
 
 #endif /* BEZOS_POSIX_ERRNO_H */

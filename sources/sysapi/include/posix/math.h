@@ -5,6 +5,10 @@
 
 BZP_API_BEGIN
 
+#define INFINITY (__builtin_inff())
+#define NAN (__builtin_nanf(""))
+#define HUGE_VAL (__builtin_huge_valf())
+
 #define FP_NAN 0
 #define FP_INFINITE 1
 #define FP_ZERO 2

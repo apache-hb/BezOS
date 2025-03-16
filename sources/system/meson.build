@@ -14,9 +14,14 @@ args = [
     '-z', 'noexecstack',
 ]
 
+cpp_args = [
+    '-Wno-gnu-variable-sized-type-not-at-end',
+]
+
 src = [ 'init/init.cpp', ]
 
 executable('init.elf', src,
+    cpp_args : cpp_args,
     link_args : args,
     install : true,
     install_dir : get_option('prefix'),
@@ -26,6 +31,7 @@ executable('init.elf', src,
 src = [ 'shell/shell.cpp', ]
 
 executable('shell.elf', src,
+    cpp_args : cpp_args,
     link_args : args,
     install : true,
     install_dir : get_option('prefix'),
@@ -35,6 +41,7 @@ executable('shell.elf', src,
 src = [ 'tty/tty.cpp', ]
 
 executable('tty.elf', src,
+    cpp_args : cpp_args,
     link_args : args,
     install : true,
     install_dir : get_option('prefix'),

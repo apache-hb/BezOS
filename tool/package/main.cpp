@@ -192,6 +192,8 @@ struct PackageInfo {
 
     std::string installTargets;
 
+    std::string installName;
+
     std::string fromSource;
 
     std::string GetConfigureSourcePath(const ConfigureStep& step) const {
@@ -211,7 +213,11 @@ struct PackageInfo {
     }
 
     fs::path GetInstallPath() const {
-        return PackageInstallPath(name);
+        if (installName.empty()) {
+            return PackageInstallPath(name);
+        } else {
+            return PackageInstallPath(installName);
+        }
     }
 
     fs::path GetCacheFolder() const {
@@ -1043,6 +1049,10 @@ static void ReadPackageConfig(XmlNode root) {
         .name = name,
     };
 
+    if (auto installName = root.property("install-name")) {
+        packageInfo.installName = installName.value();
+    }
+
     if (auto from = root.property("from")) {
         packageInfo.fromSource = from.value();
         packageInfo.imported = gSourceRoot / from.value();
@@ -1517,25 +1527,13 @@ static void InstallPackage(const PackageInfo& package) {
     std::string builddir = package.GetBuildFolder().string();
 
     {
-        std::jthread spinner([&](std::stop_token stop) {
-            indicators::IndeterminateProgressBar bar{
-                indicators::option::BarWidth{40},
-                indicators::option::Start{"["},
-                indicators::option::Lead{"*"},
-                indicators::option::End{"]"},
-                indicators::option::PrefixText{std::format("Installing {} ", package.name)},
-                indicators::option::ForegroundColor{indicators::Color::white},
-                indicators::option::FontStyles{std::vector<indicators::FontStyle>{indicators::FontStyle::bold}}
-            };
-
-            while (!stop.stop_requested()) {
-                bar.tick();
-                std::this_thread::sleep_for(100ms);
-            }
-        });
-
         if (buildProgram == eMeson) {
             std::println(std::cout, "{}: install with meson", package.name);
+            std::vector<std::string> args = { "meson", "install", "--no-rebuild", "--skip-subprojects" };
+            if (!package.installTargets.empty()) {
+                args.push_back("--tags");
+                args.push_back((package.installTargets | stdv::split(' ') | stdv::join_with(',')) | stdr::to<std::string>());
+            }
             auto result = sp::call({ "meson", "install", "--no-rebuild", "--skip-subprojects" }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
             if (result != 0) {
                 throw std::runtime_error("Failed to install package " + package.name);

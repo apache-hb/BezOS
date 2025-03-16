@@ -24,7 +24,7 @@
              AR='@PREFIX@/llvm/bin/llvm-ar'
              LD='@PREFIX@/llvm/bin/ld.lld'
              CFLAGS='--sysroot @PREFIX@ --target=x86_64-unknown-bezos-jlibc'
-             LDFLAGS='--sysroot @PREFIX@ --target=x86_64-unknown-bezos-jlibc' />
+             LDFLAGS='--sysroot @PREFIX@ --target=x86_64-unknown-bezos-jlibc -lc++abi -lc++' />
 
             <!-- LDFLAGS='-nostartfiles -nostdlib
                       -Wl,-\-start-group
