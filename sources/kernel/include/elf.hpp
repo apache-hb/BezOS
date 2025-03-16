@@ -150,6 +150,9 @@ namespace km {
     struct TlsMapping {
         km::AddressMapping mapping;
         void *window;
+
+        size_t fileSize;
+        size_t memSize;
     };
 
     struct Program {
