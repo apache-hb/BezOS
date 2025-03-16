@@ -160,7 +160,7 @@ static void InitTlsMemory(km::TlsMapping tlsMapping) {
     void *tlsWindow = tlsMapping.window;
     size_t fileSize = tlsMapping.fileSize;
     size_t memSize = tlsMapping.memSize;
-    size_t bssSize = tlsMapping.memSize - tlsMapping.fileSize;
+    size_t bssSize = tlsMapping.bssSize();
 
     if (bssSize > 0) {
         KmDebugMessage("[ELF] TLS BSS size: ", bssSize, " ", userMapping, "\n");
@@ -171,22 +171,15 @@ static void InitTlsMemory(km::TlsMapping tlsMapping) {
     memcpy((char*)tlsWindow + memSize, &vaddr, sizeof(uintptr_t));
 }
 
-static OsStatus AllocateTlsMemory(vfs2::IHandle *file, const elf::ProgramHeader *tls, km::SystemMemory& memory, km::ProcessPageTables& ptes, km::AddressMapping *mapping) {
+static OsStatus AllocateTlsMemory(vfs2::IHandle *file, const elf::ProgramHeader *tls, km::SystemMemory& memory, km::ProcessPageTables& ptes, km::TlsMapping *mapping) {
     km::TlsMapping tlsMapping{};
     if (OsStatus status = ReadTlsInit(file, tls, memory, ptes, &tlsMapping)) {
         return status;
     }
 
-    km::AddressMapping userMapping = tlsMapping.mapping;
-    void *tlsWindow = tlsMapping.window;
-
-    defer {
-        memory.unmap(tlsWindow, userMapping.size);
-    };
-
     InitTlsMemory(tlsMapping);
 
-    *mapping = userMapping;
+    *mapping = tlsMapping;
     return OsStatusSuccess;
 }
 
@@ -233,12 +226,12 @@ OsStatus CreateThread(vfs2::IFileHandle *file, km::Process *process, km::SystemM
     regs.rsp = (uintptr_t)mapping.vaddr + kStackSize;
 
     if (tls != nullptr) {
-        km::AddressMapping mapping{};
-        if (OsStatus status = AllocateTlsMemory(file, tls, memory, process->ptes, &mapping)) {
+        km::TlsMapping tlsMapping{};
+        if (OsStatus status = AllocateTlsMemory(file, tls, memory, process->ptes, &tlsMapping)) {
             return status;
         }
 
-        main->tlsAddress = (uint64_t)((char*)mapping.vaddr + tls->memsz);
+        main->tlsAddress = (uintptr_t)tlsMapping.tlsAddress();
     }
 
     main->state = regs;
