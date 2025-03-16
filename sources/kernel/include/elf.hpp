@@ -184,6 +184,8 @@ namespace km {
         /// @brief Entry point for the program.
         /// Pointer into process address space.
         uintptr_t entry;
+
+        OsStatus createTls(SystemMemory& memory, Thread *thread);
     };
 
     OsStatus LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory& memory, SystemObjects& objects, ProcessLaunch *result);

@@ -117,15 +117,15 @@ static OsStatus ApplyRelocations(vfs2::IHandle *file, std::span<const elf::Elf64
     return OsStatusSuccess;
 }
 
-static OsStatus InitNewThreadTls(km::TlsInit tlsInit, km::SystemMemory& memory, km::ProcessPageTables& ptes, km::TlsMapping *mapping) {
+static OsStatus InitNewThreadTls(km::TlsInit tlsInit, km::SystemMemory& memory, km::Process *process, km::TlsMapping *mapping) {
     if (!tlsInit.present()) {
         return OsStatusSuccess;
     }
 
     km::AddressMapping tlsMapping{};
-    OsStatus status = AllocateMemory(memory.pmmAllocator(), &ptes, km::Pages(tlsInit.memSize + sizeof(uintptr_t)), &tlsMapping);
+    OsStatus status = process->map(km::Pages(tlsInit.memSize + sizeof(uintptr_t)), km::PageFlags::eUserData, km::MemoryType::eWriteBack, &tlsMapping);
     if (status != OsStatusSuccess) {
-        KmDebugMessage("[ELF] Failed to allocate ", sm::bytes(tlsInit.memSize), " for ELF program load sections. ", status, "\n");
+        KmDebugMessage("[ELF] Failed to allocate ", sm::bytes(tlsInit.memSize + sizeof(uintptr_t)), " for ELF program load sections. ", status, "\n");
         return status;
     }
 
@@ -271,15 +271,14 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory& memo
         return status;
     }
 
-    km::TlsMapping tlsMapping{};
-    InitNewThreadTls(program.tlsInit, memory, process->ptes, &tlsMapping);
-
     Thread *main = nullptr;
     if (OsStatus status = CreateThread(process, memory, objects, program.entry, name + " MAIN", &main)) {
         return status;
     }
 
-    main->tlsAddress = (uintptr_t)tlsMapping.tlsAddress();
+    if (OsStatus status = program.createTls(memory, main)) {
+        return status;
+    }
 
     ProcessLaunch launch = {
         .process = process,
@@ -452,13 +451,21 @@ OsStatus km::LoadElfProgram(vfs2::IFileHandle *file, SystemMemory& memory, Proce
 
     uintptr_t entry = ((uintptr_t)header.entry - (uintptr_t)loadMemory.front) + (uintptr_t)loadMapping.vaddr;
 
-    KmDebugMessage("[ELF] Launching process: ", km::Hex(process->publicId()), "\n");
-
     *result = Program {
         .tlsInit = tlsInit,
         .loadMapping = loadMapping,
         .entry = entry,
     };
 
+    return OsStatusSuccess;
+}
+
+OsStatus km::Program::createTls(SystemMemory& memory, Thread *thread) {
+    km::TlsMapping tlsMapping{};
+    if (OsStatus status = InitNewThreadTls(tlsInit, memory, thread->process, &tlsMapping)) {
+        return status;
+    }
+
+    thread->tlsAddress = (uintptr_t)tlsMapping.tlsAddress();
     return OsStatusSuccess;
 }
