@@ -152,25 +152,18 @@ namespace km {
         void *window;
         size_t fileSize;
         size_t memSize;
-    };
-
-    struct TlsMapping {
-        km::AddressMapping mapping;
-        void *window;
-
-        size_t fileSize;
-        size_t memSize;
-
-        void *tlsAddress() const {
-            return (char*)mapping.vaddr + memSize;
-        }
 
         size_t bssSize() const {
             return memSize - fileSize;
         }
+    };
 
-        bool isPresent() const {
-            return window != nullptr;
+    struct TlsMapping {
+        km::AddressMapping mapping;
+        size_t memSize;
+
+        void *tlsAddress() const {
+            return (char*)mapping.vaddr + memSize;
         }
     };
 

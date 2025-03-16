@@ -116,22 +116,6 @@ static OsStatus ApplyRelocations(vfs2::IHandle *file, std::span<const elf::Elf64
     return OsStatusSuccess;
 }
 
-static void InitTlsMemory(km::TlsMapping tlsMapping) {
-    km::AddressMapping userMapping = tlsMapping.mapping;
-    void *tlsWindow = tlsMapping.window;
-    size_t fileSize = tlsMapping.fileSize;
-    size_t memSize = tlsMapping.memSize;
-    size_t bssSize = tlsMapping.bssSize();
-
-    if (bssSize > 0) {
-        KmDebugMessage("[ELF] TLS BSS size: ", bssSize, " ", userMapping, "\n");
-        memset(((char*)tlsWindow + fileSize), 0, bssSize);
-    }
-
-    const void *vaddr = (char*)userMapping.vaddr + memSize;
-    memcpy((char*)tlsWindow + memSize, &vaddr, sizeof(uintptr_t));
-}
-
 static OsStatus InitNewThreadTls(km::TlsInit tlsInit, km::SystemMemory& memory, km::ProcessPageTables& ptes, km::TlsMapping *mapping) {
     km::AddressMapping tlsMapping{};
     OsStatus status = AllocateMemory(memory.pmmAllocator(), &ptes, km::Pages(tlsInit.memSize + sizeof(uintptr_t)), &tlsMapping);
@@ -146,22 +130,33 @@ static OsStatus InitNewThreadTls(km::TlsInit tlsInit, km::SystemMemory& memory, 
         return OsStatusOutOfMemory;
     }
 
+    defer {
+        memory.unmap(tlsWindow, tlsMapping.size);
+    };
+
     km::TlsMapping newMapping {
         .mapping = tlsMapping,
-        .window = tlsWindow,
-        .fileSize = tlsInit.fileSize,
         .memSize = tlsInit.memSize,
     };
 
     memcpy(tlsWindow, tlsInit.window, tlsInit.fileSize);
-    InitTlsMemory(newMapping);
+
+    size_t bssSize = tlsInit.bssSize();
+    if (bssSize > 0) {
+        KmDebugMessage("[ELF] TLS BSS size: ", bssSize, " ", tlsMapping, "\n");
+        memset(((char*)tlsWindow + tlsInit.fileSize), 0, bssSize);
+    }
+
+    const void *vaddr = (char*)tlsMapping.vaddr + tlsInit.memSize;
+    memcpy((char*)tlsWindow + tlsInit.memSize, &vaddr, sizeof(uintptr_t));
+
     *mapping = newMapping;
     return OsStatusSuccess;
 }
 
 static OsStatus ReadTlsInit(vfs2::IHandle *file, const elf::ProgramHeader *tls, km::SystemMemory& memory, km::ProcessPageTables& ptes, km::TlsInit *mapping) {
     km::AddressMapping tlsMapping{};
-    OsStatus status = AllocateMemory(memory.pmmAllocator(), &ptes, km::Pages(tls->memsz + sizeof(uintptr_t)), &tlsMapping);
+    OsStatus status = AllocateMemory(memory.pmmAllocator(), &ptes, km::Pages(tls->memsz), &tlsMapping);
     if (status != OsStatusSuccess) {
         KmDebugMessage("[ELF] Failed to allocate ", sm::bytes(tls->memsz), " for ELF program load sections. ", status, "\n");
         return status;
