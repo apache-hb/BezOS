@@ -147,6 +147,13 @@ namespace km {
         OsStatus ValidateElfHeader(const elf::Header &header, size_t size);
     }
 
+    struct TlsInit {
+        km::AddressMapping mapping;
+        void *window;
+        size_t fileSize;
+        size_t memSize;
+    };
+
     struct TlsMapping {
         km::AddressMapping mapping;
         void *window;
