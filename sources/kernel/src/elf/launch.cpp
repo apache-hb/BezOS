@@ -164,7 +164,7 @@ static char toupper(char c) {
     return c;
 }
 
-OsStatus CreateThread(km::Process *process, km::SystemMemory& memory, km::SystemObjects& objects, uintptr_t entry, stdx::String name, km::Thread **result) {
+static OsStatus CreateThread(km::Process *process, km::SystemMemory& memory, km::SystemObjects& objects, uintptr_t entry, stdx::String name, km::Thread **result) {
     km::IsrContext regs {
         .rip = entry,
         .cs = (km::SystemGdt::eLongModeUserCode * 0x8) | 0b11,

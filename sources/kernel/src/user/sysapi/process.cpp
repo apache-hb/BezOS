@@ -1,18 +1,71 @@
+#include "gdt.hpp"
+#include "log.hpp"
+#include "process/thread.hpp"
 #include "user/sysapi.hpp"
 
 #include "elf.hpp"
 #include "process/system.hpp"
 #include "process/schedule.hpp"
+
 #include "fs2/vfs.hpp"
+#include "fs2/utils.hpp"
+
 #include "syscall.hpp"
+
+static char toupper(char c) {
+    if (c >= 'a' && c <= 'z') {
+        return c - 'a' + 'A';
+    }
+
+    return c;
+}
+
+static OsStatus CreateThread(km::Process *process, km::SystemMemory& memory, km::SystemObjects& objects, uintptr_t entry, stdx::String name, km::Thread **result) {
+    km::IsrContext regs {
+        .rip = entry,
+        .cs = (km::SystemGdt::eLongModeUserCode * 0x8) | 0b11,
+        .rflags = 0x202,
+        .ss = (km::SystemGdt::eLongModeUserData * 0x8) | 0b11,
+    };
+
+    KmDebugMessage("[ELF] Entry point: ", km::Hex(regs.rip), "\n");
+
+    //
+    // Now allocate the stack for the main thread.
+    //
+
+    static constexpr size_t kStackSize = 0x4000;
+    km::PageFlags flags = km::PageFlags::eUser | km::PageFlags::eData;
+    km::AddressMapping mapping{};
+    if (OsStatus status = AllocateMemory(memory.pmmAllocator(), &process->ptes, 4, &mapping)) {
+        KmDebugMessage("[ELF] Failed to allocate stack memory: ", status, "\n");
+        return status;
+    }
+
+    KmDebugMessage("[ELF] Stack: ", mapping, "\n");
+
+    char *stack = (char*)memory.map(mapping.physicalRange(), flags);
+    memset(stack, 0x00, kStackSize);
+    memory.unmap(stack, kStackSize);
+
+    km::Thread *main = objects.createThread(stdx::String(name), process);
+    main->userStack = mapping;
+
+    regs.rbp = (uintptr_t)mapping.vaddr + kStackSize;
+    regs.rsp = (uintptr_t)mapping.vaddr + kStackSize;
+
+    main->state = regs;
+    *result = main;
+    return OsStatusSuccess;
+}
 
 OsCallResult um::ProcessCreate(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
     uint64_t userCreateInfo = regs->arg0;
 
+    km::SystemMemory &memory = *system->memory;
     OsProcessCreateInfo createInfo{};
     vfs2::VfsPath path;
-    std::unique_ptr<vfs2::IFileHandle> node = nullptr;
-    km::ProcessLaunch launch{};
+    std::unique_ptr<vfs2::IFileHandle> handle = nullptr;
 
     if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {
         return km::CallError(status);
@@ -22,17 +75,45 @@ OsCallResult um::ProcessCreate(km::System *system, km::CallContext *context, km:
         return km::CallError(status);
     }
 
-    if (OsStatus status = system->vfs->open(path, std::out_ptr(node))) {
+    if (OsStatus status = system->vfs->open(path, std::out_ptr(handle))) {
         return km::CallError(status);
     }
 
-    if (OsStatus status = km::LoadElf(std::move(node), *system->memory, *system->objects, &launch)) {
+    vfs2::INode *node = vfs2::GetHandleNode(handle.get());
+    vfs2::NodeInfo nInfo = node->info();
+
+    km::MemoryRange pteMemory = memory.pmmAllocate(256);
+
+    stdx::String name = stdx::String(nInfo.name);
+    for (char& c : name) {
+        c = toupper(c);
+    }
+
+    km::ProcessCreateInfo processCreateInfo {
+        .parent = context->process(),
+        .privilege = x64::Privilege::eUser,
+    };
+
+    km::Process *process = nullptr;
+    if (OsStatus status = system->objects->createProcess(stdx::String(name), pteMemory, processCreateInfo, &process)) {
         return km::CallError(status);
     }
 
-    system->scheduler->addWorkItem(launch.main);
+    km::Program program{};
+    if (OsStatus status = km::LoadElfProgram(handle.get(), memory, process, &program)) {
+        return km::CallError(status);
+    }
 
-    return km::CallOk(launch.process->publicId());
+    process->tlsInit = program.tlsInit;
+
+    km::Thread *main = nullptr;
+    if (OsStatus status = CreateThread(process, memory, *system->objects, program.entry, name + " MAIN", &main)) {
+        return km::CallError(status);
+    }
+
+    system->scheduler->addWorkItem(main);
+
+    return km::CallOk(process->publicId());
 }
 
 OsCallResult um::ProcessDestroy(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
