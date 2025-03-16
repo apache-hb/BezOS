@@ -236,10 +236,6 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory& memo
         return status;
     }
 
-    if (OsStatus status = process->createTls(memory, main)) {
-        return status;
-    }
-
     ProcessLaunch launch = {
         .process = process,
         .main = main,

@@ -12,7 +12,8 @@ OsStatus km::detail::LoadMemorySize(std::span<const elf::ProgramHeader> phs, km:
     km::VirtualRange result{(void*)UINTPTR_MAX, 0};
 
     for (const auto& header : phs) {
-        if (header.type != elf::ProgramHeaderType::eLoad) continue;
+        if (header.type != elf::ProgramHeaderType::eLoad)
+            continue;
 
         uint64_t vaddr = sm::roundup(header.vaddr, header.align);
         if (vaddr < (uintptr_t)result.back) {

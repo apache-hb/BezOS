@@ -216,6 +216,7 @@ OsStatus SystemObjects::createThread(stdx::String name, Process *process, Thread
     AddressMapping kernelStack = mMemory->allocateStack(0x4000 * 4);
     ThreadId id = mThreadIds.allocate();
     result->init(id, std::move(name), process, kernelStack);
+    process->createTls(*mMemory, result.get());
 
     Thread *ptr = result.release();
 
