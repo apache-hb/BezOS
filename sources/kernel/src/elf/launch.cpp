@@ -117,6 +117,10 @@ static OsStatus ApplyRelocations(vfs2::IHandle *file, std::span<const elf::Elf64
 }
 
 static OsStatus InitNewThreadTls(km::TlsInit tlsInit, km::SystemMemory& memory, km::ProcessPageTables& ptes, km::TlsMapping *mapping) {
+    if (!tlsInit.present()) {
+        return OsStatusSuccess;
+    }
+
     km::AddressMapping tlsMapping{};
     OsStatus status = AllocateMemory(memory.pmmAllocator(), &ptes, km::Pages(tlsInit.memSize + sizeof(uintptr_t)), &tlsMapping);
     if (status != OsStatusSuccess) {
@@ -193,20 +197,6 @@ static OsStatus ReadTlsInit(vfs2::IHandle *file, const elf::ProgramHeader *tls, 
     return OsStatusSuccess;
 }
 
-static OsStatus AllocateTlsMemory(vfs2::IHandle *file, const elf::ProgramHeader *tls, km::SystemMemory& memory, km::ProcessPageTables& ptes, km::TlsMapping *mapping) {
-    km::TlsInit tlsInit{};
-    if (OsStatus status = ReadTlsInit(file, tls, memory, ptes, &tlsInit)) {
-        return status;
-    }
-
-    km::TlsMapping tlsMapping{};
-
-    InitNewThreadTls(tlsInit, memory, ptes, &tlsMapping);
-
-    *mapping = tlsMapping;
-    return OsStatusSuccess;
-}
-
 static char toupper(char c) {
     if (c >= 'a' && c <= 'z') {
         return c - 'a' + 'A';
@@ -215,7 +205,7 @@ static char toupper(char c) {
     return c;
 }
 
-OsStatus CreateThread(vfs2::IFileHandle *file, km::Process *process, km::SystemMemory& memory, km::SystemObjects& objects, uintptr_t entry, stdx::String name, const elf::ProgramHeader *tls, km::Thread **result) {
+OsStatus CreateThread(km::Process *process, km::SystemMemory& memory, km::SystemObjects& objects, uintptr_t entry, stdx::String name, km::Thread **result) {
     km::IsrContext regs {
         .rip = entry,
         .cs = (km::SystemGdt::eLongModeUserCode * 0x8) | 0b11,
@@ -248,15 +238,6 @@ OsStatus CreateThread(vfs2::IFileHandle *file, km::Process *process, km::SystemM
 
     regs.rbp = (uintptr_t)mapping.vaddr + kStackSize;
     regs.rsp = (uintptr_t)mapping.vaddr + kStackSize;
-
-    if (tls != nullptr) {
-        km::TlsMapping tlsMapping{};
-        if (OsStatus status = AllocateTlsMemory(file, tls, memory, process->ptes, &tlsMapping)) {
-            return status;
-        }
-
-        main->tlsAddress = (uintptr_t)tlsMapping.tlsAddress();
-    }
 
     main->state = regs;
     *result = main;
@@ -424,7 +405,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory &memo
 #endif
     }
 
-    if (dyn != nullptr) {
+    if (dyn) {
         if (OsStatus status = ApplyRelocations(file.get(), std::span(dyn.get(), dynamic->filesz / sizeof(elf::Elf64Dyn)), loadMapping, windowOffset)) {
             return status;
         }
@@ -434,11 +415,25 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory &memo
     // Now allocate the stack for the main thread.
     //
 
+    km::TlsInit tlsInit{};
+
+    if (tls) {
+        if (OsStatus status = ReadTlsInit(file.get(), tls, memory, process->ptes, &tlsInit)) {
+            return status;
+        }
+    }
+
+    km::TlsMapping tlsMapping{};
+
+    InitNewThreadTls(tlsInit, memory, process->ptes, &tlsMapping);
+
     Thread *main = nullptr;
     uintptr_t entry = ((uintptr_t)header.entry - (uintptr_t)loadMemory.front) + (uintptr_t)loadMapping.vaddr;
-    if (OsStatus status = CreateThread(file.get(), process, memory, objects, entry, stdx::String(name), tls, &main)) {
+    if (OsStatus status = CreateThread(process, memory, objects, entry, stdx::String(name), &main)) {
         return status;
     }
+
+    main->tlsAddress = (uintptr_t)tlsMapping.tlsAddress();
 
     ProcessLaunch launch = {
         .process = process,

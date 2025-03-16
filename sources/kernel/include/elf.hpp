@@ -147,6 +147,7 @@ namespace km {
         OsStatus ValidateElfHeader(const elf::Header &header, size_t size);
     }
 
+    /// @brief Information required to create a threads TLS memory.
     struct TlsInit {
         km::AddressMapping mapping;
         void *window;
@@ -156,8 +157,13 @@ namespace km {
         size_t bssSize() const {
             return memSize - fileSize;
         }
+
+        bool present() const {
+            return window != nullptr;
+        }
     };
 
+    /// @brief Per thread TLS memory mapping.
     struct TlsMapping {
         km::AddressMapping mapping;
         size_t memSize;
