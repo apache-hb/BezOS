@@ -163,7 +163,5 @@ namespace km {
 
     OsStatus CreateTls(Thread *thread, const Program& program);
 
-    OsStatus LoadElfProgram(vfs2::IFileHandle *file, SystemMemory *memory, Process *process, Program *result);
-
     OsStatus LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory& memory, SystemObjects& objects, ProcessLaunch *result);
 }

@@ -267,12 +267,6 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory &memo
         return status;
     }
 
-    // Program program{};
-
-    // if (OsStatus status = LoadElfProgram(file.get(), &memory, process, &program)) {
-    //     return status;
-    // }
-
     KmDebugMessage("[ELF] Load memory range: ", loadMemory, "\n");
 
     km::AddressMapping loadMapping{};
@@ -324,8 +318,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory &memo
 
         KmDebugMessage("[ELF] Program Header type: ",
             km::Hex(std::to_underlying(ph.type)), ", flags: ", km::Hex(ph.flags), ", offset: ", km::Hex(ph.offset), ", filesize: ", km::Hex(ph.filesz),
-            ", memorysize: ", km::Hex(ph.memsz), ", virtual address: ", km::Hex(ph.vaddr),
-            ", physical address: ", km::Hex(ph.paddr), ", minimum alignment: ", km::Hex(ph.align), "\n");
+            ", memorysize: ", km::Hex(ph.memsz), ", virtual address: ", km::Hex(ph.vaddr), "\n");
 
         //
         // Line up the virtual address against the load memory.
@@ -372,6 +365,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory &memo
             memset((char*)vaddr + windowOffset + ph.filesz, 0x00, bssSize);
         }
 
+#if 0
         //
         // Now we can set the correct flags.
         //
@@ -383,7 +377,6 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory &memo
         if (ph.flags & (1 << 2))
             flags |= PageFlags::eRead;
 
-#if 0
         process->ptes.map(mapping, flags);
 #endif
     }
@@ -412,227 +405,6 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory &memo
     KmDebugMessage("[ELF] Launching process: ", km::Hex(process->publicId()), "\n");
 
     *result = launch;
-    return OsStatusSuccess;
-}
-
-static OsStatus AllocateProcessTlsMemory(vfs2::IHandle *file, const elf::ProgramHeader *tls, km::Process *process, km::SystemMemory& memory, km::AddressMapping *mapping) {
-    km::AddressMapping tlsMapping{};
-    OsStatus status = process->map(km::Pages(tls->memsz), km::PageFlags::eUser | km::PageFlags::eRead, km::MemoryType::eWriteBack, &tlsMapping);
-    if (status != OsStatusSuccess) {
-        KmDebugMessage("[ELF] Failed to allocate ", sm::bytes(tls->memsz), " for ELF program load sections. ", status, "\n");
-        return status;
-    }
-
-    //
-    // Create a window into the process address space so we can fill the TLS section.
-    //
-    char *tlsWindow = (char*)memory.map(tlsMapping.physicalRange(), km::PageFlags::eData);
-    if (tlsWindow == nullptr) {
-        KmDebugMessage("[ELF] Failed to map TLS memory\n");
-        return OsStatusOutOfMemory;
-    }
-
-    defer {
-        memory.unmap(tlsWindow, tlsMapping.size);
-    };
-
-    vfs2::ReadRequest request {
-        .begin = (std::byte*)tlsWindow,
-        .end = (std::byte*)tlsWindow + tls->filesz,
-        .offset = tls->offset,
-    };
-
-    vfs2::ReadResult result{};
-    if (OsStatus status = file->read(request, &result)) {
-        return status;
-    }
-
-    if (result.read != tls->filesz) {
-        KmDebugMessage("[ELF] Failed to read TLS section\n");
-        return OsStatusInvalidData;
-    }
-
-    if (tls->memsz > tls->filesz) {
-        size_t bssSize = tls->memsz - tls->filesz;
-        KmDebugMessage("[ELF] TLS BSS size: ", bssSize, " ", tlsMapping, "\n");
-        memset((tlsWindow + tls->filesz), 0, bssSize);
-    }
-
-    *mapping = tlsMapping;
-    return OsStatusSuccess;
-}
-
-OsStatus km::LoadElfProgram(vfs2::IFileHandle *file, SystemMemory *memory, Process *process, Program *result) {
-    vfs2::NodeStat stat{};
-    elf::Header header{};
-
-    if (OsStatus status = file->stat(&stat)) {
-        return status;
-    }
-
-    if (OsStatus status = vfs2::ReadObject(file, &header, 0)) {
-        return status;
-    }
-
-    if (OsStatus status = detail::ValidateElfHeader(header, stat.logical)) {
-        return status;
-    }
-
-    sm::FixedArray<elf::ProgramHeader> phs{header.phnum};
-
-    if (OsStatus status = vfs2::ReadArray(file, phs.data(), header.phnum, header.phoff)) {
-        return status;
-    }
-
-    km::VirtualRange loadMemory{};
-    if (OsStatus status = detail::LoadMemorySize(phs, &loadMemory)) {
-        KmDebugMessage("[ELF] Failed to calculate load memory size. ", status, "\n");
-        return status;
-    }
-
-    KmDebugMessage("[ELF] Load memory range: ", loadMemory, "\n");
-
-    km::AddressMapping loadMapping{};
-    OsStatus status = process->map(Pages(loadMemory.size()), PageFlags::eUser, MemoryType::eWriteBack, &loadMapping);
-    if (status != OsStatusSuccess) {
-        KmDebugMessage("[ELF] Failed to allocate ", sm::bytes(loadMemory.size()), " for ELF program load sections. ", status, "\n");
-        return status;
-    }
-
-    KmDebugMessage("[ELF] Load memory mapping: ", loadMapping, "\n");
-
-    //
-    // Map the load area into the kernel address space so we can write all the needed
-    // sections to memory without needing to switch to the user address space.
-    //
-    char *userWindow = (char*)memory->map(loadMapping.physicalRange(), PageFlags::eData);
-    uintptr_t windowOffset = (uintptr_t)userWindow - (uintptr_t)loadMapping.vaddr;
-
-    defer {
-        memory->unmap(userWindow, loadMemory.size());
-    };
-
-    uintptr_t entry = ((uintptr_t)header.entry - (uintptr_t)loadMemory.front) + (uintptr_t)loadMapping.vaddr;
-
-    KmDebugMessage("[ELF] Entry point: ", km::Hex(entry), ", offset: ", windowOffset, "\n");
-
-    const elf::ProgramHeader *tls = FindTlsSection(phs);
-    if (tls != nullptr) {
-        KmDebugMessage("[ELF] TLS section found\n");
-    }
-
-    const elf::ProgramHeader *dynamic = FindDynamicSection(phs);
-    std::unique_ptr<elf::Elf64Dyn[]> dyn;
-    if (dynamic == nullptr) {
-        KmDebugMessage("[ELF] Dynamic section not found\n");
-    } else {
-        if (dynamic->filesz % sizeof(elf::Elf64Dyn) != 0) {
-            KmDebugMessage("[ELF] Invalid dynamic section size\n");
-            return OsStatusInvalidData;
-        }
-
-        size_t count = dynamic->filesz / sizeof(elf::Elf64Dyn);
-        dyn.reset(new elf::Elf64Dyn[count]);
-        if (OsStatus status = vfs2::ReadArray(file, dyn.get(), count, dynamic->offset)) {
-            return status;
-        }
-    }
-
-    for (const elf::ProgramHeader &ph : phs) {
-        if (ph.type != elf::ProgramHeaderType::eLoad)
-            continue;
-
-        KmDebugMessage("[ELF] Program Header type: ",
-            km::Hex(std::to_underlying(ph.type)), ", flags: ", km::Hex(ph.flags), ", offset: ", km::Hex(ph.offset), ", filesize: ", km::Hex(ph.filesz),
-            ", memorysize: ", km::Hex(ph.memsz), ", virtual address: ", km::Hex(ph.vaddr), "\n");
-
-        // Distance between this program header load base and the ELF load base.
-        uintptr_t alignedVaddr = ph.vaddr;
-        uintptr_t distance = (uintptr_t)alignedVaddr - (uintptr_t)loadMemory.front;
-
-        // The virtual address of the program header load address.
-        uintptr_t base = (uintptr_t)loadMapping.vaddr + distance;
-        size_t offset = (base % x64::kPageSize);
-        void *vaddr = (void*)(base);
-
-        void *baseVaddr = (void*)(base - offset);
-        size_t pages = Pages(ph.memsz + offset);
-        km::AddressMapping mapping {
-            .vaddr = baseVaddr,
-            .paddr = loadMapping.paddr + distance,
-            .size = pages * x64::kPageSize,
-        };
-
-        vfs2::ReadRequest request {
-            .begin = (std::byte*)vaddr + windowOffset,
-            .end = (std::byte*)vaddr + windowOffset + ph.filesz,
-            .offset = ph.offset,
-        };
-
-        KmDebugMessage("[ELF] Section: ", km::Hex(base), " ", vaddr, " ", mapping, "\n");
-
-        vfs2::ReadResult readResult{};
-        if (OsStatus status = file->read(request, &readResult)) {
-            return status;
-        }
-
-        if (readResult.read != ph.filesz) {
-            KmDebugMessage("[ELF] Failed to read section: ", readResult.read, " != ", ph.filesz, "\n");
-            KmDebugMessage("[ELF] Section: ", mapping, "\n");
-            return OsStatusInvalidData;
-        }
-
-        if (ph.memsz > ph.filesz) {
-            uint64_t bssSize = ph.memsz - ph.filesz;
-            memset((char*)vaddr + windowOffset + ph.filesz, 0x00, bssSize);
-        }
-
-        //
-        // Now we can set the correct flags.
-        //
-        PageFlags flags = PageFlags::eUser;
-        if (ph.flags & (1 << 0))
-            flags |= PageFlags::eExecute;
-        if (ph.flags & (1 << 1))
-            flags |= PageFlags::eWrite;
-        if (ph.flags & (1 << 2))
-            flags |= PageFlags::eRead;
-
-#if 0
-        process->ptes.map(mapping, flags);
-#endif
-    }
-
-    //
-    // If there are relocations now is the time to apply them.
-    //
-    if (dyn != nullptr) {
-        if (OsStatus status = ApplyRelocations(file, std::span(dyn.get(), dynamic->filesz / sizeof(elf::Elf64Dyn)), loadMapping, windowOffset)) {
-            return status;
-        }
-    }
-
-    //
-    // If the program has a TLS section we fill out the TLS const data.
-    //
-
-    AddressMapping tlsMapping{};
-    std::span<const std::byte> tlsInit{};
-    if (tls != nullptr) {
-        if (OsStatus status = AllocateProcessTlsMemory(file, tls, process, *memory, &tlsMapping)) {
-            return status;
-        }
-
-        tlsInit = std::span<const std::byte>((const std::byte*)tlsMapping.vaddr, tls->memsz);
-    }
-
-    *result = Program {
-        .tlsMapping = tlsMapping,
-        .tlsInit = tlsInit,
-        .loadMapping = loadMapping,
-        .entry = (void*)entry,
-    };
-
     return OsStatusSuccess;
 }
 
