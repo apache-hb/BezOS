@@ -147,11 +147,15 @@ namespace km {
         OsStatus ValidateElfHeader(const elf::Header &header, size_t size);
     }
 
+    struct TlsMapping {
+        km::AddressMapping mapping;
+        void *window;
+    };
+
     struct Program {
         /// @brief TLS init data if present.
         /// Pointer into process address space, marked as read-only.
-        AddressMapping tlsMapping;
-        std::span<const std::byte> tlsInit;
+        TlsMapping tlsMapping;
 
         /// @brief Process address space that has been allocated to load the program.
         AddressMapping loadMapping;
@@ -160,8 +164,6 @@ namespace km {
         /// Pointer into process address space.
         const void *entry;
     };
-
-    OsStatus CreateTls(Thread *thread, const Program& program);
 
     OsStatus LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory& memory, SystemObjects& objects, ProcessLaunch *result);
 }

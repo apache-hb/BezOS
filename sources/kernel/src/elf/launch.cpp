@@ -116,12 +116,7 @@ static OsStatus ApplyRelocations(vfs2::IHandle *file, std::span<const elf::Elf64
     return OsStatusSuccess;
 }
 
-struct TlsMapping {
-    km::AddressMapping mapping;
-    void *window;
-};
-
-static OsStatus ReadTlsInit(vfs2::IHandle *file, const elf::ProgramHeader *tls, km::SystemMemory& memory, km::ProcessPageTables& ptes, TlsMapping *mapping) {
+static OsStatus ReadTlsInit(vfs2::IHandle *file, const elf::ProgramHeader *tls, km::SystemMemory& memory, km::ProcessPageTables& ptes, km::TlsMapping *mapping) {
     km::AddressMapping tlsMapping{};
     OsStatus status = AllocateMemory(memory.pmmAllocator(), &ptes, km::Pages(tls->memsz + sizeof(uintptr_t)), &tlsMapping);
     if (status != OsStatusSuccess) {
@@ -151,14 +146,14 @@ static OsStatus ReadTlsInit(vfs2::IHandle *file, const elf::ProgramHeader *tls, 
         return OsStatusInvalidData;
     }
 
-    *mapping = TlsMapping {
+    *mapping = km::TlsMapping {
         .mapping = tlsMapping,
         .window = tlsWindow,
     };
     return OsStatusSuccess;
 }
 
-static void InitTlsMemory(const elf::ProgramHeader *tls, TlsMapping tlsMapping) {
+static void InitTlsMemory(const elf::ProgramHeader *tls, km::TlsMapping tlsMapping) {
     km::AddressMapping userMapping = tlsMapping.mapping;
     void *tlsWindow = tlsMapping.window;
 
@@ -173,7 +168,7 @@ static void InitTlsMemory(const elf::ProgramHeader *tls, TlsMapping tlsMapping) 
 }
 
 static OsStatus AllocateTlsMemory(vfs2::IHandle *file, const elf::ProgramHeader *tls, km::SystemMemory& memory, km::ProcessPageTables& ptes, km::AddressMapping *mapping) {
-    TlsMapping tlsMapping{};
+    km::TlsMapping tlsMapping{};
     if (OsStatus status = ReadTlsInit(file, tls, memory, ptes, &tlsMapping)) {
         return status;
     }
@@ -432,33 +427,5 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory &memo
     KmDebugMessage("[ELF] Launching process: ", km::Hex(process->publicId()), "\n");
 
     *result = launch;
-    return OsStatusSuccess;
-}
-
-OsStatus km::CreateTls(Thread *thread, const Program& program) {
-    km::AddressMapping tlsMapping{};
-    if (OsStatus status = thread->process->map(Pages(program.tlsInit.size() + sizeof(uintptr_t)), PageFlags::eUser, MemoryType::eWriteBack, &tlsMapping)) {
-        return status;
-    }
-
-    SystemMemory *memory = km::GetSystemMemory();
-    char *tlsWindow = (char*)memory->map(tlsMapping.physicalRange(), PageFlags::eData);
-    if (tlsWindow == nullptr) {
-        return OsStatusOutOfMemory;
-    }
-
-    defer {
-        memory->unmap(tlsWindow, program.tlsInit.size() + sizeof(uintptr_t));
-    };
-
-    memcpy(tlsWindow, program.tlsInit.data(), program.tlsInit.size());
-
-    // Setup the TLS self pointer
-    const void *vaddr = (char*)tlsMapping.vaddr + program.tlsInit.size();
-    memcpy(tlsWindow + program.tlsInit.size(), &vaddr, sizeof(uintptr_t));
-
-    thread->tlsAddress = (uintptr_t)vaddr;
-    thread->tlsMapping = tlsMapping;
-
     return OsStatusSuccess;
 }
