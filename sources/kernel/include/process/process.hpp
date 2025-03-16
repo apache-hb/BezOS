@@ -29,6 +29,7 @@ namespace km {
         ProcessPageTables ptes;
         sm::FlatHashMap<OsHandle, KernelObject*> handles;
         OsProcessStateFlags state = eOsProcessRunning;
+        km::AddressMapping argsMapping;
         int64_t exitCode = 0;
         TlsInit tlsInit;
 
