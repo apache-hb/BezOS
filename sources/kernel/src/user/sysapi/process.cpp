@@ -108,20 +108,28 @@ OsCallResult um::ProcessCreate(km::System *system, km::CallContext *context, km:
             return km::CallError(status);
         }
 
-        if (OsStatus status = process->map(memory, km::Pages(args.count()), km::PageFlags::eUser | km::PageFlags::eRead, km::MemoryType::eWriteBack, &process->argsMapping)) {
+        km::AddressMapping argsMapping{};
+
+        if (OsStatus status = process->map(memory, km::Pages(args.count()), km::PageFlags::eUser | km::PageFlags::eRead, km::MemoryType::eWriteBack, &argsMapping)) {
             return km::CallError(status);
         }
 
-        void *window = memory.map(process->argsMapping.physicalRange(), km::PageFlags::eData);
+
+        void *window = memory.map(argsMapping.physicalRange(), km::PageFlags::eData);
         if (window == nullptr) {
             return km::CallError(OsStatusOutOfMemory);
         }
 
         defer {
-            memory.unmap(window, process->argsMapping.size);
+            memory.unmap(window, argsMapping.size);
         };
 
         memcpy(window, args.data(), args.count());
+
+        process->args = km::ProcessArgs {
+            .mapping = argsMapping,
+            .size = args.count(),
+        };
     }
 
     km::Program program{};
@@ -183,6 +191,8 @@ OsCallResult um::ProcessStat(km::System *system, km::CallContext *context, km::S
 
     OsProcessInfo stat {
         .Parent = ppid,
+        .ArgsBegin = (const struct OsProcessParam *)process->args.mapping.vaddr,
+        .ArgsEnd = (const struct OsProcessParam *)((char*)process->args.mapping.vaddr + process->args.size),
         .Status = process->state,
         .ExitCode = process->exitCode,
     };

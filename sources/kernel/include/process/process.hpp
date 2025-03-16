@@ -20,6 +20,11 @@ namespace km {
         uintptr_t userArgsEnd;
     };
 
+    struct ProcessArgs {
+        AddressMapping mapping;
+        size_t size;
+    };
+
     struct Process : public KernelObject {
         Process() = default;
 
@@ -29,7 +34,7 @@ namespace km {
         ProcessPageTables ptes;
         sm::FlatHashMap<OsHandle, KernelObject*> handles;
         OsProcessStateFlags state = eOsProcessRunning;
-        km::AddressMapping argsMapping;
+        ProcessArgs args;
         int64_t exitCode = 0;
         TlsInit tlsInit;
 
