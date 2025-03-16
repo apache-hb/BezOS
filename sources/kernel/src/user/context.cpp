@@ -3,6 +3,8 @@
 #include "memory/paging.hpp"
 #include "memory/pte.hpp"
 
+#include <bezos/facility/process.h>
+
 static constexpr bool IsAlignedTo(uint64_t address, size_t alignment) {
     return (address & (alignment - 1)) == 0;
 }
@@ -125,6 +127,17 @@ OsStatus km::WriteUserRange(const VerifyRules& rules, uintptr_t begin, uintptr_t
     return OsStatusSuccess;
 }
 
+OsStatus km::ReadUserArray(const VerifyRules& rules, uintptr_t begin, uintptr_t end, stdx::Vector2<std::byte>& dst, const PageBuilder *pm, PageTables *pt) {
+    if (OsStatus status = VerifyRangeValid(rules, begin, end, PageFlags::eUser | PageFlags::eRead, pm, pt)) {
+        return status;
+    }
+
+    size_t size = end - begin;
+    dst.resize(size);
+    memcpy(dst.data(), (void*)begin, size);
+    return OsStatusSuccess;
+}
+
 OsStatus km::ReadUserObject(const VerifyRules& rules, uintptr_t address, size_t size, void *dst, const PageBuilder *pm, PageTables *pt) {
     uintptr_t end;
     if (__builtin_add_overflow(address, size, &end)) {
@@ -141,4 +154,34 @@ OsStatus km::WriteUserObject(const VerifyRules& rules, uintptr_t address, size_t
     }
 
     return WriteUserRange(rules, address, end, src, pm, pt);
+}
+
+static OsStatus VerifySingleArg(std::span<const std::byte> &args) {
+    //
+    // If theres not enough data for the header, it is invalid.
+    //
+    if (args.size_bytes() < sizeof(OsProcessParam)) {
+        return OsStatusInvalidSpan;
+    }
+
+    //
+    // If the data size is larger than the remaining data, it is invalid.
+    //
+    OsProcessParam *param = (OsProcessParam*)args.data();
+    if (param->DataSize > (args.size_bytes() - sizeof(OsProcessParam))) {
+        return OsStatusInvalidSpan;
+    }
+
+    args = args.subspan(sizeof(OsProcessParam) + param->DataSize);
+    return OsStatusSuccess;
+}
+
+OsStatus km::VerifyProcessCreateArgs(std::span<const std::byte> args) {
+    while (!args.empty()) {
+        if (OsStatus status = VerifySingleArg(args)) {
+            return status;
+        }
+    }
+
+    return OsStatusSuccess;
 }

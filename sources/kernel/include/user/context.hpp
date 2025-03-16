@@ -5,6 +5,7 @@
 #include <bezos/status.h>
 
 #include "memory/memory.hpp"
+#include "std/vector.hpp"
 
 namespace km {
     class PageBuilder;
@@ -33,6 +34,8 @@ namespace km {
     OsStatus ReadUserObject(const VerifyRules& rules, uintptr_t address, size_t size, void *dst, const PageBuilder *pm, PageTables *pt);
     OsStatus WriteUserObject(const VerifyRules& rules, uintptr_t address, size_t size, const void *src, const PageBuilder *pm, PageTables *pt);
 
+    OsStatus ReadUserArray(const VerifyRules& rules, uintptr_t begin, uintptr_t end, stdx::Vector2<std::byte>& dst, const PageBuilder *pm, PageTables *pt);
+
     template<typename T>
     OsStatus ReadUserObject(uintptr_t address, T *dst, const PageBuilder *pm, PageTables *pt) {
         VerifyRules rules {
@@ -50,4 +53,6 @@ namespace km {
 
         return WriteUserObject(rules, address, sizeof(T), src, pm, pt);
     }
+
+    OsStatus VerifyProcessCreateArgs(std::span<const std::byte> args);
 }

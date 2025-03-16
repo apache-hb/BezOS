@@ -1,5 +1,6 @@
-#include "process/process.hpp"
 #include "process/system.hpp"
+
+#include "panic.hpp"
 
 using KernelObject = km::KernelObject;
 
