@@ -237,15 +237,14 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory &memo
         return status;
     }
 
-    std::unique_ptr<elf::ProgramHeader[]> phs{new elf::ProgramHeader[header.phnum]};
-    std::span<const elf::ProgramHeader> programHeaders = std::span(phs.get(), header.phnum);
+    sm::FixedArray<elf::ProgramHeader> phs{header.phnum};
 
-    if (OsStatus status = vfs2::ReadArray(file.get(), phs.get(), header.phnum, header.phoff)) {
+    if (OsStatus status = vfs2::ReadArray(file.get(), phs.data(), header.phnum, header.phoff)) {
         return status;
     }
 
     km::VirtualRange loadMemory{};
-    if (OsStatus status = detail::LoadMemorySize(programHeaders, &loadMemory)) {
+    if (OsStatus status = detail::LoadMemorySize(phs, &loadMemory)) {
         KmDebugMessage("[ELF] Failed to calculate load memory size. ", status, "\n");
         return status;
     }
@@ -290,12 +289,12 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory &memo
 
     uintptr_t windowOffset = (uintptr_t)userWindow - (uintptr_t)loadMapping.vaddr;
 
-    const elf::ProgramHeader *tls = FindTlsSection(programHeaders);
+    const elf::ProgramHeader *tls = FindTlsSection(phs);
     if (tls != nullptr) {
         KmDebugMessage("[ELF] TLS section found\n");
     }
 
-    const elf::ProgramHeader *dynamic = FindDynamicSection(programHeaders);
+    const elf::ProgramHeader *dynamic = FindDynamicSection(phs);
     std::unique_ptr<elf::Elf64Dyn[]> dyn;
     if (dynamic == nullptr) {
         KmDebugMessage("[ELF] Dynamic section not found\n");
@@ -312,7 +311,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory &memo
         }
     }
 
-    for (const elf::ProgramHeader &ph : programHeaders) {
+    for (const elf::ProgramHeader &ph : phs) {
         if (ph.type != elf::ProgramHeaderType::eLoad)
             continue;
 
