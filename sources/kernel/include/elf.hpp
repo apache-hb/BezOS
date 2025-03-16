@@ -183,8 +183,22 @@ namespace km {
 
         /// @brief Entry point for the program.
         /// Pointer into process address space.
-        const void *entry;
+        uintptr_t entry;
     };
 
     OsStatus LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory& memory, SystemObjects& objects, ProcessLaunch *result);
+
+    /// @brief Load an ELF program from a file.
+    ///
+    /// Accepts a process argument to map the file into and to
+    /// ensure that the memory ownership is properly attributed
+    /// to the new program.
+    ///
+    /// @param file File to load the ELF program from.
+    /// @param memory System memory allocator.
+    /// @param process Process to load the program into.
+    /// @param result Program information.
+    ///
+    /// @return Status of the operation.
+    OsStatus LoadElfProgram(vfs2::IFileHandle *file, SystemMemory& memory, Process *process, Program *result);
 }

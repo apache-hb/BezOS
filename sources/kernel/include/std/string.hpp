@@ -38,6 +38,7 @@ namespace stdx {
         using pointer = T*;
         using const_pointer = const T*;
 
+        [[nodiscard]]
         constexpr StringBase(Allocator allocator = Allocator{})
             : mAllocator(allocator)
             , mFront(nullptr)
@@ -46,6 +47,7 @@ namespace stdx {
         { }
 
         template<typename Iter>
+        [[nodiscard]]
         constexpr StringBase(Iter first, Iter last, Allocator allocator = Allocator{})
             : StringBase(allocator)
         {
@@ -53,14 +55,17 @@ namespace stdx {
         }
 
         template<size_t N>
+        [[nodiscard]]
         constexpr StringBase(const T (&text)[N], Allocator allocator = Allocator{})
             : StringBase(text, text + N - 1, allocator)
         { }
 
+        [[nodiscard]]
         explicit constexpr StringBase(stdx::StringViewBase<T> view, Allocator allocatr = Allocator{})
             : StringBase(view.begin(), view.end(), allocatr)
         { }
 
+        [[nodiscard]]
         explicit constexpr StringBase(const StringBase& other)
             : StringBase(other.begin(), other.end(), other.getAllocator())
         { }
@@ -74,6 +79,7 @@ namespace stdx {
             return *this;
         }
 
+        [[nodiscard]]
         constexpr StringBase(StringBase&& other)
             : mAllocator(std::exchange(other.mAllocator, Allocator{}))
             , mFront(std::exchange(other.mFront, nullptr))
