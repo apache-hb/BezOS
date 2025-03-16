@@ -91,13 +91,22 @@ struct Overlay {
     std::string folder;
 };
 
+struct GitRepo {
+    std::string url;
+    std::string branch;
+    std::string commit;
+};
+
 struct Download {
+    std::string name;
     std::string url;
     std::string file;
     std::string archive;
     std::optional<std::string> sha256;
     bool trimRootFolder;
     bool install;
+
+    GitRepo git;
 };
 
 enum ConfigureProgram {
@@ -670,6 +679,33 @@ static XmlDocument XmlDocumentOpen(const std::filesystem::path &path) {
     return doc;
 }
 
+static std::set<std::string> gCloneRepos;
+
+static void GitClone(const std::string& url, const std::string& commit, const std::string& branch, const fs::path& dst) {
+    std::vector<std::string> args = { "git", "clone", url, fs::absolute(dst).string() };
+    if (!branch.empty()) {
+        args.push_back("--branch");
+        args.push_back(branch);
+    }
+
+    auto result = sp::call(args);
+    if (result != 0) {
+        throw std::runtime_error("Failed to clone " + url);
+    }
+
+    if (!commit.empty()) {
+        auto cwd = fs::current_path();
+        fs::current_path(dst);
+
+        auto result = sp::call({ "git", "checkout", commit });
+        if (result != 0) {
+            throw std::runtime_error("Failed to checkout commit " + commit);
+        }
+
+        fs::current_path(cwd);
+    }
+}
+
 #define ARCHIVE_ASSERT(expr, archive) \
     if ((expr) != ARCHIVE_OK) { \
         std::string message = "Archive error: " #expr " "; \
@@ -933,6 +969,26 @@ static void AddWorkspacePackage(PackageInfo packageInfo, std::string name) {
     gWorkspace.AddPackage(packageInfo);
 }
 
+static Download ReadDownloadTags(XmlNode node) {
+
+    auto name = node.property("name").value_or("");
+    auto url = ExpectProperty<std::string>(node, "url");
+    auto file = ExpectProperty<std::string>(node, "file");
+    auto archive = node.property("archive");
+    auto trimRootFolder = node.property("trim-root-folder").value_or("false") == "true";
+    auto install = node.property("install").value_or("false") == "true";
+    auto sha256 = node.property("sha256");
+
+    GitRepo repo;
+    if (auto git = node.property("git")) {
+        repo.url = git.value();
+        repo.branch = node.property("branch").value_or("");
+        repo.commit = node.property("commit").value_or("");
+    }
+
+    return Download{name, url, file, archive.value_or(""), sha256, trimRootFolder, install, repo};
+}
+
 static void ReadDownloadConfig(XmlNode root) {
     auto name = ExpectProperty<std::string>(root, "name");
     gPackageDb->RaiseTargetStatus(name, eUnknown);
@@ -942,13 +998,7 @@ static void ReadDownloadConfig(XmlNode root) {
     MakeFolder(PackageInstallPath(name));
     MakeFolder(PackageLogPath(name));
 
-    auto url = ExpectProperty<std::string>(root, "url");
-    auto file = ExpectProperty<std::string>(root, "file");
-    auto archive = root.property("archive");
-    auto trimRootFolder = root.property("trim-root-folder").value_or("false") == "true";
-    auto install = root.property("install").value_or("false") == "true";
-    auto sha256 = root.property("sha256");
-
+    auto download = ReadDownloadTags(root);
     PackageInfo packageInfo {
         .name = name,
     };
@@ -957,7 +1007,7 @@ static void ReadDownloadConfig(XmlNode root) {
         packageInfo.version = version.value();
     }
 
-    packageInfo.downloads.push_back(Download{url, file, archive.value_or(""), sha256, trimRootFolder, install});
+    packageInfo.downloads.push_back(download);
 
     for (XmlNode action : root.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
         auto step = NodeName(action);
@@ -1008,14 +1058,7 @@ static void ReadPackageConfig(XmlNode root) {
         if (step == "download"sv) {
             assert(packageInfo.fromSource.empty() && "Package cannot have both source and download steps");
 
-            auto url = ExpectProperty<std::string>(action, "url");
-            auto file = ExpectProperty<std::string>(action, "file");
-            auto archive = action.property("archive");
-            auto trimRootFolder = action.property("trim-root-folder").value_or("false") == "true";
-            auto install = action.property("install").value_or("false") == "true";
-            auto sha256 = action.property("sha256");
-
-            packageInfo.downloads.push_back(Download{url, file, archive.value_or(""), sha256, trimRootFolder, install});
+            packageInfo.downloads.push_back(ReadDownloadTags(action));
         } else if (step == "patch"sv) {
             assert(packageInfo.fromSource.empty() && "Package cannot have both source and patch steps");
 
@@ -1138,27 +1181,31 @@ static void AcquirePackage(const PackageInfo& package) {
     std::println(std::cout, "{}: acquire", package.name);
 
     for (const auto& download : package.downloads) {
-        auto path = package.GetCacheFolder() / download.file;
-
-        std::println(std::cout, "{}: download {} -> {}", package.name, download.url, path.string());
-
-        if (!fs::exists(path)) {
-            DownloadFile(download.url, path);
-
-            if (download.sha256.has_value()) {
-                std::println(std::cout, "{}: verify sha256 {}", package.name, download.sha256.value());
-                VerifySha256(path, download.sha256.value());
-            }
-        }
-
-        if (!download.archive.empty()) {
-            ExtractArchive(package.name, path, package.GetSourceFolder(), download.trimRootFolder);
+        if (gCloneRepos.contains(download.name)) {
+            GitClone(download.git.url, download.git.commit, download.git.branch, package.GetSourceFolder());
         } else {
-            auto dst = package.GetSourceFolder() / download.file;
-            std::println(std::cout, "{}: copy {} -> {}", package.name, path.string(), dst.string());
+            auto path = package.GetCacheFolder() / download.file;
 
-            fs::remove_all(dst);
-            fs::copy_file(path, dst, fs::copy_options::overwrite_existing);
+            std::println(std::cout, "{}: download {} -> {}", package.name, download.url, path.string());
+
+            if (!fs::exists(path)) {
+                DownloadFile(download.url, path);
+
+                if (download.sha256.has_value()) {
+                    std::println(std::cout, "{}: verify sha256 {}", package.name, download.sha256.value());
+                    VerifySha256(path, download.sha256.value());
+                }
+            }
+
+            if (!download.archive.empty()) {
+                ExtractArchive(package.name, path, package.GetSourceFolder(), download.trimRootFolder);
+            } else {
+                auto dst = package.GetSourceFolder() / download.file;
+                std::println(std::cout, "{}: copy {} -> {}", package.name, path.string(), dst.string());
+
+                fs::remove_all(dst);
+                fs::copy_file(path, dst, fs::copy_options::overwrite_existing);
+            }
         }
     }
 
@@ -1708,6 +1755,10 @@ int main(int argc, const char **argv) try {
         .help("List of packages to fetch or update")
         .nargs(argparse::nargs_pattern::any);
 
+    parser.add_argument("--clone")
+        .help("List of packages to clone from git")
+        .nargs(argparse::nargs_pattern::any);
+
     parser.add_argument("--reconfigure")
         .help("List of packages to configure or reconfigure")
         .nargs(argparse::nargs_pattern::any);
@@ -1804,7 +1855,7 @@ int main(int argc, const char **argv) try {
     applyStateLowering("--reconfigure", eDownloaded);
     applyStateLowering("--fetch", eUnknown);
 
-    for (const auto& name : parser.get<std::vector<std::string>>("--fetch")) {
+    auto erasePackageData = [](auto name) {
         if (fs::exists(PackageBuildPath(name))) {
             fs::remove_all(PackageBuildPath(name));
         }
@@ -1825,6 +1876,14 @@ int main(int argc, const char **argv) try {
         fs::create_directories(PackageInstallPath(name));
         fs::create_directories(PackageLogPath(name));
         fs::create_directories(PackageImportPath(name));
+    };
+
+    for (const auto& name : parser.get<std::vector<std::string>>("--fetch")) {
+        erasePackageData(name);
+    }
+
+    for (const auto& name : parser.get<std::vector<std::string>>("--clone")) {
+        gCloneRepos.insert(name);
     }
 
     // gPackageDb->DumpTargetStates();

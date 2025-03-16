@@ -5,7 +5,9 @@
               url='https://github.com/llvm/llvm-project/archive/dca73063653ca7d35afb3226ae66623495086204.zip'
               sha256='a92c202db56bf7839363c3b4aaaf753701d2731d20ec2d372f03ab26be915dd0'
               trim-root-folder='true'
-              archive='zip'>
+              archive='zip'
+              git='https://github.com/llvm/llvm-project.git'
+              commit='dca73063653ca7d35afb3226ae66623495086204'>
 
         <patch file='@REPO@/patches/llvm/0001-add-llvm-target.patch' />
         <patch file='@REPO@/patches/llvm/0002-add-clang-target.patch' />
