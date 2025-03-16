@@ -1,9 +1,6 @@
 #include "elf.hpp"
 #include "kernel.hpp"
 #include "log.hpp"
-#include "process/process.hpp"
-#include "process/thread.hpp"
-#include "util/defer.hpp"
 
 OsStatus km::detail::LoadMemorySize(std::span<const elf::ProgramHeader> phs, km::VirtualRange *range) {
     km::VirtualRange result{(void*)UINTPTR_MAX, 0};
@@ -68,34 +65,6 @@ OsStatus km::detail::ValidateElfHeader(const elf::Header &header, size_t size) {
         KmDebugMessage("[ELF] Program has no entry point.\n");
         return OsStatusInvalidData;
     }
-
-    return OsStatusSuccess;
-}
-
-OsStatus km::CreateTls(Thread *thread, const Program& program) {
-    km::AddressMapping tlsMapping{};
-    if (OsStatus status = thread->process->map(Pages(program.tlsInit.size() + sizeof(uintptr_t)), PageFlags::eUser, MemoryType::eWriteBack, &tlsMapping)) {
-        return status;
-    }
-
-    SystemMemory *memory = km::GetSystemMemory();
-    char *tlsWindow = (char*)memory->map(tlsMapping.physicalRange(), PageFlags::eData);
-    if (tlsWindow == nullptr) {
-        return OsStatusOutOfMemory;
-    }
-
-    defer {
-        memory->unmap(tlsWindow, program.tlsInit.size() + sizeof(uintptr_t));
-    };
-
-    memcpy(tlsWindow, program.tlsInit.data(), program.tlsInit.size());
-
-    // Setup the TLS self pointer
-    const void *vaddr = (char*)tlsMapping.vaddr + program.tlsInit.size();
-    memcpy(tlsWindow + program.tlsInit.size(), &vaddr, sizeof(uintptr_t));
-
-    thread->tlsAddress = (uintptr_t)vaddr;
-    thread->tlsMapping = tlsMapping;
 
     return OsStatusSuccess;
 }

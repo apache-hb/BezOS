@@ -1190,6 +1190,7 @@ static km::System GetSystem() {
         .vfs = gVfsRoot,
         .objects = gSystemObjects,
         .memory = gMemory,
+        .scheduler = gScheduler,
     };
 }
 
@@ -1362,68 +1363,23 @@ static void AddMutexSystemCalls() {
 
 static void AddProcessSystemCalls() {
     AddSystemCall(eOsCallProcessCreate, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
-        uint64_t userCreateInfo = regs->arg0;
-        OsProcessCreateInfo createInfo{};
-        if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {
-            return CallError(status);
-        }
-
-        vfs2::VfsPath path;
-        if (OsStatus status = UserReadPath(context, createInfo.Executable, &path)) {
-            return CallError(status);
-        }
-
-        // stdx::String args;
-        // if (OsStatus status = context->readString((uint64_t)createInfo.ArgumentsBegin, (uint64_t)createInfo.ArgumentsEnd, kMaxPathSize, &args)) {
-        //     return CallError(status);
-        // }
-
-        KmDebugMessage("[PROC] Creating process for ", path, "\n");
-
-        std::unique_ptr<vfs2::IFileHandle> node = nullptr;
-        if (OsStatus status = gVfsRoot->open(path, std::out_ptr(node))) {
-            return CallError(status);
-        }
-
-        KmDebugMessage("[PROC] Loading ELF file.\n");
-
-        ProcessLaunch launch{};
-        if (OsStatus status = LoadElf(std::move(node), *gMemory, *gSystemObjects, &launch)) {
-            return CallError(status);
-        }
-
-        GetScheduler()->addWorkItem(launch.main);
-
-        return CallOk(launch.process->publicId());
-    });
-
-    AddSystemCall(eOsCallProcessCurrent, [](CallContext *context, SystemCallRegisterSet*) -> OsCallResult {
-        Process *process = context->process();
-        if (process == nullptr) {
-            return CallError(OsStatusNotFound);
-        }
-
-        return CallOk(process->publicId());
+        System system = GetSystem();
+        return um::ProcessCreate(&system, context, regs);
     });
 
     AddSystemCall(eOsCallProcessDestroy, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
-        uint64_t userProcess = regs->arg0;
-        uint64_t userExitCode = regs->arg1;
+        System system = GetSystem();
+        return um::ProcessDestroy(&system, context, regs);
+    });
 
-        Process *process;
-        if (OsStatus status = SelectOwningProcess(context, userProcess, &process)) {
-            return CallError(status);
-        }
+    AddSystemCall(eOsCallProcessCurrent, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        System system = GetSystem();
+        return um::ProcessCurrent(&system, context, regs);
+    });
 
-        KmDebugMessage("[PROC] Process ", process->internalId(), " exited with code ", userExitCode, "\n");
-
-        gSystemObjects->exitProcess(process, userExitCode);
-
-        if (process == context->process()) {
-            km::YieldCurrentThread();
-        }
-
-        return CallOk(0zu);
+    AddSystemCall(eOsCallProcessStat, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        System system = GetSystem();
+        return um::ProcessStat(&system, context, regs);
     });
 }
 

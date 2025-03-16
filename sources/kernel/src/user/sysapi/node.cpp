@@ -1,3 +1,4 @@
+#include "log.hpp"
 #include "user/sysapi.hpp"
 
 #include "process/device.hpp"
@@ -16,6 +17,7 @@ OsStatus um::UserReadPath(km::CallContext *context, OsPath user, vfs2::VfsPath *
     }
 
     if (!vfs2::VerifyPathText(text)) {
+        KmDebugMessage("[PROC] Invalid path: '", text, "'\n");
         return OsStatusInvalidPath;
     }
 

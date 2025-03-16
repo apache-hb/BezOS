@@ -1,6 +1,7 @@
 #include "elf.hpp"
 
 #include "gdt.hpp"
+#include "kernel.hpp"
 #include "log.hpp"
 
 #include "process/system.hpp"
@@ -218,11 +219,11 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory &memo
         return status;
     }
 
-    Program program{};
+    // Program program{};
 
-    if (OsStatus status = LoadElfProgram(file.get(), &memory, process, &program)) {
-        return status;
-    }
+    // if (OsStatus status = LoadElfProgram(file.get(), &memory, process, &program)) {
+    //     return status;
+    // }
 
     KmDebugMessage("[ELF] Load memory range: ", loadMemory, "\n");
 
@@ -613,6 +614,34 @@ OsStatus km::LoadElfProgram(vfs2::IFileHandle *file, SystemMemory *memory, Proce
         .loadMapping = loadMapping,
         .entry = (void*)entry,
     };
+
+    return OsStatusSuccess;
+}
+
+OsStatus km::CreateTls(Thread *thread, const Program& program) {
+    km::AddressMapping tlsMapping{};
+    if (OsStatus status = thread->process->map(Pages(program.tlsInit.size() + sizeof(uintptr_t)), PageFlags::eUser, MemoryType::eWriteBack, &tlsMapping)) {
+        return status;
+    }
+
+    SystemMemory *memory = km::GetSystemMemory();
+    char *tlsWindow = (char*)memory->map(tlsMapping.physicalRange(), PageFlags::eData);
+    if (tlsWindow == nullptr) {
+        return OsStatusOutOfMemory;
+    }
+
+    defer {
+        memory->unmap(tlsWindow, program.tlsInit.size() + sizeof(uintptr_t));
+    };
+
+    memcpy(tlsWindow, program.tlsInit.data(), program.tlsInit.size());
+
+    // Setup the TLS self pointer
+    const void *vaddr = (char*)tlsMapping.vaddr + program.tlsInit.size();
+    memcpy(tlsWindow + program.tlsInit.size(), &vaddr, sizeof(uintptr_t));
+
+    thread->tlsAddress = (uintptr_t)vaddr;
+    thread->tlsMapping = tlsMapping;
 
     return OsStatusSuccess;
 }

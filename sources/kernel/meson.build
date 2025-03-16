@@ -202,6 +202,7 @@ src = [
     'src/user/user.cpp',
     'src/user/sysapi/node.cpp',
     'src/user/sysapi/device.cpp',
+    'src/user/sysapi/process.cpp',
 
     # Services
     'src/notify.cpp',
