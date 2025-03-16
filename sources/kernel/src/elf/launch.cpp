@@ -117,48 +117,6 @@ static OsStatus ApplyRelocations(vfs2::IHandle *file, std::span<const elf::Elf64
     return OsStatusSuccess;
 }
 
-static OsStatus InitNewThreadTls(km::TlsInit tlsInit, km::SystemMemory& memory, km::Process *process, km::TlsMapping *mapping) {
-    if (!tlsInit.present()) {
-        return OsStatusSuccess;
-    }
-
-    km::AddressMapping tlsMapping{};
-    OsStatus status = process->map(km::Pages(tlsInit.memSize + sizeof(uintptr_t)), km::PageFlags::eUserData, km::MemoryType::eWriteBack, &tlsMapping);
-    if (status != OsStatusSuccess) {
-        KmDebugMessage("[ELF] Failed to allocate ", sm::bytes(tlsInit.memSize + sizeof(uintptr_t)), " for ELF program load sections. ", status, "\n");
-        return status;
-    }
-
-    void *tlsWindow = memory.map(tlsMapping.physicalRange(), km::PageFlags::eData);
-    if (tlsWindow == nullptr) {
-        KmDebugMessage("[ELF] Failed to map TLS memory\n");
-        return OsStatusOutOfMemory;
-    }
-
-    defer {
-        memory.unmap(tlsWindow, tlsMapping.size);
-    };
-
-    km::TlsMapping newMapping {
-        .mapping = tlsMapping,
-        .memSize = tlsInit.memSize,
-    };
-
-    memcpy(tlsWindow, tlsInit.window, tlsInit.fileSize);
-
-    size_t bssSize = tlsInit.bssSize();
-    if (bssSize > 0) {
-        KmDebugMessage("[ELF] TLS BSS size: ", bssSize, " ", tlsMapping, "\n");
-        memset(((char*)tlsWindow + tlsInit.fileSize), 0, bssSize);
-    }
-
-    const void *vaddr = (char*)tlsMapping.vaddr + tlsInit.memSize;
-    memcpy((char*)tlsWindow + tlsInit.memSize, &vaddr, sizeof(uintptr_t));
-
-    *mapping = newMapping;
-    return OsStatusSuccess;
-}
-
 static OsStatus ReadTlsInit(vfs2::IHandle *file, const elf::ProgramHeader *tls, km::SystemMemory& memory, km::ProcessPageTables& ptes, km::TlsInit *mapping) {
     km::AddressMapping tlsMapping{};
     OsStatus status = AllocateMemory(memory.pmmAllocator(), &ptes, km::Pages(tls->memsz), &tlsMapping);
@@ -271,12 +229,14 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory& memo
         return status;
     }
 
+    process->tlsInit = program.tlsInit;
+
     Thread *main = nullptr;
     if (OsStatus status = CreateThread(process, memory, objects, program.entry, name + " MAIN", &main)) {
         return status;
     }
 
-    if (OsStatus status = program.createTls(memory, main)) {
+    if (OsStatus status = process->createTls(memory, main)) {
         return status;
     }
 
@@ -457,15 +417,5 @@ OsStatus km::LoadElfProgram(vfs2::IFileHandle *file, SystemMemory& memory, Proce
         .entry = entry,
     };
 
-    return OsStatusSuccess;
-}
-
-OsStatus km::Program::createTls(SystemMemory& memory, Thread *thread) {
-    km::TlsMapping tlsMapping{};
-    if (OsStatus status = InitNewThreadTls(tlsInit, memory, thread->process, &tlsMapping)) {
-        return status;
-    }
-
-    thread->tlsAddress = (uintptr_t)tlsMapping.tlsAddress();
     return OsStatusSuccess;
 }

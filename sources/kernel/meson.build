@@ -491,7 +491,14 @@ testcases = {
     ],
     'elf': [
         'test/elf.cpp',
+        'src/memory.cpp',
         'src/elf/elf.cpp',
+        'src/util/memory.cpp',
+        'src/boot.cpp',
+        'src/process/system.cpp',
+        'src/process/process.cpp',
+        'src/process/thread.cpp',
+        'src/process/object.cpp',
     ],
     'memory': [
         'test/memory.cpp',
@@ -518,6 +525,7 @@ testcases = {
         'src/process/object.cpp',
 
         'src/memory.cpp',
+        'src/elf/elf.cpp',
 
         'src/util/memory.cpp',
         'src/boot.cpp',

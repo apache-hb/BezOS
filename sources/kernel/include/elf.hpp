@@ -161,6 +161,8 @@ namespace km {
         bool present() const {
             return window != nullptr;
         }
+
+        OsStatus createTls(SystemMemory& memory, Thread *thread);
     };
 
     /// @brief Per thread TLS memory mapping.

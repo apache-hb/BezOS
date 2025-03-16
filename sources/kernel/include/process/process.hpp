@@ -2,6 +2,7 @@
 
 #include "process/object.hpp"
 
+#include "elf.hpp"
 #include "arch/isr.hpp"
 #include "memory/tables.hpp"
 #include "std/string.hpp"
@@ -29,6 +30,7 @@ namespace km {
         sm::FlatHashMap<OsHandle, KernelObject*> handles;
         OsProcessStateFlags state = eOsProcessRunning;
         int64_t exitCode = 0;
+        TlsInit tlsInit;
 
         void init(ProcessId id, stdx::String name, SystemPageTables *kernel, AddressMapping pteMemory, VirtualRange processArea, ProcessCreateInfo createInfo);
 
@@ -44,7 +46,8 @@ namespace km {
         KernelObject *findHandle(OsHandle id);
         OsStatus removeHandle(OsHandle id);
 
-        OsStatus map(size_t pages, PageFlags flags, MemoryType type, AddressMapping *mapping);
+        OsStatus map(km::SystemMemory& memory, size_t pages, PageFlags flags, MemoryType type, AddressMapping *mapping);
+        OsStatus createTls(km::SystemMemory& memory, Thread *thread);
     };
 
     struct ProcessLaunch {

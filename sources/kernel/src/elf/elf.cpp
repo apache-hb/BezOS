@@ -1,6 +1,12 @@
 #include "elf.hpp"
+
 #include "kernel.hpp"
 #include "log.hpp"
+
+#include "process/process.hpp"
+#include "process/thread.hpp"
+
+#include "util/defer.hpp"
 
 OsStatus km::detail::LoadMemorySize(std::span<const elf::ProgramHeader> phs, km::VirtualRange *range) {
     km::VirtualRange result{(void*)UINTPTR_MAX, 0};
@@ -67,4 +73,64 @@ OsStatus km::detail::ValidateElfHeader(const elf::Header &header, size_t size) {
     }
 
     return OsStatusSuccess;
+}
+
+static OsStatus InitNewThreadTls(km::TlsInit tlsInit, km::SystemMemory& memory, km::Process *process, km::TlsMapping *mapping) {
+    if (!tlsInit.present()) {
+        return OsStatusSuccess;
+    }
+
+    km::AddressMapping tlsMapping{};
+    OsStatus status = process->map(memory, km::Pages(tlsInit.memSize + sizeof(uintptr_t)), km::PageFlags::eUserData, km::MemoryType::eWriteBack, &tlsMapping);
+    if (status != OsStatusSuccess) {
+        KmDebugMessage("[ELF] Failed to allocate ", sm::bytes(tlsInit.memSize + sizeof(uintptr_t)), " for ELF program load sections. ", status, "\n");
+        return status;
+    }
+
+    void *tlsWindow = memory.map(tlsMapping.physicalRange(), km::PageFlags::eData);
+    if (tlsWindow == nullptr) {
+        KmDebugMessage("[ELF] Failed to map TLS memory\n");
+        return OsStatusOutOfMemory;
+    }
+
+    defer {
+        memory.unmap(tlsWindow, tlsMapping.size);
+    };
+
+    km::TlsMapping newMapping {
+        .mapping = tlsMapping,
+        .memSize = tlsInit.memSize,
+    };
+
+    memcpy(tlsWindow, tlsInit.window, tlsInit.fileSize);
+
+    size_t bssSize = tlsInit.bssSize();
+    if (bssSize > 0) {
+        KmDebugMessage("[ELF] TLS BSS size: ", bssSize, " ", tlsMapping, "\n");
+        memset(((char*)tlsWindow + tlsInit.fileSize), 0, bssSize);
+    }
+
+    const void *vaddr = (char*)tlsMapping.vaddr + tlsInit.memSize;
+    memcpy((char*)tlsWindow + tlsInit.memSize, &vaddr, sizeof(uintptr_t));
+
+    *mapping = newMapping;
+    return OsStatusSuccess;
+}
+
+OsStatus km::TlsInit::createTls(SystemMemory& memory, Thread *thread) {
+    if (!present()) {
+        return OsStatusSuccess;
+    }
+
+    km::TlsMapping tlsMapping{};
+    if (OsStatus status = InitNewThreadTls(*this, memory, thread->process, &tlsMapping)) {
+        return status;
+    }
+
+    thread->tlsAddress = (uintptr_t)tlsMapping.tlsAddress();
+    return OsStatusSuccess;
+}
+
+OsStatus km::Program::createTls(SystemMemory& memory, Thread *thread) {
+    return tlsInit.createTls(memory, thread);
 }

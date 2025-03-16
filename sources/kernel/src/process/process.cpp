@@ -1,6 +1,5 @@
 #include "process/process.hpp"
 
-#include "kernel.hpp"
 #include "process/device.hpp"
 
 using namespace km;
@@ -42,11 +41,10 @@ OsStatus Process::removeHandle(OsHandle id) {
     return OsStatusNotFound;
 }
 
-OsStatus Process::map(size_t pages, PageFlags flags, MemoryType type, AddressMapping *mapping) {
+OsStatus Process::map(km::SystemMemory& memory, size_t pages, PageFlags flags, MemoryType type, AddressMapping *mapping) {
     MemoryRange range = pmm.allocate(pages);
     if (range.isEmpty()) {
-        SystemMemory *memory = GetSystemMemory();
-        range = memory->pmmAllocate(pages);
+        range = memory.pmmAllocate(pages);
     }
 
     if (range.isEmpty()) {
@@ -59,6 +57,10 @@ OsStatus Process::map(size_t pages, PageFlags flags, MemoryType type, AddressMap
     }
 
     return status;
+}
+
+OsStatus Process::createTls(km::SystemMemory& memory, Thread *thread) {
+    return tlsInit.createTls(memory, thread);
 }
 
 void Node::init(NodeId id, stdx::String name, vfs2::INode *vfsNode) {
