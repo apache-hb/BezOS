@@ -116,7 +116,12 @@ static OsStatus ApplyRelocations(vfs2::IHandle *file, std::span<const elf::Elf64
     return OsStatusSuccess;
 }
 
-static OsStatus AllocateTlsMemory(vfs2::IHandle *file, const elf::ProgramHeader *tls, km::SystemMemory& memory, km::ProcessPageTables& ptes, km::AddressMapping *mapping) {
+struct TlsMapping {
+    km::AddressMapping mapping;
+    void *window;
+};
+
+static OsStatus ReadTlsInit(vfs2::IHandle *file, const elf::ProgramHeader *tls, km::SystemMemory& memory, km::ProcessPageTables& ptes, TlsMapping *mapping) {
     km::AddressMapping tlsMapping{};
     OsStatus status = AllocateMemory(memory.pmmAllocator(), &ptes, km::Pages(tls->memsz + sizeof(uintptr_t)), &tlsMapping);
     if (status != OsStatusSuccess) {
@@ -129,10 +134,6 @@ static OsStatus AllocateTlsMemory(vfs2::IHandle *file, const elf::ProgramHeader 
         KmDebugMessage("[ELF] Failed to map TLS memory\n");
         return OsStatusOutOfMemory;
     }
-
-    defer {
-        memory.unmap(tlsWindow, tlsMapping.size);
-    };
 
     vfs2::ReadRequest request {
         .begin = (std::byte*)tlsWindow,
@@ -150,16 +151,36 @@ static OsStatus AllocateTlsMemory(vfs2::IHandle *file, const elf::ProgramHeader 
         return OsStatusInvalidData;
     }
 
+    *mapping = TlsMapping {
+        .mapping = tlsMapping,
+        .window = tlsWindow,
+    };
+    return OsStatusSuccess;
+}
+
+static OsStatus AllocateTlsMemory(vfs2::IHandle *file, const elf::ProgramHeader *tls, km::SystemMemory& memory, km::ProcessPageTables& ptes, km::AddressMapping *mapping) {
+    TlsMapping tlsMapping{};
+    if (OsStatus status = ReadTlsInit(file, tls, memory, ptes, &tlsMapping)) {
+        return status;
+    }
+
+    km::AddressMapping userMapping = tlsMapping.mapping;
+    void *tlsWindow = tlsMapping.window;
+
+    defer {
+        memory.unmap(tlsWindow, userMapping.size);
+    };
+
     if (tls->memsz > tls->filesz) {
         size_t bssSize = tls->memsz - tls->filesz;
-        KmDebugMessage("[ELF] TLS BSS size: ", bssSize, " ", tlsMapping, "\n");
+        KmDebugMessage("[ELF] TLS BSS size: ", bssSize, " ", userMapping, "\n");
         memset(((char*)tlsWindow + tls->filesz), 0, bssSize);
     }
 
-    const void *vaddr = (char*)tlsMapping.vaddr + tls->memsz;
+    const void *vaddr = (char*)userMapping.vaddr + tls->memsz;
     memcpy((char*)tlsWindow + tls->memsz, &vaddr, sizeof(uintptr_t));
 
-    *mapping = tlsMapping;
+    *mapping = userMapping;
     return OsStatusSuccess;
 }
 
@@ -320,14 +341,14 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory &memo
             ", memorysize: ", km::Hex(ph.memsz), ", virtual address: ", km::Hex(ph.vaddr), "\n");
 
         //
-        // Line up the virtual address against the load memory.
-        //
-
         // Distance between this program header load base and the ELF load base.
+        //
         uintptr_t alignedVaddr = ph.vaddr;
         uintptr_t distance = (uintptr_t)alignedVaddr - (uintptr_t)loadMemory.front;
 
+        //
         // The virtual address of the program header load address.
+        //
         uintptr_t base = (uintptr_t)loadMapping.vaddr + distance;
         size_t offset = (base % x64::kPageSize);
         void *vaddr = (void*)(base);
