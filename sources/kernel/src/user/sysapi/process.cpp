@@ -77,8 +77,6 @@ OsCallResult um::ProcessStat(km::System *system, km::CallContext *context, km::S
 
     OsProcessInfo stat {
         .Parent = ppid,
-        .ArgsBegin = (const OsProcessParam *)process->userArgsBegin,
-        .ArgsEnd = (const OsProcessParam *)process->userArgsEnd,
         .Status = process->state,
         .ExitCode = process->exitCode,
     };

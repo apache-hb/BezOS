@@ -23,10 +23,6 @@ enum {
     eOsCallNodeQuery = 0x18,
     eOsCallNodeStat = 0x19,
 
-    eOsCallFolderIterateCreate = 0x20,
-    eOsCallFolderIterateDestroy = 0x21,
-    eOsCallFolderIterateNext = 0x22,
-
     eOsCallProcessCreate = 0x30,
     eOsCallProcessDestroy = 0x31,
     eOsCallProcessCurrent = 0x32,

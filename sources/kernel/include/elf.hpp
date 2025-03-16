@@ -2,7 +2,6 @@
 
 #include "fs2/interface.hpp"
 #include "memory.hpp"
-#include "process/process.hpp"
 
 #include <bit>
 
@@ -139,14 +138,20 @@ namespace elf {
 }
 
 namespace km {
+    struct Process;
+    struct Thread;
+    struct ProcessLaunch;
+
     namespace detail {
         OsStatus LoadMemorySize(std::span<const elf::ProgramHeader> phs, VirtualRange *range);
+        OsStatus ValidateElfHeader(const elf::Header &header, size_t size);
     }
 
     struct Program {
         /// @brief TLS init data if present.
         /// Pointer into process address space, marked as read-only.
-        AddressMapping tls;
+        AddressMapping tlsMapping;
+        std::span<const std::byte> tlsInit;
 
         /// @brief Process address space that has been allocated to load the program.
         AddressMapping loadMapping;
@@ -155,6 +160,8 @@ namespace km {
         /// Pointer into process address space.
         const void *entry;
     };
+
+    OsStatus CreateTls(Thread *thread, const Program& program);
 
     OsStatus LoadElfProgram(vfs2::IFileHandle *file, SystemMemory *memory, Process *process, Program *result);
 

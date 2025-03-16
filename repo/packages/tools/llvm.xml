@@ -17,7 +17,6 @@
             <source path='@SOURCE_ROOT@/llvm' />
             <options LLVM_ENABLE_PROJECTS='llvm;clang;clang-tools-extra;lld'
                      LLVM_TARGETS_TO_BUILD="X86"
-                     LLVM_DEFAULT_TARGET_TRIPLE="x86_64-bezos"
 
                      CMAKE_C_COMPILER="clang"
                      CMAKE_CXX_COMPILER="clang++"
@@ -32,7 +31,6 @@
             <source path='@SOURCE_ROOT@/runtimes' />
             <options LLVM_ENABLE_RUNTIMES="libcxx;libcxxabi;libunwind"
                      LLVM_RUNTIME_TARGETS="x86_64-bezos"
-                     LLVM_DEFAULT_TARGET_TRIPLE="x86_64-bezos"
 
                      LIBCXX_ENABLE_THREADS="OFF"
                      LIBCXX_ENABLE_MONOTONIC_CLOCK="OFF"

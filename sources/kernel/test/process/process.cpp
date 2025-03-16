@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include "kernel.hpp"
 #include "process/process.hpp"
 #include "process/device.hpp"
 #include "process/system.hpp"
@@ -8,6 +9,10 @@
 #include "fs2/vfs.hpp"
 
 #include "test/test_memory.hpp"
+
+km::SystemMemory *km::GetSystemMemory() {
+    return nullptr;
+}
 
 TEST(ProcessTest, Construct) {
     vfs2::VfsRoot vfs;
@@ -42,7 +47,6 @@ TEST(ProcessTest, CreateProcess) {
     ASSERT_NE(process, nullptr);
 
     ASSERT_EQ(process->name(), "test");
-    ASSERT_EQ(process->privilege, x64::Privilege::eUser);
 
     ASSERT_TRUE(process->publicId() != OS_HANDLE_INVALID);
 
@@ -74,7 +78,6 @@ TEST(ProcessTest, CreateThread) {
 
     ASSERT_NE(process, nullptr);
     ASSERT_EQ(process->name(), "test");
-    ASSERT_EQ(process->privilege, x64::Privilege::eUser);
     ASSERT_NE(process->publicId(), OS_HANDLE_INVALID);
 
     {
@@ -138,7 +141,6 @@ TEST(ProcessTest, OpenFile) {
 
     ASSERT_NE(process, nullptr);
     ASSERT_EQ(process->name(), "test");
-    ASSERT_EQ(process->privilege, x64::Privilege::eUser);
     ASSERT_NE(process->publicId(), OS_HANDLE_INVALID);
 
     {
@@ -214,7 +216,6 @@ TEST(ProcessTest, CloseFileInProcess) {
 
     ASSERT_NE(process, nullptr);
     ASSERT_EQ(process->name(), "test");
-    ASSERT_EQ(process->privilege, x64::Privilege::eUser);
     ASSERT_NE(process->publicId(), OS_HANDLE_INVALID);
 
     {

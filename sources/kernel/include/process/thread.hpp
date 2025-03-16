@@ -33,6 +33,7 @@ namespace km {
         uint64_t tlsAddress = 0;
         AddressMapping userStack;
         AddressMapping kernelStack;
+        AddressMapping tlsMapping;
         OsThreadState threadState = eOsThreadRunning;
 
         OsStatus waitOnHandle(KernelObject *object, OsInstant timeout);

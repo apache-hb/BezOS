@@ -41,26 +41,6 @@ OsStatus OsFileStat(OsFileHandle Handle, struct OsFileStat *OutStat) {
 }
 
 //
-// Folder related syscalls
-//
-
-OsStatus OsFolderIterateCreate(struct OsFolderIterateCreateInfo CreateInfo, OsFolderIteratorHandle *OutHandle) {
-    struct OsCallResult result = OsSystemCall(eOsCallFolderIterateCreate, (uint64_t)&CreateInfo, 0, 0, 0);
-    *OutHandle = (OsFolderIteratorHandle)result.Value;
-    return result.Status;
-}
-
-OsStatus OsFolderIterateDestroy(OsFolderIteratorHandle Handle) {
-    struct OsCallResult result = OsSystemCall(eOsCallFolderIterateDestroy, (uint64_t)Handle, 0, 0, 0);
-    return result.Status;
-}
-
-OsStatus OsFolderIterateNext(OsFolderIteratorHandle Handle, struct OsFolderEntry *OutEntry) {
-    struct OsCallResult result = OsSystemCall(eOsCallFolderIterateNext, (uint64_t)Handle, (uint64_t)OutEntry, 0, 0);
-    return result.Status;
-}
-
-//
 // Node syscalls
 //
 

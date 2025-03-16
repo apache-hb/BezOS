@@ -23,7 +23,8 @@
              CXX='@PREFIX@/llvm/bin/clang++'
              AR='@PREFIX@/llvm/bin/llvm-ar'
              LD='@PREFIX@/llvm/bin/ld.lld'
-             CFLAGS='--sysroot @PREFIX@' />
+             CFLAGS='--sysroot @PREFIX@ -target x86_64-bezos'
+             LDFLAGS='--sysroot @PREFIX@ -target x86_64-bezos' />
 
             <!-- LDFLAGS='-nostartfiles -nostdlib
                       -Wl,-\-start-group

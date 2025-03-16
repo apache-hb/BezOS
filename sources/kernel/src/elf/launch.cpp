@@ -11,50 +11,6 @@
 #include "util/format.hpp"
 #include "util/defer.hpp"
 
-static OsStatus ValidateElfHeader(const elf::Header &header, size_t size) {
-    if (!header.isValid()) {
-        KmDebugMessage(
-            "[ELF] Invalid ELF header. Invalid header magic {",
-            km::Hex(header.ident[0]).pad(2), ", ",
-            km::Hex(header.ident[1]).pad(2), ", ",
-            km::Hex(header.ident[2]).pad(2), ", ",
-            km::Hex(header.ident[3]).pad(2), "}.\n"
-        );
-
-        return OsStatusInvalidData;
-    }
-
-    if (header.endian() != std::endian::little || header.elfClass() != elf::Class::eClass64 || header.objVersion() != 1) {
-        KmDebugMessage("[ELF] Unsupported ELF format. Only little endian, 64 bit, version 1 elf programs are supported.\n");
-        return OsStatusInvalidVersion;
-    }
-
-    if (header.type != elf::Type::eExecutable && header.type != elf::Type::eShared) {
-        KmDebugMessage("[ELF] Invalid ELF type. Only EXEC & DYN elf programs can be launched.\n");
-        return OsStatusInvalidData;
-    }
-
-    if (header.phentsize != sizeof(elf::ProgramHeader)) {
-        KmDebugMessage("[ELF] Invalid program header size.\n");
-        return OsStatusInvalidData;
-    }
-
-    uint64_t phbegin = header.phoff;
-    uint64_t phend = phbegin + header.phnum * header.phentsize;
-
-    if (phend > size) {
-        KmDebugMessage("[ELF] Invalid program header range.\n");
-        return OsStatusInvalidData;
-    }
-
-    if (header.entry == 0) {
-        KmDebugMessage("[ELF] Program has no entry point.\n");
-        return OsStatusInvalidData;
-    }
-
-    return OsStatusSuccess;
-}
-
 static const elf::ProgramHeader *FindProgramHeader(std::span<const elf::ProgramHeader> phs, elf::ProgramHeaderType type) {
     for (const auto& header : phs) {
         if (header.type == type) {
@@ -228,7 +184,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory &memo
         return status;
     }
 
-    if (OsStatus status = ValidateElfHeader(header, stat.logical)) {
+    if (OsStatus status = detail::ValidateElfHeader(header, stat.logical)) {
         return status;
     }
 
@@ -259,6 +215,12 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory &memo
 
     Process *process = nullptr;
     if (OsStatus status = objects.createProcess(stdx::String(name), pteMemory, createInfo, &process)) {
+        return status;
+    }
+
+    Program program{};
+
+    if (OsStatus status = LoadElfProgram(file.get(), &memory, process, &program)) {
         return status;
     }
 
@@ -436,7 +398,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory &memo
 
 static OsStatus AllocateProcessTlsMemory(vfs2::IHandle *file, const elf::ProgramHeader *tls, km::Process *process, km::SystemMemory& memory, km::AddressMapping *mapping) {
     km::AddressMapping tlsMapping{};
-    OsStatus status = process->map(km::Pages(tls->memsz + sizeof(uintptr_t)), km::PageFlags::eUser | km::PageFlags::eRead, km::MemoryType::eWriteBack, &tlsMapping);
+    OsStatus status = process->map(km::Pages(tls->memsz), km::PageFlags::eUser | km::PageFlags::eRead, km::MemoryType::eWriteBack, &tlsMapping);
     if (status != OsStatusSuccess) {
         KmDebugMessage("[ELF] Failed to allocate ", sm::bytes(tls->memsz), " for ELF program load sections. ", status, "\n");
         return status;
@@ -477,9 +439,6 @@ static OsStatus AllocateProcessTlsMemory(vfs2::IHandle *file, const elf::Program
         memset((tlsWindow + tls->filesz), 0, bssSize);
     }
 
-    const void *vaddr = (char*)tlsMapping.vaddr + tls->memsz;
-    memcpy(tlsWindow + tls->memsz, &vaddr, sizeof(uintptr_t));
-
     *mapping = tlsMapping;
     return OsStatusSuccess;
 }
@@ -496,7 +455,7 @@ OsStatus km::LoadElfProgram(vfs2::IFileHandle *file, SystemMemory *memory, Proce
         return status;
     }
 
-    if (OsStatus status = ValidateElfHeader(header, stat.logical)) {
+    if (OsStatus status = detail::ValidateElfHeader(header, stat.logical)) {
         return status;
     }
 
@@ -639,14 +598,18 @@ OsStatus km::LoadElfProgram(vfs2::IFileHandle *file, SystemMemory *memory, Proce
     //
 
     AddressMapping tlsMapping{};
+    std::span<const std::byte> tlsInit{};
     if (tls != nullptr) {
         if (OsStatus status = AllocateProcessTlsMemory(file, tls, process, *memory, &tlsMapping)) {
             return status;
         }
+
+        tlsInit = std::span<const std::byte>((const std::byte*)tlsMapping.vaddr, tls->memsz);
     }
 
     *result = Program {
-        .tls = tlsMapping,
+        .tlsMapping = tlsMapping,
+        .tlsInit = tlsInit,
         .loadMapping = loadMapping,
         .entry = (void*)entry,
     };
