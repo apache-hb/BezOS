@@ -1,5 +1,8 @@
 SECTIONS
 {
+    /* Don't want the entrypoint being 0x0 */
+    . = 0x100000;
+
     .text : {
         *(.text .text.*)
     } :text

@@ -1,3 +1,4 @@
+#include "src/posix/private.hpp"
 #include <posix/wchar.h>
 
 wchar_t *wmemchr(const wchar_t *s, wchar_t c, size_t n) {
@@ -24,6 +25,11 @@ size_t wcslen(const wchar_t *str) {
         len++;
     }
     return len;
+}
+
+int swprintf(wchar_t *, size_t, const wchar_t *, ...) noexcept {
+    Unimplemented();
+    return -1;
 }
 
 int iswspace(wint_t c) {
@@ -105,4 +111,19 @@ unsigned long wcstoul(const wchar_t *str, wchar_t **end, int base) noexcept {
 
 unsigned long long wcstoull(const wchar_t *str, wchar_t **end, int base) noexcept {
     return wcstoAny<unsigned long long>(str, end, base);
+}
+
+double wcstod(const wchar_t *, wchar_t **) noexcept {
+    Unimplemented();
+    return 0.0;
+}
+
+long double wcstold(const wchar_t *, wchar_t **) noexcept {
+    Unimplemented();
+    return 0.0;
+}
+
+float wcstof(const wchar_t *, wchar_t **) noexcept {
+    Unimplemented();
+    return 0.0;
 }

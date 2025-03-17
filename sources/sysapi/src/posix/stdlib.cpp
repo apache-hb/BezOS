@@ -127,6 +127,11 @@ unsigned long long strtoull(const char *, char **, int) noexcept {
     return 0;
 }
 
+long double strtold(const char *, char **) noexcept {
+    Unimplemented();
+    return 0.0;
+}
+
 void *malloc(size_t size) noexcept {
     return GlobalMalloc().malloc(size);
 }

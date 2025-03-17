@@ -27,6 +27,7 @@ executable('init.elf', src,
     install : true,
     install_dir : get_option('prefix'),
     dependencies : [ flanterm, tlsf ],
+    link_depends : 'data/bezos.ld',
 )
 
 src = [ 'shell/shell.cpp', ]
@@ -37,6 +38,7 @@ executable('shell.elf', src,
     install : true,
     install_dir : get_option('prefix'),
     dependencies : [ flanterm, tlsf ],
+    link_depends : 'data/bezos.ld',
 )
 
 src = [ 'tty/tty.cpp', ]
@@ -47,4 +49,5 @@ executable('tty.elf', src,
     install : true,
     install_dir : get_option('prefix'),
     dependencies : [ flanterm, tlsf ],
+    link_depends : 'data/bezos.ld',
 )
