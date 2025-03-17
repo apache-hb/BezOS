@@ -9,7 +9,8 @@ project('system', 'cpp',
 flanterm = dependency('flanterm')
 tlsf = dependency('tlsf')
 
-args = [
+link_args = [
+    '-T', meson.current_source_dir() / 'data/bezos.ld',
     '-e', 'ClientStart',
     '-z', 'noexecstack',
 ]
@@ -22,7 +23,7 @@ src = [ 'init/init.cpp', ]
 
 executable('init.elf', src,
     cpp_args : cpp_args,
-    link_args : args,
+    link_args : link_args,
     install : true,
     install_dir : get_option('prefix'),
     dependencies : [ flanterm, tlsf ],
@@ -32,7 +33,7 @@ src = [ 'shell/shell.cpp', ]
 
 executable('shell.elf', src,
     cpp_args : cpp_args,
-    link_args : args,
+    link_args : link_args,
     install : true,
     install_dir : get_option('prefix'),
     dependencies : [ flanterm, tlsf ],
@@ -42,7 +43,7 @@ src = [ 'tty/tty.cpp', ]
 
 executable('tty.elf', src,
     cpp_args : cpp_args,
-    link_args : args,
+    link_args : link_args,
     install : true,
     install_dir : get_option('prefix'),
     dependencies : [ flanterm, tlsf ],

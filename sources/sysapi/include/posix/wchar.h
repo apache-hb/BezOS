@@ -31,6 +31,12 @@ extern wchar_t *wcsstr(const wchar_t *, const wchar_t *);
 
 extern wchar_t *wmemchr(const wchar_t *, wchar_t, size_t);
 
+extern int wmemcmp(const wchar_t *, const wchar_t *, size_t);
+
+extern size_t wcslen(const wchar_t *);
+
+extern int iswspace(wint_t);
+
 extern int swprintf(wchar_t * BZP_RESTRICT, size_t, const wchar_t * BZP_RESTRICT, ...) BZP_NOEXCEPT;
 
 extern long wcstol(const wchar_t * BZP_RESTRICT, wchar_t ** BZP_RESTRICT, int) BZP_NOEXCEPT;

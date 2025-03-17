@@ -6,7 +6,6 @@
         <configure with='cmake'>
             <source path='@SOURCE_ROOT@/runtimes' />
             <options LLVM_ENABLE_RUNTIMES="libcxx;libcxxabi;libunwind"
-                     LLVM_RUNTIME_TARGETS="x86_64-unknown-bezos-jlibc"
                      LLVM_INCLUDE_TESTS="OFF"
 
                      LIBCXX_ENABLE_THREADS="OFF"
@@ -17,14 +16,16 @@
                      LIBCXX_PSTL_BACKEND="serial"
                      LIBCXX_ENABLE_SHARED="OFF"
                      LIBCXX_ENABLE_TIME_ZONE_DATABASE="OFF"
+                     LIBCXX_ENABLE_EXCEPTIONS="ON"
 
                      LIBUNWIND_ENABLE_THREADS="OFF"
                      LIBUNWIND_IS_BAREMETAL="ON"
                      LIBUNWIND_ENABLE_SHARED="OFF"
 
-                     LIBCXXABI_USE_LLVM_UNWINDER="OFF"
                      LIBCXXABI_ENABLE_THREADS="OFF"
                      LIBCXXABI_ENABLE_SHARED="OFF"
+                     LIBCXXABI_ENABLE_EXCEPTIONS="ON"
+                     LIBCXXABI_ENABLE_STATIC_UNWINDER="ON"
 
                      CMAKE_C_COMPILER_WORKS="1"
                      CMAKE_CXX_COMPILER_WORKS="1"

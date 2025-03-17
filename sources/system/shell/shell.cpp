@@ -26,10 +26,25 @@
 #include <ctype.h>
 #include <string.h>
 #include <iterator>
+#include <string>
+#include <format>
 
 template<size_t N>
 static void DebugLog(const char (&message)[N]) {
     OsDebugMessage(eOsLogDebug, message);
+}
+
+template<typename... A>
+static void FormatLog(std::format_string<A...> fmt, A&&... args) {
+    auto text = std::vformat(fmt, std::make_format_args<A...>(args...));
+
+    OsDebugMessageInfo messageInfo {
+        .Front = text.data(),
+        .Back = text.data() + text.size(),
+        .Info = eOsLogDebug,
+    };
+
+    OsDebugMessage(messageInfo);
 }
 
 template<typename T>
@@ -217,9 +232,9 @@ public:
     }
 };
 
-static void ListCurrentFolder(StreamDevice& tty, const char *path) {
+static void ListCurrentFolder(StreamDevice& tty, std::string_view path) {
     char copy[1024]{};
-    memcpy(copy, path, sizeof(copy));
+    memcpy(copy, path.data(), sizeof(copy));
     for (char *ptr = copy; *ptr != '\0'; ptr++) {
         if (*ptr == '/') {
             *ptr = '\0';
@@ -227,7 +242,7 @@ static void ListCurrentFolder(StreamDevice& tty, const char *path) {
     }
 
     size_t front = 0;
-    size_t len = strlen(path);
+    size_t len = path.size();
 
     if (copy[0] == '\0') {
         front += 1;
@@ -235,14 +250,14 @@ static void ListCurrentFolder(StreamDevice& tty, const char *path) {
 
     OsPath iteratorPath = { copy + front, copy + len };
 
-    if (strncmp(path, "/", 2) == 0) {
+    if (path == "/") {
         iteratorPath = OsMakePath("");
     }
 
     FolderIterator iterator{};
     if (OsStatus status = FolderIterator::Create(iteratorPath, &iterator)) {
         WriteString(tty, "Error: '");
-        WriteString(tty, path, path + strlen(path));
+        WriteString(tty, path.data(), path.data() + path.size());
         WriteString(tty, "' is not iterable.\n");
         WriteString(tty, "Status: ");
         WriteNumber(tty, status);
@@ -285,15 +300,15 @@ static void ListCurrentFolder(StreamDevice& tty, const char *path) {
     }
 }
 
-static bool VfsNodeExists(const char *path, const char *cwd) {
+static bool VfsNodeExists(const char *path, std::string_view cwd) {
     char copy[1024]{};
 
     if (path[0] == '/') {
         strcpy(copy, path);
-    } else if (strncmp(cwd, "/", 2) == 0) {
+    } else if (cwd == "/") {
         strcpy(copy, path);
     } else {
-        strcpy(copy, cwd);
+        strncpy(copy, cwd.data(), cwd.size());
         strcat(copy, "/");
         strcat(copy, path);
     }
@@ -332,31 +347,26 @@ static bool VfsNodeExists(const char *path, const char *cwd) {
 
 static constexpr size_t kCwdSize = 1024;
 
-static void SetCurrentFolder(StreamDevice& tty, const char *path, char *cwd) {
+static void SetCurrentFolder(StreamDevice& tty, const char *path, std::string& cwd) {
     if (!VfsNodeExists(path, cwd)) {
         WriteString(tty, "Path '");
         WriteString(tty, path, path + strlen(path));
         WriteString(tty, "' does not exist.\n");
     } else {
         if (path[0] == '/') {
-            strncpy(cwd, path, kCwdSize);
-        } else if (strncmp(cwd, "/", 2) == 0) {
-            strcat(cwd, path);
+            cwd = path;
+        } else if (cwd == "/") {
+            cwd += path;
         } else {
-            strcat(cwd, "/");
-            strcat(cwd, path);
+            cwd += "/";
+            cwd += path;
         }
-
-        size_t len = strlen(cwd);
-        char *end = cwd + len;
-        size_t size = kCwdSize - len;
-        memset(end, 0, size);
     }
 }
 
-static void ShowCurrentInfo(StreamDevice& display, const char *cwd) {
+static void ShowCurrentInfo(StreamDevice& display, std::string_view cwd) {
     char copy[1024];
-    memcpy(copy, cwd, sizeof(copy));
+    memcpy(copy, cwd.data(), sizeof(copy));
     for (char *ptr = copy; *ptr != '\0'; ptr++) {
         if (*ptr == '/') {
             *ptr = '\0';
@@ -364,7 +374,7 @@ static void ShowCurrentInfo(StreamDevice& display, const char *cwd) {
     }
 
     size_t front = 0;
-    size_t len = strlen(cwd);
+    size_t len = cwd.size();
 
     if (copy[0] == '\0') {
         front += 1;
@@ -485,15 +495,15 @@ static void LaunchZsh(OsDeviceHandle in, OsDeviceHandle out, OsDeviceHandle err)
     #endif
 }
 
-static void EchoFile(StreamDevice& tty, const char *cwd, const char *path) {
+static void EchoFile(StreamDevice& tty, std::string_view cwd, const char *path) {
     char copy[1024]{};
 
     if (path[0] == '/') {
         strcpy(copy, path);
-    } else if (strncmp(cwd, "/", 2) == 0) {
+    } else if (cwd == "/") {
         strcpy(copy, path);
     } else {
-        strcpy(copy, cwd);
+        strncpy(copy, cwd.data(), cwd.size());
         strcat(copy, "/");
         strcat(copy, path);
     }
@@ -575,7 +585,7 @@ void ClientStart(const struct OsClientStartInfo *) {
     char text[0x1000];
     size_t index = 0;
 
-    char cwd[kCwdSize] = "/Users/Guest";
+    std::string cwd = "/Users/Guest";
 
     auto addChar = [&](char c) {
         text[index++] = c;
@@ -611,7 +621,7 @@ void ClientStart(const struct OsClientStartInfo *) {
                 Prompt(tty);
                 continue;
             } else if (strncmp(text, "pwd", 3) == 0) {
-                WriteString(tty, cwd, cwd + strlen(cwd));
+                WriteString(tty, cwd.data(), cwd.data() + cwd.size());
                 WriteString(tty, "\n");
                 Prompt(tty);
                 continue;

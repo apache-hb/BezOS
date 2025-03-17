@@ -84,6 +84,7 @@ src = [
     'src/posix/unistd.cpp',
     'src/posix/termios.cpp',
     'src/posix/stdlib.cpp',
+    'src/posix/wchar.cpp',
     'src/posix/time.cpp',
     'src/posix/dlfcn.cpp',
     'src/posix/stropts.cpp',
