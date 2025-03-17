@@ -123,7 +123,12 @@ namespace stdx {
             } else if (index >= mBack) {
                 std::copy(&(mEntries[index + 1]), &(mEntries[capacity()]), &(mEntries[index]));
                 std::copy(&(mEntries[0]), &(mEntries[1]), &(mEntries[capacity() - 1]));
-                std::copy(&(mEntries[1]), &(mEntries[mFront]), &(mEntries[0]));
+                T *head = &(mEntries[1]);
+                T *tail = &(mEntries[mFront]);
+                if (head > tail) {
+                    std::swap(head, tail);
+                }
+                std::copy(head, tail, &(mEntries[0]));
             } else {
                 std::copy(&(mEntries[index + 1]), &(mEntries[mFront]), &(mEntries[index]));
             }
