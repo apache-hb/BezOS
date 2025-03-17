@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <memory>
 #include <utility>
+#include <new>
 
 #include <cstring>
 #include <cstddef>
@@ -153,7 +154,7 @@ namespace mem {
     };
 }
 
-#if !__STDC_HOSTED__
+#if !__STDC_HOSTED__ && 0
 
 namespace std {
     template<typename T>

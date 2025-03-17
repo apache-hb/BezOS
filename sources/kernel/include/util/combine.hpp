@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <type_traits>
 
 namespace sm {
     /// @brief Combine the storage of interface implementations into a single object.

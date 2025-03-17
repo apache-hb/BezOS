@@ -3,15 +3,12 @@
 
 #include <detail/cxx.h>
 #include <detail/attributes.h>
+#include <detail/file.h>
 
 #include <stddef.h>
 #include <stdarg.h>
 
 BZP_API_BEGIN
-
-struct OsImplPosixFile;
-
-typedef struct OsImplPosixFile FILE;
 
 #define BUFSIZ 1024
 

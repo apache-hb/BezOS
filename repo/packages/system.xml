@@ -1,6 +1,6 @@
 <package name='system'>
     <require package='sysapi' />
-    <require package='llvm-compiler-rt' />
+    <require package='llvm-libcxx' />
     <require package='llvm' />
 
     <source path='system' />

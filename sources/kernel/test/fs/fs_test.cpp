@@ -1,6 +1,7 @@
 #include "test/fs/fs_test.hpp"
 
 #include <fcntl.h>
+#include <unistd.h>
 #include <iostream>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -12,7 +13,7 @@ void FileBlk::cleanup() {
     }
 
     if (mFileHandle >= 0) {
-        close(mFileHandle);
+        ::close(mFileHandle);
         mFileHandle = -1;
     }
 }

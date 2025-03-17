@@ -42,6 +42,7 @@ common_args = [
     '-fno-omit-frame-pointer',
     '-Wthread-safety',
     '-Wfunction-effects',
+    '-D_LIBCPP_VERBOSE_ABORT(...)=(__builtin_abort())',
 ]
 
 c_args = cc.get_supported_arguments([ '-Wno-language-extension-token' ] + common_args)
@@ -315,7 +316,7 @@ test_c_args = c_args + [ '-std=gnu23', '-DUTIL_TESTING=1' ]
 
 # use NDEBUG_SANITIZER to disable some abseil debug tools,
 # it causes issues with the freestanding patches ive made
-test_cpp_args = cpp_args + [ '-std=c++26', '-DUTIL_TESTING=1', '-DNDEBUG_SANITIZER=1' ]
+test_cpp_args = cpp_args + [ '-std=gnu++26', '-DUTIL_TESTING=1', '-DNDEBUG_SANITIZER=1' ]
 
 src = [
     'test/test_shim.cpp',

@@ -25,18 +25,7 @@ sysapi_dep = declare_dependency(
     include_directories : inc,
 )
 
-inc = [ ]
-
-# Lets just pretend this doesnt exist
-sys_root = meson.get_external_property('sys_root', '')
-if sys_root != ''
-    inc += include_directories(
-        sys_root / 'llvm-libcxx/include/c++/v1',
-        sys_root / 'llvm/lib/clang/21/include',
-    )
-endif
-
-inc += [ include_directories('include', 'include/posix') ]
+inc = [ include_directories('include', 'include/posix') ]
 
 cc = meson.get_compiler('c')
 
@@ -54,6 +43,8 @@ bezos_dep = declare_dependency(
 meson.override_dependency('bezos', bezos_dep)
 
 if not meson.is_subproject()
+    sys_root = meson.get_external_property('sys_root')
+
     custom_target('crtstart',
         input : 'src/crt/start.cpp',
         output : 'crtstart.o',

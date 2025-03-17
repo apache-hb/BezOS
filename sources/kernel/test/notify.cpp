@@ -39,7 +39,7 @@ TEST_F(NotifyTest, Subscribe) {
         stdx::String mMessage;
     public:
         TestNotification(stdx::String message)
-            : INotification(std::chrono::utc_clock::now())
+            : INotification(0)
             , mMessage(std::move(message))
         { }
 

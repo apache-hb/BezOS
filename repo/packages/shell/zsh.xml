@@ -21,7 +21,7 @@
              AR='@PREFIX@/llvm/bin/llvm-ar'
              LD='@PREFIX@/llvm/bin/ld.lld'
              CFLAGS='--sysroot @PREFIX@ --target=x86_64-unknown-bezos -I@PREFIX@/ncurses/include'
-             LDFLAGS='--sysroot @PREFIX@ --target=x86_64-unknown-bezos -L@PREFIX@/ncurses/lib -lc++abi -lc++' />
+             LDFLAGS='--sysroot @PREFIX@ --target=x86_64-unknown-bezos -L@PREFIX@/ncurses/lib' />
 
         <options host='x86_64-unknown-bezos-jlibc'
                  disable-etcdir=''

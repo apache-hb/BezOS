@@ -1,11 +1,7 @@
 <package name='sysapi-headers' install-name='sysapi'>
     <source path='sysapi' />
 
-    <require package='llvm' />
-
-    <configure with='meson'>
-        <cross-file path='@SOURCE_ROOT@/data/bezos.ini' />
-    </configure>
+    <configure with='meson' />
 
     <install targets='headers' />
 </package>

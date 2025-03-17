@@ -1,6 +1,8 @@
 #include <string.h>
 #include <stdint.h>
 
+#include <exception>
+
 #include "crt.hpp"
 #include "log.hpp"
 #include "panic.hpp"
@@ -47,6 +49,20 @@ extern "C" void *memcpy(void *dest, const void *source, size_t n) {
 extern "C" void *memset(void *dst, int value, size_t n) {
     KmMemorySet(dst, value, n);
     return dst;
+}
+
+extern "C" void *memchr(const void *s, int c, size_t n) {
+    const unsigned char *p = (const unsigned char *)s;
+
+    while (n-- > 0) {
+        if (*p == (unsigned char)c) {
+            return (void *)p;
+        }
+
+        p++;
+    }
+
+    return nullptr;
 }
 
 extern "C" int strncmp(const char *s1, const char *s2, size_t n) {

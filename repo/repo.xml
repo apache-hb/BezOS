@@ -9,7 +9,7 @@
 
     <xi:include href='packages/tools/llvm.xml' />
     <xi:include href='packages/sysapi-headers.xml' />
-    <xi:include href='packages/tools/llvm-libcxx.xml' />
+    <xi:include href='packages/tools/llvm-compiler-rt.xml' />
 
     <xi:include href='packages/tools/gcc.xml' />
 
@@ -22,7 +22,7 @@
 
     <xi:include href='packages/sysapi.xml' />
 
-    <xi:include href='packages/tools/llvm-compiler-rt.xml' />
+    <xi:include href='packages/tools/llvm-libcxx.xml' />
 
     <!-- <xi:include href='packages/lib/abseil.xml' /> -->
     <!-- <xi:include href='packages/tools/protobuf.xml' /> -->

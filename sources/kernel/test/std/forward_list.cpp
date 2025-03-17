@@ -24,7 +24,7 @@ TEST(AtomicForwardListTest, Push) {
     ASSERT_EQ(list.pop("Otherwise"), "Hello world");
 }
 
-static std::string RandomString(int size, std::uniform_int_distribution<char> dist, std::mt19937& mt) {
+static std::string RandomString(int size, std::uniform_int_distribution<int8_t> dist, std::mt19937& mt) {
     std::string result;
     result.reserve(size);
 
@@ -47,7 +47,7 @@ TEST(AtomicForwardListTest, Threads) {
     static constexpr int kThreadCount = 4;
 
     // Construct random strings to put in the in elements set.
-    std::uniform_int_distribution<char> dist('a', 'z');
+    std::uniform_int_distribution<int8_t> dist('a', 'z');
     for (int i = 0; i < kItemCount; i++) {
         inElements.insert(RandomString(10, dist, mt));
     }

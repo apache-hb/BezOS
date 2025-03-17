@@ -17,7 +17,8 @@
     <package name='llvm' from='llvm-project-src'>
         <configure with='cmake'>
             <source path='@SOURCE_ROOT@/llvm' />
-            <options LLVM_ENABLE_PROJECTS='llvm;clang;clang-tools-extra;lld'
+            <options LLVM_ENABLE_PROJECTS="llvm;clang;clang-tools-extra;lld"
+                     LLVM_ENABLE_RUNTIMES="compiler-rt;libcxx;libcxxabi;libunwind"
                      LLVM_TARGETS_TO_BUILD="X86"
 
                      CMAKE_C_COMPILER="clang"

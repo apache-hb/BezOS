@@ -6,12 +6,6 @@
 #include "std/rcuptr.hpp"
 #include "std/string.hpp"
 
-#if __STDC_HOSTED__
-#   include <chrono>
-#else
-#   include "util/cxx_chrono.hpp"
-#endif
-
 #include "util/uuid.hpp"
 
 namespace km {
@@ -75,7 +69,7 @@ struct std::hash<km::Topic> {
 };
 
 namespace km {
-    using SendTime = std::chrono::utc_clock::time_point;
+    using SendTime = OsInstant;
 
     class INotification : public sm::RcuIntrusivePtr<INotification> {
         SendTime mInstant;

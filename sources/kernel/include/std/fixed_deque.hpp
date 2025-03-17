@@ -220,16 +220,16 @@ namespace stdx {
             return *this;
         }
 
-        bool operator==(const FixedSizeDequeIterator<T> &other) const {
+        constexpr auto operator<=>(const FixedSizeDequeIterator<T> &other) const {
+            return mIndex <=> other.mIndex;
+        }
+
+        constexpr bool operator==(const FixedSizeDequeIterator<T> &other) const {
             return mIndex == other.mIndex;
         }
 
-        bool operator!=(const FixedSizeDequeIterator<T> &other) const {
+        constexpr bool operator!=(const FixedSizeDequeIterator<T> &other) const {
             return mIndex != other.mIndex;
-        }
-
-        bool operator<(const FixedSizeDequeIterator<T> &other) const {
-            return mIndex < other.mIndex;
         }
 
         FixedSizeDequeIterator<T> operator+(difference_type n) const {

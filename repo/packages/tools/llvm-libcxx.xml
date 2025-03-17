@@ -1,33 +1,33 @@
 <collection name='llvm'>
     <package name='llvm-libcxx' from='llvm-project-src'>
         <require package='llvm' />
-        <require package='sysapi-headers' />
+        <require package='sysapi' />
 
         <configure with='cmake'>
             <source path='@SOURCE_ROOT@/runtimes' />
-            <options LLVM_ENABLE_RUNTIMES="libcxx;libcxxabi"
+            <options LLVM_ENABLE_RUNTIMES="libcxx;libcxxabi;libunwind"
                      LLVM_RUNTIME_TARGETS="x86_64-unknown-bezos-jlibc"
                      LLVM_INCLUDE_TESTS="OFF"
 
-
                      LIBCXX_ENABLE_THREADS="OFF"
-                     LIBCXX_ENABLE_EXCEPTIONS="OFF"
                      LIBCXX_ENABLE_MONOTONIC_CLOCK="OFF"
                      LIBCXX_ENABLE_FILESYSTEM="OFF"
                      LIBCXX_ENABLE_RANDOM_DEVICE="OFF"
-                     LIBCXX_ENABLE_UNICODE="OFF"
-                     LIBCXX_ENABLE_WIDE_CHARACTERS="OFF"
                      LIBCXX_ENABLE_LOCALIZATION="OFF"
                      LIBCXX_PSTL_BACKEND="serial"
+                     LIBCXX_ENABLE_SHARED="OFF"
                      LIBCXX_ENABLE_TIME_ZONE_DATABASE="OFF"
-                     LIBCXXABI_USE_LLVM_UNWINDER="OFF"
-                     LIBCXXABI_ENABLE_THREADS="OFF"
-                     LIBCXXABI_ENABLE_EXCEPTIONS="OFF"
+
                      LIBUNWIND_ENABLE_THREADS="OFF"
                      LIBUNWIND_IS_BAREMETAL="ON"
-                     LIBCXX_ENABLE_SHARED="OFF"
+                     LIBUNWIND_ENABLE_SHARED="OFF"
+
+                     LIBCXXABI_USE_LLVM_UNWINDER="OFF"
+                     LIBCXXABI_ENABLE_THREADS="OFF"
                      LIBCXXABI_ENABLE_SHARED="OFF"
-                     LIBCXXABI_ENABLE_NEW_DELETE_DEFINITIONS="ON"
+
+                     CMAKE_C_COMPILER_WORKS="1"
+                     CMAKE_CXX_COMPILER_WORKS="1"
 
                      CMAKE_C_COMPILER_TARGET="x86_64-unknown-bezos-jlibc"
                      CMAKE_CXX_COMPILER_TARGET="x86_64-unknown-bezos-jlibc"

@@ -5,10 +5,12 @@
 #include "util/digit.hpp"
 #include "util/endian.hpp"
 
+#include <chrono>
+#if 0
 #if __STDC_HOSTED__
-#   include <chrono>
 #else
 #   include "util/cxx_chrono.hpp" // IWYU pragma: keep
+#endif
 #endif
 
 #include "util/format.hpp"
@@ -259,6 +261,7 @@ namespace sm {
             return memcmp(octets, other.octets, sizeof(octets)) == 0;
         }
 
+#if 0
         // v1 uuid api
         static uuid v1(std::chrono::utc_clock::time_point time, uint16_t clockSeq, MacAddress node);
 
@@ -266,6 +269,7 @@ namespace sm {
         MacAddress v1Node() const noexcept;
 
         std::chrono::utc_clock::time_point v1Time() const noexcept;
+#endif
 
         // v3 uuid api
 
@@ -275,6 +279,7 @@ namespace sm {
 
         // v6 uuid api
 
+#if 0
         static uuid v6(std::chrono::utc_clock::time_point time, uint16_t clockSeq, MacAddress node);
 
         uint16_t v6ClockSeq() const noexcept;
@@ -287,6 +292,7 @@ namespace sm {
         static uuid v7(std::chrono::system_clock::time_point time, const uint8_t random[10]);
 
         std::chrono::system_clock::time_point v7Time() const noexcept;
+#endif
 
         /// @brief Convert the uuid to a string
         /// Converts the uuid to a string in the format 8-4-4-4-12

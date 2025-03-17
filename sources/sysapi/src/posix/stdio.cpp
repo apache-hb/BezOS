@@ -13,8 +13,6 @@
 #define STB_SPRINTF_IMPLEMENTATION 1
 #include "stb_sprintf.h"
 
-#include <map>
-
 struct OsImplPosixFile {
     int fd;
     int error;
@@ -26,29 +24,10 @@ static constinit OsImplPosixFile kStandardIn = { 0 };
 static constinit OsImplPosixFile kStandardOut = { 1 };
 static constinit OsImplPosixFile kStandardError = { 2 };
 
-static std::map<int, OsDeviceHandle> &GlobalFdTable() {
-    static std::map<int, OsDeviceHandle> sTable;
-    return sTable;
-};
-
 namespace {
 struct InitStandardIo {
     InitStandardIo() {
-        OsProcessInfo info{};
-        ASSERT_OS_SUCCESS(OsProcessStat(OS_HANDLE_INVALID, &info));
 
-        const OsProcessParam *param = nullptr;
-        OsStatus status = OsProcessFindArg(&info, &kPosixInitGuid, &param);
-        if (status == OsStatusSuccess) {
-            DebugLog(eOsLogDebug, "Initializing standard I/O from process arguments\n");
-            const auto *args = reinterpret_cast<const OsPosixInitArgs*>(param->Data);
-            auto& fds = GlobalFdTable();
-            fds[0] = args->StandardIn;
-            fds[1] = args->StandardOut;
-            fds[2] = args->StandardError;
-        } else {
-            Unimplemented();
-        }
     }
 
     ~InitStandardIo() {
@@ -120,48 +99,14 @@ int fileno(FILE *file) noexcept {
     return file->fd;
 }
 
-size_t fread(void *data, size_t size, size_t n, FILE *file) noexcept {
-    if (size == 0 || n == 0) {
-        return 0;
-    }
-
-    OsDeviceReadRequest request {
-        .BufferFront = (char*)data,
-        .BufferBack = (char*)data + size * n,
-        .Offset = file->offset,
-        .Timeout = OS_TIMEOUT_INFINITE,
-    };
-    OsSize read = 0;
-    OsStatus status = OsDeviceRead(GlobalFdTable()[file->fd], request, &read);
-    if (status != OsStatusSuccess) {
-        file->error = status;
-        return 0;
-    }
-
-    file->offset += read;
-    return read / size;
+size_t fread(void *, size_t, size_t, FILE *) noexcept {
+    Unimplemented();
+    return -1;
 }
 
-size_t fwrite(const void *data, size_t size, size_t n, FILE *file) noexcept {
-    if (size == 0 || n == 0) {
-        return 0;
-    }
-
-    OsDeviceWriteRequest request {
-        .BufferFront = (char*)data,
-        .BufferBack = (char*)data + size * n,
-        .Offset = file->offset,
-        .Timeout = OS_TIMEOUT_INFINITE,
-    };
-    OsSize written = 0;
-    OsStatus status = OsDeviceWrite(GlobalFdTable()[file->fd], request, &written);
-    if (status != OsStatusSuccess) {
-        file->error = status;
-        return 0;
-    }
-
-    file->offset += written;
-    return written / size;
+size_t fwrite(const void *, size_t, size_t, FILE *) noexcept {
+    Unimplemented();
+    return -1;
 }
 
 int fprintf(FILE *file, const char *format, ...) noexcept {

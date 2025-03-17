@@ -338,7 +338,7 @@ using TlsfAllocatorSync = mem::SynchronizedAllocator<mem::TlsfAllocator>;
 
 static constinit mem::IAllocator *gAllocator = nullptr;
 
-extern "C" void *malloc(size_t size) {
+extern "C" void *malloc(size_t size) noexcept {
     void *ptr = gAllocator->allocate(size);
     km::debug::SendEvent(km::debug::AllocateVirtualMemory {
         .size = size,
@@ -349,11 +349,11 @@ extern "C" void *malloc(size_t size) {
     return ptr;
 }
 
-extern "C" void *realloc(void *old, size_t size) {
+extern "C" void *realloc(void *old, size_t size) noexcept {
     return gAllocator->reallocate(old, 0, size);
 }
 
-extern "C" void free(void *ptr) {
+extern "C" void free(void *ptr) noexcept {
     km::debug::SendEvent(km::debug::ReleaseVirtualMemory {
         .begin = (uintptr_t)ptr,
         .end = (uintptr_t)ptr + tlsf_block_size(ptr) - tlsf_alloc_overhead(),
@@ -363,7 +363,7 @@ extern "C" void free(void *ptr) {
     gAllocator->deallocate(ptr, 0);
 }
 
-extern "C" void *aligned_alloc(size_t alignment, size_t size) {
+extern "C" void *aligned_alloc(size_t alignment, size_t size) noexcept {
     void *ptr = gAllocator->allocateAligned(size, alignment);
     km::debug::SendEvent(km::debug::AllocateVirtualMemory {
         .size = size,

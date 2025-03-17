@@ -7,6 +7,8 @@
 #include "std/shared_spinlock.hpp"
 #include "util/absl.hpp"
 
+#include <memory>
+
 /// @brief Virtual File System.
 ///
 /// This VFS derives from the original SunOS vnode design with some modifications.

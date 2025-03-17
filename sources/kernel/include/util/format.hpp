@@ -7,6 +7,7 @@
 
 #include <span>
 #include <utility>
+#include <new>
 
 namespace km {
     template<typename T>
