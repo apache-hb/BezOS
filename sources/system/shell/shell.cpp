@@ -308,20 +308,14 @@ static void ListCurrentFolder(StreamDevice& tty, std::string_view path) {
 }
 
 static bool VfsNodeExists(std::string_view path, std::string_view cwd) {
-    char copy[1024]{};
-
-    if (path[0] == '/') {
-        strncpy(copy, path.data(), path.size());
-    } else if (cwd == "/") {
-        strncpy(copy, path.data(), path.size());
+    std::string copy;
+    if (path[0] == '/' || cwd == "/") {
+        copy = std::string(path);
     } else {
-        strncpy(copy, cwd.data(), cwd.size());
-        strcat(copy, "/");
-        strncat(copy, path.data(), path.size());
+        copy = std::format("{}/{}", cwd, path);
     }
 
     size_t front = 0;
-    size_t len = strlen(copy);
 
     for (char& c : copy) {
         if (c == '/') {
@@ -334,7 +328,7 @@ static bool VfsNodeExists(std::string_view path, std::string_view cwd) {
     }
 
     OsDeviceCreateInfo createInfo {
-        .Path = { copy + front, copy + len },
+        .Path = { copy.data() + front, copy.data() + copy.size() },
         .InterfaceGuid = kOsIdentifyGuid,
     };
 
@@ -356,10 +350,8 @@ static void SetCurrentFolder(StreamDevice& tty, std::string_view path, std::stri
     if (!VfsNodeExists(path, cwd)) {
         tty.Format("Path '{}' does not exist.\n", path);
     } else {
-        if (path[0] == '/') {
+        if (path[0] == '/' || cwd == "/") {
             cwd = path;
-        } else if (cwd == "/") {
-            cwd += path;
         } else {
             cwd += "/";
             cwd += path;
@@ -368,23 +360,21 @@ static void SetCurrentFolder(StreamDevice& tty, std::string_view path, std::stri
 }
 
 static void ShowCurrentInfo(StreamDevice& display, std::string_view cwd) {
-    char copy[1024];
-    memcpy(copy, cwd.data(), sizeof(copy));
-    for (char *ptr = copy; *ptr != '\0'; ptr++) {
-        if (*ptr == '/') {
-            *ptr = '\0';
+    std::string copy = std::string(cwd);
+    for (char& c : copy) {
+        if (c == '/') {
+            c = '\0';
         }
     }
 
     size_t front = 0;
-    size_t len = cwd.size();
 
     if (copy[0] == '\0') {
         front += 1;
     }
 
     OsDeviceCreateInfo createInfo {
-        .Path = { copy + front, copy + len },
+        .Path = { copy.data() + front, copy.data() + copy.size() },
         .InterfaceGuid = kOsIdentifyGuid,
     };
 
@@ -394,37 +384,17 @@ static void ShowCurrentInfo(StreamDevice& display, std::string_view cwd) {
     OsIdentifyInfo info{};
     ASSERT_OS_SUCCESS(OsInvokeIdentifyDeviceInfo(handle, &info));
 
-    WriteString(display, "Name = ");
-    WriteString(display, info.DisplayName, info.DisplayName + strlen(info.DisplayName));
-    WriteString(display, "\n");
-
-    WriteString(display, "Model = ");
-    WriteString(display, info.Model, info.Model + strlen(info.Model));
-    WriteString(display, "\n");
-
-    WriteString(display, "Serial = ");
-    WriteString(display, info.Serial, info.Serial + strlen(info.Serial));
-    WriteString(display, "\n");
-
-    WriteString(display, "DeviceVendor = ");
-    WriteString(display, info.DeviceVendor, info.DeviceVendor + strlen(info.DeviceVendor));
-    WriteString(display, "\n");
-
-    WriteString(display, "FirmwareRevision = ");
-    WriteString(display, info.FirmwareRevision, info.FirmwareRevision + strlen(info.FirmwareRevision));
-    WriteString(display, "\n");
-
-    WriteString(display, "DriverVendor = ");
-    WriteString(display, info.DriverVendor, info.DriverVendor + strlen(info.DriverVendor));
-    WriteString(display, "\n");
-
-    WriteString(display, "DriverVersion = ");
-    WriteNumber(display, OS_VERSION_MAJOR(info.DriverVersion));
-    WriteString(display, ".");
-    WriteNumber(display, OS_VERSION_MINOR(info.DriverVersion));
-    WriteString(display, ".");
-    WriteNumber(display, OS_VERSION_PATCH(info.DriverVersion));
-    WriteString(display, "\n");
+    display.Format("Name = '{}'\n", info.DisplayName);
+    display.Format("Model = '{}'\n", info.Model);
+    display.Format("Serial = '{}'\n", info.Serial);
+    display.Format("DeviceVendor = '{}'\n", info.DeviceVendor);
+    display.Format("FirmwareRevision = '{}'\n", info.FirmwareRevision);
+    display.Format("DriverVendor = '{}'\n", info.DriverVendor);
+    display.Format("DriverVersion = {}.{}.{}\n",
+        OS_VERSION_MAJOR(info.DriverVersion),
+        OS_VERSION_MINOR(info.DriverVersion),
+        OS_VERSION_PATCH(info.DriverVersion)
+    );
 
     ASSERT_OS_SUCCESS(OsDeviceClose(handle));
 }
