@@ -8,18 +8,18 @@
             <options LLVM_ENABLE_RUNTIMES="libcxx;libcxxabi;libunwind"
                      LLVM_INCLUDE_TESTS="OFF"
 
+                     LIBCXX_PSTL_BACKEND="serial"
                      LIBCXX_ENABLE_THREADS="OFF"
                      LIBCXX_ENABLE_MONOTONIC_CLOCK="OFF"
                      LIBCXX_ENABLE_FILESYSTEM="OFF"
                      LIBCXX_ENABLE_RANDOM_DEVICE="OFF"
                      LIBCXX_ENABLE_LOCALIZATION="OFF"
-                     LIBCXX_PSTL_BACKEND="serial"
                      LIBCXX_ENABLE_SHARED="OFF"
                      LIBCXX_ENABLE_TIME_ZONE_DATABASE="OFF"
                      LIBCXX_ENABLE_EXCEPTIONS="ON"
 
-                     LIBUNWIND_ENABLE_THREADS="OFF"
                      LIBUNWIND_IS_BAREMETAL="ON"
+                     LIBUNWIND_ENABLE_THREADS="OFF"
                      LIBUNWIND_ENABLE_SHARED="OFF"
 
                      LIBCXXABI_ENABLE_THREADS="OFF"

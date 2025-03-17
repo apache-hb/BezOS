@@ -19,6 +19,10 @@ cpp_args = [
     '-Wno-gnu-variable-sized-type-not-at-end',
 ]
 
+libcommon = static_library('common', 'common/common.cpp',
+    cpp_args : cpp_args,
+)
+
 src = [ 'init/init.cpp', ]
 
 executable('init.elf', src,
@@ -28,6 +32,7 @@ executable('init.elf', src,
     install_dir : get_option('prefix'),
     dependencies : [ flanterm, tlsf ],
     link_depends : 'data/bezos.ld',
+    link_with : [ libcommon ],
 )
 
 src = [ 'shell/shell.cpp', ]
@@ -39,6 +44,7 @@ executable('shell.elf', src,
     install_dir : get_option('prefix'),
     dependencies : [ flanterm, tlsf ],
     link_depends : 'data/bezos.ld',
+    link_with : [ libcommon ],
 )
 
 src = [ 'tty/tty.cpp', ]
@@ -50,4 +56,5 @@ executable('tty.elf', src,
     install_dir : get_option('prefix'),
     dependencies : [ flanterm, tlsf ],
     link_depends : 'data/bezos.ld',
+    link_with : [ libcommon ],
 )

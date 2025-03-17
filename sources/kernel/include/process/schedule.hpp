@@ -26,7 +26,7 @@ namespace km {
     void InitSchedulerMemory(void *memory, size_t size);
 
     km::Thread *GetCurrentThread();
-    Process * GetCurrentProcess();
+    Process *GetCurrentProcess();
 
     [[noreturn]]
     void SwitchThread(Thread *next);

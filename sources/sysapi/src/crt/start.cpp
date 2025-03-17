@@ -32,7 +32,7 @@ static void CallFiniArray() {
     }
 }
 
-extern "C" [[noreturn]] void ProgramMain(const OsClientStartInfo *StartInfo) {
+extern "C" [[noreturn, gnu::force_align_arg_pointer]] void ProgramMain(const OsClientStartInfo *StartInfo) {
     CallInitArray();
 
     int result = main(1, kDefaultArgs);

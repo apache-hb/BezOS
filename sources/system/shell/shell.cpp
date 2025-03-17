@@ -513,6 +513,7 @@ static void EchoFile(StreamDevice& tty, std::string_view cwd, const char *path) 
 }
 
 OS_EXTERN OS_NORETURN
+[[gnu::force_align_arg_pointer]]
 void ClientStart(const struct OsClientStartInfo *) {
     StreamDevice tty{OsMakePath("Devices\0Terminal\0TTY0\0Output")};
     StreamDevice ttyin{OsMakePath("Devices\0Terminal\0TTY0\0Input")};
