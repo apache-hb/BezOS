@@ -2,10 +2,12 @@
 
 #include <posix/errno.h>
 #include <posix/assert.h>
+#include <posix/unistd.h>
+#include <posix/string.h>
 
 #include <bezos/facility/process.h>
 
-#include "rpmalloc/rpmalloc.h"
+#include <rpmalloc/rpmalloc.h>
 
 #include "private.hpp"
 
@@ -40,7 +42,7 @@ struct InitMalloc {
     }
 };
 
-static InitMalloc& GlobalMalloc() {
+InitMalloc& GlobalMalloc() {
     static InitMalloc sMalloc;
     return sMalloc;
 }
@@ -142,15 +144,28 @@ void *realloc(void *ptr, size_t size) noexcept {
 }
 
 void free(void *ptr) noexcept {
-    rpfree(ptr);
+    return GlobalMalloc().free(ptr);
 }
 
 void qsort(void *, size_t, size_t, int (*)(const void *, const void *)) {
     Unimplemented();
 }
 
-char *getenv(const char *) noexcept {
+char *getenv(const char *name) noexcept {
     Unimplemented();
+    DebugLog(eOsLogInfo, "POSIX getenv: '%s'", name);
+
+    char **iter = environ;
+    size_t len = strlen(name);
+    while (*iter) {
+        if (strncmp(*iter, name, len) == 0) {
+            return const_cast<char*>(*iter + len + 1);
+        }
+
+        iter += 1;
+    }
+
+    errno = ENOENT;
     return nullptr;
 }
 
@@ -159,8 +174,9 @@ extern int putenv(char *) noexcept {
     return -1;
 }
 
-extern int setenv(const char *, const char *, int) noexcept {
+extern int setenv(const char *name, const char *val, int overwrite) noexcept {
     Unimplemented();
+    DebugLog(eOsLogInfo, "POSIX setenv: '%s'='%s'%s", name, val, overwrite ? " (overwrite)" : "");
     return -1;
 }
 

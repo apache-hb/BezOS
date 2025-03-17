@@ -2,18 +2,21 @@
 
 #include "private.hpp"
 
-int open(const char *, int, ...) noexcept {
+int open(const char *path, int mode, ...) noexcept {
     Unimplemented();
+    DebugLog(eOsLogInfo, "POSIX open: '%s' %d", path, mode);
     return -1;
 }
 
-int close(int) noexcept {
+int close(int fd) noexcept {
     Unimplemented();
+    DebugLog(eOsLogInfo, "POSIX close: %d", fd);
     return -1;
 }
 
-int fcntl(int, int, ...) noexcept {
+int fcntl(int fd, int ctrl, ...) noexcept {
     Unimplemented();
+    DebugLog(eOsLogInfo, "POSIX fcntl: %d %d", fd, ctrl);
     return -1;
 }
 

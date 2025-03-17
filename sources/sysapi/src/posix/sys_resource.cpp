@@ -7,13 +7,15 @@ int getpriority(int, id_t) noexcept {
     return -1;
 }
 
-int getrlimit(int, struct rlimit*) noexcept {
+int getrlimit(int lim, struct rlimit *rlim) noexcept {
     Unimplemented();
+    DebugLog(eOsLogInfo, "POSIX getrlimit: %d", lim);
     return -1;
 }
 
-int getrusage(int, struct rusage*) noexcept {
+int getrusage(int lim, struct rusage *ruse) noexcept {
     Unimplemented();
+    DebugLog(eOsLogInfo, "POSIX getrusage: %d", lim);
     return -1;
 }
 

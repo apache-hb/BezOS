@@ -5,6 +5,7 @@
 #include <detail/attributes.h>
 #include <detail/size.h>
 #include <detail/null.h>
+#include <detail/math.h>
 
 BZP_API_BEGIN
 
@@ -39,10 +40,6 @@ typedef struct {
 extern div_t div(int, int) BZP_NOEXCEPT;
 extern ldiv_t ldiv(long int, long int) BZP_NOEXCEPT;
 extern lldiv_t lldiv(long long int, long long int) BZP_NOEXCEPT;
-
-extern int abs(int) BZP_NOEXCEPT;
-extern long labs(long) BZP_NOEXCEPT;
-extern long long llabs(long long) BZP_NOEXCEPT;
 
 extern double atof(const char *) BZP_NOEXCEPT BZP_NONNULL(1);
 

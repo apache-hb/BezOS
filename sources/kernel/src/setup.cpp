@@ -4,6 +4,7 @@
 #include "arch/abi.hpp"
 #include "debug/debug.hpp"
 #include "debug/packet.hpp"
+#include "isr/isr.hpp"
 #include "kernel.hpp"
 #include "log.hpp"
 #include "process/schedule.hpp"
@@ -173,12 +174,10 @@ void km::DumpIsrState(const km::IsrContext *context) {
         KmDebugMessageUnlocked("\n");
     }
 
-    if (context->vector == isr::UD) {
-        std::byte data[16];
-        memcpy(data, (void*)context->rip, sizeof(data));
-        KmDebugMessageUnlocked(km::HexDump(data));
-        KmDebugMessageUnlocked("\n");
-    }
+    std::byte data[16];
+    memcpy(data, (void*)context->rip, sizeof(data));
+    KmDebugMessageUnlocked(km::HexDump(data));
+    KmDebugMessageUnlocked("\n");
 
     KmDebugMessageUnlocked("| MSR                 | Value\n");
     KmDebugMessageUnlocked("|---------------------+------\n");
@@ -248,14 +247,20 @@ static bool IsSupervisorFault(const km::IsrContext *context) {
     return (context->cs & 0b11) == 0;
 }
 
+static void FaultProcess(km::IsrContext *context, stdx::StringView fault) {
+    if (auto process = km::GetCurrentProcess()) {
+        KmDebugMessage("[PROC] Terminating ", process->name(), ", due to ", fault, "\n");
+        process->terminate(eOsProcessFaulted, 0x80000003);
+        DumpIsrState(context);
+        DumpStackTrace(context);
+        km::YieldCurrentThread();
+    }
+}
+
 void km::InstallExceptionHandlers(SharedIsrTable *ist) {
     ist->install(isr::DE, [](km::IsrContext *context) -> km::IsrContext {
         if (!IsSupervisorFault(context)) {
-            if (auto process = GetCurrentProcess()) {
-                KmDebugMessage("[PROC] Terminating ", process->name(), ", due to divide by zero (#DE)\n");
-                process->terminate(eOsProcessFaulted, 0x80000003);
-            }
-
+            FaultProcess(context, "divide by zero (#DE)");
             return *context;
         }
 
@@ -272,11 +277,7 @@ void km::InstallExceptionHandlers(SharedIsrTable *ist) {
 
     ist->install(isr::UD, [](km::IsrContext *context) -> km::IsrContext {
         if (!IsSupervisorFault(context)) {
-            if (auto process = GetCurrentProcess()) {
-                KmDebugMessage("[PROC] Terminating ", process->name(), ", due to undefined opcode (#UD)\n");
-                process->terminate(eOsProcessFaulted, 0x80000003);
-            }
-
+            FaultProcess(context, "invalid opcode (#UD)");
             return *context;
         }
 
@@ -287,11 +288,7 @@ void km::InstallExceptionHandlers(SharedIsrTable *ist) {
 
     ist->install(isr::DF, [](km::IsrContext *context) -> km::IsrContext {
         if (!IsSupervisorFault(context)) {
-            if (auto process = GetCurrentProcess()) {
-                KmDebugMessage("[PROC] Terminating ", process->name(), ", due to double fault (#DF)\n");
-                process->terminate(eOsProcessFaulted, 0x80000003);
-            }
-
+            FaultProcess(context, "double fault (#DF)");
             return *context;
         }
 
@@ -304,11 +301,7 @@ void km::InstallExceptionHandlers(SharedIsrTable *ist) {
         NmiGuard guard;
 
         if (!IsSupervisorFault(context)) {
-            if (auto process = GetCurrentProcess()) {
-                KmDebugMessage("[PROC] Terminating ", process->name(), ", due to general protection fault (#GP)\n");
-                process->terminate(eOsProcessFaulted, 0x80000003);
-            }
-
+            FaultProcess(context, "general protection fault (#GP)");
             return *context;
         }
 
@@ -319,11 +312,7 @@ void km::InstallExceptionHandlers(SharedIsrTable *ist) {
 
     ist->install(isr::PF, [](km::IsrContext *context) -> km::IsrContext {
         if (!IsSupervisorFault(context)) {
-            if (auto process = GetCurrentProcess()) {
-                KmDebugMessage("[PROC] Terminating ", process->name(), ", due to page fault (#PF)\n");
-                process->terminate(eOsProcessFaulted, 0x80000003);
-            }
-
+            FaultProcess(context, "page fault (#PF)");
             return *context;
         }
 

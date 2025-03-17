@@ -418,7 +418,7 @@ static void ShowCurrentInfo(StreamDevice& display, const char *cwd) {
 
 static void LaunchZsh(OsDeviceHandle in, OsDeviceHandle out, OsDeviceHandle err) {
     struct CreateOptions {
-        OsProcessParam param;
+        OsProcessParamHeader param;
         OsPosixInitArgs args;
     };
 
@@ -433,8 +433,8 @@ static void LaunchZsh(OsDeviceHandle in, OsDeviceHandle out, OsDeviceHandle err)
 
     OsProcessCreateInfo createInfo {
         .Executable = OsMakePath("Init\0zsh.elf"),
-        .ArgsBegin = &options.param,
-        .ArgsEnd = &options.param + 1,
+        .ArgsBegin = std::bit_cast<const OsProcessParam*>(&options.param),
+        .ArgsEnd = std::bit_cast<const OsProcessParam*>(&options.param + 1),
         .Flags = eOsProcessNone,
     };
 

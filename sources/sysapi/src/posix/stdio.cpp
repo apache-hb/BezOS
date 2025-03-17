@@ -8,7 +8,10 @@
 #include <bezos/facility/device.h>
 #include <bezos/ext/args.h>
 
+#include "bezos/handle.h"
 #include "private.hpp"
+
+#include <atomic>
 
 #define STB_SPRINTF_IMPLEMENTATION 1
 #include "stb_sprintf.h"
@@ -20,37 +23,72 @@ struct OsImplPosixFile {
     size_t offset;
 };
 
-static constinit OsImplPosixFile kStandardIn = { 0 };
-static constinit OsImplPosixFile kStandardOut = { 1 };
-static constinit OsImplPosixFile kStandardError = { 2 };
-
 namespace {
-struct InitStandardIo {
-    InitStandardIo() {
 
+struct OsPosixFd {
+    OsDeviceHandle handle;
+    size_t offset;
+};
+
+// TODO: need an actual map
+OsPosixFd gFdMap[32];
+// std::atomic<int> gFdCounter{3};
+
+class InitStandardIo {
+    OsImplPosixFile mStandardIn = { 0 };
+    OsImplPosixFile mStandardOut = { 1 };
+    OsImplPosixFile mStandardError = { 2 };
+
+public:
+    InitStandardIo() {
+        OsProcessInfo info{};
+        ASSERT_OS_SUCCESS(OsProcessStat(OS_HANDLE_INVALID, &info));
+
+        const OsProcessParam *param = nullptr;
+        OsStatus status = OsProcessFindArg(&info, &kPosixInitGuid, &param);
+        if (status == OsStatusSuccess) {
+            const OsPosixInitArgs *args = reinterpret_cast<const OsPosixInitArgs*>(param->Data);
+            gFdMap[0] = { args->StandardIn };
+            gFdMap[1] = { args->StandardOut };
+            gFdMap[2] = { args->StandardError };
+        } else {
+            Unimplemented();
+        }
     }
 
     ~InitStandardIo() {
 
     }
+
+    OsImplPosixFile *in() noexcept {
+        return &mStandardIn;
+    }
+
+    OsImplPosixFile *out() noexcept {
+        return &mStandardOut;
+    }
+
+    OsImplPosixFile *error() noexcept {
+        return &mStandardError;
+    }
 };
 
-static const InitStandardIo kInitIo{};
+InitStandardIo& GlobalStandardIo() {
+    static InitStandardIo sStandardIo;
+    return sStandardIo;
+}
 }
 
 FILE *OsImplPosixStandardIn(void) noexcept {
-    Unimplemented();
-    return &kStandardIn;
+    return GlobalStandardIo().in();
 }
 
 FILE *OsImplPosixStandardOut(void) noexcept {
-    Unimplemented();
-    return &kStandardOut;
+    return GlobalStandardIo().out();
 }
 
 FILE *OsImplPosixStandardError(void) noexcept {
-    Unimplemented();
-    return &kStandardError;
+    return GlobalStandardIo().error();
 }
 
 int fclose(FILE *) noexcept {
@@ -99,14 +137,70 @@ int fileno(FILE *file) noexcept {
     return file->fd;
 }
 
-size_t fread(void *, size_t, size_t, FILE *) noexcept {
-    Unimplemented();
-    return -1;
+size_t fread(void *dst, size_t size, size_t count, FILE *file) noexcept {
+    if (size == 0 || count == 0) {
+        return 0;
+    }
+
+    OsPosixFd *fd = &gFdMap[fileno(file)];
+    OsDeviceReadRequest request {
+        .BufferFront = static_cast<char*>(dst),
+        .BufferBack = static_cast<char*>(dst) + size * count,
+        .Offset = fd->offset,
+        .Timeout = OS_TIMEOUT_INFINITE,
+    };
+    OsSize result = 0;
+
+    OsStatus status = OsDeviceRead(fd->handle, request, &result);
+    if (status != OsStatusSuccess) {
+        file->error = status;
+        return -1;
+    }
+
+    if (result != size * count) {
+        file->eof = 1;
+    }
+
+    fd->offset += result;
+    return result / size;
 }
 
-size_t fwrite(const void *, size_t, size_t, FILE *) noexcept {
+size_t fwrite(const void *src, size_t size, size_t count, FILE *file) noexcept {
     Unimplemented();
-    return -1;
+
+    if (size == 0 || count == 0) {
+        return 0;
+    }
+
+    OsDebugMessageInfo messageInfo {
+        .Front = static_cast<const char*>(src),
+        .Back = static_cast<const char*>(src) + (size * count),
+        .Info = eOsLogInfo,
+    };
+
+    OsDebugMessage(messageInfo);
+
+    OsPosixFd *fd = &gFdMap[fileno(file)];
+    OsDeviceWriteRequest request {
+        .BufferFront = static_cast<const char*>(src),
+        .BufferBack = static_cast<const char*>(src) + size * count,
+        .Offset = fd->offset,
+        .Timeout = OS_TIMEOUT_INFINITE,
+    };
+    OsSize result = 0;
+
+    OsStatus status = OsDeviceWrite(fd->handle, request, &result);
+    if (status != OsStatusSuccess) {
+        file->error = status;
+        return -1;
+    }
+
+    if (result != size * count) {
+        file->eof = 1;
+    }
+
+    fd->offset += result;
+    return result / size;
 }
 
 int fprintf(FILE *file, const char *format, ...) noexcept {
@@ -128,7 +222,7 @@ int printf(const char *format, ...) noexcept {
 int sprintf(char *dst, const char *format, ...) noexcept {
     va_list args;
     va_start(args, format);
-    int result = vsprintf(dst, format, args);
+    int result = STB_SPRINTF_DECORATE(vsprintf)(dst, format, args);
     va_end(args);
     return result;
 }
@@ -136,13 +230,13 @@ int sprintf(char *dst, const char *format, ...) noexcept {
 int snprintf(char *dst, size_t size, const char *format, ...) noexcept {
     va_list args;
     va_start(args, format);
-    int result = vsnprintf(dst, size, format, args);
+    int result = STB_SPRINTF_DECORATE(vsnprintf)(dst, size, format, args);
     va_end(args);
     return result;
 }
 
 int vsprintf(char *dst, const char *format, va_list args) noexcept {
-    return vsnprintf(dst, SIZE_MAX, format, args);
+    return STB_SPRINTF_DECORATE(vsprintf)(dst, format, args);
 }
 
 int vsnprintf(char *dst, size_t size, const char *format, va_list args) noexcept {

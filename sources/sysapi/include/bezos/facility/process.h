@@ -48,6 +48,11 @@ enum {
 /// bits [8:11] - Privilege
 typedef uint32_t OsProcessStateFlags;
 
+struct OsProcessParamHeader {
+    struct OsGuid Guid;
+    uint32_t DataSize;
+};
+
 /// @brief A parameter passed to a process at creation time
 struct OsProcessParam {
     struct OsGuid Guid;

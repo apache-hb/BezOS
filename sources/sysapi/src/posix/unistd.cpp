@@ -2,6 +2,7 @@
 
 #include <posix/errno.h>
 #include <posix/stdlib.h>
+#include <posix/string.h>
 
 #include "private.hpp"
 
@@ -18,8 +19,9 @@ void _exit(int exitcode) noexcept {
     exit(exitcode);
 }
 
-int dup(int) noexcept {
+int dup(int fd) noexcept {
     Unimplemented();
+    DebugLog(eOsLogInfo, "POSIX dup: %d", fd);
     return -1;
 }
 
@@ -63,9 +65,12 @@ int access(const char *, int) noexcept {
     return -1;
 }
 
-char *ttyname(int) noexcept {
+static char name[64] = "/dev/tty";
+
+char *ttyname(int fd) noexcept {
     Unimplemented();
-    return nullptr;
+    DebugLog(eOsLogInfo, "POSIX ttyname: %d", fd);
+    return name;
 }
 
 pid_t getpid(void) noexcept {
@@ -178,8 +183,17 @@ pid_t getppid(void) noexcept {
     return -1;
 }
 
-char *getcwd(char *, size_t) noexcept {
+char *getcwd(char *dst, size_t n) noexcept {
     Unimplemented();
+    DebugLog(eOsLogInfo, "POSIX getcwd");
+    char *cwd = getenv("CWD");
+
+    if (cwd != nullptr) {
+        strncpy(dst, cwd, n);
+        return dst;
+    }
+
+    errno = ENOENT;
     return nullptr;
 }
 
@@ -188,4 +202,10 @@ extern "C" int opterr = 0;
 extern "C" int optind = 1;
 extern "C" int optopt = 0;
 
-extern "C" char **environ = nullptr;
+static const char *gEnvStrings[] = {
+    "HOME=/Users/Guest",
+    "PWD=/Users/Guest",
+    nullptr
+};
+
+extern "C" char **environ = const_cast<char**>(gEnvStrings);
