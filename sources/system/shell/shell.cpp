@@ -36,7 +36,7 @@ static void DebugLog(const char (&message)[N]) {
 }
 
 template<typename... A>
-static void FormatLog(std::format_string<A...> fmt, A&&... args) {
+static void FormatLog(const std::format_string<A...>& fmt, A&&... args) {
     auto text = std::vformat(fmt.get(), std::make_format_args(args...));
 
     OsDebugMessageInfo messageInfo {
@@ -145,7 +145,7 @@ public:
     }
 
     template<typename... A>
-    OsStatus Format(std::format_string<A...> fmt, A&&... args) {
+    OsStatus Format(const std::format_string<A...> &fmt, A&&... args) {
         auto text = std::vformat(fmt.get(), std::make_format_args(args...));
         return Write(text.data(), text.data() + text.size());
     }
@@ -399,25 +399,25 @@ static void ShowCurrentInfo(StreamDevice& display, std::string_view cwd) {
     ASSERT_OS_SUCCESS(OsDeviceClose(handle));
 }
 
-static void LaunchZsh(OsDeviceHandle in, OsDeviceHandle out, OsDeviceHandle err) {
+static void LaunchZsh(StreamDevice& tty, OsDeviceHandle in, OsDeviceHandle out, OsDeviceHandle err) {
     struct CreateOptions {
         OsProcessParamHeader param;
         OsPosixInitArgs args;
     };
 
-    CreateOptions options {
+    CreateOptions options[] = { {
         .param = { kPosixInitGuid, sizeof(OsPosixInitArgs) },
         .args = {
             .StandardIn = in,
             .StandardOut = out,
             .StandardError = err,
         },
-    };
+    } };
 
     OsProcessCreateInfo createInfo {
         .Executable = OsMakePath("Init\0zsh.elf"),
-        .ArgsBegin = std::bit_cast<const OsProcessParam*>(&options.param),
-        .ArgsEnd = std::bit_cast<const OsProcessParam*>(&options.param + 1),
+        .ArgsBegin = std::bit_cast<const OsProcessParam*>(std::begin(options)),
+        .ArgsEnd = std::bit_cast<const OsProcessParam*>(std::end(options)),
         .Flags = eOsProcessNone,
     };
 
@@ -426,46 +426,21 @@ static void LaunchZsh(OsDeviceHandle in, OsDeviceHandle out, OsDeviceHandle err)
 
     status = OsProcessCreate(createInfo, &handle);
     if (status != OsStatusSuccess) {
-        DebugLog("Failed to create zsh process\n");
-        DebugLog("Status: ");
-        DebugLog(status);
+        tty.Format("Failed to create zsh process: {}\n", status);
         return;
     }
-
-    //
-    // Create stdin, stdout, and stderr files in the new processes runfs.
-    //
-
-    #if 0
-    //
-    // Resume the process now that it has the necessary environment.
-    //
-    status = OsProcessSuspend(handle, false);
-    if (status != OsStatusSuccess) {
-        DebugLog("Failed to resume zsh process\n");
-        DebugLog("Status: ");
-        DebugLog(status);
-        return;
-    }
-    #endif
 
     status = OsHandleWait(handle, OS_TIMEOUT_INFINITE);
     ASSERT_OS_SUCCESS(status);
 
-    #if 0
-    OsProcessState state{};
-    status = OsProcessStat(handle, &state);
+    OsProcessInfo stat{};
+    status = OsProcessStat(handle, &stat);
     if (status != OsStatusSuccess) {
-        DebugLog("Failed to stat zsh process\n");
-        DebugLog("Status: ");
-        DebugLog(status);
+        tty.Format("Failed to stat zsh process: {}\n", status);
         return;
     }
 
-    DebugLog("zsh exited with code ");
-    DebugLog(state.ExitCode);
-    DebugLog("\n");
-    #endif
+    tty.Format("zsh exited with code {}\n", stat.ExitCode);
 }
 
 static void EchoFile(StreamDevice& tty, std::string_view cwd, const char *path) {
@@ -607,7 +582,7 @@ void ClientStart(const struct OsClientStartInfo *) {
                 Prompt(tty);
                 continue;
             } else if (text == "zsh") {
-                LaunchZsh(ttyin.Handle(), tty.Handle(), tty.Handle());
+                LaunchZsh(tty, ttyin.Handle(), tty.Handle(), tty.Handle());
                 Prompt(tty);
                 continue;
             } else if (text.starts_with("cat")) {
