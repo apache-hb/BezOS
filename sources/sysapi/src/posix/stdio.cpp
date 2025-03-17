@@ -166,19 +166,9 @@ size_t fread(void *dst, size_t size, size_t count, FILE *file) noexcept {
 }
 
 size_t fwrite(const void *src, size_t size, size_t count, FILE *file) noexcept {
-    Unimplemented();
-
     if (size == 0 || count == 0) {
         return 0;
     }
-
-    OsDebugMessageInfo messageInfo {
-        .Front = static_cast<const char*>(src),
-        .Back = static_cast<const char*>(src) + (size * count),
-        .Info = eOsLogInfo,
-    };
-
-    OsDebugMessage(messageInfo);
 
     OsPosixFd *fd = &gFdMap[fileno(file)];
     OsDeviceWriteRequest request {
@@ -265,19 +255,27 @@ int vfprintf(FILE *file, const char *format, va_list args) noexcept {
     return STB_SPRINTF_DECORATE(vsprintfcb)(OsPrintCallback, &user, buffer, format, args);
 }
 
-int puts(const char*) noexcept {
-    Unimplemented();
-    return -1;
+int puts(const char *str) noexcept {
+    int status = printf("%s\n", str);
+    if (status < 0) {
+        return EOF;
+    }
+
+    return status;
 }
 
-int putc(int, FILE *) noexcept {
-    Unimplemented();
-    return -1;
+int putc(int c, FILE *file) noexcept {
+    return fputc(c, file);
 }
 
-int fputc(int, FILE *) noexcept {
-    Unimplemented();
-    return -1;
+int fputc(int c, FILE *file) noexcept {
+    char buffer[1] = { static_cast<char>(c) };
+    int status = fwrite(buffer, 1, 1, file);
+    if (status != 1) {
+        return EOF;
+    }
+
+    return c;
 }
 
 int fgetc(FILE *) noexcept {
