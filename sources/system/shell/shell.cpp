@@ -27,6 +27,7 @@
 #include <string.h>
 #include <iterator>
 #include <string>
+#include <string_view>
 #include <format>
 
 template<size_t N>
@@ -36,7 +37,7 @@ static void DebugLog(const char (&message)[N]) {
 
 template<typename... A>
 static void FormatLog(std::format_string<A...> fmt, A&&... args) {
-    auto text = std::vformat(fmt, std::make_format_args<A...>(args...));
+    auto text = std::vformat(fmt.get(), std::make_format_args(args...));
 
     OsDebugMessageInfo messageInfo {
         .Front = text.data(),
@@ -141,6 +142,12 @@ public:
         };
 
         return OsDeviceRead(mDevice, request, size);
+    }
+
+    template<typename... A>
+    OsStatus Format(std::format_string<A...> fmt, A&&... args) {
+        auto text = std::vformat(fmt.get(), std::make_format_args(args...));
+        return Write(text.data(), text.data() + text.size());
     }
 };
 
@@ -300,17 +307,17 @@ static void ListCurrentFolder(StreamDevice& tty, std::string_view path) {
     }
 }
 
-static bool VfsNodeExists(const char *path, std::string_view cwd) {
+static bool VfsNodeExists(std::string_view path, std::string_view cwd) {
     char copy[1024]{};
 
     if (path[0] == '/') {
-        strcpy(copy, path);
+        strncpy(copy, path.data(), path.size());
     } else if (cwd == "/") {
-        strcpy(copy, path);
+        strncpy(copy, path.data(), path.size());
     } else {
         strncpy(copy, cwd.data(), cwd.size());
         strcat(copy, "/");
-        strcat(copy, path);
+        strncat(copy, path.data(), path.size());
     }
 
     size_t front = 0;
@@ -331,7 +338,7 @@ static bool VfsNodeExists(const char *path, std::string_view cwd) {
         .InterfaceGuid = kOsIdentifyGuid,
     };
 
-    if (strncmp(path, "/", 2) == 0) {
+    if (path == "/") {
         createInfo.Path = OsMakePath("");
     }
 
@@ -345,13 +352,9 @@ static bool VfsNodeExists(const char *path, std::string_view cwd) {
     return true;
 }
 
-static constexpr size_t kCwdSize = 1024;
-
-static void SetCurrentFolder(StreamDevice& tty, const char *path, std::string& cwd) {
+static void SetCurrentFolder(StreamDevice& tty, std::string_view path, std::string& cwd) {
     if (!VfsNodeExists(path, cwd)) {
-        WriteString(tty, "Path '");
-        WriteString(tty, path, path + strlen(path));
-        WriteString(tty, "' does not exist.\n");
+        tty.Format("Path '{}' does not exist.\n", path);
     } else {
         if (path[0] == '/') {
             cwd = path;
@@ -582,13 +585,11 @@ void ClientStart(const struct OsClientStartInfo *) {
 
     Prompt(tty);
 
-    char text[0x1000];
-    size_t index = 0;
-
+    std::string text;
     std::string cwd = "/Users/Guest";
 
     auto addChar = [&](char c) {
-        text[index++] = c;
+        text.push_back(c);
         char buffer[1] = { c };
         WriteString(tty, buffer, buffer + 1);
     };
@@ -602,60 +603,54 @@ void ClientStart(const struct OsClientStartInfo *) {
 
         char key = input[0];
         if (key == '\n') {
-            if (index == 0) {
+            if (text.empty()) {
                 WriteString(tty, "\n");
                 Prompt(tty);
                 continue;
             }
 
-            size_t oldIndex = index;
-            text[index] = '\0';
-            index = 0;
+            defer { text.clear(); };
 
             WriteString(tty, "\n");
 
-            if (strcmp(text, "exit") == 0) {
+            if (text == "exit") {
                 break;
-            } else if (strncmp(text, "uname", 5) == 0) {
+            } else if (text == "uname") {
                 WriteString(tty, "BezOS localhost 0.0.1 amd64\n");
                 Prompt(tty);
                 continue;
-            } else if (strncmp(text, "pwd", 3) == 0) {
+            } else if (text == "pwd") {
                 WriteString(tty, cwd.data(), cwd.data() + cwd.size());
                 WriteString(tty, "\n");
                 Prompt(tty);
                 continue;
-            } else if (strncmp(text, "ls", 2) == 0) {
+            } else if (text == "ls") {
                 ListCurrentFolder(tty, cwd);
                 Prompt(tty);
                 continue;
-            } else if (strncmp(text, "cd", 2) == 0) {
-                const char *path = text + 3;
-                SetCurrentFolder(tty, path, cwd);
+            } else if (text.starts_with("cd")) {
+                SetCurrentFolder(tty, text.substr(3), cwd);
                 Prompt(tty);
                 continue;
-            } else if (strncmp(text, "show", 4) == 0) {
+            } else if (text == "show") {
                 ShowCurrentInfo(tty, cwd);
                 Prompt(tty);
                 continue;
-            } else if (strncmp(text, "zsh", 3) == 0) {
+            } else if (text == "zsh") {
                 LaunchZsh(ttyin.Handle(), tty.Handle(), tty.Handle());
                 Prompt(tty);
                 continue;
-            } else if (strncmp(text, "cat", 3) == 0) {
-                EchoFile(tty, cwd, text + 4);
+            } else if (text.starts_with("cat")) {
+                EchoFile(tty, cwd, text.substr(4).c_str());
                 Prompt(tty);
                 continue;
             }
 
-            WriteString(tty, "Unknown command: ");
-            WriteString(tty, text, text + oldIndex);
-            WriteString(tty, "\n");
-
+            tty.Format("Unknown command: '{}'\n", text);
             Prompt(tty);
         } else if (key == '\b') {
-            if (index > 0) {
-                index--;
+            if (!text.empty()) {
+                text.pop_back();
                 WriteString(tty, "\b \b");
             }
         } else if (isprint(key)) {
