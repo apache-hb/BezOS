@@ -1,7 +1,9 @@
 <package name='sysapi-headers' install-name='sysapi'>
     <source path='sysapi' />
 
-    <configure with='meson' />
+    <configure with='meson'>
+        <options headers='true' />
+    </configure>
 
     <install targets='headers' />
 </package>

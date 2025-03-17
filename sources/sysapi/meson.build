@@ -7,96 +7,94 @@ project('sysapi', [ 'c', 'cpp' ],
     ]
 )
 
-src = [
-    'src/bezos/syscall_fs.c',
-    'src/bezos/syscall_threads.c',
-    'src/bezos/syscall_device.c',
-    'src/bezos/syscall_clock.c',
-    'src/bezos/syscall_vmem.c',
-    'src/bezos/syscall_process.c',
-    'src/bezos/syscall_handle.c',
-    'src/bezos/syscall_debug.c',
-    'src/bezos/syscall.S',
-]
+if not get_option('headers')
+    inc = include_directories('include')
 
-inc = include_directories('include')
-
-sysapi_dep = declare_dependency(
-    include_directories : inc,
-)
-
-inc = [ include_directories('include', 'include/posix') ]
-
-cc = meson.get_compiler('c')
-
-libbezos = static_library('bezos-sysapi', src,
-    include_directories : inc,
-    install : not meson.is_subproject(),
-    build_by_default : not meson.is_subproject(),
-)
-
-bezos_dep = declare_dependency(
-    link_with : libbezos,
-    include_directories : inc,
-)
-
-meson.override_dependency('bezos', bezos_dep)
-
-if not meson.is_subproject()
-    sys_root = meson.get_external_property('sys_root')
-
-    custom_target('crtstart',
-        input : 'src/crt/start.cpp',
-        output : 'crtstart.o',
-        command : cc.cmd_array() + [ '-c', '-o', '@OUTPUT@', '@INPUT@', '-I' + meson.current_source_dir() / 'include', '--sysroot', sys_root ],
-        install : not meson.is_subproject(),
-        build_by_default : not meson.is_subproject(),
-        install_dir : get_option('libdir'),
+    sysapi_dep = declare_dependency(
+        include_directories : inc,
     )
 
-    stb = dependency('stb')
-    rpmalloc = subproject('rpmalloc')
+    if not meson.is_subproject()
+        src = [
+            'src/bezos/syscall_fs.c',
+            'src/bezos/syscall_threads.c',
+            'src/bezos/syscall_device.c',
+            'src/bezos/syscall_clock.c',
+            'src/bezos/syscall_vmem.c',
+            'src/bezos/syscall_process.c',
+            'src/bezos/syscall_handle.c',
+            'src/bezos/syscall_debug.c',
+            'src/bezos/syscall.S',
+        ]
 
-    src = [
-        rpmalloc.get_variable('sources'),
-        'src/posix/private.cpp',
+        inc = [ include_directories('include', 'include/posix') ]
 
-        'src/posix/assert.cpp',
-        'src/posix/locale.cpp',
-        'src/posix/dirent.cpp',
-        'src/posix/fcntl.cpp',
-        'src/posix/stdio.cpp',
-        'src/posix/errno.cpp',
-        'src/posix/math.cpp',
-        'src/posix/string.cpp',
-        'src/posix/setjmp.cpp',
-        'src/posix/strings.cpp',
-        'src/posix/signal.cpp',
-        'src/posix/ctype.cpp',
-        'src/posix/unistd.cpp',
-        'src/posix/termios.cpp',
-        'src/posix/stdlib.cpp',
-        'src/posix/time.cpp',
-        'src/posix/dlfcn.cpp',
-        'src/posix/stropts.cpp',
-        'src/posix/sys_mman.cpp',
-        'src/posix/sys_stat.cpp',
-        'src/posix/sys_time.cpp',
-        'src/posix/sys_times.cpp',
-        'src/posix/sys_utsname.cpp',
-        'src/posix/sys_wait.cpp',
-        'src/posix/sys_resource.cpp',
-    ]
+        cc = meson.get_compiler('c')
 
-    libposix = static_library('bezos-posix', src,
-        include_directories : [ inc, rpmalloc.get_variable('includes') ],
-        dependencies : [ bezos_dep, stb ],
-        install : not meson.is_subproject(),
-        build_by_default : not meson.is_subproject(),
-    )
+        libbezos = static_library('bezos-sysapi', src,
+            include_directories : inc,
+            install : true,
+        )
 
-    meson.override_dependency('sysapi', sysapi_dep)
+        bezos_dep = declare_dependency(
+            link_with : libbezos,
+            include_directories : inc,
+        )
 
+        meson.override_dependency('bezos', bezos_dep)
+
+        sys_root = meson.get_external_property('sys_root')
+
+        custom_target('crtstart',
+            input : 'src/crt/start.cpp',
+            output : 'crtstart.o',
+            command : cc.cmd_array() + [ '-c', '-o', '@OUTPUT@', '@INPUT@', '-I' + meson.current_source_dir() / 'include', '--sysroot', sys_root ],
+            install : true,
+            install_dir : get_option('libdir'),
+        )
+
+        stb = dependency('stb')
+        rpmalloc = subproject('rpmalloc')
+
+        src = [
+            rpmalloc.get_variable('sources'),
+            'src/posix/private.cpp',
+
+            'src/posix/assert.cpp',
+            'src/posix/locale.cpp',
+            'src/posix/dirent.cpp',
+            'src/posix/fcntl.cpp',
+            'src/posix/stdio.cpp',
+            'src/posix/errno.cpp',
+            'src/posix/math.cpp',
+            'src/posix/string.cpp',
+            'src/posix/setjmp.cpp',
+            'src/posix/strings.cpp',
+            'src/posix/signal.cpp',
+            'src/posix/ctype.cpp',
+            'src/posix/unistd.cpp',
+            'src/posix/termios.cpp',
+            'src/posix/stdlib.cpp',
+            'src/posix/time.cpp',
+            'src/posix/dlfcn.cpp',
+            'src/posix/stropts.cpp',
+            'src/posix/sys_mman.cpp',
+            'src/posix/sys_stat.cpp',
+            'src/posix/sys_time.cpp',
+            'src/posix/sys_times.cpp',
+            'src/posix/sys_utsname.cpp',
+            'src/posix/sys_wait.cpp',
+            'src/posix/sys_resource.cpp',
+        ]
+
+        libposix = static_library('bezos-posix', src,
+            include_directories : [ inc, rpmalloc.get_variable('includes') ],
+            dependencies : [ bezos_dep, stb ],
+            install : true,
+        )
+
+        meson.override_dependency('sysapi', sysapi_dep)
+    endif
 endif
 
 install_subdir('include/posix', install_dir : 'include', install_tag : 'headers')

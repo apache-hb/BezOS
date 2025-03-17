@@ -5,8 +5,6 @@ project('tools', 'cpp',
     ]
 )
 
-add_global_arguments('-target', 'x86_64-pc-linux-gnu', language : [ 'c', 'cpp' ])
-
 libxml2 = dependency('libxml-2.0')
 openssl = dependency('openssl')
 curl = dependency('libcurl')
