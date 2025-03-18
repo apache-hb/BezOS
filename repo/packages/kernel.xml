@@ -4,11 +4,13 @@
     <require package='gcc' />
     <require package='limine' symlink='subprojects/limine' />
     <require package='sysapi' symlink='subprojects/sysapi' />
+    <require package='capstone' />
 
     <source path='kernel' />
 
     <configure with='meson'>
         <cross-file path='@SOURCE_ROOT@/data/kernel.ini' />
         <native-file path='@SOURCE_ROOT@/data/host.ini' />
+        <env PKG_CONFIG_PATH_FOR_BUILD="@PREFIX@/capstone/lib/pkgconfig" />
     </configure>
 </package>

@@ -1,0 +1,18 @@
+<package name='capstone'>
+    <download file='capstone.tar.gz'
+              url='https://github.com/capstone-engine/capstone/archive/refs/tags/5.0.5.tar.gz'
+              sha256='3bfd3e7085fbf0fab75fb1454067bf734bb0bebe9b670af7ce775192209348e9'
+              trim-root-folder='true'
+              archive='tar' />
+
+    <configure with='cmake'>
+        <options CAPSTONE_BUILD_TESTS="OFF"
+                 CMAKE_STRIP="/bin/true"
+                 CMAKE_C_FLAGS="-g"
+                 CMAKE_CXX_FLAGS="-g"
+                 CMAKE_C_COMPILER="@PREFIX@/llvm/bin/clang"
+                 CMAKE_CXX_COMPILER="@PREFIX@/llvm/bin/clang++"
+                 CMAKE_LINKER="@PREFIX@/llvm/bin/ld.lld"
+                 CMAKE_AR="@PREFIX@/llvm/bin/llvm-ar" />
+    </configure>
+</package>

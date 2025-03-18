@@ -34,6 +34,8 @@
 
     <xi:include href='packages/shell/zsh.xml' />
 
+    <xi:include href='packages/lib/capstone.xml' />
+
     <xi:include href='packages/kernel.xml' />
 
     <artifact name='initrd'>

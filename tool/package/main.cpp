@@ -1743,6 +1743,7 @@ int main(int argc, const char **argv) try {
 
     parser.add_argument("--clangd")
         .help("Generate .clangd file for clangd")
+        .append()
         .nargs(argparse::nargs_pattern::any);
 
     parser.add_argument("--output")
@@ -1751,22 +1752,27 @@ int main(int argc, const char **argv) try {
 
     parser.add_argument("--fetch")
         .help("List of packages to fetch or update")
+        .append()
         .nargs(argparse::nargs_pattern::any);
 
     parser.add_argument("--clone")
         .help("List of packages to clone from git")
+        .append()
         .nargs(argparse::nargs_pattern::any);
 
     parser.add_argument("--reconfigure")
         .help("List of packages to configure or reconfigure")
+        .append()
         .nargs(argparse::nargs_pattern::any);
 
     parser.add_argument("--rebuild")
         .help("List of packages to build or rebuild")
+        .append()
         .nargs(argparse::nargs_pattern::any);
 
     parser.add_argument("--reinstall")
         .help("List of packages to install or reinstall")
+        .append()
         .nargs(argparse::nargs_pattern::any);
 
     parser.add_argument("--prefix")
@@ -1779,6 +1785,7 @@ int main(int argc, const char **argv) try {
 
     parser.add_argument("--test")
         .help("List of targets to run tests on")
+        .append()
         .nargs(argparse::nargs_pattern::any);
 
     parser.add_argument("--help")

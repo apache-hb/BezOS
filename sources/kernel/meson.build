@@ -8,7 +8,6 @@ project('bezos', [ 'c', 'cpp' ],
         'b_ndebug=true',
         'cpp_eh=none',
         'cpp_rtti=false',
-        'b_coverage=true',
         'abseil-cpp:b_coverage=false',
     ],
     version : '0.0.1',
@@ -308,7 +307,7 @@ gtest = dependency('gtest', native : true)
 gmock = dependency('gmock', native : true)
 # libvirt = dependency('libvirt', native : true)
 stb_image_write = dependency('stb_image_write')
-# capstone = dependency('capstone', native : true)
+capstone = dependency('capstone', native : true, required : false)
 gtest_main = dependency('gtest_main', native : true)
 testkwargs = { 'protocol' : 'gtest', 'timeout': 5 }
 
@@ -319,21 +318,13 @@ test_c_args = c_args + [ '-std=gnu23', '-DUTIL_TESTING=1' ]
 # it causes issues with the freestanding patches ive made
 test_cpp_args = cpp_args + [ '-std=gnu++26', '-DUTIL_TESTING=1', '-DNDEBUG_SANITIZER=1' ]
 
-src = [
+test_shim_src = [
     'test/test_shim.cpp',
     'test/ports.cpp',
     'src/delay.cpp',
 ]
 
-test_shim = static_library('test_shim', src,
-    include_directories : inc,
-    c_args : test_c_args,
-    cpp_args : test_cpp_args,
-    dependencies : [ gtest, sysapi, concurrentqueue, mp_units ],
-    native : true,
-)
-
-src = [
+fs_test_src = [
     'src/fs2/vfs.cpp',
     'src/fs2/path.cpp',
     'src/fs2/node.cpp',
@@ -349,16 +340,7 @@ src = [
     'src/util/uuid.cpp',
 ]
 
-fs_test_shim = static_library('fs_test_shim', src,
-    include_directories : inc,
-    c_args : test_c_args,
-    cpp_args : test_cpp_args,
-    dependencies : [ gtest, sysapi, concurrentqueue, mp_units ],
-    override_options: [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
-    native : true,
-)
-
-src = [
+memory_test_src = [
     'src/memory/pte.cpp',
     'src/memory/tables.cpp',
     'src/memory/memory.cpp',
@@ -370,7 +352,24 @@ src = [
     'src/util/memory.cpp',
 ]
 
-memory_test_shim = static_library('memory_test_shim', src,
+test_shim = static_library('test_shim', test_shim_src,
+    include_directories : inc,
+    c_args : test_c_args,
+    cpp_args : test_cpp_args,
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units ],
+    native : true,
+)
+
+fs_test_shim = static_library('fs_test_shim', fs_test_src,
+    include_directories : inc,
+    c_args : test_c_args,
+    cpp_args : test_cpp_args,
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units ],
+    override_options: [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
+    native : true,
+)
+
+memory_test_shim = static_library('memory_test_shim', memory_test_src,
     include_directories : inc,
     c_args : test_c_args,
     cpp_args : test_cpp_args,
@@ -677,6 +676,26 @@ test('tarfs', exe,
 #     }
 # )
 
+no_sanitize_test_shim = static_library('no_sanitize_test_shim', test_shim_src,
+    include_directories : inc,
+    c_args : test_c_args,
+    cpp_args : test_cpp_args,
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units ],
+    override_options: [ 'b_sanitize=none', 'b_coverage=true' ],
+    native : true,
+    build_by_default : false,
+)
+
+no_sanitize_memory_test_shim = static_library('no_sanitize_memory_test_shim', memory_test_src,
+    include_directories : inc,
+    c_args : test_c_args,
+    cpp_args : test_cpp_args,
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units ],
+    override_options: [ 'b_sanitize=none', 'b_coverage=true' ],
+    native : true,
+    build_by_default : false,
+)
+
 testcases = {
     'terminal': {
         'sources': [
@@ -687,22 +706,6 @@ testcases = {
         ],
         'dependencies' : [ stb_image_write ],
     },
-    # 'ioapic': {
-    #     'sources': [
-    #         'test/apic/ioapic.cpp',
-    #         'src/apic.cpp',
-    #         'src/memory.cpp',
-    #         'src/memory/pte.cpp',
-    #         'src/memory/page_allocator.cpp',
-    #         'src/memory/virtual_allocator.cpp',
-    #         'src/boot.cpp',
-    #         'src/util/cpuid.cpp',
-    #         'src/acpi/acpi.cpp',
-    #         'src/acpi/format.cpp',
-    #     ],
-    #     'dependencies': [ capstone ],
-    #     'override_options': [ 'b_sanitize=none', 'b_coverage=false' ],
-    # }
     # 'launch': {
     #     'sources': [
     #         'test/emulated/launch.cpp',
@@ -711,11 +714,33 @@ testcases = {
     # }
 }
 
+if capstone.found()
+    testcases += {
+        'ioapic': {
+            'sources': [
+                'test/apic/ioapic.cpp',
+                'src/apic.cpp',
+                'src/memory.cpp',
+                'src/boot.cpp',
+                'src/util/cpuid.cpp',
+                'src/acpi/acpi.cpp',
+                'src/acpi/format.cpp',
+            ],
+            'dependencies': [ capstone ],
+            # this test must not be run with sanitizers, it ptraces itself
+            # and purposely triggers segv and traps
+            'override_options': [ 'b_sanitize=none', 'b_coverage=true' ],
+            'link_with' : [ no_sanitize_test_shim, no_sanitize_memory_test_shim ]
+        }
+    }
+endif
+
 foreach name, kwargs : testcases
     new_kwargs = test_exe_kwargs
     new_kwargs += { 'dependencies': new_kwargs['dependencies'] + kwargs['dependencies'] }
     new_kwargs += { 'sources': kwargs['sources'] }
     new_kwargs += { 'override_options': kwargs.get('override_options', test_exe_kwargs['override_options']) }
+    new_kwargs += { 'link_with': kwargs.get('link_with', test_exe_kwargs['link_with']) }
 
     exe = executable('test-kernel-' + name.to_lower().replace(' ', '-'),
         kwargs : new_kwargs,
