@@ -1,3 +1,4 @@
+#include <emmintrin.h>
 #include <gtest/gtest.h>
 
 #include <latch>
@@ -48,7 +49,7 @@ enum {
 bool breakpoint(void *addr, int bpno, void (*handler)(int)) {
 	pid_t child = 0;
 	uint32_t enable_breakpoint = ENABLE_BREAKPOINT(bpno);
-	uint32_t enable_breakwrite = ENABLE_BREAK_WRITE(bpno);
+	uint32_t enable_breakwrite = ENABLE_BREAK_EXEC(bpno);
 	pid_t parent = getpid();
 	int child_status = 0;
 
@@ -58,8 +59,12 @@ bool breakpoint(void *addr, int bpno, void (*handler)(int)) {
 		if (ptrace(PTRACE_ATTACH, parent, NULL, NULL))
 			_exit(1);
 
+		dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
+
 		while (!WIFSTOPPED(parent_status))
 			waitpid(parent, &parent_status, 0);
+
+		dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
 
 		/*
 		 * set the breakpoint address.
@@ -70,6 +75,8 @@ bool breakpoint(void *addr, int bpno, void (*handler)(int)) {
 		           addr))
 			_exit(1);
 
+		dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
+
 		/*
 		 * set parameters for when the breakpoint should be triggered.
 		 */
@@ -79,18 +86,31 @@ bool breakpoint(void *addr, int bpno, void (*handler)(int)) {
 		           enable_breakwrite | enable_breakpoint))
 			_exit(1);
 
+		dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
+
 		if (ptrace(PTRACE_DETACH, parent, NULL, NULL))
 			_exit(1);
 
+		dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
+
 		_exit(0);
 	}
+
+	dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
 
 	waitpid(child, &child_status, 0);
 
 	signal(SIGTRAP, handler);
 
-	if (WIFEXITED(child_status) && !WEXITSTATUS(child_status))
+	dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
+
+	if (WIFEXITED(child_status) && !WEXITSTATUS(child_status)) {
+		dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
 		return true;
+	}
+
+	assert(0 && "Failed to set breakpoint");
+	dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
 	return false;
 }
 
@@ -103,9 +123,9 @@ struct IoApicState {
 };
 
 static void RemapMmio(void *mmio, int prot) {
-	void *result = mmap(mmio, 0x1000, prot, MAP_FIXED | MAP_SHARED | MAP_ANONYMOUS | MAP_32BIT, -1, 0);
-	if (result == MAP_FAILED) {
-		perror("mmap");
+	int result = mprotect(mmio, 0x1000, prot);
+	if (result) {
+		perror("mprotect");
 		exit(1);
 	}
 }
@@ -119,50 +139,56 @@ struct IoApicTestState {
 
 	uint32_t select = UINT32_MAX;
 
-	void BeginRead(void *mmio) {
-		RemapMmio(mmio, PROT_READ | PROT_WRITE);
+	void BeginRead() {
+		RemapMmio(this, PROT_READ | PROT_WRITE);
 
 		next = eRead;
 
-		memcpy(mmio, &ioApicState, sizeof(IoApicState));
-		RemapMmio(mmio, PROT_READ);
+		dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
+
+		state = ioApicState;
+		RemapMmio(this, PROT_READ);
 	}
 
-	void EndRead(void *mmio) {
+	void EndRead() {
 		next = eNone;
 
-		RemapMmio(mmio, PROT_NONE);
+		dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
+
+		RemapMmio(this, PROT_NONE);
 	}
 
-	void BeginWrite(void *mmio) {
-		RemapMmio(mmio, PROT_READ | PROT_WRITE);
+	void BeginWrite() {
+		RemapMmio(this, PROT_READ | PROT_WRITE);
 
 		next = eWrite;
 
-		memcpy(mmio, &ioApicState, sizeof(IoApicState));
+		state = ioApicState;
+
+		dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
 	}
 
-	void EndWrite(void *mmio) {
+	void EndWrite() {
 		next = eNone;
 
-		IoApicState newState{};
-		memcpy(&newState, mmio, sizeof(IoApicState));
+		dprintf(2, "%d:%s:%u %u %u\n", getpid(), __FILE__, __LINE__, ioApicState.regs[0x0], state.regs[0x0]);
 
-		if (newState.regs[0x0] != ioApicState.regs[0x0]) {
+		if (state.regs[0x0] != ioApicState.regs[0x0]) {
 			// write to the window
-			select = newState.regs[0x0];
+			select = ioApicState.regs[0x0];
 		}
+		dprintf(2, "%d:%s:%u %u\n", getpid(), __FILE__, __LINE__, select);
 
-		RemapMmio(mmio, PROT_NONE);
+		RemapMmio(this, PROT_NONE);
 	}
 
-	void EndAccess(void *mmio) {
+	void EndAccess() {
 		switch (next) {
 		case eRead:
-			EndRead(mmio);
+			EndRead();
 			break;
 		case eWrite:
-			EndWrite(mmio);
+			EndWrite();
 			break;
 		default:
 			break;
@@ -192,7 +218,7 @@ public:
 			exit(1);
 		}
 
-		fprintf(stderr, "%s:%u\n", __FILE__, __LINE__);
+		dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
 
 		cs_err err = cs_open(CS_ARCH_X86, CS_MODE_64, &gCapstone);
 		ASSERT_EQ(err, CS_ERR_OK) << "Failed to open capstone: " << cs_strerror(err);
@@ -200,23 +226,16 @@ public:
 		cs_option(gCapstone, CS_OPT_DETAIL, CS_OPT_ON);
 		cs_option(gCapstone, CS_OPT_SKIPDATA, CS_OPT_ON);
 
-		fprintf(stderr, "%s:%u %zx\n", __FILE__, __LINE__, gCapstone);
+		dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
 
 		*TestState() = IoApicTestState{};
 		RemapMmio(gMmioRegion, PROT_NONE);
 
-		fprintf(stderr, "%s:%u\n", __FILE__, __LINE__);
+		dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
 
         InstallSignals();
 
-		fprintf(stderr, "%s:%u\n", __FILE__, __LINE__);
-
-		long status = syscall(SYS_arch_prctl, 0x1003, &fsbase);
-		if (status) {
-			perror("arch_prctl");
-			exit(1);
-		}
-		fprintf(stderr, "%s:%u %lx\n", __FILE__, __LINE__, fsbase);
+		dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
     }
 
     void TearDown() override {
@@ -224,7 +243,6 @@ public:
         munmap(gMmioRegion, 0x1000);
     }
 
-	static inline uint64_t fsbase = 0;
     static inline void *gMmioRegion = nullptr;
 	static inline csh gCapstone;
 	static inline void *gCurrentRip = nullptr;
@@ -239,14 +257,6 @@ public:
                 ucontext_t *ucontext = reinterpret_cast<ucontext_t *>(context);
 				mcontext_t *mcontext = &ucontext->uc_mcontext;
 				void *rip = (void*)mcontext->gregs[REG_RIP];
-
-				long status = syscall(SYS_arch_prctl, 0x1002, fsbase);
-				if (status) {
-					perror("arch_prctl");
-					exit(1);
-				}
-
-				dprintf(2, "%s:%u %lx %zx\n", __FILE__, __LINE__, fsbase, gCapstone);
 
 				cs_insn *insn = cs_malloc(gCapstone);
 				if (!insn) {
@@ -267,7 +277,7 @@ public:
 					exit(1);
 				}
 
-				dprintf(2, "%s:%u %p\n", __FILE__, __LINE__, rip);
+				dprintf(2, "%d:%s:%u %p\n", getpid(), __FILE__, __LINE__, rip);
 
 				cs_detail *detail = insn[0].detail;
 				cs_x86 *x86 = &detail->x86;
@@ -276,34 +286,28 @@ public:
 					if (op[i].type == X86_OP_MEM) {
 						// this is a write
 						if (op[i].access == CS_AC_WRITE) {
-							fprintf(stderr, "%s:%u\n", __FILE__, __LINE__);
-							TestState()->BeginWrite(gMmioRegion);
-							fprintf(stderr, "%s:%u\n", __FILE__, __LINE__);
+							dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
+							TestState()->BeginWrite();
+							dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
 							break;
 						} else if (op[i].access == CS_AC_READ) {
-							fprintf(stderr, "%s:%u\n", __FILE__, __LINE__);
-							TestState()->BeginRead(gMmioRegion);
-							fprintf(stderr, "%s:%u\n", __FILE__, __LINE__);
+							dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
+							TestState()->BeginRead();
+							dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
 							break;
 						}
 					}
 				}
 
-				fprintf(stderr, "%s:%u\n", __FILE__, __LINE__);
+				fprintf(stderr, "%d:%s:%u %zu %p %p %s %s\n", getpid(), __FILE__, __LINE__, size, (void*)rip, (void*)pc, insn[0].mnemonic, insn[0].op_str);
 
 				// install a breakpoint on the next instruction
 				breakpoint((void*)pc, 0, [](int) {
-					fprintf(stderr, "%s:%u\n", __FILE__, __LINE__);
-					TestState()->EndAccess(gMmioRegion);
-					fprintf(stderr, "%s:%u\n", __FILE__, __LINE__);
+					dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
+					TestState()->EndAccess();
+					dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
 					disablebp(0);
 				});
-
-				// the user code actually accessed something else, panic
-				if (TestState()->next == IoApicTestState::eNone) {
-					write(2, "Invalid access\n", 15);
-					exit(1);
-				}
             },
             .sa_flags = SA_SIGINFO,
         };
@@ -313,7 +317,12 @@ public:
 };
 
 TEST_F(MmioTest, TestMmio) {
-	((uint32_t*)gMmioRegion)[0x0] = 0x12345678;
+	auto *testState = TestState();
+	testState->ioApicState.regs[0x0] = 0x12345678;
 
-	ASSERT_EQ(TestState()->select, 0x12345678);
+	RemapMmio(gMmioRegion, PROT_READ | PROT_WRITE);
+
+	_mm_clflush(gMmioRegion);
+	dprintf(2, "%d:%s:%u %u %u %u\n", getpid(), __FILE__, __LINE__, testState->ioApicState.regs[0x0], testState->state.regs[0x0], testState->select);
+	ASSERT_EQ(testState->select, 0x12345678);
 }
