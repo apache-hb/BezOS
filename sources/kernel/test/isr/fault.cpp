@@ -18,7 +18,15 @@ public:
         for (size_t i = 0; i < km::SharedIsrTable::kCount; i++) {
             gTable.install(i, km::DefaultIsrHandler);
         }
+    }
 
+    void TearDown() override {
+        sigaction(SIGUSR1, nullptr, nullptr);
+    }
+
+    static inline km::SharedIsrTable gTable;
+
+    void InitThread() {
         struct sigaction action {
             .sa_sigaction = [](int, siginfo_t *info, void *) {
                 IsrSignalInfo *user = reinterpret_cast<IsrSignalInfo *>(info->si_value.sival_ptr);
@@ -30,22 +38,9 @@ public:
         };
 
         sigaction(SIGUSR1, &action, nullptr);
-
-        sigemptyset(&gSignals);
-        sigaddset(&gSignals, SIGUSR1);
-
-        gMainThread = pthread_self();
     }
 
-    void TearDown() override {
-        sigaction(SIGUSR1, nullptr, nullptr);
-    }
-
-    static inline km::SharedIsrTable gTable;
-    static inline sigset_t gSignals;
-    static inline pthread_t gMainThread;
-
-    void SendFault(km::IsrContext *context) {
+    void SendFault(km::IsrContext *context, pthread_t target) {
         sigset_t mask;
         sigemptyset(&mask);
         sigaddset(&mask, SIGUSR1);
@@ -60,7 +55,7 @@ public:
 
         union sigval value;
         value.sival_ptr = &info;
-        int status = pthread_sigqueue(gMainThread, SIGUSR1, value);
+        int status = pthread_sigqueue(target, SIGUSR1, value);
         ASSERT_EQ(status, 0) << "Failed to send signal: " << strerror(errno);
 
         latch.wait();
@@ -68,6 +63,8 @@ public:
 };
 
 TEST_F(IsrFaultTest, TestHandler) {
+    InitThread();
+
     gTable.install(0, [](km::IsrContext *context) {
         context->error = 0xDEADBEEF;
         return *context;
@@ -83,8 +80,9 @@ TEST_F(IsrFaultTest, TestHandler) {
     };
 
     {
-        std::jthread thread([&] {
-            SendFault(&context);
+        pthread_t self = pthread_self();
+        std::jthread thread([&, self] {
+            SendFault(&context, self);
         });
     }
 
