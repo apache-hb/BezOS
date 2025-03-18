@@ -83,7 +83,7 @@ static void LaunchTerminalService() {
     ASSERT_OS_SUCCESS(OsProcessCreate(createInfo, &handle));
 }
 
-OS_EXTERN OS_NORETURN void ClientStart(const struct OsClientStartInfo *) {
+OS_EXTERN OS_NORETURN [[gnu::force_align_arg_pointer]] void ClientStart(const struct OsClientStartInfo *) {
     LaunchTerminalService();
 
     DebugLog("Waiting for TTY0 devices...");

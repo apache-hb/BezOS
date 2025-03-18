@@ -1,14 +1,12 @@
 #pragma once
 
 #include <cstdlib>
-#include <memory>
-#include <utility>
-#include <new>
-
 #include <cstring>
 #include <cstddef>
 
-#include "crt.hpp"
+#include <memory>
+#include <utility>
+#include <new>
 
 namespace mem {
     class IAllocator {

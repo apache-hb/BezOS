@@ -299,7 +299,7 @@ static char ConvertVkToAscii(OsHidKeyEvent event) {
     return '\0';
 }
 
-OS_EXTERN OS_NORETURN void ClientStart(const struct OsClientStartInfo *) {
+OS_EXTERN OS_NORETURN [[gnu::force_align_arg_pointer]] void ClientStart(const struct OsClientStartInfo *) {
     VtDisplay display{};
     KeyboardDevice keyboard{};
 
