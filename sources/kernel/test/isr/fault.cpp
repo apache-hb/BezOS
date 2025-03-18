@@ -31,7 +31,6 @@ public:
             .sa_sigaction = [](int, siginfo_t *info, void *) {
                 IsrSignalInfo *user = reinterpret_cast<IsrSignalInfo *>(info->si_value.sival_ptr);
                 *user->context = gTable.invoke(user->context);
-                write(1, "signal!\n", 8);
                 user->latch->count_down();
             },
             .sa_flags = SA_SIGINFO,

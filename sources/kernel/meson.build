@@ -166,6 +166,7 @@ src = [
 
     # Wrappers
     'src/arch/cr.cpp',
+    'src/arch/dr.cpp',
     'src/boot.cpp',
 
     # VFS
