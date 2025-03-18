@@ -487,6 +487,10 @@ testcases = {
         'test/isr/isr.cpp',
         'src/isr/default.cpp',
     ],
+    'isr fault': [
+        'test/isr/fault.cpp',
+        'src/isr/default.cpp',
+    ],
     'layout': [
         'test/memory/layout.cpp',
     ],

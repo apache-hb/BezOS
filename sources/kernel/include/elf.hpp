@@ -149,10 +149,10 @@ namespace km {
 
     /// @brief Information required to create a threads TLS memory.
     struct TlsInit {
-        km::AddressMapping mapping;
-        void *window;
-        size_t fileSize;
-        size_t memSize;
+        km::AddressMapping mapping{};
+        void *window = nullptr;
+        size_t fileSize = 0;
+        size_t memSize = 0;
 
         size_t bssSize() const {
             return memSize - fileSize;
