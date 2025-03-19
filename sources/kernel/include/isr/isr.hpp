@@ -6,7 +6,6 @@
 
 #include <atomic>
 #include <cstdint>
-#include <climits>
 
 namespace km {
     /// @brief Standard architectural exception vector numbers.

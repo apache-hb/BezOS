@@ -1,6 +1,6 @@
-#include <emmintrin.h>
 #include <gtest/gtest.h>
 
+#include <emmintrin.h>
 #include <sys/mman.h>
 #include <sys/ptrace.h>
 #include <sys/user.h>
@@ -216,7 +216,6 @@ public:
 
     static inline void *gMmioRegion = nullptr;
 	static inline csh gCapstone;
-	static inline void *gCurrentRip = nullptr;
 
 	static inline IoApicTestState *TestState() {
 		return (IoApicTestState*)gMmioRegion;

@@ -308,7 +308,7 @@ gtest = dependency('gtest', native : true)
 gmock = dependency('gmock', native : true)
 # libvirt = dependency('libvirt', native : true)
 stb_image_write = dependency('stb_image_write')
-capstone = dependency('capstone', native : true, required : false)
+capstone = dependency('capstone', native : true)
 gtest_main = dependency('gtest_main', native : true)
 testkwargs = { 'protocol' : 'gtest', 'timeout': 5 }
 
@@ -677,6 +677,18 @@ test('tarfs', exe,
 #     }
 # )
 
+mmio_test_src = [
+    'test/ktest.cpp',
+]
+
+mmio_test_shim = static_library('mmio_test_shim', mmio_test_src,
+    include_directories : inc,
+    c_args : test_c_args,
+    cpp_args : test_cpp_args,
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units, capstone ],
+    native : true,
+)
+
 no_sanitize_test_shim = static_library('no_sanitize_test_shim', test_shim_src,
     include_directories : inc,
     c_args : test_c_args,
@@ -684,7 +696,6 @@ no_sanitize_test_shim = static_library('no_sanitize_test_shim', test_shim_src,
     dependencies : [ gtest, sysapi, concurrentqueue, mp_units ],
     override_options: [ 'b_sanitize=none', 'b_coverage=true' ],
     native : true,
-    build_by_default : false,
 )
 
 no_sanitize_memory_test_shim = static_library('no_sanitize_memory_test_shim', memory_test_src,
@@ -694,7 +705,6 @@ no_sanitize_memory_test_shim = static_library('no_sanitize_memory_test_shim', me
     dependencies : [ gtest, sysapi, concurrentqueue, mp_units ],
     override_options: [ 'b_sanitize=none', 'b_coverage=true' ],
     native : true,
-    build_by_default : false,
 )
 
 testcases = {
@@ -715,26 +725,38 @@ testcases = {
     # }
 }
 
-if capstone.found()
-    testcases += {
-        'ioapic': {
-            'sources': [
-                'test/apic/ioapic.cpp',
-                'src/apic.cpp',
-                'src/memory.cpp',
-                'src/boot.cpp',
-                'src/util/cpuid.cpp',
-                'src/acpi/acpi.cpp',
-                'src/acpi/format.cpp',
-            ],
-            'dependencies': [ capstone ],
-            # this test must not be run with sanitizers, it ptraces itself
-            # and purposely triggers segv and traps
-            'override_options': [ 'b_sanitize=none', 'b_coverage=true' ],
-            'link_with' : [ no_sanitize_test_shim, no_sanitize_memory_test_shim ]
-        }
+testcases += {
+    'ioapic': {
+        'sources': [
+            'test/apic/ioapic.cpp',
+            'src/apic.cpp',
+            'src/memory.cpp',
+            'src/boot.cpp',
+            'src/util/cpuid.cpp',
+            'src/acpi/acpi.cpp',
+            'src/acpi/format.cpp',
+        ],
+        'dependencies': [ capstone ],
+        # this test must not be run with sanitizers, it ptraces itself
+        # and purposely triggers segv and traps
+        'override_options': [ 'b_sanitize=none', 'b_coverage=true' ],
+        'link_with' : [ no_sanitize_test_shim, no_sanitize_memory_test_shim ]
+    },
+    'apic': {
+        'sources': [
+            'test/apic/apic.cpp',
+            'src/apic.cpp',
+            'src/memory.cpp',
+            'src/boot.cpp',
+            'src/util/cpuid.cpp',
+            'src/acpi/acpi.cpp',
+            'src/acpi/format.cpp',
+        ],
+        'dependencies': [ capstone ],
+        'override_options': [ 'b_sanitize=none', 'b_coverage=true' ],
+        'link_with' : [ no_sanitize_test_shim, no_sanitize_memory_test_shim, mmio_test_shim ],
     }
-endif
+}
 
 foreach name, kwargs : testcases
     new_kwargs = test_exe_kwargs
