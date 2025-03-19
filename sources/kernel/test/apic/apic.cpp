@@ -103,10 +103,6 @@ static constexpr inline auto kReadOnlyRegisters = std::to_array<uintptr_t>({
 });
 
 class SyntheticApic : public kmtest::IMmio {
-    // pad out the vtable pointer
-    [[maybe_unused]]
-    std::byte mPadding0[0x1000 - 8];
-
     ApicState mState{};
 
     uintptr_t mLastWrite = 0;
@@ -115,37 +111,38 @@ public:
     uint64_t icr = 0;
 
     void readBegin(uintptr_t offset) override {
-        offset -= 0x1000;
-
         ASSERT_EQ(offset % 0x10, 0) << "Apic registers must be aligned to 16 bytes";
     }
 
     void writeBegin(uintptr_t offset) override {
-        offset -= 0x1000;
-
         ASSERT_EQ(offset % 0x10, 0) << "Apic registers must be aligned to 16 bytes";
     }
 
     void writeEnd(uintptr_t offset) override {
-        offset -= 0x1000;
-
         switch (offset) {
         case offsetof(ApicState, icr[1]): {
             ASSERT_NE(mLastWrite, offset) << "Duplicate write to ICR1";
             icr = uint64_t(mState.icr[1]);
-            dprintf(1, "icr1: %x\n", mState.icr[1].value);
             break;
         }
         case offsetof(ApicState, icr[0]): {
             ASSERT_EQ(mLastWrite, offsetof(ApicState, icr[1])) << "ICR0 must be written after ICR1";
             icr |= uint64_t(mState.icr[0]) << 32;
-            dprintf(1, "icr0: %x\n", mState.icr[0].value);
             break;
         }
         }
 
-        dprintf(1, "write to %zu\n", offset);
         mLastWrite = offset;
+    }
+};
+
+class TestMsr : public kmtest::IMsrDevice {
+public:
+    uint64_t rdmsr(uint32_t) override {
+        return 0xF00F;
+    }
+
+    void wrmsr(uint32_t, uint64_t) override {
     }
 };
 
@@ -161,11 +158,13 @@ public:
 
     void SetUp() override {
         kmtest::Machine *machine = new kmtest::Machine();
+        machine->msr(0x80, &mMsr);
         mApic = machine->addMmioRegion<SyntheticApic>();
         machine->reset(machine);
     }
 
     SyntheticApic *mApic;
+    TestMsr mMsr;
 };
 
 TEST_F(ApicTest, SendIpi) {

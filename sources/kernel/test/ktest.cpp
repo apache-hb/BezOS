@@ -1,6 +1,8 @@
 #include "ktest.hpp"
 #include "absl/container/flat_hash_set.h"
+#include "log.hpp"
 #include "util/defer.hpp"
+#include "util/format.hpp"
 
 #include <capstone.h>
 
@@ -191,22 +193,53 @@ void kmtest::Machine::sigsegv(mcontext_t *mcontext) {
 
     dprintf(1, "fault: %s %s\n", insn[0].mnemonic, insn[0].op_str);
 
+    cs_detail *detail = insn[0].detail;
+    cs_x86 *x86 = &detail->x86;
+    cs_x86_op *op = x86->operands;
+
+    if (insn[0].id == X86_INS_RDMSR) {
+        uint32_t msr = mcontext->gregs[REG_RCX] & 0xFFFFFFFF;
+
+        if (auto device = mMsrDevices.find(msr); device != mMsrDevices.end()) {
+            auto *dev = device->second;
+            uint64_t value = dev->rdmsr(msr);
+            mcontext->gregs[REG_RAX] = value & 0xFFFFFFFF;
+            mcontext->gregs[REG_RDX] = (value >> 32) & 0xFFFFFFFF;
+            mcontext->gregs[REG_RIP] += insn[0].size;
+            return;
+        }
+
+        KmDebugMessageUnlocked("unknown rdmsr: ", km::Hex(msr), "\n");
+        exit(1);
+    } else if (insn[0].id == X86_INS_WRMSR) {
+        uint32_t msr = mcontext->gregs[REG_RCX] & 0xFFFFFFFF;
+        uint32_t low = mcontext->gregs[REG_RAX] & 0xFFFFFFFF;
+        uint32_t high = mcontext->gregs[REG_RDX] & 0xFFFFFFFF;
+
+        uint64_t value = low | ((uint64_t)high << 32);
+
+        if (auto device = mMsrDevices.find(msr); device != mMsrDevices.end()) {
+            auto *dev = device->second;
+            dev->wrmsr(msr, value);
+            mcontext->gregs[REG_RIP] += insn[0].size;
+            return;
+        }
+
+        KmDebugMessageUnlocked("unknown wrmsr: ", km::Hex(msr), "\n");
+        exit(1);
+    }
+
     //
     // This doesnt cover all possible memory operands for x86, "luckily" most hardware
     // shits itself if you do anything other than `mov [mem], reg` or `mov reg, [mem]`
     // on its mmio area so all our cases should be covered by this.
     //
-    cs_detail *detail = insn[0].detail;
-    cs_x86 *x86 = &detail->x86;
-    cs_x86_op *op = x86->operands;
     for (uint8_t i = 0; i < x86->op_count; i++) {
         if (op[i].type == X86_OP_MEM) {
             //
             // See if we have a memory operand that is in an mmio region
             //
             uint64_t address = EvalMemOperand(mcontext, &op[i].mem);
-
-            dprintf(1, "operand: %lx\n", address);
 
             auto& region = gMachine->mMmioRegions[{(void*)address}];
             auto& [mmio, size] = region;
@@ -218,13 +251,11 @@ void kmtest::Machine::sigsegv(mcontext_t *mcontext) {
                 continue;
             }
 
-            dprintf(1, "mmio: %p\n", (void*)mmio);
-
             mprotect(mmio, size, PROT_READ | PROT_WRITE);
 
             try {
                 mCurrentMmioRegion = &region;
-                gMmioOffset = address - (uintptr_t)mmio;
+                gMmioOffset = (address - (uintptr_t)mmio) - 0x1000;
 
                 //
                 // this is a write

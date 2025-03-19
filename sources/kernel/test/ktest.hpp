@@ -1,6 +1,7 @@
 #pragma once
 
 #include "absl/container/flat_hash_map.h"
+#include "panic.hpp"
 
 #include <sys/mman.h>
 #include <sys/ucontext.h>
@@ -26,6 +27,9 @@ namespace kmtest {
     /// @brief An mmio region
     /// @warning This object is mapped in shared memory and is accessed from a signal handling context.
     class alignas(0x1000) IMmio {
+        // pad out the vtable pointer
+        [[maybe_unused]]
+        char mPadding[0x1000 - 8];
     public:
         virtual ~IMmio() = default;
 
@@ -51,8 +55,17 @@ namespace kmtest {
         size_t size;
     };
 
+    class IMsrDevice {
+    public:
+        virtual ~IMsrDevice() = default;
+
+        virtual uint64_t rdmsr(uint32_t) { KM_PANIC("unknown rdmsr"); }
+        virtual void wrmsr(uint32_t, uint64_t) { KM_PANIC("unknown wrmsr"); }
+    };
+
     class Machine {
         absl::flat_hash_map<PageKey, MmioRegion> mMmioRegions;
+        absl::flat_hash_map<uint32_t, IMsrDevice*> mMsrDevices;
 
         static void installSigSegv();
 
@@ -104,6 +117,10 @@ namespace kmtest {
             }
 
             return mmio;
+        }
+
+        void msr(uint32_t msr, IMsrDevice *device) {
+            mMsrDevices[msr] = device;
         }
 
         static void setup();
