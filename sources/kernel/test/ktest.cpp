@@ -169,65 +169,45 @@ void kmtest::Machine::installSigSegv() {
     sigaction(SIGSEGV, &segv, nullptr);
 }
 
-void kmtest::Machine::sigsegv(mcontext_t *mcontext) {
-    void *rip = (void*)mcontext->gregs[REG_RIP];
 
-    cs_insn *insn = cs_malloc(gCapstone);
-    if (!insn) {
-        perror("cs_malloc");
-        exit(1);
+void kmtest::Machine::rdmsr(mcontext_t *mcontext, cs_insn *insn) {
+    uint32_t msr = mcontext->gregs[REG_RCX] & 0xFFFFFFFF;
+
+    if (auto device = mMsrDevices.find(msr); device != mMsrDevices.end()) {
+        auto *dev = device->second;
+        uint64_t value = dev->rdmsr(msr);
+        mcontext->gregs[REG_RAX] = value & 0xFFFFFFFF;
+        mcontext->gregs[REG_RDX] = (value >> 32) & 0xFFFFFFFF;
+        mcontext->gregs[REG_RIP] += insn[0].size;
+        return;
     }
 
-    defer { cs_free(insn, 1); };
-    size_t size = 15;
-    uint64_t pc = (uint64_t)rip;
-    uint8_t code[15]{};
-    VALGRIND_MAKE_MEM_DEFINED(rip, 15); // this is coming from a mapped area of text
-    memcpy(code, rip, size);
-    const uint8_t *ptr = code;
-    bool ok = cs_disasm_iter(gCapstone, &ptr, &size, &pc, insn);
-    if (!ok) {
-        perror("cs_disasm_iter");
-        exit(1);
+    KmDebugMessageUnlocked("unknown rdmsr: ", km::Hex(msr), "\n");
+    exit(1);
+}
+
+void kmtest::Machine::wrmsr(mcontext_t *mcontext, cs_insn *insn) {
+    uint32_t msr = mcontext->gregs[REG_RCX] & 0xFFFFFFFF;
+    uint32_t low = mcontext->gregs[REG_RAX] & 0xFFFFFFFF;
+    uint32_t high = mcontext->gregs[REG_RDX] & 0xFFFFFFFF;
+
+    uint64_t value = low | ((uint64_t)high << 32);
+
+    if (auto device = mMsrDevices.find(msr); device != mMsrDevices.end()) {
+        auto *dev = device->second;
+        dev->wrmsr(msr, value);
+        mcontext->gregs[REG_RIP] += insn[0].size;
+        return;
     }
 
-    dprintf(1, "fault: %s %s\n", insn[0].mnemonic, insn[0].op_str);
+    KmDebugMessageUnlocked("unknown wrmsr: ", km::Hex(msr), "\n");
+    exit(1);
+}
 
-    cs_detail *detail = insn[0].detail;
+void kmtest::Machine::mmio(mcontext_t *mcontext, cs_insn *insn) {
+    cs_detail *detail = insn->detail;
     cs_x86 *x86 = &detail->x86;
     cs_x86_op *op = x86->operands;
-
-    if (insn[0].id == X86_INS_RDMSR) {
-        uint32_t msr = mcontext->gregs[REG_RCX] & 0xFFFFFFFF;
-
-        if (auto device = mMsrDevices.find(msr); device != mMsrDevices.end()) {
-            auto *dev = device->second;
-            uint64_t value = dev->rdmsr(msr);
-            mcontext->gregs[REG_RAX] = value & 0xFFFFFFFF;
-            mcontext->gregs[REG_RDX] = (value >> 32) & 0xFFFFFFFF;
-            mcontext->gregs[REG_RIP] += insn[0].size;
-            return;
-        }
-
-        KmDebugMessageUnlocked("unknown rdmsr: ", km::Hex(msr), "\n");
-        exit(1);
-    } else if (insn[0].id == X86_INS_WRMSR) {
-        uint32_t msr = mcontext->gregs[REG_RCX] & 0xFFFFFFFF;
-        uint32_t low = mcontext->gregs[REG_RAX] & 0xFFFFFFFF;
-        uint32_t high = mcontext->gregs[REG_RDX] & 0xFFFFFFFF;
-
-        uint64_t value = low | ((uint64_t)high << 32);
-
-        if (auto device = mMsrDevices.find(msr); device != mMsrDevices.end()) {
-            auto *dev = device->second;
-            dev->wrmsr(msr, value);
-            mcontext->gregs[REG_RIP] += insn[0].size;
-            return;
-        }
-
-        KmDebugMessageUnlocked("unknown wrmsr: ", km::Hex(msr), "\n");
-        exit(1);
-    }
 
     //
     // This doesnt cover all possible memory operands for x86, "luckily" most hardware
@@ -281,6 +261,8 @@ void kmtest::Machine::sigsegv(mcontext_t *mcontext) {
         }
     }
 
+    void *pc = (void*)(mcontext->gregs[REG_RIP] + insn->size);
+
     // install a breakpoint on the next instruction
     breakpoint((void*)pc, 0, [](int) {
         auto& [mmio, size] = *mCurrentMmioRegion;
@@ -298,6 +280,39 @@ void kmtest::Machine::sigsegv(mcontext_t *mcontext) {
         }
         disablebp(0);
     });
+}
+
+void kmtest::Machine::sigsegv(mcontext_t *mcontext) {
+    void *rip = (void*)mcontext->gregs[REG_RIP];
+
+    cs_insn *insn = cs_malloc(gCapstone);
+    if (!insn) {
+        perror("cs_malloc");
+        exit(1);
+    }
+
+    defer { cs_free(insn, 1); };
+    size_t size = 15;
+    uint64_t pc = (uint64_t)rip;
+    uint8_t code[15]{};
+    VALGRIND_MAKE_MEM_DEFINED(rip, 15); // this is coming from a mapped area of text
+    memcpy(code, rip, size);
+    const uint8_t *ptr = code;
+    bool ok = cs_disasm_iter(gCapstone, &ptr, &size, &pc, insn);
+    if (!ok) {
+        perror("cs_disasm_iter");
+        exit(1);
+    }
+
+    dprintf(1, "fault: %s %s\n", insn[0].mnemonic, insn[0].op_str);
+
+    if (insn[0].id == X86_INS_RDMSR) {
+        rdmsr(mcontext, insn);
+    } else if (insn[0].id == X86_INS_WRMSR) {
+        wrmsr(mcontext, insn);
+    } else {
+        mmio(mcontext, insn);
+    }
 }
 
 void kmtest::Machine::protectMmioRegions() {

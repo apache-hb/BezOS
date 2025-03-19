@@ -6,6 +6,8 @@
 #include <sys/mman.h>
 #include <sys/ucontext.h>
 
+struct cs_insn;
+
 namespace kmtest {
     struct PageKey {
         void *begin;
@@ -72,6 +74,10 @@ namespace kmtest {
         void protectMmioRegions();
 
         void sigsegv(mcontext_t *mcontext);
+
+        void rdmsr(mcontext_t *mcontext, cs_insn *insn);
+        void wrmsr(mcontext_t *mcontext, cs_insn *insn);
+        void mmio(mcontext_t *mcontext, cs_insn *insn);
 
     public:
         virtual ~Machine();

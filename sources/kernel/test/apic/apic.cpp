@@ -79,6 +79,7 @@ static_assert(offsetof(ApicState, timerInitial) == 0x380);
 static_assert(offsetof(ApicState, timerCurrent) == 0x390);
 static_assert(offsetof(ApicState, timerDivide) == 0x3e0);
 
+#if 0
 static constexpr inline auto kReadOnlyRegisters = std::to_array<uintptr_t>({
     offsetof(ApicState, version),
     offsetof(ApicState, apr),
@@ -101,6 +102,7 @@ static constexpr inline auto kReadOnlyRegisters = std::to_array<uintptr_t>({
 
     offsetof(ApicState, timerCurrent),
 });
+#endif
 
 class SyntheticApic : public kmtest::IMmio {
     ApicState mState{};
