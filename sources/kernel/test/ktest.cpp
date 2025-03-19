@@ -7,8 +7,10 @@
 #include <capstone.h>
 
 #include <signal.h>
-#include <sys/wait.h>
+#include <fcntl.h>
 #include <unistd.h>
+
+#include <sys/wait.h>
 #include <sys/mman.h>
 #include <sys/ptrace.h>
 #include <sys/ucontext.h>
@@ -169,7 +171,6 @@ void kmtest::Machine::installSigSegv() {
     sigaction(SIGSEGV, &segv, nullptr);
 }
 
-
 void kmtest::Machine::rdmsr(mcontext_t *mcontext, cs_insn *insn) {
     uint32_t msr = mcontext->gregs[REG_RCX] & 0xFFFFFFFF;
 
@@ -222,7 +223,7 @@ void kmtest::Machine::mmio(mcontext_t *mcontext, cs_insn *insn) {
             uint64_t address = EvalMemOperand(mcontext, &op[i].mem);
 
             auto& region = gMachine->mMmioRegions[{(void*)address}];
-            auto& [mmio, size] = region;
+            auto& [mmio, host, guest, size] = region;
             if (mmio == nullptr) {
                 //
                 // If not then we can skip this operand... maybe this is a memcpy
@@ -231,11 +232,11 @@ void kmtest::Machine::mmio(mcontext_t *mcontext, cs_insn *insn) {
                 continue;
             }
 
-            mprotect(mmio, size, PROT_READ | PROT_WRITE);
+            mprotect(guest, size, PROT_READ | PROT_WRITE);
 
             try {
                 mCurrentMmioRegion = &region;
-                gMmioOffset = (address - (uintptr_t)mmio) - 0x1000;
+                gMmioOffset = (address - (uintptr_t)guest);
 
                 //
                 // this is a write
@@ -265,7 +266,7 @@ void kmtest::Machine::mmio(mcontext_t *mcontext, cs_insn *insn) {
 
     // install a breakpoint on the next instruction
     breakpoint((void*)pc, 0, [](int) {
-        auto& [mmio, size] = *mCurrentMmioRegion;
+        auto& [mmio, host, guest, size] = *mCurrentMmioRegion;
 
         if (gMmioAccess == eAccessWrite) {
             mmio->writeEnd(gMmioOffset);
@@ -273,7 +274,7 @@ void kmtest::Machine::mmio(mcontext_t *mcontext, cs_insn *insn) {
             mmio->readEnd(gMmioOffset);
         }
 
-        int err = mprotect(mmio, size, PROT_NONE);
+        int err = mprotect(guest, size, PROT_NONE);
         if (err) {
             perror("mprotect");
             exit(1);
@@ -325,6 +326,33 @@ void kmtest::Machine::protectMmioRegions() {
     }
 }
 
+static constexpr size_t kMachineMemorySize = sm::gigabytes(24).bytes();
+
+kmtest::Machine::Machine() {
+    initAddressSpace();
+    mHostAllocator.deallocate(mHostAddressSpace, kMachineMemorySize / 0x1000);
+}
+
+void kmtest::Machine::initAddressSpace() {
+    mAddressSpaceFd = memfd_create("address-space", 0);
+    if (mAddressSpaceFd < 0) {
+        perror("memfd_create");
+        exit(1);
+    }
+
+    size_t size = kMachineMemorySize;
+    if (ftruncate64(mAddressSpaceFd, size) < 0) {
+        perror("ftruncate64");
+        exit(1);
+    }
+
+    mHostAddressSpace = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, mAddressSpaceFd, 0);
+    if (mHostAddressSpace == MAP_FAILED) {
+        perror("mmap mHostAddressSpace");
+        exit(1);
+    }
+}
+
 void kmtest::Machine::setup() {
     cs_err err = cs_open(CS_ARCH_X86, CS_MODE_64, &gCapstone);
     if (err != CS_ERR_OK) {
@@ -354,14 +382,5 @@ kmtest::Machine *kmtest::Machine::instance() {
 }
 
 kmtest::Machine::~Machine() {
-    absl::flat_hash_set<IMmio*> seen;
-    for (auto &[_, region] : mMmioRegions) {
-        auto& [mmio, size] = region;
-        if (seen.contains(mmio)) {
-            continue;
-        }
-        seen.insert(mmio);
-        mprotect(mmio, size, PROT_READ | PROT_WRITE);
-        mmio->~IMmio();
-    }
+    close(mAddressSpaceFd);
 }

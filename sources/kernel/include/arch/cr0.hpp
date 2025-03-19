@@ -14,6 +14,8 @@ namespace x64 {
         constexpr Cr0(cr0_t value) : mValue(value) { }
 
     public:
+        constexpr Cr0() : Cr0(0) { }
+
         enum Bit : cr0_t {
             PG = (1ull << 31),
             CD = (1ull << 30),

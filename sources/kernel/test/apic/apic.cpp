@@ -17,7 +17,7 @@ static_assert(sizeof(ApicReg) == 16);
 
 /// @brief All apic state registers
 /// Lifted from Intel SDM vol 3 Table 12-1. Local APIC Register Address Map
-struct ApicState {
+struct alignas(0x1000) ApicState {
     ApicReg reserved0[2];
 
     ApicReg id;
@@ -105,11 +105,25 @@ static constexpr inline auto kReadOnlyRegisters = std::to_array<uintptr_t>({
 #endif
 
 class SyntheticApic : public kmtest::IMmio {
-    ApicState mState{};
+    ApicState *mHostState = nullptr;
+    void *mGuestAddress = nullptr;
 
     uintptr_t mLastWrite = 0;
 
 public:
+    void init(ApicState *state, void *guest) {
+        mHostState = state;
+        mGuestAddress = guest;
+    }
+
+    void move(void *guest) {
+        mGuestAddress = guest;
+    }
+
+    void *guestAddress() {
+        return mGuestAddress;
+    }
+
     uint64_t icr = 0;
 
     bool enabled = false;
@@ -136,12 +150,12 @@ public:
         switch (offset) {
         case offsetof(ApicState, icr[1]): {
             ASSERT_NE(mLastWrite, offset) << "Duplicate write to ICR1";
-            icr = uint64_t(mState.icr[1]);
+            icr = uint64_t(mHostState->icr[1]);
             break;
         }
         case offsetof(ApicState, icr[0]): {
             ASSERT_EQ(mLastWrite, offsetof(ApicState, icr[1])) << "ICR0 must be written after ICR1";
-            icr |= uint64_t(mState.icr[0]) << 32;
+            icr |= uint64_t(mHostState->icr[0]) << 32;
             break;
         }
         }
@@ -153,10 +167,12 @@ public:
 class ApicMsr : public kmtest::IMsrDevice {
     uint64_t mApicMsr;
     SyntheticApic *mApic;
+
 public:
-    ApicMsr(SyntheticApic *apic) : mApic(apic) {
-        mApicMsr = (uintptr_t)apic | (1 << 8) | (1 << 11);
-        apic->enabled = true; // for now
+    void init(SyntheticApic *apic) {
+        mApic = apic;
+        mApicMsr = (uintptr_t)mApic | (1 << 8) | (1 << 11);
+        mApic->enabled = true;
     }
 
     uint64_t rdmsr(uint32_t msr) override {
@@ -198,23 +214,27 @@ public:
 
     void SetUp() override {
         kmtest::Machine *machine = new kmtest::Machine();
-        mApic = machine->addMmioRegion<SyntheticApic>();
 
-        mMsr = std::make_unique<ApicMsr>(mApic);
+        void *guest = (void*)0xFEE0'0000;
+        auto *apic = machine->createMmioObject<ApicState>();
+        machine->addMmioRegion(&mApic, apic, guest, sizeof(ApicState));
 
-        machine->msr(0x1B, mMsr.get());
+        mApic.init(apic, guest);
+
+        mMsr.init(&mApic);
+
+        machine->msr(0x1B, &mMsr);
 
         machine->reset(machine);
     }
 
-    SyntheticApic *mApic;
-    std::unique_ptr<ApicMsr> mMsr;
+    SyntheticApic mApic;
+    ApicMsr mMsr;
 };
 
 TEST_F(ApicTest, SendIpi) {
-    km::LocalApic lapic { (void*)((uintptr_t)mApic + 0x1000) };
+    km::LocalApic lapic { mApic.guestAddress() };
     lapic.selfIpi(0x20);
 
-    auto *synthetic = kmtest::Machine::unprotect(mApic);
-    ASSERT_EQ(synthetic->icr, 0x0004'4020'0000'0000);
+    ASSERT_EQ(mApic.icr, 0x0004'4020'0000'0000);
 }

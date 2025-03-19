@@ -1,8 +1,10 @@
 #pragma once
 
 #include "absl/container/flat_hash_map.h"
+#include "memory/table_allocator.hpp"
 #include "panic.hpp"
 
+#include <gtest/gtest.h>
 #include <sys/mman.h>
 #include <sys/ucontext.h>
 
@@ -53,7 +55,14 @@ namespace kmtest {
     };
 
     struct MmioRegion {
+        /// @brief The MMIO object handler
         IMmio *mmio;
+
+        /// @brief The host address of the mmio state
+        void *host;
+
+        /// @brief Base address of this mmio region in the guest segment
+        void *guest;
         size_t size;
     };
 
@@ -66,6 +75,13 @@ namespace kmtest {
     };
 
     class Machine {
+        int mAddressSpaceFd;
+
+        km::PageTableAllocator mHostAllocator;
+
+        /// @brief Host address space
+        void *mHostAddressSpace;
+
         absl::flat_hash_map<PageKey, MmioRegion> mMmioRegions;
         absl::flat_hash_map<uint32_t, IMsrDevice*> mMsrDevices;
 
@@ -79,49 +95,72 @@ namespace kmtest {
         void wrmsr(mcontext_t *mcontext, cs_insn *insn);
         void mmio(mcontext_t *mcontext, cs_insn *insn);
 
+        void initAddressSpace();
+
     public:
         virtual ~Machine();
 
-        template<std::derived_from<IMmio> T, typename... Args>
-        T *addMmioRegion(Args&&... args) {
+        template<typename T>
+        T *createMmioObject() {
             static_assert(alignof(T) % 0x1000 == 0, "MMIO regions must be page aligned");
-            static_assert(sizeof(T) % 0x1000 == 0, "MMIO regions must be page aligned");
 
-            void *backing = mmap(nullptr, sizeof(T), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS | MAP_32BIT, -1, 0);
-            if (backing == MAP_FAILED) {
+            void *host = mHostAllocator.allocate(sm::roundup<size_t>(sizeof(T), 0x1000) / 0x1000);
+            if (!host) {
+                KM_PANIC("failed to allocate mmio region");
+            }
+
+            return new (host) T();
+        }
+
+        void addMmioRegion(IMmio *device, void *state, void *guest, size_t size) {
+            MmioRegion region { device, state, guest, size };
+
+            uintptr_t hostOffset = (uintptr_t)state - (uintptr_t)mHostAddressSpace;
+
+            void *address = mmap(guest, size, PROT_NONE, MAP_FIXED | MAP_SHARED, mAddressSpaceFd, hostOffset);
+            if (address == MAP_FAILED) {
                 perror("mmap");
                 exit(1);
             }
 
-            T *mmio = new (backing) T(std::forward<Args>(args)...);
+            ASSERT_EQ(address, guest) << "mmap failed to map at the requested address";
 
-            void *begin = mmio;
-            void *end = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(mmio) + sizeof(T));
-
-            MmioRegion region { mmio, sizeof(T) };
-
-            for (void *ptr = begin; ptr < end; ptr = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(ptr) + 0x1000)) {
+            for (void *ptr = guest; ptr < reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(guest) + size); ptr = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(ptr) + 0x1000)) {
                 PageKey key{ptr};
                 mMmioRegions[key] = region;
             }
-
-            return mmio;
         }
 
-        template<typename T>
-        static T *unprotect(T *mmio) {
-            int err = mprotect(mmio, sizeof(T), PROT_READ | PROT_WRITE);
-            if (err) {
-                perror("mprotect");
-                exit(1);
+        void removeMmioRegion(void *guest, size_t size) {
+            for (void *ptr = guest; ptr < reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(guest) + size); ptr = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(ptr) + 0x1000)) {
+                PageKey key{ptr};
+                mMmioRegions.erase(key);
             }
 
-            return mmio;
+            int err = munmap(guest, size);
+            if (err) {
+                perror("munmap");
+                exit(1);
+            }
+        }
+
+        void moveMmioRegion(void *to, void *from, size_t size) {
+            auto it = mMmioRegions.extract(PageKey{from});
+            if (it.empty()) {
+                throw std::runtime_error("mmio region not found");
+            }
+
+            auto &region = it.mapped();
+
+            removeMmioRegion(from, size);
+            addMmioRegion(region.mmio, region.host, to, size);
         }
 
         void msr(uint32_t msr, IMsrDevice *device) {
             mMsrDevices[msr] = device;
         }
+
+        Machine();
 
         static void setup();
         static void finalize();

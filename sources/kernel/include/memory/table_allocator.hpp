@@ -36,7 +36,7 @@ namespace km {
     public:
         constexpr PageTableAllocator()
             : mMemory(VirtualRange{})
-            , mBlockSize(0)
+            , mBlockSize(x64::kPageSize)
             , mHead(nullptr)
         { }
 

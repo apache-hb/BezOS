@@ -15,6 +15,8 @@ namespace x64 {
         constexpr Cr4(cr4_t value) : mValue(value) { }
 
     public:
+        constexpr Cr4() : Cr4(0) { }
+
         enum Bit : cr4_t {
             VME = (1ull << 0),
             PVI = (1ull << 1),

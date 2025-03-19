@@ -15,6 +15,7 @@
 
 namespace km {
     static constexpr size_t kLowMemory = sm::megabytes(1).bytes();
+    static constexpr size_t k32BitMemory = sm::gigabytes(4).bytes();
 
     constexpr bool IsLowMemory(MemoryRange range) {
         return range.front < kLowMemory;
