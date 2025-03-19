@@ -19,6 +19,7 @@ static constexpr uint64_t kApicAddressMask = 0xFFFFFFFFFFFFF000;
 static constexpr uint64_t kApicEnableBit = (1 << 11);
 static constexpr uint32_t kX2ApicEnableBit = (1 << 10);
 static constexpr uint64_t kApicBspBit = (1 << 8);
+
 static constexpr uint32_t kApicSoftwareEnable = (1 << 8);
 
 void km::Disable8259Pic() {

@@ -110,12 +110,24 @@ class SyntheticApic : public kmtest::IMmio {
 public:
     uint64_t icr = 0;
 
+    bool enabled = false;
+
     void readBegin(uintptr_t offset) override {
         ASSERT_EQ(offset % 0x10, 0) << "Apic registers must be aligned to 16 bytes";
+
+        if (!enabled) {
+            dprintf(2, "APIC not enabled\n");
+            exit(1);
+        }
     }
 
     void writeBegin(uintptr_t offset) override {
         ASSERT_EQ(offset % 0x10, 0) << "Apic registers must be aligned to 16 bytes";
+
+        if (!enabled) {
+            dprintf(2, "APIC not enabled\n");
+            exit(1);
+        }
     }
 
     void writeEnd(uintptr_t offset) override {
@@ -136,13 +148,39 @@ public:
     }
 };
 
-class TestMsr : public kmtest::IMsrDevice {
+class ApicMsr : public kmtest::IMsrDevice {
+    uint64_t mApicMsr;
+    SyntheticApic *mApic;
 public:
-    uint64_t rdmsr(uint32_t) override {
-        return 0xF00F;
+    ApicMsr(SyntheticApic *apic) : mApic(apic) {
+        mApicMsr = (uintptr_t)apic | (1 << 8) | (1 << 11);
+        apic->enabled = true; // for now
     }
 
-    void wrmsr(uint32_t, uint64_t) override {
+    uint64_t rdmsr(uint32_t msr) override {
+        if (msr != 0x1B) {
+            dprintf(2, "unknown msr %u\n", msr);
+            exit(1);
+        }
+
+        return mApicMsr;
+    }
+
+    void wrmsr(uint32_t msr, uint64_t value) override {
+        if (msr != 0x1B) {
+            dprintf(2, "unknown msr %u\n", msr);
+            exit(1);
+        }
+
+        // BSP bit is read-only
+        uint64_t change = value ^ mApicMsr;
+        if (change & (1 << 8)) {
+            dprintf(2, "Wrote to APIC BSP bit\n");
+            exit(1);
+        }
+
+        mApic->enabled = value & 1;
+        mApicMsr = value;
     }
 };
 
@@ -158,13 +196,17 @@ public:
 
     void SetUp() override {
         kmtest::Machine *machine = new kmtest::Machine();
-        machine->msr(0x80, &mMsr);
         mApic = machine->addMmioRegion<SyntheticApic>();
+
+        mMsr = std::make_unique<ApicMsr>(mApic);
+
+        machine->msr(0x1B, mMsr.get());
+
         machine->reset(machine);
     }
 
     SyntheticApic *mApic;
-    TestMsr mMsr;
+    std::unique_ptr<ApicMsr> mMsr;
 };
 
 TEST_F(ApicTest, SendIpi) {

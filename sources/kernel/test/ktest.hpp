@@ -89,12 +89,6 @@ namespace kmtest {
 
             T *mmio = new (backing) T(std::forward<Args>(args)...);
 
-            int err = mprotect(mmio, sizeof(T), PROT_NONE);
-            if (err) {
-                perror("mprotect");
-                exit(1);
-            }
-
             void *begin = mmio;
             void *end = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(mmio) + sizeof(T));
 
