@@ -1,8 +1,6 @@
 #include <emmintrin.h>
 #include <gtest/gtest.h>
 
-#include <latch>
-
 #include <sys/mman.h>
 #include <sys/ptrace.h>
 #include <sys/user.h>
@@ -20,6 +18,14 @@
 #else
 #	define VALGRIND_MAKE_MEM_DEFINED(...)
 #endif
+
+extern "C" void __gcov_reset(void);
+
+[[noreturn, gnu::no_instrument_function]]
+void exit2(int status) {
+	__gcov_reset();
+	_exit(status);
+}
 
 enum {
 	BREAK_EXEC = 0x0,
@@ -46,6 +52,7 @@ enum {
  * hit, then _handler_ is invoked in a signal-
  * handling context.
  */
+[[gnu::no_instrument_function]]
 bool breakpoint(void *addr, int bpno, void (*handler)(int)) {
 	pid_t child = 0;
 	uint32_t enable_breakpoint = ENABLE_BREAKPOINT(bpno);
@@ -57,14 +64,10 @@ bool breakpoint(void *addr, int bpno, void (*handler)(int)) {
 	{
 		int parent_status = 0;
 		if (ptrace(PTRACE_ATTACH, parent, NULL, NULL))
-			_exit(1);
-
-		dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
+			exit2(1);
 
 		while (!WIFSTOPPED(parent_status))
 			waitpid(parent, &parent_status, 0);
-
-		dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
 
 		/*
 		 * set the breakpoint address.
@@ -73,9 +76,7 @@ bool breakpoint(void *addr, int bpno, void (*handler)(int)) {
 		           parent,
 		           offsetof(struct user, u_debugreg[bpno]),
 		           addr))
-			_exit(1);
-
-		dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
+			exit2(1);
 
 		/*
 		 * set parameters for when the breakpoint should be triggered.
@@ -84,36 +85,27 @@ bool breakpoint(void *addr, int bpno, void (*handler)(int)) {
 		           parent,
 		           offsetof(struct user, u_debugreg[7]),
 		           enable_breakwrite | enable_breakpoint))
-			_exit(1);
-
-		dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
+			exit2(1);
 
 		if (ptrace(PTRACE_DETACH, parent, NULL, NULL))
-			_exit(1);
+			exit2(1);
 
-		dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
-
-		_exit(0);
+		exit2(0);
 	}
-
-	dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
 
 	waitpid(child, &child_status, 0);
 
 	signal(SIGTRAP, handler);
 
-	dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
-
 	if (WIFEXITED(child_status) && !WEXITSTATUS(child_status)) {
-		dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
 		return true;
 	}
 
 	assert(0 && "Failed to set breakpoint");
-	dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
 	return false;
 }
 
+[[gnu::no_instrument_function]]
 void disablebp(int bpno) {
 	breakpoint(NULL, bpno, NULL);
 }
@@ -144,16 +136,12 @@ struct IoApicTestState {
 
 		next = eRead;
 
-		dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
-
 		state = ioApicState;
 		RemapMmio(this, PROT_READ);
 	}
 
 	void EndRead() {
 		next = eNone;
-
-		dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
 
 		RemapMmio(this, PROT_NONE);
 	}
@@ -164,20 +152,15 @@ struct IoApicTestState {
 		next = eWrite;
 
 		state = ioApicState;
-
-		dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
 	}
 
 	void EndWrite() {
 		next = eNone;
 
-		dprintf(2, "%d:%s:%u %u %u\n", getpid(), __FILE__, __LINE__, ioApicState.regs[0x0], state.regs[0x0]);
-
 		if (state.regs[0x0] != ioApicState.regs[0x0]) {
 			// write to the window
 			select = ioApicState.regs[0x0];
 		}
-		dprintf(2, "%d:%s:%u %u\n", getpid(), __FILE__, __LINE__, select);
 
 		RemapMmio(this, PROT_NONE);
 	}
@@ -196,13 +179,9 @@ struct IoApicTestState {
 	}
 };
 
-thread_local int a = 0;
-
 class MmioTest : public ::testing::Test {
 public:
     void SetUp() override {
-		a = 5;
-
         // apic mmio region is always in the first 4gb
         // mapped as prot none to catch any access
         // in the sigsegv handler we check if the access is a read or write
@@ -218,24 +197,16 @@ public:
 			exit(1);
 		}
 
-		dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
-
 		cs_err err = cs_open(CS_ARCH_X86, CS_MODE_64, &gCapstone);
 		ASSERT_EQ(err, CS_ERR_OK) << "Failed to open capstone: " << cs_strerror(err);
 
 		cs_option(gCapstone, CS_OPT_DETAIL, CS_OPT_ON);
 		cs_option(gCapstone, CS_OPT_SKIPDATA, CS_OPT_ON);
 
-		dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
-
 		*TestState() = IoApicTestState{};
 		RemapMmio(gMmioRegion, PROT_NONE);
 
-		dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
-
         InstallSignals();
-
-		dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
     }
 
     void TearDown() override {
@@ -277,8 +248,6 @@ public:
 					exit(1);
 				}
 
-				dprintf(2, "%d:%s:%u %p\n", getpid(), __FILE__, __LINE__, rip);
-
 				cs_detail *detail = insn[0].detail;
 				cs_x86 *x86 = &detail->x86;
 				cs_x86_op *op = x86->operands;
@@ -286,26 +255,18 @@ public:
 					if (op[i].type == X86_OP_MEM) {
 						// this is a write
 						if (op[i].access == CS_AC_WRITE) {
-							dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
 							TestState()->BeginWrite();
-							dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
 							break;
 						} else if (op[i].access == CS_AC_READ) {
-							dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
 							TestState()->BeginRead();
-							dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
 							break;
 						}
 					}
 				}
 
-				fprintf(stderr, "%d:%s:%u %zu %p %p %s %s\n", getpid(), __FILE__, __LINE__, size, (void*)rip, (void*)pc, insn[0].mnemonic, insn[0].op_str);
-
 				// install a breakpoint on the next instruction
 				breakpoint((void*)pc, 0, [](int) {
-					dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
 					TestState()->EndAccess();
-					dprintf(2, "%d:%s:%u\n", getpid(), __FILE__, __LINE__);
 					disablebp(0);
 				});
             },
@@ -322,7 +283,5 @@ TEST_F(MmioTest, TestMmio) {
 
 	RemapMmio(gMmioRegion, PROT_READ | PROT_WRITE);
 
-	_mm_clflush(gMmioRegion);
-	dprintf(2, "%d:%s:%u %u %u %u\n", getpid(), __FILE__, __LINE__, testState->ioApicState.regs[0x0], testState->state.regs[0x0], testState->select);
 	ASSERT_EQ(testState->select, 0x12345678);
 }
