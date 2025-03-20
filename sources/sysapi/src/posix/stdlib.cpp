@@ -4,6 +4,7 @@
 #include <posix/assert.h>
 #include <posix/unistd.h>
 #include <posix/string.h>
+#include <posix/ctype.h>
 
 #include <bezos/facility/process.h>
 
@@ -107,17 +108,68 @@ float strtof(const char *, char **) noexcept {
     return 0.0f;
 }
 
-long strtol(const char *, char **, int) noexcept {
-    Unimplemented();
-    return 0;
+template<typename T>
+static T strtoAny(const char *str, char **end, int base) noexcept {
+    while (isspace(*str)) {
+        str += 1;
+    }
+
+    bool negative = false;
+    if (*str == '-') {
+        negative = true;
+        str += 1;
+    } else if (*str == '+') {
+        str += 1;
+    }
+
+    if (base == 0) {
+        if (*str == '0') {
+            if (str[1] == 'x' || str[1] == 'X') {
+                base = 16;
+                str += 2;
+            } else {
+                base = 8;
+            }
+        } else {
+            base = 10;
+        }
+    }
+
+    T result = 0;
+    while (true) {
+        int digit = *str;
+        if (isdigit(digit)) {
+            digit -= '0';
+        } else if (isalpha(digit)) {
+            digit = tolower(digit) - 'a' + 10;
+        } else {
+            break;
+        }
+
+        if (digit >= base) {
+            break;
+        }
+
+        result = result * base + digit;
+        str += 1;
+    }
+
+    if (end) {
+        *end = const_cast<char*>(str);
+    }
+
+    return negative ? -result : result;
 }
 
-long long strtoll(const char *, char **, int) noexcept {
-    Unimplemented();
-    return 0;
+long strtol(const char *str, char **end, int base) noexcept {
+    return strtoAny<long>(str, end, base);
 }
 
-unsigned long strtoul(const char *, char **, int) noexcept {
+long long strtoll(const char *str, char **end, int base) noexcept {
+    return strtoAny<long long>(str, end, base);
+}
+
+unsigned long strtoul(const char *str, char **end, int base) noexcept {
     Unimplemented();
     return 0;
 }

@@ -2,15 +2,12 @@
 
 #include <bezos/handle.h>
 
-namespace sys {
-    class IObject;
+namespace sys2 {
+    class Process;
 
-    class ISystem {
-    public:
-        virtual ~ISystem() = default;
+    class System {
 
-        virtual OsStatus getObject(OsHandle handle, IObject **object) = 0;
-
-        virtual OsHandle newHandle(OsHandleType type) = 0;
     };
+
+    OsStatus CreateProcess(System *system, Process **process);
 }

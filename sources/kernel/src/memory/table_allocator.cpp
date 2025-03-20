@@ -121,7 +121,6 @@ km::PageTableAllocator::PageTableAllocator(VirtualRange memory, size_t blockSize
 
 void *km::PageTableAllocator::allocate(size_t blocks) {
     if (void *result = detail::AllocateBlock(*this, (blocks * mBlockSize))) {
-        KmDebugMessage("[MEM] Allocated ", blocks, " blocks ", stats().freeBlocks, "\n");
         return result;
     }
 
@@ -130,11 +129,9 @@ void *km::PageTableAllocator::allocate(size_t blocks) {
     //
     defragment();
     if (void *result = detail::AllocateBlock(*this, (blocks * mBlockSize))) {
-        KmDebugMessage("[MEM] Allocated ", blocks, " blocks after defragmenting ", stats().freeBlocks, "\n");
         return result;
     }
 
-    KmDebugMessage("[MEM] Failed to allocate ", blocks, " blocks ", stats().freeBlocks, "\n");
     return nullptr;
 }
 
@@ -147,17 +144,11 @@ bool km::PageTableAllocator::allocateList(size_t blocks, detail::PageTableList *
     // defragmenting can be expensive, its easier to check first.
     //
     if (!detail::CanAllocateBlocks(mHead, blocks * mBlockSize)) {
-        KmDebugMessage("[MEM] Can't allocate ", blocks, " blocks", stats().freeBlocks, "\n");
         return false;
     }
 
-#if __STDC_HOSTED__
-    auto before = stats();
-#endif
-
     size_t remaining = blocks;
     detail::PageTableList list = detail::AllocateHead(*this, &remaining);
-    KmDebugMessage("[MEM] Head Allocated ", blocks - remaining, " blocks ", stats().freeBlocks, "\n");
 
     detail::ControlBlock *node = mHead;
     while (remaining > 0) {
@@ -166,27 +157,19 @@ bool km::PageTableAllocator::allocateList(size_t blocks, detail::PageTableList *
             RemoveBlock(next);
             list.push((x64::page*)next, remaining);
             remaining = 0;
-            KmDebugMessage("[MEM] Split block, remaining: ", stats().freeBlocks, "\n");
         } else if (node->size == (remaining * mBlockSize)) {
             setHead(node->next);
             RemoveBlock(node);
             list.push((x64::page*)node, remaining);
             remaining = 0;
-            KmDebugMessage("[MEM] Remove block, remaining: ", stats().freeBlocks, "\n");
         } else {
             setHead(node->next);
             RemoveBlock(node);
             list.push((x64::page*)node, node->size / mBlockSize);
             remaining -= (node->size / mBlockSize);
             node = mHead;
-            KmDebugMessage("[MEM] Remove small block, remaining: ", stats().freeBlocks, "\n");
         }
     }
-
-#if __STDC_HOSTED__
-    auto after = stats();
-    KM_ASSERT((before.freeBlocks - blocks) == after.freeBlocks);
-#endif
 
     KM_ASSERT(remaining == 0);
     *result = list;
@@ -208,7 +191,6 @@ void km::PageTableAllocator::deallocate(void *ptr, size_t blocks) {
     // Scribble over the memory to try and catch use-after-free bugs.
     memset(ptr, 0xFA, blocks * mBlockSize);
 
-    KmDebugMessage("[MEM] Deallocated ", blocks, " blocks: ", stats().freeBlocks, "\n");
     detail::ControlBlock *block = (detail::ControlBlock*)ptr;
     *block = detail::ControlBlock {
         .next = mHead,
@@ -231,12 +213,6 @@ void km::PageTableAllocator::defragment() {
 
     KM_CHECK(block->prev == nullptr, "Invalid head block.");
 
-#if __STDC_HOSTED__
-    auto before = stats();
-#endif
-
-    KmDebugMessage("[MEM] Defragmenting ", stats().freeBlocks, "\n");
-
     //
     // Sort the blocks by address.
     //
@@ -252,13 +228,6 @@ void km::PageTableAllocator::defragment() {
     // Update the head.
     //
     mHead = block;
-
-#if __STDC_HOSTED__
-    auto after = stats();
-    KM_ASSERT(before.freeBlocks == after.freeBlocks);
-#endif
-
-    KmDebugMessage("[MEM] Defragmented ", stats().freeBlocks, "\n");
 }
 
 km::PteAllocatorStats km::PageTableAllocator::stats() const {

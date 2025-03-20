@@ -326,9 +326,7 @@ OsStatus PageTables::allocatePageTables(VirtualRange range, detail::PageTableLis
     //
     // If both allocations fail then we are out of memory.
     //
-    auto stats = mAllocator.stats();
     KmDebugMessage("[MEM] Out of memory, failed to allocate ", requiredPages, " page tables for ", range, "\n");
-    KmDebugMessage("[MEM] Free blocks: ", stats.freeBlocks, "\n");
     return OsStatusOutOfMemory;
 }
 
