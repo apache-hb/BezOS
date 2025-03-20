@@ -7,11 +7,22 @@
 
 #include "process/process.hpp"
 
+#include "std/spinlock.hpp"
+
 namespace km {
     struct SchedulerQueueTraits : moodycamel::ConcurrentQueueDefaultTraits {
         static void *malloc(size_t size);
         static void free(void *ptr);
     };
+
+    namespace detail {
+        /// @brief Per CPU core scheduler state
+        class CpuScheduler {
+            stdx::SpinLock mLock;
+
+        public:
+        };
+    }
 
     class Scheduler {
         moodycamel::ConcurrentQueue<Thread*, SchedulerQueueTraits> mQueue;
