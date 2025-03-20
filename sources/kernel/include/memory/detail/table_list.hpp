@@ -11,14 +11,15 @@ namespace km::detail {
         x64::page *mTable;
 
     public:
-        PageTableList(x64::page *table, size_t count);
+        PageTableList() : mTable(nullptr) {}
+        PageTableList(x64::page *table [[gnu::nonnull]], size_t count);
 
-        void push(x64::page *page);
+        void push(x64::page *page [[gnu::nonnull]]);
+        void push(x64::page *pages [[gnu::nonnull]], size_t count);
 
+        [[gnu::returns_nonnull]]
         x64::page *next();
 
         x64::page *drain();
-
-        x64::page *head();
     };
 }

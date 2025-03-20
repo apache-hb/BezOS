@@ -6,6 +6,8 @@
 using PageTableList = km::detail::PageTableList;
 
 PageTableList::PageTableList(x64::page *tables, size_t count) {
+    [[assume(count > 0)]];
+
     for (size_t i = 0; i < count - 1; i++) {
         *(void**)(tables + i) = tables + i + 1;
     }
@@ -17,6 +19,17 @@ PageTableList::PageTableList(x64::page *tables, size_t count) {
 void PageTableList::push(x64::page *table) {
     *(void**)(table) = mTable;
     mTable = table;
+}
+
+void PageTableList::push(x64::page *pages, size_t count) {
+    [[assume(count > 0)]];
+
+    for (size_t i = 0; i < count - 1; i++) {
+        *(void**)(pages + i) = pages + i + 1;
+    }
+
+    *(void**)(pages + count - 1) = mTable;
+    mTable = pages;
 }
 
 x64::page *PageTableList::next() {
@@ -36,8 +49,4 @@ x64::page *PageTableList::drain() {
     x64::page *it = mTable;
     mTable = (x64::page*)*(void**)(mTable);
     return it;
-}
-
-x64::page *PageTableList::head() {
-    return mTable;
 }

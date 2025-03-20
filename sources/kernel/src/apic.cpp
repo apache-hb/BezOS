@@ -140,6 +140,7 @@ static km::LocalApic MapLocalApic(uint64_t msr, km::SystemMemory& memory) {
     // been designated as strong uncacheable (UC)
     //
     void *addr = memory.map(km::MemoryRange::of(base, kApicSize), km::PageFlags::eData, km::MemoryType::eUncached);
+    KM_CHECK(addr, "Failed to map local APIC");
 
     return km::LocalApic { addr };
 }

@@ -158,6 +158,12 @@ namespace km {
         x64::PageMapLevel4 *pml4() noexcept { return mRootPageTable; }
         PhysicalAddress root() const noexcept { return asPhysical(pml4()); }
 
+        /// @brief Map a range of virtual address space to physical memory.
+        ///
+        /// @param mapping The range of virtual memory to map.
+        /// @param flags The flags to use for the mapping.
+        /// @param type The type of memory to map.
+        /// @return The status of the operation.
         [[nodiscard]]
         OsStatus map(AddressMapping mapping, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
 
@@ -180,6 +186,10 @@ namespace km {
         /// @return The status of the operation.
         OsStatus unmap2m(VirtualRange range);
 
+        /// @brief Walk the page tables to find all tables involved in mapping a given address.
+        ///
+        /// @param ptr The address to walk.
+        /// @return The page walk result.
         PageWalk walk(const void *ptr);
 
         /// @brief Compact page tables, pruning empty tables.
@@ -189,8 +199,22 @@ namespace km {
         /// @return The number of pages freed.
         size_t compact();
 
+        /// @brief Get the physical address that backs a given virtual address.
+        ///
+        /// @param ptr The virtual address to query.
+        /// @return The physical address that backs the given virtual address.
         PhysicalAddress getBackingAddress(const void *ptr);
+
+        /// @brief Get the memory flags for a given address.
+        ///
+        /// @param ptr The address to query.
+        /// @return The memory flags for the given address.
         PageFlags getMemoryFlags(const void *ptr);
+
+        /// @brief Get the page size used to map a given address.
+        ///
+        /// @param ptr The address to query.
+        /// @return The page size used to map the given address.
         PageSize getPageSize(const void *ptr);
 
         void unmap(void *ptr, size_t size) {

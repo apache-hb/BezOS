@@ -6,12 +6,6 @@
 #include "util/endian.hpp"
 
 #include <chrono>
-#if 0
-#if __STDC_HOSTED__
-#else
-#   include "util/cxx_chrono.hpp" // IWYU pragma: keep
-#endif
-#endif
 
 #include "util/format.hpp"
 
@@ -146,6 +140,9 @@ namespace sm {
         uint8_t rand[10];
     };
 
+    /// @brief Implements universally unique identifiers as defined by rfc9562.
+    ///
+    /// @cite RFC9562
     struct uuid {
         /// @brief Total characters required to represent a uuid in 8-4-4-4-12 format.
         /// @note Not including nul terminator.

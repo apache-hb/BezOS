@@ -359,3 +359,90 @@ TEST(TableAllocateTest, Defragment) {
     ptr = detail::AllocateBlock(allocator, count * x64::kPageSize);
     IsValidPtr(ptr);
 }
+
+TEST(TableAllocatorTest, AllocateList) {
+    TestMemory memory = GetAllocatorMemory();
+    PageTableAllocator allocator { VirtualRange::of(memory.get(), kSize) };
+
+    detail::PageTableList list;
+    size_t count = 8;
+    ASSERT_TRUE(allocator.allocateList(count, &list));
+
+    for (size_t i = 0; i < count; i++) {
+        void *ptr = list.next();
+        IsValidPtr(ptr);
+        allocator.deallocate(ptr, 1);
+    }
+}
+
+TEST(TableAllocatorTest, AllocateListFragmented) {
+    constexpr size_t kBlockCount = 16;
+    constexpr size_t kMemorySize = kBlockCount * x64::kPageSize;
+    TestMemory memory = GetAllocatorMemory(kMemorySize);
+    PageTableAllocator allocator { VirtualRange::of(memory.get(), kMemorySize) };
+
+    void *blocks[kBlockCount]{};
+    for (size_t i = 0; i < kBlockCount; i++) {
+        blocks[i] = allocator.allocate(1);
+        IsValidPtr(blocks[i]);
+    }
+
+    // free each alternate block
+    for (size_t i = 0; i < kBlockCount; i += 2) {
+        allocator.deallocate(blocks[i], 1);
+    }
+
+    auto stats = allocator.stats();
+    ASSERT_EQ(stats.freeBlocks, kBlockCount / 2);
+
+    // we should be able to allocate a list of 8 blocks
+    detail::PageTableList list;
+    ASSERT_TRUE(allocator.allocateList(8, &list));
+
+    for (size_t i = 0; i < 8; i++) {
+        void *ptr = list.next();
+        IsValidPtr(ptr);
+        allocator.deallocate(ptr, 1);
+    }
+}
+
+TEST(TableAllocatorTest, AllocateListFragmented2) {
+    constexpr size_t kBlockCount = 16;
+    constexpr size_t kMemorySize = kBlockCount * x64::kPageSize;
+    TestMemory memory = GetAllocatorMemory(kMemorySize);
+    PageTableAllocator allocator { VirtualRange::of(memory.get(), kMemorySize) };
+
+    void *blocks[kBlockCount]{};
+    for (size_t i = 0; i < kBlockCount; i++) {
+        blocks[i] = allocator.allocate(1);
+        IsValidPtr(blocks[i]);
+    }
+
+    allocator.deallocate(blocks[0], 1);
+    allocator.deallocate(blocks[1], 1);
+
+    allocator.deallocate(blocks[3], 1);
+    allocator.deallocate(blocks[4], 1);
+
+    allocator.deallocate(blocks[6], 1);
+    allocator.deallocate(blocks[7], 1);
+
+    allocator.deallocate(blocks[9], 1);
+    allocator.deallocate(blocks[10], 1);
+    allocator.deallocate(blocks[11], 1);
+
+    allocator.defragment();
+
+    auto stats = allocator.stats();
+    ASSERT_EQ(stats.freeBlocks, 9);
+
+    // we should be able to allocate a list of 8 blocks
+    detail::PageTableList list;
+    ASSERT_TRUE(allocator.allocateList(9, &list));
+
+    for (size_t i = 0; i < 9; i++) {
+        void *ptr = list.next();
+        IsValidPtr(ptr);
+        allocator.deallocate(ptr, 1);
+    }
+}

@@ -345,11 +345,7 @@ OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType typ
     //
     // Once we are done we need to deallocate the unused tables.
     //
-    defer {
-        while (x64::page *table = buffer.drain()) {
-            mAllocator.deallocate(table, 1);
-        }
-    };
+    defer { mAllocator.deallocateList(buffer); };
 
     //
     // We can use large pages if the range is larger than 2m after alignment and the mapping

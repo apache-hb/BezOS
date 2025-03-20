@@ -4,12 +4,14 @@
 #include "memory/range.hpp"
 
 #include "memory/detail/control_block.hpp"
+#include "memory/detail/table_list.hpp"
 
 namespace km {
     class PageTableAllocator;
 
     namespace detail {
-        void *AllocateBlock(PageTableAllocator& allocator, size_t blocks);
+        void *AllocateBlock(PageTableAllocator& allocator, size_t size);
+        bool CanAllocateBlocks(const ControlBlock *head, size_t size);
     }
 
     struct PteAllocatorStats {
@@ -47,6 +49,20 @@ namespace km {
 
         [[gnu::nonnull]]
         void deallocate(void *ptr, size_t blocks);
+
+        /// @brief Allocates a list of blocks rather than a single block.
+        ///
+        /// This allows the allocator to provide memory even when fragmentated.
+        ///
+        /// @post the data in @p result is undefined if this function returns false.
+        ///
+        /// @param blocks The number of blocks to allocate.
+        /// @param [out] result The list to write the result to.
+        ///
+        /// @return If the allocation was successful.
+        bool allocateList(size_t blocks, detail::PageTableList *result);
+
+        void deallocateList(detail::PageTableList list);
 
         void defragment();
 

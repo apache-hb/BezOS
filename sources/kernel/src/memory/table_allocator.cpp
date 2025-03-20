@@ -59,6 +59,21 @@ void *km::detail::AllocateBlock(PageTableAllocator& allocator, size_t size) {
     }
 }
 
+bool km::detail::CanAllocateBlocks(const ControlBlock *head, size_t size) {
+    const ControlBlock *block = head;
+    size_t remaining = size;
+    while (block != nullptr) {
+        if (block->size >= remaining) {
+            return true;
+        }
+
+        remaining -= block->size;
+        block = block->next;
+    }
+
+    return false;
+}
+
 km::PageTableAllocator::PageTableAllocator(VirtualRange memory, size_t blockSize)
     : mMemory(memory)
     , mBlockSize(blockSize)
@@ -92,6 +107,70 @@ void *km::PageTableAllocator::allocate(size_t blocks) {
     return detail::AllocateBlock(*this, (blocks * mBlockSize));
 }
 
+bool km::PageTableAllocator::allocateList(size_t blocks, detail::PageTableList *result) {
+    if (blocks == 0) {
+        return true;
+    }
+
+    //
+    // Do an early check to see if we can allocate the blocks.
+    // This is done rather than allocating as much as possible, then failing and deallocating.
+    // defragmenting can be expensive, its easier to check first.
+    //
+    if (!detail::CanAllocateBlocks(mHead, blocks * mBlockSize)) {
+        return false;
+    }
+
+    detail::ControlBlock *block = mHead;
+
+    //
+    // Early return in the case that the first block is large enough, otherwise
+    // walk the freelist until we have enough pages.
+    //
+    if (block->size > blocks * mBlockSize) {
+        detail::ControlBlock *next = SplitBlock(block, blocks * mBlockSize);
+        RemoveBlock(next);
+        *result = detail::PageTableList { (x64::page*)next, blocks };
+        return true;
+    }
+
+    mHead = block->next;
+    mHead->prev = nullptr;
+
+    size_t remaining = (blocks * mBlockSize) - block->size;
+    detail::PageTableList list { (x64::page*)block, block->size / mBlockSize };
+
+    detail::ControlBlock *node = mHead;
+    while (node != nullptr) {
+        if (node->size > remaining) {
+            detail::ControlBlock *next = SplitBlock(node, remaining);
+            RemoveBlock(next);
+            list.push((x64::page*)next, node->size / mBlockSize);
+            remaining = 0;
+        } else {
+            mHead = node->next;
+            RemoveBlock(node);
+            list.push((x64::page*)node, node->size / mBlockSize);
+            remaining -= node->size;
+            node = mHead;
+        }
+
+        if (remaining == 0) {
+            if (mHead) mHead->prev = nullptr;
+            *result = list;
+            return true;
+        }
+    }
+
+    KM_PANIC("unreachable, preconditions were not computed correctly.");
+}
+
+void km::PageTableAllocator::deallocateList(detail::PageTableList list) {
+    while (x64::page *page = list.drain()) {
+        deallocate(page, 1);
+    }
+}
+
 void km::PageTableAllocator::deallocate(void *ptr, size_t blocks) {
     if (blocks == 0) {
         return;
@@ -116,9 +195,11 @@ void km::PageTableAllocator::defragment() {
     //
     // Can't defragment if we've allocated everything.
     //
-    if (block == nullptr || (block->next == nullptr && block->prev == nullptr)) {
+    if (block == nullptr || block->next == nullptr) {
         return;
     }
+
+    KM_CHECK(block->prev == nullptr, "Invalid head block.");
 
     //
     // Sort the blocks by address.
