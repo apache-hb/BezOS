@@ -4,6 +4,7 @@
 #include <thread>
 
 #include "memory/pte.hpp"
+#include "arch/paging.hpp"
 #include "setup.hpp"
 
 using namespace km;
@@ -48,7 +49,7 @@ public:
     TestMemory memory;
     km::PageBuilder pm { 48, 48, km::GetDefaultPatLayout() };
 
-    km::PageTables ptes(km::PageFlags flags = km::PageFlags::eAll, size_t size = kSize) {
+    km::PageTables ptes(km::PageFlags flags = km::PageFlags::eAll, size_t size = (64 * x64::kPageSize)) {
         memory = GetAllocatorMemory(size);
         km::AddressMapping mapping { memory.get(), (uintptr_t)memory.get(), size };
         return km::PageTables { &pm, mapping, flags };
@@ -902,8 +903,24 @@ TEST_F(PageTableTest, RemapInLargePage) {
     km::AddressMapping lower = { vaddr, paddr, x64::kPageSize };
     IsMapped(pt, lower, km::PageFlags::eAll);
 
-#if 0
     km::AddressMapping upper = { (void*)((uintptr_t)vaddr + x64::kPageSize * 2), paddr + x64::kPageSize * 2, size - (x64::kPageSize * 2) };
     IsMapped(pt, upper, km::PageFlags::eAll);
-#endif
+}
+
+TEST_F(PageTableTest, TableLeaks) {
+    auto pt = ptes(km::PageFlags::eAll, 64 * 0x1000);
+    auto& alloc = pt.TESTING_getPageTableAllocator();
+
+    {
+        auto stats = alloc.stats();
+        ASSERT_EQ(63, stats.freeBlocks);
+    }
+
+    {
+        OsStatus status = pt.map(MappingOf((void*)0xFFFF800000000000, 0x1000, 0x1000 * 2), km::PageFlags::eAll);
+        ASSERT_EQ(OsStatusSuccess, status);
+
+        auto stats = alloc.stats();
+        ASSERT_EQ(60, stats.freeBlocks);
+    }
 }

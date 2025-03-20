@@ -104,10 +104,13 @@ namespace kmtest {
         T *createMmioObject() {
             static_assert(alignof(T) % 0x1000 == 0, "MMIO regions must be page aligned");
 
-            void *host = mHostAllocator.allocate(sm::roundup<size_t>(sizeof(T), 0x1000) / 0x1000);
+            size_t size = sm::roundup<size_t>(sizeof(T), 0x1000);
+
+            void *host = mHostAllocator.allocate(size / 0x1000);
             if (!host) {
                 KM_PANIC("failed to allocate mmio region");
             }
+            memset(host, 0, size);
 
             return new (host) T();
         }

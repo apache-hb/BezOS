@@ -326,7 +326,9 @@ OsStatus PageTables::allocatePageTables(VirtualRange range, detail::PageTableLis
     //
     // If both allocations fail then we are out of memory.
     //
+    auto stats = mAllocator.stats();
     KmDebugMessage("[MEM] Out of memory, failed to allocate ", requiredPages, " page tables for ", range, "\n");
+    KmDebugMessage("[MEM] Free blocks: ", stats.freeBlocks, "\n");
     return OsStatusOutOfMemory;
 }
 
@@ -489,27 +491,6 @@ void PageTables::reclaim2m(x64::pdte& pde) {
     pde.set2m(false);
 }
 
-OsStatus PageTables::unmap2mRegion(x64::pdte& pde, uintptr_t address, VirtualRange range) {
-    VirtualRange page = VirtualRange::of((void*)sm::rounddown(address, x64::kLargePageSize), x64::kLargePageSize);
-
-    //
-    // If the 2m page is entirely contained within the unmap request we can remove it
-    // without any extra work.
-    //
-    if (range.contains(page)) {
-        reclaim2m(pde);
-        x64::invlpg(address);
-
-        return OsStatusSuccess;
-    }
-
-    //
-    // If we reach this point we know that the unmap request is entirely within a 2m page.
-    //
-    KM_CHECK(page.contains(range) && page.front != range.front && page.back != range.back, "Invalid unmap range.");
-    return split2mMapping(pde, page, range);
-}
-
 int PageTables::earlyAllocatePageTables(VirtualRange range) {
     auto isMappedUsingLargePage = [&](const void *address) {
         PageWalk walk = walkUnlocked(address);
@@ -615,15 +596,16 @@ OsStatus PageTables::earlyUnmap(VirtualRange range, VirtualRange *remaining) {
     // required page tables upfront to ensure both exist before unmapping the remaining area.
     //
     int earlyAllocations = earlyAllocatePageTables(range);
+    if (earlyAllocations == 0) {
+        return OsStatusSuccess;
+    }
+
+    detail::PageTableList buffer;
+    if (!mAllocator.allocateList(earlyAllocations, &buffer)) {
+        return OsStatusOutOfMemory;
+    }
+
     if (earlyAllocations == 2) {
-        x64::page *ptMemory = alloc4k(2);
-        if (ptMemory == nullptr) {
-            return OsStatusOutOfMemory;
-        }
-
-        x64::PageTable *ptlow = std::bit_cast<x64::PageTable*>(ptMemory);
-        x64::PageTable *pthigh = std::bit_cast<x64::PageTable*>(ptMemory + 1);
-
         //
         // We rebuild the first and last mappings early here, then shrink the range and continue the
         // unmapping iteration.
@@ -644,8 +626,8 @@ OsStatus PageTables::earlyUnmap(VirtualRange range, VirtualRange *remaining) {
         x64::pdte& lowEntry = getLargePageEntry(low.front);
         x64::pdte& highEntry = getLargePageEntry(high.front);
 
-        cut2mMapping(lowEntry, lowPage, low, ptlow);
-        cut2mMapping(highEntry, highPage, high, pthigh);
+        cut2mMapping(lowEntry, lowPage, low, (x64::PageTable*)buffer.next());
+        cut2mMapping(highEntry, highPage, high, (x64::PageTable*)buffer.next());
 
         *remaining = VirtualRange { low.back, high.front };
     } else if (earlyAllocations == 1) {
@@ -660,10 +642,7 @@ OsStatus PageTables::earlyUnmap(VirtualRange range, VirtualRange *remaining) {
         //
         if (page.contains(range) && !innerAdjacent(page, range)) {
             x64::pdte& entry = getLargePageEntry(range.front);
-            if (OsStatus status = split2mMapping(entry, page, range)) {
-                return status;
-            }
-
+            split2mMapping(entry, page, range, (x64::PageTable*)buffer.next());
             *remaining = VirtualRange{};
             return OsStatusSuccess;
         }
@@ -672,18 +651,14 @@ OsStatus PageTables::earlyUnmap(VirtualRange range, VirtualRange *remaining) {
         // If we get here we know that the range is not entirely contained within a 2m page.
         // So we need to allocate early in case the unmap ends partially in the last 2m page.
         //
-        x64::PageTable *pt = std::bit_cast<x64::PageTable*>(alloc4k());
-        if (pt == nullptr) {
-            return OsStatusOutOfMemory;
-        }
 
         if (page.front != range.front) {
             x64::pdte& entry = getLargePageEntry(range.front);
-            cut2mMapping(entry, page, range, pt);
+            cut2mMapping(entry, page, range, (x64::PageTable*)buffer.next());
         } else {
             KM_CHECK(page.back != range.back, "Invalid range.");
             x64::pdte& entry = getLargePageEntry(range.front);
-            cut2mMapping(entry, page, range, pt);
+            cut2mMapping(entry, page, range, (x64::PageTable*)buffer.next());
         }
 
         *remaining = VirtualRange{};
@@ -738,7 +713,7 @@ OsStatus PageTables::unmap(VirtualRange range) {
         // or if we need to remap part of the 2m page as 4k pages.
         //
         if (pde.is2m()) {
-            unmap2mRegion(pde, i, range);
+            reclaim2m(pde);
             i = sm::nextMultiple(i, x64::kLargePageSize);
             continue;
         }

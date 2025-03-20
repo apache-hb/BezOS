@@ -326,10 +326,11 @@ void kmtest::Machine::protectMmioRegions() {
     }
 }
 
-static constexpr size_t kMachineMemorySize = sm::gigabytes(24).bytes();
+static constexpr size_t kMachineMemorySize = sm::gigabytes(1).bytes();
 
 kmtest::Machine::Machine() {
     initAddressSpace();
+    mprotect(mHostAddressSpace, kMachineMemorySize, PROT_READ | PROT_WRITE);
     mHostAllocator.deallocate(mHostAddressSpace, kMachineMemorySize / 0x1000);
 }
 

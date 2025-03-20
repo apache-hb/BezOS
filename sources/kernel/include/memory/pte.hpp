@@ -114,8 +114,6 @@ namespace km {
         /// @return The status of the operation.
         void cut2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange erase, x64::PageTable *pt);
 
-        OsStatus unmap2mRegion(x64::pdte& pde, uintptr_t address, VirtualRange range);
-
         /// @brief Compute the number of page tables that need to be allocated to unmap the given range.
         ///
         /// @param range The range to unmap.
