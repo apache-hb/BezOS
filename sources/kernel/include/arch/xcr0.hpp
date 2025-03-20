@@ -34,7 +34,7 @@ namespace x64 {
             mValue &= ~bit;
         }
 
-        [[gnu::always_inline, gnu::nodebug]]
+        [[gnu::always_inline, gnu::nodebug, nodiscard]]
         static Xcr0 load() {
             return Xcr0(__get_xcr0());
         }

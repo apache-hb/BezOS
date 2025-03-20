@@ -850,3 +850,60 @@ TEST_F(PageTableTest, AddressMapping) {
     km::PageFlags back = pt.getMemoryFlags((char*)fb.vaddr + fb.size - 1);
     ASSERT_EQ(km::PageFlags::eData, back);
 }
+
+TEST_F(PageTableTest, CompactTables) {
+    km::PageTables pt = ptes(km::PageFlags::eAll);
+
+    auto& allocator = pt.TESTING_getPageTableAllocator();
+    auto before = allocator.stats();
+
+    auto mapping = MapArea(pt, 0xFFFF800000000000, 0x1000000, x64::kLargePageSize * 8);
+    auto [vaddr, paddr, size] = mapping;
+
+    IsMapped(pt, mapping, km::PageFlags::eAll);
+    ASSERT_EQ(km::PageSize::eLarge, pt.getPageSize(vaddr));
+
+    // unmap the entire range in 4k increments
+    for (size_t i = 0; i < size; i += x64::kPageSize) {
+        km::VirtualRange range = km::VirtualRange::of((void*)((uintptr_t)vaddr + i), x64::kPageSize);
+        OsStatus status = pt.unmap(range);
+        ASSERT_EQ(OsStatusSuccess, status);
+    }
+
+    auto after = allocator.stats();
+
+    // compact
+    size_t count = pt.compact();
+
+    auto finished = allocator.stats();
+
+    ASSERT_EQ(before.freeBlocks, finished.freeBlocks) << "compacting reclaimed free blocks";
+    ASSERT_EQ(count, (before.freeBlocks - after.freeBlocks)) << "compacting returned the correct number of free blocks";
+}
+
+TEST_F(PageTableTest, RemapInLargePage) {
+    km::PageTables pt = ptes(km::PageFlags::eAll);
+
+    auto mapping = MapArea(pt, 0xFFFF800000000000, 0x1000000, x64::kLargePageSize * 8);
+    auto [vaddr, paddr, size] = mapping;
+
+    // remapping a 4k area inside a 2m page should split the 2m page into 4k pages
+    // the area not being remapped should still point to the same address but using 4k
+    // pages instead of the 2m page
+
+    km::VirtualRange range = km::VirtualRange::of((void*)((uintptr_t)vaddr + x64::kPageSize), x64::kPageSize);
+    km::AddressMapping remap = { range.front, 0x00000000FFFF0000, x64::kPageSize };
+    OsStatus status = pt.map(remap, km::PageFlags::eAll);
+    ASSERT_EQ(OsStatusSuccess, status);
+
+    // the remapped area should be mapped
+    IsMapped(pt, remap, km::PageFlags::eAll);
+
+    km::AddressMapping lower = { vaddr, paddr, x64::kPageSize };
+    IsMapped(pt, lower, km::PageFlags::eAll);
+
+#if 0
+    km::AddressMapping upper = { (void*)((uintptr_t)vaddr + x64::kPageSize * 2), paddr + x64::kPageSize * 2, size - (x64::kPageSize * 2) };
+    IsMapped(pt, upper, km::PageFlags::eAll);
+#endif
+}

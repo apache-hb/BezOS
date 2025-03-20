@@ -65,13 +65,13 @@ namespace x64 {
             mValue = (mValue & ~eAddressMask) | (address & eAddressMask);
         }
 
-        [[gnu::always_inline, gnu::nodebug]]
+        [[gnu::always_inline, gnu::nodebug, nodiscard]]
         static Cr3 load() {
             return Cr3(__get_cr3());
         }
 
         [[gnu::always_inline, gnu::nodebug]]
-        static void store(Cr3 v) {
+        static void store(Cr3 v) [[clang::blocking]] {
             __set_cr3(v.value());
         }
     };

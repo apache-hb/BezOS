@@ -47,6 +47,7 @@ static inline void __DEFAULT_FN_ATTRS __outdword(unsigned short port, unsigned l
     asm volatile("outl %k0, %w1" : : "a"(data), "Nd"(port));
 }
 
+[[nodiscard]]
 static inline uint64_t __DEFAULT_FN_ATTRS __rdmsr(uint32_t msr) {
     uint32_t low, high;
     asm volatile("rdmsr" : "=a"(low), "=d"(high) : "c"(msr));
@@ -83,12 +84,14 @@ static inline void __DEFAULT_FN_ATTRS __swapgs(void) {
     asm volatile("swapgs");
 }
 
+[[nodiscard]]
 static inline uint64_t __DEFAULT_FN_ATTRS __gsbase(void) {
     uint64_t value;
     asm volatile("mov %%gs:0, %0" : "=r"(value));
     return value;
 }
 
+[[nodiscard]]
 static inline uint64_t __DEFAULT_FN_ATTRS __fsbase(void) {
     uint64_t value;
     asm volatile("mov %%fs:0, %0" : "=r"(value));
@@ -112,6 +115,7 @@ static inline void __DEFAULT_FN_ATTRS __int() {
     asm volatile("int %0" :: "N"(N));
 }
 
+[[nodiscard]]
 static inline uint64_t __DEFAULT_FN_ATTRS __get_xcr0() {
     uint64_t value;
     asm volatile("xgetbv" : "=a"(value) : "c"(0));
@@ -123,6 +127,7 @@ static inline void __DEFAULT_FN_ATTRS __set_xcr0(uint64_t value) {
 }
 
 #define X64_CONTROL_REGISTER(name) \
+    [[nodiscard]] \
     static inline uint64_t __DEFAULT_FN_ATTRS __get_##name() { \
         uint64_t value; \
         asm volatile("mov %%" #name ", %0" : "=r"(value)); \

@@ -22,7 +22,7 @@ namespace x64 {
 
         /// @brief Load the value of the register.
         /// @return The value of the register.
-        [[gnu::always_inline, gnu::nodebug]]
+        [[nodiscard, gnu::always_inline, gnu::nodebug]]
         uint64_t load() const requires (bool(A & RegisterAccess::eRead)) {
             return __rdmsr(kRegister);
         }

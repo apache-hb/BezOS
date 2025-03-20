@@ -100,6 +100,8 @@ namespace km {
         /// @return The status of the operation.
         OsStatus split2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange erase);
 
+        void split2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange erase, x64::PageTable *pt);
+
         /// @brief Cut off one end of a 2m page mapping and replace it with 4k pages.
         ///
         /// @pre @p pde.is2m() must be true.
@@ -135,6 +137,13 @@ namespace km {
 
         /// @brief Walk the page tables to calculate the number of pages required to map the given range.
         size_t countPagesForMapping(VirtualRange range);
+
+        size_t compactUnlocked();
+
+        size_t compactPt(x64::PageMapLevel2 *pd, uint16_t index);
+        size_t compactPd(x64::PageMapLevel3 *pd, uint16_t index);
+        size_t compactPdpt(x64::PageMapLevel4 *pd, uint16_t index);
+        size_t compactPml4(x64::PageMapLevel4 *pml4);
 
     public:
         PageTables() = default;
@@ -173,6 +182,13 @@ namespace km {
 
         PageWalk walk(const void *ptr);
 
+        /// @brief Compact page tables, pruning empty tables.
+        ///
+        /// @warning This function can be very expensive and should be used sparingly.
+        ///
+        /// @return The number of pages freed.
+        size_t compact();
+
         PhysicalAddress getBackingAddress(const void *ptr);
         PageFlags getMemoryFlags(const void *ptr);
         PageSize getPageSize(const void *ptr);
@@ -182,6 +198,12 @@ namespace km {
         }
 
         OsStatus map(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
+
+#if __STDC_HOSTED__
+        PageTableAllocator& TESTING_getPageTableAllocator() {
+            return mAllocator;
+        }
+#endif
     };
 
     /// @brief Remap the kernel to replace the boot page tables.

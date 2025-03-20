@@ -122,16 +122,6 @@ void PageTables::mapRange1g(AddressMapping mapping, PageFlags flags, MemoryType 
     }
 }
 
-#if 0
-size_t PageTables::maxPagesForMapping(VirtualRange range) const {
-    size_t count = 0;
-
-    for (uintptr_t i = (uintptr_t)range.front; i < (uintptr_t)range.back; i += kPml4MemorySize) {
-        count++;
-    }
-}
-#endif
-
 void PageTables::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableList& buffer) {
     if (!mPageManager->isCanonicalAddress(vaddr)) {
         KmDebugMessage("Attempting to map address that isn't canonical: ", vaddr, "\n");
@@ -149,6 +139,16 @@ void PageTables::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags
     if (!t2.present()) {
         pt = std::bit_cast<x64::PageTable*>(buffer.next());
         setEntryFlags(t2, mMiddleFlags, asPhysical(pt));
+    } else if (t2.is2m()) {
+        //
+        // We need to split the 2m mapping to make space for this mapping.
+        //
+        pt = std::bit_cast<x64::PageTable*>(buffer.next());
+        uintptr_t front2m = sm::rounddown((uintptr_t)vaddr, x64::kLargePageSize);
+        uintptr_t back2m = sm::roundup((uintptr_t)vaddr, x64::kLargePageSize);
+        VirtualRange page = { (void*)front2m, (void*)back2m };
+        VirtualRange erase = { (void*)vaddr, (void*)((uintptr_t)vaddr + x64::kPageSize) };
+        split2mMapping(t2, page, erase, pt);
     } else {
         pt = asVirtual<x64::PageTable>(mPageManager->address(t2));
     }
@@ -404,7 +404,7 @@ void PageTables::partialRemap2m(x64::PageTable *pt, VirtualRange range, Physical
     }
 }
 
-OsStatus PageTables::split2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange erase) {
+void PageTables::split2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange erase, x64::PageTable *pt) {
     KM_CHECK(pde.is2m(), "Splitting pde that is already split.");
 
     auto [lo, hi] = km::split(page, erase);
@@ -412,8 +412,7 @@ OsStatus PageTables::split2mMapping(x64::pdte& pde, VirtualRange page, VirtualRa
     PhysicalAddress paddr = mPageManager->address(pde);
     uintptr_t hiOffset = (uintptr_t)erase.back - (uintptr_t)page.front;
 
-    x64::PageTable *pt = std::bit_cast<x64::PageTable*>(alloc4k());
-    if (!pt) return OsStatusOutOfMemory;
+    KmDebugMessage("[MEM] Splitting 2m page ", page, " into ", lo, " and ", hi, "\n");
 
     //
     // Map the lo part of the remaining area.
@@ -430,6 +429,13 @@ OsStatus PageTables::split2mMapping(x64::pdte& pde, VirtualRange page, VirtualRa
     //
     setEntryFlags(pde, mMiddleFlags, asPhysical(pt));
     pde.set2m(false);
+}
+
+OsStatus PageTables::split2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange erase) {
+    x64::PageTable *pt = std::bit_cast<x64::PageTable*>(alloc4k());
+    if (!pt) return OsStatusOutOfMemory;
+
+    split2mMapping(pde, page, erase, pt);
 
     return OsStatusSuccess;
 }
@@ -849,4 +855,98 @@ km::PhysicalAddress PageTables::asPhysical(const void *ptr) const {
 PageWalk PageTables::walk(const void *ptr) {
     stdx::LockGuard guard(mLock);
     return walkUnlocked(ptr);
+}
+
+template<typename T>
+static bool IsTableEmpty(const T *pt) {
+    for (const auto& entry : pt->entries) {
+        if (entry.present()) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+size_t PageTables::compactPt(x64::PageMapLevel2 *pd, uint16_t index) {
+    auto& entry = pd->entries[index];
+    if (!entry.present()) return 0; // Is not mapped, nothing to do.
+    if (entry.is2m()) return 0; // Is mapped.
+
+    x64::PageTable *pt = asVirtual<x64::PageTable>(mPageManager->address(entry));
+    if (IsTableEmpty(pt)) {
+        mAllocator.deallocate(pt, 1);
+        entry.setPresent(false);
+        return 1;
+    }
+
+    return 0;
+}
+
+size_t PageTables::compactPd(x64::PageMapLevel3 *pd, uint16_t index) {
+    auto& entry = pd->entries[index];
+    if (!entry.present()) return 0;
+    if (entry.is1g()) return 0;
+
+    x64::PageMapLevel2 *pt = asVirtual<x64::PageMapLevel2>(mPageManager->address(entry));
+    size_t count = 0;
+    bool reclaim = true;
+    for (size_t i = 0; i < 512; i++) {
+        count += compactPt(pt, i);
+
+        if (pt->entries[i].present()) {
+            reclaim = false;
+        }
+    }
+
+    if (reclaim) {
+        mAllocator.deallocate(pt, 1);
+        entry.setPresent(false);
+        count += 1;
+    }
+
+    return count;
+}
+
+size_t PageTables::compactPdpt(x64::PageMapLevel4 *pd, uint16_t index) {
+    auto& entry = pd->entries[index];
+    if (!entry.present()) return 0;
+    size_t count = 0;
+
+    x64::PageMapLevel3 *pt = asVirtual<x64::PageMapLevel3>(mPageManager->address(entry));
+    bool reclaim = true;
+    for (size_t i = 0; i < 512; i++) {
+        count += compactPd(pt, i);
+
+        if (pt->entries[i].present()) {
+            reclaim = false;
+        }
+    }
+
+    if (reclaim) {
+        mAllocator.deallocate(pt, 1);
+        entry.setPresent(false);
+        count += 1;
+    }
+
+    return count;
+}
+
+size_t PageTables::compactPml4(x64::PageMapLevel4 *pml4) {
+    size_t count = 0;
+    // Don't check to see if we can compact the pml4, we always want to keep it.
+    for (size_t i = 0; i < 512; i++) {
+        count += compactPdpt(pml4, i);
+    }
+    return count;
+}
+
+size_t PageTables::compactUnlocked() {
+    x64::PageMapLevel4 *l4 = pml4();
+    return compactPml4(l4);
+}
+
+size_t PageTables::compact() {
+    stdx::LockGuard guard(mLock);
+    return compactUnlocked();
 }

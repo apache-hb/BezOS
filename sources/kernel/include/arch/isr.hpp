@@ -28,6 +28,7 @@ namespace x64 {
 
     static_assert(sizeof(IdtEntry) == 16);
 
+    [[nodiscard]]
     constexpr x64::IdtEntry CreateIdtEntry(uintptr_t handler, uint16_t codeSelector, Privilege dpl, uint8_t ist) {
         uint8_t flags = x64::idt::kFlagPresent | x64::idt::kInterruptGate | ((std::to_underlying(dpl) & 0b11) << 5);
 

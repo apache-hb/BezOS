@@ -48,13 +48,13 @@ namespace x64 {
             mValue &= ~flag;
         }
 
-        [[gnu::always_inline, gnu::nodebug]]
+        [[gnu::always_inline, gnu::nodebug, nodiscard]]
         static Cr0 load() {
             return Cr0(__get_cr0());
         }
 
         [[gnu::always_inline, gnu::nodebug]]
-        static void store(Cr0 cr0) {
+        static void store(Cr0 cr0) [[clang::blocking]] {
             __set_cr0(cr0.value());
         }
     };

@@ -93,7 +93,7 @@ void *km::PageTableAllocator::allocate(size_t blocks) {
 }
 
 void km::PageTableAllocator::deallocate(void *ptr, size_t blocks) {
-    if (ptr == nullptr || blocks == 0) {
+    if (blocks == 0) {
         return;
     }
 

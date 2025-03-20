@@ -60,13 +60,13 @@ namespace x64 {
             mValue &= ~bit;
         }
 
-        [[gnu::always_inline, gnu::nodebug]]
+        [[gnu::always_inline, gnu::nodebug, nodiscard]]
         static Cr4 load() {
             return Cr4(__get_cr4());
         }
 
         [[gnu::always_inline, gnu::nodebug]]
-        static void store(Cr4 cr4) {
+        static void store(Cr4 cr4) [[clang::blocking]] {
             __set_cr4(cr4.value());
         }
     };

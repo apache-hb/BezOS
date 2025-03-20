@@ -48,7 +48,7 @@ namespace x64 {
     };
 
     template<typename... A> requires ((std::same_as<A, XSaveFeature> && ...) && sizeof...(A) > 0)
-    static constexpr uint64_t XSaveMask(A&&... args) {
+    static constexpr uint64_t XSaveMask(A&&... args) noexcept {
         return ((UINT64_C(1) << std::to_underlying(args)) | ...);
     }
 

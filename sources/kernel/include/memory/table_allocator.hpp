@@ -42,8 +42,11 @@ namespace km {
 
         PageTableAllocator(VirtualRange memory, size_t blockSize = x64::kPageSize);
 
-        void *allocate(size_t blocks) __attribute__((malloc, allocating));
-        void deallocate(void *ptr, size_t blocks) __attribute__((nonnull));
+        [[gnu::malloc]]
+        void *allocate(size_t blocks) [[clang::allocating]];
+
+        [[gnu::nonnull]]
+        void deallocate(void *ptr, size_t blocks);
 
         void defragment();
 
