@@ -49,13 +49,37 @@ void *km::detail::AllocateBlock(PageTableAllocator& allocator, size_t size) {
         return nullptr;
     } else if (block->size == size) {
         void *result = block;
-        if (block->next) block->next->prev = nullptr;
-        allocator.mHead = block->next;
+        allocator.setHead(block->next);
         return result;
     } else {
         ControlBlock *next = SplitBlock(block, size);
         RemoveBlock(next);
         return next;
+    }
+}
+
+km::detail::PageTableList km::detail::AllocateHead(PageTableAllocator& allocator, size_t *remaining) {
+    auto *block = allocator.mHead;
+    size_t size = (*remaining * allocator.mBlockSize);
+
+    KM_CHECK(block->prev == nullptr, "Invalid head block.");
+
+    if (block->size > size) {
+        ControlBlock *next = SplitBlock(block, size);
+        RemoveBlock(next);
+        *remaining = 0;
+        return detail::PageTableList { (x64::page*)next, size / allocator.mBlockSize };
+    } else if (block->size == size) {
+        void *result = block;
+        allocator.setHead(block->next);
+        *remaining = 0;
+        return detail::PageTableList { (x64::page*)result, size / allocator.mBlockSize };
+    } else {
+        void *result = block;
+        size_t blockSize = block->size;
+        *remaining -= (blockSize / allocator.mBlockSize);
+        allocator.setHead(block->next);
+        return detail::PageTableList { (x64::page*)result, blockSize / allocator.mBlockSize };
     }
 }
 
@@ -108,9 +132,7 @@ void *km::PageTableAllocator::allocate(size_t blocks) {
 }
 
 bool km::PageTableAllocator::allocateList(size_t blocks, detail::PageTableList *result) {
-    if (blocks == 0) {
-        return true;
-    }
+    KM_CHECK(blocks > 0, "Invalid block count.");
 
     //
     // Do an early check to see if we can allocate the blocks.
@@ -121,48 +143,34 @@ bool km::PageTableAllocator::allocateList(size_t blocks, detail::PageTableList *
         return false;
     }
 
-    detail::ControlBlock *block = mHead;
-
-    //
-    // Early return in the case that the first block is large enough, otherwise
-    // walk the freelist until we have enough pages.
-    //
-    if (block->size > blocks * mBlockSize) {
-        detail::ControlBlock *next = SplitBlock(block, blocks * mBlockSize);
-        RemoveBlock(next);
-        *result = detail::PageTableList { (x64::page*)next, blocks };
-        return true;
-    }
-
-    mHead = block->next;
-    mHead->prev = nullptr;
-
-    size_t remaining = (blocks * mBlockSize) - block->size;
-    detail::PageTableList list { (x64::page*)block, block->size / mBlockSize };
+    size_t remaining = blocks;
+    detail::PageTableList list = detail::AllocateHead(*this, &remaining);
 
     detail::ControlBlock *node = mHead;
-    while (node != nullptr) {
-        if (node->size > remaining) {
-            detail::ControlBlock *next = SplitBlock(node, remaining);
+    while (remaining > 0) {
+        if (node->size > (remaining * mBlockSize)) {
+            detail::ControlBlock *next = SplitBlock(node, remaining * mBlockSize);
+            setHead(next->next);
             RemoveBlock(next);
-            list.push((x64::page*)next, node->size / mBlockSize);
+            list.push((x64::page*)next, remaining);
+            remaining = 0;
+        } else if (node->size == (remaining * mBlockSize)) {
+            setHead(node->next);
+            RemoveBlock(node);
+            list.push((x64::page*)node, remaining);
             remaining = 0;
         } else {
-            mHead = node->next;
+            setHead(node->next);
             RemoveBlock(node);
             list.push((x64::page*)node, node->size / mBlockSize);
-            remaining -= node->size;
+            remaining -= (node->size / mBlockSize);
             node = mHead;
-        }
-
-        if (remaining == 0) {
-            if (mHead) mHead->prev = nullptr;
-            *result = list;
-            return true;
         }
     }
 
-    KM_PANIC("unreachable, preconditions were not computed correctly.");
+    KM_ASSERT(remaining == 0);
+    *result = list;
+    return true;
 }
 
 void km::PageTableAllocator::deallocateList(detail::PageTableList list) {

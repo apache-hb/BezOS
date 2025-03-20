@@ -138,6 +138,8 @@ namespace km {
         /// @brief Walk the page tables to calculate the number of pages required to map the given range.
         size_t countPagesForMapping(VirtualRange range);
 
+        OsStatus allocatePageTables(VirtualRange range, detail::PageTableList *list);
+
         size_t compactUnlocked();
 
         size_t compactPt(x64::PageMapLevel2 *pd, uint16_t index);

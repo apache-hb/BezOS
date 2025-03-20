@@ -22,9 +22,10 @@ auto GetAllocatorMemory(size_t size = kSize) {
 
 using TestMemory = decltype(GetAllocatorMemory());
 
-static void IsValidPtr(const void *ptr) {
+static void IsValidPtr(void *ptr) {
     ASSERT_NE(ptr, nullptr);
     ASSERT_EQ((uintptr_t)ptr % x64::kPageSize, 0);
+    memset(ptr, 0xFA, x64::kPageSize); // touch the pages to ensure they are mapped
 }
 
 TEST(TableAllocatorDetailTest, SingleBlock) {
@@ -375,6 +376,73 @@ TEST(TableAllocatorTest, AllocateList) {
     }
 }
 
+TEST(TableAllocatorTest, AllocateListFull) {
+    constexpr size_t kBlockCount = 16;
+    constexpr size_t kMemorySize = kBlockCount * x64::kPageSize;
+    TestMemory memory = GetAllocatorMemory(kMemorySize);
+    PageTableAllocator allocator { VirtualRange::of(memory.get(), kMemorySize) };
+
+    detail::PageTableList list;
+    size_t count = kBlockCount;
+    ASSERT_TRUE(allocator.allocateList(count, &list));
+
+    for (size_t i = 0; i < count; i++) {
+        void *ptr = list.next();
+        IsValidPtr(ptr);
+        allocator.deallocate(ptr, 1);
+    }
+}
+
+TEST(TableAllocatorTest, CanAllocateBlocksFalse) {
+    constexpr size_t kBlockCount = 16;
+    constexpr size_t kMemorySize = kBlockCount * x64::kPageSize;
+    TestMemory memory = GetAllocatorMemory(kMemorySize);
+    PageTableAllocator allocator { VirtualRange::of(memory.get(), kMemorySize) };
+
+    ASSERT_FALSE(detail::CanAllocateBlocks(allocator.TESTING_getHead(), 32 * x64::kPageSize));
+
+    // failed allocation doesnt leak memory
+    {
+        detail::PageTableList list;
+        size_t count = 32;
+        ASSERT_FALSE(allocator.allocateList(count, &list));
+    }
+
+    detail::PageTableList list;
+    size_t count = 16;
+    ASSERT_TRUE(allocator.allocateList(count, &list));
+
+    for (size_t i = 0; i < count; i++) {
+        void *ptr = list.next();
+        IsValidPtr(ptr);
+        allocator.deallocate(ptr, 1);
+    }
+}
+
+TEST(TableAllocatorTest, AllocateListFails) {
+    constexpr size_t kBlockCount = 16;
+    constexpr size_t kMemorySize = kBlockCount * x64::kPageSize;
+    TestMemory memory = GetAllocatorMemory(kMemorySize);
+    PageTableAllocator allocator { VirtualRange::of(memory.get(), kMemorySize) };
+
+    // failed allocation doesnt leak memory
+    {
+        detail::PageTableList list;
+        size_t count = 32;
+        ASSERT_FALSE(allocator.allocateList(count, &list));
+    }
+
+    detail::PageTableList list;
+    size_t count = 16;
+    ASSERT_TRUE(allocator.allocateList(count, &list));
+
+    for (size_t i = 0; i < count; i++) {
+        void *ptr = list.next();
+        IsValidPtr(ptr);
+        allocator.deallocate(ptr, 1);
+    }
+}
+
 TEST(TableAllocatorTest, AllocateListFragmented) {
     constexpr size_t kBlockCount = 16;
     constexpr size_t kMemorySize = kBlockCount * x64::kPageSize;
@@ -441,6 +509,42 @@ TEST(TableAllocatorTest, AllocateListFragmented2) {
     ASSERT_TRUE(allocator.allocateList(9, &list));
 
     for (size_t i = 0; i < 9; i++) {
+        void *ptr = list.next();
+        IsValidPtr(ptr);
+        allocator.deallocate(ptr, 1);
+    }
+}
+
+TEST(TableAllocatorTest, AllocateListFragmented3) {
+    constexpr size_t kBlockCount = 16;
+    constexpr size_t kMemorySize = kBlockCount * x64::kPageSize;
+    TestMemory memory = GetAllocatorMemory(kMemorySize);
+    PageTableAllocator allocator { VirtualRange::of(memory.get(), kMemorySize) };
+
+    void *blocks[kBlockCount]{};
+    for (size_t i = 0; i < kBlockCount; i++) {
+        blocks[i] = allocator.allocate(1);
+        IsValidPtr(blocks[i]);
+    }
+
+    allocator.deallocate(blocks[0], 1);
+
+    allocator.deallocate(blocks[3], 1);
+    allocator.deallocate(blocks[4], 1);
+    allocator.deallocate(blocks[5], 1);
+    allocator.deallocate(blocks[6], 1);
+    allocator.deallocate(blocks[7], 1);
+    allocator.deallocate(blocks[8], 1);
+    allocator.deallocate(blocks[9], 1);
+    allocator.deallocate(blocks[10], 1);
+    allocator.deallocate(blocks[11], 1);
+
+    allocator.defragment();
+
+    detail::PageTableList list;
+    ASSERT_TRUE(allocator.allocateList(3, &list));
+
+    for (size_t i = 0; i < 3; i++) {
         void *ptr = list.next();
         IsValidPtr(ptr);
         allocator.deallocate(ptr, 1);

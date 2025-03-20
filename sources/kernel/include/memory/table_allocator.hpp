@@ -12,6 +12,7 @@ namespace km {
     namespace detail {
         void *AllocateBlock(PageTableAllocator& allocator, size_t size);
         bool CanAllocateBlocks(const ControlBlock *head, size_t size);
+        detail::PageTableList AllocateHead(PageTableAllocator& allocator, size_t *remaining);
     }
 
     struct PteAllocatorStats {
@@ -34,7 +35,14 @@ namespace km {
         detail::ControlBlock *mHead;
 
         friend void *detail::AllocateBlock(PageTableAllocator& allocator, size_t blocks);
+        friend detail::PageTableList detail::AllocateHead(PageTableAllocator& allocator, size_t *remaining);
 
+        void setHead(detail::ControlBlock *block) {
+            mHead = block;
+            if (mHead != nullptr) {
+                mHead->prev = nullptr;
+            }
+        }
     public:
         constexpr PageTableAllocator()
             : mMemory(VirtualRange{})
@@ -67,5 +75,11 @@ namespace km {
         void defragment();
 
         PteAllocatorStats stats() const;
+
+#if __STDC_HOSTED__
+        detail::ControlBlock *TESTING_getHead() {
+            return mHead;
+        }
+#endif
     };
 }

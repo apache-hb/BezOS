@@ -24,12 +24,9 @@ void PageTableList::push(x64::page *table) {
 void PageTableList::push(x64::page *pages, size_t count) {
     [[assume(count > 0)]];
 
-    for (size_t i = 0; i < count - 1; i++) {
-        *(void**)(pages + i) = pages + i + 1;
+    for (size_t i = 0; i < count; i++) {
+        push(pages + i);
     }
-
-    *(void**)(pages + count - 1) = mTable;
-    mTable = pages;
 }
 
 x64::page *PageTableList::next() {

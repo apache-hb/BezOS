@@ -293,6 +293,43 @@ size_t PageTables::countPagesForMapping(VirtualRange range) {
     return count;
 }
 
+OsStatus PageTables::allocatePageTables(VirtualRange range, detail::PageTableList *list) {
+    //
+    // Pre-allocate enough page tables to fullfill the request.
+    //
+    size_t requiredPages = maxPagesForMapping(range);
+    if (mAllocator.allocateList(requiredPages, list)) {
+        return OsStatusSuccess;
+    }
+
+    //
+    // If the fast path fails then do a more expensive page table scan to
+    // figure out the exact number of tables we need to allocate.
+    //
+    KmDebugMessage("[MEM] Low memory, failed to allocate ", requiredPages, " page tables. Retrying using slow path.\n");
+    requiredPages = countPagesForMapping(range);
+    if (mAllocator.allocateList(requiredPages, list)) {
+        return OsStatusSuccess;
+    }
+
+    //
+    // Last ditch effort to try and fulfill the request, compaction can be very expensive.
+    //
+    KmDebugMessage("[MEM] Critically low memory. Performing emergency page compaction.\n");
+    size_t count = compactUnlocked();
+    KmDebugMessage("[MEM] Compacted ", count, " pages.\n");
+
+    if (mAllocator.allocateList(requiredPages, list)) {
+        return OsStatusSuccess;
+    }
+
+    //
+    // If both allocations fail then we are out of memory.
+    //
+    KmDebugMessage("[MEM] Out of memory, failed to allocate ", requiredPages, " page tables for ", range, "\n");
+    return OsStatusOutOfMemory;
+}
+
 OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType type) {
     bool valid = (mapping.size % x64::kPageSize == 0)
         && (mapping.paddr.address % x64::kPageSize == 0)
@@ -306,41 +343,10 @@ OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType typ
 
     stdx::LockGuard guard(mLock);
 
-    //
-    // Pre-allocate enough page tables to fullfill the request.
-    //
-    size_t requiredPages = maxPagesForMapping(mapping.virtualRange());
-    x64::page *tables = alloc4k(requiredPages);
-
-    //
-    // If the fast path fails then do a more expensive page table scan to
-    // figure out the exact number of tables we need to allocate.
-    //
-    if (tables == nullptr) {
-        KmDebugMessage("[MEM] Low memory, failed to allocate ", requiredPages, " page tables. Retrying using slow path.\n");
-        requiredPages = countPagesForMapping(mapping.virtualRange());
-        tables = alloc4k(requiredPages);
+    detail::PageTableList buffer;
+    if (OsStatus status = allocatePageTables(mapping.virtualRange(), &buffer)) {
+        return status;
     }
-
-    //
-    // Last ditch effort to try and fulfill the request, compaction can be very expensive.
-    //
-    if (tables == nullptr) {
-        KmDebugMessage("[MEM] Critically low memory. Performing emergency page compaction.\n");
-        size_t count = compactUnlocked();
-        KmDebugMessage("[MEM] Compacted ", count, " pages.\n");
-        tables = alloc4k(requiredPages);
-    }
-
-    //
-    // If both allocations fail then we are out of memory.
-    //
-    if (tables == nullptr) {
-        KmDebugMessage("[MEM] Out of memory, failed to allocate ", requiredPages, " page tables for ", mapping.virtualRange(), "\n");
-        return OsStatusOutOfMemory;
-    }
-
-    detail::PageTableList buffer { tables, requiredPages };
 
     //
     // Once we are done we need to deallocate the unused tables.
