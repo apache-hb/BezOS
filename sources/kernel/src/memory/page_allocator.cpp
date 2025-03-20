@@ -3,7 +3,6 @@
 #include "debug/debug.hpp"
 #include "memory/layout.hpp"
 
-#include <climits>
 #include <cstring>
 
 using namespace km;
@@ -19,7 +18,7 @@ PageAllocator::PageAllocator(std::span<const boot::MemoryRegion> memmap) {
     }
 }
 
-PhysicalAddress PageAllocator::alloc4k(size_t count) {
+PhysicalAddress PageAllocator::alloc4k(size_t count) [[clang::allocating]] {
     MemoryRange range = mMemory.allocate({
         .size = count * x64::kPageSize,
         .align = x64::kPageSize,
@@ -58,7 +57,7 @@ void PageAllocator::release(MemoryRange range) {
     });
 }
 
-PhysicalAddress PageAllocator::lowMemoryAlloc4k() {
+PhysicalAddress PageAllocator::lowMemoryAlloc4k() [[clang::allocating]] {
     MemoryRange range = mLowMemory.allocate({
         .size = x64::kPageSize,
         .align = x64::kPageSize,

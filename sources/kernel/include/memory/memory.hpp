@@ -30,18 +30,18 @@ namespace km {
     namespace detail {
         /// @brief Create the head of a large page mapping.
         /// @pre @p mapping must be @ref AlignLargeRangeEligible.
-        AddressMapping AlignLargeRangeHead(AddressMapping mapping);
+        AddressMapping AlignLargeRangeHead(AddressMapping mapping) noexcept [[clang::nonblocking]];
 
         /// @brief Create the body of a large page mapping.
         /// @pre @p mapping must be @ref AlignLargeRangeEligible.
-        AddressMapping AlignLargeRangeBody(AddressMapping mapping);
+        AddressMapping AlignLargeRangeBody(AddressMapping mapping) noexcept [[clang::nonblocking]];
 
         /// @brief Create the tail of a large page mapping.
         /// @pre @p mapping must be @ref AlignLargeRangeEligible.
-        AddressMapping AlignLargeRangeTail(AddressMapping mapping);
+        AddressMapping AlignLargeRangeTail(AddressMapping mapping) noexcept [[clang::nonblocking]];
 
         /// @brief Check if a mapping is eligible for large pages.
-        bool IsLargePageEligible(AddressMapping mapping);
+        bool IsLargePageEligible(AddressMapping mapping) noexcept [[clang::nonblocking]];
 
         /// @brief Calculate the maximum possible number of pages required to map a range of memory.
         ///
@@ -52,9 +52,9 @@ namespace km {
         ///
         /// @param range The range to map.
         /// @return The maximum number of pages required to map the range.
-        size_t MaxPagesForMapping(VirtualRange range);
+        size_t MaxPagesForMapping(VirtualRange range) noexcept [[clang::nonblocking]];
 
-        size_t GetCoveredSegments(VirtualRange range, size_t segment);
+        size_t GetCoveredSegments(VirtualRange range, size_t segment) noexcept [[clang::nonblocking]];
     }
 
     struct MappingRequest {
@@ -77,7 +77,7 @@ namespace km {
         uint16_t pte;
     };
 
-    constexpr PageWalkIndices GetAddressParts(uintptr_t address) {
+    constexpr PageWalkIndices GetAddressParts(uintptr_t address) noexcept [[clang::nonblocking]] {
         uint16_t pml4e = (address >> 39) & 0b0001'1111'1111;
         uint16_t pdpte = (address >> 30) & 0b0001'1111'1111;
         uint16_t pdte = (address >> 21) & 0b0001'1111'1111;
@@ -86,7 +86,7 @@ namespace km {
         return PageWalkIndices { pml4e, pdpte, pdte, pte };
     }
 
-    PageWalkIndices GetAddressParts(const void *ptr);
+    PageWalkIndices GetAddressParts(const void *ptr) noexcept [[clang::nonblocking]];
 
     /// @brief The result of walking page tables to a virtual address.
     ///
@@ -125,14 +125,14 @@ namespace km {
         /// @note If @a pte->present() is false, the address is invalid.
         x64::pte pte;
 
-        constexpr PageSize pageSize() const {
+        constexpr PageSize pageSize() const noexcept [[clang::nonblocking]] {
             if (pdpte.present() && pdpte.is1g()) return PageSize::eHuge;
             if (pdte.present() && pdte.is2m()) return PageSize::eLarge;
             if (pte.present()) return PageSize::eRegular;
             return PageSize::eNone;
         }
 
-        constexpr PageFlags flags() const {
+        constexpr PageFlags flags() const noexcept [[clang::nonblocking]] {
             PageFlags flags = PageFlags::eUserAll;
 
             auto applyFlags = [&](auto entry) {

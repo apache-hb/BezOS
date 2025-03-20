@@ -143,11 +143,11 @@ namespace km {
 
         void init(PageTableCreateInfo createInfo);
 
-        const PageBuilder *pageManager() const { return mPageManager; }
+        const PageBuilder *pageManager() const noexcept { return mPageManager; }
 
-        const x64::PageMapLevel4 *pml4() const { return mRootPageTable; }
-        x64::PageMapLevel4 *pml4() { return mRootPageTable; }
-        PhysicalAddress root() const { return asPhysical(pml4()); }
+        const x64::PageMapLevel4 *pml4() const noexcept { return mRootPageTable; }
+        x64::PageMapLevel4 *pml4() noexcept { return mRootPageTable; }
+        PhysicalAddress root() const noexcept { return asPhysical(pml4()); }
 
         [[nodiscard]]
         OsStatus map(AddressMapping mapping, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
@@ -170,9 +170,6 @@ namespace km {
         /// @param range The range to unmap.
         /// @return The status of the operation.
         OsStatus unmap2m(VirtualRange range);
-
-        [[deprecated]]
-        OsStatus walk(const void *ptr, PageWalk *walk);
 
         PageWalk walk(const void *ptr);
 

@@ -3,11 +3,11 @@
 /// @brief The amount of memory a single pml4 entry can cover.
 static constexpr auto kPml4MemorySize = x64::kHugePageSize * 512;
 
-km::PageWalkIndices km::GetAddressParts(const void *ptr) {
+km::PageWalkIndices km::GetAddressParts(const void *ptr) noexcept [[clang::nonblocking]] {
     return GetAddressParts(reinterpret_cast<uintptr_t>(ptr));
 }
 
-km::AddressMapping km::detail::AlignLargeRangeHead(AddressMapping mapping) {
+km::AddressMapping km::detail::AlignLargeRangeHead(AddressMapping mapping) noexcept [[clang::nonblocking]] {
     uintptr_t vaddr = reinterpret_cast<uintptr_t>(mapping.vaddr);
     uintptr_t aligned = sm::roundup(vaddr, x64::kLargePageSize);
 
@@ -18,7 +18,7 @@ km::AddressMapping km::detail::AlignLargeRangeHead(AddressMapping mapping) {
     };
 }
 
-km::AddressMapping km::detail::AlignLargeRangeBody(AddressMapping mapping) {
+km::AddressMapping km::detail::AlignLargeRangeBody(AddressMapping mapping) noexcept [[clang::nonblocking]] {
     uintptr_t vaddr = reinterpret_cast<uintptr_t>(mapping.vaddr);
     PhysicalAddress paddr = mapping.paddr;
 
@@ -34,7 +34,7 @@ km::AddressMapping km::detail::AlignLargeRangeBody(AddressMapping mapping) {
     };
 }
 
-km::AddressMapping km::detail::AlignLargeRangeTail(AddressMapping mapping) {
+km::AddressMapping km::detail::AlignLargeRangeTail(AddressMapping mapping) noexcept [[clang::nonblocking]] {
     uintptr_t vaddr = reinterpret_cast<uintptr_t>(mapping.vaddr);
     uintptr_t tail2m = sm::rounddown(vaddr + mapping.size, x64::kLargePageSize);
     size_t size = vaddr + mapping.size - tail2m;
@@ -46,7 +46,7 @@ km::AddressMapping km::detail::AlignLargeRangeTail(AddressMapping mapping) {
     };
 }
 
-bool km::detail::IsLargePageEligible(AddressMapping mapping) {
+bool km::detail::IsLargePageEligible(AddressMapping mapping) noexcept [[clang::nonblocking]] {
     //
     // Ranges smaller than 2m are not eligible for large pages.
     //
@@ -73,14 +73,14 @@ bool km::detail::IsLargePageEligible(AddressMapping mapping) {
     return front2m < back2m;
 }
 
-size_t km::detail::GetCoveredSegments(VirtualRange range, size_t segment) {
+size_t km::detail::GetCoveredSegments(VirtualRange range, size_t segment) noexcept [[clang::nonblocking]] {
     uintptr_t front = sm::rounddown(reinterpret_cast<uintptr_t>(range.front), segment);
     uintptr_t back = sm::roundup(reinterpret_cast<uintptr_t>(range.back), segment);
 
     return (back - front) / segment;
 }
 
-size_t km::detail::MaxPagesForMapping(VirtualRange range) {
+size_t km::detail::MaxPagesForMapping(VirtualRange range) noexcept [[clang::nonblocking]] {
     size_t count = 0;
 
     //

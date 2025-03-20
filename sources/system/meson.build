@@ -23,6 +23,18 @@ libcommon = static_library('common', 'common/common.cpp',
     cpp_args : cpp_args,
 )
 
+src = [ 'shell/test.cpp', ]
+
+executable('test.elf', src,
+    cpp_args : cpp_args,
+    link_args : link_args,
+    install : true,
+    install_dir : get_option('prefix'),
+    dependencies : [ flanterm, tlsf ],
+    link_depends : 'data/bezos.ld',
+    link_with : [ libcommon ],
+)
+
 src = [ 'init/init.cpp', ]
 
 executable('init.elf', src,

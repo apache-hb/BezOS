@@ -846,13 +846,6 @@ km::PhysicalAddress PageTables::asPhysical(const void *ptr) const {
     return km::PhysicalAddress { (uintptr_t)ptr - mSlide };
 }
 
-OsStatus PageTables::walk(const void *ptr, PageWalk *walk) {
-    stdx::LockGuard guard(mLock);
-
-    *walk = walkUnlocked(ptr);
-    return OsStatusSuccess;
-}
-
 PageWalk PageTables::walk(const void *ptr) {
     stdx::LockGuard guard(mLock);
     return walkUnlocked(ptr);

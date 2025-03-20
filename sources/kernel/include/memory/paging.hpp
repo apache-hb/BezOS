@@ -41,7 +41,7 @@ namespace km {
     };
 
     namespace detail {
-        constexpr uint8_t GetMemoryPatIndex(const PageMemoryTypeLayout& layout, MemoryType type) {
+        constexpr uint8_t GetMemoryPatIndex(const PageMemoryTypeLayout& layout, MemoryType type) noexcept [[clang::nonblocking]] {
             switch (type) {
             case MemoryType::eUncached:
                 return layout.uncached;
@@ -58,7 +58,7 @@ namespace km {
             }
         }
 
-        constexpr MemoryType GetMemoryType(const PageMemoryTypeLayout& layout, uint8_t index) {
+        constexpr MemoryType GetMemoryType(const PageMemoryTypeLayout& layout, uint8_t index) noexcept [[clang::nonblocking]] {
             if (layout.deferred == index) return MemoryType::eUncachedOverridable;
             if (layout.uncached == index) return MemoryType::eUncached;
             if (layout.writeCombined == index) return MemoryType::eWriteCombine;

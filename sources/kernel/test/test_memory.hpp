@@ -1,6 +1,7 @@
-#include <memory_resource>
-
 #include "memory.hpp"
+
+#include <memory_resource>
+#include <vector>
 
 static km::PageMemoryTypeLayout GetDefaultPatLayout(void) {
     enum {

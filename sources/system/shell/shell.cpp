@@ -399,6 +399,78 @@ static void ShowCurrentInfo(StreamDevice& display, std::string_view cwd) {
     ASSERT_OS_SUCCESS(OsDeviceClose(handle));
 }
 
+static void RunProgram(StreamDevice& tyy, OsDeviceHandle in, OsDeviceHandle out, OsDeviceHandle err, std::string_view path, std::string_view cwd) {
+    struct CreateOptions {
+        OsProcessParamHeader param;
+        OsPosixInitArgs args;
+    };
+
+    CreateOptions options[] = { {
+        .param = { kPosixInitGuid, sizeof(OsPosixInitArgs) },
+        .args = {
+            .StandardIn = in,
+            .StandardOut = out,
+            .StandardError = err,
+        },
+    } };
+
+    std::string copy = std::string(cwd);
+
+    if (path[0] == '/' || cwd == "/") {
+        copy = path;
+    } else {
+        copy += "/";
+        copy += path;
+    }
+
+    for (char& c : copy) {
+        if (c == '/') {
+            c = '\0';
+        }
+    }
+
+    size_t front = 0;
+    size_t len = path.size();
+
+    if (copy[0] == '\0') {
+        front += 1;
+    }
+
+    OsPath osPath = { copy.data() + front, copy.data() + len };
+
+    if (path == "/") {
+        osPath = OsMakePath("");
+    }
+
+    OsProcessCreateInfo createInfo {
+        .Executable = osPath,
+        .ArgsBegin = std::bit_cast<const OsProcessParam*>(std::begin(options)),
+        .ArgsEnd = std::bit_cast<const OsProcessParam*>(std::end(options)),
+        .Flags = eOsProcessNone,
+    };
+
+    OsProcessHandle handle = OS_HANDLE_INVALID;
+    OsStatus status = OsStatusSuccess;
+
+    status = OsProcessCreate(createInfo, &handle);
+    if (status != OsStatusSuccess) {
+        tyy.Format("Failed to create process: {}\n", status);
+        return;
+    }
+
+    status = OsHandleWait(handle, OS_TIMEOUT_INFINITE);
+    ASSERT_OS_SUCCESS(status);
+
+    OsProcessInfo stat{};
+    status = OsProcessStat(handle, &stat);
+    if (status != OsStatusSuccess) {
+        tyy.Format("Failed to stat process: {}\n", status);
+        return;
+    }
+
+    tyy.Format("Process exited with code {}\n", stat.ExitCode);
+}
+
 static void LaunchZsh(StreamDevice& tty, OsDeviceHandle in, OsDeviceHandle out, OsDeviceHandle err) {
     struct CreateOptions {
         OsProcessParamHeader param;
@@ -588,6 +660,16 @@ void ClientStart(const struct OsClientStartInfo *) {
                 continue;
             } else if (text.starts_with("cat")) {
                 EchoFile(tty, cwd, text.substr(4).c_str());
+                Prompt(tty);
+                continue;
+            } else if (text.starts_with("exec")) {
+                RunProgram(tty, ttyin.Handle(), tty.Handle(), tty.Handle(), text.substr(5), cwd);
+                Prompt(tty);
+                continue;
+            } else if (text.starts_with("stress")) {
+                for (int i = 0; i < 1000; i++) {
+                    RunProgram(tty, ttyin.Handle(), tty.Handle(), tty.Handle(), "/Init/test.elf", cwd);
+                }
                 Prompt(tty);
                 continue;
             }

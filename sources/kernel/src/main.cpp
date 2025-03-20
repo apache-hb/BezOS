@@ -1100,6 +1100,8 @@ static void AddDebugSystemCalls() {
             return CallError(status);
         }
 
+        KmDebugMessage("[PROC] Debug: ", (void*)messageInfo.Front, " ", (void*)messageInfo.Back, "\n");
+
         LockDebugLog();
 
         for (const auto& segment : stdv::split(message, "\n"sv)) {
@@ -1408,6 +1410,8 @@ static void AddVmemSystemCalls() {
         if (status != OsStatusSuccess) {
             return CallError(status);
         }
+
+        KmDebugMessage("[VMEM] Created mapping: ", mapping, "\n");
 
         return CallOk(mapping.vaddr);
     });

@@ -224,7 +224,6 @@ static constexpr inline InterfaceList kFileInterfaceList = std::to_array({
 });
 
 OsStatus TarFsFile::query(sm::uuid uuid, const void *data, size_t size, IHandle **handle) {
-    KmDebugMessage("[TARFS] Querying file interface: ", uuid, "\n");
     return kFileInterfaceList.query(this, uuid, data, size, handle);
 }
 
@@ -270,7 +269,6 @@ static constexpr inline InterfaceList kFolderInterfaceList = std::to_array({
 });
 
 OsStatus TarFsFolder::query(sm::uuid uuid, const void *data, size_t size, IHandle **handle) {
-    KmDebugMessage("[TARFS] Querying folder interface: ", uuid, "\n");
     return kFolderInterfaceList.query(this, uuid, data, size, handle);
 }
 

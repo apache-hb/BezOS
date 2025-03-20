@@ -92,13 +92,13 @@ namespace x64 {
         static constexpr uintptr_t kAddressMask = ~((1ull << 12) - 1);
 
         /// @brief Set the PAT entry to use for this page
-        void setPatEntry(uint8_t entry) {
+        void setPatEntry(uint8_t entry) noexcept [[clang::nonblocking]] {
             // See Vol 3A 5-31. Table 5-20. Format of a Page-Table Entry that Maps a 4-KByte Page
             // The PAT is encoded into bits 3 (PWT), 4 (PCD), and 7 (PAT)
             paging::setMemoryType(underlying, kPageAttributeBit, entry);
         }
 
-        uint8_t memoryType() const {
+        uint8_t memoryType() const noexcept [[clang::nonblocking]] {
             return paging::getMemoryType(underlying, kPageAttributeBit);
         }
     };
@@ -114,12 +114,12 @@ namespace x64 {
         static constexpr uint64_t kPageAttributeBit = 12;
 
         /// @brief Set the PAT entry to use for this page
-        void setPatEntry(uint8_t entry) {
+        void setPatEntry(uint8_t entry) noexcept [[clang::nonblocking]] {
             // See Vol 3A 5-29. Table 5-18. Format of a Page-Directory Entry that Maps a 2-MByte Page
             paging::setMemoryType(underlying, kPageAttributeBit, entry);
         }
 
-        uint8_t memoryType() const {
+        uint8_t memoryType() const noexcept [[clang::nonblocking]] {
             return paging::getMemoryType(underlying, kPageAttributeBit);
         }
     };
@@ -135,12 +135,12 @@ namespace x64 {
         static constexpr uint64_t kPageAttributeBit = 12;
 
         /// @brief Set the PAT entry to use for this page
-        void setPatEntry(uint8_t entry) {
+        void setPatEntry(uint8_t entry) noexcept [[clang::nonblocking]] {
             // See Vol 3A 5-27.Table 5-16. Format of a Page-Directory-Pointer-Table Entry (PDPTE) that Maps a 1-GByte Page
             paging::setMemoryType(underlying, kPageAttributeBit, entry);
         }
 
-        uint8_t memoryType() const {
+        uint8_t memoryType() const noexcept [[clang::nonblocking]] {
             return paging::getMemoryType(underlying, kPageAttributeBit);
         }
     };
@@ -171,7 +171,7 @@ namespace x64 {
     [[gnu::always_inline, gnu::nodebug]]
     static inline void invlpg([[maybe_unused]] uintptr_t address) {
 #if __STDC_HOSTED__ == 0
-        asm volatile("invlpg (%0)" : : "r"(address) : "memory");
+        __invlpg(address);
 #endif
     }
 }

@@ -18,7 +18,7 @@ namespace km {
         /// @brief Allocate a 4k page of memory above 1M.
         ///
         /// @return The physical address of the page.
-        PhysicalAddress alloc4k(size_t count = 1);
+        PhysicalAddress alloc4k(size_t count = 1) [[clang::allocating]];
 
         /// @brief Release a range of memory.
         ///
@@ -28,7 +28,7 @@ namespace km {
         /// @brief Allocate a 4k page of memory below 1M.
         ///
         /// @return The physical address of the page.
-        PhysicalAddress lowMemoryAlloc4k();
+        PhysicalAddress lowMemoryAlloc4k() [[clang::allocating]];
 
         /// @brief Mark a range of memory as used.
         ///
