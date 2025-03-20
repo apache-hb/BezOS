@@ -171,6 +171,10 @@ void PageTables::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags
     x64::PageMapLevel2 *l2 = getPageMap2(l3, pdpte, buffer);
     x64::pdte& t2 = l2->entries[pdte];
 
+    //
+    // If this is a pdte entry that is already present but not a 2m mapping we need to free
+    // the old page table so we dont leak when we replace this entry with a 2m mapping.
+    //
     if (t2.present() && !t2.is2m()) {
         void *ptr = asVirtual<x64::PageTable>(mPageManager->address(t2));
         mAllocator.deallocate(ptr, 1);
