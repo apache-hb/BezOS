@@ -319,6 +319,16 @@ OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType typ
     }
 
     //
+    // Last ditch effort to try and fulfill the request, compaction can be very expensive.
+    //
+    if (tables == nullptr) {
+        KmDebugMessage("[MEM] Critically low memory. Performing emergency page compaction.\n");
+        size_t count = compactUnlocked();
+        KmDebugMessage("[MEM] Compacted ", count, " pages.\n");
+        tables = alloc4k(requiredPages);
+    }
+
+    //
     // If both allocations fail then we are out of memory.
     //
     if (tables == nullptr) {
@@ -411,8 +421,6 @@ void PageTables::split2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange 
     MemoryType type = mPageManager->getMemoryType(pde);
     PhysicalAddress paddr = mPageManager->address(pde);
     uintptr_t hiOffset = (uintptr_t)erase.back - (uintptr_t)page.front;
-
-    KmDebugMessage("[MEM] Splitting 2m page ", page, " into ", lo, " and ", hi, "\n");
 
     //
     // Map the lo part of the remaining area.
