@@ -8,6 +8,4 @@ namespace sys2 {
     class System {
 
     };
-
-    OsStatus CreateProcess(System *system, Process **process);
 }

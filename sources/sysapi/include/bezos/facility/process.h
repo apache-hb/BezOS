@@ -14,17 +14,20 @@ OS_DEFINE_GUID(kOsCommandLineParamGuid, 0x768582ba, 0x0197, 0x11f0, 0xbc84, 0x7f
 enum {
     eOsProcessNone = 0,
 
-    /// @brief Process is running
+    /// @brief Process is running.
     eOsProcessRunning    = 0x0,
 
-    /// @brief Process has been suspended, either by itself or by another process
+    /// @brief Process has been suspended, either by itself or by another process.
     eOsProcessSuspended  = 0x1,
 
-    /// @brief Process exited normally
+    /// @brief Process exited normally.
     eOsProcessExited     = 0x2,
 
-    /// @brief Process exited due to an unhandled fault
+    /// @brief Process exited due to an unhandled fault.
     eOsProcessFaulted    = 0x3,
+
+    /// @brief Process was killed by the operating system.
+    eOsProcessTerminated = 0x4,
 
     eOsProcessStatusMask = 0xF,
 

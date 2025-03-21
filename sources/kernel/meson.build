@@ -464,15 +464,6 @@ testcases = {
     'atomic forward list': [
         'test/std/forward_list.cpp',
     ],
-    'rcu': [
-        'test/std/rcu.cpp',
-        'src/std/rcu.cpp',
-    ],
-    'rcuptr': [
-        'test/std/rcuptr.cpp',
-        'src/std/rcu.cpp',
-        'src/std/rcuptr.cpp',
-    ],
     'cmos': [
         'test/cmos.cpp',
         'src/cmos.cpp',
@@ -716,6 +707,23 @@ testcases = {
             'src/terminal/buffered.cpp',
         ],
         'dependencies' : [ stb_image_write ],
+    },
+    'rcu': {
+        'sources': [
+            'test/std/rcu.cpp',
+            'src/std/rcu.cpp',
+        ],
+        'override_options': [ 'b_sanitize=thread', 'b_coverage=true' ],
+        'dependencies' : [ ],
+    },
+    'rcuptr': {
+        'sources': [
+            'test/std/rcuptr.cpp',
+            'src/std/rcu.cpp',
+            'src/std/rcuptr.cpp',
+        ],
+        'override_options': [ 'b_sanitize=thread', 'b_coverage=true' ],
+        'dependencies' : [ ],
     },
     # 'launch': {
     #     'sources': [
