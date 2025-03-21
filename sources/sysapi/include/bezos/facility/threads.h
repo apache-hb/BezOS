@@ -38,6 +38,8 @@ enum {
 typedef uint32_t OsThreadCreateFlags;
 typedef uint32_t OsThreadState;
 
+typedef void (*OsThreadEntry)(OsThreadHandle CurrentThread, OsAnyPointer Argument);
+
 struct OsThreadCreateInfo {
     const char *NameFront;
     const char *NameBack;
@@ -49,7 +51,7 @@ struct OsThreadCreateInfo {
     OsSize StackSize;
 
     /// @brief The entry point for the thread.
-    OsAnyPointer EntryPoint;
+    OsThreadEntry EntryPoint;
 
     /// @brief The argument to pass to the thread's entry point.
     OsAnyPointer Argument;

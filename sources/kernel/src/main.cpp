@@ -34,6 +34,7 @@
 #include "gdt.hpp"
 #include "hid/hid.hpp"
 #include "hid/ps2.hpp"
+#include "hpet.hpp"
 #include "hypervisor.hpp"
 #include "isr/isr.hpp"
 #include "isr/runtime.hpp"
@@ -1785,16 +1786,35 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     km::InitPit(100 * si::hertz, ioApicSet, lapic.pointer(), timerIdx);
 
-    std::optional<km::HighPrecisionTimer> hpet = km::HighPrecisionTimer::find(rsdt, *stage2->memory);
-    if (hpet.has_value()) {
-        KmDebugMessage("|---- HPET ----------------\n");
-        KmDebugMessage("| Property     | Value\n");
-        KmDebugMessage("|--------------+-----------\n");
-        KmDebugMessage("| Vendor       | ", hpet->vendor(), "\n");
-        KmDebugMessage("| Timer count  | ", hpet->timerCount(), "\n");
-        KmDebugMessage("| Clock        | ", uint32_t(hpet->refclk() / si::hertz), "hz\n");
-        KmDebugMessage("| Counter size | ", hpet->counterSize() == HpetWidth::DWORD ? "32"_sv : "64"_sv, "\n");
-        KmDebugMessage("| Revision     | ", hpet->revision(), "\n");
+    km::HighPrecisionTimer hpet;
+    if (OsStatus status = km::InitHpet(rsdt, *gMemory, &hpet)) {
+        KmDebugMessage("[INIT] Failed to initialize HPET: ", status, "\n");
+    } else {
+        KmDebugMessage("|---- HPET -----------------\n");
+        KmDebugMessage("| Property      | Value\n");
+        KmDebugMessage("|---------------+-----------\n");
+        KmDebugMessage("| Vendor        | ", hpet.vendor(), "\n");
+        KmDebugMessage("| Timer count   | ", hpet.timerCount(), "\n");
+        KmDebugMessage("| Clock         | ", uint32_t(hpet.refclk() / si::hertz), "hz\n");
+        KmDebugMessage("| Counter size  | ", hpet.counterSize() == hpet::Width::DWORD ? "32"_sv : "64"_sv, "\n");
+        KmDebugMessage("| Revision      | ", hpet.revision(), "\n");
+
+        auto comparators = hpet.comparators();
+        for (size_t i = 0; i < comparators.size(); i++) {
+            const auto& comparator = comparators[i];
+            auto config = comparator.config();
+            KmDebugMessage("| Comparator    | ", i, "\n");
+            KmDebugMessage("|  - Route Mask | ", comparator.routeMask(), "\n");
+            KmDebugMessage("|  - Counter    | ", comparator.counter(), "\n");
+            KmDebugMessage("|  - FSB        | ", comparator.fsbIntDelivery(), "\n");
+            KmDebugMessage("|  - Periodic   | ", comparator.periodicSupport(), "\n");
+            KmDebugMessage("|  - Width      | ", comparator.width() == hpet::Width::DWORD ? "32"_sv : "64"_sv, "\n");
+            KmDebugMessage("|  - Enabled    | ", config.enable, "\n");
+            KmDebugMessage("|  - Period     | ", config.period, "\n");
+            KmDebugMessage("|  - Mode       | ", config.mode == hpet::Width::DWORD ? "32"_sv : "64"_sv, "\n");
+            KmDebugMessage("|  - Trigger    | ", config.trigger == apic::Trigger::eLevel ? "Level"_sv : "Edge"_sv, "\n");
+            KmDebugMessage("|  - Route      | ", config.ioApicRoute, "\n");
+        }
     }
 
     DateTime time = ReadCmosClock();

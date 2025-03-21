@@ -6,8 +6,8 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-result"
 
-#include <mp-units/systems/si.h>
-#include <mp-units/systems/iec.h>
+#include <mp-units/systems/si.h> // IWYU pragma: export
+#include <mp-units/systems/iec.h> // IWYU pragma: export
 
 #pragma clang diagnostic pop
 
