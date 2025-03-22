@@ -37,6 +37,9 @@ typedef uint64_t OsDuration;
 /// the gregorian calendar reform of 1582-10-15T00:00:00Z.
 typedef int64_t OsInstant;
 
+/// @brief A tick of a time source.
+typedef uint64_t OsTickCounter;
+
 /// @brief A generic handle.
 ///
 /// A handle is a unique identifier for a resource that is managed by the operating system.

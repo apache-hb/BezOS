@@ -8,7 +8,7 @@ OsStatus OsClockGetTime(OsInstant *OutTime) {
     return result.Status;
 }
 
-OsStatus OsClockStat(struct OsClockStat *OutStat) {
-    struct OsCallResult result = OsSystemCall(eOsCallClockStat, (uintptr_t)OutStat, 0, 0, 0);
+OsStatus OsClockStat(struct OsClockInfo *OutInfo) {
+    struct OsCallResult result = OsSystemCall(eOsCallClockStat, (uintptr_t)OutInfo, 0, 0, 0);
     return result.Status;
 }

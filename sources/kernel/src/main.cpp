@@ -19,6 +19,7 @@
 #include <bezos/subsystem/hid.h>
 #include <bezos/subsystem/ddi.h>
 
+#include "clock.hpp"
 #include "cmos.hpp"
 #include "debug/debug.hpp"
 #include "delay.hpp"
@@ -34,7 +35,6 @@
 #include "gdt.hpp"
 #include "hid/hid.hpp"
 #include "hid/ps2.hpp"
-#include "hpet.hpp"
 #include "hypervisor.hpp"
 #include "isr/isr.hpp"
 #include "isr/runtime.hpp"
@@ -42,7 +42,6 @@
 #include "memory.hpp"
 #include "notify.hpp"
 #include "panic.hpp"
-#include "pit.hpp"
 #include "process/device.hpp"
 #include "process/mutex.hpp"
 #include "process/thread.hpp"
@@ -58,6 +57,11 @@
 #include "uart.hpp"
 #include "smbios.hpp"
 #include "pci/pci.hpp"
+
+#include "timer/pit.hpp"
+#include "timer/hpet.hpp"
+#include "timer/apic_timer.hpp"
+#include "timer/tsc_timer.hpp"
 
 #include "memory/layout.hpp"
 
@@ -818,6 +822,7 @@ static SystemObjects *gSystemObjects = nullptr;
 static NotificationStream *gNotificationStream = nullptr;
 static Scheduler *gScheduler = nullptr;
 static SystemMemory *gMemory = nullptr;
+static constinit Clock gClock{};
 
 Scheduler *km::GetScheduler() {
     return gScheduler;
@@ -1194,6 +1199,7 @@ static km::System GetSystem() {
         .objects = gSystemObjects,
         .memory = gMemory,
         .scheduler = gScheduler,
+        .clock = &gClock,
     };
 }
 
@@ -1415,6 +1421,23 @@ static void AddVmemSystemCalls() {
         KmDebugMessage("[VMEM] Created mapping: ", mapping, "\n");
 
         return CallOk(mapping.vaddr);
+    });
+}
+
+static void AddClockSystemCalls() {
+    AddSystemCall(eOsCallClockStat, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        auto system = GetSystem();
+        return um::ClockStat(&system, context, regs);
+    });
+
+    AddSystemCall(eOsCallClockGetTime, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        auto system = GetSystem();
+        return um::ClockTime(&system, context, regs);
+    });
+
+    AddSystemCall(eOsCallClockTicks, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        auto system = GetSystem();
+        return um::ClockTicks(&system, context, regs);
     });
 }
 
@@ -1662,6 +1685,7 @@ static void InitUserApi() {
     AddVmemSystemCalls();
     AddMutexSystemCalls();
     AddProcessSystemCalls();
+    AddClockSystemCalls();
 }
 
 template<typename T>
@@ -1796,15 +1820,18 @@ void LaunchKernel(boot::LaunchInfo launch) {
     uint8_t timerIdx = ist->index(timerInt);
     KmDebugMessage("[INIT] Timer ISR: ", timerIdx, "\n");
 
+    stdx::StaticVector<km::ITickSource*, 4> tickSources;
+
     km::IntervalTimer pit = km::InitPit(100 * si::hertz, ioApicSet, lapic.pointer(), timerIdx);
 
+    tickSources.add(&pit);
+
     km::HighPrecisionTimer hpet;
-    bool hasHpet = false;
     if (OsStatus status = km::InitHpet(rsdt, *gMemory, &hpet)) {
         KmDebugMessage("[INIT] Failed to initialize HPET: ", status, "\n");
     } else {
-        hasHpet = true;
         hpet.enable(true);
+        tickSources.add(&hpet);
 
         KmDebugMessage("|---- HPET -----------------\n");
         KmDebugMessage("| Property      | Value\n");
@@ -1835,18 +1862,32 @@ void LaunchKernel(boot::LaunchInfo launch) {
     }
 
     KmDebugMessage("[INIT] Training APIC timer.\n");
-    km::ITickSource *tickSource = hasHpet ? static_cast<km::ITickSource*>(&hpet) : static_cast<km::ITickSource*>(&pit);
-    km::hertz apicFreq = km::TrainApicTimer(lapic.pointer(), tickSource);
-    KmDebugMessage("[INIT] APIC timer frequency: ", apicFreq, "\n");
+    km::ITickSource *tickSource = tickSources.back();
+    km::ITickSource *clockTicker = tickSource;
+    ApicTimer apicTimer;
+    InvariantTsc tsc;
+
+    if (OsStatus status = km::TrainApicTimer(lapic.pointer(), tickSources.back(), &apicTimer)) {
+        KmDebugMessage("[INIT] Failed to train APIC timer: ", status, "\n");
+    } else {
+        KmDebugMessage("[INIT] APIC timer frequency: ", apicTimer.refclk(), "\n");
+        tickSources.add(&apicTimer);
+    }
 
     if (processor.invariantTsc) {
-        KmDebugMessage("[INIT] Training TSC timer.\n");
-        km::hertz tscFreq = km::TrainInvariantTsc(tickSource);
-        KmDebugMessage("[INIT] TSC frequency: ", tscFreq, "\n");
+        if (OsStatus status = km::TrainInvariantTsc(tickSource, &tsc)) {
+            KmDebugMessage("[INIT] Failed to train invariant TSC: ", status, "\n");
+        } else {
+            KmDebugMessage("[INIT] Invariant TSC frequency: ", tsc.frequency(), "\n");
+            tickSources.add(&tsc);
+            clockTicker = &tsc;
+        }
     }
 
     DateTime time = ReadCmosClock();
     KmDebugMessage("[INIT] Current time: ", time.year, "-", time.month, "-", time.day, "T", time.hour, ":", time.minute, ":", time.second, "Z\n");
+
+    gClock = Clock { time, clockTicker };
 
     CreateVfsDevices(&smbios, &rsdt, launch.initrd);
     InitUserApi();

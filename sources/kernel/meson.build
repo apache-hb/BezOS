@@ -139,14 +139,19 @@ src = [
     'src/smbios.cpp',
     'src/delay.cpp',
     'src/cmos.cpp',
-    'src/pit.cpp',
-    'src/hpet.cpp',
-    'src/hpet.cpp',
     'src/debug.cpp',
     'src/xsave.cpp',
+    'src/clock.cpp',
 
     'src/thread.cpp',
     'src/user.S',
+
+    # Timers and tick sources
+    'src/timer/sleep.cpp',
+    'src/timer/pit.cpp',
+    'src/timer/hpet.cpp',
+    'src/timer/apic_timer.cpp',
+    'src/timer/tsc.cpp',
 
     # PCI
     'src/pci/pci.cpp',
@@ -203,6 +208,7 @@ src = [
 
     # Userspace
     'src/user/user.cpp',
+    'src/user/sysapi/clock.cpp',
     'src/user/sysapi/node.cpp',
     'src/user/sysapi/device.cpp',
     'src/user/sysapi/process.cpp',

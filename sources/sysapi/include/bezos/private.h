@@ -57,6 +57,7 @@ enum {
 
     eOsCallClockGetTime = 0x90,
     eOsCallClockStat = 0x91,
+    eOsCallClockTicks = 0x92,
 
     eOsCallCount = 0xFF,
 };

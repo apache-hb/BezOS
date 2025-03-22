@@ -2,10 +2,13 @@
 
 #include "acpi/hpet.hpp"
 #include "pci/pci.hpp"
+#include "apic.hpp"
 
-#include "pit.hpp"
+#include "timer/tick_source.hpp"
 
 namespace km {
+    class HighPrecisionTimer;
+
     namespace hpet {
         using period = mp::quantity<si::femto<si::second>, uint32_t>;
 
@@ -116,7 +119,7 @@ namespace km {
             : mMmioRegion(nullptr)
         { }
 
-        pit::Type type() const override;
+        TickSourceType type() const override { return TickSourceType::HPET; }
         hertz refclk() const override;
         hertz frequency() const override;
         uint64_t ticks() const override;
