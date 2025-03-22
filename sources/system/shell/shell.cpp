@@ -5,6 +5,7 @@
 #include <bezos/facility/process.h>
 #include <bezos/facility/handle.h>
 #include <bezos/facility/debug.h>
+#include <bezos/facility/clock.h>
 
 #include <bezos/handle.h>
 #include <bezos/status.h>
@@ -28,6 +29,7 @@
 #include <iterator>
 #include <string>
 #include <string_view>
+#include <chrono>
 #include <format>
 
 template<size_t N>
@@ -584,6 +586,50 @@ static void EchoFile(StreamDevice& tty, std::string_view cwd, const char *path) 
     ASSERT_OS_SUCCESS(OsFileClose(handle));
 }
 
+using namespace std::chrono_literals;
+
+static constexpr auto kGregorianReform = std::chrono::years{1582} + std::chrono::months{10} + std::chrono::days{15};
+using os_instant = std::chrono::duration<OsInstant, std::ratio<1LL, 10000000LL>>;
+
+static void WriteTime(StreamDevice& tty) {
+    OsClockInfo info{};
+    ASSERT_OS_SUCCESS(OsClockStat(&info));
+
+    OsInstant time;
+    ASSERT_OS_SUCCESS(OsClockGetTime(&time));
+
+    {
+        os_instant timepoint{time};
+        auto instant = timepoint + kGregorianReform;
+
+        auto years = std::chrono::floor<std::chrono::years>(instant);
+        auto months = std::chrono::floor<std::chrono::months>(instant - years);
+        auto days = std::chrono::floor<std::chrono::days>(instant - years - months);
+        auto hours = std::chrono::floor<std::chrono::hours>(instant - years - months - days);
+        auto minutes = std::chrono::floor<std::chrono::minutes>(instant - years - months - days - hours);
+        auto seconds = std::chrono::floor<std::chrono::seconds>(instant - years - months - days - hours - minutes);
+
+        tty.Format("Current Time: {}-{}-{}T{}:{}:{}Z\n", years.count(), months.count(), days.count(), hours.count(), minutes.count(), seconds.count());
+    }
+
+    {
+        os_instant timepoint{time};
+        auto instant = timepoint + kGregorianReform;
+
+        auto years = std::chrono::floor<std::chrono::years>(instant);
+        auto months = std::chrono::floor<std::chrono::months>(instant - years);
+        auto days = std::chrono::floor<std::chrono::days>(instant - years - months);
+        auto hours = std::chrono::floor<std::chrono::hours>(instant - years - months - days);
+        auto minutes = std::chrono::floor<std::chrono::minutes>(instant - years - months - days - hours);
+        auto seconds = std::chrono::floor<std::chrono::seconds>(instant - years - months - days - hours - minutes);
+
+        tty.Format("Boot Time: {}-{}-{}T{}:{}:{}Z\n", years.count(), months.count(), days.count(), hours.count(), minutes.count(), seconds.count());
+    }
+
+    tty.Format("Clock Frequency: {} Hz\n", info.FrequencyHz);
+    tty.Format("Clock: '{}'\n", info.DisplayName);
+}
+
 OS_EXTERN OS_NORETURN
 [[gnu::force_align_arg_pointer]]
 void ClientStart(const struct OsClientStartInfo *) {
@@ -670,6 +716,10 @@ void ClientStart(const struct OsClientStartInfo *) {
                 for (int i = 0; i < 1000; i++) {
                     RunProgram(tty, ttyin.Handle(), tty.Handle(), tty.Handle(), "/Init/test.elf", cwd);
                 }
+                Prompt(tty);
+                continue;
+            } else if (text.starts_with("date")) {
+                WriteTime(tty);
                 Prompt(tty);
                 continue;
             }

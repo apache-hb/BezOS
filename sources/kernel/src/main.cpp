@@ -1688,19 +1688,6 @@ static void InitUserApi() {
     AddClockSystemCalls();
 }
 
-template<typename T>
-struct km::Format<mp::quantity<si::hertz, T>> {
-    static void format(km::IOutStream& out, mp::quantity<si::hertz, T> value) {
-        static constexpr T kMhz = T(1'000'000);
-        T count = T(value / si::hertz);
-        if (count > kMhz) {
-            out.format(count / kMhz, ".", count % kMhz, " MHz");
-        } else {
-            out.format(count, " Hz");
-        }
-    }
-};
-
 void LaunchKernel(boot::LaunchInfo launch) {
     NormalizeProcessorState();
     SetDebugLogLock(DebugLogLockType::eNone);

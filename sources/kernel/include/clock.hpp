@@ -10,12 +10,12 @@
 namespace km {
     class ITickSource;
 
-    using timestep = std::chrono::duration<int64_t, std::ratio<1LL, 10000000LL>>;
+    using os_instant = std::chrono::duration<OsInstant, std::ratio<1LL, 10000000LL>>;
 
     class Clock {
         ITickSource *mCounter;
-        timestep mStartDate;
-        OsInstant mStartTicks;
+        os_instant mStartDate;
+        OsTickCounter mStartTicks;
         mp::quantity<si::hertz, uint64_t> mFrequency;
 
     public:
