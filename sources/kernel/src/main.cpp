@@ -1671,7 +1671,6 @@ void LaunchKernel(boot::LaunchInfo launch) {
     auto [hvInfo, hasDebugPort] = QueryHostHypervisor();
 
     ProcessorInfo processor = GetProcessorInfo();
-
     EnableUmip(processor.umip());
 
     InitPortDelay(hvInfo);
@@ -1784,12 +1783,16 @@ void LaunchKernel(boot::LaunchInfo launch) {
     uint8_t timerIdx = ist->index(timerInt);
     KmDebugMessage("[INIT] Timer ISR: ", timerIdx, "\n");
 
-    km::InitPit(100 * si::hertz, ioApicSet, lapic.pointer(), timerIdx);
+    km::IntervalTimer pit = km::InitPit(100 * si::hertz, ioApicSet, lapic.pointer(), timerIdx);
 
     km::HighPrecisionTimer hpet;
+    bool hasHpet = false;
     if (OsStatus status = km::InitHpet(rsdt, *gMemory, &hpet)) {
         KmDebugMessage("[INIT] Failed to initialize HPET: ", status, "\n");
     } else {
+        hasHpet = true;
+        hpet.enable(true);
+
         KmDebugMessage("|---- HPET -----------------\n");
         KmDebugMessage("| Property      | Value\n");
         KmDebugMessage("|---------------+-----------\n");
@@ -1798,6 +1801,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
         KmDebugMessage("| Clock         | ", uint32_t(hpet.refclk() / si::hertz), "hz\n");
         KmDebugMessage("| Counter size  | ", hpet.counterSize() == hpet::Width::DWORD ? "32"_sv : "64"_sv, "\n");
         KmDebugMessage("| Revision      | ", hpet.revision(), "\n");
+        KmDebugMessage("| Ticks         | ", hpet.ticks(), "\n");
 
         auto comparators = hpet.comparators();
         for (size_t i = 0; i < comparators.size(); i++) {
@@ -1815,6 +1819,17 @@ void LaunchKernel(boot::LaunchInfo launch) {
             KmDebugMessage("|  - Trigger    | ", config.trigger == apic::Trigger::eLevel ? "Level"_sv : "Edge"_sv, "\n");
             KmDebugMessage("|  - Route      | ", config.ioApicRoute, "\n");
         }
+    }
+
+    KmDebugMessage("[INIT] Training APIC timer.\n");
+    km::ITickSource *tickSource = hasHpet ? static_cast<km::ITickSource*>(&hpet) : static_cast<km::ITickSource*>(&pit);
+    km::hertz apicFreq = km::TrainApicTimer(lapic.pointer(), tickSource);
+    KmDebugMessage("[INIT] APIC timer frequency: ", uint64_t(apicFreq / si::hertz), "hz\n");
+
+    if (processor.invariantTsc) {
+        KmDebugMessage("[INIT] Training TSC timer.\n");
+        km::hertz tscFreq = km::TrainInvariantTsc(tickSource);
+        KmDebugMessage("[INIT] TSC frequency: ", uint64_t(tscFreq / si::hertz), "hz\n");
     }
 
     DateTime time = ReadCmosClock();

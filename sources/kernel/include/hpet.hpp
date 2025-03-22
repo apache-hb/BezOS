@@ -104,7 +104,7 @@ namespace km {
 
     OsStatus InitHpet(const acpi::AcpiTables& rsdt, SystemMemory& memory, HighPrecisionTimer *timer);
 
-    class HighPrecisionTimer final {
+    class HighPrecisionTimer final : public ITickSource {
         acpi::Hpet mTable;
         hpet::MmioRegisters *mMmioRegion;
         hpet::HpetId mId;
@@ -116,9 +116,10 @@ namespace km {
             : mMmioRegion(nullptr)
         { }
 
-        pit::Type type() const;
-        hertz refclk() const;
-        uint64_t ticks() const;
+        pit::Type type() const override;
+        hertz refclk() const override;
+        hertz frequency() const override;
+        uint64_t ticks() const override;
 
         hpet::HpetId id() const { return hpet::HpetId { mMmioRegion->id }; }
 

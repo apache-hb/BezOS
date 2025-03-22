@@ -108,9 +108,7 @@ km::HighPrecisionTimer::HighPrecisionTimer(const acpi::Hpet *hpet, hpet::MmioReg
     : mTable(*hpet)
     , mMmioRegion(mmio)
     , mId(mMmioRegion->id)
-{
-    KM_ASSERT(mMmioRegion != nullptr);
-}
+{ }
 
 km::pit::Type km::HighPrecisionTimer::type() const {
     return pit::Type::HPET;
@@ -122,6 +120,10 @@ km::hertz km::HighPrecisionTimer::refclk() const {
     // and frequency conversions doesn't make that possible.
     uint32_t femtos = (mMmioRegion->id >> 32);
     return (femtos * 10) * si::hertz;
+}
+
+km::hertz km::HighPrecisionTimer::frequency() const {
+    return refclk();
 }
 
 uint64_t km::HighPrecisionTimer::ticks() const {
@@ -151,11 +153,15 @@ uint8_t km::HighPrecisionTimer::revision() const {
 }
 
 void km::HighPrecisionTimer::enable(bool enabled) {
+    uint64_t config = mMmioRegion->config;
+
     if (enabled) {
-        mMmioRegion->config = mMmioRegion->config | 0b1;
+        config |= 0x1;
     } else {
-        mMmioRegion->config = mMmioRegion->config & ~0b1;
+        config &= ~0x1;
     }
+
+    mMmioRegion->config = config;
 }
 
 bool km::HighPrecisionTimer::isTimerActive(uint8_t timer) const {

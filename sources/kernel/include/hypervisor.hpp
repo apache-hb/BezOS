@@ -52,6 +52,7 @@ namespace km {
         uint32_t l7ecx;
         uint32_t l7edx;
 
+        bool tsc() const { return l1edx & (1 << 4); }
         bool lapic() const { return l1edx & (1 << 9); }
         bool fxsave() const { return l1edx & (1 << 24); }
         bool sse() const { return l1edx & (1 << 25); }

@@ -4,6 +4,8 @@
 
 #include <cstdint>
 
+using namespace std::chrono_literals;
+
 static constexpr uint16_t kChannel0 = 0x40;
 // static constexpr uint16_t kChannel1 = 0x41;
 // static constexpr uint16_t kChannel2 = 0x42;
@@ -16,6 +18,8 @@ void km::IntervalTimer::setDivisor(uint16_t divisor) {
 
     KmWriteByte(kChannel0, divisor & 0xFF);
     KmWriteByte(kChannel0, (divisor >> 8) & 0xFF);
+
+    mDivisor = divisor;
 }
 
 uint16_t km::IntervalTimer::bestDivisor(hertz frequency) const {
@@ -40,7 +44,7 @@ void km::IntervalTimer::setCount(uint16_t value) {
     KmWriteByte(kChannel0, (value >> 8) & 0xFF);
 }
 
-void km::InitPit(hertz frequency, IoApicSet& ioApicSet, IApic *apic, uint8_t irq) {
+km::IntervalTimer km::InitPit(hertz frequency, IoApicSet& ioApicSet, IApic *apic, uint8_t irq) {
     IntervalTimer pit;
     pit.setFrequency(frequency);
 
@@ -52,4 +56,63 @@ void km::InitPit(hertz frequency, IoApicSet& ioApicSet, IApic *apic, uint8_t irq
     };
 
     ioApicSet.setLegacyRedirect(config, irq::kTimer, apic);
+
+    return pit;
+}
+
+void km::BusySleep(ITickSource *timer, std::chrono::microseconds duration) {
+    auto frequency = timer->frequency();
+    uint64_t ticks = (uint64_t(frequency / si::hertz) * duration.count()) / 1'000'000;
+    uint64_t now = timer->ticks();
+    uint64_t then = now + ticks;
+    while (timer->ticks() < then) {
+        _mm_pause();
+    }
+}
+
+static constexpr std::chrono::milliseconds kTrainDuration = 10ms;
+static constexpr auto kTrainSteps = 10;
+
+km::hertz km::TrainApicTimer(IApic *apic, ITickSource *refclk) {
+    apic->setTimerDivisor(apic::TimerDivide::e1);
+
+    uint64_t sum = 0;
+
+    for (auto i = 0; i < kTrainSteps; i++) {
+        apic->setInitialCount(UINT32_MAX);
+        BusySleep(refclk, kTrainDuration);
+        uint64_t then = apic->getCurrentCount();
+
+        sum += (UINT32_MAX - then);
+    }
+
+    apic->setInitialCount(0);
+
+    auto totalTime = (kTrainSteps * kTrainDuration);
+
+    // ticks per ms
+    auto msFreq = (sum / totalTime.count()) * si::hertz;
+
+    // ticks per second
+    return msFreq * 1'000;
+}
+
+km::hertz km::TrainInvariantTsc(ITickSource *refclk) {
+    uint64_t sum = 0;
+
+    for (auto i = 0; i < kTrainSteps; i++) {
+        uint64_t now = __rdtsc();
+        BusySleep(refclk, kTrainDuration);
+        uint64_t then = __rdtsc();
+
+        sum += (then - now);
+    }
+
+    auto totalTime = (kTrainSteps * kTrainDuration);
+
+    // ticks per ms
+    auto msFreq = (sum / totalTime.count()) * si::hertz;
+
+    // ticks per second
+    return msFreq * 1'000;
 }

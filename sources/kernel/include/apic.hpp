@@ -4,8 +4,6 @@
 #include "util/combine.hpp"
 #include "util/absl.hpp"
 
-#include <utility>
-
 namespace km {
     namespace apic {
         enum class IcrDeliver : uint32_t {
@@ -158,10 +156,6 @@ namespace km {
         virtual void write(uint16_t offset, uint64_t value) = 0;
 
     public:
-        void operator delete(IApic*, std::destroying_delete_t) {
-            std::unreachable();
-        }
-
         virtual ~IApic() = default;
 
         virtual uint32_t id() const = 0;
