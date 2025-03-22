@@ -224,3 +224,82 @@ TEST(TerminalTest, WriteMultiLine) {
     // stops the test from passing if the terminal is not working
     ASSERT_GT(whiteCount, 1000);
 }
+
+TEST(TerminalTest, WriteInequalPitch) {
+    boot::FrameBuffer framebuffer = {
+        .width = 1555,
+        .height = 1203,
+        .pitch = (1920 * 5) + 15,
+        .bpp = 40,
+        .redMaskSize = 8,
+        .redMaskShift = 16,
+        .greenMaskSize = 8,
+        .greenMaskShift = 8,
+        .blueMaskSize = 8,
+        .blueMaskShift = 0,
+    };
+
+    std::unique_ptr<uint8_t[]> displayData(new uint8_t[framebuffer.size()]);
+    memset(displayData.get(), 0, framebuffer.size());
+
+    framebuffer.vaddr = displayData.get();
+
+    km::Canvas display(framebuffer, displayData.get());
+
+    km::DirectTerminal terminal(display);
+
+    terminal.print(kText);
+
+    DumpImage("terminal2.bmp", framebuffer, display);
+
+    uint64_t whiteCount = 0;
+
+    for (uint64_t x = 0; x < display.width(); x++) {
+        for (uint64_t y = 0; y < display.height(); y++) {
+            km::Pixel displayPixel = display.read(x, y);
+
+            // pixel must either be black or white
+
+            km::Pixel black { 0, 0, 0 };
+            km::Pixel white { 255, 255, 255 };
+
+            if (displayPixel == white) {
+                whiteCount++;
+            }
+
+            ASSERT_TRUE(displayPixel == black || displayPixel == white)
+                << "Pixel in display at (" << x << ", " << y << ") is (" << uint32_t(displayPixel.r) << ", " << uint32_t(displayPixel.g) << ", " << uint32_t(displayPixel.b) << ")";
+        }
+    }
+
+    // stops the test from passing if the terminal is not working
+    ASSERT_GT(whiteCount, 1000);
+}
+
+TEST(TerminalTest, NtscCanvas) {
+    boot::FrameBuffer framebuffer = {
+        .width = 1555,
+        .height = 1203,
+        .pitch = (1920 * 5) + 15,
+        .bpp = 40,
+        .redMaskSize = 8,
+        .redMaskShift = 16,
+        .greenMaskSize = 8,
+        .greenMaskShift = 8,
+        .blueMaskSize = 8,
+        .blueMaskShift = 0,
+    };
+
+    std::unique_ptr<uint8_t[]> displayData(new uint8_t[framebuffer.size()]);
+    memset(displayData.get(), 0, framebuffer.size());
+
+    framebuffer.vaddr = displayData.get();
+
+    km::Canvas display(framebuffer, displayData.get());
+
+    km::TestCanvas(display);
+
+    DumpImage("terminal3.bmp", framebuffer, display);
+
+    ASSERT_TRUE(true);
+}

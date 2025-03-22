@@ -112,3 +112,43 @@ void km::DrawCharacter(km::Canvas& display, uint64_t x, uint64_t y, char c, Pixe
         }
     }
 }
+
+static void DrawRect(km::Canvas& canvas, uint64_t x, uint64_t y, uint64_t w, uint64_t h, km::Pixel pixel) {
+    for (uint64_t i = 0; i < w; i++) {
+        for (uint64_t j = 0; j < h; j++) {
+            canvas.write(x + i, y + j, pixel);
+        }
+    }
+}
+
+void km::TestCanvas(Canvas& canvas) {
+    // draw the ntsc colour bars
+    uint64_t width = canvas.width();
+    uint64_t height = canvas.height();
+
+    // row 1
+    DrawRect(canvas, 0,             0, width / 7, height - (height / 3), Pixel { 255, 255, 255 });
+    DrawRect(canvas, width / 7,     0, width / 7, height - (height / 3), Pixel { 0, 255, 255 });
+    DrawRect(canvas, width / 7 * 2, 0, width / 7, height - (height / 3), Pixel { 255, 255, 0 });
+    DrawRect(canvas, width / 7 * 3, 0, width / 7, height - (height / 3), Pixel { 0, 255, 0 });
+    DrawRect(canvas, width / 7 * 4, 0, width / 7, height - (height / 3), Pixel { 255, 0, 255 });
+    DrawRect(canvas, width / 7 * 5, 0, width / 7, height - (height / 3), Pixel { 255, 0, 0 });
+    DrawRect(canvas, width / 7 * 6, 0, width / 7, height - (height / 3), Pixel { 0, 0, 255 });
+
+
+    // row 2
+    DrawRect(canvas, 0,             height - (height / 3), width / 7, height / 8, Pixel { 0, 0, 255 });
+    DrawRect(canvas, width / 7,     height - (height / 3), width / 7, height / 8, Pixel { 0, 0, 0 });
+    DrawRect(canvas, width / 7 * 2, height - (height / 3), width / 7, height / 8, Pixel { 255, 0, 0 });
+    DrawRect(canvas, width / 7 * 3, height - (height / 3), width / 7, height / 8, Pixel { 0, 0, 0 });
+    DrawRect(canvas, width / 7 * 4, height - (height / 3), width / 7, height / 8, Pixel { 0, 0, 255 });
+    DrawRect(canvas, width / 7 * 5, height - (height / 3), width / 7, height / 8, Pixel { 0, 0, 0 });
+    DrawRect(canvas, width / 7 * 6, height - (height / 3), width / 7, height / 8, Pixel { 0, 0, 255 });
+
+    // character set
+    for (int i = 0; i < 16; i++) {
+        for (int j = 0; j < 16; j++) {
+            DrawCharacter(canvas, ((width / 8) - (((width / 8) / 8) * 7)) + i, ((height / 8) - ((height / 8) / 8)) + j, i * 16 + j, Pixel { 255, 255, 255 }, Pixel { 0, 0, 0 });
+        }
+    }
+}

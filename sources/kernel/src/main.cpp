@@ -1664,6 +1664,19 @@ static void InitUserApi() {
     AddProcessSystemCalls();
 }
 
+template<typename T>
+struct km::Format<mp::quantity<si::hertz, T>> {
+    static void format(km::IOutStream& out, mp::quantity<si::hertz, T> value) {
+        static constexpr T kMhz = T(1'000'000);
+        T count = T(value / si::hertz);
+        if (count > kMhz) {
+            out.format(count / kMhz, ".", count % kMhz, " MHz");
+        } else {
+            out.format(count, " Hz");
+        }
+    }
+};
+
 void LaunchKernel(boot::LaunchInfo launch) {
     NormalizeProcessorState();
     SetDebugLogLock(DebugLogLockType::eNone);
@@ -1798,7 +1811,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
         KmDebugMessage("|---------------+-----------\n");
         KmDebugMessage("| Vendor        | ", hpet.vendor(), "\n");
         KmDebugMessage("| Timer count   | ", hpet.timerCount(), "\n");
-        KmDebugMessage("| Clock         | ", uint32_t(hpet.refclk() / si::hertz), "hz\n");
+        KmDebugMessage("| Clock         | ", hpet.refclk(), "\n");
         KmDebugMessage("| Counter size  | ", hpet.counterSize() == hpet::Width::DWORD ? "32"_sv : "64"_sv, "\n");
         KmDebugMessage("| Revision      | ", hpet.revision(), "\n");
         KmDebugMessage("| Ticks         | ", hpet.ticks(), "\n");
@@ -1824,12 +1837,12 @@ void LaunchKernel(boot::LaunchInfo launch) {
     KmDebugMessage("[INIT] Training APIC timer.\n");
     km::ITickSource *tickSource = hasHpet ? static_cast<km::ITickSource*>(&hpet) : static_cast<km::ITickSource*>(&pit);
     km::hertz apicFreq = km::TrainApicTimer(lapic.pointer(), tickSource);
-    KmDebugMessage("[INIT] APIC timer frequency: ", uint64_t(apicFreq / si::hertz), "hz\n");
+    KmDebugMessage("[INIT] APIC timer frequency: ", apicFreq, "\n");
 
     if (processor.invariantTsc) {
         KmDebugMessage("[INIT] Training TSC timer.\n");
         km::hertz tscFreq = km::TrainInvariantTsc(tickSource);
-        KmDebugMessage("[INIT] TSC frequency: ", uint64_t(tscFreq / si::hertz), "hz\n");
+        KmDebugMessage("[INIT] TSC frequency: ", tscFreq, "\n");
     }
 
     DateTime time = ReadCmosClock();

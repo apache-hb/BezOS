@@ -119,13 +119,6 @@ enum ConfigureProgram {
     eAutoconf,
 };
 
-enum BuildProgram {
-    eBuildNone,
-
-    eNinja,
-    eMake,
-};
-
 struct ScriptExec {
     fs::path script;
     std::vector<std::string> args;
@@ -163,6 +156,30 @@ struct ConfigureStep {
     std::string scriptBody;
 };
 
+struct BuildStep {
+    ConfigureProgram program{eConfigureNone};
+
+    std::string targets;
+
+    std::map<std::string, std::string> env;
+
+    std::map<std::string, std::string> options;
+
+    std::vector<std::string> args;
+};
+
+struct InstallStep {
+    ConfigureProgram program{eConfigureNone};
+
+    std::string targets;
+
+    std::map<std::string, std::string> env;
+
+    std::map<std::string, std::string> options;
+
+    std::vector<std::string> args;
+};
+
 struct PackageInfo {
     std::string name;
     fs::path source;
@@ -185,8 +202,6 @@ struct PackageInfo {
     std::vector<RequirePackage> dependencies;
 
     std::vector<ConfigureStep> configureSteps;
-
-    BuildProgram buildProgram{eBuildNone};
 
     std::vector<ScriptExec> scripts;
 
@@ -1088,15 +1103,6 @@ static void ReadPackageConfig(XmlNode root) {
 
             auto folder = ExpectProperty<std::string>(action, "path");
             packageInfo.overlays.push_back(Overlay{folder});
-        } else if (step == "build") {
-            auto with = ExpectProperty<std::string>(action, "with");
-            if (with == "ninja") {
-                packageInfo.buildProgram = eNinja;
-            } else if (with == "make") {
-                packageInfo.buildProgram = eMake;
-            } else {
-                throw std::runtime_error("Unknown build program " + with);
-            }
         } else if (step == "configure"sv) {
             packageInfo.configureSteps.push_back(ReadConfigureStep(action, packageInfo));
         } else if (step == "script"sv) {
@@ -1908,8 +1914,10 @@ int main(int argc, const char **argv) try {
     }
 
     for (auto& package : gPackageDb->GetToplevelPackages()) {
+        if (!gWorkspace.packages.contains(package)) {
+            throw std::runtime_error("Package " + package + " not found in workspace");
+        }
         assert(!package.empty() && "Package name cannot be empty");
-        assert(gWorkspace.packages.contains(package) && "Package must exist in workspace");
 
         VisitPackage(gWorkspace.getPackage(package));
     }

@@ -33,6 +33,7 @@
     <xi:include href='packages/lib/ncurses.xml' />
 
     <xi:include href='packages/shell/zsh.xml' />
+    <!-- <xi:include href='packages/tools/cpuid.xml' /> -->
 
     <xi:include href='packages/lib/capstone.xml' />
 
@@ -41,6 +42,7 @@
     <artifact name='initrd'>
         <require package='system' />
         <require package='zsh' />
+        <!-- <require package='cpuid' /> -->
         <script path='@REPO@/data/generate-initrd.sh' />
     </artifact>
 

@@ -88,13 +88,13 @@ OS_EXTERN OS_NORETURN [[gnu::force_align_arg_pointer]] void ClientStart(const st
 
     DebugLog("Waiting for TTY0 devices...");
 
+    DebugLog("Waiting for TTY0 input device...");
     while (!DeviceExists(OsMakePath("Devices\0Terminal\0TTY0\0Input"), kOsStreamGuid)) {
-        DebugLog("Waiting for TTY0 input device...");
         OsThreadYield();
     }
 
+    DebugLog("Waiting for TTY0 output device...");
     while (!DeviceExists(OsMakePath("Devices\0Terminal\0TTY0\0Output"), kOsStreamGuid)) {
-        DebugLog("Waiting for TTY0 output device...");
         OsThreadYield();
     }
 

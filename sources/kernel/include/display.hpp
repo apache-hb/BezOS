@@ -134,6 +134,8 @@ namespace km {
         Pixel read(uint64_t x, uint64_t y) const;
     };
 
+    void TestCanvas(Canvas& canvas);
+
     void DrawCharacter(Canvas& display, uint64_t x, uint64_t y, char c, Pixel fg, Pixel bg);
 
     class DirectTerminal final {
