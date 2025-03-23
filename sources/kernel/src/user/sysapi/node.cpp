@@ -10,7 +10,7 @@
 // TODO: make this runtime configurable
 static constexpr size_t kMaxPathSize = 0x1000;
 
-OsStatus um::UserReadPath(km::CallContext *context, OsPath user, vfs2::VfsPath *path) {
+OsStatus um::ReadPath(km::CallContext *context, OsPath user, vfs2::VfsPath *path) {
     vfs2::VfsString text;
     if (OsStatus status = context->readString((uint64_t)user.Front, (uint64_t)user.Back, kMaxPathSize, &text)) {
         return status;
@@ -22,6 +22,20 @@ OsStatus um::UserReadPath(km::CallContext *context, OsPath user, vfs2::VfsPath *
     }
 
     *path = vfs2::VfsPath{std::move(text)};
+    return OsStatusSuccess;
+}
+
+OsStatus um::VerifyBuffer(km::CallContext *context, OsBuffer buffer) {
+    if ((buffer.Data == nullptr) ^ (buffer.Size == 0)) {
+        return OsStatusInvalidInput;
+    }
+
+    if (buffer.Size != 0) {
+        if (!context->isMapped((uint64_t)buffer.Data, (uint64_t)buffer.Data + buffer.Size, km::PageFlags::eUser | km::PageFlags::eRead)) {
+            return OsStatusInvalidInput;
+        }
+    }
+
     return OsStatusSuccess;
 }
 
@@ -58,7 +72,7 @@ OsCallResult um::NodeOpen(km::System *system, km::CallContext *context, km::Syst
         return km::CallError(status);
     }
 
-    if (OsStatus status = UserReadPath(context, createInfo.Path, &path)) {
+    if (OsStatus status = ReadPath(context, createInfo.Path, &path)) {
         return km::CallError(status);
     }
 

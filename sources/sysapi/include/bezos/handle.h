@@ -80,6 +80,11 @@ struct OsGuid {
     OsByte Octets[16];
 };
 
+struct OsBuffer {
+    const void *Data;
+    OsSize Size;
+};
+
 /// @brief A version tag.
 ///
 /// All versioning is done using a single 32-bit integer and semantic versioning.

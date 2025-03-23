@@ -60,6 +60,11 @@ struct OsThreadCreateInfo {
     OsThreadCreateFlags Flags;
 };
 
+struct OsThreadInfo {
+    OsProcessHandle Process;
+    OsThreadState State;
+};
+
 extern OsStatus OsThreadCreate(struct OsThreadCreateInfo CreateInfo, OsThreadHandle *OutHandle);
 
 extern OsStatus OsThreadDestroy(OsThreadHandle Handle);
@@ -72,6 +77,8 @@ extern OsStatus OsThreadSleep(OsDuration Duration);
 
 extern OsStatus OsThreadSuspend(OsThreadHandle Handle, bool Suspend);
 
+extern OsStatus OsThreadStat(OsThreadHandle Handle, struct OsThreadInfo *OutInfo);
+
 /// @} // group OsThread
 
 /// @defgroup OsMutex Mutex
@@ -80,6 +87,8 @@ extern OsStatus OsThreadSuspend(OsThreadHandle Handle, bool Suspend);
 struct OsMutexCreateInfo {
     const char *NameFront;
     const char *NameBack;
+
+    OsProcessHandle Process;
 };
 
 extern OsStatus OsMutexCreate(struct OsMutexCreateInfo CreateInfo, OsMutexHandle *OutHandle);

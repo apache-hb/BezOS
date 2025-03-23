@@ -124,7 +124,7 @@ public:
             .InterfaceGuid = kOsHidClassGuid,
         };
 
-        ASSERT_OS_SUCCESS(OsDeviceOpen(createInfo, NULL, 0, &mDevice));
+        ASSERT_OS_SUCCESS(OsDeviceOpen(createInfo, &mDevice));
     }
 
     ~KeyboardDevice() {
@@ -163,7 +163,7 @@ public:
             .Flags = eOsDeviceCreateNew,
         };
 
-        ASSERT_OS_SUCCESS(OsDeviceOpen(createInfo, NULL, 0, &mDevice));
+        ASSERT_OS_SUCCESS(OsDeviceOpen(createInfo, &mDevice));
 
         OsDdiGetCanvas canvas{};
         ASSERT_OS_SUCCESS(OsDeviceInvoke(mDevice, eOsDdiGetCanvas, &canvas, sizeof(canvas)));
@@ -245,7 +245,7 @@ public:
             .Flags = eOsDeviceCreateNew,
         };
 
-        ASSERT_OS_SUCCESS(OsDeviceOpen(createInfo, NULL, 0, &mDevice));
+        ASSERT_OS_SUCCESS(OsDeviceOpen(createInfo, &mDevice));
     }
 
     ~StreamDevice() {

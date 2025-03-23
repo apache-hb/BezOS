@@ -118,7 +118,7 @@ public:
             .Flags = eOsDeviceOpenExisting,
         };
 
-        ASSERT_OS_SUCCESS(OsDeviceOpen(createInfo, NULL, 0, &mDevice));
+        ASSERT_OS_SUCCESS(OsDeviceOpen(createInfo, &mDevice));
     }
 
     ~StreamDevice() {
@@ -181,13 +181,14 @@ void WriteNumber(StreamDevice& stream, T number) {
 }
 
 template<size_t N>
-static OsStatus OpenFile(const char (&path)[N], OsFileHandle *outHandle) {
-    OsFileCreateInfo createInfo {
+static OsStatus OpenFile(const char (&path)[N], OsDeviceHandle *outHandle) {
+    OsDeviceCreateInfo createInfo {
         .Path = OsMakePath(path),
-        .Mode = eOsFileRead,
+        .InterfaceGuid = kOsFileGuid,
+        .Flags = eOsDeviceOpenExisting,
     };
 
-    return OsFileOpen(createInfo, outHandle);
+    return OsDeviceOpen(createInfo, outHandle);
 }
 
 static void Prompt(StreamDevice& tty) {
@@ -224,7 +225,7 @@ public:
             .Flags = eOsDeviceOpenExisting,
         };
 
-        return OsDeviceOpen(createInfo, NULL, 0, &iterator->mHandle);
+        return OsDeviceOpen(createInfo, &iterator->mHandle);
     }
 
     OsStatus Next(OsNodeHandle *outNode) {
@@ -339,7 +340,7 @@ static bool VfsNodeExists(std::string_view path, std::string_view cwd) {
     }
 
     OsDeviceHandle handle = OS_HANDLE_INVALID;
-    OsStatus status = OsDeviceOpen(createInfo, NULL, 0, &handle);
+    OsStatus status = OsDeviceOpen(createInfo, &handle);
     if (status != OsStatusSuccess) {
         return false;
     }
@@ -381,7 +382,7 @@ static void ShowCurrentInfo(StreamDevice& display, std::string_view cwd) {
     };
 
     OsDeviceHandle handle = OS_HANDLE_INVALID;
-    ASSERT_OS_SUCCESS(OsDeviceOpen(createInfo, NULL, 0, &handle));
+    ASSERT_OS_SUCCESS(OsDeviceOpen(createInfo, &handle));
 
     OsIdentifyInfo info{};
     ASSERT_OS_SUCCESS(OsInvokeIdentifyDeviceInfo(handle, &info));
@@ -543,17 +544,17 @@ static void EchoFile(StreamDevice& tty, std::string_view cwd, const char *path) 
         front += 1;
     }
 
-    OsHandle handle = OS_HANDLE_INVALID;
-    OsFileCreateInfo createInfo {
+    OsDeviceHandle handle = OS_HANDLE_INVALID;
+    OsDeviceCreateInfo createInfo {
         .Path = { copy + front, copy + len },
-        .Mode = eOsFileRead | eOsFileOpenExisting,
+        .InterfaceGuid = kOsFileGuid,
     };
 
     if (strncmp(path, "/", 2) == 0) {
         createInfo.Path = OsMakePath("");
     }
 
-    OsStatus status = OsFileOpen(createInfo, &handle);
+    OsStatus status = OsDeviceOpen(createInfo, &handle);
     if (status != OsStatusSuccess) {
         WriteString(tty, "Error failed to open: '");
         WriteString(tty, path, path + strlen(path));
@@ -564,9 +565,14 @@ static void EchoFile(StreamDevice& tty, std::string_view cwd, const char *path) 
     }
 
     char buffer[1024];
-    size_t read = 0;
+    OsSize read = 0;
     while (true) {
-        status = OsFileRead(handle, buffer, buffer + sizeof(buffer), &read);
+        OsDeviceReadRequest request {
+            .BufferFront = std::begin(buffer),
+            .BufferBack = std::end(buffer),
+            .Timeout = OS_TIMEOUT_INFINITE,
+        };
+        status = OsDeviceRead(handle, request, &read);
         if (status != OsStatusSuccess) {
             WriteString(tty, "Error failed to read: '");
             WriteString(tty, path, path + strlen(path));
@@ -583,7 +589,7 @@ static void EchoFile(StreamDevice& tty, std::string_view cwd, const char *path) 
         WriteString(tty, buffer, buffer + read);
     }
 
-    ASSERT_OS_SUCCESS(OsFileClose(handle));
+    ASSERT_OS_SUCCESS(OsDeviceClose(handle));
 }
 
 using namespace std::chrono_literals;
@@ -637,14 +643,19 @@ void ClientStart(const struct OsClientStartInfo *) {
     StreamDevice ttyin{OsMakePath("Devices\0Terminal\0TTY0\0Input")};
 
     {
-        OsFileHandle Handle = OS_FILE_INVALID;
+        OsDeviceHandle Handle = OS_HANDLE_INVALID;
         ASSERT_OS_SUCCESS(OpenFile("Users\0Guest\0motd.txt", &Handle));
 
         char buffer[256];
-        uint64_t read = 0;
-        ASSERT_OS_SUCCESS(OsFileRead(Handle, std::begin(buffer), std::end(buffer), &read));
+        OsDeviceReadRequest request {
+            .BufferFront = std::begin(buffer),
+            .BufferBack = std::end(buffer),
+            .Timeout = OS_TIMEOUT_INFINITE,
+        };
+        OsSize size = 0;
+        ASSERT_OS_SUCCESS(OsDeviceRead(Handle, request, &size));
 
-        tty.Write(buffer, buffer + read);
+        tty.Write(buffer, buffer + size);
     }
 
     Prompt(tty);

@@ -33,7 +33,8 @@ enum {
     eOsCallThreadDestroy = 0x41,
     eOsCallThreadCurrent = 0x42,
     eOsCallThreadSleep = 0x43,
-    eOsCallThreadStat = 0x44,
+    eOsCallThreadSuspend = 0x44,
+    eOsCallThreadStat = 0x45,
 
     eOsCallVmemCreate = 0x50,
     eOsCallVmemRelease = 0x51,

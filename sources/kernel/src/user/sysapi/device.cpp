@@ -51,31 +51,36 @@ public:
 
 OsCallResult um::DeviceOpen(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
     uint64_t userCreateInfo = regs->arg0;
+
     OsDeviceCreateInfo createInfo{};
     if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {
         return km::CallError(status);
     }
 
-    if (createInfo.OpenDataSize == 0) {
-        if (createInfo.OpenData != nullptr) {
-            return km::CallError(OsStatusInvalidInput);
-        }
-    } else {
-        if (!context->isMapped((uint64_t)createInfo.OpenData, (uint64_t)createInfo.OpenData + createInfo.OpenDataSize, km::PageFlags::eUser | km::PageFlags::eRead)) {
-            return km::CallError(OsStatusInvalidInput);
-        }
-    }
+    sm::uuid uuid = createInfo.InterfaceGuid;
+    OsBuffer createData = createInfo.CreateData;
+    OsBuffer openData = createInfo.OpenData;
 
-    vfs2::VfsPath path;
-    if (OsStatus status = UserReadPath(context, createInfo.Path, &path)) {
+    km::Process *process = nullptr;
+    if (OsStatus status = SelectOwningProcess(system, context, createInfo.Process, &process)) {
         return km::CallError(status);
     }
 
-    sm::uuid uuid = createInfo.InterfaceGuid;
-    km::Process *process = context->process();
+    if (OsStatus status = VerifyBuffer(context, createData)) {
+        return km::CallError(status);
+    }
+
+    if (OsStatus status = VerifyBuffer(context, openData)) {
+        return km::CallError(status);
+    }
+
+    vfs2::VfsPath path;
+    if (OsStatus status = ReadPath(context, createInfo.Path, &path)) {
+        return km::CallError(status);
+    }
 
     std::unique_ptr<vfs2::IHandle> handle = nullptr;
-    OsStatus status = system->vfs->device(path, uuid, createInfo.OpenData, createInfo.OpenDataSize, std::out_ptr(handle));
+    OsStatus status = system->vfs->device(path, uuid, openData.Data, openData.Size, std::out_ptr(handle));
 
     if ((status == OsStatusNotFound) && (createInfo.Flags & eOsDeviceCreateNew)) {
         vfs2::INode *node = GetDefaultClass(uuid);
@@ -88,7 +93,7 @@ OsCallResult um::DeviceOpen(km::System *system, km::CallContext *context, km::Sy
             return km::CallError(status);
         }
 
-        status = system->vfs->device(path, uuid, createInfo.OpenData, createInfo.OpenDataSize, std::out_ptr(handle));
+        status = system->vfs->device(path, uuid, createData.Data, createData.Size, std::out_ptr(handle));
     }
 
     if (status != OsStatusSuccess) {
@@ -222,6 +227,7 @@ OsCallResult um::DeviceStat(km::System *system, km::CallContext *context, km::Sy
     std::memcpy(result.Name, nodeInfo.name.data(), len);
 
     result.InterfaceGuid = handleInfo.guid;
+    result.Node = system->objects->getNodeId(handleInfo.node);
 
     // TODO: fill in the rest of the fields
 

@@ -32,7 +32,8 @@ namespace km {
 /// Functions in this namespace are called by the syscall handler to service requests from userspace.
 /// This includes sanitizing inputs before passing them to the kernel.
 namespace um {
-    OsStatus UserReadPath(km::CallContext *context, OsPath user, vfs2::VfsPath *path);
+    OsStatus ReadPath(km::CallContext *context, OsPath user, vfs2::VfsPath *path);
+    OsStatus VerifyBuffer(km::CallContext *context, OsBuffer buffer);
     OsStatus SelectOwningProcess(km::System *system, km::CallContext *context, OsProcessHandle handle, km::Process **result);
 
     // <bezos/facility/fs.h>

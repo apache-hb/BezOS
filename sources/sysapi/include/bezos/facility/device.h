@@ -34,11 +34,11 @@ struct OsDeviceCreateInfo {
     /// @note If this is @a OS_HANDLE_INVALID, then the device handle is created in the current process.
     OsProcessHandle Process;
 
-    /// @brief Data to pass to the device during creation.
-    const void *OpenData;
+    /// @brief Data to pass to the device if it is opened.
+    struct OsBuffer OpenData;
 
-    /// @brief The size of the data to pass to the device creation.
-    OsSize OpenDataSize;
+    /// @brief Data to pass to the device if it is created.
+    struct OsBuffer CreateData;
 };
 
 struct OsDeviceReadRequest {
@@ -76,7 +76,7 @@ struct OsDeviceInfo {
 /// @param OutHandle The device handle.
 ///
 /// @return The status of the operation.
-extern OsStatus OsDeviceOpen(struct OsDeviceCreateInfo CreateInfo, OsAnyPointer Data, OsSize DataSize, OsDeviceHandle *OutHandle);
+extern OsStatus OsDeviceOpen(struct OsDeviceCreateInfo CreateInfo, OsDeviceHandle *OutHandle);
 
 /// @brief Close a device handle.
 ///

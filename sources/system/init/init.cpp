@@ -54,7 +54,7 @@ static bool DeviceExists(OsPath path, OsGuid guid) {
     };
 
     OsDeviceHandle handle = OS_HANDLE_INVALID;
-    OsStatus status = OsDeviceOpen(createInfo, NULL, 0, &handle);
+    OsStatus status = OsDeviceOpen(createInfo, &handle);
     if (status != OsStatusSuccess) {
         return false;
     }

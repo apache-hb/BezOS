@@ -74,7 +74,7 @@ OsCallResult um::ProcessCreate(km::System *system, km::CallContext *context, km:
         return km::CallError(status);
     }
 
-    if (OsStatus status = UserReadPath(context, createInfo.Executable, &path)) {
+    if (OsStatus status = ReadPath(context, createInfo.Executable, &path)) {
         return km::CallError(status);
     }
 
