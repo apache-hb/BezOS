@@ -1694,6 +1694,11 @@ void LaunchKernel(boot::LaunchInfo launch) {
     InitBootTerminal(launch.framebuffers);
     auto [hvInfo, hasDebugPort] = QueryHostHypervisor();
 
+#if 0
+    TestCanvas(gDirectTerminalLog.get().display());
+    KmHalt();
+#endif
+
     ProcessorInfo processor = GetProcessorInfo();
     EnableUmip(processor.umip());
 

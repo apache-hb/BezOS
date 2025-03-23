@@ -9,9 +9,9 @@ OsStatus km::TrainInvariantTsc(ITickSource *refclk, InvariantTsc *timer) {
     uint64_t sum = 0;
 
     for (auto i = 0; i < kTrainSteps; i++) {
-        uint64_t now = __rdtsc();
+        uint64_t now = __builtin_ia32_rdtsc();
         BusySleep(refclk, kTrainDuration);
-        uint64_t then = __rdtsc();
+        uint64_t then = __builtin_ia32_rdtsc();
 
         sum += (then - now);
     }

@@ -595,7 +595,7 @@ static void WriteTime(StreamDevice& tty) {
     OsClockInfo info{};
     ASSERT_OS_SUCCESS(OsClockStat(&info));
 
-    OsInstant time;
+    OsInstant time = 0;
     ASSERT_OS_SUCCESS(OsClockGetTime(&time));
 
     {

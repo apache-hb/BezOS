@@ -26,7 +26,7 @@ namespace km {
         TickSourceType type() const override { return TickSourceType::TSC; }
         hertz refclk() const override { return mFrequency; }
         hertz frequency() const override { return mFrequency; }
-        uint64_t ticks() const override { return __rdtsc(); }
+        uint64_t ticks() const override { return __builtin_ia32_rdtsc(); }
 
         friend OsStatus km::TrainInvariantTsc(ITickSource *refclk, InvariantTsc *tsc);
     };

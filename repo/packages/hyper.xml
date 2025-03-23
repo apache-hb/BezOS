@@ -1,15 +1,15 @@
-<package name='hyper'>
+<package name='hyper' version='0.10.0'>
     <download file='BOOTX64.EFI'
-              url='https://github.com/UltraOS/Hyper/releases/download/v0.9.0/BOOTX64.EFI'
-              sha256='917f91b26ef17cf6ccf8d775cdc92e246ff24dbb2d63588b19b817c4b11abb54' />
+              url='https://github.com/UltraOS/Hyper/releases/download/v0.10.0/BOOTX64.EFI'
+              sha256='897bb63cb36e92e6ea7623952ca4303440b8c7d099efd83ba0a56b5451951408' />
 
     <download file='hyper_iso_boot'
-              url='https://github.com/UltraOS/Hyper/releases/download/v0.9.0/hyper_iso_boot'
-              sha256='735a3970e9759a93591de39e417c602b25da6bb77a931996bf712483ba513f0f' />
+              url='https://github.com/UltraOS/Hyper/releases/download/v0.10.0/hyper_iso_boot'
+              sha256='0c500ab0dec3a5cad44b97f5ad0340d71ca8970f66452bb20d795a727a56e7b0' />
 
     <download file='hyper_install'
-              url='https://github.com/UltraOS/Hyper/releases/download/v0.9.0/hyper_install-linux-x86_64'
-              sha256='92b951f0af37ea1fa030d4109beef047df390afeefc1398d34ded782dba86f9f' />
+              url='https://github.com/UltraOS/Hyper/releases/download/v0.10.0/hyper_install-linux-x86_64'
+              sha256='32c8103e6f7f28a12a293b7de2902d96f091a24f7e837767a726e6d56fff2d38' />
 
     <overlay path='overlays/hyper' />
     <configure with='meson' />
