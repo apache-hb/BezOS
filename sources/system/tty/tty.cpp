@@ -16,7 +16,6 @@
 
 #include <ctype.h>
 
-#include <concepts>
 #include <iterator>
 
 #define UTIL_NOCOPY(cls) \
@@ -214,24 +213,6 @@ public:
     void WriteString(const char (&str)[N]) {
         WriteString(str, str + N - 1);
     }
-
-    template<std::integral T>
-    void WriteNumber(T number) {
-        char buffer[32];
-        char *ptr = buffer + sizeof(buffer);
-        *--ptr = '\0';
-
-        if (number == 0) {
-            *--ptr = '0';
-        } else {
-            while (number != 0) {
-                *--ptr = '0' + (number % 10);
-                number /= 10;
-            }
-        }
-
-        WriteString(ptr, buffer + sizeof(buffer));
-    }
 };
 
 class StreamDevice {
@@ -299,12 +280,14 @@ static char ConvertVkToAscii(OsHidKeyEvent event) {
     return '\0';
 }
 
-OS_EXTERN OS_NORETURN [[gnu::force_align_arg_pointer]] void ClientStart(const struct OsClientStartInfo *) {
+OS_EXTERN OS_NORETURN
+[[gnu::force_align_arg_pointer]]
+void ClientStart(const struct OsClientStartInfo *) {
     VtDisplay display{};
     KeyboardDevice keyboard{};
 
     OsHidEvent event{};
-    char buffer[256];
+    char buffer[256]{};
 
     StreamDevice ttyin{OsMakePath("Devices\0Terminal\0TTY0\0Input")};
     StreamDevice ttyout{OsMakePath("Devices\0Terminal\0TTY0\0Output")};
@@ -324,6 +307,8 @@ OS_EXTERN OS_NORETURN [[gnu::force_align_arg_pointer]] void ClientStart(const st
         size_t read = 0;
         while (ttyout.Read(std::begin(buffer), std::end(buffer), &read) == OsStatusSuccess && read != 0) {
             display.WriteString(buffer, buffer + read);
+            read = 0;
+            memset(buffer, 0, sizeof(buffer));
         }
 
         OsThreadYield();

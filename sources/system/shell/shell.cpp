@@ -132,6 +132,8 @@ public:
             .Timeout = OS_TIMEOUT_INFINITE,
         };
 
+        OsDebugMessage({ front, back, eOsLogDebug });
+
         OsSize written = 0;
         return OsDeviceWrite(mDevice, request, &written);
     }
@@ -153,33 +155,6 @@ public:
     }
 };
 
-static OsStatus WriteString(StreamDevice& stream, const char *begin, const char *end) {
-    return stream.Write(begin, end);
-}
-
-template<size_t N>
-static OsStatus WriteString(StreamDevice& stream, const char (&str)[N]) {
-    return WriteString(stream, str, str + N - 1);
-}
-
-template<std::integral T>
-void WriteNumber(StreamDevice& stream, T number) {
-    char buffer[32];
-    char *ptr = buffer + sizeof(buffer);
-    *--ptr = '\0';
-
-    if (number == 0) {
-        *--ptr = '0';
-    } else {
-        while (number != 0) {
-            *--ptr = '0' + (number % 10);
-            number /= 10;
-        }
-    }
-
-    WriteString(stream, ptr, buffer + sizeof(buffer));
-}
-
 template<size_t N>
 static OsStatus OpenFile(const char (&path)[N], OsDeviceHandle *outHandle) {
     OsDeviceCreateInfo createInfo {
@@ -192,7 +167,7 @@ static OsStatus OpenFile(const char (&path)[N], OsDeviceHandle *outHandle) {
 }
 
 static void Prompt(StreamDevice& tty) {
-    WriteString(tty, "root@localhost: ");
+    tty.Format("root@localhost: ");
 }
 
 class FolderIterator {
@@ -266,13 +241,8 @@ static void ListCurrentFolder(StreamDevice& tty, std::string_view path) {
 
     FolderIterator iterator{};
     if (OsStatus status = FolderIterator::Create(iteratorPath, &iterator)) {
-        WriteString(tty, "Error: '");
-        WriteString(tty, path.data(), path.data() + path.size());
-        WriteString(tty, "' is not iterable.\n");
-        WriteString(tty, "Status: ");
-        WriteNumber(tty, status);
-        WriteString(tty, "\n");
-
+        tty.Format("Error: Failed to open folder '{}'.\n", path);
+        tty.Format("Status: {}\n", status);
         return;
     }
 
@@ -289,24 +259,20 @@ static void ListCurrentFolder(StreamDevice& tty, std::string_view path) {
                 break;
             }
 
-            WriteString(tty, "Error: Failed to iterate folder.\n");
-            WriteString(tty, "Status: ");
-            WriteNumber(tty, status);
-            WriteString(tty, "\n");
+            tty.Format("Error: Failed to iterate folder '{}'.\n", path);
+            tty.Format("Status: {}\n", status);
             return;
         }
 
         OsNodeInfo info{};
         if (OsStatus status = OsNodeStat(node, &info)) {
-            WriteString(tty, "Error: Failed to get node info.\n");
-            WriteString(tty, "Status: ");
-            WriteNumber(tty, status);
-            WriteString(tty, "\n");
+            tty.Format("Error: Failed to get node info.\n");
+            tty.Format("Status: {}\n", status);
             return;
         }
 
-        WriteString(tty, info.Name, info.Name + strnlen(info.Name, sizeof(info.Name)));
-        WriteString(tty, "\n");
+        std::string_view name = { info.Name, strnlen(info.Name, sizeof(info.Name)) };
+        tty.Format("{}\n", name);
     }
 }
 
@@ -556,11 +522,7 @@ static void EchoFile(StreamDevice& tty, std::string_view cwd, const char *path) 
 
     OsStatus status = OsDeviceOpen(createInfo, &handle);
     if (status != OsStatusSuccess) {
-        WriteString(tty, "Error failed to open: '");
-        WriteString(tty, path, path + strlen(path));
-        WriteString(tty, "' ");
-        WriteNumber(tty, status);
-        WriteString(tty, "\n");
+        tty.Format("Error failed to open: '{}': {}\n", path, status);
         return;
     }
 
@@ -574,11 +536,7 @@ static void EchoFile(StreamDevice& tty, std::string_view cwd, const char *path) 
         };
         status = OsDeviceRead(handle, request, &read);
         if (status != OsStatusSuccess) {
-            WriteString(tty, "Error failed to read: '");
-            WriteString(tty, path, path + strlen(path));
-            WriteString(tty, "' ");
-            WriteNumber(tty, status);
-            WriteString(tty, "\n");
+            tty.Format("Error failed to read: '{}': {}\n", path, status);
             break;
         }
 
@@ -586,7 +544,7 @@ static void EchoFile(StreamDevice& tty, std::string_view cwd, const char *path) 
             break;
         }
 
-        WriteString(tty, buffer, buffer + read);
+        tty.Format("{}", std::string_view(buffer, buffer + read));
     }
 
     ASSERT_OS_SUCCESS(OsDeviceClose(handle));
@@ -665,8 +623,7 @@ void ClientStart(const struct OsClientStartInfo *) {
 
     auto addChar = [&](char c) {
         text.push_back(c);
-        char buffer[1] = { c };
-        WriteString(tty, buffer, buffer + 1);
+        tty.Format("{}", c);
     };
 
     while (true) {
@@ -679,24 +636,24 @@ void ClientStart(const struct OsClientStartInfo *) {
         char key = input[0];
         if (key == '\n') {
             if (text.empty()) {
-                WriteString(tty, "\n");
+                tty.Format("\n");
                 Prompt(tty);
                 continue;
             }
 
             defer { text.clear(); };
 
-            WriteString(tty, "\n");
+            tty.Format("\n");
 
             if (text == "exit") {
                 break;
             } else if (text == "uname") {
-                WriteString(tty, "BezOS localhost 0.0.1 amd64\n");
+                tty.Format("BezOS localhost 0.0.1 amd64\n");
                 Prompt(tty);
                 continue;
             } else if (text == "pwd") {
-                WriteString(tty, cwd.data(), cwd.data() + cwd.size());
-                WriteString(tty, "\n");
+                tty.Format("{}\n", cwd);
+                tty.Format("\n");
                 Prompt(tty);
                 continue;
             } else if (text == "ls") {
@@ -740,14 +697,14 @@ void ClientStart(const struct OsClientStartInfo *) {
         } else if (key == '\b') {
             if (!text.empty()) {
                 text.pop_back();
-                WriteString(tty, "\b \b");
+                tty.Format("\b \b");
             }
         } else if (isprint(key)) {
             addChar(key);
         }
     }
 
-    WriteString(tty, "Shell exited\n");
+    tty.Format("Shell exited\n");
     while (true) { }
     __builtin_unreachable();
 }

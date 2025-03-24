@@ -77,6 +77,8 @@ struct OsProcessCreateInfo {
 };
 
 struct OsProcessInfo {
+    OsUtf8Char Name[OS_OBJECT_NAME_MAX];
+
     OsProcessHandle Parent;
 
     const struct OsProcessParam *ArgsBegin;

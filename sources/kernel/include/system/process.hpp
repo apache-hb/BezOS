@@ -1,12 +1,13 @@
 #pragma once
 
-#include <bezos/handle.h>
 #include <bezos/facility/process.h>
 
 #include "memory/range.hpp"
+#include "memory/tables.hpp"
 #include "std/shared_spinlock.hpp"
 #include "std/vector.hpp"
 #include "system/handle.hpp"
+#include "util/absl.hpp"
 
 namespace sys2 {
     class System;
@@ -17,10 +18,13 @@ namespace sys2 {
         ObjectName mName;
 
         /// @brief All the handles this process has open.
-        stdx::Vector3<OsHandle> mHandles;
+        sm::FlatHashMap<OsHandle, IObject*> mHandles;
 
         /// @brief All the physical memory dedicated to this process.
         stdx::Vector3<km::MemoryRange> mPhysicalMemory;
+
+        /// @brief The page tables for this process.
+        km::ProcessPageTables mPageTables;
 
     public:
         void setName(ObjectName name) override;
@@ -37,6 +41,10 @@ namespace sys2 {
     struct ProcessDestroyInfo {
         int64_t exitCode;
         OsProcessStateFlags reason;
+    };
+
+    struct ProcessInfo {
+
     };
 
     OsStatus CreateProcess(System *system, const ProcessCreateInfo& info, Process **process);

@@ -61,6 +61,8 @@ struct OsThreadCreateInfo {
 };
 
 struct OsThreadInfo {
+    OsUtf8Char Name[OS_OBJECT_NAME_MAX];
+
     OsProcessHandle Process;
     OsThreadState State;
 };

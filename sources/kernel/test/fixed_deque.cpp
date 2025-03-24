@@ -102,6 +102,24 @@ TEST(FixedDequeTest, GetBack) {
     }
 }
 
+TEST(FixedDequeTest, Poll) {
+    FixedDequeTestData<int> test(16);
+
+    for (int i = 0; i < 16; i++) {
+        ASSERT_TRUE(test.ring.addBack(i));
+    }
+
+    ASSERT_EQ(test.ring.count(), 16);
+    ASSERT_EQ(test.ring.capacity(), 16);
+
+    for (int i = 0; i < 16; i++) {
+        ASSERT_EQ(test.ring.pollFront(), i);
+    }
+
+    ASSERT_EQ(test.ring.count(), 0);
+    ASSERT_EQ(test.ring.capacity(), 16);
+}
+
 TEST(FixedDequeTest, AddRemove) {
     FixedDequeTestData<int> test(16);
 
