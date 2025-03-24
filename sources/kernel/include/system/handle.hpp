@@ -5,7 +5,7 @@
 #include "std/static_string.hpp"
 
 namespace sys2 {
-    using ObjectName = stdx::StaticString<32>;
+    using ObjectName = stdx::StaticString<OS_OBJECT_NAME_MAX>;
 
     class IObject {
     public:

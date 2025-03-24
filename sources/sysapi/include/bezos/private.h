@@ -11,13 +11,6 @@ enum {
     eOsCallHandleWait = 0x1,
     eOsCallDebugMessage = 0x2,
 
-    eOsCallFileOpen = 0x10,
-    eOsCallFileClose = 0x11,
-    eOsCallFileRead = 0x12,
-    eOsCallFileWrite = 0x13,
-    eOsCallFileSeek = 0x14,
-    eOsCallFileStat = 0x15,
-
     eOsCallNodeOpen = 0x16,
     eOsCallNodeClose = 0x17,
     eOsCallNodeQuery = 0x18,

@@ -1041,20 +1041,6 @@ public:
     { }
 };
 
-static OsStatus UserReadPath(CallContext *context, OsPath user, vfs2::VfsPath *path) {
-    vfs2::VfsString text;
-    if (OsStatus status = context->readString((uint64_t)user.Front, (uint64_t)user.Back, kMaxPathSize, &text)) {
-        return status;
-    }
-
-    if (!vfs2::VerifyPathText(text)) {
-        return OsStatusInvalidPath;
-    }
-
-    *path = vfs2::VfsPath{std::move(text)};
-    return OsStatusSuccess;
-}
-
 static OsStatus SelectOwningProcess(CallContext *context, OsProcessHandle handle, Process **result) {
     Process *process = nullptr;
     if (handle != OS_HANDLE_INVALID) {
@@ -1106,8 +1092,6 @@ static void AddDebugSystemCalls() {
             return CallError(status);
         }
 
-        KmDebugMessage("[PROC] Debug: ", (void*)messageInfo.Front, " ", (void*)messageInfo.Back, "\n");
-
         LockDebugLog();
 
         for (const auto& segment : stdv::split(message, "\n"sv)) {
@@ -1123,74 +1107,6 @@ static void AddDebugSystemCalls() {
 
         return CallOk(0zu);
     });
-}
-
-static void AddVfsFileSystemCalls() {
-    AddSystemCall(eOsCallFileOpen, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
-        uint64_t userCreateInfo = regs->arg0;
-        OsFileCreateInfo createInfo{};
-        if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {
-            return CallError(status);
-        }
-
-        vfs2::VfsPath path;
-        if (OsStatus status = UserReadPath(context, createInfo.Path, &path)) {
-            return CallError(status);
-        }
-
-        Device *vnode = nullptr;
-        if (OsStatus status = gSystemObjects->createDevice(path, kOsFileGuid, nullptr, 0, context->process(), &vnode)) {
-            return CallError(status);
-        }
-
-        return CallOk(vnode->publicId());
-    });
-
-    AddSystemCall(eOsCallFileRead, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
-        uint64_t nodeId = regs->arg0;
-        uint64_t front = regs->arg1;
-        uint64_t back = regs->arg2;
-
-        if (!context->isMapped(front, back, PageFlags::eUser | PageFlags::eWrite)) {
-            return CallError(OsStatusInvalidInput);
-        }
-
-        Device *node = gSystemObjects->getDevice(DeviceId(OS_HANDLE_ID(nodeId)));
-        if (node == nullptr) {
-            return CallError(OsStatusInvalidHandle);
-        }
-
-        vfs2::ReadRequest request {
-            .begin = (void*)front,
-            .end = (void*)back,
-        };
-        vfs2::ReadResult result{};
-        if (OsStatus status = node->handle->read(request, &result)) {
-            return CallError(status);
-        }
-
-        return CallOk(result.read);
-    });
-
-    AddSystemCall(eOsCallFileClose, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
-        uint64_t userHandle = regs->arg0;
-        km::Process *process = context->process();
-
-        Device *node = gSystemObjects->getDevice(DeviceId(OS_HANDLE_ID(userHandle)));
-        if (node == nullptr) {
-            return CallError(OsStatusInvalidHandle);
-        }
-
-        if (OsStatus status = gSystemObjects->destroyDevice(process, node)) {
-            return CallError(status);
-        }
-
-        return CallOk(0zu);
-    });
-}
-
-static void AddVfsSystemCalls() {
-    AddVfsFileSystemCalls();
 }
 
 static km::System GetSystem() {
@@ -1417,6 +1333,8 @@ static void AddVmemSystemCalls() {
         if (status != OsStatusSuccess) {
             return CallError(status);
         }
+
+        memset((void*)mapping.vaddr, 0, createInfo.Size);
 
         KmDebugMessage("[VMEM] Created mapping: ", mapping, "\n");
 
@@ -1678,7 +1596,6 @@ static void CreateVfsDevices(const km::SmBiosTables *smbios, const acpi::AcpiTab
 static void InitUserApi() {
     AddHandleSystemCalls();
     AddDebugSystemCalls();
-    AddVfsSystemCalls();
     AddDeviceSystemCalls();
     AddNodeSystemCalls();
     AddThreadSystemCalls();
