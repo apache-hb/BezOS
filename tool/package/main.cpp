@@ -460,6 +460,12 @@ public:
         return eUnknown;
     }
 
+    void RemovePackage(std::string_view name) {
+        sql::Statement query(mDatabase, "DELETE FROM targets WHERE name = ?");
+        query.bind(1, std::string(name));
+        query.exec();
+    }
+
     bool ShouldRunStep(std::string_view name, PackageStatus status) {
         auto current = GetPackageStatus(name);
         return current == eUnknown || current < status;
@@ -518,6 +524,7 @@ static_assert(ReplaceText("@REPO@/data/image.sh", "@REPO@", "/repo") == "/repo/d
 
 struct Workspace {
     std::map<std::string, PackageInfo> packages;
+    bool removeOrphans{false};
 
     auto& getPackage(const std::string& name) {
         if (!packages.contains(name)) {
@@ -525,6 +532,21 @@ struct Workspace {
         }
 
         return packages.at(name);
+    }
+
+    bool TryGetPackage(const std::string& name, PackageInfo& info) {
+        if (!packages.contains(name)) {
+            if (removeOrphans) {
+                gPackageDb->RemovePackage(name);
+                std::println(std::cout, "Removed orphan package {}", name);
+                return false;
+            } else {
+                throw std::runtime_error("Unknown package " + name + ". rerun with --remove-orphans to remove");
+            }
+        }
+
+        info = packages.at(name);
+        return true;
     }
 
     argo::json workspace{argo::json::object_e};
@@ -1722,9 +1744,14 @@ static void VisitPackage(const PackageInfo& packageInfo) {
 
     auto deps = gPackageDb->GetPackageDependencies(packageInfo.name);
     for (const auto& dep : deps) {
+        PackageInfo info;
+        if (!gWorkspace.TryGetPackage(dep, info)) {
+            continue;
+        }
+
         assert(!dep.empty() && "Dependency name cannot be empty");
 
-        VisitPackage(gWorkspace.getPackage(dep));
+        VisitPackage(info);
     }
 
     ConnectDependencies(packageInfo);
@@ -1794,6 +1821,11 @@ int main(int argc, const char **argv) try {
         .append()
         .nargs(argparse::nargs_pattern::any);
 
+    parser.add_argument("--remove-orphans")
+        .help("Remove orphaned packages")
+        .default_value(false)
+        .implicit_value(true);
+
     parser.add_argument("--help")
         .help("Print this help message")
         .action([&](const std::string &) { std::cout << parser; std::exit(0); });
@@ -1825,6 +1857,8 @@ int main(int argc, const char **argv) try {
     }
 
     XmlNode root = xmlDocGetRootElement(document.get());
+
+    gWorkspace.removeOrphans = parser.get<bool>("--remove-orphans");
 
     fs::path build = parser.get<std::string>("--output");
     fs::path prefix = parser.get<std::string>("--prefix");
@@ -1913,13 +1947,15 @@ int main(int argc, const char **argv) try {
         }
     }
 
-    for (auto& package : gPackageDb->GetToplevelPackages()) {
-        if (!gWorkspace.packages.contains(package)) {
-            throw std::runtime_error("Package " + package + " not found in workspace");
+    for (auto& pkgName : gPackageDb->GetToplevelPackages()) {
+        PackageInfo info;
+        if (!gWorkspace.TryGetPackage(pkgName, info)) {
+            continue;
         }
-        assert(!package.empty() && "Package name cannot be empty");
 
-        VisitPackage(gWorkspace.getPackage(package));
+        assert(!pkgName.empty() && "Package name cannot be empty");
+
+        VisitPackage(info);
     }
 
     if (parser.present("--clangd")) {

@@ -17,11 +17,11 @@ static int RunInstances(const argparse::ArgumentParser& parser, std::span<std::s
 
     auto image = fs::absolute(parser.get<std::string>("--image"));
 
-    auto instances = parser.get<unsigned int>("--instances");
+    unsigned instances = parser.get<unsigned int>("--instances");
     std::vector<std::jthread> threads;
     std::unique_ptr<int[]> results(new int[instances]);
 
-    for (auto i = 0; i < instances; i++) {
+    for (unsigned i = 0; i < instances; i++) {
         threads.emplace_back([image, i, &parser, &results, &extra] {
             auto output = fs::absolute(parser.get<std::string>("--output")) / std::format("instance{:04d}", i);
             fs::create_directories(output);
@@ -50,7 +50,7 @@ static int RunInstances(const argparse::ArgumentParser& parser, std::span<std::s
     threads.clear();
 
     bool err = false;
-    for (auto i = 0; i < instances; i++) {
+    for (unsigned i = 0; i < instances; i++) {
         if (results[i] != 0) {
             std::cerr << "Instance " << i << " failed with " << results[i] << std::endl;
             err = true;
