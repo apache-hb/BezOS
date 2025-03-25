@@ -730,7 +730,7 @@ testcases = {
             'src/std/rcu.cpp',
             'src/std/rcuptr.cpp',
         ],
-        'override_options': [ 'b_sanitize=address', 'b_coverage=true' ],
+        'override_options': [ 'b_sanitize=thread', 'b_coverage=true' ],
         'dependencies' : [ ],
     },
     # 'launch': {

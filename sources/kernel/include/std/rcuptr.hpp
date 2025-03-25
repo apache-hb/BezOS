@@ -53,6 +53,8 @@ namespace sm {
             /// @brief Decrement the weak and strong reference count.
             /// @return A mask of which reference counts were brought to zero by this operation.
             Release strongRelease() {
+                // Retaining a strong reference also retains a weak one at the same time.
+                // This lets us split releasing references into two operations
                 bool weakCleared = false;
                 bool strongCleared = false;
                 if (uint64_t count = mCount.fetch_sub(kStrongOne); (count & kStrongMask) == kStrongOne) {

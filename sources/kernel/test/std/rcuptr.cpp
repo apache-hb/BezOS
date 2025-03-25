@@ -278,3 +278,85 @@ TEST(RcuPtrTest, ReleaseStrongOnly) {
     ASSERT_EQ(count.strongRelease(), JointCount::eStrong); // strong = 0, weak = 1
     ASSERT_TRUE(count.weakRelease());
 }
+
+
+TEST(RcuPtrTest, ReleaseWeakRepeat) {
+    JointCount count { 1, 1 };
+
+    ASSERT_TRUE(count.weakRetain()); // strong = 1, weak = 2
+    ASSERT_TRUE(count.weakRetain()); // strong = 1, weak = 3
+    ASSERT_TRUE(count.weakRetain()); // strong = 1, weak = 4
+    ASSERT_FALSE(count.weakRelease()); // weak = 3
+    ASSERT_FALSE(count.weakRelease()); // weak = 2
+    ASSERT_FALSE(count.weakRelease()); // weak = 1
+    ASSERT_TRUE(count.weakRelease()); // weak = 0
+    ASSERT_FALSE(count.weakRelease()); // weak = 0 (sticky)
+    ASSERT_FALSE(count.weakRelease()); // weak = 0 (sticky)
+}
+
+TEST(RcuPtrTest, ReleaseStrongRepeat) {
+    JointCount count { 1, 1 };
+
+    ASSERT_TRUE(count.strongRetain()); // strong = 2, weak = 2
+    ASSERT_TRUE(count.strongRetain()); // strong = 3, weak = 3
+    ASSERT_TRUE(count.strongRetain()); // strong = 4, weak = 4
+    ASSERT_EQ(count.strongRelease(), JointCount::eNone); // strong = 3, weak = 3
+    ASSERT_EQ(count.strongRelease(), JointCount::eNone); // strong = 2, weak = 2
+    ASSERT_EQ(count.strongRelease(), JointCount::eNone); // strong = 1, weak = 1
+    ASSERT_EQ(count.strongRelease(), JointCount::eWeak | JointCount::eStrong); // strong = 0, weak = 0
+    ASSERT_EQ(count.strongRelease(), JointCount::eNone); // strong = 0, weak = 0 (sticky)
+    ASSERT_EQ(count.strongRelease(), JointCount::eNone); // strong = 0, weak = 0 (sticky)
+}
+
+TEST(RcuPtrTest, ConcurrentAccess) {
+    JointCount count { 1, 1 };
+
+    std::atomic<int32_t> acquireStrongCount { 1024 };
+    std::atomic<int32_t> releaseStrongCount { 1023 };
+    std::atomic<int32_t> acquireWeakCount { 1024 };
+    std::atomic<int32_t> releaseWeakCount { 1023 };
+
+    std::vector<std::jthread> threads;
+    static constexpr size_t kThreadCount = 8;
+    std::latch latch(kThreadCount);
+    std::latch acquireLatch(kThreadCount);
+    std::latch releaseLatch(kThreadCount);
+
+    for (size_t i = 0; i < kThreadCount; i++) {
+        threads.emplace_back([&, i] {
+            std::mt19937 mt(i);
+            std::uniform_int_distribution<int> dist(0, 3);
+
+            latch.arrive_and_wait();
+
+            while (acquireStrongCount.fetch_sub(1) > 0) {
+                count.strongRetain();
+            }
+
+            while (acquireWeakCount.fetch_sub(1) > 0) {
+                count.weakRetain();
+            }
+
+            acquireLatch.arrive_and_wait();
+
+            while (releaseStrongCount.fetch_sub(1) > 0) {
+                count.strongRelease();
+            }
+
+            while (releaseWeakCount.fetch_sub(1) > 0) {
+                count.weakRelease();
+            }
+
+            releaseLatch.arrive_and_wait();
+        });
+    }
+
+    threads.clear();
+
+    // weak = 3, strong = 2
+    ASSERT_FALSE(count.weakRelease());
+    // weak = 2, strong = 2
+    ASSERT_EQ(count.strongRelease(), JointCount::eNone);
+    // weak = 1, strong = 1
+    ASSERT_EQ(count.strongRelease(), JointCount::eWeak | JointCount::eStrong);
+}
