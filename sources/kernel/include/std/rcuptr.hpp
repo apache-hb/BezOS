@@ -115,17 +115,21 @@ namespace sm {
 
         std::atomic<rcu::detail::ControlBlock*> mControl;
 
-        void release() {
-            if (rcu::detail::ControlBlock *cb = mControl.exchange(nullptr)) {
+        void exchangeControl(rcu::detail::ControlBlock *control) {
+            if (rcu::detail::ControlBlock *cb = mControl.exchange(control)) {
                 rcu::detail::RcuReleaseStrong(cb);
             }
         }
 
-        void acquire(rcu::detail::ControlBlock *control) {
-            release();
+        void release() {
+            exchangeControl(nullptr);
+        }
 
+        void acquire(rcu::detail::ControlBlock *control) {
             if (control != nullptr && rcu::detail::RcuAcqiureStrong(control)) {
-                mControl.store(control);
+                exchangeControl(control);
+            } else {
+                release();
             }
         }
 
