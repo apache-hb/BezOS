@@ -2,8 +2,6 @@
 
 #include "std/rcu.hpp"
 
-#include <climits>
-
 namespace sm {
     namespace rcu::detail {
         class JointCount {
@@ -113,6 +111,11 @@ namespace sm {
             RcuDomain *domain = nullptr;
         };
 
+        template<typename T>
+        ControlBlock *NewControlBlock(RcuDomain *domain, T *value) {
+            return new (std::nothrow) ControlBlock { { 1, 1 }, value, [](void *ptr) { delete static_cast<T*>(ptr); }, domain };
+        }
+
         void RcuReleaseStrong(ControlBlock *ptr);
         bool RcuAcqiureStrong(ControlBlock *control);
         void RcuReleaseWeak(ControlBlock *cb);
@@ -188,11 +191,11 @@ namespace sm {
         }
 
         constexpr RcuSharedPtr(RcuSharedPtr&& other) : RcuSharedPtr() {
-            acquire(other.mControl.exchange(nullptr));
+            exchangeControl(other.mControl.exchange(nullptr));
         }
 
         constexpr RcuSharedPtr& operator=(RcuSharedPtr&& other) {
-            acquire(other.mControl.exchange(nullptr));
+            exchangeControl(other.mControl.exchange(nullptr));
             return *this;
         }
 
@@ -204,13 +207,30 @@ namespace sm {
         }
 
         constexpr T *get() {
-            rcu::detail::ControlBlock *cb = mControl.load();
-            return static_cast<T*>(cb->value);
+            if (rcu::detail::ControlBlock *cb = mControl.load()) {
+                return static_cast<T*>(cb->value);
+            }
+
+            return nullptr;
         }
 
         constexpr T& operator*(this auto&& self) {
             rcu::detail::ControlBlock *cb = self.mControl.load();
             return *static_cast<T*>(cb->value);
+        }
+
+        void reset() {
+            release();
+        }
+
+        [[nodiscard("Verify allocation succeeded")]]
+        bool reset(RcuDomain *domain, T *ptr) {
+            if (rcu::detail::ControlBlock *cb = rcu::detail::NewControlBlock(domain, ptr)) {
+                exchangeControl(cb);
+                return true;
+            }
+
+            return false;
         }
 
         constexpr operator bool() const {
@@ -272,17 +292,15 @@ namespace sm {
 
         constexpr RcuWeakPtr& operator=(const RcuWeakPtr& other) {
             acquire(other.mControl);
-
             return *this;
         }
 
         constexpr RcuWeakPtr(RcuWeakPtr&& other) : RcuWeakPtr() {
-            acquire(other.mControl.exchange(nullptr));
+            exchangeControl(other.mControl.exchange(nullptr));
         }
 
         constexpr RcuWeakPtr& operator=(RcuWeakPtr&& other) {
-            acquire(other.mControl.exchange(nullptr));
-
+            exchangeControl(other.mControl.exchange(nullptr));
             return *this;
         }
 
@@ -327,7 +345,7 @@ namespace sm {
 
     template<typename T>
     constexpr RcuSharedPtr<T>::RcuSharedPtr(RcuDomain *domain, T *ptr)
-        : mControl(new (std::nothrow) rcu::detail::ControlBlock { { 1, 1 }, ptr, [](void *ptr) { delete static_cast<T*>(ptr); }, domain })
+        : mControl(rcu::detail::NewControlBlock(domain, ptr))
     {
         if (mControl != nullptr && ptr != nullptr) {
             if constexpr (IsIntrusivePtr<T>) {

@@ -217,6 +217,7 @@ TEST(RcuPtrTest, Weak) {
 
     ASSERT_FALSE(released);
 }
+#endif
 
 class IntrusiveData : public sm::RcuIntrusivePtr<IntrusiveData> {
     std::string mValue;
@@ -233,34 +234,122 @@ public:
 
 TEST(RcuPtrTest, Intrusive) {
     sm::RcuDomain domain;
+    sm::RcuGuard guard(domain);
     sm::RcuSharedPtr<IntrusiveData> ptr = sm::rcuMakeShared<IntrusiveData>(&domain, "Hello, World!");
     ASSERT_EQ(ptr->value(), "Hello, World!");
     sm::RcuWeakPtr<IntrusiveData> weak = ptr;
     ptr = nullptr;
     ASSERT_EQ(weak.lock(), nullptr);
 }
-#endif
 
 TEST(RcuPtrTest, Construct) {
     sm::RcuDomain domain;
+    sm::RcuGuard guard(domain);
     sm::RcuSharedPtr<std::string> ptr = {&domain, new std::string("Hello, World!")};
     ASSERT_EQ(*ptr, "Hello, World!");
 }
 
 TEST(RcuPtrTest, AssignEmpty) {
     sm::RcuDomain domain;
+    sm::RcuGuard guard(domain);
     sm::RcuSharedPtr<std::string> ptr = {&domain, new std::string("Hello, World!")};
     ASSERT_EQ(*ptr, "Hello, World!");
     ptr = nullptr;
 }
 
+TEST(RcuPtrTest, Assign) {
+    sm::RcuDomain domain;
+    sm::RcuGuard guard(domain);
+    sm::RcuSharedPtr<std::string> ptr = {&domain, new std::string("Hello, World!")};
+    ASSERT_EQ(*ptr, "Hello, World!");
+    ptr = sm::rcuMakeShared<std::string>(&domain, "Goodbye, World!");
+    ASSERT_EQ(*ptr, "Goodbye, World!");
+}
+
+TEST(RcuPtrTest, CopyAssign) {
+    sm::RcuDomain domain;
+    sm::RcuGuard guard(domain);
+    sm::RcuSharedPtr<std::string> ptr = {&domain, new std::string("Hello, World!")};
+    ASSERT_EQ(*ptr, "Hello, World!");
+    sm::RcuSharedPtr<std::string> other = sm::rcuMakeShared<std::string>(&domain, "Goodbye, World!");
+    ptr = other;
+    ASSERT_EQ(*ptr, "Goodbye, World!");
+}
+
+TEST(RcuPtrTest, Reset) {
+    sm::RcuDomain domain;
+    sm::RcuGuard guard(domain);
+    sm::RcuSharedPtr<std::string> ptr = {&domain, new std::string("Hello, World!")};
+    ASSERT_EQ(*ptr, "Hello, World!");
+    ASSERT_TRUE(ptr.reset(&domain, new std::string("Goodbye, World!")));
+    ASSERT_EQ(*ptr, "Goodbye, World!");
+    ptr.reset();
+    ASSERT_EQ(ptr.get(), nullptr);
+}
+
 TEST(RcuPtrTest, ConstructWeak) {
     sm::RcuDomain domain;
+    sm::RcuGuard guard(domain);
     sm::RcuSharedPtr<std::string> ptr = {&domain, new std::string("Hello, World!")};
     ASSERT_EQ(*ptr, "Hello, World!");
     sm::RcuWeakPtr<std::string> weak = ptr;
     ptr = nullptr;
     ASSERT_EQ(weak.lock(), nullptr);
+}
+
+std::string RandomString(int length, std::mt19937& mt) {
+    std::string str;
+    str.reserve(length);
+
+    std::uniform_int_distribution<int> dist('A', 'Z');
+
+    for (int i = 0; i < length; i++) {
+        str.push_back(dist(mt));
+    }
+
+    return str;
+}
+
+TEST(RcuPtrTest, ConcurrentAccess) {
+    sm::RcuDomain domain;
+    sm::RcuSharedPtr<std::string> ptr = {&domain, new std::string("Hello, World! i am a very long string to defeat small string optimizations.")};
+
+    std::vector<std::jthread> threads;
+    static constexpr size_t kThreadCount = 8;
+    static constexpr size_t kIterationCount = 32;
+    std::latch latch(kThreadCount + 1);
+
+    std::jthread cleaner([&](std::stop_token stop_token) {
+        latch.arrive_and_wait();
+
+        while (!stop_token.stop_requested()) {
+            domain.synchronize();
+        }
+    });
+
+    for (size_t i = 0; i < kThreadCount; i++) {
+        threads.emplace_back([&, i] {
+            std::mt19937 mt(i);
+
+            latch.arrive_and_wait();
+
+            for (size_t i = 0; i < kIterationCount; i++) {
+                {
+                    sm::RcuGuard guard(domain);
+                    // make a copy of the string
+                    [[maybe_unused]] std::string str = auto{*ptr};
+                }
+
+                ptr = sm::rcuMakeShared<std::string>(&domain, RandomString(64, mt));
+            }
+        });
+    }
+
+    threads.clear();
+    cleaner.request_stop();
+    cleaner.join();
+
+    SUCCEED();
 }
 
 using JointCount = sm::rcu::detail::JointCount;
@@ -369,7 +458,7 @@ TEST(JointCountTest, ConcurrentMixedAccess) {
     static constexpr size_t kThreadCount = 8;
     static constexpr size_t kIterationCount = 1024;
     std::latch latch(kThreadCount);
-    bool die = false;
+    std::atomic<bool> die = false;
 
     for (size_t i = 0; i < kThreadCount; i++) {
         threads.emplace_back([&, i] {
