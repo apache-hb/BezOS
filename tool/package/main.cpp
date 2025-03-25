@@ -20,6 +20,8 @@
 #include <openssl/sha.h>
 #include <openssl/crypto.h>
 
+#include <glob/glob.h>
+
 #include "defer.hpp"
 
 #include <sys/mman.h>
@@ -205,6 +207,8 @@ struct PackageInfo {
 
     std::vector<ScriptExec> scripts;
 
+    std::vector<std::string> artifacts;
+
     std::string installTargets;
 
     std::string installName;
@@ -260,6 +264,36 @@ struct PackageInfo {
         return {out, err};
     }
 };
+
+constexpr static void ReplaceAll(std::string& str, std::string_view from, std::string_view to) {
+    size_t start_pos = 0;
+    while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
+        str.replace(start_pos, from.length(), to);
+        start_pos += to.length();
+    }
+}
+
+constexpr static std::string ReplaceText(std::string str, std::string_view from, std::string_view to) {
+    ReplaceAll(str, from, to);
+    return str;
+}
+
+static_assert(ReplaceText("@REPO@/data/image.sh", "@REPO@", "/repo") == "/repo/data/image.sh");
+
+static void ReplacePathPlaceholders(std::string& str) {
+    ReplaceAll(str, "@PREFIX@", fs::absolute(gInstallPrefix).string());
+    ReplaceAll(str, "@BUILD@", fs::absolute(gBuildRoot).string());
+    ReplaceAll(str, "@REPO@", fs::absolute(gRepoRoot).string());
+    ReplaceAll(str, "@SOURCE@", fs::absolute(gSourceRoot).string());
+}
+
+static void ReplacePackagePlaceholders(std::string& str, const PackageInfo& package) {
+    ReplacePathPlaceholders(str);
+    ReplaceAll(str, "@PACKAGE@", package.name);
+    ReplaceAll(str, "@SOURCE_ROOT@", package.GetSourceFolder().string());
+    ReplaceAll(str, "@BUILD_ROOT@", package.GetBuildFolder().string());
+    ReplaceAll(str, "@INSTALL_ROOT@", PackageInstallPath(package.name).string());
+}
 
 enum PackageStatus {
     eUnknown,
@@ -507,21 +541,6 @@ public:
 
 static PackageDb *gPackageDb;
 
-constexpr static void ReplaceAll(std::string& str, std::string_view from, std::string_view to) {
-    size_t start_pos = 0;
-    while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
-        str.replace(start_pos, from.length(), to);
-        start_pos += to.length();
-    }
-}
-
-constexpr static std::string ReplaceText(std::string str, std::string_view from, std::string_view to) {
-    ReplaceAll(str, from, to);
-    return str;
-}
-
-static_assert(ReplaceText("@REPO@/data/image.sh", "@REPO@", "/repo") == "/repo/data/image.sh");
-
 struct Workspace {
     std::map<std::string, PackageInfo> packages;
     bool removeOrphans{false};
@@ -532,6 +551,21 @@ struct Workspace {
         }
 
         return packages.at(name);
+    }
+
+    void RelinkPackage(const std::string& name) {
+        PackageInfo info;
+        if (!TryGetPackage(name, info)) {
+            return;
+        }
+
+        for (auto& path : info.artifacts) {
+            ReplacePackagePlaceholders(path, info);
+        }
+
+        for (auto path : glob::rglob(info.artifacts)) {
+            fs::remove(path);
+        }
     }
 
     bool TryGetPackage(const std::string& name, PackageInfo& info) {
@@ -1147,6 +1181,11 @@ static void ReadPackageConfig(XmlNode root) {
             packageInfo.scripts.push_back(exec);
         } else if (step == "install") {
             packageInfo.installTargets = ExpectProperty<std::string>(action, "targets");
+        } else if (step == "artifacts") {
+            auto files = ExpectProperty<std::string>(action, "files");
+            for (auto file : files | stdv::split(' ')) {
+                packageInfo.artifacts.push_back(std::string(file.begin(), file.end()));
+            }
         }
     }
 
@@ -1192,21 +1231,6 @@ static void ReadArtifactConfig(XmlNode node) {
     }
 
     gWorkspace.AddPackage(artifactInfo);
-}
-
-static void ReplacePathPlaceholders(std::string& str) {
-    ReplaceAll(str, "@PREFIX@", fs::absolute(gInstallPrefix).string());
-    ReplaceAll(str, "@BUILD@", fs::absolute(gBuildRoot).string());
-    ReplaceAll(str, "@REPO@", fs::absolute(gRepoRoot).string());
-    ReplaceAll(str, "@SOURCE@", fs::absolute(gSourceRoot).string());
-}
-
-static void ReplacePackagePlaceholders(std::string& str, const PackageInfo& package) {
-    ReplacePathPlaceholders(str);
-    ReplaceAll(str, "@PACKAGE@", package.name);
-    ReplaceAll(str, "@SOURCE_ROOT@", package.GetSourceFolder().string());
-    ReplaceAll(str, "@BUILD_ROOT@", package.GetBuildFolder().string());
-    ReplaceAll(str, "@INSTALL_ROOT@", PackageInstallPath(package.name).string());
 }
 
 static void AcquirePackage(const PackageInfo& package) {
@@ -1798,6 +1822,16 @@ int main(int argc, const char **argv) try {
         .append()
         .nargs(argparse::nargs_pattern::any);
 
+    parser.add_argument("--reconfigure-hard")
+        .help("List of packages to reconfigure from scratch, and reconfigure dependencies")
+        .append()
+        .nargs(argparse::nargs_pattern::any);
+
+    parser.add_argument("--hard")
+        .help("Perform full reconfigures and rebuilds of reverse dependencies")
+        .default_value(false)
+        .implicit_value(true);
+
     parser.add_argument("--rebuild")
         .help("List of packages to build or rebuild")
         .append()
@@ -1883,6 +1917,8 @@ int main(int argc, const char **argv) try {
 
     gWorkspace.AddFolder(".", "root");
 
+    bool hard = parser.get<bool>("--hard");
+
     ReadRepoElement(root);
 
     auto applyStateLowering = [&](std::string flag, PackageStatus status) {
@@ -1890,7 +1926,16 @@ int main(int argc, const char **argv) try {
         for (const auto& name : all) {
             auto deps = gPackageDb->GetDependantPackages(name);
             for (const auto& dep : deps) {
-                gPackageDb->LowerPackageStatus(dep, status);
+                PackageInfo info;
+                if (!gWorkspace.TryGetPackage(dep, info)) {
+                    continue;
+                }
+
+                if (hard || info.artifacts.empty()) {
+                    gPackageDb->LowerPackageStatus(dep, status);
+                } else {
+                    gWorkspace.RelinkPackage(dep);
+                }
             }
         }
     };

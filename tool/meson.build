@@ -14,10 +14,11 @@ subprocess = dependency('cpp-subprocess')
 libarchive = dependency('libarchive')
 sqlitecpp = dependency('sqlitecpp')
 indicators = dependency('indicators')
+glob = dependency('glob')
 
 executable('package.elf', 'package/main.cpp',
     install : true,
-    dependencies : [libxml2, openssl, curl, argo, argparse, subprocess, libarchive, sqlitecpp, indicators]
+    dependencies : [libxml2, openssl, curl, argo, argparse, subprocess, libarchive, sqlitecpp, indicators, glob]
 )
 
 executable('ktest.elf', 'ktest/main.cpp',

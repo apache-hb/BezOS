@@ -16,9 +16,9 @@
 
 #include <posix/ext/args.h>
 
+#include "common/bezos.hpp"
 #include "defer.hpp"
 
-#include <concepts>
 #include <flanterm.h>
 #include <backends/fb.h>
 
@@ -33,45 +33,9 @@
 #include <format>
 
 template<size_t N>
-static void DebugLog(const char (&message)[N]) {
-    OsDebugMessage(eOsLogDebug, message);
-}
-
-template<typename... A>
-static void FormatLog(const std::format_string<A...>& fmt, A&&... args) {
-    auto text = std::vformat(fmt.get(), std::make_format_args(args...));
-
-    OsDebugMessageInfo messageInfo {
-        .Front = text.data(),
-        .Back = text.data() + text.size(),
-        .Info = eOsLogDebug,
-    };
-
-    OsDebugMessage(messageInfo);
-}
-
-template<typename T>
-static void DebugLog(T number) {
-    char buffer[32];
-    char *ptr = buffer + sizeof(buffer);
-    *--ptr = '\0';
-
-    if (number == 0) {
-        *--ptr = '0';
-    } else {
-        while (number != 0) {
-            *--ptr = '0' + (number % 10);
-            number /= 10;
-        }
-    }
-
-    OsDebugMessage({ ptr, buffer + sizeof(buffer), eOsLogDebug });
-}
-
-template<size_t N>
 static void Assert(bool condition, const char (&message)[N]) {
     if (!condition) {
-        DebugLog(message);
+        os::debug_message(eOsLogError, "{}", message);
 
         while (true) {
             OsThreadYield();
@@ -82,9 +46,7 @@ static void Assert(bool condition, const char (&message)[N]) {
 template<size_t N>
 static void AssertOsSuccess(OsStatus status, const char (&message)[N]) {
     if (status != OsStatusSuccess) {
-        DebugLog(message);
-        DebugLog("Status: ");
-        DebugLog(status);
+        os::debug_message(eOsLogError, "{}. Status: {}", message, status);
         while (true) {
             OsThreadYield();
         }
