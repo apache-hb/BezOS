@@ -54,20 +54,6 @@ typedef uint64_t OsHandle;
 #define OS_HANDLE_ID(handle) ((handle) & 0x00ffffffffffffff)
 #define OS_HANDLE_NEW(type, id) (((OsHandle)(type) << 56) | (OsHandle)(id))
 
-#if defined(__clang__) && defined(__cplusplus)
-#   pragma clang diagnostic push
-#   pragma clang diagnostic ignored "-Wc99-extensions"
-#endif
-
-struct OsString {
-    OsSize Size;
-    OsUtf8Char Data[] OS_COUNTED_BY(Size);
-};
-
-#if defined(__clang__) && defined(__cplusplus)
-#   pragma clang diagnostic pop
-#endif
-
 /// @brief A path in the filesystem.
 ///
 /// A path is a sequence of segments separated by @a OS_PATH_SEPARATOR.
