@@ -360,3 +360,47 @@ TEST(RcuPtrTest, ConcurrentAccess) {
     // weak = 1, strong = 1
     ASSERT_EQ(count.strongRelease(), JointCount::eWeak | JointCount::eStrong);
 }
+
+
+TEST(RcuPtrTest, ConcurrentMixedAccess) {
+    JointCount count { 1, 1 };
+
+    std::vector<std::jthread> threads;
+    static constexpr size_t kThreadCount = 8;
+    static constexpr size_t kIterationCount = 1024;
+    std::latch latch(kThreadCount);
+    bool die = false;
+
+    for (size_t i = 0; i < kThreadCount; i++) {
+        threads.emplace_back([&, i] {
+            std::mt19937 mt(i);
+            std::uniform_int_distribution<int> dist(0, 3);
+
+            latch.arrive_and_wait();
+
+            for (size_t i = 0; i < kIterationCount; i++) {
+                if (!count.strongRetain()) die = true;
+                if (!count.weakRetain()) die = true;
+                if (!count.strongRetain()) die = true;
+                if (!count.weakRetain()) die = true;
+                if (count.strongRelease() != JointCount::eNone) die = true;
+                if (count.weakRelease()) die = true;
+            }
+        });
+    }
+
+    threads.clear();
+
+    ASSERT_FALSE(die);
+
+    // weak = (kThreadCount * kIterationCount * 2) + 1, strong = (kThreadCount * kIterationCount) + 1
+    for (size_t i = 0; i < (kThreadCount * kIterationCount); i++) {
+        ASSERT_FALSE(count.weakRelease());
+    }
+    // weak = (kThreadCount * kIterationCount) + 1, strong = (kThreadCount * kIterationCount) + 1
+    for (size_t i = 0; i < (kThreadCount * kIterationCount); i++) {
+        ASSERT_EQ(count.strongRelease(), JointCount::eNone);
+    }
+    // weak = 1, strong = 1
+    ASSERT_EQ(count.strongRelease(), JointCount::eWeak | JointCount::eStrong);
+}
