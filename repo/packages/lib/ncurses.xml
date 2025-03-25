@@ -17,8 +17,6 @@
         cp @PREFIX@/autoconf/share/autoconf/build-aux/config.sub @SOURCE_ROOT@/config.sub
     </configure>
 
-    <artifacts files='@BUILD_ROOT@/lib/*.a' />
-
     <configure with='autoconf' using='@PREFIX@/automake/bin/automake'>
         <env CC='@PREFIX@/llvm/bin/clang'
              CXX='@PREFIX@/llvm/bin/clang++'

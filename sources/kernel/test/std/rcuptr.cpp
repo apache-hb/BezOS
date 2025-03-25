@@ -7,6 +7,7 @@
 #include "std/rcu.hpp"
 #include "std/rcuptr.hpp"
 
+#if 0
 struct Tree {
     sm::RcuSharedPtr<Tree> left;
     sm::RcuSharedPtr<Tree> right;
@@ -253,4 +254,27 @@ TEST(RcuPtrTest, Intrusive) {
     sm::RcuWeakPtr<IntrusiveData> weak = ptr;
     ptr = nullptr;
     ASSERT_EQ(weak.lock(), nullptr);
+}
+#endif
+
+using JointCount = sm::rcu::detail::JointCount;
+
+TEST(RcuPtrTest, JointCount) {
+    JointCount count { 1, 1 };
+
+    ASSERT_TRUE(count.strongRetain()); // strong = 2, weak = 2
+    ASSERT_TRUE(count.weakRetain()); // strong = 2, weak = 3
+    ASSERT_EQ(count.strongRelease(), JointCount::eNone); // strong = 1, weak = 2
+    ASSERT_FALSE(count.weakRelease()); // strong = 1, weak = 1
+    ASSERT_EQ(count.strongRelease(), (JointCount::eStrong | JointCount::eWeak)); // strong = 0, weak = 0
+}
+
+TEST(RcuPtrTest, ReleaseStrongOnly) {
+    JointCount count { 1, 1 };
+
+    ASSERT_TRUE(count.strongRetain()); // strong = 2, weak = 2
+    ASSERT_TRUE(count.weakRetain()); // strong = 2, weak = 3
+    ASSERT_EQ(count.strongRelease(), JointCount::eNone); // strong = 1, weak = 2
+    ASSERT_EQ(count.strongRelease(), JointCount::eStrong); // strong = 0, weak = 1
+    ASSERT_TRUE(count.weakRelease());
 }

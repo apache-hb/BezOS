@@ -6,6 +6,115 @@
 
 namespace sm {
     namespace rcu::detail {
+        class JointCount {
+            static constexpr uint64_t kStrongIsZero = (UINT64_C(1) << 63);
+            static constexpr uint64_t kWeakIsZero = (UINT64_C(1) << 31);
+            static constexpr uint64_t kStrongMask = 0xFFFFFFFF00000000;
+            static constexpr uint64_t kWeakMask = 0x00000000FFFFFFFF;
+            static constexpr uint64_t kStrongOne = (UINT64_C(1) << 32);
+            static constexpr uint64_t kWeakOne = (UINT64_C(1) << 0);
+
+            /// @brief The joint reference count
+            /// The high 32 bits are the strong reference count.
+            /// The low 32 bits are the weak reference count.
+            std::atomic<uint64_t> mCount;
+
+        public:
+            enum Release { eNone = 0, eStrong = (1 << 0), eWeak = (1 << 1) };
+
+            constexpr JointCount() = default;
+            constexpr JointCount(uint32_t strong, uint32_t weak)
+                : mCount((uint64_t(strong) << 32) | uint64_t(weak))
+            { }
+
+            /// @brief Increment the weak reference count.
+            /// @return False if the strong reference count is zero, true otherwise.
+            bool weakRetain() {
+                return (mCount.fetch_add(kWeakOne) & kWeakIsZero) == 0;
+            }
+
+            /// @brief Decrement the weak reference count.
+            /// @return True if the weak count was brought to zero by this operation, false otherwise.
+            bool weakRelease() {
+                uint64_t count = mCount.fetch_sub(kWeakOne);
+
+                uint64_t expected = count;
+                do {
+                    //
+                    // If the weak counter has been incremented by someone else then
+                    // linearize as if the counter had never been zero.
+                    //
+                    if ((expected & kWeakMask) != kWeakOne) {
+                        return false;
+                    }
+
+                    //
+                    // If another thread has beaten us to zero then we also need to bail here.
+                    //
+                    if ((expected & kWeakIsZero) != 0) {
+                        return false;
+                    }
+
+                    expected = expected & ~kWeakMask;
+                } while (!mCount.compare_exchange_strong(expected, expected | kWeakIsZero));
+
+                return true;
+            }
+
+            /// @brief Increment the weak and strong reference count.
+            /// @return False if the strong reference count is zero, true otherwise.
+            bool strongRetain() {
+                return (mCount.fetch_add(kStrongOne | kWeakOne) & kStrongIsZero) == 0;
+            }
+
+            /// @brief Decrement the weak and strong reference count.
+            /// @return A mask of which reference counts were brought to zero by this operation.
+            Release strongRelease() {
+                uint64_t count = mCount.fetch_sub(kStrongOne | kWeakOne);
+
+                uint64_t expected = count;
+                uint64_t value;
+                bool strongCleared = false;
+                bool weakCleared = false;
+                while (true) {
+                    value = expected;
+
+                    strongCleared = (expected & kStrongMask) == kStrongOne;
+                    weakCleared = (expected & kWeakMask) == kWeakOne;
+
+                    if (strongCleared) {
+                        value = (value & ~kStrongMask) | kStrongIsZero;
+                        expected = (expected & ~kStrongMask);
+                    }
+
+                    if (weakCleared) {
+                        value = (value & ~kWeakMask) | kWeakIsZero;
+                        expected = (expected & ~kWeakMask);
+                    }
+
+                    if (!strongCleared && !weakCleared) {
+                        return eNone;
+                    }
+
+                    if (mCount.compare_exchange_strong(expected, value)) {
+                        break;
+                    }
+
+                    expected += (kStrongOne | kWeakOne);
+                }
+
+                int result = eNone;
+                if (strongCleared)
+                    result |= eStrong;
+                if (weakCleared)
+                    result |= eWeak;
+
+                return Release(result);
+            }
+        };
+
+        UTIL_BITFLAGS(JointCount::Release);
+
         template<typename T>
         class AtomicStickyZero {
             static constexpr T kIsZero = (T(1) << (sizeof(T) * CHAR_BIT - 1));
@@ -35,13 +144,6 @@ namespace sm {
 
                 return false;
             }
-
-            /// @brief Peek at the current value of the counter.
-            ///
-            /// For debugging purposes only.
-            T peek() {
-                return mCount.load();
-            }
         };
 
         struct ControlBlock {
@@ -49,12 +151,13 @@ namespace sm {
             AtomicStickyZero<uint32_t> weak = 1;
             void *value = nullptr;
             void(*deleter)(void*) = nullptr;
+            RcuDomain *domain = nullptr;
         };
 
-        void RcuReleaseStrong(void *ptr);
-        bool RcuAcqiureStrong(ControlBlock& control);
-        void RcuReleaseWeak(void *ptr);
-        bool RcuAcquireWeak(ControlBlock& control);
+        void RcuReleaseStrong(ControlBlock *ptr);
+        bool RcuAcqiureStrong(ControlBlock *control);
+        void RcuReleaseWeak(ControlBlock *cb);
+        bool RcuAcquireWeak(ControlBlock *control);
     }
 
     template<typename T>
@@ -77,42 +180,33 @@ namespace sm {
         template<typename O>
         friend class RcuWeakPtr;
 
-        RcuDomain *mDomain;
-        rcu::detail::ControlBlock *mControl;
+        std::atomic<rcu::detail::ControlBlock*> mControl;
 
         void release() {
-            if (mControl != nullptr) {
-                rcu::detail::RcuReleaseStrong(mControl);
+            if (rcu::detail::ControlBlock *cb = mControl.exchange(nullptr)) {
+                rcu::detail::RcuReleaseStrong(cb);
             }
-
-            mDomain = nullptr;
-            mControl = nullptr;
         }
 
-        void acquire(RcuDomain *domain, rcu::detail::ControlBlock *control) {
-            if (control != nullptr) {
-                if (!rcu::detail::RcuAcqiureStrong(*control)) {
-                    return;
-                }
-            }
+        void acquire(rcu::detail::ControlBlock *control) {
+            release();
 
-            mDomain = domain;
-            mControl = control;
+            if (control != nullptr && rcu::detail::RcuAcqiureStrong(control)) {
+                mControl.store(control);
+            }
         }
 
-        constexpr RcuSharedPtr(RcuDomain *domain, rcu::detail::ControlBlock *control) : RcuSharedPtr() {
-            acquire(domain, control);
+        constexpr RcuSharedPtr(rcu::detail::ControlBlock *control) : RcuSharedPtr() {
+            acquire(control);
         }
 
     public:
         constexpr RcuSharedPtr()
-            : mDomain(nullptr)
-            , mControl(nullptr)
+            : mControl(nullptr)
         { }
 
         constexpr RcuSharedPtr(std::nullptr_t)
-            : mDomain(nullptr)
-            , mControl(nullptr)
+            : mControl(nullptr)
         { }
 
         constexpr ~RcuSharedPtr() {
@@ -122,51 +216,38 @@ namespace sm {
         constexpr RcuSharedPtr(RcuDomain *domain, T *ptr);
 
         constexpr RcuSharedPtr(const RcuSharedPtr& other) : RcuSharedPtr() {
-            if (other.mDomain) {
-                acquire(other.mDomain, other.mControl);
-            }
+            acquire(other.mControl);
         }
 
         constexpr RcuSharedPtr& operator=(const RcuSharedPtr& other) {
-            release();
-
-            if (other.mDomain) {
-                acquire(other.mDomain, other.mControl);
-            }
-
+            acquire(other.mControl);
             return *this;
         }
 
         constexpr RcuSharedPtr(RcuSharedPtr&& other) : RcuSharedPtr() {
-            if (other.mDomain) {
-                mDomain = std::exchange(other.mDomain, nullptr);
-                mControl = std::exchange(other.mControl, nullptr);
-            }
+            acquire(other.mControl.exchange(nullptr));
         }
 
         constexpr RcuSharedPtr& operator=(RcuSharedPtr&& other) {
-            release();
-
-            if (other.mDomain) {
-                mDomain = std::exchange(other.mDomain, nullptr);
-                mControl = std::exchange(other.mControl, nullptr);
-            }
-
+            acquire(other.mControl.exchange(nullptr));
             return *this;
         }
 
         RcuWeakPtr<T> weak();
 
         constexpr T *operator->() {
-            return static_cast<T*>(mControl->value);
+            rcu::detail::ControlBlock *cb = mControl.load();
+            return static_cast<T*>(cb->value);
         }
 
         constexpr T *get() {
-            return static_cast<T*>(mControl->value);
+            rcu::detail::ControlBlock *cb = mControl.load();
+            return static_cast<T*>(cb->value);
         }
 
         constexpr T& operator*(this auto&& self) {
-            return *static_cast<T*>(self.mControl->value);
+            rcu::detail::ControlBlock *cb = self.mControl.load();
+            return *static_cast<T*>(cb->value);
         }
 
         constexpr operator bool() const {
@@ -185,35 +266,33 @@ namespace sm {
 
     template<typename T>
     class RcuWeakPtr {
-        RcuDomain *mDomain;
-        rcu::detail::ControlBlock *mControl;
+        std::atomic<rcu::detail::ControlBlock*> mControl;
 
         void release() {
-            if (mDomain != nullptr && mControl != nullptr) {
-                mDomain->call(mControl, rcu::detail::RcuReleaseWeak);
+            if (rcu::detail::ControlBlock *cb = mControl.exchange(nullptr)) {
+                rcu::detail::RcuReleaseWeak(cb);
             }
         }
 
-        void acquire(RcuDomain *domain, rcu::detail::ControlBlock *control) {
-            if (control != nullptr) {
-                if (!rcu::detail::RcuAcquireWeak(*control)) {
-                    return;
-                }
+        void acquire(rcu::detail::ControlBlock *control) {
+            if (rcu::detail::ControlBlock *cb = mControl.exchange(nullptr)) {
+                rcu::detail::RcuReleaseWeak(cb);
             }
 
-            mDomain = domain;
-            mControl = control;
+            if (control != nullptr) {
+                if (rcu::detail::RcuAcquireWeak(control)) {
+                    mControl.store(control);
+                }
+            }
         }
 
     public:
         constexpr RcuWeakPtr()
-            : mDomain(nullptr)
-            , mControl(nullptr)
+            : mControl(nullptr)
         { }
 
         constexpr RcuWeakPtr(std::nullptr_t)
-            : mDomain(nullptr)
-            , mControl(nullptr)
+            : mControl(nullptr)
         { }
 
         constexpr ~RcuWeakPtr() {
@@ -221,37 +300,31 @@ namespace sm {
         }
 
         constexpr RcuWeakPtr(const RcuSharedPtr<T>& shared) : RcuWeakPtr() {
-            acquire(shared.mDomain, shared.mControl);
+            acquire(shared.mControl);
         }
 
         constexpr RcuWeakPtr(const RcuWeakPtr& other) : RcuWeakPtr() {
-            acquire(other.mDomain, other.mControl);
+            acquire(other.mControl);
         }
 
         constexpr RcuWeakPtr& operator=(const RcuWeakPtr& other) {
-            release();
-
-            acquire(other.mDomain, other.mControl);
+            acquire(other.mControl);
 
             return *this;
         }
 
         constexpr RcuWeakPtr(RcuWeakPtr&& other) : RcuWeakPtr() {
-            std::swap(mDomain, other.mDomain);
-            std::swap(mControl, other.mControl);
+            acquire(other.mControl.exchange(nullptr));
         }
 
         constexpr RcuWeakPtr& operator=(RcuWeakPtr&& other) {
-            release();
-
-            mDomain = std::exchange(other.mDomain, nullptr);
-            mControl = std::exchange(other.mControl, nullptr);
+            acquire(other.mControl.exchange(nullptr));
 
             return *this;
         }
 
         RcuSharedPtr<T> lock() {
-            return RcuSharedPtr<T>(mDomain, mControl);
+            return RcuSharedPtr<T>(mControl);
         }
     };
 
@@ -291,8 +364,7 @@ namespace sm {
 
     template<typename T>
     constexpr RcuSharedPtr<T>::RcuSharedPtr(RcuDomain *domain, T *ptr)
-        : mDomain(domain)
-        , mControl(new (std::nothrow) rcu::detail::ControlBlock { 1, 1, ptr, [](void *ptr) { delete static_cast<T*>(ptr); } })
+        : mControl(new (std::nothrow) rcu::detail::ControlBlock { 1, 1, ptr, [](void *ptr) { delete static_cast<T*>(ptr); }, domain })
     {
         if (mControl != nullptr && ptr != nullptr) {
             if constexpr (IsIntrusivePtr<T>) {

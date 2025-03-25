@@ -2,32 +2,34 @@
 
 namespace rcu = sm::rcu::detail;
 
-void rcu::RcuReleaseStrong(void *ptr) {
-    ControlBlock *cb = static_cast<ControlBlock*>(ptr);
+void rcu::RcuReleaseStrong(ControlBlock *cb) {
+    //
+    // If the final strong reference is released then delete the object data.
+    // The control block is retained until the weak reference count reaches zero.
+    //
     if (cb->strong.decrement()) {
-        cb->deleter(cb->value);
+        cb->domain->call(cb->value, cb->deleter);
     }
 
     RcuReleaseWeak(cb);
 }
 
-bool rcu::RcuAcqiureStrong(ControlBlock& control) {
-    bool result = RcuAcquireWeak(control) && control.strong.increment();
+bool rcu::RcuAcqiureStrong(ControlBlock *control) {
+    bool result = RcuAcquireWeak(control) && control->strong.increment();
     if (!result) {
-        RcuReleaseWeak(&control);
+        RcuReleaseWeak(control);
     }
 
     return result;
 }
 
-void rcu::RcuReleaseWeak(void *ptr) {
-    ControlBlock *cb = static_cast<ControlBlock*>(ptr);
+void rcu::RcuReleaseWeak(ControlBlock *cb) {
     if (cb->weak.decrement()) {
-        delete cb;
+        cb->domain->retire(cb);
     }
 }
 
-bool rcu::RcuAcquireWeak(ControlBlock& control) {
-    bool result = control.weak.increment();
+bool rcu::RcuAcquireWeak(ControlBlock *control) {
+    bool result = control->weak.increment();
     return result;
 }

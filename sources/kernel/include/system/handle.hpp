@@ -13,11 +13,5 @@ namespace sys2 {
 
         virtual void setName(ObjectName name) = 0;
         virtual ObjectName getName() const = 0;
-
-        virtual OsHandle handle() const = 0;
-
-        OsHandleType type() const { return OS_HANDLE_TYPE(handle()); }
-        OsHandle publicId() const { return handle(); }
-        OsHandle internalId() const { return OS_HANDLE_ID(handle()); }
     };
 }

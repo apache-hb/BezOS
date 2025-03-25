@@ -12,20 +12,26 @@ namespace sys2 {
     class Process;
     class Thread;
 
-    struct WaitEntry {
-        OsInstant timeout;
+    struct SleepEntry {
+        OsInstant wake;
         Thread *thread;
 
-        constexpr auto operator<=>(const WaitEntry& other) const noexcept {
-            return timeout <=> other.timeout;
+        constexpr auto operator<=>(const SleepEntry& other) const noexcept {
+            return wake <=> other.wake;
         }
     };
 
-    struct TimeoutEntry {
+    struct WaitEntry {
+        /// @brief Timeout when this entry should be completed
         OsInstant timeout;
+
+        /// @brief The thread that is waiting
+        Thread *thread;
+
+        /// @brief The object that is being waited on
         IObject *object;
 
-        constexpr auto operator<=>(const TimeoutEntry& other) const noexcept {
+        constexpr auto operator<=>(const WaitEntry& other) const noexcept {
             return timeout <=> other.timeout;
         }
     };
@@ -34,7 +40,7 @@ namespace sys2 {
 
     class System {
         sm::FlatHashMap<IObject*, WaitQueue> mWaitQueue;
-        std::priority_queue<TimeoutEntry> mTimeoutQueue;
-        sm::FlatHashMap<OsHandle, IObject*> mHandles;
+        std::priority_queue<WaitEntry> mTimeoutQueue;
+        std::priority_queue<SleepEntry> mSleepQueue;
     };
 }

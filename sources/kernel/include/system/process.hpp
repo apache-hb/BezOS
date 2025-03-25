@@ -14,7 +14,6 @@ namespace sys2 {
 
     class Process final : public IObject {
         stdx::SharedSpinLock mLock;
-        OsHandle mHandle;
         ObjectName mName;
 
         /// @brief All the handles this process has open.
@@ -29,8 +28,6 @@ namespace sys2 {
     public:
         void setName(ObjectName name) override;
         ObjectName getName() const override;
-
-        OsHandle handle() const override;
     };
 
     struct ProcessCreateInfo {

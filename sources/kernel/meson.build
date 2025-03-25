@@ -724,15 +724,15 @@ testcases = {
         'dependencies' : [ ],
     },
     # rcu shared ptrs are still unsound
-    # 'rcuptr': {
-    #     'sources': [
-    #         'test/std/rcuptr.cpp',
-    #         'src/std/rcu.cpp',
-    #         'src/std/rcuptr.cpp',
-    #     ],
-    #     'override_options': [ 'b_sanitize=thread', 'b_coverage=true' ],
-    #     'dependencies' : [ ],
-    # },
+    'rcuptr': {
+        'sources': [
+            'test/std/rcuptr.cpp',
+            'src/std/rcu.cpp',
+            'src/std/rcuptr.cpp',
+        ],
+        'override_options': [ 'b_sanitize=address', 'b_coverage=true' ],
+        'dependencies' : [ ],
+    },
     # 'launch': {
     #     'sources': [
     #         'test/emulated/launch.cpp',

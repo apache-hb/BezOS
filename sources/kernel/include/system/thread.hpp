@@ -4,6 +4,7 @@
 
 #include "arch/xsave.hpp"
 #include "memory/layout.hpp"
+#include "std/shared.hpp"
 #include "system/handle.hpp"
 
 #include <stdlib.h>
@@ -38,9 +39,8 @@ namespace sys2 {
     using XSaveState = std::unique_ptr<x64::XSave, decltype(&free)>;
 
     class Thread final : public IObject {
-        OsHandle mHandle;
         ObjectName mName;
-        Process *mParent;
+        sm::WeakPtr<Process> mParent;
 
         RegisterSet mCpuState;
         XSaveState mFpuState{nullptr, &free};
@@ -53,8 +53,6 @@ namespace sys2 {
     public:
         void setName(ObjectName name) override;
         ObjectName getName() const override;
-
-        OsHandle handle() const override;
     };
 
     struct ThreadCreateInfo {

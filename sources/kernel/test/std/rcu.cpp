@@ -23,15 +23,15 @@ static void AddElement(sm::RcuDomain& domain, Tree *root, Tree *element) {
 
     while (true) {
         if (element->data < current->data) {
-            if (current->left == nullptr) {
-                current->left = element;
+            Tree *expected = nullptr;
+            if (current->left.compare_exchange_strong(expected, element)) {
                 return;
             }
 
             current = current->left;
         } else {
-            if (current->right == nullptr) {
-                current->right = element;
+            Tree *expected = nullptr;
+            if (current->right.compare_exchange_strong(expected, element)) {
                 return;
             }
 
@@ -42,6 +42,7 @@ static void AddElement(sm::RcuDomain& domain, Tree *root, Tree *element) {
 
 static void DeleteElement(sm::RcuDomain& domain, Tree *root, uint8_t data) {
     sm::RcuGuard guard(domain);
+
     Tree *parent = root;
     Tree *current = root;
     bool left = false;
@@ -98,11 +99,11 @@ static bool FindElement(sm::RcuDomain& domain, Tree *root, uint64_t data) {
 }
 
 static void DestroyTree(sm::RcuDomain& domain, Tree *root) {
-    sm::RcuGuard guard(domain);
-
     if (root == nullptr) {
         return;
     }
+
+    sm::RcuGuard guard(domain);
 
     DestroyTree(domain, root->left);
     DestroyTree(domain, root->right);
