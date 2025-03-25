@@ -80,40 +80,8 @@ namespace sm {
 
         UTIL_BITFLAGS(JointCount::Release);
 
-        template<typename T>
-        class AtomicStickyZero {
-            static constexpr T kIsZero = (T(1) << (sizeof(T) * CHAR_BIT - 1));
-            std::atomic<T> mCount;
-
-        public:
-            constexpr AtomicStickyZero() = default;
-            constexpr AtomicStickyZero(T initial)
-                : mCount(initial)
-            { }
-
-            /// @brief Increment the counter if it isn't zero.
-            ///
-            /// @return False if the counter is stuck to zero, true otherwise.
-            bool increment() {
-                return (mCount.fetch_add(1) & kIsZero) == 0;
-            }
-
-            /// @brief Decrement the counter.
-            ///
-            /// @return True if the counter is now zero, false otherwise.
-            bool decrement() {
-                if (mCount.fetch_sub(1) == 1) {
-                    T expected = 0;
-                    return mCount.compare_exchange_strong(expected, kIsZero);
-                }
-
-                return false;
-            }
-        };
-
         struct ControlBlock {
-            AtomicStickyZero<uint32_t> strong = 1;
-            AtomicStickyZero<uint32_t> weak = 1;
+            JointCount count = { 1, 1 };
             void *value = nullptr;
             void(*deleter)(void*) = nullptr;
             RcuDomain *domain = nullptr;
@@ -233,21 +201,21 @@ namespace sm {
     class RcuWeakPtr {
         std::atomic<rcu::detail::ControlBlock*> mControl;
 
-        void release() {
-            if (rcu::detail::ControlBlock *cb = mControl.exchange(nullptr)) {
+        void exchangeControl(rcu::detail::ControlBlock *control) {
+            if (rcu::detail::ControlBlock *cb = mControl.exchange(control)) {
                 rcu::detail::RcuReleaseWeak(cb);
             }
         }
 
-        void acquire(rcu::detail::ControlBlock *control) {
-            if (rcu::detail::ControlBlock *cb = mControl.exchange(nullptr)) {
-                rcu::detail::RcuReleaseWeak(cb);
-            }
+        void release() {
+            exchangeControl(nullptr);
+        }
 
-            if (control != nullptr) {
-                if (rcu::detail::RcuAcquireWeak(control)) {
-                    mControl.store(control);
-                }
+        void acquire(rcu::detail::ControlBlock *control) {
+            if (control != nullptr && rcu::detail::RcuAcquireWeak(control)) {
+                exchangeControl(control);
+            } else {
+                release();
             }
         }
 
@@ -329,7 +297,7 @@ namespace sm {
 
     template<typename T>
     constexpr RcuSharedPtr<T>::RcuSharedPtr(RcuDomain *domain, T *ptr)
-        : mControl(new (std::nothrow) rcu::detail::ControlBlock { 1, 1, ptr, [](void *ptr) { delete static_cast<T*>(ptr); }, domain })
+        : mControl(new (std::nothrow) rcu::detail::ControlBlock { { 1, 1 }, ptr, [](void *ptr) { delete static_cast<T*>(ptr); }, domain })
     {
         if (mControl != nullptr && ptr != nullptr) {
             if constexpr (IsIntrusivePtr<T>) {

@@ -7,29 +7,26 @@ void rcu::RcuReleaseStrong(ControlBlock *cb) {
     // If the final strong reference is released then delete the object data.
     // The control block is retained until the weak reference count reaches zero.
     //
-    if (cb->strong.decrement()) {
+    auto flags = cb->count.strongRelease();
+    if (bool(flags & JointCount::eStrong)) {
         cb->domain->call(cb->value, cb->deleter);
     }
 
-    RcuReleaseWeak(cb);
+    if (bool(flags & JointCount::eWeak)) {
+        cb->domain->retire(cb);
+    }
 }
 
 bool rcu::RcuAcqiureStrong(ControlBlock *control) {
-    bool result = RcuAcquireWeak(control) && control->strong.increment();
-    if (!result) {
-        RcuReleaseWeak(control);
-    }
-
-    return result;
+    return control->count.strongRetain();
 }
 
 void rcu::RcuReleaseWeak(ControlBlock *cb) {
-    if (cb->weak.decrement()) {
+    if (cb->count.weakRelease()) {
         cb->domain->retire(cb);
     }
 }
 
 bool rcu::RcuAcquireWeak(ControlBlock *control) {
-    bool result = control->weak.increment();
-    return result;
+    return control->count.weakRetain();
 }

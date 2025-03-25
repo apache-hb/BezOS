@@ -218,22 +218,6 @@ TEST(RcuPtrTest, Weak) {
     ASSERT_FALSE(released);
 }
 
-TEST(RcuPtrTest, Construct) {
-    sm::RcuDomain domain;
-    sm::RcuSharedPtr<std::string> ptr = {&domain, new std::string("Hello, World!")};
-    ASSERT_EQ(*ptr, "Hello, World!");
-    ptr = nullptr;
-}
-
-TEST(RcuPtrTest, ConstructWeak) {
-    sm::RcuDomain domain;
-    sm::RcuSharedPtr<std::string> ptr = {&domain, new std::string("Hello, World!")};
-    ASSERT_EQ(*ptr, "Hello, World!");
-    sm::RcuWeakPtr<std::string> weak = ptr;
-    ptr = nullptr;
-    ASSERT_EQ(weak.lock(), nullptr);
-}
-
 class IntrusiveData : public sm::RcuIntrusivePtr<IntrusiveData> {
     std::string mValue;
 
@@ -257,9 +241,31 @@ TEST(RcuPtrTest, Intrusive) {
 }
 #endif
 
+TEST(RcuPtrTest, Construct) {
+    sm::RcuDomain domain;
+    sm::RcuSharedPtr<std::string> ptr = {&domain, new std::string("Hello, World!")};
+    ASSERT_EQ(*ptr, "Hello, World!");
+}
+
+TEST(RcuPtrTest, AssignEmpty) {
+    sm::RcuDomain domain;
+    sm::RcuSharedPtr<std::string> ptr = {&domain, new std::string("Hello, World!")};
+    ASSERT_EQ(*ptr, "Hello, World!");
+    ptr = nullptr;
+}
+
+TEST(RcuPtrTest, ConstructWeak) {
+    sm::RcuDomain domain;
+    sm::RcuSharedPtr<std::string> ptr = {&domain, new std::string("Hello, World!")};
+    ASSERT_EQ(*ptr, "Hello, World!");
+    sm::RcuWeakPtr<std::string> weak = ptr;
+    ptr = nullptr;
+    ASSERT_EQ(weak.lock(), nullptr);
+}
+
 using JointCount = sm::rcu::detail::JointCount;
 
-TEST(RcuPtrTest, JointCount) {
+TEST(JointCountTest, JointCount) {
     JointCount count { 1, 1 };
 
     ASSERT_TRUE(count.strongRetain()); // strong = 2, weak = 2
@@ -269,7 +275,7 @@ TEST(RcuPtrTest, JointCount) {
     ASSERT_EQ(count.strongRelease(), (JointCount::eStrong | JointCount::eWeak)); // strong = 0, weak = 0
 }
 
-TEST(RcuPtrTest, ReleaseStrongOnly) {
+TEST(JointCountTest, ReleaseStrongOnly) {
     JointCount count { 1, 1 };
 
     ASSERT_TRUE(count.strongRetain()); // strong = 2, weak = 2
@@ -280,7 +286,7 @@ TEST(RcuPtrTest, ReleaseStrongOnly) {
 }
 
 
-TEST(RcuPtrTest, ReleaseWeakRepeat) {
+TEST(JointCountTest, ReleaseWeakRepeat) {
     JointCount count { 1, 1 };
 
     ASSERT_TRUE(count.weakRetain()); // strong = 1, weak = 2
@@ -294,7 +300,7 @@ TEST(RcuPtrTest, ReleaseWeakRepeat) {
     ASSERT_FALSE(count.weakRelease()); // weak = 0 (sticky)
 }
 
-TEST(RcuPtrTest, ReleaseStrongRepeat) {
+TEST(JointCountTest, ReleaseStrongRepeat) {
     JointCount count { 1, 1 };
 
     ASSERT_TRUE(count.strongRetain()); // strong = 2, weak = 2
@@ -308,7 +314,7 @@ TEST(RcuPtrTest, ReleaseStrongRepeat) {
     ASSERT_EQ(count.strongRelease(), JointCount::eNone); // strong = 0, weak = 0 (sticky)
 }
 
-TEST(RcuPtrTest, ConcurrentAccess) {
+TEST(JointCountTest, ConcurrentAccess) {
     JointCount count { 1, 1 };
 
     std::atomic<int32_t> acquireStrongCount { 1024 };
@@ -361,8 +367,7 @@ TEST(RcuPtrTest, ConcurrentAccess) {
     ASSERT_EQ(count.strongRelease(), JointCount::eWeak | JointCount::eStrong);
 }
 
-
-TEST(RcuPtrTest, ConcurrentMixedAccess) {
+TEST(JointCountTest, ConcurrentMixedAccess) {
     JointCount count { 1, 1 };
 
     std::vector<std::jthread> threads;
