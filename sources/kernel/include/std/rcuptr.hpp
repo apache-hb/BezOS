@@ -47,25 +47,51 @@ namespace sm {
             /// @brief Increment the weak and strong reference count.
             /// @return False if the strong reference count is zero, true otherwise.
             bool strongRetain() {
-                return (mCount.fetch_add(kStrongOne | kWeakOne) & kStrongIsZero) == 0;
+                if ((mCount.fetch_add(kStrongOne) & kStrongIsZero) == 0) {
+                    weakRetain();
+                    return true;
+                }
+
+                return false;
             }
 
             /// @brief Decrement the weak and strong reference count.
             /// @return A mask of which reference counts were brought to zero by this operation.
             Release strongRelease() {
-                // Retaining a strong reference also retains a weak one at the same time.
-                // This lets us split releasing references into two operations
                 bool weakCleared = false;
                 bool strongCleared = false;
-                if (uint64_t count = mCount.fetch_sub(kStrongOne); (count & kStrongMask) == kStrongOne) {
-                    uint64_t expected = count & ~kStrongMask;
-                    if (mCount.compare_exchange_strong(expected, expected | kStrongIsZero)) {
-                        strongCleared = true;
-                    }
-                }
+                if (uint64_t count = mCount.fetch_sub(kStrongOne | kWeakOne); ((count & kStrongMask) == kStrongOne || (count & kWeakMask) == kWeakOne)) {
+                    weakCleared = (count & kWeakMask) == kWeakOne;
+                    strongCleared = (count & kStrongMask) == kStrongOne;
 
-                if (weakRelease()) {
-                    weakCleared = true;
+                    uint64_t expected = count;
+                    uint64_t value = expected;
+                    if (weakCleared) {
+                        expected = (expected & ~kWeakMask) | kWeakIsZero;
+                        value |= kWeakIsZero;
+                    }
+
+                    if (strongCleared) {
+                        expected = (expected & ~kStrongMask) | kStrongIsZero;
+                        value |= kStrongIsZero;
+                    }
+
+                    while (!mCount.compare_exchange_strong(expected, value)) {
+                        value = expected;
+
+                        weakCleared = (expected & kWeakMask) == 0;
+                        strongCleared = (expected & kStrongMask) == 0;
+
+                        if (weakCleared) {
+                            expected = (expected & ~kWeakMask);
+                            value |= kWeakIsZero;
+                        }
+
+                        if (strongCleared) {
+                            expected = (expected & ~kStrongMask);
+                            value |= kStrongIsZero;
+                        }
+                    }
                 }
 
                 int result = eNone;

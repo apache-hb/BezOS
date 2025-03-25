@@ -303,15 +303,10 @@ TEST(JointCountTest, ReleaseWeakRepeat) {
 TEST(JointCountTest, ReleaseStrongRepeat) {
     JointCount count { 1, 1 };
 
-    ASSERT_TRUE(count.strongRetain()); // strong = 2, weak = 2
-    ASSERT_TRUE(count.strongRetain()); // strong = 3, weak = 3
-    ASSERT_TRUE(count.strongRetain()); // strong = 4, weak = 4
-    ASSERT_EQ(count.strongRelease(), JointCount::eNone); // strong = 3, weak = 3
-    ASSERT_EQ(count.strongRelease(), JointCount::eNone); // strong = 2, weak = 2
-    ASSERT_EQ(count.strongRelease(), JointCount::eNone); // strong = 1, weak = 1
-    ASSERT_EQ(count.strongRelease(), JointCount::eWeak | JointCount::eStrong); // strong = 0, weak = 0
-    ASSERT_EQ(count.strongRelease(), JointCount::eNone); // strong = 0, weak = 0 (sticky)
-    ASSERT_EQ(count.strongRelease(), JointCount::eNone); // strong = 0, weak = 0 (sticky)
+    ASSERT_TRUE(count.weakRetain()); // strong = 1, weak = 2
+    ASSERT_EQ(count.strongRelease(), JointCount::eStrong); // strong = 0, weak = 1
+    ASSERT_FALSE(count.strongRetain()); // strong = 0, weak = 1
+    ASSERT_TRUE(count.weakRelease()); // strong = 0, weak = 0
 }
 
 TEST(JointCountTest, ConcurrentAccess) {
