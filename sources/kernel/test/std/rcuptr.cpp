@@ -7,6 +7,28 @@
 #include "std/rcu.hpp"
 #include "std/rcuptr.hpp"
 
+std::string RandomString(int length, std::mt19937& mt) {
+    std::string str;
+    str.reserve(length);
+
+    std::uniform_int_distribution<int> dist('A', 'Z');
+
+    for (int i = 0; i < length; i++) {
+        str.push_back(dist(mt));
+    }
+
+    return str;
+}
+
+struct Node : public sm::RcuIntrusivePtr<Node> {
+    std::string value;
+    sm::RcuSharedPtr<Node> next;
+};
+
+struct Queue {
+    sm::RcuSharedPtr<Node> head;
+};
+
 #if 0
 struct Tree {
     sm::RcuSharedPtr<Tree> left;
@@ -152,6 +174,7 @@ TEST(RcuPtrTest, Insert) {
     // If we get here without crashing chances are the RCU domain is working.
     SUCCEED();
 }
+#endif
 
 TEST(RcuPtrTest, Weak) {
     sm::RcuDomain domain;
@@ -217,7 +240,6 @@ TEST(RcuPtrTest, Weak) {
 
     ASSERT_FALSE(released);
 }
-#endif
 
 class IntrusiveData : public sm::RcuIntrusivePtr<IntrusiveData> {
     std::string mValue;
@@ -297,17 +319,110 @@ TEST(RcuPtrTest, ConstructWeak) {
     ASSERT_EQ(weak.lock(), nullptr);
 }
 
-std::string RandomString(int length, std::mt19937& mt) {
-    std::string str;
-    str.reserve(length);
+TEST(RcuPtrTest, CompareExchangeStrong) {
+    sm::RcuDomain domain;
+    sm::RcuGuard guard(domain);
+    sm::RcuSharedPtr<std::string> ptr = {&domain, new std::string("Hello, World!")};
+    ASSERT_EQ(*ptr, "Hello, World!");
+    sm::RcuSharedPtr<std::string> ptr2 = ptr;
+    ASSERT_EQ(*ptr2, "Hello, World!");
 
-    std::uniform_int_distribution<int> dist('A', 'Z');
+    sm::RcuSharedPtr<std::string> ptr3 = {&domain, new std::string("Goodbye, World!")};
+    ASSERT_EQ(*ptr3, "Goodbye, World!");
 
-    for (int i = 0; i < length; i++) {
-        str.push_back(dist(mt));
-    }
+    ASSERT_TRUE(ptr.compare_exchange_strong(ptr2, ptr3));
+    ASSERT_EQ(*ptr, "Goodbye, World!");
+    ASSERT_EQ(*ptr2, "Hello, World!");
+    ASSERT_EQ(*ptr3, "Goodbye, World!");
+}
 
-    return str;
+TEST(RcuPtrTest, CompareExchangeStrongFail) {
+    sm::RcuDomain domain;
+    sm::RcuGuard guard(domain);
+    sm::RcuSharedPtr<std::string> ptr = {&domain, new std::string("Hello, World!")};
+    ASSERT_EQ(*ptr, "Hello, World!");
+    sm::RcuSharedPtr<std::string> ptr2 = ptr;
+    ASSERT_EQ(*ptr2, "Hello, World!");
+
+    sm::RcuSharedPtr<std::string> ptr3 = {&domain, new std::string("Goodbye, World!")};
+    ASSERT_EQ(*ptr3, "Goodbye, World!");
+
+    ASSERT_FALSE(ptr.compare_exchange_strong(ptr3, ptr3));
+    ASSERT_EQ(*ptr, "Hello, World!");
+    ASSERT_EQ(*ptr2, "Hello, World!");
+    ASSERT_EQ(*ptr3, "Hello, World!");
+}
+
+TEST(RcuPtrTest, CompareExchangeWeak) {
+    sm::RcuDomain domain;
+    sm::RcuGuard guard(domain);
+    sm::RcuSharedPtr<std::string> ptr = {&domain, new std::string("Hello, World!")};
+    ASSERT_EQ(*ptr, "Hello, World!");
+    sm::RcuSharedPtr<std::string> ptr2 = ptr;
+    ASSERT_EQ(*ptr2, "Hello, World!");
+
+    sm::RcuSharedPtr<std::string> ptr3 = {&domain, new std::string("Goodbye, World!")};
+    ASSERT_EQ(*ptr3, "Goodbye, World!");
+
+    ASSERT_TRUE(ptr.compare_exchange_weak(ptr2, ptr3));
+    ASSERT_EQ(*ptr, "Goodbye, World!");
+    ASSERT_EQ(*ptr2, "Hello, World!");
+    ASSERT_EQ(*ptr3, "Goodbye, World!");
+}
+
+TEST(RcuPtrTest, CompareExchangeWeakFail) {
+    sm::RcuDomain domain;
+    sm::RcuGuard guard(domain);
+    sm::RcuSharedPtr<std::string> ptr = {&domain, new std::string("Hello, World!")};
+    ASSERT_EQ(*ptr, "Hello, World!");
+    sm::RcuSharedPtr<std::string> ptr2 = ptr;
+    ASSERT_EQ(*ptr2, "Hello, World!");
+
+    sm::RcuSharedPtr<std::string> ptr3 = {&domain, new std::string("Goodbye, World!")};
+    ASSERT_EQ(*ptr3, "Goodbye, World!");
+
+    ASSERT_FALSE(ptr.compare_exchange_weak(ptr3, ptr3));
+    ASSERT_EQ(*ptr, "Hello, World!");
+    ASSERT_EQ(*ptr2, "Hello, World!");
+    ASSERT_EQ(*ptr3, "Hello, World!");
+}
+
+TEST(RcuPtrTest, Exchange) {
+    sm::RcuDomain domain;
+    sm::RcuGuard guard(domain);
+    sm::RcuSharedPtr<std::string> ptr = {&domain, new std::string("Hello, World!")};
+    ASSERT_EQ(*ptr, "Hello, World!");
+    sm::RcuSharedPtr<std::string> ptr2 = ptr;
+    ASSERT_EQ(*ptr2, "Hello, World!");
+
+    sm::RcuSharedPtr<std::string> ptr3 = {&domain, new std::string("Goodbye, World!")};
+    ASSERT_EQ(*ptr3, "Goodbye, World!");
+
+    auto ptr4 = ptr.exchange(ptr3);
+    ASSERT_EQ(*ptr, "Goodbye, World!");
+    ASSERT_EQ(*ptr2, "Hello, World!");
+    ASSERT_EQ(*ptr3, "Goodbye, World!");
+    ASSERT_EQ(*ptr4, "Hello, World!");
+}
+
+TEST(RcuPtrTest, CopyWeak) {
+    sm::RcuDomain domain;
+    sm::RcuGuard guard(domain);
+    sm::RcuSharedPtr<std::string> ptr = {&domain, new std::string("Hello, World!")};
+    ASSERT_EQ(*ptr, "Hello, World!");
+    sm::RcuSharedPtr<std::string> ptr2 = ptr;
+    ASSERT_EQ(*ptr2, "Hello, World!");
+
+    sm::RcuWeakPtr<std::string> weak = ptr;
+    ASSERT_EQ(*weak.lock(), "Hello, World!");
+
+    sm::RcuWeakPtr<std::string> weak2 = weak;
+    ASSERT_EQ(*weak2.lock(), "Hello, World!");
+
+    ptr = nullptr;
+    ptr2 = nullptr;
+    ASSERT_EQ(weak.lock(), nullptr);
+    ASSERT_EQ(weak2.lock(), nullptr);
 }
 
 TEST(RcuPtrTest, ConcurrentAccess) {

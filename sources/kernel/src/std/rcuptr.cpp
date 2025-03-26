@@ -9,7 +9,7 @@ void rcu::RcuReleaseStrong(ControlBlock *cb) {
     //
     auto flags = cb->count.strongRelease();
     if (bool(flags & JointCount::eStrong)) {
-        cb->domain->call(cb->value, cb->deleter);
+        cb->domain->call(cb, cb->deleter);
     }
 
     if (bool(flags & JointCount::eWeak)) {

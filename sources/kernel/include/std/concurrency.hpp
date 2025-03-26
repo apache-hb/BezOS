@@ -22,7 +22,7 @@ namespace stdx {
 
         void arrive() {
             if (mCount.fetch_sub(1) > 1) {
-                while (mCount.load() != 0) {
+                while (mCount.load() > 0) {
                     _mm_pause();
                 }
             }

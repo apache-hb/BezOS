@@ -105,21 +105,32 @@ namespace sm {
         UTIL_BITFLAGS(JointCount::Release);
 
         struct ControlBlock {
-            JointCount count = { 1, 1 };
-            void *value = nullptr;
-            void(*deleter)(void*) = nullptr;
-            RcuDomain *domain = nullptr;
+            JointCount count;
+            void *value;
+            void(*deleter)(void*);
+            RcuDomain *domain;
         };
 
         template<typename T>
         ControlBlock *NewControlBlock(RcuDomain *domain, T *value) {
-            return new (std::nothrow) ControlBlock { { 1, 1 }, value, [](void *ptr) { delete static_cast<T*>(ptr); }, domain };
+            return new (std::nothrow) ControlBlock {
+                .count = { 1, 1 },
+                .value = value,
+                .deleter = [](void *ptr) {
+                    ControlBlock *cb = (ControlBlock*)ptr;
+                    delete static_cast<T*>(cb->value);
+                },
+                .domain = domain
+            };
         }
 
         void RcuReleaseStrong(ControlBlock *ptr);
         bool RcuAcqiureStrong(ControlBlock *control);
         void RcuReleaseWeak(ControlBlock *cb);
         bool RcuAcquireWeak(ControlBlock *control);
+
+        struct AdoptControl {};
+        struct AcquireControl {};
     }
 
     template<typename T>
@@ -162,8 +173,12 @@ namespace sm {
             }
         }
 
-        constexpr RcuSharedPtr(rcu::detail::ControlBlock *control) : RcuSharedPtr() {
+        constexpr RcuSharedPtr(rcu::detail::ControlBlock *control, rcu::detail::AcquireControl) : RcuSharedPtr() {
             acquire(control);
+        }
+
+        constexpr RcuSharedPtr(rcu::detail::ControlBlock *control, rcu::detail::AdoptControl) : RcuSharedPtr() {
+            exchangeControl(control);
         }
 
     public:
@@ -179,33 +194,143 @@ namespace sm {
             release();
         }
 
-        constexpr RcuSharedPtr(RcuDomain *domain, T *ptr);
+        /// @brief Construct a shared pointer from a domain and a pointer.
+        ///
+        /// @note Check for validity with @a isValid() after construction to ensure
+        ///       allocation of control structures succeeded.
+        ///
+        /// @pre @p ptr must not be associated with any other shared pointers.
+        ///
+        /// @param domain The domain that reclaims the pointer.
+        /// @param ptr The pointer to manage.
+        constexpr RcuSharedPtr(RcuDomain *domain [[gnu::nonnull]], T *ptr);
 
+        /// @brief Copy construct a shared pointer.
+        ///
+        /// @param other The shared pointer to copy.
         constexpr RcuSharedPtr(const RcuSharedPtr& other) : RcuSharedPtr() {
             acquire(other.mControl);
         }
 
+        /// @brief Copy a shared pointer into this shared pointer.
+        ///
+        /// @note Does not require external synchronization
+        ///
+        /// @param other The shared pointer to copy.
+        /// @return A reference to this shared pointer.
         constexpr RcuSharedPtr& operator=(const RcuSharedPtr& other) {
             acquire(other.mControl);
             return *this;
         }
 
+        /// @brief Move construct a shared pointer.
+        ///
+        /// @post @p other is empty.
+        ///
+        /// @param other The shared pointer to move.
         constexpr RcuSharedPtr(RcuSharedPtr&& other) : RcuSharedPtr() {
             exchangeControl(other.mControl.exchange(nullptr));
         }
 
+        /// @brief Move a shared pointer into this shared pointer.
+        ///
+        /// @note Does not require external synchronization
+        /// @post @p other is empty.
+        ///
+        /// @param other The shared pointer to move.
+        /// @return A reference to this shared pointer.
         constexpr RcuSharedPtr& operator=(RcuSharedPtr&& other) {
             exchangeControl(other.mControl.exchange(nullptr));
             return *this;
         }
 
+        /// @brief Take a weak reference to this shared pointer.
+        /// @note Does not require external synchronization
+        /// @return A weak pointer to this shared pointer.
         RcuWeakPtr<T> weak();
 
+        /// @brief Compare and exchange the shared pointer.
+        ///
+        /// @note Does not require external synchronization
+        ///
+        /// @param expected The expected shared pointer.
+        /// @param desired The desired shared pointer.
+        /// @return True if the shared pointer was exchanged, false otherwise.
+        constexpr bool compare_exchange_strong(RcuSharedPtr& expected, RcuSharedPtr desired) {
+            rcu::detail::ControlBlock *oldControl = mControl.load();
+            rcu::detail::ControlBlock *expectedControl = expected.mControl.load();
+            rcu::detail::ControlBlock *desiredControl = desired.mControl.load();
+
+            if (!mControl.compare_exchange_strong(expectedControl, desiredControl)) {
+                expected = RcuSharedPtr(expectedControl, rcu::detail::AcquireControl{});
+                return false;
+            }
+
+            if (oldControl != nullptr) {
+                rcu::detail::RcuReleaseStrong(oldControl);
+            }
+
+            return true;
+        }
+
+        /// @brief Compare and exchange the shared pointer.
+        ///
+        /// @note Does not require external synchronization
+        ///
+        /// @param expected The expected shared pointer.
+        /// @param desired The desired shared pointer.
+        /// @return True if the shared pointer was exchanged, false otherwise.
+        constexpr bool compare_exchange_weak(RcuSharedPtr& expected, RcuSharedPtr desired) {
+            rcu::detail::ControlBlock *oldControl = mControl.load();
+            rcu::detail::ControlBlock *expectedControl = expected.mControl.load();
+            rcu::detail::ControlBlock *desiredControl = desired.mControl.load();
+
+            if (!mControl.compare_exchange_weak(expectedControl, desiredControl)) {
+                expected = RcuSharedPtr(expectedControl, rcu::detail::AcquireControl{});
+                return false;
+            }
+
+            if (oldControl != nullptr) {
+                rcu::detail::RcuReleaseStrong(oldControl);
+            }
+
+            return true;
+        }
+
+        constexpr bool cmpxchg(RcuSharedPtr& expected, RcuSharedPtr desired) {
+            return compare_exchange_strong(expected, desired);
+        }
+
+        constexpr bool cmpxchgStrong(RcuSharedPtr& expected, RcuSharedPtr desired) {
+            return compare_exchange_strong(expected, desired);
+        }
+
+        constexpr bool cmpxchgWeak(RcuSharedPtr& expected, RcuSharedPtr desired) {
+            return compare_exchange_weak(expected, desired);
+        }
+
+        constexpr RcuSharedPtr exchange(RcuSharedPtr desired) {
+            return RcuSharedPtr(mControl.exchange(desired.mControl), rcu::detail::AdoptControl{});
+        }
+
+        constexpr RcuSharedPtr load() {
+            return *this;
+        }
+
+        constexpr void store(RcuSharedPtr desired) {
+            acquire(desired.mControl);
+        }
+
+        /// @brief Access the shared pointers value
+        /// @note Requires external synchronization
+        /// @pre @a isValid()
         constexpr T *operator->() {
             rcu::detail::ControlBlock *cb = mControl.load();
             return static_cast<T*>(cb->value);
         }
 
+        /// @brief Access the shared pointers value
+        /// @note Requires external synchronization
         constexpr T *get() {
             if (rcu::detail::ControlBlock *cb = mControl.load()) {
                 return static_cast<T*>(cb->value);
@@ -214,17 +339,24 @@ namespace sm {
             return nullptr;
         }
 
+        /// @brief Access the shared pointers value
+        /// @note Requires external synchronization
+        /// @pre @a isValid()
         constexpr T& operator*(this auto&& self) {
             rcu::detail::ControlBlock *cb = self.mControl.load();
             return *static_cast<T*>(cb->value);
         }
 
+        /// @brief Erase the shared pointers value
+        /// @note Does not require external synchronization
         void reset() {
             release();
         }
 
+        /// @brief Replace the pointer with a new value
+        /// @note Does not require external synchronization
         [[nodiscard("Verify allocation succeeded")]]
-        bool reset(RcuDomain *domain, T *ptr) {
+        bool reset(RcuDomain *domain [[gnu::nonnull]], T *ptr) {
             if (rcu::detail::ControlBlock *cb = rcu::detail::NewControlBlock(domain, ptr)) {
                 exchangeControl(cb);
                 return true;
@@ -233,10 +365,22 @@ namespace sm {
             return false;
         }
 
+        /// @brief Check if the shared pointer contains a value.
+        /// @note Does not require external synchronization
+        /// @return True if the shared pointer contains a value, false otherwise.
         constexpr operator bool() const {
             return mControl != nullptr;
         }
 
+        /// @brief Check if the shared pointer contains a value.
+        /// @note Does not require external synchronization
+        /// @return True if the shared pointer contains a value, false otherwise.
+        constexpr bool isValid() const {
+            return mControl != nullptr;
+        }
+
+        /// @brief Check if two shared pointers point to the same object.
+        /// @note Does not require external synchronization
         template<std::derived_from<T> O>
         constexpr bool operator==(const RcuSharedPtr<O>& other) const {
             return mControl == other.mControl;
@@ -304,8 +448,18 @@ namespace sm {
             return *this;
         }
 
+        constexpr RcuWeakPtr& operator=(std::nullptr_t) {
+            release();
+            return *this;
+        }
+
+        template<std::derived_from<T> O>
+        constexpr bool operator==(const RcuWeakPtr<O>& other) const noexcept {
+            return mControl == other.mControl;
+        }
+
         RcuSharedPtr<T> lock() {
-            return RcuSharedPtr<T>(mControl);
+            return RcuSharedPtr<T>(mControl, rcu::detail::AcquireControl{});
         }
     };
 
@@ -331,9 +485,9 @@ namespace sm {
     };
 
     template<typename T, typename... Args>
-    RcuSharedPtr<T> rcuMakeShared(RcuDomain *domain, Args&&... args) {
+    RcuSharedPtr<T> rcuMakeShared(RcuDomain *domain [[gnu::nonnull]], Args&&... args) {
         if (T *ptr = new (std::nothrow) T(std::forward<Args>(args)...)) {
-            if (RcuSharedPtr rcu = RcuSharedPtr<T>{domain, ptr}) {
+            if (RcuSharedPtr rcu = RcuSharedPtr<T>(domain, ptr)) {
                 return rcu;
             }
 
@@ -344,10 +498,19 @@ namespace sm {
     }
 
     template<typename T>
-    constexpr RcuSharedPtr<T>::RcuSharedPtr(RcuDomain *domain, T *ptr)
-        : mControl(rcu::detail::NewControlBlock(domain, ptr))
-    {
-        if (mControl != nullptr && ptr != nullptr) {
+    constexpr RcuSharedPtr<T>::RcuSharedPtr(RcuDomain *domain [[gnu::nonnull]], T *ptr) {
+        //
+        // If there is no pointer then dont bother creating a control block.
+        //
+        if (ptr == nullptr) return;
+
+        if (rcu::detail::ControlBlock *control = rcu::detail::NewControlBlock(domain, ptr)) {
+            mControl.store(control);
+
+            //
+            // If the control block was allocated and the pointed type has enabled
+            // shared from this then setup its weak reference to itself.
+            //
             if constexpr (IsIntrusivePtr<T>) {
                 ptr->initWeak(weak());
             }

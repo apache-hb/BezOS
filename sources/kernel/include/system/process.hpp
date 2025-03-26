@@ -28,6 +28,11 @@ namespace sys2 {
     public:
         void setName(ObjectName name) override;
         ObjectName getName() const override;
+
+        stdx::StringView getClassName() const override { return "Process"; }
+
+        OsStatus open(OsHandle *handle) override;
+        OsStatus close(OsHandle handle) override;
     };
 
     struct ProcessCreateInfo {

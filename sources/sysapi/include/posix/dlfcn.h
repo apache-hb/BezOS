@@ -5,10 +5,11 @@
 
 BZP_API_BEGIN
 
-#define RTLD_LAZY 0x1
-#define RTLD_NOW 0x2
-#define RTLD_GLOBAL 0x3
-#define RTLD_LOCAL 0x4
+#define RTLD_LAZY 0x0
+#define RTLD_NOW 0x1
+
+#define RTLD_GLOBAL (1 << 1)
+#define RTLD_LOCAL (1 << 2)
 
 extern int dlclose(void *) BZP_NOEXCEPT;
 extern char *dlerror(void) BZP_NOEXCEPT;
