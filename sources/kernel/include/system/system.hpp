@@ -2,6 +2,7 @@
 
 #include <bezos/handle.h>
 
+#include "memory/tables.hpp"
 #include "std/rcuptr.hpp"
 #include "util/absl.hpp"
 
@@ -52,6 +53,8 @@ namespace sys2 {
         km::PageTables *mSystemTables;
 
         km::PageAllocator *mPageAllocator;
+
+        km::VmemAllocator mVmemAllocator;
 
         sm::FlatHashMap<sm::RcuWeakPtr<IObject>, WaitQueue> mWaitQueue;
         std::priority_queue<WaitEntry> mTimeoutQueue;

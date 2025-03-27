@@ -10,41 +10,37 @@ void AddressSpaceAllocator::init(AddressMapping pteMemory, const PageBuilder *pa
     });
 
     mExtraFlags = extra;
-    mVmemAllocator.release(vmemArea.cast<const std::byte*>());
+    mVmemAllocator.release(vmemArea);
 }
 
 AddressSpaceAllocator::AddressSpaceAllocator(AddressMapping pteMemory, const PageBuilder *pm, PageFlags flags, PageFlags extra, VirtualRange vmemArea)
     : mTables(pm, pteMemory, flags)
     , mExtraFlags(extra)
-    , mVmemAllocator(vmemArea.cast<const std::byte*>())
+    , mVmemAllocator(vmemArea)
 { }
 
 void AddressSpaceAllocator::reserve(VirtualRange range) {
-    mVmemAllocator.reserve(range.cast<const std::byte*>());
+    mVmemAllocator.reserve(range);
 }
 
 VirtualRange AddressSpaceAllocator::vmemAllocate(size_t pages) {
     size_t align = (pages > (x64::kLargePageSize / x64::kPageSize)) ? x64::kLargePageSize : x64::kPageSize;
-    auto range = mVmemAllocator.allocate({
+    return mVmemAllocator.allocate({
         .size = pages * x64::kPageSize,
         .align = align,
     });
-
-    return range.cast<const void*>();
 }
 
 VirtualRange AddressSpaceAllocator::vmemAllocate(RangeAllocateRequest<const void*> request) {
-    auto range = mVmemAllocator.allocate({
+    return mVmemAllocator.allocate({
         .size = request.size,
         .align = request.align,
         .hint = (const std::byte*)request.hint,
     });
-
-    return range.cast<const void*>();
 }
 
 void AddressSpaceAllocator::vmemRelease(VirtualRange range) {
-    mVmemAllocator.release(range.cast<const std::byte*>());
+    mVmemAllocator.release(range);
 }
 
 OsStatus AddressSpaceAllocator::map(AddressMapping mapping, PageFlags flags, MemoryType type) {

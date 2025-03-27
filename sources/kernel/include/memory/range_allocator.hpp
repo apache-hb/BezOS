@@ -264,7 +264,7 @@ namespace km {
         using Type = T;
 
         stdx::SpinLock mLock;
-        stdx::Vector2<Range> mAvailable;
+        stdx::Vector2<Range> mAvailable GUARDED_BY(mLock);
 
     public:
         RangeAllocator() = default;

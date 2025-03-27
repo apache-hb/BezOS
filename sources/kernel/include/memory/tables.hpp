@@ -50,7 +50,7 @@ namespace km {
     class AddressSpaceAllocator {
         PageTables mTables;
         PageFlags mExtraFlags;
-        RangeAllocator<const std::byte*> mVmemAllocator;
+        VmemAllocator mVmemAllocator;
 
     protected:
         void init(AddressMapping pteMemory, const PageBuilder *pager, PageFlags flags, PageFlags extra, VirtualRange vmemArea);
