@@ -49,9 +49,6 @@ namespace sys2 {
         RegisterSet cpuState;
 
         OsSize kernelStackSize;
-
-        /// @brief Is this a supervisor thread?
-        bool supervisor;
     };
 
     struct ThreadDestroyInfo {
@@ -66,16 +63,19 @@ namespace sys2 {
     };
 
     class Thread final : public IObject {
-        ObjectName mName;
-        sm::RcuWeakPtr<Process> mParent;
+        stdx::SharedSpinLock mLock;
+
+        ObjectName mName GUARDED_BY(mLock);
+
+        sm::RcuWeakPtr<Process> mProcess;
 
         RegisterSet mCpuState;
         XSaveState mFpuState{nullptr, &free};
         reg_t mTlsAddress;
-        bool mSupervisor;
 
         [[maybe_unused]]
         km::AddressMapping mKernelStack;
+
         [[maybe_unused]]
         OsThreadState mThreadState;
 
@@ -93,7 +93,7 @@ namespace sys2 {
         void saveState(RegisterSet& regs);
         RegisterSet loadState();
 
-        bool isSupervisor() const { return mSupervisor; }
+        bool isSupervisor();
     };
 
     OsStatus CreateThread(System *system, const ThreadCreateInfo& info, sm::RcuSharedPtr<Thread> *thread);

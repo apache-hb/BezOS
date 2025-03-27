@@ -106,3 +106,14 @@ void ProcessPageTables::init(SystemPageTables *kernel, AddressMapping pteMemory,
     AddressSpaceAllocator::init(pteMemory, kernel->pageManager(), PageFlags::eUserAll, PageFlags::eUser, processArea);
     copyHigherHalfMappings();
 }
+
+void km::copyHigherHalfMappings(PageTables *tables, const PageTables *source) {
+    const x64::PageMapLevel4 *pml4 = source->pml4();
+    x64::PageMapLevel4 *self = tables->pml4();
+
+    //
+    // Only copy the higher half mappings, which are 256-511.
+    //
+    static constexpr size_t kCount = (sizeof(x64::PageMapLevel4) / sizeof(x64::pml4e)) / 2;
+    std::copy_n(pml4->entries + kCount, kCount, self->entries + kCount);
+}

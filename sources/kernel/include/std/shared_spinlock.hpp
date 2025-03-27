@@ -3,8 +3,10 @@
 #include <atomic>
 #include <cstdint>
 
+#include "std/mutex.h"
+
 namespace stdx {
-    class [[clang::capability("mutex")]] SharedSpinLock {
+    class CAPABILITY("mutex") SharedSpinLock {
         static constexpr uint32_t kWriteLock = (1 << 31);
 
         std::atomic<uint32_t> mLock = 0;
@@ -12,71 +14,67 @@ namespace stdx {
     public:
         SharedSpinLock() = default;
 
-        [[clang::acquire_capability]]
-        void lock() {
+        void lock() [[clang::blocking]] ACQUIRE() {
             uint32_t expected = 0;
             while (!mLock.compare_exchange_strong(expected, kWriteLock, std::memory_order_acquire)) {
                 expected = 0;
             }
         }
 
-        [[nodiscard, clang::try_acquire_capability(true)]]
-        bool try_lock() {
+        [[nodiscard]]
+        bool try_lock() TRY_ACQUIRE(true) {
             uint32_t expected = 0;
             return mLock.compare_exchange_strong(expected, kWriteLock, std::memory_order_acquire);
         }
 
-        [[clang::release_capability]]
-        void unlock() {
+        void unlock() RELEASE() {
             mLock.store(0, std::memory_order_release);
         }
 
-        [[clang::acquire_shared_capability]]
-        void lock_shared() {
+        void lock_shared() [[clang::blocking]] ACQUIRE_SHARED() {
             uint32_t expected;
             do {
                 expected = mLock.load(std::memory_order_acquire) & ~kWriteLock;
             } while (!mLock.compare_exchange_strong(expected, expected + 1, std::memory_order_acquire));
         }
 
-        [[nodiscard, clang::try_acquire_shared_capability(true)]]
-        bool try_lock_shared() {
+        [[nodiscard]]
+        bool try_lock_shared() TRY_ACQUIRE_SHARED(true) {
             uint32_t expected = mLock.load(std::memory_order_acquire) & ~kWriteLock;
             return mLock.compare_exchange_strong(expected, expected + 1, std::memory_order_acquire);
         }
 
-        [[clang::release_shared_capability]]
-        void unlock_shared() {
+        void unlock_shared() RELEASE_SHARED() {
             mLock.fetch_sub(1, std::memory_order_release);
         }
     };
 
     template<typename T>
-    class [[nodiscard, clang::scoped_lockable]] UniqueLock {
+    class [[nodiscard]] SCOPED_CAPABILITY UniqueLock {
         T& mLock;
     public:
-        UniqueLock(T& lock)
+        UniqueLock(T& lock) [[clang::blocking]] ACQUIRE(lock)
             : mLock(lock)
         {
             mLock.lock();
         }
 
-        ~UniqueLock() {
+        ~UniqueLock() RELEASE() {
             mLock.unlock();
         }
     };
 
     template<typename T>
-    class [[nodiscard, clang::scoped_lockable]] SharedLock {
+    class [[nodiscard]] SCOPED_CAPABILITY SharedLock {
         T& mLock;
     public:
-        SharedLock(T& lock)
+        SharedLock(T& lock) [[clang::blocking]] ACQUIRE_SHARED(lock)
             : mLock(lock)
         {
             mLock.lock_shared();
         }
 
-        ~SharedLock() {
+        ~SharedLock() RELEASE() {
             mLock.unlock_shared();
         }
     };

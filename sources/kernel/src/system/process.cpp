@@ -24,6 +24,7 @@ OsStatus sys2::Process::stat(ProcessInfo *info) {
     *info = ProcessInfo {
         .name = mName,
         .handles = mHandles.size(),
+        .supervisor = mSupervisor,
     };
 
     return OsStatusSuccess;

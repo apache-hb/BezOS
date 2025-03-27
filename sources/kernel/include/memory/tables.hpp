@@ -18,6 +18,8 @@ namespace km {
         MemoryType type = MemoryType::eWriteBack;
     };
 
+    void copyHigherHalfMappings(PageTables *tables, const PageTables *source);
+
     class AddressSpaceAllocator {
         PageTables mTables;
         PageFlags mExtraFlags;

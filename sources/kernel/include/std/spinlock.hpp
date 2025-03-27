@@ -4,25 +4,25 @@
 
 #include <emmintrin.h>
 
+#include "std/mutex.h"
+
 namespace stdx {
-    class [[clang::capability("mutex")]] SpinLock {
+    class CAPABILITY("mutex") SpinLock {
         std::atomic_flag mLock = ATOMIC_FLAG_INIT;
 
     public:
-        [[clang::acquire_capability]]
-        void lock() [[clang::blocking]] {
+        void lock() [[clang::blocking]] ACQUIRE() {
             while (mLock.test_and_set(std::memory_order_acquire)) {
                 _mm_pause();
             }
         }
 
-        [[clang::release_capability]]
-        void unlock() {
+        void unlock() RELEASE() {
             mLock.clear(std::memory_order_release);
         }
 
-        [[nodiscard, clang::try_acquire_capability(true)]]
-        bool try_lock() {
+        [[nodiscard]]
+        bool try_lock() TRY_ACQUIRE(true) {
             return !mLock.test_and_set(std::memory_order_acquire);
         }
     };
@@ -32,13 +32,13 @@ namespace stdx {
         T& mLock;
 
     public:
-        LockGuard(T& lock) [[clang::blocking]] __attribute__((acquire_capability(lock)))
+        LockGuard(T& lock) [[clang::blocking]] ACQUIRE(lock)
             : mLock(lock)
         {
             mLock.lock();
         }
 
-        ~LockGuard() __attribute__((release_capability)) {
+        ~LockGuard() RELEASE() {
             mLock.unlock();
         }
     };

@@ -21,6 +21,9 @@ namespace sys2 {
 
         /// @brief Is this a supervisor process?
         bool supervisor;
+
+        /// @brief Initial scheduling state.
+        OsProcessStateFlags state;
     };
 
     struct ProcessDestroyInfo {
@@ -31,12 +34,13 @@ namespace sys2 {
     struct ProcessInfo {
         ObjectName name;
         uint64_t handles;
+        bool supervisor;
     };
 
     class Process final : public IObject {
         stdx::SharedSpinLock mLock;
 
-        ObjectName mName;
+        ObjectName mName GUARDED_BY(mLock);
         bool mSupervisor;
 
         sm::FlatHashSet<sm::RcuSharedPtr<Thread>> mThreads;
