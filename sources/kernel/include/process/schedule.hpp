@@ -39,9 +39,6 @@ namespace km {
     km::Thread *GetCurrentThread();
     Process *GetCurrentProcess();
 
-    [[noreturn]]
-    void SwitchThread(Thread *next);
-
     void InstallSchedulerIsr(LocalIsrTable *table);
 
     [[noreturn]]

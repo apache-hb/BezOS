@@ -6,6 +6,10 @@
 
 #include "std/rcuptr.hpp"
 
+namespace km {
+    class ApicTimer;
+}
+
 namespace sys2 {
     class Process;
     class Thread;
@@ -64,4 +68,7 @@ namespace sys2 {
         OsStatus addProcess(sm::RcuSharedPtr<Process> process);
         OsStatus addThread(sm::RcuSharedPtr<Thread> thread);
     };
+
+    [[noreturn]]
+    void EnterScheduler(km::LocalIsrTable *table, CpuLocalSchedule *scheduler, km::ApicTimer *apicTimer);
 }

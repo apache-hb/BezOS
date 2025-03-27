@@ -42,9 +42,14 @@ namespace sys2 {
     using WaitQueue = std::priority_queue<WaitEntry>;
 
     class System {
+        stdx::SpinLock mLock;
         sm::RcuDomain mDomain;
+
         sm::FlatHashMap<sm::RcuWeakPtr<IObject>, WaitQueue> mWaitQueue;
         std::priority_queue<WaitEntry> mTimeoutQueue;
         std::priority_queue<SleepEntry> mSleepQueue;
+
+    public:
+        System();
     };
 }

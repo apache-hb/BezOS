@@ -11,8 +11,6 @@
 
 using SynchronizedTlsfAllocator = mem::SynchronizedAllocator<mem::TlsfAllocator>;
 
-extern "C" [[noreturn]] void KmResumeThread(km::IsrContext *context);
-
 extern "C" uint64_t KmSystemCallStackTlsOffset;
 
 CPU_LOCAL
@@ -89,20 +87,6 @@ static void SetCurrentThread(km::Thread *thread) {
             km::XSaveLoadState(thread->xsave.get());
         }
     }
-}
-
-void km::SwitchThread(km::Thread *next) {
-    SetCurrentThread(next);
-    km::IsrContext *state = &next->state;
-
-    //
-    // If we're transitioning out of kernel space then we need to swapgs.
-    //
-    if ((state->cs & 0b11) != 0) {
-        __swapgs();
-    }
-
-    KmResumeThread(state);
 }
 
 static km::IsrContext SchedulerIsr(km::IsrContext *ctx) noexcept {
