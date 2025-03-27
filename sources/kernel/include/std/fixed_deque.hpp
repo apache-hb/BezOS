@@ -19,6 +19,8 @@ namespace stdx {
 
         typedef FixedSizeDequeIterator<T> iterator;
 
+        FixedSizeDeque() = default;
+
         FixedSizeDeque(T *entries, size_t size)
             : mCount(0)
             , mFront(0)
@@ -152,6 +154,24 @@ namespace stdx {
             T result = back();
             popBack();
             return result;
+        }
+
+        bool tryPollFront(T& result) {
+            if (!isEmpty()) {
+                result = pollFront();
+                return true;
+            }
+
+            return false;
+        }
+
+        bool tryPollBack(T& result) {
+            if (!isEmpty()) {
+                result = pollBack();
+                return true;
+            }
+
+            return false;
         }
 
         T &front() { return *--end(); }

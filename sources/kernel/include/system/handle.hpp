@@ -2,14 +2,13 @@
 
 #include <bezos/handle.h>
 
-#include "std/static_string.hpp"
-
 #include "std/rcuptr.hpp"
+#include "std/static_string.hpp"
 
 namespace sys2 {
     using ObjectName = stdx::StaticString<OS_OBJECT_NAME_MAX>;
 
-    class IObject {
+    class IObject : public sm::RcuIntrusivePtr<IObject> {
     public:
         virtual ~IObject() = default;
 
@@ -22,7 +21,7 @@ namespace sys2 {
     };
 
     class Handle {
-        IObject *mObject;
+        sm::RcuWeakPtr<IObject> mObject;
         OsHandle mHandle;
     public:
     };

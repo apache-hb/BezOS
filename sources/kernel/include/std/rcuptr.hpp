@@ -389,6 +389,10 @@ namespace sm {
         constexpr bool operator==(std::nullptr_t) const {
             return mControl == nullptr;
         }
+
+        constexpr size_t hash() const {
+            return std::hash<rcu::detail::ControlBlock*>{}(mControl);
+        }
     };
 
     template<typename T>
@@ -461,6 +465,10 @@ namespace sm {
         RcuSharedPtr<T> lock() {
             return RcuSharedPtr<T>(mControl, rcu::detail::AcquireControl{});
         }
+
+        constexpr size_t hash() const {
+            return std::hash<rcu::detail::ControlBlock*>{}(mControl);
+        }
     };
 
     template<typename T>
@@ -526,6 +534,13 @@ namespace sm {
 template<typename T>
 struct std::hash<sm::RcuSharedPtr<T>> {
     constexpr size_t operator()(const sm::RcuSharedPtr<T>& ptr) const noexcept {
-        return std::hash<T*>{}(ptr.get());
+        return ptr.hash();
+    }
+};
+
+template<typename T>
+struct std::hash<sm::RcuWeakPtr<T>> {
+    constexpr size_t operator()(const sm::RcuWeakPtr<T>& ptr) const noexcept {
+        return ptr.hash();
     }
 };

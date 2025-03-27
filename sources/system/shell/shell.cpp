@@ -94,8 +94,6 @@ public:
             .Timeout = OS_TIMEOUT_INFINITE,
         };
 
-        OsDebugMessage({ front, back, eOsLogDebug });
-
         OsSize written = 0;
         return OsDeviceWrite(mDevice, request, &written);
     }

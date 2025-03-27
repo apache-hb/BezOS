@@ -307,8 +307,6 @@ void ClientStart(const struct OsClientStartInfo *) {
         size_t read = 0;
         while (ttyout.Read(std::begin(buffer), std::end(buffer), &read) == OsStatusSuccess && read != 0) {
             display.WriteString(buffer, buffer + read);
-            read = 0;
-            memset(buffer, 0, sizeof(buffer));
         }
 
         OsThreadYield();

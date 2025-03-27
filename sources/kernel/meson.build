@@ -216,6 +216,12 @@ src = [
     # Services
     'src/notify.cpp',
 
+    'src/system/system.cpp',
+    'src/system/schedule.cpp',
+    'src/system/process.cpp',
+    'src/system/thread.cpp',
+    'src/system/mutex.cpp',
+
     # Process
     'src/process/system.cpp',
     'src/process/object.cpp',

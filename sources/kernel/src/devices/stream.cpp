@@ -3,7 +3,6 @@
 #include "fs2/identify.hpp"
 #include "fs2/stream.hpp"
 #include "fs2/query.hpp"
-#include "log.hpp"
 
 dev::StreamDevice::StreamDevice(size_t size)
     : mBuffer(new std::byte[size])
@@ -16,7 +15,6 @@ OsStatus dev::StreamDevice::read(vfs2::ReadRequest request, vfs2::ReadResult *re
     size_t count = std::min<size_t>(request.size(), mQueue.count());
     for (size_t i = 0; i < count; i++) {
         ((std::byte*)request.begin)[i] = mQueue.pollFront();
-        KmDebugMessage("[STREAM] Reading: ", (int)((std::byte*)request.begin)[i], " (", (char)((std::byte*)request.begin)[i], ")\n");
     }
 
     result->read = count;
@@ -28,7 +26,6 @@ OsStatus dev::StreamDevice::write(vfs2::WriteRequest request, vfs2::WriteResult 
 
     size_t count = std::min<size_t>(request.size(), mQueue.capacity() - mQueue.count());
     for (size_t i = 0; i < count; i++) {
-        KmDebugMessage("[STREAM] Writing: ", (int)((std::byte*)request.begin)[i], " (", (char)((std::byte*)request.begin)[i], ")\n");
         mQueue.addBack(((std::byte*)request.begin)[i]);
     }
 

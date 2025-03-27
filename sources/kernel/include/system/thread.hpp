@@ -4,7 +4,6 @@
 
 #include "arch/xsave.hpp"
 #include "memory/layout.hpp"
-#include "std/shared.hpp"
 #include "system/handle.hpp"
 
 #include <stdlib.h>
@@ -38,13 +37,42 @@ namespace sys2 {
 
     using XSaveState = std::unique_ptr<x64::XSave, decltype(&free)>;
 
+    struct ThreadCreateInfo {
+        sm::RcuSharedPtr<Process> parent;
+        ObjectName name;
+
+        /// @brief The initial cpu state for the thread.
+        /// @note Only the syscall stack is allocated by the kernel, all other state is managed
+        ///       by the userspace program. This puts the onus on the program to ensure that
+        ///       exiting a thread will clean up all the state it has allocated aside from the thread
+        ///       object itself, which is managed by the kernel.
+        RegisterSet cpuState;
+
+        OsSize kernelStackSize;
+
+        /// @brief Is this a supervisor thread?
+        bool supervisor;
+    };
+
+    struct ThreadDestroyInfo {
+        int64_t exitCode;
+        OsThreadState reason;
+    };
+
+    struct ThreadInfo {
+        ObjectName name;
+        OsThreadState state;
+        sm::RcuWeakPtr<Process> process;
+    };
+
     class Thread final : public IObject {
         ObjectName mName;
-        sm::WeakPtr<Process> mParent;
+        sm::RcuWeakPtr<Process> mParent;
 
         RegisterSet mCpuState;
         XSaveState mFpuState{nullptr, &free};
         reg_t mTlsAddress;
+        bool mSupervisor;
 
         km::AddressMapping mUserStack;
         km::AddressMapping mKernelStack;
@@ -58,27 +86,15 @@ namespace sys2 {
 
         OsStatus open(OsHandle *handle) override;
         OsStatus close(OsHandle handle) override;
+
+        OsStatus stat(ThreadInfo *info);
+
+        void saveState(RegisterSet& regs);
+        RegisterSet loadState();
+
+        bool isSupervisor() const { return mSupervisor; }
     };
 
-    struct ThreadCreateInfo {
-        Process *parent;
-        ObjectName name;
-        OsThreadEntry entry;
-        OsAnyPointer argument;
-        OsSize userStackSize;
-        OsSize kernelStackSize;
-    };
-
-    struct ThreadDestroyInfo {
-        int64_t exitCode;
-        OsThreadState reason;
-    };
-
-    struct ThreadInfo {
-
-    };
-
-    OsStatus CreateThread(System *system, const ThreadCreateInfo& info, Thread **thread);
-    OsStatus DestroyThread(System *system, const ThreadDestroyInfo& info, Thread *thread);
-    OsStatus StatThread(System *system, Thread *thread, OsThreadInfo *info);
+    OsStatus CreateThread(System *system, const ThreadCreateInfo& info, sm::RcuSharedPtr<Thread> *thread);
+    OsStatus DestroyThread(System *system, const ThreadDestroyInfo& info, sm::RcuSharedPtr<Thread> thread);
 }
