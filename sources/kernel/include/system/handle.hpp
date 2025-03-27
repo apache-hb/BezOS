@@ -22,6 +22,7 @@ namespace sys2 {
 
     class Handle {
         sm::RcuWeakPtr<IObject> mObject;
+        [[maybe_unused]]
         OsHandle mHandle;
     public:
     };

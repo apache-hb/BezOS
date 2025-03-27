@@ -52,6 +52,8 @@ namespace sys2 {
         km::ProcessPageTables mPageTables;
 
     public:
+        Process(const ProcessCreateInfo& createInfo);
+
         void setName(ObjectName name) override;
         ObjectName getName() const override;
 

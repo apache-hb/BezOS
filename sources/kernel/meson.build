@@ -218,6 +218,7 @@ src = [
 
     'src/system/system.cpp',
     'src/system/schedule.cpp',
+    'src/system/runtime.cpp',
     'src/system/process.cpp',
     'src/system/thread.cpp',
     'src/system/mutex.cpp',
@@ -539,6 +540,18 @@ testcases = {
 
         'src/util/memory.cpp',
         'src/boot.cpp',
+    ],
+    'system': [
+        'test/system/system.cpp',
+
+        'src/system/system.cpp',
+        'src/system/schedule.cpp',
+        'src/system/process.cpp',
+        'src/system/thread.cpp',
+        'src/system/mutex.cpp',
+
+        'src/std/rcu.cpp',
+        'src/std/rcuptr.cpp',
     ]
 }
 

@@ -14,6 +14,7 @@ namespace sys2 {
     class IObject;
     class Process;
     class Thread;
+    class GlobalSchedule;
 
     struct SleepEntry {
         OsInstant wake;
@@ -44,12 +45,20 @@ namespace sys2 {
     class System {
         stdx::SpinLock mLock;
         sm::RcuDomain mDomain;
+        [[maybe_unused]]
+        GlobalSchedule *mSchedule;
 
         sm::FlatHashMap<sm::RcuWeakPtr<IObject>, WaitQueue> mWaitQueue;
         std::priority_queue<WaitEntry> mTimeoutQueue;
         std::priority_queue<SleepEntry> mSleepQueue;
 
     public:
-        System();
+        System(GlobalSchedule *schedule)
+            : mSchedule(schedule)
+        { }
+
+        sm::RcuDomain &rcuDomain() { return mDomain; }
+
+        void addObject(sm::RcuWeakPtr<IObject> object);
     };
 }
