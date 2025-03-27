@@ -1,5 +1,6 @@
 #include "hypervisor.hpp"
 
+#include "log.hpp"
 #include "util/cpuid.hpp"
 
 #include <string.h>
@@ -44,6 +45,17 @@ std::optional<km::HypervisorInfo> km::GetHypervisorInfo() {
     memcpy(vendor + 8, &cpuid.edx, 4);
 
     return HypervisorInfo { std::to_array(vendor), cpuid.eax };
+}
+
+pci::VendorId km::ProcessorInfo::vendorId() const {
+    if (brand == "GenuineIntel") {
+        return pci::VendorId::eIntel;
+    } else if (brand == "AuthenticAMD") {
+        return pci::VendorId::eAMD;
+    }
+
+    KmDebugMessage("Unknown CPU vendor: ", brand, ".\n");
+    return pci::VendorId::eInvalid;
 }
 
 bool km::ProcessorInfo::isKvm() const {

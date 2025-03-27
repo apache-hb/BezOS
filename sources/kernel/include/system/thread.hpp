@@ -74,13 +74,14 @@ namespace sys2 {
         reg_t mTlsAddress;
         bool mSupervisor;
 
-        km::AddressMapping mUserStack;
+        [[maybe_unused]]
         km::AddressMapping mKernelStack;
+        [[maybe_unused]]
         OsThreadState mThreadState;
 
     public:
         void setName(ObjectName name) override;
-        ObjectName getName() const override;
+        ObjectName getName() override;
 
         stdx::StringView getClassName() const override { return "Thread"; }
 

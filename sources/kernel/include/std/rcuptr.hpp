@@ -153,6 +153,9 @@ namespace sm {
         template<typename O>
         friend class RcuWeakPtr;
 
+        template<typename O>
+        friend class RcuSharedPtr;
+
         std::atomic<rcu::detail::ControlBlock*> mControl;
 
         void exchangeControl(rcu::detail::ControlBlock *control) {
@@ -397,6 +400,12 @@ namespace sm {
 
     template<typename T>
     class RcuWeakPtr {
+        template<typename O>
+        friend class RcuWeakPtr;
+
+        template<typename O>
+        friend class RcuSharedPtr;
+
         std::atomic<rcu::detail::ControlBlock*> mControl;
 
         void exchangeControl(rcu::detail::ControlBlock *control) {
@@ -430,11 +439,16 @@ namespace sm {
             release();
         }
 
-        constexpr RcuWeakPtr(const RcuSharedPtr<T>& shared) : RcuWeakPtr() {
-            acquire(shared.mControl);
+        constexpr RcuWeakPtr(const RcuWeakPtr& other) : RcuWeakPtr() {
+            acquire(other.mControl);
         }
 
-        constexpr RcuWeakPtr(const RcuWeakPtr& other) : RcuWeakPtr() {
+        constexpr RcuWeakPtr(RcuWeakPtr&& other) : RcuWeakPtr() {
+            exchangeControl(other.mControl.exchange(nullptr));
+        }
+
+        template<std::derived_from<T> O>
+        constexpr RcuWeakPtr(const RcuWeakPtr<O>& other) : RcuWeakPtr() {
             acquire(other.mControl);
         }
 
@@ -443,18 +457,18 @@ namespace sm {
             return *this;
         }
 
-        constexpr RcuWeakPtr(RcuWeakPtr&& other) : RcuWeakPtr() {
-            exchangeControl(other.mControl.exchange(nullptr));
-        }
-
         constexpr RcuWeakPtr& operator=(RcuWeakPtr&& other) {
             exchangeControl(other.mControl.exchange(nullptr));
             return *this;
         }
 
-        constexpr RcuWeakPtr& operator=(std::nullptr_t) {
-            release();
-            return *this;
+        constexpr RcuWeakPtr(const RcuSharedPtr<T>& shared) : RcuWeakPtr() {
+            acquire(shared.mControl);
+        }
+
+        template<std::derived_from<T> O>
+        constexpr RcuWeakPtr(const RcuSharedPtr<O>& shared) : RcuWeakPtr() {
+            acquire(shared.mControl);
         }
 
         template<std::derived_from<T> O>

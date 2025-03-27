@@ -445,15 +445,6 @@ void PageTables::split2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange 
     pde.set2m(false);
 }
 
-OsStatus PageTables::split2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange erase) {
-    x64::PageTable *pt = std::bit_cast<x64::PageTable*>(alloc4k());
-    if (!pt) return OsStatusOutOfMemory;
-
-    split2mMapping(pde, page, erase, pt);
-
-    return OsStatusSuccess;
-}
-
 void PageTables::cut2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange erase, x64::PageTable *pt) {
     VirtualRange remaining = page.cut(erase);
 

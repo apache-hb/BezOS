@@ -55,7 +55,7 @@ namespace sys2 {
         Process(const ProcessCreateInfo& createInfo);
 
         void setName(ObjectName name) override;
-        ObjectName getName() const override;
+        ObjectName getName() override;
 
         stdx::StringView getClassName() const override { return "Process"; }
 

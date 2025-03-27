@@ -97,9 +97,7 @@ namespace km {
         /// @param pde The 2m page directory entry to split.
         /// @param page The range of the 2m page.
         /// @param erase The range to unmap.
-        /// @return The status of the operation.
-        OsStatus split2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange erase);
-
+        /// @param pt The newly allocated page table.
         void split2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange erase, x64::PageTable *pt);
 
         /// @brief Cut off one end of a 2m page mapping and replace it with 4k pages.

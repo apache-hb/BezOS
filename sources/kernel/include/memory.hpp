@@ -20,11 +20,7 @@ namespace km {
     public:
         SystemMemory(std::span<const boot::MemoryRegion> memmap, VirtualRange systemArea, PageBuilder pm, AddressMapping pteMemory);
 
-        void *allocate(
-            size_t size,
-            PageFlags flags = PageFlags::eData,
-            MemoryType type = MemoryType::eWriteBack
-        );
+        void *allocate(size_t size, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eWriteBack);
 
         AddressMapping allocate(AllocateRequest request);
 
@@ -116,16 +112,20 @@ namespace km {
             .hint = hint,
         });
 
-        // TODO: vmem leaks on error
+        if (vmem.isEmpty()) {
+            pmm.release(range);
+            return OsStatusOutOfMemory;
+        }
 
         AddressMapping map = MappingOf(vmem, address);
 
-        OsStatus status = ptes->map(map, PageFlags::eUserAll, MemoryType::eWriteBack);
-        if (status != OsStatusSuccess) {
+        if (OsStatus status = ptes->map(map, PageFlags::eUserAll)) {
             pmm.release(range);
+            ptes->vmemRelease(vmem);
+            return status;
         }
 
         *mapping = map;
-        return status;
+        return OsStatusSuccess;
     }
 }

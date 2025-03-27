@@ -1,5 +1,6 @@
 #pragma once
 
+#include "pci/pci.hpp"
 #include "std/static_string.hpp"
 
 #include "units.hpp"
@@ -78,6 +79,8 @@ namespace km {
         bool avx512f() const { return l7ebx & (1 << 16); }
         bool la57() const { return l7ecx & (1 << 16); }
         bool umip() const { return l7ecx & (1 << 2); }
+
+        pci::VendorId vendorId() const;
 
         bool hasNominalFrequency() const {
             return busClock != (0 * si::hertz);

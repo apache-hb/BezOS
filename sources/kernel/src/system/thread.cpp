@@ -7,7 +7,7 @@ void sys2::Thread::setName(ObjectName name) {
     mName = name;
 }
 
-sys2::ObjectName sys2::Thread::getName() const {
+sys2::ObjectName sys2::Thread::getName() {
     return mName;
 }
 

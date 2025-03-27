@@ -43,8 +43,9 @@ namespace sys2 {
     using WaitQueue = std::priority_queue<WaitEntry>;
 
     class System {
-        stdx::SpinLock mLock;
+        stdx::SharedSpinLock mLock;
         sm::RcuDomain mDomain;
+
         [[maybe_unused]]
         GlobalSchedule *mSchedule;
 
@@ -52,13 +53,17 @@ namespace sys2 {
         std::priority_queue<WaitEntry> mTimeoutQueue;
         std::priority_queue<SleepEntry> mSleepQueue;
 
+        sm::FlatHashSet<sm::RcuWeakPtr<IObject>> mObjects;
+
     public:
-        System(GlobalSchedule *schedule)
+        System(GlobalSchedule *schedule [[gnu::nonnull]])
             : mSchedule(schedule)
         { }
 
         sm::RcuDomain &rcuDomain() { return mDomain; }
 
         void addObject(sm::RcuWeakPtr<IObject> object);
+
+        OsStatus mapProcessPageTables(km::ProcessPageTables *mapping);
     };
 }

@@ -13,7 +13,7 @@ namespace sys2 {
         virtual ~IObject() = default;
 
         virtual void setName(ObjectName name) = 0;
-        virtual ObjectName getName() const = 0;
+        virtual ObjectName getName() = 0;
         virtual stdx::StringView getClassName() const = 0;
 
         virtual OsStatus open(OsHandle *handle) = 0;
