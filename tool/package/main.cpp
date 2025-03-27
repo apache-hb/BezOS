@@ -1931,11 +1931,11 @@ int main(int argc, const char **argv) try {
                     continue;
                 }
 
-                if (hard || info.artifacts.empty()) {
-                    gPackageDb->LowerPackageStatus(dep, status);
-                } else {
+                if (hard) {
                     gWorkspace.RelinkPackage(dep);
                 }
+
+                gPackageDb->LowerPackageStatus(dep, status);
             }
         }
     };
