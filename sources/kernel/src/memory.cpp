@@ -20,12 +20,10 @@ km::AddressMapping km::SystemMemory::allocateStack(size_t size) {
     size_t pages = Pages(size);
     OsStatus status = OsStatusSuccess;
 
-    PhysicalAddress paddr = pmm.alloc4k(pages);
-    if (paddr == KM_INVALID_MEMORY) {
+    MemoryRange range = pmm.alloc4k(pages);
+    if (range.isEmpty()) {
         return AddressMapping{};
     }
-
-    MemoryRange range { paddr, paddr + (pages * x64::kPageSize) };
 
     //
     // Allocate an extra page for the guard page
@@ -53,7 +51,7 @@ km::AddressMapping km::SystemMemory::allocateStack(size_t size) {
     char *base = (char*)vmem.front + x64::kPageSize;
     AddressMapping mapping {
         .vaddr = base,
-        .paddr = paddr,
+        .paddr = range.front,
         .size = range.size(),
     };
 
@@ -65,7 +63,7 @@ km::AddressMapping km::SystemMemory::allocateStack(size_t size) {
 
     return AddressMapping {
         .vaddr = base,
-        .paddr = paddr,
+        .paddr = range.front,
         .size = pages * x64::kPageSize
     };
 }
@@ -73,13 +71,12 @@ km::AddressMapping km::SystemMemory::allocateStack(size_t size) {
 km::AddressMapping km::SystemMemory::allocate(AllocateRequest request) {
     size_t pages = Pages(request.size);
 
-    PhysicalAddress paddr = pmm.alloc4k(pages);
-    if (paddr == KM_INVALID_MEMORY) {
+    MemoryRange range = pmm.alloc4k(pages);
+    if (range.isEmpty()) {
         return AddressMapping{};
     }
 
     AddressMapping mapping{};
-    auto range = MemoryRange::of(paddr, request.size);
     OsStatus status = ptes.map(range, request.flags, request.type, &mapping);
     if (status != OsStatusSuccess) {
         pmm.release(range);

@@ -552,6 +552,9 @@ testcases = {
 
         'src/std/rcu.cpp',
         'src/std/rcuptr.cpp',
+
+        'src/memory.cpp',
+        'src/boot.cpp',
     ]
 }
 

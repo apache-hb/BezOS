@@ -53,10 +53,13 @@ namespace sys2 {
         stdx::Vector3<km::MemoryRange> mPhysicalMemory;
 
         /// @brief The page tables for this process.
-        km::ProcessPageTables mPageTables;
+        km::PageTables mPageTables;
+
+        /// @brief The virtual memory allocator for this process.
+        km::VmemAllocator mVmemAllocator;
 
     public:
-        Process(const ProcessCreateInfo& createInfo);
+        Process(const ProcessCreateInfo& createInfo, const km::PageTables *systemTables, km::AddressMapping pteMemory);
 
         void setName(ObjectName name) override;
         ObjectName getName() override;

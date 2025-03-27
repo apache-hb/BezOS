@@ -18,7 +18,7 @@ PageAllocator::PageAllocator(std::span<const boot::MemoryRegion> memmap) {
     }
 }
 
-PhysicalAddress PageAllocator::alloc4k(size_t count) [[clang::allocating]] {
+MemoryRange PageAllocator::alloc4k(size_t count) [[clang::allocating]] {
     MemoryRange range = mMemory.allocate({
         .size = count * x64::kPageSize,
         .align = x64::kPageSize,
@@ -31,11 +31,7 @@ PhysicalAddress PageAllocator::alloc4k(size_t count) [[clang::allocating]] {
         .tag = 0,
     });
 
-    if (range.isEmpty()) {
-        return KM_INVALID_MEMORY;
-    }
-
-    return range.front;
+    return range;
 }
 
 void PageAllocator::release(MemoryRange range) {

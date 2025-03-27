@@ -32,8 +32,7 @@ namespace km {
         AddressMapping allocateStack(size_t size);
 
         MemoryRange pmmAllocate(size_t pages) {
-            PhysicalAddress base = pmm.alloc4k(pages);
-            return MemoryRange::of(base, pages * x64::kPageSize);
+            return pmm.alloc4k(pages);
         }
 
         void reserve(AddressMapping mapping) {
@@ -84,12 +83,10 @@ namespace km {
     };
 
     inline OsStatus AllocateMemory(PageAllocator& pmm, AddressSpaceAllocator *ptes, size_t pages, AddressMapping *mapping) {
-        PhysicalAddress address = pmm.alloc4k(pages);
-        if (address == KM_INVALID_MEMORY) {
+        MemoryRange range = pmm.alloc4k(pages);
+        if (range.isEmpty()) {
             return OsStatusOutOfMemory;
         }
-
-        MemoryRange range = MemoryRange::of(address, pages * x64::kPageSize);
 
         OsStatus status = ptes->map(range, PageFlags::eUserAll, MemoryType::eWriteBack, mapping);
         if (status != OsStatusSuccess) {
@@ -100,12 +97,11 @@ namespace km {
     }
 
     inline OsStatus AllocateMemory(PageAllocator& pmm, AddressSpaceAllocator *ptes, size_t pages, const void *hint, AddressMapping *mapping) {
-        PhysicalAddress address = pmm.alloc4k(pages);
-        if (address == KM_INVALID_MEMORY) {
+        MemoryRange range = pmm.alloc4k(pages);
+        if (range.isEmpty()) {
             return OsStatusOutOfMemory;
         }
 
-        MemoryRange range = MemoryRange::of(address, pages * x64::kPageSize);
         VirtualRange vmem = ptes->vmemAllocate({
             .size = range.size(),
             .align = x64::kPageSize,
@@ -117,7 +113,7 @@ namespace km {
             return OsStatusOutOfMemory;
         }
 
-        AddressMapping map = MappingOf(vmem, address);
+        AddressMapping map = MappingOf(range, vmem.front);
 
         if (OsStatus status = ptes->map(map, PageFlags::eUserAll)) {
             pmm.release(range);

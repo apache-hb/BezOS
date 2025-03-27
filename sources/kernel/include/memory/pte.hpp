@@ -188,6 +188,7 @@ namespace km {
         ///
         /// @param ptr The address to walk.
         /// @return The page walk result.
+        [[nodiscard]]
         PageWalk walk(const void *ptr);
 
         /// @brief Compact page tables, pruning empty tables.
@@ -195,24 +196,28 @@ namespace km {
         /// @warning This function can be very expensive and should be used sparingly.
         ///
         /// @return The number of pages freed.
+        [[nodiscard]]
         size_t compact();
 
         /// @brief Get the physical address that backs a given virtual address.
         ///
         /// @param ptr The virtual address to query.
         /// @return The physical address that backs the given virtual address.
+        [[nodiscard]]
         PhysicalAddress getBackingAddress(const void *ptr);
 
         /// @brief Get the memory flags for a given address.
         ///
         /// @param ptr The address to query.
         /// @return The memory flags for the given address.
+        [[nodiscard]]
         PageFlags getMemoryFlags(const void *ptr);
 
         /// @brief Get the page size used to map a given address.
         ///
         /// @param ptr The address to query.
         /// @return The page size used to map the given address.
+        [[nodiscard]]
         PageSize getPageSize(const void *ptr);
 
         void unmap(void *ptr, size_t size) {
