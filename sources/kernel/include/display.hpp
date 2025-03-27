@@ -201,10 +201,6 @@ namespace km {
 
         /// @brief Allocates a canvas in system memory.
         ///
-        /// @todo This is only in the header file to prevent linking errors
-        ///       when building the terminal test cases, as SystemMemory isnt
-        ///       usable on the host machine.
-        ///
         /// @param geometry The geometry of the canvas.
         /// @param memory The system memory allocator.
         ///

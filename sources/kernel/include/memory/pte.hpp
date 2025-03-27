@@ -6,6 +6,7 @@
 
 #include "memory/memory.hpp"
 #include "memory/paging.hpp"
+#include "memory/range.hpp"
 #include "memory/table_allocator.hpp"
 #include "std/spinlock.hpp"
 
