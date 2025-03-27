@@ -3,7 +3,7 @@
 #include "memory/paging.hpp"
 #include "memory/pte.hpp"
 #include "memory/range.hpp"
-#include "memory/tables.hpp"
+#include "memory/virtual_allocator.hpp"
 #include <type_traits>
 
 namespace km {
