@@ -1688,7 +1688,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     auto [lapic, spuriousInt] = EnableBootApic(*stage2->memory, useX2Apic);
 
-    acpi::AcpiTables rsdt = acpi::InitAcpi(launch.rsdpAddress, *stage2->memory);
+    acpi::AcpiTables rsdt = acpi::InitAcpi(launch.rsdpAddress, gMemory->pageTables());
     const acpi::Fadt *fadt = rsdt.fadt();
     InitCmos(fadt->century);
 

@@ -9,6 +9,7 @@
 
 namespace km {
     class IoApic;
+    class AddressSpace;
 }
 
 namespace acpi {
@@ -61,7 +62,7 @@ namespace acpi {
         size_t mRsdtEntryCount;
 
     public:
-        AcpiTables(const RsdpLocator *locator, km::SystemMemory& memory);
+        AcpiTables(const RsdpLocator *locator, km::AddressSpace& memory);
 
         const RsdpLocator *locator() const { return mRsdpLocator; }
         uint32_t revision() const { return mRsdpLocator->revision; }
@@ -85,5 +86,5 @@ namespace acpi {
         const RsdtHeader *dsdt() const { return mDsdt; }
     };
 
-    acpi::AcpiTables InitAcpi(km::PhysicalAddress rsdpBaseAddress, km::SystemMemory& memory);
+    acpi::AcpiTables InitAcpi(km::PhysicalAddress rsdpBaseAddress, km::AddressSpace& memory);
 }

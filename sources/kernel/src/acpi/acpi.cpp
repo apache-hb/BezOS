@@ -29,11 +29,15 @@ static bool ValidateRsdpLocator(const acpi::RsdpLocator *rsdp) {
     }
 }
 
-static const acpi::RsdtHeader *MapTableEntry(km::PhysicalAddress paddr, km::SystemMemory& memory) {
+static const acpi::RsdtHeader *MapTableEntry(km::PhysicalAddress paddr, km::AddressSpace& memory) {
     // first map the header
     const acpi::RsdtHeader *header = memory.mapConst<acpi::RsdtHeader>(paddr);
     uint32_t length = header->length;
-    memory.unmap((void*)header, sizeof(acpi::RsdtHeader));
+
+    if (OsStatus status = memory.unmap((void*)header, sizeof(acpi::RsdtHeader))) {
+        KmDebugMessage("[ACPI] Failed to unmap RSDT header: ", status, "\n");
+        KmDebugMessage("[ACPI] This is not a fatal error, but the mapping at ", (void*)header, " has been leaked.\n");
+    }
 
     // then use the headers length to ensure we map the entire table
     return memory.mapConst<acpi::RsdtHeader>(km::MemoryRange::of(paddr, length));
@@ -171,7 +175,7 @@ static void PrintXsdt(const acpi::Xsdt *xsdt, const acpi::RsdpLocator *locator) 
     KmDebugMessage("| /SYS/ACPI/XSDT     | Signature                   | '", stdx::StringView(xsdt->header.signature), "'\n");
 }
 
-acpi::AcpiTables acpi::InitAcpi(km::PhysicalAddress rsdpBaseAddress, km::SystemMemory& memory) {
+acpi::AcpiTables acpi::InitAcpi(km::PhysicalAddress rsdpBaseAddress, km::AddressSpace& memory) {
     // map the rsdp table
     const acpi::RsdpLocator *locator = memory.mapConst<acpi::RsdpLocator>(rsdpBaseAddress);
 
@@ -214,7 +218,7 @@ void SetUniqueTableEntry(const T** dst, const acpi::RsdtHeader *header) {
     }
 }
 
-acpi::AcpiTables::AcpiTables(const RsdpLocator *locator, km::SystemMemory& memory)
+acpi::AcpiTables::AcpiTables(const RsdpLocator *locator, km::AddressSpace& memory)
     : mRsdpLocator(locator)
     , mMadt(nullptr)
     , mMcfg(nullptr)
