@@ -233,7 +233,7 @@ namespace km {
         } else if (a.back == b.back) {
             return a.front <= b.front;
         } else {
-            return a.contains(b) || b.contains(a);
+            return a.contains(b);
         }
     }
 
