@@ -97,6 +97,17 @@ OsStatus km::AddressSpace::unmapStack(StackMapping mapping) {
     return OsStatusSuccess;
 }
 
+OsStatus km::AddressSpace::reserve(AddressMapping mapping, PageFlags flags, MemoryType type) {
+    mVmemAllocator.reserve(mapping.virtualRange());
+
+    if (OsStatus status = mTables.map(mapping, flags, type)) {
+        mVmemAllocator.release(mapping.virtualRange());
+        return status;
+    }
+
+    return OsStatusSuccess;
+}
+
 void km::AddressSpace::updateHigherHalfMappings(const PageTables *source) {
     km::copyHigherHalfMappings(&mTables, source);
 }

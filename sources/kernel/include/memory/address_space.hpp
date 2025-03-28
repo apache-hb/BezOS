@@ -48,6 +48,9 @@ namespace km {
         [[nodiscard]]
         OsStatus unmapStack(StackMapping mapping);
 
+        [[nodiscard]]
+        OsStatus reserve(AddressMapping mapping, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eWriteBack);
+
         template<typename T> requires (std::is_standard_layout_v<T>)
         [[nodiscard]]
         T *mapObject(MemoryRange range, PageFlags flags = detail::kDefaultPageFlags<T>, MemoryType type = MemoryType::eWriteBack) {

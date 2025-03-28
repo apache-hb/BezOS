@@ -581,7 +581,7 @@ static Stage2MemoryInfo *InitStage2Memory(const boot::LaunchInfo& launch, const 
     MapDisplayRegions(memory->systemTables(), framebuffers, layout.framebuffers);
 
     // once it is safe to remap the boot memory, do so
-    UpdateRootPageTable(memory->getPager(), memory->systemTables());
+    UpdateRootPageTable(memory->getPageManager(), memory->systemTables());
 
     return stage2;
 }

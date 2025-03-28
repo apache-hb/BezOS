@@ -162,6 +162,7 @@ void km::InitSmp(
     void *user
 ) {
     KmDebugMessage("[SMP] Starting APs.\n");
+    AddressSpace &systemTables = memory.pageTables();
 
     //
     // Copy the SMP blob to the correct location.
@@ -182,8 +183,15 @@ void km::InitSmp(
     // Also identity map the SMP blob and info regions, it makes jumping to compatibility mode easier.
     // I think theres a better way to do this, but I'm not sure what it is.
     //
-    memory.systemTables().map(smpInfoRange, (void*)kSmpInfo.address, km::PageFlags::eData);
-    memory.systemTables().map(smpStartRange, (void*)kSmpStart.address, km::PageFlags::eCode);
+    if (OsStatus status = systemTables.reserve(MappingOf(smpInfoRange, (void*)kSmpInfo.address))) {
+        KmDebugMessage("[SMP] Failed to reserve smp info region: ", status, "\n");
+        KM_PANIC("Failed to reserve smp info region.");
+    }
+
+    if (OsStatus status = systemTables.reserve(MappingOf(smpStartRange, (void*)kSmpStart.address), PageFlags::eAll)) {
+        KmDebugMessage("[SMP] Failed to reserve smp blob region: ", status, "\n");
+        KM_PANIC("Failed to reserve smp blob region.");
+    }
 
     SmpInfoHeader header = SetupSmpInfoHeader(&memory, bsp, callback, user);
     memcpy(smpInfo, &header, sizeof(header));

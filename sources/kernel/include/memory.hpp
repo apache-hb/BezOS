@@ -47,11 +47,8 @@ namespace km {
             mTables.reserve(range);
         }
 
-        PageBuilder& getPager() { return mPageManager; }
-
-        [[deprecated]]
+        PageBuilder& getPageManager() { return mPageManager; }
         PageTables& systemTables() { return *mTables.tables(); }
-
         AddressSpace& pageTables() { return mTables; }
         PageAllocator& pmmAllocator() { return mPageAllocator; }
 

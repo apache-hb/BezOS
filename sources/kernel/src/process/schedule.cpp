@@ -98,7 +98,7 @@ static km::IsrContext SchedulerIsr(km::IsrContext *ctx) noexcept {
     if (km::Thread *next = scheduler->getWorkItem()) {
         km::PhysicalAddress cr3 = next->process->ptes->root();
         km::SystemMemory *memory = km::GetSystemMemory();
-        memory->getPager().setActiveMap(cr3);
+        memory->getPageManager().setActiveMap(cr3);
 
         if (km::Thread *current = km::GetCurrentThread()) {
             current->state = *ctx;
