@@ -1,12 +1,12 @@
 #include "apic.hpp"
 
-#include "delay.hpp"
-
-#include "arch/msr.hpp"
-#include "log.hpp"
-#include "memory.hpp"
 #include "memory/address_space.hpp"
+#include "arch/msr.hpp"
+
+#include "delay.hpp"
+#include "log.hpp"
 #include "panic.hpp"
+
 #include "util/cpuid.hpp"
 
 static constexpr x64::RwModelRegister<0x1b> IA32_APIC_BASE;

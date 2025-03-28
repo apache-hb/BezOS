@@ -25,9 +25,7 @@ namespace km {
 
         AddressMapping allocate(AllocateRequest request);
 
-        void release(void *ptr, size_t size);
-
-        void unmap(void *ptr, size_t size);
+        OsStatus unmap(void *ptr, size_t size);
         OsStatus unmap(VirtualRange range) { return mTables.unmap(range); }
 
         AddressMapping allocateStack(size_t size);

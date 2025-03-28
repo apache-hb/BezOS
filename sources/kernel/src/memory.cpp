@@ -1,5 +1,5 @@
 #include "memory.hpp"
-#include "log.hpp"
+
 #include "memory/memory.hpp"
 
 km::SystemMemory::SystemMemory(std::span<const boot::MemoryRegion> memmap, VirtualRange systemArea, PageBuilder pm, AddressMapping pteMemory)
@@ -51,19 +51,8 @@ km::AddressMapping km::SystemMemory::allocate(AllocateRequest request) {
     return mapping;
 }
 
-void km::SystemMemory::release(void *ptr, size_t size) {
-    PhysicalAddress start = mTables.getBackingAddress(ptr);
-    if (start == KM_INVALID_MEMORY) {
-        KmDebugMessage("[WARN] Attempted to release ", ptr, " but it is not mapped.\n");
-        return;
-    }
-
-    mTables.unmap(VirtualRange::of(ptr, size));
-    mPageAllocator.release(MemoryRange::of(start, size));
-}
-
-void km::SystemMemory::unmap(void *ptr, size_t size) {
-    mTables.unmap(VirtualRange::of(ptr, size));
+OsStatus km::SystemMemory::unmap(void *ptr, size_t size) {
+    return unmap(VirtualRange::of(ptr, size));
 }
 
 void *km::SystemMemory::map(MemoryRange range, PageFlags flags, MemoryType type) {

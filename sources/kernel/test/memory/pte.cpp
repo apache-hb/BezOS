@@ -503,7 +503,8 @@ TEST_F(PageTableTest, MapSmallRange) {
     size_t pages = 64;
     km::MemoryRange range { paddr, paddr + (pages * x64::kPageSize) };
 
-    pt.map(range, vaddr, km::PageFlags::eAll);
+    OsStatus status = pt.map(range, vaddr, km::PageFlags::eAll);
+    ASSERT_EQ(OsStatusSuccess, status);
 
     for (size_t i = 0; i < pages; i++) {
         km::PhysicalAddress addr = pt.getBackingAddress((char*)vaddr + (i * x64::kPageSize));
@@ -596,7 +597,8 @@ TEST_F(PageTableTest, MapRangeLarge) {
     size_t pages = 1024;
     km::MemoryRange range { paddr, paddr + (pages * x64::kPageSize) };
 
-    pt.map(range, vaddr, km::PageFlags::eAll);
+    OsStatus status = pt.map(range, vaddr, km::PageFlags::eAll);
+    ASSERT_EQ(OsStatusSuccess, status);
 
     for (size_t i = 0; i < pages; i++) {
         km::PhysicalAddress addr = pt.getBackingAddress((char*)vaddr + (i * x64::kPageSize));
@@ -633,7 +635,8 @@ TEST_F(PageTableTest, MemoryFlagsOnRange) {
     size_t pages = 64;
     km::MemoryRange range { paddr, paddr + (pages * x64::kPageSize) };
 
-    pt.map(range, vaddr, km::PageFlags::eAll);
+    OsStatus status = pt.map(range, vaddr, km::PageFlags::eAll);
+    ASSERT_EQ(OsStatusSuccess, status);
 
     for (size_t i = 0; i < pages; i++) {
         km::PageFlags flags = pt.getMemoryFlags((char*)vaddr + (i * x64::kPageSize));
@@ -654,7 +657,8 @@ TEST_F(PageTableTest, MemoryFlagsOnLargeRange) {
     size_t pages = 1024;
     km::MemoryRange range { paddr, paddr + (pages * x64::kPageSize) };
 
-    pt.map(range, vaddr, km::PageFlags::eCode);
+    OsStatus status = pt.map(range, vaddr, km::PageFlags::eCode);
+    ASSERT_EQ(OsStatusSuccess, status);
 
     for (size_t i = 0; i < pages; i++) {
         km::PageFlags flags = pt.getMemoryFlags((char*)vaddr + (i * x64::kPageSize));
