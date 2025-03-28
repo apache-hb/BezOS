@@ -202,8 +202,6 @@ namespace km {
                 // and return the hint.
                 //
                 Range range = ranges[i];
-                KM_CHECK(range.isValid(), "Invalid range.");
-
                 if (borderContains(range, hint)) {
                     auto [left, right] = split(range, hint);
                     ranges.add(left);
@@ -221,8 +219,6 @@ namespace km {
                 if (alignedRange.isEmpty()) {
                     continue;
                 }
-
-                KM_CHECK(alignedRange.isValid(), "Invalid range.");
 
                 if (alignedRange.size() >= hint.size()) {
                     intptr_t distance = FitDistance(alignedRange, hint);
@@ -282,14 +278,10 @@ namespace km {
         using Request = RangeAllocateRequest<T>;
 
         RangeAllocator(Range range) {
-            KM_CHECK(range.isValid(), "Invalid range.");
-
             mAvailable.add(range);
         }
 
         void reserve(Range range) {
-            KM_CHECK(range.isValid(), "Invalid range.");
-
             stdx::LockGuard guard(mLock);
             detail::MarkUsedArea(mAvailable, range);
             detail::SortRanges(std::span(mAvailable));
@@ -309,8 +301,6 @@ namespace km {
         }
 
         void release(Range range) {
-            KM_CHECK(range.isValid(), "Invalid range.");
-
             stdx::LockGuard guard(mLock);
             mAvailable.add(range);
 
