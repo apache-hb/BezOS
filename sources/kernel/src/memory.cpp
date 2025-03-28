@@ -5,7 +5,7 @@
 km::SystemMemory::SystemMemory(std::span<const boot::MemoryRegion> memmap, VirtualRange systemArea, PageBuilder pm, AddressMapping pteMemory)
     : pager(pm)
     , pmm(memmap)
-    , ptes(pteMemory, &pager, systemArea)
+    , ptes(&pager, pteMemory, PageFlags::eAll, systemArea)
 { }
 
 void *km::SystemMemory::allocate(size_t size, PageFlags flags, MemoryType type) {
@@ -18,54 +18,19 @@ void *km::SystemMemory::allocate(size_t size, PageFlags flags, MemoryType type) 
 
 km::AddressMapping km::SystemMemory::allocateStack(size_t size) {
     size_t pages = Pages(size);
-    OsStatus status = OsStatusSuccess;
 
     MemoryRange range = pmm.alloc4k(pages);
     if (range.isEmpty()) {
         return AddressMapping{};
     }
 
-    //
-    // Allocate an extra page for the guard page
-    //
-    VirtualRange vmem = ptes.vmemAllocate(pages + 1);
-    if (vmem.isEmpty()) {
+    StackMapping mapping;
+    if (ptes.mapStack(range, PageFlags::eData, &mapping) != OsStatusSuccess) {
         pmm.release(range);
         return AddressMapping{};
     }
 
-    //
-    // First reserve the memory for the stack and the guard page.
-    //
-    AddressMapping vmemMapping = MappingOf(vmem, 0zu);
-    status = ptes.map(vmemMapping, PageFlags::eNone);
-    if (status != OsStatusSuccess) {
-        pmm.release(range);
-        return AddressMapping{};
-    }
-
-    //
-    // Then remap the usable area of stack memory.
-    // The stack grows down, so the guard page is the first page in the range.
-    //
-    char *base = (char*)vmem.front + x64::kPageSize;
-    AddressMapping mapping {
-        .vaddr = base,
-        .paddr = range.front,
-        .size = range.size(),
-    };
-
-    status = ptes.map(mapping, PageFlags::eData, MemoryType::eWriteBack);
-    if (status != OsStatusSuccess) {
-        pmm.release(range);
-        return AddressMapping{};
-    }
-
-    return AddressMapping {
-        .vaddr = base,
-        .paddr = range.front,
-        .size = pages * x64::kPageSize
-    };
+    return mapping.mapping;
 }
 
 km::AddressMapping km::SystemMemory::allocate(AllocateRequest request) {

@@ -155,7 +155,7 @@ Thread *SystemObjects::createThread(stdx::String name, Process *process) {
 }
 
 OsStatus SystemObjects::createProcess(stdx::String name, MemoryRange pteMemory, ProcessCreateInfo createInfo, Process **process) {
-    SystemPageTables& systemTables = mMemory->pageTables();
+    AddressSpace& systemTables = mMemory->pageTables();
 
     std::unique_ptr<Process> result{ new (std::nothrow) Process };
     if (result == nullptr) {

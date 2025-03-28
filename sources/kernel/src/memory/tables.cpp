@@ -60,10 +60,6 @@ OsStatus AddressSpaceAllocator::unmap(VirtualRange range) {
     return OsStatusSuccess;
 }
 
-SystemPageTables::SystemPageTables(AddressMapping pteMemory, const PageBuilder *pm, VirtualRange systemArea)
-    : AddressSpaceAllocator(pteMemory, pm, PageFlags::eAll, PageFlags::eNone, systemArea)
-{ }
-
 void km::copyHigherHalfMappings(PageTables *tables, const PageTables *source) {
     const x64::PageMapLevel4 *pml4 = source->pml4();
     x64::PageMapLevel4 *self = tables->pml4();

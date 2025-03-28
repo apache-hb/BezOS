@@ -117,6 +117,14 @@ namespace km {
     constexpr AddressMapping MappingOf(VirtualRange range, PhysicalAddress paddr) {
         return AddressMapping { range.front, paddr, range.size() };
     }
+
+    struct StackMapping {
+        /// @brief The mapped area of stack.
+        AddressMapping mapping;
+
+        /// @brief The total mapped area including guard pages.
+        VirtualRange total;
+    };
 }
 
 template<>

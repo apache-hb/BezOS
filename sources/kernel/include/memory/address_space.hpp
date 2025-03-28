@@ -19,6 +19,11 @@ namespace km {
 
     public:
         AddressSpace(const PageBuilder *pm, AddressMapping pteMemory, PageFlags flags, VirtualRange vmem);
+        AddressSpace(const AddressSpace *source, AddressMapping pteMemory, PageFlags flags, VirtualRange vmem);
+
+        void reserve(VirtualRange range) {
+            mVmemAllocator.reserve(range);
+        }
 
         [[nodiscard]]
         OsStatus unmap(VirtualRange range);
@@ -36,6 +41,12 @@ namespace km {
         OsStatus map(MemoryRange range, PageFlags flags, MemoryType type, AddressMapping *mapping) {
             return map(range, nullptr, flags, type, mapping);
         }
+
+        [[nodiscard]]
+        OsStatus mapStack(MemoryRange range, PageFlags flags, StackMapping *mapping);
+
+        [[nodiscard]]
+        OsStatus unmapStack(StackMapping mapping);
 
         template<typename T> requires (std::is_standard_layout_v<T>)
         [[nodiscard]]

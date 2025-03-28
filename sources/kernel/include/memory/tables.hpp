@@ -53,14 +53,4 @@ namespace km {
 
         OsStatus unmap(VirtualRange range);
     };
-
-    /// @brief Kernel address space.
-    ///
-    /// The top half of address space is reserved for the kernel.
-    /// Each process has the kernel address space mapped into the higher half.
-    /// Kernel addresses are identified by having the top bits set in the canonical address.
-    class SystemPageTables : public AddressSpaceAllocator {
-    public:
-        SystemPageTables(AddressMapping pteMemory, const PageBuilder *pm, VirtualRange systemArea);
-    };
 }

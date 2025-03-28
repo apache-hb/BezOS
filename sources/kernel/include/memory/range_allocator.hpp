@@ -6,7 +6,7 @@
 #include "util/util.hpp"
 #include "log.hpp"
 
-#include <cstdlib>
+#include <stdlib.h>
 #include <numeric>
 
 namespace km {

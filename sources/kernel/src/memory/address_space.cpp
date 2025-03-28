@@ -6,6 +6,13 @@ km::AddressSpace::AddressSpace(const PageBuilder *pm, AddressMapping pteMemory, 
     , mVmemAllocator(vmem)
 { }
 
+km::AddressSpace::AddressSpace(const AddressSpace *source, AddressMapping pteMemory, PageFlags flags, VirtualRange vmem)
+    : mTables(source->mTables.pageManager(), pteMemory, flags)
+    , mVmemAllocator(vmem)
+{
+    updateHigherHalfMappings(source);
+}
+
 OsStatus km::AddressSpace::unmap(VirtualRange range) {
     VirtualRange aligned = alignedOut(range, x64::kPageSize);
 
@@ -59,6 +66,33 @@ OsStatus km::AddressSpace::map(MemoryRange range, const void *hint, PageFlags fl
     }
 
     *mapping = m;
+    return OsStatusSuccess;
+}
+
+OsStatus km::AddressSpace::mapStack(MemoryRange range, PageFlags flags, StackMapping *mapping) {
+    size_t pages = Pages(range.size());
+    VirtualRange vmem = mVmemAllocator.allocate(pages + 2);
+    if (vmem.isEmpty()) {
+        return OsStatusOutOfMemory;
+    }
+
+    AddressMapping m = MappingOf(range, (char*)vmem.front + x64::kPageSize);
+    if (OsStatus status = mTables.map(m, flags, MemoryType::eWriteBack)) {
+        mVmemAllocator.release(vmem);
+        return status;
+    }
+
+    *mapping = StackMapping { m, vmem };
+
+    return OsStatusSuccess;
+}
+
+OsStatus km::AddressSpace::unmapStack(StackMapping mapping) {
+    if (OsStatus status = unmap(mapping.mapping.virtualRange())) {
+        return status;
+    }
+
+    mVmemAllocator.release(mapping.total);
     return OsStatusSuccess;
 }
 

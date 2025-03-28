@@ -39,7 +39,7 @@ namespace km {
         int64_t exitCode = 0;
         TlsInit tlsInit;
 
-        void init(ProcessId id, stdx::String name, SystemPageTables *kernel, AddressMapping pteMemory, VirtualRange processArea, ProcessCreateInfo createInfo);
+        void init(ProcessId id, stdx::String name, AddressSpace *kernel, AddressMapping pteMemory, VirtualRange processArea, ProcessCreateInfo createInfo);
 
         bool isComplete() const;
 
