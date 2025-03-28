@@ -20,37 +20,4 @@ namespace km {
     };
 
     void copyHigherHalfMappings(PageTables *tables, const PageTables *source);
-
-    class AddressSpaceAllocator {
-        PageTables mTables;
-        PageFlags mExtraFlags;
-        VmemAllocator mVmemAllocator;
-
-    public:
-        AddressSpaceAllocator() = default;
-
-        AddressSpaceAllocator(AddressMapping pteMemory, const PageBuilder *pm, PageFlags flags, PageFlags extra, VirtualRange vmemArea);
-
-        PageTables& ptes() { return mTables; }
-        PhysicalAddress root() const { return mTables.root(); }
-        const PageBuilder *pageManager() const { return mTables.pageManager(); }
-
-        void reserve(VirtualRange range);
-        VirtualRange vmemAllocate(size_t pages);
-        VirtualRange vmemAllocate(RangeAllocateRequest<const void*> request);
-        void vmemRelease(VirtualRange range);
-
-        OsStatus map(AddressMapping mapping, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
-
-        /// @brief Map a physical memory range into the virtual memory space.
-        ///
-        /// @param range the physical memory range to map.
-        /// @param flags the page flags to use.
-        /// @param type the memory type to use.
-        /// @param mapping the resulting virtual memory mapping.
-        /// @return The status of the operation.
-        OsStatus map(MemoryRange range, PageFlags flags, MemoryType type, AddressMapping *mapping);
-
-        OsStatus unmap(VirtualRange range);
-    };
 }

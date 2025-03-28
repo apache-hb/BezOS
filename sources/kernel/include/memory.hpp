@@ -85,49 +85,6 @@ namespace km {
         }
     };
 
-    inline OsStatus AllocateMemory(PageAllocator& pmm, AddressSpaceAllocator *ptes, size_t pages, AddressMapping *mapping) {
-        MemoryRange range = pmm.alloc4k(pages);
-        if (range.isEmpty()) {
-            return OsStatusOutOfMemory;
-        }
-
-        OsStatus status = ptes->map(range, PageFlags::eUserAll, MemoryType::eWriteBack, mapping);
-        if (status != OsStatusSuccess) {
-            pmm.release(range);
-        }
-
-        return status;
-    }
-
-    inline OsStatus AllocateMemory(PageAllocator& pmm, AddressSpaceAllocator *ptes, size_t pages, const void *hint, AddressMapping *mapping) {
-        MemoryRange range = pmm.alloc4k(pages);
-        if (range.isEmpty()) {
-            return OsStatusOutOfMemory;
-        }
-
-        VirtualRange vmem = ptes->vmemAllocate({
-            .size = range.size(),
-            .align = x64::kPageSize,
-            .hint = hint,
-        });
-
-        if (vmem.isEmpty()) {
-            pmm.release(range);
-            return OsStatusOutOfMemory;
-        }
-
-        AddressMapping map = MappingOf(range, vmem.front);
-
-        if (OsStatus status = ptes->map(map, PageFlags::eUserAll)) {
-            pmm.release(range);
-            ptes->vmemRelease(vmem);
-            return status;
-        }
-
-        *mapping = map;
-        return OsStatusSuccess;
-    }
-
     [[nodiscard]]
     inline OsStatus AllocateMemory(PageAllocator& pmm, AddressSpace& vmm, size_t pages, const void *hint, AddressMapping *mapping) {
         MemoryRange range = pmm.alloc4k(pages);
