@@ -127,7 +127,7 @@ void km::X2Apic::writeIcr(uint32_t dst, uint32_t cmd) {
 
 // local apic free functions
 
-static km::LocalApic MapLocalApic(uint64_t msr, km::SystemMemory& memory) {
+static km::LocalApic MapLocalApic(uint64_t msr, km::AddressSpace& memory) {
     static constexpr size_t kApicSize = 0x3F0;
 
     KM_CHECK(msr & kApicEnableBit, "APIC not enabled");
@@ -314,7 +314,7 @@ void km::IApic::setSpuriousVector(uint8_t vector) {
 
 // generic apic free functions
 
-km::Apic km::InitBspApic(km::SystemMemory& memory, bool useX2Apic) {
+km::Apic km::InitBspApic(km::AddressSpace& memory, bool useX2Apic) {
     if (useX2Apic) {
         km::EnableX2Apic();
         return km::X2Apic::get();
@@ -324,7 +324,7 @@ km::Apic km::InitBspApic(km::SystemMemory& memory, bool useX2Apic) {
     }
 }
 
-km::Apic km::InitApApic(km::SystemMemory& memory, const km::IApic *bsp) {
+km::Apic km::InitApApic(km::AddressSpace& memory, const km::IApic *bsp) {
     if (bsp->type() == apic::Type::eX2Apic) {
         km::EnableX2Apic();
 
@@ -335,7 +335,7 @@ km::Apic km::InitApApic(km::SystemMemory& memory, const km::IApic *bsp) {
 
         // Move every AP lapic at the same address as the BSP lapic.
         // This makes accessing it less error prone.
-        km::PhysicalAddress bspBaseAddress = memory.systemTables().getBackingAddress(vaddr);
+        km::PhysicalAddress bspBaseAddress = memory.getBackingAddress(vaddr);
         EnableLocalApic(bspBaseAddress);
 
         return km::LocalApic { vaddr };

@@ -77,7 +77,7 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
     km::SetupInitialGdt();
     km::LoadIdt();
 
-    km::Apic apic = km::InitApApic(*header->memory, header->bspApic);
+    km::Apic apic = km::InitApApic(header->memory->pageTables(), header->bspApic);
 
     km::InitCpuLocalRegion();
 

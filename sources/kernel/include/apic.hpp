@@ -7,6 +7,7 @@
 
 namespace km {
     class SystemMemory;
+    class AddressSpace;
 
     namespace apic {
         enum class IcrDeliver : uint32_t {
@@ -311,8 +312,8 @@ namespace km {
         void setLegacyRedirect(apic::IvtConfig config, uint32_t redirect, const IApic *target);
     };
 
-    Apic InitBspApic(km::SystemMemory& memory, bool useX2Apic);
-    Apic InitApApic(km::SystemMemory& memory, const km::IApic *bsp);
+    Apic InitBspApic(km::AddressSpace& memory, bool useX2Apic);
+    Apic InitApApic(km::AddressSpace& memory, const km::IApic *bsp);
 }
 
 template<>

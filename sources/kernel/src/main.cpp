@@ -598,7 +598,7 @@ struct ApicInfo {
     uint8_t spuriousInt;
 };
 
-static ApicInfo EnableBootApic(km::SystemMemory& memory, bool useX2Apic) {
+static ApicInfo EnableBootApic(km::AddressSpace& memory, bool useX2Apic) {
     km::Apic apic = InitBspApic(memory, useX2Apic);
 
     // setup tls now that we have the lapic id
@@ -1686,7 +1686,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     bool useX2Apic = kUseX2Apic && processor.x2apic();
 
-    auto [lapic, spuriousInt] = EnableBootApic(*stage2->memory, useX2Apic);
+    auto [lapic, spuriousInt] = EnableBootApic(gMemory->pageTables(), useX2Apic);
 
     acpi::AcpiTables rsdt = acpi::InitAcpi(launch.rsdpAddress, gMemory->pageTables());
     const acpi::Fadt *fadt = rsdt.fadt();

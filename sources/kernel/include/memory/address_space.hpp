@@ -97,6 +97,11 @@ namespace km {
         PageBuilder *pageManager(this auto&& self) { return self.mTables.pageManager(); }
 
         [[nodiscard]]
+        PhysicalAddress getBackingAddress(this auto&& self, const void *ptr) {
+            return self.mTables.getBackingAddress(ptr);
+        }
+
+        [[nodiscard]]
         PhysicalAddress root() const { return mTables.root(); }
     };
 }
