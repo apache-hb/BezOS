@@ -952,7 +952,7 @@ static void CreatePlatformVfsNodes(const km::SmBiosTables *smbios, const acpi::A
     }
 }
 
-static void MountInitArchive(MemoryRange initrd, SystemMemory& memory) {
+static void MountInitArchive(MemoryRange initrd, AddressSpace& memory) {
     KmDebugMessage("[INIT] Mounting '/Init'\n");
 
     //
@@ -1590,7 +1590,7 @@ static void InitVfs() {
 
 static void CreateVfsDevices(const km::SmBiosTables *smbios, const acpi::AcpiTables *acpi, MemoryRange initrd) {
     CreatePlatformVfsNodes(smbios, acpi);
-    MountInitArchive(initrd, *GetSystemMemory());
+    MountInitArchive(initrd, GetSystemMemory()->pageTables());
 }
 
 static void InitUserApi() {
