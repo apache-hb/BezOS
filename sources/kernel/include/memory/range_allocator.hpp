@@ -307,7 +307,7 @@ namespace km {
             detail::MergeRanges(mAvailable);
         }
 
-        size_t freeSpace() const {
+        size_t freeSpace() {
             stdx::LockGuard guard(mLock);
             return std::accumulate(mAvailable.begin(), mAvailable.end(), size_t(0), [](size_t acc, const Range& range) {
                 return acc + range.size();

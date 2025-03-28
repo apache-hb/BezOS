@@ -5,6 +5,11 @@
 #include "memory/range_allocator.hpp"
 
 namespace km {
+    struct PageAllocatorStats {
+        size_t freeMemory;
+        size_t freeLowMemory;
+    };
+
     class PageAllocator {
         /// @brief Allocator for memory below 1M.
         RangeAllocator<PhysicalAddress> mLowMemory;
@@ -34,5 +39,9 @@ namespace km {
         ///
         /// @param range The range to mark as used.
         void reserve(MemoryRange range);
+
+        PageAllocatorStats stats() {
+            return { mMemory.freeSpace(), mLowMemory.freeSpace() };
+        }
     };
 }

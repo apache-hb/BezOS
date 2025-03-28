@@ -10,6 +10,11 @@ void sys2::System::addObject(sm::RcuWeakPtr<IObject> object) {
     mObjects.insert(object);
 }
 
+void sys2::System::removeObject(sm::RcuWeakPtr<IObject> object) {
+    stdx::UniqueLock guard(mLock);
+    mObjects.erase(object);
+}
+
 OsStatus sys2::System::mapProcessPageTables(km::AddressMapping *mapping) {
     km::MemoryRange range = mPageAllocator->alloc4k(kDefaultPtePageCount);
     if (range.isEmpty()) {

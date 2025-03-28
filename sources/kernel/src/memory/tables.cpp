@@ -1,5 +1,7 @@
 #include "memory/tables.hpp"
 
+#include "memory/pte.hpp"
+
 using namespace km;
 
 void km::copyHigherHalfMappings(PageTables *tables, const PageTables *source) {

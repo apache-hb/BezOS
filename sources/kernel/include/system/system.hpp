@@ -76,6 +76,7 @@ namespace sys2 {
         sm::RcuDomain &rcuDomain() { return mDomain; }
 
         void addObject(sm::RcuWeakPtr<IObject> object);
+        void removeObject(sm::RcuWeakPtr<IObject> object);
 
         OsStatus mapProcessPageTables(km::AddressMapping *mapping);
         void releaseMemory(km::MemoryRange range);

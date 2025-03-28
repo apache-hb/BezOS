@@ -4,13 +4,11 @@
 
 #include "arch/paging.hpp"
 
-#include "memory/layout.hpp"
-#include "memory/pte.hpp"
-#include "memory/range_allocator.hpp"
-#include "memory/paging.hpp"
-#include "memory/virtual_allocator.hpp"
+#include "memory/memory.hpp"
 
 namespace km {
+    class PageTables;
+
     struct AllocateRequest {
         size_t size;
         size_t align = x64::kPageSize;

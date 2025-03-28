@@ -67,5 +67,7 @@ OsStatus sys2::DestroyProcess(System *system, const ProcessDestroyInfo&, sm::Rcu
 
     process->mPhysicalMemory.clear();
 
+    system->removeObject(process.weak());
+
     return OsStatusSuccess;
 }
