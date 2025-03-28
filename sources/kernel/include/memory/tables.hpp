@@ -64,8 +64,6 @@ namespace km {
     /// Kernel addresses are identified by having the top bits set in the canonical address.
     class SystemPageTables : public AddressSpaceAllocator {
     public:
-        SystemPageTables() = default;
-
         SystemPageTables(AddressMapping pteMemory, const PageBuilder *pm, VirtualRange systemArea);
     };
 
@@ -79,10 +77,6 @@ namespace km {
 
         void copyHigherHalfMappings();
     public:
-        ProcessPageTables() = default;
-
         ProcessPageTables(SystemPageTables *kernel, AddressMapping pteMemory, VirtualRange processArea);
-
-        void init(SystemPageTables *kernel, AddressMapping pteMemory, VirtualRange processArea);
     };
 }
