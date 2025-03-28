@@ -40,7 +40,7 @@ static OsStatus CreateThread(km::Process *process, km::SystemMemory& memory, km:
     static constexpr size_t kStackSize = 0x4000;
     km::PageFlags flags = km::PageFlags::eUser | km::PageFlags::eData;
     km::AddressMapping mapping{};
-    if (OsStatus status = AllocateMemory(memory.pmmAllocator(), process->ptes.get(), 4, &mapping)) {
+    if (OsStatus status = AllocateMemory(memory.pmmAllocator(), *process->ptes.get(), 4, &mapping)) {
         KmDebugMessage("[ELF] Failed to allocate stack memory: ", status, "\n");
         return status;
     }

@@ -115,6 +115,7 @@ src = [
     'src/memory/pte.cpp',
     'src/memory/tables.cpp',
     'src/memory/memory.cpp',
+    'src/memory/address_space.cpp',
     'src/memory/detail/table_list.cpp',
     'src/memory/detail/control_block.cpp',
 
@@ -361,6 +362,7 @@ memory_test_src = [
     'src/memory/memory.cpp',
     'src/memory/table_allocator.cpp',
     'src/memory/page_allocator.cpp',
+    'src/memory/address_space.cpp',
     'src/memory/detail/table_list.cpp',
     'src/memory/detail/control_block.cpp',
 

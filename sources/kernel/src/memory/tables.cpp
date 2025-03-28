@@ -64,17 +64,6 @@ SystemPageTables::SystemPageTables(AddressMapping pteMemory, const PageBuilder *
     : AddressSpaceAllocator(pteMemory, pm, PageFlags::eAll, PageFlags::eNone, systemArea)
 { }
 
-ProcessPageTables::ProcessPageTables(SystemPageTables *kernel, AddressMapping pteMemory, VirtualRange processArea)
-    : AddressSpaceAllocator(pteMemory, kernel->pageManager(), PageFlags::eUserAll, PageFlags::eUser, processArea)
-    , mSystemTables(kernel)
-{
-    copyHigherHalfMappings();
-}
-
-void ProcessPageTables::copyHigherHalfMappings() {
-    km::copyHigherHalfMappings(&ptes(), &mSystemTables->ptes());
-}
-
 void km::copyHigherHalfMappings(PageTables *tables, const PageTables *source) {
     const x64::PageMapLevel4 *pml4 = source->pml4();
     x64::PageMapLevel4 *self = tables->pml4();

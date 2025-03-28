@@ -9,13 +9,14 @@
 
 namespace km {
     class Scheduler;
+    class AddressSpace;
 
     void SetupApGdt(void);
     void SetupInitialGdt(void);
 
     Scheduler *GetScheduler();
     SystemMemory *GetSystemMemory();
-    AddressSpaceAllocator& GetProcessPageManager();
+    AddressSpace& GetProcessPageManager();
     PageTables& GetProcessPageTables();
 
     CPU_LOCAL

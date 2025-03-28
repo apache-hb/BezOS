@@ -832,16 +832,16 @@ SystemMemory *km::GetSystemMemory() {
     return gMemory;
 }
 
-AddressSpaceAllocator& km::GetProcessPageManager() {
+AddressSpace& km::GetProcessPageManager() {
     if (auto process = GetCurrentProcess()) {
         return *process->ptes;
     }
 
-    return gMemory->pageTables();
+    KM_PANIC("Process page manager not available.");
 }
 
 PageTables& km::GetProcessPageTables() {
-    return GetProcessPageManager().ptes();
+    return *GetProcessPageManager().tables();
 }
 
 static void CreateNotificationQueue() {
@@ -1185,7 +1185,7 @@ static void AddThreadSystemCalls() {
 
         AddressMapping mapping{};
         SystemMemory *memory = GetSystemMemory();
-        OsStatus status = AllocateMemory(memory->pmmAllocator(), process->ptes.get(), createInfo.StackSize / x64::kPageSize, &mapping);
+        OsStatus status = AllocateMemory(memory->pmmAllocator(), *process->ptes.get(), createInfo.StackSize / x64::kPageSize, &mapping);
         if (status != OsStatusSuccess) {
             return CallError(status);
         }
@@ -1329,7 +1329,7 @@ static void AddVmemSystemCalls() {
 
         AddressMapping mapping{};
         SystemMemory *memory = GetSystemMemory();
-        OsStatus status = AllocateMemory(memory->pmmAllocator(), process->ptes.get(), createInfo.Size / x64::kPageSize, &mapping);
+        OsStatus status = AllocateMemory(memory->pmmAllocator(), *process->ptes.get(), createInfo.Size / x64::kPageSize, &mapping);
         if (status != OsStatusSuccess) {
             return CallError(status);
         }

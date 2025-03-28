@@ -4,6 +4,7 @@
 #include "memory/pte.hpp"
 #include "memory/range.hpp"
 #include "memory/virtual_allocator.hpp"
+
 #include <type_traits>
 
 namespace km {
@@ -27,6 +28,14 @@ namespace km {
 
         [[nodiscard]]
         void *map(MemoryRange range, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eWriteBack);
+
+        [[nodiscard]]
+        OsStatus map(MemoryRange range, const void *hint, PageFlags flags, MemoryType type, AddressMapping *mapping);
+
+        [[nodiscard]]
+        OsStatus map(MemoryRange range, PageFlags flags, MemoryType type, AddressMapping *mapping) {
+            return map(range, nullptr, flags, type, mapping);
+        }
 
         template<typename T> requires (std::is_standard_layout_v<T>)
         [[nodiscard]]
@@ -63,5 +72,20 @@ namespace km {
         T *mapMmio(MemoryRange range, PageFlags flags = detail::kDefaultPageFlags<T>) {
             return mapObject<T>(range, flags, MemoryType::eUncached);
         }
+
+        void updateHigherHalfMappings(const PageTables *source);
+
+        void updateHigherHalfMappings(const AddressSpace *source) {
+            updateHigherHalfMappings(&source->mTables);
+        }
+
+        [[nodiscard]]
+        PageTables *tables() { return &mTables; }
+
+        [[nodiscard]]
+        const PageTables *tables() const { return &mTables; }
+
+        [[nodiscard]]
+        PhysicalAddress root() const { return mTables.root(); }
     };
 }

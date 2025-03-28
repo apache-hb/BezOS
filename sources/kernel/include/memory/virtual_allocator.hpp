@@ -5,7 +5,6 @@
 #include "memory/range_allocator.hpp"
 
 namespace km {
-
     class VmemAllocator {
         RangeAllocator<const std::byte*> mVmemAllocator;
     public:
@@ -18,9 +17,9 @@ namespace km {
             mVmemAllocator.reserve(range.cast<const std::byte*>());
         }
 
-        VirtualRange allocate(size_t pages) {
+        VirtualRange allocate(size_t pages, const void *hint = nullptr) {
             size_t align = (pages > (x64::kLargePageSize / x64::kPageSize)) ? x64::kLargePageSize : x64::kPageSize;
-            return allocate({ .size = pages * x64::kPageSize, .align = align });
+            return allocate({ .size = pages * x64::kPageSize, .align = align, .hint = hint });
         }
 
         VirtualRange allocate(RangeAllocateRequest<const void*> request) {

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "memory/address_space.hpp"
 #include "memory/page_allocator.hpp"
 #include "memory/pte.hpp"
 #include "memory/paging.hpp"
@@ -123,5 +124,25 @@ namespace km {
 
         *mapping = map;
         return OsStatusSuccess;
+    }
+
+    [[nodiscard]]
+    inline OsStatus AllocateMemory(PageAllocator& pmm, AddressSpace& vmm, size_t pages, const void *hint, AddressMapping *mapping) {
+        MemoryRange range = pmm.alloc4k(pages);
+        if (range.isEmpty()) {
+            return OsStatusOutOfMemory;
+        }
+
+        if (OsStatus status = vmm.map(range, hint, PageFlags::eUserAll, MemoryType::eWriteBack, mapping)) {
+            pmm.release(range);
+            return status;
+        }
+
+        return OsStatusSuccess;
+    }
+
+    [[nodiscard]]
+    inline OsStatus AllocateMemory(PageAllocator& pmm, AddressSpace& vmm, size_t pages, AddressMapping *mapping) {
+        return AllocateMemory(pmm, vmm, pages, nullptr, mapping);
     }
 }

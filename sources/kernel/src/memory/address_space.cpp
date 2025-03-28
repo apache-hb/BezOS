@@ -1,4 +1,5 @@
 #include "memory/address_space.hpp"
+#include "memory/tables.hpp"
 
 km::AddressSpace::AddressSpace(const PageBuilder *pm, AddressMapping pteMemory, PageFlags flags, VirtualRange vmem)
     : mTables(pm, pteMemory, flags)
@@ -42,4 +43,25 @@ void *km::AddressSpace::map(MemoryRange range, PageFlags flags, MemoryType type)
     }
 
     return (void*)((uintptr_t)vmem.front + offset);
+}
+
+OsStatus km::AddressSpace::map(MemoryRange range, const void *hint, PageFlags flags, MemoryType type, AddressMapping *mapping) {
+    size_t pages = Pages(range.size());
+    VirtualRange vmem = mVmemAllocator.allocate(pages, hint);
+    if (vmem.isEmpty()) {
+        return OsStatusOutOfMemory;
+    }
+
+    AddressMapping m = MappingOf(vmem, range.front);
+    if (OsStatus status = mTables.map(m, flags, type)) {
+        mVmemAllocator.release(vmem);
+        return status;
+    }
+
+    *mapping = m;
+    return OsStatusSuccess;
+}
+
+void km::AddressSpace::updateHigherHalfMappings(const PageTables *source) {
+    km::copyHigherHalfMappings(&mTables, source);
 }

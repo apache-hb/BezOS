@@ -10,6 +10,7 @@
 #include "util/absl.hpp"
 
 namespace km {
+    class AddressSpace;
     struct Process;
     struct Thread;
 
@@ -31,7 +32,7 @@ namespace km {
         Process *parent = nullptr;
 
         RangeAllocator<PhysicalAddress> pmm;
-        std::unique_ptr<ProcessPageTables> ptes;
+        std::unique_ptr<AddressSpace> ptes;
         sm::FlatHashMap<OsHandle, KernelObject*> handles;
         OsProcessStateFlags state = eOsProcessRunning;
         ProcessArgs args;

@@ -4,6 +4,7 @@
 #include "std/spinlock.hpp"
 #include "std/vector.hpp"
 #include "util/util.hpp"
+#include "log.hpp"
 
 #include <cstdlib>
 #include <numeric>
@@ -176,6 +177,7 @@ namespace km {
         /// @tparam T The type of the range point.
         template<typename T>
         constexpr intptr_t FitDistance(AnyRange<T> range, AnyRange<T> other) {
+            KmDebugMessage("[MEM] Fit distance: ", std::bit_cast<MemoryRange>(range), ", ", std::bit_cast<MemoryRange>(other), "\n");
             if (other.front < range.front) {
                 return range.front - other.front;
             } else {
@@ -200,7 +202,9 @@ namespace km {
                 // and return the hint.
                 //
                 Range range = ranges[i];
-                if (range.contains(hint)) {
+                KM_CHECK(range.isValid(), "Invalid range.");
+
+                if (borderContains(range, hint)) {
                     auto [left, right] = split(range, hint);
                     ranges.add(left);
                     ranges.add(right);
@@ -214,10 +218,16 @@ namespace km {
                 // record it as a possible candidate.
                 //
                 Range alignedRange = aligned(range, align);
+                if (alignedRange.isEmpty()) {
+                    continue;
+                }
+
+                KM_CHECK(alignedRange.isValid(), "Invalid range.");
 
                 if (alignedRange.size() >= hint.size()) {
                     intptr_t distance = FitDistance(alignedRange, hint);
                     if (sm::magnitude(distance) < sm::magnitude(closestDistance)) {
+                        KmDebugMessage("[MEM] Closest: ", std::bit_cast<MemoryRange>(hint), ", distance: ", distance, ", cd: ", closestDistance, "\n");
                         closest = hint;
                         closest.front += distance;
                         closest.back += distance;
@@ -272,10 +282,14 @@ namespace km {
         using Request = RangeAllocateRequest<T>;
 
         RangeAllocator(Range range) {
+            KM_CHECK(range.isValid(), "Invalid range.");
+
             mAvailable.add(range);
         }
 
         void reserve(Range range) {
+            KM_CHECK(range.isValid(), "Invalid range.");
+
             stdx::LockGuard guard(mLock);
             detail::MarkUsedArea(mAvailable, range);
             detail::SortRanges(std::span(mAvailable));
@@ -295,6 +309,8 @@ namespace km {
         }
 
         void release(Range range) {
+            KM_CHECK(range.isValid(), "Invalid range.");
+
             stdx::LockGuard guard(mLock);
             mAvailable.add(range);
 

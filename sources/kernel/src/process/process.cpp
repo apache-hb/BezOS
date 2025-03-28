@@ -1,12 +1,14 @@
 #include "process/process.hpp"
 
+#include "memory/address_space.hpp"
 #include "process/device.hpp"
 
 using namespace km;
 
 void Process::init(ProcessId id, stdx::String name, SystemPageTables *kernel, AddressMapping pteMemory, VirtualRange processArea, ProcessCreateInfo createInfo) {
     initHeader(std::to_underlying(id), eOsHandleProcess, std::move(name));
-    ptes.reset(new ProcessPageTables(kernel, pteMemory, processArea));
+    ptes.reset(new AddressSpace(kernel->pageManager(), pteMemory, PageFlags::eUserAll, processArea));
+    ptes->updateHigherHalfMappings(&kernel->ptes());
     parent = createInfo.parent;
 }
 

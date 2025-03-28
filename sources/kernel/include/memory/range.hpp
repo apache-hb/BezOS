@@ -225,6 +225,18 @@ namespace km {
         return a.front == b.front || a.back == b.back;
     }
 
+    /// @brief Test if a given range contains another range including touching borders.
+    template<typename T>
+    constexpr bool borderContains(AnyRange<T> a, AnyRange<T> b) {
+        if (a.front == b.front) {
+            return a.back >= b.back;
+        } else if (a.back == b.back) {
+            return a.front <= b.front;
+        } else {
+            return a.contains(b) || b.contains(a);
+        }
+    }
+
     template<typename T>
     constexpr bool overlaps(AnyRange<T> a, AnyRange<T> b) {
         return a.overlaps(b);
@@ -253,6 +265,10 @@ namespace km {
     constexpr AnyRange<T> aligned(AnyRange<T> range, size_t align) {
         T front = std::bit_cast<T>(sm::roundup(std::bit_cast<uintptr_t>(range.front), align));
         T back = std::bit_cast<T>(sm::rounddown(std::bit_cast<uintptr_t>(range.back), align));
+
+        if (front >= back) {
+            return AnyRange<T>{};
+        }
 
         return {front, back};
     }

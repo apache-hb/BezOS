@@ -2,7 +2,6 @@
 
 #include <bezos/handle.h>
 
-#include "memory/tables.hpp"
 #include "std/rcuptr.hpp"
 #include "util/absl.hpp"
 

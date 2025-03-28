@@ -63,17 +63,4 @@ namespace km {
     public:
         SystemPageTables(AddressMapping pteMemory, const PageBuilder *pm, VirtualRange systemArea);
     };
-
-    /// @brief Per process address space.
-    ///
-    /// Each process has its own address space, which has the kernel address space mapped into the higher half.
-    /// The lower half of the address space is reserved for the process.
-    /// Process addresses are identified by having the top bits clear in the canonical address.
-    class ProcessPageTables : public AddressSpaceAllocator {
-        SystemPageTables *mSystemTables;
-
-        void copyHigherHalfMappings();
-    public:
-        ProcessPageTables(SystemPageTables *kernel, AddressMapping pteMemory, VirtualRange processArea);
-    };
 }
