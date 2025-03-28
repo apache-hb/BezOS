@@ -834,7 +834,7 @@ SystemMemory *km::GetSystemMemory() {
 
 AddressSpaceAllocator& km::GetProcessPageManager() {
     if (auto process = GetCurrentProcess()) {
-        return process->ptes;
+        return *process->ptes;
     }
 
     return gMemory->pageTables();
@@ -1185,7 +1185,7 @@ static void AddThreadSystemCalls() {
 
         AddressMapping mapping{};
         SystemMemory *memory = GetSystemMemory();
-        OsStatus status = AllocateMemory(memory->pmmAllocator(), &process->ptes, createInfo.StackSize / x64::kPageSize, &mapping);
+        OsStatus status = AllocateMemory(memory->pmmAllocator(), process->ptes.get(), createInfo.StackSize / x64::kPageSize, &mapping);
         if (status != OsStatusSuccess) {
             return CallError(status);
         }
@@ -1329,7 +1329,7 @@ static void AddVmemSystemCalls() {
 
         AddressMapping mapping{};
         SystemMemory *memory = GetSystemMemory();
-        OsStatus status = AllocateMemory(memory->pmmAllocator(), &process->ptes, createInfo.Size / x64::kPageSize, &mapping);
+        OsStatus status = AllocateMemory(memory->pmmAllocator(), process->ptes.get(), createInfo.Size / x64::kPageSize, &mapping);
         if (status != OsStatusSuccess) {
             return CallError(status);
         }

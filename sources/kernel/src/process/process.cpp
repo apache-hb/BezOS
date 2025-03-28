@@ -6,7 +6,7 @@ using namespace km;
 
 void Process::init(ProcessId id, stdx::String name, SystemPageTables *kernel, AddressMapping pteMemory, VirtualRange processArea, ProcessCreateInfo createInfo) {
     initHeader(std::to_underlying(id), eOsHandleProcess, std::move(name));
-    ptes.init(kernel, pteMemory, processArea);
+    ptes.reset(new ProcessPageTables(kernel, pteMemory, processArea));
     parent = createInfo.parent;
 }
 
@@ -51,7 +51,7 @@ OsStatus Process::map(km::SystemMemory& memory, size_t pages, PageFlags flags, M
         return OsStatusOutOfMemory;
     }
 
-    OsStatus status = ptes.map(range, flags, type, mapping);
+    OsStatus status = ptes->map(range, flags, type, mapping);
     if (status != OsStatusSuccess) {
         pmm.release(range);
     }

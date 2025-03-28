@@ -181,7 +181,7 @@ static OsStatus CreateThread(km::Process *process, km::SystemMemory& memory, km:
     static constexpr size_t kStackSize = 0x4000;
     km::PageFlags flags = km::PageFlags::eUser | km::PageFlags::eData;
     km::AddressMapping mapping{};
-    if (OsStatus status = AllocateMemory(memory.pmmAllocator(), &process->ptes, 4, &mapping)) {
+    if (OsStatus status = AllocateMemory(memory.pmmAllocator(), process->ptes.get(), 4, &mapping)) {
         KmDebugMessage("[ELF] Failed to allocate stack memory: ", status, "\n");
         return status;
     }
@@ -277,7 +277,7 @@ OsStatus km::LoadElfProgram(vfs2::IFileHandle *file, SystemMemory& memory, Proce
     KmDebugMessage("[ELF] Load memory range: ", loadMemory, "\n");
 
     km::AddressMapping loadMapping{};
-    OsStatus status = AllocateMemory(memory.pmmAllocator(), &process->ptes, Pages(loadMemory.size()), loadMemory.front, &loadMapping);
+    OsStatus status = AllocateMemory(memory.pmmAllocator(), process->ptes.get(), Pages(loadMemory.size()), loadMemory.front, &loadMapping);
     if (status != OsStatusSuccess) {
         KmDebugMessage("[ELF] Failed to allocate ", sm::bytes(loadMemory.size()), " for ELF program load sections. ", status, "\n");
         return status;
@@ -400,7 +400,7 @@ OsStatus km::LoadElfProgram(vfs2::IFileHandle *file, SystemMemory& memory, Proce
     km::TlsInit tlsInit{};
 
     if (tls) {
-        if (OsStatus status = ReadTlsInit(file, tls, memory, process->ptes, &tlsInit)) {
+        if (OsStatus status = ReadTlsInit(file, tls, memory, *process->ptes.get(), &tlsInit)) {
             return status;
         }
     }

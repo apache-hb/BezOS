@@ -31,7 +31,7 @@ namespace km {
         Process *parent = nullptr;
 
         RangeAllocator<PhysicalAddress> pmm;
-        ProcessPageTables ptes;
+        std::unique_ptr<ProcessPageTables> ptes;
         sm::FlatHashMap<OsHandle, KernelObject*> handles;
         OsProcessStateFlags state = eOsProcessRunning;
         ProcessArgs args;
