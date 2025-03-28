@@ -91,10 +91,10 @@ namespace km {
         }
 
         [[nodiscard]]
-        PageTables *tables() { return &mTables; }
+        PageTables *tables(this auto&& self) { return &self.mTables; }
 
         [[nodiscard]]
-        const PageTables *tables() const { return &mTables; }
+        PageBuilder *pageManager(this auto&& self) { return self.mTables.pageManager(); }
 
         [[nodiscard]]
         PhysicalAddress root() const { return mTables.root(); }

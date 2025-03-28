@@ -1,6 +1,8 @@
 #include "system/schedule.hpp"
 
+#include "panic.hpp"
 #include "thread.hpp"
+
 #include "timer/apic_timer.hpp"
 
 using namespace std::chrono_literals;

@@ -1,10 +1,13 @@
 #pragma once
 
 #include "acpi/acpi.hpp"
+#include "arch/paging.hpp"
 #include "util/combine.hpp"
 #include "util/absl.hpp"
 
 namespace km {
+    class SystemMemory;
+
     namespace apic {
         enum class IcrDeliver : uint32_t {
             eSingle = 0b00,
@@ -260,8 +263,8 @@ namespace km {
 
     public:
         IoApic() = default;
-        IoApic(const acpi::MadtEntry *entry, km::SystemMemory& memory);
-        IoApic(acpi::MadtEntry::IoApic entry, km::SystemMemory& memory);
+        IoApic(const acpi::MadtEntry *entry, km::AddressSpace& memory);
+        IoApic(acpi::MadtEntry::IoApic entry, km::AddressSpace& memory);
 
         uint8_t id() const { return mId; }
         uint32_t isrBase() const { return mIsrBase; }
@@ -285,7 +288,7 @@ namespace km {
         sm::FixedArray<IoApic> mIoApics;
 
     public:
-        IoApicSet(const acpi::Madt *madt, km::SystemMemory& memory);
+        IoApicSet(const acpi::Madt *madt, km::AddressSpace& memory);
 
         uint32_t count() const { return mIoApics.size(); }
         auto&& operator[](this auto&& self, uint32_t index) { return self.mIoApics[index]; }

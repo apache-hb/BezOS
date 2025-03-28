@@ -1,10 +1,9 @@
 #pragma once
 
-#include "memory.hpp"
-
 #include "acpi/madt.hpp"
 #include "acpi/fadt.hpp"
 #include "acpi/mcfg.hpp"
+#include "memory/range.hpp"
 #include "util/signature.hpp"
 
 namespace km {
@@ -69,7 +68,7 @@ namespace acpi {
 
         uint32_t lapicCount() const;
 
-        km::IoApic mapIoApic(km::SystemMemory& memory, uint32_t index) const;
+        km::IoApic mapIoApic(km::AddressSpace& memory, uint32_t index) const;
         uint32_t ioApicCount() const;
 
         uint32_t hpetCount() const;

@@ -2,8 +2,8 @@
 
 #include <bezos/facility/process.h>
 
+#include "memory/address_space.hpp"
 #include "memory/range.hpp"
-#include "memory/tables.hpp"
 #include "std/shared_spinlock.hpp"
 #include "std/vector.hpp"
 #include "system/handle.hpp"
@@ -53,13 +53,10 @@ namespace sys2 {
         stdx::Vector3<km::MemoryRange> mPhysicalMemory;
 
         /// @brief The page tables for this process.
-        km::PageTables mPageTables;
-
-        /// @brief The virtual memory allocator for this process.
-        km::VmemAllocator mVmemAllocator;
+        km::AddressSpace mPageTables;
 
     public:
-        Process(const ProcessCreateInfo& createInfo, const km::PageTables *systemTables, km::AddressMapping pteMemory);
+        Process(const ProcessCreateInfo& createInfo, const km::AddressSpace *systemTables, km::AddressMapping pteMemory);
 
         void setName(ObjectName name) override;
         ObjectName getName() override;

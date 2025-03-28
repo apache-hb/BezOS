@@ -2,6 +2,7 @@
 
 #include <bezos/handle.h>
 
+#include "memory/layout.hpp"
 #include "std/rcuptr.hpp"
 #include "util/absl.hpp"
 
@@ -9,6 +10,12 @@
 
 #include <compare> // IWYU pragma: keep
 #include <queue>
+
+namespace km {
+    class PageTables;
+    class PageAllocator;
+    class AddressSpace;
+}
 
 namespace sys2 {
     class IObject;
@@ -49,11 +56,9 @@ namespace sys2 {
         [[maybe_unused]]
         GlobalSchedule *mSchedule;
 
-        km::PageTables *mSystemTables;
+        km::AddressSpace *mSystemTables;
 
         km::PageAllocator *mPageAllocator;
-
-        km::VmemAllocator mVmemAllocator;
 
         sm::FlatHashMap<sm::RcuWeakPtr<IObject>, WaitQueue> mWaitQueue;
         std::priority_queue<WaitEntry> mTimeoutQueue;
@@ -62,7 +67,7 @@ namespace sys2 {
         sm::FlatHashSet<sm::RcuWeakPtr<IObject>> mObjects;
 
     public:
-        System(GlobalSchedule *schedule [[gnu::nonnull]], km::PageTables *systemTables [[gnu::nonnull]], km::PageAllocator *pmm [[gnu::nonnull]])
+        System(GlobalSchedule *schedule [[gnu::nonnull]], km::AddressSpace *systemTables [[gnu::nonnull]], km::PageAllocator *pmm [[gnu::nonnull]])
             : mSchedule(schedule)
             , mSystemTables(systemTables)
             , mPageAllocator(pmm)
@@ -73,6 +78,6 @@ namespace sys2 {
         void addObject(sm::RcuWeakPtr<IObject> object);
 
         OsStatus mapProcessPageTables(km::AddressMapping *mapping);
-        km::PageTables *pageTables() { return mSystemTables; }
+        km::AddressSpace *pageTables() { return mSystemTables; }
     };
 }

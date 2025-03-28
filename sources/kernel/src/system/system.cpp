@@ -1,5 +1,7 @@
 #include "system/system.hpp"
 
+#include "memory/page_allocator.hpp"
+
 static constexpr size_t kDefaultPtePageCount = 128;
 
 void sys2::System::addObject(sm::RcuWeakPtr<IObject> object) {

@@ -7,6 +7,7 @@
 
 #include "std/spinlock.hpp"
 #include "std/shared_spinlock.hpp"
+#include "std/vector.hpp"
 
 #include "notify.hpp"
 

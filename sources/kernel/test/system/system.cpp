@@ -19,19 +19,19 @@ public:
 TEST_F(SystemTest, Construct) {
     km::SystemMemory memory = body.make();
     sys2::GlobalSchedule schedule(1, 1);
-    sys2::System system(&schedule, &memory.systemTables(), &memory.pmmAllocator());
+    sys2::System system(&schedule, &memory.pageTables(), &memory.pmmAllocator());
 }
 
 TEST_F(SystemTest, ConstructMultiple) {
     km::SystemMemory memory = body.make();
     sys2::GlobalSchedule schedule(128, 128);
-    sys2::System system(&schedule, &memory.systemTables(), &memory.pmmAllocator());
+    sys2::System system(&schedule, &memory.pageTables(), &memory.pmmAllocator());
 }
 
 TEST_F(SystemTest, CreateProcess) {
     km::SystemMemory memory = body.make();
     sys2::GlobalSchedule schedule(128, 128);
-    sys2::System system(&schedule, &memory.systemTables(), &memory.pmmAllocator());
+    sys2::System system(&schedule, &memory.pageTables(), &memory.pmmAllocator());
 
     sm::RcuSharedPtr<sys2::Process> process;
     sys2::ProcessCreateInfo createInfo {

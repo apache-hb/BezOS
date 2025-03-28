@@ -4,6 +4,8 @@
 
 #include "arch/msr.hpp"
 #include "log.hpp"
+#include "memory.hpp"
+#include "memory/address_space.hpp"
 #include "panic.hpp"
 #include "util/cpuid.hpp"
 
@@ -350,15 +352,15 @@ static constexpr uint32_t kIoApicVersion = 0x1;
 
 static constexpr size_t kIoApicSize = 0x20;
 
-static std::byte *mapIoApic(km::SystemMemory& memory, acpi::MadtEntry::IoApic entry) {
+static std::byte *mapIoApic(km::AddressSpace& memory, acpi::MadtEntry::IoApic entry) {
     return (std::byte*)memory.map(km::MemoryRange::of(entry.address, kIoApicSize), km::PageFlags::eData, km::MemoryType::eUncached);
 }
 
-km::IoApic::IoApic(const acpi::MadtEntry *entry, km::SystemMemory& memory)
+km::IoApic::IoApic(const acpi::MadtEntry *entry, km::AddressSpace& memory)
     : IoApic(entry->ioapic, memory)
 { }
 
-km::IoApic::IoApic(acpi::MadtEntry::IoApic entry, km::SystemMemory& memory)
+km::IoApic::IoApic(acpi::MadtEntry::IoApic entry, km::AddressSpace& memory)
     : mAddress(mapIoApic(memory, entry))
 {
     uint32_t idreg = read(kIoApicId);
@@ -464,7 +466,7 @@ static bool IoApicContainsGsi(km::IoApic& ioApic, uint32_t gsi) {
     return gsi >= first && gsi <= last;
 }
 
-km::IoApicSet::IoApicSet(const acpi::Madt *madt, km::SystemMemory& memory)
+km::IoApicSet::IoApicSet(const acpi::Madt *madt, km::AddressSpace& memory)
     : mMadt(madt)
     , mIoApics(mMadt->ioApicCount())
 {

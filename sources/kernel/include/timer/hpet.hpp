@@ -1,5 +1,7 @@
 #pragma once
 
+#include <bezos/status.h>
+
 #include "acpi/hpet.hpp"
 #include "pci/pci.hpp"
 #include "apic.hpp"

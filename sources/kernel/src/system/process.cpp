@@ -1,4 +1,5 @@
 #include "system/process.hpp"
+#include "memory.hpp"
 #include "system/system.hpp"
 
 void sys2::Process::setName(ObjectName name) {
@@ -30,14 +31,11 @@ OsStatus sys2::Process::stat(ProcessInfo *info) {
     return OsStatusSuccess;
 }
 
-sys2::Process::Process(const ProcessCreateInfo& createInfo, const km::PageTables *systemTables, km::AddressMapping pteMemory)
+sys2::Process::Process(const ProcessCreateInfo& createInfo, const km::AddressSpace *systemTables, km::AddressMapping pteMemory)
     : mName(createInfo.name)
     , mSupervisor(createInfo.supervisor)
-    , mPageTables(systemTables->pageManager(), pteMemory, km::PageFlags::eUserAll)
-    , mVmemAllocator(km::DefaultUserArea())
-{
-    km::copyHigherHalfMappings(&mPageTables, systemTables);
-}
+    , mPageTables(systemTables, pteMemory, km::PageFlags::eUserAll, km::DefaultUserArea())
+{ }
 
 OsStatus sys2::CreateProcess(System *system, const ProcessCreateInfo& info, sm::RcuSharedPtr<Process> *process) {
     km::AddressMapping pteMemory;

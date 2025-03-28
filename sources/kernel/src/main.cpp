@@ -1694,7 +1694,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     uint32_t ioApicCount = rsdt.ioApicCount();
     KM_CHECK(ioApicCount > 0, "No IOAPICs found.");
-    IoApicSet ioApicSet{ rsdt.madt(), *stage2->memory };
+    IoApicSet ioApicSet{ rsdt.madt(), gMemory->pageTables() };
 
     std::unique_ptr<pci::IConfigSpace> config{pci::InitConfigSpace(rsdt.mcfg(), gMemory->pageTables())};
     if (!config) {

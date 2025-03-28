@@ -3,6 +3,7 @@
 #include "acpi/hpet.hpp"
 #include "apic.hpp"
 #include "log.hpp"
+#include "memory/address_space.hpp"
 #include "panic.hpp"
 
 #include <stddef.h>
@@ -271,7 +272,7 @@ uint32_t acpi::AcpiTables::lapicCount() const {
     return mMadt->lapicCount();
 }
 
-km::IoApic acpi::AcpiTables::mapIoApic(km::SystemMemory& memory, uint32_t index) const {
+km::IoApic acpi::AcpiTables::mapIoApic(km::AddressSpace& memory, uint32_t index) const {
     for (const acpi::MadtEntry *entry : *mMadt) {
         if (entry->type == acpi::MadtEntryType::eIoApic) {
             if (index == 0) {

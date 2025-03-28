@@ -1,8 +1,11 @@
 #pragma once
 
+#include <bezos/status.h>
+
 #include "isr/isr.hpp"
 
 #include "std/fixed_deque.hpp"
+#include "std/spinlock.hpp"
 
 #include "std/rcuptr.hpp"
 

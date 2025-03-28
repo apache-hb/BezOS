@@ -1,5 +1,6 @@
 #include "timer/hpet.hpp"
 #include "log.hpp"
+#include "memory/address_space.hpp"
 
 // hpet id methods
 
