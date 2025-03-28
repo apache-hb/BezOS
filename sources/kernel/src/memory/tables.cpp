@@ -2,17 +2,6 @@
 
 using namespace km;
 
-void AddressSpaceAllocator::init(AddressMapping pteMemory, const PageBuilder *pager, PageFlags flags, PageFlags extra, VirtualRange vmemArea) {
-    mTables.init(PageTableCreateInfo {
-        .pteMemory = pteMemory,
-        .pager = pager,
-        .intermediateFlags = flags,
-    });
-
-    mExtraFlags = extra;
-    mVmemAllocator.release(vmemArea);
-}
-
 AddressSpaceAllocator::AddressSpaceAllocator(AddressMapping pteMemory, const PageBuilder *pm, PageFlags flags, PageFlags extra, VirtualRange vmemArea)
     : mTables(pm, pteMemory, flags)
     , mExtraFlags(extra)

@@ -26,9 +26,6 @@ namespace km {
         PageFlags mExtraFlags;
         VmemAllocator mVmemAllocator;
 
-    protected:
-        void init(AddressMapping pteMemory, const PageBuilder *pager, PageFlags flags, PageFlags extra, VirtualRange vmemArea);
-
     public:
         AddressSpaceAllocator() = default;
 
