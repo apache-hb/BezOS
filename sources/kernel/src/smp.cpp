@@ -248,6 +248,6 @@ void km::InitSmp(
     //
     // And unmap the identity mappings.
     //
-    memory.systemTables().unmap((void*)kSmpInfo.address, sizeof(SmpInfoHeader));
-    memory.systemTables().unmap((void*)kSmpStart.address, blobSize);
+    memory.unmap((void*)kSmpInfo.address, sizeof(SmpInfoHeader));
+    memory.unmap((void*)kSmpStart.address, blobSize);
 }

@@ -1,0 +1,8 @@
+/** @page Memory Management
+
+The systems memory is managed via 3 main classes, @ref km::PageTables, @ref km::AddressSpace, and @ref km::SystemMemory.
+@ref km::PageTables is responsible for mapping areas of the virtual address space to areas of physical memory. It itself is not aware of how the virtual or physical address space is managed.
+@ref km::AddressSpace is responsible for allocating areas of virtual address space to map to physical memory. AddressSpaces have no access to allocating physical memory and can only manage a virtual address space.
+@ref km::SystemMemory is responsible for allocating physical memory to passs into a @ref km::AddressSpace.
+
+*/

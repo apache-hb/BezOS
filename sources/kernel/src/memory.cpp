@@ -3,9 +3,9 @@
 #include "memory/memory.hpp"
 
 km::SystemMemory::SystemMemory(std::span<const boot::MemoryRegion> memmap, VirtualRange systemArea, PageBuilder pm, AddressMapping pteMemory)
-    : pager(pm)
-    , pmm(memmap)
-    , ptes(&pager, pteMemory, PageFlags::eAll, systemArea)
+    : mPageManager(pm)
+    , mPageAllocator(memmap)
+    , mTables(&mPageManager, pteMemory, PageFlags::eAll, systemArea)
 { }
 
 void *km::SystemMemory::allocate(size_t size, PageFlags flags, MemoryType type) {
@@ -19,14 +19,14 @@ void *km::SystemMemory::allocate(size_t size, PageFlags flags, MemoryType type) 
 km::AddressMapping km::SystemMemory::allocateStack(size_t size) {
     size_t pages = Pages(size);
 
-    MemoryRange range = pmm.alloc4k(pages);
+    MemoryRange range = mPageAllocator.alloc4k(pages);
     if (range.isEmpty()) {
         return AddressMapping{};
     }
 
     StackMapping mapping;
-    if (ptes.mapStack(range, PageFlags::eData, &mapping) != OsStatusSuccess) {
-        pmm.release(range);
+    if (mTables.mapStack(range, PageFlags::eData, &mapping) != OsStatusSuccess) {
+        mPageAllocator.release(range);
         return AddressMapping{};
     }
 
@@ -36,15 +36,15 @@ km::AddressMapping km::SystemMemory::allocateStack(size_t size) {
 km::AddressMapping km::SystemMemory::allocate(AllocateRequest request) {
     size_t pages = Pages(request.size);
 
-    MemoryRange range = pmm.alloc4k(pages);
+    MemoryRange range = mPageAllocator.alloc4k(pages);
     if (range.isEmpty()) {
         return AddressMapping{};
     }
 
     AddressMapping mapping{};
-    OsStatus status = ptes.map(range, request.flags, request.type, &mapping);
+    OsStatus status = mTables.map(range, request.flags, request.type, &mapping);
     if (status != OsStatusSuccess) {
-        pmm.release(range);
+        mPageAllocator.release(range);
         return AddressMapping{};
     }
 
@@ -52,18 +52,18 @@ km::AddressMapping km::SystemMemory::allocate(AllocateRequest request) {
 }
 
 void km::SystemMemory::release(void *ptr, size_t size) {
-    PhysicalAddress start = systemTables().getBackingAddress(ptr);
+    PhysicalAddress start = mTables.getBackingAddress(ptr);
     if (start == KM_INVALID_MEMORY) {
         KmDebugMessage("[WARN] Attempted to release ", ptr, " but it is not mapped.\n");
         return;
     }
 
-    ptes.unmap(VirtualRange::of(ptr, size));
-    pmm.release(MemoryRange::of(start, size));
+    mTables.unmap(VirtualRange::of(ptr, size));
+    mPageAllocator.release(MemoryRange::of(start, size));
 }
 
 void km::SystemMemory::unmap(void *ptr, size_t size) {
-    ptes.unmap(VirtualRange::of(ptr, size));
+    mTables.unmap(VirtualRange::of(ptr, size));
 }
 
 void *km::SystemMemory::map(MemoryRange range, PageFlags flags, MemoryType type) {
@@ -78,7 +78,7 @@ void *km::SystemMemory::map(MemoryRange range, PageFlags flags, MemoryType type)
     reservePhysical(aligned);
 
     AddressMapping mapping{};
-    OsStatus status = ptes.map(aligned, flags, type, &mapping);
+    OsStatus status = mTables.map(aligned, flags, type, &mapping);
     if (status != OsStatusSuccess) {
         return nullptr;
     }

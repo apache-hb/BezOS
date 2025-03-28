@@ -11,12 +11,6 @@
 #include "std/spinlock.hpp"
 
 namespace km {
-    struct PageTableCreateInfo {
-        AddressMapping pteMemory;
-        const PageBuilder *pager;
-        PageFlags intermediateFlags;
-    };
-
     /// @brief Manages page tables for an address space.
     ///
     /// @details All ptes are allocated from a memory pool that is provided at construction.
@@ -110,12 +104,12 @@ namespace km {
         /// @param page The range of the 2m page.
         /// @param erase The range to unmap.
         /// @param pt The new page table to use.
-        /// @return The status of the operation.
         void cut2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange erase, x64::PageTable *pt);
 
         /// @brief Compute the number of page tables that need to be allocated to unmap the given range.
         ///
         /// @param range The range to unmap.
+        ///
         /// @return The number of page tables required, either 0, 1, or 2.
         int earlyAllocatePageTables(VirtualRange range);
 
@@ -149,8 +143,6 @@ namespace km {
 
         PageTables(const PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags);
 
-        void init(PageTableCreateInfo createInfo);
-
         const PageBuilder *pageManager() const noexcept { return mPageManager; }
 
         const x64::PageMapLevel4 *pml4() const noexcept { return mRootPageTable; }
@@ -159,9 +151,14 @@ namespace km {
 
         /// @brief Map a range of virtual address space to physical memory.
         ///
-        /// @param mapping The range of virtual memory to map.
+        /// @param mapping The mapping to create.
         /// @param flags The flags to use for the mapping.
         /// @param type The type of memory to map.
+        ///
+        /// @retval OsStatusSuccess The mapping was successful, the full range is mapped.
+        /// @retval OsStatusOutOfMemory There was not enough memory to map the range, no memory has been mapped.
+        /// @retval OsStatusInvalidInput The address mapping was malformed, no memory has been mapped.
+        ///
         /// @return The status of the operation.
         [[nodiscard]]
         OsStatus map(AddressMapping mapping, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
@@ -172,8 +169,17 @@ namespace km {
         /// Can partially unmap larger pages and will allocate new page tables as needed, hence the unmap
         /// operation can fail if memory is exhausted.
         ///
+        /// @note This operation can fail with @a OsStatusOutOfMemory if @p range is not aligned to 2m and is
+        ///       partially unmapping a 2m page. In this case the unmap will fail and no memory will be unmapped.
+        ///
         /// @param range The range to unmap.
+        ///
+        /// @retval OsStatusSuccess The unmap was successful, the full range is unmapped.
+        /// @retval OsStatusOutOfMemory There was not enough memory to allocate subtables, no memory has been unmapped.
+        /// @retval OsStatusInvalidInput The address mapping was malformed, no memory has been unmapped.
+        ///
         /// @return The status of the operation.
+        [[nodiscard]]
         OsStatus unmap(VirtualRange range);
 
         /// @brief Unmap a 2m aligned range of memory.
@@ -182,12 +188,18 @@ namespace km {
         /// Unlike @c unmap this function will not allocate new page tables, but as a result @p range must be 2m aligned.
         ///
         /// @param range The range to unmap.
+        ///
+        /// @retval OsStatusSuccess The unmap was successful, the full range is unmapped.
+        /// @retval OsStatusInvalidInput The address mapping was malformed or not aligned to 2m, no memory has been unmapped.
+        ///
         /// @return The status of the operation.
+        [[nodiscard]]
         OsStatus unmap2m(VirtualRange range);
 
         /// @brief Walk the page tables to find all tables involved in mapping a given address.
         ///
         /// @param ptr The address to walk.
+        ///
         /// @return The page walk result.
         [[nodiscard]]
         PageWalk walk(const void *ptr);
@@ -203,6 +215,7 @@ namespace km {
         /// @brief Get the physical address that backs a given virtual address.
         ///
         /// @param ptr The virtual address to query.
+        ///
         /// @return The physical address that backs the given virtual address.
         [[nodiscard]]
         PhysicalAddress getBackingAddress(const void *ptr);
@@ -210,6 +223,7 @@ namespace km {
         /// @brief Get the memory flags for a given address.
         ///
         /// @param ptr The address to query.
+        ///
         /// @return The memory flags for the given address.
         [[nodiscard]]
         PageFlags getMemoryFlags(const void *ptr);
@@ -217,14 +231,26 @@ namespace km {
         /// @brief Get the page size used to map a given address.
         ///
         /// @param ptr The address to query.
+        ///
         /// @return The page size used to map the given address.
         [[nodiscard]]
         PageSize getPageSize(const void *ptr);
 
-        void unmap(void *ptr, size_t size) {
-            unmap(VirtualRange { ptr, (char*)ptr + size });
-        }
-
+        /// @brief Map a range of memory to a virtual address.
+        ///
+        /// @note Equivalent to @c map(AddressMapping::of(range, vaddr), flags, type).
+        ///
+        /// @param range The range to map.
+        /// @param vaddr The virtual address to map to.
+        /// @param flags The flags to use for the mapping.
+        /// @param type The type of memory to map.
+        ///
+        /// @retval OsStatusSuccess The mapping was successful, the full range is mapped.
+        /// @retval OsStatusOutOfMemory There was not enough memory to map the range, no memory has been mapped.
+        /// @retval OsStatusInvalidInput The address mapping was malformed, no memory has been mapped.
+        ///
+        /// @return The status of the operation.
+        [[nodiscard]]
         OsStatus map(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
 
 #if __STDC_HOSTED__

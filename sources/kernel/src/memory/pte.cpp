@@ -39,14 +39,6 @@ PageTables::PageTables(const km::PageBuilder *pm, AddressMapping pteMemory, Page
     , mMiddleFlags(middleFlags)
 { }
 
-void PageTables::init(PageTableCreateInfo createInfo) {
-    mSlide = createInfo.pteMemory.slide();
-    mAllocator = PageTableAllocator(createInfo.pteMemory.virtualRange());
-    mPageManager = createInfo.pager;
-    mRootPageTable = (x64::PageMapLevel4*)alloc4k();
-    mMiddleFlags = createInfo.intermediateFlags;
-}
-
 x64::PageMapLevel3 *PageTables::getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e, detail::PageTableList& buffer) {
     x64::PageMapLevel3 *l3;
 
