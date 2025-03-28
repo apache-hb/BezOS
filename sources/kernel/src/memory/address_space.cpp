@@ -35,14 +35,15 @@ OsStatus km::AddressSpace::unmap(void *ptr, size_t size) {
 
 void *km::AddressSpace::map(MemoryRange range, PageFlags flags, MemoryType type) {
     uintptr_t offset = range.front.address % x64::kPageSize;
+    MemoryRange aligned = alignedOut(range, x64::kPageSize);
 
-    size_t pages = Pages(range.size());
+    size_t pages = Pages(aligned.size());
     VirtualRange vmem = mVmemAllocator.allocate(pages);
     if (vmem.isEmpty()) {
         return nullptr;
     }
 
-    AddressMapping m = MappingOf(vmem, range.front);
+    AddressMapping m = MappingOf(vmem, aligned.front);
     OsStatus status = mTables.map(m, flags, type);
     if (status != OsStatusSuccess) {
         mVmemAllocator.release(vmem);

@@ -1,12 +1,14 @@
 #pragma once
 
-#include "memory.hpp"
-
 #include "acpi/mcfg.hpp"
 
 #include <stdint.h>
 
 #include <memory>
+
+namespace km {
+    class AddressSpace;
+}
 
 namespace pci {
     struct DeviceBusAddress {
@@ -44,7 +46,7 @@ namespace pci {
         const acpi::Mcfg *mMcfg;
         std::unique_ptr<EcamRegion[]> mRegions;
     public:
-        McfgConfigSpace(const acpi::Mcfg *mcfg, km::SystemMemory& memory);
+        McfgConfigSpace(const acpi::Mcfg *mcfg, km::AddressSpace& memory);
 
         uint32_t read32(uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset) override;
     };
@@ -54,5 +56,5 @@ namespace pci {
         uint32_t read32(uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset) override;
     };
 
-    IConfigSpace *InitConfigSpace(const acpi::Mcfg *mcfg, km::SystemMemory& memory);
+    IConfigSpace *InitConfigSpace(const acpi::Mcfg *mcfg, km::AddressSpace& memory);
 }

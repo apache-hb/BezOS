@@ -1,0 +1,20 @@
+<package name='gnu-make' version='4.4.1'>
+    <download file='make-4.4.1.tar.gz'
+              url='https://mirror.its.dal.ca/gnu/make/make-4.4.1.tar.gz'
+              trim-root-folder='true'
+              sha256=''
+              archive='tar' />
+
+    <configure with='autoconf' using='@PREFIX@/automake/bin/automake'>
+        <env CC='@PREFIX@/llvm/bin/clang'
+             CXX='@PREFIX@/llvm/bin/clang++'
+             AR='@PREFIX@/llvm/bin/llvm-ar'
+             LD='@PREFIX@/llvm/bin/ld.lld'
+             CFLAGS='--sysroot @PREFIX@ --target=x86_64-unknown-bezos-jlibc'
+             LDFLAGS='--sysroot @PREFIX@ --target=x86_64-unknown-bezos-jlibc' />
+
+        <options host='x86_64-unknown-bezos-jlibc'
+                 without-doc=''
+                 disable-nls='' />
+    </configure>
+</package>

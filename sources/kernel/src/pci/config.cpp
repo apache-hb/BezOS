@@ -2,6 +2,7 @@
 
 #include "delay.hpp"
 #include "log.hpp"
+#include "memory/address_space.hpp"
 
 static constexpr uint8_t kOffsetMask = 0b1111'1100;
 
@@ -58,7 +59,7 @@ uint32_t pci::PortConfigSpace::read32(uint8_t bus, uint8_t slot, uint8_t functio
 
 // MMIO-based PCI configuration space read
 
-pci::McfgConfigSpace::McfgConfigSpace(const acpi::Mcfg *mcfg, km::SystemMemory& memory)
+pci::McfgConfigSpace::McfgConfigSpace(const acpi::Mcfg *mcfg, km::AddressSpace& memory)
     : mMcfg(mcfg)
     , mRegions(new (std::nothrow) EcamRegion[mMcfg->allocationCount()])
 {
@@ -100,7 +101,7 @@ uint32_t pci::McfgConfigSpace::read32(uint8_t bus, uint8_t slot, uint8_t functio
     return UINT32_MAX;
 }
 
-pci::IConfigSpace *pci::InitConfigSpace(const acpi::Mcfg *mcfg, km::SystemMemory& memory) {
+pci::IConfigSpace *pci::InitConfigSpace(const acpi::Mcfg *mcfg, km::AddressSpace& memory) {
     if (mcfg == nullptr) {
         KmDebugMessage("[PCI] No MCFG table.\n");
         return new PortConfigSpace{};
