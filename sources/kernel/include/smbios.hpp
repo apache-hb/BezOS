@@ -1,9 +1,14 @@
 #pragma once
 
-#include "memory.hpp"
+#include <bezos/status.h>
+
+#include "memory/range.hpp"
+#include "std/string_view.hpp"
 #include "util/signature.hpp"
 
 namespace km {
+    class AddressSpace;
+
     /// @brief Structures defined by the DMTF SMBIOS specification.
     ///
     /// @cite DSP0134
@@ -166,5 +171,5 @@ namespace km {
     };
 
     [[nodiscard]]
-    OsStatus FindSmbiosTables(SmBiosLoadOptions options, km::SystemMemory& memory, SmBiosTables *tables [[gnu::nonnull]]);
+    OsStatus FindSmbiosTables(SmBiosLoadOptions options, km::AddressSpace& memory, SmBiosTables *tables [[gnu::nonnull]]);
 }

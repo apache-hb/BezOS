@@ -1,6 +1,7 @@
 #include "smbios.hpp"
 
 #include "log.hpp"
+#include "memory/address_space.hpp"
 
 #include <stdint.h>
 
@@ -14,7 +15,7 @@ constexpr km::MemoryRange SmBiosTableRange(const T *table) {
 }
 
 template<typename T>
-static km::VirtualRange SmBiosMapTable(const T *table, km::SystemMemory& memory) {
+static km::VirtualRange SmBiosMapTable(const T *table, km::AddressSpace& memory) {
     KmDebugMessage("[SMBIOS] Table: ", (void*)table, "\n");
     KmDebugMessage(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(table), sizeof(T))), "\n");
 
@@ -144,7 +145,7 @@ size_t km::smbios::GetStructSize(const StructHeader *header) {
     return size;
 }
 
-static OsStatus FindSmbios64(km::PhysicalAddress address, bool ignoreChecksum, km::SystemMemory& memory, const smbios::Entry64 **entry) {
+static OsStatus FindSmbios64(km::PhysicalAddress address, bool ignoreChecksum, km::AddressSpace& memory, const smbios::Entry64 **entry) {
     const auto *smbios = memory.mapConst<smbios::Entry64>(address);
 
     if (smbios->anchor != smbios::Entry64::kAnchor0) {
@@ -161,7 +162,7 @@ static OsStatus FindSmbios64(km::PhysicalAddress address, bool ignoreChecksum, k
     return OsStatusSuccess;
 }
 
-static OsStatus FindSmbios32(km::PhysicalAddress address, bool ignoreChecksum, km::SystemMemory& memory, const smbios::Entry32 **entry) {
+static OsStatus FindSmbios32(km::PhysicalAddress address, bool ignoreChecksum, km::AddressSpace& memory, const smbios::Entry32 **entry) {
     const auto *smbios = memory.mapConst<smbios::Entry32>(address);
 
     if (smbios->anchor0 != smbios::Entry32::kAnchor0) {
@@ -188,7 +189,7 @@ static OsStatus FindSmbios32(km::PhysicalAddress address, bool ignoreChecksum, k
     return OsStatusSuccess;
 }
 
-OsStatus km::FindSmbiosTables(SmBiosLoadOptions options, km::SystemMemory& memory, SmBiosTables *tables [[gnu::nonnull]]) {
+OsStatus km::FindSmbiosTables(SmBiosLoadOptions options, km::AddressSpace& memory, SmBiosTables *tables [[gnu::nonnull]]) {
     //
     // Store the status as a local so that we can return the last error if both fail.
     //

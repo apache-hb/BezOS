@@ -1672,7 +1672,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     km::SmBiosTables smbios{};
 
-    if (OsStatus status = FindSmbiosTables(smbiosOptions, *gMemory, &smbios)) {
+    if (OsStatus status = FindSmbiosTables(smbiosOptions, gMemory->pageTables(), &smbios)) {
         KmDebugMessage("[INIT] Failed to find SMBIOS tables: ", status, "\n");
     }
 
@@ -1696,7 +1696,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     KM_CHECK(ioApicCount > 0, "No IOAPICs found.");
     IoApicSet ioApicSet{ rsdt.madt(), *stage2->memory };
 
-    std::unique_ptr<pci::IConfigSpace> config{pci::InitConfigSpace(rsdt.mcfg(), stage2->memory->pageTables())};
+    std::unique_ptr<pci::IConfigSpace> config{pci::InitConfigSpace(rsdt.mcfg(), gMemory->pageTables())};
     if (!config) {
         KM_PANIC("Failed to initialize PCI config space.");
     }
