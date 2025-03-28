@@ -34,7 +34,8 @@ OsStatus sys2::Process::stat(ProcessInfo *info) {
 sys2::Process::Process(const ProcessCreateInfo& createInfo, const km::AddressSpace *systemTables, km::AddressMapping pteMemory)
     : mName(createInfo.name)
     , mSupervisor(createInfo.supervisor)
-    , mPageTables(systemTables, pteMemory, km::PageFlags::eUserAll, km::DefaultUserArea())
+    , mPteMemory(pteMemory)
+    , mPageTables(systemTables, mPteMemory, km::PageFlags::eUserAll, km::DefaultUserArea())
 { }
 
 OsStatus sys2::CreateProcess(System *system, const ProcessCreateInfo& info, sm::RcuSharedPtr<Process> *process) {
@@ -50,4 +51,21 @@ OsStatus sys2::CreateProcess(System *system, const ProcessCreateInfo& info, sm::
     }
 
     return OsStatusOutOfMemory;
+}
+
+OsStatus sys2::DestroyProcess(System *system, const ProcessDestroyInfo&, sm::RcuSharedPtr<Process> process) {
+    // TODO: destroy threads, close handles, destroy children, etc.
+    // TODO: wait for all threads to exit
+
+    if (OsStatus status = system->releaseMapping(process->mPteMemory)) {
+        return status;
+    }
+
+    for (km::MemoryRange range : process->mPhysicalMemory) {
+        system->releaseMemory(range);
+    }
+
+    process->mPhysicalMemory.clear();
+
+    return OsStatusSuccess;
 }

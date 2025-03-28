@@ -9,8 +9,8 @@
 class SystemTest : public testing::Test {
 public:
     void SetUp() override {
-        body.addSegment(0x100000, boot::MemoryRegion::eUsable);
-        body.addSegment(0x100000, boot::MemoryRegion::eUsable);
+        body.addSegment(sm::megabytes(4).bytes(), boot::MemoryRegion::eUsable);
+        body.addSegment(sm::megabytes(4).bytes(), boot::MemoryRegion::eUsable);
     }
 
     SystemMemoryTestBody body;
@@ -29,7 +29,7 @@ TEST_F(SystemTest, ConstructMultiple) {
 }
 
 TEST_F(SystemTest, CreateProcess) {
-    km::SystemMemory memory = body.make();
+    km::SystemMemory memory = body.make(sm::megabytes(2).bytes());
     sys2::GlobalSchedule schedule(128, 128);
     sys2::System system(&schedule, &memory.pageTables(), &memory.pmmAllocator());
 
@@ -39,6 +39,21 @@ TEST_F(SystemTest, CreateProcess) {
         .supervisor = false,
     };
 
+    auto before = memory.systemTables().TESTING_getPageTableAllocator().stats();
+
     OsStatus status = sys2::CreateProcess(&system, createInfo, &process);
     ASSERT_EQ(status, OsStatusSuccess);
+
+    sys2::ProcessDestroyInfo destroyInfo {
+        .exitCode = 0,
+        .reason = eOsProcessExited,
+    };
+
+    status = sys2::DestroyProcess(&system, destroyInfo, process);
+    ASSERT_EQ(status, OsStatusSuccess);
+
+    (void)memory.systemTables().compact();
+
+    auto after = memory.systemTables().TESTING_getPageTableAllocator().stats();
+    ASSERT_EQ(after.freeBlocks, before.freeBlocks) << "Memory was leaked";
 }

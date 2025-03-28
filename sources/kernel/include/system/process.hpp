@@ -37,6 +37,9 @@ namespace sys2 {
         bool supervisor;
     };
 
+    OsStatus CreateProcess(System *system, const ProcessCreateInfo& info, sm::RcuSharedPtr<Process> *process);
+    OsStatus DestroyProcess(System *system, const ProcessDestroyInfo& info, sm::RcuSharedPtr<Process> process);
+
     class Process final : public IObject {
         stdx::SharedSpinLock mLock;
 
@@ -50,10 +53,14 @@ namespace sys2 {
         sm::FlatHashMap<OsHandle, sm::RcuSharedPtr<IObject>> mHandles;
 
         /// @brief All the physical memory dedicated to this process.
-        stdx::Vector3<km::MemoryRange> mPhysicalMemory;
+        stdx::Vector2<km::MemoryRange> mPhysicalMemory;
 
+        km::AddressMapping mPteMemory;
         /// @brief The page tables for this process.
         km::AddressSpace mPageTables;
+
+        friend OsStatus sys2::CreateProcess(System *system, const ProcessCreateInfo& info, sm::RcuSharedPtr<Process> *process);
+        friend OsStatus sys2::DestroyProcess(System *system, const ProcessDestroyInfo& info, sm::RcuSharedPtr<Process> process);
 
     public:
         Process(const ProcessCreateInfo& createInfo, const km::AddressSpace *systemTables, km::AddressMapping pteMemory);
@@ -69,7 +76,4 @@ namespace sys2 {
         OsStatus stat(ProcessInfo *info);
         bool isSupervisor() const { return mSupervisor; }
     };
-
-    OsStatus CreateProcess(System *system, const ProcessCreateInfo& info, sm::RcuSharedPtr<Process> *process);
-    OsStatus DestroyProcess(System *system, const ProcessDestroyInfo& info, sm::RcuSharedPtr<Process> process);
 }
