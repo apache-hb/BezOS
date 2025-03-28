@@ -1736,7 +1736,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     tickSources.add(&pit);
 
     km::HighPrecisionTimer hpet;
-    if (OsStatus status = km::InitHpet(rsdt, *gMemory, &hpet)) {
+    if (OsStatus status = km::InitHpet(rsdt, gMemory->pageTables(), &hpet)) {
         KmDebugMessage("[INIT] Failed to initialize HPET: ", status, "\n");
     } else {
         hpet.enable(true);

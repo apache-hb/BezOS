@@ -176,7 +176,7 @@ std::span<const km::hpet::Comparator> km::HighPrecisionTimer::comparators() cons
     return std::span<const hpet::Comparator>(begin, end);
 }
 
-OsStatus km::InitHpet(const acpi::AcpiTables& rsdt, SystemMemory& memory, HighPrecisionTimer *timer) {
+OsStatus km::InitHpet(const acpi::AcpiTables& rsdt, AddressSpace& memory, HighPrecisionTimer *timer) {
     for (const acpi::RsdtHeader *header : rsdt.entries()) {
         if (header->signature != acpi::Hpet::kSignature)
             continue;
@@ -188,7 +188,7 @@ OsStatus km::InitHpet(const acpi::AcpiTables& rsdt, SystemMemory& memory, HighPr
             return OsStatusInvalidAddress;
         }
 
-        hpet::MmioRegisters *mmio = memory.mmioRegion<hpet::MmioRegisters>(km::PhysicalAddress { baseAddress.address });
+        hpet::MmioRegisters *mmio = memory.mapMmio<hpet::MmioRegisters>(km::PhysicalAddress { baseAddress.address });
         if (mmio == nullptr) {
             KmDebugMessage("[WARN] Failed to map HPET MMIO region.\n");
             return OsStatusOutOfMemory;
