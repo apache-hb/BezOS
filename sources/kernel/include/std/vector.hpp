@@ -1,5 +1,7 @@
 #pragma once
 
+#include <bezos/status.h>
+
 #include <memory>
 #include <span>
 
@@ -213,10 +215,12 @@ namespace stdx {
         T *mBack;
         T *mCapacity;
 
-        constexpr void ensureExtra(size_t extra) {
+        constexpr OsStatus ensureExtra(size_t extra) {
             if ((count() + extra) >= capacity()) {
-                reserveExact(capacity() + extra);
+                return reserveExact(capacity() + extra);
             }
+
+            return OsStatusSuccess;
         }
 
         constexpr void destroy() {
@@ -321,14 +325,22 @@ namespace stdx {
             mBack = mFront;
         }
 
-        constexpr void reserve(size_t size) {
-            reserveExact(std::max(size, capacity()));
+        constexpr OsStatus reserve(size_t size) {
+            return reserveExact(std::max(size, capacity()));
         }
 
-        constexpr void reserveExact(size_t size) {
+        /// @brief Reserve an exact amount of space.
+        ///
+        /// @param size The size to reserve.
+        ///
+        /// @retval OsStatusSuccess The reservation was successful.
+        /// @retval OsStatusOutOfMemory There was not enough memory to reserve the space.
+        ///
+        /// @return The status of the operation.
+        constexpr OsStatus reserveExact(size_t size) {
             size_t oldCapacity = capacity();
             if (size < oldCapacity) {
-                return;
+                return OsStatusSuccess;
             }
 
             // need to cache this here for correctness
@@ -336,10 +348,18 @@ namespace stdx {
 
             if (mFront == nullptr) {
                 mFront = mAllocator.allocate(size);
+                if (mFront == nullptr) {
+                    return OsStatusOutOfMemory;
+                }
+
                 mBack = mFront;
                 mCapacity = mFront + size;
             } else {
                 T *newData = mAllocator.allocate(size);
+                if (newData == nullptr) {
+                    return OsStatusOutOfMemory;
+                }
+
                 std::uninitialized_move(mFront, mBack, newData);
                 std::destroy_n(mFront, count());
                 mAllocator.deallocate(mFront, oldCapacity);
@@ -347,17 +367,24 @@ namespace stdx {
                 mBack = mFront + currentCount;
                 mCapacity = mFront + size;
             }
+
+            return OsStatusSuccess;
         }
 
-        constexpr void resize(size_t size) {
+        constexpr OsStatus resize(size_t size) {
             if (size < count()) {
                 std::destroy_n(mFront + size, count() - size);
                 mBack = mFront + size;
             } else if (size > count()) {
-                ensureExtra(size - count());
+                if (OsStatus status = ensureExtra(size - count())) {
+                    return status;
+                }
+
                 std::uninitialized_default_construct(mBack, mFront + size);
                 mBack = mFront + size;
             }
+
+            return OsStatusSuccess;
         }
 
         constexpr T *data() { return mFront; }
@@ -399,9 +426,13 @@ namespace stdx {
             return std::construct_at(mBack++, std::forward<Args>(args)...);
         }
 
-        constexpr void add(T value) {
-            ensureExtra(1);
+        constexpr OsStatus add(T value) {
+            if (OsStatus status = ensureExtra(1)) {
+                return status;
+            }
+
             std::construct_at(mBack++, std::move(value));
+            return OsStatusSuccess;
         }
 
         constexpr void addRange(std::span<const T> src) {
