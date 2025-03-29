@@ -12,6 +12,40 @@ extern "C" {
 OS_DEFINE_GUID(kOsCommandLineParamGuid, 0x768582ba, 0x0197, 0x11f0, 0xbc84, 0x7f8e0b26baac);
 
 enum {
+    eOsProcessAccessNone = 0,
+
+    /// @brief Grants access to terminate the process.
+    eOsProcessAccessTerminate     = (1 << 0),
+
+    /// @brief Grants access to suspend and resume the process.
+    eOsProcessAccessSuspend       = (1 << 1),
+
+    /// @brief Grants access to wait for the process to exit.
+    eOsProcessAccessWait          = (1 << 2),
+
+    /// @brief Grants access to create, update, and destroy virtual memory mappings.
+    eOsProcessAccessVmControl     = (1 << 3),
+
+    /// @brief Grants access to create, update, and destroy threads.
+    eOsProcessAccessThreadControl = (1 << 4),
+
+    /// @brief Grants access to create, update, and destroy devices and nodes.
+    eOsProcessAccessIoControl     = (1 << 5),
+
+    /// @brief Grants access to create, update, and destroy quotas.
+    eOsProcessAccessQuota         = (1 << 6),
+
+    eOsProcessAccessAll
+        = eOsProcessAccessTerminate
+        | eOsProcessAccessSuspend
+        | eOsProcessAccessWait
+        | eOsProcessAccessVmControl
+        | eOsProcessAccessThreadControl
+        | eOsProcessAccessIoControl
+        | eOsProcessAccessQuota,
+};
+
+enum {
     eOsProcessNone = 0,
 
     /// @brief Process is running.
@@ -90,6 +124,17 @@ struct OsProcessInfo {
 
 extern OsStatus OsProcessCurrent(OsProcessHandle *OutHandle);
 
+/// @brief Create a new process and return a handle to it
+///
+/// Creates an empty process object and initializes it with the given parameters.
+/// The new process has no threads, an empty virtual address space, and no open handles.
+///
+/// @note The returned handle is granted @a eOsProcessAccessAll access to the process object.
+///
+/// @param CreateInfo The parameters to use when creating the process.
+/// @param OutHandle The handle to the new process object.
+///
+/// @return An error code indicating the result of the operation.
 extern OsStatus OsProcessCreate(struct OsProcessCreateInfo CreateInfo, OsProcessHandle *OutHandle);
 
 extern OsStatus OsProcessTerminate(OsProcessHandle Handle, int64_t ExitCode);

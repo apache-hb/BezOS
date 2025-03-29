@@ -85,9 +85,6 @@ namespace sys2 {
 
         stdx::StringView getClassName() const override { return "Thread"; }
 
-        OsStatus open(OsHandle *handle) override;
-        OsStatus close(OsHandle handle) override;
-
         OsStatus stat(ThreadInfo *info);
 
         void saveState(RegisterSet& regs);

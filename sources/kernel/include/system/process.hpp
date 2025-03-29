@@ -13,6 +13,10 @@ namespace sys2 {
     class System;
     class Thread;
     class Process;
+    class ProcessHandle;
+
+    enum class ProcessId : uint64_t {};
+    enum class ProcessAccess : uint64_t {};
 
     struct ProcessCreateInfo {
         sm::RcuWeakPtr<Process> parent;
@@ -40,11 +44,26 @@ namespace sys2 {
     OsStatus CreateProcess(System *system, ProcessCreateInfo info, sm::RcuSharedPtr<Process> *process);
     OsStatus DestroyProcess(System *system, const ProcessDestroyInfo& info, sm::RcuWeakPtr<Process> process);
 
+    class ProcessHandle final : public IHandle {
+        sm::RcuWeakPtr<Process> mProcess;
+        sm::RcuWeakPtr<Process> mOwner;
+        OsHandle mHandle;
+        ProcessAccess mAccess;
+
+    public:
+        ProcessHandle(sm::RcuWeakPtr<Process> process, OsHandle handle, ProcessAccess access);
+
+        sm::RcuWeakPtr<IObject> getOwner() override;
+        sm::RcuWeakPtr<IObject> getObject() override;
+        OsHandle getHandle() const override { return mHandle; }
+    };
+
     class Process final : public IObject {
         stdx::SharedSpinLock mLock;
 
         ObjectName mName GUARDED_BY(mLock);
         bool mSupervisor;
+        ProcessId mId;
 
         sm::RcuWeakPtr<Process> mParent;
 
@@ -52,7 +71,7 @@ namespace sys2 {
         sm::FlatHashSet<sm::RcuWeakPtr<Process>> mChildren;
 
         /// @brief All the handles this process has open.
-        sm::FlatHashMap<OsHandle, sm::RcuWeakPtr<IObject>> mHandles;
+        sm::FlatHashMap<OsHandle, std::unique_ptr<IHandle>> mHandles;
 
         /// @brief All the physical memory dedicated to this process.
         stdx::Vector2<km::MemoryRange> mPhysicalMemory;
@@ -76,12 +95,8 @@ namespace sys2 {
 
         stdx::StringView getClassName() const override { return "Process"; }
 
-        OsStatus open(OsHandle *handle) override;
-        OsStatus close(OsHandle handle) override;
-
         OsStatus stat(ProcessInfo *info);
         bool isSupervisor() const { return mSupervisor; }
-
 
 #if __STDC_HOSTED__
         bool TESTING_hasChildProcess(sm::RcuWeakPtr<Process> child) {

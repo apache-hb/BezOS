@@ -12,14 +12,6 @@ sys2::ObjectName sys2::Process::getName() {
     return mName;
 }
 
-OsStatus sys2::Process::open(OsHandle*) {
-    return OsStatusNotSupported;
-}
-
-OsStatus sys2::Process::close(OsHandle) {
-    return OsStatusNotSupported;
-}
-
 OsStatus sys2::Process::stat(ProcessInfo *info) {
     stdx::SharedLock guard(mLock);
     *info = ProcessInfo {

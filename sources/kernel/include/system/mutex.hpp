@@ -9,8 +9,5 @@ namespace sys2 {
         ObjectName getName() override;
 
         stdx::StringView getClassName() const override { return "Mutex"; }
-
-        OsStatus open(OsHandle *handle) override;
-        OsStatus close(OsHandle handle) override;
     };
 }

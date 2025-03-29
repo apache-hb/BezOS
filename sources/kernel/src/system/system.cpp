@@ -7,8 +7,7 @@ static constexpr size_t kDefaultPtePageCount = 128;
 
 void sys2::System::addObject(sm::RcuSharedPtr<IObject> object) {
     stdx::UniqueLock guard(mLock);
-    auto [it, ok] = mObjects.insert(object);
-    KM_CHECK(ok, "Failed to add object to system");
+    mObjects.insert(object);
 }
 
 void sys2::System::removeObject(sm::RcuWeakPtr<IObject> object) {
