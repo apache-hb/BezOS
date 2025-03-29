@@ -1,51 +1,40 @@
 #pragma once
 
+#include "std/detail/sticky_counter.hpp"
+
 #include "std/rcu.hpp"
 
 namespace sm {
     namespace rcu::detail {
         class JointCount {
-            static constexpr uint64_t kStrongIsZero = (UINT64_C(1) << 63);
-            static constexpr uint64_t kWeakIsZero = (UINT64_C(1) << 31);
-            static constexpr uint64_t kStrongMask = 0xFFFFFFFF00000000;
-            static constexpr uint64_t kWeakMask = 0x00000000FFFFFFFF;
-            static constexpr uint64_t kStrongOne = (UINT64_C(1) << 32);
-            static constexpr uint64_t kWeakOne = (UINT64_C(1) << 0);
-
-            /// @brief The joint reference count
-            /// The high 32 bits are the strong reference count.
-            /// The low 32 bits are the weak reference count.
-            std::atomic<uint64_t> mCount;
+            sm::detail::WaitFreeCounter<uint32_t> mWeakCount;
+            sm::detail::WaitFreeCounter<uint32_t> mStrongCount;
 
         public:
             enum Release { eNone = 0, eStrong = (1 << 0), eWeak = (1 << 1) };
 
             constexpr JointCount() = default;
             constexpr JointCount(uint32_t strong, uint32_t weak)
-                : mCount((uint64_t(strong) << 32) | uint64_t(weak))
+                : mWeakCount(weak)
+                , mStrongCount(strong)
             { }
 
             /// @brief Increment the weak reference count.
             /// @return False if the strong reference count is zero, true otherwise.
             bool weakRetain() {
-                return (mCount.fetch_add(kWeakOne) & kWeakIsZero) == 0;
+                return mWeakCount.increment(1);
             }
 
             /// @brief Decrement the weak reference count.
             /// @return True if the weak count was brought to zero by this operation, false otherwise.
             bool weakRelease() {
-                if (uint64_t count = mCount.fetch_sub(kWeakOne); (count & kWeakMask) == kWeakOne) {
-                    uint64_t expected = count & ~kWeakMask;
-                    return mCount.compare_exchange_strong(expected, expected | kWeakIsZero);
-                }
-
-                return false;
+                return mWeakCount.decrement(1);
             }
 
             /// @brief Increment the weak and strong reference count.
             /// @return False if the strong reference count is zero, true otherwise.
             bool strongRetain() {
-                if ((mCount.fetch_add(kStrongOne) & kStrongIsZero) == 0) {
+                if (mStrongCount.increment(1)) {
                     weakRetain();
                     return true;
                 }
@@ -56,41 +45,8 @@ namespace sm {
             /// @brief Decrement the weak and strong reference count.
             /// @return A mask of which reference counts were brought to zero by this operation.
             Release strongRelease() {
-                bool weakCleared = false;
-                bool strongCleared = false;
-                if (uint64_t count = mCount.fetch_sub(kStrongOne | kWeakOne); ((count & kStrongMask) == kStrongOne || (count & kWeakMask) == kWeakOne)) {
-                    weakCleared = (count & kWeakMask) == kWeakOne;
-                    strongCleared = (count & kStrongMask) == kStrongOne;
-
-                    uint64_t expected = count;
-                    uint64_t value = expected;
-                    if (weakCleared) {
-                        expected = (expected & ~kWeakMask) | kWeakIsZero;
-                        value |= kWeakIsZero;
-                    }
-
-                    if (strongCleared) {
-                        expected = (expected & ~kStrongMask) | kStrongIsZero;
-                        value |= kStrongIsZero;
-                    }
-
-                    while (!mCount.compare_exchange_strong(expected, value)) {
-                        value = expected;
-
-                        weakCleared = (expected & kWeakMask) == 0;
-                        strongCleared = (expected & kStrongMask) == 0;
-
-                        if (weakCleared) {
-                            expected = (expected & ~kWeakMask);
-                            value |= kWeakIsZero;
-                        }
-
-                        if (strongCleared) {
-                            expected = (expected & ~kStrongMask);
-                            value |= kStrongIsZero;
-                        }
-                    }
-                }
+                bool strongCleared = mStrongCount.decrement(1);
+                bool weakCleared = mWeakCount.decrement(1);
 
                 int result = eNone;
                 if (strongCleared)
@@ -99,6 +55,14 @@ namespace sm {
                     result |= eWeak;
 
                 return Release(result);
+            }
+
+            uint32_t strongCount(std::memory_order order = std::memory_order_seq_cst) const {
+                return mStrongCount.load(order);
+            }
+
+            uint32_t weakCount(std::memory_order order = std::memory_order_seq_cst) const {
+                return mWeakCount.load(order);
             }
         };
 
@@ -396,7 +360,32 @@ namespace sm {
         constexpr size_t hash() const {
             return std::hash<rcu::detail::ControlBlock*>{}(mControl);
         }
+
+        size_t strongCount() const {
+            if (rcu::detail::ControlBlock *cb = mControl.load()) {
+                return cb->count.strongCount();
+            }
+
+            return 0;
+        }
+
+        size_t weakCount() const {
+            if (rcu::detail::ControlBlock *cb = mControl.load()) {
+                return cb->count.weakCount();
+            }
+
+            return 0;
+        }
     };
+
+    template<typename O, typename Self>
+    constexpr RcuWeakPtr<O> rcuWeakPtrCast(const RcuWeakPtr<Self>& weak) {
+        if (weak.mControl != nullptr) {
+            return RcuWeakPtr<O>(weak.mControl, rcu::detail::AcquireControl{});
+        }
+
+        return nullptr;
+    }
 
     template<typename T>
     class RcuWeakPtr {
@@ -424,6 +413,10 @@ namespace sm {
             } else {
                 release();
             }
+        }
+
+        constexpr RcuWeakPtr(rcu::detail::ControlBlock *control, rcu::detail::AcquireControl) : RcuWeakPtr() {
+            acquire(control);
         }
 
     public:
@@ -483,6 +476,25 @@ namespace sm {
         constexpr size_t hash() const {
             return std::hash<rcu::detail::ControlBlock*>{}(mControl);
         }
+
+        size_t strongCount() const {
+            if (rcu::detail::ControlBlock *cb = mControl.load()) {
+                return cb->count.strongCount();
+            }
+
+            return 0;
+        }
+
+        size_t weakCount() const {
+            if (rcu::detail::ControlBlock *cb = mControl.load()) {
+                return cb->count.weakCount();
+            }
+
+            return 0;
+        }
+
+        template<typename O, typename Self>
+        friend constexpr RcuWeakPtr<O> sm::rcuWeakPtrCast(const RcuWeakPtr<Self>& weak);
     };
 
     template<typename T>
@@ -497,12 +509,14 @@ namespace sm {
         }
 
     public:
-        RcuWeakPtr<T> loanWeak() {
-            return mWeakThis;
+        template<typename Self>
+        auto loanWeak(this Self&& self) -> RcuWeakPtr<std::remove_cvref_t<Self>> {
+            return rcuWeakPtrCast<std::remove_cvref_t<Self>>(self.mWeakThis);
         }
 
-        RcuSharedPtr<T> loanShared() {
-            return mWeakThis.lock();
+        template<typename Self>
+        auto loanShared(this auto&& self) -> RcuSharedPtr<std::remove_cvref_t<Self>>{
+            return self.loanWeak().lock();
         }
     };
 

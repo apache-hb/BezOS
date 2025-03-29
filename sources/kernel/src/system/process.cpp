@@ -38,7 +38,18 @@ sys2::Process::Process(const ProcessCreateInfo& createInfo, const km::AddressSpa
     , mPageTables(systemTables, mPteMemory, km::PageFlags::eUserAll, km::DefaultUserArea())
 { }
 
-OsStatus sys2::CreateProcess(System *system, const ProcessCreateInfo& info, sm::RcuSharedPtr<Process> *process) {
+void sys2::Process::addChild(sm::RcuSharedPtr<Process> child) {
+    stdx::UniqueLock guard(mLock);
+    mChildren.insert(child);
+    child->mParent = loanWeak();
+}
+
+void sys2::Process::removeChild(sm::RcuSharedPtr<Process> child) {
+    stdx::UniqueLock guard(mLock);
+    mChildren.erase(child);
+}
+
+OsStatus sys2::CreateProcess(System *system, ProcessCreateInfo info, sm::RcuSharedPtr<Process> *process) {
     km::AddressMapping pteMemory;
     if (OsStatus status = system->mapProcessPageTables(&pteMemory)) {
         return status;
@@ -46,6 +57,11 @@ OsStatus sys2::CreateProcess(System *system, const ProcessCreateInfo& info, sm::
 
     if (auto result = sm::rcuMakeShared<sys2::Process>(&system->rcuDomain(), info, system->pageTables(), pteMemory)) {
         system->addObject(result.weak());
+
+        if (auto parent = info.parent.lock()) {
+            parent->addChild(result);
+        }
+
         *process = result;
         return OsStatusSuccess;
     }
@@ -53,9 +69,19 @@ OsStatus sys2::CreateProcess(System *system, const ProcessCreateInfo& info, sm::
     return OsStatusOutOfMemory;
 }
 
-OsStatus sys2::DestroyProcess(System *system, const ProcessDestroyInfo&, sm::RcuSharedPtr<Process> process) {
+OsStatus sys2::DestroyProcess(System *system, const ProcessDestroyInfo& info, sm::RcuSharedPtr<Process> process) {
     // TODO: destroy threads, close handles, destroy children, etc.
     // TODO: wait for all threads to exit
+
+    for (auto child : process->mChildren) {
+        if (OsStatus status = DestroyProcess(system, info, child)) {
+            return status;
+        }
+    }
+
+    if (auto parent = process->mParent.lock()) {
+        parent->removeChild(process);
+    }
 
     if (OsStatus status = system->releaseMapping(process->mPteMemory)) {
         return status;

@@ -37,7 +37,7 @@ namespace sys2 {
         bool supervisor;
     };
 
-    OsStatus CreateProcess(System *system, const ProcessCreateInfo& info, sm::RcuSharedPtr<Process> *process);
+    OsStatus CreateProcess(System *system, ProcessCreateInfo info, sm::RcuSharedPtr<Process> *process);
     OsStatus DestroyProcess(System *system, const ProcessDestroyInfo& info, sm::RcuSharedPtr<Process> process);
 
     class Process final : public IObject {
@@ -45,6 +45,8 @@ namespace sys2 {
 
         ObjectName mName GUARDED_BY(mLock);
         bool mSupervisor;
+
+        sm::RcuWeakPtr<Process> mParent;
 
         sm::FlatHashSet<sm::RcuSharedPtr<Thread>> mThreads;
         sm::FlatHashSet<sm::RcuSharedPtr<Process>> mChildren;
@@ -56,10 +58,14 @@ namespace sys2 {
         stdx::Vector2<km::MemoryRange> mPhysicalMemory;
 
         km::AddressMapping mPteMemory;
+
         /// @brief The page tables for this process.
         km::AddressSpace mPageTables;
 
-        friend OsStatus sys2::CreateProcess(System *system, const ProcessCreateInfo& info, sm::RcuSharedPtr<Process> *process);
+        void addChild(sm::RcuSharedPtr<Process> child);
+        void removeChild(sm::RcuSharedPtr<Process> child);
+
+        friend OsStatus sys2::CreateProcess(System *system, ProcessCreateInfo info, sm::RcuSharedPtr<Process> *process);
         friend OsStatus sys2::DestroyProcess(System *system, const ProcessDestroyInfo& info, sm::RcuSharedPtr<Process> process);
 
     public:
@@ -75,5 +81,13 @@ namespace sys2 {
 
         OsStatus stat(ProcessInfo *info);
         bool isSupervisor() const { return mSupervisor; }
+
+
+#if __STDC_HOSTED__
+        bool TESTING_hasChildProcess(sm::RcuSharedPtr<Process> child) {
+            stdx::SharedLock guard(mLock);
+            return mChildren.contains(child);
+        }
+#endif
     };
 }

@@ -128,3 +128,57 @@ TEST_F(SystemTest, CreateProcessAsync) {
 
     CheckMemoryUsage(memory);
 }
+
+TEST_F(SystemTest, CreateChildProcess) {
+    km::SystemMemory memory = body.make(sm::megabytes(2).bytes());
+    sys2::GlobalSchedule schedule(128, 128);
+    sys2::System system(&schedule, &memory.pageTables(), &memory.pmmAllocator());
+
+    RecordMemoryUsage(memory);
+
+    sm::RcuSharedPtr<sys2::Process> parent;
+    sm::RcuWeakPtr<sys2::Process> weakParent;
+    sm::RcuWeakPtr<sys2::Process> weakChild;
+
+    {
+        sys2::ProcessCreateInfo createInfo {
+            .name = "TEST",
+            .supervisor = false,
+        };
+
+        OsStatus status = sys2::CreateProcess(&system, createInfo, &parent);
+        ASSERT_EQ(status, OsStatusSuccess);
+    }
+
+    {
+        sm::RcuSharedPtr<sys2::Process> child;
+        sys2::ProcessCreateInfo createInfo {
+            .parent = parent,
+            .name = "TEST",
+            .supervisor = false,
+        };
+
+        OsStatus status = sys2::CreateProcess(&system, createInfo, &child);
+        ASSERT_EQ(status, OsStatusSuccess);
+
+        weakChild = child.weak();
+
+        ASSERT_TRUE(parent->TESTING_hasChildProcess(child)) << "Parent process does not have child process";
+    }
+
+    sys2::ProcessDestroyInfo destroyInfo {
+        .exitCode = 0,
+        .reason = eOsProcessExited,
+    };
+
+    OsStatus status = sys2::DestroyProcess(&system, destroyInfo, parent);
+    ASSERT_EQ(status, OsStatusSuccess);
+
+    parent.reset();
+
+    ASSERT_EQ(weakChild.strongCount(), 0) << "Child process was not destroyed";
+
+    ASSERT_EQ(weakChild.lock(), nullptr) << "Child process was not destroyed";
+
+    CheckMemoryUsage(memory);
+}
