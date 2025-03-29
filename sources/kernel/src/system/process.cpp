@@ -38,15 +38,27 @@ sys2::Process::Process(const ProcessCreateInfo& createInfo, const km::AddressSpa
     , mPageTables(systemTables, mPteMemory, km::PageFlags::eUserAll, km::DefaultUserArea())
 { }
 
-void sys2::Process::addChild(sm::RcuSharedPtr<Process> child) {
+void sys2::Process::addChild(sm::RcuWeakPtr<Process> child) {
+    sm::RcuSharedPtr<Process> handle = child.lock();
+    if (!handle) {
+        return;
+    }
+
     stdx::UniqueLock guard(mLock);
     mChildren.insert(child);
-    child->mParent = loanWeak();
+    handle->mParent = loanWeak();
 }
 
-void sys2::Process::removeChild(sm::RcuSharedPtr<Process> child) {
+void sys2::Process::removeChild(sm::RcuWeakPtr<Process> child) {
+    sm::RcuSharedPtr<Process> handle = child.lock();
+    if (!handle) {
+        return;
+    }
+
     stdx::UniqueLock guard(mLock);
-    mChildren.erase(child);
+    auto count = mChildren.erase(child);
+    KM_CHECK(count == 1, "Failed to remove child process");
+    handle->mParent.reset();
 }
 
 OsStatus sys2::CreateProcess(System *system, ProcessCreateInfo info, sm::RcuSharedPtr<Process> *process) {
@@ -56,7 +68,7 @@ OsStatus sys2::CreateProcess(System *system, ProcessCreateInfo info, sm::RcuShar
     }
 
     if (auto result = sm::rcuMakeShared<sys2::Process>(&system->rcuDomain(), info, system->pageTables(), pteMemory)) {
-        system->addObject(result.weak());
+        system->addObject(result);
 
         if (auto parent = info.parent.lock()) {
             parent->addChild(result);
@@ -69,31 +81,36 @@ OsStatus sys2::CreateProcess(System *system, ProcessCreateInfo info, sm::RcuShar
     return OsStatusOutOfMemory;
 }
 
-OsStatus sys2::DestroyProcess(System *system, const ProcessDestroyInfo& info, sm::RcuSharedPtr<Process> process) {
+OsStatus sys2::DestroyProcess(System *system, const ProcessDestroyInfo& info, sm::RcuWeakPtr<Process> process) {
     // TODO: destroy threads, close handles, destroy children, etc.
     // TODO: wait for all threads to exit
 
-    for (auto child : process->mChildren) {
+    sm::RcuSharedPtr<Process> handle = process.lock();
+    if (!handle) {
+        return OsStatusInvalidHandle;
+    }
+
+    for (sm::RcuWeakPtr<Process> child : handle->mChildren) {
         if (OsStatus status = DestroyProcess(system, info, child)) {
             return status;
         }
     }
 
-    if (auto parent = process->mParent.lock()) {
+    if (auto parent = handle->mParent.lock()) {
         parent->removeChild(process);
     }
 
-    if (OsStatus status = system->releaseMapping(process->mPteMemory)) {
+    if (OsStatus status = system->releaseMapping(handle->mPteMemory)) {
         return status;
     }
 
-    for (km::MemoryRange range : process->mPhysicalMemory) {
+    for (km::MemoryRange range : handle->mPhysicalMemory) {
         system->releaseMemory(range);
     }
 
-    process->mPhysicalMemory.clear();
+    handle->mPhysicalMemory.clear();
 
-    system->removeObject(process.weak());
+    system->removeObject(process);
 
     return OsStatusSuccess;
 }

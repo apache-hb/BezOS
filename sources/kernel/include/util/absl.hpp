@@ -23,6 +23,8 @@ namespace sm {
 
     template<typename T>
     struct TransparentPointerHash {
+        using is_transparent = void;
+
         constexpr size_t operator()(const T *ptr) const noexcept {
             return std::hash<const T*>{}(ptr);
         }

@@ -38,7 +38,7 @@ namespace sys2 {
     };
 
     OsStatus CreateProcess(System *system, ProcessCreateInfo info, sm::RcuSharedPtr<Process> *process);
-    OsStatus DestroyProcess(System *system, const ProcessDestroyInfo& info, sm::RcuSharedPtr<Process> process);
+    OsStatus DestroyProcess(System *system, const ProcessDestroyInfo& info, sm::RcuWeakPtr<Process> process);
 
     class Process final : public IObject {
         stdx::SharedSpinLock mLock;
@@ -48,11 +48,11 @@ namespace sys2 {
 
         sm::RcuWeakPtr<Process> mParent;
 
-        sm::FlatHashSet<sm::RcuSharedPtr<Thread>> mThreads;
-        sm::FlatHashSet<sm::RcuSharedPtr<Process>> mChildren;
+        sm::FlatHashSet<sm::RcuWeakPtr<Thread>> mThreads;
+        sm::FlatHashSet<sm::RcuWeakPtr<Process>> mChildren;
 
         /// @brief All the handles this process has open.
-        sm::FlatHashMap<OsHandle, sm::RcuSharedPtr<IObject>> mHandles;
+        sm::FlatHashMap<OsHandle, sm::RcuWeakPtr<IObject>> mHandles;
 
         /// @brief All the physical memory dedicated to this process.
         stdx::Vector2<km::MemoryRange> mPhysicalMemory;
@@ -62,11 +62,11 @@ namespace sys2 {
         /// @brief The page tables for this process.
         km::AddressSpace mPageTables;
 
-        void addChild(sm::RcuSharedPtr<Process> child);
-        void removeChild(sm::RcuSharedPtr<Process> child);
+        void addChild(sm::RcuWeakPtr<Process> child);
+        void removeChild(sm::RcuWeakPtr<Process> child);
 
         friend OsStatus sys2::CreateProcess(System *system, ProcessCreateInfo info, sm::RcuSharedPtr<Process> *process);
-        friend OsStatus sys2::DestroyProcess(System *system, const ProcessDestroyInfo& info, sm::RcuSharedPtr<Process> process);
+        friend OsStatus sys2::DestroyProcess(System *system, const ProcessDestroyInfo& info, sm::RcuWeakPtr<Process> process);
 
     public:
         Process(const ProcessCreateInfo& createInfo, const km::AddressSpace *systemTables, km::AddressMapping pteMemory);
@@ -84,7 +84,7 @@ namespace sys2 {
 
 
 #if __STDC_HOSTED__
-        bool TESTING_hasChildProcess(sm::RcuSharedPtr<Process> child) {
+        bool TESTING_hasChildProcess(sm::RcuWeakPtr<Process> child) {
             stdx::SharedLock guard(mLock);
             return mChildren.contains(child);
         }

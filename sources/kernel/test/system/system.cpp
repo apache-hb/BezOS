@@ -148,13 +148,15 @@ TEST_F(SystemTest, CreateChildProcess) {
 
         OsStatus status = sys2::CreateProcess(&system, createInfo, &parent);
         ASSERT_EQ(status, OsStatusSuccess);
+
+        weakParent = parent.weak();
     }
 
     {
         sm::RcuSharedPtr<sys2::Process> child;
         sys2::ProcessCreateInfo createInfo {
-            .parent = parent,
-            .name = "TEST",
+            .parent = weakParent,
+            .name = "CHILD",
             .supervisor = false,
         };
 
@@ -166,16 +168,20 @@ TEST_F(SystemTest, CreateChildProcess) {
         ASSERT_TRUE(parent->TESTING_hasChildProcess(child)) << "Parent process does not have child process";
     }
 
+    parent.reset();
+
+    ASSERT_EQ(weakChild.strongCount(), 1) << "Child process was not created";
+    ASSERT_EQ(weakParent.strongCount(), 1) << "Parent process does not exist";
+
     sys2::ProcessDestroyInfo destroyInfo {
         .exitCode = 0,
         .reason = eOsProcessExited,
     };
 
-    OsStatus status = sys2::DestroyProcess(&system, destroyInfo, parent);
+    OsStatus status = sys2::DestroyProcess(&system, destroyInfo, weakParent);
     ASSERT_EQ(status, OsStatusSuccess);
 
-    parent.reset();
-
+    ASSERT_EQ(weakParent.strongCount(), 0) << "Parent process was not destroyed";
     ASSERT_EQ(weakChild.strongCount(), 0) << "Child process was not destroyed";
 
     ASSERT_EQ(weakChild.lock(), nullptr) << "Child process was not destroyed";

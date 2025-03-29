@@ -16,7 +16,7 @@ namespace sm::detail {
         mutable std::atomic<T> mCount;
 
     public:
-        WaitFreeCounter(T initial = 1)
+        constexpr WaitFreeCounter(T initial = 1) noexcept
             : mCount(initial)
         { }
 

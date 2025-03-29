@@ -211,6 +211,16 @@ namespace sm {
             return *this;
         }
 
+        template<std::derived_from<T> O>
+        constexpr RcuSharedPtr(const RcuSharedPtr<O>& other) : RcuSharedPtr() {
+            acquire(other.mControl);
+        }
+
+        template<std::derived_from<T> O>
+        constexpr RcuSharedPtr(RcuSharedPtr<O>&& other) : RcuSharedPtr() {
+            exchangeControl(other.mControl.exchange(nullptr));
+        }
+
         /// @brief Take a weak reference to this shared pointer.
         /// @note Does not require external synchronization
         /// @return A weak pointer to this shared pointer.
@@ -353,6 +363,11 @@ namespace sm {
             return mControl == other.mControl;
         }
 
+        template<std::derived_from<T> O>
+        constexpr bool operator==(const RcuWeakPtr<O>& other) const {
+            return mControl == other.mControl;
+        }
+
         constexpr bool operator==(std::nullptr_t) const {
             return mControl == nullptr;
         }
@@ -361,7 +376,7 @@ namespace sm {
             return std::hash<rcu::detail::ControlBlock*>{}(mControl);
         }
 
-        size_t strongCount() const {
+        constexpr size_t strongCount() const {
             if (rcu::detail::ControlBlock *cb = mControl.load()) {
                 return cb->count.strongCount();
             }
@@ -369,7 +384,7 @@ namespace sm {
             return 0;
         }
 
-        size_t weakCount() const {
+        constexpr size_t weakCount() const {
             if (rcu::detail::ControlBlock *cb = mControl.load()) {
                 return cb->count.weakCount();
             }
@@ -445,6 +460,11 @@ namespace sm {
             acquire(other.mControl);
         }
 
+        template<std::derived_from<T> O>
+        constexpr RcuWeakPtr(RcuWeakPtr<O>&& other) : RcuWeakPtr() {
+            exchangeControl(other.mControl.exchange(nullptr));
+        }
+
         constexpr RcuWeakPtr& operator=(const RcuWeakPtr& other) {
             acquire(other.mControl);
             return *this;
@@ -465,8 +485,8 @@ namespace sm {
         }
 
         template<std::derived_from<T> O>
-        constexpr bool operator==(const RcuWeakPtr<O>& other) const noexcept {
-            return mControl == other.mControl;
+        constexpr RcuWeakPtr(RcuSharedPtr<O>&& shared) : RcuWeakPtr() {
+            exchangeControl(shared.mControl.exchange(nullptr));
         }
 
         RcuSharedPtr<T> lock() {
@@ -493,8 +513,41 @@ namespace sm {
             return 0;
         }
 
+        void reset() {
+            release();
+        }
+
+        template<std::derived_from<T> O>
+        constexpr bool operator==(const RcuSharedPtr<O>& other) const {
+            return mControl == other.mControl;
+        }
+
+        template<std::derived_from<T> O>
+        constexpr bool operator==(const RcuWeakPtr<O>& other) const {
+            return mControl == other.mControl;
+        }
+
+        constexpr bool operator==(std::nullptr_t) const {
+            return mControl == nullptr;
+        }
+
         template<typename O, typename Self>
         friend constexpr RcuWeakPtr<O> sm::rcuWeakPtrCast(const RcuWeakPtr<Self>& weak);
+    };
+
+    template<typename T>
+    struct RcuHash {
+        using is_transparent = void;
+
+        constexpr size_t operator()(const RcuSharedPtr<T>& ptr) const noexcept {
+            return ptr.hash();
+        }
+        constexpr size_t operator()(const RcuWeakPtr<T>& ptr) const noexcept {
+            return ptr.hash();
+        }
+        constexpr size_t operator()(const T *ptr) const noexcept {
+            return std::hash<T*>{}(ptr);
+        }
     };
 
     template<typename T>

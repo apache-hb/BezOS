@@ -64,7 +64,7 @@ namespace sys2 {
         std::priority_queue<WaitEntry> mTimeoutQueue;
         std::priority_queue<SleepEntry> mSleepQueue;
 
-        sm::FlatHashSet<sm::RcuWeakPtr<IObject>> mObjects;
+        sm::FlatHashSet<sm::RcuSharedPtr<IObject>, sm::RcuHash<IObject>, std::equal_to<>> mObjects;
 
     public:
         System(GlobalSchedule *schedule [[gnu::nonnull]], km::AddressSpace *systemTables [[gnu::nonnull]], km::PageAllocator *pmm [[gnu::nonnull]])
@@ -75,7 +75,7 @@ namespace sys2 {
 
         sm::RcuDomain &rcuDomain() { return mDomain; }
 
-        void addObject(sm::RcuWeakPtr<IObject> object);
+        void addObject(sm::RcuSharedPtr<IObject> object);
         void removeObject(sm::RcuWeakPtr<IObject> object);
 
         OsStatus mapProcessPageTables(km::AddressMapping *mapping);
