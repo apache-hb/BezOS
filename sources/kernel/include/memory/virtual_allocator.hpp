@@ -19,7 +19,13 @@ namespace km {
 
         VirtualRange allocate(size_t pages, const void *hint = nullptr) {
             size_t align = (pages > (x64::kLargePageSize / x64::kPageSize)) ? x64::kLargePageSize : x64::kPageSize;
-            return allocate({ .size = pages * x64::kPageSize, .align = align, .hint = hint });
+            VirtualRange range = allocate({ .size = pages * x64::kPageSize, .align = align, .hint = hint });
+
+            if (range.isEmpty()) {
+                range = allocate({ .size = pages * x64::kPageSize, .align = x64::kPageSize, .hint = hint });
+            }
+
+            return range;
         }
 
         VirtualRange allocate(RangeAllocateRequest<const void*> request) {
@@ -29,6 +35,10 @@ namespace km {
 
         void release(VirtualRange range) {
             mVmemAllocator.release(range.cast<const std::byte*>());
+        }
+
+        size_t freeSpace() {
+            return mVmemAllocator.freeSpace();
         }
     };
 }

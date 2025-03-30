@@ -13,6 +13,7 @@
 struct MemoryState {
     km::PageAllocatorStats pmm;
     km::PteAllocatorStats vmm;
+    size_t rangeStats;
 };
 
 class SystemTest : public testing::Test {
@@ -26,6 +27,7 @@ public:
         MemoryState state;
         state.pmm = memory.pmmAllocator().stats();
         state.vmm = memory.systemTables().TESTING_getPageTableAllocator().stats();
+        state.rangeStats = memory.pageTables().TESTING_getVmemAllocator().freeSpace();
         return state;
     }
 
@@ -35,6 +37,7 @@ public:
 
         ASSERT_EQ(after.vmm.freeBlocks, before.vmm.freeBlocks) << "Virtual memory was leaked";
         ASSERT_EQ(after.pmm.freeMemory, before.pmm.freeMemory) << "Physical memory was leaked";
+        ASSERT_EQ(after.rangeStats, before.rangeStats) << "Address space memory was leaked";
     }
 
     void RecordMemoryUsage(km::SystemMemory& memory) {
@@ -47,7 +50,15 @@ public:
         CheckMemoryState(memory, before);
     }
 
-    SystemMemoryTestBody body;
+    void DebugMemoryUsage(km::SystemMemory& memory) {
+        auto state = GetMemoryState(memory);
+
+        std::cout << "PMM: " << state.pmm.freeMemory << std::endl;
+        std::cout << "VMM: " << state.vmm.freeBlocks << std::endl;
+        std::cout << "Address Space: " << std::string_view(km::format(sm::bytes(state.rangeStats))) << std::endl;
+    }
+
+    SystemMemoryTestBody body { sm::megabytes(4).bytes() };
 
     MemoryState before;
     MemoryState after;
@@ -212,6 +223,54 @@ TEST_F(SystemTest, CreateChildProcess) {
 
     CheckMemoryUsage(memory);
 }
+
+TEST_F(SystemTest, NestedChildProcess) {
+    km::SystemMemory memory = body.make(sm::megabytes(8).bytes());
+    sys2::GlobalSchedule schedule(128, 128);
+    sys2::System system(&schedule, &memory.pageTables(), &memory.pmmAllocator());
+
+    RecordMemoryUsage(memory);
+
+    std::unique_ptr<sys2::ProcessHandle> hProcess = nullptr;
+
+    {
+        sys2::ProcessCreateInfo createInfo {
+            .name = "TEST",
+            .supervisor = false,
+        };
+
+        OsStatus status = sys2::CreateRootProcess(&system, createInfo, std::out_ptr(hProcess));
+        ASSERT_EQ(status, OsStatusSuccess);
+    }
+
+    {
+        sys2::ProcessHandle *hChild = hProcess.get();
+        for (size_t i = 0; i < 8; i++) {
+            sys2::ProcessCreateInfo createInfo {
+                .name = "CHILD",
+                .supervisor = false,
+            };
+
+            DebugMemoryUsage(memory);
+
+            OsStatus status = hChild->createProcess(&system, createInfo, &hChild);
+            ASSERT_EQ(status, OsStatusSuccess);
+
+            ASSERT_NE(hChild, nullptr) << "Child process was not created";
+        }
+    }
+
+    sys2::ProcessDestroyInfo destroyInfo {
+        .exitCode = 0,
+        .reason = eOsProcessExited,
+    };
+
+    OsStatus status = hProcess->destroyProcess(&system, destroyInfo);
+    ASSERT_EQ(status, OsStatusSuccess);
+
+    CheckMemoryUsage(memory);
+}
+
 
 TEST_F(SystemTest, OrphanThread) {
     km::SystemMemory memory = body.make(sm::megabytes(2).bytes());

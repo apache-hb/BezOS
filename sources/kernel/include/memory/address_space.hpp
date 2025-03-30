@@ -106,5 +106,12 @@ namespace km {
 
         [[nodiscard]]
         PhysicalAddress root() const { return mTables.root(); }
+
+#if __STDC_HOSTED__
+        [[nodiscard]]
+        VmemAllocator& TESTING_getVmemAllocator() {
+            return mVmemAllocator;
+        }
+#endif
     };
 }

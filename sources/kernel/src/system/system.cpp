@@ -3,7 +3,7 @@
 #include "memory/address_space.hpp"
 #include "memory/page_allocator.hpp"
 
-static constexpr size_t kDefaultPtePageCount = 128;
+static constexpr size_t kDefaultPtePageCount = 64;
 static constexpr size_t kDefaultKernelStackSize = 4;
 
 void sys2::System::addObject(sm::RcuSharedPtr<IObject> object) {
