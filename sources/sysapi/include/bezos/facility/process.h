@@ -14,14 +14,14 @@ OS_DEFINE_GUID(kOsCommandLineParamGuid, 0x768582ba, 0x0197, 0x11f0, 0xbc84, 0x7f
 enum {
     eOsProcessAccessNone = 0,
 
+    /// @brief Grants access to wait for the process to exit.
+    eOsProcessAccessWait          = (1 << 0),
+
     /// @brief Grants access to terminate the process.
-    eOsProcessAccessTerminate     = (1 << 0),
+    eOsProcessAccessTerminate     = (1 << 1),
 
     /// @brief Grants access to suspend and resume the process.
-    eOsProcessAccessSuspend       = (1 << 1),
-
-    /// @brief Grants access to wait for the process to exit.
-    eOsProcessAccessWait          = (1 << 2),
+    eOsProcessAccessSuspend       = (1 << 2),
 
     /// @brief Grants access to create, update, and destroy virtual memory mappings.
     eOsProcessAccessVmControl     = (1 << 3),
@@ -32,16 +32,20 @@ enum {
     /// @brief Grants access to create, update, and destroy devices and nodes.
     eOsProcessAccessIoControl     = (1 << 5),
 
+    /// @brief Grants access to create, update, and destroy child processes.
+    eOsProcessAccessProcessControl = (1 << 6),
+
     /// @brief Grants access to create, update, and destroy quotas.
-    eOsProcessAccessQuota         = (1 << 6),
+    eOsProcessAccessQuota         = (1 << 7),
 
     eOsProcessAccessAll
-        = eOsProcessAccessTerminate
+        = eOsProcessAccessWait
+        | eOsProcessAccessTerminate
         | eOsProcessAccessSuspend
-        | eOsProcessAccessWait
         | eOsProcessAccessVmControl
         | eOsProcessAccessThreadControl
         | eOsProcessAccessIoControl
+        | eOsProcessAccessProcessControl
         | eOsProcessAccessQuota,
 };
 
@@ -62,6 +66,9 @@ enum {
 
     /// @brief Process was killed by the operating system.
     eOsProcessTerminated = 0x4,
+
+    /// @brief Process was orphaned due to a parent process exiting.
+    eOsProcessOrphaned    = 0x5,
 
     eOsProcessStatusMask = 0xF,
 

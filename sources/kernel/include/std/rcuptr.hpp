@@ -109,6 +109,25 @@ namespace sm {
     template<typename T>
     concept IsIntrusivePtr = std::derived_from<T, RcuIntrusivePtr<T>>;
 
+
+    template<typename O, typename Self>
+    constexpr RcuSharedPtr<O> rcuSharedPtrCast(const RcuSharedPtr<Self>& weak) {
+        if (weak.mControl != nullptr) {
+            return RcuSharedPtr<O>(weak.mControl, rcu::detail::AcquireControl{});
+        }
+
+        return nullptr;
+    }
+
+    template<typename O, typename Self>
+    constexpr RcuWeakPtr<O> rcuWeakPtrCast(const RcuWeakPtr<Self>& weak) {
+        if (weak.mControl != nullptr) {
+            return RcuWeakPtr<O>(weak.mControl, rcu::detail::AcquireControl{});
+        }
+
+        return nullptr;
+    }
+
     template<typename T>
     class RcuSharedPtr {
         static_assert(std::is_same_v<T, std::remove_cvref_t<T>>, "Cannot use RcuSharedPtr with reference types");
@@ -391,16 +410,10 @@ namespace sm {
 
             return 0;
         }
+
+        template<typename O, typename Self>
+        friend constexpr RcuSharedPtr<O> sm::rcuSharedPtrCast(const RcuSharedPtr<Self>& weak);
     };
-
-    template<typename O, typename Self>
-    constexpr RcuWeakPtr<O> rcuWeakPtrCast(const RcuWeakPtr<Self>& weak) {
-        if (weak.mControl != nullptr) {
-            return RcuWeakPtr<O>(weak.mControl, rcu::detail::AcquireControl{});
-        }
-
-        return nullptr;
-    }
 
     template<typename T>
     class RcuWeakPtr {
@@ -545,9 +558,6 @@ namespace sm {
         constexpr size_t operator()(const RcuWeakPtr<T>& ptr) const noexcept {
             return ptr.hash();
         }
-        constexpr size_t operator()(const T *ptr) const noexcept {
-            return std::hash<T*>{}(ptr);
-        }
     };
 
     template<typename T>
@@ -568,8 +578,8 @@ namespace sm {
         }
 
         template<typename Self>
-        auto loanShared(this auto&& self) -> RcuSharedPtr<std::remove_cvref_t<Self>>{
-            return self.loanWeak().lock();
+        auto loanShared(this Self&& self) -> RcuSharedPtr<std::remove_cvref_t<Self>> {
+            return rcuSharedPtrCast<std::remove_cvref_t<Self>>(self.mWeakThis.lock());
         }
     };
 

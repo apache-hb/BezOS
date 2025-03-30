@@ -6,8 +6,13 @@
 #include "std/static_string.hpp"
 
 namespace sys2 {
+    class System;
     class IObject;
     class IHandle;
+    class Process;
+    class ProcessHandle;
+    class Thread;
+    class ThreadHandle;
 
     using ObjectName = stdx::StaticString<OS_OBJECT_NAME_MAX>;
 
@@ -21,6 +26,15 @@ namespace sys2 {
 
         /// @brief The flags that describe access to the handle.
         HandleAccess access;
+    };
+
+    template<typename T>
+    class HandleAllocator {
+        std::atomic<T> mCurrent = OS_HANDLE_INVALID + 1;
+    public:
+        T allocate() {
+            return T(mCurrent.fetch_add(1));
+        }
     };
 
     class IObject : public sm::RcuIntrusivePtr<IObject> {
@@ -39,7 +53,6 @@ namespace sys2 {
     public:
         virtual ~IHandle() = default;
 
-        virtual sm::RcuWeakPtr<IObject> getOwner() = 0;
         virtual sm::RcuWeakPtr<IObject> getObject() = 0;
         virtual OsHandle getHandle() const = 0;
 

@@ -79,8 +79,12 @@ namespace sys2 {
         void removeObject(sm::RcuWeakPtr<IObject> object);
 
         OsStatus mapProcessPageTables(km::AddressMapping *mapping);
+        OsStatus mapSystemStack(km::StackMapping *mapping);
+
         void releaseMemory(km::MemoryRange range);
         OsStatus releaseMapping(km::AddressMapping mapping);
+        OsStatus releaseStack(km::StackMapping mapping);
+
         km::AddressSpace *pageTables() { return mSystemTables; }
     };
 }

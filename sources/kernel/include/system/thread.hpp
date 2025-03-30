@@ -11,6 +11,19 @@
 namespace sys2 {
     class System;
     class Process;
+    class ProcessHandle;
+    class Thread;
+    class ThreadHandle;
+
+    enum class ThreadAccess : uint64_t {
+        eNone = eOsThreadAccessNone,
+        eWait = eOsThreadAccessWait,
+        eSuspend = eOsThreadAccessSuspend,
+        eQuota = eOsThreadAccessQuota,
+        eAll = eOsThreadAccessAll,
+    };
+
+    UTIL_BITFLAGS(ThreadAccess);
 
     using reg_t = uint64_t;
 
@@ -38,7 +51,6 @@ namespace sys2 {
     using XSaveState = std::unique_ptr<x64::XSave, decltype(&free)>;
 
     struct ThreadCreateInfo {
-        sm::RcuSharedPtr<Process> parent;
         ObjectName name;
 
         /// @brief The initial cpu state for the thread.
@@ -47,6 +59,8 @@ namespace sys2 {
         ///       exiting a thread will clean up all the state it has allocated aside from the thread
         ///       object itself, which is managed by the kernel.
         RegisterSet cpuState;
+        reg_t tlsAddress;
+        OsThreadState state;
 
         OsSize kernelStackSize;
     };
@@ -62,6 +76,24 @@ namespace sys2 {
         sm::RcuWeakPtr<Process> process;
     };
 
+    class ThreadHandle final : public IHandle {
+        sm::RcuWeakPtr<Thread> mThread;
+        OsHandle mHandle;
+        ThreadAccess mAccess;
+
+    public:
+        ThreadHandle(sm::RcuWeakPtr<Thread> thread, OsHandle handle, ThreadAccess access);
+
+        sm::RcuWeakPtr<IObject> getObject() override;
+        OsHandle getHandle() const override { return mHandle; }
+
+        sm::RcuWeakPtr<Thread> getThreadObject() { return mThread; }
+
+        bool hasAccess(ThreadAccess access) const {
+            return bool(mAccess & access);
+        }
+    };
+
     class Thread final : public IObject {
         stdx::SharedSpinLock mLock;
 
@@ -74,12 +106,14 @@ namespace sys2 {
         reg_t mTlsAddress;
 
         [[maybe_unused]]
-        km::AddressMapping mKernelStack;
+        km::StackMapping mKernelStack;
 
         [[maybe_unused]]
         OsThreadState mThreadState;
 
     public:
+        Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, km::StackMapping kernelStack);
+
         void setName(ObjectName name) override;
         ObjectName getName() override;
 
@@ -91,8 +125,7 @@ namespace sys2 {
         RegisterSet loadState();
 
         bool isSupervisor();
-    };
 
-    OsStatus CreateThread(System *system, const ThreadCreateInfo& info, sm::RcuSharedPtr<Thread> *thread);
-    OsStatus DestroyThread(System *system, const ThreadDestroyInfo& info, sm::RcuSharedPtr<Thread> thread);
+        OsStatus destroy(System *system, const ThreadDestroyInfo& info);
+    };
 }

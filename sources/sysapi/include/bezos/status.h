@@ -101,6 +101,9 @@ enum OsStatusId {
 
     /// @brief The operation was completed.
     OsStatusCompleted = 0x001b,
+
+    /// @brief The operation was denied due to insufficient permissions.
+    OsStatusAccessDenied = 0x001c,
 };
 
 #ifdef __cplusplus

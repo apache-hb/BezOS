@@ -1913,6 +1913,14 @@ int main(int argc, const char **argv) try {
     PackageDb packageDb(build / parser.get<std::string>("--repo"));
     gPackageDb = &packageDb;
 
+    if (parser.present("--workspace")) {
+        try {
+            gWorkspace.workspace = *argo::parser::load(parser.get<std::string>("--workspace"));
+        } catch (const std::exception& e) { }
+    } else {
+        gWorkspace.workspace = argo::json::json_object();
+    }
+
     gWorkspace.workspace["folders"] = argo::json::json_array();
 
     gWorkspace.AddFolder(".", "root");

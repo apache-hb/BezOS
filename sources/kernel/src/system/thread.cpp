@@ -1,8 +1,19 @@
 #include "system/thread.hpp"
 #include "system/process.hpp"
 
+#include "system/system.hpp"
 #include "thread.hpp"
 #include "xsave.hpp"
+
+sys2::ThreadHandle::ThreadHandle(sm::RcuWeakPtr<Thread> thread, OsHandle handle, ThreadAccess access)
+    : mThread(thread)
+    , mHandle(handle)
+    , mAccess(access)
+{ }
+
+sm::RcuWeakPtr<sys2::IObject> sys2::ThreadHandle::getObject() {
+    return mThread;
+}
 
 void sys2::Thread::setName(ObjectName name) {
     stdx::UniqueLock guard(mLock);
@@ -12,14 +23,6 @@ void sys2::Thread::setName(ObjectName name) {
 sys2::ObjectName sys2::Thread::getName() {
     stdx::SharedLock guard(mLock);
     return mName;
-}
-
-OsStatus sys2::Thread::open(OsHandle*) {
-    return OsStatusNotSupported;
-}
-
-OsStatus sys2::Thread::close(OsHandle) {
-    return OsStatusNotSupported;
 }
 
 OsStatus sys2::Thread::stat(ThreadInfo *info) {
@@ -57,4 +60,27 @@ bool sys2::Thread::isSupervisor() {
     }
 
     return false;
+}
+
+sys2::Thread::Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, km::StackMapping kernelStack)
+    : mProcess(process)
+    , mCpuState(createInfo.cpuState)
+    , mTlsAddress(createInfo.tlsAddress)
+    , mKernelStack(kernelStack)
+    , mThreadState(createInfo.state)
+{ }
+
+OsStatus sys2::Thread::destroy(System *system, const ThreadDestroyInfo& info) {
+    if (OsStatus status = system->releaseStack(mKernelStack)) {
+        return status;
+    }
+
+    if (auto process = mProcess.lock()) {
+        process->removeThread(loanShared());
+    }
+
+    mThreadState = info.reason;
+
+    system->removeObject(loanWeak());
+    return OsStatusSuccess;
 }

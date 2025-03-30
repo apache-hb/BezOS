@@ -5,6 +5,7 @@
 #include "system/process.hpp"
 #include "system/schedule.hpp"
 
+#include "system/thread.hpp"
 #include "test/test_memory.hpp"
 
 #include <thread>
@@ -56,15 +57,16 @@ TEST_F(SystemTest, CreateProcess) {
     sys2::GlobalSchedule schedule(128, 128);
     sys2::System system(&schedule, &memory.pageTables(), &memory.pmmAllocator());
 
-    sm::RcuSharedPtr<sys2::Process> process;
     sys2::ProcessCreateInfo createInfo {
         .name = "TEST",
         .supervisor = false,
     };
 
+    std::unique_ptr<sys2::ProcessHandle> hProcess = nullptr;
+
     RecordMemoryUsage(memory);
 
-    OsStatus status = sys2::CreateProcess(&system, createInfo, &process);
+    OsStatus status = sys2::CreateRootProcess(&system, createInfo, std::out_ptr(hProcess));
     ASSERT_EQ(status, OsStatusSuccess);
 
     sys2::ProcessDestroyInfo destroyInfo {
@@ -72,7 +74,7 @@ TEST_F(SystemTest, CreateProcess) {
         .reason = eOsProcessExited,
     };
 
-    status = sys2::DestroyProcess(&system, destroyInfo, process);
+    status = hProcess->destroyProcess(&system, destroyInfo);
     ASSERT_EQ(status, OsStatusSuccess);
 
     CheckMemoryUsage(memory);
@@ -90,6 +92,18 @@ TEST_F(SystemTest, CreateProcessAsync) {
     static constexpr size_t kProcessCount = 128;
     std::barrier barrier(kThreadCount + 1);
 
+    sys2::ProcessCreateInfo createInfo {
+        .name = "TEST",
+        .supervisor = false,
+    };
+
+    std::unique_ptr<sys2::ProcessHandle> hProcess = nullptr;
+
+    RecordMemoryUsage(memory);
+
+    OsStatus status = sys2::CreateRootProcess(&system, createInfo, std::out_ptr(hProcess));
+    ASSERT_EQ(status, OsStatusSuccess);
+
     threads.emplace_back([&](std::stop_token stop) {
         barrier.arrive_and_wait();
 
@@ -99,17 +113,17 @@ TEST_F(SystemTest, CreateProcessAsync) {
     });
 
     for (size_t i = 0; i < kThreadCount; i++) {
-        threads.emplace_back([&system, &barrier]() {
+        threads.emplace_back([&]() {
             barrier.arrive_and_wait();
 
             for (size_t j = 0; j < kProcessCount; j++) {
-                sm::RcuSharedPtr<sys2::Process> process;
+                sys2::ProcessHandle *hChild = nullptr;
                 sys2::ProcessCreateInfo createInfo {
-                    .name = "TEST",
+                    .name = "CHILD",
                     .supervisor = false,
                 };
 
-                OsStatus status = sys2::CreateProcess(&system, createInfo, &process);
+                OsStatus status = hProcess->createProcess(&system, createInfo, &hChild);
                 if (status == OsStatusOutOfMemory) continue;
                 ASSERT_EQ(status, OsStatusSuccess);
 
@@ -118,13 +132,21 @@ TEST_F(SystemTest, CreateProcessAsync) {
                     .reason = eOsProcessExited,
                 };
 
-                status = sys2::DestroyProcess(&system, destroyInfo, process);
+                status = hChild->destroyProcess(&system, destroyInfo);
                 ASSERT_EQ(status, OsStatusSuccess);
             }
         });
     }
 
     threads.clear();
+
+    sys2::ProcessDestroyInfo destroyInfo {
+        .exitCode = 0,
+        .reason = eOsProcessExited,
+    };
+
+    status = hProcess->destroyProcess(&system, destroyInfo);
+    ASSERT_EQ(status, OsStatusSuccess);
 
     CheckMemoryUsage(memory);
 }
@@ -136,9 +158,8 @@ TEST_F(SystemTest, CreateChildProcess) {
 
     RecordMemoryUsage(memory);
 
-    sm::RcuSharedPtr<sys2::Process> parent;
-    sm::RcuWeakPtr<sys2::Process> weakParent;
-    sm::RcuWeakPtr<sys2::Process> weakChild;
+    std::unique_ptr<sys2::ProcessHandle> hProcess = nullptr;
+    sys2::ProcessHandle *hChild = nullptr;
 
     {
         sys2::ProcessCreateInfo createInfo {
@@ -146,45 +167,78 @@ TEST_F(SystemTest, CreateChildProcess) {
             .supervisor = false,
         };
 
-        OsStatus status = sys2::CreateProcess(&system, createInfo, &parent);
-        ASSERT_EQ(status, OsStatusSuccess);
+        RecordMemoryUsage(memory);
 
-        weakParent = parent.weak();
+        OsStatus status = sys2::CreateRootProcess(&system, createInfo, std::out_ptr(hProcess));
+        ASSERT_EQ(status, OsStatusSuccess);
     }
 
     {
-        sm::RcuSharedPtr<sys2::Process> child;
         sys2::ProcessCreateInfo createInfo {
-            .parent = weakParent,
             .name = "CHILD",
             .supervisor = false,
         };
 
-        OsStatus status = sys2::CreateProcess(&system, createInfo, &child);
+        OsStatus status = hProcess->createProcess(&system, createInfo, &hChild);
         ASSERT_EQ(status, OsStatusSuccess);
 
-        weakChild = child.weak();
+        ASSERT_NE(hChild, nullptr) << "Child process was not created";
+        auto process = hProcess->getProcessObject().lock();
+        ASSERT_NE(process, nullptr) << "Parent process was not created";
 
-        ASSERT_TRUE(parent->TESTING_hasChildProcess(child)) << "Parent process does not have child process";
+        ASSERT_TRUE(process->getHandle(hChild->getHandle())) << "Parent process does not have child process";
     }
-
-    parent.reset();
-
-    ASSERT_EQ(weakChild.strongCount(), 1) << "Child process was not created";
-    ASSERT_EQ(weakParent.strongCount(), 1) << "Parent process does not exist";
 
     sys2::ProcessDestroyInfo destroyInfo {
         .exitCode = 0,
         .reason = eOsProcessExited,
     };
 
-    OsStatus status = sys2::DestroyProcess(&system, destroyInfo, weakParent);
+    OsStatus status = hProcess->destroyProcess(&system, destroyInfo);
     ASSERT_EQ(status, OsStatusSuccess);
 
-    ASSERT_EQ(weakParent.strongCount(), 0) << "Parent process was not destroyed";
-    ASSERT_EQ(weakChild.strongCount(), 0) << "Child process was not destroyed";
+    CheckMemoryUsage(memory);
+}
 
-    ASSERT_EQ(weakChild.lock(), nullptr) << "Child process was not destroyed";
+TEST_F(SystemTest, CreateThread) {
+    km::SystemMemory memory = body.make(sm::megabytes(2).bytes());
+    sys2::GlobalSchedule schedule(128, 128);
+    sys2::System system(&schedule, &memory.pageTables(), &memory.pmmAllocator());
+
+    sys2::ProcessCreateInfo processCreateInfo {
+        .name = "TEST",
+        .supervisor = false,
+    };
+
+    sys2::ThreadCreateInfo threadCreateInfo {
+        .name = "TEST",
+        .cpuState = {},
+        .tlsAddress = 0,
+        .state = eOsThreadRunning,
+    };
+
+    std::unique_ptr<sys2::ProcessHandle> hProcess = nullptr;
+    sys2::ThreadHandle *hThread = nullptr;
+
+    RecordMemoryUsage(memory);
+
+    OsStatus status = sys2::CreateRootProcess(&system, processCreateInfo, std::out_ptr(hProcess));
+    ASSERT_EQ(status, OsStatusSuccess);
+    ASSERT_NE(hProcess, nullptr) << "Process was not created";
+
+    status = hProcess->createThread(&system, threadCreateInfo, &hThread);
+    ASSERT_EQ(status, OsStatusSuccess);
+
+    ASSERT_NE(hThread, nullptr) << "Thread was not created";
+    auto process = hProcess->getProcessObject().lock();
+
+    sys2::ProcessDestroyInfo destroyInfo {
+        .exitCode = 0,
+        .reason = eOsProcessExited,
+    };
+
+    status = hProcess->destroyProcess(&system, destroyInfo);
+    ASSERT_EQ(status, OsStatusSuccess);
 
     CheckMemoryUsage(memory);
 }

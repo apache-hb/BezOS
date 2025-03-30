@@ -10,6 +10,18 @@ extern "C" {
 /// @{
 
 enum {
+    eOsThreadAccessNone    = 0,
+    eOsThreadAccessWait    = (1 << 0),
+    eOsThreadAccessSuspend = (1 << 1),
+    eOsThreadAccessQuota   = (1 << 2),
+
+    eOsThreadAccessAll
+        = eOsThreadAccessWait
+        | eOsThreadAccessSuspend
+        | eOsThreadAccessQuota,
+};
+
+enum {
     /// @brief The thread is immediately available for scheduling.
     eOsThreadCreateDefault = 0,
 
@@ -33,6 +45,9 @@ enum {
 
     /// @brief Thread is not currently running, but is scheduled to run.
     eOsThreadQueued    = 4,
+
+    /// @brief The process this thread is associated with has exited.
+    eOsThreadOrphaned = 5,
 };
 
 typedef uint32_t OsThreadCreateFlags;

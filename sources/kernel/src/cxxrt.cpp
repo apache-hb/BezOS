@@ -42,7 +42,7 @@ void operator delete[](void* ptr, std::size_t) {
 }
 
 void* operator new(std::size_t size, const std::nothrow_t&) noexcept {
-    return aligned_alloc(16, size);
+    return operator new(size, std::align_val_t(alignof(std::max_align_t)));
 }
 
 void* operator new[](std::size_t size, const std::nothrow_t&) noexcept {
@@ -50,7 +50,7 @@ void* operator new[](std::size_t size, const std::nothrow_t&) noexcept {
 }
 
 void operator delete(void* ptr, const std::nothrow_t&) {
-    free(ptr);
+    operator delete(ptr);
 }
 
 void operator delete[](void* ptr, const std::nothrow_t&) {
@@ -62,11 +62,11 @@ void* operator new(std::size_t size, std::align_val_t align) {
 }
 
 void* operator new(std::size_t size, std::align_val_t align, const std::nothrow_t&) noexcept {
-    return aligned_alloc(std::to_underlying(align), size);
+    return operator new(size, align);
 }
 
 void operator delete(void* ptr, std::align_val_t) {
-    free(ptr);
+    operator delete(ptr);
 }
 
 void operator delete(void* ptr, std::align_val_t, const std::nothrow_t&) {

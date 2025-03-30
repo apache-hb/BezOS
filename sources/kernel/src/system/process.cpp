@@ -2,6 +2,57 @@
 #include "memory.hpp"
 #include "system/system.hpp"
 
+sys2::ProcessHandle::ProcessHandle(sm::RcuWeakPtr<Process> process, OsHandle handle, ProcessAccess access)
+    : mProcess(process)
+    , mHandle(handle)
+    , mAccess(access)
+{ }
+
+sm::RcuWeakPtr<sys2::IObject> sys2::ProcessHandle::getObject() {
+    return mProcess;
+}
+
+OsStatus sys2::ProcessHandle::createProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle) {
+    if (!hasAccess(ProcessAccess::eProcessControl)) {
+        return OsStatusAccessDenied;
+    }
+
+    auto process = mProcess.lock();
+    if (!process) {
+        return OsStatusInvalidHandle;
+    }
+
+    return process->createProcess(system, info, handle);
+}
+
+OsStatus sys2::ProcessHandle::destroyProcess(System *system, const ProcessDestroyInfo& info) {
+    if (!hasAccess(ProcessAccess::eTerminate)) {
+        return OsStatusAccessDenied;
+    }
+
+    auto process = mProcess.lock();
+
+    if (!process) {
+        return OsStatusInvalidHandle;
+    }
+
+    return process->destroy(system, info);
+}
+
+OsStatus sys2::ProcessHandle::createThread(System *system, ThreadCreateInfo info, ThreadHandle **handle) {
+    if (!hasAccess(ProcessAccess::eThreadControl)) {
+        return OsStatusAccessDenied;
+    }
+
+    auto process = mProcess.lock();
+
+    if (!process) {
+        return OsStatusInvalidHandle;
+    }
+
+    return process->createThread(system, info, handle);
+}
+
 void sys2::Process::setName(ObjectName name) {
     stdx::UniqueLock guard(mLock);
     mName = name;
@@ -23,86 +74,154 @@ OsStatus sys2::Process::stat(ProcessInfo *info) {
     return OsStatusSuccess;
 }
 
-sys2::Process::Process(const ProcessCreateInfo& createInfo, const km::AddressSpace *systemTables, km::AddressMapping pteMemory)
+sys2::Process::Process(const ProcessCreateInfo& createInfo, sm::RcuWeakPtr<Process> parent, const km::AddressSpace *systemTables, km::AddressMapping pteMemory)
     : mName(createInfo.name)
     , mSupervisor(createInfo.supervisor)
+    , mParent(parent)
     , mPteMemory(pteMemory)
     , mPageTables(systemTables, mPteMemory, km::PageFlags::eUserAll, km::DefaultUserArea())
 { }
 
-void sys2::Process::addChild(sm::RcuWeakPtr<Process> child) {
-    sm::RcuSharedPtr<Process> handle = child.lock();
-    if (!handle) {
-        return;
+sys2::IHandle *sys2::Process::getHandle(OsHandle handle) {
+    stdx::SharedLock guard(mLock);
+    if (auto it = mHandles.find(handle); it != mHandles.end()) {
+        return it->second.get();
     }
 
+    return nullptr;
+}
+
+void sys2::Process::addHandle(IHandle *handle) {
+    stdx::UniqueLock guard(mLock);
+    mHandles.insert({ handle->getHandle(), std::unique_ptr<IHandle>(handle) });
+}
+
+void sys2::Process::removeChild(sm::RcuSharedPtr<Process> child) {
+    stdx::UniqueLock guard(mLock);
+    mChildren.erase(child);
+}
+
+void sys2::Process::addChild(sm::RcuSharedPtr<Process> child) {
     stdx::UniqueLock guard(mLock);
     mChildren.insert(child);
-    handle->mParent = loanWeak();
 }
 
-void sys2::Process::removeChild(sm::RcuWeakPtr<Process> child) {
-    sm::RcuSharedPtr<Process> handle = child.lock();
-    if (!handle) {
-        return;
-    }
-
+void sys2::Process::removeThread(sm::RcuSharedPtr<Thread> thread) {
     stdx::UniqueLock guard(mLock);
-    auto count = mChildren.erase(child);
-    KM_CHECK(count == 1, "Failed to remove child process");
-    handle->mParent.reset();
+    mThreads.erase(thread);
 }
 
-OsStatus sys2::CreateProcess(System *system, ProcessCreateInfo info, sm::RcuSharedPtr<Process> *process) {
+void sys2::Process::addThread(sm::RcuSharedPtr<Thread> thread) {
+    stdx::UniqueLock guard(mLock);
+    mThreads.insert(thread);
+}
+
+OsStatus sys2::Process::createProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle) {
     km::AddressMapping pteMemory;
     if (OsStatus status = system->mapProcessPageTables(&pteMemory)) {
         return status;
     }
 
-    if (auto result = sm::rcuMakeShared<sys2::Process>(&system->rcuDomain(), info, system->pageTables(), pteMemory)) {
-        system->addObject(result);
-
-        if (auto parent = info.parent.lock()) {
-            parent->addChild(result);
+    if (auto process = sm::rcuMakeShared<sys2::Process>(&system->rcuDomain(), info, loanWeak(), system->pageTables(), pteMemory)) {
+        ProcessHandle *result = new (std::nothrow) ProcessHandle(process, newHandleId(eOsHandleProcess), ProcessAccess::eAll);
+        if (!result) {
+            system->releaseMapping(pteMemory);
+            return OsStatusOutOfMemory;
         }
 
-        *process = result;
+        addHandle(result);
+        addChild(process);
+
+        system->addObject(process);
+        *handle = result;
         return OsStatusSuccess;
     }
 
+    system->releaseMapping(pteMemory);
     return OsStatusOutOfMemory;
 }
 
-OsStatus sys2::DestroyProcess(System *system, const ProcessDestroyInfo& info, sm::RcuWeakPtr<Process> process) {
-    // TODO: destroy threads, close handles, destroy children, etc.
-    // TODO: wait for all threads to exit
+OsStatus sys2::Process::destroy(System *system, const ProcessDestroyInfo& info) {
+    stdx::UniqueLock guard(mLock);
 
-    sm::RcuSharedPtr<Process> handle = process.lock();
-    if (!handle) {
-        return OsStatusInvalidHandle;
+    if (auto parent = mParent.lock()) {
+        parent->removeChild(loanShared());
     }
 
-    for (sm::RcuWeakPtr<Process> child : handle->mChildren) {
-        if (OsStatus status = DestroyProcess(system, info, child)) {
+    for (sm::RcuSharedPtr<Process> child : mChildren) {
+        if (OsStatus status = child->destroy(system, ProcessDestroyInfo { .exitCode = info.exitCode, .reason = eOsProcessOrphaned })) {
             return status;
         }
     }
 
-    if (auto parent = handle->mParent.lock()) {
-        parent->removeChild(process);
+    for (sm::RcuSharedPtr<Thread> thread : mThreads) {
+        if (OsStatus status = thread->destroy(system, ThreadDestroyInfo { .exitCode = info.exitCode, .reason = eOsThreadOrphaned })) {
+            return status;
+        }
     }
 
-    if (OsStatus status = system->releaseMapping(handle->mPteMemory)) {
-        return status;
-    }
+    mChildren.clear();
 
-    for (km::MemoryRange range : handle->mPhysicalMemory) {
+    for (km::MemoryRange range : mPhysicalMemory) {
         system->releaseMemory(range);
     }
 
-    handle->mPhysicalMemory.clear();
+    mPhysicalMemory.clear();
 
-    system->removeObject(process);
+    mHandles.clear();
+
+    if (OsStatus status = system->releaseMapping(mPteMemory)) {
+        return status;
+    }
+
+    system->removeObject(loanWeak());
 
     return OsStatusSuccess;
+}
+
+OsStatus sys2::Process::createThread(System *system, ThreadCreateInfo info, ThreadHandle **handle) {
+    km::StackMapping kernelStack{};
+    if (OsStatus status = system->mapSystemStack(&kernelStack)) {
+        return status;
+    }
+
+    if (auto thread = sm::rcuMakeShared<sys2::Thread>(&system->rcuDomain(), info, loanWeak(), kernelStack)) {
+        ThreadHandle *result = new (std::nothrow) ThreadHandle(thread, newHandleId(eOsHandleThread), ThreadAccess::eAll);
+        if (!result) {
+            system->releaseStack(kernelStack);
+            return OsStatusOutOfMemory;
+        }
+
+        addHandle(result);
+        addThread(thread);
+
+        system->addObject(thread);
+        *handle = result;
+        return OsStatusSuccess;
+    }
+
+    system->releaseStack(kernelStack);
+    return OsStatusOutOfMemory;
+}
+
+OsStatus sys2::CreateRootProcess(System *system, ProcessCreateInfo info, ProcessHandle **process) {
+    km::AddressMapping pteMemory;
+    if (OsStatus status = system->mapProcessPageTables(&pteMemory)) {
+        return status;
+    }
+
+    if (auto root = sm::rcuMakeShared<sys2::Process>(&system->rcuDomain(), info, nullptr, system->pageTables(), pteMemory)) {
+        ProcessHandle *result = new (std::nothrow) ProcessHandle(root, OS_HANDLE_NEW(eOsHandleProcess, 0), ProcessAccess::eAll);
+        if (!result) {
+            system->releaseMapping(pteMemory);
+            return OsStatusOutOfMemory;
+        }
+
+        system->addObject(root);
+        *process = result;
+        return OsStatusSuccess;
+    }
+
+    system->releaseMapping(pteMemory);
+    return OsStatusOutOfMemory;
 }

@@ -7,6 +7,7 @@
 #include "std/shared_spinlock.hpp"
 #include "std/vector.hpp"
 #include "system/handle.hpp"
+#include "system/thread.hpp"
 #include "util/absl.hpp"
 
 namespace sys2 {
@@ -16,10 +17,23 @@ namespace sys2 {
     class ProcessHandle;
 
     enum class ProcessId : uint64_t {};
-    enum class ProcessAccess : uint64_t {};
+
+    enum class ProcessAccess : uint64_t {
+        eNone = eOsProcessAccessNone,
+        eTerminate = eOsProcessAccessTerminate,
+        eSuspend = eOsProcessAccessSuspend,
+        eWait = eOsProcessAccessWait,
+        eVmControl = eOsProcessAccessVmControl,
+        eThreadControl = eOsProcessAccessThreadControl,
+        eIoControl = eOsProcessAccessIoControl,
+        eProcessControl = eOsProcessAccessProcessControl,
+        eQuota = eOsProcessAccessQuota,
+        eAll = eOsProcessAccessAll,
+    };
+
+    UTIL_BITFLAGS(ProcessAccess);
 
     struct ProcessCreateInfo {
-        sm::RcuWeakPtr<Process> parent;
         ObjectName name;
         sm::FixedArray<std::byte> args;
 
@@ -41,21 +55,34 @@ namespace sys2 {
         bool supervisor;
     };
 
-    OsStatus CreateProcess(System *system, ProcessCreateInfo info, sm::RcuSharedPtr<Process> *process);
-    OsStatus DestroyProcess(System *system, const ProcessDestroyInfo& info, sm::RcuWeakPtr<Process> process);
+    OsStatus CreateRootProcess(System *system, ProcessCreateInfo info, ProcessHandle **process);
 
     class ProcessHandle final : public IHandle {
+        /// @brief The process that this is a handle to.
         sm::RcuWeakPtr<Process> mProcess;
-        sm::RcuWeakPtr<Process> mOwner;
+
+        /// @brief The handle identifier inside the owning process.
         OsHandle mHandle;
+
+        /// @brief The permissions that this handle grants to the owner.
         ProcessAccess mAccess;
 
     public:
         ProcessHandle(sm::RcuWeakPtr<Process> process, OsHandle handle, ProcessAccess access);
 
-        sm::RcuWeakPtr<IObject> getOwner() override;
         sm::RcuWeakPtr<IObject> getObject() override;
         OsHandle getHandle() const override { return mHandle; }
+
+        sm::RcuWeakPtr<Process> getProcessObject() { return mProcess; }
+
+        bool hasAccess(ProcessAccess access) const {
+            return bool(mAccess & access);
+        }
+
+        OsStatus createProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle);
+        OsStatus destroyProcess(System *system, const ProcessDestroyInfo& info);
+
+        OsStatus createThread(System *system, ThreadCreateInfo info, ThreadHandle **handle);
     };
 
     class Process final : public IObject {
@@ -65,10 +92,12 @@ namespace sys2 {
         bool mSupervisor;
         ProcessId mId;
 
+        HandleAllocator<OsHandle> mIdAllocators[eOsHandleCount];
+
         sm::RcuWeakPtr<Process> mParent;
 
-        sm::FlatHashSet<sm::RcuWeakPtr<Thread>> mThreads;
-        sm::FlatHashSet<sm::RcuWeakPtr<Process>> mChildren;
+        sm::FlatHashSet<sm::RcuSharedPtr<Process>, sm::RcuHash<Process>, std::equal_to<>> mChildren;
+        sm::FlatHashSet<sm::RcuSharedPtr<Thread>, sm::RcuHash<Thread>, std::equal_to<>> mThreads;
 
         /// @brief All the handles this process has open.
         sm::FlatHashMap<OsHandle, std::unique_ptr<IHandle>> mHandles;
@@ -81,14 +110,11 @@ namespace sys2 {
         /// @brief The page tables for this process.
         km::AddressSpace mPageTables;
 
-        void addChild(sm::RcuWeakPtr<Process> child);
-        void removeChild(sm::RcuWeakPtr<Process> child);
-
-        friend OsStatus sys2::CreateProcess(System *system, ProcessCreateInfo info, sm::RcuSharedPtr<Process> *process);
-        friend OsStatus sys2::DestroyProcess(System *system, const ProcessDestroyInfo& info, sm::RcuWeakPtr<Process> process);
+        void removeChild(sm::RcuSharedPtr<Process> child);
+        void addChild(sm::RcuSharedPtr<Process> child);
 
     public:
-        Process(const ProcessCreateInfo& createInfo, const km::AddressSpace *systemTables, km::AddressMapping pteMemory);
+        Process(const ProcessCreateInfo& createInfo, sm::RcuWeakPtr<Process> parent, const km::AddressSpace *systemTables, km::AddressMapping pteMemory);
 
         void setName(ObjectName name) override;
         ObjectName getName() override;
@@ -98,11 +124,20 @@ namespace sys2 {
         OsStatus stat(ProcessInfo *info);
         bool isSupervisor() const { return mSupervisor; }
 
-#if __STDC_HOSTED__
-        bool TESTING_hasChildProcess(sm::RcuWeakPtr<Process> child) {
-            stdx::SharedLock guard(mLock);
-            return mChildren.contains(child);
+        IHandle *getHandle(OsHandle handle);
+        void addHandle(IHandle *handle);
+
+        OsHandle newHandleId(OsHandleType type) {
+            OsHandle id = mIdAllocators[type].allocate();
+            return OS_HANDLE_NEW(type, id);
         }
-#endif
+
+        OsStatus createProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle);
+        OsStatus destroy(System *system, const ProcessDestroyInfo& info);
+
+        OsStatus createThread(System *system, ThreadCreateInfo info, ThreadHandle **handle);
+
+        void removeThread(sm::RcuSharedPtr<Thread> thread);
+        void addThread(sm::RcuSharedPtr<Thread> thread);
     };
 }
