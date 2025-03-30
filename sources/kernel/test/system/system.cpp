@@ -10,6 +10,11 @@
 
 #include <thread>
 
+struct MemoryState {
+    km::PageAllocatorStats pmm;
+    km::PteAllocatorStats vmm;
+};
+
 class SystemTest : public testing::Test {
 public:
     void SetUp() override {
@@ -17,27 +22,35 @@ public:
         body.addSegment(sm::megabytes(4).bytes(), boot::MemoryRegion::eUsable);
     }
 
+    MemoryState GetMemoryState(km::SystemMemory& memory) {
+        MemoryState state;
+        state.pmm = memory.pmmAllocator().stats();
+        state.vmm = memory.systemTables().TESTING_getPageTableAllocator().stats();
+        return state;
+    }
+
+    void CheckMemoryState(km::SystemMemory& memory, const MemoryState& before) {
+        (void)memory.systemTables().compact();
+        auto after = GetMemoryState(memory);
+
+        ASSERT_EQ(after.vmm.freeBlocks, before.vmm.freeBlocks) << "Virtual memory was leaked";
+        ASSERT_EQ(after.pmm.freeMemory, before.pmm.freeMemory) << "Physical memory was leaked";
+    }
+
     void RecordMemoryUsage(km::SystemMemory& memory) {
-        beforePmem = memory.pmmAllocator().stats();
-        beforeVmem = memory.systemTables().TESTING_getPageTableAllocator().stats();
+        before = GetMemoryState(memory);
     }
 
     void CheckMemoryUsage(km::SystemMemory& memory) {
         (void)memory.systemTables().compact();
 
-        afterPmem = memory.pmmAllocator().stats();
-        afterVmem = memory.systemTables().TESTING_getPageTableAllocator().stats();
-
-        ASSERT_EQ(afterVmem.freeBlocks, beforeVmem.freeBlocks) << "Virtual memory was leaked";
-        ASSERT_EQ(afterPmem.freeMemory, beforePmem.freeMemory) << "Physical memory was leaked";
+        CheckMemoryState(memory, before);
     }
 
     SystemMemoryTestBody body;
 
-    km::PageAllocatorStats beforePmem;
-    km::PteAllocatorStats beforeVmem;
-    km::PageAllocatorStats afterPmem;
-    km::PteAllocatorStats afterVmem;
+    MemoryState before;
+    MemoryState after;
 };
 
 TEST_F(SystemTest, Construct) {
@@ -200,7 +213,7 @@ TEST_F(SystemTest, CreateChildProcess) {
     CheckMemoryUsage(memory);
 }
 
-TEST_F(SystemTest, CreateThread) {
+TEST_F(SystemTest, OrphanThread) {
     km::SystemMemory memory = body.make(sm::megabytes(2).bytes());
     sys2::GlobalSchedule schedule(128, 128);
     sys2::System system(&schedule, &memory.pageTables(), &memory.pmmAllocator());
@@ -241,4 +254,54 @@ TEST_F(SystemTest, CreateThread) {
     ASSERT_EQ(status, OsStatusSuccess);
 
     CheckMemoryUsage(memory);
+}
+
+TEST_F(SystemTest, CreateThread) {
+    km::SystemMemory memory = body.make(sm::megabytes(2).bytes());
+    sys2::GlobalSchedule schedule(128, 128);
+    sys2::System system(&schedule, &memory.pageTables(), &memory.pmmAllocator());
+
+    sys2::ProcessCreateInfo processCreateInfo {
+        .name = "TEST",
+        .supervisor = false,
+    };
+
+    sys2::ThreadCreateInfo threadCreateInfo {
+        .name = "TEST",
+        .cpuState = {},
+        .tlsAddress = 0,
+        .state = eOsThreadRunning,
+    };
+
+    std::unique_ptr<sys2::ProcessHandle> hProcess = nullptr;
+    sys2::ThreadHandle *hThread = nullptr;
+
+    auto before0 = GetMemoryState(memory);
+
+    OsStatus status = sys2::CreateRootProcess(&system, processCreateInfo, std::out_ptr(hProcess));
+    ASSERT_EQ(status, OsStatusSuccess);
+    ASSERT_NE(hProcess, nullptr) << "Process was not created";
+
+    auto before1 = GetMemoryState(memory);
+
+    status = hProcess->createThread(&system, threadCreateInfo, &hThread);
+    ASSERT_EQ(status, OsStatusSuccess);
+
+    ASSERT_NE(hThread, nullptr) << "Thread was not created";
+    auto process = hProcess->getProcessObject().lock();
+
+    status = hThread->destroy(&system, sys2::ThreadDestroyInfo { .exitCode = 0, .reason = eOsThreadFinished });
+    ASSERT_EQ(status, OsStatusSuccess);
+
+    CheckMemoryState(memory, before1);
+
+    sys2::ProcessDestroyInfo destroyInfo {
+        .exitCode = 0,
+        .reason = eOsProcessExited,
+    };
+
+    status = hProcess->destroyProcess(&system, destroyInfo);
+    ASSERT_EQ(status, OsStatusSuccess);
+
+    CheckMemoryState(memory, before0);
 }

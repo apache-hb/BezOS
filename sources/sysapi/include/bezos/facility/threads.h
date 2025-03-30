@@ -10,15 +10,17 @@ extern "C" {
 /// @{
 
 enum {
-    eOsThreadAccessNone    = 0,
-    eOsThreadAccessWait    = (1 << 0),
-    eOsThreadAccessSuspend = (1 << 1),
-    eOsThreadAccessQuota   = (1 << 2),
+    eOsThreadAccessNone      = 0,
+    eOsThreadAccessWait      = (1 << 0),
+    eOsThreadAccessSuspend   = (1 << 1),
+    eOsThreadAccessQuota     = (1 << 2),
+    eOsThreadAccessTerminate = (1 << 3),
 
     eOsThreadAccessAll
         = eOsThreadAccessWait
         | eOsThreadAccessSuspend
-        | eOsThreadAccessQuota,
+        | eOsThreadAccessQuota
+        | eOsThreadAccessTerminate,
 };
 
 enum {

@@ -20,6 +20,7 @@ namespace sys2 {
         eWait = eOsThreadAccessWait,
         eSuspend = eOsThreadAccessSuspend,
         eQuota = eOsThreadAccessQuota,
+        eTerminate = eOsThreadAccessTerminate,
         eAll = eOsThreadAccessAll,
     };
 
@@ -92,6 +93,8 @@ namespace sys2 {
         bool hasAccess(ThreadAccess access) const {
             return bool(mAccess & access);
         }
+
+        OsStatus destroy(System *system, const ThreadDestroyInfo& info);
     };
 
     class Thread final : public IObject {

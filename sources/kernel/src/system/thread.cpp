@@ -15,6 +15,19 @@ sm::RcuWeakPtr<sys2::IObject> sys2::ThreadHandle::getObject() {
     return mThread;
 }
 
+OsStatus sys2::ThreadHandle::destroy(System *system, const ThreadDestroyInfo& info) {
+    if (!hasAccess(ThreadAccess::eTerminate)) {
+        return OsStatusAccessDenied;
+    }
+
+    auto thread = mThread.lock();
+    if (!thread) {
+        return OsStatusInvalidHandle;
+    }
+
+    return thread->destroy(system, info);
+}
+
 void sys2::Thread::setName(ObjectName name) {
     stdx::UniqueLock guard(mLock);
     mName = name;
