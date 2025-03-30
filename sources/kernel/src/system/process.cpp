@@ -1,6 +1,7 @@
 #include "system/process.hpp"
 #include "memory.hpp"
 #include "system/system.hpp"
+#include "xsave.hpp"
 
 sys2::ProcessHandle::ProcessHandle(sm::RcuWeakPtr<Process> process, OsHandle handle, ProcessAccess access)
     : mProcess(process)
@@ -181,15 +182,28 @@ OsStatus sys2::Process::destroy(System *system, const ProcessDestroyInfo& info) 
 
 OsStatus sys2::Process::createThread(System *system, ThreadCreateInfo info, ThreadHandle **handle) {
     km::StackMapping kernelStack{};
+    x64::XSave *fpuState = nullptr;
+    ThreadHandle *result = nullptr;
+    sm::RcuSharedPtr<Thread> thread;
+
     if (OsStatus status = system->mapSystemStack(&kernelStack)) {
         return status;
     }
 
-    if (auto thread = sm::rcuMakeShared<sys2::Thread>(&system->rcuDomain(), info, loanWeak(), kernelStack)) {
-        ThreadHandle *result = new (std::nothrow) ThreadHandle(thread, newHandleId(eOsHandleThread), ThreadAccess::eAll);
+    do {
+        fpuState = km::CreateXSave();
+        if (!fpuState) {
+            break;
+        }
+
+        thread = sm::rcuMakeShared<sys2::Thread>(&system->rcuDomain(), info, loanWeak(), fpuState, kernelStack);
+        if (!thread) {
+            break;
+        }
+
+        result = new (std::nothrow) ThreadHandle(thread, newHandleId(eOsHandleThread), ThreadAccess::eAll);
         if (!result) {
-            system->releaseStack(kernelStack);
-            return OsStatusOutOfMemory;
+            break;
         }
 
         addHandle(result);
@@ -198,8 +212,10 @@ OsStatus sys2::Process::createThread(System *system, ThreadCreateInfo info, Thre
         system->addObject(thread);
         *handle = result;
         return OsStatusSuccess;
-    }
+    } while (false);
 
+    delete result;
+    if (fpuState) km::DestroyXSave(fpuState);
     system->releaseStack(kernelStack);
     return OsStatusOutOfMemory;
 }

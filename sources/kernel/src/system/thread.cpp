@@ -75,9 +75,10 @@ bool sys2::Thread::isSupervisor() {
     return false;
 }
 
-sys2::Thread::Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, km::StackMapping kernelStack)
+sys2::Thread::Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, x64::XSave *fpuState, km::StackMapping kernelStack)
     : mProcess(process)
     , mCpuState(createInfo.cpuState)
+    , mFpuState(fpuState, &km::DestroyXSave)
     , mTlsAddress(createInfo.tlsAddress)
     , mKernelStack(kernelStack)
     , mThreadState(createInfo.state)

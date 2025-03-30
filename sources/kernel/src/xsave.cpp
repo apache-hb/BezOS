@@ -171,7 +171,13 @@ km::IFpuSave *km::InitFpuSave(const XSaveConfig& config) {
         KmDebugMessage("[XSAVE] Mode ", config.target, " not supported, falling back to ", choice, " instead.\n");
     }
 
-    switch (choice) {
+    detail::SetupXSave(choice, config.features);
+
+    return gFpuSave;
+}
+
+void km::detail::SetupXSave(SaveMode mode, uint64_t features) {
+    switch (mode) {
     case SaveMode::eNoSave:
         gFpuSave = &NoSave::gInstance;
         break;
@@ -180,14 +186,12 @@ km::IFpuSave *km::InitFpuSave(const XSaveConfig& config) {
         gFpuSave = &FxSave::gInstance;
         break;
     case SaveMode::eXSave:
-        XSave::initInstance(config.features);
+        XSave::initInstance(features);
         gFpuSave = &XSave::gInstance;
         break;
     default:
         KM_PANIC("Invalid FPU save mode.");
     }
-
-    return gFpuSave;
 }
 
 void km::XSaveInitApCore() {
@@ -204,6 +208,37 @@ void km::XSaveStoreState(x64::XSave *area) {
 
 void km::XSaveLoadState(x64::XSave *area) {
     gFpuSave->restore(area);
+}
+
+/// @brief Sentinel value to indicate that xsave isnt supported.
+/// Callers of km::CreateXSave check for nullptr to determine if an allocation failed.
+/// When xsave isnt supported we return the address of this sentinel value so the nullptr
+/// checks still pass, despite no structure being allocated.
+static constexpr std::monostate __attribute__((noderef)) *kInvalidXSave = nullptr;
+
+x64::XSave *km::detail::EmptyXSave() {
+    return std::bit_cast<x64::XSave*>(&kInvalidXSave);
+}
+
+x64::XSave *km::CreateXSave() {
+    size_t size = XSaveSize();
+    if (size > 0) {
+        void *result = aligned_alloc(alignof(x64::XSave), size);
+
+        if (result) {
+            std::memset(result, 0, km::XSaveSize());
+        }
+
+        return (x64::XSave*)result;
+    }
+
+    return detail::EmptyXSave();
+}
+
+void km::DestroyXSave(x64::XSave *area) {
+    if (area != detail::EmptyXSave()) {
+        free(area);
+    }
 }
 
 void km::Format<km::SaveMode>::format(km::IOutStream &out, km::SaveMode mode) {

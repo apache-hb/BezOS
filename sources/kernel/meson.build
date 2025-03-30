@@ -508,6 +508,8 @@ testcases = {
         'src/elf/elf.cpp',
         'src/util/memory.cpp',
         'src/boot.cpp',
+        'src/xsave.cpp',
+        'src/util/cpuid.cpp',
         'src/process/system.cpp',
         'src/process/process.cpp',
         'src/process/thread.cpp',
@@ -538,6 +540,8 @@ testcases = {
         'src/process/object.cpp',
 
         'src/memory.cpp',
+        'src/xsave.cpp',
+        'src/util/cpuid.cpp',
         'src/elf/elf.cpp',
 
         'src/util/memory.cpp',
@@ -557,6 +561,9 @@ testcases = {
 
         'src/memory.cpp',
         'src/boot.cpp',
+
+        'src/xsave.cpp',
+        'src/util/cpuid.cpp',
     ]
 }
 

@@ -15,6 +15,11 @@ namespace km {
         eXSave,
     };
 
+    namespace detail {
+        x64::XSave *EmptyXSave();
+        void SetupXSave(SaveMode mode, uint64_t features);
+    }
+
     class IFpuSave {
     public:
         virtual ~IFpuSave() noexcept = default;
@@ -38,6 +43,8 @@ namespace km {
     size_t XSaveSize();
     void XSaveStoreState(x64::XSave *area);
     void XSaveLoadState(x64::XSave *area);
+    x64::XSave *CreateXSave();
+    void DestroyXSave(x64::XSave *area);
 }
 
 template<>

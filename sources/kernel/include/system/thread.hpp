@@ -5,6 +5,7 @@
 #include "arch/xsave.hpp"
 #include "memory/layout.hpp"
 #include "system/handle.hpp"
+#include "xsave.hpp"
 
 #include <stdlib.h>
 
@@ -49,7 +50,7 @@ namespace sys2 {
         reg_t rflags;
     };
 
-    using XSaveState = std::unique_ptr<x64::XSave, decltype(&free)>;
+    using XSaveState = std::unique_ptr<x64::XSave, decltype(&km::DestroyXSave)>;
 
     struct ThreadCreateInfo {
         ObjectName name;
@@ -105,7 +106,7 @@ namespace sys2 {
         sm::RcuWeakPtr<Process> mProcess;
 
         RegisterSet mCpuState;
-        XSaveState mFpuState{nullptr, &free};
+        XSaveState mFpuState{nullptr, &km::DestroyXSave};
         reg_t mTlsAddress;
 
         [[maybe_unused]]
@@ -115,7 +116,7 @@ namespace sys2 {
         OsThreadState mThreadState;
 
     public:
-        Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, km::StackMapping kernelStack);
+        Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, x64::XSave *fpuState, km::StackMapping kernelStack);
 
         void setName(ObjectName name) override;
         ObjectName getName() override;

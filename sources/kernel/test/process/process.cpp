@@ -9,12 +9,20 @@
 #include "fs2/vfs.hpp"
 
 #include "test/test_memory.hpp"
+#include "xsave.hpp"
 
 km::SystemMemory *km::GetSystemMemory() {
     return nullptr;
 }
 
-TEST(ProcessTest, Construct) {
+class ProcessTest : public testing::Test {
+public:
+    void SetUp() override {
+        km::detail::SetupXSave(km::SaveMode::eNoSave, 0);
+    }
+};
+
+TEST_F(ProcessTest, Construct) {
     vfs2::VfsRoot vfs;
     SystemMemoryTestBody body;
     body.addSegment(0x100000, boot::MemoryRegion::eUsable);
@@ -25,7 +33,7 @@ TEST(ProcessTest, Construct) {
     km::SystemObjects objects { &memory, &vfs };
 }
 
-TEST(ProcessTest, CreateProcess) {
+TEST_F(ProcessTest, CreateProcess) {
     vfs2::VfsRoot vfs;
     SystemMemoryTestBody body;
     auto s0 = body.addSegment(0x100000, boot::MemoryRegion::eUsable);
@@ -56,7 +64,7 @@ TEST(ProcessTest, CreateProcess) {
     }
 }
 
-TEST(ProcessTest, CreateThread) {
+TEST_F(ProcessTest, CreateThread) {
     vfs2::VfsRoot vfs;
     SystemMemoryTestBody body;
     auto s0 = body.addSegment(0x100000, boot::MemoryRegion::eUsable);
@@ -106,7 +114,7 @@ TEST(ProcessTest, CreateThread) {
     ASSERT_EQ(objects.getThread(km::ThreadId(OS_HANDLE_ID(threadId))), nullptr);
 }
 
-TEST(ProcessTest, OpenFile) {
+TEST_F(ProcessTest, OpenFile) {
     vfs2::VfsRoot vfs;
     SystemMemoryTestBody body;
     auto s0 = body.addSegment(0x100000, boot::MemoryRegion::eUsable);
@@ -181,7 +189,7 @@ TEST(ProcessTest, OpenFile) {
     ASSERT_EQ(objects.getDevice(km::DeviceId(OS_HANDLE_ID(vnodeId))), nullptr);
 }
 
-TEST(ProcessTest, CloseFileInProcess) {
+TEST_F(ProcessTest, CloseFileInProcess) {
     vfs2::VfsRoot vfs;
     SystemMemoryTestBody body;
     auto s0 = body.addSegment(0x100000, boot::MemoryRegion::eUsable);

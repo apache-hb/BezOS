@@ -32,10 +32,6 @@ void km::LockDebugLog() { }
 void km::UnlockDebugLog() { }
 void km::YieldCurrentThread() { }
 
-size_t km::XSaveSize() { return sizeof(x64::XSave); }
-void km::XSaveStoreState(x64::XSave*) { }
-void km::XSaveLoadState(x64::XSave*) { }
-
 km::IOutStream *km::GetDebugStream() {
     static TestStream sTestStream;
     return &sTestStream;
