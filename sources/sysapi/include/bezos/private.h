@@ -40,6 +40,7 @@ enum {
     eOsCallMutexDestroy = 0x71,
     eOsCallMutexLock = 0x72,
     eOsCallMutexUnlock = 0x73,
+    eOsCallMutexStat = 0x74,
 
     eOsCallDeviceOpen = 0x80,
     eOsCallDeviceClose = 0x81,

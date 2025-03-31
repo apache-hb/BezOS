@@ -11,16 +11,20 @@ extern "C" {
 
 enum {
     eOsThreadAccessNone      = 0,
+
     eOsThreadAccessWait      = (1 << 0),
-    eOsThreadAccessSuspend   = (1 << 1),
-    eOsThreadAccessQuota     = (1 << 2),
-    eOsThreadAccessTerminate = (1 << 3),
+    eOsThreadAccessTerminate = (1 << 2),
+    eOsThreadAccessStat      = (1 << 3),
+
+    eOsThreadAccessSuspend   = (1 << 4),
+    eOsThreadAccessQuota     = (1 << 5),
 
     eOsThreadAccessAll
         = eOsThreadAccessWait
+        | eOsThreadAccessTerminate
+        | eOsThreadAccessStat
         | eOsThreadAccessSuspend
-        | eOsThreadAccessQuota
-        | eOsThreadAccessTerminate,
+        | eOsThreadAccessQuota,
 };
 
 enum {
@@ -99,26 +103,6 @@ extern OsStatus OsThreadSuspend(OsThreadHandle Handle, bool Suspend);
 extern OsStatus OsThreadStat(OsThreadHandle Handle, struct OsThreadInfo *OutInfo);
 
 /// @} // group OsThread
-
-/// @defgroup OsMutex Mutex
-/// @{
-
-struct OsMutexCreateInfo {
-    const char *NameFront;
-    const char *NameBack;
-
-    OsProcessHandle Process;
-};
-
-extern OsStatus OsMutexCreate(struct OsMutexCreateInfo CreateInfo, OsMutexHandle *OutHandle);
-
-extern OsStatus OsMutexDestroy(OsMutexHandle Handle);
-
-extern OsStatus OsMutexLock(OsMutexHandle Handle);
-
-extern OsStatus OsMutexUnlock(OsMutexHandle Handle);
-
-/// @} // group OsMutex
 
 #ifdef __cplusplus
 }

@@ -29,6 +29,7 @@ src = [
     'src/bezos/syscall_device.c',
     'src/bezos/syscall_clock.c',
     'src/bezos/syscall_vmem.c',
+    'src/bezos/syscall_mutex.c',
     'src/bezos/syscall_process.c',
     'src/bezos/syscall_handle.c',
     'src/bezos/syscall_debug.c',

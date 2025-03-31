@@ -15,32 +15,35 @@ enum {
     eOsProcessAccessNone = 0,
 
     /// @brief Grants access to wait for the process to exit.
-    eOsProcessAccessWait          = (1 << 0),
+    eOsProcessAccessWait           = (1 << 0),
 
     /// @brief Grants access to terminate the process.
-    eOsProcessAccessTerminate     = (1 << 1),
+    eOsProcessAccessTerminate      = (1 << 1),
+
+    eOsProcessAccessStat           = (1 << 2),
 
     /// @brief Grants access to suspend and resume the process.
-    eOsProcessAccessSuspend       = (1 << 2),
+    eOsProcessAccessSuspend        = (1 << 3),
 
     /// @brief Grants access to create, update, and destroy virtual memory mappings.
-    eOsProcessAccessVmControl     = (1 << 3),
+    eOsProcessAccessVmControl      = (1 << 4),
 
     /// @brief Grants access to create, update, and destroy threads.
-    eOsProcessAccessThreadControl = (1 << 4),
+    eOsProcessAccessThreadControl  = (1 << 5),
 
     /// @brief Grants access to create, update, and destroy devices and nodes.
-    eOsProcessAccessIoControl     = (1 << 5),
+    eOsProcessAccessIoControl      = (1 << 6),
 
     /// @brief Grants access to create, update, and destroy child processes.
-    eOsProcessAccessProcessControl = (1 << 6),
+    eOsProcessAccessProcessControl = (1 << 7),
 
     /// @brief Grants access to create, update, and destroy quotas.
-    eOsProcessAccessQuota         = (1 << 7),
+    eOsProcessAccessQuota          = (1 << 8),
 
     eOsProcessAccessAll
         = eOsProcessAccessWait
         | eOsProcessAccessTerminate
+        | eOsProcessAccessStat
         | eOsProcessAccessSuspend
         | eOsProcessAccessVmControl
         | eOsProcessAccessThreadControl

@@ -5,7 +5,6 @@
 #include "absl/base/internal/throw_delegate.h"
 
 #include "isr/isr.hpp"
-#include "xsave.hpp"
 #include "kernel.hpp"
 #include "process/schedule.hpp"
 
