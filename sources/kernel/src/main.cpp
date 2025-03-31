@@ -15,6 +15,7 @@
 #include <bezos/facility/device.h>
 #include <bezos/facility/vmem.h>
 #include <bezos/facility/debug.h>
+#include <bezos/facility/mutex.h>
 
 #include <bezos/subsystem/hid.h>
 #include <bezos/subsystem/ddi.h>

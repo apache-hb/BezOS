@@ -46,6 +46,7 @@ namespace sys2 {
         stdx::SharedSpinLock mLock;
         ObjectName mName;
 
+        sm::RcuWeakPtr<Thread> mOwner GUARDED_BY(mLock);
         sm::FlatHashSet<sm::RcuWeakPtr<Thread>> mWaiters GUARDED_BY(mLock);
         std::atomic_flag mLocked = ATOMIC_FLAG_INIT;
     public:
@@ -53,5 +54,7 @@ namespace sys2 {
         ObjectName getName() override;
 
         stdx::StringView getClassName() const override { return "Mutex"; }
+
+        bool tryAcquireLock(sm::RcuWeakPtr<Thread> thread);
     };
 }
