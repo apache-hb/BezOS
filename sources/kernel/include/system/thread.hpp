@@ -16,12 +16,13 @@ namespace sys2 {
     class Thread;
     class ThreadHandle;
 
-    enum class ThreadAccess : uint64_t {
+    enum class ThreadAccess : OsHandleAccess {
         eNone = eOsThreadAccessNone,
         eWait = eOsThreadAccessWait,
+        eTerminate = eOsThreadAccessTerminate,
+        eStat = eOsThreadAccessStat,
         eSuspend = eOsThreadAccessSuspend,
         eQuota = eOsThreadAccessQuota,
-        eTerminate = eOsThreadAccessTerminate,
         eAll = eOsThreadAccessAll,
     };
 

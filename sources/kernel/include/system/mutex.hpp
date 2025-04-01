@@ -9,7 +9,7 @@ namespace sys2 {
     class Mutex;
     class MutexHandle;
 
-    enum class MutexAccess : uint64_t {
+    enum class MutexAccess : OsHandleAccess {
         eNone = eOsMutexAccessNone,
         eWait = eOsMutexAccessWait,
         eDestroy = eOsMutexAccessDestroy,

@@ -16,7 +16,7 @@ namespace sys2 {
 
     using ObjectName = stdx::StaticString<OS_OBJECT_NAME_MAX>;
 
-    enum class HandleAccess : uint64_t {
+    enum class HandleAccess : OsHandleAccess {
         eNone = 0,
     };
 

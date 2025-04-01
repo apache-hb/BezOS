@@ -18,11 +18,12 @@ namespace sys2 {
 
     enum class ProcessId : uint64_t {};
 
-    enum class ProcessAccess : uint64_t {
+    enum class ProcessAccess : OsHandleAccess {
         eNone = eOsProcessAccessNone,
-        eTerminate = eOsProcessAccessTerminate,
-        eSuspend = eOsProcessAccessSuspend,
         eWait = eOsProcessAccessWait,
+        eTerminate = eOsProcessAccessTerminate,
+        eStat = eOsProcessAccessStat,
+        eSuspend = eOsProcessAccessSuspend,
         eVmControl = eOsProcessAccessVmControl,
         eThreadControl = eOsProcessAccessThreadControl,
         eIoControl = eOsProcessAccessIoControl,

@@ -16,12 +16,14 @@ enum {
     eOsNodeAccessWrite = (1 << 1),
     eOsNodeAccessStat = (1 << 2),
     eOsNodeAccessDestroy = (1 << 3),
+    eOsNodeAccessQueryInterface = (1 << 4),
 
     eOsNodeAccessAll
         = eOsNodeAccessRead
         | eOsNodeAccessWrite
         | eOsNodeAccessStat
-        | eOsNodeAccessDestroy,
+        | eOsNodeAccessDestroy
+        | eOsNodeAccessQueryInterface,
 };
 
 /// @brief An invalid file handle.
