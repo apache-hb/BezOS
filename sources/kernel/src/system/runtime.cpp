@@ -1,7 +1,9 @@
 #include "system/schedule.hpp"
+#include "system/thread.hpp"
 
 #include "panic.hpp"
 #include "thread.hpp"
+#include "util/defer.hpp"
 
 #include "timer/apic_timer.hpp"
 
@@ -16,8 +18,18 @@ CPU_LOCAL
 static constinit km::CpuLocal<void*> tlsKernelStack;
 
 static km::IsrContext ScheduleInt(km::IsrContext *context) {
+    km::IApic *apic = km::GetCpuLocalApic();
+    defer { apic->eoi(); };
+
     if (sys2::CpuLocalSchedule *schedule = tlsSchedule.get()) {
-        return schedule->serviceSchedulerInt(context);
+        auto newContext = schedule->serviceSchedulerInt(context);
+
+        if (auto thread = schedule->currentThread()) {
+            auto kernelStack = thread->getKernelStack();
+            tlsKernelStack = kernelStack.baseAddress();
+        }
+
+        return newContext;
     }
 
     return *context;

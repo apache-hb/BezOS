@@ -16,16 +16,12 @@ namespace sys2 {
 
     using ObjectName = stdx::StaticString<OS_OBJECT_NAME_MAX>;
 
-    enum class HandleAccess : OsHandleAccess {
-        eNone = 0,
-    };
-
     struct HandleCreateInfo {
         /// @brief The object that is requesting access to a new handle.
         sm::RcuSharedPtr<IObject> owner;
 
         /// @brief The flags that describe access to the handle.
-        HandleAccess access;
+        OsHandleAccess access;
     };
 
     template<typename T>
@@ -55,6 +51,7 @@ namespace sys2 {
 
         virtual sm::RcuWeakPtr<IObject> getObject() = 0;
         virtual OsHandle getHandle() const = 0;
+        virtual OsStatus clone(OsHandleAccess, IHandle **) { return OsStatusNotSupported; }
 
         OsHandleType getHandleType() const { return OS_HANDLE_TYPE(getHandle()); }
         OsHandle internalId() const { return OS_HANDLE_ID(getHandle()); }

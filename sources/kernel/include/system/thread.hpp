@@ -80,17 +80,17 @@ namespace sys2 {
     };
 
     class ThreadHandle final : public IHandle {
-        sm::RcuWeakPtr<Thread> mThread;
+        sm::RcuSharedPtr<Thread> mThread;
         OsHandle mHandle;
         ThreadAccess mAccess;
 
     public:
-        ThreadHandle(sm::RcuWeakPtr<Thread> thread, OsHandle handle, ThreadAccess access);
+        ThreadHandle(sm::RcuSharedPtr<Thread> thread, OsHandle handle, ThreadAccess access);
 
         sm::RcuWeakPtr<IObject> getObject() override;
         OsHandle getHandle() const override { return mHandle; }
 
-        sm::RcuWeakPtr<Thread> getThreadObject() { return mThread; }
+        sm::RcuSharedPtr<Thread> getThreadObject() { return mThread; }
 
         bool hasAccess(ThreadAccess access) const {
             return bool(mAccess & access);
@@ -128,6 +128,8 @@ namespace sys2 {
 
         void saveState(RegisterSet& regs);
         RegisterSet loadState();
+        reg_t getTlsAddress() const { return mTlsAddress; }
+        km::StackMapping getKernelStack() const { return mKernelStack; }
 
         bool isSupervisor();
 

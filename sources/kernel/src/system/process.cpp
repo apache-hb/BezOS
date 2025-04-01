@@ -3,7 +3,7 @@
 #include "system/system.hpp"
 #include "xsave.hpp"
 
-sys2::ProcessHandle::ProcessHandle(sm::RcuWeakPtr<Process> process, OsHandle handle, ProcessAccess access)
+sys2::ProcessHandle::ProcessHandle(sm::RcuSharedPtr<Process> process, OsHandle handle, ProcessAccess access)
     : mProcess(process)
     , mHandle(handle)
     , mAccess(access)
@@ -18,12 +18,7 @@ OsStatus sys2::ProcessHandle::createProcess(System *system, ProcessCreateInfo in
         return OsStatusAccessDenied;
     }
 
-    auto process = mProcess.lock();
-    if (!process) {
-        return OsStatusInvalidHandle;
-    }
-
-    return process->createProcess(system, info, handle);
+    return mProcess->createProcess(system, info, handle);
 }
 
 OsStatus sys2::ProcessHandle::destroyProcess(System *system, const ProcessDestroyInfo& info) {
@@ -31,13 +26,7 @@ OsStatus sys2::ProcessHandle::destroyProcess(System *system, const ProcessDestro
         return OsStatusAccessDenied;
     }
 
-    auto process = mProcess.lock();
-
-    if (!process) {
-        return OsStatusInvalidHandle;
-    }
-
-    return process->destroy(system, info);
+    return mProcess->destroy(system, info);
 }
 
 OsStatus sys2::ProcessHandle::createThread(System *system, ThreadCreateInfo info, ThreadHandle **handle) {
@@ -45,13 +34,15 @@ OsStatus sys2::ProcessHandle::createThread(System *system, ThreadCreateInfo info
         return OsStatusAccessDenied;
     }
 
-    auto process = mProcess.lock();
+    return mProcess->createThread(system, info, handle);
+}
 
-    if (!process) {
-        return OsStatusInvalidHandle;
+OsStatus sys2::ProcessHandle::stat(ProcessInfo *info) {
+    if (!hasAccess(ProcessAccess::eStat)) {
+        return OsStatusAccessDenied;
     }
 
-    return process->createThread(system, info, handle);
+    return mProcess->stat(info);
 }
 
 void sys2::Process::setName(ObjectName name) {
@@ -70,6 +61,10 @@ OsStatus sys2::Process::stat(ProcessInfo *info) {
         .name = mName,
         .handles = mHandles.size(),
         .supervisor = mSupervisor,
+        .exitCode = mExitCode,
+        .state = mState,
+        .id = mId,
+        .parent = mParent,
     };
 
     return OsStatusSuccess;
@@ -78,6 +73,8 @@ OsStatus sys2::Process::stat(ProcessInfo *info) {
 sys2::Process::Process(const ProcessCreateInfo& createInfo, sm::RcuWeakPtr<Process> parent, const km::AddressSpace *systemTables, km::AddressMapping pteMemory)
     : mName(createInfo.name)
     , mSupervisor(createInfo.supervisor)
+    , mState(createInfo.state)
+    , mExitCode(0)
     , mParent(parent)
     , mPteMemory(pteMemory)
     , mPageTables(systemTables, mPteMemory, km::PageFlags::eUserAll, km::DefaultUserArea())
@@ -148,6 +145,9 @@ OsStatus sys2::Process::destroy(System *system, const ProcessDestroyInfo& info) 
     if (auto parent = mParent.lock()) {
         parent->removeChild(loanShared());
     }
+
+    mState = info.reason;
+    mExitCode = info.exitCode;
 
     for (sm::RcuSharedPtr<Process> child : mChildren) {
         if (OsStatus status = child->destroy(system, ProcessDestroyInfo { .exitCode = info.exitCode, .reason = eOsProcessOrphaned })) {

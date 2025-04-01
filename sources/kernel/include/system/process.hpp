@@ -54,13 +54,17 @@ namespace sys2 {
         ObjectName name;
         uint64_t handles;
         bool supervisor;
+        int64_t exitCode;
+        OsProcessStateFlags state;
+        ProcessId id;
+        sm::RcuWeakPtr<Process> parent;
     };
 
     OsStatus CreateRootProcess(System *system, ProcessCreateInfo info, ProcessHandle **process);
 
     class ProcessHandle final : public IHandle {
         /// @brief The process that this is a handle to.
-        sm::RcuWeakPtr<Process> mProcess;
+        sm::RcuSharedPtr<Process> mProcess;
 
         /// @brief The handle identifier inside the owning process.
         OsHandle mHandle;
@@ -69,12 +73,12 @@ namespace sys2 {
         ProcessAccess mAccess;
 
     public:
-        ProcessHandle(sm::RcuWeakPtr<Process> process, OsHandle handle, ProcessAccess access);
+        ProcessHandle(sm::RcuSharedPtr<Process> process, OsHandle handle, ProcessAccess access);
 
         sm::RcuWeakPtr<IObject> getObject() override;
         OsHandle getHandle() const override { return mHandle; }
 
-        sm::RcuWeakPtr<Process> getProcessObject() { return mProcess; }
+        sm::RcuSharedPtr<Process> getProcessObject() { return mProcess; }
 
         bool hasAccess(ProcessAccess access) const {
             return bool(mAccess & access);
@@ -84,6 +88,8 @@ namespace sys2 {
         OsStatus destroyProcess(System *system, const ProcessDestroyInfo& info);
 
         OsStatus createThread(System *system, ThreadCreateInfo info, ThreadHandle **handle);
+
+        OsStatus stat(ProcessInfo *info);
     };
 
     class Process final : public IObject {
@@ -92,6 +98,8 @@ namespace sys2 {
         ObjectName mName GUARDED_BY(mLock);
         bool mSupervisor;
         ProcessId mId;
+        OsProcessStateFlags mState;
+        int64_t mExitCode;
 
         HandleAllocator<OsHandle> mIdAllocators[eOsHandleCount];
 

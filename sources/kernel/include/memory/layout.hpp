@@ -124,6 +124,10 @@ namespace km {
 
         /// @brief The total mapped area including guard pages.
         VirtualRange total;
+
+        void *baseAddress() const {
+            return (void*)((uintptr_t)mapping.vaddr + mapping.size);
+        }
     };
 }
 

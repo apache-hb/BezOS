@@ -5,7 +5,7 @@
 #include "thread.hpp"
 #include "xsave.hpp"
 
-sys2::ThreadHandle::ThreadHandle(sm::RcuWeakPtr<Thread> thread, OsHandle handle, ThreadAccess access)
+sys2::ThreadHandle::ThreadHandle(sm::RcuSharedPtr<Thread> thread, OsHandle handle, ThreadAccess access)
     : mThread(thread)
     , mHandle(handle)
     , mAccess(access)
@@ -20,12 +20,7 @@ OsStatus sys2::ThreadHandle::destroy(System *system, const ThreadDestroyInfo& in
         return OsStatusAccessDenied;
     }
 
-    auto thread = mThread.lock();
-    if (!thread) {
-        return OsStatusInvalidHandle;
-    }
-
-    return thread->destroy(system, info);
+    return mThread->destroy(system, info);
 }
 
 void sys2::Thread::setName(ObjectName name) {

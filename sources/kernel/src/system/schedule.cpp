@@ -65,13 +65,13 @@ static km::IsrContext LoadThreadContext(sys2::RegisterSet& regs, bool supervisor
 }
 
 bool sys2::CpuLocalSchedule::reschedule() {
-    if (mCurrent != nullptr) {
-        mQueue.addFront(ThreadSchedulingInfo { mCurrent });
-    }
-
     ThreadSchedulingInfo info;
     while (mQueue.tryPollBack(info)) {
         if (sm::RcuSharedPtr<Thread> thread = info.thread.lock()) {
+            if (mCurrent != nullptr) {
+                mQueue.addFront(ThreadSchedulingInfo { mCurrent });
+            }
+
             mCurrent = thread;
             return true;
         }
