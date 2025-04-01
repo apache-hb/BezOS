@@ -9,14 +9,38 @@ extern "C" {
 /// @defgroup OsTransaction Transactions
 /// @{
 
-#define OS_TRANSACTION_INVALID ((OsTransactionHandle)(0))
+enum {
+    eOsTxAccessNone = 0,
+
+    /// @brief Access to wait for the transaction to complete.
+    eOsTxAccessWait = (1 << 0),
+
+    /// @brief Access to commit the transaction.
+    eOsTxAccessCommit = (1 << 1),
+
+    /// @brief Access to rollback the transaction.
+    eOsTxAccessRollback = (1 << 2),
+
+    /// @brief Access to get the transaction status.
+    eOsTxAccessStat = (1 << 3),
+
+    /// @brief Access to add new actions to the transaction.
+    eOsTxAccessWrite = (1 << 4),
+
+    eOsTxAccessAll
+        = eOsTxAccessWait
+        | eOsTxAccessCommit
+        | eOsTxAccessRollback
+        | eOsTxAccessStat
+        | eOsTxAccessWrite,
+};
 
 /// @brief Transaction creation modes.
 ///
 /// Bits [0:1] contain the read transaction mode.
 /// Bits [2:3] contain the write transaction mode.
 /// Bits [4:63] are reserved and must be zero.
-typedef uint64_t OsTransactionMode;
+typedef uint64_t OsTxMode;
 
 enum {
     eOsIsolateReadSerializable = UINT64_C(0),
@@ -28,17 +52,28 @@ enum {
     eOsIsolateWriteUncommitted  = UINT64_C(2) << 2,
 };
 
-struct OsTransactionCreateInfo {
+struct OsTxCreateInfo {
     const char *NameFront;
     const char *NameBack;
-    OsTransactionMode Mode;
+    OsTxMode Mode;
+
+    OsProcessHandle Process;
+    OsTxHandle Transaction;
 };
 
-extern OsStatus OsTransactBegin(struct OsTransactionCreateInfo CreateInfo, OsTransactionHandle *OutHandle);
+struct OsTxInfo {
+    OsUtf8Char Name[OS_OBJECT_NAME_MAX];
+    OsProcessHandle Process;
+    OsTxHandle Parent;
+};
 
-extern OsStatus OsTransactCommit(OsTransactionHandle Handle);
+extern OsStatus OsTxBegin(struct OsTxCreateInfo CreateInfo, OsTxHandle *OutHandle);
 
-extern OsStatus OsTransactRollback(OsTransactionHandle Handle);
+extern OsStatus OsTxCommit(OsTxHandle Handle);
+
+extern OsStatus OsTxRollback(OsTxHandle Handle);
+
+extern OsStatus OsTxStat(OsTxHandle Handle, struct OsTxInfo *OutInfo);
 
 /// @} // group OsTransaction
 

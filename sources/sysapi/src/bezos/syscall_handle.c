@@ -3,6 +3,17 @@
 #include <bezos/private.h>
 
 OsStatus OsHandleWait(OsHandle Handle, OsInstant Timeout) {
-    struct OsCallResult result = OsSystemCall(eOsCallHandleWait, (uintptr_t)Handle, Timeout, 0, 0);
+    struct OsCallResult result = OsSystemCall(eOsCallHandleWait, (uint64_t)Handle, Timeout, 0, 0);
+    return result.Status;
+}
+
+OsStatus OsHandleClone(OsHandle Handle, struct OsHandleCloneInfo CloneInfo, OsHandle *OutHandle) {
+    struct OsCallResult result = OsSystemCall(eOsCallHandleClone, (uint64_t)Handle, (uint64_t)&CloneInfo, 0, 0);
+    *OutHandle = (OsHandle)result.Value;
+    return result.Status;
+}
+
+OsStatus OsHandleClose(OsHandle Handle) {
+    struct OsCallResult result = OsSystemCall(eOsCallHandleClose, (uint64_t)Handle, 0, 0, 0);
     return result.Status;
 }

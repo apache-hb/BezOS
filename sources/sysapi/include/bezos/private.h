@@ -9,7 +9,8 @@ struct OsCallResult {
 
 enum {
     eOsCallHandleWait = 0x1,
-    eOsCallDebugMessage = 0x2,
+    eOsCallHandleClone = 0x2,
+    eOsCallHandleClose = 0x3,
 
     eOsCallNodeOpen = 0x16,
     eOsCallNodeClose = 0x17,
@@ -32,9 +33,10 @@ enum {
     eOsCallVmemCreate = 0x50,
     eOsCallVmemRelease = 0x51,
 
-    eOsCallTransactionBegin = 0x60,
-    eOsCallTransactionCommit = 0x61,
-    eOsCallTransactionRollback = 0x62,
+    eOsCallTxBegin = 0x60,
+    eOsCallTxCommit = 0x61,
+    eOsCallTxRollback = 0x62,
+    eOsCallTxStat = 0x63,
 
     eOsCallMutexCreate = 0x70,
     eOsCallMutexDestroy = 0x71,
@@ -53,6 +55,8 @@ enum {
     eOsCallClockGetTime = 0x90,
     eOsCallClockStat = 0x91,
     eOsCallClockTicks = 0x92,
+
+    eOsCallDebugMessage = 0xF0,
 
     eOsCallCount = 0xFF,
 };

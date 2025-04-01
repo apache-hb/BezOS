@@ -9,6 +9,21 @@ extern "C" {
 /// @defgroup OsFile Files
 /// @{
 
+enum {
+    eOsNodeAccessNone = 0,
+
+    eOsNodeAccessRead = (1 << 0),
+    eOsNodeAccessWrite = (1 << 1),
+    eOsNodeAccessStat = (1 << 2),
+    eOsNodeAccessDestroy = (1 << 3),
+
+    eOsNodeAccessAll
+        = eOsNodeAccessRead
+        | eOsNodeAccessWrite
+        | eOsNodeAccessStat
+        | eOsNodeAccessDestroy,
+};
+
 /// @brief An invalid file handle.
 #define OS_FILE_INVALID ((OsFileHandle)(UINT64_MAX))
 
@@ -124,7 +139,10 @@ struct OsFileSeekRequest {
 
 struct OsNodeCreateInfo {
     struct OsPath Path;
+
     OsProcessHandle Process;
+
+    OsTxHandle Transaction;
 };
 
 /// @brief Query for an interface on a vnode.

@@ -132,7 +132,18 @@ struct OsProcessInfo {
     int64_t ExitCode;
 };
 
-extern OsStatus OsProcessCurrent(OsProcessHandle *OutHandle);
+/// @brief Get a handle to the current process
+///
+/// Get a handle to the current process with the specified access rights.
+///
+/// @pre @p Access must be a valid access mask for the process handle
+/// @pre @p OutHandle must be a valid pointer
+///
+/// @param Access The access rights to grant to the handle.
+/// @param OutHandle The handle to the current process.
+///
+/// @return The status of the operation.
+extern OsStatus OsProcessCurrent(OsHandleAccess Access, OsProcessHandle *OutHandle);
 
 /// @brief Create a new process and return a handle to it
 ///
@@ -147,6 +158,18 @@ extern OsStatus OsProcessCurrent(OsProcessHandle *OutHandle);
 /// @return An error code indicating the result of the operation.
 extern OsStatus OsProcessCreate(struct OsProcessCreateInfo CreateInfo, OsProcessHandle *OutHandle);
 
+/// @brief Terminate a process
+///
+/// Terminates a process and all of its threads. The process is removed from the system
+/// and all resources associated with it are released.
+/// The process is terminated with the specified exit code.
+///
+/// @pre @p Handle must be a valid process handle with @a eOsProcessAccessTerminate access
+///
+/// @param Handle The handle to the process to terminate.
+/// @param ExitCode The exit code to use.
+///
+/// @return The status of the operation.
 extern OsStatus OsProcessTerminate(OsProcessHandle Handle, int64_t ExitCode);
 
 extern OsStatus OsProcessSuspend(OsProcessHandle Handle, bool Suspend);

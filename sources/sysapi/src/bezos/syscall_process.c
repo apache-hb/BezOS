@@ -2,8 +2,8 @@
 
 #include <bezos/private.h>
 
-OsStatus OsProcessCurrent(OsProcessHandle *OutHandle) {
-    struct OsCallResult result = OsSystemCall(eOsCallProcessCurrent, 0, 0, 0, 0);
+OsStatus OsProcessCurrent(OsHandleAccess Access, OsProcessHandle *OutHandle) {
+    struct OsCallResult result = OsSystemCall(eOsCallProcessCurrent, (uint64_t)Access, 0, 0, 0);
     *OutHandle = (OsProcessHandle)result.Value;
     return result.Status;
 }

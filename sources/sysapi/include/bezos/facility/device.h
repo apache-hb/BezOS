@@ -6,6 +6,23 @@
 extern "C" {
 #endif
 
+enum {
+    eOsDeviceAccessNone = 0,
+
+    eOsDeviceAccessRead = (1 << 0),
+    eOsDeviceAccessWrite = (1 << 1),
+    eOsDeviceAccessStat = (1 << 2),
+    eOsDeviceAccessDestroy = (1 << 3),
+    eOsDeviceAccessInvoke = (1 << 4),
+
+    eOsDeviceAccessAll
+        = eOsDeviceAccessRead
+        | eOsDeviceAccessWrite
+        | eOsDeviceAccessStat
+        | eOsDeviceAccessDestroy
+        | eOsDeviceAccessInvoke,
+};
+
 /// @brief Disposition flags for opening a file.
 ///
 /// bits [0:7] contain the create mode.

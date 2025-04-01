@@ -50,6 +50,8 @@ typedef uint64_t OsTickCounter;
 /// @see OsHandleType
 typedef uint64_t OsHandle;
 
+typedef uint64_t OsHandleAccess;
+
 #define OS_HANDLE_TYPE(handle) ((OsHandle)((handle) >> 56))
 #define OS_HANDLE_ID(handle) ((handle) & 0x00ffffffffffffff)
 #define OS_HANDLE_NEW(type, id) (((OsHandle)(type) << 56) | (OsHandle)(id))
@@ -120,14 +122,28 @@ typedef uint32_t OsVersionTag;
 enum {
     eOsHandleUnknown      = UINT8_C(0x0),
 
+    /// @brief Handle to a vnode object in the vfs.
     eOsHandleNode         = UINT8_C(0x1),
-    eOsHandleDevice       = UINT8_C(0x2),
-    eOsHandleMutex        = UINT8_C(0x3),
-    eOsHandleThread       = UINT8_C(0x4),
-    eOsHandleProcess      = UINT8_C(0x5),
-    eOsHandleTsx          = UINT8_C(0x6),
 
-    eOsHandleCount        = UINT8_C(0x7),
+    /// @brief Handle to an instance of a device interface on a vnode.
+    eOsHandleDevice       = UINT8_C(0x2),
+
+    /// @brief Handle to a mutex object.
+    eOsHandleMutex        = UINT8_C(0x3),
+
+    /// @brief Handle to a thread object.
+    eOsHandleThread       = UINT8_C(0x4),
+
+    /// @brief Handle to a process object.
+    eOsHandleProcess      = UINT8_C(0x5),
+
+    /// @brief Handle to a transaction object.
+    eOsHandleTx           = UINT8_C(0x6),
+
+    /// @brief Handle to an event object.
+    eOsHandleEvent        = UINT8_C(0x7),
+
+    eOsHandleCount,
 };
 
 typedef uint8_t OsHandleType;
@@ -148,11 +164,7 @@ OS_OBJECT_HANDLE(OsThreadHandle);
 OS_OBJECT_HANDLE(OsProcessHandle);
 
 /// @brief A handle to a transaction.
-OS_OBJECT_HANDLE(OsTransactionHandle);
-
-/// @brief A handle to a file object.
-/// @deprecated Use OsDeviceHandle instead.
-OS_OBJECT_HANDLE(OsFileHandle);
+OS_OBJECT_HANDLE(OsTxHandle);
 
 #define OS_GUID_NULL { .Octets = { 0 } }
 

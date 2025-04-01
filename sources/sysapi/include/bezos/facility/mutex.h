@@ -30,6 +30,8 @@ struct OsMutexCreateInfo {
     const char *NameBack;
 
     OsProcessHandle Process;
+
+    OsTxHandle Transaction;
 };
 
 struct OsMutexInfo {

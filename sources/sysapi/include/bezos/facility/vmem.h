@@ -65,6 +65,10 @@ struct OsVmemCreateInfo {
     /// @brief The process handle to create the address space for.
     /// If this is OS_HANDLE_INVALID, then the address space is created for the current process.
     OsProcessHandle Process;
+
+    /// @brief The transaction this address space is associated with.
+    /// If this is @a OS_HANDLE_INVALID, then the address space operation is not isolated.
+    OsTxHandle Transaction;
 };
 
 /// @brief Extend the address space of a process.

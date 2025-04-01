@@ -65,9 +65,6 @@ struct OsThreadCreateInfo {
     const char *NameFront;
     const char *NameBack;
 
-    /// @brief The process this thread is associated with.
-    OsProcessHandle Process;
-
     /// @brief The minimum size of the thread's stack.
     OsSize StackSize;
 
@@ -79,20 +76,26 @@ struct OsThreadCreateInfo {
 
     /// @brief Flags to control the creation of the thread.
     OsThreadCreateFlags Flags;
+
+    /// @brief The process this thread is associated with.
+    OsProcessHandle Process;
+
+    OsTxHandle Transaction;
 };
 
 struct OsThreadInfo {
     OsUtf8Char Name[OS_OBJECT_NAME_MAX];
 
-    OsProcessHandle Process;
     OsThreadState State;
+
+    OsProcessHandle Process;
 };
+
+extern OsStatus OsThreadCurrent(OsHandleAccess Access, OsThreadHandle *OutHandle);
 
 extern OsStatus OsThreadCreate(struct OsThreadCreateInfo CreateInfo, OsThreadHandle *OutHandle);
 
 extern OsStatus OsThreadDestroy(OsThreadHandle Handle);
-
-extern OsStatus OsThreadCurrent(OsThreadHandle *OutHandle);
 
 extern OsStatus OsThreadYield(void);
 
