@@ -2,7 +2,7 @@
 I thought it would be funny
 
 ## Building
-1. install `clang` 20 and `meson`
+1. install `clang` and `meson`
 2. execute
 ```sh
 source ./setup.sh

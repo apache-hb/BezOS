@@ -84,6 +84,14 @@ static fs::path PackageImportPath(const std::string &name) {
     return PackageImportRoot() / name;
 }
 
+static void MakeFolder(const std::filesystem::path& path) {
+    if (!std::filesystem::exists(path)) {
+        if (!std::filesystem::create_directories(path)) {
+            throw std::runtime_error("Failed to create directory " + path.string());
+        }
+    }
+}
+
 struct RequirePackage {
     std::string name;
     fs::path symlink;
@@ -256,6 +264,7 @@ struct PackageInfo {
     }
 
     std::tuple<fs::path, fs::path> GetLogFiles(const std::string& stage) const {
+        MakeFolder(PackageLogPath(name));
         auto out = PackageLogPath(name) / (stage + ".out");
         auto err = PackageLogPath(name) / (stage + ".err");
         fs::remove(out);
@@ -717,14 +726,6 @@ static auto IsXmlNodeOf(xmlElementType type) {
     return [type](xmlNodePtr node) { return node->type == type; };
 }
 
-static void MakeFolder(const std::filesystem::path& path) {
-    if (!std::filesystem::exists(path)) {
-        if (!std::filesystem::create_directories(path)) {
-            throw std::runtime_error("Failed to create directory " + path.string());
-        }
-    }
-}
-
 template<typename T>
 static T UnwrapOptional(std::optional<T> opt, std::string_view message) {
     if (!opt.has_value()) {
@@ -1047,7 +1048,6 @@ static void AddWorkspacePackage(PackageInfo packageInfo, std::string name) {
 }
 
 static Download ReadDownloadTags(XmlNode node) {
-
     auto name = node.property("name").value_or("");
     auto url = ExpectProperty<std::string>(node, "url");
     auto file = ExpectProperty<std::string>(node, "file");
@@ -1069,11 +1069,6 @@ static Download ReadDownloadTags(XmlNode node) {
 static void ReadDownloadConfig(XmlNode root) {
     auto name = ExpectProperty<std::string>(root, "name");
     gPackageDb->RaiseTargetStatus(name, eUnknown);
-
-    MakeFolder(PackageCachePath(name));
-    MakeFolder(PackageBuildPath(name));
-    MakeFolder(PackageInstallPath(name));
-    MakeFolder(PackageLogPath(name));
 
     auto download = ReadDownloadTags(root);
     PackageInfo packageInfo {
@@ -1105,16 +1100,6 @@ static void ReadDownloadConfig(XmlNode root) {
 static void ReadPackageConfig(XmlNode root) {
     auto name = ExpectProperty<std::string>(root, "name");
     gPackageDb->RaiseTargetStatus(name, eUnknown);
-
-    auto cache = PackageCachePath(name);
-    auto build = PackageBuildPath(name);
-    auto install = PackageInstallPath(name);
-    auto log = PackageLogPath(name);
-
-    MakeFolder(build);
-    MakeFolder(install);
-    MakeFolder(cache);
-    MakeFolder(log);
 
     PackageInfo packageInfo {
         .name = name,
@@ -1242,6 +1227,8 @@ static void AcquirePackage(const PackageInfo& package) {
 
     std::println(std::cout, "{}: acquire", package.name);
 
+    MakeFolder(package.GetCacheFolder());
+
     for (const auto& download : package.downloads) {
         if (gCloneRepos.contains(download.name)) {
             GitClone(download.git.url, download.git.commit, download.git.branch, package.GetSourceFolder());
@@ -1348,10 +1335,6 @@ static void ReplaceFilePlaceholders(const fs::path& path, const fs::path& dst, c
 
 static void RunConfigureStep(const PackageInfo& package, const ConfigureStep& step, int index) {
     if (step.configure == eConfigureNone) {
-        return;
-    }
-
-    if (!gPackageDb->ShouldRunStep(package.name, eConfigured)) {
         return;
     }
 
@@ -1504,6 +1487,8 @@ static void ConfigurePackage(const PackageInfo& package) {
         return;
     }
 
+    MakeFolder(package.GetBuildFolder());
+
     int index = 0;
     for (const auto& step : package.configureSteps) {
         RunConfigureStep(package, step, index++);
@@ -1571,6 +1556,8 @@ static void InstallPackage(const PackageInfo& package) {
     if (!gPackageDb->ShouldRunStep(package.name, eInstalled)) {
         return;
     }
+
+    MakeFolder(package.GetInstallPath());
 
     std::println(std::cout, "{}: install", package.name);
 
@@ -1969,11 +1956,6 @@ int main(int argc, const char **argv) try {
         if (fs::exists(PackageImportPath(name))) {
             fs::remove_all(PackageImportPath(name));
         }
-
-        fs::create_directories(PackageBuildPath(name));
-        fs::create_directories(PackageInstallPath(name));
-        fs::create_directories(PackageLogPath(name));
-        fs::create_directories(PackageImportPath(name));
     };
 
     for (const auto& name : parser.get<std::vector<std::string>>("--fetch")) {

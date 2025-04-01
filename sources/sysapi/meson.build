@@ -20,6 +20,8 @@ if get_option('headers') or meson.is_subproject()
     subdir_done()
 endif
 
+pkgconfig = import('pkgconfig')
+
 cc = meson.get_compiler('c')
 sys_root = meson.get_external_property('sys_root')
 
@@ -105,3 +107,16 @@ libposix = static_library('bezos-posix', src,
 )
 
 meson.override_dependency('sysapi', sysapi_dep)
+
+pkgconfig.generate(libbezos,
+    name : 'bezos-sysapi',
+    description : 'Bezos syscall API',
+    version : meson.project_version(),
+)
+
+pkgconfig.generate(libposix,
+    name : 'bezos-posix',
+    description : 'Bezos POSIX API',
+    version : meson.project_version(),
+    requires : [ 'bezos-sysapi' ],
+)

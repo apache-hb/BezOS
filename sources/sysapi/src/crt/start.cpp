@@ -40,7 +40,7 @@ extern "C" [[noreturn, gnu::force_align_arg_pointer]] void ProgramMain(const OsC
     CallFiniArray();
 
     OsProcessHandle ThisProcess = OS_HANDLE_INVALID;
-    OsProcessCurrent(&ThisProcess);
+    OsProcessCurrent(eOsProcessAccessTerminate, &ThisProcess);
 
     //
     // Terminate the process with the result of main. OsProcessTerminate is noreturn

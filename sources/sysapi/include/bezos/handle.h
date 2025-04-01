@@ -166,6 +166,9 @@ OS_OBJECT_HANDLE(OsProcessHandle);
 /// @brief A handle to a transaction.
 OS_OBJECT_HANDLE(OsTxHandle);
 
+/// @brief A handle to an event.
+OS_OBJECT_HANDLE(OsEventHandle);
+
 #define OS_GUID_NULL { .Octets = { 0 } }
 
 #ifdef __cplusplus
