@@ -1311,35 +1311,13 @@ static void AddProcessSystemCalls() {
 
 static void AddVmemSystemCalls() {
     AddSystemCall(eOsCallVmemCreate, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
-        uint64_t userCreateInfo = regs->arg0;
+        System system = GetSystem();
+        return um::VmemCreate(&system, context, regs);
+    });
 
-        OsVmemCreateInfo createInfo{};
-        Process *process = nullptr;
-
-        if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {
-            return CallError(status);
-        }
-
-        if ((createInfo.Size % x64::kPageSize != 0) || (createInfo.Size < x64::kPageSize)) {
-            return CallError(OsStatusInvalidInput);
-        }
-
-        if (OsStatus status = SelectOwningProcess(context, createInfo.Process, &process)) {
-            return CallError(status);
-        }
-
-        AddressMapping mapping{};
-        SystemMemory *memory = GetSystemMemory();
-        OsStatus status = AllocateMemory(memory->pmmAllocator(), *process->ptes.get(), createInfo.Size / x64::kPageSize, &mapping);
-        if (status != OsStatusSuccess) {
-            return CallError(status);
-        }
-
-        memset((void*)mapping.vaddr, 0, createInfo.Size);
-
-        KmDebugMessage("[VMEM] Created mapping: ", mapping, "\n");
-
-        return CallOk(mapping.vaddr);
+    AddSystemCall(eOsCallVmemRelease, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        System system = GetSystem();
+        return um::VmemDestroy(&system, context, regs);
     });
 }
 

@@ -213,6 +213,7 @@ src = [
     'src/user/sysapi/node.cpp',
     'src/user/sysapi/device.cpp',
     'src/user/sysapi/process.cpp',
+    'src/user/sysapi/vmem.cpp',
 
     # Services
     'src/notify.cpp',

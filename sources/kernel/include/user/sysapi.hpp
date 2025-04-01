@@ -56,6 +56,10 @@ namespace um {
     OsCallResult ProcessCurrent(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
     OsCallResult ProcessStat(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
 
+    // <bezos/facility/vmem.h>
+    OsCallResult VmemCreate(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
+    OsCallResult VmemDestroy(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
+
     // <bezos/facility/clock.h>
     OsCallResult ClockStat(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
     OsCallResult ClockTime(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
