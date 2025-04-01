@@ -60,6 +60,17 @@ namespace um {
     OsCallResult VmemCreate(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
     OsCallResult VmemDestroy(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
 
+    // <bezos/facility/thread.h>
+    OsCallResult ThreadCreate(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
+    OsCallResult ThreadDestroy(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
+    OsCallResult ThreadSleep(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
+
+    // <bezos/facility/mutex.h>
+    OsCallResult MutexCreate(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
+    OsCallResult MutexDestroy(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
+    OsCallResult MutexLock(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
+    OsCallResult MutexUnlock(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
+
     // <bezos/facility/clock.h>
     OsCallResult ClockStat(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
     OsCallResult ClockTime(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);

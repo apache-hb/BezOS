@@ -214,6 +214,8 @@ src = [
     'src/user/sysapi/device.cpp',
     'src/user/sysapi/process.cpp',
     'src/user/sysapi/vmem.cpp',
+    'src/user/sysapi/thread.cpp',
+    'src/user/sysapi/mutex.cpp',
 
     # Services
     'src/notify.cpp',

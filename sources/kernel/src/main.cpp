@@ -44,7 +44,6 @@
 #include "notify.hpp"
 #include "panic.hpp"
 #include "process/device.hpp"
-#include "process/mutex.hpp"
 #include "process/thread.hpp"
 #include "processor.hpp"
 #include "process/system.hpp"
@@ -1153,54 +1152,19 @@ static void AddDeviceSystemCalls() {
 }
 
 static void AddThreadSystemCalls() {
-    AddSystemCall(eOsCallThreadSleep, [](CallContext *, SystemCallRegisterSet *) -> OsCallResult {
-        km::YieldCurrentThread();
-        return CallOk(0zu);
+    AddSystemCall(eOsCallThreadSleep, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        km::System system = GetSystem();
+        return um::ThreadSleep(&system, context, regs);
     });
 
     AddSystemCall(eOsCallThreadCreate, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
-        uint64_t userCreateInfo = regs->arg0;
+        km::System system = GetSystem();
+        return um::ThreadCreate(&system, context, regs);
+    });
 
-        OsThreadCreateInfo createInfo{};
-        if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {
-            return CallError(status);
-        }
-
-        if ((createInfo.StackSize % x64::kPageSize != 0) || (createInfo.StackSize < x64::kPageSize)) {
-            return CallError(OsStatusInvalidInput);
-        }
-
-        stdx::String name;
-        if (OsStatus status = context->readString((uint64_t)createInfo.NameFront, (uint64_t)createInfo.NameBack, kMaxPathSize, &name)) {
-            return CallError(status);
-        }
-
-        Process *process = nullptr;
-
-        if (OsStatus status = SelectOwningProcess(context, createInfo.Process, &process)) {
-            return CallError(status);
-        }
-
-        stdx::String stackName = name + " STACK";
-        Thread *thread = gSystemObjects->createThread(std::move(name), process);
-
-        AddressMapping mapping{};
-        SystemMemory *memory = GetSystemMemory();
-        OsStatus status = AllocateMemory(memory->pmmAllocator(), *process->ptes.get(), createInfo.StackSize / x64::kPageSize, &mapping);
-        if (status != OsStatusSuccess) {
-            return CallError(status);
-        }
-
-        thread->userStack = mapping;
-        thread->state = km::IsrContext {
-            .rbp = (uintptr_t)((uintptr_t)mapping.vaddr + createInfo.StackSize),
-            .rip = (uintptr_t)createInfo.EntryPoint,
-            .cs = (SystemGdt::eLongModeUserCode * 0x8) | 0b11,
-            .rflags = 0x202,
-            .rsp = (uintptr_t)((uintptr_t)mapping.vaddr + createInfo.StackSize),
-            .ss = (SystemGdt::eLongModeUserData * 0x8) | 0b11,
-        };
-        return CallError(OsStatusInvalidFunction);
+    AddSystemCall(eOsCallThreadDestroy, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        km::System system = GetSystem();
+        return um::ThreadDestroy(&system, context, regs);
     });
 }
 
@@ -1228,63 +1192,24 @@ static void AddNodeSystemCalls() {
 
 static void AddMutexSystemCalls() {
     AddSystemCall(eOsCallMutexCreate, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
-        uint64_t userCreateInfo = regs->arg0;
-
-        OsMutexCreateInfo createInfo{};
-        if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {
-            return CallError(status);
-        }
-
-        stdx::String name;
-        if (OsStatus status = context->readString((uint64_t)createInfo.NameFront, (uint64_t)createInfo.NameBack, kMaxPathSize, &name)) {
-            return CallError(status);
-        }
-
-        Mutex *mutex = gSystemObjects->createMutex(std::move(name));
-        return CallOk(mutex->publicId());
+        km::System system = GetSystem();
+        return um::MutexCreate(&system, context, regs);
     });
 
-    //
-    // Clang can't analyze the control flow here because its all very non-local.
-    //
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wthread-safety-analysis"
-
-    AddSystemCall(eOsCallMutexLock, [](CallContext*, SystemCallRegisterSet *regs) -> OsCallResult {
-        uint64_t id = regs->arg0;
-        Mutex *mutex = gSystemObjects->getMutex(MutexId(OS_HANDLE_ID(id)));
-        if (mutex == nullptr) {
-            return CallError(OsStatusNotFound);
-        }
-
-        //
-        // Try a few times to acquire the lock before putting the thread to sleep.
-        //
-        for (int i = 0; i < 10; i++) {
-            if (mutex->lock.try_lock()) {
-                return CallOk(0zu);
-            }
-        }
-
-        while (!mutex->lock.try_lock()) {
-            km::YieldCurrentThread();
-        }
-
-        return CallOk(0zu);
+    AddSystemCall(eOsCallMutexDestroy, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        km::System system = GetSystem();
+        return um::MutexDestroy(&system, context, regs);
     });
 
-    AddSystemCall(eOsCallMutexUnlock, [](CallContext*, SystemCallRegisterSet *regs) -> OsCallResult {
-        uint64_t id = regs->arg0;
-        Mutex *mutex = gSystemObjects->getMutex(MutexId(OS_HANDLE_ID(id)));
-        if (mutex == nullptr) {
-            return CallError(OsStatusNotFound);
-        }
-
-        mutex->lock.unlock();
-        return CallOk(0zu);
+    AddSystemCall(eOsCallMutexLock, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        km::System system = GetSystem();
+        return um::MutexLock(&system, context, regs);
     });
 
-#pragma clang diagnostic pop
+    AddSystemCall(eOsCallMutexUnlock, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        km::System system = GetSystem();
+        return um::MutexUnlock(&system, context, regs);
+    });
 }
 
 static void AddProcessSystemCalls() {
