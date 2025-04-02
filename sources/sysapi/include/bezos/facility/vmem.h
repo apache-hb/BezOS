@@ -26,6 +26,7 @@ enum {
 
     /// @brief Discard a range of memory.
     /// Discarded memory remains committed, and will be zeroed on first access.
+    /// Combined with @c eOsMemoryCommit this will zero newly committed memory.
     eOsMemoryDiscard  = (1 << 6),
 
     /// @brief Is the base address a hint.

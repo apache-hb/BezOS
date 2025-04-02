@@ -351,7 +351,7 @@ TEST_F(SystemTest, CreateThread) {
     ASSERT_NE(hThread, nullptr) << "Thread was not created";
     auto process = hProcess->getProcessObject();
 
-    status = hThread->destroy(&system, sys2::ThreadDestroyInfo { .exitCode = 0, .reason = eOsThreadFinished });
+    status = hThread->destroy(&system, sys2::ThreadDestroyInfo { .reason = eOsThreadFinished });
     ASSERT_EQ(status, OsStatusSuccess);
 
     CheckMemoryState(memory, before1);

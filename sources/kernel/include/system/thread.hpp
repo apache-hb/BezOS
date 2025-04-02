@@ -69,7 +69,6 @@ namespace sys2 {
     };
 
     struct ThreadDestroyInfo {
-        int64_t exitCode;
         OsThreadState reason;
     };
 

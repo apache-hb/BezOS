@@ -1,6 +1,7 @@
 #pragma once
 
 #include <bezos/facility/process.h>
+#include <bezos/facility/vmem.h>
 
 #include "memory/address_space.hpp"
 #include "memory/range.hpp"
@@ -145,6 +146,9 @@ namespace sys2 {
         OsStatus destroy(System *system, const ProcessDestroyInfo& info);
 
         OsStatus createThread(System *system, ThreadCreateInfo info, ThreadHandle **handle);
+
+        OsStatus vmemCreate(System *system, OsVmemCreateInfo info, km::AddressMapping *mapping);
+        OsStatus vmemRelease(System *system, km::AddressMapping mapping);
 
         void removeThread(sm::RcuSharedPtr<Thread> thread);
         void addThread(sm::RcuSharedPtr<Thread> thread);

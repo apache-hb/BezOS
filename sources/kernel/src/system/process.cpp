@@ -156,7 +156,7 @@ OsStatus sys2::Process::destroy(System *system, const ProcessDestroyInfo& info) 
     }
 
     for (sm::RcuSharedPtr<Thread> thread : mThreads) {
-        if (OsStatus status = thread->destroy(system, ThreadDestroyInfo { .exitCode = info.exitCode, .reason = eOsThreadOrphaned })) {
+        if (OsStatus status = thread->destroy(system, ThreadDestroyInfo { .reason = eOsThreadOrphaned })) {
             return status;
         }
     }
@@ -218,6 +218,39 @@ OsStatus sys2::Process::createThread(System *system, ThreadCreateInfo info, Thre
     if (fpuState) km::DestroyXSave(fpuState);
     system->releaseStack(kernelStack);
     return OsStatusOutOfMemory;
+}
+
+OsStatus sys2::Process::vmemCreate(System *, OsVmemCreateInfo info, km::AddressMapping *) {
+    if ((info.Size == 0) || (info.Size % x64::kPageSize != 0)) {
+        return OsStatusInvalidInput;
+    }
+
+    if ((info.Alignment != 0) && (info.Alignment % x64::kPageSize != 0)) {
+        return OsStatusInvalidInput;
+    }
+
+    uintptr_t base = (uintptr_t)info.BaseAddress;
+    OsSize alignment = info.Alignment == 0 ? x64::kPageSize : info.Alignment;
+
+    if (info.Access & eOsMemoryAddressHint) {
+        if (base != 0) {
+            return OsStatusInvalidInput;
+        }
+    } else {
+        if (base == 0 || (base % alignment != 0)) {
+            return OsStatusInvalidInput;
+        }
+    }
+
+    if (base % alignment != 0) {
+        return OsStatusInvalidInput;
+    }
+
+    return OsStatusOutOfMemory;
+}
+
+OsStatus sys2::Process::vmemRelease(System *, km::AddressMapping) {
+    return OsStatusNotSupported;
 }
 
 OsStatus sys2::CreateRootProcess(System *system, ProcessCreateInfo info, ProcessHandle **process) {
