@@ -1,5 +1,6 @@
 #pragma once
 
+#include <bezos/arch/arch.h>
 #include <bezos/handle.h>
 
 #ifdef __cplusplus
@@ -59,20 +60,11 @@ enum {
 typedef uint32_t OsThreadCreateFlags;
 typedef uint32_t OsThreadState;
 
-typedef void (*OsThreadEntry)(OsThreadHandle CurrentThread, OsAnyPointer Argument);
-
 struct OsThreadCreateInfo {
     const char *NameFront;
     const char *NameBack;
 
-    /// @brief The minimum size of the thread's stack.
-    OsSize StackSize;
-
-    /// @brief The entry point for the thread.
-    OsThreadEntry EntryPoint;
-
-    /// @brief The argument to pass to the thread's entry point.
-    OsAnyPointer Argument;
+    struct OsMachineContext CpuState;
 
     /// @brief Flags to control the creation of the thread.
     OsThreadCreateFlags Flags;
@@ -85,6 +77,8 @@ struct OsThreadCreateInfo {
 
 struct OsThreadInfo {
     OsUtf8Char Name[OS_OBJECT_NAME_MAX];
+
+    struct OsMachineContext CpuState;
 
     OsThreadState State;
 

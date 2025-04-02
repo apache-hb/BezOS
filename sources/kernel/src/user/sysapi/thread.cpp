@@ -14,20 +14,16 @@ OsCallResult um::ThreadCreate(km::System *system, km::CallContext *context, km::
     uint64_t userCreateInfo = regs->arg0;
 
     OsThreadCreateInfo createInfo{};
+    stdx::String name;
+    km::Process *process = nullptr;
+
     if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {
         return km::CallError(status);
     }
 
-    if ((createInfo.StackSize % x64::kPageSize != 0) || (createInfo.StackSize < x64::kPageSize)) {
-        return km::CallError(OsStatusInvalidInput);
-    }
-
-    stdx::String name;
     if (OsStatus status = context->readString((uint64_t)createInfo.NameFront, (uint64_t)createInfo.NameBack, kMaxPathSize, &name)) {
         return km::CallError(status);
     }
-
-    km::Process *process = nullptr;
 
     if (OsStatus status = um::SelectOwningProcess(system, context, createInfo.Process, &process)) {
         return km::CallError(status);
@@ -36,21 +32,33 @@ OsCallResult um::ThreadCreate(km::System *system, km::CallContext *context, km::
     stdx::String stackName = name + " STACK";
     km::Thread *thread = system->objects->createThread(std::move(name), process);
 
-    km::AddressMapping mapping{};
-    OsStatus status = AllocateMemory(system->memory->pmmAllocator(), *process->ptes.get(), createInfo.StackSize / x64::kPageSize, &mapping);
-    if (status != OsStatusSuccess) {
-        return km::CallError(status);
-    }
+    OsMachineContext cpuState = createInfo.CpuState;
 
-    thread->userStack = mapping;
     thread->state = km::IsrContext {
-        .rbp = (uintptr_t)((uintptr_t)mapping.vaddr + createInfo.StackSize),
-        .rip = (uintptr_t)createInfo.EntryPoint,
+        .rax = cpuState.rax,
+        .rbx = cpuState.rbx,
+        .rcx = cpuState.rcx,
+        .rdx = cpuState.rdx,
+        .rdi = cpuState.rdi,
+        .rsi = cpuState.rsi,
+        .r8 = cpuState.r8,
+        .r9 = cpuState.r9,
+        .r10 = cpuState.r10,
+        .r11 = cpuState.r11,
+        .r12 = cpuState.r12,
+        .r13 = cpuState.r13,
+        .r14 = cpuState.r14,
+        .r15 = cpuState.r15,
+
+        .rbp = cpuState.rbp,
+        .rip = cpuState.rip,
         .cs = (km::SystemGdt::eLongModeUserCode * 0x8) | 0b11,
         .rflags = 0x202,
-        .rsp = (uintptr_t)((uintptr_t)mapping.vaddr + createInfo.StackSize),
+        .rsp = cpuState.rsp,
         .ss = (km::SystemGdt::eLongModeUserData * 0x8) | 0b11,
     };
+    thread->tlsAddress = cpuState.fs;
+
     return km::CallOk(thread->publicId());
 }
 
