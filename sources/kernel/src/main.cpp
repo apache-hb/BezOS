@@ -93,7 +93,6 @@ static constexpr bool kEnableSmp = true;
 static constexpr bool kEnableXSave = true;
 
 // TODO: make this runtime configurable
-static constexpr size_t kMaxPathSize = 0x1000;
 static constexpr size_t kMaxMessageSize = 0x1000;
 
 class SerialLog final : public IOutStream {
@@ -1040,22 +1039,6 @@ public:
         , mSystem(system)
     { }
 };
-
-static OsStatus SelectOwningProcess(CallContext *context, OsProcessHandle handle, Process **result) {
-    Process *process = nullptr;
-    if (handle != OS_HANDLE_INVALID) {
-        process = gSystemObjects->getProcess(ProcessId(OS_HANDLE_ID(handle)));
-    } else {
-        process = context->process();
-    }
-
-    if (process == nullptr) {
-        return OsStatusInvalidHandle;
-    }
-
-    *result = process;
-    return OsStatusSuccess;
-}
 
 static void AddHandleSystemCalls() {
     AddSystemCall(eOsCallHandleWait, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
