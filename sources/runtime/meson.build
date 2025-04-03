@@ -15,13 +15,3 @@ runtime_dep = declare_dependency(
 if meson.is_subproject()
     subdir_done()
 endif
-
-src = [
-    'src/rtld/rtld.cpp',
-]
-
-rtld = executable('rtld.elf', src,
-    dependencies : [sysapi, runtime_dep],
-    link_args : [ '-nostartfiles', '-e', 'ProgramMain' ],
-    install : true,
-)

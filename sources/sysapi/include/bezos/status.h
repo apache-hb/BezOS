@@ -106,6 +106,9 @@ enum OsStatusId {
     OsStatusAccessDenied = 0x001c,
 };
 
+#define OS_SUCCESS(status) ((status) == OsStatusSuccess)
+#define OS_ERROR(status) ((status) != OsStatusSuccess)
+
 #ifdef __cplusplus
 }
 #endif

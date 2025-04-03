@@ -98,6 +98,9 @@ src = [
     'src/posix/sys_utsname.cpp',
     'src/posix/sys_wait.cpp',
     'src/posix/sys_resource.cpp',
+
+    # TODO: should rtld be in a separate library?
+    'src/rtld/rtld.cpp',
 ]
 
 libposix = static_library('bezos-posix', src,
@@ -106,17 +109,22 @@ libposix = static_library('bezos-posix', src,
     install : true,
 )
 
+posix_dep = declare_dependency(
+    link_with : libposix,
+    include_directories : [ inc ],
+)
+
 meson.override_dependency('sysapi', sysapi_dep)
 
 pkgconfig.generate(libbezos,
     name : 'bezos-sysapi',
-    description : 'Bezos syscall API',
+    description : 'BezOS native syscall API',
     version : meson.project_version(),
 )
 
 pkgconfig.generate(libposix,
     name : 'bezos-posix',
-    description : 'Bezos POSIX API',
+    description : 'BezOS POSIX API',
     version : meson.project_version(),
     requires : [ 'bezos-sysapi' ],
 )
