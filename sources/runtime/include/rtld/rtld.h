@@ -1,0 +1,19 @@
+#pragma once
+
+#include <bezos/facility/device.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+struct RtldStartInfo {
+    /// @brief The file descriptor for the program.
+    OsDeviceHandle Program;
+
+    /// @brief The name of the program.
+    OsUtf8Char ProgramName[OS_DEVICE_NAME_MAX];
+};
+
+#ifdef __cplusplus
+}
+#endif

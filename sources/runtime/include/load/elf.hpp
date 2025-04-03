@@ -112,9 +112,6 @@ namespace os::elf {
         }
 
         bool isValid() const;
-        //  {
-        //     return std::equal(std::begin(ident), std::end(ident), std::begin(kMagic), std::end(kMagic));
-        // }
     };
 
     static_assert(sizeof(Header) == 64);

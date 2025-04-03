@@ -8,8 +8,20 @@ sysapi = dependency('bezos-sysapi')
 
 inc = include_directories('include')
 
-install_subdir('include/bezos-runtime', install_dir : 'include', install_tag : 'headers')
-
 runtime_dep = declare_dependency(
     include_directories : inc,
+)
+
+if meson.is_subproject()
+    subdir_done()
+endif
+
+src = [
+    'src/rtld/rtld.cpp',
+]
+
+rtld = executable('rtld.elf', src,
+    dependencies : [sysapi, runtime_dep],
+    link_args : [ '-nostartfiles', '-e', 'ProgramMain' ],
+    install : true,
 )

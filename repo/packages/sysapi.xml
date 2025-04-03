@@ -6,6 +6,5 @@
 
     <configure with='meson'>
         <cross-file path='@SOURCE_ROOT@/data/bezos.ini' />
-        <options pkgconfig.relocatable='true' />
     </configure>
 </package>
