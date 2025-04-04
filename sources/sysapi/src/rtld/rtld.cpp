@@ -67,7 +67,7 @@ static OsStatus ElfReadHeader(OsDeviceHandle device, elf::Type expected, elf::He
     }
 
     bool valid = (header.type == expected)
-            //   && (header.endian() == std::endian::native)
+              && (header.endian() == std::endian::native)
               && (header.elfClass() == elf::Class::eClass64)
               && (header.machine == elf::Machine::eAmd64)
               && (header.ehsize == sizeof(elf::Header))

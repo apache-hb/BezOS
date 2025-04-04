@@ -368,6 +368,25 @@ public:
             "    UNIQUE(package, dependency)\n"
             ")\n"
         );
+
+        mDatabase.exec(
+            "CREATE TABLE IF NOT EXISTS tools (\n"
+            "    name TEXT PRIMARY KEY,\n"
+            "    installed INTEGER NOT NULL\n"
+            ")\n"
+        );
+    }
+
+    bool HasTool(const std::string& name) {
+        sql::Statement query(mDatabase, "SELECT 1 FROM tools WHERE name = ? AND installed = 1");
+        query.bind(1, name);
+        return query.executeStep() && query.getColumn(0).getInt() == 1;
+    }
+
+    void AddTool(const std::string& name) {
+        sql::Statement query(mDatabase, "INSERT OR REPLACE INTO tools (name, installed) VALUES (?, 1)");
+        query.bind(1, name);
+        query.exec();
     }
 
     void AddDependency(std::string_view package, std::string_view dependency) {
@@ -1772,6 +1791,36 @@ static void VisitPackage(const PackageInfo& packageInfo) {
     GenerateArtifact(packageInfo.name, packageInfo);
 }
 
+static void CheckRequiredTools(PackageDb& db) {
+    bool ok = true;
+    auto checkTool = [&](const std::string& name) {
+        if (db.HasTool(name)) {
+            return;
+        }
+
+        if (sp::call({ name, "--version" }, sp::output{"/dev/null"}, sp::error{"/dev/null"}) != 0) {
+            std::println(std::cerr, "{} is not installed", name);
+            ok = false;
+        } else {
+            std::println(std::cout, "{} is installed", name);
+        }
+
+        db.AddTool(name);
+    };
+
+    checkTool("git");
+    checkTool("cmake");
+    checkTool("meson");
+    checkTool("ninja");
+    checkTool("make");
+    checkTool("patch");
+    checkTool("fuse-overlayfs");
+
+    if (!ok) {
+        exit(1);
+    }
+}
+
 int main(int argc, const char **argv) try {
     OPENSSL_init_crypto(OPENSSL_INIT_ADD_ALL_DIGESTS, nullptr);
     defer { OPENSSL_cleanup(); };
@@ -1862,7 +1911,12 @@ int main(int argc, const char **argv) try {
     LIBXML_TEST_VERSION;
     defer { xmlCleanupParser(); };
 
+    fs::path build = parser.get<std::string>("--output");
+    fs::path prefix = parser.get<std::string>("--prefix");
     fs::path configPath = parser.get<std::string>("--config");
+
+    PackageDb packageDb(build / parser.get<std::string>("--repo"));
+    CheckRequiredTools(packageDb);
 
     gIncludePaths.push_back(configPath.parent_path());
 
@@ -1881,9 +1935,6 @@ int main(int argc, const char **argv) try {
 
     gWorkspace.removeOrphans = parser.get<bool>("--remove-orphans");
 
-    fs::path build = parser.get<std::string>("--output");
-    fs::path prefix = parser.get<std::string>("--prefix");
-
     auto name = ExpectProperty<std::string>(root, "name");
     auto sources = ExpectProperty<std::string>(root, "sources");
     gRepoRoot = configPath.parent_path();
@@ -1897,7 +1948,6 @@ int main(int argc, const char **argv) try {
     MakeFolder(gInstallPrefix);
     MakeFolder(PackageLogRoot());
 
-    PackageDb packageDb(build / parser.get<std::string>("--repo"));
     gPackageDb = &packageDb;
 
     if (parser.present("--workspace")) {

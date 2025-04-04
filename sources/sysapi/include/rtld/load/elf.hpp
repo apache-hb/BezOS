@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include <bit>
+
 namespace os::elf {
     enum class Type : uint16_t {
         eNone = 0,
@@ -89,11 +91,9 @@ namespace os::elf {
         uint16_t shnum;
         uint16_t shstrndx;
 
-#if 0
         std::endian endian() const {
             return ident[kDataIdent] == 1 ? std::endian::little : std::endian::big;
         }
-#endif
 
         Class elfClass() const {
             return Class(ident[kClassIdent]);

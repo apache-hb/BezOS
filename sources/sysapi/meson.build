@@ -4,6 +4,7 @@ project('sysapi', [ 'c', 'cpp' ],
         'c_std=gnu23',
         'cpp_rtti=false',
         'cpp_eh=none',
+        'b_pie=true',
     ]
 )
 
@@ -115,7 +116,14 @@ src = [
     'src/rtld/rtld.cpp',
 ]
 
-librtld = both_libraries('rtld', src,
+static_library('rtld', src,
+    name_prefix : '',
+    include_directories : [ inc ],
+    dependencies : [ bezos_dep, posix_dep ],
+    install : true,
+)
+
+shared_library('rtld.so', src,
     name_prefix : '',
     include_directories : [ inc ],
     dependencies : [ bezos_dep, posix_dep ],
