@@ -5,6 +5,14 @@
 
 #include <x86intrin.h>
 
+#if defined(__x86_64__)
+#   include "arch/x86_64/intrin.hpp"
+#elif defined(__sparcv9__)
+#   include "arch/sparcv9/intrin.hpp"
+#else
+#   error "Unsupported architecture"
+#endif
+
 struct [[gnu::packed]] alignas(16) GDTR {
     uint16_t limit;
     uint64_t base;
@@ -65,19 +73,19 @@ static inline void __DEFAULT_FN_ATTRS __ltr(uint16_t selector) {
 }
 
 static inline void __DEFAULT_FN_ATTRS __nop(void) {
-    asm volatile("nop");
+    arch::Intrin::nop();
 }
 
 static inline void __DEFAULT_FN_ATTRS __cli(void) {
-    asm volatile("cli");
+    arch::Intrin::cli();
 }
 
 static inline void __DEFAULT_FN_ATTRS __sti(void) {
-    asm volatile("sti");
+    arch::Intrin::sti();
 }
 
 static inline void __DEFAULT_FN_ATTRS __halt(void) {
-    asm volatile("hlt");
+    arch::Intrin::halt();
 }
 
 static inline void __DEFAULT_FN_ATTRS __swapgs(void) {
@@ -99,7 +107,7 @@ static inline uint64_t __DEFAULT_FN_ATTRS __fsbase(void) {
 }
 
 static inline __DEFAULT_FN_ATTRS void __invlpg(uintptr_t address) {
-    asm volatile("invlpg (%0)" : : "r"(address) : "memory");
+    arch::Intrin::invlpg(address);
 }
 
 static inline void __DEFAULT_FN_ATTRS __lgdt(struct GDTR gdtr) {

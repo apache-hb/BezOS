@@ -6,6 +6,7 @@
 #include <bezos/facility/process.h>
 #include <bezos/start.h>
 
+#include <memory>
 #include <stdlib.h>
 
 namespace elf = os::elf;
@@ -52,6 +53,14 @@ static OsStatus DeviceRead(OsDeviceHandle device, OsSize offset, OsSize count, T
     return OsStatusSuccess;
 }
 
+template<typename T>
+using UniquePtr = std::unique_ptr<T, decltype(&free)>;
+
+template<typename T>
+static UniquePtr<T[]> UniqueArray(size_t count) {
+    return UniquePtr<T[]> { (T*)malloc(sizeof(T) * count), &free };
+}
+
 static OsStatus ElfReadHeader(OsDeviceHandle device, elf::Type expected, elf::Header *result) {
     elf::Header header;
     if (OsStatus status = DeviceRead(device, 0, &header)) {
@@ -84,7 +93,7 @@ static OsStatus ElfReadHeader(OsDeviceHandle device, elf::Type expected, elf::He
 
 OsStatus RtldStartProgram(const RtldStartInfo *StartInfo) {
     elf::Header header;
-    elf::ProgramHeader *phs = nullptr;
+    UniquePtr<elf::ProgramHeader[]> phs { nullptr, &free };
     OsStatus status = OsStatusSuccess;
 
     if ((status = ElfReadHeader(StartInfo->Program, elf::Type::eExecutable, &header))) {
@@ -95,37 +104,41 @@ OsStatus RtldStartProgram(const RtldStartInfo *StartInfo) {
         return OsStatusInvalidData;
     }
 
-    phs = (elf::ProgramHeader*)malloc(sizeof(elf::ProgramHeader) * header.phnum);
+    phs = UniqueArray<elf::ProgramHeader>(header.phnum);
     if (phs == nullptr) {
         status = OsStatusOutOfMemory;
         goto error;
     }
 
-    if ((status = DeviceRead(StartInfo->Program, header.phoff, header.phnum, phs))) {
+    if ((status = DeviceRead(StartInfo->Program, header.phoff, header.phnum, phs.get()))) {
         goto error;
     }
 
 error:
-    if (phs) free(phs);
     return status;
 }
 
 OsStatus RtldSoOpen(const RtldSoLoadInfo *LoadInfo, RtldSo *OutObject) {
     elf::Header header;
-    elf::ProgramHeader *phs = nullptr;
+    UniquePtr<elf::ProgramHeader[]> phs { nullptr, &free };
+    OsStatus status = OsStatusSuccess;
 
-    if (OsStatus status = ElfReadHeader(LoadInfo->Object, elf::Type::eShared, &header)) {
+    if ((status = ElfReadHeader(LoadInfo->Object, elf::Type::eShared, &header))) {
         return status;
     }
 
-    phs = (header.phnum) ? (elf::ProgramHeader*)malloc(sizeof(elf::ProgramHeader) * header.phnum) : nullptr;
-    if (phs == nullptr) {
-        goto outOfMemory;
+    if (header.phnum == 0) {
+        return OsStatusInvalidData;
     }
 
-outOfMemory:
-    if (phs) free(phs);
-    return OsStatusOutOfMemory;
+    phs = UniqueArray<elf::ProgramHeader>(header.phnum);
+    if (phs == nullptr) {
+        status = OsStatusOutOfMemory;
+        goto error;
+    }
+
+error:
+    return status;
 }
 
 OsStatus RtldSoClose(RtldSo *Object) {
