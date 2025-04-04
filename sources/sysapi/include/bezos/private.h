@@ -31,7 +31,8 @@ enum {
     eOsCallThreadStat = 0x45,
 
     eOsCallVmemCreate = 0x50,
-    eOsCallVmemRelease = 0x51,
+    eOsCallVmemMap = 0x51,
+    eOsCallVmemRelease = 0x52,
 
     eOsCallTxBegin = 0x60,
     eOsCallTxCommit = 0x61,

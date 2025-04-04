@@ -25,6 +25,7 @@ typedef int64_t OsSigned;
 typedef float OsFloat;
 typedef double OsDouble;
 typedef void *OsAnyPointer;
+typedef uintptr_t OsAddress;
 
 /// @brief A duration of time.
 ///

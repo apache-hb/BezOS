@@ -10,6 +10,9 @@ struct RtldStartInfo {
     /// @brief The file descriptor for the program.
     OsDeviceHandle Program;
 
+    /// @brief The process to setup.
+    OsProcessHandle Process;
+
     /// @brief The name of the program.
     OsUtf8Char ProgramName[OS_DEVICE_NAME_MAX];
 };
@@ -32,6 +35,7 @@ OsStatus RtldStartProgram(const struct RtldStartInfo *StartInfo);
 OsStatus RtldSoOpen(const struct RtldSoLoadInfo *LoadInfo, struct RtldSo *OutObject);
 
 OsStatus RtldSoClose(struct RtldSo *Object);
+
 OsStatus RtldSoSymbol(struct RtldSharedObject *Object, RtldSoName Name, void **OutAddress);
 
 #ifdef __cplusplus

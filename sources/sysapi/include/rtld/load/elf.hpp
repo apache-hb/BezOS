@@ -111,7 +111,9 @@ namespace os::elf {
             return ident[kObjVersionIdent];
         }
 
-        bool isValid() const;
+        bool isValid() const {
+            return ident[0] == kMagic[0] && ident[1] == kMagic[1] && ident[2] == kMagic[2] && ident[3] == kMagic[3];
+        }
     };
 
     static_assert(sizeof(Header) == 64);

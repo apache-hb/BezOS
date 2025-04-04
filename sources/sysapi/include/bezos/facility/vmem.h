@@ -43,6 +43,29 @@ enum {
 /// Bits [9:31] are reserved and must be zero.
 typedef uint32_t OsMemoryAccess;
 
+struct OsVmemMapInfo {
+    /// @brief The address from the source object to map.
+    OsAddress SrcAddress;
+
+    /// @brief The address in the destination process to map the memory at.
+    OsAddress DstAddress;
+
+    /// @brief The amount of memory to map.
+    OsSize Size;
+
+    /// @brief The access flags the memory should be mapped with.
+    OsMemoryAccess Access;
+
+    /// @brief The source object to map the memory from.
+    OsHandle Source;
+
+    /// @brief The destination object to map the memory to.
+    OsProcessHandle Process;
+
+    /// @brief The transaction this operation is associated with.
+    OsTxHandle Transaction;
+};
+
 struct OsVmemCreateInfo {
     /// @brief The base address to map the memory at.
     /// If @c eOsMemoryAddressHint is set in the access flags, then this is a hint. If the range is already in use
@@ -79,6 +102,14 @@ struct OsVmemCreateInfo {
 ///
 /// @return The status of the operation.
 extern OsStatus OsVmemCreate(struct OsVmemCreateInfo CreateInfo, OsAnyPointer *OutBase);
+
+/// @brief Alias memory from one objects address space to another.
+///
+/// @param MapInfo The mapping information.
+/// @param OutBase The base address of the mapped memory.
+///
+/// @return The status of the operation.
+extern OsStatus OsVmemMap(struct OsVmemMapInfo MapInfo, OsAnyPointer *OutBase);
 
 /// @brief Unmap a range of memory.
 ///
