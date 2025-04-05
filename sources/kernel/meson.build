@@ -473,6 +473,9 @@ testcases = {
     'ramfs': [
         'test/fs/ramfs.cpp',
     ],
+    'fs update': [
+        'test/fs/update.cpp',
+    ],
     'identify': [
         'test/fs/ramfs.cpp',
     ],

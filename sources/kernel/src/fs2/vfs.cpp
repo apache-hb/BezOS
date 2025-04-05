@@ -407,7 +407,7 @@ OsStatus VfsRoot::mkpath(const VfsPath& path, sm::RcuSharedPtr<INode> *node) {
 }
 
 OsStatus VfsRoot::lookup(const VfsPath& path, sm::RcuSharedPtr<INode> *node) {
-    stdx::SharedLock guard(mLock);
+    // stdx::SharedLock guard(mLock);
 
     return lookupUnlocked(path, node);
 }
