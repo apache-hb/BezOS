@@ -328,7 +328,7 @@ OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType typ
         && ((uintptr_t)mapping.vaddr % x64::kPageSize == 0)
         && mPageManager->isCanonicalAddress(mapping.vaddr);
 
-    if (!valid) {
+    if (!valid) [[unlikely]] {
         KmDebugMessage("[MEM] Invalid mapping request ", mapping, "\n");
         return OsStatusInvalidInput;
     }
@@ -723,7 +723,7 @@ OsStatus PageTables::unmap2m(VirtualRange range) {
         && ((uintptr_t)range.back % x64::kLargePageSize == 0)
         && range.size() >= x64::kLargePageSize;
 
-    if (!valid) {
+    if (!valid) [[unlikely]] {
         return OsStatusInvalidInput;
     }
 

@@ -1,7 +1,6 @@
 #pragma once
 
 enum class DeferTag { eTag };
-enum class ErrorDeferTag { eTag };
 
 template<typename F>
 constexpr auto operator+(DeferTag, F fn) {

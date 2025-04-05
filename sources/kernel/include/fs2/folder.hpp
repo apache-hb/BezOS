@@ -26,7 +26,9 @@ namespace vfs2 {
     class FolderMixin {
         using Container = sm::BTreeMap<VfsString, sm::RcuSharedPtr<INode>, std::less<>>;
 
-        Container mChildren;
+        stdx::SharedSpinLock mLock;
+        Container mChildren GUARDED_BY(mLock);
+        uint32_t mGeneration GUARDED_BY(mLock) = 0;
 
     public:
         struct Iterator {

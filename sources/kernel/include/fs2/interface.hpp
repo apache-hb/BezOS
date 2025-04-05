@@ -16,8 +16,19 @@ namespace vfs2 {
     public:
         virtual ~IFolderHandle() = default;
 
+        /// @brief Lookup a child node by name.
+        ///
+        /// @note This function is expected to be internally synchronized.
         virtual OsStatus lookup(VfsStringView name, sm::RcuSharedPtr<INode> *child) = 0;
+
+        /// @brief Create a child node.
+        ///
+        /// @note This function is expected to be internally synchronized.
         virtual OsStatus mknode(VfsStringView name, sm::RcuSharedPtr<INode> child) = 0;
+
+        /// @brief Remove a child node.
+        ///
+        /// @note This function is expected to be internally synchronized.
         virtual OsStatus rmnode(sm::RcuSharedPtr<INode> child) = 0;
     };
 
