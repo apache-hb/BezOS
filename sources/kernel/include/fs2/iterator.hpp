@@ -13,12 +13,12 @@ namespace vfs2 {
         Iterator mCurrent{};
 
     public:
-        TIteratorHandle(T *node, const void *, size_t)
+        TIteratorHandle(sm::RcuSharedPtr<T> node, const void *, size_t)
             : BasicHandle<T, IIteratorHandle>(node)
         { }
 
-        OsStatus next(INode **node) override {
-            INode *result = nullptr;
+        OsStatus next(sm::RcuSharedPtr<INode> *node) override {
+            sm::RcuSharedPtr<INode> result = nullptr;
             if (OsStatus status = mNode->next(&mCurrent, &result)) {
                 return status;
             }

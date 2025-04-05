@@ -39,7 +39,7 @@ static constexpr inline vfs2::InterfaceList kInterfaceList = std::to_array({
 });
 
 OsStatus dev::StreamDevice::query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) {
-    return kInterfaceList.query(this, uuid, data, size, handle);
+    return kInterfaceList.query(loanShared(), uuid, data, size, handle);
 }
 
 OsStatus dev::StreamDevice::interfaces(OsIdentifyInterfaceList *list) {

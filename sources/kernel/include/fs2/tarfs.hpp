@@ -143,31 +143,28 @@ namespace vfs2 {
 
     class TarFsNode : public INode, public ConstIdentifyMixin<kTarFsInfo> {
         std::atomic<uint32_t> mPublicRefCount { 1 };
-        INode *mParent;
+        sm::RcuWeakPtr<INode> mParent;
 
     protected:
         TarFsMount *mMount;
         TarPosixHeader mHeader;
 
     public:
-        TarFsNode(TarEntry entry, INode *parent, TarFsMount *mount)
+        TarFsNode(TarEntry entry, sm::RcuWeakPtr<INode> parent, TarFsMount *mount)
             : mParent(parent)
             , mMount(mount)
             , mHeader(entry.header)
         { }
 
         NodeInfo info() override;
-        void init(INode *parent, VfsString name, Access access) override;
-
-        void retain() override;
-        unsigned release() override;
+        void init(sm::RcuWeakPtr<INode> parent, VfsString name, Access access) override;
     };
 
     class TarFsFile : public TarFsNode {
         uint64_t mOffset;
 
     public:
-        TarFsFile(TarEntry entry, INode *parent, TarFsMount *mount)
+        TarFsFile(TarEntry entry, sm::RcuWeakPtr<INode> parent, TarFsMount *mount)
             : TarFsNode(entry, parent, mount)
             , mOffset(entry.offset)
         { }
@@ -181,7 +178,7 @@ namespace vfs2 {
 
     class TarFsFolder : public TarFsNode, public FolderMixin {
     public:
-        TarFsFolder(TarEntry entry, INode *parent, TarFsMount *mount)
+        TarFsFolder(TarEntry entry, sm::RcuWeakPtr<INode> parent, TarFsMount *mount)
             : TarFsNode(entry, parent, mount)
         { }
 
@@ -204,16 +201,16 @@ namespace vfs2 {
     class TarFsMount final : public IVfsMount {
         sm::SharedPtr<km::IBlockDriver> mBlock;
         km::BlockDevice mMedia;
-        TarFsFolder *mRootNode;
+        sm::RcuSharedPtr<TarFsFolder> mRootNode;
 
-        OsStatus walk(const VfsPath& path, INode **folder);
+        OsStatus walk(const VfsPath& path, sm::RcuSharedPtr<INode> *folder);
 
     public:
-        TarFsMount(TarFs *tarfs, sm::SharedPtr<km::IBlockDriver> block);
+        TarFsMount(TarFs *tarfs, sm::RcuDomain *domain, sm::SharedPtr<km::IBlockDriver> block);
 
         km::BlockDevice *media() { return &mMedia; }
 
-        OsStatus root(INode **node) override;
+        OsStatus root(sm::RcuSharedPtr<INode> *node) override;
     };
 
     class TarFs final : public IVfsDriver {
@@ -222,10 +219,10 @@ namespace vfs2 {
             : IVfsDriver("tarfs")
         { }
 
-        OsStatus mount(IVfsMount **mount) override;
+        OsStatus mount(sm::RcuDomain *domain, IVfsMount **mount) override;
         OsStatus unmount(IVfsMount *mount) override;
 
-        OsStatus createMount(IVfsMount **mount, sm::SharedPtr<km::IBlockDriver> block);
+        OsStatus createMount(IVfsMount **mount, sm::RcuDomain *domain, sm::SharedPtr<km::IBlockDriver> block);
 
         static TarFs& instance();
     };

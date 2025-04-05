@@ -8,6 +8,8 @@
 #include "util/util.hpp"
 #include "util/uuid.hpp"
 
+#include "std/rcuptr.hpp"
+
 namespace km {
     class SystemObjects;
 }
@@ -21,7 +23,7 @@ namespace vfs2 {
     class INode;
     class IHandle;
 
-    struct IVfsMount;
+    class IVfsMount;
 
     struct ReadRequest {
         void *begin;
@@ -67,14 +69,14 @@ namespace vfs2 {
     };
 
     struct HandleInfo {
-        INode *node;
+        sm::RcuSharedPtr<INode> node;
         OsGuid guid;
     };
 
     struct NodeInfo {
         stdx::StringView name;
         IVfsMount *mount;
-        INode *parent;
+        sm::RcuWeakPtr<INode> parent;
         Access access;
         uint32_t generation;
     };
@@ -94,7 +96,7 @@ namespace vfs2 {
         /// @param node The node to resolve.
         ///
         /// @return The handle associated with the node.
-        virtual OsNodeHandle resolveNode(INode *node) = 0;
+        virtual OsNodeHandle resolveNode(sm::RcuSharedPtr<INode> node) = 0;
     };
 
     /// @brief A handle to a file or folder.
@@ -136,7 +138,7 @@ namespace vfs2 {
         virtual HandleInfo info() = 0;
     };
 
-    class INode {
+    class INode : public sm::RcuIntrusivePtr<INode> {
     public:
         virtual ~INode() = default;
 
@@ -160,26 +162,11 @@ namespace vfs2 {
         /// @param parent The parent node.
         /// @param name The name of the node.
         /// @param access The access rights of the node.
-        virtual void init(INode *parent, VfsString name, Access access) = 0;
+        virtual void init(sm::RcuWeakPtr<INode> parent, VfsString name, Access access) = 0;
 
         /// @brief Get information about the node.
         ///
         /// @return The information about the node.
         virtual NodeInfo info() = 0;
-
-        /// @brief Retain a reference to the handle.
-        ///
-        /// Increment the public reference count of the handle.
-        virtual void retain() = 0;
-
-        /// @brief Release a reference to the handle.
-        ///
-        /// If this function returns 0 the handle is put into a destroy state
-        /// and must not be used, all handles that reference this node will
-        /// remain valid. When the last handle referencing the node is released
-        /// the node will be destroyed.
-        ///
-        /// @return The number of references remaining.
-        virtual unsigned release() = 0;
     };
 }

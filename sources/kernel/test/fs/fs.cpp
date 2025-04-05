@@ -28,7 +28,7 @@ TEST(Vfs2Test, CreateFile) {
         ASSERT_EQ(OsStatusSuccess, status);
     }
 
-    INode *file = nullptr;
+    sm::RcuSharedPtr<INode> file = nullptr;
 
     {
         OsStatus status = vfs.create(BuildPath("Volatile", "motd.txt"), &file);
@@ -60,7 +60,7 @@ TEST(Vfs2Test, FileReadWrite) {
         ASSERT_EQ(OsStatusSuccess, status);
     }
 
-    INode *file = nullptr;
+    sm::RcuSharedPtr<INode> file = nullptr;
 
     {
         OsStatus status = vfs.create(BuildPath("Volatile", "motd.txt"), &file);
@@ -119,7 +119,7 @@ TEST(Vfs2Test, MakePath) {
     VfsRoot vfs;
 
     IVfsMount *mount = nullptr;
-    INode *node = nullptr;
+    sm::RcuSharedPtr<INode> node = nullptr;
 
     {
         OsStatus status = vfs.addMount(&RamFs::instance(), "System", &mount);
@@ -138,7 +138,10 @@ TEST(Vfs2Test, MakePath) {
     ASSERT_EQ(info.name, "Firmware");
     ASSERT_EQ(info.mount, mount);
 
-    NodeInfo pInfo = info.parent->info();
+    sm::RcuSharedPtr<INode> parent = info.parent.lock();
+    ASSERT_NE(parent, nullptr);
+
+    NodeInfo pInfo = parent->info();
 
     ASSERT_EQ(pInfo.name, "CPU0");
 
@@ -146,7 +149,7 @@ TEST(Vfs2Test, MakePath) {
     // Ensure that all the parent folders were created.
     //
 
-    INode *folder = nullptr;
+    sm::RcuSharedPtr<INode> folder = nullptr;
     {
         OsStatus status = vfs.lookup(BuildPath("System", "Devices", "CPU", "CPU0"), &folder);
         ASSERT_EQ(OsStatusSuccess, status);
@@ -192,7 +195,7 @@ TEST(Vfs2Test, RemoveFile) {
     VfsRoot vfs;
 
     IVfsMount *mount = nullptr;
-    INode *node = nullptr;
+    sm::RcuSharedPtr<INode> node = nullptr;
 
     {
         OsStatus status = vfs.addMount(&RamFs::instance(), "System", &mount);
@@ -209,7 +212,7 @@ TEST(Vfs2Test, RemoveFile) {
         ASSERT_EQ(OsStatusSuccess, status);
     }
 
-    INode *lookup = nullptr;
+    sm::RcuSharedPtr<INode> lookup = nullptr;
     {
         OsStatus status = vfs.lookup(BuildPath("System", "motd.txt"), &lookup);
         ASSERT_EQ(OsStatusNotFound, status);
@@ -221,7 +224,7 @@ TEST(Vfs2Test, RemoveFolder) {
     VfsRoot vfs;
 
     IVfsMount *mount = nullptr;
-    INode *node = nullptr;
+    sm::RcuSharedPtr<INode> node = nullptr;
 
     {
         OsStatus status = vfs.addMount(&RamFs::instance(), "System", &mount);
@@ -238,7 +241,7 @@ TEST(Vfs2Test, RemoveFolder) {
         ASSERT_EQ(OsStatusSuccess, status);
     }
 
-    INode *lookup = nullptr;
+    sm::RcuSharedPtr<INode> lookup = nullptr;
     {
         OsStatus status = vfs.lookup(BuildPath("System", "Devices", "CPU", "CPU0", "Firmware"), &lookup);
         ASSERT_EQ(OsStatusNotFound, status);
@@ -253,7 +256,7 @@ TEST(Vfs2Test, RemoveFolder) {
 }
 
 static void CreateFile(VfsRoot *vfs, const VfsPath& path, stdx::StringView content) {
-    INode *node = nullptr;
+    sm::RcuSharedPtr<INode> node = nullptr;
     OsStatus status = vfs->create(path, &node);
     ASSERT_EQ(OsStatusSuccess, status);
 
@@ -274,7 +277,7 @@ static void CreateFile(VfsRoot *vfs, const VfsPath& path, stdx::StringView conte
     ASSERT_EQ(result.write, content.count());
 }
 
-static VfsString GetName(INode *node) {
+static VfsString GetName(sm::RcuSharedPtr<INode> node) {
     NodeInfo info = node->info();
     return VfsString(info.name);
 }
@@ -283,7 +286,7 @@ TEST(Vfs2Test, OpenFolder) {
     VfsRoot vfs;
 
     IVfsMount *mount = nullptr;
-    INode *node = nullptr;
+    sm::RcuSharedPtr<INode> node = nullptr;
 
     {
         OsStatus status = vfs.addMount(&RamFs::instance(), "System", &mount);
@@ -305,7 +308,7 @@ TEST(Vfs2Test, OpenFolder) {
         ASSERT_EQ(OsStatusSuccess, status);
         ASSERT_NE(handle, nullptr);
 
-        INode *child = nullptr;
+        sm::RcuSharedPtr<INode> child = nullptr;
         status = handle->next(&child);
         ASSERT_EQ(OsStatusSuccess, status);
         ASSERT_EQ(GetName(child), "file1.txt");

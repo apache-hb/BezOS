@@ -858,7 +858,7 @@ static void CreateNotificationQueue() {
 }
 
 static void MakeFolder(const vfs2::VfsPath& path) {
-    vfs2::INode *node = nullptr;
+    sm::RcuSharedPtr<vfs2::INode> node = nullptr;
     if (OsStatus status = gVfsRoot->mkpath(path, &node)) {
         KmDebugMessage("[VFS] Failed to create path: '", path, "' ", status, "\n");
     }
@@ -895,7 +895,7 @@ static void MountRootVfs() {
     MakeUser("Operator");
 
     {
-        vfs2::INode *node = nullptr;
+        sm::RcuSharedPtr<vfs2::INode> node = nullptr;
         vfs2::VfsPath path = vfs2::BuildPath("System", "Audit", "System.log");
         if (OsStatus status = gVfsRoot->create(path, &node)) {
             KmDebugMessage("[VFS] Failed to create ", path, ": ", status, "\n");
@@ -908,7 +908,7 @@ static void MountRootVfs() {
     }
 
     {
-        vfs2::INode *node = nullptr;
+        sm::RcuSharedPtr<vfs2::INode> node = nullptr;
         vfs2::VfsPath path = vfs2::BuildPath("Users", "Guest", "motd.txt");
         if (OsStatus status = gVfsRoot->create(path, &node)) {
             KmDebugMessage("[VFS] Failed to create ", path, ": ", status, "\n");
@@ -936,7 +936,7 @@ static void CreatePlatformVfsNodes(const km::SmBiosTables *smbios, const acpi::A
     MakePath("Platform");
 
     {
-        vfs2::INode *node = new dev::SmBiosRoot(smbios);
+        auto node = dev::SmBiosRoot::create(gVfsRoot->domain(), smbios);
 
         if (OsStatus status = gVfsRoot->mkdevice(vfs2::BuildPath("Platform", "SMBIOS"), node)) {
             KmDebugMessage("[VFS] Failed to create SMBIOS device: ", status, "\n");
@@ -944,7 +944,7 @@ static void CreatePlatformVfsNodes(const km::SmBiosTables *smbios, const acpi::A
     }
 
     {
-        vfs2::INode *node = new dev::AcpiRoot(acpi);
+        auto node = dev::AcpiRoot::create(gVfsRoot->domain(), acpi);
         if (OsStatus status = gVfsRoot->mkdevice(vfs2::BuildPath("Platform", "ACPI"), node)) {
             KmDebugMessage("[VFS] Failed to create ACPI device: ", status, "\n");
         }
@@ -1020,7 +1020,7 @@ class SystemInvokeContext final : public vfs2::IInvokeContext {
         return mContext->thread()->publicId();
     }
 
-    OsNodeHandle resolveNode(vfs2::INode *node) override {
+    OsNodeHandle resolveNode(sm::RcuSharedPtr<vfs2::INode> node) override {
         if (OsNodeHandle handle = mSystem->getNodeId(node)) {
             return handle;
         }
@@ -1398,7 +1398,7 @@ static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioAp
     vfs2::VfsPath hidPs2DevicePath{OS_DEVICE_PS2_KEYBOARD};
 
     {
-        vfs2::INode *node = nullptr;
+        sm::RcuSharedPtr<vfs2::INode> node = nullptr;
         if (OsStatus status = gVfsRoot->mkpath(hidPs2DevicePath.parent(), &node)) {
             KmDebugMessage("[VFS] Failed to create ", hidPs2DevicePath.parent(), " folder: ", status, "\n");
             KM_PANIC("Failed to create keyboar device folder.");
@@ -1406,13 +1406,13 @@ static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioAp
     }
 
     {
-        dev::HidKeyboardDevice *device = new dev::HidKeyboardDevice();
+        auto device = sm::rcuMakeShared<dev::HidKeyboardDevice>(gVfsRoot->domain());
         if (OsStatus status = gVfsRoot->mkdevice(hidPs2DevicePath, device)) {
             KmDebugMessage("[VFS] Failed to create ", hidPs2DevicePath, " device: ", status, "\n");
             KM_PANIC("Failed to create keyboard device.");
         }
 
-        gNotificationStream->subscribe(hid::GetHidPs2Topic(), device);
+        gNotificationStream->subscribe(hid::GetHidPs2Topic(), device.get());
     }
 }
 
@@ -1420,7 +1420,7 @@ static void CreateDisplayDevice() {
     vfs2::VfsPath ddiPath{OS_DEVICE_DDI_RAMFB};
 
     {
-        vfs2::INode *node = nullptr;
+        sm::RcuSharedPtr<vfs2::INode> node = nullptr;
         if (OsStatus status = gVfsRoot->mkpath(ddiPath.parent(), &node)) {
             KmDebugMessage("[VFS] Failed to create ", ddiPath.parent(), " folder: ", status, "\n");
             KM_PANIC("Failed to create display device folder.");
@@ -1428,7 +1428,7 @@ static void CreateDisplayDevice() {
     }
 
     {
-        dev::DisplayDevice *device = new dev::DisplayDevice(gDirectTerminalLog.get().display());
+        auto device = sm::rcuMakeShared<dev::DisplayDevice>(gVfsRoot->domain(), gDirectTerminalLog.get().display());
         if (OsStatus status = gVfsRoot->mkdevice(ddiPath, device)) {
             KmDebugMessage("[VFS] Failed to create ", ddiPath, " device: ", status, "\n");
             KM_PANIC("Failed to create display device.");
@@ -1621,6 +1621,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     km::IntervalTimer pit = km::InitPit(100 * si::hertz, ioApicSet, lapic.pointer(), timerIdx);
 
     tickSources.add(&pit);
+    km::ITickSource *tickSource = &pit;
 
     km::HighPrecisionTimer hpet;
     if (OsStatus status = km::InitHpet(rsdt, gMemory->pageTables(), &hpet)) {
@@ -1628,6 +1629,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     } else {
         hpet.enable(true);
         tickSources.add(&hpet);
+        tickSource = &hpet;
 
         KmDebugMessage("|---- HPET -----------------\n");
         KmDebugMessage("| Property      | Value\n");
@@ -1658,7 +1660,6 @@ void LaunchKernel(boot::LaunchInfo launch) {
     }
 
     KmDebugMessage("[INIT] Training APIC timer.\n");
-    km::ITickSource *tickSource = tickSources.back();
     km::ITickSource *clockTicker = tickSource;
     ApicTimer apicTimer;
     InvariantTsc tsc;

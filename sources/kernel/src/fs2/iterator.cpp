@@ -6,7 +6,7 @@ OsStatus vfs2::IIteratorHandle::next(IInvokeContext *context, void *data, size_t
     }
 
     OsIteratorNext *iterator = static_cast<OsIteratorNext*>(data);
-    INode *node = nullptr;
+    sm::RcuSharedPtr<INode> node = nullptr;
     if (OsStatus status = next(&node)) {
         return status;
     }

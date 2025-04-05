@@ -21,7 +21,7 @@ namespace vfs2 {
     class TStreamHandle : public BasicHandle<T, IHandle> {
         using BasicHandle<T, IHandle>::mNode;
     public:
-        TStreamHandle(T *node, const void *, size_t)
+        TStreamHandle(sm::RcuSharedPtr<T> node, const void *, size_t)
             : BasicHandle<T, IHandle>(node)
         { }
 

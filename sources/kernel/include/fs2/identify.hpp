@@ -41,7 +41,7 @@ namespace vfs2 {
         using BasicHandle<T, IIdentifyHandle>::mNode;
 
     public:
-        TIdentifyHandle(T *node, const void *, size_t)
+        TIdentifyHandle(sm::RcuSharedPtr<T> node, const void *, size_t)
             : BasicHandle<T, IIdentifyHandle>(node)
         { }
 

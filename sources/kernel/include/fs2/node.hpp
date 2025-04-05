@@ -19,7 +19,7 @@ namespace km {
 ///
 /// @cite SunVNodes
 namespace vfs2 {
-    struct IVfsMount;
+    class IVfsMount;
     struct IVfsDriver;
 
     enum class VfsNodeType {
@@ -37,21 +37,27 @@ namespace vfs2 {
         Access access;
     };
 
-    struct IVfsMount {
-        const IVfsDriver *driver;
+    class IVfsMount {
+    protected:
+        const IVfsDriver *mDriver;
+        sm::RcuDomain *mDomain;
 
-        constexpr IVfsMount(const IVfsDriver *driver)
-            : driver(driver)
+        constexpr IVfsMount(const IVfsDriver *driver, sm::RcuDomain *domain)
+            : mDriver(driver)
+            , mDomain(domain)
         { }
 
+    public:
         virtual ~IVfsMount() = default;
 
-        virtual OsStatus mkdir(INode *, VfsStringView, const void *, size_t, INode **) { return OsStatusNotSupported; }
-        virtual OsStatus create(INode *, VfsStringView, const void *, size_t, INode **) { return OsStatusNotSupported; }
+        virtual OsStatus mkdir(sm::RcuSharedPtr<INode>, VfsStringView, const void *, size_t, sm::RcuSharedPtr<INode> *) { return OsStatusNotSupported; }
+        virtual OsStatus create(sm::RcuSharedPtr<INode>, VfsStringView, const void *, size_t, sm::RcuSharedPtr<INode> *) { return OsStatusNotSupported; }
 
-        virtual OsStatus root(INode **) { return OsStatusNotSupported; }
+        virtual OsStatus root(sm::RcuSharedPtr<INode> *) { return OsStatusNotSupported; }
 
-        virtual OsStatus create(const void *, size_t, INode **) { return OsStatusNotSupported; }
+        virtual OsStatus create(const void *, size_t, sm::RcuSharedPtr<INode> *) { return OsStatusNotSupported; }
+
+        sm::RcuDomain *domain() const { return mDomain; }
     };
 
     struct IVfsDriver {
@@ -63,7 +69,7 @@ namespace vfs2 {
 
         virtual ~IVfsDriver() = default;
 
-        virtual OsStatus mount(IVfsMount **) { return OsStatusNotSupported; }
+        virtual OsStatus mount(sm::RcuDomain *, IVfsMount **) { return OsStatusNotSupported; }
         virtual OsStatus unmount(IVfsMount *) { return OsStatusNotSupported; }
     };
 

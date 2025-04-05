@@ -3,7 +3,7 @@
 #include "kernel.hpp"
 #include "panic.hpp"
 
-dev::DisplayHandle::DisplayHandle(DisplayDevice *node, const void *, size_t)
+dev::DisplayHandle::DisplayHandle(sm::RcuSharedPtr<DisplayDevice> node, const void *, size_t)
     : vfs2::BasicHandle<DisplayDevice>(node)
 {
     km::Canvas canvas = mNode->getCanvas();
@@ -118,7 +118,7 @@ static constexpr inline vfs2::InterfaceList kInterfaceList = std::to_array({
 });
 
 OsStatus dev::DisplayDevice::query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) {
-    return kInterfaceList.query(this, uuid, data, size, handle);
+    return kInterfaceList.query(loanShared(), uuid, data, size, handle);
 }
 
 OsStatus dev::DisplayDevice::interfaces(OsIdentifyInterfaceList *list) {

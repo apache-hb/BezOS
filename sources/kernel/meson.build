@@ -357,6 +357,9 @@ fs_test_src = [
     'src/fs2/iterator.cpp',
 
     'src/util/uuid.cpp',
+
+    'src/std/rcu.cpp',
+    'src/std/rcuptr.cpp',
 ]
 
 memory_test_src = [
@@ -513,6 +516,10 @@ testcases = {
         'src/boot.cpp',
         'src/xsave.cpp',
         'src/util/cpuid.cpp',
+
+        'src/std/rcu.cpp',
+        'src/std/rcuptr.cpp',
+
         'src/process/system.cpp',
         'src/process/process.cpp',
         'src/process/thread.cpp',
@@ -558,9 +565,6 @@ testcases = {
         'src/system/process.cpp',
         'src/system/thread.cpp',
         'src/system/mutex.cpp',
-
-        'src/std/rcu.cpp',
-        'src/std/rcuptr.cpp',
 
         'src/memory.cpp',
         'src/boot.cpp',

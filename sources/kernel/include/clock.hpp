@@ -19,7 +19,7 @@ namespace km {
         mp::quantity<si::hertz, uint64_t> mFrequency;
 
     public:
-        Clock(DateTime start, ITickSource *counter);
+        Clock(DateTime start, ITickSource *counter [[gnu::nonnull]]);
 
         constexpr Clock() = default;
 

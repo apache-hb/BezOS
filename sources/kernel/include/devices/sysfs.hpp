@@ -58,6 +58,8 @@ namespace dev {
 
         OsStatus stat(vfs2::NodeStat *stat);
         OsStatus read(vfs2::ReadRequest request, vfs2::ReadResult *result);
+
+        static sm::RcuSharedPtr<AcpiRoot> create(sm::RcuDomain *domain, const acpi::AcpiTables *tables);
     };
 
     class SmBiosTable final : public vfs2::BasicNode {
@@ -89,5 +91,7 @@ namespace dev {
 
         OsStatus stat(vfs2::NodeStat *stat);
         OsStatus read(vfs2::ReadRequest request, vfs2::ReadResult *result);
+
+        static sm::RcuSharedPtr<SmBiosRoot> create(sm::RcuDomain *domain, const km::SmBiosTables *tables);
     };
 }

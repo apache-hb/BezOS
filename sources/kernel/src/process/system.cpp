@@ -11,7 +11,7 @@
 
 using namespace km;
 
-OsStatus SystemObjects::createNode(Process *process, vfs2::INode *vfsNode, Node **result) {
+OsStatus SystemObjects::createNode(Process *process, sm::RcuSharedPtr<vfs2::INode> vfsNode, Node **result) {
     std::unique_ptr<Node> node { new (std::nothrow) Node };
     if (node == nullptr) {
         return OsStatusOutOfMemory;

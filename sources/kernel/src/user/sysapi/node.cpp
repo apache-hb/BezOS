@@ -59,7 +59,7 @@ OsCallResult um::NodeOpen(km::System *system, km::CallContext *context, km::Syst
     uint64_t userCreateInfo = regs->arg0;
 
     km::Process *process = nullptr;
-    vfs2::INode *node = nullptr;
+    sm::RcuSharedPtr<vfs2::INode> node = nullptr;
     km::Node *result = nullptr;
     vfs2::VfsPath path;
     OsNodeCreateInfo createInfo{};
@@ -84,7 +84,7 @@ OsCallResult um::NodeOpen(km::System *system, km::CallContext *context, km::Syst
         return km::CallOk(existing);
     }
 
-    if (OsStatus status = system->objects->createNode(process, std::move(node), &result)) {
+    if (OsStatus status = system->objects->createNode(process, node, &result)) {
         return km::CallError(status);
     }
 

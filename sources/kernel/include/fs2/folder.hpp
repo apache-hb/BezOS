@@ -1,31 +1,30 @@
 #pragma once
 
 #include "fs2/device.hpp"
-#include "fs2/fsptr.hpp"
 #include "fs2/interface.hpp"
 #include "util/absl.hpp"
 
 namespace vfs2 {
     template<typename T>
     concept FolderLookup = requires (T it) {
-        { it.lookup(std::declval<VfsStringView>(), std::declval<INode**>()) } -> std::same_as<OsStatus>;
+        { it.lookup(std::declval<VfsStringView>(), std::declval<sm::RcuSharedPtr<INode>*>()) } -> std::same_as<OsStatus>;
     };
 
     template<typename T>
     concept FolderMkNode = requires (T it) {
-        { it.mknode(std::declval<INode*>(), std::declval<VfsStringView>(), std::declval<INode*>()) } -> std::same_as<OsStatus>;
+        { it.mknode(std::declval<sm::RcuWeakPtr<INode>>(), std::declval<VfsStringView>(), std::declval<sm::RcuSharedPtr<INode>>()) } -> std::same_as<OsStatus>;
     };
 
     template<typename T>
     concept FolderRmNode = requires (T it) {
-        { it.rmnode(std::declval<INode*>()) } -> std::same_as<OsStatus>;
+        { it.rmnode(std::declval<sm::RcuSharedPtr<INode>>()) } -> std::same_as<OsStatus>;
     };
 
     template<typename T>
     concept FolderNodeType = FolderLookup<T> && std::derived_from<T, INode>;
 
     class FolderMixin {
-        using Container = sm::BTreeMap<VfsString, AutoRelease<INode>, std::less<>>;
+        using Container = sm::BTreeMap<VfsString, sm::RcuSharedPtr<INode>, std::less<>>;
 
         Container mChildren;
 
@@ -36,11 +35,11 @@ namespace vfs2 {
             uint32_t generation;
         };
 
-        OsStatus lookup(VfsStringView name, INode **child);
-        OsStatus mknode(INode *parent, VfsStringView name, INode *child);
-        OsStatus rmnode(INode *child);
+        OsStatus lookup(VfsStringView name, sm::RcuSharedPtr<INode> *child);
+        OsStatus mknode(sm::RcuWeakPtr<INode> parent, VfsStringView name, sm::RcuSharedPtr<INode> child);
+        OsStatus rmnode(sm::RcuSharedPtr<INode> child);
 
-        OsStatus next(Iterator *iterator, INode **node);
+        OsStatus next(Iterator *iterator, sm::RcuSharedPtr<INode> *node);
     };
 
     template<FolderNodeType T>
@@ -48,15 +47,15 @@ namespace vfs2 {
         using BasicHandle<T, IFolderHandle>::mNode;
 
     public:
-        TFolderHandle(T *node, const void *, size_t)
+        TFolderHandle(sm::RcuSharedPtr<T> node, const void *, size_t)
             : BasicHandle<T, IFolderHandle>(node)
         { }
 
-        virtual OsStatus lookup(VfsStringView name, INode **child) override {
+        virtual OsStatus lookup(VfsStringView name, sm::RcuSharedPtr<INode> *child) override {
             return mNode->lookup(name, child);
         }
 
-        virtual OsStatus mknode(VfsStringView name, INode *child) override {
+        virtual OsStatus mknode(VfsStringView name, sm::RcuSharedPtr<INode> child) override {
             if constexpr (FolderMkNode<T>) {
                 return mNode->mknode(mNode, name, child);
             } else {
@@ -64,7 +63,7 @@ namespace vfs2 {
             }
         }
 
-        virtual OsStatus rmnode(INode *child) override {
+        virtual OsStatus rmnode(sm::RcuSharedPtr<INode> child) override {
             if constexpr (FolderRmNode<T>) {
                 return mNode->rmnode(child);
             } else {

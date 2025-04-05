@@ -26,7 +26,7 @@ namespace vfs2 {
 
     class RamFsNode : public BasicNode, public ConstIdentifyMixin<kRamFsInfo> {
     public:
-        RamFsNode(INode *parent, IVfsMount *mount, VfsString name)
+        RamFsNode(sm::RcuWeakPtr<INode> parent, IVfsMount *mount, VfsString name)
             : BasicNode(parent, mount, std::move(name))
         { }
     };
@@ -36,7 +36,7 @@ namespace vfs2 {
         stdx::SharedSpinLock mLock;
 
     public:
-        RamFsFile(INode *parent, IVfsMount *mount, VfsString name)
+        RamFsFile(sm::RcuWeakPtr<INode> parent, IVfsMount *mount, VfsString name)
             : RamFsNode(parent, mount, std::move(name))
         { }
 
@@ -50,7 +50,7 @@ namespace vfs2 {
 
     class RamFsFolder : public RamFsNode, public FolderMixin {
     public:
-        RamFsFolder(INode *parent, IVfsMount *mount, VfsString name)
+        RamFsFolder(sm::RcuWeakPtr<INode> parent, IVfsMount *mount, VfsString name)
             : RamFsNode(parent, mount, std::move(name))
         { }
 
@@ -63,22 +63,22 @@ namespace vfs2 {
     };
 
     class RamFsMount : public IVfsMount {
-        RamFsFolder *mRootNode;
+        sm::RcuSharedPtr<RamFsFolder> mRootNode;
 
     public:
-        RamFsMount(RamFs *fs);
+        RamFsMount(RamFs *fs, sm::RcuDomain *domain);
 
-        OsStatus mkdir(INode *parent, VfsStringView name, const void *data, size_t size, INode **node) override;
-        OsStatus create(INode *parent, VfsStringView name, const void *data, size_t size, INode **node) override;
+        OsStatus mkdir(sm::RcuSharedPtr<INode> parent, VfsStringView name, const void *data, size_t size, sm::RcuSharedPtr<INode> *node) override;
+        OsStatus create(sm::RcuSharedPtr<INode> parent, VfsStringView name, const void *data, size_t size, sm::RcuSharedPtr<INode> *node) override;
 
-        OsStatus root(INode **node) override;
+        OsStatus root(sm::RcuSharedPtr<INode> *node) override;
     };
 
     class RamFs : public IVfsDriver {
         constexpr RamFs() : IVfsDriver("ramfs") { }
 
     public:
-        OsStatus mount(IVfsMount **mount) override;
+        OsStatus mount(sm::RcuDomain *domain, IVfsMount **mount) override;
         OsStatus unmount(IVfsMount *mount) override;
 
         static RamFs& instance();

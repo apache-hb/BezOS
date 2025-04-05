@@ -82,7 +82,7 @@ OsCallResult um::ProcessCreate(km::System *system, km::CallContext *context, km:
         return km::CallError(status);
     }
 
-    vfs2::INode *node = vfs2::GetHandleNode(handle.get());
+    sm::RcuSharedPtr<vfs2::INode> node = vfs2::GetHandleNode(handle.get());
     vfs2::NodeInfo nInfo = node->info();
 
     km::MemoryRange pteMemory = memory.pmmAllocate(256);

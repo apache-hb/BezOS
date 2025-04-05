@@ -184,7 +184,7 @@ OsStatus vfs2::ParseTar(km::BlockDevice *media, TarParseOptions options, sm::BTr
 // tarfs node implementation
 //
 
-void TarFsNode::init(INode *parent, VfsString name, Access) {
+void TarFsNode::init(sm::RcuWeakPtr<INode> parent, VfsString name, Access) {
     mParent = parent;
     strncpy(mHeader.name, name.data(), sizeof(mHeader.name));
 }
@@ -201,19 +201,6 @@ NodeInfo TarFsNode::info() {
     };
 }
 
-void TarFsNode::retain() {
-    mPublicRefCount.fetch_add(1, std::memory_order_relaxed);
-}
-
-unsigned TarFsNode::release() {
-    unsigned count = mPublicRefCount.fetch_sub(1, std::memory_order_acq_rel);
-    if (count == 1) {
-        delete this;
-    }
-
-    return count - 1;
-}
-
 //
 // tarfs file implementation
 //
@@ -224,7 +211,7 @@ static constexpr inline InterfaceList kFileInterfaceList = std::to_array({
 });
 
 OsStatus TarFsFile::query(sm::uuid uuid, const void *data, size_t size, IHandle **handle) {
-    return kFileInterfaceList.query(this, uuid, data, size, handle);
+    return kFileInterfaceList.query(loanShared(), uuid, data, size, handle);
 }
 
 OsStatus TarFsFile::interfaces(OsIdentifyInterfaceList *list) {
@@ -269,7 +256,7 @@ static constexpr inline InterfaceList kFolderInterfaceList = std::to_array({
 });
 
 OsStatus TarFsFolder::query(sm::uuid uuid, const void *data, size_t size, IHandle **handle) {
-    return kFolderInterfaceList.query(this, uuid, data, size, handle);
+    return kFolderInterfaceList.query(loanShared(), uuid, data, size, handle);
 }
 
 OsStatus TarFsFolder::interfaces(OsIdentifyInterfaceList *list) {
@@ -280,13 +267,13 @@ OsStatus TarFsFolder::interfaces(OsIdentifyInterfaceList *list) {
 // tarfs mount implementation
 //
 
-OsStatus TarFsMount::walk(const VfsPath& path, INode **folder) {
+OsStatus TarFsMount::walk(const VfsPath& path, sm::RcuSharedPtr<INode> *folder) {
     if (path.segmentCount() == 1) {
         *folder = mRootNode;
         return OsStatusSuccess;
     }
 
-    INode *current = mRootNode;
+    sm::RcuSharedPtr<INode> current = mRootNode;
 
     for (auto segment : path.parent()) {
         std::unique_ptr<IFolderHandle> folder;
@@ -294,7 +281,7 @@ OsStatus TarFsMount::walk(const VfsPath& path, INode **folder) {
             return status;
         }
 
-        INode *child = nullptr;
+        sm::RcuSharedPtr<INode> child = nullptr;
         if (OsStatus status = folder->lookup(segment, &child)) {
             return status;
         }
@@ -312,11 +299,11 @@ OsStatus TarFsMount::walk(const VfsPath& path, INode **folder) {
     return OsStatusSuccess;
 }
 
-TarFsMount::TarFsMount(TarFs *tarfs, sm::SharedPtr<km::IBlockDriver> block)
-    : IVfsMount(tarfs)
+TarFsMount::TarFsMount(TarFs *tarfs, sm::RcuDomain *domain, sm::SharedPtr<km::IBlockDriver> block)
+    : IVfsMount(tarfs, domain)
     , mBlock(block)
     , mMedia(mBlock.get())
-    , mRootNode(new TarFsFolder(TarEntry{}, nullptr, this))
+    , mRootNode(sm::rcuMakeShared<TarFsFolder>(mDomain, TarEntry{}, nullptr, this))
 {
     sm::BTreeMap<VfsPath, TarEntry> headers;
     if (OsStatus status = ParseTar(&mMedia, TarParseOptions{}, &headers)) {
@@ -328,17 +315,17 @@ TarFsMount::TarFsMount(TarFs *tarfs, sm::SharedPtr<km::IBlockDriver> block)
         VfsNodeType type = header.header.getType();
         VfsStringView name = path.name();
 
-        INode *parent = nullptr;
+        sm::RcuSharedPtr<INode> parent = nullptr;
         if (OsStatus status = walk(path, &parent)) {
             KmDebugMessage("[TARFS] Failed to find parent for '", path, "' : ", status, "\n");
             continue;
         }
 
-        std::unique_ptr<INode> node = nullptr;
+        sm::RcuSharedPtr<INode> node = nullptr;
         if (type == VfsNodeType::eFile) {
-            node.reset(new (std::nothrow) TarFsFile(header, parent, this));
+            node = sm::rcuMakeShared<TarFsFile>(mDomain, header, parent, this);
         } else if (type == VfsNodeType::eFolder) {
-            node.reset(new (std::nothrow) TarFsFolder(header, parent, this));
+            node = sm::rcuMakeShared<TarFsFolder>(mDomain, header, parent, this);
         } else {
             KmDebugMessage("[TARFS] Invalid node type for '", path, "'\n");
             continue;
@@ -355,13 +342,13 @@ TarFsMount::TarFsMount(TarFs *tarfs, sm::SharedPtr<km::IBlockDriver> block)
             continue;
         }
 
-        if (OsStatus status = folder->mknode(name, node.release())) {
+        if (OsStatus status = folder->mknode(name, node)) {
             KmDebugMessage("[TARFS] Failed to add folder '", path, "' : ", status, "\n");
         }
     }
 }
 
-OsStatus TarFsMount::root(INode **node) {
+OsStatus TarFsMount::root(sm::RcuSharedPtr<INode> *node) {
     *node = mRootNode;
     return OsStatusSuccess;
 }
@@ -370,7 +357,7 @@ OsStatus TarFsMount::root(INode **node) {
 // tarfs driver implementation
 //
 
-OsStatus TarFs::mount(IVfsMount **) {
+OsStatus TarFs::mount(sm::RcuDomain *, IVfsMount **) {
     // TODO: until I have a good solution for passing mount parameters
     // this will remain unimplemented.
     return OsStatusNotSupported;
@@ -381,8 +368,8 @@ OsStatus TarFs::unmount(IVfsMount *mount) {
     return OsStatusSuccess;
 }
 
-OsStatus TarFs::createMount(IVfsMount **mount, sm::SharedPtr<km::IBlockDriver> block) {
-    TarFsMount *result = new(std::nothrow) TarFsMount(this, block);
+OsStatus TarFs::createMount(IVfsMount **mount, sm::RcuDomain *domain, sm::SharedPtr<km::IBlockDriver> block) {
+    TarFsMount *result = new(std::nothrow) TarFsMount(this, domain, block);
     if (!result) {
         return OsStatusOutOfMemory;
     }

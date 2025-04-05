@@ -22,7 +22,7 @@ OsStatus vfs2::detail::ServiceInterfaceList(std::span<const InterfaceEntry> inte
     return OsStatusSuccess;
 }
 
-OsStatus vfs2::detail::ServiceQuery(std::span<const InterfaceEntry> interfaces, INode *node, sm::uuid uuid, const void *data, size_t size, IHandle **handle) {
+OsStatus vfs2::detail::ServiceQuery(std::span<const InterfaceEntry> interfaces, sm::RcuSharedPtr<INode> node, sm::uuid uuid, const void *data, size_t size, IHandle **handle) {
     for (const auto& [iid, create] : interfaces) {
         if (iid == uuid) {
             IHandle *result = create(node, data, size);

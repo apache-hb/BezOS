@@ -11,13 +11,13 @@ namespace vfs2 {
         std::atomic<unsigned> mPublicRefCount { 1 };
 
     protected:
-        INode *mParent;
+        sm::RcuWeakPtr<INode> mParent;
         IVfsMount *mMount;
         VfsString mName;
         Access mAccess;
 
     public:
-        BasicNode(INode *parent, IVfsMount *mount, VfsString name)
+        BasicNode(sm::RcuWeakPtr<INode> parent, IVfsMount *mount, VfsString name)
             : mParent(parent)
             , mMount(mount)
             , mName(std::move(name))
@@ -27,7 +27,7 @@ namespace vfs2 {
             : BasicNode(nullptr, nullptr, "")
         { }
 
-        void init(INode *parent, VfsString name, Access access) override {
+        void init(sm::RcuWeakPtr<INode> parent, VfsString name, Access access) override {
             mParent = parent;
             mName = std::move(name);
             mAccess = access;
@@ -41,35 +41,18 @@ namespace vfs2 {
                 .access = mAccess,
             };
         }
-
-        void retain() override {
-            mPublicRefCount.fetch_add(1, std::memory_order_relaxed);
-        }
-
-        unsigned release() override {
-            unsigned count = mPublicRefCount.fetch_sub(1, std::memory_order_acq_rel);
-            if (count == 1) {
-                delete this;
-            }
-
-            return count - 1;
-        }
     };
 
     template<std::derived_from<INode> Node, std::derived_from<IHandle> Interface = IHandle>
     class BasicHandle : public Interface {
     protected:
-        Node *mNode;
+        sm::RcuSharedPtr<Node> mNode;
 
     public:
-        BasicHandle(Node *node)
+        BasicHandle(sm::RcuSharedPtr<Node> node)
             : mNode(node)
-        {
-            mNode->retain();
-        }
+        { }
 
-        virtual ~BasicHandle() override {
-            mNode->release();
-        }
+        virtual ~BasicHandle() = default;
     };
 }

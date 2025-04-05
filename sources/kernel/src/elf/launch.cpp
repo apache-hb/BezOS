@@ -204,7 +204,7 @@ static OsStatus CreateThread(km::Process *process, km::SystemMemory& memory, km:
 }
 
 OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory& memory, SystemObjects& objects, ProcessLaunch *result) {
-    vfs2::INode *node = vfs2::GetHandleNode(file.get());
+    auto node = vfs2::GetHandleNode(file.get());
     vfs2::NodeInfo nInfo = node->info();
 
     MemoryRange pteMemory = memory.pmmAllocate(256);

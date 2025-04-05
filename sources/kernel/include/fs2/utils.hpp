@@ -1,5 +1,6 @@
 #pragma once
 
+#include "std/rcuptr.hpp"
 #include "util/uuid.hpp"
 
 namespace vfs2 {
@@ -11,17 +12,17 @@ namespace vfs2 {
     class IIteratorHandle;
     class IIdentifyHandle;
 
-    struct IVfsMount;
+    class IVfsMount;
 
-    bool HasInterface(INode *node, sm::uuid uuid, const void *data = nullptr, size_t size = 0);
-    OsStatus OpenFileInterface(INode *node, const void *data, size_t size, IFileHandle **handle);
-    OsStatus OpenFolderInterface(INode *node, const void *data, size_t size, IFolderHandle **handle);
-    OsStatus OpenIteratorInterface(INode *node, const void *data, size_t size, IIteratorHandle **handle);
-    OsStatus OpenIdentifyInterface(INode *node, const void *data, size_t size, IIdentifyHandle **handle);
+    bool HasInterface(sm::RcuSharedPtr<INode> node, sm::uuid uuid, const void *data = nullptr, size_t size = 0);
+    OsStatus OpenFileInterface(sm::RcuSharedPtr<INode> node, const void *data, size_t size, IFileHandle **handle);
+    OsStatus OpenFolderInterface(sm::RcuSharedPtr<INode> node, const void *data, size_t size, IFolderHandle **handle);
+    OsStatus OpenIteratorInterface(sm::RcuSharedPtr<INode> node, const void *data, size_t size, IIteratorHandle **handle);
+    OsStatus OpenIdentifyInterface(sm::RcuSharedPtr<INode> node, const void *data, size_t size, IIdentifyHandle **handle);
 
-    INode *GetParentNode(INode *node);
-    INode *GetParentNode(IHandle *handle);
-    INode *GetHandleNode(IHandle *handle);
-    IVfsMount *GetMount(INode *node);
+    sm::RcuSharedPtr<INode> GetParentNode(sm::RcuSharedPtr<INode> node);
+    sm::RcuSharedPtr<INode> GetParentNode(IHandle *handle);
+    sm::RcuSharedPtr<INode> GetHandleNode(IHandle *handle);
+    IVfsMount *GetMount(sm::RcuSharedPtr<INode> node);
     IVfsMount *GetMount(IHandle *handle);
 }

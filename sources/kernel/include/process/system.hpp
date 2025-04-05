@@ -36,7 +36,7 @@ namespace km {
         sm::FlatHashMap<NodeId, Node*> mNodes;
         sm::FlatHashMap<DeviceId, Device*> mDevices;
 
-        sm::FlatHashMap<vfs2::INode*, KernelObject*> mVfsNodes;
+        sm::FlatHashMap<sm::RcuSharedPtr<vfs2::INode>, KernelObject*, sm::RcuHash<vfs2::INode>> mVfsNodes;
         sm::FlatHashMap<vfs2::IHandle*, KernelObject*> mVfsHandles;
 
         bool releaseHandle(KernelObject *object);
@@ -57,7 +57,7 @@ namespace km {
         OsStatus destroyThread(Thread *thread);
         Thread *getThread(ThreadId id);
 
-        OsStatus createNode(Process *process, vfs2::INode *vfsNode, Node **result);
+        OsStatus createNode(Process *process, sm::RcuSharedPtr<vfs2::INode> vfsNode, Node **result);
         OsStatus destroyNode(Process *process, Node *node);
         Node *getNode(NodeId id);
 
@@ -66,7 +66,7 @@ namespace km {
         OsStatus destroyDevice(Process *process, Device *node);
         Device *getDevice(DeviceId id);
 
-        OsHandle getNodeId(vfs2::INode *node);
+        OsHandle getNodeId(sm::RcuSharedPtr<vfs2::INode> node);
         OsHandle getHandleId(vfs2::IHandle *handle);
 
         Thread *createThread(stdx::String name, Process* process);

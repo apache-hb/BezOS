@@ -258,4 +258,12 @@ void km::InitSmp(
     //
     memory.unmap((void*)kSmpInfo.address, sizeof(SmpInfoHeader));
     memory.unmap((void*)kSmpStart.address, blobSize);
+
+    //
+    // Reserve the smp info and blob regions again to prevent them from being
+    // reused by the kernel.
+    // This is a bit of a hack, but it works.
+    //
+    memory.reserveVirtual({ std::bit_cast<void*>(kSmpInfo), std::bit_cast<void*>(kSmpInfo + sizeof(SmpInfoHeader)) });
+    memory.reserveVirtual({ std::bit_cast<void*>(kSmpStart), std::bit_cast<void*>(kSmpStart + blobSize) });
 }

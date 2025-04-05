@@ -125,13 +125,13 @@ TEST_F(ProcessTest, OpenFile) {
     km::SystemObjects objects { &memory, &vfs };
 
     {
-        vfs2::INode *node = nullptr;
+        sm::RcuSharedPtr<vfs2::INode> node = nullptr;
         OsStatus status = vfs.mkpath(vfs2::BuildPath("Test"), &node);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
     {
-        vfs2::INode *node = nullptr;
+        sm::RcuSharedPtr<vfs2::INode> node = nullptr;
         OsStatus status = vfs.create(vfs2::BuildPath("Test", "File.txt"), &node);
         ASSERT_EQ(status, OsStatusSuccess);
     }
@@ -200,13 +200,13 @@ TEST_F(ProcessTest, CloseFileInProcess) {
     km::SystemObjects objects { &memory, &vfs };
 
     {
-        vfs2::INode *node = nullptr;
+        sm::RcuSharedPtr<vfs2::INode> node = nullptr;
         OsStatus status = vfs.mkpath(vfs2::BuildPath("Test"), &node);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
     {
-        vfs2::INode *node = nullptr;
+        sm::RcuSharedPtr<vfs2::INode> node = nullptr;
         OsStatus status = vfs.create(vfs2::BuildPath("Test", "File.txt"), &node);
         ASSERT_EQ(status, OsStatusSuccess);
     }

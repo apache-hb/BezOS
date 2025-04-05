@@ -16,9 +16,9 @@ namespace vfs2 {
     public:
         virtual ~IFolderHandle() = default;
 
-        virtual OsStatus lookup(VfsStringView name, INode **child) = 0;
-        virtual OsStatus mknode(VfsStringView name, INode *child) = 0;
-        virtual OsStatus rmnode(INode *child) = 0;
+        virtual OsStatus lookup(VfsStringView name, sm::RcuSharedPtr<INode> *child) = 0;
+        virtual OsStatus mknode(VfsStringView name, sm::RcuSharedPtr<INode> child) = 0;
+        virtual OsStatus rmnode(sm::RcuSharedPtr<INode> child) = 0;
     };
 
     /// @note All interfaces of @a kOsIteratorGuid must implement this interface.
@@ -26,7 +26,7 @@ namespace vfs2 {
     public:
         virtual ~IIteratorHandle() = default;
 
-        virtual OsStatus next(INode **node) = 0;
+        virtual OsStatus next(sm::RcuSharedPtr<INode> *node) = 0;
 
         OsStatus next(IInvokeContext *context, void *data, size_t size);
 

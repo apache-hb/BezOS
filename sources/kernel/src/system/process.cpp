@@ -140,8 +140,6 @@ OsStatus sys2::Process::createProcess(System *system, ProcessCreateInfo info, Pr
 }
 
 OsStatus sys2::Process::destroy(System *system, const ProcessDestroyInfo& info) {
-    stdx::UniqueLock guard(mLock);
-
     if (auto parent = mParent.lock()) {
         parent->removeChild(loanShared());
     }

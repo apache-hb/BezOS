@@ -12,7 +12,7 @@ TEST(RamFsTest, Construct) {
 TEST(RamFsTest, DestroyNode) {
     vfs2::VfsRoot vfs;
 
-    INode *node = nullptr;
+    sm::RcuSharedPtr<INode> node = nullptr;
     {
         OsStatus status = vfs.create(BuildPath("inventory.txt"), &node);
         ASSERT_EQ(OsStatusSuccess, status);

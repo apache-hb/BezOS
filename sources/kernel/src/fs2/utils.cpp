@@ -3,7 +3,7 @@
 #include "fs2/base.hpp"
 #include "fs2/interface.hpp"
 
-bool vfs2::HasInterface(INode *node, sm::uuid uuid, const void *data, size_t size) {
+bool vfs2::HasInterface(sm::RcuSharedPtr<INode> node, sm::uuid uuid, const void *data, size_t size) {
     std::unique_ptr<IHandle> handle;
     if (node->query(uuid, data, size, std::out_ptr(handle)) != OsStatusSuccess) {
         return false;
@@ -12,7 +12,7 @@ bool vfs2::HasInterface(INode *node, sm::uuid uuid, const void *data, size_t siz
     return true;
 }
 
-OsStatus vfs2::OpenFileInterface(INode *node, const void *data, size_t size, IFileHandle **handle) {
+OsStatus vfs2::OpenFileInterface(sm::RcuSharedPtr<INode> node, const void *data, size_t size, IFileHandle **handle) {
     std::unique_ptr<IHandle> result;
     if (OsStatus status = node->query(kOsFileGuid, data, size, std::out_ptr(result))) {
         return status;
@@ -22,7 +22,7 @@ OsStatus vfs2::OpenFileInterface(INode *node, const void *data, size_t size, IFi
     return OsStatusSuccess;
 }
 
-OsStatus vfs2::OpenFolderInterface(INode *node, const void *data, size_t size, IFolderHandle **handle) {
+OsStatus vfs2::OpenFolderInterface(sm::RcuSharedPtr<INode> node, const void *data, size_t size, IFolderHandle **handle) {
     std::unique_ptr<IHandle> result;
     if (OsStatus status = node->query(kOsFolderGuid, data, size, std::out_ptr(result))) {
         return status;
@@ -32,7 +32,7 @@ OsStatus vfs2::OpenFolderInterface(INode *node, const void *data, size_t size, I
     return OsStatusSuccess;
 }
 
-OsStatus vfs2::OpenIteratorInterface(INode *node, const void *data, size_t size, IIteratorHandle **handle) {
+OsStatus vfs2::OpenIteratorInterface(sm::RcuSharedPtr<INode> node, const void *data, size_t size, IIteratorHandle **handle) {
     std::unique_ptr<IHandle> result;
     if (OsStatus status = node->query(kOsIteratorGuid, data, size, std::out_ptr(result))) {
         return status;
@@ -42,7 +42,7 @@ OsStatus vfs2::OpenIteratorInterface(INode *node, const void *data, size_t size,
     return OsStatusSuccess;
 }
 
-OsStatus vfs2::OpenIdentifyInterface(INode *node, const void *data, size_t size, IIdentifyHandle **handle) {
+OsStatus vfs2::OpenIdentifyInterface(sm::RcuSharedPtr<INode> node, const void *data, size_t size, IIdentifyHandle **handle) {
     std::unique_ptr<IHandle> result;
     if (OsStatus status = node->query(kOsIdentifyGuid, data, size, std::out_ptr(result))) {
         return status;
@@ -52,21 +52,21 @@ OsStatus vfs2::OpenIdentifyInterface(INode *node, const void *data, size_t size,
     return OsStatusSuccess;
 }
 
-vfs2::INode *vfs2::GetParentNode(INode *node) {
+sm::RcuSharedPtr<vfs2::INode> vfs2::GetParentNode(sm::RcuSharedPtr<INode> node) {
     NodeInfo info = node->info();
-    return info.parent;
+    return info.parent.lock();
 }
 
-vfs2::INode *vfs2::GetParentNode(IHandle *handle) {
+sm::RcuSharedPtr<vfs2::INode> vfs2::GetParentNode(IHandle *handle) {
     return GetParentNode(GetHandleNode(handle));
 }
 
-vfs2::INode *vfs2::GetHandleNode(IHandle *handle) {
+sm::RcuSharedPtr<vfs2::INode> vfs2::GetHandleNode(IHandle *handle) {
     HandleInfo info = handle->info();
     return info.node;
 }
 
-vfs2::IVfsMount *vfs2::GetMount(INode *node) {
+vfs2::IVfsMount *vfs2::GetMount(sm::RcuSharedPtr<INode> node) {
     NodeInfo info = node->info();
     return info.mount;
 }

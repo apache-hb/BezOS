@@ -93,6 +93,8 @@ namespace sm {
         void RcuReleaseWeak(ControlBlock *cb);
         bool RcuAcquireWeak(ControlBlock *control);
 
+        class RcuIntrusivePtrTag {};
+
         struct AdoptControl {};
         struct AcquireControl {};
     }
@@ -107,8 +109,7 @@ namespace sm {
     class RcuWeakPtr;
 
     template<typename T>
-    concept IsIntrusivePtr = std::derived_from<T, RcuIntrusivePtr<T>>;
-
+    concept IsIntrusivePtr = std::derived_from<T, rcu::detail::RcuIntrusivePtrTag>;
 
     template<typename O, typename Self>
     constexpr RcuSharedPtr<O> rcuSharedPtrCast(const RcuSharedPtr<Self>& weak) {
@@ -561,9 +562,12 @@ namespace sm {
     };
 
     template<typename T>
-    class RcuIntrusivePtr {
-        friend class RcuSharedPtr<T>;
-        friend class RcuWeakPtr<T>;
+    class RcuIntrusivePtr : public rcu::detail::RcuIntrusivePtrTag {
+        template<typename O>
+        friend class RcuSharedPtr;
+
+        template<typename O>
+        friend class RcuWeakPtr;
 
         RcuWeakPtr<T> mWeakThis;
 

@@ -7,9 +7,9 @@
 
 namespace km {
     struct Node : public KernelObject {
-        vfs2::INode *node = nullptr;
+        sm::RcuSharedPtr<vfs2::INode> node = nullptr;
 
-        void init(NodeId id, stdx::String name, vfs2::INode *vfsNode);
+        void init(NodeId id, stdx::String name, sm::RcuSharedPtr<vfs2::INode> vfsNode);
     };
 
     struct Device : public KernelObject {

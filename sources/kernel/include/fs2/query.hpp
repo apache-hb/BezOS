@@ -1,5 +1,6 @@
 #pragma once
 
+#include "std/rcuptr.hpp"
 #include "util/uuid.hpp"
 
 #include <new>
@@ -12,7 +13,7 @@ namespace vfs2 {
     class IHandle;
     class INode;
 
-    using CreateHandle = IHandle *(*)(INode *, const void *, size_t);
+    using CreateHandle = IHandle *(*)(sm::RcuSharedPtr<INode>, const void *, size_t);
 
     struct InterfaceEntry {
         OsGuid uuid;
@@ -21,8 +22,8 @@ namespace vfs2 {
 
     template<typename THandle, typename TNode>
     constexpr InterfaceEntry InterfaceOf(OsGuid guid) {
-        CreateHandle callback = [](INode *node, const void *data, size_t size) -> IHandle* {
-            return new (std::nothrow) THandle(static_cast<TNode *>(node), data, size);
+        CreateHandle callback = [](sm::RcuSharedPtr<INode> node, const void *data, size_t size) -> IHandle* {
+            return new (std::nothrow) THandle(sm::rcuSharedPtrCast<TNode>(node), data, size);
         };
 
         return InterfaceEntry { guid, callback, };
@@ -37,12 +38,12 @@ namespace vfs2 {
         { }
 
         OsStatus list(OsIdentifyInterfaceList *list) const;
-        OsStatus query(INode *node, sm::uuid uuid, const void *data, size_t size, IHandle **handle) const;
+        OsStatus query(sm::RcuSharedPtr<INode> node, sm::uuid uuid, const void *data, size_t size, IHandle **handle) const;
     };
 
     namespace detail {
         OsStatus ServiceInterfaceList(std::span<const InterfaceEntry> interfaces, OsIdentifyInterfaceList *list);
-        OsStatus ServiceQuery(std::span<const InterfaceEntry> interfaces, INode *node, sm::uuid uuid, const void *data, size_t size, IHandle **handle);
+        OsStatus ServiceQuery(std::span<const InterfaceEntry> interfaces, sm::RcuSharedPtr<INode> node, sm::uuid uuid, const void *data, size_t size, IHandle **handle);
     }
 }
 
@@ -52,6 +53,6 @@ OsStatus vfs2::InterfaceList<N>::list(OsIdentifyInterfaceList *list) const {
 }
 
 template<size_t N>
-OsStatus vfs2::InterfaceList<N>::query(INode *node, sm::uuid uuid, const void *data, size_t size, IHandle **handle) const {
+OsStatus vfs2::InterfaceList<N>::query(sm::RcuSharedPtr<INode> node, sm::uuid uuid, const void *data, size_t size, IHandle **handle) const {
     return detail::ServiceQuery(mInterfaces, node, uuid, data, size, handle);
 }

@@ -9,9 +9,9 @@
 #include "syscall.hpp"
 
 // TODO: there should be a global registry of these, and they should be loaded from shared objects
-static vfs2::INode *GetDefaultClass(sm::uuid uuid) {
+static sm::RcuSharedPtr<vfs2::INode> GetDefaultClass(sm::uuid uuid, sm::RcuDomain *domain) {
     if (uuid == kOsStreamGuid) {
-        return new dev::StreamDevice(1024);
+        return sm::rcuMakeShared<dev::StreamDevice>(domain, 1024);
     } else {
         return nullptr;
     }
@@ -29,7 +29,7 @@ class SystemInvokeContext final : public vfs2::IInvokeContext {
         return mContext->thread()->publicId();
     }
 
-    OsNodeHandle resolveNode(vfs2::INode *node) override {
+    OsNodeHandle resolveNode(sm::RcuSharedPtr<vfs2::INode> node) override {
         if (OsNodeHandle handle = mSystem->getNodeId(node)) {
             return handle;
         }
@@ -83,7 +83,7 @@ OsCallResult um::DeviceOpen(km::System *system, km::CallContext *context, km::Sy
     OsStatus status = system->vfs->device(path, uuid, openData.Data, openData.Size, std::out_ptr(handle));
 
     if ((status == OsStatusNotFound) && (createInfo.Flags & eOsDeviceCreateNew)) {
-        vfs2::INode *node = GetDefaultClass(uuid);
+        sm::RcuSharedPtr<vfs2::INode> node = GetDefaultClass(uuid, system->vfs->domain());
         if (node == nullptr) {
             return km::CallError(OsStatusNotFound);
         }

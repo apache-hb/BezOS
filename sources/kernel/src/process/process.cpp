@@ -64,7 +64,7 @@ OsStatus Process::createTls(km::SystemMemory& memory, Thread *thread) {
     return tlsInit.createTls(memory, thread);
 }
 
-void Node::init(NodeId id, stdx::String name, vfs2::INode *vfsNode) {
+void Node::init(NodeId id, stdx::String name, sm::RcuSharedPtr<vfs2::INode> vfsNode) {
     initHeader(std::to_underlying(id), eOsHandleNode, std::move(name));
     node = vfsNode;
 }

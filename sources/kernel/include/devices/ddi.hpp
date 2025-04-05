@@ -43,7 +43,7 @@ namespace dev {
         OsStatus getCanvas(void *data, size_t size);
 
     public:
-        DisplayHandle(DisplayDevice *node, const void *data, size_t size);
+        DisplayHandle(sm::RcuSharedPtr<DisplayDevice> node, const void *data, size_t size);
 
         OsStatus invoke(vfs2::IInvokeContext *context, uint64_t function, void *data, size_t size) override;
 

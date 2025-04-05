@@ -16,7 +16,7 @@ static constexpr inline InterfaceList kFileInterfaceList = std::to_array({
 });
 
 OsStatus RamFsFile::query(sm::uuid uuid, const void *data, size_t size, IHandle **handle) {
-    return kFileInterfaceList.query(this, uuid, data, size, handle);
+    return kFileInterfaceList.query(loanShared(), uuid, data, size, handle);
 }
 
 OsStatus RamFsFile::interfaces(OsIdentifyInterfaceList *list) {
@@ -65,7 +65,7 @@ static constexpr inline InterfaceList kFolderInterfaceList = std::to_array({
 });
 
 OsStatus RamFsFolder::query(sm::uuid uuid, const void *data, size_t size, IHandle **handle) {
-    return kFolderInterfaceList.query(this, uuid, data, size, handle);
+    return kFolderInterfaceList.query(loanShared(), uuid, data, size, handle);
 }
 
 OsStatus RamFsFolder::interfaces(OsIdentifyInterfaceList *list) {
@@ -76,45 +76,45 @@ OsStatus RamFsFolder::interfaces(OsIdentifyInterfaceList *list) {
 // ramfs mount implementation
 //
 
-OsStatus RamFsMount::mkdir(INode *parent, VfsStringView name, const void *, size_t, INode **node) {
+OsStatus RamFsMount::mkdir(sm::RcuSharedPtr<INode> parent, VfsStringView name, const void *, size_t, sm::RcuSharedPtr<INode> *node) {
     std::unique_ptr<IFolderHandle> folder;
     if (OsStatus status = OpenFolderInterface(parent, nullptr, 0, std::out_ptr(folder))) {
         return status;
     }
 
-    std::unique_ptr<RamFsFolder> child { new(std::nothrow) RamFsFolder(parent, this, VfsString(name)) };
+    sm::RcuSharedPtr<RamFsFolder> child = sm::rcuMakeShared<RamFsFolder>(mDomain, parent, this, VfsString(name));
     if (!child) {
         return OsStatusOutOfMemory;
     }
 
-    if (OsStatus status = folder->mknode(name, child.get())) {
+    if (OsStatus status = folder->mknode(name, child)) {
         return status;
     }
 
-    *node = child.release();
+    *node = child;
     return OsStatusSuccess;
 }
 
-OsStatus RamFsMount::create(INode *parent, VfsStringView name, const void *, size_t, INode **node) {
+OsStatus RamFsMount::create(sm::RcuSharedPtr<INode> parent, VfsStringView name, const void *, size_t, sm::RcuSharedPtr<INode> *node) {
     std::unique_ptr<IFolderHandle> folder;
     if (OsStatus status = OpenFolderInterface(parent, nullptr, 0, std::out_ptr(folder))) {
         return status;
     }
 
-    std::unique_ptr<RamFsFile> file { new(std::nothrow) RamFsFile(parent, this, VfsString(name)) };
+    sm::RcuSharedPtr<RamFsFile> file = sm::rcuMakeShared<RamFsFile>(mDomain, parent, this, VfsString(name));
     if (!file) {
         return OsStatusOutOfMemory;
     }
 
-    if (OsStatus status = folder->mknode(name, file.get())) {
+    if (OsStatus status = folder->mknode(name, file)) {
         return status;
     }
 
-    *node = file.release();
+    *node = file;
     return OsStatusSuccess;
 }
 
-OsStatus RamFsMount::root(INode **node) {
+OsStatus RamFsMount::root(sm::RcuSharedPtr<INode> *node) {
     *node = mRootNode;
     return OsStatusSuccess;
 }
@@ -123,8 +123,8 @@ OsStatus RamFsMount::root(INode **node) {
 // ramfs driver implementation
 //
 
-OsStatus RamFs::mount(IVfsMount **mount) {
-    RamFsMount *node = new(std::nothrow) RamFsMount(this);
+OsStatus RamFs::mount(sm::RcuDomain *domain, IVfsMount **mount) {
+    RamFsMount *node = new(std::nothrow) RamFsMount(this, domain);
     if (!node) {
         return OsStatusOutOfMemory;
     }
@@ -138,9 +138,9 @@ OsStatus RamFs::unmount(IVfsMount *mount) {
     return OsStatusSuccess;
 }
 
-RamFsMount::RamFsMount(RamFs *fs)
-    : IVfsMount(fs)
-    , mRootNode(new RamFsFolder(nullptr, this, ""))
+RamFsMount::RamFsMount(RamFs *fs, sm::RcuDomain *domain)
+    : IVfsMount(fs, domain)
+    , mRootNode(sm::rcuMakeShared<RamFsFolder>(mDomain, nullptr, this, ""))
 { }
 
 RamFs& RamFs::instance() {

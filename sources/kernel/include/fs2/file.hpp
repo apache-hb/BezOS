@@ -26,7 +26,7 @@ namespace vfs2 {
     class TFileHandle : public BasicHandle<T, IFileHandle> {
         using BasicHandle<T, IFileHandle>::mNode;
     public:
-        TFileHandle(T *node, const void *, size_t)
+        TFileHandle(sm::RcuSharedPtr<T> node, const void *, size_t)
             : BasicHandle<T, IFileHandle>(node)
         { }
 

@@ -50,7 +50,7 @@ namespace dev {
         stdx::Vector2<OsHidEvent> mEvents;
 
     public:
-        HidKeyboardHandle(HidKeyboardDevice *node, const void *data, size_t size);
+        HidKeyboardHandle(sm::RcuSharedPtr<HidKeyboardDevice> node, const void *data, size_t size);
 
         void notify(OsHidEvent event);
 
