@@ -5,7 +5,7 @@
 #include "arch/generic/mmu.hpp"
 
 namespace arch {
-    struct MmuInfoX86_64 {
+    struct MmuInfoX86_64 : GenericMmuInfo {
         constexpr void enumPageSizes(uintptr_t *sizes, size_t *count) const noexcept {
             sizes[0] = sm::kilobytes(4).bytes();
             sizes[1] = sm::megabytes(2).bytes();
