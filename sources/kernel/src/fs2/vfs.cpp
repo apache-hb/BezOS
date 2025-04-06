@@ -132,6 +132,8 @@ bool VfsRoot::hasInterface(sm::RcuSharedPtr<INode> node, sm::uuid uuid, const vo
 }
 
 OsStatus VfsRoot::insertMount(sm::RcuSharedPtr<INode> parent, const VfsPath& path, std::unique_ptr<IVfsMount> object, IVfsMount **mount) {
+    stdx::UniqueLock guard(mLock);
+
     //
     // Add the mount point to our internal mappings.
     //
@@ -185,8 +187,6 @@ OsStatus VfsRoot::insertMount(sm::RcuSharedPtr<INode> parent, const VfsPath& pat
 }
 
 OsStatus VfsRoot::addMount(IVfsDriver *driver, const VfsPath& path, IVfsMount **mount) {
-    stdx::UniqueLock guard(mLock);
-
     //
     // Mount points follow the same rules as other vfs objects
     // and must therefore have a parent directory.
@@ -208,7 +208,7 @@ OsStatus VfsRoot::addMount(IVfsDriver *driver, const VfsPath& path, IVfsMount **
 }
 
 OsStatus VfsRoot::create(const VfsPath& path, sm::RcuSharedPtr<INode> *node) {
-    stdx::UniqueLock guard(mLock);
+    sm::RcuGuard rcuGuard(mDomain);
 
     //
     // Walk along the fs to find the parent folder
@@ -259,8 +259,6 @@ OsStatus VfsRoot::remove(sm::RcuSharedPtr<INode> node) {
         return OsStatusInvalidInput;
     }
 
-    stdx::UniqueLock guard(mLock);
-
     std::unique_ptr<IFolderHandle> folder;
     if (OsStatus status = queryFolder(parent, std::out_ptr(folder))) {
         return status;
@@ -295,8 +293,6 @@ OsStatus VfsRoot::opendir(const VfsPath& path, IHandle **handle) {
 }
 
 OsStatus VfsRoot::mkdir(const VfsPath& path, sm::RcuSharedPtr<INode> *node) {
-    stdx::UniqueLock guard(mLock);
-
     sm::RcuSharedPtr<INode> parent = nullptr;
     if (OsStatus status = walk(path, &parent)) {
         return status;
@@ -337,8 +333,6 @@ OsStatus VfsRoot::rmdir(sm::RcuSharedPtr<INode> node) {
         return OsStatusInvalidInput;
     }
 
-    stdx::UniqueLock guard(mLock);
-
     std::unique_ptr<IFolderHandle> folder;
     if (OsStatus status = queryFolder(parent, std::out_ptr(folder))) {
         return status;
@@ -356,8 +350,6 @@ OsStatus VfsRoot::rmdir(sm::RcuSharedPtr<INode> node) {
 }
 
 OsStatus VfsRoot::mkpath(const VfsPath& path, sm::RcuSharedPtr<INode> *node) {
-    stdx::UniqueLock guard(mLock);
-
     sm::RcuSharedPtr<INode> current = mRootNode;
 
     for (auto segment : path) {
@@ -407,14 +399,10 @@ OsStatus VfsRoot::mkpath(const VfsPath& path, sm::RcuSharedPtr<INode> *node) {
 }
 
 OsStatus VfsRoot::lookup(const VfsPath& path, sm::RcuSharedPtr<INode> *node) {
-    // stdx::SharedLock guard(mLock);
-
     return lookupUnlocked(path, node);
 }
 
 OsStatus VfsRoot::mkdevice(const VfsPath& path, sm::RcuSharedPtr<INode> device) {
-    stdx::UniqueLock guard(mLock);
-
     sm::RcuSharedPtr<INode> parent = nullptr;
     if (OsStatus status = walk(path, &parent)) {
         return status;
@@ -437,8 +425,6 @@ OsStatus VfsRoot::mkdevice(const VfsPath& path, sm::RcuSharedPtr<INode> device) 
 }
 
 OsStatus VfsRoot::device(const VfsPath& path, sm::uuid interface, const void *data, size_t size, IHandle **handle) {
-    stdx::UniqueLock guard(mLock);
-
     //
     // If the path is empty then we are querying the root node.
     //

@@ -18,12 +18,11 @@ namespace vfs2 {
     class VfsRoot {
         sm::RcuDomain mDomain;
 
-        sm::BTreeMap<VfsPath, std::unique_ptr<IVfsMount>> mMounts;
+        sm::BTreeMap<VfsPath, std::unique_ptr<IVfsMount>> mMounts GUARDED_BY(mLock);
         std::unique_ptr<IVfsMount> mRootMount;
         sm::RcuSharedPtr<INode> mRootNode;
 
         /// @brief Global lock for the VFS.
-        /// @todo Use RCU instead.
         stdx::SharedSpinLock mLock;
 
         OsStatus walk(const VfsPath& path, sm::RcuSharedPtr<INode> *parent);
@@ -46,8 +45,6 @@ namespace vfs2 {
 
         template<std::derived_from<IVfsDriver> T>
         OsStatus addMountWithParams(T *driver, const VfsPath& path, IVfsMount **mount, auto&&... args) {
-            stdx::UniqueLock guard(mLock);
-
             //
             // Find the parent to the mount point before creating the mount.
             // This is done as an optimization to avoid creating the mount
