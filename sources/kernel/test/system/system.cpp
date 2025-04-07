@@ -145,7 +145,7 @@ TEST_F(SystemTest, CreateChildProcess) {
         ASSERT_EQ(status, OsStatusSuccess);
 
         ASSERT_NE(hChild, nullptr) << "Child process was not created";
-        auto process = hProcess->getProcessObject();
+        auto process = hProcess->getProcess();
         ASSERT_NE(process, nullptr) << "Parent process was not created";
 
         ASSERT_TRUE(process->getHandle(hChild->getHandle())) << "Parent process does not have child process";
@@ -240,7 +240,7 @@ TEST_F(SystemTest, OrphanThread) {
     ASSERT_EQ(status, OsStatusSuccess);
 
     ASSERT_NE(hThread, nullptr) << "Thread was not created";
-    auto process = hProcess->getProcessObject();
+    auto process = hProcess->getProcess();
 
     sys2::ProcessDestroyInfo destroyInfo {
         .exitCode = 0,
@@ -285,7 +285,7 @@ TEST_F(SystemTest, CreateThread) {
     ASSERT_EQ(status, OsStatusSuccess);
 
     ASSERT_NE(hThread, nullptr) << "Thread was not created";
-    auto process = hProcess->getProcessObject();
+    auto process = hProcess->getProcess();
 
     status = hThread->destroy(&system, sys2::ThreadDestroyInfo { .reason = eOsThreadFinished });
     ASSERT_EQ(status, OsStatusSuccess);

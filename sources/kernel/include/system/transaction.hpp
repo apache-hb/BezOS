@@ -12,6 +12,8 @@ namespace sys2 {
     public:
         TxHandle(sm::RcuSharedPtr<Tx> transaction, OsHandle handle, TxAccess access);
 
+        sm::RcuSharedPtr<Tx> getTransaction() const { return mTransaction; }
+
         sm::RcuWeakPtr<IObject> getObject() override;
         OsHandle getHandle() const override { return mHandle; }
 
@@ -20,7 +22,7 @@ namespace sys2 {
         }
 
         OsStatus createProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle);
-        OsStatus createThread(System *system, ThreadCreateInfo info, ThreadHandle **handle);
+        OsStatus createThread(System *system, ProcessHandle *process, ThreadCreateInfo info, ThreadHandle **handle);
     };
 
     class Tx final : public IObject {

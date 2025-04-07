@@ -79,24 +79,30 @@ TEST_F(TxSystemTest, TransactCreateProcess) {
     }
 
     // create a process and fill out its address space inside a transaction
-    {
-        OsStatus status = OsStatusSuccess;
-        sys2::ProcessHandle *hZshProcess = nullptr;
-        sys2::ThreadHandle *hZshMainThread = nullptr;
-        sys2::ProcessCreateInfo processCreateInfo {
-            .name = "ZSH.ELF",
-        };
 
-        status = hTx->createProcess(system(), processCreateInfo, &hZshProcess);
-        ASSERT_EQ(status, OsStatusSuccess);
-        ASSERT_NE(hZshProcess, nullptr) << "Process was not created";
+    OsStatus status = OsStatusSuccess;
+    sys2::ProcessHandle *hZshProcess = nullptr;
+    sys2::ThreadHandle *hZshMainThread = nullptr;
+    sys2::ProcessCreateInfo processCreateInfo {
+        .name = "ZSH.ELF",
+    };
+    sys2::ThreadCreateInfo threadCreateInfo {
+        .name = "MAIN",
+        .kernelStackSize = x64::kPageSize * 8,
+    };
 
-        sys2::ThreadCreateInfo threadCreateInfo {
-            .name = "MAIN",
-            .process = hZshProcess,
-            .kernelStackSize = x64::kPageSize * 8,
-        };
+    status = hTx->createProcess(system(), processCreateInfo, &hZshProcess);
+    ASSERT_EQ(status, OsStatusSuccess);
+    ASSERT_NE(hZshProcess, nullptr) << "Process was not created";
 
-        status = hTx->createThread(system(), launchCreateInfo, &hZshMainThread);
-    }
+    status = hTx->createThread(system(), hZshProcess, threadCreateInfo, &hZshMainThread);
+    ASSERT_EQ(status, OsStatusSuccess);
+
+#if 0
+    // ensure that the process is not visible outside the transaction
+    sys2::ProcessHandle *hFindProcess = nullptr;
+    status = system()->getProcessByName(processCreateInfo.name, &hFindProcess);
+    ASSERT_EQ(status, OsStatusNotFound) << "Process was found outside the transaction";
+    ASSERT_EQ(hFindProcess, nullptr) << "Process was found outside the transaction";
+#endif
 }

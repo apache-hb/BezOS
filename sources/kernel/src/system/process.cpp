@@ -138,7 +138,7 @@ OsStatus sys2::Process::createProcess(System *system, ProcessCreateInfo info, Pr
         addHandle(result);
         addChild(process);
 
-        system->addObject(process);
+        system->addProcessObject(process);
         *handle = result;
         return OsStatusSuccess;
     }
@@ -181,7 +181,7 @@ OsStatus sys2::Process::destroy(System *system, const ProcessDestroyInfo& info) 
         return status;
     }
 
-    system->removeObject(loanWeak());
+    system->removeProcessObject(loanWeak());
 
     return OsStatusSuccess;
 }

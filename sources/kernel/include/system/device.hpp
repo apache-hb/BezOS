@@ -13,6 +13,8 @@ namespace sys2 {
         DeviceAccess mAccess;
 
     public:
+        sm::RcuSharedPtr<Device> getDevice() { return mDevice; }
+
         sm::RcuWeakPtr<IObject> getObject() override;
         OsHandle getHandle() const override { return mHandle; }
     };
@@ -37,6 +39,8 @@ namespace sys2 {
         OsHandle mHandle;
         NodeAccess mAccess;
     public:
+        sm::RcuWeakPtr<Node> getNode() { return mNode; }
+
         sm::RcuWeakPtr<IObject> getObject() override;
         OsHandle getHandle() const override { return mHandle; }
     };

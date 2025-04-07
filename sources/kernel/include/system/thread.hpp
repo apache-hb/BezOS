@@ -31,10 +31,11 @@ namespace sys2 {
     public:
         ThreadHandle(sm::RcuSharedPtr<Thread> thread, OsHandle handle, ThreadAccess access);
 
+        sm::RcuSharedPtr<Thread> getThread() { return mThread; }
+
         sm::RcuWeakPtr<IObject> getObject() override;
         OsHandle getHandle() const override { return mHandle; }
 
-        sm::RcuSharedPtr<Thread> getThreadObject() { return mThread; }
 
         bool hasAccess(ThreadAccess access) const {
             return bool(mAccess & access);

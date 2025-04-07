@@ -48,10 +48,10 @@ namespace sys2 {
     public:
         ProcessHandle(sm::RcuSharedPtr<Process> process, OsHandle handle, ProcessAccess access);
 
+        sm::RcuSharedPtr<Process> getProcess() { return mProcess; }
+
         sm::RcuWeakPtr<IObject> getObject() override;
         OsHandle getHandle() const override { return mHandle; }
-
-        sm::RcuSharedPtr<Process> getProcessObject() { return mProcess; }
 
         bool hasAccess(ProcessAccess access) const {
             return bool(mAccess & access);

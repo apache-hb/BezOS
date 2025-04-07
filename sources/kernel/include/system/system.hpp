@@ -2,6 +2,8 @@
 
 #include <bezos/handle.h>
 
+#include "std/vector.hpp"
+
 #include "memory/layout.hpp"
 #include "system/create.hpp"
 
@@ -63,6 +65,8 @@ namespace sys2 {
 
         sm::FlatHashSet<sm::RcuSharedPtr<IObject>, sm::RcuHash<IObject>, std::equal_to<>> mObjects GUARDED_BY(mLock);
 
+        sm::FlatHashSet<sm::RcuSharedPtr<Process>, sm::RcuHash<Process>, std::equal_to<>> mProcessObjects GUARDED_BY(mLock);
+
     public:
         System(GlobalSchedule *schedule [[gnu::nonnull]], km::AddressSpace *systemTables [[gnu::nonnull]], km::PageAllocator *pmm [[gnu::nonnull]])
             : mSchedule(schedule)
@@ -74,6 +78,9 @@ namespace sys2 {
 
         void addObject(sm::RcuSharedPtr<IObject> object);
         void removeObject(sm::RcuWeakPtr<IObject> object);
+
+        void addProcessObject(sm::RcuSharedPtr<Process> object);
+        void removeProcessObject(sm::RcuWeakPtr<Process> object);
 
         OsStatus mapProcessPageTables(km::AddressMapping *mapping);
         OsStatus mapSystemStack(km::StackMapping *mapping);
@@ -88,5 +95,7 @@ namespace sys2 {
         OsStatus createThread(ThreadCreateInfo info, ThreadHandle **handle);
         OsStatus createTx(TxCreateInfo info, TxHandle **handle);
         OsStatus createMutex(MutexCreateInfo info, MutexHandle **handle);
+
+        OsStatus getProcessList(stdx::Vector2<sm::RcuSharedPtr<Process>>& list);
     };
 }

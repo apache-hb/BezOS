@@ -3,6 +3,8 @@
 #include "memory/address_space.hpp"
 #include "memory/page_allocator.hpp"
 
+#include "system/process.hpp"
+
 static constexpr size_t kDefaultPtePageCount = 64;
 static constexpr size_t kDefaultKernelStackSize = 4;
 
@@ -14,6 +16,16 @@ void sys2::System::addObject(sm::RcuSharedPtr<IObject> object) {
 void sys2::System::removeObject(sm::RcuWeakPtr<IObject> object) {
     stdx::UniqueLock guard(mLock);
     mObjects.erase(object);
+}
+
+void sys2::System::addProcessObject(sm::RcuSharedPtr<Process> object) {
+    stdx::UniqueLock guard(mLock);
+    mProcessObjects.insert(object);
+}
+
+void sys2::System::removeProcessObject(sm::RcuWeakPtr<Process> object) {
+    stdx::UniqueLock guard(mLock);
+    mProcessObjects.erase(object);
 }
 
 OsStatus sys2::System::mapProcessPageTables(km::AddressMapping *mapping) {
@@ -64,5 +76,15 @@ OsStatus sys2::System::releaseStack(km::StackMapping mapping) {
     }
 
     mPageAllocator->release(mapping.mapping.physicalRange());
+    return OsStatusSuccess;
+}
+
+OsStatus sys2::System::getProcessList(stdx::Vector2<sm::RcuSharedPtr<Process>>& list) {
+    stdx::SharedLock guard(mLock);
+    list.reserve(mProcessObjects.size());
+    for (auto& process : mProcessObjects) {
+        list.push_back(process);
+    }
+
     return OsStatusSuccess;
 }
