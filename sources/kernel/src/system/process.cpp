@@ -37,6 +37,14 @@ OsStatus sys2::ProcessHandle::createThread(System *system, ThreadCreateInfo info
     return mProcess->createThread(system, info, handle);
 }
 
+OsStatus sys2::ProcessHandle::createTx(System *system, TxCreateInfo info, TxHandle **handle) {
+    if (!hasAccess(ProcessAccess::eTxControl)) {
+        return OsStatusAccessDenied;
+    }
+
+    return mProcess->createTx(system, info, handle);
+}
+
 OsStatus sys2::ProcessHandle::stat(ProcessInfo *info) {
     if (!hasAccess(ProcessAccess::eStat)) {
         return OsStatusAccessDenied;
@@ -216,6 +224,24 @@ OsStatus sys2::Process::createThread(System *system, ThreadCreateInfo info, Thre
     if (fpuState) km::DestroyXSave(fpuState);
     system->releaseStack(kernelStack);
     return OsStatusOutOfMemory;
+}
+
+OsStatus sys2::Process::createTx(System *system, TxCreateInfo info, TxHandle **handle) {
+    auto tx = sm::rcuMakeShared<sys2::Tx>(&system->rcuDomain(), info);
+    if (!tx) {
+        return OsStatusOutOfMemory;
+    }
+
+    TxHandle *result = new (std::nothrow) TxHandle(tx, newHandleId(eOsHandleTx), TxAccess::eAll);
+    if (!result) {
+        return OsStatusOutOfMemory;
+    }
+
+    addHandle(result);
+    system->addObject(tx);
+    *handle = result;
+
+    return OsStatusSuccess;
 }
 
 OsStatus sys2::Process::vmemCreate(System *, OsVmemCreateInfo info, km::AddressMapping *) {

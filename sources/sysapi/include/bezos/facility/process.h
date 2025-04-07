@@ -40,6 +40,9 @@ enum {
     /// @brief Grants access to create, update, and destroy quotas.
     eOsProcessAccessQuota          = (1 << 8),
 
+    /// @brief Grants access to create, update, and destroy transactions.
+    eOsProcessTxControl            = (1 << 9),
+
     eOsProcessAccessAll
         = eOsProcessAccessWait
         | eOsProcessAccessTerminate
@@ -49,7 +52,8 @@ enum {
         | eOsProcessAccessThreadControl
         | eOsProcessAccessIoControl
         | eOsProcessAccessProcessControl
-        | eOsProcessAccessQuota,
+        | eOsProcessAccessQuota
+        | eOsProcessTxControl,
 };
 
 enum {

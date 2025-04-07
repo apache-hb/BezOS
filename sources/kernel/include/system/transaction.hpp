@@ -1,32 +1,26 @@
 #pragma once
 
-#include <bezos/facility/tx.h>
-
 #include "system/handle.hpp"
+#include "system/create.hpp"
 
 namespace sys2 {
-    class System;
-    class Tx;
-    class TxHandle;
-
-    enum class TxAccess : OsHandleAccess {
-        eNone = eOsTxAccessNone,
-        eWait = eOsTxAccessWait,
-        eCommit = eOsTxAccessCommit,
-        eRollback = eOsTxAccessRollback,
-        eStat = eOsTxAccessStat,
-        eWrite = eOsTxAccessWrite,
-        eAll = eOsTxAccessAll,
-    };
-
     class TxHandle final : public IHandle {
-        sm::RcuWeakPtr<Tx> mTransaction;
+        sm::RcuSharedPtr<Tx> mTransaction;
         OsHandle mHandle;
         TxAccess mAccess;
 
     public:
+        TxHandle(sm::RcuSharedPtr<Tx> transaction, OsHandle handle, TxAccess access);
+
         sm::RcuWeakPtr<IObject> getObject() override;
         OsHandle getHandle() const override { return mHandle; }
+
+        bool hasAccess(TxAccess access) const {
+            return bool(mAccess & access);
+        }
+
+        OsStatus createProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle);
+        OsStatus createThread(System *system, ThreadCreateInfo info, ThreadHandle **handle);
     };
 
     class Tx final : public IObject {
@@ -34,6 +28,8 @@ namespace sys2 {
         ObjectName mName GUARDED_BY(mLock);
 
     public:
+        Tx(const TxCreateInfo& createInfo);
+
         void setName(ObjectName name) override;
         ObjectName getName() override;
 

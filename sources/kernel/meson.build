@@ -226,6 +226,7 @@ src = [
     'src/system/process.cpp',
     'src/system/thread.cpp',
     'src/system/mutex.cpp',
+    'src/system/transaction.cpp',
 
     # Process
     'src/process/system.cpp',
@@ -375,6 +376,33 @@ memory_test_src = [
     'src/util/memory.cpp',
 ]
 
+system_test_src = [
+    'src/system/system.cpp',
+    'src/system/schedule.cpp',
+    'src/system/process.cpp',
+    'src/system/thread.cpp',
+    'src/system/mutex.cpp',
+    'src/system/transaction.cpp',
+
+    'src/memory.cpp',
+    'src/boot.cpp',
+
+    'src/xsave.cpp',
+    'src/util/cpuid.cpp',
+]
+
+new_shim_test_src = [
+    'test/new_shim.cpp'
+]
+
+operator_new_shim_test = static_library('operator_new_shim_test', new_shim_test_src,
+    include_directories : inc,
+    c_args : test_c_args,
+    cpp_args : test_cpp_args,
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units ],
+    native : true,
+)
+
 test_shim = static_library('test_shim', test_shim_src,
     include_directories : inc,
     c_args : test_c_args,
@@ -384,6 +412,15 @@ test_shim = static_library('test_shim', test_shim_src,
 )
 
 fs_test_shim = static_library('fs_test_shim', fs_test_src,
+    include_directories : inc,
+    c_args : test_c_args,
+    cpp_args : test_cpp_args,
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units ],
+    override_options: [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
+    native : true,
+)
+
+system_test_lib = static_library('system_test', system_test_src,
     include_directories : inc,
     c_args : test_c_args,
     cpp_args : test_cpp_args,
@@ -408,7 +445,7 @@ test_exe_kwargs = {
     'dependencies': [ gtest_main, gmock, sysapi, concurrentqueue, mp_units ],
     'override_options': [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
     'native': true,
-    'link_with': [ test_shim, fs_test_shim, memory_test_shim ],
+    'link_with': [ test_shim, fs_test_shim, memory_test_shim, system_test_lib ],
 }
 
 # Test cases
@@ -562,18 +599,9 @@ testcases = {
     ],
     'system': [
         'test/system/system.cpp',
-
-        'src/system/system.cpp',
-        'src/system/schedule.cpp',
-        'src/system/process.cpp',
-        'src/system/thread.cpp',
-        'src/system/mutex.cpp',
-
-        'src/memory.cpp',
-        'src/boot.cpp',
-
-        'src/xsave.cpp',
-        'src/util/cpuid.cpp',
+    ],
+    'transaction': [
+        'test/system/transaction.cpp',
     ]
 }
 
@@ -601,8 +629,15 @@ if enable_aml
 endif
 
 foreach name, source : testcases
-    exe = executable('test-kernel-' + name.to_lower().replace(' ', '-'), source,
-        kwargs : test_exe_kwargs,
+    this_test_exe_kwargs = test_exe_kwargs
+
+    if name.contains('+new')
+        this_test_exe_kwargs += { 'link_with': this_test_exe_kwargs['link_with'] + [ operator_new_shim_test ] }
+        name = name.replace('+new', '')
+    endif
+
+    exe = executable('test-kernel-' + name.to_lower().replace(' ', '-').strip(), source,
+        kwargs : this_test_exe_kwargs,
     )
 
     test(name, exe,

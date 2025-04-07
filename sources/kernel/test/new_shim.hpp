@@ -1,16 +1,9 @@
-#include "log.hpp"
-#include "panic.hpp"
-#include "util/memory.hpp"
+#pragma once
 
-#include "crt.hpp"
+#include "util/util.hpp"
 
 #include <new>
-
-extern "C" void __cxa_pure_virtual() {
-    KM_PANIC("Pure virtual function called.");
-}
-
-const std::nothrow_t std::nothrow{};
+#include <stdlib.h>
 
 enum AllocFlags {
     eNone = 0,
@@ -20,25 +13,41 @@ enum AllocFlags {
 
 UTIL_BITFLAGS(AllocFlags);
 
+class IGlobalAllocator {
+public:
+    virtual ~IGlobalAllocator() = default;
+
+    virtual void *operatorNew(size_t size, size_t align, AllocFlags flags) {
+        if (void *ptr = aligned_alloc(align, size)) {
+            return ptr;
+        }
+
+        if (bool(flags & eNoThrow)) {
+            return nullptr;
+        }
+
+        throw std::bad_alloc();
+    }
+
+    virtual void operatorDelete(void *ptr, [[maybe_unused]] size_t size, [[maybe_unused]] size_t align, [[maybe_unused]] AllocFlags flags) {
+        if (ptr == nullptr) {
+            return;
+        }
+
+        free(ptr);
+    }
+};
+
+IGlobalAllocator *GetGlobalAllocator();
+void SetGlobalAllocator(IGlobalAllocator *allocator);
+
+#if defined(TEST_REPLACE_GLOBAL_ALLOCATOR)
 static void *OperatorNew(size_t size, size_t align, AllocFlags flags) {
-    if (void *ptr = aligned_alloc(align, size)) {
-        return ptr;
-    }
-
-    if (bool(flags & eNoThrow)) {
-        return nullptr;
-    }
-
-    KmDebugMessage("[CRT] Allocation of ", sm::bytes(size), " failed.\n");
-    KM_PANIC("Failed to allocate memory.");
+    return GetGlobalAllocator()->operatorNew(size, align, flags);
 }
 
 static void OperatorDelete(void *ptr, [[maybe_unused]] size_t size, [[maybe_unused]] size_t align, [[maybe_unused]] AllocFlags flags) {
-    if (ptr == nullptr) {
-        return;
-    }
-
-    free(ptr);
+    GetGlobalAllocator()->operatorDelete(ptr, size, align, flags);
 }
 
 // operator new
@@ -128,3 +137,4 @@ void operator delete[](void* ptr, std::align_val_t align, const std::nothrow_t&)
 void operator delete[](void* ptr, std::size_t size, std::align_val_t align) {
     OperatorDelete(ptr, size, std::to_underlying(align), eArray);
 }
+#endif

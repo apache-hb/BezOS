@@ -2,6 +2,7 @@
 
 #include <bezos/facility/process.h>
 #include <bezos/facility/vmem.h>
+#include <bezos/facility/tx.h>
 
 #include "memory/address_space.hpp"
 #include "memory/range.hpp"
@@ -9,42 +10,13 @@
 #include "std/vector.hpp"
 #include "system/handle.hpp"
 #include "system/thread.hpp"
+#include "system/transaction.hpp"
 #include "util/absl.hpp"
 
+#include "system/create.hpp"
+
 namespace sys2 {
-    class System;
-    class Thread;
-    class Process;
-    class ProcessHandle;
-
     enum class ProcessId : uint64_t {};
-
-    enum class ProcessAccess : OsHandleAccess {
-        eNone = eOsProcessAccessNone,
-        eWait = eOsProcessAccessWait,
-        eTerminate = eOsProcessAccessTerminate,
-        eStat = eOsProcessAccessStat,
-        eSuspend = eOsProcessAccessSuspend,
-        eVmControl = eOsProcessAccessVmControl,
-        eThreadControl = eOsProcessAccessThreadControl,
-        eIoControl = eOsProcessAccessIoControl,
-        eProcessControl = eOsProcessAccessProcessControl,
-        eQuota = eOsProcessAccessQuota,
-        eAll = eOsProcessAccessAll,
-    };
-
-    UTIL_BITFLAGS(ProcessAccess);
-
-    struct ProcessCreateInfo {
-        ObjectName name;
-        sm::FixedArray<std::byte> args;
-
-        /// @brief Is this a supervisor process?
-        bool supervisor;
-
-        /// @brief Initial scheduling state.
-        OsProcessStateFlags state;
-    };
 
     struct ProcessDestroyInfo {
         int64_t exitCode;
@@ -89,6 +61,8 @@ namespace sys2 {
         OsStatus destroyProcess(System *system, const ProcessDestroyInfo& info);
 
         OsStatus createThread(System *system, ThreadCreateInfo info, ThreadHandle **handle);
+
+        OsStatus createTx(System *system, TxCreateInfo info, TxHandle **handle);
 
         OsStatus stat(ProcessInfo *info);
     };
@@ -146,6 +120,8 @@ namespace sys2 {
         OsStatus destroy(System *system, const ProcessDestroyInfo& info);
 
         OsStatus createThread(System *system, ThreadCreateInfo info, ThreadHandle **handle);
+
+        OsStatus createTx(System *system, TxCreateInfo info, TxHandle **handle);
 
         OsStatus vmemCreate(System *system, OsVmemCreateInfo info, km::AddressMapping *mapping);
         OsStatus vmemRelease(System *system, km::AddressMapping mapping);

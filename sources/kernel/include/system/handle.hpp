@@ -3,19 +3,9 @@
 #include <bezos/handle.h>
 
 #include "std/rcuptr.hpp"
-#include "std/static_string.hpp"
+#include "system/create.hpp"
 
 namespace sys2 {
-    class System;
-    class IObject;
-    class IHandle;
-    class Process;
-    class ProcessHandle;
-    class Thread;
-    class ThreadHandle;
-
-    using ObjectName = stdx::StaticString<OS_OBJECT_NAME_MAX>;
-
     struct HandleCreateInfo {
         /// @brief The object that is requesting access to a new handle.
         sm::RcuSharedPtr<IObject> owner;

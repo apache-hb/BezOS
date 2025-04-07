@@ -3,10 +3,7 @@
 #include <bezos/handle.h>
 
 #include "memory/layout.hpp"
-#include "std/rcuptr.hpp"
-#include "util/absl.hpp"
-
-#include "std/rcu.hpp"
+#include "system/create.hpp"
 
 #include <compare> // IWYU pragma: keep
 #include <queue>
@@ -86,5 +83,10 @@ namespace sys2 {
         OsStatus releaseStack(km::StackMapping mapping);
 
         km::AddressSpace *pageTables() { return mSystemTables; }
+
+        OsStatus createProcess(ProcessCreateInfo info, ProcessHandle **handle);
+        OsStatus createThread(ThreadCreateInfo info, ThreadHandle **handle);
+        OsStatus createTx(TxCreateInfo info, TxHandle **handle);
+        OsStatus createMutex(MutexCreateInfo info, MutexHandle **handle);
     };
 }

@@ -4,26 +4,11 @@
 #include <bezos/facility/fs.h>
 
 #include "system/handle.hpp"
+#include "system/create.hpp"
 
 namespace sys2 {
-    class System;
-    class Node;
-    class NodeHandle;
-    class Device;
-    class DeviceHandle;
-
-    enum class DeviceAccess : OsHandleAccess {
-        eNone = eOsDeviceAccessNone,
-        eRead = eOsDeviceAccessRead,
-        eWrite = eOsDeviceAccessWrite,
-        eStat = eOsDeviceAccessStat,
-        eDestroy = eOsDeviceAccessDestroy,
-        eInvoke = eOsDeviceAccessInvoke,
-        eAll = eOsDeviceAccessAll,
-    };
-
     class DeviceHandle final : public IHandle {
-        sm::RcuWeakPtr<Device> mDevice;
+        sm::RcuSharedPtr<Device> mDevice;
         OsHandle mHandle;
         DeviceAccess mAccess;
 
@@ -45,16 +30,6 @@ namespace sys2 {
         ObjectName getName() override;
 
         stdx::StringView getClassName() const override { return "Device"; }
-    };
-
-    enum class NodeAccess : OsHandleAccess {
-        eNone = eOsNodeAccessNone,
-        eRead = eOsNodeAccessRead,
-        eWrite = eOsNodeAccessWrite,
-        eStat = eOsNodeAccessStat,
-        eDestroy = eOsNodeAccessDestroy,
-        eQueryInterface = eOsNodeAccessQueryInterface,
-        eAll = eOsNodeAccessAll,
     };
 
     class NodeHandle final : public IHandle {

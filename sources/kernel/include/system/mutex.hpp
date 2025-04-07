@@ -1,24 +1,12 @@
 #pragma once
 
-#include <bezos/facility/mutex.h>
-
 #include "system/handle.hpp"
+#include "system/create.hpp"
 
 namespace sys2 {
     class System;
     class Mutex;
     class MutexHandle;
-
-    enum class MutexAccess : OsHandleAccess {
-        eNone = eOsMutexAccessNone,
-        eWait = eOsMutexAccessWait,
-        eDestroy = eOsMutexAccessDestroy,
-        eUpdate = eOsMutexAccessUpdate,
-        eStat = eOsMutexAccessStat,
-        eAll = eOsMutexAccessAll,
-    };
-
-    UTIL_BITFLAGS(MutexAccess);
 
     class MutexHandle final : public IHandle {
         sm::RcuWeakPtr<Mutex> mMutex;
@@ -46,9 +34,8 @@ namespace sys2 {
         stdx::SharedSpinLock mLock;
         ObjectName mName;
 
-        sm::RcuWeakPtr<Thread> mOwner GUARDED_BY(mLock);
+        sm::RcuWeakPtr<Thread> mOwner;
         sm::FlatHashSet<sm::RcuWeakPtr<Thread>> mWaiters GUARDED_BY(mLock);
-        std::atomic_flag mLocked = ATOMIC_FLAG_INIT;
     public:
         void setName(ObjectName name) override;
         ObjectName getName() override;
