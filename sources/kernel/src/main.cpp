@@ -53,6 +53,8 @@
 #include "smp.hpp"
 #include "std/static_vector.hpp"
 #include "syscall.hpp"
+#include "system/schedule.hpp"
+#include "system/system.hpp"
 #include "thread.hpp"
 #include "uart.hpp"
 #include "smbios.hpp"
@@ -1092,6 +1094,15 @@ static void AddDebugSystemCalls() {
     });
 }
 
+static sys2::GlobalSchedule *gSysScheduler = nullptr;
+static sys2::System *gSysSystem = nullptr;
+
+static void InitSystem(size_t cpuCount) {
+    auto *memory = GetSystemMemory();
+    gSysScheduler = new sys2::GlobalSchedule(cpuCount, 128);
+    gSysSystem = new sys2::System(gSysScheduler, &memory->pageTables(), &memory->pmmAllocator());
+}
+
 static km::System GetSystem() {
     return km::System {
         .vfs = gVfsRoot,
@@ -1099,6 +1110,7 @@ static km::System GetSystem() {
         .memory = gMemory,
         .scheduler = gScheduler,
         .clock = &gClock,
+        .sys = gSysSystem,
     };
 }
 
@@ -1254,7 +1266,7 @@ static void EnableUmip(bool enable) {
     }
 }
 
-static void StartupSmp(const acpi::AcpiTables& rsdt, bool umip) {
+static void StartupSmp(const acpi::AcpiTables& rsdt, bool umip, size_t *outCpuCount) {
     //
     // Create the scheduler and system objects before we startup SMP so that
     // the AP cores have a scheduler to attach to.
@@ -1263,6 +1275,7 @@ static void StartupSmp(const acpi::AcpiTables& rsdt, bool umip) {
     gSystemObjects = new SystemObjects(gMemory, gVfsRoot);
 
     std::atomic_flag launchScheduler = ATOMIC_FLAG_INIT;
+    std::atomic<size_t> cpuCount = 1; // 1 for the BSP
 
     if constexpr (kEnableSmp) {
         //
@@ -1270,12 +1283,14 @@ static void StartupSmp(const acpi::AcpiTables& rsdt, bool umip) {
         // scheduler is ready to be used. The scheduler requires the system to switch
         // to using cpu local isr tables, which must happen after smp startup.
         //
-        InitSmp(*GetSystemMemory(), GetCpuLocalApic(), rsdt, [&launchScheduler, umip](LocalIsrTable *ist, IApic *apic) {
+        InitSmp(*GetSystemMemory(), GetCpuLocalApic(), rsdt, [&launchScheduler, &cpuCount, umip](LocalIsrTable *ist, IApic *apic) {
             while (!launchScheduler.test()) {
                 _mm_pause();
             }
 
             EnableUmip(umip);
+
+            cpuCount += 1;
 
             km::ScheduleWork(ist, apic);
         });
@@ -1294,6 +1309,8 @@ static void StartupSmp(const acpi::AcpiTables& rsdt, bool umip) {
         //
         launchScheduler.test_and_set();
     }
+
+    *outCpuCount = cpuCount.load();
 }
 
 static constexpr size_t kKernelStackSize = 0x4000;
@@ -1606,7 +1623,8 @@ void LaunchKernel(boot::LaunchInfo launch) {
     km::LocalIsrTable *ist = GetLocalIsrTable();
 
     InstallSchedulerIsr(ist);
-    StartupSmp(rsdt, processor.umip());
+    size_t cpuCount = 0;
+    StartupSmp(rsdt, processor.umip(), &cpuCount);
 
     const IsrEntry *timerInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
         km::IApic *apic = km::GetCpuLocalApic();
@@ -1688,6 +1706,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     CreateVfsDevices(&smbios, &rsdt, launch.initrd);
     InitUserApi();
+    InitSystem(cpuCount);
 
     CreateNotificationQueue();
 

@@ -8,6 +8,10 @@ namespace vfs2 {
     class VfsPath;
 }
 
+namespace sys2 {
+    class System;
+}
+
 namespace km {
     struct Process;
 
@@ -24,6 +28,7 @@ namespace km {
         SystemMemory *memory;
         Scheduler *scheduler;
         Clock *clock;
+        sys2::System *sys;
     };
 }
 

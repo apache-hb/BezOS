@@ -128,6 +128,7 @@ sys2::GlobalSchedule::GlobalSchedule(size_t cpus, size_t tasks)
 }
 
 OsStatus sys2::GlobalSchedule::addProcess(sm::RcuSharedPtr<Process> process) {
+    stdx::UniqueLock guard(mLock);
     mProcessInfo.insert({ process.weak(), ProcessSchedulingInfo {} });
     return OsStatusSuccess;
 }

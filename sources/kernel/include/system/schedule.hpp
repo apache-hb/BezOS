@@ -60,10 +60,11 @@ namespace sys2 {
     };
 
     class GlobalSchedule {
+        stdx::SharedSpinLock mLock;
         size_t mCpuCount;
         size_t mLastScheduled;
         std::unique_ptr<CpuLocalSchedule[]> mCpuLocal;
-        sm::FlatHashMap<sm::RcuWeakPtr<Process>, ProcessSchedulingInfo> mProcessInfo;
+        sm::FlatHashMap<sm::RcuWeakPtr<Process>, ProcessSchedulingInfo> mProcessInfo GUARDED_BY(mLock);
 
     public:
         GlobalSchedule(size_t cpus, size_t tasks);
