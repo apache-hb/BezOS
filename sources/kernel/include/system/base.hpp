@@ -1,5 +1,6 @@
 #pragma once
 
+#include "system/create.hpp"
 #include "system/handle.hpp"
 
 namespace sys2 {
@@ -25,6 +26,24 @@ namespace sys2 {
 
         bool hasAccess(Access access) const {
             return bool(mAccess & access);
+        }
+    };
+
+    class BaseObject : public IObject {
+        ObjectName mName GUARDED_BY(mLock);
+
+    protected:
+        stdx::SharedSpinLock mLock;
+
+    public:
+        void setName(ObjectName name) override {
+            stdx::UniqueLock guard(mLock);
+            mName = name;
+        }
+
+        ObjectName getName() override {
+            stdx::SharedLock guard(mLock);
+            return mName;
         }
     };
 }
