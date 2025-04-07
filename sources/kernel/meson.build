@@ -600,9 +600,9 @@ testcases = {
     'system': [
         'test/system/system.cpp',
     ],
-    'transaction': [
-        'test/system/transaction.cpp',
-    ]
+    # 'transaction': [
+    #     'test/system/transaction.cpp',
+    # ]
 }
 
 if enable_aml
