@@ -3,22 +3,12 @@
 #include "system/system.hpp"
 #include "xsave.hpp"
 
-sys2::ProcessHandle::ProcessHandle(sm::RcuSharedPtr<Process> process, OsHandle handle, ProcessAccess access)
-    : mProcess(process)
-    , mHandle(handle)
-    , mAccess(access)
-{ }
-
-sm::RcuWeakPtr<sys2::IObject> sys2::ProcessHandle::getObject() {
-    return mProcess;
-}
-
 OsStatus sys2::ProcessHandle::createProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle) {
     if (!hasAccess(ProcessAccess::eProcessControl)) {
         return OsStatusAccessDenied;
     }
 
-    return mProcess->createProcess(system, info, handle);
+    return getInner()->createProcess(system, info, handle);
 }
 
 OsStatus sys2::ProcessHandle::destroyProcess(System *system, const ProcessDestroyInfo& info) {
@@ -26,7 +16,7 @@ OsStatus sys2::ProcessHandle::destroyProcess(System *system, const ProcessDestro
         return OsStatusAccessDenied;
     }
 
-    return mProcess->destroy(system, info);
+    return getInner()->destroy(system, info);
 }
 
 OsStatus sys2::ProcessHandle::createThread(System *system, ThreadCreateInfo info, ThreadHandle **handle) {
@@ -34,7 +24,7 @@ OsStatus sys2::ProcessHandle::createThread(System *system, ThreadCreateInfo info
         return OsStatusAccessDenied;
     }
 
-    return mProcess->createThread(system, info, handle);
+    return getInner()->createThread(system, info, handle);
 }
 
 OsStatus sys2::ProcessHandle::createTx(System *system, TxCreateInfo info, TxHandle **handle) {
@@ -42,7 +32,7 @@ OsStatus sys2::ProcessHandle::createTx(System *system, TxCreateInfo info, TxHand
         return OsStatusAccessDenied;
     }
 
-    return mProcess->createTx(system, info, handle);
+    return getInner()->createTx(system, info, handle);
 }
 
 OsStatus sys2::ProcessHandle::stat(ProcessInfo *info) {
@@ -50,23 +40,13 @@ OsStatus sys2::ProcessHandle::stat(ProcessInfo *info) {
         return OsStatusAccessDenied;
     }
 
-    return mProcess->stat(info);
-}
-
-void sys2::Process::setName(ObjectName name) {
-    stdx::UniqueLock guard(mLock);
-    mName = name;
-}
-
-sys2::ObjectName sys2::Process::getName() {
-    stdx::SharedLock guard(mLock);
-    return mName;
+    return getInner()->stat(info);
 }
 
 OsStatus sys2::Process::stat(ProcessInfo *info) {
     stdx::SharedLock guard(mLock);
     *info = ProcessInfo {
-        .name = mName,
+        .name = getName(),
         .handles = mHandles.size(),
         .supervisor = mSupervisor,
         .exitCode = mExitCode,
@@ -79,7 +59,7 @@ OsStatus sys2::Process::stat(ProcessInfo *info) {
 }
 
 sys2::Process::Process(const ProcessCreateInfo& createInfo, sm::RcuWeakPtr<Process> parent, const km::AddressSpace *systemTables, km::AddressMapping pteMemory)
-    : mName(createInfo.name)
+    : Super(createInfo.name)
     , mSupervisor(createInfo.supervisor)
     , mState(createInfo.state)
     , mExitCode(0)

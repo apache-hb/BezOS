@@ -71,9 +71,13 @@ bool sys2::Thread::isSupervisor() {
 }
 
 sys2::Thread::Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, x64::XSave *fpuState, km::StackMapping kernelStack)
+    : Thread(createInfo, process, sys2::XSaveState{fpuState, &km::DestroyXSave}, kernelStack)
+{ }
+
+sys2::Thread::Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, sys2::XSaveState fpuState, km::StackMapping kernelStack)
     : mProcess(process)
     , mCpuState(createInfo.cpuState)
-    , mFpuState(fpuState, &km::DestroyXSave)
+    , mFpuState(std::move(fpuState))
     , mTlsAddress(createInfo.tlsAddress)
     , mKernelStack(kernelStack)
     , mThreadState(createInfo.state)
@@ -92,4 +96,8 @@ OsStatus sys2::Thread::destroy(System *system, const ThreadDestroyInfo& info) {
 
     system->removeObject(loanWeak());
     return OsStatusSuccess;
+}
+
+sys2::XSaveState sys2::NewXSaveState() {
+    return sys2::XSaveState { km::CreateXSave(), &km::DestroyXSave };
 }

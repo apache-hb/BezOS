@@ -13,7 +13,7 @@
 struct MemoryState {
     km::PageAllocatorStats pmm;
     km::PteAllocatorStats vmm;
-    size_t rangeStats;
+    size_t freeSpace;
 };
 
 class SystemBaseTest : public testing::Test {
@@ -29,7 +29,7 @@ public:
         MemoryState state;
         state.pmm = memory.pmmAllocator().stats();
         state.vmm = memory.systemTables().TESTING_getPageTableAllocator().stats();
-        state.rangeStats = memory.pageTables().TESTING_getVmemAllocator().freeSpace();
+        state.freeSpace = memory.pageTables().TESTING_getVmemAllocator().freeSpace();
         return state;
     }
 
@@ -37,9 +37,9 @@ public:
         (void)memory.systemTables().compact();
         auto after = GetMemoryState(memory);
 
-        ASSERT_EQ(after.vmm.freeBlocks, before.vmm.freeBlocks) << "Virtual memory was leaked";
-        ASSERT_EQ(after.pmm.freeMemory, before.pmm.freeMemory) << "Physical memory was leaked";
-        ASSERT_EQ(after.rangeStats, before.rangeStats) << "Address space memory was leaked";
+        EXPECT_EQ(after.vmm.freeBlocks, before.vmm.freeBlocks) << "Virtual memory was leaked";
+        EXPECT_EQ(after.pmm.freeMemory, before.pmm.freeMemory) << "Physical memory was leaked";
+        EXPECT_EQ(after.freeSpace, before.freeSpace) << "Address space memory was leaked";
     }
 
     void RecordMemoryUsage(km::SystemMemory& memory) {
@@ -57,7 +57,7 @@ public:
 
         std::cout << "PMM: " << state.pmm.freeMemory << std::endl;
         std::cout << "VMM: " << state.vmm.freeBlocks << std::endl;
-        std::cout << "Address Space: " << std::string_view(km::format(sm::bytes(state.rangeStats))) << std::endl;
+        std::cout << "Address Space: " << std::string_view(km::format(sm::bytes(state.freeSpace))) << std::endl;
     }
 
     SystemMemoryTestBody body { sm::megabytes(4).bytes() };

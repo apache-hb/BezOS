@@ -13,9 +13,7 @@
 namespace sys2 {
     using XSaveState = std::unique_ptr<x64::XSave, decltype(&km::DestroyXSave)>;
 
-    struct ThreadDestroyInfo {
-        OsThreadState reason;
-    };
+    XSaveState NewXSaveState() [[clang::allocating]];
 
     struct ThreadInfo {
         ObjectName name;
@@ -63,6 +61,7 @@ namespace sys2 {
 
     public:
         Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, x64::XSave *fpuState, km::StackMapping kernelStack);
+        Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, sys2::XSaveState fpuState, km::StackMapping kernelStack);
 
         void setName(ObjectName name) override;
         ObjectName getName() override;

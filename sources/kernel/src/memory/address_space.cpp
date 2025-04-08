@@ -72,24 +72,24 @@ OsStatus km::AddressSpace::map(MemoryRange range, const void *hint, PageFlags fl
 
 OsStatus km::AddressSpace::mapStack(MemoryRange range, PageFlags flags, StackMapping *mapping) {
     size_t pages = Pages(range.size());
-    VirtualRange vmem = mVmemAllocator.allocate(pages + 2);
-    if (vmem.isEmpty()) {
+    VirtualRange total = mVmemAllocator.allocate(pages + 2);
+    if (total.isEmpty()) {
         return OsStatusOutOfMemory;
     }
 
-    AddressMapping m = MappingOf(range, (char*)vmem.front + x64::kPageSize);
-    if (OsStatus status = mTables.map(m, flags, MemoryType::eWriteBack)) {
-        mVmemAllocator.release(vmem);
+    AddressMapping stack = MappingOf(range, (char*)total.front + x64::kPageSize);
+    if (OsStatus status = mTables.map(stack, flags, MemoryType::eWriteBack)) {
+        mVmemAllocator.release(total);
         return status;
     }
 
-    *mapping = StackMapping { m, vmem };
+    *mapping = StackMapping { stack, total };
 
     return OsStatusSuccess;
 }
 
 OsStatus km::AddressSpace::unmapStack(StackMapping mapping) {
-    if (OsStatus status = unmap(mapping.mapping.virtualRange())) {
+    if (OsStatus status = unmap(mapping.stack.virtualRange())) {
         return status;
     }
 

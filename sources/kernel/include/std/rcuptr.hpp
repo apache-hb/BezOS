@@ -195,6 +195,7 @@ namespace sm {
         /// @brief Copy construct a shared pointer.
         ///
         /// @param other The shared pointer to copy.
+        [[nodiscard]]
         constexpr RcuSharedPtr(const RcuSharedPtr& other) : RcuSharedPtr() {
             acquire(other.mControl);
         }
@@ -215,6 +216,7 @@ namespace sm {
         /// @post @p other is empty.
         ///
         /// @param other The shared pointer to move.
+        [[nodiscard]]
         constexpr RcuSharedPtr(RcuSharedPtr&& other) : RcuSharedPtr() {
             exchangeControl(other.mControl.exchange(nullptr));
         }
@@ -232,11 +234,13 @@ namespace sm {
         }
 
         template<std::derived_from<T> O>
+        [[nodiscard]]
         constexpr RcuSharedPtr(const RcuSharedPtr<O>& other) : RcuSharedPtr() {
             acquire(other.mControl);
         }
 
         template<std::derived_from<T> O>
+        [[nodiscard]]
         constexpr RcuSharedPtr(RcuSharedPtr<O>&& other) : RcuSharedPtr() {
             exchangeControl(other.mControl.exchange(nullptr));
         }

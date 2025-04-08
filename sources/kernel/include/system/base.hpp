@@ -19,8 +19,8 @@ namespace sys2 {
             , mAccess(access)
         { }
 
-        sm::RcuWeakPtr<IObject> getObject() override { return mObject; }
-        OsHandle getHandle() const override { return mHandle; }
+        sm::RcuWeakPtr<IObject> getObject() override final { return mObject; }
+        OsHandle getHandle() const override final { return mHandle; }
 
         sm::RcuSharedPtr<T> getInner() const { return mObject; }
 
@@ -35,13 +35,17 @@ namespace sys2 {
     protected:
         stdx::SharedSpinLock mLock;
 
+        BaseObject(ObjectName name) noexcept
+            : mName(name)
+        { }
+
     public:
-        void setName(ObjectName name) override {
+        void setName(ObjectName name) override final {
             stdx::UniqueLock guard(mLock);
             mName = name;
         }
 
-        ObjectName getName() override {
+        ObjectName getName() override final {
             stdx::SharedLock guard(mLock);
             return mName;
         }

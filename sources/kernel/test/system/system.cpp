@@ -1,3 +1,5 @@
+#include "system/system.hpp"
+#include "system/create.hpp"
 #include "system_test.hpp"
 
 class SystemTest : public SystemBaseTest { };
@@ -32,11 +34,13 @@ TEST_F(SystemTest, CreateProcess) {
     ASSERT_EQ(status, OsStatusSuccess);
 
     sys2::ProcessDestroyInfo destroyInfo {
+        .process = hProcess.get(),
         .exitCode = 0,
         .reason = eOsProcessExited,
     };
 
-    status = hProcess->destroyProcess(&system, destroyInfo);
+    sys2::InvokeContext invoke { &system, hProcess.get(), nullptr };
+    status = sys2::SysDestroyProcess(&invoke, destroyInfo);
     ASSERT_EQ(status, OsStatusSuccess);
 
     CheckMemoryUsage(memory);
@@ -69,11 +73,13 @@ TEST_F(SystemTest, CreateProcessAsync) {
 
     sys2::ThreadCreateInfo threadCreateInfo {
         .name = "TEST",
+        .process = hProcess.get(),
         .cpuState = {},
         .tlsAddress = 0,
         .state = eOsThreadRunning,
     };
-    status = hProcess->createThread(&system, threadCreateInfo, &hThread);
+    sys2::InvokeContext invoke { &system, hProcess.get(), nullptr };
+    status = sys2::SysCreateThread(&invoke, threadCreateInfo, &hThread);
     ASSERT_EQ(status, OsStatusSuccess);
 
     threads.emplace_back([&](std::stop_token stop) {
@@ -102,11 +108,12 @@ TEST_F(SystemTest, CreateProcessAsync) {
                 ASSERT_EQ(status, OsStatusSuccess);
 
                 sys2::ProcessDestroyInfo destroyInfo {
+                    .process = hChild,
                     .exitCode = 0,
                     .reason = eOsProcessExited,
                 };
 
-                status = hChild->destroyProcess(&system, destroyInfo);
+                status = sys2::SysDestroyProcess(&invoke, destroyInfo);
                 ASSERT_EQ(status, OsStatusSuccess);
             }
         });
@@ -115,11 +122,12 @@ TEST_F(SystemTest, CreateProcessAsync) {
     threads.clear();
 
     sys2::ProcessDestroyInfo destroyInfo {
+        .process = hProcess.get(),
         .exitCode = 0,
         .reason = eOsProcessExited,
     };
 
-    status = hProcess->destroyProcess(&system, destroyInfo);
+    status = sys2::SysDestroyProcess(&invoke, destroyInfo);
     ASSERT_EQ(status, OsStatusSuccess);
 
     CheckMemoryUsage(memory);
@@ -152,11 +160,13 @@ TEST_F(SystemTest, CreateChildProcess) {
 
         sys2::ThreadCreateInfo threadCreateInfo {
             .name = "TEST",
+            .process = hProcess.get(),
             .cpuState = {},
             .tlsAddress = 0,
             .state = eOsThreadRunning,
         };
-        OsStatus status = hProcess->createThread(&system, threadCreateInfo, &hThread);
+        sys2::InvokeContext invoke { &system, hProcess.get(), nullptr };
+        OsStatus status = sys2::SysCreateThread(&invoke, threadCreateInfo, &hThread);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
@@ -179,11 +189,13 @@ TEST_F(SystemTest, CreateChildProcess) {
     }
 
     sys2::ProcessDestroyInfo destroyInfo {
+        .process = hProcess.get(),
         .exitCode = 0,
         .reason = eOsProcessExited,
     };
 
-    OsStatus status = hProcess->destroyProcess(&system, destroyInfo);
+    sys2::InvokeContext invoke { &system, hProcess.get(), hThread };
+    OsStatus status = sys2::SysDestroyProcess(&invoke, destroyInfo);
     ASSERT_EQ(status, OsStatusSuccess);
 
     CheckMemoryUsage(memory);
@@ -213,12 +225,14 @@ TEST_F(SystemTest, NestedChildProcess) {
         for (size_t i = 0; i < 8; i++) {
             sys2::ProcessCreateInfo createInfo {
                 .name = "CHILD",
+                .process = hChild,
                 .supervisor = false,
             };
 
             DebugMemoryUsage(memory);
 
-            OsStatus status = hChild->createProcess(&system, createInfo, &hChild);
+            sys2::InvokeContext invoke { &system, hChild, nullptr };
+            OsStatus status = sys2::SysCreateProcess(&invoke, createInfo, &hChild);
             ASSERT_EQ(status, OsStatusSuccess);
 
             ASSERT_NE(hChild, nullptr) << "Child process was not created";
@@ -226,11 +240,13 @@ TEST_F(SystemTest, NestedChildProcess) {
     }
 
     sys2::ProcessDestroyInfo destroyInfo {
+        .process = hProcess.get(),
         .exitCode = 0,
         .reason = eOsProcessExited,
     };
 
-    OsStatus status = hProcess->destroyProcess(&system, destroyInfo);
+    sys2::InvokeContext invoke { &system, hProcess.get(), nullptr };
+    OsStatus status = sys2::SysDestroyProcess(&invoke, destroyInfo);
     ASSERT_EQ(status, OsStatusSuccess);
 
     CheckMemoryUsage(memory);
@@ -247,12 +263,6 @@ TEST_F(SystemTest, OrphanThread) {
         .supervisor = false,
     };
 
-    sys2::ThreadCreateInfo threadCreateInfo {
-        .name = "TEST",
-        .cpuState = {},
-        .tlsAddress = 0,
-        .state = eOsThreadRunning,
-    };
 
     std::unique_ptr<sys2::ProcessHandle> hProcess = nullptr;
     sys2::ThreadHandle *hThread = nullptr;
@@ -263,18 +273,27 @@ TEST_F(SystemTest, OrphanThread) {
     ASSERT_EQ(status, OsStatusSuccess);
     ASSERT_NE(hProcess, nullptr) << "Process was not created";
 
-    status = hProcess->createThread(&system, threadCreateInfo, &hThread);
+    sys2::ThreadCreateInfo threadCreateInfo {
+        .name = "TEST",
+        .process = hProcess.get(),
+        .cpuState = {},
+        .tlsAddress = 0,
+        .state = eOsThreadRunning,
+    };
+    sys2::InvokeContext invoke { &system, hProcess.get(), nullptr };
+    status = sys2::SysCreateThread(&invoke, threadCreateInfo, &hThread);
     ASSERT_EQ(status, OsStatusSuccess);
 
     ASSERT_NE(hThread, nullptr) << "Thread was not created";
     auto process = hProcess->getProcess();
 
     sys2::ProcessDestroyInfo destroyInfo {
+        .process = hProcess.get(),
         .exitCode = 0,
         .reason = eOsProcessExited,
     };
 
-    status = hProcess->destroyProcess(&system, destroyInfo);
+    status = sys2::SysDestroyProcess(&invoke, destroyInfo);
     ASSERT_EQ(status, OsStatusSuccess);
 
     CheckMemoryUsage(memory);
@@ -290,13 +309,6 @@ TEST_F(SystemTest, CreateThread) {
         .supervisor = false,
     };
 
-    sys2::ThreadCreateInfo threadCreateInfo {
-        .name = "TEST",
-        .cpuState = {},
-        .tlsAddress = 0,
-        .state = eOsThreadRunning,
-    };
-
     std::unique_ptr<sys2::ProcessHandle> hProcess = nullptr;
     sys2::ThreadHandle *hThread = nullptr;
 
@@ -308,23 +320,37 @@ TEST_F(SystemTest, CreateThread) {
 
     auto before1 = GetMemoryState(memory);
 
-    status = hProcess->createThread(&system, threadCreateInfo, &hThread);
+    sys2::ThreadCreateInfo threadCreateInfo {
+        .name = "TEST",
+        .process = hProcess.get(),
+        .cpuState = {},
+        .tlsAddress = 0,
+        .state = eOsThreadRunning,
+    };
+    sys2::InvokeContext invoke { &system, hProcess.get(), nullptr };
+
+    status = sys2::SysCreateThread(&invoke, threadCreateInfo, &hThread);
     ASSERT_EQ(status, OsStatusSuccess);
 
     ASSERT_NE(hThread, nullptr) << "Thread was not created";
     auto process = hProcess->getProcess();
 
-    status = hThread->destroy(&system, sys2::ThreadDestroyInfo { .reason = eOsThreadFinished });
+    sys2::ThreadDestroyInfo threadDestroyInfo {
+        .thread = hThread,
+        .reason = eOsThreadOrphaned,
+    };
+    status = sys2::SysDestroyThread(&invoke, threadDestroyInfo);
     ASSERT_EQ(status, OsStatusSuccess);
 
     CheckMemoryState(memory, before1);
 
     sys2::ProcessDestroyInfo destroyInfo {
+        .process = hProcess.get(),
         .exitCode = 0,
         .reason = eOsProcessExited,
     };
 
-    status = hProcess->destroyProcess(&system, destroyInfo);
+    status = sys2::SysDestroyProcess(&invoke, destroyInfo);
     ASSERT_EQ(status, OsStatusSuccess);
 
     CheckMemoryState(memory, before0);

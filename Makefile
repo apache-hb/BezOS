@@ -83,12 +83,16 @@ repo: $(REPO) $(REPO_SRC)
 
 KERNEL_PATH := build/packages/kernel
 
+.PHONY: clean-coverage
+clean-coverage:
+	find $(KERNEL_PATH) -name "*.gcda" -print0 | xargs -0 rm
+
 .PHONY: clean
 clean:
 	ninja -C $(KERNEL_PATH) clean
 
 .PHONY: check
-check:
+check: clean-coverage
 	meson test -C $(KERNEL_PATH)
 
 .PHONY: coverage

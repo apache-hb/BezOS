@@ -6,8 +6,8 @@
 
 #include "memory/address_space.hpp"
 #include "memory/range.hpp"
-#include "std/shared_spinlock.hpp"
 #include "std/vector.hpp"
+#include "system/base.hpp"
 #include "system/handle.hpp"
 #include "system/thread.hpp"
 #include "system/transaction.hpp"
@@ -30,42 +30,9 @@ namespace sys2 {
 
     OsStatus CreateRootProcess(System *system, ProcessCreateInfo info, ProcessHandle **process);
 
-    class ProcessHandle final : public IHandle {
-        /// @brief The process that this is a handle to.
-        sm::RcuSharedPtr<Process> mProcess;
+    class Process final : public BaseObject {
+        using Super = BaseObject;
 
-        /// @brief The handle identifier inside the owning process.
-        OsHandle mHandle;
-
-        /// @brief The permissions that this handle grants to the owner.
-        ProcessAccess mAccess;
-
-    public:
-        ProcessHandle(sm::RcuSharedPtr<Process> process, OsHandle handle, ProcessAccess access);
-
-        sm::RcuSharedPtr<Process> getProcess() { return mProcess; }
-
-        sm::RcuWeakPtr<IObject> getObject() override;
-        OsHandle getHandle() const override { return mHandle; }
-
-        bool hasAccess(ProcessAccess access) const {
-            return bool(mAccess & access);
-        }
-
-        OsStatus createProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle);
-        OsStatus destroyProcess(System *system, const ProcessDestroyInfo& info);
-
-        OsStatus createThread(System *system, ThreadCreateInfo info, ThreadHandle **handle);
-
-        OsStatus createTx(System *system, TxCreateInfo info, TxHandle **handle);
-
-        OsStatus stat(ProcessInfo *info);
-    };
-
-    class Process final : public IObject {
-        stdx::SharedSpinLock mLock;
-
-        ObjectName mName GUARDED_BY(mLock);
         bool mSupervisor;
         ProcessId mId;
         OsProcessStateFlags mState;
@@ -90,10 +57,9 @@ namespace sys2 {
         km::AddressSpace mPageTables;
 
     public:
-        Process(const ProcessCreateInfo& createInfo, sm::RcuWeakPtr<Process> parent, const km::AddressSpace *systemTables, km::AddressMapping pteMemory);
+        using Access = ProcessAccess;
 
-        void setName(ObjectName name) override;
-        ObjectName getName() override;
+        Process(const ProcessCreateInfo& createInfo, sm::RcuWeakPtr<Process> parent, const km::AddressSpace *systemTables, km::AddressMapping pteMemory);
 
         stdx::StringView getClassName() const override { return "Process"; }
 
@@ -123,5 +89,25 @@ namespace sys2 {
 
         void removeThread(sm::RcuSharedPtr<Thread> thread);
         void addThread(sm::RcuSharedPtr<Thread> thread);
+    };
+
+    class ProcessHandle final : public BaseHandle<Process> {
+        using Super = BaseHandle<Process>;
+
+    public:
+        ProcessHandle(sm::RcuSharedPtr<Process> process, OsHandle handle, ProcessAccess access)
+            : Super(process, handle, access)
+        { }
+
+        sm::RcuSharedPtr<Process> getProcess() { return getInner(); }
+
+        OsStatus createProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle);
+        OsStatus destroyProcess(System *system, const ProcessDestroyInfo& info);
+
+        OsStatus createThread(System *system, ThreadCreateInfo info, ThreadHandle **handle);
+
+        OsStatus createTx(System *system, TxCreateInfo info, TxHandle **handle);
+
+        OsStatus stat(ProcessInfo *info);
     };
 }

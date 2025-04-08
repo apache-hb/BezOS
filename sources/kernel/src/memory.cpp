@@ -30,7 +30,7 @@ km::AddressMapping km::SystemMemory::allocateStack(size_t size) {
         return AddressMapping{};
     }
 
-    return mapping.mapping;
+    return mapping.stack;
 }
 
 km::AddressMapping km::SystemMemory::allocate(AllocateRequest request) {

@@ -72,6 +72,13 @@ namespace sys2 {
         OsProcessStateFlags reason;
     };
 
+    struct ThreadDestroyInfo {
+        ThreadHandle *thread;
+        TxHandle *tx;
+
+        OsThreadState reason;
+    };
+
     struct InvokeContext {
         /// @brief The system context.
         System *system;

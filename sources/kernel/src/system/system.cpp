@@ -1,9 +1,13 @@
 #include "system/system.hpp"
 
 #include "memory/address_space.hpp"
+#include "memory/layout.hpp"
 #include "memory/page_allocator.hpp"
 
+#include "system/create.hpp"
 #include "system/process.hpp"
+#include "system/thread.hpp"
+#include "xsave.hpp"
 
 static constexpr size_t kDefaultPtePageCount = 64;
 static constexpr size_t kDefaultKernelStackSize = 4;
@@ -43,13 +47,13 @@ OsStatus sys2::System::mapProcessPageTables(km::AddressMapping *mapping) {
 }
 
 OsStatus sys2::System::mapSystemStack(km::StackMapping *mapping) {
-    km::MemoryRange range = mPageAllocator->alloc4k(kDefaultKernelStackSize);
-    if (range.isEmpty()) {
+    km::MemoryRange stack = mPageAllocator->alloc4k(kDefaultKernelStackSize);
+    if (stack.isEmpty()) {
         return OsStatusOutOfMemory;
     }
 
-    if (OsStatus status = mSystemTables->mapStack(range, km::PageFlags::eData, mapping)) {
-        mPageAllocator->release(range);
+    if (OsStatus status = mSystemTables->mapStack(stack, km::PageFlags::eData, mapping)) {
+        mPageAllocator->release(stack);
         return status;
     }
 
@@ -75,7 +79,7 @@ OsStatus sys2::System::releaseStack(km::StackMapping mapping) {
         return status;
     }
 
-    mPageAllocator->release(mapping.mapping.physicalRange());
+    mPageAllocator->release(mapping.stack.physicalRange());
     return OsStatusSuccess;
 }
 
@@ -89,11 +93,91 @@ OsStatus sys2::System::getProcessList(stdx::Vector2<sm::RcuSharedPtr<Process>>& 
     return OsStatusSuccess;
 }
 
+static OsStatus CreateProcessInner(sys2::System *system, const sys2::ProcessCreateInfo& info, sm::RcuSharedPtr<sys2::Process> parent, OsHandle id, sys2::ProcessHandle **handle) {
+    sm::RcuSharedPtr<sys2::Process> process;
+    sys2::ProcessHandle *result = nullptr;
+    km::AddressMapping pteMemory;
+
+    if (OsStatus status = system->mapProcessPageTables(&pteMemory)) {
+        return status;
+    }
+
+    // Create the process.
+    process = sm::rcuMakeShared<sys2::Process>(&system->rcuDomain(), info, parent, system->pageTables(), pteMemory);
+    if (!process) {
+        goto outOfMemory;
+    }
+
+    result = new (std::nothrow) sys2::ProcessHandle(process, id, sys2::ProcessAccess::eAll);
+    if (!result) {
+        goto outOfMemory;
+    }
+
+    // Add the process to the parent.
+    system->addProcessObject(process);
+    *handle = result;
+
+    return OsStatusSuccess;
+
+outOfMemory:
+    delete result;
+    process.reset();
+    system->releaseMapping(pteMemory);
+    return OsStatusOutOfMemory;
+}
+
+static OsStatus CreateThreadInner(sys2::System *system, const sys2::ThreadCreateInfo& info, sm::RcuWeakPtr<sys2::Process> parent, OsHandle id, sys2::ThreadHandle **handle) {
+    km::StackMapping kernelStack{};
+    sys2::XSaveState fpuState{nullptr, &km::DestroyXSave};
+    sys2::ThreadHandle *result = nullptr;
+    sm::RcuSharedPtr<sys2::Thread> thread;
+
+    if (OsStatus status = system->mapSystemStack(&kernelStack)) {
+        return status;
+    }
+
+    fpuState = sys2::NewXSaveState();
+    if (!fpuState) {
+        goto outOfMemory;
+    }
+
+    thread = sm::rcuMakeShared<sys2::Thread>(&system->rcuDomain(), info, parent, std::move(fpuState), kernelStack);
+    if (!thread) {
+        goto outOfMemory;
+    }
+
+    result = new (std::nothrow) sys2::ThreadHandle(thread, id, sys2::ThreadAccess::eAll);
+    if (!result) {
+        goto outOfMemory;
+    }
+
+    *handle = result;
+    system->addObject(thread);
+    return OsStatusSuccess;
+
+outOfMemory:
+    thread.reset();
+    delete result;
+    fpuState.reset();
+    system->releaseStack(kernelStack);
+    return OsStatusOutOfMemory;
+}
+
+OsStatus sys2::SysCreateRootProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle) {
+    OsHandle id = OS_HANDLE_NEW(eOsHandleProcess, 0);
+    ProcessHandle *result = nullptr;
+
+    if (OsStatus status = CreateProcessInner(system, info, nullptr, id, &result)) {
+        return status;
+    }
+
+    *handle = result;
+    return OsStatusSuccess;
+}
+
 OsStatus sys2::SysCreateProcess(InvokeContext *context, ProcessCreateInfo info, ProcessHandle **handle) {
     ProcessHandle *parent = info.process;
     TxHandle *tx = info.tx;
-    km::AddressMapping pteMemory;
-    sm::RcuSharedPtr<Process> process;
     ProcessHandle *result = nullptr;
 
     // Check that we can control the parent process.
@@ -106,43 +190,71 @@ OsStatus sys2::SysCreateProcess(InvokeContext *context, ProcessCreateInfo info, 
         return OsStatusAccessDenied;
     }
 
-    if (OsStatus status = context->system->mapProcessPageTables(&pteMemory)) {
+    sm::RcuSharedPtr<Process> invoker = context->process->getProcess();
+    sm::RcuSharedPtr<Process> owner = parent->getProcess();
+    OsHandle id = invoker->newHandleId(eOsHandleProcess);
+    if (OsStatus status = CreateProcessInner(context->system, info, owner, id, &result)) {
         return status;
     }
 
-    // Create the process.
-    process = sm::rcuMakeShared<Process>(&context->system->rcuDomain(), info, parent->getProcess(), context->system->pageTables(), pteMemory);
-    if (!process) {
-        goto outOfMemory;
-    }
-
-    result = new (std::nothrow) ProcessHandle(process, context->process->getProcess()->newHandleId(eOsHandleProcess), ProcessAccess::eAll);
-    if (!result) {
-        goto outOfMemory;
-    }
-
-    // Add the process to the parent.
-    parent->getProcess()->addChild(process);
-    context->process->getProcess()->addHandle(result);
-    context->system->addProcessObject(process);
-
+    owner->addChild(result->getProcess());
+    invoker->addHandle(result);
     *handle = result;
 
     return OsStatusSuccess;
-
-outOfMemory:
-    delete result;
-    process.reset();
-    context->system->releaseMapping(pteMemory);
-    return OsStatusOutOfMemory;
 }
 
 OsStatus sys2::SysDestroyProcess(InvokeContext *context, ProcessDestroyInfo info) {
+    sys2::ProcessHandle *parent = info.process;
 
+    if (!parent->hasAccess(ProcessAccess::eTerminate)) {
+        return OsStatusAccessDenied;
+    }
+
+    sm::RcuSharedPtr<Process> process = parent->getProcess();
+    if (OsStatus status = process->destroy(context->system, info)) {
+        return status;
+    }
+
+    return OsStatusSuccess;
 }
 
 OsStatus sys2::SysCreateThread(InvokeContext *context, ThreadCreateInfo info, ThreadHandle **handle) {
-    return OsStatusNotSupported;
+    sys2::ProcessHandle *parent = info.process;
+
+    if (!parent->hasAccess(ProcessAccess::eThreadControl)) {
+        return OsStatusAccessDenied;
+    }
+
+    sm::RcuSharedPtr<Process> process = parent->getProcess();
+    sm::RcuSharedPtr<Process> invoker = context->process->getProcess();
+    OsHandle id = process->newHandleId(eOsHandleThread);
+    ThreadHandle *result = nullptr;
+
+    if (OsStatus status = CreateThreadInner(context->system, info, process, id, &result)) {
+        return status;
+    }
+
+    process->addThread(result->getThread());
+    invoker->addHandle(result);
+    *handle = result;
+
+    return OsStatusSuccess;
+}
+
+OsStatus sys2::SysDestroyThread(InvokeContext *context, ThreadDestroyInfo info) {
+    sys2::ThreadHandle *handle = info.thread;
+
+    if (!handle->hasAccess(sys2::ThreadAccess::eTerminate)) {
+        return OsStatusAccessDenied;
+    }
+
+    sm::RcuSharedPtr<Thread> thread = handle->getThread();
+    if (OsStatus status = thread->destroy(context->system, info)) {
+        return status;
+    }
+
+    return OsStatusSuccess;
 }
 
 OsStatus sys2::SysCreateTx(InvokeContext *context, TxCreateInfo info, TxHandle **handle) {

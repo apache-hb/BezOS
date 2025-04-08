@@ -99,10 +99,14 @@ namespace sys2 {
         OsStatus getProcessList(stdx::Vector2<sm::RcuSharedPtr<Process>>& list);
     };
 
+    OsStatus SysCreateRootProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle);
+
     OsStatus SysCreateProcess(InvokeContext *context, ProcessCreateInfo info, ProcessHandle **handle);
     OsStatus SysDestroyProcess(InvokeContext *context, ProcessDestroyInfo info);
 
     OsStatus SysCreateThread(InvokeContext *context, ThreadCreateInfo info, ThreadHandle **handle);
+    OsStatus SysDestroyThread(InvokeContext *context, ThreadDestroyInfo info);
+
     OsStatus SysCreateTx(InvokeContext *context, TxCreateInfo info, TxHandle **handle);
     OsStatus SysCreateMutex(InvokeContext *context, MutexCreateInfo info, MutexHandle **handle);
 }
