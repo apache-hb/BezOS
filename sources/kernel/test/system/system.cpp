@@ -60,10 +60,20 @@ TEST_F(SystemTest, CreateProcessAsync) {
     };
 
     std::unique_ptr<sys2::ProcessHandle> hProcess = nullptr;
+    sys2::ThreadHandle *hThread = nullptr;
 
     RecordMemoryUsage(memory);
 
     OsStatus status = sys2::CreateRootProcess(&system, createInfo, std::out_ptr(hProcess));
+    ASSERT_EQ(status, OsStatusSuccess);
+
+    sys2::ThreadCreateInfo threadCreateInfo {
+        .name = "TEST",
+        .cpuState = {},
+        .tlsAddress = 0,
+        .state = eOsThreadRunning,
+    };
+    status = hProcess->createThread(&system, threadCreateInfo, &hThread);
     ASSERT_EQ(status, OsStatusSuccess);
 
     threads.emplace_back([&](std::stop_token stop) {
@@ -82,10 +92,12 @@ TEST_F(SystemTest, CreateProcessAsync) {
                 sys2::ProcessHandle *hChild = nullptr;
                 sys2::ProcessCreateInfo createInfo {
                     .name = "CHILD",
+                    .process = hProcess.get(),
                     .supervisor = false,
                 };
 
-                OsStatus status = hProcess->createProcess(&system, createInfo, &hChild);
+                sys2::InvokeContext invoke { &system, hProcess.get(), hThread };
+                OsStatus status = sys2::SysCreateProcess(&invoke, createInfo, &hChild);
                 if (status == OsStatusOutOfMemory) continue;
                 ASSERT_EQ(status, OsStatusSuccess);
 
@@ -121,6 +133,7 @@ TEST_F(SystemTest, CreateChildProcess) {
     RecordMemoryUsage(memory);
 
     std::unique_ptr<sys2::ProcessHandle> hProcess = nullptr;
+    sys2::ThreadHandle *hThread = nullptr;
     sys2::ProcessHandle *hChild = nullptr;
 
     {
@@ -136,12 +149,26 @@ TEST_F(SystemTest, CreateChildProcess) {
     }
 
     {
+
+        sys2::ThreadCreateInfo threadCreateInfo {
+            .name = "TEST",
+            .cpuState = {},
+            .tlsAddress = 0,
+            .state = eOsThreadRunning,
+        };
+        OsStatus status = hProcess->createThread(&system, threadCreateInfo, &hThread);
+        ASSERT_EQ(status, OsStatusSuccess);
+    }
+
+    {
         sys2::ProcessCreateInfo createInfo {
             .name = "CHILD",
+            .process = hProcess.get(),
             .supervisor = false,
         };
+        sys2::InvokeContext invoke { &system, hProcess.get(), hThread };
 
-        OsStatus status = hProcess->createProcess(&system, createInfo, &hChild);
+        OsStatus status = sys2::SysCreateProcess(&invoke, createInfo, &hChild);
         ASSERT_EQ(status, OsStatusSuccess);
 
         ASSERT_NE(hChild, nullptr) << "Child process was not created";

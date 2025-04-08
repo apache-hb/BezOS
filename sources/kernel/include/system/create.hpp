@@ -34,46 +34,52 @@ namespace sys2 {
 
     struct TxCreateInfo {
         ObjectName name;
-
-        sm::RcuSharedPtr<Process> process;
-        sm::RcuSharedPtr<Tx> tx;
+        ProcessHandle *process;
+        TxHandle *tx;
     };
 
     struct ProcessCreateInfo {
         ObjectName name;
+        ProcessHandle *process;
+        TxHandle *tx;
 
-        sm::RcuSharedPtr<Process> parent;
-        sm::RcuSharedPtr<Tx> tx;
-
-        /// @brief Is this a supervisor process?
         bool supervisor;
-
-        /// @brief Initial scheduling state.
         OsProcessStateFlags state;
     };
 
     struct ThreadCreateInfo {
         ObjectName name;
+        ProcessHandle *process;
+        TxHandle *tx;
 
-        sm::RcuSharedPtr<Process> process;
-        sm::RcuSharedPtr<Tx> tx;
-
-        /// @brief The initial cpu state for the thread.
-        /// @note Only the syscall stack is allocated by the kernel, all other state is managed
-        ///       by the userspace program. This puts the onus on the program to ensure that
-        ///       exiting a thread will clean up all the state it has allocated aside from the thread
-        ///       object itself, which is managed by the kernel.
         RegisterSet cpuState;
         reg_t tlsAddress;
         OsThreadState state;
-
         OsSize kernelStackSize;
     };
 
     struct MutexCreateInfo {
         ObjectName name;
+        ProcessHandle *process;
+        TxHandle *tx;
+    };
 
-        sm::RcuSharedPtr<Process> process;
-        sm::RcuSharedPtr<Tx> tx;
+    struct ProcessDestroyInfo {
+        ProcessHandle *process;
+        TxHandle *tx;
+
+        int64_t exitCode;
+        OsProcessStateFlags reason;
+    };
+
+    struct InvokeContext {
+        /// @brief The system context.
+        System *system;
+
+        /// @brief The process that is invoking the method.
+        ProcessHandle *process;
+
+        /// @brief The thread in the process that is invoking the method.
+        ThreadHandle *thread;
     };
 }

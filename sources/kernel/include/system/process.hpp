@@ -18,11 +18,6 @@
 namespace sys2 {
     enum class ProcessId : uint64_t {};
 
-    struct ProcessDestroyInfo {
-        int64_t exitCode;
-        OsProcessStateFlags reason;
-    };
-
     struct ProcessInfo {
         ObjectName name;
         uint64_t handles;
@@ -94,9 +89,6 @@ namespace sys2 {
         /// @brief The page tables for this process.
         km::AddressSpace mPageTables;
 
-        void removeChild(sm::RcuSharedPtr<Process> child);
-        void addChild(sm::RcuSharedPtr<Process> child);
-
     public:
         Process(const ProcessCreateInfo& createInfo, sm::RcuWeakPtr<Process> parent, const km::AddressSpace *systemTables, km::AddressMapping pteMemory);
 
@@ -115,6 +107,9 @@ namespace sys2 {
             OsHandle id = mIdAllocators[type].allocate();
             return OS_HANDLE_NEW(type, id);
         }
+
+        void removeChild(sm::RcuSharedPtr<Process> child);
+        void addChild(sm::RcuSharedPtr<Process> child);
 
         OsStatus createProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle);
         OsStatus destroy(System *system, const ProcessDestroyInfo& info);

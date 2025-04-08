@@ -88,3 +88,67 @@ OsStatus sys2::System::getProcessList(stdx::Vector2<sm::RcuSharedPtr<Process>>& 
 
     return OsStatusSuccess;
 }
+
+OsStatus sys2::SysCreateProcess(InvokeContext *context, ProcessCreateInfo info, ProcessHandle **handle) {
+    ProcessHandle *parent = info.process;
+    TxHandle *tx = info.tx;
+    km::AddressMapping pteMemory;
+    sm::RcuSharedPtr<Process> process;
+    ProcessHandle *result = nullptr;
+
+    // Check that we can control the parent process.
+    if (!parent->hasAccess(ProcessAccess::eProcessControl)) {
+        return OsStatusAccessDenied;
+    }
+
+    // If there is a transaction, ensure we can append to it.
+    if (tx && !tx->hasAccess(TxAccess::eWrite)) {
+        return OsStatusAccessDenied;
+    }
+
+    if (OsStatus status = context->system->mapProcessPageTables(&pteMemory)) {
+        return status;
+    }
+
+    // Create the process.
+    process = sm::rcuMakeShared<Process>(&context->system->rcuDomain(), info, parent->getProcess(), context->system->pageTables(), pteMemory);
+    if (!process) {
+        goto outOfMemory;
+    }
+
+    result = new (std::nothrow) ProcessHandle(process, context->process->getProcess()->newHandleId(eOsHandleProcess), ProcessAccess::eAll);
+    if (!result) {
+        goto outOfMemory;
+    }
+
+    // Add the process to the parent.
+    parent->getProcess()->addChild(process);
+    context->process->getProcess()->addHandle(result);
+    context->system->addProcessObject(process);
+
+    *handle = result;
+
+    return OsStatusSuccess;
+
+outOfMemory:
+    delete result;
+    process.reset();
+    context->system->releaseMapping(pteMemory);
+    return OsStatusOutOfMemory;
+}
+
+OsStatus sys2::SysDestroyProcess(InvokeContext *context, ProcessDestroyInfo info) {
+
+}
+
+OsStatus sys2::SysCreateThread(InvokeContext *context, ThreadCreateInfo info, ThreadHandle **handle) {
+    return OsStatusNotSupported;
+}
+
+OsStatus sys2::SysCreateTx(InvokeContext *context, TxCreateInfo info, TxHandle **handle) {
+    return OsStatusNotSupported;
+}
+
+OsStatus sys2::SysCreateMutex(InvokeContext *context, MutexCreateInfo info, MutexHandle **handle) {
+    return OsStatusNotSupported;
+}

@@ -6,14 +6,14 @@
 
 using namespace km;
 
-x64::page *PageTables::alloc4k(size_t pages) {
-    if (x64::page *it = (x64::page*)mAllocator.allocate(pages)) {
-        memset(it, 0, sizeof(x64::page) * pages);
+x64::page *PageTables::alloc4k() {
+    x64::page *it = (x64::page*)mAllocator.allocate(1);
 
-        return it;
+    if (it) {
+        memset(it, 0, sizeof(x64::page));
     }
 
-    return nullptr;
+    return it;
 }
 
 void PageTables::setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddress address) {

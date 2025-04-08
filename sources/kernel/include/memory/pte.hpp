@@ -26,10 +26,8 @@ namespace km {
 
         /// @brief Allocate a new page table, garanteed to be aligned to 4k and zeroed.
         ///
-        /// @param pages The number of pages to allocate.
-        ///
         /// @return The new page table, or @c nullptr if no memory is available.
-        x64::page *alloc4k(size_t pages = 1);
+        x64::page *alloc4k();
 
         /// @brief Convert the physical address of a page table to a virtual address.
         ///
@@ -139,7 +137,7 @@ namespace km {
         size_t compactPml4(x64::PageMapLevel4 *pml4);
 
     public:
-        PageTables() = default;
+        UTIL_DEFAULT_INIT(PageTables);
 
         PageTables(const PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags);
 

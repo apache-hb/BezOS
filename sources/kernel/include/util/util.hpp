@@ -70,6 +70,17 @@ namespace sm {
     it(it&&) = delete; \
     it& operator=(it&&) = delete;
 
+#define UTIL_DEFAULT_MOVE(it) \
+    it(it&&) = default; \
+    it& operator=(it&&) = default;
+
+#define UTIL_DEFAULT_COPY(it) \
+    it(const it&) = default; \
+    it& operator=(const it&) = default;
+
+#define UTIL_DEFAULT_INIT(it) \
+    constexpr it() = default;
+
 #ifdef UTIL_TESTING
 #   define WEAK_SYMBOL_TEST [[gnu::weak]]
 #else
