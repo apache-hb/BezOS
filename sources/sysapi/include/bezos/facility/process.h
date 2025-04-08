@@ -93,6 +93,10 @@ enum {
 #define OS_PROCESS_STATUS(FLAGS) ((FLAGS) & eOsProcessStatusMask)
 #define OS_PROCESS_PRIVILEGE(FLAGS) ((FLAGS) & eOsProcessPrivilegeMask)
 
+typedef OsHandleAccess OsProcessAccess;
+
+typedef uint64_t OsProcessId;
+
 /// @brief The state of a process
 ///
 /// bits [0:3] - Status
@@ -128,6 +132,7 @@ struct OsProcessInfo {
     OsUtf8Char Name[OS_OBJECT_NAME_MAX];
 
     OsProcessHandle Parent;
+    OsProcessId Id;
 
     const struct OsProcessParam *ArgsBegin;
     const struct OsProcessParam *ArgsEnd;

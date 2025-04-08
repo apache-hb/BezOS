@@ -26,6 +26,8 @@ enum {
         | eOsNodeAccessQueryInterface,
 };
 
+typedef OsHandleAccess OsNodeAccess;
+
 /// @brief An invalid file handle.
 #define OS_FILE_INVALID ((OsFileHandle)(UINT64_MAX))
 

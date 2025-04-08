@@ -48,6 +48,8 @@ namespace sys2 {
         /// @brief All the handles this process has open.
         sm::FlatHashMap<OsHandle, std::unique_ptr<IHandle>> mHandles;
 
+        sm::BTreeMultiMap<sm::RcuWeakPtr<Process>, std::unique_ptr<IHandle>> mProcessHandles;
+
         /// @brief All the physical memory dedicated to this process.
         stdx::Vector2<km::MemoryRange> mPhysicalMemory;
 

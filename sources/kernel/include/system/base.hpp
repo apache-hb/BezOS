@@ -49,5 +49,7 @@ namespace sys2 {
             stdx::SharedLock guard(mLock);
             return mName;
         }
+
+        stdx::SharedSpinLock& getMonitor() { return mLock; }
     };
 }

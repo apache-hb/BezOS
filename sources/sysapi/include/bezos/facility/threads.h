@@ -57,6 +57,8 @@ enum {
     eOsThreadOrphaned = 5,
 };
 
+typedef OsHandleAccess OsThreadAccess;
+
 typedef uint32_t OsThreadCreateFlags;
 typedef uint32_t OsThreadState;
 

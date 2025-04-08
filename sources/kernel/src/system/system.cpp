@@ -205,7 +205,7 @@ OsStatus sys2::SysCreateProcess(InvokeContext *context, ProcessCreateInfo info, 
 }
 
 OsStatus sys2::SysDestroyProcess(InvokeContext *context, ProcessDestroyInfo info) {
-    sys2::ProcessHandle *parent = info.process;
+    sys2::ProcessHandle *parent = info.object;
 
     if (!parent->hasAccess(ProcessAccess::eTerminate)) {
         return OsStatusAccessDenied;
@@ -217,6 +217,15 @@ OsStatus sys2::SysDestroyProcess(InvokeContext *context, ProcessDestroyInfo info
     }
 
     return OsStatusSuccess;
+}
+
+OsStatus sys2::SysQueryProcessList(InvokeContext *context, ProcessQueryInfo info) {
+    sys2::System *system = context->system;
+    sm::RcuSharedPtr<Process> process = context->process->getProcess();
+    stdx::SharedLock guard(system->mLock);
+    stdx::UniqueLock lock(process->getMonitor());
+
+
 }
 
 OsStatus sys2::SysCreateThread(InvokeContext *context, ThreadCreateInfo info, ThreadHandle **handle) {
@@ -243,7 +252,7 @@ OsStatus sys2::SysCreateThread(InvokeContext *context, ThreadCreateInfo info, Th
 }
 
 OsStatus sys2::SysDestroyThread(InvokeContext *context, ThreadDestroyInfo info) {
-    sys2::ThreadHandle *handle = info.thread;
+    sys2::ThreadHandle *handle = info.object;
 
     if (!handle->hasAccess(sys2::ThreadAccess::eTerminate)) {
         return OsStatusAccessDenied;
@@ -257,10 +266,18 @@ OsStatus sys2::SysDestroyThread(InvokeContext *context, ThreadDestroyInfo info) 
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysCreateTx(InvokeContext *context, TxCreateInfo info, TxHandle **handle) {
+OsStatus sys2::SysCreateTx(InvokeContext *, TxCreateInfo, TxHandle **) {
     return OsStatusNotSupported;
 }
 
-OsStatus sys2::SysCreateMutex(InvokeContext *context, MutexCreateInfo info, MutexHandle **handle) {
+OsStatus sys2::SysDestroyTx(InvokeContext *, TxDestroyInfo) {
+    return OsStatusNotSupported;
+}
+
+OsStatus sys2::SysCreateMutex(InvokeContext *, MutexCreateInfo, MutexHandle **) {
+    return OsStatusNotSupported;
+}
+
+OsStatus sys2::SysDestroyMutex(InvokeContext *, MutexDestroyInfo) {
     return OsStatusNotSupported;
 }

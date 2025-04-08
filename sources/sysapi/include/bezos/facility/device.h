@@ -23,6 +23,8 @@ enum {
         | eOsDeviceAccessInvoke,
 };
 
+typedef OsHandleAccess OsDeviceAccess;
+
 /// @brief Disposition flags for opening a file.
 ///
 /// bits [0:7] contain the create mode.

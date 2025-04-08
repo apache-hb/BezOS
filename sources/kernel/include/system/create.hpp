@@ -38,6 +38,11 @@ namespace sys2 {
         TxHandle *tx;
     };
 
+    struct TxDestroyInfo {
+        TxHandle *object;
+        TxHandle *tx;
+    };
+
     struct ProcessCreateInfo {
         ObjectName name;
         ProcessHandle *process;
@@ -45,6 +50,14 @@ namespace sys2 {
 
         bool supervisor;
         OsProcessStateFlags state;
+    };
+
+    struct ProcessDestroyInfo {
+        ProcessHandle *object;
+        TxHandle *tx;
+
+        int64_t exitCode;
+        OsProcessStateFlags reason;
     };
 
     struct ThreadCreateInfo {
@@ -58,25 +71,22 @@ namespace sys2 {
         OsSize kernelStackSize;
     };
 
+    struct ThreadDestroyInfo {
+        ThreadHandle *object;
+        TxHandle *tx;
+
+        OsThreadState reason;
+    };
+
     struct MutexCreateInfo {
         ObjectName name;
         ProcessHandle *process;
         TxHandle *tx;
     };
 
-    struct ProcessDestroyInfo {
-        ProcessHandle *process;
+    struct MutexDestroyInfo {
+        MutexHandle *object;
         TxHandle *tx;
-
-        int64_t exitCode;
-        OsProcessStateFlags reason;
-    };
-
-    struct ThreadDestroyInfo {
-        ThreadHandle *thread;
-        TxHandle *tx;
-
-        OsThreadState reason;
     };
 
     struct InvokeContext {
@@ -88,5 +98,8 @@ namespace sys2 {
 
         /// @brief The thread in the process that is invoking the method.
         ThreadHandle *thread;
+
+        /// @brief The transaction context that this method is contained in.
+        TxHandle *tx;
     };
 }

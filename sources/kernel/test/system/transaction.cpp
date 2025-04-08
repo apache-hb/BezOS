@@ -1,6 +1,8 @@
 #include "system/transaction.hpp"
 #include "memory.hpp"
+#include "system/create.hpp"
 #include "system/process.hpp"
+#include "system/system.hpp"
 #include "system_test.hpp"
 
 struct TestData {
@@ -31,11 +33,13 @@ public:
 
     void TearDown() override {
         sys2::ProcessDestroyInfo destroyInfo {
+            .object = hRootProcess.get(),
             .exitCode = 0,
             .reason = eOsProcessExited,
         };
+        sys2::InvokeContext invoke { system(), hRootProcess.get(), nullptr };
 
-        OsStatus status = hRootProcess->destroyProcess(system(), destroyInfo);
+        OsStatus status = sys2::SysDestroyProcess(&invoke, destroyInfo);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
@@ -46,34 +50,42 @@ public:
 };
 
 TEST_F(TxSystemTest, TransactCreateProcess) {
-    sys2::ProcessHandle *child = nullptr;
+    sys2::ProcessHandle *hChild = nullptr;
     sys2::ThreadHandle *hThread = nullptr;
     sys2::TxHandle *hTx = nullptr;
 
     {
         sys2::ProcessCreateInfo createInfo {
             .name = "CHILD",
+            .process = hRootProcess.get(),
         };
-        OsStatus status = hRootProcess->createProcess(system(), createInfo, &child);
+        sys2::InvokeContext invoke { system(), hRootProcess.get(), nullptr };
+        OsStatus status = sys2::SysCreateProcess(&invoke, createInfo, &hChild);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
     {
         sys2::ThreadCreateInfo threadCreateInfo {
             .name = "MAIN",
+            .process = hChild,
+            .cpuState = {},
+            .tlsAddress = 0,
             .kernelStackSize = x64::kPageSize * 8,
         };
 
-        OsStatus status = child->createThread(system(), threadCreateInfo, &hThread);
+        sys2::InvokeContext invoke { system(), hRootProcess.get(), nullptr };
+        OsStatus status = sys2::SysCreateThread(&invoke, threadCreateInfo, &hThread);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
     {
         sys2::TxCreateInfo txCreateInfo {
             .name = "TEST",
+            .process = hChild,
         };
 
-        OsStatus status = child->createTx(system(), txCreateInfo, &hTx);
+        sys2::InvokeContext invoke { system(), hChild, nullptr };
+        OsStatus status = sys2::SysCreateTx(&invoke, txCreateInfo, &hTx);
         ASSERT_EQ(status, OsStatusSuccess);
         ASSERT_NE(hTx, nullptr) << "Transaction was not created";
     }
@@ -85,24 +97,35 @@ TEST_F(TxSystemTest, TransactCreateProcess) {
     sys2::ThreadHandle *hZshMainThread = nullptr;
     sys2::ProcessCreateInfo processCreateInfo {
         .name = "ZSH.ELF",
+        .process = hChild,
+        .tx = hTx,
     };
+
     sys2::ThreadCreateInfo threadCreateInfo {
         .name = "MAIN",
+        .process = hChild,
+        .tx = hTx,
         .kernelStackSize = x64::kPageSize * 8,
     };
 
-    status = hTx->createProcess(system(), processCreateInfo, &hZshProcess);
-    ASSERT_EQ(status, OsStatusSuccess);
-    ASSERT_NE(hZshProcess, nullptr) << "Process was not created";
+    {
+        sys2::InvokeContext invoke { system(), hChild, hThread };
+        status = sys2::SysCreateProcess(&invoke, processCreateInfo, &hZshProcess);
+        ASSERT_EQ(status, OsStatusSuccess);
+        ASSERT_NE(hZshProcess, nullptr) << "Process was not created";
 
-    status = hTx->createThread(system(), hZshProcess, threadCreateInfo, &hZshMainThread);
-    ASSERT_EQ(status, OsStatusSuccess);
+        status = sys2::SysCreateThread(&invoke, threadCreateInfo, &hZshMainThread);
+        ASSERT_EQ(status, OsStatusSuccess);
+    }
 
-#if 0
     // ensure that the process is not visible outside the transaction
     sys2::ProcessHandle *hFindProcess = nullptr;
-    status = system()->getProcessByName(processCreateInfo.name, &hFindProcess);
-    ASSERT_EQ(status, OsStatusNotFound) << "Process was found outside the transaction";
-    ASSERT_EQ(hFindProcess, nullptr) << "Process was found outside the transaction";
-#endif
+
+    {
+        sys2::InvokeContext invoke { system(), hChild, hThread };
+        status = sys2::FindProcessByName(system(), processCreateInfo.name, &hFindProcess);
+        status = system()->getProcessByName(processCreateInfo.name, &hFindProcess);
+        ASSERT_EQ(status, OsStatusNotFound) << "Process was found outside the transaction";
+        ASSERT_EQ(hFindProcess, nullptr) << "Process was found outside the transaction";
+    }
 }

@@ -34,7 +34,7 @@ TEST_F(SystemTest, CreateProcess) {
     ASSERT_EQ(status, OsStatusSuccess);
 
     sys2::ProcessDestroyInfo destroyInfo {
-        .process = hProcess.get(),
+        .object = hProcess.get(),
         .exitCode = 0,
         .reason = eOsProcessExited,
     };
@@ -108,7 +108,7 @@ TEST_F(SystemTest, CreateProcessAsync) {
                 ASSERT_EQ(status, OsStatusSuccess);
 
                 sys2::ProcessDestroyInfo destroyInfo {
-                    .process = hChild,
+                    .object = hChild,
                     .exitCode = 0,
                     .reason = eOsProcessExited,
                 };
@@ -122,7 +122,7 @@ TEST_F(SystemTest, CreateProcessAsync) {
     threads.clear();
 
     sys2::ProcessDestroyInfo destroyInfo {
-        .process = hProcess.get(),
+        .object = hProcess.get(),
         .exitCode = 0,
         .reason = eOsProcessExited,
     };
@@ -189,7 +189,7 @@ TEST_F(SystemTest, CreateChildProcess) {
     }
 
     sys2::ProcessDestroyInfo destroyInfo {
-        .process = hProcess.get(),
+        .object = hProcess.get(),
         .exitCode = 0,
         .reason = eOsProcessExited,
     };
@@ -240,7 +240,7 @@ TEST_F(SystemTest, NestedChildProcess) {
     }
 
     sys2::ProcessDestroyInfo destroyInfo {
-        .process = hProcess.get(),
+        .object = hProcess.get(),
         .exitCode = 0,
         .reason = eOsProcessExited,
     };
@@ -288,7 +288,7 @@ TEST_F(SystemTest, OrphanThread) {
     auto process = hProcess->getProcess();
 
     sys2::ProcessDestroyInfo destroyInfo {
-        .process = hProcess.get(),
+        .object = hProcess.get(),
         .exitCode = 0,
         .reason = eOsProcessExited,
     };
@@ -336,7 +336,7 @@ TEST_F(SystemTest, CreateThread) {
     auto process = hProcess->getProcess();
 
     sys2::ThreadDestroyInfo threadDestroyInfo {
-        .thread = hThread,
+        .object = hThread,
         .reason = eOsThreadOrphaned,
     };
     status = sys2::SysDestroyThread(&invoke, threadDestroyInfo);
@@ -345,7 +345,7 @@ TEST_F(SystemTest, CreateThread) {
     CheckMemoryState(memory, before1);
 
     sys2::ProcessDestroyInfo destroyInfo {
-        .process = hProcess.get(),
+        .object = hProcess.get(),
         .exitCode = 0,
         .reason = eOsProcessExited,
     };

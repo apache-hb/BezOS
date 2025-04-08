@@ -35,6 +35,8 @@ enum {
         | eOsTxAccessWrite,
 };
 
+typedef OsHandleAccess OsTxAccess;
+
 /// @brief Transaction creation modes.
 ///
 /// Bits [0:1] contain the read transaction mode.

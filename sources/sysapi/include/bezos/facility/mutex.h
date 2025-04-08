@@ -25,6 +25,8 @@ enum {
         | eOsMutexAccessUpdate,
 };
 
+typedef OsHandleAccess OsMutexAccess;
+
 struct OsMutexCreateInfo {
     const char *NameFront;
     const char *NameBack;

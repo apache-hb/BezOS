@@ -6,6 +6,7 @@
 
 #include "memory/layout.hpp"
 #include "system/create.hpp"
+#include "system/query.hpp"
 
 #include <compare> // IWYU pragma: keep
 #include <queue>
@@ -49,6 +50,7 @@ namespace sys2 {
     using WaitQueue = std::priority_queue<WaitEntry>;
 
     class System {
+    public:
         stdx::SharedSpinLock mLock;
         sm::RcuDomain mDomain;
 
@@ -104,9 +106,14 @@ namespace sys2 {
     OsStatus SysCreateProcess(InvokeContext *context, ProcessCreateInfo info, ProcessHandle **handle);
     OsStatus SysDestroyProcess(InvokeContext *context, ProcessDestroyInfo info);
 
+    OsStatus SysQueryProcessList(InvokeContext *context, ProcessQueryInfo info);
+
     OsStatus SysCreateThread(InvokeContext *context, ThreadCreateInfo info, ThreadHandle **handle);
     OsStatus SysDestroyThread(InvokeContext *context, ThreadDestroyInfo info);
 
     OsStatus SysCreateTx(InvokeContext *context, TxCreateInfo info, TxHandle **handle);
+    OsStatus SysDestroyTx(InvokeContext *context, TxDestroyInfo info);
+
     OsStatus SysCreateMutex(InvokeContext *context, MutexCreateInfo info, MutexHandle **handle);
+    OsStatus SysDestroyMutex(InvokeContext *context, MutexDestroyInfo info);
 }
