@@ -97,6 +97,8 @@ class Logger {
     std::ostream *mErrorStream = &std::cerr;
 
 public:
+    bool mVerbose = false;
+
     void OpenAsDaemon() {
         std::ofstream *out = new std::ofstream("/etc/pkgtool.log", std::ios::app);
         std::ofstream *err = new std::ofstream("/etc/pkgtool.err", std::ios::app);
@@ -106,6 +108,12 @@ public:
 
         mOutStream = out;
         mErrorStream = err;
+    }
+
+    void logv(const std::string& message) {
+        if (mVerbose) {
+            *mOutStream << message << std::endl;
+        }
     }
 
     void log(const std::string& message) {
@@ -124,6 +132,13 @@ public:
     template<typename... A>
     void errf(const std::format_string<A...>& fmt, A&&... args) {
         err(std::vformat(fmt.get(), std::make_format_args(args...)));
+    }
+
+    template<typename... A>
+    void verbosef(const std::format_string<A...>& fmt, A&&... args) {
+        if (mVerbose) {
+            logv(std::vformat(fmt.get(), std::make_format_args(args...)));
+        }
     }
 };
 
