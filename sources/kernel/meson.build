@@ -602,6 +602,9 @@ testcases = {
     ],
     'transaction': [
         'test/system/transaction.cpp',
+    ],
+    'query': [
+        'test/system/query.cpp',
     ]
 }
 

@@ -7,20 +7,15 @@
 #include <stddef.h>
 
 namespace sys2 {
-    struct QueryRule {
-        enum { eNameEqual, eIdEqual } type;
-        union {
-            ObjectName name;
-            OsProcessId id;
-        };
-    };
-
     struct ProcessQueryInfo {
         size_t limit;
         OsProcessHandle *handles;
         OsProcessAccess access;
 
-        size_t ruleCount;
-        QueryRule rules[];
+        ObjectName matchName;
+    };
+
+    struct ProcessQueryResult {
+        size_t found;
     };
 }

@@ -30,8 +30,8 @@
                      CMAKE_C_COMPILER_WORKS="1"
                      CMAKE_CXX_COMPILER_WORKS="1"
 
-                     CMAKE_C_COMPILER_TARGET="x86_64-unknown-bezos-jlibc"
-                     CMAKE_CXX_COMPILER_TARGET="x86_64-unknown-bezos-jlibc"
+                     CMAKE_C_COMPILER_TARGET="${arch}-unknown-bezos-jlibc"
+                     CMAKE_CXX_COMPILER_TARGET="${arch}-unknown-bezos-jlibc"
 
                      CMAKE_C_FLAGS="--sysroot=@PREFIX@"
                      CMAKE_CXX_FLAGS="--sysroot=@PREFIX@"

@@ -1,47 +1,26 @@
 #pragma once
 
-#include "system/handle.hpp"
+#include "system/base.hpp"
 #include "system/create.hpp"
 
 namespace sys2 {
-    class System;
-    class Mutex;
-    class MutexHandle;
-
-    class MutexHandle final : public IHandle {
-        sm::RcuWeakPtr<Mutex> mMutex;
-        OsHandle mHandle;
-        MutexAccess mAccess;
-
-    public:
-        MutexHandle(sm::RcuWeakPtr<Mutex> mutex, OsHandle handle, MutexAccess access)
-            : mMutex(mutex)
-            , mHandle(handle)
-            , mAccess(access)
-        { }
-
-        sm::RcuWeakPtr<IObject> getObject() override;
-        OsHandle getHandle() const override { return mHandle; }
-
-        sm::RcuWeakPtr<Mutex> getMutex() const { return mMutex; }
-
-        bool hasAccess(MutexAccess access) const {
-            return bool(mAccess & access);
-        }
-    };
-
-    class Mutex final : public IObject {
-        stdx::SharedSpinLock mLock;
-        ObjectName mName;
-
+    class Mutex final : public BaseObject {
         sm::RcuWeakPtr<Thread> mOwner;
         sm::FlatHashSet<sm::RcuWeakPtr<Thread>> mWaiters GUARDED_BY(mLock);
     public:
-        void setName(ObjectName name) override;
-        ObjectName getName() override;
+        using Access = MutexAccess;
 
         stdx::StringView getClassName() const override { return "Mutex"; }
 
         bool tryAcquireLock(sm::RcuWeakPtr<Thread> thread);
+    };
+
+    class MutexHandle final : public BaseHandle<Mutex> {
+    public:
+        MutexHandle(sm::RcuSharedPtr<Mutex> mutex, OsHandle handle, MutexAccess access)
+            : BaseHandle(mutex, handle, access)
+        { }
+
+        sm::RcuWeakPtr<Mutex> getMutex() const { return getInner(); }
     };
 }

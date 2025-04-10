@@ -1,0 +1,3 @@
+<target name='x86_64'>
+    <var arch='x86_64' />
+</target>

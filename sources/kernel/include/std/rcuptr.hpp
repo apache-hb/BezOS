@@ -75,15 +75,15 @@ namespace sm {
             RcuDomain *domain;
         };
 
-        ControlBlock *TagPointer(ControlBlock *ptr, bool strong) {
+        inline ControlBlock *TagPointer(ControlBlock *ptr, bool strong) {
             return (ControlBlock*)((uintptr_t)ptr | (strong ? 0x1 : 0x0));
         }
 
-        ControlBlock *UnTagPointer(ControlBlock *ptr) {
+        inline ControlBlock *UnTagPointer(ControlBlock *ptr) {
             return (ControlBlock*)((uintptr_t)ptr & ~0x1);
         }
 
-        bool IsTagged(ControlBlock *ptr) {
+        inline bool IsTagged(ControlBlock *ptr) {
             return (uintptr_t)ptr & 0x1;
         }
 

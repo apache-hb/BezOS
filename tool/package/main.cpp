@@ -345,6 +345,147 @@ static PackageStatus GetPackageStatusFromString(std::string_view status) {
     }
 }
 
+struct XmlNode {
+    xmlNodePtr node;
+
+    XmlNode(xmlNodePtr node) : node(node) {}
+
+    std::generator<XmlNode> children() const {
+        for (xmlNodePtr child = node->children; child != nullptr; child = child->next) {
+            co_yield child;
+        }
+    }
+
+    std::map<std::string, std::string> properties() const {
+        std::map<std::string, std::string> result;
+
+        for (xmlAttrPtr attr = node->properties; attr != nullptr; attr = attr->next) {
+            const xmlChar *name = attr->name;
+            xmlChar *value = xmlGetProp(node, name);
+
+            result[reinterpret_cast<const char *>(name)] = reinterpret_cast<const char *>(value);
+
+            xmlFree(value);
+        }
+
+        return result;
+    }
+
+    std::optional<std::string> property(std::string name) const {
+        xmlChar *value = xmlGetProp(node, reinterpret_cast<const xmlChar *>(name.c_str()));
+        if (value == nullptr) {
+            return std::nullopt;
+        }
+
+        defer { xmlFree(value); };
+
+        return reinterpret_cast<const char *>(value);
+    }
+
+    std::string content() const {
+        auto data = xmlNodeGetContent(node);
+
+        if (data == nullptr) {
+            throw std::runtime_error(std::format("Node {} has no content", name()));
+        }
+
+        return reinterpret_cast<const char *>(data);
+    }
+
+    std::string_view name() const {
+        return reinterpret_cast<const char *>(node->name);
+    }
+
+    operator xmlNodePtr() const { return node; }
+};
+
+static std::string_view NodeName(xmlNodePtr node) {
+    return reinterpret_cast<const char *>(node->name);
+}
+
+static auto IsXmlNodeOf(xmlElementType type) {
+    return [type](xmlNodePtr node) { return node->type == type; };
+}
+
+struct Scope {
+    void SubstituteVariables(std::string& str) {
+        for (const auto& [name, value] : variables) {
+            ReplaceAll(str, "${" + name + "}", value);
+        }
+
+        if (parent) {
+            parent->SubstituteVariables(str);
+        }
+    }
+
+    Scope *parent = nullptr;
+    std::map<std::string, std::string> variables;
+
+    Scope() = default;
+    Scope(Scope *parent) : parent(parent) {}
+    Scope(const Scope&) = delete;
+    Scope& operator=(const Scope&) = delete;
+    Scope(Scope&&) = default;
+    Scope& operator=(Scope&&) = default;
+
+    bool TryGetVariable(std::string name, std::string& result) {
+        if (variables.contains(name)) {
+            result = variables[name];
+            return true;
+        }
+
+        if (parent) {
+            return parent->TryGetVariable(name, result);
+        }
+
+        return false;
+    }
+
+    std::string GetVariable(std::string name) {
+        std::string result;
+        if (!TryGetVariable(name, result)) {
+            throw std::runtime_error(std::format("Variable {} not found in scope", name));
+        }
+
+        return result;
+    }
+
+    void AddVariable(std::string name, std::string value) {
+        std::string result;
+        if (TryGetVariable(name, result)) {
+            throw std::runtime_error(std::format("Variable {} already exists in scope", name));
+        }
+
+        if (name.empty()) {
+            throw std::runtime_error("Variable name cannot be empty");
+        }
+
+        SubstituteVariables(value);
+
+        variables[name] = value;
+    }
+
+    std::optional<std::string> TryGetProperty(XmlNode node, std::string_view key) {
+        auto prop = node.property(std::string(key));
+        if (prop) {
+            auto text = *prop;
+            SubstituteVariables(text);
+            return text;
+        }
+
+        return std::nullopt;
+    }
+
+    std::string GetProperty(XmlNode node, std::string_view key) {
+        auto prop = TryGetProperty(node, key);
+        if (prop) {
+            return *prop;
+        }
+
+        throw std::runtime_error(std::format("Property {} not found in node", key));
+    }
+};
+
 class PackageDb {
     sql::Database mDatabase;
 
@@ -683,68 +824,6 @@ struct Workspace {
 
 static Workspace gWorkspace;
 
-struct XmlNode {
-    xmlNodePtr node;
-
-    XmlNode(xmlNodePtr node) : node(node) {}
-
-    std::generator<XmlNode> children() const {
-        for (xmlNodePtr child = node->children; child != nullptr; child = child->next) {
-            co_yield child;
-        }
-    }
-
-    std::map<std::string, std::string> properties() const {
-        std::map<std::string, std::string> result;
-
-        for (xmlAttrPtr attr = node->properties; attr != nullptr; attr = attr->next) {
-            const xmlChar *name = attr->name;
-            xmlChar *value = xmlGetProp(node, name);
-
-            result[reinterpret_cast<const char *>(name)] = reinterpret_cast<const char *>(value);
-
-            xmlFree(value);
-        }
-
-        return result;
-    }
-
-    std::optional<std::string> property(const char *name) const {
-        xmlChar *value = xmlGetProp(node, reinterpret_cast<const xmlChar *>(name));
-        if (value == nullptr) {
-            return std::nullopt;
-        }
-
-        defer { xmlFree(value); };
-
-        return reinterpret_cast<const char *>(value);
-    }
-
-    std::string content() const {
-        auto data = xmlNodeGetContent(node);
-
-        if (data == nullptr) {
-            throw std::runtime_error(std::format("Node {} has no content", name()));
-        }
-
-        return reinterpret_cast<const char *>(data);
-    }
-
-    std::string_view name() const {
-        return reinterpret_cast<const char *>(node->name);
-    }
-
-    operator xmlNodePtr() const { return node; }
-};
-
-static std::string_view NodeName(xmlNodePtr node) {
-    return reinterpret_cast<const char *>(node->name);
-}
-
-static auto IsXmlNodeOf(xmlElementType type) {
-    return [type](xmlNodePtr node) { return node->type == type; };
-}
-
 template<typename T>
 static T UnwrapOptional(std::optional<T> opt, std::string_view message) {
     if (!opt.has_value()) {
@@ -769,7 +848,7 @@ static XmlDocument XmlDocumentOpen(const std::filesystem::path &path) {
 
     XmlDocument doc = {document, xmlFreeDoc};
 
-    if (xmlXIncludeProcess(doc.get()) <= 0) {
+    if (xmlXIncludeProcess(doc.get()) == -1) {
         throw std::runtime_error("Failed to process xinclude in " + path.string());
     }
 
@@ -987,9 +1066,9 @@ static void DownloadFile(const std::string& url, const fs::path& dst) {
     }
 }
 
-static bool ReadRequireTag(XmlNode node, const std::string& name, std::vector<RequirePackage>& deps) {
-    auto package = ExpectProperty<std::string>(node, "package");
-    auto symlink = node.property("symlink");
+static bool ReadRequireTag(XmlNode node, Scope& scope, const std::string& name, std::vector<RequirePackage>& deps) {
+    auto package = scope.GetProperty(node, "package");
+    auto symlink = scope.TryGetProperty(node, "symlink");
 
     if (package == name) {
         throw std::runtime_error("Package " + name + " cannot require itself");
@@ -1009,24 +1088,70 @@ static bool ReadRequireTag(XmlNode node, const std::string& name, std::vector<Re
     return true;
 }
 
-static ConfigureStep ReadConfigureStep(XmlNode action, const PackageInfo& packageInfo) {
+template<typename F>
+static void EvalSwitchTag(XmlNode node, Scope& scope, F&& func) {
+    auto on = scope.GetProperty(node, "on");
+    for (XmlNode child : node.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
+        if (child.name() == "case"sv) {
+            auto value = scope.GetProperty(child, "it");
+            if (value == on) {
+                func(child);
+                break;
+            }
+        }
+    }
+}
+
+static void ReadConfigureBody(XmlNode action, ConfigureStep& step, Scope& scope) {
+    for (XmlNode child : action.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
+        if (child.name() == "options"sv) {
+            for (const auto& [key, value] : child.properties()) {
+                std::string option = key;
+                scope.SubstituteVariables(option);
+                if (step.options.contains(key)) {
+                    throw std::runtime_error("Duplicate option " + key);
+                }
+                step.options[key] = option;
+            }
+        } else if (child.name() == "source"sv) {
+            step.configureSourcePath = scope.GetProperty(child, "path");
+        } else if (child.name() == "env"sv) {
+            for (const auto& [key, value] : child.properties()) {
+                std::string option = key;
+                scope.SubstituteVariables(option);
+                if (step.env.contains(key)) {
+                    throw std::runtime_error("Duplicate env variable " + key);
+                }
+                step.env[key] = option;
+            }
+        } else if (child.name() == "arg"sv) {
+            step.args.push_back(child.content());
+        } else if (child.name() == "switch"sv) {
+            EvalSwitchTag(child, scope, [&](XmlNode node) {
+                ReadConfigureBody(node, step, scope);
+            });
+        }
+    }
+}
+
+static ConfigureStep ReadConfigureStep(XmlNode action, const PackageInfo& packageInfo, Scope& scope) {
     ConfigureStep step{};
 
-    auto with = ExpectProperty<std::string>(action, "with");
+    auto with = scope.GetProperty(action, "with");
     if (with == "meson") {
         step.configure = eMeson;
         for (XmlNode child : action.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
             if (child.name() == "cross-file"sv) {
-                step.crossFile = ExpectProperty<std::string>(child, "path");
+                step.crossFile = scope.GetProperty(child, "path");
             } else if (child.name() == "native-file"sv) {
-                step.nativeFile = ExpectProperty<std::string>(child, "path");
+                step.nativeFile = scope.GetProperty(child, "path");
             }
         }
     } else if (with == "cmake") {
         step.configure = eCMake;
     } else if (with == "shell") {
         step.configure = eShell;
-        step.configureToolPath = ExpectProperty<std::string>(action, "path");
+        step.configureToolPath = scope.GetProperty(action, "path");
     } else if (with == "autoconf") {
         step.configure = eAutoconf;
     } else if (with == "script") {
@@ -1036,22 +1161,13 @@ static ConfigureStep ReadConfigureStep(XmlNode action, const PackageInfo& packag
         throw std::runtime_error("Unknown configure program " + with);
     }
 
-    auto tool = action.property("using");
+    auto tool = scope.TryGetProperty(action, "using");
     if (tool.has_value()) {
         step.configureToolPath = tool.value();
+        scope.SubstituteVariables(step.configureToolPath);
     }
 
-    for (XmlNode child : action.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
-        if (child.name() == "options"sv) {
-            step.options = child.properties();
-        } else if (child.name() == "source"sv) {
-            step.configureSourcePath = ExpectProperty<std::string>(child, "path");
-        } else if (child.name() == "env"sv) {
-            step.env = child.properties();
-        } else if (child.name() == "arg"sv) {
-            step.args.push_back(child.content());
-        }
-    }
+    ReadConfigureBody(action, step, scope);
 
     return step;
 }
@@ -1066,35 +1182,35 @@ static void AddWorkspacePackage(PackageInfo packageInfo, std::string name) {
     gWorkspace.AddPackage(packageInfo);
 }
 
-static Download ReadDownloadTags(XmlNode node) {
-    auto name = node.property("name").value_or("");
-    auto url = ExpectProperty<std::string>(node, "url");
-    auto file = ExpectProperty<std::string>(node, "file");
-    auto archive = node.property("archive");
-    auto trimRootFolder = node.property("trim-root-folder").value_or("false") == "true";
-    auto install = node.property("install").value_or("false") == "true";
-    auto sha256 = node.property("sha256");
+static Download ReadDownloadTags(XmlNode node, Scope& scope) {
+    auto name = scope.TryGetProperty(node, "name").value_or("");
+    auto url = scope.GetProperty(node, "url");
+    auto file = scope.GetProperty(node, "file");
+    auto archive = scope.TryGetProperty(node, "archive");
+    auto trimRootFolder = scope.TryGetProperty(node, "trim-root-folder").value_or("false") == "true";
+    auto install = scope.TryGetProperty(node, "install").value_or("false") == "true";
+    auto sha256 = scope.TryGetProperty(node, "sha256");
 
     GitRepo repo;
-    if (auto git = node.property("git")) {
+    if (auto git = scope.TryGetProperty(node, "git")) {
         repo.url = git.value();
-        repo.branch = node.property("branch").value_or("");
-        repo.commit = node.property("commit").value_or("");
+        repo.branch = scope.TryGetProperty(node, "branch").value_or("");
+        repo.commit = scope.TryGetProperty(node, "commit").value_or("");
     }
 
     return Download{name, url, file, archive.value_or(""), sha256, trimRootFolder, install, repo};
 }
 
-static void ReadDownloadConfig(XmlNode root) {
-    auto name = ExpectProperty<std::string>(root, "name");
+static void ReadDownloadConfig(XmlNode root, Scope& scope) {
+    auto name = scope.GetProperty(root, "name");
     gPackageDb->RaiseTargetStatus(name, eUnknown);
 
-    auto download = ReadDownloadTags(root);
+    auto download = ReadDownloadTags(root, scope);
     PackageInfo packageInfo {
         .name = name,
     };
 
-    if (auto version = root.property("version")) {
+    if (auto version = scope.TryGetProperty(root, "version")) {
         packageInfo.version = version.value();
     }
 
@@ -1103,12 +1219,12 @@ static void ReadDownloadConfig(XmlNode root) {
     for (XmlNode action : root.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
         auto step = NodeName(action);
         if (step == "patch"sv) {
-            auto file = ExpectProperty<std::string>(action, "file");
+            auto file = scope.GetProperty(action, "file");
             packageInfo.patches.push_back(file);
         } else if (step == "require"sv) {
-            ReadRequireTag(action, name, packageInfo.dependencies);
+            ReadRequireTag(action, scope, name, packageInfo.dependencies);
         } else if (step == "overlay"sv) {
-            auto folder = ExpectProperty<std::string>(action, "path");
+            auto folder = scope.GetProperty(action, "path");
             packageInfo.overlays.push_back(Overlay{folder});
         }
     }
@@ -1116,57 +1232,42 @@ static void ReadDownloadConfig(XmlNode root) {
     AddWorkspacePackage(packageInfo, name);
 }
 
-static void ReadPackageConfig(XmlNode root) {
-    auto name = ExpectProperty<std::string>(root, "name");
-    gPackageDb->RaiseTargetStatus(name, eUnknown);
-
-    PackageInfo packageInfo {
-        .name = name,
-    };
-
-    if (auto installName = root.property("install-name")) {
-        packageInfo.installName = installName.value();
+static void ReadVarElement(XmlNode root, Scope& scope) {
+    for (auto& [key, value] : root.properties()) {
+        scope.AddVariable(key, value);
     }
+}
 
-    if (auto from = root.property("from")) {
-        packageInfo.fromSource = from.value();
-        packageInfo.imported = gSourceRoot / from.value();
-        gPackageDb->AddDependency(name, from.value());
-    }
-
-    if (auto version = root.property("version")) {
-        packageInfo.version = version.value();
-    }
-
+static void ReadPackageBody(XmlNode root, PackageInfo& packageInfo, Scope& scope) {
     for (XmlNode action : root.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
         auto step = NodeName(action);
         if (step == "download"sv) {
             assert(packageInfo.fromSource.empty() && "Package cannot have both source and download steps");
 
-            packageInfo.downloads.push_back(ReadDownloadTags(action));
+            packageInfo.downloads.push_back(ReadDownloadTags(action, scope));
         } else if (step == "patch"sv) {
             assert(packageInfo.fromSource.empty() && "Package cannot have both source and patch steps");
 
-            auto file = ExpectProperty<std::string>(action, "file");
+            auto file = scope.GetProperty(action, "file");
             packageInfo.patches.push_back(file);
         } else if (step == "require"sv) {
-            ReadRequireTag(action, name, packageInfo.dependencies);
+            ReadRequireTag(action, scope, packageInfo.name, packageInfo.dependencies);
         } else if (step == "source"sv) {
             if (!packageInfo.source.empty()) {
-                throw std::runtime_error("Package " + name + " already has source folder");
+                throw std::runtime_error("Package " + packageInfo.name + " already has source folder");
             }
 
-            auto src = ExpectProperty<std::string>(action, "path");
+            auto src = scope.GetProperty(action, "path");
             packageInfo.source = gSourceRoot / src;
         } else if (step == "overlay"sv) {
             assert(packageInfo.fromSource.empty() && "Package cannot have both source and overlay steps");
 
-            auto folder = ExpectProperty<std::string>(action, "path");
+            auto folder = scope.GetProperty(action, "path");
             packageInfo.overlays.push_back(Overlay{folder});
         } else if (step == "configure"sv) {
-            packageInfo.configureSteps.push_back(ReadConfigureStep(action, packageInfo));
+            packageInfo.configureSteps.push_back(ReadConfigureStep(action, packageInfo, scope));
         } else if (step == "script"sv) {
-            auto script = ExpectProperty<std::string>(action, "path");
+            auto script = scope.GetProperty(action, "path");
             ScriptExec exec {
                 .script = script
             };
@@ -1174,41 +1275,74 @@ static void ReadPackageConfig(XmlNode root) {
             for (XmlNode child : action.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
                 auto type = child.name();
                 if (type == "arg"sv) {
-                    exec.args.push_back(ExpectProperty<std::string>(child, "value"));
+                    exec.args.push_back(scope.GetProperty(child, "value"));
                 } else if (type == "env"sv) {
-                    auto key = ExpectProperty<std::string>(child, "key");
-                    auto value = ExpectProperty<std::string>(child, "value");
+                    auto key = scope.GetProperty(child, "key");
+                    auto value = scope.GetProperty(child, "value");
                     exec.env[key] = value;
                 }
             }
 
             packageInfo.scripts.push_back(exec);
         } else if (step == "install") {
-            packageInfo.installTargets = ExpectProperty<std::string>(action, "targets");
+            packageInfo.installTargets = scope.GetProperty(action, "targets");
         } else if (step == "artifacts") {
-            auto files = ExpectProperty<std::string>(action, "files");
+            auto files = scope.GetProperty(action, "files");
             for (auto file : files | stdv::split(' ')) {
                 packageInfo.artifacts.push_back(std::string(file.begin(), file.end()));
             }
+        } else if (step == "switch") {
+            EvalSwitchTag(action, scope, [&](XmlNode child) {
+                ReadPackageBody(child, packageInfo, scope);
+            });
         }
     }
+}
+
+static void ReadPackageConfig(XmlNode root, Scope& outer) {
+    auto name = outer.GetProperty(root, "name");
+    gPackageDb->RaiseTargetStatus(name, eUnknown);
+
+    Scope scope(&outer);
+
+    PackageInfo packageInfo {
+        .name = name,
+    };
+
+    if (auto installName = scope.TryGetProperty(root, "install-name")) {
+        packageInfo.installName = installName.value();
+    }
+
+    if (auto from = scope.TryGetProperty(root, "from")) {
+        packageInfo.fromSource = from.value();
+        packageInfo.imported = gSourceRoot / from.value();
+        gPackageDb->AddDependency(name, from.value());
+    }
+
+    if (auto version = scope.TryGetProperty(root, "version")) {
+        packageInfo.version = version.value();
+    }
+
+    ReadPackageBody(root, packageInfo, scope);
 
     AddWorkspacePackage(packageInfo, name);
 }
 
-static void ReadArtifactConfig(XmlNode node) {
-    auto name = ExpectProperty<std::string>(node, "name");
+static void ReadArtifactConfig(XmlNode node, Scope& outer) {
+    auto name = outer.GetProperty(node, "name");
 
     PackageInfo artifactInfo {
         .name = name
     };
 
+    Scope scope(&outer);
+
     for (XmlNode action : node.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
         auto step = action.name();
         if (step == "require"sv) {
-            ReadRequireTag(action, name, artifactInfo.dependencies);
+            ReadRequireTag(action, scope, name, artifactInfo.dependencies);
         } else if (step == "script"sv) {
-            auto script = ExpectProperty<std::string>(action, "path");
+            auto script = scope.GetProperty(action, "path");
             ScriptExec exec {
                 .script = script
             };
@@ -1216,10 +1350,10 @@ static void ReadArtifactConfig(XmlNode node) {
             for (XmlNode child : action.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
                 auto type = child.name();
                 if (type == "arg"sv) {
-                    exec.args.push_back(ExpectProperty<std::string>(child, "value"));
+                    exec.args.push_back(scope.GetProperty(child, "value"));
                 } else if (type == "env"sv) {
-                    auto key = ExpectProperty<std::string>(child, "key");
-                    auto value = ExpectProperty<std::string>(child, "value");
+                    auto key = scope.GetProperty(child, "key");
+                    auto value = scope.GetProperty(child, "value");
                     exec.env[key] = value;
                 }
             }
@@ -1751,17 +1885,35 @@ static void GenerateClangDaemonConfig(const std::vector<std::string>& args) {
     file << text;
 }
 
-static void ReadRepoElement(XmlNode root) {
+static void ReadRepoElement(XmlNode root, Scope& scope) {
     for (XmlNode child : root.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
         auto type = child.name();
         if (type == "package"sv) {
-            ReadPackageConfig(child);
+            ReadPackageConfig(child, scope);
         } else if (type == "download"sv) {
-            ReadDownloadConfig(child);
+            ReadDownloadConfig(child, scope);
         } else if (type == "artifact"sv) {
-            ReadArtifactConfig(child);
+            ReadArtifactConfig(child, scope);
         } else if (type == "collection"sv) {
-            ReadRepoElement(child);
+            ReadRepoElement(child, scope);
+        } else if (type == "var"sv) {
+            ReadVarElement(child, scope);
+        } else if (type == "switch"sv) {
+            EvalSwitchTag(child, scope, [&](XmlNode node) {
+                ReadRepoElement(node, scope);
+            });
+        } else {
+            std::println(std::cerr, "Unknown tag {}", type);
+            assert(false && "Unknown tag");
+        }
+    }
+}
+
+static void ReadTargetElement(XmlNode root, Scope& scope) {
+    for (XmlNode child : root.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
+        auto type = child.name();
+        if (type == "var"sv) {
+            ReadVarElement(child, scope);
         } else {
             std::println(std::cerr, "Unknown tag {}", type);
             assert(false && "Unknown tag");
@@ -1830,6 +1982,10 @@ int main(int argc, const char **argv) try {
     parser.add_argument("--config")
         .help("Path to the configuration file")
         .default_value("repo.xml");
+
+    parser.add_argument("--target")
+        .help("Path to target file")
+        .required();
 
     parser.add_argument("--workspace")
         .help("Path to vscode workspace file to generate");
@@ -1914,29 +2070,38 @@ int main(int argc, const char **argv) try {
     fs::path build = parser.get<std::string>("--output");
     fs::path prefix = parser.get<std::string>("--prefix");
     fs::path configPath = parser.get<std::string>("--config");
+    fs::path targetPath = parser.get<std::string>("--target");
 
     PackageDb packageDb(build / parser.get<std::string>("--repo"));
     CheckRequiredTools(packageDb);
 
     gIncludePaths.push_back(configPath.parent_path());
+    gIncludePaths.push_back(targetPath.parent_path());
 
     if (xmlRegisterInputCallbacks(incMatch, incOpen, incRead, incClose) < 0) {
         std::println(std::cerr, "Failed to register input callbacks");
         return 1;
     }
 
-    XmlDocument document = XmlDocumentOpen(configPath);
-    if (document == nullptr) {
+    XmlDocument targetDocument = XmlDocumentOpen(targetPath);
+    if (targetDocument == nullptr) {
+        std::println(std::cerr, "Error: Failed to parse {}", targetPath.string());
+        return 1;
+    }
+
+    XmlDocument repoDocument = XmlDocumentOpen(configPath);
+    if (repoDocument == nullptr) {
         std::println(std::cerr, "Error: Failed to parse {}", configPath.string());
         return 1;
     }
 
-    XmlNode root = xmlDocGetRootElement(document.get());
+    XmlNode targetRoot = xmlDocGetRootElement(targetDocument.get());
+    XmlNode repoRoot = xmlDocGetRootElement(repoDocument.get());
 
     gWorkspace.removeOrphans = parser.get<bool>("--remove-orphans");
 
-    auto name = ExpectProperty<std::string>(root, "name");
-    auto sources = ExpectProperty<std::string>(root, "sources");
+    auto name = ExpectProperty<std::string>(repoRoot, "name");
+    auto sources = ExpectProperty<std::string>(repoRoot, "sources");
     gRepoRoot = configPath.parent_path();
     gBuildRoot = build;
     gInstallPrefix = prefix;
@@ -1964,7 +2129,10 @@ int main(int argc, const char **argv) try {
 
     bool hard = parser.get<bool>("--hard");
 
-    ReadRepoElement(root);
+    Scope rootScope;
+    ReadTargetElement(targetRoot, rootScope);
+
+    ReadRepoElement(repoRoot, rootScope);
 
     auto applyStateLowering = [&](std::string flag, PackageStatus status) {
         auto all = parser.get<std::vector<std::string>>(flag);

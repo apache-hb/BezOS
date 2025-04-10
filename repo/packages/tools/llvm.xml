@@ -10,16 +10,23 @@
               commit='dca73063653ca7d35afb3226ae66623495086204'>
 
         <patch file='@REPO@/patches/llvm/add-bezos.patch' />
-        <!-- <patch file='@REPO@/patches/llvm/0002-add-clang-target.patch' /> -->
-        <!-- <patch file='@REPO@/patches/llvm/0003-add-clang-toolchain.patch' /> -->
     </download>
 
     <package name='llvm' from='llvm-project-src'>
         <configure with='cmake'>
             <source path='@SOURCE_ROOT@/llvm' />
+
+            <switch on='${arch}'>
+                <case it='x86_64'>
+                    <options LLVM_TARGETS_TO_BUILD="X86" />
+                </case>
+                <case it='sparcv9'>
+                    <options LLVM_TARGETS_TO_BUILD="X86;Sparc" />
+                </case>
+            </switch>
+
             <options LLVM_ENABLE_PROJECTS="llvm;clang;clang-tools-extra;lld"
                      LLVM_ENABLE_RUNTIMES="compiler-rt;libcxx;libcxxabi;libunwind"
-                     LLVM_TARGETS_TO_BUILD="X86"
 
                      CMAKE_C_COMPILER="clang"
                      CMAKE_CXX_COMPILER="clang++"

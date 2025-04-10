@@ -219,13 +219,41 @@ OsStatus sys2::SysDestroyProcess(InvokeContext *context, ProcessDestroyInfo info
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysQueryProcessList(InvokeContext *context, ProcessQueryInfo info) {
+OsStatus sys2::SysQueryProcessList(InvokeContext *context, ProcessQueryInfo info, ProcessQueryResult *result) {
     sys2::System *system = context->system;
     sm::RcuSharedPtr<Process> process = context->process->getProcess();
     stdx::SharedLock guard(system->mLock);
-    stdx::UniqueLock lock(process->getMonitor());
 
+    size_t index = 0;
+    bool hasMoreData = false;
+    for (sm::RcuSharedPtr<Process> child : system->mProcessObjects) {
+        if (child->getName() != info.matchName) {
+            continue;
+        }
 
+        if (index >= info.limit) {
+            hasMoreData = true;
+            break;
+        }
+
+        HandleCreateInfo createInfo {
+            .owner = process,
+            .access = info.access,
+        };
+        IHandle *handle = nullptr;
+        OsStatus status = child->open(createInfo, &handle);
+        if (status != OsStatusSuccess) {
+            continue;
+        }
+
+        info.handles[index] = handle->getHandle();
+
+        index += 1;
+    }
+
+    result->found = index;
+
+    return hasMoreData ? OsStatusMoreData : OsStatusSuccess;
 }
 
 OsStatus sys2::SysCreateThread(InvokeContext *context, ThreadCreateInfo info, ThreadHandle **handle) {
@@ -266,11 +294,36 @@ OsStatus sys2::SysDestroyThread(InvokeContext *context, ThreadDestroyInfo info) 
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysCreateTx(InvokeContext *, TxCreateInfo, TxHandle **) {
+OsStatus sys2::SysCreateTx(InvokeContext *invoke, TxCreateInfo createInfo, TxHandle **handle) {
+    sys2::ProcessHandle *parent = createInfo.process;
+    sys2::ProcessHandle *invoker = invoke->process;
+
+    if (!parent->hasAccess(ProcessAccess::eTxControl)) {
+        return OsStatusAccessDenied;
+    }
+
+    sm::RcuSharedPtr<Tx> tx = sm::rcuMakeShared<Tx>(&invoke->system->rcuDomain(), createInfo);
+    if (!tx) {
+        return OsStatusOutOfMemory;
+    }
+
+    OsHandle id = invoker->getProcess()->newHandleId(eOsHandleTx);
+    TxHandle *result = new (std::nothrow) TxHandle(tx, id, TxAccess::eAll);
+    if (!result) {
+        return OsStatusOutOfMemory;
+    }
+
+    invoker->getProcess()->addHandle(result);
+    *handle = result;
+
+    return OsStatusSuccess;
+}
+
+OsStatus sys2::SysCommitTx(InvokeContext *, TxDestroyInfo) {
     return OsStatusNotSupported;
 }
 
-OsStatus sys2::SysDestroyTx(InvokeContext *, TxDestroyInfo) {
+OsStatus sys2::SysAbortTx(InvokeContext *, TxDestroyInfo) {
     return OsStatusNotSupported;
 }
 

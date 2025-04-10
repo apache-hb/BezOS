@@ -23,10 +23,10 @@
              CXX='@PREFIX@/llvm/bin/clang++'
              AR='@PREFIX@/llvm/bin/llvm-ar'
              LD='@PREFIX@/llvm/bin/ld.lld'
-             CFLAGS='--sysroot @PREFIX@ --target=x86_64-unknown-bezos -I@PREFIX@/ncurses/include'
-             LDFLAGS='--sysroot @PREFIX@ --target=x86_64-unknown-bezos -L@PREFIX@/ncurses/lib' />
+             CFLAGS='--sysroot @PREFIX@ --target=${arch}-unknown-bezos -I@PREFIX@/ncurses/include'
+             LDFLAGS='--sysroot @PREFIX@ --target=${arch}-unknown-bezos -L@PREFIX@/ncurses/lib' />
 
-        <options host='x86_64-unknown-bezos-jlibc'
+        <options host='${arch}-unknown-bezos-jlibc'
                  disable-etcdir=''
                  disable-zshenv=''
                  disable-zshrc=''

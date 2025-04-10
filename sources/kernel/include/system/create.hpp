@@ -4,7 +4,6 @@
 #include "system/access.hpp" // IWYU pragma: export
 
 #include "std/static_string.hpp"
-#include "util/absl.hpp"
 
 namespace sys2 {
     using ObjectName = stdx::StaticString<OS_OBJECT_NAME_MAX>;

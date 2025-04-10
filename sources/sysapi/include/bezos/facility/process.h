@@ -20,6 +20,7 @@ enum {
     /// @brief Grants access to terminate the process.
     eOsProcessAccessTerminate      = (1 << 1),
 
+    /// @brief Grants access to query the process state.
     eOsProcessAccessStat           = (1 << 2),
 
     /// @brief Grants access to suspend and resume the process.

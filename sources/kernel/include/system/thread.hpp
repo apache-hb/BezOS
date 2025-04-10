@@ -4,7 +4,7 @@
 
 #include "arch/xsave.hpp"
 #include "memory/layout.hpp"
-#include "system/handle.hpp"
+#include "system/base.hpp"
 #include "system/create.hpp"
 #include "xsave.hpp"
 
@@ -21,32 +21,7 @@ namespace sys2 {
         sm::RcuWeakPtr<Process> process;
     };
 
-    class ThreadHandle final : public IHandle {
-        sm::RcuSharedPtr<Thread> mThread;
-        OsHandle mHandle;
-        ThreadAccess mAccess;
-
-    public:
-        ThreadHandle(sm::RcuSharedPtr<Thread> thread, OsHandle handle, ThreadAccess access);
-
-        sm::RcuSharedPtr<Thread> getThread() { return mThread; }
-
-        sm::RcuWeakPtr<IObject> getObject() override;
-        OsHandle getHandle() const override { return mHandle; }
-
-
-        bool hasAccess(ThreadAccess access) const {
-            return bool(mAccess & access);
-        }
-
-        OsStatus destroy(System *system, const ThreadDestroyInfo& info);
-    };
-
-    class Thread final : public IObject {
-        stdx::SharedSpinLock mLock;
-
-        ObjectName mName GUARDED_BY(mLock);
-
+    class Thread final : public BaseObject {
         sm::RcuWeakPtr<Process> mProcess;
 
         RegisterSet mCpuState;
@@ -60,11 +35,11 @@ namespace sys2 {
         OsThreadState mThreadState;
 
     public:
+        using Access = ThreadAccess;
+        using Super = BaseObject;
+
         Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, x64::XSave *fpuState, km::StackMapping kernelStack);
         Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, sys2::XSaveState fpuState, km::StackMapping kernelStack);
-
-        void setName(ObjectName name) override;
-        ObjectName getName() override;
 
         stdx::StringView getClassName() const override { return "Thread"; }
 
@@ -76,6 +51,17 @@ namespace sys2 {
         km::StackMapping getKernelStack() const { return mKernelStack; }
 
         bool isSupervisor();
+
+        OsStatus destroy(System *system, const ThreadDestroyInfo& info);
+    };
+
+    class ThreadHandle final : public BaseHandle<Thread> {
+    public:
+        using Super = BaseHandle<Thread>;
+
+        ThreadHandle(sm::RcuSharedPtr<Thread> thread, OsHandle handle, ThreadAccess access);
+
+        sm::RcuSharedPtr<Thread> getThread() { return getInner(); }
 
         OsStatus destroy(System *system, const ThreadDestroyInfo& info);
     };

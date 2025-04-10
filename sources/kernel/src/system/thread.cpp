@@ -6,38 +6,22 @@
 #include "xsave.hpp"
 
 sys2::ThreadHandle::ThreadHandle(sm::RcuSharedPtr<Thread> thread, OsHandle handle, ThreadAccess access)
-    : mThread(thread)
-    , mHandle(handle)
-    , mAccess(access)
+    : Super(thread, handle, access)
 { }
-
-sm::RcuWeakPtr<sys2::IObject> sys2::ThreadHandle::getObject() {
-    return mThread;
-}
 
 OsStatus sys2::ThreadHandle::destroy(System *system, const ThreadDestroyInfo& info) {
     if (!hasAccess(ThreadAccess::eTerminate)) {
         return OsStatusAccessDenied;
     }
 
-    return mThread->destroy(system, info);
-}
-
-void sys2::Thread::setName(ObjectName name) {
-    stdx::UniqueLock guard(mLock);
-    mName = name;
-}
-
-sys2::ObjectName sys2::Thread::getName() {
-    stdx::SharedLock guard(mLock);
-    return mName;
+    return getThread()->destroy(system, info);
 }
 
 OsStatus sys2::Thread::stat(ThreadInfo *info) {
     stdx::SharedLock guard(mLock);
 
     *info = ThreadInfo {
-        .name = mName,
+        .name = getName(),
         .state = mThreadState,
         .process = mProcess,
     };
@@ -75,7 +59,8 @@ sys2::Thread::Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process>
 { }
 
 sys2::Thread::Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, sys2::XSaveState fpuState, km::StackMapping kernelStack)
-    : mProcess(process)
+    : Super(createInfo.name)
+    , mProcess(process)
     , mCpuState(createInfo.cpuState)
     , mFpuState(std::move(fpuState))
     , mTlsAddress(createInfo.tlsAddress)

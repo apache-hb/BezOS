@@ -1,0 +1,3 @@
+<target name='sparcv9'>
+    <var arch='sparcv9' />
+</target>

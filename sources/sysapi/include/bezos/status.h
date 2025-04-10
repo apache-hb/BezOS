@@ -70,6 +70,7 @@ enum OsStatusId {
 
     OsStatusOutOfBounds = 0x000f,
 
+    /// @brief There is more data available.
     OsStatusMoreData = 0x0010,
 
     OsStatusChecksumError = 0x0011,

@@ -42,6 +42,7 @@ namespace sys2 {
         virtual sm::RcuWeakPtr<IObject> getObject() = 0;
         virtual OsHandle getHandle() const = 0;
         virtual OsStatus clone(OsHandleAccess, IHandle **) { return OsStatusNotSupported; }
+        virtual OsStatus close() { return OsStatusNotSupported; }
 
         OsHandleType getHandleType() const { return OS_HANDLE_TYPE(getHandle()); }
         OsHandle internalId() const { return OS_HANDLE_ID(getHandle()); }

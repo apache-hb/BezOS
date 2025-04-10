@@ -106,13 +106,14 @@ namespace sys2 {
     OsStatus SysCreateProcess(InvokeContext *context, ProcessCreateInfo info, ProcessHandle **handle);
     OsStatus SysDestroyProcess(InvokeContext *context, ProcessDestroyInfo info);
 
-    OsStatus SysQueryProcessList(InvokeContext *context, ProcessQueryInfo info);
+    OsStatus SysQueryProcessList(InvokeContext *context, ProcessQueryInfo info, ProcessQueryResult *result);
 
     OsStatus SysCreateThread(InvokeContext *context, ThreadCreateInfo info, ThreadHandle **handle);
     OsStatus SysDestroyThread(InvokeContext *context, ThreadDestroyInfo info);
 
     OsStatus SysCreateTx(InvokeContext *context, TxCreateInfo info, TxHandle **handle);
-    OsStatus SysDestroyTx(InvokeContext *context, TxDestroyInfo info);
+    OsStatus SysCommitTx(InvokeContext *context, TxDestroyInfo info);
+    OsStatus SysAbortTx(InvokeContext *context, TxDestroyInfo info);
 
     OsStatus SysCreateMutex(InvokeContext *context, MutexCreateInfo info, MutexHandle **handle);
     OsStatus SysDestroyMutex(InvokeContext *context, MutexDestroyInfo info);

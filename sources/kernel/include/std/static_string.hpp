@@ -7,6 +7,9 @@
 #include <string.h>
 
 namespace stdx {
+    template<typename T>
+    struct IsStaticString : std::false_type { };
+
     template<typename T, size_t N>
     class StaticStringBase {
         using SizeType = detail::ArraySize<N>;
@@ -110,25 +113,33 @@ namespace stdx {
             return mStorage[index];
         }
 
+        constexpr std::strong_ordering compare(StringViewBase<T> view) const noexcept {
+            return std::lexicographical_compare_three_way(begin(), end(), view.begin(), view.end());
+        }
+
         // TODO: this is annoying to use with string literals, it tries to compare the null terminator.
         template<typename R> requires IsRange<const T, R>
+        constexpr bool equal(const R& range) const noexcept {
+            return compare(range) == std::strong_ordering::equal;
+        }
+
+        template<typename R> requires IsRange<const T, R>
         constexpr bool operator==(const R& other) const {
-            return std::equal(begin(), end(), std::begin(other), std::end(other));
+            return equal(other);
         }
     };
 
     template<size_t N>
     using StaticString = StaticStringBase<char, N>;
 
-    template<typename T>
-    struct IsStaticString : std::false_type { };
-
-    template<size_t N>
-    struct IsStaticString<StaticString<N>> : std::true_type { };
+    template<typename T, size_t N>
+    struct IsStaticString<StaticStringBase<T, N>> : std::true_type { };
 
     template<typename T>
     concept StaticStringType = IsStaticString<T>::value;
 
     static_assert(sizeof(StaticString<16>) == 17);
     static_assert(sizeof(StaticString<64>) == 65);
+    static_assert(IsStaticString<StaticString<16>>::value);
+    static_assert(IsStaticString<StaticStringBase<char8_t, 64>>::value);
 }

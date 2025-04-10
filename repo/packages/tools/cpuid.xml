@@ -10,8 +10,8 @@
     <build with='make' target='cpuid'>
         <env CC="@PREFIX@/llvm/bin/clang"
              LD="@PREFIX@/llvm/bin/ld.lld"
-             CFLAGS="--sysroot @PREFIX@ --target=x86_64-unknown-bezos-jlibc"
-             LDFLAGS="--sysroot @PREFIX@ --target=x86_64-unknown-bezos-jlibc" />
+             CFLAGS="--sysroot @PREFIX@ --target=${arch}-unknown-bezos-jlibc"
+             LDFLAGS="--sysroot @PREFIX@ --target=${arch}-unknown-bezos-jlibc" />
     </build>
 
     <install with='make' target='install'>

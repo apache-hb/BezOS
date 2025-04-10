@@ -16,3 +16,10 @@ TEST(StaticStringTest, FromStringView) {
     stdx::StaticString<16> str = view;
     ASSERT_EQ(str.count(), 13);
 }
+
+TEST(StaticStringTest, Equal) {
+    stdx::StaticString<128> str = "Hello, World!";
+    stdx::StaticString<64> str2 = "Hello, World!";
+    ASSERT_TRUE(str == str2);
+    ASSERT_EQ(str, "Hello, World!");
+}

@@ -5,8 +5,6 @@
 #include "system/system.hpp"
 #include "system_test.hpp"
 
-#include <string_view>
-
 struct TestData {
     km::SystemMemory memory;
     sys2::GlobalSchedule schedule;
@@ -19,7 +17,7 @@ struct TestData {
     { }
 };
 
-class TxSystemTest : public SystemBaseTest {
+class QuerySystemTest : public SystemBaseTest {
 public:
     void SetUp() override {
         SystemBaseTest::SetUp();
@@ -51,10 +49,9 @@ public:
     sys2::System *system() { return &data->system; }
 };
 
-TEST_F(TxSystemTest, TransactCreateProcess) {
+TEST_F(QuerySystemTest, TransactCreateProcess) {
     sys2::ProcessHandle *hChild = nullptr;
     sys2::ThreadHandle *hThread = nullptr;
-    sys2::TxHandle *hTx = nullptr;
 
     {
         sys2::ProcessCreateInfo createInfo {
@@ -80,18 +77,6 @@ TEST_F(TxSystemTest, TransactCreateProcess) {
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
-    {
-        sys2::TxCreateInfo txCreateInfo {
-            .name = "TEST",
-            .process = hChild,
-        };
-
-        sys2::InvokeContext invoke { system(), hChild, nullptr };
-        OsStatus status = sys2::SysCreateTx(&invoke, txCreateInfo, &hTx);
-        ASSERT_EQ(status, OsStatusSuccess);
-        ASSERT_NE(hTx, nullptr) << "Transaction was not created";
-    }
-
     // create a process and fill out its address space inside a transaction
 
     OsStatus status = OsStatusSuccess;
@@ -100,13 +85,11 @@ TEST_F(TxSystemTest, TransactCreateProcess) {
     sys2::ProcessCreateInfo processCreateInfo {
         .name = "ZSH.ELF",
         .process = hChild,
-        .tx = hTx,
     };
 
     sys2::ThreadCreateInfo threadCreateInfo {
         .name = "MAIN",
         .process = hChild,
-        .tx = hTx,
         .kernelStackSize = x64::kPageSize * 8,
     };
 
@@ -136,6 +119,6 @@ TEST_F(TxSystemTest, TransactCreateProcess) {
 
         status = sys2::SysQueryProcessList(&invoke, query, &result);
         ASSERT_EQ(status, OsStatusSuccess) << "Failed to query process list";
-        ASSERT_EQ(result.found, 0) << "Process was found outside the transaction";
+        ASSERT_EQ(result.found, 1) << "Failed to find process";
     }
 }
