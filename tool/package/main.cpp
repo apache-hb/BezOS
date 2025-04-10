@@ -2200,6 +2200,7 @@ static int RunPackageTool(argparse::ArgumentParser& parser) {
     return 0;
 }
 
+#if 0
 static void WritePidFile(const fs::path& path) {
     std::ofstream pidfile(path);
     if (!pidfile) {
@@ -2211,6 +2212,7 @@ static void WritePidFile(const fs::path& path) {
         throw std::runtime_error("Failed to write PID file");
     }
 }
+#endif
 
 static int RunDaemon(argparse::ArgumentParser& parser) {
     return 0;

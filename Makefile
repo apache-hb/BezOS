@@ -85,7 +85,7 @@ KERNEL_PATH := build/packages/kernel
 
 .PHONY: clean-coverage
 clean-coverage:
-	@find $(KERNEL_PATH) -name "*.gcda" -print0 | xargs -0 rm || true 2> /dev/null
+	@find $(KERNEL_PATH) -name "*.gcda" -print0 | xargs -0 rm 2> /dev/null || true
 
 .PHONY: clean
 clean:
