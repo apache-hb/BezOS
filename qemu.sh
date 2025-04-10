@@ -18,6 +18,11 @@ serial_canbus()
     echo "-chardev serial,id=canbus0,path=$CANBUS -serial chardev:canbus0"
 }
 
+repobld()
+{
+    install/tool/bin/package.elf --config repo/repo.xml --target repo/targets/x86_64.xml --output build --prefix install --rebuild $@
+}
+
 # Check if a different iso is requested
 echo $ARGS | grep -q "\-iso=hyper"
 if [ $? -eq 0 ]; then
@@ -48,10 +53,9 @@ if [ $? -eq 0 ]; then
     ARGS="$(echo $ARGS | sed s/\-events//)"
 fi
 
-
 if [ "$MODE" = "ovmf" ]; then
     ARGS=$(echo $ARGS | sed s/ovmf//)
-    install/tool/bin/package.elf --config repo/repo.xml --output build --prefix install --rebuild ovmf kernel || exit 1
+    repobld ovmf kernel || exit 1
     qemu-system-x86_64 \
         -drive if=pflash,format=raw,unit=0,file=install/ovmf/ovmf-code-x86_64.fd,readonly=on \
         -drive if=pflash,format=raw,unit=1,file=install/ovmf/ovmf-vars-x86_64.fd \
@@ -93,7 +97,7 @@ elif [ "$MODE" = "test" ]; then
 
     qemu-system-x86_64 $QEMUARGS $(serial_chardev qemu-serial.txt) $(serial_canbus) -smp 4 $ARGS
 else
-    install/tool/bin/package.elf --config repo/repo.xml --output build --prefix install --rebuild kernel || exit 1
+    repobld kernel || exit 1
 
     qemu-system-x86_64 $QEMUARGS $(serial_chardev qemu-serial.txt) -smp 4 $ARGS
 fi

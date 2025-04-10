@@ -92,6 +92,43 @@ static void MakeFolder(const std::filesystem::path& path) {
     }
 }
 
+class Logger {
+    std::ostream *mOutStream = &std::cout;
+    std::ostream *mErrorStream = &std::cerr;
+
+public:
+    void OpenAsDaemon() {
+        std::ofstream *out = new std::ofstream("/etc/pkgtool.log", std::ios::app);
+        std::ofstream *err = new std::ofstream("/etc/pkgtool.err", std::ios::app);
+        if (!out->is_open() || !err->is_open()) {
+            throw std::runtime_error("Failed to open log files");
+        }
+
+        mOutStream = out;
+        mErrorStream = err;
+    }
+
+    void log(const std::string& message) {
+        *mOutStream << message << std::endl;
+    }
+
+    void err(const std::string& message) {
+        *mErrorStream << message << std::endl;
+    }
+
+    template<typename... A>
+    void logf(const std::format_string<A...>& fmt, A&&... args) {
+        log(std::vformat(fmt.get(), std::make_format_args(args...)));
+    }
+
+    template<typename... A>
+    void errf(const std::format_string<A...>& fmt, A&&... args) {
+        err(std::vformat(fmt.get(), std::make_format_args(args...)));
+    }
+};
+
+static Logger logger{};
+
 struct RequirePackage {
     std::string name;
     fs::path symlink;
@@ -741,7 +778,7 @@ struct Workspace {
         if (!packages.contains(name)) {
             if (removeOrphans) {
                 gPackageDb->RemovePackage(name);
-                std::println(std::cout, "Removed orphan package {}", name);
+                logger.logf("Removed orphan package {}", name);
                 return false;
             } else {
                 throw std::runtime_error("Unknown package " + name + ". rerun with --remove-orphans to remove");
@@ -1378,7 +1415,7 @@ static void AcquirePackage(const PackageInfo& package) {
         return;
     }
 
-    std::println(std::cout, "{}: acquire", package.name);
+    logger.logf("{}: acquire", package.name);
 
     MakeFolder(package.GetCacheFolder());
 
@@ -1388,13 +1425,13 @@ static void AcquirePackage(const PackageInfo& package) {
         } else {
             auto path = package.GetCacheFolder() / download.file;
 
-            std::println(std::cout, "{}: download {} -> {}", package.name, download.url, path.string());
+            logger.logf("{}: download {} -> {}", package.name, download.url, path.string());
 
             if (!fs::exists(path)) {
                 DownloadFile(download.url, path);
 
                 if (download.sha256.has_value()) {
-                    std::println(std::cout, "{}: verify sha256 {}", package.name, download.sha256.value());
+                    logger.logf("{}: verify sha256 {}", package.name, download.sha256.value());
                     VerifySha256(path, download.sha256.value());
                 }
             }
@@ -1403,7 +1440,7 @@ static void AcquirePackage(const PackageInfo& package) {
                 ExtractArchive(package.name, path, package.GetSourceFolder(), download.trimRootFolder);
             } else {
                 auto dst = package.GetSourceFolder() / download.file;
-                std::println(std::cout, "{}: copy {} -> {}", package.name, path.string(), dst.string());
+                logger.logf("{}: copy {} -> {}", package.name, path.string(), dst.string());
 
                 fs::remove_all(dst);
                 fs::copy_file(path, dst, fs::copy_options::overwrite_existing);
@@ -1415,7 +1452,7 @@ static void AcquirePackage(const PackageInfo& package) {
         auto src = gSourceRoot / overlay.folder;
         fs::path dst = package.GetSourceFolder();
 
-        std::println(std::cout, "{}: overlay {} -> {}", package.name, src.string(), dst.string());
+        logger.logf("{}: overlay {} -> {}", package.name, src.string(), dst.string());
 
         fs::copy(src, dst, fs::copy_options::recursive | fs::copy_options::update_existing);
     }
@@ -1424,7 +1461,7 @@ static void AcquirePackage(const PackageInfo& package) {
         auto path = patch.string();
         ReplacePackagePlaceholders(path, package);
 
-        std::println(std::cout, "{}: patch {}", package.name, path);
+        logger.logf("{}: patch {}", package.name, path);
 
         std::vector<std::string> args = {
             "patch", "-p1", "-i", path
@@ -1470,7 +1507,7 @@ static void ConnectDependencies(const PackageInfo& package) {
             continue;
         }
 
-        std::println(std::cout, "{}: symlink {} -> {}", package.name, symlink.string(), path.string());
+        logger.logf("{}: symlink {} -> {}", package.name, symlink.string(), path.string());
 
         fs::create_directories(symlink.parent_path());
         fs::create_directory_symlink(path, symlink);
@@ -1493,7 +1530,7 @@ static void RunConfigureStep(const PackageInfo& package, const ConfigureStep& st
 
     auto cwd = package.GetConfigureSourcePath(step);
     ReplacePackagePlaceholders(cwd, package);
-    std::println(std::cout, "{}: configure {}", package.name, cwd);
+    logger.logf("{}: configure {}", package.name, cwd);
 
     auto env = step.env;
     for (auto& [key, value] : env) {
@@ -1541,7 +1578,7 @@ static void RunConfigureStep(const PackageInfo& package, const ConfigureStep& st
             args.push_back("-D" + key + "=" + val);
         }
 
-        std::println(std::cout, "{}", (args | stdv::join_with(' ')) | stdr::to<std::string>());
+        logger.logf("{}", (args | stdv::join_with(' ')) | stdr::to<std::string>());
         auto result = sp::call(args, sp::cwd{cwd}, sp::environment{env});
         if (result != 0) {
             throw std::runtime_error("Failed to configure package " + package.name);
@@ -1566,7 +1603,7 @@ static void RunConfigureStep(const PackageInfo& package, const ConfigureStep& st
             args.push_back("-D" + key + "=" + val);
         }
 
-        std::println(std::cout, "{}", (args | stdv::join_with(' ')) | stdr::to<std::string>());
+        logger.logf("{}", (args | stdv::join_with(' ')) | stdr::to<std::string>());
         auto result = sp::call(args, sp::cwd{cwd}, sp::environment{env});
         if (result != 0) {
             throw std::runtime_error("Failed to configure package " + package.name);
@@ -1594,7 +1631,7 @@ static void RunConfigureStep(const PackageInfo& package, const ConfigureStep& st
             }
         }
 
-        std::println(std::cout, "{}", (args | stdv::join_with(' ')) | stdr::to<std::string>());
+        logger.logf("{}", (args | stdv::join_with(' ')) | stdr::to<std::string>());
         auto result = sp::call(args, sp::cwd{builddir}, sp::environment{env}, sp::output{out.c_str()}, sp::error{err.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to configure package " + package.name);
@@ -1609,7 +1646,7 @@ static void RunConfigureStep(const PackageInfo& package, const ConfigureStep& st
             ReplacePackagePlaceholders(arg, package);
         }
 
-        std::println(std::cout, "{}", (args | stdv::join_with(' ')) | stdr::to<std::string>());
+        logger.logf("{}", (args | stdv::join_with(' ')) | stdr::to<std::string>());
         auto result = sp::call(args, sp::environment{env}, sp::cwd{builddir});
         if (result != 0) {
             throw std::runtime_error("Failed to run script " + args[1]);
@@ -1625,7 +1662,7 @@ static void RunConfigureStep(const PackageInfo& package, const ConfigureStep& st
         }
 
         std::vector<std::string> args = { "/bin/sh", path };
-        std::println(std::cout, "{}", (args | stdv::join_with(' ')) | stdr::to<std::string>());
+        logger.logf("{}", (args | stdv::join_with(' ')) | stdr::to<std::string>());
         auto result = sp::call(args, sp::environment{env}, sp::cwd{builddir});
         if (result != 0) {
             throw std::runtime_error("Failed to run script " + path.string());
@@ -1655,7 +1692,7 @@ static void BuildPackage(const PackageInfo& package) {
         return;
     }
 
-    std::println(std::cout, "{}: build", package.name);
+    logger.logf("{}: build", package.name);
 
     auto [out, err] = package.GetLogFiles("build");
 
@@ -1664,19 +1701,19 @@ static void BuildPackage(const PackageInfo& package) {
     auto buildProgram = package.guessBuildProgram();
 
     if (buildProgram == eMeson) {
-        std::println(std::cout, "{}: build program meson", package.name);
+        logger.logf("{}: build program meson", package.name);
         auto result = sp::call({ "meson", "compile" }, sp::cwd{builddir});
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
     } else if (buildProgram == eCMake) {
-        std::println(std::cout, "{}: build program cmake", package.name);
+        logger.logf("{}: build program cmake", package.name);
         auto result = sp::call({ "cmake", "--build", builddir }, sp::cwd{builddir});
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
     } else if (buildProgram == eAutoconf) {
-        std::println(std::cout, "{}: build program autoconf", package.name);
+        logger.logf("{}: build program autoconf", package.name);
         auto result = sp::call({ "make", "-j" + std::to_string(std::thread::hardware_concurrency()), "-Otarget" }, sp::cwd{builddir});
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
@@ -1689,7 +1726,7 @@ static void BuildPackage(const PackageInfo& package) {
 static void CopyInstallFiles(const PackageInfo& package) {
     for (const auto& download : package.downloads) {
         if (download.install) {
-            std::println(std::cout, "{}: copy {}", package.name, download.file);
+            logger.logf("{}: copy {}", package.name, download.file);
 
             auto path = package.GetSourceFolder() / download.file;
             auto dst = package.GetInstallPath() / download.file;
@@ -1712,7 +1749,7 @@ static void InstallPackage(const PackageInfo& package) {
 
     MakeFolder(package.GetInstallPath());
 
-    std::println(std::cout, "{}: install", package.name);
+    logger.logf("{}: install", package.name);
 
     auto [out, err] = package.GetLogFiles("install");
 
@@ -1720,7 +1757,7 @@ static void InstallPackage(const PackageInfo& package) {
 
     {
         if (buildProgram == eMeson) {
-            std::println(std::cout, "{}: install with meson", package.name);
+            logger.logf("{}: install with meson", package.name);
             std::vector<std::string> args = { "meson", "install", "--no-rebuild", "--skip-subprojects" };
             if (!package.installTargets.empty()) {
                 args.push_back("--tags");
@@ -1731,7 +1768,7 @@ static void InstallPackage(const PackageInfo& package) {
                 throw std::runtime_error("Failed to install package " + package.name);
             }
         } else if (buildProgram == eCMake) {
-            std::println(std::cout, "{}: install with cmake", package.name);
+            logger.logf("{}: install with cmake", package.name);
             auto result = sp::call({ "cmake", "--install", builddir }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
             if (result != 0) {
                 throw std::runtime_error("Failed to install package " + package.name);
@@ -1745,7 +1782,7 @@ static void InstallPackage(const PackageInfo& package) {
                     args.push_back(std::string(std::string_view(target)));
                 }
             }
-            std::println(std::cout, "{}", (args | stdv::join_with(' ')) | stdr::to<std::string>());
+            logger.logf("{}", (args | stdv::join_with(' ')) | stdr::to<std::string>());
             auto result = sp::call(args, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
             if (result != 0) {
                 throw std::runtime_error("Failed to install package " + package.name);
@@ -1763,7 +1800,7 @@ static void GenerateArtifact(std::string_view name, const PackageInfo& artifact)
         return;
     }
 
-    std::println(std::cout, "{}: generate", artifact.name);
+    logger.logf("{}: generate", artifact.name);
 
     for (const auto& script : artifact.scripts) {
         auto path = script.script.string();
@@ -1781,7 +1818,7 @@ static void GenerateArtifact(std::string_view name, const PackageInfo& artifact)
         env["REPO"] = gRepoRoot.string();
         env["SOURCE"] = gSourceRoot.string();
 
-        std::println(std::cout, "{}: execute {}", name, args[1]);
+        logger.logf("{}: execute {}", name, args[1]);
         auto result = sp::call(args, sp::environment{env});
         if (result != 0) {
             throw std::runtime_error("Failed to run script " + args[1]);
@@ -1903,7 +1940,7 @@ static void ReadRepoElement(XmlNode root, Scope& scope) {
                 ReadRepoElement(node, scope);
             });
         } else {
-            std::println(std::cerr, "Unknown tag {}", type);
+            logger.errf("Unknown tag {}", type);
             assert(false && "Unknown tag");
         }
     }
@@ -1915,7 +1952,7 @@ static void ReadTargetElement(XmlNode root, Scope& scope) {
         if (type == "var"sv) {
             ReadVarElement(child, scope);
         } else {
-            std::println(std::cerr, "Unknown tag {}", type);
+            logger.errf("Unknown tag {}", type);
             assert(false && "Unknown tag");
         }
     }
@@ -1951,10 +1988,10 @@ static void CheckRequiredTools(PackageDb& db) {
         }
 
         if (sp::call({ name, "--version" }, sp::output{"/dev/null"}, sp::error{"/dev/null"}) != 0) {
-            std::println(std::cerr, "{} is not installed", name);
+            logger.errf("{} is not installed", name);
             ok = false;
         } else {
-            std::println(std::cout, "{} is installed", name);
+            logger.logf("{} is installed", name);
         }
 
         db.AddTool(name);
@@ -1971,6 +2008,192 @@ static void CheckRequiredTools(PackageDb& db) {
     if (!ok) {
         exit(1);
     }
+}
+
+static void ErasePackageData(const std::string& name) {
+    if (fs::exists(PackageBuildPath(name))) {
+        fs::remove_all(PackageBuildPath(name));
+    }
+
+    if (fs::exists(PackageInstallPath(name))) {
+        fs::remove_all(PackageInstallPath(name));
+    }
+
+    if (fs::exists(PackageLogPath(name))) {
+        fs::remove_all(PackageLogPath(name));
+    }
+
+    if (fs::exists(PackageImportPath(name))) {
+        fs::remove_all(PackageImportPath(name));
+    }
+}
+
+static int RunPackageTool(argparse::ArgumentParser& parser) {
+    LIBXML_TEST_VERSION;
+    defer { xmlCleanupParser(); };
+
+    fs::path build = parser.get<std::string>("--output");
+    fs::path prefix = parser.get<std::string>("--prefix");
+    fs::path configPath = parser.get<std::string>("--config");
+    fs::path targetPath = parser.get<std::string>("--target");
+
+    PackageDb packageDb(build / parser.get<std::string>("--repo"));
+    CheckRequiredTools(packageDb);
+
+    gIncludePaths.push_back(configPath.parent_path());
+    gIncludePaths.push_back(targetPath.parent_path());
+
+    if (xmlRegisterInputCallbacks(incMatch, incOpen, incRead, incClose) < 0) {
+        logger.errf("Failed to register input callbacks");
+        return 1;
+    }
+
+    XmlDocument targetDocument = XmlDocumentOpen(targetPath);
+    if (targetDocument == nullptr) {
+        logger.errf("Error: Failed to parse {}", targetPath.string());
+        return 1;
+    }
+
+    XmlDocument repoDocument = XmlDocumentOpen(configPath);
+    if (repoDocument == nullptr) {
+        logger.errf("Error: Failed to parse {}", configPath.string());
+        return 1;
+    }
+
+    XmlNode targetRoot = xmlDocGetRootElement(targetDocument.get());
+    XmlNode repoRoot = xmlDocGetRootElement(repoDocument.get());
+
+    gWorkspace.removeOrphans = parser.get<bool>("--remove-orphans");
+
+    auto name = ExpectProperty<std::string>(repoRoot, "name");
+    auto sources = ExpectProperty<std::string>(repoRoot, "sources");
+    gRepoRoot = configPath.parent_path();
+    gBuildRoot = build;
+    gInstallPrefix = prefix;
+    gSourceRoot = sources;
+
+    MakeFolder(gBuildRoot);
+    MakeFolder(PackageCacheRoot());
+    MakeFolder(PackageBuildRoot());
+    MakeFolder(gInstallPrefix);
+    MakeFolder(PackageLogRoot());
+
+    gPackageDb = &packageDb;
+
+    if (parser.present("--workspace")) {
+        try {
+            gWorkspace.workspace = *argo::parser::load(parser.get<std::string>("--workspace"));
+        } catch (const std::exception& e) { }
+    } else {
+        gWorkspace.workspace = argo::json::json_object();
+    }
+
+    gWorkspace.workspace["folders"] = argo::json::json_array();
+
+    gWorkspace.AddFolder(".", "root");
+
+    bool hard = parser.get<bool>("--hard");
+
+    Scope rootScope;
+    ReadTargetElement(targetRoot, rootScope);
+
+    ReadRepoElement(repoRoot, rootScope);
+
+    auto applyStateLowering = [&](std::string flag, PackageStatus status) {
+        auto all = parser.get<std::vector<std::string>>(flag);
+        for (const auto& name : all) {
+            auto deps = gPackageDb->GetDependantPackages(name);
+            for (const auto& dep : deps) {
+                PackageInfo info;
+                if (!gWorkspace.TryGetPackage(dep, info)) {
+                    continue;
+                }
+
+                if (hard) {
+                    gWorkspace.RelinkPackage(dep);
+                }
+
+                gPackageDb->LowerPackageStatus(dep, status);
+            }
+        }
+    };
+
+    applyStateLowering("--reinstall", eBuilt);
+    applyStateLowering("--rebuild", eConfigured);
+    applyStateLowering("--reconfigure", eDownloaded);
+    applyStateLowering("--fetch", eUnknown);
+
+    for (const auto& name : parser.get<std::vector<std::string>>("--fetch")) {
+        ErasePackageData(name);
+    }
+
+    for (const auto& name : parser.get<std::vector<std::string>>("--clone")) {
+        gCloneRepos.insert(name);
+    }
+
+    // gPackageDb->DumpTargetStates();
+
+    // Download and extract everything first, we do this now
+    // so that we can setup a chroot without it requiring internet
+    // access.
+    // TODO: actually setup a chroot
+    for (auto& package : gWorkspace.packages) {
+        AcquirePackage(package.second);
+    }
+
+    for (auto& [name, package] : gWorkspace.packages) {
+        if (!package.fromSource.empty()) {
+            package.imported = fs::absolute(gWorkspace.GetPackagePath(package.fromSource));
+        }
+    }
+
+    for (auto& pkgName : gPackageDb->GetToplevelPackages()) {
+        PackageInfo info;
+        if (!gWorkspace.TryGetPackage(pkgName, info)) {
+            continue;
+        }
+
+        assert(!pkgName.empty() && "Package name cannot be empty");
+
+        VisitPackage(info);
+    }
+
+    if (parser.present("--clangd")) {
+        GenerateClangDaemonConfig(parser.get<std::vector<std::string>>("--clangd"));
+    }
+
+    if (parser.present("--test")) {
+        auto tests = parser.get<std::vector<std::string>>("--test");
+        for (const auto& test : tests) {
+            auto path = gWorkspace.GetPackagePath(test).string();
+            auto result = sp::call({ "meson", "test" }, sp::cwd{path});
+            if (result != 0) {
+                throw std::runtime_error("Failed to run tests for " + test);
+            }
+        }
+    }
+
+    if (parser.present("--workspace")) {
+        argo::unparser::save(gWorkspace.workspace, parser.get<std::string>("--workspace"), " ", "\n", " ", 4);
+    }
+
+    return 0;
+}
+
+static void WritePidFile(const fs::path& path) {
+    std::ofstream pidfile(path);
+    if (!pidfile) {
+        throw std::runtime_error("Failed to open PID file for writing");
+    }
+
+    pidfile << std::to_string(getpid());
+    if (!pidfile) {
+        throw std::runtime_error("Failed to write PID file");
+    }
+}
+
+static int RunDaemon(argparse::ArgumentParser& parser) {
+    return 0;
 }
 
 int main(int argc, const char **argv) try {
@@ -2052,6 +2275,11 @@ int main(int argc, const char **argv) try {
         .default_value(false)
         .implicit_value(true);
 
+    parser.add_argument("--daemon")
+        .help("Start the overlayfs support daemon")
+        .default_value(false)
+        .implicit_value(true);
+
     parser.add_argument("--help")
         .help("Print this help message")
         .action([&](const std::string &) { std::cout << parser; std::exit(0); });
@@ -2059,178 +2287,18 @@ int main(int argc, const char **argv) try {
     try {
         parser.parse_args(argc, argv);
     } catch (const std::runtime_error &e) {
-        std::cerr << e.what() << std::endl;
+        logger.errf("Error: {}", e.what());
         std::cerr << parser;
         return 1;
     }
 
-    LIBXML_TEST_VERSION;
-    defer { xmlCleanupParser(); };
-
-    fs::path build = parser.get<std::string>("--output");
-    fs::path prefix = parser.get<std::string>("--prefix");
-    fs::path configPath = parser.get<std::string>("--config");
-    fs::path targetPath = parser.get<std::string>("--target");
-
-    PackageDb packageDb(build / parser.get<std::string>("--repo"));
-    CheckRequiredTools(packageDb);
-
-    gIncludePaths.push_back(configPath.parent_path());
-    gIncludePaths.push_back(targetPath.parent_path());
-
-    if (xmlRegisterInputCallbacks(incMatch, incOpen, incRead, incClose) < 0) {
-        std::println(std::cerr, "Failed to register input callbacks");
-        return 1;
-    }
-
-    XmlDocument targetDocument = XmlDocumentOpen(targetPath);
-    if (targetDocument == nullptr) {
-        std::println(std::cerr, "Error: Failed to parse {}", targetPath.string());
-        return 1;
-    }
-
-    XmlDocument repoDocument = XmlDocumentOpen(configPath);
-    if (repoDocument == nullptr) {
-        std::println(std::cerr, "Error: Failed to parse {}", configPath.string());
-        return 1;
-    }
-
-    XmlNode targetRoot = xmlDocGetRootElement(targetDocument.get());
-    XmlNode repoRoot = xmlDocGetRootElement(repoDocument.get());
-
-    gWorkspace.removeOrphans = parser.get<bool>("--remove-orphans");
-
-    auto name = ExpectProperty<std::string>(repoRoot, "name");
-    auto sources = ExpectProperty<std::string>(repoRoot, "sources");
-    gRepoRoot = configPath.parent_path();
-    gBuildRoot = build;
-    gInstallPrefix = prefix;
-    gSourceRoot = sources;
-
-    MakeFolder(gBuildRoot);
-    MakeFolder(PackageCacheRoot());
-    MakeFolder(PackageBuildRoot());
-    MakeFolder(gInstallPrefix);
-    MakeFolder(PackageLogRoot());
-
-    gPackageDb = &packageDb;
-
-    if (parser.present("--workspace")) {
-        try {
-            gWorkspace.workspace = *argo::parser::load(parser.get<std::string>("--workspace"));
-        } catch (const std::exception& e) { }
+    bool daemon = parser.get<bool>("--daemon");
+    if (daemon) {
+        return RunDaemon(parser);
     } else {
-        gWorkspace.workspace = argo::json::json_object();
+        return RunPackageTool(parser);
     }
-
-    gWorkspace.workspace["folders"] = argo::json::json_array();
-
-    gWorkspace.AddFolder(".", "root");
-
-    bool hard = parser.get<bool>("--hard");
-
-    Scope rootScope;
-    ReadTargetElement(targetRoot, rootScope);
-
-    ReadRepoElement(repoRoot, rootScope);
-
-    auto applyStateLowering = [&](std::string flag, PackageStatus status) {
-        auto all = parser.get<std::vector<std::string>>(flag);
-        for (const auto& name : all) {
-            auto deps = gPackageDb->GetDependantPackages(name);
-            for (const auto& dep : deps) {
-                PackageInfo info;
-                if (!gWorkspace.TryGetPackage(dep, info)) {
-                    continue;
-                }
-
-                if (hard) {
-                    gWorkspace.RelinkPackage(dep);
-                }
-
-                gPackageDb->LowerPackageStatus(dep, status);
-            }
-        }
-    };
-
-    applyStateLowering("--reinstall", eBuilt);
-    applyStateLowering("--rebuild", eConfigured);
-    applyStateLowering("--reconfigure", eDownloaded);
-    applyStateLowering("--fetch", eUnknown);
-
-    auto erasePackageData = [](auto name) {
-        if (fs::exists(PackageBuildPath(name))) {
-            fs::remove_all(PackageBuildPath(name));
-        }
-
-        if (fs::exists(PackageInstallPath(name))) {
-            fs::remove_all(PackageInstallPath(name));
-        }
-
-        if (fs::exists(PackageLogPath(name))) {
-            fs::remove_all(PackageLogPath(name));
-        }
-
-        if (fs::exists(PackageImportPath(name))) {
-            fs::remove_all(PackageImportPath(name));
-        }
-    };
-
-    for (const auto& name : parser.get<std::vector<std::string>>("--fetch")) {
-        erasePackageData(name);
-    }
-
-    for (const auto& name : parser.get<std::vector<std::string>>("--clone")) {
-        gCloneRepos.insert(name);
-    }
-
-    // gPackageDb->DumpTargetStates();
-
-    // Download and extract everything first, we do this now
-    // so that we can setup a chroot without it requiring internet
-    // access.
-    // TODO: actually setup a chroot
-    for (auto& package : gWorkspace.packages) {
-        AcquirePackage(package.second);
-    }
-
-    for (auto& [name, package] : gWorkspace.packages) {
-        if (!package.fromSource.empty()) {
-            package.imported = fs::absolute(gWorkspace.GetPackagePath(package.fromSource));
-        }
-    }
-
-    for (auto& pkgName : gPackageDb->GetToplevelPackages()) {
-        PackageInfo info;
-        if (!gWorkspace.TryGetPackage(pkgName, info)) {
-            continue;
-        }
-
-        assert(!pkgName.empty() && "Package name cannot be empty");
-
-        VisitPackage(info);
-    }
-
-    if (parser.present("--clangd")) {
-        GenerateClangDaemonConfig(parser.get<std::vector<std::string>>("--clangd"));
-    }
-
-    if (parser.present("--test")) {
-        auto tests = parser.get<std::vector<std::string>>("--test");
-        for (const auto& test : tests) {
-            auto path = gWorkspace.GetPackagePath(test).string();
-            auto result = sp::call({ "meson", "test" }, sp::cwd{path});
-            if (result != 0) {
-                throw std::runtime_error("Failed to run tests for " + test);
-            }
-        }
-    }
-
-    if (parser.present("--workspace")) {
-        argo::unparser::save(gWorkspace.workspace, parser.get<std::string>("--workspace"), " ", "\n", " ", 4);
-    }
-
 } catch (const std::exception &e) {
-    std::cerr << "Error: " << e.what() << std::endl;
+    logger.errf("Error: {}", e.what());
     return 1;
 }
