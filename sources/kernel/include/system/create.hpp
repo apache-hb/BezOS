@@ -1,6 +1,5 @@
 #pragma once
 
-#include "std/rcuptr.hpp"
 #include "system/access.hpp" // IWYU pragma: export
 
 #include "std/static_string.hpp"

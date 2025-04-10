@@ -32,7 +32,6 @@ namespace vfs2 {
         OsStatus insertMount(sm::RcuSharedPtr<INode> parent, const VfsPath& path, std::unique_ptr<IVfsMount> object, IVfsMount **mount);
 
         OsStatus createFolder(IFolderHandle *folder, VfsString name, sm::RcuSharedPtr<INode> *node);
-        OsStatus createFile(IFolderHandle *folder, VfsString name, sm::RcuSharedPtr<INode> *node);
         OsStatus addNode(sm::RcuSharedPtr<INode> parent, VfsString name, sm::RcuSharedPtr<INode> child);
 
         OsStatus queryFolder(sm::RcuSharedPtr<INode> parent, IFolderHandle **handle);

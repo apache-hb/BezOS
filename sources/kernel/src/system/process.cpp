@@ -2,6 +2,7 @@
 #include "memory.hpp"
 #include "system/system.hpp"
 #include "xsave.hpp"
+#include <bezos/handle.h>
 
 OsStatus sys2::ProcessHandle::createProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle) {
     if (!hasAccess(ProcessAccess::eProcessControl)) {
@@ -67,6 +68,20 @@ sys2::Process::Process(const ProcessCreateInfo& createInfo, sm::RcuWeakPtr<Proce
     , mPteMemory(pteMemory)
     , mPageTables(systemTables, mPteMemory, km::PageFlags::eUserAll, km::DefaultUserArea())
 { }
+
+OsStatus sys2::Process::open(HandleCreateInfo createInfo, IHandle **handle) {
+    sm::RcuSharedPtr<Process> owner = createInfo.owner;
+    OsHandle id = owner->newHandleId(eOsHandleProcess);
+    ProcessHandle *result = new (std::nothrow) ProcessHandle(loanShared(), id, ProcessAccess(createInfo.access));
+    if (!result) {
+        return OsStatusOutOfMemory;
+    }
+
+    owner->addHandle(result);
+    *handle = result;
+
+    return OsStatusSuccess;
+}
 
 sys2::IHandle *sys2::Process::getHandle(OsHandle handle) {
     stdx::SharedLock guard(mLock);

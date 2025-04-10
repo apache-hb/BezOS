@@ -5,6 +5,19 @@
 #include <atomic>
 
 namespace arch {
+    class IHostedIntrin {
+    public:
+        virtual ~IHostedIntrin() = default;
+
+        virtual void nop() noexcept { }
+        virtual void halt() noexcept { }
+        virtual void cli() noexcept { }
+        virtual void sti() noexcept { }
+        virtual void invlpg(uintptr_t) noexcept { }
+        virtual uint64_t rdmsr(uint32_t) noexcept { return 0; }
+        virtual void wrmsr(uint32_t, uint64_t) noexcept { }
+    };
+
     struct HostedIntrin : GenericIntrin {
         [[gnu::always_inline, gnu::nodebug]]
         static void nop() noexcept {

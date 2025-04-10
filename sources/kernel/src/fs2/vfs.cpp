@@ -87,19 +87,6 @@ OsStatus VfsRoot::createFolder(IFolderHandle *folder, VfsString name, sm::RcuSha
     return OsStatusSuccess;
 }
 
-OsStatus VfsRoot::createFile(IFolderHandle *folder, VfsString name, sm::RcuSharedPtr<INode> *node) {
-    sm::RcuSharedPtr<INode> parent = GetHandleNode(folder);
-    IVfsMount *mount = GetMount(folder);
-
-    sm::RcuSharedPtr<INode> child;
-    if (OsStatus status = mount->create(parent, name, nullptr, 0, &child)) {
-        return status;
-    }
-
-    *node = child;
-    return OsStatusSuccess;
-}
-
 OsStatus VfsRoot::addNode(sm::RcuSharedPtr<INode> parent, VfsString name, sm::RcuSharedPtr<INode> child) {
     std::unique_ptr<IFolderHandle> handle;
     if (OsStatus status = queryFolder(parent, std::out_ptr(handle))) {

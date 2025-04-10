@@ -651,6 +651,21 @@ void ClientStart(const struct OsClientStartInfo *) {
                 WriteTime(tty);
                 Prompt(tty);
                 continue;
+            } else if (text.starts_with("help")) {
+                tty.Format("Available commands:\n");
+                tty.Format("  - exit\n");
+                tty.Format("  - uname\n");
+                tty.Format("  - pwd\n");
+                tty.Format("  - ls\n");
+                tty.Format("  - cd <path>\n");
+                tty.Format("  - show\n");
+                tty.Format("  - zsh\n");
+                tty.Format("  - cat <file>\n");
+                tty.Format("  - exec <program>\n");
+                tty.Format("  - stress\n");
+                tty.Format("  - date\n");
+                Prompt(tty);
+                continue;
             }
 
             tty.Format("Unknown command: '{}'\n", text);

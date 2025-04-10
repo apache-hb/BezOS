@@ -2002,11 +2002,16 @@ static void CheckRequiredTools(PackageDb& db) {
             return;
         }
 
-        if (sp::call({ name, "--version" }, sp::output{"/dev/null"}, sp::error{"/dev/null"}) != 0) {
+        try {
+            if (sp::call({ name, "--version" }, sp::output{"/dev/null"}, sp::error{"/dev/null"}) != 0) {
+                logger.errf("{} is not installed", name);
+                ok = false;
+            } else {
+                logger.logf("{} is installed", name);
+            }
+        } catch (const std::exception& e) {
             logger.errf("{} is not installed", name);
             ok = false;
-        } else {
-            logger.logf("{} is installed", name);
         }
 
         db.AddTool(name);
@@ -2018,7 +2023,7 @@ static void CheckRequiredTools(PackageDb& db) {
     checkTool("ninja");
     checkTool("make");
     checkTool("patch");
-    checkTool("fuse-overlayfs");
+    // checkTool("fuse-overlayfs");
 
     if (!ok) {
         exit(1);

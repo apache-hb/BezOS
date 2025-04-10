@@ -7,8 +7,8 @@
 
 namespace sys2 {
     struct HandleCreateInfo {
-        /// @brief The object that is requesting access to a new handle.
-        sm::RcuSharedPtr<IObject> owner;
+        /// @brief The process that is requesting access to a new handle.
+        sm::RcuSharedPtr<Process> owner;
 
         /// @brief The flags that describe access to the handle.
         OsHandleAccess access;

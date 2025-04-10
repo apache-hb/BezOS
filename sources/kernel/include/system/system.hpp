@@ -3,6 +3,7 @@
 #include <bezos/handle.h>
 
 #include "std/vector.hpp"
+#include "std/rcuptr.hpp"
 
 #include "memory/layout.hpp"
 #include "system/create.hpp"

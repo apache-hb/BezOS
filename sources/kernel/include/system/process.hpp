@@ -65,6 +65,8 @@ namespace sys2 {
 
         stdx::StringView getClassName() const override { return "Process"; }
 
+        OsStatus open(HandleCreateInfo createInfo, IHandle **handle) override;
+
         OsStatus stat(ProcessInfo *info);
         bool isSupervisor() const { return mSupervisor; }
 
