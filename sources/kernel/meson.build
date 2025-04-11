@@ -54,6 +54,7 @@ ultra = dependency('ultra')
 mp_units = dependency('mp-units')
 absl = subproject('abseil-cpp')
 concurrentqueue = dependency('concurrentqueue')
+frozen = dependency('frozen')
 tlsf = subproject('tlsf')
 stb_sprintf = dependency('stb_sprintf')
 sysapi = subproject('sysapi').get_variable('sysapi_dep')
@@ -246,6 +247,15 @@ src = [
     'src/memory.cpp',
     'src/setup.cpp',
 ]
+
+if host_machine.cpu_family() == 'x86_64'
+
+elif host_machine.cpu_family() == 'sparc64'
+    deps += [ frozen ]
+    src += [
+        'src/arch/sparcv9/machine.cpp'
+    ]
+endif
 
 if enable_aml
     src += [ 'src/acpi/aml.cpp', ]

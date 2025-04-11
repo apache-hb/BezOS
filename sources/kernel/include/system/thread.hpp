@@ -15,12 +15,6 @@ namespace sys2 {
 
     XSaveState NewXSaveState() [[clang::allocating]];
 
-    struct ThreadInfo {
-        ObjectName name;
-        OsThreadState state;
-        sm::RcuWeakPtr<Process> process;
-    };
-
     class Thread final : public BaseObject {
         sm::RcuWeakPtr<Process> mProcess;
 
@@ -43,7 +37,7 @@ namespace sys2 {
 
         stdx::StringView getClassName() const override { return "Thread"; }
 
-        OsStatus stat(ThreadInfo *info);
+        OsStatus stat(ThreadStat *info);
 
         void saveState(RegisterSet& regs);
         RegisterSet loadState();

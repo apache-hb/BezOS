@@ -105,12 +105,12 @@ sm::RcuSharedPtr<sys2::Process> sys2::CpuLocalSchedule::currentProcess() {
         return nullptr;
     }
 
-    ThreadInfo info;
+    ThreadStat info;
     if (mCurrent->stat(&info) != OsStatusSuccess) {
         return nullptr;
     }
 
-    return info.process.lock();
+    return info.process;
 }
 
 OsStatus sys2::CpuLocalSchedule::addThread(sm::RcuSharedPtr<Thread> thread) {

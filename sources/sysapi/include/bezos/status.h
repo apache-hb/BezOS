@@ -105,6 +105,9 @@ enum OsStatusId {
 
     /// @brief The operation was denied due to insufficient permissions.
     OsStatusAccessDenied = 0x001c,
+
+    /// @brief The parent process has exited and this process is now orphaned.
+    OsStatusProcessOrphaned = 0x001d,
 };
 
 #define OS_SUCCESS(status) ((status) == OsStatusSuccess)

@@ -18,16 +18,6 @@
 namespace sys2 {
     enum class ProcessId : uint64_t {};
 
-    struct ProcessInfo {
-        ObjectName name;
-        uint64_t handles;
-        bool supervisor;
-        int64_t exitCode;
-        OsProcessStateFlags state;
-        ProcessId id;
-        sm::RcuWeakPtr<Process> parent;
-    };
-
     OsStatus CreateRootProcess(System *system, ProcessCreateInfo info, ProcessHandle **process);
 
     class Process final : public BaseObject {
@@ -67,7 +57,7 @@ namespace sys2 {
 
         OsStatus open(HandleCreateInfo createInfo, IHandle **handle) override;
 
-        OsStatus stat(ProcessInfo *info);
+        OsStatus stat(ProcessStatResult *info);
         bool isSupervisor() const { return mSupervisor; }
 
         IHandle *getHandle(OsHandle handle);
@@ -111,7 +101,5 @@ namespace sys2 {
         OsStatus createThread(System *system, ThreadCreateInfo info, ThreadHandle **handle);
 
         OsStatus createTx(System *system, TxCreateInfo info, TxHandle **handle);
-
-        OsStatus stat(ProcessInfo *info);
     };
 }

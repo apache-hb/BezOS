@@ -36,29 +36,6 @@ OsStatus sys2::ProcessHandle::createTx(System *system, TxCreateInfo info, TxHand
     return getInner()->createTx(system, info, handle);
 }
 
-OsStatus sys2::ProcessHandle::stat(ProcessInfo *info) {
-    if (!hasAccess(ProcessAccess::eStat)) {
-        return OsStatusAccessDenied;
-    }
-
-    return getInner()->stat(info);
-}
-
-OsStatus sys2::Process::stat(ProcessInfo *info) {
-    stdx::SharedLock guard(mLock);
-    *info = ProcessInfo {
-        .name = getName(),
-        .handles = mHandles.size(),
-        .supervisor = mSupervisor,
-        .exitCode = mExitCode,
-        .state = mState,
-        .id = mId,
-        .parent = mParent,
-    };
-
-    return OsStatusSuccess;
-}
-
 sys2::Process::Process(const ProcessCreateInfo& createInfo, sm::RcuWeakPtr<Process> parent, const km::AddressSpace *systemTables, km::AddressMapping pteMemory)
     : Super(createInfo.name)
     , mSupervisor(createInfo.supervisor)
@@ -68,6 +45,29 @@ sys2::Process::Process(const ProcessCreateInfo& createInfo, sm::RcuWeakPtr<Proce
     , mPteMemory(pteMemory)
     , mPageTables(systemTables, mPteMemory, km::PageFlags::eUserAll, km::DefaultUserArea())
 { }
+
+OsStatus sys2::Process::stat(ProcessStatResult *info) {
+    sm::RcuSharedPtr<Process> parent = mParent.lock();
+    if (!parent) {
+        return OsStatusProcessOrphaned;
+    }
+
+    stdx::SharedLock guard(mLock);
+
+    OsProcessStateFlags state = mState;
+    if (mSupervisor) {
+        state |= eOsProcessSupervisor;
+    }
+
+    *info = ProcessStatResult {
+        .name = getNameUnlocked(),
+        .exitCode = mExitCode,
+        .state = state,
+        .parent = parent,
+    };
+
+    return OsStatusSuccess;
+}
 
 OsStatus sys2::Process::open(HandleCreateInfo createInfo, IHandle **handle) {
     sm::RcuSharedPtr<Process> owner = createInfo.owner;

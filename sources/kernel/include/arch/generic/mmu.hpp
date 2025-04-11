@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 namespace arch {
-    struct GenericMmuInfo {
+    struct GenericMmu {
         [[gnu::error("enumPageSizes not implemented by platform")]]
         constexpr void enumPageSizes(uintptr_t *sizes, size_t *count) const noexcept;
 
@@ -13,13 +13,6 @@ namespace arch {
 
         [[gnu::error("maxPhysicalAddressBitWidth not implemented by platform")]]
         constexpr uintptr_t maxPhysicalAddressBitWidth() const noexcept;
-    };
-
-    struct GenericMmu {
-        using MmuInfo = GenericMmuInfo;
-
-        [[gnu::error("GetInfo not implemented by platform")]]
-        static GenericMmuInfo GetInfo() noexcept;
 
         [[gnu::error("GetMaxPageSizeCount not implemented by platform")]]
         static constexpr size_t GetMaxPageSizeCount() noexcept;

@@ -94,6 +94,8 @@ enum {
 #define OS_PROCESS_STATUS(FLAGS) ((FLAGS) & eOsProcessStatusMask)
 #define OS_PROCESS_PRIVILEGE(FLAGS) ((FLAGS) & eOsProcessPrivilegeMask)
 
+#define OS_PROCESS_COMPLETE(FLAGS) (OS_PROCESS_STATUS(FLAGS) != eOsProcessRunning && OS_PROCESS_STATUS(FLAGS) != eOsProcessSuspended)
+
 typedef OsHandleAccess OsProcessAccess;
 
 typedef uint64_t OsProcessId;
@@ -139,6 +141,9 @@ struct OsProcessInfo {
     const struct OsProcessParam *ArgsEnd;
 
     OsProcessStateFlags Status;
+
+    /// @brief The exit code of the process
+    /// @note Only meaningful if @c OS_PROCESS_COMPLETE(Status) is true
     int64_t ExitCode;
 };
 

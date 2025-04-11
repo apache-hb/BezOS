@@ -189,6 +189,43 @@ OsStatus sys2::SysCreateRootProcess(System *system, ProcessCreateInfo info, Proc
     return OsStatusSuccess;
 }
 
+// handle
+
+OsStatus sys2::SysHandleClose(InvokeContext *, IHandle *handle) {
+    delete handle;
+    return OsStatusSuccess;
+}
+
+OsStatus sys2::SysHandleClone(InvokeContext *, HandleCloneInfo info, IHandle **handle) {
+    ProcessHandle *target = info.process;
+    IHandle *source = info.handle;
+    IHandle *result = nullptr;
+
+    if (!target->hasAccess(ProcessAccess::eIoControl)) {
+        return OsStatusAccessDenied;
+    }
+
+    if (OsStatus status = source->clone(info.access, &result)) {
+        return status;
+    }
+
+    sm::RcuSharedPtr<Process> process = target->getProcess();
+    *handle = result;
+    process->addHandle(result);
+
+    return OsStatusSuccess;
+}
+
+OsStatus sys2::SysHandleStat(InvokeContext *, IHandle *handle, HandleStat *result) {
+    *result = HandleStat {
+        .access = handle->getAccess(),
+    };
+
+    return OsStatusSuccess;
+}
+
+// process
+
 OsStatus sys2::SysCreateProcess(InvokeContext *context, ProcessCreateInfo info, ProcessHandle **handle) {
     ProcessHandle *parent = info.process;
     TxHandle *tx = info.tx;
@@ -219,14 +256,29 @@ OsStatus sys2::SysCreateProcess(InvokeContext *context, ProcessCreateInfo info, 
 }
 
 OsStatus sys2::SysDestroyProcess(InvokeContext *context, ProcessDestroyInfo info) {
-    sys2::ProcessHandle *parent = info.object;
+    sys2::ProcessHandle *handle = info.object;
 
-    if (!parent->hasAccess(ProcessAccess::eTerminate)) {
+    if (!handle->hasAccess(ProcessAccess::eTerminate)) {
         return OsStatusAccessDenied;
     }
 
-    sm::RcuSharedPtr<Process> process = parent->getProcess();
+    sm::RcuSharedPtr<Process> process = handle->getProcess();
     if (OsStatus status = process->destroy(context->system, info)) {
+        return status;
+    }
+
+    return OsStatusSuccess;
+}
+
+OsStatus sys2::SysProcessStat(InvokeContext *, ProcessStatInfo info, ProcessStatResult *result) {
+    sys2::ProcessHandle *handle = info.object;
+
+    if (!handle->hasAccess(ProcessAccess::eStat)) {
+        return OsStatusAccessDenied;
+    }
+
+    sm::RcuSharedPtr<Process> process = handle->getProcess();
+    if (OsStatus status = process->stat(result)) {
         return status;
     }
 
@@ -270,8 +322,10 @@ OsStatus sys2::SysQueryProcessList(InvokeContext *context, ProcessQueryInfo info
     return hasMoreData ? OsStatusMoreData : OsStatusSuccess;
 }
 
+// thread
+
 OsStatus sys2::SysCreateThread(InvokeContext *context, ThreadCreateInfo info, ThreadHandle **handle) {
-    sys2::ProcessHandle *parent = info.process;
+    ProcessHandle *parent = info.process;
 
     if (!parent->hasAccess(ProcessAccess::eThreadControl)) {
         return OsStatusAccessDenied;
@@ -294,9 +348,9 @@ OsStatus sys2::SysCreateThread(InvokeContext *context, ThreadCreateInfo info, Th
 }
 
 OsStatus sys2::SysDestroyThread(InvokeContext *context, ThreadDestroyInfo info) {
-    sys2::ThreadHandle *handle = info.object;
+    ThreadHandle *handle = info.object;
 
-    if (!handle->hasAccess(sys2::ThreadAccess::eTerminate)) {
+    if (!handle->hasAccess(ThreadAccess::eTerminate)) {
         return OsStatusAccessDenied;
     }
 
@@ -307,6 +361,21 @@ OsStatus sys2::SysDestroyThread(InvokeContext *context, ThreadDestroyInfo info) 
 
     return OsStatusSuccess;
 }
+
+OsStatus sys2::SysThreadStat(InvokeContext *, ThreadHandle *handle, ThreadStat *result) {
+    if (!handle->hasAccess(ThreadAccess::eStat)) {
+        return OsStatusAccessDenied;
+    }
+
+    sm::RcuSharedPtr<Thread> thread = handle->getThread();
+    if (OsStatus status = thread->stat(result)) {
+        return status;
+    }
+
+    return OsStatusSuccess;
+}
+
+// tx
 
 OsStatus sys2::SysCreateTx(InvokeContext *invoke, TxCreateInfo createInfo, TxHandle **handle) {
     sys2::ProcessHandle *parent = createInfo.process;
@@ -340,6 +409,8 @@ OsStatus sys2::SysCommitTx(InvokeContext *, TxDestroyInfo) {
 OsStatus sys2::SysAbortTx(InvokeContext *, TxDestroyInfo) {
     return OsStatusNotSupported;
 }
+
+// mutex
 
 OsStatus sys2::SysCreateMutex(InvokeContext *, MutexCreateInfo, MutexHandle **) {
     return OsStatusNotSupported;

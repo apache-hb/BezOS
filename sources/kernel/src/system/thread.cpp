@@ -17,13 +17,18 @@ OsStatus sys2::ThreadHandle::destroy(System *system, const ThreadDestroyInfo& in
     return getThread()->destroy(system, info);
 }
 
-OsStatus sys2::Thread::stat(ThreadInfo *info) {
+OsStatus sys2::Thread::stat(ThreadStat *info) {
+    sm::RcuSharedPtr<Process> process = mProcess.lock();
+    if (!process) {
+        return OsStatusProcessOrphaned;
+    }
+
     stdx::SharedLock guard(mLock);
 
-    *info = ThreadInfo {
-        .name = getName(),
+    *info = ThreadStat {
+        .name = getNameUnlocked(),
+        .process = process,
         .state = mThreadState,
-        .process = mProcess,
     };
 
     return OsStatusSuccess;

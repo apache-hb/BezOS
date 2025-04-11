@@ -105,7 +105,15 @@ namespace sys2 {
         OsStatus getProcessList(stdx::Vector2<sm::RcuSharedPtr<Process>>& list);
     };
 
+    // internal
+
     OsStatus SysCreateRootProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle);
+
+    // handle
+
+    OsStatus SysHandleClose(InvokeContext *context, IHandle *handle);
+    OsStatus SysHandleClone(InvokeContext *context, HandleCloneInfo info, IHandle **handle);
+    OsStatus SysHandleStat(InvokeContext *context, IHandle *handle, HandleStat *result);
 
     // node
 
@@ -141,6 +149,7 @@ namespace sys2 {
 
     OsStatus SysCreateThread(InvokeContext *context, ThreadCreateInfo info, ThreadHandle **handle);
     OsStatus SysDestroyThread(InvokeContext *context, ThreadDestroyInfo info);
+    OsStatus SysThreadStat(InvokeContext *context, ThreadHandle *handle, ThreadStat *result);
 
     // tx
 

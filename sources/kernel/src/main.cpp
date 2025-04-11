@@ -1094,13 +1094,11 @@ static void AddDebugSystemCalls() {
     });
 }
 
-static sys2::GlobalSchedule *gSysScheduler = nullptr;
 static sys2::System *gSysSystem = nullptr;
 
 static void InitSystem(size_t cpuCount) {
     auto *memory = GetSystemMemory();
-    gSysScheduler = new sys2::GlobalSchedule(cpuCount, 128);
-    gSysSystem = new sys2::System(gSysScheduler, &memory->pageTables(), &memory->pmmAllocator());
+    gSysSystem = new sys2::System({ cpuCount, 128 }, &memory->pageTables(), &memory->pmmAllocator());
 }
 
 static km::System GetSystem() {

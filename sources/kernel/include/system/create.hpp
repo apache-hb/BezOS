@@ -1,5 +1,6 @@
 #pragma once
 
+#include "std/rcuptr.hpp"
 #include "system/access.hpp" // IWYU pragma: export
 
 #include "std/static_string.hpp"
@@ -28,6 +29,18 @@ namespace sys2 {
         reg_t rsp;
         reg_t rip;
         reg_t rflags;
+    };
+
+    // handle
+
+    struct HandleCloneInfo {
+        ProcessHandle *process;
+        IHandle *handle;
+        OsHandleAccess access;
+    };
+
+    struct HandleStat {
+        OsHandleAccess access;
     };
 
     struct TxCreateInfo {
@@ -105,14 +118,6 @@ namespace sys2 {
 
     };
 
-    struct ProcessStatInfo {
-
-    };
-
-    struct ProcessStatResult {
-
-    };
-
     struct VmemCreateInfo {
 
     };
@@ -124,6 +129,8 @@ namespace sys2 {
     struct VmemMapInfo {
 
     };
+
+    // process
 
     struct ProcessCreateInfo {
         ObjectName name;
@@ -142,6 +149,20 @@ namespace sys2 {
         OsProcessStateFlags reason;
     };
 
+    struct ProcessStatInfo {
+        ProcessHandle *object;
+        TxHandle *tx;
+    };
+
+    struct ProcessStatResult {
+        ObjectName name;
+        int64_t exitCode;
+        OsProcessStateFlags state;
+        sm::RcuSharedPtr<Process> parent;
+    };
+
+    // thread
+
     struct ThreadCreateInfo {
         ObjectName name;
         ProcessHandle *process;
@@ -159,6 +180,14 @@ namespace sys2 {
 
         OsThreadState reason;
     };
+
+    struct ThreadStat {
+        ObjectName name;
+        sm::RcuSharedPtr<Process> process;
+        OsThreadState state;
+    };
+
+    // mutex
 
     struct MutexCreateInfo {
         ObjectName name;

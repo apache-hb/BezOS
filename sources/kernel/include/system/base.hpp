@@ -21,6 +21,7 @@ namespace sys2 {
 
         sm::RcuWeakPtr<IObject> getObject() override final { return mObject; }
         OsHandle getHandle() const override final { return mHandle; }
+        OsHandleAccess getAccess() const override final { return OsHandleAccess(mAccess); }
 
         sm::RcuSharedPtr<T> getInner() const { return mObject; }
 
@@ -39,6 +40,10 @@ namespace sys2 {
             : mName(name)
         { }
 
+        ObjectName getNameUnlocked() const REQUIRES_SHARED(mLock) {
+            return mName;
+        }
+
     public:
         void setName(ObjectName name) override final {
             stdx::UniqueLock guard(mLock);
@@ -47,7 +52,7 @@ namespace sys2 {
 
         ObjectName getName() override final {
             stdx::SharedLock guard(mLock);
-            return mName;
+            return getNameUnlocked();
         }
 
         stdx::SharedSpinLock& getMonitor() { return mLock; }
