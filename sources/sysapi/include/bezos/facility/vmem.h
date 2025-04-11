@@ -18,21 +18,21 @@ enum {
 
     /// @brief Reserve virtual address space
     /// Reserved space is not accessible, but can be committed later.
-    eOsMemoryReserve  = (1 << 4),
+    eOsMemoryReserve  = (1 << 3),
 
     /// @brief Commit virtual address space
     /// Committed space is accessible and can be read or written.
-    eOsMemoryCommit   = (1 << 5),
+    eOsMemoryCommit   = (1 << 4),
 
     /// @brief Discard a range of memory.
     /// Discarded memory remains committed, and will be zeroed on first access.
     /// Combined with @c eOsMemoryCommit this will zero newly committed memory.
-    eOsMemoryDiscard  = (1 << 6),
+    eOsMemoryDiscard  = (1 << 5),
 
     /// @brief Is the base address a hint.
     /// If this is set, the base address is a hint and the system will choose the address.
     /// Otherwise, the base address is the address to map the memory at.
-    eOsMemoryAddressHint = (1 << 8),
+    eOsMemoryAddressHint = (1 << 6),
 };
 
 /// @brief Memory access flags.

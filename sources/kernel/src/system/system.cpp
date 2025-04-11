@@ -6,7 +6,9 @@
 
 #include "system/create.hpp"
 #include "system/process.hpp"
+#include "system/schedule.hpp"
 #include "system/thread.hpp"
+
 #include "xsave.hpp"
 
 static constexpr size_t kDefaultPtePageCount = 64;
@@ -25,11 +27,23 @@ void sys2::System::removeObject(sm::RcuWeakPtr<IObject> object) {
 void sys2::System::addProcessObject(sm::RcuSharedPtr<Process> object) {
     stdx::UniqueLock guard(mLock);
     mProcessObjects.insert(object);
+    mSchedule->addProcess(object);
 }
 
 void sys2::System::removeProcessObject(sm::RcuWeakPtr<Process> object) {
     stdx::UniqueLock guard(mLock);
     mProcessObjects.erase(object);
+}
+
+void sys2::System::addThreadObject(sm::RcuSharedPtr<Thread> object) {
+    stdx::UniqueLock guard(mLock);
+    mObjects.insert(object);
+    mSchedule->addThread(object);
+}
+
+void sys2::System::removeThreadObject(sm::RcuWeakPtr<Thread> object) {
+    stdx::UniqueLock guard(mLock);
+    mObjects.erase(object);
 }
 
 OsStatus sys2::System::mapProcessPageTables(km::AddressMapping *mapping) {
@@ -156,8 +170,8 @@ static OsStatus CreateThreadInner(sys2::System *system, const sys2::ThreadCreate
     return OsStatusSuccess;
 
 outOfMemory:
-    thread.reset();
     delete result;
+    thread.reset();
     fpuState.reset();
     system->releaseStack(kernelStack);
     return OsStatusOutOfMemory;

@@ -24,5 +24,4 @@ namespace sys2 {
         OsStatus createProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle);
         OsStatus createThread(System *system, ProcessHandle *process, ThreadCreateInfo info, ThreadHandle **handle);
     };
-
 }

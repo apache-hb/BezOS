@@ -210,7 +210,7 @@ OsStatus sys2::Process::createThread(System *system, ThreadCreateInfo info, Thre
         addHandle(result);
         addThread(thread);
 
-        system->addObject(thread);
+        system->addThreadObject(thread);
         *handle = result;
         return OsStatusSuccess;
     } while (false);
@@ -239,36 +239,68 @@ OsStatus sys2::Process::createTx(System *system, TxCreateInfo info, TxHandle **h
     return OsStatusSuccess;
 }
 
-OsStatus sys2::Process::vmemCreate(System *, OsVmemCreateInfo info, km::AddressMapping *) {
+OsStatus sys2::Process::vmemCreate(System *system, OsVmemCreateInfo info, km::AddressMapping *mapping) {
+    // The size must be a multiple of the smallest page size and must not be 0.
     if ((info.Size == 0) || (info.Size % x64::kPageSize != 0)) {
         return OsStatusInvalidInput;
     }
 
+    // Mappings must be page aligned, unless it is 0,
     if ((info.Alignment != 0) && (info.Alignment % x64::kPageSize != 0)) {
         return OsStatusInvalidInput;
     }
 
     uintptr_t base = (uintptr_t)info.BaseAddress;
     OsSize alignment = info.Alignment == 0 ? x64::kPageSize : info.Alignment;
+    bool isHint = (info.Access & eOsMemoryAddressHint) != 0;
 
-    if (info.Access & eOsMemoryAddressHint) {
-        if (base != 0) {
-            return OsStatusInvalidInput;
-        }
-    } else {
+    //
+    // If we should interpret the base address as a hint then it must not be 0 and must be aligned
+    // to the specified alignment.
+    //
+    if (isHint) {
         if (base == 0 || (base % alignment != 0)) {
             return OsStatusInvalidInput;
         }
+    } else {
+        //
+        // If the base address is not a hint then it must either be 0, or must be aligned to the
+        // specified alignment.
+        //
+        if ((base != 0) && (base % alignment != 0)) {
+            return OsStatusInvalidInput;
+        }
     }
 
-    if (base % alignment != 0) {
-        return OsStatusInvalidInput;
+    km::PageFlags flags = km::PageFlags::eUser;
+    if (info.Access & eOsMemoryRead) {
+        flags |= km::PageFlags::eRead;
     }
 
-    return OsStatusOutOfMemory;
+    if (info.Access & eOsMemoryWrite) {
+        flags |= km::PageFlags::eWrite;
+    }
+
+    if (info.Access & eOsMemoryExecute) {
+        flags |= km::PageFlags::eExecute;
+    }
+
+    km::MemoryRange range = system->mPageAllocator->alloc4k(km::Pages(info.Size));
+    if (range.isEmpty()) {
+        return OsStatusOutOfMemory;
+    }
+
+    if (OsStatus status = mPageTables.map(range, flags, km::MemoryType::eWriteBack, mapping)) {
+        system->mPageAllocator->release(range);
+        return status;
+    }
+
+    mPhysicalMemory.add(range);
+
+    return OsStatusSuccess;
 }
 
-OsStatus sys2::Process::vmemRelease(System *, km::AddressMapping) {
+OsStatus sys2::Process::vmemRelease(System *, km::VirtualRange) {
     return OsStatusNotSupported;
 }
 
@@ -279,13 +311,13 @@ OsStatus sys2::CreateRootProcess(System *system, ProcessCreateInfo info, Process
     }
 
     if (auto root = sm::rcuMakeShared<sys2::Process>(&system->rcuDomain(), info, nullptr, system->pageTables(), pteMemory)) {
-        ProcessHandle *result = new (std::nothrow) ProcessHandle(root, OS_HANDLE_NEW(eOsHandleProcess, 0), ProcessAccess::eAll);
+        ProcessHandle *result = new (std::nothrow) ProcessHandle(root, OS_HANDLE_NEW(eOsHandleProcess, 1), ProcessAccess::eAll);
         if (!result) {
             system->releaseMapping(pteMemory);
             return OsStatusOutOfMemory;
         }
 
-        system->addObject(root);
+        system->addProcessObject(root);
         *process = result;
         return OsStatusSuccess;
     }

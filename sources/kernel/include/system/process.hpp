@@ -89,7 +89,7 @@ namespace sys2 {
         OsStatus createTx(System *system, TxCreateInfo info, TxHandle **handle);
 
         OsStatus vmemCreate(System *system, OsVmemCreateInfo info, km::AddressMapping *mapping);
-        OsStatus vmemRelease(System *system, km::AddressMapping mapping);
+        OsStatus vmemRelease(System *system, km::VirtualRange range);
 
         void removeThread(sm::RcuSharedPtr<Thread> thread);
         void addThread(sm::RcuSharedPtr<Thread> thread);

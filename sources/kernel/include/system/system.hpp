@@ -85,6 +85,9 @@ namespace sys2 {
         void addProcessObject(sm::RcuSharedPtr<Process> object);
         void removeProcessObject(sm::RcuWeakPtr<Process> object);
 
+        void addThreadObject(sm::RcuSharedPtr<Thread> object);
+        void removeThreadObject(sm::RcuWeakPtr<Thread> object);
+
         OsStatus mapProcessPageTables(km::AddressMapping *mapping);
         OsStatus mapSystemStack(km::StackMapping *mapping);
 
