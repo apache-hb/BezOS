@@ -9,13 +9,11 @@
 
 struct TestData {
     km::SystemMemory memory;
-    sys2::GlobalSchedule schedule;
     sys2::System system;
 
     TestData(SystemMemoryTestBody& body)
         : memory(body.make(sm::megabytes(2).bytes()))
-        , schedule(128, 128)
-        , system(&schedule, &memory.pageTables(), &memory.pmmAllocator())
+        , system({ 128, 128 }, &memory.pageTables(), &memory.pmmAllocator())
     { }
 };
 

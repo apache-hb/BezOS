@@ -41,6 +41,90 @@ namespace sys2 {
         TxHandle *tx;
     };
 
+    struct NodeOpenInfo {
+
+    };
+
+    struct NodeCloseInfo {
+
+    };
+
+    struct NodeQueryInfo {
+
+    };
+
+    struct NodeQueryResult {
+
+    };
+
+    struct NodeStatInfo {
+
+    };
+
+    struct NodeStatResult {
+
+    };
+
+    struct DeviceOpenInfo {
+
+    };
+
+    struct DeviceCloseInfo {
+
+    };
+
+    struct DeviceReadInfo {
+
+    };
+
+    struct DeviceReadResult {
+
+    };
+
+    struct DeviceWriteInfo {
+
+    };
+
+    struct DeviceWriteResult {
+
+    };
+
+    struct DeviceInvokeInfo {
+
+    };
+
+    struct DeviceInvokeResult {
+
+    };
+
+    struct DeviceStatInfo {
+
+    };
+
+    struct DeviceStatResult {
+
+    };
+
+    struct ProcessStatInfo {
+
+    };
+
+    struct ProcessStatResult {
+
+    };
+
+    struct VmemCreateInfo {
+
+    };
+
+    struct VmemReleaseInfo {
+
+    };
+
+    struct VmemMapInfo {
+
+    };
+
     struct ProcessCreateInfo {
         ObjectName name;
         ProcessHandle *process;

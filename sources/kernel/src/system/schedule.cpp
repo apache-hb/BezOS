@@ -118,12 +118,12 @@ OsStatus sys2::CpuLocalSchedule::addThread(sm::RcuSharedPtr<Thread> thread) {
     return mQueue.addFront(info) ? OsStatusSuccess : OsStatusOutOfMemory;
 }
 
-sys2::GlobalSchedule::GlobalSchedule(size_t cpus, size_t tasks)
-    : mCpuCount(cpus)
+sys2::GlobalSchedule::GlobalSchedule(GlobalScheduleCreateInfo info)
+    : mCpuCount(info.cpus)
     , mCpuLocal(new sys2::CpuLocalSchedule[mCpuCount])
 {
     for (size_t i = 0; i < mCpuCount; i++) {
-        mCpuLocal[i] = CpuLocalSchedule(tasks);
+        mCpuLocal[i] = CpuLocalSchedule(info.tasks);
     }
 }
 

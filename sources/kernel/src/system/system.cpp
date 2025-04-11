@@ -27,7 +27,7 @@ void sys2::System::removeObject(sm::RcuWeakPtr<IObject> object) {
 void sys2::System::addProcessObject(sm::RcuSharedPtr<Process> object) {
     stdx::UniqueLock guard(mLock);
     mProcessObjects.insert(object);
-    mSchedule->addProcess(object);
+    mSchedule.addProcess(object);
 }
 
 void sys2::System::removeProcessObject(sm::RcuWeakPtr<Process> object) {
@@ -38,7 +38,7 @@ void sys2::System::removeProcessObject(sm::RcuWeakPtr<Process> object) {
 void sys2::System::addThreadObject(sm::RcuSharedPtr<Thread> object) {
     stdx::UniqueLock guard(mLock);
     mObjects.insert(object);
-    mSchedule->addThread(object);
+    mSchedule.addThread(object);
 }
 
 void sys2::System::removeThreadObject(sm::RcuWeakPtr<Thread> object) {

@@ -8,6 +8,7 @@
 #include "memory/layout.hpp"
 #include "system/create.hpp"
 #include "system/query.hpp"
+#include "system/schedule.hpp"
 
 #include <compare> // IWYU pragma: keep
 #include <queue>
@@ -55,8 +56,7 @@ namespace sys2 {
         stdx::SharedSpinLock mLock;
         sm::RcuDomain mDomain;
 
-        [[maybe_unused]]
-        GlobalSchedule *mSchedule;
+        GlobalSchedule mSchedule;
 
         km::AddressSpace *mSystemTables;
 
@@ -71,8 +71,8 @@ namespace sys2 {
         sm::FlatHashSet<sm::RcuSharedPtr<Process>, sm::RcuHash<Process>, std::equal_to<>> mProcessObjects GUARDED_BY(mLock);
 
     public:
-        System(GlobalSchedule *schedule [[gnu::nonnull]], km::AddressSpace *systemTables [[gnu::nonnull]], km::PageAllocator *pmm [[gnu::nonnull]])
-            : mSchedule(schedule)
+        System(GlobalScheduleCreateInfo info, km::AddressSpace *systemTables [[gnu::nonnull]], km::PageAllocator *pmm [[gnu::nonnull]])
+            : mSchedule(info)
             , mSystemTables(systemTables)
             , mPageAllocator(pmm)
         { }
@@ -107,17 +107,48 @@ namespace sys2 {
 
     OsStatus SysCreateRootProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle);
 
+    // node
+
+    OsStatus SysNodeOpen(InvokeContext *context, NodeOpenInfo info, NodeHandle **handle);
+    OsStatus SysNodeClose(InvokeContext *context, NodeCloseInfo info);
+    OsStatus SysNodeQuery(InvokeContext *context, NodeQueryInfo info, NodeQueryResult *result);
+    OsStatus SysNodeStat(InvokeContext *context, NodeStatInfo info, NodeStatResult *result);
+
+    // device
+
+    OsStatus SysDeviceOpen(InvokeContext *context, DeviceOpenInfo info, DeviceHandle **handle);
+    OsStatus SysDeviceClose(InvokeContext *context, DeviceCloseInfo info);
+    OsStatus SysDeviceRead(InvokeContext *context, DeviceReadInfo info, DeviceReadResult *result);
+    OsStatus SysDeviceWrite(InvokeContext *context, DeviceWriteInfo info, DeviceWriteResult *result);
+    OsStatus SysDeviceInvoke(InvokeContext *context, DeviceInvokeInfo info, DeviceInvokeResult *result);
+    OsStatus SysDeviceStat(InvokeContext *context, DeviceStatInfo info, DeviceStatResult *result);
+
+    // process
+
     OsStatus SysCreateProcess(InvokeContext *context, ProcessCreateInfo info, ProcessHandle **handle);
     OsStatus SysDestroyProcess(InvokeContext *context, ProcessDestroyInfo info);
+    OsStatus SysProcessStat(InvokeContext *context, ProcessStatInfo info, ProcessStatResult *result);
 
     OsStatus SysQueryProcessList(InvokeContext *context, ProcessQueryInfo info, ProcessQueryResult *result);
+
+    // vmem
+
+    OsStatus SysCreateVmem(InvokeContext *context, VmemCreateInfo info);
+    OsStatus SysReleaseVmem(InvokeContext *context, VmemReleaseInfo info);
+    OsStatus SysMapVmem(InvokeContext *context, VmemMapInfo info);
+
+    // thread
 
     OsStatus SysCreateThread(InvokeContext *context, ThreadCreateInfo info, ThreadHandle **handle);
     OsStatus SysDestroyThread(InvokeContext *context, ThreadDestroyInfo info);
 
+    // tx
+
     OsStatus SysCreateTx(InvokeContext *context, TxCreateInfo info, TxHandle **handle);
     OsStatus SysCommitTx(InvokeContext *context, TxDestroyInfo info);
     OsStatus SysAbortTx(InvokeContext *context, TxDestroyInfo info);
+
+    // mutex
 
     OsStatus SysCreateMutex(InvokeContext *context, MutexCreateInfo info, MutexHandle **handle);
     OsStatus SysDestroyMutex(InvokeContext *context, MutexDestroyInfo info);

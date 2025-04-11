@@ -59,6 +59,11 @@ namespace sys2 {
         size_t tasks() const { return mQueue.count(); }
     };
 
+    struct GlobalScheduleCreateInfo {
+        size_t cpus;
+        size_t tasks;
+    };
+
     class GlobalSchedule {
         stdx::SharedSpinLock mLock;
         size_t mCpuCount;
@@ -67,7 +72,7 @@ namespace sys2 {
         sm::FlatHashMap<sm::RcuWeakPtr<Process>, ProcessSchedulingInfo> mProcessInfo GUARDED_BY(mLock);
 
     public:
-        GlobalSchedule(size_t cpus, size_t tasks);
+        GlobalSchedule(GlobalScheduleCreateInfo info);
 
         OsStatus addProcess(sm::RcuSharedPtr<Process> process);
         OsStatus addThread(sm::RcuSharedPtr<Thread> thread);
