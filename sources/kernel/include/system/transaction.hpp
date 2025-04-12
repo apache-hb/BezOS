@@ -5,17 +5,15 @@
 
 namespace sys2 {
     class Tx final : public BaseObject {
-        using Super = BaseObject;
     public:
         using Access = TxAccess;
 
-        Tx(const TxCreateInfo& createInfo);
+        Tx(ObjectName name);
 
         stdx::StringView getClassName() const override { return "Transaction"; }
     };
 
-    class TxHandle final : public BaseHandle<Tx> {
-        using Super = BaseHandle<Tx>;
+    class TxHandle final : public BaseHandle<Tx, eOsHandleTx> {
     public:
         TxHandle(sm::RcuSharedPtr<Tx> transaction, OsHandle handle, TxAccess access);
 

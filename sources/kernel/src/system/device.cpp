@@ -20,7 +20,7 @@ sys2::DeviceHandle::DeviceHandle(sm::RcuSharedPtr<Device> device, OsHandle handl
     : BaseHandle(device, handle, access)
 { }
 
-OsStatus sys2::SysDeviceOpen(InvokeContext *context, DeviceOpenInfo info, DeviceHandle **handle) {
+OsStatus sys2::SysDeviceOpen(InvokeContext *context, DeviceOpenInfo info, OsDeviceHandle *outHandle) {
     std::unique_ptr<vfs2::IHandle> vfsHandle;
     ProcessHandle *hProcess = context->process;
     vfs2::VfsRoot *vfs = context->system->mVfsRoot;
@@ -30,7 +30,7 @@ OsStatus sys2::SysDeviceOpen(InvokeContext *context, DeviceOpenInfo info, Device
     }
 
     sm::RcuSharedPtr<Process> process = hProcess->getProcess();
-    if (OsStatus status = vfs->device(info.path, info.uuid, info.data, info.size, std::out_ptr(vfsHandle))) {
+    if (OsStatus status = vfs->device(info.path, info.interface, nullptr, 0, std::out_ptr(vfsHandle))) {
         return status;
     }
 
@@ -45,47 +45,63 @@ OsStatus sys2::SysDeviceOpen(InvokeContext *context, DeviceOpenInfo info, Device
     }
 
     process->addHandle(result);
-    *handle = result;
+    *outHandle = result->getHandle();
 
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysDeviceClose(InvokeContext *context, DeviceHandle *handle) {
+OsStatus sys2::SysDeviceClose(InvokeContext *context, OsDeviceHandle handle) {
     ProcessHandle *parent = context->process;
-
-    if (!handle->hasAccess(DeviceAccess::eDestroy)) {
-        return OsStatusAccessDenied;
-    }
 
     if (!parent->hasAccess(ProcessAccess::eIoControl)) {
         return OsStatusAccessDenied;
     }
 
-    sm::RcuSharedPtr<Device> device = handle->getDevice();
     sm::RcuSharedPtr<Process> process = parent->getProcess();
 
-    if (OsStatus status = process->removeHandle(handle)) {
+    DeviceHandle *hDevice = nullptr;
+    if (OsStatus status = process->findHandle(handle, &hDevice)) {
         return status;
     }
 
-    delete handle;
+    if (!hDevice->hasAccess(DeviceAccess::eDestroy)) {
+        return OsStatusAccessDenied;
+    }
+
+    sm::RcuSharedPtr<Device> device = hDevice->getDevice();
+
+    if (OsStatus status = process->removeHandle(hDevice)) {
+        return status;
+    }
 
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysDeviceRead(InvokeContext *, DeviceReadInfo info, DeviceReadResult *result) {
-    DeviceHandle *handle = info.device;
-    if (!handle->hasAccess(DeviceAccess::eRead)) {
+OsStatus sys2::SysDeviceRead(InvokeContext *context, OsDeviceHandle handle, OsDeviceReadRequest request, OsSize *outRead) {
+    ProcessHandle *parent = context->process;
+
+    if (!parent->hasAccess(ProcessAccess::eIoControl)) {
         return OsStatusAccessDenied;
     }
 
-    sm::RcuSharedPtr<Device> device = handle->getDevice();
+    sm::RcuSharedPtr<Process> process = parent->getProcess();
+
+    DeviceHandle *hDevice = nullptr;
+    if (OsStatus status = process->findHandle(handle, &hDevice)) {
+        return status;
+    }
+
+    if (!hDevice->hasAccess(DeviceAccess::eRead)) {
+        return OsStatusAccessDenied;
+    }
+
+    sm::RcuSharedPtr<Device> device = hDevice->getDevice();
     vfs2::IHandle *vfsHandle = device->getVfsHandle();
     vfs2::ReadRequest vfsRequest {
-        .begin = info.front,
-        .end = info.back,
-        .offset = info.offset,
-        .timeout = info.timeout,
+        .begin = request.BufferFront,
+        .end = request.BufferBack,
+        .offset = request.Offset,
+        .timeout = request.Timeout,
     };
     vfs2::ReadResult vfsResult{};
 
@@ -93,26 +109,36 @@ OsStatus sys2::SysDeviceRead(InvokeContext *, DeviceReadInfo info, DeviceReadRes
         return status;
     }
 
-    *result = DeviceReadResult {
-        .read = vfsResult.read,
-    };
+    *outRead = vfsResult.read;
 
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysDeviceWrite(InvokeContext *, DeviceWriteInfo info, DeviceWriteResult *result) {
-    DeviceHandle *handle = info.device;
-    if (!handle->hasAccess(DeviceAccess::eWrite)) {
+OsStatus sys2::SysDeviceWrite(InvokeContext *context, OsDeviceHandle handle, OsDeviceWriteRequest request, OsSize *outWrite) {
+    ProcessHandle *parent = context->process;
+
+    if (!parent->hasAccess(ProcessAccess::eIoControl)) {
         return OsStatusAccessDenied;
     }
 
-    sm::RcuSharedPtr<Device> device = handle->getDevice();
+    sm::RcuSharedPtr<Process> process = parent->getProcess();
+
+    DeviceHandle *hDevice = nullptr;
+    if (OsStatus status = process->findHandle(handle, &hDevice)) {
+        return status;
+    }
+
+    if (!hDevice->hasAccess(DeviceAccess::eWrite)) {
+        return OsStatusAccessDenied;
+    }
+
+    sm::RcuSharedPtr<Device> device = hDevice->getDevice();
     vfs2::IHandle *vfsHandle = device->getVfsHandle();
     vfs2::WriteRequest vfsRequest {
-        .begin = info.front,
-        .end = info.back,
-        .offset = info.offset,
-        .timeout = info.timeout,
+        .begin = request.BufferFront,
+        .end = request.BufferBack,
+        .offset = request.Offset,
+        .timeout = request.Timeout,
     };
     vfs2::WriteResult vfsResult{};
 
@@ -120,24 +146,34 @@ OsStatus sys2::SysDeviceWrite(InvokeContext *, DeviceWriteInfo info, DeviceWrite
         return status;
     }
 
-    *result = DeviceWriteResult {
-        .write = vfsResult.write,
-    };
+    *outWrite = vfsResult.write;
 
     return OsStatusSuccess;
 }
 
 #if 0
-OsStatus sys2::SysDeviceInvoke(InvokeContext *context, DeviceInvokeInfo info) {
-    DeviceHandle *handle = info.device;
-    if (!handle->hasAccess(DeviceAccess::eInvoke)) {
+OsStatus sys2::SysDeviceInvoke(InvokeContext *context, OsDeviceHandle handle, uint64_t function, void *data, size_t size) {
+    ProcessHandle *parent = context->process;
+
+    if (!parent->hasAccess(ProcessAccess::eIoControl)) {
         return OsStatusAccessDenied;
     }
 
-    sm::RcuSharedPtr<Device> device = handle->getDevice();
+    sm::RcuSharedPtr<Process> process = parent->getProcess();
+
+    DeviceHandle *hDevice = nullptr;
+    if (OsStatus status = process->findHandle(handle, &hDevice)) {
+        return status;
+    }
+
+    if (!hDevice->hasAccess(DeviceAccess::eInvoke)) {
+        return OsStatusAccessDenied;
+    }
+
+    sm::RcuSharedPtr<Device> device = hDevice->getDevice();
     vfs2::IHandle *vfsHandle = device->getVfsHandle();
 
-    if (OsStatus status = vfsHandle->invoke(context, info.method, info.data, info.size)) {
+    if (OsStatus status = vfsHandle->invoke(context, function, data, size)) {
         return status;
     }
 
@@ -145,20 +181,37 @@ OsStatus sys2::SysDeviceInvoke(InvokeContext *context, DeviceInvokeInfo info) {
 }
 #endif
 
-OsStatus sys2::SysDeviceStat(InvokeContext *, DeviceHandle *handle, DeviceStat *result) {
-    if (!handle->hasAccess(DeviceAccess::eStat)) {
+OsStatus sys2::SysDeviceStat(InvokeContext *context, OsDeviceHandle handle, OsDeviceInfo *info) {
+    ProcessHandle *parent = context->process;
+
+    if (!parent->hasAccess(ProcessAccess::eIoControl)) {
         return OsStatusAccessDenied;
     }
 
-    sm::RcuSharedPtr<Device> device = handle->getDevice();
+    sm::RcuSharedPtr<Process> process = parent->getProcess();
+
+    DeviceHandle *hDevice = nullptr;
+    if (OsStatus status = process->findHandle(handle, &hDevice)) {
+        return status;
+    }
+
+    if (!hDevice->hasAccess(DeviceAccess::eStat)) {
+        return OsStatusAccessDenied;
+    }
+
+    sm::RcuSharedPtr<Device> device = hDevice->getDevice();
     vfs2::IHandle *vfsHandle = device->getVfsHandle();
 
     auto hInfo = vfsHandle->info();
     auto nInfo = hInfo.node->info();
 
-    *result = DeviceStat {
-        .name = nInfo.name,
+    OsDeviceInfo result {
+        .InterfaceGuid = hInfo.guid,
     };
+    size_t size = std::min(sizeof(result.Name), nInfo.name.count());
+    std::memcpy(result.Name, nInfo.name.data(), size);
+
+    *info = result;
 
     return OsStatusSuccess;
 }

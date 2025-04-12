@@ -57,6 +57,9 @@ namespace stdx {
         constexpr bool isEmpty() const { return mSize == 0; }
         constexpr bool isFull() const { return mSize == N; }
 
+        constexpr T *data() { return mStorage; }
+        constexpr const T *data() const { return mStorage; }
+
         constexpr T *begin() { return mStorage; }
         constexpr T *end() { return mStorage + mSize; }
 

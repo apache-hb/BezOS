@@ -1,45 +1,58 @@
 #include "system/system.hpp"
 #include "system/process.hpp"
 
-OsStatus sys2::SysHandleClose(InvokeContext *, HandleCloseInfo info) {
-    ProcessHandle *target = info.process;
+OsStatus sys2::SysHandleClose(InvokeContext *context, OsHandle handle) {
+    ProcessHandle *target = context->process;
     if (!target->hasAccess(ProcessAccess::eIoControl)) {
         return OsStatusAccessDenied;
     }
 
     sm::RcuSharedPtr<Process> process = target->getProcess();
-    if (OsStatus status = process->removeHandle(info.handle)) {
+    if (OsStatus status = process->removeHandle(handle)) {
         return status;
     }
-
-    delete info.handle;
 
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysHandleClone(InvokeContext *, HandleCloneInfo info, IHandle **handle) {
-    ProcessHandle *target = info.process;
-    IHandle *source = info.handle;
+OsStatus sys2::SysHandleClone(InvokeContext *context, OsHandle handle, OsHandleCloneInfo info, OsHandle *outHandle) {
+    ProcessHandle *target = context->process;
+    if (!target->hasAccess(ProcessAccess::eIoControl)) {
+        return OsStatusAccessDenied;
+    }
+
+    sm::RcuSharedPtr<Process> process = target->getProcess();
+    IHandle *source = process->getHandle(handle);
+    if (!source) {
+        return OsStatusInvalidHandle;
+    }
+
+    OsHandle id = process->newHandleId(source->getHandleType());
     IHandle *result = nullptr;
-
-    if (!target->hasAccess(ProcessAccess::eIoControl)) {
-        return OsStatusAccessDenied;
-    }
-
-    if (OsStatus status = source->clone(info.access, &result)) {
+    if (OsStatus status = source->clone(info.Access, id, &result)) {
         return status;
     }
 
-    sm::RcuSharedPtr<Process> process = target->getProcess();
-    *handle = result;
     process->addHandle(result);
+    *outHandle = result->getHandle();
 
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysHandleStat(InvokeContext *, IHandle *handle, HandleStat *result) {
+OsStatus sys2::SysHandleStat(InvokeContext *context, OsHandle handle, HandleStat *result) {
+    ProcessHandle *target = context->process;
+    if (!target->hasAccess(ProcessAccess::eIoControl)) {
+        return OsStatusAccessDenied;
+    }
+
+    sm::RcuSharedPtr<Process> process = target->getProcess();
+    IHandle *source = process->getHandle(handle);
+    if (!source) {
+        return OsStatusInvalidHandle;
+    }
+
     *result = HandleStat {
-        .access = handle->getAccess(),
+        .access = source->getAccess(),
     };
 
     return OsStatusSuccess;

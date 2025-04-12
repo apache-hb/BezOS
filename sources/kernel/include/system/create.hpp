@@ -54,11 +54,6 @@ namespace sys2 {
 
     struct TxCreateInfo {
         ObjectName name;
-        ProcessHandle *process;
-    };
-
-    struct TxDestroyInfo {
-        TxHandle *object;
     };
 
     // node
@@ -88,7 +83,7 @@ namespace sys2 {
 
     struct DeviceOpenInfo {
         vfs2::VfsPath path;
-        sm::uuid uuid;
+        sm::uuid interface;
         void *data;
         size_t size;
     };
@@ -177,7 +172,6 @@ namespace sys2 {
 
     struct ThreadCreateInfo {
         ObjectName name;
-        ProcessHandle *process;
 
         RegisterSet cpuState;
         reg_t tlsAddress;

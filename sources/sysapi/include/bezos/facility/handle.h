@@ -12,6 +12,10 @@ struct OsHandleCloneInfo {
     OsTxHandle Transaction;
 };
 
+struct OsHandleInfo {
+    OsHandleAccess Access;
+};
+
 /// @brief Wait on a handle to become signaled.
 ///
 /// All handles can be waited on, but the behavior of waiting on a handle is
@@ -53,6 +57,8 @@ extern OsStatus OsHandleWait(OsHandle Handle, OsInstant Timeout);
 extern OsStatus OsHandleClone(OsHandle Handle, struct OsHandleCloneInfo CloneInfo, OsHandle *OutHandle);
 
 extern OsStatus OsHandleClose(OsHandle Handle);
+
+extern OsStatus OsHandleStat(OsHandle Handle, struct OsHandleInfo *OutInfo);
 
 #ifdef __cplusplus
 }

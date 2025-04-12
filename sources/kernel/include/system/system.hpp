@@ -1,6 +1,7 @@
 #pragma once
 
 #include <bezos/handle.h>
+#include <bezos/facility/handle.h>
 
 #include "std/vector.hpp"
 #include "std/rcuptr.hpp"
@@ -118,9 +119,10 @@ namespace sys2 {
 
     // handle
 
-    OsStatus SysHandleClose(InvokeContext *context, HandleCloseInfo info);
-    OsStatus SysHandleClone(InvokeContext *context, HandleCloneInfo info, IHandle **handle);
-    OsStatus SysHandleStat(InvokeContext *context, IHandle *handle, HandleStat *result);
+    OsStatus SysHandleClose(InvokeContext *context, OsHandle handle);
+    OsStatus SysHandleClone(InvokeContext *context, OsHandle handle, OsHandleCloneInfo info, OsHandle *outHandle);
+    OsStatus SysHandleClose(InvokeContext *context, OsHandle handle);
+    OsStatus SysHandleStat(InvokeContext *context, OsHandle handle, HandleStat *result);
 
     // node
 
@@ -131,12 +133,12 @@ namespace sys2 {
 
     // device
 
-    OsStatus SysDeviceOpen(InvokeContext *context, DeviceOpenInfo info, DeviceHandle **handle);
-    OsStatus SysDeviceClose(InvokeContext *context, DeviceHandle *handle);
-    OsStatus SysDeviceRead(InvokeContext *context, DeviceReadInfo info, DeviceReadResult *result);
-    OsStatus SysDeviceWrite(InvokeContext *context, DeviceWriteInfo info, DeviceWriteResult *result);
-    OsStatus SysDeviceInvoke(InvokeContext *context, DeviceInvokeInfo info);
-    OsStatus SysDeviceStat(InvokeContext *context, DeviceHandle *handle, DeviceStat *result);
+    OsStatus SysDeviceOpen(InvokeContext *context, DeviceOpenInfo info, OsDeviceHandle *outHandle);
+    OsStatus SysDeviceClose(InvokeContext *context, OsDeviceHandle handle);
+    OsStatus SysDeviceRead(InvokeContext *context, OsDeviceHandle handle, OsDeviceReadRequest request, OsSize *outRead);
+    OsStatus SysDeviceWrite(InvokeContext *context, OsDeviceHandle handle, OsDeviceWriteRequest request, OsSize *outWrite);
+    OsStatus SysDeviceInvoke(InvokeContext *context, OsDeviceHandle handle, uint64_t function, void *data, size_t size);
+    OsStatus SysDeviceStat(InvokeContext *context, OsDeviceHandle handle, OsDeviceInfo *info);
 
     // process
 
@@ -154,18 +156,18 @@ namespace sys2 {
 
     // thread
 
-    OsStatus SysCreateThread(InvokeContext *context, ThreadCreateInfo info, ThreadHandle **handle);
-    OsStatus SysDestroyThread(InvokeContext *context, ThreadDestroyInfo info);
-    OsStatus SysThreadStat(InvokeContext *context, ThreadHandle *handle, ThreadStat *result);
+    OsStatus SysCreateThread(InvokeContext *context, ThreadCreateInfo info, OsThreadHandle *handle);
+    OsStatus SysDestroyThread(InvokeContext *context, OsThreadState reason, OsThreadHandle handle);
+    OsStatus SysThreadStat(InvokeContext *context, OsThreadHandle handle, OsThreadInfo *result);
 
     // tx
 
-    OsStatus SysCreateTx(InvokeContext *context, TxCreateInfo info, TxHandle **handle);
-    OsStatus SysCommitTx(InvokeContext *context, TxDestroyInfo info);
-    OsStatus SysAbortTx(InvokeContext *context, TxDestroyInfo info);
+    OsStatus SysCreateTx(InvokeContext *context, TxCreateInfo info, OsTxHandle *handle);
+    OsStatus SysCommitTx(InvokeContext *context, OsTxHandle handle);
+    OsStatus SysAbortTx(InvokeContext *context, OsTxHandle handle);
 
     // mutex
 
-    OsStatus SysCreateMutex(InvokeContext *context, MutexCreateInfo info, MutexHandle **handle);
-    OsStatus SysDestroyMutex(InvokeContext *context, MutexDestroyInfo info);
+    OsStatus SysCreateMutex(InvokeContext *context, OsMutexCreateInfo info, OsHandle *handle);
+    OsStatus SysDestroyMutex(InvokeContext *context, OsHandle handle);
 }

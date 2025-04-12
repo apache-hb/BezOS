@@ -4,7 +4,7 @@
 #include "system/handle.hpp"
 
 namespace sys2 {
-    template<typename T>
+    template<typename T, OsHandleType HandleType>
     class BaseHandle : public IHandle {
         using Access = typename T::Access;
 
@@ -13,6 +13,8 @@ namespace sys2 {
         Access mAccess;
 
     public:
+        static constexpr auto kHandleType = HandleType;
+
         BaseHandle(sm::RcuSharedPtr<T> object, OsHandle handle, Access access)
             : mObject(object)
             , mHandle(handle)

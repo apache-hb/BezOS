@@ -91,9 +91,27 @@ void sys2::Process::addHandle(IHandle *handle) {
 }
 
 OsStatus sys2::Process::removeHandle(IHandle *handle) {
+    return removeHandle(handle->getHandle());
+}
+
+OsStatus sys2::Process::removeHandle(OsHandle handle) {
     stdx::UniqueLock guard(mLock);
-    if (auto it = mHandles.find(handle->getHandle()); it != mHandles.end()) {
+    if (auto it = mHandles.find(handle); it != mHandles.end()) {
         mHandles.erase(it);
+        return OsStatusSuccess;
+    }
+
+    return OsStatusInvalidHandle;
+}
+
+OsStatus sys2::Process::findHandle(OsHandle handle, OsHandleType type, IHandle **result) {
+    if (OS_HANDLE_TYPE(handle) != type) {
+        return OsStatusInvalidHandle;
+    }
+
+    stdx::SharedLock guard(mLock);
+    if (auto it = mHandles.find(handle); it != mHandles.end()) {
+        *result = it->second.get();
         return OsStatusSuccess;
     }
 
@@ -160,7 +178,7 @@ OsStatus sys2::Process::destroy(System *system, const ProcessDestroyInfo& info) 
     }
 
     for (sm::RcuSharedPtr<Thread> thread : mThreads) {
-        if (OsStatus status = thread->destroy(system, ThreadDestroyInfo { .reason = eOsThreadOrphaned })) {
+        if (OsStatus status = thread->destroy(system, eOsThreadOrphaned)) {
             return status;
         }
     }
@@ -180,24 +198,6 @@ OsStatus sys2::Process::destroy(System *system, const ProcessDestroyInfo& info) 
     }
 
     system->removeProcessObject(loanWeak());
-
-    return OsStatusSuccess;
-}
-
-OsStatus sys2::Process::createTx(System *system, TxCreateInfo info, TxHandle **handle) {
-    auto tx = sm::rcuMakeShared<sys2::Tx>(&system->rcuDomain(), info);
-    if (!tx) {
-        return OsStatusOutOfMemory;
-    }
-
-    TxHandle *result = new (std::nothrow) TxHandle(tx, newHandleId(eOsHandleTx), TxAccess::eAll);
-    if (!result) {
-        return OsStatusOutOfMemory;
-    }
-
-    addHandle(result);
-    system->addObject(tx);
-    *handle = result;
 
     return OsStatusSuccess;
 }

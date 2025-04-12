@@ -22,7 +22,7 @@ namespace sys2 {
         vfs2::IHandle *getVfsHandle() { return mVfsHandle.get(); }
     };
 
-    class DeviceHandle final : public BaseHandle<Device> {
+    class DeviceHandle final : public BaseHandle<Device, eOsHandleDevice> {
     public:
         DeviceHandle(sm::RcuSharedPtr<Device> device, OsHandle handle, DeviceAccess access);
 

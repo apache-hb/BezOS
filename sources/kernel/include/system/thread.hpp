@@ -46,17 +46,13 @@ namespace sys2 {
 
         bool isSupervisor();
 
-        OsStatus destroy(System *system, const ThreadDestroyInfo& info);
+        OsStatus destroy(System *system, OsThreadState reason);
     };
 
-    class ThreadHandle final : public BaseHandle<Thread> {
+    class ThreadHandle final : public BaseHandle<Thread, eOsHandleThread> {
     public:
-        using Super = BaseHandle<Thread>;
-
         ThreadHandle(sm::RcuSharedPtr<Thread> thread, OsHandle handle, ThreadAccess access);
 
         sm::RcuSharedPtr<Thread> getThread() { return getInner(); }
-
-        OsStatus destroy(System *system, const ThreadDestroyInfo& info);
     };
 }

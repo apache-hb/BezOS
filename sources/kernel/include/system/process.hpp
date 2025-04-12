@@ -61,6 +61,19 @@ namespace sys2 {
         IHandle *getHandle(OsHandle handle);
         void addHandle(IHandle *handle);
         OsStatus removeHandle(IHandle *handle);
+        OsStatus removeHandle(OsHandle handle);
+        OsStatus findHandle(OsHandle handle, OsHandleType type, IHandle **result);
+
+        template<typename T>
+        OsStatus findHandle(OsHandle handle, T **result) {
+            IHandle *base = nullptr;
+            if (OsStatus status = findHandle(handle, T::kHandleType, &base)) {
+                return status;
+            }
+
+            *result = static_cast<T *>(base);
+            return OsStatusSuccess;
+        }
 
         OsHandle newHandleId(OsHandleType type) {
             OsHandle id = mIdAllocators[type].allocate();
@@ -82,12 +95,10 @@ namespace sys2 {
         void addThread(sm::RcuSharedPtr<Thread> thread);
     };
 
-    class ProcessHandle final : public BaseHandle<Process> {
-        using Super = BaseHandle<Process>;
-
+    class ProcessHandle final : public BaseHandle<Process, eOsHandleProcess> {
     public:
         ProcessHandle(sm::RcuSharedPtr<Process> process, OsHandle handle, ProcessAccess access)
-            : Super(process, handle, access)
+            : BaseHandle(process, handle, access)
         { }
 
         sm::RcuSharedPtr<Process> getProcess() { return getInner(); }

@@ -105,20 +105,17 @@ OsStatus sys2::System::getProcessList(stdx::Vector2<sm::RcuSharedPtr<Process>>& 
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysCreateTx(InvokeContext *invoke, TxCreateInfo createInfo, TxHandle **handle) {
-    sys2::ProcessHandle *parent = createInfo.process;
-    sys2::ProcessHandle *invoker = invoke->process;
-
+OsStatus sys2::SysCreateTx(InvokeContext *context, TxCreateInfo info, OsTxHandle *handle) {
+    ProcessHandle *parent = context->process;
     if (!parent->hasAccess(ProcessAccess::eTxControl)) {
         return OsStatusAccessDenied;
     }
 
-    sm::RcuSharedPtr<Tx> tx = sm::rcuMakeShared<Tx>(&invoke->system->rcuDomain(), createInfo);
+    sm::RcuSharedPtr<Process> process = parent->getProcess();
+    sm::RcuSharedPtr<Tx> tx = sm::rcuMakeShared<Tx>(&context->system->rcuDomain(), info.name);
     if (!tx) {
         return OsStatusOutOfMemory;
     }
-
-    sm::RcuSharedPtr<Process> process = invoker->getProcess();
 
     OsHandle id = process->newHandleId(eOsHandleTx);
     TxHandle *result = new (std::nothrow) TxHandle(tx, id, TxAccess::eAll);
@@ -127,25 +124,25 @@ OsStatus sys2::SysCreateTx(InvokeContext *invoke, TxCreateInfo createInfo, TxHan
     }
 
     process->addHandle(result);
-    *handle = result;
+    *handle = result->getHandle();
 
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysCommitTx(InvokeContext *, TxDestroyInfo) {
+OsStatus sys2::SysCommitTx(InvokeContext *, OsTxHandle) {
     return OsStatusNotSupported;
 }
 
-OsStatus sys2::SysAbortTx(InvokeContext *, TxDestroyInfo) {
+OsStatus sys2::SysAbortTx(InvokeContext *, OsTxHandle) {
     return OsStatusNotSupported;
 }
 
 // mutex
 
-OsStatus sys2::SysCreateMutex(InvokeContext *, MutexCreateInfo, MutexHandle **) {
+OsStatus sys2::SysCreateMutex(InvokeContext *, OsMutexCreateInfo, OsHandle *) {
     return OsStatusNotSupported;
 }
 
-OsStatus sys2::SysDestroyMutex(InvokeContext *, MutexDestroyInfo) {
+OsStatus sys2::SysDestroyMutex(InvokeContext *, OsHandle) {
     return OsStatusNotSupported;
 }

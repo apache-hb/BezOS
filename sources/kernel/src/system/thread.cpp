@@ -6,16 +6,8 @@
 #include "xsave.hpp"
 
 sys2::ThreadHandle::ThreadHandle(sm::RcuSharedPtr<Thread> thread, OsHandle handle, ThreadAccess access)
-    : Super(thread, handle, access)
+    : BaseHandle(thread, handle, access)
 { }
-
-OsStatus sys2::ThreadHandle::destroy(System *system, const ThreadDestroyInfo& info) {
-    if (!hasAccess(ThreadAccess::eTerminate)) {
-        return OsStatusAccessDenied;
-    }
-
-    return getThread()->destroy(system, info);
-}
 
 OsStatus sys2::Thread::stat(ThreadStat *info) {
     sm::RcuSharedPtr<Process> process = mProcess.lock();
@@ -73,7 +65,7 @@ sys2::Thread::Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process>
     , mThreadState(createInfo.state)
 { }
 
-OsStatus sys2::Thread::destroy(System *system, const ThreadDestroyInfo& info) {
+OsStatus sys2::Thread::destroy(System *system, OsThreadState reason) {
     if (OsStatus status = system->releaseStack(mKernelStack)) {
         return status;
     }
@@ -82,7 +74,7 @@ OsStatus sys2::Thread::destroy(System *system, const ThreadDestroyInfo& info) {
         process->removeThread(loanShared());
     }
 
-    mThreadState = info.reason;
+    mThreadState = reason;
 
     system->removeObject(loanWeak());
     return OsStatusSuccess;
@@ -129,15 +121,14 @@ outOfMemory:
     return OsStatusOutOfMemory;
 }
 
-OsStatus sys2::SysCreateThread(InvokeContext *context, ThreadCreateInfo info, ThreadHandle **handle) {
-    ProcessHandle *parent = info.process;
+OsStatus sys2::SysCreateThread(InvokeContext *context, ThreadCreateInfo info, OsThreadHandle *handle) {
+    ProcessHandle *parent = context->process;
 
     if (!parent->hasAccess(ProcessAccess::eThreadControl)) {
         return OsStatusAccessDenied;
     }
 
     sm::RcuSharedPtr<Process> process = parent->getProcess();
-    sm::RcuSharedPtr<Process> invoker = context->process->getProcess();
     OsHandle id = process->newHandleId(eOsHandleThread);
     ThreadHandle *result = nullptr;
 
@@ -146,36 +137,65 @@ OsStatus sys2::SysCreateThread(InvokeContext *context, ThreadCreateInfo info, Th
     }
 
     process->addThread(result->getThread());
-    invoker->addHandle(result);
-    *handle = result;
+    process->addHandle(result);
+    *handle = result->getHandle();
 
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysDestroyThread(InvokeContext *context, ThreadDestroyInfo info) {
-    ThreadHandle *handle = info.object;
-
-    if (!handle->hasAccess(ThreadAccess::eTerminate)) {
+OsStatus sys2::SysDestroyThread(InvokeContext *context, OsThreadState reason, OsThreadHandle handle) {
+    ProcessHandle *parent = context->process;
+    if (!parent->hasAccess(ProcessAccess::eThreadControl)) {
         return OsStatusAccessDenied;
     }
 
-    sm::RcuSharedPtr<Thread> thread = handle->getThread();
-    if (OsStatus status = thread->destroy(context->system, info)) {
+    sm::RcuSharedPtr<Process> process = parent->getProcess();
+
+    ThreadHandle *hThread = nullptr;
+    if (OsStatus status = process->findHandle(handle, &hThread)) {
+        return status;
+    }
+
+    if (!hThread->hasAccess(ThreadAccess::eTerminate)) {
+        return OsStatusAccessDenied;
+    }
+
+    sm::RcuSharedPtr<Thread> thread = hThread->getThread();
+    if (OsStatus status = thread->destroy(context->system, reason)) {
         return status;
     }
 
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysThreadStat(InvokeContext *, ThreadHandle *handle, ThreadStat *result) {
-    if (!handle->hasAccess(ThreadAccess::eStat)) {
+OsStatus sys2::SysThreadStat(InvokeContext *context, OsThreadHandle handle, OsThreadInfo *result) {
+    ProcessHandle *parent = context->process;
+    if (!parent->hasAccess(ProcessAccess::eThreadControl)) {
         return OsStatusAccessDenied;
     }
 
-    sm::RcuSharedPtr<Thread> thread = handle->getThread();
-    if (OsStatus status = thread->stat(result)) {
+    sm::RcuSharedPtr<Process> process = parent->getProcess();
+    ThreadHandle *hThread = nullptr;
+    if (OsStatus status = process->findHandle(handle, &hThread)) {
         return status;
     }
+
+    if (!hThread->hasAccess(ThreadAccess::eStat)) {
+        return OsStatusAccessDenied;
+    }
+
+    sm::RcuSharedPtr<Thread> thread = hThread->getThread();
+    ThreadStat info;
+    if (OsStatus status = thread->stat(&info)) {
+        return status;
+    }
+
+    OsThreadInfo stat {
+        .State = info.state,
+    };
+
+    size_t size = std::min(sizeof(stat.Name), info.name.count());
+    std::memcpy(stat.Name, info.name.data(), size);
 
     return OsStatusSuccess;
 }

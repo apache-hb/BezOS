@@ -11,6 +11,7 @@ enum {
     eOsCallHandleWait = 0x1,
     eOsCallHandleClone = 0x2,
     eOsCallHandleClose = 0x3,
+    eOsCallHandleStat = 0x4,
 
     eOsCallNodeOpen = 0x16,
     eOsCallNodeClose = 0x17,

@@ -17,3 +17,8 @@ OsStatus OsHandleClose(OsHandle Handle) {
     struct OsCallResult result = OsSystemCall(eOsCallHandleClose, (uint64_t)Handle, 0, 0, 0);
     return result.Status;
 }
+
+OsStatus OsHandleStat(OsHandle Handle, struct OsHandleInfo *OutInfo) {
+    struct OsCallResult result = OsSystemCall(eOsCallHandleStat, (uint64_t)Handle, (uint64_t)OutInfo, 0, 0);
+    return result.Status;
+}
