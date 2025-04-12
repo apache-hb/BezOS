@@ -106,24 +106,18 @@ OsStatus sys2::System::getProcessList(stdx::Vector2<sm::RcuSharedPtr<Process>>& 
 }
 
 OsStatus sys2::SysCreateTx(InvokeContext *context, TxCreateInfo info, OsTxHandle *handle) {
-    ProcessHandle *parent = context->process;
-    if (!parent->hasAccess(ProcessAccess::eTxControl)) {
-        return OsStatusAccessDenied;
-    }
-
-    sm::RcuSharedPtr<Process> process = parent->getProcess();
     sm::RcuSharedPtr<Tx> tx = sm::rcuMakeShared<Tx>(&context->system->rcuDomain(), info.name);
     if (!tx) {
         return OsStatusOutOfMemory;
     }
 
-    OsHandle id = process->newHandleId(eOsHandleTx);
+    OsHandle id = context->process->newHandleId(eOsHandleTx);
     TxHandle *result = new (std::nothrow) TxHandle(tx, id, TxAccess::eAll);
     if (!result) {
         return OsStatusOutOfMemory;
     }
 
-    process->addHandle(result);
+    context->process->addHandle(result);
     *handle = result->getHandle();
 
     return OsStatusSuccess;

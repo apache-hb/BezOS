@@ -76,7 +76,7 @@ struct OsDeviceWriteRequest {
 
 struct OsDeviceInfo {
     /// @brief The name of the vnode that the device is associated with.
-    OsUtf8Char Name[OS_DEVICE_NAME_MAX];
+    OsUtf8Char Name[OS_OBJECT_NAME_MAX];
 
     /// @brief The GUID of the interface that the device implements.
     struct OsGuid InterfaceGuid;

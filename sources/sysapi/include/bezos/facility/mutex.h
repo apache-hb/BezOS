@@ -28,6 +28,8 @@ enum {
 typedef OsHandleAccess OsMutexAccess;
 
 struct OsMutexCreateInfo {
+    OsUtf8Char Name[OS_OBJECT_NAME_MAX];
+
     const char *NameFront;
     const char *NameBack;
 

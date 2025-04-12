@@ -32,14 +32,9 @@ public:
     }
 
     void TearDown() override {
-        sys2::ProcessDestroyInfo destroyInfo {
-            .object = hRootProcess.get(),
-            .exitCode = 0,
-            .reason = eOsProcessExited,
-        };
-        sys2::InvokeContext invoke { system(), hRootProcess.get(), nullptr };
+        sys2::InvokeContext invoke { system(), hRootProcess->getProcess(), OS_HANDLE_INVALID };
 
-        OsStatus status = sys2::SysDestroyProcess(&invoke, destroyInfo);
+        OsStatus status = sys2::SysDestroyProcess(&invoke, hRootProcess.get(), 0, eOsProcessExited);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
@@ -50,30 +45,29 @@ public:
 };
 
 TEST_F(TxSystemTest, TransactCreateProcess) {
-    sys2::ProcessHandle *hChild = nullptr;
-    sys2::ThreadHandle *hThread = nullptr;
-    sys2::TxHandle *hTx = nullptr;
+    OsProcessHandle hChild = OS_HANDLE_INVALID;
+    OsThreadHandle hThread = OS_HANDLE_INVALID;
+    OsTxHandle hTx = OS_HANDLE_INVALID;
 
     {
-        sys2::ProcessCreateInfo createInfo {
-            .name = "CHILD",
-            .process = hRootProcess.get(),
+        OsProcessCreateInfo createInfo {
+            .Name = "CHILD",
         };
-        sys2::InvokeContext invoke { system(), hRootProcess.get(), nullptr };
-        OsStatus status = sys2::SysCreateProcess(&invoke, createInfo, &hChild);
+
+        sys2::InvokeContext invoke { system(), hRootProcess->getProcess(), OS_HANDLE_INVALID };
+        OsStatus status = sys2::SysCreateProcess(&invoke, hRootProcess->getProcess(), createInfo, &hChild);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
     {
         sys2::ThreadCreateInfo threadCreateInfo {
             .name = "MAIN",
-            .process = hChild,
             .cpuState = {},
             .tlsAddress = 0,
             .kernelStackSize = x64::kPageSize * 8,
         };
 
-        sys2::InvokeContext invoke { system(), hRootProcess.get(), nullptr };
+        sys2::InvokeContext invoke { system(), hRootProcess->getProcess(), OS_HANDLE_INVALID };
         OsStatus status = sys2::SysCreateThread(&invoke, threadCreateInfo, &hThread);
         ASSERT_EQ(status, OsStatusSuccess);
     }
@@ -81,46 +75,46 @@ TEST_F(TxSystemTest, TransactCreateProcess) {
     {
         sys2::TxCreateInfo txCreateInfo {
             .name = "TEST",
-            .process = hChild,
         };
 
-        sys2::InvokeContext invoke { system(), hChild, nullptr };
+        sys2::InvokeContext invoke { system(), GetProcess(hRootProcess->getProcess(), hChild), OS_HANDLE_INVALID };
         OsStatus status = sys2::SysCreateTx(&invoke, txCreateInfo, &hTx);
         ASSERT_EQ(status, OsStatusSuccess);
-        ASSERT_NE(hTx, nullptr) << "Transaction was not created";
+        ASSERT_NE(hTx, OS_HANDLE_INVALID) << "Transaction was not created";
     }
 
     // create a process and fill out its address space inside a transaction
 
     OsStatus status = OsStatusSuccess;
-    sys2::ProcessHandle *hZshProcess = nullptr;
-    sys2::ThreadHandle *hZshMainThread = nullptr;
-    sys2::ProcessCreateInfo processCreateInfo {
-        .name = "ZSH.ELF",
-        .process = hChild,
+    OsProcessHandle hZshProcess = OS_HANDLE_INVALID;
+    OsThreadHandle hZshMainThread = OS_HANDLE_INVALID;
+    OsProcessCreateInfo processCreateInfo {
+        .Name = "ZSH.ELF",
     };
+    auto child = GetProcess(hRootProcess->getProcess(), hChild);
 
-    sys2::ThreadCreateInfo threadCreateInfo {
-        .name = "MAIN",
-        .process = hChild,
-        .kernelStackSize = x64::kPageSize * 8,
-    };
 
     {
-        sys2::InvokeContext invoke { system(), hChild, hThread, hTx };
+        sys2::InvokeContext invoke { system(), child, hThread, hTx };
         status = sys2::SysCreateProcess(&invoke, processCreateInfo, &hZshProcess);
         ASSERT_EQ(status, OsStatusSuccess);
-        ASSERT_NE(hZshProcess, nullptr) << "Process was not created";
+        ASSERT_NE(hZshProcess, OS_HANDLE_INVALID) << "Process was not created";
 
-        status = sys2::SysCreateThread(&invoke, threadCreateInfo, &hZshMainThread);
+        sys2::ThreadCreateInfo threadCreateInfo {
+            .name = "MAIN",
+            .kernelStackSize = x64::kPageSize * 8,
+        };
+
+        sys2::InvokeContext invoke2 { system(), GetProcess(child, hZshProcess), hThread, hTx };
+        status = sys2::SysCreateThread(&invoke2, threadCreateInfo, &hZshMainThread);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
-    ASSERT_EQ(hZshProcess->getProcess()->getName(), "ZSH.ELF") << "Process name was not set correctly";
+    ASSERT_EQ(GetProcess(child, hZshProcess)->getName(), "ZSH.ELF") << "Process name was not set correctly";
 
     // ensure that the process is not visible outside the transaction
     {
-        sys2::InvokeContext invoke { system(), hChild, hThread };
+        sys2::InvokeContext invoke { system(), GetProcess(hRootProcess->getProcess(), hChild), hThread };
         OsProcessHandle handles[1]{};
         sys2::ProcessQueryInfo query {
             .limit = 1,

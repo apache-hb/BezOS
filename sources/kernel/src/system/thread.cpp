@@ -122,37 +122,23 @@ outOfMemory:
 }
 
 OsStatus sys2::SysCreateThread(InvokeContext *context, ThreadCreateInfo info, OsThreadHandle *handle) {
-    ProcessHandle *parent = context->process;
-
-    if (!parent->hasAccess(ProcessAccess::eThreadControl)) {
-        return OsStatusAccessDenied;
-    }
-
-    sm::RcuSharedPtr<Process> process = parent->getProcess();
-    OsHandle id = process->newHandleId(eOsHandleThread);
+    OsHandle id = context->process->newHandleId(eOsHandleThread);
     ThreadHandle *result = nullptr;
 
-    if (OsStatus status = CreateThreadInner(context->system, info, process, id, &result)) {
+    if (OsStatus status = CreateThreadInner(context->system, info, context->process, id, &result)) {
         return status;
     }
 
-    process->addThread(result->getThread());
-    process->addHandle(result);
+    context->process->addThread(result->getThread());
+    context->process->addHandle(result);
     *handle = result->getHandle();
 
     return OsStatusSuccess;
 }
 
 OsStatus sys2::SysDestroyThread(InvokeContext *context, OsThreadState reason, OsThreadHandle handle) {
-    ProcessHandle *parent = context->process;
-    if (!parent->hasAccess(ProcessAccess::eThreadControl)) {
-        return OsStatusAccessDenied;
-    }
-
-    sm::RcuSharedPtr<Process> process = parent->getProcess();
-
     ThreadHandle *hThread = nullptr;
-    if (OsStatus status = process->findHandle(handle, &hThread)) {
+    if (OsStatus status = context->process->findHandle(handle, &hThread)) {
         return status;
     }
 
@@ -169,14 +155,8 @@ OsStatus sys2::SysDestroyThread(InvokeContext *context, OsThreadState reason, Os
 }
 
 OsStatus sys2::SysThreadStat(InvokeContext *context, OsThreadHandle handle, OsThreadInfo *result) {
-    ProcessHandle *parent = context->process;
-    if (!parent->hasAccess(ProcessAccess::eThreadControl)) {
-        return OsStatusAccessDenied;
-    }
-
-    sm::RcuSharedPtr<Process> process = parent->getProcess();
     ThreadHandle *hThread = nullptr;
-    if (OsStatus status = process->findHandle(handle, &hThread)) {
+    if (OsStatus status = context->process->findHandle(handle, &hThread)) {
         return status;
     }
 

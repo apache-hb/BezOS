@@ -151,7 +151,7 @@ OsStatus dev::AcpiTable::stat(vfs2::NodeStat *stat) {
         .logical = range.size(),
         .blksize = 1,
         .blocks = range.size(),
-        .access = vfs2::Access::R,
+        .access = sys2::NodeAccess::R,
     };
 
     return OsStatusSuccess;
@@ -191,7 +191,7 @@ OsStatus dev::AcpiRoot::stat(vfs2::NodeStat *stat) {
         .logical = range.size(),
         .blksize = 1,
         .blocks = range.size(),
-        .access = vfs2::Access::R,
+        .access = sys2::NodeAccess::R,
     };
 
     return OsStatusSuccess;
@@ -247,7 +247,7 @@ OsStatus dev::SmBiosTable::stat(vfs2::NodeStat *stat) {
         .logical = range.size(),
         .blksize = 1,
         .blocks = range.size(),
-        .access = vfs2::Access::R,
+        .access = sys2::NodeAccess::R,
     };
 
     return OsStatusSuccess;
@@ -286,7 +286,7 @@ OsStatus dev::SmBiosRoot::stat(vfs2::NodeStat *stat) {
         .logical = tables.size(),
         .blksize = 1,
         .blocks = tables.size(),
-        .access = vfs2::Access::R,
+        .access = sys2::NodeAccess::R,
     };
 
     return OsStatusSuccess;

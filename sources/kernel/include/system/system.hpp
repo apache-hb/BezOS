@@ -116,6 +116,7 @@ namespace sys2 {
     // internal
 
     OsStatus SysCreateRootProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle);
+    OsStatus SysResolveObject(InvokeContext *context, sm::RcuSharedPtr<IObject> object, OsHandleAccess access, OsHandle *handle);
 
     // handle
 
@@ -126,10 +127,10 @@ namespace sys2 {
 
     // node
 
-    OsStatus SysNodeOpen(InvokeContext *context, NodeOpenInfo info, NodeHandle **handle);
-    OsStatus SysNodeClose(InvokeContext *context, NodeCloseInfo info);
-    OsStatus SysNodeQuery(InvokeContext *context, NodeQueryInfo info, DeviceHandle **handle);
-    OsStatus SysNodeStat(InvokeContext *context, NodeHandle *handle, NodeStat *result);
+    OsStatus SysNodeOpen(InvokeContext *context, NodeOpenInfo info, OsNodeHandle *outHandle);
+    OsStatus SysNodeClose(InvokeContext *context, OsNodeHandle handle);
+    OsStatus SysNodeQuery(InvokeContext *context, OsNodeHandle handle, OsNodeQueryInterfaceInfo info, OsDeviceHandle *outHandle);
+    OsStatus SysNodeStat(InvokeContext *context, OsNodeHandle handle, OsNodeInfo *result);
 
     // device
 
@@ -142,9 +143,12 @@ namespace sys2 {
 
     // process
 
-    OsStatus SysCreateProcess(InvokeContext *context, ProcessCreateInfo info, ProcessHandle **handle);
-    OsStatus SysDestroyProcess(InvokeContext *context, ProcessDestroyInfo info);
-    OsStatus SysProcessStat(InvokeContext *context, ProcessStatInfo info, ProcessStat *result);
+    OsStatus SysCreateProcess(InvokeContext *context, OsProcessCreateInfo info, OsProcessHandle *handle);
+    OsStatus SysDestroyProcess(InvokeContext *context, OsProcessHandle handle, int64_t exitCode, OsProcessStateFlags reason);
+    OsStatus SysProcessStat(InvokeContext *context, OsProcessHandle handle, OsProcessInfo *result);
+
+    OsStatus SysCreateProcess(InvokeContext *context, sm::RcuSharedPtr<Process> parent, OsProcessCreateInfo info, OsProcessHandle *handle);
+    OsStatus SysDestroyProcess(InvokeContext *context, ProcessHandle *handle, int64_t exitCode, OsProcessStateFlags reason);
 
     OsStatus SysQueryProcessList(InvokeContext *context, ProcessQueryInfo info, ProcessQueryResult *result);
 

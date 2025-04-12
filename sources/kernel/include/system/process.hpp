@@ -21,7 +21,6 @@ namespace sys2 {
     class Process final : public BaseObject {
         using Super = BaseObject;
 
-        bool mSupervisor;
         ProcessId mId;
         OsProcessStateFlags mState;
         int64_t mExitCode;
@@ -33,10 +32,12 @@ namespace sys2 {
         sm::FlatHashSet<sm::RcuSharedPtr<Process>, sm::RcuHash<Process>, std::equal_to<>> mChildren;
         sm::FlatHashSet<sm::RcuSharedPtr<Thread>, sm::RcuHash<Thread>, std::equal_to<>> mThreads;
 
+        sm::FlatHashMap<sm::RcuDynamicPtr<IObject>, OsHandle, sm::RcuHash<IObject>, std::equal_to<>> mObjectHandles;
+
         /// @brief All the handles this process has open.
         sm::FlatHashMap<OsHandle, std::unique_ptr<IHandle>> mHandles;
 
-        sm::BTreeMultiMap<sm::RcuWeakPtr<Process>, std::unique_ptr<IHandle>> mProcessHandles;
+        sm::BTreeMultiMap<sm::RcuDynamicPtr<Process>, std::unique_ptr<IHandle>> mProcessHandles;
 
         /// @brief All the physical memory dedicated to this process.
         stdx::Vector2<km::MemoryRange> mPhysicalMemory;
@@ -49,20 +50,22 @@ namespace sys2 {
     public:
         using Access = ProcessAccess;
 
-        Process(const ProcessCreateInfo& createInfo, sm::RcuWeakPtr<Process> parent, const km::AddressSpace *systemTables, km::AddressMapping pteMemory);
+        Process(ObjectName name, OsProcessStateFlags state, sm::RcuWeakPtr<Process> parent, const km::AddressSpace *systemTables, km::AddressMapping pteMemory);
 
         stdx::StringView getClassName() const override { return "Process"; }
 
         OsStatus open(HandleCreateInfo createInfo, IHandle **handle) override;
 
         OsStatus stat(ProcessStat *info);
-        bool isSupervisor() const { return mSupervisor; }
+        bool isSupervisor() const { return mState & eOsProcessSupervisor; }
 
         IHandle *getHandle(OsHandle handle);
         void addHandle(IHandle *handle);
         OsStatus removeHandle(IHandle *handle);
         OsStatus removeHandle(OsHandle handle);
         OsStatus findHandle(OsHandle handle, OsHandleType type, IHandle **result);
+
+        OsStatus resolveObject(sm::RcuDynamicPtr<IObject> object, OsHandleAccess access, OsHandle *handle);
 
         template<typename T>
         OsStatus findHandle(OsHandle handle, T **result) {
@@ -93,6 +96,8 @@ namespace sys2 {
 
         void removeThread(sm::RcuSharedPtr<Thread> thread);
         void addThread(sm::RcuSharedPtr<Thread> thread);
+
+        sm::RcuSharedPtr<Process> lockParent() { return mParent.lock(); }
     };
 
     class ProcessHandle final : public BaseHandle<Process, eOsHandleProcess> {
@@ -105,7 +110,24 @@ namespace sys2 {
 
         OsStatus createProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle);
         OsStatus destroyProcess(System *system, const ProcessDestroyInfo& info);
-
-        OsStatus createTx(System *system, TxCreateInfo info, TxHandle **handle);
     };
+
+    bool IsParentProcess(sm::RcuSharedPtr<Process> process, sm::RcuSharedPtr<Process> parent);
+
+    template<typename T>
+    OsStatus SysFindHandle(InvokeContext *context, OsHandle handle, T **outHandle) {
+        if (handle == OS_HANDLE_INVALID) {
+            return OsStatusInvalidHandle;
+        }
+
+        T *result = nullptr;
+        if (OsStatus status = context->process->findHandle(handle, &result)) {
+            return status;
+        }
+
+        *outHandle = result;
+        return OsStatusSuccess;
+    }
+
+    OsStatus SysGetInvokerTx(InvokeContext *context, TxHandle **outHandle);
 }

@@ -4,6 +4,7 @@
 
 #include "std/string_view.hpp"
 
+#include <memory>
 #include <string.h>
 
 namespace stdx {
@@ -65,6 +66,16 @@ namespace stdx {
 
         constexpr const T *begin() const { return mStorage; }
         constexpr const T *end() const { return mStorage + mSize; }
+
+        constexpr void resize(size_t length) noexcept {
+            if (length > mSize) {
+                std::uninitialized_default_construct_n(mStorage + mSize, length - mSize);
+                mSize = length;
+            } else if (length < mSize) {
+                std::destroy(mStorage + length, mStorage + mSize);
+                mSize = length;
+            }
+        }
 
         constexpr void clear() {
             mSize = 0;

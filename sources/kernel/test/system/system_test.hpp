@@ -16,6 +16,16 @@ struct MemoryState {
     size_t freeSpace;
 };
 
+static inline sm::RcuSharedPtr<sys2::Process> GetProcess(sm::RcuSharedPtr<sys2::Process> parent, OsProcessHandle handle) {
+    sys2::ProcessHandle *hChild = nullptr;
+    OsStatus status = parent->findHandle(handle, &hChild);
+    if (status != OsStatusSuccess) {
+        return nullptr;
+    }
+
+    return hChild->getProcess();
+}
+
 class SystemBaseTest : public testing::Test {
 public:
     void SetUp() override {

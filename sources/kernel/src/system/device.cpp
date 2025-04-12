@@ -22,14 +22,8 @@ sys2::DeviceHandle::DeviceHandle(sm::RcuSharedPtr<Device> device, OsHandle handl
 
 OsStatus sys2::SysDeviceOpen(InvokeContext *context, DeviceOpenInfo info, OsDeviceHandle *outHandle) {
     std::unique_ptr<vfs2::IHandle> vfsHandle;
-    ProcessHandle *hProcess = context->process;
     vfs2::VfsRoot *vfs = context->system->mVfsRoot;
 
-    if (!hProcess->hasAccess(ProcessAccess::eIoControl)) {
-        return OsStatusAccessDenied;
-    }
-
-    sm::RcuSharedPtr<Process> process = hProcess->getProcess();
     if (OsStatus status = vfs->device(info.path, info.interface, nullptr, 0, std::out_ptr(vfsHandle))) {
         return status;
     }
@@ -39,28 +33,20 @@ OsStatus sys2::SysDeviceOpen(InvokeContext *context, DeviceOpenInfo info, OsDevi
         return OsStatusOutOfMemory;
     }
 
-    DeviceHandle *result = new (std::nothrow) DeviceHandle(device, process->newHandleId(eOsHandleDevice), DeviceAccess::eAll);
+    DeviceHandle *result = new (std::nothrow) DeviceHandle(device, context->process->newHandleId(eOsHandleDevice), DeviceAccess::eAll);
     if (!result) {
         return OsStatusOutOfMemory;
     }
 
-    process->addHandle(result);
+    context->process->addHandle(result);
     *outHandle = result->getHandle();
 
     return OsStatusSuccess;
 }
 
 OsStatus sys2::SysDeviceClose(InvokeContext *context, OsDeviceHandle handle) {
-    ProcessHandle *parent = context->process;
-
-    if (!parent->hasAccess(ProcessAccess::eIoControl)) {
-        return OsStatusAccessDenied;
-    }
-
-    sm::RcuSharedPtr<Process> process = parent->getProcess();
-
     DeviceHandle *hDevice = nullptr;
-    if (OsStatus status = process->findHandle(handle, &hDevice)) {
+    if (OsStatus status = context->process->findHandle(handle, &hDevice)) {
         return status;
     }
 
@@ -70,7 +56,7 @@ OsStatus sys2::SysDeviceClose(InvokeContext *context, OsDeviceHandle handle) {
 
     sm::RcuSharedPtr<Device> device = hDevice->getDevice();
 
-    if (OsStatus status = process->removeHandle(hDevice)) {
+    if (OsStatus status = context->process->removeHandle(hDevice)) {
         return status;
     }
 
@@ -78,16 +64,8 @@ OsStatus sys2::SysDeviceClose(InvokeContext *context, OsDeviceHandle handle) {
 }
 
 OsStatus sys2::SysDeviceRead(InvokeContext *context, OsDeviceHandle handle, OsDeviceReadRequest request, OsSize *outRead) {
-    ProcessHandle *parent = context->process;
-
-    if (!parent->hasAccess(ProcessAccess::eIoControl)) {
-        return OsStatusAccessDenied;
-    }
-
-    sm::RcuSharedPtr<Process> process = parent->getProcess();
-
     DeviceHandle *hDevice = nullptr;
-    if (OsStatus status = process->findHandle(handle, &hDevice)) {
+    if (OsStatus status = context->process->findHandle(handle, &hDevice)) {
         return status;
     }
 
@@ -115,16 +93,8 @@ OsStatus sys2::SysDeviceRead(InvokeContext *context, OsDeviceHandle handle, OsDe
 }
 
 OsStatus sys2::SysDeviceWrite(InvokeContext *context, OsDeviceHandle handle, OsDeviceWriteRequest request, OsSize *outWrite) {
-    ProcessHandle *parent = context->process;
-
-    if (!parent->hasAccess(ProcessAccess::eIoControl)) {
-        return OsStatusAccessDenied;
-    }
-
-    sm::RcuSharedPtr<Process> process = parent->getProcess();
-
     DeviceHandle *hDevice = nullptr;
-    if (OsStatus status = process->findHandle(handle, &hDevice)) {
+    if (OsStatus status = context->process->findHandle(handle, &hDevice)) {
         return status;
     }
 
@@ -182,16 +152,8 @@ OsStatus sys2::SysDeviceInvoke(InvokeContext *context, OsDeviceHandle handle, ui
 #endif
 
 OsStatus sys2::SysDeviceStat(InvokeContext *context, OsDeviceHandle handle, OsDeviceInfo *info) {
-    ProcessHandle *parent = context->process;
-
-    if (!parent->hasAccess(ProcessAccess::eIoControl)) {
-        return OsStatusAccessDenied;
-    }
-
-    sm::RcuSharedPtr<Process> process = parent->getProcess();
-
     DeviceHandle *hDevice = nullptr;
-    if (OsStatus status = process->findHandle(handle, &hDevice)) {
+    if (OsStatus status = context->process->findHandle(handle, &hDevice)) {
         return status;
     }
 

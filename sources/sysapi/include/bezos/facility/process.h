@@ -121,6 +121,8 @@ struct OsProcessParam {
 struct OsProcessCreateInfo {
     struct OsPath Executable;
 
+    OsUtf8Char Name[OS_OBJECT_NAME_MAX];
+
     const char *NameBegin;
     const char *NameEnd;
 

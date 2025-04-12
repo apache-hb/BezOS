@@ -12,7 +12,7 @@ extern "C" {
 #endif
 
 #define OS_DEVICE_NAME_MAX 128
-#define OS_OBJECT_NAME_MAX 128
+#define OS_OBJECT_NAME_MAX 255
 
 #define OS_OBJECT_HANDLE(name) typedef OsHandle name
 

@@ -40,7 +40,9 @@ namespace sys2 {
 
         BaseObject(ObjectName name) noexcept
             : mName(name)
-        { }
+        {
+            mName.resize(strnlen(name.data(), name.capacity()));
+        }
 
         ObjectName getNameUnlocked() const REQUIRES_SHARED(mLock) {
             return mName;

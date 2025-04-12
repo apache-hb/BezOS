@@ -155,6 +155,9 @@ namespace sm {
         template<typename O>
         friend class RcuSharedPtr;
 
+        template<typename O>
+        friend class RcuDynamicPtr;
+
         std::atomic<rcu::detail::ControlBlock*> mControl;
 
         void exchangeControl(rcu::detail::ControlBlock *control) {
@@ -407,6 +410,11 @@ namespace sm {
             return mControl == other.mControl;
         }
 
+        template<std::derived_from<T> O>
+        constexpr bool operator==(const RcuDynamicPtr<O>& other) const {
+            return mControl == other.mControl;
+        }
+
         constexpr bool operator==(std::nullptr_t) const {
             return mControl == nullptr;
         }
@@ -442,6 +450,9 @@ namespace sm {
 
         template<typename O>
         friend class RcuSharedPtr;
+
+        template<typename O>
+        friend class RcuDynamicPtr;
 
         std::atomic<rcu::detail::ControlBlock*> mControl;
 
@@ -560,6 +571,11 @@ namespace sm {
             return mControl == other.mControl;
         }
 
+        template<std::derived_from<T> O>
+        constexpr bool operator==(const RcuDynamicPtr<O>& other) const {
+            return mControl == other.mControl;
+        }
+
         constexpr bool operator==(std::nullptr_t) const {
             return mControl == nullptr;
         }
@@ -579,6 +595,9 @@ namespace sm {
 
         template<typename O>
         friend class RcuSharedPtr;
+
+        template<typename O>
+        friend class RcuDynamicPtr;
 
         /// @brief The control block for this dynamic pointer.
         /// @note The bottom bit is set if we are a strong pointer, otherwise it is
@@ -622,6 +641,14 @@ namespace sm {
         RcuDynamicPtr() = default;
         RcuDynamicPtr(std::nullptr_t) : mControl(nullptr) { }
 
+        RcuDynamicPtr(sm::RcuSharedPtr<T> shared) : mControl(nullptr) {
+            acquire(shared.mControl.load(), true);
+        }
+
+        RcuDynamicPtr(sm::RcuWeakPtr<T> weak) : mControl(nullptr) {
+            acquire(weak.mControl.load(), false);
+        }
+
         RcuDynamicPtr(const RcuDynamicPtr& other) : mControl(nullptr) {
             rcu::detail::ControlBlock *control = other.mControl.load();
             acquire(rcu::detail::UnTagPointer(control), rcu::detail::IsTagged(control));
@@ -659,6 +686,29 @@ namespace sm {
         sm::RcuSharedPtr<T> lock() {
             return sm::RcuSharedPtr<T>(rcu::detail::UnTagPointer(mControl), rcu::detail::AcquireControl{});
         }
+
+        template<std::derived_from<T> O>
+        constexpr bool operator==(const RcuSharedPtr<O>& other) const {
+            return mControl == other.mControl;
+        }
+
+        template<std::derived_from<T> O>
+        constexpr bool operator==(const RcuWeakPtr<O>& other) const {
+            return mControl == other.mControl;
+        }
+
+        template<std::derived_from<T> O>
+        constexpr bool operator==(const RcuDynamicPtr<O>& other) const {
+            return mControl == other.mControl;
+        }
+
+        constexpr bool operator==(std::nullptr_t) const {
+            return mControl == nullptr;
+        }
+
+        constexpr size_t hash() const noexcept {
+            return std::hash<rcu::detail::ControlBlock*>{}(mControl);
+        }
     };
 
     template<typename T>
@@ -669,6 +719,9 @@ namespace sm {
             return ptr.hash();
         }
         constexpr size_t operator()(const RcuWeakPtr<T>& ptr) const noexcept {
+            return ptr.hash();
+        }
+        constexpr size_t operator()(const RcuDynamicPtr<T>& ptr) const noexcept {
             return ptr.hash();
         }
     };
@@ -748,6 +801,13 @@ struct std::hash<sm::RcuSharedPtr<T>> {
 template<typename T>
 struct std::hash<sm::RcuWeakPtr<T>> {
     constexpr size_t operator()(const sm::RcuWeakPtr<T>& ptr) const noexcept {
+        return ptr.hash();
+    }
+};
+
+template<typename T>
+struct std::hash<sm::RcuDynamicPtr<T>> {
+    constexpr size_t operator()(const sm::RcuDynamicPtr<T>& ptr) const noexcept {
         return ptr.hash();
     }
 };

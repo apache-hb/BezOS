@@ -20,18 +20,9 @@ OsStatus sys2::ProcessHandle::destroyProcess(System *system, const ProcessDestro
     return getInner()->destroy(system, info);
 }
 
-OsStatus sys2::ProcessHandle::createTx(System *system, TxCreateInfo info, TxHandle **handle) {
-    if (!hasAccess(ProcessAccess::eTxControl)) {
-        return OsStatusAccessDenied;
-    }
-
-    return getInner()->createTx(system, info, handle);
-}
-
-sys2::Process::Process(const ProcessCreateInfo& createInfo, sm::RcuWeakPtr<Process> parent, const km::AddressSpace *systemTables, km::AddressMapping pteMemory)
-    : Super(createInfo.name)
-    , mSupervisor(createInfo.supervisor)
-    , mState(createInfo.state)
+sys2::Process::Process(ObjectName name, OsProcessStateFlags state, sm::RcuWeakPtr<Process> parent, const km::AddressSpace *systemTables, km::AddressMapping pteMemory)
+    : Super(name)
+    , mState(state)
     , mExitCode(0)
     , mParent(parent)
     , mPteMemory(pteMemory)
@@ -46,16 +37,11 @@ OsStatus sys2::Process::stat(ProcessStat *info) {
 
     stdx::SharedLock guard(mLock);
 
-    OsProcessStateFlags state = mState;
-    if (mSupervisor) {
-        state |= eOsProcessSupervisor;
-    }
-
     *info = ProcessStat {
         .name = getNameUnlocked(),
         .id = OsProcessId(mId),
         .exitCode = mExitCode,
-        .state = state,
+        .state = mState,
         .parent = parent,
     };
 
@@ -115,6 +101,33 @@ OsStatus sys2::Process::findHandle(OsHandle handle, OsHandleType type, IHandle *
         return OsStatusSuccess;
     }
 
+    return OsStatusNotFound;
+}
+
+OsStatus sys2::Process::resolveObject(sm::RcuDynamicPtr<IObject> object, OsHandleAccess access, OsHandle *handle) {
+    stdx::UniqueLock guard(mLock);
+    if (auto it = mObjectHandles.find(object); it != mObjectHandles.end()) {
+        *handle = it->second;
+        return OsStatusSuccess;
+    }
+
+    OsHandle id = newHandleId(eOsHandleProcess);
+    HandleCreateInfo createInfo {
+        .owner = loanShared(),
+        .access = access,
+    };
+
+    IHandle *result = nullptr;
+    if (sm::RcuSharedPtr<IObject> locked = object.lock()) {
+        if (OsStatus status = locked->open(createInfo, &result)) {
+            return status;
+        }
+
+        mObjectHandles.insert({ object, id });
+        *handle = id;
+        return OsStatusSuccess;
+    }
+
     return OsStatusInvalidHandle;
 }
 
@@ -144,7 +157,7 @@ OsStatus sys2::Process::createProcess(System *system, ProcessCreateInfo info, Pr
         return status;
     }
 
-    if (auto process = sm::rcuMakeShared<sys2::Process>(&system->rcuDomain(), info, loanWeak(), system->pageTables(), pteMemory)) {
+    if (auto process = sm::rcuMakeShared<sys2::Process>(&system->rcuDomain(), info.name, info.state, loanWeak(), system->pageTables(), pteMemory)) {
         ProcessHandle *result = new (std::nothrow) ProcessHandle(process, newHandleId(eOsHandleProcess), ProcessAccess::eAll);
         if (!result) {
             system->releaseMapping(pteMemory);
@@ -267,7 +280,7 @@ OsStatus sys2::Process::vmemRelease(System *, km::VirtualRange) {
     return OsStatusNotSupported;
 }
 
-static OsStatus CreateProcessInner(sys2::System *system, const sys2::ProcessCreateInfo& info, sm::RcuSharedPtr<sys2::Process> parent, OsHandle id, sys2::ProcessHandle **handle) {
+static OsStatus CreateProcessInner(sys2::System *system, sys2::ObjectName name, OsProcessStateFlags state, sm::RcuSharedPtr<sys2::Process> parent, OsHandle id, sys2::ProcessHandle **handle) {
     sm::RcuSharedPtr<sys2::Process> process;
     sys2::ProcessHandle *result = nullptr;
     km::AddressMapping pteMemory;
@@ -277,7 +290,7 @@ static OsStatus CreateProcessInner(sys2::System *system, const sys2::ProcessCrea
     }
 
     // Create the process.
-    process = sm::rcuMakeShared<sys2::Process>(&system->rcuDomain(), info, parent, system->pageTables(), pteMemory);
+    process = sm::rcuMakeShared<sys2::Process>(&system->rcuDomain(), name, state, parent, system->pageTables(), pteMemory);
     if (!process) {
         goto outOfMemory;
     }
@@ -304,7 +317,7 @@ OsStatus sys2::SysCreateRootProcess(System *system, ProcessCreateInfo info, Proc
     OsHandle id = OS_HANDLE_NEW(eOsHandleProcess, 0);
     ProcessHandle *result = nullptr;
 
-    if (OsStatus status = CreateProcessInner(system, info, nullptr, id, &result)) {
+    if (OsStatus status = CreateProcessInner(system, info.name, info.state, nullptr, id, &result)) {
         return status;
     }
 
@@ -312,68 +325,106 @@ OsStatus sys2::SysCreateRootProcess(System *system, ProcessCreateInfo info, Proc
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysCreateProcess(InvokeContext *context, ProcessCreateInfo info, ProcessHandle **handle) {
-    ProcessHandle *parent = info.process;
-    TxHandle *tx = context->tx;
-    ProcessHandle *result = nullptr;
+OsStatus sys2::SysResolveObject(InvokeContext *context, sm::RcuSharedPtr<IObject> object, OsHandleAccess access, OsHandle *handle) {
+    return context->process->resolveObject(object, access, handle);
+}
 
-    // Check that we can control the parent process.
-    if (!parent->hasAccess(ProcessAccess::eProcessControl)) {
-        return OsStatusAccessDenied;
+OsStatus sys2::SysCreateProcess(InvokeContext *context, OsProcessCreateInfo info, OsProcessHandle *handle) {
+    ProcessHandle *hParent = nullptr;
+    sm::RcuSharedPtr<Process> process;
+
+    OsProcessHandle hParentHandle = info.Parent;
+    if (hParentHandle != OS_HANDLE_INVALID) {
+        if (OsStatus status = SysFindHandle(context, hParentHandle, &hParent)) {
+            return status;
+        }
+
+        process = hParent->getProcess();
+    } else {
+        process = context->process;
     }
+
+    return SysCreateProcess(context, process, info, handle);
+}
+
+OsStatus sys2::SysCreateProcess(InvokeContext *context, sm::RcuSharedPtr<Process> parent, OsProcessCreateInfo info, OsProcessHandle *handle) {
+    ProcessHandle *hResult = nullptr;
+    TxHandle *hTx = nullptr;
 
     // If there is a transaction, ensure we can append to it.
-    if (tx && !tx->hasAccess(TxAccess::eWrite)) {
-        return OsStatusAccessDenied;
+    if ((context->tx != OS_HANDLE_INVALID)) {
+        if (OsStatus status = SysFindHandle(context, context->tx, &hTx)) {
+            return status;
+        }
     }
 
-    sm::RcuSharedPtr<Process> invoker = context->process->getProcess();
-    sm::RcuSharedPtr<Process> owner = parent->getProcess();
-    OsHandle id = invoker->newHandleId(eOsHandleProcess);
-    if (OsStatus status = CreateProcessInner(context->system, info, owner, id, &result)) {
+    OsHandle id = context->process->newHandleId(eOsHandleProcess);
+    if (OsStatus status = CreateProcessInner(context->system, info.Name, info.Flags, parent, id, &hResult)) {
         return status;
     }
 
-    owner->addChild(result->getProcess());
-    invoker->addHandle(result);
-    *handle = result;
+    parent->addChild(hResult->getProcess());
+    context->process->addHandle(hResult);
+    *handle = hResult->getHandle();
 
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysDestroyProcess(InvokeContext *context, ProcessDestroyInfo info) {
-    sys2::ProcessHandle *handle = info.object;
+OsStatus sys2::SysDestroyProcess(InvokeContext *context, OsProcessHandle handle, int64_t exitCode, OsProcessStateFlags reason) {
+    sys2::ProcessHandle *hProcess = nullptr;
+    if (OsStatus status = context->process->findHandle(handle, &hProcess)) {
+        return status;
+    }
 
+    return SysDestroyProcess(context, hProcess, exitCode, reason);
+}
+
+OsStatus sys2::SysDestroyProcess(InvokeContext *context, sys2::ProcessHandle *handle, int64_t exitCode, OsProcessStateFlags reason) {
     if (!handle->hasAccess(ProcessAccess::eTerminate)) {
         return OsStatusAccessDenied;
     }
 
-    sm::RcuSharedPtr<Process> process = handle->getProcess();
-    if (OsStatus status = process->destroy(context->system, info)) {
+    ProcessDestroyInfo info {
+        .object = handle,
+        .exitCode = exitCode,
+        .reason = reason,
+    };
+
+    return handle->destroyProcess(context->system, info);
+}
+
+OsStatus sys2::SysProcessStat(InvokeContext *context, OsProcessHandle handle, OsProcessInfo *result) {
+    sys2::ProcessHandle *processHandle = nullptr;
+    if (OsStatus status = context->process->findHandle(handle, &processHandle)) {
         return status;
     }
 
-    return OsStatusSuccess;
-}
-
-OsStatus sys2::SysProcessStat(InvokeContext *, ProcessStatInfo info, ProcessStat *result) {
-    sys2::ProcessHandle *handle = info.object;
-
-    if (!handle->hasAccess(ProcessAccess::eStat)) {
+    if (!processHandle->hasAccess(ProcessAccess::eStat)) {
         return OsStatusAccessDenied;
     }
 
-    sm::RcuSharedPtr<Process> process = handle->getProcess();
-    if (OsStatus status = process->stat(result)) {
+    sm::RcuSharedPtr<Process> proc = processHandle->getProcess();
+    ProcessStat info;
+    if (OsStatus status = proc->stat(&info)) {
         return status;
     }
+
+    OsProcessInfo processInfo {
+        .Parent = info.parent,
+        .Id = info.id,
+        .Status = info.state,
+        .ExitCode = info.exitCode,
+    };
+    size_t size = std::min(sizeof(processInfo.Name), info.name.count());
+    std::memcpy(processInfo.Name, info.name.data(), size);
+
+    *result = processInfo;
 
     return OsStatusSuccess;
 }
 
 OsStatus sys2::SysQueryProcessList(InvokeContext *context, ProcessQueryInfo info, ProcessQueryResult *result) {
     sys2::System *system = context->system;
-    sm::RcuSharedPtr<Process> process = context->process->getProcess();
     stdx::SharedLock guard(system->mLock);
 
     size_t index = 0;
@@ -389,7 +440,7 @@ OsStatus sys2::SysQueryProcessList(InvokeContext *context, ProcessQueryInfo info
         }
 
         HandleCreateInfo createInfo {
-            .owner = process,
+            .owner = context->process,
             .access = info.access,
         };
         IHandle *handle = nullptr;
@@ -406,4 +457,25 @@ OsStatus sys2::SysQueryProcessList(InvokeContext *context, ProcessQueryInfo info
     result->found = index;
 
     return hasMoreData ? OsStatusMoreData : OsStatusSuccess;
+}
+
+bool sys2::IsParentProcess(sm::RcuSharedPtr<Process> process, sm::RcuSharedPtr<Process> parent) {
+    sm::RcuSharedPtr<Process> current = process;
+    while (current) {
+        if (current == parent) {
+            return true;
+        }
+
+        current = current->lockParent();
+    }
+
+    return false;
+}
+
+OsStatus sys2::SysGetInvokerTx(InvokeContext *context, TxHandle **outHandle) {
+    if (context->tx == OS_HANDLE_INVALID) {
+        return OsStatusInvalidHandle;
+    }
+
+    return SysFindHandle(context, context->tx, outHandle);
 }

@@ -172,12 +172,12 @@ namespace sys2 {
         System *system;
 
         /// @brief The process namespace this method is being invoked in.
-        ProcessHandle *process;
+        sm::RcuSharedPtr<Process> process;
 
         /// @brief The thread in the process that is invoking the method.
-        ThreadHandle *thread;
+        OsThreadHandle thread;
 
         /// @brief The transaction context that this method is contained in.
-        TxHandle *tx;
+        OsTxHandle tx;
     };
 }

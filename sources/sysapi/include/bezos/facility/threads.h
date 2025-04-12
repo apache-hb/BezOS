@@ -63,6 +63,8 @@ typedef uint32_t OsThreadCreateFlags;
 typedef uint32_t OsThreadState;
 
 struct OsThreadCreateInfo {
+    OsUtf8Char Name[OS_OBJECT_NAME_MAX];
+
     const char *NameFront;
     const char *NameBack;
 

@@ -19,7 +19,7 @@ sys2::NodeHandle::NodeHandle(sm::RcuSharedPtr<Node> node, OsHandle handle, NodeA
     : BaseHandle(node, handle, access)
 { }
 
-OsStatus sys2::SysNodeOpen(InvokeContext *context, NodeOpenInfo info, NodeHandle **handle) {
+OsStatus sys2::SysNodeOpen(InvokeContext *context, NodeOpenInfo info, OsNodeHandle *outHandle) {
     vfs2::VfsRoot *root = context->system->mVfsRoot;
     ProcessHandle *parent = info.process;
     sm::RcuSharedPtr<vfs2::INode> vfsNode;
@@ -45,25 +45,22 @@ OsStatus sys2::SysNodeOpen(InvokeContext *context, NodeOpenInfo info, NodeHandle
     }
 
     process->addHandle(result);
-    *handle = result;
+    *outHandle = result->getHandle();
 
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysNodeClose(InvokeContext *, NodeCloseInfo info) {
-    ProcessHandle *parent = info.process;
-    NodeHandle *node = info.node;
+OsStatus sys2::SysNodeClose(InvokeContext *context, OsNodeHandle handle) {
+    NodeHandle *node = nullptr;
+    if (OsStatus status = context->process->findHandle(handle, &node)) {
+        return status;
+    }
 
     if (!node->hasAccess(NodeAccess::eDestroy)) {
         return OsStatusAccessDenied;
     }
 
-    if (!parent->hasAccess(ProcessAccess::eIoControl)) {
-        return OsStatusAccessDenied;
-    }
-
-    sm::RcuSharedPtr<Process> process = parent->getProcess();
-    if (OsStatus status = process->removeHandle(node)) {
+    if (OsStatus status = context->process->removeHandle(node)) {
         return status;
     }
 
@@ -72,24 +69,22 @@ OsStatus sys2::SysNodeClose(InvokeContext *, NodeCloseInfo info) {
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysNodeQuery(InvokeContext *context, NodeQueryInfo info, DeviceHandle **handle) {
-    NodeHandle *node = info.node;
+OsStatus sys2::SysNodeQuery(InvokeContext *context, OsNodeHandle handle, OsNodeQueryInterfaceInfo info, OsDeviceHandle *outHandle) {
+    NodeHandle *node = nullptr;
     std::unique_ptr<vfs2::IHandle> vfsHandle;
-    ProcessHandle *hProcess = context->process;
 
-    if (!hProcess->hasAccess(ProcessAccess::eIoControl)) {
-        return OsStatusAccessDenied;
+    if (OsStatus status = context->process->findHandle(handle, &node)) {
+        return status;
     }
 
     if (!node->hasAccess(NodeAccess::eQueryInterface)) {
         return OsStatusAccessDenied;
     }
 
-    sm::RcuSharedPtr<Process> process = hProcess->getProcess();
     sm::RcuSharedPtr<Node> sysNode = node->getNode();
     sm::RcuSharedPtr<vfs2::INode> vfsNode = sysNode->getVfsNode();
 
-    if (OsStatus status = vfsNode->query(info.uuid, info.data, info.size, std::out_ptr(vfsHandle))) {
+    if (OsStatus status = vfsNode->query(info.InterfaceGuid, info.OpenData, info.OpenDataSize, std::out_ptr(vfsHandle))) {
         return status;
     }
 
@@ -98,29 +93,36 @@ OsStatus sys2::SysNodeQuery(InvokeContext *context, NodeQueryInfo info, DeviceHa
         return OsStatusOutOfMemory;
     }
 
-    DeviceHandle *result = new (std::nothrow) DeviceHandle(device, process->newHandleId(eOsHandleDevice), DeviceAccess::eAll);
+    DeviceHandle *result = new (std::nothrow) DeviceHandle(device, context->process->newHandleId(eOsHandleDevice), DeviceAccess::eAll);
     if (!result) {
         return OsStatusOutOfMemory;
     }
 
-    process->addHandle(result);
-    *handle = result;
+    context->process->addHandle(result);
+    *outHandle = result->getHandle();
 
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysNodeStat(InvokeContext *, NodeHandle *handle, NodeStat *result) {
-    if (!handle->hasAccess(NodeAccess::eStat)) {
+OsStatus sys2::SysNodeStat(InvokeContext *context, OsNodeHandle handle, OsNodeInfo *result) {
+    NodeHandle *node = nullptr;
+    if (OsStatus status = SysFindHandle(context, handle, &node)) {
+        return status;
+    }
+
+    if (!node->hasAccess(NodeAccess::eStat)) {
         return OsStatusAccessDenied;
     }
 
-    sm::RcuSharedPtr<Node> node = handle->getNode();
-    sm::RcuSharedPtr<vfs2::INode> vfsNode = node->getVfsNode();
+    sm::RcuSharedPtr<Node> sysNode = node->getNode();
+    sm::RcuSharedPtr<vfs2::INode> vfsNode = sysNode->getVfsNode();
     auto info = vfsNode->info();
 
-    *result = NodeStat {
-        .name = info.name,
-    };
+    OsNodeInfo nodeInfo{};
+    size_t size = std::min(sizeof(nodeInfo.Name), info.name.count());
+    std::memcpy(nodeInfo.Name, info.name.data(), size);
+
+    *result = nodeInfo;
 
     return OsStatusSuccess;
 }
