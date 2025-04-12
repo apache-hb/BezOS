@@ -1098,7 +1098,7 @@ static sys2::System *gSysSystem = nullptr;
 
 static void InitSystem(size_t cpuCount) {
     auto *memory = GetSystemMemory();
-    gSysSystem = new sys2::System({ cpuCount, 128 }, &memory->pageTables(), &memory->pmmAllocator());
+    gSysSystem = new sys2::System({ cpuCount, 128 }, &memory->pageTables(), &memory->pmmAllocator(), gVfsRoot);
 }
 
 static km::System GetSystem() {

@@ -1,4 +1,4 @@
-#include "system/transaction.hpp"
+#include "fs2/vfs.hpp"
 #include "memory.hpp"
 #include "system/create.hpp"
 #include "system/process.hpp"
@@ -7,11 +7,12 @@
 
 struct TestData {
     km::SystemMemory memory;
+    vfs2::VfsRoot vfs;
     sys2::System system;
 
     TestData(SystemMemoryTestBody& body)
         : memory(body.make(sm::megabytes(2).bytes()))
-        , system({ 128, 128 }, &memory.pageTables(), &memory.pmmAllocator())
+        , system({ 128, 128 }, &memory.pageTables(), &memory.pmmAllocator(), &vfs)
     { }
 };
 
@@ -25,7 +26,7 @@ public:
             .supervisor = false,
         };
 
-        OsStatus status = sys2::CreateRootProcess(system(), createInfo, std::out_ptr(hRootProcess));
+        OsStatus status = sys2::SysCreateRootProcess(system(), createInfo, std::out_ptr(hRootProcess));
         ASSERT_EQ(status, OsStatusSuccess);
     }
 

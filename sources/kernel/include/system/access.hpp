@@ -88,6 +88,13 @@ namespace sys2 {
         eDestroy = eOsDeviceAccessDestroy,
         eInvoke = eOsDeviceAccessInvoke,
         eAll = eOsDeviceAccessAll,
+
+        R = eRead,
+        W = eWrite,
+        X = eInvoke,
+        RW = R | W,
+        RX = R | X,
+        RWX = R | W | X,
     };
 
     UTIL_BITFLAGS(DeviceAccess);
@@ -96,10 +103,18 @@ namespace sys2 {
         eNone = eOsNodeAccessNone,
         eRead = eOsNodeAccessRead,
         eWrite = eOsNodeAccessWrite,
+        eExecute = eOsNodeAccessExecute,
         eStat = eOsNodeAccessStat,
         eDestroy = eOsNodeAccessDestroy,
         eQueryInterface = eOsNodeAccessQueryInterface,
         eAll = eOsNodeAccessAll,
+
+        R = eRead,
+        W = eWrite,
+        X = eExecute,
+        RW = R | W,
+        RX = R | X,
+        RWX = R | W | X,
     };
 
     UTIL_BITFLAGS(NodeAccess);

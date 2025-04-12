@@ -16,9 +16,7 @@
 #include "system/create.hpp"
 
 namespace sys2 {
-    enum class ProcessId : uint64_t {};
-
-    OsStatus CreateRootProcess(System *system, ProcessCreateInfo info, ProcessHandle **process);
+    enum class ProcessId : OsProcessId {};
 
     class Process final : public BaseObject {
         using Super = BaseObject;
@@ -57,11 +55,12 @@ namespace sys2 {
 
         OsStatus open(HandleCreateInfo createInfo, IHandle **handle) override;
 
-        OsStatus stat(ProcessStatResult *info);
+        OsStatus stat(ProcessStat *info);
         bool isSupervisor() const { return mSupervisor; }
 
         IHandle *getHandle(OsHandle handle);
         void addHandle(IHandle *handle);
+        OsStatus removeHandle(IHandle *handle);
 
         OsHandle newHandleId(OsHandleType type) {
             OsHandle id = mIdAllocators[type].allocate();
@@ -73,8 +72,6 @@ namespace sys2 {
 
         OsStatus createProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle);
         OsStatus destroy(System *system, const ProcessDestroyInfo& info);
-
-        OsStatus createThread(System *system, ThreadCreateInfo info, ThreadHandle **handle);
 
         OsStatus createTx(System *system, TxCreateInfo info, TxHandle **handle);
 
@@ -97,8 +94,6 @@ namespace sys2 {
 
         OsStatus createProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle);
         OsStatus destroyProcess(System *system, const ProcessDestroyInfo& info);
-
-        OsStatus createThread(System *system, ThreadCreateInfo info, ThreadHandle **handle);
 
         OsStatus createTx(System *system, TxCreateInfo info, TxHandle **handle);
     };

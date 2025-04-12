@@ -184,7 +184,7 @@ OsStatus vfs2::ParseTar(km::BlockDevice *media, TarParseOptions options, sm::BTr
 // tarfs node implementation
 //
 
-void TarFsNode::init(sm::RcuWeakPtr<INode> parent, VfsString name, Access) {
+void TarFsNode::init(sm::RcuWeakPtr<INode> parent, VfsString name, sys2::NodeAccess) {
     mParent = parent;
     strncpy(mHeader.name, name.data(), sizeof(mHeader.name));
 }
@@ -197,7 +197,7 @@ NodeInfo TarFsNode::info() {
         .name = stdx::StringView(mHeader.name, mHeader.name + strnlen(mHeader.name, sizeof(mHeader.name))),
         .mount = mMount,
         .parent = mParent,
-        .access = Access::RX,
+        .access = sys2::NodeAccess::RX,
     };
 }
 

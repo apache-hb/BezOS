@@ -157,7 +157,7 @@ namespace vfs2 {
         { }
 
         NodeInfo info() override;
-        void init(sm::RcuWeakPtr<INode> parent, VfsString name, Access access) override;
+        void init(sm::RcuWeakPtr<INode> parent, VfsString name, sys2::NodeAccess access) override;
     };
 
     class TarFsFile : public TarFsNode {

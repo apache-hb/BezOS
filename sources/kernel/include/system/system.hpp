@@ -19,6 +19,10 @@ namespace km {
     class AddressSpace;
 }
 
+namespace vfs2 {
+    class VfsRoot;
+}
+
 namespace sys2 {
     class IObject;
     class Process;
@@ -62,6 +66,8 @@ namespace sys2 {
 
         km::PageAllocator *mPageAllocator;
 
+        vfs2::VfsRoot *mVfsRoot;
+
         sm::FlatHashMap<sm::RcuWeakPtr<IObject>, WaitQueue> mWaitQueue;
         std::priority_queue<WaitEntry> mTimeoutQueue;
         std::priority_queue<SleepEntry> mSleepQueue;
@@ -71,10 +77,11 @@ namespace sys2 {
         sm::FlatHashSet<sm::RcuSharedPtr<Process>, sm::RcuHash<Process>, std::equal_to<>> mProcessObjects GUARDED_BY(mLock);
 
     public:
-        System(GlobalScheduleCreateInfo info, km::AddressSpace *systemTables [[gnu::nonnull]], km::PageAllocator *pmm [[gnu::nonnull]])
+        System(GlobalScheduleCreateInfo info, km::AddressSpace *systemTables [[gnu::nonnull]], km::PageAllocator *pmm [[gnu::nonnull]], vfs2::VfsRoot *vfsRoot)
             : mSchedule(info)
             , mSystemTables(systemTables)
             , mPageAllocator(pmm)
+            , mVfsRoot(vfsRoot)
         { }
 
         sm::RcuDomain &rcuDomain() { return mDomain; }
@@ -111,7 +118,7 @@ namespace sys2 {
 
     // handle
 
-    OsStatus SysHandleClose(InvokeContext *context, IHandle *handle);
+    OsStatus SysHandleClose(InvokeContext *context, HandleCloseInfo info);
     OsStatus SysHandleClone(InvokeContext *context, HandleCloneInfo info, IHandle **handle);
     OsStatus SysHandleStat(InvokeContext *context, IHandle *handle, HandleStat *result);
 
@@ -119,23 +126,23 @@ namespace sys2 {
 
     OsStatus SysNodeOpen(InvokeContext *context, NodeOpenInfo info, NodeHandle **handle);
     OsStatus SysNodeClose(InvokeContext *context, NodeCloseInfo info);
-    OsStatus SysNodeQuery(InvokeContext *context, NodeQueryInfo info, NodeQueryResult *result);
-    OsStatus SysNodeStat(InvokeContext *context, NodeStatInfo info, NodeStatResult *result);
+    OsStatus SysNodeQuery(InvokeContext *context, NodeQueryInfo info, DeviceHandle **handle);
+    OsStatus SysNodeStat(InvokeContext *context, NodeHandle *handle, NodeStat *result);
 
     // device
 
     OsStatus SysDeviceOpen(InvokeContext *context, DeviceOpenInfo info, DeviceHandle **handle);
-    OsStatus SysDeviceClose(InvokeContext *context, DeviceCloseInfo info);
+    OsStatus SysDeviceClose(InvokeContext *context, DeviceHandle *handle);
     OsStatus SysDeviceRead(InvokeContext *context, DeviceReadInfo info, DeviceReadResult *result);
     OsStatus SysDeviceWrite(InvokeContext *context, DeviceWriteInfo info, DeviceWriteResult *result);
-    OsStatus SysDeviceInvoke(InvokeContext *context, DeviceInvokeInfo info, DeviceInvokeResult *result);
-    OsStatus SysDeviceStat(InvokeContext *context, DeviceStatInfo info, DeviceStatResult *result);
+    OsStatus SysDeviceInvoke(InvokeContext *context, DeviceInvokeInfo info);
+    OsStatus SysDeviceStat(InvokeContext *context, DeviceHandle *handle, DeviceStat *result);
 
     // process
 
     OsStatus SysCreateProcess(InvokeContext *context, ProcessCreateInfo info, ProcessHandle **handle);
     OsStatus SysDestroyProcess(InvokeContext *context, ProcessDestroyInfo info);
-    OsStatus SysProcessStat(InvokeContext *context, ProcessStatInfo info, ProcessStatResult *result);
+    OsStatus SysProcessStat(InvokeContext *context, ProcessStatInfo info, ProcessStat *result);
 
     OsStatus SysQueryProcessList(InvokeContext *context, ProcessQueryInfo info, ProcessQueryResult *result);
 

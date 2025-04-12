@@ -1,4 +1,5 @@
 #include "system/system.hpp"
+#include "fs2/vfs.hpp"
 #include "system/create.hpp"
 #include "system_test.hpp"
 
@@ -6,17 +7,20 @@ class SystemTest : public SystemBaseTest { };
 
 TEST_F(SystemTest, Construct) {
     km::SystemMemory memory = body.make();
-    sys2::System system({ 1, 1 }, &memory.pageTables(), &memory.pmmAllocator());
+    vfs2::VfsRoot vfs;
+    sys2::System system({ 1, 1 }, &memory.pageTables(), &memory.pmmAllocator(), &vfs);
 }
 
 TEST_F(SystemTest, ConstructMultiple) {
     km::SystemMemory memory = body.make();
-    sys2::System system({ 128, 128 }, &memory.pageTables(), &memory.pmmAllocator());
+    vfs2::VfsRoot vfs;
+    sys2::System system({ 128, 128 }, &memory.pageTables(), &memory.pmmAllocator(), &vfs);
 }
 
 TEST_F(SystemTest, CreateProcess) {
     km::SystemMemory memory = body.make(sm::megabytes(2).bytes());
-    sys2::System system({ 128, 128 }, &memory.pageTables(), &memory.pmmAllocator());
+    vfs2::VfsRoot vfs;
+    sys2::System system({ 128, 128 }, &memory.pageTables(), &memory.pmmAllocator(), &vfs);
 
     sys2::ProcessCreateInfo createInfo {
         .name = "TEST",
@@ -27,7 +31,7 @@ TEST_F(SystemTest, CreateProcess) {
 
     RecordMemoryUsage(memory);
 
-    OsStatus status = sys2::CreateRootProcess(&system, createInfo, std::out_ptr(hProcess));
+    OsStatus status = sys2::SysCreateRootProcess(&system, createInfo, std::out_ptr(hProcess));
     ASSERT_EQ(status, OsStatusSuccess);
 
     sys2::ProcessDestroyInfo destroyInfo {
@@ -45,7 +49,8 @@ TEST_F(SystemTest, CreateProcess) {
 
 TEST_F(SystemTest, CreateProcessAsync) {
     km::SystemMemory memory = body.make(sm::megabytes(2).bytes());
-    sys2::System system({ 128, 128 }, &memory.pageTables(), &memory.pmmAllocator());
+    vfs2::VfsRoot vfs;
+    sys2::System system({ 128, 128 }, &memory.pageTables(), &memory.pmmAllocator(), &vfs);
 
     RecordMemoryUsage(memory);
 
@@ -64,7 +69,7 @@ TEST_F(SystemTest, CreateProcessAsync) {
 
     RecordMemoryUsage(memory);
 
-    OsStatus status = sys2::CreateRootProcess(&system, createInfo, std::out_ptr(hProcess));
+    OsStatus status = sys2::SysCreateRootProcess(&system, createInfo, std::out_ptr(hProcess));
     ASSERT_EQ(status, OsStatusSuccess);
 
     sys2::ThreadCreateInfo threadCreateInfo {
@@ -131,7 +136,8 @@ TEST_F(SystemTest, CreateProcessAsync) {
 
 TEST_F(SystemTest, CreateChildProcess) {
     km::SystemMemory memory = body.make(sm::megabytes(2).bytes());
-    sys2::System system({ 128, 128 }, &memory.pageTables(), &memory.pmmAllocator());
+    vfs2::VfsRoot vfs;
+    sys2::System system({ 128, 128 }, &memory.pageTables(), &memory.pmmAllocator(), &vfs);
 
     RecordMemoryUsage(memory);
 
@@ -147,7 +153,7 @@ TEST_F(SystemTest, CreateChildProcess) {
 
         RecordMemoryUsage(memory);
 
-        OsStatus status = sys2::CreateRootProcess(&system, createInfo, std::out_ptr(hProcess));
+        OsStatus status = sys2::SysCreateRootProcess(&system, createInfo, std::out_ptr(hProcess));
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
@@ -198,7 +204,8 @@ TEST_F(SystemTest, CreateChildProcess) {
 
 TEST_F(SystemTest, NestedChildProcess) {
     km::SystemMemory memory = body.make(sm::megabytes(8).bytes());
-    sys2::System system({ 128, 128 }, &memory.pageTables(), &memory.pmmAllocator());
+    vfs2::VfsRoot vfs;
+    sys2::System system({ 128, 128 }, &memory.pageTables(), &memory.pmmAllocator(), &vfs);
 
     RecordMemoryUsage(memory);
 
@@ -210,7 +217,7 @@ TEST_F(SystemTest, NestedChildProcess) {
             .supervisor = false,
         };
 
-        OsStatus status = sys2::CreateRootProcess(&system, createInfo, std::out_ptr(hProcess));
+        OsStatus status = sys2::SysCreateRootProcess(&system, createInfo, std::out_ptr(hProcess));
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
@@ -249,7 +256,8 @@ TEST_F(SystemTest, NestedChildProcess) {
 
 TEST_F(SystemTest, OrphanThread) {
     km::SystemMemory memory = body.make(sm::megabytes(2).bytes());
-    sys2::System system({ 128, 128 }, &memory.pageTables(), &memory.pmmAllocator());
+    vfs2::VfsRoot vfs;
+    sys2::System system({ 128, 128 }, &memory.pageTables(), &memory.pmmAllocator(), &vfs);
 
     sys2::ProcessCreateInfo processCreateInfo {
         .name = "TEST",
@@ -262,7 +270,7 @@ TEST_F(SystemTest, OrphanThread) {
 
     RecordMemoryUsage(memory);
 
-    OsStatus status = sys2::CreateRootProcess(&system, processCreateInfo, std::out_ptr(hProcess));
+    OsStatus status = sys2::SysCreateRootProcess(&system, processCreateInfo, std::out_ptr(hProcess));
     ASSERT_EQ(status, OsStatusSuccess);
     ASSERT_NE(hProcess, nullptr) << "Process was not created";
 
@@ -294,7 +302,8 @@ TEST_F(SystemTest, OrphanThread) {
 
 TEST_F(SystemTest, CreateThread) {
     km::SystemMemory memory = body.make(sm::megabytes(2).bytes());
-    sys2::System system({ 128, 128 }, &memory.pageTables(), &memory.pmmAllocator());
+    vfs2::VfsRoot vfs;
+    sys2::System system({ 128, 128 }, &memory.pageTables(), &memory.pmmAllocator(), &vfs);
 
     sys2::ProcessCreateInfo processCreateInfo {
         .name = "TEST",
@@ -306,7 +315,7 @@ TEST_F(SystemTest, CreateThread) {
 
     auto before0 = GetMemoryState(memory);
 
-    OsStatus status = sys2::CreateRootProcess(&system, processCreateInfo, std::out_ptr(hProcess));
+    OsStatus status = sys2::SysCreateRootProcess(&system, processCreateInfo, std::out_ptr(hProcess));
     ASSERT_EQ(status, OsStatusSuccess);
     ASSERT_NE(hProcess, nullptr) << "Process was not created";
 

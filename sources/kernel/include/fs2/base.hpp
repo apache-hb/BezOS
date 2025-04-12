@@ -4,10 +4,11 @@
 #include <bezos/subsystem/identify.h>
 #include <bezos/subsystem/fs.h>
 
-#include "fs2/path.hpp"
-#include "util/util.hpp"
-#include "util/uuid.hpp"
+#include "system/access.hpp"
 
+#include "fs2/path.hpp"
+
+#include "util/uuid.hpp"
 #include "std/rcuptr.hpp"
 
 namespace km {
@@ -22,7 +23,6 @@ namespace km {
 namespace vfs2 {
     class INode;
     class IHandle;
-
     class IVfsMount;
 
     struct ReadRequest {
@@ -47,23 +47,6 @@ namespace vfs2 {
         uintptr_t size() const { return (std::byte*)end - (std::byte*)begin; }
     };
 
-    enum class Access {
-        eNone = 0,
-
-        eRead = (1 << 0),
-        eWrite = (1 << 1),
-        eExecute = (1 << 2),
-
-        R = eRead,
-        W = eWrite,
-        X = eExecute,
-        RW = eRead | eWrite,
-        RX = eRead | eExecute,
-        RWX = eRead | eWrite | eExecute,
-    };
-
-    UTIL_BITFLAGS(Access);
-
     struct WriteResult {
         uint64_t write;
     };
@@ -71,13 +54,14 @@ namespace vfs2 {
     struct HandleInfo {
         sm::RcuSharedPtr<INode> node;
         OsGuid guid;
+        sys2::DeviceAccess access;
     };
 
     struct NodeInfo {
         stdx::StringView name;
         IVfsMount *mount;
         sm::RcuWeakPtr<INode> parent;
-        Access access;
+        sys2::NodeAccess access;
         uint32_t generation;
     };
 
@@ -162,7 +146,7 @@ namespace vfs2 {
         /// @param parent The parent node.
         /// @param name The name of the node.
         /// @param access The access rights of the node.
-        virtual void init(sm::RcuWeakPtr<INode> parent, VfsString name, Access access) = 0;
+        virtual void init(sm::RcuWeakPtr<INode> parent, VfsString name, sys2::NodeAccess access) = 0;
 
         /// @brief Get information about the node.
         ///

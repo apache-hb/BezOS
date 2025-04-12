@@ -1,19 +1,19 @@
 #include "system/transaction.hpp"
+#include "fs2/vfs.hpp"
 #include "memory.hpp"
 #include "system/create.hpp"
 #include "system/process.hpp"
 #include "system/system.hpp"
 #include "system_test.hpp"
 
-#include <string_view>
-
 struct TestData {
     km::SystemMemory memory;
+    vfs2::VfsRoot vfs;
     sys2::System system;
 
     TestData(SystemMemoryTestBody& body)
         : memory(body.make(sm::megabytes(2).bytes()))
-        , system({ 128, 128 }, &memory.pageTables(), &memory.pmmAllocator())
+        , system({ 128, 128 }, &memory.pageTables(), &memory.pmmAllocator(), &vfs)
     { }
 };
 
@@ -27,7 +27,7 @@ public:
             .supervisor = false,
         };
 
-        OsStatus status = sys2::CreateRootProcess(system(), createInfo, std::out_ptr(hRootProcess));
+        OsStatus status = sys2::SysCreateRootProcess(system(), createInfo, std::out_ptr(hRootProcess));
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
@@ -98,18 +98,16 @@ TEST_F(TxSystemTest, TransactCreateProcess) {
     sys2::ProcessCreateInfo processCreateInfo {
         .name = "ZSH.ELF",
         .process = hChild,
-        .tx = hTx,
     };
 
     sys2::ThreadCreateInfo threadCreateInfo {
         .name = "MAIN",
         .process = hChild,
-        .tx = hTx,
         .kernelStackSize = x64::kPageSize * 8,
     };
 
     {
-        sys2::InvokeContext invoke { system(), hChild, hThread };
+        sys2::InvokeContext invoke { system(), hChild, hThread, hTx };
         status = sys2::SysCreateProcess(&invoke, processCreateInfo, &hZshProcess);
         ASSERT_EQ(status, OsStatusSuccess);
         ASSERT_NE(hZshProcess, nullptr) << "Process was not created";

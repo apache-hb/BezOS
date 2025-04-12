@@ -95,6 +95,18 @@ smp = custom_target('smp.o',
 
 # Kernel
 
+system_src = [
+    'src/system/system.cpp',
+    'src/system/schedule.cpp',
+    'src/system/handle.cpp',
+    'src/system/process.cpp',
+    'src/system/thread.cpp',
+    'src/system/mutex.cpp',
+    'src/system/node.cpp',
+    'src/system/device.cpp',
+    'src/system/transaction.cpp',
+]
+
 src = [
     tlsf.get_variable('sources'),
 
@@ -221,13 +233,8 @@ src = [
     # Services
     'src/notify.cpp',
 
-    'src/system/system.cpp',
-    'src/system/schedule.cpp',
     'src/system/runtime.cpp',
-    'src/system/process.cpp',
-    'src/system/thread.cpp',
-    'src/system/mutex.cpp',
-    'src/system/transaction.cpp',
+    system_src,
 
     # Process
     'src/process/system.cpp',
@@ -387,12 +394,7 @@ memory_test_src = [
 ]
 
 system_test_src = [
-    'src/system/system.cpp',
-    'src/system/schedule.cpp',
-    'src/system/process.cpp',
-    'src/system/thread.cpp',
-    'src/system/mutex.cpp',
-    'src/system/transaction.cpp',
+    system_src,
 
     'src/memory.cpp',
     'src/boot.cpp',

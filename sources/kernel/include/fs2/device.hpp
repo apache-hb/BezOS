@@ -14,7 +14,7 @@ namespace vfs2 {
         sm::RcuWeakPtr<INode> mParent;
         IVfsMount *mMount;
         VfsString mName;
-        Access mAccess;
+        sys2::NodeAccess mAccess;
 
     public:
         BasicNode(sm::RcuWeakPtr<INode> parent, IVfsMount *mount, VfsString name)
@@ -27,7 +27,7 @@ namespace vfs2 {
             : BasicNode(nullptr, nullptr, "")
         { }
 
-        void init(sm::RcuWeakPtr<INode> parent, VfsString name, Access access) override {
+        void init(sm::RcuWeakPtr<INode> parent, VfsString name, sys2::NodeAccess access) override {
             mParent = parent;
             mName = std::move(name);
             mAccess = access;

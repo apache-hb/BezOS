@@ -1,9 +1,11 @@
 #pragma once
 
+#include "fs2/path.hpp"
 #include "std/rcuptr.hpp"
 #include "system/access.hpp" // IWYU pragma: export
 
 #include "std/static_string.hpp"
+#include "util/uuid.hpp"
 
 namespace sys2 {
     using ObjectName = stdx::StaticString<OS_OBJECT_NAME_MAX>;
@@ -33,6 +35,11 @@ namespace sys2 {
 
     // handle
 
+    struct HandleCloseInfo {
+        ProcessHandle *process;
+        IHandle *handle;
+    };
+
     struct HandleCloneInfo {
         ProcessHandle *process;
         IHandle *handle;
@@ -43,43 +50,47 @@ namespace sys2 {
         OsHandleAccess access;
     };
 
+    // tx
+
     struct TxCreateInfo {
         ObjectName name;
         ProcessHandle *process;
-        TxHandle *tx;
     };
 
     struct TxDestroyInfo {
         TxHandle *object;
-        TxHandle *tx;
     };
 
-    struct NodeOpenInfo {
+    // node
 
+    struct NodeOpenInfo {
+        ProcessHandle *process;
+
+        vfs2::VfsPath path;
     };
 
     struct NodeCloseInfo {
+        ProcessHandle *process;
 
+        NodeHandle *node;
     };
 
     struct NodeQueryInfo {
-
+        NodeHandle *node;
+        sm::uuid uuid;
+        void *data;
+        size_t size;
     };
 
-    struct NodeQueryResult {
-
-    };
-
-    struct NodeStatInfo {
-
-    };
-
-    struct NodeStatResult {
-
+    struct NodeStat {
+        ObjectName name;
     };
 
     struct DeviceOpenInfo {
-
+        vfs2::VfsPath path;
+        sm::uuid uuid;
+        void *data;
+        size_t size;
     };
 
     struct DeviceCloseInfo {
@@ -87,35 +98,38 @@ namespace sys2 {
     };
 
     struct DeviceReadInfo {
-
+        DeviceHandle *device;
+        uint64_t offset;
+        void *front;
+        void *back;
+        OsInstant timeout;
     };
 
     struct DeviceReadResult {
-
+        uint64_t read;
     };
 
     struct DeviceWriteInfo {
-
+        DeviceHandle *device;
+        uint64_t offset;
+        const void *front;
+        const void *back;
+        OsInstant timeout;
     };
 
     struct DeviceWriteResult {
-
+        uint64_t write;
     };
 
     struct DeviceInvokeInfo {
-
+        DeviceHandle *device;
+        uint64_t method;
+        void *data;
+        size_t size;
     };
 
-    struct DeviceInvokeResult {
-
-    };
-
-    struct DeviceStatInfo {
-
-    };
-
-    struct DeviceStatResult {
-
+    struct DeviceStat {
+        ObjectName name;
     };
 
     struct VmemCreateInfo {
@@ -135,7 +149,6 @@ namespace sys2 {
     struct ProcessCreateInfo {
         ObjectName name;
         ProcessHandle *process;
-        TxHandle *tx;
 
         bool supervisor;
         OsProcessStateFlags state;
@@ -143,7 +156,6 @@ namespace sys2 {
 
     struct ProcessDestroyInfo {
         ProcessHandle *object;
-        TxHandle *tx;
 
         int64_t exitCode;
         OsProcessStateFlags reason;
@@ -151,11 +163,11 @@ namespace sys2 {
 
     struct ProcessStatInfo {
         ProcessHandle *object;
-        TxHandle *tx;
     };
 
-    struct ProcessStatResult {
+    struct ProcessStat {
         ObjectName name;
+        OsProcessId id;
         int64_t exitCode;
         OsProcessStateFlags state;
         sm::RcuSharedPtr<Process> parent;
@@ -166,7 +178,6 @@ namespace sys2 {
     struct ThreadCreateInfo {
         ObjectName name;
         ProcessHandle *process;
-        TxHandle *tx;
 
         RegisterSet cpuState;
         reg_t tlsAddress;
@@ -176,7 +187,6 @@ namespace sys2 {
 
     struct ThreadDestroyInfo {
         ThreadHandle *object;
-        TxHandle *tx;
 
         OsThreadState reason;
     };
@@ -192,19 +202,17 @@ namespace sys2 {
     struct MutexCreateInfo {
         ObjectName name;
         ProcessHandle *process;
-        TxHandle *tx;
     };
 
     struct MutexDestroyInfo {
         MutexHandle *object;
-        TxHandle *tx;
     };
 
     struct InvokeContext {
         /// @brief The system context.
         System *system;
 
-        /// @brief The process that is invoking the method.
+        /// @brief The process namespace this method is being invoked in.
         ProcessHandle *process;
 
         /// @brief The thread in the process that is invoking the method.

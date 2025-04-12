@@ -14,13 +14,15 @@ enum {
 
     eOsNodeAccessRead = (1 << 0),
     eOsNodeAccessWrite = (1 << 1),
-    eOsNodeAccessStat = (1 << 2),
-    eOsNodeAccessDestroy = (1 << 3),
-    eOsNodeAccessQueryInterface = (1 << 4),
+    eOsNodeAccessExecute = (1 << 2),
+    eOsNodeAccessStat = (1 << 3),
+    eOsNodeAccessDestroy = (1 << 4),
+    eOsNodeAccessQueryInterface = (1 << 5),
 
     eOsNodeAccessAll
         = eOsNodeAccessRead
         | eOsNodeAccessWrite
+        | eOsNodeAccessExecute
         | eOsNodeAccessStat
         | eOsNodeAccessDestroy
         | eOsNodeAccessQueryInterface,
