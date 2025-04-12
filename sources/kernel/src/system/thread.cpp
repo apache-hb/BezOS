@@ -197,5 +197,7 @@ OsStatus sys2::SysThreadStat(InvokeContext *context, OsThreadHandle handle, OsTh
     size_t size = std::min(sizeof(stat.Name), info.name.count());
     std::memcpy(stat.Name, info.name.data(), size);
 
+    *result = stat;
+
     return OsStatusSuccess;
 }

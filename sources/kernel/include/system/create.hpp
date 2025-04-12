@@ -92,41 +92,6 @@ namespace sys2 {
 
     };
 
-    struct DeviceReadInfo {
-        DeviceHandle *device;
-        uint64_t offset;
-        void *front;
-        void *back;
-        OsInstant timeout;
-    };
-
-    struct DeviceReadResult {
-        uint64_t read;
-    };
-
-    struct DeviceWriteInfo {
-        DeviceHandle *device;
-        uint64_t offset;
-        const void *front;
-        const void *back;
-        OsInstant timeout;
-    };
-
-    struct DeviceWriteResult {
-        uint64_t write;
-    };
-
-    struct DeviceInvokeInfo {
-        DeviceHandle *device;
-        uint64_t method;
-        void *data;
-        size_t size;
-    };
-
-    struct DeviceStat {
-        ObjectName name;
-    };
-
     struct VmemCreateInfo {
 
     };
