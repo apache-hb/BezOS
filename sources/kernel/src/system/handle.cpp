@@ -27,14 +27,14 @@ OsStatus sys2::SysHandleClone(InvokeContext *context, OsHandle handle, OsHandleC
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysHandleStat(InvokeContext *context, OsHandle handle, HandleStat *result) {
+OsStatus sys2::SysHandleStat(InvokeContext *context, OsHandle handle, OsHandleInfo *result) {
     IHandle *source = context->process->getHandle(handle);
     if (!source) {
         return OsStatusInvalidHandle;
     }
 
-    *result = HandleStat {
-        .access = source->getAccess(),
+    *result = OsHandleInfo {
+        .Access = source->getAccess(),
     };
 
     return OsStatusSuccess;

@@ -19,6 +19,20 @@ sys2::NodeHandle::NodeHandle(sm::RcuSharedPtr<Node> node, OsHandle handle, NodeA
     : BaseHandle(node, handle, access)
 { }
 
+OsStatus sys2::NodeHandle::clone(OsHandleAccess access, OsHandle id, IHandle **result) {
+    if (!hasAccess(NodeAccess(access))) {
+        return OsStatusAccessDenied;
+    }
+
+    NodeHandle *handle = new (std::nothrow) NodeHandle(getInner(), id, NodeAccess(access));
+    if (!handle) {
+        return OsStatusOutOfMemory;
+    }
+
+    *result = handle;
+    return OsStatusSuccess;
+}
+
 OsStatus sys2::SysNodeOpen(InvokeContext *context, NodeOpenInfo info, OsNodeHandle *outHandle) {
     vfs2::VfsRoot *root = context->system->mVfsRoot;
     ProcessHandle *parent = info.process;
@@ -63,8 +77,6 @@ OsStatus sys2::SysNodeClose(InvokeContext *context, OsNodeHandle handle) {
     if (OsStatus status = context->process->removeHandle(node)) {
         return status;
     }
-
-    delete node;
 
     return OsStatusSuccess;
 }

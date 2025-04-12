@@ -32,9 +32,7 @@ public:
     }
 
     void TearDown() override {
-        sys2::InvokeContext invoke { system(), hRootProcess->getProcess(), OS_HANDLE_INVALID };
-
-        OsStatus status = sys2::SysDestroyProcess(&invoke, hRootProcess.get(), 0, eOsProcessExited);
+        OsStatus status = sys2::SysDestroyRootProcess(system(), hRootProcess.get());
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
@@ -92,7 +90,6 @@ TEST_F(TxSystemTest, TransactCreateProcess) {
         .Name = "ZSH.ELF",
     };
     auto child = GetProcess(hRootProcess->getProcess(), hChild);
-
 
     {
         sys2::InvokeContext invoke { system(), child, hThread, hTx };

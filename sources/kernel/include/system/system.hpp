@@ -56,7 +56,13 @@ namespace sys2 {
 
     using WaitQueue = std::priority_queue<WaitEntry>;
 
+    struct SystemStats {
+        size_t objects;
+        size_t processes;
+    };
+
     class System {
+        std::atomic<OsProcessId> mPidCounter{1};
     public:
         stdx::SharedSpinLock mLock;
         sm::RcuDomain mDomain;
@@ -87,14 +93,8 @@ namespace sys2 {
 
         sm::RcuDomain &rcuDomain() { return mDomain; }
 
-        void addObject(sm::RcuSharedPtr<IObject> object);
-        void removeObject(sm::RcuWeakPtr<IObject> object);
-
         void addProcessObject(sm::RcuSharedPtr<Process> object);
         void removeProcessObject(sm::RcuWeakPtr<Process> object);
-
-        void addThreadObject(sm::RcuSharedPtr<Thread> object);
-        void removeThreadObject(sm::RcuWeakPtr<Thread> object);
 
         OsStatus mapProcessPageTables(km::AddressMapping *mapping);
         OsStatus mapSystemStack(km::StackMapping *mapping);
@@ -111,19 +111,25 @@ namespace sys2 {
         OsStatus createMutex(MutexCreateInfo info, MutexHandle **handle);
 
         OsStatus getProcessList(stdx::Vector2<sm::RcuSharedPtr<Process>>& list);
+
+        SystemStats stats();
+
+        OsProcessId nextProcessId() {
+            return mPidCounter.fetch_add(1);
+        }
     };
 
     // internal
 
     OsStatus SysCreateRootProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle);
+    OsStatus SysDestroyRootProcess(System *system, ProcessHandle *handle);
     OsStatus SysResolveObject(InvokeContext *context, sm::RcuSharedPtr<IObject> object, OsHandleAccess access, OsHandle *handle);
 
     // handle
 
     OsStatus SysHandleClose(InvokeContext *context, OsHandle handle);
     OsStatus SysHandleClone(InvokeContext *context, OsHandle handle, OsHandleCloneInfo info, OsHandle *outHandle);
-    OsStatus SysHandleClose(InvokeContext *context, OsHandle handle);
-    OsStatus SysHandleStat(InvokeContext *context, OsHandle handle, HandleStat *result);
+    OsStatus SysHandleStat(InvokeContext *context, OsHandle handle, OsHandleInfo *result);
 
     // node
 
@@ -161,6 +167,7 @@ namespace sys2 {
     // thread
 
     OsStatus SysCreateThread(InvokeContext *context, ThreadCreateInfo info, OsThreadHandle *handle);
+    OsStatus SysCreateThread(InvokeContext *context, OsThreadCreateInfo info, OsThreadHandle *handle);
     OsStatus SysDestroyThread(InvokeContext *context, OsThreadState reason, OsThreadHandle handle);
     OsStatus SysThreadStat(InvokeContext *context, OsThreadHandle handle, OsThreadInfo *result);
 

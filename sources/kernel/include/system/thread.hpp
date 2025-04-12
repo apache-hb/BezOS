@@ -15,7 +15,7 @@ namespace sys2 {
 
     XSaveState NewXSaveState() [[clang::allocating]];
 
-    class Thread final : public BaseObject {
+    class Thread final : public BaseObject<eOsHandleThread> {
         sm::RcuWeakPtr<Process> mProcess;
 
         RegisterSet mCpuState;
@@ -34,6 +34,7 @@ namespace sys2 {
 
         Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, x64::XSave *fpuState, km::StackMapping kernelStack);
         Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, sys2::XSaveState fpuState, km::StackMapping kernelStack);
+        Thread(OsThreadCreateInfo createInfo, sm::RcuWeakPtr<Process> process, sys2::XSaveState fpuState, km::StackMapping kernelStack);
 
         stdx::StringView getClassName() const override { return "Thread"; }
 

@@ -169,7 +169,7 @@ struct OsNodeQueryInterfaceInfo {
 /// @brief Information about a vnode.
 struct OsNodeInfo {
     /// @brief The name of the vnode.
-    OsUtf8Char Name[OS_DEVICE_NAME_MAX];
+    OsUtf8Char Name[OS_OBJECT_NAME_MAX];
 };
 
 /// @brief Open a vnode.

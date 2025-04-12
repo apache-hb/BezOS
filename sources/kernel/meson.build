@@ -617,7 +617,13 @@ testcases = {
     ],
     'query': [
         'test/system/query.cpp',
-    ]
+    ],
+    'handles': [
+        'test/system/handles.cpp',
+    ],
+    'threads': [
+        'test/system/thread.cpp',
+    ],
 }
 
 if enable_aml

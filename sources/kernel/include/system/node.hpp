@@ -11,7 +11,7 @@ namespace vfs2 {
 }
 
 namespace sys2 {
-    class Node final : public BaseObject {
+    class Node final : public BaseObject<eOsHandleNode> {
         sm::RcuSharedPtr<vfs2::INode> mVfsNode;
     public:
         using Access = NodeAccess;
@@ -27,6 +27,7 @@ namespace sys2 {
     public:
         NodeHandle(sm::RcuSharedPtr<Node> node, OsHandle handle, NodeAccess access);
 
+        OsStatus clone(OsHandleAccess access, OsHandle id, IHandle **result) override;
         sm::RcuSharedPtr<Node> getNode() { return getInner(); }
     };
 }

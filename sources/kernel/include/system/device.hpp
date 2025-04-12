@@ -9,7 +9,7 @@
 #include "system/create.hpp"
 
 namespace sys2 {
-    class Device final : public BaseObject {
+    class Device final : public BaseObject<eOsHandleDevice> {
         std::unique_ptr<vfs2::IHandle> mVfsHandle;
 
     public:

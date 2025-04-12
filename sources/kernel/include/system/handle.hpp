@@ -30,6 +30,7 @@ namespace sys2 {
         virtual void setName(ObjectName name) = 0;
         virtual ObjectName getName() = 0;
         virtual stdx::StringView getClassName() const = 0;
+        virtual OsHandleType getObjectType() const = 0;
 
         virtual OsStatus open(HandleCreateInfo, IHandle **) { return OsStatusNotSupported; }
         virtual OsStatus close(IHandle *) { return OsStatusNotSupported; }

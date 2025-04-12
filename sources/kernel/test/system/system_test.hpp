@@ -16,10 +16,19 @@ struct MemoryState {
     size_t freeSpace;
 };
 
-static inline sm::RcuSharedPtr<sys2::Process> GetProcess(sm::RcuSharedPtr<sys2::Process> parent, OsProcessHandle handle) {
+static inline sys2::ProcessHandle *GetProcessHandle(sm::RcuSharedPtr<sys2::Process> parent, OsProcessHandle handle) {
     sys2::ProcessHandle *hChild = nullptr;
     OsStatus status = parent->findHandle(handle, &hChild);
     if (status != OsStatusSuccess) {
+        return nullptr;
+    }
+
+    return hChild;
+}
+
+static inline sm::RcuSharedPtr<sys2::Process> GetProcess(sm::RcuSharedPtr<sys2::Process> parent, OsProcessHandle handle) {
+    sys2::ProcessHandle *hChild = GetProcessHandle(parent, handle);
+    if (hChild == nullptr) {
         return nullptr;
     }
 

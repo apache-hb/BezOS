@@ -18,8 +18,8 @@
 namespace sys2 {
     enum class ProcessId : OsProcessId {};
 
-    class Process final : public BaseObject {
-        using Super = BaseObject;
+    class Process final : public BaseObject<eOsHandleProcess> {
+        using Super = BaseObject<eOsHandleProcess>;
 
         ProcessId mId;
         OsProcessStateFlags mState;
@@ -50,7 +50,7 @@ namespace sys2 {
     public:
         using Access = ProcessAccess;
 
-        Process(ObjectName name, OsProcessStateFlags state, sm::RcuWeakPtr<Process> parent, const km::AddressSpace *systemTables, km::AddressMapping pteMemory);
+        Process(ObjectName name, OsProcessStateFlags state, sm::RcuWeakPtr<Process> parent, OsProcessId pid, const km::AddressSpace *systemTables, km::AddressMapping pteMemory);
 
         stdx::StringView getClassName() const override { return "Process"; }
 
@@ -65,7 +65,7 @@ namespace sys2 {
         OsStatus removeHandle(OsHandle handle);
         OsStatus findHandle(OsHandle handle, OsHandleType type, IHandle **result);
 
-        OsStatus resolveObject(sm::RcuDynamicPtr<IObject> object, OsHandleAccess access, OsHandle *handle);
+        OsStatus resolveObject(sm::RcuSharedPtr<IObject> object, OsHandleAccess access, OsHandle *handle);
 
         template<typename T>
         OsStatus findHandle(OsHandle handle, T **result) {

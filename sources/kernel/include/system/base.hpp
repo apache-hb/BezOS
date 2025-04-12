@@ -28,10 +28,11 @@ namespace sys2 {
         sm::RcuSharedPtr<T> getInner() const { return mObject; }
 
         bool hasAccess(Access access) const {
-            return bool(mAccess & access);
+            return (mAccess & access) == access;
         }
     };
 
+    template<OsHandleType HandleType>
     class BaseObject : public IObject {
         ObjectName mName GUARDED_BY(mLock);
 
@@ -49,6 +50,8 @@ namespace sys2 {
         }
 
     public:
+        static constexpr auto kHandleType = HandleType;
+
         void setName(ObjectName name) override final {
             stdx::UniqueLock guard(mLock);
             mName = name;
@@ -57,6 +60,10 @@ namespace sys2 {
         ObjectName getName() override final {
             stdx::SharedLock guard(mLock);
             return getNameUnlocked();
+        }
+
+        OsHandleType getObjectType() const override final {
+            return HandleType;
         }
 
         stdx::SharedSpinLock& getMonitor() { return mLock; }
