@@ -1,3 +1,6 @@
+#include "system/create.hpp"
+#include "system/schedule.hpp"
+#include "system/system.hpp"
 #include "user/sysapi.hpp"
 
 #include "process/device.hpp"
@@ -45,7 +48,7 @@ public:
     { }
 };
 
-OsCallResult um::DeviceOpen(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+static OsCallResult UserDeviceOpen(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
     uint64_t userCreateInfo = regs->arg0;
 
     OsDeviceCreateInfo createInfo{};
@@ -58,20 +61,20 @@ OsCallResult um::DeviceOpen(km::System *system, km::CallContext *context, km::Sy
     OsBuffer openData = createInfo.OpenData;
 
     km::Process *process = nullptr;
-    if (OsStatus status = SelectOwningProcess(system, context, createInfo.Process, &process)) {
+    if (OsStatus status = um::SelectOwningProcess(system, context, createInfo.Process, &process)) {
         return km::CallError(status);
     }
 
-    if (OsStatus status = VerifyBuffer(context, createData)) {
+    if (OsStatus status = um::VerifyBuffer(context, createData)) {
         return km::CallError(status);
     }
 
-    if (OsStatus status = VerifyBuffer(context, openData)) {
+    if (OsStatus status = um::VerifyBuffer(context, openData)) {
         return km::CallError(status);
     }
 
     vfs2::VfsPath path;
-    if (OsStatus status = ReadPath(context, createInfo.Path, &path)) {
+    if (OsStatus status = um::ReadPath(context, createInfo.Path, &path)) {
         return km::CallError(status);
     }
 
@@ -104,7 +107,7 @@ OsCallResult um::DeviceOpen(km::System *system, km::CallContext *context, km::Sy
     return km::CallOk(vnode->publicId());
 }
 
-OsCallResult um::DeviceClose(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+static OsCallResult UserDeviceClose(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
     uint64_t userDevice = regs->arg0;
     km::Process *process = context->process();
 
@@ -120,7 +123,7 @@ OsCallResult um::DeviceClose(km::System *system, km::CallContext *context, km::S
     return km::CallOk(0zu);
 }
 
-OsCallResult um::DeviceRead(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+static OsCallResult UserDeviceRead(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
     uint64_t userHandle = regs->arg0;
     uint64_t userRequest = regs->arg1;
 
@@ -151,7 +154,7 @@ OsCallResult um::DeviceRead(km::System *system, km::CallContext *context, km::Sy
     return km::CallOk(result.read);
 }
 
-OsCallResult um::DeviceWrite(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+static OsCallResult UserDeviceWrite(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
     uint64_t userHandle = regs->arg0;
     uint64_t userRequest = regs->arg1;
 
@@ -182,7 +185,7 @@ OsCallResult um::DeviceWrite(km::System *system, km::CallContext *context, km::S
     return km::CallOk(result.write);
 }
 
-OsCallResult um::DeviceInvoke(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+static OsCallResult UserDeviceInvoke(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
     uint64_t userHandle = regs->arg0;
     uint64_t userFunction = regs->arg1;
     uint64_t userData = regs->arg2;
@@ -206,7 +209,7 @@ OsCallResult um::DeviceInvoke(km::System *system, km::CallContext *context, km::
     return km::CallOk(0zu);
 }
 
-OsCallResult um::DeviceStat(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+static OsCallResult UserDeviceStat(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
     uint64_t userHandle = regs->arg0;
     uint64_t userStat = regs->arg1;
 
@@ -232,4 +235,173 @@ OsCallResult um::DeviceStat(km::System *system, km::CallContext *context, km::Sy
     }
 
     return km::CallOk(0zu);
+}
+
+static OsCallResult NewDeviceOpen(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    uint64_t userCreateInfo = regs->arg0;
+
+    OsDeviceCreateInfo createInfo{};
+    if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {
+        return km::CallError(status);
+    }
+
+    sm::uuid uuid = createInfo.InterfaceGuid;
+
+    vfs2::VfsPath path;
+    if (OsStatus status = um::ReadPath(context, createInfo.Path, &path)) {
+        return km::CallError(status);
+    }
+
+    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
+    sys2::DeviceOpenInfo openInfo {
+        .path = path,
+        .flags = createInfo.Flags,
+        .interface = uuid,
+    };
+
+    OsDeviceHandle handle = OS_HANDLE_INVALID;
+    if (OsStatus status = sys2::SysDeviceOpen(&invoke, openInfo, &handle)) {
+        return km::CallError(status);
+    }
+
+    return km::CallOk(handle);
+}
+
+static OsCallResult NewDeviceClose(km::System *system, km::CallContext *, km::SystemCallRegisterSet *regs) {
+    uint64_t userDevice = regs->arg0;
+
+    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
+    if (OsStatus status = sys2::SysDeviceClose(&invoke, userDevice)) {
+        return km::CallError(status);
+    }
+
+    return km::CallOk(0zu);
+}
+
+static OsCallResult NewDeviceRead(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    uint64_t userHandle = regs->arg0;
+    uint64_t userRequest = regs->arg1;
+
+    OsDeviceReadRequest request{};
+    if (OsStatus status = context->readObject(userRequest, &request)) {
+        return km::CallError(status);
+    }
+
+    if (!context->isMapped((uint64_t)request.BufferFront, (uint64_t)request.BufferBack, km::PageFlags::eUser | km::PageFlags::eWrite)) {
+        return km::CallError(OsStatusInvalidInput);
+    }
+
+    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
+    OsSize read = 0;
+
+    if (OsStatus status = sys2::SysDeviceRead(&invoke, userHandle, request, &read)) {
+        return km::CallError(status);
+    }
+
+    return km::CallOk(read);
+}
+
+static OsCallResult NewDeviceWrite(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    uint64_t userHandle = regs->arg0;
+    uint64_t userRequest = regs->arg1;
+
+    OsDeviceWriteRequest request{};
+    if (OsStatus status = context->readObject(userRequest, &request)) {
+        return km::CallError(status);
+    }
+
+    if (!context->isMapped((uint64_t)request.BufferFront, (uint64_t)request.BufferBack, km::PageFlags::eUser | km::PageFlags::eRead)) {
+        return km::CallError(OsStatusInvalidInput);
+    }
+
+    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
+    OsSize write = 0;
+
+    if (OsStatus status = sys2::SysDeviceWrite(&invoke, userHandle, request, &write)) {
+        return km::CallError(status);
+    }
+
+    return km::CallOk(write);
+}
+
+static OsCallResult NewDeviceInvoke(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    uint64_t userHandle = regs->arg0;
+    uint64_t userFunction = regs->arg1;
+    uint64_t userData = regs->arg2;
+    uint64_t userSize = regs->arg3;
+
+    if (!context->isMapped((uint64_t)userData, (uint64_t)userData + userSize, km::PageFlags::eUserData)) {
+        return km::CallError(OsStatusInvalidInput);
+    }
+
+    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
+    if (OsStatus status = sys2::SysDeviceInvoke(&invoke, userHandle, userFunction, (void*)userData, userSize)) {
+        return km::CallError(status);
+    }
+
+    return km::CallOk(0zu);
+}
+
+static OsCallResult NewDeviceStat(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    uint64_t userHandle = regs->arg0;
+    uint64_t userStat = regs->arg1;
+
+    if (!context->isMapped(userStat, userStat + sizeof(OsDeviceInfo), km::PageFlags::eUserData)) {
+        return km::CallError(OsStatusInvalidInput);
+    }
+
+    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
+    if (OsStatus status = sys2::SysDeviceStat(&invoke, userHandle, (OsDeviceInfo*)userStat)) {
+        return km::CallError(status);
+    }
+
+    return km::CallOk(0zu);
+}
+
+OsCallResult um::DeviceOpen(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    if constexpr (kUseNewSystem) {
+        return NewDeviceOpen(system, context, regs);
+    } else {
+        return UserDeviceOpen(system, context, regs);
+    }
+}
+
+OsCallResult um::DeviceClose(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    if constexpr (kUseNewSystem) {
+        return NewDeviceClose(system, context, regs);
+    } else {
+        return UserDeviceClose(system, context, regs);
+    }
+}
+
+OsCallResult um::DeviceRead(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    if constexpr (kUseNewSystem) {
+        return NewDeviceRead(system, context, regs);
+    } else {
+        return UserDeviceRead(system, context, regs);
+    }
+}
+
+OsCallResult um::DeviceWrite(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    if constexpr (kUseNewSystem) {
+        return NewDeviceWrite(system, context, regs);
+    } else {
+        return UserDeviceWrite(system, context, regs);
+    }
+}
+
+OsCallResult um::DeviceInvoke(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    if constexpr (kUseNewSystem) {
+        return NewDeviceInvoke(system, context, regs);
+    } else {
+        return UserDeviceInvoke(system, context, regs);
+    }
+}
+
+OsCallResult um::DeviceStat(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    if constexpr (kUseNewSystem) {
+        return NewDeviceStat(system, context, regs);
+    } else {
+        return UserDeviceStat(system, context, regs);
+    }
 }

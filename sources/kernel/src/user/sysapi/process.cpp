@@ -1,3 +1,6 @@
+#include "system/create.hpp"
+#include "system/schedule.hpp"
+#include "system/system.hpp"
 #include "user/sysapi.hpp"
 
 #include "gdt.hpp"
@@ -62,7 +65,7 @@ static OsStatus CreateThread(km::Process *process, km::SystemMemory& memory, km:
     return OsStatusSuccess;
 }
 
-OsCallResult um::ProcessCreate(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+static OsCallResult UserProcessCreate(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
     uint64_t userCreateInfo = regs->arg0;
 
     km::SystemMemory &memory = *system->memory;
@@ -74,7 +77,7 @@ OsCallResult um::ProcessCreate(km::System *system, km::CallContext *context, km:
         return km::CallError(status);
     }
 
-    if (OsStatus status = ReadPath(context, createInfo.Executable, &path)) {
+    if (OsStatus status = um::ReadPath(context, createInfo.Executable, &path)) {
         return km::CallError(status);
     }
 
@@ -149,13 +152,13 @@ OsCallResult um::ProcessCreate(km::System *system, km::CallContext *context, km:
     return km::CallOk(process->publicId());
 }
 
-OsCallResult um::ProcessDestroy(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+static OsCallResult UserProcessDestroy(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
     uint64_t userProcess = regs->arg0;
     uint64_t userExitCode = regs->arg1;
 
     km::Process *process = nullptr;
 
-    if (OsStatus status = SelectOwningProcess(system, context, userProcess, &process)) {
+    if (OsStatus status = um::SelectOwningProcess(system, context, userProcess, &process)) {
         return km::CallError(status);
     }
 
@@ -168,7 +171,7 @@ OsCallResult um::ProcessDestroy(km::System *system, km::CallContext *context, km
     return km::CallOk(0zu);
 }
 
-OsCallResult um::ProcessCurrent(km::System *, km::CallContext *context, km::SystemCallRegisterSet *) {
+static OsCallResult UserProcessCurrent(km::System *, km::CallContext *context, km::SystemCallRegisterSet *) {
     km::Process *process = context->process();
     if (process == nullptr) {
         return km::CallError(OsStatusNotFound);
@@ -177,13 +180,13 @@ OsCallResult um::ProcessCurrent(km::System *, km::CallContext *context, km::Syst
     return km::CallOk(process->publicId());
 }
 
-OsCallResult um::ProcessStat(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+static OsCallResult UserProcessStat(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
     uint64_t userHandle = regs->arg0;
     uint64_t userStat = regs->arg1;
 
     km::Process *process = nullptr;
 
-    if (OsStatus status = SelectOwningProcess(system, context, userHandle, &process)) {
+    if (OsStatus status = um::SelectOwningProcess(system, context, userHandle, &process)) {
         return km::CallError(status);
     }
 
@@ -202,4 +205,90 @@ OsCallResult um::ProcessStat(km::System *system, km::CallContext *context, km::S
     }
 
     return km::CallOk(0zu);
+}
+
+static OsCallResult NewProcessCreate(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    uint64_t userCreateInfo = regs->arg0;
+
+    OsProcessCreateInfo createInfo{};
+
+    if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {
+        return km::CallError(status);
+    }
+
+    OsProcessHandle handle = OS_HANDLE_INVALID;
+
+    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
+    if (OsStatus status = sys2::SysCreateProcess(&invoke, createInfo, &handle)) {
+        return km::CallError(status);
+    }
+
+    return km::CallOk(handle);
+}
+
+static OsCallResult NewProcessDestroy(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    uint64_t userProcess = regs->arg0;
+    uint64_t userExitCode = regs->arg1;
+
+    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
+    if (OsStatus status = sys2::SysDestroyProcess(&invoke, userProcess, userExitCode, eOsProcessExited)) {
+        return km::CallError(status);
+    }
+
+    return km::CallOk(0zu);
+}
+
+static OsCallResult NewProcessCurrent(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
+
+    return km::CallError(OsStatusNotSupported);
+}
+
+static OsCallResult NewProcessStat(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    uint64_t userHandle = regs->arg0;
+    uint64_t userStat = regs->arg1;
+
+    if (!context->isMapped(userStat, userStat + sizeof(OsProcessInfo), km::PageFlags::eUser | km::PageFlags::eWrite)) {
+        return km::CallError(OsStatusInvalidInput);
+    }
+
+    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
+
+    if (OsStatus status = sys2::SysProcessStat(&invoke, userHandle, (OsProcessInfo*)userStat)) {
+        return km::CallError(status);
+    }
+
+    return km::CallOk(0zu);
+}
+
+OsCallResult um::ProcessCreate(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    if constexpr (kUseNewSystem) {
+        return NewProcessCreate(system, context, regs);
+    } else {
+        return UserProcessCreate(system, context, regs);
+    }
+}
+
+OsCallResult um::ProcessDestroy(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    if constexpr (kUseNewSystem) {
+        return NewProcessDestroy(system, context, regs);
+    } else {
+        return UserProcessDestroy(system, context, regs);
+    }
+}
+
+OsCallResult um::ProcessCurrent(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    if constexpr (kUseNewSystem) {
+        return NewProcessCurrent(system, context, regs);
+    } else {
+        return UserProcessCurrent(system, context, regs);
+    }
+}
+
+OsCallResult um::ProcessStat(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    if constexpr (kUseNewSystem) {
+        return NewProcessStat(system, context, regs);
+    } else {
+        return UserProcessStat(system, context, regs);
+    }
 }

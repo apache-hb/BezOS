@@ -80,4 +80,6 @@ namespace sys2 {
 
     [[noreturn]]
     void EnterScheduler(km::LocalIsrTable *table, CpuLocalSchedule *scheduler, km::ApicTimer *apicTimer);
+
+    sm::RcuSharedPtr<Process> GetCurrentProcess();
 }

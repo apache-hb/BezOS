@@ -58,3 +58,11 @@ void sys2::EnterScheduler(km::LocalIsrTable *table, CpuLocalSchedule *scheduler,
 
     KmIdle();
 }
+
+sm::RcuSharedPtr<sys2::Process> sys2::GetCurrentProcess() {
+    if (auto schedule = tlsSchedule.get()) {
+        return schedule->currentProcess();
+    }
+
+    return nullptr;
+}

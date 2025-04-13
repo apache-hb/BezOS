@@ -1,4 +1,7 @@
 #include "log.hpp"
+#include "system/create.hpp"
+#include "system/schedule.hpp"
+#include "system/system.hpp"
 #include "user/sysapi.hpp"
 
 #include "process/device.hpp"
@@ -55,7 +58,7 @@ OsStatus um::SelectOwningProcess(km::System *system, km::CallContext *context, O
     return OsStatusSuccess;
 }
 
-OsCallResult um::NodeOpen(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+static OsCallResult UserNodeOpen(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
     uint64_t userCreateInfo = regs->arg0;
 
     km::Process *process = nullptr;
@@ -68,11 +71,11 @@ OsCallResult um::NodeOpen(km::System *system, km::CallContext *context, km::Syst
         return km::CallError(status);
     }
 
-    if (OsStatus status = SelectOwningProcess(system, context, createInfo.Process, &process)) {
+    if (OsStatus status = um::SelectOwningProcess(system, context, createInfo.Process, &process)) {
         return km::CallError(status);
     }
 
-    if (OsStatus status = ReadPath(context, createInfo.Path, &path)) {
+    if (OsStatus status = um::ReadPath(context, createInfo.Path, &path)) {
         return km::CallError(status);
     }
 
@@ -91,7 +94,7 @@ OsCallResult um::NodeOpen(km::System *system, km::CallContext *context, km::Syst
     return km::CallOk(result->publicId());
 }
 
-OsCallResult um::NodeClose(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+static OsCallResult UserNodeClose(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
     uint64_t userHandle = regs->arg0;
 
     km::Node *node = system->objects->getNode(km::NodeId(OS_HANDLE_ID(userHandle)));
@@ -106,7 +109,7 @@ OsCallResult um::NodeClose(km::System *system, km::CallContext *context, km::Sys
     return km::CallOk(0zu);
 }
 
-OsCallResult um::NodeQuery(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+static OsCallResult UserNodeQuery(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
     uint64_t userHandle = regs->arg0;
     uint64_t userQuery = regs->arg1;
 
@@ -128,7 +131,7 @@ OsCallResult um::NodeQuery(km::System *system, km::CallContext *context, km::Sys
     return km::CallOk(0zu);
 }
 
-OsCallResult um::NodeStat(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+static OsCallResult UserNodeStat(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
     uint64_t userHandle = regs->arg0;
     uint64_t userStat = regs->arg1;
 
@@ -148,4 +151,108 @@ OsCallResult um::NodeStat(km::System *system, km::CallContext *context, km::Syst
     }
 
     return km::CallOk(0zu);
+}
+
+static OsCallResult NewNodeOpen(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    uint64_t userCreateInfo = regs->arg0;
+
+    vfs2::VfsPath path;
+    OsNodeCreateInfo createInfo{};
+
+    if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {
+        return km::CallError(status);
+    }
+
+    if (OsStatus status = um::ReadPath(context, createInfo.Path, &path)) {
+        return km::CallError(status);
+    }
+
+    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
+    sys2::NodeOpenInfo openInfo {
+        .path = path,
+    };
+
+    OsNodeHandle node = OS_HANDLE_INVALID;
+
+    if (OsStatus status = sys2::SysNodeOpen(&invoke, openInfo, &node)) {
+        return km::CallError(status);
+    }
+
+    return km::CallOk(node);
+}
+
+static OsCallResult NewNodeClose(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    uint64_t userHandle = regs->arg0;
+
+    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
+    if (OsStatus status = sys2::SysNodeClose(&invoke, userHandle)) {
+        return km::CallError(status);
+    }
+
+    return km::CallOk(0zu);
+}
+
+static OsCallResult NewNodeQuery(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    uint64_t userHandle = regs->arg0;
+    uint64_t userQuery = regs->arg1;
+
+    if (!context->isMapped(userQuery, userQuery + sizeof(OsNodeQueryInterfaceInfo), km::PageFlags::eUser | km::PageFlags::eRead)) {
+        return km::CallError(OsStatusInvalidInput);
+    }
+
+    OsDeviceHandle device = OS_HANDLE_INVALID;
+    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
+    if (OsStatus status = sys2::SysNodeQuery(&invoke, userHandle, *(OsNodeQueryInterfaceInfo*)userQuery, &device)) {
+        return km::CallError(status);
+    }
+
+    return km::CallOk(device);
+}
+
+static OsCallResult NewNodeStat(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    uint64_t userHandle = regs->arg0;
+    uint64_t userStat = regs->arg1;
+
+    if (!context->isMapped(userStat, userStat + sizeof(OsNodeInfo), km::PageFlags::eUser | km::PageFlags::eWrite)) {
+        return km::CallError(OsStatusInvalidInput);
+    }
+
+    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
+    if (OsStatus status = sys2::SysNodeStat(&invoke, userHandle, (OsNodeInfo*)userStat)) {
+        return km::CallError(status);
+    }
+
+    return km::CallOk(0zu);
+}
+
+OsCallResult um::NodeOpen(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    if constexpr (kUseNewSystem) {
+        return NewNodeOpen(system, context, regs);
+    } else {
+        return UserNodeOpen(system, context, regs);
+    }
+}
+
+OsCallResult um::NodeClose(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    if constexpr (kUseNewSystem) {
+        return NewNodeClose(system, context, regs);
+    } else {
+        return UserNodeClose(system, context, regs);
+    }
+}
+
+OsCallResult um::NodeQuery(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    if constexpr (kUseNewSystem) {
+        return NewNodeQuery(system, context, regs);
+    } else {
+        return UserNodeQuery(system, context, regs);
+    }
+}
+
+OsCallResult um::NodeStat(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    if constexpr (kUseNewSystem) {
+        return NewNodeStat(system, context, regs);
+    } else {
+        return UserNodeStat(system, context, regs);
+    }
 }
