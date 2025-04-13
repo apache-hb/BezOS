@@ -97,6 +97,23 @@ km::IsrContext sys2::CpuLocalSchedule::serviceSchedulerInt(km::IsrContext *conte
     return LoadThreadContext(newRegs, current->isSupervisor());
 }
 
+bool sys2::CpuLocalSchedule::scheduleNextContext(km::IsrContext *context, km::IsrContext *next) {
+    auto oldThread = mCurrent;
+
+    if (!reschedule()) {
+        return false;
+    }
+
+    auto oldRegs = SaveThreadContext(context);
+    oldThread->saveState(oldRegs);
+
+    auto newThread = mCurrent;
+
+    auto newRegs = newThread->loadState();
+    *next = LoadThreadContext(newRegs, newThread->isSupervisor());
+    return true;
+}
+
 sm::RcuSharedPtr<sys2::Thread> sys2::CpuLocalSchedule::currentThread() {
     return mCurrent;
 }
@@ -163,11 +180,7 @@ OsStatus sys2::GlobalSchedule::removeThread(sm::RcuWeakPtr<Thread>) {
 OsStatus sys2::GlobalSchedule::suspend(sm::RcuSharedPtr<Thread> thread) {
     OsThreadState state = eOsThreadRunning;
 
-    while (true) {
-        if (thread->cmpxchgState(state, eOsThreadSuspended)) {
-            return OsStatusSuccess;
-        }
-
+    while (!thread->cmpxchgState(state, eOsThreadSuspended)) {
         switch (state) {
         case eOsThreadSuspended:
             return OsStatusSuccess;
@@ -181,17 +194,13 @@ OsStatus sys2::GlobalSchedule::suspend(sm::RcuSharedPtr<Thread> thread) {
         }
     }
 
-    KM_PANIC("Thread state is invalid");
+    return OsStatusSuccess;
 }
 
 OsStatus sys2::GlobalSchedule::resume(sm::RcuSharedPtr<Thread> thread) {
     OsThreadState state = eOsThreadSuspended;
 
-    while (true) {
-        if (thread->cmpxchgState(state, eOsThreadRunning)) {
-            return OsStatusSuccess;
-        }
-
+    while (!thread->cmpxchgState(state, eOsThreadRunning)) {
         switch (state) {
         case eOsThreadSuspended:
             continue;
@@ -205,7 +214,7 @@ OsStatus sys2::GlobalSchedule::resume(sm::RcuSharedPtr<Thread> thread) {
         }
     }
 
-    KM_PANIC("Thread state is invalid");
+    return OsStatusSuccess;
 }
 
 OsStatus sys2::GlobalSchedule::sleep(sm::RcuSharedPtr<Thread> thread, OsInstant wake) {
@@ -245,7 +254,7 @@ OsStatus sys2::GlobalSchedule::signal(sm::RcuSharedPtr<IObject> object) {
 
     auto& queue = iter->second;
     while (!queue.empty()) {
-        auto entry = queue.top();
+        WaitEntry entry = queue.top();
         queue.pop();
 
         if (auto thread = entry.thread.lock()) {
@@ -262,7 +271,7 @@ OsStatus sys2::GlobalSchedule::signal(sm::RcuSharedPtr<IObject> object) {
 OsStatus sys2::GlobalSchedule::resumeSleepQueue(OsInstant now) {
     OsStatus result = OsStatusSuccess;
     while (!mSleepQueue.empty()) {
-        auto entry = mSleepQueue.top();
+        SleepEntry entry = mSleepQueue.top();
         if (entry.wake > now) {
             break;
         }
@@ -299,7 +308,7 @@ OsStatus sys2::GlobalSchedule::resumeWaitQueue(OsInstant now) {
     return result;
 }
 
-OsStatus sys2::GlobalSchedule::update(OsInstant now) {
+OsStatus sys2::GlobalSchedule::tick(OsInstant now) {
     OsStatus result = OsStatusSuccess;
 
     stdx::UniqueLock guard(mLock);

@@ -1,5 +1,4 @@
 #include "system/schedule.hpp"
-#include "system/thread.hpp"
 
 #include "panic.hpp"
 #include "thread.hpp"
@@ -17,22 +16,26 @@ static constinit km::CpuLocal<sys2::CpuLocalSchedule*> tlsSchedule;
 CPU_LOCAL
 static constinit km::CpuLocal<void*> tlsKernelStack;
 
-static km::IsrContext ScheduleInt(km::IsrContext *context) {
+static bool ScheduleInner(km::IsrContext *context, km::IsrContext *newContext) {
     km::IApic *apic = km::GetCpuLocalApic();
     defer { apic->eoi(); };
 
+    // If we find a new thread to schedule then return its context to switch to it
     if (sys2::CpuLocalSchedule *schedule = tlsSchedule.get()) {
-        auto newContext = schedule->serviceSchedulerInt(context);
+        return schedule->scheduleNextContext(context, newContext);
+    }
 
-        if (auto thread = schedule->currentThread()) {
-            auto kernelStack = thread->getKernelStack();
-            tlsKernelStack = kernelStack.baseAddress();
-        }
+    return false;
+}
 
+static km::IsrContext ScheduleInt(km::IsrContext *context) {
+    km::IsrContext newContext;
+    if (ScheduleInner(context, &newContext)) {
         return newContext;
     }
 
-    return *context;
+    // Otherwise we idle until the next interrupt
+    KmIdle();
 }
 
 static constexpr std::chrono::milliseconds kDefaultTimeSlice = 5ms;
