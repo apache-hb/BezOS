@@ -12,7 +12,6 @@
 #include "system/schedule.hpp"
 
 #include <compare> // IWYU pragma: keep
-#include <queue>
 
 namespace km {
     class PageTables;
@@ -26,42 +25,6 @@ namespace vfs2 {
 }
 
 namespace sys2 {
-    class IObject;
-    class Process;
-    class Thread;
-    class GlobalSchedule;
-
-    struct SleepEntry {
-        OsInstant wake;
-        sm::RcuWeakPtr<Thread> thread;
-
-        constexpr auto operator<=>(const SleepEntry& other) const noexcept {
-            return wake <=> other.wake;
-        }
-    };
-
-    struct WaitEntry {
-        /// @brief Timeout when this entry should be completed
-        OsInstant timeout;
-
-        /// @brief The thread that is waiting
-        sm::RcuWeakPtr<Thread> thread;
-
-        /// @brief The object that is being waited on
-        sm::RcuWeakPtr<IObject> object;
-
-        constexpr auto operator<=>(const WaitEntry& other) const noexcept {
-            return timeout <=> other.timeout;
-        }
-    };
-
-    using WaitQueue = std::priority_queue<WaitEntry>;
-
-    struct SystemStats {
-        size_t objects;
-        size_t processes;
-    };
-
     class System {
         std::atomic<OsProcessId> mPidCounter{1};
     public:
@@ -75,10 +38,6 @@ namespace sys2 {
         km::PageAllocator *mPageAllocator;
 
         vfs2::VfsRoot *mVfsRoot;
-
-        sm::FlatHashMap<sm::RcuWeakPtr<IObject>, WaitQueue> mWaitQueue;
-        std::priority_queue<WaitEntry> mTimeoutQueue;
-        std::priority_queue<SleepEntry> mSleepQueue;
 
         sm::FlatHashSet<sm::RcuSharedPtr<IObject>, sm::RcuHash<IObject>, std::equal_to<>> mObjects GUARDED_BY(mLock);
 
@@ -157,6 +116,7 @@ namespace sys2 {
     OsStatus SysCreateProcess(InvokeContext *context, OsProcessCreateInfo info, OsProcessHandle *handle);
     OsStatus SysDestroyProcess(InvokeContext *context, OsProcessHandle handle, int64_t exitCode, OsProcessStateFlags reason);
     OsStatus SysProcessStat(InvokeContext *context, OsProcessHandle handle, OsProcessInfo *result);
+    OsStatus SysProcessCurrent(InvokeContext *context, OsProcessAccess access, OsProcessHandle *handle);
 
     OsStatus SysCreateProcess(InvokeContext *context, sm::RcuSharedPtr<Process> parent, OsProcessCreateInfo info, OsProcessHandle *handle);
     OsStatus SysDestroyProcess(InvokeContext *context, ProcessHandle *handle, int64_t exitCode, OsProcessStateFlags reason);

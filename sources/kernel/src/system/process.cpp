@@ -105,6 +105,10 @@ OsStatus sys2::Process::findHandle(OsHandle handle, OsHandleType type, IHandle *
     return OsStatusNotFound;
 }
 
+OsStatus sys2::Process::currentHandle(OsProcessAccess access, OsProcessHandle *handle) {
+    return resolveObject(loanShared(), access, handle);
+}
+
 OsStatus sys2::Process::resolveObject(sm::RcuSharedPtr<IObject> object, OsHandleAccess access, OsHandle *handle) {
     HandleCreateInfo createInfo {
         .owner = loanShared(),
@@ -424,6 +428,10 @@ OsStatus sys2::SysProcessStat(InvokeContext *context, OsProcessHandle handle, Os
     *result = processInfo;
 
     return OsStatusSuccess;
+}
+
+OsStatus sys2::SysProcessCurrent(InvokeContext *context, OsProcessAccess access, OsProcessHandle *handle) {
+    return context->process->currentHandle(access, handle);
 }
 
 OsStatus sys2::SysQueryProcessList(InvokeContext *context, ProcessQueryInfo info, ProcessQueryResult *result) {

@@ -1,5 +1,6 @@
 #include "system/schedule.hpp"
 #include "gdt.h"
+#include "panic.hpp"
 #include "system/thread.hpp"
 
 using namespace std::chrono_literals;
@@ -142,4 +143,174 @@ OsStatus sys2::GlobalSchedule::addThread(sm::RcuSharedPtr<Thread> thread) {
     }
 
     return OsStatusOutOfMemory;
+}
+
+OsStatus sys2::GlobalSchedule::removeProcess(sm::RcuWeakPtr<Process> process) {
+    stdx::UniqueLock guard(mLock);
+    auto iter = mProcessInfo.find(process);
+    if (iter == mProcessInfo.end()) {
+        return OsStatusNotFound;
+    }
+
+    mProcessInfo.erase(iter);
+    return OsStatusSuccess;
+}
+
+OsStatus sys2::GlobalSchedule::removeThread(sm::RcuWeakPtr<Thread>) {
+    return OsStatusNotFound;
+}
+
+OsStatus sys2::GlobalSchedule::suspend(sm::RcuSharedPtr<Thread> thread) {
+    OsThreadState state = eOsThreadRunning;
+
+    while (true) {
+        if (thread->cmpxchgState(state, eOsThreadSuspended)) {
+            return OsStatusSuccess;
+        }
+
+        switch (state) {
+        case eOsThreadSuspended:
+            return OsStatusSuccess;
+        case eOsThreadQueued:
+        case eOsThreadRunning:
+        case eOsThreadWaiting:
+            continue;
+        case eOsThreadFinished:
+        case eOsThreadOrphaned:
+            return OsStatusCompleted;
+        }
+    }
+
+    KM_PANIC("Thread state is invalid");
+}
+
+OsStatus sys2::GlobalSchedule::resume(sm::RcuSharedPtr<Thread> thread) {
+    OsThreadState state = eOsThreadSuspended;
+
+    while (true) {
+        if (thread->cmpxchgState(state, eOsThreadRunning)) {
+            return OsStatusSuccess;
+        }
+
+        switch (state) {
+        case eOsThreadSuspended:
+            continue;
+        case eOsThreadQueued:
+        case eOsThreadRunning:
+        case eOsThreadWaiting:
+            return OsStatusSuccess;
+        case eOsThreadFinished:
+        case eOsThreadOrphaned:
+            return OsStatusCompleted;
+        }
+    }
+
+    KM_PANIC("Thread state is invalid");
+}
+
+OsStatus sys2::GlobalSchedule::sleep(sm::RcuSharedPtr<Thread> thread, OsInstant wake) {
+    if (OsStatus status = suspend(thread)) {
+        return status;
+    }
+
+    stdx::UniqueLock guard(mLock);
+    mSleepQueue.push(SleepEntry {
+        .wake = wake,
+        .thread = thread.weak(),
+    });
+
+    return OsStatusSuccess;
+}
+
+OsStatus sys2::GlobalSchedule::wait(sm::RcuSharedPtr<Thread> thread, sm::RcuSharedPtr<IObject> object, OsInstant timeout) {
+    if (OsStatus status = suspend(thread)) {
+        return status;
+    }
+
+    stdx::UniqueLock guard(mLock);
+    mWaitQueue[object].push(WaitEntry {
+        .timeout = timeout,
+        .thread = thread.weak(),
+    });
+
+    return OsStatusSuccess;
+}
+
+OsStatus sys2::GlobalSchedule::signal(sm::RcuSharedPtr<IObject> object) {
+    stdx::UniqueLock guard(mLock);
+    auto iter = mWaitQueue.find(object);
+    if (iter == mWaitQueue.end()) {
+        return OsStatusNotFound;
+    }
+
+    auto& queue = iter->second;
+    while (!queue.empty()) {
+        auto entry = queue.top();
+        queue.pop();
+
+        if (auto thread = entry.thread.lock()) {
+            if (OsStatus status = resume(thread)) {
+                return status;
+            }
+        }
+    }
+
+    mWaitQueue.erase(iter);
+    return OsStatusSuccess;
+}
+
+OsStatus sys2::GlobalSchedule::resumeSleepQueue(OsInstant now) {
+    OsStatus result = OsStatusSuccess;
+    while (!mSleepQueue.empty()) {
+        auto entry = mSleepQueue.top();
+        if (entry.wake > now) {
+            break;
+        }
+
+        mSleepQueue.pop();
+
+        if (auto thread = entry.thread.lock()) {
+            if (OsStatus status = resume(thread)) {
+                result = status;
+            }
+        }
+    }
+
+    return result;
+}
+
+OsStatus sys2::GlobalSchedule::resumeWaitQueue(OsInstant now) {
+    OsStatus result = OsStatusSuccess;
+    while (!mTimeoutQueue.empty()) {
+        auto entry = mTimeoutQueue.top();
+        if (entry.timeout > now) {
+            break;
+        }
+
+        mTimeoutQueue.pop();
+
+        if (auto thread = entry.thread.lock()) {
+            if (OsStatus status = resume(thread)) {
+                result = status;
+            }
+        }
+    }
+
+    return result;
+}
+
+OsStatus sys2::GlobalSchedule::update(OsInstant now) {
+    OsStatus result = OsStatusSuccess;
+
+    stdx::UniqueLock guard(mLock);
+
+    if (OsStatus status = resumeSleepQueue(now)) {
+        result = status;
+    }
+
+    if (OsStatus status = resumeWaitQueue(now)) {
+        result = status;
+    }
+
+    return result;
 }

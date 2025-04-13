@@ -239,9 +239,16 @@ static OsCallResult NewProcessDestroy(km::System *system, km::CallContext *conte
 }
 
 static OsCallResult NewProcessCurrent(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    uint64_t userAccess = regs->arg0;
+
     sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
 
-    return km::CallError(OsStatusNotSupported);
+    OsProcessHandle handle = OS_HANDLE_INVALID;
+    if (OsStatus status = sys2::SysProcessCurrent(&invoke, userAccess, &handle)) {
+        return km::CallError(status);
+    }
+
+    return km::CallOk(handle);
 }
 
 static OsCallResult NewProcessStat(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {

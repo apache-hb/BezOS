@@ -25,8 +25,7 @@ namespace sys2 {
         [[maybe_unused]]
         km::StackMapping mKernelStack;
 
-        [[maybe_unused]]
-        OsThreadState mThreadState;
+        std::atomic<OsThreadState> mThreadState;
 
     public:
         using Access = ThreadAccess;
@@ -48,6 +47,10 @@ namespace sys2 {
         bool isSupervisor();
 
         OsStatus destroy(System *system, OsThreadState reason);
+
+        bool cmpxchgState(OsThreadState &expected, OsThreadState newState) {
+            return mThreadState.compare_exchange_strong(expected, newState);
+        }
     };
 
     class ThreadHandle final : public BaseHandle<Thread, eOsHandleThread> {

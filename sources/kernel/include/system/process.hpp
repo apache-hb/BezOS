@@ -65,6 +65,8 @@ namespace sys2 {
         OsStatus removeHandle(OsHandle handle);
         OsStatus findHandle(OsHandle handle, OsHandleType type, IHandle **result);
 
+        OsStatus currentHandle(OsProcessAccess access, OsProcessHandle *handle);
+
         OsStatus resolveObject(sm::RcuSharedPtr<IObject> object, OsHandleAccess access, OsHandle *handle);
 
         template<typename T>
