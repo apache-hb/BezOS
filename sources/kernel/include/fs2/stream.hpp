@@ -18,11 +18,11 @@ namespace vfs2 {
     concept StreamNode = std::derived_from<T, INode> && StreamNodeRead<T> && StreamNodeWrite<T>;
 
     template<StreamNode T>
-    class TStreamHandle : public BasicHandle<T, IHandle> {
-        using BasicHandle<T, IHandle>::mNode;
+    class TStreamHandle : public BaseHandle<T, IHandle> {
+        using BaseHandle<T, IHandle>::mNode;
     public:
         TStreamHandle(sm::RcuSharedPtr<T> node, const void *, size_t)
-            : BasicHandle<T, IHandle>(node)
+            : BaseHandle<T, IHandle>(node)
         { }
 
         virtual OsStatus read(ReadRequest request, ReadResult *result) override {

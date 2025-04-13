@@ -4,7 +4,7 @@
 #include "panic.hpp"
 
 dev::DisplayHandle::DisplayHandle(sm::RcuSharedPtr<DisplayDevice> node, const void *, size_t)
-    : vfs2::BasicHandle<DisplayDevice>(node)
+    : vfs2::BaseHandle<DisplayDevice>(node)
 {
     km::Canvas canvas = mNode->getCanvas();
 

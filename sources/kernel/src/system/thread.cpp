@@ -116,7 +116,7 @@ sys2::XSaveState sys2::NewXSaveState() {
     return sys2::XSaveState { km::CreateXSave(), &km::DestroyXSave };
 }
 
-static OsStatus CreateThreadInner(sys2::System *system, const auto& info, sm::RcuWeakPtr<sys2::Process> parent, OsHandle id, sys2::ThreadHandle **handle) {
+static OsStatus CreateThreadInner(sys2::System *system, const auto& info, sm::RcuSharedPtr<sys2::Process> parent, OsHandle id, sys2::ThreadHandle **handle) {
     km::StackMapping kernelStack{};
     sys2::XSaveState fpuState{nullptr, &km::DestroyXSave};
     sys2::ThreadHandle *result = nullptr;
@@ -141,6 +141,10 @@ static OsStatus CreateThreadInner(sys2::System *system, const auto& info, sm::Rc
         goto outOfMemory;
     }
 
+    system->addThreadObject(thread);
+    parent->addThread(thread);
+    parent->addHandle(result);
+
     *handle = result;
     return OsStatusSuccess;
 
@@ -160,8 +164,6 @@ OsStatus sys2::SysCreateThread(InvokeContext *context, ThreadCreateInfo info, Os
         return status;
     }
 
-    context->process->addThread(result->getThread());
-    context->process->addHandle(result);
     *handle = result->getHandle();
 
     return OsStatusSuccess;
@@ -175,9 +177,6 @@ OsStatus sys2::SysCreateThread(InvokeContext *context, OsThreadCreateInfo info, 
         return status;
     }
 
-    context->system->addThreadObject(result->getThread());
-    context->process->addThread(result->getThread());
-    context->process->addHandle(result);
     *handle = result->getHandle();
 
     return OsStatusSuccess;

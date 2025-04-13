@@ -1,15 +1,11 @@
 #pragma once
 
-#include <atomic>
-
 #include <bezos/subsystem/identify.h>
 
 #include "fs2/node.hpp"
 
 namespace vfs2 {
     class BasicNode : public INode {
-        std::atomic<unsigned> mPublicRefCount { 1 };
-
     protected:
         sm::RcuWeakPtr<INode> mParent;
         IVfsMount *mMount;
@@ -44,15 +40,15 @@ namespace vfs2 {
     };
 
     template<std::derived_from<INode> Node, std::derived_from<IHandle> Interface = IHandle>
-    class BasicHandle : public Interface {
+    class BaseHandle : public Interface {
     protected:
         sm::RcuSharedPtr<Node> mNode;
 
     public:
-        BasicHandle(sm::RcuSharedPtr<Node> node)
+        BaseHandle(sm::RcuSharedPtr<Node> node)
             : mNode(node)
         { }
 
-        virtual ~BasicHandle() = default;
+        virtual ~BaseHandle() = default;
     };
 }

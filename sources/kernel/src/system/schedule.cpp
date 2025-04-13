@@ -81,22 +81,6 @@ bool sys2::CpuLocalSchedule::reschedule() {
     return false;
 }
 
-km::IsrContext sys2::CpuLocalSchedule::serviceSchedulerInt(km::IsrContext *context) {
-    auto previous = mCurrent;
-
-    if (!reschedule()) {
-        return *context;
-    }
-
-    auto oldRegs = SaveThreadContext(context);
-    previous->saveState(oldRegs);
-
-    auto current = mCurrent;
-
-    auto newRegs = current->loadState();
-    return LoadThreadContext(newRegs, current->isSupervisor());
-}
-
 bool sys2::CpuLocalSchedule::scheduleNextContext(km::IsrContext *context, km::IsrContext *next) {
     auto oldThread = mCurrent;
 
@@ -104,8 +88,10 @@ bool sys2::CpuLocalSchedule::scheduleNextContext(km::IsrContext *context, km::Is
         return false;
     }
 
-    auto oldRegs = SaveThreadContext(context);
-    oldThread->saveState(oldRegs);
+    if (oldThread != nullptr) {
+        auto oldRegs = SaveThreadContext(context);
+        oldThread->saveState(oldRegs);
+    }
 
     auto newThread = mCurrent;
 

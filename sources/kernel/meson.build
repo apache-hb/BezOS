@@ -396,6 +396,8 @@ memory_test_src = [
 system_test_src = [
     system_src,
 
+    'src/devices/stream.cpp',
+
     'src/memory.cpp',
     'src/boot.cpp',
 
@@ -611,27 +613,21 @@ testcases = {
     ],
     'system': [
         'test/system/system.cpp',
-        'src/devices/stream.cpp',
     ],
     'transaction': [
         'test/system/transaction.cpp',
-        'src/devices/stream.cpp',
     ],
     'query': [
         'test/system/query.cpp',
-        'src/devices/stream.cpp',
     ],
     'handles': [
         'test/system/handles.cpp',
-        'src/devices/stream.cpp',
     ],
     'threads': [
         'test/system/thread.cpp',
-        'src/devices/stream.cpp',
     ],
     'device': [
         'test/system/device.cpp',
-        'src/devices/stream.cpp',
     ],
 }
 
@@ -802,7 +798,25 @@ no_sanitize_test_shim = static_library('no_sanitize_test_shim', test_shim_src,
     native : true,
 )
 
+no_sanitize_fs_test_lib = static_library('no_sanitize_fs_test', fs_test_src,
+    include_directories : inc,
+    c_args : test_c_args,
+    cpp_args : test_cpp_args,
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units ],
+    override_options: [ 'b_sanitize=none', 'b_coverage=true' ],
+    native : true,
+)
+
 no_sanitize_memory_test_shim = static_library('no_sanitize_memory_test_shim', memory_test_src,
+    include_directories : inc,
+    c_args : test_c_args,
+    cpp_args : test_cpp_args,
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units ],
+    override_options: [ 'b_sanitize=none', 'b_coverage=true' ],
+    native : true,
+)
+
+no_sanitize_system_test_lib = static_library('no_sanitize_system_test', system_test_src,
     include_directories : inc,
     c_args : test_c_args,
     cpp_args : test_cpp_args,
@@ -877,6 +891,14 @@ testcases += {
         'dependencies': [ capstone ],
         'override_options': [ 'b_sanitize=none', 'b_coverage=true' ],
         'link_with' : [ no_sanitize_test_shim, no_sanitize_memory_test_shim, mmio_test_shim ],
+    },
+    'schedule': {
+        'sources': [
+            'test/system/schedule.cpp',
+        ],
+        'dependencies': [ capstone ],
+        'override_options': [ 'b_sanitize=none', 'b_coverage=true' ],
+        'link_with' : [ no_sanitize_test_shim, no_sanitize_memory_test_shim, no_sanitize_fs_test_lib, no_sanitize_system_test_lib, mmio_test_shim ],
     }
 }
 

@@ -8,7 +8,7 @@
 //
 
 dev::HidKeyboardHandle::HidKeyboardHandle(sm::RcuSharedPtr<HidKeyboardDevice> node, const void *, size_t)
-    : vfs2::BasicHandle<HidKeyboardDevice>(node)
+    : vfs2::BaseHandle<HidKeyboardDevice>(node)
 {
     mNode->attach(this);
 }

@@ -85,7 +85,6 @@ namespace sys2 {
 
         bool reschedule();
 
-        km::IsrContext serviceSchedulerInt(km::IsrContext *context);
         bool scheduleNextContext(km::IsrContext *context, km::IsrContext *next);
 
         size_t tasks() const { return mQueue.count(); }
@@ -129,6 +128,10 @@ namespace sys2 {
         OsStatus signal(sm::RcuSharedPtr<IObject> object);
 
         OsStatus tick(OsInstant now);
+
+        CpuLocalSchedule *getCpuSchedule(size_t cpu) {
+            return &mCpuLocal[cpu];
+        }
     };
 
     [[noreturn]]

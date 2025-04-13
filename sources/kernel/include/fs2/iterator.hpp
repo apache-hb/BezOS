@@ -6,15 +6,15 @@
 
 namespace vfs2 {
     template<std::derived_from<FolderMixin> T>
-    class TIteratorHandle : public BasicHandle<T, IIteratorHandle> {
-        using BasicHandle<T, IIteratorHandle>::mNode;
+    class TIteratorHandle : public BaseHandle<T, IIteratorHandle> {
+        using BaseHandle<T, IIteratorHandle>::mNode;
         using Iterator = FolderMixin::Iterator;
 
         Iterator mCurrent{};
 
     public:
         TIteratorHandle(sm::RcuSharedPtr<T> node, const void *, size_t)
-            : BasicHandle<T, IIteratorHandle>(node)
+            : BaseHandle<T, IIteratorHandle>(node)
         { }
 
         OsStatus next(sm::RcuSharedPtr<INode> *node) override {

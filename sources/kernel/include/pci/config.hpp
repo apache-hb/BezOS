@@ -17,14 +17,16 @@ namespace pci {
         uint8_t function;
     };
 
+    enum class ConfigSpaceType {
+        eMcfg,
+        ePort,
+    };
+
     class IConfigSpace {
     public:
-        void operator delete(IConfigSpace*, std::destroying_delete_t) {
-            std::unreachable();
-        }
-
         virtual ~IConfigSpace() = default;
 
+        virtual ConfigSpaceType type() const = 0;
         virtual uint32_t read32(uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset) = 0;
 
         uint16_t read16(uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset);
@@ -48,11 +50,13 @@ namespace pci {
     public:
         McfgConfigSpace(const acpi::Mcfg *mcfg, km::AddressSpace& memory);
 
+        ConfigSpaceType type() const override { return ConfigSpaceType::eMcfg; }
         uint32_t read32(uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset) override;
     };
 
     class PortConfigSpace final : public IConfigSpace {
     public:
+        ConfigSpaceType type() const override { return ConfigSpaceType::ePort; }
         uint32_t read32(uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset) override;
     };
 

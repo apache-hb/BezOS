@@ -37,12 +37,12 @@ namespace vfs2 {
     };
 
     template<IdentifyNode T>
-    class TIdentifyHandle : public BasicHandle<T, IIdentifyHandle> {
-        using BasicHandle<T, IIdentifyHandle>::mNode;
+    class TIdentifyHandle : public BaseHandle<T, IIdentifyHandle> {
+        using BaseHandle<T, IIdentifyHandle>::mNode;
 
     public:
         TIdentifyHandle(sm::RcuSharedPtr<T> node, const void *, size_t)
-            : BasicHandle<T, IIdentifyHandle>(node)
+            : BaseHandle<T, IIdentifyHandle>(node)
         { }
 
         OsStatus identify(OsIdentifyInfo *info) override {

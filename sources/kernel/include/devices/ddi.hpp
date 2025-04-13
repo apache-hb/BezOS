@@ -33,8 +33,8 @@ namespace dev {
         OsStatus interfaces(OsIdentifyInterfaceList *list);
     };
 
-    class DisplayHandle : public vfs2::BasicHandle<DisplayDevice> {
-        using vfs2::BasicHandle<DisplayDevice>::mNode;
+    class DisplayHandle : public vfs2::BaseHandle<DisplayDevice> {
+        using vfs2::BaseHandle<DisplayDevice>::mNode;
         km::AddressMapping mUserCanvas;
 
         OsStatus blit(void *data, size_t size);

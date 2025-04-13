@@ -80,6 +80,10 @@ namespace sys2 {
         OsProcessId nextProcessId() {
             return mPidCounter.fetch_add(1);
         }
+
+        GlobalSchedule *scheduler() {
+            return &mSchedule;
+        }
     };
 
     // internal

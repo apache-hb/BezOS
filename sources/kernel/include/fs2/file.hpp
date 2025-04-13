@@ -23,11 +23,11 @@ namespace vfs2 {
     concept FileNode = FileNodeStat<T> && std::derived_from<T, INode>;
 
     template<FileNode T>
-    class TFileHandle : public BasicHandle<T, IFileHandle> {
-        using BasicHandle<T, IFileHandle>::mNode;
+    class TFileHandle : public BaseHandle<T, IFileHandle> {
+        using BaseHandle<T, IFileHandle>::mNode;
     public:
         TFileHandle(sm::RcuSharedPtr<T> node, const void *, size_t)
-            : BasicHandle<T, IFileHandle>(node)
+            : BaseHandle<T, IFileHandle>(node)
         { }
 
         virtual HandleInfo info() override {

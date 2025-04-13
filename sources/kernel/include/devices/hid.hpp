@@ -44,8 +44,8 @@ namespace dev {
         OsStatus interfaces(OsIdentifyInterfaceList *list);
     };
 
-    class HidKeyboardHandle : public vfs2::BasicHandle<HidKeyboardDevice> {
-        using vfs2::BasicHandle<HidKeyboardDevice>::mNode;
+    class HidKeyboardHandle : public vfs2::BaseHandle<HidKeyboardDevice> {
+        using vfs2::BaseHandle<HidKeyboardDevice>::mNode;
         stdx::SpinLock mLock;
         stdx::Vector2<OsHidEvent> mEvents;
 

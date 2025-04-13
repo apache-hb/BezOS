@@ -45,12 +45,12 @@ namespace vfs2 {
     };
 
     template<FolderNodeType T>
-    class TFolderHandle : public BasicHandle<T, IFolderHandle> {
-        using BasicHandle<T, IFolderHandle>::mNode;
+    class TFolderHandle : public BaseHandle<T, IFolderHandle> {
+        using BaseHandle<T, IFolderHandle>::mNode;
 
     public:
         TFolderHandle(sm::RcuSharedPtr<T> node, const void *, size_t)
-            : BasicHandle<T, IFolderHandle>(node)
+            : BaseHandle<T, IFolderHandle>(node)
         { }
 
         virtual OsStatus lookup(VfsStringView name, sm::RcuSharedPtr<INode> *child) override {

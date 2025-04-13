@@ -305,7 +305,7 @@ void kmtest::Machine::sigsegv(mcontext_t *mcontext) {
         exit(1);
     }
 
-    dprintf(1, "fault: %s %s\n", insn[0].mnemonic, insn[0].op_str);
+    // dprintf(1, "fault: %s %s\n", insn[0].mnemonic, insn[0].op_str);
 
     if (insn[0].id == X86_INS_RDMSR) {
         rdmsr(mcontext, insn);

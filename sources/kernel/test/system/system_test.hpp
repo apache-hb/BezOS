@@ -74,8 +74,8 @@ public:
     void DebugMemoryUsage(km::SystemMemory& memory) {
         auto state = GetMemoryState(memory);
 
-        std::cout << "PMM: " << state.pmm.freeMemory << std::endl;
-        std::cout << "VMM: " << state.vmm.freeBlocks << std::endl;
+        std::cout << "PMM: " << std::string_view(km::format(sm::bytes(state.pmm.freeMemory))) << std::endl;
+        std::cout << "VMM: " << std::string_view(km::format(sm::bytes(state.vmm.freeBlocks * x64::kPageSize))) << std::endl;
         std::cout << "Address Space: " << std::string_view(km::format(sm::bytes(state.freeSpace))) << std::endl;
     }
 
