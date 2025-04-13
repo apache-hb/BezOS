@@ -83,6 +83,7 @@ namespace sys2 {
 
     struct DeviceOpenInfo {
         vfs2::VfsPath path;
+        OsDeviceCreateFlags flags;
         sm::uuid interface;
         void *data;
         size_t size;

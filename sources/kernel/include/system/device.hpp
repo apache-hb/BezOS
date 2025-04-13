@@ -1,8 +1,5 @@
 #pragma once
 
-#include <bezos/facility/device.h>
-#include <bezos/facility/fs.h>
-
 #include "fs2/base.hpp"
 
 #include "system/base.hpp"

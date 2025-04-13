@@ -69,9 +69,6 @@ namespace vfs2 {
     public:
         virtual ~IInvokeContext() = default;
 
-        /// @brief The process that is invoking the method.
-        virtual OsProcessHandle process() = 0;
-
         /// @brief The thread that is invoking the method.
         virtual OsThreadHandle thread() = 0;
 

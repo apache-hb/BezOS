@@ -64,6 +64,23 @@ OsStatus sys2::SysNodeOpen(InvokeContext *context, NodeOpenInfo info, OsNodeHand
     return OsStatusSuccess;
 }
 
+OsStatus sys2::SysNodeCreate(InvokeContext *context, sm::RcuSharedPtr<vfs2::INode> vfsNode, OsNodeHandle *outHandle) {
+    sm::RcuSharedPtr<sys2::Node> node = sm::rcuMakeShared<sys2::Node>(&context->system->rcuDomain(), vfsNode);
+    if (!node) {
+        return OsStatusOutOfMemory;
+    }
+
+    NodeHandle *result = new (std::nothrow) NodeHandle(node, context->process->newHandleId(eOsHandleNode), NodeAccess::eAll);
+    if (!result) {
+        return OsStatusOutOfMemory;
+    }
+
+    context->process->addHandle(result);
+    *outHandle = result->getHandle();
+
+    return OsStatusSuccess;
+}
+
 OsStatus sys2::SysNodeClose(InvokeContext *context, OsNodeHandle handle) {
     NodeHandle *node = nullptr;
     if (OsStatus status = context->process->findHandle(handle, &node)) {

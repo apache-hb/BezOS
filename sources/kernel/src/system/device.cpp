@@ -1,9 +1,33 @@
 #include "system/device.hpp"
+#include "devices/stream.hpp"
 #include "system/system.hpp"
 #include "system/node.hpp"
 #include "system/process.hpp"
 
 #include "fs2/vfs.hpp"
+
+class SysInvokeContext final : public vfs2::IInvokeContext {
+    sys2::InvokeContext *mContext;
+
+public:
+    SysInvokeContext(sys2::InvokeContext *context)
+        : mContext(context)
+    { }
+
+    OsThreadHandle thread() override {
+        return mContext->thread;
+    }
+
+    OsNodeHandle resolveNode(sm::RcuSharedPtr<vfs2::INode> node) override {
+        OsNodeHandle result = OS_HANDLE_INVALID;
+
+        if (OsStatus _ = sys2::SysNodeCreate(mContext, node, &result)) {
+            return OS_HANDLE_INVALID;
+        }
+
+        return result;
+    }
+};
 
 static sys2::ObjectName GetHandleName(vfs2::IHandle *handle) {
     auto hInfo = handle->info();
@@ -20,20 +44,20 @@ sys2::DeviceHandle::DeviceHandle(sm::RcuSharedPtr<Device> device, OsHandle handl
     : BaseHandle(device, handle, access)
 { }
 
-OsStatus sys2::SysDeviceOpen(InvokeContext *context, DeviceOpenInfo info, OsDeviceHandle *outHandle) {
-    std::unique_ptr<vfs2::IHandle> vfsHandle;
+static OsStatus DeviceOpenExisting(sys2::InvokeContext *context, sys2::DeviceOpenInfo info, OsDeviceHandle *outHandle) {
     vfs2::VfsRoot *vfs = context->system->mVfsRoot;
+    std::unique_ptr<vfs2::IHandle> vfsHandle;
 
-    if (OsStatus status = vfs->device(info.path, info.interface, nullptr, 0, std::out_ptr(vfsHandle))) {
+    if (OsStatus status = vfs->device(info.path, info.interface, info.data, info.size, std::out_ptr(vfsHandle))) {
         return status;
     }
 
-    sm::RcuSharedPtr<Device> device = sm::rcuMakeShared<Device>(&context->system->rcuDomain(), std::move(vfsHandle));
+    sm::RcuSharedPtr<sys2::Device> device = sm::rcuMakeShared<sys2::Device>(&context->system->rcuDomain(), std::move(vfsHandle));
     if (!device) {
         return OsStatusOutOfMemory;
     }
 
-    DeviceHandle *result = new (std::nothrow) DeviceHandle(device, context->process->newHandleId(eOsHandleDevice), DeviceAccess::eAll);
+    sys2::DeviceHandle *result = new (std::nothrow) sys2::DeviceHandle(device, context->process->newHandleId(eOsHandleDevice), sys2::DeviceAccess::eAll);
     if (!result) {
         return OsStatusOutOfMemory;
     }
@@ -42,6 +66,77 @@ OsStatus sys2::SysDeviceOpen(InvokeContext *context, DeviceOpenInfo info, OsDevi
     *outHandle = result->getHandle();
 
     return OsStatusSuccess;
+}
+
+static OsStatus DeviceCreateNew(sys2::InvokeContext *context, sys2::DeviceOpenInfo info, OsDeviceHandle *outHandle) {
+    vfs2::VfsRoot *vfs = context->system->mVfsRoot;
+    sm::RcuSharedPtr<vfs2::INode> vfsNode;
+    std::unique_ptr<vfs2::IHandle> vfsHandle;
+    OsStatus status = OsStatusSuccess;
+
+    if (info.interface == kOsFileGuid) {
+        status = vfs->create(info.path, &vfsNode);
+    } else if (info.interface == kOsFolderGuid) {
+        status = vfs->mkdir(info.path, &vfsNode);
+    } else if (info.interface == kOsStreamGuid) {
+        vfsNode = sm::rcuMakeShared<dev::StreamDevice>(vfs->domain(), 1024);
+        if (!vfsNode) {
+            return OsStatusOutOfMemory;
+        }
+
+        status = vfs->mkdevice(info.path, vfsNode);
+    }
+
+    if (status != OsStatusSuccess) {
+        return status;
+    }
+
+    if (OsStatus status = vfsNode->query(info.interface, info.data, info.size, std::out_ptr(vfsHandle))) {
+        return status;
+    }
+
+    sm::RcuSharedPtr<sys2::Device> device = sm::rcuMakeShared<sys2::Device>(&context->system->rcuDomain(), std::move(vfsHandle));
+    if (!device) {
+        return OsStatusOutOfMemory;
+    }
+
+    sys2::DeviceHandle *result = new (std::nothrow) sys2::DeviceHandle(device, context->process->newHandleId(eOsHandleDevice), sys2::DeviceAccess::eAll);
+    if (!result) {
+        return OsStatusOutOfMemory;
+    }
+
+    context->process->addHandle(result);
+    *outHandle = result->getHandle();
+
+    return OsStatusSuccess;
+}
+
+static OsStatus DeviceOpenAlways(sys2::InvokeContext *context, sys2::DeviceOpenInfo info, OsDeviceHandle *outHandle) {
+    if (OsStatus status = DeviceOpenExisting(context, info, outHandle)) {
+        if (status != OsStatusNotFound) {
+            return status;
+        }
+
+        if (OsStatus status = DeviceCreateNew(context, info, outHandle)) {
+            return status;
+        }
+    }
+
+    return OsStatusSuccess;
+}
+
+OsStatus sys2::SysDeviceOpen(InvokeContext *context, DeviceOpenInfo info, OsDeviceHandle *outHandle) {
+    switch (info.flags) {
+    case eOsDeviceOpenExisting:
+        return DeviceOpenExisting(context, info, outHandle);
+    case eOsDeviceCreateNew:
+        return DeviceCreateNew(context, info, outHandle);
+    case eOsDeviceOpenAlways:
+        return DeviceOpenAlways(context, info, outHandle);
+
+    default:
+        return OsStatusInvalidInput;
+    }
 }
 
 OsStatus sys2::SysDeviceClose(InvokeContext *context, OsDeviceHandle handle) {
@@ -121,18 +216,9 @@ OsStatus sys2::SysDeviceWrite(InvokeContext *context, OsDeviceHandle handle, OsD
     return OsStatusSuccess;
 }
 
-#if 0
 OsStatus sys2::SysDeviceInvoke(InvokeContext *context, OsDeviceHandle handle, uint64_t function, void *data, size_t size) {
-    ProcessHandle *parent = context->process;
-
-    if (!parent->hasAccess(ProcessAccess::eIoControl)) {
-        return OsStatusAccessDenied;
-    }
-
-    sm::RcuSharedPtr<Process> process = parent->getProcess();
-
     DeviceHandle *hDevice = nullptr;
-    if (OsStatus status = process->findHandle(handle, &hDevice)) {
+    if (OsStatus status = context->process->findHandle(handle, &hDevice)) {
         return status;
     }
 
@@ -143,13 +229,13 @@ OsStatus sys2::SysDeviceInvoke(InvokeContext *context, OsDeviceHandle handle, ui
     sm::RcuSharedPtr<Device> device = hDevice->getDevice();
     vfs2::IHandle *vfsHandle = device->getVfsHandle();
 
-    if (OsStatus status = vfsHandle->invoke(context, function, data, size)) {
+    SysInvokeContext invoke { context };
+    if (OsStatus status = vfsHandle->invoke(&invoke, function, data, size)) {
         return status;
     }
 
     return OsStatusSuccess;
 }
-#endif
 
 OsStatus sys2::SysDeviceStat(InvokeContext *context, OsDeviceHandle handle, OsDeviceInfo *info) {
     DeviceHandle *hDevice = nullptr;

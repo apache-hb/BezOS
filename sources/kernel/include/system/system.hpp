@@ -22,6 +22,7 @@ namespace km {
 
 namespace vfs2 {
     class VfsRoot;
+    class INode;
 }
 
 namespace sys2 {
@@ -93,6 +94,9 @@ namespace sys2 {
 
         sm::RcuDomain &rcuDomain() { return mDomain; }
 
+        void addThreadObject(sm::RcuSharedPtr<Thread> object);
+        void removeThreadObject(sm::RcuWeakPtr<Thread> object);
+
         void addProcessObject(sm::RcuSharedPtr<Process> object);
         void removeProcessObject(sm::RcuWeakPtr<Process> object);
 
@@ -134,6 +138,7 @@ namespace sys2 {
     // node
 
     OsStatus SysNodeOpen(InvokeContext *context, NodeOpenInfo info, OsNodeHandle *outHandle);
+    OsStatus SysNodeCreate(InvokeContext *context, sm::RcuSharedPtr<vfs2::INode> node, OsNodeHandle *outHandle);
     OsStatus SysNodeClose(InvokeContext *context, OsNodeHandle handle);
     OsStatus SysNodeQuery(InvokeContext *context, OsNodeHandle handle, OsNodeQueryInterfaceInfo info, OsDeviceHandle *outHandle);
     OsStatus SysNodeStat(InvokeContext *context, OsNodeHandle handle, OsNodeInfo *result);

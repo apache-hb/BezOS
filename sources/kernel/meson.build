@@ -611,18 +611,27 @@ testcases = {
     ],
     'system': [
         'test/system/system.cpp',
+        'src/devices/stream.cpp',
     ],
     'transaction': [
         'test/system/transaction.cpp',
+        'src/devices/stream.cpp',
     ],
     'query': [
         'test/system/query.cpp',
+        'src/devices/stream.cpp',
     ],
     'handles': [
         'test/system/handles.cpp',
+        'src/devices/stream.cpp',
     ],
     'threads': [
         'test/system/thread.cpp',
+        'src/devices/stream.cpp',
+    ],
+    'device': [
+        'test/system/device.cpp',
+        'src/devices/stream.cpp',
     ],
 }
 

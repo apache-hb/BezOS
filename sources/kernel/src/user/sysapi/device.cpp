@@ -21,10 +21,6 @@ class SystemInvokeContext final : public vfs2::IInvokeContext {
     km::CallContext *mContext;
     km::SystemObjects *mSystem;
 
-    OsProcessHandle process() override {
-        return mContext->process()->publicId();
-    }
-
     OsThreadHandle thread() override {
         return mContext->thread()->publicId();
     }

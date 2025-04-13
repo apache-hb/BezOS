@@ -175,6 +175,7 @@ OsStatus sys2::SysCreateThread(InvokeContext *context, OsThreadCreateInfo info, 
         return status;
     }
 
+    context->system->addThreadObject(result->getThread());
     context->process->addThread(result->getThread());
     context->process->addHandle(result);
     *handle = result->getHandle();
@@ -196,6 +197,8 @@ OsStatus sys2::SysDestroyThread(InvokeContext *context, OsThreadState reason, Os
     if (OsStatus status = thread->destroy(context->system, reason)) {
         return status;
     }
+
+    context->system->removeThreadObject(thread);
 
     return OsStatusSuccess;
 }
