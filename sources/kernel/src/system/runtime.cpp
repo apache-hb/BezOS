@@ -1,3 +1,4 @@
+#include "log.hpp"
 #include "system/schedule.hpp"
 
 #include "panic.hpp"
@@ -40,11 +41,20 @@ static km::IsrContext ScheduleInt(km::IsrContext *context) {
 
 static constexpr std::chrono::milliseconds kDefaultTimeSlice = 5ms;
 
+void sys2::InstallTimerIsr(km::LocalIsrTable *table) {
+    km::IsrCallback old = table->install(km::isr::kTimerVector, ScheduleInt);
+
+    if (old != km::DefaultIsrHandler && old != ScheduleInt) {
+        KmDebugMessage("Failed to install scheduler isr ", (void*)old, " != ", (void*)km::DefaultIsrHandler, "\n");
+        KM_PANIC("Failed to install scheduler isr.");
+    }
+}
+
 void sys2::EnterScheduler(km::LocalIsrTable *table, CpuLocalSchedule *scheduler, km::ApicTimer *apicTimer) {
     km::IApic *apic = km::GetCpuLocalApic();
     tlsSchedule = scheduler;
     KmSystemCallStackTlsOffset = tlsKernelStack.tlsOffset();
-    table->install(km::isr::kTimerVector, ScheduleInt);
+    InstallTimerIsr(table);
 
     auto frequency = apicTimer->frequency();
     auto ticks = (frequency * kDefaultTimeSlice.count()) / 1000;

@@ -137,5 +137,7 @@ namespace sys2 {
     [[noreturn]]
     void EnterScheduler(km::LocalIsrTable *table, CpuLocalSchedule *scheduler, km::ApicTimer *apicTimer);
 
+    void InstallTimerIsr(km::LocalIsrTable *table);
+
     sm::RcuSharedPtr<Process> GetCurrentProcess();
 }

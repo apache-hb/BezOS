@@ -1092,9 +1092,10 @@ static void AddDebugSystemCalls() {
 
 static sys2::System *gSysSystem = nullptr;
 
-static void InitSystem() {
+static void InitSystem(km::LocalIsrTable *ist) {
     auto *memory = GetSystemMemory();
     gSysSystem = new sys2::System(&memory->pageTables(), &memory->pmmAllocator(), gVfsRoot);
+    sys2::InstallTimerIsr(ist);
 }
 
 static km::System GetSystem() {
@@ -1618,7 +1619,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     km::LocalIsrTable *ist = GetLocalIsrTable();
 
     if constexpr (um::kUseNewSystem) {
-        InitSystem();
+        InitSystem(ist);
     } else {
         InstallSchedulerIsr(ist);
     }

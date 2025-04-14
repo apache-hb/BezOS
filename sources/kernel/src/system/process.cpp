@@ -491,11 +491,13 @@ OsStatus sys2::SysGetInvokerTx(InvokeContext *context, TxHandle **outHandle) {
     return SysFindHandle(context, context->tx, outHandle);
 }
 
-OsStatus sys2::SysCreateVmem(InvokeContext *context, OsVmemCreateInfo info) {
+OsStatus sys2::SysCreateVmem(InvokeContext *context, OsVmemCreateInfo info, void **outVmem) {
     km::AddressMapping mapping;
     if (OsStatus status = context->process->vmemCreate(context->system, info, &mapping)) {
         return status;
     }
+
+    *outVmem = (void*)mapping.vaddr;
 
     return OsStatusSuccess;
 }
@@ -504,6 +506,6 @@ OsStatus sys2::SysReleaseVmem(InvokeContext *context, VmemReleaseInfo info) {
     return OsStatusNotSupported;
 }
 
-OsStatus sys2::SysMapVmem(InvokeContext *context, VmemMapInfo info) {
+OsStatus sys2::SysMapVmem(InvokeContext *context, VmemMapInfo info, void **outVmem) {
     return OsStatusNotSupported;
 }
