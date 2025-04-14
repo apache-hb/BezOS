@@ -87,7 +87,7 @@ bool sys2::CpuLocalSchedule::startThread(sm::RcuSharedPtr<Thread> thread) {
         case eOsThreadQueued:
             KM_PANIC("cmpxchg was not strong");
         case eOsThreadRunning:
-            KM_PANIC("Thread is already running");
+            return true;
         default:
             continue;
         }
@@ -131,18 +131,28 @@ bool sys2::CpuLocalSchedule::reschedule() {
         if (sm::RcuSharedPtr<Thread> thread = info.thread.lock()) {
 
             if (!startThread(thread)) {
-                KmDebugMessage("[SCHED] Thread ", thread->getName(), " is not runnable\n");
                 continue;
             }
 
             if (stopThread(mCurrent)) {
-                KmDebugMessage("[SCHED] Thread ", mCurrent->getName(), " discarded\n");
                 mQueue.addFront(ThreadSchedulingInfo { mCurrent });
             }
 
             mCurrent = thread;
             return true;
         }
+    }
+
+    if (mCurrent == nullptr) {
+        return false;
+    }
+
+    if (startThread(mCurrent)) {
+        return true;
+    }
+
+    if (stopThread(mCurrent)) {
+        mQueue.addFront(ThreadSchedulingInfo { mCurrent });
     }
 
     return false;

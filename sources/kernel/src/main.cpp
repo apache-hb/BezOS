@@ -1346,7 +1346,9 @@ static OsStatus NotificationWork(void *) {
 }
 
 static OsStatus KernelMasterTask() {
-    KmDebugMessage("[INIT] Kernel master task.\n");
+    KmDebugMessageUnlocked("[INIT] Kernel master task.\n");
+
+    KmHalt();
 
     LaunchThread(&NotificationWork, gNotificationStream, "NOTIFY");
 
