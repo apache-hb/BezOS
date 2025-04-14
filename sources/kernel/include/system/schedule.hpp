@@ -7,7 +7,7 @@
 #include "isr/isr.hpp"
 
 #include "std/fixed_deque.hpp"
-#include "std/spinlock.hpp"
+#include "std/shared_spinlock.hpp"
 
 #include "std/rcuptr.hpp"
 #include "system/access.hpp"
@@ -17,17 +17,12 @@ namespace km {
 }
 
 namespace sys2 {
-    struct AffinityMask {
-        uint64_t mask[4] = { [0 ... 3] = UINT64_MAX }; // TODO: support more than 256 processors
-    };
-
-    struct ProcessSchedulingInfo {
-        AffinityMask affinity;
-    };
+    class GlobalSchedule;
+    class CpuLocalSchedule;
+    class ITask;
 
     struct ThreadSchedulingInfo {
         sm::RcuWeakPtr<Thread> thread;
-        AffinityMask affinity;
     };
 
     struct SleepEntry {
@@ -62,21 +57,18 @@ namespace sys2 {
     };
 
     class CpuLocalSchedule {
-        stdx::SpinLock mLock;
+        stdx::SharedSpinLock mLock;
         std::unique_ptr<ThreadSchedulingInfo[]> mThreadStorage;
-        stdx::FixedSizeDeque<ThreadSchedulingInfo> mQueue;
+        stdx::FixedSizeDeque<ThreadSchedulingInfo> mQueue GUARDED_BY(mLock);
         sm::RcuSharedPtr<Thread> mCurrent;
+        GlobalSchedule *mGlobal;
+
+        bool startThread(sm::RcuSharedPtr<Thread> thread) REQUIRES(mLock);
+        bool stopThread(sm::RcuSharedPtr<Thread> thread) REQUIRES(mLock);
 
     public:
         CpuLocalSchedule() = default;
-        CpuLocalSchedule(size_t tasks);
-
-        CpuLocalSchedule& operator=(CpuLocalSchedule&& other) {
-            mThreadStorage = std::move(other.mThreadStorage);
-            mQueue = std::move(other.mQueue);
-            mCurrent = std::move(other.mCurrent);
-            return *this;
-        }
+        CpuLocalSchedule(size_t tasks, GlobalSchedule *global);
 
         sm::RcuSharedPtr<Thread> currentThread();
         sm::RcuSharedPtr<Process> currentProcess();
@@ -87,29 +79,33 @@ namespace sys2 {
 
         bool scheduleNextContext(km::IsrContext *context, km::IsrContext *next);
 
-        size_t tasks() const { return mQueue.count(); }
+        size_t tasks() {
+            stdx::SharedLock guard(mLock);
+            return mQueue.count();
+        }
     };
 
     class GlobalSchedule {
         stdx::SharedSpinLock mLock;
         sm::FlatHashMap<km::CpuCoreId, std::unique_ptr<CpuLocalSchedule>> mCpuLocal;
 
-        sm::FlatHashMap<sm::RcuWeakPtr<Process>, ProcessSchedulingInfo> mProcessInfo GUARDED_BY(mLock);
-
         sm::FlatHashMap<sm::RcuWeakPtr<IObject>, WaitQueue> mWaitQueue GUARDED_BY(mLock);
         std::priority_queue<WaitEntry> mTimeoutQueue GUARDED_BY(mLock);
         std::priority_queue<SleepEntry> mSleepQueue GUARDED_BY(mLock);
+        sm::FlatHashSet<sm::RcuWeakPtr<Thread>> mSuspendSet GUARDED_BY(mLock);
+
+        void wakeQueue(OsInstant now, sm::RcuWeakPtr<IObject> object) REQUIRES(mLock);
 
         OsStatus resumeSleepQueue(OsInstant now) REQUIRES(mLock);
         OsStatus resumeWaitQueue(OsInstant now) REQUIRES(mLock);
 
+        OsStatus scheduleThread(sm::RcuSharedPtr<Thread> thread) REQUIRES_SHARED(mLock);
+
     public:
         GlobalSchedule() = default;
 
-        OsStatus addProcess(sm::RcuSharedPtr<Process> process);
         OsStatus addThread(sm::RcuSharedPtr<Thread> thread);
 
-        OsStatus removeProcess(sm::RcuWeakPtr<Process> process);
         OsStatus removeThread(sm::RcuWeakPtr<Thread> thread);
 
         OsStatus suspend(sm::RcuSharedPtr<Thread> thread);
@@ -132,6 +128,9 @@ namespace sys2 {
 
             return nullptr;
         }
+
+        void doSuspend(sm::RcuSharedPtr<Thread> thread);
+        void doResume(sm::RcuSharedPtr<Thread> thread);
     };
 
     [[noreturn]]
@@ -140,4 +139,5 @@ namespace sys2 {
     void InstallTimerIsr(km::LocalIsrTable *table);
 
     sm::RcuSharedPtr<Process> GetCurrentProcess();
+    sm::RcuSharedPtr<Thread> GetCurrentThread();
 }

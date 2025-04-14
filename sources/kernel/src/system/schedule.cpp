@@ -5,10 +5,11 @@
 
 using namespace std::chrono_literals;
 
-sys2::CpuLocalSchedule::CpuLocalSchedule(size_t tasks)
+sys2::CpuLocalSchedule::CpuLocalSchedule(size_t tasks, GlobalSchedule *global)
     : mThreadStorage(new ThreadSchedulingInfo[tasks])
     , mQueue(mThreadStorage.get(), tasks)
     , mCurrent(nullptr)
+    , mGlobal(global)
 { }
 
 static sys2::RegisterSet SaveThreadContext(km::IsrContext *context) {
@@ -65,11 +66,74 @@ static km::IsrContext LoadThreadContext(sys2::RegisterSet& regs, bool supervisor
     };
 }
 
+bool sys2::CpuLocalSchedule::startThread(sm::RcuSharedPtr<Thread> thread) {
+    OsThreadState expected = eOsThreadQueued;
+    while (!thread->cmpxchgState(expected, eOsThreadRunning)) {
+        switch (expected) {
+        case eOsThreadSuspended:
+            // If the thread has been suspended or is waiting drop it from the scheduler.
+            mGlobal->doSuspend(thread);
+            return false;
+        case eOsThreadWaiting:
+            // If the thread is waiting then drop it from the scheduler.
+            // Part of the wait logic already adds it to a wait queue.
+            return false;
+        case eOsThreadOrphaned:
+        case eOsThreadFinished:
+            // Thread doesnt need to be scheduled anymore.
+            return false;
+
+        case eOsThreadQueued:
+            KM_PANIC("cmpxchg was not strong");
+        case eOsThreadRunning:
+            KM_PANIC("Thread is already running");
+        default:
+            break;
+        }
+    }
+
+    return true;
+}
+
+bool sys2::CpuLocalSchedule::stopThread(sm::RcuSharedPtr<Thread> thread) {
+    if (thread == nullptr) {
+        return false;
+    }
+
+    OsThreadState expected = eOsThreadRunning;
+    while (!thread->cmpxchgState(expected, eOsThreadQueued)) {
+        switch (expected) {
+        case eOsThreadRunning:
+        case eOsThreadQueued:
+            return true;
+        case eOsThreadSuspended:
+        case eOsThreadWaiting:
+            // Thread is already suspended or waiting.
+            return false;
+        case eOsThreadOrphaned:
+        case eOsThreadFinished:
+            // Thread is already finished or orphaned.
+            return false;
+        default:
+            break;
+        }
+    }
+
+    return true;
+}
+
 bool sys2::CpuLocalSchedule::reschedule() {
+    stdx::UniqueLock guard(mLock);
+
     ThreadSchedulingInfo info;
     while (mQueue.tryPollBack(info)) {
         if (sm::RcuSharedPtr<Thread> thread = info.thread.lock()) {
-            if (mCurrent != nullptr) {
+
+            if (!startThread(thread)) {
+                continue;
+            }
+
+            if (stopThread(mCurrent)) {
                 mQueue.addFront(ThreadSchedulingInfo { mCurrent });
             }
 
@@ -119,17 +183,12 @@ sm::RcuSharedPtr<sys2::Process> sys2::CpuLocalSchedule::currentProcess() {
 
 OsStatus sys2::CpuLocalSchedule::addThread(sm::RcuSharedPtr<Thread> thread) {
     ThreadSchedulingInfo info { thread.weak() };
+
+    stdx::UniqueLock guard(mLock);
     return mQueue.addFront(info) ? OsStatusSuccess : OsStatusOutOfMemory;
 }
 
-OsStatus sys2::GlobalSchedule::addProcess(sm::RcuSharedPtr<Process> process) {
-    stdx::UniqueLock guard(mLock);
-    mProcessInfo.insert({ process.weak(), ProcessSchedulingInfo {} });
-    return OsStatusSuccess;
-}
-
-OsStatus sys2::GlobalSchedule::addThread(sm::RcuSharedPtr<Thread> thread) {
-    stdx::SharedLock guard(mLock);
+OsStatus sys2::GlobalSchedule::scheduleThread(sm::RcuSharedPtr<Thread> thread) {
     auto it = std::min_element(mCpuLocal.begin(), mCpuLocal.end(),
         [](const auto& lhs, const auto& rhs) {
             return lhs.second->tasks() < rhs.second->tasks();
@@ -158,21 +217,15 @@ OsStatus sys2::GlobalSchedule::addThread(sm::RcuSharedPtr<Thread> thread) {
     return OsStatusOutOfMemory;
 }
 
+OsStatus sys2::GlobalSchedule::addThread(sm::RcuSharedPtr<Thread> thread) {
+    stdx::SharedLock guard(mLock);
+    return scheduleThread(thread);
+}
+
 void sys2::GlobalSchedule::initCpuSchedule(km::CpuCoreId cpu, size_t tasks) {
     stdx::UniqueLock guard(mLock);
 
-    mCpuLocal.insert({ cpu, std::make_unique<CpuLocalSchedule>(tasks) });
-}
-
-OsStatus sys2::GlobalSchedule::removeProcess(sm::RcuWeakPtr<Process> process) {
-    stdx::UniqueLock guard(mLock);
-    auto iter = mProcessInfo.find(process);
-    if (iter == mProcessInfo.end()) {
-        return OsStatusNotFound;
-    }
-
-    mProcessInfo.erase(iter);
-    return OsStatusSuccess;
+    mCpuLocal.insert({ cpu, std::make_unique<CpuLocalSchedule>(tasks, this) });
 }
 
 OsStatus sys2::GlobalSchedule::removeThread(sm::RcuWeakPtr<Thread>) {
@@ -180,11 +233,12 @@ OsStatus sys2::GlobalSchedule::removeThread(sm::RcuWeakPtr<Thread>) {
 }
 
 OsStatus sys2::GlobalSchedule::suspend(sm::RcuSharedPtr<Thread> thread) {
-    OsThreadState state = eOsThreadRunning;
+    OsThreadState state = eOsThreadQueued;
 
     while (!thread->cmpxchgState(state, eOsThreadSuspended)) {
         switch (state) {
         case eOsThreadSuspended:
+            doSuspend(thread);
             return OsStatusSuccess;
         case eOsThreadQueued:
         case eOsThreadRunning:
@@ -196,6 +250,7 @@ OsStatus sys2::GlobalSchedule::suspend(sm::RcuSharedPtr<Thread> thread) {
         }
     }
 
+    doSuspend(thread);
     return OsStatusSuccess;
 }
 
@@ -205,7 +260,8 @@ OsStatus sys2::GlobalSchedule::resume(sm::RcuSharedPtr<Thread> thread) {
     while (!thread->cmpxchgState(state, eOsThreadRunning)) {
         switch (state) {
         case eOsThreadSuspended:
-            continue;
+            doResume(thread);
+            return OsStatusSuccess;
         case eOsThreadQueued:
         case eOsThreadRunning:
         case eOsThreadWaiting:
@@ -216,6 +272,7 @@ OsStatus sys2::GlobalSchedule::resume(sm::RcuSharedPtr<Thread> thread) {
         }
     }
 
+    doResume(thread);
     return OsStatusSuccess;
 }
 
@@ -270,6 +327,19 @@ OsStatus sys2::GlobalSchedule::signal(sm::RcuSharedPtr<IObject> object) {
     return OsStatusSuccess;
 }
 
+void sys2::GlobalSchedule::doSuspend(sm::RcuSharedPtr<Thread> thread) {
+    stdx::UniqueLock guard(mLock);
+    mSuspendSet.insert(thread.weak());
+}
+
+void sys2::GlobalSchedule::doResume(sm::RcuSharedPtr<Thread> thread) {
+    stdx::UniqueLock guard(mLock);
+    if (auto it = mSuspendSet.find(thread.weak()); it != mSuspendSet.end()) {
+        mSuspendSet.erase(thread.weak());
+        scheduleThread(thread);
+    }
+}
+
 OsStatus sys2::GlobalSchedule::resumeSleepQueue(OsInstant now) {
     OsStatus result = OsStatusSuccess;
     while (!mSleepQueue.empty()) {
@@ -290,15 +360,35 @@ OsStatus sys2::GlobalSchedule::resumeSleepQueue(OsInstant now) {
     return result;
 }
 
+void sys2::GlobalSchedule::wakeQueue(OsInstant now, sm::RcuWeakPtr<IObject> object) {
+    if (auto it = mWaitQueue.find(object); it != mWaitQueue.end()) {
+        auto& [_, queue] = *it;
+        while (!queue.empty()) {
+            WaitEntry entry = queue.top();
+            if (entry.timeout > now) {
+                break;
+            }
+
+            queue.pop();
+        }
+
+        if (queue.empty()) {
+            mWaitQueue.erase(it);
+        }
+    }
+}
+
 OsStatus sys2::GlobalSchedule::resumeWaitQueue(OsInstant now) {
     OsStatus result = OsStatusSuccess;
     while (!mTimeoutQueue.empty()) {
-        auto entry = mTimeoutQueue.top();
+        WaitEntry entry = mTimeoutQueue.top();
         if (entry.timeout > now) {
             break;
         }
 
         mTimeoutQueue.pop();
+
+        wakeQueue(now, entry.object);
 
         if (auto thread = entry.thread.lock()) {
             if (OsStatus status = resume(thread)) {

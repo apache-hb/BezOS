@@ -79,7 +79,7 @@ TEST_F(SystemThreadTest, StatThread) {
     OsThreadInfo info{};
     status = sys2::SysThreadStat(&i, hThread, &info);
     ASSERT_EQ(status, OsStatusSuccess) << "Thread stat failed";
-    ASSERT_EQ(info.State, eOsThreadRunning) << "Thread state is not running";
+    ASSERT_EQ(info.State, eOsThreadQueued) << "Thread state is not running";
     ASSERT_STREQ(info.Name, "TEST") << "Thread name is not TEST";
 
     OsProcessInfo myInfo{}, otherInfo{};

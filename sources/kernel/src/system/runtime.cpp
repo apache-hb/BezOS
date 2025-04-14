@@ -79,3 +79,11 @@ sm::RcuSharedPtr<sys2::Process> sys2::GetCurrentProcess() {
 
     return nullptr;
 }
+
+sm::RcuSharedPtr<sys2::Thread> sys2::GetCurrentThread() {
+    if (auto schedule = tlsSchedule.get()) {
+        return schedule->currentThread();
+    }
+
+    return nullptr;
+}

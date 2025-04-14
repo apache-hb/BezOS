@@ -86,7 +86,13 @@ sys2::Thread::Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process>
     , mTlsAddress(createInfo.tlsAddress)
     , mKernelStack(kernelStack)
     , mThreadState(createInfo.state)
-{ }
+{
+    if (mThreadState == eOsThreadRunning || mThreadState == eOsThreadQueued) {
+        mThreadState = eOsThreadQueued;
+    } else {
+        mThreadState = eOsThreadSuspended;
+    }
+}
 
 sys2::Thread::Thread(OsThreadCreateInfo createInfo, sm::RcuWeakPtr<Process> process, sys2::XSaveState fpuState, km::StackMapping kernelStack)
     : Super(createInfo.Name)
@@ -96,7 +102,13 @@ sys2::Thread::Thread(OsThreadCreateInfo createInfo, sm::RcuWeakPtr<Process> proc
     , mTlsAddress(createInfo.CpuState.fs)
     , mKernelStack(kernelStack)
     , mThreadState(createInfo.Flags)
-{ }
+{
+    if (mThreadState == eOsThreadRunning || mThreadState == eOsThreadQueued) {
+        mThreadState = eOsThreadQueued;
+    } else {
+        mThreadState = eOsThreadSuspended;
+    }
+}
 
 OsStatus sys2::Thread::destroy(System *system, OsThreadState reason) {
     if (OsStatus status = system->releaseStack(mKernelStack)) {
