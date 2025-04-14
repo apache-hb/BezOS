@@ -1616,6 +1616,13 @@ void LaunchKernel(boot::LaunchInfo launch) {
     }
 
     km::LocalIsrTable *ist = GetLocalIsrTable();
+
+    if constexpr (um::kUseNewSystem) {
+        InitSystem();
+    } else {
+        InstallSchedulerIsr(ist);
+    }
+
     const IsrEntry *timerInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
         km::IApic *apic = km::GetCpuLocalApic();
         apic->eoi();
@@ -1689,8 +1696,6 @@ void LaunchKernel(boot::LaunchInfo launch) {
         }
     }
 
-    InitSystem();
-    InstallSchedulerIsr(ist);
     StartupSmp(rsdt, processor.umip(), &apicTimer);
 
     DateTime time = ReadCmosClock();
