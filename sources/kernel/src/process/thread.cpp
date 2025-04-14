@@ -18,7 +18,7 @@ void Thread::init(ThreadId id, stdx::String name, Process *process, AddressMappi
     }
 }
 
-OsStatus Thread::waitOnHandle(KernelObject *object, OsInstant _) {
+OsStatus Thread::waitOnHandle(BaseObject *object, OsInstant _) {
     // TODO: timeout
     if (object->handleType() == eOsHandleProcess) {
         Process *process = static_cast<Process*>(object);

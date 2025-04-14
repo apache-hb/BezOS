@@ -1045,7 +1045,7 @@ static void AddHandleSystemCalls() {
         uint64_t userTimeout = regs->arg1;
         Thread *thread = context->thread();
 
-        KernelObject *object = gSystemObjects->getHandle(userHandle);
+        BaseObject *object = gSystemObjects->getHandle(userHandle);
         if (object == nullptr) {
             return CallError(OsStatusInvalidHandle);
         }
