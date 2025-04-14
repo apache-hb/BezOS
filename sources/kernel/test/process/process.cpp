@@ -54,7 +54,7 @@ TEST_F(ProcessTest, CreateProcess) {
 
     ASSERT_NE(process, nullptr);
 
-    ASSERT_EQ(process->name(), "test");
+    ASSERT_EQ(process->getName(), "test");
 
     ASSERT_TRUE(process->publicId() != OS_HANDLE_INVALID);
 
@@ -85,7 +85,7 @@ TEST_F(ProcessTest, CreateThread) {
     }
 
     ASSERT_NE(process, nullptr);
-    ASSERT_EQ(process->name(), "test");
+    ASSERT_EQ(process->getName(), "test");
     ASSERT_NE(process->publicId(), OS_HANDLE_INVALID);
 
     {
@@ -94,7 +94,7 @@ TEST_F(ProcessTest, CreateThread) {
     }
 
     ASSERT_NE(thread, nullptr);
-    ASSERT_EQ(thread->name(), "test");
+    ASSERT_EQ(thread->getName(), "test");
     ASSERT_EQ(thread->process, process);
     ASSERT_NE(thread->publicId(), OS_HANDLE_INVALID);
 
@@ -148,7 +148,7 @@ TEST_F(ProcessTest, OpenFile) {
     }
 
     ASSERT_NE(process, nullptr);
-    ASSERT_EQ(process->name(), "test");
+    ASSERT_EQ(process->getName(), "test");
     ASSERT_NE(process->publicId(), OS_HANDLE_INVALID);
 
     {
@@ -157,7 +157,7 @@ TEST_F(ProcessTest, OpenFile) {
     }
 
     ASSERT_NE(thread, nullptr);
-    ASSERT_EQ(thread->name(), "test");
+    ASSERT_EQ(thread->getName(), "test");
     ASSERT_EQ(thread->process, process);
     ASSERT_NE(thread->publicId(), OS_HANDLE_INVALID);
 
@@ -167,7 +167,7 @@ TEST_F(ProcessTest, OpenFile) {
     }
 
     ASSERT_NE(vnode, nullptr);
-    ASSERT_EQ(vnode->name(), "File.txt");
+    ASSERT_EQ(vnode->getName(), "File.txt");
     ASSERT_NE(vnode->publicId(), OS_HANDLE_INVALID);
 
     OsHandle threadId = thread->publicId();
@@ -223,7 +223,7 @@ TEST_F(ProcessTest, CloseFileInProcess) {
     }
 
     ASSERT_NE(process, nullptr);
-    ASSERT_EQ(process->name(), "test");
+    ASSERT_EQ(process->getName(), "test");
     ASSERT_NE(process->publicId(), OS_HANDLE_INVALID);
 
     {
@@ -232,7 +232,7 @@ TEST_F(ProcessTest, CloseFileInProcess) {
     }
 
     ASSERT_NE(thread, nullptr);
-    ASSERT_EQ(thread->name(), "test");
+    ASSERT_EQ(thread->getName(), "test");
     ASSERT_EQ(thread->process, process);
     ASSERT_NE(thread->publicId(), OS_HANDLE_INVALID);
 
@@ -242,7 +242,7 @@ TEST_F(ProcessTest, CloseFileInProcess) {
     }
 
     ASSERT_NE(vnode, nullptr);
-    ASSERT_EQ(vnode->name(), "File.txt");
+    ASSERT_EQ(vnode->getName(), "File.txt");
     ASSERT_NE(vnode->publicId(), OS_HANDLE_INVALID);
 
     OsHandle threadId = thread->publicId();

@@ -6,13 +6,13 @@
 #include "std/string.hpp"
 
 namespace km {
-    struct Node : public KernelObject {
+    struct Node : public BaseObject {
         sm::RcuSharedPtr<vfs2::INode> node = nullptr;
 
         void init(NodeId id, stdx::String name, sm::RcuSharedPtr<vfs2::INode> vfsNode);
     };
 
-    struct Device : public KernelObject {
+    struct Device : public BaseObject {
         std::unique_ptr<vfs2::IHandle> handle;
 
         void init(DeviceId id, stdx::String name, std::unique_ptr<vfs2::IHandle> vfsHandle);

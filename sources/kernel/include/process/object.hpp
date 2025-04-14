@@ -3,11 +3,15 @@
 #include <bezos/facility/process.h>
 #include <bezos/facility/threads.h>
 
+#include "std/shared_spinlock.hpp"
 #include "std/spinlock.hpp"
+#include "std/static_string.hpp"
 #include "std/string.hpp"
 
 namespace km {
     class SystemMemory;
+
+    using ObjectName = stdx::StaticString<OS_OBJECT_NAME_MAX>;
 
     enum class ThreadId : OsThreadHandle { };
     enum class ProcessId : OsProcessHandle { };
@@ -25,27 +29,38 @@ namespace km {
         }
     };
 
-    class KernelObject;
+    class BaseObject;
 
     struct HandleWait {
-        KernelObject *object = nullptr;
+        BaseObject *object = nullptr;
         OsInstant timeout = OS_TIMEOUT_INSTANT;
     };
 
-    class KernelObject {
+    class IObject {
+    public:
+        virtual ~IObject() = default;
+
+        virtual ObjectName getName() = 0;
+        virtual void setName(ObjectName name) = 0;
+    };
+
+    class BaseObject : public IObject {
+    protected:
+        stdx::SharedSpinLock mLock;
+
+    private:
         OsHandle mId;
-        stdx::String mName;
-        stdx::SpinLock mMonitor;
+        ObjectName mName GUARDED_BY(mLock);
 
         uint32_t mStrongCount = 1;
         uint32_t mWeakCount = 1;
 
     public:
-        virtual ~KernelObject() = default;
+        virtual ~BaseObject() = default;
 
-        KernelObject() = default;
+        BaseObject() = default;
 
-        KernelObject(OsHandle id, stdx::String name)
+        BaseObject(OsHandle id, stdx::String name)
             : mId(id)
             , mName(std::move(name))
         { }
@@ -56,7 +71,8 @@ namespace km {
         OsHandleType handleType() const { return OS_HANDLE_TYPE(mId); }
         OsHandle internalId() const { return OS_HANDLE_ID(mId); }
 
-        stdx::StringView name() const { return mName; }
+        ObjectName getName() final override;
+        void setName(ObjectName name) final override;
 
         bool retainStrong();
         void retainWeak();

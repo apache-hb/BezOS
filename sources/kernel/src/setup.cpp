@@ -249,7 +249,7 @@ static bool IsSupervisorFault(const km::IsrContext *context) {
 
 static void FaultProcess(km::IsrContext *context, stdx::StringView fault) {
     if (auto process = km::GetCurrentProcess()) {
-        KmDebugMessage("[PROC] Terminating ", process->name(), ", due to ", fault, "\n");
+        KmDebugMessage("[PROC] Terminating ", process->getName(), ", due to ", fault, "\n");
         km::LockDebugLog();
         process->terminate(eOsProcessFaulted, 0x80000003);
         DumpIsrState(context);

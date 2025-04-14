@@ -255,7 +255,7 @@ Mutex *SystemObjects::getMutex(MutexId id) {
     return nullptr;
 }
 
-bool SystemObjects::releaseHandle(KernelObject *handle) {
+bool SystemObjects::releaseHandle(BaseObject *handle) {
     if (handle->releaseStrong()) {
         destroyHandle(handle);
         return true;
@@ -264,7 +264,7 @@ bool SystemObjects::releaseHandle(KernelObject *handle) {
     return false;
 }
 
-void SystemObjects::destroyHandle(KernelObject *object) {
+void SystemObjects::destroyHandle(BaseObject *object) {
     if (object->handleType() == eOsHandleProcess) {
         Process *process = static_cast<Process*>(object);
         for (auto& [_, handle] : process->handles) {
@@ -287,7 +287,7 @@ void SystemObjects::destroyHandle(KernelObject *object) {
     delete object;
 }
 
-KernelObject *SystemObjects::getHandle(OsHandle id) {
+BaseObject *SystemObjects::getHandle(OsHandle id) {
     // TODO: this is stupid, use generic handle lookup
 
     switch (OS_HANDLE_TYPE(id)) {

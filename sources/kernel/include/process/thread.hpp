@@ -10,11 +10,11 @@
 namespace km {
     struct Process;
 
-    struct Thread : public KernelObject {
+    struct Thread : public BaseObject {
         Thread() = default;
 
         Thread(ThreadId id, stdx::String name, Process *process)
-            : KernelObject(std::to_underlying(id) | (uint64_t(eOsHandleThread) << 56), std::move(name))
+            : BaseObject(std::to_underlying(id) | (uint64_t(eOsHandleThread) << 56), std::move(name))
             , process(process)
         { }
 
@@ -36,7 +36,7 @@ namespace km {
         AddressMapping tlsMapping;
         OsThreadState threadState = eOsThreadRunning;
 
-        OsStatus waitOnHandle(KernelObject *object, OsInstant timeout);
+        OsStatus waitOnHandle(BaseObject *object, OsInstant timeout);
 
         bool isComplete() const {
             return threadState != eOsThreadFinished;

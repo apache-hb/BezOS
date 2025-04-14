@@ -36,11 +36,11 @@ namespace km {
         sm::FlatHashMap<NodeId, Node*> mNodes;
         sm::FlatHashMap<DeviceId, Device*> mDevices;
 
-        sm::FlatHashMap<sm::RcuSharedPtr<vfs2::INode>, KernelObject*, sm::RcuHash<vfs2::INode>> mVfsNodes;
-        sm::FlatHashMap<vfs2::IHandle*, KernelObject*> mVfsHandles;
+        sm::FlatHashMap<sm::RcuSharedPtr<vfs2::INode>, BaseObject*, sm::RcuHash<vfs2::INode>> mVfsNodes;
+        sm::FlatHashMap<vfs2::IHandle*, BaseObject*> mVfsHandles;
 
-        bool releaseHandle(KernelObject *object);
-        void destroyHandle(KernelObject *object);
+        bool releaseHandle(BaseObject *object);
+        void destroyHandle(BaseObject *object);
 
     public:
         SystemObjects(SystemMemory *memory, vfs2::VfsRoot *vfs)
@@ -74,6 +74,6 @@ namespace km {
 
         Mutex *getMutex(MutexId id);
 
-        KernelObject *getHandle(OsHandle id);
+        BaseObject *getHandle(OsHandle id);
     };
 }

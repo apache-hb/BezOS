@@ -26,14 +26,14 @@ namespace km {
         size_t size;
     };
 
-    struct Process : public KernelObject {
+    struct Process : public BaseObject {
         Process() = default;
 
         Process *parent = nullptr;
 
         RangeAllocator<PhysicalAddress> pmm;
         std::unique_ptr<AddressSpace> ptes;
-        sm::FlatHashMap<OsHandle, KernelObject*> handles;
+        sm::FlatHashMap<OsHandle, BaseObject*> handles;
         OsProcessStateFlags state = eOsProcessRunning;
         ProcessArgs args;
         int64_t exitCode = 0;
@@ -49,8 +49,8 @@ namespace km {
 
         void terminate(OsProcessStateFlags state, int64_t exitCode);
 
-        void addHandle(KernelObject *object);
-        KernelObject *findHandle(OsHandle id);
+        void addHandle(BaseObject *object);
+        BaseObject *findHandle(OsHandle id);
         OsStatus removeHandle(OsHandle id);
 
         OsStatus map(km::SystemMemory& memory, size_t pages, PageFlags flags, MemoryType type, AddressMapping *mapping);

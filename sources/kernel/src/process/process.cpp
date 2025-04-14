@@ -21,11 +21,11 @@ void Process::terminate(OsProcessStateFlags state, int64_t exitCode) {
     this->exitCode = exitCode;
 }
 
-void Process::addHandle(KernelObject *object) {
+void Process::addHandle(BaseObject *object) {
     handles.insert({ object->publicId(), object });
 }
 
-KernelObject *Process::findHandle(OsHandle id) {
+BaseObject *Process::findHandle(OsHandle id) {
     if (auto it = handles.find(id); it != handles.end()) {
         return it->second;
     }

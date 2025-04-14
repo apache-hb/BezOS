@@ -2,10 +2,20 @@
 
 #include "panic.hpp"
 
-using KernelObject = km::KernelObject;
+using KernelObject = km::BaseObject;
 
 void KernelObject::initHeader(OsHandle id, OsHandleType type, stdx::String name) {
     mId = OS_HANDLE_NEW(type, id);
+    setName(std::move(name));
+}
+
+km::ObjectName km::BaseObject::getName() {
+    stdx::SharedLock guard(mLock);
+    return mName;
+}
+
+void km::BaseObject::setName(ObjectName name) {
+    stdx::UniqueLock guard(mLock);
     mName = std::move(name);
 }
 
