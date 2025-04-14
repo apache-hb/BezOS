@@ -44,9 +44,8 @@ namespace sys2 {
         sm::FlatHashSet<sm::RcuSharedPtr<Process>, sm::RcuHash<Process>, std::equal_to<>> mProcessObjects GUARDED_BY(mLock);
 
     public:
-        System(GlobalScheduleCreateInfo info, km::AddressSpace *systemTables [[gnu::nonnull]], km::PageAllocator *pmm [[gnu::nonnull]], vfs2::VfsRoot *vfsRoot)
-            : mSchedule(info)
-            , mSystemTables(systemTables)
+        System( km::AddressSpace *systemTables [[gnu::nonnull]], km::PageAllocator *pmm [[gnu::nonnull]], vfs2::VfsRoot *vfsRoot)
+            : mSystemTables(systemTables)
             , mPageAllocator(pmm)
             , mVfsRoot(vfsRoot)
         { }
@@ -83,6 +82,10 @@ namespace sys2 {
 
         GlobalSchedule *scheduler() {
             return &mSchedule;
+        }
+
+        CpuLocalSchedule *getCpuSchedule(km::CpuCoreId cpu) {
+            return mSchedule.getCpuSchedule(cpu);
         }
     };
 
@@ -129,7 +132,7 @@ namespace sys2 {
 
     // vmem
 
-    OsStatus SysCreateVmem(InvokeContext *context, VmemCreateInfo info);
+    OsStatus SysCreateVmem(InvokeContext *context, OsVmemCreateInfo info);
     OsStatus SysReleaseVmem(InvokeContext *context, VmemReleaseInfo info);
     OsStatus SysMapVmem(InvokeContext *context, VmemMapInfo info);
 

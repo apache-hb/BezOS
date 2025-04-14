@@ -1,4 +1,6 @@
 #include "gdt.hpp"
+#include "system/create.hpp"
+#include "system/system.hpp"
 #include "user/sysapi.hpp"
 
 #include "process/system.hpp"
@@ -10,7 +12,7 @@
 // TODO: make this runtime configurable
 static constexpr size_t kMaxPathSize = 0x1000;
 
-OsCallResult um::ThreadCreate(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+static OsCallResult UserThreadCreate(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
     uint64_t userCreateInfo = regs->arg0;
 
     OsThreadCreateInfo createInfo{};
@@ -62,11 +64,69 @@ OsCallResult um::ThreadCreate(km::System *system, km::CallContext *context, km::
     return km::CallOk(thread->publicId());
 }
 
-OsCallResult um::ThreadDestroy(km::System *, km::CallContext *, km::SystemCallRegisterSet *) {
+static OsCallResult UserThreadDestroy(km::System *, km::CallContext *, km::SystemCallRegisterSet *) {
     return km::CallError(OsStatusNotSupported);
 }
 
-OsCallResult um::ThreadSleep(km::System *, km::CallContext *, km::SystemCallRegisterSet *) {
+static OsCallResult UserThreadSleep(km::System *, km::CallContext *, km::SystemCallRegisterSet *) {
     km::YieldCurrentThread();
     return km::CallOk(0zu);
+}
+
+static OsCallResult NewThreadCreate(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    uint64_t userCreateInfo = regs->arg0;
+
+    OsThreadCreateInfo createInfo{};
+    OsThreadHandle thread = OS_HANDLE_INVALID;
+
+    if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {
+        return km::CallError(status);
+    }
+
+    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
+    if (OsStatus status = sys2::SysCreateThread(&invoke, createInfo, &thread)) {
+        return km::CallError(status);
+    }
+
+    return km::CallOk(thread);
+}
+
+static OsCallResult NewThreadDestroy(km::System *system, km::CallContext *, km::SystemCallRegisterSet *regs) {
+    uint64_t userThread = regs->arg0;
+
+    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
+    if (OsStatus status = sys2::SysDestroyThread(&invoke, eOsThreadFinished, userThread)) {
+        return km::CallError(status);
+    }
+
+    return km::CallOk(0zu);
+}
+
+static OsCallResult NewThreadSleep(km::System *, km::CallContext *, km::SystemCallRegisterSet *) {
+    km::YieldCurrentThread();
+    return km::CallOk(0zu);
+}
+
+OsCallResult um::ThreadCreate(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    if constexpr (kUseNewSystem) {
+        return NewThreadCreate(system, context, regs);
+    } else {
+        return UserThreadCreate(system, context, regs);
+    }
+}
+
+OsCallResult um::ThreadDestroy(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    if constexpr (kUseNewSystem) {
+        return NewThreadDestroy(system, context, regs);
+    } else {
+        return UserThreadDestroy(system, context, regs);
+    }
+}
+
+OsCallResult um::ThreadSleep(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    if constexpr (kUseNewSystem) {
+        return NewThreadSleep(system, context, regs);
+    } else {
+        return UserThreadSleep(system, context, regs);
+    }
 }

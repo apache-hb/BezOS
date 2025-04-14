@@ -490,3 +490,20 @@ OsStatus sys2::SysGetInvokerTx(InvokeContext *context, TxHandle **outHandle) {
 
     return SysFindHandle(context, context->tx, outHandle);
 }
+
+OsStatus sys2::SysCreateVmem(InvokeContext *context, OsVmemCreateInfo info) {
+    km::AddressMapping mapping;
+    if (OsStatus status = context->process->vmemCreate(context->system, info, &mapping)) {
+        return status;
+    }
+
+    return OsStatusSuccess;
+}
+
+OsStatus sys2::SysReleaseVmem(InvokeContext *context, VmemReleaseInfo info) {
+    return OsStatusNotSupported;
+}
+
+OsStatus sys2::SysMapVmem(InvokeContext *context, VmemMapInfo info) {
+    return OsStatusNotSupported;
+}

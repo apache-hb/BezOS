@@ -122,15 +122,6 @@ OsStatus sys2::CpuLocalSchedule::addThread(sm::RcuSharedPtr<Thread> thread) {
     return mQueue.addFront(info) ? OsStatusSuccess : OsStatusOutOfMemory;
 }
 
-sys2::GlobalSchedule::GlobalSchedule(GlobalScheduleCreateInfo info)
-    : mCpuCount(info.cpus)
-    , mCpuLocal(new sys2::CpuLocalSchedule[mCpuCount])
-{
-    for (size_t i = 0; i < mCpuCount; i++) {
-        mCpuLocal[i] = CpuLocalSchedule(info.tasks);
-    }
-}
-
 OsStatus sys2::GlobalSchedule::addProcess(sm::RcuSharedPtr<Process> process) {
     stdx::UniqueLock guard(mLock);
     mProcessInfo.insert({ process.weak(), ProcessSchedulingInfo {} });
@@ -138,14 +129,39 @@ OsStatus sys2::GlobalSchedule::addProcess(sm::RcuSharedPtr<Process> process) {
 }
 
 OsStatus sys2::GlobalSchedule::addThread(sm::RcuSharedPtr<Thread> thread) {
-    for (size_t i = 0; i < mCpuCount; i++) {
-        size_t index = (mLastScheduled++) % mCpuCount;
-        if (mCpuLocal[index].addThread(thread) == OsStatusSuccess) {
+    stdx::SharedLock guard(mLock);
+    auto it = std::min_element(mCpuLocal.begin(), mCpuLocal.end(),
+        [](const auto& lhs, const auto& rhs) {
+            return lhs.second->tasks() < rhs.second->tasks();
+        });
+
+    if (it == mCpuLocal.end()) {
+        return OsStatusOutOfMemory;
+    }
+
+    auto& [cpuId, cpu] = *it;
+    if (cpu->addThread(thread) == OsStatusSuccess) {
+        return OsStatusSuccess;
+    }
+
+    // If the CPU local schedule is full, we need to find another CPU
+    // to add the thread to.
+    for (auto& [cpuId, cpu] : mCpuLocal) {
+        if (cpu->addThread(thread) == OsStatusSuccess) {
             return OsStatusSuccess;
         }
     }
 
+    // If we reach here, it means that all CPU local schedules are full
+    // and we couldn't add the thread to any of them.
+
     return OsStatusOutOfMemory;
+}
+
+void sys2::GlobalSchedule::initCpuSchedule(km::CpuCoreId cpu, size_t tasks) {
+    stdx::UniqueLock guard(mLock);
+
+    mCpuLocal.insert({ cpu, std::make_unique<CpuLocalSchedule>(tasks) });
 }
 
 OsStatus sys2::GlobalSchedule::removeProcess(sm::RcuWeakPtr<Process> process) {

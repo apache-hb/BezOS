@@ -8,19 +8,19 @@ class SystemTest : public SystemBaseTest { };
 TEST_F(SystemTest, Construct) {
     km::SystemMemory memory = body.make();
     vfs2::VfsRoot vfs;
-    sys2::System system({ 1, 1 }, &memory.pageTables(), &memory.pmmAllocator(), &vfs);
+    sys2::System system(&memory.pageTables(), &memory.pmmAllocator(), &vfs);
 }
 
 TEST_F(SystemTest, ConstructMultiple) {
     km::SystemMemory memory = body.make();
     vfs2::VfsRoot vfs;
-    sys2::System system({ 128, 128 }, &memory.pageTables(), &memory.pmmAllocator(), &vfs);
+    sys2::System system(&memory.pageTables(), &memory.pmmAllocator(), &vfs);
 }
 
 TEST_F(SystemTest, CreateProcess) {
     km::SystemMemory memory = body.make(sm::megabytes(2).bytes());
     vfs2::VfsRoot vfs;
-    sys2::System system({ 128, 128 }, &memory.pageTables(), &memory.pmmAllocator(), &vfs);
+    sys2::System system(&memory.pageTables(), &memory.pmmAllocator(), &vfs);
 
     sys2::ProcessCreateInfo createInfo {
         .name = "TEST",
@@ -44,7 +44,7 @@ TEST_F(SystemTest, CreateProcess) {
 TEST_F(SystemTest, CreateProcessAsync) {
     km::SystemMemory memory = body.make(sm::megabytes(2).bytes());
     vfs2::VfsRoot vfs;
-    sys2::System system({ 128, 128 }, &memory.pageTables(), &memory.pmmAllocator(), &vfs);
+    sys2::System system(&memory.pageTables(), &memory.pmmAllocator(), &vfs);
 
     RecordMemoryUsage(memory);
 
@@ -118,7 +118,7 @@ TEST_F(SystemTest, CreateProcessAsync) {
 TEST_F(SystemTest, CreateChildProcess) {
     km::SystemMemory memory = body.make(sm::megabytes(2).bytes());
     vfs2::VfsRoot vfs;
-    sys2::System system({ 128, 128 }, &memory.pageTables(), &memory.pmmAllocator(), &vfs);
+    sys2::System system(&memory.pageTables(), &memory.pmmAllocator(), &vfs);
 
     RecordMemoryUsage(memory);
 
@@ -178,7 +178,7 @@ TEST_F(SystemTest, CreateChildProcess) {
 TEST_F(SystemTest, NestedChildProcess) {
     km::SystemMemory memory = body.make(sm::megabytes(8).bytes());
     vfs2::VfsRoot vfs;
-    sys2::System system({ 128, 128 }, &memory.pageTables(), &memory.pmmAllocator(), &vfs);
+    sys2::System system(&memory.pageTables(), &memory.pmmAllocator(), &vfs);
 
     RecordMemoryUsage(memory);
 
@@ -230,7 +230,7 @@ TEST_F(SystemTest, NestedChildProcess) {
 TEST_F(SystemTest, OrphanThread) {
     km::SystemMemory memory = body.make(sm::megabytes(2).bytes());
     vfs2::VfsRoot vfs;
-    sys2::System system({ 128, 128 }, &memory.pageTables(), &memory.pmmAllocator(), &vfs);
+    sys2::System system(&memory.pageTables(), &memory.pmmAllocator(), &vfs);
 
     sys2::ProcessCreateInfo processCreateInfo {
         .name = "TEST",
@@ -269,7 +269,7 @@ TEST_F(SystemTest, OrphanThread) {
 TEST_F(SystemTest, CreateThread) {
     km::SystemMemory memory = body.make(sm::megabytes(2).bytes());
     vfs2::VfsRoot vfs;
-    sys2::System system({ 128, 128 }, &memory.pageTables(), &memory.pmmAllocator(), &vfs);
+    sys2::System system(&memory.pageTables(), &memory.pmmAllocator(), &vfs);
 
     sys2::ProcessCreateInfo processCreateInfo {
         .name = "TEST",

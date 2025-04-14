@@ -65,6 +65,7 @@ namespace um {
 
     // <bezos/facility/vmem.h>
     OsCallResult VmemCreate(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
+    OsCallResult VmemMap(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
     OsCallResult VmemDestroy(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
 
     // <bezos/facility/thread.h>

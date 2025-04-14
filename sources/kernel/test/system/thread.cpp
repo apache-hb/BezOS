@@ -9,8 +9,12 @@ struct TestData {
 
     TestData(SystemMemoryTestBody& body)
         : memory(body.make(sm::megabytes(2).bytes()))
-        , system({ 128, 128 }, &memory.pageTables(), &memory.pmmAllocator(), &vfs)
-    { }
+        , system(&memory.pageTables(), &memory.pmmAllocator(), &vfs)
+    {
+        for (size_t i = 0; i < 4; i++) {
+            system.scheduler()->initCpuSchedule(km::CpuCoreId(i), 64);
+        }
+    }
 };
 
 class SystemThreadTest : public SystemBaseTest {

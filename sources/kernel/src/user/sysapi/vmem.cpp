@@ -1,10 +1,12 @@
+#include "system/create.hpp"
+#include "system/system.hpp"
 #include "user/sysapi.hpp"
 
 #include <bezos/facility/vmem.h>
 
 #include "syscall.hpp"
 
-OsCallResult um::VmemCreate(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+static OsCallResult UserVmemCreate(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
     uint64_t userCreateInfo = regs->arg0;
 
     OsVmemCreateInfo createInfo{};
@@ -35,6 +37,46 @@ OsCallResult um::VmemCreate(km::System *system, km::CallContext *context, km::Sy
     return km::CallOk(mapping.vaddr);
 }
 
-OsCallResult um::VmemDestroy(km::System *, km::CallContext *, km::SystemCallRegisterSet *) {
+static OsCallResult UserVmemDestroy(km::System *, km::CallContext *, km::SystemCallRegisterSet *) {
     return km::CallError(OsStatusNotSupported);
+}
+
+static OsCallResult NewVmemCreate(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    uint64_t userCreateInfo = regs->arg0;
+
+    OsVmemCreateInfo createInfo{};
+    km::AddressMapping mapping{};
+
+    if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {
+        return km::CallError(status);
+    }
+
+    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
+    if (OsStatus status = sys2::SysCreateVmem(&invoke, createInfo)) {
+        return km::CallError(status);
+    }
+}
+
+static OsCallResult NewVmemDestroy(km::System *, km::CallContext *, km::SystemCallRegisterSet *) {
+    return km::CallError(OsStatusNotSupported);
+}
+
+OsCallResult um::VmemCreate(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    if constexpr (kUseNewSystem) {
+        return NewVmemCreate(system, context, regs);
+    } else {
+        return UserVmemCreate(system, context, regs);
+    }
+}
+
+OsCallResult um::VmemMap(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+
+}
+
+OsCallResult um::VmemDestroy(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    if constexpr (kUseNewSystem) {
+        return NewVmemDestroy(system, context, regs);
+    } else {
+        return UserVmemDestroy(system, context, regs);
+    }
 }

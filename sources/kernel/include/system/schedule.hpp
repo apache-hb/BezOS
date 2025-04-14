@@ -90,16 +90,9 @@ namespace sys2 {
         size_t tasks() const { return mQueue.count(); }
     };
 
-    struct GlobalScheduleCreateInfo {
-        size_t cpus;
-        size_t tasks;
-    };
-
     class GlobalSchedule {
         stdx::SharedSpinLock mLock;
-        size_t mCpuCount;
-        size_t mLastScheduled;
-        std::unique_ptr<CpuLocalSchedule[]> mCpuLocal;
+        sm::FlatHashMap<km::CpuCoreId, std::unique_ptr<CpuLocalSchedule>> mCpuLocal;
 
         sm::FlatHashMap<sm::RcuWeakPtr<Process>, ProcessSchedulingInfo> mProcessInfo GUARDED_BY(mLock);
 
@@ -111,7 +104,7 @@ namespace sys2 {
         OsStatus resumeWaitQueue(OsInstant now) REQUIRES(mLock);
 
     public:
-        GlobalSchedule(GlobalScheduleCreateInfo info);
+        GlobalSchedule() = default;
 
         OsStatus addProcess(sm::RcuSharedPtr<Process> process);
         OsStatus addThread(sm::RcuSharedPtr<Thread> thread);
@@ -129,8 +122,15 @@ namespace sys2 {
 
         OsStatus tick(OsInstant now);
 
-        CpuLocalSchedule *getCpuSchedule(size_t cpu) {
-            return &mCpuLocal[cpu];
+        void initCpuSchedule(km::CpuCoreId cpu, size_t tasks);
+
+        CpuLocalSchedule *getCpuSchedule(km::CpuCoreId cpu) {
+            stdx::SharedLock guard(mLock);
+            if (auto iter = mCpuLocal.find(cpu); iter != mCpuLocal.end()) {
+                return iter->second.get();
+            }
+
+            return nullptr;
         }
     };
 

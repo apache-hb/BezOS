@@ -9,9 +9,9 @@ struct TestData {
     vfs2::VfsRoot vfs;
     sys2::System system;
 
-    TestData(SystemMemoryTestBody& body, size_t cpus, size_t tasks)
+    TestData(SystemMemoryTestBody& body)
         : memory(body.make(sm::megabytes(16).bytes()))
-        , system({ cpus, tasks }, &memory.pageTables(), &memory.pmmAllocator(), &vfs)
+        , system(&memory.pageTables(), &memory.pmmAllocator(), &vfs)
     { }
 };
 
@@ -62,7 +62,11 @@ public:
     }
 
     void init(size_t cpus, size_t tasks) {
-        data = std::make_unique<TestData>(body, cpus, tasks);
+        data = std::make_unique<TestData>(body);
+        for (size_t i = 0; i < cpus; i++) {
+            system()->scheduler()->initCpuSchedule(km::CpuCoreId(i), tasks);
+        }
+
         sys2::ProcessCreateInfo createInfo {
             .name = "MASTER",
             .supervisor = false,
@@ -117,7 +121,7 @@ TEST_F(ScheduleTest, StatThread) {
     ASSERT_NE(hThread, OS_HANDLE_INVALID) << "Thread handle was not created";
 
     auto sched = system()->scheduler();
-    auto local = sched->getCpuSchedule(0);
+    auto local = sched->getCpuSchedule(km::CpuCoreId(0));
     ASSERT_TRUE(local != nullptr) << "Local schedule was not created";
     km::IsrContext current{};
     km::IsrContext next{};
@@ -148,7 +152,7 @@ TEST_F(ScheduleTest, StartManyThreads) {
     }
 
     auto sched = system()->scheduler();
-    auto local = sched->getCpuSchedule(0);
+    auto local = sched->getCpuSchedule(km::CpuCoreId(0));
     ASSERT_TRUE(local != nullptr) << "Local schedule was not created";
 
     km::IsrContext current{};
@@ -185,14 +189,14 @@ TEST_F(ScheduleTest, MultiThreadSchedule) {
     }
 
     auto sched = system()->scheduler();
-    auto local = sched->getCpuSchedule(0);
+    auto local = sched->getCpuSchedule(km::CpuCoreId(0));
     ASSERT_TRUE(local != nullptr) << "Local schedule was not created";
 
     std::vector<std::jthread> threads;
     for (size_t i = 0; i < kThreadCount; i++) {
         threads.emplace_back([this, i] {
             auto sched = system()->scheduler();
-            auto local = sched->getCpuSchedule(i);
+            auto local = sched->getCpuSchedule(km::CpuCoreId(i));
             ASSERT_TRUE(local != nullptr) << "Local schedule was not created";
             km::IsrContext current{ .rip = UINTPTR_MAX };
             for (size_t j = 0; j < 1000; j++) {
