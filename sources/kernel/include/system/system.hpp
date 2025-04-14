@@ -52,7 +52,7 @@ namespace sys2 {
 
         sm::RcuDomain &rcuDomain() { return mDomain; }
 
-        void addThreadObject(sm::RcuSharedPtr<Thread> object);
+        OsStatus addThreadObject(sm::RcuSharedPtr<Thread> object);
         void removeThreadObject(sm::RcuWeakPtr<Thread> object);
 
         void addProcessObject(sm::RcuSharedPtr<Process> object);

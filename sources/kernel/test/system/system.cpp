@@ -46,6 +46,10 @@ TEST_F(SystemTest, CreateProcessAsync) {
     vfs2::VfsRoot vfs;
     sys2::System system(&memory.pageTables(), &memory.pmmAllocator(), &vfs);
 
+    for (size_t i = 0; i < 8; i++) {
+        system.scheduler()->initCpuSchedule(km::CpuCoreId(i), 128);
+    }
+
     RecordMemoryUsage(memory);
 
     std::vector<std::jthread> threads;
@@ -120,6 +124,9 @@ TEST_F(SystemTest, CreateChildProcess) {
     vfs2::VfsRoot vfs;
     sys2::System system(&memory.pageTables(), &memory.pmmAllocator(), &vfs);
 
+    for (size_t i = 0; i < 8; i++) {
+        system.scheduler()->initCpuSchedule(km::CpuCoreId(i), 128);
+    }
     RecordMemoryUsage(memory);
 
     std::unique_ptr<sys2::ProcessHandle> hProcess = nullptr;
@@ -180,6 +187,9 @@ TEST_F(SystemTest, NestedChildProcess) {
     vfs2::VfsRoot vfs;
     sys2::System system(&memory.pageTables(), &memory.pmmAllocator(), &vfs);
 
+    for (size_t i = 0; i < 8; i++) {
+        system.scheduler()->initCpuSchedule(km::CpuCoreId(i), 128);
+    }
     RecordMemoryUsage(memory);
 
     std::unique_ptr<sys2::ProcessHandle> hProcess = nullptr;
@@ -232,6 +242,9 @@ TEST_F(SystemTest, OrphanThread) {
     vfs2::VfsRoot vfs;
     sys2::System system(&memory.pageTables(), &memory.pmmAllocator(), &vfs);
 
+    for (size_t i = 0; i < 8; i++) {
+        system.scheduler()->initCpuSchedule(km::CpuCoreId(i), 128);
+    }
     sys2::ProcessCreateInfo processCreateInfo {
         .name = "TEST",
         .supervisor = false,
@@ -271,6 +284,9 @@ TEST_F(SystemTest, CreateThread) {
     vfs2::VfsRoot vfs;
     sys2::System system(&memory.pageTables(), &memory.pmmAllocator(), &vfs);
 
+    for (size_t i = 0; i < 8; i++) {
+        system.scheduler()->initCpuSchedule(km::CpuCoreId(i), 128);
+    }
     sys2::ProcessCreateInfo processCreateInfo {
         .name = "TEST",
         .supervisor = false,

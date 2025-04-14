@@ -155,10 +155,17 @@ TEST_F(ScheduleTest, StartManyThreads) {
     auto local = sched->getCpuSchedule(km::CpuCoreId(0));
     ASSERT_TRUE(local != nullptr) << "Local schedule was not created";
 
+    size_t tasks = local->tasks();
+    ASSERT_EQ(tasks, 100) << "Tasks were not created";
+
     km::IsrContext current{};
+    km::IsrContext next{};
+
+    ASSERT_TRUE(local->scheduleNextContext(&current, &next)) << "Thread was not scheduled";
+    ASSERT_TRUE(local->currentThread() != nullptr) << "Current thread was not set";
+
     for (size_t i = 0; i < 1000; i++) {
-        km::IsrContext next{};
-        ASSERT_NE(local->tasks(), 0) << "No tasks in the local schedule";
+        EXPECT_EQ(local->tasks(), tasks - 1) << "No tasks were forgotten " << i;
         ASSERT_TRUE(local->scheduleNextContext(&current, &next)) << "Thread was not scheduled";
         ASSERT_TRUE(local->currentThread() != nullptr) << "Current thread was not set";
     }

@@ -1,5 +1,6 @@
 #include "system/schedule.hpp"
 #include "gdt.h"
+#include "log.hpp"
 #include "panic.hpp"
 #include "system/thread.hpp"
 
@@ -88,7 +89,7 @@ bool sys2::CpuLocalSchedule::startThread(sm::RcuSharedPtr<Thread> thread) {
         case eOsThreadRunning:
             KM_PANIC("Thread is already running");
         default:
-            break;
+            continue;
         }
     }
 
@@ -115,7 +116,7 @@ bool sys2::CpuLocalSchedule::stopThread(sm::RcuSharedPtr<Thread> thread) {
             // Thread is already finished or orphaned.
             return false;
         default:
-            break;
+            continue;
         }
     }
 
@@ -130,10 +131,12 @@ bool sys2::CpuLocalSchedule::reschedule() {
         if (sm::RcuSharedPtr<Thread> thread = info.thread.lock()) {
 
             if (!startThread(thread)) {
+                KmDebugMessage("[SCHED] Thread ", thread->getName(), " is not runnable\n");
                 continue;
             }
 
             if (stopThread(mCurrent)) {
+                KmDebugMessage("[SCHED] Thread ", mCurrent->getName(), " discarded\n");
                 mQueue.addFront(ThreadSchedulingInfo { mCurrent });
             }
 
@@ -185,7 +188,9 @@ OsStatus sys2::CpuLocalSchedule::addThread(sm::RcuSharedPtr<Thread> thread) {
     ThreadSchedulingInfo info { thread.weak() };
 
     stdx::UniqueLock guard(mLock);
-    return mQueue.addFront(info) ? OsStatusSuccess : OsStatusOutOfMemory;
+    OsStatus status = mQueue.addFront(info) ? OsStatusSuccess : OsStatusOutOfMemory;
+    KmDebugMessage("[SCHED] Add thread ", thread->getName(), " to CPU ", km::GetCurrentCoreId(), ": ", status, "\n");
+    return status;
 }
 
 OsStatus sys2::GlobalSchedule::scheduleThread(sm::RcuSharedPtr<Thread> thread) {

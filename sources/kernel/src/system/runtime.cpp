@@ -32,10 +32,12 @@ static bool ScheduleInner(km::IsrContext *context, km::IsrContext *newContext) {
 static km::IsrContext ScheduleInt(km::IsrContext *context) {
     km::IsrContext newContext;
     if (ScheduleInner(context, &newContext)) {
+        // KmDebugMessage("[TASK] Work ", km::GetCurrentCoreId(), "\n");
         return newContext;
     }
 
     // Otherwise we idle until the next interrupt
+    // KmDebugMessage("[TASK] Idle ", km::GetCurrentCoreId(), "\n");
     KmIdle();
 }
 

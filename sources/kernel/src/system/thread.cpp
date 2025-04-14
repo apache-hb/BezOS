@@ -133,8 +133,9 @@ static OsStatus CreateThreadInner(sys2::System *system, const auto& info, sm::Rc
     sys2::XSaveState fpuState{nullptr, &km::DestroyXSave};
     sys2::ThreadHandle *result = nullptr;
     sm::RcuSharedPtr<sys2::Thread> thread;
+    OsStatus status = OsStatusSuccess;
 
-    if (OsStatus status = system->mapSystemStack(&kernelStack)) {
+    if ((status = system->mapSystemStack(&kernelStack))) {
         return status;
     }
 
@@ -153,7 +154,10 @@ static OsStatus CreateThreadInner(sys2::System *system, const auto& info, sm::Rc
         goto outOfMemory;
     }
 
-    system->addThreadObject(thread);
+    if ((status = system->addThreadObject(thread))) {
+        goto error;
+    }
+
     parent->addThread(thread);
     parent->addHandle(result);
 
@@ -161,11 +165,14 @@ static OsStatus CreateThreadInner(sys2::System *system, const auto& info, sm::Rc
     return OsStatusSuccess;
 
 outOfMemory:
+    status = OsStatusOutOfMemory;
+
+error:
     delete result;
     thread.reset();
     fpuState.reset();
     system->releaseStack(kernelStack);
-    return OsStatusOutOfMemory;
+    return status;
 }
 
 OsStatus sys2::SysCreateThread(InvokeContext *context, ThreadCreateInfo info, OsThreadHandle *handle) {

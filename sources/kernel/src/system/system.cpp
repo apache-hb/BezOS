@@ -12,10 +12,10 @@
 static constexpr size_t kDefaultPtePageCount = 64;
 static constexpr size_t kDefaultKernelStackSize = 4;
 
-void sys2::System::addThreadObject(sm::RcuSharedPtr<Thread> object) {
+OsStatus sys2::System::addThreadObject(sm::RcuSharedPtr<Thread> object) {
     stdx::UniqueLock guard(mLock);
     mObjects.insert(object);
-    mSchedule.addThread(object);
+    return mSchedule.addThread(object);
 }
 
 void sys2::System::removeThreadObject(sm::RcuWeakPtr<Thread> object) {
