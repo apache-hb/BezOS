@@ -1,8 +1,5 @@
 #include "arch/x86_64/asm.h"
 
-.global __x86_64_setjmp
-.global __x86_64_longjmp
-
 .section .text
 
 #define RBX_OFFSET (0*8)

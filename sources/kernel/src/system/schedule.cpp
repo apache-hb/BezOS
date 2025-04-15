@@ -6,8 +6,7 @@
 using namespace std::chrono_literals;
 
 sys2::CpuLocalSchedule::CpuLocalSchedule(size_t tasks, GlobalSchedule *global)
-    : mThreadStorage(new ThreadSchedulingInfo[tasks])
-    , mQueue(mThreadStorage.get(), tasks)
+    : mQueue(tasks)
     , mCurrent(nullptr)
     , mGlobal(global)
 { }
@@ -123,10 +122,8 @@ bool sys2::CpuLocalSchedule::stopThread(sm::RcuSharedPtr<Thread> thread) {
 }
 
 bool sys2::CpuLocalSchedule::reschedule() {
-    stdx::UniqueLock guard(mLock);
-
     ThreadSchedulingInfo info;
-    while (mQueue.tryPollBack(info)) {
+    while (mQueue.try_dequeue(info)) {
         if (sm::RcuSharedPtr<Thread> thread = info.thread.lock()) {
 
             if (!startThread(thread)) {
@@ -134,7 +131,7 @@ bool sys2::CpuLocalSchedule::reschedule() {
             }
 
             if (stopThread(mCurrent)) {
-                mQueue.addFront(ThreadSchedulingInfo { mCurrent });
+                mQueue.enqueue(ThreadSchedulingInfo { mCurrent });
             }
 
             mCurrent = thread;
@@ -151,7 +148,7 @@ bool sys2::CpuLocalSchedule::reschedule() {
     }
 
     if (stopThread(mCurrent)) {
-        mQueue.addFront(ThreadSchedulingInfo { mCurrent });
+        mQueue.enqueue(ThreadSchedulingInfo { mCurrent });
     }
 
     return false;
@@ -196,8 +193,7 @@ sm::RcuSharedPtr<sys2::Process> sys2::CpuLocalSchedule::currentProcess() {
 OsStatus sys2::CpuLocalSchedule::addThread(sm::RcuSharedPtr<Thread> thread) {
     ThreadSchedulingInfo info { thread.weak() };
 
-    stdx::UniqueLock guard(mLock);
-    OsStatus status = mQueue.addFront(info) ? OsStatusSuccess : OsStatusOutOfMemory;
+    OsStatus status = mQueue.try_enqueue(info) ? OsStatusSuccess : OsStatusOutOfMemory;
     return status;
 }
 
@@ -231,6 +227,7 @@ OsStatus sys2::GlobalSchedule::scheduleThread(sm::RcuSharedPtr<Thread> thread) {
 }
 
 OsStatus sys2::GlobalSchedule::addThread(sm::RcuSharedPtr<Thread> thread) {
+    km::IntGuard iguard;
     stdx::SharedLock guard(mLock);
     return scheduleThread(thread);
 }

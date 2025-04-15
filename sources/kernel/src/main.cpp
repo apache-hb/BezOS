@@ -1376,7 +1376,7 @@ static OsStatus KernelMasterTask() {
 
     LaunchThread(&NotificationWork, gNotificationStream, "NOTIFY");
 
-    KmHalt();
+    KmIdle();
 
     ProcessLaunch init{};
     if (OsStatus status = LaunchInitProcess(&init)) {
@@ -1391,7 +1391,7 @@ static OsStatus KernelMasterTask() {
         // Spin forever for now, in the future this task will handle
         // top level kernel events.
         //
-        km::YieldCurrentThread();
+        sys2::YieldCurrentThread();
     }
 
     return OsStatusSuccess;

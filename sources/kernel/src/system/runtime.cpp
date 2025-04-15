@@ -1,15 +1,19 @@
+#include "gdt.h"
 #include "log.hpp"
+
 #include "system/schedule.hpp"
+#include "system/thread.hpp"
 
 #include "panic.hpp"
 #include "thread.hpp"
 #include "util/defer.hpp"
-
 #include "timer/apic_timer.hpp"
 
 using namespace std::chrono_literals;
 
 extern "C" uint64_t KmSystemCallStackTlsOffset;
+
+extern "C" [[noreturn]] void __x86_64_resume(km::IsrContext *context);
 
 CPU_LOCAL
 static constinit km::CpuLocal<sys2::CpuLocalSchedule*> tlsSchedule;
@@ -32,12 +36,10 @@ static bool ScheduleInner(km::IsrContext *context, km::IsrContext *newContext) {
 static km::IsrContext ScheduleInt(km::IsrContext *context) {
     km::IsrContext newContext;
     if (ScheduleInner(context, &newContext)) {
-        // KmDebugMessage("[TASK] Work ", km::GetCurrentCoreId(), "\n");
         return newContext;
     }
 
     // Otherwise we idle until the next interrupt
-    // KmDebugMessage("[TASK] Idle ", km::GetCurrentCoreId(), "\n");
     KmIdle();
 }
 
@@ -91,5 +93,36 @@ sm::RcuSharedPtr<sys2::Thread> sys2::GetCurrentThread() {
 }
 
 void sys2::YieldCurrentThread() {
+    // TODO: this entire function is kind of a hack.
+    // The scheduler should probably deal with this
+    arch::Intrin::LongJumpState jmp;
+    if (arch::Intrin::setjmp(&jmp)) {
+        return;
+    }
 
+    auto thread = GetCurrentThread();
+    bool supervisor = thread->isSupervisor();
+
+    uint64_t cs = supervisor ? (GDT_64BIT_CODE * 0x8) : ((GDT_64BIT_USER_CODE * 0x8) | 0b11);
+    uint64_t ss = supervisor ? (GDT_64BIT_DATA * 0x8) : ((GDT_64BIT_USER_DATA * 0x8) | 0b11);
+
+    // forge a context from the jmpbuf that can be switched to
+    km::IsrContext context = {
+        .rax = 1,
+        .rbx = jmp.rbx,
+        .r12 = jmp.r12,
+        .r13 = jmp.r13,
+        .r14 = jmp.r14,
+        .r15 = jmp.r15,
+        .rbp = jmp.rbp,
+        .rip = jmp.rip,
+        .cs = cs,
+        .rflags = 0x202,
+        .rsp = jmp.rsp,
+        .ss = ss,
+    };
+
+    km::IntGuard iguard;
+    auto next = ScheduleInt(&context);
+    __x86_64_resume(&next);
 }

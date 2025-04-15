@@ -57,14 +57,12 @@ namespace sys2 {
     };
 
     class CpuLocalSchedule {
-        stdx::SharedSpinLock mLock;
-        std::unique_ptr<ThreadSchedulingInfo[]> mThreadStorage;
-        stdx::FixedSizeDeque<ThreadSchedulingInfo> mQueue GUARDED_BY(mLock);
+        moodycamel::ConcurrentQueue<ThreadSchedulingInfo> mQueue;
         sm::RcuSharedPtr<Thread> mCurrent;
         GlobalSchedule *mGlobal;
 
-        bool startThread(sm::RcuSharedPtr<Thread> thread) REQUIRES(mLock);
-        bool stopThread(sm::RcuSharedPtr<Thread> thread) REQUIRES(mLock);
+        bool startThread(sm::RcuSharedPtr<Thread> thread);
+        bool stopThread(sm::RcuSharedPtr<Thread> thread);
 
     public:
         CpuLocalSchedule() = default;
@@ -80,8 +78,7 @@ namespace sys2 {
         bool scheduleNextContext(km::IsrContext *context, km::IsrContext *next);
 
         size_t tasks() {
-            stdx::SharedLock guard(mLock);
-            return mQueue.count();
+            return mQueue.size_approx();
         }
     };
 
