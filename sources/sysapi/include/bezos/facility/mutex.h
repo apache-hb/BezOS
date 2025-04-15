@@ -10,19 +10,25 @@ extern "C" {
 /// @{
 
 enum {
-    eOsMutexAccessNone = 0,
+    eOsMutexAccessNone = eOsAccessNone,
 
-    eOsMutexAccessWait = (1 << 0),
-    eOsMutexAccessDestroy = (1 << 1),
-    eOsMutexAccessStat = (1 << 2),
+    eOsMutexAccessRead = eOsAccessRead,
+    eOsMutexAccessWrite = eOsAccessWrite,
+    eOsMutexAccessStat = eOsAccessStat,
+    eOsMutexAccessDestroy = eOsAccessDestroy,
+    eOsMutexAccessWait = eOsAccessWait,
 
-    eOsMutexAccessUpdate = (1 << 3),
+    eOsMutexAccessLock = OS_IMPL_ACCESS_BIT(0),
+    eOsMutexAccessLockShared = OS_IMPL_ACCESS_BIT(1),
 
     eOsMutexAccessAll
-        = eOsMutexAccessWait
-        | eOsMutexAccessDestroy
+        = eOsMutexAccessRead
+        | eOsMutexAccessWrite
         | eOsMutexAccessStat
-        | eOsMutexAccessUpdate,
+        | eOsMutexAccessDestroy
+        | eOsMutexAccessWait
+        | eOsMutexAccessLock
+        | eOsMutexAccessLockShared,
 };
 
 typedef OsHandleAccess OsMutexAccess;

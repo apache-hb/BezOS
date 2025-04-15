@@ -11,19 +11,23 @@ extern "C" {
 /// @{
 
 enum {
-    eOsThreadAccessNone      = 0,
+    eOsThreadAccessNone = eOsAccessNone,
 
-    eOsThreadAccessWait      = (1 << 0),
-    eOsThreadAccessTerminate = (1 << 2),
-    eOsThreadAccessStat      = (1 << 3),
+    eOsThreadAccessRead      = eOsAccessRead,
+    eOsThreadAccessWrite     = eOsAccessWrite,
+    eOsThreadAccessStat      = eOsAccessStat,
+    eOsThreadAccessDestroy   = eOsAccessDestroy,
+    eOsThreadAccessWait      = eOsAccessWait,
 
-    eOsThreadAccessSuspend   = (1 << 4),
-    eOsThreadAccessQuota     = (1 << 5),
+    eOsThreadAccessSuspend   = OS_IMPL_ACCESS_BIT(0),
+    eOsThreadAccessQuota     = OS_IMPL_ACCESS_BIT(1),
 
     eOsThreadAccessAll
-        = eOsThreadAccessWait
-        | eOsThreadAccessTerminate
+        = eOsThreadAccessRead
+        | eOsThreadAccessWrite
         | eOsThreadAccessStat
+        | eOsThreadAccessDestroy
+        | eOsThreadAccessWait
         | eOsThreadAccessSuspend
         | eOsThreadAccessQuota,
 };

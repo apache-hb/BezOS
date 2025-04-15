@@ -10,21 +10,24 @@ extern "C" {
 /// @{
 
 enum {
-    eOsNodeAccessNone = 0,
+    eOsNodeAccessNone = eOsAccessNone,
 
-    eOsNodeAccessRead = (1 << 0),
-    eOsNodeAccessWrite = (1 << 1),
-    eOsNodeAccessExecute = (1 << 2),
-    eOsNodeAccessStat = (1 << 3),
-    eOsNodeAccessDestroy = (1 << 4),
-    eOsNodeAccessQueryInterface = (1 << 5),
+    eOsNodeAccessRead = eOsAccessRead,
+    eOsNodeAccessWrite = eOsAccessWrite,
+    eOsNodeAccessStat = eOsAccessStat,
+    eOsNodeAccessDestroy = eOsAccessDestroy,
+    eOsNodeAccessWait = eOsAccessWait,
+
+    eOsNodeAccessExecute = OS_IMPL_ACCESS_BIT(0),
+    eOsNodeAccessQueryInterface = OS_IMPL_ACCESS_BIT(1),
 
     eOsNodeAccessAll
         = eOsNodeAccessRead
         | eOsNodeAccessWrite
-        | eOsNodeAccessExecute
         | eOsNodeAccessStat
         | eOsNodeAccessDestroy
+        | eOsNodeAccessWait
+        | eOsNodeAccessExecute
         | eOsNodeAccessQueryInterface,
 };
 

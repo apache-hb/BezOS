@@ -7,25 +7,24 @@ extern "C" {
 #endif
 
 enum {
-    eOsEventAccessNone = 0,
+    eOsEventAccessNone = eOsAccessNone,
 
-    /// @brief Grants access to wait on the object.
-    eOsEventAccessWait = (1 << 0),
+    eOsEventAccessRead = eOsAccessRead,
+    eOsEventAccessWrite = eOsAccessWrite,
+    eOsEventAccessStat = eOsAccessStat,
+    eOsEventAccessDestroy = eOsAccessDestroy,
+    eOsEventAccessWait = eOsAccessWait,
 
-    /// @brief Grants access to signal the object.
-    eOsEventAccessSignal = (1 << 1),
-
-    /// @brief Grants access to destroy the object.
-    eOsEventAccessDestroy = (1 << 2),
-
-    /// @brief Grants access to query the event info.
-    eOsEventAccessStat = (1 << 3),
+    /// @brief Grants access to signal the event.
+    eOsEventAccessSignal = OS_IMPL_ACCESS_BIT(0),
 
     eOsEventAccessAll
-        = eOsEventAccessWait
-        | eOsEventAccessSignal
+        = eOsEventAccessRead
+        | eOsEventAccessWrite
+        | eOsEventAccessStat
         | eOsEventAccessDestroy
-        | eOsEventAccessStat,
+        | eOsEventAccessWait
+        | eOsEventAccessSignal,
 };
 
 typedef OsHandleAccess OsEventAccess;

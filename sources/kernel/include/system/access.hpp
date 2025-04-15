@@ -7,6 +7,7 @@
 #include <bezos/facility/threads.h>
 #include <bezos/facility/device.h>
 #include <bezos/facility/fs.h>
+#include <bezos/facility/event.h>
 
 #include "util/util.hpp"
 
@@ -30,9 +31,13 @@ namespace sys2 {
 
     enum class ProcessAccess : OsHandleAccess {
         eNone = eOsProcessAccessNone,
-        eWait = eOsProcessAccessWait,
-        eTerminate = eOsProcessAccessTerminate,
+
+        eRead = eOsProcessAccessRead,
+        eWrite = eOsProcessAccessWrite,
         eStat = eOsProcessAccessStat,
+        eDestroy = eOsProcessAccessDestroy,
+        eWait = eOsProcessAccessWait,
+
         eSuspend = eOsProcessAccessSuspend,
         eVmControl = eOsProcessAccessVmControl,
         eThreadControl = eOsProcessAccessThreadControl,
@@ -40,6 +45,7 @@ namespace sys2 {
         eProcessControl = eOsProcessAccessProcessControl,
         eQuota = eOsProcessAccessQuota,
         eTxControl = eOsProcessTxControl,
+
         eAll = eOsProcessAccessAll,
     };
 
@@ -47,11 +53,16 @@ namespace sys2 {
 
     enum class TxAccess : OsHandleAccess {
         eNone = eOsTxAccessNone,
+
+        eRead = eOsTxAccessRead,
+        eWrite = eOsTxAccessWrite,
+        eStat = eOsTxAccessStat,
+        eDestroy = eOsTxAccessDestroy,
         eWait = eOsTxAccessWait,
+
         eCommit = eOsTxAccessCommit,
         eRollback = eOsTxAccessRollback,
-        eStat = eOsTxAccessStat,
-        eWrite = eOsTxAccessWrite,
+
         eAll = eOsTxAccessAll,
     };
 
@@ -59,10 +70,16 @@ namespace sys2 {
 
     enum class MutexAccess : OsHandleAccess {
         eNone = eOsMutexAccessNone,
-        eWait = eOsMutexAccessWait,
-        eDestroy = eOsMutexAccessDestroy,
-        eUpdate = eOsMutexAccessUpdate,
+
+        eRead = eOsMutexAccessRead,
+        eWrite = eOsMutexAccessWrite,
         eStat = eOsMutexAccessStat,
+        eDestroy = eOsMutexAccessDestroy,
+        eWait = eOsMutexAccessWait,
+
+        eLock = eOsMutexAccessLock,
+        eLockShared = eOsMutexAccessLockShared,
+
         eAll = eOsMutexAccessAll,
     };
 
@@ -70,11 +87,16 @@ namespace sys2 {
 
     enum class ThreadAccess : OsHandleAccess {
         eNone = eOsThreadAccessNone,
-        eWait = eOsThreadAccessWait,
-        eTerminate = eOsThreadAccessTerminate,
+
+        eRead = eOsThreadAccessRead,
+        eWrite = eOsThreadAccessWrite,
         eStat = eOsThreadAccessStat,
+        eDestroy = eOsThreadAccessDestroy,
+        eWait = eOsThreadAccessWait,
+
         eSuspend = eOsThreadAccessSuspend,
         eQuota = eOsThreadAccessQuota,
+
         eAll = eOsThreadAccessAll,
     };
 
@@ -82,11 +104,15 @@ namespace sys2 {
 
     enum class DeviceAccess : OsHandleAccess {
         eNone = eOsDeviceAccessNone,
+
         eRead = eOsDeviceAccessRead,
         eWrite = eOsDeviceAccessWrite,
         eStat = eOsDeviceAccessStat,
         eDestroy = eOsDeviceAccessDestroy,
+        eWait = eOsDeviceAccessWait,
+
         eInvoke = eOsDeviceAccessInvoke,
+
         eAll = eOsDeviceAccessAll,
 
         R = eRead,
@@ -101,12 +127,16 @@ namespace sys2 {
 
     enum class NodeAccess : OsHandleAccess {
         eNone = eOsNodeAccessNone,
+
         eRead = eOsNodeAccessRead,
         eWrite = eOsNodeAccessWrite,
-        eExecute = eOsNodeAccessExecute,
         eStat = eOsNodeAccessStat,
         eDestroy = eOsNodeAccessDestroy,
+        eWait = eOsNodeAccessWait,
+
+        eExecute = eOsNodeAccessExecute,
         eQueryInterface = eOsNodeAccessQueryInterface,
+
         eAll = eOsNodeAccessAll,
 
         R = eRead,
@@ -120,7 +150,17 @@ namespace sys2 {
     UTIL_BITFLAGS(NodeAccess);
 
     enum class EventAccess : OsHandleAccess {
+        eNone = eOsEventAccessNone,
 
+        eRead = eOsEventAccessRead,
+        eWrite = eOsEventAccessWrite,
+        eStat = eOsEventAccessStat,
+        eDestroy = eOsEventAccessDestroy,
+        eWait = eOsEventAccessWait,
+
+        eSignal = eOsEventAccessSignal,
+
+        eAll = eOsEventAccessAll,
     };
 
     UTIL_BITFLAGS(EventAccess);

@@ -33,9 +33,33 @@ OsStatus sys2::SysHandleStat(InvokeContext *context, OsHandle handle, OsHandleIn
         return OsStatusInvalidHandle;
     }
 
+    if (source->hasGenericAccess(eOsAccessStat)) {
+        return OsStatusAccessDenied;
+    }
+
     *result = OsHandleInfo {
         .Access = source->getAccess(),
     };
 
     return OsStatusSuccess;
+}
+
+OsStatus sys2::SysHandleWait(InvokeContext *context, OsHandle handle, OsInstant timeout) {
+    IHandle *source = context->process->getHandle(handle);
+    if (!source) {
+        return OsStatusInvalidHandle;
+    }
+
+    if (source->hasGenericAccess(eOsAccessWait)) {
+        return OsStatusAccessDenied;
+    }
+
+    auto weak = source->getObject();
+    auto object = weak.lock();
+    if (!object) {
+        return OsStatusInvalidHandle;
+    }
+
+    auto schedule = context->system->scheduler();
+    return schedule->wait(context->thread, object, timeout);
 }

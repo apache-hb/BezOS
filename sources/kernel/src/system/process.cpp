@@ -13,7 +13,7 @@ OsStatus sys2::ProcessHandle::createProcess(System *system, ProcessCreateInfo in
 }
 
 OsStatus sys2::ProcessHandle::destroyProcess(System *system, const ProcessDestroyInfo& info) {
-    if (!hasAccess(ProcessAccess::eTerminate)) {
+    if (!hasAccess(ProcessAccess::eDestroy)) {
         return OsStatusAccessDenied;
     }
 
@@ -319,7 +319,7 @@ OsStatus sys2::SysCreateRootProcess(System *system, ProcessCreateInfo info, Proc
 }
 
 OsStatus sys2::SysDestroyRootProcess(System *system, ProcessHandle *handle) {
-    if (!handle->hasAccess(ProcessAccess::eTerminate)) {
+    if (!handle->hasAccess(ProcessAccess::eDestroy)) {
         return OsStatusAccessDenied;
     }
 
@@ -336,7 +336,7 @@ OsStatus sys2::SysResolveObject(InvokeContext *context, sm::RcuSharedPtr<IObject
     return context->process->resolveObject(object, access, handle);
 }
 
-OsStatus sys2::SysCreateProcess(InvokeContext *context, OsProcessCreateInfo info, OsProcessHandle *handle) {
+OsStatus sys2::SysProcessCreate(InvokeContext *context, OsProcessCreateInfo info, OsProcessHandle *handle) {
     ProcessHandle *hParent = nullptr;
     sm::RcuSharedPtr<Process> process;
 
@@ -351,10 +351,10 @@ OsStatus sys2::SysCreateProcess(InvokeContext *context, OsProcessCreateInfo info
         process = context->process;
     }
 
-    return SysCreateProcess(context, process, info, handle);
+    return SysProcessCreate(context, process, info, handle);
 }
 
-OsStatus sys2::SysCreateProcess(InvokeContext *context, sm::RcuSharedPtr<Process> parent, OsProcessCreateInfo info, OsProcessHandle *handle) {
+OsStatus sys2::SysProcessCreate(InvokeContext *context, sm::RcuSharedPtr<Process> parent, OsProcessCreateInfo info, OsProcessHandle *handle) {
     ProcessHandle *hResult = nullptr;
     TxHandle *hTx = nullptr;
 
@@ -377,17 +377,17 @@ OsStatus sys2::SysCreateProcess(InvokeContext *context, sm::RcuSharedPtr<Process
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysDestroyProcess(InvokeContext *context, OsProcessHandle handle, int64_t exitCode, OsProcessStateFlags reason) {
+OsStatus sys2::SysProcessDestroy(InvokeContext *context, OsProcessHandle handle, int64_t exitCode, OsProcessStateFlags reason) {
     sys2::ProcessHandle *hProcess = nullptr;
     if (OsStatus status = context->process->findHandle(handle, &hProcess)) {
         return status;
     }
 
-    return SysDestroyProcess(context, hProcess, exitCode, reason);
+    return SysProcessDestroy(context, hProcess, exitCode, reason);
 }
 
-OsStatus sys2::SysDestroyProcess(InvokeContext *context, sys2::ProcessHandle *handle, int64_t exitCode, OsProcessStateFlags reason) {
-    if (!handle->hasAccess(ProcessAccess::eTerminate)) {
+OsStatus sys2::SysProcessDestroy(InvokeContext *context, sys2::ProcessHandle *handle, int64_t exitCode, OsProcessStateFlags reason) {
+    if (!handle->hasAccess(ProcessAccess::eDestroy)) {
         return OsStatusAccessDenied;
     }
 
@@ -491,7 +491,7 @@ OsStatus sys2::SysGetInvokerTx(InvokeContext *context, TxHandle **outHandle) {
     return SysFindHandle(context, context->tx, outHandle);
 }
 
-OsStatus sys2::SysCreateVmem(InvokeContext *context, OsVmemCreateInfo info, void **outVmem) {
+OsStatus sys2::SysVmemCreate(InvokeContext *context, OsVmemCreateInfo info, void **outVmem) {
     km::AddressMapping mapping;
     if (OsStatus status = context->process->vmemCreate(context->system, info, &mapping)) {
         return status;
@@ -502,10 +502,10 @@ OsStatus sys2::SysCreateVmem(InvokeContext *context, OsVmemCreateInfo info, void
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysReleaseVmem(InvokeContext *context, VmemReleaseInfo info) {
+OsStatus sys2::SysVmemRelease(InvokeContext *context, VmemReleaseInfo info) {
     return OsStatusNotSupported;
 }
 
-OsStatus sys2::SysMapVmem(InvokeContext *context, VmemMapInfo info, void **outVmem) {
+OsStatus sys2::SysVmemMap(InvokeContext *context, VmemMapInfo info, void **outVmem) {
     return OsStatusNotSupported;
 }

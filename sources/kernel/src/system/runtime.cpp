@@ -89,3 +89,7 @@ sm::RcuSharedPtr<sys2::Thread> sys2::GetCurrentThread() {
 
     return nullptr;
 }
+
+void sys2::YieldCurrentThread() {
+
+}

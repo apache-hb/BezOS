@@ -176,7 +176,7 @@ namespace sys2 {
         sm::RcuSharedPtr<Process> process;
 
         /// @brief The thread in the process that is invoking the method.
-        OsThreadHandle thread;
+        sm::RcuSharedPtr<Thread> thread;
 
         /// @brief The transaction context that this method is contained in.
         OsTxHandle tx;

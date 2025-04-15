@@ -175,7 +175,7 @@ error:
     return status;
 }
 
-OsStatus sys2::SysCreateThread(InvokeContext *context, ThreadCreateInfo info, OsThreadHandle *handle) {
+OsStatus sys2::SysThreadCreate(InvokeContext *context, ThreadCreateInfo info, OsThreadHandle *handle) {
     OsHandle id = context->process->newHandleId(eOsHandleThread);
     ThreadHandle *result = nullptr;
 
@@ -188,7 +188,7 @@ OsStatus sys2::SysCreateThread(InvokeContext *context, ThreadCreateInfo info, Os
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysCreateThread(InvokeContext *context, OsThreadCreateInfo info, OsThreadHandle *handle) {
+OsStatus sys2::SysThreadCreate(InvokeContext *context, OsThreadCreateInfo info, OsThreadHandle *handle) {
     OsHandle id = context->process->newHandleId(eOsHandleThread);
     ThreadHandle *result = nullptr;
 
@@ -201,13 +201,13 @@ OsStatus sys2::SysCreateThread(InvokeContext *context, OsThreadCreateInfo info, 
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysDestroyThread(InvokeContext *context, OsThreadState reason, OsThreadHandle handle) {
+OsStatus sys2::SysThreadDestroy(InvokeContext *context, OsThreadState reason, OsThreadHandle handle) {
     ThreadHandle *hThread = nullptr;
     if (OsStatus status = context->process->findHandle(handle, &hThread)) {
         return status;
     }
 
-    if (!hThread->hasAccess(ThreadAccess::eTerminate)) {
+    if (!hThread->hasAccess(ThreadAccess::eDestroy)) {
         return OsStatusAccessDenied;
     }
 

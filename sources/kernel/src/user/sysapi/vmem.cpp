@@ -52,7 +52,7 @@ static OsCallResult NewVmemCreate(km::System *system, km::CallContext *context, 
 
     sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
     void *vaddr = nullptr;
-    if (OsStatus status = sys2::SysCreateVmem(&invoke, createInfo, &vaddr)) {
+    if (OsStatus status = sys2::SysVmemCreate(&invoke, createInfo, &vaddr)) {
         return km::CallError(status);
     }
 

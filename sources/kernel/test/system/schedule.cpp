@@ -79,7 +79,7 @@ public:
         OsProcessCreateInfo childInfo {
             .Name = "CHILD",
         };
-        status = sys2::SysCreateProcess(&invoke, childInfo, &hProcess);
+        status = sys2::SysProcessCreate(&invoke, childInfo, &hProcess);
         ASSERT_EQ(status, OsStatusSuccess);
         ASSERT_NE(hProcess, OS_HANDLE_INVALID) << "Child process was not created";
 
@@ -116,7 +116,7 @@ TEST_F(ScheduleTest, StatThread) {
         .state = eOsThreadRunning,
     };
 
-    OsStatus status = sys2::SysCreateThread(&i, threadCreateInfo, &hThread);
+    OsStatus status = sys2::SysThreadCreate(&i, threadCreateInfo, &hThread);
     ASSERT_EQ(status, OsStatusSuccess) << "Thread was not created";
     ASSERT_NE(hThread, OS_HANDLE_INVALID) << "Thread handle was not created";
 
@@ -145,7 +145,7 @@ TEST_F(ScheduleTest, StartManyThreads) {
             .state = eOsThreadRunning,
         };
 
-        OsStatus status = sys2::SysCreateThread(&ivc, threadCreateInfo, &hThread);
+        OsStatus status = sys2::SysThreadCreate(&ivc, threadCreateInfo, &hThread);
 
         ASSERT_EQ(status, OsStatusSuccess) << "Thread was not created: " << i;
         ASSERT_NE(hThread, OS_HANDLE_INVALID) << "Thread handle was not created";
@@ -190,7 +190,7 @@ TEST_F(ScheduleTest, MultiThreadSchedule) {
             .state = eOsThreadRunning,
         };
 
-        OsStatus status = sys2::SysCreateThread(&ivc, threadCreateInfo, &hThread);
+        OsStatus status = sys2::SysThreadCreate(&ivc, threadCreateInfo, &hThread);
         ASSERT_EQ(status, OsStatusSuccess) << "Thread was not created";
         ASSERT_NE(hThread, OS_HANDLE_INVALID) << "Thread handle was not created";
     }

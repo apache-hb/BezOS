@@ -48,5 +48,8 @@ namespace sys2 {
 
         OsHandleType getHandleType() const { return OS_HANDLE_TYPE(getHandle()); }
         OsHandle internalId() const { return OS_HANDLE_ID(getHandle()); }
+        bool hasGenericAccess(OsHandleAccess access) const {
+            return (getAccess() & access) == access;
+        }
     };
 }

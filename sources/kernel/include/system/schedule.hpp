@@ -140,4 +140,5 @@ namespace sys2 {
 
     sm::RcuSharedPtr<Process> GetCurrentProcess();
     sm::RcuSharedPtr<Thread> GetCurrentThread();
+    void YieldCurrentThread();
 }

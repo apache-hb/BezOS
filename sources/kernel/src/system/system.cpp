@@ -105,7 +105,7 @@ sys2::SystemStats sys2::System::stats() {
     return stats;
 }
 
-OsStatus sys2::SysCreateTx(InvokeContext *context, TxCreateInfo info, OsTxHandle *handle) {
+OsStatus sys2::SysTxCreate(InvokeContext *context, TxCreateInfo info, OsTxHandle *handle) {
     sm::RcuSharedPtr<Tx> tx = sm::rcuMakeShared<Tx>(&context->system->rcuDomain(), info.name);
     if (!tx) {
         return OsStatusOutOfMemory;
@@ -123,20 +123,20 @@ OsStatus sys2::SysCreateTx(InvokeContext *context, TxCreateInfo info, OsTxHandle
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysCommitTx(InvokeContext *, OsTxHandle) {
+OsStatus sys2::SysTxCommit(InvokeContext *, OsTxHandle) {
     return OsStatusNotSupported;
 }
 
-OsStatus sys2::SysAbortTx(InvokeContext *, OsTxHandle) {
+OsStatus sys2::SysTxAbort(InvokeContext *, OsTxHandle) {
     return OsStatusNotSupported;
 }
 
 // mutex
 
-OsStatus sys2::SysCreateMutex(InvokeContext *, OsMutexCreateInfo, OsHandle *) {
+OsStatus sys2::SysMutexCreate(InvokeContext *, OsMutexCreateInfo, OsHandle *) {
     return OsStatusNotSupported;
 }
 
-OsStatus sys2::SysDestroyMutex(InvokeContext *, OsHandle) {
+OsStatus sys2::SysMutexDestroy(InvokeContext *, OsHandle) {
     return OsStatusNotSupported;
 }

@@ -219,7 +219,7 @@ static OsCallResult NewProcessCreate(km::System *system, km::CallContext *contex
     OsProcessHandle handle = OS_HANDLE_INVALID;
 
     sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
-    if (OsStatus status = sys2::SysCreateProcess(&invoke, createInfo, &handle)) {
+    if (OsStatus status = sys2::SysProcessCreate(&invoke, createInfo, &handle)) {
         return km::CallError(status);
     }
 
@@ -231,7 +231,7 @@ static OsCallResult NewProcessDestroy(km::System *system, km::CallContext *conte
     uint64_t userExitCode = regs->arg1;
 
     sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
-    if (OsStatus status = sys2::SysDestroyProcess(&invoke, userProcess, userExitCode, eOsProcessExited)) {
+    if (OsStatus status = sys2::SysProcessDestroy(&invoke, userProcess, userExitCode, eOsProcessExited)) {
         return km::CallError(status);
     }
 

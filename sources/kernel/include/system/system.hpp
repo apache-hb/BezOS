@@ -100,6 +100,7 @@ namespace sys2 {
     OsStatus SysHandleClose(InvokeContext *context, OsHandle handle);
     OsStatus SysHandleClone(InvokeContext *context, OsHandle handle, OsHandleCloneInfo info, OsHandle *outHandle);
     OsStatus SysHandleStat(InvokeContext *context, OsHandle handle, OsHandleInfo *result);
+    OsStatus SysHandleWait(InvokeContext *context, OsHandle handle, OsInstant timeout);
 
     // node
 
@@ -120,37 +121,43 @@ namespace sys2 {
 
     // process
 
-    OsStatus SysCreateProcess(InvokeContext *context, OsProcessCreateInfo info, OsProcessHandle *handle);
-    OsStatus SysDestroyProcess(InvokeContext *context, OsProcessHandle handle, int64_t exitCode, OsProcessStateFlags reason);
+    OsStatus SysProcessCreate(InvokeContext *context, OsProcessCreateInfo info, OsProcessHandle *handle);
+    OsStatus SysProcessDestroy(InvokeContext *context, OsProcessHandle handle, int64_t exitCode, OsProcessStateFlags reason);
     OsStatus SysProcessStat(InvokeContext *context, OsProcessHandle handle, OsProcessInfo *result);
     OsStatus SysProcessCurrent(InvokeContext *context, OsProcessAccess access, OsProcessHandle *handle);
 
-    OsStatus SysCreateProcess(InvokeContext *context, sm::RcuSharedPtr<Process> parent, OsProcessCreateInfo info, OsProcessHandle *handle);
-    OsStatus SysDestroyProcess(InvokeContext *context, ProcessHandle *handle, int64_t exitCode, OsProcessStateFlags reason);
+    OsStatus SysProcessCreate(InvokeContext *context, sm::RcuSharedPtr<Process> parent, OsProcessCreateInfo info, OsProcessHandle *handle);
+    OsStatus SysProcessDestroy(InvokeContext *context, ProcessHandle *handle, int64_t exitCode, OsProcessStateFlags reason);
 
     OsStatus SysQueryProcessList(InvokeContext *context, ProcessQueryInfo info, ProcessQueryResult *result);
 
     // vmem
 
-    OsStatus SysCreateVmem(InvokeContext *context, OsVmemCreateInfo info, void **outVmem);
-    OsStatus SysReleaseVmem(InvokeContext *context, VmemReleaseInfo info);
-    OsStatus SysMapVmem(InvokeContext *context, VmemMapInfo info, void **outVmem);
+    OsStatus SysVmemCreate(InvokeContext *context, OsVmemCreateInfo info, void **outVmem);
+    OsStatus SysVmemMap(InvokeContext *context, VmemMapInfo info, void **outVmem);
+    OsStatus SysVmemRelease(InvokeContext *context, VmemReleaseInfo info);
 
     // thread
 
-    OsStatus SysCreateThread(InvokeContext *context, ThreadCreateInfo info, OsThreadHandle *handle);
-    OsStatus SysCreateThread(InvokeContext *context, OsThreadCreateInfo info, OsThreadHandle *handle);
-    OsStatus SysDestroyThread(InvokeContext *context, OsThreadState reason, OsThreadHandle handle);
+    OsStatus SysThreadCreate(InvokeContext *context, ThreadCreateInfo info, OsThreadHandle *handle);
+    OsStatus SysThreadCreate(InvokeContext *context, OsThreadCreateInfo info, OsThreadHandle *handle);
+    OsStatus SysThreadDestroy(InvokeContext *context, OsThreadState reason, OsThreadHandle handle);
     OsStatus SysThreadStat(InvokeContext *context, OsThreadHandle handle, OsThreadInfo *result);
 
     // tx
 
-    OsStatus SysCreateTx(InvokeContext *context, TxCreateInfo info, OsTxHandle *handle);
-    OsStatus SysCommitTx(InvokeContext *context, OsTxHandle handle);
-    OsStatus SysAbortTx(InvokeContext *context, OsTxHandle handle);
+    OsStatus SysTxCreate(InvokeContext *context, TxCreateInfo info, OsTxHandle *handle);
+    OsStatus SysTxCommit(InvokeContext *context, OsTxHandle handle);
+    OsStatus SysTxAbort(InvokeContext *context, OsTxHandle handle);
 
     // mutex
 
-    OsStatus SysCreateMutex(InvokeContext *context, OsMutexCreateInfo info, OsHandle *handle);
-    OsStatus SysDestroyMutex(InvokeContext *context, OsHandle handle);
+    OsStatus SysMutexCreate(InvokeContext *context, OsMutexCreateInfo info, OsMutexHandle *handle);
+    OsStatus SysMutexDestroy(InvokeContext *context, OsMutexHandle handle);
+
+    // event
+
+    OsStatus SysEventCreate(InvokeContext *context, OsEventCreateInfo info, OsEventHandle *handle);
+    OsStatus SysEventDestroy(InvokeContext *context, OsEventHandle handle);
+    OsStatus SysEventSignal(InvokeContext *context, OsEventHandle handle);
 }

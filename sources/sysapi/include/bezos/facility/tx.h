@@ -12,27 +12,26 @@ extern "C" {
 enum {
     eOsTxAccessNone = 0,
 
-    /// @brief Access to wait for the transaction to complete.
-    eOsTxAccessWait = (1 << 0),
+    eOsTxAccessRead = eOsAccessRead,
+    eOsTxAccessWrite = eOsAccessWrite,
+    eOsTxAccessStat = eOsAccessStat,
+    eOsTxAccessDestroy = eOsAccessDestroy,
+    eOsTxAccessWait = eOsAccessWait,
 
     /// @brief Access to commit the transaction.
-    eOsTxAccessCommit = (1 << 1),
+    eOsTxAccessCommit = OS_IMPL_ACCESS_BIT(0),
 
     /// @brief Access to rollback the transaction.
-    eOsTxAccessRollback = (1 << 2),
-
-    /// @brief Access to get the transaction status.
-    eOsTxAccessStat = (1 << 3),
-
-    /// @brief Access to add new actions to the transaction.
-    eOsTxAccessWrite = (1 << 4),
+    eOsTxAccessRollback = OS_IMPL_ACCESS_BIT(1),
 
     eOsTxAccessAll
-        = eOsTxAccessWait
-        | eOsTxAccessCommit
-        | eOsTxAccessRollback
+        = eOsTxAccessRead
+        | eOsTxAccessWrite
         | eOsTxAccessStat
-        | eOsTxAccessWrite,
+        | eOsTxAccessDestroy
+        | eOsTxAccessWait
+        | eOsTxAccessCommit
+        | eOsTxAccessRollback,
 };
 
 typedef OsHandleAccess OsTxAccess;

@@ -12,42 +12,41 @@ extern "C" {
 OS_DEFINE_GUID(kOsCommandLineParamGuid, 0x768582ba, 0x0197, 0x11f0, 0xbc84, 0x7f8e0b26baac);
 
 enum {
-    eOsProcessAccessNone = 0,
+    eOsProcessAccessNone = eOsAccessNone,
 
-    /// @brief Grants access to wait for the process to exit.
-    eOsProcessAccessWait           = (1 << 0),
-
-    /// @brief Grants access to terminate the process.
-    eOsProcessAccessTerminate      = (1 << 1),
-
-    /// @brief Grants access to query the process state.
-    eOsProcessAccessStat           = (1 << 2),
+    eOsProcessAccessRead = eOsAccessRead,
+    eOsProcessAccessWrite = eOsAccessWrite,
+    eOsProcessAccessStat = eOsAccessStat,
+    eOsProcessAccessDestroy = eOsAccessDestroy,
+    eOsProcessAccessWait = eOsAccessWait,
 
     /// @brief Grants access to suspend and resume the process.
-    eOsProcessAccessSuspend        = (1 << 3),
+    eOsProcessAccessSuspend = OS_IMPL_ACCESS_BIT(0),
 
     /// @brief Grants access to create, update, and destroy virtual memory mappings.
-    eOsProcessAccessVmControl      = (1 << 4),
+    eOsProcessAccessVmControl = OS_IMPL_ACCESS_BIT(1),
 
     /// @brief Grants access to create, update, and destroy threads.
-    eOsProcessAccessThreadControl  = (1 << 5),
+    eOsProcessAccessThreadControl = OS_IMPL_ACCESS_BIT(2),
 
     /// @brief Grants access to create, update, and destroy devices and nodes.
-    eOsProcessAccessIoControl      = (1 << 6),
+    eOsProcessAccessIoControl = OS_IMPL_ACCESS_BIT(3),
 
     /// @brief Grants access to create, update, and destroy child processes.
-    eOsProcessAccessProcessControl = (1 << 7),
+    eOsProcessAccessProcessControl = OS_IMPL_ACCESS_BIT(4),
 
     /// @brief Grants access to create, update, and destroy quotas.
-    eOsProcessAccessQuota          = (1 << 8),
+    eOsProcessAccessQuota = OS_IMPL_ACCESS_BIT(5),
 
     /// @brief Grants access to create, update, and destroy transactions.
-    eOsProcessTxControl            = (1 << 9),
+    eOsProcessTxControl = OS_IMPL_ACCESS_BIT(6),
 
     eOsProcessAccessAll
-        = eOsProcessAccessWait
-        | eOsProcessAccessTerminate
+        = eOsProcessAccessRead
+        | eOsProcessAccessWrite
         | eOsProcessAccessStat
+        | eOsProcessAccessDestroy
+        | eOsProcessAccessWait
         | eOsProcessAccessSuspend
         | eOsProcessAccessVmControl
         | eOsProcessAccessThreadControl

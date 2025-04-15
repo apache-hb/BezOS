@@ -172,6 +172,35 @@ OS_OBJECT_HANDLE(OsEventHandle);
 
 #define OS_GUID_NULL { .Octets = { 0 } }
 
+enum {
+    eOsAccessNone = 0,
+
+    /// @brief Grants access to read from the associated object.
+    eOsAccessRead = (1 << 0),
+
+    /// @brief Grants access to write to the associated object.
+    eOsAccessWrite = (1 << 1),
+
+    /// @brief Grants access to query basic information about the associated object.
+    eOsAccessStat = (1 << 2),
+
+    /// @brief Grants access to destroy the associated object.
+    eOsAccessDestroy = (1 << 4),
+
+    /// @brief Grants access to wait on the associated object.
+    eOsAccessWait = (1 << 4),
+
+    eOsAccessAll =
+        eOsAccessRead
+        | eOsAccessWrite
+        | eOsAccessStat
+        | eOsAccessDestroy
+        | eOsAccessWait,
+};
+
+/// @note Keep in sync with the highest bit of the common access flags.
+#define OS_IMPL_ACCESS_BIT(bit) (1 << (bit + 4 + 1))
+
 #ifdef __cplusplus
 }
 #endif

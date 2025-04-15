@@ -1333,7 +1333,7 @@ static OsStatus LaunchThread(OsStatus(*entry)(void*), void *arg, stdx::String na
         strncpy(createInfo.Name, name.cString(), sizeof(createInfo.Name));
         OsThreadHandle thread = OS_HANDLE_INVALID;
         sys2::InvokeContext invoke { gSysSystem, sys2::GetCurrentProcess(), sys2::GetCurrentThread() };
-        if (OsStatus status = sys2::SysCreateThread(&invoke, createInfo, &thread)) {
+        if (OsStatus status = sys2::SysThreadCreate(&invoke, createInfo, &thread)) {
             return status;
         }
 
@@ -1509,7 +1509,7 @@ static void LaunchKernelProcess(LocalIsrTable *table, IApic *apic, km::ApicTimer
 
         OsThreadHandle thread = OS_HANDLE_INVALID;
         sys2::InvokeContext invoke { gSysSystem, system->getProcess() };
-        status = sys2::SysCreateThread(&invoke, threadInfo, &thread);
+        status = sys2::SysThreadCreate(&invoke, threadInfo, &thread);
         if (status != OsStatusSuccess) {
             KmDebugMessage("[INIT] Failed to create SYSTEM thread: ", status, "\n");
             KM_PANIC("Failed to create SYSTEM thread.");

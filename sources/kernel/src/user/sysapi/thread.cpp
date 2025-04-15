@@ -84,7 +84,7 @@ static OsCallResult NewThreadCreate(km::System *system, km::CallContext *context
     }
 
     sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
-    if (OsStatus status = sys2::SysCreateThread(&invoke, createInfo, &thread)) {
+    if (OsStatus status = sys2::SysThreadCreate(&invoke, createInfo, &thread)) {
         return km::CallError(status);
     }
 
@@ -95,7 +95,7 @@ static OsCallResult NewThreadDestroy(km::System *system, km::CallContext *, km::
     uint64_t userThread = regs->arg0;
 
     sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
-    if (OsStatus status = sys2::SysDestroyThread(&invoke, eOsThreadFinished, userThread)) {
+    if (OsStatus status = sys2::SysThreadDestroy(&invoke, eOsThreadFinished, userThread)) {
         return km::CallError(status);
     }
 

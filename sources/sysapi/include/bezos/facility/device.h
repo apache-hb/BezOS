@@ -7,19 +7,22 @@ extern "C" {
 #endif
 
 enum {
-    eOsDeviceAccessNone = 0,
+    eOsDeviceAccessNone = eOsAccessNone,
 
-    eOsDeviceAccessRead = (1 << 0),
-    eOsDeviceAccessWrite = (1 << 1),
-    eOsDeviceAccessStat = (1 << 2),
-    eOsDeviceAccessDestroy = (1 << 3),
-    eOsDeviceAccessInvoke = (1 << 4),
+    eOsDeviceAccessRead = eOsAccessRead,
+    eOsDeviceAccessWrite = eOsAccessWrite,
+    eOsDeviceAccessStat = eOsAccessStat,
+    eOsDeviceAccessDestroy = eOsAccessDestroy,
+    eOsDeviceAccessWait = eOsAccessWait,
+
+    eOsDeviceAccessInvoke = OS_IMPL_ACCESS_BIT(0),
 
     eOsDeviceAccessAll
         = eOsDeviceAccessRead
         | eOsDeviceAccessWrite
         | eOsDeviceAccessStat
         | eOsDeviceAccessDestroy
+        | eOsDeviceAccessWait
         | eOsDeviceAccessInvoke,
 };
 

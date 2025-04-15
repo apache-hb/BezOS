@@ -57,7 +57,7 @@ TEST_F(QuerySystemTest, TransactCreateProcess) {
             .Parent = hRootProcess->getHandle(),
         };
         sys2::InvokeContext invoke { system(), hRootProcess->getProcess(), OS_HANDLE_INVALID };
-        OsStatus status = sys2::SysCreateProcess(&invoke, hRootProcess->getProcess(), createInfo, &hChild);
+        OsStatus status = sys2::SysProcessCreate(&invoke, hRootProcess->getProcess(), createInfo, &hChild);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
@@ -72,7 +72,7 @@ TEST_F(QuerySystemTest, TransactCreateProcess) {
         };
 
         sys2::InvokeContext invoke { system(), pChild, OS_HANDLE_INVALID };
-        OsStatus status = sys2::SysCreateThread(&invoke, threadCreateInfo, &hThread);
+        OsStatus status = sys2::SysThreadCreate(&invoke, threadCreateInfo, &hThread);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
@@ -92,11 +92,11 @@ TEST_F(QuerySystemTest, TransactCreateProcess) {
 
     {
         sys2::InvokeContext invoke { system(), pChild, hThread };
-        status = sys2::SysCreateProcess(&invoke, processCreateInfo, &hZshProcess);
+        status = sys2::SysProcessCreate(&invoke, processCreateInfo, &hZshProcess);
         ASSERT_EQ(status, OsStatusSuccess);
         ASSERT_NE(hZshProcess, OS_HANDLE_INVALID) << "Process was not created";
 
-        status = sys2::SysCreateThread(&invoke, threadCreateInfo, &hZshMainThread);
+        status = sys2::SysThreadCreate(&invoke, threadCreateInfo, &hZshMainThread);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
