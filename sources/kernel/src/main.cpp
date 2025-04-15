@@ -1315,29 +1315,55 @@ static void StartupSmp(const acpi::AcpiTables& rsdt, bool umip, km::ApicTimer *a
 static constexpr size_t kKernelStackSize = 0x4000;
 
 static OsStatus LaunchThread(OsStatus(*entry)(void*), void *arg, stdx::String name) {
-    stdx::String stackName = name + " STACK";
-    Process *process = GetCurrentProcess();
-    Thread *thread = gSystemObjects->createThread(std::move(name), process);
+    if constexpr (um::kUseNewSystem) {
+        km::StackMapping stack{};
+        if (OsStatus status = gSysSystem->mapSystemStack(&stack)) {
+            return status;
+        }
 
-    km::AddressMapping mapping = gMemory->allocateStack(kKernelStackSize);
+        OsThreadCreateInfo createInfo {
+            .CpuState = {
+                .rdi = (uintptr_t)arg,
+                .rbp = (uintptr_t)stack.baseAddress(),
+                .rsp = (uintptr_t)stack.baseAddress(),
+                .rip = (uintptr_t)entry,
+            },
+            .Flags = eOsThreadRunning,
+        };
+        strncpy(createInfo.Name, name.cString(), sizeof(createInfo.Name));
+        OsThreadHandle thread = OS_HANDLE_INVALID;
+        sys2::InvokeContext invoke { gSysSystem, sys2::GetCurrentProcess(), sys2::GetCurrentThread() };
+        if (OsStatus status = sys2::SysCreateThread(&invoke, createInfo, &thread)) {
+            return status;
+        }
 
-    thread->userStack = mapping;
-    thread->state = km::IsrContext {
-        .rdi = (uintptr_t)arg,
-        .rbp = (uintptr_t)mapping.vaddr + kKernelStackSize,
-        .rip = (uintptr_t)entry,
-        .cs = SystemGdt::eLongModeCode * 0x8,
-        .rflags = 0x202,
-        .rsp = (uintptr_t)mapping.vaddr + kKernelStackSize,
-        .ss = SystemGdt::eLongModeData * 0x8,
-    };
+        return OsStatusSuccess;
+    } else {
+        stdx::String stackName = name + " STACK";
+        Process *process = GetCurrentProcess();
+        Thread *thread = gSystemObjects->createThread(std::move(name), process);
 
-    gScheduler->addWorkItem(thread);
+        km::AddressMapping mapping = gMemory->allocateStack(kKernelStackSize);
 
-    return OsStatusSuccess;
+        thread->userStack = mapping;
+        thread->state = km::IsrContext {
+            .rdi = (uintptr_t)arg,
+            .rbp = (uintptr_t)mapping.vaddr + kKernelStackSize,
+            .rip = (uintptr_t)entry,
+            .cs = SystemGdt::eLongModeCode * 0x8,
+            .rflags = 0x202,
+            .rsp = (uintptr_t)mapping.vaddr + kKernelStackSize,
+            .ss = SystemGdt::eLongModeData * 0x8,
+        };
+
+        gScheduler->addWorkItem(thread);
+
+        return OsStatusSuccess;
+    }
 }
 
 static OsStatus NotificationWork(void *) {
+    KmDebugMessage("[INIT] Beginning notification work.\n");
     while (true) {
         gNotificationStream->processAll();
     }
@@ -1346,11 +1372,11 @@ static OsStatus NotificationWork(void *) {
 }
 
 static OsStatus KernelMasterTask() {
-    KmDebugMessageUnlocked("[INIT] Kernel master task.\n");
-
-    KmHalt();
+    KmDebugMessage("[INIT] Kernel master task.\n");
 
     LaunchThread(&NotificationWork, gNotificationStream, "NOTIFY");
+
+    KmHalt();
 
     ProcessLaunch init{};
     if (OsStatus status = LaunchInitProcess(&init)) {

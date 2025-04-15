@@ -50,6 +50,10 @@ extern OsStatus OsMutexLock(OsMutexHandle Handle, OsInstant Timeout);
 
 extern OsStatus OsMutexUnlock(OsMutexHandle Handle);
 
+extern OsStatus OsMutexLockShared(OsMutexHandle Handle, OsInstant Timeout);
+
+extern OsStatus OsMutexUnlockShared(OsMutexHandle Handle);
+
 extern OsStatus OsMutexStat(OsMutexHandle Handle, struct OsMutexInfo *OutInfo);
 
 /// @} // group OsMutex

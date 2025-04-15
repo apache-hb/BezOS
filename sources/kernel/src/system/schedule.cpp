@@ -199,7 +199,6 @@ OsStatus sys2::CpuLocalSchedule::addThread(sm::RcuSharedPtr<Thread> thread) {
 
     stdx::UniqueLock guard(mLock);
     OsStatus status = mQueue.addFront(info) ? OsStatusSuccess : OsStatusOutOfMemory;
-    KmDebugMessage("[SCHED] Add thread ", thread->getName(), " to CPU ", km::GetCurrentCoreId(), ": ", status, "\n");
     return status;
 }
 

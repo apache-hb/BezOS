@@ -118,4 +118,10 @@ namespace sys2 {
     };
 
     UTIL_BITFLAGS(NodeAccess);
+
+    enum class EventAccess : OsHandleAccess {
+
+    };
+
+    UTIL_BITFLAGS(EventAccess);
 }
