@@ -4,6 +4,9 @@
 
 namespace arch {
     struct GenericIntrin {
+        using MachineState = void;
+        using LongJumpState = void;
+
         /// @brief No operation. Does nothing.
         [[gnu::error("nop not implemented by platform")]]
         static void nop() noexcept;
@@ -49,5 +52,11 @@ namespace arch {
 
         [[gnu::error("indword not implemented by platform")]]
         static uint32_t indword(uint16_t port) noexcept;
+
+        [[gnu::error("setjmp not implemented by platform"), gnu::returns_twice, gnu::nonnull(1)]]
+        static int64_t setjmp(LongJumpState *state) noexcept;
+
+        [[gnu::error("longjmp not implemented by platform"), noreturn, gnu::nonnull(1)]]
+        static void longjmp(LongJumpState *state, int64_t value) noexcept;
     };
 }

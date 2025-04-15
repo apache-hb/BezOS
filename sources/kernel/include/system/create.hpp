@@ -12,26 +12,7 @@ namespace sys2 {
 
     using reg_t = uint64_t;
 
-    struct RegisterSet {
-        reg_t rax;
-        reg_t rbx;
-        reg_t rcx;
-        reg_t rdx;
-        reg_t rdi;
-        reg_t rsi;
-        reg_t r8;
-        reg_t r9;
-        reg_t r10;
-        reg_t r11;
-        reg_t r12;
-        reg_t r13;
-        reg_t r14;
-        reg_t r15;
-        reg_t rbp;
-        reg_t rsp;
-        reg_t rip;
-        reg_t rflags;
-    };
+    using RegisterSet = arch::Intrin::MachineState;
 
     // handle
 

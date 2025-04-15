@@ -1,6 +1,5 @@
 #include "system/schedule.hpp"
 #include "gdt.h"
-#include "log.hpp"
 #include "panic.hpp"
 #include "system/thread.hpp"
 

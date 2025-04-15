@@ -1653,6 +1653,13 @@ void LaunchKernel(boot::LaunchInfo launch) {
         UpdateSerialPort(com1Info);
     }
 
+    arch::Intrin::LongJumpState jmp{};
+    if (auto value = arch::Intrin::setjmp(&jmp)) {
+        KmDebugMessage("[INIT] Long jump: ", value, "\n");
+    } else {
+        arch::Intrin::longjmp(&jmp, 1);
+    }
+
     bool useX2Apic = kUseX2Apic && processor.x2apic();
 
     auto [lapic, spuriousInt] = EnableBootApic(gMemory->pageTables(), useX2Apic);

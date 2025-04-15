@@ -256,7 +256,9 @@ src = [
 ]
 
 if host_machine.cpu_family() == 'x86_64'
-
+    src += [
+        'src/arch/x86_64/setjmp.S',
+    ]
 elif host_machine.cpu_family() == 'sparc64'
     deps += [ frozen ]
     src += [

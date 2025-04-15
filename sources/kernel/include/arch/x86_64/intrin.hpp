@@ -3,7 +3,45 @@
 #include "arch/generic/intrin.hpp"
 
 namespace arch {
+    using reg_t = uintptr_t;
+
+    struct MachineStateX86_64 {
+        reg_t rax;
+        reg_t rbx;
+        reg_t rcx;
+        reg_t rdx;
+        reg_t rdi;
+        reg_t rsi;
+        reg_t r8;
+        reg_t r9;
+        reg_t r10;
+        reg_t r11;
+        reg_t r12;
+        reg_t r13;
+        reg_t r14;
+        reg_t r15;
+        reg_t rbp;
+        reg_t rsp;
+        reg_t rip;
+        reg_t rflags;
+    };
+
+    struct LongJumpStateX86_64 {
+        reg_t rbx;
+        reg_t rbp;
+        reg_t r12;
+        reg_t r13;
+        reg_t r14;
+        reg_t r15;
+
+        reg_t rsp;
+        reg_t rip;
+    };
+
     struct IntrinX86_64 : GenericIntrin {
+        using MachineState = MachineStateX86_64;
+        using LongJumpState = LongJumpStateX86_64;
+
         [[gnu::always_inline, gnu::nodebug]]
         static void nop() noexcept {
             asm volatile("nop");
@@ -78,6 +116,12 @@ namespace arch {
             asm volatile("inl %w1, %k0" : "=a"(ret) : "Nd"(port));
             return ret;
         }
+
+        [[gnu::always_inline, gnu::nodebug, gnu::returns_twice, gnu::nonnull(1)]]
+        static int64_t setjmp(LongJumpState *state) noexcept asm("__x86_64_setjmp");
+
+        [[gnu::always_inline, gnu::nodebug, noreturn, gnu::nonnull(1)]]
+        static void longjmp(LongJumpState *state, int64_t value) noexcept asm("__x86_64_longjmp");
     };
 
     using Intrin = IntrinX86_64;
