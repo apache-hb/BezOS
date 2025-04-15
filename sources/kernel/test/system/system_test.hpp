@@ -35,6 +35,16 @@ static inline sm::RcuSharedPtr<sys2::Process> GetProcess(sm::RcuSharedPtr<sys2::
     return hChild->getProcess();
 }
 
+static inline sm::RcuSharedPtr<sys2::Thread> GetThread(sm::RcuSharedPtr<sys2::Process> parent, OsThreadHandle handle) {
+    sys2::ThreadHandle *hChild = nullptr;
+    OsStatus status = parent->findHandle(handle, &hChild);
+    if (status != OsStatusSuccess) {
+        return nullptr;
+    }
+
+    return hChild->getThread();
+}
+
 class SystemBaseTest : public testing::Test {
 public:
     void SetUp() override {

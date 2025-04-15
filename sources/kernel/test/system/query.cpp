@@ -56,7 +56,7 @@ TEST_F(QuerySystemTest, TransactCreateProcess) {
             .Name = "CHILD",
             .Parent = hRootProcess->getHandle(),
         };
-        sys2::InvokeContext invoke { system(), hRootProcess->getProcess(), OS_HANDLE_INVALID };
+        sys2::InvokeContext invoke { system(), hRootProcess->getProcess() };
         OsStatus status = sys2::SysProcessCreate(&invoke, hRootProcess->getProcess(), createInfo, &hChild);
         ASSERT_EQ(status, OsStatusSuccess);
     }
@@ -71,7 +71,7 @@ TEST_F(QuerySystemTest, TransactCreateProcess) {
             .kernelStackSize = x64::kPageSize * 8,
         };
 
-        sys2::InvokeContext invoke { system(), pChild, OS_HANDLE_INVALID };
+        sys2::InvokeContext invoke { system(), pChild };
         OsStatus status = sys2::SysThreadCreate(&invoke, threadCreateInfo, &hThread);
         ASSERT_EQ(status, OsStatusSuccess);
     }
@@ -91,7 +91,7 @@ TEST_F(QuerySystemTest, TransactCreateProcess) {
     };
 
     {
-        sys2::InvokeContext invoke { system(), pChild, hThread };
+        sys2::InvokeContext invoke { system(), pChild, GetThread(pChild, hThread) };
         status = sys2::SysProcessCreate(&invoke, processCreateInfo, &hZshProcess);
         ASSERT_EQ(status, OsStatusSuccess);
         ASSERT_NE(hZshProcess, OS_HANDLE_INVALID) << "Process was not created";
@@ -107,7 +107,7 @@ TEST_F(QuerySystemTest, TransactCreateProcess) {
 
     // ensure that the process is not visible outside the transaction
     {
-        sys2::InvokeContext invoke { system(), pChild, hThread };
+        sys2::InvokeContext invoke { system(), pChild, GetThread(pChild, hThread) };
         OsProcessHandle handles[1]{};
         sys2::ProcessQueryInfo query {
             .limit = 1,

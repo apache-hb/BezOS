@@ -34,7 +34,7 @@ TEST_F(SystemTest, CreateProcess) {
     OsStatus status = sys2::SysCreateRootProcess(&system, createInfo, std::out_ptr(hProcess));
     ASSERT_EQ(status, OsStatusSuccess);
 
-    sys2::InvokeContext invoke { &system, hProcess->getProcess(), OS_HANDLE_INVALID };
+    sys2::InvokeContext invoke { &system, hProcess->getProcess() };
     status = sys2::SysProcessDestroy(&invoke, hProcess.get(), 0, eOsProcessExited);
     ASSERT_EQ(status, OsStatusSuccess);
 
@@ -76,7 +76,7 @@ TEST_F(SystemTest, CreateProcessAsync) {
         .tlsAddress = 0,
         .state = eOsThreadRunning,
     };
-    sys2::InvokeContext invoke { &system, hProcess->getProcess(), OS_HANDLE_INVALID };
+    sys2::InvokeContext invoke { &system, hProcess->getProcess() };
     status = sys2::SysThreadCreate(&invoke, threadCreateInfo, &hThread);
     ASSERT_EQ(status, OsStatusSuccess);
 
@@ -99,7 +99,7 @@ TEST_F(SystemTest, CreateProcessAsync) {
                     .Flags = eOsProcessSupervisor,
                 };
 
-                sys2::InvokeContext invoke { &system, hProcess->getProcess(), hThread };
+                sys2::InvokeContext invoke { &system, hProcess->getProcess(), GetThread(hProcess->getProcess(), hThread) };
                 OsStatus status = sys2::SysProcessCreate(&invoke, createInfo, &hChild);
                 if (status == OsStatusOutOfMemory) continue;
                 ASSERT_EQ(status, OsStatusSuccess);
@@ -153,7 +153,7 @@ TEST_F(SystemTest, CreateChildProcess) {
             .tlsAddress = 0,
             .state = eOsThreadRunning,
         };
-        sys2::InvokeContext invoke { &system, hProcess->getProcess(), OS_HANDLE_INVALID };
+        sys2::InvokeContext invoke { &system, hProcess->getProcess() };
         OsStatus status = sys2::SysThreadCreate(&invoke, threadCreateInfo, &hThread);
         ASSERT_EQ(status, OsStatusSuccess);
     }
@@ -163,7 +163,7 @@ TEST_F(SystemTest, CreateChildProcess) {
             .Name = "CHILD",
             .Flags = eOsProcessSupervisor,
         };
-        sys2::InvokeContext invoke { &system, hProcess->getProcess(), hThread };
+        sys2::InvokeContext invoke { &system, hProcess->getProcess(), GetThread(hProcess->getProcess(), hThread) };
 
         OsStatus status = sys2::SysProcessCreate(&invoke, createInfo, &hChild);
         ASSERT_EQ(status, OsStatusSuccess);
@@ -175,7 +175,7 @@ TEST_F(SystemTest, CreateChildProcess) {
         ASSERT_TRUE(process->getHandle(hChild)) << "Parent process does not have child process";
     }
 
-    sys2::InvokeContext invoke { &system, hProcess->getProcess(), hThread };
+    sys2::InvokeContext invoke { &system, hProcess->getProcess(), GetThread(hProcess->getProcess(), hThread) };
     OsStatus status = sys2::SysProcessDestroy(&invoke, hProcess.get(), 0, eOsProcessExited);
     ASSERT_EQ(status, OsStatusSuccess);
 
@@ -214,7 +214,7 @@ TEST_F(SystemTest, NestedChildProcess) {
 
             DebugMemoryUsage(memory);
 
-            sys2::InvokeContext invoke { &system, pChild, OS_HANDLE_INVALID };
+            sys2::InvokeContext invoke { &system, pChild };
             OsStatus status = sys2::SysProcessCreate(&invoke, createInfo, &hChild);
             ASSERT_EQ(status, OsStatusSuccess);
 
@@ -230,7 +230,7 @@ TEST_F(SystemTest, NestedChildProcess) {
         }
     }
 
-    sys2::InvokeContext invoke { &system, hProcess->getProcess(), OS_HANDLE_INVALID };
+    sys2::InvokeContext invoke { &system, hProcess->getProcess() };
     OsStatus status = sys2::SysProcessDestroy(&invoke, hProcess.get(), 0, eOsProcessExited);
     ASSERT_EQ(status, OsStatusSuccess);
 
@@ -266,7 +266,7 @@ TEST_F(SystemTest, OrphanThread) {
         .tlsAddress = 0,
         .state = eOsThreadRunning,
     };
-    sys2::InvokeContext invoke { &system, hProcess->getProcess(), OS_HANDLE_INVALID };
+    sys2::InvokeContext invoke { &system, hProcess->getProcess() };
     status = sys2::SysThreadCreate(&invoke, threadCreateInfo, &hThread);
     ASSERT_EQ(status, OsStatusSuccess);
 
@@ -309,7 +309,7 @@ TEST_F(SystemTest, CreateThread) {
         .tlsAddress = 0,
         .state = eOsThreadRunning,
     };
-    sys2::InvokeContext invoke { &system, hProcess->getProcess(), OS_HANDLE_INVALID };
+    sys2::InvokeContext invoke { &system, hProcess->getProcess() };
 
     status = sys2::SysThreadCreate(&invoke, threadCreateInfo, &hThread);
     ASSERT_EQ(status, OsStatusSuccess);

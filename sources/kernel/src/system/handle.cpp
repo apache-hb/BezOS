@@ -33,7 +33,7 @@ OsStatus sys2::SysHandleStat(InvokeContext *context, OsHandle handle, OsHandleIn
         return OsStatusInvalidHandle;
     }
 
-    if (source->hasGenericAccess(eOsAccessStat)) {
+    if (!source->hasGenericAccess(eOsAccessStat)) {
         return OsStatusAccessDenied;
     }
 

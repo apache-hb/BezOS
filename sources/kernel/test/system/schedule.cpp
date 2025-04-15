@@ -75,7 +75,7 @@ public:
         OsStatus status = sys2::SysCreateRootProcess(system(), createInfo, std::out_ptr(hRootProcess));
         ASSERT_EQ(status, OsStatusSuccess);
 
-        sys2::InvokeContext invoke { system(), hRootProcess->getProcess(), OS_HANDLE_INVALID };
+        sys2::InvokeContext invoke { system(), hRootProcess->getProcess() };
         OsProcessCreateInfo childInfo {
             .Name = "CHILD",
         };
@@ -95,11 +95,11 @@ public:
 
     sys2::System *system() { return &data->system; }
     sys2::InvokeContext invoke() {
-        return sys2::InvokeContext { system(), GetProcess(hRootProcess->getProcess(), hProcess), OS_HANDLE_INVALID };
+        return sys2::InvokeContext { system(), GetProcess(hRootProcess->getProcess(), hProcess) };
     }
 
     sys2::InvokeContext invokeRoot() {
-        return sys2::InvokeContext { system(), hRootProcess->getProcess(), OS_HANDLE_INVALID };
+        return sys2::InvokeContext { system(), hRootProcess->getProcess() };
     }
 };
 
