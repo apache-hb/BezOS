@@ -27,6 +27,7 @@ namespace km {
 
         OsStatus unmap(void *ptr, size_t size);
         OsStatus unmap(VirtualRange range) { return mTables.unmap(range); }
+        OsStatus unmap(AddressMapping mapping);
 
         AddressMapping allocateStack(size_t size);
 
@@ -53,6 +54,7 @@ namespace km {
         PageAllocator& pmmAllocator() { return mPageAllocator; }
 
         void *map(MemoryRange range, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eWriteBack);
+        OsStatus map(size_t size, PageFlags flags, MemoryType type, AddressMapping *mapping);
 
         template<typename T>
         T *mapObject(MemoryRange range, MemoryType type = MemoryType::eWriteBack) {

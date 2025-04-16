@@ -19,6 +19,10 @@
 #include "system/vm/memory.hpp"
 #include "util/absl.hpp"
 
+namespace vfs2 {
+    class IFileHandle;
+}
+
 namespace sys2 {
     enum class ProcessId : OsProcessId {};
 
@@ -50,6 +54,8 @@ namespace sys2 {
 
         stdx::Vector2<sys2::VmObject> mVmObjects;
 
+        sm::BTreeMap<const void*, sm::RcuSharedPtr<IMemoryObject>> mMemoryObjects;
+
         km::AddressMapping mPteMemory;
 
         /// @brief The page tables for this process.
@@ -77,6 +83,8 @@ namespace sys2 {
 
         OsStatus resolveObject(sm::RcuSharedPtr<IObject> object, OsHandleAccess access, OsHandle *handle);
 
+        OsStatus resolveAddress(const void *address, sm::RcuSharedPtr<IMemoryObject> *object);
+
         template<typename T>
         OsStatus findHandle(OsHandle handle, T **result) {
             IHandle *base = nullptr;
@@ -102,6 +110,8 @@ namespace sys2 {
         OsStatus createTx(System *system, TxCreateInfo info, TxHandle **handle);
 
         OsStatus vmemCreate(System *system, OsVmemCreateInfo info, km::AddressMapping *mapping);
+        OsStatus vmemMapFile(System *system, OsVmemMapInfo info, vfs2::IFileHandle *fileHandle, km::VirtualRange *result);
+        OsStatus vmemMapProcess(OsVmemMapInfo info, sm::RcuSharedPtr<Process> process, km::VirtualRange *result);
         OsStatus vmemMap(System *system, OsVmemMapInfo info, km::AddressMapping *mapping);
         OsStatus vmemRelease(System *system, km::VirtualRange range);
 

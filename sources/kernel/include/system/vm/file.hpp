@@ -4,27 +4,38 @@
 #include "system/vmem.hpp"
 #include "fs2/interface.hpp"
 
+namespace km {
+    class PageAllocator;
+}
+
 namespace sys2 {
     class FileMapping : public IMemoryObject {
-        std::unique_ptr<vfs2::IFileHandle> mFileHandle;
-        uint64_t mMappingFront;
-        uint64_t mMappingBack;
-        km::MemoryRange mRange;
+        /// @brief Kernel side view of the memory
+        km::AddressMapping mMapping;
 
     public:
-        FileMapping(std::unique_ptr<vfs2::IFileHandle> fileHandle, uint64_t front, uint64_t back, km::MemoryRange range)
-            : mFileHandle(std::move(fileHandle))
-            , mMappingFront(front)
-            , mMappingBack(back)
-            , mRange(range)
+        FileMapping(km::AddressMapping mapping)
+            : mMapping(mapping)
         { }
 
-        OsStatus fault(km::AnyRange<size_t> range, void *base, km::MemoryRange *result) override;
+        OsStatus fault(size_t page, km::PhysicalAddress *address) override {
+            size_t offset = page * x64::kPageSize;
+            if (offset >= mMapping.size) {
+                return OsStatusOutOfBounds;
+            }
 
-        OsStatus release(km::AnyRange<size_t> range) override;
+            *address = mMapping.paddr + offset;
+            return OsStatusSuccess;
+        }
 
-        OsStatus flush(km::AnyRange<size_t> range) override;
+        OsStatus release(size_t) override {
+            return OsStatusSuccess;
+        }
+
+        km::MemoryRange range() override {
+            return mMapping.physicalRange();
+        }
     };
 
-    OsStatus MapFileToMemory(std::unique_ptr<vfs2::IFileHandle> fileHandle, km::AddressMapping mapping, uint64_t front, uint64_t back, sm::RcuSharedPtr<FileMapping> outMapping);
+    OsStatus MapFileToMemory(sm::RcuDomain *domain, vfs2::IFileHandle *fileHandle, km::PageAllocator *pmm, km::AddressSpace *ptes, uint64_t front, uint64_t back, sm::RcuSharedPtr<FileMapping> *outMapping);
 }

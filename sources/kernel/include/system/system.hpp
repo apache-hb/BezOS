@@ -136,7 +136,7 @@ namespace sys2 {
     // vmem
 
     OsStatus SysVmemCreate(InvokeContext *context, OsVmemCreateInfo info, void **outVmem);
-    OsStatus SysVmemMap(InvokeContext *context, VmemMapInfo info, void **outVmem);
+    OsStatus SysVmemMap(InvokeContext *context, OsVmemMapInfo info, void **outVmem);
     OsStatus SysVmemRelease(InvokeContext *context, VmemReleaseInfo info);
 
     // thread

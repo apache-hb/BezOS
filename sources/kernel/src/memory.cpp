@@ -55,6 +55,15 @@ OsStatus km::SystemMemory::unmap(void *ptr, size_t size) {
     return unmap(VirtualRange::of(ptr, size));
 }
 
+OsStatus km::SystemMemory::unmap(AddressMapping mapping) {
+    if (OsStatus status = mTables.unmap(mapping.virtualRange())) {
+        return status;
+    }
+
+    mPageAllocator.release(mapping.physicalRange());
+    return OsStatusSuccess;
+}
+
 void *km::SystemMemory::map(MemoryRange range, PageFlags flags, MemoryType type) {
     //
     // I may be asked to map a range that is not page aligned
@@ -73,4 +82,18 @@ void *km::SystemMemory::map(MemoryRange range, PageFlags flags, MemoryType type)
     }
 
     return (void*)((uintptr_t)mapping.vaddr + offset);
+}
+
+OsStatus km::SystemMemory::map(size_t size, PageFlags flags, MemoryType type, AddressMapping *mapping) {
+    MemoryRange pmm = mPageAllocator.alloc4k(Pages(size));
+    if (pmm.isEmpty()) {
+        return OsStatusOutOfMemory;
+    }
+    OsStatus status = mTables.map(pmm, flags, type, mapping);
+    if (status != OsStatusSuccess) {
+        mPageAllocator.release(pmm);
+        return status;
+    }
+
+    return OsStatusSuccess;
 }

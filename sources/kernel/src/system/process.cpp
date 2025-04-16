@@ -1,6 +1,9 @@
 #include "system/process.hpp"
 #include "memory.hpp"
 #include "system/system.hpp"
+#include "system/device.hpp"
+#include "fs2/interface.hpp"
+#include "system/vm/file.hpp"
 
 #include <bezos/handle.h>
 
@@ -122,6 +125,19 @@ OsStatus sys2::Process::resolveObject(sm::RcuSharedPtr<IObject> object, OsHandle
 
     *handle = result->getHandle();
     return OsStatusSuccess;
+}
+
+OsStatus sys2::Process::resolveAddress(const void *address, sm::RcuSharedPtr<IMemoryObject> *object) {
+    if ((uintptr_t)address % x64::kPageSize != 0) {
+        return OsStatusInvalidInput;
+    }
+
+    if (auto it = mMemoryObjects.find(address); it != mMemoryObjects.end()) {
+        *object = it->second;
+        return OsStatusSuccess;
+    }
+
+    return OsStatusNotFound;
 }
 
 void sys2::Process::removeChild(sm::RcuSharedPtr<Process> child) {
@@ -266,6 +282,53 @@ OsStatus sys2::Process::vmemCreate(System *system, OsVmemCreateInfo info, km::Ad
 
     mPhysicalMemory.add(range);
 
+    return OsStatusSuccess;
+}
+
+OsStatus sys2::Process::vmemMapFile(System *system, OsVmemMapInfo info, vfs2::IFileHandle *fileHandle, km::VirtualRange *result) {
+    sm::RcuSharedPtr<sys2::FileMapping> fileMapping;
+    if (OsStatus status = sys2::MapFileToMemory(&system->rcuDomain(), fileHandle, system->mPageAllocator, system->mSystemTables, info.SrcAddress, info.Size, &fileMapping)) {
+        return status;
+    }
+
+    km::MemoryRange range = fileMapping->range();
+    km::AddressMapping mapping;
+    if (OsStatus status = mPageTables.map(range, km::PageFlags::eUserAll, km::MemoryType::eWriteBack, &mapping)) {
+        system->mPageAllocator->release(range);
+        return status;
+    }
+
+    auto vm = mapping.virtualRange();
+    for (auto i = vm.front; i < vm.back; i = (char*)i + x64::kPageSize) {
+        mMemoryObjects.insert({ i, fileMapping });
+    }
+
+    *result = mapping.virtualRange();
+    return OsStatusSuccess;
+}
+
+OsStatus sys2::Process::vmemMapProcess(OsVmemMapInfo info, sm::RcuSharedPtr<Process> process, km::VirtualRange *mapping) {
+    auto vm = km::VirtualRange::of((void*)info.SrcAddress, info.Size);
+    mPageTables.reserve(vm);
+
+    for (auto i = info.SrcAddress; i < info.SrcAddress + info.Size; i += x64::kPageSize) {
+        sm::RcuSharedPtr<IMemoryObject> object;
+        if (OsStatus status = process->resolveAddress((void*)i, &object)) {
+            return status;
+        }
+
+        auto backing = process->mPageTables.getBackingAddress((void*)i);
+        km::AddressMapping mapping {
+            .vaddr = (void*)(info.DstAddress + (i * x64::kPageSize)),
+            .paddr = backing,
+            .size = x64::kPageSize,
+        };
+        if (OsStatus status = mPageTables.reserve(mapping, km::PageFlags::eUserAll, km::MemoryType::eWriteBack)) {
+            return status;
+        }
+    }
+
+    *mapping = vm;
     return OsStatusSuccess;
 }
 
@@ -506,6 +569,78 @@ OsStatus sys2::SysVmemRelease(InvokeContext *, VmemReleaseInfo) {
     return OsStatusNotSupported;
 }
 
-OsStatus sys2::SysVmemMap(InvokeContext *, VmemMapInfo, void **) {
-    return OsStatusNotSupported;
+OsStatus sys2::SysVmemMap(InvokeContext *context, OsVmemMapInfo info, void **outVmem) {
+    sm::RcuSharedPtr<Process> dstProcess;
+
+    if (info.Source == OS_HANDLE_INVALID) {
+        return OsStatusInvalidHandle;
+    }
+
+    if (info.Process != OS_HANDLE_INVALID) {
+        ProcessHandle *hProcess = nullptr;
+        if (OsStatus status = SysFindHandle(context, info.Process, &hProcess)) {
+            return status;
+        }
+
+        dstProcess = hProcess->getProcess();
+    } else {
+        dstProcess = context->process;
+    }
+
+    km::PageFlags flags = km::PageFlags::eUser;
+    if (info.Access & eOsMemoryRead) {
+        flags |= km::PageFlags::eRead;
+    }
+
+    if (info.Access & eOsMemoryWrite) {
+        flags |= km::PageFlags::eWrite;
+    }
+
+    if (info.Access & eOsMemoryExecute) {
+        flags |= km::PageFlags::eExecute;
+    }
+
+    if (OS_HANDLE_TYPE(info.Source) == eOsHandleProcess) {
+        ProcessHandle *hProcess = nullptr;
+        if (OsStatus status = SysFindHandle(context, info.Source, &hProcess)) {
+            return status;
+        }
+
+        sm::RcuSharedPtr<IMemoryObject> srcObject;
+
+        auto process = hProcess->getProcess();
+        if (OsStatus status = process->resolveAddress((void*)info.DstAddress, &srcObject)) {
+            return status;
+        }
+
+        km::VirtualRange vm;
+        if (OsStatus status = dstProcess->vmemMapProcess(info, process, &vm)) {
+            return status;
+        }
+        *outVmem = (void*)vm.front;
+        return OsStatusSuccess;
+    } else if (OS_HANDLE_TYPE(info.Source) == eOsHandleDevice) {
+        DeviceHandle *hDevice = nullptr;
+        if (OsStatus status = SysFindHandle(context, info.Source, &hDevice)) {
+            return status;
+        }
+
+        auto device = hDevice->getDevice();
+        auto vfsHandle = device->getVfsHandle();
+        vfs2::HandleInfo hInfo = vfsHandle->info();
+        if (hInfo.guid != sm::uuid(kOsFileGuid)) {
+            return OsStatusInvalidHandle;
+        }
+
+        km::VirtualRange vm;
+
+        if (OsStatus status = context->process->vmemMapFile(context->system, info, static_cast<vfs2::IFileHandle*>(vfsHandle), &vm)) {
+            return status;
+        }
+
+        *outVmem = (void*)vm.front;
+        return OsStatusSuccess;
+    } else {
+        return OsStatusInvalidHandle;
+    }
 }

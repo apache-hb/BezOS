@@ -105,6 +105,8 @@ system_src = [
     'src/system/node.cpp',
     'src/system/device.cpp',
     'src/system/transaction.cpp',
+
+    'src/system/vm/mapping.cpp',
 ]
 
 src = [
