@@ -36,7 +36,7 @@ OsStatus RtldSoOpen(const struct RtldSoLoadInfo *LoadInfo, struct RtldSo *OutObj
 
 OsStatus RtldSoClose(struct RtldSo *Object);
 
-OsStatus RtldSoSymbol(struct RtldSharedObject *Object, RtldSoName Name, void **OutAddress);
+OsStatus RtldSoSymbol(struct RtldSo *Object, struct RtldSoName Name, void **OutAddress);
 
 #ifdef __cplusplus
 }
