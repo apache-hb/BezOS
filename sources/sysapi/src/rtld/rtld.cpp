@@ -1,5 +1,7 @@
 #include "rtld/rtld.h"
 
+#include "rtld/arch/sparcv9/relocation.hpp"
+#include "rtld/arch/x86_64/relocation.hpp"
 #include "rtld/load/elf.hpp"
 #include "rtld/arch/arch.hpp"
 
@@ -78,7 +80,6 @@ static OsStatus ElfReadHeader(OsDeviceHandle device, elf::Type expected, elf::He
     bool valid = (header.type == expected)
               && (header.endian() == std::endian::native)
               && (header.elfClass() == elf::Class::eClass64)
-              && (header.machine == elf::Machine::eAmd64)
               && (header.ehsize == sizeof(elf::Header))
               && (header.phentsize == sizeof(elf::ProgramHeader))
               && (header.shentsize == sizeof(elf::SectionHeader));
@@ -89,6 +90,19 @@ static OsStatus ElfReadHeader(OsDeviceHandle device, elf::Type expected, elf::He
 
     *result = header;
     return OsStatusSuccess;
+}
+
+[[maybe_unused]]
+static os::IRelocator *GetRelocator(os::elf::Machine machine) {
+    if (machine == os::elf::Machine::eAmd64) {
+        static os::Amd64Relocator sInstance;
+        return &sInstance;
+    } else if (machine == os::elf::Machine::eSparcV9) {
+        static os::SparcV9Relocator sInstance;
+        return &sInstance;
+    } else {
+        return nullptr;
+    }
 }
 
 OsStatus RtldStartProgram(const RtldStartInfo *StartInfo) {

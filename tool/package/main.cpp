@@ -2115,6 +2115,19 @@ static int RunPackageTool(argparse::ArgumentParser& parser) {
     bool hard = parser.get<bool>("--hard");
 
     Scope rootScope;
+
+    for (auto define : parser.get<std::vector<std::string>>("--define")) {
+        auto parts = stdv::split(define, '=') | stdr::to<std::vector<std::string>>();
+        if (parts.size() != 2) {
+            throw std::runtime_error("Invalid define format '" + define + "', must be name=value");
+        }
+
+        auto name = parts[0];
+        auto value = parts[1];
+
+        rootScope.AddVariable(name, value);
+    }
+
     ReadTargetElement(targetRoot, rootScope);
 
     ReadRepoElement(repoRoot, rootScope);
@@ -2301,6 +2314,11 @@ int main(int argc, const char **argv) try {
         .help("Start the overlayfs support daemon")
         .default_value(false)
         .implicit_value(true);
+
+    parser.add_argument("--define", "-D")
+        .help("Define a variable")
+        .append()
+        .nargs(argparse::nargs_pattern::any);
 
     parser.add_argument("--help")
         .help("Print this help message")

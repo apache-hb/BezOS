@@ -1,22 +1,13 @@
 #pragma once
 
-#include "rtld/arch/base/relocation.hpp"
+#include "rtld/arch/arch.hpp"
 
-namespace os::elf::detail {
-    struct LoaderX86_64 : public LoaderBase {
-        struct Dyn {
-            uint64_t tag;
-            uint64_t value;
-        };
-
-        struct Rela {
-            uint64_t offset;
-            uint64_t info;
-            int64_t addend;
-        };
-
-        static OsStatus ApplyRelocations();
+namespace os {
+    class Amd64Relocator : public IRelocator {
+    public:
+        size_t dynSize() const override;
+        size_t relaSize() const override;
+        size_t relSize() const override;
+        OsStatus apply(void *data, size_t count) override;
     };
-
-    using Loader = LoaderX86_64;
 }

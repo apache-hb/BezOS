@@ -1,19 +1,13 @@
 #pragma once
 
-#include "rtld/arch/base/relocation.hpp"
+#include "rtld/arch/arch.hpp"
 
-namespace os::elf::detail {
-    struct LoaderSparcV9 : public LoaderBase {
-        struct Dyn {
-
-        };
-
-        struct Rela {
-
-        };
-
-        static OsStatus ApplyRelocations();
+namespace os {
+    class SparcV9Relocator : public IRelocator {
+    public:
+        size_t dynSize() const override;
+        size_t relaSize() const override;
+        size_t relSize() const override;
+        OsStatus apply(void *data, size_t count) override;
     };
-
-    using Loader = LoaderSparcV9;
 }
