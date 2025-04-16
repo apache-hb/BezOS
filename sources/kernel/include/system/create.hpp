@@ -1,9 +1,10 @@
 #pragma once
 
-#include "fs2/path.hpp"
-#include "std/rcuptr.hpp"
 #include "system/access.hpp" // IWYU pragma: export
 
+#include "fs2/path.hpp"
+
+#include "std/rcuptr.hpp"
 #include "std/static_string.hpp"
 #include "util/uuid.hpp"
 
@@ -147,19 +148,5 @@ namespace sys2 {
 
     struct MutexDestroyInfo {
         MutexHandle *object;
-    };
-
-    struct InvokeContext {
-        /// @brief The system context.
-        System *system;
-
-        /// @brief The process namespace this method is being invoked in.
-        sm::RcuSharedPtr<Process> process;
-
-        /// @brief The thread in the process that is invoking the method.
-        sm::RcuSharedPtr<Thread> thread;
-
-        /// @brief The transaction context that this method is contained in.
-        OsTxHandle tx;
     };
 }

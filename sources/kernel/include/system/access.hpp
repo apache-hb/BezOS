@@ -16,6 +16,7 @@ namespace sys2 {
     class IObject;
     class IHandle;
     class IIsolate;
+    class InvokeContext;
     class Tx;
     class TxHandle;
     class Process;

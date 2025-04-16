@@ -7,9 +7,11 @@
 #include "std/rcuptr.hpp"
 
 #include "memory/layout.hpp"
+
 #include "system/create.hpp"
 #include "system/query.hpp"
 #include "system/schedule.hpp"
+#include "system/invoke.hpp"
 
 #include <compare> // IWYU pragma: keep
 

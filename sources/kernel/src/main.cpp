@@ -1015,10 +1015,6 @@ class SystemInvokeContext final : public vfs2::IInvokeContext {
     CallContext *mContext;
     km::SystemObjects *mSystem;
 
-    OsThreadHandle thread() override {
-        return mContext->thread()->publicId();
-    }
-
     OsNodeHandle resolveNode(sm::RcuSharedPtr<vfs2::INode> node) override {
         if (OsNodeHandle handle = mSystem->getNodeId(node)) {
             return handle;

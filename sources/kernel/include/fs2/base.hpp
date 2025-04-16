@@ -15,6 +15,10 @@ namespace km {
     class SystemObjects;
 }
 
+namespace sys2 {
+    class InvokeContext;
+}
+
 /// @brief Virtual File System.
 ///
 /// This VFS derives from the original SunOS vnode design with some modifications.
@@ -68,9 +72,6 @@ namespace vfs2 {
     class IInvokeContext {
     public:
         virtual ~IInvokeContext() = default;
-
-        /// @brief The thread that is invoking the method.
-        virtual OsThreadHandle thread() = 0;
 
         /// @brief Insert or retrieve the handle associated with this node.
         ///

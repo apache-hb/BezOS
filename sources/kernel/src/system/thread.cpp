@@ -74,6 +74,10 @@ bool sys2::Thread::isSupervisor() {
     return false;
 }
 
+void sys2::Thread::setSignalStatus(OsStatus status) {
+    mCpuState.rax = status;
+}
+
 sys2::Thread::Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, x64::XSave *fpuState, km::StackMapping kernelStack)
     : Thread(createInfo, process, sys2::XSaveState{fpuState, &km::DestroyXSave}, kernelStack)
 { }

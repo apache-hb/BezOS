@@ -314,7 +314,7 @@ OsStatus sys2::GlobalSchedule::wait(sm::RcuSharedPtr<Thread> thread, sm::RcuShar
     return OsStatusSuccess;
 }
 
-OsStatus sys2::GlobalSchedule::signal(sm::RcuSharedPtr<IObject> object) {
+OsStatus sys2::GlobalSchedule::signal(sm::RcuSharedPtr<IObject> object, OsInstant now) {
     stdx::UniqueLock guard(mLock);
     auto iter = mWaitQueue.find(object);
     if (iter == mWaitQueue.end()) {
@@ -327,6 +327,9 @@ OsStatus sys2::GlobalSchedule::signal(sm::RcuSharedPtr<IObject> object) {
         queue.pop();
 
         if (auto thread = entry.thread.lock()) {
+            OsStatus state = (entry.timeout < now) ? OsStatusTimeout : OsStatusCompleted;
+            thread->setSignalStatus(state);
+
             if (OsStatus status = resume(thread)) {
                 return status;
             }

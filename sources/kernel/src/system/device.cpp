@@ -14,10 +14,6 @@ public:
         : mContext(context)
     { }
 
-    OsThreadHandle thread() override {
-        return mContext->thread;
-    }
-
     OsNodeHandle resolveNode(sm::RcuSharedPtr<vfs2::INode> node) override {
         OsNodeHandle result = OS_HANDLE_INVALID;
 

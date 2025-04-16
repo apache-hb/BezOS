@@ -502,10 +502,10 @@ OsStatus sys2::SysVmemCreate(InvokeContext *context, OsVmemCreateInfo info, void
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysVmemRelease(InvokeContext *context, VmemReleaseInfo info) {
+OsStatus sys2::SysVmemRelease(InvokeContext *, VmemReleaseInfo) {
     return OsStatusNotSupported;
 }
 
-OsStatus sys2::SysVmemMap(InvokeContext *context, VmemMapInfo info, void **outVmem) {
+OsStatus sys2::SysVmemMap(InvokeContext *, VmemMapInfo, void **) {
     return OsStatusNotSupported;
 }

@@ -100,12 +100,6 @@ void sys2::YieldCurrentThread() {
         return;
     }
 
-    auto thread = GetCurrentThread();
-    bool supervisor = thread->isSupervisor();
-
-    uint64_t cs = supervisor ? (GDT_64BIT_CODE * 0x8) : ((GDT_64BIT_USER_CODE * 0x8) | 0b11);
-    uint64_t ss = supervisor ? (GDT_64BIT_DATA * 0x8) : ((GDT_64BIT_USER_DATA * 0x8) | 0b11);
-
     // forge a context from the jmpbuf that can be switched to
     km::IsrContext context = {
         .rax = 1,
@@ -116,13 +110,13 @@ void sys2::YieldCurrentThread() {
         .r15 = jmp.r15,
         .rbp = jmp.rbp,
         .rip = jmp.rip,
-        .cs = cs,
+        .cs = (GDT_64BIT_CODE * 0x8),
         .rflags = 0x202,
         .rsp = jmp.rsp,
-        .ss = ss,
+        .ss = (GDT_64BIT_DATA * 0x8),
     };
 
-    km::IntGuard iguard;
+    arch::Intrin::cli();
     auto next = ScheduleInt(&context);
     __x86_64_resume(&next);
 }

@@ -46,6 +46,8 @@ namespace sys2 {
 
         bool isSupervisor();
 
+        void setSignalStatus(OsStatus status);
+
         OsStatus destroy(System *system, OsThreadState reason);
 
         bool cmpxchgState(OsThreadState &expected, OsThreadState newState) {

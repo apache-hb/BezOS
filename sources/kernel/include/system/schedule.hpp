@@ -6,7 +6,6 @@
 
 #include "isr/isr.hpp"
 
-#include "std/fixed_deque.hpp"
 #include "std/shared_spinlock.hpp"
 
 #include "std/rcuptr.hpp"
@@ -111,7 +110,7 @@ namespace sys2 {
         OsStatus sleep(sm::RcuSharedPtr<Thread> thread, OsInstant wake);
         OsStatus wait(sm::RcuSharedPtr<Thread> thread, sm::RcuSharedPtr<IObject> object, OsInstant timeout);
 
-        OsStatus signal(sm::RcuSharedPtr<IObject> object);
+        OsStatus signal(sm::RcuSharedPtr<IObject> object, OsInstant now);
 
         OsStatus tick(OsInstant now);
 
