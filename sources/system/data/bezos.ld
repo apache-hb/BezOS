@@ -19,14 +19,19 @@ SECTIONS
         *(.data .data.*)
     } :data
 
-    . = ALIGN(CONSTANT(MAXPAGESIZE));
+    .init_array : {
+        PROVIDE_HIDDEN (__init_array_start = .);
+        KEEP (*(SORT_BY_INIT_PRIORITY(.init_array.*) SORT_BY_INIT_PRIORITY(.ctors.*)))
+        KEEP (*(.init_array EXCLUDE_FILE (*crtbegin.o *crtbegin?.o *crtend.o *crtend?.o ) .ctors))
+        PROVIDE_HIDDEN (__init_array_end = .);
+    }
 
-    .bss : {
-        *(.bss .bss.*)
-        *(COMMON)
-    } :data
-
-    . = ALIGN(CONSTANT(MAXPAGESIZE));
+    .fini_array : {
+        PROVIDE_HIDDEN (__fini_array_start = .);
+        KEEP (*(SORT_BY_INIT_PRIORITY(.fini_array.*) SORT_BY_INIT_PRIORITY(.dtors.*)))
+        KEEP (*(.fini_array EXCLUDE_FILE (*crtbegin.o *crtbegin?.o *crtend.o *crtend?.o ) .dtors))
+        PROVIDE_HIDDEN (__fini_array_end = .);
+    }
 
     .eh_frame : {
         PROVIDE_HIDDEN(__eh_frame_start = .);
@@ -40,6 +45,15 @@ SECTIONS
         PROVIDE_HIDDEN(__eh_frame_hdr_end = .);
     }
 
+    . = ALIGN(CONSTANT(MAXPAGESIZE));
+
+    .bss : {
+        *(.bss .bss.*)
+        *(COMMON)
+    } :data
+
+    . = ALIGN(CONSTANT(MAXPAGESIZE));
+
     .tdata : {
         *(.tdata .tdata.*)
     }
@@ -47,20 +61,6 @@ SECTIONS
     .tbss : {
         *(.tbss .tbss.*)
         *(.tcommon)
-    }
-
-    .init_array : {
-        PROVIDE_HIDDEN (__init_array_start = .);
-        KEEP (*(SORT_BY_INIT_PRIORITY(.init_array.*) SORT_BY_INIT_PRIORITY(.ctors.*)))
-        KEEP (*(.init_array EXCLUDE_FILE (*crtbegin.o *crtbegin?.o *crtend.o *crtend?.o ) .ctors))
-        PROVIDE_HIDDEN (__init_array_end = .);
-    }
-
-    .fini_array : {
-        PROVIDE_HIDDEN (__fini_array_start = .);
-        KEEP (*(SORT_BY_INIT_PRIORITY(.fini_array.*) SORT_BY_INIT_PRIORITY(.dtors.*)))
-        KEEP (*(.fini_array EXCLUDE_FILE (*crtbegin.o *crtbegin?.o *crtend.o *crtend?.o ) .dtors))
-        PROVIDE_HIDDEN (__fini_array_end = .);
     }
 
     .note : {

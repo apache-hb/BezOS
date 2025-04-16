@@ -56,7 +56,7 @@ void abort(void) noexcept {
 
 void exit(int exitcode) noexcept {
     OsProcessHandle handle = OS_HANDLE_INVALID;
-    OsStatus status = OsProcessCurrent(eOsProcessAccessTerminate, &handle);
+    OsStatus status = OsProcessCurrent(eOsProcessAccessDestroy, &handle);
     assert(status == OsStatusSuccess);
 
     //

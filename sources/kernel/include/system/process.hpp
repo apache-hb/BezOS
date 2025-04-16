@@ -14,7 +14,9 @@
 #include "system/transaction.hpp"
 #include "system/create.hpp"
 #include "system/invoke.hpp"
+#include "system/vm.hpp"
 
+#include "system/vm/memory.hpp"
 #include "util/absl.hpp"
 
 namespace sys2 {
@@ -43,6 +45,10 @@ namespace sys2 {
 
         /// @brief All the physical memory dedicated to this process.
         stdx::Vector2<km::MemoryRange> mPhysicalMemory;
+
+        sm::RcuSharedPtr<MemoryObject> mMemory;
+
+        stdx::Vector2<sys2::VmObject> mVmObjects;
 
         km::AddressMapping mPteMemory;
 

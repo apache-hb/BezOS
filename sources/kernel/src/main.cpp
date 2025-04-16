@@ -43,7 +43,6 @@
 #include "memory.hpp"
 #include "notify.hpp"
 #include "panic.hpp"
-#include "process/device.hpp"
 #include "process/thread.hpp"
 #include "processor.hpp"
 #include "process/system.hpp"
@@ -1010,30 +1009,6 @@ static std::tuple<std::optional<HypervisorInfo>, bool> QueryHostHypervisor() {
 
     return std::make_tuple(hvInfo, hasDebugPort);
 }
-
-class SystemInvokeContext final : public vfs2::IInvokeContext {
-    CallContext *mContext;
-    km::SystemObjects *mSystem;
-
-    OsNodeHandle resolveNode(sm::RcuSharedPtr<vfs2::INode> node) override {
-        if (OsNodeHandle handle = mSystem->getNodeId(node)) {
-            return handle;
-        }
-
-        Node *result = nullptr;
-        if (mSystem->createNode(mContext->process(), node, &result) != OsStatusSuccess) {
-            return OS_HANDLE_INVALID;
-        }
-
-        return result->publicId();
-    }
-
-public:
-    SystemInvokeContext(CallContext *context, km::SystemObjects *system)
-        : mContext(context)
-        , mSystem(system)
-    { }
-};
 
 static void AddHandleSystemCalls() {
     AddSystemCall(eOsCallHandleWait, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {

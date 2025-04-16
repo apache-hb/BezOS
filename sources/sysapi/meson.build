@@ -112,6 +112,7 @@ posix_dep = declare_dependency(
     include_directories : [ inc ],
 )
 
+if false
 src = [
     'src/rtld/rtld.cpp',
 ]
@@ -119,16 +120,21 @@ src = [
 static_library('rtld', src,
     name_prefix : '',
     include_directories : [ inc ],
-    dependencies : [ bezos_dep, posix_dep ],
+    link_args : [ '-T', meson.current_source_dir() / 'data/rtld.ld' ],
+    link_depends : [ 'data/rtld.ld' ],
+    dependencies : [ bezos_dep ],
     install : true,
 )
 
 shared_library('rtld.so', src,
     name_prefix : '',
     include_directories : [ inc ],
-    dependencies : [ bezos_dep, posix_dep ],
+    link_args : [ '-T', meson.current_source_dir() / 'data/rtld.ld' ],
+    link_depends : [ 'data/rtld.ld' ],
+    dependencies : [ bezos_dep ],
     install : true,
 )
+endif
 
 meson.override_dependency('sysapi', sysapi_dep)
 
