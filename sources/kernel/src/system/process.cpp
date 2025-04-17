@@ -335,21 +335,23 @@ OsStatus sys2::Process::vmemMapFile(System *system, OsVmemMapInfo info, vfs2::IF
         return status;
     }
 
-    uintptr_t base = info.DstAddress;
+    uintptr_t size = sm::roundup(info.Size, x64::kPageSize);
     km::VirtualRange vm;
 
-    if (base == 0) {
-        if (OsStatus status = mPageTables.reserve(info.Size, &vm)) {
+    if (info.DstAddress == 0) {
+        if (OsStatus status = mPageTables.reserve(size, &vm)) {
             return status;
         }
-        base = (uintptr_t)vm.front;
     } else {
-        if (base % x64::kPageSize != 0) {
+        if (info.DstAddress % x64::kPageSize != 0) {
             return OsStatusInvalidInput;
         }
 
+        vm = km::VirtualRange::of((void*)info.DstAddress, size);
+        mPageTables.reserve(vm);
+
 #if 0
-        for (auto i = base; i < base + info.Size; i += x64::kPageSize) {
+        for (auto i = base; i < base + size; i += x64::kPageSize) {
             if (mMemoryObjects.contains((void*)i)) {
                 return OsStatusInvalidInput;
             }
@@ -359,9 +361,9 @@ OsStatus sys2::Process::vmemMapFile(System *system, OsVmemMapInfo info, vfs2::IF
 
     km::MemoryRange range = fileMapping->range();
     km::AddressMapping mapping {
-        .vaddr = (void*)base,
+        .vaddr = vm.front,
         .paddr = range.front,
-        .size = info.Size,
+        .size = size,
     };
     if (OsStatus status = mPageTables.reserve(mapping, km::PageFlags::eUserAll, km::MemoryType::eWriteBack)) {
         system->mPageAllocator->release(range);
@@ -377,6 +379,10 @@ OsStatus sys2::Process::vmemMapFile(System *system, OsVmemMapInfo info, vfs2::IF
 }
 
 OsStatus sys2::Process::vmemMapProcess(OsVmemMapInfo info, sm::RcuSharedPtr<Process> process, km::VirtualRange *mapping) {
+    if (info.Size % x64::kPageSize != 0) {
+        return OsStatusInvalidInput;
+    }
+
     // TODO: can leak on error path
     if (info.DstAddress == 0) {
         km::VirtualRange range;
@@ -716,6 +722,7 @@ OsStatus sys2::SysVmemMap(InvokeContext *context, OsVmemMapInfo info, void **out
         if (OsStatus status = dstProcess->vmemMapProcess(info, srcProcess, &vm)) {
             return status;
         }
+
         *outVmem = (void*)vm.front;
         return OsStatusSuccess;
     } else if (OS_HANDLE_TYPE(info.Source) == eOsHandleDevice) {
@@ -734,7 +741,7 @@ OsStatus sys2::SysVmemMap(InvokeContext *context, OsVmemMapInfo info, void **out
 
         km::VirtualRange vm;
 
-        if (OsStatus status = context->process->vmemMapFile(context->system, info, static_cast<vfs2::IFileHandle*>(vfsHandle), &vm)) {
+        if (OsStatus status = dstProcess->vmemMapFile(context->system, info, static_cast<vfs2::IFileHandle*>(vfsHandle), &vm)) {
             return status;
         }
 

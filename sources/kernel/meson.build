@@ -364,6 +364,7 @@ test_shim_src = [
     'test/test_shim.cpp',
     'test/ports.cpp',
     'src/delay.cpp',
+    'src/util/format.cpp',
 ]
 
 fs_test_src = [

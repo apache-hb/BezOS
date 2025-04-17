@@ -292,8 +292,9 @@ static OsStatus MapProgram(sys2::InvokeContext *invoke, OsDeviceHandle file, OsP
         if (ph.type != elf::ProgramHeaderType::eLoad) {
             continue;
         }
+        void *guestAddress = nullptr;
 
-        OsMemoryAccess access = eOsMemoryReserve;
+        OsMemoryAccess access = eOsMemoryCommit;
         if (ph.flags & (1 << 0))
             access |= eOsMemoryExecute;
         if (ph.flags & (1 << 1))
@@ -301,16 +302,18 @@ static OsStatus MapProgram(sys2::InvokeContext *invoke, OsDeviceHandle file, OsP
         if (ph.flags & (1 << 2))
             access |= eOsMemoryRead;
 
-        OsVmemCreateInfo vmemGuestCreateInfo {
-            .Size = sm::roundup(ph.memsz, x64::kPageSize),
-            .Access = access | eOsMemoryDiscard,
-            .Process = process,
-        };
-        void *guestAddress = nullptr;
+        if (ph.memsz != ph.filesz) {
+            OsVmemCreateInfo vmemGuestCreateInfo {
+                .BaseAddress = (void*)ph.vaddr,
+                .Size = sm::roundup(ph.memsz, x64::kPageSize),
+                .Access = access | eOsMemoryDiscard,
+                .Process = process,
+            };
 
-        if (OsStatus status = sys2::SysVmemCreate(invoke, vmemGuestCreateInfo, &guestAddress)) {
-            KmDebugMessage("[ELF] Failed to create guest memory. ", status, "\n");
-            return status;
+            if (OsStatus status = sys2::SysVmemCreate(invoke, vmemGuestCreateInfo, &guestAddress)) {
+                KmDebugMessage("[ELF] Failed to create guest memory. ", status, "\n");
+                return status;
+            }
         }
 
         OsVmemMapInfo vmemGuestMapInfo {

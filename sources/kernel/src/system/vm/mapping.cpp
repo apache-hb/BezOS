@@ -24,9 +24,17 @@ OsStatus sys2::MapFileToMemory(sm::RcuDomain *domain, vfs2::IFileHandle *fileHan
     };
     vfs2::ReadResult result {};
     if (OsStatus status = fileHandle->read(read, &result)) {
+        KmDebugMessage("[VMEM] Failed to read file mapping: ", status, "\n");
         pmm->release(memory);
         (void)ptes->unmap(mapping.virtualRange());
         return status;
+    }
+
+    if (result.read != size) {
+        KmDebugMessage("[VMEM] Mapping could not be fully read: ", result.read, " != ", size, "\n");
+        pmm->release(memory);
+        (void)ptes->unmap(mapping.virtualRange());
+        return OsStatusInvalidData;
     }
 
     auto object = sm::rcuMakeShared<FileMapping>(domain, mapping);
