@@ -1,12 +1,13 @@
 #pragma once
 
+#include "fs2/base.hpp"
 #include "fs2/device.hpp"
 #include "fs2/interface.hpp"
 
 namespace vfs2 {
     template<typename T>
     concept FileNodeStat = requires (T it) {
-        { it.stat(std::declval<NodeStat*>()) } -> std::same_as<OsStatus>;
+        { it.stat(std::declval<OsFileInfo*>()) } -> std::same_as<OsStatus>;
     };
 
     template<typename T>
@@ -34,8 +35,26 @@ namespace vfs2 {
             return HandleInfo { mNode, kOsFileGuid };
         }
 
-        virtual OsStatus stat(NodeStat *stat) override {
-            return mNode->stat(stat);
+
+        virtual OsStatus stat(OsFileInfo *info) override {
+            return mNode->stat(info);
+        }
+
+        OsStatus stat(void *data, size_t size) {
+            if ((size != sizeof(OsFileInfo)) || (data == nullptr)) {
+                return OsStatusInvalidData;
+            }
+
+            return stat(static_cast<OsFileInfo*>(data));
+        }
+
+        virtual OsStatus invoke(IInvokeContext *, uint64_t method, void *data, size_t size) override {
+            switch (method) {
+            case eOsFileStat:
+                return stat(data, size);
+            default:
+                return OsStatusFunctionNotSupported;
+            }
         }
 
         virtual OsStatus read(ReadRequest request, ReadResult *result) override {

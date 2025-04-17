@@ -244,15 +244,22 @@ static OsStatus DeviceReadArray(sys2::InvokeContext *invoke, OsDeviceHandle file
     return OsStatusSuccess;
 }
 
-static OsStatus MapProgramSection(sys2::InvokeContext *invoke, OsDeviceHandle file, const elf::ProgramHeader& ph, OsProcessHandle process, void **guest, void **host) {
-
-}
-
 static OsStatus MapProgram(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProcessHandle process, uintptr_t *entry) {
     elf::Header header{};
+    OsFileInfo info{};
+
+    if (OsStatus status = sys2::SysDeviceInvoke(invoke, file, eOsFileStat, &info, sizeof(info))) {
+        KmDebugMessage("[ELF] Failed to stat file info. ", status, "\n");
+        return status;
+    }
 
     if (OsStatus status = DeviceReadObject(invoke, file, 0, &header)) {
         KmDebugMessage("[ELF] Failed to read elf header. ", status, "\n");
+        return status;
+    }
+
+    if (OsStatus status = km::detail::ValidateElfHeader(header, info.LogicalSize)) {
+        KmDebugMessage("[ELF] Invalid ELF header. ", status, "\n");
         return status;
     }
 
@@ -276,8 +283,7 @@ static OsStatus MapProgram(sys2::InvokeContext *invoke, OsDeviceHandle file, OsP
         return status;
     }
 
-    uintptr_t start = (header.entry - (uintptr_t)loadMemory.front);
-    if (start == 0) {
+    if (header.entry == 0) {
         KmDebugMessage("[ELF] Invalid entry point\n");
         return OsStatusInvalidData;
     }
@@ -312,6 +318,7 @@ static OsStatus MapProgram(sys2::InvokeContext *invoke, OsDeviceHandle file, OsP
             .DstAddress = ph.vaddr,
             .Size = sm::roundup(ph.filesz, x64::kPageSize),
             .Access = access,
+            .Source = file,
             .Process = process,
         };
 
@@ -321,7 +328,7 @@ static OsStatus MapProgram(sys2::InvokeContext *invoke, OsDeviceHandle file, OsP
         }
     }
 
-    *entry = start;
+    *entry = header.entry;
     return OsStatusSuccess;
 }
 
@@ -377,8 +384,8 @@ OsStatus km::LoadElf2(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProces
     }
 
     stackCreateInfo = OsVmemCreateInfo {
-        .Size = 0x1000 + 0x4000 + 0x1000,
-        .Access = eOsMemoryRead | eOsMemoryWrite,
+        .Size = 0x4000,
+        .Access = eOsMemoryRead | eOsMemoryWrite | eOsMemoryDiscard,
         .Process = hProcess,
     };
 
@@ -386,7 +393,7 @@ OsStatus km::LoadElf2(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProces
         goto cleanup;
     }
 
-    base = (uintptr_t)stackGuestAddress + 0x1000 + 0x4000;
+    base = (uintptr_t)stackGuestAddress + 0x4000;
 
     startInfo = (OsClientStartInfo*)startInfoAddress;
 
@@ -412,6 +419,7 @@ OsStatus km::LoadElf2(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProces
     }
 
     *process = hProcess;
+    *thread = hThread;
 
 cleanup:
     if (hThread != OS_HANDLE_INVALID) {
@@ -474,7 +482,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory& memo
 }
 
 OsStatus km::LoadElfProgram(vfs2::IFileHandle *file, SystemMemory& memory, Process *process, Program *result) {
-    vfs2::NodeStat stat{};
+    OsFileInfo stat{};
     if (OsStatus status = file->stat(&stat)) {
         return status;
     }
@@ -484,7 +492,7 @@ OsStatus km::LoadElfProgram(vfs2::IFileHandle *file, SystemMemory& memory, Proce
         return status;
     }
 
-    if (OsStatus status = detail::ValidateElfHeader(header, stat.logical)) {
+    if (OsStatus status = detail::ValidateElfHeader(header, stat.LogicalSize)) {
         return status;
     }
 

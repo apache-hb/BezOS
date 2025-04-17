@@ -52,6 +52,7 @@
 #include "smp.hpp"
 #include "std/static_vector.hpp"
 #include "syscall.hpp"
+#include "system/invoke.hpp"
 #include "system/process.hpp"
 #include "system/schedule.hpp"
 #include "system/system.hpp"
@@ -74,6 +75,7 @@
 #include "kernel.hpp"
 
 #include "user/sysapi.hpp"
+#include "util/defer.hpp"
 #include "util/memory.hpp"
 
 #include "fs2/vfs.hpp"
@@ -985,6 +987,35 @@ static void MountVolatileFolder() {
     }
 }
 
+static OsStatus LaunchInitProcess(sys2::InvokeContext *invoke, OsProcessHandle *process) {
+    OsDeviceHandle device = OS_HANDLE_INVALID;
+    OsThreadHandle thread = OS_HANDLE_INVALID;
+    sys2::DeviceOpenInfo createInfo {
+        .path = vfs2::BuildPath("Init", "init.elf"),
+        .flags = eOsDeviceOpenExisting,
+        .interface = kOsFileGuid,
+    };
+
+    if (OsStatus status = sys2::SysDeviceOpen(invoke, createInfo, &device)) {
+        KmDebugMessage("[VFS] Failed to create device ", createInfo.path, ": ", status, "\n");
+        return status;
+    }
+
+    defer { sys2::SysDeviceClose(invoke, device); };
+
+    if (OsStatus status = km::LoadElf2(invoke, device, process, &thread)) {
+        KmDebugMessage("[VFS] Failed to load init process: ", status, "\n");
+        return status;
+    }
+
+    if (OsStatus status = sys2::SysThreadSuspend(invoke, thread, false)) {
+        KmDebugMessage("[VFS] Failed to resume init thread: ", status, "\n");
+        return status;
+    }
+
+    return OsStatusSuccess;
+}
+
 static OsStatus LaunchInitProcess(ProcessLaunch *launch) {
     std::unique_ptr<vfs2::IFileHandle> init = nullptr;
     if (OsStatus status = gVfsRoot->open(vfs2::BuildPath("Init", "init.elf"), std::out_ptr(init))) {
@@ -1346,6 +1377,13 @@ static OsStatus KernelMasterTask() {
     KmDebugMessage("[INIT] Kernel master task.\n");
 
     LaunchThread(&NotificationWork, gNotificationStream, "NOTIFY");
+
+    OsProcessHandle hInit = OS_HANDLE_INVALID;
+    sys2::InvokeContext invoke { gSysSystem, sys2::GetCurrentProcess(), sys2::GetCurrentThread() };
+    if (OsStatus status = LaunchInitProcess(&invoke, &hInit)) {
+        KmDebugMessage("[INIT] Failed to create INIT process: ", status, "\n");
+        KM_PANIC("Failed to create init process.");
+    }
 
     KmIdle();
 

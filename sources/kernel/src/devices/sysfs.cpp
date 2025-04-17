@@ -144,15 +144,16 @@ OsStatus dev::AcpiTable::identify(OsIdentifyInfo *info) {
     return OsStatusSuccess;
 }
 
-OsStatus dev::AcpiTable::stat(vfs2::NodeStat *stat) {
+OsStatus dev::AcpiTable::stat(OsFileInfo *stat) {
     km::VirtualRange range = km::VirtualRange::of((void*)mHeader, mHeader->length);
 
-    *stat = vfs2::NodeStat {
-        .logical = range.size(),
-        .blksize = 1,
-        .blocks = range.size(),
-        .access = sys2::NodeAccess::R,
+    *stat = OsFileInfo {
+        .LogicalSize = range.size(),
+        .BlockSize = 1,
+        .BlockCount = range.size(),
     };
+
+    stdr::copy(mHeader->signature, stat->Name);
 
     return OsStatusSuccess;
 }
@@ -183,15 +184,15 @@ OsStatus dev::AcpiRoot::identify(OsIdentifyInfo *info) {
     return OsStatusSuccess;
 }
 
-OsStatus dev::AcpiRoot::stat(vfs2::NodeStat *stat) {
+OsStatus dev::AcpiRoot::stat(OsFileInfo *stat) {
     const acpi::RsdpLocator *rsdp = mTables->locator();
     km::VirtualRange range = km::VirtualRange::of((void*)rsdp, sizeof(acpi::RsdpLocator));
 
-    *stat = vfs2::NodeStat {
-        .logical = range.size(),
-        .blksize = 1,
-        .blocks = range.size(),
-        .access = sys2::NodeAccess::R,
+    *stat = OsFileInfo {
+        .Name = "ACPI",
+        .LogicalSize = range.size(),
+        .BlockSize = 1,
+        .BlockCount = range.size(),
     };
 
     return OsStatusSuccess;
@@ -240,15 +241,17 @@ OsStatus dev::SmBiosTable::identify(OsIdentifyInfo *info) {
     return OsStatusSuccess;
 }
 
-OsStatus dev::SmBiosTable::stat(vfs2::NodeStat *stat) {
+OsStatus dev::SmBiosTable::stat(OsFileInfo *stat) {
     km::VirtualRange range = km::VirtualRange::of((void*)mHeader, km::smbios::GetStructSize(mHeader));
 
-    *stat = vfs2::NodeStat {
-        .logical = range.size(),
-        .blksize = 1,
-        .blocks = range.size(),
-        .access = sys2::NodeAccess::R,
+    *stat = OsFileInfo {
+        .LogicalSize = range.size(),
+        .BlockSize = 1,
+        .BlockCount = range.size(),
     };
+
+    auto name = km::smbios::TableName(mHeader->type);
+    stdr::copy(name, stat->Name);
 
     return OsStatusSuccess;
 }
@@ -279,14 +282,14 @@ OsStatus dev::SmBiosRoot::identify(OsIdentifyInfo *info) {
     return OsStatusSuccess;
 }
 
-OsStatus dev::SmBiosRoot::stat(vfs2::NodeStat *stat) {
+OsStatus dev::SmBiosRoot::stat(OsFileInfo *stat) {
     km::VirtualRange tables = mTables->tables;
 
-    *stat = vfs2::NodeStat {
-        .logical = tables.size(),
-        .blksize = 1,
-        .blocks = tables.size(),
-        .access = sys2::NodeAccess::R,
+    *stat = OsFileInfo {
+        .Name = "SMBIOS",
+        .LogicalSize = tables.size(),
+        .BlockSize = 1,
+        .BlockCount = tables.size(),
     };
 
     return OsStatusSuccess;

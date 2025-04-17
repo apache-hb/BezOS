@@ -8,7 +8,7 @@ namespace vfs2 {
     public:
         virtual ~IFileHandle() = default;
 
-        virtual OsStatus stat(NodeStat *stat) = 0;
+        virtual OsStatus stat(OsFileInfo *info) = 0;
     };
 
     /// @note All interfaces of @a kOsFolderGuid must implement this interface.

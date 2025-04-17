@@ -30,7 +30,7 @@ TEST(RamFsTest, DestroyNode) {
     {
         // eventually we want to return not found for this, but for now
         // just check that we dont crash.
-        NodeStat stat{};
+        OsFileInfo stat{};
         OsStatus status = inventory->stat(&stat);
         ASSERT_EQ(OsStatusSuccess, status);
     }

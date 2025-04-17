@@ -628,6 +628,7 @@ OsStatus sys2::SysVmemMap(InvokeContext *context, OsVmemMapInfo info, void **out
 
         auto device = hDevice->getDevice();
         auto vfsHandle = device->getVfsHandle();
+
         vfs2::HandleInfo hInfo = vfsHandle->info();
         if (hInfo.guid != sm::uuid(kOsFileGuid)) {
             return OsStatusInvalidHandle;

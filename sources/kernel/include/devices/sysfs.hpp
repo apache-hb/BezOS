@@ -42,7 +42,7 @@ namespace dev {
         OsStatus interfaces(OsIdentifyInterfaceList *list);
         OsStatus identify(OsIdentifyInfo *info);
 
-        OsStatus stat(vfs2::NodeStat *stat);
+        OsStatus stat(OsFileInfo *stat);
         OsStatus read(vfs2::ReadRequest request, vfs2::ReadResult *result);
     };
 
@@ -56,7 +56,7 @@ namespace dev {
         OsStatus interfaces(OsIdentifyInterfaceList *list);
         OsStatus identify(OsIdentifyInfo *info);
 
-        OsStatus stat(vfs2::NodeStat *stat);
+        OsStatus stat(OsFileInfo *stat);
         OsStatus read(vfs2::ReadRequest request, vfs2::ReadResult *result);
 
         static sm::RcuSharedPtr<AcpiRoot> create(sm::RcuDomain *domain, const acpi::AcpiTables *tables);
@@ -73,7 +73,7 @@ namespace dev {
         OsStatus interfaces(OsIdentifyInterfaceList *list);
         OsStatus identify(OsIdentifyInfo *info);
 
-        OsStatus stat(vfs2::NodeStat *stat);
+        OsStatus stat(OsFileInfo *stat);
         OsStatus read(vfs2::ReadRequest request, vfs2::ReadResult *result);
     };
 
@@ -89,7 +89,7 @@ namespace dev {
         OsStatus interfaces(OsIdentifyInterfaceList *list);
         OsStatus identify(OsIdentifyInfo *info);
 
-        OsStatus stat(vfs2::NodeStat *stat);
+        OsStatus stat(OsFileInfo *stat);
         OsStatus read(vfs2::ReadRequest request, vfs2::ReadResult *result);
 
         static sm::RcuSharedPtr<SmBiosRoot> create(sm::RcuDomain *domain, const km::SmBiosTables *tables);

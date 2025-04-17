@@ -233,13 +233,13 @@ OsStatus TarFsFile::read(ReadRequest request, ReadResult *result) {
     return OsStatusSuccess;
 }
 
-OsStatus TarFsFile::stat(NodeStat *result) {
+OsStatus TarFsFile::stat(OsFileInfo *result) {
     size_t size = mHeader.getSize();
 
-    *result = NodeStat {
-        .logical = size,
-        .blksize = kTarBlockSize,
-        .blocks = sm::roundup(size, kTarBlockSize) / kTarBlockSize,
+    *result = OsFileInfo {
+        .LogicalSize = size,
+        .BlockSize = kTarBlockSize,
+        .BlockCount = sm::roundup(size, kTarBlockSize) / kTarBlockSize,
     };
 
     return OsStatusSuccess;

@@ -145,6 +145,7 @@ namespace sys2 {
     OsStatus SysThreadCreate(InvokeContext *context, OsThreadCreateInfo info, OsThreadHandle *handle);
     OsStatus SysThreadDestroy(InvokeContext *context, OsThreadState reason, OsThreadHandle handle);
     OsStatus SysThreadStat(InvokeContext *context, OsThreadHandle handle, OsThreadInfo *result);
+    OsStatus SysThreadSuspend(InvokeContext *context, OsThreadHandle handle, bool suspend);
 
     // tx
 

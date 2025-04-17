@@ -45,7 +45,7 @@ namespace vfs2 {
 
         OsStatus read(ReadRequest request, ReadResult *result);
         OsStatus write(WriteRequest request, WriteResult *result);
-        OsStatus stat(NodeStat *stat);
+        OsStatus stat(OsFileInfo *stat);
     };
 
     class RamFsFolder : public RamFsNode, public FolderMixin {

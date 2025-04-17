@@ -172,7 +172,7 @@ namespace vfs2 {
         OsStatus query(sm::uuid uuid, const void *data, size_t size, IHandle **handle) override;
         OsStatus interfaces(OsIdentifyInterfaceList *list);
 
-        OsStatus stat(NodeStat *result);
+        OsStatus stat(OsFileInfo *stat);
         OsStatus read(ReadRequest request, ReadResult *result);
     };
 

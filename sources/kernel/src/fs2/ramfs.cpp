@@ -44,12 +44,12 @@ OsStatus RamFsFile::write(WriteRequest request, WriteResult *result) {
     return OsStatusSuccess;
 }
 
-OsStatus RamFsFile::stat(NodeStat *stat) {
+OsStatus RamFsFile::stat(OsFileInfo *stat) {
     stdx::SharedLock lock(mLock);
-    *stat = NodeStat {
-        .logical = mData.count(),
-        .blksize = 1,
-        .blocks = mData.count(),
+    *stat = OsFileInfo {
+        .LogicalSize = mData.count(),
+        .BlockSize = 1,
+        .BlockCount = mData.count(),
     };
     return OsStatusSuccess;
 }

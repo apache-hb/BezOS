@@ -48,6 +48,9 @@ namespace sys2 {
 
         void setSignalStatus(OsStatus status);
 
+        OsStatus suspend();
+        OsStatus resume();
+
         OsStatus destroy(System *system, OsThreadState reason);
 
         bool cmpxchgState(OsThreadState &expected, OsThreadState newState) {

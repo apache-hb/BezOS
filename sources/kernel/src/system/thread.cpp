@@ -114,6 +114,41 @@ sys2::Thread::Thread(OsThreadCreateInfo createInfo, sm::RcuWeakPtr<Process> proc
     }
 }
 
+OsStatus sys2::Thread::suspend() {
+    OsThreadState expected = eOsThreadQueued;
+    while (!cmpxchgState(expected, eOsThreadSuspended)) {
+        switch (expected) {
+        case eOsThreadSuspended:
+            return OsStatusSuccess;
+        case eOsThreadWaiting:
+        case eOsThreadRunning:
+            continue;
+        case eOsThreadFinished:
+        case eOsThreadOrphaned:
+            return OsStatusCompleted;
+        }
+    }
+
+    return OsStatusSuccess;
+}
+
+OsStatus sys2::Thread::resume() {
+    OsThreadState expected = eOsThreadSuspended;
+    while (!cmpxchgState(expected, eOsThreadQueued)) {
+        switch (expected) {
+        case eOsThreadQueued:
+        case eOsThreadWaiting:
+        case eOsThreadRunning:
+            return OsStatusSuccess;
+        case eOsThreadFinished:
+        case eOsThreadOrphaned:
+            return OsStatusCompleted;
+        }
+    }
+
+    return OsStatusSuccess;
+}
+
 OsStatus sys2::Thread::destroy(System *system, OsThreadState reason) {
     if (OsStatus status = system->releaseStack(mKernelStack)) {
         return status;
@@ -257,4 +292,22 @@ OsStatus sys2::SysThreadStat(InvokeContext *context, OsThreadHandle handle, OsTh
     *result = stat;
 
     return OsStatusSuccess;
+}
+
+OsStatus sys2::SysThreadSuspend(InvokeContext *context, OsThreadHandle handle, bool suspend) {
+    ThreadHandle *hThread = nullptr;
+    if (OsStatus status = context->process->findHandle(handle, &hThread)) {
+        return status;
+    }
+
+    if (!hThread->hasAccess(ThreadAccess::eSuspend)) {
+        return OsStatusAccessDenied;
+    }
+
+    sm::RcuSharedPtr<Thread> thread = hThread->getThread();
+    if (suspend) {
+        return thread->suspend();
+    } else {
+        return thread->resume();
+    }
 }

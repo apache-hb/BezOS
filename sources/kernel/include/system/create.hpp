@@ -75,18 +75,6 @@ namespace sys2 {
 
     };
 
-    struct VmemCreateInfo {
-
-    };
-
-    struct VmemReleaseInfo {
-
-    };
-
-    struct VmemMapInfo {
-
-    };
-
     // process
 
     struct ProcessCreateInfo {
