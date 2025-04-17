@@ -278,7 +278,9 @@ static OsStatus MapProgram(sys2::InvokeContext *invoke, OsDeviceHandle file, OsP
 
     for (elf::ProgramHeader ph : phArray) {
         OsVmemMapInfo vmemGuestMapInfo {
-            .Size = sm::roundup(ph.memsz, x64::kPageSize),
+            .SrcAddress = (uintptr_t)ph.offset,
+            .DstAddress = ph.vaddr,
+            .Size = sm::roundup(ph.filesz, x64::kPageSize),
             .Access = eOsMemoryReserve,
             .Process = process,
         };
