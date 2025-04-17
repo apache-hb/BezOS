@@ -42,12 +42,6 @@ namespace km {
 
     class CallContext {
     public:
-        /// @brief Get the calling process.
-        Process *process();
-
-        /// @brief Get the calling thread.
-        Thread *thread();
-
         /// @brief Get the address space allocator for the calling process.
         PageTables& ptes();
 

@@ -128,6 +128,31 @@ void disablebp(int bpno) {
 	breakpoint(NULL, bpno, NULL);
 }
 
+static void SetRegOperand(mcontext_t *mc, x86_reg reg, uint64_t value) {
+    switch (reg) {
+    case X86_REG_RAX: mc->gregs[REG_RAX] = value; break;
+    case X86_REG_RBX: mc->gregs[REG_RBX] = value; break;
+    case X86_REG_RCX: mc->gregs[REG_RCX] = value; break;
+    case X86_REG_RDX: mc->gregs[REG_RDX] = value; break;
+    case X86_REG_RSI: mc->gregs[REG_RSI] = value; break;
+    case X86_REG_RDI: mc->gregs[REG_RDI] = value; break;
+    case X86_REG_RBP: mc->gregs[REG_RBP] = value; break;
+    case X86_REG_RSP: mc->gregs[REG_RSP] = value; break;
+    case X86_REG_R8: mc->gregs[REG_R8] = value; break;
+    case X86_REG_R9: mc->gregs[REG_R9] = value; break;
+    case X86_REG_R10: mc->gregs[REG_R10] = value; break;
+    case X86_REG_R11: mc->gregs[REG_R11] = value; break;
+    case X86_REG_R12: mc->gregs[REG_R12] = value; break;
+    case X86_REG_R13: mc->gregs[REG_R13] = value; break;
+    case X86_REG_R14: mc->gregs[REG_R14] = value; break;
+    case X86_REG_R15: mc->gregs[REG_R15] = value; break;
+    default:
+        KmDebugMessageUnlocked("unknown register ", std::to_underlying(reg), "\n");
+        exit(1);
+        return;
+    }
+}
+
 static uint64_t EvalRegOperand(const mcontext_t *mc, x86_reg reg) {
     switch (reg) {
     case X86_REG_RAX: return mc->gregs[REG_RAX];
@@ -205,6 +230,39 @@ void kmtest::Machine::wrmsr(mcontext_t *mcontext, cs_insn *insn) {
     exit(1);
 }
 
+void kmtest::Machine::rdcr(mcontext_t *mcontext, cs_insn *insn) {
+    cs_detail *detail = insn->detail;
+    cs_x86 *x86 = &detail->x86;
+    cs_x86_op *op = x86->operands;
+
+    for (uint8_t i = 0; i < x86->op_count; i++) {
+        if (op[i].type == X86_OP_REG) {
+            if (op[i].reg != X86_REG_CR3) {
+                SetRegOperand(mcontext, op[i].reg, 0x0);
+                mcontext->gregs[REG_RIP] += insn[0].size;
+                return;
+            }
+        }
+    }
+}
+
+void kmtest::Machine::wrcr(mcontext_t *mcontext, cs_insn *insn) {
+    cs_detail *detail = insn->detail;
+    cs_x86 *x86 = &detail->x86;
+    cs_x86_op *op = x86->operands;
+
+    for (uint8_t i = 0; i < x86->op_count; i++) {
+        if (op[i].type == X86_OP_REG) {
+            if (op[i].reg != X86_REG_CR3) {
+                // nothing for now
+                mcontext->gregs[REG_RIP] += insn[0].size;
+                return;
+            }
+        }
+    }
+}
+
+
 void kmtest::Machine::mmio(mcontext_t *mcontext, cs_insn *insn) {
     cs_detail *detail = insn->detail;
     cs_x86 *x86 = &detail->x86;
@@ -216,6 +274,22 @@ void kmtest::Machine::mmio(mcontext_t *mcontext, cs_insn *insn) {
     // on its mmio area so all our cases should be covered by this.
     //
     for (uint8_t i = 0; i < x86->op_count; i++) {
+        if (op[i].type == X86_OP_REG) {
+            if (op[i].reg == X86_REG_CR3) {
+                //
+                // This is a CR3 read/write, we need to handle this
+                // specially.
+                //
+                if (op[i].access == CS_AC_WRITE) {
+                    wrcr(mcontext, insn);
+                    return;
+                } else if (op[i].access == CS_AC_READ) {
+                    rdcr(mcontext, insn);
+                    return;
+                }
+            }
+        }
+
         if (op[i].type == X86_OP_MEM) {
             //
             // See if we have a memory operand that is in an mmio region

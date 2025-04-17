@@ -103,7 +103,7 @@ public:
     }
 };
 
-TEST_F(ScheduleTest, StatThread) {
+TEST_F(ScheduleTest, StartThread) {
     init(1, 64);
 
     auto i = invoke();
@@ -126,7 +126,8 @@ TEST_F(ScheduleTest, StatThread) {
     km::IsrContext current{};
     km::IsrContext next{};
     ASSERT_NE(local->tasks(), 0) << "No tasks in the local schedule";
-    ASSERT_TRUE(local->scheduleNextContext(&current, &next)) << "Thread was not scheduled";
+    void *syscallStack = nullptr;
+    ASSERT_TRUE(local->scheduleNextContext(&current, &next, &syscallStack)) << "Thread was not scheduled";
     ASSERT_TRUE(local->currentThread() != nullptr) << "Current thread was not set";
 }
 
@@ -160,13 +161,14 @@ TEST_F(ScheduleTest, StartManyThreads) {
 
     km::IsrContext current{};
     km::IsrContext next{};
+    void *syscallStack = nullptr;
 
-    ASSERT_TRUE(local->scheduleNextContext(&current, &next)) << "Thread was not scheduled";
+    ASSERT_TRUE(local->scheduleNextContext(&current, &next, &syscallStack)) << "Thread was not scheduled";
     ASSERT_TRUE(local->currentThread() != nullptr) << "Current thread was not set";
 
     for (size_t i = 0; i < 1000; i++) {
         EXPECT_EQ(local->tasks(), tasks - 1) << "No tasks were forgotten " << i;
-        ASSERT_TRUE(local->scheduleNextContext(&current, &next)) << "Thread was not scheduled";
+        ASSERT_TRUE(local->scheduleNextContext(&current, &next, &syscallStack)) << "Thread was not scheduled";
         ASSERT_TRUE(local->currentThread() != nullptr) << "Current thread was not set";
     }
 }
@@ -208,8 +210,9 @@ TEST_F(ScheduleTest, MultiThreadSchedule) {
             km::IsrContext current{ .rip = UINTPTR_MAX };
             for (size_t j = 0; j < 1000; j++) {
                 km::IsrContext next{};
+                void *syscallStack = nullptr;
                 ASSERT_NE(local->tasks(), 0) << "No tasks in the local schedule";
-                ASSERT_TRUE(local->scheduleNextContext(&current, &next)) << "Thread was not scheduled";
+                ASSERT_TRUE(local->scheduleNextContext(&current, &next, &syscallStack)) << "Thread was not scheduled";
                 ASSERT_TRUE(local->currentThread() != nullptr) << "Current thread was not set";
 
                 ASSERT_NE(current.rip, next.rip) << "Thread was not scheduled";

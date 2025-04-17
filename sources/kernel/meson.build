@@ -239,12 +239,13 @@ src = [
     system_src,
 
     # Process
-    'src/process/system.cpp',
-    'src/process/object.cpp',
-    'src/process/process.cpp',
-    'src/process/thread.cpp',
-    'src/process/schedule.cpp',
-    'src/process/schedule.S',
+    # 'src/process/system.cpp',
+    # 'src/process/object.cpp',
+    # 'src/process/process.cpp',
+    # 'src/process/thread.cpp',
+    # 'src/process/schedule.cpp',
+    # 'src/process/schedule.S',
+
     'src/syscall.cpp',
     'src/processor.cpp',
 
@@ -568,23 +569,23 @@ testcases = {
     'layout': [
         'test/memory/layout.cpp',
     ],
-    'elf': [
-        'test/elf.cpp',
-        'src/memory.cpp',
-        'src/elf/elf.cpp',
-        'src/util/memory.cpp',
-        'src/boot.cpp',
-        'src/xsave.cpp',
-        'src/util/cpuid.cpp',
+    # 'elf': [
+    #     'test/elf.cpp',
+    #     'src/memory.cpp',
+    #     'src/elf/elf.cpp',
+    #     'src/util/memory.cpp',
+    #     'src/boot.cpp',
+    #     'src/xsave.cpp',
+    #     'src/util/cpuid.cpp',
 
-        'src/std/rcu.cpp',
-        'src/std/rcuptr.cpp',
+    #     'src/std/rcu.cpp',
+    #     'src/std/rcuptr.cpp',
 
-        'src/process/system.cpp',
-        'src/process/process.cpp',
-        'src/process/thread.cpp',
-        'src/process/object.cpp',
-    ],
+    #     'src/process/system.cpp',
+    #     'src/process/process.cpp',
+    #     'src/process/thread.cpp',
+    #     'src/process/object.cpp',
+    # ],
     'memory': [
         'test/memory.cpp',
         'src/memory.cpp',
@@ -601,22 +602,22 @@ testcases = {
     'page table list': [
         'test/memory/table_list.cpp',
     ],
-    'process': [
-        'test/process/process.cpp',
+    # 'process': [
+    #     'test/process/process.cpp',
 
-        'src/process/system.cpp',
-        'src/process/process.cpp',
-        'src/process/thread.cpp',
-        'src/process/object.cpp',
+    #     'src/process/system.cpp',
+    #     'src/process/process.cpp',
+    #     'src/process/thread.cpp',
+    #     'src/process/object.cpp',
 
-        'src/memory.cpp',
-        'src/xsave.cpp',
-        'src/util/cpuid.cpp',
-        'src/elf/elf.cpp',
+    #     'src/memory.cpp',
+    #     'src/xsave.cpp',
+    #     'src/util/cpuid.cpp',
+    #     'src/elf/elf.cpp',
 
-        'src/util/memory.cpp',
-        'src/boot.cpp',
-    ],
+    #     'src/util/memory.cpp',
+    #     'src/boot.cpp',
+    # ],
     'system': [
         'test/system/system.cpp',
     ],

@@ -3,7 +3,6 @@
 #include "gdt.hpp"
 #include "kernel.hpp"
 #include "log.hpp"
-#include "process/schedule.hpp"
 #include "thread.hpp"
 #include "user/user.hpp"
 
@@ -75,14 +74,6 @@ void km::EnterUserMode(km::IsrContext state) {
           [mrdx] "m" (state.rdx)
         : "memory", "cc"
     );
-}
-
-km::Process *km::CallContext::process() {
-    return km::GetCurrentProcess();
-}
-
-km::Thread *km::CallContext::thread() {
-    return km::GetCurrentThread();
 }
 
 km::PageTables& km::CallContext::ptes() {

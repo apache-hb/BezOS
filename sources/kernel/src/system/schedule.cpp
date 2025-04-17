@@ -32,12 +32,12 @@ static sys2::RegisterSet SaveThreadContext(km::IsrContext *context) {
         .rsp = context->rsp,
         .rip = context->rip,
         .rflags = context->rflags,
+        .cs = context->cs,
+        .ss = context->ss,
     };
 }
 
-static km::IsrContext LoadThreadContext(sys2::RegisterSet& regs, bool supervisor) {
-    uint64_t cs = supervisor ? (GDT_64BIT_CODE * 0x8) : ((GDT_64BIT_USER_CODE * 0x8) | 0b11);
-    uint64_t ss = supervisor ? (GDT_64BIT_DATA * 0x8) : ((GDT_64BIT_USER_DATA * 0x8) | 0b11);
+static km::IsrContext LoadThreadContext(sys2::RegisterSet& regs) {
     return km::IsrContext {
         .rax = regs.rax,
         .rbx = regs.rbx,
@@ -59,10 +59,10 @@ static km::IsrContext LoadThreadContext(sys2::RegisterSet& regs, bool supervisor
         .error = 0,
 
         .rip = regs.rip,
-        .cs = cs,
+        .cs = regs.cs,
         .rflags = regs.rflags,
         .rsp = regs.rsp,
-        .ss = ss,
+        .ss = regs.ss,
     };
 }
 
@@ -155,7 +155,7 @@ bool sys2::CpuLocalSchedule::reschedule() {
     return false;
 }
 
-bool sys2::CpuLocalSchedule::scheduleNextContext(km::IsrContext *context, km::IsrContext *next) {
+bool sys2::CpuLocalSchedule::scheduleNextContext(km::IsrContext *context, km::IsrContext *next, void **syscallStack) {
     auto oldThread = mCurrent;
 
     if (!reschedule()) {
@@ -170,7 +170,8 @@ bool sys2::CpuLocalSchedule::scheduleNextContext(km::IsrContext *context, km::Is
     auto newThread = mCurrent;
 
     auto newRegs = newThread->loadState();
-    *next = LoadThreadContext(newRegs, newThread->isSupervisor());
+    *next = LoadThreadContext(newRegs);
+    *syscallStack = newThread->getKernelStack().baseAddress();
     return true;
 }
 

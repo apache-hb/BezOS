@@ -1,4 +1,5 @@
 #include "system/thread.hpp"
+#include "gdt.h"
 #include "system/process.hpp"
 
 #include "system/system.hpp"
@@ -6,7 +7,10 @@
 #include "xsave.hpp"
 #include <bezos/handle.h>
 
-static sys2::RegisterSet MakeRegisterSet(OsMachineContext machine) {
+static sys2::RegisterSet MakeRegisterSet(OsMachineContext machine, bool supervisor) {
+    uint64_t cs = supervisor ? (GDT_64BIT_CODE * 0x8) : ((GDT_64BIT_USER_CODE * 0x8) | 0b11);
+    uint64_t ss = supervisor ? (GDT_64BIT_DATA * 0x8) : ((GDT_64BIT_USER_DATA * 0x8) | 0b11);
+
     return sys2::RegisterSet {
         .rax = machine.rax,
         .rbx = machine.rbx,
@@ -26,6 +30,8 @@ static sys2::RegisterSet MakeRegisterSet(OsMachineContext machine) {
         .rsp = machine.rsp,
         .rip = machine.rip,
         .rflags = 0x202,
+        .cs = cs,
+        .ss = ss,
     };
 }
 
@@ -106,7 +112,7 @@ sys2::Thread::Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process>
 sys2::Thread::Thread(OsThreadCreateInfo createInfo, sm::RcuWeakPtr<Process> process, sys2::XSaveState fpuState, km::StackMapping kernelStack)
     : Super(createInfo.Name)
     , mProcess(process)
-    , mCpuState(MakeRegisterSet(createInfo.CpuState))
+    , mCpuState(MakeRegisterSet(createInfo.CpuState, isSupervisor()))
     , mFpuState(std::move(fpuState))
     , mTlsAddress(createInfo.TlsAddress)
     , mKernelStack(kernelStack)

@@ -94,6 +94,8 @@ namespace kmtest {
         void rdmsr(mcontext_t *mcontext, cs_insn *insn);
         void wrmsr(mcontext_t *mcontext, cs_insn *insn);
         void mmio(mcontext_t *mcontext, cs_insn *insn);
+        void rdcr(mcontext_t *mcontext, cs_insn *insn);
+        void wrcr(mcontext_t *mcontext, cs_insn *insn);
 
         void initAddressSpace();
 

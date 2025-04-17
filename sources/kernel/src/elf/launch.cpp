@@ -16,6 +16,7 @@
 #include "util/format.hpp"
 #include "util/defer.hpp"
 
+#if 0
 static const elf::ProgramHeader *FindProgramHeader(std::span<const elf::ProgramHeader> phs, elf::ProgramHeaderType type) {
     for (const auto& header : phs) {
         if (header.type == type) {
@@ -205,6 +206,7 @@ static OsStatus CreateThread(km::Process *process, km::SystemMemory& memory, km:
     *result = main;
     return OsStatusSuccess;
 }
+#endif
 
 template<typename T>
 static OsStatus DeviceReadObject(sys2::InvokeContext *invoke, OsDeviceHandle file, OsSize offset, T *result) {
@@ -447,6 +449,7 @@ cleanup:
     return status;
 }
 
+#if 0
 OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory& memory, SystemObjects& objects, ProcessLaunch *result) {
     auto node = vfs2::GetHandleNode(file.get());
     vfs2::NodeInfo nInfo = node->info();
@@ -659,3 +662,4 @@ OsStatus km::LoadElfProgram(vfs2::IFileHandle *file, SystemMemory& memory, Proce
 
     return OsStatusSuccess;
 }
+#endif

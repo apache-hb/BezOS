@@ -35,7 +35,6 @@ KmSystemEntry:
 
     movq %gs:(%r9), %rsp
 
-    /* disabled for now, we need to have a syscall stack per thread rather than per cpu */
     sti
 
     /* Construct a SystemCallRegisterSet */
@@ -84,7 +83,6 @@ KmSystemEntry:
 
     /* Clear the interrupt flag before swapgs, otherwise an interrupt */
     /* could observe the violated precondition. */
-    /* disabled for now, see above */
     cli
 
     swapgs

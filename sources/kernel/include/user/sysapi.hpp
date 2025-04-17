@@ -24,9 +24,7 @@ namespace km {
 
     struct System {
         vfs2::VfsRoot *vfs;
-        SystemObjects *objects;
         SystemMemory *memory;
-        Scheduler *scheduler;
         Clock *clock;
         sys2::System *sys;
     };

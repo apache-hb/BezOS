@@ -74,7 +74,7 @@ namespace sys2 {
 
         bool reschedule();
 
-        bool scheduleNextContext(km::IsrContext *context, km::IsrContext *next);
+        bool scheduleNextContext(km::IsrContext *context, km::IsrContext *next, void **syscallStack);
 
         size_t tasks() {
             return mQueue.size_approx();

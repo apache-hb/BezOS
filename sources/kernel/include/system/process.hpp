@@ -80,6 +80,7 @@ namespace sys2 {
         OsStatus resolveObject(sm::RcuSharedPtr<IObject> object, OsHandleAccess access, OsHandle *handle);
 
         OsStatus resolveAddress(const void *address, sm::RcuSharedPtr<IMemoryObject> *object);
+        km::AddressSpace& addressSpace() { return mPageTables; }
 
         template<typename T>
         OsStatus findHandle(OsHandle handle, T **result) {

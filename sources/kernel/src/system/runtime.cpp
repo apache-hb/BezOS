@@ -27,7 +27,12 @@ static bool ScheduleInner(km::IsrContext *context, km::IsrContext *newContext) {
 
     // If we find a new thread to schedule then return its context to switch to it
     if (sys2::CpuLocalSchedule *schedule = tlsSchedule.get()) {
-        return schedule->scheduleNextContext(context, newContext);
+        void *syscallStack = nullptr;
+        if (schedule->scheduleNextContext(context, newContext, &syscallStack)) {
+            // We need to set the syscall stack pointer to the new thread's stack
+            tlsKernelStack = syscallStack;
+            return true;
+        }
     }
 
     return false;

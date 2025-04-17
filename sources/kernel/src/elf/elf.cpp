@@ -76,6 +76,7 @@ OsStatus km::detail::ValidateElfHeader(const elf::Header &header, size_t size) {
     return OsStatusSuccess;
 }
 
+#if 0
 static OsStatus InitNewThreadTls(km::TlsInit tlsInit, km::SystemMemory& memory, km::Process *process, km::TlsMapping *mapping) {
     if (!tlsInit.present()) {
         return OsStatusSuccess;
@@ -135,3 +136,4 @@ OsStatus km::TlsInit::createTls(SystemMemory& memory, Thread *thread) {
 OsStatus km::Program::createTls(SystemMemory& memory, Thread *thread) {
     return tlsInit.createTls(memory, thread);
 }
+#endif

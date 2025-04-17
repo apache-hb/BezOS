@@ -43,7 +43,6 @@
 #include "memory.hpp"
 #include "notify.hpp"
 #include "panic.hpp"
-#include "process/thread.hpp"
 #include "processor.hpp"
 #include "process/system.hpp"
 #include "process/process.hpp"
@@ -821,23 +820,17 @@ static void NormalizeProcessorState() {
 }
 
 static vfs2::VfsRoot *gVfsRoot = nullptr;
-static SystemObjects *gSystemObjects = nullptr;
 static NotificationStream *gNotificationStream = nullptr;
-static Scheduler *gScheduler = nullptr;
 static SystemMemory *gMemory = nullptr;
 static constinit Clock gClock{};
-
-Scheduler *km::GetScheduler() {
-    return gScheduler;
-}
 
 SystemMemory *km::GetSystemMemory() {
     return gMemory;
 }
 
 AddressSpace& km::GetProcessPageManager() {
-    if (auto process = GetCurrentProcess()) {
-        return *process->ptes;
+    if (auto process = sys2::GetCurrentProcess()) {
+        return process->addressSpace();
     }
 
     KM_PANIC("Process page manager not available.");
@@ -1016,16 +1009,6 @@ static OsStatus LaunchInitProcess(sys2::InvokeContext *invoke, OsProcessHandle *
     return OsStatusSuccess;
 }
 
-static OsStatus LaunchInitProcess(ProcessLaunch *launch) {
-    std::unique_ptr<vfs2::IFileHandle> init = nullptr;
-    if (OsStatus status = gVfsRoot->open(vfs2::BuildPath("Init", "init.elf"), std::out_ptr(init))) {
-        KmDebugMessage("[VFS] Failed to find '/Init/init.elf' ", status, "\n");
-        KM_PANIC("Failed to open init process.");
-    }
-
-    return LoadElf(std::move(init), *gMemory, *gSystemObjects, launch);
-}
-
 static std::tuple<std::optional<HypervisorInfo>, bool> QueryHostHypervisor() {
     std::optional<HypervisorInfo> hvInfo = GetHypervisorInfo();
     bool hasDebugPort = false;
@@ -1042,6 +1025,7 @@ static std::tuple<std::optional<HypervisorInfo>, bool> QueryHostHypervisor() {
 }
 
 static void AddHandleSystemCalls() {
+#if 0
     AddSystemCall(eOsCallHandleWait, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t userHandle = regs->arg0;
         uint64_t userTimeout = regs->arg1;
@@ -1058,14 +1042,15 @@ static void AddHandleSystemCalls() {
 
         return CallOk(0zu);
     });
+#endif
 }
 
 static void AddDebugSystemCalls() {
     AddSystemCall(eOsCallDebugMessage, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t userMessage = regs->arg0;
         OsDebugMessageInfo messageInfo{};
-        Process *process = context->process();
-        Thread *thread = context->thread();
+        auto process = sys2::GetCurrentProcess();
+        auto thread = sys2::GetCurrentThread();
 
         if (OsStatus status = context->readObject(userMessage, &messageInfo)) {
             return CallError(status);
@@ -1084,7 +1069,7 @@ static void AddDebugSystemCalls() {
                 continue;
             }
 
-            KmDebugMessageUnlocked("[DBG:", process->internalId(), ":", thread->internalId(), "] ", message, "\n");
+            KmDebugMessageUnlocked("[DBG:", process->getName(), ":", thread->getName(), "] ", message, "\n");
         }
 
         UnlockDebugLog();
@@ -1110,9 +1095,7 @@ sys2::System *km::GetSysSystem() {
 static km::System GetSystem() {
     return km::System {
         .vfs = gVfsRoot,
-        .objects = gSystemObjects,
         .memory = gMemory,
-        .scheduler = gScheduler,
         .clock = &gClock,
         .sys = gSysSystem,
     };
@@ -1190,6 +1173,7 @@ static void AddNodeSystemCalls() {
 }
 
 static void AddMutexSystemCalls() {
+#if 0
     AddSystemCall(eOsCallMutexCreate, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         km::System system = GetSystem();
         return um::MutexCreate(&system, context, regs);
@@ -1209,6 +1193,7 @@ static void AddMutexSystemCalls() {
         km::System system = GetSystem();
         return um::MutexUnlock(&system, context, regs);
     });
+#endif
 }
 
 static void AddProcessSystemCalls() {
@@ -1272,11 +1257,10 @@ static void EnableUmip(bool enable) {
 
 static void StartupSmp(const acpi::AcpiTables& rsdt, bool umip, km::ApicTimer *apicTimer) {
     //
+    // TODO:
     // Create the scheduler and system objects before we startup SMP so that
     // the AP cores have a scheduler to attach to.
     //
-    gScheduler = new Scheduler();
-    gSystemObjects = new SystemObjects(gMemory, gVfsRoot);
 
     std::atomic_flag launchScheduler = ATOMIC_FLAG_INIT;
 
@@ -1286,20 +1270,16 @@ static void StartupSmp(const acpi::AcpiTables& rsdt, bool umip, km::ApicTimer *a
         // scheduler is ready to be used. The scheduler requires the system to switch
         // to using cpu local isr tables, which must happen after smp startup.
         //
-        InitSmp(*GetSystemMemory(), GetCpuLocalApic(), rsdt, [&launchScheduler, umip, apicTimer](LocalIsrTable *ist, IApic *apic) {
+        InitSmp(*GetSystemMemory(), GetCpuLocalApic(), rsdt, [&launchScheduler, umip, apicTimer](LocalIsrTable *ist, IApic *) {
             while (!launchScheduler.test()) {
                 _mm_pause();
             }
 
             EnableUmip(umip);
 
-            if constexpr (um::kUseNewSystem) {
-                auto *scheduler = gSysSystem->scheduler();
-                scheduler->initCpuSchedule(km::GetCurrentCoreId(), 128);
-                sys2::EnterScheduler(ist, gSysSystem->getCpuSchedule(km::GetCurrentCoreId()), apicTimer);
-            } else {
-                km::ScheduleWork(ist, apic);
-            }
+            auto *scheduler = gSysSystem->scheduler();
+            scheduler->initCpuSchedule(km::GetCurrentCoreId(), 128);
+            sys2::EnterScheduler(ist, gSysSystem->getCpuSchedule(km::GetCurrentCoreId()), apicTimer);
         });
     }
 
@@ -1321,51 +1301,28 @@ static void StartupSmp(const acpi::AcpiTables& rsdt, bool umip, km::ApicTimer *a
 static constexpr size_t kKernelStackSize = 0x4000;
 
 static OsStatus LaunchThread(OsStatus(*entry)(void*), void *arg, stdx::String name) {
-    if constexpr (um::kUseNewSystem) {
-        km::StackMapping stack{};
-        if (OsStatus status = gSysSystem->mapSystemStack(&stack)) {
-            return status;
-        }
-
-        OsThreadCreateInfo createInfo {
-            .CpuState = {
-                .rdi = (uintptr_t)arg,
-                .rbp = (uintptr_t)stack.baseAddress(),
-                .rsp = (uintptr_t)stack.baseAddress(),
-                .rip = (uintptr_t)entry,
-            },
-            .Flags = eOsThreadRunning,
-        };
-        strncpy(createInfo.Name, name.cString(), sizeof(createInfo.Name));
-        OsThreadHandle thread = OS_HANDLE_INVALID;
-        sys2::InvokeContext invoke { gSysSystem, sys2::GetCurrentProcess(), sys2::GetCurrentThread() };
-        if (OsStatus status = sys2::SysThreadCreate(&invoke, createInfo, &thread)) {
-            return status;
-        }
-
-        return OsStatusSuccess;
-    } else {
-        stdx::String stackName = name + " STACK";
-        Process *process = GetCurrentProcess();
-        Thread *thread = gSystemObjects->createThread(std::move(name), process);
-
-        km::AddressMapping mapping = gMemory->allocateStack(kKernelStackSize);
-
-        thread->userStack = mapping;
-        thread->state = km::IsrContext {
-            .rdi = (uintptr_t)arg,
-            .rbp = (uintptr_t)mapping.vaddr + kKernelStackSize,
-            .rip = (uintptr_t)entry,
-            .cs = SystemGdt::eLongModeCode * 0x8,
-            .rflags = 0x202,
-            .rsp = (uintptr_t)mapping.vaddr + kKernelStackSize,
-            .ss = SystemGdt::eLongModeData * 0x8,
-        };
-
-        gScheduler->addWorkItem(thread);
-
-        return OsStatusSuccess;
+    km::StackMapping stack{};
+    if (OsStatus status = gSysSystem->mapSystemStack(&stack)) {
+        return status;
     }
+
+    OsThreadCreateInfo createInfo {
+        .CpuState = {
+            .rdi = (uintptr_t)arg,
+            .rbp = (uintptr_t)stack.baseAddress(),
+            .rsp = (uintptr_t)stack.baseAddress(),
+            .rip = (uintptr_t)entry,
+        },
+        .Flags = eOsThreadRunning,
+    };
+    strncpy(createInfo.Name, name.cString(), sizeof(createInfo.Name));
+    OsThreadHandle thread = OS_HANDLE_INVALID;
+    sys2::InvokeContext invoke { gSysSystem, sys2::GetCurrentProcess(), sys2::GetCurrentThread() };
+    if (OsStatus status = sys2::SysThreadCreate(&invoke, createInfo, &thread)) {
+        return status;
+    }
+
+    return OsStatusSuccess;
 }
 
 static OsStatus NotificationWork(void *) {
@@ -1394,14 +1351,6 @@ static OsStatus KernelMasterTask() {
     }
 
     KmIdle();
-
-    ProcessLaunch init{};
-    if (OsStatus status = LaunchInitProcess(&init)) {
-        KmDebugMessage("[INIT] Failed to launch init process: ", status, "\n");
-        KM_PANIC("Failed to launch init process.");
-    }
-
-    gScheduler->addWorkItem(init.main);
 
     while (true) {
         //
@@ -1498,75 +1447,42 @@ static void CreateDisplayDevice() {
 }
 
 [[noreturn]]
-static void LaunchKernelProcess(LocalIsrTable *table, IApic *apic, km::ApicTimer *apicTimer) {
-    if constexpr (um::kUseNewSystem) {
-        sys2::ProcessCreateInfo createInfo {
-            .name = "SYSTEM",
-            .state = eOsProcessSupervisor,
-        };
-        std::unique_ptr<sys2::ProcessHandle> system;
-        OsStatus status = sys2::SysCreateRootProcess(gSysSystem, createInfo, std::out_ptr(system));
-        if (status != OsStatusSuccess) {
-            KmDebugMessage("[INIT] Failed to create SYSTEM process: ", status, "\n");
-            KM_PANIC("Failed to create SYSTEM process.");
-        }
-
-        KmDebugMessage("[INIT] Create master task.\n");
-
-        km::AddressMapping mapping = gMemory->allocateStack(kKernelStackSize);
-        OsThreadCreateInfo threadInfo {
-            .Name = "SYSTEM MASTER TASK",
-            .CpuState = {
-                .rbp = (uintptr_t)((uintptr_t)mapping.vaddr + kKernelStackSize),
-                .rsp = (uintptr_t)((uintptr_t)mapping.vaddr + kKernelStackSize),
-                .rip = (uintptr_t)&KernelMasterTask,
-            },
-            .Flags = eOsThreadRunning,
-        };
-
-        OsThreadHandle thread = OS_HANDLE_INVALID;
-        sys2::InvokeContext invoke { gSysSystem, system->getProcess() };
-        status = sys2::SysThreadCreate(&invoke, threadInfo, &thread);
-        if (status != OsStatusSuccess) {
-            KmDebugMessage("[INIT] Failed to create SYSTEM thread: ", status, "\n");
-            KM_PANIC("Failed to create SYSTEM thread.");
-        }
-
-        KmDebugMessage("[INIT] Create master thread.\n");
-
-        sys2::EnterScheduler(table, gSysSystem->getCpuSchedule(km::GetCurrentCoreId()), apicTimer);
-    } else {
-        MemoryRange pteMemory = gMemory->pmmAllocate(256);
-
-        ProcessCreateInfo createInfo {
-            .parent = nullptr,
-            .privilege = x64::Privilege::eSupervisor,
-        };
-
-        Process *process = nullptr;
-        OsStatus status = gSystemObjects->createProcess("SYSTEM", pteMemory, createInfo, &process);
-        if (status != OsStatusSuccess) {
-            KmDebugMessage("[INIT] Failed to create SYSTEM process: ", status, "\n");
-            KM_PANIC("Failed to create SYSTEM process.");
-        }
-
-        Thread *thread = gSystemObjects->createThread("SYSTEM MASTER TASK", process);
-
-        km::AddressMapping mapping = gMemory->allocateStack(kKernelStackSize);
-
-        thread->userStack = mapping;
-        thread->state = km::IsrContext {
-            .rbp = (uintptr_t)((uintptr_t)mapping.vaddr + kKernelStackSize),
-            .rip = (uintptr_t)&KernelMasterTask,
-            .cs = SystemGdt::eLongModeCode * 0x8,
-            .rflags = 0x202,
-            .rsp = (uintptr_t)((uintptr_t)mapping.vaddr + kKernelStackSize),
-            .ss = SystemGdt::eLongModeData * 0x8,
-        };
-
-        gScheduler->addWorkItem(thread);
-        ScheduleWork(table, apic);
+static void LaunchKernelProcess(LocalIsrTable *table, km::ApicTimer *apicTimer) {
+    sys2::ProcessCreateInfo createInfo {
+        .name = "SYSTEM",
+        .state = eOsProcessSupervisor,
+    };
+    std::unique_ptr<sys2::ProcessHandle> system;
+    OsStatus status = sys2::SysCreateRootProcess(gSysSystem, createInfo, std::out_ptr(system));
+    if (status != OsStatusSuccess) {
+        KmDebugMessage("[INIT] Failed to create SYSTEM process: ", status, "\n");
+        KM_PANIC("Failed to create SYSTEM process.");
     }
+
+    KmDebugMessage("[INIT] Create master task.\n");
+
+    km::AddressMapping mapping = gMemory->allocateStack(kKernelStackSize);
+    OsThreadCreateInfo threadInfo {
+        .Name = "SYSTEM MASTER TASK",
+        .CpuState = {
+            .rbp = (uintptr_t)((uintptr_t)mapping.vaddr + kKernelStackSize),
+            .rsp = (uintptr_t)((uintptr_t)mapping.vaddr + kKernelStackSize),
+            .rip = (uintptr_t)&KernelMasterTask,
+        },
+        .Flags = eOsThreadRunning,
+    };
+
+    OsThreadHandle thread = OS_HANDLE_INVALID;
+    sys2::InvokeContext invoke { gSysSystem, system->getProcess() };
+    status = sys2::SysThreadCreate(&invoke, threadInfo, &thread);
+    if (status != OsStatusSuccess) {
+        KmDebugMessage("[INIT] Failed to create SYSTEM thread: ", status, "\n");
+        KM_PANIC("Failed to create SYSTEM thread.");
+    }
+
+    KmDebugMessage("[INIT] Create master thread.\n");
+
+    sys2::EnterScheduler(table, gSysSystem->getCpuSchedule(km::GetCurrentCoreId()), apicTimer);
 }
 
 static void InitVfs() {
@@ -1696,6 +1612,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     pci::ProbeConfigSpace(config.get(), rsdt.mcfg());
 
+#if 0
     // TODO: this wastes some physical memory
     {
         static constexpr size_t kSchedulerMemorySize = 0x10000;
@@ -1708,14 +1625,11 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
         InitSchedulerMemory(ptr, kSchedulerMemorySize);
     }
+#endif
 
     km::LocalIsrTable *ist = GetLocalIsrTable();
 
-    if constexpr (um::kUseNewSystem) {
-        InitSystem(ist);
-    } else {
-        InstallSchedulerIsr(ist);
-    }
+    InitSystem(ist);
 
     const IsrEntry *timerInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
         km::IApic *apic = km::GetCpuLocalApic();
@@ -1805,7 +1719,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     ConfigurePs2Controller(rsdt, ioApicSet, lapic.pointer(), ist);
     CreateDisplayDevice();
 
-    LaunchKernelProcess(ist, lapic.pointer(), &apicTimer);
+    LaunchKernelProcess(ist, &apicTimer);
 
     KM_PANIC("Test bugcheck.");
 

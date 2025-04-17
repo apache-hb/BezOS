@@ -24,6 +24,9 @@ namespace arch {
         reg_t rsp;
         reg_t rip;
         reg_t rflags;
+
+        reg_t cs;
+        reg_t ss;
     };
 
     struct LongJumpStateX86_64 {
