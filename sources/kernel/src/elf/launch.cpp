@@ -9,7 +9,10 @@
 
 #include "memory/range.hpp"
 
+#include <bezos/start.h>
+
 #include "process/thread.hpp"
+#include "system/system.hpp"
 #include "util/format.hpp"
 #include "util/defer.hpp"
 
@@ -201,6 +204,133 @@ static OsStatus CreateThread(km::Process *process, km::SystemMemory& memory, km:
     main->state = regs;
     *result = main;
     return OsStatusSuccess;
+}
+
+template<typename T>
+static OsStatus DeviceReadObject(sys2::InvokeContext *invoke, OsDeviceHandle file, OsSize offset, T *result) {
+    OsDeviceReadRequest request {
+        .BufferFront = (void*)result,
+        .BufferBack = (void*)((char*)result + sizeof(T)),
+        .Offset = offset,
+    };
+    OsSize read = 0;
+    if (OsStatus status = sys2::SysDeviceRead(invoke, file, request, &read)) {
+        return status;
+    }
+
+    if (read != sizeof(T)) {
+        return OsStatusInvalidData;
+    }
+
+    return OsStatusSuccess;
+}
+
+template<typename T>
+static OsStatus DeviceReadArray(sys2::InvokeContext *invoke, OsDeviceHandle file, OsSize offset, std::span<T> result) {
+    OsDeviceReadRequest request {
+        .BufferFront = (void*)result.data(),
+        .BufferBack = (void*)((char*)result.data() + result.size_bytes()),
+        .Offset = offset,
+    };
+    OsSize read = 0;
+    if (OsStatus status = sys2::SysDeviceRead(invoke, file, request, &read)) {
+        return status;
+    }
+
+    if (read != result.size_bytes()) {
+        return OsStatusInvalidData;
+    }
+
+    return OsStatusSuccess;
+}
+
+static OsStatus MapProgramSection(sys2::InvokeContext *invoke, OsDeviceHandle file, const elf::ProgramHeader& ph, OsProcessHandle process, void **guest, void **host) {
+
+}
+
+static OsStatus MapProgram(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProcessHandle process) {
+    elf::Header header{};
+
+    if (OsStatus status = DeviceReadObject(invoke, file, 0, &header)) {
+        KmDebugMessage("[ELF] Failed to read elf header. ", status, "\n");
+        return status;
+    }
+
+    size_t phOff = header.phoff;
+    size_t phNum = header.phnum;
+    size_t phEnt = header.phentsize;
+    if (phOff == 0 || phNum == 0 || phEnt == 0) {
+        KmDebugMessage("[ELF] Invalid program header\n");
+        return OsStatusInvalidData;
+    }
+
+    sm::FixedArray<elf::ProgramHeader> phArray{phNum};
+    if (OsStatus status = DeviceReadArray(invoke, file, phOff, std::span(phArray))) {
+        KmDebugMessage("[ELF] Failed to read program headers. ", status, "\n");
+        return status;
+    }
+
+    km::VirtualRange loadMemory{};
+    if (OsStatus status = km::detail::LoadMemorySize(phArray, &loadMemory)) {
+        KmDebugMessage("[ELF] Failed to calculate load memory size. ", status, "\n");
+        return status;
+    }
+
+    for (elf::ProgramHeader ph : phArray) {
+        OsVmemMapInfo vmemGuestMapInfo {
+            .Size = sm::roundup(ph.memsz, x64::kPageSize),
+            .Access = eOsMemoryReserve,
+            .Process = process,
+        };
+
+        void *guestAddress = nullptr;
+        if (OsStatus status = sys2::SysVmemMap(invoke, vmemGuestMapInfo, &guestAddress)) {
+            KmDebugMessage("[ELF] Failed to map guest memory. ", status, "\n");
+            return status;
+        }
+
+    }
+}
+
+OsStatus km::LoadElf2(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProcessHandle *process, OsThreadHandle *thread) {
+    OsProcessCreateInfo processCreateInfo {
+        .Name = "INIT.ELF",
+        .Flags = eOsProcessSuspended,
+    };
+
+    OsProcessHandle hProcess = OS_HANDLE_INVALID;
+    if (OsStatus status = sys2::SysProcessCreate(invoke, processCreateInfo, &hProcess)) {
+        return status;
+    }
+
+    OsVmemCreateInfo vmemCreateInfo {
+        .Size = 0x1000,
+        .Access = eOsMemoryRead,
+        .Process = hProcess,
+    };
+
+    void *startInfoGuestAddress = nullptr;
+
+    if (OsStatus status = sys2::SysVmemCreate(invoke, vmemCreateInfo, &startInfoGuestAddress)) {
+        sys2::SysProcessDestroy(invoke, hProcess, 0, eOsProcessExited);
+        return status;
+    }
+
+    void *startInfoAddress = nullptr;
+
+    OsVmemMapInfo vmemMapInfo {
+        .SrcAddress = (uintptr_t)startInfoGuestAddress,
+        .Size = 0x1000,
+        .Access = eOsMemoryRead | eOsMemoryWrite,
+        .Process = hProcess,
+    };
+
+    if (OsStatus status = sys2::SysVmemMap(invoke, vmemMapInfo, &startInfoAddress)) {
+        sys2::SysProcessDestroy(invoke, hProcess, 0, eOsProcessExited);
+        return status;
+    }
+
+    OsClientStartInfo *startInfo = (OsClientStartInfo*)startInfoAddress;
 }
 
 OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory& memory, SystemObjects& objects, ProcessLaunch *result) {

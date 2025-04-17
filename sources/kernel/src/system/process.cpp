@@ -323,6 +323,7 @@ OsStatus sys2::Process::vmemMapProcess(OsVmemMapInfo info, sm::RcuSharedPtr<Proc
             .paddr = backing,
             .size = x64::kPageSize,
         };
+
         if (OsStatus status = mPageTables.reserve(mapping, km::PageFlags::eUserAll, km::MemoryType::eWriteBack)) {
             return status;
         }

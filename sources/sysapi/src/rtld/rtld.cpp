@@ -1,5 +1,7 @@
 #include "rtld/rtld.h"
 
+#include "bezos/facility/fs.h"
+#include "bezos/facility/vmem.h"
 #include "rtld/arch/sparcv9/relocation.hpp"
 #include "rtld/arch/x86_64/relocation.hpp"
 #include "rtld/load/elf.hpp"
@@ -8,7 +10,6 @@
 #include <bezos/facility/process.h>
 #include <bezos/start.h>
 
-#include <memory>
 #include <stdlib.h>
 
 namespace elf = os::elf;
@@ -55,14 +56,6 @@ static OsStatus DeviceRead(OsDeviceHandle device, OsSize offset, OsSize count, T
     return OsStatusSuccess;
 }
 
-template<typename T>
-using UniquePtr = std::unique_ptr<T, decltype(&free)>;
-
-template<typename T>
-static UniquePtr<T[]> UniqueArray(size_t count) {
-    return UniquePtr<T[]> { (T*)malloc(sizeof(T) * count), &free };
-}
-
 static OsStatus ElfReadHeader(OsDeviceHandle device, elf::Type expected, elf::Header *result) {
     elf::Header header;
     if (OsStatus status = DeviceRead(device, 0, &header)) {
@@ -92,6 +85,7 @@ static OsStatus ElfReadHeader(OsDeviceHandle device, elf::Type expected, elf::He
     return OsStatusSuccess;
 }
 
+#if 0
 [[maybe_unused]]
 static os::IRelocator *GetRelocator(os::elf::Machine machine) {
     if (machine == os::elf::Machine::eAmd64) {
@@ -149,6 +143,47 @@ OsStatus RtldSoOpen(const RtldSoLoadInfo *LoadInfo, RtldSo *OutObject) {
     if (phs == nullptr) {
         status = OsStatusOutOfMemory;
         goto error;
+    }
+
+error:
+    return status;
+}
+
+OsStatus RtldSoClose(RtldSo *Object) {
+    return OsStatusSuccess;
+}
+
+OsStatus RtldSoSymbol(RtldSo *Object, RtldSoName Name, void **OutAddress) {
+    return OsStatusNotFound;
+}
+#endif
+
+OsStatus RtldStartProgram(const RtldStartInfo *StartInfo) {
+    elf::Header header;
+    OsStatus status = OsStatusSuccess;
+
+    if ((status = ElfReadHeader(StartInfo->Program, elf::Type::eExecutable, &header))) {
+        return status;
+    }
+
+    if (header.phnum == 0) {
+        return OsStatusInvalidData;
+    }
+
+error:
+    return status;
+}
+
+OsStatus RtldSoOpen(const RtldSoLoadInfo *LoadInfo, RtldSo *OutObject) {
+    elf::Header header;
+    OsStatus status = OsStatusSuccess;
+
+    if ((status = ElfReadHeader(LoadInfo->Object, elf::Type::eShared, &header))) {
+        return status;
+    }
+
+    if (header.phnum == 0) {
+        return OsStatusInvalidData;
     }
 
 error:

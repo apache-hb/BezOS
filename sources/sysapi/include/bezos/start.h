@@ -7,14 +7,9 @@ extern "C" {
 #endif
 
 struct OsClientStartInfo {
-    const struct OsProcessParam *ArgsBegin;
-    const struct OsProcessParam *ArgsEnd;
-
-    OsProcessHandle ThisProcess;
-    OsProcessHandle ParentProcess;
+    const void *TlsInit;
+    size_t TlsInitSize;
 };
-
-OS_EXTERN OS_NORETURN void ClientStart(const struct OsClientStartInfo *);
 
 #ifdef __cplusplus
 }

@@ -192,6 +192,8 @@ namespace km {
 
     OsStatus LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory& memory, SystemObjects& objects, ProcessLaunch *result);
 
+    OsStatus LoadElf2(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProcessHandle *process, OsThreadHandle *thread);
+
     /// @brief Load an ELF program from a file.
     ///
     /// Accepts a process argument to map the file into and to

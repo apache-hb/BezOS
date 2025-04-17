@@ -19,6 +19,10 @@ enum {
     eOsIteratorNext = UINT64_C(0),
 };
 
+enum {
+    eOsFileStat = UINT64_C(0),
+};
+
 struct OsIteratorNext {
     OsNodeHandle Node;
 };
@@ -32,5 +36,19 @@ struct OsStreamCreateInfo {
 };
 
 extern OsStatus OsStreamCreate(struct OsStreamCreateInfo CreateInfo, OsDeviceHandle *OutStream);
+
+typedef uint64_t OsInode;
+
+struct OsFileInfo {
+    OsUtf8Char Name[OS_OBJECT_NAME_MAX];
+    OsSize LogicalSize;
+    OsSize BlockSize;
+    OsSize BlockCount;
+    OsInode Inode;
+};
+
+inline OsStatus OsInvokeFileStat(OsDeviceHandle Handle, struct OsFileInfo *Info) {
+    return OsDeviceInvoke(Handle, eOsFileStat, Info, sizeof(*Info));
+}
 
 OS_END_API

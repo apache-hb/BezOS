@@ -48,9 +48,11 @@ struct OsVmemMapInfo {
     OsAddress SrcAddress;
 
     /// @brief The address in the destination process to map the memory at.
+    /// @brief Set to 0 to let the system choose the address.
     OsAddress DstAddress;
 
     /// @brief The amount of memory to map.
+    /// @note Set to 0 to map the entire object.
     OsSize Size;
 
     /// @brief The access flags the memory should be mapped with.
