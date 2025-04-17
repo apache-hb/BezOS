@@ -328,14 +328,19 @@ static OsStatus MapProgram(sys2::InvokeContext *invoke, OsDeviceHandle file, OsP
 OsStatus km::LoadElf2(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProcessHandle *process, OsThreadHandle *thread) {
     OsStatus status = OsStatusSuccess;
     OsProcessHandle hProcess = OS_HANDLE_INVALID;
+    OsThreadHandle hThread = OS_HANDLE_INVALID;
     void *startInfoGuestAddress = nullptr;
     void *startInfoAddress = nullptr;
+    void *stackGuestAddress = nullptr;
     OsClientStartInfo *startInfo = nullptr;
     uintptr_t entry = 0;
+    uintptr_t base = 0;
 
     OsProcessCreateInfo processCreateInfo;
+    OsThreadCreateInfo threadCreateInfo;
     OsVmemCreateInfo vmemCreateInfo;
     OsVmemMapInfo vmemMapInfo;
+    OsVmemCreateInfo stackCreateInfo;
 
     processCreateInfo = OsProcessCreateInfo {
         .Name = "INIT.ELF",
@@ -371,6 +376,18 @@ OsStatus km::LoadElf2(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProces
         goto cleanup;
     }
 
+    stackCreateInfo = OsVmemCreateInfo {
+        .Size = 0x1000 + 0x4000 + 0x1000,
+        .Access = eOsMemoryRead | eOsMemoryWrite,
+        .Process = hProcess,
+    };
+
+    if ((status = sys2::SysVmemCreate(invoke, stackCreateInfo, &stackGuestAddress))) {
+        goto cleanup;
+    }
+
+    base = (uintptr_t)stackGuestAddress + 0x1000 + 0x4000;
+
     startInfo = (OsClientStartInfo*)startInfoAddress;
 
     *startInfo = OsClientStartInfo {
@@ -378,9 +395,29 @@ OsStatus km::LoadElf2(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProces
         .TlsInitSize = 0,
     };
 
+    threadCreateInfo = OsThreadCreateInfo {
+        .Name = "INIT MASTER THREAD",
+        .CpuState = OsMachineContext {
+            .rdi = (uintptr_t)startInfoGuestAddress,
+            .rbp = base,
+            .rsp = base,
+            .rip = entry,
+        },
+        .Flags = eOsThreadSuspended,
+        .Process = hProcess,
+    };
+
+    if ((status = sys2::SysThreadCreate(invoke, threadCreateInfo, &hThread))) {
+        goto cleanup;
+    }
+
     *process = hProcess;
 
 cleanup:
+    if (hThread != OS_HANDLE_INVALID) {
+        sys2::SysThreadDestroy(invoke, eOsThreadFinished, hThread);
+    }
+
     if (startInfoAddress != nullptr) {
         sys2::SysVmemRelease(invoke, startInfoAddress, 0x1000);
     }
