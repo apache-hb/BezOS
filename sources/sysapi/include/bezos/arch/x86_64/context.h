@@ -27,8 +27,6 @@ struct OsMachineContext {
     OsReg r13;
     OsReg r14;
     OsReg r15;
-
-    OsReg fs;
 };
 
 #ifdef __cplusplus

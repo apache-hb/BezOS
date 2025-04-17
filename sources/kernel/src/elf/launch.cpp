@@ -248,7 +248,7 @@ static OsStatus MapProgramSection(sys2::InvokeContext *invoke, OsDeviceHandle fi
 
 }
 
-static OsStatus MapProgram(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProcessHandle process) {
+static OsStatus MapProgram(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProcessHandle process, uintptr_t *entry) {
     elf::Header header{};
 
     if (OsStatus status = DeviceReadObject(invoke, file, 0, &header)) {
@@ -276,63 +276,120 @@ static OsStatus MapProgram(sys2::InvokeContext *invoke, OsDeviceHandle file, OsP
         return status;
     }
 
+    uintptr_t start = (header.entry - (uintptr_t)loadMemory.front);
+    if (start == 0) {
+        KmDebugMessage("[ELF] Invalid entry point\n");
+        return OsStatusInvalidData;
+    }
+
     for (elf::ProgramHeader ph : phArray) {
+        if (ph.type != elf::ProgramHeaderType::eLoad) {
+            continue;
+        }
+
+        OsMemoryAccess access = eOsMemoryReserve;
+        if (ph.flags & (1 << 0))
+            access |= eOsMemoryExecute;
+        if (ph.flags & (1 << 1))
+            access |= eOsMemoryWrite;
+        if (ph.flags & (1 << 2))
+            access |= eOsMemoryRead;
+
+        OsVmemCreateInfo vmemGuestCreateInfo {
+            .Size = sm::roundup(ph.memsz, x64::kPageSize),
+            .Access = access | eOsMemoryDiscard,
+            .Process = process,
+        };
+        void *guestAddress = nullptr;
+
+        if (OsStatus status = sys2::SysVmemCreate(invoke, vmemGuestCreateInfo, &guestAddress)) {
+            KmDebugMessage("[ELF] Failed to create guest memory. ", status, "\n");
+            return status;
+        }
+
         OsVmemMapInfo vmemGuestMapInfo {
             .SrcAddress = (uintptr_t)ph.offset,
             .DstAddress = ph.vaddr,
             .Size = sm::roundup(ph.filesz, x64::kPageSize),
-            .Access = eOsMemoryReserve,
+            .Access = access,
             .Process = process,
         };
 
-        void *guestAddress = nullptr;
         if (OsStatus status = sys2::SysVmemMap(invoke, vmemGuestMapInfo, &guestAddress)) {
             KmDebugMessage("[ELF] Failed to map guest memory. ", status, "\n");
             return status;
         }
-
     }
+
+    *entry = start;
+    return OsStatusSuccess;
 }
 
 OsStatus km::LoadElf2(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProcessHandle *process, OsThreadHandle *thread) {
-    OsProcessCreateInfo processCreateInfo {
+    OsStatus status = OsStatusSuccess;
+    OsProcessHandle hProcess = OS_HANDLE_INVALID;
+    void *startInfoGuestAddress = nullptr;
+    void *startInfoAddress = nullptr;
+    OsClientStartInfo *startInfo = nullptr;
+    uintptr_t entry = 0;
+
+    OsProcessCreateInfo processCreateInfo;
+    OsVmemCreateInfo vmemCreateInfo;
+    OsVmemMapInfo vmemMapInfo;
+
+    processCreateInfo = OsProcessCreateInfo {
         .Name = "INIT.ELF",
         .Flags = eOsProcessSuspended,
     };
 
-    OsProcessHandle hProcess = OS_HANDLE_INVALID;
-    if (OsStatus status = sys2::SysProcessCreate(invoke, processCreateInfo, &hProcess)) {
+    if ((status = sys2::SysProcessCreate(invoke, processCreateInfo, &hProcess))) {
         return status;
     }
 
-    OsVmemCreateInfo vmemCreateInfo {
+    if ((status = MapProgram(invoke, file, hProcess, &entry))) {
+        goto cleanup;
+    }
+
+    vmemCreateInfo = OsVmemCreateInfo {
         .Size = 0x1000,
         .Access = eOsMemoryRead,
         .Process = hProcess,
     };
 
-    void *startInfoGuestAddress = nullptr;
-
-    if (OsStatus status = sys2::SysVmemCreate(invoke, vmemCreateInfo, &startInfoGuestAddress)) {
-        sys2::SysProcessDestroy(invoke, hProcess, 0, eOsProcessExited);
+    if ((status = sys2::SysVmemCreate(invoke, vmemCreateInfo, &startInfoGuestAddress))) {
         return status;
     }
 
-    void *startInfoAddress = nullptr;
-
-    OsVmemMapInfo vmemMapInfo {
+    vmemMapInfo = OsVmemMapInfo {
         .SrcAddress = (uintptr_t)startInfoGuestAddress,
         .Size = 0x1000,
         .Access = eOsMemoryRead | eOsMemoryWrite,
         .Process = hProcess,
     };
 
-    if (OsStatus status = sys2::SysVmemMap(invoke, vmemMapInfo, &startInfoAddress)) {
-        sys2::SysProcessDestroy(invoke, hProcess, 0, eOsProcessExited);
-        return status;
+    if ((status = sys2::SysVmemMap(invoke, vmemMapInfo, &startInfoAddress))) {
+        goto cleanup;
     }
 
-    OsClientStartInfo *startInfo = (OsClientStartInfo*)startInfoAddress;
+    startInfo = (OsClientStartInfo*)startInfoAddress;
+
+    *startInfo = OsClientStartInfo {
+        .TlsInit = nullptr,
+        .TlsInitSize = 0,
+    };
+
+    *process = hProcess;
+
+cleanup:
+    if (startInfoAddress != nullptr) {
+        sys2::SysVmemRelease(invoke, startInfoAddress, 0x1000);
+    }
+
+    if (hProcess != OS_HANDLE_INVALID) {
+        sys2::SysProcessDestroy(invoke, hProcess, 0, eOsProcessExited);
+    }
+
+    return status;
 }
 
 OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory& memory, SystemObjects& objects, ProcessLaunch *result) {

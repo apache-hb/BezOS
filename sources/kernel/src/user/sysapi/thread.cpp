@@ -59,7 +59,7 @@ static OsCallResult UserThreadCreate(km::System *system, km::CallContext *contex
         .rsp = cpuState.rsp,
         .ss = (km::SystemGdt::eLongModeUserData * 0x8) | 0b11,
     };
-    thread->tlsAddress = cpuState.fs;
+    thread->tlsAddress = createInfo.TlsAddress;
 
     return km::CallOk(thread->publicId());
 }

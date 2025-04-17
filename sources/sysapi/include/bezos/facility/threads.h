@@ -74,6 +74,8 @@ struct OsThreadCreateInfo {
 
     struct OsMachineContext CpuState;
 
+    OsAddress TlsAddress;
+
     /// @brief Flags to control the creation of the thread.
     OsThreadCreateFlags Flags;
 

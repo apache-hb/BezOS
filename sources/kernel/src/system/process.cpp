@@ -566,7 +566,7 @@ OsStatus sys2::SysVmemCreate(InvokeContext *context, OsVmemCreateInfo info, void
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysVmemRelease(InvokeContext *, VmemReleaseInfo) {
+OsStatus sys2::SysVmemRelease(InvokeContext *, OsAnyPointer, OsSize) {
     return OsStatusNotSupported;
 }
 

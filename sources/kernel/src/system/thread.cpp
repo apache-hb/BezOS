@@ -103,7 +103,7 @@ sys2::Thread::Thread(OsThreadCreateInfo createInfo, sm::RcuWeakPtr<Process> proc
     , mProcess(process)
     , mCpuState(MakeRegisterSet(createInfo.CpuState))
     , mFpuState(std::move(fpuState))
-    , mTlsAddress(createInfo.CpuState.fs)
+    , mTlsAddress(createInfo.TlsAddress)
     , mKernelStack(kernelStack)
     , mThreadState(createInfo.Flags)
 {
