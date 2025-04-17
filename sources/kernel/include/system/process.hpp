@@ -50,10 +50,6 @@ namespace sys2 {
         /// @brief All the physical memory dedicated to this process.
         stdx::Vector2<km::MemoryRange> mPhysicalMemory;
 
-        sm::RcuSharedPtr<MemoryObject> mMemory;
-
-        stdx::Vector2<sys2::VmObject> mVmObjects;
-
         sm::BTreeMap<const void*, sm::RcuSharedPtr<IMemoryObject>> mMemoryObjects;
 
         km::AddressMapping mPteMemory;
@@ -117,6 +113,8 @@ namespace sys2 {
 
         void removeThread(sm::RcuSharedPtr<Thread> thread);
         void addThread(sm::RcuSharedPtr<Thread> thread);
+
+        void loadPageTables();
 
         sm::RcuSharedPtr<Process> lockParent() { return mParent.lock(); }
     };

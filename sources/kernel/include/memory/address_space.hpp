@@ -51,6 +51,8 @@ namespace km {
         [[nodiscard]]
         OsStatus reserve(AddressMapping mapping, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eWriteBack);
 
+        OsStatus reserve(size_t size, VirtualRange *result);
+
         template<typename T> requires (std::is_standard_layout_v<T>)
         [[nodiscard]]
         T *mapObject(MemoryRange range, PageFlags flags = detail::kDefaultPageFlags<T>, MemoryType type = MemoryType::eWriteBack) {
@@ -97,7 +99,7 @@ namespace km {
         PageTables *tables(this auto&& self) { return &self.mTables; }
 
         [[nodiscard]]
-        PageBuilder *pageManager(this auto&& self) { return self.mTables.pageManager(); }
+        auto pageManager(this auto&& self) { return self.mTables.pageManager(); }
 
         [[nodiscard]]
         PhysicalAddress getBackingAddress(this auto&& self, const void *ptr) {

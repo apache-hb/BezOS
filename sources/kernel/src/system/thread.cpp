@@ -4,6 +4,7 @@
 #include "system/system.hpp"
 #include "thread.hpp"
 #include "xsave.hpp"
+#include <bezos/handle.h>
 
 static sys2::RegisterSet MakeRegisterSet(OsMachineContext machine) {
     return sys2::RegisterSet {
@@ -63,6 +64,10 @@ sys2::RegisterSet sys2::Thread::loadState() {
         km::XSaveLoadState(mFpuState.get());
     }
 
+    if (auto process = mProcess.lock()) {
+        process->loadPageTables();
+    }
+
     return mCpuState;
 }
 
@@ -115,6 +120,7 @@ sys2::Thread::Thread(OsThreadCreateInfo createInfo, sm::RcuWeakPtr<Process> proc
 }
 
 OsStatus sys2::Thread::suspend() {
+    KmDebugMessage("[TASK] Suspending thread ", getName(), "\n");
     OsThreadState expected = eOsThreadQueued;
     while (!cmpxchgState(expected, eOsThreadSuspended)) {
         switch (expected) {
@@ -133,6 +139,7 @@ OsStatus sys2::Thread::suspend() {
 }
 
 OsStatus sys2::Thread::resume() {
+    KmDebugMessage("[TASK] Resuming thread ", getName(), "\n");
     OsThreadState expected = eOsThreadSuspended;
     while (!cmpxchgState(expected, eOsThreadQueued)) {
         switch (expected) {
@@ -167,7 +174,7 @@ sys2::XSaveState sys2::NewXSaveState() {
     return sys2::XSaveState { km::CreateXSave(), &km::DestroyXSave };
 }
 
-static OsStatus CreateThreadInner(sys2::System *system, const auto& info, sm::RcuSharedPtr<sys2::Process> parent, OsHandle id, sys2::ThreadHandle **handle) {
+static OsStatus CreateThreadInner(sys2::System *system, const auto& info, sm::RcuSharedPtr<sys2::Process> process, sm::RcuSharedPtr<sys2::Process> parent, OsHandle id, sys2::ThreadHandle **handle) {
     km::StackMapping kernelStack{};
     sys2::XSaveState fpuState{nullptr, &km::DestroyXSave};
     sys2::ThreadHandle *result = nullptr;
@@ -198,7 +205,7 @@ static OsStatus CreateThreadInner(sys2::System *system, const auto& info, sm::Rc
     }
 
     parent->addThread(thread);
-    parent->addHandle(result);
+    process->addHandle(result);
 
     *handle = result;
     return OsStatusSuccess;
@@ -218,7 +225,7 @@ OsStatus sys2::SysThreadCreate(InvokeContext *context, ThreadCreateInfo info, Os
     OsHandle id = context->process->newHandleId(eOsHandleThread);
     ThreadHandle *result = nullptr;
 
-    if (OsStatus status = CreateThreadInner(context->system, info, context->process, id, &result)) {
+    if (OsStatus status = CreateThreadInner(context->system, info, context->process, context->process, id, &result)) {
         return status;
     }
 
@@ -228,10 +235,22 @@ OsStatus sys2::SysThreadCreate(InvokeContext *context, ThreadCreateInfo info, Os
 }
 
 OsStatus sys2::SysThreadCreate(InvokeContext *context, OsThreadCreateInfo info, OsThreadHandle *handle) {
+    sm::RcuSharedPtr<Process> process;
+    if (info.Process != OS_HANDLE_INVALID) {
+        ProcessHandle *hProcess = nullptr;
+        if (OsStatus status = SysFindHandle(context, info.Process, &hProcess)) {
+            return status;
+        }
+
+        process = hProcess->getProcess();
+    } else {
+        process = context->process;
+    }
+
     OsHandle id = context->process->newHandleId(eOsHandleThread);
     ThreadHandle *result = nullptr;
 
-    if (OsStatus status = CreateThreadInner(context->system, info, context->process, id, &result)) {
+    if (OsStatus status = CreateThreadInner(context->system, info, context->process, process, id, &result)) {
         return status;
     }
 

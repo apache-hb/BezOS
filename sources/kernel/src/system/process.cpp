@@ -1,5 +1,8 @@
 #include "system/process.hpp"
+#include "arch/paging.hpp"
 #include "memory.hpp"
+#include "memory/layout.hpp"
+#include "memory/range.hpp"
 #include "system/system.hpp"
 #include "system/device.hpp"
 #include "fs2/interface.hpp"
@@ -105,7 +108,7 @@ OsStatus sys2::Process::findHandle(OsHandle handle, OsHandleType type, IHandle *
         return OsStatusSuccess;
     }
 
-    return OsStatusNotFound;
+    return OsStatusInvalidHandle;
 }
 
 OsStatus sys2::Process::currentHandle(OsProcessAccess access, OsProcessHandle *handle) {
@@ -158,6 +161,11 @@ void sys2::Process::removeThread(sm::RcuSharedPtr<Thread> thread) {
 void sys2::Process::addThread(sm::RcuSharedPtr<Thread> thread) {
     stdx::UniqueLock guard(mLock);
     mThreads.insert(thread);
+}
+
+void sys2::Process::loadPageTables() {
+    auto pm = mPageTables.pageManager();
+    pm->setActiveMap(mPageTables.root());
 }
 
 OsStatus sys2::Process::createProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle) {
@@ -247,13 +255,36 @@ OsStatus sys2::Process::vmemCreate(System *system, OsVmemCreateInfo info, km::Ad
         if (base == 0 || (base % alignment != 0)) {
             return OsStatusInvalidInput;
         }
+
+        km::VirtualRange vm;
+        if (OsStatus status = mPageTables.reserve(info.Size, &vm)) {
+            return status;
+        }
+
+        // TODO: leaks on error path, also doesnt use hint address
+        base = (uintptr_t)vm.front;
     } else {
         //
         // If the base address is not a hint then it must either be 0, or must be aligned to the
         // specified alignment.
         //
-        if ((base != 0) && (base % alignment != 0)) {
-            return OsStatusInvalidInput;
+        if (base == 0) {
+            km::VirtualRange vm;
+            if (OsStatus status = mPageTables.reserve(info.Size, &vm)) {
+                return status;
+            }
+            // TODO: leaks on error path
+            base = (uintptr_t)vm.front;
+        } else {
+            if (base % alignment != 0) {
+                return OsStatusInvalidInput;
+            }
+
+            for (auto i = base; i < base + info.Size; i += x64::kPageSize) {
+                if (mMemoryObjects.contains((void*)i)) {
+                    return OsStatusInvalidInput;
+                }
+            }
         }
     }
 
@@ -275,11 +306,24 @@ OsStatus sys2::Process::vmemCreate(System *system, OsVmemCreateInfo info, km::Ad
         return OsStatusOutOfMemory;
     }
 
-    if (OsStatus status = mPageTables.map(range, flags, km::MemoryType::eWriteBack, mapping)) {
+    km::AddressMapping result = {
+        .vaddr = (void*)base,
+        .paddr = range.front,
+        .size = info.Size,
+    };
+    if (OsStatus status = mPageTables.reserve(result, flags, km::MemoryType::eWriteBack)) {
         system->mPageAllocator->release(range);
         return status;
     }
 
+    auto object = sm::rcuMakeShared<sys2::MemoryObject>(&system->rcuDomain(), range);
+
+    auto vm = result.virtualRange();
+    for (auto i = vm.front; i < vm.back; i = (char*)i + x64::kPageSize) {
+        mMemoryObjects.insert({ (void*)i, object });
+    }
+
+    *mapping = result;
     mPhysicalMemory.add(range);
 
     return OsStatusSuccess;
@@ -287,18 +331,43 @@ OsStatus sys2::Process::vmemCreate(System *system, OsVmemCreateInfo info, km::Ad
 
 OsStatus sys2::Process::vmemMapFile(System *system, OsVmemMapInfo info, vfs2::IFileHandle *fileHandle, km::VirtualRange *result) {
     sm::RcuSharedPtr<sys2::FileMapping> fileMapping;
-    if (OsStatus status = sys2::MapFileToMemory(&system->rcuDomain(), fileHandle, system->mPageAllocator, system->mSystemTables, info.SrcAddress, info.Size, &fileMapping)) {
+    if (OsStatus status = sys2::MapFileToMemory(&system->rcuDomain(), fileHandle, system->mPageAllocator, system->mSystemTables, info.SrcAddress, info.SrcAddress + info.Size, &fileMapping)) {
         return status;
     }
 
+    uintptr_t base = info.DstAddress;
+    km::VirtualRange vm;
+
+    if (base == 0) {
+        if (OsStatus status = mPageTables.reserve(info.Size, &vm)) {
+            return status;
+        }
+        base = (uintptr_t)vm.front;
+    } else {
+        if (base % x64::kPageSize != 0) {
+            return OsStatusInvalidInput;
+        }
+
+#if 0
+        for (auto i = base; i < base + info.Size; i += x64::kPageSize) {
+            if (mMemoryObjects.contains((void*)i)) {
+                return OsStatusInvalidInput;
+            }
+        }
+#endif
+    }
+
     km::MemoryRange range = fileMapping->range();
-    km::AddressMapping mapping;
-    if (OsStatus status = mPageTables.map(range, km::PageFlags::eUserAll, km::MemoryType::eWriteBack, &mapping)) {
+    km::AddressMapping mapping {
+        .vaddr = (void*)base,
+        .paddr = range.front,
+        .size = info.Size,
+    };
+    if (OsStatus status = mPageTables.reserve(mapping, km::PageFlags::eUserAll, km::MemoryType::eWriteBack)) {
         system->mPageAllocator->release(range);
         return status;
     }
 
-    auto vm = mapping.virtualRange();
     for (auto i = vm.front; i < vm.back; i = (char*)i + x64::kPageSize) {
         mMemoryObjects.insert({ i, fileMapping });
     }
@@ -308,18 +377,31 @@ OsStatus sys2::Process::vmemMapFile(System *system, OsVmemMapInfo info, vfs2::IF
 }
 
 OsStatus sys2::Process::vmemMapProcess(OsVmemMapInfo info, sm::RcuSharedPtr<Process> process, km::VirtualRange *mapping) {
-    auto vm = km::VirtualRange::of((void*)info.SrcAddress, info.Size);
-    mPageTables.reserve(vm);
-
-    for (auto i = info.SrcAddress; i < info.SrcAddress + info.Size; i += x64::kPageSize) {
-        sm::RcuSharedPtr<IMemoryObject> object;
-        if (OsStatus status = process->resolveAddress((void*)i, &object)) {
+    // TODO: can leak on error path
+    if (info.DstAddress == 0) {
+        km::VirtualRange range;
+        if (OsStatus status = mPageTables.reserve(info.Size, &range)) {
             return status;
         }
 
-        auto backing = process->mPageTables.getBackingAddress((void*)i);
+        info.DstAddress = (uintptr_t)range.front;
+    }
+
+    auto vm = km::VirtualRange::of((void*)info.DstAddress, info.Size);
+    mPageTables.reserve(vm);
+
+    for (size_t i = 0; i < info.Size / x64::kPageSize; i++) {
+        auto srcAddress = (void*)(info.SrcAddress + i * x64::kPageSize);
+        auto dstAddress = (void*)(info.DstAddress + i * x64::kPageSize);
+
+        sm::RcuSharedPtr<IMemoryObject> object;
+        if (OsStatus status = process->resolveAddress(srcAddress, &object)) {
+            return status;
+        }
+
+        auto backing = process->mPageTables.getBackingAddress(srcAddress);
         km::AddressMapping mapping {
-            .vaddr = (void*)(info.DstAddress + (i * x64::kPageSize)),
+            .vaddr = (void*)dstAddress,
             .paddr = backing,
             .size = x64::kPageSize,
         };
@@ -556,10 +638,24 @@ OsStatus sys2::SysGetInvokerTx(InvokeContext *context, TxHandle **outHandle) {
 }
 
 OsStatus sys2::SysVmemCreate(InvokeContext *context, OsVmemCreateInfo info, void **outVmem) {
+    sm::RcuSharedPtr<Process> process;
+    if (info.Process != OS_HANDLE_INVALID) {
+        ProcessHandle *hProcess = nullptr;
+        if (OsStatus status = SysFindHandle(context, info.Process, &hProcess)) {
+            return status;
+        }
+
+        process = hProcess->getProcess();
+    } else {
+        process = context->process;
+    }
+
     km::AddressMapping mapping;
-    if (OsStatus status = context->process->vmemCreate(context->system, info, &mapping)) {
+    if (OsStatus status = process->vmemCreate(context->system, info, &mapping)) {
         return status;
     }
+
+    KmDebugMessage("[VMEM] Created vmem ", mapping, " in ", process->getName(), "\n");
 
     *outVmem = (void*)mapping.vaddr;
 
@@ -602,20 +698,22 @@ OsStatus sys2::SysVmemMap(InvokeContext *context, OsVmemMapInfo info, void **out
     }
 
     if (OS_HANDLE_TYPE(info.Source) == eOsHandleProcess) {
-        ProcessHandle *hProcess = nullptr;
-        if (OsStatus status = SysFindHandle(context, info.Source, &hProcess)) {
+        ProcessHandle *hSource = nullptr;
+        if (OsStatus status = SysFindHandle(context, info.Source, &hSource)) {
             return status;
         }
 
         sm::RcuSharedPtr<IMemoryObject> srcObject;
 
-        auto process = hProcess->getProcess();
-        if (OsStatus status = process->resolveAddress((void*)info.DstAddress, &srcObject)) {
+        auto srcProcess = hSource->getProcess();
+
+        if (OsStatus status = srcProcess->resolveAddress((void*)info.SrcAddress, &srcObject)) {
+            KmDebugMessage("[VMEM] Failed to resolve source address ", (void*)info.SrcAddress, " in process ", srcProcess->getName(), "\n");
             return status;
         }
 
         km::VirtualRange vm;
-        if (OsStatus status = dstProcess->vmemMapProcess(info, process, &vm)) {
+        if (OsStatus status = dstProcess->vmemMapProcess(info, srcProcess, &vm)) {
             return status;
         }
         *outVmem = (void*)vm.front;

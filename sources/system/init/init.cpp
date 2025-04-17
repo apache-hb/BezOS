@@ -84,6 +84,8 @@ static void LaunchTerminalService() {
 }
 
 OS_EXTERN OS_NORETURN [[gnu::force_align_arg_pointer]] void ClientStart(const struct OsClientStartInfo *) {
+    DebugLog("INIT.ELF: Starting...");
+
     LaunchTerminalService();
 
     DebugLog("Waiting for TTY0 devices...");

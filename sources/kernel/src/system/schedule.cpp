@@ -2,6 +2,7 @@
 #include "gdt.h"
 #include "panic.hpp"
 #include "system/thread.hpp"
+#include <bezos/facility/threads.h>
 
 using namespace std::chrono_literals;
 
@@ -425,6 +426,24 @@ OsStatus sys2::GlobalSchedule::tick(OsInstant now) {
     if (OsStatus status = resumeWaitQueue(now)) {
         result = status;
     }
+
+    for (auto thread : mSuspendSet) {
+        if (auto t = thread.lock()) {
+            if (t->state() == eOsThreadQueued) {
+                scheduleThread(t);
+            }
+        }
+    }
+
+    absl::erase_if(mSuspendSet, [](auto thread) {
+        sm::RcuWeakPtr<Thread> ref = thread;
+        if (auto t = ref.lock()) {
+            auto state = t->state();
+            return state == eOsThreadQueued || state == eOsThreadOrphaned || state == eOsThreadFinished;
+        }
+
+        return true;
+    });
 
     return result;
 }

@@ -316,7 +316,7 @@ static OsStatus MapProgram(sys2::InvokeContext *invoke, OsDeviceHandle file, OsP
         OsVmemMapInfo vmemGuestMapInfo {
             .SrcAddress = (uintptr_t)ph.offset,
             .DstAddress = ph.vaddr,
-            .Size = sm::roundup(ph.filesz, x64::kPageSize),
+            .Size = ph.filesz,
             .Access = access,
             .Source = file,
             .Process = process,
@@ -369,17 +369,19 @@ OsStatus km::LoadElf2(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProces
     };
 
     if ((status = sys2::SysVmemCreate(invoke, vmemCreateInfo, &startInfoGuestAddress))) {
-        return status;
+        KmDebugMessage("[ELF] Failed to create start info memory. ", status, "\n");
+        goto cleanup;
     }
 
     vmemMapInfo = OsVmemMapInfo {
         .SrcAddress = (uintptr_t)startInfoGuestAddress,
         .Size = 0x1000,
         .Access = eOsMemoryRead | eOsMemoryWrite,
-        .Process = hProcess,
+        .Source = hProcess,
     };
 
     if ((status = sys2::SysVmemMap(invoke, vmemMapInfo, &startInfoAddress))) {
+        KmDebugMessage("[ELF] Failed to map start info memory into launcher. ", status, "\n");
         goto cleanup;
     }
 
@@ -390,6 +392,7 @@ OsStatus km::LoadElf2(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProces
     };
 
     if ((status = sys2::SysVmemCreate(invoke, stackCreateInfo, &stackGuestAddress))) {
+        KmDebugMessage("[ELF] Failed to create stack memory. ", status, "\n");
         goto cleanup;
     }
 
@@ -415,11 +418,15 @@ OsStatus km::LoadElf2(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProces
     };
 
     if ((status = sys2::SysThreadCreate(invoke, threadCreateInfo, &hThread))) {
+        KmDebugMessage("[ELF] Failed to launch init process thread. ", status, "\n");
         goto cleanup;
     }
 
     *process = hProcess;
     *thread = hThread;
+
+    sys2::SysVmemRelease(invoke, startInfoAddress, 0x1000);
+    return OsStatusSuccess;
 
 cleanup:
     if (hThread != OS_HANDLE_INVALID) {

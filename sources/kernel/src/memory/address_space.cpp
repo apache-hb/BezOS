@@ -108,6 +108,16 @@ OsStatus km::AddressSpace::reserve(AddressMapping mapping, PageFlags flags, Memo
     return OsStatusSuccess;
 }
 
+OsStatus km::AddressSpace::reserve(size_t size, VirtualRange *result) {
+    VirtualRange range = mVmemAllocator.allocate(km::Pages(size));
+    if (range.isEmpty()) {
+        return OsStatusOutOfMemory;
+    }
+
+    *result = range;
+    return OsStatusSuccess;
+}
+
 void km::AddressSpace::updateHigherHalfMappings(const PageTables *source) {
     km::copyHigherHalfMappings(&mTables, source);
 }

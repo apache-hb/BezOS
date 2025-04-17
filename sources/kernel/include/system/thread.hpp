@@ -52,6 +52,7 @@ namespace sys2 {
         OsStatus resume();
 
         OsStatus destroy(System *system, OsThreadState reason);
+        OsThreadState state() const { return mThreadState.load(); }
 
         bool cmpxchgState(OsThreadState &expected, OsThreadState newState) {
             return mThreadState.compare_exchange_strong(expected, newState);

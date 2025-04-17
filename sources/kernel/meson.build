@@ -283,7 +283,7 @@ if ubsan.allowed()
         # 'src/sanitizer/asan.cpp',
     )
     san_args = [
-        '-fsanitize=undefined',
+        '-fsanitize=undefined,nullability',
         '-fno-sanitize=function',
         # '-fsanitize=kernel-address',
         # '-mllvm', '-asan-globals=false',

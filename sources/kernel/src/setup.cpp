@@ -9,7 +9,10 @@
 #include "log.hpp"
 #include "process/schedule.hpp"
 #include "processor.hpp"
+#include "system/create.hpp"
 #include "thread.hpp"
+#include "system/system.hpp"
+#include "system/process.hpp"
 
 static constexpr bool kEmitAddrToLine = true;
 static constexpr stdx::StringView kImagePath = "install/kernel/bin/bezos-limine.elf";
@@ -248,15 +251,15 @@ static bool IsSupervisorFault(const km::IsrContext *context) {
 }
 
 static void FaultProcess(km::IsrContext *context, stdx::StringView fault) {
-    if (auto process = km::GetCurrentProcess()) {
+    if (auto process = sys2::GetCurrentProcess()) {
         KmDebugMessage("[PROC] Terminating ", process->getName(), ", due to ", fault, "\n");
         km::LockDebugLog();
-        process->terminate(eOsProcessFaulted, 0x80000003);
+        process->destroy(km::GetSysSystem(), sys2::ProcessDestroyInfo { .exitCode = 0, .reason = eOsProcessFaulted });
         DumpIsrState(context);
         DumpStackTrace(context);
         km::UnlockDebugLog();
 
-        km::YieldCurrentThread();
+        sys2::YieldCurrentThread();
     }
 }
 

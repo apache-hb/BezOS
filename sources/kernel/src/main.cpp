@@ -1103,6 +1103,10 @@ static void InitSystem(km::LocalIsrTable *ist) {
     sys2::InstallTimerIsr(ist);
 }
 
+sys2::System *km::GetSysSystem() {
+    return gSysSystem;
+}
+
 static km::System GetSystem() {
     return km::System {
         .vfs = gVfsRoot,
@@ -1365,9 +1369,13 @@ static OsStatus LaunchThread(OsStatus(*entry)(void*), void *arg, stdx::String na
 }
 
 static OsStatus NotificationWork(void *) {
+    auto *scheduler = gSysSystem->scheduler();
     KmDebugMessage("[INIT] Beginning notification work.\n");
     while (true) {
         gNotificationStream->processAll();
+        OsInstant now;
+        gClock.time(&now);
+        scheduler->tick(now);
     }
 
     return OsStatusSuccess;

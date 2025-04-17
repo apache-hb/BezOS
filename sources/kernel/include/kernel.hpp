@@ -7,6 +7,10 @@
 #include "memory.hpp"
 #include "thread.hpp"
 
+namespace sys2 {
+    class System;
+}
+
 namespace km {
     class Scheduler;
     class AddressSpace;
@@ -18,6 +22,7 @@ namespace km {
     SystemMemory *GetSystemMemory();
     AddressSpace& GetProcessPageManager();
     PageTables& GetProcessPageTables();
+    sys2::System *GetSysSystem();
 
     CPU_LOCAL
     extern constinit km::CpuLocal<SystemGdt> tlsSystemGdt;
