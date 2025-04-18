@@ -20,20 +20,19 @@ add_project_arguments(
     language : 'cpp'
 )
 
-if not meson.is_subproject()
-    install_subdir('include/posix', install_dir : 'include', install_tag : 'headers')
-    install_subdir('include/bezos', install_dir : 'include', install_tag : 'headers')
-endif
+install_subdir('include/posix', install_dir : 'include', install_tag : 'headers')
+install_subdir('include/bezos', install_dir : 'include', install_tag : 'headers')
 
-if get_option('headers')
+if get_option('headers') or meson.is_subproject()
     subdir_done()
 endif
 
-common = subproject('common').get_variable('common_dep')
-
 pkgconfig = import('pkgconfig')
 
+common = subproject('common').get_variable('common_dep')
+
 cc = meson.get_compiler('c')
+sys_root = meson.get_external_property('sys_root')
 
 src = [
     'src/bezos/syscall_fs.c',
@@ -48,18 +47,12 @@ src = [
     'src/bezos/syscall.S',
 ]
 
-inc = []
-if not meson.is_subproject()
-    sys_root = meson.get_external_property('sys_root')
-
-    inc += include_directories(
-        sys_root / 'llvm-libcxx/include/c++/v1',
-        sys_root / 'llvm/lib/clang/21/include',
-        'include/posix'
-    )
-endif
-
-inc += include_directories('include')
+inc = include_directories(
+    sys_root / 'llvm-libcxx/include/c++/v1',
+    sys_root / 'llvm/lib/clang/21/include',
+    'include/posix',
+    'include'
+)
 
 libbezos = static_library('bezos-sysapi', src,
     include_directories : inc,
@@ -90,10 +83,6 @@ rtld_dep = declare_dependency(
 )
 
 meson.override_dependency('rtld', rtld_dep)
-
-if meson.is_subproject()
-    subdir_done()
-endif
 
 custom_target('crtstart',
     input : 'src/crt/start.cpp',
