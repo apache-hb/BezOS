@@ -18,7 +18,18 @@ glob = dependency('glob')
 xdrc = find_program('xdrc')
 xdrpp = dependency('xdrpp')
 
-executable('package.elf', 'package/main.cpp',
+overlayfs_hh = custom_target('overlayfs_hh',
+    input : 'package/overlay.x',
+    output : 'overlayfs.hh',
+    command : [xdrc, '@INPUT@', '-hh', '-o', '@OUTPUT@'],
+)
+
+src = [
+    'package/main.cpp',
+    overlayfs_hh
+]
+
+executable('package.elf', src,
     install : true,
     dependencies : [libxml2, openssl, curl, argo, argparse, subprocess, libarchive, sqlitecpp, indicators, glob]
 )
