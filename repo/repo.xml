@@ -15,6 +15,8 @@
 
     <xi:include href='packages/tools/autotools.xml' />
 
+    <xi:include href='packages/common.xml' />
+
     <xi:include href='packages/ovmf.xml' />
 
     <xi:include href='packages/hyper.xml' />

@@ -5,6 +5,7 @@
     <require package='limine' symlink='subprojects/limine' />
     <require package='sysapi' symlink='subprojects/sysapi' />
     <require package='capstone' />
+    <require package='common' />
 
     <source path='kernel' />
 

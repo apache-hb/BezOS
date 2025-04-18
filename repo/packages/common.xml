@@ -1,0 +1,7 @@
+<package name='common'>
+    <source path='common' />
+
+    <configure with='meson'>
+        <native-file path='@REPO@/data/target.ini' />
+    </configure>
+</package>

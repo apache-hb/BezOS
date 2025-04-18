@@ -1,0 +1,9 @@
+[wrap-git]
+url = https://github.com/xdrpp/xdrpp.git
+revision = HEAD
+
+patch_directory = xdrpp
+
+[provide]
+dependency_names = xdrpp
+program_names = xdrc

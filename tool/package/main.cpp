@@ -2198,7 +2198,11 @@ static int RunPackageTool(argparse::ArgumentParser& parser) {
     if (parser.present("--test")) {
         auto tests = parser.get<std::vector<std::string>>("--test");
         for (const auto& test : tests) {
-            auto path = gWorkspace.GetPackagePath(test).string();
+            PackageInfo info;
+            if (!gWorkspace.TryGetPackage(test, info)) {
+                continue;
+            }
+            auto path = info.GetBuildFolder().string();
             auto result = sp::call({ "meson", "test" }, sp::cwd{path});
             if (result != 0) {
                 throw std::runtime_error("Failed to run tests for " + test);

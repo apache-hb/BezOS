@@ -15,6 +15,8 @@ libarchive = dependency('libarchive')
 sqlitecpp = dependency('sqlitecpp')
 indicators = dependency('indicators')
 glob = dependency('glob')
+xdrc = find_program('xdrc')
+xdrpp = dependency('xdrpp')
 
 executable('package.elf', 'package/main.cpp',
     install : true,
