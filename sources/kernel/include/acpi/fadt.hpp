@@ -3,7 +3,7 @@
 #include "acpi/header.hpp"
 #include "util/format.hpp"
 #include "util/signature.hpp"
-#include "util/util.hpp"
+#include "common/util/util.hpp"
 
 namespace acpi {
     enum class IapcBootArch : uint16_t {

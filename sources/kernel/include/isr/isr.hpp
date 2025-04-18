@@ -1,7 +1,8 @@
 #pragma once
 
 #include "arch/isr.hpp"
-#include "util/util.hpp"
+#include "common/util/util.hpp"
+
 #include "util/digit.hpp"
 
 #include <atomic>

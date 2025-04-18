@@ -30,7 +30,7 @@ struct RtldSoName {
     const char *NameBack;
 };
 
-OsStatus RtldStartProgram(const struct RtldStartInfo *StartInfo);
+OsStatus RtldStartProgram(const struct RtldStartInfo *StartInfo, OsThreadHandle *OutThread);
 
 OsStatus RtldSoOpen(const struct RtldSoLoadInfo *LoadInfo, struct RtldSo *OutObject);
 

@@ -9,7 +9,7 @@
 #include <bezos/facility/fs.h>
 #include <bezos/facility/event.h>
 
-#include "util/util.hpp"
+#include "common/util/util.hpp"
 
 namespace sys2 {
     class System;

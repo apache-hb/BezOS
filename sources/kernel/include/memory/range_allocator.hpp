@@ -3,7 +3,8 @@
 #include "memory/range.hpp"
 #include "std/spinlock.hpp"
 #include "std/vector.hpp"
-#include "util/util.hpp"
+#include "common/util/util.hpp"
+
 #include "log.hpp"
 
 #include <stdlib.h>

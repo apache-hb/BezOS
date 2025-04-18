@@ -1,6 +1,7 @@
 #pragma once
 
 #include "arch/msr.hpp"
+#include <cstddef>
 
 #define CPU_LOCAL [[gnu::section(".cpudata")]]
 

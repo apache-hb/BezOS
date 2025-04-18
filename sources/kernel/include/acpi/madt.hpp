@@ -3,7 +3,8 @@
 #include "acpi/header.hpp"
 
 #include "util/signature.hpp"
-#include "util/util.hpp"
+#include "common/util/util.hpp"
+
 #include "util/format.hpp"
 
 namespace acpi {

@@ -1,7 +1,8 @@
 #pragma once
 
 #include "arch/intrin.hpp"
-#include "util/util.hpp"
+#include "common/util/util.hpp"
+
 #include "util/format.hpp"
 
 #include <array>

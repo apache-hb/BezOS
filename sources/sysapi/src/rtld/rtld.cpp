@@ -1,9 +1,6 @@
 #include "rtld/rtld.h"
 
-#include "rtld/arch/sparcv9/relocation.hpp"
-#include "rtld/arch/x86_64/relocation.hpp"
 #include "rtld/load/elf.hpp"
-#include "rtld/arch/arch.hpp"
 
 #include "common/util/util.hpp"
 #include "common/util/defer.hpp"
@@ -12,6 +9,7 @@
 #include <bezos/facility/vmem.h>
 #include <bezos/subsystem/fs.h>
 #include <bezos/facility/process.h>
+#include <bezos/facility/threads.h>
 #include <bezos/start.h>
 
 #include <span>
@@ -66,7 +64,7 @@ static OsStatus DeviceRead(OsDeviceHandle device, OsSize offset, OsSize count, T
     return OsStatusSuccess;
 }
 
-OsStatus ValidateElfHeader(const elf::Header &header, size_t size) {
+static OsStatus ValidateElfHeader(const elf::Header &header, size_t size) {
     if (!header.isValid()) {
         return OsStatusInvalidData;
     }
@@ -97,7 +95,7 @@ OsStatus ValidateElfHeader(const elf::Header &header, size_t size) {
     return OsStatusSuccess;
 }
 
-static OsStatus ElfReadHeader(OsDeviceHandle device, elf::Type expected, elf::Header *result) {
+static OsStatus ElfReadHeader(OsDeviceHandle device, elf::Header *result) {
     OsFileInfo info{};
 
     if (OsStatus status = OsInvokeFileStat(device, &info)) {
@@ -117,11 +115,11 @@ static OsStatus ElfReadHeader(OsDeviceHandle device, elf::Type expected, elf::He
     return OsStatusSuccess;
 }
 
-OsStatus RtldStartProgram(const RtldStartInfo *StartInfo) {
+static OsStatus RtldMapProgram(OsDeviceHandle file, OsProcessHandle process, uintptr_t *entry) {
     elf::Header header;
     OsStatus status = OsStatusSuccess;
 
-    if ((status = ElfReadHeader(StartInfo->Program, elf::Type::eExecutable, &header))) {
+    if ((status = ElfReadHeader(file, &header))) {
         return status;
     }
 
@@ -134,7 +132,7 @@ OsStatus RtldStartProgram(const RtldStartInfo *StartInfo) {
         .SrcAddress = header.phoff,
         .Size = OsSize(header.phnum * header.phentsize),
         .Access = eOsMemoryRead,
-        .Source = StartInfo->Program,
+        .Source = file,
     };
 
     if (OsStatus status = OsVmemMap(mapInfo, &elfPhMapping)) {
@@ -145,6 +143,7 @@ OsStatus RtldStartProgram(const RtldStartInfo *StartInfo) {
         OsVmemRelease(elfPhMapping, OsSize(header.phnum * header.phentsize));
     };
 
+    *entry = header.entry;
     std::span<elf::ProgramHeader> phs(reinterpret_cast<elf::ProgramHeader*>(elfPhMapping), header.phnum);
 
     for (elf::ProgramHeader ph : phs) {
@@ -152,7 +151,7 @@ OsStatus RtldStartProgram(const RtldStartInfo *StartInfo) {
             continue;
         }
 
-        OsMemoryAccess access = eOsMemoryCommit;
+        OsMemoryAccess access = eOsMemoryCommit | eOsMemoryPrivate;
         if (ph.flags & (1 << 0))
             access |= eOsMemoryExecute;
         if (ph.flags & (1 << 1))
@@ -164,7 +163,7 @@ OsStatus RtldStartProgram(const RtldStartInfo *StartInfo) {
             .BaseAddress = reinterpret_cast<void*>(ph.vaddr),
             .Size = sm::roundup<uint64_t>(ph.memsz, 0x1000),
             .Access = access | eOsMemoryDiscard,
-            .Process = StartInfo->Process,
+            .Process = process,
         };
 
         void *guestAddress = nullptr;
@@ -177,8 +176,8 @@ OsStatus RtldStartProgram(const RtldStartInfo *StartInfo) {
             .DstAddress = ph.vaddr,
             .Size = ph.filesz,
             .Access = access,
-            .Source = StartInfo->Program,
-            .Process = StartInfo->Process,
+            .Source = file,
+            .Process = process,
         };
 
         if (OsStatus status = OsVmemMap(vmemGuestMapInfo, &guestAddress)) {
@@ -186,6 +185,79 @@ OsStatus RtldStartProgram(const RtldStartInfo *StartInfo) {
         }
     }
 
+    return OsStatusSuccess;
+}
+
+OsStatus RtldStartProgram(const RtldStartInfo *StartInfo, OsThreadHandle *OutThread) {
+    uintptr_t entry = 0;
+    if (OsStatus status = RtldMapProgram(StartInfo->Program, StartInfo->Process, &entry)) {
+        return status;
+    }
+
+    void *startInfoGuestAddress = nullptr;
+    OsVmemCreateInfo startInfoCreateInfo {
+        .Size = sizeof(OsClientStartInfo),
+        .Access = eOsMemoryRead,
+        .Process = StartInfo->Process,
+    };
+
+    if (OsStatus status = OsVmemCreate(startInfoCreateInfo, &startInfoGuestAddress)) {
+        return status;
+    }
+
+    uintptr_t startInfoSize = sm::roundup<size_t>(sizeof(OsClientStartInfo), 0x1000);
+
+    OsVmemMapInfo startInfoMapInfo {
+        .SrcAddress = reinterpret_cast<OsAddress>(startInfoGuestAddress),
+        .Size = startInfoSize,
+        .Access = eOsMemoryRead | eOsMemoryWrite,
+        .Source = StartInfo->Program,
+    };
+
+    if (OsStatus status = OsVmemMap(startInfoMapInfo, &startInfoGuestAddress)) {
+        return status;
+    }
+
+    defer {
+        OsVmemRelease(startInfoGuestAddress, startInfoSize);
+    };
+
+    OsClientStartInfo *startInfo = reinterpret_cast<OsClientStartInfo*>(startInfoGuestAddress);
+    *startInfo = OsClientStartInfo {
+        .TlsInit = nullptr,
+        .TlsInitSize = 0,
+    };
+
+    OsVmemCreateInfo stackCreateInfo {
+        .Size = 0x4000,
+        .Access = eOsMemoryRead | eOsMemoryWrite | eOsMemoryDiscard,
+        .Process = StartInfo->Process,
+    };
+    void *stackGuestAddress = nullptr;
+    if (OsStatus status = OsVmemCreate(stackCreateInfo, &stackGuestAddress)) {
+        return status;
+    }
+
+    uintptr_t stackBase = reinterpret_cast<uintptr_t>(stackGuestAddress) + 0x4000;
+
+    OsThreadCreateInfo threadCreateInfo {
+        .Name = "ENTRY",
+        .CpuState = OsMachineContext {
+            .rdi = reinterpret_cast<uintptr_t>(startInfoGuestAddress),
+            .rbp = stackBase,
+            .rsp = stackBase,
+            .rip = entry,
+        },
+        .Flags = eOsThreadSuspended,
+        .Process = StartInfo->Process,
+    };
+
+    OsThreadHandle threadHandle = OS_HANDLE_INVALID;
+    if (OsStatus status = OsThreadCreate(threadCreateInfo, &threadHandle)) {
+        return status;
+    }
+
+    *OutThread = threadHandle;
     return OsStatusSuccess;
 }
 
@@ -255,7 +327,7 @@ OsStatus RtldSoOpen(const RtldSoLoadInfo *LoadInfo, RtldSo *OutObject) {
     elf::Header header;
     OsStatus status = OsStatusSuccess;
 
-    if ((status = ElfReadHeader(LoadInfo->Object, elf::Type::eShared, &header))) {
+    if ((status = ElfReadHeader(LoadInfo->Object, &header))) {
         return status;
     }
 

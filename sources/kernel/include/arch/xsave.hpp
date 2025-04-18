@@ -1,11 +1,12 @@
 #pragma once
 
+#include <cstddef>
 #include <stdint.h>
 #include <xmmintrin.h>
 #include <immintrin.h>
 
 #include "arch/msr.hpp"
-#include "util/util.hpp"
+#include "common/util/util.hpp"
 
 #include <concepts>
 

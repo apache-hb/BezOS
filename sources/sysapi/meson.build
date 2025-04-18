@@ -14,10 +14,18 @@ sysapi_dep = declare_dependency(
     include_directories : inc,
 )
 
-install_subdir('include/posix', install_dir : 'include', install_tag : 'headers')
-install_subdir('include/bezos', install_dir : 'include', install_tag : 'headers')
+add_project_arguments(
+    '-Wno-c99-extensions',
+    '-Wno-missing-designated-field-initializers',
+    language : 'cpp'
+)
 
-if get_option('headers') or meson.is_subproject()
+if not meson.is_subproject()
+    install_subdir('include/posix', install_dir : 'include', install_tag : 'headers')
+    install_subdir('include/bezos', install_dir : 'include', install_tag : 'headers')
+endif
+
+if get_option('headers')
     subdir_done()
 endif
 
@@ -26,7 +34,6 @@ common = subproject('common').get_variable('common_dep')
 pkgconfig = import('pkgconfig')
 
 cc = meson.get_compiler('c')
-sys_root = meson.get_external_property('sys_root')
 
 src = [
     'src/bezos/syscall_fs.c',
@@ -41,12 +48,18 @@ src = [
     'src/bezos/syscall.S',
 ]
 
-inc = include_directories(
-    sys_root / 'llvm-libcxx/include/c++/v1',
-    sys_root / 'llvm/lib/clang/21/include',
-    'include',
-    'include/posix'
-)
+inc = []
+if not meson.is_subproject()
+    sys_root = meson.get_external_property('sys_root')
+
+    inc += include_directories(
+        sys_root / 'llvm-libcxx/include/c++/v1',
+        sys_root / 'llvm/lib/clang/21/include',
+        'include/posix'
+    )
+endif
+
+inc += include_directories('include')
 
 libbezos = static_library('bezos-sysapi', src,
     include_directories : inc,
@@ -59,6 +72,28 @@ bezos_dep = declare_dependency(
 )
 
 meson.override_dependency('bezos', bezos_dep)
+
+src = [
+    'src/rtld/rtld.cpp',
+]
+
+librtld = static_library('rtld', src,
+    name_prefix : '',
+    include_directories : [ inc ],
+    dependencies : [ bezos_dep, common ],
+    install : true,
+)
+
+rtld_dep = declare_dependency(
+    link_with : librtld,
+    include_directories : [ inc ],
+)
+
+meson.override_dependency('rtld', rtld_dep)
+
+if meson.is_subproject()
+    subdir_done()
+endif
 
 custom_target('crtstart',
     input : 'src/crt/start.cpp',
@@ -113,28 +148,6 @@ posix_dep = declare_dependency(
     link_with : libposix,
     include_directories : [ inc ],
 )
-
-src = [
-    'src/rtld/rtld.cpp',
-]
-
-static_library('rtld', src,
-    name_prefix : '',
-    include_directories : [ inc ],
-    dependencies : [ bezos_dep, common ],
-    install : true,
-)
-
-if false
-shared_library('rtld.so', src,
-    name_prefix : '',
-    include_directories : [ inc ],
-    link_args : [ '-T', meson.current_source_dir() / 'data/rtld.ld' ],
-    link_depends : [ 'data/rtld.ld' ],
-    dependencies : [ bezos_dep ],
-    install : true,
-)
-endif
 
 meson.override_dependency('sysapi', sysapi_dep)
 

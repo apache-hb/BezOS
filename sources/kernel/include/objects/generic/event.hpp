@@ -2,7 +2,7 @@
 
 #include <bezos/handle.h>
 
-#include "util/util.hpp"
+#include "common/util/util.hpp"
 
 namespace km {
     class GenericEvent {

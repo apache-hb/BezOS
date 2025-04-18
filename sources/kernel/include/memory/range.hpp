@@ -6,7 +6,7 @@
 #include <cstdint>
 
 #include "util/format.hpp"
-#include "util/util.hpp"
+#include "common/util/util.hpp"
 
 #define KM_INVALID_MEMORY km::PhysicalAddress(UINTPTR_MAX)
 #define KM_INVALID_ADDRESS ((void*)UINTPTR_MAX)

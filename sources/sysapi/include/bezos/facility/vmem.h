@@ -33,6 +33,9 @@ enum {
     /// If this is set, the base address is a hint and the system will choose the address.
     /// Otherwise, the base address is the address to map the memory at.
     eOsMemoryAddressHint = (1 << 6),
+
+    eOsMemoryShared = (1 << 7),
+    eOsMemoryPrivate = (1 << 8),
 };
 
 /// @brief Memory access flags.

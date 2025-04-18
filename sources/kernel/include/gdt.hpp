@@ -3,7 +3,7 @@
 #include "gdt.h"
 
 #include "util/format.hpp"
-#include "util/util.hpp"
+#include "common/util/util.hpp"
 
 #include <span>
 #include <stdint.h>

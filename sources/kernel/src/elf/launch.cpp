@@ -279,12 +279,6 @@ static OsStatus MapProgram(sys2::InvokeContext *invoke, OsDeviceHandle file, OsP
         return status;
     }
 
-    km::VirtualRange loadMemory{};
-    if (OsStatus status = km::detail::LoadMemorySize(phArray, &loadMemory)) {
-        KmDebugMessage("[ELF] Failed to calculate load memory size. ", status, "\n");
-        return status;
-    }
-
     if (header.entry == 0) {
         KmDebugMessage("[ELF] Invalid entry point\n");
         return OsStatusInvalidData;
