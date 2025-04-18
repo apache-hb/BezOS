@@ -230,7 +230,7 @@ void kmtest::Machine::wrmsr(mcontext_t *mcontext, cs_insn *insn) {
     exit(1);
 }
 
-void kmtest::Machine::rdcr(mcontext_t *mcontext, cs_insn *insn) {
+void kmtest::Machine::rdcr3(mcontext_t *mcontext, cs_insn *insn) {
     cs_detail *detail = insn->detail;
     cs_x86 *x86 = &detail->x86;
     cs_x86_op *op = x86->operands;
@@ -246,7 +246,7 @@ void kmtest::Machine::rdcr(mcontext_t *mcontext, cs_insn *insn) {
     }
 }
 
-void kmtest::Machine::wrcr(mcontext_t *mcontext, cs_insn *insn) {
+void kmtest::Machine::wrcr3(mcontext_t *mcontext, cs_insn *insn) {
     cs_detail *detail = insn->detail;
     cs_x86 *x86 = &detail->x86;
     cs_x86_op *op = x86->operands;
@@ -261,7 +261,6 @@ void kmtest::Machine::wrcr(mcontext_t *mcontext, cs_insn *insn) {
         }
     }
 }
-
 
 void kmtest::Machine::mmio(mcontext_t *mcontext, cs_insn *insn) {
     cs_detail *detail = insn->detail;
@@ -281,10 +280,10 @@ void kmtest::Machine::mmio(mcontext_t *mcontext, cs_insn *insn) {
                 // specially.
                 //
                 if (op[i].access == CS_AC_WRITE) {
-                    wrcr(mcontext, insn);
+                    wrcr3(mcontext, insn);
                     return;
                 } else if (op[i].access == CS_AC_READ) {
-                    rdcr(mcontext, insn);
+                    rdcr3(mcontext, insn);
                     return;
                 }
             }
@@ -370,7 +369,6 @@ void kmtest::Machine::sigsegv(mcontext_t *mcontext) {
     size_t size = 15;
     uint64_t pc = (uint64_t)rip;
     uint8_t code[15]{};
-    VALGRIND_MAKE_MEM_DEFINED(rip, 15); // this is coming from a mapped area of text
     memcpy(code, rip, size);
     const uint8_t *ptr = code;
     bool ok = cs_disasm_iter(gCapstone, &ptr, &size, &pc, insn);

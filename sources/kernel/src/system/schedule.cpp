@@ -1,5 +1,4 @@
 #include "system/schedule.hpp"
-#include "gdt.h"
 #include "panic.hpp"
 #include "system/thread.hpp"
 #include <bezos/facility/threads.h>
