@@ -5,6 +5,9 @@
 #include "rtld/load/elf.hpp"
 #include "rtld/arch/arch.hpp"
 
+#include "common/util/util.hpp"
+#include "common/util/defer.hpp"
+
 #include <bezos/facility/fs.h>
 #include <bezos/facility/vmem.h>
 #include <bezos/subsystem/fs.h>
@@ -138,11 +141,9 @@ OsStatus RtldStartProgram(const RtldStartInfo *StartInfo) {
         return status;
     }
 
-#if 0
     defer {
-        OsVmemUnmap(elfPhMapping, OsSize(header.phnum * header.phentsize));
+        OsVmemRelease(elfPhMapping, OsSize(header.phnum * header.phentsize));
     };
-#endif
 
     std::span<elf::ProgramHeader> phs(reinterpret_cast<elf::ProgramHeader*>(elfPhMapping), header.phnum);
 
@@ -161,7 +162,7 @@ OsStatus RtldStartProgram(const RtldStartInfo *StartInfo) {
 
         OsVmemCreateInfo vmemGuestCreateInfo {
             .BaseAddress = reinterpret_cast<void*>(ph.vaddr),
-            .Size = sm::roundup(ph.memsz, 0x1000),
+            .Size = sm::roundup<uint64_t>(ph.memsz, 0x1000),
             .Access = access | eOsMemoryDiscard,
             .Process = StartInfo->Process,
         };
@@ -262,7 +263,6 @@ OsStatus RtldSoOpen(const RtldSoLoadInfo *LoadInfo, RtldSo *OutObject) {
         return OsStatusInvalidData;
     }
 
-error:
     return status;
 }
 

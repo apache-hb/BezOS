@@ -4,8 +4,8 @@
     <require package='gcc' />
     <require package='limine' symlink='subprojects/limine' />
     <require package='sysapi' symlink='subprojects/sysapi' />
+    <require package='common' symlink='subprojects/common' />
     <require package='capstone' />
-    <require package='common' />
 
     <source path='kernel' />
 

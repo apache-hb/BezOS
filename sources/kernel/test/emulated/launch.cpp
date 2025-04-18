@@ -1,7 +1,8 @@
 #include <filesystem>
 #include <gtest/gtest.h>
 
-#include "util/defer.hpp"
+#include "common/util/defer.hpp"
+
 
 #include <libvirt/libvirt.h>
 #include <libvirt/virterror.h>

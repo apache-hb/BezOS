@@ -74,7 +74,8 @@
 #include "kernel.hpp"
 
 #include "user/sysapi.hpp"
-#include "util/defer.hpp"
+#include "common/util/defer.hpp"
+
 #include "util/memory.hpp"
 
 #include "fs2/vfs.hpp"

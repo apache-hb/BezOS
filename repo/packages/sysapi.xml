@@ -3,6 +3,7 @@
 
     <require package='llvm' />
     <require package='llvm-compiler-rt' />
+    <require package='common' symlink='subprojects/common' />
 
     <configure with='meson'>
         <cross-file path='@SOURCE_ROOT@/data/bezos.ini' />

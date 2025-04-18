@@ -6,7 +6,7 @@
 #include "process/process.hpp"
 #include "process/thread.hpp"
 
-#include "util/defer.hpp"
+#include "common/util/defer.hpp"
 
 OsStatus km::detail::LoadMemorySize(std::span<const elf::ProgramHeader> phs, km::VirtualRange *range) {
     km::VirtualRange result{(void*)UINTPTR_MAX, 0};

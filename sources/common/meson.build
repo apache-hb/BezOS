@@ -15,6 +15,10 @@ common_dep = declare_dependency(
     include_directories : inc,
 )
 
+if meson.is_subproject()
+    subdir_done()
+endif
+
 install_subdir('include/common', install_dir : 'common', install_tag : 'headers')
 
 gtest = dependency('gtest_main', native : true)

@@ -58,10 +58,11 @@ frozen = dependency('frozen')
 tlsf = subproject('tlsf')
 stb_sprintf = dependency('stb_sprintf')
 sysapi = subproject('sysapi').get_variable('sysapi_dep')
+common = subproject('common').get_variable('common_dep')
 
 inc = [ inc, absl.get_variable('absl_include_dir'), tlsf.get_variable('includes') ]
 libs = [ absl.get_variable('absl_container_lib') ]
-deps = [ mp_units, sysapi, concurrentqueue, stb_sprintf ]
+deps = [ mp_units, sysapi, concurrentqueue, stb_sprintf, common ]
 
 compiler = find_program(cc.get_id())
 objcopy = find_program('objcopy')
@@ -420,7 +421,7 @@ operator_new_shim_test = static_library('operator_new_shim_test', new_shim_test_
     include_directories : inc,
     c_args : test_c_args,
     cpp_args : test_cpp_args,
-    dependencies : [ gtest, sysapi, concurrentqueue, mp_units ],
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
     native : true,
 )
 
@@ -428,7 +429,7 @@ test_shim = static_library('test_shim', test_shim_src,
     include_directories : inc,
     c_args : test_c_args,
     cpp_args : test_cpp_args,
-    dependencies : [ gtest, sysapi, concurrentqueue, mp_units ],
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
     native : true,
 )
 
@@ -436,7 +437,7 @@ fs_test_shim = static_library('fs_test_shim', fs_test_src,
     include_directories : inc,
     c_args : test_c_args,
     cpp_args : test_cpp_args,
-    dependencies : [ gtest, sysapi, concurrentqueue, mp_units ],
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
     override_options: [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
     native : true,
 )
@@ -445,7 +446,7 @@ system_test_lib = static_library('system_test', system_test_src,
     include_directories : inc,
     c_args : test_c_args,
     cpp_args : test_cpp_args,
-    dependencies : [ gtest, sysapi, concurrentqueue, mp_units ],
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
     override_options: [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
     native : true,
 )
@@ -454,7 +455,7 @@ memory_test_shim = static_library('memory_test_shim', memory_test_src,
     include_directories : inc,
     c_args : test_c_args,
     cpp_args : test_cpp_args,
-    dependencies : [ gtest, sysapi, concurrentqueue, mp_units ],
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
     override_options: [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
     native : true,
 )
@@ -463,7 +464,7 @@ test_exe_kwargs = {
     'include_directories': [ inc ],
     'c_args': test_c_args,
     'cpp_args': test_cpp_args,
-    'dependencies': [ gtest_main, gmock, sysapi, concurrentqueue, mp_units ],
+    'dependencies': [ gtest_main, gmock, sysapi, concurrentqueue, mp_units, common ],
     'override_options': [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
     'native': true,
     'link_with': [ test_shim, fs_test_shim, memory_test_shim, system_test_lib ],
@@ -792,7 +793,7 @@ mmio_test_shim = static_library('mmio_test_shim', mmio_test_src,
     include_directories : inc,
     c_args : test_c_args,
     cpp_args : test_cpp_args,
-    dependencies : [ gtest, sysapi, concurrentqueue, mp_units, capstone ],
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units, capstone, common ],
     native : true,
 )
 
@@ -800,7 +801,7 @@ no_sanitize_test_shim = static_library('no_sanitize_test_shim', test_shim_src,
     include_directories : inc,
     c_args : test_c_args,
     cpp_args : test_cpp_args,
-    dependencies : [ gtest, sysapi, concurrentqueue, mp_units ],
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
     override_options: [ 'b_sanitize=none', 'b_coverage=true' ],
     native : true,
 )
@@ -809,7 +810,7 @@ no_sanitize_fs_test_lib = static_library('no_sanitize_fs_test', fs_test_src,
     include_directories : inc,
     c_args : test_c_args,
     cpp_args : test_cpp_args,
-    dependencies : [ gtest, sysapi, concurrentqueue, mp_units ],
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
     override_options: [ 'b_sanitize=none', 'b_coverage=true' ],
     native : true,
 )
@@ -818,7 +819,7 @@ no_sanitize_memory_test_shim = static_library('no_sanitize_memory_test_shim', me
     include_directories : inc,
     c_args : test_c_args,
     cpp_args : test_cpp_args,
-    dependencies : [ gtest, sysapi, concurrentqueue, mp_units ],
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
     override_options: [ 'b_sanitize=none', 'b_coverage=true' ],
     native : true,
 )
@@ -827,7 +828,7 @@ no_sanitize_system_test_lib = static_library('no_sanitize_system_test', system_t
     include_directories : inc,
     c_args : test_c_args,
     cpp_args : test_cpp_args,
-    dependencies : [ gtest, sysapi, concurrentqueue, mp_units ],
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
     override_options: [ 'b_sanitize=none', 'b_coverage=true' ],
     native : true,
 )
@@ -879,7 +880,7 @@ testcases += {
             'src/acpi/acpi.cpp',
             'src/acpi/format.cpp',
         ],
-        'dependencies': [ capstone ],
+        'dependencies': [ capstone, common ],
         # this test must not be run with sanitizers, it ptraces itself
         # and purposely triggers segv and traps
         'override_options': [ 'b_sanitize=none', 'b_coverage=true' ],
@@ -895,7 +896,7 @@ testcases += {
             'src/acpi/acpi.cpp',
             'src/acpi/format.cpp',
         ],
-        'dependencies': [ capstone ],
+        'dependencies': [ capstone, common ],
         'override_options': [ 'b_sanitize=none', 'b_coverage=true' ],
         'link_with' : [ no_sanitize_test_shim, no_sanitize_memory_test_shim, mmio_test_shim ],
     },
@@ -903,7 +904,7 @@ testcases += {
         'sources': [
             'test/system/schedule.cpp',
         ],
-        'dependencies': [ capstone ],
+        'dependencies': [ capstone, common ],
         'override_options': [ 'b_sanitize=none', 'b_coverage=true' ],
         'link_with' : [ no_sanitize_test_shim, no_sanitize_memory_test_shim, no_sanitize_fs_test_lib, no_sanitize_system_test_lib, mmio_test_shim ],
     }

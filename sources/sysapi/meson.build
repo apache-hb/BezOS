@@ -21,6 +21,8 @@ if get_option('headers') or meson.is_subproject()
     subdir_done()
 endif
 
+common = subproject('common').get_variable('common_dep')
+
 pkgconfig = import('pkgconfig')
 
 cc = meson.get_compiler('c')
@@ -119,7 +121,7 @@ src = [
 static_library('rtld', src,
     name_prefix : '',
     include_directories : [ inc ],
-    dependencies : [ bezos_dep ],
+    dependencies : [ bezos_dep, common ],
     install : true,
 )
 

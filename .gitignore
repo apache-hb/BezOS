@@ -19,3 +19,5 @@ data/hyper/*
 .clangd
 soak/
 events.bin
+/sources/sysapi/subprojects/common
+/sources/kernel/subprojects/common

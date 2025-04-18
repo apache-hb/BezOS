@@ -1,7 +1,8 @@
 #include "ktest.hpp"
 #include "absl/container/flat_hash_set.h"
 #include "log.hpp"
-#include "util/defer.hpp"
+#include "common/util/defer.hpp"
+
 #include "util/format.hpp"
 
 #include <capstone.h>

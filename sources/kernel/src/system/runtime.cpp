@@ -6,7 +6,8 @@
 
 #include "panic.hpp"
 #include "thread.hpp"
-#include "util/defer.hpp"
+#include "common/util/defer.hpp"
+
 #include "timer/apic_timer.hpp"
 
 using namespace std::chrono_literals;

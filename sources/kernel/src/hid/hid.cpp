@@ -2,7 +2,7 @@
 
 #include "log.hpp"
 
-#include "util/defer.hpp"
+#include "common/util/defer.hpp"
 
 static hid::Ps2Controller gController;
 static km::NotificationStream *gStream;
