@@ -32,8 +32,22 @@ OsCallResult um::VmemCreate(km::System *system, km::CallContext *context, km::Sy
     return NewVmemCreate(system, context, regs);
 }
 
-OsCallResult um::VmemMap(km::System *, km::CallContext *, km::SystemCallRegisterSet *) {
-    return km::CallError(OsStatusNotSupported);
+OsCallResult um::VmemMap(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
+    uint64_t userMapInfo = regs->arg0;
+
+    OsVmemMapInfo mapInfo{};
+
+    if (OsStatus status = context->readObject(userMapInfo, &mapInfo)) {
+        return km::CallError(status);
+    }
+
+    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
+    void *vaddr = nullptr;
+    if (OsStatus status = sys2::SysVmemMap(&invoke, mapInfo, &vaddr)) {
+        return km::CallError(status);
+    }
+
+    return km::CallOk(vaddr);
 }
 
 OsCallResult um::VmemDestroy(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {

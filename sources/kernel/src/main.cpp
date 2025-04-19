@@ -1225,6 +1225,11 @@ static void AddVmemSystemCalls() {
         return um::VmemCreate(&system, context, regs);
     });
 
+    AddSystemCall(eOsCallVmemMap, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        System system = GetSystem();
+        return um::VmemMap(&system, context, regs);
+    });
+
     AddSystemCall(eOsCallVmemRelease, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         System system = GetSystem();
         return um::VmemDestroy(&system, context, regs);

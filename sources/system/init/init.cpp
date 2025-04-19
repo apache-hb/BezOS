@@ -9,6 +9,8 @@
 #include <bezos/subsystem/hid.h>
 #include <bezos/subsystem/ddi.h>
 
+#include <rtld/rtld.h>
+
 template<size_t N>
 static void DebugLog(const char (&message)[N]) {
     OsDebugMessage(eOsLogDebug, message);
@@ -74,13 +76,32 @@ static void LaunchShell() {
 }
 
 static void LaunchTerminalService() {
-    OsProcessCreateInfo createInfo {
-        .Executable = OsMakePath("Init\0tty.elf"),
+    OsDeviceCreateInfo deviceCreateInfo {
+        .Path = OsMakePath("Init\0tty.elf"),
+        .InterfaceGuid = kOsFileGuid,
+        .Flags = eOsDeviceOpenExisting,
+    };
+
+    OsProcessCreateInfo processCreateInfo {
+        .Name = "TTY.ELF",
         .Flags = eOsProcessNone,
     };
 
-    OsProcessHandle handle = OS_HANDLE_INVALID;
-    ASSERT_OS_SUCCESS(OsProcessCreate(createInfo, &handle));
+    OsDeviceHandle device = OS_HANDLE_INVALID;
+    OsProcessHandle process = OS_HANDLE_INVALID;
+    OsThreadHandle thread = OS_HANDLE_INVALID;
+
+    ASSERT_OS_SUCCESS(OsDeviceOpen(deviceCreateInfo, &device));
+    ASSERT_OS_SUCCESS(OsProcessCreate(processCreateInfo, &process));
+
+    RtldStartInfo startInfo {
+        .Program = device,
+        .Process = process,
+        .ProgramName = "TTY.ELF",
+    };
+
+    ASSERT_OS_SUCCESS(RtldStartProgram(&startInfo, &thread));
+    ASSERT_OS_SUCCESS(OsThreadSuspend(thread, false));
 }
 
 OS_EXTERN OS_NORETURN [[gnu::force_align_arg_pointer]] void ClientStart(const struct OsClientStartInfo *) {

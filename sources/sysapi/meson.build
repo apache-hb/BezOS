@@ -22,6 +22,7 @@ add_project_arguments(
 
 install_subdir('include/posix', install_dir : 'include', install_tag : 'headers')
 install_subdir('include/bezos', install_dir : 'include', install_tag : 'headers')
+install_subdir('include/rtld', install_dir : 'include', install_tag : 'headers')
 
 if get_option('headers') or meson.is_subproject()
     subdir_done()

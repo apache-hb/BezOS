@@ -5,6 +5,7 @@
 #include "common/util/util.hpp"
 #include "common/util/defer.hpp"
 
+#include <bezos/facility/debug.h>
 #include <bezos/facility/fs.h>
 #include <bezos/facility/vmem.h>
 #include <bezos/subsystem/fs.h>
@@ -16,11 +17,6 @@
 #include <stdlib.h>
 
 namespace elf = os::elf;
-
-extern "C" char __etext_start[];
-extern "C" char __etext_end[];
-extern "C" char __edata_start[];
-extern "C" char __edata_end[];
 
 template<typename T>
 static OsStatus DeviceRead(OsDeviceHandle device, OsSize offset, T *result) {
@@ -159,16 +155,18 @@ static OsStatus RtldMapProgram(OsDeviceHandle file, OsProcessHandle process, uin
         if (ph.flags & (1 << 2))
             access |= eOsMemoryRead;
 
-        OsVmemCreateInfo vmemGuestCreateInfo {
-            .BaseAddress = reinterpret_cast<void*>(ph.vaddr),
-            .Size = sm::roundup<uint64_t>(ph.memsz, 0x1000),
-            .Access = access | eOsMemoryDiscard,
-            .Process = process,
-        };
+        if (ph.memsz != ph.filesz) {
+            OsVmemCreateInfo vmemGuestCreateInfo {
+                .BaseAddress = reinterpret_cast<void*>(ph.vaddr),
+                .Size = sm::roundup<uint64_t>(ph.memsz, 0x1000),
+                .Access = access | eOsMemoryDiscard,
+                .Process = process,
+            };
 
-        void *guestAddress = nullptr;
-        if (OsStatus status = OsVmemCreate(vmemGuestCreateInfo, &guestAddress)) {
-            return status;
+            void *guestAddress = nullptr;
+            if (OsStatus status = OsVmemCreate(vmemGuestCreateInfo, &guestAddress)) {
+                return status;
+            }
         }
 
         OsVmemMapInfo vmemGuestMapInfo {
@@ -179,6 +177,7 @@ static OsStatus RtldMapProgram(OsDeviceHandle file, OsProcessHandle process, uin
             .Source = file,
             .Process = process,
         };
+        void *guestAddress = nullptr;
 
         if (OsStatus status = OsVmemMap(vmemGuestMapInfo, &guestAddress)) {
             return status;
@@ -194,18 +193,19 @@ OsStatus RtldStartProgram(const RtldStartInfo *StartInfo, OsThreadHandle *OutThr
         return status;
     }
 
+    uintptr_t startInfoSize = sm::roundup<size_t>(sizeof(OsClientStartInfo), 0x1000);
+
     void *startInfoGuestAddress = nullptr;
     OsVmemCreateInfo startInfoCreateInfo {
-        .Size = sizeof(OsClientStartInfo),
+        .Size = startInfoSize,
         .Access = eOsMemoryRead,
         .Process = StartInfo->Process,
     };
 
     if (OsStatus status = OsVmemCreate(startInfoCreateInfo, &startInfoGuestAddress)) {
+        OsDebugMessage(eOsLogInfo, "Failed to create start info memory. ");
         return status;
     }
-
-    uintptr_t startInfoSize = sm::roundup<size_t>(sizeof(OsClientStartInfo), 0x1000);
 
     OsVmemMapInfo startInfoMapInfo {
         .SrcAddress = reinterpret_cast<OsAddress>(startInfoGuestAddress),
@@ -235,6 +235,7 @@ OsStatus RtldStartProgram(const RtldStartInfo *StartInfo, OsThreadHandle *OutThr
     };
     void *stackGuestAddress = nullptr;
     if (OsStatus status = OsVmemCreate(stackCreateInfo, &stackGuestAddress)) {
+        OsDebugMessage(eOsLogInfo, "Failed to create stack. ");
         return status;
     }
 
@@ -254,6 +255,7 @@ OsStatus RtldStartProgram(const RtldStartInfo *StartInfo, OsThreadHandle *OutThr
 
     OsThreadHandle threadHandle = OS_HANDLE_INVALID;
     if (OsStatus status = OsThreadCreate(threadCreateInfo, &threadHandle)) {
+        OsDebugMessage(eOsLogInfo, "Failed to create thread. ");
         return status;
     }
 

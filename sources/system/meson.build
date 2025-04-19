@@ -6,8 +6,11 @@ project('system', 'cpp',
     ]
 )
 
+cpp = meson.get_compiler('cpp')
 flanterm = dependency('flanterm')
 tlsf = dependency('tlsf')
+sys_root = meson.get_external_property('sys_root')
+rtld = cpp.find_library('rtld', dirs : sys_root / 'sysapi/lib', static : true)
 
 link_args = [
     '-T', meson.current_source_dir() / 'data/bezos.ld',
@@ -42,7 +45,7 @@ executable('init.elf', src,
     link_args : link_args,
     install : true,
     install_dir : get_option('prefix'),
-    dependencies : [ flanterm, tlsf ],
+    dependencies : [ flanterm, tlsf, rtld ],
     link_depends : 'data/bezos.ld',
     link_with : [ libcommon ],
 )
