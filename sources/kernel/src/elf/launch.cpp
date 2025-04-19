@@ -402,7 +402,7 @@ OsStatus km::LoadElf2(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProces
     *startInfo = OsClientStartInfo {};
 
     threadCreateInfo = OsThreadCreateInfo {
-        .Name = "INIT MASTER THREAD",
+        .Name = "ENTRY",
         .CpuState = OsMachineContext {
             .rdi = (uintptr_t)startInfoGuestAddress,
             .rbp = base,

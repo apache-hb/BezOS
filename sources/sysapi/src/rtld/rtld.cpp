@@ -125,7 +125,7 @@ static OsStatus ElfReadHeader(OsDeviceHandle device, elf::Header *result) {
 }
 
 static OsStatus RtldTlsInit(OsDeviceHandle file, OsProcessHandle process, const elf::ProgramHeader &ph, RtldTlsInitInfo *tlsInfo) {
-    if (ph.memsz != ph.filesz) {
+    if (ph.memsz != ph.filesz && ph.filesz != 0) {
         void *initAddress = nullptr;
         OsVmemCreateInfo vmemGuestCreateInfo {
             .BaseAddress = reinterpret_cast<void*>(ph.vaddr),
@@ -135,22 +135,27 @@ static OsStatus RtldTlsInit(OsDeviceHandle file, OsProcessHandle process, const 
         };
 
         if (OsStatus status = OsVmemCreate(vmemGuestCreateInfo, &initAddress)) {
+            OsDebugMessage(eOsLogInfo, "Failed to create TLS memory");
             return status;
         }
     }
 
-    OsVmemMapInfo vmemGuestMapInfo {
-        .SrcAddress = ph.offset,
-        .DstAddress = ph.vaddr,
-        .Size = ph.filesz,
-        .Access = eOsMemoryRead,
-        .Source = file,
-        .Process = process,
-    };
-
     void *initAddress = nullptr;
-    if (OsStatus status = OsVmemMap(vmemGuestMapInfo, &initAddress)) {
-        return status;
+
+    if (ph.filesz != 0) {
+        OsVmemMapInfo vmemGuestMapInfo {
+            .SrcAddress = ph.offset,
+            .DstAddress = ph.vaddr,
+            .Size = ph.filesz,
+            .Access = eOsMemoryRead,
+            .Source = file,
+            .Process = process,
+        };
+
+        if (OsStatus status = OsVmemMap(vmemGuestMapInfo, &initAddress)) {
+            OsDebugMessage(eOsLogInfo, "Failed to map TLS memory");
+            return status;
+        }
     }
 
     *tlsInfo = RtldTlsInitInfo {
@@ -292,16 +297,16 @@ OsStatus RtldStartProgram(const RtldStartInfo *StartInfo, OsThreadHandle *OutThr
 
     uintptr_t stackBase = reinterpret_cast<uintptr_t>(stackGuestAddress) + 0x4000;
 
-    RtldTls tls;
-    if (OsStatus status = RtldCreateTls(StartInfo->Process, &tlsInfo, &tls)) {
-        return status;
-    }
-
     *startInfo = OsClientStartInfo {
         .TlsInit = tlsInfo.InitAddress,
         .TlsDataSize = tlsInfo.TlsDataSize,
         .TlsBssSize = tlsInfo.TlsBssSize,
     };
+
+    RtldTls tls;
+    if (OsStatus status = RtldCreateTls(StartInfo->Process, &tlsInfo, &tls)) {
+        return status;
+    }
 
     OsThreadCreateInfo threadCreateInfo {
         .Name = "ENTRY",
@@ -359,25 +364,28 @@ OsStatus RtldCreateTls(OsProcessHandle Process, struct RtldTlsInitInfo *TlsInfo,
     };
 
     // Map the TLS init data into our address space.
-    void *initAddress = nullptr;
-    OsVmemMapInfo mapTlsInitInfo {
-        .SrcAddress = reinterpret_cast<OsAddress>(TlsInfo->InitAddress),
-        .Size = initSize,
-        .Access = eOsMemoryRead,
-        .Source = Process,
-    };
-    if (OsStatus status = OsVmemMap(mapTlsInitInfo, &initAddress)) {
-        return status;
+    if (TlsInfo->InitAddress != nullptr) {
+        void *initAddress = nullptr;
+        OsVmemMapInfo mapTlsInitInfo {
+            .SrcAddress = reinterpret_cast<OsAddress>(TlsInfo->InitAddress),
+            .Size = initSize,
+            .Access = eOsMemoryRead,
+            .Source = Process,
+        };
+        if (OsStatus status = OsVmemMap(mapTlsInitInfo, &initAddress)) {
+            OsDebugMessage(eOsLogInfo, "Failed to map TLS init area");
+            return status;
+        }
+
+        defer {
+            OsVmemRelease(initAddress, initSize);
+        };
+
+        // Copy the TLS init data into the TLS area.
+        memcpy(tlsAddress, initAddress, TlsInfo->TlsDataSize);
     }
 
-    defer {
-        OsVmemRelease(initAddress, initSize);
-    };
-
     uintptr_t tlsSelf = reinterpret_cast<uintptr_t>(guestAddress) + tlsSize;
-
-    // Copy the TLS init data into the TLS area.
-    memcpy(tlsAddress, initAddress, TlsInfo->TlsDataSize);
 
     // Fill the remaining BSS with zeros.
     if (TlsInfo->TlsBssSize > 0) {
