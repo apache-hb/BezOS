@@ -55,8 +55,15 @@ namespace sys2 {
         size_t processes;
     };
 
+    struct SchedulerQueueTraits : moodycamel::ConcurrentQueueDefaultTraits {
+        static void *malloc(size_t size);
+        static void free(void *ptr);
+
+        static void init(void *ptr, size_t size);
+    };
+
     class CpuLocalSchedule {
-        moodycamel::ConcurrentQueue<ThreadSchedulingInfo> mQueue;
+        moodycamel::ConcurrentQueue<ThreadSchedulingInfo, SchedulerQueueTraits> mQueue;
         sm::RcuSharedPtr<Thread> mCurrent;
         GlobalSchedule *mGlobal;
 

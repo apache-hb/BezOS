@@ -1,5 +1,7 @@
 #pragma once
 
+#include <bezos/status.h>
+
 #include "std/span.hpp"
 #include "std/string_view.hpp"
 #include "std/static_string.hpp"
@@ -363,6 +365,11 @@ namespace km {
     void IOutStream::write(const T& value) {
         km::format(*this, value);
     }
+
+    template<>
+    struct Format<OsStatusId> {
+        static void format(IOutStream& out, OsStatusId value);
+    };
 
     enum class Align {
         eLeft,

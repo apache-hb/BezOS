@@ -10,7 +10,11 @@
 
 #include "timer/apic_timer.hpp"
 
+#include "allocator/synchronized.hpp"
+
 using namespace std::chrono_literals;
+
+using SynchronizedTlsfAllocator = mem::SynchronizedAllocator<mem::TlsfAllocator>;
 
 extern "C" uint64_t KmSystemCallStackTlsOffset;
 
@@ -21,6 +25,24 @@ static constinit km::CpuLocal<sys2::CpuLocalSchedule*> tlsSchedule;
 
 CPU_LOCAL
 static constinit km::CpuLocal<void*> tlsKernelStack;
+
+static constinit mem::IAllocator *gSchedulerAllocator = nullptr;
+
+void sys2::SchedulerQueueTraits::init(void *memory, size_t size) {
+    KM_CHECK(memory != nullptr, "Invalid memory for scheduler allocator.");
+    KM_CHECK(size > 0, "Invalid size for scheduler allocator.");
+    KM_CHECK(gSchedulerAllocator == nullptr, "Scheduler allocator already initialized.");
+
+    gSchedulerAllocator = new SynchronizedTlsfAllocator(memory, size);
+}
+
+void *sys2::SchedulerQueueTraits::malloc(size_t size) {
+    return gSchedulerAllocator->allocate(size);
+}
+
+void sys2::SchedulerQueueTraits::free(void *ptr) {
+    gSchedulerAllocator->deallocate(ptr, 0);
+}
 
 static bool ScheduleInner(km::IsrContext *context, km::IsrContext *newContext) {
     km::IApic *apic = km::GetCpuLocalApic();
@@ -123,6 +145,12 @@ void sys2::YieldCurrentThread() {
     };
 
     arch::Intrin::cli();
+
     auto next = ScheduleInt(&context);
+
+    if ((next.cs & 0b11) != 0) {
+        __swapgs();
+    }
+
     __x86_64_resume(&next);
 }

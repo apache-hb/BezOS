@@ -447,3 +447,13 @@ OsStatus sys2::GlobalSchedule::tick(OsInstant now) {
 
     return result;
 }
+
+// TODO: figure out a better way to allocate scheduler queues
+#if __STDC_HOSTED__ == 1
+void *sys2::SchedulerQueueTraits::malloc(size_t size) {
+    return std::malloc(size);
+}
+void sys2::SchedulerQueueTraits::free(void *ptr) {
+    std::free(ptr);
+}
+#endif

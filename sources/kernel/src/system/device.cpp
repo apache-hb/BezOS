@@ -81,10 +81,18 @@ static OsStatus DeviceCreateNew(sys2::InvokeContext *context, sys2::DeviceOpenIn
         }
 
         status = vfs->mkdevice(info.path, vfsNode);
+    } else {
+        KmDebugMessage("[VFS] Failed to create device '", info.path, "'::", info.interface, "\n");
+        return OsStatusInvalidType;
     }
 
     if (status != OsStatusSuccess) {
         return status;
+    }
+
+    if (vfsNode == nullptr) {
+        KmDebugMessage("[VFS] Internal failure when creating device '", info.path, "'::", info.interface, "\n");
+        return OsStatusOutOfMemory;
     }
 
     if (OsStatus status = vfsNode->query(info.interface, info.data, info.size, std::out_ptr(vfsHandle))) {

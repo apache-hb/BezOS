@@ -128,7 +128,6 @@ static OsCallResult NewDeviceStat(km::System *system, km::CallContext *context, 
 
 OsCallResult um::DeviceOpen(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
     return NewDeviceOpen(system, context, regs);
-
 }
 
 OsCallResult um::DeviceClose(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {

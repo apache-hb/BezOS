@@ -1149,6 +1149,11 @@ static void AddThreadSystemCalls() {
         km::System system = GetSystem();
         return um::ThreadDestroy(&system, context, regs);
     });
+
+    AddSystemCall(eOsCallThreadSuspend, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        km::System system = GetSystem();
+        return um::ThreadSuspend(&system, context, regs);
+    });
 }
 
 static void AddNodeSystemCalls() {
@@ -1356,7 +1361,7 @@ static OsStatus KernelMasterTask() {
         KM_PANIC("Failed to create init process.");
     }
 
-    KmIdle();
+    // KmIdle();
 
     while (true) {
         //
@@ -1618,7 +1623,6 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     pci::ProbeConfigSpace(config.get(), rsdt.mcfg());
 
-#if 0
     // TODO: this wastes some physical memory
     {
         static constexpr size_t kSchedulerMemorySize = 0x10000;
@@ -1629,9 +1633,8 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
         void *ptr = (void*)((uintptr_t)mapping + x64::kPageSize);
 
-        InitSchedulerMemory(ptr, kSchedulerMemorySize);
+        sys2::SchedulerQueueTraits::init(ptr, kSchedulerMemorySize);
     }
-#endif
 
     km::LocalIsrTable *ist = GetLocalIsrTable();
 

@@ -49,3 +49,19 @@ OsCallResult um::ThreadDestroy(km::System *system, km::CallContext *context, km:
 OsCallResult um::ThreadSleep(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
     return NewThreadSleep(system, context, regs);
 }
+
+OsCallResult um::ThreadSuspend(km::System *system, km::CallContext *, km::SystemCallRegisterSet *regs) {
+    uint64_t userThread = regs->arg0;
+    uint64_t userSuspend = regs->arg1;
+
+    if (userSuspend != 0 && userSuspend != 1) {
+        return km::CallError(OsStatusInvalidInput);
+    }
+
+    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
+    if (OsStatus status = sys2::SysThreadSuspend(&invoke, userThread, userSuspend != 0)) {
+        return km::CallError(status);
+    }
+
+    return km::CallOk(0zu);
+}

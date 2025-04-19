@@ -56,12 +56,12 @@ SECTIONS
 
     .tdata : {
         *(.tdata .tdata.*)
-    }
+    } :tdata
 
     .tbss : {
         *(.tbss .tbss.*)
         *(.tcommon)
-    }
+    } :tbss
 
     .note : {
         *(.note .note.*)

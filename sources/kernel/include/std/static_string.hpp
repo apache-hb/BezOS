@@ -24,6 +24,8 @@ namespace stdx {
         }
 
     public:
+        static constexpr size_t kMaxSize = N;
+
         constexpr StaticStringBase()
             : mSize(0)
         { }

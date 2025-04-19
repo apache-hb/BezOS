@@ -104,7 +104,7 @@ static void LaunchTerminalService() {
     ASSERT_OS_SUCCESS(OsThreadSuspend(thread, false));
 }
 
-OS_EXTERN OS_NORETURN [[gnu::force_align_arg_pointer]] void ClientStart(const struct OsClientStartInfo *) {
+OS_EXTERN [[noreturn, gnu::force_align_arg_pointer]] void ClientStart(const struct OsClientStartInfo *) {
     DebugLog("INIT.ELF: Starting...");
 
     LaunchTerminalService();

@@ -399,10 +399,7 @@ OsStatus km::LoadElf2(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProces
 
     startInfo = (OsClientStartInfo*)startInfoAddress;
 
-    *startInfo = OsClientStartInfo {
-        .TlsInit = nullptr,
-        .TlsInitSize = 0,
-    };
+    *startInfo = OsClientStartInfo {};
 
     threadCreateInfo = OsThreadCreateInfo {
         .Name = "INIT MASTER THREAD",

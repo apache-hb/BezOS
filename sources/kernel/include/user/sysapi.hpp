@@ -70,6 +70,7 @@ namespace um {
     OsCallResult ThreadCreate(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
     OsCallResult ThreadDestroy(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
     OsCallResult ThreadSleep(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
+    OsCallResult ThreadSuspend(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);
 
     // <bezos/facility/mutex.h>
     OsCallResult MutexCreate(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs);

@@ -7,8 +7,14 @@ extern "C" {
 #endif
 
 struct OsClientStartInfo {
+    /// @brief Base address of the tls data
     const void *TlsInit;
-    size_t TlsInitSize;
+
+    /// @brief Size of the tls data init area
+    size_t TlsDataSize;
+
+    /// @brief Size of the tls bss area
+    size_t TlsBssSize;
 };
 
 #ifdef __cplusplus

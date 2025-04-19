@@ -159,7 +159,7 @@ public:
         OsDeviceCreateInfo createInfo = {
             .Path = OsMakePath(kDisplayDevicePath),
             .InterfaceGuid = kOsDisplayClassGuid,
-            .Flags = eOsDeviceCreateNew,
+            .Flags = eOsDeviceOpenExisting,
         };
 
         ASSERT_OS_SUCCESS(OsDeviceOpen(createInfo, &mDevice));
@@ -223,7 +223,7 @@ public:
         OsDeviceCreateInfo createInfo {
             .Path = path,
             .InterfaceGuid = kOsStreamGuid,
-            .Flags = eOsDeviceCreateNew,
+            .Flags = eOsDeviceOpenAlways,
         };
 
         ASSERT_OS_SUCCESS(OsDeviceOpen(createInfo, &mDevice));

@@ -2,6 +2,8 @@
 
 #include "arch/generic/mmu.hpp"
 
+#include "pci/vendor.hpp"
+
 namespace arch {
     struct GenericMachine {
         using VendorString = void;
@@ -23,8 +25,14 @@ namespace arch {
         [[gnu::error("getFpuBrandString not implemented by platform")]]
         constexpr BrandString getFpuBrandString() const noexcept;
 
-        [[gnu::error("isVirtualMachine not implemented by platform")]]
-        constexpr bool isVirtualMachine() const noexcept;
+        [[gnu::error("isHypervisorPresent not implemented by platform")]]
+        constexpr bool isHypervisorPresent() const noexcept;
+
+        [[gnu::error("getHypervisorName not implemented by platform")]]
+        constexpr VendorString getHypervisorName() const noexcept;
+
+        [[gnu::error("getVendorId not implemented by platform")]]
+        constexpr pci::VendorId getVendorId() const noexcept;
 
         [[gnu::error("getMmu not implemented by platform")]]
         constexpr Mmu getMmu() const noexcept;

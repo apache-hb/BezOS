@@ -17,6 +17,8 @@ OsStatus sys2::MapFileToMemory(sm::RcuDomain *domain, vfs2::IFileHandle *fileHan
         return status;
     }
 
+    KmDebugMessage("[VMEM] Creating mapping: ", mapping, "\n");
+
     vfs2::ReadRequest read {
         .begin = (char*)mapping.vaddr,
         .end = (char*)mapping.vaddr + size,
@@ -24,7 +26,7 @@ OsStatus sys2::MapFileToMemory(sm::RcuDomain *domain, vfs2::IFileHandle *fileHan
     };
     vfs2::ReadResult result {};
     if (OsStatus status = fileHandle->read(read, &result)) {
-        KmDebugMessage("[VMEM] Failed to read file mapping: ", status, "\n");
+        KmDebugMessage("[VMEM] Failed to read file mapping from ", front, " to ", back, ": ", OsStatusId(status), "\n");
         pmm->release(memory);
         (void)ptes->unmap(mapping.virtualRange());
         return status;

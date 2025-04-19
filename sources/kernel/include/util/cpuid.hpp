@@ -13,5 +13,8 @@ namespace sm {
     };
 
     static constexpr unsigned kBrandStringSize = 3 * 4 * 4;
+    static constexpr unsigned kVendorStringSize = 12;
     void GetBrandString(char dst[kBrandStringSize]);
+    void GetVendorString(char dst[kVendorStringSize]);
+    void GetHypervisorString(char dst[kVendorStringSize]);
 }

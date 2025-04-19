@@ -17,12 +17,25 @@ struct RtldStartInfo {
     OsUtf8Char ProgramName[OS_DEVICE_NAME_MAX];
 };
 
+struct RtldTlsInitInfo {
+    void *InitAddress;
+    OsSize TlsDataSize;
+    OsSize TlsBssSize;
+};
+
+struct RtldTls {
+    void *BaseAddress;
+    void *TlsAddress;
+    OsSize Size;
+};
+
 struct RtldSoLoadInfo {
     OsDeviceHandle Object;
 };
 
 struct RtldSo {
     OsDeviceHandle Object;
+    RtldTlsInitInfo TlsInfo;
 };
 
 struct RtldSoName {
@@ -31,6 +44,8 @@ struct RtldSoName {
 };
 
 OsStatus RtldStartProgram(const struct RtldStartInfo *StartInfo, OsThreadHandle *OutThread);
+
+OsStatus RtldCreateTls(OsProcessHandle Process, struct RtldTlsInitInfo *TlsInfo, RtldTls *OutTlsInfo);
 
 OsStatus RtldSoOpen(const struct RtldSoLoadInfo *LoadInfo, struct RtldSo *OutObject);
 

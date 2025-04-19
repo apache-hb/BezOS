@@ -22,9 +22,7 @@ namespace sys2 {
         XSaveState mFpuState{nullptr, &km::DestroyXSave};
         reg_t mTlsAddress;
 
-        [[maybe_unused]]
         km::StackMapping mKernelStack;
-
         std::atomic<OsThreadState> mThreadState;
 
     public:
