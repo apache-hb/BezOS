@@ -7,11 +7,10 @@
 #include "isr/isr.hpp"
 #include "kernel.hpp"
 #include "log.hpp"
-#include "process/schedule.hpp"
 #include "processor.hpp"
 #include "system/create.hpp"
+#include "system/schedule.hpp"
 #include "thread.hpp"
-#include "system/system.hpp"
 #include "system/process.hpp"
 
 static constexpr bool kEmitAddrToLine = true;
@@ -252,6 +251,7 @@ static bool IsSupervisorFault(const km::IsrContext *context) {
 
 static void FaultProcess(km::IsrContext *context, stdx::StringView fault) {
     if (auto process = sys2::GetCurrentProcess()) {
+        km::UnlockDebugLog();
         KmDebugMessage("[PROC] Terminating ", process->getName(), ", due to ", fault, "\n");
         km::LockDebugLog();
         process->destroy(km::GetSysSystem(), sys2::ProcessDestroyInfo { .exitCode = 0, .reason = eOsProcessFaulted });

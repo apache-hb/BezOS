@@ -316,6 +316,20 @@ OsStatus sys2::Process::vmemCreate(System *system, OsVmemCreateInfo info, km::Ad
         return status;
     }
 
+    if (info.Access & eOsMemoryDiscard) {
+        km::AddressMapping discardMapping;
+        if (OsStatus status = system->mSystemTables->map(range, km::PageFlags::eData, km::MemoryType::eWriteBack, &discardMapping)) {
+            system->mPageAllocator->release(range);
+            return status;
+        }
+
+        memset((void*)discardMapping.vaddr, 0, discardMapping.size);
+        if (OsStatus status = system->mSystemTables->unmap(discardMapping.virtualRange())) {
+            system->mPageAllocator->release(range);
+            return status;
+        }
+    }
+
     auto object = sm::rcuMakeShared<sys2::MemoryObject>(&system->rcuDomain(), range);
 
     auto vm = result.virtualRange();

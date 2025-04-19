@@ -19,6 +19,10 @@ static OsMemoryAccess ConvertMmapAccess(int prot) {
         access |= eOsMemoryExecute;
     }
 
+    if (!(prot & MAP_UNINITIALIZED)) {
+        access |= eOsMemoryDiscard;
+    }
+
     return access;
 }
 

@@ -154,6 +154,10 @@ class VtDisplay {
     void *mAddress;
     flanterm_context *mContext;
 
+    static void ft_free(void *ptr, size_t) {
+        free(ptr);
+    }
+
 public:
     VtDisplay() {
         OsDeviceCreateInfo createInfo = {
@@ -174,7 +178,7 @@ public:
         ASSERT(mAddress != nullptr);
 
         mContext = flanterm_fb_init(
-            nullptr, nullptr,
+            malloc, ft_free,
             (uint32_t*)mAddress, display.Width, display.Height, display.Stride,
             display.RedMaskSize, display.RedMaskShift,
             display.GreenMaskSize, display.GreenMaskShift,
@@ -280,14 +284,18 @@ static char ConvertVkToAscii(OsHidKeyEvent event) {
     return '\0';
 }
 
-OS_EXTERN OS_NORETURN
-[[gnu::force_align_arg_pointer]]
+OS_EXTERN
+[[noreturn, gnu::force_align_arg_pointer]]
 void ClientStart(const struct OsClientStartInfo *) {
+    free(malloc(1));
+
     VtDisplay display{};
     KeyboardDevice keyboard{};
 
     OsHidEvent event{};
     char buffer[256]{};
+
+    DebugLog("TTY0: Starting TTY0...\n");
 
     StreamDevice ttyin{OsMakePath("Devices\0Terminal\0TTY0\0Input")};
     StreamDevice ttyout{OsMakePath("Devices\0Terminal\0TTY0\0Output")};

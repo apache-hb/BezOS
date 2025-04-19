@@ -56,11 +56,20 @@ extern long long strtoll(const char *, char **, int) BZP_NOEXCEPT;
 extern unsigned long strtoul(const char *, char **, int) BZP_NOEXCEPT;
 extern unsigned long long strtoull(const char *, char **, int) BZP_NOEXCEPT;
 
-extern void *malloc(size_t) BZP_NOEXCEPT;
-extern void *aligned_alloc(size_t, size_t) BZP_NOEXCEPT;
-extern void *calloc(size_t, size_t) BZP_NOEXCEPT;
-extern void *realloc(void *, size_t) BZP_NOEXCEPT;
-extern void free(void *) BZP_NOEXCEPT BZP_NONNULL(1);
+__attribute__((__nothrow__))
+extern void *malloc(size_t);
+
+__attribute__((__nothrow__))
+extern void *aligned_alloc(size_t, size_t);
+
+__attribute__((__nothrow__))
+extern void *calloc(size_t, size_t);
+
+__attribute__((__nothrow__))
+extern void *realloc(void *, size_t);
+
+__attribute__((__nothrow__))
+extern void free(void *) BZP_NONNULL(1);
 
 extern void qsort(void *, size_t, size_t, int (*)(const void *, const void *)); /* Not noexcept, callback may throw when used in c++ */
 
