@@ -3,7 +3,7 @@
 #include <bezos/status.h>
 
 #include "acpi/hpet.hpp"
-#include "pci/pci.hpp"
+#include "pci/vendor.hpp"
 #include "apic.hpp"
 
 #include "timer/tick_source.hpp"

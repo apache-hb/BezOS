@@ -190,7 +190,7 @@ namespace km {
 
         void destroy(T *ptr) noexcept [[clang::nonallocating]] {
             if (ptr != nullptr) {
-                ptr->~T();
+                std::destroy_at(ptr);
                 release(ptr);
             }
         }

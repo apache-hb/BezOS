@@ -145,6 +145,54 @@ TEST_F(TlsfHeapTest, AllocFreeRandom) {
             pointers.erase(it);
         } else {
             TlsfAllocation addr = heap.aligned_alloc(0x10, 0x100);
+            if (addr.isNull()) {
+                continue;
+            }
+
+            EXPECT_TRUE(addr.isValid());
+
+            ASSERT_FALSE(pointers.contains(addr)) << "Duplicate pointer: " << (void*)heap.addressOf(addr).address;
+            pointers.insert(addr);
+        }
+    }
+
+    for (auto addr : pointers) {
+        GetGlobalAllocator()->mNoAlloc = true;
+        heap.free(addr);
+        GetGlobalAllocator()->mNoAlloc = false;
+    }
+    pointers.clear();
+}
+
+// random access allocations
+TEST_F(TlsfHeapTest, AllocFreeRandomAlign) {
+    std::mt19937 random{0x1234};
+    std::uniform_int_distribution<size_t> distribution(0, 100);
+    std::uniform_int_distribution<size_t> alignDistribution(1, 8);
+    std::uniform_int_distribution<size_t> sizeDistribution(2, 64);
+    TlsfHeap heap;
+    km::MemoryRange range{0x1000, 0x10000};
+    OsStatus status = TlsfHeap::create(range, &heap);
+    EXPECT_EQ(status, OsStatusSuccess);
+    std::set<TlsfAllocation> pointers;
+    for (size_t i = 0; i < 200; i++) {
+        if (pointers.size() > 0 && distribution(random) < 50) {
+            auto it = pointers.begin();
+            std::advance(it, distribution(random) % pointers.size());
+
+            GetGlobalAllocator()->mNoAlloc = true;
+            heap.free(*it);
+            GetGlobalAllocator()->mNoAlloc = false;
+
+            pointers.erase(it);
+        } else {
+            size_t align = alignDistribution(random);
+            size_t size = sizeDistribution(random) * align;
+            TlsfAllocation addr = heap.aligned_alloc(align, size);
+            if (addr.isNull()) {
+                continue;
+            }
+
             EXPECT_TRUE(addr.isValid());
 
             ASSERT_FALSE(pointers.contains(addr)) << "Duplicate pointer: " << (void*)heap.addressOf(addr).address;
@@ -163,13 +211,13 @@ TEST_F(TlsfHeapTest, AllocFreeRandom) {
 // test many consecutive allocations then consecutive frees
 TEST_F(TlsfHeapTest, AllocChunk) {
     std::mt19937 random{0x1234};
-    std::uniform_int_distribution<size_t> distribution(0, 32);
+    std::uniform_int_distribution<size_t> distribution(0, 128);
     TlsfHeap heap;
     km::MemoryRange range{0x1000, 0x10000};
     OsStatus status = TlsfHeap::create(range, &heap);
     EXPECT_EQ(status, OsStatusSuccess);
     std::vector<TlsfAllocation> pointers;
-    for (size_t i = 0; i < 200; i++) {
+    for (size_t i = 0; i < 500; i++) {
         for (size_t j = 0; j < distribution(random); j++) {
             auto ptr = heap.aligned_alloc(0x10, 0x100);
             if (!ptr.isValid()) {
@@ -177,6 +225,108 @@ TEST_F(TlsfHeapTest, AllocChunk) {
             }
 
             EXPECT_TRUE(ptr.isValid());
+            ASSERT_TRUE(std::ranges::find(pointers, ptr) == pointers.end()) << "Duplicate pointer: " << (void*)heap.addressOf(ptr).address;
+            pointers.push_back(ptr);
+        }
+
+        if (distribution(random) < 24) {
+            GetGlobalAllocator()->mNoAlloc = true;
+            size_t front = distribution(random) % pointers.size();
+            size_t back = distribution(random) % pointers.size();
+            if (front > back) {
+                std::swap(front, back);
+            }
+            for (size_t j = front; j < back; j++) {
+                heap.free(pointers[j]);
+            }
+            GetGlobalAllocator()->mNoAlloc = false;
+
+            pointers.erase(pointers.begin() + front, pointers.begin() + back);
+        }
+    }
+
+    for (auto addr : pointers) {
+        GetGlobalAllocator()->mNoAlloc = true;
+        heap.free(addr);
+        GetGlobalAllocator()->mNoAlloc = false;
+    }
+    pointers.clear();
+}
+
+// test many consecutive allocations then consecutive frees
+TEST_F(TlsfHeapTest, AllocChunkRandomSize) {
+    std::mt19937 random{0x1234};
+    std::uniform_int_distribution<size_t> distribution(0, 128);
+    std::uniform_int_distribution<size_t> alignDistribution(1, 8);
+    std::uniform_int_distribution<size_t> sizeDistribution(2, 64);
+    TlsfHeap heap;
+    km::MemoryRange range{0x1000, 0x10000};
+    OsStatus status = TlsfHeap::create(range, &heap);
+    EXPECT_EQ(status, OsStatusSuccess);
+    std::vector<TlsfAllocation> pointers;
+    for (size_t i = 0; i < 500; i++) {
+        for (size_t j = 0; j < distribution(random); j++) {
+            size_t align = alignDistribution(random);
+            size_t size = sizeDistribution(random) * align;
+            auto ptr = heap.aligned_alloc(align, size);
+            if (!ptr.isValid()) {
+                break;
+            }
+
+            EXPECT_TRUE(ptr.isValid());
+            ASSERT_TRUE(std::ranges::find(pointers, ptr) == pointers.end()) << "Duplicate pointer: " << (void*)heap.addressOf(ptr).address;
+            pointers.push_back(ptr);
+        }
+
+        if (distribution(random) < 24) {
+            GetGlobalAllocator()->mNoAlloc = true;
+            size_t front = distribution(random) % pointers.size();
+            size_t back = distribution(random) % pointers.size();
+            if (front > back) {
+                std::swap(front, back);
+            }
+            for (size_t j = front; j < back; j++) {
+                heap.free(pointers[j]);
+            }
+            GetGlobalAllocator()->mNoAlloc = false;
+
+            pointers.erase(pointers.begin() + front, pointers.begin() + back);
+        }
+    }
+
+    for (auto addr : pointers) {
+        GetGlobalAllocator()->mNoAlloc = true;
+        heap.free(addr);
+        GetGlobalAllocator()->mNoAlloc = false;
+    }
+    pointers.clear();
+}
+
+// test many consecutive allocations then consecutive frees
+TEST_F(TlsfHeapTest, AllocChunkRandomSizeOom) {
+    std::mt19937 random{0x1234};
+    std::uniform_int_distribution<size_t> distribution(0, 128);
+    std::uniform_int_distribution<size_t> alignDistribution(1, 8);
+    std::uniform_int_distribution<size_t> sizeDistribution(2, 64);
+    TlsfHeap heap;
+    km::MemoryRange range{0x1000, 0x10000};
+    OsStatus status = TlsfHeap::create(range, &heap);
+    EXPECT_EQ(status, OsStatusSuccess);
+    std::vector<TlsfAllocation> pointers;
+    for (size_t i = 0; i < 500; i++) {
+        for (size_t j = 0; j < distribution(random); j++) {
+            GetGlobalAllocator()->mFailPercent = 0.5f;
+            size_t align = alignDistribution(random);
+            size_t size = sizeDistribution(random) * align;
+            auto ptr = heap.aligned_alloc(align, size);
+            GetGlobalAllocator()->mFailPercent = 0.f;
+
+            if (!ptr.isValid()) {
+                break;
+            }
+
+            EXPECT_TRUE(ptr.isValid());
+            ASSERT_TRUE(std::ranges::find(pointers, ptr) == pointers.end()) << "Duplicate pointer: " << (void*)heap.addressOf(ptr).address;
             pointers.push_back(ptr);
         }
 

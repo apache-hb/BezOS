@@ -79,6 +79,10 @@ namespace km {
 
     struct TlsfHeapStats {
         PoolAllocatorStats pool;
+        size_t freeListSize;
+        size_t usedMemory;
+        size_t freeMemory;
+        size_t blockCount;
     };
 
     struct TlsfBlock {
@@ -134,14 +138,17 @@ namespace km {
 
         size_t mMemoryClassCount;
         uint32_t mInnerFreeBitMap[detail::kMaxMemoryClass];
-        uint32_t mIsFreeMap;
+        uint32_t mTopLevelFreeMap;
 
-        TlsfBlock *findFreeBlock(size_t size, size_t *listIndex) noexcept;
+        TlsfBlock *findFreeBlock(size_t size, size_t *listIndex) noexcept [[clang::nonallocating]];
 
-        bool checkBlock(TlsfBlock *block, size_t listIndex, size_t size, size_t align, TlsfAllocation *result);
+        bool checkBlock(TlsfBlock *block, size_t listIndex, size_t size, size_t align, TlsfAllocation *result) [[clang::allocating]];
 
         /// @note If allocation fails, internal data structures are not modified.
         bool reserveBlock(TlsfBlock *block, size_t size, size_t alignedOffset, TlsfAllocation *result) noexcept [[clang::allocating]];
+
+        /// @brief Detach a block from its siblings to prepare for allocation.
+        void detachBlock(TlsfBlock *block, size_t listIndex) noexcept [[clang::nonblocking]];
 
         void removeFreeBlock(TlsfBlock *block) noexcept [[clang::nonblocking]];
         void insertFreeBlock(TlsfBlock *block) noexcept [[clang::nonblocking]];
@@ -164,17 +171,10 @@ namespace km {
         TlsfAllocation aligned_alloc(size_t align, size_t size) [[clang::allocating]];
         void free(TlsfAllocation ptr) noexcept [[clang::nonallocating]];
 
-        PhysicalAddress addressOf(TlsfAllocation ptr) const noexcept [[clang::nonblocking]] {
-            if (ptr.isNull()) {
-                return PhysicalAddress();
-            }
+        PhysicalAddress addressOf(TlsfAllocation ptr) const noexcept [[clang::nonblocking]];
 
-            TlsfBlock *block = ptr.getBlock();
-            return PhysicalAddress(block->offset + mRange.front.address);
-        }
+        TlsfHeapStats stats() noexcept [[clang::nonallocating]];
 
-        TlsfHeapStats stats();
-
-        static OsStatus create(MemoryRange range, TlsfHeap *heap);
+        static OsStatus create(MemoryRange range, TlsfHeap *heap) [[clang::allocating]];
     };
 }

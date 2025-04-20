@@ -5,10 +5,10 @@ using TlsfHeap = km::TlsfHeap;
 using TlsfHeapStats = km::TlsfHeapStats;
 
 TlsfBlock *TlsfHeap::findFreeBlock(size_t size, size_t *listIndex) noexcept [[clang::nonallocating]] {
-    size_t memoryClass = detail::SizeToMemoryClass(size);
+    uint8_t memoryClass = detail::SizeToMemoryClass(size);
     uint32_t innerFreeMap = mInnerFreeBitMap[memoryClass] & (~0u << detail::SizeToSecondIndex(size, memoryClass));
     if (innerFreeMap == 0) {
-        uint32_t freeMap = mIsFreeMap & (~0u << (memoryClass + 1));
+        uint32_t freeMap = mTopLevelFreeMap & (~0u << (memoryClass + 1));
         if (freeMap == 0) {
             return nullptr;
         }
@@ -32,7 +32,7 @@ TlsfHeap::TlsfHeap(MemoryRange range, PoolAllocator<TlsfBlock>&& pool, TlsfBlock
     , mMemoryClassCount(memoryClassCount)
 {
     mNullBlock->markFree();
-    mIsFreeMap = 0;
+    mTopLevelFreeMap = 0;
     std::uninitialized_fill_n(mFreeList.get(), freeListCount, nullptr);
     std::uninitialized_fill(std::begin(mInnerFreeBitMap), std::end(mInnerFreeBitMap), 0);
 }
@@ -41,11 +41,12 @@ TlsfHeap::~TlsfHeap() {
     mBlockPool.clear();
 }
 
-OsStatus TlsfHeap::create(MemoryRange range, TlsfHeap *heap) {
+OsStatus TlsfHeap::create(MemoryRange range, TlsfHeap *heap) [[clang::allocating]] {
     size_t size = range.size();
-    size_t memoryClass = detail::SizeToMemoryClass(size);
-    size_t secondIndex = detail::SizeToSecondIndex(size, memoryClass);
+    uint8_t memoryClass = detail::SizeToMemoryClass(size);
+    uint16_t secondIndex = detail::SizeToSecondIndex(size, memoryClass);
     size_t freeListCount = detail::GetFreeListSize(memoryClass, secondIndex);
+
     size_t memoryClassCount = memoryClass + 2;
 
     PoolAllocator<TlsfBlock> pool;
@@ -126,14 +127,16 @@ void TlsfHeap::free(TlsfAllocation address) noexcept [[clang::nonallocating]] {
     }
 }
 
-bool TlsfHeap::checkBlock(TlsfBlock *block, size_t listIndex, size_t size, size_t align, TlsfAllocation *result) {
-    KM_ASSERT(block->isFree());
-
-    size_t alignedOffset = sm::roundup(block->offset, align);
-    if (block->size < (size + alignedOffset - block->offset)) {
-        return false;
+km::PhysicalAddress TlsfHeap::addressOf(TlsfAllocation ptr) const noexcept [[clang::nonblocking]] {
+    if (ptr.isNull()) {
+        return PhysicalAddress();
     }
 
+    TlsfBlock *block = ptr.getBlock();
+    return PhysicalAddress(block->offset + mRange.front.address);
+}
+
+void TlsfHeap::detachBlock(TlsfBlock *block, size_t listIndex) noexcept [[clang::nonblocking]] {
     if (listIndex != mFreeListCount && block->prevFree != nullptr) {
         block->prevFree->nextFree = block->nextFree;
         if (block->nextFree != nullptr) {
@@ -146,12 +149,19 @@ bool TlsfHeap::checkBlock(TlsfBlock *block, size_t listIndex, size_t size, size_
             block->nextFree->prevFree = block;
         }
     }
+}
 
-    if (reserveBlock(block, size, alignedOffset, result)) {
-        return true;
+bool TlsfHeap::checkBlock(TlsfBlock *block, size_t listIndex, size_t size, size_t align, TlsfAllocation *result) [[clang::allocating]] {
+    KM_ASSERT(block->isFree());
+
+    size_t alignedOffset = sm::roundup(block->offset, align);
+    if (block->size < (size + alignedOffset - block->offset)) {
+        return false;
     }
 
-    return false;
+    detachBlock(block, listIndex);
+
+    return reserveBlock(block, size, alignedOffset, result);
 }
 
 bool TlsfHeap::reserveBlock(TlsfBlock *block, size_t size, size_t alignedOffset, TlsfAllocation *result) noexcept [[clang::allocating]] {
@@ -256,14 +266,15 @@ void TlsfHeap::removeFreeBlock(TlsfBlock *block) noexcept [[clang::nonblocking]]
     if (block->prevFree != nullptr) {
         block->prevFree->nextFree = block->nextFree;
     } else {
-        size_t memoryClass = detail::SizeToMemoryClass(block->size);
-        size_t secondIndex = detail::SizeToSecondIndex(block->size, memoryClass);
+        uint8_t memoryClass = detail::SizeToMemoryClass(block->size);
+        uint16_t secondIndex = detail::SizeToSecondIndex(block->size, memoryClass);
         size_t listIndex = detail::GetListIndex(memoryClass, secondIndex);
+
         mFreeList[listIndex] = block->nextFree;
         if (block->nextFree == nullptr) {
             mInnerFreeBitMap[memoryClass] &= ~(1u << secondIndex);
             if (mInnerFreeBitMap[memoryClass] == 0) {
-                mIsFreeMap &= ~(1u << memoryClass);
+                mTopLevelFreeMap &= ~(1u << memoryClass);
             }
         }
     }
@@ -273,7 +284,6 @@ void TlsfHeap::removeFreeBlock(TlsfBlock *block) noexcept [[clang::nonblocking]]
 
 void TlsfHeap::insertFreeBlock(TlsfBlock *block) noexcept [[clang::nonblocking]] {
     KM_ASSERT(block != mNullBlock);
-    KM_ASSERT(!block->isFree());
 
     uint8_t memoryClass = detail::SizeToMemoryClass(block->size);
     uint16_t secondIndex = detail::SizeToSecondIndex(block->size, memoryClass);
@@ -286,7 +296,7 @@ void TlsfHeap::insertFreeBlock(TlsfBlock *block) noexcept [[clang::nonblocking]]
         block->nextFree->prevFree = block;
     } else {
         mInnerFreeBitMap[memoryClass] |= (1u << secondIndex);
-        mIsFreeMap |= (1u << memoryClass);
+        mTopLevelFreeMap |= (1u << memoryClass);
     }
 }
 
@@ -303,8 +313,10 @@ void TlsfHeap::mergeBlock(TlsfBlock *block, TlsfBlock *prev) noexcept [[clang::n
     mBlockPool.destroy(prev);
 }
 
-TlsfHeapStats TlsfHeap::stats() {
+TlsfHeapStats TlsfHeap::stats() noexcept [[clang::nonallocating]] {
     return TlsfHeapStats {
         .pool = mBlockPool.stats(),
+        .freeListSize = mFreeListCount,
+
     };
 }
