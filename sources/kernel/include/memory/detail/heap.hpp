@@ -110,7 +110,11 @@ namespace km {
 
         TlsfAllocation(TlsfBlock *block) noexcept [[clang::nonblocking]]
             : block(block)
-        { }
+        {
+            if (block != nullptr) {
+                KM_CHECK(!block->isFree(), "Allocation was not created from a free block");
+            }
+        }
 
         TlsfBlock *getBlock() const noexcept [[clang::nonblocking]] { return block; }
         bool isNull() const noexcept [[clang::nonblocking]] { return block == nullptr; }
@@ -136,10 +140,11 @@ namespace km {
 
         bool checkBlock(TlsfBlock *block, size_t listIndex, size_t size, size_t align, TlsfAllocation *result);
 
-        TlsfAllocation alloc(TlsfBlock *block, size_t size, size_t alignedOffset);
+        /// @note If allocation fails, internal data structures are not modified.
+        bool reserveBlock(TlsfBlock *block, size_t size, size_t alignedOffset, TlsfAllocation *result) noexcept [[clang::allocating]];
 
-        void removeFreeBlock(TlsfBlock *block) noexcept [[clang::nonallocating]];
-        void insertFreeBlock(TlsfBlock *block) noexcept [[clang::nonallocating]];
+        void removeFreeBlock(TlsfBlock *block) noexcept [[clang::nonblocking]];
+        void insertFreeBlock(TlsfBlock *block) noexcept [[clang::nonblocking]];
         void mergeBlock(TlsfBlock *block, TlsfBlock *prev) noexcept [[clang::nonallocating]];
 
         TlsfHeap(MemoryRange range, PoolAllocator<TlsfBlock>&& pool, TlsfBlock *nullBlock, size_t freeListCount, std::unique_ptr<BlockPtr[]> freeList, size_t memoryClassCount);

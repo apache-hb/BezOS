@@ -123,3 +123,83 @@ TEST_F(TlsfHeapTest, AllocFree) {
         pointers.insert(addr);
     }
 }
+
+// random access allocations
+TEST_F(TlsfHeapTest, AllocFreeRandom) {
+    std::mt19937 random{0x1234};
+    std::uniform_int_distribution<size_t> distribution(0, 100);
+    TlsfHeap heap;
+    km::MemoryRange range{0x1000, 0x10000};
+    OsStatus status = TlsfHeap::create(range, &heap);
+    EXPECT_EQ(status, OsStatusSuccess);
+    std::set<TlsfAllocation> pointers;
+    for (size_t i = 0; i < 200; i++) {
+        if (pointers.size() > 0 && distribution(random) < 50) {
+            auto it = pointers.begin();
+            std::advance(it, distribution(random) % pointers.size());
+
+            GetGlobalAllocator()->mNoAlloc = true;
+            heap.free(*it);
+            GetGlobalAllocator()->mNoAlloc = false;
+
+            pointers.erase(it);
+        } else {
+            TlsfAllocation addr = heap.aligned_alloc(0x10, 0x100);
+            EXPECT_TRUE(addr.isValid());
+
+            ASSERT_FALSE(pointers.contains(addr)) << "Duplicate pointer: " << (void*)heap.addressOf(addr).address;
+            pointers.insert(addr);
+        }
+    }
+
+    for (auto addr : pointers) {
+        GetGlobalAllocator()->mNoAlloc = true;
+        heap.free(addr);
+        GetGlobalAllocator()->mNoAlloc = false;
+    }
+    pointers.clear();
+}
+
+// test many consecutive allocations then consecutive frees
+TEST_F(TlsfHeapTest, AllocChunk) {
+    std::mt19937 random{0x1234};
+    std::uniform_int_distribution<size_t> distribution(0, 32);
+    TlsfHeap heap;
+    km::MemoryRange range{0x1000, 0x10000};
+    OsStatus status = TlsfHeap::create(range, &heap);
+    EXPECT_EQ(status, OsStatusSuccess);
+    std::vector<TlsfAllocation> pointers;
+    for (size_t i = 0; i < 200; i++) {
+        for (size_t j = 0; j < distribution(random); j++) {
+            auto ptr = heap.aligned_alloc(0x10, 0x100);
+            if (!ptr.isValid()) {
+                break;
+            }
+
+            EXPECT_TRUE(ptr.isValid());
+            pointers.push_back(ptr);
+        }
+
+        if (distribution(random) < 24) {
+            GetGlobalAllocator()->mNoAlloc = true;
+            size_t front = distribution(random) % pointers.size();
+            size_t back = distribution(random) % pointers.size();
+            if (front > back) {
+                std::swap(front, back);
+            }
+            for (size_t j = front; j < back; j++) {
+                heap.free(pointers[j]);
+            }
+            GetGlobalAllocator()->mNoAlloc = false;
+
+            pointers.erase(pointers.begin() + front, pointers.begin() + back);
+        }
+    }
+
+    for (auto addr : pointers) {
+        GetGlobalAllocator()->mNoAlloc = true;
+        heap.free(addr);
+        GetGlobalAllocator()->mNoAlloc = false;
+    }
+    pointers.clear();
+}

@@ -15,6 +15,7 @@ TlsfBlock *TlsfHeap::findFreeBlock(size_t size, size_t *listIndex) noexcept [[cl
 
         memoryClass = detail::BitScanTrailing(freeMap);
         innerFreeMap = mInnerFreeBitMap[memoryClass];
+        KM_ASSERT(innerFreeMap != 0);
     }
 
     size_t index = detail::GetListIndex(memoryClass, detail::BitScanTrailing(innerFreeMap));
@@ -116,16 +117,21 @@ void TlsfHeap::free(TlsfAllocation address) noexcept [[clang::nonallocating]] {
     TlsfBlock *next = block->next;
     if (!next->isFree()) {
         insertFreeBlock(block);
+        KM_CHECK(!block->isFree(), "Block was not freed");
     } else if (next == mNullBlock) {
         mergeBlock(mNullBlock, block);
+        KM_CHECK(!mNullBlock->isFree(), "Block was not freed");
     } else {
         removeFreeBlock(next);
-        mergeBlock(block, next);
+        mergeBlock(next, block);
         insertFreeBlock(next);
+        KM_CHECK(!next->isFree(), "Block was not freed");
     }
 }
 
 bool TlsfHeap::checkBlock(TlsfBlock *block, size_t listIndex, size_t size, size_t align, TlsfAllocation *result) {
+    KM_ASSERT(block->isFree());
+
     size_t alignedOffset = sm::roundup(block->offset, align);
     if (block->size < (size + alignedOffset - block->offset)) {
         return false;
@@ -144,11 +150,14 @@ bool TlsfHeap::checkBlock(TlsfBlock *block, size_t listIndex, size_t size, size_
         }
     }
 
-    *result = alloc(block, size, alignedOffset);
-    return true;
+    if (reserveBlock(block, size, alignedOffset, result)) {
+        return true;
+    }
+
+    return false;
 }
 
-km::TlsfAllocation TlsfHeap::alloc(TlsfBlock *block, size_t size, size_t alignedOffset) {
+bool TlsfHeap::reserveBlock(TlsfBlock *block, size_t size, size_t alignedOffset, TlsfAllocation *result) noexcept [[clang::allocating]] {
     if (block != mNullBlock) {
         removeFreeBlock(block);
     }
@@ -174,6 +183,10 @@ km::TlsfAllocation TlsfHeap::alloc(TlsfBlock *block, size_t size, size_t aligned
                 .prev = prevBlock,
                 .next = block,
             });
+            if (newBlock == nullptr) {
+                return false;
+            }
+
             block->prev = newBlock;
             prevBlock->next = newBlock;
             newBlock->markTaken();
@@ -187,24 +200,34 @@ km::TlsfAllocation TlsfHeap::alloc(TlsfBlock *block, size_t size, size_t aligned
 
     if (block->size == size) {
         if (block == mNullBlock) {
-            mNullBlock = mBlockPool.construct(TlsfBlock {
+            TlsfBlock *newNullBlock = mBlockPool.construct(TlsfBlock {
                 .offset = block->offset + size,
                 .size = 0,
                 .prev = block,
                 .next = nullptr,
             });
+            if (newNullBlock == nullptr) {
+                return false;
+            }
+
+            mNullBlock = newNullBlock;
             mNullBlock->markFree();
             block->next = mNullBlock;
             block->markTaken();
         }
     } else {
         KM_CHECK(block->size > size, "Block size is less than requested size");
+
         TlsfBlock *newBlock = mBlockPool.construct(TlsfBlock {
             .offset = block->offset + size,
             .size = block->size - size,
             .prev = block,
             .next = block->next,
         });
+        if (newBlock == nullptr) {
+            return false;
+        }
+
         block->next = newBlock;
         block->size = size;
 
@@ -221,10 +244,11 @@ km::TlsfAllocation TlsfHeap::alloc(TlsfBlock *block, size_t size, size_t aligned
         }
     }
 
-    return TlsfAllocation(block);
+    *result = TlsfAllocation(block);
+    return true;
 }
 
-void TlsfHeap::removeFreeBlock(TlsfBlock *block) noexcept [[clang::nonallocating]] {
+void TlsfHeap::removeFreeBlock(TlsfBlock *block) noexcept [[clang::nonblocking]] {
     KM_ASSERT(block != mNullBlock);
     KM_ASSERT(block->isFree());
 
@@ -250,7 +274,7 @@ void TlsfHeap::removeFreeBlock(TlsfBlock *block) noexcept [[clang::nonallocating
     block->markTaken();
 }
 
-void TlsfHeap::insertFreeBlock(TlsfBlock *block) noexcept [[clang::nonallocating]] {
+void TlsfHeap::insertFreeBlock(TlsfBlock *block) noexcept [[clang::nonblocking]] {
     KM_ASSERT(block != mNullBlock);
     KM_ASSERT(!block->isFree());
 
@@ -269,6 +293,9 @@ void TlsfHeap::insertFreeBlock(TlsfBlock *block) noexcept [[clang::nonallocating
 }
 
 void TlsfHeap::mergeBlock(TlsfBlock *block, TlsfBlock *prev) noexcept [[clang::nonallocating]] {
+    KM_ASSERT(block->prev == prev);
+    KM_ASSERT(!prev->isFree());
+
     block->offset = prev->offset;
     block->size += prev->size;
     block->prev = prev->prev;
