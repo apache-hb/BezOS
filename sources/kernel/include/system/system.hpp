@@ -46,7 +46,7 @@ namespace sys2 {
         sm::FlatHashSet<sm::RcuSharedPtr<Process>, sm::RcuHash<Process>, std::equal_to<>> mProcessObjects GUARDED_BY(mLock);
 
     public:
-        System( km::AddressSpace *systemTables [[gnu::nonnull]], km::PageAllocator *pmm [[gnu::nonnull]], vfs2::VfsRoot *vfsRoot)
+        System(km::AddressSpace *systemTables [[gnu::nonnull]], km::PageAllocator *pmm [[gnu::nonnull]], vfs2::VfsRoot *vfsRoot)
             : mSystemTables(systemTables)
             , mPageAllocator(pmm)
             , mVfsRoot(vfsRoot)

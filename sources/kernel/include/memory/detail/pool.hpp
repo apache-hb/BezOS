@@ -69,6 +69,8 @@ namespace km::detail {
     ///
     /// Based on a class with the same name that is part of D3D12MA, this is used in a tlsf allocator
     /// with lookaside control blocks to allocate from memory that cannot be accessed by the allocator.
+    /// D3D12MA uses this to allocate from graphics memory, which is not accessible from the CPU. We
+    /// use this for physical memory, which is not mapped into the cpu address space.
     ///
     /// @cite D3D12MA
     template<typename T>
