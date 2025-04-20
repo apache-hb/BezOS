@@ -2,7 +2,8 @@
 
 #include "common/util/util.hpp"
 
-#include <new>
+#include <gtest/gtest.h>
+#include <random>
 #include <stdlib.h>
 
 enum AllocFlags {
@@ -13,11 +14,35 @@ enum AllocFlags {
 
 UTIL_BITFLAGS(AllocFlags);
 
-class IGlobalAllocator {
-public:
-    virtual ~IGlobalAllocator() = default;
+class TestAllocator {
+    bool shouldAllocFail() {
+        if (mAllocCount > mFailAfter) {
+            return true;
+        }
 
-    virtual void *operatorNew(size_t size, size_t align, AllocFlags flags) {
+        mAllocCount += 1;
+
+        if (mFailPercent > 0.0f) {
+            float randomValue = mDistribution(mRandom);
+            if (randomValue < mFailPercent) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+public:
+    void *operatorNew(size_t size, size_t align, AllocFlags flags) {
+        if (mNoAlloc) {
+            fprintf(stderr, "Allocation occurred when no alloc was expected\n");
+            abort();
+        }
+
+        if (shouldAllocFail()) {
+            return nullptr;
+        }
+
         if (void *ptr = aligned_alloc(align, size)) {
             return ptr;
         }
@@ -29,112 +54,35 @@ public:
         throw std::bad_alloc();
     }
 
-    virtual void operatorDelete(void *ptr, [[maybe_unused]] size_t size, [[maybe_unused]] size_t align, [[maybe_unused]] AllocFlags flags) {
+    void operatorDelete(void *ptr, [[maybe_unused]] size_t size, [[maybe_unused]] size_t align, [[maybe_unused]] AllocFlags flags) {
         if (ptr == nullptr) {
             return;
         }
 
+        mFreeCount += 1;
+
         free(ptr);
     }
+
+    void reset(size_t seed = 0x1234) {
+        mAllocCount = 0;
+        mFreeCount = 0;
+        mNoAlloc = false;
+        mFailAfter = SIZE_MAX;
+        mFailPercent = 0.0f;
+        mRandom.seed(seed);
+        mDistribution = std::uniform_real_distribution<float>(0.0f, 1.0f);
+    }
+
+    size_t mFailAfter = SIZE_MAX;
+    bool mNoAlloc = false;
+
+    size_t mAllocCount = 0;
+    size_t mFreeCount = 0;
+
+    float mFailPercent = 0.0f;
+    std::mt19937 mRandom;
+    std::uniform_real_distribution<float> mDistribution { 0.0f, 1.0f };
 };
 
-IGlobalAllocator *GetGlobalAllocator();
-void SetGlobalAllocator(IGlobalAllocator *allocator);
-
-#if defined(TEST_REPLACE_GLOBAL_ALLOCATOR)
-static void *OperatorNew(size_t size, size_t align, AllocFlags flags) {
-    return GetGlobalAllocator()->operatorNew(size, align, flags);
-}
-
-static void OperatorDelete(void *ptr, [[maybe_unused]] size_t size, [[maybe_unused]] size_t align, [[maybe_unused]] AllocFlags flags) {
-    GetGlobalAllocator()->operatorDelete(ptr, size, align, flags);
-}
-
-// operator new
-
-void* operator new(std::size_t size) {
-    return OperatorNew(size, alignof(std::max_align_t), eNone);
-}
-
-void* operator new(std::size_t size, const std::nothrow_t&) noexcept {
-    return OperatorNew(size, alignof(std::max_align_t), eNoThrow);
-}
-
-void* operator new(std::size_t size, std::align_val_t align) {
-    return OperatorNew(size, std::to_underlying(align), eNone);
-}
-
-void* operator new(std::size_t size, std::align_val_t align, const std::nothrow_t&) noexcept {
-    return OperatorNew(size, std::to_underlying(align), eNoThrow);
-}
-
-// operator new[]
-
-void* operator new[](std::size_t size) {
-    return OperatorNew(size, alignof(std::max_align_t), eArray);
-}
-
-void* operator new[](std::size_t size, const std::nothrow_t&) noexcept {
-    return OperatorNew(size, alignof(std::max_align_t), eArray | eNoThrow);
-}
-
-void* operator new[](std::size_t size, std::align_val_t align) {
-    return OperatorNew(size, std::to_underlying(align), eArray);
-}
-
-void* operator new[](std::size_t size, std::align_val_t align, const std::nothrow_t&) noexcept {
-    return OperatorNew(size, std::to_underlying(align), eArray | eNoThrow);
-}
-
-// operator delete
-
-void operator delete(void* ptr) {
-    OperatorDelete(ptr, 0, 0, eNone);
-}
-
-void operator delete(void* ptr, std::size_t size) {
-    OperatorDelete(ptr, size, 0, eNone);
-}
-
-void operator delete(void* ptr, const std::nothrow_t&) {
-    OperatorDelete(ptr, 0, 0, eNoThrow);
-}
-
-void operator delete(void* ptr, std::align_val_t align) {
-    OperatorDelete(ptr, 0, std::to_underlying(align), eNone);
-}
-
-void operator delete(void* ptr, std::align_val_t align, const std::nothrow_t&) {
-    OperatorDelete(ptr, 0, std::to_underlying(align), eNoThrow);
-}
-
-void operator delete(void* ptr, std::size_t size, std::align_val_t align) {
-    OperatorDelete(ptr, size, std::to_underlying(align), eNone);
-}
-
-// operator delete[]
-
-void operator delete[](void* ptr) {
-    OperatorDelete(ptr, 0, 0, eArray);
-}
-
-void operator delete[](void* ptr, std::size_t size) {
-    OperatorDelete(ptr, size, 0, eArray);
-}
-
-void operator delete[](void* ptr, const std::nothrow_t&) {
-    OperatorDelete(ptr, 0, 0, eArray | eNoThrow);
-}
-
-void operator delete[](void* ptr, std::align_val_t align) {
-    OperatorDelete(ptr, 0, std::to_underlying(align), eArray);
-}
-
-void operator delete[](void* ptr, std::align_val_t align, const std::nothrow_t&) {
-    OperatorDelete(ptr, 0, std::to_underlying(align), eArray | eNoThrow);
-}
-
-void operator delete[](void* ptr, std::size_t size, std::align_val_t align) {
-    OperatorDelete(ptr, size, std::to_underlying(align), eArray);
-}
-#endif
+TestAllocator *GetGlobalAllocator();

@@ -8,11 +8,11 @@ extern "C" [[noreturn]] void KmHalt(void);
 extern "C" [[noreturn]] void KmIdle(void);
 
 [[noreturn]]
-void KmBugCheck(stdx::StringView message, stdx::StringView file, unsigned line);
+void KmBugCheck(stdx::StringView message, stdx::StringView file, unsigned line) noexcept [[clang::nonblocking]] ;
 
 namespace km {
     [[noreturn]]
-    void BugCheck(stdx::StringView message, std::source_location where = std::source_location::current());
+    void BugCheck(stdx::StringView message, std::source_location where = std::source_location::current()) noexcept [[clang::nonblocking]];
 }
 
 #define KM_PANIC(msg) KmBugCheck(msg, __FILE__, __LINE__)

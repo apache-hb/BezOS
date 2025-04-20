@@ -82,10 +82,14 @@ repo: $(REPO) $(REPO_SRC)
 
 
 KERNEL_PATH := build/packages/kernel
+COMMON_PATH := build/packages/common
+SYSAPI_PATH := build/packages/sysapi
 
 .PHONY: clean-coverage
 clean-coverage:
 	@find $(KERNEL_PATH) -name "*.gcda" -print0 | xargs -0 rm 2> /dev/null || true
+	@find $(COMMON_PATH) -name "*.gcda" -print0 | xargs -0 rm 2> /dev/null || true
+	@find $(SYSAPI_PATH) -name "*.gcda" -print0 | xargs -0 rm 2> /dev/null || true
 
 .PHONY: clean
 clean:

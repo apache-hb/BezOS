@@ -38,12 +38,13 @@ km::IOutStream *km::GetDebugStream() {
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Winvalid-noreturn" // GTEST_FAIL_AT is a macro that doesn't return
+#pragma clang diagnostic ignored "-Wfunction-effects" // bugCheck isnt actually nonblocking
 
-void KmBugCheck(stdx::StringView message, stdx::StringView file, unsigned line) {
+void KmBugCheck(stdx::StringView message, stdx::StringView file, unsigned line) noexcept [[clang::nonblocking]] {
     GTEST_FAIL() << "Bugcheck: " << std::string_view(message) << " at " << std::string_view(file) << ":" << line;
 }
 
-void km::BugCheck(stdx::StringView message, std::source_location where) {
+void km::BugCheck(stdx::StringView message, std::source_location where) noexcept [[clang::nonblocking]] {
     GTEST_FAIL() << "Bugcheck: " << std::string_view(message) << " at " << where.file_name() << ":" << where.line();
 }
 

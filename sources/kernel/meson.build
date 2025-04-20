@@ -637,6 +637,13 @@ testcases = {
     'device': [
         'test/system/device.cpp',
     ],
+    'tlsf heap +new': [
+        'test/memory/tlsf.cpp',
+        'src/memory/detail/heap.cpp',
+    ],
+    'pool allocator +new': [
+        'test/memory/pool.cpp',
+    ],
 }
 
 if enable_aml
@@ -667,7 +674,7 @@ foreach name, source : testcases
 
     if name.contains('+new')
         this_test_exe_kwargs += { 'link_with': this_test_exe_kwargs['link_with'] + [ operator_new_shim_test ] }
-        name = name.replace('+new', '')
+        name = name.replace('+new', '').strip()
     endif
 
     exe = executable('test-kernel-' + name.to_lower().replace(' ', '-').strip(), source,

@@ -435,11 +435,15 @@ namespace stdx {
             return OsStatusSuccess;
         }
 
-        constexpr void addRange(std::span<const T> src) {
-            ensureExtra(src.size());
+        constexpr OsStatus addRange(std::span<const T> src) {
+            if (OsStatus status = ensureExtra(src.size())) {
+                return status;
+            }
 
             std::uninitialized_copy(src.begin(), src.end(), mBack);
             mBack += src.size();
+
+            return OsStatusSuccess;
         }
 
         constexpr void pop() {
@@ -447,20 +451,28 @@ namespace stdx {
         }
 
         template<typename Iter>
-        constexpr void insert(Iter first, Iter last) {
-            ensureExtra(last - first);
+        constexpr OsStatus insert(Iter first, Iter last) {
+            if (OsStatus status = ensureExtra(last - first)) {
+                return status;
+            }
 
             for (auto it = first; it != last; it++) {
                 add(*it);
             }
+
+            return OsStatusSuccess;
         }
 
-        constexpr void insert(size_t index, T value) {
-            ensureExtra(1);
+        constexpr OsStatus insert(size_t index, T value) {
+            if (OsStatus status = ensureExtra(1)) {
+                return status;
+            }
 
             std::copy_backward(mFront + index, mBack, mBack + 1);
             std::construct_at(mFront + index, std::move(value));
             mBack++;
+
+            return OsStatusSuccess;
         }
 
         constexpr void remove(size_t index) {

@@ -126,11 +126,11 @@ namespace mem {
         GlobalAllocator(GlobalAllocator<O> &&) { }
 
         T *allocate(size_t n) {
-            return (T*)aligned_alloc(alignof(T), n * sizeof(T));
+            return new (std::nothrow) T[n];
         }
 
         void deallocate(T *ptr, size_t) {
-            free(ptr);
+            delete[] ptr;
         }
     };
 
