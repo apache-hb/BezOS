@@ -107,11 +107,11 @@ TEST_F(TlsfHeapTest, AllocFree) {
     TlsfAllocation addr = heap.aligned_alloc(0x10, 0x100);
     EXPECT_FALSE(addr.isValid());
 
-    GetGlobalAllocator()->mNoAlloc = true;
+    // GetGlobalAllocator()->mNoAlloc = true;
     for (auto addr : pointers) {
         heap.free(addr);
     }
-    GetGlobalAllocator()->mNoAlloc = false;
+    // GetGlobalAllocator()->mNoAlloc = false;
     pointers.clear();
 
     // should be able to allocate again

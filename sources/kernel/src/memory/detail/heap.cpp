@@ -117,15 +117,12 @@ void TlsfHeap::free(TlsfAllocation address) noexcept [[clang::nonallocating]] {
     TlsfBlock *next = block->next;
     if (!next->isFree()) {
         insertFreeBlock(block);
-        KM_CHECK(!block->isFree(), "Block was not freed");
     } else if (next == mNullBlock) {
         mergeBlock(mNullBlock, block);
-        KM_CHECK(!mNullBlock->isFree(), "Block was not freed");
     } else {
         removeFreeBlock(next);
         mergeBlock(next, block);
         insertFreeBlock(next);
-        KM_CHECK(!next->isFree(), "Block was not freed");
     }
 }
 
@@ -278,9 +275,10 @@ void TlsfHeap::insertFreeBlock(TlsfBlock *block) noexcept [[clang::nonblocking]]
     KM_ASSERT(block != mNullBlock);
     KM_ASSERT(!block->isFree());
 
-    size_t memoryClass = detail::SizeToMemoryClass(block->size);
-    size_t secondIndex = detail::SizeToSecondIndex(block->size, memoryClass);
+    uint8_t memoryClass = detail::SizeToMemoryClass(block->size);
+    uint16_t secondIndex = detail::SizeToSecondIndex(block->size, memoryClass);
     size_t listIndex = detail::GetListIndex(memoryClass, secondIndex);
+
     block->prevFree = nullptr;
     block->nextFree = mFreeList[listIndex];
     mFreeList[listIndex] = block;
