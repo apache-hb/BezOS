@@ -5,10 +5,17 @@
 
 namespace km {
     struct PoolAllocatorStats {
+        /// @brief Number of currently allocated magazines.
         size_t magazines;
+
+        /// @brief Number of slots currently available for allocation.
         size_t freeSlots;
+
+        /// @brief Total number of slots currently allocated.
         size_t totalSlots;
-        size_t usedMemory;
+
+        /// @brief Overhead of the memory used by the allocator.
+        size_t controlMemory;
     };
 
     struct PoolCompactStats {
@@ -225,18 +232,18 @@ namespace km {
         PoolAllocatorStats stats() const noexcept [[clang::nonallocating]] {
             size_t freeSlots = 0;
             size_t totalSlots = 0;
-            size_t usedMemory = mBlocks.count() * sizeof(Block*);
+            size_t controlMemory = mBlocks.count() * sizeof(Block*);
             for (Block *block : mBlocks) {
                 freeSlots += block->freeSlots();
                 totalSlots += block->count;
-                usedMemory += sizeof(Block) + (sizeof(Item) * block->count);
+                controlMemory += (sizeof(Block) * block->count) + (sizeof(Item) * block->count);
             }
 
             return PoolAllocatorStats {
                 .magazines = mBlocks.count(),
                 .freeSlots = freeSlots,
                 .totalSlots = totalSlots,
-                .usedMemory = usedMemory,
+                .controlMemory = controlMemory,
             };
         }
     };

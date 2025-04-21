@@ -5,11 +5,13 @@
 
 namespace km {
     namespace detail {
-        static constexpr size_t kSmallBufferSize = 0x100;
-        static constexpr size_t kMemoryClassShift = 7;
-        static constexpr size_t kSecondLevelIndex = 5;
-        static constexpr size_t kMaxMemoryClass = 64 - kMemoryClassShift;
-        static constexpr size_t kSmallSizeStep = kSmallBufferSize / (1 << kSecondLevelIndex);
+        enum {
+            kSmallBufferSize = 0x100,
+            kMemoryClassShift = 7,
+            kSecondLevelIndex = 5,
+            kMaxMemoryClass = 64 - kMemoryClassShift,
+            kSmallSizeStep = kSmallBufferSize / (1 << kSecondLevelIndex),
+        };
 
         template<std::unsigned_integral T>
         static constexpr uint8_t BitScanLeading(T mask) {
@@ -77,7 +79,33 @@ namespace km {
                 return size + kSmallSizeStep;
             }
         }
+
+        struct TlsfBlock {
+            size_t offset;
+            size_t size;
+            TlsfBlock *prev;
+            TlsfBlock *next;
+            TlsfBlock *nextFree;
+            TlsfBlock *prevFree;
+
+            bool isFree() const noexcept [[clang::nonblocking]] {
+                return (prevFree != this);
+            }
+
+            void markTaken() noexcept [[clang::nonblocking]] {
+                prevFree = this;
+            }
+
+            void markFree() noexcept [[clang::nonblocking]] {
+                prevFree = nullptr;
+            }
+        };
+
+        using TlsfBitMap = uint32_t;
     }
+
+    class TlsfAllocation;
+    class TlsfHeap;
 
     struct TlsfHeapStats {
         PoolAllocatorStats pool;
@@ -85,49 +113,27 @@ namespace km {
         size_t usedMemory;
         size_t freeMemory;
         size_t blockCount;
-        size_t controlMemory;
+
+        constexpr size_t controlMemory() const noexcept [[clang::nonblocking]] {
+            return (sizeof(detail::TlsfBlock*) * freeListSize) + (sizeof(detail::TlsfBlock) * blockCount);
+        }
     };
 
     struct TlsfCompactStats {
         PoolCompactStats pool;
     };
 
-    struct TlsfBlock {
-        size_t offset;
-        size_t size;
-        TlsfBlock *prev;
-        TlsfBlock *next;
-        TlsfBlock *nextFree;
-        TlsfBlock *prevFree;
-
-        bool isFree() const noexcept [[clang::nonblocking]] {
-            return (prevFree != this);
-        }
-
-        void markTaken() noexcept [[clang::nonblocking]] {
-            prevFree = this;
-        }
-
-        void markFree() noexcept [[clang::nonblocking]] {
-            prevFree = nullptr;
-        }
-    };
-
     class TlsfAllocation {
-        TlsfBlock *block;
+        friend class TlsfHeap;
+
+        detail::TlsfBlock *block;
+
+        TlsfAllocation(detail::TlsfBlock *block) noexcept [[clang::nonblocking]];
 
     public:
         constexpr TlsfAllocation() = default;
 
-        TlsfAllocation(TlsfBlock *block) noexcept [[clang::nonblocking]]
-            : block(block)
-        {
-            if (block != nullptr) {
-                KM_CHECK(!block->isFree(), "Allocation was not created from a free block");
-            }
-        }
-
-        TlsfBlock *getBlock() const noexcept [[clang::nonblocking]] { return block; }
+        detail::TlsfBlock *getBlock() const noexcept [[clang::nonblocking]] { return block; }
         bool isNull() const noexcept [[clang::nonblocking]] { return block == nullptr; }
         bool isValid() const noexcept [[clang::nonblocking]] { return block != nullptr; }
 
@@ -135,8 +141,9 @@ namespace km {
     };
 
     class TlsfHeap {
-        using BlockPtr = TlsfBlock*;
-        using BitMap = uint32_t;
+        using TlsfBlock = detail::TlsfBlock;
+        using BlockPtr = detail::TlsfBlock*;
+        using BitMap = detail::TlsfBitMap;
 
         size_t mSize;
 
@@ -145,11 +152,10 @@ namespace km {
         size_t mFreeListCount;
         std::unique_ptr<BlockPtr[]> mFreeList;
 
-        size_t mMemoryClassCount;
         BitMap mInnerFreeMap[detail::kMaxMemoryClass];
         BitMap mTopLevelFreeMap;
 
-        TlsfBlock *findFreeBlock(size_t size, size_t *listIndex) noexcept [[clang::nonallocating]];
+        TlsfBlock *findFreeBlock(size_t size, size_t *listIndex) noexcept [[clang::nonblocking]];
 
         bool checkBlock(TlsfBlock *block, size_t listIndex, size_t size, size_t align, TlsfAllocation *result) [[clang::allocating]];
 
@@ -163,7 +169,11 @@ namespace km {
         void insertFreeBlock(TlsfBlock *block) noexcept [[clang::nonblocking]];
         void mergeBlock(TlsfBlock *block, TlsfBlock *prev) noexcept [[clang::nonallocating]];
 
-        TlsfHeap(size_t size, PoolAllocator<TlsfBlock>&& pool, TlsfBlock *nullBlock, size_t freeListCount, std::unique_ptr<BlockPtr[]> freeList, size_t memoryClassCount);
+        void init() noexcept;
+
+        OsStatus addPool(MemoryRange range) [[clang::allocating]];
+
+        TlsfHeap(PoolAllocator<TlsfBlock>&& pool, TlsfBlock *nullBlock, size_t freeListCount, std::unique_ptr<BlockPtr[]> freeList);
 
     public:
         UTIL_NOCOPY(TlsfHeap);
@@ -175,10 +185,49 @@ namespace km {
         void validate();
         TlsfCompactStats compact();
 
-        OsStatus addPool(MemoryRange range) [[clang::allocating]];
+        TlsfAllocation malloc(size_t size) [[clang::allocating]];
 
-        PhysicalAddress malloc(size_t size) [[clang::allocating]];
-        PhysicalAddress realloc(PhysicalAddress ptr, size_t size) [[clang::allocating]];
+        /// @brief Deleted realloc for documentation.
+        ///
+        /// Realloc cannot be implemented, the underlying memory may not be acessible. Therefore
+        /// the api contract of realloc cannot be fulfilled. See @ref shrink and @ref grow for
+        /// alternatives.
+        TlsfAllocation realloc(TlsfAllocation ptr, size_t size) = delete("realloc is not supported");
+
+        /// @brief Grow an allocation to a larger size.
+        ///
+        /// Grows an allocation to a larger size if there is adjacent space available. If there
+        /// is no adjacent space available, the allocation fails and the original
+        /// allocation is unchanged.
+        ///
+        /// @param ptr The allocation to grow.
+        /// @param size The new size of the allocation.
+        ///
+        /// @return The status of the operation.
+        OsStatus grow(TlsfAllocation ptr, size_t size) [[clang::allocating]];
+
+        /// @brief Shrink an allocation to a smaller size.
+        ///
+        /// Shrinks an allocation to a smaller size. If control structures cannot be
+        /// allocated, the allocation fails and the original allocation is unchanged.
+        ///
+        /// @param ptr The allocation to shrink.
+        /// @param size The new size of the allocation.
+        ///
+        /// @return The status of the operation.
+        OsStatus shrink(TlsfAllocation ptr, size_t size) [[clang::allocating]];
+
+        /// @brief Resize an allocation to a new size.
+        ///
+        /// Resizes an allocation to a new size using adjacent space. If this operation
+        /// fails the original allocation is unchanged.
+        ///
+        /// @param ptr The allocation to resize.
+        /// @param size The new size of the allocation.
+        ///
+        /// @return The status of the operation.
+        OsStatus resize(TlsfAllocation ptr, size_t size) [[clang::allocating]];
+
         TlsfAllocation aligned_alloc(size_t align, size_t size) [[clang::allocating]];
         void free(TlsfAllocation ptr) noexcept [[clang::nonallocating]];
 
@@ -187,5 +236,6 @@ namespace km {
         TlsfHeapStats stats() noexcept [[clang::nonallocating]];
 
         static OsStatus create(MemoryRange range, TlsfHeap *heap) [[clang::allocating]];
+        static OsStatus create(std::span<const MemoryRange> ranges, TlsfHeap *heap) [[clang::allocating]];
     };
 }

@@ -1,11 +1,73 @@
 #include "memory/detail/heap.hpp"
 #include "std/static_vector.hpp"
 
-using TlsfBlock = km::TlsfBlock;
+#include <numeric>
+#include <ranges>
+
+using TlsfBlock = km::detail::TlsfBlock;
 using TlsfHeap = km::TlsfHeap;
 using TlsfHeapStats = km::TlsfHeapStats;
+using TlsfAllocation = km::TlsfAllocation;
 
-TlsfBlock *TlsfHeap::findFreeBlock(size_t size, size_t *listIndex) noexcept [[clang::nonallocating]] {
+namespace {
+    template<size_t N>
+    struct BlockBuffer {
+        km::PoolAllocator<TlsfBlock> *pool;
+        stdx::StaticVector<TlsfBlock*, N> blocks;
+
+        UTIL_NOCOPY(BlockBuffer);
+        UTIL_NOMOVE(BlockBuffer);
+
+        ~BlockBuffer() {
+            for (TlsfBlock *block : blocks) {
+                pool->destroy(block);
+            }
+        }
+
+        BlockBuffer(km::PoolAllocator<TlsfBlock> *pool)
+            : pool(pool)
+        { }
+
+        OsStatus reserveOne() [[clang::allocating]] {
+            KM_CHECK(!blocks.isFull(), "Block buffer is full");
+            if (TlsfBlock *block = pool->construct()) {
+                blocks.add(block);
+                return OsStatusSuccess;
+            }
+
+            return OsStatusOutOfMemory;
+        }
+
+        OsStatus reserve(size_t count = 1) [[clang::allocating]] {
+            for (size_t i = 0; i < count; i++) {
+                if (OsStatus status = reserveOne()) {
+                    return status;
+                }
+            }
+
+            return OsStatusSuccess;
+        }
+
+        [[gnu::returns_nonnull]]
+        TlsfBlock *take(TlsfBlock init) noexcept [[clang::nonblocking]] {
+            KM_CHECK(!blocks.isEmpty(), "No blocks in buffer");
+            TlsfBlock *block = blocks.back();
+            blocks.pop();
+            *block = init;
+            return block;
+        }
+    };
+}
+
+TlsfAllocation::TlsfAllocation(detail::TlsfBlock *block) noexcept [[clang::nonblocking]]
+    : block(block)
+{
+    if (block != nullptr) {
+        KM_CHECK(!block->isFree(), "Allocation was not created from a free block");
+    }
+}
+
+TlsfBlock *TlsfHeap::findFreeBlock(size_t size, size_t *listIndex) noexcept [[clang::nonblocking]] {
     KM_CHECK(size > 0, "size must be greater than 0");
 
     uint8_t memoryClass = detail::SizeToMemoryClass(size);
@@ -31,18 +93,21 @@ TlsfBlock *TlsfHeap::findFreeBlock(size_t size, size_t *listIndex) noexcept [[cl
     return mFreeList[index];
 }
 
-TlsfHeap::TlsfHeap(size_t size, PoolAllocator<TlsfBlock>&& pool, TlsfBlock *nullBlock, size_t freeListCount, std::unique_ptr<BlockPtr[]> freeList, size_t memoryClassCount)
-    : mSize(size)
-    , mBlockPool(std::move(pool))
+void TlsfHeap::init() noexcept {
+    mTopLevelFreeMap = 0;
+    std::uninitialized_fill_n(mFreeList.get(), mFreeListCount, nullptr);
+    std::uninitialized_fill(std::begin(mInnerFreeMap), std::end(mInnerFreeMap), 0);
+}
+
+TlsfHeap::TlsfHeap(PoolAllocator<TlsfBlock>&& pool, TlsfBlock *nullBlock, size_t freeListCount, std::unique_ptr<BlockPtr[]> freeList)
+    : mBlockPool(std::move(pool))
     , mNullBlock(nullBlock)
     , mFreeListCount(freeListCount)
     , mFreeList(std::move(freeList))
-    , mMemoryClassCount(memoryClassCount)
 {
     mNullBlock->markFree();
-    mTopLevelFreeMap = 0;
-    std::uninitialized_fill_n(mFreeList.get(), freeListCount, nullptr);
-    std::uninitialized_fill(std::begin(mInnerFreeMap), std::end(mInnerFreeMap), 0);
+    init();
+    mSize = mNullBlock->size;
 }
 
 TlsfHeap::~TlsfHeap() {
@@ -54,8 +119,6 @@ OsStatus TlsfHeap::create(MemoryRange range, TlsfHeap *heap) [[clang::allocating
     uint8_t memoryClass = detail::SizeToMemoryClass(size);
     uint16_t secondIndex = detail::SizeToSecondIndex(size, memoryClass);
     size_t freeListCount = detail::GetFreeListSize(memoryClass, secondIndex);
-
-    size_t memoryClassCount = memoryClass + 2;
 
     PoolAllocator<TlsfBlock> pool;
     TlsfBlock *nullBlock = pool.construct(TlsfBlock {
@@ -71,38 +134,79 @@ OsStatus TlsfHeap::create(MemoryRange range, TlsfHeap *heap) [[clang::allocating
         return OsStatusOutOfMemory;
     }
 
-    *heap = TlsfHeap(size, std::move(pool), nullBlock, freeListCount, std::unique_ptr<BlockPtr[]>(freeList), memoryClassCount);
+    *heap = TlsfHeap(std::move(pool), nullBlock, freeListCount, std::unique_ptr<BlockPtr[]>(freeList));
+    return OsStatusSuccess;
+}
+
+OsStatus TlsfHeap::create(std::span<const MemoryRange> ranges, TlsfHeap *heap) [[clang::allocating]] {
+    if (ranges.empty()) {
+        return OsStatusInvalidInput;
+    }
+
+    if (ranges.front().isEmpty()) {
+        return OsStatusInvalidInput;
+    }
+
+    size_t size = std::reduce(ranges.begin(), ranges.end(), 0zu, [](size_t acc, const MemoryRange& range) {
+        return acc + range.size();
+    });
+
+    uint8_t memoryClass = detail::SizeToMemoryClass(size);
+    uint16_t secondIndex = detail::SizeToSecondIndex(size, memoryClass);
+    size_t freeListCount = detail::GetFreeListSize(memoryClass, secondIndex);
+
+    PoolAllocator<TlsfBlock> pool;
+
+    TlsfBlock *nullBlock = pool.construct(TlsfBlock {
+        .offset = ranges.front().front.address,
+        .size = ranges.front().size(),
+    });
+    if (nullBlock == nullptr) {
+        return OsStatusOutOfMemory;
+    }
+
+    BlockPtr *freeList = new (std::nothrow) BlockPtr[freeListCount];
+    if (freeList == nullptr) {
+        return OsStatusOutOfMemory;
+    }
+
+    TlsfHeap result { std::move(pool), nullBlock, freeListCount, std::unique_ptr<BlockPtr[]>(freeList) };
+
+    for (const MemoryRange& range : ranges | std::views::drop(1)) {
+        if (OsStatus status = result.addPool(range)) {
+            return status;
+        }
+    }
+
+    *heap = std::move(result);
     return OsStatusSuccess;
 }
 
 OsStatus TlsfHeap::addPool(MemoryRange range) [[clang::allocating]] {
-    TlsfBlock *newBlock = mBlockPool.construct(TlsfBlock {
+    if (range.isEmpty()) {
+        return OsStatusInvalidInput;
+    }
+
+    BlockBuffer<2> buffer(&mBlockPool);
+    if (OsStatus status = buffer.reserve(2)) {
+        return status;
+    }
+
+    TlsfBlock *block = buffer.take(TlsfBlock {
         .offset = range.front.address,
         .size = range.size(),
     });
-    if (newBlock == nullptr) {
-        return OsStatusOutOfMemory;
-    }
 
-    size_t newSize = mSize + range.size();
-    BlockPtr *newFreeList = new (std::nothrow) BlockPtr[mFreeListCount];
-    if (newFreeList == nullptr) {
-        mBlockPool.destroy(newBlock);
-        return OsStatusOutOfMemory;
-    }
+    TlsfBlock *sentinel = buffer.take(TlsfBlock {
+        .offset = 0,
+        .size = 0,
+        .prevFree = block,
+    });
 
-    std::copy(mFreeList.get(), mFreeList.get() + mFreeListCount, newFreeList);
-    std::uninitialized_fill(newFreeList + mFreeListCount, newFreeList + mFreeListCount + mMemoryClassCount, nullptr);
+    block->next = sentinel;
+    mSize += range.size();
 
-    newBlock->markFree();
-    newBlock->prev = mNullBlock;
-    newBlock->next = mNullBlock->next;
-    mNullBlock->next = newBlock;
-    if (newBlock->next != nullptr) {
-        newBlock->next->prev = newBlock;
-    }
-
-    insertFreeBlock(newBlock);
+    insertFreeBlock(block);
     return OsStatusSuccess;
 }
 
@@ -113,6 +217,81 @@ void TlsfHeap::validate() {
 km::TlsfCompactStats TlsfHeap::compact() {
     PoolCompactStats pool = mBlockPool.compact();
     return TlsfCompactStats { pool };
+}
+
+km::TlsfAllocation TlsfHeap::malloc(size_t size) [[clang::allocating]] {
+    return aligned_alloc(8, size);
+}
+
+OsStatus TlsfHeap::grow(TlsfAllocation ptr, size_t size) [[clang::allocating]] {
+    TlsfBlock *block = ptr.getBlock();
+    if (size == block->size) {
+        return OsStatusSuccess;
+    }
+
+    if (size < block->size) {
+        return OsStatusInvalidInput;
+    }
+
+    // Expand the block
+    TlsfBlock *next = block->next;
+    if (next != nullptr && next->isFree()) {
+        size_t newSize = block->size + next->size;
+        if (newSize >= size) {
+            block->size = size;
+            next->size -= size;
+            next->offset = block->offset + size;
+
+            return OsStatusSuccess;
+        }
+    }
+
+    return OsStatusOutOfMemory;
+}
+
+OsStatus TlsfHeap::shrink(TlsfAllocation ptr, size_t size) [[clang::allocating]] {
+    TlsfBlock *block = ptr.getBlock();
+    if (size == block->size) {
+        return OsStatusSuccess;
+    }
+
+    if (size > block->size) {
+        return OsStatusInvalidInput;
+    }
+
+    // Cut the block to create a smaller allocation
+    TlsfBlock *newBlock = mBlockPool.construct(TlsfBlock {
+        .offset = block->offset + size,
+        .size = block->size - size,
+        .prev = block,
+        .next = block->next,
+    });
+    if (newBlock == nullptr) {
+        return OsStatusOutOfMemory;
+    }
+
+    block->size = size;
+    if (block->next != nullptr) {
+        block->next->prev = newBlock;
+    }
+    block->next = newBlock;
+
+    return OsStatusSuccess;
+}
+
+OsStatus TlsfHeap::resize(TlsfAllocation ptr, size_t size) [[clang::allocating]] {
+    TlsfBlock *block = ptr.getBlock();
+    if (size == block->size) {
+        return OsStatusSuccess;
+    }
+
+    if (size < block->size) {
+        // Shrink the block
+        return shrink(ptr, size);
+    } else {
+        // Expand the block
+        return grow(ptr, size);
+    }
 }
 
 km::TlsfAllocation TlsfHeap::aligned_alloc(size_t align, size_t size) {
@@ -208,44 +387,26 @@ bool TlsfHeap::checkBlock(TlsfBlock *block, size_t listIndex, size_t size, size_
 
 bool TlsfHeap::reserveBlock(TlsfBlock *block, size_t size, size_t alignedOffset, size_t listIndex, TlsfAllocation *result) noexcept [[clang::allocating]] {
     size_t missingAlignment = alignedOffset - block->offset;
-    stdx::StaticVector<TlsfBlock*, 2> blocks;
-
-    auto releaseBlocks = [&] {
-        for (TlsfBlock *b : blocks) {
-            mBlockPool.destroy(b);
-        }
-    };
-
-    auto getBlock = [&](TlsfBlock init) {
-        KM_CHECK(!blocks.isEmpty(), "Temporary block vector is empty");
-        TlsfBlock *newBlock = blocks.back();
-        blocks.pop();
-        *newBlock = init;
-        return newBlock;
-    };
+    BlockBuffer<2> buffer(&mBlockPool);
 
     // Precompute the number of blocks that need to be created, in the case we cant allocate
     // the new blocks then we bail early to avoid complex rollback logic.
     size_t innerSize = block->size;
+    size_t requiredBlocks = 0;
     if (missingAlignment > 0) {
         if (!block->prev->isFree()) {
-            if (TlsfBlock *newBlock = mBlockPool.construct()) {
-                blocks.add(newBlock);
-            } else {
-                return false;
-            }
+            requiredBlocks += 1;
         }
 
         innerSize -= missingAlignment;
     }
 
     if (!((innerSize == size) && (block != mNullBlock))) {
-        if (TlsfBlock *newBlock = mBlockPool.construct()) {
-            blocks.add(newBlock);
-        } else {
-            releaseBlocks();
-            return false;
-        }
+        requiredBlocks += 1;
+    }
+
+    if (buffer.reserve(requiredBlocks) != OsStatusSuccess) {
+        return false;
     }
 
     detachBlock(block, listIndex);
@@ -266,7 +427,7 @@ bool TlsfHeap::reserveBlock(TlsfBlock *block, size_t size, size_t alignedOffset,
                 insertFreeBlock(prev);
             }
         } else {
-            TlsfBlock *newBlock = getBlock(TlsfBlock {
+            TlsfBlock *newBlock = buffer.take(TlsfBlock {
                 .offset = block->offset,
                 .size = missingAlignment,
                 .prev = prev,
@@ -286,7 +447,7 @@ bool TlsfHeap::reserveBlock(TlsfBlock *block, size_t size, size_t alignedOffset,
 
     if (block->size == size) {
         if (block == mNullBlock) {
-            TlsfBlock *newNullBlock = getBlock(TlsfBlock {
+            TlsfBlock *newNullBlock = buffer.take(TlsfBlock {
                 .offset = block->offset + size,
                 .size = 0,
                 .prev = block,
@@ -301,7 +462,7 @@ bool TlsfHeap::reserveBlock(TlsfBlock *block, size_t size, size_t alignedOffset,
     } else {
         KM_CHECK(block->size > size, "Block size is less than requested size");
 
-        TlsfBlock *newBlock = getBlock(TlsfBlock {
+        TlsfBlock *newBlock = buffer.take(TlsfBlock {
             .offset = block->offset + size,
             .size = block->size - size,
             .prev = block,
@@ -388,20 +549,29 @@ void TlsfHeap::mergeBlock(TlsfBlock *block, TlsfBlock *prev) noexcept [[clang::n
 
 TlsfHeapStats TlsfHeap::stats() noexcept [[clang::nonallocating]] {
     size_t blockCount = 0;
-    for (size_t i = 0; i < mFreeListCount; i++) {
-        if (mFreeList[i] != nullptr) {
-            BlockPtr block = mFreeList[i];
-            while (block != nullptr) {
-                blockCount += 1;
-                block = block->next;
+    size_t freeMemory = 0;
+    auto countBlockStats = [&](const TlsfBlock *block) {
+        const TlsfBlock *it = block;
+        while (it != nullptr) {
+            blockCount += 1;
+            if (it->isFree()) {
+                freeMemory += it->size;
             }
+            it = it->next;
         }
+    };
+
+    countBlockStats(mNullBlock);
+    for (size_t i = 0; i < mFreeListCount; i++) {
+        countBlockStats(mFreeList[i]);
     }
 
+    size_t usedMemory = mSize - freeMemory;
     return TlsfHeapStats {
         .pool = mBlockPool.stats(),
         .freeListSize = mFreeListCount,
+        .usedMemory = usedMemory,
+        .freeMemory = freeMemory,
         .blockCount = blockCount,
-        .controlMemory = (sizeof(BlockPtr) * mFreeListCount) + (sizeof(TlsfBlock) * blockCount),
     };
 }

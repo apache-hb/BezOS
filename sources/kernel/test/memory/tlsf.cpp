@@ -69,10 +69,29 @@ TEST_F(TlsfHeapTest, ConstructOutOfMemory) {
 
 TEST_F(TlsfHeapTest, Alloc) {
     TlsfHeap heap;
-    OsStatus status = TlsfHeap::create({0x1000, 0x2000}, &heap);
+    km::MemoryRange range{0x1000, 0x2000};
+    OsStatus status = TlsfHeap::create(range, &heap);
     EXPECT_EQ(status, OsStatusSuccess);
     TlsfAllocation addr = heap.aligned_alloc(0x10, 0x100);
     EXPECT_TRUE(addr.isValid());
+
+    auto stats = heap.stats();
+    EXPECT_EQ(stats.freeMemory, range.size() - 0x100);
+    EXPECT_EQ(stats.usedMemory, 0x100);
+}
+
+TEST_F(TlsfHeapTest, NullAddress) {
+    TlsfHeap heap;
+    km::MemoryRange range{0x1000, 0x2000};
+    OsStatus status = TlsfHeap::create(range, &heap);
+    EXPECT_EQ(status, OsStatusSuccess);
+    TlsfAllocation addr = heap.aligned_alloc(0x10, 0x10000000);
+    EXPECT_TRUE(addr.isNull());
+    ASSERT_EQ(heap.addressOf(addr).address, 0);
+
+    auto stats = heap.stats();
+    EXPECT_EQ(stats.freeMemory, range.size());
+    EXPECT_EQ(stats.usedMemory, 0);
 }
 
 TEST_F(TlsfHeapTest, AllocMassive) {
@@ -636,7 +655,7 @@ TEST_F(TlsfHeapTest, OomDoesntLeakBlocks) {
             if (!ptr.isValid()) {
                 km::TlsfHeapStats after = heap.stats();
                 EXPECT_EQ(before.pool.freeSlots, after.pool.freeSlots) << "Free blocks should not change on OOM";
-                ASSERT_NE(after.controlMemory, 0) << "Used memory should not be zero";
+                ASSERT_NE(after.controlMemory(), 0) << "Used memory should not be zero";
                 break;
             }
 
@@ -667,4 +686,123 @@ TEST_F(TlsfHeapTest, OomDoesntLeakBlocks) {
         GetGlobalAllocator()->mNoAlloc = false;
     }
     pointers.clear();
+}
+
+TEST_F(TlsfHeapTest, CreateMany) {
+    std::mt19937 random{0x1234};
+    std::uniform_int_distribution<size_t> distribution(0, 128);
+    std::uniform_int_distribution<size_t> alignDistribution(1, 8);
+    std::uniform_int_distribution<size_t> sizeDistribution(2, 64);
+    TlsfHeap heap;
+    km::MemoryRange range{0x1000, 0x10000};
+    km::MemoryRange range2{0x20000, 0x3000000};
+    km::MemoryRange range3{0x80000000, 0x90000000};
+    std::array ranges = std::to_array({range, range2, range3});
+
+    OsStatus status = TlsfHeap::create(ranges, &heap);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    std::vector<TlsfAllocation> pointers;
+    for (size_t i = 0; i < 500; i++) {
+        for (size_t j = 0; j < distribution(random); j++) {
+            km::TlsfHeapStats before = heap.stats();
+
+            GetGlobalAllocator()->mFailPercent = 0.5f;
+            size_t align = 1 << alignDistribution(random);
+            size_t size = sizeDistribution(random) * align;
+            auto ptr = heap.aligned_alloc(align, size);
+            GetGlobalAllocator()->mFailPercent = 0.f;
+
+            if (!ptr.isValid()) {
+                km::TlsfHeapStats after = heap.stats();
+                EXPECT_EQ(before.pool.freeSlots, after.pool.freeSlots) << "Free blocks should not change on OOM";
+                ASSERT_NE(after.controlMemory(), 0) << "Used memory should not be zero";
+                break;
+            }
+
+            ASSERT_TRUE(std::ranges::find_if(ranges, [&](const km::MemoryRange& range) {
+                return range.contains(heap.addressOf(ptr));
+            }) != ranges.end()) << "Pointer not in range: " << (void*)heap.addressOf(ptr).address;
+
+            EXPECT_TRUE(ptr.isValid());
+            ASSERT_TRUE(std::ranges::find(pointers, ptr) == pointers.end()) << "Duplicate pointer: " << (void*)heap.addressOf(ptr).address;
+            pointers.push_back(ptr);
+        }
+
+        if (distribution(random) < 24) {
+            GetGlobalAllocator()->mNoAlloc = true;
+            size_t front = distribution(random) % pointers.size();
+            size_t back = distribution(random) % pointers.size();
+            if (front > back) {
+                std::swap(front, back);
+            }
+            for (size_t j = front; j < back; j++) {
+                heap.free(pointers[j]);
+            }
+            GetGlobalAllocator()->mNoAlloc = false;
+
+            pointers.erase(pointers.begin() + front, pointers.begin() + back);
+        }
+    }
+
+    for (auto addr : pointers) {
+        GetGlobalAllocator()->mNoAlloc = true;
+        heap.free(addr);
+        GetGlobalAllocator()->mNoAlloc = false;
+    }
+    pointers.clear();
+}
+
+TEST_F(TlsfHeapTest, CreateManyOom) {
+    std::mt19937 random{0x1234};
+    std::uniform_int_distribution<size_t> distribution(0, 128);
+    std::uniform_int_distribution<size_t> alignDistribution(1, 8);
+    std::uniform_int_distribution<size_t> sizeDistribution(2, 64);
+
+    std::vector<km::MemoryRange> ranges;
+    for (size_t i = 0; i < 100; i++) {
+        km::MemoryRange range { 0x10000 + (i * 0x1000), 0x11000 + (i * 0x1000) };
+        ranges.push_back(range);
+    }
+
+    for (size_t i = 0; i < 200; i++) {
+        GetGlobalAllocator()->mFailAfter = i;
+
+        TlsfHeap heap;
+        OsStatus status = TlsfHeap::create(ranges, &heap);
+        GetGlobalAllocator()->reset();
+
+        EXPECT_TRUE(status == OsStatusOutOfMemory || status == OsStatusSuccess) << "Failed to allocate memory for heap";
+        if (status == OsStatusSuccess) {
+            heap.validate();
+        }
+    }
+}
+
+TEST_F(TlsfHeapTest, CreateManyEmpty) {
+    km::MemoryRange empty{ 0x1000, 0x1000 };
+    std::array ranges = std::to_array({ empty });
+
+    TlsfHeap heap;
+    OsStatus status = TlsfHeap::create(ranges, &heap);
+    EXPECT_EQ(status, OsStatusInvalidInput) << "Empty ranges should not be valid";
+}
+
+TEST_F(TlsfHeapTest, CreateManyEmptyList) {
+    std::vector<km::MemoryRange> empty;
+
+    TlsfHeap heap;
+    OsStatus status = TlsfHeap::create(empty, &heap);
+    EXPECT_EQ(status, OsStatusInvalidInput) << "Empty ranges should not be valid";
+}
+
+TEST_F(TlsfHeapTest, CreateManyEmptyElement) {
+    std::vector<km::MemoryRange> list = {
+        {0x1000, 0x2000},
+        {0x2000, 0x2000},
+    };
+
+    TlsfHeap heap;
+    OsStatus status = TlsfHeap::create(list, &heap);
+    EXPECT_EQ(status, OsStatusInvalidInput) << "Empty ranges should not be valid";
 }
