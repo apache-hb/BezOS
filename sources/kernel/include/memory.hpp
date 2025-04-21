@@ -31,10 +31,6 @@ namespace km {
 
         AddressMapping allocateStack(size_t size);
 
-        MemoryRange pmmAllocate(size_t pages) {
-            return mPageAllocator.alloc4k(pages);
-        }
-
         void reserve(AddressMapping mapping) {
             reserveVirtual(mapping.virtualRange());
             reservePhysical(mapping.physicalRange());
@@ -81,24 +77,4 @@ namespace km {
             return mapConst<T>(MemoryRange::of(paddr, sizeof(T)), type);
         }
     };
-
-    [[nodiscard]]
-    inline OsStatus AllocateMemory(PageAllocator& pmm, AddressSpace& vmm, size_t pages, const void *hint, AddressMapping *mapping) {
-        MemoryRange range = pmm.alloc4k(pages);
-        if (range.isEmpty()) {
-            return OsStatusOutOfMemory;
-        }
-
-        if (OsStatus status = vmm.map(range, hint, PageFlags::eUserAll, MemoryType::eWriteBack, mapping)) {
-            pmm.release(range);
-            return status;
-        }
-
-        return OsStatusSuccess;
-    }
-
-    [[nodiscard]]
-    inline OsStatus AllocateMemory(PageAllocator& pmm, AddressSpace& vmm, size_t pages, AddressMapping *mapping) {
-        return AllocateMemory(pmm, vmm, pages, nullptr, mapping);
-    }
 }

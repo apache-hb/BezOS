@@ -1,5 +1,4 @@
 #include "memory/detail/heap.hpp"
-#include "log.hpp"
 #include "std/static_vector.hpp"
 
 #include <numeric>
