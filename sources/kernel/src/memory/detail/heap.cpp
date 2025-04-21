@@ -1,12 +1,16 @@
 #include "memory/detail/heap.hpp"
+#include "std/static_vector.hpp"
 
 using TlsfBlock = km::TlsfBlock;
 using TlsfHeap = km::TlsfHeap;
 using TlsfHeapStats = km::TlsfHeapStats;
 
 TlsfBlock *TlsfHeap::findFreeBlock(size_t size, size_t *listIndex) noexcept [[clang::nonallocating]] {
+    KM_CHECK(size > 0, "size must be greater than 0");
+
     uint8_t memoryClass = detail::SizeToMemoryClass(size);
-    uint32_t innerFreeMap = mInnerFreeBitMap[memoryClass] & (~0u << detail::SizeToSecondIndex(size, memoryClass));
+    uint16_t secondIndex = detail::SizeToSecondIndex(size, memoryClass);
+    uint32_t innerFreeMap = mInnerFreeBitMap[memoryClass] & (~0u << secondIndex);
     if (innerFreeMap == 0) {
         uint32_t freeMap = mTopLevelFreeMap & (~0u << (memoryClass + 1));
         if (freeMap == 0) {
@@ -71,8 +75,9 @@ void TlsfHeap::validate() {
 
 }
 
-void TlsfHeap::compact() {
-
+km::TlsfCompactStats TlsfHeap::compact() {
+    PoolCompactStats pool = mBlockPool.compact();
+    return TlsfCompactStats { pool };
 }
 
 km::TlsfAllocation TlsfHeap::aligned_alloc(size_t align, size_t size) {
@@ -159,63 +164,101 @@ bool TlsfHeap::checkBlock(TlsfBlock *block, size_t listIndex, size_t size, size_
         return false;
     }
 
-    detachBlock(block, listIndex);
+    if (reserveBlock(block, size, alignedOffset, listIndex, result)) {
+        return true;
+    }
 
-    return reserveBlock(block, size, alignedOffset, result);
+    return false;
 }
 
-bool TlsfHeap::reserveBlock(TlsfBlock *block, size_t size, size_t alignedOffset, TlsfAllocation *result) noexcept [[clang::allocating]] {
+bool TlsfHeap::reserveBlock(TlsfBlock *block, size_t size, size_t alignedOffset, size_t listIndex, TlsfAllocation *result) noexcept [[clang::allocating]] {
+    size_t missingAlignment = alignedOffset - block->offset;
+    stdx::StaticVector<TlsfBlock*, 2> blocks;
+
+    auto releaseBlocks = [&] {
+        for (TlsfBlock *b : blocks) {
+            mBlockPool.destroy(b);
+        }
+    };
+
+    auto getBlock = [&](TlsfBlock init) {
+        KM_CHECK(!blocks.isEmpty(), "Temporary block vector is empty");
+        TlsfBlock *newBlock = blocks.back();
+        blocks.pop();
+        *newBlock = init;
+        return newBlock;
+    };
+
+    // Precompute the number of blocks that need to be created, in the case we cant allocate
+    // the new blocks then we bail early to avoid complex rollback logic.
+    size_t innerSize = block->size;
+    if (missingAlignment > 0) {
+        if (!block->prev->isFree()) {
+            if (TlsfBlock *newBlock = mBlockPool.construct()) {
+                blocks.add(newBlock);
+            } else {
+                return false;
+            }
+        }
+
+        innerSize -= missingAlignment;
+    }
+
+    if (!((innerSize == size) && (block != mNullBlock))) {
+        if (TlsfBlock *newBlock = mBlockPool.construct()) {
+            blocks.add(newBlock);
+        } else {
+            releaseBlocks();
+            return false;
+        }
+    }
+
+    detachBlock(block, listIndex);
+
     if (block != mNullBlock) {
         removeFreeBlock(block);
     }
 
-    size_t missingAlignment = alignedOffset - block->offset;
     if (missingAlignment > 0) {
-        TlsfBlock *prevBlock = block->prev;
-        KM_ASSERT(prevBlock != nullptr);
+        TlsfBlock *prev = block->prev;
+        KM_ASSERT(prev != nullptr);
 
-        if (prevBlock->isFree()) {
-            size_t oldList = detail::GetListIndex(prevBlock->size);
-            prevBlock->size += missingAlignment;
-            if (oldList != detail::GetListIndex(prevBlock->size)) {
-                prevBlock->size -= missingAlignment;
-                removeFreeBlock(prevBlock);
-                prevBlock->size += missingAlignment;
-                insertFreeBlock(prevBlock);
+        if (prev->isFree()) {
+            abort();
+
+            size_t oldList = detail::GetListIndex(prev->size);
+            if (oldList != detail::GetListIndex(prev->size + missingAlignment)) {
+                removeFreeBlock(prev);
+                prev->size += missingAlignment;
+                insertFreeBlock(prev);
             }
         } else {
-            TlsfBlock *newBlock = mBlockPool.construct(TlsfBlock {
+            TlsfBlock *newBlock = getBlock(TlsfBlock {
                 .offset = block->offset,
                 .size = missingAlignment,
-                .prev = prevBlock,
+                .prev = prev,
                 .next = block,
             });
-            if (newBlock == nullptr) {
-                return false;
-            }
 
             block->prev = newBlock;
-            prevBlock->next = newBlock;
+            prev->next = newBlock;
             newBlock->markTaken();
 
             insertFreeBlock(newBlock);
         }
 
         block->size -= missingAlignment;
-        block->offset += alignedOffset;
+        block->offset += missingAlignment;
     }
 
     if (block->size == size) {
         if (block == mNullBlock) {
-            TlsfBlock *newNullBlock = mBlockPool.construct(TlsfBlock {
+            TlsfBlock *newNullBlock = getBlock(TlsfBlock {
                 .offset = block->offset + size,
                 .size = 0,
                 .prev = block,
                 .next = nullptr,
             });
-            if (newNullBlock == nullptr) {
-                return false;
-            }
 
             mNullBlock = newNullBlock;
             mNullBlock->markFree();
@@ -225,15 +268,12 @@ bool TlsfHeap::reserveBlock(TlsfBlock *block, size_t size, size_t alignedOffset,
     } else {
         KM_CHECK(block->size > size, "Block size is less than requested size");
 
-        TlsfBlock *newBlock = mBlockPool.construct(TlsfBlock {
+        TlsfBlock *newBlock = getBlock(TlsfBlock {
             .offset = block->offset + size,
             .size = block->size - size,
             .prev = block,
             .next = block->next,
         });
-        if (newBlock == nullptr) {
-            return false;
-        }
 
         block->next = newBlock;
         block->size = size;

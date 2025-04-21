@@ -11,15 +11,17 @@ namespace km {
         static constexpr size_t kMaxMemoryClass = 64 - kMemoryClassShift;
         static constexpr size_t kSmallSizeStep = kSmallBufferSize / (1 << kSecondLevelIndex);
 
-        static constexpr uint8_t BitScanLeading(uint32_t mask) {
+        template<std::unsigned_integral T>
+        static constexpr uint8_t BitScanLeading(T mask) {
             if (mask == 0) {
                 return UINT8_MAX;
             }
 
-            return (std::numeric_limits<uint32_t>::digits - 1) - std::countl_zero(mask);
+            return (std::numeric_limits<T>::digits - 1) - std::countl_zero(mask);
         }
 
-        static constexpr uint8_t BitScanTrailing(uint32_t mask) {
+        template<std::unsigned_integral T>
+        static constexpr uint8_t BitScanTrailing(T mask) {
             if (mask == 0) {
                 return UINT8_MAX;
             }
@@ -35,15 +37,15 @@ namespace km {
             return 0;
         }
 
-        static constexpr uint16_t SizeToSecondIndex(size_t size, size_t memoryClass) {
+        static constexpr uint16_t SizeToSecondIndex(size_t size, uint8_t memoryClass) {
             if (memoryClass == 0) {
-                return ((size - 1) / 8);
+                return uint16_t((size - 1) / 8);
             } else {
-                return ((size >> (memoryClass + kMemoryClassShift - kSecondLevelIndex)) ^ (1u << kSecondLevelIndex));
+                return uint16_t((size >> (memoryClass + kMemoryClassShift - kSecondLevelIndex)) ^ (1u << kSecondLevelIndex));
             }
         }
 
-        static constexpr size_t GetFreeListSize(size_t memoryClass, size_t secondIndex) {
+        static constexpr size_t GetFreeListSize(uint8_t memoryClass, uint16_t secondIndex) {
             if (memoryClass == 0) {
                 return 0;
             }
@@ -51,7 +53,7 @@ namespace km {
             return (memoryClass - 1) * (1 << kSecondLevelIndex) + secondIndex + 1 + (1 << kSecondLevelIndex);
         }
 
-        static constexpr size_t GetListIndex(size_t memoryClass, size_t secondIndex) {
+        static constexpr size_t GetListIndex(uint8_t memoryClass, uint16_t secondIndex) {
             if (memoryClass == 0) {
                 return secondIndex;
             }
@@ -61,8 +63,8 @@ namespace km {
         }
 
         static constexpr size_t GetListIndex(size_t size) {
-            size_t memoryClass = SizeToMemoryClass(size);
-            size_t secondIndex = SizeToSecondIndex(size, memoryClass);
+            uint8_t memoryClass = SizeToMemoryClass(size);
+            uint16_t secondIndex = SizeToSecondIndex(size, memoryClass);
             return GetListIndex(memoryClass, secondIndex);
         }
 
@@ -83,6 +85,10 @@ namespace km {
         size_t usedMemory;
         size_t freeMemory;
         size_t blockCount;
+    };
+
+    struct TlsfCompactStats {
+        PoolCompactStats pool;
     };
 
     struct TlsfBlock {
@@ -145,7 +151,7 @@ namespace km {
         bool checkBlock(TlsfBlock *block, size_t listIndex, size_t size, size_t align, TlsfAllocation *result) [[clang::allocating]];
 
         /// @note If allocation fails, internal data structures are not modified.
-        bool reserveBlock(TlsfBlock *block, size_t size, size_t alignedOffset, TlsfAllocation *result) noexcept [[clang::allocating]];
+        bool reserveBlock(TlsfBlock *block, size_t size, size_t alignedOffset, size_t listIndex, TlsfAllocation *result) noexcept [[clang::allocating]];
 
         /// @brief Detach a block from its siblings to prepare for allocation.
         void detachBlock(TlsfBlock *block, size_t listIndex) noexcept [[clang::nonblocking]];
@@ -164,7 +170,7 @@ namespace km {
         ~TlsfHeap();
 
         void validate();
-        void compact();
+        TlsfCompactStats compact();
 
         PhysicalAddress malloc(size_t size) [[clang::allocating]];
         PhysicalAddress realloc(PhysicalAddress ptr, size_t size) [[clang::allocating]];

@@ -10,6 +10,11 @@ namespace km {
         size_t totalSlots;
     };
 
+    struct PoolCompactStats {
+        size_t magazines;
+        size_t slots;
+    };
+
     namespace detail {
         template<typename T>
         union PoolItem {
@@ -195,17 +200,25 @@ namespace km {
             }
         }
 
-        void compact() noexcept [[clang::nonallocating]] {
+        PoolCompactStats compact() noexcept [[clang::nonallocating]] {
+            size_t magazines = 0;
+            size_t slots = 0;
+
             size_t index = 0;
             while (index < mBlocks.count()) {
                 Block *block = mBlocks[index];
-                if (block->freeSlots() == block->capacity()) {
+                if (block->isEmpty()) {
+                    slots += block->capacity();
+                    magazines += 1;
+
                     freeBlock(block);
                     mBlocks.remove(index);
                 } else {
                     index++;
                 }
             }
+
+            return PoolCompactStats { magazines, slots };
         }
 
         PoolAllocatorStats stats() const noexcept [[clang::nonallocating]] {
