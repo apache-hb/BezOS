@@ -85,6 +85,7 @@ namespace km {
         size_t usedMemory;
         size_t freeMemory;
         size_t blockCount;
+        size_t controlMemory;
     };
 
     struct TlsfCompactStats {

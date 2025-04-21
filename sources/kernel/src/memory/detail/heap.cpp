@@ -224,8 +224,6 @@ bool TlsfHeap::reserveBlock(TlsfBlock *block, size_t size, size_t alignedOffset,
         KM_ASSERT(prev != nullptr);
 
         if (prev->isFree()) {
-            abort();
-
             size_t oldList = detail::GetListIndex(prev->size);
             if (oldList != detail::GetListIndex(prev->size + missingAlignment)) {
                 removeFreeBlock(prev);
@@ -354,9 +352,21 @@ void TlsfHeap::mergeBlock(TlsfBlock *block, TlsfBlock *prev) noexcept [[clang::n
 }
 
 TlsfHeapStats TlsfHeap::stats() noexcept [[clang::nonallocating]] {
+    size_t blockCount = 0;
+    for (size_t i = 0; i < mFreeListCount; i++) {
+        if (mFreeList[i] != nullptr) {
+            BlockPtr block = mFreeList[i];
+            while (block != nullptr) {
+                blockCount += 1;
+                block = block->next;
+            }
+        }
+    }
+
     return TlsfHeapStats {
         .pool = mBlockPool.stats(),
         .freeListSize = mFreeListCount,
-
+        .blockCount = blockCount,
+        .controlMemory = (sizeof(BlockPtr) * mFreeListCount) + (sizeof(TlsfBlock) * blockCount),
     };
 }

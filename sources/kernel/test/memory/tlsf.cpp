@@ -627,6 +627,7 @@ TEST_F(TlsfHeapTest, OomDoesntLeakBlocks) {
             if (!ptr.isValid()) {
                 km::TlsfHeapStats after = heap.stats();
                 EXPECT_EQ(before.pool.freeSlots, after.pool.freeSlots) << "Free blocks should not change on OOM";
+                ASSERT_NE(after.controlMemory, 0) << "Used memory should not be zero";
                 break;
             }
 

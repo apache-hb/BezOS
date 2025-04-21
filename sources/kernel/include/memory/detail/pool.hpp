@@ -8,6 +8,7 @@ namespace km {
         size_t magazines;
         size_t freeSlots;
         size_t totalSlots;
+        size_t usedMemory;
     };
 
     struct PoolCompactStats {
@@ -224,15 +225,18 @@ namespace km {
         PoolAllocatorStats stats() const noexcept [[clang::nonallocating]] {
             size_t freeSlots = 0;
             size_t totalSlots = 0;
+            size_t usedMemory = mBlocks.count() * sizeof(Block*);
             for (Block *block : mBlocks) {
                 freeSlots += block->freeSlots();
                 totalSlots += block->count;
+                usedMemory += sizeof(Block) + (sizeof(Item) * block->count);
             }
 
             return PoolAllocatorStats {
                 .magazines = mBlocks.count(),
                 .freeSlots = freeSlots,
                 .totalSlots = totalSlots,
+                .usedMemory = usedMemory,
             };
         }
     };
