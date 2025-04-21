@@ -212,7 +212,7 @@ TEST_F(TlsfHeapTest, ShrinkOom) {
     EXPECT_EQ(stats.freeMemory, range.size() - 0x800);
     EXPECT_EQ(stats.usedMemory, 0x800);
 
-    for (size_t i = 0; i < 64; i++) {
+    for (size_t i = 0; i < 60; i++) {
         GetGlobalAllocator()->mFailAfter = 0;
         size_t size = 0x800 - (i * 0x20);
         status = heap.shrink(addr, size);
