@@ -80,6 +80,156 @@ TEST_F(TlsfHeapTest, Alloc) {
     EXPECT_EQ(stats.usedMemory, 0x100);
 }
 
+TEST_F(TlsfHeapTest, Resize) {
+    TlsfHeap heap;
+    km::MemoryRange range{0x1000, 0x2000};
+    OsStatus status = TlsfHeap::create(range, &heap);
+    EXPECT_EQ(status, OsStatusSuccess);
+    TlsfAllocation addr = heap.aligned_alloc(0x10, 0x100);
+    EXPECT_TRUE(addr.isValid());
+
+    auto stats = heap.stats();
+    EXPECT_EQ(stats.freeMemory, range.size() - 0x100);
+    EXPECT_EQ(stats.usedMemory, 0x100);
+
+    status = heap.resize(addr, 0x200);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    auto stats1 = heap.stats();
+    EXPECT_EQ(stats1.freeMemory, range.size() - 0x200);
+    EXPECT_EQ(stats1.usedMemory, 0x200);
+}
+
+TEST_F(TlsfHeapTest, ResizeSameSize) {
+    TlsfHeap heap;
+    km::MemoryRange range{0x1000, 0x2000};
+    OsStatus status = TlsfHeap::create(range, &heap);
+    EXPECT_EQ(status, OsStatusSuccess);
+    TlsfAllocation addr = heap.aligned_alloc(0x10, 0x100);
+    EXPECT_TRUE(addr.isValid());
+
+    auto stats = heap.stats();
+    EXPECT_EQ(stats.freeMemory, range.size() - 0x100);
+    EXPECT_EQ(stats.usedMemory, 0x100);
+
+    status = heap.resize(addr, 0x100);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    auto stats1 = heap.stats();
+    EXPECT_EQ(stats1.freeMemory, range.size() - 0x100);
+    EXPECT_EQ(stats1.usedMemory, 0x100);
+}
+
+TEST_F(TlsfHeapTest, ShrinkSameSize) {
+    TlsfHeap heap;
+    km::MemoryRange range{0x1000, 0x2000};
+    OsStatus status = TlsfHeap::create(range, &heap);
+    EXPECT_EQ(status, OsStatusSuccess);
+    TlsfAllocation addr = heap.aligned_alloc(0x10, 0x100);
+    EXPECT_TRUE(addr.isValid());
+
+    auto stats = heap.stats();
+    EXPECT_EQ(stats.freeMemory, range.size() - 0x100);
+    EXPECT_EQ(stats.usedMemory, 0x100);
+
+    status = heap.shrink(addr, 0x100);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    auto stats1 = heap.stats();
+    EXPECT_EQ(stats1.freeMemory, range.size() - 0x100);
+    EXPECT_EQ(stats1.usedMemory, 0x100);
+}
+
+TEST_F(TlsfHeapTest, GrowSameSize) {
+    TlsfHeap heap;
+    km::MemoryRange range{0x1000, 0x2000};
+    OsStatus status = TlsfHeap::create(range, &heap);
+    EXPECT_EQ(status, OsStatusSuccess);
+    TlsfAllocation addr = heap.aligned_alloc(0x10, 0x100);
+    EXPECT_TRUE(addr.isValid());
+
+    auto stats = heap.stats();
+    EXPECT_EQ(stats.freeMemory, range.size() - 0x100);
+    EXPECT_EQ(stats.usedMemory, 0x100);
+
+    status = heap.grow(addr, 0x100);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    auto stats1 = heap.stats();
+    EXPECT_EQ(stats1.freeMemory, range.size() - 0x100);
+    EXPECT_EQ(stats1.usedMemory, 0x100);
+}
+
+TEST_F(TlsfHeapTest, GrowSmaller) {
+    TlsfHeap heap;
+    km::MemoryRange range{0x1000, 0x2000};
+    OsStatus status = TlsfHeap::create(range, &heap);
+    EXPECT_EQ(status, OsStatusSuccess);
+    TlsfAllocation addr = heap.aligned_alloc(0x10, 0x100);
+    EXPECT_TRUE(addr.isValid());
+
+    auto stats = heap.stats();
+    EXPECT_EQ(stats.freeMemory, range.size() - 0x100);
+    EXPECT_EQ(stats.usedMemory, 0x100);
+
+    status = heap.grow(addr, 0x50);
+    EXPECT_EQ(status, OsStatusInvalidInput);
+
+    auto stats1 = heap.stats();
+    EXPECT_EQ(stats1.freeMemory, range.size() - 0x100);
+    EXPECT_EQ(stats1.usedMemory, 0x100);
+}
+
+TEST_F(TlsfHeapTest, ShrinkLarger) {
+    TlsfHeap heap;
+    km::MemoryRange range{0x1000, 0x2000};
+    OsStatus status = TlsfHeap::create(range, &heap);
+    EXPECT_EQ(status, OsStatusSuccess);
+    TlsfAllocation addr = heap.aligned_alloc(0x10, 0x100);
+    EXPECT_TRUE(addr.isValid());
+
+    auto stats = heap.stats();
+    EXPECT_EQ(stats.freeMemory, range.size() - 0x100);
+    EXPECT_EQ(stats.usedMemory, 0x100);
+
+    status = heap.shrink(addr, 0x200);
+    EXPECT_EQ(status, OsStatusInvalidInput);
+
+    auto stats1 = heap.stats();
+    EXPECT_EQ(stats1.freeMemory, range.size() - 0x100);
+    EXPECT_EQ(stats1.usedMemory, 0x100);
+}
+
+TEST_F(TlsfHeapTest, ShrinkOom) {
+    TlsfHeap heap;
+    km::MemoryRange range{0x1000, 0x2000};
+    OsStatus status = TlsfHeap::create(range, &heap);
+    EXPECT_EQ(status, OsStatusSuccess);
+    TlsfAllocation addr = heap.aligned_alloc(0x10, 0x800);
+    EXPECT_TRUE(addr.isValid());
+
+    auto stats = heap.stats();
+    EXPECT_EQ(stats.freeMemory, range.size() - 0x800);
+    EXPECT_EQ(stats.usedMemory, 0x800);
+
+    for (size_t i = 0; i < 64; i++) {
+        GetGlobalAllocator()->mFailAfter = 0;
+        size_t size = 0x800 - (i * 0x20);
+        status = heap.shrink(addr, size);
+        GetGlobalAllocator()->reset();
+
+        if (status == OsStatusOutOfMemory) {
+            break;
+        } else {
+            EXPECT_EQ(status, OsStatusSuccess);
+
+            auto stats1 = heap.stats();
+            EXPECT_EQ(stats1.freeMemory, range.size() - size) << "Failed to shrink to size: " << size << " (iteration: " << i << ")";
+            EXPECT_EQ(stats1.usedMemory, size) << "Failed to shrink to size: " << size << " (iteration: " << i << ")";
+        }
+    }
+}
+
 TEST_F(TlsfHeapTest, NullAddress) {
     TlsfHeap heap;
     km::MemoryRange range{0x1000, 0x2000};
@@ -104,7 +254,8 @@ TEST_F(TlsfHeapTest, AllocMassive) {
 
 TEST_F(TlsfHeapTest, AllocMany) {
     TlsfHeap heap;
-    OsStatus status = TlsfHeap::create({0x1000, 0x2000}, &heap);
+    km::MemoryRange range{0x1000, 0x2000};
+    OsStatus status = TlsfHeap::create(range, &heap);
     EXPECT_EQ(status, OsStatusSuccess);
     for (size_t i = 0; i < (0x1000 / 0x100); i++) {
         TlsfAllocation addr = heap.aligned_alloc(0x10, 0x100);
@@ -114,6 +265,10 @@ TEST_F(TlsfHeapTest, AllocMany) {
     // memory should be exhausted
     TlsfAllocation addr = heap.aligned_alloc(0x10, 0x100);
     EXPECT_FALSE(addr.isValid());
+
+    auto stats = heap.stats();
+    EXPECT_EQ(stats.freeMemory, 0);
+    EXPECT_EQ(stats.usedMemory, range.size());
 }
 
 TEST_F(TlsfHeapTest, AllocFree) {
@@ -135,12 +290,20 @@ TEST_F(TlsfHeapTest, AllocFree) {
     TlsfAllocation addr = heap.aligned_alloc(0x10, 0x100);
     EXPECT_FALSE(addr.isValid());
 
+    auto stats0 = heap.stats();
+    EXPECT_EQ(stats0.freeMemory, 0);
+    EXPECT_EQ(stats0.usedMemory, range.size());
+
     // GetGlobalAllocator()->mNoAlloc = true;
     for (auto addr : pointers) {
         heap.free(addr);
     }
     // GetGlobalAllocator()->mNoAlloc = false;
     pointers.clear();
+
+    auto stats1 = heap.stats();
+    EXPECT_EQ(stats1.freeMemory, range.size());
+    EXPECT_EQ(stats1.usedMemory, 0);
 
     // should be able to allocate again
     for (size_t i = 0; i < (range.size() / 0x100); i++) {
@@ -702,6 +865,12 @@ TEST_F(TlsfHeapTest, CreateMany) {
     OsStatus status = TlsfHeap::create(ranges, &heap);
     EXPECT_EQ(status, OsStatusSuccess);
 
+    auto stats0 = heap.stats();
+    EXPECT_EQ(stats0.freeMemory, std::accumulate(ranges.begin(), ranges.end(), 0zu, [](size_t sum, const km::MemoryRange& range) {
+        return sum + range.size();
+    }));
+    EXPECT_EQ(stats0.usedMemory, 0);
+
     std::vector<TlsfAllocation> pointers;
     for (size_t i = 0; i < 500; i++) {
         for (size_t j = 0; j < distribution(random); j++) {
@@ -745,12 +914,20 @@ TEST_F(TlsfHeapTest, CreateMany) {
         }
     }
 
+    auto stats1 = heap.stats();
+    EXPECT_NE(stats1.freeMemory, stats0.freeMemory);
+    EXPECT_NE(stats1.usedMemory, 0);
+
     for (auto addr : pointers) {
         GetGlobalAllocator()->mNoAlloc = true;
         heap.free(addr);
         GetGlobalAllocator()->mNoAlloc = false;
     }
     pointers.clear();
+
+    auto stats2 = heap.stats();
+    EXPECT_EQ(stats2.freeMemory, stats0.freeMemory);
+    EXPECT_EQ(stats2.usedMemory, 0);
 }
 
 TEST_F(TlsfHeapTest, CreateManyOom) {
@@ -805,4 +982,105 @@ TEST_F(TlsfHeapTest, CreateManyEmptyElement) {
     TlsfHeap heap;
     OsStatus status = TlsfHeap::create(list, &heap);
     EXPECT_EQ(status, OsStatusInvalidInput) << "Empty ranges should not be valid";
+}
+
+TEST_F(TlsfHeapTest, ResizeAlloc) {
+    std::mt19937 random{0x1234};
+    std::uniform_int_distribution<size_t> distribution(0, 128);
+    std::uniform_int_distribution<size_t> alignDistribution(1, 8);
+    std::uniform_int_distribution<size_t> sizeDistribution(2, 64);
+    TlsfHeap heap;
+    km::MemoryRange range{0x1000, 0x10000};
+    km::MemoryRange range2{0x20000, 0x3000000};
+    km::MemoryRange range3{0x80000000, 0x90000000};
+    std::array ranges = std::to_array({range, range2, range3});
+
+    OsStatus status = TlsfHeap::create(ranges, &heap);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    auto stats0 = heap.stats();
+    EXPECT_EQ(stats0.freeMemory, std::accumulate(ranges.begin(), ranges.end(), 0zu, [](size_t sum, const km::MemoryRange& range) {
+        return sum + range.size();
+    }));
+    EXPECT_EQ(stats0.usedMemory, 0);
+
+    std::vector<TlsfAllocation> pointers;
+    for (size_t i = 0; i < 500; i++) {
+        for (size_t j = 0; j < distribution(random); j++) {
+            km::TlsfHeapStats before = heap.stats();
+
+            GetGlobalAllocator()->mFailPercent = 0.5f;
+            size_t align = 1 << alignDistribution(random);
+            size_t size = sizeDistribution(random) * align;
+            auto ptr = heap.aligned_alloc(align, size);
+            GetGlobalAllocator()->mFailPercent = 0.f;
+
+            if (!ptr.isValid()) {
+                km::TlsfHeapStats after = heap.stats();
+                EXPECT_EQ(before.pool.freeSlots, after.pool.freeSlots) << "Free blocks should not change on OOM";
+                ASSERT_NE(after.controlMemory(), 0) << "Used memory should not be zero";
+                break;
+            }
+
+            ASSERT_TRUE(std::ranges::find_if(ranges, [&](const km::MemoryRange& range) {
+                return range.contains(heap.addressOf(ptr));
+            }) != ranges.end()) << "Pointer not in range: " << (void*)heap.addressOf(ptr).address << " (iteration: " << i << ")";
+
+            EXPECT_TRUE(ptr.isValid());
+            EXPECT_TRUE(std::ranges::find(pointers, ptr) == pointers.end()) << "Duplicate pointer: " << (void*)heap.addressOf(ptr).address << " (iteration: " << i << ")";
+            pointers.push_back(ptr);
+        }
+
+        if (distribution(random) < 24) {
+            size_t index = distribution(random) % pointers.size();
+            GetGlobalAllocator()->mFailPercent = 0.3f;
+            switch (distribution(random) % 3) {
+            case 0: {
+                heap.resize(pointers[index], sizeDistribution(random) * 0x10);
+                break;
+            }
+            case 1: {
+                GetGlobalAllocator()->mNoAlloc = true;
+                heap.grow(pointers[index], sizeDistribution(random) * 0x10);
+                GetGlobalAllocator()->mNoAlloc = false;
+                break;
+            }
+            case 2: {
+                heap.shrink(pointers[index], sizeDistribution(random) * 0x10);
+                break;
+            }
+            }
+            GetGlobalAllocator()->mFailPercent = 0.f;
+        }
+
+        if (distribution(random) < 24) {
+            GetGlobalAllocator()->mNoAlloc = true;
+            size_t front = distribution(random) % pointers.size();
+            size_t back = distribution(random) % pointers.size();
+            if (front > back) {
+                std::swap(front, back);
+            }
+            for (size_t j = front; j < back; j++) {
+                heap.free(pointers[j]);
+            }
+            GetGlobalAllocator()->mNoAlloc = false;
+
+            pointers.erase(pointers.begin() + front, pointers.begin() + back);
+        }
+    }
+
+    auto stats1 = heap.stats();
+    EXPECT_NE(stats1.freeMemory, stats0.freeMemory);
+    EXPECT_NE(stats1.usedMemory, 0);
+
+    for (auto addr : pointers) {
+        GetGlobalAllocator()->mNoAlloc = true;
+        heap.free(addr);
+        GetGlobalAllocator()->mNoAlloc = false;
+    }
+    pointers.clear();
+
+    auto stats2 = heap.stats();
+    EXPECT_EQ(stats2.freeMemory, stats0.freeMemory);
+    EXPECT_EQ(stats2.usedMemory, 0);
 }

@@ -1,4 +1,5 @@
 #include "memory/detail/heap.hpp"
+#include "log.hpp"
 #include "std/static_vector.hpp"
 
 #include <numeric>
@@ -237,9 +238,10 @@ OsStatus TlsfHeap::grow(TlsfAllocation ptr, size_t size) [[clang::allocating]] {
     TlsfBlock *next = block->next;
     if (next != nullptr && next->isFree()) {
         size_t newSize = block->size + next->size;
+        size_t extraSize = size - block->size;
         if (newSize >= size) {
             block->size = size;
-            next->size -= size;
+            next->size -= extraSize;
             next->offset = block->offset + size;
 
             return OsStatusSuccess;
@@ -259,10 +261,25 @@ OsStatus TlsfHeap::shrink(TlsfAllocation ptr, size_t size) [[clang::allocating]]
         return OsStatusInvalidInput;
     }
 
+    size_t extraSize = block->size - size;
+
+    // If the block ahead is free, we can migrate the end of our free space to it
+    TlsfBlock *next = block->next;
+    if (next != nullptr && next->isFree()) {
+        size_t newSize = block->size + next->size;
+        if (newSize >= size) {
+            block->size = size;
+            next->size += extraSize;
+            next->offset = block->offset + size;
+
+            return OsStatusSuccess;
+        }
+    }
+
     // Cut the block to create a smaller allocation
     TlsfBlock *newBlock = mBlockPool.construct(TlsfBlock {
         .offset = block->offset + size,
-        .size = block->size - size,
+        .size = extraSize,
         .prev = block,
         .next = block->next,
     });
@@ -271,10 +288,19 @@ OsStatus TlsfHeap::shrink(TlsfAllocation ptr, size_t size) [[clang::allocating]]
     }
 
     block->size = size;
-    if (block->next != nullptr) {
-        block->next->prev = newBlock;
-    }
     block->next = newBlock;
+
+    if (block == mNullBlock) {
+        mNullBlock = newBlock;
+        mNullBlock->markFree();
+        mNullBlock->prevFree = nullptr;
+        mNullBlock->nextFree = nullptr;
+        block->markTaken();
+    } else {
+        newBlock->next->prev = newBlock;
+        newBlock->markFree();
+        insertFreeBlock(newBlock);
+    }
 
     return OsStatusSuccess;
 }
@@ -371,6 +397,7 @@ void TlsfHeap::detachBlock(TlsfBlock *block, size_t listIndex) noexcept [[clang:
 }
 
 bool TlsfHeap::checkBlock(TlsfBlock *block, size_t listIndex, size_t size, size_t align, TlsfAllocation *result) [[clang::allocating]] {
+    KM_ASSERT(block != nullptr);
     KM_ASSERT(block->isFree());
 
     size_t alignedOffset = sm::roundup(block->offset, align);
