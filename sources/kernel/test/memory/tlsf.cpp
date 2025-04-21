@@ -2,6 +2,7 @@
 
 #include "memory/detail/heap.hpp"
 #include "test/new_shim.hpp"
+#include "util/memory.hpp"
 
 using km::TlsfHeap;
 using km::TlsfAllocation;
@@ -72,6 +73,14 @@ TEST_F(TlsfHeapTest, Alloc) {
     EXPECT_EQ(status, OsStatusSuccess);
     TlsfAllocation addr = heap.aligned_alloc(0x10, 0x100);
     EXPECT_TRUE(addr.isValid());
+}
+
+TEST_F(TlsfHeapTest, AllocMassive) {
+    TlsfHeap heap;
+    OsStatus status = TlsfHeap::create({0x1000, 0x2000}, &heap);
+    EXPECT_EQ(status, OsStatusSuccess);
+    TlsfAllocation addr = heap.aligned_alloc(0x10, sm::terabytes(2).bytes());
+    EXPECT_FALSE(addr.isValid());
 }
 
 TEST_F(TlsfHeapTest, AllocMany) {
@@ -659,3 +668,69 @@ TEST_F(TlsfHeapTest, OomDoesntLeakBlocks) {
     }
     pointers.clear();
 }
+
+#if 0
+// test many consecutive allocations then consecutive frees
+TEST_F(TlsfHeapTest, AddPool) {
+    std::mt19937 random{0x1234};
+    std::uniform_int_distribution<size_t> distribution(0, 128);
+    std::uniform_int_distribution<size_t> alignDistribution(1, 8);
+    std::uniform_int_distribution<size_t> sizeDistribution(2, 64);
+    TlsfHeap heap;
+    km::MemoryRange range{0x1000, 0x10000};
+    km::MemoryRange range2{0x2000000, 0x3000000};
+    OsStatus status = TlsfHeap::create(range, &heap);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    status = heap.addPool(range2);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    std::vector<TlsfAllocation> pointers;
+    for (size_t i = 0; i < 500; i++) {
+        for (size_t j = 0; j < distribution(random); j++) {
+            km::TlsfHeapStats before = heap.stats();
+
+            GetGlobalAllocator()->mFailPercent = 0.5f;
+            size_t align = 1 << alignDistribution(random);
+            size_t size = sizeDistribution(random) * align;
+            auto ptr = heap.aligned_alloc(align, size);
+            GetGlobalAllocator()->mFailPercent = 0.f;
+
+            if (!ptr.isValid()) {
+                km::TlsfHeapStats after = heap.stats();
+                EXPECT_EQ(before.pool.freeSlots, after.pool.freeSlots) << "Free blocks should not change on OOM";
+                ASSERT_NE(after.controlMemory, 0) << "Used memory should not be zero";
+                break;
+            }
+
+            ASSERT_TRUE(range.contains(heap.addressOf(ptr)) || range2.contains(heap.addressOf(ptr))) << "Pointer out of range: " << (void*)heap.addressOf(ptr).address;
+
+            EXPECT_TRUE(ptr.isValid());
+            ASSERT_TRUE(std::ranges::find(pointers, ptr) == pointers.end()) << "Duplicate pointer: " << (void*)heap.addressOf(ptr).address;
+            pointers.push_back(ptr);
+        }
+
+        if (distribution(random) < 24) {
+            GetGlobalAllocator()->mNoAlloc = true;
+            size_t front = distribution(random) % pointers.size();
+            size_t back = distribution(random) % pointers.size();
+            if (front > back) {
+                std::swap(front, back);
+            }
+            for (size_t j = front; j < back; j++) {
+                heap.free(pointers[j]);
+            }
+            GetGlobalAllocator()->mNoAlloc = false;
+
+            pointers.erase(pointers.begin() + front, pointers.begin() + back);
+        }
+    }
+
+    for (auto addr : pointers) {
+        GetGlobalAllocator()->mNoAlloc = true;
+        heap.free(addr);
+        GetGlobalAllocator()->mNoAlloc = false;
+    }
+    pointers.clear();
+}
+#endif

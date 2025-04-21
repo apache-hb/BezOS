@@ -137,7 +137,6 @@ namespace km {
     class TlsfHeap {
         using BlockPtr = TlsfBlock*;
 
-        MemoryRange mRange;
         PoolAllocator<TlsfBlock> mBlockPool;
         TlsfBlock *mNullBlock;
         size_t mFreeListCount;
@@ -161,7 +160,7 @@ namespace km {
         void insertFreeBlock(TlsfBlock *block) noexcept [[clang::nonblocking]];
         void mergeBlock(TlsfBlock *block, TlsfBlock *prev) noexcept [[clang::nonallocating]];
 
-        TlsfHeap(MemoryRange range, PoolAllocator<TlsfBlock>&& pool, TlsfBlock *nullBlock, size_t freeListCount, std::unique_ptr<BlockPtr[]> freeList, size_t memoryClassCount);
+        TlsfHeap(PoolAllocator<TlsfBlock>&& pool, TlsfBlock *nullBlock, size_t freeListCount, std::unique_ptr<BlockPtr[]> freeList, size_t memoryClassCount);
 
     public:
         UTIL_NOCOPY(TlsfHeap);
@@ -172,6 +171,8 @@ namespace km {
 
         void validate();
         TlsfCompactStats compact();
+
+        OsStatus addPool(MemoryRange range) [[clang::allocating]];
 
         PhysicalAddress malloc(size_t size) [[clang::allocating]];
         PhysicalAddress realloc(PhysicalAddress ptr, size_t size) [[clang::allocating]];

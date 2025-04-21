@@ -10,6 +10,10 @@ TlsfBlock *TlsfHeap::findFreeBlock(size_t size, size_t *listIndex) noexcept [[cl
 
     uint8_t memoryClass = detail::SizeToMemoryClass(size);
     uint16_t secondIndex = detail::SizeToSecondIndex(size, memoryClass);
+    if (memoryClass > std::numeric_limits<uint32_t>::digits) {
+        return nullptr;
+    }
+
     uint32_t innerFreeMap = mInnerFreeBitMap[memoryClass] & (~0u << secondIndex);
     if (innerFreeMap == 0) {
         uint32_t freeMap = mTopLevelFreeMap & (~0u << (memoryClass + 1));
@@ -27,9 +31,8 @@ TlsfBlock *TlsfHeap::findFreeBlock(size_t size, size_t *listIndex) noexcept [[cl
     return mFreeList[index];
 }
 
-TlsfHeap::TlsfHeap(MemoryRange range, PoolAllocator<TlsfBlock>&& pool, TlsfBlock *nullBlock, size_t freeListCount, std::unique_ptr<BlockPtr[]> freeList, size_t memoryClassCount)
-    : mRange(range)
-    , mBlockPool(std::move(pool))
+TlsfHeap::TlsfHeap(PoolAllocator<TlsfBlock>&& pool, TlsfBlock *nullBlock, size_t freeListCount, std::unique_ptr<BlockPtr[]> freeList, size_t memoryClassCount)
+    : mBlockPool(std::move(pool))
     , mNullBlock(nullBlock)
     , mFreeListCount(freeListCount)
     , mFreeList(std::move(freeList))
@@ -55,7 +58,7 @@ OsStatus TlsfHeap::create(MemoryRange range, TlsfHeap *heap) [[clang::allocating
 
     PoolAllocator<TlsfBlock> pool;
     TlsfBlock *nullBlock = pool.construct(TlsfBlock {
-        .offset = 0,
+        .offset = range.front.address,
         .size = range.size(),
     });
     if (nullBlock == nullptr) {
@@ -67,7 +70,28 @@ OsStatus TlsfHeap::create(MemoryRange range, TlsfHeap *heap) [[clang::allocating
         return OsStatusOutOfMemory;
     }
 
-    *heap = TlsfHeap(range, std::move(pool), nullBlock, freeListCount, std::unique_ptr<BlockPtr[]>(freeList), memoryClassCount);
+    *heap = TlsfHeap(std::move(pool), nullBlock, freeListCount, std::unique_ptr<BlockPtr[]>(freeList), memoryClassCount);
+    return OsStatusSuccess;
+}
+
+OsStatus TlsfHeap::addPool(MemoryRange range) [[clang::allocating]] {
+    TlsfBlock *newBlock = mBlockPool.construct(TlsfBlock {
+        .offset = range.front.address,
+        .size = range.size(),
+    });
+    if (newBlock == nullptr) {
+        return OsStatusOutOfMemory;
+    }
+
+    newBlock->markFree();
+    newBlock->prev = mNullBlock;
+    newBlock->next = mNullBlock->next;
+    mNullBlock->next = newBlock;
+    if (newBlock->next != nullptr) {
+        newBlock->next->prev = newBlock;
+    }
+
+    insertFreeBlock(newBlock);
     return OsStatusSuccess;
 }
 
@@ -138,7 +162,7 @@ km::PhysicalAddress TlsfHeap::addressOf(TlsfAllocation ptr) const noexcept [[cla
     }
 
     TlsfBlock *block = ptr.getBlock();
-    return PhysicalAddress(block->offset + mRange.front.address);
+    return PhysicalAddress(block->offset);
 }
 
 void TlsfHeap::detachBlock(TlsfBlock *block, size_t listIndex) noexcept [[clang::nonblocking]] {
