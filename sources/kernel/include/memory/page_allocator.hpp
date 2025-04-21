@@ -3,7 +3,6 @@
 #include "boot.hpp"
 
 #include "memory/range_allocator.hpp"
-#include "memory/detail/heap.hpp"
 
 namespace km {
     struct PageAllocatorStats {

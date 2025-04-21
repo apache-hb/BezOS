@@ -185,6 +185,7 @@ namespace km {
         void validate();
         TlsfCompactStats compact();
 
+        [[nodiscard]]
         TlsfAllocation malloc(size_t size) [[clang::allocating]];
 
         /// @brief Deleted realloc for documentation.
@@ -204,6 +205,7 @@ namespace km {
         /// @param size The new size of the allocation.
         ///
         /// @return The status of the operation.
+        [[nodiscard]]
         OsStatus grow(TlsfAllocation ptr, size_t size) [[clang::allocating]];
 
         /// @brief Shrink an allocation to a smaller size.
@@ -215,6 +217,7 @@ namespace km {
         /// @param size The new size of the allocation.
         ///
         /// @return The status of the operation.
+        [[nodiscard]]
         OsStatus shrink(TlsfAllocation ptr, size_t size) [[clang::allocating]];
 
         /// @brief Resize an allocation to a new size.
@@ -226,8 +229,10 @@ namespace km {
         /// @param size The new size of the allocation.
         ///
         /// @return The status of the operation.
+        [[nodiscard]]
         OsStatus resize(TlsfAllocation ptr, size_t size) [[clang::allocating]];
 
+        [[nodiscard]]
         TlsfAllocation aligned_alloc(size_t align, size_t size) [[clang::allocating]];
         void free(TlsfAllocation ptr) noexcept [[clang::nonallocating]];
 
@@ -235,7 +240,10 @@ namespace km {
 
         TlsfHeapStats stats() noexcept [[clang::nonallocating]];
 
+        [[nodiscard]]
         static OsStatus create(MemoryRange range, TlsfHeap *heap) [[clang::allocating]];
+
+        [[nodiscard]]
         static OsStatus create(std::span<const MemoryRange> ranges, TlsfHeap *heap) [[clang::allocating]];
     };
 }
