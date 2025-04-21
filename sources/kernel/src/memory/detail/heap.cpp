@@ -10,19 +10,19 @@ TlsfBlock *TlsfHeap::findFreeBlock(size_t size, size_t *listIndex) noexcept [[cl
 
     uint8_t memoryClass = detail::SizeToMemoryClass(size);
     uint16_t secondIndex = detail::SizeToSecondIndex(size, memoryClass);
-    if (memoryClass > std::numeric_limits<uint32_t>::digits) {
+    if (memoryClass > std::numeric_limits<BitMap>::digits) {
         return nullptr;
     }
 
-    uint32_t innerFreeMap = mInnerFreeBitMap[memoryClass] & (~0u << secondIndex);
+    BitMap innerFreeMap = mInnerFreeMap[memoryClass] & (BitMap(~0) << secondIndex);
     if (innerFreeMap == 0) {
-        uint32_t freeMap = mTopLevelFreeMap & (~0u << (memoryClass + 1));
+        BitMap freeMap = mTopLevelFreeMap & (BitMap(~0) << (memoryClass + 1));
         if (freeMap == 0) {
             return nullptr;
         }
 
         memoryClass = detail::BitScanTrailing(freeMap);
-        innerFreeMap = mInnerFreeBitMap[memoryClass];
+        innerFreeMap = mInnerFreeMap[memoryClass];
         KM_ASSERT(innerFreeMap != 0);
     }
 
@@ -31,8 +31,9 @@ TlsfBlock *TlsfHeap::findFreeBlock(size_t size, size_t *listIndex) noexcept [[cl
     return mFreeList[index];
 }
 
-TlsfHeap::TlsfHeap(PoolAllocator<TlsfBlock>&& pool, TlsfBlock *nullBlock, size_t freeListCount, std::unique_ptr<BlockPtr[]> freeList, size_t memoryClassCount)
-    : mBlockPool(std::move(pool))
+TlsfHeap::TlsfHeap(size_t size, PoolAllocator<TlsfBlock>&& pool, TlsfBlock *nullBlock, size_t freeListCount, std::unique_ptr<BlockPtr[]> freeList, size_t memoryClassCount)
+    : mSize(size)
+    , mBlockPool(std::move(pool))
     , mNullBlock(nullBlock)
     , mFreeListCount(freeListCount)
     , mFreeList(std::move(freeList))
@@ -41,7 +42,7 @@ TlsfHeap::TlsfHeap(PoolAllocator<TlsfBlock>&& pool, TlsfBlock *nullBlock, size_t
     mNullBlock->markFree();
     mTopLevelFreeMap = 0;
     std::uninitialized_fill_n(mFreeList.get(), freeListCount, nullptr);
-    std::uninitialized_fill(std::begin(mInnerFreeBitMap), std::end(mInnerFreeBitMap), 0);
+    std::uninitialized_fill(std::begin(mInnerFreeMap), std::end(mInnerFreeMap), 0);
 }
 
 TlsfHeap::~TlsfHeap() {
@@ -70,7 +71,7 @@ OsStatus TlsfHeap::create(MemoryRange range, TlsfHeap *heap) [[clang::allocating
         return OsStatusOutOfMemory;
     }
 
-    *heap = TlsfHeap(std::move(pool), nullBlock, freeListCount, std::unique_ptr<BlockPtr[]>(freeList), memoryClassCount);
+    *heap = TlsfHeap(size, std::move(pool), nullBlock, freeListCount, std::unique_ptr<BlockPtr[]>(freeList), memoryClassCount);
     return OsStatusSuccess;
 }
 
@@ -82,6 +83,16 @@ OsStatus TlsfHeap::addPool(MemoryRange range) [[clang::allocating]] {
     if (newBlock == nullptr) {
         return OsStatusOutOfMemory;
     }
+
+    size_t newSize = mSize + range.size();
+    BlockPtr *newFreeList = new (std::nothrow) BlockPtr[mFreeListCount];
+    if (newFreeList == nullptr) {
+        mBlockPool.destroy(newBlock);
+        return OsStatusOutOfMemory;
+    }
+
+    std::copy(mFreeList.get(), mFreeList.get() + mFreeListCount, newFreeList);
+    std::uninitialized_fill(newFreeList + mFreeListCount, newFreeList + mFreeListCount + mMemoryClassCount, nullptr);
 
     newBlock->markFree();
     newBlock->prev = mNullBlock;
@@ -334,8 +345,8 @@ void TlsfHeap::removeFreeBlock(TlsfBlock *block) noexcept [[clang::nonblocking]]
 
         mFreeList[listIndex] = block->nextFree;
         if (block->nextFree == nullptr) {
-            mInnerFreeBitMap[memoryClass] &= ~(1u << secondIndex);
-            if (mInnerFreeBitMap[memoryClass] == 0) {
+            mInnerFreeMap[memoryClass] &= ~(1u << secondIndex);
+            if (mInnerFreeMap[memoryClass] == 0) {
                 mTopLevelFreeMap &= ~(1u << memoryClass);
             }
         }
@@ -357,7 +368,7 @@ void TlsfHeap::insertFreeBlock(TlsfBlock *block) noexcept [[clang::nonblocking]]
     if (block->nextFree != nullptr) {
         block->nextFree->prevFree = block;
     } else {
-        mInnerFreeBitMap[memoryClass] |= (1u << secondIndex);
+        mInnerFreeMap[memoryClass] |= (1u << secondIndex);
         mTopLevelFreeMap |= (1u << memoryClass);
     }
 }

@@ -136,6 +136,9 @@ namespace km {
 
     class TlsfHeap {
         using BlockPtr = TlsfBlock*;
+        using BitMap = uint32_t;
+
+        size_t mSize;
 
         PoolAllocator<TlsfBlock> mBlockPool;
         TlsfBlock *mNullBlock;
@@ -143,8 +146,8 @@ namespace km {
         std::unique_ptr<BlockPtr[]> mFreeList;
 
         size_t mMemoryClassCount;
-        uint32_t mInnerFreeBitMap[detail::kMaxMemoryClass];
-        uint32_t mTopLevelFreeMap;
+        BitMap mInnerFreeMap[detail::kMaxMemoryClass];
+        BitMap mTopLevelFreeMap;
 
         TlsfBlock *findFreeBlock(size_t size, size_t *listIndex) noexcept [[clang::nonallocating]];
 
@@ -160,7 +163,7 @@ namespace km {
         void insertFreeBlock(TlsfBlock *block) noexcept [[clang::nonblocking]];
         void mergeBlock(TlsfBlock *block, TlsfBlock *prev) noexcept [[clang::nonallocating]];
 
-        TlsfHeap(PoolAllocator<TlsfBlock>&& pool, TlsfBlock *nullBlock, size_t freeListCount, std::unique_ptr<BlockPtr[]> freeList, size_t memoryClassCount);
+        TlsfHeap(size_t size, PoolAllocator<TlsfBlock>&& pool, TlsfBlock *nullBlock, size_t freeListCount, std::unique_ptr<BlockPtr[]> freeList, size_t memoryClassCount);
 
     public:
         UTIL_NOCOPY(TlsfHeap);

@@ -669,7 +669,6 @@ TEST_F(TlsfHeapTest, OomDoesntLeakBlocks) {
     pointers.clear();
 }
 
-#if 0
 // test many consecutive allocations then consecutive frees
 TEST_F(TlsfHeapTest, AddPool) {
     std::mt19937 random{0x1234};
@@ -733,4 +732,3 @@ TEST_F(TlsfHeapTest, AddPool) {
     }
     pointers.clear();
 }
-#endif
