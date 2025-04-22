@@ -57,7 +57,7 @@ namespace sys2 {
         }
     };
 
-    class ThreadHandle final : public BaseHandle<Thread, eOsHandleThread> {
+    class ThreadHandle final : public BaseHandle<Thread> {
     public:
         ThreadHandle(sm::RcuSharedPtr<Thread> thread, OsHandle handle, ThreadAccess access);
 

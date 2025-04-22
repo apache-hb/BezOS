@@ -7,6 +7,7 @@
 #include "system/device.hpp"
 #include "fs2/interface.hpp"
 #include "system/vm/file.hpp"
+#include "system/vm/memory.hpp"
 
 #include <bezos/handle.h>
 

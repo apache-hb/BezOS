@@ -14,9 +14,8 @@
 #include "system/transaction.hpp"
 #include "system/create.hpp"
 #include "system/invoke.hpp"
-#include "system/vm.hpp"
 
-#include "system/vm/memory.hpp"
+#include "system/vmem.hpp"
 #include "util/absl.hpp"
 
 namespace vfs2 {
@@ -120,7 +119,7 @@ namespace sys2 {
         sm::RcuSharedPtr<Process> lockParent() { return mParent.lock(); }
     };
 
-    class ProcessHandle final : public BaseHandle<Process, eOsHandleProcess> {
+    class ProcessHandle final : public BaseHandle<Process> {
     public:
         ProcessHandle(sm::RcuSharedPtr<Process> process, OsHandle handle, ProcessAccess access)
             : BaseHandle(process, handle, access)

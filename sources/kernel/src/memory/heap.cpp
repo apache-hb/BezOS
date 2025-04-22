@@ -1,4 +1,5 @@
-#include "memory/detail/heap.hpp"
+#include "memory/heap.hpp"
+#include "memory/range.hpp"
 #include "std/static_vector.hpp"
 
 #include <numeric>
@@ -369,6 +370,49 @@ void TlsfHeap::free(TlsfAllocation address) noexcept [[clang::nonallocating]] {
         mergeBlock(next, block);
         insertFreeBlock(next);
     }
+}
+
+OsStatus TlsfHeap::split(TlsfAllocation ptr, PhysicalAddress midpoint, TlsfAllocation *lo, TlsfAllocation *hi) [[clang::allocating]] {
+    TlsfBlock *block = ptr.getBlock();
+    PhysicalAddress base = block->offset;
+    PhysicalAddress end = block->offset + block->size;
+
+    if (midpoint < base || midpoint >= end) {
+        return OsStatusInvalidInput;
+    }
+
+    size_t size = midpoint.address - base.address;
+
+    if (size == block->size) {
+        return OsStatusInvalidInput;
+    }
+
+    if (size > block->size) {
+        return OsStatusInvalidInput;
+    }
+
+    size_t extraSize = block->size - size;
+
+    // Cut the block to create a smaller allocation
+    TlsfBlock *newBlock = mBlockPool.construct(TlsfBlock {
+        .offset = midpoint.address,
+        .size = extraSize,
+        .prev = block,
+        .next = block->next,
+    });
+    if (newBlock == nullptr) {
+        return OsStatusOutOfMemory;
+    }
+
+    block->size = size;
+    block->next = newBlock;
+
+    newBlock->markTaken();
+
+    *lo = TlsfAllocation(block);
+    *hi = TlsfAllocation(newBlock);
+
+    return OsStatusSuccess;
 }
 
 km::PhysicalAddress TlsfHeap::addressOf(TlsfAllocation ptr) const noexcept [[clang::nonblocking]] {

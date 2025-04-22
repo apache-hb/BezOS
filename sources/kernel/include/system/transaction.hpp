@@ -13,7 +13,7 @@ namespace sys2 {
         stdx::StringView getClassName() const override { return "Transaction"; }
     };
 
-    class TxHandle final : public BaseHandle<Tx, eOsHandleTx> {
+    class TxHandle final : public BaseHandle<Tx> {
     public:
         TxHandle(sm::RcuSharedPtr<Tx> transaction, OsHandle handle, TxAccess access);
 

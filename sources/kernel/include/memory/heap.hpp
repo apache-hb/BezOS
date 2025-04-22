@@ -173,6 +173,8 @@ namespace km {
 
         OsStatus addPool(MemoryRange range) [[clang::allocating]];
 
+        OsStatus splitBlock(TlsfBlock *block, size_t size, TlsfBlock **result) [[clang::allocating]];
+
         TlsfHeap(PoolAllocator<TlsfBlock>&& pool, TlsfBlock *nullBlock, size_t freeListCount, std::unique_ptr<BlockPtr[]> freeList);
 
     public:
@@ -234,7 +236,23 @@ namespace km {
 
         [[nodiscard]]
         TlsfAllocation aligned_alloc(size_t align, size_t size) [[clang::allocating]];
+
         void free(TlsfAllocation ptr) noexcept [[clang::nonallocating]];
+
+        /// @brief Split an allocation into two allocations.
+        ///
+        /// Splits an allocation into two allocations at the specified midpoint. The
+        /// original allocation is shrunk and the second allocation covers the remaining
+        /// space. The first allocation is returned in @p lo and second allocation is returned in @p hi
+        ///
+        /// @param ptr The allocation to split.
+        /// @param midpoint The address to split the allocation at.
+        /// @param[out] lo The first allocation.
+        /// @param[out] hi The second allocation.
+        ///
+        /// @return The status of the operation.
+        [[nodiscard]]
+        OsStatus split(TlsfAllocation ptr, PhysicalAddress midpoint, TlsfAllocation *lo, TlsfAllocation *hi) [[clang::allocating]];
 
         PhysicalAddress addressOf(TlsfAllocation ptr) const noexcept [[clang::nonblocking]];
 

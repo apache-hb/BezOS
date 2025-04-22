@@ -8,7 +8,7 @@ namespace sys2 {
         using Access = EventAccess;
     };
 
-    class EventHandle : public BaseHandle<Event, eOsHandleEvent> {
+    class EventHandle : public BaseHandle<Event> {
 
     };
 }

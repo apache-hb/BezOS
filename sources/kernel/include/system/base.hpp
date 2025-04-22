@@ -4,7 +4,7 @@
 #include "system/handle.hpp"
 
 namespace sys2 {
-    template<typename T, OsHandleType HandleType>
+    template<typename T>
     class BaseHandle : public IHandle {
         using Access = typename T::Access;
 
@@ -13,7 +13,7 @@ namespace sys2 {
         Access mAccess;
 
     public:
-        static constexpr auto kHandleType = HandleType;
+        static constexpr auto kHandleType = T::kHandleType;
 
         BaseHandle(sm::RcuSharedPtr<T> object, OsHandle handle, Access access)
             : mObject(object)
@@ -50,7 +50,7 @@ namespace sys2 {
         }
 
     public:
-        static constexpr auto kHandleType = HandleType;
+        static constexpr OsHandleType kHandleType = HandleType;
 
         void setName(ObjectName name) override final {
             stdx::UniqueLock guard(mLock);

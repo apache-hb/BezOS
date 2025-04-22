@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "memory/detail/heap.hpp"
+#include "memory/heap.hpp"
 #include "test/new_shim.hpp"
 #include "util/memory.hpp"
 
@@ -98,6 +98,30 @@ TEST_F(TlsfHeapTest, Resize) {
     auto stats1 = heap.stats();
     EXPECT_EQ(stats1.freeMemory, range.size() - 0x200);
     EXPECT_EQ(stats1.usedMemory, 0x200);
+}
+
+TEST_F(TlsfHeapTest, Split) {
+    TlsfHeap heap;
+    km::MemoryRange range{0x1000, 0x2000};
+    OsStatus status = TlsfHeap::create(range, &heap);
+    EXPECT_EQ(status, OsStatusSuccess);
+    TlsfAllocation addr = heap.aligned_alloc(0x10, 0x100);
+    EXPECT_TRUE(addr.isValid());
+
+    auto stats = heap.stats();
+    EXPECT_EQ(stats.freeMemory, range.size() - 0x100);
+    EXPECT_EQ(stats.usedMemory, 0x100);
+
+    TlsfAllocation lo, hi;
+    status = heap.split(addr, heap.addressOf(addr) + 0x50, &lo, &hi);
+    ASSERT_EQ(status, OsStatusSuccess);
+
+    EXPECT_EQ(heap.addressOf(lo), heap.addressOf(addr));
+    EXPECT_EQ(heap.addressOf(hi), heap.addressOf(addr) + 0x50);
+
+    auto stats1 = heap.stats();
+    EXPECT_EQ(stats1.freeMemory, range.size() - 0x100);
+    EXPECT_EQ(stats1.usedMemory, 0x100);
 }
 
 TEST_F(TlsfHeapTest, ResizeSameSize) {
@@ -1036,17 +1060,17 @@ TEST_F(TlsfHeapTest, ResizeAlloc) {
             GetGlobalAllocator()->mFailPercent = 0.3f;
             switch (distribution(random) % 3) {
             case 0: {
-                heap.resize(pointers[index], sizeDistribution(random) * 0x10);
+                (void)heap.resize(pointers[index], sizeDistribution(random) * 0x10);
                 break;
             }
             case 1: {
                 GetGlobalAllocator()->mNoAlloc = true;
-                heap.grow(pointers[index], sizeDistribution(random) * 0x10);
+                (void)heap.grow(pointers[index], sizeDistribution(random) * 0x10);
                 GetGlobalAllocator()->mNoAlloc = false;
                 break;
             }
             case 2: {
-                heap.shrink(pointers[index], sizeDistribution(random) * 0x10);
+                (void)heap.shrink(pointers[index], sizeDistribution(random) * 0x10);
                 break;
             }
             }

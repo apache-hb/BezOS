@@ -15,7 +15,7 @@ namespace sys2 {
         bool tryAcquireLock(sm::RcuWeakPtr<Thread> thread);
     };
 
-    class MutexHandle final : public BaseHandle<Mutex, eOsHandleMutex> {
+    class MutexHandle final : public BaseHandle<Mutex> {
     public:
         MutexHandle(sm::RcuSharedPtr<Mutex> mutex, OsHandle handle, MutexAccess access)
             : BaseHandle(mutex, handle, access)

@@ -23,7 +23,7 @@ namespace sys2 {
         sm::RcuSharedPtr<vfs2::INode> getVfsNode() const { return mVfsNode; }
     };
 
-    class NodeHandle final : public BaseHandle<Node, eOsHandleNode> {
+    class NodeHandle final : public BaseHandle<Node> {
     public:
         NodeHandle(sm::RcuSharedPtr<Node> node, OsHandle handle, NodeAccess access);
 

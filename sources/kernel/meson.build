@@ -134,7 +134,7 @@ src = [
     'src/memory/address_space.cpp',
     'src/memory/detail/table_list.cpp',
     'src/memory/detail/control_block.cpp',
-    'src/memory/detail/heap.cpp',
+    'src/memory/heap.cpp',
 
     # C and C++ Runtime
     'src/crt.cpp',
@@ -640,7 +640,7 @@ testcases = {
     ],
     'tlsf heap +new': [
         'test/memory/tlsf.cpp',
-        'src/memory/detail/heap.cpp',
+        'src/memory/heap.cpp',
     ],
     'pool allocator +new': [
         'test/memory/pool.cpp',
