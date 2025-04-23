@@ -64,7 +64,7 @@ TlsfAllocation::TlsfAllocation(detail::TlsfBlock *block) noexcept [[clang::nonbl
     : block(block)
 {
     if (block != nullptr) {
-        KM_CHECK(!block->isFree(), "Allocation was not created from a free block");
+        KM_CHECK(!block->isFree(), "Allocation was not created from an allocated block");
     }
 }
 
@@ -277,9 +277,19 @@ OsStatus TlsfHeap::shrink(TlsfAllocation ptr, size_t size) [[clang::allocating]]
     }
 
     // Cut the block to create a smaller allocation
+    TlsfBlock *newBlock = nullptr;
+    if (OsStatus status = splitBlock(block, size, &newBlock)) {
+        return status;
+    }
+
+    return OsStatusSuccess;
+}
+
+OsStatus TlsfHeap::splitBlock(TlsfBlock *block, size_t size, TlsfBlock **result) [[clang::allocating]] {
+    // Cut the block to create a smaller allocation
     TlsfBlock *newBlock = mBlockPool.construct(TlsfBlock {
         .offset = block->offset + size,
-        .size = extraSize,
+        .size = size,
         .prev = block,
         .next = block->next,
     });
@@ -302,6 +312,7 @@ OsStatus TlsfHeap::shrink(TlsfAllocation ptr, size_t size) [[clang::allocating]]
         insertFreeBlock(newBlock);
     }
 
+    *result = newBlock;
     return OsStatusSuccess;
 }
 
@@ -351,6 +362,8 @@ km::TlsfAllocation TlsfHeap::aligned_alloc(size_t align, size_t size) {
 }
 
 void TlsfHeap::free(TlsfAllocation address) noexcept [[clang::nonallocating]] {
+    KM_CHECK(address.isValid(), "Invalid address");
+
     TlsfBlock *block = address.getBlock();
     KM_CHECK(!block->isFree(), "Block is already free");
 
@@ -374,6 +387,8 @@ void TlsfHeap::free(TlsfAllocation address) noexcept [[clang::nonallocating]] {
 
 OsStatus TlsfHeap::split(TlsfAllocation ptr, PhysicalAddress midpoint, TlsfAllocation *lo, TlsfAllocation *hi) [[clang::allocating]] {
     TlsfBlock *block = ptr.getBlock();
+    KM_CHECK(!block->isFree(), "Block is already free");
+
     PhysicalAddress base = block->offset;
     PhysicalAddress end = block->offset + block->size;
 

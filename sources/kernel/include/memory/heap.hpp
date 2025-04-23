@@ -171,9 +171,9 @@ namespace km {
 
         void init() noexcept;
 
-        OsStatus addPool(MemoryRange range) [[clang::allocating]];
-
         OsStatus splitBlock(TlsfBlock *block, size_t size, TlsfBlock **result) [[clang::allocating]];
+
+        OsStatus addPool(MemoryRange range) [[clang::allocating]];
 
         TlsfHeap(PoolAllocator<TlsfBlock>&& pool, TlsfBlock *nullBlock, size_t freeListCount, std::unique_ptr<BlockPtr[]> freeList);
 

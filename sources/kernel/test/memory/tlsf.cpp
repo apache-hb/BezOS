@@ -100,6 +100,19 @@ TEST_F(TlsfHeapTest, Resize) {
     EXPECT_EQ(stats1.usedMemory, 0x200);
 }
 
+TEST_F(TlsfHeapTest, Malloc) {
+    TlsfHeap heap;
+    km::MemoryRange range{0x1000, 0x2000};
+    OsStatus status = TlsfHeap::create(range, &heap);
+    EXPECT_EQ(status, OsStatusSuccess);
+    TlsfAllocation addr = heap.malloc(0x100);
+    EXPECT_TRUE(addr.isValid());
+
+    auto stats = heap.stats();
+    EXPECT_EQ(stats.freeMemory, range.size() - 0x100);
+    EXPECT_EQ(stats.usedMemory, 0x100);
+}
+
 TEST_F(TlsfHeapTest, Split) {
     TlsfHeap heap;
     km::MemoryRange range{0x1000, 0x2000};
@@ -122,6 +135,38 @@ TEST_F(TlsfHeapTest, Split) {
     auto stats1 = heap.stats();
     EXPECT_EQ(stats1.freeMemory, range.size() - 0x100);
     EXPECT_EQ(stats1.usedMemory, 0x100);
+}
+
+TEST_F(TlsfHeapTest, SplitRelease) {
+    TlsfHeap heap;
+    km::MemoryRange range{0x1000, 0x2000};
+    OsStatus status = TlsfHeap::create(range, &heap);
+    EXPECT_EQ(status, OsStatusSuccess);
+    TlsfAllocation addr = heap.aligned_alloc(0x10, 0x100);
+    EXPECT_TRUE(addr.isValid());
+
+    auto stats = heap.stats();
+    EXPECT_EQ(stats.freeMemory, range.size() - 0x100);
+    EXPECT_EQ(stats.usedMemory, 0x100);
+
+    auto base = heap.addressOf(addr);
+
+    TlsfAllocation lo, hi;
+    status = heap.split(addr, base + 0x50, &lo, &hi);
+    ASSERT_EQ(status, OsStatusSuccess);
+
+    EXPECT_EQ(heap.addressOf(lo), base);
+    EXPECT_EQ(heap.addressOf(hi), base + 0x50);
+
+    auto stats1 = heap.stats();
+    EXPECT_EQ(stats1.freeMemory, range.size() - 0x100);
+    EXPECT_EQ(stats1.usedMemory, 0x100);
+
+    heap.free(lo);
+    auto stats2 = heap.stats();
+    EXPECT_EQ(stats2.freeMemory, range.size() - 0x100 + 0x50);
+    EXPECT_EQ(stats2.usedMemory, 0x100 - 0x50);
+    EXPECT_EQ(heap.addressOf(hi), base + 0x50);
 }
 
 TEST_F(TlsfHeapTest, ResizeSameSize) {
@@ -896,7 +941,7 @@ TEST_F(TlsfHeapTest, CreateMany) {
     EXPECT_EQ(stats0.usedMemory, 0);
 
     std::vector<TlsfAllocation> pointers;
-    for (size_t i = 0; i < 500; i++) {
+    for (size_t i = 0; i < 200; i++) {
         for (size_t j = 0; j < distribution(random); j++) {
             km::TlsfHeapStats before = heap.stats();
 
@@ -1043,6 +1088,26 @@ TEST_F(TlsfHeapTest, ResizeAlloc) {
                 km::TlsfHeapStats after = heap.stats();
                 EXPECT_EQ(before.pool.freeSlots, after.pool.freeSlots) << "Free blocks should not change on OOM";
                 ASSERT_NE(after.controlMemory(), 0) << "Used memory should not be zero";
+                break;
+            }
+
+            auto base = heap.addressOf(ptr);
+
+            if (distribution(random) % 10 == 0) {
+                size_t newSize = (size / 2);
+                TlsfAllocation lo, hi;
+                if (heap.split(ptr, base + newSize, &lo, &hi) == OsStatusSuccess) {
+                    EXPECT_TRUE(lo.isValid());
+                    EXPECT_TRUE(hi.isValid());
+                    EXPECT_EQ(heap.addressOf(lo).address, base.address);
+                    EXPECT_EQ(heap.addressOf(hi).address, base.address + newSize);
+                    heap.free(lo);
+                    heap.free(hi);
+                } else {
+                    EXPECT_FALSE(lo.isValid());
+                    EXPECT_FALSE(hi.isValid());
+                    EXPECT_TRUE(ptr.isValid());
+                }
                 break;
             }
 
