@@ -99,6 +99,11 @@ namespace km {
             void markFree() noexcept [[clang::nonblocking]] {
                 prevFree = nullptr;
             }
+
+            TlsfBlock *&propNextFree() noexcept [[clang::nonblocking]] {
+                KM_ASSERT(isFree());
+                return nextFree;
+            }
         };
 
         using TlsfBitMap = uint32_t;
@@ -165,13 +170,13 @@ namespace km {
         /// @brief Detach a block from its siblings to prepare for allocation.
         void detachBlock(TlsfBlock *block, size_t listIndex) noexcept [[clang::nonblocking]];
 
-        void removeFreeBlock(TlsfBlock *block) noexcept [[clang::nonblocking]];
-        void insertFreeBlock(TlsfBlock *block) noexcept [[clang::nonblocking]];
+        void takeBlockFromFreeList(TlsfBlock *block) noexcept [[clang::nonblocking]];
+        void releaseBlockToFreeList(TlsfBlock *block) noexcept [[clang::nonblocking]];
         void mergeBlock(TlsfBlock *block, TlsfBlock *prev) noexcept [[clang::nonallocating]];
 
-        void init() noexcept;
+        void resizeBlock(TlsfBlock *block, size_t newSize) noexcept [[clang::nonallocating]];
 
-        OsStatus splitBlock(TlsfBlock *block, size_t size, TlsfBlock **result) [[clang::allocating]];
+        void init() noexcept;
 
         OsStatus addPool(MemoryRange range) [[clang::allocating]];
 
@@ -185,6 +190,7 @@ namespace km {
         ~TlsfHeap();
 
         void validate();
+
         TlsfCompactStats compact();
 
         [[nodiscard]]

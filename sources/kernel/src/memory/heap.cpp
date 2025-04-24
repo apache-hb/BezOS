@@ -1,5 +1,7 @@
 #include "memory/heap.hpp"
 #include "memory/range.hpp"
+
+#include "common/util/defer.hpp"
 #include "std/static_vector.hpp"
 
 #include <numeric>
@@ -158,9 +160,10 @@ OsStatus TlsfHeap::create(std::span<const MemoryRange> ranges, TlsfHeap *heap) [
 
     PoolAllocator<TlsfBlock> pool;
 
+    auto first = ranges.front();
     TlsfBlock *nullBlock = pool.construct(TlsfBlock {
-        .offset = ranges.front().front.address,
-        .size = ranges.front().size(),
+        .offset = first.front.address,
+        .size = first.size(),
     });
     if (nullBlock == nullptr) {
         return OsStatusOutOfMemory;
@@ -178,6 +181,8 @@ OsStatus TlsfHeap::create(std::span<const MemoryRange> ranges, TlsfHeap *heap) [
             return status;
         }
     }
+
+    result.validate();
 
     *heap = std::move(result);
     return OsStatusSuccess;
@@ -199,20 +204,81 @@ OsStatus TlsfHeap::addPool(MemoryRange range) [[clang::allocating]] {
     });
 
     TlsfBlock *sentinel = buffer.take(TlsfBlock {
-        .offset = 0,
+        .offset = range.back.address,
         .size = 0,
         .prevFree = block,
     });
 
+    block->markTaken();
     block->next = sentinel;
     mSize += range.size();
 
-    insertFreeBlock(block);
+    releaseBlockToFreeList(block);
     return OsStatusSuccess;
 }
 
 void TlsfHeap::validate() {
+    for (size_t i = 0; i < mFreeListCount; i++) {
+        TlsfBlock *head = mFreeList[i];
+        TlsfBlock *block = head;
+        if (block != nullptr) {
+            KM_CHECK(block->isFree(), "Block in freelist is not free");
+            KM_CHECK(block->prevFree == nullptr, "freelist head block has a previous free block");
+            while (block->propNextFree() != nullptr) {
+                KM_CHECK(block->propNextFree() != head, "Freelist is cyclic");
 
+                KM_CHECK(block->propNextFree()->isFree(), "Block is not free");
+                KM_CHECK(block->propNextFree()->prevFree == block, "Block has an incorrect previous free block");
+                KM_CHECK(block->propNextFree() != block, "Block has a self reference");
+                block = block->propNextFree();
+            }
+        }
+    }
+
+    KM_CHECK(mNullBlock->next == nullptr, "Null block has a next block");
+    KM_CHECK(mNullBlock->isFree(), "Null block is not free");
+    if (mNullBlock->prev != nullptr) {
+        KM_CHECK(mNullBlock->prev->next == mNullBlock, "Null block previous block does not point to null block");
+    }
+
+    size_t nextOffset = mNullBlock->offset;
+    size_t computedSize = mNullBlock->size;
+    for (TlsfBlock *prev = mNullBlock->prev; prev != nullptr; prev = prev->prev) {
+        KM_CHECK(prev->offset + prev->size == nextOffset, "Block does not point to the next block");
+        nextOffset = prev->offset;
+        computedSize += prev->size;
+
+        size_t listIndex = detail::GetListIndex(prev->size);
+        TlsfBlock *block = mFreeList[listIndex];
+        if (prev->isFree()) {
+            KM_CHECK(block != nullptr, "Block is not in the free list");
+
+            bool found = false;
+            do {
+                if (block == prev) {
+                    found = true;
+                }
+
+                block = block->propNextFree();
+            } while (!found && block != nullptr);
+
+            KM_CHECK(found, "Block is not in the free list");
+        } else {
+            while (block != nullptr) {
+                KM_CHECK(block != prev, "Block is in the free list");
+                block = block->propNextFree();
+            }
+        }
+
+        if (prev->prev != nullptr) {
+            KM_CHECK(prev->prev->next == prev, "Block does not point to the next block");
+        }
+    }
+
+    if (computedSize != mSize) {
+        printf("Computed size: %zu, Expected size: %zu\n", computedSize, mSize);
+    }
+    KM_CHECK(computedSize == mSize, "Computed size does not match the expected size");
 }
 
 km::TlsfCompactStats TlsfHeap::compact() {
@@ -224,8 +290,25 @@ km::TlsfAllocation TlsfHeap::malloc(size_t size) [[clang::allocating]] {
     return aligned_alloc(8, size);
 }
 
+void TlsfHeap::resizeBlock(TlsfBlock *block, size_t newSize) noexcept [[clang::nonallocating]] {
+    KM_CHECK(block != mNullBlock, "Cannot resize null block");
+
+    size_t oldListIndex = detail::GetListIndex(block->size);
+    size_t newListIndex = detail::GetListIndex(newSize);
+    if (oldListIndex != newListIndex) {
+        takeBlockFromFreeList(block);
+        block->size = newSize;
+
+        __builtin_dump_struct(block, printf);
+        releaseBlockToFreeList(block);
+    }
+}
+
 OsStatus TlsfHeap::grow(TlsfAllocation ptr, size_t size) [[clang::allocating]] {
+    KM_CHECK(ptr.isValid(), "Invalid address");
     TlsfBlock *block = ptr.getBlock();
+    KM_CHECK(!block->isFree(), "Block is not free");
+
     if (size == block->size) {
         return OsStatusSuccess;
     }
@@ -236,16 +319,27 @@ OsStatus TlsfHeap::grow(TlsfAllocation ptr, size_t size) [[clang::allocating]] {
 
     // Expand the block
     TlsfBlock *next = block->next;
-    if (next != nullptr && next->isFree()) {
-        size_t newSize = block->size + next->size;
-        size_t extraSize = size - block->size;
-        if (newSize >= size) {
-            block->size = size;
-            next->size -= extraSize;
-            next->offset = block->offset + size;
+    if (next == nullptr || !next->isFree()) {
+        return OsStatusOutOfMemory;
+    }
 
-            return OsStatusSuccess;
+    // the extra size needed to grow the current block to the requested size
+    size_t extraSize = size - block->size;
+    if (next->size == extraSize) {
+        takeBlockFromFreeList(next);
+        mergeBlock(next, block);
+        block->size = size;
+        return OsStatusSuccess;
+    } else if (next->size >= extraSize) {
+        block->size = size;
+        next->offset += extraSize;
+        if (next != mNullBlock) {
+            resizeBlock(next, next->size - extraSize);
+        } else {
+            next->size -= extraSize;
         }
+
+        return OsStatusSuccess;
     }
 
     return OsStatusOutOfMemory;
@@ -277,19 +371,9 @@ OsStatus TlsfHeap::shrink(TlsfAllocation ptr, size_t size) [[clang::allocating]]
     }
 
     // Cut the block to create a smaller allocation
-    TlsfBlock *newBlock = nullptr;
-    if (OsStatus status = splitBlock(block, size, &newBlock)) {
-        return status;
-    }
-
-    return OsStatusSuccess;
-}
-
-OsStatus TlsfHeap::splitBlock(TlsfBlock *block, size_t size, TlsfBlock **result) [[clang::allocating]] {
-    // Cut the block to create a smaller allocation
     TlsfBlock *newBlock = mBlockPool.construct(TlsfBlock {
         .offset = block->offset + size,
-        .size = size,
+        .size = extraSize,
         .prev = block,
         .next = block->next,
     });
@@ -303,21 +387,25 @@ OsStatus TlsfHeap::splitBlock(TlsfBlock *block, size_t size, TlsfBlock **result)
     if (block == mNullBlock) {
         mNullBlock = newBlock;
         mNullBlock->markFree();
-        mNullBlock->prevFree = nullptr;
-        mNullBlock->nextFree = nullptr;
+        mNullBlock->propNextFree() = nullptr;
         block->markTaken();
     } else {
         newBlock->next->prev = newBlock;
-        newBlock->markFree();
-        insertFreeBlock(newBlock);
+        newBlock->markTaken();
+        releaseBlockToFreeList(newBlock);
     }
 
-    *result = newBlock;
+    validate();
+
     return OsStatusSuccess;
 }
 
 OsStatus TlsfHeap::resize(TlsfAllocation ptr, size_t size) [[clang::allocating]] {
     TlsfBlock *block = ptr.getBlock();
+    if (size == 0) {
+        return OsStatusInvalidInput;
+    }
+
     if (size == block->size) {
         return OsStatusSuccess;
     }
@@ -332,6 +420,7 @@ OsStatus TlsfHeap::resize(TlsfAllocation ptr, size_t size) [[clang::allocating]]
 }
 
 km::TlsfAllocation TlsfHeap::aligned_alloc(size_t align, size_t size) {
+    defer { validate(); };
     TlsfAllocation result;
     size_t prevIndex = 0;
     TlsfBlock *prevListBlock = findFreeBlock(size, &prevIndex);
@@ -340,7 +429,7 @@ km::TlsfAllocation TlsfHeap::aligned_alloc(size_t align, size_t size) {
             return result;
         }
 
-        prevListBlock = prevListBlock->nextFree;
+        prevListBlock = prevListBlock->propNextFree();
     }
 
     if (checkBlock(mNullBlock, mFreeListCount, size, align, &result)) {
@@ -355,7 +444,7 @@ km::TlsfAllocation TlsfHeap::aligned_alloc(size_t align, size_t size) {
             return result;
         }
 
-        nextListBlock = nextListBlock->nextFree;
+        nextListBlock = nextListBlock->propNextFree();
     }
 
     return nullptr;
@@ -368,25 +457,30 @@ void TlsfHeap::free(TlsfAllocation address) noexcept [[clang::nonallocating]] {
     KM_CHECK(!block->isFree(), "Block is already free");
 
     TlsfBlock *prev = block->prev;
+    TlsfBlock *next = block->next;
+
     if (prev != nullptr && prev->isFree()) {
-        removeFreeBlock(prev);
+        takeBlockFromFreeList(prev);
         mergeBlock(block, prev);
     }
 
-    TlsfBlock *next = block->next;
     if (!next->isFree()) {
-        insertFreeBlock(block);
+        releaseBlockToFreeList(block);
     } else if (next == mNullBlock) {
         mergeBlock(mNullBlock, block);
     } else {
-        removeFreeBlock(next);
+        takeBlockFromFreeList(next);
         mergeBlock(next, block);
-        insertFreeBlock(next);
+        releaseBlockToFreeList(next);
     }
+
+    validate();
 }
 
 OsStatus TlsfHeap::split(TlsfAllocation ptr, PhysicalAddress midpoint, TlsfAllocation *lo, TlsfAllocation *hi) [[clang::allocating]] {
     TlsfBlock *block = ptr.getBlock();
+    KM_CHECK(block != nullptr, "Block is null");
+    KM_CHECK(block != mNullBlock, "Block is null");
     KM_CHECK(!block->isFree(), "Block is already free");
 
     PhysicalAddress base = block->offset;
@@ -398,19 +492,17 @@ OsStatus TlsfHeap::split(TlsfAllocation ptr, PhysicalAddress midpoint, TlsfAlloc
 
     size_t size = midpoint.address - base.address;
 
-    if (size == block->size) {
-        return OsStatusInvalidInput;
-    }
-
-    if (size > block->size) {
+    if ((size == block->size) || (size > block->size) || (size == 0)) {
         return OsStatusInvalidInput;
     }
 
     size_t extraSize = block->size - size;
 
+    validate();
+
     // Cut the block to create a smaller allocation
     TlsfBlock *newBlock = mBlockPool.construct(TlsfBlock {
-        .offset = midpoint.address,
+        .offset = block->offset + size,
         .size = extraSize,
         .prev = block,
         .next = block->next,
@@ -422,7 +514,17 @@ OsStatus TlsfHeap::split(TlsfAllocation ptr, PhysicalAddress midpoint, TlsfAlloc
     block->size = size;
     block->next = newBlock;
 
-    newBlock->markTaken();
+    if (block == mNullBlock) {
+        mNullBlock = newBlock;
+        mNullBlock->markFree();
+        mNullBlock->propNextFree() = nullptr;
+    } else {
+        newBlock->next->prev = newBlock;
+        // removeFreeBlock(newBlock);
+        newBlock->markTaken();
+    }
+
+    validate();
 
     *lo = TlsfAllocation(block);
     *hi = TlsfAllocation(newBlock);
@@ -441,15 +543,15 @@ km::PhysicalAddress TlsfHeap::addressOf(TlsfAllocation ptr) const noexcept [[cla
 
 void TlsfHeap::detachBlock(TlsfBlock *block, size_t listIndex) noexcept [[clang::nonblocking]] {
     if (listIndex != mFreeListCount && block->prevFree != nullptr) {
-        block->prevFree->nextFree = block->nextFree;
-        if (block->nextFree != nullptr) {
-            block->nextFree->prevFree = block->prevFree;
+        block->prevFree->propNextFree() = block->propNextFree();
+        if (block->propNextFree() != nullptr) {
+            block->propNextFree()->prevFree = block->prevFree;
         }
         block->prevFree = nullptr;
-        block->nextFree = mFreeList[listIndex];
+        block->propNextFree() = mFreeList[listIndex];
         mFreeList[listIndex] = block;
-        if (block->nextFree != nullptr) {
-            block->nextFree->prevFree = block;
+        if (block->propNextFree() != nullptr) {
+            block->propNextFree()->prevFree = block;
         }
     }
 }
@@ -497,7 +599,7 @@ bool TlsfHeap::reserveBlock(TlsfBlock *block, size_t size, size_t alignedOffset,
     detachBlock(block, listIndex);
 
     if (block != mNullBlock) {
-        removeFreeBlock(block);
+        takeBlockFromFreeList(block);
     }
 
     if (missingAlignment > 0) {
@@ -505,12 +607,7 @@ bool TlsfHeap::reserveBlock(TlsfBlock *block, size_t size, size_t alignedOffset,
         KM_ASSERT(prev != nullptr);
 
         if (prev->isFree()) {
-            size_t oldList = detail::GetListIndex(prev->size);
-            if (oldList != detail::GetListIndex(prev->size + missingAlignment)) {
-                removeFreeBlock(prev);
-                prev->size += missingAlignment;
-                insertFreeBlock(prev);
-            }
+            resizeBlock(prev, prev->size + missingAlignment);
         } else {
             TlsfBlock *newBlock = buffer.take(TlsfBlock {
                 .offset = block->offset,
@@ -523,7 +620,7 @@ bool TlsfHeap::reserveBlock(TlsfBlock *block, size_t size, size_t alignedOffset,
             prev->next = newBlock;
             newBlock->markTaken();
 
-            insertFreeBlock(newBlock);
+            releaseBlockToFreeList(newBlock);
         }
 
         block->size -= missingAlignment;
@@ -540,7 +637,6 @@ bool TlsfHeap::reserveBlock(TlsfBlock *block, size_t size, size_t alignedOffset,
             });
 
             mNullBlock = newNullBlock;
-            mNullBlock->markFree();
             block->next = mNullBlock;
             block->markTaken();
         }
@@ -559,38 +655,37 @@ bool TlsfHeap::reserveBlock(TlsfBlock *block, size_t size, size_t alignedOffset,
 
         if (block == mNullBlock) {
             mNullBlock = newBlock;
-            mNullBlock->markFree();
-            mNullBlock->prevFree = nullptr;
-            mNullBlock->nextFree = nullptr;
             block->markTaken();
         } else {
             newBlock->next->prev = newBlock;
-            newBlock->markFree();
-            insertFreeBlock(newBlock);
+            newBlock->markTaken();
+            releaseBlockToFreeList(newBlock);
         }
     }
+
+    KM_CHECK(!block->isFree(), "Block is free");
 
     *result = TlsfAllocation(block);
     return true;
 }
 
-void TlsfHeap::removeFreeBlock(TlsfBlock *block) noexcept [[clang::nonblocking]] {
+void TlsfHeap::takeBlockFromFreeList(TlsfBlock *block) noexcept [[clang::nonblocking]] {
     KM_ASSERT(block != mNullBlock);
     KM_ASSERT(block->isFree());
 
-    if (block->nextFree != nullptr) {
-        block->nextFree->prevFree = block->prevFree;
+    if (block->propNextFree() != nullptr) {
+        block->propNextFree()->prevFree = block->prevFree;
     }
 
     if (block->prevFree != nullptr) {
-        block->prevFree->nextFree = block->nextFree;
+        block->prevFree->propNextFree() = block->propNextFree();
     } else {
         uint8_t memoryClass = detail::SizeToMemoryClass(block->size);
         uint16_t secondIndex = detail::SizeToSecondIndex(block->size, memoryClass);
         size_t listIndex = detail::GetListIndex(memoryClass, secondIndex);
 
-        mFreeList[listIndex] = block->nextFree;
-        if (block->nextFree == nullptr) {
+        mFreeList[listIndex] = block->propNextFree();
+        if (block->propNextFree() == nullptr) {
             mInnerFreeMap[memoryClass] &= ~(1u << secondIndex);
             if (mInnerFreeMap[memoryClass] == 0) {
                 mTopLevelFreeMap &= ~(1u << memoryClass);
@@ -601,18 +696,19 @@ void TlsfHeap::removeFreeBlock(TlsfBlock *block) noexcept [[clang::nonblocking]]
     block->markTaken();
 }
 
-void TlsfHeap::insertFreeBlock(TlsfBlock *block) noexcept [[clang::nonblocking]] {
+void TlsfHeap::releaseBlockToFreeList(TlsfBlock *block) noexcept [[clang::nonblocking]] {
     KM_ASSERT(block != mNullBlock);
+    KM_ASSERT(!block->isFree());
 
     uint8_t memoryClass = detail::SizeToMemoryClass(block->size);
     uint16_t secondIndex = detail::SizeToSecondIndex(block->size, memoryClass);
     size_t listIndex = detail::GetListIndex(memoryClass, secondIndex);
 
-    block->prevFree = nullptr;
-    block->nextFree = mFreeList[listIndex];
+    block->markFree();
+    block->propNextFree() = mFreeList[listIndex];
     mFreeList[listIndex] = block;
-    if (block->nextFree != nullptr) {
-        block->nextFree->prevFree = block;
+    if (block->propNextFree() != nullptr) {
+        block->propNextFree()->prevFree = block;
     } else {
         mInnerFreeMap[memoryClass] |= (1u << secondIndex);
         mTopLevelFreeMap |= (1u << memoryClass);
