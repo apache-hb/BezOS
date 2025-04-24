@@ -141,7 +141,6 @@ TEST_F(TlsfHeapTest, Free) {
     heap.validate();
 }
 
-#if 0
 TEST_F(TlsfHeapTest, Split) {
     TlsfHeap heap;
     km::MemoryRange range{0x1000, 0x2000};
@@ -203,7 +202,6 @@ TEST_F(TlsfHeapTest, SplitRelease) {
 
     heap.validate();
 }
-#endif
 
 TEST_F(TlsfHeapTest, ResizeSameSize) {
     TlsfHeap heap;

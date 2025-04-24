@@ -275,9 +275,6 @@ void TlsfHeap::validate() {
         }
     }
 
-    if (computedSize != mSize) {
-        printf("Computed size: %zu, Expected size: %zu\n", computedSize, mSize);
-    }
     KM_CHECK(computedSize == mSize, "Computed size does not match the expected size");
 }
 
@@ -298,8 +295,6 @@ void TlsfHeap::resizeBlock(TlsfBlock *block, size_t newSize) noexcept [[clang::n
     if (oldListIndex != newListIndex) {
         takeBlockFromFreeList(block);
         block->size = newSize;
-
-        __builtin_dump_struct(block, printf);
         releaseBlockToFreeList(block);
     }
 }
@@ -325,12 +320,7 @@ OsStatus TlsfHeap::grow(TlsfAllocation ptr, size_t size) [[clang::allocating]] {
 
     // the extra size needed to grow the current block to the requested size
     size_t extraSize = size - block->size;
-    if (next->size == extraSize) {
-        takeBlockFromFreeList(next);
-        mergeBlock(next, block);
-        block->size = size;
-        return OsStatusSuccess;
-    } else if (next->size >= extraSize) {
+    if (next->size >= extraSize) {
         block->size = size;
         next->offset += extraSize;
         if (next != mNullBlock) {
@@ -395,8 +385,6 @@ OsStatus TlsfHeap::shrink(TlsfAllocation ptr, size_t size) [[clang::allocating]]
         releaseBlockToFreeList(newBlock);
     }
 
-    validate();
-
     return OsStatusSuccess;
 }
 
@@ -420,7 +408,6 @@ OsStatus TlsfHeap::resize(TlsfAllocation ptr, size_t size) [[clang::allocating]]
 }
 
 km::TlsfAllocation TlsfHeap::aligned_alloc(size_t align, size_t size) {
-    defer { validate(); };
     TlsfAllocation result;
     size_t prevIndex = 0;
     TlsfBlock *prevListBlock = findFreeBlock(size, &prevIndex);
@@ -473,8 +460,6 @@ void TlsfHeap::free(TlsfAllocation address) noexcept [[clang::nonallocating]] {
         mergeBlock(next, block);
         releaseBlockToFreeList(next);
     }
-
-    validate();
 }
 
 OsStatus TlsfHeap::split(TlsfAllocation ptr, PhysicalAddress midpoint, TlsfAllocation *lo, TlsfAllocation *hi) [[clang::allocating]] {
@@ -498,8 +483,6 @@ OsStatus TlsfHeap::split(TlsfAllocation ptr, PhysicalAddress midpoint, TlsfAlloc
 
     size_t extraSize = block->size - size;
 
-    validate();
-
     // Cut the block to create a smaller allocation
     TlsfBlock *newBlock = mBlockPool.construct(TlsfBlock {
         .offset = block->offset + size,
@@ -513,16 +496,8 @@ OsStatus TlsfHeap::split(TlsfAllocation ptr, PhysicalAddress midpoint, TlsfAlloc
 
     block->size = size;
     block->next = newBlock;
-
-    if (block == mNullBlock) {
-        mNullBlock = newBlock;
-        mNullBlock->markFree();
-        mNullBlock->propNextFree() = nullptr;
-    } else {
-        newBlock->next->prev = newBlock;
-        // removeFreeBlock(newBlock);
-        newBlock->markTaken();
-    }
+    newBlock->next->prev = newBlock;
+    newBlock->markTaken();
 
     validate();
 
@@ -738,14 +713,11 @@ TlsfHeapStats TlsfHeap::stats() noexcept [[clang::nonallocating]] {
             if (it->isFree()) {
                 freeMemory += it->size;
             }
-            it = it->next;
+            it = it->prev;
         }
     };
 
     countBlockStats(mNullBlock);
-    for (size_t i = 0; i < mFreeListCount; i++) {
-        countBlockStats(mFreeList[i]);
-    }
 
     size_t usedMemory = mSize - freeMemory;
     return TlsfHeapStats {
