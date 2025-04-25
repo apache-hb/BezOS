@@ -131,7 +131,7 @@ namespace km {
     class TlsfAllocation {
         friend class TlsfHeap;
 
-        detail::TlsfBlock *block;
+        detail::TlsfBlock *block{nullptr};
 
         TlsfAllocation(detail::TlsfBlock *block) noexcept [[clang::nonblocking]];
 
@@ -214,7 +214,7 @@ namespace km {
         ///
         /// @return The status of the operation.
         [[nodiscard]]
-        OsStatus grow(TlsfAllocation ptr, size_t size) [[clang::allocating]];
+        OsStatus grow(TlsfAllocation ptr, size_t size, TlsfAllocation *result) [[clang::allocating]];
 
         /// @brief Shrink an allocation to a smaller size.
         ///
@@ -226,7 +226,7 @@ namespace km {
         ///
         /// @return The status of the operation.
         [[nodiscard]]
-        OsStatus shrink(TlsfAllocation ptr, size_t size) [[clang::allocating]];
+        OsStatus shrink(TlsfAllocation ptr, size_t size, TlsfAllocation *result) [[clang::allocating]];
 
         /// @brief Resize an allocation to a new size.
         ///
@@ -238,7 +238,7 @@ namespace km {
         ///
         /// @return The status of the operation.
         [[nodiscard]]
-        OsStatus resize(TlsfAllocation ptr, size_t size) [[clang::allocating]];
+        OsStatus resize(TlsfAllocation ptr, size_t size, TlsfAllocation *result) [[clang::allocating]];
 
         [[nodiscard]]
         TlsfAllocation aligned_alloc(size_t align, size_t size) [[clang::allocating]];

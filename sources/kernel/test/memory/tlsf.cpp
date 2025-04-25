@@ -95,8 +95,10 @@ TEST_F(TlsfHeapTest, Resize) {
     EXPECT_EQ(stats.freeMemory, range.size() - 0x100);
     EXPECT_EQ(stats.usedMemory, 0x100);
 
-    status = heap.resize(addr, 0x200);
+    TlsfAllocation result;
+    status = heap.resize(addr, 0x200, &result);
     EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_TRUE(result.isValid());
 
     auto stats1 = heap.stats();
     EXPECT_EQ(stats1.freeMemory, range.size() - 0x200);
@@ -215,8 +217,10 @@ TEST_F(TlsfHeapTest, ResizeSameSize) {
     EXPECT_EQ(stats.freeMemory, range.size() - 0x100);
     EXPECT_EQ(stats.usedMemory, 0x100);
 
-    status = heap.resize(addr, 0x100);
+    TlsfAllocation result;
+    status = heap.resize(addr, 0x100, &result);
     EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_TRUE(result.isValid());
 
     auto stats1 = heap.stats();
     EXPECT_EQ(stats1.freeMemory, range.size() - 0x100);
@@ -237,8 +241,10 @@ TEST_F(TlsfHeapTest, ShrinkSameSize) {
     EXPECT_EQ(stats.freeMemory, range.size() - 0x100);
     EXPECT_EQ(stats.usedMemory, 0x100);
 
-    status = heap.shrink(addr, 0x100);
+    TlsfAllocation result;
+    status = heap.shrink(addr, 0x100, &result);
     EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_TRUE(result.isValid());
 
     auto stats1 = heap.stats();
     EXPECT_EQ(stats1.freeMemory, range.size() - 0x100);
@@ -257,8 +263,10 @@ TEST_F(TlsfHeapTest, GrowSameSize) {
     EXPECT_EQ(stats.freeMemory, range.size() - 0x100);
     EXPECT_EQ(stats.usedMemory, 0x100);
 
-    status = heap.grow(addr, 0x100);
+    TlsfAllocation result;
+    status = heap.grow(addr, 0x100, &result);
     EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_TRUE(result.isValid());
 
     auto stats1 = heap.stats();
     EXPECT_EQ(stats1.freeMemory, range.size() - 0x100);
@@ -277,8 +285,10 @@ TEST_F(TlsfHeapTest, GrowSmaller) {
     EXPECT_EQ(stats.freeMemory, range.size() - 0x100);
     EXPECT_EQ(stats.usedMemory, 0x100);
 
-    status = heap.grow(addr, 0x50);
+    TlsfAllocation result;
+    status = heap.grow(addr, 0x50, &result);
     EXPECT_EQ(status, OsStatusInvalidInput);
+    EXPECT_FALSE(result.isValid());
 
     auto stats1 = heap.stats();
     EXPECT_EQ(stats1.freeMemory, range.size() - 0x100);
@@ -297,8 +307,10 @@ TEST_F(TlsfHeapTest, ShrinkLarger) {
     EXPECT_EQ(stats.freeMemory, range.size() - 0x100);
     EXPECT_EQ(stats.usedMemory, 0x100);
 
-    status = heap.shrink(addr, 0x200);
+    TlsfAllocation result;
+    status = heap.shrink(addr, 0x200, &result);
     EXPECT_EQ(status, OsStatusInvalidInput);
+    EXPECT_FALSE(result.isValid());
 
     auto stats1 = heap.stats();
     EXPECT_EQ(stats1.freeMemory, range.size() - 0x100);
@@ -320,7 +332,8 @@ TEST_F(TlsfHeapTest, ShrinkOom) {
     for (size_t i = 0; i < 60; i++) {
         GetGlobalAllocator()->mFailAfter = 0;
         size_t size = 0x800 - (i * 0x20);
-        status = heap.shrink(addr, size);
+        TlsfAllocation result;
+        status = heap.shrink(addr, size, &result);
         GetGlobalAllocator()->reset();
 
         if (status == OsStatusOutOfMemory) {
@@ -1155,15 +1168,31 @@ TEST_F(TlsfHeapTest, ResizeAllocSingle) {
             size_t index = distribution(random) % pointers.size();
             GetGlobalAllocator()->mFailPercent = 0.3f;
             switch (distribution(random) % 3) {
-            #if 0
                 case 0: {
-                    (void)heap.resize(pointers[index], sizeDistribution(random) * 0x10);
+                    TlsfAllocation newPtr;
+                    if (heap.resize(pointers[index], sizeDistribution(random) * 0x10, &newPtr) == OsStatusSuccess) {
+                        EXPECT_TRUE(newPtr.isValid());
+                        pointers.erase(std::remove(pointers.begin(), pointers.end(), pointers[index]), pointers.end());
+                        EXPECT_TRUE(std::ranges::find(pointers, newPtr) == pointers.end()) << "Duplicate pointer: " << (void*)heap.addressOf(newPtr).address;
+                        pointers.push_back(newPtr);
+                    } else {
+                        EXPECT_FALSE(newPtr.isValid()) << "Failed to resize pointer: " << (void*)heap.addressOf(pointers[index]).address;
+                    }
                     break;
                 }
-                #endif
                 case 1: {
                     GetGlobalAllocator()->mNoAlloc = true;
-                    (void)heap.grow(pointers[index], sizeDistribution(random) * 0x10);
+                    TlsfAllocation newPtr;
+                    if (heap.grow(pointers[index], sizeDistribution(random) * 0x10, &newPtr) == OsStatusSuccess) {
+                        GetGlobalAllocator()->mNoAlloc = false;
+                        EXPECT_TRUE(newPtr.isValid());
+
+                        pointers.erase(std::remove(pointers.begin(), pointers.end(), pointers[index]), pointers.end());
+                        EXPECT_TRUE(std::ranges::find(pointers, newPtr) == pointers.end()) << "Duplicate pointer: " << (void*)heap.addressOf(newPtr).address;
+                        pointers.push_back(newPtr);
+                    } else {
+                        EXPECT_FALSE(newPtr.isValid());
+                    }
                     GetGlobalAllocator()->mNoAlloc = false;
                     break;
                 }

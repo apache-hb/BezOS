@@ -244,7 +244,7 @@ void TlsfHeap::validate() {
     size_t nextOffset = mNullBlock->offset;
     size_t computedSize = mNullBlock->size;
     for (TlsfBlock *prev = mNullBlock->prev; prev != nullptr; prev = prev->prev) {
-        KM_CHECK(prev->offset + prev->size == nextOffset, "Block does not point to the next block");
+        KM_CHECK(prev->offset + prev->size == nextOffset, "Block offset does not end at the next block");
         nextOffset = prev->offset;
         computedSize += prev->size;
 
@@ -299,12 +299,13 @@ void TlsfHeap::resizeBlock(TlsfBlock *block, size_t newSize) noexcept [[clang::n
     }
 }
 
-OsStatus TlsfHeap::grow(TlsfAllocation ptr, size_t size) [[clang::allocating]] {
+OsStatus TlsfHeap::grow(TlsfAllocation ptr, size_t size, TlsfAllocation *result) [[clang::allocating]] {
     KM_CHECK(ptr.isValid(), "Invalid address");
     TlsfBlock *block = ptr.getBlock();
     KM_CHECK(!block->isFree(), "Block is not free");
 
     if (size == block->size) {
+        *result = ptr;
         return OsStatusSuccess;
     }
 
@@ -323,10 +324,18 @@ OsStatus TlsfHeap::grow(TlsfAllocation ptr, size_t size) [[clang::allocating]] {
     if (next->size >= extraSize) {
         block->size = size;
         next->offset += extraSize;
-        if (next != mNullBlock) {
-            resizeBlock(next, next->size - extraSize);
+        if (next->size == extraSize) {
+            KM_CHECK(next != mNullBlock, "Next block is null");
+            takeBlockFromFreeList(next);
+            mergeBlock(next, block);
+            *result = TlsfAllocation(next);
         } else {
-            next->size -= extraSize;
+            if (next != mNullBlock) {
+                resizeBlock(next, next->size - extraSize);
+            } else {
+                next->size -= extraSize;
+            }
+            *result = TlsfAllocation(block);
         }
 
         return OsStatusSuccess;
@@ -335,9 +344,10 @@ OsStatus TlsfHeap::grow(TlsfAllocation ptr, size_t size) [[clang::allocating]] {
     return OsStatusOutOfMemory;
 }
 
-OsStatus TlsfHeap::shrink(TlsfAllocation ptr, size_t size) [[clang::allocating]] {
+OsStatus TlsfHeap::shrink(TlsfAllocation ptr, size_t size, TlsfAllocation *result) [[clang::allocating]] {
     TlsfBlock *block = ptr.getBlock();
     if (size == block->size) {
+        *result = ptr;
         return OsStatusSuccess;
     }
 
@@ -345,65 +355,34 @@ OsStatus TlsfHeap::shrink(TlsfAllocation ptr, size_t size) [[clang::allocating]]
         return OsStatusInvalidInput;
     }
 
-    size_t extraSize = block->size - size;
-
-    // If the block ahead is free, we can migrate the end of our free space to it
-    TlsfBlock *next = block->next;
-    if (next != nullptr && next->isFree()) {
-        size_t newSize = block->size + next->size;
-        if (newSize >= size) {
-            block->size = size;
-            next->size += extraSize;
-            next->offset = block->offset + size;
-
-            return OsStatusSuccess;
-        }
+    TlsfAllocation lo, hi;
+    if (OsStatus status = split(ptr, block->offset + size, &lo, &hi)) {
+        return status;
     }
 
-    // Cut the block to create a smaller allocation
-    TlsfBlock *newBlock = mBlockPool.construct(TlsfBlock {
-        .offset = block->offset + size,
-        .size = extraSize,
-        .prev = block,
-        .next = block->next,
-    });
-    if (newBlock == nullptr) {
-        return OsStatusOutOfMemory;
-    }
-
-    block->size = size;
-    block->next = newBlock;
-
-    if (block == mNullBlock) {
-        mNullBlock = newBlock;
-        mNullBlock->markFree();
-        mNullBlock->propNextFree() = nullptr;
-        block->markTaken();
-    } else {
-        newBlock->next->prev = newBlock;
-        newBlock->markTaken();
-        releaseBlockToFreeList(newBlock);
-    }
+    free(hi);
+    *result = lo;
 
     return OsStatusSuccess;
 }
 
-OsStatus TlsfHeap::resize(TlsfAllocation ptr, size_t size) [[clang::allocating]] {
-    TlsfBlock *block = ptr.getBlock();
+OsStatus TlsfHeap::resize(TlsfAllocation ptr, size_t size, TlsfAllocation *result) [[clang::allocating]] {
     if (size == 0) {
         return OsStatusInvalidInput;
     }
 
+    TlsfBlock *block = ptr.getBlock();
     if (size == block->size) {
+        *result = ptr;
         return OsStatusSuccess;
     }
 
     if (size < block->size) {
         // Shrink the block
-        return shrink(ptr, size);
+        return shrink(ptr, size, result);
     } else {
         // Expand the block
-        return grow(ptr, size);
+        return grow(ptr, size, result);
     }
 }
 
@@ -485,7 +464,7 @@ OsStatus TlsfHeap::split(TlsfAllocation ptr, PhysicalAddress midpoint, TlsfAlloc
 
     // Cut the block to create a smaller allocation
     TlsfBlock *newBlock = mBlockPool.construct(TlsfBlock {
-        .offset = block->offset + size,
+        .offset = midpoint.address,
         .size = extraSize,
         .prev = block,
         .next = block->next,
