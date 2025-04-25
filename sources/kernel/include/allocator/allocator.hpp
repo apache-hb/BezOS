@@ -125,6 +125,10 @@ namespace mem {
         template<typename O>
         GlobalAllocator(GlobalAllocator<O> &&) { }
 
+        constexpr bool operator==(GlobalAllocator const&) const noexcept {
+            return true;
+        }
+
         T *allocate(size_t n) {
             return new (std::nothrow) T[n];
         }

@@ -142,6 +142,18 @@ namespace km {
         bool isNull() const noexcept [[clang::nonblocking]] { return block == nullptr; }
         bool isValid() const noexcept [[clang::nonblocking]] { return block != nullptr; }
 
+        constexpr size_t size() const noexcept [[clang::nonblocking]] {
+            return block->size;
+        }
+
+        constexpr PhysicalAddress address() const noexcept [[clang::nonblocking]] {
+            return PhysicalAddress(block->offset);
+        }
+
+        constexpr MemoryRange range() const noexcept [[clang::nonblocking]] {
+            return MemoryRange::of(block->offset, block->size);
+        }
+
         constexpr auto operator<=>(const TlsfAllocation&) const noexcept [[clang::nonblocking]] = default;
     };
 
