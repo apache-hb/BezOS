@@ -67,7 +67,7 @@ namespace km {
                 return false;
             }
 
-            size_t freeSlots() const noexcept [[clang::nonblocking]] {
+            size_t freeSlots() const noexcept [[clang::nonallocating]] {
                 size_t result = 0;
                 size_t index = firstFreeIndex;
                 while (index < count) {

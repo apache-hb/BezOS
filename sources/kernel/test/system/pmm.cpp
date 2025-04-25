@@ -562,3 +562,56 @@ TEST(MemoryManagerTest, RetainSpillBack) {
         << " subset " << std::string_view(km::format(subset))
         << " ss1 " << std::string_view(km::format(ss1.range));
 }
+
+TEST(MemoryManagerTest, OverlapOps) {
+    sys2::MemoryManager manager;
+    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    km::MemoryRange range;
+    status = manager.allocate(x64::kPageSize * 4, &range);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_EQ(range.size(), x64::kPageSize * 4);
+
+    auto stats0 = manager.stats();
+    ASSERT_EQ(stats0.segments, 1);
+    ASSERT_EQ(stats0.heapStats.usedMemory, x64::kPageSize * 4);
+    ASSERT_EQ(stats0.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 4);
+
+    km::MemoryRange retainSubrange = { range.front + x64::kPageSize, range.back };
+    status = manager.retain(retainSubrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    km::MemoryRange releaseSubrange = { range.front, range.back - x64::kPageSize };
+    status = manager.release(releaseSubrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    auto stats1 = manager.stats();
+    ASSERT_EQ(stats1.segments, 2);
+    ASSERT_EQ(stats1.heapStats.usedMemory, range.size() - x64::kPageSize);
+    ASSERT_EQ(stats1.heapStats.freeMemory, kTestRange.size() - range.size() + x64::kPageSize);
+
+    sys2::MemorySegmentStats ss0;
+    status = manager.querySegment(range.front, &ss0);
+    EXPECT_EQ(status, OsStatusNotFound);
+
+    km::MemoryRange subset = { retainSubrange.front, releaseSubrange.back };
+    sys2::MemorySegmentStats ss1;
+    status = manager.querySegment(subset.back - 1, &ss1);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_EQ(ss1.owners, 1);
+    EXPECT_EQ(ss1.range, subset)
+        << "range " << std::string_view(km::format(range))
+        << " subset " << std::string_view(km::format(subset))
+        << " ss1 " << std::string_view(km::format(ss1.range));
+
+    sys2::MemorySegmentStats ss2;
+    km::MemoryRange ss2Range = { releaseSubrange.back, retainSubrange.back };
+    status = manager.querySegment(range.back - 1, &ss2);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_EQ(ss2.owners, 2);
+    EXPECT_EQ(ss2.range, ss2Range)
+        << "range " << std::string_view(km::format(range))
+        << " ss2Range " << std::string_view(km::format(ss2Range))
+        << " ss2 " << std::string_view(km::format(ss2.range));
+}

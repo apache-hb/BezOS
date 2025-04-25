@@ -103,7 +103,6 @@ OsStatus sys2::MemoryManager::retainRange(Iterator it, km::MemoryRange range, km
         } else {
             // |--------seg-------|
             //       |--------range-----|
-            KmDebugMessage("Retaining segment: ", seg, " at ", range, "\n");
             if (OsStatus status = retainSegment(it, range.front, kHigh)) {
                 return status;
             }
@@ -142,7 +141,6 @@ OsStatus sys2::MemoryManager::retainSegment(Iterator it, km::PhysicalAddress mid
 
     km::TlsfAllocation lo, hi;
     if (OsStatus status = mHeap.split(segment.mHandle, midpoint, &lo, &hi)) {
-        KmDebugMessage("Failed to split segment: ", segment.mHandle.range(), " at ", midpoint, "\n");
         return status;
     }
 
@@ -419,7 +417,7 @@ OsStatus sys2::MemoryManager::create(km::MemoryRange range, MemoryManager *manag
         return status;
     }
 
-    *manager = MemoryManager(range, std::move(heap));
+    *manager = MemoryManager(std::move(heap));
     return OsStatusSuccess;
 }
 

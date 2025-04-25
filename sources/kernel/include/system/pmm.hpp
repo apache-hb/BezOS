@@ -13,11 +13,6 @@ namespace sys2 {
         uint8_t owners;
     };
 
-    struct MemoryManagerStats {
-        km::TlsfHeapStats heapStats;
-        size_t segments;
-    };
-
     struct MemorySegment {
         std::atomic<uint8_t> mOwners;
         km::TlsfAllocation mHandle;
@@ -44,18 +39,25 @@ namespace sys2 {
         }
     };
 
+    struct MemoryManagerStats {
+        km::TlsfHeapStats heapStats;
+        size_t segments;
+
+        constexpr size_t controlMemory() const noexcept [[clang::nonallocating]] {
+            return segments * sizeof(MemorySegment);
+        }
+    };
+
     class MemoryManager {
         using Counter = std::atomic<uint8_t>;
         using Map = sm::BTreeMap<km::PhysicalAddress, MemorySegment>;
         using Iterator = typename Map::iterator;
 
-        km::MemoryRange mRange;
         Map mSegments;
         km::TlsfHeap mHeap;
 
-        MemoryManager(km::MemoryRange range, km::TlsfHeap&& heap)
-            : mRange(range)
-            , mHeap(std::move(heap))
+        MemoryManager(km::TlsfHeap&& heap) noexcept
+            : mHeap(std::move(heap))
         { }
 
         enum ReleaseSide {
@@ -103,7 +105,6 @@ namespace sys2 {
 
 #if __STDC_HOSTED__
         void TESTING_dumpStruct() {
-            KmDebugMessage("MemoryManager: ", mRange, "\n");
             for (const auto& [address, segment] : mSegments) {
                 KmDebugMessage("Segment: ", address, ": ", segment.mHandle.range(), " (owners: ", segment.mOwners.load(), ")\n");
             }
