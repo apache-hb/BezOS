@@ -421,6 +421,11 @@ OsStatus sys2::MemoryManager::create(km::MemoryRange range, MemoryManager *manag
     return OsStatusSuccess;
 }
 
+OsStatus sys2::MemoryManager::create(km::TlsfHeap&& heap, MemoryManager *manager) {
+    *manager = MemoryManager(std::move(heap));
+    return OsStatusSuccess;
+}
+
 sys2::MemoryManagerStats sys2::MemoryManager::stats() noexcept [[clang::nonallocating]] {
     return MemoryManagerStats {
         .heapStats = mHeap.stats(),

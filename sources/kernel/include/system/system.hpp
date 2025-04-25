@@ -45,13 +45,25 @@ namespace sys2 {
 
         sm::FlatHashSet<sm::RcuSharedPtr<Process>, sm::RcuHash<Process>, std::equal_to<>> mProcessObjects GUARDED_BY(mLock);
 
-    public:
+        System() = default;
+
+        System(System&& other)
+            : mPidCounter(other.mPidCounter.load())
+            , mSchedule(std::move(other.mSchedule))
+            , mSystemTables(other.mSystemTables)
+            , mPageAllocator(other.mPageAllocator)
+            , mVfsRoot(other.mVfsRoot)
+            , mObjects(std::move(other.mObjects))
+            , mProcessObjects(std::move(other.mProcessObjects))
+        { }
+
         System(km::AddressSpace *systemTables [[gnu::nonnull]], km::PageAllocator *pmm [[gnu::nonnull]], vfs2::VfsRoot *vfsRoot)
             : mSystemTables(systemTables)
             , mPageAllocator(pmm)
             , mVfsRoot(vfsRoot)
         { }
 
+    public:
         sm::RcuDomain &rcuDomain() { return mDomain; }
 
         OsStatus addThreadObject(sm::RcuSharedPtr<Thread> object);
@@ -89,6 +101,8 @@ namespace sys2 {
         CpuLocalSchedule *getCpuSchedule(km::CpuCoreId cpu) {
             return mSchedule.getCpuSchedule(cpu);
         }
+
+        static OsStatus create(vfs2::VfsRoot *vfsRoot, System *result);
     };
 
     // internal

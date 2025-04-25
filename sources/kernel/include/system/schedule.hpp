@@ -107,6 +107,14 @@ namespace sys2 {
     public:
         GlobalSchedule() = default;
 
+        GlobalSchedule(GlobalSchedule&& other)
+            : mCpuLocal(std::move(other.mCpuLocal))
+            , mWaitQueue(std::move(other.mWaitQueue))
+            , mTimeoutQueue(std::move(other.mTimeoutQueue))
+            , mSleepQueue(std::move(other.mSleepQueue))
+            , mSuspendSet(std::move(other.mSuspendSet))
+        { }
+
         OsStatus addThread(sm::RcuSharedPtr<Thread> thread);
 
         OsStatus removeThread(sm::RcuWeakPtr<Thread> thread);

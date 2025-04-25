@@ -98,6 +98,9 @@ namespace sys2 {
         static OsStatus create(km::MemoryRange range, MemoryManager *manager) [[clang::allocating]];
 
         [[nodiscard]]
+        static OsStatus create(km::TlsfHeap&& heap, MemoryManager *manager) [[clang::allocating]];
+
+        [[nodiscard]]
         MemoryManagerStats stats() noexcept [[clang::nonallocating]];
 
         [[nodiscard]]
