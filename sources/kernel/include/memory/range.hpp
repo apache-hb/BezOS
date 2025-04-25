@@ -327,6 +327,8 @@ namespace km {
 
 template<>
 struct km::Format<km::PhysicalAddress> {
+    static constexpr size_t kStringSize = km::kFormatSize<Hex<uintptr_t>>;
+
     static void format(km::IOutStream& out, km::PhysicalAddress value) {
         out.write(Hex(value.address).pad(16, '0'));
     }
@@ -334,6 +336,8 @@ struct km::Format<km::PhysicalAddress> {
 
 template<typename T>
 struct km::Format<km::AnyRange<T>> {
+    static constexpr size_t kStringSize = km::kFormatSize<T> * 2 + 1;
+
     static void format(km::IOutStream& out, km::AnyRange<T> value) {
         out.format(value.front, "-", value.back);
     }

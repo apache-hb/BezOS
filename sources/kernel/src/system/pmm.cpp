@@ -1,41 +1,117 @@
 #include "system/pmm.hpp"
 #include "arch/paging.hpp"
 
-OsStatus sys2::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]] {
-    auto begin = mSegments.lower_bound(range.front.address);
-    auto end = mSegments.upper_bound(range.back.address);
+OsStatus sys2::MemoryManager::retainRange(Iterator it, km::MemoryRange range, km::MemoryRange *remaining) {
+    auto& segment = it->second;
+    km::MemoryRange seg = segment.mHandle.range();
+    km::TlsfAllocation allocation = segment.mHandle;
 
-    if (begin == end) {
-        return OsStatusInvalidInput;
-    }
-
-    if (begin != mSegments.begin()) {
-        --begin;
-    }
-
-    for (auto it = begin; it != end; ++it) {
-        auto& segment = it->second;
-        if (range.contains(segment.mHandle.range())) {
-            segment.mOwners += 1;
-        } else {
-            auto intersection = km::intersection(range, segment.mHandle.range());
+    if (seg == range) {
+        // |--------seg-------|
+        // |--------range-----|
+        segment.mOwners += 1;
+        return OsStatusCompleted;
+    } else if (range.contains(seg)) {
+        // |-----seg-----|
+        // |--------range-----|
+        //
+        //      |-----seg-----|
+        // |--------range-----|
+        //
+        //    |-----seg-----|
+        // |--------range-----|
+        segment.mOwners += 1;
+        *remaining = { seg.back, range.back };
+        return OsStatusSuccess;
+    } else if (km::innerAdjacent(seg, range)) {
+        if (range.front == seg.front) {
+            // |--------seg-------|
+            // |--range--|
             km::TlsfAllocation lo, hi;
-            if (OsStatus status = mHeap.split(segment.mHandle, intersection.front, &lo, &hi)) {
+            if (OsStatus status = mHeap.split(allocation, range.back, &lo, &hi)) {
                 return status;
             }
-            segment.mHandle = lo;
 
-            auto newSegment = MemorySegment { uint8_t(segment.mOwners + 1), hi };
-            mSegments.insert({ hi.address(), std::move(newSegment) });
+            auto loSegment = MemorySegment { uint8_t(segment.mOwners + 1), lo };
+            auto hiSegment = MemorySegment { uint8_t(segment.mOwners), hi };
 
-            segment.mOwners += 1;
+            mSegments.erase(it);
 
-            begin = mSegments.lower_bound(lo.address());
-            end = mSegments.upper_bound(range.back);
+            addSegment(std::move(loSegment));
+            addSegment(std::move(hiSegment));
+
+            return OsStatusCompleted;
+        } else {
+            // |--------seg-------|
+            //          |--range--|
+            KM_ASSERT(range.back == seg.back);
+
+            km::TlsfAllocation lo, hi;
+            if (OsStatus status = mHeap.split(allocation, range.front, &lo, &hi)) {
+                return status;
+            }
+
+            auto loSegment = MemorySegment { uint8_t(segment.mOwners), lo };
+            auto hiSegment = MemorySegment { uint8_t(segment.mOwners + 1), hi };
+
+            mSegments.erase(it);
+
+            addSegment(std::move(loSegment));
+            addSegment(std::move(hiSegment));
+
+            return OsStatusCompleted;
+        }
+    } else if (seg.contains(range)) {
+        // |--------seg-------|
+        //       |--range--|
+        auto [lhs, rhs] = km::split(seg, range);
+        KM_ASSERT(!lhs.isEmpty() && !rhs.isEmpty());
+
+        km::TlsfAllocation lo, mid, hi;
+        if (OsStatus status = mHeap.split(allocation, lhs.back, &lo, &mid)) {
+            return status;
+        }
+
+        if (OsStatus status = mHeap.split(mid, rhs.front, &mid, &hi)) {
+            return status;
+        }
+
+        auto loSegment = MemorySegment { uint8_t(segment.mOwners), lo };
+        auto midSegment = MemorySegment { uint8_t(segment.mOwners + 1), mid };
+        auto hiSegment = MemorySegment { uint8_t(segment.mOwners), hi };
+
+        mSegments.erase(it);
+
+        addSegment(std::move(midSegment));
+        addSegment(std::move(loSegment));
+        addSegment(std::move(hiSegment));
+
+        return OsStatusCompleted;
+    } else {
+        if (seg.back == range.front) {
+            return OsStatusMoreData;
+        }
+
+        if (seg.front > range.front) {
+            //       |--------seg-------|
+            // |--------range-----|
+            if (OsStatus status = retainSegment(it, range.back, kLow)) {
+                return status;
+            }
+
+            return OsStatusCompleted;
+        } else {
+            // |--------seg-------|
+            //       |--------range-----|
+            KmDebugMessage("Retaining segment: ", seg, " at ", range, "\n");
+            if (OsStatus status = retainSegment(it, range.front, kHigh)) {
+                return status;
+            }
+
+            *remaining = { seg.back, range.back };
+            return OsStatusSuccess;
         }
     }
-
-    return OsStatusSuccess;
 }
 
 bool sys2::MemoryManager::releaseEntry(Iterator it) {
@@ -61,7 +137,39 @@ void sys2::MemoryManager::addSegment(MemorySegment&& segment) {
     mSegments.insert({ range.back, std::move(segment) });
 }
 
-OsStatus sys2::MemoryManager::splitSegment(Iterator it, km::PhysicalAddress midpoint, ReleaseSide side) [[clang::allocating]] {
+OsStatus sys2::MemoryManager::retainSegment(Iterator it, km::PhysicalAddress midpoint, ReleaseSide side) {
+    auto& segment = it->second;
+
+    km::TlsfAllocation lo, hi;
+    if (OsStatus status = mHeap.split(segment.mHandle, midpoint, &lo, &hi)) {
+        KmDebugMessage("Failed to split segment: ", segment.mHandle.range(), " at ", midpoint, "\n");
+        return status;
+    }
+
+    auto loSegment = MemorySegment { uint8_t(segment.mOwners), lo };
+    auto hiSegment = MemorySegment { uint8_t(segment.mOwners), hi };
+
+    mSegments.erase(it);
+
+    switch (side) {
+    case kLow:
+        loSegment.mOwners += 1;
+        break;
+    case kHigh:
+        hiSegment.mOwners += 1;
+        break;
+    default:
+        KM_PANIC("Invalid side");
+        break;
+    }
+
+    addSegment(std::move(loSegment));
+    addSegment(std::move(hiSegment));
+
+    return OsStatusSuccess;
+}
+
+OsStatus sys2::MemoryManager::splitSegment(Iterator it, km::PhysicalAddress midpoint, ReleaseSide side) {
     auto& segment = it->second;
 
     km::TlsfAllocation lo, hi;
@@ -117,8 +225,6 @@ OsStatus sys2::MemoryManager::releaseRange(Iterator it, km::MemoryRange range, k
         *remaining = { seg.back, range.back };
         return OsStatusSuccess;
     } else if (km::innerAdjacent(seg, range)) {
-        // handle the following cases:
-        //
         // |--------seg-------|
         // |--range--|
         //
@@ -216,6 +322,46 @@ OsStatus sys2::MemoryManager::releaseRange(Iterator it, km::MemoryRange range, k
     KM_PANIC("Invalid state");
 }
 
+OsStatus sys2::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]] {
+    Iterator begin;
+    Iterator end;
+
+    auto updateIterators = [&](km::MemoryRange newRange) {
+        begin = mSegments.lower_bound(newRange.front);
+        end = mSegments.lower_bound(newRange.back);
+
+        if (end != mSegments.end()) {
+            ++end;
+        }
+    };
+
+    updateIterators(range);
+
+    if (begin == mSegments.end()) {
+        return OsStatusNotFound;
+    }
+
+    km::MemoryRange remaining = range;
+    for (auto it = begin; it != end;) {
+        switch (OsStatus status = retainRange(it, remaining, &remaining)) {
+        case OsStatusCompleted:
+            return OsStatusSuccess;
+        case OsStatusMoreData:
+            break;
+        case OsStatusSuccess:
+            updateIterators(remaining);
+            it = begin;
+            break;
+        default:
+            return status;
+        }
+
+        ++it;
+    }
+
+    return OsStatusSuccess;
+}
+
 OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating]] {
     Iterator begin;
     Iterator end;
@@ -285,17 +431,18 @@ sys2::MemoryManagerStats sys2::MemoryManager::stats() noexcept [[clang::nonalloc
 }
 
 OsStatus sys2::MemoryManager::querySegment(km::PhysicalAddress address, MemorySegmentStats *stats) noexcept [[clang::nonallocating]] {
-    auto it = mSegments.lower_bound(address);
+    auto it = mSegments.upper_bound(address);
     if (it == mSegments.end()) {
         return OsStatusNotFound;
     }
+
     auto& segment = it->second;
-    auto span = segment.mHandle.range();
-    bool found = span.contains(address) || span.front == address || span.back == address;
+    auto result = segment.stats();
+    bool found = segment.mHandle.range().contains(address);
     if (!found) {
         return OsStatusNotFound;
     }
 
-    *stats = segment.stats();
+    *stats = result;
     return OsStatusSuccess;
 }

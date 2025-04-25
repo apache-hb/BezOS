@@ -59,6 +59,19 @@ TEST(MemoryManagerTest, ReleaseSubspan) {
     ASSERT_EQ(stats1.segments, 2);
     ASSERT_EQ(stats1.heapStats.usedMemory, x64::kPageSize * 2);
     ASSERT_EQ(stats1.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 2);
+
+    auto [lhs, rhs] = km::split(range, subrange);
+    sys2::MemorySegmentStats ss0;
+    status = manager.querySegment(range.front, &ss0);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_EQ(ss0.owners, 1);
+    EXPECT_EQ(ss0.range, lhs);
+
+    sys2::MemorySegmentStats ss1;
+    status = manager.querySegment(range.back - 1, &ss1);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_EQ(ss1.owners, 1);
+    EXPECT_EQ(ss1.range, rhs);
 }
 
 TEST(MemoryManagerTest, ReleaseHead) {
@@ -76,13 +89,20 @@ TEST(MemoryManagerTest, ReleaseHead) {
     ASSERT_EQ(stats0.heapStats.usedMemory, x64::kPageSize * 4);
     ASSERT_EQ(stats0.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 4);
 
-    status = manager.release({ range.front, range.back - x64::kPageSize * 2 });
+    km::MemoryRange subrange = { range.front, range.back - x64::kPageSize * 2 };
+    status = manager.release(subrange);
     EXPECT_EQ(status, OsStatusSuccess);
 
     auto stats1 = manager.stats();
     ASSERT_EQ(stats1.segments, 1);
     ASSERT_EQ(stats1.heapStats.usedMemory, x64::kPageSize * 2);
     ASSERT_EQ(stats1.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 2);
+
+    sys2::MemorySegmentStats ss0;
+    status = manager.querySegment(range.back - 1, &ss0);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_EQ(ss0.owners, 1);
+    EXPECT_EQ(ss0.range, range.cut(subrange));
 }
 
 TEST(MemoryManagerTest, ReleaseSpillFront) {
@@ -100,13 +120,20 @@ TEST(MemoryManagerTest, ReleaseSpillFront) {
     ASSERT_EQ(stats0.heapStats.usedMemory, x64::kPageSize * 4);
     ASSERT_EQ(stats0.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 4);
 
-    status = manager.release({ range.front - x64::kPageSize, range.back - x64::kPageSize * 2 });
+    km::MemoryRange subrange = { range.front - x64::kPageSize, range.back - x64::kPageSize * 2 };
+    status = manager.release(subrange);
     EXPECT_EQ(status, OsStatusSuccess);
 
     auto stats1 = manager.stats();
     ASSERT_EQ(stats1.segments, 1);
     ASSERT_EQ(stats1.heapStats.usedMemory, x64::kPageSize * 2);
     ASSERT_EQ(stats1.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 2);
+
+    sys2::MemorySegmentStats ss0;
+    status = manager.querySegment(range.back - 1, &ss0);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_EQ(ss0.owners, 1);
+    EXPECT_EQ(ss0.range, range.cut(subrange));
 }
 
 TEST(MemoryManagerTest, ReleaseSpillBack) {
@@ -124,13 +151,20 @@ TEST(MemoryManagerTest, ReleaseSpillBack) {
     ASSERT_EQ(stats0.heapStats.usedMemory, x64::kPageSize * 4);
     ASSERT_EQ(stats0.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 4);
 
-    status = manager.release({ range.front + x64::kPageSize, range.back + x64::kPageSize });
+    km::MemoryRange subrange = { range.front + x64::kPageSize, range.back + x64::kPageSize };
+    status = manager.release(subrange);
     EXPECT_EQ(status, OsStatusSuccess);
 
     auto stats1 = manager.stats();
     ASSERT_EQ(stats1.segments, 1);
     ASSERT_EQ(stats1.heapStats.usedMemory, x64::kPageSize * 1);
     ASSERT_EQ(stats1.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 1);
+
+    sys2::MemorySegmentStats ss0;
+    status = manager.querySegment(range.front, &ss0);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_EQ(ss0.owners, 1);
+    EXPECT_EQ(ss0.range, range.cut(subrange));
 }
 
 TEST(MemoryManagerTest, ReleaseSpill) {
@@ -233,8 +267,6 @@ TEST(MemoryManagerTest, ReleaseMany) {
 
     km::MemoryRange subrange = { ranges.front().front + x64::kPageSize * 2, ranges.back().back - x64::kPageSize * 2 };
 
-    manager.TESTING_dumpStruct();
-
     auto stats0 = manager.stats();
     ASSERT_EQ(stats0.segments, ranges.size());
     ASSERT_EQ(stats0.heapStats.usedMemory, x64::kPageSize * 4 * ranges.size());
@@ -248,8 +280,6 @@ TEST(MemoryManagerTest, ReleaseMany) {
     ASSERT_EQ(stats1.heapStats.usedMemory, x64::kPageSize * 2 * 2);
     ASSERT_EQ(stats1.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 2 * 2);
 
-    manager.TESTING_dumpStruct();
-
     sys2::MemorySegmentStats ss0;
     km::MemoryRange ss0Range = { ranges.front().front, ranges.front().front + x64::kPageSize * 2 };
     status = manager.querySegment(ranges.front().front, &ss0);
@@ -259,7 +289,7 @@ TEST(MemoryManagerTest, ReleaseMany) {
 
     sys2::MemorySegmentStats ss1;
     km::MemoryRange ss1Range = { ranges.back().back - x64::kPageSize * 2, ranges.back().back };
-    status = manager.querySegment(ranges.back().back, &ss1);
+    status = manager.querySegment(ranges.back().back - 1, &ss1);
     EXPECT_EQ(status, OsStatusSuccess) << "Query for " << (void*)ranges.back().back.address << " failed";
     EXPECT_EQ(ss1.owners, 1);
     EXPECT_EQ(ss1.range, ss1Range);
@@ -285,6 +315,37 @@ TEST(MemoryManagerTest, RetainSingle) {
     ASSERT_EQ(stats0.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 4);
 
     status = manager.retain(range);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    auto stats1 = manager.stats();
+    ASSERT_EQ(stats1.segments, 1);
+    ASSERT_EQ(stats1.heapStats.usedMemory, range.size());
+    ASSERT_EQ(stats1.heapStats.freeMemory, kTestRange.size() - range.size());
+
+    sys2::MemorySegmentStats ss0;
+    status = manager.querySegment(range.front, &ss0);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_EQ(ss0.owners, 2);
+    EXPECT_EQ(ss0.range, range);
+}
+
+TEST(MemoryManagerTest, RetainSpill) {
+    sys2::MemoryManager manager;
+    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    km::MemoryRange range;
+    status = manager.allocate(x64::kPageSize * 4, &range);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_EQ(range.size(), x64::kPageSize * 4);
+
+    auto stats0 = manager.stats();
+    ASSERT_EQ(stats0.segments, 1);
+    ASSERT_EQ(stats0.heapStats.usedMemory, x64::kPageSize * 4);
+    ASSERT_EQ(stats0.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 4);
+
+    km::MemoryRange subrange = { range.front - x64::kPageSize, range.back + x64::kPageSize };
+    status = manager.retain(subrange);
     EXPECT_EQ(status, OsStatusSuccess);
 
     auto stats1 = manager.stats();
@@ -330,8 +391,174 @@ TEST(MemoryManagerTest, RetainFront) {
     EXPECT_EQ(ss0.range, subrange);
 
     sys2::MemorySegmentStats ss1;
-    status = manager.querySegment(range.back, &ss1);
+    status = manager.querySegment(range.back - 1, &ss1);
     EXPECT_EQ(status, OsStatusSuccess);
     EXPECT_EQ(ss1.owners, 1);
     EXPECT_EQ(ss1.range, range.cut(subrange));
+}
+
+TEST(MemoryManagerTest, RetainBack) {
+    sys2::MemoryManager manager;
+    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    km::MemoryRange range;
+    status = manager.allocate(x64::kPageSize * 4, &range);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_EQ(range.size(), x64::kPageSize * 4);
+
+    auto stats0 = manager.stats();
+    ASSERT_EQ(stats0.segments, 1);
+    ASSERT_EQ(stats0.heapStats.usedMemory, x64::kPageSize * 4);
+    ASSERT_EQ(stats0.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 4);
+
+    km::MemoryRange subrange = { range.front + x64::kPageSize * 2, range.back };
+    status = manager.retain(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    auto stats1 = manager.stats();
+    ASSERT_EQ(stats1.segments, 2);
+    ASSERT_EQ(stats1.heapStats.usedMemory, range.size());
+    ASSERT_EQ(stats1.heapStats.freeMemory, kTestRange.size() - range.size());
+
+    sys2::MemorySegmentStats ss0;
+    status = manager.querySegment(range.front, &ss0);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_EQ(ss0.owners, 1);
+    EXPECT_EQ(ss0.range, range.cut(subrange));
+
+    sys2::MemorySegmentStats ss1;
+    status = manager.querySegment(range.back - 1, &ss1);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_EQ(ss1.owners, 2);
+    EXPECT_EQ(ss1.range, subrange);
+}
+
+TEST(MemoryManagerTest, RetainSubrange) {
+    sys2::MemoryManager manager;
+    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    km::MemoryRange range;
+    status = manager.allocate(x64::kPageSize * 4, &range);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_EQ(range.size(), x64::kPageSize * 4);
+
+    auto stats0 = manager.stats();
+    ASSERT_EQ(stats0.segments, 1);
+    ASSERT_EQ(stats0.heapStats.usedMemory, x64::kPageSize * 4);
+    ASSERT_EQ(stats0.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 4);
+
+    km::MemoryRange subrange = { range.front + x64::kPageSize, range.back - x64::kPageSize };
+    status = manager.retain(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    auto stats1 = manager.stats();
+    ASSERT_EQ(stats1.segments, 3);
+    ASSERT_EQ(stats1.heapStats.usedMemory, range.size());
+    ASSERT_EQ(stats1.heapStats.freeMemory, kTestRange.size() - range.size());
+
+    auto [lhs, rhs] = km::split(range, subrange);
+    sys2::MemorySegmentStats ss0;
+    status = manager.querySegment(range.front, &ss0);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_EQ(ss0.owners, 1);
+    EXPECT_EQ(ss0.range, lhs);
+
+    sys2::MemorySegmentStats ss1;
+    status = manager.querySegment(range.back - 1, &ss1);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_EQ(ss1.owners, 1);
+    EXPECT_EQ(ss1.range, rhs);
+
+    sys2::MemorySegmentStats ss2;
+    status = manager.querySegment(subrange.front, &ss2);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_EQ(ss2.owners, 2);
+    EXPECT_EQ(ss2.range, subrange)
+        << "range " << std::string_view(km::format(range))
+        << " subrange " << std::string_view(km::format(subrange))
+        << " ss2 " << std::string_view(km::format(ss2.range));
+}
+
+TEST(MemoryManagerTest, RetainSpillFront) {
+    sys2::MemoryManager manager;
+    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    km::MemoryRange range;
+    status = manager.allocate(x64::kPageSize * 4, &range);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_EQ(range.size(), x64::kPageSize * 4);
+
+    auto stats0 = manager.stats();
+    ASSERT_EQ(stats0.segments, 1);
+    ASSERT_EQ(stats0.heapStats.usedMemory, x64::kPageSize * 4);
+    ASSERT_EQ(stats0.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 4);
+
+    km::MemoryRange subrange = { range.front - x64::kPageSize, range.back - x64::kPageSize * 2 };
+    status = manager.retain(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    auto stats1 = manager.stats();
+    ASSERT_EQ(stats1.segments, 2);
+    ASSERT_EQ(stats1.heapStats.usedMemory, range.size());
+    ASSERT_EQ(stats1.heapStats.freeMemory, kTestRange.size() - range.size());
+
+    km::MemoryRange subset = { range.front, subrange.back };
+    sys2::MemorySegmentStats ss0;
+    status = manager.querySegment(range.front, &ss0);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_EQ(ss0.owners, 2);
+    EXPECT_EQ(ss0.range, subset)
+        << "range " << std::string_view(km::format(range))
+        << " subset " << std::string_view(km::format(subset))
+        << " ss0 " << std::string_view(km::format(ss0.range));
+
+    sys2::MemorySegmentStats ss1;
+    status = manager.querySegment(range.back - 1, &ss1);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_EQ(ss1.owners, 1);
+    EXPECT_EQ(ss1.range, range.cut(subrange));
+}
+
+TEST(MemoryManagerTest, RetainSpillBack) {
+    sys2::MemoryManager manager;
+    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    km::MemoryRange range;
+    status = manager.allocate(x64::kPageSize * 4, &range);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_EQ(range.size(), x64::kPageSize * 4);
+
+    auto stats0 = manager.stats();
+    ASSERT_EQ(stats0.segments, 1);
+    ASSERT_EQ(stats0.heapStats.usedMemory, x64::kPageSize * 4);
+    ASSERT_EQ(stats0.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 4);
+
+    km::MemoryRange subrange = { range.front + x64::kPageSize * 2, range.back + x64::kPageSize };
+    status = manager.retain(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    auto stats1 = manager.stats();
+    ASSERT_EQ(stats1.segments, 2);
+    ASSERT_EQ(stats1.heapStats.usedMemory, range.size());
+    ASSERT_EQ(stats1.heapStats.freeMemory, kTestRange.size() - range.size());
+
+    sys2::MemorySegmentStats ss0;
+    status = manager.querySegment(range.front, &ss0);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_EQ(ss0.owners, 1);
+    EXPECT_EQ(ss0.range, range.cut(subrange));
+
+    km::MemoryRange subset = { subrange.front, range.back };
+    sys2::MemorySegmentStats ss1;
+    status = manager.querySegment(range.back - 1, &ss1);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_EQ(ss1.owners, 2);
+    EXPECT_EQ(ss1.range, subset)
+        << "range " << std::string_view(km::format(range))
+        << " subset " << std::string_view(km::format(subset))
+        << " ss1 " << std::string_view(km::format(ss1.range));
 }

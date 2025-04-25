@@ -64,7 +64,10 @@ namespace sys2 {
         };
 
         [[nodiscard]]
-        OsStatus splitSegment(Iterator it, km::PhysicalAddress midpoint, ReleaseSide side) [[clang::allocating]];
+        OsStatus splitSegment(Iterator it, km::PhysicalAddress midpoint, ReleaseSide side);
+
+        [[nodiscard]]
+        OsStatus retainSegment(Iterator it, km::PhysicalAddress midpoint, ReleaseSide side);
 
         bool releaseEntry(Iterator it);
         bool releaseSegment(sys2::MemorySegment& segment);
@@ -73,6 +76,9 @@ namespace sys2 {
 
         [[nodiscard]]
         OsStatus releaseRange(Iterator it, km::MemoryRange range, km::MemoryRange *remaining);
+
+        [[nodiscard]]
+        OsStatus retainRange(Iterator it, km::MemoryRange range, km::MemoryRange *remaining);
 
     public:
         MemoryManager() = default;
