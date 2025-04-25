@@ -40,6 +40,8 @@ namespace km {
         }
 
         static constexpr uint16_t SizeToSecondIndex(size_t size, uint8_t memoryClass) {
+            [[assume(size > 0)]];
+
             if (memoryClass == 0) {
                 return uint16_t((size - 1) / 8);
             } else {
@@ -65,6 +67,8 @@ namespace km {
         }
 
         static constexpr size_t GetListIndex(size_t size) {
+            [[assume(size > 0)]];
+
             uint8_t memoryClass = SizeToMemoryClass(size);
             uint16_t secondIndex = SizeToSecondIndex(size, memoryClass);
             return GetListIndex(memoryClass, secondIndex);
@@ -90,6 +94,10 @@ namespace km {
 
             bool isFree() const noexcept [[clang::nonblocking]] {
                 return (prevFree != this);
+            }
+
+            bool isUsed() const noexcept [[clang::nonblocking]] {
+                return (prevFree == this);
             }
 
             void markTaken() noexcept [[clang::nonblocking]] {
@@ -139,8 +147,8 @@ namespace km {
         constexpr TlsfAllocation() = default;
 
         detail::TlsfBlock *getBlock() const noexcept [[clang::nonblocking]] { return block; }
-        bool isNull() const noexcept [[clang::nonblocking]] { return block == nullptr; }
-        bool isValid() const noexcept [[clang::nonblocking]] { return block != nullptr; }
+        constexpr bool isNull() const noexcept [[clang::nonblocking]] { return block == nullptr; }
+        constexpr bool isValid() const noexcept [[clang::nonblocking]] { return block != nullptr; }
 
         constexpr size_t size() const noexcept [[clang::nonblocking]] {
             return block->size;

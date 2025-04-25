@@ -18,16 +18,6 @@ namespace sys2 {
             : mMapping(mapping)
         { }
 
-        OsStatus fault(size_t page, km::PhysicalAddress *address) override {
-            size_t offset = page * x64::kPageSize;
-            if (offset >= mMapping.size) {
-                return OsStatusOutOfBounds;
-            }
-
-            *address = mMapping.paddr + offset;
-            return OsStatusSuccess;
-        }
-
         OsStatus release(size_t) override {
             return OsStatusSuccess;
         }

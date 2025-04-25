@@ -27,18 +27,9 @@ OsStatus sys2::MemoryManager::retainRange(Iterator it, km::MemoryRange range, km
         if (range.front == seg.front) {
             // |--------seg-------|
             // |--range--|
-            km::TlsfAllocation lo, hi;
-            if (OsStatus status = mHeap.split(allocation, range.back, &lo, &hi)) {
+            if (OsStatus status = retainSegment(it, range.back, kLow)) {
                 return status;
             }
-
-            auto loSegment = MemorySegment { uint8_t(segment.mOwners + 1), lo };
-            auto hiSegment = MemorySegment { uint8_t(segment.mOwners), hi };
-
-            mSegments.erase(it);
-
-            addSegment(std::move(loSegment));
-            addSegment(std::move(hiSegment));
 
             return OsStatusCompleted;
         } else {
@@ -46,18 +37,9 @@ OsStatus sys2::MemoryManager::retainRange(Iterator it, km::MemoryRange range, km
             //          |--range--|
             KM_ASSERT(range.back == seg.back);
 
-            km::TlsfAllocation lo, hi;
-            if (OsStatus status = mHeap.split(allocation, range.front, &lo, &hi)) {
+            if (OsStatus status = retainSegment(it, range.front, kHigh)) {
                 return status;
             }
-
-            auto loSegment = MemorySegment { uint8_t(segment.mOwners), lo };
-            auto hiSegment = MemorySegment { uint8_t(segment.mOwners + 1), hi };
-
-            mSegments.erase(it);
-
-            addSegment(std::move(loSegment));
-            addSegment(std::move(hiSegment));
 
             return OsStatusCompleted;
         }
@@ -223,47 +205,22 @@ OsStatus sys2::MemoryManager::releaseRange(Iterator it, km::MemoryRange range, k
         *remaining = { seg.back, range.back };
         return OsStatusSuccess;
     } else if (km::innerAdjacent(seg, range)) {
-        // |--------seg-------|
-        // |--range--|
-        //
-        // |--------seg-------|
-        //          |--range--|
         if (range.front == seg.front) {
-            km::TlsfAllocation lo, hi;
-            if (OsStatus status = mHeap.split(allocation, range.back, &lo, &hi)) {
+            // |--------seg-------|
+            // |--range--|
+            if (OsStatus status = splitSegment(it, range.back, kLow)) {
                 return status;
             }
-
-            auto loSegment = MemorySegment { uint8_t(segment.mOwners), lo };
-            auto hiSegment = MemorySegment { uint8_t(segment.mOwners), hi };
-
-            mSegments.erase(it);
-
-            if (!releaseSegment(loSegment)) {
-                addSegment(std::move(loSegment));
-            }
-
-            addSegment(std::move(hiSegment));
 
             return OsStatusCompleted;
         } else {
             KM_ASSERT(range.back == seg.back);
+            // |--------seg-------|
+            //          |--range--|
 
-            km::TlsfAllocation lo, hi;
-            if (OsStatus status = mHeap.split(allocation, range.front, &lo, &hi)) {
+            if (OsStatus status = splitSegment(it, range.front, kHigh)) {
                 return status;
             }
-
-            auto loSegment = MemorySegment { uint8_t(segment.mOwners), lo };
-            auto hiSegment = MemorySegment { uint8_t(segment.mOwners), hi };
-
-            mSegments.erase(it);
-
-            if (!releaseSegment(hiSegment)) {
-                addSegment(std::move(hiSegment));
-            }
-
-            addSegment(std::move(loSegment));
 
             return OsStatusCompleted;
         }

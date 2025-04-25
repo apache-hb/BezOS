@@ -137,7 +137,15 @@ namespace km {
         size_t compactPml4(x64::PageMapLevel4 *pml4);
 
     public:
-        UTIL_DEFAULT_INIT(PageTables);
+        constexpr PageTables() noexcept = default;
+
+        PageTables(PageTables&& other) noexcept
+            : mSlide(other.mSlide)
+            , mAllocator(std::move(other.mAllocator))
+            , mPageManager(other.mPageManager)
+            , mRootPageTable(other.mRootPageTable)
+            , mMiddleFlags(other.mMiddleFlags)
+        { }
 
         PageTables(const PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags);
 

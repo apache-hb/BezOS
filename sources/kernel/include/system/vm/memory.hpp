@@ -16,16 +16,6 @@ namespace sys2 {
             : mRange(range)
         { }
 
-        OsStatus fault(size_t page, km::PhysicalAddress *address) override {
-            size_t offset = page * x64::kPageSize;
-            if (offset >= mRange.size()) {
-                return OsStatusOutOfBounds;
-            }
-
-            *address = mRange.front + offset;
-            return OsStatusSuccess;
-        }
-
         OsStatus release(size_t) override {
             return OsStatusSuccess;
         }
