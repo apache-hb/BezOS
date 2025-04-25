@@ -18,7 +18,7 @@ TEST(MemoryManagerTest, Allocate) {
     EXPECT_EQ(status, OsStatusSuccess);
 
     km::MemoryRange range;
-    status = manager.allocate(x64::kPageSize * 4, &range);
+    status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
     EXPECT_EQ(range.size(), x64::kPageSize * 4);
 
@@ -42,7 +42,7 @@ TEST(MemoryManagerTest, ReleaseSubspan) {
     EXPECT_EQ(status, OsStatusSuccess);
 
     km::MemoryRange range;
-    status = manager.allocate(x64::kPageSize * 4, &range);
+    status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
     EXPECT_EQ(range.size(), x64::kPageSize * 4);
 
@@ -80,7 +80,7 @@ TEST(MemoryManagerTest, ReleaseHead) {
     EXPECT_EQ(status, OsStatusSuccess);
 
     km::MemoryRange range;
-    status = manager.allocate(x64::kPageSize * 4, &range);
+    status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
     EXPECT_EQ(range.size(), x64::kPageSize * 4);
 
@@ -111,7 +111,7 @@ TEST(MemoryManagerTest, ReleaseSpillFront) {
     EXPECT_EQ(status, OsStatusSuccess);
 
     km::MemoryRange range;
-    status = manager.allocate(x64::kPageSize * 4, &range);
+    status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
     EXPECT_EQ(range.size(), x64::kPageSize * 4);
 
@@ -142,7 +142,7 @@ TEST(MemoryManagerTest, ReleaseSpillBack) {
     EXPECT_EQ(status, OsStatusSuccess);
 
     km::MemoryRange range;
-    status = manager.allocate(x64::kPageSize * 4, &range);
+    status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
     EXPECT_EQ(range.size(), x64::kPageSize * 4);
 
@@ -173,7 +173,7 @@ TEST(MemoryManagerTest, ReleaseSpill) {
     EXPECT_EQ(status, OsStatusSuccess);
 
     km::MemoryRange range;
-    status = manager.allocate(x64::kPageSize * 4, &range);
+    status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
     EXPECT_EQ(range.size(), x64::kPageSize * 4);
 
@@ -197,7 +197,7 @@ TEST(MemoryManagerTest, ReleaseTail) {
     EXPECT_EQ(status, OsStatusSuccess);
 
     km::MemoryRange range;
-    status = manager.allocate(x64::kPageSize * 4, &range);
+    status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
     EXPECT_EQ(range.size(), x64::kPageSize * 4);
 
@@ -221,11 +221,11 @@ TEST(MemoryManagerTest, ReleaseMultiple) {
     EXPECT_EQ(status, OsStatusSuccess);
 
     km::MemoryRange range0, range1;
-    status = manager.allocate(x64::kPageSize * 4, &range0);
+    status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range0);
     EXPECT_EQ(status, OsStatusSuccess);
     EXPECT_EQ(range0.size(), x64::kPageSize * 4);
 
-    status = manager.allocate(x64::kPageSize * 4, &range1);
+    status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range1);
     EXPECT_EQ(status, OsStatusSuccess);
     EXPECT_EQ(range1.size(), x64::kPageSize * 4);
 
@@ -256,7 +256,7 @@ TEST(MemoryManagerTest, ReleaseMany) {
 
     std::array<km::MemoryRange, 3> ranges;
     for (auto& range : ranges) {
-        status = manager.allocate(x64::kPageSize * 4, &range);
+        status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
         EXPECT_EQ(status, OsStatusSuccess);
         EXPECT_EQ(range.size(), x64::kPageSize * 4);
     }
@@ -305,7 +305,7 @@ TEST(MemoryManagerTest, RetainSingle) {
     EXPECT_EQ(status, OsStatusSuccess);
 
     km::MemoryRange range;
-    status = manager.allocate(x64::kPageSize * 4, &range);
+    status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
     EXPECT_EQ(range.size(), x64::kPageSize * 4);
 
@@ -335,7 +335,7 @@ TEST(MemoryManagerTest, RetainSpill) {
     EXPECT_EQ(status, OsStatusSuccess);
 
     km::MemoryRange range;
-    status = manager.allocate(x64::kPageSize * 4, &range);
+    status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
     EXPECT_EQ(range.size(), x64::kPageSize * 4);
 
@@ -366,7 +366,7 @@ TEST(MemoryManagerTest, RetainFront) {
     EXPECT_EQ(status, OsStatusSuccess);
 
     km::MemoryRange range;
-    status = manager.allocate(x64::kPageSize * 4, &range);
+    status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
     EXPECT_EQ(range.size(), x64::kPageSize * 4);
 
@@ -403,7 +403,7 @@ TEST(MemoryManagerTest, RetainBack) {
     EXPECT_EQ(status, OsStatusSuccess);
 
     km::MemoryRange range;
-    status = manager.allocate(x64::kPageSize * 4, &range);
+    status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
     EXPECT_EQ(range.size(), x64::kPageSize * 4);
 
@@ -440,7 +440,7 @@ TEST(MemoryManagerTest, RetainSubrange) {
     EXPECT_EQ(status, OsStatusSuccess);
 
     km::MemoryRange range;
-    status = manager.allocate(x64::kPageSize * 4, &range);
+    status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
     EXPECT_EQ(range.size(), x64::kPageSize * 4);
 
@@ -487,7 +487,7 @@ TEST(MemoryManagerTest, RetainSpillFront) {
     EXPECT_EQ(status, OsStatusSuccess);
 
     km::MemoryRange range;
-    status = manager.allocate(x64::kPageSize * 4, &range);
+    status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
     EXPECT_EQ(range.size(), x64::kPageSize * 4);
 
@@ -528,7 +528,7 @@ TEST(MemoryManagerTest, RetainSpillBack) {
     EXPECT_EQ(status, OsStatusSuccess);
 
     km::MemoryRange range;
-    status = manager.allocate(x64::kPageSize * 4, &range);
+    status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
     EXPECT_EQ(range.size(), x64::kPageSize * 4);
 
@@ -569,7 +569,7 @@ TEST(MemoryManagerTest, OverlapOps) {
     EXPECT_EQ(status, OsStatusSuccess);
 
     km::MemoryRange range;
-    status = manager.allocate(x64::kPageSize * 4, &range);
+    status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
     EXPECT_EQ(range.size(), x64::kPageSize * 4);
 

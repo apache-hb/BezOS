@@ -1,5 +1,4 @@
 #include "system/pmm.hpp"
-#include "arch/paging.hpp"
 
 OsStatus sys2::MemoryManager::retainRange(Iterator it, km::MemoryRange range, km::MemoryRange *remaining) {
     auto& segment = it->second;
@@ -353,8 +352,8 @@ OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating
     return OsStatusSuccess;
 }
 
-OsStatus sys2::MemoryManager::allocate(size_t size, km::MemoryRange *range) [[clang::allocating]] {
-    km::TlsfAllocation allocation = mHeap.aligned_alloc(alignof(x64::page), size);
+OsStatus sys2::MemoryManager::allocate(size_t size, size_t align, km::MemoryRange *range) [[clang::allocating]] {
+    km::TlsfAllocation allocation = mHeap.aligned_alloc(align, size);
     if (allocation.isNull()) {
         return OsStatusOutOfMemory;
     }

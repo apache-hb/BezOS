@@ -94,7 +94,7 @@ namespace sys2 {
         OsStatus release(km::MemoryRange range) [[clang::allocating]];
 
         [[nodiscard]]
-        OsStatus allocate(size_t size, km::MemoryRange *range) [[clang::allocating]];
+        OsStatus allocate(size_t size, size_t align, km::MemoryRange *range) [[clang::allocating]];
 
         [[nodiscard]]
         static OsStatus create(km::MemoryRange range, MemoryManager *manager) [[clang::allocating]];
