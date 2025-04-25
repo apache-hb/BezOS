@@ -22,12 +22,14 @@ namespace km {
         const PageBuilder *mPageManager;
         x64::PageMapLevel4 *mRootPageTable;
         PageFlags mMiddleFlags;
+
+        // TODO: remove lock, should be externally synchronized
         stdx::SpinLock mLock;
 
         /// @brief Allocate a new page table, garanteed to be aligned to 4k and zeroed.
         ///
         /// @return The new page table, or @c nullptr if no memory is available.
-        x64::page *alloc4k();
+        x64::page *alloc4k() [[clang::allocating]];
 
         /// @brief Convert the physical address of a page table to a virtual address.
         ///
@@ -37,7 +39,7 @@ namespace km {
         /// @param addr The physical address of the page table.
         /// @return The virtual address of the page table.
         template<typename T>
-        T *asVirtual(PhysicalAddress addr) const {
+        T *asVirtual(PhysicalAddress addr) const noexcept [[clang::nonallocating]] {
             return (T*)(addr.address + mSlide);
         }
 
@@ -47,7 +49,7 @@ namespace km {
         ///
         /// @param ptr The virtual address of the page table.
         /// @return The physical address of the page table.
-        PhysicalAddress asPhysical(const void *ptr) const;
+        PhysicalAddress asPhysical(const void *ptr) const noexcept [[clang::nonallocating]];
 
         /// @brief Get the virtual address of a sub-table from a table entry.
         ///
@@ -139,7 +141,7 @@ namespace km {
     public:
         constexpr PageTables() noexcept = default;
 
-        PageTables(PageTables&& other) noexcept
+        constexpr PageTables(PageTables&& other) noexcept
             : mSlide(other.mSlide)
             , mAllocator(std::move(other.mAllocator))
             , mPageManager(other.mPageManager)
@@ -147,7 +149,16 @@ namespace km {
             , mMiddleFlags(other.mMiddleFlags)
         { }
 
-        PageTables(const PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags);
+        constexpr PageTables& operator=(PageTables&& other) noexcept {
+            mSlide = other.mSlide;
+            mAllocator = std::move(other.mAllocator);
+            mPageManager = other.mPageManager;
+            mRootPageTable = other.mRootPageTable;
+            mMiddleFlags = other.mMiddleFlags;
+            return *this;
+        }
+
+        PageTables(const PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags) noexcept;
 
         const PageBuilder *pageManager() const noexcept { return mPageManager; }
 

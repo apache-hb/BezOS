@@ -8,7 +8,7 @@ namespace km::detail {
         ControlBlock *prev;
         size_t size;
 
-        ControlBlock *head() noexcept {
+        ControlBlock *head() noexcept [[clang::nonallocating]] {
             ControlBlock *result = this;
             while (result->prev != nullptr) {
                 result = result->prev;
@@ -16,7 +16,7 @@ namespace km::detail {
             return result;
         }
 
-        const ControlBlock *head() const noexcept {
+        const ControlBlock *head() const noexcept [[clang::nonallocating]] {
             const ControlBlock *result = this;
             while (result->prev != nullptr) {
                 result = result->prev;
@@ -25,6 +25,6 @@ namespace km::detail {
         }
     };
 
-    void SortBlocks(ControlBlock *head);
-    void MergeAdjacentBlocks(ControlBlock *head);
+    void SortBlocks(ControlBlock *head) noexcept [[clang::nonallocating]] ;
+    void MergeAdjacentBlocks(ControlBlock *head) noexcept [[clang::nonallocating]] ;
 }

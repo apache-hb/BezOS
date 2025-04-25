@@ -6,7 +6,7 @@
 
 using namespace km;
 
-x64::page *PageTables::alloc4k() {
+x64::page *PageTables::alloc4k() [[clang::allocating]] {
     x64::page *it = (x64::page*)mAllocator.allocate(1);
 
     if (it) {
@@ -31,7 +31,7 @@ void PageTables::setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddre
     entry.setPresent(true);
 }
 
-PageTables::PageTables(const km::PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags)
+PageTables::PageTables(const km::PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags) noexcept
     : mSlide(pteMemory.slide())
     , mAllocator(pteMemory.virtualRange())
     , mPageManager(pm)
@@ -318,7 +318,6 @@ OsStatus PageTables::allocatePageTables(VirtualRange range, detail::PageTableLis
     //
     // If both allocations fail then we are out of memory.
     //
-    KmDebugMessage("[MEM] Out of memory, failed to allocate ", requiredPages, " page tables for ", range, "\n");
     return OsStatusOutOfMemory;
 }
 
@@ -818,7 +817,7 @@ km::PageSize PageTables::getPageSize(const void *ptr) {
     return result.pageSize();
 }
 
-km::PhysicalAddress PageTables::asPhysical(const void *ptr) const {
+km::PhysicalAddress PageTables::asPhysical(const void *ptr) const noexcept [[clang::nonallocating]] {
     return km::PhysicalAddress { (uintptr_t)ptr - mSlide };
 }
 

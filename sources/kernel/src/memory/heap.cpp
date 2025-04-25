@@ -1,7 +1,6 @@
 #include "memory/heap.hpp"
 #include "memory/range.hpp"
 
-#include "common/util/defer.hpp"
 #include "std/static_vector.hpp"
 
 #include <numeric>

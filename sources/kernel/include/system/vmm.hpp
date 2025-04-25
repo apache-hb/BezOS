@@ -19,15 +19,21 @@ namespace sys2 {
         using Map = sm::BTreeMap<const void *, AddressSegment>;
 
         Map mSegments;
+        km::AddressMapping mPteMemory;
         km::PageTables mPageTables;
         km::TlsfHeap mHeap;
 
-        AddressSpaceManager(km::PageTables&& ptes, km::TlsfHeap &&heap) noexcept
-            : mPageTables(std::move(ptes))
+        AddressSpaceManager(const km::PageBuilder *pm, km::AddressMapping pteMemory, km::PageFlags flags, km::TlsfHeap &&heap) noexcept
+            : mPteMemory(pteMemory)
+            , mPageTables(pm, mPteMemory, flags)
             , mHeap(std::move(heap))
         { }
 
     public:
+        UTIL_DEFAULT_MOVE(AddressSpaceManager);
+
+        constexpr AddressSpaceManager() noexcept = default;
+
         [[nodiscard]]
         OsStatus map(MemoryManager *manager, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping) [[clang::allocating]];
 
@@ -35,6 +41,6 @@ namespace sys2 {
         OsStatus unmap(MemoryManager *manager, km::AddressMapping mapping) [[clang::allocating]];
 
         [[nodiscard]]
-        static OsStatus create(km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager) [[clang::allocating]];
+        static OsStatus create(const km::PageBuilder *pm, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager) [[clang::allocating]];
     };
 }

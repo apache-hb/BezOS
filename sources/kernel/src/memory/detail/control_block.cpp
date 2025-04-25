@@ -132,13 +132,13 @@ ControlBlock *Quicksort(ControlBlock *head) {
     return begin;
 }
 
-void km::detail::SortBlocks(ControlBlock *block) {
+void km::detail::SortBlocks(ControlBlock *block) noexcept [[clang::nonallocating]] {
     block = block->head();
 
     Quicksort(block);
 }
 
-void km::detail::MergeAdjacentBlocks(ControlBlock *head) {
+void km::detail::MergeAdjacentBlocks(ControlBlock *head) noexcept [[clang::nonallocating]] {
     ControlBlock *block = head;
 
     while (block != nullptr) {

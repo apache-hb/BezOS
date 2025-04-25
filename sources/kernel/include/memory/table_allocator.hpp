@@ -56,7 +56,7 @@ namespace km {
         void *allocate(size_t blocks) [[clang::allocating]];
 
         [[gnu::nonnull]]
-        void deallocate(void *ptr, size_t blocks);
+        void deallocate(void *ptr, size_t blocks) noexcept [[clang::nonallocating]];
 
         /// @brief Allocates a list of blocks rather than a single block.
         ///
@@ -68,13 +68,13 @@ namespace km {
         /// @param [out] result The list to write the result to.
         ///
         /// @return If the allocation was successful.
-        bool allocateList(size_t blocks, detail::PageTableList *result);
+        bool allocateList(size_t blocks, detail::PageTableList *result) [[clang::allocating]];
 
-        void deallocateList(detail::PageTableList list);
+        void deallocateList(detail::PageTableList list) noexcept [[clang::nonallocating]];
 
-        void defragment();
+        void defragment() noexcept [[clang::nonallocating]];
 
-        PteAllocatorStats stats() const;
+        PteAllocatorStats stats() const noexcept [[clang::nonallocating]];
 
 #if __STDC_HOSTED__
         detail::ControlBlock *TESTING_getHead() {

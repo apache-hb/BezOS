@@ -1,8 +1,9 @@
 #pragma once
 
-#include "log.hpp"
 #include "memory/heap.hpp"
 #include "memory/range.hpp"
+#include "std/rcuptr.hpp"
+#include "system/vmem.hpp"
 #include "util/absl.hpp"
 
 #include <atomic>
@@ -16,6 +17,7 @@ namespace sys2 {
     struct MemorySegment {
         std::atomic<uint8_t> mOwners;
         km::TlsfAllocation mHandle;
+        sm::RcuSharedPtr<IMemoryObject> mObject;
 
         MemorySegment(km::TlsfAllocation handle)
             : MemorySegment(1, handle)
@@ -105,28 +107,5 @@ namespace sys2 {
 
         [[nodiscard]]
         OsStatus querySegment(km::PhysicalAddress address, MemorySegmentStats *stats) noexcept [[clang::nonallocating]];
-
-#if __STDC_HOSTED__
-        void TESTING_dumpStruct() {
-            for (const auto& [address, segment] : mSegments) {
-                KmDebugMessage("Segment: ", address, ": ", segment.mHandle.range(), " (owners: ", segment.mOwners.load(), ")\n");
-            }
-        }
-
-        void TESTING_dumpRange(km::MemoryRange range) {
-            auto begin = mSegments.lower_bound(range.front);
-            auto end = mSegments.lower_bound(range.back);
-            if (end != mSegments.end()) {
-                ++end;
-            }
-            KmDebugMessage("Dumping range: ", range, "\n");
-            for (auto it = begin; it != end;) {
-                auto& segment = it->second;
-                KmDebugMessage("Segment: ", it->first, ": ", segment.mHandle.range(), " (owners: ", segment.mOwners.load(), ")\n");
-
-                ++it;
-            }
-        }
-#endif
     };
 }

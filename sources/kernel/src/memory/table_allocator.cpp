@@ -176,20 +176,17 @@ bool km::PageTableAllocator::allocateList(size_t blocks, detail::PageTableList *
     return true;
 }
 
-void km::PageTableAllocator::deallocateList(detail::PageTableList list) {
+void km::PageTableAllocator::deallocateList(detail::PageTableList list) noexcept [[clang::nonallocating]] {
     while (x64::page *page = list.drain()) {
         deallocate(page, 1);
     }
 }
 
-void km::PageTableAllocator::deallocate(void *ptr, size_t blocks) {
+void km::PageTableAllocator::deallocate(void *ptr, size_t blocks) noexcept [[clang::nonallocating]] {
     KM_ASSERT(blocks > 0);
 
     if (mHead)
         KM_CHECK(mHead->prev == nullptr, "Invalid head block.");
-
-    // Scribble over the memory to try and catch use-after-free bugs.
-    memset(ptr, 0xFA, blocks * mBlockSize);
 
     detail::ControlBlock *block = (detail::ControlBlock*)ptr;
     *block = detail::ControlBlock {
@@ -201,7 +198,7 @@ void km::PageTableAllocator::deallocate(void *ptr, size_t blocks) {
     mHead = block;
 }
 
-void km::PageTableAllocator::defragment() {
+void km::PageTableAllocator::defragment() noexcept [[clang::nonallocating]] {
     detail::ControlBlock *block = mHead;
 
     //
@@ -230,7 +227,7 @@ void km::PageTableAllocator::defragment() {
     mHead = block;
 }
 
-km::PteAllocatorStats km::PageTableAllocator::stats() const {
+km::PteAllocatorStats km::PageTableAllocator::stats() const noexcept [[clang::nonallocating]] {
     PteAllocatorStats stats{};
 
     for (detail::ControlBlock *block = mHead; block != nullptr; block = block->next) {
