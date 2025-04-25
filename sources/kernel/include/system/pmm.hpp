@@ -1,5 +1,6 @@
 #pragma once
 
+#include "log.hpp"
 #include "memory/heap.hpp"
 #include "memory/range.hpp"
 #include "util/absl.hpp"
@@ -7,6 +8,16 @@
 #include <atomic>
 
 namespace sys2 {
+    struct MemorySegmentStats {
+        km::MemoryRange range;
+        uint8_t owners;
+    };
+
+    struct MemoryManagerStats {
+        km::TlsfHeapStats heapStats;
+        size_t segments;
+    };
+
     struct MemorySegment {
         std::atomic<uint8_t> mOwners;
         km::TlsfAllocation mHandle;
@@ -24,11 +35,13 @@ namespace sys2 {
             : mOwners(other.mOwners.load())
             , mHandle(std::move(other.mHandle))
         { }
-    };
 
-    struct MemoryManagerStats {
-        km::TlsfHeapStats heapStats;
-        size_t segments;
+        MemorySegmentStats stats() const noexcept [[clang::nonallocating]] {
+            return MemorySegmentStats {
+                .range = mHandle.range(),
+                .owners = mOwners.load(std::memory_order_relaxed),
+            };
+        }
     };
 
     class MemoryManager {
@@ -45,12 +58,32 @@ namespace sys2 {
             , mHeap(std::move(heap))
         { }
 
-        bool releaseSegment(Iterator it);
+        enum ReleaseSide {
+            kLow,
+            kHigh,
+        };
+
+        [[nodiscard]]
+        OsStatus splitSegment(Iterator it, km::PhysicalAddress midpoint, ReleaseSide side) [[clang::allocating]];
+
+        bool releaseEntry(Iterator it);
+        bool releaseSegment(sys2::MemorySegment& segment);
+
+        void addSegment(MemorySegment&& segment);
+
+        [[nodiscard]]
+        OsStatus releaseRange(Iterator it, km::MemoryRange range, km::MemoryRange *remaining);
+
     public:
         MemoryManager() = default;
 
+        [[nodiscard]]
         OsStatus retain(km::MemoryRange range) [[clang::allocating]];
+
+        [[nodiscard]]
         OsStatus release(km::MemoryRange range) [[clang::allocating]];
+
+        [[nodiscard]]
         OsStatus allocate(size_t size, km::MemoryRange *range) [[clang::allocating]];
 
         [[nodiscard]]
@@ -58,5 +91,32 @@ namespace sys2 {
 
         [[nodiscard]]
         MemoryManagerStats stats() noexcept [[clang::nonallocating]];
+
+        [[nodiscard]]
+        OsStatus querySegment(km::PhysicalAddress address, MemorySegmentStats *stats) noexcept [[clang::nonallocating]];
+
+#if __STDC_HOSTED__
+        void TESTING_dumpStruct() {
+            KmDebugMessage("MemoryManager: ", mRange, "\n");
+            for (const auto& [address, segment] : mSegments) {
+                KmDebugMessage("Segment: ", address, ": ", segment.mHandle.range(), " (owners: ", segment.mOwners.load(), ")\n");
+            }
+        }
+
+        void TESTING_dumpRange(km::MemoryRange range) {
+            auto begin = mSegments.lower_bound(range.front);
+            auto end = mSegments.lower_bound(range.back);
+            if (end != mSegments.end()) {
+                ++end;
+            }
+            KmDebugMessage("Dumping range: ", range, "\n");
+            for (auto it = begin; it != end;) {
+                auto& segment = it->second;
+                KmDebugMessage("Segment: ", it->first, ": ", segment.mHandle.range(), " (owners: ", segment.mOwners.load(), ")\n");
+
+                ++it;
+            }
+        }
+#endif
     };
 }
