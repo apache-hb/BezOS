@@ -212,8 +212,6 @@ TEST_F(SystemTest, NestedChildProcess) {
                 .Name = "CHILD",
             };
 
-            DebugMemoryUsage(memory);
-
             sys2::InvokeContext invoke { &system, pChild };
             OsStatus status = sys2::SysProcessCreate(&invoke, createInfo, &hChild);
             ASSERT_EQ(status, OsStatusSuccess);

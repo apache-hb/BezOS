@@ -638,6 +638,12 @@ testcases = {
     'device': [
         'test/system/device.cpp',
     ],
+    'system vmm +new': [
+        'test/system/vmm.cpp',
+        'src/memory/heap.cpp',
+        'src/system/pmm.cpp',
+        'src/system/vmm.cpp',
+    ],
     'system pmm +new': [
         'test/system/pmm.cpp',
         'src/memory/heap.cpp',

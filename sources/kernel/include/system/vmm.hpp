@@ -20,6 +20,15 @@ namespace sys2 {
         }
     };
 
+    struct AddressSpaceManagerStats {
+        km::TlsfHeapStats heapStats;
+        size_t segments;
+
+        constexpr size_t controlMemory() const noexcept [[clang::nonallocating]] {
+            return segments * sizeof(AddressSegment);
+        }
+    };
+
     class AddressSpaceManager {
         using Map = sm::BTreeMap<const void *, AddressSegment>;
         using Iterator = typename Map::iterator;
@@ -41,6 +50,24 @@ namespace sys2 {
         };
 
         void addSegment(AddressSegment &&segment) noexcept [[clang::allocating]];
+        void addNoAccessSegment(km::TlsfAllocation allocation) noexcept [[clang::allocating]];
+
+        /// @param manager The memory manager to use.
+        /// @param it The iterator to the segment to map.
+        /// @param src The full source range that is being mapped.
+        /// @param dst The destination range to map to.
+        /// @param flags The page flags to use.
+        /// @param type The memory type to use.
+        OsStatus mapSegment(
+            MemoryManager *manager,
+            Iterator it,
+            km::VirtualRange src,
+            km::VirtualRange dst,
+            km::PageFlags flags,
+            km::MemoryType type,
+            km::TlsfAllocation allocation,
+            km::TlsfAllocation *remaining
+        ) [[clang::allocating]];
 
         OsStatus splitSegment(MemoryManager *manager, Iterator it, const void *midpoint, ReleaseSide side) [[clang::allocating]];
         OsStatus unmapSegment(MemoryManager *manager, Iterator it, km::VirtualRange range, km::VirtualRange *remaining) [[clang::allocating]];
@@ -57,6 +84,11 @@ namespace sys2 {
 
         [[nodiscard]]
         OsStatus unmap(MemoryManager *manager, km::VirtualRange range) [[clang::allocating]];
+
+        [[nodiscard]]
+        OsStatus querySegment(const void *address, AddressSegment *result) noexcept [[clang::nonallocating]];
+
+        AddressSpaceManagerStats stats() noexcept [[clang::nonallocating]];
 
         [[nodiscard]]
         static OsStatus create(const km::PageBuilder *pm, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager) [[clang::allocating]];
