@@ -370,3 +370,13 @@ OsStatus sys2::AddressSpaceManager::create(const km::PageBuilder *pm, km::Addres
     *manager = sys2::AddressSpaceManager(pm, pteMemory, flags, std::move(heap));
     return OsStatusSuccess;
 }
+
+OsStatus sys2::AddressSpaceManager::destroy(MemoryManager *manager) [[clang::allocating]] {
+    for (const auto& [_, segment] : mSegments) {
+        OsStatus status = manager->release(segment.range);
+        KM_ASSERT(status == OsStatusSuccess);
+    }
+
+    mSegments.clear();
+    return OsStatusSuccess;
+}
