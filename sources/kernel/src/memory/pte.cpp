@@ -356,7 +356,7 @@ OsStatus PageTables::reservePageTablesForUnmapping(VirtualRange range, detail::P
 }
 
 void PageTables::drainTableList(detail::PageTableList list) noexcept [[clang::nonallocating]] {
-    mAllocator.deallocateList(list);
+    mAllocator.deallocateList(std::move(list));
 }
 
 void PageTables::mapWithList(AddressMapping mapping, PageFlags flags, MemoryType type, detail::PageTableList& buffer) noexcept [[clang::nonallocating]] {
@@ -434,7 +434,7 @@ OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType typ
     //
     // Once we are done we need to deallocate the unused tables.
     //
-    defer { drainTableList(buffer); };
+    defer { drainTableList(std::move(buffer)); };
 
     mapWithList(mapping, flags, type, buffer);
 

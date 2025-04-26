@@ -238,7 +238,6 @@ OsStatus sys2::AddressSpaceManager::unmapSegment(MemoryManager *manager, Iterato
         if (range.front == seg.front) {
             // |--------seg-------|
             // |--range--|
-            KmDebugMessage("Unmapping front ", range, "\n");
             if (OsStatus status = splitSegment(manager, it, range.back, kLow)) {
                 return status;
             }

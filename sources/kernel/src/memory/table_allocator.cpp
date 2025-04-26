@@ -172,14 +172,14 @@ bool km::PageTableAllocator::allocateList(size_t blocks, detail::PageTableList *
     }
 
     KM_ASSERT(remaining == 0);
-    *result = list;
+    *result = std::move(list);
     return true;
 }
 
 bool km::PageTableAllocator::allocateExtra(size_t blocks, detail::PageTableList& list) [[clang::allocating]] {
     detail::PageTableList extra;
     if (allocateList(blocks, &extra)) {
-        list.append(extra);
+        list.append(std::move(extra));
         return true;
     }
 

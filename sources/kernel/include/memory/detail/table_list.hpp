@@ -1,6 +1,10 @@
 #pragma once
 
+#include "common/util/util.hpp"
+
 #include <stddef.h>
+
+#include <utility>
 
 namespace x64 {
     struct page;
@@ -11,7 +15,18 @@ namespace km::detail {
         x64::page *mTable;
 
     public:
-        PageTableList() : mTable(nullptr) {}
+        UTIL_NOCOPY(PageTableList);
+
+        PageTableList(PageTableList&& other) noexcept [[clang::nonallocating]]
+            : mTable(std::exchange(other.mTable, nullptr))
+        { }
+
+        PageTableList& operator=(PageTableList&& other) noexcept [[clang::nonallocating]] {
+            mTable = std::exchange(other.mTable, nullptr);
+            return *this;
+        }
+
+        PageTableList() noexcept [[clang::nonallocating]] : mTable(nullptr) {}
         PageTableList(x64::page *table [[gnu::nonnull]], size_t count) noexcept [[clang::nonallocating]];
 
         void push(x64::page *page [[gnu::nonnull]]) noexcept [[clang::nonallocating]];

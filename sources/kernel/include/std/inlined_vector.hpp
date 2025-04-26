@@ -11,6 +11,8 @@ namespace sm {
     class InlinedVector {
         static_assert(N > 0, "InlinedVector size must be greater than 0");
 
+        static constexpr size_t kHeapFlag = (1zu << (sizeof(size_t) * 8 - 1));
+
         [[no_unique_address]] Allocator mAllocator{};
 
         struct InlineStorage {
@@ -34,7 +36,7 @@ namespace sm {
         };
 
         Storage mStorage;
-        T *mBack;
+        size_t mSize;
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wfunction-effects" // Deallocating is alright in this context
@@ -68,6 +70,10 @@ namespace sm {
             }
         }
 
+        void setSize(size_t newSize) noexcept [[clang::nonblocking]] {
+            mSize = (mSize & kHeapFlag) | newSize;
+        }
+
     public:
         using value_type = T;
         using allocator_type = Allocator;
@@ -82,7 +88,7 @@ namespace sm {
 
         UTIL_NOCOPY(InlinedVector);
 
-        InlinedVector() noexcept
+        InlinedVector() noexcept [[clang::nonallocating]]
             : InlinedVector(Allocator{})
         { }
 
@@ -92,23 +98,32 @@ namespace sm {
 
         InlinedVector(Allocator allocator) noexcept
             : mAllocator(allocator)
-            , mBack(mStorage.flat.begin())
+            , mSize(0)
         { }
 
-        InlinedVector(InlinedVector&& other) noexcept
+        InlinedVector(InlinedVector&& other) noexcept [[clang::nonallocating]]
             : mAllocator(std::move(other.mAllocator))
             , mStorage(other.mStorage)
-            , mBack(other.mBack)
+            , mSize(other.mSize)
         {
-            other.clear();
+            other.mSize = 0;
         }
 
-        InlinedVector& operator=(InlinedVector&& other) noexcept {
+        template<size_t M> requires (M <= N)
+        InlinedVector(const T (&array)[M]) noexcept [[clang::nonallocating]]
+            : mAllocator(Allocator{})
+            , mSize(0)
+        {
+            std::move(std::begin(array), std::end(array), begin());
+            mSize += M;
+        }
+
+        InlinedVector& operator=(InlinedVector&& other) noexcept [[clang::nonallocating]] {
             if (this != &other) {
                 clear();
                 mAllocator = std::move(other.mAllocator);
                 mStorage = other.mStorage;
-                mBack = other.mBack;
+                mSize = other.mSize;
                 other.clear();
             }
             return *this;
@@ -131,9 +146,7 @@ namespace sm {
         }
 
         bool isHeapAllocated() const noexcept [[clang::nonblocking]] {
-            const char *back = static_cast<char*>((void*)mBack);
-            const char *data = static_cast<char*>((void*)&mStorage);
-            return !(back >= data && back < (data + sizeof(Storage)));
+            return mSize & kHeapFlag;
         }
 
         OsStatus ensureExtra(size_t extra) noexcept [[clang::allocating]] {
@@ -144,10 +157,10 @@ namespace sm {
             return OsStatusSuccess;
         }
 
-        T *end() noexcept [[clang::nonblocking]] { return mBack; }
-        const T *end() const noexcept [[clang::nonblocking]] { return mBack; }
+        T *end() noexcept [[clang::nonblocking]] { return begin() + count(); }
+        const T *end() const noexcept [[clang::nonblocking]] { return begin() + count(); }
 
-        size_t count() const noexcept [[clang::nonblocking]] { return end() - begin(); }
+        size_t count() const noexcept [[clang::nonblocking]] { return mSize & ~kHeapFlag; }
         size_t capacity() const noexcept [[clang::nonblocking]] { return getCapacity() - begin(); }
         size_t isEmpty() const noexcept [[clang::nonblocking]] { return end() == begin(); }
         size_t inlineCapacity() const noexcept [[clang::nonblocking]] { return N; }
@@ -156,7 +169,7 @@ namespace sm {
 
         void clear() noexcept [[clang::nonallocating]] {
             std::destroy(begin(), end());
-            mBack = begin();
+            setSize(0);
         }
 
         T *data() noexcept [[clang::nonblocking]] { return begin(); }
@@ -177,8 +190,6 @@ namespace sm {
                 return OsStatusSuccess;
             }
 
-            size_t currentCount = count();
-
             if (isHeapAllocated()) {
                 T *newData = mAllocator.allocate(newCapacity * sizeof(T));
                 if (newData == nullptr) {
@@ -191,7 +202,6 @@ namespace sm {
 
                 mStorage.heap.data = newData;
                 mStorage.heap.capacity = newData + newCapacity;
-                mBack = newData + currentCount;
             } else if (newCapacity > inlineCapacity()) {
                 T *newData = mAllocator.allocate(newCapacity * sizeof(T));
                 if (newData == nullptr) {
@@ -203,7 +213,7 @@ namespace sm {
 
                 mStorage.heap.data = newData;
                 mStorage.heap.capacity = newData + newCapacity;
-                mBack = newData + currentCount;
+                mSize |= kHeapFlag;
             }
 
             return OsStatusSuccess;
@@ -215,15 +225,15 @@ namespace sm {
 
         OsStatus resize(size_t size) noexcept [[clang::allocating]] {
             if (size < count()) {
-                std::destroy_n(mBack, count() - size);
-                mBack = begin() + size;
+                std::destroy_n(end(), count() - size);
+                setSize(size);
             } else if (size > count()) {
                 if (OsStatus status = ensureExtra(size - count())) {
                     return status;
                 }
 
-                std::uninitialized_default_construct(mBack, begin() + size);
-                mBack = begin() + size;
+                std::uninitialized_default_construct(end(), begin() + size);
+                setSize(size);
             }
 
             return OsStatusSuccess;
@@ -234,20 +244,33 @@ namespace sm {
                 return status;
             }
 
-            std::construct_at(mBack++, std::move(value));
+            std::construct_at(end(), std::move(value));
+            setSize(count() + 1);
+            return OsStatusSuccess;
+        }
+
+        OsStatus add(const T *first, const T *last) noexcept [[clang::allocating]] {
+            size_t extra = last - first;
+            if (OsStatus status = ensureExtra(extra)) {
+                return status;
+            }
+
+            std::uninitialized_copy(first, last, end());
+            setSize(count() + extra);
             return OsStatusSuccess;
         }
 
         void remove(size_t index) noexcept [[clang::nonallocating]] {
             std::destroy_at(begin() + index);
             std::move(begin() + index + 1, end(), begin() + index);
-            std::destroy_at(--mBack);
+            std::destroy_at(end());
+            setSize(count() - 1);
         }
 
         friend void swap(InlinedVector& lhs, InlinedVector& rhs) noexcept [[clang::nonallocating]] {
             std::swap(lhs.mAllocator, rhs.mAllocator);
             std::swap(lhs.mStorage, rhs.mStorage);
-            std::swap(lhs.mBack, rhs.mBack);
+            std::swap(lhs.mSize, rhs.mSize);
         }
     };
 }

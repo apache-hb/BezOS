@@ -31,7 +31,7 @@ OsStatus PtCommandList::add(PtCommand command) noexcept [[clang::allocating]] {
 }
 
 km::PageTableCommandList::~PageTableCommandList() noexcept [[clang::nonallocating]] {
-    mTables->drainTableList(mStorage);
+    mTables->drainTableList(std::move(mStorage));
 }
 
 OsStatus PtCommandList::validate() const noexcept [[clang::nonallocating]] {
@@ -102,11 +102,11 @@ OsStatus PtCommandList::unmap(VirtualRange range) noexcept [[clang::allocating]]
     };
 
     if (OsStatus status = add(command)) {
-        mTables->drainTableList(buffer);
+        mTables->drainTableList(std::move(buffer));
         return status;
     }
 
-    mStorage.append(buffer);
+    mStorage.append(std::move(buffer));
 
     return OsStatusSuccess;
 }
@@ -138,11 +138,11 @@ OsStatus PtCommandList::map(AddressMapping mapping, PageFlags flags, MemoryType 
     };
 
     if (OsStatus status = add(command)) {
-        mTables->drainTableList(buffer);
+        mTables->drainTableList(std::move(buffer));
         return status;
     }
 
-    mStorage.append(buffer);
+    mStorage.append(std::move(buffer));
 
     return OsStatusSuccess;
 }

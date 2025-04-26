@@ -129,6 +129,7 @@ src = [
     'src/memory/page_allocator.cpp',
     'src/memory/table_allocator.cpp',
     'src/memory/pte.cpp',
+    'src/memory/pte_command_list.cpp',
     'src/memory/tables.cpp',
     'src/memory/memory.cpp',
     'src/memory/address_space.cpp',
@@ -391,6 +392,7 @@ fs_test_src = [
 
 memory_test_src = [
     'src/memory/pte.cpp',
+    'src/memory/pte_command_list.cpp',
     'src/memory/tables.cpp',
     'src/memory/memory.cpp',
     'src/memory/table_allocator.cpp',
@@ -510,7 +512,6 @@ testcases = {
     ],
     'page table command list +new': [
         'test/memory/pte_command_list.cpp',
-        'src/memory/pte_command_list.cpp',
     ],
     'partitions': [
         'test/drivers/partitions.cpp',
@@ -658,6 +659,11 @@ testcases = {
     ],
     'tlsf heap +new': [
         'test/memory/tlsf.cpp',
+        'src/memory/heap.cpp',
+    ],
+    'tlsf heap command list +new': [
+        'test/memory/heap_command_list.cpp',
+        'src/memory/heap_command_list.cpp',
         'src/memory/heap.cpp',
     ],
     'pool allocator +new': [
