@@ -122,7 +122,7 @@ namespace km {
             }
         }
 
-        Block *newBlock() [[clang::allocating]] {
+        Block *newBlock() noexcept [[clang::allocating]] {
             size_t nextCapacity = nextBlockCapacity();
             char *memory = new (std::align_val_t(alignof(Block)), std::nothrow) char[sizeof(Block) + (sizeof(Item) * nextCapacity)];
             if (memory == nullptr) {
@@ -156,7 +156,7 @@ namespace km {
         UTIL_DEFAULT_MOVE(PoolAllocator);
 
         constexpr PoolAllocator() noexcept [[clang::nonallocating]] = default;
-        ~PoolAllocator() { clear(); }
+        constexpr ~PoolAllocator() noexcept { clear(); }
 
         void clear() noexcept [[clang::nonallocating]] {
             for (Block *block : mBlocks) {
@@ -166,7 +166,7 @@ namespace km {
             mBlocks.clear();
         }
 
-        void *allocate() [[clang::allocating]] {
+        void *allocate() noexcept [[clang::allocating]] {
             for (size_t i = mBlocks.count(); i > 0; i--) {
                 Block *block = mBlocks[i - 1];
                 if (void *ptr = block->take()) {
@@ -234,9 +234,10 @@ namespace km {
             size_t totalSlots = 0;
             size_t controlMemory = mBlocks.count() * sizeof(Block*);
             for (Block *block : mBlocks) {
-                freeSlots += block->freeSlots();
+                size_t freeBlocks = block->freeSlots();
+                freeSlots += freeBlocks;
                 totalSlots += block->count;
-                controlMemory += (sizeof(Block) * block->count) + (sizeof(Item) * block->count);
+                controlMemory += sizeof(Block) + (sizeof(Item) * freeBlocks);
             }
 
             return PoolAllocatorStats {

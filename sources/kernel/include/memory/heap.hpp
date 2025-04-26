@@ -4,6 +4,8 @@
 #include "memory/range.hpp"
 
 namespace km {
+    static constexpr bool kEnableSplitVectorHardening = true;
+
     namespace detail {
         enum {
             kSmallBufferSize = 0x100,
@@ -126,6 +128,8 @@ namespace km {
         size_t usedMemory;
         size_t freeMemory;
         size_t blockCount;
+        size_t mallocCount;
+        size_t freeCount;
 
         constexpr size_t controlMemory() const noexcept [[clang::nonblocking]] {
             return (sizeof(detail::TlsfBlock*) * freeListSize) + (sizeof(detail::TlsfBlock) * blockCount);
@@ -136,7 +140,7 @@ namespace km {
         PoolCompactStats pool;
     };
 
-    class TlsfAllocation {
+    class [[nodiscard]] TlsfAllocation {
         friend class TlsfHeap;
 
         detail::TlsfBlock *block{nullptr};
@@ -144,9 +148,9 @@ namespace km {
         TlsfAllocation(detail::TlsfBlock *block) noexcept [[clang::nonblocking]];
 
     public:
-        constexpr TlsfAllocation() = default;
+        constexpr TlsfAllocation() noexcept = default;
 
-        detail::TlsfBlock *getBlock() const noexcept [[clang::nonblocking]] { return block; }
+        constexpr detail::TlsfBlock *getBlock() const noexcept [[clang::nonblocking]] { return block; }
         constexpr bool isNull() const noexcept [[clang::nonblocking]] { return block == nullptr; }
         constexpr bool isValid() const noexcept [[clang::nonblocking]] { return block != nullptr; }
 
@@ -171,6 +175,8 @@ namespace km {
         using BitMap = detail::TlsfBitMap;
 
         size_t mSize;
+        size_t mMallocCount;
+        size_t mFreeCount;
 
         PoolAllocator<TlsfBlock> mBlockPool;
         TlsfBlock *mNullBlock;
@@ -200,16 +206,19 @@ namespace km {
 
         OsStatus addPool(MemoryRange range) [[clang::allocating]];
 
+        void splitBlock(TlsfAllocation ptr, PhysicalAddress midpoint, TlsfAllocation *lo, TlsfAllocation *hi, TlsfBlock *newBlock);
+
+        TlsfAllocation allocBestFit(size_t align, size_t size) [[clang::allocating]];
+
         TlsfHeap(PoolAllocator<TlsfBlock>&& pool, TlsfBlock *nullBlock, size_t freeListCount, std::unique_ptr<BlockPtr[]> freeList);
 
     public:
         UTIL_NOCOPY(TlsfHeap);
         UTIL_DEFAULT_MOVE(TlsfHeap);
 
-        constexpr TlsfHeap() = default;
-        ~TlsfHeap();
+        constexpr TlsfHeap() noexcept = default;
 
-        void validate();
+        void validate() noexcept [[clang::nonallocating]];
 
         TlsfCompactStats compact();
 
@@ -260,9 +269,11 @@ namespace km {
         [[nodiscard]]
         OsStatus resize(TlsfAllocation ptr, size_t size, TlsfAllocation *result) [[clang::allocating]];
 
+        /// @brief Allocate an aligned allocation.
         [[nodiscard]]
         TlsfAllocation aligned_alloc(size_t align, size_t size) [[clang::allocating]];
 
+        /// @brief Free an allocation.
         void free(TlsfAllocation ptr) noexcept [[clang::nonallocating]];
 
         /// @brief Split an allocation into two allocations.
@@ -280,9 +291,29 @@ namespace km {
         [[nodiscard]]
         OsStatus split(TlsfAllocation ptr, PhysicalAddress midpoint, TlsfAllocation *lo, TlsfAllocation *hi) [[clang::allocating]];
 
-        PhysicalAddress addressOf(TlsfAllocation ptr) const noexcept [[clang::nonblocking]];
+        /// @brief Split an allocation many times.
+        ///
+        /// @pre @p points must not empty, must be sorted in ascending order, contain no duplicate elements,
+        ///      and must contain no points outside the allocation.
+        /// @pre @p results must have a size of at least `points.size() + 1`
+        ///
+        /// @post If the operation fails the contents of @p results is undefined.
+        /// @post If the operation succeeds the original allocation is invalidated.
+        ///
+        /// @param ptr The allocation to split.
+        /// @param points The list of points to split at.
+        /// @param results Storage for the resulting split pointers.
+        ///
+        /// @return OsStatusSuccess if the operation is successful, otherwise a status code
+        [[nodiscard]]
+        OsStatus splitv(TlsfAllocation ptr, std::span<PhysicalAddress> points, std::span<TlsfAllocation> results) [[clang::allocating]];
 
-        TlsfHeapStats stats() noexcept [[clang::nonallocating]];
+        /// @brief Gather statistics about the heap.
+        TlsfHeapStats stats() const noexcept [[clang::nonallocating]];
+
+        /// @brief Resets the heap to its initial state.
+        /// @warning Invalidates all outstanding allocations.
+        void reset() noexcept [[clang::nonallocating]];
 
         [[nodiscard]]
         static OsStatus create(MemoryRange range, TlsfHeap *heap) [[clang::allocating]];
