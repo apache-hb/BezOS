@@ -477,7 +477,7 @@ namespace stdx {
 
         constexpr void remove(size_t index) {
             std::destroy_at(mFront + index);
-            std::copy(mFront + index + 1, mBack, mFront + index);
+            std::move(mFront + index + 1, mBack, mFront + index);
             std::destroy_at(--mBack);
         }
 
@@ -490,7 +490,7 @@ namespace stdx {
 
         constexpr void erase(size_t first, size_t last) {
             std::destroy_n(mFront + first, last - first);
-            std::copy(mFront + last, mBack, mFront + first);
+            std::move(mFront + last, mBack, mFront + first);
             mBack -= last - first;
         }
 

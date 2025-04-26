@@ -483,6 +483,9 @@ testcases = {
     'vector': [
         'test/vector.cpp',
     ],
+    'inlined vector +new': [
+        'test/std/inlined_vector.cpp',
+    ],
     'format': [
         'test/format.cpp',
         'src/util/format.cpp',

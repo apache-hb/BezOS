@@ -176,6 +176,16 @@ bool km::PageTableAllocator::allocateList(size_t blocks, detail::PageTableList *
     return true;
 }
 
+bool km::PageTableAllocator::allocateExtra(size_t blocks, detail::PageTableList& list) [[clang::allocating]] {
+    detail::PageTableList extra;
+    if (allocateList(blocks, &extra)) {
+        list.append(extra);
+        return true;
+    }
+
+    return false;
+}
+
 void km::PageTableAllocator::deallocateList(detail::PageTableList list) noexcept [[clang::nonallocating]] {
     while (x64::page *page = list.drain()) {
         deallocate(page, 1);

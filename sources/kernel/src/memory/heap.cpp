@@ -1,5 +1,4 @@
 #include "memory/heap.hpp"
-#include "log.hpp"
 #include "memory/range.hpp"
 
 #include "std/static_vector.hpp"
@@ -21,13 +20,13 @@ namespace {
         UTIL_NOCOPY(BlockBuffer);
         UTIL_NOMOVE(BlockBuffer);
 
-        ~BlockBuffer() {
+        ~BlockBuffer() noexcept {
             for (TlsfBlock *block : blocks) {
                 pool->destroy(block);
             }
         }
 
-        BlockBuffer(km::PoolAllocator<TlsfBlock> *pool)
+        BlockBuffer(km::PoolAllocator<TlsfBlock> *pool) noexcept
             : pool(pool)
         { }
 
@@ -499,12 +498,10 @@ OsStatus TlsfHeap::split(TlsfAllocation ptr, PhysicalAddress midpoint, TlsfAlloc
 
     splitBlock(ptr, midpoint, lo, hi, newBlock);
 
-    validate();
-
     return OsStatusSuccess;
 }
 
-OsStatus TlsfHeap::splitv(TlsfAllocation ptr, std::span<PhysicalAddress> points, std::span<TlsfAllocation> results) {
+OsStatus TlsfHeap::splitv(TlsfAllocation ptr, std::span<PhysicalAddress> points, std::span<TlsfAllocation> results) [[clang::allocating]] {
     static_assert(sizeof(TlsfAllocation) == sizeof(TlsfBlock*), "We reuse the result buffer to store allocated blocks");
 
     MemoryRange range = ptr.range();

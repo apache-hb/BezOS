@@ -16,6 +16,7 @@ namespace km::detail {
 
         void push(x64::page *page [[gnu::nonnull]]) noexcept [[clang::nonallocating]];
         void push(x64::page *pages [[gnu::nonnull]], size_t count) noexcept [[clang::nonallocating]];
+        void append(PageTableList list) noexcept [[clang::nonallocating]];
 
         [[gnu::returns_nonnull]]
         x64::page *next() noexcept [[clang::nonallocating]];

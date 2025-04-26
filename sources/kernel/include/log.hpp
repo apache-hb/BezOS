@@ -69,9 +69,14 @@ void KmDebugMessageUnlocked(T&&... args) {
     (KmDebugWrite(args), ...);
 }
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wfunction-effects" // DebugMessage is fine to call in a nonallocating context
+
 template<typename... T>
-void KmDebugMessage(T&&... args) {
+void KmDebugMessage(T&&... args) noexcept [[clang::nonallocating]] {
     km::LockDebugLog();
     KmDebugMessageUnlocked(std::forward<T>(args)...);
     km::UnlockDebugLog();
 }
+
+#pragma clang diagnostic pop

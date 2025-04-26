@@ -11,12 +11,16 @@
 #include "std/spinlock.hpp"
 
 namespace km {
+    class PageTableCommandList;
+
     /// @brief Manages page tables for an address space.
     ///
     /// @details All ptes are allocated from a memory pool that is provided at construction.
     ///          The current implementation expects that the virtual and physical addresses have a fixed
     ///          offset between them.
     class PageTables {
+        friend class PageTableCommandList;
+
         uintptr_t mSlide;
         PageTableAllocator mAllocator;
         const PageBuilder *mPageManager;
@@ -39,7 +43,7 @@ namespace km {
         /// @param addr The physical address of the page table.
         /// @return The virtual address of the page table.
         template<typename T>
-        T *asVirtual(PhysicalAddress addr) const noexcept [[clang::nonallocating]] {
+        T *asVirtual(PhysicalAddress addr) const noexcept [[clang::nonblocking]] {
             return (T*)(addr.address + mSlide);
         }
 
@@ -60,26 +64,26 @@ namespace km {
         /// @param index The index of the entry to get.
         /// @return The virtual address of the sub-table.
         template<typename U, typename T>
-        auto *getPageEntry(const T *table, uint16_t index) const {
+        auto *getPageEntry(const T *table, uint16_t index) const noexcept [[clang::nonallocating]] {
             PhysicalAddress address = mPageManager->address(table->entries[index]);
             return asVirtual<U>(address);
         }
 
-        void setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddress address);
+        void setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddress address) noexcept [[clang::nonallocating]];
 
-        x64::PageMapLevel3 *getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e, detail::PageTableList& buffer);
-        x64::PageMapLevel2 *getPageMap2(x64::PageMapLevel3 *l3, uint16_t pdpte, detail::PageTableList& buffer);
+        x64::PageMapLevel3 *getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e, detail::PageTableList& buffer) noexcept [[clang::nonallocating]];
+        x64::PageMapLevel2 *getPageMap2(x64::PageMapLevel3 *l3, uint16_t pdpte, detail::PageTableList& buffer) noexcept [[clang::nonallocating]];
 
         x64::PageMapLevel3 *findPageMap3(const x64::PageMapLevel4 *l4, uint16_t pml4e) const;
         x64::PageMapLevel2 *findPageMap2(const x64::PageMapLevel3 *l3, uint16_t pdpte) const;
         x64::PageTable *findPageTable(const x64::PageMapLevel2 *l2, uint16_t pdte) const;
 
-        void mapRange4k(AddressMapping mapping, PageFlags flags, MemoryType type, detail::PageTableList& buffer);
-        void mapRange2m(AddressMapping mapping, PageFlags flags, MemoryType type, detail::PageTableList& buffer);
+        void mapRange4k(AddressMapping mapping, PageFlags flags, MemoryType type, detail::PageTableList& buffer) noexcept [[clang::nonallocating]];
+        void mapRange2m(AddressMapping mapping, PageFlags flags, MemoryType type, detail::PageTableList& buffer) noexcept [[clang::nonallocating]];
         void mapRange1g(AddressMapping mapping, PageFlags flags, MemoryType type, detail::PageTableList& buffer);
 
-        void map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableList& buffer);
-        void map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableList& buffer);
+        void map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableList& buffer) noexcept [[clang::nonallocating]];
+        void map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableList& buffer) noexcept [[clang::nonallocating]];
         void map1g(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableList& buffer);
 
         void partialRemap2m(x64::PageTable *pt, VirtualRange range, PhysicalAddress paddr, MemoryType type);
@@ -111,13 +115,14 @@ namespace km {
         /// @param range The range to unmap.
         ///
         /// @return The number of page tables required, either 0, 1, or 2.
-        int earlyAllocatePageTables(VirtualRange range);
+        int earlyAllocatePageTables(VirtualRange range) noexcept [[clang::nonallocating]];
 
-        x64::pdte& getLargePageEntry(const void *address);
+        x64::pdte& getLargePageEntry(const void *address) noexcept [[clang::nonallocating]];
 
         PageWalk walkUnlocked(const void *ptr) const;
 
         OsStatus earlyUnmap(VirtualRange range, VirtualRange *remaining);
+        void earlyUnmapWithList(int earlyAllocations, VirtualRange range, VirtualRange *remaining, detail::PageTableList& buffer) noexcept [[clang::nonallocating]];
 
         PhysicalAddress getBackingAddressUnlocked(const void *ptr) const;
 
@@ -131,12 +136,28 @@ namespace km {
 
         OsStatus allocatePageTables(VirtualRange range, detail::PageTableList *list);
 
+        /// @brief Private API for @a km::PageTableCommandList.
+        OsStatus reservePageTablesForMapping(VirtualRange range, detail::PageTableList& list);
+
+        /// @brief Private API for @a km::PageTableCommandList.
+        OsStatus reservePageTablesForUnmapping(VirtualRange range, detail::PageTableList& list);
+
+        /// @brief Private API for @a km::PageTableCommandList.
+        void drainTableList(detail::PageTableList list) noexcept [[clang::nonallocating]];
+
         size_t compactUnlocked();
 
         size_t compactPt(x64::PageMapLevel2 *pd, uint16_t index);
         size_t compactPd(x64::PageMapLevel3 *pd, uint16_t index);
         size_t compactPdpt(x64::PageMapLevel4 *pd, uint16_t index);
         size_t compactPml4(x64::PageMapLevel4 *pml4);
+
+        void mapWithList(AddressMapping mapping, PageFlags flags, MemoryType type, detail::PageTableList& buffer) noexcept [[clang::nonallocating]];
+        bool verifyMapping(AddressMapping mapping) const noexcept [[clang::nonblocking]];
+
+        /// @brief Private API for @a km::PageTableCommandList.
+        void unmapWithList(VirtualRange range, detail::PageTableList& buffer) noexcept [[clang::nonallocating]];
+        void unmapUnlocked(VirtualRange range) noexcept [[clang::nonallocating]];
 
     public:
         constexpr PageTables() noexcept = default;
@@ -162,8 +183,8 @@ namespace km {
 
         const PageBuilder *pageManager() const noexcept { return mPageManager; }
 
-        const x64::PageMapLevel4 *pml4() const noexcept { return mRootPageTable; }
-        x64::PageMapLevel4 *pml4() noexcept { return mRootPageTable; }
+        const x64::PageMapLevel4 *pml4() const noexcept [[clang::nonblocking]] { return mRootPageTable; }
+        x64::PageMapLevel4 *pml4() noexcept [[clang::nonblocking]] { return mRootPageTable; }
         PhysicalAddress root() const noexcept { return asPhysical(pml4()); }
 
         /// @brief Map a range of virtual address space to physical memory.
@@ -269,6 +290,9 @@ namespace km {
         /// @return The status of the operation.
         [[nodiscard]]
         OsStatus map(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
+
+        [[nodiscard]]
+        static OsStatus create(const PageBuilder *pm, AddressMapping pteMemory, PageFlags flags, PageTables *tables) [[clang::allocating]];
 
 #if __STDC_HOSTED__
         PageTableAllocator& TESTING_getPageTableAllocator() {

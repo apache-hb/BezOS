@@ -29,6 +29,12 @@ void PageTableList::push(x64::page *pages, size_t count) noexcept [[clang::nonal
     }
 }
 
+void PageTableList::append(PageTableList list) noexcept [[clang::nonallocating]] {
+    while (x64::page *page = list.drain()) {
+        push(page);
+    }
+}
+
 x64::page *PageTableList::next() noexcept [[clang::nonallocating]] {
     KM_CHECK(mTable != nullptr, "PageTableList exhausted.");
 

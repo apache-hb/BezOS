@@ -169,7 +169,7 @@ namespace x64 {
     };
 
     [[gnu::always_inline, gnu::nodebug]]
-    static inline void invlpg([[maybe_unused]] uintptr_t address) {
+    static inline void invlpg([[maybe_unused]] uintptr_t address) noexcept [[clang::nonallocating]] {
 #if __STDC_HOSTED__ == 0
         arch::Intrin::invlpg(address);
 #endif

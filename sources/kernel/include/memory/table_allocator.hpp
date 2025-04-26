@@ -70,11 +70,18 @@ namespace km {
         /// @return If the allocation was successful.
         bool allocateList(size_t blocks, detail::PageTableList *result) [[clang::allocating]];
 
+        /// @brief Allocate extra blocks and append them to the provided list.
+        bool allocateExtra(size_t blocks, detail::PageTableList& list) [[clang::allocating]];
+
         void deallocateList(detail::PageTableList list) noexcept [[clang::nonallocating]];
 
         void defragment() noexcept [[clang::nonallocating]];
 
         PteAllocatorStats stats() const noexcept [[clang::nonallocating]];
+
+        constexpr bool contains(const void *ptr) const noexcept [[clang::nonblocking]] {
+            return mMemory.contains(ptr);
+        }
 
 #if __STDC_HOSTED__
         detail::ControlBlock *TESTING_getHead() {

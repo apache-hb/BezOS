@@ -16,7 +16,7 @@ x64::page *PageTables::alloc4k() [[clang::allocating]] {
     return it;
 }
 
-void PageTables::setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddress address) {
+void PageTables::setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddress address) noexcept [[clang::nonallocating]] {
     if (address > mPageManager->maxPhysicalAddress()) {
         KmDebugMessage("Physical address out of range: ", address, " > ", mPageManager->maxPhysicalAddress(), "\n");
         KM_PANIC("Physical address out of range.");
@@ -39,7 +39,7 @@ PageTables::PageTables(const km::PageBuilder *pm, AddressMapping pteMemory, Page
     , mMiddleFlags(middleFlags)
 { }
 
-x64::PageMapLevel3 *PageTables::getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e, detail::PageTableList& buffer) {
+x64::PageMapLevel3 *PageTables::getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e, detail::PageTableList& buffer) noexcept [[clang::nonallocating]] {
     x64::PageMapLevel3 *l3;
 
     x64::pml4e& t4 = l4->entries[pml4e];
@@ -53,7 +53,7 @@ x64::PageMapLevel3 *PageTables::getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml
     return l3;
 }
 
-x64::PageMapLevel2 *PageTables::getPageMap2(x64::PageMapLevel3 *l3, uint16_t pdpte, detail::PageTableList& buffer) {
+x64::PageMapLevel2 *PageTables::getPageMap2(x64::PageMapLevel3 *l3, uint16_t pdpte, detail::PageTableList& buffer) noexcept [[clang::nonallocating]] {
     x64::PageMapLevel2 *l2;
 
     x64::pdpte& t3 = l3->entries[pdpte];
@@ -96,13 +96,13 @@ x64::PageTable *PageTables::findPageTable(const x64::PageMapLevel2 *l2, uint16_t
     return nullptr;
 }
 
-void PageTables::mapRange4k(AddressMapping mapping, PageFlags flags, MemoryType type, detail::PageTableList& buffer) {
+void PageTables::mapRange4k(AddressMapping mapping, PageFlags flags, MemoryType type, detail::PageTableList& buffer) noexcept [[clang::nonallocating]] {
     for (size_t i = 0; i < mapping.size; i += x64::kPageSize) {
         map4k(mapping.paddr + i, (char*)mapping.vaddr + i, flags, type, buffer);
     }
 }
 
-void PageTables::mapRange2m(AddressMapping mapping, PageFlags flags, MemoryType type, detail::PageTableList& buffer) {
+void PageTables::mapRange2m(AddressMapping mapping, PageFlags flags, MemoryType type, detail::PageTableList& buffer) noexcept [[clang::nonallocating]] {
     for (size_t i = 0; i < mapping.size; i += x64::kLargePageSize) {
         map2m(mapping.paddr + i, (char*)mapping.vaddr + i, flags, type, buffer);
     }
@@ -114,7 +114,7 @@ void PageTables::mapRange1g(AddressMapping mapping, PageFlags flags, MemoryType 
     }
 }
 
-void PageTables::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableList& buffer) {
+void PageTables::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableList& buffer) noexcept [[clang::nonallocating]] {
     if (!mPageManager->isCanonicalAddress(vaddr)) {
         KmDebugMessage("Attempting to map address that isn't canonical: ", vaddr, "\n");
         KM_PANIC("Invalid memory mapping.");
@@ -150,7 +150,7 @@ void PageTables::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags
     setEntryFlags(t1, flags, paddr);
 }
 
-void PageTables::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableList& buffer) {
+void PageTables::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableList& buffer) noexcept [[clang::nonallocating]] {
     if (!mPageManager->isCanonicalAddress(vaddr)) {
         KmDebugMessage("Attempting to map address that isn't canonical: ", vaddr, "\n");
         KM_PANIC("Invalid memory mapping.");
@@ -321,29 +321,33 @@ OsStatus PageTables::allocatePageTables(VirtualRange range, detail::PageTableLis
     return OsStatusOutOfMemory;
 }
 
-OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType type) {
-    bool valid = (mapping.size % x64::kPageSize == 0)
-        && (mapping.paddr.address % x64::kPageSize == 0)
-        && ((uintptr_t)mapping.vaddr % x64::kPageSize == 0)
-        && mPageManager->isCanonicalAddress(mapping.vaddr);
-
-    if (!valid) [[unlikely]] {
-        KmDebugMessage("[MEM] Invalid mapping request ", mapping, "\n");
-        return OsStatusInvalidInput;
+OsStatus PageTables::reservePageTablesForMapping(VirtualRange range, detail::PageTableList& list) {
+    if (mAllocator.allocateExtra(maxPagesForMapping(range), list) == OsStatusSuccess) {
+        return OsStatusSuccess;
     }
 
-    stdx::LockGuard guard(mLock);
-
-    detail::PageTableList buffer;
-    if (OsStatus status = allocatePageTables(mapping.virtualRange(), &buffer)) {
-        return status;
+    if (mAllocator.allocateExtra(countPagesForMapping(range), list) == OsStatusSuccess) {
+        return OsStatusSuccess;
     }
 
-    //
-    // Once we are done we need to deallocate the unused tables.
-    //
-    defer { mAllocator.deallocateList(buffer); };
+    return OsStatusOutOfMemory;
+}
 
+OsStatus PageTables::reservePageTablesForUnmapping(VirtualRange range, detail::PageTableList& list) {
+    if (int pteCount = earlyAllocatePageTables(range)) {
+        if (OsStatus status = mAllocator.allocateExtra(pteCount, list)) {
+            return status;
+        }
+    }
+
+    return OsStatusSuccess;
+}
+
+void PageTables::drainTableList(detail::PageTableList list) noexcept [[clang::nonallocating]] {
+    mAllocator.deallocateList(list);
+}
+
+void PageTables::mapWithList(AddressMapping mapping, PageFlags flags, MemoryType type, detail::PageTableList& buffer) noexcept [[clang::nonallocating]] {
     //
     // We can use large pages if the range is larger than 2m after alignment and the mapping
     // has equal alignment between the physical and virtual addresses relative to the 2m boundary.
@@ -383,7 +387,7 @@ OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType typ
                 mapRange4k(tail, flags, type, buffer);
             }
 
-            return OsStatusSuccess;
+            return;
         }
     }
 
@@ -392,6 +396,35 @@ OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType typ
     // so we map the range with 4k pages.
     //
     mapRange4k(mapping, flags, type, buffer);
+}
+
+bool PageTables::verifyMapping(AddressMapping mapping) const noexcept [[clang::nonblocking]] {
+    bool valid = (mapping.size % x64::kPageSize == 0)
+        && (mapping.paddr.address % x64::kPageSize == 0)
+        && ((uintptr_t)mapping.vaddr % x64::kPageSize == 0)
+        && mPageManager->isCanonicalAddress(mapping.vaddr);
+
+    return valid;
+}
+
+OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType type) {
+    if (!verifyMapping(mapping)) [[unlikely]] {
+        return OsStatusInvalidInput;
+    }
+
+    stdx::LockGuard guard(mLock);
+
+    detail::PageTableList buffer;
+    if (OsStatus status = allocatePageTables(mapping.virtualRange(), &buffer)) {
+        return status;
+    }
+
+    //
+    // Once we are done we need to deallocate the unused tables.
+    //
+    defer { drainTableList(buffer); };
+
+    mapWithList(mapping, flags, type, buffer);
 
     return OsStatusSuccess;
 }
@@ -471,7 +504,7 @@ void PageTables::reclaim2m(x64::pdte& pde) {
     pde.set2m(false);
 }
 
-int PageTables::earlyAllocatePageTables(VirtualRange range) {
+int PageTables::earlyAllocatePageTables(VirtualRange range) noexcept [[clang::nonallocating]] {
     auto isMappedUsingLargePage = [&](const void *address) {
         PageWalk walk = walkUnlocked(address);
         return walk.pageSize() == PageSize::eLarge;
@@ -510,7 +543,7 @@ int PageTables::earlyAllocatePageTables(VirtualRange range) {
     return count;
 }
 
-x64::pdte& PageTables::getLargePageEntry(const void *address) {
+x64::pdte& PageTables::getLargePageEntry(const void *address) noexcept [[clang::nonallocating]] {
     auto [pml4e, pdpte, pdte, _] = GetAddressParts(address);
 
     x64::PageMapLevel4 *l4 = pml4();
@@ -567,24 +600,7 @@ PageWalk PageTables::walkUnlocked(const void *ptr) const {
     };
 }
 
-OsStatus PageTables::earlyUnmap(VirtualRange range, VirtualRange *remaining) {
-    //
-    // Fun edge case when unampping a range of memory that isnt 2m aligned but intersects with 2 2m pages.
-    // As this requires allocating 2 new page tables to store the 4k mappings required: the first allocation
-    // can succeed and the second can fail. If we did the allocating while iterating we could reach a state
-    // where the second allocation fails but page tables have already been manipulated. So we need to allocate both
-    // required page tables upfront to ensure both exist before unmapping the remaining area.
-    //
-    int earlyAllocations = earlyAllocatePageTables(range);
-    if (earlyAllocations == 0) {
-        return OsStatusSuccess;
-    }
-
-    detail::PageTableList buffer;
-    if (!mAllocator.allocateList(earlyAllocations, &buffer)) {
-        return OsStatusOutOfMemory;
-    }
-
+void PageTables::earlyUnmapWithList(int earlyAllocations, VirtualRange range, VirtualRange *remaining, detail::PageTableList& buffer) noexcept [[clang::nonallocating]] {
     if (earlyAllocations == 2) {
         //
         // We rebuild the first and last mappings early here, then shrink the range and continue the
@@ -624,7 +640,7 @@ OsStatus PageTables::earlyUnmap(VirtualRange range, VirtualRange *remaining) {
             x64::pdte& entry = getLargePageEntry(range.front);
             split2mMapping(entry, page, range, (x64::PageTable*)buffer.next());
             *remaining = VirtualRange{};
-            return OsStatusSuccess;
+            return;
         }
 
         //
@@ -643,20 +659,42 @@ OsStatus PageTables::earlyUnmap(VirtualRange range, VirtualRange *remaining) {
 
         *remaining = VirtualRange{};
     }
+}
+
+OsStatus PageTables::earlyUnmap(VirtualRange range, VirtualRange *remaining) {
+    //
+    // Fun edge case when unampping a range of memory that isnt 2m aligned but intersects with 2 2m pages.
+    // As this requires allocating 2 new page tables to store the 4k mappings required: the first allocation
+    // can succeed and the second can fail. If we did the allocating while iterating we could reach a state
+    // where the second allocation fails but page tables have already been manipulated. So we need to allocate both
+    // required page tables upfront to ensure both exist before unmapping the remaining area.
+    //
+    int earlyAllocations = earlyAllocatePageTables(range);
+    if (earlyAllocations == 0) {
+        return OsStatusSuccess;
+    }
+
+    detail::PageTableList buffer;
+    if (!mAllocator.allocateList(earlyAllocations, &buffer)) {
+        return OsStatusOutOfMemory;
+    }
+
+    earlyUnmapWithList(earlyAllocations, range, remaining, buffer);
 
     return OsStatusSuccess;
 }
 
-OsStatus PageTables::unmap(VirtualRange range) {
-    range = alignedOut(range, x64::kPageSize);
-
-    stdx::LockGuard guard(mLock);
-
-    x64::PageMapLevel4 *l4 = pml4();
-
-    if (OsStatus status = earlyUnmap(range, &range)) {
-        return status;
+void PageTables::unmapWithList(VirtualRange range, detail::PageTableList& buffer) noexcept [[clang::nonallocating]] {
+    int earlyAllocations = earlyAllocatePageTables(range);
+    if (earlyAllocations != 0) {
+        earlyUnmapWithList(earlyAllocations, range, &range, buffer);
     }
+
+    unmapUnlocked(range);
+}
+
+void PageTables::unmapUnlocked(VirtualRange range) noexcept [[clang::nonallocating]] {
+    x64::PageMapLevel4 *l4 = pml4();
 
     uintptr_t i = (uintptr_t)range.front;
     uintptr_t end = (uintptr_t)range.back;
@@ -710,6 +748,18 @@ OsStatus PageTables::unmap(VirtualRange range) {
 
         i += x64::kPageSize;
     }
+}
+
+OsStatus PageTables::unmap(VirtualRange range) {
+    range = alignedOut(range, x64::kPageSize);
+
+    stdx::LockGuard guard(mLock);
+
+    if (OsStatus status = earlyUnmap(range, &range)) {
+        return status;
+    }
+
+    unmapUnlocked(range);
 
     return OsStatusSuccess;
 }

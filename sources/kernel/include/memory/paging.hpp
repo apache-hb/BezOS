@@ -98,7 +98,7 @@ namespace km {
             return mAddressMask;
         }
 
-        constexpr uintptr_t address(x64::Entry entry) const {
+        constexpr uintptr_t address(x64::Entry entry) const noexcept [[clang::nonallocating]] {
             return entry.underlying & mAddressMask;
         }
 
@@ -144,7 +144,7 @@ namespace km {
             __set_cr3(reg);
         }
 
-        constexpr bool isCanonicalAddress(uintptr_t addr) const {
+        constexpr bool isCanonicalAddress(uintptr_t addr) const noexcept [[clang::nonblocking]] {
             uintptr_t mask = -(1ull << (mVaddrBits - 1));
             uintptr_t bits = (addr & mask);
 
@@ -152,7 +152,7 @@ namespace km {
             return bits == 0 || bits == mask;
         }
 
-        constexpr bool isHigherHalf(uintptr_t addr) const {
+        constexpr bool isHigherHalf(uintptr_t addr) const noexcept [[clang::nonblocking]] {
             uintptr_t mask = -(1ull << (mVaddrBits - 1));
             uintptr_t bits = (addr & mask);
 
@@ -160,11 +160,11 @@ namespace km {
             return bits == mask;
         }
 
-        bool isCanonicalAddress(const void *ptr) const {
+        bool isCanonicalAddress(const void *ptr) const noexcept [[clang::nonblocking]] {
             return isCanonicalAddress(reinterpret_cast<uintptr_t>(ptr));
         }
 
-        bool isHigherHalf(const void *ptr) const {
+        bool isHigherHalf(const void *ptr) const noexcept [[clang::nonblocking]] {
             return isHigherHalf(reinterpret_cast<uintptr_t>(ptr));
         }
     };
