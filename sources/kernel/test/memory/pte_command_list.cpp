@@ -425,3 +425,61 @@ TEST_F(PtCommandListTest, CommitMapManyListOom) {
     auto stats1 = pt.TESTING_getPageTableAllocator().stats();
     ASSERT_NE(stats1.freeBlocks, stats0.freeBlocks);
 }
+
+TEST_F(PtCommandListTest, RecordUnmap) {
+    km::PageBuilder pm { 48, 48, km::GetDefaultPatLayout() };
+    size_t pteCount = 1024;
+    std::unique_ptr<x64::page[]> pteMemory(new x64::page[pteCount]);
+    km::AddressMapping pteMapping {
+        .vaddr = std::bit_cast<void*>(pteMemory.get()),
+        .paddr = std::bit_cast<km::PhysicalAddress>(pteMemory.get()),
+        .size = pteCount * sizeof(x64::page),
+    };
+    km::PageTables pt { &pm, pteMapping, km::PageFlags::eUserAll };
+
+    auto stats0 = pt.TESTING_getPageTableAllocator().stats();
+
+    {
+        km::PageTableCommandList list { &pt };
+
+        OsStatus status = list.unmap(km::VirtualRange::of((void*)0x1000, 0x2000));
+        ASSERT_EQ(status, OsStatusSuccess);
+    }
+
+    auto stats1 = pt.TESTING_getPageTableAllocator().stats();
+    ASSERT_EQ(stats1.freeBlocks, stats0.freeBlocks);
+}
+
+TEST_F(PtCommandListTest, CommitUnmap) {
+    km::PageBuilder pm { 48, 48, km::GetDefaultPatLayout() };
+    size_t pteCount = 1024;
+    std::unique_ptr<x64::page[]> pteMemory(new x64::page[pteCount]);
+    km::AddressMapping pteMapping {
+        .vaddr = std::bit_cast<void*>(pteMemory.get()),
+        .paddr = std::bit_cast<km::PhysicalAddress>(pteMemory.get()),
+        .size = pteCount * sizeof(x64::page),
+    };
+    km::PageTables pt { &pm, pteMapping, km::PageFlags::eUserAll };
+
+    km::AddressMapping mapping {
+        .vaddr = (void*)0x1000,
+        .paddr = 0x2000,
+        .size = 0x1000,
+    };
+
+    ASSERT_EQ(pt.map(mapping, km::PageFlags::eUserAll, km::MemoryType::eWriteBack), OsStatusSuccess);
+
+    ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), mapping.paddr);
+
+    {
+        km::PageTableCommandList list { &pt };
+
+        OsStatus status = list.unmap(km::VirtualRange::of((void*)0x1000, 0x2000));
+        ASSERT_EQ(status, OsStatusSuccess);
+
+        list.commit();
+    }
+
+    (void)pt.compact();
+    ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), KM_INVALID_MEMORY);
+}
