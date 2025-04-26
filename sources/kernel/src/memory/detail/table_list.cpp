@@ -53,3 +53,11 @@ x64::page *PageTableList::drain() noexcept [[clang::nonallocating]] {
     mTable = (x64::page*)*(void**)(mTable);
     return it;
 }
+
+size_t PageTableList::count() const noexcept [[clang::nonallocating]] {
+    size_t count = 0;
+    for (x64::page *it = mTable; it != nullptr; it = (x64::page*)*(void**)(it)) {
+        count++;
+    }
+    return count;
+}

@@ -508,6 +508,10 @@ testcases = {
     'page table': [
         'test/memory/pte.cpp',
     ],
+    'page table command list +new': [
+        'test/memory/pte_command_list.cpp',
+        'src/memory/pte_command_list.cpp',
+    ],
     'partitions': [
         'test/drivers/partitions.cpp',
         'src/drivers/fs/driver.cpp',

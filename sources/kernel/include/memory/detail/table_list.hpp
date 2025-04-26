@@ -22,5 +22,7 @@ namespace km::detail {
         x64::page *next() noexcept [[clang::nonallocating]];
 
         x64::page *drain() noexcept [[clang::nonallocating]];
+
+        size_t count() const noexcept [[clang::nonallocating]];
     };
 }

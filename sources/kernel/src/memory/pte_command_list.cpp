@@ -5,13 +5,26 @@
 using PtCommandList = km::PageTableCommandList;
 using PtCommand = km::detail::PageTableCommand;
 
-OsStatus PtCommandList::add(PtCommand command) noexcept [[clang::allocating]] {
-    if (OsStatus status = mCommands.add(command)) {
-        return status;
+static OsStatus ValidateCommandRange(km::VirtualRange range) noexcept [[clang::nonblocking]] {
+    // All commands must operate on valid ranges of virtual memory.
+    if (range.isEmpty() || !range.isValid()) {
+        return OsStatusInvalidSpan;
     }
 
-    if constexpr (kEnablePageTableCommandListHardening) {
-        return validate();
+    // All commands must operate on aligned ranges of virtual memory.
+    if (range != km::alignedOut(range, x64::kPageSize)) {
+        return OsStatusInvalidInput;
+    }
+
+    return OsStatusSuccess;
+}
+
+OsStatus PtCommandList::add(PtCommand command) noexcept [[clang::allocating]] {
+    // The command list must have extra space reserved by the caller.
+    KM_CHECK(mCommands.capacity() > mCommands.count(), "Command list is full");
+
+    if (OsStatus status = mCommands.add(command)) {
+        return status;
     }
 
     return OsStatusSuccess;
@@ -24,19 +37,20 @@ km::PageTableCommandList::~PageTableCommandList() noexcept [[clang::nonallocatin
 OsStatus PtCommandList::validate() const noexcept [[clang::nonallocating]] {
     for (size_t i = 0; i < mCommands.count(); i++) {
         const PtCommand &command = mCommands[i];
-        if (command.range.isEmpty()) {
-            return OsStatusInvalidInput;
-        }
 
         for (size_t j = 0; j < mCommands.count(); j++) {
             if (i == j) {
                 continue;
             }
 
-            // All commands must operate on disjoint ranges of virtual memory.
             const PtCommand &other = mCommands[j];
+            if (km::outerAdjacent(command.range, other.range)) {
+                continue;
+            }
+
+            // All commands must operate on disjoint ranges of virtual memory.
             if (command.range.overlaps(other.range) || command.range.contains(other.range)) {
-                return OsStatusInvalidInput;
+                return OsStatusInvalidData;
             }
         }
     }
@@ -69,11 +83,16 @@ void PtCommandList::commit() noexcept [[clang::nonallocating]] {
 }
 
 OsStatus PtCommandList::unmap(VirtualRange range) noexcept [[clang::allocating]] {
+    if (OsStatus status = ValidateCommandRange(range)) [[unlikely]] {
+        return status;
+    }
+
     if (OsStatus status = mCommands.ensureExtra(1)) {
         return status;
     }
 
-    if (OsStatus status = mTables->reservePageTablesForUnmapping(range, mStorage)) {
+    detail::PageTableList buffer;
+    if (OsStatus status = mTables->reservePageTablesForUnmapping(range, buffer)) {
         return status;
     }
 
@@ -82,14 +101,21 @@ OsStatus PtCommandList::unmap(VirtualRange range) noexcept [[clang::allocating]]
         .range = range,
     };
 
-    // This is known to succeed, the command list has been pre-allocated.
-    OsStatus status = add(command);
-    KM_ASSERT(status == OsStatusSuccess);
+    if (OsStatus status = add(command)) {
+        mTables->drainTableList(buffer);
+        return status;
+    }
+
+    mStorage.append(buffer);
 
     return OsStatusSuccess;
 }
 
 OsStatus PtCommandList::map(AddressMapping mapping, PageFlags flags, MemoryType type) noexcept [[clang::allocating]] {
+    if (OsStatus status = ValidateCommandRange(mapping.virtualRange())) [[unlikely]] {
+        return status;
+    }
+
     if (!mTables->verifyMapping(mapping)) [[unlikely]] {
         return OsStatusInvalidInput;
     }
@@ -98,7 +124,8 @@ OsStatus PtCommandList::map(AddressMapping mapping, PageFlags flags, MemoryType 
         return status;
     }
 
-    if (OsStatus status = mTables->reservePageTablesForMapping(mapping.virtualRange(), mStorage)) [[unlikely]] {
+    detail::PageTableList buffer;
+    if (OsStatus status = mTables->reservePageTablesForMapping(mapping.virtualRange(), buffer)) [[unlikely]] {
         return status;
     }
 
@@ -110,9 +137,21 @@ OsStatus PtCommandList::map(AddressMapping mapping, PageFlags flags, MemoryType 
         .type = type,
     };
 
-    // This is known to succeed, the command list has been pre-allocated.
-    OsStatus status = add(command);
-    KM_ASSERT(status == OsStatusSuccess);
+    if (OsStatus status = add(command)) {
+        mTables->drainTableList(buffer);
+        return status;
+    }
+
+    mStorage.append(buffer);
 
     return OsStatusSuccess;
+}
+
+km::PageTableCommandListStats PtCommandList::stats() const noexcept [[clang::nonallocating]] {
+    size_t commandCount = mCommands.count();
+    size_t tableCount = mStorage.count();
+    return km::PageTableCommandListStats {
+        .commandCount = commandCount,
+        .tableCount = tableCount,
+    };
 }

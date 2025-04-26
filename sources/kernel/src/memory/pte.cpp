@@ -322,11 +322,23 @@ OsStatus PageTables::allocatePageTables(VirtualRange range, detail::PageTableLis
 }
 
 OsStatus PageTables::reservePageTablesForMapping(VirtualRange range, detail::PageTableList& list) {
-    if (mAllocator.allocateExtra(maxPagesForMapping(range), list) == OsStatusSuccess) {
+    auto allocateExtra = [&](size_t count) {
+        if (count == 0) {
+            return true;
+        }
+
+        if (mAllocator.allocateExtra(count, list)) {
+            return true;
+        }
+
+        return false;
+    };
+
+    if (allocateExtra(maxPagesForMapping(range))) {
         return OsStatusSuccess;
     }
 
-    if (mAllocator.allocateExtra(countPagesForMapping(range), list) == OsStatusSuccess) {
+    if (allocateExtra(countPagesForMapping(range))) {
         return OsStatusSuccess;
     }
 

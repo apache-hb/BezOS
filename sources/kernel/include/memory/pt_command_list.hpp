@@ -9,8 +9,6 @@
 #include "std/inlined_vector.hpp"
 
 namespace km {
-    static constexpr bool kEnablePageTableCommandListHardening = true;
-
     class PageTables;
 
     namespace detail {
@@ -27,6 +25,11 @@ namespace km {
             MemoryType type;
         };
     }
+
+    struct PageTableCommandListStats {
+        size_t commandCount;
+        size_t tableCount;
+    };
 
     class PageTableCommandList {
         PageTables *mTables;
@@ -56,5 +59,7 @@ namespace km {
 
         [[nodiscard]]
         OsStatus map(AddressMapping mapping, PageFlags flags, MemoryType type) noexcept [[clang::allocating]];
+
+        PageTableCommandListStats stats() const noexcept [[clang::nonallocating]];
     };
 }
