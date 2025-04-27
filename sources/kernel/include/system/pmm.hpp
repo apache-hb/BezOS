@@ -15,29 +15,33 @@ namespace sys2 {
     };
 
     struct MemorySegment {
-        std::atomic<uint8_t> mOwners;
-        km::TlsfAllocation mHandle;
-        sm::RcuSharedPtr<IMemoryObject> mObject;
+        std::atomic<uint8_t> owners;
+        km::TlsfAllocation handle;
+        sm::RcuSharedPtr<IMemoryObject> object;
 
         MemorySegment(km::TlsfAllocation handle)
             : MemorySegment(1, handle)
         { }
 
         MemorySegment(uint8_t owners, km::TlsfAllocation handle)
-            : mOwners(owners)
-            , mHandle(handle)
+            : owners(owners)
+            , handle(handle)
         { }
 
         MemorySegment(MemorySegment&& other)
-            : mOwners(other.mOwners.load())
-            , mHandle(std::move(other.mHandle))
+            : owners(other.owners.load())
+            , handle(std::move(other.handle))
         { }
 
         MemorySegmentStats stats() const noexcept [[clang::nonallocating]] {
             return MemorySegmentStats {
-                .range = mHandle.range(),
-                .owners = mOwners.load(std::memory_order_relaxed),
+                .range = handle.range(),
+                .owners = owners.load(std::memory_order_relaxed),
             };
+        }
+
+        km::MemoryRange range() const noexcept [[clang::nonallocating]] {
+            return handle.range();
         }
     };
 
