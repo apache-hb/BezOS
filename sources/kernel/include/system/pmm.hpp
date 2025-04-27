@@ -1,5 +1,6 @@
 #pragma once
 
+#include "log.hpp"
 #include "memory/heap.hpp"
 #include "memory/range.hpp"
 #include "std/rcuptr.hpp"
@@ -77,6 +78,7 @@ namespace sys2 {
         [[nodiscard]]
         OsStatus retainSegment(Iterator it, km::PhysicalAddress midpoint, ReleaseSide side);
 
+        bool releaseEntry(km::PhysicalAddress address);
         bool releaseEntry(Iterator it);
         bool releaseSegment(sys2::MemorySegment& segment);
 
@@ -111,5 +113,11 @@ namespace sys2 {
 
         [[nodiscard]]
         OsStatus querySegment(km::PhysicalAddress address, MemorySegmentStats *stats) noexcept [[clang::nonallocating]];
+
+        void dump() {
+            for (const auto& [_, segment] : mSegments) {
+                KmDebugMessage("Segment: ", segment.range(), " (owners: ", segment.owners.load(), ")\n");
+            }
+        }
     };
 }

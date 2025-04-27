@@ -275,6 +275,7 @@ TEST(MemoryManagerTest, ReleaseMany) {
     status = manager.release(subrange);
     EXPECT_EQ(status, OsStatusSuccess);
 
+    manager.dump();
     auto stats1 = manager.stats();
     ASSERT_EQ(stats1.segments, 2);
     ASSERT_EQ(stats1.heapStats.usedMemory, x64::kPageSize * 2 * 2);
