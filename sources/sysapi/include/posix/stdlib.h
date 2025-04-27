@@ -56,16 +56,16 @@ extern long long strtoll(const char *, char **, int) BZP_NOEXCEPT;
 extern unsigned long strtoul(const char *, char **, int) BZP_NOEXCEPT;
 extern unsigned long long strtoull(const char *, char **, int) BZP_NOEXCEPT;
 
-__attribute__((__nothrow__))
+__attribute__((__nothrow__, __malloc__, __alloc_size__(1)))
 extern void *malloc(size_t);
 
-__attribute__((__nothrow__))
+__attribute__((__nothrow__, __malloc__, __alloc_size__(2)))
 extern void *aligned_alloc(size_t, size_t);
 
-__attribute__((__nothrow__))
+__attribute__((__nothrow__, __malloc__, __alloc_size__(1, 2)))
 extern void *calloc(size_t, size_t);
 
-__attribute__((__nothrow__))
+__attribute__((__nothrow__, __malloc__, __alloc_size__(2)))
 extern void *realloc(void *, size_t);
 
 __attribute__((__nothrow__))

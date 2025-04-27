@@ -26,7 +26,10 @@ gtest = dependency('gtest_main', native : true)
 tests = {
     'memory range': [
         'test/memory_range.cpp'
-    ]
+    ],
+    'compiler': [
+        'test/compiler.cpp'
+    ],
 }
 
 test_exe_kwargs = {

@@ -2,6 +2,8 @@
 #include "log.hpp"
 #include "system/pmm.hpp"
 
+#include "common/compiler/compiler.hpp"
+
 OsStatus sys2::AddressSpaceManager::map(MemoryManager *manager, size_t size, size_t align, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping) [[clang::allocating]] {
     km::TlsfAllocation allocation = mHeap.aligned_alloc(align, size);
     if (allocation.isNull()) {
@@ -338,6 +340,9 @@ OsStatus sys2::AddressSpaceManager::unmap(MemoryManager *manager, km::VirtualRan
 }
 
 OsStatus sys2::AddressSpaceManager::querySegment(const void *address, AddressSegment *result) noexcept [[clang::nonallocating]] {
+    CLANG_DIAGNOSTIC_PUSH();
+    CLANG_DIAGNOSTIC_IGNORE("-Wfunction-effects");
+
     auto it = mSegments.upper_bound(address);
     if (it == mSegments.end()) {
         return OsStatusNotFound;
@@ -350,13 +355,20 @@ OsStatus sys2::AddressSpaceManager::querySegment(const void *address, AddressSeg
     }
 
     return OsStatusNotFound;
+
+    CLANG_DIAGNOSTIC_POP();
 }
 
 sys2::AddressSpaceManagerStats sys2::AddressSpaceManager::stats() noexcept [[clang::nonallocating]] {
+    CLANG_DIAGNOSTIC_PUSH();
+    CLANG_DIAGNOSTIC_IGNORE("-Wfunction-effects");
+
     return sys2::AddressSpaceManagerStats {
         .heapStats = mHeap.stats(),
         .segments = mSegments.size(),
     };
+
+    CLANG_DIAGNOSTIC_POP();
 }
 
 OsStatus sys2::AddressSpaceManager::create(const km::PageBuilder *pm, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager) [[clang::allocating]] {

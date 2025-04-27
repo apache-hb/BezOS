@@ -7,6 +7,12 @@
 #   define BZP_HAS_ATTRIBUTE(x) 0
 #endif
 
+#if defined(__has_feature)
+#   define BZP_HAS_FEATURE(x) __has_feature(x)
+#else
+#   define BZP_HAS_FEATURE(x) 0
+#endif
+
 #if defined(__cplusplus)
 #   define BZP_NORETURN [[noreturn]]
 #else
@@ -25,6 +31,14 @@
 #   define BZP_RETURNS_NONNULL __attribute__((returns_nonnull))
 #else
 #   define BZP_RETURNS_NONNULL
+#endif
+
+#if BZP_HAS_ATTRIBUTE(allocating)
+#   define BZP_ALLOCATING __attribute__((allocating))
+#   define BZP_NONALLOCATING __attribute__((nonallocating))
+#else
+#   define BZP_ALLOCATING
+#   define BZP_NONALLOCATING
 #endif
 
 #if defined(__GNUC__) || defined(__clang__)

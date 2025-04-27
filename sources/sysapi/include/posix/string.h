@@ -18,12 +18,16 @@
 
 BZP_API_BEGIN
 
+__attribute__((__nothrow__, __nonallocating__))
 extern void *memcpy(void *, const void *, size_t) BZP_NOEXCEPT BZP_NONNULL_ALL;
 
+__attribute__((__nothrow__, __nonallocating__))
 extern void *memmove(void *, const void *, size_t) BZP_NOEXCEPT BZP_NONNULL_ALL;
 
+__attribute__((__nothrow__, __nonallocating__))
 extern void *memset(void *, int, size_t) BZP_NOEXCEPT BZP_NONNULL_ALL;
 
+__attribute__((__nothrow__, __nonallocating__))
 extern int memcmp(const void *, const void *, size_t) BZP_NOEXCEPT BZP_NONNULL_ALL;
 
 extern void *memchr(const void *, int, size_t) BZP_NOEXCEPT BZP_NONNULL_ALL;
@@ -62,8 +66,10 @@ extern char *strcpy(char *, const char *) BZP_NOEXCEPT BZP_NONNULL_ALL;
 
 extern char *strncpy(char *, const char *, size_t) BZP_NOEXCEPT BZP_NONNULL_ALL;
 
+__attribute__((__nothrow__, __malloc__))
 extern char *strdup(const char *) BZP_NOEXCEPT BZP_NONNULL_ALL;
 
+__attribute__((__nothrow__, __malloc__))
 extern char *strndup(const char *, size_t) BZP_NOEXCEPT BZP_NONNULL_ALL;
 
 extern char *strerror(int) BZP_NOEXCEPT;

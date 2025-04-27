@@ -41,11 +41,13 @@ extern "C" void abort() {
     KM_PANIC("abort() called");
 }
 
+__attribute__((__nothrow__, __nonallocating__))
 extern "C" void *memcpy(void *dest, const void *source, size_t n) {
     KmMemoryCopy(dest, source, n);
     return dest;
 }
 
+__attribute__((__nothrow__, __nonallocating__))
 extern "C" void *memset(void *dst, int value, size_t n) {
     KmMemorySet(dst, value, n);
     return dst;
@@ -91,6 +93,7 @@ extern "C" int strcmp(const char *s1, const char *s2) {
     return *(unsigned char *)s1 - *(unsigned char *)s2;
 }
 
+__attribute__((__nothrow__, __nonallocating__))
 extern "C" void *memmove(void *dest, const void *src, size_t n) {
     uint8_t *pdest = (uint8_t *)dest;
     const uint8_t *psrc = (const uint8_t *)src;
@@ -108,6 +111,7 @@ extern "C" void *memmove(void *dest, const void *src, size_t n) {
     return dest;
 }
 
+__attribute__((__nothrow__, __nonallocating__))
 extern "C" int memcmp(const void *s1, const void *s2, size_t n) {
     const uint8_t *p1 = (const uint8_t *)s1;
     const uint8_t *p2 = (const uint8_t *)s2;
