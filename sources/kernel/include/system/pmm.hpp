@@ -78,6 +78,9 @@ namespace sys2 {
         [[nodiscard]]
         OsStatus retainSegment(Iterator it, km::PhysicalAddress midpoint, ReleaseSide side);
 
+        void retainEntry(Iterator it);
+        void retainEntry(km::PhysicalAddress address);
+
         bool releaseEntry(km::PhysicalAddress address);
         bool releaseEntry(Iterator it);
         bool releaseSegment(sys2::MemorySegment& segment);

@@ -105,6 +105,51 @@ TEST(MemoryManagerTest, ReleaseHead) {
     EXPECT_EQ(ss0.range, range.cut(subrange));
 }
 
+TEST(MemoryManagerTest, QuerySegment) {
+    sys2::MemoryManager manager;
+    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    km::MemoryRange range;
+    status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_EQ(range.size(), x64::kPageSize * 4);
+
+    auto stats0 = manager.stats();
+    ASSERT_EQ(stats0.segments, 1);
+    ASSERT_EQ(stats0.heapStats.usedMemory, x64::kPageSize * 4);
+    ASSERT_EQ(stats0.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 4);
+
+    km::MemoryRange subrange = { range.front, range.back - x64::kPageSize * 2 };
+    status = manager.retain(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    auto stats1 = manager.stats();
+    ASSERT_EQ(stats1.segments, 2);
+    ASSERT_EQ(stats1.heapStats.usedMemory, x64::kPageSize * 4);
+    ASSERT_EQ(stats1.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 4);
+
+    sys2::MemorySegmentStats ss0;
+    status = manager.querySegment(range.back - 1, &ss0);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_EQ(ss0.owners, 1);
+    EXPECT_EQ(ss0.range, range.cut(subrange));
+
+    sys2::MemorySegmentStats ss1;
+    status = manager.querySegment(subrange.back - 1, &ss1);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_EQ(ss1.owners, 2);
+    EXPECT_EQ(ss1.range, subrange);
+
+    sys2::MemorySegmentStats ss2;
+    status = manager.querySegment(range.back, &ss2);
+    EXPECT_EQ(status, OsStatusNotFound);
+
+    sys2::MemorySegmentStats ss3;
+    status = manager.querySegment(range.front - 1, &ss3);
+    EXPECT_EQ(status, OsStatusNotFound);
+}
+
 TEST(MemoryManagerTest, ReleaseSpillFront) {
     sys2::MemoryManager manager;
     OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
@@ -275,7 +320,6 @@ TEST(MemoryManagerTest, ReleaseMany) {
     status = manager.release(subrange);
     EXPECT_EQ(status, OsStatusSuccess);
 
-    manager.dump();
     auto stats1 = manager.stats();
     ASSERT_EQ(stats1.segments, 2);
     ASSERT_EQ(stats1.heapStats.usedMemory, x64::kPageSize * 2 * 2);
@@ -615,4 +659,160 @@ TEST(MemoryManagerTest, OverlapOps) {
         << "range " << std::string_view(km::format(range))
         << " ss2Range " << std::string_view(km::format(ss2Range))
         << " ss2 " << std::string_view(km::format(ss2.range));
+}
+
+TEST(MemoryManagerTest, RetainManyExactFront) {
+    sys2::MemoryManager manager;
+    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    std::array<km::MemoryRange, 3> ranges;
+    for (auto& range : ranges) {
+        status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
+        EXPECT_EQ(status, OsStatusSuccess);
+        EXPECT_EQ(range.size(), x64::kPageSize * 4);
+    }
+
+    std::sort(ranges.begin(), ranges.end(), [](const auto& lhs, const auto& rhs) {
+        return lhs.front < rhs.front;
+    });
+
+    km::MemoryRange subrange = { ranges.front().front, ranges.back().back - x64::kPageSize * 2 };
+
+    auto stats0 = manager.stats();
+    ASSERT_EQ(stats0.segments, ranges.size());
+    ASSERT_EQ(stats0.heapStats.usedMemory, x64::kPageSize * 4 * ranges.size());
+    ASSERT_EQ(stats0.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 4 * ranges.size());
+
+    status = manager.retain(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    auto stats1 = manager.stats();
+    ASSERT_EQ(stats1.segments, 4); // one segment will be split by the retain
+    ASSERT_EQ(stats1.heapStats.usedMemory, x64::kPageSize * 4 * 3);
+    ASSERT_EQ(stats1.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 4 * 3);
+
+    sys2::MemorySegmentStats ss0;
+    km::MemoryRange ss0Range = { ranges.front().front, ranges.front().back };
+    status = manager.querySegment(ranges.front().front, &ss0);
+    EXPECT_EQ(status, OsStatusSuccess) << "Query for " << (void*)ranges.front().front.address << " failed";
+    EXPECT_EQ(ss0.owners, 2);
+    EXPECT_EQ(ss0.range, ss0Range);
+
+    sys2::MemorySegmentStats ss1;
+    km::MemoryRange ss1Range = { ranges.back().back - x64::kPageSize * 2, ranges.back().back };
+    status = manager.querySegment(ranges.back().back - 1, &ss1);
+    EXPECT_EQ(status, OsStatusSuccess) << "Query for " << (void*)ranges.back().back.address << " failed";
+    EXPECT_EQ(ss1.owners, 1);
+    EXPECT_EQ(ss1.range, ss1Range);
+
+    sys2::MemorySegmentStats ss2;
+    status = manager.querySegment(ranges[1].front, &ss2);
+    EXPECT_EQ(status, OsStatusSuccess) << "Query for " << (void*)ranges[1].front.address << " failed";
+    EXPECT_EQ(ss2.owners, 2);
+}
+
+TEST(MemoryManagerTest, RetainManyExactBack) {
+    sys2::MemoryManager manager;
+    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    std::array<km::MemoryRange, 3> ranges;
+    for (auto& range : ranges) {
+        status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
+        EXPECT_EQ(status, OsStatusSuccess);
+        EXPECT_EQ(range.size(), x64::kPageSize * 4);
+    }
+
+    std::sort(ranges.begin(), ranges.end(), [](const auto& lhs, const auto& rhs) {
+        return lhs.front < rhs.front;
+    });
+
+    km::MemoryRange subrange = { ranges.front().front + x64::kPageSize * 2, ranges.back().back };
+
+    auto stats0 = manager.stats();
+    ASSERT_EQ(stats0.segments, ranges.size());
+    ASSERT_EQ(stats0.heapStats.usedMemory, x64::kPageSize * 4 * ranges.size());
+    ASSERT_EQ(stats0.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 4 * ranges.size());
+
+    status = manager.retain(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    auto stats1 = manager.stats();
+    ASSERT_EQ(stats1.segments, 4); // one segment will be split by the retain
+    ASSERT_EQ(stats1.heapStats.usedMemory, x64::kPageSize * 4 * 3);
+    ASSERT_EQ(stats1.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 4 * 3);
+
+    sys2::MemorySegmentStats ss0;
+    km::MemoryRange ss0Range = { ranges.front().front + x64::kPageSize * 2, ranges.front().back };
+    status = manager.querySegment(ranges.front().back - 1, &ss0);
+    EXPECT_EQ(status, OsStatusSuccess) << "Query for " << (void*)ranges.front().front.address << " failed";
+    EXPECT_EQ(ss0.owners, 2);
+    EXPECT_EQ(ss0.range, ss0Range) << " ss0Range " << std::string_view(km::format(ss0Range))
+        << " ss0 " << std::string_view(km::format(ss0.range));
+
+    sys2::MemorySegmentStats ss1;
+    km::MemoryRange ss1Range = ranges.back();
+    status = manager.querySegment(ranges.back().back - 1, &ss1);
+    EXPECT_EQ(status, OsStatusSuccess) << "Query for " << (void*)ranges.back().back.address << " failed";
+    EXPECT_EQ(ss1.owners, 2);
+    EXPECT_EQ(ss1.range, ss1Range);
+
+    sys2::MemorySegmentStats ss2;
+    status = manager.querySegment(ranges[1].front, &ss2);
+    EXPECT_EQ(status, OsStatusSuccess) << "Query for " << (void*)ranges[1].front.address << " failed";
+    EXPECT_EQ(ss2.owners, 2);
+}
+
+TEST(MemoryManagerTest, RetainManyExactBoth) {
+    sys2::MemoryManager manager;
+    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    std::array<km::MemoryRange, 3> ranges;
+    for (auto& range : ranges) {
+        status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
+        EXPECT_EQ(status, OsStatusSuccess);
+        EXPECT_EQ(range.size(), x64::kPageSize * 4);
+    }
+
+    std::sort(ranges.begin(), ranges.end(), [](const auto& lhs, const auto& rhs) {
+        return lhs.front < rhs.front;
+    });
+
+    km::MemoryRange subrange = { ranges.front().front, ranges.back().back };
+
+    auto stats0 = manager.stats();
+    ASSERT_EQ(stats0.segments, ranges.size());
+    ASSERT_EQ(stats0.heapStats.usedMemory, x64::kPageSize * 4 * ranges.size());
+    ASSERT_EQ(stats0.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 4 * ranges.size());
+
+    status = manager.retain(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    auto stats1 = manager.stats();
+    ASSERT_EQ(stats1.segments, 3);
+    ASSERT_EQ(stats1.heapStats.usedMemory, x64::kPageSize * 4 * 3);
+    ASSERT_EQ(stats1.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 4 * 3);
+
+    sys2::MemorySegmentStats ss0;
+    km::MemoryRange ss0Range = { ranges.front().front, ranges.front().back };
+    status = manager.querySegment(ranges.front().front, &ss0);
+    EXPECT_EQ(status, OsStatusSuccess) << "Query for " << (void*)ranges.front().front.address << " failed";
+    EXPECT_EQ(ss0.owners, 2);
+    EXPECT_EQ(ss0.range, ss0Range);
+
+    sys2::MemorySegmentStats ss1;
+    km::MemoryRange ss1Range = { ranges.back().front, ranges.back().back };
+    status = manager.querySegment(ranges.back().back - 1, &ss1);
+    EXPECT_EQ(status, OsStatusSuccess) << "Query for " << (void*)ranges.back().back.address << " failed";
+    EXPECT_EQ(ss1.owners, 2);
+    EXPECT_EQ(ss1.range, ss1Range) << " ss1Range " << std::string_view(km::format(ss1Range))
+        << " ss1 " << std::string_view(km::format(ss1.range));
+
+    sys2::MemorySegmentStats ss2;
+    status = manager.querySegment(ranges[1].front, &ss2);
+    EXPECT_EQ(status, OsStatusSuccess) << "Query for " << (void*)ranges[1].front.address << " failed";
+    EXPECT_EQ(ss2.owners, 2) << " ss2 " << std::string_view(km::format(ss2.range))
+        << " range " << std::string_view(km::format(ranges[1]));
 }
