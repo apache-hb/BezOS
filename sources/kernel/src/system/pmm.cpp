@@ -518,8 +518,13 @@ OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating
             //     |----range-----|
             return splitSegment(begin, range.front, kHigh);
         } else {
-            if (end != mSegments.end()) {
-                ++end;
+            km::MemoryRange remaining = range;
+            switch (OsStatus status = releaseRange(begin, range, &remaining)) {
+            case OsStatusCompleted:
+                return OsStatusSuccess;
+            default:
+                KmDebugMessage("Invalid state: ", range, ": ", status, "\n");
+                KM_ASSERT(false);
             }
         }
     }
