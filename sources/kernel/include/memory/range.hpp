@@ -7,6 +7,7 @@
 
 #include "util/format.hpp"
 #include "common/util/util.hpp"
+#include "common/virtual_address.hpp"
 
 #define KM_INVALID_MEMORY km::PhysicalAddress(UINTPTR_MAX)
 #define KM_INVALID_ADDRESS ((void*)UINTPTR_MAX)
@@ -330,6 +331,15 @@ struct km::Format<km::PhysicalAddress> {
     static constexpr size_t kStringSize = km::kFormatSize<Hex<uintptr_t>>;
 
     static void format(km::IOutStream& out, km::PhysicalAddress value) {
+        out.write(Hex(value.address).pad(16, '0'));
+    }
+};
+
+template<>
+struct km::Format<sm::VirtualAddress> {
+    static constexpr size_t kStringSize = km::kFormatSize<Hex<uintptr_t>>;
+
+    static void format(km::IOutStream& out, sm::VirtualAddress value) {
         out.write(Hex(value.address).pad(16, '0'));
     }
 };

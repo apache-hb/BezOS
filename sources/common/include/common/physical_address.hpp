@@ -1,7 +1,6 @@
 #pragma once
 
 #include <compare> // IWYU pragma: keep
-#include <bit>
 
 #include <cstddef>
 #include <cstdint>

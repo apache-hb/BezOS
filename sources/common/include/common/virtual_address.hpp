@@ -1,7 +1,8 @@
 #pragma once
 
-#include <compare> // IWYU pragma: keep
+#include <compare> // IWYU pragma: keep - std::strong_ordering
 #include <bit>
+#include <memory> // IWYU pragma: keep - std::hash<>
 
 #include <cstddef>
 #include <cstdint>
@@ -48,8 +49,20 @@ namespace sm {
             return VirtualAddress { address + offset };
         }
 
+        constexpr VirtualAddress operator+(VirtualAddress offset) const noexcept {
+            return VirtualAddress { address + offset.address };
+        }
+
         constexpr VirtualAddress operator-(intptr_t offset) const noexcept {
             return VirtualAddress { address - offset };
+        }
+
+        constexpr VirtualAddress operator-(VirtualAddress offset) const noexcept {
+            return VirtualAddress { address - offset.address };
+        }
+
+        constexpr uintptr_t operator%(uintptr_t offset) const noexcept {
+            return address % offset;
         }
 
         constexpr VirtualAddress& operator--() noexcept {
@@ -158,3 +171,17 @@ namespace sm {
         }
     };
 }
+
+template<>
+struct std::hash<sm::VirtualAddress> {
+    size_t operator()(const sm::VirtualAddress& address) const noexcept {
+        return std::hash<uintptr_t>()(address.address);
+    }
+};
+
+template<typename T>
+struct std::hash<sm::VirtualAddressOf<T>> {
+    size_t operator()(const sm::VirtualAddressOf<T>& address) const noexcept {
+        return std::hash<uintptr_t>()(address.address);
+    }
+};

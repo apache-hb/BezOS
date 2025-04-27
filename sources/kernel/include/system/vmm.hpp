@@ -18,6 +18,12 @@ namespace sys2 {
         km::VirtualRange virtualRange() const noexcept [[clang::nonallocating]] {
             return allocation.range().cast<const void*>();
         }
+
+        km::AddressMapping mapping() const noexcept [[clang::nonallocating]] {
+            auto front = allocation.address();
+            const void *vaddr = std::bit_cast<const void*>(front);
+            return km::MappingOf(range, vaddr);
+        }
     };
 
     struct AddressSpaceManagerStats {

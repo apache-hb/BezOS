@@ -64,14 +64,37 @@ namespace km {
             return size == 0;
         }
 
+        /// @brief Create a mapping that contains the first N bytes of the mapping.
         constexpr AddressMapping first(size_t bytes) const {
             return { vaddr, paddr, bytes };
         }
 
+        /// @brief Create a mapping that contains the last N bytes of the mapping.
         AddressMapping last(size_t bytes) const {
             const char *vbegin = (const char*)vaddr + size - bytes;
             PhysicalAddress pbegin = paddr + size - bytes;
             return { vbegin, pbegin, bytes };
+        }
+
+        /// @brief Create a mapping that contains the specified subrange.
+        constexpr AddressMapping subrange(size_t offset, size_t bytes) const {
+            const void *vbegin = (const char*)vaddr + offset;
+            PhysicalAddress pbegin = paddr + offset;
+            return { vbegin, pbegin, bytes };
+        }
+
+        constexpr AddressMapping subrange(size_t offset) const {
+            return subrange(offset, size - offset);
+        }
+
+        constexpr AddressMapping subrange(VirtualRange range) const {
+            size_t offset = (const char*)range.front - (const char*)vaddr;
+            size_t bytes = range.size();
+            if (offset + bytes > size) {
+                bytes = size - offset;
+            }
+
+            return subrange(offset, bytes);
         }
 
         constexpr AddressMapping offset(intptr_t offset) const {

@@ -3,6 +3,8 @@
 #include "log.hpp"
 #include "memory/heap_command_list.hpp"
 
+#include "common/compiler/compiler.hpp"
+
 OsStatus sys2::MemoryManager::retainRange(Iterator it, km::MemoryRange range, km::MemoryRange *remaining) {
     auto& segment = it->second;
     km::MemoryRange seg = segment.handle.range();
@@ -473,13 +475,19 @@ OsStatus sys2::MemoryManager::create(km::TlsfHeap&& heap, MemoryManager *manager
 }
 
 sys2::MemoryManagerStats sys2::MemoryManager::stats() noexcept [[clang::nonallocating]] {
+    DIAGNOSTIC_BEGIN_IGNORE("-Wfunction-effects");
+
     return MemoryManagerStats {
         .heapStats = mHeap.stats(),
         .segments = mSegments.size(),
     };
+
+    DIAGNOSTIC_END_IGNORE();
 }
 
 OsStatus sys2::MemoryManager::querySegment(km::PhysicalAddress address, MemorySegmentStats *stats) noexcept [[clang::nonallocating]] {
+    DIAGNOSTIC_BEGIN_IGNORE("-Wfunction-effects");
+
     auto it = mSegments.upper_bound(address);
     if (it == mSegments.end()) {
         return OsStatusNotFound;
@@ -494,4 +502,6 @@ OsStatus sys2::MemoryManager::querySegment(km::PhysicalAddress address, MemorySe
 
     *stats = result;
     return OsStatusSuccess;
+
+    DIAGNOSTIC_END_IGNORE();
 }

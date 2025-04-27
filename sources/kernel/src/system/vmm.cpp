@@ -1,5 +1,4 @@
 #include "system/vmm.hpp"
-#include "log.hpp"
 #include "system/pmm.hpp"
 
 #include "common/compiler/compiler.hpp"
@@ -45,7 +44,8 @@ OsStatus sys2::AddressSpaceManager::mapSegment(
 ) [[clang::allocating]] {
     OsStatus status = OsStatusSuccess;
     auto& segment = it->second;
-    km::VirtualRange seg = segment.virtualRange();
+    auto segmentMapping = segment.mapping();
+    km::VirtualRange seg = segmentMapping.virtualRange();
 
     km::VirtualRange subrange = km::intersection(seg, src);
     size_t frontOffset = (uintptr_t)subrange.front - (uintptr_t)seg.front;

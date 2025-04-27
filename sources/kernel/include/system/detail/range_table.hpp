@@ -5,11 +5,60 @@
 #include "util/absl.hpp"
 
 namespace sys2::detail {
-    template<typename T, typename Super>
+    template<typename T>
     class RangeTable {
-        using CommandList = typename Super::CommandList;
         using Range = decltype(std::declval<T>().range());
-        using Element = typename Range::Type;
-        using Map = sm::BTreeMap<Element, T>;
+        using Address = typename Range::ValueType;
+        using Map = sm::BTreeMap<Address, T>;
+
+        Map mSegments;
+    public:
+        using Iterator = typename Map::iterator;
+
+        constexpr RangeTable() noexcept = default;
+
+        /// @brief Return an iterator to the segment that contains the given address.
+        Iterator find(Address address) noexcept {
+            if (auto it = mSegments.lower_bound(address); it != mSegments.end()) {
+                auto& [_, segment] = *it;
+                auto range = segment.range();
+                if (range.contains(address)) {
+                    return it;
+                }
+            }
+
+            return mSegments.end();
+        }
+
+        std::pair<Iterator, Iterator> find(Range range) noexcept {
+            auto begin = find(range.front);
+            auto end = find(range.back);
+            return { begin, end };
+        }
+
+        Iterator begin() noexcept {
+            return mSegments.begin();
+        }
+
+        Iterator end() noexcept {
+            return mSegments.end();
+        }
+
+        void insert(T&& segment) noexcept {
+            auto range = segment.range();
+            mSegments.insert({ range.back, std::move(segment) });
+        }
+
+        void erase(Iterator it) noexcept {
+            mSegments.erase(it);
+        }
+
+        void erase(Address address) noexcept {
+            mSegments.erase(address);
+        }
+
+        size_t segments() const noexcept {
+            return mSegments.size();
+        }
     };
 }
