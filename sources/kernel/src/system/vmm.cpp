@@ -305,8 +305,8 @@ OsStatus sys2::AddressSpaceManager::unmapSegment(MemoryManager *manager, Iterato
 }
 
 OsStatus sys2::AddressSpaceManager::unmap(MemoryManager *manager, km::VirtualRange range) [[clang::allocating]] {
-    Iterator begin;
-    Iterator end;
+    Iterator begin = mSegments.lower_bound(range.front);
+    Iterator end =  mSegments.lower_bound(range.back);
 
     auto updateIterators = [&](km::VirtualRange newRange) {
         begin = mSegments.lower_bound(newRange.front);
@@ -317,9 +317,95 @@ OsStatus sys2::AddressSpaceManager::unmap(MemoryManager *manager, km::VirtualRan
         }
     };
 
-    updateIterators(range);
     if (begin == mSegments.end()) {
         return OsStatusNotFound;
+    }
+
+
+    //     |--------seg-------|
+    // |--------range-----|
+
+    // |--------seg-------|
+    //     |--------range-----|
+
+    // |----lhs----|   |----rhs----|
+    // |-----------range-----------|
+
+    // |----lhs----|   |----rhs----|
+    // |-------range------|
+
+    // |----lhs----|   |----rhs----|
+    //       |--------range--------|
+
+    // |----lhs----|   |----rhs----|
+    //     |-------range-------|
+
+    if (begin == end) {
+        auto& segment = begin->second;
+        auto mapping = segment.mapping();
+        auto seg = mapping.virtualRange();
+        if (seg == range) {
+            // |--------seg-------|
+            // |--------range-----|
+            OsStatus status = OsStatusSuccess;
+
+            status = manager->release(mapping.physicalRange());
+            KM_ASSERT(status == OsStatusSuccess);
+
+            status = mPageTables.unmap(seg);
+            KM_ASSERT(status == OsStatusSuccess);
+
+            mHeap.free(segment.allocation);
+
+            mSegments.erase(begin);
+            return OsStatusSuccess;
+        } else if (km::innerAdjacent(seg, range)) {
+            if (range.front == seg.front) {
+                // |--------seg-------|
+                // |---range---|
+                return splitSegment(manager, begin, range.back, kLow);
+            } else {
+                KM_ASSERT(range.back == seg.back);
+                // |--------seg-------|
+                //        |---range---|
+                return splitSegment(manager, begin, range.front, kHigh);
+            }
+        } else if (seg.contains(range)) {
+            // |--------seg-------|
+            //     |---range---|
+            OsStatus status = OsStatusSuccess;
+
+            km::AddressMapping subrange = mapping.subrange(range);
+            auto physicalRange = subrange.physicalRange();
+
+            std::array<km::TlsfAllocation, 3> allocations;
+            std::array<km::PhysicalAddress, 2> points = {
+                (uintptr_t)range.front,
+                (uintptr_t)range.back,
+            };
+
+            if (OsStatus status = mHeap.splitv(segment.allocation, points, allocations)) {
+                return status;
+            }
+
+            status = manager->release(subrange.physicalRange());
+            KM_ASSERT(status == OsStatusSuccess);
+
+            status = mPageTables.unmap(subrange.virtualRange());
+            KM_ASSERT(status == OsStatusSuccess);
+
+            AddressSegment loSegment { physicalRange, allocations[0] };
+            AddressSegment hiSegment { physicalRange, allocations[2] };
+
+            mSegments.erase(begin);
+
+            addSegment(std::move(loSegment));
+            addSegment(std::move(hiSegment));
+
+            return OsStatusSuccess;
+        }
+    } else if (end != mSegments.end()) {
+
     }
 
     km::VirtualRange remaining = range;

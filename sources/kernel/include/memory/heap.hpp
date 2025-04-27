@@ -62,7 +62,7 @@ namespace km {
 
         OsStatus addPool(MemoryRange range) [[clang::allocating]];
 
-        void splitBlock(TlsfAllocation ptr, PhysicalAddress midpoint, TlsfAllocation *lo [[gnu::nonnull]], TlsfAllocation *hi [[gnu::nonnull]], TlsfBlock *newBlock [[gnu::nonnull]]);
+        void splitBlock(TlsfBlock *block, PhysicalAddress midpoint, TlsfAllocation *lo [[gnu::nonnull]], TlsfAllocation *hi [[gnu::nonnull]], TlsfBlock *newBlock [[gnu::nonnull]]);
 
         TlsfAllocation allocBestFit(size_t align, size_t size) [[clang::allocating]];
 
@@ -178,6 +178,9 @@ namespace km {
         /// @return OsStatusSuccess if the operation is successful, otherwise a status code
         [[nodiscard]]
         OsStatus splitv(TlsfAllocation ptr, std::span<const PhysicalAddress> points, std::span<TlsfAllocation> results) [[clang::allocating]];
+
+        [[nodiscard]]
+        OsStatus reserve(MemoryRange range, TlsfAllocation *result) [[clang::allocating]];
 
         /// @brief Gather statistics about the heap.
         TlsfHeapStats stats() const noexcept [[clang::nonallocating]];

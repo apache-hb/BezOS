@@ -108,6 +108,9 @@ enum OsStatusId {
 
     /// @brief The parent process has exited and this process is now orphaned.
     OsStatusProcessOrphaned = 0x001d,
+
+    /// @brief The requested resource was found, but is not available.
+    OsStatusNotAvailable = 0x001e,
 };
 
 #define OS_SUCCESS(status) ((status) == OsStatusSuccess)

@@ -448,10 +448,9 @@ void TlsfHeap::free(TlsfAllocation address) noexcept [[clang::nonallocating]] {
     mFreeCount += 1;
 }
 
-void TlsfHeap::splitBlock(TlsfAllocation ptr, PhysicalAddress midpoint, TlsfAllocation *lo, TlsfAllocation *hi, TlsfBlock *newBlock) {
-    TlsfBlock *block = ptr.getBlock();
-    PhysicalAddress base = ptr.address();
-    size_t size = midpoint.address - base.address;
+void TlsfHeap::splitBlock(TlsfBlock *block, PhysicalAddress midpoint, TlsfAllocation *lo, TlsfAllocation *hi, TlsfBlock *newBlock) {
+    size_t base = block->offset;
+    size_t size = midpoint.address - base;
     size_t extraSize = block->size - size;
 
     KM_ASSERT(size > 0);
@@ -496,7 +495,7 @@ OsStatus TlsfHeap::split(TlsfAllocation ptr, PhysicalAddress midpoint, TlsfAlloc
         return OsStatusOutOfMemory;
     }
 
-    splitBlock(ptr, midpoint, lo, hi, newBlock);
+    splitBlock(ptr.getBlock(), midpoint, lo, hi, newBlock);
 
     return OsStatusSuccess;
 }
@@ -553,16 +552,75 @@ OsStatus TlsfHeap::splitv(TlsfAllocation ptr, std::span<const PhysicalAddress> p
     TlsfAllocation lo = ptr;
     TlsfAllocation hi;
     for (size_t i = 0; i < points.size() - 1; i++) {
-        splitBlock(lo, points[i], &lo, &hi, next);
+        splitBlock(lo.getBlock(), points[i], &lo, &hi, next);
         next = storage[i + 2];
         results[i] = lo;
         lo = hi;
     }
-    splitBlock(lo, points.back(), &lo, &hi, next);
+    splitBlock(lo.getBlock(), points.back(), &lo, &hi, next);
     results[points.size() - 1] = lo;
     results[points.size()] = hi;
 
     return OsStatusSuccess;
+}
+
+OsStatus TlsfHeap::reserve(MemoryRange range, TlsfAllocation *result) [[clang::allocating]] {
+    TlsfBlock *block = mNullBlock;
+    while (block != nullptr) {
+        km::MemoryRange blockRange { block->offset, block->offset + block->size };
+        if (blockRange.contains(range) || blockRange == range) {
+            if (block->isUsed()) {
+                // The range is already in use
+                return OsStatusAlreadyExists;
+            }
+
+            bool lhsSplit = blockRange.front < range.front;
+            bool rhsSplit = blockRange.back > range.back;
+
+            if (lhsSplit && rhsSplit) {
+                BlockBuffer<2> buffer(&mBlockPool);
+                if (OsStatus status = buffer.reserve(2)) {
+                    return status;
+                }
+
+                TlsfAllocation lo, mid, hi;
+                splitBlock(block, range.front, &lo, &mid, buffer.take({}));
+                splitBlock(mid.getBlock(), range.back, &mid, &hi, buffer.take({}));
+
+                mid.getBlock()->markTaken();
+                *result = mid;
+                return OsStatusSuccess;
+            } else if (lhsSplit) {
+                TlsfBlock *newBlock = mBlockPool.construct();
+                if (newBlock == nullptr) {
+                    return OsStatusOutOfMemory;
+                }
+
+                TlsfAllocation lo, hi;
+                splitBlock(block, range.front, &lo, &hi, newBlock);
+                block->markTaken();
+                *result = hi;
+                return OsStatusSuccess;
+            } else if (rhsSplit) {
+                TlsfBlock *newBlock = mBlockPool.construct();
+                if (newBlock == nullptr) {
+                    return OsStatusOutOfMemory;
+                }
+
+                TlsfAllocation lo, hi;
+                splitBlock(block, range.back, &lo, &hi, newBlock);
+                block->markTaken();
+                *result = lo;
+                return OsStatusSuccess;
+            } else {
+                block->markTaken();
+                *result = TlsfAllocation(block);
+                return OsStatusSuccess;
+            }
+        }
+    }
+
+    return OsStatusNotAvailable;
 }
 
 void TlsfHeap::detachBlock(TlsfBlock *block, size_t listIndex) noexcept [[clang::nonblocking]] {
@@ -780,7 +838,7 @@ OsStatus TlsfHeap::allocateSplitVectorBlocks(size_t points, detail::TlsfBlockLis
 
 void TlsfHeap::commitSplitBlock(TlsfAllocation ptr, PhysicalAddress midpoint, TlsfAllocation *lo, TlsfAllocation *hi, detail::TlsfBlockList& list) noexcept [[clang::nonallocating]] {
     TlsfBlock *block = list.next();
-    splitBlock(ptr, midpoint, lo, hi, block);
+    splitBlock(ptr.getBlock(), midpoint, lo, hi, block);
 }
 
 void TlsfHeap::commitSplitVectorBlocks(TlsfAllocation ptr, std::span<const PhysicalAddress> points, std::span<TlsfAllocation> results, detail::TlsfBlockList& list) noexcept [[clang::nonallocating]] {
@@ -788,12 +846,12 @@ void TlsfHeap::commitSplitVectorBlocks(TlsfAllocation ptr, std::span<const Physi
     TlsfAllocation lo = ptr;
     TlsfAllocation hi;
     for (size_t i = 0; i < points.size() - 1; i++) {
-        splitBlock(lo, points[i], &lo, &hi, next);
+        splitBlock(lo.getBlock(), points[i], &lo, &hi, next);
         results[i] = lo;
         lo = hi;
         next = list.next();
     }
-    splitBlock(lo, points.back(), &lo, &hi, next);
+    splitBlock(lo.getBlock(), points.back(), &lo, &hi, next);
     results[points.size() - 1] = lo;
     results[points.size()] = hi;
 }
