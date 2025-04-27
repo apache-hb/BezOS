@@ -208,26 +208,6 @@ OsStatus sys2::MemoryManager::releaseRange(Iterator it, km::MemoryRange range, k
         releaseEntry(it);
         *remaining = { seg.back, range.back };
         return OsStatusSuccess;
-    } else if (km::innerAdjacent(seg, range)) {
-        if (range.front == seg.front) {
-            // |--------seg-------|
-            // |--range--|
-            if (OsStatus status = splitSegment(it, range.back, kLow)) {
-                return status;
-            }
-
-            return OsStatusCompleted;
-        } else {
-            KM_ASSERT(range.back == seg.back);
-            // |--------seg-------|
-            //          |--range--|
-
-            if (OsStatus status = splitSegment(it, range.front, kHigh)) {
-                return status;
-            }
-
-            return OsStatusCompleted;
-        }
     } else {
         if (seg.front > range.front) {
             //       |--------seg-------|
