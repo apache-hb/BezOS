@@ -6,48 +6,9 @@
 #include <stdint.h>
 
 #include "common/util/util.hpp"
+#include "common/physical_address.hpp"
 
 namespace sm {
-    struct PhysicalAddress {
-        uintptr_t address;
-
-        constexpr PhysicalAddress() = default;
-
-        constexpr PhysicalAddress(uintptr_t address)
-            : address(address)
-        { }
-
-        constexpr PhysicalAddress(std::nullptr_t)
-            : address(0)
-        { }
-
-        constexpr auto operator<=>(const PhysicalAddress&) const = default;
-
-        constexpr PhysicalAddress& operator+=(intptr_t offset) {
-            address += offset;
-            return *this;
-        }
-
-        constexpr PhysicalAddress operator+(intptr_t offset) const {
-            return PhysicalAddress { address + offset };
-        }
-
-        constexpr intptr_t operator-(PhysicalAddress other) const {
-            return address - other.address;
-        }
-
-        constexpr PhysicalAddress& operator++() {
-            address += 1;
-            return *this;
-        }
-
-        constexpr PhysicalAddress operator++(int) {
-            PhysicalAddress copy = *this;
-            ++(*this);
-            return copy;
-        }
-    };
-
     /// @brief A range of address space.
     ///
     /// The terminology used for dealing with ranges is as follows:
