@@ -2,13 +2,19 @@
 
 #include "log.hpp"
 #include "memory/heap.hpp"
+#include "memory/memory.hpp"
 #include "memory/range.hpp"
-#include "std/rcuptr.hpp"
 #include "system/detail/range_table.hpp"
-#include "system/vmem.hpp"
-#include "util/absl.hpp"
 
 #include <atomic>
+
+namespace vfs2 {
+    class IFileHandle;
+}
+
+namespace km {
+    class AddressSpace;
+}
 
 namespace sys2 {
     struct MemorySegmentStats {
@@ -18,8 +24,7 @@ namespace sys2 {
 
     struct MemorySegment {
         std::atomic<uint8_t> owners;
-        km::TlsfAllocation handle;
-        sm::RcuSharedPtr<IMemoryObject> object;
+        km::TlsfAllocation allocation;
 
         MemorySegment(km::TlsfAllocation handle)
             : MemorySegment(1, handle)
@@ -27,23 +32,23 @@ namespace sys2 {
 
         MemorySegment(uint8_t owners, km::TlsfAllocation handle)
             : owners(owners)
-            , handle(handle)
+            , allocation(handle)
         { }
 
         MemorySegment(MemorySegment&& other)
             : owners(other.owners.load())
-            , handle(std::move(other.handle))
+            , allocation(std::move(other.allocation))
         { }
 
         MemorySegmentStats stats() const noexcept [[clang::nonallocating]] {
             return MemorySegmentStats {
-                .range = handle.range(),
+                .range = allocation.range(),
                 .owners = owners.load(std::memory_order_relaxed),
             };
         }
 
         km::MemoryRange range() const noexcept [[clang::nonallocating]] {
-            return handle.range();
+            return allocation.range();
         }
     };
 
@@ -152,4 +157,6 @@ namespace sys2 {
             }
         }
     };
+
+    OsStatus MapFileToMemory(vfs2::IFileHandle *file, MemoryManager *mm, km::AddressSpace *pt, size_t offset, size_t size, km::PageFlags flags, km::MemoryRange *range);
 }

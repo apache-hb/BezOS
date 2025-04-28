@@ -586,12 +586,9 @@ OsStatus sys2::AddressSpaceManager::create(const km::PageBuilder *pm, km::Addres
     return OsStatusSuccess;
 }
 
-OsStatus sys2::AddressSpaceManager::destroy(MemoryManager *manager) [[clang::allocating]] {
-    for (const auto& [_, segment] : mSegments) {
-        OsStatus status = manager->release(segment.range);
-        KM_ASSERT(status == OsStatusSuccess);
+void sys2::AddressSpaceManager::destroy(MemoryManager *manager) [[clang::allocating]] {
+    auto it = mSegments.begin();
+    while (it != mSegments.end()) {
+        it = eraseSegment(manager, it);
     }
-
-    mSegments.clear();
-    return OsStatusSuccess;
 }

@@ -8,7 +8,7 @@
 
 OsStatus sys2::MemoryManager::retainRange(Iterator it, km::MemoryRange range, km::MemoryRange *remaining) {
     auto& segment = it->second;
-    km::MemoryRange seg = segment.handle.range();
+    km::MemoryRange seg = segment.allocation.range();
 
     if (range.contains(seg)) {
         // |-----seg-----|
@@ -77,7 +77,7 @@ bool sys2::MemoryManager::releaseEntry(Iterator it) {
 
 bool sys2::MemoryManager::releaseSegment(sys2::MemorySegment& segment) {
     if (segment.owners.fetch_sub(1) == 1) {
-        mHeap.free(segment.handle);
+        mHeap.free(segment.allocation);
         return true;
     }
     return false;
@@ -91,7 +91,7 @@ OsStatus sys2::MemoryManager::retainSegment(Iterator it, km::PhysicalAddress mid
     auto& segment = it->second;
 
     km::TlsfAllocation lo, hi;
-    if (OsStatus status = mHeap.split(segment.handle, midpoint, &lo, &hi)) {
+    if (OsStatus status = mHeap.split(segment.allocation, midpoint, &lo, &hi)) {
         return status;
     }
 
@@ -122,7 +122,7 @@ OsStatus sys2::MemoryManager::splitSegment(Iterator it, km::PhysicalAddress midp
     auto& segment = it->second;
 
     km::TlsfAllocation lo, hi;
-    if (OsStatus status = mHeap.split(segment.handle, midpoint, &lo, &hi)) {
+    if (OsStatus status = mHeap.split(segment.allocation, midpoint, &lo, &hi)) {
         return status;
     }
 
@@ -154,7 +154,7 @@ OsStatus sys2::MemoryManager::splitSegment(Iterator it, km::PhysicalAddress midp
 
 OsStatus sys2::MemoryManager::releaseRange(Iterator it, km::MemoryRange range, km::MemoryRange *remaining) {
     auto& segment = it->second;
-    km::MemoryRange seg = segment.handle.range();
+    km::MemoryRange seg = segment.allocation.range();
     KM_ASSERT(km::interval(seg, range));
 
     if (range.contains(seg)) {
@@ -229,7 +229,7 @@ OsStatus sys2::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]
                 range.back,
             };
 
-            if (OsStatus status = mHeap.splitv(segment.handle, points, allocations)) {
+            if (OsStatus status = mHeap.splitv(segment.allocation, points, allocations)) {
                 return status;
             }
 
@@ -287,13 +287,13 @@ OsStatus sys2::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]
             km::TlsfAllocation rhsLo, rhsHi;
 
             if (lhsShouldSplit) {
-                if (OsStatus status = list.split(front.handle, range.front, &lhsLo, &lhsHi)) {
+                if (OsStatus status = list.split(front.allocation, range.front, &lhsLo, &lhsHi)) {
                     return status;
                 }
             }
 
             if (rhsShouldSplit) {
-                if (OsStatus status = list.split(back.handle, range.back, &rhsLo, &rhsHi)) {
+                if (OsStatus status = list.split(back.allocation, range.back, &rhsLo, &rhsHi)) {
                     return status;
                 }
             }
@@ -413,7 +413,7 @@ OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating
                 range.back,
             };
 
-            if (OsStatus status = mHeap.splitv(segment.handle, points, allocations)) {
+            if (OsStatus status = mHeap.splitv(segment.allocation, points, allocations)) {
                 return status;
             }
 
@@ -488,13 +488,13 @@ OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating
             km::TlsfAllocation rhsLo, rhsHi;
 
             if (lhsShouldSplit) {
-                if (OsStatus status = list.split(front.handle, range.front, &lhsLo, &lhsHi)) {
+                if (OsStatus status = list.split(front.allocation, range.front, &lhsLo, &lhsHi)) {
                     return status;
                 }
             }
 
             if (rhsShouldSplit) {
-                if (OsStatus status = list.split(back.handle, range.back, &rhsLo, &rhsHi)) {
+                if (OsStatus status = list.split(back.allocation, range.back, &rhsLo, &rhsHi)) {
                     return status;
                 }
             }
@@ -637,7 +637,7 @@ OsStatus sys2::MemoryManager::querySegment(km::PhysicalAddress address, MemorySe
 
     auto& segment = it->second;
     auto result = segment.stats();
-    bool found = segment.handle.range().contains(address);
+    bool found = segment.allocation.range().contains(address);
     if (!found) {
         return OsStatusNotFound;
     }

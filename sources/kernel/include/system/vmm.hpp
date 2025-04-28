@@ -113,8 +113,7 @@ namespace sys2 {
 
         AddressSpaceManagerStats stats() noexcept [[clang::nonallocating]];
 
-        [[nodiscard]]
-        OsStatus destroy(MemoryManager *manager) [[clang::allocating]];
+        void destroy(MemoryManager *manager) [[clang::allocating]];
 
         [[nodiscard]]
         static OsStatus create(const km::PageBuilder *pm, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager) [[clang::allocating]];

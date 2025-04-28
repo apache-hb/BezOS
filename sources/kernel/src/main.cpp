@@ -46,7 +46,6 @@
 #include "processor.hpp"
 #include "process/system.hpp"
 #include "process/process.hpp"
-#include "process/schedule.hpp"
 #include "setup.hpp"
 #include "smp.hpp"
 #include "std/static_vector.hpp"

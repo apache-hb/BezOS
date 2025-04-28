@@ -1,5 +1,6 @@
 #include "system/system.hpp"
 
+#include "fs2/base.hpp"
 #include "memory/address_space.hpp"
 #include "memory/layout.hpp"
 #include "memory/page_allocator.hpp"
@@ -8,6 +9,7 @@
 #include "system/process.hpp"
 #include "system/schedule.hpp"
 #include "system/thread.hpp"
+#include "system/pmm.hpp"
 
 static constexpr size_t kDefaultPtePageCount = 64;
 static constexpr size_t kDefaultKernelStackSize = 4;

@@ -8,6 +8,9 @@
 #include "fs2/interface.hpp"
 #include "system/vm/file.hpp"
 #include "system/vm/memory.hpp"
+#include "memory/address_space.hpp"
+#include "system/pmm.hpp"
+#include "common/util/defer.hpp"
 
 #include <bezos/handle.h>
 
@@ -765,4 +768,35 @@ OsStatus sys2::SysVmemMap(InvokeContext *context, OsVmemMapInfo info, void **out
     } else {
         return OsStatusInvalidHandle;
     }
+}
+
+OsStatus sys2::MapFileToMemory(vfs2::IFileHandle *file, MemoryManager *mm, km::AddressSpace *pt, size_t offset, size_t size, km::PageFlags flags, km::MemoryRange *range) {
+    km::MemoryRange result;
+    if (OsStatus status = mm->allocate(sm::roundup(size, x64::kPageSize), x64::kPageSize, &result)) {
+        return status;
+    }
+
+    km::AddressMapping mapping;
+    if (OsStatus status = pt->map(result, flags, km::MemoryType::eWriteBack, &mapping)) {
+        OsStatus inner = mm->release(result);
+        KM_ASSERT(inner == OsStatusSuccess);
+        return status;
+    }
+
+    defer { KM_ASSERT(pt->unmap(mapping.virtualRange()) == OsStatusSuccess); };
+
+    vfs2::ReadRequest request {
+        .begin = sm::VirtualAddress(mapping.vaddr),
+        .end = sm::VirtualAddress(mapping.vaddr) + size,
+        .offset = offset,
+    };
+    vfs2::ReadResult read{};
+
+    if (OsStatus status = file->read(request, &read)) {
+        KM_ASSERT(mm->release(result) == OsStatusSuccess);
+        return status;
+    }
+
+    *range = result;
+    return OsStatusSuccess;
 }

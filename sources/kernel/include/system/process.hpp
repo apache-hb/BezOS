@@ -16,6 +16,7 @@
 #include "system/invoke.hpp"
 
 #include "system/vmem.hpp"
+#include "system/vmm.hpp"
 #include "util/absl.hpp"
 
 namespace vfs2 {

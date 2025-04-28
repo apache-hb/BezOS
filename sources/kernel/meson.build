@@ -106,6 +106,9 @@ system_src = [
     'src/system/node.cpp',
     'src/system/device.cpp',
     'src/system/transaction.cpp',
+    'src/system/pmm.cpp',
+    'src/system/vmm.cpp',
+    'src/memory/heap_command_list.cpp',
 
     'src/system/vm/mapping.cpp',
 ]
@@ -400,6 +403,7 @@ memory_test_src = [
     'src/memory/address_space.cpp',
     'src/memory/detail/table_list.cpp',
     'src/memory/detail/control_block.cpp',
+    'src/memory/heap.cpp',
 
     'src/util/memory.cpp',
 ]
