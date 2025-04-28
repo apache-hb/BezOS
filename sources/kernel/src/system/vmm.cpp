@@ -278,7 +278,6 @@ OsStatus sys2::AddressSpaceManager::unmapSegment(MemoryManager *manager, Iterato
 
         return OsStatusCompleted;
     } else {
-        KmDebugMessage("Splitting segment: ", seg, ", ", range, "\n");
         if (seg.front > range.front) {
             //       |--------seg-------|
             // |--------range-----|
