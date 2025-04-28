@@ -383,8 +383,7 @@ OsStatus sys2::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]
 OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating]] {
     KM_ASSERT(range.isValid());
 
-    Iterator begin = segments().lower_bound(range.front);
-    Iterator end = segments().lower_bound(range.back);
+    auto [begin, end] = mTable.find(range);
 
     auto updateIterators = [&](km::MemoryRange newRange) {
         begin = segments().lower_bound(newRange.front);
@@ -395,14 +394,14 @@ OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating
         }
     };
 
-    if (begin == segments().end()) {
+    if (begin == mTable.end()) {
         return OsStatusNotFound;
     }
 
     if (begin == end) {
         MemorySegment& segment = begin->second;
         km::MemoryRange seg = segment.range();
-        if (seg == range) {
+        if ((seg == range) || range.contains(seg)) {
             releaseEntry(begin);
             return OsStatusSuccess;
         } else if (seg.contains(range) && !km::innerAdjacent(seg, range)) {
@@ -431,18 +430,22 @@ OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating
             addSegment(std::move(hiSegment));
 
             return OsStatusSuccess;
-        } else if (seg.contains(range) && seg.front == range.front) {
-            // |--------seg-------|
+        } else if ((seg.back == range.back && seg.front > range.front) || (seg.front == range.front && range.back > seg.back)) {
+            //    |------seg-----|
+            // |------range------|
+            //
+            // |-----seg----|
+            // |------range------|
+            releaseEntry(begin);
+            return OsStatusSuccess;
+        } else if ((seg.back > range.back && seg.front > range.front)) {
+            //     |--------seg-------|
             // |----range----|
             return splitSegment(begin, range.back, kLow);
-        } else if (seg.contains(range.front) && seg.back == range.back) {
+        } else if ((range.back > seg.back && range.front > seg.front)) {
             // |--------seg-------|
-            //     |----range-----|
+            //       |-----range------|
             return splitSegment(begin, range.front, kHigh);
-        } else if (seg.front == range.back) {
-            //             |----seg----|
-            // |---range---|
-            return OsStatusNotFound;
         } else if (seg.front > range.front && seg.contains(range.back)) {
             //    |--------seg-------|
             // |-----range-----|
@@ -452,29 +455,19 @@ OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating
             // |---------range---------|
             releaseEntry(begin);
             return OsStatusSuccess;
+        } else if (seg.front == range.front && seg.contains(range.back)) {
+            return splitSegment(begin, range.back, kLow);
+        } else if (seg.back == range.back && seg.contains(range.front)) {
+            return splitSegment(begin, range.front, kHigh);
         } else {
-            km::MemoryRange remaining = range;
-            switch (OsStatus status = releaseRange(begin, range, &remaining)) {
-            case OsStatusCompleted:
-                return OsStatusSuccess;
-            default:
-                KmDebugMessage("Invalid state: segment=", seg, ", range=", range, ": ", status, "\n");
-                KM_ASSERT(false);
-            }
+            KM_ASSERT(false);
         }
     } else if (end != segments().end()) {
         MemorySegment& front = begin->second;
         MemorySegment& back = end->second;
         km::MemoryRange lhs = front.range();
         km::MemoryRange rhs = back.range();
-        if (lhs.back == range.front && rhs.back == range.back) {
-            // |--------rhs-------|
-            // |-------range------|
-            if (releaseSegment(back)) {
-                segments().erase(end);
-            }
-            return OsStatusSuccess;
-        } else if ((lhs.contains(range.front) || lhs.front == range.front) && (rhs.contains(range.back) || rhs.back == range.back)) {
+        if ((lhs.contains(range.front) || lhs.front == range.front) && (rhs.contains(range.back) || rhs.back == range.back)) {
             // |----lhs----|    |-------rhs------|
             //       |--------range-----|
 
