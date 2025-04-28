@@ -4,6 +4,7 @@
 
 #include "common/util/util.hpp"
 
+#include "panic.hpp"
 #include "util/memory.hpp"
 #include "util/format.hpp"
 
@@ -66,11 +67,15 @@ namespace km {
 
         /// @brief Create a mapping that contains the first N bytes of the mapping.
         constexpr AddressMapping first(size_t bytes) const {
+            KM_ASSERT(bytes <= size);
+
             return { vaddr, paddr, bytes };
         }
 
         /// @brief Create a mapping that contains the last N bytes of the mapping.
         AddressMapping last(size_t bytes) const {
+            KM_ASSERT(bytes <= size);
+
             const char *vbegin = (const char*)vaddr + size - bytes;
             PhysicalAddress pbegin = paddr + size - bytes;
             return { vbegin, pbegin, bytes };
@@ -78,23 +83,31 @@ namespace km {
 
         /// @brief Create a mapping that contains the specified subrange.
         constexpr AddressMapping subrange(size_t offset, size_t bytes) const {
+            KM_ASSERT(offset + bytes <= size);
+
             const void *vbegin = (const char*)vaddr + offset;
             PhysicalAddress pbegin = paddr + offset;
             return { vbegin, pbegin, bytes };
         }
 
         constexpr AddressMapping subrange(size_t offset) const {
+            KM_ASSERT(offset < size);
+
             return subrange(offset, size - offset);
         }
 
+        /// @brief Create a mapping that contains the subset of this mapping and the given range.
         constexpr AddressMapping subrange(VirtualRange range) const {
-            size_t offset = (const char*)range.front - (const char*)vaddr;
-            size_t bytes = range.size();
-            if (offset + bytes > size) {
-                bytes = size - offset;
+            VirtualRange subset = intersection(virtualRange(), range);
+            if (subset.isEmpty()) {
+                return AddressMapping {};
             }
 
-            return subrange(offset, bytes);
+            size_t offset = (const char*)subset.front - (const char*)vaddr;
+            size_t bytes = (const char*)subset.back - (const char*)subset.front;
+            const void *vbegin = (const char*)vaddr + offset;
+            PhysicalAddress pbegin = paddr + offset;
+            return { vbegin, pbegin, bytes };
         }
 
         constexpr AddressMapping offset(intptr_t offset) const {
@@ -128,6 +141,9 @@ namespace km {
         constexpr bool equalOffsetTo(size_t align) const {
             return ((uintptr_t)vaddr % align) == (paddr.address % align);
         }
+
+        constexpr bool operator==(const AddressMapping& other) const noexcept = default;
+        constexpr bool operator!=(const AddressMapping& other) const noexcept = default;
     };
 
     constexpr AddressMapping MappingOf(const void *vaddr, PhysicalAddress paddr, size_t size) {

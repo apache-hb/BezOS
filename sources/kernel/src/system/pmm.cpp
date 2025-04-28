@@ -4,6 +4,7 @@
 #include "memory/heap_command_list.hpp"
 
 #include "common/compiler/compiler.hpp"
+#include "common/util/defer.hpp"
 
 OsStatus sys2::MemoryManager::retainRange(Iterator it, km::MemoryRange range, km::MemoryRange *remaining) {
     auto& segment = it->second;
@@ -238,11 +239,11 @@ OsStatus sys2::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]
             addSegment(std::move(hiSegment));
 
             return OsStatusSuccess;
-        } else if (seg.contains(range) && seg.front == range.front) {
+        } else if (seg.contains(range.back) && seg.front == range.front) {
             // |--------seg-------|
             // |----range----|
             return retainSegment(begin, range.back, kLow);
-        } else if (seg.contains(range) && seg.back == range.back) {
+        } else if (seg.contains(range.front) && seg.back == range.back) {
             // |--------seg-------|
             //     |----range-----|
             return retainSegment(begin, range.front, kHigh);
@@ -361,6 +362,8 @@ OsStatus sys2::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]
 }
 
 OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating]] {
+    KM_ASSERT(range.isValid());
+
     Iterator begin = mSegments.lower_bound(range.front);
     Iterator end = mSegments.lower_bound(range.back);
 
@@ -413,7 +416,7 @@ OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating
             // |--------seg-------|
             // |----range----|
             return splitSegment(begin, range.back, kLow);
-        } else if (seg.contains(range) && seg.back == range.back) {
+        } else if (seg.contains(range.front) && seg.back == range.back) {
             // |--------seg-------|
             //     |----range-----|
             return splitSegment(begin, range.front, kHigh);
@@ -432,7 +435,14 @@ OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating
         MemorySegment& back = end->second;
         km::MemoryRange lhs = front.range();
         km::MemoryRange rhs = back.range();
-        if ((lhs.contains(range.front) || lhs.front == range.front) && (rhs.contains(range.back) || rhs.back == range.back)) {
+        if (lhs.back == range.front && rhs.back == range.back) {
+            // |--------rhs-------|
+            // |-------range------|
+            if (releaseSegment(back)) {
+                mSegments.erase(end);
+            }
+            return OsStatusSuccess;
+        } else if ((lhs.contains(range.front) || lhs.front == range.front) && (rhs.contains(range.back) || rhs.back == range.back)) {
             // |----lhs----|    |-------rhs------|
             //       |--------range-----|
 
@@ -507,6 +517,12 @@ OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating
             }
 
             return OsStatusSuccess;
+        } else if (lhs.back == range.front) {
+            KM_ASSERT(rhs.contains(range.back));
+            // |------rhs-------|
+            // |----range----|
+
+            return splitSegment(end, range.back, kLow);
         } else {
             ++end;
         }

@@ -117,6 +117,29 @@ namespace sys2 {
         [[nodiscard]]
         OsStatus querySegment(km::PhysicalAddress address, MemorySegmentStats *stats) noexcept [[clang::nonallocating]];
 
+        void validate() {
+            bool ok = true;
+            for (const auto& [address, segment] : mSegments) {
+                if (address != segment.range().back) {
+                    KmDebugMessage("Invalid address for Segment: ", segment.range(), " (owners: ", segment.owners.load(), ")\n");
+                    KmDebugMessage("Invalid address for Segment address: ", address, " != ", segment.range().back, "\n");
+                    KmDebugMessage("Invalid address for Segment range: ", segment.range(), "\n");
+                    ok = false;
+                }
+
+                if (segment.owners.load() == 0) {
+                    KmDebugMessage("Unowned Segment: ", segment.range(), " (owners: ", segment.owners.load(), ")\n");
+                    ok = false;
+                }
+
+                if (km::alignedOut(segment.range(), x64::kPageSize) != segment.range()) {
+                    KmDebugMessage("Misaligned Segment: ", segment.range(), " (owners: ", segment.owners.load(), ")\n");
+                    ok = false;
+                }
+            }
+            KM_ASSERT(ok);
+        }
+
         void dump() {
             for (const auto& [_, segment] : mSegments) {
                 KmDebugMessage("Segment: ", segment.range(), " (owners: ", segment.owners.load(), ")\n");

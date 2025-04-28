@@ -89,3 +89,92 @@ TEST(MappingTest, Align2) {
     ASSERT_EQ(other.paddr, PhysicalAddress(0x0000000007253000));
     ASSERT_EQ(other.size, 0x100000);
 }
+
+TEST(MappingTest, First) {
+    AddressMapping mapping {
+        .vaddr = (void*)0x1100,
+        .paddr = PhysicalAddress(0x1100),
+        .size = 0x1000,
+    };
+
+    AddressMapping other = mapping.first(0x800);
+    ASSERT_EQ(other.vaddr, (void*)0x1100);
+    ASSERT_EQ(other.paddr, PhysicalAddress(0x1100));
+    ASSERT_EQ(other.size, 0x800);
+}
+
+TEST(MappingTest, Last) {
+    AddressMapping mapping {
+        .vaddr = (void*)0x1100,
+        .paddr = PhysicalAddress(0x1100),
+        .size = 0x1000,
+    };
+
+    AddressMapping other = mapping.last(0x800);
+    ASSERT_EQ(other.vaddr, (void*)(0x1100 + 0x1000 - 0x800));
+    ASSERT_EQ(other.paddr, PhysicalAddress(0x1100 + 0x1000 - 0x800));
+    ASSERT_EQ(other.size, 0x800);
+}
+
+TEST(MappingTest, Subrange) {
+    AddressMapping mapping {
+        .vaddr = (void*)0x1100,
+        .paddr = PhysicalAddress(0x1100),
+        .size = 0x1000,
+    };
+
+    AddressMapping other = mapping.subrange(VirtualRange { (void*)0x1100, (void*)0x1900 });
+    ASSERT_EQ(other.vaddr, (void*)0x1100);
+    ASSERT_EQ(other.paddr, PhysicalAddress(0x1100));
+    ASSERT_EQ(other.size, 0x800);
+}
+
+TEST(MappingTest, SubrangeSpillFront) {
+    AddressMapping mapping {
+        .vaddr = (void*)0x1100,
+        .paddr = PhysicalAddress(0x1100),
+        .size = 0x1000,
+    };
+
+    AddressMapping other = mapping.subrange(VirtualRange { (void*)0x1000, (void*)0x1400 });
+    ASSERT_EQ(other.vaddr, (void*)0x1100);
+    ASSERT_EQ(other.paddr, PhysicalAddress(0x1100));
+    ASSERT_EQ(other.size, 0x300);
+}
+
+TEST(MappingTest, SubrangeSpillBack) {
+    AddressMapping mapping {
+        .vaddr = (void*)0x1100,
+        .paddr = PhysicalAddress(0x1100),
+        .size = 0x1000,
+    };
+
+    AddressMapping other = mapping.subrange(VirtualRange { (void*)0x1800, (void*)0x2400 });
+    ASSERT_EQ(other.vaddr, (void*)0x1800);
+    ASSERT_EQ(other.paddr, PhysicalAddress(0x1800));
+    ASSERT_EQ(other.size, (0x1100 + 0x1000) - 0x1800);
+}
+
+TEST(MappingTest, SubrangeSpillBoth) {
+    AddressMapping mapping {
+        .vaddr = (void*)0x1100,
+        .paddr = PhysicalAddress(0x1100),
+        .size = 0x1000,
+    };
+
+    AddressMapping other = mapping.subrange(VirtualRange { (void*)0x1000, (void*)0x2400 });
+    ASSERT_EQ(other, mapping);
+}
+
+TEST(MappingTest, SubrangeInner) {
+    AddressMapping mapping {
+        .vaddr = (void*)0x1100,
+        .paddr = PhysicalAddress(0x1100),
+        .size = 0x1000,
+    };
+
+    AddressMapping other = mapping.subrange(VirtualRange { (void*)0x1400, (void*)0x1800 });
+    ASSERT_EQ(other.vaddr, (void*)0x1400);
+    ASSERT_EQ(other.paddr, PhysicalAddress(0x1400));
+    ASSERT_EQ(other.size, 0x400);
+}
