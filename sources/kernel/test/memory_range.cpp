@@ -26,6 +26,13 @@ TEST(MemoryRangeTest, ContainsRange) {
     ASSERT_FALSE(second.contains(first));
 }
 
+TEST(MemoryRangeTest, ContainsInnerAdjacent) {
+    km::MemoryRange first = { 0x000000003FFFF000, 0x0000000040004000 };
+    km::MemoryRange second = { 0x0000000040000000, 0x0000000040004000 };
+
+    ASSERT_TRUE(first.contains(second));
+}
+
 TEST(MemoryRangeTest, Size) {
     km::MemoryRange range { 0x1000, 0x2000 };
 

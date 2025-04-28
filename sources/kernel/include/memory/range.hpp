@@ -137,7 +137,7 @@ namespace km {
         constexpr bool intersects(AnyRange range) const {
             if (range.front == back || range.back == front) return false;
 
-            return contains(range.front) || contains(range.back);
+            return contains(range) || contains(range.front) || contains(range.back) || range.back == back;
         }
 
         constexpr bool isBefore(ValueType address) const {

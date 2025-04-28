@@ -646,6 +646,9 @@ testcases = {
     'device': [
         'test/system/device.cpp',
     ],
+    'system detail range table': [
+        'test/system/detail/range_table.cpp',
+    ],
     'system vmm +new': [
         'test/system/vmm.cpp',
         'src/memory/heap.cpp',

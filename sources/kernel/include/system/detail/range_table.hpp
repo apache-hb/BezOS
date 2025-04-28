@@ -41,8 +41,34 @@ namespace sys2::detail {
         }
 
         std::pair<Iterator, Iterator> find(Range range) noexcept {
-            auto begin = find(range.front);
-            auto end = find(range.back);
+            auto begin = mSegments.upper_bound(range.front);
+            auto end = mSegments.lower_bound(range.back);
+
+            if (begin != mSegments.end()) {
+                auto& [_, segment] = *begin;
+                auto segRange = segment.range();
+                if (segRange.contains(range)) {
+                    return { begin, begin };
+                }
+
+                if (!range.intersects(segRange)) {
+                    begin = mSegments.end();
+                    end = mSegments.end();
+                }
+            }
+
+            if (end == mSegments.end() && begin != mSegments.end()) {
+                --end;
+            }
+
+            if (end != mSegments.end()) {
+                auto& [_, segment] = *end;
+                auto segRange = segment.range();
+                if (segRange.front == range.back || !range.intersects(segRange)) {
+                    --end;
+                }
+            }
+
             return { begin, end };
         }
 

@@ -192,8 +192,7 @@ OsStatus sys2::MemoryManager::releaseRange(Iterator it, km::MemoryRange range, k
 }
 
 OsStatus sys2::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]] {
-    Iterator begin = segments().lower_bound(range.front);
-    Iterator end = segments().lower_bound(range.back);
+    auto [begin, end] = mTable.find(range);
 
     auto updateIterators = [&](km::MemoryRange newRange) {
         begin = segments().lower_bound(newRange.front);
@@ -204,14 +203,21 @@ OsStatus sys2::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]
         }
     };
 
-    if (begin == segments().end()) {
+    if (begin == mTable.end()) {
+        // No segments in the range
         return OsStatusNotFound;
     }
 
     if (begin == end) {
         MemorySegment& segment = begin->second;
         km::MemoryRange seg = segment.range();
-        if (seg == range) {
+        KmDebugMessage("Retain: ", range, ", segment=", seg, "\n");
+        if (range.contains(seg) || seg == range) {
+            // |--------seg-------|
+            // |--------range-----|
+            //
+            //    |----seg----|
+            // |--------range-----|
             retainEntry(begin);
             return OsStatusSuccess;
         } else if (seg.contains(range) && !km::innerAdjacent(seg, range)) {
@@ -231,34 +237,29 @@ OsStatus sys2::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]
             MemorySegment midSegment { uint8_t(segment.owners + 1), allocations[1] };
             MemorySegment hiSegment { uint8_t(segment.owners), allocations[2] };
 
-            segments().erase(end);
+            mTable.erase(begin);
 
             addSegment(std::move(loSegment));
             addSegment(std::move(midSegment));
             addSegment(std::move(hiSegment));
 
             return OsStatusSuccess;
-        } else if (seg.contains(range.back) && seg.front == range.front) {
+        } else if (seg.front >= range.front && seg.back > range.back) {
             // |--------seg-------|
             // |----range----|
+            //
+            //      |--------seg-------|
+            // |----range----|
             return retainSegment(begin, range.back, kLow);
-        } else if (seg.contains(range.front) && seg.back == range.back) {
+        } else if (range.front > seg.front && range.back >= seg.back) {
             // |--------seg-------|
             //     |----range-----|
+            //
+            // |--------seg-------|
+            //       |--------range---------|
             return retainSegment(begin, range.front, kHigh);
-        } else if (seg.front == range.back) {
-            //             |---seg---|
-            // |---range---|
-            return OsStatusNotFound;
         } else {
-            km::MemoryRange remaining = range;
-            switch (OsStatus status = retainRange(begin, range, &remaining)) {
-            case OsStatusCompleted:
-                return OsStatusSuccess;
-            default:
-                KmDebugMessage("Invalid state: ", range, ": ", status, "\n");
-                KM_ASSERT(false);
-            }
+            KM_ASSERT(false);
         }
     } else if (end != segments().end()) {
         MemorySegment& front = begin->second;
