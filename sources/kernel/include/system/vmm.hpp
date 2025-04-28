@@ -25,6 +25,16 @@ namespace sys2 {
             const void *vaddr = std::bit_cast<const void*>(front);
             return km::MappingOf(range, vaddr);
         }
+
+        /// @brief Does this segment have physical memory backing it?
+        ///
+        /// If the segment has no backing memory, accessing it will result in a SIGBUS.
+        /// This is distinct from a segment being mapped to a page with no access, which generates a SIGSEGV.
+        ///
+        /// @return True if the segment has backing memory, false otherwise.
+        bool hasBackingMemory() const noexcept [[clang::nonblocking]] {
+            return !range.isEmpty();
+        }
     };
 
     struct AddressSpaceManagerStats {

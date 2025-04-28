@@ -5,7 +5,9 @@
 
 #include <cstdint>
 
+#include "panic.hpp"
 #include "util/format.hpp"
+
 #include "common/util/util.hpp"
 #include "common/virtual_address.hpp"
 
@@ -55,6 +57,9 @@ namespace km {
 
     /// @brief A range of address space.
     ///
+    /// Represents a range of [front, back) addresses. The range is inclusive of the front address
+    /// and exclusive of the back address.
+    ///
     /// The terminology used for dealing with ranges is as follows:
     /// - front: The start of the range, this is the first byte in the range.
     /// - back: The end of the range, this is the first byte after the range.
@@ -78,6 +83,7 @@ namespace km {
         T back;
 
         constexpr uintptr_t size() const {
+            KM_ASSERT(isValid());
             return std::bit_cast<uintptr_t>(back) - std::bit_cast<uintptr_t>(front);
         }
 
@@ -140,6 +146,49 @@ namespace km {
 
         constexpr bool isAfter(ValueType address) const {
             return front >= address;
+        }
+
+        constexpr AnyRange offsetBy(intptr_t offset) const {
+            T newFront = std::bit_cast<T>(std::bit_cast<uintptr_t>(front) + offset);
+            T newBack = std::bit_cast<T>(std::bit_cast<uintptr_t>(back) + offset);
+            return {newFront, newBack};
+        }
+
+        constexpr AnyRange withExtraHead(uintptr_t size) const {
+            T newFront = std::bit_cast<T>(std::bit_cast<uintptr_t>(front) - size);
+            return {newFront, back};
+        }
+
+        constexpr AnyRange withExtraTail(uintptr_t size) const {
+            T newBack = std::bit_cast<T>(std::bit_cast<uintptr_t>(back) + size);
+            return {front, newBack};
+        }
+
+        constexpr AnyRange subrange(uintptr_t offset, uintptr_t size) const noexcept {
+            T newFront = std::bit_cast<T>(std::bit_cast<uintptr_t>(front) + offset);
+            T newBack = std::bit_cast<T>(std::bit_cast<uintptr_t>(newFront) + size);
+
+            KM_ASSERT(newBack <= back);
+
+            return {newFront, newBack};
+        }
+
+        constexpr AnyRange subrange(uintptr_t offset) const noexcept {
+            T newFront = std::bit_cast<T>(std::bit_cast<uintptr_t>(front) + offset);
+            KM_ASSERT(newFront <= back);
+            return {newFront, back};
+        }
+
+        constexpr AnyRange first(uintptr_t newSize) const noexcept {
+            KM_ASSERT(newSize <= size());
+            T newBack = std::bit_cast<T>(std::bit_cast<uintptr_t>(front) + newSize);
+            return {front, newBack};
+        }
+
+        constexpr AnyRange last(uintptr_t newSize) const noexcept {
+            KM_ASSERT(newSize <= size());
+            T newFront = std::bit_cast<T>(std::bit_cast<uintptr_t>(back) - newSize);
+            return {newFront, back};
         }
 
         /// @brief Return a copy of this range with the overlapping area cut out.
@@ -253,6 +302,19 @@ namespace km {
         return outerAdjacent(a, b) || overlaps(a, b) || a.contains(b) || b.contains(a);
     }
 
+    template<typename T>
+    constexpr AnyRange<T> unionInterval(std::span<const AnyRange<T>> ranges) {
+        if (ranges.empty()) return AnyRange<T>{};
+
+        AnyRange<T> result = ranges[0];
+
+        for (size_t i = 1; i < ranges.size(); ++i) {
+            result = merge(result, ranges[i]);
+        }
+
+        return result;
+    }
+
     /// @brief Aligns the given memory range to the given alignment.
     ///
     /// Aligns the given memory range to the given alignment. Aligns the range by shrinking
@@ -298,6 +360,8 @@ namespace km {
     /// @return The two memory ranges.
     template<typename T, typename O>
     constexpr std::pair<AnyRange<T>, AnyRange<T>> split(AnyRange<T> range, O midpoint) {
+        KM_ASSERT(range.contains(midpoint));
+
         AnyRange<T> first = {range.front, midpoint};
         AnyRange<T> second = {midpoint, range.back};
         return {first, second};
@@ -317,12 +381,15 @@ namespace km {
     /// @return The two memory ranges.
     template<typename T>
     constexpr std::pair<AnyRange<T>, AnyRange<T>> split(AnyRange<T> range, AnyRange<T> other) {
+        KM_ASSERT(range.contains(other));
+
         AnyRange<T> first = {range.front, other.front};
         AnyRange<T> second = {other.back, range.back};
         return {first, second};
     }
 
     using VirtualRange = AnyRange<const void*>;
+    using VirtualRangeEx = AnyRange<sm::VirtualAddress>;
     using MemoryRange = AnyRange<PhysicalAddress>;
 }
 

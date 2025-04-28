@@ -420,13 +420,26 @@ OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating
             // |--------seg-------|
             //     |----range-----|
             return splitSegment(begin, range.front, kHigh);
+        } else if (seg.front == range.back) {
+            //             |----seg----|
+            // |---range---|
+            return OsStatusNotFound;
+        } else if (seg.front > range.front && seg.contains(range.back)) {
+            //    |--------seg-------|
+            // |-----range-----|
+            return splitSegment(begin, range.back, kLow);
+        } else if (seg.front > range.front && seg.back == range.back) {
+            //      |--------seg-------|
+            // |---------range---------|
+            releaseEntry(begin);
+            return OsStatusSuccess;
         } else {
             km::MemoryRange remaining = range;
             switch (OsStatus status = releaseRange(begin, range, &remaining)) {
             case OsStatusCompleted:
                 return OsStatusSuccess;
             default:
-                KmDebugMessage("Invalid state: ", range, ": ", status, "\n");
+                KmDebugMessage("Invalid state: segment=", seg, ", range=", range, ": ", status, "\n");
                 KM_ASSERT(false);
             }
         }
@@ -525,6 +538,17 @@ OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating
             return splitSegment(end, range.back, kLow);
         } else {
             ++end;
+        }
+    }
+
+    // Handle more edge cases
+    if (begin != mSegments.end() && end == mSegments.end()) {
+        auto& lhs = begin->second;
+        auto lhsRange = lhs.range();
+        if (lhsRange.back == range.front) {
+            // |---lhs---|
+            //           |----range----|
+            return OsStatusNotFound;
         }
     }
 

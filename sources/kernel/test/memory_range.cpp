@@ -266,3 +266,41 @@ TEST(MemoryRangeTest, Align) {
 
 static_assert(sm::rounddown(0x2111, 0x1000) == 0x2000);
 static_assert(sm::roundup(0x1111, 0x1000) == 0x2000);
+
+TEST(MemoryRangeTest, UnionIntervalEmpty) {
+    std::vector<km::MemoryRange> ranges;
+    km::MemoryRange result = km::unionInterval<km::PhysicalAddress>(ranges);
+    ASSERT_TRUE(result.isEmpty());
+}
+
+TEST(MemoryRangeTest, UnionIntervalSingle) {
+    std::vector<km::MemoryRange> ranges = {
+        km::MemoryRange { 0x1000, 0x2000 }
+    };
+    km::MemoryRange result = km::unionInterval<km::PhysicalAddress>(ranges);
+    ASSERT_EQ(result, ranges[0]);
+}
+
+TEST(MemoryRangeTest, UnionIntervalMultiple) {
+    std::vector<km::MemoryRange> ranges = {
+        km::MemoryRange { 0x1000, 0x2000 },
+        km::MemoryRange { 0x4000, 0x5000 },
+    };
+    km::MemoryRange result = km::unionInterval<km::PhysicalAddress>(ranges);
+    ASSERT_EQ(result.front, 0x1000);
+    ASSERT_EQ(result.back, 0x5000);
+}
+
+TEST(MemoryRangeTest, WithExtraHead) {
+    km::MemoryRange range = { 0x1000, 0x2000 };
+    km::MemoryRange result = range.withExtraHead(0x1000);
+    ASSERT_EQ(result.front.address, 0x0000);
+    ASSERT_EQ(result.back.address, 0x2000);
+}
+
+TEST(MemoryRangeTest, WithExtraTail) {
+    km::MemoryRange range = { 0x1000, 0x2000 };
+    km::MemoryRange result = range.withExtraTail(0x1000);
+    ASSERT_EQ(result.front.address, 0x1000);
+    ASSERT_EQ(result.back.address, 0x3000);
+}

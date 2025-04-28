@@ -371,17 +371,7 @@ OsStatus sys2::AddressSpaceManager::unmap(MemoryManager *manager, km::VirtualRan
         if (seg == range) {
             // |--------seg-------|
             // |--------range-----|
-            OsStatus status = OsStatusSuccess;
-
-            status = manager->release(mapping.physicalRange());
-            KM_ASSERT(status == OsStatusSuccess);
-
-            status = mPageTables.unmap(seg);
-            KM_ASSERT(status == OsStatusSuccess);
-
-            mHeap.free(segment.allocation);
-
-            mSegments.erase(begin);
+            eraseSegment(manager, begin);
             return OsStatusSuccess;
         } else if (range.front == seg.front) {
             // |--------seg-------|

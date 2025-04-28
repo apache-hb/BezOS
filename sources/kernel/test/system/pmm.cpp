@@ -6,59 +6,107 @@
 
 static constexpr km::MemoryRange kTestRange { sm::gigabytes(1).bytes(), sm::gigabytes(4).bytes() };
 
-TEST(MemoryManagerTest, Construct) {
+TEST(MemoryManagerInitTest, Construct) {
     sys2::MemoryManager manager;
     OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
     EXPECT_EQ(status, OsStatusSuccess);
 }
 
-TEST(MemoryManagerTest, Allocate) {
-    sys2::MemoryManager manager;
-    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
-    EXPECT_EQ(status, OsStatusSuccess);
+class MemoryManagerTest : public testing::Test {
+public:
+    void SetUp() override {
+        OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
+        ASSERT_EQ(status, OsStatusSuccess);
 
+        auto stats0 = manager.stats();
+        ASSERT_EQ(stats0.segments, 0);
+        ASSERT_EQ(stats0.heapStats.usedMemory, 0);
+        ASSERT_EQ(stats0.heapStats.freeMemory, kTestRange.size());
+    }
+
+    std::vector<km::MemoryRange> allocateMany(size_t count, size_t size) {
+        std::vector<km::MemoryRange> ranges;
+        ranges.reserve(count);
+
+        for (size_t i = 0; i < count; ++i) {
+            km::MemoryRange range;
+            OsStatus status = manager.allocate(size, alignof(x64::page), &range);
+            EXPECT_EQ(status, OsStatusSuccess);
+            EXPECT_EQ(range.size(), size);
+            ranges.push_back(range);
+        }
+
+        std::sort(ranges.begin(), ranges.end(), [](const auto& lhs, const auto& rhs) {
+            return lhs.front < rhs.front;
+        });
+
+        return ranges;
+    }
+
+    void AssertSegmentNotFound(const km::MemoryRange& range) {
+        AssertSegmentNotFound(range.front);
+        AssertSegmentNotFound(range.back - 1);
+        AssertSegmentNotFound((range.front.address + range.back.address) / 2);
+    }
+
+    void AssertSegmentNotFound(km::PhysicalAddress address) {
+        sys2::MemorySegmentStats segmentStats;
+        OsStatus status = manager.querySegment(address, &segmentStats);
+        ASSERT_EQ(status, OsStatusNotFound);
+    }
+
+    void AssertSegmentFound(const km::MemoryRange& range, size_t owners) {
+        AssertSegmentFound(range.front, range, owners);
+        AssertSegmentFound(range.back - 1, range, owners);
+        AssertSegmentFound((range.front.address + range.back.address) / 2, range, owners);
+    }
+
+    void AssertSegmentFound(km::PhysicalAddress address, const km::MemoryRange& range, size_t owners) {
+        sys2::MemorySegmentStats segmentStats;
+        OsStatus status = manager.querySegment(address, &segmentStats);
+        ASSERT_EQ(status, OsStatusSuccess) << "Failed to find segment for address: " << std::string_view(km::format(address)) << " in range: " << std::string_view(km::format(range));
+        ASSERT_EQ(segmentStats.owners, owners);
+        ASSERT_EQ(segmentStats.range, range);
+    }
+
+    sys2::MemoryManagerStats AssertStats(size_t segments, size_t usedMemory) {
+        auto stats = manager.stats();
+        EXPECT_EQ(stats.segments, segments);
+        EXPECT_EQ(stats.heapStats.usedMemory, usedMemory);
+        EXPECT_EQ(stats.heapStats.freeMemory, kTestRange.size() - usedMemory);
+        return stats;
+    }
+
+    sys2::MemoryManager manager;
+};
+
+TEST_F(MemoryManagerTest, Allocate) {
     km::MemoryRange range;
-    status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
+    OsStatus status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
     EXPECT_EQ(range.size(), x64::kPageSize * 4);
 
-    auto stats0 = manager.stats();
-    ASSERT_EQ(stats0.segments, 1);
-    ASSERT_EQ(stats0.heapStats.usedMemory, x64::kPageSize * 4);
-    ASSERT_EQ(stats0.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 4);
+    AssertStats(1, x64::kPageSize * 4);
 
     status = manager.release(range);
     EXPECT_EQ(status, OsStatusSuccess);
 
-    auto stats1 = manager.stats();
-    ASSERT_EQ(stats1.segments, 0);
-    ASSERT_EQ(stats1.heapStats.usedMemory, 0);
-    ASSERT_EQ(stats1.heapStats.freeMemory, kTestRange.size());
+    AssertStats(0, 0);
 }
 
-TEST(MemoryManagerTest, ReleaseSubspan) {
-    sys2::MemoryManager manager;
-    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
-    EXPECT_EQ(status, OsStatusSuccess);
-
+TEST_F(MemoryManagerTest, ReleaseSubspan) {
     km::MemoryRange range;
-    status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
+    OsStatus status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
     EXPECT_EQ(range.size(), x64::kPageSize * 4);
 
-    auto stats0 = manager.stats();
-    ASSERT_EQ(stats0.segments, 1);
-    ASSERT_EQ(stats0.heapStats.usedMemory, x64::kPageSize * 4);
-    ASSERT_EQ(stats0.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 4);
+    AssertStats(1, x64::kPageSize * 4);
 
     km::MemoryRange subrange = { range.front + x64::kPageSize, range.back - x64::kPageSize };
     status = manager.release(subrange);
     EXPECT_EQ(status, OsStatusSuccess);
 
-    auto stats1 = manager.stats();
-    ASSERT_EQ(stats1.segments, 2);
-    ASSERT_EQ(stats1.heapStats.usedMemory, x64::kPageSize * 2);
-    ASSERT_EQ(stats1.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 2);
+    AssertStats(2, x64::kPageSize * 2);
 
     auto [lhs, rhs] = km::split(range, subrange);
     sys2::MemorySegmentStats ss0;
@@ -67,51 +115,29 @@ TEST(MemoryManagerTest, ReleaseSubspan) {
     EXPECT_EQ(ss0.owners, 1);
     EXPECT_EQ(ss0.range, lhs);
 
-    sys2::MemorySegmentStats ss1;
-    status = manager.querySegment(range.back - 1, &ss1);
-    EXPECT_EQ(status, OsStatusSuccess);
-    EXPECT_EQ(ss1.owners, 1);
-    EXPECT_EQ(ss1.range, rhs);
+    AssertSegmentNotFound(subrange);
 }
 
-TEST(MemoryManagerTest, ReleaseHead) {
-    sys2::MemoryManager manager;
-    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
-    EXPECT_EQ(status, OsStatusSuccess);
-
+TEST_F(MemoryManagerTest, ReleaseHead) {
     km::MemoryRange range;
-    status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
+    OsStatus status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
     EXPECT_EQ(range.size(), x64::kPageSize * 4);
 
-    auto stats0 = manager.stats();
-    ASSERT_EQ(stats0.segments, 1);
-    ASSERT_EQ(stats0.heapStats.usedMemory, x64::kPageSize * 4);
-    ASSERT_EQ(stats0.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 4);
+    AssertStats(1, x64::kPageSize * 4);
 
     km::MemoryRange subrange = { range.front, range.back - x64::kPageSize * 2 };
     status = manager.release(subrange);
     EXPECT_EQ(status, OsStatusSuccess);
 
-    auto stats1 = manager.stats();
-    ASSERT_EQ(stats1.segments, 1);
-    ASSERT_EQ(stats1.heapStats.usedMemory, x64::kPageSize * 2);
-    ASSERT_EQ(stats1.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 2);
+    AssertStats(1, x64::kPageSize * 2);
 
-    sys2::MemorySegmentStats ss0;
-    status = manager.querySegment(range.back - 1, &ss0);
-    EXPECT_EQ(status, OsStatusSuccess);
-    EXPECT_EQ(ss0.owners, 1);
-    EXPECT_EQ(ss0.range, range.cut(subrange));
+    AssertSegmentNotFound(subrange);
 }
 
-TEST(MemoryManagerTest, QuerySegment) {
-    sys2::MemoryManager manager;
-    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
-    EXPECT_EQ(status, OsStatusSuccess);
-
+TEST_F(MemoryManagerTest, QuerySegment) {
     km::MemoryRange range;
-    status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
+    OsStatus status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
     EXPECT_EQ(range.size(), x64::kPageSize * 4);
 
@@ -150,13 +176,9 @@ TEST(MemoryManagerTest, QuerySegment) {
     EXPECT_EQ(status, OsStatusNotFound);
 }
 
-TEST(MemoryManagerTest, ReleaseSpillFront) {
-    sys2::MemoryManager manager;
-    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
-    EXPECT_EQ(status, OsStatusSuccess);
-
+TEST_F(MemoryManagerTest, ReleaseSpillFront) {
     km::MemoryRange range;
-    status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
+    OsStatus status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
     EXPECT_EQ(range.size(), x64::kPageSize * 4);
 
@@ -181,13 +203,9 @@ TEST(MemoryManagerTest, ReleaseSpillFront) {
     EXPECT_EQ(ss0.range, range.cut(subrange));
 }
 
-TEST(MemoryManagerTest, ReleaseSpillBack) {
-    sys2::MemoryManager manager;
-    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
-    EXPECT_EQ(status, OsStatusSuccess);
-
+TEST_F(MemoryManagerTest, ReleaseSpillBack) {
     km::MemoryRange range;
-    status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
+    OsStatus status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
     EXPECT_EQ(range.size(), x64::kPageSize * 4);
 
@@ -212,13 +230,9 @@ TEST(MemoryManagerTest, ReleaseSpillBack) {
     EXPECT_EQ(ss0.range, range.cut(subrange));
 }
 
-TEST(MemoryManagerTest, ReleaseSpill) {
-    sys2::MemoryManager manager;
-    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
-    EXPECT_EQ(status, OsStatusSuccess);
-
+TEST_F(MemoryManagerTest, ReleaseSpill) {
     km::MemoryRange range;
-    status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
+    OsStatus status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
     EXPECT_EQ(range.size(), x64::kPageSize * 4);
 
@@ -236,13 +250,9 @@ TEST(MemoryManagerTest, ReleaseSpill) {
     ASSERT_EQ(stats1.heapStats.freeMemory, kTestRange.size());
 }
 
-TEST(MemoryManagerTest, ReleaseTail) {
-    sys2::MemoryManager manager;
-    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
-    EXPECT_EQ(status, OsStatusSuccess);
-
+TEST_F(MemoryManagerTest, ReleaseTail) {
     km::MemoryRange range;
-    status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
+    OsStatus status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
     EXPECT_EQ(range.size(), x64::kPageSize * 4);
 
@@ -260,13 +270,9 @@ TEST(MemoryManagerTest, ReleaseTail) {
     ASSERT_EQ(stats1.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 2);
 }
 
-TEST(MemoryManagerTest, ReleaseMultiple) {
-    sys2::MemoryManager manager;
-    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
-    EXPECT_EQ(status, OsStatusSuccess);
-
+TEST_F(MemoryManagerTest, ReleaseMultiple) {
     km::MemoryRange range0, range1;
-    status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range0);
+    OsStatus status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range0);
     EXPECT_EQ(status, OsStatusSuccess);
     EXPECT_EQ(range0.size(), x64::kPageSize * 4);
 
@@ -280,25 +286,243 @@ TEST(MemoryManagerTest, ReleaseMultiple) {
 
     km::MemoryRange subrange = { range0.front + x64::kPageSize * 2, range1.back - x64::kPageSize * 2 };
 
-    auto stats0 = manager.stats();
-    ASSERT_EQ(stats0.segments, 2);
-    ASSERT_EQ(stats0.heapStats.usedMemory, x64::kPageSize * 4 * 2);
-    ASSERT_EQ(stats0.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 4 * 2);
+    AssertStats(2, x64::kPageSize * 4 * 2);
 
     status = manager.release(subrange);
     EXPECT_EQ(status, OsStatusSuccess);
 
-    auto stats1 = manager.stats();
-    ASSERT_EQ(stats1.segments, 2);
-    ASSERT_EQ(stats1.heapStats.usedMemory, x64::kPageSize * 2 * 2);
-    ASSERT_EQ(stats1.heapStats.freeMemory, kTestRange.size() - x64::kPageSize * 2 * 2);
+    AssertStats(2, x64::kPageSize * 2 * 2);
 }
 
-TEST(MemoryManagerTest, ReleaseMany) {
-    sys2::MemoryManager manager;
-    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
+class MemoryManagerReleaseOneTest : public MemoryManagerTest {
+public:
+    void SetUp() override {
+        MemoryManagerTest::SetUp();
+
+        ranges = allocateMany(1, x64::kPageSize * 4);
+        AssertStats(1, x64::kPageSize * 4);
+        for (const auto& range : ranges) {
+            AssertSegmentFound(range, 1);
+        }
+    }
+
+    std::vector<km::MemoryRange> ranges;
+};
+
+TEST_F(MemoryManagerReleaseOneTest, ReleaseOneExact) {
+    km::MemoryRange subrange = ranges[0];
+    OsStatus status = manager.release(subrange);
     EXPECT_EQ(status, OsStatusSuccess);
 
+    AssertStats(0, 0);
+
+    AssertSegmentNotFound(ranges[0]);
+}
+
+TEST_F(MemoryManagerReleaseOneTest, ReleaseOneExactSpillLeft) {
+    km::MemoryRange subrange = ranges[0].withExtraHead(x64::kPageSize);
+    OsStatus status = manager.release(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    AssertStats(0, 0);
+
+    AssertSegmentNotFound(ranges[0]);
+}
+
+TEST_F(MemoryManagerReleaseOneTest, ReleaseOneExactSpillRight) {
+    km::MemoryRange subrange = ranges[0].withExtraTail(x64::kPageSize);
+    OsStatus status = manager.release(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    AssertStats(0, 0);
+
+    AssertSegmentNotFound(ranges[0]);
+}
+
+TEST_F(MemoryManagerReleaseOneTest, ReleaseOneExactSpillBoth) {
+    km::MemoryRange subrange = ranges[0].withExtraTail(x64::kPageSize).withExtraTail(x64::kPageSize);
+    OsStatus status = manager.release(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    AssertStats(0, 0);
+
+    AssertSegmentNotFound(ranges[0]);
+}
+
+TEST_F(MemoryManagerReleaseOneTest, ReleaseOneSpillLeft) {
+    km::MemoryRange subrange = ranges[0].offsetBy(-x64::kPageSize);
+    OsStatus status = manager.release(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    AssertStats(1, x64::kPageSize);
+
+    AssertSegmentNotFound(subrange);
+    AssertSegmentFound(ranges[0].cut(subrange), 1);
+}
+
+TEST_F(MemoryManagerReleaseOneTest, ReleaseOneSpillRight) {
+    km::MemoryRange subrange = ranges[0].offsetBy(x64::kPageSize);
+    OsStatus status = manager.release(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    AssertStats(1, x64::kPageSize);
+
+    AssertSegmentNotFound(subrange);
+    AssertSegmentFound(ranges[0].cut(subrange), 1);
+}
+
+TEST_F(MemoryManagerReleaseOneTest, ReleaseOneRightBoundary) {
+    km::MemoryRange subrange = ranges[0].offsetBy(ranges[0].size());
+    OsStatus status = manager.release(subrange);
+    EXPECT_EQ(status, OsStatusNotFound);
+
+    AssertStats(1, x64::kPageSize * 4);
+
+    AssertSegmentNotFound(subrange);
+    AssertSegmentFound(ranges[0], 1);
+}
+
+TEST_F(MemoryManagerReleaseOneTest, ReleaseOneLeftBoundary) {
+    km::MemoryRange subrange = ranges[0].offsetBy(-ranges[0].size());
+    OsStatus status = manager.release(subrange);
+    EXPECT_EQ(status, OsStatusNotFound);
+
+    AssertStats(1, x64::kPageSize * 4);
+
+    AssertSegmentNotFound(subrange);
+    AssertSegmentFound(ranges[0], 1);
+}
+
+TEST_F(MemoryManagerReleaseOneTest, ReleaseOneInner) {
+    km::MemoryRange subrange = ranges[0].subrange(x64::kPageSize, x64::kPageSize * 2);
+    OsStatus status = manager.release(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    AssertStats(2, x64::kPageSize * 2);
+
+    AssertSegmentNotFound(subrange);
+    AssertSegmentFound(ranges[0].first(x64::kPageSize), 1);
+    AssertSegmentFound(ranges[0].last(x64::kPageSize), 1);
+}
+
+class MemoryManagerReleaseManyTest : public MemoryManagerTest {
+public:
+    void SetUp() override {
+        MemoryManagerTest::SetUp();
+
+        ranges = allocateMany(3, x64::kPageSize * 4);
+        AssertStats(3, x64::kPageSize * 4 * 3);
+        for (const auto& range : ranges) {
+            AssertSegmentFound(range, 1);
+        }
+    }
+
+    std::vector<km::MemoryRange> ranges;
+};
+
+TEST_F(MemoryManagerReleaseManyTest, ReleaseManyInnerExact) {
+    km::MemoryRange subrange = ranges[1];
+    OsStatus status = manager.release(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    AssertStats(2, x64::kPageSize * 4 * 2);
+
+    AssertSegmentNotFound(ranges[1]);
+    AssertSegmentFound(ranges[0], 1);
+    AssertSegmentFound(ranges[2], 1);
+}
+
+TEST_F(MemoryManagerReleaseManyTest, ReleaseOuterRightBorder) {
+    km::MemoryRange subrange = ranges[2].offsetBy(ranges[2].size());
+    OsStatus status = manager.release(subrange);
+    EXPECT_EQ(status, OsStatusNotFound);
+
+    AssertStats(3, x64::kPageSize * 4 * 3);
+
+    AssertSegmentFound(ranges[1], 1);
+    AssertSegmentFound(ranges[0], 1);
+    AssertSegmentFound(ranges[2], 1);
+}
+
+TEST_F(MemoryManagerReleaseManyTest, ReleaseOuterLeftBorder) {
+    km::MemoryRange subrange = ranges[0].offsetBy(-ranges[0].size());
+    OsStatus status = manager.release(subrange);
+    EXPECT_EQ(status, OsStatusNotFound);
+
+    AssertStats(3, x64::kPageSize * 4 * 3);
+
+    AssertSegmentFound(ranges[1], 1);
+    AssertSegmentFound(ranges[0], 1);
+    AssertSegmentFound(ranges[2], 1);
+}
+
+TEST_F(MemoryManagerReleaseManyTest, ReleaseManyRightSpill) {
+    km::MemoryRange subrange = ranges[2].offsetBy(x64::kPageSize);
+    OsStatus status = manager.release(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    AssertStats(3, x64::kPageSize * ((4 * 2) + 1));
+
+    AssertSegmentFound(ranges[1], 1);
+    AssertSegmentFound(ranges[0], 1);
+    AssertSegmentFound(ranges[2].cut(subrange), 1);
+    AssertSegmentNotFound(subrange);
+}
+
+TEST_F(MemoryManagerReleaseManyTest, ReleaseManyLeftSpill) {
+    km::MemoryRange subrange = ranges[0].offsetBy(-x64::kPageSize);
+    OsStatus status = manager.release(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    AssertStats(3, x64::kPageSize * ((4 * 2) + 1));
+
+    AssertSegmentNotFound(subrange);
+    AssertSegmentFound(ranges[0].cut(subrange), 1);
+    AssertSegmentFound(ranges[1], 1);
+    AssertSegmentFound(ranges[2], 1);
+}
+
+TEST_F(MemoryManagerReleaseManyTest, ReleaseManyInnerSpill) {
+    km::MemoryRange subrange = ranges[0].offsetBy(x64::kPageSize * 2);
+    OsStatus status = manager.release(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    AssertStats(3, x64::kPageSize * (4 * 2));
+
+    AssertSegmentNotFound(subrange);
+    AssertSegmentFound(ranges[0].cut(subrange), 1);
+    AssertSegmentFound(ranges[1].cut(subrange), 1);
+    AssertSegmentFound(ranges[2], 1);
+}
+
+TEST_F(MemoryManagerReleaseManyTest, ReleaseAllLeftSpill) {
+    km::MemoryRange subrange = unionInterval<km::PhysicalAddress>(ranges).withExtraHead(x64::kPageSize);
+    OsStatus status = manager.release(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    AssertStats(0, 0);
+
+    AssertSegmentNotFound(subrange);
+    AssertSegmentNotFound(ranges[0]);
+    AssertSegmentNotFound(ranges[1]);
+    AssertSegmentNotFound(ranges[2]);
+}
+
+TEST_F(MemoryManagerReleaseManyTest, ReleaseAllRightSpill) {
+    km::MemoryRange subrange = unionInterval<km::PhysicalAddress>(ranges).withExtraTail(x64::kPageSize);
+    OsStatus status = manager.release(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    AssertStats(0, 0);
+
+    AssertSegmentNotFound(subrange);
+    AssertSegmentNotFound(ranges[0]);
+    AssertSegmentNotFound(ranges[1]);
+    AssertSegmentNotFound(ranges[2]);
+}
+
+TEST_F(MemoryManagerTest, ReleaseMany) {
+    OsStatus status = OsStatusSuccess;
     std::array<km::MemoryRange, 3> ranges;
     for (auto& range : ranges) {
         status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
@@ -344,11 +568,8 @@ TEST(MemoryManagerTest, ReleaseMany) {
     EXPECT_EQ(status, OsStatusNotFound);
 }
 
-TEST(MemoryManagerTest, RetainSingle) {
-    sys2::MemoryManager manager;
-    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
-    EXPECT_EQ(status, OsStatusSuccess);
-
+TEST_F(MemoryManagerTest, RetainSingle) {
+    OsStatus status = OsStatusSuccess;
     km::MemoryRange range;
     status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
@@ -374,11 +595,8 @@ TEST(MemoryManagerTest, RetainSingle) {
     EXPECT_EQ(ss0.range, range);
 }
 
-TEST(MemoryManagerTest, RetainSpill) {
-    sys2::MemoryManager manager;
-    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
-    EXPECT_EQ(status, OsStatusSuccess);
-
+TEST_F(MemoryManagerTest, RetainSpill) {
+    OsStatus status = OsStatusSuccess;
     km::MemoryRange range;
     status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
@@ -405,11 +623,8 @@ TEST(MemoryManagerTest, RetainSpill) {
     EXPECT_EQ(ss0.range, range);
 }
 
-TEST(MemoryManagerTest, RetainFront) {
-    sys2::MemoryManager manager;
-    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
-    EXPECT_EQ(status, OsStatusSuccess);
-
+TEST_F(MemoryManagerTest, RetainFront) {
+    OsStatus status = OsStatusSuccess;
     km::MemoryRange range;
     status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
@@ -442,11 +657,8 @@ TEST(MemoryManagerTest, RetainFront) {
     EXPECT_EQ(ss1.range, range.cut(subrange));
 }
 
-TEST(MemoryManagerTest, RetainBack) {
-    sys2::MemoryManager manager;
-    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
-    EXPECT_EQ(status, OsStatusSuccess);
-
+TEST_F(MemoryManagerTest, RetainBack) {
+    OsStatus status = OsStatusSuccess;
     km::MemoryRange range;
     status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
@@ -479,11 +691,8 @@ TEST(MemoryManagerTest, RetainBack) {
     EXPECT_EQ(ss1.range, subrange);
 }
 
-TEST(MemoryManagerTest, RetainSubrange) {
-    sys2::MemoryManager manager;
-    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
-    EXPECT_EQ(status, OsStatusSuccess);
-
+TEST_F(MemoryManagerTest, RetainSubrange) {
+    OsStatus status = OsStatusSuccess;
     km::MemoryRange range;
     status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
@@ -526,11 +735,8 @@ TEST(MemoryManagerTest, RetainSubrange) {
         << " ss2 " << std::string_view(km::format(ss2.range));
 }
 
-TEST(MemoryManagerTest, RetainSpillFront) {
-    sys2::MemoryManager manager;
-    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
-    EXPECT_EQ(status, OsStatusSuccess);
-
+TEST_F(MemoryManagerTest, RetainSpillFront) {
+    OsStatus status = OsStatusSuccess;
     km::MemoryRange range;
     status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
@@ -567,11 +773,8 @@ TEST(MemoryManagerTest, RetainSpillFront) {
     EXPECT_EQ(ss1.range, range.cut(subrange));
 }
 
-TEST(MemoryManagerTest, RetainSpillBack) {
-    sys2::MemoryManager manager;
-    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
-    EXPECT_EQ(status, OsStatusSuccess);
-
+TEST_F(MemoryManagerTest, RetainSpillBack) {
+    OsStatus status = OsStatusSuccess;
     km::MemoryRange range;
     status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
@@ -608,11 +811,8 @@ TEST(MemoryManagerTest, RetainSpillBack) {
         << " ss1 " << std::string_view(km::format(ss1.range));
 }
 
-TEST(MemoryManagerTest, OverlapOps) {
-    sys2::MemoryManager manager;
-    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
-    EXPECT_EQ(status, OsStatusSuccess);
-
+TEST_F(MemoryManagerTest, OverlapOps) {
+    OsStatus status = OsStatusSuccess;
     km::MemoryRange range;
     status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
     EXPECT_EQ(status, OsStatusSuccess);
@@ -661,11 +861,8 @@ TEST(MemoryManagerTest, OverlapOps) {
         << " ss2 " << std::string_view(km::format(ss2.range));
 }
 
-TEST(MemoryManagerTest, RetainManyExactFront) {
-    sys2::MemoryManager manager;
-    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
-    EXPECT_EQ(status, OsStatusSuccess);
-
+TEST_F(MemoryManagerTest, RetainManyExactFront) {
+    OsStatus status = OsStatusSuccess;
     std::array<km::MemoryRange, 3> ranges;
     for (auto& range : ranges) {
         status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
@@ -712,11 +909,8 @@ TEST(MemoryManagerTest, RetainManyExactFront) {
     EXPECT_EQ(ss2.owners, 2);
 }
 
-TEST(MemoryManagerTest, RetainManyExactBack) {
-    sys2::MemoryManager manager;
-    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
-    EXPECT_EQ(status, OsStatusSuccess);
-
+TEST_F(MemoryManagerTest, RetainManyExactBack) {
+    OsStatus status = OsStatusSuccess;
     std::array<km::MemoryRange, 3> ranges;
     for (auto& range : ranges) {
         status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
@@ -764,11 +958,8 @@ TEST(MemoryManagerTest, RetainManyExactBack) {
     EXPECT_EQ(ss2.owners, 2);
 }
 
-TEST(MemoryManagerTest, RetainManyExactBoth) {
-    sys2::MemoryManager manager;
-    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
-    EXPECT_EQ(status, OsStatusSuccess);
-
+TEST_F(MemoryManagerTest, RetainManyExactBoth) {
+    OsStatus status = OsStatusSuccess;
     std::array<km::MemoryRange, 3> ranges;
     for (auto& range : ranges) {
         status = manager.allocate(x64::kPageSize * 4, alignof(x64::page), &range);
