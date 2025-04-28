@@ -269,7 +269,7 @@ static_assert(sm::roundup(0x1111, 0x1000) == 0x2000);
 
 TEST(MemoryRangeTest, UnionIntervalEmpty) {
     std::vector<km::MemoryRange> ranges;
-    km::MemoryRange result = km::unionInterval<km::PhysicalAddress>(ranges);
+    km::MemoryRange result = km::combinedInterval<km::PhysicalAddress>(ranges);
     ASSERT_TRUE(result.isEmpty());
 }
 
@@ -277,7 +277,7 @@ TEST(MemoryRangeTest, UnionIntervalSingle) {
     std::vector<km::MemoryRange> ranges = {
         km::MemoryRange { 0x1000, 0x2000 }
     };
-    km::MemoryRange result = km::unionInterval<km::PhysicalAddress>(ranges);
+    km::MemoryRange result = km::combinedInterval<km::PhysicalAddress>(ranges);
     ASSERT_EQ(result, ranges[0]);
 }
 
@@ -286,7 +286,7 @@ TEST(MemoryRangeTest, UnionIntervalMultiple) {
         km::MemoryRange { 0x1000, 0x2000 },
         km::MemoryRange { 0x4000, 0x5000 },
     };
-    km::MemoryRange result = km::unionInterval<km::PhysicalAddress>(ranges);
+    km::MemoryRange result = km::combinedInterval<km::PhysicalAddress>(ranges);
     ASSERT_EQ(result.front, 0x1000);
     ASSERT_EQ(result.back, 0x5000);
 }

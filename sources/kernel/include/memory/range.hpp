@@ -164,6 +164,16 @@ namespace km {
             return {front, newBack};
         }
 
+        constexpr AnyRange withExtraBounds(uintptr_t extraHead, uintptr_t extraTail) const {
+            T newFront = std::bit_cast<T>(std::bit_cast<uintptr_t>(front) - extraHead);
+            T newBack = std::bit_cast<T>(std::bit_cast<uintptr_t>(back) + extraTail);
+            return {newFront, newBack};
+        }
+
+        constexpr AnyRange withExtraBounds(uintptr_t extra) const {
+            return withExtraBounds(extra, extra);
+        }
+
         constexpr AnyRange subrange(uintptr_t offset, uintptr_t size) const noexcept {
             T newFront = std::bit_cast<T>(std::bit_cast<uintptr_t>(front) + offset);
             T newBack = std::bit_cast<T>(std::bit_cast<uintptr_t>(newFront) + size);
@@ -189,6 +199,10 @@ namespace km {
             KM_ASSERT(newSize <= size());
             T newFront = std::bit_cast<T>(std::bit_cast<uintptr_t>(back) - newSize);
             return {newFront, back};
+        }
+
+        constexpr AnyRange mergedWith(AnyRange other) const {
+            return {std::min(front, other.front), std::max(back, other.back)};
         }
 
         /// @brief Return a copy of this range with the overlapping area cut out.
@@ -303,7 +317,7 @@ namespace km {
     }
 
     template<typename T>
-    constexpr AnyRange<T> unionInterval(std::span<const AnyRange<T>> ranges) {
+    constexpr AnyRange<T> combinedInterval(std::span<const AnyRange<T>> ranges) {
         if (ranges.empty()) return AnyRange<T>{};
 
         AnyRange<T> result = ranges[0];

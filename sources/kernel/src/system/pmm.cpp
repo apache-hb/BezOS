@@ -247,6 +247,10 @@ OsStatus sys2::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]
             // |--------seg-------|
             //     |----range-----|
             return retainSegment(begin, range.front, kHigh);
+        } else if (seg.front == range.back) {
+            //             |---seg---|
+            // |---range---|
+            return OsStatusNotFound;
         } else {
             km::MemoryRange remaining = range;
             switch (OsStatus status = retainRange(begin, range, &remaining)) {
@@ -340,9 +344,24 @@ OsStatus sys2::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]
         }
     }
 
+    if (begin != mSegments.end() && end == mSegments.end()) {
+        MemorySegment& segment = begin->second;
+        km::MemoryRange seg = segment.range();
+        if (seg.back == range.front) {
+            // |----seg----|
+            //             |---range---|
+            return OsStatusNotFound;
+        }
+    }
+
     km::MemoryRange remaining = range;
     for (auto it = begin; it != end;) {
-        switch (OsStatus status = retainRange(it, remaining, &remaining)) {
+        auto seg = it->second.range();
+        if (!km::interval(seg, range)) {
+            return OsStatusSuccess;
+        }
+
+        switch (OsStatus status = retainRange(it, range, &remaining)) {
         case OsStatusCompleted:
             return OsStatusSuccess;
         case OsStatusMoreData:
@@ -525,8 +544,13 @@ OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating
             begin = mSegments.upper_bound(lhs.back);
             end = mSegments.upper_bound(rhs.front);
 
-            for (auto it = begin; it != end; ++it) {
-                releaseEntry(it);
+            for (auto it = begin; it != end;) {
+                if (releaseSegment(it->second)) {
+                    it = mSegments.erase(it);
+                    end = mSegments.upper_bound(rhs.front);
+                } else {
+                    ++it;
+                }
             }
 
             return OsStatusSuccess;

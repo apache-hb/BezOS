@@ -6,6 +6,14 @@
 extern "C" {
 #endif
 
+typedef uint8_t OsFacility;
+
+enum OsFacilityId {
+    eOsFacilityUnknown = 0x00,
+    eOsFacilityMemory  = 0x01,
+    eOsFacilityVmem    = 0x02,
+};
+
 typedef uint64_t OsStatus;
 
 enum OsStatusId {

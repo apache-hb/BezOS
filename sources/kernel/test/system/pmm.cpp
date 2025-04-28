@@ -66,7 +66,10 @@ public:
         OsStatus status = manager.querySegment(address, &segmentStats);
         ASSERT_EQ(status, OsStatusSuccess) << "Failed to find segment for address: " << std::string_view(km::format(address)) << " in range: " << std::string_view(km::format(range));
         ASSERT_EQ(segmentStats.owners, owners);
-        ASSERT_EQ(segmentStats.range, range);
+        ASSERT_EQ(segmentStats.range, range)
+            << "Range mismatch: "
+            << std::string_view(km::format(segmentStats.range))
+            << " != " << std::string_view(km::format(range));
     }
 
     sys2::MemoryManagerStats AssertStats(size_t segments, size_t usedMemory) {
@@ -294,7 +297,7 @@ TEST_F(MemoryManagerTest, ReleaseMultiple) {
     AssertStats(2, x64::kPageSize * 2 * 2);
 }
 
-class MemoryManagerReleaseOneTest : public MemoryManagerTest {
+class MemoryManagerSingleRangeTest : public MemoryManagerTest {
 public:
     void SetUp() override {
         MemoryManagerTest::SetUp();
@@ -309,7 +312,9 @@ public:
     std::vector<km::MemoryRange> ranges;
 };
 
-TEST_F(MemoryManagerReleaseOneTest, ReleaseOneExact) {
+class MemoryManagerReleaseTest : public MemoryManagerSingleRangeTest { };
+
+TEST_F(MemoryManagerReleaseTest, ReleaseOneExact) {
     km::MemoryRange subrange = ranges[0];
     OsStatus status = manager.release(subrange);
     EXPECT_EQ(status, OsStatusSuccess);
@@ -319,7 +324,7 @@ TEST_F(MemoryManagerReleaseOneTest, ReleaseOneExact) {
     AssertSegmentNotFound(ranges[0]);
 }
 
-TEST_F(MemoryManagerReleaseOneTest, ReleaseOneExactSpillLeft) {
+TEST_F(MemoryManagerReleaseTest, ReleaseOneExactSpillLeft) {
     km::MemoryRange subrange = ranges[0].withExtraHead(x64::kPageSize);
     OsStatus status = manager.release(subrange);
     EXPECT_EQ(status, OsStatusSuccess);
@@ -329,7 +334,7 @@ TEST_F(MemoryManagerReleaseOneTest, ReleaseOneExactSpillLeft) {
     AssertSegmentNotFound(ranges[0]);
 }
 
-TEST_F(MemoryManagerReleaseOneTest, ReleaseOneExactSpillRight) {
+TEST_F(MemoryManagerReleaseTest, ReleaseOneExactSpillRight) {
     km::MemoryRange subrange = ranges[0].withExtraTail(x64::kPageSize);
     OsStatus status = manager.release(subrange);
     EXPECT_EQ(status, OsStatusSuccess);
@@ -339,7 +344,7 @@ TEST_F(MemoryManagerReleaseOneTest, ReleaseOneExactSpillRight) {
     AssertSegmentNotFound(ranges[0]);
 }
 
-TEST_F(MemoryManagerReleaseOneTest, ReleaseOneExactSpillBoth) {
+TEST_F(MemoryManagerReleaseTest, ReleaseOneExactSpillBoth) {
     km::MemoryRange subrange = ranges[0].withExtraTail(x64::kPageSize).withExtraTail(x64::kPageSize);
     OsStatus status = manager.release(subrange);
     EXPECT_EQ(status, OsStatusSuccess);
@@ -349,7 +354,7 @@ TEST_F(MemoryManagerReleaseOneTest, ReleaseOneExactSpillBoth) {
     AssertSegmentNotFound(ranges[0]);
 }
 
-TEST_F(MemoryManagerReleaseOneTest, ReleaseOneSpillLeft) {
+TEST_F(MemoryManagerReleaseTest, ReleaseOneSpillLeft) {
     km::MemoryRange subrange = ranges[0].offsetBy(-x64::kPageSize);
     OsStatus status = manager.release(subrange);
     EXPECT_EQ(status, OsStatusSuccess);
@@ -360,7 +365,7 @@ TEST_F(MemoryManagerReleaseOneTest, ReleaseOneSpillLeft) {
     AssertSegmentFound(ranges[0].cut(subrange), 1);
 }
 
-TEST_F(MemoryManagerReleaseOneTest, ReleaseOneSpillRight) {
+TEST_F(MemoryManagerReleaseTest, ReleaseOneSpillRight) {
     km::MemoryRange subrange = ranges[0].offsetBy(x64::kPageSize);
     OsStatus status = manager.release(subrange);
     EXPECT_EQ(status, OsStatusSuccess);
@@ -371,7 +376,7 @@ TEST_F(MemoryManagerReleaseOneTest, ReleaseOneSpillRight) {
     AssertSegmentFound(ranges[0].cut(subrange), 1);
 }
 
-TEST_F(MemoryManagerReleaseOneTest, ReleaseOneRightBoundary) {
+TEST_F(MemoryManagerReleaseTest, ReleaseOneRightBoundary) {
     km::MemoryRange subrange = ranges[0].offsetBy(ranges[0].size());
     OsStatus status = manager.release(subrange);
     EXPECT_EQ(status, OsStatusNotFound);
@@ -382,7 +387,7 @@ TEST_F(MemoryManagerReleaseOneTest, ReleaseOneRightBoundary) {
     AssertSegmentFound(ranges[0], 1);
 }
 
-TEST_F(MemoryManagerReleaseOneTest, ReleaseOneLeftBoundary) {
+TEST_F(MemoryManagerReleaseTest, ReleaseOneLeftBoundary) {
     km::MemoryRange subrange = ranges[0].offsetBy(-ranges[0].size());
     OsStatus status = manager.release(subrange);
     EXPECT_EQ(status, OsStatusNotFound);
@@ -393,7 +398,7 @@ TEST_F(MemoryManagerReleaseOneTest, ReleaseOneLeftBoundary) {
     AssertSegmentFound(ranges[0], 1);
 }
 
-TEST_F(MemoryManagerReleaseOneTest, ReleaseOneInner) {
+TEST_F(MemoryManagerReleaseTest, ReleaseOneInner) {
     km::MemoryRange subrange = ranges[0].subrange(x64::kPageSize, x64::kPageSize * 2);
     OsStatus status = manager.release(subrange);
     EXPECT_EQ(status, OsStatusSuccess);
@@ -405,7 +410,7 @@ TEST_F(MemoryManagerReleaseOneTest, ReleaseOneInner) {
     AssertSegmentFound(ranges[0].last(x64::kPageSize), 1);
 }
 
-class MemoryManagerReleaseManyTest : public MemoryManagerTest {
+class MemoryManagerManyRangeTest : public MemoryManagerTest {
 public:
     void SetUp() override {
         MemoryManagerTest::SetUp();
@@ -419,6 +424,8 @@ public:
 
     std::vector<km::MemoryRange> ranges;
 };
+
+class MemoryManagerReleaseManyTest : public MemoryManagerManyRangeTest { };
 
 TEST_F(MemoryManagerReleaseManyTest, ReleaseManyInnerExact) {
     km::MemoryRange subrange = ranges[1];
@@ -496,7 +503,7 @@ TEST_F(MemoryManagerReleaseManyTest, ReleaseManyInnerSpill) {
 }
 
 TEST_F(MemoryManagerReleaseManyTest, ReleaseAllLeftSpill) {
-    km::MemoryRange subrange = unionInterval<km::PhysicalAddress>(ranges).withExtraHead(x64::kPageSize);
+    km::MemoryRange subrange = combinedInterval<km::PhysicalAddress>(ranges).withExtraHead(x64::kPageSize);
     OsStatus status = manager.release(subrange);
     EXPECT_EQ(status, OsStatusSuccess);
 
@@ -509,7 +516,7 @@ TEST_F(MemoryManagerReleaseManyTest, ReleaseAllLeftSpill) {
 }
 
 TEST_F(MemoryManagerReleaseManyTest, ReleaseAllRightSpill) {
-    km::MemoryRange subrange = unionInterval<km::PhysicalAddress>(ranges).withExtraTail(x64::kPageSize);
+    km::MemoryRange subrange = combinedInterval<km::PhysicalAddress>(ranges).withExtraTail(x64::kPageSize);
     OsStatus status = manager.release(subrange);
     EXPECT_EQ(status, OsStatusSuccess);
 
@@ -520,6 +527,231 @@ TEST_F(MemoryManagerReleaseManyTest, ReleaseAllRightSpill) {
     AssertSegmentNotFound(ranges[1]);
     AssertSegmentNotFound(ranges[2]);
 }
+
+class MemoryManagerRetainManyTest : public MemoryManagerManyRangeTest { };
+
+TEST_F(MemoryManagerRetainManyTest, RetainManyInnerExact) {
+    km::MemoryRange subrange = ranges[1];
+    OsStatus status = manager.retain(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    AssertStats(3, x64::kPageSize * 4 * 3);
+
+    AssertSegmentFound(ranges[0], 1);
+    AssertSegmentFound(ranges[1], 2);
+    AssertSegmentFound(ranges[2], 1);
+}
+
+TEST_F(MemoryManagerRetainManyTest, RetainOuterRightBorder) {
+    km::MemoryRange subrange = ranges[2].offsetBy(ranges[2].size());
+    OsStatus status = manager.retain(subrange);
+    EXPECT_EQ(status, OsStatusNotFound);
+
+    AssertStats(3, x64::kPageSize * 4 * 3);
+
+    AssertSegmentFound(ranges[0], 1);
+    AssertSegmentFound(ranges[1], 1);
+    AssertSegmentFound(ranges[2], 1);
+}
+
+TEST_F(MemoryManagerRetainManyTest, RetainOuterLeftBorder) {
+    km::MemoryRange subrange = ranges[0].offsetBy(-ranges[0].size());
+    OsStatus status = manager.retain(subrange);
+    EXPECT_EQ(status, OsStatusNotFound);
+
+    AssertStats(3, x64::kPageSize * 4 * 3);
+
+    AssertSegmentFound(ranges[0], 1);
+    AssertSegmentFound(ranges[1], 1);
+    AssertSegmentFound(ranges[2], 1);
+}
+
+TEST_F(MemoryManagerRetainManyTest, RetainManyRightSpill) {
+    km::MemoryRange subrange = ranges[2].offsetBy(x64::kPageSize);
+    OsStatus status = manager.retain(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    AssertStats(4, x64::kPageSize * (4 * 3));
+
+    AssertSegmentFound(ranges[0], 1);
+    AssertSegmentFound(ranges[1], 1);
+    AssertSegmentFound(ranges[2].subrange(0, x64::kPageSize), 1);
+    AssertSegmentFound(ranges[2].subrange(x64::kPageSize), 2);
+}
+
+TEST_F(MemoryManagerRetainManyTest, RetainManyLeftSpill) {
+    km::MemoryRange subrange = ranges[0].offsetBy(-x64::kPageSize);
+    OsStatus status = manager.retain(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    AssertStats(4, x64::kPageSize * (4 * 3));
+
+    AssertSegmentFound(ranges[0].subrange(0, x64::kPageSize * 3), 2);
+    AssertSegmentFound(ranges[0].subrange(x64::kPageSize * 3, x64::kPageSize), 1);
+    AssertSegmentFound(ranges[1], 1);
+    AssertSegmentFound(ranges[2], 1);
+}
+
+TEST_F(MemoryManagerRetainManyTest, RetainManyInnerSpill) {
+    km::MemoryRange subrange = ranges[0].offsetBy(x64::kPageSize * 2);
+    OsStatus status = manager.retain(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    AssertStats(5, x64::kPageSize * (4 * 3));
+
+    AssertSegmentFound(ranges[0].first(x64::kPageSize * 2), 1);
+    AssertSegmentFound(ranges[0].last(x64::kPageSize * 2), 2);
+    AssertSegmentFound(ranges[1].first(x64::kPageSize * 2), 2);
+    AssertSegmentFound(ranges[1].last(x64::kPageSize * 2), 1);
+    AssertSegmentFound(ranges[2], 1);
+}
+
+TEST_F(MemoryManagerRetainManyTest, RetainAllLeftSpill) {
+    km::MemoryRange subrange = combinedInterval<km::PhysicalAddress>(ranges).withExtraHead(x64::kPageSize);
+    OsStatus status = manager.retain(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    AssertStats(3, x64::kPageSize * (4 * 3));
+
+    AssertSegmentFound(ranges[0], 2);
+    AssertSegmentFound(ranges[1], 2);
+    AssertSegmentFound(ranges[2], 2);
+}
+
+TEST_F(MemoryManagerRetainManyTest, RetainAllRightSpill) {
+    km::MemoryRange subrange = combinedInterval<km::PhysicalAddress>(ranges).withExtraTail(x64::kPageSize);
+    OsStatus status = manager.retain(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    AssertStats(3, x64::kPageSize * (4 * 3));
+
+    AssertSegmentFound(ranges[0], 2);
+    AssertSegmentFound(ranges[1], 2);
+    AssertSegmentFound(ranges[2], 2);
+}
+
+TEST_F(MemoryManagerRetainManyTest, RetainAllOnlyInnerHole) {
+    OsStatus status = manager.release(ranges[1]);
+    EXPECT_EQ(status, OsStatusSuccess);
+    AssertStats(2, x64::kPageSize * 4 * 2);
+    AssertSegmentNotFound(ranges[1]);
+
+    km::MemoryRange subrange = ranges[1];
+    status = manager.retain(subrange);
+    EXPECT_EQ(status, OsStatusNotFound);
+
+    AssertStats(2, x64::kPageSize * 4 * 2);
+
+    AssertSegmentFound(ranges[0], 1);
+    AssertSegmentNotFound(ranges[1]);
+    AssertSegmentFound(ranges[2], 1);
+}
+
+TEST_F(MemoryManagerRetainManyTest, RetainAllInnerHole) {
+    OsStatus status = manager.release(ranges[1]);
+    EXPECT_EQ(status, OsStatusSuccess);
+    AssertStats(2, x64::kPageSize * 4 * 2);
+    AssertSegmentNotFound(ranges[1]);
+
+    km::MemoryRange subrange = km::combinedInterval<km::PhysicalAddress>(ranges);
+    status = manager.retain(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    AssertStats(2, x64::kPageSize * 4 * 2);
+
+    AssertSegmentFound(ranges[0], 2);
+    AssertSegmentNotFound(ranges[1]);
+    AssertSegmentFound(ranges[2], 2);
+}
+
+TEST_F(MemoryManagerRetainManyTest, RetainLeftExactInnerHole) {
+    OsStatus status = manager.release(ranges[1]);
+    EXPECT_EQ(status, OsStatusSuccess);
+    AssertStats(2, x64::kPageSize * 4 * 2);
+    AssertSegmentNotFound(ranges[1]);
+
+    km::MemoryRange subrange = ranges[0];
+    status = manager.retain(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    AssertStats(2, x64::kPageSize * 4 * 2);
+
+    AssertSegmentFound(ranges[0], 2);
+    AssertSegmentNotFound(ranges[1]);
+    AssertSegmentFound(ranges[2], 1);
+}
+
+TEST_F(MemoryManagerRetainManyTest, RetainRightExactInnerHole) {
+    OsStatus status = manager.release(ranges[1]);
+    EXPECT_EQ(status, OsStatusSuccess);
+    AssertStats(2, x64::kPageSize * 4 * 2);
+    AssertSegmentNotFound(ranges[1]);
+
+    km::MemoryRange subrange = ranges[2];
+    status = manager.retain(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    AssertStats(2, x64::kPageSize * 4 * 2);
+
+    AssertSegmentFound(ranges[0], 1);
+    AssertSegmentNotFound(ranges[1]);
+    AssertSegmentFound(ranges[2], 2);
+}
+
+TEST_F(MemoryManagerRetainManyTest, RetainBothInnerHole) {
+    OsStatus status = manager.release(ranges[1]);
+    EXPECT_EQ(status, OsStatusSuccess);
+    AssertStats(2, x64::kPageSize * 4 * 2);
+    AssertSegmentNotFound(ranges[1]);
+
+    km::MemoryRange subrange = ranges[0].last(x64::kPageSize * 2).mergedWith(ranges[2].first(x64::kPageSize * 2));
+    status = manager.retain(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    AssertStats(4, x64::kPageSize * 4 * 2);
+
+    AssertSegmentFound(ranges[0].first(x64::kPageSize * 2), 1);
+    AssertSegmentFound(ranges[0].last(x64::kPageSize * 2), 2);
+    AssertSegmentNotFound(ranges[1]);
+    AssertSegmentFound(ranges[2].first(x64::kPageSize * 2), 2);
+    AssertSegmentFound(ranges[2].last(x64::kPageSize * 2), 1);
+}
+
+TEST_F(MemoryManagerRetainManyTest, RetainLeftSpillInnerHole) {
+    OsStatus status = manager.release(ranges[1]);
+    EXPECT_EQ(status, OsStatusSuccess);
+    AssertStats(2, x64::kPageSize * 4 * 2);
+    AssertSegmentNotFound(ranges[1]);
+
+    km::MemoryRange subrange = ranges[0].withExtraBounds(x64::kPageSize);
+    status = manager.retain(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    AssertStats(2, x64::kPageSize * 4 * 2);
+
+    AssertSegmentFound(ranges[0], 2);
+    AssertSegmentNotFound(ranges[1]);
+    AssertSegmentFound(ranges[2], 1);
+}
+
+TEST_F(MemoryManagerRetainManyTest, RetainRightSpillInnerHole) {
+    OsStatus status = manager.release(ranges[1]);
+    EXPECT_EQ(status, OsStatusSuccess);
+    AssertStats(2, x64::kPageSize * 4 * 2);
+    AssertSegmentNotFound(ranges[1]);
+
+    km::MemoryRange subrange = ranges[2].withExtraBounds(x64::kPageSize);
+    status = manager.retain(subrange);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    AssertStats(2, x64::kPageSize * 4 * 2);
+
+    AssertSegmentFound(ranges[0], 1);
+    AssertSegmentNotFound(ranges[1]);
+    AssertSegmentFound(ranges[2], 2);
+}
+
+class MemoryManagerRetainTest : public MemoryManagerSingleRangeTest { };
 
 TEST_F(MemoryManagerTest, ReleaseMany) {
     OsStatus status = OsStatusSuccess;
