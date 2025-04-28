@@ -59,12 +59,12 @@ namespace sys2::detail {
             mSegments.insert({ range.back, std::move(segment) });
         }
 
-        void erase(Iterator it) noexcept {
-            mSegments.erase(it);
+        Iterator erase(Iterator it) noexcept {
+            return mSegments.erase(it);
         }
 
-        void erase(Address address) noexcept {
-            mSegments.erase(address);
+        Iterator erase(Address address) noexcept {
+            return mSegments.erase(address);
         }
 
         size_t segments() const noexcept {

@@ -84,8 +84,7 @@ bool sys2::MemoryManager::releaseSegment(sys2::MemorySegment& segment) {
 }
 
 void sys2::MemoryManager::addSegment(MemorySegment&& segment) {
-    auto range = segment.handle.range();
-    segments().insert({ range.back, std::move(segment) });
+    mTable.insert(std::move(segment));
 }
 
 OsStatus sys2::MemoryManager::retainSegment(Iterator it, km::PhysicalAddress midpoint, ReleaseSide side) {
@@ -99,7 +98,7 @@ OsStatus sys2::MemoryManager::retainSegment(Iterator it, km::PhysicalAddress mid
     auto loSegment = MemorySegment { uint8_t(segment.owners), lo };
     auto hiSegment = MemorySegment { uint8_t(segment.owners), hi };
 
-    segments().erase(it);
+    mTable.erase(it);
 
     switch (side) {
     case kLow:

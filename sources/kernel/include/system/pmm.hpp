@@ -62,11 +62,11 @@ namespace sys2 {
         using Map = typename Table::Map;
         using Iterator = typename Map::iterator;
 
-        Map _mSegments;
+        Table mTable;
         km::TlsfHeap mHeap;
 
         Map& segments() noexcept {
-            return _mSegments;
+            return mTable.segments();
         }
 
         MemoryManager(km::TlsfHeap&& heap) noexcept
