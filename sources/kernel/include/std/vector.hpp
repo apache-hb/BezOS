@@ -227,6 +227,9 @@ namespace stdx {
             if (mFront != nullptr) {
                 std::destroy_n(mFront, count());
                 mAllocator.deallocate(mFront, capacity() * sizeof(T));
+                mFront = nullptr;
+                mBack = nullptr;
+                mCapacity = nullptr;
             }
         }
 
@@ -292,19 +295,19 @@ namespace stdx {
             return *this;
         }
 
-        constexpr Vector2(Vector2&& other)
+        constexpr Vector2(Vector2&& other) noexcept
             : mAllocator(std::exchange(other.mAllocator, Allocator{}))
             , mFront(std::exchange(other.mFront, nullptr))
             , mBack(std::exchange(other.mBack, nullptr))
             , mCapacity(std::exchange(other.mCapacity, nullptr))
         { }
 
-        constexpr Vector2& operator=(Vector2&& other) {
+        constexpr Vector2& operator=(Vector2&& other) noexcept {
             if (this != &other) {
-                mAllocator = std::exchange(other.mAllocator, Allocator{});
-                mFront = std::exchange(other.mFront, nullptr);
-                mBack = std::exchange(other.mBack, nullptr);
-                mCapacity = std::exchange(other.mCapacity, nullptr);
+                std::swap(mAllocator, other.mAllocator);
+                std::swap(mFront, other.mFront);
+                std::swap(mBack, other.mBack);
+                std::swap(mCapacity, other.mCapacity);
             }
 
             return *this;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "log.hpp"
 #include "std/vector.hpp"
 #include "common/util/util.hpp"
 
@@ -153,10 +154,20 @@ namespace km {
 
     public:
         UTIL_NOCOPY(PoolAllocator);
-        UTIL_DEFAULT_MOVE(PoolAllocator);
+
+        constexpr PoolAllocator(PoolAllocator&& other) noexcept = default;
+        constexpr PoolAllocator& operator=(PoolAllocator&& other) noexcept {
+            if (this != &other) {
+                clear();
+                mBlocks = std::move(other.mBlocks);
+            }
+            return *this;
+        }
 
         constexpr PoolAllocator() noexcept [[clang::nonallocating]] = default;
-        constexpr ~PoolAllocator() noexcept { clear(); }
+        constexpr ~PoolAllocator() noexcept {
+            clear();
+        }
 
         void clear() noexcept [[clang::nonallocating]] {
             for (Block *block : mBlocks) {

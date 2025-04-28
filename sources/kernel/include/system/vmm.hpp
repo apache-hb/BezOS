@@ -96,6 +96,7 @@ namespace sys2 {
         OsStatus unmapSegment(MemoryManager *manager, Iterator it, km::VirtualRange range, km::VirtualRange *remaining) [[clang::allocating]];
     public:
         UTIL_DEFAULT_MOVE(AddressSpaceManager);
+        UTIL_NOCOPY(AddressSpaceManager);
 
         constexpr AddressSpaceManager() noexcept = default;
 

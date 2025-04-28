@@ -408,6 +408,8 @@ OsStatus sys2::AddressSpaceManager::unmap(MemoryManager *manager, km::VirtualRan
             AddressSegment loSegment { physicalRange, allocations[0] };
             AddressSegment hiSegment { physicalRange, allocations[2] };
 
+            mHeap.free(allocations[1]);
+
             mSegments.erase(begin);
 
             addSegment(std::move(loSegment));
