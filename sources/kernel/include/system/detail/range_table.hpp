@@ -7,15 +7,25 @@
 namespace sys2::detail {
     template<typename T>
     class RangeTable {
-        using Range = decltype(std::declval<T>().range());
+    public:
+        using Segment = T;
+        using Range = decltype(std::declval<Segment>().range());
         using Address = typename Range::ValueType;
-        using Map = sm::BTreeMap<Address, T>;
-
+        using Map = sm::BTreeMap<Address, Segment>;
+    private:
         Map mSegments;
     public:
         using Iterator = typename Map::iterator;
 
         constexpr RangeTable() noexcept = default;
+
+        Map& segments() noexcept {
+            return mSegments;
+        }
+
+        Iterator at(Address address) noexcept {
+            return mSegments.find(address);
+        }
 
         /// @brief Return an iterator to the segment that contains the given address.
         Iterator find(Address address) noexcept {

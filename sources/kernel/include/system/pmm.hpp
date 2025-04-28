@@ -4,6 +4,7 @@
 #include "memory/heap.hpp"
 #include "memory/range.hpp"
 #include "std/rcuptr.hpp"
+#include "system/detail/range_table.hpp"
 #include "system/vmem.hpp"
 #include "util/absl.hpp"
 
@@ -57,11 +58,16 @@ namespace sys2 {
 
     class MemoryManager {
         using Counter = std::atomic<uint8_t>;
-        using Map = sm::BTreeMap<km::PhysicalAddress, MemorySegment>;
+        using Table = sys2::detail::RangeTable<MemorySegment>;
+        using Map = typename Table::Map;
         using Iterator = typename Map::iterator;
 
-        Map mSegments;
+        Map _mSegments;
         km::TlsfHeap mHeap;
+
+        Map& segments() noexcept {
+            return _mSegments;
+        }
 
         MemoryManager(km::TlsfHeap&& heap) noexcept
             : mHeap(std::move(heap))
@@ -119,7 +125,7 @@ namespace sys2 {
 
         void validate() {
             bool ok = true;
-            for (const auto& [address, segment] : mSegments) {
+            for (const auto& [address, segment] : segments()) {
                 if (address != segment.range().back) {
                     KmDebugMessage("Invalid address for Segment: ", segment.range(), " (owners: ", segment.owners.load(), ")\n");
                     KmDebugMessage("Invalid address for Segment address: ", address, " != ", segment.range().back, "\n");
@@ -141,7 +147,7 @@ namespace sys2 {
         }
 
         void dump() {
-            for (const auto& [_, segment] : mSegments) {
+            for (const auto& [_, segment] : segments()) {
                 KmDebugMessage("Segment: ", segment.range(), " (owners: ", segment.owners.load(), ")\n");
             }
         }

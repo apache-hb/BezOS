@@ -54,21 +54,21 @@ void sys2::MemoryManager::retainEntry(Iterator it) {
 }
 
 void sys2::MemoryManager::retainEntry(km::PhysicalAddress address) {
-    auto it = mSegments.find(address);
-    KM_ASSERT(it != mSegments.end());
+    auto it = segments().find(address);
+    KM_ASSERT(it != segments().end());
     retainEntry(it);
 }
 
 bool sys2::MemoryManager::releaseEntry(km::PhysicalAddress address) {
-    auto it = mSegments.find(address);
-    KM_ASSERT(it != mSegments.end());
+    auto it = segments().find(address);
+    KM_ASSERT(it != segments().end());
     return releaseEntry(it);
 }
 
 bool sys2::MemoryManager::releaseEntry(Iterator it) {
     auto& segment = it->second;
     if (releaseSegment(segment)) {
-        mSegments.erase(it);
+        segments().erase(it);
         return true;
     }
 
@@ -85,7 +85,7 @@ bool sys2::MemoryManager::releaseSegment(sys2::MemorySegment& segment) {
 
 void sys2::MemoryManager::addSegment(MemorySegment&& segment) {
     auto range = segment.handle.range();
-    mSegments.insert({ range.back, std::move(segment) });
+    segments().insert({ range.back, std::move(segment) });
 }
 
 OsStatus sys2::MemoryManager::retainSegment(Iterator it, km::PhysicalAddress midpoint, ReleaseSide side) {
@@ -99,7 +99,7 @@ OsStatus sys2::MemoryManager::retainSegment(Iterator it, km::PhysicalAddress mid
     auto loSegment = MemorySegment { uint8_t(segment.owners), lo };
     auto hiSegment = MemorySegment { uint8_t(segment.owners), hi };
 
-    mSegments.erase(it);
+    segments().erase(it);
 
     switch (side) {
     case kLow:
@@ -130,7 +130,7 @@ OsStatus sys2::MemoryManager::splitSegment(Iterator it, km::PhysicalAddress midp
     auto loSegment = MemorySegment { uint8_t(segment.owners), lo };
     auto hiSegment = MemorySegment { uint8_t(segment.owners), hi };
 
-    mSegments.erase(it);
+    segments().erase(it);
 
     switch (side) {
     case kLow:
@@ -193,19 +193,19 @@ OsStatus sys2::MemoryManager::releaseRange(Iterator it, km::MemoryRange range, k
 }
 
 OsStatus sys2::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]] {
-    Iterator begin = mSegments.lower_bound(range.front);
-    Iterator end = mSegments.lower_bound(range.back);
+    Iterator begin = segments().lower_bound(range.front);
+    Iterator end = segments().lower_bound(range.back);
 
     auto updateIterators = [&](km::MemoryRange newRange) {
-        begin = mSegments.lower_bound(newRange.front);
-        end = mSegments.lower_bound(newRange.back);
+        begin = segments().lower_bound(newRange.front);
+        end = segments().lower_bound(newRange.back);
 
-        if (end != mSegments.end()) {
+        if (end != segments().end()) {
             ++end;
         }
     };
 
-    if (begin == mSegments.end()) {
+    if (begin == segments().end()) {
         return OsStatusNotFound;
     }
 
@@ -232,7 +232,7 @@ OsStatus sys2::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]
             MemorySegment midSegment { uint8_t(segment.owners + 1), allocations[1] };
             MemorySegment hiSegment { uint8_t(segment.owners), allocations[2] };
 
-            mSegments.erase(end);
+            segments().erase(end);
 
             addSegment(std::move(loSegment));
             addSegment(std::move(midSegment));
@@ -261,7 +261,7 @@ OsStatus sys2::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]
                 KM_ASSERT(false);
             }
         }
-    } else if (end != mSegments.end()) {
+    } else if (end != segments().end()) {
         MemorySegment& front = begin->second;
         MemorySegment& back = end->second;
         km::MemoryRange lhs = front.range();
@@ -306,7 +306,7 @@ OsStatus sys2::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]
             MemorySegment hiSegmentRhs { uint8_t(back.owners), rhsHi };
 
             if (lhsShouldSplit) {
-                mSegments.erase(lhs.back);
+                segments().erase(lhs.back);
 
                 hiSegmentLhs.owners += 1;
 
@@ -317,7 +317,7 @@ OsStatus sys2::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]
             }
 
             if (rhsShouldSplit) {
-                mSegments.erase(rhs.back);
+                segments().erase(rhs.back);
 
                 loSegmentRhs.owners += 1;
 
@@ -331,8 +331,8 @@ OsStatus sys2::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]
                 return OsStatusSuccess;
             }
 
-            begin = mSegments.upper_bound(lhs.back);
-            end = mSegments.upper_bound(rhs.front);
+            begin = segments().upper_bound(lhs.back);
+            end = segments().upper_bound(rhs.front);
 
             for (auto it = begin; it != end; ++it) {
                 retainEntry(it);
@@ -344,7 +344,7 @@ OsStatus sys2::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]
         }
     }
 
-    if (begin != mSegments.end() && end == mSegments.end()) {
+    if (begin != segments().end() && end == segments().end()) {
         MemorySegment& segment = begin->second;
         km::MemoryRange seg = segment.range();
         if (seg.back == range.front) {
@@ -383,19 +383,19 @@ OsStatus sys2::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]
 OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating]] {
     KM_ASSERT(range.isValid());
 
-    Iterator begin = mSegments.lower_bound(range.front);
-    Iterator end = mSegments.lower_bound(range.back);
+    Iterator begin = segments().lower_bound(range.front);
+    Iterator end = segments().lower_bound(range.back);
 
     auto updateIterators = [&](km::MemoryRange newRange) {
-        begin = mSegments.lower_bound(newRange.front);
-        end = mSegments.lower_bound(newRange.back);
+        begin = segments().lower_bound(newRange.front);
+        end = segments().lower_bound(newRange.back);
 
-        if (end != mSegments.end()) {
+        if (end != segments().end()) {
             ++end;
         }
     };
 
-    if (begin == mSegments.end()) {
+    if (begin == segments().end()) {
         return OsStatusNotFound;
     }
 
@@ -422,7 +422,7 @@ OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating
             MemorySegment midSegment { uint8_t(segment.owners), allocations[1] };
             MemorySegment hiSegment { uint8_t(segment.owners), allocations[2] };
 
-            mSegments.erase(end);
+            segments().erase(end);
 
             if (!releaseSegment(midSegment)) {
                 addSegment(std::move(midSegment));
@@ -462,7 +462,7 @@ OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating
                 KM_ASSERT(false);
             }
         }
-    } else if (end != mSegments.end()) {
+    } else if (end != segments().end()) {
         MemorySegment& front = begin->second;
         MemorySegment& back = end->second;
         km::MemoryRange lhs = front.range();
@@ -471,7 +471,7 @@ OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating
             // |--------rhs-------|
             // |-------range------|
             if (releaseSegment(back)) {
-                mSegments.erase(end);
+                segments().erase(end);
             }
             return OsStatusSuccess;
         } else if ((lhs.contains(range.front) || lhs.front == range.front) && (rhs.contains(range.back) || rhs.back == range.back)) {
@@ -514,7 +514,7 @@ OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating
             MemorySegment hiSegmentRhs { uint8_t(back.owners), rhsHi };
 
             if (lhsShouldSplit) {
-                mSegments.erase(lhs.back);
+                segments().erase(lhs.back);
 
                 if (!releaseSegment(hiSegmentLhs)) {
                     addSegment(std::move(hiSegmentLhs));
@@ -526,7 +526,7 @@ OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating
             }
 
             if (rhsShouldSplit) {
-                mSegments.erase(rhs.back);
+                segments().erase(rhs.back);
 
                 if (!releaseSegment(loSegmentRhs)) {
                     addSegment(std::move(loSegmentRhs));
@@ -541,13 +541,13 @@ OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating
                 return OsStatusSuccess;
             }
 
-            begin = mSegments.upper_bound(lhs.back);
-            end = mSegments.upper_bound(rhs.front);
+            begin = segments().upper_bound(lhs.back);
+            end = segments().upper_bound(rhs.front);
 
             for (auto it = begin; it != end;) {
                 if (releaseSegment(it->second)) {
-                    it = mSegments.erase(it);
-                    end = mSegments.upper_bound(rhs.front);
+                    it = segments().erase(it);
+                    end = segments().upper_bound(rhs.front);
                 } else {
                     ++it;
                 }
@@ -566,7 +566,7 @@ OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating
     }
 
     // Handle more edge cases
-    if (begin != mSegments.end() && end == mSegments.end()) {
+    if (begin != segments().end() && end == segments().end()) {
         auto& lhs = begin->second;
         auto lhsRange = lhs.range();
         if (lhsRange.back == range.front) {
@@ -628,7 +628,7 @@ sys2::MemoryManagerStats sys2::MemoryManager::stats() noexcept [[clang::nonalloc
 
     return MemoryManagerStats {
         .heapStats = mHeap.stats(),
-        .segments = mSegments.size(),
+        .segments = segments().size(),
     };
 
     DIAGNOSTIC_END_IGNORE();
@@ -637,8 +637,8 @@ sys2::MemoryManagerStats sys2::MemoryManager::stats() noexcept [[clang::nonalloc
 OsStatus sys2::MemoryManager::querySegment(km::PhysicalAddress address, MemorySegmentStats *stats) noexcept [[clang::nonallocating]] {
     DIAGNOSTIC_BEGIN_IGNORE("-Wfunction-effects");
 
-    auto it = mSegments.upper_bound(address);
-    if (it == mSegments.end()) {
+    auto it = segments().upper_bound(address);
+    if (it == segments().end()) {
         return OsStatusNotFound;
     }
 
