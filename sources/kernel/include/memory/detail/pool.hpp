@@ -1,6 +1,5 @@
 #pragma once
 
-#include "log.hpp"
 #include "std/vector.hpp"
 #include "common/util/util.hpp"
 

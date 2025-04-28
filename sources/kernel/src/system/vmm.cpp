@@ -40,8 +40,7 @@ OsStatus sys2::AddressSpaceManager::mapSegment(
     MemoryManager *manager, Iterator it,
     km::VirtualRange src, km::VirtualRange dst,
     km::PageFlags flags, km::MemoryType type,
-    km::TlsfAllocation allocation,
-    km::TlsfAllocation *remaining
+    km::TlsfAllocation allocation
 ) [[clang::allocating]] {
     OsStatus status = OsStatusSuccess;
     auto& segment = it->second;
@@ -124,7 +123,7 @@ OsStatus sys2::AddressSpaceManager::map(MemoryManager *manager, AddressSpaceMana
     km::VirtualRange dst = allocation.range().cast<const void*>();
 
     for (auto it = begin; it != end; ++it) {
-        switch (OsStatus status = mapSegment(manager, it, range, dst, flags, type, allocation, &allocation)) {
+        switch (OsStatus status = mapSegment(manager, it, range, dst, flags, type, allocation)) {
         case OsStatusCompleted:
             *mapping = dst;
             return OsStatusSuccess;

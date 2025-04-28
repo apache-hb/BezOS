@@ -88,8 +88,7 @@ namespace sys2 {
             km::VirtualRange dst,
             km::PageFlags flags,
             km::MemoryType type,
-            km::TlsfAllocation allocation,
-            km::TlsfAllocation *remaining
+            km::TlsfAllocation allocation
         ) [[clang::allocating]];
 
         OsStatus splitSegment(MemoryManager *manager, Iterator it, const void *midpoint, ReleaseSide side) [[clang::allocating]];

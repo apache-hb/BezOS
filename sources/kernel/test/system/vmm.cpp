@@ -102,6 +102,26 @@ public:
             << std::string_view(km::format(address));
     }
 
+    std::vector<km::AddressMapping> mapMany(size_t count, size_t size) {
+        std::vector<km::AddressMapping> mappings;
+        mappings.reserve(count);
+
+        for (size_t i = 0; i < count; ++i) {
+            km::AddressMapping mapping;
+            OsStatus status = asManager0.map(&memory, size, 0x1000, km::PageFlags::eUserAll, km::MemoryType::eWriteBack, &mapping);
+            EXPECT_EQ(status, OsStatusSuccess);
+            mappings.push_back(mapping);
+        }
+
+        AssertStats0(count, size * count);
+        AssertMemory(count, size * count);
+        std::sort(mappings.begin(), mappings.end(), [](const auto& lhs, const auto& rhs) {
+            return lhs.vaddr < rhs.vaddr;
+        });
+
+        return mappings;
+    }
+
     std::unique_ptr<x64::page[]> pteMemory0;
     std::unique_ptr<x64::page[]> pteMemory1;
     sys2::MemoryManager memory;
@@ -749,4 +769,18 @@ TEST_F(AddressSpaceManagerTest, MapRemote) {
     ASSERT_EQ(status, OsStatusSuccess);
     ASSERT_EQ(seg1.range, mapping0.physicalRange());
     ASSERT_EQ(seg1.virtualRange(), range1);
+}
+
+class AddressSpaceMapManyTest : public AddressSpaceManagerTest {
+public:
+    void SetUp() override {
+        AddressSpaceManagerTest::SetUp();
+        mappings = mapMany(4, 0x4000);
+    }
+
+    std::vector<km::AddressMapping> mappings;
+};
+
+TEST_F(AddressSpaceMapManyTest, UnmapPartial) {
+
 }

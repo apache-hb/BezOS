@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
+#include "memory/range.hpp"
 #include "system/detail/range_table.hpp"
-#include "system/pmm.hpp"
 
 struct TestSegment {
     km::MemoryRange inner;
