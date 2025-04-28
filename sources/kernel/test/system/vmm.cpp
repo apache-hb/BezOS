@@ -548,7 +548,6 @@ TEST_F(AddressSpaceManagerTest, UnmapManySpillFront) {
     ASSERT_EQ(stats1.heapStats.usedMemory, 0);
     ASSERT_EQ(stats1.heapStats.freeMemory, range.size());
 
-    memory.dump();
     auto memstats = memory.stats();
     ASSERT_EQ(memstats.segments, 0);
 }
@@ -604,6 +603,61 @@ TEST_F(AddressSpaceManagerTest, UnmapManySpillBack) {
 
     auto memstats = memory.stats();
     ASSERT_EQ(memstats.segments, 0);
+}
+
+TEST_F(AddressSpaceManagerTest, UnmapManySpillBack2) {
+    OsStatus status = OsStatusSuccess;
+    km::MemoryRange range = { sm::gigabytes(1).bytes(), sm::gigabytes(4).bytes() };
+    km::VirtualRange vmem = range.cast<const void*>();
+
+    status = sys2::MemoryManager::create(range, &memory);
+    ASSERT_EQ(status, OsStatusSuccess);
+
+    status = sys2::AddressSpaceManager::create(&pager, getPteMapping0(), km::PageFlags::eUserAll, vmem, &asManager0);
+    ASSERT_EQ(status, OsStatusSuccess);
+
+    std::array<km::AddressMapping, 4> mappings;
+    for (size_t i = 0; i < mappings.size(); ++i) {
+        status = asManager0.map(&memory, 0x4000, 0x1000, km::PageFlags::eUserAll, km::MemoryType::eWriteBack, &mappings[i]);
+        ASSERT_EQ(status, OsStatusSuccess);
+    }
+
+    for (size_t i = 0; i < mappings.size(); ++i) {
+        sys2::AddressSegment seg0;
+        status = asManager0.querySegment(mappings[i].vaddr, &seg0);
+        ASSERT_EQ(status, OsStatusSuccess);
+        ASSERT_EQ(seg0.range, mappings[i].physicalRange());
+        ASSERT_EQ(seg0.virtualRange(), mappings[i].virtualRange());
+    }
+
+    std::sort(mappings.begin(), mappings.end(), [](const auto& lhs, const auto& rhs) {
+        return lhs.vaddr < rhs.vaddr;
+    });
+
+    auto stats0 = asManager0.stats();
+    ASSERT_EQ(stats0.segments, mappings.size());
+    ASSERT_EQ(stats0.heapStats.usedMemory, x64::kPageSize * 4 * mappings.size());
+    ASSERT_EQ(stats0.heapStats.freeMemory, range.size() - x64::kPageSize * 4 * mappings.size());
+
+    km::VirtualRange all { (void*)((uintptr_t)mappings.front().vaddr + 0x1000), (void*)((uintptr_t)mappings.back().virtualRange().back + 0x1000) };
+    status = asManager0.unmap(&memory, all);
+    ASSERT_EQ(status, OsStatusSuccess);
+
+    asManager0.dump();
+
+    for (size_t i = 1; i < mappings.size(); ++i) {
+        sys2::AddressSegment seg1;
+        status = asManager0.querySegment(mappings[i].vaddr, &seg1);
+        ASSERT_EQ(status, OsStatusNotFound) << "i: " << i << " " << mappings[i].vaddr;
+    }
+
+    auto stats1 = asManager0.stats();
+    ASSERT_EQ(stats1.segments, 1);
+    ASSERT_EQ(stats1.heapStats.usedMemory, 0x1000);
+    ASSERT_EQ(stats1.heapStats.freeMemory, range.size() - 0x1000);
+
+    auto memstats = memory.stats();
+    ASSERT_EQ(memstats.segments, 1);
 }
 
 TEST_F(AddressSpaceManagerTest, MapRemote) {

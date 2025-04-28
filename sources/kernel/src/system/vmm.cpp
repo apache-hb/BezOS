@@ -223,24 +223,7 @@ OsStatus sys2::AddressSpaceManager::unmapSegment(MemoryManager *manager, Iterato
         mSegments.erase(it);
         *remaining = { seg.back, range.back };
         return OsStatusSuccess;
-    } else if (km::innerAdjacent(seg, range)) {
-        if (range.front == seg.front) {
-            // |--------seg-------|
-            // |--range--|
-            if (OsStatus status = splitSegment(manager, it, range.back, kLow)) {
-                return status;
-            }
-        } else {
-            KM_ASSERT(range.back == seg.back);
-            // |--------seg-------|
-            //          |--range--|
-            if (OsStatus status = splitSegment(manager, it, range.front, kHigh)) {
-                return status;
-            }
-        }
-
-        return OsStatusCompleted;
-    } else if (seg.contains(range)) {
+    } else if (seg.contains(range) && range.front != seg.front) {
         // |--------seg-------|
         //       |--range--|
         auto [lhs, rhs] = km::split(seg, range);
@@ -268,6 +251,23 @@ OsStatus sys2::AddressSpaceManager::unmapSegment(MemoryManager *manager, Iterato
 
         addSegment(std::move(loSegment));
         addSegment(std::move(hiSegment));
+
+        return OsStatusCompleted;
+    } else if (km::innerAdjacent(seg, range)) {
+        if (range.front == seg.front) {
+            // |--------seg-------|
+            // |--range--|
+            if (OsStatus status = splitSegment(manager, it, range.back, kLow)) {
+                return status;
+            }
+        } else {
+            KM_ASSERT(range.back == seg.back);
+            // |--------seg-------|
+            //          |--range--|
+            if (OsStatus status = splitSegment(manager, it, range.front, kHigh)) {
+                return status;
+            }
+        }
 
         return OsStatusCompleted;
     } else {
@@ -299,8 +299,6 @@ sys2::AddressSpaceManager::Iterator sys2::AddressSpaceManager::eraseSegment(Memo
 
     status = manager->release(mapping.physicalRange());
     KM_ASSERT(status == OsStatusSuccess);
-
-    manager->dump();
 
     status = mPageTables.unmap(mapping.virtualRange());
     KM_ASSERT(status == OsStatusSuccess);
@@ -346,7 +344,6 @@ OsStatus sys2::AddressSpaceManager::unmap(MemoryManager *manager, km::VirtualRan
     if (begin == mSegments.end()) {
         return OsStatusNotFound;
     }
-
 
     //     |--------seg-------|
     // |--------range-----|
@@ -435,10 +432,6 @@ OsStatus sys2::AddressSpaceManager::unmap(MemoryManager *manager, km::VirtualRan
 
             begin = mSegments.lower_bound(lhsVirtualRange.back);
             end = mSegments.lower_bound(rhsVirtualRange.back);
-        } else if (lhsVirtualRange.front == range.front) {
-            // |----lhs----|   |----rhs----|
-            // |-------range------|
-            KM_ASSERT(rhsVirtualRange.contains(range.back));
         } else if (lhsVirtualRange.contains(range.front) && rhsVirtualRange.contains(range.back)) {
             // |----lhs----|   |----rhs----|
             //     |-------range-------|
@@ -502,22 +495,15 @@ OsStatus sys2::AddressSpaceManager::unmap(MemoryManager *manager, km::VirtualRan
 
                 end = mSegments.lower_bound(rhsVirtualRange.back);
             }
-        } else if (lhsVirtualRange.front > range.front && rhsVirtualRange.back == range.back) {
+        } else if (range.contains(lhsVirtualRange) && rhsVirtualRange.back == range.back) {
             //       |----lhs----|   |----rhs----|
             //   |--------------range------------|
 
             eraseSegment(manager, lhsVirtualRange);
             eraseSegment(manager, rhsVirtualRange);
 
-            manager->dump();
-
             km::VirtualRange inner { lhsVirtualRange.front, rhsVirtualRange.front };
             eraseMany(manager, inner);
-
-            KmDebugMessage("Range: ", range, ", ", lhsMapping, ", ", rhsVirtualRange, "\n");
-            for (auto& [_, segment] : mSegments) {
-                KmDebugMessage("Segment: ", segment.virtualRange(), "\n");
-            }
 
             return OsStatusSuccess;
         } else if (lhsVirtualRange.contains(range.front)) {

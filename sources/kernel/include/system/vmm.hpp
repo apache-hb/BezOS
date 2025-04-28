@@ -1,5 +1,6 @@
 #pragma once
 
+#include "log.hpp"
 #include "memory/heap.hpp"
 #include "memory/layout.hpp"
 #include "memory/memory.hpp"
@@ -105,5 +106,11 @@ namespace sys2 {
 
         [[nodiscard]]
         static OsStatus create(const km::PageBuilder *pm, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager) [[clang::allocating]];
+
+        void dump() noexcept {
+            for (const auto& [_, segment] : mSegments) {
+                KmDebugMessage("Segment: ", segment.range, " ", segment.virtualRange(), "\n");
+            }
+        }
     };
 }
