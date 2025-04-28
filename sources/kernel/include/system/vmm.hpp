@@ -56,6 +56,8 @@ namespace sys2 {
             kHigh,
         };
 
+        void deleteSegment(MemoryManager *manager, AddressSegment&& segment) noexcept [[clang::allocating]];
+
         Iterator eraseSegment(MemoryManager *manager, Iterator it) noexcept [[clang::allocating]];
         void eraseSegment(MemoryManager *manager, km::VirtualRange segment) noexcept [[clang::allocating]];
         void eraseMany(MemoryManager *manager, km::VirtualRange range) noexcept [[clang::allocating]];

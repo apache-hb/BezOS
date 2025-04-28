@@ -2,6 +2,7 @@
 #include "system/pmm.hpp"
 
 #include "common/compiler/compiler.hpp"
+#include "common/util/defer.hpp"
 
 OsStatus sys2::AddressSpaceManager::map(MemoryManager *manager, size_t size, size_t align, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping) [[clang::allocating]] {
     km::TlsfAllocation allocation = mHeap.aligned_alloc(align, size);
@@ -174,15 +175,13 @@ OsStatus sys2::AddressSpaceManager::splitSegment(MemoryManager *manager, Iterato
     case kLow:
         addSegment(std::move(hiSegment));
         {
-            OsStatus status = manager->release(loRange);
-            KM_ASSERT(status == OsStatusSuccess);
+            deleteSegment(manager, std::move(loSegment));
         }
         break;
     case kHigh:
         addSegment(std::move(loSegment));
         {
-            OsStatus status = manager->release(hiRange);
-            KM_ASSERT(status == OsStatusSuccess);
+            deleteSegment(manager, std::move(hiSegment));
         }
         break;
     default:
@@ -200,6 +199,10 @@ OsStatus sys2::AddressSpaceManager::unmapSegment(MemoryManager *manager, Iterato
     km::VirtualRange seg = segment.virtualRange();
 
     km::VirtualRange subrange = km::intersection(seg, range);
+    if (subrange.isEmpty()) {
+        return OsStatusCompleted;
+    }
+
     size_t frontOffset = (uintptr_t)subrange.front - (uintptr_t)seg.front;
     size_t backOffset = (uintptr_t)seg.back - (uintptr_t)subrange.back;
     km::MemoryRange srcMemory = { segment.range.front + frontOffset, segment.range.back - backOffset };
@@ -226,6 +229,8 @@ OsStatus sys2::AddressSpaceManager::unmapSegment(MemoryManager *manager, Iterato
     } else if (seg.contains(range) && range.front != seg.front) {
         // |--------seg-------|
         //       |--range--|
+        KmDebugMessage("Splitting segment: ", seg, ", ", range, "\n");
+        KM_PANIC("Unsupported mapping");
         auto [lhs, rhs] = km::split(seg, range);
         KM_ASSERT(!lhs.isEmpty() && !rhs.isEmpty());
 
@@ -254,6 +259,8 @@ OsStatus sys2::AddressSpaceManager::unmapSegment(MemoryManager *manager, Iterato
 
         return OsStatusCompleted;
     } else if (km::innerAdjacent(seg, range)) {
+        KmDebugMessage("Splitting segment: ", seg, ", ", range, "\n");
+        KM_PANIC("Unsupported mapping");
         if (range.front == seg.front) {
             // |--------seg-------|
             // |--range--|
@@ -271,6 +278,7 @@ OsStatus sys2::AddressSpaceManager::unmapSegment(MemoryManager *manager, Iterato
 
         return OsStatusCompleted;
     } else {
+        KmDebugMessage("Splitting segment: ", seg, ", ", range, "\n");
         if (seg.front > range.front) {
             //       |--------seg-------|
             // |--------range-----|
@@ -280,19 +288,19 @@ OsStatus sys2::AddressSpaceManager::unmapSegment(MemoryManager *manager, Iterato
 
             return OsStatusCompleted;
         } else {
+            KM_ASSERT(range.back > seg.back && seg.contains(range.front));
             // |--------seg-------|
-            //          |--range--|
+            //          |----range----|
             if (OsStatus status = splitSegment(manager, it, range.front, kHigh)) {
                 return status;
             }
 
-            return OsStatusCompleted;
+            return OsStatusSuccess;
         }
     }
 }
 
-sys2::AddressSpaceManager::Iterator sys2::AddressSpaceManager::eraseSegment(MemoryManager *manager, Iterator it) noexcept [[clang::allocating]] {
-    auto& segment = it->second;
+void sys2::AddressSpaceManager::deleteSegment(MemoryManager *manager, AddressSegment&& segment) noexcept [[clang::allocating]] {
     OsStatus status = OsStatusSuccess;
 
     auto mapping = segment.mapping();
@@ -304,6 +312,12 @@ sys2::AddressSpaceManager::Iterator sys2::AddressSpaceManager::eraseSegment(Memo
     KM_ASSERT(status == OsStatusSuccess);
 
     mHeap.free(segment.allocation);
+}
+
+sys2::AddressSpaceManager::Iterator sys2::AddressSpaceManager::eraseSegment(MemoryManager *manager, Iterator it) noexcept [[clang::allocating]] {
+    auto& segment = it->second;
+
+    deleteSegment(manager, std::move(segment));
 
     return mSegments.erase(it);
 }
@@ -329,17 +343,20 @@ void sys2::AddressSpaceManager::eraseMany(MemoryManager *manager, km::VirtualRan
 OsStatus sys2::AddressSpaceManager::unmap(MemoryManager *manager, km::VirtualRange range) [[clang::allocating]] {
     KM_ASSERT(range.isValid());
 
-    Iterator begin = mSegments.lower_bound(range.front);
-    Iterator end =  mSegments.lower_bound(range.back);
-
-    auto updateIterators = [&](km::VirtualRange newRange) {
-        begin = mSegments.lower_bound(newRange.front);
-        end = mSegments.lower_bound(newRange.back);
-
-        if (end != mSegments.end()) {
-            ++end;
+    defer {
+        auto upper = mSegments.upper_bound(range.front);
+        if (upper != mSegments.end()) {
+            auto inner = upper->second.virtualRange();
+            auto intersect = km::intersection(range, inner);
+            if (!intersect.isEmpty()) {
+                KmDebugMessage("Failed to unmap: ", range, ", ", inner, ", ", intersect, "\n");
+                KM_PANIC("internal error");
+            }
         }
     };
+
+    Iterator begin = mSegments.lower_bound(range.front);
+    Iterator end =  mSegments.lower_bound(range.back);
 
     if (begin == mSegments.end()) {
         return OsStatusNotFound;
@@ -517,14 +534,16 @@ OsStatus sys2::AddressSpaceManager::unmap(MemoryManager *manager, km::VirtualRan
         }
     }
 
+    end = mSegments.upper_bound(range.back);
+
     km::VirtualRange remaining = range;
     for (auto it = begin; it != end;) {
-        switch (OsStatus status = unmapSegment(manager, it, remaining, &remaining)) {
+        switch (OsStatus status = unmapSegment(manager, it, range, &remaining)) {
         case OsStatusCompleted:
             return OsStatusSuccess;
         case OsStatusSuccess:
-            updateIterators(remaining);
-            it = begin;
+            it = mSegments.upper_bound(range.front);
+            end = mSegments.upper_bound(range.back);
             continue;
         default:
             return status;
