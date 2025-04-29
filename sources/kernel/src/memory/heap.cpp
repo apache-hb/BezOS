@@ -143,45 +143,33 @@ OsStatus TlsfHeap::create(std::span<const MemoryRange> ranges, TlsfHeap *heap) [
         return OsStatusInvalidInput;
     }
 
-    if (ranges.front().isEmpty()) {
-        return OsStatusInvalidInput;
+    KM_CHECK(std::is_sorted(ranges.begin(), ranges.end(), [](const MemoryRange& lhs, const MemoryRange& rhs) {
+        return lhs.front < rhs.front;
+    }), "Ranges must be sorted");
+
+    km::MemoryRange all = km::combinedInterval(ranges);
+
+    if (OsStatus status = km::TlsfHeap::create(all, heap)) {
+        return status;
     }
 
-    size_t size = std::reduce(ranges.begin(), ranges.end(), 0zu, [](size_t acc, const MemoryRange& range) {
-        return acc + range.size();
-    });
+    // iterate over all the holes in the range and reserve them
+    for (size_t i = 0; i < ranges.size() - 1; i++) {
+        const MemoryRange& range = ranges[i];
+        const MemoryRange& next = ranges[i + 1];
+        if (range.back.address < next.front.address) {
+            MemoryRange hole = { range.back.address, next.front.address };
 
-    uint8_t memoryClass = detail::SizeToMemoryClass(size);
-    uint16_t secondIndex = detail::SizeToSecondIndex(size, memoryClass);
-    size_t freeListCount = detail::GetFreeListSize(memoryClass, secondIndex);
-
-    PoolAllocator<TlsfBlock> pool;
-
-    auto first = ranges.front();
-    TlsfBlock *nullBlock = pool.construct(TlsfBlock {
-        .offset = first.front.address,
-        .size = first.size(),
-    });
-    if (nullBlock == nullptr) {
-        return OsStatusOutOfMemory;
-    }
-
-    BlockPtr *freeList = new (std::nothrow) BlockPtr[freeListCount];
-    if (freeList == nullptr) {
-        return OsStatusOutOfMemory;
-    }
-
-    TlsfHeap result { std::move(pool), nullBlock, freeListCount, std::unique_ptr<BlockPtr[]>(freeList) };
-
-    for (const MemoryRange& range : ranges | std::views::drop(1)) {
-        if (OsStatus status = result.addPool(range)) {
-            return status;
+            // leaking the allocation here is fine, the memory isnt usable anyway.
+            // and the allocation handle will be freed when the heap is destroyed.
+            TlsfAllocation allocation;
+            if (OsStatus status = heap->reserve(hole, &allocation)) {
+                return status;
+            }
         }
     }
 
-    result.validate();
-
-    *heap = std::move(result);
+    heap->validate();
     return OsStatusSuccess;
 }
 

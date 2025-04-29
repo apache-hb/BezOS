@@ -1,6 +1,7 @@
 #pragma once
 
 #include "memory/address_space.hpp"
+#include "memory/allocator.hpp"
 #include "memory/page_allocator.hpp"
 #include "memory/pte.hpp"
 #include "memory/paging.hpp"
@@ -20,6 +21,9 @@ namespace km {
 
     public:
         SystemMemory(std::span<const boot::MemoryRegion> memmap, VirtualRange systemArea, PageBuilder pm, AddressMapping pteMemory);
+
+        MappingAllocation alloc(size_t size, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eWriteBack);
+        void free(MappingAllocation allocation);
 
         void *allocate(size_t size, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eWriteBack);
 

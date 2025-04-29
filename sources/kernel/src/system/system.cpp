@@ -107,6 +107,23 @@ sys2::SystemStats sys2::System::stats() {
     return stats;
 }
 
+#if 0
+OsStatus sys2::System::create(vfs2::VfsRoot *vfsRoot, System *result) {
+    km::TlsfHeap mmHeap;
+    sys2::MemoryManager mm;
+
+    if (OsStatus status = km::TlsfHeap::create(km::MemoryRange::of(0, km::kMaxPhysicalAddress), &mmHeap)) {
+        return status;
+    }
+
+    if (OsStatus status = sys2::MemoryManager::create(std::move(mmHeap), &mm)) {
+        return status;
+    }
+
+    return OsStatusSuccess;
+}
+#endif
+
 OsStatus sys2::SysTxCreate(InvokeContext *context, TxCreateInfo info, OsTxHandle *handle) {
     sm::RcuSharedPtr<Tx> tx = sm::rcuMakeShared<Tx>(&context->system->rcuDomain(), info.name);
     if (!tx) {

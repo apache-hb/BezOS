@@ -274,7 +274,18 @@ namespace km {
         stdx::Vector2<Range> mAvailable GUARDED_BY(mLock);
 
     public:
-        RangeAllocator() = default;
+        RangeAllocator() noexcept = default;
+
+        RangeAllocator(RangeAllocator&& other) noexcept
+            : mAvailable(std::move(other.mAvailable))
+        { }
+
+        RangeAllocator& operator=(RangeAllocator&& other) noexcept {
+            if (this != &other) {
+                std::swap(mAvailable, other.mAvailable);
+            }
+            return *this;
+        }
 
         using Request = RangeAllocateRequest<T>;
 

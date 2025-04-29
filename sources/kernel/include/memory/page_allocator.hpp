@@ -2,6 +2,7 @@
 
 #include "boot.hpp"
 
+#include "memory/heap.hpp"
 #include "memory/range_allocator.hpp"
 
 namespace km {
@@ -17,7 +18,15 @@ namespace km {
         /// @brief Allocator for usable memory above 1M.
         RangeAllocator<PhysicalAddress> mMemory;
 
+        km::TlsfHeap mLowMemoryHeap;
+        km::TlsfHeap mMemoryHeap;
+
     public:
+        UTIL_NOCOPY(PageAllocator);
+        UTIL_DEFAULT_MOVE(PageAllocator);
+
+        constexpr PageAllocator() noexcept = default;
+
         PageAllocator(std::span<const boot::MemoryRegion> memmap);
 
         /// @brief Allocate a 4k page of memory above 1M.
@@ -43,5 +52,8 @@ namespace km {
         PageAllocatorStats stats() {
             return { mMemory.freeSpace(), mLowMemory.freeSpace() };
         }
+
+        [[nodiscard]]
+        static OsStatus create(std::span<const boot::MemoryRegion> memmap, PageAllocator *allocator) [[clang::allocating]];
     };
 }

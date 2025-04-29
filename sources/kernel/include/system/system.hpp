@@ -9,6 +9,7 @@
 #include "memory/layout.hpp"
 
 #include "system/create.hpp"
+#include "system/pmm.hpp"
 #include "system/query.hpp"
 #include "system/schedule.hpp"
 #include "system/invoke.hpp"
@@ -44,6 +45,8 @@ namespace sys2 {
         sm::FlatHashSet<sm::RcuSharedPtr<IObject>, sm::RcuHash<IObject>, std::equal_to<>> mObjects GUARDED_BY(mLock);
 
         sm::FlatHashSet<sm::RcuSharedPtr<Process>, sm::RcuHash<Process>, std::equal_to<>> mProcessObjects GUARDED_BY(mLock);
+
+        MemoryManager mMemoryManager GUARDED_BY(mLock);
 
         System() = default;
 
@@ -102,6 +105,7 @@ namespace sys2 {
             return mSchedule.getCpuSchedule(cpu);
         }
 
+        [[nodiscard]]
         static OsStatus create(vfs2::VfsRoot *vfsRoot, System *result);
     };
 
