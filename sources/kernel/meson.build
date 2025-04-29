@@ -360,6 +360,10 @@ capstone = dependency('capstone', native : true)
 gtest_main = dependency('gtest_main', native : true)
 testkwargs = { 'protocol' : 'gtest', 'timeout': 5 }
 
+test_sanitize_args = [
+    '-fsanitize=nullability'
+]
+
 # meson bug: native executables dont have all default_options applied
 test_c_args = c_args + [ '-std=gnu23', '-DUTIL_TESTING=1' ]
 
@@ -442,8 +446,9 @@ test_shim = static_library('test_shim', test_shim_src,
 
 fs_test_shim = static_library('fs_test_shim', fs_test_src,
     include_directories : inc,
-    c_args : test_c_args,
-    cpp_args : test_cpp_args,
+    c_args : test_c_args + test_sanitize_args,
+    cpp_args : test_cpp_args + test_sanitize_args,
+    link_args : test_sanitize_args,
     dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
     override_options: [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
     native : true,
@@ -451,8 +456,9 @@ fs_test_shim = static_library('fs_test_shim', fs_test_src,
 
 system_test_lib = static_library('system_test', system_test_src,
     include_directories : inc,
-    c_args : test_c_args,
-    cpp_args : test_cpp_args,
+    c_args : test_c_args + test_sanitize_args,
+    cpp_args : test_cpp_args + test_sanitize_args,
+    link_args : test_sanitize_args,
     dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
     override_options: [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
     native : true,
@@ -460,8 +466,9 @@ system_test_lib = static_library('system_test', system_test_src,
 
 memory_test_shim = static_library('memory_test_shim', memory_test_src,
     include_directories : inc,
-    c_args : test_c_args,
-    cpp_args : test_cpp_args,
+    c_args : test_c_args + test_sanitize_args,
+    cpp_args : test_cpp_args + test_sanitize_args,
+    link_args : test_sanitize_args,
     dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
     override_options: [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
     native : true,
@@ -469,8 +476,9 @@ memory_test_shim = static_library('memory_test_shim', memory_test_src,
 
 test_exe_kwargs = {
     'include_directories': [ inc ],
-    'c_args': test_c_args,
-    'cpp_args': test_cpp_args,
+    'c_args': test_c_args + test_sanitize_args,
+    'cpp_args': test_cpp_args + test_sanitize_args,
+    'link_args': test_sanitize_args,
     'dependencies': [ gtest_main, gmock, sysapi, concurrentqueue, mp_units, common ],
     'override_options': [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
     'native': true,

@@ -30,7 +30,11 @@ namespace km {
         using BlockPtr = detail::TlsfBlock*;
         using BitMap = detail::TlsfBitMap;
 
+        /// @brief The total size of the managed area.
         size_t mSize;
+
+        /// @brief The size of the managed area that has been marked unusable.
+        size_t mReserved;
         size_t mMallocCount;
         size_t mFreeCount;
 
@@ -62,7 +66,7 @@ namespace km {
 
         OsStatus addPool(MemoryRange range) [[clang::allocating]];
 
-        void splitBlock(TlsfBlock *block, PhysicalAddress midpoint, TlsfAllocation *lo [[gnu::nonnull]], TlsfAllocation *hi [[gnu::nonnull]], TlsfBlock *newBlock [[gnu::nonnull]]);
+        void splitBlock(TlsfBlock *block, PhysicalAddress midpoint, TlsfAllocation *lo, TlsfAllocation *hi, TlsfBlock *newBlock) noexcept [[clang::nonallocating]];
 
         TlsfAllocation allocBestFit(size_t align, size_t size) [[clang::allocating]];
 
@@ -78,7 +82,7 @@ namespace km {
         OsStatus allocateSplitVectorBlocks(size_t points, detail::TlsfBlockList& list) [[clang::allocating]];
 
         /// @brief Private API for @a TlsfHeapCommandList.
-        void commitSplitBlock(TlsfAllocation ptr, PhysicalAddress midpoint, TlsfAllocation *lo [[gnu::nonnull]], TlsfAllocation *hi [[gnu::nonnull]], detail::TlsfBlockList& list) noexcept [[clang::nonallocating]];
+        void commitSplitBlock(TlsfAllocation ptr, PhysicalAddress midpoint, TlsfAllocation *lo, TlsfAllocation *hi, detail::TlsfBlockList& list) noexcept [[clang::nonallocating]];
 
         /// @brief Private API for @a TlsfHeapCommandList.
         void commitSplitVectorBlocks(TlsfAllocation ptr, std::span<const PhysicalAddress> points, std::span<TlsfAllocation> results, detail::TlsfBlockList& list) noexcept [[clang::nonallocating]];
@@ -114,7 +118,7 @@ namespace km {
         ///
         /// @return The status of the operation.
         [[nodiscard]]
-        OsStatus grow(TlsfAllocation ptr, size_t size, TlsfAllocation *result) [[clang::allocating]];
+        OsStatus grow(TlsfAllocation ptr, size_t size, TlsfAllocation *result [[gnu::nonnull]]) [[clang::allocating]];
 
         /// @brief Shrink an allocation to a smaller size.
         ///
@@ -126,7 +130,7 @@ namespace km {
         ///
         /// @return The status of the operation.
         [[nodiscard]]
-        OsStatus shrink(TlsfAllocation ptr, size_t size, TlsfAllocation *result) [[clang::allocating]];
+        OsStatus shrink(TlsfAllocation ptr, size_t size, TlsfAllocation *result [[gnu::nonnull]]) [[clang::allocating]];
 
         /// @brief Resize an allocation to a new size.
         ///
@@ -138,7 +142,7 @@ namespace km {
         ///
         /// @return The status of the operation.
         [[nodiscard]]
-        OsStatus resize(TlsfAllocation ptr, size_t size, TlsfAllocation *result) [[clang::allocating]];
+        OsStatus resize(TlsfAllocation ptr, size_t size, TlsfAllocation *result [[gnu::nonnull]]) [[clang::allocating]];
 
         /// @brief Allocate an aligned allocation.
         [[nodiscard]]
@@ -160,7 +164,7 @@ namespace km {
         ///
         /// @return The status of the operation.
         [[nodiscard]]
-        OsStatus split(TlsfAllocation ptr, PhysicalAddress midpoint, TlsfAllocation *lo, TlsfAllocation *hi) [[clang::allocating]];
+        OsStatus split(TlsfAllocation ptr, PhysicalAddress midpoint, TlsfAllocation *lo [[gnu::nonnull]], TlsfAllocation *hi [[gnu::nonnull]]) [[clang::allocating]];
 
         /// @brief Split an allocation many times.
         ///
@@ -180,7 +184,7 @@ namespace km {
         OsStatus splitv(TlsfAllocation ptr, std::span<const PhysicalAddress> points, std::span<TlsfAllocation> results) [[clang::allocating]];
 
         [[nodiscard]]
-        OsStatus reserve(MemoryRange range, TlsfAllocation *result) [[clang::allocating]];
+        OsStatus reserve(MemoryRange range, TlsfAllocation *result [[gnu::nonnull]]) [[clang::allocating]];
 
         /// @brief Gather statistics about the heap.
         TlsfHeapStats stats() const noexcept [[clang::nonallocating]];
@@ -190,9 +194,9 @@ namespace km {
         void reset() noexcept [[clang::nonallocating]];
 
         [[nodiscard]]
-        static OsStatus create(MemoryRange range, TlsfHeap *heap) [[clang::allocating]];
+        static OsStatus create(MemoryRange range, TlsfHeap *heap [[gnu::nonnull]]) [[clang::allocating]];
 
         [[nodiscard]]
-        static OsStatus create(std::span<const MemoryRange> ranges, TlsfHeap *heap) [[clang::allocating]];
+        static OsStatus create(std::span<const MemoryRange> ranges, TlsfHeap *heap [[gnu::nonnull]]) [[clang::allocating]];
     };
 }

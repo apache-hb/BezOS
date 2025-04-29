@@ -1,4 +1,5 @@
 #include "memory/heap.hpp"
+#include "log.hpp"
 #include "memory/range.hpp"
 
 #include "std/static_vector.hpp"
@@ -102,7 +103,9 @@ void TlsfHeap::init() noexcept {
 }
 
 TlsfHeap::TlsfHeap(PoolAllocator<TlsfBlock>&& pool, TlsfBlock *nullBlock, size_t freeListCount, std::unique_ptr<BlockPtr[]> freeList)
-    : mMallocCount(0)
+    : mSize(nullBlock->size)
+    , mReserved(0)
+    , mMallocCount(0)
     , mFreeCount(0)
     , mBlockPool(std::move(pool))
     , mNullBlock(nullBlock)
@@ -111,7 +114,6 @@ TlsfHeap::TlsfHeap(PoolAllocator<TlsfBlock>&& pool, TlsfBlock *nullBlock, size_t
 {
     mNullBlock->markFree();
     init();
-    mSize = mNullBlock->size;
 }
 
 OsStatus TlsfHeap::create(MemoryRange range, TlsfHeap *heap) [[clang::allocating]] {
@@ -143,9 +145,11 @@ OsStatus TlsfHeap::create(std::span<const MemoryRange> ranges, TlsfHeap *heap) [
         return OsStatusInvalidInput;
     }
 
-    KM_CHECK(std::is_sorted(ranges.begin(), ranges.end(), [](const MemoryRange& lhs, const MemoryRange& rhs) {
-        return lhs.front < rhs.front;
-    }), "Ranges must be sorted");
+    if (ranges.size() == 1) {
+        return create(ranges[0], heap);
+    }
+
+    KM_CHECK(std::ranges::is_sorted(ranges, std::ranges::less{}, &MemoryRange::front), "Ranges must be sorted");
 
     km::MemoryRange all = km::combinedInterval(ranges);
 
@@ -153,6 +157,7 @@ OsStatus TlsfHeap::create(std::span<const MemoryRange> ranges, TlsfHeap *heap) [
         return status;
     }
 
+    size_t reserved = 0;
     // iterate over all the holes in the range and reserve them
     for (size_t i = 0; i < ranges.size() - 1; i++) {
         const MemoryRange& range = ranges[i];
@@ -166,9 +171,12 @@ OsStatus TlsfHeap::create(std::span<const MemoryRange> ranges, TlsfHeap *heap) [
             if (OsStatus status = heap->reserve(hole, &allocation)) {
                 return status;
             }
+
+            reserved += hole.size();
         }
     }
 
+    heap->mReserved = reserved;
     heap->validate();
     return OsStatusSuccess;
 }
@@ -436,7 +444,7 @@ void TlsfHeap::free(TlsfAllocation address) noexcept [[clang::nonallocating]] {
     mFreeCount += 1;
 }
 
-void TlsfHeap::splitBlock(TlsfBlock *block, PhysicalAddress midpoint, TlsfAllocation *lo, TlsfAllocation *hi, TlsfBlock *newBlock) {
+void TlsfHeap::splitBlock(TlsfBlock *block, PhysicalAddress midpoint, TlsfAllocation *lo, TlsfAllocation *hi, TlsfBlock *newBlock) noexcept [[clang::nonallocating]] {
     size_t base = block->offset;
     size_t size = midpoint.address - base;
     size_t extraSize = block->size - size;
@@ -562,50 +570,32 @@ OsStatus TlsfHeap::reserve(MemoryRange range, TlsfAllocation *result) [[clang::a
                 return OsStatusAlreadyExists;
             }
 
-            bool lhsSplit = blockRange.front < range.front;
-            bool rhsSplit = blockRange.back > range.back;
-
-            if (lhsSplit && rhsSplit) {
-                BlockBuffer<2> buffer(&mBlockPool);
-                if (OsStatus status = buffer.reserve(2)) {
-                    return status;
-                }
-
-                TlsfAllocation lo, mid, hi;
-                splitBlock(block, range.front, &lo, &mid, buffer.take({}));
-                splitBlock(mid.getBlock(), range.back, &mid, &hi, buffer.take({}));
-
-                mid.getBlock()->markTaken();
-                *result = mid;
-                return OsStatusSuccess;
-            } else if (lhsSplit) {
-                TlsfBlock *newBlock = mBlockPool.construct();
+            if ((range.front.address != block->offset) && block->prev == nullptr) {
+                TlsfBlock *newBlock = mBlockPool.construct(TlsfBlock {
+                    .offset = block->offset,
+                    .size = range.front.address - block->offset,
+                    .prev = nullptr,
+                    .next = block,
+                });
                 if (newBlock == nullptr) {
                     return OsStatusOutOfMemory;
                 }
 
-                TlsfAllocation lo, hi;
-                splitBlock(block, range.front, &lo, &hi, newBlock);
-                block->markTaken();
-                *result = hi;
-                return OsStatusSuccess;
-            } else if (rhsSplit) {
-                TlsfBlock *newBlock = mBlockPool.construct();
-                if (newBlock == nullptr) {
-                    return OsStatusOutOfMemory;
-                }
-
-                TlsfAllocation lo, hi;
-                splitBlock(block, range.back, &lo, &hi, newBlock);
-                block->markTaken();
-                *result = lo;
-                return OsStatusSuccess;
-            } else {
-                block->markTaken();
-                *result = TlsfAllocation(block);
-                return OsStatusSuccess;
+                block->prev = newBlock;
+                block->offset = range.front.address;
+                block->size -= newBlock->size;
+                newBlock->markTaken();
+                releaseBlockToFreeList(newBlock);
             }
+
+            if (!reserveBlock(block, range.size(), range.front.address, detail::GetListIndex(block->size), result)) {
+                return OsStatusOutOfMemory;
+            }
+
+            return OsStatusSuccess;
         }
+
+        block = block->prev;
     }
 
     return OsStatusNotAvailable;
@@ -643,6 +633,8 @@ bool TlsfHeap::checkBlock(TlsfBlock *block, size_t listIndex, size_t size, size_
 }
 
 bool TlsfHeap::reserveBlock(TlsfBlock *block, size_t size, size_t alignedOffset, size_t listIndex, TlsfAllocation *result) noexcept [[clang::allocating]] {
+    KM_ASSERT(block != nullptr);
+
     size_t missingAlignment = alignedOffset - block->offset;
     BlockBuffer<2> buffer(&mBlockPool);
 
@@ -864,7 +856,7 @@ TlsfHeapStats TlsfHeap::stats() const noexcept [[clang::nonallocating]] {
     return TlsfHeapStats {
         .pool = mBlockPool.stats(),
         .freeListSize = mFreeListCount,
-        .usedMemory = usedMemory,
+        .usedMemory = usedMemory - mReserved,
         .freeMemory = freeMemory,
         .blockCount = blockCount,
         .mallocCount = mMallocCount,

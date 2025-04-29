@@ -12,7 +12,7 @@ struct FixedDequeTestData {
         : data(new T[size])
         , ring(data.get(), size)
     {
-        std::fill_n(data.get(), size, 0xFAFAFAFA);
+        std::fill_n(data.get(), size, 0x1234);
     }
 };
 

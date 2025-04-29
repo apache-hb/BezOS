@@ -44,6 +44,24 @@ public:
 
     void TearDown() override {
     }
+
+    static void EnsureHeapSize(TlsfHeap& heap, size_t size) {
+        std::map<km::PhysicalAddress, km::TlsfAllocation> allocations;
+        for (size_t i = 0; i < size / 0x100; i++) {
+            km::TlsfAllocation addr = heap.aligned_alloc(0x10, 0x100);
+            EXPECT_TRUE(addr.isValid());
+            EXPECT_FALSE(allocations.contains(addr.address()));
+            allocations.emplace(addr.address(), addr);
+        }
+
+        auto stats = heap.stats();
+        EXPECT_EQ(stats.freeMemory, 0);
+        EXPECT_EQ(stats.usedMemory, size);
+
+        for (const auto& [addr, alloc] : allocations) {
+            heap.free(alloc);
+        }
+    }
 };
 
 TEST_F(TlsfHeapTest, Construct) {
@@ -51,6 +69,49 @@ TEST_F(TlsfHeapTest, Construct) {
     OsStatus status = TlsfHeap::create({0x1000, 0x2000}, &heap);
     EXPECT_EQ(status, OsStatusSuccess);
     heap.validate();
+
+    EnsureHeapSize(heap, 0x2000 - 0x1000);
+}
+
+TEST_F(TlsfHeapTest, ConstructMany) {
+    TlsfHeap heap;
+    std::array<km::MemoryRange, 4> ranges {
+        km::MemoryRange{0x1000, 0x2000},
+        km::MemoryRange{0x2000, 0x3000},
+        km::MemoryRange{0x3000, 0x4000},
+        km::MemoryRange{0x4000, 0x5000},
+    };
+    OsStatus status = TlsfHeap::create(ranges, &heap);
+    EXPECT_EQ(status, OsStatusSuccess);
+    heap.validate();
+
+    EnsureHeapSize(heap, 0x5000 - 0x1000);
+}
+
+TEST_F(TlsfHeapTest, ConstructManySingle) {
+    TlsfHeap heap;
+    std::array<km::MemoryRange, 1> ranges {
+        km::MemoryRange{0x1000, 0x2000},
+    };
+    OsStatus status = TlsfHeap::create(ranges, &heap);
+    EXPECT_EQ(status, OsStatusSuccess);
+    heap.validate();
+
+    EnsureHeapSize(heap, 0x2000 - 0x1000);
+}
+
+TEST_F(TlsfHeapTest, ConstructManyHoles) {
+    TlsfHeap heap;
+    std::array<km::MemoryRange, 3> ranges {
+        km::MemoryRange{0x1000, 0x2000},
+        km::MemoryRange{0x3000, 0x4000},
+        km::MemoryRange{0x5000, 0x6000},
+    };
+    OsStatus status = TlsfHeap::create(ranges, &heap);
+    EXPECT_EQ(status, OsStatusSuccess);
+    heap.validate();
+
+    EnsureHeapSize(heap, 0x3000);
 }
 
 TEST_F(TlsfHeapTest, ConstructOutOfMemory) {
@@ -118,6 +179,103 @@ TEST_F(TlsfHeapTest, Malloc) {
     auto stats = heap.stats();
     EXPECT_EQ(stats.freeMemory, range.size() - 0x100);
     EXPECT_EQ(stats.usedMemory, 0x100);
+
+    heap.validate();
+}
+
+class TlsfHeapReserveTest : public TlsfHeapTest {
+public:
+    static constexpr km::MemoryRange kTestRange{0x1000, 0x2000};
+    void SetUp() override {
+        OsStatus status = TlsfHeap::create(kTestRange, &heap);
+        ASSERT_EQ(status, OsStatusSuccess);
+    }
+
+    km::TlsfHeap heap;
+};
+
+TEST_F(TlsfHeapReserveTest, ReserveLow) {
+    TlsfAllocation addr;
+    OsStatus status = heap.reserve({ 0x1000, 0x1100 }, &addr);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_TRUE(addr.isValid());
+
+    auto stats = heap.stats();
+    EXPECT_EQ(stats.freeMemory, kTestRange.size() - 0x100);
+    EXPECT_EQ(stats.usedMemory, 0x100);
+
+    heap.validate();
+}
+
+TEST_F(TlsfHeapReserveTest, ReserveMiddle) {
+    TlsfAllocation addr;
+    OsStatus status = heap.reserve({ 0x1100, 0x1200 }, &addr);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_TRUE(addr.isValid());
+
+    auto stats = heap.stats();
+    EXPECT_EQ(stats.freeMemory, kTestRange.size() - 0x100);
+    EXPECT_EQ(stats.usedMemory, 0x100);
+
+    heap.validate();
+}
+
+TEST_F(TlsfHeapReserveTest, ReserveHigh) {
+    TlsfAllocation addr;
+    OsStatus status = heap.reserve({ 0x1F00, 0x2000 }, &addr);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_TRUE(addr.isValid());
+
+    auto stats = heap.stats();
+    EXPECT_EQ(stats.freeMemory, kTestRange.size() - 0x100);
+    EXPECT_EQ(stats.usedMemory, 0x100);
+
+    heap.validate();
+}
+
+TEST_F(TlsfHeapReserveTest, ReserveAll) {
+    TlsfAllocation addr;
+    OsStatus status = heap.reserve(kTestRange, &addr);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_TRUE(addr.isValid());
+
+    auto stats = heap.stats();
+    EXPECT_EQ(stats.freeMemory, 0);
+    EXPECT_EQ(stats.usedMemory, kTestRange.size());
+
+    heap.validate();
+}
+
+TEST_F(TlsfHeapReserveTest, ReserveAfterAlloc) {
+    TlsfAllocation base = heap.malloc(0x100);
+    EXPECT_TRUE(base.isValid());
+    TlsfAllocation addr;
+    OsStatus status = heap.reserve(base.range().offsetBy(0x100), &addr);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_TRUE(addr.isValid());
+
+    auto stats = heap.stats();
+    EXPECT_EQ(stats.freeMemory, kTestRange.size() - base.size() - addr.size());
+    EXPECT_EQ(stats.usedMemory, base.size() + addr.size());
+
+    heap.validate();
+}
+
+TEST_F(TlsfHeapReserveTest, ReleaseReservation) {
+    TlsfAllocation addr;
+    OsStatus status = heap.reserve(kTestRange.subrange(0x100, 0x100), &addr);
+    EXPECT_EQ(status, OsStatusSuccess);
+    EXPECT_TRUE(addr.isValid());
+
+    auto stats = heap.stats();
+    EXPECT_EQ(stats.freeMemory, kTestRange.size() - addr.size());
+    EXPECT_EQ(stats.usedMemory, addr.size());
+
+    heap.free(addr);
+
+    auto stats1 = heap.stats();
+    EXPECT_EQ(stats1.freeMemory, kTestRange.size());
+    EXPECT_EQ(stats1.usedMemory, 0);
 
     heap.validate();
 }
