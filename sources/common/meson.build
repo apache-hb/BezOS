@@ -48,6 +48,6 @@ test_kwargs = {
 }
 
 foreach name, sources : tests
-    test_exe = executable('test-' + name, sources, kwargs : test_exe_kwargs)
+    test_exe = executable('test-' + name.to_lower().strip().replace(' ', '-'), sources, kwargs : test_exe_kwargs)
     test(name, test_exe, kwargs : test_kwargs)
 endforeach

@@ -1,6 +1,9 @@
 #include <gtest/gtest.h>
 
 #include "common/range.hpp"
+#include "common/physical_address.hpp"
+
+using MemoryRange = sm::AnyRange<sm::PhysicalAddress>;
 
 using namespace sm;
 
@@ -262,6 +265,12 @@ TEST(MemoryRangeTest, Align) {
     MemoryRange aligned = sm::aligned(range, 0x1000);
     ASSERT_EQ(aligned.front.address, 0x2000);
     ASSERT_EQ(aligned.back.address, 0x3000);
+}
+
+TEST(MemoryRangeTest, AlignEmpty) {
+    MemoryRange range = { 0x1111, 0x3111 };
+    MemoryRange aligned = sm::aligned(range, 0x4000);
+    ASSERT_TRUE(aligned.isEmpty());
 }
 
 static_assert(sm::rounddown(0x2111, 0x1000) == 0x2000);

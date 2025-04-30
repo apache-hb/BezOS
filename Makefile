@@ -34,13 +34,20 @@ repo: $(REPO) $(REPO_SRC)
 # common library building
 
 COMMON_PATH := build/packages/common
-COMMON_GCDA := $(strip $(shell find $(COMMON_PATH) -type f -name "*.gcda"))
+COMMON_GCDA := $(shell find $(COMMON_PATH) -type f -name "*.gcda")
 COMMON_COVERAGE := $(COMMON_PATH)/meson-logs/coverage.txt
+
+.PHONY: clean-coverage-common
+clean-coverage-common:
+ifneq ($(COMMON_GCDA),)
+	@rm -f $(COMMON_GCDA)
+endif
 
 .PHONY: clean-common
 clean-common:
 	ninja -C $(COMMON_PATH) clean
 
+.PHONY: check-common
 check-common:
 	ninja -C $(COMMON_PATH) test
 
@@ -56,7 +63,7 @@ KERNEL_PATH := build/packages/kernel
 SYSAPI_PATH := build/packages/sysapi
 COVERAGE_REPORT := $(KERNEL_PATH)/meson-logs/coverage.txt
 
-GCDA_FILES := $(strip $(shell find $(KERNEL_PATH) $(COMMON_PATH) $(SYSAPI_PATH) -type f -name "*.gcda"))
+GCDA_FILES := $(shell find $(KERNEL_PATH) $(COMMON_PATH) $(SYSAPI_PATH) -type f -name "*.gcda")
 
 .PHONY: clean-coverage
 clean-coverage:

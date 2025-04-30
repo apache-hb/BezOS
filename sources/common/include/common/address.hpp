@@ -15,7 +15,7 @@ namespace sm {
 
         constexpr Address() noexcept [[clang::nonblocking]] = default;
 
-        constexpr Address(uintptr_t address) noexcept [[clang::nonblocking]]
+        constexpr Address(Storage address) noexcept [[clang::nonblocking]]
             : address(address)
         { }
 
@@ -23,32 +23,35 @@ namespace sm {
             : address(0)
         { }
 
-        constexpr auto operator<=>(const Address&) const noexcept [[clang::nonblocking]] = default;
+        constexpr auto operator<=>(const Address& other) const noexcept [[clang::nonblocking]] = default;
+
+        constexpr bool isNull() const noexcept [[clang::nonblocking]] {
+            return address == 0;
+        }
+
+        constexpr bool isAlignedTo(size_t alignment) const noexcept [[clang::nonblocking]] {
+            return (address % alignment) == 0;
+        }
 
         template<typename Self>
-        constexpr std::remove_cvref_t<Self>& operator+=(this Self&& self, ptrdiff_t offset) noexcept [[clang::nonblocking]] {
+        constexpr std::remove_cvref_t<Self>& operator+=(this Self& self, ptrdiff_t offset) noexcept [[clang::nonblocking]] {
             self.address += offset;
             return self;
         }
 
         template<typename Self>
-        constexpr std::remove_cvref_t<Self>& operator-=(this Self&& self, ptrdiff_t offset) noexcept [[clang::nonblocking]] {
+        constexpr std::remove_cvref_t<Self>& operator-=(this Self& self, ptrdiff_t offset) noexcept [[clang::nonblocking]] {
             self.address -= offset;
             return self;
         }
 
         template<typename Self>
-        constexpr std::remove_cvref_t<Self> operator+(this Self&& self, ptrdiff_t offset) noexcept [[clang::nonblocking]] {
+        constexpr std::remove_cvref_t<Self> operator+(this Self self, ptrdiff_t offset) noexcept [[clang::nonblocking]] {
             return Self { self.address + offset };
         }
 
         template<typename Self>
-        constexpr std::remove_cvref_t<Self> operator+(this Self&& self, Address offset) noexcept [[clang::nonblocking]] {
-            return Self { self.address + offset.address };
-        }
-
-        template<typename Self>
-        constexpr std::remove_cvref_t<Self> operator-(this Self&& self, ptrdiff_t offset) noexcept [[clang::nonblocking]] {
+        constexpr std::remove_cvref_t<Self> operator-(this Self self, ptrdiff_t offset) noexcept [[clang::nonblocking]] {
             return Self { self.address - offset };
         }
 
@@ -61,28 +64,28 @@ namespace sm {
         }
 
         template<typename Self>
-        constexpr std::remove_cvref_t<Self>& operator--(this Self&& self) noexcept [[clang::nonblocking]] {
+        constexpr std::remove_cvref_t<Self>& operator--(this Self& self) noexcept [[clang::nonblocking]] {
             self.address -= 1;
             return self;
         }
 
         template<typename Self>
-        constexpr std::remove_cvref_t<Self> operator--(this Self&& self, int) noexcept [[clang::nonblocking]] {
+        constexpr std::remove_cvref_t<Self> operator--(this Self& self, int) noexcept [[clang::nonblocking]] {
             Self copy = self;
-            --(self);
+            --self;
             return copy;
         }
 
         template<typename Self>
-        constexpr std::remove_cvref_t<Self>& operator++(this Self&& self) noexcept [[clang::nonblocking]] {
+        constexpr std::remove_cvref_t<Self>& operator++(this Self& self) noexcept [[clang::nonblocking]] {
             self += 1;
             return self;
         }
 
         template<typename Self>
-        constexpr std::remove_cvref_t<Self> operator++(this Self&& self, int) noexcept [[clang::nonblocking]] {
+        constexpr std::remove_cvref_t<Self> operator++(this Self& self, int) noexcept [[clang::nonblocking]] {
             Self copy = self;
-            ++(self);
+            ++self;
             return copy;
         }
     };
