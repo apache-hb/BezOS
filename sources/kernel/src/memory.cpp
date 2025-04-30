@@ -21,7 +21,7 @@ km::AddressMapping km::SystemMemory::allocateStack(size_t size) {
     }
 
     AddressMapping mapping {
-        .vaddr = stackMapping.stackBaseAddress(),
+        .vaddr = stackMapping.baseAddress(),
         .paddr = std::bit_cast<km::PhysicalAddress>(stackMapping.baseMemory()),
         .size = stackMapping.stackSize(),
     };

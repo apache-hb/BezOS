@@ -56,8 +56,12 @@ namespace km {
             return mAddressAllocation.range().cast<sm::VirtualAddress>();
         }
 
+        sm::VirtualAddress baseAddress() const noexcept [[clang::nonblocking]] {
+            return std::bit_cast<sm::VirtualAddress>(mAddressAllocation.address());
+        }
+
         sm::VirtualAddress stackBaseAddress() const noexcept [[clang::nonblocking]] {
-            return std::bit_cast<sm::VirtualAddress>(mAddressAllocation.address()) + mAddressAllocation.size();
+            return baseAddress() + mAddressAllocation.size();
         }
 
         size_t stackSize() const noexcept [[clang::nonblocking]] {

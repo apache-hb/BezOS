@@ -569,9 +569,9 @@ static Stage2MemoryInfo *InitStage2Memory(const boot::LaunchInfo& launch, const 
     // carry forward the mappings made in stage 1
     // that are still required for kernel runtime
     memory->reserve(stack);
-    memory->reserve(layout.committed);
-    memory->reserve(layout.kernel);
-    memory->reservePhysical({ 0zu, kLowMemory });
+    // memory->reserve(layout.committed);
+    // memory->reserve(layout.kernel);
+    // memory->reservePhysical({ 0zu, kLowMemory });
 
     // initialize our own page tables and remap everything into it
     MapKernelRegions(memory->systemTables(), layout);
