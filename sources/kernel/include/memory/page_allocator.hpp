@@ -10,6 +10,8 @@ namespace km {
     struct PageAllocatorStats {
         size_t freeMemory;
         size_t freeLowMemory;
+
+        TlsfHeapStats heap;
     };
 
     class PageAllocator {
@@ -20,6 +22,7 @@ namespace km {
         RangeAllocator<PhysicalAddress> mMemory;
 
         stdx::SpinLock mLock;
+
         km::TlsfHeap mMemoryHeap GUARDED_BY(mLock);
 
     public:
@@ -71,8 +74,13 @@ namespace km {
         /// @param range The range to mark as used.
         void reserve(MemoryRange range);
 
-        PageAllocatorStats stats() {
-            return { mMemory.freeSpace(), mLowMemory.freeSpace() };
+        PageAllocatorStats stats() noexcept {
+            stdx::LockGuard guard(mLock);
+            return {
+                mMemory.freeSpace(),
+                mLowMemory.freeSpace(),
+                mMemoryHeap.stats(),
+            };
         }
 
         [[nodiscard]]

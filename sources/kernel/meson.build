@@ -688,7 +688,13 @@ testcases = {
     ],
     'page allocator': [
         'test/memory/page_allocator.cpp',
-    ]
+    ],
+    'address space': [
+        'test/memory/address_space.cpp',
+    ],
+    'system memory': [
+        'test/system_memory.cpp',
+    ],
 }
 
 if enable_aml

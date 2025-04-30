@@ -1,5 +1,6 @@
 #include "memory/address_space.hpp"
 #include "memory/tables.hpp"
+#include "memory/allocator.hpp"
 
 km::AddressSpace::AddressSpace(const PageBuilder *pm, AddressMapping pteMemory, PageFlags flags, VirtualRange vmem)
     : mTables(pm, pteMemory, flags)
@@ -7,7 +8,7 @@ km::AddressSpace::AddressSpace(const PageBuilder *pm, AddressMapping pteMemory, 
 { }
 
 km::AddressSpace::AddressSpace(const AddressSpace *source, AddressMapping pteMemory, PageFlags flags, VirtualRange vmem)
-    : mTables(source->mTables.pageManager(), pteMemory, flags)
+    : mTables(source->pageManager(), pteMemory, flags)
     , mVmemAllocator(vmem)
 {
     updateHigherHalfMappings(source);
@@ -120,4 +121,74 @@ OsStatus km::AddressSpace::reserve(size_t size, VirtualRange *result) {
 
 void km::AddressSpace::updateHigherHalfMappings(const PageTables *source) {
     km::copyHigherHalfMappings(&mTables, source);
+}
+
+OsStatus km::AddressSpace::map(MemoryRangeEx memory, PageFlags flags, MemoryType type, TlsfAllocation *allocation) {
+    if (memory.isEmpty() || (memory != alignedOut(memory, x64::kPageSize))) {
+        return OsStatusInvalidInput;
+    }
+
+    TlsfAllocation vmem = mVmemHeap.aligned_alloc(x64::kPageSize, memory.size());
+    if (vmem.isNull()) {
+        return OsStatusOutOfMemory;
+    }
+
+    AddressMapping m = {
+        .vaddr = std::bit_cast<const void*>(vmem.address()),
+        .paddr = memory.front.address,
+        .size = memory.size()
+    };
+
+    if (OsStatus status = mTables.map(m, flags, type)) {
+        mVmemHeap.free(vmem);
+        return status;
+    }
+
+    *allocation = vmem;
+    return OsStatusSuccess;
+}
+
+OsStatus km::AddressSpace::map(TlsfAllocation memory, PageFlags flags, MemoryType type, MappingAllocation *allocation) {
+    TlsfAllocation result;
+
+    if (OsStatus status = map(memory.range().cast<km::PhysicalAddressEx>(), flags, type, &result)) {
+        return status;
+    }
+
+    *allocation = MappingAllocation::unchecked(memory, result);
+    return OsStatusSuccess;
+}
+
+OsStatus km::AddressSpace::unmap(MappingAllocation allocation) {
+    return unmap(allocation.virtualAllocation());
+}
+
+OsStatus km::AddressSpace::unmap(TlsfAllocation allocation) {
+    if (OsStatus status = mTables.unmap(allocation.range().cast<const void*>())) {
+        return status;
+    }
+
+    mVmemHeap.free(allocation);
+    return OsStatusSuccess;
+}
+
+OsStatus km::AddressSpace::create(const PageBuilder *pm, AddressMapping pteMemory, PageFlags flags, VirtualRangeEx vmem, AddressSpace *space) {
+    if (OsStatus status = km::PageTables::create(pm, pteMemory, flags, &space->mTables)) {
+        return status;
+    }
+
+    if (OsStatus status = km::TlsfHeap::create(vmem.cast<km::PhysicalAddress>(), &space->mVmemHeap)) {
+        return status;
+    }
+
+    return OsStatusSuccess;
+}
+
+OsStatus km::AddressSpace::create(const AddressSpace *source, AddressMapping pteMemory, PageFlags flags, VirtualRangeEx vmem, AddressSpace *space) {
+    if (OsStatus status = km::AddressSpace::create(source->pageManager(), pteMemory, flags, vmem, space)) {
+        return status;
+    }
+
+    space->updateHigherHalfMappings(source);
+    return OsStatusSuccess;
 }

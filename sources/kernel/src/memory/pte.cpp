@@ -31,7 +31,7 @@ void PageTables::setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddre
     entry.setPresent(true);
 }
 
-PageTables::PageTables(const km::PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags) noexcept
+PageTables::PageTables(const PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags) noexcept
     : mSlide(pteMemory.slide())
     , mAllocator(pteMemory.virtualRange())
     , mPageManager(pm)

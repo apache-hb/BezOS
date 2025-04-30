@@ -20,6 +20,8 @@ namespace km {
         AddressSpace mTables;
 
     public:
+        constexpr SystemMemory() noexcept = default;
+
         SystemMemory(std::span<const boot::MemoryRegion> memmap, VirtualRange systemArea, PageBuilder pm, AddressMapping pteMemory);
 
         MappingAllocation alloc(size_t size, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eWriteBack);
@@ -80,5 +82,14 @@ namespace km {
         const T *mapConst(PhysicalAddress paddr, MemoryType type = MemoryType::eWriteBack) {
             return mapConst<T>(MemoryRange::of(paddr, sizeof(T)), type);
         }
+
+        [[nodiscard]]
+        OsStatus map(size_t size, PageFlags flags, MemoryType type, MappingAllocation *allocation);
+
+        [[nodiscard]]
+        OsStatus unmap(MappingAllocation allocation);
+
+        [[nodiscard]]
+        static OsStatus create(std::span<const boot::MemoryRegion> memmap, VirtualRangeEx systemArea, PageBuilder pm, AddressMapping pteMemory, SystemMemory *system);
     };
 }

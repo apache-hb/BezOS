@@ -97,3 +97,44 @@ OsStatus km::SystemMemory::map(size_t size, PageFlags flags, MemoryType type, Ad
 
     return OsStatusSuccess;
 }
+
+OsStatus km::SystemMemory::map(size_t size, PageFlags flags, MemoryType type, MappingAllocation *allocation) {
+    if (size == 0 || size % x64::kPageSize != 0) {
+        return OsStatusInvalidInput;
+    }
+
+    TlsfAllocation memory = mPageAllocator.pageAlloc(Pages(size));
+    if (memory.isNull()) {
+        return OsStatusOutOfMemory;
+    }
+
+    if (OsStatus status = mTables.map(memory, flags, type, allocation)) {
+        mPageAllocator.release(memory);
+        return status;
+    }
+
+    return OsStatusSuccess;
+}
+
+OsStatus km::SystemMemory::unmap(MappingAllocation allocation) {
+    if (OsStatus status = mTables.unmap(allocation)) {
+        return status;
+    }
+
+    mPageAllocator.release(allocation.memoryAllocation());
+    return OsStatusSuccess;
+}
+
+OsStatus km::SystemMemory::create(std::span<const boot::MemoryRegion> memmap, VirtualRangeEx systemArea, PageBuilder pm, AddressMapping pteMemory, SystemMemory *system) {
+    system->mPageManager = pm;
+
+    if (OsStatus status = km::AddressSpace::create(&system->mPageManager, pteMemory, PageFlags::eAll, systemArea, &system->mTables)) {
+        return status;
+    }
+
+    if (OsStatus status = km::PageAllocator::create(memmap, &system->mPageAllocator)) {
+        return status;
+    }
+
+    return OsStatusSuccess;
+}

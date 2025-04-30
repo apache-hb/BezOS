@@ -1,5 +1,6 @@
 #pragma once
 
+#include "memory/heap.hpp"
 #include "memory/paging.hpp"
 #include "memory/pte.hpp"
 #include "memory/range.hpp"
@@ -8,6 +9,8 @@
 #include <type_traits>
 
 namespace km {
+    class MappingAllocation;
+
     namespace detail {
         template<typename T>
         static constexpr PageFlags kDefaultPageFlags = std::is_const_v<T> ? PageFlags::eRead : PageFlags::eData;
@@ -16,8 +19,14 @@ namespace km {
     class AddressSpace {
         PageTables mTables;
         VmemAllocator mVmemAllocator;
+        TlsfHeap mVmemHeap;
 
     public:
+        UTIL_NOCOPY(AddressSpace);
+        UTIL_DEFAULT_MOVE(AddressSpace);
+
+        constexpr AddressSpace() noexcept = default;
+
         AddressSpace(const PageBuilder *pm, AddressMapping pteMemory, PageFlags flags, VirtualRange vmem);
         AddressSpace(const AddressSpace *source, AddressMapping pteMemory, PageFlags flags, VirtualRange vmem);
 
@@ -108,6 +117,24 @@ namespace km {
 
         [[nodiscard]]
         PhysicalAddress root() const { return mTables.root(); }
+
+        [[nodiscard]]
+        OsStatus map(MemoryRangeEx memory, PageFlags flags, MemoryType type, TlsfAllocation *allocation [[gnu::nonnull]]);
+
+        [[nodiscard]]
+        OsStatus map(TlsfAllocation memory, PageFlags flags, MemoryType type, MappingAllocation *allocation [[gnu::nonnull]]);
+
+        [[nodiscard]]
+        OsStatus unmap(MappingAllocation allocation);
+
+        [[nodiscard]]
+        OsStatus unmap(TlsfAllocation allocation);
+
+        [[nodiscard]]
+        static OsStatus create(const PageBuilder *pm [[gnu::nonnull]], AddressMapping pteMemory, PageFlags flags, VirtualRangeEx vmem, AddressSpace *space [[gnu::nonnull]]);
+
+        [[nodiscard]]
+        static OsStatus create(const AddressSpace *source [[gnu::nonnull]], AddressMapping pteMemory, PageFlags flags, VirtualRangeEx vmem, AddressSpace *space [[gnu::nonnull]]);
 
 #if __STDC_HOSTED__
         [[nodiscard]]

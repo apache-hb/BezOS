@@ -1,5 +1,15 @@
 #include <gtest/gtest.h>
 
+#include "common/compiler/compiler.hpp"
+
+//
+// Ignore thread safety analysis warnings for this test. We are purposefully
+// violating preconditions to test the lock.
+//
+CLANG_DIAGNOSTIC_PUSH();
+CLANG_DIAGNOSTIC_IGNORE("-Wthread-safety-analysis");
+CLANG_DIAGNOSTIC_IGNORE("-Wfunction-effects");
+
 #include <shared_mutex>
 #include <thread>
 
@@ -8,15 +18,6 @@
 #include "std/spinlock.hpp"
 #include "std/recursive_mutex.hpp"
 #include "std/shared_spinlock.hpp"
-
-//
-// Ignore thread safety analysis warnings for this test. We are purposefully
-// violating preconditions to test the lock.
-//
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wthread-safety-analysis"
-#endif
 
 TEST(SpinLockTest, LockUnlock) {
     stdx::SpinLock lock;
@@ -211,6 +212,4 @@ TEST(RecursiveSpinLockTest, Update) {
     ASSERT_FALSE(error);
 }
 
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
+CLANG_DIAGNOSTIC_POP();

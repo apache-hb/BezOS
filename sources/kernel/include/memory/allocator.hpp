@@ -1,5 +1,6 @@
 #pragma once
 
+#include "log.hpp"
 #include "memory/detail/tlsf.hpp"
 #include "memory/layout.hpp"
 
@@ -43,6 +44,14 @@ namespace km {
             };
         }
 
+        km::TlsfAllocation memoryAllocation() const noexcept [[clang::nonblocking]] {
+            return mMemoryAllocation;
+        }
+
+        km::TlsfAllocation virtualAllocation() const noexcept [[clang::nonblocking]] {
+            return mAddressAllocation;
+        }
+
         [[nodiscard]]
         static OsStatus create(TlsfAllocation memory, TlsfAllocation address, MappingAllocation *result) {
             bool valid = memory.isValid() && address.isValid() && (memory.size() == address.size());
@@ -56,7 +65,10 @@ namespace km {
         static MappingAllocation unchecked(TlsfAllocation memory, TlsfAllocation address) {
             KM_ASSERT(memory.isValid());
             KM_ASSERT(address.isValid());
-            KM_ASSERT(memory.size() == address.size());
+            if (memory.size() != address.size()) {
+                KmDebugMessage("Memory and address allocations must be the same size. ", memory.size(), " != ", address.size(), "\n");
+                KM_PANIC("Memory and address allocations must be the same size.");
+            }
 
             return MappingAllocation { memory, address };
         }

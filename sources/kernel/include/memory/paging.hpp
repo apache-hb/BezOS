@@ -80,6 +80,8 @@ namespace km {
         }
 
     public:
+        constexpr PageBuilder() noexcept = default;
+
         constexpr PageBuilder(uintptr_t paddrbits, uintptr_t vaddrbits, PageMemoryTypeLayout layout)
             : mAddressMask(x64::paging::addressMask(paddrbits))
             , mVaddrBits(vaddrbits)
