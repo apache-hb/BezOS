@@ -1,6 +1,8 @@
 #include "memory.hpp"
 
+#include "memory/allocator.hpp"
 #include "memory/memory.hpp"
+#include "memory/stack_mapping.hpp"
 
 km::SystemMemory::SystemMemory(std::span<const boot::MemoryRegion> memmap, VirtualRange systemArea, PageBuilder pm, AddressMapping pteMemory)
     : mPageManager(pm)
@@ -33,6 +35,19 @@ km::AddressMapping km::SystemMemory::allocateStack(size_t size) {
     return mapping.stack;
 }
 
+void km::SystemMemory::reserve(AddressMapping mapping) {
+    reserveVirtual(mapping.virtualRange());
+    reservePhysical(mapping.physicalRange());
+}
+
+void km::SystemMemory::reservePhysical(MemoryRange range) {
+    mPageAllocator.reserve(range);
+}
+
+void km::SystemMemory::reserveVirtual(VirtualRange range) {
+    mTables.reserve(range);
+}
+
 km::AddressMapping km::SystemMemory::allocate(AllocateRequest request) {
     size_t pages = Pages(request.size);
 
@@ -55,13 +70,8 @@ OsStatus km::SystemMemory::unmap(void *ptr, size_t size) {
     return unmap(VirtualRange::of(ptr, size));
 }
 
-OsStatus km::SystemMemory::unmap(AddressMapping mapping) {
-    if (OsStatus status = mTables.unmap(mapping.virtualRange())) {
-        return status;
-    }
-
-    mPageAllocator.release(mapping.physicalRange());
-    return OsStatusSuccess;
+OsStatus km::SystemMemory::unmap(VirtualRange range) {
+    return mTables.unmap(range);
 }
 
 void *km::SystemMemory::map(MemoryRange range, PageFlags flags, MemoryType type) {
@@ -84,17 +94,47 @@ void *km::SystemMemory::map(MemoryRange range, PageFlags flags, MemoryType type)
     return (void*)((uintptr_t)mapping.vaddr + offset);
 }
 
-OsStatus km::SystemMemory::map(size_t size, PageFlags flags, MemoryType type, AddressMapping *mapping) {
-    MemoryRange pmm = mPageAllocator.alloc4k(Pages(size));
-    if (pmm.isEmpty()) {
+OsStatus km::SystemMemory::mapStack(size_t size, PageFlags flags, StackMappingAllocation *mapping) {
+    if (size == 0 || size % x64::kPageSize != 0) {
+        return OsStatusInvalidInput;
+    }
+
+    TlsfAllocation memory = mPageAllocator.pageAlloc(Pages(size));
+    if (memory.isNull()) {
         return OsStatusOutOfMemory;
     }
-    OsStatus status = mTables.map(pmm, flags, type, mapping);
-    if (status != OsStatusSuccess) {
-        mPageAllocator.release(pmm);
+
+    TlsfAllocation stackMemory;
+    if (OsStatus status = mTables.reserve(size + (2 * x64::kPageSize), &stackMemory)) {
+        mPageAllocator.release(memory);
         return status;
     }
 
+    MemoryRange stackRange = stackMemory.range();
+
+    std::array<TlsfAllocation, 3> allocations;
+    std::array<PhysicalAddress, 2> points = {
+        stackRange.front + x64::kPageSize,
+        stackRange.back - x64::kPageSize,
+    };
+
+    if (OsStatus status = mTables.splitv(stackMemory, points, allocations)) {
+        mPageAllocator.release(memory);
+        mTables.release(stackMemory);
+        return status;
+    }
+
+    MappingAllocation stackMapping;
+
+    if (OsStatus status = mTables.map(allocations[1], flags, MemoryType::eWriteBack, &stackMapping)) {
+        mPageAllocator.release(memory);
+        for (auto &alloc : allocations) {
+            mTables.release(alloc);
+        }
+        return status;
+    }
+
+    *mapping = StackMappingAllocation::unchecked(stackMemory, allocations[1], allocations[0], allocations[2]);
     return OsStatusSuccess;
 }
 

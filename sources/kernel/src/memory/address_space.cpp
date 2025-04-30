@@ -14,6 +14,10 @@ km::AddressSpace::AddressSpace(const AddressSpace *source, AddressMapping pteMem
     updateHigherHalfMappings(source);
 }
 
+void km::AddressSpace::reserve(VirtualRange range) {
+    mVmemAllocator.reserve(range);
+}
+
 OsStatus km::AddressSpace::unmap(VirtualRange range) {
     VirtualRange aligned = alignedOut(range, x64::kPageSize);
 
@@ -123,6 +127,11 @@ void km::AddressSpace::updateHigherHalfMappings(const PageTables *source) {
     km::copyHigherHalfMappings(&mTables, source);
 }
 
+OsStatus km::AddressSpace::splitv(TlsfAllocation ptr, std::span<const PhysicalAddress> points, std::span<TlsfAllocation> results) {
+    stdx::LockGuard guard(mLock);
+    return mVmemHeap.splitv(ptr, points, results);
+}
+
 OsStatus km::AddressSpace::map(MemoryRangeEx memory, PageFlags flags, MemoryType type, TlsfAllocation *allocation) {
     if (memory.isEmpty() || (memory != alignedOut(memory, x64::kPageSize))) {
         return OsStatusInvalidInput;
@@ -159,6 +168,26 @@ OsStatus km::AddressSpace::map(TlsfAllocation memory, PageFlags flags, MemoryTyp
 
     *allocation = MappingAllocation::unchecked(memory, result);
     return OsStatusSuccess;
+}
+
+OsStatus km::AddressSpace::reserve(size_t size, TlsfAllocation *result [[gnu::nonnull]]) {
+    if (size == 0 || size % x64::kPageSize != 0) {
+        return OsStatusInvalidInput;
+    }
+
+    stdx::LockGuard guard(mLock);
+    TlsfAllocation allocation = mVmemHeap.aligned_alloc(x64::kPageSize, size);
+    if (allocation.isNull()) {
+        return OsStatusOutOfMemory;
+    }
+
+    *result = allocation;
+    return OsStatusSuccess;
+}
+
+void km::AddressSpace::release(TlsfAllocation allocation) noexcept {
+    stdx::LockGuard guard(mLock);
+    mVmemHeap.free(allocation);
 }
 
 OsStatus km::AddressSpace::unmap(MappingAllocation allocation) {

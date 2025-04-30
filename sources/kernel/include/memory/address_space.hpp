@@ -49,9 +49,7 @@ namespace km {
         AddressSpace(const PageBuilder *pm, AddressMapping pteMemory, PageFlags flags, VirtualRange vmem);
         AddressSpace(const AddressSpace *source, AddressMapping pteMemory, PageFlags flags, VirtualRange vmem);
 
-        void reserve(VirtualRange range) {
-            mVmemAllocator.reserve(range);
-        }
+        void reserve(VirtualRange range);
 
         [[nodiscard]]
         OsStatus unmap(VirtualRange range);
@@ -138,10 +136,18 @@ namespace km {
         PhysicalAddress root() const { return mTables.root(); }
 
         [[nodiscard]]
+        OsStatus splitv(TlsfAllocation ptr, std::span<const PhysicalAddress> points, std::span<TlsfAllocation> results);
+
+        [[nodiscard]]
         OsStatus map(MemoryRangeEx memory, PageFlags flags, MemoryType type, TlsfAllocation *allocation [[gnu::nonnull]]);
 
         [[nodiscard]]
         OsStatus map(TlsfAllocation memory, PageFlags flags, MemoryType type, MappingAllocation *allocation [[gnu::nonnull]]);
+
+        [[nodiscard]]
+        OsStatus reserve(size_t size, TlsfAllocation *result [[gnu::nonnull]]);
+
+        void release(TlsfAllocation allocation) noexcept;
 
         [[nodiscard]]
         OsStatus unmap(MappingAllocation allocation);

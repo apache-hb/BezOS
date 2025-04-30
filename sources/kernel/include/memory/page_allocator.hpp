@@ -57,6 +57,9 @@ namespace km {
 
         TlsfAllocation pageAlloc(size_t count = 1) [[clang::allocating]];
 
+        [[nodiscard]]
+        OsStatus splitv(TlsfAllocation ptr, std::span<const PhysicalAddress> points, std::span<TlsfAllocation> results);
+
         void release(TlsfAllocation allocation) noexcept [[clang::nonallocating]];
 
         /// @brief Release a range of memory.

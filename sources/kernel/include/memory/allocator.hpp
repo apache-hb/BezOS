@@ -16,12 +16,12 @@ namespace km {
     public:
         constexpr MappingAllocation() noexcept = default;
 
-        km::PhysicalAddress baseMemory() const noexcept [[clang::nonblocking]] {
-            return mMemoryAllocation.address();
+        km::PhysicalAddressEx baseMemory() const noexcept [[clang::nonblocking]] {
+            return std::bit_cast<km::PhysicalAddressEx>(mMemoryAllocation.address());
         }
 
-        km::MemoryRange memory() const noexcept [[clang::nonblocking]] {
-            return mMemoryAllocation.range();
+        km::MemoryRangeEx memory() const noexcept [[clang::nonblocking]] {
+            return mMemoryAllocation.range().cast<km::PhysicalAddressEx>();
         }
 
         sm::VirtualAddress baseAddress() const noexcept [[clang::nonblocking]] {
@@ -39,7 +39,7 @@ namespace km {
         km::AddressMapping mapping() const noexcept [[clang::nonblocking]] {
             return km::AddressMapping {
                 .vaddr = baseAddress(),
-                .paddr = baseMemory(),
+                .paddr = std::bit_cast<km::PhysicalAddress>(baseMemory()),
                 .size = size(),
             };
         }

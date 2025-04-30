@@ -40,6 +40,11 @@ TlsfAllocation PageAllocator::pageAlloc(size_t count) [[clang::allocating]] {
     return mMemoryHeap.aligned_alloc(alignof(x64::page), count * x64::kPageSize);
 }
 
+OsStatus PageAllocator::splitv(TlsfAllocation ptr, std::span<const PhysicalAddress> points, std::span<TlsfAllocation> results) {
+    stdx::LockGuard guard(mLock);
+    return mMemoryHeap.splitv(ptr, points, results);
+}
+
 void PageAllocator::release(TlsfAllocation allocation) noexcept [[clang::nonallocating]] {
     stdx::LockGuard guard(mLock);
     mMemoryHeap.free(allocation);

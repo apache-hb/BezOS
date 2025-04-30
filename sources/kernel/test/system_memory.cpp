@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "memory.hpp"
+#include "memory/allocator.hpp"
 #include "setup.hpp"
 
 using namespace km;

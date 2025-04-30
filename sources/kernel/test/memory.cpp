@@ -38,15 +38,21 @@ TEST(MemoryTest, ThreadSafe) {
     body.addSegment(0x100000, boot::MemoryRegion::eUsable);
 
     km::SystemMemory memory = body.make();
-
+    std::atomic<size_t> allocs = 0;
     std::vector<std::jthread> threads;
     for (size_t i = 0; i < 10; i++) {
-        threads.emplace_back([&memory] {
+        threads.emplace_back([&] {
             for (size_t i = 0; i < 1000; i++) {
-                memory.allocate(0x1000, km::PageFlags::eData, km::MemoryType::eWriteCombine);
+                void *ptr = memory.allocate(0x1000, km::PageFlags::eData, km::MemoryType::eWriteCombine);
+                if (ptr != nullptr) {
+                    memory.unmap(ptr, 0x1000);
+                    allocs++;
+                }
             }
         });
     }
+
+    ASSERT_NE(allocs, 0) << "No allocations";
 
     threads.clear();
 

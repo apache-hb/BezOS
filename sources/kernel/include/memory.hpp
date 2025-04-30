@@ -1,7 +1,6 @@
 #pragma once
 
 #include "memory/address_space.hpp"
-#include "memory/allocator.hpp"
 #include "memory/page_allocator.hpp"
 #include "memory/pte.hpp"
 #include "memory/paging.hpp"
@@ -10,6 +9,9 @@
 #include <cstddef>
 
 namespace km {
+    class MappingAllocation;
+    class StackMappingAllocation;
+
     inline VirtualRange DefaultUserArea() {
         return VirtualRange { (void*)sm::megabytes(1).bytes(), (void*)sm::gigabytes(4).bytes() };
     }
@@ -24,31 +26,20 @@ namespace km {
 
         SystemMemory(std::span<const boot::MemoryRegion> memmap, VirtualRange systemArea, PageBuilder pm, AddressMapping pteMemory);
 
-        MappingAllocation alloc(size_t size, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eWriteBack);
-        void free(MappingAllocation allocation);
-
         void *allocate(size_t size, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eWriteBack);
 
         AddressMapping allocate(AllocateRequest request);
 
         OsStatus unmap(void *ptr, size_t size);
-        OsStatus unmap(VirtualRange range) { return mTables.unmap(range); }
-        OsStatus unmap(AddressMapping mapping);
+        OsStatus unmap(VirtualRange range);
 
         AddressMapping allocateStack(size_t size);
 
-        void reserve(AddressMapping mapping) {
-            reserveVirtual(mapping.virtualRange());
-            reservePhysical(mapping.physicalRange());
-        }
+        void reserve(AddressMapping mapping);
 
-        void reservePhysical(MemoryRange range) {
-            mPageAllocator.reserve(range);
-        }
+        void reservePhysical(MemoryRange range);
 
-        void reserveVirtual(VirtualRange range) {
-            mTables.reserve(range);
-        }
+        void reserveVirtual(VirtualRange range);
 
         PageBuilder& getPageManager() { return mPageManager; }
         PageTables& systemTables() { return *mTables.tables(); }
@@ -56,7 +47,6 @@ namespace km {
         PageAllocator& pmmAllocator() { return mPageAllocator; }
 
         void *map(MemoryRange range, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eWriteBack);
-        OsStatus map(size_t size, PageFlags flags, MemoryType type, AddressMapping *mapping);
 
         template<typename T>
         T *mapObject(MemoryRange range, MemoryType type = MemoryType::eWriteBack) {
@@ -84,12 +74,15 @@ namespace km {
         }
 
         [[nodiscard]]
-        OsStatus map(size_t size, PageFlags flags, MemoryType type, MappingAllocation *allocation);
+        OsStatus mapStack(size_t size, PageFlags flags, StackMappingAllocation *mapping [[gnu::nonnull]]);
+
+        [[nodiscard]]
+        OsStatus map(size_t size, PageFlags flags, MemoryType type, MappingAllocation *allocation [[gnu::nonnull]]);
 
         [[nodiscard]]
         OsStatus unmap(MappingAllocation allocation);
 
         [[nodiscard]]
-        static OsStatus create(std::span<const boot::MemoryRegion> memmap, VirtualRangeEx systemArea, PageBuilder pm, AddressMapping pteMemory, SystemMemory *system);
+        static OsStatus create(std::span<const boot::MemoryRegion> memmap, VirtualRangeEx systemArea, PageBuilder pm, AddressMapping pteMemory, SystemMemory *system [[gnu::nonnull]]);
     };
 }
