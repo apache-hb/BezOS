@@ -78,11 +78,16 @@ struct SystemMemoryTestBody {
             regions.push_back(seg.region());
         }
 
+        std::ranges::sort(regions, [](const boot::MemoryRegion& a, const boot::MemoryRegion& b) {
+            return a.range.front < b.range.front;
+        });
+
         auto systemSegment = addSegment(systemArea, boot::MemoryRegion::eUsable);
 
         uintptr_t dataFront = systemSegment.front.address;
         uintptr_t dataBack = systemSegment.back.address;
         km::VirtualRange system{(void*)dataFront, (void*)dataBack};
+        km::SystemMemory result;
         return km::SystemMemory(regions, system, pm, pteMemory);
     }
 
@@ -91,6 +96,10 @@ struct SystemMemoryTestBody {
         for (const MemorySegment& seg : memory) {
             regions.push_back(seg.region());
         }
+
+        std::ranges::sort(regions, [](const boot::MemoryRegion& a, const boot::MemoryRegion& b) {
+            return a.range.front < b.range.front;
+        });
 
         uintptr_t dataFront = -(1ull << (48 - 1));
         uintptr_t dataBack = -(1ull << (48 - 2));

@@ -185,6 +185,16 @@ namespace km {
         [[nodiscard]]
         OsStatus splitv(TlsfAllocation ptr, std::span<const PhysicalAddress> points, std::span<TlsfAllocation> results) [[clang::allocating]];
 
+        /// @brief Reserve a range of memory.
+        ///
+        /// @param range The range to reserve.
+        /// @param[out] result The resulting allocation if successful, required to release the memory later.
+        ///
+        /// @return The result of the operation.
+        /// @retval OsStatusSuccess The operation was successful, memory was reserved.
+        /// @retval OsStatusOutOfMemory Failed to allocate control structures, no memory was reserved.
+        /// @retval OsStatusNotAvailable The range is already in use, no memory was reserved.
+        /// @retval OsStatusNotFound The range is not managed by this heap, no memory was reserved.
         [[nodiscard]]
         OsStatus reserve(MemoryRange range, TlsfAllocation *result [[gnu::nonnull]]) [[clang::allocating]];
 

@@ -128,6 +128,8 @@ OsStatus km::AddressSpace::map(MemoryRangeEx memory, PageFlags flags, MemoryType
         return OsStatusInvalidInput;
     }
 
+    stdx::LockGuard guard(mLock);
+
     TlsfAllocation vmem = mVmemHeap.aligned_alloc(x64::kPageSize, memory.size());
     if (vmem.isNull()) {
         return OsStatusOutOfMemory;
@@ -168,6 +170,7 @@ OsStatus km::AddressSpace::unmap(TlsfAllocation allocation) {
         return status;
     }
 
+    stdx::LockGuard guard(mLock);
     mVmemHeap.free(allocation);
     return OsStatusSuccess;
 }

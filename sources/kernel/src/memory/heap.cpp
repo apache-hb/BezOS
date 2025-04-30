@@ -582,7 +582,7 @@ OsStatus TlsfHeap::reserve(MemoryRange range, TlsfAllocation *result) [[clang::a
         if (blockRange.contains(range) || blockRange == range) {
             if (block->isUsed()) {
                 // The range is already in use
-                return OsStatusAlreadyExists;
+                return OsStatusNotAvailable;
             }
 
             if ((range.front.address != block->offset) && block->prev == nullptr) {
@@ -613,7 +613,7 @@ OsStatus TlsfHeap::reserve(MemoryRange range, TlsfAllocation *result) [[clang::a
         block = block->prev;
     }
 
-    return OsStatusNotAvailable;
+    return OsStatusNotFound;
 }
 
 void TlsfHeap::detachBlock(TlsfBlock *block, size_t listIndex) noexcept [[clang::nonblocking]] {

@@ -17,13 +17,32 @@ namespace km {
     }
 
     class AddressSpace {
+        stdx::SpinLock mLock;
+
         PageTables mTables;
         VmemAllocator mVmemAllocator;
-        TlsfHeap mVmemHeap;
+        TlsfHeap mVmemHeap GUARDED_BY(mLock);
 
     public:
         UTIL_NOCOPY(AddressSpace);
-        UTIL_DEFAULT_MOVE(AddressSpace);
+
+        constexpr AddressSpace(AddressSpace&& other) noexcept
+            : mTables(std::move(other.mTables))
+            , mVmemAllocator(std::move(other.mVmemAllocator))
+            , mVmemHeap(std::move(other.mVmemHeap))
+        { }
+
+        constexpr AddressSpace& operator=(AddressSpace&& other) noexcept {
+            CLANG_DIAGNOSTIC_PUSH();
+            CLANG_DIAGNOSTIC_IGNORE("-Wthread-safety");
+
+            mTables = std::move(other.mTables);
+            mVmemAllocator = std::move(other.mVmemAllocator);
+            mVmemHeap = std::move(other.mVmemHeap);
+            return *this;
+
+            CLANG_DIAGNOSTIC_POP();
+        }
 
         constexpr AddressSpace() noexcept = default;
 
