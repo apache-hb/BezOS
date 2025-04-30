@@ -14,7 +14,7 @@ namespace stdx {
     public:
         SharedSpinLock() = default;
 
-        void lock() [[clang::blocking]] ACQUIRE() {
+        void lock() noexcept [[clang::blocking, clang::nonallocating]] ACQUIRE() {
             uint32_t expected = 0;
             while (!mLock.compare_exchange_strong(expected, kWriteLock, std::memory_order_acquire)) {
                 expected = 0;
@@ -22,16 +22,16 @@ namespace stdx {
         }
 
         [[nodiscard]]
-        bool try_lock() TRY_ACQUIRE(true) {
+        bool try_lock() noexcept [[clang::nonblocking, clang::nonallocating]] TRY_ACQUIRE(true) {
             uint32_t expected = 0;
             return mLock.compare_exchange_strong(expected, kWriteLock, std::memory_order_acquire);
         }
 
-        void unlock() RELEASE() {
+        void unlock() noexcept [[clang::nonblocking, clang::nonallocating]] RELEASE() {
             mLock.store(0, std::memory_order_release);
         }
 
-        void lock_shared() [[clang::blocking]] ACQUIRE_SHARED() {
+        void lock_shared() noexcept [[clang::blocking, clang::nonallocating]] ACQUIRE_SHARED() {
             uint32_t expected;
             do {
                 expected = mLock.load(std::memory_order_acquire) & ~kWriteLock;
@@ -39,42 +39,42 @@ namespace stdx {
         }
 
         [[nodiscard]]
-        bool try_lock_shared() TRY_ACQUIRE_SHARED(true) {
+        bool try_lock_shared() noexcept [[clang::nonblocking, clang::nonallocating]] TRY_ACQUIRE_SHARED(true) {
             uint32_t expected = mLock.load(std::memory_order_acquire) & ~kWriteLock;
             return mLock.compare_exchange_strong(expected, expected + 1, std::memory_order_acquire);
         }
 
-        void unlock_shared() RELEASE_SHARED() {
+        void unlock_shared() noexcept [[clang::nonblocking, clang::nonallocating]] RELEASE_SHARED() {
             mLock.fetch_sub(1, std::memory_order_release);
         }
     };
 
     template<typename T>
-    class [[nodiscard]] SCOPED_CAPABILITY UniqueLock {
+    class [[nodiscard, clang::scoped_lockable]] SCOPED_CAPABILITY UniqueLock {
         T& mLock;
     public:
-        UniqueLock(T& lock) [[clang::blocking]] ACQUIRE(lock)
+        UniqueLock(T& lock) noexcept [[clang::blocking, clang::nonallocating]] ACQUIRE(lock)
             : mLock(lock)
         {
             mLock.lock();
         }
 
-        ~UniqueLock() RELEASE() {
+        ~UniqueLock() noexcept [[clang::nonblocking, clang::nonallocating]] RELEASE() {
             mLock.unlock();
         }
     };
 
     template<typename T>
-    class [[nodiscard]] SCOPED_CAPABILITY SharedLock {
+    class [[nodiscard, clang::scoped_lockable]] SCOPED_CAPABILITY SharedLock {
         T& mLock;
     public:
-        SharedLock(T& lock) [[clang::blocking]] ACQUIRE_SHARED(lock)
+        SharedLock(T& lock) noexcept [[clang::blocking, clang::nonallocating]] ACQUIRE_SHARED(lock)
             : mLock(lock)
         {
             mLock.lock_shared();
         }
 
-        ~SharedLock() RELEASE() {
+        ~SharedLock() noexcept [[clang::nonblocking, clang::nonallocating]] RELEASE() {
             mLock.unlock_shared();
         }
     };

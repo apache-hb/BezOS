@@ -39,6 +39,15 @@ PageTables::PageTables(const km::PageBuilder *pm, AddressMapping pteMemory, Page
     , mMiddleFlags(middleFlags)
 { }
 
+OsStatus PageTables::create(const PageBuilder *pm, AddressMapping pteMemory, PageFlags flags, PageTables *tables) [[clang::allocating]] {
+    if (pteMemory.size < x64::kPageSize) {
+        return OsStatusInvalidInput;
+    }
+
+    *tables = PageTables(pm, pteMemory, flags);
+    return OsStatusSuccess;
+}
+
 x64::PageMapLevel3 *PageTables::getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e, detail::PageTableList& buffer) noexcept [[clang::nonallocating]] {
     x64::PageMapLevel3 *l3;
 

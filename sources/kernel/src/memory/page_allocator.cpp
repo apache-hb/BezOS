@@ -36,10 +36,12 @@ MemoryRange PageAllocator::alloc4k(size_t count) [[clang::allocating]] {
 }
 
 TlsfAllocation PageAllocator::pageAlloc(size_t count) [[clang::allocating]] {
+    stdx::LockGuard guard(mLock);
     return mMemoryHeap.aligned_alloc(alignof(x64::page), count * x64::kPageSize);
 }
 
 void PageAllocator::release(TlsfAllocation allocation) noexcept [[clang::nonallocating]] {
+    stdx::LockGuard guard(mLock);
     mMemoryHeap.free(allocation);
 }
 
@@ -108,7 +110,12 @@ OsStatus PageAllocator::create(std::span<const boot::MemoryRegion> memmap, PageA
         return status;
     }
 
+    CLANG_DIAGNOSTIC_PUSH();
+    CLANG_DIAGNOSTIC_IGNORE("-Wthread-safety");
+
     allocator->mMemoryHeap = std::move(memoryHeap);
+
+    CLANG_DIAGNOSTIC_POP();
 
     return OsStatusSuccess;
 }

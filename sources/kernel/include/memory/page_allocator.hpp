@@ -4,6 +4,7 @@
 
 #include "memory/heap.hpp"
 #include "memory/range_allocator.hpp"
+#include "common/compiler/compiler.hpp"
 
 namespace km {
     struct PageAllocatorStats {
@@ -18,11 +19,29 @@ namespace km {
         /// @brief Allocator for usable memory above 1M.
         RangeAllocator<PhysicalAddress> mMemory;
 
-        km::TlsfHeap mMemoryHeap;
+        stdx::SpinLock mLock;
+        km::TlsfHeap mMemoryHeap GUARDED_BY(mLock);
 
     public:
         UTIL_NOCOPY(PageAllocator);
-        UTIL_DEFAULT_MOVE(PageAllocator);
+
+        constexpr PageAllocator(PageAllocator&& other) noexcept
+            : mLowMemory(std::move(other.mLowMemory))
+            , mMemory(std::move(other.mMemory))
+            , mMemoryHeap(std::move(other.mMemoryHeap))
+        { }
+
+        constexpr PageAllocator& operator=(PageAllocator&& other) noexcept {
+            CLANG_DIAGNOSTIC_PUSH();
+            CLANG_DIAGNOSTIC_IGNORE("-Wthread-safety");
+
+            mLowMemory = std::move(other.mLowMemory);
+            mMemory = std::move(other.mMemory);
+            mMemoryHeap = std::move(other.mMemoryHeap);
+            return *this;
+
+            CLANG_DIAGNOSTIC_POP();
+        }
 
         constexpr PageAllocator() noexcept = default;
 

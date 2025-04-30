@@ -4,6 +4,7 @@
 #include "std/spinlock.hpp"
 #include "std/vector.hpp"
 #include "common/util/util.hpp"
+#include "common/compiler/compiler.hpp"
 
 #include "log.hpp"
 
@@ -281,10 +282,15 @@ namespace km {
         { }
 
         RangeAllocator& operator=(RangeAllocator&& other) noexcept {
+            CLANG_DIAGNOSTIC_PUSH();
+            CLANG_DIAGNOSTIC_IGNORE("-Wthread-safety");
+
             if (this != &other) {
                 std::swap(mAvailable, other.mAvailable);
             }
             return *this;
+
+            CLANG_DIAGNOSTIC_POP();
         }
 
         using Request = RangeAllocateRequest<T>;
