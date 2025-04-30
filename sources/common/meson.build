@@ -3,6 +3,7 @@ project('bezos-common', 'cpp',
         'cpp_std=c++26',
         'c_std=c23',
         'warning_level=3',
+        'b_coverage=true',
     ],
     version : '0.1.0',
     license : 'GPL-3.0-only',
@@ -29,6 +30,9 @@ tests = {
     ],
     'compiler': [
         'test/compiler.cpp'
+    ],
+    'address': [
+        'test/address.cpp'
     ],
 }
 

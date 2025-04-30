@@ -326,6 +326,32 @@ struct PackageInfo {
     }
 };
 
+template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
+
+template<typename... Args>
+static int execute(const std::vector<std::string>& cmd, Args&&... args) {
+    if (logger.mVerbose) {
+        logger.logf("{}", (cmd | stdv::join_with(' ') | stdr::to<std::string>()));
+
+        if constexpr (sizeof...(args) > 0) {
+            auto visitor = overloaded {
+                [&](const sp::cwd& arg) {
+                    logger.logf("cwd: {}", arg.arg_value);
+                },
+                [&](const sp::environment& arg) {
+                    for (const auto& [key, value] : arg.env_) {
+                        logger.logf("env: {}={}", key, value);
+                    }
+                },
+                [&](auto&& arg) { }
+            };
+
+            (visitor(std::forward<Args>(args)), ...);
+        }
+    }
+    return sp::call(cmd, std::forward<Args>(args)...);
+}
+
 constexpr static void ReplaceAll(std::string& str, std::string_view from, std::string_view to) {
     size_t start_pos = 0;
     while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
@@ -916,7 +942,7 @@ static void GitClone(const std::string& url, const std::string& commit, const st
         args.push_back(branch);
     }
 
-    auto result = sp::call(args);
+    auto result = execute(args);
     if (result != 0) {
         throw std::runtime_error("Failed to clone " + url);
     }
@@ -925,7 +951,7 @@ static void GitClone(const std::string& url, const std::string& commit, const st
         auto cwd = fs::current_path();
         fs::current_path(dst);
 
-        auto result = sp::call({ "git", "checkout", commit });
+        auto result = execute({ "git", "checkout", commit });
         if (result != 0) {
             throw std::runtime_error("Failed to checkout commit " + commit);
         }
@@ -1158,7 +1184,7 @@ static void ReadConfigureBody(XmlNode action, ConfigureStep& step, Scope& scope)
     for (XmlNode child : action.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
         if (child.name() == "options"sv) {
             for (const auto& [key, value] : child.properties()) {
-                std::string option = key;
+                std::string option = value;
                 scope.SubstituteVariables(option);
                 if (step.options.contains(key)) {
                     throw std::runtime_error("Duplicate option " + key);
@@ -1169,7 +1195,7 @@ static void ReadConfigureBody(XmlNode action, ConfigureStep& step, Scope& scope)
             step.configureSourcePath = scope.GetProperty(child, "path");
         } else if (child.name() == "env"sv) {
             for (const auto& [key, value] : child.properties()) {
-                std::string option = key;
+                std::string option = value;
                 scope.SubstituteVariables(option);
                 if (step.env.contains(key)) {
                     throw std::runtime_error("Duplicate env variable " + key);
@@ -1484,7 +1510,7 @@ static void AcquirePackage(const PackageInfo& package) {
 
         auto ws = package.GetSourceFolder().string();
 
-        auto result = sp::call(args, sp::cwd{ws});
+        auto result = execute(args, sp::cwd{ws});
         if (result != 0) {
             throw std::runtime_error("Failed to apply patch " + patch.string());
         }
@@ -1593,8 +1619,7 @@ static void RunConfigureStep(const PackageInfo& package, const ConfigureStep& st
             args.push_back("-D" + key + "=" + val);
         }
 
-        logger.logf("{}", (args | stdv::join_with(' ')) | stdr::to<std::string>());
-        auto result = sp::call(args, sp::cwd{cwd}, sp::environment{env});
+        auto result = execute(args, sp::cwd{cwd}, sp::environment{env});
         if (result != 0) {
             throw std::runtime_error("Failed to configure package " + package.name);
         }
@@ -1618,8 +1643,7 @@ static void RunConfigureStep(const PackageInfo& package, const ConfigureStep& st
             args.push_back("-D" + key + "=" + val);
         }
 
-        logger.logf("{}", (args | stdv::join_with(' ')) | stdr::to<std::string>());
-        auto result = sp::call(args, sp::cwd{cwd}, sp::environment{env});
+        auto result = execute(args, sp::cwd{cwd}, sp::environment{env});
         if (result != 0) {
             throw std::runtime_error("Failed to configure package " + package.name);
         }
@@ -1646,8 +1670,7 @@ static void RunConfigureStep(const PackageInfo& package, const ConfigureStep& st
             }
         }
 
-        logger.logf("{}", (args | stdv::join_with(' ')) | stdr::to<std::string>());
-        auto result = sp::call(args, sp::cwd{builddir}, sp::environment{env}, sp::output{out.c_str()}, sp::error{err.c_str()});
+        auto result = execute(args, sp::cwd{builddir}, sp::environment{env}, sp::output{out.c_str()}, sp::error{err.c_str()});
         if (result != 0) {
             throw std::runtime_error("Failed to configure package " + package.name);
         }
@@ -1661,8 +1684,7 @@ static void RunConfigureStep(const PackageInfo& package, const ConfigureStep& st
             ReplacePackagePlaceholders(arg, package);
         }
 
-        logger.logf("{}", (args | stdv::join_with(' ')) | stdr::to<std::string>());
-        auto result = sp::call(args, sp::environment{env}, sp::cwd{builddir});
+        auto result = execute(args, sp::environment{env}, sp::cwd{builddir});
         if (result != 0) {
             throw std::runtime_error("Failed to run script " + args[1]);
         }
@@ -1677,8 +1699,7 @@ static void RunConfigureStep(const PackageInfo& package, const ConfigureStep& st
         }
 
         std::vector<std::string> args = { "/bin/sh", path };
-        logger.logf("{}", (args | stdv::join_with(' ')) | stdr::to<std::string>());
-        auto result = sp::call(args, sp::environment{env}, sp::cwd{builddir});
+        auto result = execute(args, sp::environment{env}, sp::cwd{builddir});
         if (result != 0) {
             throw std::runtime_error("Failed to run script " + path.string());
         }
@@ -1717,19 +1738,19 @@ static void BuildPackage(const PackageInfo& package) {
 
     if (buildProgram == eMeson) {
         logger.logf("{}: build program meson", package.name);
-        auto result = sp::call({ "meson", "compile" }, sp::cwd{builddir});
+        auto result = execute({ "meson", "compile" }, sp::cwd{builddir});
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
     } else if (buildProgram == eCMake) {
         logger.logf("{}: build program cmake", package.name);
-        auto result = sp::call({ "cmake", "--build", builddir }, sp::cwd{builddir});
+        auto result = execute({ "cmake", "--build", builddir }, sp::cwd{builddir});
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
     } else if (buildProgram == eAutoconf) {
         logger.logf("{}: build program autoconf", package.name);
-        auto result = sp::call({ "make", "-j" + std::to_string(std::thread::hardware_concurrency()), "-Otarget" }, sp::cwd{builddir});
+        auto result = execute({ "make", "-j" + std::to_string(std::thread::hardware_concurrency()), "-Otarget" }, sp::cwd{builddir});
         if (result != 0) {
             throw std::runtime_error("Failed to build package " + package.name);
         }
@@ -1778,13 +1799,13 @@ static void InstallPackage(const PackageInfo& package) {
                 args.push_back("--tags");
                 args.push_back((package.installTargets | stdv::split(' ') | stdv::join_with(',')) | stdr::to<std::string>());
             }
-            auto result = sp::call({ "meson", "install", "--no-rebuild", "--skip-subprojects" }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
+            auto result = execute({ "meson", "install", "--no-rebuild", "--skip-subprojects" }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
             if (result != 0) {
                 throw std::runtime_error("Failed to install package " + package.name);
             }
         } else if (buildProgram == eCMake) {
             logger.logf("{}: install with cmake", package.name);
-            auto result = sp::call({ "cmake", "--install", builddir }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
+            auto result = execute({ "cmake", "--install", builddir }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
             if (result != 0) {
                 throw std::runtime_error("Failed to install package " + package.name);
             }
@@ -1797,8 +1818,7 @@ static void InstallPackage(const PackageInfo& package) {
                     args.push_back(std::string(std::string_view(target)));
                 }
             }
-            logger.logf("{}", (args | stdv::join_with(' ')) | stdr::to<std::string>());
-            auto result = sp::call(args, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
+            auto result = execute(args, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
             if (result != 0) {
                 throw std::runtime_error("Failed to install package " + package.name);
             }
@@ -1834,7 +1854,7 @@ static void GenerateArtifact(std::string_view name, const PackageInfo& artifact)
         env["SOURCE"] = gSourceRoot.string();
 
         logger.logf("{}: execute {}", name, args[1]);
-        auto result = sp::call(args, sp::environment{env});
+        auto result = execute(args, sp::environment{env});
         if (result != 0) {
             throw std::runtime_error("Failed to run script " + args[1]);
         }
@@ -2003,7 +2023,7 @@ static void CheckRequiredTools(PackageDb& db) {
         }
 
         try {
-            if (sp::call({ name, "--version" }, sp::output{"/dev/null"}, sp::error{"/dev/null"}) != 0) {
+            if (execute({ name, "--version" }, sp::output{"/dev/null"}, sp::error{"/dev/null"}) != 0) {
                 logger.errf("{} is not installed", name);
                 ok = false;
             } else {
@@ -2203,7 +2223,7 @@ static int RunPackageTool(argparse::ArgumentParser& parser) {
                 continue;
             }
             auto path = info.GetBuildFolder().string();
-            auto result = sp::call({ "meson", "test" }, sp::cwd{path});
+            auto result = execute({ "meson", "test" }, sp::cwd{path});
             if (result != 0) {
                 throw std::runtime_error("Failed to run tests for " + test);
             }
@@ -2324,6 +2344,11 @@ int main(int argc, const char **argv) try {
         .append()
         .nargs(argparse::nargs_pattern::any);
 
+    parser.add_argument("--verbose")
+        .help("Enable verbose output")
+        .default_value(false)
+        .implicit_value(true);
+
     parser.add_argument("--help")
         .help("Print this help message")
         .action([&](const std::string &) { std::cout << parser; std::exit(0); });
@@ -2336,6 +2361,7 @@ int main(int argc, const char **argv) try {
         return 1;
     }
 
+    logger.mVerbose = parser.get<bool>("--verbose");
     bool daemon = parser.get<bool>("--daemon");
     if (daemon) {
         return RunDaemon(parser);
