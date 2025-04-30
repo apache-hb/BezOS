@@ -30,14 +30,21 @@ OsStatus sys2::ProcessHandle::destroyProcess(System *system, const ProcessDestro
     return getInner()->destroy(system, info);
 }
 
-sys2::Process::Process(ObjectName name, OsProcessStateFlags state, sm::RcuWeakPtr<Process> parent, OsProcessId pid, const km::AddressSpace *systemTables, km::AddressMapping pteMemory)
+sys2::Process::Process(
+    ObjectName name,
+    OsProcessStateFlags state,
+    sm::RcuWeakPtr<Process> parent,
+    OsProcessId pid,
+    km::AddressSpace&& ptes,
+    km::AddressMapping pteMemory
+)
     : Super(name)
     , mId(ProcessId(pid))
     , mState(state)
     , mExitCode(0)
     , mParent(parent)
     , mPteMemory(pteMemory)
-    , mPageTables(systemTables, mPteMemory, km::PageFlags::eUserAll, km::DefaultUserArea())
+    , mPageTables(std::move(ptes))
 { }
 
 OsStatus sys2::Process::stat(ProcessStat *info) {
@@ -178,7 +185,13 @@ OsStatus sys2::Process::createProcess(System *system, ProcessCreateInfo info, Pr
         return status;
     }
 
-    if (auto process = sm::rcuMakeShared<sys2::Process>(&system->rcuDomain(), info.name, info.state, loanWeak(), system->nextProcessId(), system->pageTables(), pteMemory)) {
+    km::AddressSpace ptes;
+    if (OsStatus status = km::AddressSpace::create(system->mSystemTables, pteMemory, km::PageFlags::eUserAll, km::DefaultUserArea().cast<sm::VirtualAddress>(), &ptes)) {
+        system->releaseMapping(pteMemory);
+        return status;
+    }
+
+    if (auto process = sm::rcuMakeShared<sys2::Process>(&system->rcuDomain(), info.name, info.state, loanWeak(), system->nextProcessId(), std::move(ptes), pteMemory)) {
         ProcessHandle *result = new (std::nothrow) ProcessHandle(process, newHandleId(eOsHandleProcess), ProcessAccess::eAll);
         if (!result) {
             system->releaseMapping(pteMemory);
@@ -447,13 +460,19 @@ static OsStatus CreateProcessInner(sys2::System *system, sys2::ObjectName name, 
     sm::RcuSharedPtr<sys2::Process> process;
     sys2::ProcessHandle *result = nullptr;
     km::AddressMapping pteMemory;
+    km::AddressSpace ptes;
 
     if (OsStatus status = system->mapProcessPageTables(&pteMemory)) {
         return status;
     }
 
+    if (OsStatus status = km::AddressSpace::create(system->mSystemTables, pteMemory, km::PageFlags::eUserAll, km::DefaultUserArea().cast<sm::VirtualAddress>(), &ptes)) {
+        system->releaseMapping(pteMemory);
+        return status;
+    }
+
     // Create the process.
-    process = sm::rcuMakeShared<sys2::Process>(&system->rcuDomain(), name, state, parent, system->nextProcessId(), system->pageTables(), pteMemory);
+    process = sm::rcuMakeShared<sys2::Process>(&system->rcuDomain(), name, state, parent, system->nextProcessId(), std::move(ptes), pteMemory);
     if (!process) {
         goto outOfMemory;
     }

@@ -28,8 +28,6 @@ namespace km {
 
         void *allocate(size_t size, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eWriteBack);
 
-        AddressMapping allocate(AllocateRequest request);
-
         OsStatus unmap(void *ptr, size_t size);
         OsStatus unmap(VirtualRange range);
 
@@ -78,6 +76,9 @@ namespace km {
 
         [[nodiscard]]
         OsStatus map(size_t size, PageFlags flags, MemoryType type, MappingAllocation *allocation [[gnu::nonnull]]);
+
+        [[nodiscard]]
+        OsStatus map(MemoryRangeEx memory, PageFlags flags, MemoryType type, TlsfAllocation *allocation [[gnu::nonnull]]);
 
         [[nodiscard]]
         OsStatus unmap(MappingAllocation allocation);

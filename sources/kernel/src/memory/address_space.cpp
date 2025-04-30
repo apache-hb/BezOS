@@ -1,24 +1,16 @@
 #include "memory/address_space.hpp"
+#include "memory/stack_mapping.hpp"
 #include "memory/tables.hpp"
 #include "memory/allocator.hpp"
 
-km::AddressSpace::AddressSpace(const PageBuilder *pm, AddressMapping pteMemory, PageFlags flags, VirtualRange vmem)
-    : mTables(pm, pteMemory, flags)
-    , mVmemAllocator(vmem)
-{ }
-
-km::AddressSpace::AddressSpace(const AddressSpace *source, AddressMapping pteMemory, PageFlags flags, VirtualRange vmem)
-    : mTables(source->pageManager(), pteMemory, flags)
-    , mVmemAllocator(vmem)
-{
-    updateHigherHalfMappings(source);
-}
-
 void km::AddressSpace::reserve(VirtualRange range) {
+#if 0
     mVmemAllocator.reserve(range);
+#endif
 }
 
 OsStatus km::AddressSpace::unmap(VirtualRange range) {
+#if 0
     VirtualRange aligned = alignedOut(range, x64::kPageSize);
 
     //
@@ -32,42 +24,50 @@ OsStatus km::AddressSpace::unmap(VirtualRange range) {
     }
 
     return status;
+#endif
+    return OsStatusSuccess;
 }
 
 OsStatus km::AddressSpace::unmap(void *ptr, size_t size) {
+#if 0
     return unmap(VirtualRange::of(ptr, size));
+#endif
+    return OsStatusSuccess;
 }
 
 void *km::AddressSpace::map(MemoryRange range, PageFlags flags, MemoryType type) {
-    uintptr_t offset = range.front.address % x64::kPageSize;
-    MemoryRange aligned = alignedOut(range, x64::kPageSize);
-
-    size_t pages = Pages(aligned.size());
-    VirtualRange vmem = mVmemAllocator.allocate(pages);
-    if (vmem.isEmpty()) {
+    if (range.isEmpty() || (range != alignedOut(range, x64::kPageSize))) {
         return nullptr;
     }
 
-    AddressMapping m = MappingOf(vmem, aligned.front);
-    OsStatus status = mTables.map(m, flags, type);
-    if (status != OsStatusSuccess) {
-        mVmemAllocator.release(vmem);
+    TlsfAllocation result;
+    if (map(range.cast<km::PhysicalAddressEx>(), flags, type, &result) != OsStatusSuccess) {
         return nullptr;
     }
 
-    return (void*)((uintptr_t)vmem.front + offset);
+    return std::bit_cast<void*>(result.address());
 }
 
-OsStatus km::AddressSpace::map(MemoryRange range, const void *hint, PageFlags flags, MemoryType type, AddressMapping *mapping) {
-    size_t pages = Pages(range.size());
-    VirtualRange vmem = mVmemAllocator.allocate(pages, hint);
-    if (vmem.isEmpty()) {
+OsStatus km::AddressSpace::map(MemoryRange range, const void *, PageFlags flags, MemoryType type, AddressMapping *mapping) {
+    if (range.isEmpty() || (range != alignedOut(range, x64::kPageSize))) {
+        return OsStatusInvalidInput;
+    }
+
+    stdx::LockGuard guard(mLock);
+
+    TlsfAllocation vmem = mVmemHeap.aligned_alloc(x64::kPageSize, range.size());
+    if (vmem.isNull()) {
         return OsStatusOutOfMemory;
     }
 
-    AddressMapping m = MappingOf(vmem, range.front);
+    AddressMapping m = {
+        .vaddr = std::bit_cast<const void*>(vmem.address()),
+        .paddr = range.front.address,
+        .size = range.size()
+    };
+
     if (OsStatus status = mTables.map(m, flags, type)) {
-        mVmemAllocator.release(vmem);
+        mVmemHeap.free(vmem);
         return status;
     }
 
@@ -76,33 +76,63 @@ OsStatus km::AddressSpace::map(MemoryRange range, const void *hint, PageFlags fl
 }
 
 OsStatus km::AddressSpace::mapStack(MemoryRange range, PageFlags flags, StackMapping *mapping) {
-    size_t pages = Pages(range.size());
-    VirtualRange total = mVmemAllocator.allocate(pages + 2);
-    if (total.isEmpty()) {
-        return OsStatusOutOfMemory;
-    }
-
-    AddressMapping stack = MappingOf(range, (char*)total.front + x64::kPageSize);
-    if (OsStatus status = mTables.map(stack, flags, MemoryType::eWriteBack)) {
-        mVmemAllocator.release(total);
+    std::array<TlsfAllocation, 3> results;
+    MemoryRangeEx stackRange = range.cast<km::PhysicalAddressEx>();
+    if (OsStatus status = mapStack(stackRange, flags, &results)) {
         return status;
     }
 
-    *mapping = StackMapping { stack, total };
+    AddressMapping stack = {
+        .vaddr = std::bit_cast<const void*>(results[1].address()),
+        .paddr = stackRange.front.address,
+        .size = stackRange.size()
+    };
 
+    StackMapping result = {
+        .stack = stack,
+        .total = km::merge(results[0].range(), results[2].range()).cast<const void*>(),
+    };
+
+    *mapping = result;
     return OsStatusSuccess;
 }
 
 OsStatus km::AddressSpace::unmapStack(StackMapping mapping) {
-    if (OsStatus status = unmap(mapping.stack.virtualRange())) {
+    stdx::LockGuard guard(mLock);
+
+#if 0
+    std::array<TlsfAllocation, 3> results;
+    if (OsStatus status = mVmemHeap.findAllocation(std::bit_cast<PhysicalAddress>(mapping.total.front), &results[0])) {
+        KmDebugMessage("Failed to find stack allocation 0: ", mapping.total, ", ", mapping.stack, "\n");
         return status;
     }
 
-    mVmemAllocator.release(mapping.total);
+    if (OsStatus status = mVmemHeap.findAllocation(std::bit_cast<PhysicalAddress>(mapping.stack.vaddr), &results[1])) {
+        KmDebugMessage("Failed to find stack allocation 1\n");
+        return status;
+    }
+
+    if (OsStatus status = mVmemHeap.findAllocation(std::bit_cast<PhysicalAddress>(mapping.total.back) - x64::kPageSize, &results[2])) {
+        KmDebugMessage("Failed to find stack allocation 2\n");
+        return status;
+    }
+
+    for (auto& result : results) {
+        if (OsStatus status = mTables.unmap(result.range().cast<const void*>())) {
+            KM_ASSERT(status == OsStatusSuccess);
+        }
+    }
+
+    mVmemHeap.free(results[0]);
+    mVmemHeap.free(results[1]);
+    mVmemHeap.free(results[2]);
+#endif
+
     return OsStatusSuccess;
 }
 
 OsStatus km::AddressSpace::reserve(AddressMapping mapping, PageFlags flags, MemoryType type) {
+#if 0
     mVmemAllocator.reserve(mapping.virtualRange());
 
     if (OsStatus status = mTables.map(mapping, flags, type)) {
@@ -111,9 +141,12 @@ OsStatus km::AddressSpace::reserve(AddressMapping mapping, PageFlags flags, Memo
     }
 
     return OsStatusSuccess;
+#endif
+    return OsStatusSuccess;
 }
 
 OsStatus km::AddressSpace::reserve(size_t size, VirtualRange *result) {
+#if 0
     VirtualRange range = mVmemAllocator.allocate(km::Pages(size));
     if (range.isEmpty()) {
         return OsStatusOutOfMemory;
@@ -121,15 +154,12 @@ OsStatus km::AddressSpace::reserve(size_t size, VirtualRange *result) {
 
     *result = range;
     return OsStatusSuccess;
+#endif
+    return OsStatusSuccess;
 }
 
 void km::AddressSpace::updateHigherHalfMappings(const PageTables *source) {
     km::copyHigherHalfMappings(&mTables, source);
-}
-
-OsStatus km::AddressSpace::splitv(TlsfAllocation ptr, std::span<const PhysicalAddress> points, std::span<TlsfAllocation> results) {
-    stdx::LockGuard guard(mLock);
-    return mVmemHeap.splitv(ptr, points, results);
 }
 
 OsStatus km::AddressSpace::map(MemoryRangeEx memory, PageFlags flags, MemoryType type, TlsfAllocation *allocation) {
@@ -167,6 +197,39 @@ OsStatus km::AddressSpace::map(TlsfAllocation memory, PageFlags flags, MemoryTyp
     }
 
     *allocation = MappingAllocation::unchecked(memory, result);
+    return OsStatusSuccess;
+}
+
+OsStatus km::AddressSpace::mapStack(TlsfAllocation memory, PageFlags flags, StackMappingAllocation *allocation) {
+    std::array<TlsfAllocation, 3> results;
+    MemoryRangeEx stackRange = memory.range().cast<km::PhysicalAddressEx>();
+    if (OsStatus status = mapStack(stackRange, flags, &results)) {
+        return status;
+    }
+
+    *allocation = StackMappingAllocation::unchecked(memory, results[1], results[0], results[2]);
+    return OsStatusSuccess;
+}
+
+OsStatus km::AddressSpace::mapStack(MemoryRangeEx memory, PageFlags flags, std::array<TlsfAllocation, 3> *allocations [[gnu::nonnull]]) {
+    TlsfAllocation result;
+    if (OsStatus status = map(memory, flags, MemoryType::eWriteBack, &result)) {
+        return status;
+    }
+
+    auto resultRange = result.range().cast<sm::VirtualAddress>();
+    std::array<PhysicalAddress, 2> points = {
+        std::bit_cast<km::PhysicalAddress>(resultRange.front + x64::kPageSize),
+        std::bit_cast<km::PhysicalAddress>(resultRange.back - x64::kPageSize),
+    };
+
+    stdx::LockGuard guard(mLock);
+    if (OsStatus status = mVmemHeap.splitv(result, points, *allocations)) {
+        OsStatus inner = unmap(result);
+        KM_ASSERT(inner == OsStatusSuccess);
+        return status;
+    }
+
     return OsStatusSuccess;
 }
 

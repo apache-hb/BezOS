@@ -4,37 +4,40 @@
 #include "memory/memory.hpp"
 #include "memory/stack_mapping.hpp"
 
+#if 0
 km::SystemMemory::SystemMemory(std::span<const boot::MemoryRegion> memmap, VirtualRange systemArea, PageBuilder pm, AddressMapping pteMemory)
     : mPageManager(pm)
     , mPageAllocator(memmap)
     , mTables(&mPageManager, pteMemory, PageFlags::eAll, systemArea)
 { }
+#endif
 
 void *km::SystemMemory::allocate(size_t size, PageFlags flags, MemoryType type) {
-    return (void*)allocate(AllocateRequest {
-        .size = size,
-        .flags = flags,
-        .type = type
-    }).vaddr;
+    MappingAllocation allocation;
+
+    if (map(size, flags, type, &allocation) != OsStatusSuccess) {
+        return nullptr;
+    }
+
+    return allocation.baseAddress();
 }
 
 km::AddressMapping km::SystemMemory::allocateStack(size_t size) {
-    size_t pages = Pages(size);
-
-    MemoryRange range = mPageAllocator.alloc4k(pages);
-    if (range.isEmpty()) {
+    StackMappingAllocation stackMapping;
+    if (mapStack(size, PageFlags::eData, &stackMapping) != OsStatusSuccess) {
         return AddressMapping{};
     }
 
-    StackMapping mapping;
-    if (mTables.mapStack(range, PageFlags::eData, &mapping) != OsStatusSuccess) {
-        mPageAllocator.release(range);
-        return AddressMapping{};
-    }
+    AddressMapping mapping {
+        .vaddr = stackMapping.stackBaseAddress(),
+        .paddr = std::bit_cast<km::PhysicalAddress>(stackMapping.baseMemory()),
+        .size = stackMapping.stackSize(),
+    };
 
-    return mapping.stack;
+    return mapping;
 }
 
+#if 0
 void km::SystemMemory::reserve(AddressMapping mapping) {
     reserveVirtual(mapping.virtualRange());
     reservePhysical(mapping.physicalRange());
@@ -48,32 +51,20 @@ void km::SystemMemory::reserveVirtual(VirtualRange range) {
     mTables.reserve(range);
 }
 
-km::AddressMapping km::SystemMemory::allocate(AllocateRequest request) {
-    size_t pages = Pages(request.size);
-
-    MemoryRange range = mPageAllocator.alloc4k(pages);
-    if (range.isEmpty()) {
-        return AddressMapping{};
-    }
-
-    AddressMapping mapping{};
-    OsStatus status = mTables.map(range, request.flags, request.type, &mapping);
-    if (status != OsStatusSuccess) {
-        mPageAllocator.release(range);
-        return AddressMapping{};
-    }
-
-    return mapping;
-}
-
 OsStatus km::SystemMemory::unmap(void *ptr, size_t size) {
+    return OsStatusSuccess;
+#if 0
     return unmap(VirtualRange::of(ptr, size));
+#endif
 }
 
 OsStatus km::SystemMemory::unmap(VirtualRange range) {
+    return OsStatusSuccess;
+#if 0
     return mTables.unmap(range);
+#endif
 }
-
+#endif
 void *km::SystemMemory::map(MemoryRange range, PageFlags flags, MemoryType type) {
     //
     // I may be asked to map a range that is not page aligned
@@ -81,17 +72,13 @@ void *km::SystemMemory::map(MemoryRange range, PageFlags flags, MemoryType type)
     //
     uintptr_t offset = (range.front.address & 0xFFF);
 
-    MemoryRange aligned = PageAligned(range);
-
-    reservePhysical(aligned);
-
-    AddressMapping mapping{};
-    OsStatus status = mTables.map(aligned, flags, type, &mapping);
-    if (status != OsStatusSuccess) {
+    TlsfAllocation memory;
+    if (mTables.map(range.cast<km::PhysicalAddressEx>(), flags, type, &memory) != OsStatusSuccess) {
         return nullptr;
     }
 
-    return (void*)((uintptr_t)mapping.vaddr + offset);
+    sm::VirtualAddress base = std::bit_cast<sm::VirtualAddress>(memory.address());
+    return base + offset;
 }
 
 OsStatus km::SystemMemory::mapStack(size_t size, PageFlags flags, StackMappingAllocation *mapping) {
@@ -104,37 +91,11 @@ OsStatus km::SystemMemory::mapStack(size_t size, PageFlags flags, StackMappingAl
         return OsStatusOutOfMemory;
     }
 
-    TlsfAllocation stackMemory;
-    if (OsStatus status = mTables.reserve(size + (2 * x64::kPageSize), &stackMemory)) {
+    if (OsStatus status = mTables.mapStack(memory, flags, mapping)) {
         mPageAllocator.release(memory);
         return status;
     }
 
-    MemoryRange stackRange = stackMemory.range();
-
-    std::array<TlsfAllocation, 3> allocations;
-    std::array<PhysicalAddress, 2> points = {
-        stackRange.front + x64::kPageSize,
-        stackRange.back - x64::kPageSize,
-    };
-
-    if (OsStatus status = mTables.splitv(stackMemory, points, allocations)) {
-        mPageAllocator.release(memory);
-        mTables.release(stackMemory);
-        return status;
-    }
-
-    MappingAllocation stackMapping;
-
-    if (OsStatus status = mTables.map(allocations[1], flags, MemoryType::eWriteBack, &stackMapping)) {
-        mPageAllocator.release(memory);
-        for (auto &alloc : allocations) {
-            mTables.release(alloc);
-        }
-        return status;
-    }
-
-    *mapping = StackMappingAllocation::unchecked(stackMemory, allocations[1], allocations[0], allocations[2]);
     return OsStatusSuccess;
 }
 
@@ -154,6 +115,10 @@ OsStatus km::SystemMemory::map(size_t size, PageFlags flags, MemoryType type, Ma
     }
 
     return OsStatusSuccess;
+}
+
+OsStatus km::SystemMemory::map(MemoryRangeEx memory, PageFlags flags, MemoryType type, TlsfAllocation *allocation) {
+    return mTables.map(memory, flags, type, allocation);
 }
 
 OsStatus km::SystemMemory::unmap(MappingAllocation allocation) {

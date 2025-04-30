@@ -445,18 +445,23 @@ void TlsfHeap::free(TlsfAllocation address) noexcept [[clang::nonallocating]] {
 }
 
 void TlsfHeap::freeAddress(PhysicalAddress address) noexcept [[clang::nonallocating]] {
+    TlsfAllocation allocation;
+    KM_ASSERT(findAllocation(address, &allocation) == OsStatusSuccess);
+    free(allocation);
+}
+
+OsStatus TlsfHeap::findAllocation(PhysicalAddress address, TlsfAllocation *result) noexcept [[clang::nonallocating]] {
     TlsfBlock *block = mNullBlock;
     while (block != nullptr) {
         if (block->offset == address) {
-            free(TlsfAllocation(block));
-            return;
+            *result = TlsfAllocation(block);
+            return OsStatusSuccess;
         }
 
         block = block->next;
     }
 
-    KmDebugMessage("[HEAP] Freeing invalid address ", address, "\n");
-    KM_PANIC("Freeing invalid address");
+    return OsStatusNotFound;
 }
 
 void TlsfHeap::splitBlock(TlsfBlock *block, PhysicalAddress midpoint, TlsfAllocation *lo, TlsfAllocation *hi, TlsfBlock *newBlock) noexcept [[clang::nonallocating]] {

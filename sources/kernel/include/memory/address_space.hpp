@@ -4,23 +4,28 @@
 #include "memory/paging.hpp"
 #include "memory/pte.hpp"
 #include "memory/range.hpp"
-#include "memory/virtual_allocator.hpp"
 
 #include <type_traits>
 
+#include "common/compiler/compiler.hpp"
+
 namespace km {
     class MappingAllocation;
+    class StackMappingAllocation;
 
     namespace detail {
         template<typename T>
         static constexpr PageFlags kDefaultPageFlags = std::is_const_v<T> ? PageFlags::eRead : PageFlags::eData;
     }
 
+    struct AddressSpaceStats {
+        TlsfHeapStats heap;
+    };
+
     class AddressSpace {
         stdx::SpinLock mLock;
 
         PageTables mTables;
-        VmemAllocator mVmemAllocator;
         TlsfHeap mVmemHeap GUARDED_BY(mLock);
 
     public:
@@ -28,7 +33,6 @@ namespace km {
 
         constexpr AddressSpace(AddressSpace&& other) noexcept
             : mTables(std::move(other.mTables))
-            , mVmemAllocator(std::move(other.mVmemAllocator))
             , mVmemHeap(std::move(other.mVmemHeap))
         { }
 
@@ -37,7 +41,6 @@ namespace km {
             CLANG_DIAGNOSTIC_IGNORE("-Wthread-safety");
 
             mTables = std::move(other.mTables);
-            mVmemAllocator = std::move(other.mVmemAllocator);
             mVmemHeap = std::move(other.mVmemHeap);
             return *this;
 
@@ -45,9 +48,6 @@ namespace km {
         }
 
         constexpr AddressSpace() noexcept = default;
-
-        AddressSpace(const PageBuilder *pm, AddressMapping pteMemory, PageFlags flags, VirtualRange vmem);
-        AddressSpace(const AddressSpace *source, AddressMapping pteMemory, PageFlags flags, VirtualRange vmem);
 
         void reserve(VirtualRange range);
 
@@ -136,13 +136,16 @@ namespace km {
         PhysicalAddress root() const { return mTables.root(); }
 
         [[nodiscard]]
-        OsStatus splitv(TlsfAllocation ptr, std::span<const PhysicalAddress> points, std::span<TlsfAllocation> results);
-
-        [[nodiscard]]
         OsStatus map(MemoryRangeEx memory, PageFlags flags, MemoryType type, TlsfAllocation *allocation [[gnu::nonnull]]);
 
         [[nodiscard]]
         OsStatus map(TlsfAllocation memory, PageFlags flags, MemoryType type, MappingAllocation *allocation [[gnu::nonnull]]);
+
+        [[nodiscard]]
+        OsStatus mapStack(TlsfAllocation memory, PageFlags flags, StackMappingAllocation *allocation [[gnu::nonnull]]);
+
+        [[nodiscard]]
+        OsStatus mapStack(MemoryRangeEx memory, PageFlags flags, std::array<TlsfAllocation, 3> *allocations [[gnu::nonnull]]);
 
         [[nodiscard]]
         OsStatus reserve(size_t size, TlsfAllocation *result [[gnu::nonnull]]);
@@ -155,17 +158,17 @@ namespace km {
         [[nodiscard]]
         OsStatus unmap(TlsfAllocation allocation);
 
+        AddressSpaceStats stats() noexcept {
+            stdx::LockGuard guard(mLock);
+            return {
+                .heap = mVmemHeap.stats(),
+            };
+        }
+
         [[nodiscard]]
         static OsStatus create(const PageBuilder *pm [[gnu::nonnull]], AddressMapping pteMemory, PageFlags flags, VirtualRangeEx vmem, AddressSpace *space [[gnu::nonnull]]);
 
         [[nodiscard]]
         static OsStatus create(const AddressSpace *source [[gnu::nonnull]], AddressMapping pteMemory, PageFlags flags, VirtualRangeEx vmem, AddressSpace *space [[gnu::nonnull]]);
-
-#if __STDC_HOSTED__
-        [[nodiscard]]
-        VmemAllocator& TESTING_getVmemAllocator() {
-            return mVmemAllocator;
-        }
-#endif
     };
 }

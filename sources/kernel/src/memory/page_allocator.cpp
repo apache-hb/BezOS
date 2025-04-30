@@ -20,19 +20,12 @@ PageAllocator::PageAllocator(std::span<const boot::MemoryRegion> memmap) {
 }
 
 MemoryRange PageAllocator::alloc4k(size_t count) [[clang::allocating]] {
-    MemoryRange range = mMemory.allocate({
-        .size = count * x64::kPageSize,
-        .align = x64::kPageSize,
-    });
+    TlsfAllocation allocation = pageAlloc(count);
+    if (allocation.isNull()) {
+        return MemoryRange{};
+    }
 
-    debug::SendEvent(debug::AllocatePhysicalMemory {
-        .size = range.size(),
-        .address = range.front.address,
-        .alignment = x64::kPageSize,
-        .tag = 0,
-    });
-
-    return range;
+    return allocation.range();
 }
 
 TlsfAllocation PageAllocator::pageAlloc(size_t count) [[clang::allocating]] {

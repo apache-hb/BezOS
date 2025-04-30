@@ -153,6 +153,10 @@ namespace km {
 
         void freeAddress(PhysicalAddress address) noexcept [[clang::nonallocating]];
 
+        /// @brief Find an allocation by its address.
+        /// @warning If you're using this function, you're doing it wrong.
+        OsStatus findAllocation(PhysicalAddress address, TlsfAllocation *result [[gnu::nonnull]]) noexcept [[clang::nonallocating]];
+
         /// @brief Split an allocation into two allocations.
         ///
         /// Splits an allocation into two allocations at the specified midpoint. The

@@ -3,6 +3,7 @@
 
 #include "allocator/synchronized.hpp"
 #include "allocator/tlsf.hpp"
+#include "memory/allocator.hpp"
 #include "test_memory.hpp"
 
 // dont worry about it :)
@@ -43,11 +44,13 @@ TEST(MemoryTest, ThreadSafe) {
     for (size_t i = 0; i < 10; i++) {
         threads.emplace_back([&] {
             for (size_t i = 0; i < 1000; i++) {
-                void *ptr = memory.allocate(0x1000, km::PageFlags::eData, km::MemoryType::eWriteCombine);
-                if (ptr != nullptr) {
-                    memory.unmap(ptr, 0x1000);
-                    allocs++;
-                }
+                km::MappingAllocation allocation;
+                OsStatus status = memory.map(0x1000, km::PageFlags::eData, km::MemoryType::eWriteCombine, &allocation);
+                if (status == OsStatusOutOfMemory) continue;
+                ASSERT_EQ(status, OsStatusSuccess);
+                status = memory.unmap(allocation);
+                ASSERT_EQ(status, OsStatusSuccess);
+                allocs++;
             }
         });
     }

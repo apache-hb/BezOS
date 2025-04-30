@@ -58,7 +58,7 @@ public:
         MemoryState state;
         state.pmm = memory.pmmAllocator().stats();
         state.vmm = memory.systemTables().TESTING_getPageTableAllocator().stats();
-        state.freeSpace = memory.pageTables().TESTING_getVmemAllocator().freeSpace();
+        state.freeSpace = memory.pageTables().stats().heap.freeMemory;
         return state;
     }
 
@@ -67,12 +67,16 @@ public:
         auto after = GetMemoryState(memory);
 
         EXPECT_EQ(after.vmm.freeBlocks, before.vmm.freeBlocks) << "Virtual memory was leaked";
-        EXPECT_EQ(after.pmm.freeMemory, before.pmm.freeMemory) << "Physical memory was leaked";
+        EXPECT_EQ(after.pmm.heap.freeMemory, before.pmm.heap.freeMemory) << "Physical memory was leaked";
         EXPECT_EQ(after.freeSpace, before.freeSpace) << "Address space memory was leaked";
     }
 
     void RecordMemoryUsage(km::SystemMemory& memory) {
         before = GetMemoryState(memory);
+
+        ASSERT_NE(before.pmm.heap.freeMemory, 0) << "PMM is empty";
+        ASSERT_NE(before.vmm.freeBlocks, 0) << "VMM is empty";
+        ASSERT_NE(before.freeSpace, 0) << "Address space is empty";
     }
 
     void CheckMemoryUsage(km::SystemMemory& memory) {
@@ -84,7 +88,7 @@ public:
     void DebugMemoryUsage(km::SystemMemory& memory) {
         auto state = GetMemoryState(memory);
 
-        std::cout << "PMM: " << std::string_view(km::format(sm::bytes(state.pmm.freeMemory))) << std::endl;
+        std::cout << "PMM: " << std::string_view(km::format(sm::bytes(state.pmm.heap.freeMemory))) << std::endl;
         std::cout << "VMM: " << std::string_view(km::format(sm::bytes(state.vmm.freeBlocks * x64::kPageSize))) << std::endl;
         std::cout << "Address Space: " << std::string_view(km::format(sm::bytes(state.freeSpace))) << std::endl;
     }

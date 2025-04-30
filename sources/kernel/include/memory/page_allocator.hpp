@@ -8,9 +8,6 @@
 
 namespace km {
     struct PageAllocatorStats {
-        size_t freeMemory;
-        size_t freeLowMemory;
-
         TlsfHeapStats heap;
     };
 
@@ -80,8 +77,6 @@ namespace km {
         PageAllocatorStats stats() noexcept {
             stdx::LockGuard guard(mLock);
             return {
-                mMemory.freeSpace(),
-                mLowMemory.freeSpace(),
                 mMemoryHeap.stats(),
             };
         }

@@ -34,6 +34,14 @@ namespace km {
             return std::bit_cast<sm::VirtualAddress>(mAddressAllocation.address()) + mAddressAllocation.size();
         }
 
+        size_t stackSize() const noexcept [[clang::nonblocking]] {
+            return mMemoryAllocation.size();
+        }
+
+        size_t totalSize() const noexcept [[clang::nonblocking]] {
+            return mMemoryAllocation.size() + (mGuardHead.isValid() ? mGuardHead.size() : 0) + (mGuardTail.isValid() ? mGuardTail.size() : 0);
+        }
+
         km::TlsfAllocation guardHead() const noexcept [[clang::nonblocking]] {
             return mGuardHead;
         }

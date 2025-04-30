@@ -60,7 +60,14 @@ namespace sys2 {
     public:
         using Access = ProcessAccess;
 
-        Process(ObjectName name, OsProcessStateFlags state, sm::RcuWeakPtr<Process> parent, OsProcessId pid, const km::AddressSpace *systemTables, km::AddressMapping pteMemory);
+        Process(
+            ObjectName name,
+            OsProcessStateFlags state,
+            sm::RcuWeakPtr<Process> parent,
+            OsProcessId pid,
+            km::AddressSpace&& ptes,
+            km::AddressMapping pteMemory
+        );
 
         stdx::StringView getClassName() const override { return "Process"; }
 

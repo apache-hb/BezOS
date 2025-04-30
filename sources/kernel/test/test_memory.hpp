@@ -1,5 +1,6 @@
 #include "memory.hpp"
 
+#include <format>
 #include <memory_resource>
 #include <vector>
 
@@ -86,9 +87,12 @@ struct SystemMemoryTestBody {
 
         uintptr_t dataFront = systemSegment.front.address;
         uintptr_t dataBack = systemSegment.back.address;
-        km::VirtualRange system{(void*)dataFront, (void*)dataBack};
+        km::VirtualRangeEx system{dataFront, dataBack};
         km::SystemMemory result;
-        return km::SystemMemory(regions, system, pm, pteMemory);
+        if (OsStatus status = km::SystemMemory::create(regions, system, pm, pteMemory, &result)) {
+            throw std::runtime_error(std::format("Failed to create SystemMemory: {}", status));
+        }
+        return result;
     }
 
     km::SystemMemory makeNoAlloc() {
@@ -103,7 +107,11 @@ struct SystemMemoryTestBody {
 
         uintptr_t dataFront = -(1ull << (48 - 1));
         uintptr_t dataBack = -(1ull << (48 - 2));
-        km::VirtualRange system{(void*)dataFront, (void*)dataBack};
-        return km::SystemMemory(regions, system, pm, pteMemory);
+        km::VirtualRangeEx system{dataFront, dataBack};
+        km::SystemMemory result;
+        if (OsStatus status = km::SystemMemory::create(regions, system, pm, pteMemory, &result)) {
+            throw std::runtime_error(std::format("Failed to create SystemMemory: {}", status));
+        }
+        return result;
     }
 };
