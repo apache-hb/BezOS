@@ -444,6 +444,21 @@ void TlsfHeap::free(TlsfAllocation address) noexcept [[clang::nonallocating]] {
     mFreeCount += 1;
 }
 
+void TlsfHeap::freeAddress(PhysicalAddress address) noexcept [[clang::nonallocating]] {
+    TlsfBlock *block = mNullBlock;
+    while (block != nullptr) {
+        if (block->offset == address) {
+            free(TlsfAllocation(block));
+            return;
+        }
+
+        block = block->next;
+    }
+
+    KmDebugMessage("[HEAP] Freeing invalid address ", address, "\n");
+    KM_PANIC("Freeing invalid address");
+}
+
 void TlsfHeap::splitBlock(TlsfBlock *block, PhysicalAddress midpoint, TlsfAllocation *lo, TlsfAllocation *hi, TlsfBlock *newBlock) noexcept [[clang::nonallocating]] {
     size_t base = block->offset;
     size_t size = midpoint.address - base;

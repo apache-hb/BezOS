@@ -686,6 +686,9 @@ testcases = {
     'pool allocator +new': [
         'test/memory/pool.cpp',
     ],
+    'page allocator': [
+        'test/memory/page_allocator.cpp',
+    ]
 }
 
 if enable_aml

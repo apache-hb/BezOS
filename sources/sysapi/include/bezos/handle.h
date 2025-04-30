@@ -51,6 +51,9 @@ typedef uint64_t OsTickCounter;
 /// @see OsHandleType
 typedef uint64_t OsHandle;
 
+/// @brief The id of an object in the system.
+typedef uint64_t OsObject;
+
 typedef uint64_t OsHandleAccess;
 
 #define OS_HANDLE_TYPE(handle) ((OsHandle)((handle) >> 56))

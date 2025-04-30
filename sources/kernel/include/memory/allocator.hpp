@@ -8,15 +8,12 @@ namespace km {
         km::TlsfAllocation mMemoryAllocation;
         km::TlsfAllocation mAddressAllocation;
 
-    public:
-        MappingAllocation(km::TlsfAllocation memory, km::TlsfAllocation address) noexcept
+        constexpr MappingAllocation(km::TlsfAllocation memory, km::TlsfAllocation address) noexcept
             : mMemoryAllocation(memory)
             , mAddressAllocation(address)
-        {
-            KM_ASSERT(!mMemoryAllocation.isNull());
-            KM_ASSERT(!mAddressAllocation.isNull());
-            KM_ASSERT(mMemoryAllocation.size() == mAddressAllocation.size());
-        }
+        { }
+    public:
+        constexpr MappingAllocation() noexcept = default;
 
         km::PhysicalAddress baseMemory() const noexcept [[clang::nonblocking]] {
             return mMemoryAllocation.address();
@@ -44,6 +41,24 @@ namespace km {
                 .paddr = baseMemory(),
                 .size = size(),
             };
+        }
+
+        [[nodiscard]]
+        static OsStatus create(TlsfAllocation memory, TlsfAllocation address, MappingAllocation *result) {
+            bool valid = memory.isValid() && address.isValid() && (memory.size() == address.size());
+            if (!valid) {
+                return OsStatusInvalidInput;
+            }
+            *result = MappingAllocation::unchecked(memory, address);
+            return OsStatusSuccess;
+        }
+
+        static MappingAllocation unchecked(TlsfAllocation memory, TlsfAllocation address) {
+            KM_ASSERT(memory.isValid());
+            KM_ASSERT(address.isValid());
+            KM_ASSERT(memory.size() == address.size());
+
+            return MappingAllocation { memory, address };
         }
     };
 }

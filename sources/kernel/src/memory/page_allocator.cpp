@@ -2,6 +2,7 @@
 
 #include "debug/debug.hpp"
 #include "memory/layout.hpp"
+#include "std/inlined_vector.hpp"
 
 #include <cstring>
 
@@ -32,6 +33,14 @@ MemoryRange PageAllocator::alloc4k(size_t count) [[clang::allocating]] {
     });
 
     return range;
+}
+
+TlsfAllocation PageAllocator::pageAlloc(size_t count) [[clang::allocating]] {
+    return mMemoryHeap.aligned_alloc(alignof(x64::page), count * x64::kPageSize);
+}
+
+void PageAllocator::release(TlsfAllocation allocation) noexcept [[clang::nonallocating]] {
+    mMemoryHeap.free(allocation);
 }
 
 void PageAllocator::release(MemoryRange range) {
@@ -76,4 +85,30 @@ PhysicalAddress PageAllocator::lowMemoryAlloc4k() [[clang::allocating]] {
 void PageAllocator::reserve(MemoryRange range) {
     mLowMemory.reserve(range);
     mMemory.reserve(range);
+}
+
+OsStatus PageAllocator::create(std::span<const boot::MemoryRegion> memmap, PageAllocator *allocator) [[clang::allocating]] {
+    km::TlsfHeap memoryHeap;
+
+    sm::InlinedVector<MemoryRange, 16> memory;
+
+    for (boot::MemoryRegion region : memmap) {
+        if (!region.isUsable())
+            continue;
+
+        if (region.range.isAfter(kLowMemory)) {
+            KM_ASSERT(memory.add(region.range) == OsStatusSuccess);
+        } else if (region.range.contains(kLowMemory)) {
+            auto [low, high] = split(region.range, kLowMemory);
+            KM_ASSERT(memory.add(high) == OsStatusSuccess);
+        }
+    }
+
+    if (OsStatus status = km::TlsfHeap::create(memory, &memoryHeap)) {
+        return status;
+    }
+
+    allocator->mMemoryHeap = std::move(memoryHeap);
+
+    return OsStatusSuccess;
 }

@@ -18,7 +18,6 @@ namespace km {
         /// @brief Allocator for usable memory above 1M.
         RangeAllocator<PhysicalAddress> mMemory;
 
-        km::TlsfHeap mLowMemoryHeap;
         km::TlsfHeap mMemoryHeap;
 
     public:
@@ -33,6 +32,10 @@ namespace km {
         ///
         /// @return The physical address of the page.
         MemoryRange alloc4k(size_t count = 1) [[clang::allocating]];
+
+        TlsfAllocation pageAlloc(size_t count = 1) [[clang::allocating]];
+
+        void release(TlsfAllocation allocation) noexcept [[clang::nonallocating]];
 
         /// @brief Release a range of memory.
         ///

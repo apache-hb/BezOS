@@ -151,6 +151,8 @@ namespace km {
         /// @brief Free an allocation.
         void free(TlsfAllocation ptr) noexcept [[clang::nonallocating]];
 
+        void freeAddress(PhysicalAddress address) noexcept [[clang::nonallocating]];
+
         /// @brief Split an allocation into two allocations.
         ///
         /// Splits an allocation into two allocations at the specified midpoint. The
