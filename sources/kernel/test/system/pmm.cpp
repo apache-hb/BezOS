@@ -850,7 +850,6 @@ TEST_F(MemoryManagerRetainTest, RetainOneInner) {
     km::MemoryRange subrange = ranges[0].subrange(x64::kPageSize, x64::kPageSize * 2);
     OsStatus status = manager.retain(subrange);
     EXPECT_EQ(status, OsStatusSuccess);
-    manager.dump();
 
     AssertStats(3, ranges[0].size());
 

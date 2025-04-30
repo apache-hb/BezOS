@@ -557,8 +557,11 @@ static Stage2MemoryInfo *InitStage2Memory(const boot::LaunchInfo& launch, const 
 
     KmDebugMessage("[INIT] Page table memory: ", pteMapping, "\n");
 
-    SystemMemory *memory = new SystemMemory(earlyMemory->memmap, stage1.layout.system, pm, pteMapping);
+    SystemMemory *memory = new SystemMemory;
     KM_CHECK(memory != nullptr, "Failed to allocate memory for SystemMemory.");
+
+    OsStatus status = km::SystemMemory::create(earlyMemory->memmap, stage1.layout.system.cast<sm::VirtualAddress>(), pm, pteMapping, memory);
+    KM_CHECK(status == OsStatusSuccess, "Failed to create SystemMemory.");
 
     stage2->memory = memory;
     stage2->layout = layout;

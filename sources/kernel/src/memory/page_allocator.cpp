@@ -1,23 +1,14 @@
 #include "memory/page_allocator.hpp"
 
-#include "debug/debug.hpp"
 #include "memory/layout.hpp"
 #include "std/inlined_vector.hpp"
+#include "std/spinlock.hpp"
 
 #include <cstring>
 
 using namespace km;
 
 /// page allocator
-
-PageAllocator::PageAllocator(std::span<const boot::MemoryRegion> memmap) {
-    for (boot::MemoryRegion region : memmap) {
-        if (!region.isUsable())
-            continue;
-
-        release(region.range);
-    }
-}
 
 MemoryRange PageAllocator::alloc4k(size_t count) [[clang::allocating]] {
     TlsfAllocation allocation = pageAlloc(count);
@@ -43,48 +34,29 @@ void PageAllocator::release(TlsfAllocation allocation) noexcept [[clang::nonallo
     mMemoryHeap.free(allocation);
 }
 
+OsStatus PageAllocator::reserve(MemoryRange range, TlsfAllocation *allocation) {
+    if (range.isEmpty() || (range != alignedOut(range, x64::kPageSize))) {
+        return OsStatusInvalidInput;
+    }
+
+    stdx::LockGuard guard(mLock);
+    if (OsStatus status = mMemoryHeap.reserve(range.cast<km::PhysicalAddress>(), allocation)) {
+        return status;
+    }
+
+    return OsStatusSuccess;
+}
+
 void PageAllocator::release(MemoryRange range) {
-    // If the range straddles the 1MB boundary, split it
-    if (range.contains(kLowMemory)) {
-        auto [low, high] = split(range, kLowMemory);
-        mLowMemory.release(low);
-        mMemory.release(high);
-    } else if (range.isBefore(kLowMemory)) {
-        mLowMemory.release(range);
-    } else {
-        mMemory.release(range);
-    }
-
-    debug::SendEvent(debug::ReleasePhysicalMemory {
-        .begin = range.front.address,
-        .end = range.back.address,
-        .tag = 0,
-    });
+    stdx::LockGuard guard(mLock);
+    mMemoryHeap.freeAddress(range.front);
 }
 
-PhysicalAddress PageAllocator::lowMemoryAlloc4k() [[clang::allocating]] {
-    MemoryRange range = mLowMemory.allocate({
-        .size = x64::kPageSize,
-        .align = x64::kPageSize,
-    });
-
-    debug::SendEvent(debug::AllocatePhysicalMemory {
-        .size = range.size(),
-        .address = range.front.address,
-        .alignment = x64::kPageSize,
-        .tag = 0,
-    });
-
-    if (range.isEmpty()) {
-        return KM_INVALID_MEMORY;
-    }
-
-    return range.front;
-}
-
-void PageAllocator::reserve(MemoryRange range) {
-    mLowMemory.reserve(range);
-    mMemory.reserve(range);
+PageAllocatorStats PageAllocator::stats() noexcept {
+    stdx::LockGuard guard(mLock);
+    return {
+        mMemoryHeap.stats(),
+    };
 }
 
 OsStatus PageAllocator::create(std::span<const boot::MemoryRegion> memmap, PageAllocator *allocator) [[clang::allocating]] {

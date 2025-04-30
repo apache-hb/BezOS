@@ -48,7 +48,7 @@ clean-common:
 	ninja -C $(COMMON_PATH) clean
 
 .PHONY: check-common
-check-common:
+check-common: | clean-coverage-common
 	ninja -C $(COMMON_PATH) test
 
 $(COMMON_COVERAGE): $(COMMON_GCDA)
@@ -76,7 +76,7 @@ clean:
 	ninja -C $(KERNEL_PATH) clean
 
 .PHONY: check
-check:
+check: | clean-coverage
 	meson test -C $(KERNEL_PATH)
 
 $(COVERAGE_REPORT): $(GCDA_FILES)

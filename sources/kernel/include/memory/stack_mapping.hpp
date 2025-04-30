@@ -1,5 +1,6 @@
 #pragma once
 
+#include "log.hpp"
 #include "memory/detail/tlsf.hpp"
 
 namespace km {
@@ -14,7 +15,32 @@ namespace km {
             , mAddressAllocation(address)
             , mGuardHead(head)
             , mGuardTail(tail)
-        { }
+        {
+            KM_ASSERT(memory.isValid());
+            KM_ASSERT(address.isValid());
+
+            if (memory.size() != address.size()) {
+                KmDebugMessage("Memory size: ", memory.size(), " != total size: ", address.size(), "\n");
+            }
+
+            KM_ASSERT(memory.size() == address.size());
+
+            if (head.isValid()) {
+                if (head.range().back != address.range().front) {
+                    KmDebugMessage("Head: ", head.range(), " != Address: ", address.range(), "\n");
+                }
+
+                KM_ASSERT(head.range().back == address.range().front);
+            }
+
+            if (tail.isValid()) {
+                if (tail.range().front != address.range().back) {
+                    KmDebugMessage("Tail: ", tail.range(), " != Address: ", address.range(), "\n");
+                }
+
+                KM_ASSERT(tail.range().front == address.range().back);
+            }
+        }
     public:
         constexpr StackMappingAllocation() noexcept = default;
 
@@ -85,18 +111,6 @@ namespace km {
         }
 
         static StackMappingAllocation unchecked(TlsfAllocation memory, TlsfAllocation address, TlsfAllocation head, TlsfAllocation tail) {
-            KM_ASSERT(memory.isValid());
-            KM_ASSERT(address.isValid());
-            KM_ASSERT(memory.size() == address.size());
-
-            if (head.isValid()) {
-                KM_ASSERT(head.range().back == address.range().front);
-            }
-
-            if (tail.isValid()) {
-                KM_ASSERT(tail.range().front == address.range().back);
-            }
-
             return StackMappingAllocation(memory, address, head, tail);
         }
     };

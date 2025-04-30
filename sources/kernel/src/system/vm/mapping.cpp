@@ -1,3 +1,4 @@
+#include "log.hpp"
 #include "memory/address_space.hpp"
 #include "memory/page_allocator.hpp"
 #include "system/vm/file.hpp"

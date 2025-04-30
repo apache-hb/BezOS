@@ -148,6 +148,9 @@ void OsStatusFormat::format(IOutStream& out, OsStatusId value) {
     case OsStatusProcessOrphaned:
         result("Process orphaned");
         break;
+    case OsStatusNotAvailable:
+        result("Not available");
+        break;
     default:
         result("Unknown");
         break;

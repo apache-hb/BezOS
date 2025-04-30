@@ -211,7 +211,6 @@ OsStatus sys2::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]
     if (begin == end) {
         MemorySegment& segment = begin->second;
         km::MemoryRange seg = segment.range();
-        KmDebugMessage("Retain: ", range, ", segment=", seg, "\n");
         if (range.contains(seg) || seg == range) {
             // |--------seg-------|
             // |--------range-----|

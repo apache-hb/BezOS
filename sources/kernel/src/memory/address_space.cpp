@@ -4,35 +4,52 @@
 #include "memory/allocator.hpp"
 
 void km::AddressSpace::reserve(VirtualRange range) {
-#if 0
-    mVmemAllocator.reserve(range);
-#endif
+    TlsfAllocation allocation;
+    if (OsStatus status = reserve(range.cast<sm::VirtualAddress>(), &allocation)) {
+        KmDebugMessage("[MEM] Failed to reserve virtual memory ", range, ": ", OsStatusId(status), "\n");
+    }
+}
+
+OsStatus km::AddressSpace::reserve(VirtualRangeEx range, TlsfAllocation *result [[gnu::nonnull]]) {
+    if (range.isEmpty() || (range != alignedOut(range, x64::kPageSize))) {
+        return OsStatusInvalidInput;
+    }
+
+    stdx::LockGuard guard(mLock);
+
+    TlsfAllocation allocation;
+
+    if (OsStatus status = mVmemHeap.reserve(range.cast<km::PhysicalAddress>(), &allocation)) {
+        return status;
+    }
+
+    *result = allocation;
+    return OsStatusSuccess;
 }
 
 OsStatus km::AddressSpace::unmap(VirtualRange range) {
-#if 0
-    VirtualRange aligned = alignedOut(range, x64::kPageSize);
-
-    //
-    // If unmapping page tables fails then we must not release the virtual address
-    // space associated with it. Unmap failing has a strong gaurantee that no
-    // page tables were modified.
-    //
-    OsStatus status = mTables.unmap(aligned);
-    if (status == OsStatusSuccess) {
-        mVmemAllocator.release(aligned);
+    if (range.isEmpty() || (range != alignedOut(range, x64::kPageSize))) {
+        return OsStatusInvalidInput;
     }
 
-    return status;
-#endif
+    stdx::LockGuard guard(mLock);
+
+    TlsfAllocation allocation;
+    if (OsStatus status = mVmemHeap.findAllocation(std::bit_cast<PhysicalAddress>(range.front), &allocation)) {
+        return status;
+    }
+
+    if (OsStatus status = mTables.unmap(range)) {
+        return status;
+    }
+
+    mVmemHeap.free(allocation);
+
     return OsStatusSuccess;
 }
 
 OsStatus km::AddressSpace::unmap(void *ptr, size_t size) {
-#if 0
     return unmap(VirtualRange::of(ptr, size));
-#endif
-    return OsStatusSuccess;
 }
 
 void *km::AddressSpace::map(MemoryRange range, PageFlags flags, MemoryType type) {
@@ -132,17 +149,8 @@ OsStatus km::AddressSpace::unmapStack(StackMapping mapping) {
 }
 
 OsStatus km::AddressSpace::reserve(AddressMapping mapping, PageFlags flags, MemoryType type) {
-#if 0
-    mVmemAllocator.reserve(mapping.virtualRange());
-
-    if (OsStatus status = mTables.map(mapping, flags, type)) {
-        mVmemAllocator.release(mapping.virtualRange());
-        return status;
-    }
-
-    return OsStatusSuccess;
-#endif
-    return OsStatusSuccess;
+    TlsfAllocation allocation;
+    return map(mapping, flags, type, &allocation);
 }
 
 OsStatus km::AddressSpace::reserve(size_t size, VirtualRange *result) {
@@ -155,7 +163,7 @@ OsStatus km::AddressSpace::reserve(size_t size, VirtualRange *result) {
     *result = range;
     return OsStatusSuccess;
 #endif
-    return OsStatusSuccess;
+    return OsStatusNotSupported;
 }
 
 void km::AddressSpace::updateHigherHalfMappings(const PageTables *source) {
@@ -200,6 +208,23 @@ OsStatus km::AddressSpace::map(TlsfAllocation memory, PageFlags flags, MemoryTyp
     return OsStatusSuccess;
 }
 
+OsStatus km::AddressSpace::map(AddressMapping mapping, PageFlags flags, MemoryType type, TlsfAllocation *allocation) {
+    stdx::LockGuard guard(mLock);
+
+    TlsfAllocation result;
+    if (OsStatus status = mVmemHeap.reserve(mapping.virtualRange().cast<km::PhysicalAddress>(), &result)) {
+        return status;
+    }
+
+    if (OsStatus status = mTables.map(mapping, flags, type)) {
+        mVmemHeap.free(result);
+        return status;
+    }
+
+    *allocation = result;
+    return OsStatusSuccess;
+}
+
 OsStatus km::AddressSpace::mapStack(TlsfAllocation memory, PageFlags flags, StackMappingAllocation *allocation) {
     std::array<TlsfAllocation, 3> results;
     MemoryRangeEx stackRange = memory.range().cast<km::PhysicalAddressEx>();
@@ -211,24 +236,44 @@ OsStatus km::AddressSpace::mapStack(TlsfAllocation memory, PageFlags flags, Stac
     return OsStatusSuccess;
 }
 
-OsStatus km::AddressSpace::mapStack(MemoryRangeEx memory, PageFlags flags, std::array<TlsfAllocation, 3> *allocations [[gnu::nonnull]]) {
-    TlsfAllocation result;
-    if (OsStatus status = map(memory, flags, MemoryType::eWriteBack, &result)) {
-        return status;
+OsStatus km::AddressSpace::mapStack(MemoryRangeEx memory, PageFlags flags, std::array<TlsfAllocation, 3> *allocations) {
+    stdx::LockGuard guard(mLock);
+
+    std::array<TlsfAllocation, 3> results;
+
+    TlsfAllocation vmem = mVmemHeap.aligned_alloc(x64::kPageSize, memory.size() + (2 * x64::kPageSize));
+    if (vmem.isNull()) {
+        return OsStatusOutOfMemory;
     }
 
-    auto resultRange = result.range().cast<sm::VirtualAddress>();
+    auto resultRange = vmem.range().cast<sm::VirtualAddress>();
     std::array<PhysicalAddress, 2> points = {
         std::bit_cast<km::PhysicalAddress>(resultRange.front + x64::kPageSize),
         std::bit_cast<km::PhysicalAddress>(resultRange.back - x64::kPageSize),
     };
 
-    stdx::LockGuard guard(mLock);
-    if (OsStatus status = mVmemHeap.splitv(result, points, *allocations)) {
-        OsStatus inner = unmap(result);
+    if (OsStatus status = mVmemHeap.splitv(vmem, points, results)) {
+        OsStatus inner = unmap(vmem);
         KM_ASSERT(inner == OsStatusSuccess);
         return status;
     }
+
+    AddressMapping m {
+        .vaddr = std::bit_cast<const void*>(results[1].address()),
+        .paddr = memory.front.address,
+        .size = memory.size()
+    };
+
+    if (OsStatus status = mTables.map(m, flags, MemoryType::eWriteBack)) {
+        OsStatus inner = unmap(vmem);
+        KM_ASSERT(inner == OsStatusSuccess);
+        for (auto& result : results) {
+            mVmemHeap.free(result);
+        }
+        return status;
+    }
+
+    *allocations = results;
 
     return OsStatusSuccess;
 }
@@ -275,6 +320,8 @@ OsStatus km::AddressSpace::create(const PageBuilder *pm, AddressMapping pteMemor
     if (OsStatus status = km::TlsfHeap::create(vmem.cast<km::PhysicalAddress>(), &space->mVmemHeap)) {
         return status;
     }
+
+    KmDebugMessage("[MEM] Created address space: ", vmem, "\n");
 
     return OsStatusSuccess;
 }

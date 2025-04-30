@@ -52,6 +52,9 @@ namespace km {
         void reserve(VirtualRange range);
 
         [[nodiscard]]
+        OsStatus reserve(VirtualRangeEx range, TlsfAllocation *result [[gnu::nonnull]]);
+
+        [[nodiscard]]
         OsStatus unmap(VirtualRange range);
 
         [[nodiscard]]
@@ -140,6 +143,9 @@ namespace km {
 
         [[nodiscard]]
         OsStatus map(TlsfAllocation memory, PageFlags flags, MemoryType type, MappingAllocation *allocation [[gnu::nonnull]]);
+
+        [[nodiscard]]
+        OsStatus map(AddressMapping mapping, PageFlags flags, MemoryType type, TlsfAllocation *allocation [[gnu::nonnull]]);
 
         [[nodiscard]]
         OsStatus mapStack(TlsfAllocation memory, PageFlags flags, StackMappingAllocation *allocation [[gnu::nonnull]]);

@@ -31,7 +31,6 @@ namespace km {
 
         Process *parent = nullptr;
 
-        RangeAllocator<PhysicalAddress> pmm;
         std::unique_ptr<AddressSpace> ptes;
         sm::FlatHashMap<OsHandle, BaseObject*> handles;
         OsProcessStateFlags state = eOsProcessRunning;
@@ -43,9 +42,7 @@ namespace km {
 
         bool isComplete() const;
 
-        OsProcessHandle parentId() const {
-            return parent ? parent->publicId() : OS_HANDLE_INVALID;
-        }
+        OsProcessHandle parentId() const;
 
         void terminate(OsProcessStateFlags state, int64_t exitCode);
 

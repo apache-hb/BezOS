@@ -446,7 +446,10 @@ void TlsfHeap::free(TlsfAllocation address) noexcept [[clang::nonallocating]] {
 
 void TlsfHeap::freeAddress(PhysicalAddress address) noexcept [[clang::nonallocating]] {
     TlsfAllocation allocation;
-    KM_ASSERT(findAllocation(address, &allocation) == OsStatusSuccess);
+    if (OsStatus status = findAllocation(address, &allocation)) {
+        KmDebugMessage("Failed to find allocation for ", address, " (", status, ")\n");
+        KM_PANIC("Failed to find allocation for address");
+    }
     free(allocation);
 }
 
@@ -458,7 +461,7 @@ OsStatus TlsfHeap::findAllocation(PhysicalAddress address, TlsfAllocation *resul
             return OsStatusSuccess;
         }
 
-        block = block->next;
+        block = block->prev;
     }
 
     return OsStatusNotFound;

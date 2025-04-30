@@ -712,8 +712,6 @@ TEST_F(AddressSpaceManagerTest, UnmapManySpillBack2) {
     status = asManager0.unmap(&memory, all);
     ASSERT_EQ(status, OsStatusSuccess);
 
-    asManager0.dump();
-
     for (size_t i = 1; i < mappings.size(); ++i) {
         sys2::AddressSegment seg1;
         status = asManager0.querySegment(mappings[i].vaddr, &seg1);
