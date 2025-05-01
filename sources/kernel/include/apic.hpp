@@ -144,6 +144,27 @@ namespace km {
 
         static constexpr uint16_t kIcr0 = 0x30;
         static constexpr uint16_t kIcr1 = 0x31;
+
+        /// Intel SDM Vol 3A Table 12-1. Local APIC Register Address Map
+        struct ApicMmioRegisters {
+            alignas(0x10) uint32_t reserved0;
+            alignas(0x10) uint32_t reserved1;
+            alignas(0x10) uint32_t id;
+            alignas(0x10) uint32_t version;
+            alignas(0x10) uint32_t reserved2;
+            alignas(0x10) uint32_t reserved3;
+            alignas(0x10) uint32_t reserved4;
+            alignas(0x10) uint32_t reserved5;
+            alignas(0x10) uint32_t tpr;
+            alignas(0x10) uint32_t apr;
+            alignas(0x10) uint32_t ppr;
+            alignas(0x10) uint32_t eoi;
+            alignas(0x10) uint32_t rrd;
+            alignas(0x10) uint32_t dst;
+            alignas(0x10) uint32_t dfr;
+            alignas(0x10) uint32_t spurious;
+
+        };
     }
 
     void Disable8259Pic();

@@ -117,12 +117,12 @@ uint32_t km::X2Apic::id() const {
 }
 
 void km::X2Apic::selfIpi(uint8_t vector) {
-    IA32_X2APIC_SELF_IPI.store(vector);
+    IA32_X2APIC_SELF_IPI = vector;
 }
 
 void km::X2Apic::writeIcr(uint32_t dst, uint32_t cmd) {
     uint64_t icr = uint64_t(dst) << 32 | cmd;
-    IA32_X2APIC_ICR.store(icr);
+    IA32_X2APIC_ICR = icr;
 }
 
 // local apic free functions
