@@ -2,6 +2,7 @@
 
 #include "acpi/acpi.hpp"
 #include "arch/paging.hpp"
+#include "memory/detail/tlsf.hpp"
 #include "util/combine.hpp"
 #include "util/absl.hpp"
 
@@ -252,7 +253,8 @@ namespace km {
     using Apic = sm::Combine<IApic, LocalApic, X2Apic>;
 
     class IoApic {
-        std::byte *mAddress = nullptr;
+        km::TlsfAllocation mAllocation;
+        sm::VirtualAddress mAddress{nullptr};
         uint32_t mIsrBase;
         uint8_t mId;
 
@@ -269,7 +271,7 @@ namespace km {
 
         uint8_t id() const { return mId; }
         uint32_t isrBase() const { return mIsrBase; }
-        const void *address() const { return (void*)mAddress; }
+        const void *address() const { return mAddress; }
 
         uint16_t inputCount();
         uint8_t version();
@@ -281,7 +283,7 @@ namespace km {
         /// @param target The target APIC to send the interrupt to
         void setRedirect(apic::IvtConfig config, uint32_t redirect, const IApic *target);
 
-        bool present() const { return mAddress != nullptr; }
+        bool present() const { return !mAddress.isNull(); }
     };
 
     class IoApicSet {

@@ -134,14 +134,14 @@ namespace km {
 
         template<typename T> requires (std::is_standard_layout_v<T>)
         [[nodiscard]]
-        const T *mapConst(MemoryRangeEx range, MemoryType type, TlsfAllocation *allocation [[gnu::nonnull]]) {
-            return (const T*)mapGenericObject(range, PageFlags::eRead, type, allocation);
+        const T *mapConst(MemoryRangeEx range, TlsfAllocation *allocation [[gnu::nonnull]]) {
+            return (const T*)mapGenericObject(range, PageFlags::eRead, MemoryType::eWriteBack, allocation);
         }
 
         template<typename T> requires (std::is_standard_layout_v<T>)
         [[nodiscard]]
-        const T *mapConst(PhysicalAddressEx paddr, MemoryType type, TlsfAllocation *allocation [[gnu::nonnull]]) {
-            return mapConst<T>(MemoryRangeEx::of(paddr, sizeof(T)), type, allocation);
+        const T *mapConst(PhysicalAddressEx paddr, TlsfAllocation *allocation [[gnu::nonnull]]) {
+            return mapConst<T>(MemoryRangeEx::of(paddr, sizeof(T)), allocation);
         }
 
         template<typename T> requires (std::is_standard_layout_v<T>)

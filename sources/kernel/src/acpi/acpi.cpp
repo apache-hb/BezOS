@@ -30,18 +30,22 @@ static bool ValidateRsdpLocator(const acpi::RsdpLocator *rsdp) {
     }
 }
 
-static const acpi::RsdtHeader *MapTableEntry(km::PhysicalAddress paddr, km::AddressSpace& memory) {
+static const acpi::RsdtHeader *MapTableEntry(km::PhysicalAddressEx paddr, km::AddressSpace& memory) {
+    km::TlsfAllocation headerAllocation;
+
     // first map the header
-    const acpi::RsdtHeader *header = memory.mapConst<acpi::RsdtHeader>(paddr);
+    const acpi::RsdtHeader *header = memory.mapConst<acpi::RsdtHeader>(paddr, &headerAllocation);
     uint32_t length = header->length;
 
-    if (OsStatus status = memory.unmap((void*)header, sizeof(acpi::RsdtHeader))) {
+    if (OsStatus status = memory.unmap(headerAllocation)) {
         KmDebugMessage("[ACPI] Failed to unmap RSDT header: ", status, "\n");
         KmDebugMessage("[ACPI] This is not a fatal error, but the mapping at ", (void*)header, " has been leaked.\n");
     }
 
+    km::TlsfAllocation tableAllocation; // TODO: this leaks
+
     // then use the headers length to ensure we map the entire table
-    return memory.mapConst<acpi::RsdtHeader>(km::MemoryRange::of(paddr, length));
+    return memory.mapConst<acpi::RsdtHeader>(km::MemoryRangeEx::of(paddr, length), &tableAllocation);
 }
 
 static void DebugMadt(const acpi::Madt *madt) {
@@ -137,7 +141,7 @@ static void DebugHpet(const acpi::Hpet *hpet) {
     KmDebugMessage("| /SYS/ACPI/HPET     | Page protection             | ", table.pageProtection, "\n");
 }
 
-static void PrintRsdtEntry(const acpi::RsdtHeader *entry, km::PhysicalAddress paddr) {
+static void PrintRsdtEntry(const acpi::RsdtHeader *entry, km::PhysicalAddressEx paddr) {
     acpi::RsdtHeader table = *entry;
     KmDebugMessage("| /SYS/ACPI/", table.signature, "     | Address                     | ", paddr, "\n");
     KmDebugMessage("| /SYS/ACPI/", table.signature, "     | Signature                   | '", stdx::StringView(table.signature), "'\n");
@@ -177,8 +181,10 @@ static void PrintXsdt(const acpi::Xsdt *xsdt, const acpi::RsdpLocator *locator) 
 }
 
 acpi::AcpiTables acpi::InitAcpi(km::PhysicalAddress rsdpBaseAddress, km::AddressSpace& memory) {
+    km::TlsfAllocation rsdpAllocation; // TODO: leaks
+
     // map the rsdp table
-    const acpi::RsdpLocator *locator = memory.mapConst<acpi::RsdpLocator>(rsdpBaseAddress);
+    const acpi::RsdpLocator *locator = memory.mapConst<acpi::RsdpLocator>(std::bit_cast<km::PhysicalAddressEx>(rsdpBaseAddress), &rsdpAllocation);
 
     // validate that the table is ok to use
     bool rsdpOk = ValidateRsdpLocator(locator);
@@ -233,7 +239,7 @@ acpi::AcpiTables::AcpiTables(const RsdpLocator *locator, km::AddressSpace& memor
         KM_CHECK(mRsdtEntries != nullptr, "Failed to allocate memory for RSDT entries.");
 
         for (uint32_t i = 0; i < mRsdtEntryCount; i++) {
-            km::PhysicalAddress paddr = km::PhysicalAddress { locator->entries[i] };
+            km::PhysicalAddressEx paddr = km::PhysicalAddressEx { locator->entries[i] };
             const acpi::RsdtHeader *header = MapTableEntry(paddr, memory);
 
             SetUniqueTableEntry(&mMadt, header);
@@ -246,19 +252,20 @@ acpi::AcpiTables::AcpiTables(const RsdpLocator *locator, km::AddressSpace& memor
         }
     };
 
+    km::TlsfAllocation rsdtAllocation; // TODO: leaks
     if (revision() == 0) {
-        const acpi::Rsdt *rsdt = memory.mapConst<acpi::Rsdt>(km::PhysicalAddress { locator->rsdtAddress });
+        const acpi::Rsdt *rsdt = memory.mapConst<acpi::Rsdt>(km::PhysicalAddressEx { locator->rsdtAddress }, &rsdtAllocation);
         PrintRsdt(rsdt, locator);
         setupTables(rsdt);
     } else {
-        const acpi::Xsdt *xsdt = memory.mapConst<acpi::Xsdt>(km::PhysicalAddress { locator->xsdtAddress });
+        const acpi::Xsdt *xsdt = memory.mapConst<acpi::Xsdt>(km::PhysicalAddressEx { locator->xsdtAddress }, &rsdtAllocation);
         PrintXsdt(xsdt, locator);
         setupTables(xsdt);
     }
 
     if (mFadt != nullptr) {
         uint64_t address = (revision() == 0) ? mFadt->dsdt : mFadt->x_dsdt;
-        mDsdt = MapTableEntry(km::PhysicalAddress { address }, memory);
+        mDsdt = MapTableEntry(km::PhysicalAddressEx { address }, memory);
     }
 
 #if 0

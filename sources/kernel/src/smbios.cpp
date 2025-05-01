@@ -150,7 +150,7 @@ size_t km::smbios::GetStructSize(const StructHeader *header) {
 }
 
 static OsStatus FindSmbios64(km::PhysicalAddressEx address, bool ignoreChecksum, km::AddressSpace& memory, const smbios::Entry64 **entry, km::TlsfAllocation *allocation) {
-    const auto *smbios = memory.mapConst<smbios::Entry64>(address, km::MemoryType::eWriteThrough, allocation);
+    const auto *smbios = memory.mapConst<smbios::Entry64>(address, allocation);
 
     if (smbios->anchor != smbios::Entry64::kAnchor0) {
         KmDebugMessage("[SMBIOS] Invalid anchor: ", smbios->anchor, "\n");
@@ -167,7 +167,7 @@ static OsStatus FindSmbios64(km::PhysicalAddressEx address, bool ignoreChecksum,
 }
 
 static OsStatus FindSmbios32(km::PhysicalAddressEx address, bool ignoreChecksum, km::AddressSpace& memory, const smbios::Entry32 **entry, km::TlsfAllocation *allocation) {
-    const auto *smbios = memory.mapConst<smbios::Entry32>(address, km::MemoryType::eWriteThrough, allocation);
+    const auto *smbios = memory.mapConst<smbios::Entry32>(address, allocation);
 
     if (smbios->anchor0 != smbios::Entry32::kAnchor0) {
         KmDebugMessage("[SMBIOS] Invalid anchor: ", smbios->anchor0, "\n");

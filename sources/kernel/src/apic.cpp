@@ -127,7 +127,7 @@ void km::X2Apic::writeIcr(uint32_t dst, uint32_t cmd) {
 
 // local apic free functions
 
-static km::LocalApic MapLocalApic(uint64_t msr, km::AddressSpace& memory) {
+static km::LocalApic MapLocalApic(uint64_t msr, km::AddressSpace& memory, km::TlsfAllocation *allocation) {
     static constexpr size_t kApicSize = 0x3F0;
 
     KM_CHECK(msr & kApicEnableBit, "APIC not enabled");
@@ -141,7 +141,8 @@ static km::LocalApic MapLocalApic(uint64_t msr, km::AddressSpace& memory) {
     // be mapped to an area of memory that has
     // been designated as strong uncacheable (UC)
     //
-    void *addr = memory.map(km::MemoryRange::of(base, kApicSize), km::PageFlags::eData, km::MemoryType::eUncached);
+    // TODO: make a struct to represent the local apic mmio registers
+    void *addr = memory.mapGenericObject(km::MemoryRangeEx::of(base, kApicSize), km::PageFlags::eData, km::MemoryType::eUncached, allocation);
     KM_CHECK(addr, "Failed to map local APIC");
 
     return km::LocalApic { addr };
@@ -320,7 +321,8 @@ km::Apic km::InitBspApic(km::AddressSpace& memory, bool useX2Apic) {
         return km::X2Apic::get();
     } else {
         uint64_t msr = EnableLocalApic();
-        return MapLocalApic(msr, memory);
+        km::TlsfAllocation allocation; // TODO: this leaks
+        return MapLocalApic(msr, memory, &allocation);
     }
 }
 
@@ -352,8 +354,8 @@ static constexpr uint32_t kIoApicVersion = 0x1;
 
 static constexpr size_t kIoApicSize = 0x20;
 
-static std::byte *mapIoApic(km::AddressSpace& memory, acpi::MadtEntry::IoApic entry) {
-    return (std::byte*)memory.map(km::MemoryRange::of(entry.address, kIoApicSize), km::PageFlags::eData, km::MemoryType::eUncached);
+static sm::VirtualAddress mapIoApic(km::AddressSpace& memory, acpi::MadtEntry::IoApic entry, km::TlsfAllocation *allocation) {
+    return memory.mapGenericObject(km::MemoryRangeEx::of(entry.address, kIoApicSize), km::PageFlags::eData, km::MemoryType::eUncached, allocation);
 }
 
 km::IoApic::IoApic(const acpi::MadtEntry *entry, km::AddressSpace& memory)
@@ -361,7 +363,7 @@ km::IoApic::IoApic(const acpi::MadtEntry *entry, km::AddressSpace& memory)
 { }
 
 km::IoApic::IoApic(acpi::MadtEntry::IoApic entry, km::AddressSpace& memory)
-    : mAddress(mapIoApic(memory, entry))
+    : mAddress(mapIoApic(memory, entry, &mAllocation))
 {
     uint32_t idreg = read(kIoApicId);
 
@@ -382,7 +384,7 @@ km::IoApic::IoApic(acpi::MadtEntry::IoApic entry, km::AddressSpace& memory)
 }
 
 volatile uint32_t& km::IoApic::reg(uint32_t offset) {
-    return *(volatile uint32_t*)(mAddress + offset);
+    return *std::bit_cast<volatile uint32_t*>(mAddress + offset);
 }
 
 void km::IoApic::select(uint32_t field) {

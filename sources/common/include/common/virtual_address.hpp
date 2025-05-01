@@ -33,6 +33,10 @@ namespace sm {
             return std::bit_cast<void*>(address);
         }
 
+        constexpr bool isNull() const noexcept [[clang::nonblocking]] {
+            return address == 0;
+        }
+
         constexpr auto operator<=>(const VirtualAddress&) const noexcept [[clang::nonblocking]] = default;
 
         constexpr VirtualAddress& operator+=(intptr_t offset) noexcept [[clang::nonblocking]] {
