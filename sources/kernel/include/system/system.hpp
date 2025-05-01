@@ -58,12 +58,7 @@ namespace sys2 {
             , mVfsRoot(other.mVfsRoot)
             , mObjects(std::move(other.mObjects))
             , mProcessObjects(std::move(other.mProcessObjects))
-        { }
-
-        System(km::AddressSpace *systemTables [[gnu::nonnull]], km::PageAllocator *pmm [[gnu::nonnull]], vfs2::VfsRoot *vfsRoot)
-            : mSystemTables(systemTables)
-            , mPageAllocator(pmm)
-            , mVfsRoot(vfsRoot)
+            , mMemoryManager(std::move(other.mMemoryManager))
         { }
 
     public:
@@ -106,7 +101,7 @@ namespace sys2 {
         }
 
         [[nodiscard]]
-        static OsStatus create(vfs2::VfsRoot *vfsRoot, System *result);
+        static OsStatus create(vfs2::VfsRoot *vfsRoot, km::AddressSpace *addressSpace, km::PageAllocator *pageAllocator, System *result);
     };
 
     // internal

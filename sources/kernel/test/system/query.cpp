@@ -14,8 +14,12 @@ struct TestData {
 
     TestData(SystemMemoryTestBody& body)
         : memory(body.make(sm::megabytes(2).bytes()))
-        , system(&memory.pageTables(), &memory.pmmAllocator(), &vfs)
     {
+        OsStatus status = sys2::System::create(&vfs, &memory.pageTables(), &memory.pmmAllocator(), &system);
+        if (status != OsStatusSuccess) {
+            throw std::runtime_error(std::format("Failed to create system {}", status));
+        }
+
         for (size_t i = 0; i < 4; i++) {
             system.scheduler()->initCpuSchedule(km::CpuCoreId(i), 64);
         }

@@ -1086,7 +1086,13 @@ static sys2::System *gSysSystem = nullptr;
 
 static void InitSystem() {
     auto *memory = GetSystemMemory();
-    gSysSystem = new sys2::System(&memory->pageTables(), &memory->pmmAllocator(), gVfsRoot);
+    gSysSystem = new sys2::System;
+
+    if (OsStatus status = sys2::System::create(gVfsRoot, &memory->pageTables(), &memory->pmmAllocator(), gSysSystem)) {
+        KmDebugMessage("[INIT] Failed to create system: ", OsStatusId(status), "\n");
+        KM_PANIC("Failed to create system.");
+    }
+
     auto *scheduler = gSysSystem->scheduler();
     scheduler->initCpuSchedule(km::GetCurrentCoreId(), 128);
     sys2::InstallTimerIsr(GetSharedIsrTable());

@@ -11,8 +11,11 @@ struct TestData {
 
     TestData(SystemMemoryTestBody& body)
         : memory(body.make(sm::megabytes(16).bytes()))
-        , system(&memory.pageTables(), &memory.pmmAllocator(), &vfs)
-    { }
+    {
+        if (OsStatus status = sys2::System::create(&vfs, &memory.pageTables(), &memory.pmmAllocator(), &system)) {
+            throw std::runtime_error(std::format("Failed to create system {}", status));
+        }
+    }
 };
 
 class Ia32FsBaseMsr : public kmtest::IMsrDevice {
