@@ -939,7 +939,7 @@ TEST_F(PageTableTest, TableLeaks) {
     }
 
     {
-        OsStatus status = pt.map(MappingOf((void*)0xFFFF800000000000, 0x1000, 0x1000 * 2), km::PageFlags::eAll);
+        OsStatus status = pt.map(MappingOf(sm::VirtualAddress(0xFFFF800000000000), km::PhysicalAddressEx(0x1000), 0x1000 * 2), km::PageFlags::eAll);
         ASSERT_EQ(OsStatusSuccess, status);
 
         auto stats = alloc.stats();

@@ -68,8 +68,8 @@ static uintptr_t GetSmpBlobSize(void) {
     return (uintptr_t)_binary_smp_end - (uintptr_t)_binary_smp_start;
 }
 
-static constexpr km::PhysicalAddress kSmpInfo = 0x7000;
-static constexpr km::PhysicalAddress kSmpStart = 0x8000;
+static constexpr km::PhysicalAddressEx kSmpInfo = 0x7000;
+static constexpr km::PhysicalAddressEx kSmpStart = 0x8000;
 
 extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
     KmDebugMessage("[SMP] Starting Core.\n");
@@ -161,6 +161,11 @@ void km::InitSmp(
     SmpInitCallback callback,
     void *user
 ) {
+    TlsfAllocation smpInfoAlloc;
+    TlsfAllocation smpStartAlloc;
+    TlsfAllocation smpInfoIdentityAlloc;
+    TlsfAllocation smpStartIdentityAlloc;
+
     KmDebugMessage("[SMP] Starting APs.\n");
     AddressSpace &systemTables = memory.pageTables();
 
@@ -168,28 +173,34 @@ void km::InitSmp(
     // Copy the SMP blob to the correct location.
     //
     size_t blobSize = GetSmpBlobSize();
-    MemoryRange smpStartRange = km::PageAligned(MemoryRange::of(kSmpStart, blobSize));
-    void *smpStartBlob = memory.map(smpStartRange, km::PageFlags::eAll);
+    MemoryRangeEx smpStartRange = km::alignedOut(MemoryRangeEx::of(kSmpStart, blobSize), x64::kPageSize);
+    void *smpStartBlob = nullptr;
+    if (OsStatus status = systemTables.map(smpStartRange, PageFlags::eAll, MemoryType::eWriteBack, &smpStartAlloc)) {
+        KmDebugMessage("[SMP] Failed to map smp blob region: ", OsStatusId(status), "\n");
+        KM_PANIC("Failed to map smp blob region.");
+    }
+
+    smpStartBlob = std::bit_cast<void*>(smpStartAlloc.address());
     memcpy(smpStartBlob, _binary_smp_start, blobSize);
 
     uint32_t bspId = bsp->id();
 
     KmDebugMessage("[SMP] BSP ID: ", bspId, "\n");
 
-    SmpInfoHeader *smpInfo = memory.mapObject<SmpInfoHeader>(kSmpInfo);
-    MemoryRange smpInfoRange = MemoryRange::of(kSmpInfo, x64::kPageSize);
+    SmpInfoHeader *smpInfo = systemTables.mapObject<SmpInfoHeader>(kSmpInfo, PageFlags::eData, MemoryType::eWriteBack, &smpInfoAlloc);
+    MemoryRangeEx smpInfoRange = MemoryRangeEx::of(kSmpInfo, x64::kPageSize);
 
     //
     // Also identity map the SMP blob and info regions, it makes jumping to compatibility mode easier.
     // I think theres a better way to do this, but I'm not sure what it is.
     //
-    if (OsStatus status = systemTables.reserve(MappingOf(smpInfoRange, (void*)kSmpInfo.address))) {
-        KmDebugMessage("[SMP] Failed to reserve smp info region: ", status, "\n");
+    if (OsStatus status = systemTables.map(MappingOf(smpInfoRange, (void*)kSmpInfo.address), PageFlags::eData, MemoryType::eWriteBack, &smpInfoIdentityAlloc)) {
+        KmDebugMessage("[SMP] Failed to reserve identity mapping for smp info region: ", OsStatusId(status), "\n");
         KM_PANIC("Failed to reserve smp info region.");
     }
 
-    if (OsStatus status = systemTables.reserve(MappingOf(smpStartRange, (void*)kSmpStart.address), PageFlags::eAll)) {
-        KmDebugMessage("[SMP] Failed to reserve smp blob region: ", status, "\n");
+    if (OsStatus status = systemTables.map(MappingOf(smpStartRange, (void*)kSmpStart.address), PageFlags::eCode, MemoryType::eWriteBack, &smpStartIdentityAlloc)) {
+        KmDebugMessage("[SMP] Failed to reserve identity mapping for  smp blob region: ", OsStatusId(status), "\n");
         KM_PANIC("Failed to reserve smp blob region.");
     }
 
@@ -250,20 +261,26 @@ void km::InitSmp(
     //
     // Unmap the smp blob and info regions.
     //
-    memory.unmap(smpStartBlob, blobSize);
-    memory.unmap(smpInfo, sizeof(SmpInfoHeader));
+    if (OsStatus status = systemTables.unmap(smpInfoAlloc)) {
+        KmDebugMessage("[SMP] Failed to unmap smp info region: ", OsStatusId(status), "\n");
+        KM_PANIC("Failed to unmap smp info region.");
+    }
+
+    if (OsStatus status = systemTables.unmap(smpStartAlloc)) {
+        KmDebugMessage("[SMP] Failed to unmap smp blob region: ", OsStatusId(status), "\n");
+        KM_PANIC("Failed to unmap smp blob region.");
+    }
 
     //
     // And unmap the identity mappings.
     //
-    memory.unmap((void*)kSmpInfo.address, sizeof(SmpInfoHeader));
-    memory.unmap((void*)kSmpStart.address, blobSize);
+    if (OsStatus status = systemTables.unmap(smpInfoIdentityAlloc)) {
+        KmDebugMessage("[SMP] Failed to unmap smp info region: ", OsStatusId(status), "\n");
+        KM_PANIC("Failed to unmap smp info region.");
+    }
 
-    //
-    // Reserve the smp info and blob regions again to prevent them from being
-    // reused by the kernel.
-    // This is a bit of a hack, but it works.
-    //
-    memory.reserveVirtual({ std::bit_cast<void*>(kSmpInfo), std::bit_cast<void*>(kSmpInfo + sizeof(SmpInfoHeader)) });
-    memory.reserveVirtual({ std::bit_cast<void*>(kSmpStart), std::bit_cast<void*>(kSmpStart + blobSize) });
+    if (OsStatus status = systemTables.unmap(smpStartIdentityAlloc)) {
+        KmDebugMessage("[SMP] Failed to unmap smp blob region: ", OsStatusId(status), "\n");
+        KM_PANIC("Failed to unmap smp blob region.");
+    }
 }

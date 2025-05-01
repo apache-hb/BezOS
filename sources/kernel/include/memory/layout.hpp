@@ -151,11 +151,23 @@ namespace km {
     }
 
     constexpr AddressMapping MappingOf(MemoryRange range, const void *vaddr) {
-        return AddressMapping { vaddr, range.front, range.size() };
+        return MappingOf(vaddr, range.front, range.size());
     }
 
     constexpr AddressMapping MappingOf(VirtualRange range, PhysicalAddress paddr) {
-        return AddressMapping { range.front, paddr, range.size() };
+        return MappingOf(range.front, paddr, range.size());
+    }
+
+    constexpr AddressMapping MappingOf(const void *vaddr, PhysicalAddressEx paddr, size_t size) {
+        return MappingOf(vaddr, std::bit_cast<PhysicalAddress>(paddr), size);
+    }
+
+    constexpr AddressMapping MappingOf(MemoryRangeEx range, const void *vaddr) {
+        return MappingOf(vaddr, std::bit_cast<PhysicalAddress>(range.front), range.size());
+    }
+
+    constexpr AddressMapping MappingOf(VirtualRangeEx range, PhysicalAddressEx paddr) {
+        return MappingOf(range.front, paddr, range.size());
     }
 
     struct StackMapping {

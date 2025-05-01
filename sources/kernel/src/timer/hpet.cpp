@@ -105,8 +105,9 @@ void km::hpet::Comparator::configure(ComparatorConfig config) {
 
 // hpet methods
 
-km::HighPrecisionTimer::HighPrecisionTimer(const acpi::Hpet *hpet, hpet::MmioRegisters *mmio)
+km::HighPrecisionTimer::HighPrecisionTimer(const acpi::Hpet *hpet, TlsfAllocation allocation, hpet::MmioRegisters *mmio)
     : mTable(*hpet)
+    , mAllocation(allocation)
     , mMmioRegion(mmio)
     , mId(mMmioRegion->id)
 { }
@@ -179,23 +180,24 @@ std::span<const km::hpet::Comparator> km::HighPrecisionTimer::comparators() cons
 
 OsStatus km::InitHpet(const acpi::AcpiTables& rsdt, AddressSpace& memory, HighPrecisionTimer *timer) {
     for (const acpi::RsdtHeader *header : rsdt.entries()) {
-        if (header->signature != acpi::Hpet::kSignature)
+        const acpi::Hpet *hpet = acpi::TableCast<acpi::Hpet>(header);
+        if (hpet == nullptr)
             continue;
 
-        const acpi::Hpet *hpet = reinterpret_cast<const acpi::Hpet*>(header);
         acpi::GenericAddress baseAddress = hpet->baseAddress;
         if (baseAddress.addressSpace != acpi::AddressSpaceId::eSystemMemory) {
             KmDebugMessage("[WARN] HPET base address (", baseAddress, ") is not in system memory. Currently unsupported.\n");
             return OsStatusInvalidAddress;
         }
 
-        hpet::MmioRegisters *mmio = memory.mapMmio<hpet::MmioRegisters>(km::PhysicalAddress { baseAddress.address });
+        TlsfAllocation allocation;
+        hpet::MmioRegisters *mmio = memory.mapMmio<hpet::MmioRegisters>(km::PhysicalAddressEx { baseAddress.address }, PageFlags::eData, &allocation);
         if (mmio == nullptr) {
             KmDebugMessage("[WARN] Failed to map HPET MMIO region.\n");
             return OsStatusOutOfMemory;
         }
 
-        *timer = HighPrecisionTimer { hpet, mmio };
+        *timer = HighPrecisionTimer { hpet, allocation, mmio };
         return OsStatusSuccess;
     }
 

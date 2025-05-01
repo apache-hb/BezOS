@@ -52,9 +52,6 @@ namespace km {
         void reserve(VirtualRange range);
 
         [[nodiscard]]
-        OsStatus reserve(VirtualRangeEx range, TlsfAllocation *result [[gnu::nonnull]]);
-
-        [[nodiscard]]
         OsStatus unmap(VirtualRange range);
 
         [[nodiscard]]
@@ -117,6 +114,8 @@ namespace km {
         T *mapMmio(MemoryRange range, PageFlags flags = detail::kDefaultPageFlags<T>) {
             return mapObject<T>(range, flags, MemoryType::eUncached);
         }
+
+#pragma region New address space api
 
         void *mapGenericObject(MemoryRangeEx range, PageFlags flags, MemoryType type, TlsfAllocation *allocation [[gnu::nonnull]]);
 
@@ -194,6 +193,9 @@ namespace km {
         [[nodiscard]]
         OsStatus reserve(size_t size, TlsfAllocation *result [[gnu::nonnull]]);
 
+        [[nodiscard]]
+        OsStatus reserve(VirtualRangeEx range, TlsfAllocation *result [[gnu::nonnull]]);
+
         void release(TlsfAllocation allocation) noexcept;
 
         [[nodiscard]]
@@ -214,5 +216,7 @@ namespace km {
 
         [[nodiscard]]
         static OsStatus create(const AddressSpace *source [[gnu::nonnull]], AddressMapping pteMemory, PageFlags flags, VirtualRangeEx vmem, AddressSpace *space [[gnu::nonnull]]);
+
+#pragma endregion
     };
 }
