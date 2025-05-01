@@ -841,14 +841,14 @@ PageTables& km::GetProcessPageTables() {
 
 static void CreateNotificationQueue() {
     static constexpr size_t kAqMemorySize = sm::kilobytes(128).bytes();
-    SystemMemory *memory = GetSystemMemory();
-    void *aqMemory = memory->allocate(kAqMemorySize + (x64::kPageSize * 2));
-    // unmap first and last pages to catch buffer overruns
-    memory->unmap(aqMemory, x64::kPageSize);
-    memory->unmap((void*)((uintptr_t)aqMemory + kAqMemorySize + x64::kPageSize), x64::kPageSize);
+    MappingAllocation aqAllocation;
 
-    void *base = (void*)((uintptr_t)aqMemory + x64::kPageSize);
-    InitAqAllocator(base, kAqMemorySize - x64::kPageSize);
+    if (OsStatus status = gMemory->map(kAqMemorySize, PageFlags::eData, MemoryType::eWriteBack, &aqAllocation)) {
+        KmDebugMessage("[INIT] Failed to map memory for notification queue: ", OsStatusId(status), "\n");
+        KM_PANIC("Failed to map memory for notification queue.");
+    }
+
+    InitAqAllocator(aqAllocation.baseAddress(), kAqMemorySize);
 
     gNotificationStream = new NotificationStream();
 }
@@ -1627,7 +1627,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     pci::ProbeConfigSpace(config.get(), rsdt.mcfg());
 
     {
-        static constexpr size_t kSchedulerMemorySize = 0x10000;
+        static constexpr size_t kSchedulerMemorySize = sm::kilobytes(128).bytes();
         MappingAllocation allocation;
         if (OsStatus status = gMemory->map(kSchedulerMemorySize, PageFlags::eData, MemoryType::eWriteBack, &allocation)) {
             KmDebugMessage("[INIT] Failed to allocate scheduler memory: ", OsStatusId(status), "\n");
