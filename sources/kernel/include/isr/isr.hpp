@@ -24,51 +24,64 @@ namespace km {
     /// provide a userspace implementation with posix signals, allowing for
     /// comprehensive testing of the ISR table implementations in unit tests.
     namespace isr {
-        static constexpr uint8_t DE = 0x0;
-        static constexpr uint8_t DB = 0x1;
-        static constexpr uint8_t NMI = 0x2;
-        static constexpr uint8_t BP = 0x3;
-        static constexpr uint8_t OF = 0x4;
-        static constexpr uint8_t BR = 0x5;
-        static constexpr uint8_t UD = 0x6;
-        static constexpr uint8_t NM = 0x7;
-        static constexpr uint8_t DF = 0x8;
-        static constexpr uint8_t TS = 0xA;
-        static constexpr uint8_t NP = 0xB;
-        static constexpr uint8_t SS = 0xC;
-        static constexpr uint8_t GP = 0xD;
-        static constexpr uint8_t PF = 0xE;
-        static constexpr uint8_t MF = 0x10;
-        static constexpr uint8_t AC = 0x11;
-        static constexpr uint8_t MCE = 0x12;
-        static constexpr uint8_t XM = 0x13;
-        static constexpr uint8_t VE = 0x14;
-        static constexpr uint8_t CP = 0x15;
+        // vectors for architectural exceptions
+
+        constexpr uint8_t DE = 0x0;
+        constexpr uint8_t DB = 0x1;
+        constexpr uint8_t NMI = 0x2;
+        constexpr uint8_t BP = 0x3;
+        constexpr uint8_t OF = 0x4;
+        constexpr uint8_t BR = 0x5;
+        constexpr uint8_t UD = 0x6;
+        constexpr uint8_t NM = 0x7;
+        constexpr uint8_t DF = 0x8;
+        constexpr uint8_t TS = 0xA;
+        constexpr uint8_t NP = 0xB;
+        constexpr uint8_t SS = 0xC;
+        constexpr uint8_t GP = 0xD;
+        constexpr uint8_t PF = 0xE;
+        constexpr uint8_t MF = 0x10;
+        constexpr uint8_t AC = 0x11;
+        constexpr uint8_t MCE = 0x12;
+        constexpr uint8_t XM = 0x13;
+        constexpr uint8_t VE = 0x14;
+        constexpr uint8_t CP = 0x15;
 
         /// @brief The number of exceptions reserved by the CPU
-        static constexpr auto kExceptionCount = 0x20;
+        constexpr auto kExceptionCount = 0x20;
 
-        static constexpr auto kTimerVector = 0x21;
+        // vectors for common interrupts the OS uses
+
+        /// @brief Local timer interrupt, used for per-cpu timer
+        constexpr auto kTimerVector    = 0x20;
+
+        /// @brief IPI communication vector
+        constexpr auto kIpiVector      = 0x21;
+
+        /// @brief Spurious interrupt, used for apic spurious interrupts
+        constexpr auto kSpuriousVector = 0x22;
+
+        constexpr auto kSharedCount = 0x23;
 
         /// @brief The total number of ISRs the CPU supports
-        static constexpr auto kIsrCount = 256;
+        constexpr auto kIsrCount = 256;
 
-        /// @brief The number of ISRs available for use
-        static constexpr auto kAvailableCount = kIsrCount - kExceptionCount;
+        /// @brief The number of ISRs available to dynamically allocate
+        constexpr auto kAvailableCount = kIsrCount - kSharedCount;
     }
 
     namespace irq {
-        static constexpr uint8_t kTimer = 0x0;
-        static constexpr uint8_t kKeyboard = 0x1;
-        static constexpr uint8_t kCom2 = 0x3;
-        static constexpr uint8_t kCom1 = 0x4;
-        static constexpr uint8_t kLpt2 = 0x5;
-        static constexpr uint8_t kFloppy = 0x6;
-        static constexpr uint8_t kSpurious = 0x7;
-        static constexpr uint8_t kClock = 0x8;
-        static constexpr uint8_t kMouse = 0xC;
-        static constexpr uint8_t kPrimaryAta = 0xE;
-        static constexpr uint8_t kSecondaryAta = 0xF;
+        constexpr uint8_t kTimer = 0x0;
+        constexpr uint8_t kKeyboard = 0x1;
+        constexpr uint8_t kCom2 = 0x3;
+        constexpr uint8_t kCom1 = 0x4;
+        constexpr uint8_t kLpt2 = 0x5;
+        constexpr uint8_t kFloppy = 0x6;
+        constexpr uint8_t kSpurious = 0x7;
+        constexpr uint8_t kClock = 0x8;
+        constexpr uint8_t kMouse = 0xC;
+        constexpr uint8_t kPrimaryAta = 0xE;
+        constexpr uint8_t kSecondaryAta = 0xF;
     }
 
     struct [[gnu::packed]] IdtEntry {
@@ -217,7 +230,7 @@ namespace km {
     ///
     /// This table is preserved for the lifetime of the system, and is
     /// never deallocated.
-    class SharedIsrTable : public IsrTableBase<isr::kExceptionCount, 0> {
+    class SharedIsrTable : public IsrTableBase<isr::kSharedCount, 0> {
     public:
         using IsrTableBase::install;
         using IsrTableBase::invoke;
@@ -233,7 +246,7 @@ namespace km {
     /// replaced with a cpu local table. If you install an isr during
     /// the initial boot sequence and want to keep it, you must reinstall
     /// it on the cpu local table.
-    class LocalIsrTable : public IsrTableBase<isr::kAvailableCount, isr::kExceptionCount> {
+    class LocalIsrTable : public IsrTableBase<isr::kAvailableCount, isr::kSharedCount> {
     public:
         using IsrTableBase::install;
         using IsrTableBase::invoke;

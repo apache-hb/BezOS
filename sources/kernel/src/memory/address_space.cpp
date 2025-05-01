@@ -139,7 +139,6 @@ OsStatus km::AddressSpace::mapStack(MemoryRange range, PageFlags flags, StackMap
 OsStatus km::AddressSpace::unmapStack(StackMapping mapping) {
     stdx::LockGuard guard(mLock);
 
-#if 0
     std::array<TlsfAllocation, 3> results;
     if (OsStatus status = mVmemHeap.findAllocation(std::bit_cast<PhysicalAddress>(mapping.total.front), &results[0])) {
         KmDebugMessage("Failed to find stack allocation 0: ", mapping.total, ", ", mapping.stack, "\n");
@@ -165,7 +164,6 @@ OsStatus km::AddressSpace::unmapStack(StackMapping mapping) {
     mVmemHeap.free(results[0]);
     mVmemHeap.free(results[1]);
     mVmemHeap.free(results[2]);
-#endif
 
     return OsStatusSuccess;
 }

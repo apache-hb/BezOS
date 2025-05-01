@@ -28,7 +28,6 @@
                      CMAKE_C_FLAGS="--sysroot=@PREFIX@"
                      CMAKE_CXX_FLAGS="--sysroot=@PREFIX@"
                      CMAKE_LD_FLAGS="--sysroot=@PREFIX@"
-                     CMAKE_CXX_COMPILER_FORCED="ON"
                      CMAKE_C_COMPILER_WORKS="1"
                      CMAKE_CXX_COMPILER_WORKS="1"
 

@@ -53,8 +53,16 @@ namespace km {
             return { paddr, paddr + size };
         }
 
+        constexpr MemoryRangeEx physicalRangeEx() const {
+            return { paddr.address, paddr.address + size };
+        }
+
         VirtualRange virtualRange() const {
             return { vaddr, (const char*)vaddr + size };
+        }
+
+        VirtualRangeEx virtualRangeEx() const {
+            return { (uintptr_t)vaddr, (uintptr_t)vaddr + size };
         }
 
         constexpr intptr_t slide() const {

@@ -73,7 +73,7 @@ static km::IsrContext ScheduleInt(km::IsrContext *context) {
 
 static constexpr std::chrono::milliseconds kDefaultTimeSlice = 5ms;
 
-void sys2::InstallTimerIsr(km::LocalIsrTable *table) {
+void sys2::InstallTimerIsr(km::SharedIsrTable *table) {
     km::IsrCallback old = table->install(km::isr::kTimerVector, ScheduleInt);
 
     if (old != km::DefaultIsrHandler && old != ScheduleInt) {
@@ -82,11 +82,10 @@ void sys2::InstallTimerIsr(km::LocalIsrTable *table) {
     }
 }
 
-void sys2::EnterScheduler(km::LocalIsrTable *table, CpuLocalSchedule *scheduler, km::ApicTimer *apicTimer) {
+void sys2::EnterScheduler(CpuLocalSchedule *scheduler, km::ApicTimer *apicTimer) {
     km::IApic *apic = km::GetCpuLocalApic();
     tlsSchedule = scheduler;
     KmSystemCallStackTlsOffset = tlsKernelStack.tlsOffset();
-    InstallTimerIsr(table);
 
     auto frequency = apicTimer->frequency();
     auto ticks = (frequency * kDefaultTimeSlice.count()) / 1000;

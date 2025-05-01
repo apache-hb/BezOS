@@ -1,7 +1,6 @@
 #pragma once
 
 #include "apic.hpp"
-#include "isr/isr.hpp"
 #include "memory.hpp"
 
 namespace km {
@@ -13,7 +12,7 @@ namespace km {
 
     size_t GetStartupMemorySize(const acpi::AcpiTables& acpiTables);
 
-    using SmpInitCallback = void(*)(LocalIsrTable*, IApic*, void*);
+    using SmpInitCallback = void(*)(IApic*, void*);
 
     /// @brief Initializes other processors present in the system.
     ///
@@ -32,9 +31,9 @@ namespace km {
     template<typename F>
     void InitSmp(SystemMemory& memory, IApic *bsp, const acpi::AcpiTables& acpiTables, F&& callback) {
         void *user = new F(std::forward<F>(callback));
-        SmpInitCallback cb = [](LocalIsrTable *ist, IApic *apic, void *user) {
+        SmpInitCallback cb = [](IApic *apic, void *user) {
             auto *callback = reinterpret_cast<F*>(user);
-            (*callback)(ist, apic);
+            (*callback)(apic);
         };
 
         InitSmp(memory, bsp, acpiTables, cb, user);

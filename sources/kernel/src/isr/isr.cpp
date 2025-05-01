@@ -43,7 +43,7 @@ static km::IsrContext DispatchIsr(km::IsrContext *context, F&& handler) {
 extern "C" km::IsrContext KmIsrDispatchRoutine(km::IsrContext *context) {
     return DispatchIsr(context, [](km::IsrContext *context) {
         uint8_t vector = uint8_t(context->vector);
-        if (vector < km::isr::kExceptionCount) {
+        if (vector < km::SharedIsrTable::kCount) {
             km::SharedIsrTable *ist = km::GetSharedIsrTable();
             return ist->invoke(context);
         }

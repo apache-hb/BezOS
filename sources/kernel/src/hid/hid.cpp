@@ -126,7 +126,6 @@ const km::IsrEntry *hid::InstallPs2KeyboardIsr(km::IoApicSet& ioApicSet, hid::Ps
         return *ctx;
     });
 
-
     uint8_t index = ist->index(keyboardInt);
     hid::InstallPs2DeviceIsr(ioApicSet, controller.keyboard(), target, index);
 

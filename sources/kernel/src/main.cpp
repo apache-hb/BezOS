@@ -41,6 +41,7 @@
 #include "isr/runtime.hpp"
 #include "log.hpp"
 #include "memory.hpp"
+#include "memory/allocator.hpp"
 #include "notify.hpp"
 #include "panic.hpp"
 #include "processor.hpp"
@@ -598,12 +599,7 @@ static km::IsrContext SpuriousVector(km::IsrContext *ctx) {
     return *ctx;
 }
 
-struct ApicInfo {
-    km::Apic apic;
-    uint8_t spuriousInt;
-};
-
-static ApicInfo EnableBootApic(km::AddressSpace& memory, bool useX2Apic) {
+static km::Apic EnableBootApic(km::AddressSpace& memory, bool useX2Apic) {
     km::Apic apic = InitBspApic(memory, useX2Apic);
 
     // setup tls now that we have the lapic id
@@ -616,16 +612,16 @@ static ApicInfo EnableBootApic(km::AddressSpace& memory, bool useX2Apic) {
     SetDebugLogLock(DebugLogLockType::eSpinLock);
     km::InitKernelThread(apic);
 
-    km::LocalIsrTable *ist = km::GetLocalIsrTable();
+    km::SharedIsrTable *sharedIst = km::GetSharedIsrTable();
 
-    const IsrEntry *spuriousInt = ist->allocate(SpuriousVector);
-    uint8_t spuriousIdx = ist->index(spuriousInt);
-    KmDebugMessage("[INIT] APIC ID: ", apic->id(), ", Version: ", apic->version(), ", Spurious vector: ", spuriousIdx, "\n");
+    sharedIst->install(isr::kSpuriousVector, SpuriousVector);
+    KmDebugMessage("[INIT] APIC ID: ", apic->id(), ", Version: ", apic->version(), ", Spurious vector: ", isr::kSpuriousVector, "\n");
 
-    apic->setSpuriousVector(spuriousIdx);
+    apic->setSpuriousVector(isr::kSpuriousVector);
     apic->enable();
 
     if (kSelfTestApic) {
+        km::LocalIsrTable *ist = km::GetLocalIsrTable();
         IsrCallback testIsr = [](km::IsrContext *ctx) -> km::IsrContext {
             KmDebugMessage("[TEST] Handled isr: ", ctx->vector, "\n");
             km::IApic *pic = km::GetCpuLocalApic();
@@ -648,7 +644,7 @@ static ApicInfo EnableBootApic(km::AddressSpace& memory, bool useX2Apic) {
         KM_CHECK(ok, "Failed to release test ISR.");
     }
 
-    return ApicInfo { apic, spuriousIdx };
+    return apic;
 }
 
 static void InitBootTerminal(std::span<const boot::FrameBuffer> framebuffers) {
@@ -1083,12 +1079,12 @@ static void AddDebugSystemCalls() {
 
 static sys2::System *gSysSystem = nullptr;
 
-static void InitSystem(km::LocalIsrTable *ist) {
+static void InitSystem() {
     auto *memory = GetSystemMemory();
     gSysSystem = new sys2::System(&memory->pageTables(), &memory->pmmAllocator(), gVfsRoot);
     auto *scheduler = gSysSystem->scheduler();
     scheduler->initCpuSchedule(km::GetCurrentCoreId(), 128);
-    sys2::InstallTimerIsr(ist);
+    sys2::InstallTimerIsr(GetSharedIsrTable());
 }
 
 sys2::System *km::GetSysSystem() {
@@ -1283,7 +1279,7 @@ static void StartupSmp(const acpi::AcpiTables& rsdt, bool umip, km::ApicTimer *a
         // scheduler is ready to be used. The scheduler requires the system to switch
         // to using cpu local isr tables, which must happen after smp startup.
         //
-        InitSmp(*GetSystemMemory(), GetCpuLocalApic(), rsdt, [&launchScheduler, umip, apicTimer](LocalIsrTable *ist, IApic *) {
+        InitSmp(*GetSystemMemory(), GetCpuLocalApic(), rsdt, [&launchScheduler, umip, apicTimer](IApic *) {
             while (!launchScheduler.test()) {
                 _mm_pause();
             }
@@ -1292,7 +1288,7 @@ static void StartupSmp(const acpi::AcpiTables& rsdt, bool umip, km::ApicTimer *a
 
             auto *scheduler = gSysSystem->scheduler();
             scheduler->initCpuSchedule(km::GetCurrentCoreId(), 128);
-            sys2::EnterScheduler(ist, gSysSystem->getCpuSchedule(km::GetCurrentCoreId()), apicTimer);
+            sys2::EnterScheduler(gSysSystem->getCpuSchedule(km::GetCurrentCoreId()), apicTimer);
         });
     }
 
@@ -1460,7 +1456,7 @@ static void CreateDisplayDevice() {
 }
 
 [[noreturn]]
-static void LaunchKernelProcess(LocalIsrTable *table, km::ApicTimer *apicTimer) {
+static void LaunchKernelProcess(km::ApicTimer *apicTimer) {
     sys2::ProcessCreateInfo createInfo {
         .name = "SYSTEM",
         .state = eOsProcessSupervisor,
@@ -1495,7 +1491,7 @@ static void LaunchKernelProcess(LocalIsrTable *table, km::ApicTimer *apicTimer) 
 
     KmDebugMessage("[INIT] Create master thread.\n");
 
-    sys2::EnterScheduler(table, gSysSystem->getCpuSchedule(km::GetCurrentCoreId()), apicTimer);
+    sys2::EnterScheduler(gSysSystem->getCpuSchedule(km::GetCurrentCoreId()), apicTimer);
 }
 
 static void InitVfs() {
@@ -1608,7 +1604,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     bool useX2Apic = kUseX2Apic && processor.x2apic();
 
-    auto [lapic, spuriousInt] = EnableBootApic(gMemory->pageTables(), useX2Apic);
+    auto lapic = EnableBootApic(gMemory->pageTables(), useX2Apic);
 
     acpi::AcpiTables rsdt = acpi::InitAcpi(launch.rsdpAddress, gMemory->pageTables());
     const acpi::Fadt *fadt = rsdt.fadt();
@@ -1625,22 +1621,20 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     pci::ProbeConfigSpace(config.get(), rsdt.mcfg());
 
-    // TODO: this wastes some physical memory
     {
         static constexpr size_t kSchedulerMemorySize = 0x10000;
-        void *mapping = gMemory->allocate(kSchedulerMemorySize + (x64::kPageSize * 2));
-        // unmap the first and last page to guard against buffer overruns
-        gMemory->unmap(mapping, x64::kPageSize);
-        gMemory->unmap((void*)((uintptr_t)mapping + kSchedulerMemorySize + x64::kPageSize), x64::kPageSize);
+        MappingAllocation allocation;
+        if (OsStatus status = gMemory->map(kSchedulerMemorySize, PageFlags::eData, MemoryType::eWriteBack, &allocation)) {
+            KmDebugMessage("[INIT] Failed to allocate scheduler memory: ", status, "\n");
+            KM_PANIC("Failed to allocate scheduler memory.");
+        }
 
-        void *ptr = (void*)((uintptr_t)mapping + x64::kPageSize);
-
-        sys2::SchedulerQueueTraits::init(ptr, kSchedulerMemorySize);
+        sys2::SchedulerQueueTraits::init(allocation.baseAddress(), kSchedulerMemorySize);
     }
 
     km::LocalIsrTable *ist = GetLocalIsrTable();
 
-    InitSystem(ist);
+    InitSystem();
 
     const IsrEntry *timerInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
         km::IApic *apic = km::GetCpuLocalApic();
@@ -1730,7 +1724,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     ConfigurePs2Controller(rsdt, ioApicSet, lapic.pointer(), ist);
     CreateDisplayDevice();
 
-    LaunchKernelProcess(ist, &apicTimer);
+    LaunchKernelProcess(&apicTimer);
 
     KM_PANIC("Test bugcheck.");
 
