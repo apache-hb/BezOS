@@ -20,8 +20,12 @@ MemoryRange PageAllocator::alloc4k(size_t count) [[clang::allocating]] {
 }
 
 TlsfAllocation PageAllocator::pageAlloc(size_t count) [[clang::allocating]] {
+    return aligned_alloc(alignof(x64::page), count * x64::kPageSize);
+}
+
+TlsfAllocation PageAllocator::aligned_alloc(size_t align, size_t size) [[clang::allocating]] {
     stdx::LockGuard guard(mLock);
-    return mMemoryHeap.aligned_alloc(alignof(x64::page), count * x64::kPageSize);
+    return mMemoryHeap.aligned_alloc(align, size);
 }
 
 OsStatus PageAllocator::splitv(TlsfAllocation ptr, std::span<const PhysicalAddress> points, std::span<TlsfAllocation> results) {
@@ -29,7 +33,12 @@ OsStatus PageAllocator::splitv(TlsfAllocation ptr, std::span<const PhysicalAddre
     return mMemoryHeap.splitv(ptr, points, results);
 }
 
-void PageAllocator::release(TlsfAllocation allocation) noexcept [[clang::nonallocating]] {
+OsStatus PageAllocator::split(TlsfAllocation allocation, PhysicalAddress midpoint, TlsfAllocation *lo [[gnu::nonnull]], TlsfAllocation *hi [[gnu::nonnull]]) [[clang::allocating]] {
+    stdx::LockGuard guard(mLock);
+    return mMemoryHeap.split(allocation, midpoint, lo, hi);
+}
+
+void PageAllocator::free(TlsfAllocation allocation) noexcept [[clang::nonallocating]] {
     stdx::LockGuard guard(mLock);
     mMemoryHeap.free(allocation);
 }
@@ -71,7 +80,7 @@ OsStatus PageAllocator::create(std::span<const boot::MemoryRegion> memmap, PageA
         if (region.range.isAfter(kLowMemory)) {
             KM_ASSERT(memory.add(region.range) == OsStatusSuccess);
         } else if (region.range.contains(kLowMemory)) {
-            auto [low, high] = split(region.range, kLowMemory);
+            auto [low, high] = km::split(region.range, kLowMemory);
             KM_ASSERT(memory.add(high) == OsStatusSuccess);
         }
     }

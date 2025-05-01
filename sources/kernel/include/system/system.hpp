@@ -46,7 +46,7 @@ namespace sys2 {
 
         sm::FlatHashSet<sm::RcuSharedPtr<Process>, sm::RcuHash<Process>, std::equal_to<>> mProcessObjects GUARDED_BY(mLock);
 
-        MemoryManager mMemoryManager GUARDED_BY(mLock);
+        MemoryManager mMemoryManager;
 
         System() = default;
 

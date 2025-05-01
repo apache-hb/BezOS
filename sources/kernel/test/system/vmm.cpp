@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "system/vmm.hpp"
+#include "memory/page_allocator.hpp"
 #include "setup.hpp"
 #include "system/pmm.hpp"
 
@@ -9,11 +10,20 @@ static constexpr km::MemoryRange kTestRange { sm::gigabytes(1).bytes(), sm::giga
 class AddressSpaceManagerTest : public testing::Test {
 public:
     void SetUp() override {
+        OsStatus status;
+
         km::VirtualRange vmem = kTestRange.cast<const void*>();
         pteMemory0.reset(new x64::page[1024]);
         pteMemory1.reset(new x64::page[1024]);
 
-        OsStatus status = sys2::MemoryManager::create(kTestRange, &memory);
+        std::vector<boot::MemoryRegion> memmap = {
+            { .type = boot::MemoryRegion::eUsable, .range = kTestRange }
+        };
+
+        status = km::PageAllocator::create(memmap, &pmm);
+        ASSERT_EQ(status, OsStatusSuccess);
+
+        status = sys2::MemoryManager::create(&pmm, &memory);
         ASSERT_EQ(status, OsStatusSuccess);
 
         status = sys2::AddressSpaceManager::create(&pager, getPteMapping0(), km::PageFlags::eUserAll, vmem, &asManager0);
@@ -124,6 +134,7 @@ public:
 
     std::unique_ptr<x64::page[]> pteMemory0;
     std::unique_ptr<x64::page[]> pteMemory1;
+    km::PageAllocator pmm;
     sys2::MemoryManager memory;
     sys2::AddressSpaceManager asManager0;
     sys2::AddressSpaceManager asManager1;
@@ -135,8 +146,16 @@ TEST(AddressSpaceManagerConstructTest, Construct) {
     km::MemoryRange range = { sm::gigabytes(1).bytes(), sm::gigabytes(4).bytes() };
     km::VirtualRange vmem = range.cast<const void*>();
 
+    std::vector<boot::MemoryRegion> memmap = {
+        { .type = boot::MemoryRegion::eUsable, .range = kTestRange }
+    };
+
+    km::PageAllocator pmm;
+    status = km::PageAllocator::create(memmap, &pmm);
+    ASSERT_EQ(status, OsStatusSuccess);
+
     sys2::MemoryManager memory;
-    status = sys2::MemoryManager::create(range, &memory);
+    status = sys2::MemoryManager::create(&pmm, &memory);
     ASSERT_EQ(status, OsStatusSuccess);
 
     std::unique_ptr<x64::page[]> pteMemory0;
@@ -209,9 +228,6 @@ TEST_F(AddressSpaceManagerTest, UnmapExact) {
     km::VirtualRange vmem = range.cast<const void*>();
     km::AddressMapping mapping;
 
-    status = sys2::MemoryManager::create(range, &memory);
-    ASSERT_EQ(status, OsStatusSuccess);
-
     status = sys2::AddressSpaceManager::create(&pager, getPteMapping0(), km::PageFlags::eUserAll, vmem, &asManager0);
     ASSERT_EQ(status, OsStatusSuccess);
 
@@ -254,9 +270,6 @@ TEST_F(AddressSpaceManagerTest, UnmapFront) {
     km::VirtualRange vmem = range.cast<const void*>();
     km::AddressMapping mapping;
 
-    status = sys2::MemoryManager::create(range, &memory);
-    ASSERT_EQ(status, OsStatusSuccess);
-
     status = sys2::AddressSpaceManager::create(&pager, getPteMapping0(), km::PageFlags::eUserAll, vmem, &asManager0);
     ASSERT_EQ(status, OsStatusSuccess);
 
@@ -295,9 +308,6 @@ TEST_F(AddressSpaceManagerTest, UnmapBack) {
     km::MemoryRange range = { sm::gigabytes(1).bytes(), sm::gigabytes(4).bytes() };
     km::VirtualRange vmem = range.cast<const void*>();
     km::AddressMapping mapping;
-
-    status = sys2::MemoryManager::create(range, &memory);
-    ASSERT_EQ(status, OsStatusSuccess);
 
     status = sys2::AddressSpaceManager::create(&pager, getPteMapping0(), km::PageFlags::eUserAll, vmem, &asManager0);
     ASSERT_EQ(status, OsStatusSuccess);
@@ -338,9 +348,6 @@ TEST_F(AddressSpaceManagerTest, UnmapSpill) {
     km::VirtualRange vmem = range.cast<const void*>();
     km::AddressMapping mapping;
 
-    status = sys2::MemoryManager::create(range, &memory);
-    ASSERT_EQ(status, OsStatusSuccess);
-
     status = sys2::AddressSpaceManager::create(&pager, getPteMapping0(), km::PageFlags::eUserAll, vmem, &asManager0);
     ASSERT_EQ(status, OsStatusSuccess);
 
@@ -376,9 +383,6 @@ TEST_F(AddressSpaceManagerTest, UnmapSpillFront) {
     km::MemoryRange range = { sm::gigabytes(1).bytes(), sm::gigabytes(4).bytes() };
     km::VirtualRange vmem = range.cast<const void*>();
     km::AddressMapping mapping;
-
-    status = sys2::MemoryManager::create(range, &memory);
-    ASSERT_EQ(status, OsStatusSuccess);
 
     status = sys2::AddressSpaceManager::create(&pager, getPteMapping0(), km::PageFlags::eUserAll, vmem, &asManager0);
     ASSERT_EQ(status, OsStatusSuccess);
@@ -420,9 +424,6 @@ TEST_F(AddressSpaceManagerTest, UnmapSpillBack) {
     km::VirtualRange vmem = range.cast<const void*>();
     km::AddressMapping mapping;
 
-    status = sys2::MemoryManager::create(range, &memory);
-    ASSERT_EQ(status, OsStatusSuccess);
-
     status = sys2::AddressSpaceManager::create(&pager, getPteMapping0(), km::PageFlags::eUserAll, vmem, &asManager0);
     ASSERT_EQ(status, OsStatusSuccess);
 
@@ -461,9 +462,6 @@ TEST_F(AddressSpaceManagerTest, UnmapMany) {
     OsStatus status = OsStatusSuccess;
     km::MemoryRange range = { sm::gigabytes(1).bytes(), sm::gigabytes(4).bytes() };
     km::VirtualRange vmem = range.cast<const void*>();
-
-    status = sys2::MemoryManager::create(range, &memory);
-    ASSERT_EQ(status, OsStatusSuccess);
 
     status = sys2::AddressSpaceManager::create(&pager, getPteMapping0(), km::PageFlags::eUserAll, vmem, &asManager0);
     ASSERT_EQ(status, OsStatusSuccess);
@@ -511,9 +509,6 @@ TEST_F(AddressSpaceManagerTest, UnmapManyInner) {
     OsStatus status = OsStatusSuccess;
     km::MemoryRange range = { sm::gigabytes(1).bytes(), sm::gigabytes(4).bytes() };
     km::VirtualRange vmem = range.cast<const void*>();
-
-    status = sys2::MemoryManager::create(range, &memory);
-    ASSERT_EQ(status, OsStatusSuccess);
 
     status = sys2::AddressSpaceManager::create(&pager, getPteMapping0(), km::PageFlags::eUserAll, vmem, &asManager0);
     ASSERT_EQ(status, OsStatusSuccess);
@@ -573,9 +568,6 @@ TEST_F(AddressSpaceManagerTest, UnmapManySpillFront) {
     km::MemoryRange range = { sm::gigabytes(1).bytes(), sm::gigabytes(4).bytes() };
     km::VirtualRange vmem = range.cast<const void*>();
 
-    status = sys2::MemoryManager::create(range, &memory);
-    ASSERT_EQ(status, OsStatusSuccess);
-
     status = sys2::AddressSpaceManager::create(&pager, getPteMapping0(), km::PageFlags::eUserAll, vmem, &asManager0);
     ASSERT_EQ(status, OsStatusSuccess);
 
@@ -625,9 +617,6 @@ TEST_F(AddressSpaceManagerTest, UnmapManySpillBack) {
     OsStatus status = OsStatusSuccess;
     km::MemoryRange range = { sm::gigabytes(1).bytes(), sm::gigabytes(4).bytes() };
     km::VirtualRange vmem = range.cast<const void*>();
-
-    status = sys2::MemoryManager::create(range, &memory);
-    ASSERT_EQ(status, OsStatusSuccess);
 
     status = sys2::AddressSpaceManager::create(&pager, getPteMapping0(), km::PageFlags::eUserAll, vmem, &asManager0);
     ASSERT_EQ(status, OsStatusSuccess);
@@ -679,9 +668,6 @@ TEST_F(AddressSpaceManagerTest, UnmapManySpillBack2) {
     km::MemoryRange range = { sm::gigabytes(1).bytes(), sm::gigabytes(4).bytes() };
     km::VirtualRange vmem = range.cast<const void*>();
 
-    status = sys2::MemoryManager::create(range, &memory);
-    ASSERT_EQ(status, OsStatusSuccess);
-
     status = sys2::AddressSpaceManager::create(&pager, getPteMapping0(), km::PageFlags::eUserAll, vmem, &asManager0);
     ASSERT_EQ(status, OsStatusSuccess);
 
@@ -732,9 +718,6 @@ TEST_F(AddressSpaceManagerTest, MapRemote) {
     km::MemoryRange range = { sm::gigabytes(1).bytes(), sm::gigabytes(4).bytes() };
     km::VirtualRange vmem = range.cast<const void*>();
     km::AddressMapping mapping0;
-
-    status = sys2::MemoryManager::create(range, &memory);
-    ASSERT_EQ(status, OsStatusSuccess);
 
     status = sys2::AddressSpaceManager::create(&pager, getPteMapping0(), km::PageFlags::eUserAll, vmem, &asManager0);
     ASSERT_EQ(status, OsStatusSuccess);

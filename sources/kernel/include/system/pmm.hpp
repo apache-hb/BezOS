@@ -16,6 +16,7 @@ namespace vfs2 {
 
 namespace km {
     class AddressSpace;
+    class PageAllocator;
 }
 
 namespace sys2 {
@@ -77,14 +78,14 @@ namespace sys2 {
         stdx::SpinLock mLock;
 
         Table mTable GUARDED_BY(mLock);
-        km::TlsfHeap mHeap GUARDED_BY(mLock);
+        km::PageAllocator *mHeap;
 
         Map& segments() noexcept REQUIRES(mLock) {
             return mTable.segments();
         }
 
-        MemoryManager(km::TlsfHeap&& heap) noexcept
-            : mHeap(std::move(heap))
+        MemoryManager(km::PageAllocator *heap) noexcept
+            : mHeap(heap)
         { }
 
         enum ReleaseSide {
@@ -144,10 +145,7 @@ namespace sys2 {
         OsStatus allocate(size_t size, size_t align, km::MemoryRange *range) [[clang::allocating]];
 
         [[nodiscard]]
-        static OsStatus create(km::MemoryRange range, MemoryManager *manager) [[clang::allocating]];
-
-        [[nodiscard]]
-        static OsStatus create(km::TlsfHeap&& heap, MemoryManager *manager) [[clang::allocating]];
+        static OsStatus create(km::PageAllocator *heap, MemoryManager *manager) [[clang::allocating]];
 
         [[nodiscard]]
         MemoryManagerStats stats() noexcept [[clang::nonallocating]];

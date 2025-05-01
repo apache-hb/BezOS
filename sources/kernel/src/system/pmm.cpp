@@ -1,6 +1,8 @@
 #include "system/pmm.hpp"
 
 #include "memory/heap_command_list.hpp"
+#include "memory/page_allocator.hpp"
+#include "memory/page_allocator_command_list.hpp"
 
 OsStatus sys2::MemoryManager::retainRange(Iterator it, km::MemoryRange range, km::MemoryRange *remaining) {
     auto& segment = it->second;
@@ -73,7 +75,7 @@ bool sys2::MemoryManager::releaseEntry(Iterator it) {
 
 bool sys2::MemoryManager::releaseSegment(sys2::MemorySegment& segment) {
     if (segment.owners.fetch_sub(1) == 1) {
-        mHeap.free(segment.allocation);
+        mHeap->free(segment.allocation);
         return true;
     }
     return false;
@@ -87,7 +89,7 @@ OsStatus sys2::MemoryManager::retainSegment(Iterator it, km::PhysicalAddress mid
     auto& segment = it->second;
 
     km::TlsfAllocation lo, hi;
-    if (OsStatus status = mHeap.split(segment.allocation, midpoint, &lo, &hi)) {
+    if (OsStatus status = mHeap->split(segment.allocation, midpoint, &lo, &hi)) {
         return status;
     }
 
@@ -118,7 +120,7 @@ OsStatus sys2::MemoryManager::splitSegment(Iterator it, km::PhysicalAddress midp
     auto& segment = it->second;
 
     km::TlsfAllocation lo, hi;
-    if (OsStatus status = mHeap.split(segment.allocation, midpoint, &lo, &hi)) {
+    if (OsStatus status = mHeap->split(segment.allocation, midpoint, &lo, &hi)) {
         return status;
     }
 
@@ -231,7 +233,7 @@ OsStatus sys2::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]
                 range.back,
             };
 
-            if (OsStatus status = mHeap.splitv(segment.allocation, points, allocations)) {
+            if (OsStatus status = mHeap->splitv(segment.allocation, points, allocations)) {
                 return status;
             }
 
@@ -284,7 +286,7 @@ OsStatus sys2::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]
             bool lhsShouldSplit = lhs.front != range.front;
             bool rhsShouldSplit = rhs.back != range.back;
 
-            km::TlsfHeapCommandList list { &mHeap };
+            km::PageAllocatorCommandList list { mHeap };
             km::TlsfAllocation lhsLo, lhsHi;
             km::TlsfAllocation rhsLo, rhsHi;
 
@@ -422,7 +424,7 @@ OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating
                 range.back,
             };
 
-            if (OsStatus status = mHeap.splitv(segment.allocation, points, allocations)) {
+            if (OsStatus status = mHeap->splitv(segment.allocation, points, allocations)) {
                 return status;
             }
 
@@ -492,7 +494,7 @@ OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating
             bool lhsShouldSplit = lhs.front != range.front;
             bool rhsShouldSplit = rhs.back != range.back;
 
-            km::TlsfHeapCommandList list { &mHeap };
+            km::PageAllocatorCommandList list { mHeap };
             km::TlsfAllocation lhsLo, lhsHi;
             km::TlsfAllocation rhsLo, rhsHi;
 
@@ -598,7 +600,7 @@ OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating
 OsStatus sys2::MemoryManager::allocate(size_t size, size_t align, km::MemoryRange *range) [[clang::allocating]] {
     stdx::LockGuard guard(mLock);
 
-    km::TlsfAllocation allocation = mHeap.aligned_alloc(align, size);
+    km::TlsfAllocation allocation = mHeap->aligned_alloc(align, size);
     if (allocation.isNull()) {
         return OsStatusOutOfMemory;
     }
@@ -612,18 +614,8 @@ OsStatus sys2::MemoryManager::allocate(size_t size, size_t align, km::MemoryRang
     return OsStatusSuccess;
 }
 
-OsStatus sys2::MemoryManager::create(km::MemoryRange range, MemoryManager *manager) [[clang::allocating]] {
-    km::TlsfHeap heap;
-    if (OsStatus status = km::TlsfHeap::create(range, &heap)) {
-        return status;
-    }
-
-    *manager = MemoryManager(std::move(heap));
-    return OsStatusSuccess;
-}
-
-OsStatus sys2::MemoryManager::create(km::TlsfHeap&& heap, MemoryManager *manager) {
-    *manager = MemoryManager(std::move(heap));
+OsStatus sys2::MemoryManager::create(km::PageAllocator *heap, MemoryManager *manager) {
+    *manager = MemoryManager(heap);
     return OsStatusSuccess;
 }
 
@@ -631,8 +623,9 @@ sys2::MemoryManagerStats sys2::MemoryManager::stats() noexcept [[clang::nonalloc
     DIAGNOSTIC_BEGIN_IGNORE("-Wfunction-effects");
     stdx::LockGuard guard(mLock);
 
+    auto heapStats = mHeap->stats();
     return MemoryManagerStats {
-        .heapStats = mHeap.stats(),
+        .heapStats = heapStats.heap,
         .segments = segments().size(),
     };
 

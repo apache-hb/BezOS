@@ -82,7 +82,7 @@ OsStatus km::SystemMemory::mapStack(size_t size, PageFlags flags, StackMappingAl
     }
 
     if (OsStatus status = mTables.mapStack(memory, flags, mapping)) {
-        mPageAllocator.release(memory);
+        mPageAllocator.free(memory);
         return status;
     }
 
@@ -100,7 +100,7 @@ OsStatus km::SystemMemory::map(size_t size, PageFlags flags, MemoryType type, Ma
     }
 
     if (OsStatus status = mTables.map(memory, flags, type, allocation)) {
-        mPageAllocator.release(memory);
+        mPageAllocator.free(memory);
         return status;
     }
 
@@ -116,7 +116,7 @@ OsStatus km::SystemMemory::unmap(MappingAllocation allocation) {
         return status;
     }
 
-    mPageAllocator.release(allocation.memoryAllocation());
+    mPageAllocator.free(allocation.memoryAllocation());
     return OsStatusSuccess;
 }
 

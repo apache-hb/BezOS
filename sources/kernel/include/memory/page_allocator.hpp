@@ -12,6 +12,8 @@ namespace km {
     };
 
     class PageAllocator {
+        friend class PageAllocatorCommandList;
+
         stdx::SpinLock mLock;
 
         km::TlsfHeap mMemoryHeap GUARDED_BY(mLock);
@@ -42,10 +44,15 @@ namespace km {
 
         TlsfAllocation pageAlloc(size_t count = 1) [[clang::allocating]];
 
+        TlsfAllocation aligned_alloc(size_t align, size_t size) [[clang::allocating]];
+
         [[nodiscard]]
         OsStatus splitv(TlsfAllocation ptr, std::span<const PhysicalAddress> points, std::span<TlsfAllocation> results);
 
-        void release(TlsfAllocation allocation) noexcept [[clang::nonallocating]];
+        [[nodiscard]]
+        OsStatus split(TlsfAllocation allocation, PhysicalAddress midpoint, TlsfAllocation *lo [[gnu::nonnull]], TlsfAllocation *hi [[gnu::nonnull]]) [[clang::allocating]];
+
+        void free(TlsfAllocation allocation) noexcept [[clang::nonallocating]];
 
         [[nodiscard]]
         OsStatus reserve(MemoryRange range, TlsfAllocation *allocation [[gnu::nonnull]]) [[clang::allocating]];

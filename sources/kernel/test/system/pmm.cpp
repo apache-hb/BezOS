@@ -2,20 +2,38 @@
 
 #include "system/pmm.hpp"
 #include "arch/paging.hpp"
+#include "memory/page_allocator.hpp"
 #include "util/memory.hpp"
 
 static constexpr km::MemoryRange kTestRange { sm::gigabytes(1).bytes(), sm::gigabytes(4).bytes() };
 
 TEST(MemoryManagerInitTest, Construct) {
+    OsStatus status;
+    km::PageAllocator pmm;
+    std::vector<boot::MemoryRegion> memmap = {
+        { .type = boot::MemoryRegion::eUsable, .range = kTestRange }
+    };
+    status = km::PageAllocator::create(memmap, &pmm);
+    EXPECT_EQ(status, OsStatusSuccess);
+
     sys2::MemoryManager manager;
-    OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
+    status = sys2::MemoryManager::create(&pmm, &manager);
     EXPECT_EQ(status, OsStatusSuccess);
 }
 
 class MemoryManagerTest : public testing::Test {
 public:
     void SetUp() override {
-        OsStatus status = sys2::MemoryManager::create(kTestRange, &manager);
+        OsStatus status;
+
+        std::vector<boot::MemoryRegion> memmap = {
+            { .type = boot::MemoryRegion::eUsable, .range = kTestRange }
+        };
+
+        status = km::PageAllocator::create(memmap, &pmm);
+        ASSERT_EQ(status, OsStatusSuccess);
+
+        status = sys2::MemoryManager::create(&pmm, &manager);
         ASSERT_EQ(status, OsStatusSuccess);
 
         auto stats0 = manager.stats();
@@ -89,6 +107,7 @@ public:
         return stats;
     }
 
+    km::PageAllocator pmm;
     sys2::MemoryManager manager;
 };
 

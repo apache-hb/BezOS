@@ -109,7 +109,6 @@ system_src = [
     'src/system/transaction.cpp',
     'src/system/pmm.cpp',
     'src/system/vmm.cpp',
-    'src/memory/heap_command_list.cpp',
 
     'src/system/vm/mapping.cpp',
 ]
@@ -131,6 +130,7 @@ src = [
     'src/memory/layout.cpp',
     'src/memory/allocator.cpp',
     'src/memory/page_allocator.cpp',
+    'src/memory/page_allocator_command_list.cpp',
     'src/memory/table_allocator.cpp',
     'src/memory/pte.cpp',
     'src/memory/pte_command_list.cpp',
@@ -140,6 +140,7 @@ src = [
     'src/memory/detail/table_list.cpp',
     'src/memory/detail/control_block.cpp',
     'src/memory/heap.cpp',
+    'src/memory/heap_command_list.cpp',
 
     # C and C++ Runtime
     'src/crt.cpp',
@@ -405,10 +406,12 @@ memory_test_src = [
     'src/memory/memory.cpp',
     'src/memory/table_allocator.cpp',
     'src/memory/page_allocator.cpp',
+    'src/memory/page_allocator_command_list.cpp',
     'src/memory/address_space.cpp',
     'src/memory/detail/table_list.cpp',
     'src/memory/detail/control_block.cpp',
     'src/memory/heap.cpp',
+    'src/memory/heap_command_list.cpp',
 
     'src/util/memory.cpp',
 ]
