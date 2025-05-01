@@ -246,7 +246,8 @@ namespace km {
         static constexpr uint32_t kIcr1 = 0x310;
         static constexpr uint32_t kIcr0 = 0x300;
 
-        void *mBaseAddress = nullptr;
+        TlsfAllocation mAllocation;
+        sm::VirtualAddress mAddress{nullptr};
 
         volatile uint32_t& reg(uint16_t offset) const;
 
@@ -258,8 +259,9 @@ namespace km {
     public:
         constexpr LocalApic() = default;
 
-        constexpr LocalApic(void *base)
-            : mBaseAddress(base)
+        constexpr LocalApic(TlsfAllocation allocation, sm::VirtualAddress base) noexcept
+            : mAllocation(allocation)
+            , mAddress(base)
         { }
 
         uint32_t id() const override;
@@ -268,18 +270,33 @@ namespace km {
         void selfIpi(uint8_t vector) override;
         bool pendingIpi() override;
 
-        void *baseAddress(void) const { return mBaseAddress; }
+        sm::VirtualAddress baseAddress() const { return mAddress; }
     };
 
     using Apic = sm::Combine<IApic, LocalApic, X2Apic>;
 
+    namespace detail {
+        struct alignas(0x10) IoApicRegister {
+            volatile uint32_t reg;
+
+            operator volatile uint32_t&(this auto&& self) { return self.reg; }
+            IoApicRegister& operator=(uint32_t value) {
+                reg = value;
+                return *this;
+            }
+        };
+
+        struct IoApicMmio {
+            IoApicRegister ioregsel;
+            IoApicRegister iowin;
+        };
+    }
+
     class IoApic {
         km::TlsfAllocation mAllocation;
-        sm::VirtualAddress mAddress{nullptr};
+        sm::VirtualAddressOf<detail::IoApicMmio> mMmio{nullptr};
         uint32_t mIsrBase;
         uint8_t mId;
-
-        volatile uint32_t& reg(uint32_t offset);
 
         void select(uint32_t field);
         uint32_t read(uint32_t reg);
@@ -292,10 +309,11 @@ namespace km {
 
         uint8_t id() const { return mId; }
         uint32_t isrBase() const { return mIsrBase; }
-        const void *address() const { return mAddress; }
+        const void *address() const { return mMmio; }
 
         uint16_t inputCount();
         uint8_t version();
+        uint8_t arbitrationId();
 
         /// @brief Update the redirection table entry for the given ISR
         ///
@@ -304,7 +322,7 @@ namespace km {
         /// @param target The target APIC to send the interrupt to
         void setRedirect(apic::IvtConfig config, uint32_t redirect, const IApic *target);
 
-        bool present() const { return !mAddress.isNull(); }
+        bool present() const { return !mMmio.isNull(); }
     };
 
     class IoApicSet {

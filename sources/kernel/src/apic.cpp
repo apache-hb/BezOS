@@ -11,11 +11,11 @@
 
 static constexpr x64::RwModelRegister<0x1b> IA32_APIC_BASE;
 
-static constexpr uint16_t k2xApicBaseMsr = 0x800;
+static constexpr uint16_t kX2ApicBaseMsr = 0x800;
 
-static constexpr x64::RoModelRegister<k2xApicBaseMsr + 0x2> IA32_X2APIC_ID;
-static constexpr x64::ModelRegister<k2xApicBaseMsr + 0x30, x64::RegisterAccess::eWrite> IA32_X2APIC_ICR;
-static constexpr x64::ModelRegister<k2xApicBaseMsr + 0x3f, x64::RegisterAccess::eWrite> IA32_X2APIC_SELF_IPI;
+static constexpr x64::RoModelRegister<kX2ApicBaseMsr + 0x2> IA32_X2APIC_ID;
+static constexpr x64::WoModelRegister<kX2ApicBaseMsr + 0x30> IA32_X2APIC_ICR;
+static constexpr x64::WoModelRegister<kX2ApicBaseMsr + 0x3f> IA32_X2APIC_SELF_IPI;
 
 static constexpr uint64_t kApicAddressMask = 0xFFFFFFFFFFFFF000;
 static constexpr uint64_t kApicEnableBit = (1 << 11);
@@ -105,11 +105,11 @@ bool km::IsX2ApicEnabled() {
 // x2apic methods
 
 uint64_t km::X2Apic::read(uint16_t offset) const {
-    return __rdmsr(k2xApicBaseMsr + offset);
+    return __rdmsr(kX2ApicBaseMsr + offset);
 }
 
 void km::X2Apic::write(uint16_t offset, uint64_t value) {
-    __wrmsr(k2xApicBaseMsr + offset, value);
+    __wrmsr(kX2ApicBaseMsr + offset, value);
 }
 
 uint32_t km::X2Apic::id() const {
@@ -127,8 +127,9 @@ void km::X2Apic::writeIcr(uint32_t dst, uint32_t cmd) {
 
 // local apic free functions
 
-static km::LocalApic MapLocalApic(uint64_t msr, km::AddressSpace& memory, km::TlsfAllocation *allocation) {
-    static constexpr size_t kApicSize = 0x3F0;
+static km::LocalApic MapLocalApic(uint64_t msr, km::AddressSpace& memory) {
+    km::TlsfAllocation allocation;
+    static constexpr size_t kApicSize = 0x400;
 
     KM_CHECK(msr & kApicEnableBit, "APIC not enabled");
     KM_CHECK(!(msr & kX2ApicEnableBit), "Cannot use local APIC in x2APIC mode");
@@ -142,10 +143,10 @@ static km::LocalApic MapLocalApic(uint64_t msr, km::AddressSpace& memory, km::Tl
     // been designated as strong uncacheable (UC)
     //
     // TODO: make a struct to represent the local apic mmio registers
-    void *addr = memory.mapGenericObject(km::MemoryRangeEx::of(base, kApicSize), km::PageFlags::eData, km::MemoryType::eUncached, allocation);
+    void *addr = memory.mapGenericObject(km::MemoryRangeEx::of(base, kApicSize), km::PageFlags::eData, km::MemoryType::eUncached, &allocation);
     KM_CHECK(addr, "Failed to map local APIC");
 
-    return km::LocalApic { addr };
+    return km::LocalApic { allocation, addr };
 }
 
 static uint64_t EnableLocalApic(km::PhysicalAddress baseAddress = 0uz) {
@@ -168,7 +169,7 @@ static uint64_t EnableLocalApic(km::PhysicalAddress baseAddress = 0uz) {
 // local apic methods
 
 volatile uint32_t& km::LocalApic::reg(uint16_t offset) const {
-    return *reinterpret_cast<volatile uint32_t*>((char*)mBaseAddress + offset);
+    return *std::bit_cast<volatile uint32_t*>(mAddress + offset);
 }
 
 uint64_t km::LocalApic::read(uint16_t offset) const {
@@ -321,8 +322,7 @@ km::Apic km::InitBspApic(km::AddressSpace& memory, bool useX2Apic) {
         return km::X2Apic::get();
     } else {
         uint64_t msr = EnableLocalApic();
-        km::TlsfAllocation allocation; // TODO: this leaks
-        return MapLocalApic(msr, memory, &allocation);
+        return MapLocalApic(msr, memory);
     }
 }
 
@@ -333,29 +333,25 @@ km::Apic km::InitApApic(km::AddressSpace& memory, const km::IApic *bsp) {
         return km::X2Apic::get();
     } else {
         const km::LocalApic *lapic = static_cast<const km::LocalApic*>(bsp);
-        void *vaddr = lapic->baseAddress();
+        sm::VirtualAddress vaddr = lapic->baseAddress();
 
         // Move every AP lapic at the same address as the BSP lapic.
-        // This makes accessing it less error prone.
+        // This lets us reuse the same virtual address space allocation for all APs.
         km::PhysicalAddress bspBaseAddress = memory.getBackingAddress(vaddr);
         EnableLocalApic(bspBaseAddress);
 
-        return km::LocalApic { vaddr };
+        return auto{*lapic};
     }
 }
 
 // io apic
 
-static constexpr uint32_t kIoApicSelect = 0x0;
-static constexpr uint32_t kIoApicWindow = 0x10;
-
 static constexpr uint32_t kIoApicId = 0x0;
 static constexpr uint32_t kIoApicVersion = 0x1;
+static constexpr uint32_t kIoApicArbitration = 0x2;
 
-static constexpr size_t kIoApicSize = 0x20;
-
-static sm::VirtualAddress mapIoApic(km::AddressSpace& memory, acpi::MadtEntry::IoApic entry, km::TlsfAllocation *allocation) {
-    return memory.mapGenericObject(km::MemoryRangeEx::of(entry.address, kIoApicSize), km::PageFlags::eData, km::MemoryType::eUncached, allocation);
+static sm::VirtualAddressOf<km::detail::IoApicMmio> mapIoApic(km::AddressSpace& memory, acpi::MadtEntry::IoApic entry, km::TlsfAllocation *allocation) {
+    return memory.mapMmio<km::detail::IoApicMmio>(entry.address, km::PageFlags::eData, allocation);
 }
 
 km::IoApic::IoApic(const acpi::MadtEntry *entry, km::AddressSpace& memory)
@@ -363,7 +359,7 @@ km::IoApic::IoApic(const acpi::MadtEntry *entry, km::AddressSpace& memory)
 { }
 
 km::IoApic::IoApic(acpi::MadtEntry::IoApic entry, km::AddressSpace& memory)
-    : mAddress(mapIoApic(memory, entry, &mAllocation))
+    : mMmio(mapIoApic(memory, entry, &mAllocation))
 {
     uint32_t idreg = read(kIoApicId);
 
@@ -383,22 +379,18 @@ km::IoApic::IoApic(acpi::MadtEntry::IoApic entry, km::AddressSpace& memory)
     mIsrBase = entry.interruptBase;
 }
 
-volatile uint32_t& km::IoApic::reg(uint32_t offset) {
-    return *std::bit_cast<volatile uint32_t*>(mAddress + offset);
-}
-
 void km::IoApic::select(uint32_t field) {
-    reg(kIoApicSelect) = field;
+    mMmio->ioregsel = field;
 }
 
 uint32_t km::IoApic::read(uint32_t field) {
     select(field);
-    return reg(kIoApicWindow);
+    return mMmio->iowin;
 }
 
 void km::IoApic::write(uint32_t field, uint32_t value) {
     select(field);
-    reg(kIoApicWindow) = value;
+    mMmio->iowin = value;
 }
 
 uint16_t km::IoApic::inputCount() {
@@ -408,6 +400,11 @@ uint16_t km::IoApic::inputCount() {
 
 uint8_t km::IoApic::version() {
     return read(kIoApicVersion) & 0xFF;
+}
+
+uint8_t km::IoApic::arbitrationId() {
+    uint32_t arb = read(kIoApicArbitration);
+    return (arb >> 24) & 0x0F;
 }
 
 static constexpr uint64_t kActiveLow = (1 << 13);

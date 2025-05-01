@@ -82,4 +82,7 @@ namespace x64 {
 
     template<uint32_t R>
     using RoModelRegister = ModelRegister<R, RegisterAccess::eRead>;
+
+    template<uint32_t R>
+    using WoModelRegister = ModelRegister<R, RegisterAccess::eWrite>;
 }

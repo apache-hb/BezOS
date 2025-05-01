@@ -233,7 +233,7 @@ public:
 };
 
 TEST_F(ApicTest, SendIpi) {
-    km::LocalApic lapic { mApic.guestAddress() };
+    km::LocalApic lapic { km::TlsfAllocation{}, mApic.guestAddress() };
     lapic.selfIpi(0x20);
 
     ASSERT_EQ(mApic.icr, 0x0004'4020'0000'0000);
