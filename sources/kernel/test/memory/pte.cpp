@@ -627,6 +627,24 @@ TEST_F(PageTableTest, MemoryFlags) {
     ASSERT_EQ(km::PageSize::eRegular, size);
 }
 
+TEST_F(PageTableTest, MemoryTypeWriteThrough) {
+    km::PageTables pt = ptes(km::PageFlags::eAll);
+
+    const void *vaddr = (void*)0xFFFF800000000000;
+    km::PhysicalAddress paddr = 0x1000000;
+    km::AddressMapping mapping { vaddr, paddr, x64::kPageSize };
+
+    OsStatus status = pt.map(mapping, km::PageFlags::eRead, MemoryType::eWriteThrough);
+    ASSERT_EQ(OsStatusSuccess, status);
+
+    km::PageFlags flags = pt.getMemoryFlags(vaddr);
+
+    ASSERT_EQ(km::PageFlags::eRead, flags);
+
+    km::PageSize size = pt.getPageSize(vaddr);
+    ASSERT_EQ(km::PageSize::eRegular, size);
+}
+
 TEST_F(PageTableTest, MemoryFlagsOnRange) {
     km::PageTables pt = ptes(km::PageFlags::eAll);
 

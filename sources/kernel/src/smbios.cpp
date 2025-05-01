@@ -3,6 +3,8 @@
 #include "log.hpp"
 #include "memory/address_space.hpp"
 
+#include "common/util/defer.hpp"
+
 #include <stdint.h>
 
 using namespace stdx::literals;
@@ -10,16 +12,18 @@ using namespace stdx::literals;
 namespace smbios = km::smbios;
 
 template<typename T>
-constexpr km::MemoryRange SmBiosTableRange(const T *table) {
-    return km::MemoryRange::of(table->tableAddress, table->tableSize);
+constexpr km::MemoryRangeEx SmBiosTableRange(const T *table) {
+    return km::MemoryRangeEx::of(table->tableAddress, table->tableSize);
 }
 
 template<typename T>
-static km::VirtualRange SmBiosMapTable(const T *table, km::AddressSpace& memory) {
+static km::VirtualRange SmBiosMapTable(const T *table, km::AddressSpace& memory, km::TlsfAllocation *allocation [[gnu::nonnull]]) {
     KmDebugMessage("[SMBIOS] Table: ", (void*)table, "\n");
     KmDebugMessage(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(table), sizeof(T))), "\n");
 
-    void *address = memory.map(SmBiosTableRange(table));
+    void *address = memory.mapGenericObject(SmBiosTableRange(table), km::PageFlags::eRead, km::MemoryType::eWriteThrough, allocation);
+    KM_CHECK(!allocation->isNull(), "Failed to map SMBIOS table");
+
     KmDebugMessage("[SMBIOS] Table address: ", km::Hex(table->tableAddress).pad(sizeof(T::tableAddress) * 2), ", Size: ", auto{table->tableSize}, "\n");
     KmDebugMessage(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(address), table->tableSize)), "\n");
     return km::VirtualRange::of(address, table->tableSize);
@@ -145,8 +149,8 @@ size_t km::smbios::GetStructSize(const StructHeader *header) {
     return size;
 }
 
-static OsStatus FindSmbios64(km::PhysicalAddress address, bool ignoreChecksum, km::AddressSpace& memory, const smbios::Entry64 **entry) {
-    const auto *smbios = memory.mapConst<smbios::Entry64>(address);
+static OsStatus FindSmbios64(km::PhysicalAddressEx address, bool ignoreChecksum, km::AddressSpace& memory, const smbios::Entry64 **entry, km::TlsfAllocation *allocation) {
+    const auto *smbios = memory.mapConst<smbios::Entry64>(address, km::MemoryType::eWriteThrough, allocation);
 
     if (smbios->anchor != smbios::Entry64::kAnchor0) {
         KmDebugMessage("[SMBIOS] Invalid anchor: ", smbios->anchor, "\n");
@@ -162,8 +166,8 @@ static OsStatus FindSmbios64(km::PhysicalAddress address, bool ignoreChecksum, k
     return OsStatusSuccess;
 }
 
-static OsStatus FindSmbios32(km::PhysicalAddress address, bool ignoreChecksum, km::AddressSpace& memory, const smbios::Entry32 **entry) {
-    const auto *smbios = memory.mapConst<smbios::Entry32>(address);
+static OsStatus FindSmbios32(km::PhysicalAddressEx address, bool ignoreChecksum, km::AddressSpace& memory, const smbios::Entry32 **entry, km::TlsfAllocation *allocation) {
+    const auto *smbios = memory.mapConst<smbios::Entry32>(address, km::MemoryType::eWriteThrough, allocation);
 
     if (smbios->anchor0 != smbios::Entry32::kAnchor0) {
         KmDebugMessage("[SMBIOS] Invalid anchor: ", smbios->anchor0, "\n");
@@ -198,18 +202,32 @@ OsStatus km::FindSmbiosTables(SmBiosLoadOptions options, km::AddressSpace& memor
     SmBiosTables result{};
 
     if (options.smbios64Address != nullptr && !options.ignore64BitEntry) {
-        status = FindSmbios64(options.smbios64Address, options.ignoreChecksum, memory, &result.entry64);
+        km::TlsfAllocation allocation;
+        status = FindSmbios64(std::bit_cast<km::PhysicalAddressEx>(options.smbios64Address), options.ignoreChecksum, memory, &result.entry64, &allocation);
         if (status == OsStatusSuccess) {
-            result.tables = SmBiosMapTable(result.entry64, memory);
+
+            defer {
+                OsStatus status = memory.unmap(allocation);
+                KM_ASSERT(status == OsStatusSuccess);
+            };
+
+            result.tables = SmBiosMapTable(result.entry64, memory, &tables->entry64Allocation);
             *tables = result;
             return status;
         }
     }
 
     if (options.smbios32Address != nullptr && !options.ignore32BitEntry) {
-        status = FindSmbios32(options.smbios32Address, options.ignoreChecksum, memory, &result.entry32);
+        km::TlsfAllocation allocation;
+        status = FindSmbios32(std::bit_cast<km::PhysicalAddressEx>(options.smbios32Address), options.ignoreChecksum, memory, &result.entry32, &allocation);
         if (status == OsStatusSuccess) {
-            result.tables = SmBiosMapTable(result.entry32, memory);
+
+            defer {
+                OsStatus status = memory.unmap(allocation);
+                KM_ASSERT(status == OsStatusSuccess);
+            };
+
+            result.tables = SmBiosMapTable(result.entry32, memory, &tables->entry32Allocation);
             *tables = result;
             return status;
         }

@@ -25,6 +25,7 @@ inc = include_directories('include')
 
 common_args = [
     '-ffile-prefix-map=' + meson.current_source_dir() + '=/',
+    '-ffile-prefix-map=../../../=/',
 
     '-Wno-gnu-anonymous-struct',
     '-Wno-gnu-case-range',

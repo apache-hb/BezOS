@@ -420,7 +420,8 @@ void PageTables::mapWithList(AddressMapping mapping, PageFlags flags, MemoryType
 }
 
 bool PageTables::verifyMapping(AddressMapping mapping) const noexcept [[clang::nonblocking]] {
-    bool valid = (mapping.size % x64::kPageSize == 0)
+    bool valid = (mapping.size > 0)
+        && (mapping.size % x64::kPageSize == 0)
         && (mapping.paddr.address % x64::kPageSize == 0)
         && ((uintptr_t)mapping.vaddr % x64::kPageSize == 0)
         && mPageManager->isCanonicalAddress(mapping.vaddr);

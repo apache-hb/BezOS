@@ -2,6 +2,7 @@
 
 #include <bezos/status.h>
 
+#include "memory/detail/tlsf.hpp"
 #include "memory/range.hpp"
 #include "std/string_view.hpp"
 #include "util/signature.hpp"
@@ -153,6 +154,8 @@ namespace km {
         const smbios::Entry32 *entry32;
         const smbios::Entry64 *entry64;
         VirtualRange tables;
+        TlsfAllocation entry32Allocation;
+        TlsfAllocation entry64Allocation;
 
         SmBiosIterator begin() const {
             return SmBiosIterator(tables.front);

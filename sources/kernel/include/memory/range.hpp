@@ -415,7 +415,7 @@ namespace km {
 
     using VirtualRange = AnyRange<const void*>;
     using VirtualRangeEx = AnyRange<sm::VirtualAddress>;
-    
+
     using MemoryRange = AnyRange<PhysicalAddress>;
     using MemoryRangeEx = AnyRange<PhysicalAddressEx>;
 }
@@ -425,6 +425,15 @@ struct km::Format<km::PhysicalAddress> {
     static constexpr size_t kStringSize = km::kFormatSize<Hex<uintptr_t>>;
 
     static void format(km::IOutStream& out, km::PhysicalAddress value) {
+        out.write(Hex(value.address).pad(16, '0'));
+    }
+};
+
+template<>
+struct km::Format<km::PhysicalAddressEx> {
+    static constexpr size_t kStringSize = km::kFormatSize<Hex<uintptr_t>>;
+
+    static void format(km::IOutStream& out, km::PhysicalAddressEx value) {
         out.write(Hex(value.address).pad(16, '0'));
     }
 };

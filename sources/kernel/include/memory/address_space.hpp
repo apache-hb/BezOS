@@ -118,6 +118,44 @@ namespace km {
             return mapObject<T>(range, flags, MemoryType::eUncached);
         }
 
+        void *mapGenericObject(MemoryRangeEx range, PageFlags flags, MemoryType type, TlsfAllocation *allocation [[gnu::nonnull]]);
+
+        template<typename T> requires (std::is_standard_layout_v<T>)
+        [[nodiscard]]
+        T *mapObject(MemoryRangeEx range, PageFlags flags, MemoryType type, TlsfAllocation *allocation [[gnu::nonnull]]) {
+            return (T*)mapGenericObject(range, flags, type, allocation);
+        }
+
+        template<typename T> requires (std::is_standard_layout_v<T>)
+        [[nodiscard]]
+        T *mapObject(PhysicalAddressEx paddr, PageFlags flags, MemoryType type, TlsfAllocation *allocation [[gnu::nonnull]]) {
+            return mapObject<T>(MemoryRangeEx::of(paddr, sizeof(T)), flags, type, allocation);
+        }
+
+        template<typename T> requires (std::is_standard_layout_v<T>)
+        [[nodiscard]]
+        const T *mapConst(MemoryRangeEx range, MemoryType type, TlsfAllocation *allocation [[gnu::nonnull]]) {
+            return (const T*)mapGenericObject(range, PageFlags::eRead, type, allocation);
+        }
+
+        template<typename T> requires (std::is_standard_layout_v<T>)
+        [[nodiscard]]
+        const T *mapConst(PhysicalAddressEx paddr, MemoryType type, TlsfAllocation *allocation [[gnu::nonnull]]) {
+            return mapConst<T>(MemoryRangeEx::of(paddr, sizeof(T)), type, allocation);
+        }
+
+        template<typename T> requires (std::is_standard_layout_v<T>)
+        [[nodiscard]]
+        T *mapMmio(PhysicalAddressEx paddr, PageFlags flags, TlsfAllocation *allocation [[gnu::nonnull]]) {
+            return mapObject<T>(MemoryRangeEx::of(paddr, sizeof(T)), flags, MemoryType::eUncached, allocation);
+        }
+
+        template<typename T> requires (std::is_standard_layout_v<T>)
+        [[nodiscard]]
+        T *mapMmio(MemoryRangeEx range, PageFlags flags, TlsfAllocation *allocation [[gnu::nonnull]]) {
+            return mapObject<T>(range, flags, MemoryType::eUncached, allocation);
+        }
+
         void updateHigherHalfMappings(const PageTables *source);
 
         void updateHigherHalfMappings(const AddressSpace *source) {

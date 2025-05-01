@@ -2,6 +2,7 @@
 #include "memory/stack_mapping.hpp"
 #include "memory/tables.hpp"
 #include "memory/allocator.hpp"
+#include "panic.hpp"
 
 void km::AddressSpace::reserve(VirtualRange range) {
     TlsfAllocation allocation;
@@ -50,6 +51,27 @@ OsStatus km::AddressSpace::unmap(VirtualRange range) {
 
 OsStatus km::AddressSpace::unmap(void *ptr, size_t size) {
     return unmap(VirtualRange::of(ptr, size));
+}
+
+void *km::AddressSpace::mapGenericObject(MemoryRangeEx range, PageFlags flags, MemoryType type, TlsfAllocation *allocation) {
+    uintptr_t offset = (range.front.address & 0xFFF);
+    MemoryRangeEx aligned = alignedOut(range, x64::kPageSize);
+    if (aligned.isEmpty()) {
+        KmDebugMessage("[MEM] Failed to map object memory ", range, ": empty range\n");
+        return nullptr;
+    }
+
+    TlsfAllocation memory;
+    if (OsStatus status = map(aligned, flags, type, &memory)) {
+        KmDebugMessage("[MEM] Failed to map object memory ", aligned, ": ", OsStatusId(status), "\n");
+        return nullptr;
+    }
+
+    KM_CHECK(!memory.isNull(), "Memory allocation is null");
+
+    sm::VirtualAddress base = std::bit_cast<sm::VirtualAddress>(memory.address());
+    *allocation = memory;
+    return base + offset;
 }
 
 void *km::AddressSpace::map(MemoryRange range, PageFlags flags, MemoryType type) {
@@ -182,6 +204,8 @@ OsStatus km::AddressSpace::map(MemoryRangeEx memory, PageFlags flags, MemoryType
         return OsStatusOutOfMemory;
     }
 
+    KM_CHECK(!vmem.isNull(), "Memory allocation is null");
+
     AddressMapping m = {
         .vaddr = std::bit_cast<const void*>(vmem.address()),
         .paddr = memory.front.address,
@@ -192,6 +216,8 @@ OsStatus km::AddressSpace::map(MemoryRangeEx memory, PageFlags flags, MemoryType
         mVmemHeap.free(vmem);
         return status;
     }
+
+    KM_CHECK(!vmem.isNull(), "Memory allocation is null");
 
     *allocation = vmem;
     return OsStatusSuccess;
@@ -320,8 +346,6 @@ OsStatus km::AddressSpace::create(const PageBuilder *pm, AddressMapping pteMemor
     if (OsStatus status = km::TlsfHeap::create(vmem.cast<km::PhysicalAddress>(), &space->mVmemHeap)) {
         return status;
     }
-
-    KmDebugMessage("[MEM] Created address space: ", vmem, "\n");
 
     return OsStatusSuccess;
 }
