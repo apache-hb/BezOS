@@ -4,8 +4,7 @@
 using km::PageAllocatorCommandList;
 
 PageAllocatorCommandList::PageAllocatorCommandList(PageAllocator *allocator [[gnu::nonnull]]) noexcept
-    : mAllocator(allocator)
-    , mList(&allocator->mMemoryHeap)
+    : mList(&allocator->mMemoryHeap)
 { }
 
 OsStatus PageAllocatorCommandList::split(TlsfAllocation allocation, PhysicalAddress midpoint, TlsfAllocation *lo [[gnu::nonnull]], TlsfAllocation *hi [[gnu::nonnull]]) [[clang::allocating]] {

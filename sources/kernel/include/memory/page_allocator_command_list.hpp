@@ -6,7 +6,6 @@ namespace km {
     class PageAllocator;
 
     class PageAllocatorCommandList {
-        PageAllocator *mAllocator;
         TlsfHeapCommandList mList;
 
     public:
