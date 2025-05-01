@@ -125,7 +125,7 @@ static OsStatus ReadTlsInit(vfs2::IHandle *file, const elf::ProgramHeader *tls, 
     km::AddressMapping tlsMapping{};
     OsStatus status = AllocateMemory(memory.pmmAllocator(), ptes, km::Pages(tls->memsz), &tlsMapping);
     if (status != OsStatusSuccess) {
-        KmDebugMessage("[ELF] Failed to allocate ", sm::bytes(tls->memsz), " for ELF program load sections. ", status, "\n");
+        KmDebugMessage("[ELF] Failed to allocate ", sm::bytes(tls->memsz), " for ELF program load sections. ", OsStatusId(status), "\n");
         return status;
     }
 
@@ -186,7 +186,7 @@ static OsStatus CreateThread(km::Process *process, km::SystemMemory& memory, km:
     km::PageFlags flags = km::PageFlags::eUser | km::PageFlags::eData;
     km::AddressMapping mapping{};
     if (OsStatus status = AllocateMemory(memory.pmmAllocator(), *process->ptes.get(), 4, &mapping)) {
-        KmDebugMessage("[ELF] Failed to allocate stack memory: ", status, "\n");
+        KmDebugMessage("[ELF] Failed to allocate stack memory: ", OsStatusId(status), "\n");
         return status;
     }
 
@@ -251,17 +251,17 @@ static OsStatus MapProgram(sys2::InvokeContext *invoke, OsDeviceHandle file, OsP
     OsFileInfo info{};
 
     if (OsStatus status = sys2::SysDeviceInvoke(invoke, file, eOsFileStat, &info, sizeof(info))) {
-        KmDebugMessage("[ELF] Failed to stat file info. ", status, "\n");
+        KmDebugMessage("[ELF] Failed to stat file info. ", OsStatusId(status), "\n");
         return status;
     }
 
     if (OsStatus status = DeviceReadObject(invoke, file, 0, &header)) {
-        KmDebugMessage("[ELF] Failed to read elf header. ", status, "\n");
+        KmDebugMessage("[ELF] Failed to read elf header. ", OsStatusId(status), "\n");
         return status;
     }
 
     if (OsStatus status = km::detail::ValidateElfHeader(header, info.LogicalSize)) {
-        KmDebugMessage("[ELF] Invalid ELF header. ", status, "\n");
+        KmDebugMessage("[ELF] Invalid ELF header. ", OsStatusId(status), "\n");
         return status;
     }
 
@@ -275,7 +275,7 @@ static OsStatus MapProgram(sys2::InvokeContext *invoke, OsDeviceHandle file, OsP
 
     sm::FixedArray<elf::ProgramHeader> phArray{phNum};
     if (OsStatus status = DeviceReadArray(invoke, file, phOff, std::span(phArray))) {
-        KmDebugMessage("[ELF] Failed to read program headers. ", status, "\n");
+        KmDebugMessage("[ELF] Failed to read program headers. ", OsStatusId(status), "\n");
         return status;
     }
 
@@ -307,7 +307,7 @@ static OsStatus MapProgram(sys2::InvokeContext *invoke, OsDeviceHandle file, OsP
             };
 
             if (OsStatus status = sys2::SysVmemCreate(invoke, vmemGuestCreateInfo, &guestAddress)) {
-                KmDebugMessage("[ELF] Failed to create guest memory. ", status, "\n");
+                KmDebugMessage("[ELF] Failed to create guest memory. ", OsStatusId(status), "\n");
                 return status;
             }
         }
@@ -322,7 +322,7 @@ static OsStatus MapProgram(sys2::InvokeContext *invoke, OsDeviceHandle file, OsP
         };
 
         if (OsStatus status = sys2::SysVmemMap(invoke, vmemGuestMapInfo, &guestAddress)) {
-            KmDebugMessage("[ELF] Failed to map guest memory. ", status, "\n");
+            KmDebugMessage("[ELF] Failed to map guest memory. ", OsStatusId(status), "\n");
             return status;
         }
     }
@@ -368,7 +368,7 @@ OsStatus km::LoadElf2(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProces
     };
 
     if ((status = sys2::SysVmemCreate(invoke, vmemCreateInfo, &startInfoGuestAddress))) {
-        KmDebugMessage("[ELF] Failed to create start info memory. ", status, "\n");
+        KmDebugMessage("[ELF] Failed to create start info memory. ", OsStatusId(status), "\n");
         goto cleanup;
     }
 
@@ -380,7 +380,7 @@ OsStatus km::LoadElf2(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProces
     };
 
     if ((status = sys2::SysVmemMap(invoke, vmemMapInfo, &startInfoAddress))) {
-        KmDebugMessage("[ELF] Failed to map start info memory into launcher. ", status, "\n");
+        KmDebugMessage("[ELF] Failed to map start info memory into launcher. ", OsStatusId(status), "\n");
         goto cleanup;
     }
 
@@ -391,7 +391,7 @@ OsStatus km::LoadElf2(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProces
     };
 
     if ((status = sys2::SysVmemCreate(invoke, stackCreateInfo, &stackGuestAddress))) {
-        KmDebugMessage("[ELF] Failed to create stack memory. ", status, "\n");
+        KmDebugMessage("[ELF] Failed to create stack memory. ", OsStatusId(status), "\n");
         goto cleanup;
     }
 
@@ -414,7 +414,7 @@ OsStatus km::LoadElf2(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProces
     };
 
     if ((status = sys2::SysThreadCreate(invoke, threadCreateInfo, &hThread))) {
-        KmDebugMessage("[ELF] Failed to launch init process thread. ", status, "\n");
+        KmDebugMessage("[ELF] Failed to launch init process thread. ", OsStatusId(status), "\n");
         goto cleanup;
     }
 
@@ -508,7 +508,7 @@ OsStatus km::LoadElfProgram(vfs2::IFileHandle *file, SystemMemory& memory, Proce
 
     km::VirtualRange loadMemory{};
     if (OsStatus status = detail::LoadMemorySize(phs, &loadMemory)) {
-        KmDebugMessage("[ELF] Failed to calculate load memory size. ", status, "\n");
+        KmDebugMessage("[ELF] Failed to calculate load memory size. ", OsStatusId(status), "\n");
         return status;
     }
 
@@ -517,7 +517,7 @@ OsStatus km::LoadElfProgram(vfs2::IFileHandle *file, SystemMemory& memory, Proce
     km::AddressMapping loadMapping{};
     OsStatus status = AllocateMemory(memory.pmmAllocator(), *process->ptes.get(), Pages(loadMemory.size()), loadMemory.front, &loadMapping);
     if (status != OsStatusSuccess) {
-        KmDebugMessage("[ELF] Failed to allocate ", sm::bytes(loadMemory.size()), " for ELF program load sections. ", status, "\n");
+        KmDebugMessage("[ELF] Failed to allocate ", sm::bytes(loadMemory.size()), " for ELF program load sections. ", OsStatusId(status), "\n");
         return status;
     }
 

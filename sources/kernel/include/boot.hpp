@@ -163,7 +163,7 @@ namespace boot {
         km::PhysicalAddress smbios32Address;
         km::PhysicalAddress smbios64Address;
 
-        km::MemoryRange initrd;
+        km::MemoryRangeEx initrd;
 
         /// @brief Memory available to the kernel for use as an early allocator.
         km::AddressMapping earlyMemory;

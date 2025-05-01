@@ -152,7 +152,7 @@ static km::AddressMapping GetBootMemory(const limine_memmap_response& memmap, ui
     return { };
 }
 
-static km::MemoryRange GetInitDiskImage(const limine_module_response *modules, uintptr_t hhdmOffset) {
+static km::MemoryRangeEx GetInitDiskImage(const limine_module_response *modules, uintptr_t hhdmOffset) {
     if (modules == nullptr) {
         return { };
     }
@@ -187,7 +187,7 @@ extern "C" void LimineMain(void) {
     const limine_module_response *modules = gModuleRequest.response;
     uintptr_t stack = (uintptr_t)base - hhdm.offset;
 
-    km::MemoryRange initrd = GetInitDiskImage(modules, hhdm.offset);
+    km::MemoryRangeEx initrd = GetInitDiskImage(modules, hhdm.offset);
     km::AddressMapping bootMemory = GetBootMemory(memory, hhdm.offset);
 
     boot::BootInfoBuilder builder { bootMemory, kBootMemory };

@@ -420,7 +420,7 @@ static void MapDisplayRegions(PageTables& vmm, std::span<const boot::FrameBuffer
         // remap the framebuffer into its final location
         km::AddressMapping fb = { (void*)framebufferBase, framebuffer.paddr, framebuffer.size() };
         if (OsStatus status = vmm.map(fb, PageFlags::eData, MemoryType::eWriteCombine)) {
-            KmDebugMessage("[INIT] Failed to map framebuffer: ", fb, " ", status, "\n");
+            KmDebugMessage("[INIT] Failed to map framebuffer: ", fb, " ", OsStatusId(status), "\n");
             KM_PANIC("Failed to map framebuffer.");
         }
 
@@ -435,7 +435,7 @@ static void MapKernelRegions(PageTables &vmm, const KernelLayout& layout) {
 
 static void MapDataRegion(PageTables &vmm, km::AddressMapping mapping) {
     if (OsStatus status = vmm.map(mapping, PageFlags::eData)) {
-        KmDebugMessage("[INIT] Failed to map data region: ", mapping, " ", status, "\n");
+        KmDebugMessage("[INIT] Failed to map data region: ", mapping, " ", OsStatusId(status), "\n");
         KM_PANIC("Failed to map data region.");
     }
 }
@@ -856,7 +856,7 @@ static void CreateNotificationQueue() {
 static void MakeFolder(const vfs2::VfsPath& path) {
     sm::RcuSharedPtr<vfs2::INode> node = nullptr;
     if (OsStatus status = gVfsRoot->mkpath(path, &node)) {
-        KmDebugMessage("[VFS] Failed to create path: '", path, "' ", status, "\n");
+        KmDebugMessage("[VFS] Failed to create path: '", path, "' ", OsStatusId(status), "\n");
     }
 }
 
@@ -894,12 +894,12 @@ static void MountRootVfs() {
         sm::RcuSharedPtr<vfs2::INode> node = nullptr;
         vfs2::VfsPath path = vfs2::BuildPath("System", "Audit", "System.log");
         if (OsStatus status = gVfsRoot->create(path, &node)) {
-            KmDebugMessage("[VFS] Failed to create ", path, ": ", status, "\n");
+            KmDebugMessage("[VFS] Failed to create ", path, ": ", OsStatusId(status), "\n");
         }
 
         std::unique_ptr<vfs2::IFileHandle> log;
         if (OsStatus status = vfs2::OpenFileInterface(node, nullptr, 0, std::out_ptr(log))) {
-            KmDebugMessage("[VFS] Failed to open log file: ", status, "\n");
+            KmDebugMessage("[VFS] Failed to open log file: ", OsStatusId(status), "\n");
         }
     }
 
@@ -907,12 +907,12 @@ static void MountRootVfs() {
         sm::RcuSharedPtr<vfs2::INode> node = nullptr;
         vfs2::VfsPath path = vfs2::BuildPath("Users", "Guest", "motd.txt");
         if (OsStatus status = gVfsRoot->create(path, &node)) {
-            KmDebugMessage("[VFS] Failed to create ", path, ": ", status, "\n");
+            KmDebugMessage("[VFS] Failed to create ", path, ": ", OsStatusId(status), "\n");
         }
 
         std::unique_ptr<vfs2::IFileHandle> motd;
         if (OsStatus status = vfs2::OpenFileInterface(node, nullptr, 0, std::out_ptr(motd))) {
-            KmDebugMessage("[VFS] Failed to open file: ", status, "\n");
+            KmDebugMessage("[VFS] Failed to open file: ", OsStatusId(status), "\n");
         }
 
         char data[] = "Welcome.\n";
@@ -923,7 +923,7 @@ static void MountRootVfs() {
         vfs2::WriteResult result;
 
         if (OsStatus status = motd->write(request, &result)) {
-            KmDebugMessage("[VFS] Failed to write file: ", status, "\n");
+            KmDebugMessage("[VFS] Failed to write file: ", OsStatusId(status), "\n");
         }
     }
 }
@@ -935,19 +935,19 @@ static void CreatePlatformVfsNodes(const km::SmBiosTables *smbios, const acpi::A
         auto node = dev::SmBiosRoot::create(gVfsRoot->domain(), smbios);
 
         if (OsStatus status = gVfsRoot->mkdevice(vfs2::BuildPath("Platform", "SMBIOS"), node)) {
-            KmDebugMessage("[VFS] Failed to create SMBIOS device: ", status, "\n");
+            KmDebugMessage("[VFS] Failed to create SMBIOS device: ", OsStatusId(status), "\n");
         }
     }
 
     {
         auto node = dev::AcpiRoot::create(gVfsRoot->domain(), acpi);
         if (OsStatus status = gVfsRoot->mkdevice(vfs2::BuildPath("Platform", "ACPI"), node)) {
-            KmDebugMessage("[VFS] Failed to create ACPI device: ", status, "\n");
+            KmDebugMessage("[VFS] Failed to create ACPI device: ", OsStatusId(status), "\n");
         }
     }
 }
 
-static void MountInitArchive(MemoryRange initrd, AddressSpace& memory) {
+static void MountInitArchive(MemoryRangeEx initrd, AddressSpace& memory) {
     KmDebugMessage("[INIT] Mounting '/Init'\n");
 
     //
@@ -959,12 +959,17 @@ static void MountInitArchive(MemoryRange initrd, AddressSpace& memory) {
         KM_PANIC("No initrd found.");
     }
 
-    void *initrdMemory = memory.map(initrd, PageFlags::eRead);
-    sm::SharedPtr<MemoryBlk> block = new MemoryBlk{(std::byte*)initrdMemory, initrd.size()};
+    TlsfAllocation initrdMemory;
+    if (OsStatus status = memory.map(km::alignedOut(initrd, x64::kPageSize), PageFlags::eRead, MemoryType::eWriteBack, &initrdMemory)) {
+        KmDebugMessage("[INIT] Failed to map initrd: ", OsStatusId(status), "\n");
+        KM_PANIC("Failed to map initrd.");
+    }
+
+    sm::SharedPtr<MemoryBlk> block = new MemoryBlk{std::bit_cast<std::byte*>(initrdMemory.address()), initrd.size()};
 
     vfs2::IVfsMount *mount = nullptr;
     if (OsStatus status = gVfsRoot->addMountWithParams(&vfs2::TarFs::instance(), vfs2::BuildPath("Init"), &mount, block)) {
-        KmDebugMessage("[VFS] Failed to mount initrd: ", status, "\n");
+        KmDebugMessage("[VFS] Failed to mount initrd: ", OsStatusId(status), "\n");
         KM_PANIC("Failed to mount initrd.");
     }
 }
@@ -974,7 +979,7 @@ static void MountVolatileFolder() {
 
     vfs2::IVfsMount *mount = nullptr;
     if (OsStatus status = gVfsRoot->addMount(&vfs2::RamFs::instance(), vfs2::BuildPath("Volatile"), &mount)) {
-        KmDebugMessage("[VFS] Failed to mount '/Volatile' ", status, "\n");
+        KmDebugMessage("[VFS] Failed to mount '/Volatile' ", OsStatusId(status), "\n");
         KM_PANIC("Failed to mount volatile folder.");
     }
 }
@@ -989,19 +994,19 @@ static OsStatus LaunchInitProcess(sys2::InvokeContext *invoke, OsProcessHandle *
     };
 
     if (OsStatus status = sys2::SysDeviceOpen(invoke, createInfo, &device)) {
-        KmDebugMessage("[VFS] Failed to create device ", createInfo.path, ": ", status, "\n");
+        KmDebugMessage("[VFS] Failed to create device ", createInfo.path, ": ", OsStatusId(status), "\n");
         return status;
     }
 
     defer { sys2::SysDeviceClose(invoke, device); };
 
     if (OsStatus status = km::LoadElf2(invoke, device, process, &thread)) {
-        KmDebugMessage("[VFS] Failed to load init process: ", status, "\n");
+        KmDebugMessage("[VFS] Failed to load init process: ", OsStatusId(status), "\n");
         return status;
     }
 
     if (OsStatus status = sys2::SysThreadSuspend(invoke, thread, false)) {
-        KmDebugMessage("[VFS] Failed to resume init thread: ", status, "\n");
+        KmDebugMessage("[VFS] Failed to resume init thread: ", OsStatusId(status), "\n");
         return status;
     }
 
@@ -1355,7 +1360,7 @@ static OsStatus KernelMasterTask() {
     OsProcessHandle hInit = OS_HANDLE_INVALID;
     sys2::InvokeContext invoke { gSysSystem, sys2::GetCurrentProcess(), sys2::GetCurrentThread() };
     if (OsStatus status = LaunchInitProcess(&invoke, &hInit)) {
-        KmDebugMessage("[INIT] Failed to create INIT process: ", status, "\n");
+        KmDebugMessage("[INIT] Failed to create INIT process: ", OsStatusId(status), "\n");
         KM_PANIC("Failed to create init process.");
     }
 
@@ -1419,7 +1424,7 @@ static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioAp
     {
         sm::RcuSharedPtr<vfs2::INode> node = nullptr;
         if (OsStatus status = gVfsRoot->mkpath(hidPs2DevicePath.parent(), &node)) {
-            KmDebugMessage("[VFS] Failed to create ", hidPs2DevicePath.parent(), " folder: ", status, "\n");
+            KmDebugMessage("[VFS] Failed to create ", hidPs2DevicePath.parent(), " folder: ", OsStatusId(status), "\n");
             KM_PANIC("Failed to create keyboar device folder.");
         }
     }
@@ -1427,7 +1432,7 @@ static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioAp
     {
         auto device = sm::rcuMakeShared<dev::HidKeyboardDevice>(gVfsRoot->domain());
         if (OsStatus status = gVfsRoot->mkdevice(hidPs2DevicePath, device)) {
-            KmDebugMessage("[VFS] Failed to create ", hidPs2DevicePath, " device: ", status, "\n");
+            KmDebugMessage("[VFS] Failed to create ", hidPs2DevicePath, " device: ", OsStatusId(status), "\n");
             KM_PANIC("Failed to create keyboard device.");
         }
 
@@ -1441,7 +1446,7 @@ static void CreateDisplayDevice() {
     {
         sm::RcuSharedPtr<vfs2::INode> node = nullptr;
         if (OsStatus status = gVfsRoot->mkpath(ddiPath.parent(), &node)) {
-            KmDebugMessage("[VFS] Failed to create ", ddiPath.parent(), " folder: ", status, "\n");
+            KmDebugMessage("[VFS] Failed to create ", ddiPath.parent(), " folder: ", OsStatusId(status), "\n");
             KM_PANIC("Failed to create display device folder.");
         }
     }
@@ -1449,7 +1454,7 @@ static void CreateDisplayDevice() {
     {
         auto device = sm::rcuMakeShared<dev::DisplayDevice>(gVfsRoot->domain(), gDirectTerminalLog.get().display());
         if (OsStatus status = gVfsRoot->mkdevice(ddiPath, device)) {
-            KmDebugMessage("[VFS] Failed to create ", ddiPath, " device: ", status, "\n");
+            KmDebugMessage("[VFS] Failed to create ", ddiPath, " device: ", OsStatusId(status), "\n");
             KM_PANIC("Failed to create display device.");
         }
     }
@@ -1464,7 +1469,7 @@ static void LaunchKernelProcess(km::ApicTimer *apicTimer) {
     std::unique_ptr<sys2::ProcessHandle> system;
     OsStatus status = sys2::SysCreateRootProcess(gSysSystem, createInfo, std::out_ptr(system));
     if (status != OsStatusSuccess) {
-        KmDebugMessage("[INIT] Failed to create SYSTEM process: ", status, "\n");
+        KmDebugMessage("[INIT] Failed to create SYSTEM process: ", OsStatusId(status), "\n");
         KM_PANIC("Failed to create SYSTEM process.");
     }
 
@@ -1485,7 +1490,7 @@ static void LaunchKernelProcess(km::ApicTimer *apicTimer) {
     sys2::InvokeContext invoke { gSysSystem, system->getProcess() };
     status = sys2::SysThreadCreate(&invoke, threadInfo, &thread);
     if (status != OsStatusSuccess) {
-        KmDebugMessage("[INIT] Failed to create SYSTEM thread: ", status, "\n");
+        KmDebugMessage("[INIT] Failed to create SYSTEM thread: ", OsStatusId(status), "\n");
         KM_PANIC("Failed to create SYSTEM thread.");
     }
 
@@ -1499,7 +1504,7 @@ static void InitVfs() {
     MountVolatileFolder();
 }
 
-static void CreateVfsDevices(const km::SmBiosTables *smbios, const acpi::AcpiTables *acpi, MemoryRange initrd) {
+static void CreateVfsDevices(const km::SmBiosTables *smbios, const acpi::AcpiTables *acpi, MemoryRangeEx initrd) {
     CreatePlatformVfsNodes(smbios, acpi);
     MountInitArchive(initrd, GetSystemMemory()->pageTables());
 }
@@ -1545,7 +1550,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     SerialPortStatus com1Status = InitSerialPort(com1Info);
 
     if (OsStatus status = debug::InitDebugStream(com2Info)) {
-        KmDebugMessage("[INIT] Failed to initialize debug port: ", status, "\n");
+        KmDebugMessage("[INIT] Failed to initialize debug port: ", OsStatusId(status), "\n");
     }
 
     LogSystemInfo(launch, hvInfo, processor, hasDebugPort, com1Status, com1Info);
@@ -1584,7 +1589,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     km::SmBiosTables smbios{};
 
     if (OsStatus status = FindSmbiosTables(smbiosOptions, gMemory->pageTables(), &smbios)) {
-        KmDebugMessage("[INIT] Failed to find SMBIOS tables: ", status, "\n");
+        KmDebugMessage("[INIT] Failed to find SMBIOS tables: ", OsStatusId(status), "\n");
     }
 
     //
@@ -1625,7 +1630,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
         static constexpr size_t kSchedulerMemorySize = 0x10000;
         MappingAllocation allocation;
         if (OsStatus status = gMemory->map(kSchedulerMemorySize, PageFlags::eData, MemoryType::eWriteBack, &allocation)) {
-            KmDebugMessage("[INIT] Failed to allocate scheduler memory: ", status, "\n");
+            KmDebugMessage("[INIT] Failed to allocate scheduler memory: ", OsStatusId(status), "\n");
             KM_PANIC("Failed to allocate scheduler memory.");
         }
 
@@ -1653,7 +1658,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     km::HighPrecisionTimer hpet;
     if (OsStatus status = km::InitHpet(rsdt, gMemory->pageTables(), &hpet)) {
-        KmDebugMessage("[INIT] Failed to initialize HPET: ", status, "\n");
+        KmDebugMessage("[INIT] Failed to initialize HPET: ", OsStatusId(status), "\n");
     } else {
         hpet.enable(true);
         tickSources.add(&hpet);
@@ -1693,7 +1698,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     InvariantTsc tsc;
 
     if (OsStatus status = km::TrainApicTimer(lapic.pointer(), tickSources.back(), &apicTimer)) {
-        KmDebugMessage("[INIT] Failed to train APIC timer: ", status, "\n");
+        KmDebugMessage("[INIT] Failed to train APIC timer: ", OsStatusId(status), "\n");
     } else {
         KmDebugMessage("[INIT] APIC timer frequency: ", apicTimer.refclk(), "\n");
         tickSources.add(&apicTimer);
@@ -1701,7 +1706,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     if (processor.invariantTsc) {
         if (OsStatus status = km::TrainInvariantTsc(tickSource, &tsc)) {
-            KmDebugMessage("[INIT] Failed to train invariant TSC: ", status, "\n");
+            KmDebugMessage("[INIT] Failed to train invariant TSC: ", OsStatusId(status), "\n");
         } else {
             KmDebugMessage("[INIT] Invariant TSC frequency: ", tsc.frequency(), "\n");
             tickSources.add(&tsc);
