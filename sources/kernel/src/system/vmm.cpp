@@ -1,7 +1,6 @@
 #include "system/vmm.hpp"
 #include "system/pmm.hpp"
 
-#include "common/compiler/compiler.hpp"
 #include "common/util/defer.hpp"
 
 OsStatus sys2::AddressSpaceManager::map(MemoryManager *manager, size_t size, size_t align, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping) [[clang::allocating]] {

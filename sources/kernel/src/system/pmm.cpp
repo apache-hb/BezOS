@@ -1,10 +1,6 @@
 #include "system/pmm.hpp"
 
-#include "log.hpp"
 #include "memory/heap_command_list.hpp"
-
-#include "common/compiler/compiler.hpp"
-#include "common/util/defer.hpp"
 
 OsStatus sys2::MemoryManager::retainRange(Iterator it, km::MemoryRange range, km::MemoryRange *remaining) {
     auto& segment = it->second;
