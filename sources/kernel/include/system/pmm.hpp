@@ -4,7 +4,9 @@
 #include "memory/heap.hpp"
 #include "memory/memory.hpp"
 #include "memory/range.hpp"
+#include "std/spinlock.hpp"
 #include "system/detail/range_table.hpp"
+#include "common/compiler/compiler.hpp"
 
 #include <atomic>
 
@@ -41,10 +43,15 @@ namespace sys2 {
         { }
 
         MemorySegmentStats stats() const noexcept [[clang::nonallocating]] {
+            CLANG_DIAGNOSTIC_PUSH();
+            CLANG_DIAGNOSTIC_IGNORE("-Wfunction-effects");
+
             return MemorySegmentStats {
                 .range = allocation.range(),
                 .owners = owners.load(std::memory_order_relaxed),
             };
+
+            CLANG_DIAGNOSTIC_POP();
         }
 
         km::MemoryRange range() const noexcept [[clang::nonallocating]] {
@@ -67,10 +74,12 @@ namespace sys2 {
         using Map = typename Table::Map;
         using Iterator = typename Map::iterator;
 
-        Table mTable;
-        km::TlsfHeap mHeap;
+        stdx::SpinLock mLock;
 
-        Map& segments() noexcept {
+        Table mTable GUARDED_BY(mLock);
+        km::TlsfHeap mHeap GUARDED_BY(mLock);
+
+        Map& segments() noexcept REQUIRES(mLock) {
             return mTable.segments();
         }
 
@@ -84,28 +93,46 @@ namespace sys2 {
         };
 
         [[nodiscard]]
-        OsStatus splitSegment(Iterator it, km::PhysicalAddress midpoint, ReleaseSide side);
+        OsStatus splitSegment(Iterator it, km::PhysicalAddress midpoint, ReleaseSide side) REQUIRES(mLock);
 
         [[nodiscard]]
-        OsStatus retainSegment(Iterator it, km::PhysicalAddress midpoint, ReleaseSide side);
+        OsStatus retainSegment(Iterator it, km::PhysicalAddress midpoint, ReleaseSide side) REQUIRES(mLock);
 
-        void retainEntry(Iterator it);
-        void retainEntry(km::PhysicalAddress address);
+        void retainEntry(Iterator it) REQUIRES(mLock);
+        void retainEntry(km::PhysicalAddress address) REQUIRES(mLock);
 
-        bool releaseEntry(km::PhysicalAddress address);
-        bool releaseEntry(Iterator it);
-        bool releaseSegment(sys2::MemorySegment& segment);
+        bool releaseEntry(km::PhysicalAddress address) REQUIRES(mLock);
+        bool releaseEntry(Iterator it) REQUIRES(mLock);
+        bool releaseSegment(sys2::MemorySegment& segment) REQUIRES(mLock);
 
-        void addSegment(MemorySegment&& segment);
-
-        [[nodiscard]]
-        OsStatus releaseRange(Iterator it, km::MemoryRange range, km::MemoryRange *remaining);
+        void addSegment(MemorySegment&& segment) REQUIRES(mLock);
 
         [[nodiscard]]
-        OsStatus retainRange(Iterator it, km::MemoryRange range, km::MemoryRange *remaining);
+        OsStatus releaseRange(Iterator it, km::MemoryRange range, km::MemoryRange *remaining) REQUIRES(mLock);
+
+        [[nodiscard]]
+        OsStatus retainRange(Iterator it, km::MemoryRange range, km::MemoryRange *remaining) REQUIRES(mLock);
 
     public:
-        MemoryManager() = default;
+        UTIL_NOCOPY(MemoryManager);
+
+        constexpr MemoryManager(MemoryManager&& other) noexcept
+            : mTable(std::move(other.mTable))
+            , mHeap(std::move(other.mHeap))
+        { }
+
+        constexpr MemoryManager& operator=(MemoryManager&& other) noexcept {
+            CLANG_DIAGNOSTIC_PUSH();
+            CLANG_DIAGNOSTIC_IGNORE("-Wthread-safety");
+
+            mTable = std::move(other.mTable);
+            mHeap = std::move(other.mHeap);
+            return *this;
+
+            CLANG_DIAGNOSTIC_POP();
+        }
+
+        constexpr MemoryManager() noexcept = default;
 
         [[nodiscard]]
         OsStatus retain(km::MemoryRange range) [[clang::allocating]];
@@ -129,6 +156,7 @@ namespace sys2 {
         OsStatus querySegment(km::PhysicalAddress address, MemorySegmentStats *stats) noexcept [[clang::nonallocating]];
 
         void validate() {
+            stdx::LockGuard guard(mLock);
             bool ok = true;
             for (const auto& [address, segment] : segments()) {
                 if (address != segment.range().back) {
@@ -152,6 +180,7 @@ namespace sys2 {
         }
 
         void dump() {
+            stdx::LockGuard guard(mLock);
             for (const auto& [_, segment] : segments()) {
                 KmDebugMessage("Segment: ", segment.range(), " (owners: ", segment.owners.load(), ")\n");
             }

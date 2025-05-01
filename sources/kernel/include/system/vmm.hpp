@@ -9,6 +9,8 @@
 
 #include "util/absl.hpp"
 
+#include "common/compiler/compiler.hpp"
+
 namespace sys2 {
     class MemoryManager;
 
@@ -50,10 +52,12 @@ namespace sys2 {
         using Map = sm::BTreeMap<const void *, AddressSegment>;
         using Iterator = typename Map::iterator;
 
-        Map mSegments;
+        stdx::SpinLock mLock;
+
+        Map mSegments GUARDED_BY(mLock);
         km::AddressMapping mPteMemory;
-        km::PageTables mPageTables;
-        km::TlsfHeap mHeap;
+        km::PageTables mPageTables GUARDED_BY(mLock);
+        km::TlsfHeap mHeap GUARDED_BY(mLock);
 
         AddressSpaceManager(const km::PageBuilder *pm, km::AddressMapping pteMemory, km::PageFlags flags, km::TlsfHeap &&heap) noexcept
             : mPteMemory(pteMemory)
@@ -66,14 +70,14 @@ namespace sys2 {
             kHigh,
         };
 
-        void deleteSegment(MemoryManager *manager, AddressSegment&& segment) noexcept [[clang::allocating]];
+        void deleteSegment(MemoryManager *manager, AddressSegment&& segment) noexcept [[clang::allocating]] REQUIRES(mLock);
 
-        Iterator eraseSegment(MemoryManager *manager, Iterator it) noexcept [[clang::allocating]];
-        void eraseSegment(MemoryManager *manager, km::VirtualRange segment) noexcept [[clang::allocating]];
-        void eraseMany(MemoryManager *manager, km::VirtualRange range) noexcept [[clang::allocating]];
+        Iterator eraseSegment(MemoryManager *manager, Iterator it) noexcept [[clang::allocating]] REQUIRES(mLock);
+        void eraseSegment(MemoryManager *manager, km::VirtualRange segment) noexcept [[clang::allocating]] REQUIRES(mLock);
+        void eraseMany(MemoryManager *manager, km::VirtualRange range) noexcept [[clang::allocating]] REQUIRES(mLock);
 
-        void addSegment(AddressSegment &&segment) noexcept [[clang::allocating]];
-        void addNoAccessSegment(km::TlsfAllocation allocation) noexcept [[clang::allocating]];
+        void addSegment(AddressSegment &&segment) noexcept [[clang::allocating]] REQUIRES(mLock);
+        void addNoAccessSegment(km::TlsfAllocation allocation) noexcept [[clang::allocating]] REQUIRES(mLock);
 
         /// @param manager The memory manager to use.
         /// @param it The iterator to the segment to map.
@@ -89,13 +93,32 @@ namespace sys2 {
             km::PageFlags flags,
             km::MemoryType type,
             km::TlsfAllocation allocation
-        ) [[clang::allocating]];
+        ) [[clang::allocating]] REQUIRES(mLock);
 
-        OsStatus splitSegment(MemoryManager *manager, Iterator it, const void *midpoint, ReleaseSide side) [[clang::allocating]];
-        OsStatus unmapSegment(MemoryManager *manager, Iterator it, km::VirtualRange range, km::VirtualRange *remaining) [[clang::allocating]];
+        OsStatus splitSegment(MemoryManager *manager, Iterator it, const void *midpoint, ReleaseSide side) [[clang::allocating]] REQUIRES(mLock);
+        OsStatus unmapSegment(MemoryManager *manager, Iterator it, km::VirtualRange range, km::VirtualRange *remaining) [[clang::allocating]] REQUIRES(mLock);
     public:
-        UTIL_DEFAULT_MOVE(AddressSpaceManager);
         UTIL_NOCOPY(AddressSpaceManager);
+
+        constexpr AddressSpaceManager(AddressSpaceManager&& other) noexcept
+            : mSegments(std::move(other.mSegments))
+            , mPteMemory(std::move(other.mPteMemory))
+            , mPageTables(std::move(other.mPageTables))
+            , mHeap(std::move(other.mHeap))
+        { }
+
+        constexpr AddressSpaceManager& operator=(AddressSpaceManager&& other) noexcept {
+            CLANG_DIAGNOSTIC_PUSH();
+            CLANG_DIAGNOSTIC_IGNORE("-Wthread-safety");
+
+            mSegments = std::move(other.mSegments);
+            mPteMemory = std::move(other.mPteMemory);
+            mPageTables = std::move(other.mPageTables);
+            mHeap = std::move(other.mHeap);
+            return *this;
+
+            CLANG_DIAGNOSTIC_POP();
+        }
 
         constexpr AddressSpaceManager() noexcept = default;
 
@@ -119,6 +142,7 @@ namespace sys2 {
         static OsStatus create(const km::PageBuilder *pm, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager) [[clang::allocating]];
 
         void dump() noexcept {
+            stdx::LockGuard guard(mLock);
             for (const auto& [_, segment] : mSegments) {
                 KmDebugMessage("Segment: ", segment.range, " ", segment.virtualRange(), "\n");
             }

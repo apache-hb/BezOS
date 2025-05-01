@@ -5,6 +5,8 @@
 #include "common/util/defer.hpp"
 
 OsStatus sys2::AddressSpaceManager::map(MemoryManager *manager, size_t size, size_t align, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping) [[clang::allocating]] {
+    stdx::LockGuard guard(mLock);
+
     km::TlsfAllocation allocation = mHeap.aligned_alloc(align, size);
     if (allocation.isNull()) {
         return OsStatusOutOfMemory;
@@ -104,6 +106,9 @@ OsStatus sys2::AddressSpaceManager::mapSegment(
 }
 
 OsStatus sys2::AddressSpaceManager::map(MemoryManager *manager, AddressSpaceManager *other, km::VirtualRange range, km::PageFlags flags, km::MemoryType type, km::VirtualRange *mapping) [[clang::allocating]] {
+    stdx::LockGuard guard(mLock);
+    stdx::LockGuard guard2(other->mLock); // TODO: this can deadlock
+
     Iterator begin = other->mSegments.lower_bound(range.front);
     Iterator end = other->mSegments.lower_bound(range.back);
 
@@ -341,7 +346,12 @@ void sys2::AddressSpaceManager::eraseMany(MemoryManager *manager, km::VirtualRan
 OsStatus sys2::AddressSpaceManager::unmap(MemoryManager *manager, km::VirtualRange range) [[clang::allocating]] {
     KM_ASSERT(range.isValid());
 
+    stdx::LockGuard guard(mLock);
+
     defer {
+        CLANG_DIAGNOSTIC_PUSH();
+        CLANG_DIAGNOSTIC_IGNORE("-Wthread-safety-analysis"); // The lock is held, but the compiler doesn't know it
+
         auto upper = mSegments.upper_bound(range.front);
         if (upper != mSegments.end()) {
             auto inner = upper->second.virtualRange();
@@ -351,6 +361,8 @@ OsStatus sys2::AddressSpaceManager::unmap(MemoryManager *manager, km::VirtualRan
                 KM_PANIC("internal error");
             }
         }
+
+        CLANG_DIAGNOSTIC_POP();
     };
 
     Iterator begin = mSegments.lower_bound(range.front);
@@ -547,6 +559,8 @@ OsStatus sys2::AddressSpaceManager::querySegment(const void *address, AddressSeg
     CLANG_DIAGNOSTIC_PUSH();
     CLANG_DIAGNOSTIC_IGNORE("-Wfunction-effects");
 
+    stdx::LockGuard guard(mLock);
+
     auto it = mSegments.upper_bound(address);
     if (it == mSegments.end()) {
         return OsStatusNotFound;
@@ -566,6 +580,8 @@ OsStatus sys2::AddressSpaceManager::querySegment(const void *address, AddressSeg
 sys2::AddressSpaceManagerStats sys2::AddressSpaceManager::stats() noexcept [[clang::nonallocating]] {
     CLANG_DIAGNOSTIC_PUSH();
     CLANG_DIAGNOSTIC_IGNORE("-Wfunction-effects");
+
+    stdx::LockGuard guard(mLock);
 
     return sys2::AddressSpaceManagerStats {
         .heapStats = mHeap.stats(),
@@ -587,6 +603,7 @@ OsStatus sys2::AddressSpaceManager::create(const km::PageBuilder *pm, km::Addres
 }
 
 void sys2::AddressSpaceManager::destroy(MemoryManager *manager) [[clang::allocating]] {
+    stdx::LockGuard guard(mLock);
     auto it = mSegments.begin();
     while (it != mSegments.end()) {
         it = eraseSegment(manager, it);

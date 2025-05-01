@@ -192,15 +192,22 @@ OsStatus sys2::MemoryManager::releaseRange(Iterator it, km::MemoryRange range, k
 }
 
 OsStatus sys2::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]] {
+    stdx::LockGuard guard(mLock);
+
     auto [begin, end] = mTable.find(range);
 
     auto updateIterators = [&](km::MemoryRange newRange) {
+        CLANG_DIAGNOSTIC_PUSH();
+        CLANG_DIAGNOSTIC_IGNORE("-Wthread-safety");
+
         begin = segments().lower_bound(newRange.front);
         end = segments().lower_bound(newRange.back);
 
         if (end != segments().end()) {
             ++end;
         }
+
+        CLANG_DIAGNOSTIC_POP();
     };
 
     if (begin == mTable.end()) {
@@ -382,15 +389,22 @@ OsStatus sys2::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]
 OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating]] {
     KM_ASSERT(range.isValid());
 
+    stdx::LockGuard guard(mLock);
+
     auto [begin, end] = mTable.find(range);
 
     auto updateIterators = [&](km::MemoryRange newRange) {
+        CLANG_DIAGNOSTIC_PUSH();
+        CLANG_DIAGNOSTIC_IGNORE("-Wthread-safety");
+
         begin = segments().lower_bound(newRange.front);
         end = segments().lower_bound(newRange.back);
 
         if (end != segments().end()) {
             ++end;
         }
+
+        CLANG_DIAGNOSTIC_POP();
     };
 
     if (begin == mTable.end()) {
@@ -586,6 +600,8 @@ OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating
 }
 
 OsStatus sys2::MemoryManager::allocate(size_t size, size_t align, km::MemoryRange *range) [[clang::allocating]] {
+    stdx::LockGuard guard(mLock);
+
     km::TlsfAllocation allocation = mHeap.aligned_alloc(align, size);
     if (allocation.isNull()) {
         return OsStatusOutOfMemory;
@@ -617,6 +633,7 @@ OsStatus sys2::MemoryManager::create(km::TlsfHeap&& heap, MemoryManager *manager
 
 sys2::MemoryManagerStats sys2::MemoryManager::stats() noexcept [[clang::nonallocating]] {
     DIAGNOSTIC_BEGIN_IGNORE("-Wfunction-effects");
+    stdx::LockGuard guard(mLock);
 
     return MemoryManagerStats {
         .heapStats = mHeap.stats(),
@@ -628,6 +645,7 @@ sys2::MemoryManagerStats sys2::MemoryManager::stats() noexcept [[clang::nonalloc
 
 OsStatus sys2::MemoryManager::querySegment(km::PhysicalAddress address, MemorySegmentStats *stats) noexcept [[clang::nonallocating]] {
     DIAGNOSTIC_BEGIN_IGNORE("-Wfunction-effects");
+    stdx::LockGuard guard(mLock);
 
     auto it = segments().upper_bound(address);
     if (it == segments().end()) {
