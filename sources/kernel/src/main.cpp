@@ -828,9 +828,11 @@ SystemMemory *km::GetSystemMemory() {
 }
 
 AddressSpace& km::GetProcessPageManager() {
+#if 0
     if (auto process = sys2::GetCurrentProcess()) {
         return process->addressSpace();
     }
+#endif
 
     KM_PANIC("Process page manager not available.");
 }

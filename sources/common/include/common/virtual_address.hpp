@@ -1,6 +1,7 @@
 #pragma once
 
-#include <compare> // IWYU pragma: keep - std::strong_ordering
+#include "common/address.hpp"
+
 #include <bit>
 #include <memory> // IWYU pragma: keep - std::hash<>
 
@@ -8,21 +9,17 @@
 #include <cstdint>
 
 namespace sm {
-    struct VirtualAddress {
-        uintptr_t address;
+    namespace detail {
+        struct VirtualAddressSpace {
+            using Storage = uintptr_t;
+        };
+    }
 
-        constexpr VirtualAddress() noexcept [[clang::nonblocking]] = default;
-
-        constexpr VirtualAddress(uintptr_t address) noexcept [[clang::nonblocking]]
-            : address(address)
-        { }
-
-        constexpr VirtualAddress(std::nullptr_t) noexcept [[clang::nonblocking]]
-            : address(0)
-        { }
+    struct VirtualAddress : public sm::Address<detail::VirtualAddressSpace> {
+        using Address::Address;
 
         VirtualAddress(const void *pointer) noexcept [[clang::nonblocking]]
-            : address(std::bit_cast<uintptr_t>(pointer))
+            : Address(std::bit_cast<uintptr_t>(pointer))
         { }
 
         operator const void*() const noexcept [[clang::nonblocking]] {
@@ -31,64 +28,6 @@ namespace sm {
 
         operator void*() noexcept [[clang::nonblocking]] {
             return std::bit_cast<void*>(address);
-        }
-
-        constexpr bool isNull() const noexcept [[clang::nonblocking]] {
-            return address == 0;
-        }
-
-        constexpr auto operator<=>(const VirtualAddress&) const noexcept [[clang::nonblocking]] = default;
-
-        constexpr VirtualAddress& operator+=(intptr_t offset) noexcept [[clang::nonblocking]] {
-            address += offset;
-            return *this;
-        }
-
-        constexpr VirtualAddress& operator-=(intptr_t offset) noexcept [[clang::nonblocking]] {
-            address -= offset;
-            return *this;
-        }
-
-        constexpr VirtualAddress operator+(intptr_t offset) const noexcept [[clang::nonblocking]] {
-            return VirtualAddress { address + offset };
-        }
-
-        constexpr VirtualAddress operator+(VirtualAddress offset) const noexcept [[clang::nonblocking]] {
-            return VirtualAddress { address + offset.address };
-        }
-
-        constexpr VirtualAddress operator-(intptr_t offset) const noexcept [[clang::nonblocking]] {
-            return VirtualAddress { address - offset };
-        }
-
-        constexpr VirtualAddress operator-(VirtualAddress offset) const noexcept [[clang::nonblocking]] {
-            return VirtualAddress { address - offset.address };
-        }
-
-        constexpr uintptr_t operator%(uintptr_t offset) const noexcept [[clang::nonblocking]] {
-            return address % offset;
-        }
-
-        constexpr VirtualAddress& operator--() noexcept [[clang::nonblocking]] {
-            address -= 1;
-            return *this;
-        }
-
-        constexpr VirtualAddress operator--(int) noexcept [[clang::nonblocking]] {
-            VirtualAddress copy = *this;
-            --(*this);
-            return copy;
-        }
-
-        constexpr VirtualAddress& operator++() noexcept [[clang::nonblocking]] {
-            address += 1;
-            return *this;
-        }
-
-        constexpr VirtualAddress operator++(int) noexcept [[clang::nonblocking]] {
-            VirtualAddress copy = *this;
-            ++(*this);
-            return copy;
         }
     };
 

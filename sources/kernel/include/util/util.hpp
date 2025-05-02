@@ -15,11 +15,13 @@ namespace sm {
 
     template<std::integral T>
     constexpr T roundup(T value, T multiple) {
+        [[assume(multiple > 0)]];
         return (value + multiple - 1) / multiple * multiple;
     }
 
     template<std::integral T>
     constexpr T rounddown(T value, T multiple) {
+        [[assume(multiple > 0)]];
         return value / multiple * multiple;
     }
 
@@ -29,6 +31,7 @@ namespace sm {
 
     template<std::integral T>
     constexpr T nextPowerOf2(T value) {
+        [[assume(value > 0 && (value & (value - 1)) == 0)]];
         value--;
         for (size_t i = 1; i < sizeof(T) * 8; i *= 2) {
             value |= value >> i;
@@ -38,6 +41,7 @@ namespace sm {
 
     template<typename T>
     constexpr T nextMultiple(T value, T multiple) {
+        [[assume(multiple > 0)]];
         if (value % multiple == 0) return value + multiple;
         return (value + multiple - 1) / multiple * multiple;
     }

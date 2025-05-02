@@ -41,10 +41,9 @@ namespace km {
     static_assert(sizeof(SystemCallRegisterSet) == 112, "Update user.S to reflect changes in SystemCallRegisterSet");
 
     class CallContext {
-    public:
         /// @brief Get the address space allocator for the calling process.
         PageTables& ptes();
-
+    public:
         bool isMapped(uint64_t front, uint64_t back, PageFlags flags);
 
         /// @brief Read user memory.

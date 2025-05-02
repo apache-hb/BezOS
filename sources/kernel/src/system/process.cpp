@@ -35,16 +35,14 @@ sys2::Process::Process(
     OsProcessStateFlags state,
     sm::RcuWeakPtr<Process> parent,
     OsProcessId pid,
-    km::AddressSpace&& ptes,
-    km::AddressMapping pteMemory
+    AddressSpaceManager&& addressSpace
 )
     : Super(name)
     , mId(ProcessId(pid))
     , mState(state)
     , mExitCode(0)
     , mParent(parent)
-    , mPteMemory(pteMemory)
-    , mPageTables(std::move(ptes))
+    , mAddressSpace(std::move(addressSpace))
 { }
 
 OsStatus sys2::Process::stat(ProcessStat *info) {
@@ -175,8 +173,7 @@ void sys2::Process::addThread(sm::RcuSharedPtr<Thread> thread) {
 }
 
 void sys2::Process::loadPageTables() {
-    auto pm = mPageTables.pageManager();
-    pm->setActiveMap(mPageTables.root());
+    sys2::AddressSpaceManager::setActiveMap(&mAddressSpace);
 }
 
 OsStatus sys2::Process::createProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle) {
@@ -185,13 +182,13 @@ OsStatus sys2::Process::createProcess(System *system, ProcessCreateInfo info, Pr
         return status;
     }
 
-    km::AddressSpace ptes;
-    if (OsStatus status = km::AddressSpace::create(system->mSystemTables, pteMemory, km::PageFlags::eUserAll, km::DefaultUserArea().cast<sm::VirtualAddress>(), &ptes)) {
+    sys2::AddressSpaceManager addressSpace;
+    if (OsStatus status = sys2::AddressSpaceManager::create(system->mSystemTables, pteMemory, km::PageFlags::eUserAll, km::DefaultUserArea(), &addressSpace)) {
         system->releaseMapping(pteMemory);
         return status;
     }
 
-    if (auto process = sm::rcuMakeShared<sys2::Process>(&system->rcuDomain(), info.name, info.state, loanWeak(), system->nextProcessId(), std::move(ptes), pteMemory)) {
+    if (auto process = sm::rcuMakeShared<sys2::Process>(&system->rcuDomain(), info.name, info.state, loanWeak(), system->nextProcessId(), std::move(addressSpace))) {
         ProcessHandle *result = new (std::nothrow) ProcessHandle(process, newHandleId(eOsHandleProcess), ProcessAccess::eAll);
         if (!result) {
             system->releaseMapping(pteMemory);
@@ -231,16 +228,11 @@ OsStatus sys2::Process::destroy(System *system, const ProcessDestroyInfo& info) 
     }
 
     mChildren.clear();
-
-    for (km::MemoryRange range : mPhysicalMemory) {
-        system->releaseMemory(range);
-    }
-
-    mPhysicalMemory.clear();
+    mAddressSpace.destroy(&system->mMemoryManager);
 
     mHandles.clear();
 
-    if (OsStatus status = system->releaseMapping(mPteMemory)) {
+    if (OsStatus status = system->releaseMapping(mAddressSpace.getPteMemory())) {
         return status;
     }
 
@@ -250,6 +242,22 @@ OsStatus sys2::Process::destroy(System *system, const ProcessDestroyInfo& info) 
 }
 
 OsStatus sys2::Process::vmemCreate(System *system, OsVmemCreateInfo info, km::AddressMapping *mapping) {
+    km::MemoryRange memory;
+
+    if (OsStatus status = system->mMemoryManager.allocate(info.Size, info.Alignment, &memory)) {
+        return status;
+    }
+
+    km::AddressMapping result;
+    if (OsStatus status = mAddressSpace.map(&system->mMemoryManager, info.Size, info.Alignment, km::PageFlags::eUserAll, km::MemoryType::eWriteBack, &result)) {
+        OsStatus inner = system->mMemoryManager.release(memory);
+        KM_ASSERT(inner == OsStatusSuccess);
+        return status;
+    }
+
+    *mapping = result;
+    return OsStatusSuccess;
+#if 0
     // The size must be a multiple of the smallest page size and must not be 0.
     if ((info.Size == 0) || (info.Size % x64::kPageSize != 0)) {
         return OsStatusInvalidInput;
@@ -358,9 +366,28 @@ OsStatus sys2::Process::vmemCreate(System *system, OsVmemCreateInfo info, km::Ad
     mPhysicalMemory.add(range);
 
     return OsStatusSuccess;
+#endif
 }
 
 OsStatus sys2::Process::vmemMapFile(System *system, OsVmemMapInfo info, vfs2::IFileHandle *fileHandle, km::VirtualRange *result) {
+    km::MemoryRange memory;
+
+    if (OsStatus status = MapFileToMemory(fileHandle, &system->mMemoryManager, system->mSystemTables, info.SrcAddress, info.Size, km::PageFlags::eUserAll, &memory)) {
+        return status;
+    }
+
+    km::AddressMapping mapping;
+
+    if (OsStatus status = mAddressSpace.map(&system->mMemoryManager, memory.size(), x64::kPageSize, km::PageFlags::eUserAll, km::MemoryType::eWriteBack, &mapping)) {
+        OsStatus inner = system->mMemoryManager.release(memory);
+        KM_ASSERT(inner == OsStatusSuccess);
+        return status;
+    }
+
+    *result = mapping.virtualRange();
+    return OsStatusSuccess;
+
+#if 0
     sm::RcuSharedPtr<sys2::FileMapping> fileMapping;
     if (OsStatus status = sys2::MapFileToMemory(&system->rcuDomain(), fileHandle, system->mPageAllocator, system->mSystemTables, info.SrcAddress, info.SrcAddress + info.Size, &fileMapping)) {
         return status;
@@ -407,49 +434,17 @@ OsStatus sys2::Process::vmemMapFile(System *system, OsVmemMapInfo info, vfs2::IF
 
     *result = mapping.virtualRange();
     return OsStatusSuccess;
+#endif
 }
 
-OsStatus sys2::Process::vmemMapProcess(OsVmemMapInfo info, sm::RcuSharedPtr<Process> process, km::VirtualRange *mapping) {
+OsStatus sys2::Process::vmemMapProcess(System *system, OsVmemMapInfo info, sm::RcuSharedPtr<Process> process, km::VirtualRange *mapping) {
     if (info.Size % x64::kPageSize != 0) {
         return OsStatusInvalidInput;
     }
 
-    // TODO: can leak on error path
-    if (info.DstAddress == 0) {
-        km::VirtualRange range;
-        if (OsStatus status = mPageTables.reserve(info.Size, &range)) {
-            return status;
-        }
+    km::VirtualRange vm = km::VirtualRange::of((void*)info.SrcAddress, info.Size);
 
-        info.DstAddress = (uintptr_t)range.front;
-    }
-
-    auto vm = km::VirtualRange::of((void*)info.DstAddress, info.Size);
-    mPageTables.reserve(vm);
-
-    for (size_t i = 0; i < info.Size / x64::kPageSize; i++) {
-        auto srcAddress = (void*)(info.SrcAddress + i * x64::kPageSize);
-        auto dstAddress = (void*)(info.DstAddress + i * x64::kPageSize);
-
-        sm::RcuSharedPtr<IMemoryObject> object;
-        if (OsStatus status = process->resolveAddress(srcAddress, &object)) {
-            return status;
-        }
-
-        auto backing = process->mPageTables.getBackingAddress(srcAddress);
-        km::AddressMapping mapping {
-            .vaddr = (void*)dstAddress,
-            .paddr = backing,
-            .size = x64::kPageSize,
-        };
-
-        if (OsStatus status = mPageTables.reserve(mapping, km::PageFlags::eUserAll, km::MemoryType::eWriteBack)) {
-            return status;
-        }
-    }
-
-    *mapping = vm;
-    return OsStatusSuccess;
+    return mAddressSpace.map(&system->mMemoryManager, &process->mAddressSpace, vm, km::PageFlags::eUserAll, km::MemoryType::eWriteBack, mapping);
 }
 
 OsStatus sys2::Process::vmemRelease(System *, km::VirtualRange) {
@@ -460,19 +455,19 @@ static OsStatus CreateProcessInner(sys2::System *system, sys2::ObjectName name, 
     sm::RcuSharedPtr<sys2::Process> process;
     sys2::ProcessHandle *result = nullptr;
     km::AddressMapping pteMemory;
-    km::AddressSpace ptes;
+    sys2::AddressSpaceManager mm;
 
     if (OsStatus status = system->mapProcessPageTables(&pteMemory)) {
         return status;
     }
 
-    if (OsStatus status = km::AddressSpace::create(system->mSystemTables, pteMemory, km::PageFlags::eUserAll, km::DefaultUserArea().cast<sm::VirtualAddress>(), &ptes)) {
+    if (OsStatus status = sys2::AddressSpaceManager::create(system->mSystemTables, pteMemory, km::PageFlags::eUserAll, km::DefaultUserArea(), &mm)) {
         system->releaseMapping(pteMemory);
         return status;
     }
 
     // Create the process.
-    process = sm::rcuMakeShared<sys2::Process>(&system->rcuDomain(), name, state, parent, system->nextProcessId(), std::move(ptes), pteMemory);
+    process = sm::rcuMakeShared<sys2::Process>(&system->rcuDomain(), name, state, parent, system->nextProcessId(), std::move(mm));
     if (!process) {
         goto outOfMemory;
     }
@@ -756,7 +751,7 @@ OsStatus sys2::SysVmemMap(InvokeContext *context, OsVmemMapInfo info, void **out
         }
 
         km::VirtualRange vm;
-        if (OsStatus status = dstProcess->vmemMapProcess(info, srcProcess, &vm)) {
+        if (OsStatus status = dstProcess->vmemMapProcess(context->system, info, srcProcess, &vm)) {
             return status;
         }
 

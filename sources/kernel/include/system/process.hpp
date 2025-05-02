@@ -47,15 +47,9 @@ namespace sys2 {
 
         sm::BTreeMultiMap<sm::RcuDynamicPtr<Process>, std::unique_ptr<IHandle>> mProcessHandles;
 
-        /// @brief All the physical memory dedicated to this process.
-        stdx::Vector2<km::MemoryRange> mPhysicalMemory;
-
         sm::BTreeMap<const void*, sm::RcuSharedPtr<IMemoryObject>> mMemoryObjects;
 
-        km::AddressMapping mPteMemory;
-
-        /// @brief The page tables for this process.
-        km::AddressSpace mPageTables;
+        AddressSpaceManager mAddressSpace;
 
     public:
         using Access = ProcessAccess;
@@ -65,8 +59,7 @@ namespace sys2 {
             OsProcessStateFlags state,
             sm::RcuWeakPtr<Process> parent,
             OsProcessId pid,
-            km::AddressSpace&& ptes,
-            km::AddressMapping pteMemory
+            AddressSpaceManager&& addressSpace
         );
 
         stdx::StringView getClassName() const override { return "Process"; }
@@ -87,7 +80,6 @@ namespace sys2 {
         OsStatus resolveObject(sm::RcuSharedPtr<IObject> object, OsHandleAccess access, OsHandle *handle);
 
         OsStatus resolveAddress(const void *address, sm::RcuSharedPtr<IMemoryObject> *object);
-        km::AddressSpace& addressSpace() { return mPageTables; }
 
         template<typename T>
         OsStatus findHandle(OsHandle handle, T **result) {
@@ -115,7 +107,7 @@ namespace sys2 {
 
         OsStatus vmemCreate(System *system, OsVmemCreateInfo info, km::AddressMapping *mapping);
         OsStatus vmemMapFile(System *system, OsVmemMapInfo info, vfs2::IFileHandle *fileHandle, km::VirtualRange *result);
-        OsStatus vmemMapProcess(OsVmemMapInfo info, sm::RcuSharedPtr<Process> process, km::VirtualRange *result);
+        OsStatus vmemMapProcess(System *system, OsVmemMapInfo info, sm::RcuSharedPtr<Process> process, km::VirtualRange *result);
         OsStatus vmemMap(System *system, OsVmemMapInfo info, km::AddressMapping *mapping);
         OsStatus vmemRelease(System *system, km::VirtualRange range);
 

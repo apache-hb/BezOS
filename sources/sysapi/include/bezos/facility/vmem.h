@@ -22,6 +22,7 @@ enum {
 
     /// @brief Commit virtual address space
     /// Committed space is accessible and can be read or written.
+    /// @note Implies @c eOsMemoryReserved when invoking @c OsVmemCreate.
     eOsMemoryCommit   = (1 << 4),
 
     /// @brief Discard a range of memory.
@@ -51,7 +52,7 @@ struct OsVmemMapInfo {
     OsAddress SrcAddress;
 
     /// @brief The address in the destination process to map the memory at.
-    /// @brief Set to 0 to let the system choose the address.
+    /// @note Set to 0 to let the system choose the address.
     OsAddress DstAddress;
 
     /// @brief The amount of memory to map.

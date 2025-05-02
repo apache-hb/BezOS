@@ -11,6 +11,10 @@
 
 #include "common/compiler/compiler.hpp"
 
+namespace km {
+    class AddressSpace;
+}
+
 namespace sys2 {
     class MemoryManager;
 
@@ -138,8 +142,17 @@ namespace sys2 {
 
         void destroy(MemoryManager *manager) [[clang::allocating]];
 
+        km::AddressMapping getPteMemory() const noexcept [[clang::nonallocating]] {
+            return mPteMemory;
+        }
+
         [[nodiscard]]
         static OsStatus create(const km::PageBuilder *pm, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager) [[clang::allocating]];
+
+        [[nodiscard]]
+        static OsStatus create(const km::AddressSpace *pt, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager) [[clang::allocating]];
+
+        static void setActiveMap(const AddressSpaceManager *map) noexcept;
 
         void dump() noexcept {
             stdx::LockGuard guard(mLock);

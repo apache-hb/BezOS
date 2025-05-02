@@ -162,7 +162,10 @@ namespace km {
         }
 
         [[nodiscard]]
-        PageTables *tables(this auto&& self) { return &self.mTables; }
+        PageTables *tables() { return &mTables; }
+
+        [[nodiscard]]
+        const PageTables *tables() const { return &mTables; }
 
         [[nodiscard]]
         auto pageManager(this auto&& self) { return self.mTables.pageManager(); }

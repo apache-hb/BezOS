@@ -1,4 +1,6 @@
 #include "system/vmm.hpp"
+#include "memory/address_space.hpp"
+#include "memory/tables.hpp"
 #include "system/pmm.hpp"
 
 #include "common/util/defer.hpp"
@@ -599,6 +601,25 @@ OsStatus sys2::AddressSpaceManager::create(const km::PageBuilder *pm, km::Addres
 
     *manager = sys2::AddressSpaceManager(pm, pteMemory, flags, std::move(heap));
     return OsStatusSuccess;
+}
+
+OsStatus sys2::AddressSpaceManager::create(const km::AddressSpace *pt, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager) [[clang::allocating]] {
+    if (OsStatus status = AddressSpaceManager::create(pt->pageManager(), pteMemory, flags, vmem, manager)) {
+        return status;
+    }
+
+    km::copyHigherHalfMappings(&manager->mPageTables, pt->tables());
+    return OsStatusSuccess;
+}
+
+void sys2::AddressSpaceManager::setActiveMap(const AddressSpaceManager *map) noexcept {
+    CLANG_DIAGNOSTIC_PUSH();
+    CLANG_DIAGNOSTIC_IGNORE("-Wthread-safety");
+
+    const km::PageBuilder *pm = map->mPageTables.pageManager();
+    pm->setActiveMap(map->mPageTables.root());
+
+    CLANG_DIAGNOSTIC_POP();
 }
 
 void sys2::AddressSpaceManager::destroy(MemoryManager *manager) [[clang::allocating]] {
