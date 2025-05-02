@@ -26,7 +26,7 @@ namespace km {
         };
 
         template<std::unsigned_integral T>
-        static constexpr uint8_t BitScanLeading(T mask) {
+        constexpr uint8_t BitScanLeading(T mask) {
             if (mask == 0) {
                 return UINT8_MAX;
             }
@@ -35,7 +35,7 @@ namespace km {
         }
 
         template<std::unsigned_integral T>
-        static constexpr uint8_t BitScanTrailing(T mask) {
+        constexpr uint8_t BitScanTrailing(T mask) {
             if (mask == 0) {
                 return UINT8_MAX;
             }
@@ -43,7 +43,7 @@ namespace km {
             return std::countr_zero(mask);
         }
 
-        static constexpr uint8_t SizeToMemoryClass(size_t size) {
+        constexpr uint8_t SizeToMemoryClass(size_t size) {
             if (size > kSmallBufferSize) {
                 return BitScanLeading(size) - kMemoryClassShift;
             }
@@ -51,7 +51,7 @@ namespace km {
             return 0;
         }
 
-        static constexpr uint16_t SizeToSecondIndex(size_t size, uint8_t memoryClass) {
+        constexpr uint16_t SizeToSecondIndex(size_t size, uint8_t memoryClass) {
             [[assume(size > 0)]];
 
             if (memoryClass == 0) {
@@ -61,7 +61,7 @@ namespace km {
             }
         }
 
-        static constexpr size_t GetFreeListSize(uint8_t memoryClass, uint16_t secondIndex) {
+        constexpr size_t GetFreeListSize(uint8_t memoryClass, uint16_t secondIndex) {
             if (memoryClass == 0) {
                 return 0;
             }
@@ -69,7 +69,7 @@ namespace km {
             return (memoryClass - 1) * (1 << kSecondLevelIndex) + secondIndex + 1 + (1 << kSecondLevelIndex);
         }
 
-        static constexpr size_t GetListIndex(uint8_t memoryClass, uint16_t secondIndex) {
+        constexpr size_t GetListIndex(uint8_t memoryClass, uint16_t secondIndex) {
             if (memoryClass == 0) {
                 return secondIndex;
             }
@@ -78,7 +78,7 @@ namespace km {
             return index + (1 << kSecondLevelIndex);
         }
 
-        static constexpr size_t GetListIndex(size_t size) {
+        constexpr size_t GetListIndex(size_t size) {
             [[assume(size > 0)]];
 
             uint8_t memoryClass = SizeToMemoryClass(size);
@@ -86,7 +86,7 @@ namespace km {
             return GetListIndex(memoryClass, secondIndex);
         }
 
-        static constexpr size_t GetNextBlockSize(size_t size) {
+        constexpr size_t GetNextBlockSize(size_t size) {
             if (size > kSmallBufferSize) {
                 return 1zu << (BitScanLeading(size) - kSecondLevelIndex);
             } else if (size > (kSmallBufferSize - kSmallSizeStep)) {

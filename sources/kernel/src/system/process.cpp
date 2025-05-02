@@ -6,8 +6,7 @@
 #include "system/system.hpp"
 #include "system/device.hpp"
 #include "fs2/interface.hpp"
-#include "system/vm/file.hpp"
-#include "system/vm/memory.hpp"
+#include "system/sanitize.hpp"
 #include "memory/address_space.hpp"
 #include "system/pmm.hpp"
 #include "common/util/defer.hpp"
@@ -241,15 +240,15 @@ OsStatus sys::Process::destroy(System *system, const ProcessDestroyInfo& info) {
     return OsStatusSuccess;
 }
 
-OsStatus sys::Process::vmemCreate(System *system, OsVmemCreateInfo info, km::AddressMapping *mapping) {
+OsStatus sys::Process::vmemCreate(System *system, VmemCreateInfo info, km::AddressMapping *mapping) {
     km::MemoryRange memory;
 
-    if (OsStatus status = system->mMemoryManager.allocate(info.Size, info.Alignment, &memory)) {
+    if (OsStatus status = system->mMemoryManager.allocate(info.size, info.alignment, &memory)) {
         return status;
     }
 
     km::AddressMapping result;
-    if (OsStatus status = mAddressSpace.map(&system->mMemoryManager, info.Size, info.Alignment, km::PageFlags::eUserAll, km::MemoryType::eWriteBack, &result)) {
+    if (OsStatus status = mAddressSpace.map(&system->mMemoryManager, info.size, info.alignment, info.flags, km::MemoryType::eWriteBack, &result)) {
         OsStatus inner = system->mMemoryManager.release(memory);
         KM_ASSERT(inner == OsStatusSuccess);
         return status;
@@ -688,8 +687,13 @@ OsStatus sys::SysVmemCreate(InvokeContext *context, OsVmemCreateInfo info, void 
         process = context->process;
     }
 
+    sys::VmemCreateInfo vmemInfo;
+    if (OsStatus status = sys::Sanitize<VmemCreateInfo>::sanitize(&info, &vmemInfo)) {
+        return status;
+    }
+
     km::AddressMapping mapping;
-    if (OsStatus status = process->vmemCreate(context->system, info, &mapping)) {
+    if (OsStatus status = process->vmemCreate(context->system, vmemInfo, &mapping)) {
         return status;
     }
 

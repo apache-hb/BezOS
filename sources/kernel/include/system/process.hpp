@@ -10,6 +10,7 @@
 
 #include "system/base.hpp"
 #include "system/handle.hpp"
+#include "system/sanitize.hpp"
 #include "system/thread.hpp"
 #include "system/transaction.hpp"
 #include "system/create.hpp"
@@ -105,7 +106,7 @@ namespace sys {
 
         OsStatus createTx(System *system, TxCreateInfo info, TxHandle **handle);
 
-        OsStatus vmemCreate(System *system, OsVmemCreateInfo info, km::AddressMapping *mapping);
+        OsStatus vmemCreate(System *system, VmemCreateInfo info, km::AddressMapping *mapping);
         OsStatus vmemMapFile(System *system, OsVmemMapInfo info, vfs2::IFileHandle *fileHandle, km::VirtualRange *result);
         OsStatus vmemMapProcess(System *system, OsVmemMapInfo info, sm::RcuSharedPtr<Process> process, km::VirtualRange *result);
         OsStatus vmemMap(System *system, OsVmemMapInfo info, km::AddressMapping *mapping);

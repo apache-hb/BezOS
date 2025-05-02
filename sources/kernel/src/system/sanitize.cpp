@@ -68,4 +68,27 @@ OsStatus sys::Sanitize<sys::VmemCreateInfo>::sanitize(const OsVmemCreateInfo *in
     if (access != 0) {
         return OsStatusInvalidInput;
     }
+
+    *result = VmemCreateInfo {
+        .size = size,
+        .alignment = align,
+        .baseAddress = base,
+        .flags = flags,
+        .zeroMemory = zeroMemory,
+        .commit = commit,
+        .reserve = reserve,
+        .addressIsHint = addressIsHint,
+    };
+    return OsStatusSuccess;
+}
+
+OsStatus sys::Sanitize<sys::VmemMapInfo>::sanitize(const ApiObject *info [[gnu::nonnull]], KernelObject *result [[gnu::nonnull]]) noexcept {
+    size_t size = info->Size;
+    sm::VirtualAddress base = info->DstAddress;
+    sm::VirtualAddress src = info->SrcAddress;
+    OsMemoryAccess access = info->Access;
+    OsHandle srcHandle = info->Source;
+    OsHandle dstHandle = info->Process;
+
+
 }
