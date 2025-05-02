@@ -14,8 +14,8 @@ static OsCallResult NewThreadCreate(km::System *system, km::CallContext *context
         return km::CallError(status);
     }
 
-    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
-    if (OsStatus status = sys2::SysThreadCreate(&invoke, createInfo, &thread)) {
+    sys::InvokeContext invoke { system->sys, sys::GetCurrentProcess() };
+    if (OsStatus status = sys::SysThreadCreate(&invoke, createInfo, &thread)) {
         return km::CallError(status);
     }
 
@@ -25,8 +25,8 @@ static OsCallResult NewThreadCreate(km::System *system, km::CallContext *context
 static OsCallResult NewThreadDestroy(km::System *system, km::CallContext *, km::SystemCallRegisterSet *regs) {
     uint64_t userThread = regs->arg0;
 
-    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
-    if (OsStatus status = sys2::SysThreadDestroy(&invoke, eOsThreadFinished, userThread)) {
+    sys::InvokeContext invoke { system->sys, sys::GetCurrentProcess() };
+    if (OsStatus status = sys::SysThreadDestroy(&invoke, eOsThreadFinished, userThread)) {
         return km::CallError(status);
     }
 
@@ -34,7 +34,7 @@ static OsCallResult NewThreadDestroy(km::System *system, km::CallContext *, km::
 }
 
 static OsCallResult NewThreadSleep(km::System *, km::CallContext *, km::SystemCallRegisterSet *) {
-    sys2::YieldCurrentThread();
+    sys::YieldCurrentThread();
     return km::CallOk(0zu);
 }
 
@@ -58,8 +58,8 @@ OsCallResult um::ThreadSuspend(km::System *system, km::CallContext *, km::System
         return km::CallError(OsStatusInvalidInput);
     }
 
-    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
-    if (OsStatus status = sys2::SysThreadSuspend(&invoke, userThread, userSuspend != 0)) {
+    sys::InvokeContext invoke { system->sys, sys::GetCurrentProcess() };
+    if (OsStatus status = sys::SysThreadSuspend(&invoke, userThread, userSuspend != 0)) {
         return km::CallError(status);
     }
 

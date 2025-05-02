@@ -10,7 +10,7 @@ namespace vfs2 {
     class INode;
 }
 
-namespace sys2 {
+namespace sys {
     class Node final : public BaseObject<eOsHandleNode> {
         sm::RcuSharedPtr<vfs2::INode> mVfsNode;
     public:

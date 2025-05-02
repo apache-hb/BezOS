@@ -3,7 +3,7 @@
 #include "system/base.hpp"
 #include "system/create.hpp"
 
-namespace sys2 {
+namespace sys {
     class Tx final : public BaseObject<eOsHandleTx> {
     public:
         using Access = TxAccess;

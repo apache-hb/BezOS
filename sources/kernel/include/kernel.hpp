@@ -7,7 +7,7 @@
 #include "memory.hpp"
 #include "thread.hpp"
 
-namespace sys2 {
+namespace sys {
     class System;
 }
 
@@ -22,7 +22,7 @@ namespace km {
     SystemMemory *GetSystemMemory();
     AddressSpace& GetProcessPageManager();
     PageTables& GetProcessPageTables();
-    sys2::System *GetSysSystem();
+    sys::System *GetSysSystem();
 
     CPU_LOCAL
     extern constinit km::CpuLocal<SystemGdt> tlsSystemGdt;

@@ -15,7 +15,7 @@ namespace km {
     class ApicTimer;
 }
 
-namespace sys2 {
+namespace sys {
     class GlobalSchedule;
     class CpuLocalSchedule;
     class ITask;

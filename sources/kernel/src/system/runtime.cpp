@@ -21,14 +21,14 @@ extern "C" uint64_t KmSystemCallStackTlsOffset;
 extern "C" [[noreturn]] void __x86_64_resume(km::IsrContext *context);
 
 CPU_LOCAL
-static constinit km::CpuLocal<sys2::CpuLocalSchedule*> tlsSchedule;
+static constinit km::CpuLocal<sys::CpuLocalSchedule*> tlsSchedule;
 
 CPU_LOCAL
 static constinit km::CpuLocal<void*> tlsKernelStack;
 
 static constinit mem::IAllocator *gSchedulerAllocator = nullptr;
 
-void sys2::SchedulerQueueTraits::init(void *memory, size_t size) {
+void sys::SchedulerQueueTraits::init(void *memory, size_t size) {
     KM_CHECK(memory != nullptr, "Invalid memory for scheduler allocator.");
     KM_CHECK(size > 0, "Invalid size for scheduler allocator.");
     KM_CHECK(gSchedulerAllocator == nullptr, "Scheduler allocator already initialized.");
@@ -36,11 +36,11 @@ void sys2::SchedulerQueueTraits::init(void *memory, size_t size) {
     gSchedulerAllocator = new SynchronizedTlsfAllocator(memory, size);
 }
 
-void *sys2::SchedulerQueueTraits::malloc(size_t size) {
+void *sys::SchedulerQueueTraits::malloc(size_t size) {
     return gSchedulerAllocator->allocate(size);
 }
 
-void sys2::SchedulerQueueTraits::free(void *ptr) {
+void sys::SchedulerQueueTraits::free(void *ptr) {
     gSchedulerAllocator->deallocate(ptr, 0);
 }
 
@@ -49,7 +49,7 @@ static bool ScheduleInner(km::IsrContext *context, km::IsrContext *newContext) {
     defer { apic->eoi(); };
 
     // If we find a new thread to schedule then return its context to switch to it
-    if (sys2::CpuLocalSchedule *schedule = tlsSchedule.get()) {
+    if (sys::CpuLocalSchedule *schedule = tlsSchedule.get()) {
         void *syscallStack = nullptr;
         if (schedule->scheduleNextContext(context, newContext, &syscallStack)) {
             // We need to set the syscall stack pointer to the new thread's stack
@@ -73,7 +73,7 @@ static km::IsrContext ScheduleInt(km::IsrContext *context) {
 
 static constexpr std::chrono::milliseconds kDefaultTimeSlice = 5ms;
 
-void sys2::InstallTimerIsr(km::SharedIsrTable *table) {
+void sys::InstallTimerIsr(km::SharedIsrTable *table) {
     km::IsrCallback old = table->install(km::isr::kTimerVector, ScheduleInt);
 
     if (old != km::DefaultIsrHandler && old != ScheduleInt) {
@@ -82,7 +82,7 @@ void sys2::InstallTimerIsr(km::SharedIsrTable *table) {
     }
 }
 
-void sys2::EnterScheduler(CpuLocalSchedule *scheduler, km::ApicTimer *apicTimer) {
+void sys::EnterScheduler(CpuLocalSchedule *scheduler, km::ApicTimer *apicTimer) {
     km::IApic *apic = km::GetCpuLocalApic();
     tlsSchedule = scheduler;
     KmSystemCallStackTlsOffset = tlsKernelStack.tlsOffset();
@@ -103,7 +103,7 @@ void sys2::EnterScheduler(CpuLocalSchedule *scheduler, km::ApicTimer *apicTimer)
     KmIdle();
 }
 
-sm::RcuSharedPtr<sys2::Process> sys2::GetCurrentProcess() {
+sm::RcuSharedPtr<sys::Process> sys::GetCurrentProcess() {
     if (auto schedule = tlsSchedule.get()) {
         return schedule->currentProcess();
     }
@@ -111,7 +111,7 @@ sm::RcuSharedPtr<sys2::Process> sys2::GetCurrentProcess() {
     return nullptr;
 }
 
-sm::RcuSharedPtr<sys2::Thread> sys2::GetCurrentThread() {
+sm::RcuSharedPtr<sys::Thread> sys::GetCurrentThread() {
     if (auto schedule = tlsSchedule.get()) {
         return schedule->currentThread();
     }
@@ -119,7 +119,7 @@ sm::RcuSharedPtr<sys2::Thread> sys2::GetCurrentThread() {
     return nullptr;
 }
 
-void sys2::YieldCurrentThread() {
+void sys::YieldCurrentThread() {
     // TODO: this entire function is kind of a hack.
     // The scheduler should probably deal with this
     arch::Intrin::LongJumpState jmp;

@@ -4,7 +4,7 @@
 #include "system/vm/file.hpp"
 #include "system/vm/memory.hpp"
 
-OsStatus sys2::MapFileToMemory(sm::RcuDomain *domain, vfs2::IFileHandle *fileHandle, km::PageAllocator *pmm, km::AddressSpace *ptes, uint64_t front, uint64_t back, sm::RcuSharedPtr<FileMapping> *outMapping) {
+OsStatus sys::MapFileToMemory(sm::RcuDomain *domain, vfs2::IFileHandle *fileHandle, km::PageAllocator *pmm, km::AddressSpace *ptes, uint64_t front, uint64_t back, sm::RcuSharedPtr<FileMapping> *outMapping) {
     uint64_t size = back - front;
 
     auto memory = pmm->alloc4k(km::Pages(size));
@@ -51,7 +51,7 @@ OsStatus sys2::MapFileToMemory(sm::RcuDomain *domain, vfs2::IFileHandle *fileHan
     return OsStatusSuccess;
 }
 
-OsStatus sys2::NewMemoryObject(sm::RcuDomain *domain, km::MemoryRange range, sm::RcuSharedPtr<MemoryObject> *outObject) {
+OsStatus sys::NewMemoryObject(sm::RcuDomain *domain, km::MemoryRange range, sm::RcuSharedPtr<MemoryObject> *outObject) {
     auto object = sm::rcuMakeShared<MemoryObject>(domain, range);
     if (!object) {
         return OsStatusOutOfMemory;

@@ -23,7 +23,7 @@ namespace vfs2 {
     class IFileHandle;
 }
 
-namespace sys2 {
+namespace sys {
     enum class ProcessId : OsProcessId {};
 
     class Process final : public BaseObject<eOsHandleProcess> {

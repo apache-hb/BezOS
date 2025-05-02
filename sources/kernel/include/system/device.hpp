@@ -5,7 +5,7 @@
 #include "system/base.hpp"
 #include "system/create.hpp"
 
-namespace sys2 {
+namespace sys {
     class Device final : public BaseObject<eOsHandleDevice> {
         std::unique_ptr<vfs2::IHandle> mVfsHandle;
 

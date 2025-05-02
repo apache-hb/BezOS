@@ -4,7 +4,7 @@
 
 #include "util/absl.hpp"
 
-namespace sys2::detail {
+namespace sys::detail {
     template<typename T>
     class RangeTable {
     public:

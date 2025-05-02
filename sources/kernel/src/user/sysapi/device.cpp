@@ -20,15 +20,15 @@ static OsCallResult NewDeviceOpen(km::System *system, km::CallContext *context, 
         return km::CallError(status);
     }
 
-    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
-    sys2::DeviceOpenInfo openInfo {
+    sys::InvokeContext invoke { system->sys, sys::GetCurrentProcess() };
+    sys::DeviceOpenInfo openInfo {
         .path = path,
         .flags = createInfo.Flags,
         .interface = uuid,
     };
 
     OsDeviceHandle handle = OS_HANDLE_INVALID;
-    if (OsStatus status = sys2::SysDeviceOpen(&invoke, openInfo, &handle)) {
+    if (OsStatus status = sys::SysDeviceOpen(&invoke, openInfo, &handle)) {
         return km::CallError(status);
     }
 
@@ -38,8 +38,8 @@ static OsCallResult NewDeviceOpen(km::System *system, km::CallContext *context, 
 static OsCallResult NewDeviceClose(km::System *system, km::CallContext *, km::SystemCallRegisterSet *regs) {
     uint64_t userDevice = regs->arg0;
 
-    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
-    if (OsStatus status = sys2::SysDeviceClose(&invoke, userDevice)) {
+    sys::InvokeContext invoke { system->sys, sys::GetCurrentProcess() };
+    if (OsStatus status = sys::SysDeviceClose(&invoke, userDevice)) {
         return km::CallError(status);
     }
 
@@ -59,10 +59,10 @@ static OsCallResult NewDeviceRead(km::System *system, km::CallContext *context, 
         return km::CallError(OsStatusInvalidInput);
     }
 
-    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
+    sys::InvokeContext invoke { system->sys, sys::GetCurrentProcess() };
     OsSize read = 0;
 
-    if (OsStatus status = sys2::SysDeviceRead(&invoke, userHandle, request, &read)) {
+    if (OsStatus status = sys::SysDeviceRead(&invoke, userHandle, request, &read)) {
         return km::CallError(status);
     }
 
@@ -82,10 +82,10 @@ static OsCallResult NewDeviceWrite(km::System *system, km::CallContext *context,
         return km::CallError(OsStatusInvalidInput);
     }
 
-    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
+    sys::InvokeContext invoke { system->sys, sys::GetCurrentProcess() };
     OsSize write = 0;
 
-    if (OsStatus status = sys2::SysDeviceWrite(&invoke, userHandle, request, &write)) {
+    if (OsStatus status = sys::SysDeviceWrite(&invoke, userHandle, request, &write)) {
         return km::CallError(status);
     }
 
@@ -102,8 +102,8 @@ static OsCallResult NewDeviceInvoke(km::System *system, km::CallContext *context
         return km::CallError(OsStatusInvalidInput);
     }
 
-    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
-    if (OsStatus status = sys2::SysDeviceInvoke(&invoke, userHandle, userFunction, (void*)userData, userSize)) {
+    sys::InvokeContext invoke { system->sys, sys::GetCurrentProcess() };
+    if (OsStatus status = sys::SysDeviceInvoke(&invoke, userHandle, userFunction, (void*)userData, userSize)) {
         return km::CallError(status);
     }
 
@@ -118,8 +118,8 @@ static OsCallResult NewDeviceStat(km::System *system, km::CallContext *context, 
         return km::CallError(OsStatusInvalidInput);
     }
 
-    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
-    if (OsStatus status = sys2::SysDeviceStat(&invoke, userHandle, (OsDeviceInfo*)userStat)) {
+    sys::InvokeContext invoke { system->sys, sys::GetCurrentProcess() };
+    if (OsStatus status = sys::SysDeviceStat(&invoke, userHandle, (OsDeviceInfo*)userStat)) {
         return km::CallError(status);
     }
 

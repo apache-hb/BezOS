@@ -11,7 +11,7 @@
 
 #include "common/util/util.hpp"
 
-namespace sys2 {
+namespace sys {
     class System;
     class IObject;
     class IHandle;

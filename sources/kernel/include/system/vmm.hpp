@@ -15,7 +15,7 @@ namespace km {
     class AddressSpace;
 }
 
-namespace sys2 {
+namespace sys {
     class MemoryManager;
 
     struct AddressSegment {

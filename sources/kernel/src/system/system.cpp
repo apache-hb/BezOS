@@ -14,29 +14,29 @@
 static constexpr size_t kDefaultPtePageCount = 64;
 static constexpr size_t kDefaultKernelStackSize = 4;
 
-OsStatus sys2::System::addThreadObject(sm::RcuSharedPtr<Thread> object) {
+OsStatus sys::System::addThreadObject(sm::RcuSharedPtr<Thread> object) {
     stdx::UniqueLock guard(mLock);
     mObjects.insert(object);
     return mSchedule.addThread(object);
 }
 
-void sys2::System::removeThreadObject(sm::RcuWeakPtr<Thread> object) {
+void sys::System::removeThreadObject(sm::RcuWeakPtr<Thread> object) {
     stdx::UniqueLock guard(mLock);
     mObjects.erase(object);
     mSchedule.removeThread(object);
 }
 
-void sys2::System::addProcessObject(sm::RcuSharedPtr<Process> object) {
+void sys::System::addProcessObject(sm::RcuSharedPtr<Process> object) {
     stdx::UniqueLock guard(mLock);
     mProcessObjects.insert(object);
 }
 
-void sys2::System::removeProcessObject(sm::RcuWeakPtr<Process> object) {
+void sys::System::removeProcessObject(sm::RcuWeakPtr<Process> object) {
     stdx::UniqueLock guard(mLock);
     mProcessObjects.erase(object);
 }
 
-OsStatus sys2::System::mapProcessPageTables(km::AddressMapping *mapping) {
+OsStatus sys::System::mapProcessPageTables(km::AddressMapping *mapping) {
     km::MemoryRange range = mPageAllocator->alloc4k(kDefaultPtePageCount);
     if (range.isEmpty()) {
         return OsStatusOutOfMemory;
@@ -50,7 +50,7 @@ OsStatus sys2::System::mapProcessPageTables(km::AddressMapping *mapping) {
     return OsStatusSuccess;
 }
 
-OsStatus sys2::System::mapSystemStack(km::StackMapping *mapping) {
+OsStatus sys::System::mapSystemStack(km::StackMapping *mapping) {
     km::MemoryRange stack = mPageAllocator->alloc4k(kDefaultKernelStackSize);
     if (stack.isEmpty()) {
         return OsStatusOutOfMemory;
@@ -64,11 +64,11 @@ OsStatus sys2::System::mapSystemStack(km::StackMapping *mapping) {
     return OsStatusSuccess;
 }
 
-void sys2::System::releaseMemory(km::MemoryRange range) {
+void sys::System::releaseMemory(km::MemoryRange range) {
     mPageAllocator->release(range);
 }
 
-OsStatus sys2::System::releaseMapping(km::AddressMapping mapping) {
+OsStatus sys::System::releaseMapping(km::AddressMapping mapping) {
     if (OsStatus status = mSystemTables->unmap(mapping.virtualRange())) {
         return status;
     }
@@ -77,7 +77,7 @@ OsStatus sys2::System::releaseMapping(km::AddressMapping mapping) {
     return OsStatusSuccess;
 }
 
-OsStatus sys2::System::releaseStack(km::StackMapping mapping) {
+OsStatus sys::System::releaseStack(km::StackMapping mapping) {
     OsStatus status = mSystemTables->unmapStack(mapping);
     if (status != OsStatusSuccess) {
         return status;
@@ -87,7 +87,7 @@ OsStatus sys2::System::releaseStack(km::StackMapping mapping) {
     return OsStatusSuccess;
 }
 
-OsStatus sys2::System::getProcessList(stdx::Vector2<sm::RcuSharedPtr<Process>>& list) {
+OsStatus sys::System::getProcessList(stdx::Vector2<sm::RcuSharedPtr<Process>>& list) {
     stdx::SharedLock guard(mLock);
     list.reserve(mProcessObjects.size());
     for (auto& process : mProcessObjects) {
@@ -97,7 +97,7 @@ OsStatus sys2::System::getProcessList(stdx::Vector2<sm::RcuSharedPtr<Process>>& 
     return OsStatusSuccess;
 }
 
-sys2::SystemStats sys2::System::stats() {
+sys::SystemStats sys::System::stats() {
     stdx::SharedLock guard(mLock);
     SystemStats stats {
         .objects = mObjects.size(),
@@ -107,18 +107,18 @@ sys2::SystemStats sys2::System::stats() {
     return stats;
 }
 
-OsStatus sys2::System::create(vfs2::VfsRoot *vfsRoot, km::AddressSpace *addressSpace, km::PageAllocator *pageAllocator, System *system) {
+OsStatus sys::System::create(vfs2::VfsRoot *vfsRoot, km::AddressSpace *addressSpace, km::PageAllocator *pageAllocator, System *system) {
     system->mPageAllocator = pageAllocator;
     system->mSystemTables = addressSpace;
     system->mVfsRoot = vfsRoot;
-    if (OsStatus status = sys2::MemoryManager::create(system->mPageAllocator, &system->mMemoryManager)) {
+    if (OsStatus status = sys::MemoryManager::create(system->mPageAllocator, &system->mMemoryManager)) {
         return status;
     }
 
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysTxCreate(InvokeContext *context, TxCreateInfo info, OsTxHandle *handle) {
+OsStatus sys::SysTxCreate(InvokeContext *context, TxCreateInfo info, OsTxHandle *handle) {
     sm::RcuSharedPtr<Tx> tx = sm::rcuMakeShared<Tx>(&context->system->rcuDomain(), info.name);
     if (!tx) {
         return OsStatusOutOfMemory;
@@ -136,20 +136,20 @@ OsStatus sys2::SysTxCreate(InvokeContext *context, TxCreateInfo info, OsTxHandle
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysTxCommit(InvokeContext *, OsTxHandle) {
+OsStatus sys::SysTxCommit(InvokeContext *, OsTxHandle) {
     return OsStatusNotSupported;
 }
 
-OsStatus sys2::SysTxAbort(InvokeContext *, OsTxHandle) {
+OsStatus sys::SysTxAbort(InvokeContext *, OsTxHandle) {
     return OsStatusNotSupported;
 }
 
 // mutex
 
-OsStatus sys2::SysMutexCreate(InvokeContext *, OsMutexCreateInfo, OsHandle *) {
+OsStatus sys::SysMutexCreate(InvokeContext *, OsMutexCreateInfo, OsHandle *) {
     return OsStatusNotSupported;
 }
 
-OsStatus sys2::SysMutexDestroy(InvokeContext *, OsHandle) {
+OsStatus sys::SysMutexDestroy(InvokeContext *, OsHandle) {
     return OsStatusNotSupported;
 }

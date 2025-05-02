@@ -2,7 +2,7 @@
 
 #include "system/base.hpp"
 
-namespace sys2 {
+namespace sys {
     class Event : public BaseObject<eOsHandleEvent> {
     public:
         using Access = EventAccess;

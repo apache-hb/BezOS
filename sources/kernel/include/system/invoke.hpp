@@ -4,7 +4,7 @@
 
 #include "std/rcuptr.hpp"
 
-namespace sys2 {
+namespace sys {
     class InvokeContext {
     public:
         /// @brief The system context.

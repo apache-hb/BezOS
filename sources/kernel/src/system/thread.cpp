@@ -7,11 +7,11 @@
 #include "xsave.hpp"
 #include <bezos/handle.h>
 
-static sys2::RegisterSet MakeRegisterSet(OsMachineContext machine, bool supervisor) {
+static sys::RegisterSet MakeRegisterSet(OsMachineContext machine, bool supervisor) {
     uint64_t cs = supervisor ? (GDT_64BIT_CODE * 0x8) : ((GDT_64BIT_USER_CODE * 0x8) | 0b11);
     uint64_t ss = supervisor ? (GDT_64BIT_DATA * 0x8) : ((GDT_64BIT_USER_DATA * 0x8) | 0b11);
 
-    return sys2::RegisterSet {
+    return sys::RegisterSet {
         .rax = machine.rax,
         .rbx = machine.rbx,
         .rcx = machine.rcx,
@@ -35,11 +35,11 @@ static sys2::RegisterSet MakeRegisterSet(OsMachineContext machine, bool supervis
     };
 }
 
-sys2::ThreadHandle::ThreadHandle(sm::RcuSharedPtr<Thread> thread, OsHandle handle, ThreadAccess access)
+sys::ThreadHandle::ThreadHandle(sm::RcuSharedPtr<Thread> thread, OsHandle handle, ThreadAccess access)
     : BaseHandle(thread, handle, access)
 { }
 
-OsStatus sys2::Thread::stat(ThreadStat *info) {
+OsStatus sys::Thread::stat(ThreadStat *info) {
     sm::RcuSharedPtr<Process> process = mProcess.lock();
     if (!process) {
         return OsStatusProcessOrphaned;
@@ -56,7 +56,7 @@ OsStatus sys2::Thread::stat(ThreadStat *info) {
     return OsStatusSuccess;
 }
 
-void sys2::Thread::saveState(RegisterSet& regs) {
+void sys::Thread::saveState(RegisterSet& regs) {
     mCpuState = regs;
     mTlsAddress = IA32_FS_BASE.load();
     if (mFpuState) {
@@ -64,7 +64,7 @@ void sys2::Thread::saveState(RegisterSet& regs) {
     }
 }
 
-sys2::RegisterSet sys2::Thread::loadState() {
+sys::RegisterSet sys::Thread::loadState() {
     IA32_FS_BASE = mTlsAddress;
     if (mFpuState) {
         km::XSaveLoadState(mFpuState.get());
@@ -77,7 +77,7 @@ sys2::RegisterSet sys2::Thread::loadState() {
     return mCpuState;
 }
 
-bool sys2::Thread::isSupervisor() {
+bool sys::Thread::isSupervisor() {
     if (auto parent = mProcess.lock()) {
         return parent->isSupervisor();
     }
@@ -85,15 +85,15 @@ bool sys2::Thread::isSupervisor() {
     return false;
 }
 
-void sys2::Thread::setSignalStatus(OsStatus status) {
+void sys::Thread::setSignalStatus(OsStatus status) {
     mCpuState.rax = status;
 }
 
-sys2::Thread::Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, x64::XSave *fpuState, km::StackMapping kernelStack)
-    : Thread(createInfo, process, sys2::XSaveState{fpuState, &km::DestroyXSave}, kernelStack)
+sys::Thread::Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, x64::XSave *fpuState, km::StackMapping kernelStack)
+    : Thread(createInfo, process, sys::XSaveState{fpuState, &km::DestroyXSave}, kernelStack)
 { }
 
-sys2::Thread::Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, sys2::XSaveState fpuState, km::StackMapping kernelStack)
+sys::Thread::Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, sys::XSaveState fpuState, km::StackMapping kernelStack)
     : Super(createInfo.name)
     , mProcess(process)
     , mCpuState(createInfo.cpuState)
@@ -109,7 +109,7 @@ sys2::Thread::Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process>
     }
 }
 
-sys2::Thread::Thread(OsThreadCreateInfo createInfo, sm::RcuWeakPtr<Process> process, sys2::XSaveState fpuState, km::StackMapping kernelStack)
+sys::Thread::Thread(OsThreadCreateInfo createInfo, sm::RcuWeakPtr<Process> process, sys::XSaveState fpuState, km::StackMapping kernelStack)
     : Super(createInfo.Name)
     , mProcess(process)
     , mCpuState(MakeRegisterSet(createInfo.CpuState, isSupervisor()))
@@ -125,7 +125,7 @@ sys2::Thread::Thread(OsThreadCreateInfo createInfo, sm::RcuWeakPtr<Process> proc
     }
 }
 
-OsStatus sys2::Thread::suspend() {
+OsStatus sys::Thread::suspend() {
     KmDebugMessage("[TASK] Suspending thread ", getName(), "\n");
     OsThreadState expected = eOsThreadQueued;
     while (!cmpxchgState(expected, eOsThreadSuspended)) {
@@ -144,7 +144,7 @@ OsStatus sys2::Thread::suspend() {
     return OsStatusSuccess;
 }
 
-OsStatus sys2::Thread::resume() {
+OsStatus sys::Thread::resume() {
     KmDebugMessage("[TASK] Resuming thread ", getName(), "\n");
     OsThreadState expected = eOsThreadSuspended;
     while (!cmpxchgState(expected, eOsThreadQueued)) {
@@ -162,7 +162,7 @@ OsStatus sys2::Thread::resume() {
     return OsStatusSuccess;
 }
 
-OsStatus sys2::Thread::destroy(System *system, OsThreadState reason) {
+OsStatus sys::Thread::destroy(System *system, OsThreadState reason) {
     if (OsStatus status = system->releaseStack(mKernelStack)) {
         return status;
     }
@@ -176,32 +176,32 @@ OsStatus sys2::Thread::destroy(System *system, OsThreadState reason) {
     return OsStatusSuccess;
 }
 
-sys2::XSaveState sys2::NewXSaveState() {
-    return sys2::XSaveState { km::CreateXSave(), &km::DestroyXSave };
+sys::XSaveState sys::NewXSaveState() {
+    return sys::XSaveState { km::CreateXSave(), &km::DestroyXSave };
 }
 
-static OsStatus CreateThreadInner(sys2::System *system, const auto& info, sm::RcuSharedPtr<sys2::Process> process, sm::RcuSharedPtr<sys2::Process> parent, OsHandle id, sys2::ThreadHandle **handle) {
+static OsStatus CreateThreadInner(sys::System *system, const auto& info, sm::RcuSharedPtr<sys::Process> process, sm::RcuSharedPtr<sys::Process> parent, OsHandle id, sys::ThreadHandle **handle) {
     km::StackMapping kernelStack{};
-    sys2::XSaveState fpuState{nullptr, &km::DestroyXSave};
-    sys2::ThreadHandle *result = nullptr;
-    sm::RcuSharedPtr<sys2::Thread> thread;
+    sys::XSaveState fpuState{nullptr, &km::DestroyXSave};
+    sys::ThreadHandle *result = nullptr;
+    sm::RcuSharedPtr<sys::Thread> thread;
     OsStatus status = OsStatusSuccess;
 
     if ((status = system->mapSystemStack(&kernelStack))) {
         return status;
     }
 
-    fpuState = sys2::NewXSaveState();
+    fpuState = sys::NewXSaveState();
     if (!fpuState) {
         goto outOfMemory;
     }
 
-    thread = sm::rcuMakeShared<sys2::Thread>(&system->rcuDomain(), info, parent, std::move(fpuState), kernelStack);
+    thread = sm::rcuMakeShared<sys::Thread>(&system->rcuDomain(), info, parent, std::move(fpuState), kernelStack);
     if (!thread) {
         goto outOfMemory;
     }
 
-    result = new (std::nothrow) sys2::ThreadHandle(thread, id, sys2::ThreadAccess::eAll);
+    result = new (std::nothrow) sys::ThreadHandle(thread, id, sys::ThreadAccess::eAll);
     if (!result) {
         goto outOfMemory;
     }
@@ -227,7 +227,7 @@ error:
     return status;
 }
 
-OsStatus sys2::SysThreadCreate(InvokeContext *context, ThreadCreateInfo info, OsThreadHandle *handle) {
+OsStatus sys::SysThreadCreate(InvokeContext *context, ThreadCreateInfo info, OsThreadHandle *handle) {
     OsHandle id = context->process->newHandleId(eOsHandleThread);
     ThreadHandle *result = nullptr;
 
@@ -240,7 +240,7 @@ OsStatus sys2::SysThreadCreate(InvokeContext *context, ThreadCreateInfo info, Os
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysThreadCreate(InvokeContext *context, OsThreadCreateInfo info, OsThreadHandle *handle) {
+OsStatus sys::SysThreadCreate(InvokeContext *context, OsThreadCreateInfo info, OsThreadHandle *handle) {
     sm::RcuSharedPtr<Process> process;
     if (info.Process != OS_HANDLE_INVALID) {
         ProcessHandle *hProcess = nullptr;
@@ -265,7 +265,7 @@ OsStatus sys2::SysThreadCreate(InvokeContext *context, OsThreadCreateInfo info, 
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysThreadDestroy(InvokeContext *context, OsThreadState reason, OsThreadHandle handle) {
+OsStatus sys::SysThreadDestroy(InvokeContext *context, OsThreadState reason, OsThreadHandle handle) {
     ThreadHandle *hThread = nullptr;
     if (OsStatus status = context->process->findHandle(handle, &hThread)) {
         return status;
@@ -285,7 +285,7 @@ OsStatus sys2::SysThreadDestroy(InvokeContext *context, OsThreadState reason, Os
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysThreadStat(InvokeContext *context, OsThreadHandle handle, OsThreadInfo *result) {
+OsStatus sys::SysThreadStat(InvokeContext *context, OsThreadHandle handle, OsThreadInfo *result) {
     ThreadHandle *hThread = nullptr;
     if (OsStatus status = context->process->findHandle(handle, &hThread)) {
         return status;
@@ -319,7 +319,7 @@ OsStatus sys2::SysThreadStat(InvokeContext *context, OsThreadHandle handle, OsTh
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysThreadSuspend(InvokeContext *context, OsThreadHandle handle, bool suspend) {
+OsStatus sys::SysThreadSuspend(InvokeContext *context, OsThreadHandle handle, bool suspend) {
     ThreadHandle *hThread = nullptr;
     if (OsStatus status = context->process->findHandle(handle, &hThread)) {
         return status;

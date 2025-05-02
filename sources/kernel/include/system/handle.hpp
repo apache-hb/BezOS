@@ -5,7 +5,7 @@
 #include "std/rcuptr.hpp"
 #include "system/create.hpp"
 
-namespace sys2 {
+namespace sys {
     struct HandleCreateInfo {
         /// @brief The process that is requesting access to a new handle.
         sm::RcuSharedPtr<Process> owner;

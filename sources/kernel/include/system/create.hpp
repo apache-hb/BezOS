@@ -9,7 +9,7 @@
 #include "std/static_string.hpp"
 #include "util/uuid.hpp"
 
-namespace sys2 {
+namespace sys {
     using ObjectName = stdx::StaticString<OS_OBJECT_NAME_MAX>;
 
     using reg_t = uint64_t;

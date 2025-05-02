@@ -15,9 +15,9 @@ static OsCallResult NewVmemCreate(km::System *system, km::CallContext *context, 
         return km::CallError(status);
     }
 
-    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
+    sys::InvokeContext invoke { system->sys, sys::GetCurrentProcess() };
     void *vaddr = nullptr;
-    if (OsStatus status = sys2::SysVmemCreate(&invoke, createInfo, &vaddr)) {
+    if (OsStatus status = sys::SysVmemCreate(&invoke, createInfo, &vaddr)) {
         return km::CallError(status);
     }
 
@@ -41,9 +41,9 @@ OsCallResult um::VmemMap(km::System *system, km::CallContext *context, km::Syste
         return km::CallError(status);
     }
 
-    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
+    sys::InvokeContext invoke { system->sys, sys::GetCurrentProcess() };
     void *vaddr = nullptr;
-    if (OsStatus status = sys2::SysVmemMap(&invoke, mapInfo, &vaddr)) {
+    if (OsStatus status = sys::SysVmemMap(&invoke, mapInfo, &vaddr)) {
         return km::CallError(status);
     }
 

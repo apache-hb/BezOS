@@ -34,7 +34,7 @@ namespace vfs2 {
         uint64_t logical;
         uint64_t blksize;
         uint64_t blocks;
-        sys2::NodeAccess access;
+        sys::NodeAccess access;
     };
 
     class IVfsMount {

@@ -52,14 +52,14 @@ static OsCallResult NewNodeOpen(km::System *system, km::CallContext *context, km
         return km::CallError(status);
     }
 
-    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
-    sys2::NodeOpenInfo openInfo {
+    sys::InvokeContext invoke { system->sys, sys::GetCurrentProcess() };
+    sys::NodeOpenInfo openInfo {
         .path = path,
     };
 
     OsNodeHandle node = OS_HANDLE_INVALID;
 
-    if (OsStatus status = sys2::SysNodeOpen(&invoke, openInfo, &node)) {
+    if (OsStatus status = sys::SysNodeOpen(&invoke, openInfo, &node)) {
         return km::CallError(status);
     }
 
@@ -69,8 +69,8 @@ static OsCallResult NewNodeOpen(km::System *system, km::CallContext *context, km
 static OsCallResult NewNodeClose(km::System *system, km::CallContext *, km::SystemCallRegisterSet *regs) {
     uint64_t userHandle = regs->arg0;
 
-    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
-    if (OsStatus status = sys2::SysNodeClose(&invoke, userHandle)) {
+    sys::InvokeContext invoke { system->sys, sys::GetCurrentProcess() };
+    if (OsStatus status = sys::SysNodeClose(&invoke, userHandle)) {
         return km::CallError(status);
     }
 
@@ -86,8 +86,8 @@ static OsCallResult NewNodeQuery(km::System *system, km::CallContext *context, k
     }
 
     OsDeviceHandle device = OS_HANDLE_INVALID;
-    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
-    if (OsStatus status = sys2::SysNodeQuery(&invoke, userHandle, *(OsNodeQueryInterfaceInfo*)userQuery, &device)) {
+    sys::InvokeContext invoke { system->sys, sys::GetCurrentProcess() };
+    if (OsStatus status = sys::SysNodeQuery(&invoke, userHandle, *(OsNodeQueryInterfaceInfo*)userQuery, &device)) {
         return km::CallError(status);
     }
 
@@ -102,8 +102,8 @@ static OsCallResult NewNodeStat(km::System *system, km::CallContext *context, km
         return km::CallError(OsStatusInvalidInput);
     }
 
-    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
-    if (OsStatus status = sys2::SysNodeStat(&invoke, userHandle, (OsNodeInfo*)userStat)) {
+    sys::InvokeContext invoke { system->sys, sys::GetCurrentProcess() };
+    if (OsStatus status = sys::SysNodeStat(&invoke, userHandle, (OsNodeInfo*)userStat)) {
         return km::CallError(status);
     }
 

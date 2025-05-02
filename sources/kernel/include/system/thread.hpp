@@ -10,7 +10,7 @@
 
 #include <stdlib.h>
 
-namespace sys2 {
+namespace sys {
     using XSaveState = std::unique_ptr<x64::XSave, decltype(&km::DestroyXSave)>;
 
     XSaveState NewXSaveState() [[clang::allocating]];
@@ -30,8 +30,8 @@ namespace sys2 {
         using Super = BaseObject;
 
         Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, x64::XSave *fpuState, km::StackMapping kernelStack);
-        Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, sys2::XSaveState fpuState, km::StackMapping kernelStack);
-        Thread(OsThreadCreateInfo createInfo, sm::RcuWeakPtr<Process> process, sys2::XSaveState fpuState, km::StackMapping kernelStack);
+        Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, sys::XSaveState fpuState, km::StackMapping kernelStack);
+        Thread(OsThreadCreateInfo createInfo, sm::RcuWeakPtr<Process> process, sys::XSaveState fpuState, km::StackMapping kernelStack);
 
         stdx::StringView getClassName() const override { return "Thread"; }
 

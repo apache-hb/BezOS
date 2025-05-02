@@ -1,7 +1,7 @@
 #include "system/system.hpp"
 #include "system/process.hpp"
 
-OsStatus sys2::SysHandleClose(InvokeContext *context, OsHandle handle) {
+OsStatus sys::SysHandleClose(InvokeContext *context, OsHandle handle) {
     if (OsStatus status = context->process->removeHandle(handle)) {
         return status;
     }
@@ -9,7 +9,7 @@ OsStatus sys2::SysHandleClose(InvokeContext *context, OsHandle handle) {
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysHandleClone(InvokeContext *context, OsHandle handle, OsHandleCloneInfo info, OsHandle *outHandle) {
+OsStatus sys::SysHandleClone(InvokeContext *context, OsHandle handle, OsHandleCloneInfo info, OsHandle *outHandle) {
     IHandle *source = context->process->getHandle(handle);
     if (!source) {
         return OsStatusInvalidHandle;
@@ -27,7 +27,7 @@ OsStatus sys2::SysHandleClone(InvokeContext *context, OsHandle handle, OsHandleC
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysHandleStat(InvokeContext *context, OsHandle handle, OsHandleInfo *result) {
+OsStatus sys::SysHandleStat(InvokeContext *context, OsHandle handle, OsHandleInfo *result) {
     IHandle *source = context->process->getHandle(handle);
     if (!source) {
         return OsStatusInvalidHandle;
@@ -44,7 +44,7 @@ OsStatus sys2::SysHandleStat(InvokeContext *context, OsHandle handle, OsHandleIn
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysHandleWait(InvokeContext *context, OsHandle handle, OsInstant timeout) {
+OsStatus sys::SysHandleWait(InvokeContext *context, OsHandle handle, OsInstant timeout) {
     IHandle *source = context->process->getHandle(handle);
     if (!source) {
         return OsStatusInvalidHandle;

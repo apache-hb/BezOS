@@ -15,7 +15,7 @@ namespace km {
     class SystemObjects;
 }
 
-namespace sys2 {
+namespace sys {
     class InvokeContext;
 }
 
@@ -58,14 +58,14 @@ namespace vfs2 {
     struct HandleInfo {
         sm::RcuSharedPtr<INode> node;
         OsGuid guid;
-        sys2::DeviceAccess access;
+        sys::DeviceAccess access;
     };
 
     struct NodeInfo {
         stdx::StringView name;
         IVfsMount *mount;
         sm::RcuWeakPtr<INode> parent;
-        sys2::NodeAccess access;
+        sys::NodeAccess access;
         uint32_t generation;
     };
 
@@ -144,7 +144,7 @@ namespace vfs2 {
         /// @param parent The parent node.
         /// @param name The name of the node.
         /// @param access The access rights of the node.
-        virtual void init(sm::RcuWeakPtr<INode> parent, VfsString name, sys2::NodeAccess access) = 0;
+        virtual void init(sm::RcuWeakPtr<INode> parent, VfsString name, sys::NodeAccess access) = 0;
 
         /// @brief Get information about the node.
         ///

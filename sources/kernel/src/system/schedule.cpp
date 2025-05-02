@@ -5,14 +5,14 @@
 
 using namespace std::chrono_literals;
 
-sys2::CpuLocalSchedule::CpuLocalSchedule(size_t tasks, GlobalSchedule *global)
+sys::CpuLocalSchedule::CpuLocalSchedule(size_t tasks, GlobalSchedule *global)
     : mQueue(tasks)
     , mCurrent(nullptr)
     , mGlobal(global)
 { }
 
-static sys2::RegisterSet SaveThreadContext(km::IsrContext *context) {
-    return sys2::RegisterSet {
+static sys::RegisterSet SaveThreadContext(km::IsrContext *context) {
+    return sys::RegisterSet {
         .rax = context->rax,
         .rbx = context->rbx,
         .rcx = context->rcx,
@@ -36,7 +36,7 @@ static sys2::RegisterSet SaveThreadContext(km::IsrContext *context) {
     };
 }
 
-static km::IsrContext LoadThreadContext(sys2::RegisterSet& regs) {
+static km::IsrContext LoadThreadContext(sys::RegisterSet& regs) {
     return km::IsrContext {
         .rax = regs.rax,
         .rbx = regs.rbx,
@@ -65,7 +65,7 @@ static km::IsrContext LoadThreadContext(sys2::RegisterSet& regs) {
     };
 }
 
-bool sys2::CpuLocalSchedule::startThread(sm::RcuSharedPtr<Thread> thread) {
+bool sys::CpuLocalSchedule::startThread(sm::RcuSharedPtr<Thread> thread) {
     OsThreadState expected = eOsThreadQueued;
     while (!thread->cmpxchgState(expected, eOsThreadRunning)) {
         switch (expected) {
@@ -94,7 +94,7 @@ bool sys2::CpuLocalSchedule::startThread(sm::RcuSharedPtr<Thread> thread) {
     return true;
 }
 
-bool sys2::CpuLocalSchedule::stopThread(sm::RcuSharedPtr<Thread> thread) {
+bool sys::CpuLocalSchedule::stopThread(sm::RcuSharedPtr<Thread> thread) {
     if (thread == nullptr) {
         return false;
     }
@@ -121,7 +121,7 @@ bool sys2::CpuLocalSchedule::stopThread(sm::RcuSharedPtr<Thread> thread) {
     return true;
 }
 
-bool sys2::CpuLocalSchedule::reschedule() {
+bool sys::CpuLocalSchedule::reschedule() {
     ThreadSchedulingInfo info;
     while (mQueue.try_dequeue(info)) {
         if (sm::RcuSharedPtr<Thread> thread = info.thread.lock()) {
@@ -154,7 +154,7 @@ bool sys2::CpuLocalSchedule::reschedule() {
     return false;
 }
 
-bool sys2::CpuLocalSchedule::scheduleNextContext(km::IsrContext *context, km::IsrContext *next, void **syscallStack) {
+bool sys::CpuLocalSchedule::scheduleNextContext(km::IsrContext *context, km::IsrContext *next, void **syscallStack) {
     auto oldThread = mCurrent;
 
     if (!reschedule()) {
@@ -174,11 +174,11 @@ bool sys2::CpuLocalSchedule::scheduleNextContext(km::IsrContext *context, km::Is
     return true;
 }
 
-sm::RcuSharedPtr<sys2::Thread> sys2::CpuLocalSchedule::currentThread() {
+sm::RcuSharedPtr<sys::Thread> sys::CpuLocalSchedule::currentThread() {
     return mCurrent;
 }
 
-sm::RcuSharedPtr<sys2::Process> sys2::CpuLocalSchedule::currentProcess() {
+sm::RcuSharedPtr<sys::Process> sys::CpuLocalSchedule::currentProcess() {
     if (mCurrent == nullptr) {
         return nullptr;
     }
@@ -191,14 +191,14 @@ sm::RcuSharedPtr<sys2::Process> sys2::CpuLocalSchedule::currentProcess() {
     return info.process;
 }
 
-OsStatus sys2::CpuLocalSchedule::addThread(sm::RcuSharedPtr<Thread> thread) {
+OsStatus sys::CpuLocalSchedule::addThread(sm::RcuSharedPtr<Thread> thread) {
     ThreadSchedulingInfo info { thread.weak() };
 
     OsStatus status = mQueue.try_enqueue(info) ? OsStatusSuccess : OsStatusOutOfMemory;
     return status;
 }
 
-OsStatus sys2::GlobalSchedule::scheduleThread(sm::RcuSharedPtr<Thread> thread) {
+OsStatus sys::GlobalSchedule::scheduleThread(sm::RcuSharedPtr<Thread> thread) {
     auto it = std::min_element(mCpuLocal.begin(), mCpuLocal.end(),
         [](const auto& lhs, const auto& rhs) {
             return lhs.second->tasks() < rhs.second->tasks();
@@ -227,23 +227,23 @@ OsStatus sys2::GlobalSchedule::scheduleThread(sm::RcuSharedPtr<Thread> thread) {
     return OsStatusOutOfMemory;
 }
 
-OsStatus sys2::GlobalSchedule::addThread(sm::RcuSharedPtr<Thread> thread) {
+OsStatus sys::GlobalSchedule::addThread(sm::RcuSharedPtr<Thread> thread) {
     km::IntGuard iguard;
     stdx::SharedLock guard(mLock);
     return scheduleThread(thread);
 }
 
-void sys2::GlobalSchedule::initCpuSchedule(km::CpuCoreId cpu, size_t tasks) {
+void sys::GlobalSchedule::initCpuSchedule(km::CpuCoreId cpu, size_t tasks) {
     stdx::UniqueLock guard(mLock);
 
     mCpuLocal.insert({ cpu, std::make_unique<CpuLocalSchedule>(tasks, this) });
 }
 
-OsStatus sys2::GlobalSchedule::removeThread(sm::RcuWeakPtr<Thread>) {
+OsStatus sys::GlobalSchedule::removeThread(sm::RcuWeakPtr<Thread>) {
     return OsStatusNotFound;
 }
 
-OsStatus sys2::GlobalSchedule::suspend(sm::RcuSharedPtr<Thread> thread) {
+OsStatus sys::GlobalSchedule::suspend(sm::RcuSharedPtr<Thread> thread) {
     OsThreadState state = eOsThreadQueued;
 
     while (!thread->cmpxchgState(state, eOsThreadSuspended)) {
@@ -265,7 +265,7 @@ OsStatus sys2::GlobalSchedule::suspend(sm::RcuSharedPtr<Thread> thread) {
     return OsStatusSuccess;
 }
 
-OsStatus sys2::GlobalSchedule::resume(sm::RcuSharedPtr<Thread> thread) {
+OsStatus sys::GlobalSchedule::resume(sm::RcuSharedPtr<Thread> thread) {
     OsThreadState state = eOsThreadSuspended;
 
     while (!thread->cmpxchgState(state, eOsThreadRunning)) {
@@ -287,7 +287,7 @@ OsStatus sys2::GlobalSchedule::resume(sm::RcuSharedPtr<Thread> thread) {
     return OsStatusSuccess;
 }
 
-OsStatus sys2::GlobalSchedule::sleep(sm::RcuSharedPtr<Thread> thread, OsInstant wake) {
+OsStatus sys::GlobalSchedule::sleep(sm::RcuSharedPtr<Thread> thread, OsInstant wake) {
     if (OsStatus status = suspend(thread)) {
         return status;
     }
@@ -301,7 +301,7 @@ OsStatus sys2::GlobalSchedule::sleep(sm::RcuSharedPtr<Thread> thread, OsInstant 
     return OsStatusSuccess;
 }
 
-OsStatus sys2::GlobalSchedule::wait(sm::RcuSharedPtr<Thread> thread, sm::RcuSharedPtr<IObject> object, OsInstant timeout) {
+OsStatus sys::GlobalSchedule::wait(sm::RcuSharedPtr<Thread> thread, sm::RcuSharedPtr<IObject> object, OsInstant timeout) {
     if (OsStatus status = suspend(thread)) {
         return status;
     }
@@ -315,7 +315,7 @@ OsStatus sys2::GlobalSchedule::wait(sm::RcuSharedPtr<Thread> thread, sm::RcuShar
     return OsStatusSuccess;
 }
 
-OsStatus sys2::GlobalSchedule::signal(sm::RcuSharedPtr<IObject> object, OsInstant now) {
+OsStatus sys::GlobalSchedule::signal(sm::RcuSharedPtr<IObject> object, OsInstant now) {
     stdx::UniqueLock guard(mLock);
     auto iter = mWaitQueue.find(object);
     if (iter == mWaitQueue.end()) {
@@ -341,12 +341,12 @@ OsStatus sys2::GlobalSchedule::signal(sm::RcuSharedPtr<IObject> object, OsInstan
     return OsStatusSuccess;
 }
 
-void sys2::GlobalSchedule::doSuspend(sm::RcuSharedPtr<Thread> thread) {
+void sys::GlobalSchedule::doSuspend(sm::RcuSharedPtr<Thread> thread) {
     stdx::UniqueLock guard(mLock);
     mSuspendSet.insert(thread.weak());
 }
 
-void sys2::GlobalSchedule::doResume(sm::RcuSharedPtr<Thread> thread) {
+void sys::GlobalSchedule::doResume(sm::RcuSharedPtr<Thread> thread) {
     stdx::UniqueLock guard(mLock);
     if (auto it = mSuspendSet.find(thread.weak()); it != mSuspendSet.end()) {
         mSuspendSet.erase(thread.weak());
@@ -354,7 +354,7 @@ void sys2::GlobalSchedule::doResume(sm::RcuSharedPtr<Thread> thread) {
     }
 }
 
-OsStatus sys2::GlobalSchedule::resumeSleepQueue(OsInstant now) {
+OsStatus sys::GlobalSchedule::resumeSleepQueue(OsInstant now) {
     OsStatus result = OsStatusSuccess;
     while (!mSleepQueue.empty()) {
         SleepEntry entry = mSleepQueue.top();
@@ -374,7 +374,7 @@ OsStatus sys2::GlobalSchedule::resumeSleepQueue(OsInstant now) {
     return result;
 }
 
-void sys2::GlobalSchedule::wakeQueue(OsInstant now, sm::RcuWeakPtr<IObject> object) {
+void sys::GlobalSchedule::wakeQueue(OsInstant now, sm::RcuWeakPtr<IObject> object) {
     if (auto it = mWaitQueue.find(object); it != mWaitQueue.end()) {
         auto& [_, queue] = *it;
         while (!queue.empty()) {
@@ -392,7 +392,7 @@ void sys2::GlobalSchedule::wakeQueue(OsInstant now, sm::RcuWeakPtr<IObject> obje
     }
 }
 
-OsStatus sys2::GlobalSchedule::resumeWaitQueue(OsInstant now) {
+OsStatus sys::GlobalSchedule::resumeWaitQueue(OsInstant now) {
     OsStatus result = OsStatusSuccess;
     while (!mTimeoutQueue.empty()) {
         WaitEntry entry = mTimeoutQueue.top();
@@ -414,7 +414,7 @@ OsStatus sys2::GlobalSchedule::resumeWaitQueue(OsInstant now) {
     return result;
 }
 
-OsStatus sys2::GlobalSchedule::tick(OsInstant now) {
+OsStatus sys::GlobalSchedule::tick(OsInstant now) {
     OsStatus result = OsStatusSuccess;
 
     stdx::UniqueLock guard(mLock);
@@ -450,10 +450,10 @@ OsStatus sys2::GlobalSchedule::tick(OsInstant now) {
 
 // TODO: figure out a better way to allocate scheduler queues
 #if __STDC_HOSTED__ == 1
-void *sys2::SchedulerQueueTraits::malloc(size_t size) {
+void *sys::SchedulerQueueTraits::malloc(size_t size) {
     return std::malloc(size);
 }
-void sys2::SchedulerQueueTraits::free(void *ptr) {
+void sys::SchedulerQueueTraits::free(void *ptr) {
     std::free(ptr);
 }
 #endif

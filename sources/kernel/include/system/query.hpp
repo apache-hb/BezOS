@@ -6,7 +6,7 @@
 
 #include <stddef.h>
 
-namespace sys2 {
+namespace sys {
     struct ProcessQueryInfo {
         size_t limit;
         OsProcessHandle *handles;

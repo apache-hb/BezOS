@@ -19,7 +19,7 @@ namespace km {
     class PageAllocator;
 }
 
-namespace sys2 {
+namespace sys {
     struct MemorySegmentStats {
         km::MemoryRange range;
         uint8_t owners;
@@ -71,7 +71,7 @@ namespace sys2 {
 
     class MemoryManager {
         using Counter = std::atomic<uint8_t>;
-        using Table = sys2::detail::RangeTable<MemorySegment>;
+        using Table = sys::detail::RangeTable<MemorySegment>;
         using Map = typename Table::Map;
         using Iterator = typename Map::iterator;
 
@@ -104,7 +104,7 @@ namespace sys2 {
 
         bool releaseEntry(km::PhysicalAddress address) REQUIRES(mLock);
         bool releaseEntry(Iterator it) REQUIRES(mLock);
-        bool releaseSegment(sys2::MemorySegment& segment) REQUIRES(mLock);
+        bool releaseSegment(sys::MemorySegment& segment) REQUIRES(mLock);
 
         void addSegment(MemorySegment&& segment) REQUIRES(mLock);
 

@@ -3,7 +3,7 @@
 #include "system/create.hpp"
 #include "system/handle.hpp"
 
-namespace sys2 {
+namespace sys {
     template<typename T>
     class BaseHandle : public IHandle {
         using Access = typename T::Access;

@@ -8,7 +8,7 @@ namespace km {
     class PageAllocator;
 }
 
-namespace sys2 {
+namespace sys {
     class FileMapping : public IMemoryObject {
         /// @brief Kernel side view of the memory
         km::AddressMapping mMapping;

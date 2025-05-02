@@ -3,7 +3,7 @@
 #include "std/rcuptr.hpp"
 #include "system/access.hpp"
 
-namespace sys2 {
+namespace sys {
     /// @brief An isolation context for a transaction
     class IIsolate : public sm::RcuIntrusivePtr<IIsolate> {
     public:

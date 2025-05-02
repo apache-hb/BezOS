@@ -3,7 +3,7 @@
 #include "system/base.hpp"
 #include "system/create.hpp"
 
-namespace sys2 {
+namespace sys {
     class Mutex final : public BaseObject<eOsHandleMutex> {
         sm::RcuWeakPtr<Thread> mOwner;
         sm::FlatHashSet<sm::RcuWeakPtr<Thread>> mWaiters GUARDED_BY(mLock);

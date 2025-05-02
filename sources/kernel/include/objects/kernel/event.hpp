@@ -10,11 +10,11 @@ namespace km {
         ~KernelEvent();
 
         OsStatus signal() {
-            return sys2::SysEventSignal(mEvent);
+            return sys::SysEventSignal(mEvent);
         }
 
         OsStatus wait(OsInstant timeout) {
-            return sys2::SysHandleWait(mEvent, timeout);
+            return sys::SysHandleWait(mEvent, timeout);
         }
     };
 

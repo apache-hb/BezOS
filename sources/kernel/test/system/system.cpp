@@ -8,32 +8,32 @@ class SystemTest : public SystemBaseTest { };
 TEST_F(SystemTest, Construct) {
     km::SystemMemory memory = body.make();
     vfs2::VfsRoot vfs;
-    sys2::System system;
-    OsStatus status = sys2::System::create(&vfs, &memory.pageTables(), &memory.pmmAllocator(), &system);
+    sys::System system;
+    OsStatus status = sys::System::create(&vfs, &memory.pageTables(), &memory.pmmAllocator(), &system);
     ASSERT_EQ(status, OsStatusSuccess);
 }
 
 TEST_F(SystemTest, CreateProcess) {
     km::SystemMemory memory = body.make(sm::megabytes(2).bytes());
     vfs2::VfsRoot vfs;
-    sys2::System system;
-    OsStatus status = sys2::System::create(&vfs, &memory.pageTables(), &memory.pmmAllocator(), &system);
+    sys::System system;
+    OsStatus status = sys::System::create(&vfs, &memory.pageTables(), &memory.pmmAllocator(), &system);
     ASSERT_EQ(status, OsStatusSuccess);
 
-    sys2::ProcessCreateInfo createInfo {
+    sys::ProcessCreateInfo createInfo {
         .name = "TEST",
         .supervisor = false,
     };
 
-    std::unique_ptr<sys2::ProcessHandle> hProcess = nullptr;
+    std::unique_ptr<sys::ProcessHandle> hProcess = nullptr;
 
     RecordMemoryUsage(memory);
 
-    status = sys2::SysCreateRootProcess(&system, createInfo, std::out_ptr(hProcess));
+    status = sys::SysCreateRootProcess(&system, createInfo, std::out_ptr(hProcess));
     ASSERT_EQ(status, OsStatusSuccess);
 
-    sys2::InvokeContext invoke { &system, hProcess->getProcess() };
-    status = sys2::SysProcessDestroy(&invoke, hProcess.get(), 0, eOsProcessExited);
+    sys::InvokeContext invoke { &system, hProcess->getProcess() };
+    status = sys::SysProcessDestroy(&invoke, hProcess.get(), 0, eOsProcessExited);
     ASSERT_EQ(status, OsStatusSuccess);
 
     CheckMemoryUsage(memory);
@@ -42,8 +42,8 @@ TEST_F(SystemTest, CreateProcess) {
 TEST_F(SystemTest, CreateProcessAsync) {
     km::SystemMemory memory = body.make(sm::megabytes(2).bytes());
     vfs2::VfsRoot vfs;
-    sys2::System system;
-    OsStatus status = sys2::System::create(&vfs, &memory.pageTables(), &memory.pmmAllocator(), &system);
+    sys::System system;
+    OsStatus status = sys::System::create(&vfs, &memory.pageTables(), &memory.pmmAllocator(), &system);
     ASSERT_EQ(status, OsStatusSuccess);
 
     for (size_t i = 0; i < 8; i++) {
@@ -57,27 +57,27 @@ TEST_F(SystemTest, CreateProcessAsync) {
     static constexpr size_t kProcessCount = 128;
     std::barrier barrier(kThreadCount + 1);
 
-    sys2::ProcessCreateInfo createInfo {
+    sys::ProcessCreateInfo createInfo {
         .name = "TEST",
         .supervisor = false,
     };
 
-    std::unique_ptr<sys2::ProcessHandle> hProcess = nullptr;
+    std::unique_ptr<sys::ProcessHandle> hProcess = nullptr;
     OsThreadHandle hThread = OS_HANDLE_INVALID;
 
     RecordMemoryUsage(memory);
 
-    status = sys2::SysCreateRootProcess(&system, createInfo, std::out_ptr(hProcess));
+    status = sys::SysCreateRootProcess(&system, createInfo, std::out_ptr(hProcess));
     ASSERT_EQ(status, OsStatusSuccess);
 
-    sys2::ThreadCreateInfo threadCreateInfo {
+    sys::ThreadCreateInfo threadCreateInfo {
         .name = "TEST",
         .cpuState = {},
         .tlsAddress = 0,
         .state = eOsThreadRunning,
     };
-    sys2::InvokeContext invoke { &system, hProcess->getProcess() };
-    status = sys2::SysThreadCreate(&invoke, threadCreateInfo, &hThread);
+    sys::InvokeContext invoke { &system, hProcess->getProcess() };
+    status = sys::SysThreadCreate(&invoke, threadCreateInfo, &hThread);
     ASSERT_EQ(status, OsStatusSuccess);
 
     threads.emplace_back([&](std::stop_token stop) {
@@ -99,13 +99,13 @@ TEST_F(SystemTest, CreateProcessAsync) {
                     .Flags = eOsProcessSupervisor,
                 };
 
-                sys2::InvokeContext invoke { &system, hProcess->getProcess(), GetThread(hProcess->getProcess(), hThread) };
-                OsStatus status = sys2::SysProcessCreate(&invoke, createInfo, &hChild);
+                sys::InvokeContext invoke { &system, hProcess->getProcess(), GetThread(hProcess->getProcess(), hThread) };
+                OsStatus status = sys::SysProcessCreate(&invoke, createInfo, &hChild);
                 if (status == OsStatusOutOfMemory) continue;
                 ASSERT_EQ(status, OsStatusSuccess);
                 ASSERT_NE(hChild, OS_HANDLE_INVALID) << "Child process was not created";
 
-                status = sys2::SysProcessDestroy(&invoke, hChild, 0, eOsProcessExited);
+                status = sys::SysProcessDestroy(&invoke, hChild, 0, eOsProcessExited);
                 ASSERT_EQ(status, OsStatusSuccess);
             }
         });
@@ -113,7 +113,7 @@ TEST_F(SystemTest, CreateProcessAsync) {
 
     threads.clear();
 
-    status = sys2::SysProcessDestroy(&invoke, hProcess.get(), 0, eOsProcessExited);
+    status = sys::SysProcessDestroy(&invoke, hProcess.get(), 0, eOsProcessExited);
     ASSERT_EQ(status, OsStatusSuccess);
 
     CheckMemoryUsage(memory);
@@ -122,8 +122,8 @@ TEST_F(SystemTest, CreateProcessAsync) {
 TEST_F(SystemTest, CreateChildProcess) {
     km::SystemMemory memory = body.make(sm::megabytes(2).bytes());
     vfs2::VfsRoot vfs;
-    sys2::System system;
-    OsStatus status = sys2::System::create(&vfs, &memory.pageTables(), &memory.pmmAllocator(), &system);
+    sys::System system;
+    OsStatus status = sys::System::create(&vfs, &memory.pageTables(), &memory.pmmAllocator(), &system);
     ASSERT_EQ(status, OsStatusSuccess);
 
     for (size_t i = 0; i < 8; i++) {
@@ -131,32 +131,32 @@ TEST_F(SystemTest, CreateChildProcess) {
     }
     RecordMemoryUsage(memory);
 
-    std::unique_ptr<sys2::ProcessHandle> hProcess = nullptr;
+    std::unique_ptr<sys::ProcessHandle> hProcess = nullptr;
     OsThreadHandle hThread = OS_HANDLE_INVALID;
     OsProcessHandle hChild = OS_HANDLE_INVALID;
 
     {
-        sys2::ProcessCreateInfo createInfo {
+        sys::ProcessCreateInfo createInfo {
             .name = "TEST",
             .supervisor = false,
         };
 
         RecordMemoryUsage(memory);
 
-        OsStatus status = sys2::SysCreateRootProcess(&system, createInfo, std::out_ptr(hProcess));
+        OsStatus status = sys::SysCreateRootProcess(&system, createInfo, std::out_ptr(hProcess));
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
     {
 
-        sys2::ThreadCreateInfo threadCreateInfo {
+        sys::ThreadCreateInfo threadCreateInfo {
             .name = "TEST",
             .cpuState = {},
             .tlsAddress = 0,
             .state = eOsThreadRunning,
         };
-        sys2::InvokeContext invoke { &system, hProcess->getProcess() };
-        OsStatus status = sys2::SysThreadCreate(&invoke, threadCreateInfo, &hThread);
+        sys::InvokeContext invoke { &system, hProcess->getProcess() };
+        OsStatus status = sys::SysThreadCreate(&invoke, threadCreateInfo, &hThread);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
@@ -165,9 +165,9 @@ TEST_F(SystemTest, CreateChildProcess) {
             .Name = "CHILD",
             .Flags = eOsProcessSupervisor,
         };
-        sys2::InvokeContext invoke { &system, hProcess->getProcess(), GetThread(hProcess->getProcess(), hThread) };
+        sys::InvokeContext invoke { &system, hProcess->getProcess(), GetThread(hProcess->getProcess(), hThread) };
 
-        OsStatus status = sys2::SysProcessCreate(&invoke, createInfo, &hChild);
+        OsStatus status = sys::SysProcessCreate(&invoke, createInfo, &hChild);
         ASSERT_EQ(status, OsStatusSuccess);
 
         ASSERT_NE(hChild, OS_HANDLE_INVALID) << "Child process was not created";
@@ -177,8 +177,8 @@ TEST_F(SystemTest, CreateChildProcess) {
         ASSERT_TRUE(process->getHandle(hChild)) << "Parent process does not have child process";
     }
 
-    sys2::InvokeContext invoke { &system, hProcess->getProcess(), GetThread(hProcess->getProcess(), hThread) };
-    status = sys2::SysProcessDestroy(&invoke, hProcess.get(), 0, eOsProcessExited);
+    sys::InvokeContext invoke { &system, hProcess->getProcess(), GetThread(hProcess->getProcess(), hThread) };
+    status = sys::SysProcessDestroy(&invoke, hProcess.get(), 0, eOsProcessExited);
     ASSERT_EQ(status, OsStatusSuccess);
 
     CheckMemoryUsage(memory);
@@ -187,8 +187,8 @@ TEST_F(SystemTest, CreateChildProcess) {
 TEST_F(SystemTest, NestedChildProcess) {
     km::SystemMemory memory = body.make(sm::megabytes(8).bytes());
     vfs2::VfsRoot vfs;
-    sys2::System system;
-    OsStatus status = sys2::System::create(&vfs, &memory.pageTables(), &memory.pmmAllocator(), &system);
+    sys::System system;
+    OsStatus status = sys::System::create(&vfs, &memory.pageTables(), &memory.pmmAllocator(), &system);
     ASSERT_EQ(status, OsStatusSuccess);
 
     for (size_t i = 0; i < 8; i++) {
@@ -196,33 +196,33 @@ TEST_F(SystemTest, NestedChildProcess) {
     }
     RecordMemoryUsage(memory);
 
-    std::unique_ptr<sys2::ProcessHandle> hProcess = nullptr;
+    std::unique_ptr<sys::ProcessHandle> hProcess = nullptr;
 
     {
-        sys2::ProcessCreateInfo createInfo {
+        sys::ProcessCreateInfo createInfo {
             .name = "TEST",
             .supervisor = false,
         };
 
-        OsStatus status = sys2::SysCreateRootProcess(&system, createInfo, std::out_ptr(hProcess));
+        OsStatus status = sys::SysCreateRootProcess(&system, createInfo, std::out_ptr(hProcess));
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
     {
         OsProcessHandle hChild = hProcess->getHandle();
-        sm::RcuSharedPtr<sys2::Process> pChild = hProcess->getProcess();
+        sm::RcuSharedPtr<sys::Process> pChild = hProcess->getProcess();
         for (size_t i = 0; i < 8; i++) {
             OsProcessCreateInfo createInfo {
                 .Name = "CHILD",
             };
 
-            sys2::InvokeContext invoke { &system, pChild };
-            OsStatus status = sys2::SysProcessCreate(&invoke, createInfo, &hChild);
+            sys::InvokeContext invoke { &system, pChild };
+            OsStatus status = sys::SysProcessCreate(&invoke, createInfo, &hChild);
             ASSERT_EQ(status, OsStatusSuccess);
 
             ASSERT_NE(hChild, OS_HANDLE_INVALID) << "Child process was not created";
 
-            sys2::ProcessHandle *hChildHandle = nullptr;
+            sys::ProcessHandle *hChildHandle = nullptr;
             status = pChild->findHandle(hChild, &hChildHandle);
             ASSERT_EQ(status, OsStatusSuccess) << "Parent process does not have child process";
             ASSERT_NE(hChildHandle, nullptr) << "Parent process does not have child process";
@@ -232,8 +232,8 @@ TEST_F(SystemTest, NestedChildProcess) {
         }
     }
 
-    sys2::InvokeContext invoke { &system, hProcess->getProcess() };
-    status = sys2::SysProcessDestroy(&invoke, hProcess.get(), 0, eOsProcessExited);
+    sys::InvokeContext invoke { &system, hProcess->getProcess() };
+    status = sys::SysProcessDestroy(&invoke, hProcess.get(), 0, eOsProcessExited);
     ASSERT_EQ(status, OsStatusSuccess);
 
     CheckMemoryUsage(memory);
@@ -242,42 +242,42 @@ TEST_F(SystemTest, NestedChildProcess) {
 TEST_F(SystemTest, OrphanThread) {
     km::SystemMemory memory = body.make(sm::megabytes(2).bytes());
     vfs2::VfsRoot vfs;
-    sys2::System system;
-    OsStatus status = sys2::System::create(&vfs, &memory.pageTables(), &memory.pmmAllocator(), &system);
+    sys::System system;
+    OsStatus status = sys::System::create(&vfs, &memory.pageTables(), &memory.pmmAllocator(), &system);
     ASSERT_EQ(status, OsStatusSuccess);
 
     for (size_t i = 0; i < 8; i++) {
         system.scheduler()->initCpuSchedule(km::CpuCoreId(i), 128);
     }
-    sys2::ProcessCreateInfo processCreateInfo {
+    sys::ProcessCreateInfo processCreateInfo {
         .name = "TEST",
         .supervisor = false,
     };
 
 
-    std::unique_ptr<sys2::ProcessHandle> hProcess = nullptr;
+    std::unique_ptr<sys::ProcessHandle> hProcess = nullptr;
     OsThreadHandle hThread = OS_HANDLE_INVALID;
 
     RecordMemoryUsage(memory);
 
-    status = sys2::SysCreateRootProcess(&system, processCreateInfo, std::out_ptr(hProcess));
+    status = sys::SysCreateRootProcess(&system, processCreateInfo, std::out_ptr(hProcess));
     ASSERT_EQ(status, OsStatusSuccess);
     ASSERT_NE(hProcess, nullptr) << "Process was not created";
 
-    sys2::ThreadCreateInfo threadCreateInfo {
+    sys::ThreadCreateInfo threadCreateInfo {
         .name = "TEST",
         .cpuState = {},
         .tlsAddress = 0,
         .state = eOsThreadRunning,
     };
-    sys2::InvokeContext invoke { &system, hProcess->getProcess() };
-    status = sys2::SysThreadCreate(&invoke, threadCreateInfo, &hThread);
+    sys::InvokeContext invoke { &system, hProcess->getProcess() };
+    status = sys::SysThreadCreate(&invoke, threadCreateInfo, &hThread);
     ASSERT_EQ(status, OsStatusSuccess);
 
     ASSERT_NE(hThread, OS_HANDLE_INVALID) << "Thread was not created";
     auto process = hProcess->getProcess();
 
-    status = sys2::SysProcessDestroy(&invoke, hProcess.get(), 0, eOsProcessExited);
+    status = sys::SysProcessDestroy(&invoke, hProcess.get(), 0, eOsProcessExited);
     ASSERT_EQ(status, OsStatusSuccess);
 
     CheckMemoryUsage(memory);
@@ -286,49 +286,49 @@ TEST_F(SystemTest, OrphanThread) {
 TEST_F(SystemTest, CreateThread) {
     km::SystemMemory memory = body.make(sm::megabytes(2).bytes());
     vfs2::VfsRoot vfs;
-    sys2::System system;
-    OsStatus status = sys2::System::create(&vfs, &memory.pageTables(), &memory.pmmAllocator(), &system);
+    sys::System system;
+    OsStatus status = sys::System::create(&vfs, &memory.pageTables(), &memory.pmmAllocator(), &system);
     ASSERT_EQ(status, OsStatusSuccess);
 
     for (size_t i = 0; i < 8; i++) {
         system.scheduler()->initCpuSchedule(km::CpuCoreId(i), 128);
     }
-    sys2::ProcessCreateInfo processCreateInfo {
+    sys::ProcessCreateInfo processCreateInfo {
         .name = "TEST",
         .supervisor = false,
     };
 
-    std::unique_ptr<sys2::ProcessHandle> hProcess = nullptr;
+    std::unique_ptr<sys::ProcessHandle> hProcess = nullptr;
     OsThreadHandle hThread = OS_HANDLE_INVALID;
 
     auto before0 = GetMemoryState(memory);
 
-    status = sys2::SysCreateRootProcess(&system, processCreateInfo, std::out_ptr(hProcess));
+    status = sys::SysCreateRootProcess(&system, processCreateInfo, std::out_ptr(hProcess));
     ASSERT_EQ(status, OsStatusSuccess);
     ASSERT_NE(hProcess, nullptr) << "Process was not created";
 
     auto before1 = GetMemoryState(memory);
 
-    sys2::ThreadCreateInfo threadCreateInfo {
+    sys::ThreadCreateInfo threadCreateInfo {
         .name = "TEST",
         .cpuState = {},
         .tlsAddress = 0,
         .state = eOsThreadRunning,
     };
-    sys2::InvokeContext invoke { &system, hProcess->getProcess() };
+    sys::InvokeContext invoke { &system, hProcess->getProcess() };
 
-    status = sys2::SysThreadCreate(&invoke, threadCreateInfo, &hThread);
+    status = sys::SysThreadCreate(&invoke, threadCreateInfo, &hThread);
     ASSERT_EQ(status, OsStatusSuccess);
 
     ASSERT_NE(hThread, OS_HANDLE_INVALID) << "Thread was not created";
     auto process = hProcess->getProcess();
 
-    status = sys2::SysThreadDestroy(&invoke, eOsThreadOrphaned, hThread);
+    status = sys::SysThreadDestroy(&invoke, eOsThreadOrphaned, hThread);
     ASSERT_EQ(status, OsStatusSuccess);
 
     CheckMemoryState(memory, before1);
 
-    status = sys2::SysProcessDestroy(&invoke, hProcess.get(), 0, eOsProcessExited);
+    status = sys::SysProcessDestroy(&invoke, hProcess.get(), 0, eOsProcessExited);
     ASSERT_EQ(status, OsStatusSuccess);
 
     CheckMemoryState(memory, before0);

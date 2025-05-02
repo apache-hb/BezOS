@@ -209,14 +209,14 @@ static OsStatus CreateThread(km::Process *process, km::SystemMemory& memory, km:
 #endif
 
 template<typename T>
-static OsStatus DeviceReadObject(sys2::InvokeContext *invoke, OsDeviceHandle file, OsSize offset, T *result) {
+static OsStatus DeviceReadObject(sys::InvokeContext *invoke, OsDeviceHandle file, OsSize offset, T *result) {
     OsDeviceReadRequest request {
         .BufferFront = (void*)result,
         .BufferBack = (void*)((char*)result + sizeof(T)),
         .Offset = offset,
     };
     OsSize read = 0;
-    if (OsStatus status = sys2::SysDeviceRead(invoke, file, request, &read)) {
+    if (OsStatus status = sys::SysDeviceRead(invoke, file, request, &read)) {
         return status;
     }
 
@@ -228,14 +228,14 @@ static OsStatus DeviceReadObject(sys2::InvokeContext *invoke, OsDeviceHandle fil
 }
 
 template<typename T>
-static OsStatus DeviceReadArray(sys2::InvokeContext *invoke, OsDeviceHandle file, OsSize offset, std::span<T> result) {
+static OsStatus DeviceReadArray(sys::InvokeContext *invoke, OsDeviceHandle file, OsSize offset, std::span<T> result) {
     OsDeviceReadRequest request {
         .BufferFront = (void*)result.data(),
         .BufferBack = (void*)((char*)result.data() + result.size_bytes()),
         .Offset = offset,
     };
     OsSize read = 0;
-    if (OsStatus status = sys2::SysDeviceRead(invoke, file, request, &read)) {
+    if (OsStatus status = sys::SysDeviceRead(invoke, file, request, &read)) {
         return status;
     }
 
@@ -246,11 +246,11 @@ static OsStatus DeviceReadArray(sys2::InvokeContext *invoke, OsDeviceHandle file
     return OsStatusSuccess;
 }
 
-static OsStatus MapProgram(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProcessHandle process, uintptr_t *entry) {
+static OsStatus MapProgram(sys::InvokeContext *invoke, OsDeviceHandle file, OsProcessHandle process, uintptr_t *entry) {
     elf::Header header{};
     OsFileInfo info{};
 
-    if (OsStatus status = sys2::SysDeviceInvoke(invoke, file, eOsFileStat, &info, sizeof(info))) {
+    if (OsStatus status = sys::SysDeviceInvoke(invoke, file, eOsFileStat, &info, sizeof(info))) {
         KmDebugMessage("[ELF] Failed to stat file info. ", OsStatusId(status), "\n");
         return status;
     }
@@ -306,7 +306,7 @@ static OsStatus MapProgram(sys2::InvokeContext *invoke, OsDeviceHandle file, OsP
                 .Process = process,
             };
 
-            if (OsStatus status = sys2::SysVmemCreate(invoke, vmemGuestCreateInfo, &guestAddress)) {
+            if (OsStatus status = sys::SysVmemCreate(invoke, vmemGuestCreateInfo, &guestAddress)) {
                 KmDebugMessage("[ELF] Failed to create guest memory. ", OsStatusId(status), "\n");
                 return status;
             }
@@ -321,7 +321,7 @@ static OsStatus MapProgram(sys2::InvokeContext *invoke, OsDeviceHandle file, OsP
             .Process = process,
         };
 
-        if (OsStatus status = sys2::SysVmemMap(invoke, vmemGuestMapInfo, &guestAddress)) {
+        if (OsStatus status = sys::SysVmemMap(invoke, vmemGuestMapInfo, &guestAddress)) {
             KmDebugMessage("[ELF] Failed to map guest memory. ", OsStatusId(status), "\n");
             return status;
         }
@@ -331,7 +331,7 @@ static OsStatus MapProgram(sys2::InvokeContext *invoke, OsDeviceHandle file, OsP
     return OsStatusSuccess;
 }
 
-OsStatus km::LoadElf2(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProcessHandle *process, OsThreadHandle *thread) {
+OsStatus km::LoadElf2(sys::InvokeContext *invoke, OsDeviceHandle file, OsProcessHandle *process, OsThreadHandle *thread) {
     OsStatus status = OsStatusSuccess;
     OsProcessHandle hProcess = OS_HANDLE_INVALID;
     OsThreadHandle hThread = OS_HANDLE_INVALID;
@@ -353,7 +353,7 @@ OsStatus km::LoadElf2(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProces
         .Flags = eOsProcessSuspended,
     };
 
-    if ((status = sys2::SysProcessCreate(invoke, processCreateInfo, &hProcess))) {
+    if ((status = sys::SysProcessCreate(invoke, processCreateInfo, &hProcess))) {
         return status;
     }
 
@@ -367,7 +367,7 @@ OsStatus km::LoadElf2(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProces
         .Process = hProcess,
     };
 
-    if ((status = sys2::SysVmemCreate(invoke, vmemCreateInfo, &startInfoGuestAddress))) {
+    if ((status = sys::SysVmemCreate(invoke, vmemCreateInfo, &startInfoGuestAddress))) {
         KmDebugMessage("[ELF] Failed to create start info memory. ", OsStatusId(status), "\n");
         goto cleanup;
     }
@@ -379,7 +379,7 @@ OsStatus km::LoadElf2(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProces
         .Source = hProcess,
     };
 
-    if ((status = sys2::SysVmemMap(invoke, vmemMapInfo, &startInfoAddress))) {
+    if ((status = sys::SysVmemMap(invoke, vmemMapInfo, &startInfoAddress))) {
         KmDebugMessage("[ELF] Failed to map start info memory into launcher. ", OsStatusId(status), "\n");
         goto cleanup;
     }
@@ -390,7 +390,7 @@ OsStatus km::LoadElf2(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProces
         .Process = hProcess,
     };
 
-    if ((status = sys2::SysVmemCreate(invoke, stackCreateInfo, &stackGuestAddress))) {
+    if ((status = sys::SysVmemCreate(invoke, stackCreateInfo, &stackGuestAddress))) {
         KmDebugMessage("[ELF] Failed to create stack memory. ", OsStatusId(status), "\n");
         goto cleanup;
     }
@@ -413,7 +413,7 @@ OsStatus km::LoadElf2(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProces
         .Process = hProcess,
     };
 
-    if ((status = sys2::SysThreadCreate(invoke, threadCreateInfo, &hThread))) {
+    if ((status = sys::SysThreadCreate(invoke, threadCreateInfo, &hThread))) {
         KmDebugMessage("[ELF] Failed to launch init process thread. ", OsStatusId(status), "\n");
         goto cleanup;
     }
@@ -421,20 +421,20 @@ OsStatus km::LoadElf2(sys2::InvokeContext *invoke, OsDeviceHandle file, OsProces
     *process = hProcess;
     *thread = hThread;
 
-    sys2::SysVmemRelease(invoke, startInfoAddress, 0x1000);
+    sys::SysVmemRelease(invoke, startInfoAddress, 0x1000);
     return OsStatusSuccess;
 
 cleanup:
     if (hThread != OS_HANDLE_INVALID) {
-        sys2::SysThreadDestroy(invoke, eOsThreadFinished, hThread);
+        sys::SysThreadDestroy(invoke, eOsThreadFinished, hThread);
     }
 
     if (startInfoAddress != nullptr) {
-        sys2::SysVmemRelease(invoke, startInfoAddress, 0x1000);
+        sys::SysVmemRelease(invoke, startInfoAddress, 0x1000);
     }
 
     if (hProcess != OS_HANDLE_INVALID) {
-        sys2::SysProcessDestroy(invoke, hProcess, 0, eOsProcessExited);
+        sys::SysProcessDestroy(invoke, hProcess, 0, eOsProcessExited);
     }
 
     return status;

@@ -27,7 +27,7 @@ namespace vfs2 {
     class INode;
 }
 
-namespace sys2 {
+namespace sys {
     class System {
         std::atomic<OsProcessId> mPidCounter{1};
     public:

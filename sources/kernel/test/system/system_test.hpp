@@ -16,8 +16,8 @@ struct MemoryState {
     size_t freeSpace;
 };
 
-static inline sys2::ProcessHandle *GetProcessHandle(sm::RcuSharedPtr<sys2::Process> parent, OsProcessHandle handle) {
-    sys2::ProcessHandle *hChild = nullptr;
+static inline sys::ProcessHandle *GetProcessHandle(sm::RcuSharedPtr<sys::Process> parent, OsProcessHandle handle) {
+    sys::ProcessHandle *hChild = nullptr;
     OsStatus status = parent->findHandle(handle, &hChild);
     if (status != OsStatusSuccess) {
         return nullptr;
@@ -26,8 +26,8 @@ static inline sys2::ProcessHandle *GetProcessHandle(sm::RcuSharedPtr<sys2::Proce
     return hChild;
 }
 
-static inline sm::RcuSharedPtr<sys2::Process> GetProcess(sm::RcuSharedPtr<sys2::Process> parent, OsProcessHandle handle) {
-    sys2::ProcessHandle *hChild = GetProcessHandle(parent, handle);
+static inline sm::RcuSharedPtr<sys::Process> GetProcess(sm::RcuSharedPtr<sys::Process> parent, OsProcessHandle handle) {
+    sys::ProcessHandle *hChild = GetProcessHandle(parent, handle);
     if (hChild == nullptr) {
         return nullptr;
     }
@@ -35,8 +35,8 @@ static inline sm::RcuSharedPtr<sys2::Process> GetProcess(sm::RcuSharedPtr<sys2::
     return hChild->getProcess();
 }
 
-static inline sm::RcuSharedPtr<sys2::Thread> GetThread(sm::RcuSharedPtr<sys2::Process> parent, OsThreadHandle handle) {
-    sys2::ThreadHandle *hChild = nullptr;
+static inline sm::RcuSharedPtr<sys::Thread> GetThread(sm::RcuSharedPtr<sys::Process> parent, OsThreadHandle handle) {
+    sys::ThreadHandle *hChild = nullptr;
     OsStatus status = parent->findHandle(handle, &hChild);
     if (status != OsStatusSuccess) {
         return nullptr;

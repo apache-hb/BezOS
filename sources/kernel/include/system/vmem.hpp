@@ -4,7 +4,7 @@
 
 #include "std/rcuptr.hpp"
 
-namespace sys2 {
+namespace sys {
     /// @brief Physical storage for vm objects
     ///
     /// Can represent any backing storage

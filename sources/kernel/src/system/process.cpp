@@ -14,7 +14,7 @@
 
 #include <bezos/handle.h>
 
-OsStatus sys2::ProcessHandle::createProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle) {
+OsStatus sys::ProcessHandle::createProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle) {
     if (!hasAccess(ProcessAccess::eProcessControl)) {
         return OsStatusAccessDenied;
     }
@@ -22,7 +22,7 @@ OsStatus sys2::ProcessHandle::createProcess(System *system, ProcessCreateInfo in
     return getInner()->createProcess(system, info, handle);
 }
 
-OsStatus sys2::ProcessHandle::destroyProcess(System *system, const ProcessDestroyInfo& info) {
+OsStatus sys::ProcessHandle::destroyProcess(System *system, const ProcessDestroyInfo& info) {
     if (!hasAccess(ProcessAccess::eDestroy)) {
         return OsStatusAccessDenied;
     }
@@ -30,7 +30,7 @@ OsStatus sys2::ProcessHandle::destroyProcess(System *system, const ProcessDestro
     return getInner()->destroy(system, info);
 }
 
-sys2::Process::Process(
+sys::Process::Process(
     ObjectName name,
     OsProcessStateFlags state,
     sm::RcuWeakPtr<Process> parent,
@@ -45,7 +45,7 @@ sys2::Process::Process(
     , mAddressSpace(std::move(addressSpace))
 { }
 
-OsStatus sys2::Process::stat(ProcessStat *info) {
+OsStatus sys::Process::stat(ProcessStat *info) {
     sm::RcuSharedPtr<Process> parent = mParent.lock();
     if (!parent) {
         return OsStatusProcessOrphaned;
@@ -64,7 +64,7 @@ OsStatus sys2::Process::stat(ProcessStat *info) {
     return OsStatusSuccess;
 }
 
-OsStatus sys2::Process::open(HandleCreateInfo createInfo, IHandle **handle) {
+OsStatus sys::Process::open(HandleCreateInfo createInfo, IHandle **handle) {
     sm::RcuSharedPtr<Process> owner = createInfo.owner;
     OsHandle id = owner->newHandleId(eOsHandleProcess);
     ProcessHandle *result = new (std::nothrow) ProcessHandle(loanShared(), id, ProcessAccess(createInfo.access));
@@ -78,7 +78,7 @@ OsStatus sys2::Process::open(HandleCreateInfo createInfo, IHandle **handle) {
     return OsStatusSuccess;
 }
 
-sys2::IHandle *sys2::Process::getHandle(OsHandle handle) {
+sys::IHandle *sys::Process::getHandle(OsHandle handle) {
     stdx::SharedLock guard(mLock);
     if (auto it = mHandles.find(handle); it != mHandles.end()) {
         return it->second.get();
@@ -87,16 +87,16 @@ sys2::IHandle *sys2::Process::getHandle(OsHandle handle) {
     return nullptr;
 }
 
-void sys2::Process::addHandle(IHandle *handle) {
+void sys::Process::addHandle(IHandle *handle) {
     stdx::UniqueLock guard(mLock);
     mHandles.insert({ handle->getHandle(), std::unique_ptr<IHandle>(handle) });
 }
 
-OsStatus sys2::Process::removeHandle(IHandle *handle) {
+OsStatus sys::Process::removeHandle(IHandle *handle) {
     return removeHandle(handle->getHandle());
 }
 
-OsStatus sys2::Process::removeHandle(OsHandle handle) {
+OsStatus sys::Process::removeHandle(OsHandle handle) {
     stdx::UniqueLock guard(mLock);
     if (auto it = mHandles.find(handle); it != mHandles.end()) {
         mHandles.erase(it);
@@ -106,7 +106,7 @@ OsStatus sys2::Process::removeHandle(OsHandle handle) {
     return OsStatusInvalidHandle;
 }
 
-OsStatus sys2::Process::findHandle(OsHandle handle, OsHandleType type, IHandle **result) {
+OsStatus sys::Process::findHandle(OsHandle handle, OsHandleType type, IHandle **result) {
     if (OS_HANDLE_TYPE(handle) != type) {
         return OsStatusInvalidHandle;
     }
@@ -120,11 +120,11 @@ OsStatus sys2::Process::findHandle(OsHandle handle, OsHandleType type, IHandle *
     return OsStatusInvalidHandle;
 }
 
-OsStatus sys2::Process::currentHandle(OsProcessAccess access, OsProcessHandle *handle) {
+OsStatus sys::Process::currentHandle(OsProcessAccess access, OsProcessHandle *handle) {
     return resolveObject(loanShared(), access, handle);
 }
 
-OsStatus sys2::Process::resolveObject(sm::RcuSharedPtr<IObject> object, OsHandleAccess access, OsHandle *handle) {
+OsStatus sys::Process::resolveObject(sm::RcuSharedPtr<IObject> object, OsHandleAccess access, OsHandle *handle) {
     HandleCreateInfo createInfo {
         .owner = loanShared(),
         .access = access,
@@ -139,7 +139,7 @@ OsStatus sys2::Process::resolveObject(sm::RcuSharedPtr<IObject> object, OsHandle
     return OsStatusSuccess;
 }
 
-OsStatus sys2::Process::resolveAddress(const void *address, sm::RcuSharedPtr<IMemoryObject> *object) {
+OsStatus sys::Process::resolveAddress(const void *address, sm::RcuSharedPtr<IMemoryObject> *object) {
     if ((uintptr_t)address % x64::kPageSize != 0) {
         return OsStatusInvalidInput;
     }
@@ -152,43 +152,43 @@ OsStatus sys2::Process::resolveAddress(const void *address, sm::RcuSharedPtr<IMe
     return OsStatusNotFound;
 }
 
-void sys2::Process::removeChild(sm::RcuSharedPtr<Process> child) {
+void sys::Process::removeChild(sm::RcuSharedPtr<Process> child) {
     stdx::UniqueLock guard(mLock);
     mChildren.erase(child);
 }
 
-void sys2::Process::addChild(sm::RcuSharedPtr<Process> child) {
+void sys::Process::addChild(sm::RcuSharedPtr<Process> child) {
     stdx::UniqueLock guard(mLock);
     mChildren.insert(child);
 }
 
-void sys2::Process::removeThread(sm::RcuSharedPtr<Thread> thread) {
+void sys::Process::removeThread(sm::RcuSharedPtr<Thread> thread) {
     stdx::UniqueLock guard(mLock);
     mThreads.erase(thread);
 }
 
-void sys2::Process::addThread(sm::RcuSharedPtr<Thread> thread) {
+void sys::Process::addThread(sm::RcuSharedPtr<Thread> thread) {
     stdx::UniqueLock guard(mLock);
     mThreads.insert(thread);
 }
 
-void sys2::Process::loadPageTables() {
-    sys2::AddressSpaceManager::setActiveMap(&mAddressSpace);
+void sys::Process::loadPageTables() {
+    sys::AddressSpaceManager::setActiveMap(&mAddressSpace);
 }
 
-OsStatus sys2::Process::createProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle) {
+OsStatus sys::Process::createProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle) {
     km::AddressMapping pteMemory;
     if (OsStatus status = system->mapProcessPageTables(&pteMemory)) {
         return status;
     }
 
-    sys2::AddressSpaceManager addressSpace;
-    if (OsStatus status = sys2::AddressSpaceManager::create(system->mSystemTables, pteMemory, km::PageFlags::eUserAll, km::DefaultUserArea(), &addressSpace)) {
+    sys::AddressSpaceManager addressSpace;
+    if (OsStatus status = sys::AddressSpaceManager::create(system->mSystemTables, pteMemory, km::PageFlags::eUserAll, km::DefaultUserArea(), &addressSpace)) {
         system->releaseMapping(pteMemory);
         return status;
     }
 
-    if (auto process = sm::rcuMakeShared<sys2::Process>(&system->rcuDomain(), info.name, info.state, loanWeak(), system->nextProcessId(), std::move(addressSpace))) {
+    if (auto process = sm::rcuMakeShared<sys::Process>(&system->rcuDomain(), info.name, info.state, loanWeak(), system->nextProcessId(), std::move(addressSpace))) {
         ProcessHandle *result = new (std::nothrow) ProcessHandle(process, newHandleId(eOsHandleProcess), ProcessAccess::eAll);
         if (!result) {
             system->releaseMapping(pteMemory);
@@ -207,7 +207,7 @@ OsStatus sys2::Process::createProcess(System *system, ProcessCreateInfo info, Pr
     return OsStatusOutOfMemory;
 }
 
-OsStatus sys2::Process::destroy(System *system, const ProcessDestroyInfo& info) {
+OsStatus sys::Process::destroy(System *system, const ProcessDestroyInfo& info) {
     if (auto parent = mParent.lock()) {
         parent->removeChild(loanShared());
     }
@@ -241,7 +241,7 @@ OsStatus sys2::Process::destroy(System *system, const ProcessDestroyInfo& info) 
     return OsStatusSuccess;
 }
 
-OsStatus sys2::Process::vmemCreate(System *system, OsVmemCreateInfo info, km::AddressMapping *mapping) {
+OsStatus sys::Process::vmemCreate(System *system, OsVmemCreateInfo info, km::AddressMapping *mapping) {
     km::MemoryRange memory;
 
     if (OsStatus status = system->mMemoryManager.allocate(info.Size, info.Alignment, &memory)) {
@@ -355,7 +355,7 @@ OsStatus sys2::Process::vmemCreate(System *system, OsVmemCreateInfo info, km::Ad
         }
     }
 
-    auto object = sm::rcuMakeShared<sys2::MemoryObject>(&system->rcuDomain(), range);
+    auto object = sm::rcuMakeShared<sys::MemoryObject>(&system->rcuDomain(), range);
 
     auto vm = result.virtualRange();
     for (auto i = vm.front; i < vm.back; i = (char*)i + x64::kPageSize) {
@@ -369,7 +369,7 @@ OsStatus sys2::Process::vmemCreate(System *system, OsVmemCreateInfo info, km::Ad
 #endif
 }
 
-OsStatus sys2::Process::vmemMapFile(System *system, OsVmemMapInfo info, vfs2::IFileHandle *fileHandle, km::VirtualRange *result) {
+OsStatus sys::Process::vmemMapFile(System *system, OsVmemMapInfo info, vfs2::IFileHandle *fileHandle, km::VirtualRange *result) {
     km::MemoryRange memory;
 
     if (OsStatus status = MapFileToMemory(fileHandle, &system->mMemoryManager, system->mSystemTables, info.SrcAddress, info.Size, km::PageFlags::eUserAll, &memory)) {
@@ -388,8 +388,8 @@ OsStatus sys2::Process::vmemMapFile(System *system, OsVmemMapInfo info, vfs2::IF
     return OsStatusSuccess;
 
 #if 0
-    sm::RcuSharedPtr<sys2::FileMapping> fileMapping;
-    if (OsStatus status = sys2::MapFileToMemory(&system->rcuDomain(), fileHandle, system->mPageAllocator, system->mSystemTables, info.SrcAddress, info.SrcAddress + info.Size, &fileMapping)) {
+    sm::RcuSharedPtr<sys::FileMapping> fileMapping;
+    if (OsStatus status = sys::MapFileToMemory(&system->rcuDomain(), fileHandle, system->mPageAllocator, system->mSystemTables, info.SrcAddress, info.SrcAddress + info.Size, &fileMapping)) {
         return status;
     }
 
@@ -437,7 +437,7 @@ OsStatus sys2::Process::vmemMapFile(System *system, OsVmemMapInfo info, vfs2::IF
 #endif
 }
 
-OsStatus sys2::Process::vmemMapProcess(System *system, OsVmemMapInfo info, sm::RcuSharedPtr<Process> process, km::VirtualRange *mapping) {
+OsStatus sys::Process::vmemMapProcess(System *system, OsVmemMapInfo info, sm::RcuSharedPtr<Process> process, km::VirtualRange *mapping) {
     if (info.Size % x64::kPageSize != 0) {
         return OsStatusInvalidInput;
     }
@@ -447,32 +447,32 @@ OsStatus sys2::Process::vmemMapProcess(System *system, OsVmemMapInfo info, sm::R
     return mAddressSpace.map(&system->mMemoryManager, &process->mAddressSpace, vm, km::PageFlags::eUserAll, km::MemoryType::eWriteBack, mapping);
 }
 
-OsStatus sys2::Process::vmemRelease(System *, km::VirtualRange) {
+OsStatus sys::Process::vmemRelease(System *, km::VirtualRange) {
     return OsStatusNotSupported;
 }
 
-static OsStatus CreateProcessInner(sys2::System *system, sys2::ObjectName name, OsProcessStateFlags state, sm::RcuSharedPtr<sys2::Process> parent, OsHandle id, sys2::ProcessHandle **handle) {
-    sm::RcuSharedPtr<sys2::Process> process;
-    sys2::ProcessHandle *result = nullptr;
+static OsStatus CreateProcessInner(sys::System *system, sys::ObjectName name, OsProcessStateFlags state, sm::RcuSharedPtr<sys::Process> parent, OsHandle id, sys::ProcessHandle **handle) {
+    sm::RcuSharedPtr<sys::Process> process;
+    sys::ProcessHandle *result = nullptr;
     km::AddressMapping pteMemory;
-    sys2::AddressSpaceManager mm;
+    sys::AddressSpaceManager mm;
 
     if (OsStatus status = system->mapProcessPageTables(&pteMemory)) {
         return status;
     }
 
-    if (OsStatus status = sys2::AddressSpaceManager::create(system->mSystemTables, pteMemory, km::PageFlags::eUserAll, km::DefaultUserArea(), &mm)) {
+    if (OsStatus status = sys::AddressSpaceManager::create(system->mSystemTables, pteMemory, km::PageFlags::eUserAll, km::DefaultUserArea(), &mm)) {
         system->releaseMapping(pteMemory);
         return status;
     }
 
     // Create the process.
-    process = sm::rcuMakeShared<sys2::Process>(&system->rcuDomain(), name, state, parent, system->nextProcessId(), std::move(mm));
+    process = sm::rcuMakeShared<sys::Process>(&system->rcuDomain(), name, state, parent, system->nextProcessId(), std::move(mm));
     if (!process) {
         goto outOfMemory;
     }
 
-    result = new (std::nothrow) sys2::ProcessHandle(process, id, sys2::ProcessAccess::eAll);
+    result = new (std::nothrow) sys::ProcessHandle(process, id, sys::ProcessAccess::eAll);
     if (!result) {
         goto outOfMemory;
     }
@@ -490,7 +490,7 @@ outOfMemory:
     return OsStatusOutOfMemory;
 }
 
-OsStatus sys2::SysCreateRootProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle) {
+OsStatus sys::SysCreateRootProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle) {
     OsHandle id = OS_HANDLE_NEW(eOsHandleProcess, 0);
     ProcessHandle *result = nullptr;
 
@@ -502,7 +502,7 @@ OsStatus sys2::SysCreateRootProcess(System *system, ProcessCreateInfo info, Proc
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysDestroyRootProcess(System *system, ProcessHandle *handle) {
+OsStatus sys::SysDestroyRootProcess(System *system, ProcessHandle *handle) {
     if (!handle->hasAccess(ProcessAccess::eDestroy)) {
         return OsStatusAccessDenied;
     }
@@ -516,11 +516,11 @@ OsStatus sys2::SysDestroyRootProcess(System *system, ProcessHandle *handle) {
     return handle->destroyProcess(system, info);
 }
 
-OsStatus sys2::SysResolveObject(InvokeContext *context, sm::RcuSharedPtr<IObject> object, OsHandleAccess access, OsHandle *handle) {
+OsStatus sys::SysResolveObject(InvokeContext *context, sm::RcuSharedPtr<IObject> object, OsHandleAccess access, OsHandle *handle) {
     return context->process->resolveObject(object, access, handle);
 }
 
-OsStatus sys2::SysProcessCreate(InvokeContext *context, OsProcessCreateInfo info, OsProcessHandle *handle) {
+OsStatus sys::SysProcessCreate(InvokeContext *context, OsProcessCreateInfo info, OsProcessHandle *handle) {
     ProcessHandle *hParent = nullptr;
     sm::RcuSharedPtr<Process> process;
 
@@ -538,7 +538,7 @@ OsStatus sys2::SysProcessCreate(InvokeContext *context, OsProcessCreateInfo info
     return SysProcessCreate(context, process, info, handle);
 }
 
-OsStatus sys2::SysProcessCreate(InvokeContext *context, sm::RcuSharedPtr<Process> parent, OsProcessCreateInfo info, OsProcessHandle *handle) {
+OsStatus sys::SysProcessCreate(InvokeContext *context, sm::RcuSharedPtr<Process> parent, OsProcessCreateInfo info, OsProcessHandle *handle) {
     ProcessHandle *hResult = nullptr;
     TxHandle *hTx = nullptr;
 
@@ -561,8 +561,8 @@ OsStatus sys2::SysProcessCreate(InvokeContext *context, sm::RcuSharedPtr<Process
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysProcessDestroy(InvokeContext *context, OsProcessHandle handle, int64_t exitCode, OsProcessStateFlags reason) {
-    sys2::ProcessHandle *hProcess = nullptr;
+OsStatus sys::SysProcessDestroy(InvokeContext *context, OsProcessHandle handle, int64_t exitCode, OsProcessStateFlags reason) {
+    sys::ProcessHandle *hProcess = nullptr;
     if (OsStatus status = context->process->findHandle(handle, &hProcess)) {
         return status;
     }
@@ -570,7 +570,7 @@ OsStatus sys2::SysProcessDestroy(InvokeContext *context, OsProcessHandle handle,
     return SysProcessDestroy(context, hProcess, exitCode, reason);
 }
 
-OsStatus sys2::SysProcessDestroy(InvokeContext *context, sys2::ProcessHandle *handle, int64_t exitCode, OsProcessStateFlags reason) {
+OsStatus sys::SysProcessDestroy(InvokeContext *context, sys::ProcessHandle *handle, int64_t exitCode, OsProcessStateFlags reason) {
     if (!handle->hasAccess(ProcessAccess::eDestroy)) {
         return OsStatusAccessDenied;
     }
@@ -584,8 +584,8 @@ OsStatus sys2::SysProcessDestroy(InvokeContext *context, sys2::ProcessHandle *ha
     return handle->destroyProcess(context->system, info);
 }
 
-OsStatus sys2::SysProcessStat(InvokeContext *context, OsProcessHandle handle, OsProcessInfo *result) {
-    sys2::ProcessHandle *hProcess = nullptr;
+OsStatus sys::SysProcessStat(InvokeContext *context, OsProcessHandle handle, OsProcessInfo *result) {
+    sys::ProcessHandle *hProcess = nullptr;
     if (OsStatus status = context->process->findHandle(handle, &hProcess)) {
         return status;
     }
@@ -614,12 +614,12 @@ OsStatus sys2::SysProcessStat(InvokeContext *context, OsProcessHandle handle, Os
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysProcessCurrent(InvokeContext *context, OsProcessAccess access, OsProcessHandle *handle) {
+OsStatus sys::SysProcessCurrent(InvokeContext *context, OsProcessAccess access, OsProcessHandle *handle) {
     return context->process->currentHandle(access, handle);
 }
 
-OsStatus sys2::SysQueryProcessList(InvokeContext *context, ProcessQueryInfo info, ProcessQueryResult *result) {
-    sys2::System *system = context->system;
+OsStatus sys::SysQueryProcessList(InvokeContext *context, ProcessQueryInfo info, ProcessQueryResult *result) {
+    sys::System *system = context->system;
     stdx::SharedLock guard(system->mLock);
 
     size_t index = 0;
@@ -654,7 +654,7 @@ OsStatus sys2::SysQueryProcessList(InvokeContext *context, ProcessQueryInfo info
     return hasMoreData ? OsStatusMoreData : OsStatusSuccess;
 }
 
-bool sys2::IsParentProcess(sm::RcuSharedPtr<Process> process, sm::RcuSharedPtr<Process> parent) {
+bool sys::IsParentProcess(sm::RcuSharedPtr<Process> process, sm::RcuSharedPtr<Process> parent) {
     sm::RcuSharedPtr<Process> current = process;
     while (current) {
         if (current == parent) {
@@ -667,7 +667,7 @@ bool sys2::IsParentProcess(sm::RcuSharedPtr<Process> process, sm::RcuSharedPtr<P
     return false;
 }
 
-OsStatus sys2::SysGetInvokerTx(InvokeContext *context, TxHandle **outHandle) {
+OsStatus sys::SysGetInvokerTx(InvokeContext *context, TxHandle **outHandle) {
     if (context->tx == OS_HANDLE_INVALID) {
         return OsStatusInvalidHandle;
     }
@@ -675,7 +675,7 @@ OsStatus sys2::SysGetInvokerTx(InvokeContext *context, TxHandle **outHandle) {
     return SysFindHandle(context, context->tx, outHandle);
 }
 
-OsStatus sys2::SysVmemCreate(InvokeContext *context, OsVmemCreateInfo info, void **outVmem) {
+OsStatus sys::SysVmemCreate(InvokeContext *context, OsVmemCreateInfo info, void **outVmem) {
     sm::RcuSharedPtr<Process> process;
     if (info.Process != OS_HANDLE_INVALID) {
         ProcessHandle *hProcess = nullptr;
@@ -700,11 +700,11 @@ OsStatus sys2::SysVmemCreate(InvokeContext *context, OsVmemCreateInfo info, void
     return OsStatusSuccess;
 }
 
-OsStatus sys2::SysVmemRelease(InvokeContext *, OsAnyPointer, OsSize) {
+OsStatus sys::SysVmemRelease(InvokeContext *, OsAnyPointer, OsSize) {
     return OsStatusNotSupported;
 }
 
-OsStatus sys2::SysVmemMap(InvokeContext *context, OsVmemMapInfo info, void **outVmem) {
+OsStatus sys::SysVmemMap(InvokeContext *context, OsVmemMapInfo info, void **outVmem) {
     sm::RcuSharedPtr<Process> dstProcess;
 
     if (info.Source == OS_HANDLE_INVALID) {
@@ -784,7 +784,7 @@ OsStatus sys2::SysVmemMap(InvokeContext *context, OsVmemMapInfo info, void **out
     }
 }
 
-OsStatus sys2::MapFileToMemory(vfs2::IFileHandle *file, MemoryManager *mm, km::AddressSpace *pt, size_t offset, size_t size, km::PageFlags flags, km::MemoryRange *range) {
+OsStatus sys::MapFileToMemory(vfs2::IFileHandle *file, MemoryManager *mm, km::AddressSpace *pt, size_t offset, size_t size, km::PageFlags flags, km::MemoryRange *range) {
     km::MemoryRange result;
     if (OsStatus status = mm->allocate(sm::roundup(size, x64::kPageSize), x64::kPageSize, &result)) {
         return status;

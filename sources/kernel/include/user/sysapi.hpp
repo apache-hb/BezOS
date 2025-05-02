@@ -8,7 +8,7 @@ namespace vfs2 {
     class VfsPath;
 }
 
-namespace sys2 {
+namespace sys {
     class System;
 }
 
@@ -26,7 +26,7 @@ namespace km {
         vfs2::VfsRoot *vfs;
         SystemMemory *memory;
         Clock *clock;
-        sys2::System *sys;
+        sys::System *sys;
     };
 }
 

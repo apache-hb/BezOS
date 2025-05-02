@@ -4,7 +4,7 @@
 
 #include <stdint.h>
 
-namespace sys2 {
+namespace sys {
     struct AffinityMask {
         uint64_t mask[4] = { [0 ... 3] = UINT64_MAX }; // TODO: support more than 256 processors
     };

@@ -829,7 +829,7 @@ SystemMemory *km::GetSystemMemory() {
 
 AddressSpace& km::GetProcessPageManager() {
 #if 0
-    if (auto process = sys2::GetCurrentProcess()) {
+    if (auto process = sys::GetCurrentProcess()) {
         return process->addressSpace();
     }
 #endif
@@ -986,28 +986,28 @@ static void MountVolatileFolder() {
     }
 }
 
-static OsStatus LaunchInitProcess(sys2::InvokeContext *invoke, OsProcessHandle *process) {
+static OsStatus LaunchInitProcess(sys::InvokeContext *invoke, OsProcessHandle *process) {
     OsDeviceHandle device = OS_HANDLE_INVALID;
     OsThreadHandle thread = OS_HANDLE_INVALID;
-    sys2::DeviceOpenInfo createInfo {
+    sys::DeviceOpenInfo createInfo {
         .path = vfs2::BuildPath("Init", "init.elf"),
         .flags = eOsDeviceOpenExisting,
         .interface = kOsFileGuid,
     };
 
-    if (OsStatus status = sys2::SysDeviceOpen(invoke, createInfo, &device)) {
+    if (OsStatus status = sys::SysDeviceOpen(invoke, createInfo, &device)) {
         KmDebugMessage("[VFS] Failed to create device ", createInfo.path, ": ", OsStatusId(status), "\n");
         return status;
     }
 
-    defer { sys2::SysDeviceClose(invoke, device); };
+    defer { sys::SysDeviceClose(invoke, device); };
 
     if (OsStatus status = km::LoadElf2(invoke, device, process, &thread)) {
         KmDebugMessage("[VFS] Failed to load init process: ", OsStatusId(status), "\n");
         return status;
     }
 
-    if (OsStatus status = sys2::SysThreadSuspend(invoke, thread, false)) {
+    if (OsStatus status = sys::SysThreadSuspend(invoke, thread, false)) {
         KmDebugMessage("[VFS] Failed to resume init thread: ", OsStatusId(status), "\n");
         return status;
     }
@@ -1055,8 +1055,8 @@ static void AddDebugSystemCalls() {
     AddSystemCall(eOsCallDebugMessage, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t userMessage = regs->arg0;
         OsDebugMessageInfo messageInfo{};
-        auto process = sys2::GetCurrentProcess();
-        auto thread = sys2::GetCurrentThread();
+        auto process = sys::GetCurrentProcess();
+        auto thread = sys::GetCurrentThread();
 
         if (OsStatus status = context->readObject(userMessage, &messageInfo)) {
             return CallError(status);
@@ -1084,23 +1084,23 @@ static void AddDebugSystemCalls() {
     });
 }
 
-static sys2::System *gSysSystem = nullptr;
+static sys::System *gSysSystem = nullptr;
 
 static void InitSystem() {
     auto *memory = GetSystemMemory();
-    gSysSystem = new sys2::System;
+    gSysSystem = new sys::System;
 
-    if (OsStatus status = sys2::System::create(gVfsRoot, &memory->pageTables(), &memory->pmmAllocator(), gSysSystem)) {
+    if (OsStatus status = sys::System::create(gVfsRoot, &memory->pageTables(), &memory->pmmAllocator(), gSysSystem)) {
         KmDebugMessage("[INIT] Failed to create system: ", OsStatusId(status), "\n");
         KM_PANIC("Failed to create system.");
     }
 
     auto *scheduler = gSysSystem->scheduler();
     scheduler->initCpuSchedule(km::GetCurrentCoreId(), 128);
-    sys2::InstallTimerIsr(GetSharedIsrTable());
+    sys::InstallTimerIsr(GetSharedIsrTable());
 }
 
-sys2::System *km::GetSysSystem() {
+sys::System *km::GetSysSystem() {
     return gSysSystem;
 }
 
@@ -1301,7 +1301,7 @@ static void StartupSmp(const acpi::AcpiTables& rsdt, bool umip, km::ApicTimer *a
 
             auto *scheduler = gSysSystem->scheduler();
             scheduler->initCpuSchedule(km::GetCurrentCoreId(), 128);
-            sys2::EnterScheduler(gSysSystem->getCpuSchedule(km::GetCurrentCoreId()), apicTimer);
+            sys::EnterScheduler(gSysSystem->getCpuSchedule(km::GetCurrentCoreId()), apicTimer);
         });
     }
 
@@ -1339,8 +1339,8 @@ static OsStatus LaunchThread(OsStatus(*entry)(void*), void *arg, stdx::String na
     };
     strncpy(createInfo.Name, name.cString(), sizeof(createInfo.Name));
     OsThreadHandle thread = OS_HANDLE_INVALID;
-    sys2::InvokeContext invoke { gSysSystem, sys2::GetCurrentProcess(), sys2::GetCurrentThread() };
-    if (OsStatus status = sys2::SysThreadCreate(&invoke, createInfo, &thread)) {
+    sys::InvokeContext invoke { gSysSystem, sys::GetCurrentProcess(), sys::GetCurrentThread() };
+    if (OsStatus status = sys::SysThreadCreate(&invoke, createInfo, &thread)) {
         return status;
     }
 
@@ -1366,7 +1366,7 @@ static OsStatus KernelMasterTask() {
     LaunchThread(&NotificationWork, gNotificationStream, "NOTIFY");
 
     OsProcessHandle hInit = OS_HANDLE_INVALID;
-    sys2::InvokeContext invoke { gSysSystem, sys2::GetCurrentProcess(), sys2::GetCurrentThread() };
+    sys::InvokeContext invoke { gSysSystem, sys::GetCurrentProcess(), sys::GetCurrentThread() };
     if (OsStatus status = LaunchInitProcess(&invoke, &hInit)) {
         KmDebugMessage("[INIT] Failed to create INIT process: ", OsStatusId(status), "\n");
         KM_PANIC("Failed to create init process.");
@@ -1379,7 +1379,7 @@ static OsStatus KernelMasterTask() {
         // Spin forever for now, in the future this task will handle
         // top level kernel events.
         //
-        sys2::YieldCurrentThread();
+        sys::YieldCurrentThread();
     }
 
     return OsStatusSuccess;
@@ -1470,12 +1470,12 @@ static void CreateDisplayDevice() {
 
 [[noreturn]]
 static void LaunchKernelProcess(km::ApicTimer *apicTimer) {
-    sys2::ProcessCreateInfo createInfo {
+    sys::ProcessCreateInfo createInfo {
         .name = "SYSTEM",
         .state = eOsProcessSupervisor,
     };
-    std::unique_ptr<sys2::ProcessHandle> system;
-    OsStatus status = sys2::SysCreateRootProcess(gSysSystem, createInfo, std::out_ptr(system));
+    std::unique_ptr<sys::ProcessHandle> system;
+    OsStatus status = sys::SysCreateRootProcess(gSysSystem, createInfo, std::out_ptr(system));
     if (status != OsStatusSuccess) {
         KmDebugMessage("[INIT] Failed to create SYSTEM process: ", OsStatusId(status), "\n");
         KM_PANIC("Failed to create SYSTEM process.");
@@ -1495,8 +1495,8 @@ static void LaunchKernelProcess(km::ApicTimer *apicTimer) {
     };
 
     OsThreadHandle thread = OS_HANDLE_INVALID;
-    sys2::InvokeContext invoke { gSysSystem, system->getProcess() };
-    status = sys2::SysThreadCreate(&invoke, threadInfo, &thread);
+    sys::InvokeContext invoke { gSysSystem, system->getProcess() };
+    status = sys::SysThreadCreate(&invoke, threadInfo, &thread);
     if (status != OsStatusSuccess) {
         KmDebugMessage("[INIT] Failed to create SYSTEM thread: ", OsStatusId(status), "\n");
         KM_PANIC("Failed to create SYSTEM thread.");
@@ -1504,7 +1504,7 @@ static void LaunchKernelProcess(km::ApicTimer *apicTimer) {
 
     KmDebugMessage("[INIT] Create master thread.\n");
 
-    sys2::EnterScheduler(gSysSystem->getCpuSchedule(km::GetCurrentCoreId()), apicTimer);
+    sys::EnterScheduler(gSysSystem->getCpuSchedule(km::GetCurrentCoreId()), apicTimer);
 }
 
 static void InitVfs() {
@@ -1642,7 +1642,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
             KM_PANIC("Failed to allocate scheduler memory.");
         }
 
-        sys2::SchedulerQueueTraits::init(allocation.baseAddress(), kSchedulerMemorySize);
+        sys::SchedulerQueueTraits::init(allocation.baseAddress(), kSchedulerMemorySize);
     }
 
     km::LocalIsrTable *ist = GetLocalIsrTable();

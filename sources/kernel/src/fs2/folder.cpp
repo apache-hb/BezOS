@@ -20,7 +20,7 @@ OsStatus FolderMixin::mknode(sm::RcuWeakPtr<INode> parent, VfsStringView name, s
         return OsStatusAlreadyExists;
     }
 
-    child->init(parent, VfsString(name), sys2::NodeAccess::RWX);
+    child->init(parent, VfsString(name), sys::NodeAccess::RWX);
 
     mChildren.insert({ VfsString(name), child });
 

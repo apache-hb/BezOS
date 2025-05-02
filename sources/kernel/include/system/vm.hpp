@@ -2,7 +2,7 @@
 
 #include "system/vmem.hpp"
 
-namespace sys2 {
+namespace sys {
     /// @brief Virtual memory in a single process address space.
     class VmObject {
         km::VirtualRange mRange;

@@ -158,7 +158,7 @@ OsStatus VfsRoot::insertMount(sm::RcuSharedPtr<INode> parent, const VfsPath& pat
     // Fill out the root node with its information relative
     // to where its mounted.
     //
-    mountBase->init(parent, VfsString(path.name()), sys2::NodeAccess::RWX);
+    mountBase->init(parent, VfsString(path.name()), sys::NodeAccess::RWX);
 
     if (OsStatus status = addNode(parent, VfsString(path.name()), mountBase)) {
         mMounts.erase(iter);
@@ -403,7 +403,7 @@ OsStatus VfsRoot::mkdevice(const VfsPath& path, sm::RcuSharedPtr<INode> device) 
     //
     // We need to initialize the device node before adding it to the parent.
     //
-    device->init(parent, VfsString(path.name()), sys2::NodeAccess::RWX);
+    device->init(parent, VfsString(path.name()), sys::NodeAccess::RWX);
 
     //
     // If this call fails it is the responsibility of the caller to clean up the device.

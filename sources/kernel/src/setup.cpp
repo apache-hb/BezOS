@@ -250,16 +250,16 @@ static bool IsSupervisorFault(const km::IsrContext *context) {
 }
 
 static void FaultProcess(km::IsrContext *context, stdx::StringView fault) {
-    if (auto process = sys2::GetCurrentProcess()) {
+    if (auto process = sys::GetCurrentProcess()) {
         km::UnlockDebugLog();
         KmDebugMessage("[PROC] Terminating ", process->getName(), ", due to ", fault, "\n");
         km::LockDebugLog();
-        process->destroy(km::GetSysSystem(), sys2::ProcessDestroyInfo { .exitCode = 0, .reason = eOsProcessFaulted });
+        process->destroy(km::GetSysSystem(), sys::ProcessDestroyInfo { .exitCode = 0, .reason = eOsProcessFaulted });
         DumpIsrState(context);
         DumpStackTrace(context);
         km::UnlockDebugLog();
 
-        sys2::YieldCurrentThread();
+        sys::YieldCurrentThread();
     }
 }
 

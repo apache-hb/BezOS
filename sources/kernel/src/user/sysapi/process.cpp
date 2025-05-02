@@ -16,8 +16,8 @@ static OsCallResult NewProcessCreate(km::System *system, km::CallContext *contex
 
     OsProcessHandle handle = OS_HANDLE_INVALID;
 
-    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
-    if (OsStatus status = sys2::SysProcessCreate(&invoke, createInfo, &handle)) {
+    sys::InvokeContext invoke { system->sys, sys::GetCurrentProcess() };
+    if (OsStatus status = sys::SysProcessCreate(&invoke, createInfo, &handle)) {
         return km::CallError(status);
     }
 
@@ -28,8 +28,8 @@ static OsCallResult NewProcessDestroy(km::System *system, km::CallContext *, km:
     uint64_t userProcess = regs->arg0;
     uint64_t userExitCode = regs->arg1;
 
-    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
-    if (OsStatus status = sys2::SysProcessDestroy(&invoke, userProcess, userExitCode, eOsProcessExited)) {
+    sys::InvokeContext invoke { system->sys, sys::GetCurrentProcess() };
+    if (OsStatus status = sys::SysProcessDestroy(&invoke, userProcess, userExitCode, eOsProcessExited)) {
         return km::CallError(status);
     }
 
@@ -39,10 +39,10 @@ static OsCallResult NewProcessDestroy(km::System *system, km::CallContext *, km:
 static OsCallResult NewProcessCurrent(km::System *system, km::CallContext *, km::SystemCallRegisterSet *regs) {
     uint64_t userAccess = regs->arg0;
 
-    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
+    sys::InvokeContext invoke { system->sys, sys::GetCurrentProcess() };
 
     OsProcessHandle handle = OS_HANDLE_INVALID;
-    if (OsStatus status = sys2::SysProcessCurrent(&invoke, userAccess, &handle)) {
+    if (OsStatus status = sys::SysProcessCurrent(&invoke, userAccess, &handle)) {
         return km::CallError(status);
     }
 
@@ -57,9 +57,9 @@ static OsCallResult NewProcessStat(km::System *system, km::CallContext *context,
         return km::CallError(OsStatusInvalidInput);
     }
 
-    sys2::InvokeContext invoke { system->sys, sys2::GetCurrentProcess() };
+    sys::InvokeContext invoke { system->sys, sys::GetCurrentProcess() };
 
-    if (OsStatus status = sys2::SysProcessStat(&invoke, userHandle, (OsProcessInfo*)userStat)) {
+    if (OsStatus status = sys::SysProcessStat(&invoke, userHandle, (OsProcessInfo*)userStat)) {
         return km::CallError(status);
     }
 

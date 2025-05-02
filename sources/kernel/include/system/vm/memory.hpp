@@ -2,7 +2,7 @@
 
 #include "system/vmem.hpp"
 
-namespace sys2 {
+namespace sys {
     /// @brief Physical storage for vm objects.
     ///
     /// This contains physical memory that a vm segment maps onto,

@@ -11,7 +11,7 @@ struct TestSegment {
     }
 };
 
-using RangeTable = sys2::detail::RangeTable<TestSegment>;
+using RangeTable = sys::detail::RangeTable<TestSegment>;
 
 class RangeTableTest : public testing::Test {
 public:

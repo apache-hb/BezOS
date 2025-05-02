@@ -4,7 +4,7 @@
 #include "memory/page_allocator.hpp"
 #include "memory/page_allocator_command_list.hpp"
 
-OsStatus sys2::MemoryManager::retainRange(Iterator it, km::MemoryRange range, km::MemoryRange *remaining) {
+OsStatus sys::MemoryManager::retainRange(Iterator it, km::MemoryRange range, km::MemoryRange *remaining) {
     auto& segment = it->second;
     km::MemoryRange seg = segment.allocation.range();
 
@@ -46,24 +46,24 @@ OsStatus sys2::MemoryManager::retainRange(Iterator it, km::MemoryRange range, km
     }
 }
 
-void sys2::MemoryManager::retainEntry(Iterator it) {
+void sys::MemoryManager::retainEntry(Iterator it) {
     auto& segment = it->second;
     segment.owners += 1;
 }
 
-void sys2::MemoryManager::retainEntry(km::PhysicalAddress address) {
+void sys::MemoryManager::retainEntry(km::PhysicalAddress address) {
     auto it = segments().find(address);
     KM_ASSERT(it != segments().end());
     retainEntry(it);
 }
 
-bool sys2::MemoryManager::releaseEntry(km::PhysicalAddress address) {
+bool sys::MemoryManager::releaseEntry(km::PhysicalAddress address) {
     auto it = segments().find(address);
     KM_ASSERT(it != segments().end());
     return releaseEntry(it);
 }
 
-bool sys2::MemoryManager::releaseEntry(Iterator it) {
+bool sys::MemoryManager::releaseEntry(Iterator it) {
     auto& segment = it->second;
     if (releaseSegment(segment)) {
         segments().erase(it);
@@ -73,7 +73,7 @@ bool sys2::MemoryManager::releaseEntry(Iterator it) {
     return false;
 }
 
-bool sys2::MemoryManager::releaseSegment(sys2::MemorySegment& segment) {
+bool sys::MemoryManager::releaseSegment(sys::MemorySegment& segment) {
     if (segment.owners.fetch_sub(1) == 1) {
         mHeap->free(segment.allocation);
         return true;
@@ -81,11 +81,11 @@ bool sys2::MemoryManager::releaseSegment(sys2::MemorySegment& segment) {
     return false;
 }
 
-void sys2::MemoryManager::addSegment(MemorySegment&& segment) {
+void sys::MemoryManager::addSegment(MemorySegment&& segment) {
     mTable.insert(std::move(segment));
 }
 
-OsStatus sys2::MemoryManager::retainSegment(Iterator it, km::PhysicalAddress midpoint, ReleaseSide side) {
+OsStatus sys::MemoryManager::retainSegment(Iterator it, km::PhysicalAddress midpoint, ReleaseSide side) {
     auto& segment = it->second;
 
     km::TlsfAllocation lo, hi;
@@ -116,7 +116,7 @@ OsStatus sys2::MemoryManager::retainSegment(Iterator it, km::PhysicalAddress mid
     return OsStatusSuccess;
 }
 
-OsStatus sys2::MemoryManager::splitSegment(Iterator it, km::PhysicalAddress midpoint, ReleaseSide side) {
+OsStatus sys::MemoryManager::splitSegment(Iterator it, km::PhysicalAddress midpoint, ReleaseSide side) {
     auto& segment = it->second;
 
     km::TlsfAllocation lo, hi;
@@ -150,7 +150,7 @@ OsStatus sys2::MemoryManager::splitSegment(Iterator it, km::PhysicalAddress midp
     return OsStatusSuccess;
 }
 
-OsStatus sys2::MemoryManager::releaseRange(Iterator it, km::MemoryRange range, km::MemoryRange *remaining) {
+OsStatus sys::MemoryManager::releaseRange(Iterator it, km::MemoryRange range, km::MemoryRange *remaining) {
     auto& segment = it->second;
     km::MemoryRange seg = segment.allocation.range();
     KM_ASSERT(km::interval(seg, range));
@@ -189,7 +189,7 @@ OsStatus sys2::MemoryManager::releaseRange(Iterator it, km::MemoryRange range, k
     }
 }
 
-OsStatus sys2::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]] {
+OsStatus sys::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]] {
     stdx::LockGuard guard(mLock);
 
     auto [begin, end] = mTable.find(range);
@@ -384,7 +384,7 @@ OsStatus sys2::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]
     return OsStatusSuccess;
 }
 
-OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating]] {
+OsStatus sys::MemoryManager::release(km::MemoryRange range) [[clang::allocating]] {
     KM_ASSERT(range.isValid());
 
     stdx::LockGuard guard(mLock);
@@ -597,7 +597,7 @@ OsStatus sys2::MemoryManager::release(km::MemoryRange range) [[clang::allocating
     return OsStatusSuccess;
 }
 
-OsStatus sys2::MemoryManager::allocate(size_t size, size_t align, km::MemoryRange *range) [[clang::allocating]] {
+OsStatus sys::MemoryManager::allocate(size_t size, size_t align, km::MemoryRange *range) [[clang::allocating]] {
     stdx::LockGuard guard(mLock);
 
     km::TlsfAllocation allocation = mHeap->aligned_alloc(align, size);
@@ -614,12 +614,12 @@ OsStatus sys2::MemoryManager::allocate(size_t size, size_t align, km::MemoryRang
     return OsStatusSuccess;
 }
 
-OsStatus sys2::MemoryManager::create(km::PageAllocator *heap, MemoryManager *manager) {
+OsStatus sys::MemoryManager::create(km::PageAllocator *heap, MemoryManager *manager) {
     *manager = MemoryManager(heap);
     return OsStatusSuccess;
 }
 
-sys2::MemoryManagerStats sys2::MemoryManager::stats() noexcept [[clang::nonallocating]] {
+sys::MemoryManagerStats sys::MemoryManager::stats() noexcept [[clang::nonallocating]] {
     DIAGNOSTIC_BEGIN_IGNORE("-Wfunction-effects");
     stdx::LockGuard guard(mLock);
 
@@ -632,7 +632,7 @@ sys2::MemoryManagerStats sys2::MemoryManager::stats() noexcept [[clang::nonalloc
     DIAGNOSTIC_END_IGNORE();
 }
 
-OsStatus sys2::MemoryManager::querySegment(km::PhysicalAddress address, MemorySegmentStats *stats) noexcept [[clang::nonallocating]] {
+OsStatus sys::MemoryManager::querySegment(km::PhysicalAddress address, MemorySegmentStats *stats) noexcept [[clang::nonallocating]] {
     DIAGNOSTIC_BEGIN_IGNORE("-Wfunction-effects");
     stdx::LockGuard guard(mLock);
 
