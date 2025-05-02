@@ -45,6 +45,12 @@ TEST(AddressTest, IsAlignedTo) {
     EXPECT_FALSE(address.isAlignedTo(0x2000));
 }
 
+TEST(AddressTest, IsAlignedToZero) {
+    TestAddress address = nullptr;
+    EXPECT_TRUE(address.isAlignedTo(0x1000));
+    EXPECT_TRUE(address.isAlignedTo(0x2000));
+}
+
 TEST(AddressTest, Add) {
     TestAddress address = 0x1000;
     EXPECT_EQ(address, 0x1000);

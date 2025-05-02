@@ -290,7 +290,7 @@ static OsStatus MapProgram(sys::InvokeContext *invoke, OsDeviceHandle file, OsPr
         }
         void *guestAddress = nullptr;
 
-        OsMemoryAccess access = eOsMemoryCommit;
+        OsMemoryAccess access = eOsMemoryNoAccess;
         if (ph.flags & (1 << 0))
             access |= eOsMemoryExecute;
         if (ph.flags & (1 << 1))
@@ -302,7 +302,7 @@ static OsStatus MapProgram(sys::InvokeContext *invoke, OsDeviceHandle file, OsPr
             OsVmemCreateInfo vmemGuestCreateInfo {
                 .BaseAddress = (void*)ph.vaddr,
                 .Size = sm::roundup(ph.memsz, x64::kPageSize),
-                .Access = access | eOsMemoryDiscard,
+                .Access = access | eOsMemoryCommit | eOsMemoryDiscard,
                 .Process = process,
             };
 
@@ -363,7 +363,7 @@ OsStatus km::LoadElf2(sys::InvokeContext *invoke, OsDeviceHandle file, OsProcess
 
     vmemCreateInfo = OsVmemCreateInfo {
         .Size = 0x1000,
-        .Access = eOsMemoryRead,
+        .Access = eOsMemoryRead | eOsMemoryCommit,
         .Process = hProcess,
     };
 
@@ -386,7 +386,7 @@ OsStatus km::LoadElf2(sys::InvokeContext *invoke, OsDeviceHandle file, OsProcess
 
     stackCreateInfo = OsVmemCreateInfo {
         .Size = 0x4000,
-        .Access = eOsMemoryRead | eOsMemoryWrite | eOsMemoryDiscard,
+        .Access = eOsMemoryRead | eOsMemoryWrite | eOsMemoryDiscard | eOsMemoryCommit,
         .Process = hProcess,
     };
 

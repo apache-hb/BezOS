@@ -4,9 +4,7 @@
 #include <bezos/facility/vmem.h>
 #include <bezos/facility/tx.h>
 
-#include "memory/address_space.hpp"
 #include "memory/range.hpp"
-#include "std/vector.hpp"
 
 #include "system/base.hpp"
 #include "system/handle.hpp"
@@ -107,8 +105,8 @@ namespace sys {
         OsStatus createTx(System *system, TxCreateInfo info, TxHandle **handle);
 
         OsStatus vmemCreate(System *system, VmemCreateInfo info, km::AddressMapping *mapping);
-        OsStatus vmemMapFile(System *system, OsVmemMapInfo info, vfs2::IFileHandle *fileHandle, km::VirtualRange *result);
-        OsStatus vmemMapProcess(System *system, OsVmemMapInfo info, sm::RcuSharedPtr<Process> process, km::VirtualRange *result);
+        OsStatus vmemMapFile(System *system, VmemMapInfo info, vfs2::IFileHandle *fileHandle, km::VirtualRange *result);
+        OsStatus vmemMapProcess(System *system, VmemMapInfo info, sm::RcuSharedPtr<Process> process, km::VirtualRange *result);
         OsStatus vmemMap(System *system, OsVmemMapInfo info, km::AddressMapping *mapping);
         OsStatus vmemRelease(System *system, km::VirtualRange range);
 

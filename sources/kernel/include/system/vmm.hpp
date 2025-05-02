@@ -7,7 +7,7 @@
 #include "memory/paging.hpp"
 #include "memory/pte.hpp"
 
-#include "util/absl.hpp"
+#include "system/detail/range_table.hpp"
 
 #include "common/compiler/compiler.hpp"
 
@@ -19,17 +19,13 @@ namespace sys {
     class MemoryManager;
 
     struct AddressSegment {
-        km::MemoryRange range;
+        km::MemoryRange backing;
         km::TlsfAllocation allocation;
-
-        km::VirtualRange virtualRange() const noexcept [[clang::nonallocating]] {
-            return allocation.range().cast<const void*>();
-        }
 
         km::AddressMapping mapping() const noexcept [[clang::nonallocating]] {
             auto front = allocation.address();
             const void *vaddr = std::bit_cast<const void*>(front);
-            return km::MappingOf(range, vaddr);
+            return km::MappingOf(backing, vaddr);
         }
 
         /// @brief Does this segment have physical memory backing it?
@@ -39,7 +35,11 @@ namespace sys {
         ///
         /// @return True if the segment has backing memory, false otherwise.
         bool hasBackingMemory() const noexcept [[clang::nonblocking]] {
-            return !range.isEmpty();
+            return !backing.isEmpty();
+        }
+
+        km::VirtualRange range() const noexcept [[clang::nonallocating]] {
+            return allocation.range().cast<const void*>();
         }
     };
 
@@ -53,15 +53,20 @@ namespace sys {
     };
 
     class AddressSpaceManager {
-        using Map = sm::BTreeMap<const void *, AddressSegment>;
+        using Table = sys::detail::RangeTable<AddressSegment>;
+        using Map = typename Table::Map;
         using Iterator = typename Map::iterator;
 
         stdx::SpinLock mLock;
 
-        Map mSegments GUARDED_BY(mLock);
+        Table mTable GUARDED_BY(mLock);
         km::AddressMapping mPteMemory;
         km::PageTables mPageTables GUARDED_BY(mLock);
         km::TlsfHeap mHeap GUARDED_BY(mLock);
+
+        Map& segments() noexcept REQUIRES(mLock) {
+            return mTable.segments();
+        }
 
         AddressSpaceManager(const km::PageBuilder *pm, km::AddressMapping pteMemory, km::PageFlags flags, km::TlsfHeap &&heap) noexcept
             : mPteMemory(pteMemory)
@@ -105,7 +110,7 @@ namespace sys {
         UTIL_NOCOPY(AddressSpaceManager);
 
         constexpr AddressSpaceManager(AddressSpaceManager&& other) noexcept
-            : mSegments(std::move(other.mSegments))
+            : mTable(std::move(other.mTable))
             , mPteMemory(std::move(other.mPteMemory))
             , mPageTables(std::move(other.mPageTables))
             , mHeap(std::move(other.mHeap))
@@ -115,7 +120,7 @@ namespace sys {
             CLANG_DIAGNOSTIC_PUSH();
             CLANG_DIAGNOSTIC_IGNORE("-Wthread-safety");
 
-            mSegments = std::move(other.mSegments);
+            mTable = std::move(other.mTable);
             mPteMemory = std::move(other.mPteMemory);
             mPageTables = std::move(other.mPageTables);
             mHeap = std::move(other.mHeap);
@@ -156,8 +161,8 @@ namespace sys {
 
         void dump() noexcept {
             stdx::LockGuard guard(mLock);
-            for (const auto& [_, segment] : mSegments) {
-                KmDebugMessage("Segment: ", segment.range, " ", segment.virtualRange(), "\n");
+            for (const auto& [_, segment] : segments()) {
+                KmDebugMessage("Segment: ", segment.backing, " ", segment.range(), "\n");
             }
         }
     };

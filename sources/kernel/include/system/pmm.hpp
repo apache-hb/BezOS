@@ -185,5 +185,5 @@ namespace sys {
         }
     };
 
-    OsStatus MapFileToMemory(vfs2::IFileHandle *file, MemoryManager *mm, km::AddressSpace *pt, size_t offset, size_t size, km::PageFlags flags, km::MemoryRange *range);
+    OsStatus MapFileToMemory(vfs2::IFileHandle *file, MemoryManager *mm, km::AddressSpace *pt, size_t offset, size_t size, km::MemoryRange *range);
 }

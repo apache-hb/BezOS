@@ -9,6 +9,8 @@
 
 namespace sys {
     class IObject;
+    class Process;
+    class InvokeContext;
 
     template<typename T>
     struct Sanitize {
@@ -16,7 +18,12 @@ namespace sys {
         using KernelObject = void;
 
         [[gnu::error("Sanitize<T>::sanitize() must be specialized")]]
-        static OsStatus sanitize(const ApiObject *info, KernelObject *result) noexcept;
+        static OsStatus sanitize(InvokeContext *context, const ApiObject *info, KernelObject *result) noexcept;
+    };
+
+    enum class VmemCreateMode {
+        eCommit,
+        eReserve,
     };
 
     struct VmemCreateInfo {
@@ -25,8 +32,9 @@ namespace sys {
         sm::VirtualAddress baseAddress;
         km::PageFlags flags;
         bool zeroMemory;
-        bool commit, reserve;
+        VmemCreateMode mode;
         bool addressIsHint;
+        sm::RcuSharedPtr<Process> process;
     };
 
     template<>
@@ -34,16 +42,16 @@ namespace sys {
         using ApiObject = OsVmemCreateInfo;
         using KernelObject = VmemCreateInfo;
 
-        static OsStatus sanitize(const ApiObject *info [[gnu::nonnull]], KernelObject *result [[gnu::nonnull]]) noexcept;
+        static OsStatus sanitize(InvokeContext *context, const ApiObject *info [[gnu::nonnull]], KernelObject *result [[gnu::nonnull]]) noexcept;
     };
 
     struct VmemMapInfo {
         size_t size;
-        size_t alignment;
         sm::VirtualAddress baseAddress;
         km::PageFlags flags;
         sm::VirtualAddress srcAddress;
         sm::RcuSharedPtr<IObject> srcObject;
+        sm::RcuSharedPtr<Process> process;
     };
 
     template<>
@@ -51,6 +59,11 @@ namespace sys {
         using ApiObject = OsVmemMapInfo;
         using KernelObject = VmemMapInfo;
 
-        static OsStatus sanitize(const ApiObject *info [[gnu::nonnull]], KernelObject *result [[gnu::nonnull]]) noexcept;
+        static OsStatus sanitize(InvokeContext *context, const ApiObject *info [[gnu::nonnull]], KernelObject *result [[gnu::nonnull]]) noexcept;
     };
+
+    template<typename T>
+    OsStatus sanitize(InvokeContext *context, const typename Sanitize<T>::ApiObject *info [[gnu::nonnull]], T *result [[gnu::nonnull]]) noexcept {
+        return Sanitize<T>::sanitize(context, info, result);
+    }
 }

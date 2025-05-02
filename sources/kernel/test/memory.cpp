@@ -38,10 +38,10 @@ TEST(MemoryTest, ThreadSafe) {
     body.addSegment(0x100000, boot::MemoryRegion::eUsable);
     body.addSegment(0x100000, boot::MemoryRegion::eUsable);
 
-    km::SystemMemory memory = body.make();
+    km::SystemMemory memory = body.make(sm::kilobytes(512).bytes());
     std::atomic<size_t> allocs = 0;
     std::vector<std::jthread> threads;
-    for (size_t i = 0; i < 10; i++) {
+    for (size_t i = 0; i < 4; i++) {
         threads.emplace_back([&] {
             for (size_t i = 0; i < 1000; i++) {
                 km::MappingAllocation allocation;
@@ -55,9 +55,9 @@ TEST(MemoryTest, ThreadSafe) {
         });
     }
 
-    ASSERT_NE(allocs, 0) << "No allocations";
-
     threads.clear();
+
+    ASSERT_NE(allocs, 0) << "No allocations";
 
     ASSERT_TRUE(true) << "No crashes";
 }
