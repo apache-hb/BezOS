@@ -9,6 +9,7 @@
 
 namespace sys {
     class System;
+    class AddressSpaceManager;
 }
 
 namespace km {
@@ -20,7 +21,7 @@ namespace km {
 
     Scheduler *GetScheduler();
     SystemMemory *GetSystemMemory();
-    AddressSpace& GetProcessPageManager();
+    sys::AddressSpaceManager& GetProcessPageManager();
     PageTables& GetProcessPageTables();
     sys::System *GetSysSystem();
 

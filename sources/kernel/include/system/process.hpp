@@ -72,6 +72,8 @@ namespace sys {
         OsStatus removeHandle(OsHandle handle);
         OsStatus findHandle(OsHandle handle, OsHandleType type, IHandle **result);
 
+        AddressSpaceManager *getAddressSpaceManager() { return &mAddressSpace; }
+
         OsStatus currentHandle(OsProcessAccess access, OsProcessHandle *handle);
 
         OsStatus resolveObject(sm::RcuSharedPtr<IObject> object, OsHandleAccess access, OsHandle *handle);

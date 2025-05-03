@@ -1,20 +1,11 @@
 #include "elf.hpp"
 
-#include "fs2/utils.hpp"
-#include "gdt.hpp"
 #include "kernel.hpp"
 #include "log.hpp"
 
-#include "process/system.hpp"
-
-#include "memory/range.hpp"
-
 #include <bezos/start.h>
 
-#include "process/thread.hpp"
 #include "system/system.hpp"
-#include "util/format.hpp"
-#include "util/defer.hpp"
 
 #if 0
 static const elf::ProgramHeader *FindProgramHeader(std::span<const elf::ProgramHeader> phs, elf::ProgramHeaderType type) {

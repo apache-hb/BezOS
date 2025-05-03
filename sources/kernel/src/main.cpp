@@ -827,18 +827,16 @@ SystemMemory *km::GetSystemMemory() {
     return gMemory;
 }
 
-AddressSpace& km::GetProcessPageManager() {
-#if 0
+sys::AddressSpaceManager& km::GetProcessPageManager() {
     if (auto process = sys::GetCurrentProcess()) {
-        return process->addressSpace();
+        return *process->getAddressSpaceManager();
     }
-#endif
 
     KM_PANIC("Process page manager not available.");
 }
 
 PageTables& km::GetProcessPageTables() {
-    return *GetProcessPageManager().tables();
+    return GetProcessPageManager().getPageTables();
 }
 
 static void CreateNotificationQueue() {

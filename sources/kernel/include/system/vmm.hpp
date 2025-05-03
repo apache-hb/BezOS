@@ -131,6 +131,15 @@ namespace sys {
 
         constexpr AddressSpaceManager() noexcept = default;
 
+        km::PageTables& getPageTables() noexcept {
+            CLANG_DIAGNOSTIC_PUSH();
+            CLANG_DIAGNOSTIC_IGNORE("-Wthread-safety"); // TODO: ouch
+
+            return mPageTables;
+
+            CLANG_DIAGNOSTIC_POP();
+        }
+
         /// @brief Allocate new memory in the current address space.
         [[nodiscard]]
         OsStatus map(MemoryManager *manager, size_t size, size_t align, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping) [[clang::allocating]];
@@ -142,6 +151,10 @@ namespace sys {
         /// @brief Map physical memory into this address space at a fixed address.
         [[nodiscard]]
         OsStatus map(MemoryManager *manager, sm::VirtualAddress address, km::MemoryRange memory, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping) [[clang::allocating]];
+
+        /// @brief Map physical memory that is not managed by the system memory manager.
+        [[nodiscard]]
+        OsStatus mapExternal(km::MemoryRange memory, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping) [[clang::allocating]];
 
         [[nodiscard]]
         OsStatus unmap(MemoryManager *manager, km::VirtualRange range) [[clang::allocating]];

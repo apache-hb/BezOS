@@ -369,15 +369,38 @@ OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, sm::VirtualAddres
     return OsStatusSuccess;
 }
 
+OsStatus sys::AddressSpaceManager::mapExternal(km::MemoryRange memory, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping) [[clang::allocating]] {
+    stdx::LockGuard guard(mLock);
+
+    km::TlsfAllocation allocation = mHeap.aligned_alloc(alignof(x64::page), memory.size());
+
+    km::AddressMapping result {
+        .vaddr = std::bit_cast<const void*>(allocation.address()),
+        .paddr = memory.front,
+        .size = memory.size(),
+    };
+
+    if (OsStatus status = mPageTables.map(result, flags, type)) {
+        KM_ASSERT(status == OsStatusSuccess);
+        return status;
+    }
+
+    auto segment = AddressSegment { km::MemoryRange{}, allocation };
+    addSegment(std::move(segment));
+
+    *mapping = result;
+    return OsStatusSuccess;
+}
+
 void sys::AddressSpaceManager::deleteSegment(MemoryManager *manager, AddressSegment&& segment) noexcept [[clang::allocating]] {
     OsStatus status = OsStatusSuccess;
 
-    auto mapping = segment.mapping();
+    if (segment.hasBackingMemory()) {
+        status = manager->release(segment.backing);
+        KM_ASSERT(status == OsStatusSuccess);
+    }
 
-    status = manager->release(mapping.physicalRange());
-    KM_ASSERT(status == OsStatusSuccess);
-
-    status = mPageTables.unmap(mapping.virtualRange());
+    status = mPageTables.unmap(segment.range());
     KM_ASSERT(status == OsStatusSuccess);
 
     mHeap.free(segment.allocation);

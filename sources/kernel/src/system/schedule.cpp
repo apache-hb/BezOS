@@ -1,5 +1,5 @@
 #include "system/schedule.hpp"
-#include "log.hpp"
+
 #include "panic.hpp"
 #include "system/thread.hpp"
 #include <bezos/facility/threads.h>
