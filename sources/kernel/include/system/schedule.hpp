@@ -95,7 +95,10 @@ namespace sys {
         sm::FlatHashMap<sm::RcuWeakPtr<IObject>, WaitQueue> mWaitQueue GUARDED_BY(mLock);
         std::priority_queue<WaitEntry> mTimeoutQueue GUARDED_BY(mLock);
         std::priority_queue<SleepEntry> mSleepQueue GUARDED_BY(mLock);
+        moodycamel::ConcurrentQueue<sm::RcuSharedPtr<Thread>, SchedulerQueueTraits> mResumeQueue;
+
         sm::FlatHashSet<sm::RcuWeakPtr<Thread>> mSuspendSet GUARDED_BY(mLock);
+        moodycamel::ConcurrentQueue<sm::RcuSharedPtr<Thread>, SchedulerQueueTraits> mSuspendQueue;
 
         void wakeQueue(OsInstant now, sm::RcuWeakPtr<IObject> object) REQUIRES(mLock);
 
@@ -140,7 +143,10 @@ namespace sys {
             return nullptr;
         }
 
+        [[clang::annotate("signalsafe")]]
         void doSuspend(sm::RcuSharedPtr<Thread> thread);
+
+        [[clang::annotate("signalsafe")]]
         void doResume(sm::RcuSharedPtr<Thread> thread);
     };
 

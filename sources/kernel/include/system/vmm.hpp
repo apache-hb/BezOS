@@ -139,6 +139,10 @@ namespace sys {
         [[nodiscard]]
         OsStatus map(MemoryManager *manager, AddressSpaceManager *other, km::VirtualRange range, km::PageFlags flags, km::MemoryType type, km::VirtualRange *result) [[clang::allocating]];
 
+        /// @brief Map physical memory into this address space at a fixed address.
+        [[nodiscard]]
+        OsStatus map(MemoryManager *manager, sm::VirtualAddress address, km::MemoryRange memory, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping) [[clang::allocating]];
+
         [[nodiscard]]
         OsStatus unmap(MemoryManager *manager, km::VirtualRange range) [[clang::allocating]];
 

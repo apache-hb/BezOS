@@ -335,6 +335,40 @@ OsStatus sys::AddressSpaceManager::unmapSegment(MemoryManager *manager, Iterator
     }
 }
 
+OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, sm::VirtualAddress address, km::MemoryRange memory, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping) [[clang::allocating]] {
+    // TODO: on the error case memory is a bit busted
+    km::VirtualRange range = { address, address + memory.size() };
+    if (OsStatus status = unmap(manager, range)) {
+        if (status != OsStatusNotFound) {
+            return status;
+        }
+    }
+
+    km::TlsfAllocation allocation;
+
+    stdx::LockGuard guard(mLock);
+    if (OsStatus status = mHeap.reserve(range.cast<km::PhysicalAddress>(), &allocation)) {
+        return status;
+    }
+
+    km::AddressMapping result {
+        .vaddr = address,
+        .paddr = memory.front,
+        .size = memory.size(),
+    };
+
+    if (OsStatus status = mPageTables.map(result, flags, type)) {
+        KM_ASSERT(status == OsStatusSuccess);
+        return status;
+    }
+
+    auto segment = AddressSegment { memory, allocation };
+    addSegment(std::move(segment));
+
+    *mapping = result;
+    return OsStatusSuccess;
+}
+
 void sys::AddressSpaceManager::deleteSegment(MemoryManager *manager, AddressSegment&& segment) noexcept [[clang::allocating]] {
     OsStatus status = OsStatusSuccess;
 

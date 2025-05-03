@@ -272,6 +272,16 @@ void TlsfHeap::validate() noexcept [[clang::nonallocating]] {
 }
 
 km::TlsfCompactStats TlsfHeap::compact() {
+    TlsfBlock *block = mNullBlock;
+    while (block != nullptr && block->prev != nullptr) {
+        TlsfBlock *prev = block->prev;
+        if (block->isFree() && prev->isFree()) {
+            mergeBlock(block, prev);
+        } else {
+            block = prev;
+        }
+    }
+
     PoolCompactStats pool = mBlockPool.compact();
     return TlsfCompactStats { pool };
 }
@@ -584,6 +594,8 @@ OsStatus TlsfHeap::splitv(TlsfAllocation ptr, std::span<const PhysicalAddress> p
 }
 
 OsStatus TlsfHeap::reserve(MemoryRange range, TlsfAllocation *result) [[clang::allocating]] {
+    compact();
+
     TlsfBlock *block = mNullBlock;
     while (block != nullptr) {
         km::MemoryRange blockRange { block->offset, block->offset + block->size };

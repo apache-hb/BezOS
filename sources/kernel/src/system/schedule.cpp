@@ -1,4 +1,5 @@
 #include "system/schedule.hpp"
+#include "log.hpp"
 #include "panic.hpp"
 #include "system/thread.hpp"
 #include <bezos/facility/threads.h>
@@ -342,15 +343,37 @@ OsStatus sys::GlobalSchedule::signal(sm::RcuSharedPtr<IObject> object, OsInstant
 }
 
 void sys::GlobalSchedule::doSuspend(sm::RcuSharedPtr<Thread> thread) {
-    stdx::UniqueLock guard(mLock);
-    mSuspendSet.insert(thread.weak());
+    if (mLock.try_lock()) {
+        // If we can acquire the lock, we can safely add the thread to the suspend set.
+        mSuspendSet.insert(thread.weak());
+
+        sm::RcuSharedPtr<Thread> element;
+        while (mSuspendQueue.try_dequeue(element)) {
+            mSuspendSet.insert(element.weak());
+        }
+
+        mLock.unlock();
+    } else {
+        // If we can't acquire the lock, we need to use the suspend queue to add the thread.
+        mSuspendQueue.enqueue(thread);
+    }
 }
 
 void sys::GlobalSchedule::doResume(sm::RcuSharedPtr<Thread> thread) {
-    stdx::UniqueLock guard(mLock);
-    if (auto it = mSuspendSet.find(thread.weak()); it != mSuspendSet.end()) {
-        mSuspendSet.erase(thread.weak());
-        scheduleThread(thread);
+    if (mLock.try_lock()) {
+        if (auto it = mSuspendSet.find(thread.weak()); it != mSuspendSet.end()) {
+            mSuspendSet.erase(thread.weak());
+            scheduleThread(thread);
+        }
+
+        sm::RcuSharedPtr<Thread> info;
+        while (mResumeQueue.try_dequeue(info)) {
+            mSuspendSet.erase(info);
+            scheduleThread(info);
+        }
+        mLock.unlock();
+    } else {
+        mResumeQueue.enqueue(thread);
     }
 }
 

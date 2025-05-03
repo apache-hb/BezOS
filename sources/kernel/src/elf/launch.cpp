@@ -325,6 +325,8 @@ static OsStatus MapProgram(sys::InvokeContext *invoke, OsDeviceHandle file, OsPr
             KmDebugMessage("[ELF] Failed to map guest memory. ", OsStatusId(status), "\n");
             return status;
         }
+
+        KM_ASSERT(guestAddress == (void*)ph.vaddr);
     }
 
     *entry = header.entry;

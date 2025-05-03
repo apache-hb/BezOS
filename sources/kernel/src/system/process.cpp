@@ -242,118 +242,21 @@ OsStatus sys::Process::vmemCreate(System *system, VmemCreateInfo info, km::Addre
         return status;
     }
 
-    *mapping = result;
-    return OsStatusSuccess;
-#if 0
-    // The size must be a multiple of the smallest page size and must not be 0.
-    if ((info.Size == 0) || (info.Size % x64::kPageSize != 0)) {
-        return OsStatusInvalidInput;
-    }
-
-    // Mappings must be page aligned, unless it is 0,
-    if ((info.Alignment != 0) && (info.Alignment % x64::kPageSize != 0)) {
-        return OsStatusInvalidInput;
-    }
-
-    uintptr_t base = (uintptr_t)info.BaseAddress;
-    OsSize alignment = info.Alignment == 0 ? x64::kPageSize : info.Alignment;
-    bool isHint = (info.Access & eOsMemoryAddressHint) != 0;
-
-    //
-    // If we should interpret the base address as a hint then it must not be 0 and must be aligned
-    // to the specified alignment.
-    //
-    if (isHint) {
-        if (base == 0 || (base % alignment != 0)) {
-            return OsStatusInvalidInput;
+    if (info.zeroMemory) {
+        km::AddressMapping kernelMapping;
+        if (OsStatus status = system->mSystemTables->map(memory, km::PageFlags::eData, km::MemoryType::eWriteBack, &kernelMapping)) {
+            KM_ASSERT(status == OsStatusSuccess);
         }
 
-        km::VirtualRange vm;
-        if (OsStatus status = mPageTables.reserve(info.Size, &vm)) {
-            return status;
+        memset((void*)kernelMapping.vaddr, 0, kernelMapping.size);
+
+        if (OsStatus status = system->mSystemTables->unmap(kernelMapping.virtualRange())) {
+            KM_ASSERT(status == OsStatusSuccess);
         }
-
-        // TODO: leaks on error path, also doesnt use hint address
-        base = (uintptr_t)vm.front;
-    } else {
-        //
-        // If the base address is not a hint then it must either be 0, or must be aligned to the
-        // specified alignment.
-        //
-        if (base == 0) {
-            km::VirtualRange vm;
-            if (OsStatus status = mPageTables.reserve(info.Size, &vm)) {
-                return status;
-            }
-            // TODO: leaks on error path
-            base = (uintptr_t)vm.front;
-        } else {
-            if (base % alignment != 0) {
-                return OsStatusInvalidInput;
-            }
-
-            for (auto i = base; i < base + info.Size; i += x64::kPageSize) {
-                if (mMemoryObjects.contains((void*)i)) {
-                    return OsStatusInvalidInput;
-                }
-            }
-        }
-    }
-
-    km::PageFlags flags = km::PageFlags::eUser;
-    if (info.Access & eOsMemoryRead) {
-        flags |= km::PageFlags::eRead;
-    }
-
-    if (info.Access & eOsMemoryWrite) {
-        flags |= km::PageFlags::eWrite;
-    }
-
-    if (info.Access & eOsMemoryExecute) {
-        flags |= km::PageFlags::eExecute;
-    }
-
-    km::MemoryRange range = system->mPageAllocator->alloc4k(km::Pages(info.Size));
-    if (range.isEmpty()) {
-        return OsStatusOutOfMemory;
-    }
-
-    km::AddressMapping result = {
-        .vaddr = (void*)base,
-        .paddr = range.front,
-        .size = info.Size,
-    };
-    if (OsStatus status = mPageTables.reserve(result, flags, km::MemoryType::eWriteBack)) {
-        system->mPageAllocator->release(range);
-        return status;
-    }
-
-    if (info.Access & eOsMemoryDiscard) {
-        km::AddressMapping discardMapping;
-        if (OsStatus status = system->mSystemTables->map(range, km::PageFlags::eData, km::MemoryType::eWriteBack, &discardMapping)) {
-            system->mPageAllocator->release(range);
-            return status;
-        }
-
-        memset((void*)discardMapping.vaddr, 0, discardMapping.size);
-        if (OsStatus status = system->mSystemTables->unmap(discardMapping.virtualRange())) {
-            system->mPageAllocator->release(range);
-            return status;
-        }
-    }
-
-    auto object = sm::rcuMakeShared<sys::MemoryObject>(&system->rcuDomain(), range);
-
-    auto vm = result.virtualRange();
-    for (auto i = vm.front; i < vm.back; i = (char*)i + x64::kPageSize) {
-        mMemoryObjects.insert({ (void*)i, object });
     }
 
     *mapping = result;
-    mPhysicalMemory.add(range);
-
     return OsStatusSuccess;
-#endif
 }
 
 OsStatus sys::Process::vmemMapFile(System *system, VmemMapInfo info, vfs2::IFileHandle *fileHandle, km::VirtualRange *result) {
@@ -365,10 +268,20 @@ OsStatus sys::Process::vmemMapFile(System *system, VmemMapInfo info, vfs2::IFile
 
     km::AddressMapping mapping;
 
-    if (OsStatus status = mAddressSpace.map(&system->mMemoryManager, memory.size(), x64::kPageSize, info.flags, km::MemoryType::eWriteBack, &mapping)) {
-        OsStatus inner = system->mMemoryManager.release(memory);
-        KM_ASSERT(inner == OsStatusSuccess);
-        return status;
+    if (info.baseAddress.isNull()) {
+        if (OsStatus status = mAddressSpace.map(&system->mMemoryManager, memory.size(), x64::kPageSize, info.flags, km::MemoryType::eWriteBack, &mapping)) {
+            KmDebugMessage("[VMEM] Failed to allocate file mapping: ", info.baseAddress, " ", memory, " ", OsStatusId(status), "\n");
+            OsStatus inner = system->mMemoryManager.release(memory);
+            KM_ASSERT(inner == OsStatusSuccess);
+            return status;
+        }
+    } else {
+        if (OsStatus status = mAddressSpace.map(&system->mMemoryManager, info.baseAddress, memory, info.flags, km::MemoryType::eWriteBack, &mapping)) {
+            KmDebugMessage("[VMEM] Failed to map file: ", info.baseAddress, " ", memory, " ", OsStatusId(status), "\n");
+            OsStatus inner = system->mMemoryManager.release(memory);
+            KM_ASSERT(inner == OsStatusSuccess);
+            return status;
+        }
     }
 
     *result = mapping.virtualRange();
