@@ -131,11 +131,13 @@ namespace sys {
 
         constexpr AddressSpaceManager() noexcept = default;
 
+        /// @brief Allocate new memory in the current address space.
         [[nodiscard]]
         OsStatus map(MemoryManager *manager, size_t size, size_t align, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping) [[clang::allocating]];
 
+        /// @brief Map memory from another address space into newly allocated space in this address space.
         [[nodiscard]]
-        OsStatus map(MemoryManager *manager, AddressSpaceManager *other, km::VirtualRange range, km::PageFlags flags, km::MemoryType type, km::VirtualRange *mapping) [[clang::allocating]];
+        OsStatus map(MemoryManager *manager, AddressSpaceManager *other, km::VirtualRange range, km::PageFlags flags, km::MemoryType type, km::VirtualRange *result) [[clang::allocating]];
 
         [[nodiscard]]
         OsStatus unmap(MemoryManager *manager, km::VirtualRange range) [[clang::allocating]];

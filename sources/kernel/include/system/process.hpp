@@ -46,8 +46,6 @@ namespace sys {
 
         sm::BTreeMultiMap<sm::RcuDynamicPtr<Process>, std::unique_ptr<IHandle>> mProcessHandles;
 
-        sm::BTreeMap<const void*, sm::RcuSharedPtr<IMemoryObject>> mMemoryObjects;
-
         AddressSpaceManager mAddressSpace;
 
     public:
@@ -77,8 +75,6 @@ namespace sys {
         OsStatus currentHandle(OsProcessAccess access, OsProcessHandle *handle);
 
         OsStatus resolveObject(sm::RcuSharedPtr<IObject> object, OsHandleAccess access, OsHandle *handle);
-
-        OsStatus resolveAddress(const void *address, sm::RcuSharedPtr<IMemoryObject> *object);
 
         template<typename T>
         OsStatus findHandle(OsHandle handle, T **result) {

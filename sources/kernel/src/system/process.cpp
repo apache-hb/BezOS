@@ -1,5 +1,6 @@
 #include "system/process.hpp"
 #include "arch/paging.hpp"
+#include "fs2/utils.hpp"
 #include "memory.hpp"
 #include "memory/layout.hpp"
 #include "memory/range.hpp"
@@ -138,19 +139,6 @@ OsStatus sys::Process::resolveObject(sm::RcuSharedPtr<IObject> object, OsHandleA
     return OsStatusSuccess;
 }
 
-OsStatus sys::Process::resolveAddress(const void *address, sm::RcuSharedPtr<IMemoryObject> *object) {
-    if ((uintptr_t)address % x64::kPageSize != 0) {
-        return OsStatusInvalidInput;
-    }
-
-    if (auto it = mMemoryObjects.find(address); it != mMemoryObjects.end()) {
-        *object = it->second;
-        return OsStatusSuccess;
-    }
-
-    return OsStatusNotFound;
-}
-
 void sys::Process::removeChild(sm::RcuSharedPtr<Process> child) {
     stdx::UniqueLock guard(mLock);
     mChildren.erase(child);
@@ -172,7 +160,7 @@ void sys::Process::addThread(sm::RcuSharedPtr<Thread> thread) {
 }
 
 void sys::Process::loadPageTables() {
-    sys::AddressSpaceManager::setActiveMap(&mAddressSpace);
+    AddressSpaceManager::setActiveMap(&mAddressSpace);
 }
 
 OsStatus sys::Process::createProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle) {
@@ -385,55 +373,6 @@ OsStatus sys::Process::vmemMapFile(System *system, VmemMapInfo info, vfs2::IFile
 
     *result = mapping.virtualRange();
     return OsStatusSuccess;
-
-#if 0
-    sm::RcuSharedPtr<sys::FileMapping> fileMapping;
-    if (OsStatus status = sys::MapFileToMemory(&system->rcuDomain(), fileHandle, system->mPageAllocator, system->mSystemTables, info.SrcAddress, info.SrcAddress + info.Size, &fileMapping)) {
-        return status;
-    }
-
-    uintptr_t size = sm::roundup(info.Size, x64::kPageSize);
-    km::VirtualRange vm;
-
-    if (info.DstAddress == 0) {
-        if (OsStatus status = mPageTables.reserve(size, &vm)) {
-            return status;
-        }
-    } else {
-        if (info.DstAddress % x64::kPageSize != 0) {
-            return OsStatusInvalidInput;
-        }
-
-        vm = km::VirtualRange::of((void*)info.DstAddress, size);
-        mPageTables.reserve(vm);
-
-#if 0
-        for (auto i = base; i < base + size; i += x64::kPageSize) {
-            if (mMemoryObjects.contains((void*)i)) {
-                return OsStatusInvalidInput;
-            }
-        }
-#endif
-    }
-
-    km::MemoryRange range = fileMapping->range();
-    km::AddressMapping mapping {
-        .vaddr = vm.front,
-        .paddr = range.front,
-        .size = size,
-    };
-    if (OsStatus status = mPageTables.reserve(mapping, km::PageFlags::eUserAll, km::MemoryType::eWriteBack)) {
-        system->mPageAllocator->release(range);
-        return status;
-    }
-
-    for (auto i = vm.front; i < vm.back; i = (char*)i + x64::kPageSize) {
-        mMemoryObjects.insert({ i, fileMapping });
-    }
-
-    *result = mapping.virtualRange();
-    return OsStatusSuccess;
-#endif
 }
 
 OsStatus sys::Process::vmemMapProcess(System *system, VmemMapInfo info, sm::RcuSharedPtr<Process> process, km::VirtualRange *mapping) {
@@ -709,6 +648,7 @@ OsStatus sys::SysVmemMap(InvokeContext *context, OsVmemMapInfo info, void **outV
         if (OsStatus status = process->vmemMapProcess(context->system, vmemInfo, src, &vm)) {
             return status;
         }
+        KmDebugMessage("[VMEM] Mapped vmem ", vm, " from process ", src->getName(), " into ", process->getName(), "\n");
         *outVmem = (void*)vm.front;
         return OsStatusSuccess;
     }
@@ -719,6 +659,7 @@ OsStatus sys::SysVmemMap(InvokeContext *context, OsVmemMapInfo info, void **outV
         if (OsStatus status = process->vmemMapFile(context->system, vmemInfo, file, &vm)) {
             return status;
         }
+        KmDebugMessage("[VMEM] Mapped vmem ", vm, " from file into ", process->getName(), "\n");
         *outVmem = (void*)vm.front;
         return OsStatusSuccess;
     }

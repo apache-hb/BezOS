@@ -75,23 +75,27 @@ public:
         ASSERT_EQ(stats.heapStats.freeMemory, kTestRange.size() - used);
     }
 
-    void AssertVirtualFound(const km::VirtualRange& range) {
-        AssertVirtualFound(range.cast<sm::VirtualAddress>());
+    void AssertVirtualFound0(const km::VirtualRange& range, const km::MemoryRangeEx& memory) {
+        AssertVirtualFound0(range.cast<sm::VirtualAddress>(), memory);
     }
 
-    void AssertVirtualFound(const km::VirtualRangeEx& range) {
-        AssertVirtualFound(range.front, range);
-        AssertVirtualFound(range.back - 1, range);
-        AssertVirtualFound((range.front.address + range.back.address) / 2, range);
+    void AssertVirtualFound0(const km::VirtualRangeEx& range, const km::MemoryRangeEx& memory) {
+        AssertVirtualFound0(range.front, range, memory);
+        AssertVirtualFound0(range.back - 1, range, memory);
+        AssertVirtualFound0((range.front.address + range.back.address) / 2, range, memory);
     }
 
-    void AssertVirtualFound(sm::VirtualAddress address, const km::VirtualRange& range) {
-        AssertVirtualFound(address, range.cast<sm::VirtualAddress>());
+    void AssertVirtualFound0(sm::VirtualAddress address, const km::VirtualRange& range, const km::MemoryRangeEx& memory) {
+        AssertVirtualFound0(address, range.cast<sm::VirtualAddress>(), memory);
     }
 
-    void AssertVirtualFound(sm::VirtualAddress address, const km::VirtualRangeEx& range) {
+    void AssertVirtualFound0(sm::VirtualAddress address, const km::VirtualRangeEx& range, const km::MemoryRangeEx& memory) {
+        AssertVirtualFound(asManager0, address, range, memory);
+    }
+
+    void AssertVirtualFound(sys::AddressSpaceManager& asman, sm::VirtualAddress address, const km::VirtualRangeEx& range, const km::MemoryRangeEx& memory) {
         sys::AddressSegment segment;
-        OsStatus status = asManager0.querySegment(address, &segment);
+        OsStatus status = asman.querySegment(address, &segment);
         ASSERT_EQ(status, OsStatusSuccess)
             << "Failed to find segment for address: "
             << std::string_view(km::format(address))
@@ -102,11 +106,20 @@ public:
             << "Range mismatch: "
             << std::string_view(km::format(segment.range()))
             << " != " << std::string_view(km::format(range));
+
+        ASSERT_EQ(segment.backing, memory.cast<km::PhysicalAddress>())
+            << "Backing memory mismatch: "
+            << std::string_view(km::format(segment.backing))
+            << " != " << std::string_view(km::format(memory));
     }
 
-    void AssertVirtualNotFound(sm::VirtualAddress address) {
+    void AssertVirtualNotFound0(sm::VirtualAddress address) {
+        AssertVirtualNotFound(asManager0, address);
+    }
+
+    void AssertVirtualNotFound(sys::AddressSpaceManager& asman, sm::VirtualAddress address) {
         sys::AddressSegment segment;
-        OsStatus status = asManager0.querySegment(address, &segment);
+        OsStatus status = asman.querySegment(address, &segment);
         ASSERT_EQ(status, OsStatusNotFound)
             << "Found segment for address: "
             << std::string_view(km::format(address));
@@ -183,19 +196,14 @@ TEST_F(AddressSpaceManagerTest, Allocate) {
     status = asManager0.map(&memory, 0x1000, 0x1000, km::PageFlags::eUserAll, km::MemoryType::eWriteBack, &mapping);
     ASSERT_EQ(status, OsStatusSuccess);
 
-    AssertVirtualFound(mapping.vaddr, mapping.virtualRange());
-    sys::AddressSegment seg0;
-    status = asManager0.querySegment(mapping.vaddr, &seg0);
-    ASSERT_EQ(status, OsStatusSuccess);
-    ASSERT_EQ(seg0.backing, mapping.physicalRange());
-    ASSERT_EQ(seg0.range(), mapping.virtualRange());
+    AssertVirtualFound0(mapping.vaddr, mapping.virtualRange(), mapping.physicalRangeEx());
 
     AssertStats0(1, 0x1000);
 
     status = asManager0.unmap(&memory, mapping.virtualRange());
     ASSERT_EQ(status, OsStatusSuccess);
 
-    AssertVirtualNotFound(mapping.vaddr);
+    AssertVirtualNotFound0(mapping.vaddr);
 
     AssertStats0(0, 0);
 }
@@ -207,16 +215,16 @@ TEST_F(AddressSpaceManagerTest, UnmapMiddle) {
     status = asManager0.map(&memory, 0x4000, 0x1000, km::PageFlags::eUserAll, km::MemoryType::eWriteBack, &mapping);
     ASSERT_EQ(status, OsStatusSuccess);
 
-    AssertVirtualFound(mapping.vaddr, mapping.virtualRange());
+    AssertVirtualFound0(mapping.vaddr, mapping.virtualRange(), mapping.physicalRangeEx());
     AssertStats0(1, mapping.size);
 
     km::VirtualRange subrange { (void*)((uintptr_t)mapping.vaddr + 0x1000), (void*)((uintptr_t)mapping.vaddr + 0x3000) };
     status = asManager0.unmap(&memory, subrange);
     ASSERT_EQ(status, OsStatusSuccess);
 
-    AssertVirtualFound(mapping.virtualRange().first(0x1000));
-    AssertVirtualFound(mapping.virtualRange().last(0x1000));
-    AssertVirtualNotFound(mapping.virtualRange().cast<sm::VirtualAddress>().front + 0x2000);
+    AssertVirtualFound0(mapping.virtualRange().first(0x1000), mapping.physicalRangeEx().first(0x1000));
+    AssertVirtualFound0(mapping.virtualRange().last(0x1000), mapping.physicalRangeEx().last(0x1000));
+    AssertVirtualNotFound0(mapping.virtualRange().cast<sm::VirtualAddress>().front + 0x2000);
 
     AssertStats0(2, 0x2000);
     AssertMemory(2, 0x2000);
@@ -224,54 +232,30 @@ TEST_F(AddressSpaceManagerTest, UnmapMiddle) {
 
 TEST_F(AddressSpaceManagerTest, UnmapExact) {
     OsStatus status = OsStatusSuccess;
-    km::MemoryRange range = { sm::gigabytes(1).bytes(), sm::gigabytes(4).bytes() };
-    km::VirtualRange vmem = range.cast<const void*>();
     km::AddressMapping mapping;
-
-    status = sys::AddressSpaceManager::create(&pager, getPteMapping0(), km::PageFlags::eUserAll, vmem, &asManager0);
-    ASSERT_EQ(status, OsStatusSuccess);
 
     status = asManager0.map(&memory, 0x4000, 0x1000, km::PageFlags::eUserAll, km::MemoryType::eWriteBack, &mapping);
     ASSERT_EQ(status, OsStatusSuccess);
 
-    sys::AddressSegment seg0;
-    status = asManager0.querySegment(mapping.vaddr, &seg0);
-    ASSERT_EQ(status, OsStatusSuccess);
-    ASSERT_EQ(seg0.backing, mapping.physicalRange());
-    ASSERT_EQ(seg0.range(), mapping.virtualRange());
+    AssertVirtualFound0(mapping.virtualRangeEx(), mapping.physicalRangeEx());
 
-    auto stats0 = asManager0.stats();
-    ASSERT_EQ(stats0.segments, 1);
+    AssertStats0(1, 0x4000);
 
     km::VirtualRange subrange { (void*)((uintptr_t)mapping.vaddr), (void*)((uintptr_t)mapping.vaddr + 0x4000) };
     status = asManager0.unmap(&memory, subrange);
     ASSERT_EQ(status, OsStatusSuccess);
 
-    sys::AddressSegment seg1;
-    status = asManager0.querySegment(mapping.vaddr, &seg1);
-    ASSERT_EQ(status, OsStatusNotFound);
+    AssertVirtualNotFound0(mapping.vaddr);
+    AssertVirtualNotFound0(subrange.back);
+    AssertVirtualNotFound0((void*)((uintptr_t)mapping.vaddr + 0x2000));
 
-    status = asManager0.querySegment(subrange.back, &seg1);
-    ASSERT_EQ(status, OsStatusNotFound);
-
-    status = asManager0.querySegment((void*)((uintptr_t)mapping.vaddr + 0x2000), &seg1);
-    ASSERT_EQ(status, OsStatusNotFound);
-
-    auto stats1 = asManager0.stats();
-    ASSERT_EQ(stats1.segments, 0);
-
-    auto memstats = memory.stats();
-    ASSERT_EQ(memstats.segments, 0);
+    AssertStats0(0, 0);
+    AssertStats1(0, 0);
 }
 
 TEST_F(AddressSpaceManagerTest, UnmapFront) {
     OsStatus status = OsStatusSuccess;
-    km::MemoryRange range = { sm::gigabytes(1).bytes(), sm::gigabytes(4).bytes() };
-    km::VirtualRange vmem = range.cast<const void*>();
     km::AddressMapping mapping;
-
-    status = sys::AddressSpaceManager::create(&pager, getPteMapping0(), km::PageFlags::eUserAll, vmem, &asManager0);
-    ASSERT_EQ(status, OsStatusSuccess);
 
     status = asManager0.map(&memory, 0x4000, 0x1000, km::PageFlags::eUserAll, km::MemoryType::eWriteBack, &mapping);
     ASSERT_EQ(status, OsStatusSuccess);

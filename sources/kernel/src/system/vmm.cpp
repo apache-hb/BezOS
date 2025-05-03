@@ -51,8 +51,6 @@ OsStatus sys::AddressSpaceManager::mapSegment(
     km::VirtualRange seg = segmentMapping.virtualRange();
 
     km::VirtualRange subrange = km::intersection(seg, src);
-    KM_ASSERT(!subrange.isEmpty());
-
     size_t frontOffset = (uintptr_t)subrange.front - (uintptr_t)seg.front;
     size_t backOffset = (uintptr_t)seg.back - (uintptr_t)subrange.back;
     km::MemoryRange memory = { segment.backing.front + frontOffset, segment.backing.back - backOffset };
@@ -69,7 +67,7 @@ OsStatus sys::AddressSpaceManager::mapSegment(
 
     status = manager->retain(memory);
     if (status != OsStatusSuccess) {
-        KmDebugMessage("[VMM] Failed to retain memory: ", memory, " ", OsStatusId(status), "\n");
+        KmDebugMessage("[VMM] Failed to retain memory: ", memory, " ", seg, " ", src, " ", OsStatusId(status), "\n");
         KM_ASSERT(status == OsStatusSuccess);
         return status;
     }
@@ -112,18 +110,13 @@ OsStatus sys::AddressSpaceManager::mapSegment(
     return OsStatusSuccess;
 }
 
-OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, AddressSpaceManager *other, km::VirtualRange range, km::PageFlags flags, km::MemoryType type, km::VirtualRange *mapping) [[clang::allocating]] {
+OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, AddressSpaceManager *other, km::VirtualRange range, km::PageFlags flags, km::MemoryType type, km::VirtualRange *result) [[clang::allocating]] {
     stdx::LockGuard guard(mLock);
     stdx::LockGuard guard2(other->mLock); // TODO: this can deadlock
 
-    Iterator begin = other->segments().lower_bound(range.front);
-    Iterator end = other->segments().lower_bound(range.back);
+    auto [begin, end] = other->mTable.find(range);
 
-    if (end != segments().end()) {
-        ++end;
-    }
-
-    if (begin == end) {
+    if (begin == other->mTable.end()) {
         return OsStatusNotFound;
     }
 
@@ -132,12 +125,49 @@ OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, AddressSpaceManag
         return OsStatusOutOfMemory;
     }
 
+    if (begin == end) {
+        auto segment = begin->second;
+        auto seg = segment.range();
+        if (seg == range) {
+            OsStatus status = OsStatusSuccess;
+            km::MemoryRange memory = segment.backing;
+            km::AddressMapping mapping {
+                .vaddr = std::bit_cast<const void*>(allocation.address()),
+                .paddr = memory.front,
+                .size = memory.size(),
+            };
+
+            status = manager->retain(memory);
+            if (status != OsStatusSuccess) {
+                KmDebugMessage("[VMM] Failed to retain memory: ", memory, " ", seg, " ", range, " ", OsStatusId(status), "\n");
+                KM_ASSERT(status == OsStatusSuccess);
+            }
+
+            status = mPageTables.map(mapping, flags, type);
+            if (status != OsStatusSuccess) {
+                KmDebugMessage("[VMM] Failed to map memory: ", mapping, " ", seg, " ", range, " ", OsStatusId(status), "\n");
+                KM_ASSERT(status == OsStatusSuccess);
+            }
+
+            AddressSegment newSegment { memory, allocation };
+            addSegment(std::move(newSegment));
+            *result = mapping.virtualRange();
+            return OsStatusSuccess;
+        } else {
+            KmDebugMessage("Unsupported mapping: ", seg, " ", range, "\n");
+            KM_ASSERT(false);
+        }
+    } else if (end != mTable.end()) {
+        KmDebugMessage("Unsupported mapping: ", begin->second.range(), " ", end->second.range(), " ", range, "\n");
+        KM_ASSERT(false);
+    }
+
     km::VirtualRange dst = allocation.range().cast<const void*>();
 
     for (auto it = begin; it != end; ++it) {
         switch (OsStatus status = mapSegment(manager, it, range, dst, flags, type, allocation)) {
         case OsStatusCompleted:
-            *mapping = dst;
+            *result = dst;
             return OsStatusSuccess;
         case OsStatusSuccess:
             continue;
@@ -147,13 +177,12 @@ OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, AddressSpaceManag
         }
     }
 
-    *mapping = dst;
+    *result = dst;
     return OsStatusSuccess;
 }
 
 void sys::AddressSpaceManager::addSegment(AddressSegment &&segment) noexcept [[clang::allocating]] {
-    auto range = segment.range();
-    segments().insert({ range.back, segment });
+    mTable.insert(std::move(segment));
 }
 
 void sys::AddressSpaceManager::addNoAccessSegment(km::TlsfAllocation allocation) noexcept [[clang::allocating]] {
@@ -230,7 +259,7 @@ OsStatus sys::AddressSpaceManager::unmapSegment(MemoryManager *manager, Iterator
 
         mHeap.free(segment.allocation);
 
-        segments().erase(it);
+        mTable.erase(it);
         *remaining = { seg.back, range.back };
         return OsStatusSuccess;
     } else if (seg.contains(range) && range.front != seg.front) {
@@ -256,7 +285,7 @@ OsStatus sys::AddressSpaceManager::unmapSegment(MemoryManager *manager, Iterator
         auto hiSegment = AddressSegment { hiRange, hi };
         km::MemoryRange midRange = { memory.front + lhs.size(), memory.back - rhs.size() };
 
-        segments().erase(it);
+        mTable.erase(it);
 
         OsStatus status = manager->release(midRange);
         KM_ASSERT(status == OsStatusSuccess);
@@ -325,7 +354,7 @@ sys::AddressSpaceManager::Iterator sys::AddressSpaceManager::eraseSegment(Memory
 
     deleteSegment(manager, std::move(segment));
 
-    return segments().erase(it);
+    return mTable.erase(it);
 }
 
 void sys::AddressSpaceManager::eraseSegment(MemoryManager *manager, km::VirtualRange segment) noexcept [[clang::allocating]] {
@@ -399,8 +428,10 @@ OsStatus sys::AddressSpaceManager::unmap(MemoryManager *manager, km::VirtualRang
             //     |---range---|
             OsStatus status = OsStatusSuccess;
 
+            auto [lhs, rhs] = km::split(seg, range);
+            KM_ASSERT(!lhs.isEmpty() && !rhs.isEmpty());
+
             km::AddressMapping subrange = mapping.subrange(range);
-            auto physicalRange = subrange.physicalRange();
 
             std::array<km::TlsfAllocation, 3> allocations;
             std::array<km::PhysicalAddress, 2> points = {
@@ -418,12 +449,12 @@ OsStatus sys::AddressSpaceManager::unmap(MemoryManager *manager, km::VirtualRang
             status = mPageTables.unmap(subrange.virtualRange());
             KM_ASSERT(status == OsStatusSuccess);
 
-            AddressSegment loSegment { physicalRange, allocations[0] };
-            AddressSegment hiSegment { physicalRange, allocations[2] };
+            AddressSegment loSegment { segment.backing.first(lhs.size()), allocations[0] };
+            AddressSegment hiSegment { segment.backing.last(rhs.size()), allocations[2] };
 
             mHeap.free(allocations[1]);
 
-            segments().erase(begin);
+            mTable.erase(begin);
 
             addSegment(std::move(loSegment));
             addSegment(std::move(hiSegment));
@@ -508,7 +539,7 @@ OsStatus sys::AddressSpaceManager::unmap(MemoryManager *manager, km::VirtualRang
         }
     }
 
-    end = segments().upper_bound(range.back);
+    end = mTable.find(range.back);
 
     km::VirtualRange remaining = range;
     for (auto it = begin; it != end;) {
@@ -516,8 +547,7 @@ OsStatus sys::AddressSpaceManager::unmap(MemoryManager *manager, km::VirtualRang
         case OsStatusCompleted:
             return OsStatusSuccess;
         case OsStatusSuccess:
-            it = segments().upper_bound(range.front);
-            end = segments().upper_bound(range.back);
+            std::tie(it, end) = mTable.find(remaining);
             continue;
         default:
             return status;
