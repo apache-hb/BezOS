@@ -1,0 +1,11 @@
+[wrap-file]
+directory = rpmalloc-979092cf4544acf59124602493aebb52f97f094f
+
+source_url = https://github.com/mjansson/rpmalloc/archive/979092cf4544acf59124602493aebb52f97f094f.zip
+source_filename = rpmalloc-979092cf4544acf59124602493aebb52f97f094f.zip
+source_hash = e8caab2099183d8d454ea272a4916b4a426c0cb3334eb9f959f0c1acad837a07
+
+patch_directory = rpmalloc
+
+[provide]
+dependency_names = rpmalloc

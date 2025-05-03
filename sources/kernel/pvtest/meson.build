@@ -1,7 +1,8 @@
 
 capstone = dependency('capstone', native : true)
+rpmalloc = dependency('rpmalloc', native : true)
 
-pvtest_deps = [ capstone, sysapi, common ]
+pvtest_deps = [ capstone, sysapi, common, rpmalloc ]
 
 pvtest_src = files(
     'src/pvtest.cpp',
@@ -13,6 +14,8 @@ pvtest_src = files(
 pvtest_inc = include_directories('include')
 
 libpvtest = library('pvtest', pvtest_src,
+    c_args : [ '-Wno-missing-designated-field-initializers' ],
+    cpp_args : [ '-Wno-missing-designated-field-initializers', '-Wno-c99-designator' ],
     include_directories : [ pvtest_inc, inc ],
     dependencies : pvtest_deps,
     native : true,

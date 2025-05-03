@@ -8,6 +8,7 @@
 #include "common/util/util.hpp"
 #include "common/virtual_address.hpp"
 #include "common/physical_address.hpp"
+#include "pvtest/system.hpp"
 
 namespace pv {
     class Memory;
@@ -38,6 +39,8 @@ namespace pv {
 
         CpuCore();
         ~CpuCore();
+
+        PVTEST_SHARED_OBJECT(CpuCore);
 
         void setRegisterOperand(mcontext_t *mcontext, x86_reg reg, uint64_t value) noexcept;
         uint64_t getRegisterOperand(mcontext_t *mcontext, x86_reg reg) noexcept;

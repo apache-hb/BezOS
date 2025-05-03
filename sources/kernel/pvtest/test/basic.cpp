@@ -8,5 +8,7 @@ public:
 
 TEST_F(PvConstructTest, Construct) {
     pv::Machine::init();
-    pv::Machine machine(4);
+    pv::Machine *machine = new pv::Machine(4);
+    EXPECT_NE(machine, nullptr);
+    delete machine;
 }

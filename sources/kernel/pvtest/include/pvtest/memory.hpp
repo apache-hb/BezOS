@@ -1,7 +1,8 @@
 #pragma once
 
-#include "boot.hpp"
+#include "pvtest/system.hpp"
 
+#include "boot.hpp"
 #include "common/util/util.hpp"
 
 #include <unistd.h>
@@ -21,6 +22,8 @@ namespace pv {
 
         Memory(off64_t size);
         ~Memory();
+
+        PVTEST_SHARED_OBJECT(Memory);
 
         /// @brief Add a section and return the host address of the section.
         void *addSection(boot::MemoryRegion section);

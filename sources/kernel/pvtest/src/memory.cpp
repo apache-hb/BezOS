@@ -6,7 +6,7 @@
 #include <stdlib.h>
 
 pv::Memory::Memory(off64_t size) : mMemorySize(size) {
-    PV_POSIX_CHECK((mMemoryFd = memfd_create("pvtest", 0)));
+    PV_POSIX_CHECK((mMemoryFd = memfd_create("pv_ram", 0)));
 
     PV_POSIX_CHECK(ftruncate64(mMemoryFd, getMemorySize()));
 

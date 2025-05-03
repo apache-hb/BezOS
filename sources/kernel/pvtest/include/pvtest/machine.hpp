@@ -2,17 +2,23 @@
 
 #include "absl/container/fixed_array.h"
 
-#include "pvtest/cpu.hpp"
 #include "pvtest/memory.hpp"
+#include "pvtest/cpu.hpp"
 #include "util/memory.hpp"
 
 namespace pv {
+    class CpuCore;
+
     class Machine {
         absl::FixedArray<CpuCore> mCores;
         Memory mMemory;
     public:
         Machine(size_t cores, off64_t memorySize = sm::gigabytes(16).bytes());
 
+        PVTEST_SHARED_OBJECT(Machine);
+
         static void init();
+        static void initChild();
+        static void finalizeChild();
     };
 }

@@ -1,5 +1,6 @@
 #include "pvtest/cpu.hpp"
 #include "pvtest/pvtest.hpp"
+#include "pvtest/machine.hpp"
 
 #include <assert.h>
 #include <unistd.h>
@@ -8,7 +9,6 @@
 #include <utility>
 
 #include "common/util/defer.hpp"
-#include "common/compiler/compiler.hpp"
 
 static pthread_key_t gThreadKey;
 
@@ -90,23 +90,24 @@ uint64_t pv::CpuCore::getMemoryOperand(mcontext_t *mcontext, const x86_op_mem *o
     return base + (index * op->scale) + offset;
 }
 
-sm::PhysicalAddress pv::CpuCore::resolveVirtualAddress(Memory *memory, sm::VirtualAddress address) noexcept {
-
-}
+// sm::PhysicalAddress pv::CpuCore::resolveVirtualAddress(Memory *memory, sm::VirtualAddress address) noexcept {
+// }
 
 void pv::CpuCore::sigsegv(mcontext_t *mcontext) {
     SignalAssert("pv::CpuCore::sigsegv() SIGSEGV at %p\n", (void *)mcontext->gregs[REG_RIP]);
 }
 
 void pv::CpuCore::run() {
+    pv::Machine::initChild();
+
     if (setjmp(mDestroyTarget)) {
-        printf("pv::CpuCore::run() destroy thread %p\n", this);
+        printf("pv::CpuCore::run() destroy thread %p\n", (void*)this);
         return;
     }
 
     if (setjmp(mLaunchTarget)) {
         // TODO: enter into user code
-        printf("pv::CpuCore::run() launch thread %p\n", this);
+        printf("pv::CpuCore::run() launch thread %p\n", (void*)this);
         return;
     }
 
@@ -119,10 +120,10 @@ void pv::CpuCore::run() {
     PV_POSIX_CHECK(sigwaitinfo(&sigset, &siginfo));
     switch (siginfo.si_signo) {
     case SIGUSR1: // destroy signal
-        SignalWrite(STDERR_FILENO, "sigwaitinfo: pv::CpuCore::run() SIGUSR1 at %p\n", this);
+        SignalWrite(STDERR_FILENO, "sigwaitinfo: pv::CpuCore::run() SIGUSR1 at %p\n", (void*)this);
         break;
     case SIGUSR2: // start signal
-        SignalWrite(STDERR_FILENO, "sigwaitinfo: pv::CpuCore::run() SIGUSR2 at %p\n", this);
+        SignalWrite(STDERR_FILENO, "sigwaitinfo: pv::CpuCore::run() SIGUSR2 at %p\n", (void*)this);
         break;
 
     default:
@@ -132,8 +133,12 @@ void pv::CpuCore::run() {
 
 void *pv::CpuCore::start(void *arg) {
     PV_POSIX_CHECK(pthread_setspecific(gThreadKey, arg));
+
     CpuCore *self = reinterpret_cast<CpuCore *>(arg);
     self->run();
+
+    pv::Machine::finalizeChild();
+
     return nullptr;
 }
 
@@ -172,10 +177,6 @@ pv::CpuCore::~CpuCore() {
 }
 
 void pv::CpuCore::installSignals() {
-    CLANG_DIAGNOSTIC_PUSH();
-    CLANG_DIAGNOSTIC_IGNORE("-Wc99-designator");
-    CLANG_DIAGNOSTIC_IGNORE("-Wmissing-designated-field-initializers");
-
     sigset_t sigset;
     PV_POSIX_CHECK(sigprocmask(SIG_BLOCK, nullptr, &sigset));
     PV_POSIX_CHECK(sigaddset(&sigset, SIGUSR1));
@@ -218,6 +219,4 @@ void pv::CpuCore::installSignals() {
     PV_POSIX_CHECK(sigaction(SIGSEGV, &sigsegv, nullptr));
     PV_POSIX_CHECK(sigaction(SIGUSR1, &sigusr1, nullptr));
     PV_POSIX_CHECK(sigaction(SIGUSR2, &sigusr2, nullptr));
-
-    CLANG_DIAGNOSTIC_POP();
 }
