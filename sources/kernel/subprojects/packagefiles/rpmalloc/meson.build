@@ -3,8 +3,8 @@ project('rpmalloc', 'c')
 src = files('rpmalloc/rpmalloc.c')
 inc = include_directories('rpmalloc')
 
-librpmalloc = library('rpmalloc', src,
-    c_args : [ '-D_GNU_SOURCE=1' ],
+librpmalloc = static_library('rpmalloc', src,
+    c_args : [ '-D_GNU_SOURCE=1', '-DENABLE_STATISTICS=1', '-DENABLE_ASSERTS=1', '-DENABLE_OVERRIDE=0', '-DENABLE_DECOMMIT=0', '-DENABLE_UNMAP=0' ],
     include_directories : inc,
     native : true,
 )

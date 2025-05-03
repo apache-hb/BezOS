@@ -2,63 +2,101 @@
 #include "pvtest/system.hpp"
 #include "pvtest/pvtest.hpp"
 
+#include <atomic>
 #include <format>
 #include <sys/mman.h>
 #include <rpmalloc.h>
 
 static int gSharedMemoryFd = -1;
 static sm::VirtualAddress gSharedHostMemory = nullptr;
+static std::atomic<uintptr_t> gSharedHostBase;
 static constexpr size_t kSharedMemorySize = sm::gigabytes(1).bytes();
-static std::once_flag gSharedMemoryOnceFlag;
 
 static void *RpMallocSharedMap(size_t size, size_t align, size_t *offset, size_t *mappedSize) {
-    void *result = nullptr;
+    size_t mapSize = size + align;
+    sm::VirtualAddress result = nullptr;
     size_t resultSize = 0;
+    size_t resultOffset = 0;
 
-    if (size > kSharedMemorySize) {
-        printf("rpmalloc: size %zu\n", size);
+    if (mapSize > kSharedMemorySize) {
+        fprintf(stderr, "rpmalloc: too large %zu\n", size);
         return nullptr;
     }
 
-    if (align != 0) {
-        printf("rpmalloc: align %zu\n", align);
+    result = gSharedHostBase.fetch_add(mapSize);
+    if (result + mapSize > (gSharedHostMemory + kSharedMemorySize)) {
+        fprintf(stderr, "rpmalloc: out of memory %p %zu\n", (void*)result, mapSize);
         return nullptr;
     }
 
-    std::call_once(gSharedMemoryOnceFlag, [&] {
-        result = gSharedHostMemory;
-        resultSize = kSharedMemorySize;
-    });
+    if (align) {
+        size_t padding = (result.address & (uintptr_t)(align - 1));
+        if (padding)
+            padding = align - padding;
+        result += padding;
+        resultOffset = padding;
+    }
 
-    *offset = 0;
+    *offset = resultOffset;
     *mappedSize = resultSize;
     return result;
 }
 
 static void RpMallocSharedUnmap(void *ptr, size_t offset, size_t size) {
-    printf("rpmalloc: unmap %p %zu %zu\n", ptr, offset, size);
+    fprintf(stderr, "rpmalloc: unmap %p %zu %zu\n", ptr, offset, size);
 }
+
+static void RpMallocError(const char *msg) {
+    fprintf(stderr, "rpmalloc: error %s\n", msg);
+}
+
+static void RpMallocCommit(void *ptr, size_t size) {
+    fprintf(stderr, "rpmalloc: commit %p %zu\n", ptr, size);
+}
+
+static void RpMallocDecommit(void *ptr, size_t size) {
+    fprintf(stderr, "rpmalloc: decommit %p %zu\n", ptr, size);
+}
+
+static int RpMallocMapFailCallback(size_t size) {
+    fprintf(stderr, "rpmalloc: map fail %zu\n", size);
+    return false;
+}
+
+static rpmalloc_interface_t gMallocInterface {
+    .memory_map = RpMallocSharedMap,
+    .memory_commit = RpMallocCommit,
+    .memory_decommit = RpMallocDecommit,
+    .memory_unmap = RpMallocSharedUnmap,
+    .map_fail_callback = RpMallocMapFailCallback,
+    .error_callback = RpMallocError,
+};
 
 pv::Machine::Machine(size_t cores, off64_t memorySize)
     : mCores(cores)
     , mMemory(memorySize)
 { }
 
+km::VirtualRangeEx pv::Machine::getSharedMemory() {
+    return km::VirtualRangeEx::of(gSharedHostMemory, kSharedMemorySize);
+}
+
 void pv::Machine::init() {
     PV_POSIX_CHECK((gSharedMemoryFd = memfd_create("pv_host", 0)));
     PV_POSIX_CHECK(ftruncate64(gSharedMemoryFd, kSharedMemorySize));
     PV_POSIX_ASSERT((gSharedHostMemory = mmap(nullptr, kSharedMemorySize, PROT_READ | PROT_WRITE, MAP_SHARED, gSharedMemoryFd, 0)) != MAP_FAILED);
+    gSharedHostBase = gSharedHostMemory.address;
 
-    rpmalloc_interface_t rpmallocInterface {
-        .memory_map = RpMallocSharedMap,
-        .memory_unmap = RpMallocSharedUnmap,
-    };
-
-    if (int err = rpmalloc_initialize(&rpmallocInterface)) {
+    if (int err = rpmalloc_initialize(&gMallocInterface)) {
         throw std::runtime_error(std::format("rpmalloc_initialize: {}", err));
     }
 
     pv::CpuCore::installSignals();
+}
+
+void pv::Machine::finalize() {
+    rpmalloc_dump_statistics(stderr);
+    rpmalloc_finalize();
 }
 
 void pv::Machine::initChild() {
@@ -70,10 +108,12 @@ void pv::Machine::finalizeChild() {
 }
 
 void *pv::SharedObjectMalloc(size_t size) {
+    fprintf(stderr, "rpmalloc: malloc %zu\n", size);
     return rpmalloc(size);
 }
 
 void *pv::SharedObjectAlignedAlloc(size_t align, size_t size) {
+    fprintf(stderr, "rpmalloc: aligned %zu %zu\n", align, size);
     return rpaligned_alloc(align, size);
 }
 
