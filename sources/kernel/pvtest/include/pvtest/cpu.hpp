@@ -6,9 +6,14 @@
 #include <sys/ucontext.h>
 
 #include "common/util/util.hpp"
+#include "common/virtual_address.hpp"
+#include "common/physical_address.hpp"
 
 namespace pv {
+    class Memory;
+
     class CpuCore {
+        pid_t mChild;
         pthread_t mThread;
         jmp_buf mDestroyTarget;
         jmp_buf mLaunchTarget;
@@ -37,6 +42,8 @@ namespace pv {
         void setRegisterOperand(mcontext_t *mcontext, x86_reg reg, uint64_t value) noexcept;
         uint64_t getRegisterOperand(mcontext_t *mcontext, x86_reg reg) noexcept;
         uint64_t getMemoryOperand(mcontext_t *mcontext, const x86_op_mem *op) noexcept;
+
+        sm::PhysicalAddress resolveVirtualAddress(Memory *memory, sm::VirtualAddress address) noexcept;
 
         static void installSignals();
     };

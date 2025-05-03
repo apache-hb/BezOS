@@ -27,5 +27,9 @@ namespace pv {
 
         std::span<const boot::MemoryRegion> getSections() const noexcept { return mSections; }
         off64_t getMemorySize() const noexcept { return mMemorySize; }
+        sm::VirtualAddress getHostMemory() const noexcept { return mHostMemory; }
+        sm::VirtualAddress getHostAddress(km::PhysicalAddressEx address) const noexcept {
+            return mHostMemory + address.address;
+        }
     };
 }

@@ -90,6 +90,10 @@ uint64_t pv::CpuCore::getMemoryOperand(mcontext_t *mcontext, const x86_op_mem *o
     return base + (index * op->scale) + offset;
 }
 
+sm::PhysicalAddress pv::CpuCore::resolveVirtualAddress(Memory *memory, sm::VirtualAddress address) noexcept {
+
+}
+
 void pv::CpuCore::sigsegv(mcontext_t *mcontext) {
     SignalAssert("pv::CpuCore::sigsegv() SIGSEGV at %p\n", (void *)mcontext->gregs[REG_RIP]);
 }
