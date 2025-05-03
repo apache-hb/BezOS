@@ -95,6 +95,17 @@ void pv::CpuCore::sigsegv(mcontext_t *mcontext) {
 }
 
 void pv::CpuCore::run() {
+    if (setjmp(mDestroyTarget)) {
+        printf("pv::CpuCore::run() destroy thread %p\n", this);
+        return;
+    }
+
+    if (setjmp(mLaunchTarget)) {
+        // TODO: enter into user code
+        printf("pv::CpuCore::run() launch thread %p\n", this);
+        return;
+    }
+
     sigset_t sigset;
     PV_POSIX_CHECK(sigemptyset(&sigset));
     PV_POSIX_CHECK(sigaddset(&sigset, SIGUSR1));
@@ -120,6 +131,14 @@ void *pv::CpuCore::start(void *arg) {
     CpuCore *self = reinterpret_cast<CpuCore *>(arg);
     self->run();
     return nullptr;
+}
+
+void pv::CpuCore::launch(mcontext_t *) {
+    longjmp(mLaunchTarget, 1);
+}
+
+void pv::CpuCore::destroy(mcontext_t *) {
+    longjmp(mDestroyTarget, 1);
 }
 
 pv::CpuCore::CpuCore() {
@@ -169,23 +188,26 @@ void pv::CpuCore::installSignals() {
             mcontext_t *mcontext = &ucontext->uc_mcontext;
             cpu->sigsegv(mcontext);
         },
-        .sa_mask = sigset_t{},
         .sa_flags = SA_SIGINFO,
     };
 
     struct sigaction sigusr1 {
         .sa_sigaction = [](int, siginfo_t *, void *context) {
-            // empty handler...
+            CpuCore *cpu = reinterpret_cast<CpuCore *>(pthread_getspecific(gThreadKey));
+            ucontext_t *ucontext = reinterpret_cast<ucontext_t *>(context);
+            mcontext_t *mcontext = &ucontext->uc_mcontext;
+            cpu->destroy(mcontext);
         },
-        .sa_mask = sigset_t{},
         .sa_flags = SA_SIGINFO,
     };
 
     struct sigaction sigusr2 {
         .sa_sigaction = [](int, siginfo_t *, void *context) {
-            // empty handler...
+            CpuCore *cpu = reinterpret_cast<CpuCore *>(pthread_getspecific(gThreadKey));
+            ucontext_t *ucontext = reinterpret_cast<ucontext_t *>(context);
+            mcontext_t *mcontext = &ucontext->uc_mcontext;
+            cpu->launch(mcontext);
         },
-        .sa_mask = sigset_t{},
         .sa_flags = SA_SIGINFO,
     };
 

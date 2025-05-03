@@ -17,3 +17,10 @@ pv::Memory::~Memory() {
     munmap(mHostMemory, getMemorySize());
     close(mMemoryFd);
 }
+
+void *pv::Memory::addSection(boot::MemoryRegion section) {
+    auto front = section.range.front;
+    sm::VirtualAddress host = mHostMemory + front.address;
+    mSections.push_back(section);
+    return host;
+}

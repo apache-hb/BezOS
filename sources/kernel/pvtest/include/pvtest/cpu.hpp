@@ -1,6 +1,7 @@
 #pragma once
 
 #include <pthread.h>
+#include <setjmp.h>
 #include <capstone.h>
 #include <sys/ucontext.h>
 
@@ -9,6 +10,8 @@
 namespace pv {
     class CpuCore {
         pthread_t mThread;
+        jmp_buf mDestroyTarget;
+        jmp_buf mLaunchTarget;
 
         uint64_t cr0;
         uint64_t cr2;
@@ -21,6 +24,8 @@ namespace pv {
         void run();
 
         void sigsegv(mcontext_t *mcontext);
+        void launch(mcontext_t *mcontext);
+        void destroy(mcontext_t *mcontext);
 
     public:
         UTIL_NOCOPY(CpuCore);
