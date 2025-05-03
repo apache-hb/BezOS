@@ -3,6 +3,7 @@
 #include "pvtest/machine.hpp"
 
 #include <assert.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <signal.h>
 
@@ -10,7 +11,7 @@
 
 #include "common/util/defer.hpp"
 
-static pthread_key_t gThreadKey;
+static pv::CpuCore *fCpuCore = nullptr;
 
 static void SignalWriteV(int fd, const char *fmt, va_list args) {
     // TODO: vsnprintf is technically not signal safe, but i dont think glibc does anything not signal-unsafe in it...
@@ -131,15 +132,14 @@ void pv::CpuCore::run() {
     }
 }
 
-void *pv::CpuCore::start(void *arg) {
-    PV_POSIX_CHECK(pthread_setspecific(gThreadKey, arg));
-
+int pv::CpuCore::start(void *arg) {
     CpuCore *self = reinterpret_cast<CpuCore *>(arg);
+    fCpuCore = self;
     self->run();
 
     pv::Machine::finalizeChild();
 
-    return nullptr;
+    return 0;
 }
 
 void pv::CpuCore::launch(mcontext_t *) {
@@ -150,20 +150,9 @@ void pv::CpuCore::destroy(mcontext_t *) {
     longjmp(mDestroyTarget, 1);
 }
 
-pv::CpuCore::CpuCore() {
-    pthread_attr_t attr;
-    PV_POSIX_CHECK(pthread_attr_init(&attr));
-    defer { pthread_attr_destroy(&attr); };
-
-    sigset_t sigset;
-    PV_POSIX_CHECK(sigfillset(&sigset));
-    PV_POSIX_CHECK(sigdelset(&sigset, SIGSEGV));
-    PV_POSIX_CHECK(sigdelset(&sigset, SIGUSR1));
-    PV_POSIX_CHECK(sigdelset(&sigset, SIGUSR2));
-
-    PV_POSIX_CHECK(pthread_attr_setsigmask_np(&attr, &sigset));
-
-    PV_POSIX_CHECK(pthread_create(&mThread, &attr, &CpuCore::start, this));
+pv::CpuCore::CpuCore() : mStack(new std::byte[0x1000 * 32]) {
+    int flags = CLONE_FS | CLONE_FILES | CLONE_IO | SIGCHLD;
+    PV_POSIX_CHECK((mChild = clone(&CpuCore::start, std::bit_cast<void*>(mStack.get() + 0x1000 * 32), flags, this)));
 }
 
 pv::CpuCore::~CpuCore() {
@@ -171,9 +160,10 @@ pv::CpuCore::~CpuCore() {
         .sival_ptr = this,
     };
 
-    PV_POSIX_CHECK(pthread_sigqueue(mThread, SIGUSR1, val));
+    PV_POSIX_CHECK(sigqueue(mChild, SIGUSR1, val));
 
-    PV_POSIX_CHECK(pthread_join(mThread, nullptr));
+    int status = 0;
+    PV_POSIX_CHECK(waitpid(mChild, &status, 0));
 }
 
 void pv::CpuCore::installSignals() {
@@ -183,35 +173,29 @@ void pv::CpuCore::installSignals() {
     PV_POSIX_CHECK(sigaddset(&sigset, SIGUSR2));
     PV_POSIX_CHECK(sigprocmask(SIG_SETMASK, &sigset, nullptr));
 
-    PV_POSIX_CHECK(pthread_key_create(&gThreadKey, nullptr));
-
     struct sigaction sigsegv {
         .sa_sigaction = [](int, siginfo_t *, void *context) {
-            CpuCore *cpu = reinterpret_cast<CpuCore *>(pthread_getspecific(gThreadKey));
-
             ucontext_t *ucontext = reinterpret_cast<ucontext_t *>(context);
             mcontext_t *mcontext = &ucontext->uc_mcontext;
-            cpu->sigsegv(mcontext);
+            fCpuCore->sigsegv(mcontext);
         },
         .sa_flags = SA_SIGINFO,
     };
 
     struct sigaction sigusr1 {
         .sa_sigaction = [](int, siginfo_t *, void *context) {
-            CpuCore *cpu = reinterpret_cast<CpuCore *>(pthread_getspecific(gThreadKey));
             ucontext_t *ucontext = reinterpret_cast<ucontext_t *>(context);
             mcontext_t *mcontext = &ucontext->uc_mcontext;
-            cpu->destroy(mcontext);
+            fCpuCore->destroy(mcontext);
         },
         .sa_flags = SA_SIGINFO,
     };
 
     struct sigaction sigusr2 {
         .sa_sigaction = [](int, siginfo_t *, void *context) {
-            CpuCore *cpu = reinterpret_cast<CpuCore *>(pthread_getspecific(gThreadKey));
             ucontext_t *ucontext = reinterpret_cast<ucontext_t *>(context);
             mcontext_t *mcontext = &ucontext->uc_mcontext;
-            cpu->launch(mcontext);
+            fCpuCore->launch(mcontext);
         },
         .sa_flags = SA_SIGINFO,
     };

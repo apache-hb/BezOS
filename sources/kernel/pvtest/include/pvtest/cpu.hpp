@@ -14,8 +14,8 @@ namespace pv {
     class Memory;
 
     class CpuCore {
+        std::unique_ptr<std::byte[]> mStack;
         pid_t mChild;
-        pthread_t mThread;
         jmp_buf mDestroyTarget;
         jmp_buf mLaunchTarget;
 
@@ -25,7 +25,7 @@ namespace pv {
         uint64_t cr4;
         uint8_t cpl;
 
-        static void *start(void *arg);
+        static int start(void *arg);
 
         void run();
 

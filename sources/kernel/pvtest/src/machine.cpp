@@ -108,12 +108,10 @@ void pv::Machine::finalizeChild() {
 }
 
 void *pv::SharedObjectMalloc(size_t size) {
-    fprintf(stderr, "rpmalloc: malloc %zu\n", size);
     return rpmalloc(size);
 }
 
 void *pv::SharedObjectAlignedAlloc(size_t align, size_t size) {
-    fprintf(stderr, "rpmalloc: aligned %zu %zu\n", align, size);
     return rpaligned_alloc(align, size);
 }
 
