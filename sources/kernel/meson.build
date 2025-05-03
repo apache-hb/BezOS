@@ -363,6 +363,8 @@ capstone = dependency('capstone', native : true)
 gtest_main = dependency('gtest_main', native : true)
 testkwargs = { 'protocol' : 'gtest', 'timeout': 5 }
 
+subdir('pvtest')
+
 test_sanitize_args = [
     '-fsanitize=nullability'
 ]

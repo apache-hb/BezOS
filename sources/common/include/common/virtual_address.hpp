@@ -41,6 +41,10 @@ namespace sm {
             : VirtualAddress(std::bit_cast<uintptr_t>(pointer))
         { }
 
+        constexpr bool isAligned() const noexcept {
+            return isAlignedTo(alignof(T));
+        }
+
         constexpr VirtualAddressOf& operator+=(intptr_t offset) noexcept {
             address += offset * sizeof(T);
             return *this;
