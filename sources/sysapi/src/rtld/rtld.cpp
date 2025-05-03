@@ -260,7 +260,7 @@ OsStatus RtldStartProgram(const RtldStartInfo *StartInfo, OsThreadHandle *OutThr
     void *startInfoGuestAddress = nullptr;
     OsVmemCreateInfo startInfoCreateInfo {
         .Size = startInfoSize,
-        .Access = eOsMemoryRead,
+        .Access = eOsMemoryRead | eOsMemoryDiscard | eOsMemoryCommit,
         .Process = StartInfo->Process,
     };
 
@@ -287,7 +287,7 @@ OsStatus RtldStartProgram(const RtldStartInfo *StartInfo, OsThreadHandle *OutThr
 
     OsVmemCreateInfo stackCreateInfo {
         .Size = 0x4000,
-        .Access = eOsMemoryRead | eOsMemoryWrite | eOsMemoryDiscard,
+        .Access = eOsMemoryRead | eOsMemoryWrite | eOsMemoryCommit | eOsMemoryDiscard,
         .Process = StartInfo->Process,
     };
     void *stackGuestAddress = nullptr;
@@ -338,7 +338,7 @@ OsStatus RtldCreateTls(OsProcessHandle Process, struct RtldTlsInitInfo *TlsInfo,
     // Create the TLS area in the guest process.
     OsVmemCreateInfo createInfo {
         .Size = totalSize,
-        .Access = eOsMemoryRead | eOsMemoryWrite | eOsMemoryDiscard,
+        .Access = eOsMemoryRead | eOsMemoryWrite | eOsMemoryCommit | eOsMemoryDiscard,
         .Process = Process,
     };
 
