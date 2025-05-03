@@ -12,16 +12,28 @@
 
 static pthread_key_t gThreadKey;
 
-[[noreturn, gnu::format(printf, 1, 2)]]
-static void SignalAssert(const char *fmt, ...) {
+static void SignalWriteV(int fd, const char *fmt, va_list args) {
     // TODO: vsnprintf is technically not signal safe, but i dont think glibc does anything not signal-unsafe in it...
     char buffer[256];
+    int len = vsnprintf(buffer, sizeof(buffer), fmt, args);
+    write(fd, buffer, len);
+}
+
+[[gnu::format(printf, 2, 3)]]
+static void SignalWrite(int fd, const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    int len = vsnprintf(buffer, sizeof(buffer), fmt, args);
+    SignalWriteV(fd, fmt, args);
     va_end(args);
-    write(STDERR_FILENO, buffer, len);
-    abort();
+}
+
+[[noreturn, gnu::format(printf, 1, 2)]]
+static void SignalAssert(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    SignalWriteV(STDERR_FILENO, fmt, args);
+    va_end(args);
+    pv::ExitFork(EXIT_FAILURE);
 }
 
 void pv::CpuCore::setRegisterOperand(mcontext_t *mcontext, x86_reg reg, uint64_t value) noexcept {
@@ -92,8 +104,10 @@ void pv::CpuCore::run() {
     PV_POSIX_CHECK(sigwaitinfo(&sigset, &siginfo));
     switch (siginfo.si_signo) {
     case SIGUSR1: // destroy signal
+        SignalWrite(STDERR_FILENO, "sigwaitinfo: pv::CpuCore::run() SIGUSR1 at %p\n", this);
         break;
     case SIGUSR2: // start signal
+        SignalWrite(STDERR_FILENO, "sigwaitinfo: pv::CpuCore::run() SIGUSR2 at %p\n", this);
         break;
 
     default:
@@ -159,7 +173,25 @@ void pv::CpuCore::installSignals() {
         .sa_flags = SA_SIGINFO,
     };
 
+    struct sigaction sigusr1 {
+        .sa_sigaction = [](int, siginfo_t *, void *context) {
+            // empty handler...
+        },
+        .sa_mask = sigset_t{},
+        .sa_flags = SA_SIGINFO,
+    };
+
+    struct sigaction sigusr2 {
+        .sa_sigaction = [](int, siginfo_t *, void *context) {
+            // empty handler...
+        },
+        .sa_mask = sigset_t{},
+        .sa_flags = SA_SIGINFO,
+    };
+
     PV_POSIX_CHECK(sigaction(SIGSEGV, &sigsegv, nullptr));
+    PV_POSIX_CHECK(sigaction(SIGUSR1, &sigusr1, nullptr));
+    PV_POSIX_CHECK(sigaction(SIGUSR2, &sigusr2, nullptr));
 
     CLANG_DIAGNOSTIC_POP();
 }
