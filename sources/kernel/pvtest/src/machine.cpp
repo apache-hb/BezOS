@@ -1,6 +1,7 @@
 #include "pvtest/machine.hpp"
 #include "pvtest/system.hpp"
 #include "pvtest/pvtest.hpp"
+#include "setup.hpp"
 
 #include <atomic>
 #include <format>
@@ -73,11 +74,17 @@ static rpmalloc_interface_t gMallocInterface {
 };
 
 pv::Machine::Machine(size_t cores, off64_t memorySize)
-    : mMemory(memorySize)
+    : mPageBuilder(48, 48, km::GetDefaultPatLayout())
+    , mMemory(memorySize)
 {
+    mCores.reserve(cores);
     for (size_t i = 0; i < cores; ++i) {
-        mCores.emplace_back(&mMemory);
+        mCores.emplace_back(getMemory(), getPageBuilder());
     }
+}
+
+void pv::Machine::bspInit(mcontext_t mcontext) {
+    mCores[0].sendInitMessage(mcontext);
 }
 
 km::VirtualRangeEx pv::Machine::getSharedMemory() {
@@ -98,6 +105,12 @@ void pv::Machine::init() {
 void pv::Machine::finalize() {
     rpmalloc_dump_statistics(stderr);
     rpmalloc_finalize();
+
+    PV_POSIX_CHECK(munmap(gSharedHostMemory, kSharedMemorySize));
+    PV_POSIX_CHECK(close(gSharedMemoryFd));
+    gSharedHostBase = 0;
+    gSharedHostMemory = nullptr;
+    gSharedMemoryFd = -1;
 }
 
 void pv::Machine::initChild() {

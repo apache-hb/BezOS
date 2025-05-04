@@ -86,7 +86,6 @@ namespace km {
         T back;
 
         constexpr uintptr_t size() const {
-            KM_ASSERT(isValid());
             return std::bit_cast<uintptr_t>(back) - std::bit_cast<uintptr_t>(front);
         }
 

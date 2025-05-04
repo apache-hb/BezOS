@@ -17,6 +17,9 @@
 
 static pv::CpuCore *fCpuCore = nullptr;
 
+static constexpr int kSigDestroy = SIGUSR1;
+static constexpr int kSigLaunch = SIGUSR2;
+
 static void SignalWriteV(int fd, const char *fmt, va_list args) {
     // TODO: vsnprintf is technically not signal safe, but i dont think glibc does anything not signal-unsafe in it...
     char buffer[256];
@@ -104,7 +107,7 @@ OsStatus pv::CpuCore::resolveVirtualAddress(sm::VirtualAddress address, sm::Phys
         return OsStatusInvalidAddress;
     }
 
-    sm::VirtualAddress l3Address = mMemory->getHostAddress(mPageBuilder.address(t4));
+    sm::VirtualAddress l3Address = mMemory->getHostAddress(mPageBuilder->address(t4));
     x64::PageMapLevel3 *l3 = std::bit_cast<x64::PageMapLevel3*>(l3Address);
     x64::pdpte &t3 = l3->entries[pdpte];
     if (!t3.present()) {
@@ -113,11 +116,11 @@ OsStatus pv::CpuCore::resolveVirtualAddress(sm::VirtualAddress address, sm::Phys
 
     if (t3.is1g()) {
         uintptr_t pdpteOffset = address.address & 0x3FF'000;
-        *result = sm::PhysicalAddress { mPageBuilder.address(t3) + pdpteOffset };
+        *result = sm::PhysicalAddress { mPageBuilder->address(t3) + pdpteOffset };
         return OsStatusSuccess;
     }
 
-    sm::VirtualAddress l2Address = mMemory->getHostAddress(mPageBuilder.address(t3));
+    sm::VirtualAddress l2Address = mMemory->getHostAddress(mPageBuilder->address(t3));
     x64::PageMapLevel2 *l2 = std::bit_cast<x64::PageMapLevel2*>(l2Address);
     x64::pdte &t2 = l2->entries[pdpte];
     if (!t2.present()) {
@@ -126,18 +129,18 @@ OsStatus pv::CpuCore::resolveVirtualAddress(sm::VirtualAddress address, sm::Phys
 
     if (t2.is2m()) {
         uintptr_t pdteOffset = address.address & 0x1FF'000;
-        *result = sm::PhysicalAddress { mPageBuilder.address(t2) + pdteOffset };
+        *result = sm::PhysicalAddress { mPageBuilder->address(t2) + pdteOffset };
         return OsStatusSuccess;
     }
 
-    sm::VirtualAddress ptAddress = mMemory->getHostAddress(mPageBuilder.address(t2));
+    sm::VirtualAddress ptAddress = mMemory->getHostAddress(mPageBuilder->address(t2));
     x64::PageTable *pt = std::bit_cast<x64::PageTable*>(ptAddress);
     x64::pte &t1 = pt->entries[pte];
     if (!t1.present()) {
         return OsStatusInvalidAddress;
     }
 
-    *result = sm::PhysicalAddress { mPageBuilder.address(t1) };
+    *result = sm::PhysicalAddress { mPageBuilder->address(t1) };
     return OsStatusSuccess;
 }
 
@@ -167,9 +170,6 @@ void pv::CpuCore::emulate_mmu(mcontext_t *mcontext, cs_insn *insn) {
             uint64_t value = getMemoryOperand(mcontext, &op->mem);
             SignalWrite(STDERR_FILENO, "Memory %s: %lx\n", cs_reg_name(mCapstone, op->mem.base), value);
         }
-    }
-    if (detail->regs_read_count == 0 && detail->regs_write_count == 0) {
-        SignalAssert("Unhandled instruction: %s\n", insn->mnemonic);
     }
 }
 
@@ -266,24 +266,25 @@ void pv::CpuCore::run() {
     }
 
     if (setjmp(mLaunchTarget)) {
-        // TODO: enter into user code
         printf("pv::CpuCore::run() launch thread %p\n", (void*)this);
+        PvTestContextSwitch(&mLaunchContext.gregs);
         return;
     }
 
     sigset_t sigset;
     PV_POSIX_CHECK(sigemptyset(&sigset));
-    PV_POSIX_CHECK(sigaddset(&sigset, SIGUSR1));
-    PV_POSIX_CHECK(sigaddset(&sigset, SIGUSR2));
+    PV_POSIX_CHECK(sigaddset(&sigset, kSigDestroy));
+    PV_POSIX_CHECK(sigaddset(&sigset, kSigLaunch));
 
     siginfo_t siginfo;
     PV_POSIX_CHECK(sigwaitinfo(&sigset, &siginfo));
     switch (siginfo.si_signo) {
-    case SIGUSR1: // destroy signal
-        SignalWrite(STDERR_FILENO, "sigwaitinfo: pv::CpuCore::run() SIGUSR1 at %p\n", (void*)this);
+    case kSigDestroy:
+        SignalWrite(STDERR_FILENO, "sigwaitinfo: pv::CpuCore::run() kSigDestroy at %p\n", (void*)this);
         break;
-    case SIGUSR2: // start signal
-        SignalWrite(STDERR_FILENO, "sigwaitinfo: pv::CpuCore::run() SIGUSR2 at %p\n", (void*)this);
+    case kSigLaunch:
+        SignalWrite(STDERR_FILENO, "sigwaitinfo: pv::CpuCore::run() kSigLaunch at %p\n", (void*)this);
+        PvTestContextSwitch(&mLaunchContext.gregs);
         break;
 
     default:
@@ -296,6 +297,7 @@ int pv::CpuCore::start(void *arg) {
     fCpuCore = self;
 
     self->run();
+    self->mChild = 0;
 
     pv::Machine::finalizeChild();
 
@@ -306,17 +308,18 @@ void pv::CpuCore::destroy(mcontext_t *) {
     longjmp(mDestroyTarget, 1);
 }
 
-void pv::CpuCore::initMessage(mcontext_t context) {
+void pv::CpuCore::sendInitMessage(mcontext_t context) {
     mLaunchContext = context;
     sigval val {
         .sival_ptr = this,
     };
 
-    PV_POSIX_CHECK(sigqueue(mChild, SIGUSR2, val));
+    PV_POSIX_CHECK(sigqueue(mChild, kSigLaunch, val));
 }
 
-pv::CpuCore::CpuCore(Memory *memory)
+pv::CpuCore::CpuCore(Memory *memory, const km::PageBuilder *pager)
     : mChildStack(new std::byte[0x1000 * 32])
+    , mPageBuilder(pager)
     , mMemory(memory)
 {
     int flags = CLONE_FS | CLONE_FILES | CLONE_IO | SIGCHLD;
@@ -324,11 +327,15 @@ pv::CpuCore::CpuCore(Memory *memory)
 }
 
 pv::CpuCore::~CpuCore() {
+    if (mChild == 0) {
+        return;
+    }
+
     sigval val {
         .sival_ptr = this,
     };
 
-    PV_POSIX_CHECK(sigqueue(mChild, SIGUSR1, val));
+    PV_POSIX_CHECK(sigqueue(mChild, kSigDestroy, val));
 
     int status = 0;
     PV_POSIX_CHECK(waitpid(mChild, &status, 0));
@@ -338,8 +345,8 @@ void pv::CpuCore::installSignals() {
     sigset_t sigset;
     PV_POSIX_CHECK(sigprocmask(SIG_BLOCK, nullptr, &sigset));
     PV_POSIX_CHECK(sigdelset(&sigset, SIGSEGV));
-    PV_POSIX_CHECK(sigdelset(&sigset, SIGUSR1));
-    PV_POSIX_CHECK(sigdelset(&sigset, SIGUSR2));
+    PV_POSIX_CHECK(sigdelset(&sigset, kSigLaunch));
+    PV_POSIX_CHECK(sigdelset(&sigset, kSigDestroy));
     PV_POSIX_CHECK(sigprocmask(SIG_SETMASK, &sigset, nullptr));
 
     PV_POSIX_CHECK(sigaltstack(&mSigStack, nullptr));
@@ -353,7 +360,7 @@ void pv::CpuCore::installSignals() {
         .sa_flags = SA_SIGINFO | SA_ONSTACK,
     };
 
-    struct sigaction sigusr1 {
+    struct sigaction sigdestroy {
         .sa_sigaction = [](int, siginfo_t *, void *context) {
             ucontext_t *ucontext = reinterpret_cast<ucontext_t *>(context);
             mcontext_t *mcontext = &ucontext->uc_mcontext;
@@ -363,5 +370,5 @@ void pv::CpuCore::installSignals() {
     };
 
     PV_POSIX_CHECK(sigaction(SIGSEGV, &sigsegv, nullptr));
-    PV_POSIX_CHECK(sigaction(SIGUSR1, &sigusr1, nullptr));
+    PV_POSIX_CHECK(sigaction(kSigDestroy, &sigdestroy, nullptr));
 }

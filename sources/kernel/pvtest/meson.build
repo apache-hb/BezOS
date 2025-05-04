@@ -14,9 +14,18 @@ pvtest_src = files(
 
 pvtest_inc = include_directories('include')
 
+pvtest_args = [
+    '-Wno-missing-designated-field-initializers',
+    '-Wno-c99-designator',
+    '-Wno-c99-extensions',
+    '-Wno-gnu-designator',
+    '-Wno-gcc-compat',
+    '-Wno-nullability-extension',
+]
+
 libpvtest = static_library('pvtest', pvtest_src,
     c_args : [ '-Wno-missing-designated-field-initializers' ],
-    cpp_args : [ '-Wno-missing-designated-field-initializers', '-Wno-c99-designator' ],
+    cpp_args : pvtest_args,
     include_directories : [ pvtest_inc, inc ],
     dependencies : pvtest_deps,
     native : true,
@@ -39,12 +48,29 @@ pvtest_testcases = {
         'cpp_args': [ ],
         'link_args' : [ ]
     },
+    'mmu': {
+        'sources': files(
+            'test/mmu.cpp',
+            '../src/memory/pte.cpp',
+            '../src/memory/table_allocator.cpp',
+            '../src/memory/memory.cpp',
+            '../src/memory/detail/table_list.cpp',
+            '../src/memory/detail/control_block.cpp',
+
+            # TODO: eventually this needs to be removed, pvtest lets the kernel
+            #       use real implementations rather than the shim.
+            '../test/test_shim.cpp',
+        ),
+        'c_args': [ ],
+        'cpp_args': [ ],
+        'link_args' : [ ]
+    }
 }
 
 foreach name, setup : pvtest_testcases
     exe = executable('pvtest-' + name.strip().replace(' ', '-'), setup['sources'],
         c_args : setup.get('c_args', [ '-fsanitize=nullability' ]),
-        cpp_args : setup.get('cpp_args', [ '-fsanitize=nullability' ]),
+        cpp_args : setup.get('cpp_args', [ '-fsanitize=nullability' ]) + pvtest_args,
         link_args : setup.get('link_args', [ '-fsanitize=nullability' ]),
         dependencies : setup.get('dependencies', []) + [ pvtest_dep, gtest_main ],
         native : true,

@@ -6,7 +6,6 @@
 
 #include "isr/isr.hpp"
 #include "kernel.hpp"
-#include "process/schedule.hpp"
 
 #include "absl/hash/internal/city.cc"
 #include "absl/hash/internal/hash.cc"
@@ -29,7 +28,6 @@ public:
 
 void km::LockDebugLog() { }
 void km::UnlockDebugLog() { }
-void km::YieldCurrentThread() { }
 
 km::IOutStream *km::GetDebugStream() {
     static TestStream sTestStream;

@@ -28,7 +28,7 @@ namespace pv {
         stack_t mSigStack;
         csh mCapstone;
         cs_insn *mInstruction;
-        km::PageBuilder mPageBuilder;
+        const km::PageBuilder *mPageBuilder;
         Memory *mMemory;
 
         uint64_t cr0;
@@ -72,12 +72,12 @@ namespace pv {
         UTIL_NOCOPY(CpuCore);
         UTIL_DEFAULT_MOVE(CpuCore);
 
-        CpuCore(Memory *memory);
+        CpuCore(Memory *memory, const km::PageBuilder *pager);
         ~CpuCore();
 
         PVTEST_SHARED_OBJECT(CpuCore);
 
-        void initMessage(mcontext_t context);
+        void sendInitMessage(mcontext_t context);
 
         void setRegisterOperand(mcontext_t *mcontext, x86_reg reg, uint64_t value) noexcept;
         uint64_t getRegisterOperand(mcontext_t *mcontext, x86_reg reg) noexcept;

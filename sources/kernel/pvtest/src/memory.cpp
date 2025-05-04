@@ -5,22 +5,32 @@
 #include <unistd.h>
 #include <stdlib.h>
 
-pv::Memory::Memory(off64_t size) : mMemorySize(size) {
+pv::Memory::Memory(off64_t memorySize, off64_t guestMemorySize)
+    : mMemorySize(memorySize)
+    , mGuestMemorySize(guestMemorySize)
+{
     PV_POSIX_CHECK((mMemoryFd = memfd_create("pv_ram", 0)));
 
     PV_POSIX_CHECK(ftruncate64(mMemoryFd, getMemorySize()));
 
     PV_POSIX_ASSERT((mHostMemory = mmap(nullptr, getMemorySize(), PROT_READ | PROT_WRITE, MAP_SHARED, mMemoryFd, 0)) != MAP_FAILED);
+
+    PV_POSIX_ASSERT((mGuestMemory = mmap(nullptr, getGuestMemorySize(), PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0)) != MAP_FAILED);
 }
 
 pv::Memory::~Memory() {
+    munmap(mGuestMemory, getMemorySize());
     munmap(mHostMemory, getMemorySize());
     close(mMemoryFd);
 }
 
-void *pv::Memory::addSection(boot::MemoryRegion section) {
+km::AddressMapping pv::Memory::addSection(boot::MemoryRegion section) {
     auto front = section.range.front;
     sm::VirtualAddress host = mHostMemory + front.address;
     mSections.push_back(section);
-    return host;
+    return km::AddressMapping {
+        .vaddr = host,
+        .paddr = front,
+        .size = section.range.size(),
+    };
 }
