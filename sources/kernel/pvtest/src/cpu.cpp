@@ -9,6 +9,8 @@
 
 #include <utility>
 
+#include "common/util/defer.hpp"
+
 static pv::CpuCore *fCpuCore = nullptr;
 
 static void SignalWriteV(int fd, const char *fmt, va_list args) {
@@ -97,7 +99,23 @@ void pv::CpuCore::sigsegv(mcontext_t *mcontext) {
 
 void pv::CpuCore::run() {
     pv::Machine::initChild();
+
+    size_t sigstksz = SIGSTKSZ;
+    mSigStack = stack_t {
+        .ss_sp = malloc(sigstksz),
+        .ss_flags = 0,
+        .ss_size = sigstksz,
+    };
+
+    defer { free(mSigStack.ss_sp); };
+
     installSignals();
+
+    if (cs_err err = cs_open(CS_ARCH_X86, CS_MODE_64, &mCapstone)) {
+        PV_POSIX_ERROR(err, "cs_open: %s (%d)\n", cs_strerror(err), err);
+    }
+
+    defer { cs_close(&mCapstone); };
 
     if (setjmp(mDestroyTarget)) {
         printf("pv::CpuCore::run() destroy thread %p\n", (void*)this);
@@ -133,6 +151,7 @@ void pv::CpuCore::run() {
 int pv::CpuCore::start(void *arg) {
     CpuCore *self = reinterpret_cast<CpuCore *>(arg);
     fCpuCore = self;
+
     self->run();
 
     pv::Machine::finalizeChild();
@@ -140,23 +159,20 @@ int pv::CpuCore::start(void *arg) {
     return 0;
 }
 
-void pv::CpuCore::launch(mcontext_t *context) {
-    mLaunchContext = *context;
-    longjmp(mLaunchTarget, 1);
-}
-
 void pv::CpuCore::destroy(mcontext_t *) {
     longjmp(mDestroyTarget, 1);
 }
 
-pv::CpuCore::CpuCore() : mChildStack(new std::byte[0x1000 * 32]) {
-    size_t sigstksz = SIGSTKSZ;
-    mSigStack = stack_t {
-        .ss_sp = malloc(sigstksz),
-        .ss_flags = 0,
-        .ss_size = sigstksz,
+void pv::CpuCore::initMessage(mcontext_t context) {
+    mLaunchContext = context;
+    sigval val {
+        .sival_ptr = this,
     };
 
+    PV_POSIX_CHECK(sigqueue(mChild, SIGUSR2, val));
+}
+
+pv::CpuCore::CpuCore() : mChildStack(new std::byte[0x1000 * 32]) {
     int flags = CLONE_FS | CLONE_FILES | CLONE_IO | SIGCHLD;
     PV_POSIX_CHECK((mChild = clone(&CpuCore::start, std::bit_cast<void*>(mChildStack.get() + 0x1000 * 32), flags, this)));
 }
@@ -175,8 +191,9 @@ pv::CpuCore::~CpuCore() {
 void pv::CpuCore::installSignals() {
     sigset_t sigset;
     PV_POSIX_CHECK(sigprocmask(SIG_BLOCK, nullptr, &sigset));
-    PV_POSIX_CHECK(sigaddset(&sigset, SIGUSR1));
-    PV_POSIX_CHECK(sigaddset(&sigset, SIGUSR2));
+    PV_POSIX_CHECK(sigdelset(&sigset, SIGSEGV));
+    PV_POSIX_CHECK(sigdelset(&sigset, SIGUSR1));
+    PV_POSIX_CHECK(sigdelset(&sigset, SIGUSR2));
     PV_POSIX_CHECK(sigprocmask(SIG_SETMASK, &sigset, nullptr));
 
     PV_POSIX_CHECK(sigaltstack(&mSigStack, nullptr));
@@ -199,16 +216,6 @@ void pv::CpuCore::installSignals() {
         .sa_flags = SA_SIGINFO | SA_ONSTACK,
     };
 
-    struct sigaction sigusr2 {
-        .sa_sigaction = [](int, siginfo_t *, void *context) {
-            ucontext_t *ucontext = reinterpret_cast<ucontext_t *>(context);
-            mcontext_t *mcontext = &ucontext->uc_mcontext;
-            fCpuCore->launch(mcontext);
-        },
-        .sa_flags = SA_SIGINFO | SA_ONSTACK,
-    };
-
     PV_POSIX_CHECK(sigaction(SIGSEGV, &sigsegv, nullptr));
     PV_POSIX_CHECK(sigaction(SIGUSR1, &sigusr1, nullptr));
-    PV_POSIX_CHECK(sigaction(SIGUSR2, &sigusr2, nullptr));
 }

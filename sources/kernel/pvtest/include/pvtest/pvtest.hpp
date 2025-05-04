@@ -27,16 +27,18 @@ namespace pv {
     void ExitFork(int status) noexcept;
 }
 
+#define PV_POSIX_ERROR(status, ...) error_at_line(EXIT_FAILURE, status, __FILE__, __LINE__, __VA_ARGS__)
+
 #define PV_POSIX_ASSERT(x) do { \
     if (!(x)) { \
-        error_at_line(EXIT_FAILURE, errno, __FILE__, __LINE__, "%s", #x); \
+        PV_POSIX_ERROR(errno, "%s", #x); \
         std::unreachable(); \
     } \
 } while (0)
 
 #define PV_POSIX_CHECK(x) do { \
     if (int err = (x); err < 0) { \
-        error_at_line(EXIT_FAILURE, errno, __FILE__, __LINE__, "%s", #x); \
+        PV_POSIX_ERROR(errno, "%s", #x); \
         std::unreachable(); \
     } \
 } while (0)

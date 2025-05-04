@@ -21,6 +21,8 @@ namespace pv {
         jmp_buf mLaunchTarget;
         mcontext_t mLaunchContext;
         stack_t mSigStack;
+        csh mCapstone;
+        cs_insn *mInstruction;
 
         uint64_t cr0;
         uint64_t cr2;
@@ -42,25 +44,24 @@ namespace pv {
         void run();
 
         void sigsegv(mcontext_t *mcontext);
-        void launch(mcontext_t *mcontext);
         void destroy(mcontext_t *mcontext);
 
-        void emulateCli(mcontext_t *mcontext, cs_insn *insn);
-        void emulateSti(mcontext_t *mcontext, cs_insn *insn);
-        void emulateLidt(mcontext_t *mcontext, cs_insn *insn);
-        void emulateLgdt(mcontext_t *mcontext, cs_insn *insn);
-        void emulateLtr(mcontext_t *mcontext, cs_insn *insn);
-        void emulateInb(mcontext_t *mcontext, cs_insn *insn);
-        void emulateInw(mcontext_t *mcontext, cs_insn *insn);
-        void emulateInd(mcontext_t *mcontext, cs_insn *insn);
-        void emulateOutb(mcontext_t *mcontext, cs_insn *insn);
-        void emulateOutw(mcontext_t *mcontext, cs_insn *insn);
-        void emulateOutd(mcontext_t *mcontext, cs_insn *insn);
-        void emulateInvlpg(mcontext_t *mcontext, cs_insn *insn);
-        void emulateSwapgs(mcontext_t *mcontext, cs_insn *insn);
-        void emulateRdmsr(mcontext_t *mcontext, cs_insn *insn);
-        void emulateWrmsr(mcontext_t *mcontext, cs_insn *insn);
-        void emulateHlt(mcontext_t *mcontext, cs_insn *insn);
+        void emulate_cli(mcontext_t *mcontext, cs_insn *insn);
+        void emulate_sti(mcontext_t *mcontext, cs_insn *insn);
+        void emulate_lidt(mcontext_t *mcontext, cs_insn *insn);
+        void emulate_lgdt(mcontext_t *mcontext, cs_insn *insn);
+        void emulate_ltr(mcontext_t *mcontext, cs_insn *insn);
+        void emulate_inb(mcontext_t *mcontext, cs_insn *insn);
+        void emulate_inw(mcontext_t *mcontext, cs_insn *insn);
+        void emulate_ind(mcontext_t *mcontext, cs_insn *insn);
+        void emulate_outb(mcontext_t *mcontext, cs_insn *insn);
+        void emulate_outw(mcontext_t *mcontext, cs_insn *insn);
+        void emulate_outd(mcontext_t *mcontext, cs_insn *insn);
+        void emulate_invlpg(mcontext_t *mcontext, cs_insn *insn);
+        void emulate_swapgs(mcontext_t *mcontext, cs_insn *insn);
+        void emulate_rdmsr(mcontext_t *mcontext, cs_insn *insn);
+        void emulate_wrmsr(mcontext_t *mcontext, cs_insn *insn);
+        void emulate_hlt(mcontext_t *mcontext, cs_insn *insn);
 
     public:
         UTIL_NOCOPY(CpuCore);
@@ -70,6 +71,8 @@ namespace pv {
         ~CpuCore();
 
         PVTEST_SHARED_OBJECT(CpuCore);
+
+        void initMessage(mcontext_t context);
 
         void setRegisterOperand(mcontext_t *mcontext, x86_reg reg, uint64_t value) noexcept;
         uint64_t getRegisterOperand(mcontext_t *mcontext, x86_reg reg) noexcept;
