@@ -2,6 +2,10 @@
 #include "pvtest/pvtest.hpp"
 #include "pvtest/machine.hpp"
 
+#include "memory/memory.hpp"
+
+#include "arch/cr3.hpp"
+
 #include <assert.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -90,19 +94,96 @@ uint64_t pv::CpuCore::getMemoryOperand(mcontext_t *mcontext, const x86_op_mem *o
     return base + (index * op->scale) + op->disp;
 }
 
-// sm::PhysicalAddress pv::CpuCore::resolveVirtualAddress(Memory *memory, sm::VirtualAddress address) noexcept {
-// }
+OsStatus pv::CpuCore::resolveVirtualAddress(sm::VirtualAddress address, sm::PhysicalAddress *result) noexcept {
+    auto [pml4e, pdpte, pdte, pte] = km::GetAddressParts(address.address);
+
+    sm::VirtualAddress l4Address = mMemory->getHostAddress(x64::Cr3::of(cr3).address());
+    x64::PageMapLevel4 *l4 = std::bit_cast<x64::PageMapLevel4*>(l4Address);
+    x64::pml4e &t4 = l4->entries[pml4e];
+    if (!t4.present()) {
+        return OsStatusInvalidAddress;
+    }
+
+    sm::VirtualAddress l3Address = mMemory->getHostAddress(mPageBuilder.address(t4));
+    x64::PageMapLevel3 *l3 = std::bit_cast<x64::PageMapLevel3*>(l3Address);
+    x64::pdpte &t3 = l3->entries[pdpte];
+    if (!t3.present()) {
+        return OsStatusInvalidAddress;
+    }
+
+    if (t3.is1g()) {
+        uintptr_t pdpteOffset = address.address & 0x3FF'000;
+        *result = sm::PhysicalAddress { mPageBuilder.address(t3) + pdpteOffset };
+        return OsStatusSuccess;
+    }
+
+    sm::VirtualAddress l2Address = mMemory->getHostAddress(mPageBuilder.address(t3));
+    x64::PageMapLevel2 *l2 = std::bit_cast<x64::PageMapLevel2*>(l2Address);
+    x64::pdte &t2 = l2->entries[pdpte];
+    if (!t2.present()) {
+        return OsStatusInvalidAddress;
+    }
+
+    if (t2.is2m()) {
+        uintptr_t pdteOffset = address.address & 0x1FF'000;
+        *result = sm::PhysicalAddress { mPageBuilder.address(t2) + pdteOffset };
+        return OsStatusSuccess;
+    }
+
+    sm::VirtualAddress ptAddress = mMemory->getHostAddress(mPageBuilder.address(t2));
+    x64::PageTable *pt = std::bit_cast<x64::PageTable*>(ptAddress);
+    x64::pte &t1 = pt->entries[pte];
+    if (!t1.present()) {
+        return OsStatusInvalidAddress;
+    }
+
+    *result = sm::PhysicalAddress { mPageBuilder.address(t1) };
+    return OsStatusSuccess;
+}
+
+void pv::CpuCore::emulate_cli(mcontext_t *, cs_insn *) { }
+void pv::CpuCore::emulate_sti(mcontext_t *, cs_insn *) { }
+void pv::CpuCore::emulate_lidt(mcontext_t *, cs_insn *) { }
+void pv::CpuCore::emulate_lgdt(mcontext_t *, cs_insn *) { }
+void pv::CpuCore::emulate_ltr(mcontext_t *, cs_insn *) { }
+void pv::CpuCore::emulate_in(mcontext_t *, cs_insn *) { }
+void pv::CpuCore::emulate_out(mcontext_t *, cs_insn *) { }
+void pv::CpuCore::emulate_invlpg(mcontext_t *, cs_insn *) { }
+void pv::CpuCore::emulate_swapgs(mcontext_t *, cs_insn *) { }
+void pv::CpuCore::emulate_rdmsr(mcontext_t *, cs_insn *) { }
+void pv::CpuCore::emulate_wrmsr(mcontext_t *, cs_insn *) { }
+void pv::CpuCore::emulate_hlt(mcontext_t *, cs_insn *) { }
+void pv::CpuCore::emulate_iretq(mcontext_t *, cs_insn *) { }
+
+void pv::CpuCore::emulate_mmu(mcontext_t *mcontext, cs_insn *insn) {
+    cs_detail *detail = insn->detail;
+    cs_x86 x86 = detail->x86;
+    for (size_t i = 0; i < x86.op_count; i++) {
+        cs_x86_op *op = &x86.operands[i];
+        if (op->type == X86_OP_REG) {
+            uint64_t value = getRegisterOperand(mcontext, op->reg);
+            SignalWrite(STDERR_FILENO, "Register %s: %lx\n", cs_reg_name(mCapstone, op->reg), value);
+        } else if (op->type == X86_OP_MEM) {
+            uint64_t value = getMemoryOperand(mcontext, &op->mem);
+            SignalWrite(STDERR_FILENO, "Memory %s: %lx\n", cs_reg_name(mCapstone, op->mem.base), value);
+        }
+    }
+    if (detail->regs_read_count == 0 && detail->regs_write_count == 0) {
+        SignalAssert("Unhandled instruction: %s\n", insn->mnemonic);
+    }
+}
 
 void pv::CpuCore::sigsegv(mcontext_t *mcontext) {
-    SignalAssert("pv::CpuCore::sigsegv() SIGSEGV at %p\n", (void *)mcontext->gregs[REG_RIP]);
-
+    uintptr_t rip = mcontext->gregs[REG_RIP];
     size_t size = 15;
-    uint64_t pc = mcontext->gregs[REG_RIP];
+    uint64_t pc = rip;
     const uint8_t *ptr = (const uint8_t *)pc;
     if (!cs_disasm_iter(mCapstone, &ptr, &size, &pc, mInstruction)) {
         cs_err cserr = cs_errno(mCapstone);
         PV_POSIX_ERROR(EINVAL, "cs_disasm_iter failed: %s (%d)\n", cs_strerror(cserr), cserr);
     }
+
+    SignalWrite(STDERR_FILENO, "%p: %s\n", (void*)rip, mInstruction->op_str);
 
     cs_insn insn = *mInstruction;
     switch (insn.id) {
@@ -234,7 +315,10 @@ void pv::CpuCore::initMessage(mcontext_t context) {
     PV_POSIX_CHECK(sigqueue(mChild, SIGUSR2, val));
 }
 
-pv::CpuCore::CpuCore() : mChildStack(new std::byte[0x1000 * 32]) {
+pv::CpuCore::CpuCore(Memory *memory)
+    : mChildStack(new std::byte[0x1000 * 32])
+    , mMemory(memory)
+{
     int flags = CLONE_FS | CLONE_FILES | CLONE_IO | SIGCHLD;
     PV_POSIX_CHECK((mChild = clone(&CpuCore::start, std::bit_cast<void*>(mChildStack.get() + 0x1000 * 32), flags, this)));
 }

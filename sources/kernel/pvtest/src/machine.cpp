@@ -73,9 +73,12 @@ static rpmalloc_interface_t gMallocInterface {
 };
 
 pv::Machine::Machine(size_t cores, off64_t memorySize)
-    : mCores(cores)
-    , mMemory(memorySize)
-{ }
+    : mMemory(memorySize)
+{
+    for (size_t i = 0; i < cores; ++i) {
+        mCores.emplace_back(&mMemory);
+    }
+}
 
 km::VirtualRangeEx pv::Machine::getSharedMemory() {
     return km::VirtualRangeEx::of(gSharedHostMemory, kSharedMemorySize);

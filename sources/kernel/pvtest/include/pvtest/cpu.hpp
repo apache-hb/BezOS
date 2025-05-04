@@ -9,10 +9,15 @@
 #include "common/util/util.hpp"
 #include "common/virtual_address.hpp"
 #include "common/physical_address.hpp"
+#include "memory/paging.hpp"
 #include "pvtest/system.hpp"
 
 namespace pv {
     class Memory;
+
+    struct PageWalkResult {
+
+    };
 
     class CpuCore {
         std::unique_ptr<std::byte[]> mChildStack;
@@ -23,6 +28,8 @@ namespace pv {
         stack_t mSigStack;
         csh mCapstone;
         cs_insn *mInstruction;
+        km::PageBuilder mPageBuilder;
+        Memory *mMemory;
 
         uint64_t cr0;
         uint64_t cr2;
@@ -63,9 +70,9 @@ namespace pv {
 
     public:
         UTIL_NOCOPY(CpuCore);
-        UTIL_NOMOVE(CpuCore);
+        UTIL_DEFAULT_MOVE(CpuCore);
 
-        CpuCore();
+        CpuCore(Memory *memory);
         ~CpuCore();
 
         PVTEST_SHARED_OBJECT(CpuCore);
@@ -76,6 +83,6 @@ namespace pv {
         uint64_t getRegisterOperand(mcontext_t *mcontext, x86_reg reg) noexcept;
         uint64_t getMemoryOperand(mcontext_t *mcontext, const x86_op_mem *op) noexcept;
 
-        sm::PhysicalAddress resolveVirtualAddress(Memory *memory, sm::VirtualAddress address) noexcept;
+        OsStatus resolveVirtualAddress(sm::VirtualAddress address, sm::PhysicalAddress *result) noexcept;
     };
 }

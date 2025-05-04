@@ -10,21 +10,13 @@
 
 #include "common/util/util.hpp"
 #include "common/virtual_address.hpp"
-#include "common/address.hpp"
+#include "common/physical_address.hpp"
 
 #define KM_INVALID_MEMORY km::PhysicalAddress(UINTPTR_MAX)
 #define KM_INVALID_ADDRESS ((void*)UINTPTR_MAX)
 
 namespace km {
-    namespace detail {
-        struct PhysicalAddressSpace {
-            using Storage = uintptr_t;
-        };
-    }
-
-    struct PhysicalAddressEx : public sm::Address<detail::PhysicalAddressSpace> {
-        using Address::Address;
-    };
+    using PhysicalAddressEx = sm::PhysicalAddress;
 
     struct PhysicalAddress {
         uintptr_t address;
