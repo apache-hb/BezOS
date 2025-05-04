@@ -9,6 +9,7 @@ pvtest_src = files(
     'src/machine.cpp',
     'src/cpu.cpp',
     'src/memory.cpp',
+    'src/int.S',
 )
 
 pvtest_inc = include_directories('include')
@@ -19,6 +20,7 @@ libpvtest = static_library('pvtest', pvtest_src,
     include_directories : [ pvtest_inc, inc ],
     dependencies : pvtest_deps,
     native : true,
+    pic : true,
 )
 
 pvtest_dep = declare_dependency(
@@ -30,16 +32,23 @@ pvtest_dep = declare_dependency(
 pvtest_testcases = {
     'basic': {
         'sources': files('test/basic.cpp')
-    }
+    },
+    'asm': {
+        'sources': files('test/asm.cpp'),
+        'c_args': [ ],
+        'cpp_args': [ ],
+        'link_args' : [ ]
+    },
 }
 
 foreach name, setup : pvtest_testcases
     exe = executable('pvtest-' + name.strip().replace(' ', '-'), setup['sources'],
-        c_args : [ '-fsanitize=nullability' ],
-        cpp_args : [ '-fsanitize=nullability' ],
-        link_args : [ '-fsanitize=nullability' ],
+        c_args : setup.get('c_args', [ '-fsanitize=nullability' ]) + [ '-Wno-gnu-label-as-value' ],
+        cpp_args : setup.get('cpp_args', [ '-fsanitize=nullability' ]) + [ '-Wno-gnu-label-as-value' ],
+        link_args : setup.get('link_args', [ '-fsanitize=nullability' ]),
         dependencies : setup.get('dependencies', []) + [ pvtest_dep, gtest_main ],
         native : true,
+        pie : true,
     )
 
     test('pvtest ' + name.strip(), exe,

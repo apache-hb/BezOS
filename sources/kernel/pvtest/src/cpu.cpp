@@ -95,6 +95,57 @@ uint64_t pv::CpuCore::getMemoryOperand(mcontext_t *mcontext, const x86_op_mem *o
 
 void pv::CpuCore::sigsegv(mcontext_t *mcontext) {
     SignalAssert("pv::CpuCore::sigsegv() SIGSEGV at %p\n", (void *)mcontext->gregs[REG_RIP]);
+
+    size_t size = 15;
+    uint64_t pc = mcontext->gregs[REG_RIP];
+    const uint8_t *ptr = (const uint8_t *)pc;
+    if (!cs_disasm_iter(mCapstone, &ptr, &size, &pc, mInstruction)) {
+        cs_err cserr = cs_errno(mCapstone);
+        PV_POSIX_ERROR(EINVAL, "cs_disasm_iter failed: %s (%d)\n", cs_strerror(cserr), cserr);
+    }
+
+    cs_insn insn = *mInstruction;
+    switch (insn.id) {
+    case X86_INS_RDMSR:
+        emulate_rdmsr(mcontext, &insn);
+        break;
+    case X86_INS_WRMSR:
+        emulate_wrmsr(mcontext, &insn);
+        break;
+    case X86_INS_IN:
+        emulate_in(mcontext, &insn);
+        break;
+    case X86_INS_OUT:
+        emulate_out(mcontext, &insn);
+        break;
+    case X86_INS_LGDT:
+        emulate_lgdt(mcontext, &insn);
+        break;
+    case X86_INS_LIDT:
+        emulate_lidt(mcontext, &insn);
+        break;
+    case X86_INS_LTR:
+        emulate_ltr(mcontext, &insn);
+        break;
+    case X86_INS_INVLPG:
+        emulate_invlpg(mcontext, &insn);
+        break;
+    case X86_INS_SWAPGS:
+        emulate_swapgs(mcontext, &insn);
+        break;
+    case X86_INS_HLT:
+        emulate_hlt(mcontext, &insn);
+        break;
+    case X86_INS_IRETQ:
+        emulate_iretq(mcontext, &insn);
+        break;
+    case X86_INS_CLI:
+        emulate_cli(mcontext, &insn);
+        break;
+    case X86_INS_STI:
+        emulate_sti(mcontext, &insn);
+        break;
+    }
 }
 
 void pv::CpuCore::run() {
@@ -116,6 +167,12 @@ void pv::CpuCore::run() {
     }
 
     defer { cs_close(&mCapstone); };
+
+    mInstruction = cs_malloc(mCapstone);
+    if (!mInstruction) {
+        PV_POSIX_ERROR(ENOMEM, "cs_malloc: %s\n", strerror(ENOMEM));
+    }
+    defer { cs_free(mInstruction, 1); };
 
     if (setjmp(mDestroyTarget)) {
         printf("pv::CpuCore::run() destroy thread %p\n", (void*)this);

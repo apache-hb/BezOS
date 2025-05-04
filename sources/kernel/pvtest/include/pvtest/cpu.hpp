@@ -51,17 +51,14 @@ namespace pv {
         void emulate_lidt(mcontext_t *mcontext, cs_insn *insn);
         void emulate_lgdt(mcontext_t *mcontext, cs_insn *insn);
         void emulate_ltr(mcontext_t *mcontext, cs_insn *insn);
-        void emulate_inb(mcontext_t *mcontext, cs_insn *insn);
-        void emulate_inw(mcontext_t *mcontext, cs_insn *insn);
-        void emulate_ind(mcontext_t *mcontext, cs_insn *insn);
-        void emulate_outb(mcontext_t *mcontext, cs_insn *insn);
-        void emulate_outw(mcontext_t *mcontext, cs_insn *insn);
-        void emulate_outd(mcontext_t *mcontext, cs_insn *insn);
+        void emulate_in(mcontext_t *mcontext, cs_insn *insn);
+        void emulate_out(mcontext_t *mcontext, cs_insn *insn);
         void emulate_invlpg(mcontext_t *mcontext, cs_insn *insn);
         void emulate_swapgs(mcontext_t *mcontext, cs_insn *insn);
         void emulate_rdmsr(mcontext_t *mcontext, cs_insn *insn);
         void emulate_wrmsr(mcontext_t *mcontext, cs_insn *insn);
         void emulate_hlt(mcontext_t *mcontext, cs_insn *insn);
+        void emulate_iretq(mcontext_t *mcontext, cs_insn *insn);
 
     public:
         UTIL_NOCOPY(CpuCore);

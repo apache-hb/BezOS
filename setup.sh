@@ -12,3 +12,8 @@ alias repoinst='repopkg --reinstall'
 alias ktest='install/tool/bin/ktest.elf'
 alias kparse='ktest --parse events.bin'
 alias ksoak='ktest --image install/image/bezos-limine.iso --output soak'
+
+function disfn() {
+    # Disassemble a function given an address inside it
+    gdb -batch -ex "file $1" -ex "disassemble/rs $2"
+}

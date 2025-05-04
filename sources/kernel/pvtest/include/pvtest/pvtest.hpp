@@ -2,6 +2,9 @@
 
 #include <errno.h>
 #include <error.h>
+#include <sys/ucontext.h>
+
+extern "C" [[noreturn]] void PvTestContextSwitch(gregset_t *gregs);
 
 namespace pv {
     enum BbType {
