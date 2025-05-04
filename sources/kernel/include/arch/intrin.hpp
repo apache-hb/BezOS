@@ -23,7 +23,7 @@ struct [[gnu::packed]] alignas(16) IDTR {
     uint64_t base;
 };
 
-#define __DEFAULT_FN_ATTRS __attribute__((__always_inline__, __nodebug__, unused))
+#define __DEFAULT_FN_ATTRS __attribute__((__always_inline__, __nodebug__, __unused__))
 
 static inline unsigned char __DEFAULT_FN_ATTRS __inbyte(unsigned short port) {
     return arch::Intrin::inbyte(port);

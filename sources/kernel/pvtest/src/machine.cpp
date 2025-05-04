@@ -90,8 +90,6 @@ void pv::Machine::init() {
     if (int err = rpmalloc_initialize(&gMallocInterface)) {
         throw std::runtime_error(std::format("rpmalloc_initialize: {}", err));
     }
-
-    pv::CpuCore::installSignals();
 }
 
 void pv::Machine::finalize() {

@@ -9,8 +9,6 @@
 
 #include <utility>
 
-#include "common/util/defer.hpp"
-
 static pv::CpuCore *fCpuCore = nullptr;
 
 static void SignalWriteV(int fd, const char *fmt, va_list args) {
@@ -47,8 +45,8 @@ void pv::CpuCore::setRegisterOperand(mcontext_t *mcontext, x86_reg reg, uint64_t
     case X86_REG_RDI: mcontext->gregs[REG_RDI] = value; break;
     case X86_REG_RBP: mcontext->gregs[REG_RBP] = value; break;
     case X86_REG_RSP: mcontext->gregs[REG_RSP] = value; break;
-    case X86_REG_R8:  mcontext->gregs[REG_R8] = value; break;
-    case X86_REG_R9:  mcontext->gregs[REG_R9] = value; break;
+    case X86_REG_R8:  mcontext->gregs[REG_R8]  = value; break;
+    case X86_REG_R9:  mcontext->gregs[REG_R9]  = value; break;
     case X86_REG_R10: mcontext->gregs[REG_R10] = value; break;
     case X86_REG_R11: mcontext->gregs[REG_R11] = value; break;
     case X86_REG_R12: mcontext->gregs[REG_R12] = value; break;
@@ -85,10 +83,9 @@ uint64_t pv::CpuCore::getRegisterOperand(mcontext_t *mcontext, x86_reg reg) noex
 }
 
 uint64_t pv::CpuCore::getMemoryOperand(mcontext_t *mcontext, const x86_op_mem *op) noexcept {
-    uint64_t offset = op->disp;
     uint64_t base = (op->base == X86_REG_INVALID) ? 0 : getRegisterOperand(mcontext, op->base);
     uint64_t index = (op->index == X86_REG_INVALID) ? 0 : getRegisterOperand(mcontext, op->index);
-    return base + (index * op->scale) + offset;
+    return base + (index * op->scale) + op->disp;
 }
 
 // sm::PhysicalAddress pv::CpuCore::resolveVirtualAddress(Memory *memory, sm::VirtualAddress address) noexcept {
@@ -100,6 +97,7 @@ void pv::CpuCore::sigsegv(mcontext_t *mcontext) {
 
 void pv::CpuCore::run() {
     pv::Machine::initChild();
+    installSignals();
 
     if (setjmp(mDestroyTarget)) {
         printf("pv::CpuCore::run() destroy thread %p\n", (void*)this);
@@ -142,7 +140,8 @@ int pv::CpuCore::start(void *arg) {
     return 0;
 }
 
-void pv::CpuCore::launch(mcontext_t *) {
+void pv::CpuCore::launch(mcontext_t *context) {
+    mLaunchContext = *context;
     longjmp(mLaunchTarget, 1);
 }
 
@@ -150,9 +149,16 @@ void pv::CpuCore::destroy(mcontext_t *) {
     longjmp(mDestroyTarget, 1);
 }
 
-pv::CpuCore::CpuCore() : mStack(new std::byte[0x1000 * 32]) {
+pv::CpuCore::CpuCore() : mChildStack(new std::byte[0x1000 * 32]) {
+    size_t sigstksz = SIGSTKSZ;
+    mSigStack = stack_t {
+        .ss_sp = malloc(sigstksz),
+        .ss_flags = 0,
+        .ss_size = sigstksz,
+    };
+
     int flags = CLONE_FS | CLONE_FILES | CLONE_IO | SIGCHLD;
-    PV_POSIX_CHECK((mChild = clone(&CpuCore::start, std::bit_cast<void*>(mStack.get() + 0x1000 * 32), flags, this)));
+    PV_POSIX_CHECK((mChild = clone(&CpuCore::start, std::bit_cast<void*>(mChildStack.get() + 0x1000 * 32), flags, this)));
 }
 
 pv::CpuCore::~CpuCore() {
@@ -173,13 +179,15 @@ void pv::CpuCore::installSignals() {
     PV_POSIX_CHECK(sigaddset(&sigset, SIGUSR2));
     PV_POSIX_CHECK(sigprocmask(SIG_SETMASK, &sigset, nullptr));
 
+    PV_POSIX_CHECK(sigaltstack(&mSigStack, nullptr));
+
     struct sigaction sigsegv {
         .sa_sigaction = [](int, siginfo_t *, void *context) {
             ucontext_t *ucontext = reinterpret_cast<ucontext_t *>(context);
             mcontext_t *mcontext = &ucontext->uc_mcontext;
             fCpuCore->sigsegv(mcontext);
         },
-        .sa_flags = SA_SIGINFO,
+        .sa_flags = SA_SIGINFO | SA_ONSTACK,
     };
 
     struct sigaction sigusr1 {
@@ -188,7 +196,7 @@ void pv::CpuCore::installSignals() {
             mcontext_t *mcontext = &ucontext->uc_mcontext;
             fCpuCore->destroy(mcontext);
         },
-        .sa_flags = SA_SIGINFO,
+        .sa_flags = SA_SIGINFO | SA_ONSTACK,
     };
 
     struct sigaction sigusr2 {
@@ -197,7 +205,7 @@ void pv::CpuCore::installSignals() {
             mcontext_t *mcontext = &ucontext->uc_mcontext;
             fCpuCore->launch(mcontext);
         },
-        .sa_flags = SA_SIGINFO,
+        .sa_flags = SA_SIGINFO | SA_ONSTACK,
     };
 
     PV_POSIX_CHECK(sigaction(SIGSEGV, &sigsegv, nullptr));
