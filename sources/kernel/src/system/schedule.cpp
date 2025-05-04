@@ -2,6 +2,7 @@
 
 #include "panic.hpp"
 #include "system/thread.hpp"
+
 #include <bezos/facility/threads.h>
 
 using namespace std::chrono_literals;
@@ -126,7 +127,6 @@ bool sys::CpuLocalSchedule::reschedule() {
     ThreadSchedulingInfo info;
     while (mQueue.try_dequeue(info)) {
         if (sm::RcuSharedPtr<Thread> thread = info.thread.lock()) {
-
             if (!startThread(thread)) {
                 continue;
             }
@@ -229,8 +229,10 @@ OsStatus sys::GlobalSchedule::scheduleThread(sm::RcuSharedPtr<Thread> thread) {
 }
 
 OsStatus sys::GlobalSchedule::addThread(sm::RcuSharedPtr<Thread> thread) {
-    km::IntGuard iguard;
-    stdx::SharedLock guard(mLock);
+    // Note about saftey of this function:
+    // We access mCpuLocal and mSuspendSet without holding the lock.
+    // This is safe so long as these are not modified. They should only be modified
+    // during initialization, if we ever support hotplug then we need to revisit this.
     return scheduleThread(thread);
 }
 

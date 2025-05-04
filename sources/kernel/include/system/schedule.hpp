@@ -105,7 +105,7 @@ namespace sys {
         OsStatus resumeSleepQueue(OsInstant now) REQUIRES(mLock);
         OsStatus resumeWaitQueue(OsInstant now) REQUIRES(mLock);
 
-        OsStatus scheduleThread(sm::RcuSharedPtr<Thread> thread) REQUIRES_SHARED(mLock);
+        OsStatus scheduleThread(sm::RcuSharedPtr<Thread> thread);
 
     public:
         GlobalSchedule() = default;
@@ -143,10 +143,8 @@ namespace sys {
             return nullptr;
         }
 
-        [[clang::annotate("signalsafe")]]
         void doSuspend(sm::RcuSharedPtr<Thread> thread);
 
-        [[clang::annotate("signalsafe")]]
         void doResume(sm::RcuSharedPtr<Thread> thread);
     };
 
