@@ -1,12 +1,9 @@
-#include <barrier>
 #include <gtest/gtest.h>
 
-#include "log.hpp"
 #include "pvtest/cpu.hpp"
 #include "pvtest/machine.hpp"
 
 #include "memory/pte.hpp"
-#include "pvtest/pvtest.hpp"
 
 #include <sys/mman.h>
 #include <thread>
@@ -43,18 +40,15 @@ TEST_F(PvMmuTest, Construct) {
 static const char kMessage[] = "Functional mmio test passed\n";
 
 void TestEmulateMmio(void *address, std::atomic<bool> *barrier) {
-    fprintf(stderr, "TestEmulateMmio: %p %p %p\n", (void*)address, (void*)barrier, kMessage);
     memcpy(address, kMessage, sizeof(kMessage));
     *barrier = true;
-
-    printf("mmio complete: %p %p %p\n", (void*)address, (void*)barrier, kMessage);
 
     // sleep forever
     for (;;)
         std::this_thread::sleep_for(std::chrono::seconds(60));
 }
 
-TEST_F(PvMmuTest, EmulateMmio) {
+TEST_F(PvMmuTest, PagingInit) {
     OsStatus status = OsStatusSuccess;
     km::PageTables ptes;
     pv::Memory *memory = machine->getMemory();
@@ -63,10 +57,6 @@ TEST_F(PvMmuTest, EmulateMmio) {
         .type = boot::MemoryRegion::eKernel,
         .range = { sm::megabytes(1).bytes(), sm::megabytes(2).bytes() },
     });
-
-    fprintf(stderr, "[TEST] Guest init memory: %s\n", std::string(std::string_view(km::format(guestInitMemory))).c_str());
-    fprintf(stderr, "[TEST] Host memory: %s\n", std::string(std::string_view(km::format(memory->getHostMemory()))).c_str());
-    fprintf(stderr, "[TEST] Guest memory: %s\n", std::string(std::string_view(km::format(memory->getGuestMemory()))).c_str());
 
     ASSERT_NE(guestInitMemory.vaddr, nullptr) << "Failed to add guest init memory section";
 

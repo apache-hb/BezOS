@@ -7,7 +7,6 @@
 #include "arch/cr3.hpp"
 
 #include <assert.h>
-#include <stdatomic.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <signal.h>
@@ -185,8 +184,6 @@ void pv::CpuCore::emulate_mmu(mcontext_t *mcontext, cs_insn *insn) {
             real = sm::rounddown(real.address, x64::kPageSize);
             value = sm::rounddown(value, x64::kPageSize);
 
-            SignalWrite(STDERR_FILENO, "MMU: %p -> %p\n", (void*)value, (void*)real.address);
-
             mMemory->mapGuestPage(value, km::PageFlags::eAll, real);
         }
     }
@@ -202,7 +199,7 @@ void pv::CpuCore::sigsegv(mcontext_t *mcontext) {
         PV_POSIX_ERROR(EINVAL, "cs_disasm_iter failed: %s (%d)\n", cs_strerror(cserr), cserr);
     }
 
-    SignalWrite(STDERR_FILENO, "%p: %d %d %s %s\n", (void*)rip, getpid(), mChild, mInstruction->mnemonic, mInstruction->op_str);
+    SignalWrite(STDERR_FILENO, "%p: %s %s\n", (void*)rip, mInstruction->mnemonic, mInstruction->op_str);
 
     switch (mInstruction->id) {
     case X86_INS_RDMSR:
@@ -281,12 +278,10 @@ void pv::CpuCore::run() {
     defer { cs_free(mInstruction, 1); };
 
     if (setjmp(mDestroyTarget)) {
-        printf("pv::CpuCore::run() destroy thread %p\n", (void*)this);
         return;
     }
 
     if (setjmp(mLaunchTarget)) {
-        printf("pv::CpuCore::run() launch thread %p\n", (void*)this);
         PvTestContextSwitch(&mLaunchContext.gregs);
         return;
     }
@@ -302,10 +297,8 @@ void pv::CpuCore::run() {
     PV_POSIX_CHECK(sigwaitinfo(&sigset, &siginfo));
     switch (siginfo.si_signo) {
     case kSigDestroy:
-        SignalWrite(STDERR_FILENO, "sigwaitinfo: pv::CpuCore::run() kSigDestroy at %p\n", (void*)this);
         break;
     case kSigLaunch:
-        SignalWrite(STDERR_FILENO, "sigwaitinfo: pv::CpuCore::run() kSigLaunch at %p\n", (void*)this);
         PvTestContextSwitch(&mLaunchContext.gregs);
         break;
 
@@ -345,7 +338,6 @@ void pv::CpuCore::sendInitMessage(mcontext_t context) {
         sched_yield();
     }
 
-    fprintf(stderr, "pv::CpuCore::sendInitMessage() %p\n", (void*)this);
     PV_POSIX_CHECK(sigqueue(mChild, kSigLaunch, val));
 }
 
