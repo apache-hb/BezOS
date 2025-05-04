@@ -59,6 +59,7 @@ namespace pv {
         void emulate_wrmsr(mcontext_t *mcontext, cs_insn *insn);
         void emulate_hlt(mcontext_t *mcontext, cs_insn *insn);
         void emulate_iretq(mcontext_t *mcontext, cs_insn *insn);
+        void emulate_mmu(mcontext_t *mcontext, cs_insn *insn);
 
     public:
         UTIL_NOCOPY(CpuCore);

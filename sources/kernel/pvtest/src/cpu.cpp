@@ -145,6 +145,11 @@ void pv::CpuCore::sigsegv(mcontext_t *mcontext) {
     case X86_INS_STI:
         emulate_sti(mcontext, &insn);
         break;
+
+    default:
+        // If the sigsegv is not due to a privileged instruction, its probably a page fault
+        emulate_mmu(mcontext, &insn);
+        break;
     }
 }
 

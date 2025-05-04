@@ -43,8 +43,8 @@ pvtest_testcases = {
 
 foreach name, setup : pvtest_testcases
     exe = executable('pvtest-' + name.strip().replace(' ', '-'), setup['sources'],
-        c_args : setup.get('c_args', [ '-fsanitize=nullability' ]) + [ '-Wno-gnu-label-as-value' ],
-        cpp_args : setup.get('cpp_args', [ '-fsanitize=nullability' ]) + [ '-Wno-gnu-label-as-value' ],
+        c_args : setup.get('c_args', [ '-fsanitize=nullability' ]),
+        cpp_args : setup.get('cpp_args', [ '-fsanitize=nullability' ]),
         link_args : setup.get('link_args', [ '-fsanitize=nullability' ]),
         dependencies : setup.get('dependencies', []) + [ pvtest_dep, gtest_main ],
         native : true,

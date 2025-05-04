@@ -13,15 +13,8 @@
 #   error "Unsupported architecture"
 #endif
 
-struct [[gnu::packed]] alignas(16) GDTR {
-    uint16_t limit;
-    uint64_t base;
-};
-
-struct [[gnu::packed]] alignas(16) IDTR {
-    uint16_t limit;
-    uint64_t base;
-};
+using GDTR = arch::GDTR;
+using IDTR = arch::IDTR;
 
 #define __DEFAULT_FN_ATTRS __attribute__((__always_inline__, __nodebug__, __unused__))
 
@@ -51,15 +44,15 @@ static inline void __DEFAULT_FN_ATTRS __outdword(unsigned short port, unsigned l
 
 [[nodiscard]]
 static inline uint64_t __DEFAULT_FN_ATTRS __rdmsr(uint32_t msr) {
-    return arch::Intrin::rdmsr(msr);
+    return arch::IntrinX86_64::rdmsr(msr);
 }
 
 static inline void __DEFAULT_FN_ATTRS __wrmsr(uint32_t msr, uint64_t value) {
-    arch::Intrin::wrmsr(msr, value);
+    arch::IntrinX86_64::wrmsr(msr, value);
 }
 
 static inline void __DEFAULT_FN_ATTRS __ltr(uint16_t selector) {
-    asm volatile("ltr %0" :: "r"(selector));
+    arch::IntrinX86_64::ltr(selector);
 }
 
 static inline void __DEFAULT_FN_ATTRS __nop(void) {
@@ -67,11 +60,11 @@ static inline void __DEFAULT_FN_ATTRS __nop(void) {
 }
 
 static inline void __DEFAULT_FN_ATTRS __cli(void) {
-    arch::Intrin::cli();
+    arch::IntrinX86_64::cli();
 }
 
 static inline void __DEFAULT_FN_ATTRS __sti(void) {
-    arch::Intrin::sti();
+    arch::IntrinX86_64::sti();
 }
 
 static inline void __DEFAULT_FN_ATTRS __halt(void) {
@@ -79,7 +72,7 @@ static inline void __DEFAULT_FN_ATTRS __halt(void) {
 }
 
 static inline void __DEFAULT_FN_ATTRS __swapgs(void) {
-    asm volatile("swapgs");
+    arch::IntrinX86_64::swapgs();
 }
 
 [[nodiscard]]
@@ -100,12 +93,12 @@ static inline __DEFAULT_FN_ATTRS void __invlpg(uintptr_t address) {
     arch::Intrin::invlpg(address);
 }
 
-static inline void __DEFAULT_FN_ATTRS __lgdt(struct GDTR gdtr) {
-    asm volatile("lgdt %0" :: "m"(gdtr));
+static inline void __DEFAULT_FN_ATTRS __lgdt(GDTR gdtr) {
+    arch::IntrinX86_64::lgdt(gdtr);
 }
 
-static inline void __DEFAULT_FN_ATTRS __lidt(struct IDTR idtr) {
-    asm volatile("lidt %0" :: "m"(idtr));
+static inline void __DEFAULT_FN_ATTRS __lidt(IDTR idtr) {
+    arch::IntrinX86_64::lidt(idtr);
 }
 
 template<uint8_t N>

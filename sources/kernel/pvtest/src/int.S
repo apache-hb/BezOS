@@ -22,9 +22,10 @@
 
 // extern "C" [[noreturn]] void PvTestContextSwitch(gregset_t *gregs);
 PROC(PvTestContextSwitch)
-    // Save the RIP to the top of the target stack
+    // Save the RIP to the top of the new stack
     movq (REG_RIP * 8)(%rdi), %rcx
     movq (REG_RSP * 8)(%rdi), %rdx
+    subq $8, %rdx
     movq %rcx, (%rdx)
 
     movq (REG_R8 * 8)(%rdi), %r8
@@ -43,6 +44,8 @@ PROC(PvTestContextSwitch)
     movq (REG_RCX * 8)(%rdi), %rcx
     movq (REG_RSP * 8)(%rdi), %rsp
     movq (REG_RDI * 8)(%rdi), %rdi
+
+    subq $8, %rsp
 
     retq
 ENDP(PvTestContextSwitch)
