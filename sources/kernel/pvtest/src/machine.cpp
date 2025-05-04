@@ -11,7 +11,7 @@
 static int gSharedMemoryFd = -1;
 static sm::VirtualAddress gSharedHostMemory = nullptr;
 static std::atomic<uintptr_t> gSharedHostBase;
-static constexpr size_t kSharedMemorySize = sm::gigabytes(1).bytes();
+static constexpr size_t kSharedMemorySize = sm::gigabytes(2).bytes();
 
 static void *RpMallocSharedMap(size_t size, size_t align, size_t *offset, size_t *mappedSize) {
     size_t mapSize = size + align;
@@ -26,7 +26,7 @@ static void *RpMallocSharedMap(size_t size, size_t align, size_t *offset, size_t
 
     result = gSharedHostBase.fetch_add(mapSize);
     if (result + mapSize > (gSharedHostMemory + kSharedMemorySize)) {
-        fprintf(stderr, "rpmalloc: out of memory %p %zu\n", (void*)result, mapSize);
+        fprintf(stderr, "rpmalloc: out of memory %p %p 0x%zx\n", (void*)gSharedHostMemory, (void*)result, mapSize);
         return nullptr;
     }
 
@@ -77,8 +77,8 @@ pv::Machine::Machine(size_t cores, off64_t memorySize)
     : mPageBuilder(48, 48, km::GetDefaultPatLayout())
     , mMemory(memorySize)
 {
-    mCores.reserve(cores);
-    for (size_t i = 0; i < cores; ++i) {
+    mCores.reserve(cores + 1);
+    for (size_t i = 0; i < cores; i++) {
         mCores.emplace_back(getMemory(), getPageBuilder());
     }
 }

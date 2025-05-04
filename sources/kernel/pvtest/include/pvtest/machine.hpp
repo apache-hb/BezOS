@@ -24,6 +24,7 @@ namespace pv {
         static km::VirtualRangeEx getSharedMemory();
 
         static void init();
+        static void reset();
         static void finalize();
 
         static void initChild();

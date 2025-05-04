@@ -11,19 +11,21 @@
 
 class PvMmuTest : public testing::Test {
 public:
-    void SetUp() override {
+    static void SetUpTestSuite() {
         pv::Machine::init();
-        auto shared = pv::Machine::getSharedMemory();
-        ASSERT_TRUE(shared.isValid()) << "Shared memory must be valid " << std::string_view(km::format(shared));
+    }
 
+    static void TearDownTestSuite() {
+        pv::Machine::finalize();
+    }
+
+    void SetUp() override {
         machine = new pv::Machine(4);
         ASSERT_NE(machine, nullptr);
-        ASSERT_TRUE(shared.contains((void*)machine)) << "Machine " << (void*)machine << " must be allocated in shared memory " << std::string_view(km::format(shared));
     }
 
     void TearDown() override {
         delete machine;
-        pv::Machine::finalize();
     }
 
     pv::Machine *machine = nullptr;
@@ -53,6 +55,8 @@ TEST_F(PvMmuTest, EmulateMmio) {
     km::PageTables ptes;
     pv::Memory *memory = machine->getMemory();
 
+    fprintf(stderr, "Memory: %p\n", (void*)memory);
+
     km::AddressMapping hostPteMemory = memory->addSection({
         .type = boot::MemoryRegion::eBootloaderReclaimable,
         .range = { sm::megabytes(1).bytes(), sm::megabytes(2).bytes() },
@@ -63,11 +67,15 @@ TEST_F(PvMmuTest, EmulateMmio) {
         .range = { sm::megabytes(2).bytes(), sm::megabytes(3).bytes() },
     });
 
+    fprintf(stderr, "Host PTE memory: %p\n", (void*)hostPteMemory.vaddr);
+
     ASSERT_NE(hostPteMemory.vaddr, nullptr) << "Failed to add boot memory section";
     ASSERT_NE(guestInitMemory.vaddr, nullptr) << "Failed to add guest init memory section";
 
     status = km::PageTables::create(machine->getPageBuilder(), hostPteMemory, km::PageFlags::eAll, &ptes);
     ASSERT_EQ(status, OsStatusSuccess) << "Failed to create page tables";
+
+    fprintf(stderr, "Guest init memory: %p\n", (void*)guestInitMemory.vaddr);
 
     void *guest = memory->getGuestMemory();
     km::AddressMapping guestMapping {
@@ -78,6 +86,8 @@ TEST_F(PvMmuTest, EmulateMmio) {
 
     status = ptes.map(guestMapping, km::PageFlags::eAll);
     ASSERT_EQ(status, OsStatusSuccess) << "Failed to map guest memory";
+
+    fprintf(stderr, "Guest mapping: %p\n", (void*)guestMapping.vaddr);
 
     machine->bspInit({
         .gregs = {

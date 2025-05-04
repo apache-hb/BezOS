@@ -184,6 +184,7 @@ void pv::CpuCore::sigsegv(mcontext_t *mcontext) {
     }
 
     SignalWrite(STDERR_FILENO, "%p: %s\n", (void*)rip, mInstruction->op_str);
+    abort();
 
     cs_insn insn = *mInstruction;
     switch (insn.id) {
@@ -314,11 +315,12 @@ void pv::CpuCore::sendInitMessage(mcontext_t context) {
         .sival_ptr = this,
     };
 
+    fprintf(stderr, "pv::CpuCore::sendInitMessage() %p\n", (void*)this);
     PV_POSIX_CHECK(sigqueue(mChild, kSigLaunch, val));
 }
 
 pv::CpuCore::CpuCore(Memory *memory, const km::PageBuilder *pager)
-    : mChildStack(new std::byte[0x1000 * 32])
+    : mChildStack(new std::byte[0x1000 * 32]())
     , mPageBuilder(pager)
     , mMemory(memory)
 {
