@@ -1,10 +1,12 @@
 #pragma once
 
+#include <atomic>
 #include <pthread.h>
 #include <setjmp.h>
 #include <capstone.h>
 #include <sys/ucontext.h>
 
+#include "arch/cr3.hpp"
 #include "arch/intrin.hpp"
 #include "common/util/util.hpp"
 #include "common/virtual_address.hpp"
@@ -15,8 +17,29 @@
 namespace pv {
     class Memory;
 
-    struct PageWalkResult {
+    struct AtomicFlag {
+        std::atomic_flag flag = ATOMIC_FLAG_INIT;
 
+        AtomicFlag() noexcept {}
+
+        AtomicFlag(AtomicFlag&& other) noexcept {
+            if (other.flag.test()) {
+                flag.test_and_set();
+            } else {
+                flag.clear();
+            }
+        }
+
+        AtomicFlag& operator=(AtomicFlag&& other) noexcept {
+            if (this != &other) {
+                if (other.flag.test()) {
+                    flag.test_and_set();
+                } else {
+                    flag.clear();
+                }
+            }
+            return *this;
+        }
     };
 
     class CpuCore {
@@ -30,6 +53,8 @@ namespace pv {
         cs_insn *mInstruction;
         const km::PageBuilder *mPageBuilder;
         Memory *mMemory;
+
+        AtomicFlag mReady;
 
         uint64_t cr0;
         uint64_t cr2;
@@ -52,6 +77,7 @@ namespace pv {
 
         void sigsegv(mcontext_t *mcontext);
         void destroy(mcontext_t *mcontext);
+        void launch(mcontext_t *mcontext);
 
         void emulate_cli(mcontext_t *mcontext, cs_insn *insn);
         void emulate_sti(mcontext_t *mcontext, cs_insn *insn);
@@ -77,6 +103,7 @@ namespace pv {
 
         PVTEST_SHARED_OBJECT(CpuCore);
 
+        void setCr3(x64::Cr3 v) { cr3 = v.value(); }
         void sendInitMessage(mcontext_t context);
 
         void setRegisterOperand(mcontext_t *mcontext, x86_reg reg, uint64_t value) noexcept;

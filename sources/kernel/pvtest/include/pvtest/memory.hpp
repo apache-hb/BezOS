@@ -1,5 +1,6 @@
 #pragma once
 
+#include "memory/memory.hpp"
 #include "pvtest/system.hpp"
 
 #include "boot.hpp"
@@ -53,5 +54,11 @@ namespace pv {
         off64_t getGuestMemorySize() const noexcept {
             return mGuestMemorySize;
         }
+
+        km::VirtualRangeEx getGuestRange() const noexcept {
+            return km::VirtualRangeEx::of(getGuestMemory(), getGuestMemorySize());
+        }
+
+        void *mapGuestPage(sm::VirtualAddress address, km::PageFlags access, sm::PhysicalAddress memory);
     };
 }

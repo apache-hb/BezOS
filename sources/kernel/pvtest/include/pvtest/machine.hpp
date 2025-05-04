@@ -16,6 +16,9 @@ namespace pv {
 
         km::PageBuilder *getPageBuilder() { return &mPageBuilder; }
         Memory *getMemory() { return &mMemory; }
+        CpuCore *getCore(size_t index) {
+            return &mCores[index];
+        }
 
         void bspInit(mcontext_t mcontext);
 

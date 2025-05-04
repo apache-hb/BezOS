@@ -1,10 +1,12 @@
 #include <barrier>
 #include <gtest/gtest.h>
 
+#include "log.hpp"
 #include "pvtest/cpu.hpp"
 #include "pvtest/machine.hpp"
 
 #include "memory/pte.hpp"
+#include "pvtest/pvtest.hpp"
 
 #include <sys/mman.h>
 #include <thread>
@@ -38,12 +40,14 @@ TEST_F(PvMmuTest, Construct) {
     ASSERT_NE(memory->getMemorySize(), 0);
 }
 
-std::barrier gBarrier(2);
 static const char kMessage[] = "Functional mmio test passed\n";
 
-void TestEmulateMmio(void *address) {
+void TestEmulateMmio(void *address, std::atomic<bool> *barrier) {
+    fprintf(stderr, "TestEmulateMmio: %p %p %p\n", (void*)address, (void*)barrier, kMessage);
     memcpy(address, kMessage, sizeof(kMessage));
-    gBarrier.arrive_and_wait();
+    *barrier = true;
+
+    printf("mmio complete: %p %p %p\n", (void*)address, (void*)barrier, kMessage);
 
     // sleep forever
     for (;;)
@@ -55,27 +59,21 @@ TEST_F(PvMmuTest, EmulateMmio) {
     km::PageTables ptes;
     pv::Memory *memory = machine->getMemory();
 
-    fprintf(stderr, "Memory: %p\n", (void*)memory);
-
-    km::AddressMapping hostPteMemory = memory->addSection({
-        .type = boot::MemoryRegion::eBootloaderReclaimable,
+    km::AddressMapping guestInitMemory = memory->addSection({
+        .type = boot::MemoryRegion::eKernel,
         .range = { sm::megabytes(1).bytes(), sm::megabytes(2).bytes() },
     });
 
-    km::AddressMapping guestInitMemory = memory->addSection({
-        .type = boot::MemoryRegion::eKernel,
-        .range = { sm::megabytes(2).bytes(), sm::megabytes(3).bytes() },
-    });
+    fprintf(stderr, "[TEST] Guest init memory: %s\n", std::string(std::string_view(km::format(guestInitMemory))).c_str());
+    fprintf(stderr, "[TEST] Host memory: %s\n", std::string(std::string_view(km::format(memory->getHostMemory()))).c_str());
+    fprintf(stderr, "[TEST] Guest memory: %s\n", std::string(std::string_view(km::format(memory->getGuestMemory()))).c_str());
 
-    fprintf(stderr, "Host PTE memory: %p\n", (void*)hostPteMemory.vaddr);
-
-    ASSERT_NE(hostPteMemory.vaddr, nullptr) << "Failed to add boot memory section";
     ASSERT_NE(guestInitMemory.vaddr, nullptr) << "Failed to add guest init memory section";
 
-    status = km::PageTables::create(machine->getPageBuilder(), hostPteMemory, km::PageFlags::eAll, &ptes);
+    status = km::PageTables::create(machine->getPageBuilder(), guestInitMemory, km::PageFlags::eAll, &ptes);
     ASSERT_EQ(status, OsStatusSuccess) << "Failed to create page tables";
 
-    fprintf(stderr, "Guest init memory: %p\n", (void*)guestInitMemory.vaddr);
+    std::atomic<bool> *barrier = new (pv::SharedObjectMalloc(sizeof(std::atomic<bool>))) std::atomic<bool>(false);
 
     void *guest = memory->getGuestMemory();
     km::AddressMapping guestMapping {
@@ -87,17 +85,30 @@ TEST_F(PvMmuTest, EmulateMmio) {
     status = ptes.map(guestMapping, km::PageFlags::eAll);
     ASSERT_EQ(status, OsStatusSuccess) << "Failed to map guest memory";
 
-    fprintf(stderr, "Guest mapping: %p\n", (void*)guestMapping.vaddr);
+    x64::Cr3 cr3 = x64::Cr3::of(0);
+    cr3.setAddress(ptes.root().address);
 
+    machine->getCore(0)->setCr3(cr3);
+
+    x64::page *stack = (x64::page*)pv::SharedObjectAlignedAlloc(alignof(x64::page), sizeof(x64::page) * 2);
+    char *base = (char*)(stack + 2);
+    *(uint64_t*)base = 0;
     machine->bspInit({
         .gregs = {
             [REG_RDI] = (greg_t)guest,
+            [REG_RSI] = (greg_t)barrier,
+            [REG_RSP] = (greg_t)(base - 0x8),
+            [REG_RBP] = (greg_t)(base - 0x8),
             [REG_RIP] = (greg_t)TestEmulateMmio,
         }
     });
 
-    gBarrier.arrive_and_wait();
+    while (!barrier->load()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
 
-    int eq = memcmp(guest, kMessage, sizeof(kMessage));
+    int eq = memcmp(guestInitMemory.vaddr, kMessage, sizeof(kMessage));
     ASSERT_EQ(eq, 0) << "Failed to read mmio message";
+
+    pv::SharedObjectFree(barrier);
 }

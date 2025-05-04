@@ -193,6 +193,11 @@ namespace km {
 
 template<>
 struct km::Format<km::AddressMapping> {
+    static constexpr size_t kStringSize
+        = kFormatSize<km::VirtualRange> + 4
+        + kFormatSize<km::MemoryRange> + 2
+        + kFormatSize<sm::Memory> + 1;
+
     static void format(km::IOutStream& out, km::AddressMapping value) {
         out.format(value.virtualRange(), " -> ", value.physicalRange(), " (", sm::bytes(value.size), ")");
     }

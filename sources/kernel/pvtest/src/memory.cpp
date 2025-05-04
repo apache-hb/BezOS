@@ -34,3 +34,26 @@ km::AddressMapping pv::Memory::addSection(boot::MemoryRegion section) {
         .size = section.range.size(),
     };
 }
+
+void *pv::Memory::mapGuestPage(sm::VirtualAddress address, km::PageFlags access, sm::PhysicalAddress memory) {
+    int prot = [&] {
+        int result = PROT_NONE;
+        if (bool(access & km::PageFlags::eRead)) {
+            result |= PROT_READ;
+        }
+        if (bool(access & km::PageFlags::eWrite)) {
+            result |= PROT_WRITE;
+        }
+        if (bool(access & km::PageFlags::eExecute)) {
+            result |= PROT_EXEC;
+        }
+        return result;
+    }();
+
+    void *result = mmap(address, x64::kPageSize, prot, MAP_SHARED | MAP_FIXED, mMemoryFd, memory.address);
+    if (result == MAP_FAILED) {
+        PV_POSIX_ERROR(errno, "mmap failed: %s\n", strerror(errno));
+        return nullptr;
+    }
+    return result;
+}

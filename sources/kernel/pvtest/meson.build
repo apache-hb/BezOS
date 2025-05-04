@@ -51,6 +51,9 @@ pvtest_testcases = {
     'mmu': {
         'sources': files(
             'test/mmu.cpp',
+
+            '../src/util/memory.cpp',
+
             '../src/memory/pte.cpp',
             '../src/memory/table_allocator.cpp',
             '../src/memory/memory.cpp',

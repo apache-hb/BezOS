@@ -7,6 +7,7 @@
 #include "arch/cr3.hpp"
 
 #include <assert.h>
+#include <stdatomic.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <signal.h>
@@ -98,12 +99,18 @@ uint64_t pv::CpuCore::getMemoryOperand(mcontext_t *mcontext, const x86_op_mem *o
 }
 
 OsStatus pv::CpuCore::resolveVirtualAddress(sm::VirtualAddress address, sm::PhysicalAddress *result) noexcept {
+    if (!mMemory->getGuestRange().contains(address)) {
+        auto range = mMemory->getGuestRange();
+        SignalAssert("virtual address %p escapes guest memory %p-%p\n",
+                     (void*)address, (void*)range.front, (void*)range.back);
+    }
     auto [pml4e, pdpte, pdte, pte] = km::GetAddressParts(address.address);
 
     sm::VirtualAddress l4Address = mMemory->getHostAddress(x64::Cr3::of(cr3).address());
     x64::PageMapLevel4 *l4 = std::bit_cast<x64::PageMapLevel4*>(l4Address);
     x64::pml4e &t4 = l4->entries[pml4e];
     if (!t4.present()) {
+        SignalWrite(STDERR_FILENO, "PML4E %d not present\n", pml4e);
         return OsStatusInvalidAddress;
     }
 
@@ -111,6 +118,7 @@ OsStatus pv::CpuCore::resolveVirtualAddress(sm::VirtualAddress address, sm::Phys
     x64::PageMapLevel3 *l3 = std::bit_cast<x64::PageMapLevel3*>(l3Address);
     x64::pdpte &t3 = l3->entries[pdpte];
     if (!t3.present()) {
+        SignalWrite(STDERR_FILENO, "PDPTE %d not present (host: %p ram: %zx)\n", pdpte, (void*)l3Address, mPageBuilder->address(t4));
         return OsStatusInvalidAddress;
     }
 
@@ -122,8 +130,9 @@ OsStatus pv::CpuCore::resolveVirtualAddress(sm::VirtualAddress address, sm::Phys
 
     sm::VirtualAddress l2Address = mMemory->getHostAddress(mPageBuilder->address(t3));
     x64::PageMapLevel2 *l2 = std::bit_cast<x64::PageMapLevel2*>(l2Address);
-    x64::pdte &t2 = l2->entries[pdpte];
+    x64::pdte &t2 = l2->entries[pdte];
     if (!t2.present()) {
+        SignalWrite(STDERR_FILENO, "PDTE %d not present (host: %p ram: %zx)\n", pdte, (void*)l2Address, mPageBuilder->address(t3));
         return OsStatusInvalidAddress;
     }
 
@@ -137,6 +146,7 @@ OsStatus pv::CpuCore::resolveVirtualAddress(sm::VirtualAddress address, sm::Phys
     x64::PageTable *pt = std::bit_cast<x64::PageTable*>(ptAddress);
     x64::pte &t1 = pt->entries[pte];
     if (!t1.present()) {
+        SignalWrite(STDERR_FILENO, "PTE %d not present (host: %p ram: %zx)\n", pte, (void*)ptAddress, mPageBuilder->address(t2));
         return OsStatusInvalidAddress;
     }
 
@@ -161,14 +171,23 @@ void pv::CpuCore::emulate_iretq(mcontext_t *, cs_insn *) { }
 void pv::CpuCore::emulate_mmu(mcontext_t *mcontext, cs_insn *insn) {
     cs_detail *detail = insn->detail;
     cs_x86 x86 = detail->x86;
-    for (size_t i = 0; i < x86.op_count; i++) {
+    for (uint8_t i = 0; i < x86.op_count; i++) {
         cs_x86_op *op = &x86.operands[i];
-        if (op->type == X86_OP_REG) {
-            uint64_t value = getRegisterOperand(mcontext, op->reg);
-            SignalWrite(STDERR_FILENO, "Register %s: %lx\n", cs_reg_name(mCapstone, op->reg), value);
-        } else if (op->type == X86_OP_MEM) {
+        if (op->type == X86_OP_MEM) {
             uint64_t value = getMemoryOperand(mcontext, &op->mem);
-            SignalWrite(STDERR_FILENO, "Memory %s: %lx\n", cs_reg_name(mCapstone, op->mem.base), value);
+            sm::PhysicalAddress real;
+            OsStatus status = resolveVirtualAddress(value, &real);
+            if (status != OsStatusSuccess) {
+                SignalAssert("resolveVirtualAddress %p failed: %d\n", (void*)value, int(status));
+                return;
+            }
+
+            real = sm::rounddown(real.address, x64::kPageSize);
+            value = sm::rounddown(value, x64::kPageSize);
+
+            SignalWrite(STDERR_FILENO, "MMU: %p -> %p\n", (void*)value, (void*)real.address);
+
+            mMemory->mapGuestPage(value, km::PageFlags::eAll, real);
         }
     }
 }
@@ -183,54 +202,52 @@ void pv::CpuCore::sigsegv(mcontext_t *mcontext) {
         PV_POSIX_ERROR(EINVAL, "cs_disasm_iter failed: %s (%d)\n", cs_strerror(cserr), cserr);
     }
 
-    SignalWrite(STDERR_FILENO, "%p: %s\n", (void*)rip, mInstruction->op_str);
-    abort();
+    SignalWrite(STDERR_FILENO, "%p: %d %d %s %s\n", (void*)rip, getpid(), mChild, mInstruction->mnemonic, mInstruction->op_str);
 
-    cs_insn insn = *mInstruction;
-    switch (insn.id) {
+    switch (mInstruction->id) {
     case X86_INS_RDMSR:
-        emulate_rdmsr(mcontext, &insn);
+        emulate_rdmsr(mcontext, mInstruction);
         break;
     case X86_INS_WRMSR:
-        emulate_wrmsr(mcontext, &insn);
+        emulate_wrmsr(mcontext, mInstruction);
         break;
     case X86_INS_IN:
-        emulate_in(mcontext, &insn);
+        emulate_in(mcontext, mInstruction);
         break;
     case X86_INS_OUT:
-        emulate_out(mcontext, &insn);
+        emulate_out(mcontext, mInstruction);
         break;
     case X86_INS_LGDT:
-        emulate_lgdt(mcontext, &insn);
+        emulate_lgdt(mcontext, mInstruction);
         break;
     case X86_INS_LIDT:
-        emulate_lidt(mcontext, &insn);
+        emulate_lidt(mcontext, mInstruction);
         break;
     case X86_INS_LTR:
-        emulate_ltr(mcontext, &insn);
+        emulate_ltr(mcontext, mInstruction);
         break;
     case X86_INS_INVLPG:
-        emulate_invlpg(mcontext, &insn);
+        emulate_invlpg(mcontext, mInstruction);
         break;
     case X86_INS_SWAPGS:
-        emulate_swapgs(mcontext, &insn);
+        emulate_swapgs(mcontext, mInstruction);
         break;
     case X86_INS_HLT:
-        emulate_hlt(mcontext, &insn);
+        emulate_hlt(mcontext, mInstruction);
         break;
     case X86_INS_IRETQ:
-        emulate_iretq(mcontext, &insn);
+        emulate_iretq(mcontext, mInstruction);
         break;
     case X86_INS_CLI:
-        emulate_cli(mcontext, &insn);
+        emulate_cli(mcontext, mInstruction);
         break;
     case X86_INS_STI:
-        emulate_sti(mcontext, &insn);
+        emulate_sti(mcontext, mInstruction);
         break;
 
     default:
         // If the sigsegv is not due to a privileged instruction, its probably a page fault
-        emulate_mmu(mcontext, &insn);
+        emulate_mmu(mcontext, mInstruction);
         break;
     }
 }
@@ -253,6 +270,8 @@ void pv::CpuCore::run() {
         PV_POSIX_ERROR(err, "cs_open: %s (%d)\n", cs_strerror(err), err);
     }
 
+    cs_option(mCapstone, CS_OPT_DETAIL, CS_OPT_ON);
+
     defer { cs_close(&mCapstone); };
 
     mInstruction = cs_malloc(mCapstone);
@@ -271,6 +290,8 @@ void pv::CpuCore::run() {
         PvTestContextSwitch(&mLaunchContext.gregs);
         return;
     }
+
+    mReady.flag.test_and_set();
 
     sigset_t sigset;
     PV_POSIX_CHECK(sigemptyset(&sigset));
@@ -309,11 +330,20 @@ void pv::CpuCore::destroy(mcontext_t *) {
     longjmp(mDestroyTarget, 1);
 }
 
+void pv::CpuCore::launch(mcontext_t *mcontext) {
+    mLaunchContext = *mcontext;
+    longjmp(mLaunchTarget, 1);
+}
+
 void pv::CpuCore::sendInitMessage(mcontext_t context) {
     mLaunchContext = context;
     sigval val {
         .sival_ptr = this,
     };
+
+    while (!mReady.flag.test_and_set()) {
+        sched_yield();
+    }
 
     fprintf(stderr, "pv::CpuCore::sendInitMessage() %p\n", (void*)this);
     PV_POSIX_CHECK(sigqueue(mChild, kSigLaunch, val));
@@ -331,6 +361,10 @@ pv::CpuCore::CpuCore(Memory *memory, const km::PageBuilder *pager)
 pv::CpuCore::~CpuCore() {
     if (mChild == 0) {
         return;
+    }
+
+    while (!mReady.flag.test_and_set()) {
+        sched_yield();
     }
 
     sigval val {
@@ -358,6 +392,7 @@ void pv::CpuCore::installSignals() {
             ucontext_t *ucontext = reinterpret_cast<ucontext_t *>(context);
             mcontext_t *mcontext = &ucontext->uc_mcontext;
             fCpuCore->sigsegv(mcontext);
+            SignalWrite(STDERR_FILENO, "sigsegv handled: %p\n", (void*)mcontext->gregs[REG_RIP]);
         },
         .sa_flags = SA_SIGINFO | SA_ONSTACK,
     };
@@ -371,6 +406,16 @@ void pv::CpuCore::installSignals() {
         .sa_flags = SA_SIGINFO | SA_ONSTACK,
     };
 
+    struct sigaction siglaunch {
+        .sa_sigaction = [](int, siginfo_t *, void *context) {
+            ucontext_t *ucontext = reinterpret_cast<ucontext_t *>(context);
+            mcontext_t *mcontext = &ucontext->uc_mcontext;
+            fCpuCore->launch(mcontext);
+        },
+        .sa_flags = SA_SIGINFO | SA_ONSTACK,
+    };
+
     PV_POSIX_CHECK(sigaction(SIGSEGV, &sigsegv, nullptr));
     PV_POSIX_CHECK(sigaction(kSigDestroy, &sigdestroy, nullptr));
+    PV_POSIX_CHECK(sigaction(kSigLaunch, &siglaunch, nullptr));
 }
