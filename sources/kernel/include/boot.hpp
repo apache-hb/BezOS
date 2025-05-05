@@ -153,15 +153,15 @@ namespace boot {
 
         uintptr_t hhdmOffset;
 
-        km::PhysicalAddress rsdpAddress;
+        sm::PhysicalAddress rsdpAddress;
 
         std::span<FrameBuffer> framebuffers;
         std::span<MemoryRegion> memmap;
 
         km::AddressMapping stack;
 
-        km::PhysicalAddress smbios32Address;
-        km::PhysicalAddress smbios64Address;
+        sm::PhysicalAddress smbios32Address;
+        sm::PhysicalAddress smbios64Address;
 
         km::MemoryRangeEx initrd;
 

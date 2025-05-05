@@ -3,8 +3,8 @@
 #include "acpi/madt.hpp"
 #include "acpi/fadt.hpp"
 #include "acpi/mcfg.hpp"
-#include "memory/range.hpp"
 #include "util/signature.hpp"
+#include "memory/detail/tlsf.hpp"
 
 namespace km {
     class IoApic;
@@ -52,6 +52,7 @@ namespace acpi {
     };
 
     class AcpiTables {
+        km::TlsfAllocation mRsdpAllocation;
         const RsdpLocator *mRsdpLocator;
         const Madt *mMadt;
         const Mcfg *mMcfg;
@@ -61,7 +62,7 @@ namespace acpi {
         size_t mRsdtEntryCount;
 
     public:
-        AcpiTables(const RsdpLocator *locator, km::AddressSpace& memory);
+        AcpiTables(km::TlsfAllocation allocation, const RsdpLocator *locator, km::AddressSpace& memory);
 
         const RsdpLocator *locator() const { return mRsdpLocator; }
         uint32_t revision() const { return mRsdpLocator->revision; }
@@ -85,5 +86,5 @@ namespace acpi {
         const RsdtHeader *dsdt() const { return mDsdt; }
     };
 
-    acpi::AcpiTables InitAcpi(km::PhysicalAddress rsdpBaseAddress, km::AddressSpace& memory);
+    acpi::AcpiTables InitAcpi(sm::PhysicalAddress rsdpBaseAddress, km::AddressSpace& memory);
 }

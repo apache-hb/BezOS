@@ -149,7 +149,7 @@ size_t km::smbios::GetStructSize(const StructHeader *header) {
     return size;
 }
 
-static OsStatus FindSmbios64(km::PhysicalAddressEx address, bool ignoreChecksum, km::AddressSpace& memory, const smbios::Entry64 **entry, km::TlsfAllocation *allocation) {
+static OsStatus FindSmbios64(sm::PhysicalAddress address, bool ignoreChecksum, km::AddressSpace& memory, const smbios::Entry64 **entry, km::TlsfAllocation *allocation) {
     const auto *smbios = memory.mapConst<smbios::Entry64>(address, allocation);
 
     if (smbios->anchor != smbios::Entry64::kAnchor0) {
@@ -166,7 +166,7 @@ static OsStatus FindSmbios64(km::PhysicalAddressEx address, bool ignoreChecksum,
     return OsStatusSuccess;
 }
 
-static OsStatus FindSmbios32(km::PhysicalAddressEx address, bool ignoreChecksum, km::AddressSpace& memory, const smbios::Entry32 **entry, km::TlsfAllocation *allocation) {
+static OsStatus FindSmbios32(sm::PhysicalAddress address, bool ignoreChecksum, km::AddressSpace& memory, const smbios::Entry32 **entry, km::TlsfAllocation *allocation) {
     const auto *smbios = memory.mapConst<smbios::Entry32>(address, allocation);
 
     if (smbios->anchor0 != smbios::Entry32::kAnchor0) {
@@ -203,7 +203,7 @@ OsStatus km::FindSmbiosTables(SmBiosLoadOptions options, km::AddressSpace& memor
 
     if (options.smbios64Address != nullptr && !options.ignore64BitEntry) {
         km::TlsfAllocation allocation;
-        status = FindSmbios64(std::bit_cast<km::PhysicalAddressEx>(options.smbios64Address), options.ignoreChecksum, memory, &result.entry64, &allocation);
+        status = FindSmbios64(options.smbios64Address, options.ignoreChecksum, memory, &result.entry64, &allocation);
         if (status == OsStatusSuccess) {
 
             defer {
@@ -219,7 +219,7 @@ OsStatus km::FindSmbiosTables(SmBiosLoadOptions options, km::AddressSpace& memor
 
     if (options.smbios32Address != nullptr && !options.ignore32BitEntry) {
         km::TlsfAllocation allocation;
-        status = FindSmbios32(std::bit_cast<km::PhysicalAddressEx>(options.smbios32Address), options.ignoreChecksum, memory, &result.entry32, &allocation);
+        status = FindSmbios32(options.smbios32Address, options.ignoreChecksum, memory, &result.entry32, &allocation);
         if (status == OsStatusSuccess) {
 
             defer {

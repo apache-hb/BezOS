@@ -178,7 +178,7 @@ static OsStatus RtldMapProgram(OsDeviceHandle file, OsProcessHandle process, uin
         return OsStatusInvalidData;
     }
 
-    void *elfPhMapping = nullptr;
+    void *elfPhMappingBase = nullptr;
     OsVmemMapInfo mapInfo {
         .SrcAddress = sm::rounddown(header.phoff, UINT64_C(0x1000)),
         .Size = OsSize(header.phnum * header.phentsize),
@@ -186,14 +186,14 @@ static OsStatus RtldMapProgram(OsDeviceHandle file, OsProcessHandle process, uin
         .Source = file,
     };
 
-    if (OsStatus status = OsVmemMap(mapInfo, &elfPhMapping)) {
+    if (OsStatus status = OsVmemMap(mapInfo, &elfPhMappingBase)) {
         return status;
     }
 
-    elfPhMapping = (void*)((uintptr_t)elfPhMapping + (header.phoff % 0x1000));
+    void *elfPhMapping = (void*)((uintptr_t)elfPhMappingBase + (header.phoff % 0x1000));
 
     defer {
-        OsVmemRelease(elfPhMapping, OsSize(header.phnum * header.phentsize));
+        OsVmemRelease(elfPhMappingBase, OsSize(header.phnum * header.phentsize));
     };
 
     *entry = header.entry;

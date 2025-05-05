@@ -122,8 +122,8 @@ namespace km {
     }
 
     struct SmBiosLoadOptions {
-        PhysicalAddress smbios32Address;
-        PhysicalAddress smbios64Address;
+        sm::PhysicalAddress smbios32Address;
+        sm::PhysicalAddress smbios64Address;
         bool ignoreChecksum;
         bool ignore32BitEntry;
         bool ignore64BitEntry;

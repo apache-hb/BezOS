@@ -56,19 +56,19 @@ namespace pv {
 
         AtomicFlag mReady;
 
-        uint64_t cr0;
-        uint64_t cr2;
+        // uint64_t cr0;
+        // uint64_t cr2;
         uint64_t cr3;
-        uint64_t cr4;
-        uint8_t cpl;
+        // uint64_t cr4;
+        // uint8_t cpl;
 
-        IDTR idtr;
-        GDTR gdtr;
-        uint32_t eflags;
+        // IDTR idtr;
+        // GDTR gdtr;
+        // uint32_t eflags;
 
-        uint64_t fs_base;
-        uint64_t gs_base;
-        uint64_t kernel_gs_base;
+        // uint64_t fs_base;
+        // uint64_t gs_base;
+        // uint64_t kernel_gs_base;
 
         static int start(void *arg);
         void installSignals();
