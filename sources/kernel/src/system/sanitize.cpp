@@ -136,7 +136,7 @@ OsStatus sys::Sanitize<sys::VmemMapInfo>::sanitize(InvokeContext *context, const
         return OsStatusInvalidInput;
     }
 
-    if (!base.isAlignedTo(x64::kPageSize) || !src.isAlignedTo(x64::kPageSize)) {
+    if (!src.isAlignedTo(x64::kPageSize)) {
         return OsStatusInvalidInput;
     }
 
@@ -145,6 +145,10 @@ OsStatus sys::Sanitize<sys::VmemMapInfo>::sanitize(InvokeContext *context, const
     }
 
     if (addressIsHint && base.isNull()) {
+        return OsStatusInvalidInput;
+    }
+
+    if (!base.isAlignedTo(x64::kPageSize) && !base.isNull()) {
         return OsStatusInvalidInput;
     }
 

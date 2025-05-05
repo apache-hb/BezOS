@@ -180,7 +180,7 @@ static OsStatus RtldMapProgram(OsDeviceHandle file, OsProcessHandle process, uin
 
     void *elfPhMapping = nullptr;
     OsVmemMapInfo mapInfo {
-        .SrcAddress = header.phoff,
+        .SrcAddress = sm::rounddown(header.phoff, UINT64_C(0x1000)),
         .Size = OsSize(header.phnum * header.phentsize),
         .Access = eOsMemoryRead,
         .Source = file,
@@ -189,6 +189,8 @@ static OsStatus RtldMapProgram(OsDeviceHandle file, OsProcessHandle process, uin
     if (OsStatus status = OsVmemMap(mapInfo, &elfPhMapping)) {
         return status;
     }
+
+    elfPhMapping = (void*)((uintptr_t)elfPhMapping + (header.phoff % 0x1000));
 
     defer {
         OsVmemRelease(elfPhMapping, OsSize(header.phnum * header.phentsize));
@@ -202,7 +204,7 @@ static OsStatus RtldMapProgram(OsDeviceHandle file, OsProcessHandle process, uin
             continue;
         }
 
-        OsMemoryAccess access = eOsMemoryCommit | eOsMemoryPrivate;
+        OsMemoryAccess access = eOsMemoryNoAccess;
         if (ph.flags & (1 << 0))
             access |= eOsMemoryExecute;
         if (ph.flags & (1 << 1))
@@ -214,7 +216,7 @@ static OsStatus RtldMapProgram(OsDeviceHandle file, OsProcessHandle process, uin
             OsVmemCreateInfo vmemGuestCreateInfo {
                 .BaseAddress = reinterpret_cast<void*>(ph.vaddr),
                 .Size = sm::roundup<uint64_t>(ph.memsz, 0x1000),
-                .Access = access | eOsMemoryDiscard,
+                .Access = access | eOsMemoryCommit | eOsMemoryDiscard,
                 .Process = process,
             };
 
@@ -250,7 +252,7 @@ static OsStatus RtldMapProgram(OsDeviceHandle file, OsProcessHandle process, uin
 
 OsStatus RtldStartProgram(const RtldStartInfo *StartInfo, OsThreadHandle *OutThread) {
     uintptr_t entry = 0;
-    RtldTlsInitInfo tlsInfo;
+    RtldTlsInitInfo tlsInfo{};
     if (OsStatus status = RtldMapProgram(StartInfo->Program, StartInfo->Process, &entry, &tlsInfo)) {
         return status;
     }
