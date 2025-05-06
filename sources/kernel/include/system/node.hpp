@@ -1,7 +1,7 @@
 #pragma once
 
 #include <bezos/facility/device.h>
-#include <bezos/facility/fs.h>
+#include <bezos/facility/node.h>
 
 #include "system/base.hpp"
 #include "system/create.hpp"

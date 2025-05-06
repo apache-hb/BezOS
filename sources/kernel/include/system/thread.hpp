@@ -1,6 +1,6 @@
 #pragma once
 
-#include <bezos/facility/threads.h>
+#include <bezos/facility/thread.h>
 
 #include "arch/xsave.hpp"
 #include "memory/layout.hpp"

@@ -14,7 +14,9 @@ extern "C" {
 #define OS_DEVICE_NAME_MAX 128
 #define OS_OBJECT_NAME_MAX 255
 
-#define OS_OBJECT_HANDLE(name) typedef OsHandle name
+#define OS_OBJECT_HANDLE(handle, object) \
+    typedef OsHandle handle; \
+    typedef OsObject object
 
 typedef uint8_t OsByte;
 typedef size_t OsSize;
@@ -153,25 +155,25 @@ enum {
 typedef uint8_t OsHandleType;
 
 /// @brief A handle to a vnode.
-OS_OBJECT_HANDLE(OsNodeHandle);
+OS_OBJECT_HANDLE(OsNodeHandle, OsNodeObject);
 
 /// @brief A handle to a device.
-OS_OBJECT_HANDLE(OsDeviceHandle);
+OS_OBJECT_HANDLE(OsDeviceHandle, OsDeviceObject);
 
 /// @brief A handle to a mutex.
-OS_OBJECT_HANDLE(OsMutexHandle);
+OS_OBJECT_HANDLE(OsMutexHandle, OsMutexObject);
 
 /// @brief A handle to a thread.
-OS_OBJECT_HANDLE(OsThreadHandle);
+OS_OBJECT_HANDLE(OsThreadHandle, OsThreadObject);
 
 /// @brief A handle to a process.
-OS_OBJECT_HANDLE(OsProcessHandle);
+OS_OBJECT_HANDLE(OsProcessHandle, OsProcessObject);
 
 /// @brief A handle to a transaction.
-OS_OBJECT_HANDLE(OsTxHandle);
+OS_OBJECT_HANDLE(OsTxHandle, OsTxObject);
 
 /// @brief A handle to an event.
-OS_OBJECT_HANDLE(OsEventHandle);
+OS_OBJECT_HANDLE(OsEventHandle, OsEventObject);
 
 #define OS_GUID_NULL { .Octets = { 0 } }
 

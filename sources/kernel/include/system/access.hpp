@@ -4,9 +4,9 @@
 #include <bezos/facility/vmem.h>
 #include <bezos/facility/tx.h>
 #include <bezos/facility/mutex.h>
-#include <bezos/facility/threads.h>
+#include <bezos/facility/thread.h>
 #include <bezos/facility/device.h>
-#include <bezos/facility/fs.h>
+#include <bezos/facility/node.h>
 #include <bezos/facility/event.h>
 
 #include "common/util/util.hpp"

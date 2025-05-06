@@ -261,8 +261,6 @@ void pv::CpuCore::run() {
 
     defer { free(mSigStack.ss_sp); };
 
-    installSignals();
-
     if (cs_err err = cs_open(CS_ARCH_X86, CS_MODE_64, &mCapstone)) {
         PV_POSIX_ERROR(err, "cs_open: %s (%d)\n", cs_strerror(err), err);
     }
@@ -276,6 +274,8 @@ void pv::CpuCore::run() {
         PV_POSIX_ERROR(ENOMEM, "cs_malloc: %s\n", strerror(ENOMEM));
     }
     defer { cs_free(mInstruction, 1); };
+
+    installSignals();
 
     if (setjmp(mDestroyTarget)) {
         return;

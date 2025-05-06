@@ -36,15 +36,15 @@ cc = meson.get_compiler('c')
 sys_root = meson.get_external_property('sys_root')
 
 src = [
-    'src/bezos/syscall_fs.c',
-    'src/bezos/syscall_threads.c',
-    'src/bezos/syscall_device.c',
     'src/bezos/syscall_clock.c',
-    'src/bezos/syscall_vmem.c',
-    'src/bezos/syscall_mutex.c',
-    'src/bezos/syscall_process.c',
-    'src/bezos/syscall_handle.c',
     'src/bezos/syscall_debug.c',
+    'src/bezos/syscall_device.c',
+    'src/bezos/syscall_handle.c',
+    'src/bezos/syscall_mutex.c',
+    'src/bezos/syscall_node.c',
+    'src/bezos/syscall_process.c',
+    'src/bezos/syscall_thread.c',
+    'src/bezos/syscall_vmem.c',
     'src/bezos/syscall.S',
 ]
 

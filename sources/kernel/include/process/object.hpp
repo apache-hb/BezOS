@@ -1,7 +1,7 @@
 #pragma once
 
 #include <bezos/facility/process.h>
-#include <bezos/facility/threads.h>
+#include <bezos/facility/thread.h>
 
 #include "std/shared_spinlock.hpp"
 #include "std/spinlock.hpp"

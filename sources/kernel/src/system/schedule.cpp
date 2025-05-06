@@ -3,7 +3,7 @@
 #include "panic.hpp"
 #include "system/thread.hpp"
 
-#include <bezos/facility/threads.h>
+#include <bezos/facility/thread.h>
 
 using namespace std::chrono_literals;
 
