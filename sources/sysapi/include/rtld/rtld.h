@@ -21,12 +21,14 @@ struct RtldTlsInitInfo {
     void *InitAddress;
     OsSize TlsDataSize;
     OsSize TlsBssSize;
+    OsSize TlsAlign;
 };
 
 struct RtldTls {
     void *BaseAddress;
     void *TlsAddress;
     OsSize Size;
+    OsSize Align;
 };
 
 struct RtldSoLoadInfo {

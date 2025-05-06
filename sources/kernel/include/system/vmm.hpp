@@ -144,6 +144,10 @@ namespace sys {
         [[nodiscard]]
         OsStatus map(MemoryManager *manager, size_t size, size_t align, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping) [[clang::allocating]];
 
+        /// @brief Map a segment of memory into this address space, allocating virtual address space for it.
+        [[nodiscard]]
+        OsStatus map(MemoryManager *manager, km::MemoryRange range, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping) [[clang::allocating]];
+
         /// @brief Map memory from another address space into newly allocated space in this address space.
         [[nodiscard]]
         OsStatus map(MemoryManager *manager, AddressSpaceManager *other, km::VirtualRange range, km::PageFlags flags, km::MemoryType type, km::VirtualRange *result) [[clang::allocating]];

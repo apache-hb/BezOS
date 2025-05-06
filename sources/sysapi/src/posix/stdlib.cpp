@@ -15,7 +15,7 @@
 namespace {
 struct InitMalloc {
     InitMalloc() {
-        int err = rpmalloc_initialize();
+        int err = rpmalloc_initialize(nullptr);
         assert(err == 0);
     }
 

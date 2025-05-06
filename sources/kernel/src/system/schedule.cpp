@@ -442,6 +442,7 @@ OsStatus sys::GlobalSchedule::resumeWaitQueue(OsInstant now) {
 OsStatus sys::GlobalSchedule::tick(OsInstant now) {
     OsStatus result = OsStatusSuccess;
 
+    km::IntGuard iguard;
     stdx::UniqueLock guard(mLock);
 
     if (OsStatus status = resumeSleepQueue(now)) {

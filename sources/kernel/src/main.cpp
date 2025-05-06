@@ -1346,19 +1346,17 @@ static OsStatus LaunchThread(OsStatus(*entry)(void*), void *arg, stdx::String na
 }
 
 static OsStatus NotificationWork(void *) {
-    auto *scheduler = gSysSystem->scheduler();
     KmDebugMessage("[INIT] Beginning notification work.\n");
     while (true) {
         gNotificationStream->processAll();
-        OsInstant now;
-        gClock.time(&now);
-        scheduler->tick(now);
+        arch::Intrin::halt();
     }
 
     return OsStatusSuccess;
 }
 
 static OsStatus KernelMasterTask() {
+    auto *scheduler = gSysSystem->scheduler();
     KmDebugMessage("[INIT] Kernel master task.\n");
 
     LaunchThread(&NotificationWork, gNotificationStream, "NOTIFY");
@@ -1370,14 +1368,11 @@ static OsStatus KernelMasterTask() {
         KM_PANIC("Failed to create init process.");
     }
 
-    // KmIdle();
-
     while (true) {
-        //
-        // Spin forever for now, in the future this task will handle
-        // top level kernel events.
-        //
-        sys::YieldCurrentThread();
+        OsInstant now;
+        gClock.time(&now);
+        scheduler->tick(now);
+        arch::Intrin::halt();
     }
 
     return OsStatusSuccess;
@@ -1469,7 +1464,7 @@ static void CreateDisplayDevice() {
 [[noreturn]]
 static void LaunchKernelProcess(km::ApicTimer *apicTimer) {
     sys::ProcessCreateInfo createInfo {
-        .name = "SYSTEM",
+        .name = stdx::StringView::ofString("SYSTEM"),
         .state = eOsProcessSupervisor,
     };
     std::unique_ptr<sys::ProcessHandle> system;

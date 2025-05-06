@@ -39,6 +39,34 @@ OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, size_t size, size
     return OsStatusSuccess;
 }
 
+OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, km::MemoryRange range, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping) [[clang::allocating]] {
+    stdx::LockGuard guard(mLock);
+
+    km::TlsfAllocation allocation = mHeap.aligned_alloc(x64::kPageSize, range.size());
+    if (allocation.isNull()) {
+        return OsStatusOutOfMemory;
+    }
+
+    km::AddressMapping result {
+        .vaddr = std::bit_cast<const void*>(allocation.address()),
+        .paddr = range.front,
+        .size = range.size(),
+    };
+
+    if (OsStatus status = mPageTables.map(result, flags, type)) {
+        mHeap.free(allocation);
+        OsStatus inner = manager->release(range);
+        KM_ASSERT(inner == OsStatusSuccess);
+        return status;
+    }
+
+    auto segment = AddressSegment { range, allocation };
+    addSegment(std::move(segment));
+
+    *mapping = result;
+    return OsStatusSuccess;
+}
+
 OsStatus sys::AddressSpaceManager::mapSegment(
     MemoryManager *manager, Iterator it,
     km::VirtualRange src, km::VirtualRange dst,

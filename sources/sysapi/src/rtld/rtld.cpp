@@ -18,6 +18,29 @@
 
 namespace elf = os::elf;
 
+template<size_t N>
+static void DebugLog(const char (&message)[N]) {
+    OsDebugMessage(eOsLogDebug, message);
+}
+
+template<typename T>
+static void DebugLog(T number) {
+    char buffer[32];
+    char *ptr = buffer + sizeof(buffer);
+    *--ptr = '\0';
+
+    if (number == 0) {
+        *--ptr = '0';
+    } else {
+        while (number != 0) {
+            *--ptr = '0' + (number % 10);
+            number /= 10;
+        }
+    }
+
+    OsDebugMessage({ ptr, buffer + sizeof(buffer), eOsLogDebug });
+}
+
 static const elf::ProgramHeader *FindProgramHeader(std::span<const elf::ProgramHeader> phs, elf::ProgramHeaderType type) {
     for (const auto& header : phs) {
         if (header.type == type) {
@@ -128,9 +151,9 @@ static OsStatus RtldTlsInit(OsDeviceHandle file, OsProcessHandle process, const 
     if (ph.memsz != ph.filesz && ph.filesz != 0) {
         void *initAddress = nullptr;
         OsVmemCreateInfo vmemGuestCreateInfo {
-            .BaseAddress = reinterpret_cast<void*>(ph.vaddr),
+            .BaseAddress = OsAnyPointer(ph.vaddr),
             .Size = sm::roundup<uint64_t>(ph.memsz, 0x1000),
-            .Access = eOsMemoryRead | eOsMemoryDiscard,
+            .Access = eOsMemoryRead | eOsMemoryCommit | eOsMemoryDiscard,
             .Process = process,
         };
 
@@ -162,7 +185,12 @@ static OsStatus RtldTlsInit(OsDeviceHandle file, OsProcessHandle process, const 
         .InitAddress = initAddress,
         .TlsDataSize = ph.filesz,
         .TlsBssSize = ph.memsz - ph.filesz,
+        .TlsAlign = ph.align,
     };
+
+    DebugLog("TlsAlign:");
+    DebugLog(tlsInfo->TlsAlign);
+    DebugLog(ph.align);
 
     return OsStatusSuccess;
 }
@@ -199,7 +227,17 @@ static OsStatus RtldMapProgram(OsDeviceHandle file, OsProcessHandle process, uin
     *entry = header.entry;
     std::span<elf::ProgramHeader> phs(reinterpret_cast<elf::ProgramHeader*>(elfPhMapping), header.phnum);
 
+    DebugLog("Program headers:");
+    DebugLog(header.phoff);
+    DebugLog(header.phentsize);
+    DebugLog(header.phnum);
+    DebugLog((uint64_t)elfPhMapping);
+
     for (const elf::ProgramHeader &ph : phs) {
+        DebugLog("Loading program header");
+        DebugLog((uint32_t)ph.type);
+        DebugLog(ph.flags);
+
         if (ph.type != elf::ProgramHeaderType::eLoad) {
             continue;
         }
@@ -297,18 +335,23 @@ OsStatus RtldStartProgram(const RtldStartInfo *StartInfo, OsThreadHandle *OutThr
         return status;
     }
 
-    uintptr_t stackBase = reinterpret_cast<uintptr_t>(stackGuestAddress) + 0x4000;
-
     *startInfo = OsClientStartInfo {
         .TlsInit = tlsInfo.InitAddress,
         .TlsDataSize = tlsInfo.TlsDataSize,
         .TlsBssSize = tlsInfo.TlsBssSize,
     };
 
-    RtldTls tls;
-    if (OsStatus status = RtldCreateTls(StartInfo->Process, &tlsInfo, &tls)) {
-        return status;
+    RtldTls tls{};
+    DebugLog(tlsInfo.TlsDataSize);
+    DebugLog(tlsInfo.TlsBssSize);
+    DebugLog((uintptr_t)tlsInfo.InitAddress);
+    if (tlsInfo.TlsDataSize != 0 || tlsInfo.TlsBssSize != 0) {
+        if (OsStatus status = RtldCreateTls(StartInfo->Process, &tlsInfo, &tls)) {
+            return status;
+        }
     }
+
+    uintptr_t stackBase = reinterpret_cast<uintptr_t>(stackGuestAddress) + 0x4000 - 0x8;
 
     OsThreadCreateInfo threadCreateInfo {
         .Name = "ENTRY",
@@ -333,7 +376,10 @@ OsStatus RtldStartProgram(const RtldStartInfo *StartInfo, OsThreadHandle *OutThr
 }
 
 OsStatus RtldCreateTls(OsProcessHandle Process, struct RtldTlsInitInfo *TlsInfo, RtldTls *OutTlsInfo) {
-    size_t tlsSize = TlsInfo->TlsDataSize + TlsInfo->TlsBssSize;
+    DebugLog(TlsInfo->TlsDataSize);
+    DebugLog(TlsInfo->TlsBssSize);
+    DebugLog(TlsInfo->TlsAlign);
+    size_t tlsSize = sm::roundup(TlsInfo->TlsDataSize + TlsInfo->TlsBssSize, TlsInfo->TlsAlign);
     size_t initSize = sm::roundup<size_t>(TlsInfo->TlsDataSize, 0x1000);
     size_t totalSize = sm::roundup<size_t>(tlsSize + sizeof(uintptr_t), 0x1000);
 
@@ -387,20 +433,14 @@ OsStatus RtldCreateTls(OsProcessHandle Process, struct RtldTlsInitInfo *TlsInfo,
         memcpy(tlsAddress, initAddress, TlsInfo->TlsDataSize);
     }
 
-    uintptr_t tlsSelf = reinterpret_cast<uintptr_t>(guestAddress) + tlsSize;
-
-    // Fill the remaining BSS with zeros.
-    if (TlsInfo->TlsBssSize > 0) {
-        memset(reinterpret_cast<char*>(tlsAddress) + TlsInfo->TlsDataSize, 0, TlsInfo->TlsBssSize);
-    }
+    uintptr_t tlsControlBlock = reinterpret_cast<uintptr_t>(guestAddress) + tlsSize;
 
     // Copy the self pointer to the end of the TLS area.
-    memcpy(reinterpret_cast<char*>(tlsAddress) + tlsSize, &tlsSelf, sizeof(uintptr_t));
+    *(uintptr_t*)((char*)tlsAddress + tlsSize) = tlsControlBlock;
 
-    uintptr_t tlsGuestAddress = reinterpret_cast<uintptr_t>(guestAddress) + tlsSize;
     *OutTlsInfo = RtldTls {
         .BaseAddress = guestAddress,
-        .TlsAddress = reinterpret_cast<void*>(tlsGuestAddress),
+        .TlsAddress = reinterpret_cast<void*>(tlsControlBlock),
         .Size = totalSize,
     };
 

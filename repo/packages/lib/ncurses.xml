@@ -22,11 +22,13 @@
              CXX='@PREFIX@/llvm/bin/clang++'
              AR='@PREFIX@/llvm/bin/llvm-ar'
              LD='@PREFIX@/llvm/bin/ld.lld'
+             BUILD_CC='@PREFIX@/llvm/bin/clang'
              CFLAGS='--sysroot @PREFIX@ --target=${arch}-unknown-bezos-jlibc'
              LDFLAGS='--sysroot @PREFIX@ --target=${arch}-unknown-bezos-jlibc' />
 
         <options host='${arch}-unknown-bezos-jlibc'
                  without-progs=''
-                 without-tests='' />
+                 without-tests=''
+                 without-ada='' />
     </configure>
 </package>

@@ -269,7 +269,7 @@ OsStatus sys::Process::vmemMapFile(System *system, VmemMapInfo info, vfs2::IFile
     km::AddressMapping mapping;
 
     if (info.baseAddress.isNull()) {
-        if (OsStatus status = mAddressSpace.map(&system->mMemoryManager, memory.size(), x64::kPageSize, info.flags, km::MemoryType::eWriteBack, &mapping)) {
+        if (OsStatus status = mAddressSpace.map(&system->mMemoryManager, memory, info.flags, km::MemoryType::eWriteBack, &mapping)) {
             KmDebugMessage("[VMEM] Failed to allocate file mapping: ", info.baseAddress, " ", memory, " ", OsStatusId(status), "\n");
             OsStatus inner = system->mMemoryManager.release(memory);
             KM_ASSERT(inner == OsStatusSuccess);
@@ -291,7 +291,11 @@ OsStatus sys::Process::vmemMapFile(System *system, VmemMapInfo info, vfs2::IFile
 OsStatus sys::Process::vmemMapProcess(System *system, VmemMapInfo info, sm::RcuSharedPtr<Process> process, km::VirtualRange *mapping) {
     km::VirtualRange vm = km::VirtualRange::of((void*)info.srcAddress, info.size);
 
-    return mAddressSpace.map(&system->mMemoryManager, &process->mAddressSpace, vm, info.flags, km::MemoryType::eWriteBack, mapping);
+    if (OsStatus status = mAddressSpace.map(&system->mMemoryManager, &process->mAddressSpace, vm, info.flags, km::MemoryType::eWriteBack, mapping)) {
+        return status;
+    }
+
+    return OsStatusSuccess;
 }
 
 OsStatus sys::Process::vmemRelease(System *, km::VirtualRange) {
@@ -535,7 +539,7 @@ OsStatus sys::SysVmemCreate(InvokeContext *context, OsVmemCreateInfo info, void 
         return status;
     }
 
-    KmDebugMessage("[VMEM] Created vmem ", mapping, " in ", process->getName(), "\n");
+    KmDebugMessage("[VMEM] Created vmem ", mapping, " (", vmemInfo.flags, ") in ", process->getName(), "\n");
 
     *outVmem = (void*)mapping.vaddr;
 
@@ -606,6 +610,11 @@ OsStatus sys::MapFileToMemory(vfs2::IFileHandle *file, MemoryManager *mm, km::Ad
     if (OsStatus status = file->read(request, &read)) {
         KM_ASSERT(mm->release(result) == OsStatusSuccess);
         return status;
+    }
+
+    if (read.read != size) {
+        KmDebugMessage("[VMEM] Read ", read.read, " bytes from file, expected ", size, "\n");
+        KM_ASSERT(read.read == size);
     }
 
     *range = result;

@@ -32,7 +32,6 @@ pkgconfig = import('pkgconfig')
 
 common = subproject('common').get_variable('common_dep')
 
-ndebug = get_option('b_ndebug') == 'true'
 cc = meson.get_compiler('c')
 sys_root = meson.get_external_property('sys_root')
 
@@ -129,11 +128,12 @@ src = [
     'src/posix/sys_resource.cpp',
 ]
 
-c_args = []
-
-if not ndebug
-    c_args += [ '-DENABLE_ASSERTS=1' ]
-endif
+c_args = [
+    # rpmalloc defines
+    '-DENABLE_STATISTICS=1',
+    '-DENABLE_ASSERTS=1',
+    '-DENABLE_OVERRIDE=0',
+]
 
 libposix = static_library('bezos-posix', src,
     include_directories : [ inc, rpmalloc.get_variable('includes') ],
