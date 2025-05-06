@@ -14,6 +14,7 @@ struct OsHandleCloneInfo {
 
 struct OsHandleInfo {
     OsHandleAccess Access;
+    OsObject Object;
 };
 
 /// @brief Wait on a handle to become signaled.

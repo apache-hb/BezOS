@@ -122,9 +122,6 @@ struct OsProcessCreateInfo {
 
     OsUtf8Char Name[OS_OBJECT_NAME_MAX];
 
-    const char *NameBegin;
-    const char *NameEnd;
-
     const struct OsProcessParam *ArgsBegin;
     const struct OsProcessParam *ArgsEnd;
 

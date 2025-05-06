@@ -15,8 +15,6 @@ static OsCallResult NewVmemCreate(km::System *system, km::CallContext *context, 
         return km::CallError(status);
     }
 
-    KmDebugMessage("[SYS] VMEM create: ", km::Hex(createInfo.Size), " (", km::Hex(createInfo.Access), ")\n");
-
     sys::InvokeContext invoke { system->sys, sys::GetCurrentProcess() };
     void *vaddr = nullptr;
     if (OsStatus status = sys::SysVmemCreate(&invoke, createInfo, &vaddr)) {

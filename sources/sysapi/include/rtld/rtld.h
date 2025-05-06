@@ -12,9 +12,6 @@ struct RtldStartInfo {
 
     /// @brief The process to setup.
     OsProcessHandle Process;
-
-    /// @brief The name of the program.
-    OsUtf8Char ProgramName[OS_DEVICE_NAME_MAX];
 };
 
 struct RtldTlsInitInfo {

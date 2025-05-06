@@ -125,6 +125,8 @@ typedef uint32_t OsVersionTag;
 
 #define OS_HANDLE_INVALID ((OsHandle)(0))
 
+#define OS_OBJECT_INVALID ((OsObject)(0))
+
 enum {
     eOsHandleUnknown      = UINT8_C(0x0),
 

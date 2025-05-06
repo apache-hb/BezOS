@@ -6,6 +6,12 @@ project('system', 'cpp',
     ]
 )
 
+add_project_arguments(
+    '-ffile-prefix-map=' + meson.current_source_dir() + '=/',
+    '-ffile-prefix-map=../../../=/',
+    language : [ 'c', 'cpp' ]
+)
+
 cpp = meson.get_compiler('cpp')
 flanterm = dependency('flanterm')
 tlsf = dependency('tlsf')

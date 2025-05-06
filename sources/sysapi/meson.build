@@ -15,6 +15,12 @@ sysapi_dep = declare_dependency(
 )
 
 add_project_arguments(
+    '-ffile-prefix-map=' + meson.current_source_dir() + '=/',
+    '-ffile-prefix-map=../../../=/',
+    language : [ 'c', 'cpp' ]
+)
+
+add_project_arguments(
     '-Wno-c99-extensions',
     '-Wno-missing-designated-field-initializers',
     language : 'cpp'

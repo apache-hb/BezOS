@@ -1028,27 +1028,6 @@ static std::tuple<std::optional<HypervisorInfo>, bool> QueryHostHypervisor() {
     return std::make_tuple(hvInfo, hasDebugPort);
 }
 
-static void AddHandleSystemCalls() {
-#if 0
-    AddSystemCall(eOsCallHandleWait, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
-        uint64_t userHandle = regs->arg0;
-        uint64_t userTimeout = regs->arg1;
-        Thread *thread = context->thread();
-
-        BaseObject *object = gSystemObjects->getHandle(userHandle);
-        if (object == nullptr) {
-            return CallError(OsStatusInvalidHandle);
-        }
-
-        if (OsStatus status = thread->waitOnHandle(object, userTimeout)) {
-            return CallError(status);
-        }
-
-        return CallOk(0zu);
-    });
-#endif
-}
-
 static void AddDebugSystemCalls() {
     AddSystemCall(eOsCallDebugMessage, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         uint64_t userMessage = regs->arg0;
@@ -1109,6 +1088,33 @@ static km::System GetSystem() {
         .clock = &gClock,
         .sys = gSysSystem,
     };
+}
+
+static void AddHandleSystemCalls() {
+    AddSystemCall(eOsCallHandleClose, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        km::System system = GetSystem();
+        return um::HandleClose(&system, context, regs);
+    });
+
+    AddSystemCall(eOsCallHandleClone, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        km::System system = GetSystem();
+        return um::HandleClone(&system, context, regs);
+    });
+
+    AddSystemCall(eOsCallHandleWait, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        km::System system = GetSystem();
+        return um::HandleWait(&system, context, regs);
+    });
+
+    AddSystemCall(eOsCallHandleStat, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        km::System system = GetSystem();
+        return um::HandleStat(&system, context, regs);
+    });
+
+    AddSystemCall(eOsCallHandleOpen, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
+        km::System system = GetSystem();
+        return um::HandleOpen(&system, context, regs);
+    });
 }
 
 static void AddDeviceSystemCalls() {

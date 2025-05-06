@@ -163,8 +163,11 @@ OsStatus sys::Thread::resume() {
 }
 
 OsStatus sys::Thread::destroy(System *system, OsThreadState reason) {
-    if (OsStatus status = system->releaseStack(mKernelStack)) {
-        return status;
+    if (!mKernelStack.stack.virtualRangeEx().contains(__builtin_frame_address(0))) {
+        // TODO: this leaks memory, but we can't free the kernel stack if we are actually using it.
+        if (OsStatus status = system->releaseStack(mKernelStack)) {
+            return status;
+        }
     }
 
     if (auto process = mProcess.lock()) {

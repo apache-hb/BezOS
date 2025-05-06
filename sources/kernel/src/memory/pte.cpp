@@ -777,6 +777,11 @@ OsStatus PageTables::unmap(VirtualRange range) {
 
     stdx::LockGuard guard(mLock);
 
+    if (range.contains((void*)this) || range.contains(__builtin_frame_address(0))) {
+        KmDebugMessage("Attempting to unmap myself: ", range.front, " - ", range.back, "\n");
+        KM_PANIC("Attempting to unmap myself.");
+    }
+
     if (OsStatus status = earlyUnmap(range, &range)) {
         return status;
     }

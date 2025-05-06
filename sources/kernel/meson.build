@@ -236,8 +236,9 @@ src = [
     # Userspace
     'src/user/user.cpp',
     'src/user/sysapi/clock.cpp',
-    'src/user/sysapi/node.cpp',
     'src/user/sysapi/device.cpp',
+    'src/user/sysapi/handle.cpp',
+    'src/user/sysapi/node.cpp',
     'src/user/sysapi/process.cpp',
     'src/user/sysapi/vmem.cpp',
     'src/user/sysapi/thread.cpp',
