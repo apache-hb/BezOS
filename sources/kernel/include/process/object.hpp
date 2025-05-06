@@ -4,7 +4,6 @@
 #include <bezos/facility/thread.h>
 
 #include "std/shared_spinlock.hpp"
-#include "std/spinlock.hpp"
 #include "std/static_string.hpp"
 #include "std/string.hpp"
 

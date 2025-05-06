@@ -164,7 +164,7 @@ struct OsNodeInfo {
 /// Open a vnode in the filesystem, later this vnode can be queried for interfaces.
 ///
 /// @param CreateInfo The create information for the vnode.
-/// @param OutHandle The vnode handle.
+/// @param[out] OutHandle The vnode handle.
 ///
 /// @return The status of the operation.
 extern OsStatus OsNodeOpen(struct OsNodeCreateInfo CreateInfo, OsNodeHandle *OutHandle);
@@ -186,7 +186,7 @@ extern OsStatus OsNodeClose(OsNodeHandle Handle);
 ///
 /// @param Handle The vnode handle to query the interface on.
 /// @param Query The query information for the interface.
-/// @param OutHandle The device handle.
+/// @param[out] OutHandle The device handle.
 ///
 /// @return The status of the operation.
 extern OsStatus OsNodeQueryInterface(OsNodeHandle Handle, struct OsNodeQueryInterfaceInfo Query, OsDeviceHandle *OutHandle);
@@ -196,7 +196,7 @@ extern OsStatus OsNodeQueryInterface(OsNodeHandle Handle, struct OsNodeQueryInte
 /// Queries information about a vnode, this can be used to get the name of the vnode.
 ///
 /// @param Handle The vnode handle to query.
-/// @param OutInfo The information about the vnode.
+/// @param[out] OutInfo The information about the vnode.
 ///
 /// @return The status of the operation.
 extern OsStatus OsNodeStat(OsNodeHandle Handle, struct OsNodeInfo *OutInfo);

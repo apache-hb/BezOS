@@ -104,7 +104,7 @@ struct OsVmemCreateInfo {
 /// @brief Extend the address space of a process.
 ///
 /// @param CreateInfo The create information for the address space.
-/// @param OutBase The base address of the address space.
+/// @param[out] OutBase The base address of the address space.
 ///
 /// @return The status of the operation.
 extern OsStatus OsVmemCreate(struct OsVmemCreateInfo CreateInfo, OsAnyPointer *OutBase);
@@ -112,7 +112,7 @@ extern OsStatus OsVmemCreate(struct OsVmemCreateInfo CreateInfo, OsAnyPointer *O
 /// @brief Alias memory from one objects address space to another.
 ///
 /// @param MapInfo The mapping information.
-/// @param OutBase The base address of the mapped memory.
+/// @param[out] OutBase The base address of the mapped memory.
 ///
 /// @return The status of the operation.
 extern OsStatus OsVmemMap(struct OsVmemMapInfo MapInfo, OsAnyPointer *OutBase);

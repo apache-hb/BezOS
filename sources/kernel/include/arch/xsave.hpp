@@ -49,16 +49,24 @@ namespace x64 {
     };
 
     template<typename... A> requires ((std::same_as<A, XSaveFeature> && ...) && sizeof...(A) > 0)
-    static constexpr uint64_t XSaveMask(A&&... args) noexcept {
+    constexpr uint64_t XSaveMask(A&&... args) noexcept {
         return ((UINT64_C(1) << std::to_underlying(args)) | ...);
     }
 
-    static constexpr uint64_t kSaveMpx = XSaveMask(BNDREG, BNDCSR);
-    static constexpr uint64_t kSaveAvx512 = XSaveMask(OPMASK, ZMM_HI256, HI16_ZMM);
-    static constexpr uint64_t kSaveCet = XSaveMask(CET_U, CET_S);
-    static constexpr uint64_t kSaveAmx = XSaveMask(TILECFG, TILEDATA);
+    /// @brief XSAVE feature mask for MPX support.
+    constexpr uint64_t kSaveMpx = XSaveMask(BNDREG, BNDCSR);
 
-    static constexpr uint64_t kXcr0Mask = XSaveMask(
+    /// @brief XSAVE feature mask for AVX-512 support.
+    constexpr uint64_t kSaveAvx512 = XSaveMask(OPMASK, ZMM_HI256, HI16_ZMM);
+
+    /// @brief XSAVE feature mask for CET support.
+    constexpr uint64_t kSaveCet = XSaveMask(CET_U, CET_S);
+
+    /// @brief XSAVE feature mask for AMX support.
+    constexpr uint64_t kSaveAmx = XSaveMask(TILECFG, TILEDATA);
+
+    /// @brief All XSAVE features that are configured in the XCR0 register.
+    constexpr uint64_t kXcr0Mask = XSaveMask(
         FPU, SSE, AVX,
         BNDREG, BNDCSR,
         OPMASK, ZMM_HI256, HI16_ZMM,
@@ -67,7 +75,8 @@ namespace x64 {
         APX
     );
 
-    static constexpr uint64_t kXssMask = XSaveMask(
+    /// @brief All XSAVE features that are configured in the IA32_XSS msr.
+    constexpr uint64_t kXssMask = XSaveMask(
         PT,
         PASID,
         CET_U, CET_S,

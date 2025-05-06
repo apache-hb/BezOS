@@ -37,14 +37,14 @@ extern OsStatus OsClockGetTime(OsInstant *OutTime);
 ///
 /// @note Garanteed to be monotonically increasing.
 ///
-/// @param OutTicks The current number of ticks of the system clock.
+/// @param[out] OutTicks The current number of ticks of the system clock.
 ///
 /// @return The status of the operation.
 extern OsStatus OsClockGetTicks(OsTickCounter *OutTicks);
 
 /// @brief Get information about the system time source.
 ///
-/// @param OutInfo The information about the system clock.
+/// @param[out] OutInfo The information about the system clock.
 ///
 /// @return The status of the operation.
 extern OsStatus OsClockStat(struct OsClockInfo *OutInfo);

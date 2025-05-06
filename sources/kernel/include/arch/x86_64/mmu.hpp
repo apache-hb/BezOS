@@ -9,14 +9,11 @@ namespace arch {
         uintptr_t mVaddrBitWidth;
         uintptr_t mPaddrBitWidth;
     public:
-        MmuX86_64(
-            uintptr_t vaddrBitWidth,
-            uintptr_t paddrBitWidth
-        ) noexcept
+        MmuX86_64(uintptr_t vaddrBitWidth, uintptr_t paddrBitWidth) noexcept
             : mVaddrBitWidth(vaddrBitWidth)
             , mPaddrBitWidth(paddrBitWidth)
-        {
-        }
+        { }
+
         // GenericMmu - begin
 
         constexpr void enumPageSizes(uintptr_t *sizes, size_t *count) const noexcept {

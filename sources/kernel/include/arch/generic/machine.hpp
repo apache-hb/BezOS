@@ -19,11 +19,13 @@ namespace arch {
         [[gnu::error("getBrandString not implemented by platform")]]
         constexpr BrandString getBrandString() const noexcept;
 
+#if 0
         [[gnu::error("getCpuBrandString not implemented by platform")]]
         constexpr BrandString getCpuBrandString() const noexcept;
 
         [[gnu::error("getFpuBrandString not implemented by platform")]]
         constexpr BrandString getFpuBrandString() const noexcept;
+#endif
 
         [[gnu::error("isHypervisorPresent not implemented by platform")]]
         constexpr bool isHypervisorPresent() const noexcept;

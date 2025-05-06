@@ -78,6 +78,7 @@ namespace arch {
             return mBrand;
         }
 
+#if 0
         constexpr BrandString getCpuBrandString() const noexcept {
             return getBrandString();
         }
@@ -85,6 +86,7 @@ namespace arch {
         constexpr BrandString getFpuBrandString() const noexcept {
             return "Integrated FPU";
         }
+#endif
 
         constexpr bool isHypervisorPresent() const noexcept {
             static constexpr uint32_t kHypervisorBit = (1 << 31);
@@ -128,6 +130,18 @@ namespace arch {
 
         constexpr bool hasExtendedLeaf(uint32_t leaf) const noexcept {
             return getMaxExtendedLeaf() >= leaf;
+        }
+
+        constexpr bool isKvm() const noexcept {
+            return getHypervisorName() == kKvmVendor;
+        }
+
+        constexpr bool isQemuTcg() const noexcept {
+            return getHypervisorName() == kQemuTcgVendor;
+        }
+
+        constexpr bool isMicrosoftHv() const noexcept {
+            return getHypervisorName() == kMicrosoftHvVendor;
         }
 
         // MachineX86_64 - end

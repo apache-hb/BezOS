@@ -98,7 +98,7 @@ struct OsDeviceInfo {
 /// @param CreateInfo The create information for the device.
 /// @param Data Data to pass to the device during creation.
 /// @param DataSize The size of the data to pass to the device creation.
-/// @param OutHandle The device handle.
+/// @param[out] OutHandle The device handle.
 ///
 /// @return The status of the operation.
 extern OsStatus OsDeviceOpen(struct OsDeviceCreateInfo CreateInfo, OsDeviceHandle *OutHandle);
@@ -116,7 +116,7 @@ extern OsStatus OsDeviceClose(OsDeviceHandle Handle);
 ///
 /// @param Handle The device handle to read from.
 /// @param Request The read request.
-/// @param OutRead The number of bytes read.
+/// @param[out] OutRead The number of bytes read.
 ///
 /// @return The status of the operation.
 extern OsStatus OsDeviceRead(OsDeviceHandle Handle, struct OsDeviceReadRequest Request, OsSize *OutRead);
@@ -125,7 +125,7 @@ extern OsStatus OsDeviceRead(OsDeviceHandle Handle, struct OsDeviceReadRequest R
 ///
 /// @param Handle The device handle to write to.
 /// @param Request The write request.
-/// @param OutWritten The number of bytes written.
+/// @param[out] OutWritten The number of bytes written.
 ///
 /// @return The status of the operation.
 extern OsStatus OsDeviceWrite(OsDeviceHandle Handle, struct OsDeviceWriteRequest Request, OsSize *OutWritten);
@@ -145,7 +145,7 @@ extern OsStatus OsDeviceInvoke(OsDeviceHandle Handle, uint64_t Function, void *D
 /// Queries information about a device, this can be used to get the node associated with the device.
 ///
 /// @param Handle The device handle to query.
-/// @param OutInfo The information about the device.
+/// @param[out] OutInfo The information about the device.
 ///
 /// @return The status of the operation.
 extern OsStatus OsDeviceStat(OsDeviceHandle Handle, struct OsDeviceInfo *OutInfo);

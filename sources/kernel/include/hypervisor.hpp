@@ -1,6 +1,6 @@
 #pragma once
 
-#include "pci/pci.hpp"
+#include "pci/vendor.hpp"
 #include "std/static_string.hpp"
 
 #include "units.hpp"

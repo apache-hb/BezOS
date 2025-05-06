@@ -51,7 +51,7 @@ extern OsStatus OsHandleWait(OsHandle Handle, OsInstant Timeout);
 ///
 /// @param Handle The handle to clone.
 /// @param CloneInfo The information for the clone.
-/// @param OutHandle The new handle.
+/// @param[out] OutHandle The new handle.
 ///
 /// @return The status of the operation.
 extern OsStatus OsHandleClone(OsHandle Handle, struct OsHandleCloneInfo CloneInfo, OsHandle *OutHandle);
@@ -59,6 +59,15 @@ extern OsStatus OsHandleClone(OsHandle Handle, struct OsHandleCloneInfo CloneInf
 extern OsStatus OsHandleClose(OsHandle Handle);
 
 extern OsStatus OsHandleStat(OsHandle Handle, struct OsHandleInfo *OutInfo);
+
+/// @brief Open a handle to an object reference.
+///
+/// @param Object The object to open.
+/// @param Access The access rights to open the handle with.
+/// @param[out] OutHandle The handle to the object.
+///
+/// @return The status of the operation.
+extern OsStatus OsHandleOpen(OsObject Object, OsHandleAccess Access, OsHandle *OutHandle);
 
 #ifdef __cplusplus
 }

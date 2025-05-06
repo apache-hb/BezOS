@@ -43,6 +43,8 @@ common_args = [
     '-fno-omit-frame-pointer',
     '-Wthread-safety',
     '-Wfunction-effects',
+    '-Wmove',
+    '-Wconsumed',
     '-D_LIBCPP_VERBOSE_ABORT(...)=(__builtin_abort())',
 ]
 
@@ -523,6 +525,7 @@ testcases = {
     'framebuffer': [ 'test/display.cpp', 'src/canvas.cpp', ],
     'crt': [ 'test/crt.cpp', 'src/crt.cpp', ],
     'serial': [ 'test/serial.cpp', 'src/uart.cpp', ],
+    'ipl': [ 'test/ipl.cpp' ],
     'range allocator': [
         'test/memory/range_allocator.cpp',
     ],

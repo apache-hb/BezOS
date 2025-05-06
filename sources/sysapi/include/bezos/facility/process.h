@@ -156,7 +156,7 @@ struct OsProcessInfo {
 /// @pre @p OutHandle must be a valid pointer
 ///
 /// @param Access The access rights to grant to the handle.
-/// @param OutHandle The handle to the current process.
+/// @param[out] OutHandle The handle to the current process.
 ///
 /// @return The status of the operation.
 extern OsStatus OsProcessCurrent(OsHandleAccess Access, OsProcessHandle *OutHandle);
@@ -169,7 +169,7 @@ extern OsStatus OsProcessCurrent(OsHandleAccess Access, OsProcessHandle *OutHand
 /// @note The returned handle is granted @a eOsProcessAccessAll access to the process object.
 ///
 /// @param CreateInfo The parameters to use when creating the process.
-/// @param OutHandle The handle to the new process object.
+/// @param[out] OutHandle The handle to the new process object.
 ///
 /// @return An error code indicating the result of the operation.
 extern OsStatus OsProcessCreate(struct OsProcessCreateInfo CreateInfo, OsProcessHandle *OutHandle);
