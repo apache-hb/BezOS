@@ -209,7 +209,7 @@ static OsStatus RtldMapProgram(OsDeviceHandle file, OsProcessHandle process, uin
     void *elfPhMappingBase = nullptr;
     OsVmemMapInfo mapInfo {
         .SrcAddress = sm::rounddown(header.phoff, UINT64_C(0x1000)),
-        .Size = OsSize(header.phnum * header.phentsize),
+        .Size = sm::roundup(OsSize(header.phnum * header.phentsize) + (header.phoff % 0x1000), UINT64_C(0x1000)),
         .Access = eOsMemoryRead,
         .Source = file,
     };
@@ -237,6 +237,7 @@ static OsStatus RtldMapProgram(OsDeviceHandle file, OsProcessHandle process, uin
         DebugLog("Loading program header");
         DebugLog((uint32_t)ph.type);
         DebugLog(ph.flags);
+        DebugLog(ph.align);
 
         if (ph.type != elf::ProgramHeaderType::eLoad) {
             continue;
