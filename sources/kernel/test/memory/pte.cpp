@@ -7,6 +7,8 @@
 #include "arch/paging.hpp"
 #include "setup.hpp"
 
+#include "common/compiler/compiler.hpp"
+
 using namespace km;
 
 static constexpr size_t kSize = 0x10000;
@@ -37,7 +39,10 @@ public:
     }
 
     void deallocate(void *ptr, size_t size) noexcept [[clang::nonallocating]] override {
+        CLANG_DIAGNOSTIC_PUSH();
+        CLANG_DIAGNOSTIC_IGNORE("-Wfunction-effects");
         mResource.deallocate(ptr, size);
+        CLANG_DIAGNOSTIC_POP();
     }
 };
 

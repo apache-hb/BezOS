@@ -1,6 +1,9 @@
 #pragma once
 
 #include "util/util.hpp"
+
+#include "common/compiler/compiler.hpp"
+
 namespace km {
     /// @brief Interrupt Priority Level
     enum class Ipl {
@@ -40,7 +43,10 @@ namespace km {
     IplTag<To> LowerIpl(IplTag<From>&& from);
 
     template<Ipl Level>
-    class [[clang::consumable(unconsumed)]] IplTag {
+    void ReleaseIpl(IplTag<Level>&& tag) noexcept [[clang::nonblocking]];
+
+    template<Ipl Level>
+    class [[clang::consumable(unconsumed), nodiscard]] IplTag {
         friend IplTag<Level> EnforceIpl<Level>();
 
         template<Ipl To, Ipl From>
@@ -49,8 +55,12 @@ namespace km {
         template<Ipl To, Ipl From>
         friend IplTag<To> LowerIpl(IplTag<From>&& from);
 
+        friend void ReleaseIpl<Level>(IplTag<Level>&& tag) noexcept [[clang::nonblocking]];
+
+        [[clang::return_typestate(unconsumed)]]
         constexpr IplTag(sm::init) noexcept {}
 
+        [[clang::return_typestate(unconsumed)]]
         static IplTag unchecked() noexcept {
             return IplTag{sm::init{}};
         }
@@ -60,8 +70,11 @@ namespace km {
         constexpr IplTag& operator=(const IplTag&) = delete;
         constexpr IplTag& operator=(IplTag&&) = delete;
 
-        [[clang::callable_when(unconsumed), clang::set_typestate(consumed)]]
-        constexpr IplTag(IplTag&&) = default;
+        constexpr IplTag(IplTag&& other [[clang::return_typestate(consumed)]]) noexcept = default;
+
+        /// @note Destructor is non-trivial to workaround clang bug https://github.com/llvm/llvm-project/issues/138890
+        [[clang::callable_when(consumed)]]
+        constexpr ~IplTag() noexcept { }
 
         template<Ipl Next> requires (Level >= Next)
         [[clang::callable_when(unconsumed)]]
@@ -89,5 +102,16 @@ namespace km {
     IplTag<To> LowerIpl(IplTag<From>&&) {
         detail::LowerIpl(From, To);
         return IplTag<To>::unchecked();
+    }
+
+    template<Ipl Level>
+    void ReleaseIpl(IplTag<Level>&& tag) noexcept [[clang::nonblocking]] {
+        CLANG_DIAGNOSTIC_PUSH();
+        CLANG_DIAGNOSTIC_IGNORE("-Wconsumed");
+        CLANG_DIAGNOSTIC_IGNORE("-Wunused-result");
+
+        std::move(tag);
+
+        CLANG_DIAGNOSTIC_POP();
     }
 }
