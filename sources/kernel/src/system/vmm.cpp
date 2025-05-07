@@ -680,12 +680,18 @@ sys::AddressSpaceManagerStats sys::AddressSpaceManager::stats() noexcept [[clang
 
 OsStatus sys::AddressSpaceManager::create(const km::PageBuilder *pm, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager) [[clang::allocating]] {
     km::TlsfHeap heap;
+    km::PageTables pt;
     km::MemoryRange range { (uintptr_t)vmem.front, (uintptr_t)vmem.back };
+
+    if (OsStatus status = km::PageTables::create(pm, pteMemory, flags, &pt)) {
+        return status;
+    }
+
     if (OsStatus status = km::TlsfHeap::create(range, &heap)) {
         return status;
     }
 
-    *manager = sys::AddressSpaceManager(pm, pteMemory, flags, std::move(heap));
+    *manager = sys::AddressSpaceManager(pteMemory, std::move(pt), std::move(heap));
     return OsStatusSuccess;
 }
 

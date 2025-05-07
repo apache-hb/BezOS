@@ -5,35 +5,43 @@
 #include "setup.hpp"
 #include "test/new_shim.hpp"
 
-class PtCommandListTest : public testing::Test {
+static constexpr size_t kPtCount = 1024;
+
+class PtCommandListConstructTest : public testing::Test {
 public:
     void SetUp() override {
         GetGlobalAllocator()->reset();
+        setup(kPtCount);
     }
+
+    void setup(size_t ptCount) {
+        pteMemory.reset(new x64::page[ptCount]);
+        km::AddressMapping pteMapping {
+            .vaddr = std::bit_cast<void*>(pteMemory.get()),
+            .paddr = std::bit_cast<km::PhysicalAddress>(pteMemory.get()),
+            .size = ptCount * sizeof(x64::page),
+        };
+        OsStatus status = km::PageTables::create(&pm, pteMapping, km::PageFlags::eUserAll, &pt);
+        ASSERT_EQ(status, OsStatusSuccess);
+    }
+
+    km::PageBuilder pm { 48, 48, km::GetDefaultPatLayout() };
+    std::unique_ptr<x64::page[]> pteMemory;
+    km::PageTables pt;
 };
 
-TEST_F(PtCommandListTest, Construct) {
-    km::PageBuilder pm { 48, 48, km::GetDefaultPatLayout() };
-    std::unique_ptr<x64::page[]> pteMemory(new x64::page[1024]);
-    km::AddressMapping pteMapping {
-        .vaddr = std::bit_cast<void*>(pteMemory.get()),
-        .paddr = std::bit_cast<km::PhysicalAddress>(pteMemory.get()),
-        .size = 1024 * sizeof(x64::page),
-    };
-    km::PageTables pt { &pm, pteMapping, km::PageFlags::eUserAll };
+TEST_F(PtCommandListConstructTest, Construct) {
     km::PageTableCommandList list { &pt };
 }
 
-TEST_F(PtCommandListTest, ValidateEmptyMapping) {
-    km::PageBuilder pm { 48, 48, km::GetDefaultPatLayout() };
-    std::unique_ptr<x64::page[]> pteMemory(new x64::page[1024]);
-    km::AddressMapping pteMapping {
-        .vaddr = std::bit_cast<void*>(pteMemory.get()),
-        .paddr = std::bit_cast<km::PhysicalAddress>(pteMemory.get()),
-        .size = 1024 * sizeof(x64::page),
-    };
-    km::PageTables pt { &pm, pteMapping, km::PageFlags::eUserAll };
+class PtCommandListTest : public PtCommandListConstructTest {
+public:
+    void SetUp() override {
+        PtCommandListConstructTest::SetUp();
+    }
+};
 
+TEST_F(PtCommandListTest, ValidateEmptyMapping) {
     auto stats0 = pt.TESTING_getPageTableAllocator().stats();
 
     km::AddressMapping mapping {
@@ -65,15 +73,6 @@ TEST_F(PtCommandListTest, ValidateEmptyMapping) {
 }
 
 TEST_F(PtCommandListTest, ValidateEmptyUnmap) {
-    km::PageBuilder pm { 48, 48, km::GetDefaultPatLayout() };
-    std::unique_ptr<x64::page[]> pteMemory(new x64::page[1024]);
-    km::AddressMapping pteMapping {
-        .vaddr = std::bit_cast<void*>(pteMemory.get()),
-        .paddr = std::bit_cast<km::PhysicalAddress>(pteMemory.get()),
-        .size = 1024 * sizeof(x64::page),
-    };
-    km::PageTables pt { &pm, pteMapping, km::PageFlags::eUserAll };
-
     auto stats0 = pt.TESTING_getPageTableAllocator().stats();
 
     km::AddressMapping mapping {
@@ -105,15 +104,6 @@ TEST_F(PtCommandListTest, ValidateEmptyUnmap) {
 }
 
 TEST_F(PtCommandListTest, RecordMap) {
-    km::PageBuilder pm { 48, 48, km::GetDefaultPatLayout() };
-    std::unique_ptr<x64::page[]> pteMemory(new x64::page[1024]);
-    km::AddressMapping pteMapping {
-        .vaddr = std::bit_cast<void*>(pteMemory.get()),
-        .paddr = std::bit_cast<km::PhysicalAddress>(pteMemory.get()),
-        .size = 1024 * sizeof(x64::page),
-    };
-    km::PageTables pt { &pm, pteMapping, km::PageFlags::eUserAll };
-
     auto stats0 = pt.TESTING_getPageTableAllocator().stats();
 
     km::AddressMapping mapping {
@@ -144,15 +134,6 @@ TEST_F(PtCommandListTest, RecordMap) {
 }
 
 TEST_F(PtCommandListTest, CommitMap) {
-    km::PageBuilder pm { 48, 48, km::GetDefaultPatLayout() };
-    std::unique_ptr<x64::page[]> pteMemory(new x64::page[1024]);
-    km::AddressMapping pteMapping {
-        .vaddr = std::bit_cast<void*>(pteMemory.get()),
-        .paddr = std::bit_cast<km::PhysicalAddress>(pteMemory.get()),
-        .size = 1024 * sizeof(x64::page),
-    };
-    km::PageTables pt { &pm, pteMapping, km::PageFlags::eUserAll };
-
     auto stats0 = pt.TESTING_getPageTableAllocator().stats();
 
     km::AddressMapping mapping {
@@ -184,15 +165,6 @@ TEST_F(PtCommandListTest, CommitMap) {
 }
 
 TEST_F(PtCommandListTest, CommitMapMany) {
-    km::PageBuilder pm { 48, 48, km::GetDefaultPatLayout() };
-    std::unique_ptr<x64::page[]> pteMemory(new x64::page[1024]);
-    km::AddressMapping pteMapping {
-        .vaddr = std::bit_cast<void*>(pteMemory.get()),
-        .paddr = std::bit_cast<km::PhysicalAddress>(pteMemory.get()),
-        .size = 1024 * sizeof(x64::page),
-    };
-    km::PageTables pt { &pm, pteMapping, km::PageFlags::eUserAll };
-
     auto stats0 = pt.TESTING_getPageTableAllocator().stats();
 
     km::PageTableCommandList list { &pt };
@@ -245,15 +217,7 @@ TEST_F(PtCommandListTest, CommitMapMany) {
 }
 
 TEST_F(PtCommandListTest, CommitMapManyPteOom) {
-    km::PageBuilder pm { 48, 48, km::GetDefaultPatLayout() };
-    size_t pteCount = 16;
-    std::unique_ptr<x64::page[]> pteMemory(new x64::page[pteCount]);
-    km::AddressMapping pteMapping {
-        .vaddr = std::bit_cast<void*>(pteMemory.get()),
-        .paddr = std::bit_cast<km::PhysicalAddress>(pteMemory.get()),
-        .size = pteCount * sizeof(x64::page),
-    };
-    km::PageTables pt { &pm, pteMapping, km::PageFlags::eUserAll };
+    setup(16);
 
     auto stats0 = pt.TESTING_getPageTableAllocator().stats();
 
@@ -340,16 +304,6 @@ TEST_F(PtCommandListTest, CommitMapManyPteOom) {
 }
 
 TEST_F(PtCommandListTest, CommitMapManyListOom) {
-    km::PageBuilder pm { 48, 48, km::GetDefaultPatLayout() };
-    size_t pteCount = 1024;
-    std::unique_ptr<x64::page[]> pteMemory(new x64::page[pteCount]);
-    km::AddressMapping pteMapping {
-        .vaddr = std::bit_cast<void*>(pteMemory.get()),
-        .paddr = std::bit_cast<km::PhysicalAddress>(pteMemory.get()),
-        .size = pteCount * sizeof(x64::page),
-    };
-    km::PageTables pt { &pm, pteMapping, km::PageFlags::eUserAll };
-
     auto stats0 = pt.TESTING_getPageTableAllocator().stats();
 
     km::PageTableCommandList list { &pt };
@@ -427,16 +381,6 @@ TEST_F(PtCommandListTest, CommitMapManyListOom) {
 }
 
 TEST_F(PtCommandListTest, RecordUnmap) {
-    km::PageBuilder pm { 48, 48, km::GetDefaultPatLayout() };
-    size_t pteCount = 1024;
-    std::unique_ptr<x64::page[]> pteMemory(new x64::page[pteCount]);
-    km::AddressMapping pteMapping {
-        .vaddr = std::bit_cast<void*>(pteMemory.get()),
-        .paddr = std::bit_cast<km::PhysicalAddress>(pteMemory.get()),
-        .size = pteCount * sizeof(x64::page),
-    };
-    km::PageTables pt { &pm, pteMapping, km::PageFlags::eUserAll };
-
     auto stats0 = pt.TESTING_getPageTableAllocator().stats();
 
     {
@@ -451,16 +395,6 @@ TEST_F(PtCommandListTest, RecordUnmap) {
 }
 
 TEST_F(PtCommandListTest, CommitUnmap) {
-    km::PageBuilder pm { 48, 48, km::GetDefaultPatLayout() };
-    size_t pteCount = 1024;
-    std::unique_ptr<x64::page[]> pteMemory(new x64::page[pteCount]);
-    km::AddressMapping pteMapping {
-        .vaddr = std::bit_cast<void*>(pteMemory.get()),
-        .paddr = std::bit_cast<km::PhysicalAddress>(pteMemory.get()),
-        .size = pteCount * sizeof(x64::page),
-    };
-    km::PageTables pt { &pm, pteMapping, km::PageFlags::eUserAll };
-
     km::AddressMapping mapping {
         .vaddr = (void*)0x1000,
         .paddr = 0x2000,

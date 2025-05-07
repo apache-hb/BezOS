@@ -98,25 +98,56 @@ bool km::detail::CanAllocateBlocks(const ControlBlock *head, size_t size) {
     return false;
 }
 
-km::PageTableAllocator::PageTableAllocator(VirtualRange memory, size_t blockSize)
+void km::PageTableAllocator::setHead(detail::ControlBlock *block) noexcept [[clang::nonblocking]] {
+    mHead = block;
+    if (mHead != nullptr) {
+        mHead->prev = nullptr;
+    }
+}
+
+constexpr bool VerifyMemoryRange(km::VirtualRangeEx memory, size_t blockSize) {
+    return (blockSize > 0) // The block size must be greater than 0.
+        && (memory.size() >= blockSize) // The memory range must be at least the size of a block.
+        && km::aligned(memory, blockSize) == memory; // The memory range must be aligned to the block size.
+}
+
+km::PageTableAllocator::PageTableAllocator(VirtualRangeEx memory, size_t blockSize, detail::ControlBlock *head) noexcept [[clang::nonblocking]]
     : mMemory(memory)
+    , mBlockSize(blockSize)
+    , mHead(head)
+{
+    *mHead = detail::ControlBlock {
+        .size = mMemory.size(),
+    };
+}
+
+km::PageTableAllocator::PageTableAllocator(VirtualRange memory, size_t blockSize)
+    : mMemory(memory.cast<sm::VirtualAddress>())
     , mBlockSize(blockSize)
     , mHead(nullptr)
 {
-    bool valid = (memory.size() >= mBlockSize)
-        && ((uintptr_t)memory.front % mBlockSize == 0)
-        && ((uintptr_t)memory.back % mBlockSize == 0);
+    bool valid = VerifyMemoryRange(mMemory, mBlockSize);
 
     if (!valid) {
         KmDebugMessage("PageTableAllocator: Memory range invalid. ", memory, "\n");
         KM_PANIC("PageTableAllocator: Memory range invalid.");
     }
 
-    mHead = (detail::ControlBlock*)mMemory.front;
+    mHead = std::bit_cast<detail::ControlBlock*>(mMemory.front);
 
     *mHead = detail::ControlBlock {
         .size = mMemory.size()
     };
+}
+
+OsStatus km::PageTableAllocator::create(VirtualRangeEx memory, size_t blockSize, PageTableAllocator *allocator) noexcept [[clang::allocating]] {
+    if (!VerifyMemoryRange(memory, blockSize)) {
+        return OsStatusInvalidInput;
+    }
+
+    detail::ControlBlock *head = std::bit_cast<detail::ControlBlock*>(memory.front);
+    *allocator = PageTableAllocator(memory, blockSize, head);
+    return OsStatusSuccess;
 }
 
 void *km::PageTableAllocator::allocate(size_t blocks) {
@@ -127,7 +158,9 @@ void *km::PageTableAllocator::allocate(size_t blocks) {
     //
     // If we failed to allocate we may yet still have enough memory, defragment and retry.
     //
+
     defragment();
+
     if (void *result = detail::AllocateBlock(*this, (blocks * mBlockSize))) {
         return result;
     }
@@ -237,7 +270,7 @@ void km::PageTableAllocator::defragment() noexcept [[clang::nonallocating]] {
     mHead = block;
 }
 
-km::PteAllocatorStats km::PageTableAllocator::stats() const noexcept [[clang::nonallocating]] {
+km::PteAllocatorStats km::PageTableAllocator::stats() const noexcept [[clang::nonblocking]] {
     PteAllocatorStats stats{};
 
     for (detail::ControlBlock *block = mHead; block != nullptr; block = block->next) {
@@ -249,4 +282,8 @@ km::PteAllocatorStats km::PageTableAllocator::stats() const noexcept [[clang::no
     }
 
     return stats;
+}
+
+bool km::PageTableAllocator::contains(sm::VirtualAddress ptr) const noexcept [[clang::nonblocking]] {
+    return mMemory.contains(ptr);
 }

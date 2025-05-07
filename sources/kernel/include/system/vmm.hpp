@@ -68,9 +68,9 @@ namespace sys {
             return mTable.segments();
         }
 
-        AddressSpaceManager(const km::PageBuilder *pm, km::AddressMapping pteMemory, km::PageFlags flags, km::TlsfHeap &&heap) noexcept
+        AddressSpaceManager(km::AddressMapping pteMemory, km::PageTables&& pt, km::TlsfHeap &&heap) noexcept
             : mPteMemory(pteMemory)
-            , mPageTables(pm, mPteMemory, flags)
+            , mPageTables(std::move(pt))
             , mHeap(std::move(heap))
         { }
 

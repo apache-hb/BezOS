@@ -7,7 +7,8 @@
 
 using namespace km;
 
-static constexpr size_t kSize = 0x10000;
+static constexpr size_t kCount = 16;
+static constexpr size_t kSize = kCount * x64::kPageSize;
 
 auto GetAllocatorMemory(size_t size = kSize) {
     auto deleter = [](uint8_t *ptr) {
@@ -184,26 +185,34 @@ TEST(TableAllocatorDetailTest, MergeBlocks) {
     ASSERT_EQ(head->next, nullptr);
 }
 
-TEST(TableAllocatorTest, Construct) {
+TEST(TableAllocatorConstructTest, Construct) {
     TestMemory memory = GetAllocatorMemory();
-    PageTableAllocator allocator { VirtualRange::of(memory.get(), kSize) };
+    PageTableAllocator allocator;
+    OsStatus status = PageTableAllocator::create(VirtualRangeEx::of(memory.get(), kSize), x64::kPageSize, &allocator);
+    ASSERT_EQ(status, OsStatusSuccess);
 }
 
-TEST(TableAllocatorTest, Allocate) {
-    TestMemory memory = GetAllocatorMemory();
-    PageTableAllocator allocator { VirtualRange::of(memory.get(), kSize) };
+class TableAllocatorTest : public testing::Test {
+public:
+    void SetUp() override {
+        memory = GetAllocatorMemory();
+        OsStatus status = PageTableAllocator::create(VirtualRangeEx::of(memory.get(), kSize), x64::kPageSize, &allocator);
+        ASSERT_EQ(status, OsStatusSuccess);
+    }
 
+    TestMemory memory;
+    PageTableAllocator allocator;
+};
+
+TEST_F(TableAllocatorTest, Allocate) {
     void *ptr = allocator.allocate(1);
     IsValidPtr(ptr);
 
     allocator.deallocate(ptr, 1);
 }
 
-TEST(TableAllocatorTest, AllocateMany) {
-    size_t count = 16;
-    size_t size = x64::kPageSize * count;
-    TestMemory memory = GetAllocatorMemory(size);
-    PageTableAllocator allocator { VirtualRange::of(memory.get(), kSize) };
+TEST_F(TableAllocatorTest, AllocateMany) {
+    size_t count = kCount;
 
     std::set<void*> ptrs;
     for (size_t i = 0; i < count; i++) {
@@ -237,12 +246,8 @@ TEST(TableAllocatorTest, AllocateMany) {
     }
 }
 
-TEST(TableAllocatorTest, AllocateOom) {
-    size_t count = 16;
-    size_t size = x64::kPageSize * count;
-    TestMemory memory = GetAllocatorMemory(size);
-    PageTableAllocator allocator { VirtualRange::of(memory.get(), kSize) };
-
+TEST_F(TableAllocatorTest, AllocateOom) {
+    size_t count = kCount;
     std::set<void*> ptrs;
     for (size_t i = 0; i < count; i++) {
         void *ptr = allocator.allocate(1);
@@ -263,12 +268,8 @@ TEST(TableAllocatorTest, AllocateOom) {
     }
 }
 
-TEST(TableAllocatorTest, AllocateSized) {
-    size_t count = 16;
-    size_t size = x64::kPageSize * count;
-    TestMemory memory = GetAllocatorMemory(size);
-    PageTableAllocator allocator { VirtualRange::of(memory.get(), kSize) };
-
+TEST_F(TableAllocatorTest, AllocateSized) {
+    size_t count = kCount;
     std::mt19937 gen { 0x1234 };
     std::uniform_int_distribution<size_t> dist { 1, 4 };
 
@@ -290,12 +291,8 @@ TEST(TableAllocatorTest, AllocateSized) {
     }
 }
 
-TEST(TableAllocatorTest, PartialDeallocate) {
-    size_t count = 16;
-    size_t size = x64::kPageSize * count;
-    TestMemory memory = GetAllocatorMemory(size);
-    PageTableAllocator allocator { VirtualRange::of(memory.get(), kSize) };
-
+TEST_F(TableAllocatorTest, PartialDeallocate) {
+    size_t count = kCount;
     void *ptr = allocator.allocate(4);
     IsValidPtr(ptr);
 
@@ -315,11 +312,8 @@ TEST(TableAllocatorTest, PartialDeallocate) {
     }
 }
 
-TEST(TableAllocateTest, Defragment) {
-    size_t count = 16;
-    size_t size = x64::kPageSize * count;
-    TestMemory memory = GetAllocatorMemory(size);
-    PageTableAllocator allocator { VirtualRange::of(memory.get(), kSize) };
+TEST_F(TableAllocatorTest, Defragment) {
+    size_t count = kCount;
 
     std::mt19937 gen { 0x1234 };
     std::uniform_int_distribution<size_t> dist { 1, 4 };
@@ -361,10 +355,7 @@ TEST(TableAllocateTest, Defragment) {
     IsValidPtr(ptr);
 }
 
-TEST(TableAllocatorTest, AllocateList) {
-    TestMemory memory = GetAllocatorMemory();
-    PageTableAllocator allocator { VirtualRange::of(memory.get(), kSize) };
-
+TEST_F(TableAllocatorTest, AllocateList) {
     detail::PageTableList list;
     size_t count = 8;
     ASSERT_TRUE(allocator.allocateList(count, &list));
@@ -376,12 +367,8 @@ TEST(TableAllocatorTest, AllocateList) {
     }
 }
 
-TEST(TableAllocatorTest, AllocateListFull) {
-    constexpr size_t kBlockCount = 16;
-    constexpr size_t kMemorySize = kBlockCount * x64::kPageSize;
-    TestMemory memory = GetAllocatorMemory(kMemorySize);
-    PageTableAllocator allocator { VirtualRange::of(memory.get(), kMemorySize) };
-
+TEST_F(TableAllocatorTest, AllocateListFull) {
+    constexpr size_t kBlockCount = kCount;
     detail::PageTableList list;
     size_t count = kBlockCount;
     ASSERT_TRUE(allocator.allocateList(count, &list));
@@ -393,12 +380,7 @@ TEST(TableAllocatorTest, AllocateListFull) {
     }
 }
 
-TEST(TableAllocatorTest, CanAllocateBlocksFalse) {
-    constexpr size_t kBlockCount = 16;
-    constexpr size_t kMemorySize = kBlockCount * x64::kPageSize;
-    TestMemory memory = GetAllocatorMemory(kMemorySize);
-    PageTableAllocator allocator { VirtualRange::of(memory.get(), kMemorySize) };
-
+TEST_F(TableAllocatorTest, CanAllocateBlocksFalse) {
     ASSERT_FALSE(detail::CanAllocateBlocks(allocator.TESTING_getHead(), 32 * x64::kPageSize));
 
     // failed allocation doesnt leak memory
@@ -419,12 +401,7 @@ TEST(TableAllocatorTest, CanAllocateBlocksFalse) {
     }
 }
 
-TEST(TableAllocatorTest, AllocateListFails) {
-    constexpr size_t kBlockCount = 16;
-    constexpr size_t kMemorySize = kBlockCount * x64::kPageSize;
-    TestMemory memory = GetAllocatorMemory(kMemorySize);
-    PageTableAllocator allocator { VirtualRange::of(memory.get(), kMemorySize) };
-
+TEST_F(TableAllocatorTest, AllocateListFails) {
     // failed allocation doesnt leak memory
     {
         detail::PageTableList list;
@@ -443,12 +420,8 @@ TEST(TableAllocatorTest, AllocateListFails) {
     }
 }
 
-TEST(TableAllocatorTest, AllocateListFragmented) {
-    constexpr size_t kBlockCount = 16;
-    constexpr size_t kMemorySize = kBlockCount * x64::kPageSize;
-    TestMemory memory = GetAllocatorMemory(kMemorySize);
-    PageTableAllocator allocator { VirtualRange::of(memory.get(), kMemorySize) };
-
+TEST_F(TableAllocatorTest, AllocateListFragmented) {
+    constexpr size_t kBlockCount = kCount;
     void *blocks[kBlockCount]{};
     for (size_t i = 0; i < kBlockCount; i++) {
         blocks[i] = allocator.allocate(1);
@@ -474,12 +447,8 @@ TEST(TableAllocatorTest, AllocateListFragmented) {
     }
 }
 
-TEST(TableAllocatorTest, AllocateListFragmented2) {
-    constexpr size_t kBlockCount = 16;
-    constexpr size_t kMemorySize = kBlockCount * x64::kPageSize;
-    TestMemory memory = GetAllocatorMemory(kMemorySize);
-    PageTableAllocator allocator { VirtualRange::of(memory.get(), kMemorySize) };
-
+TEST_F(TableAllocatorTest, AllocateListFragmented2) {
+    constexpr size_t kBlockCount = kCount;
     void *blocks[kBlockCount]{};
     for (size_t i = 0; i < kBlockCount; i++) {
         blocks[i] = allocator.allocate(1);
@@ -515,11 +484,8 @@ TEST(TableAllocatorTest, AllocateListFragmented2) {
     }
 }
 
-TEST(TableAllocatorTest, AllocateListFragmented3) {
-    constexpr size_t kBlockCount = 16;
-    constexpr size_t kMemorySize = kBlockCount * x64::kPageSize;
-    TestMemory memory = GetAllocatorMemory(kMemorySize);
-    PageTableAllocator allocator { VirtualRange::of(memory.get(), kMemorySize) };
+TEST_F(TableAllocatorTest, AllocateListFragmented3) {
+    constexpr size_t kBlockCount = kCount;
 
     void *blocks[kBlockCount]{};
     for (size_t i = 0; i < kBlockCount; i++) {

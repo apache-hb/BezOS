@@ -30,20 +30,24 @@ void PageTables::setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddre
     entry.setPresent(true);
 }
 
-PageTables::PageTables(const PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags) noexcept
-    : mSlide(pteMemory.slide())
-    , mAllocator(pteMemory.virtualRange())
+PageTables::PageTables(const PageBuilder *pm, uintptr_t slide, PageTableAllocator&& allocator, x64::PageMapLevel4 *root, PageFlags middleFlags) noexcept [[clang::nonblocking]]
+    : mSlide(slide)
+    , mAllocator(std::move(allocator))
     , mPageManager(pm)
-    , mRootPageTable((x64::PageMapLevel4*)alloc4k())
+    , mRootPageTable(root)
     , mMiddleFlags(middleFlags)
 { }
 
 OsStatus PageTables::create(const PageBuilder *pm, AddressMapping pteMemory, PageFlags flags, PageTables *tables) [[clang::allocating]] {
-    if (pteMemory.size < x64::kPageSize) {
-        return OsStatusInvalidInput;
+    PageTableAllocator allocator;
+    if (OsStatus status = PageTableAllocator::create(pteMemory.virtualRangeEx(), x64::kPageSize, &allocator)) {
+        return status;
     }
 
-    *tables = PageTables(pm, pteMemory, flags);
+    x64::PageMapLevel4 *root = (x64::PageMapLevel4*)allocator.allocate(1);
+    KM_ASSERT(root != nullptr);
+
+    *tables = PageTables(pm, pteMemory.slide(), std::move(allocator), root, flags);
     return OsStatusSuccess;
 }
 

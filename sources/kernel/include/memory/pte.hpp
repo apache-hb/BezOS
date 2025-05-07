@@ -159,8 +159,9 @@ namespace km {
         void unmapWithList(VirtualRange range, detail::PageTableList& buffer) noexcept [[clang::nonallocating]];
         void unmapUnlocked(VirtualRange range) noexcept [[clang::nonallocating]];
 
+        PageTables(const PageBuilder *pm, uintptr_t slide, PageTableAllocator&& allocator, x64::PageMapLevel4 *root, PageFlags middleFlags) noexcept [[clang::nonblocking]];
     public:
-        constexpr PageTables() noexcept = default;
+        constexpr PageTables() noexcept [[clang::nonblocking]] = default;
 
         constexpr PageTables(PageTables&& other) noexcept
             : mSlide(other.mSlide)
@@ -178,8 +179,6 @@ namespace km {
             mMiddleFlags = other.mMiddleFlags;
             return *this;
         }
-
-        PageTables(const PageBuilder *pm, AddressMapping pteMemory, PageFlags middleFlags) noexcept;
 
         const PageBuilder *pageManager() const noexcept { return mPageManager; }
 
@@ -292,7 +291,7 @@ namespace km {
         OsStatus map(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
 
         [[nodiscard]]
-        static OsStatus create(const PageBuilder *pm, AddressMapping pteMemory, PageFlags flags, PageTables *tables) [[clang::allocating]];
+        static OsStatus create(const PageBuilder *pm, AddressMapping pteMemory, PageFlags flags, PageTables *tables [[gnu::nonnull]]) [[clang::allocating]];
 
 #if __STDC_HOSTED__
         PageTableAllocator& TESTING_getPageTableAllocator() {

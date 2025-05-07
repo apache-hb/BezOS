@@ -57,7 +57,11 @@ public:
     km::PageTables ptes(km::PageFlags flags = km::PageFlags::eAll, size_t size = (64 * x64::kPageSize)) {
         memory = GetAllocatorMemory(size);
         km::AddressMapping mapping { memory.get(), (uintptr_t)memory.get(), size };
-        return km::PageTables { &pm, mapping, flags };
+        km::PageTables result;
+        if (OsStatus status = km::PageTables::create(&pm, mapping, flags, &result)) {
+            throw std::runtime_error(std::format("Failed to create page tables: {}", status));
+        }
+        return result;
     }
 };
 

@@ -491,7 +491,11 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
         .size = kPtAllocSize
     };
 
-    PageTables vmm(&pm, pteMapping, PageFlags::eAll);
+    PageTables vmm;
+    if (OsStatus status = km::PageTables::create(&pm, pteMapping, PageFlags::eAll, &vmm)) {
+        KmDebugMessage("[INIT] Failed to create page tables: ", OsStatusId(status), "\n");
+        KM_PANIC("Failed to create page tables.");
+    }
 
     // initialize our own page tables and remap everything into it
     MapKernelRegions(vmm, layout);

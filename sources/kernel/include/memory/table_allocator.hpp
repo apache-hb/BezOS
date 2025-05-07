@@ -12,7 +12,7 @@ namespace km {
     namespace detail {
         void *AllocateBlock(PageTableAllocator& allocator, size_t size);
         bool CanAllocateBlocks(const ControlBlock *head, size_t size);
-        detail::PageTableList AllocateHead(PageTableAllocator& allocator, size_t *remaining);
+        detail::PageTableList AllocateHead(PageTableAllocator& allocator, size_t *remaining [[gnu::nonnull]]);
     }
 
     struct PteAllocatorStats {
@@ -30,25 +30,21 @@ namespace km {
     ///
     /// An allocator for page tables that allows partially freeing larger allocations.
     class PageTableAllocator {
-        VirtualRange mMemory;
-        size_t mBlockSize;
-        detail::ControlBlock *mHead;
+        VirtualRangeEx mMemory{};
+        size_t mBlockSize{x64::kPageSize};
+        detail::ControlBlock *mHead{nullptr};
 
         friend void *detail::AllocateBlock(PageTableAllocator& allocator, size_t blocks);
         friend detail::PageTableList detail::AllocateHead(PageTableAllocator& allocator, size_t *remaining);
 
-        void setHead(detail::ControlBlock *block) {
-            mHead = block;
-            if (mHead != nullptr) {
-                mHead->prev = nullptr;
-            }
-        }
+        void setHead(detail::ControlBlock *block) noexcept [[clang::nonblocking]];
+
+        PageTableAllocator(VirtualRangeEx memory, size_t blockSize, detail::ControlBlock *head [[gnu::nonnull]]) noexcept [[clang::nonblocking]];
+
     public:
-        constexpr PageTableAllocator()
-            : mMemory(VirtualRange{})
-            , mBlockSize(x64::kPageSize)
-            , mHead(nullptr)
-        { }
+        constexpr PageTableAllocator() noexcept [[clang::nonblocking]] = default;
+        UTIL_NOCOPY(PageTableAllocator);
+        UTIL_DEFAULT_MOVE(PageTableAllocator);
 
         PageTableAllocator(VirtualRange memory, size_t blockSize = x64::kPageSize);
 
@@ -77,11 +73,11 @@ namespace km {
 
         void defragment() noexcept [[clang::nonallocating]];
 
-        PteAllocatorStats stats() const noexcept [[clang::nonallocating]];
+        PteAllocatorStats stats() const noexcept [[clang::nonblocking]];
 
-        constexpr bool contains(const void *ptr) const noexcept [[clang::nonblocking]] {
-            return mMemory.contains(ptr);
-        }
+        bool contains(sm::VirtualAddress ptr) const noexcept [[clang::nonblocking]];
+
+        static OsStatus create(VirtualRangeEx memory, size_t blockSize, PageTableAllocator *allocator) noexcept [[clang::allocating]];
 
 #if __STDC_HOSTED__
         detail::ControlBlock *TESTING_getHead() {
