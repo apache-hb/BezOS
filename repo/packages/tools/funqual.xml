@@ -1,0 +1,15 @@
+<package name='funqual'>
+    <download name='funqual'
+              file='funqual-master.zip'
+              url='https://github.com/yabberyabber/funqual/archive/refs/heads/master.zip'
+              sha256='663e0fbc441dc2ff3af44078416f3f3f053f6c101eee6b10a115fcd0914485dd'
+              trim-root-folder='true'
+              archive='zip'
+              git='https://github.com/yabberyabber/funqual.git'
+              commit='master'>
+    </download>
+
+    <package name='funqual' from='funqual-master'>
+
+    </package>
+</package>

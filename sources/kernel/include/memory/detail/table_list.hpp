@@ -17,26 +17,26 @@ namespace km::detail {
     public:
         UTIL_NOCOPY(PageTableList);
 
-        PageTableList(PageTableList&& other) noexcept [[clang::nonallocating]]
+        PageTableList(PageTableList&& other) noexcept [[clang::nonblocking]]
             : mTable(std::exchange(other.mTable, nullptr))
         { }
 
-        PageTableList& operator=(PageTableList&& other) noexcept [[clang::nonallocating]] {
-            mTable = std::exchange(other.mTable, nullptr);
+        PageTableList& operator=(PageTableList&& other) noexcept [[clang::nonblocking]] {
+            std::swap(mTable, other.mTable);
             return *this;
         }
 
-        PageTableList() noexcept [[clang::nonallocating]] : mTable(nullptr) {}
+        PageTableList() noexcept [[clang::nonblocking]] : mTable(nullptr) {}
         PageTableList(x64::page *table [[gnu::nonnull]], size_t count) noexcept [[clang::nonallocating]];
 
-        void push(x64::page *page [[gnu::nonnull]]) noexcept [[clang::nonallocating]];
+        void push(x64::page *page [[gnu::nonnull]]) noexcept [[clang::nonblocking]];
         void push(x64::page *pages [[gnu::nonnull]], size_t count) noexcept [[clang::nonallocating]];
         void append(PageTableList list) noexcept [[clang::nonallocating]];
 
         [[gnu::returns_nonnull]]
-        x64::page *next() noexcept [[clang::nonallocating]];
+        x64::page *next() noexcept [[clang::nonblocking]];
 
-        x64::page *drain() noexcept [[clang::nonallocating]];
+        x64::page *drain() noexcept [[clang::nonblocking]];
 
         size_t count() const noexcept [[clang::nonallocating]];
     };

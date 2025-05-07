@@ -17,3 +17,11 @@ function disfn() {
     # Disassemble a function given an address inside it
     gdb -batch -ex "file $1" -ex "disassemble/rs $2"
 }
+
+function funqual() {
+    # env PYTHONPATH=$(pwd)/build/sources/llvm-project-src/clang/bindings/python3:$PYTHONPATH \
+    #     CLANG_LIBRARY_PATH=$($(pwd)/install/llvm/bin/llvm-config --libdir) \
+    $(pwd)/build/sources/funqual/funqual $@ \
+        --compile-commands $(pwd)/build/packages/kernel \
+        -t $(pwd)/sources/kernel/data/tools/funqual.qtag
+}

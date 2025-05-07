@@ -16,7 +16,7 @@ PageTableList::PageTableList(x64::page *tables, size_t count) noexcept [[clang::
     mTable = tables;
 }
 
-void PageTableList::push(x64::page *table) noexcept [[clang::nonallocating]] {
+void PageTableList::push(x64::page *table) noexcept [[clang::nonblocking]] {
     *(void**)(table) = mTable;
     mTable = table;
 }
@@ -35,7 +35,7 @@ void PageTableList::append(PageTableList list) noexcept [[clang::nonallocating]]
     }
 }
 
-x64::page *PageTableList::next() noexcept [[clang::nonallocating]] {
+x64::page *PageTableList::next() noexcept [[clang::nonblocking]] {
     KM_CHECK(mTable != nullptr, "PageTableList exhausted.");
 
     x64::page *it = mTable;
@@ -44,7 +44,7 @@ x64::page *PageTableList::next() noexcept [[clang::nonallocating]] {
     return it;
 }
 
-x64::page *PageTableList::drain() noexcept [[clang::nonallocating]] {
+x64::page *PageTableList::drain() noexcept [[clang::nonblocking]] {
     if (mTable == nullptr) {
         return nullptr;
     }

@@ -8,6 +8,8 @@
 #include "thread.hpp"
 #include "common/util/defer.hpp"
 
+#include "std/compiler.hpp"
+
 #include "timer/apic_timer.hpp"
 
 #include "allocator/synchronized.hpp"
@@ -44,7 +46,7 @@ void sys::SchedulerQueueTraits::free(void *ptr) {
     gSchedulerAllocator->deallocate(ptr, 0);
 }
 
-static bool ScheduleInner(km::IsrContext *context, km::IsrContext *newContext) {
+static bool ScheduleInner(km::IsrContext *context, km::IsrContext *newContext) REENTRANT {
     km::IApic *apic = km::GetCpuLocalApic();
     defer { apic->eoi(); };
 
@@ -61,7 +63,7 @@ static bool ScheduleInner(km::IsrContext *context, km::IsrContext *newContext) {
     return false;
 }
 
-static km::IsrContext ScheduleInt(km::IsrContext *context) {
+static km::IsrContext ScheduleInt(km::IsrContext *context) REENTRANT {
     km::IsrContext newContext;
     if (ScheduleInner(context, &newContext)) {
         return newContext;

@@ -74,7 +74,9 @@ bool sys::CpuLocalSchedule::startThread(sm::RcuSharedPtr<Thread> thread) {
         switch (expected) {
         case eOsThreadSuspended:
             // If the thread has been suspended or is waiting drop it from the scheduler.
+#if 0
             mGlobal->doSuspend(thread);
+#endif
             return false;
         case eOsThreadWaiting:
             // If the thread is waiting then drop it from the scheduler.
@@ -86,7 +88,6 @@ bool sys::CpuLocalSchedule::startThread(sm::RcuSharedPtr<Thread> thread) {
             return false;
 
         case eOsThreadQueued:
-            KM_PANIC("cmpxchg was not strong");
         case eOsThreadRunning:
             return true;
         default:
@@ -132,15 +133,13 @@ bool sys::CpuLocalSchedule::reschedule() {
                 continue;
             }
 
-            if (stopThread(mCurrent)) {
-                if (!mQueue.enqueue(ThreadSchedulingInfo { mCurrent })) {
-                    KmDebugMessage("[SCHED] Forgot thread ", mCurrent->getName(), " - ", km::GetCurrentCoreId(), "\n");
-                    KM_PANIC("Failed to enqueue thread");
-                }
+            if (mCurrent) {
+                stopThread(mCurrent);
+                KM_ASSERT(mQueue.enqueue(ThreadSchedulingInfo { mCurrent }));
             }
 
             mCurrent = thread;
-            return true;
+            break;
         }
     }
 
@@ -149,14 +148,15 @@ bool sys::CpuLocalSchedule::reschedule() {
     }
 
     if (startThread(mCurrent)) {
+        // If the thread is already running then we dont need to
+        // reschedule it.
         return true;
     }
 
-#if 0
-    if (stopThread(mCurrent)) {
-        mQueue.enqueue(ThreadSchedulingInfo { mCurrent });
-    }
-#endif
+    stopThread(mCurrent);
+    KM_ASSERT(mQueue.enqueue(ThreadSchedulingInfo { mCurrent }));
+
+    mCurrent = nullptr;
 
     return false;
 }
@@ -170,7 +170,9 @@ bool sys::CpuLocalSchedule::scheduleNextContext(km::IsrContext *context, km::Isr
 
     auto newThread = mCurrent;
 
-    if (newThread == oldThread) {
+    if (newThread == oldThread && newThread != nullptr) {
+        *next = *context;
+        *syscallStack = newThread->getKernelStack().baseAddress();
         return true;
     }
 
@@ -179,13 +181,15 @@ bool sys::CpuLocalSchedule::scheduleNextContext(km::IsrContext *context, km::Isr
         oldThread->saveState(oldRegs);
     }
 
+#if 0
     if (newThread == nullptr && oldThread != nullptr) {
-        KmDebugMessage("[SCHED] Dropping thread ", oldThread->getName(), " - ", km::GetCurrentCoreId(), "\n");
+        KmDebugMessageUnlocked("[SCHED] Dropping thread ", oldThread->getName(), " - ", km::GetCurrentCoreId(), "\n");
     } else if (newThread != nullptr && oldThread == nullptr) {
-        KmDebugMessage("[SCHED] Starting thread ", newThread->getName(), " - ", km::GetCurrentCoreId(), "\n");
+        KmDebugMessageUnlocked("[SCHED] Starting thread ", newThread->getName(), " - ", km::GetCurrentCoreId(), "\n");
     } else if (newThread != nullptr && oldThread != nullptr) {
-        KmDebugMessage("[SCHED] Switching from ", oldThread->getName(), " to ", newThread->getName(), " - ", km::GetCurrentCoreId(), "\n");
+        KmDebugMessageUnlocked("[SCHED] Switching from ", oldThread->getName(), " to ", newThread->getName(), " - ", km::GetCurrentCoreId(), "\n");
     }
+#endif
 
     auto newRegs = newThread->loadState();
     *next = LoadThreadContext(newRegs);

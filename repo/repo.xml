@@ -40,6 +40,12 @@
 
     <xi:include href='packages/lib/capstone.xml' />
 
+    <switch on='${mode}'>
+        <case it='debug'>
+            <xi:include href='packages/tools/funqual.xml' />
+        </case>
+    </switch>
+
     <xi:include href='packages/kernel.xml' />
 
     <artifact name='initrd'>

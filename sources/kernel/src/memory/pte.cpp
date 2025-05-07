@@ -16,9 +16,8 @@ x64::page *PageTables::alloc4k() [[clang::allocating]] {
     return it;
 }
 
-void PageTables::setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddress address) noexcept [[clang::nonallocating]] {
+void PageTables::setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddress address) noexcept [[clang::nonblocking]] {
     if (address > mPageManager->maxPhysicalAddress()) {
-        KmDebugMessage("Physical address out of range: ", address, " > ", mPageManager->maxPhysicalAddress(), "\n");
         KM_PANIC("Physical address out of range.");
     }
 

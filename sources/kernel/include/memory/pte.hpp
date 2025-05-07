@@ -69,7 +69,7 @@ namespace km {
             return asVirtual<U>(address);
         }
 
-        void setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddress address) noexcept [[clang::nonallocating]];
+        void setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddress address) noexcept [[clang::nonblocking]];
 
         x64::PageMapLevel3 *getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e, detail::PageTableList& buffer) noexcept [[clang::nonallocating]];
         x64::PageMapLevel2 *getPageMap2(x64::PageMapLevel3 *l3, uint16_t pdpte, detail::PageTableList& buffer) noexcept [[clang::nonallocating]];
