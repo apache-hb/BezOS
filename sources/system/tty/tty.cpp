@@ -289,13 +289,15 @@ OS_EXTERN
 void ClientStart(const struct OsClientStartInfo *) {
     free(malloc(1));
 
+    DebugLog("TTY0: Starting TTY0...");
+
     VtDisplay display{};
     KeyboardDevice keyboard{};
 
     OsHidEvent event{};
     char buffer[256]{};
 
-    DebugLog("TTY0: Starting TTY0...\n");
+    DebugLog("TTY0: Starting TTY0...");
 
     StreamDevice ttyin{OsMakePath("Devices\0Terminal\0TTY0\0Input")};
     StreamDevice ttyout{OsMakePath("Devices\0Terminal\0TTY0\0Output")};

@@ -55,9 +55,6 @@ namespace km {
         OsStatus unmap(VirtualRange range);
 
         [[nodiscard]]
-        OsStatus unmap(void *ptr, size_t size);
-
-        [[nodiscard]]
         void *map(MemoryRange range, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eWriteBack);
 
         [[nodiscard]]
@@ -73,11 +70,6 @@ namespace km {
 
         [[nodiscard]]
         OsStatus unmapStack(StackMapping mapping);
-
-        [[nodiscard]]
-        OsStatus reserve(AddressMapping mapping, PageFlags flags = PageFlags::eData, MemoryType type = MemoryType::eWriteBack);
-
-        OsStatus reserve(size_t size, VirtualRange *result);
 
         template<typename T> requires (std::is_standard_layout_v<T>)
         [[nodiscard]]

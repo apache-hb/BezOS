@@ -1,10 +1,12 @@
 #include "system/thread.hpp"
-#include "gdt.h"
-#include "system/process.hpp"
 
+#include "system/process.hpp"
 #include "system/system.hpp"
+
 #include "thread.hpp"
 #include "xsave.hpp"
+#include "gdt.h"
+
 #include <bezos/handle.h>
 
 static sys::RegisterSet MakeRegisterSet(OsMachineContext machine, bool supervisor) {
@@ -126,7 +128,7 @@ sys::Thread::Thread(OsThreadCreateInfo createInfo, sm::RcuWeakPtr<Process> proce
 }
 
 OsStatus sys::Thread::suspend() {
-    KmDebugMessage("[TASK] Suspending thread ", getName(), "\n");
+    KmDebugMessage("[TASK] Suspending thread ", mProcess.lock()->getName(), ":", getName(), "\n");
     OsThreadState expected = eOsThreadQueued;
     while (!cmpxchgState(expected, eOsThreadSuspended)) {
         switch (expected) {
@@ -145,7 +147,7 @@ OsStatus sys::Thread::suspend() {
 }
 
 OsStatus sys::Thread::resume() {
-    KmDebugMessage("[TASK] Resuming thread ", getName(), "\n");
+    KmDebugMessage("[TASK] Resuming thread ", mProcess.lock()->getName(), ":", getName(), "\n");
     OsThreadState expected = eOsThreadSuspended;
     while (!cmpxchgState(expected, eOsThreadQueued)) {
         switch (expected) {
@@ -162,13 +164,15 @@ OsStatus sys::Thread::resume() {
     return OsStatusSuccess;
 }
 
-OsStatus sys::Thread::destroy(System *system, OsThreadState reason) {
+OsStatus sys::Thread::destroy(System *, OsThreadState reason) {
+#if 0
     if (!mKernelStack.stack.virtualRangeEx().contains(__builtin_frame_address(0))) {
         // TODO: this leaks memory, but we can't free the kernel stack if we are actually using it.
         if (OsStatus status = system->releaseStack(mKernelStack)) {
             return status;
         }
     }
+#endif
 
     if (auto process = mProcess.lock()) {
         process->removeThread(loanShared());

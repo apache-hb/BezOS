@@ -49,10 +49,6 @@ OsStatus km::AddressSpace::unmap(VirtualRange range) {
     return OsStatusSuccess;
 }
 
-OsStatus km::AddressSpace::unmap(void *ptr, size_t size) {
-    return unmap(VirtualRange::of(ptr, size));
-}
-
 void *km::AddressSpace::mapGenericObject(MemoryRangeEx range, PageFlags flags, MemoryType type, TlsfAllocation *allocation) {
     uintptr_t offset = (range.front.address & 0xFFF);
     MemoryRangeEx aligned = alignedOut(range, x64::kPageSize);
@@ -166,24 +162,6 @@ OsStatus km::AddressSpace::unmapStack(StackMapping mapping) {
     mVmemHeap.free(results[2]);
 
     return OsStatusSuccess;
-}
-
-OsStatus km::AddressSpace::reserve(AddressMapping mapping, PageFlags flags, MemoryType type) {
-    TlsfAllocation allocation;
-    return map(mapping, flags, type, &allocation);
-}
-
-OsStatus km::AddressSpace::reserve(size_t size, VirtualRange *result) {
-#if 0
-    VirtualRange range = mVmemAllocator.allocate(km::Pages(size));
-    if (range.isEmpty()) {
-        return OsStatusOutOfMemory;
-    }
-
-    *result = range;
-    return OsStatusSuccess;
-#endif
-    return OsStatusNotSupported;
 }
 
 void km::AddressSpace::updateHigherHalfMappings(const PageTables *source) {

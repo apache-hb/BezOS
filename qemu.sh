@@ -53,6 +53,18 @@ if [ $? -eq 0 ]; then
     ARGS="$(echo $ARGS | sed s/\-events//)"
 fi
 
+# If smp is explicitly requested use the requested number of cpus
+echo $ARGS | grep -q "\-smp"
+if [ $? -eq 0 ]; then
+    # Get the number of cpus requested
+    CPUS=$(echo $ARGS | grep -o "\-smp\s[0-9]*" | awk '{print $2}')
+    ARGS="$(echo $ARGS | sed s/\-smp\s[0-9]*//)"
+    QEMUARGS="$QEMUARGS -smp $CPUS"
+else
+    # Otherwise use the default number of cpus
+    QEMUARGS="$QEMUARGS -smp 4"
+fi
+
 if [ "$MODE" = "ovmf" ]; then
     ARGS=$(echo $ARGS | sed s/ovmf//)
     repobld ovmf kernel || exit 1
@@ -72,7 +84,6 @@ elif [ "$MODE" = "numa" ]; then
         -object memory-backend-ram,size=1G,id=mem1 \
         -object memory-backend-ram,size=1G,id=mem2 \
         -object memory-backend-ram,size=1G,id=mem3 \
-        -smp cpus=16 \
         -numa node,cpus=0-3,nodeid=0,memdev=mem0 \
         -numa node,cpus=4-7,nodeid=1,memdev=mem1 \
         -numa node,cpus=8-11,nodeid=2,memdev=mem2 \
@@ -95,9 +106,10 @@ elif [ "$MODE" = "test" ]; then
     # that the guest can read data from.
     socat -d -d pty,link=/tmp/canbus,raw,echo=0 pty,link=/tmp/canbus.pty,raw,echo=0 &
 
-    qemu-system-x86_64 $QEMUARGS $(serial_chardev qemu-serial.txt) $(serial_canbus) -smp 4 $ARGS
+    qemu-system-x86_64 $QEMUARGS $(serial_chardev qemu-serial.txt) $(serial_canbus) $ARGS
 else
     repobld kernel || exit 1
 
-    qemu-system-x86_64 $QEMUARGS $(serial_chardev qemu-serial.txt) -smp 4 $ARGS
+    set -x
+    qemu-system-x86_64 $QEMUARGS $(serial_chardev qemu-serial.txt) $ARGS
 fi

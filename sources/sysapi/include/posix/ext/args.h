@@ -10,9 +10,9 @@ BZP_API_BEGIN
 OS_DEFINE_GUID(kPosixInitGuid, 0x91482170, 0x01a1, 0x11f0, 0x8fa3, 0x93bdf5cdf14b);
 
 struct OsPosixInitArgs {
-    OsDeviceObject StandardIn;
-    OsDeviceObject StandardOut;
-    OsDeviceObject StandardError;
+    OsNodeObject StandardIn;
+    OsNodeObject StandardOut;
+    OsNodeObject StandardError;
 };
 
 BZP_API_END

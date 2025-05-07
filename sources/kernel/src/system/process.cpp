@@ -163,6 +163,37 @@ void sys::Process::loadPageTables() {
     AddressSpaceManager::setActiveMap(&mAddressSpace);
 }
 
+void sys::SetProcessInitArgs(sys::System *system, sys::Process *process, std::span<std::byte> args) {
+    if (args.empty()) {
+        process->mInitArgsMapping = km::AddressMapping {};
+        process->mInitArgsSize = 0;
+    } else {
+        km::AddressMapping data;
+
+        OsStatus status = process->vmemCreate(system, VmemCreateInfo {
+            .size = sm::roundup(args.size(), x64::kPageSize),
+            .alignment = x64::kPageSize,
+            .flags = km::PageFlags::eUser | km::PageFlags::eRead,
+            .zeroMemory = true,
+            .mode = sys::VmemCreateMode::eCommit,
+        }, &data);
+        KM_ASSERT(status == OsStatusSuccess);
+
+        km::TlsfAllocation allocation;
+        status = system->mSystemTables->map(data.physicalRangeEx(), km::PageFlags::eData, km::MemoryType::eWriteCombine, &allocation);
+        KM_ASSERT(status == OsStatusSuccess);
+
+        auto range = allocation.range().cast<sm::VirtualAddress>();
+        memcpy((void*)range.front.address, args.data(), args.size());
+
+        status = system->mSystemTables->unmap(allocation);
+        KM_ASSERT(status == OsStatusSuccess);
+
+        process->mInitArgsMapping = data;
+        process->mInitArgsSize = args.size();
+    }
+}
+
 OsStatus sys::Process::createProcess(System *system, ProcessCreateInfo info, ProcessHandle **handle) {
     km::AddressMapping pteMemory;
     if (OsStatus status = system->mapProcessPageTables(&pteMemory)) {
@@ -181,6 +212,8 @@ OsStatus sys::Process::createProcess(System *system, ProcessCreateInfo info, Pro
             system->releaseMapping(pteMemory);
             return OsStatusOutOfMemory;
         }
+
+        SetProcessInitArgs(system, process.get(), info.initArgs);
 
         addHandle(result);
         addChild(process);
@@ -302,7 +335,7 @@ OsStatus sys::Process::vmemRelease(System *, km::VirtualRange) {
     return OsStatusNotSupported;
 }
 
-static OsStatus CreateProcessInner(sys::System *system, sys::ObjectName name, OsProcessStateFlags state, sm::RcuSharedPtr<sys::Process> parent, OsHandle id, sys::ProcessHandle **handle) {
+static OsStatus CreateProcessInner(sys::System *system, sys::ObjectName name, OsProcessStateFlags state, sm::RcuSharedPtr<sys::Process> parent, std::span<std::byte> args, OsHandle id, sys::ProcessHandle **handle) {
     sm::RcuSharedPtr<sys::Process> process;
     sys::ProcessHandle *result = nullptr;
     km::AddressMapping pteMemory;
@@ -322,6 +355,9 @@ static OsStatus CreateProcessInner(sys::System *system, sys::ObjectName name, Os
     if (!process) {
         goto outOfMemory;
     }
+
+    KmDebugMessage("[SYS] Args: ", name, ": ", args.size(), "\n");
+    SetProcessInitArgs(system, process.get(), args);
 
     result = new (std::nothrow) sys::ProcessHandle(process, id, sys::ProcessAccess::eAll);
     if (!result) {
@@ -345,7 +381,7 @@ OsStatus sys::SysCreateRootProcess(System *system, ProcessCreateInfo info, Proce
     OsHandle id = OS_HANDLE_NEW(eOsHandleProcess, 0);
     ProcessHandle *result = nullptr;
 
-    if (OsStatus status = CreateProcessInner(system, info.name, info.state, nullptr, id, &result)) {
+    if (OsStatus status = CreateProcessInner(system, info.name, info.state, nullptr, std::span<std::byte>{}, id, &result)) {
         return status;
     }
 
@@ -400,8 +436,13 @@ OsStatus sys::SysProcessCreate(InvokeContext *context, sm::RcuSharedPtr<Process>
         }
     }
 
+    std::span<std::byte> args {
+        (std::byte*)info.ArgsBegin,
+        (std::byte*)info.ArgsEnd,
+    };
+
     OsHandle id = context->process->newHandleId(eOsHandleProcess);
-    if (OsStatus status = CreateProcessInner(context->system, info.Name, info.Flags, parent, id, &hResult)) {
+    if (OsStatus status = CreateProcessInner(context->system, info.Name, info.Flags, parent, args, id, &hResult)) {
         return status;
     }
 
@@ -436,16 +477,23 @@ OsStatus sys::SysProcessDestroy(InvokeContext *context, sys::ProcessHandle *hand
 }
 
 OsStatus sys::SysProcessStat(InvokeContext *context, OsProcessHandle handle, OsProcessInfo *result) {
-    sys::ProcessHandle *hProcess = nullptr;
-    if (OsStatus status = context->process->findHandle(handle, &hProcess)) {
-        return status;
+    sm::RcuSharedPtr<Process> proc;
+
+    if (handle == OS_HANDLE_INVALID) {
+        proc = context->process;
+    } else {
+        sys::ProcessHandle *hProcess = nullptr;
+        if (OsStatus status = SysFindHandle(context, handle, &hProcess)) {
+            return status;
+        }
+
+        if (!hProcess->hasAccess(ProcessAccess::eStat)) {
+            return OsStatusAccessDenied;
+        }
+
+        proc = hProcess->getProcess();
     }
 
-    if (!hProcess->hasAccess(ProcessAccess::eStat)) {
-        return OsStatusAccessDenied;
-    }
-
-    sm::RcuSharedPtr<Process> proc = hProcess->getProcess();
     ProcessStat info;
     if (OsStatus status = proc->stat(&info)) {
         return status;
@@ -454,6 +502,8 @@ OsStatus sys::SysProcessStat(InvokeContext *context, OsProcessHandle handle, OsP
     OsProcessInfo processInfo {
         .Parent = info.parent,
         .Id = info.id,
+        .ArgsBegin = std::bit_cast<const OsProcessParam*>(info.args.data()),
+        .ArgsEnd = std::bit_cast<const OsProcessParam*>(info.args.data() + info.args.size()),
         .Status = info.state,
         .ExitCode = info.exitCode,
     };

@@ -83,6 +83,8 @@ namespace sys {
 
         bool supervisor;
         OsProcessStateFlags state;
+
+        sm::FixedArray<std::byte> initArgs;
     };
 
     struct ProcessDestroyInfo {
@@ -102,6 +104,7 @@ namespace sys {
         int64_t exitCode;
         OsProcessStateFlags state;
         sm::RcuSharedPtr<Process> parent;
+        std::span<std::byte> args;
     };
 
     // thread

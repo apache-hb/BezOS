@@ -47,6 +47,12 @@ namespace sys {
 
         AddressSpaceManager mAddressSpace;
 
+        /// @brief Arguments passed to the process on creation.
+        km::AddressMapping mInitArgsMapping;
+        size_t mInitArgsSize;
+
+        friend void SetProcessInitArgs(sys::System *system, sys::Process *process, std::span<std::byte> args);
+
     public:
         using Access = ProcessAccess;
 

@@ -6,6 +6,7 @@
 
 #include <bezos/facility/process.h>
 #include <bezos/facility/device.h>
+#include <bezos/facility/handle.h>
 #include <bezos/ext/args.h>
 
 #include "bezos/handle.h"
@@ -18,9 +19,6 @@
 
 struct OsImplPosixFile {
     int fd;
-    int error;
-    int eof;
-    size_t offset;
 };
 
 namespace {
@@ -28,6 +26,8 @@ namespace {
 struct OsPosixFd {
     OsDeviceHandle handle;
     size_t offset;
+    int error;
+    int eof;
 };
 
 // TODO: need an actual map
@@ -44,13 +44,15 @@ public:
         OsProcessInfo info{};
         ASSERT_OS_SUCCESS(OsProcessStat(OS_HANDLE_INVALID, &info));
 
+        DebugLog(eOsLogDebug, "InitStandardIo: [%p, %p]", info.ArgsBegin, info.ArgsEnd);
+
         const OsProcessParam *param = nullptr;
         OsStatus status = OsProcessFindArg(&info, &kPosixInitGuid, &param);
         if (status == OsStatusSuccess) {
             const OsPosixInitArgs *args = reinterpret_cast<const OsPosixInitArgs*>(param->Data);
-            gFdMap[0] = { args->StandardIn };
-            gFdMap[1] = { args->StandardOut };
-            gFdMap[2] = { args->StandardError };
+            ASSERT_OS_SUCCESS(OsHandleOpen(args->StandardIn, eOsDeviceAccessRead | eOsDeviceAccessWait | eOsDeviceAccessStat, &gFdMap[0].handle));
+            ASSERT_OS_SUCCESS(OsHandleOpen(args->StandardOut, eOsDeviceAccessWrite | eOsDeviceAccessWait | eOsDeviceAccessStat, &gFdMap[1].handle));
+            ASSERT_OS_SUCCESS(OsHandleOpen(args->StandardError, eOsDeviceAccessWrite | eOsDeviceAccessWait | eOsDeviceAccessStat, &gFdMap[2].handle));
         } else {
             Unimplemented();
         }
@@ -126,11 +128,11 @@ int fflush(FILE *) noexcept {
 }
 
 int feof(FILE *file) noexcept {
-    return file->eof;
+    return gFdMap[file->fd].eof;
 }
 
 int ferror(FILE *file) noexcept {
-    return file->error;
+    return gFdMap[file->fd].error;
 }
 
 int fileno(FILE *file) noexcept {
@@ -153,12 +155,12 @@ size_t fread(void *dst, size_t size, size_t count, FILE *file) noexcept {
 
     OsStatus status = OsDeviceRead(fd->handle, request, &result);
     if (status != OsStatusSuccess) {
-        file->error = status;
+        gFdMap[fileno(file)].error = status;
         return -1;
     }
 
     if (result != size * count) {
-        file->eof = 1;
+        gFdMap[fileno(file)].eof = 1;
     }
 
     fd->offset += result;
@@ -181,12 +183,12 @@ size_t fwrite(const void *src, size_t size, size_t count, FILE *file) noexcept {
 
     OsStatus status = OsDeviceWrite(fd->handle, request, &result);
     if (status != OsStatusSuccess) {
-        file->error = status;
+        gFdMap[fileno(file)].error = status;
         return -1;
     }
 
     if (result != size * count) {
-        file->eof = 1;
+        gFdMap[fileno(file)].eof = 1;
     }
 
     fd->offset += result;

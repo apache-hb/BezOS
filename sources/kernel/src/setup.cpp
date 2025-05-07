@@ -176,10 +176,11 @@ void km::DumpIsrState(const km::IsrContext *context) {
         KmDebugMessageUnlocked("\n");
     }
 
-    std::byte data[16];
-    memcpy(data, (void*)context->rip, sizeof(data));
-    KmDebugMessageUnlocked(km::HexDump(data));
-    KmDebugMessageUnlocked("\n");
+    if (context->vector != isr::PF || context->error & (1 << 0)) {
+        std::byte data[16];
+        memcpy(data, (void*)context->rip, sizeof(data));
+        KmDebugMessageUnlocked(km::HexDump(data), "\n");
+    }
 
     KmDebugMessageUnlocked("| MSR                 | Value\n");
     KmDebugMessageUnlocked("|---------------------+------\n");
@@ -251,13 +252,10 @@ static bool IsSupervisorFault(const km::IsrContext *context) {
 
 static void FaultProcess(km::IsrContext *context, stdx::StringView fault) {
     if (auto process = sys::GetCurrentProcess()) {
-        km::UnlockDebugLog();
-        KmDebugMessage("[PROC] Terminating ", process->getName(), ", due to ", fault, "\n");
-        km::LockDebugLog();
+        KmDebugMessageUnlocked("[PROC] Terminating ", process->getName(), ", due to ", fault, "\n");
         process->destroy(km::GetSysSystem(), sys::ProcessDestroyInfo { .exitCode = 0, .reason = eOsProcessFaulted });
         DumpIsrState(context);
         DumpStackTrace(context);
-        km::UnlockDebugLog();
 
         sys::YieldCurrentThread();
     }

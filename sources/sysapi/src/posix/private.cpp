@@ -53,7 +53,7 @@ void DebugLog(OsDebugMessageFlags Flags, const char *format, ...) {
 
 void AssertOsSuccess(OsStatus status, const char *expr, std::source_location location) {
     if (status != OsStatusSuccess) {
-        DebugLog(eOsLogCritical, "POSIX: Assertion failed: %s in %s:%d", expr, location.file_name(), location.line());
+        DebugLog(eOsLogCritical, "POSIX: Assertion failed: %s = %d in %s:%d", expr, status, location.file_name(), location.line());
         abort();
     }
 }

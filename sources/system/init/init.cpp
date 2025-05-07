@@ -97,7 +97,7 @@ static void LaunchProcess(OsPath path, OsProcessCreateInfo processCreateInfo, Os
     ASSERT_OS_SUCCESS(RtldStartProgram(&startInfo, &thread));
     ASSERT_OS_SUCCESS(OsThreadSuspend(thread, false));
     ASSERT_OS_SUCCESS(OsDeviceClose(device));
-    ASSERT_OS_SUCCESS(OsHandleClose(thread));
+    // ASSERT_OS_SUCCESS(OsHandleClose(thread));
 
     if (result) *result = process; else {
         ASSERT_OS_SUCCESS(OsHandleClose(process));
@@ -105,8 +105,22 @@ static void LaunchProcess(OsPath path, OsProcessCreateInfo processCreateInfo, Os
 }
 
 static void LaunchShell() {
+    struct [[gnu::packed]] ShellCreateArgs {
+        OsProcessParamHeader PosixHeader;
+        OsPosixInitArgs PosixArgs;
+    } args[] = {{
+        .PosixHeader = { kPosixInitGuid, sizeof(OsPosixInitArgs) },
+        .PosixArgs = {
+            .StandardIn = OS_OBJECT_INVALID,
+            .StandardOut = OS_OBJECT_INVALID,
+            .StandardError = OS_OBJECT_INVALID,
+        },
+    }};
+
     OsProcessCreateInfo createInfo {
         .Name = "SHELL.ELF",
+        .ArgsBegin = std::bit_cast<const OsProcessParam*>(std::begin(args)),
+        .ArgsEnd = std::bit_cast<const OsProcessParam*>(std::end(args)),
     };
 
     LaunchProcess(OsMakePath("Init\0shell.elf"), createInfo, nullptr);
