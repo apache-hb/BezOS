@@ -46,6 +46,18 @@ class MemoryRangePrinter(printing.PrettyPrinter):
         end = self.__val['back'].format_string()
         return f"[{start}, {end})"
 
+class AddressMappingPrinter(printing.PrettyPrinter):
+    "Print a km::AddressMapping"
+
+    def __init__(self, val):
+        self.__val = val
+
+    def to_string(self):
+        paddr = self.__val['paddr']['address']
+        vaddr = self.__val['vaddr']
+        size = self.__val['size']
+        return f"{vaddr.format_string()} -> 0x{int(paddr):x} (0x{int(size):x})"
+
 class AtomicFlagPrinter(printing.PrettyPrinter):
     "print a std::atomic_flag"
 
@@ -60,5 +72,6 @@ pp.add_printer('stdx::String', '^stdx::StringBase<char,.*>$', OsStringPrinter)
 pp.add_printer('sm::VirtualAddress', '^sm::VirtualAddress$', VirtualAddressPrinter)
 pp.add_printer('sm::PhysicalAddress', '^sm::PhysicalAddress$', PhysicalAddressPrinter)
 pp.add_printer('km::AnyRange', '^km::AnyRange<.*>$', MemoryRangePrinter)
+pp.add_printer('km::AddressMapping', '^km::AddressMapping$', AddressMappingPrinter)
 pp.add_printer('std::atomic_flag', '^std::__1::atomic_flag$', AtomicFlagPrinter)
 printing.register_pretty_printer(None, pp, replace=True)

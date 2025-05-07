@@ -1,7 +1,5 @@
 #include <gtest/gtest.h>
 #include <memory_resource>
-#include <random>
-#include <thread>
 
 #include "memory/pte.hpp"
 #include "arch/paging.hpp"
@@ -814,54 +812,6 @@ TEST(MemoryRoundTest, NextMultiple) {
     ASSERT_EQ(sm::nextMultiple(0x100, 0x1000), 0x1000);
     ASSERT_EQ(sm::nextMultiple(0x1001, 0x1000), 0x2000);
     ASSERT_EQ(sm::nextMultiple(0x1FFF, 0x1000), 0x2000);
-}
-
-TEST_F(PageTableTest, ThreadSafe) {
-    km::PageTables pt = ptes(km::PageFlags::eAll);
-
-    std::vector<std::jthread> threads;
-    for (int i = 0; i < 4; i++) {
-        threads.emplace_back([&pt, i] {
-            std::mt19937 gen { size_t(i) };
-            for (int i = 0; i < 100; i++) {
-                auto paddr = gen();
-                auto vaddr = gen();
-
-                // align to 4k
-                paddr &= ~0xFFF;
-                vaddr &= ~0xFFF;
-
-                const void *ptr = (void*)vaddr;
-                km::AddressMapping mapping { ptr, paddr, x64::kPageSize };
-
-                OsStatus status = pt.map(mapping, km::PageFlags::eAll);
-
-                km::PhysicalAddress addr = pt.getBackingAddress(ptr);
-
-                if (status == OsStatusSuccess) {
-                    ASSERT_EQ(paddr, addr.address);
-                } else {
-                    ASSERT_EQ(KM_INVALID_MEMORY, addr.address);
-                }
-
-                km::PageSize size = pt.getPageSize(ptr);
-
-                if (status == OsStatusSuccess) {
-                    ASSERT_NE(km::PageSize::eNone, size);
-                } else {
-                    ASSERT_EQ(km::PageSize::eNone, size);
-                }
-
-                if (status == OsStatusSuccess) {
-                    ASSERT_NE(km::PageFlags::eNone, pt.getMemoryFlags(ptr));
-                } else {
-                    ASSERT_EQ(km::PageFlags::eNone, pt.getMemoryFlags(ptr));
-                }
-            }
-        });
-    }
-
-    threads.clear();
 }
 
 TEST_F(PageTableTest, AddressMapping) {

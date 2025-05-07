@@ -8,6 +8,7 @@
 #include <type_traits>
 
 #include "common/compiler/compiler.hpp"
+#include "std/spinlock.hpp"
 
 namespace km {
     class MappingAllocation;

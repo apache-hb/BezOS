@@ -7,6 +7,7 @@
 #include "memory/paging.hpp"
 #include "memory/pte.hpp"
 
+#include "std/spinlock.hpp"
 #include "system/detail/range_table.hpp"
 
 #include "common/compiler/compiler.hpp"

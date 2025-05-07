@@ -40,7 +40,7 @@ x64::page *PageTableList::next() noexcept [[clang::nonblocking]] {
 
     x64::page *it = mTable;
     mTable = (x64::page*)*(void**)(mTable);
-    memset(it, 0, sizeof(x64::page)); // Clear the pointer, next() is expected to return a zeroed page.
+    memset(it, 0, sizeof(x64::page)); // Clear the page, next() is expected to return a zeroed page.
     return it;
 }
 

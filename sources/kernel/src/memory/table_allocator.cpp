@@ -1,11 +1,10 @@
 #include "memory/table_allocator.hpp"
-#include "log.hpp"
 
 /// @brief Split a block and return the newly created block
 static km::detail::ControlBlock *SplitBlock(km::detail::ControlBlock *block, size_t size) {
     KM_CHECK(block->size > size, "Block is too small to split.");
 
-    auto *next = (km::detail::ControlBlock*)((uintptr_t)block + ((block->size - size)));
+    auto *next = (km::detail::ControlBlock*)((uintptr_t)block + (block->size - size));
     block->size -= size;
 
     if (block->next) {
@@ -111,42 +110,19 @@ constexpr bool VerifyMemoryRange(km::VirtualRangeEx memory, size_t blockSize) {
         && km::aligned(memory, blockSize) == memory; // The memory range must be aligned to the block size.
 }
 
-km::PageTableAllocator::PageTableAllocator(VirtualRangeEx memory, size_t blockSize, detail::ControlBlock *head) noexcept [[clang::nonblocking]]
-    : mMemory(memory)
-    , mBlockSize(blockSize)
-    , mHead(head)
-{
-    *mHead = detail::ControlBlock {
-        .size = mMemory.size(),
-    };
-}
-
-km::PageTableAllocator::PageTableAllocator(VirtualRange memory, size_t blockSize)
-    : mMemory(memory.cast<sm::VirtualAddress>())
-    , mBlockSize(blockSize)
-    , mHead(nullptr)
-{
-    bool valid = VerifyMemoryRange(mMemory, mBlockSize);
-
-    if (!valid) {
-        KmDebugMessage("PageTableAllocator: Memory range invalid. ", memory, "\n");
-        KM_PANIC("PageTableAllocator: Memory range invalid.");
-    }
-
-    mHead = std::bit_cast<detail::ControlBlock*>(mMemory.front);
-
-    *mHead = detail::ControlBlock {
-        .size = mMemory.size()
-    };
-}
-
 OsStatus km::PageTableAllocator::create(VirtualRangeEx memory, size_t blockSize, PageTableAllocator *allocator) noexcept [[clang::allocating]] {
     if (!VerifyMemoryRange(memory, blockSize)) {
         return OsStatusInvalidInput;
     }
 
     detail::ControlBlock *head = std::bit_cast<detail::ControlBlock*>(memory.front);
-    *allocator = PageTableAllocator(memory, blockSize, head);
+    *head = detail::ControlBlock {
+        .size = memory.size(),
+    };
+
+    allocator->mMemory = memory;
+    allocator->mBlockSize = blockSize;
+    allocator->mHead = head;
     return OsStatusSuccess;
 }
 

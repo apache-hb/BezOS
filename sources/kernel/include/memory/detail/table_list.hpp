@@ -4,29 +4,20 @@
 
 #include <stddef.h>
 
-#include <utility>
-
 namespace x64 {
     struct page;
 }
 
 namespace km::detail {
     class PageTableList {
-        x64::page *mTable;
+        x64::page *mTable{nullptr};
 
     public:
         UTIL_NOCOPY(PageTableList);
+        UTIL_DEFAULT_MOVE(PageTableList);
 
-        PageTableList(PageTableList&& other) noexcept [[clang::nonblocking]]
-            : mTable(std::exchange(other.mTable, nullptr))
-        { }
+        constexpr PageTableList() noexcept [[clang::nonblocking]] = default;
 
-        PageTableList& operator=(PageTableList&& other) noexcept [[clang::nonblocking]] {
-            std::swap(mTable, other.mTable);
-            return *this;
-        }
-
-        PageTableList() noexcept [[clang::nonblocking]] : mTable(nullptr) {}
         PageTableList(x64::page *table [[gnu::nonnull]], size_t count) noexcept [[clang::nonblocking]];
 
         void push(x64::page *page [[gnu::nonnull]]) noexcept [[clang::nonblocking]];

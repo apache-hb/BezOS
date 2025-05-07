@@ -1,1 +1,2 @@
 option('ubsan', type : 'feature', value : 'auto')
+option('stack-protector', type : 'feature', value : 'auto')

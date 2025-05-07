@@ -30,24 +30,18 @@ void PageTables::setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddre
     entry.setPresent(true);
 }
 
-PageTables::PageTables(const PageBuilder *pm, uintptr_t slide, PageTableAllocator&& allocator, x64::PageMapLevel4 *root, PageFlags middleFlags) noexcept [[clang::nonblocking]]
-    : mSlide(slide)
-    , mAllocator(std::move(allocator))
-    , mPageManager(pm)
-    , mRootPageTable(root)
-    , mMiddleFlags(middleFlags)
-{ }
-
 OsStatus PageTables::create(const PageBuilder *pm, AddressMapping pteMemory, PageFlags flags, PageTables *tables) [[clang::allocating]] {
-    PageTableAllocator allocator;
-    if (OsStatus status = PageTableAllocator::create(pteMemory.virtualRangeEx(), x64::kPageSize, &allocator)) {
+    tables->mSlide = pteMemory.slide();
+    tables->mPageManager = pm;
+    tables->mMiddleFlags = flags;
+
+    if (OsStatus status = PageTableAllocator::create(pteMemory.virtualRangeEx(), x64::kPageSize, &tables->mAllocator)) {
         return status;
     }
 
-    x64::PageMapLevel4 *root = (x64::PageMapLevel4*)allocator.allocate(1);
-    KM_ASSERT(root != nullptr);
+    tables->mRootPageTable = (x64::PageMapLevel4*)tables->alloc4k();
+    KM_ASSERT(tables->mRootPageTable != nullptr);
 
-    *tables = PageTables(pm, pteMemory.slide(), std::move(allocator), root, flags);
     return OsStatusSuccess;
 }
 
@@ -437,7 +431,7 @@ OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType typ
         return OsStatusInvalidInput;
     }
 
-    stdx::LockGuard guard(mLock);
+    // stdx::LockGuard guard(mLock);
 
     detail::PageTableList buffer;
     if (OsStatus status = allocatePageTables(mapping.virtualRange(), &buffer)) {
@@ -450,6 +444,10 @@ OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType typ
     defer { drainTableList(std::move(buffer)); };
 
     mapWithList(mapping, flags, type, buffer);
+
+    for (sm::VirtualAddress i = mapping.vaddr; i < sm::VirtualAddress(mapping.vaddr) + mapping.size; i += x64::kPageSize) {
+        KM_CHECK(getPageSize(i) != PageSize::eNone, "Mapping failed to map the page.");
+    }
 
     return OsStatusSuccess;
 }
@@ -778,7 +776,7 @@ void PageTables::unmapUnlocked(VirtualRange range) noexcept [[clang::nonallocati
 OsStatus PageTables::unmap(VirtualRange range) {
     range = alignedOut(range, x64::kPageSize);
 
-    stdx::LockGuard guard(mLock);
+    // stdx::LockGuard guard(mLock);
 
     if (range.contains((void*)this) || range.contains(__builtin_frame_address(0))) {
         KmDebugMessage("Attempting to unmap myself: ", range.front, " - ", range.back, "\n");
@@ -806,7 +804,7 @@ OsStatus PageTables::unmap2m(VirtualRange range) {
         return OsStatusInvalidInput;
     }
 
-    stdx::LockGuard guard(mLock);
+    // stdx::LockGuard guard(mLock);
 
     x64::PageMapLevel4 *l4 = pml4();
 
@@ -883,7 +881,7 @@ PhysicalAddress PageTables::getBackingAddressUnlocked(const void *ptr) const {
 }
 
 km::PhysicalAddress PageTables::getBackingAddress(const void *ptr) {
-    stdx::LockGuard guard(mLock);
+    // stdx::LockGuard guard(mLock);
     return getBackingAddressUnlocked(ptr);
 }
 
@@ -897,12 +895,12 @@ km::PageSize PageTables::getPageSize(const void *ptr) {
     return result.pageSize();
 }
 
-km::PhysicalAddress PageTables::asPhysical(const void *ptr) const noexcept [[clang::nonallocating]] {
+km::PhysicalAddress PageTables::asPhysical(const void *ptr) const noexcept [[clang::nonblocking]] {
     return km::PhysicalAddress { (uintptr_t)ptr - mSlide };
 }
 
 PageWalk PageTables::walk(const void *ptr) {
-    stdx::LockGuard guard(mLock);
+    // stdx::LockGuard guard(mLock);
     return walkUnlocked(ptr);
 }
 
@@ -996,6 +994,6 @@ size_t PageTables::compactUnlocked() {
 }
 
 size_t PageTables::compact() {
-    stdx::LockGuard guard(mLock);
+    // stdx::LockGuard guard(mLock);
     return compactUnlocked();
 }

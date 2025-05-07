@@ -136,11 +136,11 @@ namespace km {
             return static_cast<MemoryType>(entry.memoryType());
         }
 
-        PhysicalAddress activeMap() const {
+        PhysicalAddress activeMap() const noexcept {
             return (__get_cr3() & mAddressMask);
         }
 
-        void setActiveMap(PhysicalAddress map) const {
+        void setActiveMap(PhysicalAddress map) const noexcept {
             uint64_t reg = __get_cr3();
             reg = (reg & ~mAddressMask) | map.address;
             __set_cr3(reg);

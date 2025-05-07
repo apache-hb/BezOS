@@ -57,12 +57,6 @@ namespace km {
         size_t GetCoveredSegments(VirtualRange range, size_t segment) noexcept [[clang::nonblocking]];
     }
 
-    struct MappingRequest {
-        AddressMapping mapping;
-        PageFlags flags = PageFlags::eNone;
-        MemoryType type = MemoryType::eWriteBack;
-    };
-
     enum class PageSize : uint8_t {
         eNone,
         eRegular,

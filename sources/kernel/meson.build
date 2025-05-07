@@ -286,8 +286,20 @@ if enable_aml
     src += [ 'src/acpi/aml.cpp', ]
 endif
 
-kernel_c_args = c_args
-kernel_cpp_args = cpp_args
+kernel_args = [
+]
+
+kernel_c_args = c_args + kernel_args
+kernel_cpp_args = cpp_args + kernel_args
+
+stack_protector = get_option('stack-protector').disable_auto_if(not get_option('buildtype').contains('debug'))
+if stack_protector.allowed()
+    src += files(
+        'src/sanitizer/stack.cpp',
+    )
+    kernel_c_args += [ '-fstack-protector-strong' ]
+    kernel_cpp_args += [ '-fstack-protector-strong' ]
+endif
 
 ubsan = get_option('ubsan').disable_auto_if(not get_option('buildtype').contains('debug'))
 if ubsan.allowed()
@@ -317,8 +329,8 @@ kernel = static_library('kernel', src,
 
 kmain = static_library('kernel-main', 'src/main.cpp',
     include_directories : inc,
-    c_args : c_args + [ '-D__BEZOS__=1' ],
-    cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
+    c_args : kernel_c_args + [ '-D__BEZOS__=1' ],
+    cpp_args : kernel_cpp_args + [ '-D__BEZOS__=1' ],
     dependencies : deps,
     link_with : libs + [ kernel ],
     override_options : [ 'b_coverage=false' ],

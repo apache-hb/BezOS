@@ -8,7 +8,6 @@
 #include "memory/paging.hpp"
 #include "memory/range.hpp"
 #include "memory/table_allocator.hpp"
-#include "std/spinlock.hpp"
 
 namespace km {
     class PageTableCommandList;
@@ -21,14 +20,11 @@ namespace km {
     class PageTables {
         friend class PageTableCommandList;
 
-        uintptr_t mSlide;
+        uintptr_t mSlide{0};
         PageTableAllocator mAllocator;
-        const PageBuilder *mPageManager;
-        x64::PageMapLevel4 *mRootPageTable;
-        PageFlags mMiddleFlags;
-
-        // TODO: remove lock, should be externally synchronized
-        stdx::SpinLock mLock;
+        const PageBuilder *mPageManager{nullptr};
+        x64::PageMapLevel4 *mRootPageTable{nullptr};
+        PageFlags mMiddleFlags{PageFlags::eNone};
 
         /// @brief Allocate a new page table, garanteed to be aligned to 4k and zeroed.
         ///
@@ -53,7 +49,7 @@ namespace km {
         ///
         /// @param ptr The virtual address of the page table.
         /// @return The physical address of the page table.
-        PhysicalAddress asPhysical(const void *ptr) const noexcept [[clang::nonallocating]];
+        PhysicalAddress asPhysical(const void *ptr) const noexcept [[clang::nonblocking]];
 
         /// @brief Get the virtual address of a sub-table from a table entry.
         ///
@@ -158,33 +154,16 @@ namespace km {
         /// @brief Private API for @a km::PageTableCommandList.
         void unmapWithList(VirtualRange range, detail::PageTableList& buffer) noexcept [[clang::nonallocating]];
         void unmapUnlocked(VirtualRange range) noexcept [[clang::nonallocating]];
-
-        PageTables(const PageBuilder *pm, uintptr_t slide, PageTableAllocator&& allocator, x64::PageMapLevel4 *root, PageFlags middleFlags) noexcept [[clang::nonblocking]];
     public:
         constexpr PageTables() noexcept [[clang::nonblocking]] = default;
-
-        constexpr PageTables(PageTables&& other) noexcept
-            : mSlide(other.mSlide)
-            , mAllocator(std::move(other.mAllocator))
-            , mPageManager(other.mPageManager)
-            , mRootPageTable(other.mRootPageTable)
-            , mMiddleFlags(other.mMiddleFlags)
-        { }
-
-        constexpr PageTables& operator=(PageTables&& other) noexcept {
-            mSlide = other.mSlide;
-            mAllocator = std::move(other.mAllocator);
-            mPageManager = other.mPageManager;
-            mRootPageTable = other.mRootPageTable;
-            mMiddleFlags = other.mMiddleFlags;
-            return *this;
-        }
+        UTIL_NOCOPY(PageTables);
+        UTIL_DEFAULT_MOVE(PageTables);
 
         const PageBuilder *pageManager() const noexcept { return mPageManager; }
 
         const x64::PageMapLevel4 *pml4() const noexcept [[clang::nonblocking]] { return mRootPageTable; }
         x64::PageMapLevel4 *pml4() noexcept [[clang::nonblocking]] { return mRootPageTable; }
-        PhysicalAddress root() const noexcept { return asPhysical(pml4()); }
+        PhysicalAddress root() const noexcept [[clang::nonblocking]] { return asPhysical(pml4()); }
 
         /// @brief Map a range of virtual address space to physical memory.
         ///

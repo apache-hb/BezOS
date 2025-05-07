@@ -478,7 +478,7 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
 
     boot::FrameBuffer *framebuffers = CloneFrameBuffers(allocator, launch.framebuffers);
 
-    static constexpr size_t kPtAllocSize = sm::kilobytes(256).bytes();
+    static constexpr size_t kPtAllocSize = sm::kilobytes(512).bytes();
     void *pteMemory = allocator->allocateAligned(kPtAllocSize, x64::kPageSize);
     KM_CHECK(pteMemory != nullptr, "Failed to allocate memory for page tables.");
 

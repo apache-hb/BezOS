@@ -39,14 +39,10 @@ namespace km {
 
         void setHead(detail::ControlBlock *block) noexcept [[clang::nonblocking]];
 
-        PageTableAllocator(VirtualRangeEx memory, size_t blockSize, detail::ControlBlock *head [[gnu::nonnull]]) noexcept [[clang::nonblocking]];
-
     public:
         constexpr PageTableAllocator() noexcept [[clang::nonblocking]] = default;
         UTIL_NOCOPY(PageTableAllocator);
         UTIL_DEFAULT_MOVE(PageTableAllocator);
-
-        PageTableAllocator(VirtualRange memory, size_t blockSize = x64::kPageSize);
 
         [[gnu::malloc]]
         void *allocate(size_t blocks) [[clang::allocating]];
@@ -77,7 +73,7 @@ namespace km {
 
         bool contains(sm::VirtualAddress ptr) const noexcept [[clang::nonblocking]];
 
-        static OsStatus create(VirtualRangeEx memory, size_t blockSize, PageTableAllocator *allocator) noexcept [[clang::allocating]];
+        static OsStatus create(VirtualRangeEx memory, size_t blockSize, PageTableAllocator *allocator [[gnu::nonnull]]) noexcept [[clang::allocating]];
 
 #if __STDC_HOSTED__
         detail::ControlBlock *TESTING_getHead() {
