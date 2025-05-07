@@ -18,63 +18,68 @@
 
 BZP_API_BEGIN
 
-__attribute__((__nothrow__, __nonallocating__))
-extern void *memcpy(void *, const void *, size_t) BZP_NOEXCEPT BZP_NONNULL_ALL;
+__attribute__((__nothrow__, __nonblocking__, __nonnull__, __returns_nonnull__))
+extern void *memcpy(void *__BZ_RESTRICT, const void *__BZ_RESTRICT, size_t);
 
-__attribute__((__nothrow__, __nonallocating__))
-extern void *memmove(void *, const void *, size_t) BZP_NOEXCEPT BZP_NONNULL_ALL;
+__attribute__((__nothrow__, __nonblocking__, __nonnull__, __returns_nonnull__))
+extern void *memmove(void *, const void *, size_t);
 
-__attribute__((__nothrow__, __nonallocating__))
-extern void *memset(void *, int, size_t) BZP_NOEXCEPT BZP_NONNULL_ALL;
+__attribute__((__nothrow__, __nonblocking__, __nonnull__, __returns_nonnull__))
+extern void *memset(void *, int __c, size_t __n);
 
-__attribute__((__nothrow__, __nonallocating__))
-extern int memcmp(const void *, const void *, size_t) BZP_NOEXCEPT BZP_NONNULL_ALL;
+__attribute__((__nothrow__, __nonblocking__, __nonnull__))
+extern int memcmp(const void *, const void *, size_t);
 
-extern void *memchr(const void *, int, size_t) BZP_NOEXCEPT BZP_NONNULL_ALL;
+__attribute__((__nothrow__, __nonblocking__, __nonnull__))
+extern void *memchr(const void *, int __c, size_t);
 
-extern size_t strlen(const char *) BZP_NOEXCEPT BZP_NONNULL_ALL;
+__attribute__((__nothrow__, __nonblocking__, __nonnull__))
+extern size_t strlen(const char *);
 
-extern size_t strnlen(const char *, size_t) BZP_NOEXCEPT BZP_NONNULL_ALL;
+__attribute__((__nothrow__, __nonblocking__, __nonnull__))
+extern size_t strnlen(const char *, size_t);
 
-extern int strcmp(const char *, const char *) BZP_NOEXCEPT BZP_NONNULL_ALL;
+__attribute__((__nothrow__, __nonblocking__, __nonnull__))
+extern int strcmp(const char *, const char *);
 
-extern int strncmp(const char *, const char *, size_t) BZP_NOEXCEPT BZP_NONNULL_ALL;
+__attribute__((__nothrow__, __nonblocking__, __nonnull__))
+extern int strncmp(const char *, const char *, size_t);
 
-extern char *strcat(char *, const char *) BZP_NOEXCEPT BZP_NONNULL_ALL;
+extern char *strcat(char *, const char *) BZP_NONNULL_ALL;
 
-extern char *strncat(char *, const char *, size_t) BZP_NOEXCEPT BZP_NONNULL_ALL;
+extern char *strncat(char *, const char *, size_t) BZP_NONNULL_ALL;
 
-extern char *strchr(const char *, int) BZP_NOEXCEPT BZP_NONNULL_ALL;
+extern char *strchr(const char *, int) BZP_NONNULL_ALL;
 
-extern char *strrchr(const char *, int) BZP_NOEXCEPT BZP_NONNULL_ALL;
+extern char *strrchr(const char *, int) BZP_NONNULL_ALL;
 
-extern char *strstr(const char *, const char *) BZP_NOEXCEPT BZP_NONNULL_ALL;
+extern char *strstr(const char *, const char *) BZP_NONNULL_ALL;
 
-extern char *strpbrk(const char *, const char *) BZP_NOEXCEPT BZP_NONNULL_ALL;
+extern char *strpbrk(const char *, const char *) BZP_NONNULL_ALL;
 
-extern size_t strspn(const char *, const char *) BZP_NOEXCEPT BZP_NONNULL_ALL;
+extern size_t strspn(const char *, const char *) BZP_NONNULL_ALL;
 
-extern size_t strcspn(const char *, const char *) BZP_NOEXCEPT BZP_NONNULL_ALL;
+extern size_t strcspn(const char *, const char *) BZP_NONNULL_ALL;
 
-extern char *strtok(char *, const char *) BZP_NOEXCEPT BZP_NONNULL_ALL;
+extern char *strtok(char *, const char *) BZP_NONNULL_ALL;
 
-extern int strcoll(const char *, const char *) BZP_NOEXCEPT BZP_NONNULL_ALL;
+extern int strcoll(const char *, const char *) BZP_NONNULL_ALL;
 
-extern size_t strxfrm(char *, const char *, size_t) BZP_NOEXCEPT BZP_NONNULL_ALL;
+extern size_t strxfrm(char *, const char *, size_t) BZP_NONNULL_ALL;
 
-extern char *strcpy(char *, const char *) BZP_NOEXCEPT BZP_NONNULL_ALL;
+extern char *strcpy(char *, const char *) BZP_NONNULL_ALL;
 
-extern char *strncpy(char *, const char *, size_t) BZP_NOEXCEPT BZP_NONNULL_ALL;
+extern char *strncpy(char *, const char *, size_t) BZP_NONNULL_ALL;
 
-__attribute__((__nothrow__, __malloc__))
-extern char *strdup(const char *) BZP_NOEXCEPT BZP_NONNULL_ALL;
+__attribute__((__nothrow__, __nonnull__, __malloc__, __allocating__))
+extern char *strdup(const char *);
 
-__attribute__((__nothrow__, __malloc__))
-extern char *strndup(const char *, size_t) BZP_NOEXCEPT BZP_NONNULL_ALL;
+__attribute__((__nothrow__, __nonnull__, __malloc__, __allocating__))
+extern char *strndup(const char *, size_t);
 
-extern char *strerror(int) BZP_NOEXCEPT;
+extern char *strerror(int);
 
-extern char *strsignal(int) BZP_NOEXCEPT;
+extern char *strsignal(int);
 
 BZP_API_END
 

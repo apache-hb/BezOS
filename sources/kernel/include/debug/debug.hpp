@@ -14,53 +14,53 @@
 
 namespace km::debug {
     namespace detail {
-        OsStatus SendEvent(const EventPacket &packet);
+        OsStatus SendEvent(const EventPacket &packet) noexcept [[clang::nonallocating]];
     }
 
     template<typename T>
-    constexpr Event EventType() = delete;
+    consteval Event EventType() = delete;
 
     template<>
-    constexpr Event EventType<AllocatePhysicalMemory>() {
+    consteval Event EventType<AllocatePhysicalMemory>() {
         return Event::eAllocatePhysicalMemory;
     }
 
     template<>
-    constexpr Event EventType<AllocateVirtualMemory>() {
+    consteval Event EventType<AllocateVirtualMemory>() {
         return Event::eAllocateVirtualMemory;
     }
 
     template<>
-    constexpr Event EventType<ReleasePhysicalMemory>() {
+    consteval Event EventType<ReleasePhysicalMemory>() {
         return Event::eReleasePhysicalMemory;
     }
 
     template<>
-    constexpr Event EventType<ReleaseVirtualMemory>() {
+    consteval Event EventType<ReleaseVirtualMemory>() {
         return Event::eReleaseVirtualMemory;
     }
 
     template<>
-    constexpr Event EventType<ScheduleTask>() {
+    consteval Event EventType<ScheduleTask>() {
         return Event::eScheduleTask;
     }
 
     OsStatus InitDebugStream(ComPortInfo info);
 
     template<typename T>
-    OsStatus SendEvent([[maybe_unused]] const T& event) {
-#if KM_DEBUG_EVENTS
-        //
-        // Subobject initialization weirdness, can't be bothered to fix it.
-        //
-        EventPacket packet {
-            .event = EventType<T>(),
-        };
-        memcpy(&packet.data, &event, sizeof(T));
+    OsStatus SendEvent(const T& event) noexcept [[clang::nonallocating]] {
+        if constexpr (KM_DEBUG_EVENTS) {
+            //
+            // Subobject initialization weirdness, can't be bothered to fix it.
+            //
+            EventPacket packet {
+                .event = EventType<T>(),
+            };
+            memcpy(&packet.data, &event, sizeof(T));
 
-        return detail::SendEvent(packet);
-#else
-        return OsStatusSuccess;
-#endif
+            return detail::SendEvent(packet);
+        } else {
+            return OsStatusSuccess;
+        }
     }
 }

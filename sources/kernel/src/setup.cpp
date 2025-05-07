@@ -346,7 +346,8 @@ extern "C" void *realloc(void *old, size_t size) noexcept {
     return gAllocator->reallocate(old, 0, size);
 }
 
-extern "C" void free(void *ptr) noexcept {
+__attribute__((__nothrow__, __nonnull__, __nonallocating__))
+extern "C" void free(void *ptr) {
     km::debug::SendEvent(km::debug::ReleaseVirtualMemory {
         .begin = (uintptr_t)ptr,
         .end = (uintptr_t)ptr + tlsf_block_size(ptr) - tlsf_alloc_overhead(),

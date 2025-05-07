@@ -11,10 +11,10 @@ BZP_API_BEGIN
 #define RTLD_GLOBAL (1 << 1)
 #define RTLD_LOCAL (1 << 2)
 
-extern int dlclose(void *) BZP_NOEXCEPT;
-extern char *dlerror(void) BZP_NOEXCEPT;
-extern void *dlopen(const char *, int) BZP_NOEXCEPT;
-extern void *dlsym(void *, const char *) BZP_NOEXCEPT;
+extern int dlclose(void *);
+extern char *dlerror(void);
+extern void *dlopen(const char *, int);
+extern void *dlsym(void *, const char *);
 
 BZP_API_END
 

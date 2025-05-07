@@ -2,57 +2,57 @@
 
 #include "private.hpp"
 
-speed_t cfgetispeed(const struct termios *) BZP_NOEXCEPT {
+speed_t cfgetispeed(const struct termios *) {
     Unimplemented();
     return 0;
 }
 
-speed_t cfgetospeed(const struct termios *) BZP_NOEXCEPT {
+speed_t cfgetospeed(const struct termios *) {
     Unimplemented();
     return 0;
 }
 
-int cfsetispeed(struct termios *, speed_t) BZP_NOEXCEPT {
+int cfsetispeed(struct termios *, speed_t) {
     Unimplemented();
     return -1;
 }
 
-int cfsetospeed(struct termios *, speed_t) BZP_NOEXCEPT {
+int cfsetospeed(struct termios *, speed_t) {
     Unimplemented();
     return -1;
 }
 
-int tcdrain(int) BZP_NOEXCEPT {
+int tcdrain(int) {
     Unimplemented();
     return -1;
 }
 
-int tcflow(int, int) BZP_NOEXCEPT {
+int tcflow(int, int) {
     Unimplemented();
     return -1;
 }
 
-int tcflush(int, int) BZP_NOEXCEPT {
+int tcflush(int, int) {
     Unimplemented();
     return -1;
 }
 
-int tcgetattr(int, struct termios *) BZP_NOEXCEPT {
+int tcgetattr(int, struct termios *) {
     Unimplemented();
     return -1;
 }
 
-pid_t tcgetsid(int) BZP_NOEXCEPT {
+pid_t tcgetsid(int) {
     Unimplemented();
     return -1;
 }
 
-int tcsendbreak(int, int) BZP_NOEXCEPT {
+int tcsendbreak(int, int) {
     Unimplemented();
     return -1;
 }
 
-int tcsetattr(int, int, const struct termios *) BZP_NOEXCEPT {
+int tcsetattr(int, int, const struct termios *) {
     Unimplemented();
     return -1;
 }

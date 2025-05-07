@@ -14,15 +14,15 @@ typedef struct OsImplPosixSigJmpBuf {
     int mask_was_saved;
 } sigjmp_buf[1];
 
-extern int setjmp(jmp_buf) BZP_NOEXCEPT;
+extern int setjmp(jmp_buf);
 
 [[noreturn]]
-extern void longjmp(jmp_buf, int) BZP_NOEXCEPT;
+extern void longjmp(jmp_buf, int);
 
-extern int sigsetjmp(sigjmp_buf, int) BZP_NOEXCEPT;
+extern int sigsetjmp(sigjmp_buf, int);
 
 [[noreturn]]
-extern void siglongjmp(sigjmp_buf, int) BZP_NOEXCEPT;
+extern void siglongjmp(sigjmp_buf, int);
 
 BZP_API_END
 

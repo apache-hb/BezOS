@@ -2,7 +2,7 @@
 
 #include "private.hpp"
 
-int ioctl(int, int, ...) noexcept {
+int ioctl(int, int, ...) {
     Unimplemented();
     return -1;
 }

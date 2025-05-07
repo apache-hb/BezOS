@@ -27,7 +27,7 @@ size_t wcslen(const wchar_t *str) {
     return len;
 }
 
-int swprintf(wchar_t *, size_t, const wchar_t *, ...) noexcept {
+int swprintf(wchar_t *, size_t, const wchar_t *, ...) {
     Unimplemented();
     return -1;
 }
@@ -38,7 +38,7 @@ int iswspace(wint_t c) {
 
 namespace {
 template<typename T>
-T wcstoAny(const wchar_t *str, wchar_t **end, int base) noexcept {
+T ImplWideStringtoInteger(const wchar_t *str, wchar_t **end, int base) noexcept {
     T result = 0;
     bool negative = false;
 
@@ -97,33 +97,33 @@ T wcstoAny(const wchar_t *str, wchar_t **end, int base) noexcept {
 }
 }
 
-long wcstol(const wchar_t *str, wchar_t **end, int base) noexcept {
-    return wcstoAny<long>(str, end, base);
+long wcstol(const wchar_t *str, wchar_t **end, int base) {
+    return ImplWideStringtoInteger<long>(str, end, base);
 }
 
-long long wcstoll(const wchar_t *str, wchar_t **end, int base) noexcept {
-    return wcstoAny<long long>(str, end, base);
+long long wcstoll(const wchar_t *str, wchar_t **end, int base) {
+    return ImplWideStringtoInteger<long long>(str, end, base);
 }
 
-unsigned long wcstoul(const wchar_t *str, wchar_t **end, int base) noexcept {
-    return wcstoAny<unsigned long>(str, end, base);
+unsigned long wcstoul(const wchar_t *str, wchar_t **end, int base) {
+    return ImplWideStringtoInteger<unsigned long>(str, end, base);
 }
 
-unsigned long long wcstoull(const wchar_t *str, wchar_t **end, int base) noexcept {
-    return wcstoAny<unsigned long long>(str, end, base);
+unsigned long long wcstoull(const wchar_t *str, wchar_t **end, int base) {
+    return ImplWideStringtoInteger<unsigned long long>(str, end, base);
 }
 
-double wcstod(const wchar_t *, wchar_t **) noexcept {
+double wcstod(const wchar_t *, wchar_t **) {
     Unimplemented();
     return 0.0;
 }
 
-long double wcstold(const wchar_t *, wchar_t **) noexcept {
+long double wcstold(const wchar_t *, wchar_t **) {
     Unimplemented();
     return 0.0;
 }
 
-float wcstof(const wchar_t *, wchar_t **) noexcept {
+float wcstof(const wchar_t *, wchar_t **) {
     Unimplemented();
     return 0.0;
 }

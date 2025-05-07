@@ -50,11 +50,13 @@ InitMalloc& GlobalMalloc() {
 }
 }
 
-void abort(void) noexcept {
+__attribute__((__nothrow__, __noreturn__))
+void abort(void) {
     exit(EXIT_FAILURE);
 }
 
-void exit(int exitcode) noexcept {
+__attribute__((__nothrow__, __noreturn__))
+void exit(int exitcode) {
     OsProcessHandle handle = OS_HANDLE_INVALID;
     OsStatus status = OsProcessCurrent(eOsProcessAccessDestroy, &handle);
     assert(status == OsStatusSuccess);
@@ -67,50 +69,50 @@ void exit(int exitcode) noexcept {
     __builtin_unreachable();
 }
 
-int abs(int v) noexcept {
+int abs(int v) {
     return v < 0 ? -v : v;
 }
 
-long labs(long v) noexcept {
+long labs(long v) {
     return v < 0 ? -v : v;
 }
 
-long long llabs(long long v) noexcept {
+long long llabs(long long v) {
     return v < 0 ? -v : v;
 }
 
-double atof(const char *) noexcept {
+double atof(const char *) {
     Unimplemented();
     return 0.0;
 }
 
-int atoi(const char *) noexcept {
+int atoi(const char *) {
     Unimplemented();
     return 0;
 }
 
-long int atol(const char *) noexcept {
+long int atol(const char *) {
     Unimplemented();
     return 0;
 }
 
-long long int atoll(const char *) noexcept {
+long long int atoll(const char *) {
     Unimplemented();
     return 0;
 }
 
-double strtod(const char *, char **) noexcept {
+double strtod(const char *, char **) {
     Unimplemented();
     return 0.0;
 }
 
-float strtof(const char *, char **) noexcept {
+float strtof(const char *, char **) {
     Unimplemented();
     return 0.0f;
 }
 
 template<typename T>
-static T strtoAny(const char *str, char **end, int base) noexcept {
+static T strtoAny(const char *str, char **end, int base) {
     while (isspace(*str)) {
         str += 1;
     }
@@ -162,46 +164,51 @@ static T strtoAny(const char *str, char **end, int base) noexcept {
     return negative ? -result : result;
 }
 
-long strtol(const char *str, char **end, int base) noexcept {
+long strtol(const char *str, char **end, int base) {
     return strtoAny<long>(str, end, base);
 }
 
-long long strtoll(const char *str, char **end, int base) noexcept {
+long long strtoll(const char *str, char **end, int base) {
     return strtoAny<long long>(str, end, base);
 }
 
-unsigned long strtoul(const char *str, char **end, int base) noexcept {
+unsigned long strtoul(const char *str, char **end, int base) {
     Unimplemented();
     return 0;
 }
 
-unsigned long long strtoull(const char *, char **, int) noexcept {
+unsigned long long strtoull(const char *, char **, int) {
     Unimplemented();
     return 0;
 }
 
-long double strtold(const char *, char **) noexcept {
+long double strtold(const char *, char **) {
     Unimplemented();
     return 0.0;
 }
 
-void *malloc(size_t size) noexcept {
+__attribute__((__nothrow__, __malloc__, __alloc_size__(1), __allocating__))
+void *malloc(size_t size) {
     return GlobalMalloc().malloc(size);
 }
 
-void *aligned_alloc(size_t alignment, size_t size) noexcept {
+__attribute__((__nothrow__, __malloc__, __alloc_size__(2), __allocating__))
+void *aligned_alloc(size_t alignment, size_t size) {
     return GlobalMalloc().aligned_alloc(alignment, size);
 }
 
-void *calloc(size_t n, size_t size) noexcept {
+__attribute__((__nothrow__, __malloc__, __alloc_size__(1, 2), __allocating__))
+void *calloc(size_t n, size_t size) {
     return GlobalMalloc().calloc(n, size);
 }
 
-void *realloc(void *ptr, size_t size) noexcept {
+__attribute__((__nothrow__, __malloc__, __alloc_size__(2), __allocating__))
+void *realloc(void *ptr, size_t size) {
     return GlobalMalloc().realloc(ptr, size);
 }
 
-void free(void *ptr) noexcept {
+__attribute__((__nothrow__, __nonnull__, __nonallocating__))
+void free(void *ptr) {
     return GlobalMalloc().free(ptr);
 }
 
@@ -209,7 +216,7 @@ void qsort(void *, size_t, size_t, int (*)(const void *, const void *)) {
     Unimplemented();
 }
 
-char *getenv(const char *name) noexcept {
+char *getenv(const char *name) {
     Unimplemented();
     DebugLog(eOsLogInfo, "POSIX getenv: '%s'", name);
 
@@ -227,57 +234,57 @@ char *getenv(const char *name) noexcept {
     return nullptr;
 }
 
-extern int putenv(char *) noexcept {
+extern int putenv(char *) {
     Unimplemented();
     return -1;
 }
 
-extern int setenv(const char *name, const char *val, int overwrite) noexcept {
+extern int setenv(const char *name, const char *val, int overwrite) {
     Unimplemented();
     DebugLog(eOsLogInfo, "POSIX setenv: '%s'='%s'%s", name, val, overwrite ? " (overwrite)" : "");
     return -1;
 }
 
-extern int unsetenv(const char *) noexcept {
+extern int unsetenv(const char *) {
     Unimplemented();
     return -1;
 }
 
-void srand(unsigned) noexcept {
+void srand(unsigned) {
     Unimplemented();
 }
 
-int rand(void) noexcept {
+int rand(void) {
     Unimplemented();
     return 0;
 }
 
-int rand_r(unsigned *) noexcept {
+int rand_r(unsigned *) {
     Unimplemented();
     return 0;
 }
 
-char *mkdtemp(char *) noexcept {
+char *mkdtemp(char *) {
     Unimplemented();
     return nullptr;
 }
 
-int mkstemp(char *) noexcept {
+int mkstemp(char *) {
     Unimplemented();
     return -1;
 }
 
-char *mktemp(char *) noexcept {
+char *mktemp(char *) {
     Unimplemented();
     return nullptr;
 }
 
-int atexit(void (*)(void)) noexcept {
+int atexit(void (*)(void)) {
     Unimplemented();
     return -1;
 }
 
-extern "C" int __cxa_atexit(void (*)(void *), void *, void *) noexcept {
+extern "C" int __cxa_atexit(void (*)(void *), void *, void *) {
     Unimplemented();
     return 0;
 }

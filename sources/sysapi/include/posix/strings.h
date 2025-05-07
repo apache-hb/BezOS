@@ -7,9 +7,9 @@
 
 BZP_API_BEGIN
 
-extern int strcasecmp(const char *, const char *) BZP_NOEXCEPT BZP_NONNULL_ALL;
+extern int strcasecmp(const char *, const char *) BZP_NONNULL_ALL;
 
-extern int strncasecmp(const char *, const char *, size_t) BZP_NOEXCEPT BZP_NONNULL_ALL;
+extern int strncasecmp(const char *, const char *, size_t) BZP_NONNULL_ALL;
 
 BZP_API_END
 

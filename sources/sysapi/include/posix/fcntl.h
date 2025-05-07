@@ -40,15 +40,15 @@ struct flock {
     pid_t l_pid;
 };
 
-extern int open(const char *, int, ...) BZP_NOEXCEPT;
+extern int open(const char *, int, ...);
 
-extern int fcntl(int, int, ...) BZP_NOEXCEPT;
+extern int fcntl(int, int, ...);
 
-extern int close(int) BZP_NOEXCEPT;
+extern int close(int);
 
-extern int rename(const char *, const char *) BZP_NOEXCEPT;
+extern int rename(const char *, const char *);
 
-extern int mkfifoat(int, const char *, mode_t) BZP_NOEXCEPT;
+extern int mkfifoat(int, const char *, mode_t);
 
 BZP_API_END
 

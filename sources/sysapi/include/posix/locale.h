@@ -9,7 +9,7 @@ BZP_API_BEGIN
 #define LC_CTYPE 1
 #define LC_MESSAGES 2
 
-extern char *setlocale(int, const char *) BZP_NOEXCEPT;
+extern char *setlocale(int, const char *);
 
 BZP_API_END
 

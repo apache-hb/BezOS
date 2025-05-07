@@ -36,7 +36,7 @@ public:
         return mResource.allocate(size, align);
     }
 
-    void deallocate(void *ptr, size_t size) override {
+    void deallocate(void *ptr, size_t size) noexcept [[clang::nonallocating]] override {
         mResource.deallocate(ptr, size);
     }
 };

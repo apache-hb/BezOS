@@ -7,7 +7,7 @@
 
 BZP_API_BEGIN
 
-extern int ioctl(int, int, ...) BZP_NOEXCEPT;
+extern int ioctl(int, int, ...);
 
 BZP_API_END
 

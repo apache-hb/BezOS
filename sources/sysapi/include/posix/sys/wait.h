@@ -10,8 +10,8 @@ BZP_API_BEGIN
 #define WUNTRACED (1 << 1)
 #define WCONTINUED (1 << 2)
 
-extern pid_t wait(int *) BZP_NOEXCEPT;
-extern pid_t waitpid(pid_t, int *, int) BZP_NOEXCEPT;
+extern pid_t wait(int *);
+extern pid_t waitpid(pid_t, int *, int);
 
 BZP_API_END
 

@@ -2,22 +2,22 @@
 
 #include "private.hpp"
 
-int dlclose(void *) noexcept {
+int dlclose(void *) {
     Unimplemented();
     return -1;
 }
 
-char *dlerror(void) noexcept {
+char *dlerror(void) {
     Unimplemented();
     return nullptr;
 }
 
-void *dlopen(const char *, int) noexcept {
+void *dlopen(const char *, int) {
     Unimplemented();
     return nullptr;
 }
 
-void *dlsym(void *, const char *) noexcept {
+void *dlsym(void *, const char *) {
     Unimplemented();
     return nullptr;
 }

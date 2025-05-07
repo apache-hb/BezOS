@@ -42,25 +42,25 @@ struct sigaction {
     void(*sa_sigaction)(int, void *, void *);
 };
 
-extern void (*signal(int, void (*)(int) BZP_NOEXCEPT))(int) BZP_NOEXCEPT;
+extern void (*signal(int, void (*)(int)))(int);
 
-extern int kill(pid_t, int) BZP_NOEXCEPT;
+extern int kill(pid_t, int);
 
-extern int sigprocmask(int, const sigset_t *, sigset_t *) BZP_NOEXCEPT;
+extern int sigprocmask(int, const sigset_t *, sigset_t *);
 
-extern int sigemptyset(sigset_t *) BZP_NOEXCEPT;
+extern int sigemptyset(sigset_t *);
 
-extern int sigdelset(sigset_t *, int) BZP_NOEXCEPT;
+extern int sigdelset(sigset_t *, int);
 
-extern int sigismember(const sigset_t *, int) BZP_NOEXCEPT;
+extern int sigismember(const sigset_t *, int);
 
-extern int sigaddset(sigset_t *, int) BZP_NOEXCEPT;
+extern int sigaddset(sigset_t *, int);
 
-extern int sigaction(int, const struct sigaction *, struct sigaction *) BZP_NOEXCEPT;
+extern int sigaction(int, const struct sigaction *, struct sigaction *);
 
-extern int sigsuspend(const sigset_t *) BZP_NOEXCEPT;
+extern int sigsuspend(const sigset_t *);
 
-extern int sigfillset(sigset_t *) BZP_NOEXCEPT;
+extern int sigfillset(sigset_t *);
 
 BZP_API_END
 

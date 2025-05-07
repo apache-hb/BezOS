@@ -5,7 +5,7 @@
 
 using PageTableList = km::detail::PageTableList;
 
-PageTableList::PageTableList(x64::page *tables, size_t count) noexcept [[clang::nonallocating]] {
+PageTableList::PageTableList(x64::page *tables, size_t count) noexcept [[clang::nonblocking]] {
     [[assume(count > 0)]];
 
     for (size_t i = 0; i < count - 1; i++) {
@@ -21,7 +21,7 @@ void PageTableList::push(x64::page *table) noexcept [[clang::nonblocking]] {
     mTable = table;
 }
 
-void PageTableList::push(x64::page *pages, size_t count) noexcept [[clang::nonallocating]] {
+void PageTableList::push(x64::page *pages, size_t count) noexcept [[clang::nonblocking]] {
     [[assume(count > 0)]];
 
     for (size_t i = 0; i < count; i++) {
@@ -29,7 +29,7 @@ void PageTableList::push(x64::page *pages, size_t count) noexcept [[clang::nonal
     }
 }
 
-void PageTableList::append(PageTableList list) noexcept [[clang::nonallocating]] {
+void PageTableList::append(PageTableList list) noexcept [[clang::nonblocking]] {
     while (x64::page *page = list.drain()) {
         push(page);
     }
@@ -54,7 +54,7 @@ x64::page *PageTableList::drain() noexcept [[clang::nonblocking]] {
     return it;
 }
 
-size_t PageTableList::count() const noexcept [[clang::nonallocating]] {
+size_t PageTableList::count() const noexcept [[clang::nonblocking]] {
     size_t count = 0;
     for (x64::page *it = mTable; it != nullptr; it = (x64::page*)*(void**)(it)) {
         count++;

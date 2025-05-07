@@ -2,27 +2,27 @@
 
 #include "private.hpp"
 
-int fstat(int, struct stat *) noexcept {
+int fstat(int, struct stat *) {
     Unimplemented();
     return -1;
 }
 
-int stat(const char*, struct stat*) noexcept {
+int stat(const char*, struct stat*) {
     Unimplemented();
     return -1;
 }
 
-int mkdir(const char*, mode_t) noexcept {
+int mkdir(const char*, mode_t) {
     Unimplemented();
     return -1;
 }
 
-int mkfifo(const char *, mode_t) noexcept {
+int mkfifo(const char *, mode_t) {
     Unimplemented();
     return -1;
 }
 
-mode_t umask(mode_t) noexcept {
+mode_t umask(mode_t) {
     Unimplemented();
     return 0;
 }

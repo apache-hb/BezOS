@@ -42,7 +42,7 @@ static void CopyLarge(uint8_t *dst, const uint8_t *src, size_t n) {
     CopySmall(dst, src, remaining);
 }
 
-__attribute__((__nothrow__, __nonallocating__))
+__attribute__((__nothrow__, __nonblocking__, __nonnull__))
 void KmMemoryCopy(void *to, const void *from, size_t n) {
     uint8_t *dst = (uint8_t *)to;
     const uint8_t *src = (const uint8_t *)from;
@@ -83,7 +83,7 @@ static void SetLarge(uint8_t *dst, uint8_t value, size_t n) {
     SetSmall(dst, value, n);
 }
 
-__attribute__((__nothrow__, __nonallocating__))
+__attribute__((__nothrow__, __nonblocking__, __nonnull__))
 void KmMemorySet(void *dst, uint8_t value, size_t size) {
     uint8_t *p = (uint8_t *)dst;
 

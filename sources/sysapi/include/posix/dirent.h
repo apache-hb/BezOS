@@ -17,14 +17,14 @@ struct dirent {
     char d_name[NAME_MAX + 1];
 };
 
-extern int closedir(DIR *) BZP_NOEXCEPT;
-extern int dirfd(DIR *) BZP_NOEXCEPT;
-extern DIR *opendir(const char *) BZP_NOEXCEPT;
-extern struct dirent *readdir(DIR *) BZP_NOEXCEPT;
-extern void rewinddir(DIR *) BZP_NOEXCEPT;
+extern int closedir(DIR *);
+extern int dirfd(DIR *);
+extern DIR *opendir(const char *);
+extern struct dirent *readdir(DIR *);
+extern void rewinddir(DIR *);
 
-extern void seekdir(DIR *, long) BZP_NOEXCEPT;
-extern long telldir(DIR *) BZP_NOEXCEPT;
+extern void seekdir(DIR *, long);
+extern long telldir(DIR *);
 
 BZP_API_END
 

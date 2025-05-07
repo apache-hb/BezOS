@@ -61,37 +61,37 @@ namespace km {
         uint8_t mIrq = 0xFF;
 
         /// @brief Returns true if the transmit buffer is empty.
-        bool waitForTransmit();
+        bool waitForTransmit() noexcept [[clang::blocking, clang::nonallocating]];
 
         /// @brief Returns true if the receive buffer has data.
-        bool waitForReceive();
+        bool waitForReceive() noexcept [[clang::blocking, clang::nonallocating]];
 
-    public:
-        constexpr SerialPort() = default;
-
-        /// @warning Do not use this constructor directly.
-        ///          Use @ref openSerial instead.
-        constexpr SerialPort(ComPortInfo info)
+        constexpr SerialPort(ComPortInfo info) noexcept
             : mBasePort(info.port)
             , mIrq(info.irq)
         { }
 
+    public:
+        constexpr SerialPort() noexcept = default;
+
         constexpr bool isReady() const noexcept { return mBasePort != 0xFFFF; }
         uint8_t irq() const noexcept { return mIrq; }
 
-        size_t write(std::span<const uint8_t> src, unsigned timeout = 100);
-        size_t read(std::span<uint8_t> dst);
+        size_t write(std::span<const uint8_t> src, unsigned timeout = 100) noexcept [[clang::blocking, clang::nonallocating]];
+        size_t read(std::span<uint8_t> dst) noexcept [[clang::blocking, clang::nonallocating]];
 
-        OsStatus put(uint8_t byte, unsigned timeout = 100);
-        OsStatus get(uint8_t& byte, unsigned timeout = 100);
+        OsStatus put(uint8_t byte, unsigned timeout = 100) noexcept [[clang::blocking, clang::nonallocating]];
+        OsStatus get(uint8_t& byte, unsigned timeout = 100) noexcept [[clang::blocking, clang::nonallocating]];
 
-        size_t print(stdx::StringView src, unsigned timeout = 100);
+        size_t print(stdx::StringView src, unsigned timeout = 100) noexcept [[clang::blocking, clang::nonallocating]];
 
         template<typename T> requires (std::is_standard_layout_v<T>)
-        OsStatus write(const T& src, unsigned timeout = 100) {
+        OsStatus write(const T& src, unsigned timeout = 100) noexcept [[clang::blocking, clang::nonallocating]] {
             size_t result = write(std::span(reinterpret_cast<const uint8_t*>(&src), sizeof(T)), timeout);
             return result == sizeof(T) ? OsStatusSuccess : OsStatusTimeout;
         }
+
+        static OsStatus create(ComPortInfo info, SerialPort *port) noexcept [[clang::blocking, clang::nonallocating]];
     };
 
     struct OpenSerialResult {

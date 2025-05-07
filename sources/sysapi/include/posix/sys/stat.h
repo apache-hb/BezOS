@@ -60,14 +60,14 @@ struct stat {
     blkcnt_t st_blocks;
 };
 
-extern int fstat(int, struct stat *) BZP_NOEXCEPT;
-extern int stat(const char *, struct stat *) BZP_NOEXCEPT;
+extern int fstat(int, struct stat *);
+extern int stat(const char *, struct stat *);
 
-extern int mkdir(const char *, mode_t) BZP_NOEXCEPT;
+extern int mkdir(const char *, mode_t);
 
-extern int mkfifo(const char *, mode_t) BZP_NOEXCEPT;
+extern int mkfifo(const char *, mode_t);
 
-extern mode_t umask(mode_t) BZP_NOEXCEPT;
+extern mode_t umask(mode_t);
 
 #ifdef __cplusplus
 }

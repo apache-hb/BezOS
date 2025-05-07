@@ -18,83 +18,83 @@ BZP_API_BEGIN
 
 #define EOF (-1)
 
-extern FILE *OsImplPosixStandardIn(void) BZP_NOEXCEPT;
-extern FILE *OsImplPosixStandardOut(void) BZP_NOEXCEPT;
-extern FILE *OsImplPosixStandardError(void) BZP_NOEXCEPT;
+extern FILE *OsImplPosixStandardIn(void);
+extern FILE *OsImplPosixStandardOut(void);
+extern FILE *OsImplPosixStandardError(void);
 
 #define stdin (OsImplPosixStandardIn())
 #define stdout (OsImplPosixStandardOut())
 #define stderr (OsImplPosixStandardError())
 
-extern int fclose(FILE *) BZP_NOEXCEPT;
+extern int fclose(FILE *);
 
-extern FILE *fdopen(int, const char *) BZP_NOEXCEPT;
+extern FILE *fdopen(int, const char *);
 
-extern FILE *fopen(const char *, const char *) BZP_NOEXCEPT;
+extern FILE *fopen(const char *, const char *);
 
-extern void clearerr(FILE *) BZP_NOEXCEPT;
+extern void clearerr(FILE *);
 
-extern int fflush(FILE *) BZP_NOEXCEPT;
+extern int fflush(FILE *);
 
-extern int fileno(FILE *) BZP_NOEXCEPT;
+extern int fileno(FILE *);
 
-extern int fputs(const char *, FILE *) BZP_NOEXCEPT;
+extern int fputs(const char *, FILE *);
 
-extern int fprintf(FILE *, const char *, ...) BZP_NOEXCEPT;
+extern int fprintf(FILE *, const char *, ...);
 
-extern int printf(const char *, ...) BZP_NOEXCEPT;
+extern int printf(const char *, ...);
 
-extern int sprintf(char * BZP_RESTRICT, const char * BZP_RESTRICT, ...) BZP_NOEXCEPT;
+extern int sprintf(char *__BZ_RESTRICT, const char *__BZ_RESTRICT, ...);
 
-extern int snprintf(char * BZP_RESTRICT, size_t, const char * BZP_RESTRICT, ...) BZP_NOEXCEPT;
+extern int snprintf(char *__BZ_RESTRICT, size_t, const char *__BZ_RESTRICT, ...);
 
-extern int vsprintf(char * BZP_RESTRICT, const char * BZP_RESTRICT, va_list) BZP_NOEXCEPT;
+extern int vsprintf(char *__BZ_RESTRICT, const char *__BZ_RESTRICT, va_list);
 
-extern int vsnprintf(char * BZP_RESTRICT, size_t, const char * BZP_RESTRICT, va_list) BZP_NOEXCEPT;
+extern int vsnprintf(char *__BZ_RESTRICT, size_t, const char *__BZ_RESTRICT, va_list);
 
-extern int vprintf(const char *, va_list) BZP_NOEXCEPT;
+extern int vprintf(const char *, va_list);
 
-extern int vfprintf(FILE *, const char *, va_list) BZP_NOEXCEPT;
+extern int vfprintf(FILE *, const char *, va_list);
 
-extern int fscanf(FILE * BZP_RESTRICT, const char * BZP_RESTRICT, ...) BZP_NOEXCEPT;
+extern int fscanf(FILE *, const char *, ...);
 
-extern int scanf(const char * BZP_RESTRICT, ...) BZP_NOEXCEPT;
+extern int scanf(const char *__BZ_RESTRICT, ...);
 
-extern int sscanf(const char * BZP_RESTRICT, const char * BZP_RESTRICT, ...) BZP_NOEXCEPT;
+extern int sscanf(const char *, const char *, ...);
 
-extern size_t fread(void *, size_t, size_t, FILE *) BZP_NOEXCEPT;
+extern size_t fread(void *, size_t, size_t, FILE *);
 
-extern size_t fwrite(const void *, size_t, size_t, FILE *) BZP_NOEXCEPT;
+extern size_t fwrite(const void *, size_t, size_t, FILE *);
 
-extern int fseek(FILE *, long, int) BZP_NOEXCEPT;
+extern int fseek(FILE *, long, int);
 
-extern long ftell(FILE *) BZP_NOEXCEPT;
+extern long ftell(FILE *);
 
-extern int feof(FILE *) BZP_NOEXCEPT;
+extern int feof(FILE *);
 
-extern int ferror(FILE *) BZP_NOEXCEPT;
+extern int ferror(FILE *);
 
-extern int remove(const char *) BZP_NOEXCEPT;
+extern int remove(const char *);
 
-extern void perror(const char *) BZP_NOEXCEPT;
+extern void perror(const char *);
 
-extern int puts(const char *) BZP_NOEXCEPT;
+extern int puts(const char *);
 
-extern int putc(int, FILE *) BZP_NOEXCEPT;
+extern int putc(int, FILE *);
 
-extern int fputc(int, FILE *) BZP_NOEXCEPT;
+extern int fputc(int, FILE *);
 
-extern int fgetc(FILE *) BZP_NOEXCEPT;
+extern int fgetc(FILE *);
 
-extern char *fgets(char *, int, FILE *) BZP_NOEXCEPT;
+extern char *fgets(char *, int, FILE *);
 
-extern int putchar(int) BZP_NOEXCEPT;
+extern int putchar(int);
 
-extern void setbuffer(FILE *, char *, int) BZP_NOEXCEPT;
+extern void setbuffer(FILE *, char *, int);
 
-extern void setlinebuf(FILE *) BZP_NOEXCEPT;
+extern void setlinebuf(FILE *);
 
-extern char *cuserid(char *) BZP_NOEXCEPT;
+extern char *cuserid(char *);
 
 BZP_API_END
 

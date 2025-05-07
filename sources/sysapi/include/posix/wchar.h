@@ -37,16 +37,16 @@ extern size_t wcslen(const wchar_t *);
 
 extern int iswspace(wint_t);
 
-extern int swprintf(wchar_t * BZP_RESTRICT, size_t, const wchar_t * BZP_RESTRICT, ...) BZP_NOEXCEPT;
+extern int swprintf(wchar_t *__BZ_RESTRICT, size_t, const wchar_t *__BZ_RESTRICT, ...);
 
-extern long wcstol(const wchar_t * BZP_RESTRICT, wchar_t ** BZP_RESTRICT, int) BZP_NOEXCEPT;
-extern long long wcstoll(const wchar_t * BZP_RESTRICT, wchar_t ** BZP_RESTRICT, int) BZP_NOEXCEPT;
-extern unsigned long wcstoul(const wchar_t * BZP_RESTRICT, wchar_t ** BZP_RESTRICT, int) BZP_NOEXCEPT;
-extern unsigned long long wcstoull(const wchar_t * BZP_RESTRICT, wchar_t ** BZP_RESTRICT, int) BZP_NOEXCEPT;
+extern long wcstol(const wchar_t *__BZ_RESTRICT, wchar_t **__BZ_RESTRICT, int);
+extern long long wcstoll(const wchar_t *__BZ_RESTRICT, wchar_t **__BZ_RESTRICT, int);
+extern unsigned long wcstoul(const wchar_t *__BZ_RESTRICT, wchar_t **__BZ_RESTRICT, int);
+extern unsigned long long wcstoull(const wchar_t *__BZ_RESTRICT, wchar_t **__BZ_RESTRICT, int);
 
-extern double wcstod(const wchar_t * BZP_RESTRICT, wchar_t ** BZP_RESTRICT) BZP_NOEXCEPT;
-extern long double wcstold(const wchar_t * BZP_RESTRICT, wchar_t ** BZP_RESTRICT) BZP_NOEXCEPT;
-extern float wcstof(const wchar_t * BZP_RESTRICT, wchar_t ** BZP_RESTRICT) BZP_NOEXCEPT;
+extern double wcstod(const wchar_t *__BZ_RESTRICT, wchar_t **__BZ_RESTRICT);
+extern long double wcstold(const wchar_t *__BZ_RESTRICT, wchar_t **__BZ_RESTRICT);
+extern float wcstof(const wchar_t *__BZ_RESTRICT, wchar_t **__BZ_RESTRICT);
 
 #ifdef __cplusplus
 }

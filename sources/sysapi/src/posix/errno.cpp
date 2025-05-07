@@ -3,11 +3,11 @@
 
 static thread_local int gPosixErrno = 0;
 
-int *OsImplPosixErrnoAddress(void) noexcept {
+int *OsImplPosixErrnoAddress(void) {
     return &gPosixErrno;
 }
 
-char *strerror(int err) noexcept {
+char *strerror(int err) {
     switch (err) {
     case EPERM: return (char*)"Operation not permitted";
     case ENOENT: return (char*)"No such file or directory";

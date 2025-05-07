@@ -2,7 +2,7 @@
 
 #include <posix/ctype.h>
 
-int strcasecmp(const char *lhs, const char *rhs) noexcept {
+int strcasecmp(const char *lhs, const char *rhs) {
     while (*lhs && *rhs) {
         int l = tolower(*lhs++);
         int r = tolower(*rhs++);
@@ -15,7 +15,7 @@ int strcasecmp(const char *lhs, const char *rhs) noexcept {
     return tolower(*lhs) - tolower(*rhs);
 }
 
-int strncasecmp(const char *lhs, const char *rhs, size_t n) noexcept {
+int strncasecmp(const char *lhs, const char *rhs, size_t n) {
     for (size_t i = 0; i < n; i++) {
         char l = tolower(lhs[i]);
         char r = tolower(rhs[i]);

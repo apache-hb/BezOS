@@ -2,6 +2,8 @@
 
 #include "ports.hpp"
 
+#include "common/compiler/compiler.hpp"
+
 void kmtest::IPeripheral::write8(uint16_t port, uint8_t value) {
     GTEST_FAIL() << "Peripheral " << mName << " received a 8-bit write. Port: " << port << " Value: " << value;
 }
@@ -98,30 +100,35 @@ kmtest::PeripheralRegistry& kmtest::devices() {
     return sCollection;
 }
 
-void KmPortDelay(void) {
+CLANG_DIAGNOSTIC_PUSH();
+CLANG_DIAGNOSTIC_IGNORE("-Wfunction-effects"); // We don't care about realtime effects in tests
+
+void KmPortDelay(void) noexcept {
     kmtest::devices().delay();
 }
 
-uint8_t KmReadByte(uint16_t port) {
+uint8_t KmReadByte(uint16_t port) noexcept {
     return kmtest::devices().read8(port);
 }
 
-void KmWriteByteNoDelay(uint16_t port, uint8_t value) {
+void KmWriteByteNoDelay(uint16_t port, uint8_t value) noexcept {
     kmtest::devices().write8(port, value);
 }
 
-uint16_t KmReadWord(uint16_t port) {
+uint16_t KmReadWord(uint16_t port) noexcept {
     return kmtest::devices().read16(port);
 }
 
-void KmWriteWordNoDelay(uint16_t port, uint16_t value) {
+void KmWriteWordNoDelay(uint16_t port, uint16_t value) noexcept {
     kmtest::devices().write16(port, value);
 }
 
-uint32_t KmReadLong(uint16_t port) {
+uint32_t KmReadLong(uint16_t port) noexcept {
     return kmtest::devices().read32(port);
 }
 
-void KmWriteLongNoDelay(uint16_t port, uint32_t value) {
+void KmWriteLongNoDelay(uint16_t port, uint32_t value) noexcept  {
     kmtest::devices().write32(port, value);
 }
+
+CLANG_DIAGNOSTIC_POP();

@@ -12,8 +12,6 @@
 #include "bezos/handle.h"
 #include "private.hpp"
 
-#include <atomic>
-
 #define STB_SPRINTF_IMPLEMENTATION 1
 #include "stb_sprintf.h"
 
@@ -62,15 +60,15 @@ public:
 
     }
 
-    OsImplPosixFile *in() noexcept {
+    OsImplPosixFile *in() {
         return &mStandardIn;
     }
 
-    OsImplPosixFile *out() noexcept {
+    OsImplPosixFile *out() {
         return &mStandardOut;
     }
 
-    OsImplPosixFile *error() noexcept {
+    OsImplPosixFile *error() {
         return &mStandardError;
     }
 };
@@ -81,65 +79,65 @@ InitStandardIo& GlobalStandardIo() {
 }
 }
 
-FILE *OsImplPosixStandardIn(void) noexcept {
+FILE *OsImplPosixStandardIn(void) {
     return GlobalStandardIo().in();
 }
 
-FILE *OsImplPosixStandardOut(void) noexcept {
+FILE *OsImplPosixStandardOut(void) {
     return GlobalStandardIo().out();
 }
 
-FILE *OsImplPosixStandardError(void) noexcept {
+FILE *OsImplPosixStandardError(void) {
     return GlobalStandardIo().error();
 }
 
-int fclose(FILE *) noexcept {
+int fclose(FILE *) {
     Unimplemented();
     return -1;
 }
 
-FILE *fopen(const char *, const char *) noexcept {
+FILE *fopen(const char *, const char *) {
     Unimplemented();
     return nullptr;
 }
 
-void clearerr(FILE *) noexcept {
+void clearerr(FILE *) {
     Unimplemented();
 }
 
-FILE *fdopen(int, const char *) noexcept {
+FILE *fdopen(int, const char *) {
     Unimplemented();
     return nullptr;
 }
 
-int fseek(FILE *, long, int) noexcept {
+int fseek(FILE *, long, int) {
     Unimplemented();
     return -1;
 }
 
-long ftell(FILE *) noexcept {
+long ftell(FILE *) {
     Unimplemented();
     return -1;
 }
 
-int fflush(FILE *) noexcept {
+int fflush(FILE *) {
     Unimplemented();
     return -1;
 }
 
-int feof(FILE *file) noexcept {
+int feof(FILE *file) {
     return gFdMap[file->fd].eof;
 }
 
-int ferror(FILE *file) noexcept {
+int ferror(FILE *file) {
     return gFdMap[file->fd].error;
 }
 
-int fileno(FILE *file) noexcept {
+int fileno(FILE *file) {
     return file->fd;
 }
 
-size_t fread(void *dst, size_t size, size_t count, FILE *file) noexcept {
+size_t fread(void *dst, size_t size, size_t count, FILE *file) {
     if (size == 0 || count == 0) {
         return 0;
     }
@@ -167,7 +165,7 @@ size_t fread(void *dst, size_t size, size_t count, FILE *file) noexcept {
     return result / size;
 }
 
-size_t fwrite(const void *src, size_t size, size_t count, FILE *file) noexcept {
+size_t fwrite(const void *src, size_t size, size_t count, FILE *file) {
     if (size == 0 || count == 0) {
         return 0;
     }
@@ -195,7 +193,7 @@ size_t fwrite(const void *src, size_t size, size_t count, FILE *file) noexcept {
     return result / size;
 }
 
-int fprintf(FILE *file, const char *format, ...) noexcept {
+int fprintf(FILE *file, const char *format, ...) {
     va_list args;
     va_start(args, format);
     int result = vfprintf(file, format, args);
@@ -203,7 +201,7 @@ int fprintf(FILE *file, const char *format, ...) noexcept {
     return result;
 }
 
-int printf(const char *format, ...) noexcept {
+int printf(const char *format, ...) {
     va_list args;
     va_start(args, format);
     int result = vprintf(format, args);
@@ -211,7 +209,7 @@ int printf(const char *format, ...) noexcept {
     return result;
 }
 
-int sprintf(char *dst, const char *format, ...) noexcept {
+int sprintf(char *dst, const char *format, ...) {
     va_list args;
     va_start(args, format);
     int result = STB_SPRINTF_DECORATE(vsprintf)(dst, format, args);
@@ -219,7 +217,7 @@ int sprintf(char *dst, const char *format, ...) noexcept {
     return result;
 }
 
-int snprintf(char *dst, size_t size, const char *format, ...) noexcept {
+int snprintf(char *dst, size_t size, const char *format, ...) {
     va_list args;
     va_start(args, format);
     int result = STB_SPRINTF_DECORATE(vsnprintf)(dst, size, format, args);
@@ -227,15 +225,15 @@ int snprintf(char *dst, size_t size, const char *format, ...) noexcept {
     return result;
 }
 
-int vsprintf(char *dst, const char *format, va_list args) noexcept {
+int vsprintf(char *dst, const char *format, va_list args) {
     return STB_SPRINTF_DECORATE(vsprintf)(dst, format, args);
 }
 
-int vsnprintf(char *dst, size_t size, const char *format, va_list args) noexcept {
+int vsnprintf(char *dst, size_t size, const char *format, va_list args) {
     return STB_SPRINTF_DECORATE(vsnprintf)(dst, size, format, args);
 }
 
-int vprintf(const char *format, va_list args) noexcept {
+int vprintf(const char *format, va_list args) {
     return vfprintf(stdout, format, args);
 }
 
@@ -250,14 +248,14 @@ static char *OsPrintCallback(const char *buffer, void *user, int length) {
     return data->buffer;
 }
 
-int vfprintf(FILE *file, const char *format, va_list args) noexcept {
+int vfprintf(FILE *file, const char *format, va_list args) {
     char buffer[STB_SPRINTF_MIN]{};
 
     UserPrintBuffer user { buffer, file };
     return STB_SPRINTF_DECORATE(vsprintfcb)(OsPrintCallback, &user, buffer, format, args);
 }
 
-int puts(const char *str) noexcept {
+int puts(const char *str) {
     int status = printf("%s\n", str);
     if (status < 0) {
         return EOF;
@@ -266,11 +264,11 @@ int puts(const char *str) noexcept {
     return status;
 }
 
-int putc(int c, FILE *file) noexcept {
+int putc(int c, FILE *file) {
     return fputc(c, file);
 }
 
-int fputc(int c, FILE *file) noexcept {
+int fputc(int c, FILE *file) {
     char buffer[1] = { static_cast<char>(c) };
     int status = fwrite(buffer, 1, 1, file);
     if (status != 1) {
@@ -280,35 +278,35 @@ int fputc(int c, FILE *file) noexcept {
     return c;
 }
 
-int fgetc(FILE *) noexcept {
+int fgetc(FILE *) {
     Unimplemented();
     return -1;
 }
 
-char *fgets(char *, int, FILE *) noexcept {
+char *fgets(char *, int, FILE *) {
     Unimplemented();
     return nullptr;
 }
 
-int fputs(const char *, FILE *) noexcept {
+int fputs(const char *, FILE *) {
     Unimplemented();
     return -1;
 }
 
-int putchar(int) noexcept {
+int putchar(int) {
     Unimplemented();
     return -1;
 }
 
-void setbuffer(FILE *, char *, int) noexcept {
+void setbuffer(FILE *, char *, int) {
     Unimplemented();
 }
 
-void setlinebuf(FILE *) noexcept {
+void setlinebuf(FILE *) {
     Unimplemented();
 }
 
-char *cuserid(char *) noexcept {
+char *cuserid(char *) {
     Unimplemented();
     return nullptr;
 }

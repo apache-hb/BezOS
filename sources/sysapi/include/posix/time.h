@@ -19,11 +19,11 @@ struct tm {
     int tm_isdst;
 };
 
-extern time_t time(time_t *) BZP_NOEXCEPT;
+extern time_t time(time_t *);
 
-struct tm *localtime(const time_t *) BZP_NOEXCEPT;
+struct tm *localtime(const time_t *);
 
-extern size_t strftime(char *, size_t, const char *, const struct tm *) BZP_NOEXCEPT;
+extern size_t strftime(char *, size_t, const char *, const struct tm *);
 
 BZP_API_END
 

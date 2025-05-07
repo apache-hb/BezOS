@@ -26,7 +26,7 @@ static OsMemoryAccess ConvertMmapAccess(int prot) {
     return access;
 }
 
-void *mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off) noexcept {
+void *mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off) {
     if (len == 0) {
         return MAP_FAILED;
     }
@@ -71,12 +71,12 @@ void *mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off) noexc
     return MAP_FAILED;
 }
 
-int munmap(void *, size_t) noexcept {
+int munmap(void *, size_t) {
     Unimplemented();
     return -1;
 }
 
-int posix_madvise(void *, size_t, int) noexcept {
+int posix_madvise(void *, size_t, int) {
     Unimplemented();
     return -1;
 }

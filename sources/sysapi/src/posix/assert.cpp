@@ -14,6 +14,6 @@ void OsImplPosixAssert(const char *expr, const char *file, unsigned line) {
     gAssertHandler(expr, file, line);
 }
 
-void OsImplPosixInstall(void(*handler)(const char *, const char *, unsigned)) noexcept {
+void OsImplPosixInstall(void(*handler)(const char *, const char *, unsigned)) {
     gAssertHandler = handler;
 }

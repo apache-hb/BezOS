@@ -24,11 +24,11 @@ BZP_API_BEGIN
 
 #define MAP_FAILED ((void*)-1)
 
-extern void *mmap(void *, size_t, int, int, int, off_t) BZP_NOEXCEPT;
+extern void *mmap(void *, size_t, int, int, int, off_t);
 
-extern int munmap(void *, size_t) BZP_NOEXCEPT;
+extern int munmap(void *, size_t);
 
-extern int posix_madvise(void *, size_t, int) BZP_NOEXCEPT;
+extern int posix_madvise(void *, size_t, int);
 
 BZP_API_END
 

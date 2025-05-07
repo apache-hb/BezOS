@@ -7,17 +7,17 @@
 
 using namespace km::uart::detail;
 
-bool km::SerialPort::waitForTransmit() {
+bool km::SerialPort::waitForTransmit() noexcept [[clang::blocking, clang::nonallocating]] {
     uint8_t status = KmReadByte(mBasePort + kLineStatus);
     return status & kEmptyTransmit;
 }
 
-bool km::SerialPort::waitForReceive() {
+bool km::SerialPort::waitForReceive() noexcept [[clang::blocking, clang::nonallocating]] {
     uint8_t status = KmReadByte(mBasePort + kLineStatus);
     return status & kDataReady;
 }
 
-OsStatus km::SerialPort::put(uint8_t byte, unsigned timeout) {
+OsStatus km::SerialPort::put(uint8_t byte, unsigned timeout) noexcept [[clang::blocking, clang::nonallocating]] {
     while (!waitForTransmit()) {
         if (timeout-- == 0) {
             return OsStatusTimeout;
@@ -31,7 +31,7 @@ OsStatus km::SerialPort::put(uint8_t byte, unsigned timeout) {
     return OsStatusSuccess;
 }
 
-OsStatus km::SerialPort::get(uint8_t& byte, unsigned timeout) {
+OsStatus km::SerialPort::get(uint8_t& byte, unsigned timeout) noexcept [[clang::blocking, clang::nonallocating]] {
     while (!waitForReceive()) {
         if (timeout-- == 0) {
             return OsStatusTimeout;
@@ -44,7 +44,7 @@ OsStatus km::SerialPort::get(uint8_t& byte, unsigned timeout) {
     return OsStatusSuccess;
 }
 
-size_t km::SerialPort::write(std::span<const uint8_t> src, unsigned timeout) {
+size_t km::SerialPort::write(std::span<const uint8_t> src, unsigned timeout) noexcept [[clang::blocking, clang::nonallocating]] {
     unsigned putTimeout = timeout;
     size_t i = 0;
     for (; i < src.size_bytes(); i++) {
@@ -64,7 +64,7 @@ size_t km::SerialPort::write(std::span<const uint8_t> src, unsigned timeout) {
     return i;
 }
 
-size_t km::SerialPort::read(std::span<uint8_t> dst) {
+size_t km::SerialPort::read(std::span<uint8_t> dst) noexcept [[clang::blocking, clang::nonallocating]] {
     size_t i = 0;
     for (; i < dst.size_bytes(); i++) {
         if (!get(dst[i])) {
@@ -75,7 +75,7 @@ size_t km::SerialPort::read(std::span<uint8_t> dst) {
     return i;
 }
 
-size_t km::SerialPort::print(stdx::StringView src, unsigned timeout) {
+size_t km::SerialPort::print(stdx::StringView src, unsigned timeout) noexcept [[clang::blocking, clang::nonallocating]] {
     size_t result = 0;
     for (char c : src) {
         if (c == '\0')
@@ -93,22 +93,7 @@ size_t km::SerialPort::print(stdx::StringView src, unsigned timeout) {
     return result;
 }
 
-km::OpenSerialResult km::OpenSerial(ComPortInfo info) {
-    SerialPort port;
-    OsStatus status = OpenSerial(info, &port);
-    switch (status) {
-    case OsStatusSuccess:
-        return { .port = port, .status = SerialPortStatus::eOk };
-    case OsStatusNotFound:
-        return { .status = SerialPortStatus::eScratchTestFailed };
-    case OsStatusDeviceFault:
-        return { .status = SerialPortStatus::eLoopbackTestFailed };
-    default:
-        return { .status = SerialPortStatus::eScratchTestFailed };
-    }
-}
-
-OsStatus km::OpenSerial(ComPortInfo info, SerialPort *port) {
+OsStatus km::SerialPort::create(ComPortInfo info, SerialPort *port) noexcept [[clang::blocking, clang::nonallocating]] {
     uint16_t base = info.port;
 
     // do initial scratch test
@@ -170,4 +155,23 @@ OsStatus km::OpenSerial(ComPortInfo info, SerialPort *port) {
 
     *port = SerialPort(info);
     return OsStatusSuccess;
+}
+
+km::OpenSerialResult km::OpenSerial(ComPortInfo info) {
+    SerialPort port;
+    OsStatus status = OpenSerial(info, &port);
+    switch (status) {
+    case OsStatusSuccess:
+        return { .port = port, .status = SerialPortStatus::eOk };
+    case OsStatusNotFound:
+        return { .status = SerialPortStatus::eScratchTestFailed };
+    case OsStatusDeviceFault:
+        return { .status = SerialPortStatus::eLoopbackTestFailed };
+    default:
+        return { .status = SerialPortStatus::eScratchTestFailed };
+    }
+}
+
+OsStatus km::OpenSerial(ComPortInfo info, SerialPort *port) {
+    return SerialPort::create(info, port);
 }

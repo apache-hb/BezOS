@@ -115,36 +115,36 @@ namespace arch {
         }
 
         [[gnu::always_inline, gnu::nodebug, gnu::used]]
-        static void outbyte(uint16_t port, uint8_t data) noexcept {
+        static void outbyte(uint16_t port, uint8_t data) noexcept [[clang::blocking, clang::nonallocating]] {
             asm volatile("outb %b0, %w1" : : "a"(data), "Nd"(port));
         }
 
         [[gnu::always_inline, gnu::nodebug, gnu::used]]
-        static uint8_t inbyte(uint16_t port) noexcept {
+        static uint8_t inbyte(uint16_t port) noexcept [[clang::blocking, clang::nonallocating]] {
             uint8_t ret;
             asm volatile("inb %w1, %b0" : "=a"(ret) : "Nd"(port));
             return ret;
         }
 
         [[gnu::always_inline, gnu::nodebug, gnu::used]]
-        static void outword(uint16_t port, uint16_t data) noexcept {
+        static void outword(uint16_t port, uint16_t data) noexcept [[clang::blocking, clang::nonallocating]] {
             asm volatile("outw %w0, %w1" : : "a"(data), "Nd"(port));
         }
 
         [[gnu::always_inline, gnu::nodebug, gnu::used]]
-        static uint16_t inword(uint16_t port) noexcept {
+        static uint16_t inword(uint16_t port) noexcept [[clang::blocking, clang::nonallocating]] {
             uint16_t ret;
             asm volatile("inw %w1, %w0" : "=a"(ret) : "Nd"(port));
             return ret;
         }
 
         [[gnu::always_inline, gnu::nodebug, gnu::used]]
-        static void outdword(uint16_t port, uint32_t data) noexcept {
+        static void outdword(uint16_t port, uint32_t data) noexcept [[clang::blocking, clang::nonallocating]] {
             asm volatile("outl %k0, %w1" : : "a"(data), "Nd"(port));
         }
 
         [[gnu::always_inline, gnu::nodebug, gnu::used]]
-        static uint32_t indword(uint16_t port) noexcept {
+        static uint32_t indword(uint16_t port) noexcept [[clang::blocking, clang::nonallocating]] {
             uint32_t ret;
             asm volatile("inl %w1, %k0" : "=a"(ret) : "Nd"(port));
             return ret;

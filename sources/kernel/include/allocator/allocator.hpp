@@ -22,7 +22,7 @@ namespace mem {
         }
 
         virtual void *allocateAligned(size_t size, size_t align) [[clang::allocating]] = 0;
-        virtual void deallocate(void *ptr, size_t size) [[clang::allocating]] = 0;
+        virtual void deallocate(void *ptr, size_t size) noexcept [[clang::nonallocating]] = 0;
 
         virtual void *reallocate(void *old, size_t oldSize, size_t newSize) [[clang::allocating]] {
             void *ptr = allocate(newSize);

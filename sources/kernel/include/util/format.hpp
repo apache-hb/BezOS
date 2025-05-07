@@ -67,7 +67,7 @@ namespace km {
         int width = 0;
         char fill = '\0';
 
-        Int(T value) : value(value) {}
+        Int(T value) noexcept [[clang::nonblocking]] : value(value) {}
 
         Int pad(size_t width, char fill = '0') const {
             Int copy = *this;
@@ -84,7 +84,7 @@ namespace km {
         char fill = '\0';
         bool prefix = true;
 
-        Hex(T value) : value(value) {}
+        Hex(T value) noexcept [[clang::nonblocking]] : value(value) {}
 
         Hex pad(size_t width, char fill = '0', bool prefix = true) const {
             Hex copy = *this;

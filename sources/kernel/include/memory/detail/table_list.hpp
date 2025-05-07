@@ -27,17 +27,17 @@ namespace km::detail {
         }
 
         PageTableList() noexcept [[clang::nonblocking]] : mTable(nullptr) {}
-        PageTableList(x64::page *table [[gnu::nonnull]], size_t count) noexcept [[clang::nonallocating]];
+        PageTableList(x64::page *table [[gnu::nonnull]], size_t count) noexcept [[clang::nonblocking]];
 
         void push(x64::page *page [[gnu::nonnull]]) noexcept [[clang::nonblocking]];
-        void push(x64::page *pages [[gnu::nonnull]], size_t count) noexcept [[clang::nonallocating]];
-        void append(PageTableList list) noexcept [[clang::nonallocating]];
+        void push(x64::page *pages [[gnu::nonnull]], size_t count) noexcept [[clang::nonblocking]];
+        void append(PageTableList list) noexcept [[clang::nonblocking]];
 
         [[gnu::returns_nonnull]]
         x64::page *next() noexcept [[clang::nonblocking]];
 
         x64::page *drain() noexcept [[clang::nonblocking]];
 
-        size_t count() const noexcept [[clang::nonallocating]];
+        size_t count() const noexcept [[clang::nonblocking]];
     };
 }

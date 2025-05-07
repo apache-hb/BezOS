@@ -4,6 +4,11 @@
 
 #include "std/vector.hpp"
 
+#include "common/compiler/compiler.hpp"
+
+CLANG_DIAGNOSTIC_PUSH();
+CLANG_DIAGNOSTIC_IGNORE("-Wfunction-effects"); // We don't care about realtime effects in tests
+
 class TestAllocator : public mem::IAllocator {
 public:
     void* allocate(size_t size) override {
@@ -23,11 +28,13 @@ public:
         return std::realloc(old, newSize);
     }
 
-    void deallocate(void* ptr, size_t _) override {
+    void deallocate(void* ptr, size_t _) noexcept override {
         std::cerr << "deallocating " << (uintptr_t)ptr << std::endl;
         std::free(ptr);
     }
 };
+
+CLANG_DIAGNOSTIC_POP();
 
 TEST(VectorTest, DefaultConstructor) {
     TestAllocator allocator;

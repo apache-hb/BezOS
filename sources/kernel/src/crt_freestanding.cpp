@@ -41,18 +41,19 @@ extern "C" void abort() {
     KM_PANIC("abort() called");
 }
 
-__attribute__((__nothrow__, __nonallocating__))
+__attribute__((__nothrow__, __nonblocking__, __nonnull__, __returns_nonnull__))
 extern "C" void *memcpy(void *dest, const void *source, size_t n) {
     KmMemoryCopy(dest, source, n);
     return dest;
 }
 
-__attribute__((__nothrow__, __nonallocating__))
+__attribute__((__nothrow__, __nonblocking__, __nonnull__, __returns_nonnull__))
 extern "C" void *memset(void *dst, int value, size_t n) {
     KmMemorySet(dst, value, n);
     return dst;
 }
 
+__attribute__((__nothrow__, __nonblocking__, __nonnull__))
 extern "C" void *memchr(const void *s, int c, size_t n) {
     const unsigned char *p = (const unsigned char *)s;
 
@@ -67,6 +68,7 @@ extern "C" void *memchr(const void *s, int c, size_t n) {
     return nullptr;
 }
 
+__attribute__((__nothrow__, __nonblocking__, __nonnull__))
 extern "C" int strncmp(const char *s1, const char *s2, size_t n) {
     while (n-- > 0) {
         if (*s1 != *s2) {
@@ -84,6 +86,7 @@ extern "C" int strncmp(const char *s1, const char *s2, size_t n) {
     return 0;
 }
 
+__attribute__((__nothrow__, __nonblocking__, __nonnull__))
 extern "C" int strcmp(const char *s1, const char *s2) {
     while (*s1 && *s1 == *s2) {
         s1++;
@@ -93,7 +96,7 @@ extern "C" int strcmp(const char *s1, const char *s2) {
     return *(unsigned char *)s1 - *(unsigned char *)s2;
 }
 
-__attribute__((__nothrow__, __nonallocating__))
+__attribute__((__nothrow__, __nonblocking__, __nonnull__, __returns_nonnull__))
 extern "C" void *memmove(void *dest, const void *src, size_t n) {
     uint8_t *pdest = (uint8_t *)dest;
     const uint8_t *psrc = (const uint8_t *)src;
@@ -111,7 +114,7 @@ extern "C" void *memmove(void *dest, const void *src, size_t n) {
     return dest;
 }
 
-__attribute__((__nothrow__, __nonallocating__))
+__attribute__((__nothrow__, __nonblocking__, __nonnull__))
 extern "C" int memcmp(const void *s1, const void *s2, size_t n) {
     const uint8_t *p1 = (const uint8_t *)s1;
     const uint8_t *p2 = (const uint8_t *)s2;
@@ -153,18 +156,20 @@ extern "C" char *strncpy(char *dest, const char *src, size_t n) {
     return dest;
 }
 
-extern "C" size_t strlen(const char *str) {
-    const char *back = str;
-
-    while (*back++) { /* empty */ }
-
-    return back - str - 1;
+__attribute__((__nothrow__, __nonblocking__, __nonnull__))
+extern "C" size_t strlen(const char *s) {
+    size_t len = 0;
+    while (*s++) {
+        len++;
+    }
+    return len;
 }
 
-extern "C" size_t strnlen(const char *str, size_t maxlen) {
-    const char *back = str;
-
-    while (maxlen-- && *back++) { /* empty */ }
-
-    return back - str - 1;
+__attribute__((__nothrow__, __nonblocking__, __nonnull__))
+extern "C" size_t strnlen(const char *s, size_t n) {
+    size_t len = 0;
+    while (n-- && *s++) {
+        len++;
+    }
+    return len;
 }

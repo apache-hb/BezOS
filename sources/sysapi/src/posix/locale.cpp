@@ -2,7 +2,7 @@
 
 #include "private.hpp"
 
-char *setlocale(int, const char *) noexcept {
+char *setlocale(int, const char *) {
     Unimplemented();
     return nullptr;
 }

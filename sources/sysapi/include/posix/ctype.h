@@ -5,31 +5,31 @@
 
 BZP_API_BEGIN
 
-extern int isascii(int) BZP_NOEXCEPT;
+extern int isascii(int);
 
-extern int isprint(int) BZP_NOEXCEPT;
+extern int isprint(int);
 
-extern int isalpha(int) BZP_NOEXCEPT;
+extern int isalpha(int);
 
-extern int isalnum(int) BZP_NOEXCEPT;
+extern int isalnum(int);
 
-extern int isdigit(int) BZP_NOEXCEPT;
+extern int isdigit(int);
 
-extern int isxdigit(int) BZP_NOEXCEPT;
+extern int isxdigit(int);
 
-extern int isspace(int) BZP_NOEXCEPT;
+extern int isspace(int);
 
-extern int ispunct(int) BZP_NOEXCEPT;
+extern int ispunct(int);
 
-extern int iscntrl(int) BZP_NOEXCEPT;
+extern int iscntrl(int);
 
-extern int isgraph(int) BZP_NOEXCEPT;
+extern int isgraph(int);
 
-extern int isupper(int) BZP_NOEXCEPT;
-extern int islower(int) BZP_NOEXCEPT;
+extern int isupper(int);
+extern int islower(int);
 
-extern int toupper(int) BZP_NOEXCEPT;
-extern int tolower(int) BZP_NOEXCEPT;
+extern int toupper(int);
+extern int tolower(int);
 
 BZP_API_END
 

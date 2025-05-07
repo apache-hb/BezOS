@@ -65,11 +65,11 @@ struct rusage {
 #endif
 };
 
-extern int getpriority(int, id_t) BZP_NOEXCEPT;
-extern int getrlimit(int, struct rlimit*) BZP_NOEXCEPT;
-extern int getrusage(int, struct rusage*) BZP_NOEXCEPT;
-extern int setpriority(int, id_t, int) BZP_NOEXCEPT;
-extern int setrlimit(int, const struct rlimit*) BZP_NOEXCEPT;
+extern int getpriority(int, id_t);
+extern int getrlimit(int, struct rlimit*);
+extern int getrusage(int, struct rusage*);
+extern int setpriority(int, id_t, int);
+extern int setrlimit(int, const struct rlimit*);
 
 BZP_API_END
 

@@ -53,7 +53,7 @@ namespace mem {
             return tlsf_realloc(mAllocator.get(), old, newSize);
         }
 
-        void deallocate(void *ptr, size_t _) [[clang::allocating]] override {
+        void deallocate(void *ptr, size_t _) noexcept [[clang::nonallocating]] override {
             tlsf_free(mAllocator.get(), ptr);
         }
     };

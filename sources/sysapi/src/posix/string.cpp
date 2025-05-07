@@ -3,7 +3,8 @@
 #include <posix/stdint.h>
 #include <posix/stdlib.h>
 
-size_t strlen(const char *s) noexcept {
+__attribute__((__nothrow__, __nonblocking__, __nonnull__))
+size_t strlen(const char *s) {
     size_t len = 0;
     while (*s++) {
         len++;
@@ -11,7 +12,8 @@ size_t strlen(const char *s) noexcept {
     return len;
 }
 
-size_t strnlen(const char *s, size_t n) noexcept {
+__attribute__((__nothrow__, __nonblocking__, __nonnull__))
+size_t strnlen(const char *s, size_t n) {
     size_t len = 0;
     while (n-- && *s++) {
         len++;
@@ -19,7 +21,8 @@ size_t strnlen(const char *s, size_t n) noexcept {
     return len;
 }
 
-void *memset(void *ptr, int v, size_t size) noexcept {
+__attribute__((__nothrow__, __nonblocking__, __nonnull__, __returns_nonnull__))
+void *memset(void *ptr, int v, size_t size) {
     unsigned char *p = static_cast<unsigned char *>(ptr);
     for (size_t i = 0; i < size; i++) {
         p[i] = static_cast<unsigned char>(v);
@@ -27,7 +30,8 @@ void *memset(void *ptr, int v, size_t size) noexcept {
     return ptr;
 }
 
-void *memcpy(void *dst, const void *src, size_t size) noexcept {
+__attribute__((__nothrow__, __nonblocking__, __nonnull__, __returns_nonnull__))
+void *memcpy(void *dst, const void *src, size_t size) {
     unsigned char *d = static_cast<unsigned char *>(dst);
     const unsigned char *s = static_cast<const unsigned char *>(src);
     for (size_t i = 0; i < size; i++) {
@@ -36,7 +40,8 @@ void *memcpy(void *dst, const void *src, size_t size) noexcept {
     return dst;
 }
 
-void *memmove(void *dst, const void *src, size_t size) noexcept {
+__attribute__((__nothrow__, __nonblocking__, __nonnull__, __returns_nonnull__))
+void *memmove(void *dst, const void *src, size_t size) {
     unsigned char *d = static_cast<unsigned char *>(dst);
     const unsigned char *s = static_cast<const unsigned char *>(src);
     if (d < s) {
@@ -51,7 +56,8 @@ void *memmove(void *dst, const void *src, size_t size) noexcept {
     return dst;
 }
 
-void *memchr(const void *s, int c, size_t n) noexcept {
+__attribute__((__nothrow__, __nonblocking__, __nonnull__))
+void *memchr(const void *s, int c, size_t n) {
     const unsigned char *p = static_cast<const unsigned char *>(s);
     for (size_t i = 0; i < n; i++) {
         if (p[i] == c) {
@@ -62,7 +68,8 @@ void *memchr(const void *s, int c, size_t n) noexcept {
     return nullptr;
 }
 
-int memcmp(const void *lhs, const void *rhs, size_t n) noexcept {
+__attribute__((__nothrow__, __nonblocking__, __nonnull__))
+int memcmp(const void *lhs, const void *rhs, size_t n) {
     const unsigned char *l = static_cast<const unsigned char *>(lhs);
     const unsigned char *r = static_cast<const unsigned char *>(rhs);
     for (size_t i = 0; i < n; i++) {
@@ -74,7 +81,8 @@ int memcmp(const void *lhs, const void *rhs, size_t n) noexcept {
     return 0;
 }
 
-int strcmp(const char *lhs, const char *rhs) noexcept {
+__attribute__((__nothrow__, __nonblocking__, __nonnull__))
+int strcmp(const char *lhs, const char *rhs) {
     while (*lhs && *rhs && *lhs == *rhs) {
         lhs++;
         rhs++;
@@ -83,7 +91,8 @@ int strcmp(const char *lhs, const char *rhs) noexcept {
     return *lhs - *rhs;
 }
 
-int strncmp(const char *lhs, const char *rhs, size_t n) noexcept {
+__attribute__((__nothrow__, __nonblocking__, __nonnull__))
+int strncmp(const char *lhs, const char *rhs, size_t n) {
     for (size_t i = 0; i < n; i++) {
         char l = lhs[i];
         char r = rhs[i];
@@ -100,7 +109,7 @@ int strncmp(const char *lhs, const char *rhs, size_t n) noexcept {
     return 0;
 }
 
-char *strcpy(char *dst, const char *src) noexcept {
+char *strcpy(char *dst, const char *src) {
     while (*src) {
         *dst++ = *src++;
     }
@@ -108,7 +117,7 @@ char *strcpy(char *dst, const char *src) noexcept {
     return dst;
 }
 
-char *strncpy(char *dst, const char *src, size_t n) noexcept {
+char *strncpy(char *dst, const char *src, size_t n) {
     for (size_t i = 0; i < n; i++) {
         dst[i] = src[i];
 
@@ -120,7 +129,7 @@ char *strncpy(char *dst, const char *src, size_t n) noexcept {
     return (dst + n);
 }
 
-char *strcat(char *dst, const char *src) noexcept {
+char *strcat(char *dst, const char *src) {
     char *result = dst;
 
     while (*dst) {
@@ -136,7 +145,7 @@ char *strcat(char *dst, const char *src) noexcept {
     return result;
 }
 
-char *strncat(char *dst, const char *src, size_t n) noexcept {
+char *strncat(char *dst, const char *src, size_t n) {
     char *result = dst;
 
     while (*dst) {
@@ -158,7 +167,7 @@ char *strncat(char *dst, const char *src, size_t n) noexcept {
     return result;
 }
 
-char *strchr(const char *str, int c) noexcept {
+char *strchr(const char *str, int c) {
     for (size_t i = 0; str[i]; i++) {
         if (str[i] == c) {
             return const_cast<char *>(str + i);
@@ -168,7 +177,7 @@ char *strchr(const char *str, int c) noexcept {
     return nullptr;
 }
 
-char *strrchr(const char *str, int c) noexcept {
+char *strrchr(const char *str, int c) {
     const char *last = nullptr;
     for (size_t i = 0; str[i]; i++) {
         if (str[i] == c) {
@@ -179,7 +188,7 @@ char *strrchr(const char *str, int c) noexcept {
     return const_cast<char *>(last);
 }
 
-char *strstr(const char *haystack, const char *needle) noexcept {
+char *strstr(const char *haystack, const char *needle) {
     size_t sublen = strlen(needle);
     for (size_t i = 0; haystack[i]; i++) {
         if (strncmp(haystack + i, needle, sublen) == 0) {
@@ -190,7 +199,8 @@ char *strstr(const char *haystack, const char *needle) noexcept {
     return nullptr;
 }
 
-char *strdup(const char *str) noexcept {
+__attribute__((__nothrow__, __nonnull__, __malloc__, __allocating__))
+char *strdup(const char *str) {
     size_t len = strlen(str);
     if (char *result = (char*)malloc(len + 1)) {
         memcpy(result, str, len);
@@ -201,7 +211,8 @@ char *strdup(const char *str) noexcept {
     return nullptr;
 }
 
-char *strndup(const char *str, size_t len) noexcept {
+__attribute__((__nothrow__, __nonnull__, __malloc__, __allocating__))
+char *strndup(const char *str, size_t len) {
     if (char *result = (char*)malloc(len + 1)) {
         size_t i;
         for (i = 0; i < len && str[i]; i++) {
@@ -216,7 +227,7 @@ char *strndup(const char *str, size_t len) noexcept {
     return nullptr;
 }
 
-static constexpr bool ImplStringContains(const char *str, char c) noexcept {
+static constexpr bool ImplStringContains(const char *str, char c) {
     while (*str) {
         if (*str == c) {
             return true;
@@ -228,7 +239,7 @@ static constexpr bool ImplStringContains(const char *str, char c) noexcept {
     return false;
 }
 
-size_t strspn(const char *str, const char *accept) noexcept {
+size_t strspn(const char *str, const char *accept) {
     size_t count = 0;
     while (*str && ImplStringContains(accept, *str)) {
         count++;

@@ -6,7 +6,7 @@
 
 #include "private.hpp"
 
-long sysconf(int param) noexcept {
+long sysconf(int param) {
     switch (param) {
     case _SC_PAGESIZE: return 0x1000;
     default:
@@ -15,175 +15,176 @@ long sysconf(int param) noexcept {
     }
 }
 
-void _exit(int exitcode) noexcept {
+__attribute__((__nothrow__, __noreturn__))
+void _exit(int exitcode) {
     exit(exitcode);
 }
 
-int dup(int fd) noexcept {
+int dup(int fd) {
     Unimplemented();
     DebugLog(eOsLogInfo, "POSIX dup: %d", fd);
     return -1;
 }
 
-int dup2(int, int) noexcept {
+int dup2(int, int) {
     Unimplemented();
     return -1;
 }
 
-int pipe(int[2]) noexcept {
+int pipe(int[2]) {
     Unimplemented();
     return -1;
 }
 
-int getopt(int, char *const[], const char *) noexcept {
+int getopt(int, char *const[], const char *) {
     Unimplemented();
     return -1;
 }
 
-off_t lseek(int, off_t, int) noexcept {
+off_t lseek(int, off_t, int) {
     Unimplemented();
     return -1;
 }
 
-ssize_t read(int, void *, size_t) noexcept {
+ssize_t read(int, void *, size_t) {
     Unimplemented();
     return -1;
 }
 
-ssize_t write(int, const void *, size_t) noexcept {
+ssize_t write(int, const void *, size_t) {
     Unimplemented();
     return -1;
 }
 
-int isatty(int) noexcept {
+int isatty(int) {
     Unimplemented();
     return -1;
 }
 
-int access(const char *, int) noexcept {
+int access(const char *, int) {
     Unimplemented();
     return -1;
 }
 
 static char name[64] = "/dev/tty";
 
-char *ttyname(int fd) noexcept {
+char *ttyname(int fd) {
     Unimplemented();
     DebugLog(eOsLogInfo, "POSIX ttyname: %d", fd);
     return name;
 }
 
-pid_t getpid(void) noexcept {
+pid_t getpid(void) {
     Unimplemented();
     return -1;
 }
 
-uid_t getuid(void) noexcept {
+uid_t getuid(void) {
     Unimplemented();
     return -1;
 }
 
-uid_t geteuid(void) noexcept {
+uid_t geteuid(void) {
     Unimplemented();
     return -1;
 }
 
-gid_t getgid(void) noexcept {
+gid_t getgid(void) {
     Unimplemented();
     return -1;
 }
 
-gid_t getegid(void) noexcept {
+gid_t getegid(void) {
     Unimplemented();
     return -1;
 }
 
-int chdir(const char *) noexcept {
+int chdir(const char *) {
     Unimplemented();
     return -1;
 }
 
-int setuid(uid_t) noexcept {
+int setuid(uid_t) {
     Unimplemented();
     return -1;
 }
 
-int seteuid(uid_t) noexcept {
+int seteuid(uid_t) {
     Unimplemented();
     return -1;
 }
 
-int setgid(gid_t) noexcept {
+int setgid(gid_t) {
     Unimplemented();
     return -1;
 }
 
-int setegid(gid_t) noexcept {
+int setegid(gid_t) {
     Unimplemented();
     return -1;
 }
 
-int setpgrp(pid_t, pid_t) noexcept {
+int setpgrp(pid_t, pid_t) {
     Unimplemented();
     return -1;
 }
 
-int getpgrp(pid_t) noexcept {
+int getpgrp(pid_t) {
     Unimplemented();
     return -1;
 }
 
-pid_t fork(void) noexcept {
+pid_t fork(void) {
     Unimplemented();
     return -1;
 }
 
-char *getlogin(void) noexcept {
+char *getlogin(void) {
     Unimplemented();
     return nullptr;
 }
 
-int getlogin_r(char *, size_t) noexcept {
+int getlogin_r(char *, size_t) {
     Unimplemented();
     return -1;
 }
 
-int pause(void) noexcept {
+int pause(void) {
     Unimplemented();
     return -1;
 }
 
-int link(const char *, const char *) noexcept {
+int link(const char *, const char *) {
     Unimplemented();
     return -1;
 }
 
-int unlink(const char *) noexcept {
+int unlink(const char *) {
     Unimplemented();
     return -1;
 }
 
-unsigned sleep(unsigned) noexcept {
+unsigned sleep(unsigned) {
     Unimplemented();
     return 0;
 }
 
-unsigned alarm(unsigned) noexcept {
+unsigned alarm(unsigned) {
     Unimplemented();
     return 0;
 }
 
-int execve(const char *, char *const[], char *const[]) noexcept {
+int execve(const char *, char *const[], char *const[]) {
     Unimplemented();
     return -1;
 }
 
-pid_t getppid(void) noexcept {
+pid_t getppid(void) {
     Unimplemented();
     return -1;
 }
 
-char *getcwd(char *dst, size_t n) noexcept {
+char *getcwd(char *dst, size_t n) {
     Unimplemented();
     DebugLog(eOsLogInfo, "POSIX getcwd");
     char *cwd = getenv("CWD");

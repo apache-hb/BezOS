@@ -3,8 +3,8 @@
 
 #include <detail/cxx.h>
 
-extern int abs(int) BZP_NOEXCEPT;
-extern long labs(long) BZP_NOEXCEPT;
-extern long long llabs(long long) BZP_NOEXCEPT;
+extern int abs(int);
+extern long labs(long);
+extern long long llabs(long long);
 
 #endif /* BEZOS_POSIX_DETAIL_MATH_H */

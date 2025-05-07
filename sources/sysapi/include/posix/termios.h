@@ -113,17 +113,17 @@ struct termios {
     speed_t c_ospeed;
 };
 
-extern speed_t cfgetispeed(const struct termios *) BZP_NOEXCEPT;
-extern speed_t cfgetospeed(const struct termios *) BZP_NOEXCEPT;
-extern int cfsetispeed(struct termios *, speed_t) BZP_NOEXCEPT;
-extern int cfsetospeed(struct termios *, speed_t) BZP_NOEXCEPT;
-extern int tcdrain(int) BZP_NOEXCEPT;
-extern int tcflow(int, int) BZP_NOEXCEPT;
-extern int tcflush(int, int) BZP_NOEXCEPT;
-extern int tcgetattr(int, struct termios *) BZP_NOEXCEPT;
-extern pid_t tcgetsid(int) BZP_NOEXCEPT;
-extern int tcsendbreak(int, int) BZP_NOEXCEPT;
-extern int tcsetattr(int, int, const struct termios *) BZP_NOEXCEPT;
+extern speed_t cfgetispeed(const struct termios *);
+extern speed_t cfgetospeed(const struct termios *);
+extern int cfsetispeed(struct termios *, speed_t);
+extern int cfsetospeed(struct termios *, speed_t);
+extern int tcdrain(int);
+extern int tcflow(int, int);
+extern int tcflush(int, int);
+extern int tcgetattr(int, struct termios *);
+extern pid_t tcgetsid(int);
+extern int tcsendbreak(int, int);
+extern int tcsetattr(int, int, const struct termios *);
 
 BZP_API_END
 

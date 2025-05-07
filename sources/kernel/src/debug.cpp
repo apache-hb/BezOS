@@ -14,7 +14,7 @@ OsStatus km::debug::InitDebugStream([[maybe_unused]] ComPortInfo info) {
 #endif
 }
 
-OsStatus km::debug::detail::SendEvent(const EventPacket &packet) {
+OsStatus km::debug::detail::SendEvent(const EventPacket &packet) noexcept [[clang::nonallocating]] {
 #if KM_DEBUG_EVENTS
     if (!gDebugSerialPort.isReady()) {
         return OsStatusDeviceNotReady;

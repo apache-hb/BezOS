@@ -5,7 +5,7 @@
 
 BZP_API_BEGIN
 
-extern int *OsImplPosixErrnoAddress(void) BZP_NOEXCEPT;
+extern int *OsImplPosixErrnoAddress(void);
 #define errno (*OsImplPosixErrnoAddress())
 
 /**
