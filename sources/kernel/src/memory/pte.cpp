@@ -121,11 +121,6 @@ void PageTables::mapRange1g(AddressMapping mapping, PageFlags flags, MemoryType 
 }
 
 void PageTables::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableList& buffer) noexcept [[clang::nonallocating]] {
-    if (!mPageManager->isCanonicalAddress(vaddr)) {
-        KmDebugMessage("Attempting to map address that isn't canonical: ", vaddr, "\n");
-        KM_PANIC("Invalid memory mapping.");
-    }
-
     auto [pml4e, pdpte, pdte, pte] = GetAddressParts(vaddr);
 
     x64::PageMapLevel4 *l4 = pml4();
@@ -431,8 +426,6 @@ OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType typ
         return OsStatusInvalidInput;
     }
 
-    // stdx::LockGuard guard(mLock);
-
     detail::PageTableList buffer;
     if (OsStatus status = allocatePageTables(mapping.virtualRange(), &buffer)) {
         return status;
@@ -580,7 +573,7 @@ x64::pdte& PageTables::getLargePageEntry(const void *address) noexcept [[clang::
     return l2->entries[pdte];
 }
 
-PageWalk PageTables::walkUnlocked(const void *ptr) const {
+PageWalk PageTables::walkUnlocked(sm::VirtualAddress ptr) const noexcept [[clang::nonblocking]] {
     auto [pml4eIndex, pdpteIndex, pdteIndex, pteIndex] = GetAddressParts(ptr);
     x64::pml4e pml4e{};
     x64::pdpte pdpte{};
@@ -776,13 +769,6 @@ void PageTables::unmapUnlocked(VirtualRange range) noexcept [[clang::nonallocati
 OsStatus PageTables::unmap(VirtualRange range) {
     range = alignedOut(range, x64::kPageSize);
 
-    // stdx::LockGuard guard(mLock);
-
-    if (range.contains((void*)this) || range.contains(__builtin_frame_address(0))) {
-        KmDebugMessage("Attempting to unmap myself: ", range.front, " - ", range.back, "\n");
-        KM_PANIC("Attempting to unmap myself.");
-    }
-
     if (OsStatus status = earlyUnmap(range, &range)) {
         return status;
     }
@@ -803,8 +789,6 @@ OsStatus PageTables::unmap2m(VirtualRange range) {
     if (!valid) [[unlikely]] {
         return OsStatusInvalidInput;
     }
-
-    // stdx::LockGuard guard(mLock);
 
     x64::PageMapLevel4 *l4 = pml4();
 
@@ -881,7 +865,6 @@ PhysicalAddress PageTables::getBackingAddressUnlocked(const void *ptr) const {
 }
 
 km::PhysicalAddress PageTables::getBackingAddress(const void *ptr) {
-    // stdx::LockGuard guard(mLock);
     return getBackingAddressUnlocked(ptr);
 }
 
@@ -900,7 +883,6 @@ km::PhysicalAddress PageTables::asPhysical(const void *ptr) const noexcept [[cla
 }
 
 PageWalk PageTables::walk(const void *ptr) {
-    // stdx::LockGuard guard(mLock);
     return walkUnlocked(ptr);
 }
 
@@ -994,6 +976,5 @@ size_t PageTables::compactUnlocked() {
 }
 
 size_t PageTables::compact() {
-    // stdx::LockGuard guard(mLock);
     return compactUnlocked();
 }

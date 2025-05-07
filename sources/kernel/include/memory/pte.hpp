@@ -115,7 +115,7 @@ namespace km {
 
         x64::pdte& getLargePageEntry(const void *address) noexcept [[clang::nonallocating]];
 
-        PageWalk walkUnlocked(const void *ptr) const;
+        PageWalk walkUnlocked(sm::VirtualAddress ptr) const noexcept [[clang::nonblocking]];
 
         OsStatus earlyUnmap(VirtualRange range, VirtualRange *remaining);
         void earlyUnmapWithList(int earlyAllocations, VirtualRange range, VirtualRange *remaining, detail::PageTableList& buffer) noexcept [[clang::nonallocating]];
