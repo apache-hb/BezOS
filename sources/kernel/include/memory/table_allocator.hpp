@@ -73,7 +73,7 @@ namespace km {
 
         bool contains(sm::VirtualAddress ptr) const noexcept [[clang::nonblocking]];
 
-        static OsStatus create(VirtualRangeEx memory, size_t blockSize, PageTableAllocator *allocator [[gnu::nonnull]]) noexcept [[clang::allocating]];
+        static OsStatus create(VirtualRangeEx memory, size_t blockSize, PageTableAllocator *allocator [[clang::noescape, gnu::nonnull]]) noexcept [[clang::allocating]];
 
 #if __STDC_HOSTED__
         detail::ControlBlock *TESTING_getHead() {

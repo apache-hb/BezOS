@@ -111,7 +111,7 @@ namespace km {
         /// @param range The range to unmap.
         ///
         /// @return The number of page tables required, either 0, 1, or 2.
-        int earlyAllocatePageTables(VirtualRange range) noexcept [[clang::nonallocating]];
+        int countRequiredPageTables(VirtualRange range) noexcept [[clang::nonallocating]];
 
         x64::pdte& getLargePageEntry(const void *address) noexcept [[clang::nonallocating]];
 
@@ -159,9 +159,13 @@ namespace km {
         UTIL_NOCOPY(PageTables);
         UTIL_DEFAULT_MOVE(PageTables);
 
+        [[gnu::returns_nonnull]]
         const PageBuilder *pageManager() const noexcept { return mPageManager; }
 
+        [[gnu::returns_nonnull]]
         const x64::PageMapLevel4 *pml4() const noexcept [[clang::nonblocking]] { return mRootPageTable; }
+
+        [[gnu::returns_nonnull]]
         x64::PageMapLevel4 *pml4() noexcept [[clang::nonblocking]] { return mRootPageTable; }
         PhysicalAddress root() const noexcept [[clang::nonblocking]] { return asPhysical(pml4()); }
 
@@ -270,7 +274,7 @@ namespace km {
         OsStatus map(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
 
         [[nodiscard]]
-        static OsStatus create(const PageBuilder *pm, AddressMapping pteMemory, PageFlags flags, PageTables *tables [[gnu::nonnull]]) [[clang::allocating]];
+        static OsStatus create(const PageBuilder *pm [[gnu::nonnull]], AddressMapping pteMemory, PageFlags flags, PageTables *tables [[clang::noescape, gnu::nonnull]]) [[clang::allocating]];
 
 #if __STDC_HOSTED__
         PageTableAllocator& TESTING_getPageTableAllocator() {

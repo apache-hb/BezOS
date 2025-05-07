@@ -30,7 +30,7 @@ void PageTables::setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddre
     entry.setPresent(true);
 }
 
-OsStatus PageTables::create(const PageBuilder *pm, AddressMapping pteMemory, PageFlags flags, PageTables *tables) [[clang::allocating]] {
+OsStatus PageTables::create(const PageBuilder *pm, AddressMapping pteMemory, PageFlags flags, PageTables *tables [[clang::noescape]]) [[clang::allocating]] {
     tables->mSlide = pteMemory.slide();
     tables->mPageManager = pm;
     tables->mMiddleFlags = flags;
@@ -347,7 +347,7 @@ OsStatus PageTables::reservePageTablesForMapping(VirtualRange range, detail::Pag
 }
 
 OsStatus PageTables::reservePageTablesForUnmapping(VirtualRange range, detail::PageTableList& list) {
-    if (int pteCount = earlyAllocatePageTables(range)) {
+    if (int pteCount = countRequiredPageTables(range)) {
         if (OsStatus status = mAllocator.allocateExtra(pteCount, list)) {
             return status;
         }
@@ -520,7 +520,7 @@ void PageTables::reclaim2m(x64::pdte& pde) {
     pde.set2m(false);
 }
 
-int PageTables::earlyAllocatePageTables(VirtualRange range) noexcept [[clang::nonallocating]] {
+int PageTables::countRequiredPageTables(VirtualRange range) noexcept [[clang::nonallocating]] {
     auto isMappedUsingLargePage = [&](const void *address) {
         PageWalk walk = walkUnlocked(address);
         return walk.pageSize() == PageSize::eLarge;
@@ -685,7 +685,7 @@ OsStatus PageTables::earlyUnmap(VirtualRange range, VirtualRange *remaining) {
     // where the second allocation fails but page tables have already been manipulated. So we need to allocate both
     // required page tables upfront to ensure both exist before unmapping the remaining area.
     //
-    int earlyAllocations = earlyAllocatePageTables(range);
+    int earlyAllocations = countRequiredPageTables(range);
     if (earlyAllocations == 0) {
         return OsStatusSuccess;
     }
@@ -701,7 +701,7 @@ OsStatus PageTables::earlyUnmap(VirtualRange range, VirtualRange *remaining) {
 }
 
 void PageTables::unmapWithList(VirtualRange range, detail::PageTableList& buffer) noexcept [[clang::nonallocating]] {
-    int earlyAllocations = earlyAllocatePageTables(range);
+    int earlyAllocations = countRequiredPageTables(range);
     if (earlyAllocations != 0) {
         earlyUnmapWithList(earlyAllocations, range, &range, buffer);
     }
