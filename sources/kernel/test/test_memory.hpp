@@ -4,6 +4,11 @@
 #include <memory_resource>
 #include <vector>
 
+#include "common/compiler/compiler.hpp"
+
+CLANG_DIAGNOSTIC_PUSH();
+CLANG_DIAGNOSTIC_IGNORE("-Wfunction-effects"); // We don't care about realtime effects in tests
+
 static km::PageMemoryTypeLayout GetDefaultPatLayout(void) {
     enum {
         kEntryWriteBack,
@@ -36,10 +41,12 @@ public:
         return mResource.allocate(size, align);
     }
 
-    void deallocate(void *ptr, size_t size) override {
+    void deallocate(void *ptr, size_t size) noexcept override {
         mResource.deallocate(ptr, size);
     }
 };
+
+CLANG_DIAGNOSTIC_POP();
 
 template<typename T>
 using mmUniquePtr = std::unique_ptr<T, decltype(&_mm_free)>;

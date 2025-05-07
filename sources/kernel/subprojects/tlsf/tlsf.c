@@ -1168,7 +1168,7 @@ void* tlsf_memalign(tlsf_t tlsf, size_t align, size_t size)
 	return block_prepare_used(control, block, adjust);
 }
 
-void tlsf_free(tlsf_t tlsf, void* ptr)
+void tlsf_free(tlsf_t tlsf, void* ptr) [[clang::nonallocating]]
 {
 	/* Don't attempt to free a NULL pointer. */
 	if (ptr)

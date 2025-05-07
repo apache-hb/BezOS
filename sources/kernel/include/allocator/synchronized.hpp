@@ -20,17 +20,17 @@ namespace mem {
             return T::allocate(size);
         }
 
-        void *allocateAligned(size_t size, size_t align) [[clang::allocating]] override {
+        void *allocateAligned(size_t size, size_t align) [[clang::blocking, clang::allocating]] override {
             stdx::LockGuard guard(mLock);
             return T::allocateAligned(size, align);
         }
 
-        void deallocate(void *ptr, size_t size) [[clang::allocating]] override {
+        void deallocate(void *ptr, size_t size) noexcept [[clang::blocking, clang::nonallocating]] override {
             stdx::LockGuard guard(mLock);
             T::deallocate(ptr, size);
         }
 
-        void *reallocate(void *old, size_t oldSize, size_t newSize) [[clang::allocating]] override {
+        void *reallocate(void *old, size_t oldSize, size_t newSize) [[clang::blocking, clang::allocating]] override {
             stdx::LockGuard guard(mLock);
             return T::reallocate(old, oldSize, newSize);
         }
