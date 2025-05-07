@@ -615,7 +615,7 @@ OsStatus sys::SysVmemMap(InvokeContext *context, OsVmemMapInfo info, void **outV
         if (OsStatus status = process->vmemMapProcess(context->system, vmemInfo, src, &vm)) {
             return status;
         }
-        KmDebugMessage("[VMEM] Mapped vmem ", vm, " from process ", src->getName(), " into ", process->getName(), "\n");
+        KmDebugMessage("[VMEM] Mapped vmem ", vm, " from process '", src->getName(), "' into '", process->getName(), "'\n");
         *outVmem = (void*)vm.front;
         return OsStatusSuccess;
     }
@@ -626,7 +626,7 @@ OsStatus sys::SysVmemMap(InvokeContext *context, OsVmemMapInfo info, void **outV
         if (OsStatus status = process->vmemMapFile(context->system, vmemInfo, file, &vm)) {
             return status;
         }
-        KmDebugMessage("[VMEM] Mapped vmem ", vm, " from file into ", process->getName(), "\n");
+        KmDebugMessage("[VMEM] Mapped vmem ", vm, " from file into '", process->getName(), "'\n");
         *outVmem = (void*)vm.front;
         return OsStatusSuccess;
     }

@@ -133,7 +133,10 @@ bool sys::CpuLocalSchedule::reschedule() {
             }
 
             if (stopThread(mCurrent)) {
-                mQueue.enqueue(ThreadSchedulingInfo { mCurrent });
+                if (!mQueue.enqueue(ThreadSchedulingInfo { mCurrent })) {
+                    KmDebugMessage("[SCHED] Forgot thread ", mCurrent->getName(), " - ", km::GetCurrentCoreId(), "\n");
+                    KM_PANIC("Failed to enqueue thread");
+                }
             }
 
             mCurrent = thread;
@@ -149,9 +152,11 @@ bool sys::CpuLocalSchedule::reschedule() {
         return true;
     }
 
+#if 0
     if (stopThread(mCurrent)) {
         mQueue.enqueue(ThreadSchedulingInfo { mCurrent });
     }
+#endif
 
     return false;
 }
@@ -163,12 +168,24 @@ bool sys::CpuLocalSchedule::scheduleNextContext(km::IsrContext *context, km::Isr
         return false;
     }
 
+    auto newThread = mCurrent;
+
+    if (newThread == oldThread) {
+        return true;
+    }
+
     if (oldThread != nullptr) {
         auto oldRegs = SaveThreadContext(context);
         oldThread->saveState(oldRegs);
     }
 
-    auto newThread = mCurrent;
+    if (newThread == nullptr && oldThread != nullptr) {
+        KmDebugMessage("[SCHED] Dropping thread ", oldThread->getName(), " - ", km::GetCurrentCoreId(), "\n");
+    } else if (newThread != nullptr && oldThread == nullptr) {
+        KmDebugMessage("[SCHED] Starting thread ", newThread->getName(), " - ", km::GetCurrentCoreId(), "\n");
+    } else if (newThread != nullptr && oldThread != nullptr) {
+        KmDebugMessage("[SCHED] Switching from ", oldThread->getName(), " to ", newThread->getName(), " - ", km::GetCurrentCoreId(), "\n");
+    }
 
     auto newRegs = newThread->loadState();
     *next = LoadThreadContext(newRegs);

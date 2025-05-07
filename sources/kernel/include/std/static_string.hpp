@@ -19,7 +19,7 @@ namespace stdx {
         T mStorage[N];
 
         constexpr void init(const T *front, const T *back) {
-            mSize = std::clamp<size_t>(back - front, 0, std::size(mStorage));
+            mSize = std::min<size_t>(std::distance(front, back), N);
             std::copy_n(front, mSize, mStorage);
         }
 
