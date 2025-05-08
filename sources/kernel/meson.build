@@ -169,6 +169,7 @@ src = [
     'src/debug.cpp',
     'src/xsave.cpp',
     'src/clock.cpp',
+    'src/ipl.cpp',
 
     'src/thread.cpp',
     'src/user.S',

@@ -4,6 +4,7 @@
 
 #include "memory/detail/table_list.hpp"
 #include "memory/memory.hpp"
+#include "memory/paging.hpp"
 #include "memory/range.hpp"
 
 #include "std/inlined_vector.hpp"

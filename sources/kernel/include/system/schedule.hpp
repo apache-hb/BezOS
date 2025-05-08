@@ -4,6 +4,7 @@
 #include <bezos/handle.h>
 #include <queue>
 
+#include "ipl.hpp"
 #include "isr/isr.hpp"
 
 #include "std/shared_spinlock.hpp"
@@ -95,10 +96,8 @@ namespace sys {
         sm::FlatHashMap<sm::RcuWeakPtr<IObject>, WaitQueue> mWaitQueue GUARDED_BY(mLock);
         std::priority_queue<WaitEntry> mTimeoutQueue GUARDED_BY(mLock);
         std::priority_queue<SleepEntry> mSleepQueue GUARDED_BY(mLock);
-        moodycamel::ConcurrentQueue<sm::RcuSharedPtr<Thread>, SchedulerQueueTraits> mResumeQueue;
 
         sm::FlatHashSet<sm::RcuWeakPtr<Thread>> mSuspendSet GUARDED_BY(mLock);
-        moodycamel::ConcurrentQueue<sm::RcuSharedPtr<Thread>, SchedulerQueueTraits> mSuspendQueue;
 
         void wakeQueue(OsInstant now, sm::RcuWeakPtr<IObject> object) REQUIRES(mLock);
 
@@ -107,6 +106,12 @@ namespace sys {
 
         OsStatus scheduleThread(sm::RcuSharedPtr<Thread> thread);
 
+        OsStatus suspendUnlocked(sm::RcuSharedPtr<Thread> thread) REQUIRES(mLock);
+        OsStatus resumeUnlocked(sm::RcuSharedPtr<Thread> thread) REQUIRES(mLock);
+
+        void doSuspendUnlocked(sm::RcuSharedPtr<Thread> thread) REQUIRES(mLock);
+
+        void doResumeUnlocked(sm::RcuSharedPtr<Thread> thread) REQUIRES(mLock);
     public:
         GlobalSchedule() = default;
 

@@ -2,6 +2,7 @@
 
 #include "log.hpp"
 #include "panic.hpp"
+#include "std/spinlock.hpp"
 #include "system/thread.hpp"
 
 #include <bezos/facility/thread.h>
@@ -74,9 +75,7 @@ bool sys::CpuLocalSchedule::startThread(sm::RcuSharedPtr<Thread> thread) {
         switch (expected) {
         case eOsThreadSuspended:
             // If the thread has been suspended or is waiting drop it from the scheduler.
-#if 0
             mGlobal->doSuspend(thread);
-#endif
             return false;
         case eOsThreadWaiting:
             // If the thread is waiting then drop it from the scheduler.
@@ -268,13 +267,13 @@ OsStatus sys::GlobalSchedule::removeThread(sm::RcuWeakPtr<Thread>) {
     return OsStatusNotFound;
 }
 
-OsStatus sys::GlobalSchedule::suspend(sm::RcuSharedPtr<Thread> thread) {
+OsStatus sys::GlobalSchedule::suspendUnlocked(sm::RcuSharedPtr<Thread> thread) {
     OsThreadState state = eOsThreadQueued;
 
     while (!thread->cmpxchgState(state, eOsThreadSuspended)) {
         switch (state) {
         case eOsThreadSuspended:
-            doSuspend(thread);
+            doSuspendUnlocked(thread);
             return OsStatusSuccess;
         case eOsThreadQueued:
         case eOsThreadRunning:
@@ -286,17 +285,17 @@ OsStatus sys::GlobalSchedule::suspend(sm::RcuSharedPtr<Thread> thread) {
         }
     }
 
-    doSuspend(thread);
+    doSuspendUnlocked(thread);
     return OsStatusSuccess;
 }
 
-OsStatus sys::GlobalSchedule::resume(sm::RcuSharedPtr<Thread> thread) {
+OsStatus sys::GlobalSchedule::resumeUnlocked(sm::RcuSharedPtr<Thread> thread) {
     OsThreadState state = eOsThreadSuspended;
 
     while (!thread->cmpxchgState(state, eOsThreadRunning)) {
         switch (state) {
         case eOsThreadSuspended:
-            doResume(thread);
+            doResumeUnlocked(thread);
             return OsStatusSuccess;
         case eOsThreadQueued:
         case eOsThreadRunning:
@@ -308,8 +307,18 @@ OsStatus sys::GlobalSchedule::resume(sm::RcuSharedPtr<Thread> thread) {
         }
     }
 
-    doResume(thread);
+    doResumeUnlocked(thread);
     return OsStatusSuccess;
+}
+
+OsStatus sys::GlobalSchedule::suspend(sm::RcuSharedPtr<Thread> thread) {
+    stdx::UniqueLock guard(mLock);
+    return suspendUnlocked(thread);
+}
+
+OsStatus sys::GlobalSchedule::resume(sm::RcuSharedPtr<Thread> thread) {
+    stdx::UniqueLock guard(mLock);
+    return resumeUnlocked(thread);
 }
 
 OsStatus sys::GlobalSchedule::sleep(sm::RcuSharedPtr<Thread> thread, OsInstant wake) {
@@ -366,39 +375,25 @@ OsStatus sys::GlobalSchedule::signal(sm::RcuSharedPtr<IObject> object, OsInstant
     return OsStatusSuccess;
 }
 
-void sys::GlobalSchedule::doSuspend(sm::RcuSharedPtr<Thread> thread) {
-    if (mLock.try_lock()) {
-        // If we can acquire the lock, we can safely add the thread to the suspend set.
-        mSuspendSet.insert(thread.weak());
+void sys::GlobalSchedule::doSuspendUnlocked(sm::RcuSharedPtr<Thread> thread) {
+    mSuspendSet.insert(thread.weak());
+}
 
-        sm::RcuSharedPtr<Thread> element;
-        while (mSuspendQueue.try_dequeue(element)) {
-            mSuspendSet.insert(element.weak());
-        }
-
-        mLock.unlock();
-    } else {
-        // If we can't acquire the lock, we need to use the suspend queue to add the thread.
-        mSuspendQueue.enqueue(thread);
+void sys::GlobalSchedule::doResumeUnlocked(sm::RcuSharedPtr<Thread> thread) {
+    if (auto it = mSuspendSet.find(thread.weak()); it != mSuspendSet.end()) {
+        mSuspendSet.erase(it);
+        scheduleThread(thread);
     }
 }
 
-void sys::GlobalSchedule::doResume(sm::RcuSharedPtr<Thread> thread) {
-    if (mLock.try_lock()) {
-        if (auto it = mSuspendSet.find(thread.weak()); it != mSuspendSet.end()) {
-            mSuspendSet.erase(thread.weak());
-            scheduleThread(thread);
-        }
+void sys::GlobalSchedule::doSuspend(sm::RcuSharedPtr<Thread> thread) {
+    stdx::LockGuard guard(mLock);
+    doSuspendUnlocked(thread);
+}
 
-        sm::RcuSharedPtr<Thread> info;
-        while (mResumeQueue.try_dequeue(info)) {
-            mSuspendSet.erase(info);
-            scheduleThread(info);
-        }
-        mLock.unlock();
-    } else {
-        mResumeQueue.enqueue(thread);
-    }
+void sys::GlobalSchedule::doResume(sm::RcuSharedPtr<Thread> thread) {
+    stdx::LockGuard guard(mLock);
+    doResumeUnlocked(thread);
 }
 
 OsStatus sys::GlobalSchedule::resumeSleepQueue(OsInstant now) {
@@ -412,7 +407,7 @@ OsStatus sys::GlobalSchedule::resumeSleepQueue(OsInstant now) {
         mSleepQueue.pop();
 
         if (auto thread = entry.thread.lock()) {
-            if (OsStatus status = resume(thread)) {
+            if (OsStatus status = resumeUnlocked(thread)) {
                 result = status;
             }
         }
@@ -452,7 +447,7 @@ OsStatus sys::GlobalSchedule::resumeWaitQueue(OsInstant now) {
         wakeQueue(now, entry.object);
 
         if (auto thread = entry.thread.lock()) {
-            if (OsStatus status = resume(thread)) {
+            if (OsStatus status = resumeUnlocked(thread)) {
                 result = status;
             }
         }
@@ -464,7 +459,6 @@ OsStatus sys::GlobalSchedule::resumeWaitQueue(OsInstant now) {
 OsStatus sys::GlobalSchedule::tick(OsInstant now) {
     OsStatus result = OsStatusSuccess;
 
-    km::IntGuard iguard;
     stdx::UniqueLock guard(mLock);
 
     if (OsStatus status = resumeSleepQueue(now)) {

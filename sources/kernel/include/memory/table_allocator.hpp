@@ -57,7 +57,7 @@ namespace km {
         /// @post the data in @p result is undefined if this function returns false.
         ///
         /// @param blocks The number of blocks to allocate.
-        /// @param [out] result The list to write the result to.
+        /// @param[out] result The list to write the result to.
         ///
         /// @return If the allocation was successful.
         bool allocateList(size_t blocks, detail::PageTableList *result) [[clang::allocating]];

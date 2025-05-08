@@ -1,7 +1,5 @@
 #pragma once
 
-#include "util/util.hpp"
-
 #include "common/compiler/compiler.hpp"
 
 namespace km {
@@ -12,6 +10,8 @@ namespace km {
     };
 
     namespace detail {
+        struct empty {};
+
         /// @brief Assert that the current IPL is at least the given level.
         /// Aborts if the current IPL is lower than the given level.
         /// @param level The level to assert.
@@ -58,11 +58,11 @@ namespace km {
         friend void ReleaseIpl<Level>(IplTag<Level>&& tag) noexcept [[clang::nonblocking]];
 
         [[clang::return_typestate(unconsumed)]]
-        constexpr IplTag(sm::init) noexcept {}
+        constexpr IplTag(detail::empty) noexcept {}
 
         [[clang::return_typestate(unconsumed)]]
         static IplTag unchecked() noexcept {
-            return IplTag{sm::init{}};
+            return IplTag{detail::empty{}};
         }
     public:
         constexpr IplTag() noexcept = delete;
@@ -87,18 +87,21 @@ namespace km {
     };
 
     template<Ipl Level>
+    [[clang::return_typestate(unconsumed)]]
     IplTag<Level> EnforceIpl() {
         detail::EnforceIpl(Level);
         return IplTag<Level>::unchecked();
     }
 
     template<Ipl To, Ipl From>
+    [[clang::return_typestate(unconsumed)]]
     IplTag<To> RaiseIpl(IplTag<From>&&) {
         detail::RaiseIpl(From, To);
         return IplTag<To>::unchecked();
     }
 
     template<Ipl To, Ipl From>
+    [[clang::return_typestate(unconsumed)]]
     IplTag<To> LowerIpl(IplTag<From>&&) {
         detail::LowerIpl(From, To);
         return IplTag<To>::unchecked();
