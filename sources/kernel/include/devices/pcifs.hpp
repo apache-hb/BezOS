@@ -1,8 +1,8 @@
 #pragma once
 
-#include "fs2/base.hpp"
-#include "fs2/folder.hpp"
-#include "fs2/identify.hpp"
+#include "fs/base.hpp"
+#include "fs/folder.hpp"
+#include "fs/identify.hpp"
 #include "pci/pci.hpp"
 
 namespace pci {
@@ -25,38 +25,38 @@ namespace dev {
         .DriverVersion = OS_VERSION(1, 0, 0),
     };
 
-    class PciCapability final : public vfs2::BasicNode {
+    class PciCapability final : public vfs::BasicNode {
         pci::IConfigSpace *mConfigSpace;
         pci::Capability mCapability;
     public:
-        OsStatus query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) override;
+        OsStatus query(sm::uuid uuid, const void *data, size_t size, vfs::IHandle **handle) override;
     };
 
-    class PciFunction final : public vfs2::BasicNode, public vfs2::FolderMixin {
+    class PciFunction final : public vfs::BasicNode, public vfs::FolderMixin {
         pci::IConfigSpace *mConfigSpace;
         pci::ConfigHeader mHeader;
     public:
-        OsStatus query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) override;
+        OsStatus query(sm::uuid uuid, const void *data, size_t size, vfs::IHandle **handle) override;
     };
 
-    class PciSlot final : public vfs2::BasicNode, public vfs2::FolderMixin {
+    class PciSlot final : public vfs::BasicNode, public vfs::FolderMixin {
         pci::IConfigSpace *mConfigSpace;
         uint8_t mBus;
         uint8_t mSlot;
     public:
-        OsStatus query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) override;
+        OsStatus query(sm::uuid uuid, const void *data, size_t size, vfs::IHandle **handle) override;
     };
 
-    class PciBus final : public vfs2::BasicNode, public vfs2::FolderMixin {
+    class PciBus final : public vfs::BasicNode, public vfs::FolderMixin {
         pci::IConfigSpace *mConfigSpace;
         uint8_t mBus;
     public:
-        OsStatus query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) override;
+        OsStatus query(sm::uuid uuid, const void *data, size_t size, vfs::IHandle **handle) override;
     };
 
-    class PciRoot final : public vfs2::BasicNode, public vfs2::FolderMixin, public vfs2::ConstIdentifyMixin<kPciRootInfo> {
+    class PciRoot final : public vfs::BasicNode, public vfs::FolderMixin, public vfs::ConstIdentifyMixin<kPciRootInfo> {
         pci::IConfigSpace *mConfigSpace;
     public:
-        OsStatus query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) override;
+        OsStatus query(sm::uuid uuid, const void *data, size_t size, vfs::IHandle **handle) override;
     };
 }

@@ -1,12 +1,12 @@
 #include "system/process.hpp"
 #include "arch/paging.hpp"
-#include "fs2/utils.hpp"
+#include "fs/utils.hpp"
 #include "memory.hpp"
 #include "memory/layout.hpp"
 #include "memory/range.hpp"
 #include "system/system.hpp"
 #include "system/device.hpp"
-#include "fs2/interface.hpp"
+#include "fs/interface.hpp"
 #include "system/sanitize.hpp"
 #include "memory/address_space.hpp"
 #include "system/pmm.hpp"
@@ -292,7 +292,7 @@ OsStatus sys::Process::vmemCreate(System *system, VmemCreateInfo info, km::Addre
     return OsStatusSuccess;
 }
 
-OsStatus sys::Process::vmemMapFile(System *system, VmemMapInfo info, vfs2::IFileHandle *fileHandle, km::VirtualRange *result) {
+OsStatus sys::Process::vmemMapFile(System *system, VmemMapInfo info, vfs::IFileHandle *fileHandle, km::VirtualRange *result) {
     km::MemoryRange memory;
 
     if (OsStatus status = MapFileToMemory(fileHandle, &system->mMemoryManager, system->mSystemTables, info.srcAddress.address, info.size, &memory)) {
@@ -455,7 +455,7 @@ OsStatus sys::SysProcessCreate(InvokeContext *context, sm::RcuSharedPtr<Process>
 
 OsStatus sys::SysProcessDestroy(InvokeContext *context, OsProcessHandle handle, int64_t exitCode, OsProcessStateFlags reason) {
     sys::ProcessHandle *hProcess = nullptr;
-    if (OsStatus status = context->process->findHandle(handle, &hProcess)) {
+    if (OsStatus status = SysFindHandle(context, handle, &hProcess)) {
         return status;
     }
 
@@ -621,7 +621,7 @@ OsStatus sys::SysVmemMap(InvokeContext *context, OsVmemMapInfo info, void **outV
     }
     case eOsHandleDevice: {
         sm::RcuSharedPtr device = sm::rcuSharedPtrCast<Device>(srcObject);
-        vfs2::IFileHandle *file = static_cast<vfs2::IFileHandle*>(device->getVfsHandle());
+        vfs::IFileHandle *file = static_cast<vfs::IFileHandle*>(device->getVfsHandle());
         km::VirtualRange vm;
         if (OsStatus status = process->vmemMapFile(context->system, vmemInfo, file, &vm)) {
             return status;
@@ -635,7 +635,7 @@ OsStatus sys::SysVmemMap(InvokeContext *context, OsVmemMapInfo info, void **outV
     }
 }
 
-OsStatus sys::MapFileToMemory(vfs2::IFileHandle *file, MemoryManager *mm, km::AddressSpace *pt, size_t offset, size_t size, km::MemoryRange *range) {
+OsStatus sys::MapFileToMemory(vfs::IFileHandle *file, MemoryManager *mm, km::AddressSpace *pt, size_t offset, size_t size, km::MemoryRange *range) {
     km::MemoryRange result;
     if (OsStatus status = mm->allocate(sm::roundup(size, x64::kPageSize), x64::kPageSize, &result)) {
         return status;
@@ -650,12 +650,12 @@ OsStatus sys::MapFileToMemory(vfs2::IFileHandle *file, MemoryManager *mm, km::Ad
 
     defer { KM_ASSERT(pt->unmap(privateMapping.virtualRange()) == OsStatusSuccess); };
 
-    vfs2::ReadRequest request {
+    vfs::ReadRequest request {
         .begin = sm::VirtualAddress(privateMapping.vaddr),
         .end = sm::VirtualAddress(privateMapping.vaddr) + size,
         .offset = offset,
     };
-    vfs2::ReadResult read{};
+    vfs::ReadResult read{};
 
     if (OsStatus status = file->read(request, &read)) {
         KM_ASSERT(mm->release(result) == OsStatusSuccess);

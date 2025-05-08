@@ -178,7 +178,7 @@ OsStatus sys::Sanitize<sys::VmemMapInfo>::sanitize(InvokeContext *context, const
         }
 
         sm::RcuSharedPtr device = hDevice->getDevice();
-        vfs2::HandleInfo info = device->getVfsHandle()->info();
+        vfs::HandleInfo info = device->getVfsHandle()->info();
         if (info.guid != sm::uuid(kOsFileGuid)) {
             return OsStatusInvalidHandle;
         }

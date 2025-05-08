@@ -4,9 +4,9 @@
 #include "system/node.hpp"
 #include "system/process.hpp"
 
-#include "fs2/vfs.hpp"
+#include "fs/vfs.hpp"
 
-class SysInvokeContext final : public vfs2::IInvokeContext {
+class SysInvokeContext final : public vfs::IInvokeContext {
     sys::InvokeContext *mContext;
 
 public:
@@ -14,7 +14,7 @@ public:
         : mContext(context)
     { }
 
-    OsNodeHandle resolveNode(sm::RcuSharedPtr<vfs2::INode> node) override {
+    OsNodeHandle resolveNode(sm::RcuSharedPtr<vfs::INode> node) override {
         OsNodeHandle result = OS_HANDLE_INVALID;
 
         if (OsStatus _ = sys::SysNodeCreate(mContext, node, &result)) {
@@ -25,13 +25,13 @@ public:
     }
 };
 
-static sys::ObjectName GetHandleName(vfs2::IHandle *handle) {
+static sys::ObjectName GetHandleName(vfs::IHandle *handle) {
     auto hInfo = handle->info();
     auto nInfo = hInfo.node->info();
     return nInfo.name;
 }
 
-sys::Device::Device(std::unique_ptr<vfs2::IHandle> handle)
+sys::Device::Device(std::unique_ptr<vfs::IHandle> handle)
     : BaseObject(GetHandleName(handle.get()))
     , mVfsHandle(std::move(handle))
 { }
@@ -41,8 +41,8 @@ sys::DeviceHandle::DeviceHandle(sm::RcuSharedPtr<Device> device, OsHandle handle
 { }
 
 static OsStatus DeviceOpenExisting(sys::InvokeContext *context, sys::DeviceOpenInfo info, OsDeviceHandle *outHandle) {
-    vfs2::VfsRoot *vfs = context->system->mVfsRoot;
-    std::unique_ptr<vfs2::IHandle> vfsHandle;
+    vfs::VfsRoot *vfs = context->system->mVfsRoot;
+    std::unique_ptr<vfs::IHandle> vfsHandle;
 
     if (OsStatus status = vfs->device(info.path, info.interface, info.data, info.size, std::out_ptr(vfsHandle))) {
         return status;
@@ -65,9 +65,9 @@ static OsStatus DeviceOpenExisting(sys::InvokeContext *context, sys::DeviceOpenI
 }
 
 static OsStatus DeviceCreateNew(sys::InvokeContext *context, sys::DeviceOpenInfo info, OsDeviceHandle *outHandle) {
-    vfs2::VfsRoot *vfs = context->system->mVfsRoot;
-    sm::RcuSharedPtr<vfs2::INode> vfsNode;
-    std::unique_ptr<vfs2::IHandle> vfsHandle;
+    vfs::VfsRoot *vfs = context->system->mVfsRoot;
+    sm::RcuSharedPtr<vfs::INode> vfsNode;
+    std::unique_ptr<vfs::IHandle> vfsHandle;
     OsStatus status = OsStatusSuccess;
 
     if (info.interface == kOsFileGuid) {
@@ -145,7 +145,7 @@ OsStatus sys::SysDeviceOpen(InvokeContext *context, DeviceOpenInfo info, OsDevic
 
 OsStatus sys::SysDeviceClose(InvokeContext *context, OsDeviceHandle handle) {
     DeviceHandle *hDevice = nullptr;
-    if (OsStatus status = context->process->findHandle(handle, &hDevice)) {
+    if (OsStatus status = SysFindHandle(context, handle, &hDevice)) {
         return status;
     }
 
@@ -164,7 +164,7 @@ OsStatus sys::SysDeviceClose(InvokeContext *context, OsDeviceHandle handle) {
 
 OsStatus sys::SysDeviceRead(InvokeContext *context, OsDeviceHandle handle, OsDeviceReadRequest request, OsSize *outRead) {
     DeviceHandle *hDevice = nullptr;
-    if (OsStatus status = context->process->findHandle(handle, &hDevice)) {
+    if (OsStatus status = SysFindHandle(context, handle, &hDevice)) {
         return status;
     }
 
@@ -173,14 +173,14 @@ OsStatus sys::SysDeviceRead(InvokeContext *context, OsDeviceHandle handle, OsDev
     }
 
     sm::RcuSharedPtr<Device> device = hDevice->getDevice();
-    vfs2::IHandle *vfsHandle = device->getVfsHandle();
-    vfs2::ReadRequest vfsRequest {
+    vfs::IHandle *vfsHandle = device->getVfsHandle();
+    vfs::ReadRequest vfsRequest {
         .begin = request.BufferFront,
         .end = request.BufferBack,
         .offset = request.Offset,
         .timeout = request.Timeout,
     };
-    vfs2::ReadResult vfsResult{};
+    vfs::ReadResult vfsResult{};
 
     if (OsStatus status = vfsHandle->read(vfsRequest, &vfsResult)) {
         return status;
@@ -193,7 +193,7 @@ OsStatus sys::SysDeviceRead(InvokeContext *context, OsDeviceHandle handle, OsDev
 
 OsStatus sys::SysDeviceWrite(InvokeContext *context, OsDeviceHandle handle, OsDeviceWriteRequest request, OsSize *outWrite) {
     DeviceHandle *hDevice = nullptr;
-    if (OsStatus status = context->process->findHandle(handle, &hDevice)) {
+    if (OsStatus status = SysFindHandle(context, handle, &hDevice)) {
         return status;
     }
 
@@ -202,14 +202,14 @@ OsStatus sys::SysDeviceWrite(InvokeContext *context, OsDeviceHandle handle, OsDe
     }
 
     sm::RcuSharedPtr<Device> device = hDevice->getDevice();
-    vfs2::IHandle *vfsHandle = device->getVfsHandle();
-    vfs2::WriteRequest vfsRequest {
+    vfs::IHandle *vfsHandle = device->getVfsHandle();
+    vfs::WriteRequest vfsRequest {
         .begin = request.BufferFront,
         .end = request.BufferBack,
         .offset = request.Offset,
         .timeout = request.Timeout,
     };
-    vfs2::WriteResult vfsResult{};
+    vfs::WriteResult vfsResult{};
 
     if (OsStatus status = vfsHandle->write(vfsRequest, &vfsResult)) {
         return status;
@@ -222,7 +222,7 @@ OsStatus sys::SysDeviceWrite(InvokeContext *context, OsDeviceHandle handle, OsDe
 
 OsStatus sys::SysDeviceInvoke(InvokeContext *context, OsDeviceHandle handle, uint64_t function, void *data, size_t size) {
     DeviceHandle *hDevice = nullptr;
-    if (OsStatus status = context->process->findHandle(handle, &hDevice)) {
+    if (OsStatus status = SysFindHandle(context, handle, &hDevice)) {
         return status;
     }
 
@@ -231,7 +231,7 @@ OsStatus sys::SysDeviceInvoke(InvokeContext *context, OsDeviceHandle handle, uin
     }
 
     sm::RcuSharedPtr<Device> device = hDevice->getDevice();
-    vfs2::IHandle *vfsHandle = device->getVfsHandle();
+    vfs::IHandle *vfsHandle = device->getVfsHandle();
 
     SysInvokeContext invoke { context };
     if (OsStatus status = vfsHandle->invoke(&invoke, function, data, size)) {
@@ -243,7 +243,7 @@ OsStatus sys::SysDeviceInvoke(InvokeContext *context, OsDeviceHandle handle, uin
 
 OsStatus sys::SysDeviceStat(InvokeContext *context, OsDeviceHandle handle, OsDeviceInfo *info) {
     DeviceHandle *hDevice = nullptr;
-    if (OsStatus status = context->process->findHandle(handle, &hDevice)) {
+    if (OsStatus status = SysFindHandle(context, handle, &hDevice)) {
         return status;
     }
 
@@ -252,7 +252,7 @@ OsStatus sys::SysDeviceStat(InvokeContext *context, OsDeviceHandle handle, OsDev
     }
 
     sm::RcuSharedPtr<Device> device = hDevice->getDevice();
-    vfs2::IHandle *vfsHandle = device->getVfsHandle();
+    vfs::IHandle *vfsHandle = device->getVfsHandle();
 
     auto hInfo = vfsHandle->info();
     auto nInfo = hInfo.node->info();

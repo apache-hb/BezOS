@@ -1,10 +1,10 @@
 #pragma once
 
-#include "fs2/device.hpp"
-#include "fs2/folder.hpp"
-#include "fs2/identify.hpp"
+#include "fs/device.hpp"
+#include "fs/folder.hpp"
+#include "fs/identify.hpp"
 
-#include "fs2/node.hpp"
+#include "fs/node.hpp"
 
 namespace km {
     class SystemObjects;
@@ -20,8 +20,8 @@ namespace dev {
     };
 
     class RunFsProcess
-        : public vfs2::INode
-        , public vfs2::FolderMixin
+        : public vfs::INode
+        , public vfs::FolderMixin
     {
         km::SystemObjects *mSystem;
         OsProcessHandle mProcess;
@@ -29,56 +29,56 @@ namespace dev {
     public:
         RunFsProcess(km::SystemObjects *system, OsProcessHandle process);
 
-        OsStatus query(sm::uuid uuid, const void *, size_t, vfs2::IHandle **handle) override;
+        OsStatus query(sm::uuid uuid, const void *, size_t, vfs::IHandle **handle) override;
     };
 
     class RunFsProcessList
-        : public vfs2::BasicNode
-        , public vfs2::ConstIdentifyMixin<kRunFsInfo>
+        : public vfs::BasicNode
+        , public vfs::ConstIdentifyMixin<kRunFsInfo>
     {
         km::SystemObjects *mSystem;
 
     public:
         RunFsProcessList(km::SystemObjects *system);
 
-        OsStatus query(sm::uuid uuid, const void *, size_t, vfs2::IHandle **handle) override;
+        OsStatus query(sm::uuid uuid, const void *, size_t, vfs::IHandle **handle) override;
     };
 
     class RunFsRoot
-        : public vfs2::BasicNode
-        , public vfs2::FolderMixin
-        , public vfs2::ConstIdentifyMixin<kRunFsInfo>
+        : public vfs::BasicNode
+        , public vfs::FolderMixin
+        , public vfs::ConstIdentifyMixin<kRunFsInfo>
     {
         km::SystemObjects *mSystem;
 
     public:
         RunFsRoot(km::SystemObjects *system);
 
-        OsStatus query(sm::uuid uuid, const void *, size_t, vfs2::IHandle **handle) override;
+        OsStatus query(sm::uuid uuid, const void *, size_t, vfs::IHandle **handle) override;
     };
 
-    class RunFsMount : public vfs2::IVfsMount {
+    class RunFsMount : public vfs::IVfsMount {
         km::SystemObjects *mSystem;
         RunFsRoot *mRoot;
 
     public:
-        RunFsMount(vfs2::IVfsDriver *driver, km::SystemObjects *system)
+        RunFsMount(vfs::IVfsDriver *driver, km::SystemObjects *system)
             : IVfsMount(driver)
             , mSystem(system)
             , mRoot(new RunFsRoot(mSystem))
         { }
 
-        OsStatus root(vfs2::INode **node) override {
+        OsStatus root(vfs::INode **node) override {
             *node = mRoot;
             return OsStatusSuccess;
         }
     };
 
-    class RunFsDriver : public vfs2::IVfsDriver {
+    class RunFsDriver : public vfs::IVfsDriver {
         km::SystemObjects *mSystem;
 
     public:
-        OsStatus mount(vfs2::IVfsMount **mount) override;
-        OsStatus unmount(vfs2::IVfsMount *mount) override;
+        OsStatus mount(vfs::IVfsMount **mount) override;
+        OsStatus unmount(vfs::IVfsMount *mount) override;
     };
 }

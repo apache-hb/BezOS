@@ -1,6 +1,6 @@
 #include "system/system.hpp"
 
-#include "fs2/base.hpp"
+#include "fs/base.hpp"
 #include "memory/address_space.hpp"
 #include "memory/layout.hpp"
 #include "memory/page_allocator.hpp"
@@ -107,7 +107,7 @@ sys::SystemStats sys::System::stats() {
     return stats;
 }
 
-OsStatus sys::System::create(vfs2::VfsRoot *vfsRoot, km::AddressSpace *addressSpace, km::PageAllocator *pageAllocator, System *system) {
+OsStatus sys::System::create(vfs::VfsRoot *vfsRoot, km::AddressSpace *addressSpace, km::PageAllocator *pageAllocator, System *system) {
     system->mPageAllocator = pageAllocator;
     system->mSystemTables = addressSpace;
     system->mVfsRoot = vfsRoot;

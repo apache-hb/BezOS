@@ -1,15 +1,15 @@
 #include "devices/stream.hpp"
 
-#include "fs2/identify.hpp"
-#include "fs2/stream.hpp"
-#include "fs2/query.hpp"
+#include "fs/identify.hpp"
+#include "fs/stream.hpp"
+#include "fs/query.hpp"
 
 dev::StreamDevice::StreamDevice(size_t size)
     : mBuffer(new std::byte[size])
     , mQueue(mBuffer.get(), size)
 { }
 
-OsStatus dev::StreamDevice::read(vfs2::ReadRequest request, vfs2::ReadResult *result) {
+OsStatus dev::StreamDevice::read(vfs::ReadRequest request, vfs::ReadResult *result) {
     stdx::LockGuard guard(mLock);
 
     size_t count = std::min<size_t>(request.size(), mQueue.count());
@@ -21,7 +21,7 @@ OsStatus dev::StreamDevice::read(vfs2::ReadRequest request, vfs2::ReadResult *re
     return OsStatusSuccess;
 }
 
-OsStatus dev::StreamDevice::write(vfs2::WriteRequest request, vfs2::WriteResult *result) {
+OsStatus dev::StreamDevice::write(vfs::WriteRequest request, vfs::WriteResult *result) {
     stdx::LockGuard guard(mLock);
 
     size_t count = std::min<size_t>(request.size(), mQueue.capacity() - mQueue.count());
@@ -33,12 +33,12 @@ OsStatus dev::StreamDevice::write(vfs2::WriteRequest request, vfs2::WriteResult 
     return OsStatusSuccess;
 }
 
-static constexpr inline vfs2::InterfaceList kInterfaceList = std::to_array({
-    vfs2::InterfaceOf<vfs2::TIdentifyHandle<dev::StreamDevice>, dev::StreamDevice>(kOsIdentifyGuid),
-    vfs2::InterfaceOf<vfs2::TStreamHandle<dev::StreamDevice>, dev::StreamDevice>(kOsStreamGuid),
+static constexpr inline vfs::InterfaceList kInterfaceList = std::to_array({
+    vfs::InterfaceOf<vfs::TIdentifyHandle<dev::StreamDevice>, dev::StreamDevice>(kOsIdentifyGuid),
+    vfs::InterfaceOf<vfs::TStreamHandle<dev::StreamDevice>, dev::StreamDevice>(kOsStreamGuid),
 });
 
-OsStatus dev::StreamDevice::query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) {
+OsStatus dev::StreamDevice::query(sm::uuid uuid, const void *data, size_t size, vfs::IHandle **handle) {
     return kInterfaceList.query(loanShared(), uuid, data, size, handle);
 }
 

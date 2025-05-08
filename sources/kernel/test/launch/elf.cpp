@@ -5,8 +5,8 @@
 #include "elf.hpp"
 #include "drivers/block/ramblk.hpp"
 #include "std/shared.hpp"
-#include "fs2/vfs.hpp"
-#include "fs2/tarfs.hpp"
+#include "fs/vfs.hpp"
+#include "fs/tarfs.hpp"
 
 #include "test/test_memory.hpp"
 
@@ -22,18 +22,18 @@ TEST(ElfTest, LoadElf) {
 
     sm::SharedPtr<km::MemoryBlk> block = new km::MemoryBlk(data.data(), data.size());
 
-    vfs2::VfsRoot vfs;
+    vfs::VfsRoot vfs;
 
     {
-        vfs2::IVfsMount *mount = nullptr;
-        OsStatus status = vfs.addMountWithParams(&vfs2::TarFs::instance(), vfs2::BuildPath("Init"), &mount, block);
+        vfs::IVfsMount *mount = nullptr;
+        OsStatus status = vfs.addMountWithParams(&vfs::TarFs::instance(), vfs::BuildPath("Init"), &mount, block);
         ASSERT_EQ(OsStatusSuccess, status);
         ASSERT_NE(mount, nullptr);
     }
 
-    std::unique_ptr<vfs2::IVfsNodeHandle> elf;
+    std::unique_ptr<vfs::IVfsNodeHandle> elf;
     {
-        OsStatus status = vfs.open(vfs2::BuildPath("Init", "init.elf"), std::out_ptr(elf));
+        OsStatus status = vfs.open(vfs::BuildPath("Init", "init.elf"), std::out_ptr(elf));
         ASSERT_EQ(OsStatusSuccess, status);
         ASSERT_NE(elf, nullptr);
     }

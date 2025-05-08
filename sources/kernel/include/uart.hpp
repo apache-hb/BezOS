@@ -107,8 +107,6 @@ namespace km {
     ///
     /// @pre @a divisor is not 0
     OpenSerialResult OpenSerial(ComPortInfo info);
-
-    OsStatus OpenSerial(ComPortInfo info, SerialPort *port);
 }
 
 template<>

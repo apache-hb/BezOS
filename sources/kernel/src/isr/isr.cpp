@@ -11,8 +11,9 @@ static constexpr size_t kIsrTableStride = 16;
 extern "C" const char KmIsrTable[];
 static constinit Idt gIdt{};
 
-template<typename F>
-static km::IsrContext DispatchIsr(km::IsrContext *context, F&& handler) {
+extern "C" km::IsrContext KmIsrDispatchRoutine(km::IsrContext *context) SIGNAL_HANDLER {
+    km::IsrContext result;
+
     //
     // If this interrupt happened while in userspace then the
     // GS_BASE and KERNEL_GS_BASE registers need to be swapped.
@@ -24,7 +25,13 @@ static km::IsrContext DispatchIsr(km::IsrContext *context, F&& handler) {
     //
     // Then invoke the interrupt handler routine.
     //
-    km::IsrContext result = handler(context);
+    if (uint8_t(context->vector) < km::SharedIsrTable::kCount) {
+        km::SharedIsrTable *ist = km::GetSharedIsrTable();
+        result = ist->invoke(context);
+    } else {
+        km::LocalIsrTable *ist = km::GetLocalIsrTable();
+        result = ist->invoke(context);
+    }
 
     //
     // If the interrupt will be returning to userspace then swap
@@ -38,19 +45,6 @@ static km::IsrContext DispatchIsr(km::IsrContext *context, F&& handler) {
     }
 
     return result;
-}
-
-extern "C" km::IsrContext KmIsrDispatchRoutine(km::IsrContext *context) {
-    return DispatchIsr(context, [](km::IsrContext *context) {
-        uint8_t vector = uint8_t(context->vector);
-        if (vector < km::SharedIsrTable::kCount) {
-            km::SharedIsrTable *ist = km::GetSharedIsrTable();
-            return ist->invoke(context);
-        }
-
-        km::LocalIsrTable *ist = km::GetLocalIsrTable();
-        return ist->invoke(context);
-    });
 }
 
 void km::UpdateIdtEntry(uint8_t isr, uint16_t selector, x64::Privilege dpl, uint8_t ist) {

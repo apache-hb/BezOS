@@ -1,8 +1,8 @@
 #pragma once
 
-#include "fs2/interface.hpp"
-#include "fs2/path.hpp"
-#include "fs2/node.hpp"
+#include "fs/interface.hpp"
+#include "fs/path.hpp"
+#include "fs/node.hpp"
 
 #include "std/shared_spinlock.hpp"
 #include "util/absl.hpp"
@@ -14,7 +14,7 @@
 /// This VFS derives from the original SunOS vnode design with some modifications.
 ///
 /// @cite SunVNodes
-namespace vfs2 {
+namespace vfs {
     class VfsRoot {
         sm::RcuDomain mDomain;
 

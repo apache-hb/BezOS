@@ -1,10 +1,10 @@
-#include "fs2/ramfs.hpp"
-#include "fs2/file.hpp"
-#include "fs2/identify.hpp"
-#include "fs2/iterator.hpp"
-#include "fs2/utils.hpp"
+#include "fs/ramfs.hpp"
+#include "fs/file.hpp"
+#include "fs/identify.hpp"
+#include "fs/iterator.hpp"
+#include "fs/utils.hpp"
 
-using namespace vfs2;
+using namespace vfs;
 
 //
 // ramfs file implementation

@@ -2,7 +2,7 @@
 
 #include "system/access.hpp" // IWYU pragma: export
 
-#include "fs2/path.hpp"
+#include "fs/path.hpp"
 
 #include "std/rcuptr.hpp"
 #include "std/static_string.hpp"
@@ -43,7 +43,7 @@ namespace sys {
     struct NodeOpenInfo {
         ProcessHandle *process;
 
-        vfs2::VfsPath path;
+        vfs::VfsPath path;
     };
 
     struct NodeCloseInfo {
@@ -64,7 +64,7 @@ namespace sys {
     };
 
     struct DeviceOpenInfo {
-        vfs2::VfsPath path;
+        vfs::VfsPath path;
         OsDeviceCreateFlags flags;
         sm::uuid interface;
         void *data;

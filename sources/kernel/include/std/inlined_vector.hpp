@@ -38,14 +38,9 @@ namespace sm {
         Storage mStorage;
         size_t mSize;
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wfunction-effects" // Deallocating is alright in this context
-
         void deallocate(T *ptr, size_t size) noexcept [[clang::nonallocating]] {
             mAllocator.deallocate(ptr, size * sizeof(T));
         }
-
-#pragma clang diagnostic pop
 
         T *getCapacity() noexcept [[clang::nonblocking]] {
             if (isHeapAllocated()) {

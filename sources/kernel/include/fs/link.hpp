@@ -1,8 +1,8 @@
 #pragma once
 
-#include "fs2/base.hpp"
+#include "fs/base.hpp"
 
-namespace vfs2 {
+namespace vfs {
     class SymbolicLink : public INode {
 
     };

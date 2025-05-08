@@ -2,9 +2,9 @@
 
 #include <bezos/status.h>
 
-#include "fs2/folder.hpp"
+#include "fs/folder.hpp"
 
-namespace vfs2 {
+namespace vfs {
     template<std::derived_from<FolderMixin> T>
     class TIteratorHandle : public BaseHandle<T, IIteratorHandle> {
         using BaseHandle<T, IIteratorHandle>::mNode;

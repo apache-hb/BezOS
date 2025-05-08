@@ -9,18 +9,18 @@
 // TODO: make this runtime configurable
 static constexpr size_t kMaxPathSize = 0x1000;
 
-OsStatus um::ReadPath(km::CallContext *context, OsPath user, vfs2::VfsPath *path) {
-    vfs2::VfsString text;
+OsStatus um::ReadPath(km::CallContext *context, OsPath user, vfs::VfsPath *path) {
+    vfs::VfsString text;
     if (OsStatus status = context->readString((uint64_t)user.Front, (uint64_t)user.Back, kMaxPathSize, &text)) {
         return status;
     }
 
-    if (!vfs2::VerifyPathText(text)) {
+    if (!vfs::VerifyPathText(text)) {
         KmDebugMessage("[PROC] Invalid path: '", text, "'\n");
         return OsStatusInvalidPath;
     }
 
-    *path = vfs2::VfsPath{std::move(text)};
+    *path = vfs::VfsPath{std::move(text)};
     return OsStatusSuccess;
 }
 
@@ -41,7 +41,7 @@ OsStatus um::VerifyBuffer(km::CallContext *context, OsBuffer buffer) {
 static OsCallResult NewNodeOpen(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
     uint64_t userCreateInfo = regs->arg0;
 
-    vfs2::VfsPath path;
+    vfs::VfsPath path;
     OsNodeCreateInfo createInfo{};
 
     if (OsStatus status = context->readObject(userCreateInfo, &createInfo)) {

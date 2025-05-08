@@ -6,15 +6,15 @@
 /// Some platforms require a delay before a port write executes completely.
 /// There are also multiple methods of delaying port I/O depending on platform quirks
 /// which this interface is intended to encapsulate.
-using PortDelayCallback = void(*)(void) noexcept [[clang::blocking, clang::nonallocating]];
+using PortDelayCallback = void(*)() noexcept [[clang::blocking, clang::nonallocating]];
 
 /// @brief Port delay for platforms that don't require delays.
-static void NullPortDelay(void) noexcept [[clang::blocking, clang::nonallocating]] { }
+static void NullPortDelay() noexcept [[clang::blocking, clang::nonallocating]] { }
 
 /// @brief Port delay that functions by writing 0 to port 0x80.
 /// This port is usually used to display status codes during POST.
 /// Writing to it is begnin on most platforms, and it forces a port flush.
-static void PostCodePortDelay(void) noexcept [[clang::blocking, clang::nonallocating]] {
+static void PostCodePortDelay() noexcept [[clang::blocking, clang::nonallocating]] {
     arch::IntrinX86_64::outbyte(0x80, 0);
 }
 
@@ -31,7 +31,7 @@ void KmSetPortDelayMethod(x64::PortDelay delay) noexcept [[clang::blocking, clan
     }
 }
 
-void KmPortDelay(void) noexcept [[clang::blocking, clang::nonallocating]] {
+void KmPortDelay() noexcept [[clang::blocking, clang::nonallocating]] {
     gPortDelay();
 }
 

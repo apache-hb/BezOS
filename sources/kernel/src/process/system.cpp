@@ -1,6 +1,6 @@
 #include "process/system.hpp"
 
-#include "fs2/vfs.hpp"
+#include "fs/vfs.hpp"
 
 #include "kernel.hpp"
 #include "log.hpp"
@@ -11,14 +11,14 @@
 
 using namespace km;
 
-OsStatus SystemObjects::createNode(Process *process, sm::RcuSharedPtr<vfs2::INode> vfsNode, Node **result) {
+OsStatus SystemObjects::createNode(Process *process, sm::RcuSharedPtr<vfs::INode> vfsNode, Node **result) {
     std::unique_ptr<Node> node { new (std::nothrow) Node };
     if (node == nullptr) {
         return OsStatusOutOfMemory;
     }
 
     NodeId id = mNodeIds.allocate();
-    vfs2::NodeInfo info = vfsNode->info();
+    vfs::NodeInfo info = vfsNode->info();
     node->init(id, stdx::String(info.name), vfsNode);
 
     Node *ptr = node.release();
@@ -52,7 +52,7 @@ Node *SystemObjects::getNode(NodeId id) {
     return nullptr;
 }
 
-OsStatus SystemObjects::createDevice(const vfs2::VfsPath &path, sm::uuid uuid, const void *data, size_t size, Process *process, Device **node) {
+OsStatus SystemObjects::createDevice(const vfs::VfsPath &path, sm::uuid uuid, const void *data, size_t size, Process *process, Device **node) {
     std::unique_ptr<Device> result { new (std::nothrow) Device };
     if (result == nullptr) {
         return OsStatusOutOfMemory;
@@ -67,7 +67,7 @@ OsStatus SystemObjects::createDevice(const vfs2::VfsPath &path, sm::uuid uuid, c
     // we need to create it now.
     //
 
-    vfs2::HandleInfo handleInfo = result->handle->info();
+    vfs::HandleInfo handleInfo = result->handle->info();
     if (auto it = mVfsNodes.find(handleInfo.node); it == mVfsNodes.end()) {
         Node *node = nullptr;
         if (OsStatus status = createNode(process, handleInfo.node, &node)) {
@@ -110,9 +110,9 @@ Device *SystemObjects::getDevice(DeviceId id) {
     return nullptr;
 }
 
-OsStatus SystemObjects::addDevice(Process *process, std::unique_ptr<vfs2::IHandle> handle, Device **node) {
-    vfs2::HandleInfo handleInfo = handle->info();
-    vfs2::NodeInfo nodeInfo = handleInfo.node->info();
+OsStatus SystemObjects::addDevice(Process *process, std::unique_ptr<vfs::IHandle> handle, Device **node) {
+    vfs::HandleInfo handleInfo = handle->info();
+    vfs::NodeInfo nodeInfo = handleInfo.node->info();
 
     Device *result = new (std::nothrow) Device;
     if (result == nullptr) {

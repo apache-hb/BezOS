@@ -274,7 +274,7 @@ OsStatus sys::SysThreadCreate(InvokeContext *context, OsThreadCreateInfo info, O
 
 OsStatus sys::SysThreadDestroy(InvokeContext *context, OsThreadState reason, OsThreadHandle handle) {
     ThreadHandle *hThread = nullptr;
-    if (OsStatus status = context->process->findHandle(handle, &hThread)) {
+    if (OsStatus status = SysFindHandle(context, handle, &hThread)) {
         return status;
     }
 
@@ -294,7 +294,7 @@ OsStatus sys::SysThreadDestroy(InvokeContext *context, OsThreadState reason, OsT
 
 OsStatus sys::SysThreadStat(InvokeContext *context, OsThreadHandle handle, OsThreadInfo *result) {
     ThreadHandle *hThread = nullptr;
-    if (OsStatus status = context->process->findHandle(handle, &hThread)) {
+    if (OsStatus status = SysFindHandle(context, handle, &hThread)) {
         return status;
     }
 
@@ -328,7 +328,7 @@ OsStatus sys::SysThreadStat(InvokeContext *context, OsThreadHandle handle, OsThr
 
 OsStatus sys::SysThreadSuspend(InvokeContext *context, OsThreadHandle handle, bool suspend) {
     ThreadHandle *hThread = nullptr;
-    if (OsStatus status = context->process->findHandle(handle, &hThread)) {
+    if (OsStatus status = SysFindHandle(context, handle, &hThread)) {
         return status;
     }
 

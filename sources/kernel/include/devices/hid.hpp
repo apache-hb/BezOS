@@ -2,8 +2,8 @@
 
 #include <bezos/subsystem/hid.h>
 
-#include "fs2/device.hpp"
-#include "fs2/identify.hpp"
+#include "fs/device.hpp"
+#include "fs/identify.hpp"
 
 #include "std/spinlock.hpp"
 #include "std/shared_spinlock.hpp"
@@ -25,8 +25,8 @@ namespace dev {
     };
 
     class HidKeyboardDevice
-        : public vfs2::BasicNode
-        , public vfs2::ConstIdentifyMixin<kHidInfo>
+        : public vfs::BasicNode
+        , public vfs::ConstIdentifyMixin<kHidInfo>
         , public km::ISubscriber
     {
         stdx::SharedSpinLock mLock;
@@ -40,12 +40,12 @@ namespace dev {
 
         void attach(HidKeyboardHandle *handle);
 
-        OsStatus query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) override;
+        OsStatus query(sm::uuid uuid, const void *data, size_t size, vfs::IHandle **handle) override;
         OsStatus interfaces(OsIdentifyInterfaceList *list);
     };
 
-    class HidKeyboardHandle : public vfs2::BaseHandle<HidKeyboardDevice> {
-        using vfs2::BaseHandle<HidKeyboardDevice>::mNode;
+    class HidKeyboardHandle : public vfs::BaseHandle<HidKeyboardDevice> {
+        using vfs::BaseHandle<HidKeyboardDevice>::mNode;
         stdx::SpinLock mLock;
         stdx::Vector2<OsHidEvent> mEvents;
 
@@ -54,7 +54,7 @@ namespace dev {
 
         void notify(OsHidEvent event);
 
-        OsStatus read(vfs2::ReadRequest request, vfs2::ReadResult *result) override;
-        vfs2::HandleInfo info() override;
+        OsStatus read(vfs::ReadRequest request, vfs::ReadResult *result) override;
+        vfs::HandleInfo info() override;
     };
 }

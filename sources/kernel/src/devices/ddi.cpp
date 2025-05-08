@@ -1,11 +1,11 @@
 #include "devices/ddi.hpp"
-#include "fs2/query.hpp"
+#include "fs/query.hpp"
 #include "kernel.hpp"
 #include "panic.hpp"
 #include "system/vmm.hpp"
 
 dev::DisplayHandle::DisplayHandle(sm::RcuSharedPtr<DisplayDevice> node, const void *, size_t)
-    : vfs2::BaseHandle<DisplayDevice>(node)
+    : vfs::BaseHandle<DisplayDevice>(node)
 {
     km::Canvas canvas = mNode->getCanvas();
 
@@ -93,7 +93,7 @@ OsStatus dev::DisplayHandle::getCanvas(void *data, size_t size) {
     return OsStatusSuccess;
 }
 
-OsStatus dev::DisplayHandle::invoke(vfs2::IInvokeContext *, uint64_t function, void *data, size_t size) {
+OsStatus dev::DisplayHandle::invoke(vfs::IInvokeContext *, uint64_t function, void *data, size_t size) {
     switch (function) {
     case eOsDdiBlit:
         return blit(data, size);
@@ -109,16 +109,16 @@ OsStatus dev::DisplayHandle::invoke(vfs2::IInvokeContext *, uint64_t function, v
     }
 }
 
-vfs2::HandleInfo dev::DisplayHandle::info() {
-    return vfs2::HandleInfo { mNode, kOsDisplayClassGuid };
+vfs::HandleInfo dev::DisplayHandle::info() {
+    return vfs::HandleInfo { mNode, kOsDisplayClassGuid };
 }
 
-static constexpr inline vfs2::InterfaceList kInterfaceList = std::to_array({
-    vfs2::InterfaceOf<vfs2::TIdentifyHandle<dev::DisplayDevice>, dev::DisplayDevice>(kOsIdentifyGuid),
-    vfs2::InterfaceOf<dev::DisplayHandle, dev::DisplayDevice>(kOsDisplayClassGuid),
+static constexpr inline vfs::InterfaceList kInterfaceList = std::to_array({
+    vfs::InterfaceOf<vfs::TIdentifyHandle<dev::DisplayDevice>, dev::DisplayDevice>(kOsIdentifyGuid),
+    vfs::InterfaceOf<dev::DisplayHandle, dev::DisplayDevice>(kOsDisplayClassGuid),
 });
 
-OsStatus dev::DisplayDevice::query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) {
+OsStatus dev::DisplayDevice::query(sm::uuid uuid, const void *data, size_t size, vfs::IHandle **handle) {
     return kInterfaceList.query(loanShared(), uuid, data, size, handle);
 }
 

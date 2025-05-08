@@ -1,10 +1,10 @@
 #include "system_test.hpp"
 
-#include "fs2/vfs.hpp"
+#include "fs/vfs.hpp"
 
 struct TestData {
     km::SystemMemory memory;
-    vfs2::VfsRoot vfs;
+    vfs::VfsRoot vfs;
     sys::System system;
 
     TestData(SystemMemoryTestBody& body)
@@ -63,7 +63,7 @@ TEST_F(DeviceTest, CreateDevice) {
     auto i = invoke();
     OsNodeHandle node = OS_HANDLE_INVALID;
     sys::DeviceOpenInfo openInfo {
-        .path = vfs2::BuildPath("Root"),
+        .path = vfs::BuildPath("Root"),
         .flags = eOsDeviceCreateNew,
         .interface = kOsFolderGuid,
     };
@@ -74,7 +74,7 @@ TEST_F(DeviceTest, CreateDevice) {
     ASSERT_EQ(sys::SysDeviceClose(&i, node), OsStatusSuccess);
 
     sys::DeviceOpenInfo openInfo2 {
-        .path = vfs2::BuildPath("Root", "File.txt"),
+        .path = vfs::BuildPath("Root", "File.txt"),
         .flags = eOsDeviceCreateNew,
         .interface = kOsFileGuid,
     };

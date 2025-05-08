@@ -1,12 +1,12 @@
 #include "system_test.hpp"
 #include "test/ktest.hpp"
 
-#include "fs2/vfs.hpp"
+#include "fs/vfs.hpp"
 #include "thread.hpp"
 
 struct TestData {
     km::SystemMemory memory;
-    vfs2::VfsRoot vfs;
+    vfs::VfsRoot vfs;
     sys::System system;
 
     TestData(SystemMemoryTestBody& body)

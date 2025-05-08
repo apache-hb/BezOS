@@ -22,7 +22,7 @@ namespace km {
     class AddressSpace;
 }
 
-namespace vfs2 {
+namespace vfs {
     class VfsRoot;
     class INode;
 }
@@ -40,7 +40,7 @@ namespace sys {
 
         km::PageAllocator *mPageAllocator;
 
-        vfs2::VfsRoot *mVfsRoot;
+        vfs::VfsRoot *mVfsRoot;
 
         sm::FlatHashSet<sm::RcuSharedPtr<IObject>, sm::RcuHash<IObject>, std::equal_to<>> mObjects GUARDED_BY(mLock);
 
@@ -101,7 +101,7 @@ namespace sys {
         }
 
         [[nodiscard]]
-        static OsStatus create(vfs2::VfsRoot *vfsRoot, km::AddressSpace *addressSpace, km::PageAllocator *pageAllocator, System *result);
+        static OsStatus create(vfs::VfsRoot *vfsRoot, km::AddressSpace *addressSpace, km::PageAllocator *pageAllocator, System *result);
     };
 
     // internal
@@ -120,7 +120,7 @@ namespace sys {
     // node
 
     OsStatus SysNodeOpen(InvokeContext *context, NodeOpenInfo info, OsNodeHandle *outHandle);
-    OsStatus SysNodeCreate(InvokeContext *context, sm::RcuSharedPtr<vfs2::INode> node, OsNodeHandle *outHandle);
+    OsStatus SysNodeCreate(InvokeContext *context, sm::RcuSharedPtr<vfs::INode> node, OsNodeHandle *outHandle);
     OsStatus SysNodeClose(InvokeContext *context, OsNodeHandle handle);
     OsStatus SysNodeQuery(InvokeContext *context, OsNodeHandle handle, OsNodeQueryInterfaceInfo info, OsDeviceHandle *outHandle);
     OsStatus SysNodeStat(InvokeContext *context, OsNodeHandle handle, OsNodeInfo *result);

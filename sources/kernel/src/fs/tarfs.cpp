@@ -1,20 +1,20 @@
-#include "fs2/tarfs.hpp"
+#include "fs/tarfs.hpp"
 #include "bezos/status.h"
-#include "fs2/file.hpp"
-#include "fs2/identify.hpp"
-#include "fs2/iterator.hpp"
-#include "fs2/node.hpp"
-#include "fs2/query.hpp"
-#include "fs2/utils.hpp"
+#include "fs/file.hpp"
+#include "fs/identify.hpp"
+#include "fs/iterator.hpp"
+#include "fs/node.hpp"
+#include "fs/query.hpp"
+#include "fs/utils.hpp"
 #include "log.hpp"
 
 #include <ranges>
 
-using namespace vfs2;
+using namespace vfs;
 
 static constexpr size_t kTarBlockSize = 512;
 
-OsStatus vfs2::detail::ConvertTarPath(const char *path, VfsPath *result) {
+OsStatus vfs::detail::ConvertTarPath(const char *path, VfsPath *result) {
     std::array<char, kTarNameSize> buffer{};
 
     //
@@ -72,7 +72,7 @@ OsStatus vfs2::detail::ConvertTarPath(const char *path, VfsPath *result) {
     return OsStatusSuccess;
 }
 
-OsStatus vfs2::ParseTar(km::BlockDevice *media, TarParseOptions options, sm::BTreeMap<VfsPath, TarEntry> *result) {
+OsStatus vfs::ParseTar(km::BlockDevice *media, TarParseOptions options, sm::BTreeMap<VfsPath, TarEntry> *result) {
     TarPosixHeader header{};
     uint64_t offset = 0;
     const uint64_t mediaSize = media->size();
@@ -336,7 +336,7 @@ TarFsMount::TarFsMount(TarFs *tarfs, sm::RcuDomain *domain, sm::SharedPtr<km::IB
             continue;
         }
 
-        std::unique_ptr<vfs2::IFolderHandle> folder;
+        std::unique_ptr<vfs::IFolderHandle> folder;
         if (OsStatus status = OpenFolderInterface(parent, nullptr, 0, std::out_ptr(folder))) {
             KmDebugMessage("[TARFS] Failed to query folder for '", path, "' : ", status, "\n");
             continue;

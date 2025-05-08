@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
 
-#include "fs2/path.hpp"
+#include "fs/path.hpp"
 
-using namespace vfs2;
+using namespace vfs;
 
 TEST(VfsPathTest, Empty) {
     VfsPath path;

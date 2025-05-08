@@ -1,11 +1,11 @@
 #include <gtest/gtest.h>
 
-#include "fs2/vfs.hpp"
+#include "fs/vfs.hpp"
 
-using namespace vfs2;
+using namespace vfs;
 
 TEST(VfsRootTest, Construct) {
-    vfs2::VfsRoot vfs;
+    vfs::VfsRoot vfs;
 
     {
         sm::RcuSharedPtr<INode> node = nullptr;
@@ -19,9 +19,9 @@ TEST(VfsRootTest, Construct) {
 }
 
 TEST(VfsRootTest, QueryRoot) {
-    vfs2::VfsRoot vfs;
+    vfs::VfsRoot vfs;
 
-    std::unique_ptr<vfs2::IHandle> handle = nullptr;
-    OsStatus status = vfs.device(vfs2::VfsPath{}, kOsIdentifyGuid, nullptr, 0, std::out_ptr(handle));
+    std::unique_ptr<vfs::IHandle> handle = nullptr;
+    OsStatus status = vfs.device(vfs::VfsPath{}, kOsIdentifyGuid, nullptr, 0, std::out_ptr(handle));
     ASSERT_EQ(OsStatusSuccess, status);
 }

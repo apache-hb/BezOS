@@ -53,7 +53,7 @@ bool KernelObject::releaseWeak() {
     return false;
 }
 
-OsHandle km::SystemObjects::getNodeId(sm::RcuSharedPtr<vfs2::INode> node) {
+OsHandle km::SystemObjects::getNodeId(sm::RcuSharedPtr<vfs::INode> node) {
     stdx::SharedLock guard(mLock);
     if (auto it = mVfsNodes.find(node); it != mVfsNodes.end()) {
         return it->second->publicId();
@@ -62,7 +62,7 @@ OsHandle km::SystemObjects::getNodeId(sm::RcuSharedPtr<vfs2::INode> node) {
     return OS_HANDLE_INVALID;
 }
 
-OsHandle km::SystemObjects::getHandleId(vfs2::IHandle *handle) {
+OsHandle km::SystemObjects::getHandleId(vfs::IHandle *handle) {
     stdx::SharedLock guard(mLock);
     if (auto it = mVfsHandles.find(handle); it != mVfsHandles.end()) {
         return it->second->publicId();

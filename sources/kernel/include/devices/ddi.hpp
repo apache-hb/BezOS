@@ -2,8 +2,8 @@
 
 #include <bezos/subsystem/ddi.h>
 
-#include "fs2/device.hpp"
-#include "fs2/identify.hpp"
+#include "fs/device.hpp"
+#include "fs/identify.hpp"
 
 #include "display.hpp"
 
@@ -19,7 +19,7 @@ namespace dev {
         .DriverVersion = OS_VERSION(1, 0, 0),
     };
 
-    class DisplayDevice : public vfs2::BasicNode, public vfs2::ConstIdentifyMixin<kDdiIdentifyInfo> {
+    class DisplayDevice : public vfs::BasicNode, public vfs::ConstIdentifyMixin<kDdiIdentifyInfo> {
         km::Canvas mCanvas;
 
     public:
@@ -29,12 +29,12 @@ namespace dev {
 
         km::Canvas getCanvas() const { return mCanvas; }
 
-        OsStatus query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) override;
+        OsStatus query(sm::uuid uuid, const void *data, size_t size, vfs::IHandle **handle) override;
         OsStatus interfaces(OsIdentifyInterfaceList *list);
     };
 
-    class DisplayHandle : public vfs2::BaseHandle<DisplayDevice> {
-        using vfs2::BaseHandle<DisplayDevice>::mNode;
+    class DisplayHandle : public vfs::BaseHandle<DisplayDevice> {
+        using vfs::BaseHandle<DisplayDevice>::mNode;
         km::AddressMapping mUserCanvas;
 
         OsStatus blit(void *data, size_t size);
@@ -45,8 +45,8 @@ namespace dev {
     public:
         DisplayHandle(sm::RcuSharedPtr<DisplayDevice> node, const void *data, size_t size);
 
-        OsStatus invoke(vfs2::IInvokeContext *context, uint64_t function, void *data, size_t size) override;
+        OsStatus invoke(vfs::IInvokeContext *context, uint64_t function, void *data, size_t size) override;
 
-        vfs2::HandleInfo info() override;
+        vfs::HandleInfo info() override;
     };
 }

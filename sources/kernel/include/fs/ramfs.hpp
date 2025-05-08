@@ -1,14 +1,14 @@
 #pragma once
 
-#include "fs2/device.hpp"
-#include "fs2/folder.hpp"
-#include "fs2/identify.hpp"
-#include "fs2/node.hpp"
-#include "fs2/query.hpp"
+#include "fs/device.hpp"
+#include "fs/folder.hpp"
+#include "fs/identify.hpp"
+#include "fs/node.hpp"
+#include "fs/query.hpp"
 #include "std/shared_spinlock.hpp"
 #include "std/vector.hpp"
 
-namespace vfs2 {
+namespace vfs {
     class RamFsNode;
     class RamFsFile;
     class RamFsFolder;

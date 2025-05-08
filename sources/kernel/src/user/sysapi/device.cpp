@@ -15,7 +15,7 @@ static OsCallResult NewDeviceOpen(km::System *system, km::CallContext *context, 
 
     sm::uuid uuid = createInfo.InterfaceGuid;
 
-    vfs2::VfsPath path;
+    vfs::VfsPath path;
     if (OsStatus status = um::ReadPath(context, createInfo.Path, &path)) {
         return km::CallError(status);
     }

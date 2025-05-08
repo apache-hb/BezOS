@@ -30,9 +30,9 @@
 #include "display.hpp"
 #include "drivers/block/ramblk.hpp"
 #include "elf.hpp"
-#include "fs2/path.hpp"
-#include "fs2/utils.hpp"
-#include "fs2/vfs.hpp"
+#include "fs/path.hpp"
+#include "fs/utils.hpp"
+#include "fs/vfs.hpp"
 #include "gdt.hpp"
 #include "hid/hid.hpp"
 #include "hid/ps2.hpp"
@@ -78,9 +78,9 @@
 
 #include "util/memory.hpp"
 
-#include "fs2/vfs.hpp"
-#include "fs2/tarfs.hpp"
-#include "fs2/ramfs.hpp"
+#include "fs/vfs.hpp"
+#include "fs/tarfs.hpp"
+#include "fs/ramfs.hpp"
 #include "xsave.hpp"
 
 using namespace km;
@@ -109,13 +109,13 @@ public:
 
     constexpr SerialLog() { }
 
-    void write(stdx::StringView message) override {
+    void write(stdx::StringView message) NON_REENTRANT override {
         mPort.print(message);
     }
 };
 
 class DebugPortLog final : public IOutStream {
-    void write(stdx::StringView message) override {
+    void write(stdx::StringView message) NON_REENTRANT override {
         for (char c : message) {
             __outbyte(0xE9, c);
         }
@@ -135,7 +135,7 @@ public:
         : mTerminal(terminal)
     { }
 
-    void write(stdx::StringView message) override {
+    void write(stdx::StringView message) NON_REENTRANT override {
         mTerminal.print(message);
     }
 
@@ -154,7 +154,7 @@ class DebugLog final : public IOutStream {
 public:
     constexpr DebugLog() { }
 
-    void write(stdx::StringView message) override {
+    void write(stdx::StringView message) NON_REENTRANT override {
         for (IOutStream *target : gLogTargets) {
             target->write(message);
         }
@@ -822,7 +822,7 @@ static void NormalizeProcessorState() {
     IA32_GS_BASE = 0;
 }
 
-static vfs2::VfsRoot *gVfsRoot = nullptr;
+static vfs::VfsRoot *gVfsRoot = nullptr;
 static NotificationStream *gNotificationStream = nullptr;
 static SystemMemory *gMemory = nullptr;
 static constinit Clock gClock{};
@@ -857,8 +857,8 @@ static void CreateNotificationQueue() {
     gNotificationStream = new NotificationStream();
 }
 
-static void MakeFolder(const vfs2::VfsPath& path) {
-    sm::RcuSharedPtr<vfs2::INode> node = nullptr;
+static void MakeFolder(const vfs::VfsPath& path) {
+    sm::RcuSharedPtr<vfs::INode> node = nullptr;
     if (OsStatus status = gVfsRoot->mkpath(path, &node)) {
         KmDebugMessage("[VFS] Failed to create path: '", path, "' ", OsStatusId(status), "\n");
     }
@@ -866,10 +866,10 @@ static void MakeFolder(const vfs2::VfsPath& path) {
 
 template<typename... Args>
 static void MakePath(Args&&... args) {
-    MakeFolder(vfs2::BuildPath(std::forward<Args>(args)...));
+    MakeFolder(vfs::BuildPath(std::forward<Args>(args)...));
 }
 
-static void MakeUser(vfs2::VfsStringView name) {
+static void MakeUser(vfs::VfsStringView name) {
     MakePath("Users", name);
     MakePath("Users", name, "Programs");
     MakePath("Users", name, "Documents");
@@ -879,7 +879,7 @@ static void MakeUser(vfs2::VfsStringView name) {
 
 static void MountRootVfs() {
     KmDebugMessage("[VFS] Initializing VFS.\n");
-    gVfsRoot = new vfs2::VfsRoot();
+    gVfsRoot = new vfs::VfsRoot();
 
     MakePath("System", "Options");
     MakePath("System", "NT");
@@ -895,36 +895,36 @@ static void MountRootVfs() {
     MakeUser("Operator");
 
     {
-        sm::RcuSharedPtr<vfs2::INode> node = nullptr;
-        vfs2::VfsPath path = vfs2::BuildPath("System", "Audit", "System.log");
+        sm::RcuSharedPtr<vfs::INode> node = nullptr;
+        vfs::VfsPath path = vfs::BuildPath("System", "Audit", "System.log");
         if (OsStatus status = gVfsRoot->create(path, &node)) {
             KmDebugMessage("[VFS] Failed to create ", path, ": ", OsStatusId(status), "\n");
         }
 
-        std::unique_ptr<vfs2::IFileHandle> log;
-        if (OsStatus status = vfs2::OpenFileInterface(node, nullptr, 0, std::out_ptr(log))) {
+        std::unique_ptr<vfs::IFileHandle> log;
+        if (OsStatus status = vfs::OpenFileInterface(node, nullptr, 0, std::out_ptr(log))) {
             KmDebugMessage("[VFS] Failed to open log file: ", OsStatusId(status), "\n");
         }
     }
 
     {
-        sm::RcuSharedPtr<vfs2::INode> node = nullptr;
-        vfs2::VfsPath path = vfs2::BuildPath("Users", "Guest", "motd.txt");
+        sm::RcuSharedPtr<vfs::INode> node = nullptr;
+        vfs::VfsPath path = vfs::BuildPath("Users", "Guest", "motd.txt");
         if (OsStatus status = gVfsRoot->create(path, &node)) {
             KmDebugMessage("[VFS] Failed to create ", path, ": ", OsStatusId(status), "\n");
         }
 
-        std::unique_ptr<vfs2::IFileHandle> motd;
-        if (OsStatus status = vfs2::OpenFileInterface(node, nullptr, 0, std::out_ptr(motd))) {
+        std::unique_ptr<vfs::IFileHandle> motd;
+        if (OsStatus status = vfs::OpenFileInterface(node, nullptr, 0, std::out_ptr(motd))) {
             KmDebugMessage("[VFS] Failed to open file: ", OsStatusId(status), "\n");
         }
 
         char data[] = "Welcome.\n";
-        vfs2::WriteRequest request {
+        vfs::WriteRequest request {
             .begin = std::begin(data),
             .end = std::end(data) - 1,
         };
-        vfs2::WriteResult result;
+        vfs::WriteResult result;
 
         if (OsStatus status = motd->write(request, &result)) {
             KmDebugMessage("[VFS] Failed to write file: ", OsStatusId(status), "\n");
@@ -938,14 +938,14 @@ static void CreatePlatformVfsNodes(const km::SmBiosTables *smbios, const acpi::A
     {
         auto node = dev::SmBiosRoot::create(gVfsRoot->domain(), smbios);
 
-        if (OsStatus status = gVfsRoot->mkdevice(vfs2::BuildPath("Platform", "SMBIOS"), node)) {
+        if (OsStatus status = gVfsRoot->mkdevice(vfs::BuildPath("Platform", "SMBIOS"), node)) {
             KmDebugMessage("[VFS] Failed to create SMBIOS device: ", OsStatusId(status), "\n");
         }
     }
 
     {
         auto node = dev::AcpiRoot::create(gVfsRoot->domain(), acpi);
-        if (OsStatus status = gVfsRoot->mkdevice(vfs2::BuildPath("Platform", "ACPI"), node)) {
+        if (OsStatus status = gVfsRoot->mkdevice(vfs::BuildPath("Platform", "ACPI"), node)) {
             KmDebugMessage("[VFS] Failed to create ACPI device: ", OsStatusId(status), "\n");
         }
     }
@@ -971,8 +971,8 @@ static void MountInitArchive(MemoryRangeEx initrd, AddressSpace& memory) {
 
     sm::SharedPtr<MemoryBlk> block = new MemoryBlk{std::bit_cast<std::byte*>(initrdMemory.address()), initrd.size()};
 
-    vfs2::IVfsMount *mount = nullptr;
-    if (OsStatus status = gVfsRoot->addMountWithParams(&vfs2::TarFs::instance(), vfs2::BuildPath("Init"), &mount, block)) {
+    vfs::IVfsMount *mount = nullptr;
+    if (OsStatus status = gVfsRoot->addMountWithParams(&vfs::TarFs::instance(), vfs::BuildPath("Init"), &mount, block)) {
         KmDebugMessage("[VFS] Failed to mount initrd: ", OsStatusId(status), "\n");
         KM_PANIC("Failed to mount initrd.");
     }
@@ -981,8 +981,8 @@ static void MountInitArchive(MemoryRangeEx initrd, AddressSpace& memory) {
 static void MountVolatileFolder() {
     KmDebugMessage("[INIT] Mounting '/Volatile'\n");
 
-    vfs2::IVfsMount *mount = nullptr;
-    if (OsStatus status = gVfsRoot->addMount(&vfs2::RamFs::instance(), vfs2::BuildPath("Volatile"), &mount)) {
+    vfs::IVfsMount *mount = nullptr;
+    if (OsStatus status = gVfsRoot->addMount(&vfs::RamFs::instance(), vfs::BuildPath("Volatile"), &mount)) {
         KmDebugMessage("[VFS] Failed to mount '/Volatile' ", OsStatusId(status), "\n");
         KM_PANIC("Failed to mount volatile folder.");
     }
@@ -992,7 +992,7 @@ static OsStatus LaunchInitProcess(sys::InvokeContext *invoke, OsProcessHandle *p
     OsDeviceHandle device = OS_HANDLE_INVALID;
     OsThreadHandle thread = OS_HANDLE_INVALID;
     sys::DeviceOpenInfo createInfo {
-        .path = vfs2::BuildPath("Init", "init.elf"),
+        .path = vfs::BuildPath("Init", "init.elf"),
         .flags = eOsDeviceOpenExisting,
         .interface = kOsFileGuid,
     };
@@ -1430,10 +1430,10 @@ static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioAp
         ps2Controller.enableIrqs(true, kEnableMouse);
     }
 
-    vfs2::VfsPath hidPs2DevicePath{OS_DEVICE_PS2_KEYBOARD};
+    vfs::VfsPath hidPs2DevicePath{OS_DEVICE_PS2_KEYBOARD};
 
     {
-        sm::RcuSharedPtr<vfs2::INode> node = nullptr;
+        sm::RcuSharedPtr<vfs::INode> node = nullptr;
         if (OsStatus status = gVfsRoot->mkpath(hidPs2DevicePath.parent(), &node)) {
             KmDebugMessage("[VFS] Failed to create ", hidPs2DevicePath.parent(), " folder: ", OsStatusId(status), "\n");
             KM_PANIC("Failed to create keyboar device folder.");
@@ -1452,10 +1452,10 @@ static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioAp
 }
 
 static void CreateDisplayDevice() {
-    vfs2::VfsPath ddiPath{OS_DEVICE_DDI_RAMFB};
+    vfs::VfsPath ddiPath{OS_DEVICE_DDI_RAMFB};
 
     {
-        sm::RcuSharedPtr<vfs2::INode> node = nullptr;
+        sm::RcuSharedPtr<vfs::INode> node = nullptr;
         if (OsStatus status = gVfsRoot->mkpath(ddiPath.parent(), &node)) {
             KmDebugMessage("[VFS] Failed to create ", ddiPath.parent(), " folder: ", OsStatusId(status), "\n");
             KM_PANIC("Failed to create display device folder.");

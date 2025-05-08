@@ -1,6 +1,6 @@
 #include "devices/hid.hpp"
 
-#include "fs2/query.hpp"
+#include "fs/query.hpp"
 #include "hid/hid.hpp"
 
 //
@@ -8,13 +8,13 @@
 //
 
 dev::HidKeyboardHandle::HidKeyboardHandle(sm::RcuSharedPtr<HidKeyboardDevice> node, const void *, size_t)
-    : vfs2::BaseHandle<HidKeyboardDevice>(node)
+    : vfs::BaseHandle<HidKeyboardDevice>(node)
 {
     mNode->attach(this);
 }
 
-vfs2::HandleInfo dev::HidKeyboardHandle::info() {
-    return vfs2::HandleInfo { mNode, kOsHidClassGuid };
+vfs::HandleInfo dev::HidKeyboardHandle::info() {
+    return vfs::HandleInfo { mNode, kOsHidClassGuid };
 }
 
 void dev::HidKeyboardHandle::notify(OsHidEvent event) {
@@ -22,7 +22,7 @@ void dev::HidKeyboardHandle::notify(OsHidEvent event) {
     mEvents.add(event);
 }
 
-OsStatus dev::HidKeyboardHandle::read(vfs2::ReadRequest request, vfs2::ReadResult *result) {
+OsStatus dev::HidKeyboardHandle::read(vfs::ReadRequest request, vfs::ReadResult *result) {
     if (request.size() <= 0 || request.offset != 0) {
         return OsStatusInvalidInput;
     }
@@ -61,12 +61,12 @@ void dev::HidKeyboardDevice::attach(HidKeyboardHandle *handle) {
     mHandles.add(handle);
 }
 
-static constexpr inline vfs2::InterfaceList kInterfaceList = std::to_array({
-    vfs2::InterfaceOf<vfs2::TIdentifyHandle<dev::HidKeyboardDevice>, dev::HidKeyboardDevice>(kOsIdentifyGuid),
-    vfs2::InterfaceOf<dev::HidKeyboardHandle, dev::HidKeyboardDevice>(kOsHidClassGuid),
+static constexpr inline vfs::InterfaceList kInterfaceList = std::to_array({
+    vfs::InterfaceOf<vfs::TIdentifyHandle<dev::HidKeyboardDevice>, dev::HidKeyboardDevice>(kOsIdentifyGuid),
+    vfs::InterfaceOf<dev::HidKeyboardHandle, dev::HidKeyboardDevice>(kOsHidClassGuid),
 });
 
-OsStatus dev::HidKeyboardDevice::query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) {
+OsStatus dev::HidKeyboardDevice::query(sm::uuid uuid, const void *data, size_t size, vfs::IHandle **handle) {
     return kInterfaceList.query(loanShared(), uuid, data, size, handle);
 }
 

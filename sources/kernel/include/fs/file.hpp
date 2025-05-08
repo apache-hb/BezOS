@@ -1,10 +1,10 @@
 #pragma once
 
-#include "fs2/base.hpp"
-#include "fs2/device.hpp"
-#include "fs2/interface.hpp"
+#include "fs/base.hpp"
+#include "fs/device.hpp"
+#include "fs/interface.hpp"
 
-namespace vfs2 {
+namespace vfs {
     template<typename T>
     concept FileNodeStat = requires (T it) {
         { it.stat(std::declval<OsFileInfo*>()) } -> std::same_as<OsStatus>;

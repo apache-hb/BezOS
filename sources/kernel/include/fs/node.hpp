@@ -4,8 +4,8 @@
 #include <bezos/subsystem/identify.h>
 #include <bezos/subsystem/fs.h>
 
-#include "fs2/path.hpp"
-#include "fs2/base.hpp"
+#include "fs/path.hpp"
+#include "fs/base.hpp"
 
 #include "std/string_view.hpp"
 
@@ -18,7 +18,7 @@ namespace km {
 /// This VFS derives from the original SunOS vnode design with some modifications.
 ///
 /// @cite SunVNodes
-namespace vfs2 {
+namespace vfs {
     class IVfsMount;
     struct IVfsDriver;
 

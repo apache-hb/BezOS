@@ -1,5 +1,5 @@
 #include "system/transaction.hpp"
-#include "fs2/vfs.hpp"
+#include "fs/vfs.hpp"
 #include "memory.hpp"
 #include "system/create.hpp"
 #include "system/process.hpp"
@@ -8,7 +8,7 @@
 
 struct TestData {
     km::SystemMemory memory;
-    vfs2::VfsRoot vfs;
+    vfs::VfsRoot vfs;
     sys::System system;
 
     TestData(SystemMemoryTestBody& body)

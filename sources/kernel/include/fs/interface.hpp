@@ -1,8 +1,8 @@
 #pragma once
 
-#include "fs2/node.hpp"
+#include "fs/node.hpp"
 
-namespace vfs2 {
+namespace vfs {
     /// @note All interfaces of @a kOsFileGuid must implement this interface.
     class IFileHandle : public IHandle {
     public:

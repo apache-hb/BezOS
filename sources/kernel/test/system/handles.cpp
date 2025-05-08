@@ -1,10 +1,10 @@
 #include "system_test.hpp"
 
-#include "fs2/vfs.hpp"
+#include "fs/vfs.hpp"
 
 struct TestData {
     km::SystemMemory memory;
-    vfs2::VfsRoot vfs;
+    vfs::VfsRoot vfs;
     sys::System system;
 
     TestData(SystemMemoryTestBody& body)
@@ -59,15 +59,15 @@ public:
 };
 
 TEST_F(HandleTest, CloneHandle) {
-    sm::RcuSharedPtr<vfs2::INode> vfsNode;
-    ASSERT_EQ(data->vfs.mkpath(vfs2::BuildPath("Root"), &vfsNode), OsStatusSuccess);
-    ASSERT_EQ(data->vfs.create(vfs2::BuildPath("Root", "File.txt"), &vfsNode), OsStatusSuccess);
+    sm::RcuSharedPtr<vfs::INode> vfsNode;
+    ASSERT_EQ(data->vfs.mkpath(vfs::BuildPath("Root"), &vfsNode), OsStatusSuccess);
+    ASSERT_EQ(data->vfs.create(vfs::BuildPath("Root", "File.txt"), &vfsNode), OsStatusSuccess);
 
     auto i = invoke();
     OsNodeHandle node = OS_HANDLE_INVALID;
     sys::NodeOpenInfo openInfo {
         .process = GetProcessHandle(hRootProcess->getProcess(), hProcess),
-        .path = vfs2::BuildPath("Root", "File.txt"),
+        .path = vfs::BuildPath("Root", "File.txt"),
     };
     ASSERT_EQ(sys::SysNodeOpen(&i, openInfo, &node), OsStatusSuccess);
     ASSERT_NE(node, OS_HANDLE_INVALID) << "Node handle was not created";
@@ -87,15 +87,15 @@ TEST_F(HandleTest, CloneHandle) {
 }
 
 TEST_F(HandleTest, StatHandle) {
-    sm::RcuSharedPtr<vfs2::INode> vfsNode;
-    ASSERT_EQ(data->vfs.mkpath(vfs2::BuildPath("Root"), &vfsNode), OsStatusSuccess);
-    ASSERT_EQ(data->vfs.create(vfs2::BuildPath("Root", "File.txt"), &vfsNode), OsStatusSuccess);
+    sm::RcuSharedPtr<vfs::INode> vfsNode;
+    ASSERT_EQ(data->vfs.mkpath(vfs::BuildPath("Root"), &vfsNode), OsStatusSuccess);
+    ASSERT_EQ(data->vfs.create(vfs::BuildPath("Root", "File.txt"), &vfsNode), OsStatusSuccess);
 
     auto i = invoke();
     OsNodeHandle node = OS_HANDLE_INVALID;
     sys::NodeOpenInfo openInfo {
         .process = GetProcessHandle(hRootProcess->getProcess(), hProcess),
-        .path = vfs2::BuildPath("Root", "File.txt"),
+        .path = vfs::BuildPath("Root", "File.txt"),
     };
     ASSERT_EQ(sys::SysNodeOpen(&i, openInfo, &node), OsStatusSuccess);
     ASSERT_NE(node, OS_HANDLE_INVALID) << "Node handle was not created";
@@ -116,15 +116,15 @@ TEST_F(HandleTest, StatHandle) {
 }
 
 TEST_F(HandleTest, HandleClose) {
-    sm::RcuSharedPtr<vfs2::INode> vfsNode;
-    ASSERT_EQ(data->vfs.mkpath(vfs2::BuildPath("Root"), &vfsNode), OsStatusSuccess);
-    ASSERT_EQ(data->vfs.create(vfs2::BuildPath("Root", "File.txt"), &vfsNode), OsStatusSuccess);
+    sm::RcuSharedPtr<vfs::INode> vfsNode;
+    ASSERT_EQ(data->vfs.mkpath(vfs::BuildPath("Root"), &vfsNode), OsStatusSuccess);
+    ASSERT_EQ(data->vfs.create(vfs::BuildPath("Root", "File.txt"), &vfsNode), OsStatusSuccess);
 
     auto i = invoke();
     OsNodeHandle node = OS_HANDLE_INVALID;
     sys::NodeOpenInfo openInfo {
         .process = GetProcessHandle(hRootProcess->getProcess(), hProcess),
-        .path = vfs2::BuildPath("Root", "File.txt"),
+        .path = vfs::BuildPath("Root", "File.txt"),
     };
     ASSERT_EQ(sys::SysNodeOpen(&i, openInfo, &node), OsStatusSuccess);
     ASSERT_NE(node, OS_HANDLE_INVALID) << "Node handle was not created";
@@ -147,15 +147,15 @@ TEST_F(HandleTest, HandleClose) {
 }
 
 TEST_F(HandleTest, NodeQuery) {
-    sm::RcuSharedPtr<vfs2::INode> vfsNode;
-    ASSERT_EQ(data->vfs.mkpath(vfs2::BuildPath("Root"), &vfsNode), OsStatusSuccess);
-    ASSERT_EQ(data->vfs.create(vfs2::BuildPath("Root", "File.txt"), &vfsNode), OsStatusSuccess);
+    sm::RcuSharedPtr<vfs::INode> vfsNode;
+    ASSERT_EQ(data->vfs.mkpath(vfs::BuildPath("Root"), &vfsNode), OsStatusSuccess);
+    ASSERT_EQ(data->vfs.create(vfs::BuildPath("Root", "File.txt"), &vfsNode), OsStatusSuccess);
 
     auto i = invoke();
     OsNodeHandle node = OS_HANDLE_INVALID;
     sys::NodeOpenInfo openInfo {
         .process = GetProcessHandle(hRootProcess->getProcess(), hProcess),
-        .path = vfs2::BuildPath("Root", "File.txt"),
+        .path = vfs::BuildPath("Root", "File.txt"),
     };
     ASSERT_EQ(sys::SysNodeOpen(&i, openInfo, &node), OsStatusSuccess);
     ASSERT_NE(node, OS_HANDLE_INVALID) << "Node handle was not created";
@@ -170,15 +170,15 @@ TEST_F(HandleTest, NodeQuery) {
 }
 
 TEST_F(HandleTest, NodeClose) {
-    sm::RcuSharedPtr<vfs2::INode> vfsNode;
-    ASSERT_EQ(data->vfs.mkpath(vfs2::BuildPath("Root"), &vfsNode), OsStatusSuccess);
-    ASSERT_EQ(data->vfs.create(vfs2::BuildPath("Root", "File.txt"), &vfsNode), OsStatusSuccess);
+    sm::RcuSharedPtr<vfs::INode> vfsNode;
+    ASSERT_EQ(data->vfs.mkpath(vfs::BuildPath("Root"), &vfsNode), OsStatusSuccess);
+    ASSERT_EQ(data->vfs.create(vfs::BuildPath("Root", "File.txt"), &vfsNode), OsStatusSuccess);
 
     auto i = invoke();
     OsNodeHandle node = OS_HANDLE_INVALID;
     sys::NodeOpenInfo openInfo {
         .process = GetProcessHandle(hRootProcess->getProcess(), hProcess),
-        .path = vfs2::BuildPath("Root", "File.txt"),
+        .path = vfs::BuildPath("Root", "File.txt"),
     };
     ASSERT_EQ(sys::SysNodeOpen(&i, openInfo, &node), OsStatusSuccess);
     ASSERT_NE(node, OS_HANDLE_INVALID) << "Node handle was not created";

@@ -1,5 +1,5 @@
 #include "system/system.hpp"
-#include "fs2/vfs.hpp"
+#include "fs/vfs.hpp"
 #include "system/create.hpp"
 #include "system_test.hpp"
 
@@ -7,7 +7,7 @@ class SystemTest : public SystemBaseTest { };
 
 TEST_F(SystemTest, Construct) {
     km::SystemMemory memory = body.make();
-    vfs2::VfsRoot vfs;
+    vfs::VfsRoot vfs;
     sys::System system;
     OsStatus status = sys::System::create(&vfs, &memory.pageTables(), &memory.pmmAllocator(), &system);
     ASSERT_EQ(status, OsStatusSuccess);
@@ -15,7 +15,7 @@ TEST_F(SystemTest, Construct) {
 
 TEST_F(SystemTest, CreateProcess) {
     km::SystemMemory memory = body.make(sm::megabytes(2).bytes());
-    vfs2::VfsRoot vfs;
+    vfs::VfsRoot vfs;
     sys::System system;
     OsStatus status = sys::System::create(&vfs, &memory.pageTables(), &memory.pmmAllocator(), &system);
     ASSERT_EQ(status, OsStatusSuccess);
@@ -41,7 +41,7 @@ TEST_F(SystemTest, CreateProcess) {
 
 TEST_F(SystemTest, CreateProcessAsync) {
     km::SystemMemory memory = body.make(sm::megabytes(2).bytes());
-    vfs2::VfsRoot vfs;
+    vfs::VfsRoot vfs;
     sys::System system;
     OsStatus status = sys::System::create(&vfs, &memory.pageTables(), &memory.pmmAllocator(), &system);
     ASSERT_EQ(status, OsStatusSuccess);
@@ -121,7 +121,7 @@ TEST_F(SystemTest, CreateProcessAsync) {
 
 TEST_F(SystemTest, CreateChildProcess) {
     km::SystemMemory memory = body.make(sm::megabytes(2).bytes());
-    vfs2::VfsRoot vfs;
+    vfs::VfsRoot vfs;
     sys::System system;
     OsStatus status = sys::System::create(&vfs, &memory.pageTables(), &memory.pmmAllocator(), &system);
     ASSERT_EQ(status, OsStatusSuccess);
@@ -186,7 +186,7 @@ TEST_F(SystemTest, CreateChildProcess) {
 
 TEST_F(SystemTest, NestedChildProcess) {
     km::SystemMemory memory = body.make(sm::megabytes(8).bytes());
-    vfs2::VfsRoot vfs;
+    vfs::VfsRoot vfs;
     sys::System system;
     OsStatus status = sys::System::create(&vfs, &memory.pageTables(), &memory.pmmAllocator(), &system);
     ASSERT_EQ(status, OsStatusSuccess);
@@ -241,7 +241,7 @@ TEST_F(SystemTest, NestedChildProcess) {
 
 TEST_F(SystemTest, OrphanThread) {
     km::SystemMemory memory = body.make(sm::megabytes(2).bytes());
-    vfs2::VfsRoot vfs;
+    vfs::VfsRoot vfs;
     sys::System system;
     OsStatus status = sys::System::create(&vfs, &memory.pageTables(), &memory.pmmAllocator(), &system);
     ASSERT_EQ(status, OsStatusSuccess);
@@ -285,7 +285,7 @@ TEST_F(SystemTest, OrphanThread) {
 
 TEST_F(SystemTest, CreateThread) {
     km::SystemMemory memory = body.make(sm::megabytes(2).bytes());
-    vfs2::VfsRoot vfs;
+    vfs::VfsRoot vfs;
     sys::System system;
     OsStatus status = sys::System::create(&vfs, &memory.pageTables(), &memory.pmmAllocator(), &system);
     ASSERT_EQ(status, OsStatusSuccess);

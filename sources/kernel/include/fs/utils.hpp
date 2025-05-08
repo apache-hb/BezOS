@@ -3,7 +3,7 @@
 #include "std/rcuptr.hpp"
 #include "util/uuid.hpp"
 
-namespace vfs2 {
+namespace vfs {
     class INode;
     class IHandle;
 

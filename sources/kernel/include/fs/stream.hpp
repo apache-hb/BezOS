@@ -1,9 +1,9 @@
 #pragma once
 
-#include "fs2/base.hpp"
-#include "fs2/device.hpp"
+#include "fs/base.hpp"
+#include "fs/device.hpp"
 
-namespace vfs2 {
+namespace vfs {
     template<typename T>
     concept StreamNodeRead = requires (T it) {
         { it.read(std::declval<ReadRequest>(), std::declval<ReadResult*>()) } -> std::same_as<OsStatus>;

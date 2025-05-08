@@ -5,6 +5,8 @@
 
 #include "util/digit.hpp"
 
+#include "std/funqual.hpp"
+
 #include <atomic>
 #include <cstdint>
 
@@ -134,7 +136,7 @@ namespace km {
     /// @param context The ISR context.
     ///
     /// @return The ISR context.
-    IsrContext DefaultIsrHandler(IsrContext *context);
+    IsrContext DefaultIsrHandler(IsrContext *context) SIGNAL_HANDLER;
 
     /// @brief A table of interrupt service routines.
     ///
@@ -159,11 +161,11 @@ namespace km {
         //
         IsrEntry mHandlers[N] = { [0 ... (N - 1)] = DefaultIsrHandler };
 
-        uint8_t index(const IsrEntry *entry) const {
+        uint8_t index(const IsrEntry *entry) const REENTRANT {
             return std::distance(mHandlers, entry) + kOffset;
         }
 
-        IsrEntry *find(const IsrEntry *handle) {
+        IsrEntry *find(const IsrEntry *handle) REENTRANT {
             //
             // We need to be very certain what we're about do is alright.
             //
@@ -179,7 +181,7 @@ namespace km {
             return const_cast<IsrEntry*>(handle);
         }
 
-        const IsrEntry *allocate(IsrCallback callback) {
+        const IsrEntry *allocate(IsrCallback callback) REENTRANT {
             for (IsrEntry& entry : mHandlers) {
 
                 //
@@ -195,7 +197,7 @@ namespace km {
             return nullptr;
         }
 
-        bool release(const IsrEntry *callback, IsrCallback expected) {
+        bool release(const IsrEntry *callback, IsrCallback expected) REENTRANT {
             IsrEntry *entry = find(callback);
 
             //
@@ -210,17 +212,17 @@ namespace km {
     public:
         constexpr IsrTableBase() = default;
 
-        IsrCallback install(uint8_t isr, IsrCallback callback) {
+        IsrCallback install(uint8_t isr, IsrCallback callback) REENTRANT {
             return mHandlers[isr - kOffset].exchange(callback);
         }
 
-        IsrContext invoke(IsrContext *context) {
-            IsrCallback isr = mHandlers[uint8_t(context->vector) - kOffset];
+        IsrContext invoke(IsrContext *context) SIGNAL_HANDLER {
+            QTAG_INDIRECT(signal_handler) IsrCallback isr = mHandlers[uint8_t(context->vector) - kOffset];
             return isr(context);
         }
 
-        IsrEntry *begin() { return mHandlers; }
-        IsrEntry *end() { return mHandlers + N; }
+        IsrEntry *begin() REENTRANT { return mHandlers; }
+        IsrEntry *end() REENTRANT { return mHandlers + N; }
     };
 
     /// @brief A table containing x86 exception handlers for all cpus.
@@ -299,7 +301,7 @@ namespace km {
         }
     };
 
-    SharedIsrTable *GetSharedIsrTable();
+    SharedIsrTable *GetSharedIsrTable() REENTRANT;
     LocalIsrTable *GetLocalIsrTable();
     void SetIsrManager(ILocalIsrManager *manager);
 

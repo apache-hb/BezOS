@@ -64,12 +64,12 @@ OsStatus Process::createTls(km::SystemMemory& memory, Thread *thread) {
     return tlsInit.createTls(memory, thread);
 }
 
-void Node::init(NodeId id, stdx::String name, sm::RcuSharedPtr<vfs2::INode> vfsNode) {
+void Node::init(NodeId id, stdx::String name, sm::RcuSharedPtr<vfs::INode> vfsNode) {
     initHeader(std::to_underlying(id), eOsHandleNode, std::move(name));
     node = vfsNode;
 }
 
-void Device::init(DeviceId id, stdx::String name, std::unique_ptr<vfs2::IHandle> vfsHandle) {
+void Device::init(DeviceId id, stdx::String name, std::unique_ptr<vfs::IHandle> vfsHandle) {
     initHeader(std::to_underlying(id), eOsHandleDevice, std::move(name));
     handle = std::move(vfsHandle);
 }

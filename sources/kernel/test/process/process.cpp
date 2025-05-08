@@ -6,7 +6,7 @@
 #include "process/system.hpp"
 #include "process/thread.hpp"
 
-#include "fs2/vfs.hpp"
+#include "fs/vfs.hpp"
 
 #include "test/test_memory.hpp"
 #include "xsave.hpp"
@@ -23,7 +23,7 @@ public:
 };
 
 TEST_F(ProcessTest, Construct) {
-    vfs2::VfsRoot vfs;
+    vfs::VfsRoot vfs;
     SystemMemoryTestBody body;
     body.addSegment(0x100000, boot::MemoryRegion::eUsable);
     body.addSegment(0x100000, boot::MemoryRegion::eUsable);
@@ -34,7 +34,7 @@ TEST_F(ProcessTest, Construct) {
 }
 
 TEST_F(ProcessTest, CreateProcess) {
-    vfs2::VfsRoot vfs;
+    vfs::VfsRoot vfs;
     SystemMemoryTestBody body;
     auto s0 = body.addSegment(0x100000, boot::MemoryRegion::eUsable);
     body.addSegment(0x100000, boot::MemoryRegion::eUsable);
@@ -65,7 +65,7 @@ TEST_F(ProcessTest, CreateProcess) {
 }
 
 TEST_F(ProcessTest, CreateThread) {
-    vfs2::VfsRoot vfs;
+    vfs::VfsRoot vfs;
     SystemMemoryTestBody body;
     auto s0 = body.addSegment(0x100000, boot::MemoryRegion::eUsable);
     body.addSegment(0x100000, boot::MemoryRegion::eUsable);
@@ -115,7 +115,7 @@ TEST_F(ProcessTest, CreateThread) {
 }
 
 TEST_F(ProcessTest, OpenFile) {
-    vfs2::VfsRoot vfs;
+    vfs::VfsRoot vfs;
     SystemMemoryTestBody body;
     auto s0 = body.addSegment(0x100000, boot::MemoryRegion::eUsable);
     body.addSegment(0x100000, boot::MemoryRegion::eUsable);
@@ -125,14 +125,14 @@ TEST_F(ProcessTest, OpenFile) {
     km::SystemObjects objects { &memory, &vfs };
 
     {
-        sm::RcuSharedPtr<vfs2::INode> node = nullptr;
-        OsStatus status = vfs.mkpath(vfs2::BuildPath("Test"), &node);
+        sm::RcuSharedPtr<vfs::INode> node = nullptr;
+        OsStatus status = vfs.mkpath(vfs::BuildPath("Test"), &node);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
     {
-        sm::RcuSharedPtr<vfs2::INode> node = nullptr;
-        OsStatus status = vfs.create(vfs2::BuildPath("Test", "File.txt"), &node);
+        sm::RcuSharedPtr<vfs::INode> node = nullptr;
+        OsStatus status = vfs.create(vfs::BuildPath("Test", "File.txt"), &node);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
@@ -162,7 +162,7 @@ TEST_F(ProcessTest, OpenFile) {
     ASSERT_NE(thread->publicId(), OS_HANDLE_INVALID);
 
     {
-        OsStatus status = objects.createDevice(vfs2::BuildPath("Test", "File.txt"), kOsFileGuid, nullptr, 0, process, &vnode);
+        OsStatus status = objects.createDevice(vfs::BuildPath("Test", "File.txt"), kOsFileGuid, nullptr, 0, process, &vnode);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
@@ -190,7 +190,7 @@ TEST_F(ProcessTest, OpenFile) {
 }
 
 TEST_F(ProcessTest, CloseFileInProcess) {
-    vfs2::VfsRoot vfs;
+    vfs::VfsRoot vfs;
     SystemMemoryTestBody body;
     auto s0 = body.addSegment(0x100000, boot::MemoryRegion::eUsable);
     body.addSegment(0x100000, boot::MemoryRegion::eUsable);
@@ -200,14 +200,14 @@ TEST_F(ProcessTest, CloseFileInProcess) {
     km::SystemObjects objects { &memory, &vfs };
 
     {
-        sm::RcuSharedPtr<vfs2::INode> node = nullptr;
-        OsStatus status = vfs.mkpath(vfs2::BuildPath("Test"), &node);
+        sm::RcuSharedPtr<vfs::INode> node = nullptr;
+        OsStatus status = vfs.mkpath(vfs::BuildPath("Test"), &node);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
     {
-        sm::RcuSharedPtr<vfs2::INode> node = nullptr;
-        OsStatus status = vfs.create(vfs2::BuildPath("Test", "File.txt"), &node);
+        sm::RcuSharedPtr<vfs::INode> node = nullptr;
+        OsStatus status = vfs.create(vfs::BuildPath("Test", "File.txt"), &node);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
@@ -237,7 +237,7 @@ TEST_F(ProcessTest, CloseFileInProcess) {
     ASSERT_NE(thread->publicId(), OS_HANDLE_INVALID);
 
     {
-        OsStatus status = objects.createDevice(vfs2::BuildPath("Test", "File.txt"), kOsFileGuid, nullptr, 0, process, &vnode);
+        OsStatus status = objects.createDevice(vfs::BuildPath("Test", "File.txt"), kOsFileGuid, nullptr, 0, process, &vnode);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 

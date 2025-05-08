@@ -9,7 +9,7 @@
 
 #include <atomic>
 
-namespace vfs2 {
+namespace vfs {
     class IFileHandle;
 }
 
@@ -184,5 +184,5 @@ namespace sys {
         }
     };
 
-    OsStatus MapFileToMemory(vfs2::IFileHandle *file, MemoryManager *mm, km::AddressSpace *pt, size_t offset, size_t size, km::MemoryRange *range);
+    OsStatus MapFileToMemory(vfs::IFileHandle *file, MemoryManager *mm, km::AddressSpace *pt, size_t offset, size_t size, km::MemoryRange *range);
 }

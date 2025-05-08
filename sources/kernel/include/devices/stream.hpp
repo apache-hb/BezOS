@@ -1,7 +1,7 @@
 #pragma once
 
-#include "fs2/device.hpp"
-#include "fs2/identify.hpp"
+#include "fs/device.hpp"
+#include "fs/identify.hpp"
 
 #include "std/fixed_deque.hpp"
 #include "std/spinlock.hpp"
@@ -19,7 +19,7 @@ namespace dev {
         .DriverVersion = OS_VERSION(1, 0, 0),
     };
 
-    class StreamDevice : public vfs2::BasicNode, public vfs2::ConstIdentifyMixin<kStreamInfo> {
+    class StreamDevice : public vfs::BasicNode, public vfs::ConstIdentifyMixin<kStreamInfo> {
         std::unique_ptr<std::byte[]> mBuffer;
         stdx::SpinLock mLock;
         stdx::FixedSizeDeque<std::byte> mQueue;
@@ -27,10 +27,10 @@ namespace dev {
     public:
         StreamDevice(size_t size);
 
-        OsStatus query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) override;
+        OsStatus query(sm::uuid uuid, const void *data, size_t size, vfs::IHandle **handle) override;
         OsStatus interfaces(OsIdentifyInterfaceList *list);
 
-        OsStatus read(vfs2::ReadRequest request, vfs2::ReadResult *result);
-        OsStatus write(vfs2::WriteRequest request, vfs2::WriteResult *result);
+        OsStatus read(vfs::ReadRequest request, vfs::ReadResult *result);
+        OsStatus write(vfs::WriteRequest request, vfs::WriteResult *result);
     };
 }

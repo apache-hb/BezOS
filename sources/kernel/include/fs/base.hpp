@@ -6,7 +6,7 @@
 
 #include "system/access.hpp"
 
-#include "fs2/path.hpp"
+#include "fs/path.hpp"
 
 #include "util/uuid.hpp"
 #include "std/rcuptr.hpp"
@@ -24,7 +24,7 @@ namespace sys {
 /// This VFS derives from the original SunOS vnode design with some modifications.
 ///
 /// @cite SunVNodes
-namespace vfs2 {
+namespace vfs {
     class INode;
     class IHandle;
     class IVfsMount;

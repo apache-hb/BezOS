@@ -1,16 +1,16 @@
 
 #include <gtest/gtest.h>
 
-#include "fs2/vfs.hpp"
+#include "fs/vfs.hpp"
 
-using namespace vfs2;
+using namespace vfs;
 
 TEST(RamFsTest, Construct) {
-    vfs2::VfsRoot vfs;
+    vfs::VfsRoot vfs;
 }
 
 TEST(RamFsTest, DestroyNode) {
-    vfs2::VfsRoot vfs;
+    vfs::VfsRoot vfs;
 
     sm::RcuSharedPtr<INode> node = nullptr;
     {

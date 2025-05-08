@@ -2,12 +2,12 @@
 
 #include "drivers/block/driver.hpp"
 
-#include "fs2/folder.hpp"
-#include "fs2/identify.hpp"
-#include "fs2/node.hpp"
+#include "fs/folder.hpp"
+#include "fs/identify.hpp"
+#include "fs/node.hpp"
 #include "std/shared.hpp"
 
-namespace vfs2 {
+namespace vfs {
     namespace detail {
         static constexpr size_t kTarNameSize = 100;
 

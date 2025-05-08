@@ -1,10 +1,10 @@
 #pragma once
 
-#include "fs2/device.hpp"
-#include "fs2/interface.hpp"
+#include "fs/device.hpp"
+#include "fs/interface.hpp"
 #include "util/absl.hpp"
 
-namespace vfs2 {
+namespace vfs {
     template<typename T>
     concept FolderLookup = requires (T it) {
         { it.lookup(std::declval<VfsStringView>(), std::declval<sm::RcuSharedPtr<INode>*>()) } -> std::same_as<OsStatus>;

@@ -1,6 +1,6 @@
-#include "fs2/interface.hpp"
+#include "fs/interface.hpp"
 
-OsStatus vfs2::IIteratorHandle::next(IInvokeContext *context, void *data, size_t size) {
+OsStatus vfs::IIteratorHandle::next(IInvokeContext *context, void *data, size_t size) {
     if ((data == nullptr) || (size != sizeof(OsIteratorNext))) {
         return OsStatusInvalidInput;
     }
@@ -15,7 +15,7 @@ OsStatus vfs2::IIteratorHandle::next(IInvokeContext *context, void *data, size_t
     return OsStatusSuccess;
 }
 
-OsStatus vfs2::IIteratorHandle::invoke(IInvokeContext *context, uint64_t function, void *data, size_t size) {
+OsStatus vfs::IIteratorHandle::invoke(IInvokeContext *context, uint64_t function, void *data, size_t size) {
     switch (function) {
     case eOsIteratorNext:
         return next(context, data, size);

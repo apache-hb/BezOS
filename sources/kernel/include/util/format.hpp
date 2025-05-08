@@ -7,9 +7,10 @@
 #include "std/static_string.hpp"
 #include "std/traits.hpp"
 
+#include "std/funqual.hpp"
+
 #include <span>
 #include <utility>
-#include <new>
 
 namespace km {
     template<typename T>
@@ -43,12 +44,8 @@ namespace km {
     public:
         virtual ~IOutStream() = default;
 
-        void operator delete(IOutStream*, std::destroying_delete_t) {
-            std::unreachable();
-        }
-
-        virtual void write(stdx::StringView message) = 0;
-        virtual void write(char c) {
+        virtual void write(stdx::StringView message) NON_REENTRANT = 0;
+        virtual void write(char c) NON_REENTRANT {
             write(std::to_array({ c }));
         }
 
@@ -318,7 +315,7 @@ namespace km {
         struct OutStream final : public IOutStream {
             stdx::StaticString<N> result;
 
-            void write(stdx::StringView message) override {
+            void write(stdx::StringView message) NON_REENTRANT override {
                 result.add(message);
             }
         };
@@ -334,7 +331,7 @@ namespace km {
         struct OutStream final : public IOutStream {
             stdx::StaticString<N> result;
 
-            void write(stdx::StringView message) override {
+            void write(stdx::StringView message) NON_REENTRANT override {
                 result.add(message);
             }
         };

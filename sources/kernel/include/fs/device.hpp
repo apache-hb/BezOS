@@ -2,9 +2,9 @@
 
 #include <bezos/subsystem/identify.h>
 
-#include "fs2/node.hpp"
+#include "fs/node.hpp"
 
-namespace vfs2 {
+namespace vfs {
     class BasicNode : public INode {
     protected:
         sm::RcuWeakPtr<INode> mParent;

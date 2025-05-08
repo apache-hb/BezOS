@@ -1,9 +1,9 @@
-#include "fs2/path.hpp"
+#include "fs/path.hpp"
 
 #include <algorithm>
 #include <cassert>
 
-using namespace vfs2;
+using namespace vfs;
 
 VfsPathConstIterator::Iterator VfsPathConstIterator::nextSegment(Iterator front) const {
     auto end = mString->end();
@@ -82,7 +82,7 @@ VfsStringView VfsPath::name() const {
     return VfsStringView(tail.begin() + 1, mPath.end());
 }
 
-bool vfs2::VerifyPathText(VfsStringView text) {
+bool vfs::VerifyPathText(VfsStringView text) {
     //
     // Empty paths are the root path.
     //
@@ -136,7 +136,7 @@ bool vfs2::VerifyPathText(VfsStringView text) {
 
 using PathFormat = km::Format<VfsPath>;
 
-void PathFormat::format(km::IOutStream& out, const vfs2::VfsPath& path) {
+void PathFormat::format(km::IOutStream& out, const vfs::VfsPath& path) {
     for (VfsStringView segment : path) {
         out.format("/", segment);
     }

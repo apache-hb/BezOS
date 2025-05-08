@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
 
-#include "fs2/vfs.hpp"
+#include "fs/vfs.hpp"
 
-using namespace vfs2;
+using namespace vfs;
 
 static void CheckIdentify(INode *node) {
     // Must have identify interface.
@@ -45,7 +45,7 @@ static void CheckIdentify(INode *node) {
 }
 
 TEST(VfsIdentifyTest, FileIdentify) {
-    vfs2::VfsRoot vfs;
+    vfs::VfsRoot vfs;
 
     {
         INode *node = nullptr;

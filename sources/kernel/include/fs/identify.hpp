@@ -2,10 +2,10 @@
 
 #include <bezos/subsystem/identify.h>
 
-#include "fs2/device.hpp"
-#include "fs2/interface.hpp"
+#include "fs/device.hpp"
+#include "fs/interface.hpp"
 
-namespace vfs2 {
+namespace vfs {
     namespace detail {
         OsStatus ValidateInterfaceList(void *data, size_t size);
     }

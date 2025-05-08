@@ -2,7 +2,7 @@
 
 #include "memory/layout.hpp"
 #include "system/vmem.hpp"
-#include "fs2/interface.hpp"
+#include "fs/interface.hpp"
 
 namespace km {
     class PageAllocator;
@@ -27,5 +27,5 @@ namespace sys {
         }
     };
 
-    OsStatus MapFileToMemory(sm::RcuDomain *domain, vfs2::IFileHandle *fileHandle, km::PageAllocator *pmm, km::AddressSpace *ptes, uint64_t front, uint64_t back, sm::RcuSharedPtr<FileMapping> *outMapping);
+    OsStatus MapFileToMemory(sm::RcuDomain *domain, vfs::IFileHandle *fileHandle, km::PageAllocator *pmm, km::AddressSpace *ptes, uint64_t front, uint64_t back, sm::RcuSharedPtr<FileMapping> *outMapping);
 }

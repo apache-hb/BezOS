@@ -1,11 +1,11 @@
-#include "fs2/vfs.hpp"
-#include "fs2/node.hpp"
-#include "fs2/ramfs.hpp"
+#include "fs/vfs.hpp"
+#include "fs/node.hpp"
+#include "fs/ramfs.hpp"
 
-#include "fs2/utils.hpp"
+#include "fs/utils.hpp"
 #include "log.hpp"
 
-using namespace vfs2;
+using namespace vfs;
 
 VfsRoot::VfsRoot() {
     // TODO: This isn't conducive to good error handling.

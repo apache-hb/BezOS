@@ -159,7 +159,7 @@ OsStatus km::SerialPort::create(ComPortInfo info, SerialPort *port) noexcept [[c
 
 km::OpenSerialResult km::OpenSerial(ComPortInfo info) {
     SerialPort port;
-    OsStatus status = OpenSerial(info, &port);
+    OsStatus status = km::SerialPort::create(info, &port);
     switch (status) {
     case OsStatusSuccess:
         return { .port = port, .status = SerialPortStatus::eOk };
@@ -170,8 +170,4 @@ km::OpenSerialResult km::OpenSerial(ComPortInfo info) {
     default:
         return { .status = SerialPortStatus::eScratchTestFailed };
     }
-}
-
-OsStatus km::OpenSerial(ComPortInfo info, SerialPort *port) {
-    return SerialPort::create(info, port);
 }

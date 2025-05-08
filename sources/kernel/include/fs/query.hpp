@@ -9,7 +9,7 @@
 
 struct OsIdentifyInterfaceList;
 
-namespace vfs2 {
+namespace vfs {
     class IHandle;
     class INode;
 
@@ -48,11 +48,11 @@ namespace vfs2 {
 }
 
 template<size_t N>
-OsStatus vfs2::InterfaceList<N>::list(OsIdentifyInterfaceList *list) const {
+OsStatus vfs::InterfaceList<N>::list(OsIdentifyInterfaceList *list) const {
     return detail::ServiceInterfaceList(mInterfaces, list);
 }
 
 template<size_t N>
-OsStatus vfs2::InterfaceList<N>::query(sm::RcuSharedPtr<INode> node, sm::uuid uuid, const void *data, size_t size, IHandle **handle) const {
+OsStatus vfs::InterfaceList<N>::query(sm::RcuSharedPtr<INode> node, sm::uuid uuid, const void *data, size_t size, IHandle **handle) const {
     return detail::ServiceQuery(mInterfaces, node, uuid, data, size, handle);
 }

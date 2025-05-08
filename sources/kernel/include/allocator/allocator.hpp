@@ -8,6 +8,8 @@
 #include <utility>
 #include <new>
 
+#include "common/compiler/compiler.hpp"
+
 namespace mem {
     class IAllocator {
     public:
@@ -54,7 +56,7 @@ namespace mem {
         }
 
         template<typename T>
-        void deallocate(T *ptr) {
+        void deallocate(T *ptr) noexcept [[clang::nonallocating]] {
             if (ptr != nullptr) {
                 std::destroy_at(ptr);
                 deallocate(ptr, sizeof(T));
@@ -133,8 +135,11 @@ namespace mem {
             return new (std::nothrow) T[n];
         }
 
-        void deallocate(T *ptr, size_t) {
+        void deallocate(T *ptr, size_t) noexcept [[clang::nonallocating]] {
+            CLANG_DIAGNOSTIC_PUSH();
+            CLANG_DIAGNOSTIC_IGNORE("-Wfunction-effects");
             delete[] ptr;
+            CLANG_DIAGNOSTIC_POP();
         }
     };
 
@@ -150,7 +155,7 @@ namespace mem {
             return (T*)mAllocator->allocateAligned(n * sizeof(T), alignof(T));
         }
 
-        void deallocate(T *ptr, size_t n) {
+        void deallocate(T *ptr, size_t n) noexcept [[clang::nonallocating]] {
             mAllocator->deallocate(ptr, n * sizeof(T));
         }
     };

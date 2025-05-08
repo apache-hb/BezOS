@@ -4,7 +4,7 @@
 #include "system/vm/file.hpp"
 #include "system/vm/memory.hpp"
 
-OsStatus sys::MapFileToMemory(sm::RcuDomain *domain, vfs2::IFileHandle *fileHandle, km::PageAllocator *pmm, km::AddressSpace *ptes, uint64_t front, uint64_t back, sm::RcuSharedPtr<FileMapping> *outMapping) {
+OsStatus sys::MapFileToMemory(sm::RcuDomain *domain, vfs::IFileHandle *fileHandle, km::PageAllocator *pmm, km::AddressSpace *ptes, uint64_t front, uint64_t back, sm::RcuSharedPtr<FileMapping> *outMapping) {
     uint64_t size = back - front;
 
     auto memory = pmm->alloc4k(km::Pages(size));
@@ -20,12 +20,12 @@ OsStatus sys::MapFileToMemory(sm::RcuDomain *domain, vfs2::IFileHandle *fileHand
 
     KmDebugMessage("[VMEM] Creating mapping: ", mapping, "\n");
 
-    vfs2::ReadRequest read {
+    vfs::ReadRequest read {
         .begin = (char*)mapping.vaddr,
         .end = (char*)mapping.vaddr + size,
         .offset = front,
     };
-    vfs2::ReadResult result {};
+    vfs::ReadResult result {};
     if (OsStatus status = fileHandle->read(read, &result)) {
         KmDebugMessage("[VMEM] Failed to read file mapping from ", front, " to ", back, ": ", OsStatusId(status), "\n");
         pmm->release(memory);

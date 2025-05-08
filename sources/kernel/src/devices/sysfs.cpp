@@ -2,10 +2,10 @@
 
 #include "acpi/acpi.hpp"
 #include "acpi/header.hpp"
-#include "fs2/file.hpp"
-#include "fs2/identify.hpp"
-#include "fs2/iterator.hpp"
-#include "fs2/query.hpp"
+#include "fs/file.hpp"
+#include "fs/identify.hpp"
+#include "fs/iterator.hpp"
+#include "fs/query.hpp"
 #include "smbios.hpp"
 
 namespace smbios = km::smbios;
@@ -61,7 +61,7 @@ void dev::detail::IdentifySmbTable(const km::smbios::StructHeader *header, const
     stdr::copy(handle, info->Serial);
 }
 
-OsStatus dev::detail::ReadTableData(km::VirtualRange tables, vfs2::ReadRequest request, vfs2::ReadResult *result) {
+OsStatus dev::detail::ReadTableData(km::VirtualRange tables, vfs::ReadRequest request, vfs::ReadResult *result) {
     uint64_t front = request.offset;
     uint64_t back = request.offset + request.size();
 
@@ -103,35 +103,35 @@ void dev::detail::IdentifySmbRoot(const km::SmBiosTables *header, OsIdentifyInfo
     *info = result;
 }
 
-static constexpr inline vfs2::InterfaceList kAcpiTableInterfaceList = std::to_array({
-    vfs2::InterfaceOf<vfs2::TIdentifyHandle<dev::AcpiTable>, dev::AcpiTable>(kOsIdentifyGuid),
-    vfs2::InterfaceOf<vfs2::TFileHandle<dev::AcpiTable>, dev::AcpiTable>(kOsFileGuid),
+static constexpr inline vfs::InterfaceList kAcpiTableInterfaceList = std::to_array({
+    vfs::InterfaceOf<vfs::TIdentifyHandle<dev::AcpiTable>, dev::AcpiTable>(kOsIdentifyGuid),
+    vfs::InterfaceOf<vfs::TFileHandle<dev::AcpiTable>, dev::AcpiTable>(kOsFileGuid),
 });
 
-static constexpr inline vfs2::InterfaceList kAcpiRootInterfaceList = std::to_array({
-    vfs2::InterfaceOf<vfs2::TIdentifyHandle<dev::AcpiRoot>, dev::AcpiRoot>(kOsIdentifyGuid),
-    vfs2::InterfaceOf<vfs2::TFileHandle<dev::AcpiRoot>, dev::AcpiRoot>(kOsFileGuid),
-    vfs2::InterfaceOf<vfs2::TFolderHandle<dev::AcpiRoot>, dev::AcpiRoot>(kOsFolderGuid),
-    vfs2::InterfaceOf<vfs2::TIteratorHandle<dev::AcpiRoot>, dev::AcpiRoot>(kOsIteratorGuid),
+static constexpr inline vfs::InterfaceList kAcpiRootInterfaceList = std::to_array({
+    vfs::InterfaceOf<vfs::TIdentifyHandle<dev::AcpiRoot>, dev::AcpiRoot>(kOsIdentifyGuid),
+    vfs::InterfaceOf<vfs::TFileHandle<dev::AcpiRoot>, dev::AcpiRoot>(kOsFileGuid),
+    vfs::InterfaceOf<vfs::TFolderHandle<dev::AcpiRoot>, dev::AcpiRoot>(kOsFolderGuid),
+    vfs::InterfaceOf<vfs::TIteratorHandle<dev::AcpiRoot>, dev::AcpiRoot>(kOsIteratorGuid),
 });
 
-static constexpr inline vfs2::InterfaceList kSmbTableInterfaceList = std::to_array({
-    vfs2::InterfaceOf<vfs2::TIdentifyHandle<dev::SmBiosTable>, dev::SmBiosTable>(kOsIdentifyGuid),
-    vfs2::InterfaceOf<vfs2::TFileHandle<dev::SmBiosTable>, dev::SmBiosTable>(kOsFileGuid),
+static constexpr inline vfs::InterfaceList kSmbTableInterfaceList = std::to_array({
+    vfs::InterfaceOf<vfs::TIdentifyHandle<dev::SmBiosTable>, dev::SmBiosTable>(kOsIdentifyGuid),
+    vfs::InterfaceOf<vfs::TFileHandle<dev::SmBiosTable>, dev::SmBiosTable>(kOsFileGuid),
 });
 
-static constexpr inline vfs2::InterfaceList kSmbRootInterfaceList = std::to_array({
-    vfs2::InterfaceOf<vfs2::TIdentifyHandle<dev::SmBiosRoot>, dev::SmBiosRoot>(kOsIdentifyGuid),
-    vfs2::InterfaceOf<vfs2::TFileHandle<dev::SmBiosRoot>, dev::SmBiosRoot>(kOsFileGuid),
-    vfs2::InterfaceOf<vfs2::TFolderHandle<dev::SmBiosRoot>, dev::SmBiosRoot>(kOsFolderGuid),
-    vfs2::InterfaceOf<vfs2::TIteratorHandle<dev::SmBiosRoot>, dev::SmBiosRoot>(kOsIteratorGuid),
+static constexpr inline vfs::InterfaceList kSmbRootInterfaceList = std::to_array({
+    vfs::InterfaceOf<vfs::TIdentifyHandle<dev::SmBiosRoot>, dev::SmBiosRoot>(kOsIdentifyGuid),
+    vfs::InterfaceOf<vfs::TFileHandle<dev::SmBiosRoot>, dev::SmBiosRoot>(kOsFileGuid),
+    vfs::InterfaceOf<vfs::TFolderHandle<dev::SmBiosRoot>, dev::SmBiosRoot>(kOsFolderGuid),
+    vfs::InterfaceOf<vfs::TIteratorHandle<dev::SmBiosRoot>, dev::SmBiosRoot>(kOsIteratorGuid),
 });
 
 dev::AcpiTable::AcpiTable(const acpi::RsdtHeader *table)
     : mHeader(table)
 { }
 
-OsStatus dev::AcpiTable::query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) {
+OsStatus dev::AcpiTable::query(sm::uuid uuid, const void *data, size_t size, vfs::IHandle **handle) {
     return kAcpiTableInterfaceList.query(loanShared(), uuid, data, size, handle);
 }
 
@@ -158,7 +158,7 @@ OsStatus dev::AcpiTable::stat(OsFileInfo *stat) {
     return OsStatusSuccess;
 }
 
-OsStatus dev::AcpiTable::read(vfs2::ReadRequest request, vfs2::ReadResult *result) {
+OsStatus dev::AcpiTable::read(vfs::ReadRequest request, vfs::ReadResult *result) {
     km::VirtualRange range = km::VirtualRange::of((void*)mHeader, mHeader->length);
     return detail::ReadTableData(range, request, result);
 }
@@ -171,7 +171,7 @@ dev::AcpiRoot::AcpiRoot(const acpi::AcpiTables *tables)
     : mTables(tables)
 { }
 
-OsStatus dev::AcpiRoot::query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) {
+OsStatus dev::AcpiRoot::query(sm::uuid uuid, const void *data, size_t size, vfs::IHandle **handle) {
     return kAcpiRootInterfaceList.query(loanShared(), uuid, data, size, handle);
 }
 
@@ -198,7 +198,7 @@ OsStatus dev::AcpiRoot::stat(OsFileInfo *stat) {
     return OsStatusSuccess;
 }
 
-OsStatus dev::AcpiRoot::read(vfs2::ReadRequest request, vfs2::ReadResult *result) {
+OsStatus dev::AcpiRoot::read(vfs::ReadRequest request, vfs::ReadResult *result) {
     const acpi::RsdpLocator *rsdp = mTables->locator();
     km::VirtualRange range = km::VirtualRange::of((void*)rsdp, sizeof(acpi::RsdpLocator));
     return detail::ReadTableData(range, request, result);
@@ -212,7 +212,7 @@ sm::RcuSharedPtr<dev::AcpiRoot> dev::AcpiRoot::create(sm::RcuDomain *domain, con
 
     for (const acpi::RsdtHeader *header : tables->entries()) {
         auto table = sm::rcuMakeShared<dev::AcpiTable>(domain, header);
-        root->mknode(root, vfs2::VfsStringView(header->signature), table);
+        root->mknode(root, vfs::VfsStringView(header->signature), table);
     }
 
     return root;
@@ -228,7 +228,7 @@ dev::SmBiosTable::SmBiosTable(const km::smbios::StructHeader *header, const km::
 { }
 
 
-OsStatus dev::SmBiosTable::query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) {
+OsStatus dev::SmBiosTable::query(sm::uuid uuid, const void *data, size_t size, vfs::IHandle **handle) {
     return kSmbTableInterfaceList.query(loanShared(), uuid, data, size, handle);
 }
 
@@ -256,7 +256,7 @@ OsStatus dev::SmBiosTable::stat(OsFileInfo *stat) {
     return OsStatusSuccess;
 }
 
-OsStatus dev::SmBiosTable::read(vfs2::ReadRequest request, vfs2::ReadResult *result) {
+OsStatus dev::SmBiosTable::read(vfs::ReadRequest request, vfs::ReadResult *result) {
     km::VirtualRange range = km::VirtualRange::of((void*)mHeader, km::smbios::GetStructSize(mHeader));
     return detail::ReadTableData(range, request, result);
 }
@@ -269,7 +269,7 @@ dev::SmBiosRoot::SmBiosRoot(const km::SmBiosTables *tables)
     : mTables(tables)
 { }
 
-OsStatus dev::SmBiosRoot::query(sm::uuid uuid, const void *data, size_t size, vfs2::IHandle **handle) {
+OsStatus dev::SmBiosRoot::query(sm::uuid uuid, const void *data, size_t size, vfs::IHandle **handle) {
     return kSmbRootInterfaceList.query(loanShared(), uuid, data, size, handle);
 }
 
@@ -295,7 +295,7 @@ OsStatus dev::SmBiosRoot::stat(OsFileInfo *stat) {
     return OsStatusSuccess;
 }
 
-OsStatus dev::SmBiosRoot::read(vfs2::ReadRequest request, vfs2::ReadResult *result) {
+OsStatus dev::SmBiosRoot::read(vfs::ReadRequest request, vfs::ReadResult *result) {
     return detail::ReadTableData(mTables->tables, request, result);
 }
 
@@ -308,7 +308,7 @@ sm::RcuSharedPtr<dev::SmBiosRoot> dev::SmBiosRoot::create(sm::RcuDomain *domain,
     for (const km::smbios::StructHeader *header : *tables) {
         auto table = sm::rcuMakeShared<dev::SmBiosTable>(domain, header, tables);
         auto handle = km::format(km::Hex(header->handle).pad(4));
-        root->mknode(root, vfs2::VfsStringView(handle), table);
+        root->mknode(root, vfs::VfsStringView(handle), table);
     }
 
     return root;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "fs2/interface.hpp"
+#include "fs/interface.hpp"
 #include "memory.hpp"
 
 #include <bit>
@@ -190,7 +190,7 @@ namespace km {
         OsStatus createTls(SystemMemory& memory, Thread *thread);
     };
 
-    OsStatus LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory& memory, SystemObjects& objects, ProcessLaunch *result);
+    OsStatus LoadElf(std::unique_ptr<vfs::IFileHandle> file, SystemMemory& memory, SystemObjects& objects, ProcessLaunch *result);
 
     OsStatus LoadElf2(sys::InvokeContext *invoke, OsDeviceHandle file, OsProcessHandle *process, OsThreadHandle *thread);
 
@@ -206,5 +206,5 @@ namespace km {
     /// @param result Program information.
     ///
     /// @return Status of the operation.
-    OsStatus LoadElfProgram(vfs2::IFileHandle *file, SystemMemory& memory, Process *process, Program *result);
+    OsStatus LoadElfProgram(vfs::IFileHandle *file, SystemMemory& memory, Process *process, Program *result);
 }

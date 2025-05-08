@@ -1462,6 +1462,11 @@ static void AcquirePackage(const PackageInfo& package) {
 
     for (const auto& download : package.downloads) {
         if (gCloneRepos.contains(download.name)) {
+            if (fs::exists(package.GetSourceFolder()) && !fs::exists(package.GetSourceFolder() / ".git")) {
+                // exists but not a git repo, delete it
+                logger.logf("{}: remove existing folder {}", package.name, package.GetSourceFolder().string());
+                fs::remove_all(package.GetSourceFolder());
+            }
             GitClone(download.git.url, download.git.commit, download.git.branch, package.GetSourceFolder());
         } else {
             auto path = package.GetCacheFolder() / download.file;
@@ -2076,6 +2081,7 @@ static int RunPackageTool(argparse::ArgumentParser& parser) {
     fs::path prefix = parser.get<std::string>("--prefix");
     fs::path configPath = parser.get<std::string>("--config");
     fs::path targetPath = parser.get<std::string>("--target");
+    bool recurseStateLowering = parser.get<bool>("--total");
 
     PackageDb packageDb(build / parser.get<std::string>("--repo"));
     CheckRequiredTools(packageDb);
@@ -2155,18 +2161,32 @@ static int RunPackageTool(argparse::ArgumentParser& parser) {
     auto applyStateLowering = [&](std::string flag, PackageStatus status) {
         auto all = parser.get<std::vector<std::string>>(flag);
         for (const auto& name : all) {
-            auto deps = gPackageDb->GetDependantPackages(name);
-            for (const auto& dep : deps) {
-                PackageInfo info;
-                if (!gWorkspace.TryGetPackage(dep, info)) {
-                    continue;
+            if (recurseStateLowering) {
+                auto deps = gPackageDb->GetDependantPackages(name);
+                for (const auto& dep : deps) {
+                    PackageInfo info;
+                    if (!gWorkspace.TryGetPackage(dep, info)) {
+                        continue;
+                    }
+
+                    if (hard) {
+                        gWorkspace.RelinkPackage(dep);
+                    }
+
+                    gPackageDb->LowerPackageStatus(dep, status);
                 }
+            } else {
+                gPackageDb->LowerPackageStatus(name, status);
 
                 if (hard) {
-                    gWorkspace.RelinkPackage(dep);
+                    auto deps = gPackageDb->GetDependantPackages(name);
+                    for (const auto& dep : deps) {
+                        PackageInfo info;
+                        if (gWorkspace.TryGetPackage(dep, info)) {
+                            gWorkspace.RelinkPackage(dep);
+                        }
+                    }
                 }
-
-                gPackageDb->LowerPackageStatus(dep, status);
             }
         }
     };
@@ -2174,7 +2194,10 @@ static int RunPackageTool(argparse::ArgumentParser& parser) {
     applyStateLowering("--reinstall", eBuilt);
     applyStateLowering("--rebuild", eConfigured);
     applyStateLowering("--reconfigure", eDownloaded);
+
+    // both fetch and clone should mark the package as unknown so its downloaded (or cloned) again
     applyStateLowering("--fetch", eUnknown);
+    applyStateLowering("--clone", eUnknown);
 
     for (const auto& name : parser.get<std::vector<std::string>>("--fetch")) {
         ErasePackageData(name);
@@ -2290,6 +2313,11 @@ int main(int argc, const char **argv) try {
         .help("List of packages to clone from git")
         .append()
         .nargs(argparse::nargs_pattern::any);
+
+    parser.add_argument("--total")
+        .help("Should reverse dependencies of modified packages have their state lowered")
+        .default_value(false)
+        .implicit_value(true);
 
     parser.add_argument("--reconfigure")
         .help("List of packages to configure or reconfigure")

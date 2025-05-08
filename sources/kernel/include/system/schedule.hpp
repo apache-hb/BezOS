@@ -4,7 +4,6 @@
 #include <bezos/handle.h>
 #include <queue>
 
-#include "ipl.hpp"
 #include "isr/isr.hpp"
 
 #include "std/shared_spinlock.hpp"

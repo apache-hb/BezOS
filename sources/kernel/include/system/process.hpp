@@ -17,7 +17,7 @@
 #include "system/vmm.hpp"
 #include "util/absl.hpp"
 
-namespace vfs2 {
+namespace vfs {
     class IFileHandle;
 }
 
@@ -108,7 +108,7 @@ namespace sys {
         OsStatus createTx(System *system, TxCreateInfo info, TxHandle **handle);
 
         OsStatus vmemCreate(System *system, VmemCreateInfo info, km::AddressMapping *mapping);
-        OsStatus vmemMapFile(System *system, VmemMapInfo info, vfs2::IFileHandle *fileHandle, km::VirtualRange *result);
+        OsStatus vmemMapFile(System *system, VmemMapInfo info, vfs::IFileHandle *fileHandle, km::VirtualRange *result);
         OsStatus vmemMapProcess(System *system, VmemMapInfo info, sm::RcuSharedPtr<Process> process, km::VirtualRange *result);
         OsStatus vmemMap(System *system, OsVmemMapInfo info, km::AddressMapping *mapping);
         OsStatus vmemRelease(System *system, km::VirtualRange range);
@@ -136,17 +136,18 @@ namespace sys {
     bool IsParentProcess(sm::RcuSharedPtr<Process> process, sm::RcuSharedPtr<Process> parent);
 
     template<typename T>
+    [[nodiscard]]
     OsStatus SysFindHandle(InvokeContext *context, OsHandle handle, T **outHandle) {
         if (handle == OS_HANDLE_INVALID) {
             return OsStatusInvalidHandle;
         }
 
-        T *result = nullptr;
-        if (OsStatus status = context->process->findHandle(handle, &result)) {
+        IHandle *base = nullptr;
+        if (OsStatus status = context->process->findHandle(handle, T::kHandleType, &base)) {
             return status;
         }
 
-        *outHandle = result;
+        *outHandle = static_cast<T*>(base);
         return OsStatusSuccess;
     }
 

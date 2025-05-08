@@ -45,7 +45,7 @@ enum {
     R_AMD64_PC8 = 15,
 };
 
-static OsStatus ApplyRelocations(vfs2::IHandle *file, std::span<const elf::Elf64Dyn> relocs, km::AddressMapping mapping, uintptr_t windowOffset) {
+static OsStatus ApplyRelocations(vfs::IHandle *file, std::span<const elf::Elf64Dyn> relocs, km::AddressMapping mapping, uintptr_t windowOffset) {
     uint64_t relaSize = 0;
     uint64_t relaCount = 0;
     uint64_t relaStart = 0;
@@ -87,7 +87,7 @@ static OsStatus ApplyRelocations(vfs2::IHandle *file, std::span<const elf::Elf64
 
     size_t count = relaSize / relaEnt;
     std::unique_ptr<elf::Elf64Rela[]> relas{new elf::Elf64Rela[count]};
-    if (OsStatus status = vfs2::ReadArray(file, relas.get(), count, relaStart)) {
+    if (OsStatus status = vfs::ReadArray(file, relas.get(), count, relaStart)) {
         return status;
     }
 
@@ -112,7 +112,7 @@ static OsStatus ApplyRelocations(vfs2::IHandle *file, std::span<const elf::Elf64
     return OsStatusSuccess;
 }
 
-static OsStatus ReadTlsInit(vfs2::IHandle *file, const elf::ProgramHeader *tls, km::SystemMemory& memory, km::AddressSpace& ptes, km::TlsInit *mapping) {
+static OsStatus ReadTlsInit(vfs::IHandle *file, const elf::ProgramHeader *tls, km::SystemMemory& memory, km::AddressSpace& ptes, km::TlsInit *mapping) {
     km::AddressMapping tlsMapping{};
     OsStatus status = AllocateMemory(memory.pmmAllocator(), ptes, km::Pages(tls->memsz), &tlsMapping);
     if (status != OsStatusSuccess) {
@@ -126,13 +126,13 @@ static OsStatus ReadTlsInit(vfs2::IHandle *file, const elf::ProgramHeader *tls, 
         return OsStatusOutOfMemory;
     }
 
-    vfs2::ReadRequest request {
+    vfs::ReadRequest request {
         .begin = (std::byte*)tlsWindow,
         .end = (std::byte*)tlsWindow + tls->filesz,
         .offset = tls->offset,
     };
 
-    vfs2::ReadResult result{};
+    vfs::ReadResult result{};
     if (OsStatus status = file->read(request, &result)) {
         return status;
     }
@@ -434,9 +434,9 @@ cleanup:
 }
 
 #if 0
-OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory& memory, SystemObjects& objects, ProcessLaunch *result) {
-    auto node = vfs2::GetHandleNode(file.get());
-    vfs2::NodeInfo nInfo = node->info();
+OsStatus km::LoadElf(std::unique_ptr<vfs::IFileHandle> file, SystemMemory& memory, SystemObjects& objects, ProcessLaunch *result) {
+    auto node = vfs::GetHandleNode(file.get());
+    vfs::NodeInfo nInfo = node->info();
 
     MemoryRange pteMemory = memory.pmmAllocate(256);
 
@@ -478,14 +478,14 @@ OsStatus km::LoadElf(std::unique_ptr<vfs2::IFileHandle> file, SystemMemory& memo
     return OsStatusSuccess;
 }
 
-OsStatus km::LoadElfProgram(vfs2::IFileHandle *file, SystemMemory& memory, Process *process, Program *result) {
+OsStatus km::LoadElfProgram(vfs::IFileHandle *file, SystemMemory& memory, Process *process, Program *result) {
     OsFileInfo stat{};
     if (OsStatus status = file->stat(&stat)) {
         return status;
     }
 
     elf::Header header{};
-    if (OsStatus status = vfs2::ReadObject(file, &header, 0)) {
+    if (OsStatus status = vfs::ReadObject(file, &header, 0)) {
         return status;
     }
 
@@ -495,7 +495,7 @@ OsStatus km::LoadElfProgram(vfs2::IFileHandle *file, SystemMemory& memory, Proce
 
     sm::FixedArray<elf::ProgramHeader> phs{header.phnum};
 
-    if (OsStatus status = vfs2::ReadArray(file, phs.data(), header.phnum, header.phoff)) {
+    if (OsStatus status = vfs::ReadArray(file, phs.data(), header.phnum, header.phoff)) {
         return status;
     }
 
@@ -545,7 +545,7 @@ OsStatus km::LoadElfProgram(vfs2::IFileHandle *file, SystemMemory& memory, Proce
 
         size_t count = dynamic->filesz / sizeof(elf::Elf64Dyn);
         dyn.reset(new elf::Elf64Dyn[count]);
-        if (OsStatus status = vfs2::ReadArray(file, dyn.get(), count, dynamic->offset)) {
+        if (OsStatus status = vfs::ReadArray(file, dyn.get(), count, dynamic->offset)) {
             return status;
         }
     }
@@ -579,7 +579,7 @@ OsStatus km::LoadElfProgram(vfs2::IFileHandle *file, SystemMemory& memory, Proce
             .size = pages * x64::kPageSize,
         };
 
-        vfs2::ReadRequest request {
+        vfs::ReadRequest request {
             .begin = (std::byte*)vaddr + windowOffset,
             .end = (std::byte*)vaddr + windowOffset + ph.filesz,
             .offset = ph.offset,
@@ -587,7 +587,7 @@ OsStatus km::LoadElfProgram(vfs2::IFileHandle *file, SystemMemory& memory, Proce
 
         KmDebugMessage("[ELF] Section: ", km::Hex(base), " ", vaddr, " ", mapping, "\n");
 
-        vfs2::ReadResult readResult{};
+        vfs::ReadResult readResult{};
         if (OsStatus status = file->read(request, &readResult)) {
             return status;
         }

@@ -194,7 +194,7 @@ void *malloc(size_t size) {
     return GlobalMalloc().malloc(size);
 }
 
-__attribute__((__nothrow__, __malloc__, __alloc_size__(2), __allocating__))
+__attribute__((__nothrow__, __malloc__, __alloc_size__(2), __alloc_align__(1), __allocating__))
 void *aligned_alloc(size_t alignment, size_t size) {
     return GlobalMalloc().aligned_alloc(alignment, size);
 }

@@ -6,13 +6,13 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 
-#include "fs2/tarfs.hpp"
+#include "fs/tarfs.hpp"
 #include "drivers/block/driver.hpp"
 #include "drivers/block/ramblk.hpp"
-#include "fs2/node.hpp"
-#include "fs2/vfs.hpp"
+#include "fs/node.hpp"
+#include "fs/vfs.hpp"
 
-using namespace vfs2;
+using namespace vfs;
 
 TEST(TarFsTest, ConvertPathName) {
     char path[detail::kTarNameSize] = "name.txt";
@@ -110,7 +110,7 @@ TEST(TarFsTest, ParseHeader) {
     km::MemoryBlk media((std::byte*)kTestHeader, sizeof(kTestHeader));
     km::BlockDevice block(&media);
 
-    OsStatus status = vfs2::ParseTar(&block, {}, &result);
+    OsStatus status = vfs::ParseTar(&block, {}, &result);
     ASSERT_EQ(OsStatusSuccess, status);
 
     ASSERT_EQ(result.size(), 1);
@@ -121,7 +121,7 @@ TEST(TarFsTest, ParseHeader) {
 }
 
 TEST(TarFsTest, MountTar) {
-	vfs2::VfsRoot vfs;
+	vfs::VfsRoot vfs;
 
 	sm::SharedPtr<FileBlk> file = new FileBlk(getenv("TAR_TEST_ARCHIVE"), 512);
 
@@ -176,7 +176,7 @@ TEST(TarFsTest, MountTar) {
 }
 
 TEST(TarFsTest, ReadLargeFile) {
-	vfs2::VfsRoot vfs;
+	vfs::VfsRoot vfs;
 
 	sm::SharedPtr<FileBlk> file = new FileBlk(getenv("TAR_TEST_ARCHIVE"), 512);
 

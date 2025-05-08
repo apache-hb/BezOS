@@ -2,10 +2,10 @@
 #include <latch>
 #include <thread>
 
-#include "fs2/utils.hpp"
-#include "fs2/vfs.hpp"
+#include "fs/utils.hpp"
+#include "fs/vfs.hpp"
 
-using namespace vfs2;
+using namespace vfs;
 
 static std::string RandomString(int size, std::uniform_int_distribution<int8_t> dist, std::mt19937& mt) {
     std::string result;
@@ -19,7 +19,7 @@ static std::string RandomString(int size, std::uniform_int_distribution<int8_t> 
 }
 
 TEST(VfsUpdateTest, Update) {
-    vfs2::VfsRoot vfs;
+    vfs::VfsRoot vfs;
 
     {
         sm::RcuSharedPtr<INode> node = nullptr;
@@ -55,7 +55,7 @@ TEST(VfsUpdateTest, Update) {
                 const std::string& name = names[dist(mt2)];
 
                 sm::RcuSharedPtr<INode> node = nullptr;
-                auto path = BuildPath("test", vfs2::VfsStringView(name.data(), name.data() + name.size()));
+                auto path = BuildPath("test", vfs::VfsStringView(name.data(), name.data() + name.size()));
                 int action = mt2() % 3;
                 if (action == 0) {
                     OsStatus status = vfs.lookup(path, &node);
@@ -92,7 +92,7 @@ TEST(VfsUpdateTest, Update) {
 }
 
 TEST(VfsUpdateTest, Iterate) {
-    vfs2::VfsRoot vfs;
+    vfs::VfsRoot vfs;
 
     {
         sm::RcuSharedPtr<INode> node = nullptr;
@@ -130,7 +130,7 @@ TEST(VfsUpdateTest, Iterate) {
                 const std::string& name = names[dist(mt2)];
 
                 sm::RcuSharedPtr<INode> node = nullptr;
-                auto path = BuildPath("test", vfs2::VfsStringView(name.data(), name.data() + name.size()));
+                auto path = BuildPath("test", vfs::VfsStringView(name.data(), name.data() + name.size()));
                 int action = mt2() % 4;
                 if (action == 0) {
                     OsStatus status = vfs.lookup(path, &node);
@@ -144,8 +144,8 @@ TEST(VfsUpdateTest, Iterate) {
                     OsStatus status = vfs.lookup(BuildPath("test"), &node);
                     ASSERT_TRUE(status == OsStatusSuccess);
                     iterateCount += (status == OsStatusSuccess) ? 1 : 0;
-                    std::unique_ptr<vfs2::IIteratorHandle> handle;
-                    status = vfs2::OpenIteratorInterface(node, nullptr, 0, std::out_ptr(handle));
+                    std::unique_ptr<vfs::IIteratorHandle> handle;
+                    status = vfs::OpenIteratorInterface(node, nullptr, 0, std::out_ptr(handle));
                     ASSERT_EQ(status, OsStatusSuccess);
 
                     sm::RcuSharedPtr<INode> child = nullptr;

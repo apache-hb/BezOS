@@ -1,6 +1,6 @@
-#include "fs2/identify.hpp"
+#include "fs/identify.hpp"
 
-OsStatus vfs2::detail::ValidateInterfaceList(void *data, size_t size) {
+OsStatus vfs::detail::ValidateInterfaceList(void *data, size_t size) {
     //
     // Reject input buffers that are too small to contain the header.
     //
@@ -27,7 +27,7 @@ OsStatus vfs2::detail::ValidateInterfaceList(void *data, size_t size) {
     return OsStatusSuccess;
 }
 
-OsStatus vfs2::IIdentifyHandle::identify(void *data, size_t size) {
+OsStatus vfs::IIdentifyHandle::identify(void *data, size_t size) {
     if (data == nullptr || size != sizeof(OsIdentifyInfo)) {
         return OsStatusInvalidInput;
     }
@@ -35,7 +35,7 @@ OsStatus vfs2::IIdentifyHandle::identify(void *data, size_t size) {
     return identify(static_cast<OsIdentifyInfo*>(data));
 }
 
-OsStatus vfs2::IIdentifyHandle::interfaces(void *data, size_t size) {
+OsStatus vfs::IIdentifyHandle::interfaces(void *data, size_t size) {
     if (OsStatus status = detail::ValidateInterfaceList(data, size)) {
         return status;
     }
@@ -44,7 +44,7 @@ OsStatus vfs2::IIdentifyHandle::interfaces(void *data, size_t size) {
     return interfaces(list);
 }
 
-OsStatus vfs2::IIdentifyHandle::invoke(IInvokeContext *, uint64_t function, void *data, size_t size) {
+OsStatus vfs::IIdentifyHandle::invoke(IInvokeContext *, uint64_t function, void *data, size_t size) {
     switch (function) {
     case eOsIdentifyInfo:
         return identify(data, size);

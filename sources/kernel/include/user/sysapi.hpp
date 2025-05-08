@@ -3,7 +3,7 @@
 #include <bezos/private.h>
 #include <bezos/handle.h>
 
-namespace vfs2 {
+namespace vfs {
     class VfsRoot;
     class VfsPath;
 }
@@ -23,7 +23,7 @@ namespace km {
     class Clock;
 
     struct System {
-        vfs2::VfsRoot *vfs;
+        vfs::VfsRoot *vfs;
         SystemMemory *memory;
         Clock *clock;
         sys::System *sys;
@@ -37,7 +37,7 @@ namespace km {
 namespace um {
     static constexpr bool kUseNewSystem = true;
 
-    OsStatus ReadPath(km::CallContext *context, OsPath user, vfs2::VfsPath *path);
+    OsStatus ReadPath(km::CallContext *context, OsPath user, vfs::VfsPath *path);
     OsStatus VerifyBuffer(km::CallContext *context, OsBuffer buffer);
     OsStatus SelectOwningProcess(km::System *system, km::CallContext *context, OsProcessHandle handle, km::Process **result);
 

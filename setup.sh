@@ -19,9 +19,13 @@ function disfn() {
 }
 
 function funqual() {
-    # env PYTHONPATH=$(pwd)/build/sources/llvm-project-src/clang/bindings/python3:$PYTHONPATH \
-    #     CLANG_LIBRARY_PATH=$($(pwd)/install/llvm/bin/llvm-config --libdir) \
-    $(pwd)/build/sources/funqual/funqual $@ \
-        --compile-commands $(pwd)/build/packages/kernel \
-        -t $(pwd)/sources/kernel/data/tools/funqual.qtag
+    NEWPYTHONPATH=$(pwd)/build/sources/llvm-project-src/clang/bindings/python3:$PYTHONPATH
+    CLP=$($(pwd)/install/llvm/bin/llvm-config --libdir)
+    FUNQUAL=$(pwd)/build/sources/funqual/funqual
+    PYTHONPATH=$NEWPYTHONPATH CLANG_LIBRARY_PATH=$CLP \
+        $(pwd)/build/sources/funqual/funqual $@ --compile-commands $(pwd)/build/packages/kernel -t $(pwd)/sources/kernel/data/tools/funqual.qtag
+}
+
+function unfsck() {
+    git fsck --full 2>&1 >/dev/null | grep 'error: object file' | awk '{print $4}' | tr '\n' ' '
 }

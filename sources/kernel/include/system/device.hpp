@@ -1,22 +1,22 @@
 #pragma once
 
-#include "fs2/base.hpp"
+#include "fs/base.hpp"
 
 #include "system/base.hpp"
 #include "system/create.hpp"
 
 namespace sys {
     class Device final : public BaseObject<eOsHandleDevice> {
-        std::unique_ptr<vfs2::IHandle> mVfsHandle;
+        std::unique_ptr<vfs::IHandle> mVfsHandle;
 
     public:
         using Access = DeviceAccess;
 
-        Device(std::unique_ptr<vfs2::IHandle> handle);
+        Device(std::unique_ptr<vfs::IHandle> handle);
 
         stdx::StringView getClassName() const override { return "Device"; }
 
-        vfs2::IHandle *getVfsHandle() { return mVfsHandle.get(); }
+        vfs::IHandle *getVfsHandle() { return mVfsHandle.get(); }
     };
 
     class DeviceHandle final : public BaseHandle<Device> {

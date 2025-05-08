@@ -6,21 +6,21 @@
 #include "system/base.hpp"
 #include "system/create.hpp"
 
-namespace vfs2 {
+namespace vfs {
     class INode;
 }
 
 namespace sys {
     class Node final : public BaseObject<eOsHandleNode> {
-        sm::RcuSharedPtr<vfs2::INode> mVfsNode;
+        sm::RcuSharedPtr<vfs::INode> mVfsNode;
     public:
         using Access = NodeAccess;
 
-        Node(sm::RcuSharedPtr<vfs2::INode> vfsNode);
+        Node(sm::RcuSharedPtr<vfs::INode> vfsNode);
 
         stdx::StringView getClassName() const override { return "Node"; }
 
-        sm::RcuSharedPtr<vfs2::INode> getVfsNode() const { return mVfsNode; }
+        sm::RcuSharedPtr<vfs::INode> getVfsNode() const { return mVfsNode; }
     };
 
     class NodeHandle final : public BaseHandle<Node> {

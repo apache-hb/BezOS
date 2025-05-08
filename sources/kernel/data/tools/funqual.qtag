@@ -1,1 +1,7 @@
-rule restrict_indirect_call reentrant nonreentrant
+rule restrict_indirect_call reentrant non_reentrant
+rule restrict_indirect_call signal_handler non_reentrant
+
+tag c:@F@free non_reentrant
+tag c:@F@malloc non_reentrant
+tag c:@F@realloc non_reentrant
+tag c:@F@aligned_alloc non_reentrant

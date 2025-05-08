@@ -8,7 +8,7 @@ static constinit stdx::SpinLock gDebugLock;
 
 OsStatus km::debug::InitDebugStream([[maybe_unused]] ComPortInfo info) {
 #if KM_DEBUG_EVENTS
-    return OpenSerial(info, &gDebugSerialPort);
+    return km::SerialPort::create(info, &gDebugSerialPort);
 #else
     return OsStatusSuccess;
 #endif

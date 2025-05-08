@@ -8,7 +8,7 @@
 #include "thread.hpp"
 #include "common/util/defer.hpp"
 
-#include "std/compiler.hpp"
+#include "std/funqual.hpp"
 
 #include "timer/apic_timer.hpp"
 

@@ -5,7 +5,7 @@
 #include "std/string.hpp"
 #include "util/format.hpp"
 
-namespace vfs2 {
+namespace vfs {
     class VfsPath;
     class VfsPathConstIterator;
 
@@ -125,6 +125,6 @@ namespace vfs2 {
 }
 
 template<>
-struct km::Format<vfs2::VfsPath> {
-    static void format(km::IOutStream& out, const vfs2::VfsPath& path);
+struct km::Format<vfs::VfsPath> {
+    static void format(km::IOutStream& out, const vfs::VfsPath& path);
 };

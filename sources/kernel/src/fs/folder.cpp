@@ -1,6 +1,6 @@
-#include "fs2/folder.hpp"
+#include "fs/folder.hpp"
 
-using namespace vfs2;
+using namespace vfs;
 
 OsStatus FolderMixin::lookup(VfsStringView name, sm::RcuSharedPtr<INode> *child) {
     stdx::SharedLock guard(mLock);

@@ -59,7 +59,7 @@ extern unsigned long long strtoull(const char *, char **, int);
 __attribute__((__nothrow__, __malloc__, __alloc_size__(1), __allocating__))
 extern void *malloc(size_t);
 
-__attribute__((__nothrow__, __malloc__, __alloc_size__(2), __allocating__))
+__attribute__((__nothrow__, __malloc__, __alloc_size__(2), __alloc_align__(1), __allocating__))
 extern void *aligned_alloc(size_t, size_t);
 
 __attribute__((__nothrow__, __malloc__, __alloc_size__(1, 2), __allocating__))

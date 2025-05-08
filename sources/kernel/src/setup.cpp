@@ -357,6 +357,7 @@ extern "C" void free(void *ptr) {
     gAllocator->deallocate(ptr, 0);
 }
 
+__attribute__((__nothrow__, __malloc__, __alloc_size__(2), __alloc_align__(1), __allocating__))
 extern "C" void *aligned_alloc(size_t alignment, size_t size) noexcept {
     void *ptr = gAllocator->allocateAligned(size, alignment);
     km::debug::SendEvent(km::debug::AllocateVirtualMemory {
