@@ -42,8 +42,6 @@ public:
         OsProcessInfo info{};
         ASSERT_OS_SUCCESS(OsProcessStat(OS_HANDLE_INVALID, &info));
 
-        DebugLog(eOsLogDebug, "InitStandardIo: [%p, %p]", info.ArgsBegin, info.ArgsEnd);
-
         const OsProcessParam *param = nullptr;
         OsStatus status = OsProcessFindArg(&info, &kPosixInitGuid, &param);
         if (status == OsStatusSuccess) {
@@ -51,13 +49,7 @@ public:
             ASSERT_OS_SUCCESS(OsHandleOpen(args->StandardIn, eOsDeviceAccessRead | eOsDeviceAccessWait | eOsDeviceAccessStat, &gFdMap[0].handle));
             ASSERT_OS_SUCCESS(OsHandleOpen(args->StandardOut, eOsDeviceAccessWrite | eOsDeviceAccessWait | eOsDeviceAccessStat, &gFdMap[1].handle));
             ASSERT_OS_SUCCESS(OsHandleOpen(args->StandardError, eOsDeviceAccessWrite | eOsDeviceAccessWait | eOsDeviceAccessStat, &gFdMap[2].handle));
-        } else {
-            Unimplemented();
         }
-    }
-
-    ~InitStandardIo() {
-
     }
 
     OsImplPosixFile *in() {

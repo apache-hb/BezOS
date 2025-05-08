@@ -164,6 +164,7 @@ bool sys::CpuLocalSchedule::scheduleNextContext(km::IsrContext *context, km::Isr
     auto oldThread = mCurrent;
 
     if (!reschedule()) {
+        mCurrent = nullptr;
         return false;
     }
 

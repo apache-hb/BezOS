@@ -65,8 +65,13 @@ static bool ScheduleInner(km::IsrContext *context, km::IsrContext *newContext) R
 
 static km::IsrContext ScheduleInt(km::IsrContext *context) REENTRANT {
     km::IsrContext newContext;
+    auto oldThread = tlsSchedule.get()->currentThread();
     if (ScheduleInner(context, &newContext)) {
         return newContext;
+    }
+
+    if (oldThread != nullptr) {
+        KmDebugMessage("[SCHED] Dropping thread ", oldThread->getName(), " - ", km::GetCurrentCoreId(), "\n");
     }
 
     // Otherwise we idle until the next interrupt
@@ -145,7 +150,7 @@ void sys::YieldCurrentThread() {
         .ss = (GDT_64BIT_DATA * 0x8),
     };
 
-    arch::Intrin::cli();
+    arch::IntrinX86_64::cli();
 
     auto next = ScheduleInt(&context);
 
