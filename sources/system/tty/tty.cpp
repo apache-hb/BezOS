@@ -287,6 +287,7 @@ static char ConvertVkToAscii(OsHidKeyEvent event) {
 OS_EXTERN
 [[noreturn, gnu::force_align_arg_pointer]]
 void ClientStart(const struct OsClientStartInfo *) {
+    DebugLog("TTY0: Starting TTY0...");
     free(malloc(1));
 
     DebugLog("TTY0: Starting TTY0...");

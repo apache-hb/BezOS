@@ -1,3 +1,5 @@
+#include <atomic>
+#include <iterator>
 #include <posix/stdlib.h>
 
 #include <posix/errno.h>
@@ -284,8 +286,56 @@ int atexit(void (*)(void)) {
     return -1;
 }
 
-extern "C" int __cxa_atexit(void (*)(void *), void *, void *) {
-    Unimplemented();
+struct CxaExitNode {
+    CxaExitNode *next;
+    void (*callback)(void *);
+    void *object;
+};
+
+// A small static buffer of nodes to initially allocate from.
+// This isnt just an optimization, its needed for correctness. `malloc` does some static init
+// and if that calls `__cxa_atexit` it will deadlock if we use `malloc` to allocate the node.
+static CxaExitNode gExitNodeBuffer[16];
+static std::atomic<size_t> gExitNodeIndex{0};
+
+static CxaExitNode *TakeExitNode() {
+    size_t index = gExitNodeIndex.fetch_add(1);
+    if (index >= std::size(gExitNodeBuffer)) {
+        return nullptr;
+    }
+
+    return &gExitNodeBuffer[index];
+}
+
+static CxaExitNode *gHeadNode;
+
+extern "C" int __cxa_atexit(void (*callback)(void *), void *object, void *dso) {
+    if (callback == nullptr) {
+        return -1;
+    }
+
+    if (CxaExitNode *node = TakeExitNode()) {
+        *node = CxaExitNode {
+            .next = gHeadNode,
+            .callback = callback,
+            .object = object,
+        };
+        gHeadNode = node;
+        return 0;
+    }
+
+    CxaExitNode *node = new (malloc(sizeof(CxaExitNode))) CxaExitNode {
+        .next = gHeadNode,
+        .callback = callback,
+        .object = object,
+    };
+
+    if (!node) {
+        return -1;
+    }
+
+    gHeadNode = node;
+
     return 0;
 }
 
