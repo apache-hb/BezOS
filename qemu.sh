@@ -20,7 +20,7 @@ serial_canbus()
 
 repobld()
 {
-    install/tool/bin/package.elf --config repo/repo.xml --target repo/targets/x86_64.xml --output build --prefix install --rebuild $@
+    install/tool/bin/package.elf --config repo/repo.xml --target repo/targets/x86_64.xml --output build --prefix install --rebuild $@ --total
 }
 
 # Check if a different iso is requested

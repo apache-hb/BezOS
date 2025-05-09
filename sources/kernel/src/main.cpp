@@ -42,6 +42,7 @@
 #include "log.hpp"
 #include "memory.hpp"
 #include "memory/allocator.hpp"
+#include "memory/stack_mapping.hpp"
 #include "notify.hpp"
 #include "panic.hpp"
 #include "processor.hpp"
@@ -1331,16 +1332,18 @@ static void StartupSmp(const acpi::AcpiTables& rsdt, bool umip, km::ApicTimer *a
 static constexpr size_t kKernelStackSize = 0x4000;
 
 static OsStatus LaunchThread(OsStatus(*entry)(void*), void *arg, stdx::String name) {
-    km::StackMapping stack{};
-    if (OsStatus status = gSysSystem->mapSystemStack(&stack)) {
+    km::StackMappingAllocation stack;
+    if (OsStatus status = gMemory->mapStack(kKernelStackSize, PageFlags::eData, &stack)) {
         return status;
     }
+
+    memset(stack.baseAddress(), 0, kKernelStackSize);
 
     OsThreadCreateInfo createInfo {
         .CpuState = {
             .rdi = (uintptr_t)arg,
-            .rbp = (uintptr_t)stack.baseAddress(),
-            .rsp = (uintptr_t)stack.baseAddress(),
+            .rbp = 0x0,
+            .rsp = std::bit_cast<uintptr_t>(stack.stackBaseAddress() - 0x8),
             .rip = (uintptr_t)entry,
         },
         .Flags = eOsThreadRunning,
@@ -1486,12 +1489,19 @@ static void LaunchKernelProcess(km::ApicTimer *apicTimer) {
 
     KmDebugMessage("[INIT] Create master task.\n");
 
-    km::AddressMapping mapping = gMemory->allocateStack(kKernelStackSize);
+    km::StackMappingAllocation stack;
+    if (OsStatus status = gMemory->mapStack(kKernelStackSize, PageFlags::eData, &stack)) {
+        KmDebugMessage("[INIT] Failed to map kernel stack: ", OsStatusId(status), "\n");
+        KM_PANIC("Failed to map kernel stack.");
+    }
+
+    memset(stack.baseAddress(), 0, kKernelStackSize);
+
     OsThreadCreateInfo threadInfo {
         .Name = "SYSTEM MASTER TASK",
         .CpuState = {
-            .rbp = (uintptr_t)((uintptr_t)mapping.vaddr + kKernelStackSize),
-            .rsp = (uintptr_t)((uintptr_t)mapping.vaddr + kKernelStackSize),
+            .rbp = 0x0,
+            .rsp = std::bit_cast<uintptr_t>(stack.stackBaseAddress() - 0x8),
             .rip = (uintptr_t)&KernelMasterTask,
         },
         .Flags = eOsThreadRunning,

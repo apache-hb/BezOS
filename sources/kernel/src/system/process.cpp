@@ -356,7 +356,6 @@ static OsStatus CreateProcessInner(sys::System *system, sys::ObjectName name, Os
         goto outOfMemory;
     }
 
-    KmDebugMessage("[SYS] Args: ", name, ": ", args.size(), "\n");
     SetProcessInitArgs(system, process.get(), args);
 
     result = new (std::nothrow) sys::ProcessHandle(process, id, sys::ProcessAccess::eAll);
