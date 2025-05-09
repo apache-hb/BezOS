@@ -12,16 +12,7 @@ namespace sm {
     class RcuGuard;
     class RcuObject;
 
-    /// @brief A domain for RCU operations.
-    ///
-    /// This domain presents an EBR interface for deferred reclaimation and is implemented
-    /// using generational reclaimation.
-    ///
-    /// @cite RcuDataStructures
-    class RcuDomain {
-    public:
-        friend RcuGuard;
-
+    namespace detail {
         /// @brief A generation of the RCU domain.
         ///
         /// Each generation tracks the number of reader threads currently accessing it.
@@ -36,12 +27,25 @@ namespace sm {
             /// @pre `mGuard.load() > 0`
             /// @pre `object->rcuRetireFn != nullptr`
             /// @post `mGuard.load() > 0`
-            void append(RcuObject *object [[gnu::nonnull]]) noexcept [[clang::reentrant, clang::nonallocating]];
+            void append(RcuObject *object [[gnu::nonnull]]) noexcept [[clang::reentrant, clang::nonblocking]];
 
             /// @pre `mGuard.load() == 0`
             /// @post `mGuard.load() == 0`
-            void destroy() noexcept [[clang::nonreentrant]];
+            ///
+            /// @return The number of objects that were destroyed.
+            size_t destroy() noexcept [[clang::nonreentrant, clang::blocking]];
         };
+    }
+
+    /// @brief A domain for RCU operations.
+    ///
+    /// This domain presents an EBR interface for deferred reclaimation and is implemented
+    /// using generational reclaimation.
+    ///
+    /// @cite RcuDataStructures
+    class RcuDomain {
+    public:
+        friend RcuGuard;
 
         UTIL_NOCOPY(RcuDomain);
         UTIL_NOMOVE(RcuDomain);
@@ -57,7 +61,7 @@ namespace sm {
         /// @details This function will block until all readers that are currently
         ///          reading have finished. If new readers arrive after this function is
         ///          called, this function will not wait for them to finish.
-        void synchronize() noexcept [[clang::allocating, clang::nonreentrant]];
+        size_t synchronize() noexcept [[clang::allocating, clang::nonreentrant]];
 
         /// @brief Mark an object as retired.
         ///
@@ -70,10 +74,17 @@ namespace sm {
         ///
         /// @details This function is internally synchronized.
         template<std::derived_from<RcuObject> T>
-        void retire(T *object [[gnu::nonnull]]) noexcept [[clang::reentrant]] {
-            object->rcuRetireFn = [](void *ptr) { delete static_cast<T*>(ptr); };
-            append(object);
+        void retire(T *object [[gnu::nonnull]]) noexcept [[clang::reentrant, clang::nonblocking]] {
+            enqueue(object, [](void *ptr) { delete static_cast<T*>(ptr); });
         }
+
+        /// @brief Enqueue a function to be called during reclaimation.
+        ///
+        /// @param object The object to retire.
+        /// @param fn The function to call during reclaimation.
+        ///
+        /// @warning @p object is not automatically deleted, its memory must be managed externally.
+        void enqueue(RcuObject *object [[gnu::nonnull]], void(*fn [[gnu::nonnull]])(void*)) noexcept [[clang::reentrant, clang::nonblocking]];
 
         /// @brief Defer a call to happen during reclaimation.
         ///
@@ -86,27 +97,28 @@ namespace sm {
         static constexpr uint32_t kCurrentGeneration = (1u << (sizeof(uint32_t) * CHAR_BIT - 1));
         std::atomic<uint32_t> mState{0};
 
-        RcuGeneration mGenerations[2];
+        detail::RcuGeneration mGenerations[2];
 
         /// @pre `object->rcuRetireFn != nullptr`
-        void append(RcuObject *object) noexcept [[clang::reentrant]];
+        void append(RcuObject *object) noexcept [[clang::reentrant, clang::nonblocking]];
 
         /// @brief Acquire a reader lock on the current generation.
         ///
         /// @return The current generation.
         [[nodiscard]]
-        RcuGeneration *acquire() noexcept [[clang::nonblocking, clang::reentrant]];
+        detail::RcuGeneration *acquire() noexcept [[clang::reentrant, clang::nonblocking]];
 
         /// @brief Exchange the current generation with a new one.
         ///
         /// @return The old generation.
-        RcuGeneration *exchange() noexcept [[clang::nonreentrant]];
+        detail::RcuGeneration *exchange() noexcept [[clang::nonreentrant]];
     };
 
     /// @brief Intrusive pointer base type for RCU objects.
     class RcuObject {
-        friend class RcuDomain;
-        friend class RcuGuard;
+        friend RcuDomain;
+        friend RcuGuard;
+        friend detail::RcuGeneration;
 
         std::atomic<RcuObject*> rcuNextObject = nullptr;
         void(*rcuRetireFn)(void*) = nullptr;
@@ -114,10 +126,10 @@ namespace sm {
 
     /// @brief Manages the lifetime of a reader lock on a RCU domain.
     class RcuGuard {
-        friend class RcuDomain;
+        friend RcuDomain;
     public:
-        RcuGuard(RcuDomain& domain) noexcept [[clang::reentrant]];
-        ~RcuGuard() noexcept [[clang::reentrant]];
+        RcuGuard(RcuDomain& domain) noexcept [[clang::reentrant, clang::nonblocking]];
+        ~RcuGuard() noexcept [[clang::reentrant, clang::nonblocking]];
 
         RcuGuard(RcuGuard&& other) noexcept [[clang::reentrant]];
 
@@ -126,16 +138,16 @@ namespace sm {
         UTIL_NOCOPY(RcuGuard);
 
         template<std::derived_from<RcuObject> T>
-        void retire(T *object [[gnu::nonnull]]) noexcept [[clang::reentrant]] {
+        void retire(T *object [[gnu::nonnull]]) noexcept [[clang::reentrant, clang::nonblocking]] {
             KM_ASSERT(mGeneration != nullptr);
-            object->rcuRetireFn = [](void *ptr) { delete static_cast<T*>(ptr); };
-            append(object);
+            enqueue(object, [](void *ptr) { delete static_cast<T*>(ptr); });
         }
 
-    private:
-        void append(RcuObject *object) noexcept [[clang::reentrant]];
+        void enqueue(RcuObject *object [[gnu::nonnull]], void(*fn [[gnu::nonnull]])(void*)) noexcept [[clang::reentrant, clang::nonblocking]];
 
-        using Generation = typename RcuDomain::RcuGeneration;
-        Generation *mGeneration = nullptr;
+    private:
+        void append(RcuObject *object) noexcept [[clang::reentrant, clang::nonblocking]];
+
+        detail::RcuGeneration *mGeneration = nullptr;
     };
 }

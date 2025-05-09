@@ -2,31 +2,37 @@
 
 namespace rcu = sm::rcu::detail;
 
-void rcu::RcuReleaseStrong(ControlBlock *cb) {
+void rcu::RcuReleaseStrong(ControlBlock *control) noexcept [[clang::reentrant, clang::nonallocating]] {
     //
     // If the final strong reference is released then delete the object data.
     // The control block is retained until the weak reference count reaches zero.
     //
-    auto flags = cb->count.strongRelease();
+    auto flags = control->count.strongRelease();
+    if (flags == JointCount::eNone) {
+        return;
+    }
+
+    sm::RcuGuard guard(*control->domain);
     if (bool(flags & JointCount::eStrong)) {
-        cb->domain->call(cb->value, cb->deleter);
+        control->token->value = control->value;
+        guard.enqueue(control->token, control->deleter);
     }
 
     if (bool(flags & JointCount::eWeak)) {
-        cb->domain->retire(cb);
+        guard.retire(control);
     }
 }
 
-bool rcu::RcuAcqiureStrong(ControlBlock *control) {
+bool rcu::RcuAcqiureStrong(ControlBlock *control) noexcept [[clang::reentrant, clang::nonblocking]] {
     return control->count.strongRetain();
 }
 
-void rcu::RcuReleaseWeak(ControlBlock *cb) {
-    if (cb->count.weakRelease()) {
-        cb->domain->retire(cb);
+void rcu::RcuReleaseWeak(ControlBlock *control) noexcept [[clang::reentrant, clang::nonallocating]] {
+    if (control->count.weakRelease()) {
+        control->domain->retire(control);
     }
 }
 
-bool rcu::RcuAcquireWeak(ControlBlock *control) {
+bool rcu::RcuAcquireWeak(ControlBlock *control) noexcept [[clang::reentrant, clang::nonblocking]] {
     return control->count.weakRetain();
 }

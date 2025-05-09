@@ -608,3 +608,29 @@ TEST(JointCountTest, ConcurrentMixedAccess) {
     // weak = 1, strong = 1
     ASSERT_EQ(count.strongRelease(), JointCount::eWeak | JointCount::eStrong);
 }
+
+class IntrusiveBase : public sm::RcuIntrusivePtr<IntrusiveBase> {
+
+};
+
+class IntrusiveDerived : public IntrusiveBase {
+    std::string mValue;
+public:
+    IntrusiveDerived(std::string value)
+        : mValue(std::move(value))
+    { }
+
+    const std::string& value() const {
+        return mValue;
+    }
+};
+
+TEST(RcuPtrTest, IntrusiveDerived) {
+    sm::RcuDomain domain;
+    sm::RcuGuard guard(domain);
+    sm::RcuSharedPtr<IntrusiveBase> ptr = sm::rcuMakeShared<IntrusiveDerived>(&domain, "Hello, World!");
+    ASSERT_EQ(static_cast<IntrusiveDerived*>(ptr.get())->value(), "Hello, World!");
+    sm::RcuWeakPtr<IntrusiveBase> weak = ptr;
+    ptr = nullptr;
+    ASSERT_EQ(weak.lock(), nullptr);
+}

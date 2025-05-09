@@ -123,7 +123,10 @@ TEST(TarFsTest, ParseHeader) {
 TEST(TarFsTest, MountTar) {
 	vfs::VfsRoot vfs;
 
-	sm::SharedPtr<FileBlk> file = new FileBlk(getenv("TAR_TEST_ARCHIVE"), 512);
+	char *archive = getenv("TAR_TEST_ARCHIVE");
+	ASSERT_NE(archive, nullptr);
+
+	sm::SharedPtr<FileBlk> file = new FileBlk(archive, 512);
 
 	{
 		IVfsMount *mount = nullptr;

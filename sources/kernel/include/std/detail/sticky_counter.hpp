@@ -22,7 +22,7 @@ namespace sm::detail {
 
         UTIL_NOCOPY(WaitFreeCounter);
 
-        T load(std::memory_order order = std::memory_order_seq_cst) const noexcept {
+        T load(std::memory_order order = std::memory_order_seq_cst) const noexcept [[clang::reentrant, clang::nonblocking]] {
             T value = mCount.load(order);
             if (value == 0 && mCount.compare_exchange_strong(value, kZeroFlag | kPendingZeroFlag)) [[unlikely]] {
                 return 0;
@@ -31,12 +31,12 @@ namespace sm::detail {
             return (value & kZeroFlag) ? 0 : value;
         }
 
-        bool increment(T delta, std::memory_order order = std::memory_order_seq_cst) noexcept {
+        bool increment(T delta, std::memory_order order = std::memory_order_seq_cst) noexcept [[clang::reentrant, clang::nonblocking]] {
             T value = mCount.fetch_add(delta, order);
             return (value & kZeroFlag) == 0;
         }
 
-        bool decrement(T delta, std::memory_order order = std::memory_order_seq_cst) noexcept {
+        bool decrement(T delta, std::memory_order order = std::memory_order_seq_cst) noexcept [[clang::reentrant, clang::nonblocking]] {
             if (mCount.fetch_sub(delta, order) == delta) {
                 T expected = 0;
                 if (mCount.compare_exchange_strong(expected, kZeroFlag)) [[likely]] {

@@ -21,19 +21,19 @@ namespace sm {
 
             /// @brief Increment the weak reference count.
             /// @return False if the strong reference count is zero, true otherwise.
-            bool weakRetain() {
+            bool weakRetain() noexcept [[clang::reentrant, clang::nonblocking]] {
                 return mWeakCount.increment(1);
             }
 
             /// @brief Decrement the weak reference count.
             /// @return True if the weak count was brought to zero by this operation, false otherwise.
-            bool weakRelease() {
+            bool weakRelease() noexcept [[clang::reentrant, clang::nonblocking]] {
                 return mWeakCount.decrement(1);
             }
 
             /// @brief Increment the weak and strong reference count.
             /// @return False if the strong reference count is zero, true otherwise.
-            bool strongRetain() {
+            bool strongRetain() noexcept [[clang::reentrant, clang::nonblocking]] {
                 if (mStrongCount.increment(1)) {
                     weakRetain();
                     return true;
@@ -44,7 +44,7 @@ namespace sm {
 
             /// @brief Decrement the weak and strong reference count.
             /// @return A mask of which reference counts were brought to zero by this operation.
-            Release strongRelease() {
+            Release strongRelease() noexcept [[clang::reentrant, clang::nonblocking]] {
                 bool strongCleared = mStrongCount.decrement(1);
                 bool weakCleared = mWeakCount.decrement(1);
 
@@ -57,29 +57,44 @@ namespace sm {
                 return Release(result);
             }
 
-            uint32_t strongCount(std::memory_order order = std::memory_order_seq_cst) const {
+            uint32_t strongCount(std::memory_order order = std::memory_order_seq_cst) const noexcept [[clang::reentrant, clang::nonblocking]] {
                 return mStrongCount.load(order);
             }
 
-            uint32_t weakCount(std::memory_order order = std::memory_order_seq_cst) const {
+            uint32_t weakCount(std::memory_order order = std::memory_order_seq_cst) const noexcept [[clang::reentrant, clang::nonblocking]] {
                 return mWeakCount.load(order);
             }
         };
 
         UTIL_BITFLAGS(JointCount::Release);
 
+        /// @brief Token for deferred reclamation.
+        /// @details Object reclamation can be seperate from control block reclamation,
+        ///          to ensure we never allocate new RcuObjects in the destructor of
+        ///          a RcuSharedPtr we need to allocate this token ahead of time.
+        struct RcuToken : public RcuObject {
+            void *value{nullptr};
+
+            RcuToken(void *v) noexcept
+                : RcuObject()
+                , value(v)
+            { }
+        };
+
         struct ControlBlock : public RcuObject {
             JointCount count;
             void *value;
             void(*deleter)(void*);
             RcuDomain *domain;
+            RcuToken *token;
 
-            ControlBlock(void *v, void (*d)(void*), RcuDomain *r)
+            ControlBlock(void *v, void (*d)(void*), RcuDomain *r, RcuToken *t)
                 : RcuObject()
                 , count(1, 1)
                 , value(v)
                 , deleter(d)
                 , domain(r)
+                , token(t)
             { }
         };
 
@@ -98,16 +113,25 @@ namespace sm {
         template<typename T>
         ControlBlock *NewControlBlock(RcuDomain *domain, T *value) {
             void (*finalize)(void*) = [](void *ptr) {
-                delete static_cast<T*>(ptr);
+                RcuToken *token = static_cast<RcuToken*>(ptr);
+                delete static_cast<T*>(token->value);
+                delete token;
             };
 
-            return new (std::nothrow) ControlBlock(value, finalize, domain);
+            if (RcuToken *token = new (std::nothrow) RcuToken(value)) {
+                if (ControlBlock *control = new (std::nothrow) ControlBlock(value, finalize, domain, token)) {
+                    return control;
+                }
+                delete token;
+            }
+
+            return nullptr;
         }
 
-        void RcuReleaseStrong(ControlBlock *ptr);
-        bool RcuAcqiureStrong(ControlBlock *control);
-        void RcuReleaseWeak(ControlBlock *cb);
-        bool RcuAcquireWeak(ControlBlock *control);
+        void RcuReleaseStrong(ControlBlock *control) noexcept [[clang::reentrant, clang::nonallocating]];
+        bool RcuAcqiureStrong(ControlBlock *control) noexcept [[clang::reentrant, clang::nonblocking]];
+        void RcuReleaseWeak(ControlBlock *control) noexcept [[clang::reentrant, clang::nonallocating]];
+        bool RcuAcquireWeak(ControlBlock *control) noexcept [[clang::reentrant, clang::nonblocking]];
 
         class RcuIntrusivePtrTag {};
 
