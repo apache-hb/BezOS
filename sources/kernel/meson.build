@@ -529,6 +529,7 @@ testcases = {
     ],
     'string': [ 'test/std/string.cpp', ],
     'spinlock': [ 'test/std/spinlock.cpp', ],
+    'ringbuffer': [ 'test/std/ringbuffer.cpp', ],
     'static string': [ 'test/std/static_string.cpp', ],
     'string view': [ 'test/std/string_view.cpp', ],
     'memory range': [ 'test/memory_range.cpp' ],
