@@ -10,6 +10,8 @@
               commit='dca73063653ca7d35afb3226ae66623495086204'>
 
         <patch file='@REPO@/patches/llvm/add-bezos.patch' />
+        <patch file='@REPO@/patches/llvm/add-overriden-cursors.patch' />
+        <patch file='@REPO@/patches/llvm/add-signal-safe-attributes.patch' />
     </download>
 
     <package name='llvm' from='llvm-project-src'>

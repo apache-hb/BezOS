@@ -67,6 +67,15 @@ class AtomicFlagPrinter(printing.PrettyPrinter):
     def to_string(self):
         return "set" if self.__val['__a_']['__a_value'] else "clear"
 
+class AtomicPrinter(printing.PrettyPrinter):
+    "print a std::atomic<T>"
+
+    def __init__(self, val):
+        self.__val = val
+
+    def to_string(self):
+        return str(self.__val['__a_']['__a_value'])
+
 pp = printing.RegexpCollectionPrettyPrinter("stdx")
 pp.add_printer('stdx::String', '^stdx::StringBase<char,.*>$', OsStringPrinter)
 pp.add_printer('sm::VirtualAddress', '^sm::VirtualAddress$', VirtualAddressPrinter)
@@ -74,4 +83,5 @@ pp.add_printer('sm::PhysicalAddress', '^sm::PhysicalAddress$', PhysicalAddressPr
 pp.add_printer('km::AnyRange', '^km::AnyRange<.*>$', MemoryRangePrinter)
 pp.add_printer('km::AddressMapping', '^km::AddressMapping$', AddressMappingPrinter)
 pp.add_printer('std::atomic_flag', '^std::__1::atomic_flag$', AtomicFlagPrinter)
+pp.add_printer('std::atomic', '^std::__1::atomic<.*>$', AtomicPrinter)
 printing.register_pretty_printer(None, pp, replace=True)

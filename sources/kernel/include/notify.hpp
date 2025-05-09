@@ -1,10 +1,12 @@
 #pragma once
 
+#include "std/shared_spinlock.hpp"
 #include "std/spinlock.hpp"
 #include "util/absl.hpp"
 
 #include "std/rcuptr.hpp"
 #include "std/string.hpp"
+#include "std/queue.hpp"
 
 #include "util/uuid.hpp"
 

@@ -2,6 +2,7 @@
 
 #include "fs/device.hpp"
 #include "fs/interface.hpp"
+#include "std/shared_spinlock.hpp"
 #include "util/absl.hpp"
 
 namespace vfs {

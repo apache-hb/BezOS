@@ -68,11 +68,19 @@ namespace sm {
 
         UTIL_BITFLAGS(JointCount::Release);
 
-        struct ControlBlock {
+        struct ControlBlock : public RcuObject {
             JointCount count;
             void *value;
             void(*deleter)(void*);
             RcuDomain *domain;
+
+            ControlBlock(void *v, void (*d)(void*), RcuDomain *r)
+                : RcuObject()
+                , count(1, 1)
+                , value(v)
+                , deleter(d)
+                , domain(r)
+            { }
         };
 
         inline ControlBlock *TagPointer(ControlBlock *ptr, bool strong) {
@@ -89,15 +97,11 @@ namespace sm {
 
         template<typename T>
         ControlBlock *NewControlBlock(RcuDomain *domain, T *value) {
-            return new (std::nothrow) ControlBlock {
-                .count = { 1, 1 },
-                .value = value,
-                .deleter = [](void *ptr) {
-                    ControlBlock *cb = (ControlBlock*)ptr;
-                    delete static_cast<T*>(cb->value);
-                },
-                .domain = domain
+            void (*finalize)(void*) = [](void *ptr) {
+                delete static_cast<T*>(ptr);
             };
+
+            return new (std::nothrow) ControlBlock(value, finalize, domain);
         }
 
         void RcuReleaseStrong(ControlBlock *ptr);

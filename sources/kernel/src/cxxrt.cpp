@@ -20,7 +20,7 @@ enum AllocFlags {
 
 UTIL_BITFLAGS(AllocFlags);
 
-static void *OperatorNew(size_t size, size_t align, AllocFlags flags) {
+static void *OperatorNew(size_t size, size_t align, AllocFlags flags) [[clang::nonreentrant]] {
     if (void *ptr = aligned_alloc(align, size)) {
         return ptr;
     }

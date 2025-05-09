@@ -9,6 +9,7 @@
 #include "std/shared_spinlock.hpp"
 
 #include "std/rcuptr.hpp"
+#include "std/queue.hpp"
 #include "system/access.hpp"
 
 namespace km {

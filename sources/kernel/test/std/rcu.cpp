@@ -10,11 +10,15 @@ TEST(RcuTest, Construct) {
     sm::RcuDomain domain;
 }
 
-struct Tree {
+struct Tree : public sm::RcuObject {
     std::atomic<Tree*> left;
     std::atomic<Tree*> right;
 
     std::atomic<uint64_t> data;
+
+    Tree(Tree *l, Tree *r, uint64_t d = 0)
+        : left(l), right(r), data(d)
+    { }
 };
 
 static void AddElement(sm::RcuDomain& domain, Tree *root, Tree *element) {
@@ -74,6 +78,10 @@ static void DeleteElement(sm::RcuDomain& domain, Tree *root, uint8_t data) {
         parent->left = nullptr;
     } else {
         parent->right = nullptr;
+    }
+
+    if (current == nullptr) {
+        return;
     }
 
     domain.retire(current);

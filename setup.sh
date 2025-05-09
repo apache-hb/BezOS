@@ -27,5 +27,13 @@ function funqual() {
 }
 
 function unfsck() {
-    git fsck --full 2>&1 >/dev/null | grep 'error: object file' | awk '{print $4}' | tr '\n' ' '
+    BROKEN=$(git fsck --full 2>&1 >/dev/null | grep 'error: object file' | awk '{print $4}' | tr '\n' ' ')
+    if [ -z "$BROKEN" ]; then
+        echo "No broken objects found"
+        return 0
+    fi
+    rm -f $BROKEN
+    git fetch --all
+    git fsck --full
+    git gc --prune=now
 }

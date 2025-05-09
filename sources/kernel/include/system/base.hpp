@@ -1,7 +1,10 @@
 #pragma once
 
+#include "std/shared_spinlock.hpp"
 #include "system/create.hpp"
 #include "system/handle.hpp"
+
+#include "std/mutex.h"
 
 namespace sys {
     template<typename T>

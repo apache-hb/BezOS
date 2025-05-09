@@ -126,7 +126,7 @@ namespace km {
 
     static_assert(sizeof(IsrContext) == 176, "Update isr.S");
 
-    using IsrCallback = IsrContext(*)(IsrContext*);
+    using IsrCallback = IsrContext(* [[clang::reentrant]])(IsrContext*);
     using IsrEntry = std::atomic<IsrCallback>;
 
     /// @brief The default ISR handler.
@@ -136,7 +136,7 @@ namespace km {
     /// @param context The ISR context.
     ///
     /// @return The ISR context.
-    IsrContext DefaultIsrHandler(IsrContext *context) SIGNAL_HANDLER;
+    IsrContext DefaultIsrHandler(IsrContext *context) [[clang::reentrant]];
 
     /// @brief A table of interrupt service routines.
     ///

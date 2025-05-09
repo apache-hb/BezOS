@@ -4,8 +4,11 @@
 
 #include "fs/path.hpp"
 
+#include "arch/intrin.hpp"
+
 #include "std/rcuptr.hpp"
 #include "std/static_string.hpp"
+#include "util/absl.hpp"
 #include "util/uuid.hpp"
 
 namespace sys {
