@@ -2,7 +2,7 @@
 
 namespace rcu = sm::rcu::detail;
 
-void rcu::RcuReleaseStrong(ControlBlock *control) noexcept [[clang::reentrant, clang::nonallocating]] {
+void rcu::RcuReleaseStrong(ControlBlock *control) noexcept [[clang::reentrant, clang::nonblocking]] {
     //
     // If the final strong reference is released then delete the object data.
     // The control block is retained until the weak reference count reaches zero.
@@ -27,7 +27,7 @@ bool rcu::RcuAcqiureStrong(ControlBlock *control) noexcept [[clang::reentrant, c
     return control->count.strongRetain();
 }
 
-void rcu::RcuReleaseWeak(ControlBlock *control) noexcept [[clang::reentrant, clang::nonallocating]] {
+void rcu::RcuReleaseWeak(ControlBlock *control) noexcept [[clang::reentrant, clang::nonblocking]] {
     if (control->count.weakRelease()) {
         control->domain->retire(control);
     }

@@ -10,10 +10,14 @@
 using namespace std::chrono_literals;
 
 sys::CpuLocalSchedule::CpuLocalSchedule(size_t tasks, GlobalSchedule *global)
-    : mQueue(tasks)
-    , mCurrent(nullptr)
+    : mCurrent(nullptr)
     , mGlobal(global)
-{ }
+{
+    if (OsStatus status = sm::AtomicRingQueue<ThreadSchedulingInfo>::create(tasks, &mTaskQueue)) {
+        KmDebugMessage("[SCHED] Failed to create task queue: ", OsStatusId(status), "\n");
+        KM_PANIC("Failed to create task queue");
+    }
+}
 
 static sys::RegisterSet SaveThreadContext(km::IsrContext *context) {
     return sys::RegisterSet {
@@ -126,7 +130,7 @@ bool sys::CpuLocalSchedule::stopThread(sm::RcuSharedPtr<Thread> thread) {
 
 bool sys::CpuLocalSchedule::reschedule() {
     ThreadSchedulingInfo info;
-    while (mQueue.try_dequeue(info)) {
+    while (mTaskQueue.tryPop(info)) {
         if (sm::RcuSharedPtr<Thread> thread = info.thread.lock()) {
             if (!startThread(thread)) {
                 continue;
@@ -134,7 +138,8 @@ bool sys::CpuLocalSchedule::reschedule() {
 
             if (mCurrent) {
                 stopThread(mCurrent);
-                KM_ASSERT(mQueue.enqueue(ThreadSchedulingInfo { mCurrent }));
+                ThreadSchedulingInfo current { mCurrent };
+                KM_ASSERT(mTaskQueue.tryPush(current));
             }
 
             mCurrent = thread;
@@ -153,7 +158,8 @@ bool sys::CpuLocalSchedule::reschedule() {
     }
 
     stopThread(mCurrent);
-    KM_ASSERT(mQueue.enqueue(ThreadSchedulingInfo { mCurrent }));
+    ThreadSchedulingInfo current { mCurrent };
+    KM_ASSERT(mTaskQueue.tryPush(current));
 
     mCurrent = nullptr;
 
@@ -217,7 +223,7 @@ sm::RcuSharedPtr<sys::Process> sys::CpuLocalSchedule::currentProcess() {
 OsStatus sys::CpuLocalSchedule::addThread(sm::RcuSharedPtr<Thread> thread) {
     ThreadSchedulingInfo info { thread.weak() };
 
-    OsStatus status = mQueue.try_enqueue(info) ? OsStatusSuccess : OsStatusOutOfMemory;
+    OsStatus status = mTaskQueue.tryPush(info) ? OsStatusSuccess : OsStatusOutOfMemory;
     return status;
 }
 

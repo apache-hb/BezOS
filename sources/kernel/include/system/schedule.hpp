@@ -6,6 +6,7 @@
 
 #include "isr/isr.hpp"
 
+#include "std/ringbuffer.hpp"
 #include "std/shared_spinlock.hpp"
 
 #include "std/rcuptr.hpp"
@@ -64,7 +65,7 @@ namespace sys {
     };
 
     class CpuLocalSchedule {
-        moodycamel::ConcurrentQueue<ThreadSchedulingInfo, SchedulerQueueTraits> mQueue;
+        sm::AtomicRingQueue<ThreadSchedulingInfo> mTaskQueue;
         sm::RcuSharedPtr<Thread> mCurrent;
         GlobalSchedule *mGlobal;
 
@@ -85,7 +86,7 @@ namespace sys {
         bool scheduleNextContext(km::IsrContext *context, km::IsrContext *next, void **syscallStack);
 
         size_t tasks() {
-            return mQueue.size_approx();
+            return mTaskQueue.count();
         }
     };
 

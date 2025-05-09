@@ -128,9 +128,9 @@ namespace sm {
             return nullptr;
         }
 
-        void RcuReleaseStrong(ControlBlock *control) noexcept [[clang::reentrant, clang::nonallocating]];
+        void RcuReleaseStrong(ControlBlock *control) noexcept [[clang::reentrant, clang::nonblocking]];
         bool RcuAcqiureStrong(ControlBlock *control) noexcept [[clang::reentrant, clang::nonblocking]];
-        void RcuReleaseWeak(ControlBlock *control) noexcept [[clang::reentrant, clang::nonallocating]];
+        void RcuReleaseWeak(ControlBlock *control) noexcept [[clang::reentrant, clang::nonblocking]];
         bool RcuAcquireWeak(ControlBlock *control) noexcept [[clang::reentrant, clang::nonblocking]];
 
         class RcuIntrusivePtrTag {};
@@ -484,7 +484,7 @@ namespace sm {
 
         std::atomic<rcu::detail::ControlBlock*> mControl;
 
-        void exchangeControl(rcu::detail::ControlBlock *control) {
+        void exchangeControl(rcu::detail::ControlBlock *control) noexcept [[clang::reentrant, clang::nonblocking]] {
             if (rcu::detail::ControlBlock *cb = mControl.exchange(control)) {
                 rcu::detail::RcuReleaseWeak(cb);
             }
@@ -507,28 +507,34 @@ namespace sm {
         }
 
     public:
-        constexpr RcuWeakPtr()
+        constexpr RcuWeakPtr() noexcept [[clang::reentrant, clang::nonblocking]]
             : mControl(nullptr)
         { }
 
-        constexpr RcuWeakPtr(std::nullptr_t)
+        constexpr RcuWeakPtr(std::nullptr_t) noexcept [[clang::reentrant, clang::nonblocking]]
             : mControl(nullptr)
         { }
 
-        constexpr ~RcuWeakPtr() {
+        constexpr ~RcuWeakPtr() noexcept [[clang::reentrant, clang::nonblocking]] {
             release();
         }
 
-        constexpr RcuWeakPtr(const RcuWeakPtr& other) : RcuWeakPtr() {
+        constexpr RcuWeakPtr(const RcuWeakPtr& other) noexcept [[clang::reentrant, clang::nonblocking]]
+            : RcuWeakPtr()
+        {
             acquire(other.mControl);
         }
 
-        constexpr RcuWeakPtr(RcuWeakPtr&& other) : RcuWeakPtr() {
+        constexpr RcuWeakPtr(RcuWeakPtr&& other) noexcept [[clang::reentrant, clang::nonblocking]]
+            : RcuWeakPtr()
+        {
             exchangeControl(other.mControl.exchange(nullptr));
         }
 
         template<std::derived_from<T> O>
-        constexpr RcuWeakPtr(const RcuWeakPtr<O>& other) : RcuWeakPtr() {
+        constexpr RcuWeakPtr(const RcuWeakPtr<O>& other) noexcept [[clang::reentrant, clang::nonblocking]]
+            : RcuWeakPtr()
+        {
             acquire(other.mControl);
         }
 
@@ -537,12 +543,12 @@ namespace sm {
             exchangeControl(other.mControl.exchange(nullptr));
         }
 
-        constexpr RcuWeakPtr& operator=(const RcuWeakPtr& other) {
+        constexpr RcuWeakPtr& operator=(const RcuWeakPtr& other) noexcept [[clang::reentrant, clang::nonblocking]] {
             acquire(other.mControl);
             return *this;
         }
 
-        constexpr RcuWeakPtr& operator=(RcuWeakPtr&& other) {
+        constexpr RcuWeakPtr& operator=(RcuWeakPtr&& other) noexcept [[clang::reentrant, clang::nonblocking]] {
             exchangeControl(other.mControl.exchange(nullptr));
             return *this;
         }
