@@ -57,9 +57,7 @@ static void Assert(bool condition, const char (&message)[N]) {
     if (!condition) {
         DebugLog(message);
 
-        while (true) {
-            OsThreadYield();
-        }
+        abort();
     }
 }
 
@@ -69,9 +67,7 @@ static void AssertOsSuccess(OsStatus status, const char (&message)[N]) {
         DebugLog(message);
         DebugLog("\nStatus: ");
         DebugLog(status);
-        while (true) {
-            OsThreadYield();
-        }
+        abort();
     }
 }
 

@@ -228,6 +228,8 @@ OsStatus sys::Process::createProcess(System *system, ProcessCreateInfo info, Pro
 }
 
 OsStatus sys::Process::destroy(System *system, const ProcessDestroyInfo& info) {
+    KmDebugMessage("[SYS] Destroying process: ", getName(), " ", (info.reason), " - ", info.exitCode, "\n");
+
     if (auto parent = mParent.lock()) {
         parent->removeChild(loanShared());
     }

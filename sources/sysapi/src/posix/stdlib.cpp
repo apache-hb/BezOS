@@ -295,7 +295,7 @@ struct CxaExitNode {
 // A small static buffer of nodes to initially allocate from.
 // This isnt just an optimization, its needed for correctness. `malloc` does some static init
 // and if that calls `__cxa_atexit` it will deadlock if we use `malloc` to allocate the node.
-static CxaExitNode gExitNodeBuffer[16];
+static CxaExitNode gExitNodeBuffer[16]{};
 static std::atomic<size_t> gExitNodeIndex{0};
 
 static CxaExitNode *TakeExitNode() {
@@ -307,9 +307,10 @@ static CxaExitNode *TakeExitNode() {
     return &gExitNodeBuffer[index];
 }
 
-static CxaExitNode *gHeadNode;
+static CxaExitNode *gHeadNode = nullptr;
 
 extern "C" int __cxa_atexit(void (*callback)(void *), void *object, void *dso) {
+    DebugLog(eOsLogInfo, "POSIX __cxa_atexit: %p %p %p\n", callback, object, dso);
     if (callback == nullptr) {
         return -1;
     }

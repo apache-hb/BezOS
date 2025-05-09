@@ -1,3 +1,5 @@
+#include "arch/x86_64/asm.h"
+
 .extern KmSystemDispatchRoutine
 
 .global KmSystemEntry
@@ -22,7 +24,7 @@ KmSystemCallStackTlsOffset:
  *
  * @return rax - result
  */
-KmSystemEntry:
+PROC(KmSystemEntry)
     /* FMASK is expected to mask out interrupts before we get here */
     /* We need to re-enable them so that the kernel remains pre-emptible. */
     /* But NOT BEFORE SWAPGS, the interrupt handlers expect gsbase to be the kernel gs */
@@ -88,3 +90,4 @@ KmSystemEntry:
     swapgs
 
     sysretq
+ENDP(KmSystemEntry)
