@@ -156,25 +156,36 @@ class VtDisplay {
 
 public:
     VtDisplay() {
+        DebugLog("hhhh");
         OsDeviceCreateInfo createInfo = {
             .Path = OsMakePath(kDisplayDevicePath),
             .InterfaceGuid = kOsDisplayClassGuid,
             .Flags = eOsDeviceOpenExisting,
         };
 
+        DebugLog("Opening display");
+
         ASSERT_OS_SUCCESS(OsDeviceOpen(createInfo, &mDevice));
+
+        DebugLog("aaaa");
 
         OsDdiGetCanvas canvas{};
         ASSERT_OS_SUCCESS(OsDeviceInvoke(mDevice, eOsDdiGetCanvas, &canvas, sizeof(canvas)));
 
+        DebugLog("bbb");
+
         OsDdiDisplayInfo display{};
         ASSERT_OS_SUCCESS(OsDeviceInvoke(mDevice, eOsDdiInfo, &display, sizeof(display)));
+
+        DebugLog("ccc");
 
         mAddress = canvas.Canvas;
         ASSERT(mAddress != nullptr);
 
+        DebugLog("ddd");
+
         mContext = flanterm_fb_init(
-            malloc, ft_free,
+            nullptr, nullptr,
             (uint32_t*)mAddress, display.Width, display.Height, display.Stride,
             display.RedMaskSize, display.RedMaskShift,
             display.GreenMaskSize, display.GreenMaskShift,
@@ -187,6 +198,8 @@ public:
             0, 0,
             0
         );
+
+        DebugLog("eee");
 
         ASSERT(mContext != nullptr);
     }
@@ -286,7 +299,12 @@ void ClientStart(const struct OsClientStartInfo *) {
     DebugLog("TTY0: Starting TTY0...");
 
     VtDisplay display{};
+
+    DebugLog("fff");
+
     KeyboardDevice keyboard{};
+
+    DebugLog("ggg");
 
     OsHidEvent event{};
     char buffer[256]{};

@@ -19,10 +19,6 @@ static OsMemoryAccess ConvertMmapAccess(int prot) {
         access |= eOsMemoryExecute;
     }
 
-    if (!(prot & MAP_UNINITIALIZED)) {
-        access |= eOsMemoryDiscard;
-    }
-
     return access;
 }
 
@@ -36,7 +32,7 @@ void *mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off) {
         return MAP_FAILED;
     }
 
-    if ((flags & MAP_SHARED)) {
+    if (flags & MAP_SHARED) {
         Unimplemented(ENOSYS, "mmap MAP_SHARED");
         return MAP_FAILED;
     }
@@ -44,6 +40,10 @@ void *mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off) {
     OsMemoryAccess access = ConvertMmapAccess(prot);
     if ((flags & MAP_FIXED) == 0) {
         access |= eOsMemoryAddressHint;
+    }
+
+    if ((flags & MAP_UNINITIALIZED) == 0) {
+        access |= eOsMemoryDiscard;
     }
 
     OsVmemCreateInfo createInfo {

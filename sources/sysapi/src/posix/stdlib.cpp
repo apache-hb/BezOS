@@ -26,6 +26,7 @@ struct InitMalloc {
     }
 
     void *malloc(size_t size) {
+        DebugLog(eOsLogInfo, "rpmalloc: %zu", size);
         return rpmalloc(size);
     }
 
@@ -59,15 +60,11 @@ void abort(void) {
 
 __attribute__((__nothrow__, __noreturn__))
 void exit(int exitcode) {
-    OsProcessHandle handle = OS_HANDLE_INVALID;
-    OsStatus status = OsProcessCurrent(eOsProcessAccessDestroy, &handle);
-    assert(status == OsStatusSuccess);
-
     //
     // OsProcessTerminate when called with the current process handle
     // will terminate the current process and never return.
     //
-    status = OsProcessTerminate(handle, exitcode);
+    OsProcessTerminate(OS_HANDLE_INVALID, exitcode);
     __builtin_unreachable();
 }
 
@@ -191,6 +188,7 @@ long double strtold(const char *, char **) {
 
 __attribute__((__nothrow__, __malloc__, __alloc_size__(1), __allocating__))
 void *malloc(size_t size) {
+    DebugLog(eOsLogInfo, "POSIX malloc: %zu", size);
     return GlobalMalloc().malloc(size);
 }
 
