@@ -1,0 +1,763 @@
+
+test_sanitize_args = [
+    '-fsanitize=nullability'
+]
+
+# native executables dont have all default_options applied
+test_c_args = c_args + [ '-std=gnu23', '-DUTIL_TESTING=1' ]
+
+# use NDEBUG_SANITIZER to disable some abseil debug tools,
+# it causes issues with the freestanding patches ive made
+test_cpp_args = cpp_args + [ '-std=gnu++26', '-DUTIL_TESTING=1', '-DNDEBUG_SANITIZER=1' ]
+
+test_link_args = [ ]
+
+test_shim_src = [
+    'test_shim.cpp',
+    'ports.cpp',
+    '../src/delay.cpp',
+    '../src/util/format.cpp',
+]
+
+fs_test_src = [
+    '../src/fs/vfs.cpp',
+    '../src/fs/path.cpp',
+    '../src/fs/node.cpp',
+    '../src/fs/handle.cpp',
+    '../src/fs/ramfs.cpp',
+    '../src/fs/device.cpp',
+    '../src/fs/folder.cpp',
+    '../src/fs/utils.cpp',
+    '../src/fs/identify.cpp',
+    '../src/fs/query.cpp',
+    '../src/fs/iterator.cpp',
+
+    '../src/util/uuid.cpp',
+
+    '../src/std/rcu.cpp',
+    '../src/std/rcuptr.cpp',
+]
+
+memory_test_src = [
+    '../src/memory/pte.cpp',
+    '../src/memory/pte_command_list.cpp',
+    '../src/memory/tables.cpp',
+    '../src/memory/memory.cpp',
+    '../src/memory/table_allocator.cpp',
+    '../src/memory/page_allocator.cpp',
+    '../src/memory/page_allocator_command_list.cpp',
+    '../src/memory/address_space.cpp',
+    '../src/memory/detail/table_list.cpp',
+    '../src/memory/detail/control_block.cpp',
+    '../src/memory/heap.cpp',
+    '../src/memory/heap_command_list.cpp',
+
+    '../src/util/memory.cpp',
+]
+
+system_test_src = [
+    '../src/system/system.cpp',
+    '../src/system/schedule.cpp',
+    '../src/system/handle.cpp',
+    '../src/system/process.cpp',
+    '../src/system/thread.cpp',
+    '../src/system/mutex.cpp',
+    '../src/system/node.cpp',
+    '../src/system/device.cpp',
+    '../src/system/transaction.cpp',
+    '../src/system/pmm.cpp',
+    '../src/system/vmm.cpp',
+    '../src/system/sanitize.cpp',
+
+    '../src/system/vm/mapping.cpp',
+
+    '../src/devices/stream.cpp',
+
+    '../src/memory.cpp',
+    '../src/boot.cpp',
+
+    '../src/xsave.cpp',
+    '../src/util/cpuid.cpp',
+]
+
+new_shim_test_src = [
+    'new_shim.cpp'
+]
+
+operator_new_shim_test = static_library('operator_new_shim_test', new_shim_test_src,
+    include_directories : inc,
+    c_args : test_c_args,
+    cpp_args : test_cpp_args,
+    dependencies : [ gtest, common ],
+    native : true,
+)
+
+test_shim = static_library('test_shim', test_shim_src,
+    include_directories : inc,
+    c_args : test_c_args,
+    cpp_args : test_cpp_args,
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
+    native : true,
+)
+
+fs_test_shim = static_library('fs_test_shim', fs_test_src,
+    include_directories : inc,
+    c_args : test_c_args + test_sanitize_args,
+    cpp_args : test_cpp_args + test_sanitize_args,
+    link_args : test_sanitize_args,
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
+    override_options: [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
+    native : true,
+)
+
+system_test_lib = static_library('system_test', system_test_src,
+    include_directories : inc,
+    c_args : test_c_args + test_sanitize_args,
+    cpp_args : test_cpp_args + test_sanitize_args,
+    link_args : test_sanitize_args,
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
+    override_options: [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
+    native : true,
+)
+
+memory_test_shim = static_library('memory_test_shim', memory_test_src,
+    include_directories : inc,
+    c_args : test_c_args + test_sanitize_args,
+    cpp_args : test_cpp_args + test_sanitize_args,
+    link_args : test_sanitize_args,
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
+    override_options: [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
+    native : true,
+)
+
+test_exe_kwargs = {
+    'include_directories': [ inc, include_directories('.') ],
+    'c_args': test_c_args + test_sanitize_args,
+    'cpp_args': test_cpp_args + test_sanitize_args,
+    'link_args': test_sanitize_args,
+    'dependencies': [ gtest_main, gmock, sysapi, concurrentqueue, mp_units, common ],
+    'override_options': [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
+    'native': true,
+    'link_with': [ test_shim, fs_test_shim, memory_test_shim, system_test_lib ],
+}
+
+# Test cases
+
+testcases2 = {
+    'static vector': {
+        'sources': files('static_vector.cpp'),
+        'link_with': [ test_shim ],
+    },
+    'fixed deque': {
+        'sources': files('fixed_deque.cpp')
+    },
+    'vector': {
+        'sources': files('vector.cpp'),
+        'link_with': [ test_shim ],
+    },
+    'inlined vector': {
+        'sources': files('std/inlined_vector.cpp'),
+        'link_with': [ operator_new_shim_test ],
+    },
+    'format': {
+        'sources': files('format.cpp', '../src/util/format.cpp')
+    },
+    'string': {
+        'sources': files('std/string.cpp'),
+    },
+    'spinlock': {
+        'sources': files('std/spinlock.cpp'),
+    },
+    'ringbuffer': {
+        'sources': files('std/ringbuffer.cpp'),
+    },
+    'static string': {
+        'sources': files('std/static_string.cpp'),
+    },
+    'string view': {
+        'sources': files('std/string_view.cpp'),
+    },
+    'memory range': {
+        'sources': files('memory_range.cpp'),
+        'link_with': [ test_shim ],
+    },
+    'pat': {
+        'sources': files('page_attribute_table.cpp', '../src/pat.cpp', '../src/util/cpuid.cpp'),
+    },
+    'paging': {
+        'sources': files('paging.cpp'),
+    },
+    'arch cr': {
+        'sources': files('arch/cr.cpp', '../src/arch/cr.cpp'),
+    },
+    'arch gdt': {
+        'sources': files('arch/gdt.cpp', '../src/gdt.cpp'),
+    },
+    'framebuffer': {
+        'sources': files('display.cpp', '../src/canvas.cpp'),
+    },
+    'crt': {
+        'sources': files('crt.cpp', '../src/crt.cpp'),
+    },
+}
+
+foreach name, setup : testcases2
+    exe = executable('test-kernel-' + name.strip().replace(' ', '-'), setup['sources'],
+        c_args : setup.get('c_args', test_c_args),
+        cpp_args : setup.get('cpp_args', test_cpp_args),
+        link_args : setup.get('link_args', test_link_args),
+        link_with : setup.get('link_with', []),
+        include_directories : inc,
+        dependencies : setup.get('dependencies', []) + [ common, sysapi, gtest_main ],
+        override_options : setup.get('override_options', [ 'b_sanitize=address,undefined', 'b_coverage=true' ]),
+        native : true,
+        pie : true,
+    )
+
+    test(name, exe,
+        suite : 'kernel',
+        protocol : 'gtest',
+        timeout : 5,
+    )
+endforeach
+
+testcases = {
+    'serial': [ 'serial.cpp', '../src/uart.cpp', ],
+    'ipl': [ 'ipl.cpp' ],
+    'range allocator': [
+        'memory/range_allocator.cpp',
+    ],
+    'page table': [
+        'memory/pte.cpp',
+    ],
+    'page table command list +new': [
+        'memory/pte_command_list.cpp',
+    ],
+    'partitions': [
+        'drivers/partitions.cpp',
+        '../src/drivers/fs/driver.cpp',
+        '../src/drivers/block/driver.cpp',
+        '../src/drivers/block/ramblk.cpp',
+    ],
+    'ramblk': [
+        'drivers/ramblk.cpp',
+        '../src/drivers/block/driver.cpp',
+        '../src/drivers/block/ramblk.cpp',
+    ],
+    'media': [
+        'drivers/media.cpp',
+        '../src/drivers/block/driver.cpp',
+        '../src/drivers/block/ramblk.cpp',
+    ],
+    'fs2': [
+        'fs/fs.cpp',
+    ],
+    'vfs path': [
+        'fs/path.cpp',
+    ],
+    'vfs root': [
+        'fs/root.cpp',
+    ],
+    'ramfs': [
+        'fs/ramfs.cpp',
+    ],
+    'fs update': [
+        'fs/update.cpp',
+    ],
+    'identify': [
+        'fs/ramfs.cpp',
+    ],
+    'verify': [
+        'user/verify.cpp',
+        '../src/user/context.cpp',
+    ],
+    'shared ptr': [
+        'shared.cpp',
+    ],
+    'atomic forward list': [
+        'std/forward_list.cpp',
+    ],
+    'cmos': [
+        'cmos.cpp',
+        '../src/cmos.cpp',
+    ],
+    'notify': [
+        'notify.cpp',
+        '../src/notify.cpp',
+        '../src/std/rcu.cpp',
+        '../src/std/rcuptr.cpp',
+        tlsf.get_variable('sources'),
+    ],
+    'isr table': [
+        'isr/isr.cpp',
+        '../src/isr/default.cpp',
+    ],
+    'isr fault': [
+        'isr/fault.cpp',
+        '../src/isr/default.cpp',
+    ],
+    'layout': [
+        'memory/layout.cpp',
+    ],
+    # 'elf': [
+    #     'elf.cpp',
+    #     '../src/memory.cpp',
+    #     '../src/elf/elf.cpp',
+    #     '../src/util/memory.cpp',
+    #     '../src/boot.cpp',
+    #     '../src/xsave.cpp',
+    #     '../src/util/cpuid.cpp',
+
+    #     '../src/std/rcu.cpp',
+    #     '../src/std/rcuptr.cpp',
+
+    #     '../src/process/system.cpp',
+    #     '../src/process/process.cpp',
+    #     '../src/process/thread.cpp',
+    #     '../src/process/object.cpp',
+    # ],
+    'memory': [
+        'memory.cpp',
+        '../src/memory.cpp',
+        '../src/util/memory.cpp',
+        '../src/boot.cpp',
+    ],
+    'pte': [
+        'memory/memory.cpp',
+        '../src/memory/memory.cpp',
+    ],
+    'table allocator': [
+        'memory/table_allocator.cpp',
+    ],
+    'page table list': [
+        'memory/table_list.cpp',
+    ],
+    # 'process': [
+    #     'process/process.cpp',
+
+    #     '../src/process/system.cpp',
+    #     '../src/process/process.cpp',
+    #     '../src/process/thread.cpp',
+    #     '../src/process/object.cpp',
+
+    #     '../src/memory.cpp',
+    #     '../src/xsave.cpp',
+    #     '../src/util/cpuid.cpp',
+    #     '../src/elf/elf.cpp',
+
+    #     '../src/util/memory.cpp',
+    #     '../src/boot.cpp',
+    # ],
+    'system': [
+        'system/system.cpp',
+    ],
+    # 'transaction': [
+    #     'system/transaction.cpp',
+    # ],
+    'query': [
+        'system/query.cpp',
+    ],
+    'handles': [
+        'system/handles.cpp',
+    ],
+    'threads': [
+        'system/thread.cpp',
+    ],
+    'device': [
+        'system/device.cpp',
+    ],
+    'system detail range table': [
+        'system/detail/range_table.cpp',
+    ],
+    'system vmm +new': [
+        'system/vmm.cpp',
+        '../src/memory/heap.cpp',
+        '../src/system/pmm.cpp',
+        '../src/system/vmm.cpp',
+        '../src/memory/heap_command_list.cpp',
+    ],
+    'system pmm +new': [
+        'system/pmm.cpp',
+        '../src/memory/heap.cpp',
+        '../src/system/pmm.cpp',
+        '../src/memory/heap_command_list.cpp',
+    ],
+    'tlsf heap +new': [
+        'memory/tlsf.cpp',
+        '../src/memory/heap.cpp',
+    ],
+    'tlsf heap command list +new': [
+        'memory/heap_command_list.cpp',
+        '../src/memory/heap_command_list.cpp',
+        '../src/memory/heap.cpp',
+    ],
+    'pool allocator +new': [
+        'memory/pool.cpp',
+    ],
+    'page allocator': [
+        'memory/page_allocator.cpp',
+    ],
+    'address space': [
+        'memory/address_space.cpp',
+    ],
+    'system memory': [
+        'system_memory.cpp',
+    ],
+}
+
+if enable_aml
+    testcases += {
+        'aml details': [
+            'acpi/detail.cpp',
+            '../src/acpi/format.cpp',
+            '../src/acpi/aml.cpp',
+            '../src/util/format.cpp',
+        ],
+        'aml names': [
+            'acpi/name.cpp',
+            '../src/acpi/format.cpp',
+            '../src/acpi/aml.cpp',
+            '../src/util/format.cpp',
+        ],
+        'aml nodes': [
+            'acpi/nodes.cpp',
+            '../src/acpi/format.cpp',
+            '../src/acpi/aml.cpp',
+            '../src/util/format.cpp',
+        ]
+    }
+endif
+
+foreach name, source : testcases
+    this_test_exe_kwargs = test_exe_kwargs
+
+    if name.contains('+new')
+        this_test_exe_kwargs += { 'link_with': this_test_exe_kwargs['link_with'] + [ operator_new_shim_test ] }
+        name = name.replace('+new', '').strip()
+    endif
+
+    exe = executable('test-kernel-' + name.to_lower().replace(' ', '-').strip(), source,
+        kwargs : this_test_exe_kwargs,
+    )
+
+    test(name, exe,
+        suite : 'kernel',
+        kwargs : testkwargs
+    )
+endforeach
+
+# fuzztest = dependency('fuzztest', native : true)
+# fuzz_cpp_args = [
+#     '-Wno-sign-compare',
+#     '-Wno-missing-field-initializers',
+#     '-Wno-unused-parameter',
+#     '-Wno-gcc-compat',
+# ]
+
+# fuzz_exe_kwargs = test_exe_kwargs
+# fuzz_exe_kwargs += { 'dependencies': fuzz_exe_kwargs['dependencies'] + [ fuzztest ] }
+# fuzz_exe_kwargs += { 'cpp_args': fuzz_exe_kwargs['cpp_args'] + fuzz_cpp_args }
+
+# exe = executable('test-kernel-fuzz', 'test/fuzz.cpp',
+#     kwargs : fuzz_exe_kwargs,
+# )
+
+# test('fuzz', exe,
+#     suite : 'kernel',
+#     kwargs : testkwargs
+# )
+
+tar_test_script = find_program('../data/test/tar/tar.sh')
+tar_test_data = custom_target('tar-test-data',
+    output : 'test.tar',
+    command : [ tar_test_script, meson.project_source_root() / 'data/test/tar', '@OUTPUT@' ],
+)
+
+source = [
+    'fs/tarfs.cpp',
+    '../src/fs/vfs.cpp',
+    '../src/fs/device.cpp',
+    '../src/fs/path.cpp',
+    '../src/fs/node.cpp',
+    '../src/fs/handle.cpp',
+    '../src/fs/ramfs.cpp',
+    '../src/fs/tarfs.cpp',
+    '../src/fs/folder.cpp',
+    '../src/fs/utils.cpp',
+    '../src/fs/identify.cpp',
+    '../src/fs/query.cpp',
+    '../src/drivers/block/driver.cpp',
+    '../src/drivers/block/ramblk.cpp',
+    'fs/fs_test.cpp',
+    '../src/util/uuid.cpp',
+]
+
+exe = executable('test-kernel-tarfs', source,
+    kwargs : test_exe_kwargs,
+)
+
+test('tarfs', exe,
+    suite : 'kernel',
+    kwargs : testkwargs,
+    depends : tar_test_data,
+    env : {
+        'TAR_TEST_ARCHIVE': tar_test_data.full_path(),
+    }
+)
+
+# source = [
+#     'test/launch/elf.cpp',
+
+#     '../src/launch.cpp',
+
+#     '../src/fs/vfs.cpp',
+#     '../src/fs/path.cpp',
+#     '../src/fs/node.cpp',
+#     '../src/fs/handle.cpp',
+#     '../src/fs/ramfs.cpp',
+#     '../src/fs/tarfs.cpp',
+#     '../src/process/process.cpp',
+
+#     '../src/boot.cpp',
+#     '../src/hypervisor.cpp',
+
+#     '../src/std/rcu.cpp',
+#     '../src/std/rcuptr.cpp',
+
+#     '../src/memory.cpp',
+#     '../src/memory/layout.cpp',
+#     '../src/memory/page_allocator.cpp',
+#     '../src/memory/virtual_allocator.cpp',
+#     '../src/memory/pte.cpp',
+
+#     '../src/util/format.cpp',
+#     '../src/util/memory.cpp',
+#     '../src/util/cpuid.cpp',
+
+#     '../src/drivers/block/driver.cpp',
+#     '../src/drivers/block/ramblk.cpp',
+# ]
+
+# exe = executable('test-kernel-elf', source,
+#     kwargs : test_exe_kwargs,
+# )
+
+# test('elf', exe,
+#     suite : 'kernel',
+#     kwargs : testkwargs,
+#     depends : tar_test_data,
+#     env : {
+#         'TAR_TEST_ARCHIVE': meson.current_source_dir() / 'data/test/elf/initrd.tar'
+#     }
+# )
+
+mmio_test_src = [
+    'ktest.cpp',
+]
+
+mmio_test_shim = static_library('mmio_test_shim', mmio_test_src,
+    include_directories : inc,
+    c_args : test_c_args,
+    cpp_args : test_cpp_args,
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units, capstone, common ],
+    native : true,
+)
+
+no_sanitize_test_shim = static_library('no_sanitize_test_shim', test_shim_src,
+    include_directories : inc,
+    c_args : test_c_args,
+    cpp_args : test_cpp_args,
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
+    override_options: [ 'b_sanitize=none', 'b_coverage=true' ],
+    native : true,
+)
+
+no_sanitize_fs_test_lib = static_library('no_sanitize_fs_test', fs_test_src,
+    include_directories : inc,
+    c_args : test_c_args,
+    cpp_args : test_cpp_args,
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
+    override_options: [ 'b_sanitize=none', 'b_coverage=true' ],
+    native : true,
+)
+
+no_sanitize_memory_test_shim = static_library('no_sanitize_memory_test_shim', memory_test_src,
+    include_directories : inc,
+    c_args : test_c_args,
+    cpp_args : test_cpp_args,
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
+    override_options: [ 'b_sanitize=none', 'b_coverage=true' ],
+    native : true,
+)
+
+no_sanitize_system_test_lib = static_library('no_sanitize_system_test', system_test_src,
+    include_directories : inc,
+    c_args : test_c_args,
+    cpp_args : test_cpp_args,
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
+    override_options: [ 'b_sanitize=none', 'b_coverage=true' ],
+    native : true,
+)
+
+testcases = {
+    'terminal': {
+        'sources': [
+            'terminal.cpp',
+            '../src/canvas.cpp',
+            '../src/terminal/terminal.cpp',
+            '../src/terminal/buffered.cpp',
+        ],
+        'dependencies' : [ stb_image_write ],
+    },
+    'rcu': {
+        'sources': [
+            'std/rcu.cpp',
+            '../src/std/rcu.cpp',
+        ],
+        'override_options': [ 'b_sanitize=thread', 'b_coverage=true' ],
+        'dependencies' : [ ],
+    },
+    # rcu shared ptrs are still unsound
+    'rcuptr': {
+        'sources': [
+            'std/rcuptr.cpp',
+            '../src/std/rcu.cpp',
+            '../src/std/rcuptr.cpp',
+        ],
+        'override_options': [ 'b_sanitize=address', 'b_coverage=true' ],
+        'dependencies' : [ ],
+    },
+    # 'launch': {
+    #     'sources': [
+    #         'emulated/launch.cpp',
+    #     ],
+    #     'dependencies' : [ libvirt ],
+    # }
+}
+
+testcases += {
+    'ioapic': {
+        'sources': [
+            'apic/ioapic.cpp',
+            '../src/apic.cpp',
+            '../src/memory.cpp',
+            '../src/boot.cpp',
+            '../src/util/cpuid.cpp',
+            '../src/acpi/acpi.cpp',
+            '../src/acpi/format.cpp',
+        ],
+        'dependencies': [ capstone, common ],
+        # this test must not be run with sanitizers, it ptraces itself
+        # and purposely triggers segv and traps
+        'override_options': [ 'b_sanitize=none', 'b_coverage=true' ],
+        'link_with' : [ no_sanitize_test_shim, no_sanitize_memory_test_shim ]
+    },
+    'apic': {
+        'sources': [
+            'apic/apic.cpp',
+            '../src/apic.cpp',
+            '../src/memory.cpp',
+            '../src/boot.cpp',
+            '../src/util/cpuid.cpp',
+            '../src/acpi/acpi.cpp',
+            '../src/acpi/format.cpp',
+        ],
+        'dependencies': [ capstone, common ],
+        'override_options': [ 'b_sanitize=none', 'b_coverage=true' ],
+        'link_with' : [ no_sanitize_test_shim, no_sanitize_memory_test_shim, mmio_test_shim ],
+    },
+    'schedule': {
+        'sources': [
+            'system/schedule.cpp',
+        ],
+        'dependencies': [ capstone, common ],
+        'override_options': [ 'b_sanitize=none', 'b_coverage=true' ],
+        'link_with' : [ no_sanitize_test_shim, no_sanitize_memory_test_shim, no_sanitize_fs_test_lib, no_sanitize_system_test_lib, mmio_test_shim ],
+    }
+}
+
+foreach name, kwargs : testcases
+    new_kwargs = test_exe_kwargs
+    new_kwargs += { 'dependencies': new_kwargs['dependencies'] + kwargs['dependencies'] }
+    new_kwargs += { 'sources': kwargs['sources'] }
+    new_kwargs += { 'override_options': kwargs.get('override_options', test_exe_kwargs['override_options']) }
+    new_kwargs += { 'link_with': kwargs.get('link_with', test_exe_kwargs['link_with']) }
+
+    exe = executable('test-kernel-' + name.to_lower().replace(' ', '-'),
+        kwargs : new_kwargs,
+    )
+
+    test(name, exe,
+        suite : 'kernel',
+        kwargs : testkwargs,
+        env : {
+            'LSAN_OPTIONS': 'suppressions=' + meson.current_source_dir() / 'data/test/sanitizer/glib.supp',
+            'MESON_SOURCE_ROOT': meson.current_source_dir(),
+            'MESON_PREFIX': get_option('prefix'),
+        }
+    )
+endforeach
+
+# AML tests
+
+if enable_aml
+    testcases = [
+        'B450M-MORTAR',
+        'H13SSL-N',
+        'G513RM',
+        'QEMU',
+    ]
+
+    acpixtract = find_program('../data/test/acpi/dump.sh')
+
+    src = [
+        'acpi/aml.cpp',
+        '../src/acpi/aml.cpp',
+        '../src/acpi/format.cpp',
+        '../src/util/format.cpp',
+        '../src/allocator/bitmap.cpp',
+    ]
+
+    exe = executable('test-aml', src,
+        kwargs : test_exe_kwargs,
+    )
+
+    foreach name : testcases
+        bin = custom_target(name + '-bin',
+            input : 'data/test/acpi/' + name + '.txt',
+            output : name + '.bin',
+            command : [ acpixtract, '@INPUT@', '@OUTPUT@', '@PRIVATE_DIR@' ],
+        )
+
+        test(name, exe,
+            suite : 'acpi',
+            kwargs : testkwargs,
+            depends : bin,
+            env : { 'AML_BLOB': bin.full_path() }
+        )
+    endforeach
+endif
+
+
+# images = {
+#     'base': [
+#         'test/image/base.cpp',
+#     ],
+#     'scheduler': [
+#         'test/image/schedule.cpp',
+#     ]
+# }
+
+# foreach name, source : images
+#     executable('bezos-test-' + name + '.elf', source + [ '../src/boot/hyper.cpp', ],
+#         c_args : c_args + [ '-D__BEZOS__=1' ],
+#         cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
+#         include_directories : inc,
+#         link_with : kernel,
+#         dependencies : [ ultra, deps ],
+#         link_depends : 'data/linker-hyper.ld',
+#         link_args : [ '-T', meson.current_source_dir() / 'data/linker-hyper.ld' ],
+#         install : true,
+#         override_options : [ 'b_coverage=false' ],
+#     )
+# endforeach

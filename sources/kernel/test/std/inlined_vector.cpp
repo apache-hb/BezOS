@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "std/inlined_vector.hpp"
-#include "test/new_shim.hpp"
+#include "new_shim.hpp"
 
 class InlinedVectorTest : public testing::Test {
 public:

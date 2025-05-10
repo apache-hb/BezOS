@@ -5,6 +5,8 @@
 #include <sys/ucontext.h>
 
 extern "C" [[noreturn]] void PvTestContextSwitch(gregset_t *gregs);
+extern "C" void __gcov_reset(void);
+extern "C" void __gcov_dump(void);
 
 namespace pv {
     enum BbType {
@@ -29,6 +31,13 @@ namespace pv {
     [[noreturn, gnu::no_instrument_function]]
     void ExitFork(int status) noexcept;
 }
+
+#define PV_ASSERT(x) do { \
+    if (!(x)) { \
+        error_at_line(EXIT_FAILURE, EINVAL, __FILE__, __LINE__, "%s", #x); \
+        std::unreachable(); \
+    } \
+} while (0)
 
 #define PV_POSIX_ERROR(status, ...) error_at_line(EXIT_FAILURE, status, __FILE__, __LINE__, __VA_ARGS__)
 

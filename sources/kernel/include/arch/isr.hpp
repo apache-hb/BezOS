@@ -24,6 +24,22 @@ namespace x64 {
         uint8_t flags;
         sm::uint48_t address1;
         uint32_t reserved;
+
+        constexpr bool isPresent() const noexcept {
+            return (flags & idt::kFlagPresent) != 0;
+        }
+
+        constexpr Privilege privilege() const noexcept {
+            return Privilege((flags >> 5) & 0b11);
+        }
+
+        constexpr bool isInterruptGate() const noexcept {
+            return (flags & idt::kInterruptGate) == idt::kInterruptGate;
+        }
+
+        constexpr uintptr_t address() const noexcept {
+            return (uint64_t(address1) << 16) | address0;
+        }
     };
 
     static_assert(sizeof(IdtEntry) == 16);

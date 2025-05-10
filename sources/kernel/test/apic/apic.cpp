@@ -2,7 +2,7 @@
 
 #include "apic.hpp"
 
-#include "test/ktest.hpp"
+#include "ktest.hpp"
 
 struct ApicReg {
     uint32_t value;

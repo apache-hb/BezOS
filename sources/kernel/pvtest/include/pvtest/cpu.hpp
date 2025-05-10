@@ -7,15 +7,27 @@
 #include <sys/ucontext.h>
 
 #include "arch/cr3.hpp"
-#include "arch/intrin.hpp"
 #include "common/util/util.hpp"
 #include "common/virtual_address.hpp"
 #include "common/physical_address.hpp"
 #include "memory/paging.hpp"
+#include "pvtest/apic.hpp"
+#include "pvtest/idt.hpp"
 #include "pvtest/system.hpp"
 
 namespace pv {
     class Memory;
+
+    void SignalWriteV(int fd, const char *fmt, va_list args);
+
+    [[gnu::format(printf, 2, 3)]]
+    void SignalWrite(int fd, const char *fmt, ...);
+
+    [[gnu::format(printf, 1, 2)]]
+    void SignalLog(const char *fmt, ...);
+
+    [[noreturn, gnu::format(printf, 1, 2)]]
+    void SignalAssert(const char *fmt, ...);
 
     struct AtomicFlag {
         std::atomic_flag flag = ATOMIC_FLAG_INIT;
@@ -56,13 +68,17 @@ namespace pv {
 
         AtomicFlag mReady;
 
+        ApicState mApicState;
+        CpuIdt mIdt;
+
+        bool mIsHandlingFault = false;
+
         // uint64_t cr0;
         // uint64_t cr2;
         uint64_t cr3;
         // uint64_t cr4;
         // uint8_t cpl;
 
-        // IDTR idtr;
         // GDTR gdtr;
         // uint32_t eflags;
 
@@ -98,7 +114,7 @@ namespace pv {
         UTIL_NOCOPY(CpuCore);
         UTIL_DEFAULT_MOVE(CpuCore);
 
-        CpuCore(Memory *memory, const km::PageBuilder *pager);
+        CpuCore(Memory *memory, const km::PageBuilder *pager, uint8_t apicId);
         ~CpuCore();
 
         PVTEST_SHARED_OBJECT(CpuCore);

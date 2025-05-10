@@ -64,7 +64,7 @@ public:
 TEST_F(IsrFaultTest, TestHandler) {
     InitThread();
 
-    gTable.install(0, [](km::IsrContext *context) {
+    gTable.install(0, [](km::IsrContext *context) noexcept [[clang::reentrant]] {
         context->error = 0xDEADBEEF;
         return *context;
     });

@@ -106,9 +106,11 @@ TEST_F(RingBufferStringTest, ThreadSafe) {
         latch.arrive_and_wait();
 
         std::string value;
-        while (!stop.stop_requested()) {
+        while (true) {
             if (queue.tryPop(value)) {
                 consumedCount += 1;
+            } else {
+                if (stop.stop_requested()) break;
             }
         }
     });

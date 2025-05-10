@@ -1,5 +1,5 @@
 #include "system_test.hpp"
-#include "test/ktest.hpp"
+#include "ktest.hpp"
 
 #include "fs/vfs.hpp"
 #include "thread.hpp"

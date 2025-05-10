@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "memory/detail/pool.hpp"
-#include "test/new_shim.hpp"
+#include "new_shim.hpp"
 
 template<typename T>
 using Pool = km::PoolAllocator<T>;

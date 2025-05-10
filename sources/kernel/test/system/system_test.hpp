@@ -6,7 +6,7 @@
 #include "system/schedule.hpp"
 
 #include "system/thread.hpp"
-#include "test/test_memory.hpp"
+#include "test_memory.hpp"
 
 #include <thread>
 

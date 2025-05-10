@@ -3,7 +3,7 @@
 #include "memory/pte.hpp"
 #include "memory/pt_command_list.hpp"
 #include "setup.hpp"
-#include "test/new_shim.hpp"
+#include "new_shim.hpp"
 
 static constexpr size_t kPtCount = 1024;
 

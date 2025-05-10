@@ -126,7 +126,7 @@ namespace km {
 
     static_assert(sizeof(IsrContext) == 176, "Update isr.S");
 
-    using IsrCallback = IsrContext(* [[clang::reentrant]])(IsrContext*);
+    using IsrCallback = IsrContext(*)(IsrContext*) noexcept [[clang::reentrant]];
     using IsrEntry = std::atomic<IsrCallback>;
 
     /// @brief The default ISR handler.
@@ -136,7 +136,7 @@ namespace km {
     /// @param context The ISR context.
     ///
     /// @return The ISR context.
-    IsrContext DefaultIsrHandler(IsrContext *context) [[clang::reentrant]];
+    IsrContext DefaultIsrHandler(IsrContext *context) noexcept [[clang::reentrant]];
 
     /// @brief A table of interrupt service routines.
     ///
@@ -161,11 +161,11 @@ namespace km {
         //
         IsrEntry mHandlers[N] = { [0 ... (N - 1)] = DefaultIsrHandler };
 
-        uint8_t index(const IsrEntry *entry) const REENTRANT {
+        uint8_t index(const IsrEntry *entry) const noexcept [[clang::reentrant]] {
             return std::distance(mHandlers, entry) + kOffset;
         }
 
-        IsrEntry *find(const IsrEntry *handle) REENTRANT {
+        IsrEntry *find(const IsrEntry *handle) noexcept [[clang::reentrant]] {
             //
             // We need to be very certain what we're about do is alright.
             //
@@ -181,7 +181,7 @@ namespace km {
             return const_cast<IsrEntry*>(handle);
         }
 
-        const IsrEntry *allocate(IsrCallback callback) REENTRANT {
+        const IsrEntry *allocate(IsrCallback callback) noexcept [[clang::reentrant]] {
             for (IsrEntry& entry : mHandlers) {
 
                 //
@@ -197,7 +197,7 @@ namespace km {
             return nullptr;
         }
 
-        bool release(const IsrEntry *callback, IsrCallback expected) REENTRANT {
+        bool release(const IsrEntry *callback, IsrCallback expected) noexcept [[clang::reentrant]] {
             IsrEntry *entry = find(callback);
 
             //
@@ -212,17 +212,17 @@ namespace km {
     public:
         constexpr IsrTableBase() = default;
 
-        IsrCallback install(uint8_t isr, IsrCallback callback) REENTRANT {
+        IsrCallback install(uint8_t isr, IsrCallback callback) noexcept [[clang::reentrant]] {
             return mHandlers[isr - kOffset].exchange(callback);
         }
 
-        IsrContext invoke(IsrContext *context) SIGNAL_HANDLER {
+        IsrContext invoke(IsrContext *context) noexcept [[clang::reentrant]] {
             QTAG_INDIRECT(signal_handler) IsrCallback isr = mHandlers[uint8_t(context->vector) - kOffset];
             return isr(context);
         }
 
-        IsrEntry *begin() REENTRANT { return mHandlers; }
-        IsrEntry *end() REENTRANT { return mHandlers + N; }
+        IsrEntry *begin() noexcept [[clang::reentrant]] { return mHandlers; }
+        IsrEntry *end() noexcept [[clang::reentrant]] { return mHandlers + N; }
     };
 
     /// @brief A table containing x86 exception handlers for all cpus.

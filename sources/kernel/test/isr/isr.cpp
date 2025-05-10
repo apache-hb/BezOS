@@ -7,7 +7,7 @@ TEST(IsrTableTest, Construct) {
     km::LocalIsrTable table;
 }
 
-static km::IsrContext TestIsrHandler(km::IsrContext *context) {
+static km::IsrContext TestIsrHandler(km::IsrContext *context) noexcept [[clang::reentrant]] {
     return *context;
 }
 

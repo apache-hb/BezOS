@@ -1,4 +1,5 @@
 #include "pvtest/cpu.hpp"
+#include "isr/isr.hpp"
 #include "pvtest/pvtest.hpp"
 #include "pvtest/machine.hpp"
 
@@ -15,31 +16,35 @@
 
 #include "common/util/defer.hpp"
 
-extern "C" void __gcov_reset(void);
-extern "C" void __gcov_flush(void);
-
 static pv::CpuCore *fCpuCore = nullptr;
 
 static constexpr int kSigDestroy = SIGUSR1;
 static constexpr int kSigLaunch = SIGUSR2;
 
-static void SignalWriteV(int fd, const char *fmt, va_list args) {
+void pv::SignalWriteV(int fd, const char *fmt, va_list args) {
     // TODO: vsnprintf is technically not signal safe, but i dont think glibc does anything not signal-unsafe in it...
     char buffer[256];
     int len = vsnprintf(buffer, sizeof(buffer), fmt, args);
     write(fd, buffer, len);
 }
 
-[[gnu::format(printf, 2, 3)]]
-static void SignalWrite(int fd, const char *fmt, ...) {
+void pv::SignalWrite(int fd, const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
     SignalWriteV(fd, fmt, args);
     va_end(args);
 }
 
-[[noreturn, gnu::format(printf, 1, 2)]]
-static void SignalAssert(const char *fmt, ...) {
+void pv::SignalLog(const char *fmt, ...) {
+    SignalWrite(STDERR_FILENO, "[pvtest:%d] ", getpid());
+    va_list args;
+    va_start(args, fmt);
+    SignalWriteV(STDERR_FILENO, fmt, args);
+    va_end(args);
+}
+
+void pv::SignalAssert(const char *fmt, ...) {
+    SignalWrite(STDERR_FILENO, "[pvtest:%d] ", getpid());
     va_list args;
     va_start(args, fmt);
     SignalWriteV(STDERR_FILENO, fmt, args);
@@ -112,7 +117,7 @@ OsStatus pv::CpuCore::resolveVirtualAddress(sm::VirtualAddress address, sm::Phys
     x64::PageMapLevel4 *l4 = std::bit_cast<x64::PageMapLevel4*>(l4Address);
     x64::pml4e &t4 = l4->entries[pml4e];
     if (!t4.present()) {
-        SignalWrite(STDERR_FILENO, "PML4E %d not present\n", pml4e);
+        SignalLog("PML4E %d not present\n", pml4e);
         return OsStatusInvalidAddress;
     }
 
@@ -120,7 +125,7 @@ OsStatus pv::CpuCore::resolveVirtualAddress(sm::VirtualAddress address, sm::Phys
     x64::PageMapLevel3 *l3 = std::bit_cast<x64::PageMapLevel3*>(l3Address);
     x64::pdpte &t3 = l3->entries[pdpte];
     if (!t3.present()) {
-        SignalWrite(STDERR_FILENO, "PDPTE %d not present (host: %p ram: %zx)\n", pdpte, (void*)l3Address, mPageBuilder->address(t4));
+        SignalLog("PDPTE %d not present (host: %p ram: %zx)\n", pdpte, (void*)l3Address, mPageBuilder->address(t4));
         return OsStatusInvalidAddress;
     }
 
@@ -134,7 +139,7 @@ OsStatus pv::CpuCore::resolveVirtualAddress(sm::VirtualAddress address, sm::Phys
     x64::PageMapLevel2 *l2 = std::bit_cast<x64::PageMapLevel2*>(l2Address);
     x64::pdte &t2 = l2->entries[pdte];
     if (!t2.present()) {
-        SignalWrite(STDERR_FILENO, "PDTE %d not present (host: %p ram: %zx)\n", pdte, (void*)l2Address, mPageBuilder->address(t3));
+        SignalLog("PDTE %d not present (host: %p ram: %zx)\n", pdte, (void*)l2Address, mPageBuilder->address(t3));
         return OsStatusInvalidAddress;
     }
 
@@ -148,7 +153,7 @@ OsStatus pv::CpuCore::resolveVirtualAddress(sm::VirtualAddress address, sm::Phys
     x64::PageTable *pt = std::bit_cast<x64::PageTable*>(ptAddress);
     x64::pte &t1 = pt->entries[pte];
     if (!t1.present()) {
-        SignalWrite(STDERR_FILENO, "PTE %d not present (host: %p ram: %zx)\n", pte, (void*)ptAddress, mPageBuilder->address(t2));
+        SignalLog("PTE %d not present (host: %p ram: %zx)\n", pte, (void*)ptAddress, mPageBuilder->address(t2));
         return OsStatusInvalidAddress;
     }
 
@@ -158,7 +163,19 @@ OsStatus pv::CpuCore::resolveVirtualAddress(sm::VirtualAddress address, sm::Phys
 
 void pv::CpuCore::emulate_cli(mcontext_t *, cs_insn *) { }
 void pv::CpuCore::emulate_sti(mcontext_t *, cs_insn *) { }
-void pv::CpuCore::emulate_lidt(mcontext_t *, cs_insn *) { }
+
+void pv::CpuCore::emulate_lidt(mcontext_t *mcontext, cs_insn *insn) {
+    cs_detail *detail = insn->detail;
+    cs_x86 x86 = detail->x86;
+    PV_ASSERT(x86.op_count == 1);
+    cs_x86_op *op = &x86.operands[0];
+    PV_ASSERT(op->type == X86_OP_MEM); // lidt only has a single memory operand
+    uint64_t address = getMemoryOperand(mcontext, &op->mem);
+    PV_ASSERT(address % 16 == 0); // idt memory operand be 16 byte aligned
+    mIdt.lidt(*(IDTR*)address);
+    mcontext->gregs[REG_RIP] += insn->size;
+}
+
 void pv::CpuCore::emulate_lgdt(mcontext_t *, cs_insn *) { }
 void pv::CpuCore::emulate_ltr(mcontext_t *, cs_insn *) { }
 void pv::CpuCore::emulate_in(mcontext_t *, cs_insn *) { }
@@ -171,6 +188,20 @@ void pv::CpuCore::emulate_hlt(mcontext_t *, cs_insn *) { }
 void pv::CpuCore::emulate_iretq(mcontext_t *, cs_insn *) { }
 
 void pv::CpuCore::emulate_mmu(mcontext_t *mcontext, cs_insn *insn) {
+    uintptr_t cr2 = mcontext->gregs[REG_CR2];
+    if (cr2 != 0) {
+        sm::PhysicalAddress real;
+        OsStatus status = resolveVirtualAddress(cr2, &real);
+        if (status != OsStatusSuccess) {
+            SignalAssert("resolveVirtualAddress %p failed: %d\n", (void*)cr2, int(status));
+        }
+        real = sm::rounddown(real.address, x64::kPageSize);
+        uintptr_t value = sm::rounddown(cr2, x64::kPageSize);
+
+        mMemory->mapGuestPage(value, km::PageFlags::eAll, real);
+        return;
+    }
+
     cs_detail *detail = insn->detail;
     cs_x86 x86 = detail->x86;
     for (uint8_t i = 0; i < x86.op_count; i++) {
@@ -181,7 +212,6 @@ void pv::CpuCore::emulate_mmu(mcontext_t *mcontext, cs_insn *insn) {
             OsStatus status = resolveVirtualAddress(value, &real);
             if (status != OsStatusSuccess) {
                 SignalAssert("resolveVirtualAddress %p failed: %d\n", (void*)value, int(status));
-                return;
             }
 
             real = sm::rounddown(real.address, x64::kPageSize);
@@ -190,9 +220,18 @@ void pv::CpuCore::emulate_mmu(mcontext_t *mcontext, cs_insn *insn) {
             mMemory->mapGuestPage(value, km::PageFlags::eAll, real);
         }
     }
+
+    SignalAssert("unhandled page fault: %s %s\n", insn->mnemonic, insn->op_str);
 }
 
 void pv::CpuCore::sigsegv(mcontext_t *mcontext) {
+    if (mIsHandlingFault) {
+        SignalAssert("pv::CpuCore::sigsegv() already handling fault\n");
+    }
+
+    mIsHandlingFault = true;
+    defer { mIsHandlingFault = false; };
+
     uintptr_t rip = mcontext->gregs[REG_RIP];
     size_t size = 15;
     uint64_t pc = rip;
@@ -202,7 +241,12 @@ void pv::CpuCore::sigsegv(mcontext_t *mcontext) {
         PV_POSIX_ERROR(EINVAL, "cs_disasm_iter failed: %s (%d)\n", cs_strerror(cserr), cserr);
     }
 
-    SignalWrite(STDERR_FILENO, "%p: %s %s\n", (void*)rip, mInstruction->mnemonic, mInstruction->op_str);
+    if (mcontext->gregs[REG_CR2] != 0) {
+        emulate_mmu(mcontext, mInstruction);
+        return;
+    }
+
+    SignalLog("%p: %s %s %p\n", (void*)rip, mInstruction->mnemonic, mInstruction->op_str, (void*)mcontext->gregs[REG_CR2]);
 
     switch (mInstruction->id) {
     case X86_INS_RDMSR:
@@ -245,6 +289,12 @@ void pv::CpuCore::sigsegv(mcontext_t *mcontext) {
         emulate_sti(mcontext, mInstruction);
         break;
 
+    case X86_INS_UD2:
+        // Special case for idt tests, should really have a SIGILL handler and then use that
+        // but can't be bothered to set it up right now
+        mIdt.raise(mcontext, km::isr::UD);
+        break;
+
     default:
         // If the sigsegv is not due to a privileged instruction, its probably a page fault
         emulate_mmu(mcontext, mInstruction);
@@ -254,6 +304,8 @@ void pv::CpuCore::sigsegv(mcontext_t *mcontext) {
 
 void pv::CpuCore::run() {
     pv::Machine::initChild();
+
+    SignalLog("apicid: %u\n", mApicState.getApicId());
 
     size_t sigstksz = SIGSTKSZ;
     mSigStack = stack_t {
@@ -344,13 +396,15 @@ void pv::CpuCore::sendInitMessage(mcontext_t context) {
     PV_POSIX_CHECK(sigqueue(mChild, kSigLaunch, val));
 }
 
-pv::CpuCore::CpuCore(Memory *memory, const km::PageBuilder *pager)
+pv::CpuCore::CpuCore(Memory *memory, const km::PageBuilder *pager, uint8_t apicId)
     : mChildStack(new std::byte[0x1000 * 32]())
     , mPageBuilder(pager)
     , mMemory(memory)
+    , mApicState(apicId)
 {
+    __gcov_dump();
+    __gcov_reset();
     int flags = CLONE_FS | CLONE_FILES | CLONE_IO | SIGCHLD;
-    __gcov_flush();
     PV_POSIX_CHECK((mChild = clone(&CpuCore::start, std::bit_cast<void*>(mChildStack.get() + 0x1000 * 32), flags, this)));
 }
 
@@ -377,18 +431,29 @@ void pv::CpuCore::installSignals() {
     sigset_t sigset;
     PV_POSIX_CHECK(sigprocmask(SIG_BLOCK, nullptr, &sigset));
     PV_POSIX_CHECK(sigdelset(&sigset, SIGSEGV));
+    PV_POSIX_CHECK(sigdelset(&sigset, SIGILL));
     PV_POSIX_CHECK(sigdelset(&sigset, kSigLaunch));
     PV_POSIX_CHECK(sigdelset(&sigset, kSigDestroy));
     PV_POSIX_CHECK(sigprocmask(SIG_SETMASK, &sigset, nullptr));
 
     PV_POSIX_CHECK(sigaltstack(&mSigStack, nullptr));
 
+    struct sigaction sigill {
+        .sa_sigaction = [](int, siginfo_t *, void *context) {
+            ucontext_t *ucontext = reinterpret_cast<ucontext_t *>(context);
+            mcontext_t *mcontext = &ucontext->uc_mcontext;
+            fCpuCore->sigsegv(mcontext);
+            SignalLog("sigill handled: %p\n", (void*)mcontext->gregs[REG_RIP]);
+        },
+        .sa_flags = SA_SIGINFO | SA_ONSTACK,
+    };
+
     struct sigaction sigsegv {
         .sa_sigaction = [](int, siginfo_t *, void *context) {
             ucontext_t *ucontext = reinterpret_cast<ucontext_t *>(context);
             mcontext_t *mcontext = &ucontext->uc_mcontext;
             fCpuCore->sigsegv(mcontext);
-            SignalWrite(STDERR_FILENO, "sigsegv handled: %p\n", (void*)mcontext->gregs[REG_RIP]);
+            SignalLog("sigsegv handled: %p\n", (void*)mcontext->gregs[REG_RIP]);
         },
         .sa_flags = SA_SIGINFO | SA_ONSTACK,
     };
@@ -411,6 +476,7 @@ void pv::CpuCore::installSignals() {
         .sa_flags = SA_SIGINFO | SA_ONSTACK,
     };
 
+    PV_POSIX_CHECK(sigaction(SIGILL, &sigill, nullptr));
     PV_POSIX_CHECK(sigaction(SIGSEGV, &sigsegv, nullptr));
     PV_POSIX_CHECK(sigaction(kSigDestroy, &sigdestroy, nullptr));
     PV_POSIX_CHECK(sigaction(kSigLaunch, &siglaunch, nullptr));

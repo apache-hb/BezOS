@@ -1,5 +1,6 @@
 #pragma once
 
+#include "arch/isr.hpp"
 #include "gdt.h"
 
 #include "util/format.hpp"
@@ -75,31 +76,61 @@ namespace x64 {
 
     static_assert(sizeof(TaskStateSegment) == 0x68);
 
-    struct TssEntry {
-        uint16_t limit0;
-        uint16_t address0;
-        uint8_t address1;
-        uint8_t access;
-        uint8_t flags;
-        uint8_t address2;
-        uint32_t address3;
-        uint32_t reserved;
+    class [[gnu::packed]] TssEntry {
+        uint16_t mLimit0;
+        uint16_t mAddress0;
+        uint8_t mAddress1;
+        uint8_t mAccess;
+        uint8_t mFlags;
+        uint8_t mAddress2;
+        uint32_t mAddress3;
+
+        [[maybe_unused]]
+        uint32_t mReserved;
+
+        constexpr TssEntry(uintptr_t tssAddress, uint8_t dpl) noexcept
+            : mLimit0(sizeof(TaskStateSegment) - 1)
+            , mAddress0(uint16_t(tssAddress & 0xFFFF))
+            , mAddress1(uint8_t((tssAddress >> 16) & 0xFF))
+            , mAccess(uint8_t(0b10001001 | (dpl << 5)))
+            , mFlags(0)
+            , mAddress2(uint8_t((tssAddress >> 24) & 0xFF))
+            , mAddress3(uint32_t(tssAddress >> 32))
+            , mReserved(0)
+        { }
+
+    public:
+        constexpr TssEntry() noexcept = default;
+
+        constexpr TssEntry(const TaskStateSegment *tss, Privilege dpl) noexcept
+            : TssEntry(std::bit_cast<uintptr_t>(tss), std::to_underlying(dpl))
+        { }
+
+        bool isPresent() const noexcept {
+            return (mAccess & (1 << 7)) != 0;
+        }
+
+        constexpr Privilege dpl() const noexcept {
+            return Privilege((mAccess >> 5) & 0b11);
+        }
+
+        constexpr uint64_t address() const noexcept {
+            return (uint64_t(mAddress3) << 32) | (uint64_t(mAddress2) << 24) | (uint64_t(mAddress1) << 16) | mAddress0;
+        }
+
+        constexpr uint32_t limit() const noexcept {
+            return mLimit0 | (uint32_t(mFlags & 0xF) << 16);
+        }
+
+        constexpr bool granularity() const noexcept {
+            return (mFlags & (1 << 7));
+        }
     };
 
     static_assert(sizeof(TssEntry) == 0x10);
 
     static constexpr TssEntry NewTssEntry(const TaskStateSegment *tss, uint8_t dpl) {
-        uintptr_t address = (uintptr_t)tss;
-        return TssEntry {
-            .limit0 = sizeof(TaskStateSegment) - 1,
-            .address0 = uint16_t(address & 0xFFFF),
-            .address1 = uint8_t((address >> 16) & 0xFF),
-            .access = uint8_t(0b10001001 | ((dpl & 0b11) << 5)),
-            .flags = 0,
-            .address2 = uint8_t((address >> 24) & 0xFF),
-            .address3 = uint32_t(address >> 32),
-            .reserved = 0,
-        };
+        return TssEntry(tss, Privilege(dpl));
     }
 
     class GdtEntry {
@@ -116,29 +147,29 @@ namespace x64 {
 
         constexpr GdtEntry() : GdtEntry(0) { }
 
-        static constexpr GdtEntry null() {
+        static constexpr GdtEntry null() noexcept {
             return GdtEntry(Flags::eNone, Access::eNone, 0);
         }
 
-        uint64_t value() const { return mValue; }
+        constexpr uint64_t value() const noexcept { return mValue; }
 
-        uint32_t limit() const {
+        constexpr uint32_t limit() const noexcept {
             uint32_t limit = mValue & 0xFFFF;
             limit |= (mValue >> 32) & 0xF0000;
             return limit;
         }
 
-        uint32_t base() const {
+        constexpr uint32_t base() const noexcept {
             uint32_t base = (mValue >> 16) & 0xFFFF;
             base |= (mValue >> 32) & 0xFF000000;
             return base;
         }
 
-        Flags flags() const {
+        constexpr Flags flags() const noexcept {
             return Flags(mValue >> 52);
         }
 
-        Access access() const {
+        constexpr Access access() const noexcept {
             return Access((mValue >> 40) & 0xFF);
         }
     };

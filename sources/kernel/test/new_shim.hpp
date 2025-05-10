@@ -4,6 +4,7 @@
 
 #include <gtest/gtest.h>
 #include <random>
+
 #include <stdlib.h>
 
 enum AllocFlags {

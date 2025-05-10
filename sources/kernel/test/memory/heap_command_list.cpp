@@ -2,7 +2,7 @@
 
 #include "memory/heap_command_list.hpp"
 #include "memory/heap.hpp"
-#include "test/new_shim.hpp"
+#include "new_shim.hpp"
 
 class TlsfCommandListTest : public testing::Test {
 public:

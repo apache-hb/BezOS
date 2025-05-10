@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "test/fs/fs_test.hpp"
+#include "fs/fs_test.hpp"
 
 #include <filesystem>
 #include <fcntl.h>

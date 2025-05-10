@@ -79,7 +79,7 @@ pv::Machine::Machine(size_t cores, off64_t memorySize)
 {
     mCores.reserve(cores + 1);
     for (size_t i = 0; i < cores; i++) {
-        mCores.emplace_back(getMemory(), getPageBuilder());
+        mCores.emplace_back(getMemory(), getPageBuilder(), i);
     }
 }
 

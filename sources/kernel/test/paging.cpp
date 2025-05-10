@@ -8,10 +8,16 @@ TEST(PageManagerTest, WriteThrough) {
 
     km::PageBuilder pm { 48, 48, layout };
 
-    x64::pte pte;
+    x64::pte pte{};
     pm.setAddress(pte, 0xf5000);
+    ASSERT_EQ(pte.underlying, 0x0000'0000'000f'5000);
+
     pte.setPresent(true);
+    ASSERT_EQ(pte.underlying, 0x0000'0000'000f'5001);
+
     pte.setAccessed(true);
+    ASSERT_EQ(pte.underlying, 0x0000'0000'000f'5021);
+
     pm.setMemoryType(pte, km::MemoryType::eWriteThrough);
     ASSERT_EQ(pte.memoryType(), layout.writeThrough);
 
@@ -30,7 +36,7 @@ TEST(PageManagerTest, MemoryTypeIndex) {
 
     km::PageBuilder pm = { 40, 40, layout };
 
-    x64::pte pte;
+    x64::pte pte{};
     pm.setMemoryType(pte, km::MemoryType::eUncached);
 
     ASSERT_EQ(pte.memoryType(), layout.uncached);
@@ -48,7 +54,7 @@ TEST(PageManagerTest, PdeMemoryType) {
 
     km::PageBuilder pm = { 40, 40, layout };
 
-    x64::pdte pte;
+    x64::pdte pte{};
     pm.setMemoryType(pte, km::MemoryType::eUncached);
 
     ASSERT_EQ(pte.memoryType(), layout.uncached);
@@ -66,7 +72,7 @@ TEST(PageManagerTest, PdpteMemoryType) {
 
     km::PageBuilder pm = { 40, 40, layout };
 
-    x64::pdpte pte;
+    x64::pdpte pte{};
     pm.setMemoryType(pte, km::MemoryType::eUncached);
 
     ASSERT_EQ(pte.memoryType(), layout.uncached);
@@ -74,7 +80,7 @@ TEST(PageManagerTest, PdpteMemoryType) {
 
 TEST(PageManagerTest, PteEntryMemoryType) {
     for (uint8_t i = 0; i < 6; i++) {
-        x64::pte pte;
+        x64::pte pte{};
         pte.setPatEntry(i);
 
         ASSERT_EQ(pte.memoryType(), i);
@@ -83,7 +89,7 @@ TEST(PageManagerTest, PteEntryMemoryType) {
 
 TEST(PageManagerTest, PdeEntryMemoryType) {
     for (uint8_t i = 0; i < 6; i++) {
-        x64::pdte pde;
+        x64::pdte pde{};
         pde.setPatEntry(i);
 
         ASSERT_EQ(pde.memoryType(), i);
@@ -92,7 +98,7 @@ TEST(PageManagerTest, PdeEntryMemoryType) {
 
 TEST(PageManagerTest, PdpteEntryMemoryType) {
     for (uint8_t i = 0; i < 6; i++) {
-        x64::pdpte pdpte;
+        x64::pdpte pdpte{};
         pdpte.setPatEntry(i);
 
         ASSERT_EQ(pdpte.memoryType(), i);

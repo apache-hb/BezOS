@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "memory/heap.hpp"
-#include "test/new_shim.hpp"
+#include "new_shim.hpp"
 #include "util/memory.hpp"
 
 using km::TlsfHeap;

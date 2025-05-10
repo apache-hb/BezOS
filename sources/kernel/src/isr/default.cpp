@@ -3,7 +3,7 @@
 #include "log.hpp"
 #include "processor.hpp"
 
-km::IsrContext km::DefaultIsrHandler(km::IsrContext *context) {
+km::IsrContext km::DefaultIsrHandler(km::IsrContext *context) noexcept [[clang::reentrant]] {
     KmDebugMessage("[INT] ", km::GetCurrentCoreId(), " Unhandled interrupt: ", context->vector, " Error: ", context->error, "\n");
     return *context;
 }
