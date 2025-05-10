@@ -61,7 +61,7 @@ void dev::detail::IdentifySmbTable(const km::smbios::StructHeader *header, const
     stdr::copy(handle, info->Serial);
 }
 
-OsStatus dev::detail::ReadTableData(km::VirtualRange tables, vfs::ReadRequest request, vfs::ReadResult *result) {
+OsStatus dev::detail::ReadTableData(km::VirtualRangeEx tables, vfs::ReadRequest request, vfs::ReadResult *result) {
     uint64_t front = request.offset;
     uint64_t back = request.offset + request.size();
 
@@ -74,7 +74,7 @@ OsStatus dev::detail::ReadTableData(km::VirtualRange tables, vfs::ReadRequest re
     }
 
     size_t count = back - front;
-    memcpy(request.begin, (char*)tables.front + front, count);
+    memcpy(request.begin, tables.front + front, count);
     result->read = count;
     return OsStatusSuccess;
 }
@@ -159,7 +159,7 @@ OsStatus dev::AcpiTable::stat(OsFileInfo *stat) {
 }
 
 OsStatus dev::AcpiTable::read(vfs::ReadRequest request, vfs::ReadResult *result) {
-    km::VirtualRange range = km::VirtualRange::of((void*)mHeader, mHeader->length);
+    km::VirtualRangeEx range = km::VirtualRangeEx::of((void*)mHeader, mHeader->length);
     return detail::ReadTableData(range, request, result);
 }
 
@@ -200,7 +200,7 @@ OsStatus dev::AcpiRoot::stat(OsFileInfo *stat) {
 
 OsStatus dev::AcpiRoot::read(vfs::ReadRequest request, vfs::ReadResult *result) {
     const acpi::RsdpLocator *rsdp = mTables->locator();
-    km::VirtualRange range = km::VirtualRange::of((void*)rsdp, sizeof(acpi::RsdpLocator));
+    km::VirtualRangeEx range = km::VirtualRangeEx::of((void*)rsdp, sizeof(acpi::RsdpLocator));
     return detail::ReadTableData(range, request, result);
 }
 
@@ -257,7 +257,7 @@ OsStatus dev::SmBiosTable::stat(OsFileInfo *stat) {
 }
 
 OsStatus dev::SmBiosTable::read(vfs::ReadRequest request, vfs::ReadResult *result) {
-    km::VirtualRange range = km::VirtualRange::of((void*)mHeader, km::smbios::GetStructSize(mHeader));
+    km::VirtualRangeEx range = km::VirtualRangeEx::of((void*)mHeader, km::smbios::GetStructSize(mHeader));
     return detail::ReadTableData(range, request, result);
 }
 
@@ -283,7 +283,7 @@ OsStatus dev::SmBiosRoot::identify(OsIdentifyInfo *info) {
 }
 
 OsStatus dev::SmBiosRoot::stat(OsFileInfo *stat) {
-    km::VirtualRange tables = mTables->tables;
+    km::VirtualRangeEx tables = mTables->tables;
 
     *stat = OsFileInfo {
         .Name = "SMBIOS",

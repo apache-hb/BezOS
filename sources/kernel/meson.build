@@ -24,8 +24,8 @@ cpp = meson.get_compiler('cpp')
 inc = include_directories('include')
 
 common_args = [
-    '-ffile-prefix-map=' + meson.current_source_dir() + '=/',
-    '-ffile-prefix-map=../../../=/',
+    '-fmacro-prefix-map=' + meson.current_source_dir() + '=/',
+    '-fmacro-prefix-map=../../../=/',
 
     '-Wno-gnu-anonymous-struct',
     '-Wno-gnu-case-range',
@@ -288,6 +288,7 @@ if enable_aml
 endif
 
 kernel_args = [
+    '-fdebug-prefix-map=../../../=/'
 ]
 
 kernel_c_args = c_args + kernel_args

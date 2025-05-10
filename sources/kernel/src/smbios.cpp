@@ -17,7 +17,7 @@ constexpr km::MemoryRangeEx SmBiosTableRange(const T *table) {
 }
 
 template<typename T>
-static km::VirtualRange SmBiosMapTable(const T *table, km::AddressSpace& memory, km::TlsfAllocation *allocation [[gnu::nonnull]]) {
+static km::VirtualRangeEx SmBiosMapTable(const T *table, km::AddressSpace& memory, km::TlsfAllocation *allocation [[gnu::nonnull]]) {
     KmDebugMessage("[SMBIOS] Table: ", (void*)table, "\n");
     KmDebugMessage(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(table), sizeof(T))), "\n");
 
@@ -26,7 +26,7 @@ static km::VirtualRange SmBiosMapTable(const T *table, km::AddressSpace& memory,
 
     KmDebugMessage("[SMBIOS] Table address: ", km::Hex(table->tableAddress).pad(sizeof(T::tableAddress) * 2), ", Size: ", auto{table->tableSize}, "\n");
     KmDebugMessage(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(address), table->tableSize)), "\n");
-    return km::VirtualRange::of(address, table->tableSize);
+    return km::VirtualRangeEx::of(address, table->tableSize);
 }
 
 const char *km::SmBiosIterator::next(const char *address) {

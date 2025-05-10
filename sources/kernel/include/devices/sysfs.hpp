@@ -25,7 +25,7 @@ namespace dev {
         void IdentifySmbTable(const km::smbios::StructHeader *header, const km::SmBiosTables *tables, OsIdentifyInfo *info);
         void IdentifySmbRoot(const km::SmBiosTables *header, OsIdentifyInfo *info);
 
-        OsStatus ReadTableData(km::VirtualRange tables, vfs::ReadRequest request, vfs::ReadResult *result);
+        OsStatus ReadTableData(km::VirtualRangeEx tables, vfs::ReadRequest request, vfs::ReadResult *result);
     }
 
     class AcpiTable;

@@ -153,7 +153,7 @@ namespace km {
     struct SmBiosTables {
         const smbios::Entry32 *entry32;
         const smbios::Entry64 *entry64;
-        VirtualRange tables;
+        VirtualRangeEx tables;
         TlsfAllocation entry32Allocation;
         TlsfAllocation entry64Allocation;
 
