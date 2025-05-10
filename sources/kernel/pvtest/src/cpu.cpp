@@ -15,6 +15,9 @@
 
 #include "common/util/defer.hpp"
 
+extern "C" void __gcov_reset(void);
+extern "C" void __gcov_flush(void);
+
 static pv::CpuCore *fCpuCore = nullptr;
 
 static constexpr int kSigDestroy = SIGUSR1;
@@ -347,6 +350,7 @@ pv::CpuCore::CpuCore(Memory *memory, const km::PageBuilder *pager)
     , mMemory(memory)
 {
     int flags = CLONE_FS | CLONE_FILES | CLONE_IO | SIGCHLD;
+    __gcov_flush();
     PV_POSIX_CHECK((mChild = clone(&CpuCore::start, std::bit_cast<void*>(mChildStack.get() + 0x1000 * 32), flags, this)));
 }
 

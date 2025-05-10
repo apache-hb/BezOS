@@ -15,6 +15,7 @@
 #include <assert.h>
 
 extern "C" void __gcov_reset(void);
+extern "C" void __gcov_flush(void);
 
 #define ENABLE_BREAKPOINT(x) (0x1 << (x * 2))
 #define ENABLE_BREAK_EXEC(x) (pv::kBreakExec << (16 + (x * 4)))
@@ -77,6 +78,6 @@ bool pv::RemoveHwBreak(int bpnumber) noexcept {
 }
 
 void pv::ExitFork(int status) noexcept {
-    __gcov_reset();
+    __gcov_flush();
     _exit(status);
 }
