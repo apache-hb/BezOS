@@ -179,7 +179,7 @@ namespace km {
         virtual void writeIcr(uint32_t dst, uint32_t cmd) = 0;
 
         virtual uint64_t read(uint16_t offset) const = 0;
-        virtual void write(uint16_t offset, uint64_t value) = 0;
+        virtual void write(uint16_t offset, uint64_t value) noexcept [[clang::reentrant]] = 0;
 
     public:
         virtual ~IApic() = default;
@@ -215,7 +215,7 @@ namespace km {
         void setInitialCount(uint64_t count);
         uint64_t getCurrentCount();
 
-        void eoi();
+        void eoi() noexcept [[clang::reentrant]];
 
         void enable();
 
@@ -224,7 +224,7 @@ namespace km {
 
     class X2Apic final : public IApic {
         uint64_t read(uint16_t offset) const override;
-        void write(uint16_t offset, uint64_t value) override;
+        void write(uint16_t offset, uint64_t value) noexcept [[clang::reentrant]] override;
 
         void writeIcr(uint32_t icr0, uint32_t icr1) override;
 
@@ -252,7 +252,7 @@ namespace km {
         volatile uint32_t& reg(uint16_t offset) const;
 
         uint64_t read(uint16_t offset) const override;
-        void write(uint16_t offset, uint64_t value) override;
+        void write(uint16_t offset, uint64_t value) noexcept [[clang::reentrant]] override;
 
         void writeIcr(uint32_t icr0, uint32_t icr1) override;
 

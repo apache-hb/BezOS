@@ -597,7 +597,7 @@ static Stage2MemoryInfo *InitStage2Memory(const boot::LaunchInfo& launch, const 
     return stage2;
 }
 
-static km::IsrContext SpuriousVector(km::IsrContext *ctx) {
+static km::IsrContext SpuriousVector(km::IsrContext *ctx) noexcept [[clang::reentrant]] {
     KmDebugMessage("[ISR] Spurious interrupt: ", ctx->vector, "\n");
     km::IApic *pic = km::GetCpuLocalApic();
     pic->eoi();
@@ -627,7 +627,7 @@ static km::Apic EnableBootApic(km::AddressSpace& memory, bool useX2Apic) {
 
     if (kSelfTestApic) {
         km::LocalIsrTable *ist = km::GetLocalIsrTable();
-        IsrCallback testIsr = [](km::IsrContext *ctx) -> km::IsrContext {
+        IsrCallback testIsr = [](km::IsrContext *ctx) noexcept [[clang::reentrant]] -> km::IsrContext {
             KmDebugMessage("[TEST] Handled isr: ", ctx->vector, "\n");
             km::IApic *pic = km::GetCpuLocalApic();
             pic->eoi();
@@ -799,7 +799,7 @@ static void InitStage1Idt(uint16_t cs) {
 
     if (kSelfTestIdt) {
         km::LocalIsrTable *ist = GetLocalIsrTable();
-        IsrCallback old = ist->install(64, [](km::IsrContext *context) -> km::IsrContext {
+        IsrCallback old = ist->install(64, [](km::IsrContext *context) noexcept [[clang::reentrant]] -> km::IsrContext {
             KmDebugMessage("[TEST] Handled isr: ", context->vector, "\n");
             return *context;
         });
@@ -1662,7 +1662,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     InitSystem();
 
-    const IsrEntry *timerInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
+    const IsrEntry *timerInt = ist->allocate([](km::IsrContext *ctx) noexcept [[clang::reentrant]] -> km::IsrContext {
         km::IApic *apic = km::GetCpuLocalApic();
         apic->eoi();
         return *ctx;

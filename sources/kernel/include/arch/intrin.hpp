@@ -47,7 +47,7 @@ static inline uint64_t __DEFAULT_FN_ATTRS __rdmsr(uint32_t msr) {
     return arch::IntrinX86_64::rdmsr(msr);
 }
 
-static inline void __DEFAULT_FN_ATTRS __wrmsr(uint32_t msr, uint64_t value) {
+static inline void __DEFAULT_FN_ATTRS __wrmsr(uint32_t msr, uint64_t value) noexcept [[clang::reentrant]] {
     arch::IntrinX86_64::wrmsr(msr, value);
 }
 

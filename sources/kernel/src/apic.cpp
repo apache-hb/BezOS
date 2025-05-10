@@ -108,7 +108,7 @@ uint64_t km::X2Apic::read(uint16_t offset) const {
     return __rdmsr(kX2ApicBaseMsr + offset);
 }
 
-void km::X2Apic::write(uint16_t offset, uint64_t value) {
+void km::X2Apic::write(uint16_t offset, uint64_t value) noexcept [[clang::reentrant]] {
     __wrmsr(kX2ApicBaseMsr + offset, value);
 }
 
@@ -176,7 +176,7 @@ uint64_t km::LocalApic::read(uint16_t offset) const {
     return reg(offset << 4);
 }
 
-void km::LocalApic::write(uint16_t offset, uint64_t value) {
+void km::LocalApic::write(uint16_t offset, uint64_t value) noexcept [[clang::reentrant]] {
     reg(offset << 4) = value;
 }
 
@@ -236,7 +236,7 @@ uint32_t km::IApic::version() const {
     return read(apic::kApicVersion) & 0xFF;
 }
 
-void km::IApic::eoi() {
+void km::IApic::eoi() noexcept [[clang::reentrant]] {
     write(apic::kEndOfInt, 0);
 }
 

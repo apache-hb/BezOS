@@ -108,7 +108,7 @@ namespace arch {
         }
 
         [[gnu::always_inline, gnu::nodebug, gnu::used]]
-        static void wrmsr(uint32_t msr, uint64_t value) noexcept {
+        static void wrmsr(uint32_t msr, uint64_t value) noexcept [[clang::reentrant]] {
             uint32_t lo = value;
             uint32_t hi = value >> 32;
             asm volatile("wrmsr" : : "c"(msr), "a"(lo), "d"(hi));
