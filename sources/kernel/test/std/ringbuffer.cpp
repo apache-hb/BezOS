@@ -122,3 +122,85 @@ TEST_F(RingBufferStringTest, ThreadSafe) {
     ASSERT_NE(producedCount.load(), 0);
     ASSERT_EQ(consumedCount.load(), producedCount.load());
 }
+
+TEST_F(RingBufferStringTest, Reentrant) {
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+
+    struct State {
+        std::atomic<size_t> signals{0};
+        std::atomic<size_t> inThread{0};
+        std::atomic<size_t> inMainThread{0};
+        std::atomic<bool> done{false};
+        sm::AtomicRingQueue<std::string> *queue;
+    };
+
+    for (int i = 0; i < 100; i++) {
+        std::string value = "Hello, World! " + std::to_string(i);
+        if (queue.tryPush(value)) {
+            break;
+        }
+    }
+
+    {
+        sigset_t set;
+        sigemptyset(&set);
+        sigaddset(&set, SIGUSR1);
+        pthread_sigmask(SIG_BLOCK, &set, nullptr);
+    }
+
+    static State state {.queue = &queue};
+    pthread_t thread;
+    pthread_create(&thread, &attr, [](void*) -> void* {
+        struct sigaction sigusr1 {
+            .sa_sigaction = [](int, siginfo_t *, void *) {
+                std::string value = "From signal handler";
+                if (state.queue->tryPop(value)) {
+                    state.queue->tryPush(value);
+                }
+
+                state.signals += 1;
+            },
+            .sa_flags = SA_SIGINFO,
+        };
+        sigaction(SIGUSR1, &sigusr1, nullptr);
+
+        {
+            sigset_t set;
+            sigemptyset(&set);
+            sigaddset(&set, SIGUSR1);
+            sigprocmask(SIG_UNBLOCK, &set, nullptr);
+        }
+
+        while (!state.done.load()) {
+            std::string value = "Hello, World!";
+            if (state.queue->tryPop(value)) {
+                state.queue->tryPush(value);
+            }
+
+            state.inThread += 1;
+        }
+        return nullptr;
+    }, nullptr);
+
+    auto now = std::chrono::high_resolution_clock::now();
+    auto end = now + std::chrono::milliseconds(500);
+    while (now < end) {
+        std::string value = "Hello, World!";
+        queue.tryPush(value);
+        ASSERT_EQ(pthread_sigqueue(thread, SIGUSR1, {0}), 0);
+        now = std::chrono::high_resolution_clock::now();
+
+        queue.tryPop(value);
+
+        state.inMainThread += 1;
+    }
+
+    state.done.store(true);
+    pthread_join(thread, nullptr);
+    pthread_attr_destroy(&attr);
+
+    ASSERT_NE(state.signals.load(), 0);
+    ASSERT_NE(state.inThread.load(), 0);
+    ASSERT_NE(state.inMainThread.load(), 0);
+}
