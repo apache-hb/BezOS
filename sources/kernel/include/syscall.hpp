@@ -4,8 +4,8 @@
 
 #include "arch/msr.hpp"
 #include "isr/isr.hpp"
-#include "process/process.hpp"
 #include "user/user.hpp"
+#include "std/string.hpp"
 
 #include <cstdint>
 
@@ -25,10 +25,7 @@ namespace km {
         // r9 is clobbered by syscall
         // r8 is a parameter
         uint64_t rbx;
-        uint64_t rbp;
 
-        // syscall related
-        uint64_t rip;
         uint64_t rflags;
         uint64_t arg3;
         uint64_t arg2;
@@ -36,6 +33,10 @@ namespace km {
         uint64_t arg0;
         uint64_t function;
         uint64_t userStack;
+
+        // system-v abi mandates the location of these
+        uint64_t rbp;
+        uint64_t rip;
     };
 
     static_assert(sizeof(SystemCallRegisterSet) == 112, "Update user.S to reflect changes in SystemCallRegisterSet");

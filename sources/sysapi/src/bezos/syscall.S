@@ -2,6 +2,8 @@
 
 PROC(OsSystemCall)
     /* prelude */
+    pushq %rbp
+    movq %rsp, %rbp
 
     /* syscall clobbers r15 */
     pushq %r15
@@ -17,6 +19,7 @@ PROC(OsSystemCall)
 
     popq %r15
 
+    popq %rbp
     /* epilogue */
     retq
 ENDP(OsSystemCall)

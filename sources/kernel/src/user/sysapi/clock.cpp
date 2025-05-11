@@ -1,4 +1,3 @@
-#include "user/context.hpp"
 #include "user/sysapi.hpp"
 
 #include "syscall.hpp"
@@ -7,25 +6,11 @@
 
 #include <bezos/facility/clock.h>
 
-constexpr km::VerifyRules kClockStatRules {
-    .alignment = alignof(OsClockInfo),
-    .minSize = sizeof(OsClockInfo),
-    .maxSize = sizeof(OsClockInfo),
-};
-
 OsCallResult um::ClockStat(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
     uint64_t userClockInfo = regs->arg0;
     OsClockInfo info{};
 
     if (OsStatus status = system->clock->stat(&info)) {
-        return km::CallError(status);
-    }
-
-    km::SystemMemory *memory = system->memory;
-    km::PageBuilder *pm = &memory->getPageManager();
-    km::PageTables *pt = &memory->systemTables();
-
-    if (OsStatus status = km::WriteUserObject(kClockStatRules, userClockInfo, sizeof(OsClockInfo), &info, pm, pt)) {
         return km::CallError(status);
     }
 
