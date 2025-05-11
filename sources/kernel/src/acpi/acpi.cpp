@@ -218,7 +218,7 @@ template<acpi::IsAcpiTable T>
 void SetUniqueTableEntry(const T** dst, const acpi::RsdtHeader *header) {
     if (const T *table = acpi::TableCast<T>(header)) {
         if (*dst != nullptr) {
-            KmDebugMessage("[ACPI] Multiple '", T::kSignature, "' tables found. This table should be unique. I will only use the first instance of this table.\n");
+            KmDebugMessage("[ACPI] Multiple '", T::kSignature, "' tables found. This table should be unique. Using the first instance of this table.\n");
             return;
         }
 

@@ -85,7 +85,7 @@ static KeyboardState gKeyboardState;
 const km::IsrEntry *hid::InstallPs2KeyboardIsr(km::IoApicSet& ioApicSet, hid::Ps2Controller& controller, const km::IApic *target, km::LocalIsrTable *ist) {
     gController = controller;
 
-    const km::IsrEntry *keyboardInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
+    const km::IsrEntry *keyboardInt = ist->allocate([](km::IsrContext *ctx) noexcept [[clang::reentrant]] -> km::IsrContext {
         km::IApic *apic = km::GetCpuLocalApic();
         defer { apic->eoi(); };
 
@@ -137,7 +137,7 @@ const km::IsrEntry *hid::InstallPs2KeyboardIsr(km::IoApicSet& ioApicSet, hid::Ps
 const km::IsrEntry *hid::InstallPs2MouseIsr(km::IoApicSet& ioApicSet, hid::Ps2Controller& controller, const km::IApic *target, km::LocalIsrTable *ist) {
     gController = controller;
 
-    const km::IsrEntry *mouseInt = ist->allocate([](km::IsrContext *ctx) -> km::IsrContext {
+    const km::IsrEntry *mouseInt = ist->allocate([](km::IsrContext *ctx) noexcept [[clang::reentrant]] -> km::IsrContext {
         uint8_t code = gController.read();
         uint8_t x = gController.read();
         uint8_t y = gController.read();

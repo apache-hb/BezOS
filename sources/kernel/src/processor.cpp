@@ -5,7 +5,6 @@
 
 struct KernelThreadData {
     uint32_t lapicId;
-    km::LocalApic lapic;
     km::Apic pic;
 };
 

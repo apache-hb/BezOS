@@ -262,7 +262,7 @@ static void FaultProcess(km::IsrContext *context, stdx::StringView fault) {
 }
 
 void km::InstallExceptionHandlers(SharedIsrTable *ist) {
-    ist->install(isr::DE, [](km::IsrContext *context) -> km::IsrContext {
+    ist->install(isr::DE, [](km::IsrContext *context) noexcept [[clang::reentrant]] -> km::IsrContext {
         if (!IsSupervisorFault(context)) {
             FaultProcess(context, "divide by zero (#DE)");
             return *context;
@@ -273,13 +273,13 @@ void km::InstallExceptionHandlers(SharedIsrTable *ist) {
         KM_PANIC("Kernel panic.");
     });
 
-    ist->install(isr::NMI, [](km::IsrContext *context) -> km::IsrContext {
+    ist->install(isr::NMI, [](km::IsrContext *context) noexcept [[clang::reentrant]] -> km::IsrContext {
         KmDebugMessageUnlocked("[INT] Non-maskable interrupt (#NM)\n");
         DumpIsrState(context);
         return *context;
     });
 
-    ist->install(isr::UD, [](km::IsrContext *context) -> km::IsrContext {
+    ist->install(isr::UD, [](km::IsrContext *context) noexcept [[clang::reentrant]] -> km::IsrContext {
         if (!IsSupervisorFault(context)) {
             FaultProcess(context, "invalid opcode (#UD)");
             return *context;
@@ -290,7 +290,7 @@ void km::InstallExceptionHandlers(SharedIsrTable *ist) {
         KM_PANIC("Kernel panic.");
     });
 
-    ist->install(isr::DF, [](km::IsrContext *context) -> km::IsrContext {
+    ist->install(isr::DF, [](km::IsrContext *context) noexcept [[clang::reentrant]] -> km::IsrContext {
         if (!IsSupervisorFault(context)) {
             FaultProcess(context, "double fault (#DF)");
             return *context;
@@ -301,7 +301,7 @@ void km::InstallExceptionHandlers(SharedIsrTable *ist) {
         KM_PANIC("Kernel panic.");
     });
 
-    ist->install(isr::GP, [](km::IsrContext *context) -> km::IsrContext {
+    ist->install(isr::GP, [](km::IsrContext *context) noexcept [[clang::reentrant]] -> km::IsrContext {
         NmiGuard guard;
 
         if (!IsSupervisorFault(context)) {
@@ -314,7 +314,7 @@ void km::InstallExceptionHandlers(SharedIsrTable *ist) {
         KM_PANIC("Kernel panic.");
     });
 
-    ist->install(isr::PF, [](km::IsrContext *context) -> km::IsrContext {
+    ist->install(isr::PF, [](km::IsrContext *context) noexcept [[clang::reentrant]] -> km::IsrContext {
         if (!IsSupervisorFault(context)) {
             FaultProcess(context, "page fault (#PF)");
             return *context;

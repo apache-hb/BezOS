@@ -70,4 +70,6 @@ void pv::CpuIdt::raise(mcontext_t *mcontext, uint8_t vector) {
     uintptr_t rip = entry->address();
     x64::TaskStateSegment *tss = getTaskStateSegment();
     uintptr_t rsp = tss->rsp0;
+
+    invokeExceptionHandler(mcontext, rip, rsp);
 }

@@ -13,6 +13,8 @@ namespace km {
 
 namespace acpi {
     struct [[gnu::packed]] RsdpLocator {
+        static constexpr std::array<char, 8> kSignature = util::Signature("RSD PTR ");
+
         // v1 fields
         std::array<char, 8> signature;
         uint8_t checksum;

@@ -33,7 +33,7 @@ libpvtest = static_library('pvtest', pvtest_src,
     pic : true,
 )
 
-pvtest_dep = declare_dependency(
+pvtest = declare_dependency(
     include_directories : [ pvtest_inc, inc ],
     link_with : [ libpvtest ],
     dependencies : pvtest_deps,

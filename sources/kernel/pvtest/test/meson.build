@@ -42,7 +42,7 @@ foreach name, setup : pvtest_testcases
         c_args : setup.get('c_args', [ '-fsanitize=nullability' ]),
         cpp_args : setup.get('cpp_args', [ '-fsanitize=nullability' ]) + pvtest_args,
         link_args : setup.get('link_args', [ '-fsanitize=nullability' ]),
-        dependencies : setup.get('dependencies', []) + [ pvtest_dep, gtest_main ],
+        dependencies : setup.get('dependencies', []) + [ pvtest, gtest_main ],
         native : true,
         pie : true,
     )
