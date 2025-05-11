@@ -120,7 +120,7 @@ OsStatus km::SystemMemory::unmap(MappingAllocation allocation) {
     return OsStatusSuccess;
 }
 
-OsStatus km::SystemMemory::create(std::span<const boot::MemoryRegion> memmap, VirtualRangeEx systemArea, PageBuilder pm, AddressMapping pteMemory, SystemMemory *system) {
+OsStatus km::SystemMemory::create(std::span<const boot::MemoryRegion> memmap, VirtualRangeEx systemArea, PageBuilder pm, AddressMapping pteMemory, SystemMemory *system [[clang::noescape, gnu::nonnull]]) {
     system->mPageManager = pm;
 
     if (OsStatus status = km::AddressSpace::create(&system->mPageManager, pteMemory, PageFlags::eAll, systemArea, &system->mTables)) {

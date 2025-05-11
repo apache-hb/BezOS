@@ -30,7 +30,7 @@ void PageTables::setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddre
     entry.setPresent(true);
 }
 
-OsStatus PageTables::create(const PageBuilder *pm, AddressMapping pteMemory, PageFlags flags, PageTables *tables [[clang::noescape]]) [[clang::allocating]] {
+OsStatus PageTables::create(const PageBuilder *pm, AddressMapping pteMemory, PageFlags flags, PageTables *tables [[clang::noescape, gnu::nonnull]]) [[clang::allocating]] {
     tables->mSlide = pteMemory.slide();
     tables->mPageManager = pm;
     tables->mMiddleFlags = flags;

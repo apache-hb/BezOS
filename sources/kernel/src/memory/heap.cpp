@@ -116,7 +116,7 @@ TlsfHeap::TlsfHeap(PoolAllocator<TlsfBlock>&& pool, TlsfBlock *nullBlock, size_t
     init();
 }
 
-OsStatus TlsfHeap::create(MemoryRange range, TlsfHeap *heap) [[clang::allocating]] {
+OsStatus TlsfHeap::create(MemoryRange range, TlsfHeap *heap [[clang::noescape, gnu::nonnull]]) [[clang::allocating]] {
     size_t size = range.size();
     uint8_t memoryClass = detail::SizeToMemoryClass(size);
     uint16_t secondIndex = detail::SizeToSecondIndex(size, memoryClass);
@@ -140,7 +140,7 @@ OsStatus TlsfHeap::create(MemoryRange range, TlsfHeap *heap) [[clang::allocating
     return OsStatusSuccess;
 }
 
-OsStatus TlsfHeap::create(std::span<const MemoryRange> ranges, TlsfHeap *heap) [[clang::allocating]] {
+OsStatus TlsfHeap::create(std::span<const MemoryRange> ranges, TlsfHeap *heap [[clang::noescape, gnu::nonnull]]) [[clang::allocating]] {
     if (ranges.empty()) {
         return OsStatusInvalidInput;
     }

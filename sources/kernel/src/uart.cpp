@@ -93,7 +93,7 @@ size_t km::SerialPort::print(stdx::StringView src, unsigned timeout) noexcept [[
     return result;
 }
 
-OsStatus km::SerialPort::create(ComPortInfo info, SerialPort *port) noexcept [[clang::blocking, clang::nonallocating]] {
+OsStatus km::SerialPort::create(ComPortInfo info, SerialPort *port [[clang::noescape, gnu::nonnull]]) noexcept [[clang::blocking, clang::nonallocating]] {
     uint16_t base = info.port;
 
     // do initial scratch test

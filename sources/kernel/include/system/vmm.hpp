@@ -176,10 +176,10 @@ namespace sys {
         }
 
         [[nodiscard]]
-        static OsStatus create(const km::PageBuilder *pm, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager) [[clang::allocating]];
+        static OsStatus create(const km::PageBuilder *pm, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager [[clang::noescape, gnu::nonnull]]) [[clang::allocating]];
 
         [[nodiscard]]
-        static OsStatus create(const km::AddressSpace *pt, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager) [[clang::allocating]];
+        static OsStatus create(const km::AddressSpace *pt, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager [[clang::noescape, gnu::nonnull]]) [[clang::allocating]];
 
         static void setActiveMap(const AddressSpaceManager *map) noexcept;
 

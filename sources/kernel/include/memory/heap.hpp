@@ -210,9 +210,9 @@ namespace km {
         void reset() noexcept [[clang::nonallocating]];
 
         [[nodiscard]]
-        static OsStatus create(MemoryRange range, TlsfHeap *heap [[gnu::nonnull]]) [[clang::allocating]];
+        static OsStatus create(MemoryRange range, TlsfHeap *heap [[clang::noescape, gnu::nonnull]]) [[clang::allocating]];
 
         [[nodiscard]]
-        static OsStatus create(std::span<const MemoryRange> ranges, TlsfHeap *heap [[gnu::nonnull]]) [[clang::allocating]];
+        static OsStatus create(std::span<const MemoryRange> ranges, TlsfHeap *heap [[clang::noescape, gnu::nonnull]]) [[clang::allocating]];
     };
 }

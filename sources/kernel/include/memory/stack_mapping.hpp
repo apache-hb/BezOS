@@ -21,9 +21,8 @@ namespace km {
 
             if (memory.size() != address.size()) {
                 KmDebugMessage("Memory size: ", memory.size(), " != total size: ", address.size(), "\n");
+                KM_ASSERT(memory.size() == address.size());
             }
-
-            KM_ASSERT(memory.size() == address.size());
 
             if (head.isValid()) {
                 if (head.range().back != address.range().front) {
@@ -97,7 +96,7 @@ namespace km {
         }
 
         [[nodiscard]]
-        static OsStatus create(TlsfAllocation memory, TlsfAllocation address, TlsfAllocation head, TlsfAllocation tail, StackMappingAllocation *result) {
+        static OsStatus create(TlsfAllocation memory, TlsfAllocation address, TlsfAllocation head, TlsfAllocation tail, StackMappingAllocation *result [[clang::noescape, gnu::nonnull]]) {
             if (!memory.isValid() || !address.isValid() || (memory.size() != address.size())) {
                 return OsStatusInvalidInput;
             }

@@ -91,7 +91,7 @@ namespace km {
             return result == sizeof(T) ? OsStatusSuccess : OsStatusTimeout;
         }
 
-        static OsStatus create(ComPortInfo info, SerialPort *port) noexcept [[clang::blocking, clang::nonallocating]];
+        static OsStatus create(ComPortInfo info, SerialPort *port [[clang::noescape, gnu::nonnull]]) noexcept [[clang::blocking, clang::nonallocating]];
     };
 
     struct OpenSerialResult {

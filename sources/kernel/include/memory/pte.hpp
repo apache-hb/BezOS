@@ -160,7 +160,7 @@ namespace km {
         UTIL_DEFAULT_MOVE(PageTables);
 
         [[gnu::returns_nonnull]]
-        const PageBuilder *pageManager() const noexcept { return mPageManager; }
+        const PageBuilder *pageManager() const noexcept [[clang::nonblocking]] { return mPageManager; }
 
         [[gnu::returns_nonnull]]
         const x64::PageMapLevel4 *pml4() const noexcept [[clang::nonblocking]] { return mRootPageTable; }

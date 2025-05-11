@@ -110,7 +110,7 @@ constexpr bool VerifyMemoryRange(km::VirtualRangeEx memory, size_t blockSize) {
         && km::aligned(memory, blockSize) == memory; // The memory range must be aligned to the block size.
 }
 
-OsStatus km::PageTableAllocator::create(VirtualRangeEx memory, size_t blockSize, PageTableAllocator *allocator [[clang::noescape]]) noexcept [[clang::allocating]] {
+OsStatus km::PageTableAllocator::create(VirtualRangeEx memory, size_t blockSize, PageTableAllocator *allocator [[clang::noescape, gnu::nonnull]]) noexcept [[clang::allocating]] {
     if (!VerifyMemoryRange(memory, blockSize)) {
         return OsStatusInvalidInput;
     }

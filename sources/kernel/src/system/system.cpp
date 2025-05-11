@@ -107,7 +107,7 @@ sys::SystemStats sys::System::stats() {
     return stats;
 }
 
-OsStatus sys::System::create(vfs::VfsRoot *vfsRoot, km::AddressSpace *addressSpace, km::PageAllocator *pageAllocator, System *system) {
+OsStatus sys::System::create(vfs::VfsRoot *vfsRoot, km::AddressSpace *addressSpace, km::PageAllocator *pageAllocator, System *system [[clang::noescape, gnu::nonnull]]) {
     system->mPageAllocator = pageAllocator;
     system->mSystemTables = addressSpace;
     system->mVfsRoot = vfsRoot;

@@ -65,6 +65,6 @@ namespace km {
         PageAllocatorStats stats() noexcept;
 
         [[nodiscard]]
-        static OsStatus create(std::span<const boot::MemoryRegion> memmap, PageAllocator *allocator [[gnu::nonnull]]) [[clang::allocating]];
+        static OsStatus create(std::span<const boot::MemoryRegion> memmap, PageAllocator *allocator [[clang::noescape, gnu::nonnull]]) [[clang::allocating]];
     };
 }

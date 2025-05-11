@@ -78,7 +78,7 @@ namespace sm {
             return mCapacity - 1;
         }
 
-        static OsStatus create(uint32_t capacity, AtomicRingQueue<T> *queue) {
+        static OsStatus create(uint32_t capacity, AtomicRingQueue<T> *queue [[clang::noescape, gnu::nonnull]]) {
             if (capacity == 0) {
                 return OsStatusInvalidInput;
             }

@@ -208,10 +208,10 @@ namespace km {
         }
 
         [[nodiscard]]
-        static OsStatus create(const PageBuilder *pm [[gnu::nonnull]], AddressMapping pteMemory, PageFlags flags, VirtualRangeEx vmem, AddressSpace *space [[gnu::nonnull]]);
+        static OsStatus create(const PageBuilder *pm [[gnu::nonnull]], AddressMapping pteMemory, PageFlags flags, VirtualRangeEx vmem, AddressSpace *space [[clang::noescape, gnu::nonnull]]);
 
         [[nodiscard]]
-        static OsStatus create(const AddressSpace *source [[gnu::nonnull]], AddressMapping pteMemory, PageFlags flags, VirtualRangeEx vmem, AddressSpace *space [[gnu::nonnull]]);
+        static OsStatus create(const AddressSpace *source [[gnu::nonnull]], AddressMapping pteMemory, PageFlags flags, VirtualRangeEx vmem, AddressSpace *space [[clang::noescape, gnu::nonnull]]);
 
 #pragma endregion
     };

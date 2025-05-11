@@ -53,7 +53,7 @@ namespace km {
         }
 
         [[nodiscard]]
-        static OsStatus create(TlsfAllocation memory, TlsfAllocation address, MappingAllocation *result) {
+        static OsStatus create(TlsfAllocation memory, TlsfAllocation address, MappingAllocation *result [[clang::noescape, gnu::nonnull]]) {
             bool valid = memory.isValid() && address.isValid() && (memory.size() == address.size());
             if (!valid) {
                 return OsStatusInvalidInput;

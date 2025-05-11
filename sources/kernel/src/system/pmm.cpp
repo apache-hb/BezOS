@@ -613,7 +613,7 @@ OsStatus sys::MemoryManager::allocate(size_t size, size_t align, km::MemoryRange
     return OsStatusSuccess;
 }
 
-OsStatus sys::MemoryManager::create(km::PageAllocator *heap, MemoryManager *manager) {
+OsStatus sys::MemoryManager::create(km::PageAllocator *heap, MemoryManager *manager [[clang::noescape, gnu::nonnull]]) {
     *manager = MemoryManager(heap);
     return OsStatusSuccess;
 }

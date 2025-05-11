@@ -68,7 +68,7 @@ PageAllocatorStats PageAllocator::stats() noexcept {
     };
 }
 
-OsStatus PageAllocator::create(std::span<const boot::MemoryRegion> memmap, PageAllocator *allocator) [[clang::allocating]] {
+OsStatus PageAllocator::create(std::span<const boot::MemoryRegion> memmap, PageAllocator *allocator [[clang::noescape, gnu::nonnull]]) [[clang::allocating]] {
     km::TlsfHeap memoryHeap;
 
     sm::InlinedVector<MemoryRange, 16> memory;

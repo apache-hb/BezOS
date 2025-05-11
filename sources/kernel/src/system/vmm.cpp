@@ -678,7 +678,7 @@ sys::AddressSpaceManagerStats sys::AddressSpaceManager::stats() noexcept [[clang
     CLANG_DIAGNOSTIC_POP();
 }
 
-OsStatus sys::AddressSpaceManager::create(const km::PageBuilder *pm, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager) [[clang::allocating]] {
+OsStatus sys::AddressSpaceManager::create(const km::PageBuilder *pm, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager [[clang::noescape, gnu::nonnull]]) [[clang::allocating]] {
     km::TlsfHeap heap;
     km::PageTables pt;
     km::MemoryRange range { (uintptr_t)vmem.front, (uintptr_t)vmem.back };
@@ -695,7 +695,7 @@ OsStatus sys::AddressSpaceManager::create(const km::PageBuilder *pm, km::Address
     return OsStatusSuccess;
 }
 
-OsStatus sys::AddressSpaceManager::create(const km::AddressSpace *pt, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager) [[clang::allocating]] {
+OsStatus sys::AddressSpaceManager::create(const km::AddressSpace *pt, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager [[clang::noescape, gnu::nonnull]]) [[clang::allocating]] {
     if (OsStatus status = AddressSpaceManager::create(pt->pageManager(), pteMemory, flags, vmem, manager)) {
         return status;
     }

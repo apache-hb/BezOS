@@ -40,7 +40,9 @@ namespace km {
         void reserveVirtual(VirtualRange range);
 
         PageBuilder& getPageManager() { return mPageManager; }
+        const PageBuilder& getPageManager() const { return mPageManager; }
         PageTables& systemTables() { return *mTables.tables(); }
+        const PageTables& systemTables() const { return *mTables.tables(); }
         AddressSpace& pageTables() { return mTables; }
         PageAllocator& pmmAllocator() { return mPageAllocator; }
 
@@ -84,6 +86,6 @@ namespace km {
         OsStatus unmap(MappingAllocation allocation);
 
         [[nodiscard]]
-        static OsStatus create(std::span<const boot::MemoryRegion> memmap, VirtualRangeEx systemArea, PageBuilder pm, AddressMapping pteMemory, SystemMemory *system [[gnu::nonnull]]);
+        static OsStatus create(std::span<const boot::MemoryRegion> memmap, VirtualRangeEx systemArea, PageBuilder pm, AddressMapping pteMemory, SystemMemory *system [[clang::noescape, gnu::nonnull]]);
     };
 }

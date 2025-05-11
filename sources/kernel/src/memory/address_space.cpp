@@ -314,7 +314,7 @@ OsStatus km::AddressSpace::unmap(TlsfAllocation allocation) {
     return OsStatusSuccess;
 }
 
-OsStatus km::AddressSpace::create(const PageBuilder *pm, AddressMapping pteMemory, PageFlags flags, VirtualRangeEx vmem, AddressSpace *space) {
+OsStatus km::AddressSpace::create(const PageBuilder *pm, AddressMapping pteMemory, PageFlags flags, VirtualRangeEx vmem, AddressSpace *space [[clang::noescape, gnu::nonnull]]) {
     if (OsStatus status = km::PageTables::create(pm, pteMemory, flags, &space->mTables)) {
         return status;
     }
@@ -326,7 +326,7 @@ OsStatus km::AddressSpace::create(const PageBuilder *pm, AddressMapping pteMemor
     return OsStatusSuccess;
 }
 
-OsStatus km::AddressSpace::create(const AddressSpace *source, AddressMapping pteMemory, PageFlags flags, VirtualRangeEx vmem, AddressSpace *space) {
+OsStatus km::AddressSpace::create(const AddressSpace *source, AddressMapping pteMemory, PageFlags flags, VirtualRangeEx vmem, AddressSpace *space [[clang::noescape, gnu::nonnull]]) {
     if (OsStatus status = km::AddressSpace::create(source->pageManager(), pteMemory, flags, vmem, space)) {
         return status;
     }
