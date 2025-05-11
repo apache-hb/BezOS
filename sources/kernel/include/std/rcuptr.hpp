@@ -188,17 +188,17 @@ namespace sm {
 
         std::atomic<rcu::detail::ControlBlock*> mControl;
 
-        void exchangeControl(rcu::detail::ControlBlock *control) {
+        void exchangeControl(rcu::detail::ControlBlock *control) noexcept [[clang::reentrant, clang::nonblocking]] {
             if (rcu::detail::ControlBlock *cb = mControl.exchange(control)) {
                 rcu::detail::RcuReleaseStrong(cb);
             }
         }
 
-        void release() {
+        void release() noexcept [[clang::reentrant, clang::nonblocking]] {
             exchangeControl(nullptr);
         }
 
-        void acquire(rcu::detail::ControlBlock *control) {
+        void acquire(rcu::detail::ControlBlock *control) noexcept [[clang::reentrant, clang::nonblocking]] {
             if (control != nullptr && rcu::detail::RcuAcqiureStrong(control)) {
                 exchangeControl(control);
             } else {
@@ -206,24 +206,28 @@ namespace sm {
             }
         }
 
-        constexpr RcuSharedPtr(rcu::detail::ControlBlock *control, rcu::detail::AcquireControl) : RcuSharedPtr() {
+        constexpr RcuSharedPtr(rcu::detail::ControlBlock *control, rcu::detail::AcquireControl) noexcept [[clang::reentrant, clang::nonblocking]]
+            : RcuSharedPtr()
+        {
             acquire(control);
         }
 
-        constexpr RcuSharedPtr(rcu::detail::ControlBlock *control, rcu::detail::AdoptControl) : RcuSharedPtr() {
+        constexpr RcuSharedPtr(rcu::detail::ControlBlock *control, rcu::detail::AdoptControl) noexcept [[clang::reentrant, clang::nonblocking]]
+            : RcuSharedPtr()
+        {
             exchangeControl(control);
         }
 
     public:
-        constexpr RcuSharedPtr()
+        constexpr RcuSharedPtr() noexcept [[clang::reentrant, clang::nonblocking]]
             : mControl(nullptr)
         { }
 
-        constexpr RcuSharedPtr(std::nullptr_t)
+        constexpr RcuSharedPtr(std::nullptr_t) noexcept [[clang::reentrant, clang::nonblocking]]
             : mControl(nullptr)
         { }
 
-        constexpr ~RcuSharedPtr() {
+        constexpr ~RcuSharedPtr() noexcept [[clang::reentrant, clang::nonblocking]] {
             release();
         }
 
@@ -236,13 +240,15 @@ namespace sm {
         ///
         /// @param domain The domain that reclaims the pointer.
         /// @param ptr The pointer to manage.
-        constexpr RcuSharedPtr(RcuDomain *domain [[gnu::nonnull]], T *ptr);
+        constexpr RcuSharedPtr(RcuDomain *domain [[gnu::nonnull]], T *ptr) noexcept [[clang::nonreentrant, clang::allocating]];
 
         /// @brief Copy construct a shared pointer.
         ///
         /// @param other The shared pointer to copy.
         [[nodiscard]]
-        constexpr RcuSharedPtr(const RcuSharedPtr& other) : RcuSharedPtr() {
+        constexpr RcuSharedPtr(const RcuSharedPtr& other) noexcept [[clang::reentrant, clang::nonblocking]]
+            : RcuSharedPtr()
+        {
             acquire(other.mControl);
         }
 
@@ -252,7 +258,7 @@ namespace sm {
         ///
         /// @param other The shared pointer to copy.
         /// @return A reference to this shared pointer.
-        constexpr RcuSharedPtr& operator=(const RcuSharedPtr& other) {
+        constexpr RcuSharedPtr& operator=(const RcuSharedPtr& other) noexcept [[clang::reentrant, clang::nonblocking]] {
             acquire(other.mControl);
             return *this;
         }
@@ -263,7 +269,9 @@ namespace sm {
         ///
         /// @param other The shared pointer to move.
         [[nodiscard]]
-        constexpr RcuSharedPtr(RcuSharedPtr&& other) : RcuSharedPtr() {
+        constexpr RcuSharedPtr(RcuSharedPtr&& other) noexcept [[clang::reentrant, clang::nonblocking]]
+            : RcuSharedPtr()
+        {
             exchangeControl(other.mControl.exchange(nullptr));
         }
 
@@ -274,27 +282,31 @@ namespace sm {
         ///
         /// @param other The shared pointer to move.
         /// @return A reference to this shared pointer.
-        constexpr RcuSharedPtr& operator=(RcuSharedPtr&& other) {
+        constexpr RcuSharedPtr& operator=(RcuSharedPtr&& other) noexcept [[clang::reentrant, clang::nonblocking]] {
             exchangeControl(other.mControl.exchange(nullptr));
             return *this;
         }
 
         template<std::derived_from<T> O>
         [[nodiscard]]
-        constexpr RcuSharedPtr(const RcuSharedPtr<O>& other) : RcuSharedPtr() {
+        constexpr RcuSharedPtr(const RcuSharedPtr<O>& other) noexcept [[clang::reentrant, clang::nonblocking]]
+            : RcuSharedPtr()
+        {
             acquire(other.mControl);
         }
 
         template<std::derived_from<T> O>
         [[nodiscard]]
-        constexpr RcuSharedPtr(RcuSharedPtr<O>&& other) : RcuSharedPtr() {
+        constexpr RcuSharedPtr(RcuSharedPtr<O>&& other) noexcept [[clang::reentrant, clang::nonblocking]]
+            : RcuSharedPtr()
+        {
             exchangeControl(other.mControl.exchange(nullptr));
         }
 
         /// @brief Take a weak reference to this shared pointer.
         /// @note Does not require external synchronization
         /// @return A weak pointer to this shared pointer.
-        RcuWeakPtr<T> weak();
+        RcuWeakPtr<T> weak() noexcept [[clang::reentrant, clang::nonblocking]];
 
         /// @brief Compare and exchange the shared pointer.
         ///
@@ -396,14 +408,14 @@ namespace sm {
 
         /// @brief Erase the shared pointers value
         /// @note Does not require external synchronization
-        void reset() {
+        void reset() noexcept [[clang::reentrant, clang::nonblocking]] {
             release();
         }
 
         /// @brief Replace the pointer with a new value
         /// @note Does not require external synchronization
         [[nodiscard("Verify allocation succeeded")]]
-        bool reset(RcuDomain *domain [[gnu::nonnull]], T *ptr) {
+        bool reset(RcuDomain *domain [[gnu::nonnull]], T *ptr) noexcept [[clang::nonreentrant, clang::allocating]] {
             if (rcu::detail::ControlBlock *cb = rcu::detail::NewControlBlock(domain, ptr)) {
                 exchangeControl(cb);
                 return true;
@@ -415,35 +427,35 @@ namespace sm {
         /// @brief Check if the shared pointer contains a value.
         /// @note Does not require external synchronization
         /// @return True if the shared pointer contains a value, false otherwise.
-        constexpr operator bool() const {
+        constexpr operator bool() const noexcept [[clang::reentrant, clang::nonblocking]] {
             return mControl != nullptr;
         }
 
         /// @brief Check if the shared pointer contains a value.
         /// @note Does not require external synchronization
         /// @return True if the shared pointer contains a value, false otherwise.
-        constexpr bool isValid() const {
+        constexpr bool isValid() const noexcept [[clang::reentrant, clang::nonblocking]] {
             return mControl != nullptr;
         }
 
         /// @brief Check if two shared pointers point to the same object.
         /// @note Does not require external synchronization
         template<std::derived_from<T> O>
-        constexpr bool operator==(const RcuSharedPtr<O>& other) const {
+        constexpr bool operator==(const RcuSharedPtr<O>& other) const noexcept [[clang::reentrant, clang::nonblocking]] {
             return mControl == other.mControl;
         }
 
         template<std::derived_from<T> O>
-        constexpr bool operator==(const RcuWeakPtr<O>& other) const {
+        constexpr bool operator==(const RcuWeakPtr<O>& other) const noexcept [[clang::reentrant, clang::nonblocking]] {
             return mControl == other.mControl;
         }
 
         template<std::derived_from<T> O>
-        constexpr bool operator==(const RcuDynamicPtr<O>& other) const {
+        constexpr bool operator==(const RcuDynamicPtr<O>& other) const noexcept [[clang::reentrant, clang::nonblocking]] {
             return mControl == other.mControl;
         }
 
-        constexpr bool operator==(std::nullptr_t) const {
+        constexpr bool operator==(std::nullptr_t) const noexcept [[clang::reentrant, clang::nonblocking]] {
             return mControl == nullptr;
         }
 
@@ -451,7 +463,7 @@ namespace sm {
             return std::hash<rcu::detail::ControlBlock*>{}(mControl);
         }
 
-        constexpr size_t strongCount() const {
+        constexpr size_t strongCount() const noexcept [[clang::reentrant, clang::nonblocking]] {
             if (rcu::detail::ControlBlock *cb = mControl.load()) {
                 return cb->count.strongCount();
             }
@@ -459,7 +471,7 @@ namespace sm {
             return 0;
         }
 
-        constexpr size_t weakCount() const {
+        constexpr size_t weakCount() const noexcept [[clang::reentrant, clang::nonblocking]] {
             if (rcu::detail::ControlBlock *cb = mControl.load()) {
                 return cb->count.weakCount();
             }
@@ -490,11 +502,11 @@ namespace sm {
             }
         }
 
-        void release() {
+        void release() noexcept [[clang::reentrant, clang::nonblocking]] {
             exchangeControl(nullptr);
         }
 
-        void acquire(rcu::detail::ControlBlock *control) {
+        void acquire(rcu::detail::ControlBlock *control) noexcept [[clang::reentrant, clang::nonblocking]] {
             if (control != nullptr && rcu::detail::RcuAcquireWeak(control)) {
                 exchangeControl(control);
             } else {
@@ -502,7 +514,9 @@ namespace sm {
             }
         }
 
-        constexpr RcuWeakPtr(rcu::detail::ControlBlock *control, rcu::detail::AcquireControl) : RcuWeakPtr() {
+        constexpr RcuWeakPtr(rcu::detail::ControlBlock *control, rcu::detail::AcquireControl) noexcept [[clang::reentrant, clang::nonblocking]]
+            : RcuWeakPtr()
+        {
             acquire(control);
         }
 
@@ -787,7 +801,7 @@ namespace sm {
     };
 
     template<typename T, typename... Args>
-    RcuSharedPtr<T> rcuMakeShared(RcuDomain *domain [[gnu::nonnull]], Args&&... args) {
+    RcuSharedPtr<T> rcuMakeShared(RcuDomain *domain [[gnu::nonnull]], Args&&... args) noexcept [[clang::nonreentrant, clang::allocating]] {
         if (T *ptr = new (std::nothrow) T(std::forward<Args>(args)...)) {
             if (RcuSharedPtr rcu = RcuSharedPtr<T>(domain, ptr)) {
                 return rcu;
@@ -800,7 +814,7 @@ namespace sm {
     }
 
     template<typename T>
-    constexpr RcuSharedPtr<T>::RcuSharedPtr(RcuDomain *domain [[gnu::nonnull]], T *ptr) {
+    constexpr RcuSharedPtr<T>::RcuSharedPtr(RcuDomain *domain [[gnu::nonnull]], T *ptr) noexcept [[clang::nonreentrant, clang::allocating]] {
         //
         // If there is no pointer then dont bother creating a control block.
         //
@@ -820,7 +834,7 @@ namespace sm {
     }
 
     template<typename T>
-    RcuWeakPtr<T> RcuSharedPtr<T>::weak() {
+    RcuWeakPtr<T> RcuSharedPtr<T>::weak() noexcept [[clang::reentrant, clang::nonblocking]] {
         return RcuWeakPtr<T>(*this);
     }
 }

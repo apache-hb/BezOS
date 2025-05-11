@@ -128,7 +128,7 @@ bool sys::CpuLocalSchedule::stopThread(sm::RcuSharedPtr<Thread> thread) {
     return true;
 }
 
-bool sys::CpuLocalSchedule::reschedule() {
+bool sys::CpuLocalSchedule::reschedule() noexcept [[clang::reentrant, clang::nonblocking]] {
     ThreadSchedulingInfo info;
     while (mTaskQueue.tryPop(info)) {
         if (sm::RcuSharedPtr<Thread> thread = info.thread.lock()) {
@@ -203,11 +203,11 @@ bool sys::CpuLocalSchedule::scheduleNextContext(km::IsrContext *context, km::Isr
     return true;
 }
 
-sm::RcuSharedPtr<sys::Thread> sys::CpuLocalSchedule::currentThread() {
+sm::RcuSharedPtr<sys::Thread> sys::CpuLocalSchedule::currentThread() noexcept [[clang::reentrant, clang::nonblocking]] {
     return mCurrent;
 }
 
-sm::RcuSharedPtr<sys::Process> sys::CpuLocalSchedule::currentProcess() {
+sm::RcuSharedPtr<sys::Process> sys::CpuLocalSchedule::currentProcess() noexcept [[clang::reentrant, clang::nonblocking]] {
     if (mCurrent == nullptr) {
         return nullptr;
     }
@@ -382,7 +382,7 @@ OsStatus sys::GlobalSchedule::signal(sm::RcuSharedPtr<IObject> object, OsInstant
     return OsStatusSuccess;
 }
 
-void sys::GlobalSchedule::doSuspendUnlocked(sm::RcuSharedPtr<Thread> thread) {
+void sys::GlobalSchedule::doSuspendUnlocked(sm::RcuSharedPtr<Thread> thread) [[clang::nonreentrant]] {
     mSuspendSet.insert(thread.weak());
 }
 

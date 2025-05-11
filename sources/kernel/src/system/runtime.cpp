@@ -44,7 +44,7 @@ void sys::SchedulerQueueTraits::free(void *ptr) {
     gSchedulerAllocator->deallocate(ptr, 0);
 }
 
-static bool ScheduleInner(km::IsrContext *context, km::IsrContext *newContext) noexcept {
+static bool ScheduleInner(km::IsrContext *context, km::IsrContext *newContext) noexcept [[clang::reentrant]] {
     km::IApic *apic = km::GetCpuLocalApic();
     defer { apic->eoi(); };
 

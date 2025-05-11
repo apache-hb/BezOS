@@ -76,12 +76,12 @@ namespace sys {
         CpuLocalSchedule() = default;
         CpuLocalSchedule(size_t tasks, GlobalSchedule *global);
 
-        sm::RcuSharedPtr<Thread> currentThread();
-        sm::RcuSharedPtr<Process> currentProcess();
+        sm::RcuSharedPtr<Thread> currentThread() noexcept [[clang::reentrant, clang::nonblocking]];
+        sm::RcuSharedPtr<Process> currentProcess() noexcept [[clang::reentrant, clang::nonblocking]];
 
         OsStatus addThread(sm::RcuSharedPtr<Thread> thread);
 
-        bool reschedule();
+        bool reschedule() noexcept [[clang::reentrant, clang::nonblocking]];
 
         bool scheduleNextContext(km::IsrContext *context, km::IsrContext *next, void **syscallStack);
 
@@ -110,7 +110,7 @@ namespace sys {
         OsStatus suspendUnlocked(sm::RcuSharedPtr<Thread> thread) REQUIRES(mLock);
         OsStatus resumeUnlocked(sm::RcuSharedPtr<Thread> thread) REQUIRES(mLock);
 
-        void doSuspendUnlocked(sm::RcuSharedPtr<Thread> thread) REQUIRES(mLock);
+        void doSuspendUnlocked(sm::RcuSharedPtr<Thread> thread) [[clang::nonreentrant]] REQUIRES(mLock);
 
         void doResumeUnlocked(sm::RcuSharedPtr<Thread> thread) REQUIRES(mLock);
     public:
