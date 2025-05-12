@@ -1,9 +1,16 @@
 #include "bezos/arch/x86_64/asm.h"
 
+.section .text
+.cfi_sections .debug_frame
+
 PROC(OsSystemCall)
     /* prelude */
     pushq %rbp
+    .cfi_adjust_cfa_offset 8
+    .cfi_rel_offset %rbp, 0
+
     movq %rsp, %rbp
+    .cfi_def_cfa_register %rbp
 
     /* syscall clobbers r15 */
     pushq %r15
@@ -20,6 +27,9 @@ PROC(OsSystemCall)
     popq %r15
 
     popq %rbp
+    .cfi_restore %rbp
+    .cfi_def_cfa %rsp, 8
+
     /* epilogue */
     retq
 ENDP(OsSystemCall)

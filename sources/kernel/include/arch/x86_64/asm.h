@@ -16,7 +16,7 @@
     .cfi_startproc simple;
 
 #define ENDP(name) \
+    .size name,.-name; \
     .cfi_endproc; \
-    .size name,.-name;
 
 #endif /* BEZOS_X86_64_ARCH_ASM */

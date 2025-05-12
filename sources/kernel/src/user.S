@@ -1,7 +1,6 @@
 #include "arch/x86_64/asm.h"
 
 .extern KmSystemDispatchRoutine
-
 .global KmSystemEntry
 
 .global KmSystemCallStackTlsOffset
@@ -12,6 +11,20 @@ KmSystemCallStackTlsOffset:
     .quad 0
 
 .section .text
+.cfi_sections .debug_frame
+
+#define PUSHQ_CFI_REG_ALIAS(reg, alias) \
+    pushq reg; \
+    .cfi_adjust_cfa_offset 8; \
+    .cfi_rel_offset alias, 0;
+
+#define POPQ_CFI_REG_ALIAS(reg, alias) \
+    popq reg; \
+    .cfi_adjust_cfa_offset -8; \
+    .cfi_restore alias;
+
+#define PUSHQ_CFI_REG(reg) PUSHQ_CFI_REG_ALIAS(reg, reg)
+#define POPQ_CFI_REG(reg) POPQ_CFI_REG_ALIAS(reg, reg)
 
 /** syscall entry point
  * @param rax syscall number
@@ -29,6 +42,11 @@ KmSystemCallStackTlsOffset:
  * @return rax - result
  */
 PROC_SIMPLE(KmSystemEntry)
+    .cfi_signal_frame
+    .cfi_def_cfa %rsp, 0
+    .cfi_register %rip, %rcx
+    .cfi_register %rflags, %r11
+
     /* FMASK is expected to mask out interrupts before we get here
        We need to re-enable them so that the kernel remains pre-emptible.
        But NOT BEFORE SWAPGS, the interrupt handlers expect gsbase to be the kernel gs
@@ -44,54 +62,56 @@ PROC_SIMPLE(KmSystemEntry)
     sti
 
     /* pushed first to satisfy the system-v ABI */
-    pushq %rcx /* rcx is the return address */
-    pushq %rbp
+    PUSHQ_CFI_REG_ALIAS(%rcx, %rip)
+    PUSHQ_CFI_REG(%rbp)
+
     movq %rsp, %rbp
 
-    pushq %r15 /* userStack */
-    pushq %rax /* function */
-    pushq %rdi /* arg0 */
-    pushq %rsi /* arg1 */
-    pushq %rdx /* arg2 */
-    pushq %r8  /* arg3 */
-    pushq %r11 /* eflags */
+    PUSHQ_CFI_REG_ALIAS(%r15, %rsp) /* userStack */
+    PUSHQ_CFI_REG(%rax) /* function */
+    PUSHQ_CFI_REG(%rdi) /* arg0 */
+    PUSHQ_CFI_REG(%rsi) /* arg1 */
+    PUSHQ_CFI_REG(%rdx) /* arg2 */
+    PUSHQ_CFI_REG(%r8) /* arg3 */
+    PUSHQ_CFI_REG(%r11) /* eflags */
 
     /* Save general registers */
-    pushq %rbx
-    pushq %r10
-    pushq %r12
-    pushq %r13
-    pushq %r14
+    PUSHQ_CFI_REG(%rbx)
+    PUSHQ_CFI_REG(%r10)
+    PUSHQ_CFI_REG(%r12)
+    PUSHQ_CFI_REG(%r13)
+    PUSHQ_CFI_REG(%r14)
     /* Call the dispatch routine, passing the context struct */
     mov %rsp, %rdi
     call KmSystemDispatchRoutine
     /* Routine returns into rax:rdx, so no need to move it */
 
     /* Restore general registers */
-    popq %r14
-    popq %r13
-    popq %r12
-    popq %r10
-    popq %rbx
+    POPQ_CFI_REG(%r14)
+    POPQ_CFI_REG(%r13)
+    POPQ_CFI_REG(%r12)
+    POPQ_CFI_REG(%r10)
+    POPQ_CFI_REG(%rbx)
     /* set up registers for sysret */
 
-    popq %r11 /* eflags */
+    POPQ_CFI_REG(%r11) /* eflags */
     or $0x200, %r11 /* set the IF flag before returning control */
 
     /* pop function and arg0-arg3 */
     add $(5 * 8), %rsp
+    .cfi_adjust_cfa_offset -5 * 8
 
     /* Restore the user stack */
-    popq %r15
+    POPQ_CFI_REG(%r15)
 
-    popq %rbp
-    popq %rcx
-
-    movq %r15, %rsp
+    POPQ_CFI_REG(%rbp)
+    POPQ_CFI_REG(%rcx)
 
     /* Clear the interrupt flag before swapgs, otherwise an interrupt
        could observe the violated precondition. */
     cli
+
+    movq %r15, %rsp
 
     swapgs
 
