@@ -251,14 +251,6 @@ src = [
     'src/system/runtime.cpp',
     system_src,
 
-    # Process
-    # 'src/process/system.cpp',
-    # 'src/process/object.cpp',
-    # 'src/process/process.cpp',
-    # 'src/process/thread.cpp',
-    # 'src/process/schedule.cpp',
-    # 'src/process/schedule.S',
-
     'src/syscall.cpp',
     'src/processor.cpp',
 

@@ -332,22 +332,6 @@ testcases = {
     'page table list': [
         'memory/table_list.cpp',
     ],
-    # 'process': [
-    #     'process/process.cpp',
-
-    #     '../src/process/system.cpp',
-    #     '../src/process/process.cpp',
-    #     '../src/process/thread.cpp',
-    #     '../src/process/object.cpp',
-
-    #     '../src/memory.cpp',
-    #     '../src/xsave.cpp',
-    #     '../src/util/cpuid.cpp',
-    #     '../src/elf/elf.cpp',
-
-    #     '../src/util/memory.cpp',
-    #     '../src/boot.cpp',
-    # ],
     'system': [
         'system/system.cpp',
     ],
