@@ -39,6 +39,7 @@
     <!-- <xi:include href='packages/tools/cpuid.xml' /> -->
 
     <xi:include href='packages/lib/capstone.xml' />
+    <xi:include href='packages/tools/gdb.xml' />
 
     <switch on='${mode}'>
         <case it='debug'>

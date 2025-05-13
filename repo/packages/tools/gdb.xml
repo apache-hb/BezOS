@@ -1,0 +1,22 @@
+<package name='gdb' version='16.3.0'>
+    <download file='gdb-16.3.tar.gz'
+              url='https://github.com/bminor/binutils-gdb/archive/refs/tags/gdb-16.3-release.tar.gz'
+              trim-root-folder='true'
+              sha256='fbeb90a8e94a631d19e61d97f59aa2cc1eba0f365963ca4f06772ffc9ba9af5e'
+              archive='tar'>
+        <patch file='@REPO@/patches/gdb/remove-stacktrace-check.patch' />
+    </download>
+
+    <configure with='autoconf' using='@PREFIX@/automake/bin/automake'>
+        <env CC='@PREFIX@/llvm/bin/clang'
+             CXX='@PREFIX@/llvm/bin/clang++'
+             AR='@PREFIX@/llvm/bin/llvm-ar'
+             LD='@PREFIX@/llvm/bin/ld.lld'
+             CFLAGS='-march=native -mtune=native -O2'
+             CXXFLAGS='-march=native -mtune=native -O2' />
+
+        <options disable-werror=''
+                 enable-lto=''
+                 with-python='' />
+    </configure>
+</package>

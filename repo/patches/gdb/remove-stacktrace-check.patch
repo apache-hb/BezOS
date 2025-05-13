@@ -1,0 +1,22 @@
+diff --git a/gdb/frame.c b/gdb/frame-new.c
+index 3cf6b11..0d96e86 100644
+--- a/gdb/frame.c
++++ b/gdb/frame-new.c
+@@ -2372,7 +2372,7 @@ get_prev_frame_always_1 (const frame_info_ptr &this_frame)
+ 	 frame_stop_reason_symbol_string (this_frame->stop_reason));
+       return NULL;
+     }
+-
++#if 0
+   /* Check that this frame's ID isn't inner to (younger, below, next)
+      the next frame.  This happens when a frame unwind goes backwards.
+      This check is valid only if this frame and the next frame are NORMAL.
+@@ -2399,7 +2399,7 @@ get_prev_frame_always_1 (const frame_info_ptr &this_frame)
+ 	  return NULL;
+ 	}
+     }
+-
++#endif
+   /* Check that this and the next frame do not unwind the PC register
+      to the same memory location.  If they do, then even though they
+      have different frame IDs, the new frame will be bogus; two
