@@ -1,0 +1,78 @@
+#include "logger.hpp"
+
+void km::LogQueue::write(const detail::LogMessage& message) [[clang::nonreentrant]] {
+    for (ILogAppender *appender : mAppenders) {
+        appender->write(message);
+    }
+}
+
+OsStatus km::LogQueue::addAppender(ILogAppender *appender) {
+    return mAppenders.add(appender);
+}
+
+OsStatus km::LogQueue::submit(detail::LogMessage message) noexcept [[clang::reentrant]] {
+    if (mQueue.tryPush(message)) {
+        return OsStatusSuccess;
+    }
+
+    mDroppedCount.fetch_add(1, std::memory_order_relaxed);
+
+    return OsStatusOutOfMemory;
+}
+
+size_t km::LogQueue::flush() [[clang::nonreentrant]] {
+    size_t count = 0;
+    detail::LogMessage message;
+    while (mQueue.tryPop(message)) {
+        write(message);
+        count++;
+    }
+
+    mComittedCount.fetch_add(count, std::memory_order_relaxed);
+
+    return count;
+}
+
+OsStatus km::LogQueue::create(uint32_t messageQueueCapacity, LogQueue *queue) noexcept [[clang::allocating]] {
+    return MessageQueue::create(messageQueueCapacity, &queue->mQueue);
+}
+
+km::Logger::Logger(stdx::StringView name, LogQueue *queue)
+    : mQueue(queue)
+    , mName(name)
+{ }
+
+stdx::StringView km::Logger::getName() const noexcept [[clang::reentrant]] {
+    return mName;
+}
+
+void km::Logger::submit(LogLevel level, stdx::StringView message, std::source_location location) noexcept [[clang::reentrant]] {
+    detail::LogMessage logMessage {
+        .level = level,
+        .location = location,
+        .logger = this,
+        .message = message,
+    };
+
+    mQueue->submit(logMessage);
+}
+
+void km::Logger::dbg(stdx::StringView message, std::source_location location) noexcept [[clang::reentrant]] {
+    submit(LogLevel::eDebug, message, location);
+}
+
+void km::Logger::log(stdx::StringView message, std::source_location location) noexcept [[clang::reentrant]] {
+    submit(LogLevel::eInfo, message, location);
+}
+
+void km::Logger::warn(stdx::StringView message, std::source_location location) noexcept [[clang::reentrant]] {
+    submit(LogLevel::eWarning, message, location);
+}
+
+void km::Logger::error(stdx::StringView message, std::source_location location) noexcept [[clang::reentrant]] {
+    submit(LogLevel::eError, message, location);
+}
+
+void km::Logger::fatal(stdx::StringView message, std::source_location location) noexcept [[clang::reentrant]] {
+    submit(LogLevel::eFatal, message, location);
+}

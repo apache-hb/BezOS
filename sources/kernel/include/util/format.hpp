@@ -7,7 +7,7 @@
 #include "std/static_string.hpp"
 #include "std/traits.hpp"
 
-#include "std/funqual.hpp"
+#include "common/compiler/compiler.hpp"
 
 #include <span>
 #include <utility>
@@ -44,8 +44,8 @@ namespace km {
     public:
         virtual ~IOutStream() = default;
 
-        virtual void write(stdx::StringView message) NON_REENTRANT = 0;
-        virtual void write(char c) NON_REENTRANT {
+        virtual void write(stdx::StringView message) [[clang::nonreentrant]] = 0;
+        virtual void write(char c) {
             write(std::to_array({ c }));
         }
 
@@ -306,8 +306,12 @@ namespace km {
     }
 
     template<IsStreamFormat T>
-    inline void format(IOutStream& out, const T& value) {
+    inline void format(IOutStream& out, const T& value) noexcept {
         Format<T>::format(out, value);
+    }
+
+    inline void format(IOutStream& out, stdx::StringView value) noexcept {
+        out.write(value);
     }
 
     template<size_t N, IsStreamFormat T>
@@ -315,29 +319,36 @@ namespace km {
         struct OutStream final : public IOutStream {
             stdx::StaticString<N> result;
 
-            void write(stdx::StringView message) NON_REENTRANT override {
+            void write(stdx::StringView message) noexcept [[clang::reentrant]] override {
                 result.add(message);
             }
         };
 
         OutStream out;
-        format(out, value);
+        out.format(value);
 
         return out.result;
     }
 
     template<size_t N, typename... T>
-    inline stdx::StaticString<N> concat(T&&... args) {
+    inline stdx::StaticString<N> concat(T&&... args) noexcept [[clang::reentrant]] {
         struct OutStream final : public IOutStream {
             stdx::StaticString<N> result;
 
-            void write(stdx::StringView message) NON_REENTRANT override {
+            void write(stdx::StringView message) noexcept [[clang::reentrant]] override {
                 result.add(message);
             }
         };
 
+        CLANG_DIAGNOSTIC_PUSH();
+        CLANG_DIAGNOSTIC_IGNORE("-Wfunction-effects");
+        // Formatting may not be reentrant, but only if the format function is not reentrant.
+        // In this case we control the format function and know it is reentrant.
+
         OutStream out;
-        (format(out, args), ...);
+        (out.format(args), ...);
+
+        CLANG_DIAGNOSTIC_POP();
 
         return out.result;
     }

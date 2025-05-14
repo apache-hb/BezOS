@@ -46,8 +46,6 @@
 #include "notify.hpp"
 #include "panic.hpp"
 #include "processor.hpp"
-#include "process/system.hpp"
-#include "process/process.hpp"
 #include "setup.hpp"
 #include "smp.hpp"
 #include "std/static_vector.hpp"
@@ -110,13 +108,13 @@ public:
 
     constexpr SerialLog() { }
 
-    void write(stdx::StringView message) NON_REENTRANT override {
+    void write(stdx::StringView message) [[clang::nonreentrant]] override {
         mPort.print(message);
     }
 };
 
 class DebugPortLog final : public IOutStream {
-    void write(stdx::StringView message) NON_REENTRANT override {
+    void write(stdx::StringView message) [[clang::nonreentrant]] override {
         for (char c : message) {
             __outbyte(0xE9, c);
         }
@@ -136,7 +134,7 @@ public:
         : mTerminal(terminal)
     { }
 
-    void write(stdx::StringView message) NON_REENTRANT override {
+    void write(stdx::StringView message) [[clang::nonreentrant]] override {
         mTerminal.print(message);
     }
 
@@ -155,7 +153,7 @@ class DebugLog final : public IOutStream {
 public:
     constexpr DebugLog() { }
 
-    void write(stdx::StringView message) NON_REENTRANT override {
+    void write(stdx::StringView message) [[clang::nonreentrant]] override {
         for (IOutStream *target : gLogTargets) {
             target->write(message);
         }
@@ -611,8 +609,6 @@ static km::Apic EnableBootApic(km::AddressSpace& memory, bool useX2Apic) {
 
     km::InitCpuLocalRegion();
     km::RuntimeIsrManager::cpuInit();
-
-    km::EnableCpuLocalIsrTable();
 
     SetDebugLogLock(DebugLogLockType::eSpinLock);
     km::InitKernelThread(apic);
@@ -1313,6 +1309,8 @@ static void StartupSmp(const acpi::AcpiTables& rsdt, bool umip, km::ApicTimer *a
             sys::EnterScheduler(gSysSystem->getCpuSchedule(km::GetCurrentCoreId()), apicTimer);
         });
     }
+
+    km::EnableCpuLocalIsrTable();
 
     //
     // Setup gdt that contains a TSS for this core and configure cpu state

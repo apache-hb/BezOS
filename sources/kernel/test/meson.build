@@ -177,6 +177,9 @@ testcases2 = {
     'string view': {
         'sources': files('std/string_view.cpp'),
     },
+    'logger': {
+        'sources': files('logger.cpp', '../src/logger.cpp')
+    },
     'memory range': {
         'sources': files('memory_range.cpp'),
         'link_with': [ test_shim ],
