@@ -255,3 +255,10 @@ namespace stdx {
 
     using String = StringBase<char>;
 }
+
+template<typename T, typename Allocator>
+struct std::hash<stdx::StringBase<T, Allocator>> {
+    constexpr size_t operator()(const auto& str) const {
+        return std::hash<stdx::StringViewBase<T>>{}(stdx::StringViewBase<T>(str));
+    }
+};
