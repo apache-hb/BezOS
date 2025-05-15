@@ -77,7 +77,11 @@ clean:
 
 .PHONY: check
 check: | clean-coverage
-	meson test -C $(KERNEL_PATH)
+	meson test -C $(KERNEL_PATH) --suite kernel --suite pvtest
+
+.PHONY: soak
+soak: | clean-coverage
+	meson test -C $(KERNEL_PATH) --suite kernel-soak
 
 $(COVERAGE_REPORT): $(GCDA_FILES)
 	ninja -C $(KERNEL_PATH) coverage

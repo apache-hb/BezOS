@@ -147,6 +147,23 @@ namespace mem {
     class AllocatorPointer {
         mem::IAllocator *mAllocator;
     public:
+        template<typename O>
+        friend class AllocatorPointer;
+
+        using value_type = T;
+        using size_type = size_t;
+        using difference_type = ptrdiff_t;
+
+        template<typename O>
+        AllocatorPointer(const AllocatorPointer<O>& other)
+            : mAllocator(other.mAllocator)
+        { }
+
+        template<typename O>
+        AllocatorPointer(AllocatorPointer<O>&& other)
+            : mAllocator(other.mAllocator)
+        { }
+
         AllocatorPointer(mem::IAllocator *allocator = nullptr)
             : mAllocator(allocator)
         { }

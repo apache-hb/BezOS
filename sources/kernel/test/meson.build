@@ -171,6 +171,13 @@ testcases2 = {
     'ringbuffer': {
         'sources': files('std/ringbuffer.cpp'),
     },
+    'ringbuffer soak': {
+        'sources': [
+            files('std/ringbuffer_soak.cpp'),
+            tlsf.get_variable('sources'),
+        ],
+        'soak': true,
+    },
     'static string': {
         'sources': files('std/static_string.cpp'),
     },
@@ -217,10 +224,17 @@ foreach name, setup : testcases2
         pie : true,
     )
 
+    timeout = 5
+    suite = 'kernel'
+    if setup.get('soak', false)
+        timeout = 60 * 5
+        suite = 'kernel-soak'
+    endif
+
     test(name, exe,
-        suite : 'kernel',
+        suite : suite,
         protocol : 'gtest',
-        timeout : 5,
+        timeout : timeout,
     )
 endforeach
 
