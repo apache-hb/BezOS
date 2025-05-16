@@ -58,6 +58,7 @@
 #include "uart.hpp"
 #include "smbios.hpp"
 #include "pci/pci.hpp"
+#include "logger/logger.hpp"
 
 #include "timer/pit.hpp"
 #include "timer/hpet.hpp"
@@ -1585,15 +1586,14 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     InitFpuSave(xsaveConfig);
 
-    KmDebugMessage("[INIT] CR0: ", x64::Cr0::load(), "\n");
-    KmDebugMessage("[INIT] CR4: ", x64::Cr4::load(), "\n");
-
     //
     // Once we have the initial gdt setup we create the global allocator.
     // The IDT depends on the allocator to create its global ISR table.
     //
     Stage2MemoryInfo *stage2 = InitStage2Memory(launch, processor);
     gMemory = stage2->memory;
+
+    LogQueue::initGlobalLogQueue(128);
 
     InitStage1Idt(SystemGdt::eLongModeCode);
     EnableInterrupts();

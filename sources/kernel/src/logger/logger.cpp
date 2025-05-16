@@ -1,4 +1,4 @@
-#include "logger.hpp"
+#include "logger/logger.hpp"
 
 void km::LogQueue::write(const detail::LogMessage& message) [[clang::nonreentrant]] {
     for (ILogAppender *appender : mAppenders) {
@@ -10,7 +10,7 @@ OsStatus km::LogQueue::addAppender(ILogAppender *appender) {
     return mAppenders.add(appender);
 }
 
-OsStatus km::LogQueue::submit(detail::LogMessage message) noexcept [[clang::reentrant]] {
+OsStatus km::LogQueue::recordMessage(detail::LogMessage message) noexcept [[clang::reentrant]] {
     if (mQueue.tryPush(message)) {
         return OsStatusSuccess;
     }
@@ -18,6 +18,21 @@ OsStatus km::LogQueue::submit(detail::LogMessage message) noexcept [[clang::reen
     mDroppedCount.fetch_add(1, std::memory_order_relaxed);
 
     return OsStatusOutOfMemory;
+}
+
+OsStatus km::LogQueue::submit(detail::LogMessage message) noexcept [[clang::reentrant]] {
+    CLANG_DIAGNOSTIC_PUSH();
+    CLANG_DIAGNOSTIC_IGNORE("-Wfunction-effects");
+
+    if (mLock.try_lock()) {
+        write(message);
+        mLock.unlock();
+        return OsStatusSuccess;
+    } else {
+        return recordMessage(message);
+    }
+
+    CLANG_DIAGNOSTIC_POP();
 }
 
 size_t km::LogQueue::flush() [[clang::nonreentrant]] {

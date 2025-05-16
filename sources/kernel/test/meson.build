@@ -185,7 +185,7 @@ testcases2 = {
         'sources': files('std/string_view.cpp'),
     },
     'logger': {
-        'sources': files('logger.cpp', '../src/logger.cpp')
+        'sources': files('logger.cpp', '../src/logger/logger.cpp')
     },
     'memory range': {
         'sources': files('memory_range.cpp'),

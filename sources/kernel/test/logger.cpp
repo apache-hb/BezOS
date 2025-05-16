@@ -2,7 +2,7 @@
 #include <latch>
 #include <thread>
 
-#include "logger.hpp"
+#include "logger/logger.hpp"
 
 class TestAppender final : public km::ILogAppender {
 public:
@@ -47,7 +47,7 @@ public:
 
 TEST_F(LoggerTest, LogMessage) {
     logger.dbgf("Test message");
-    EXPECT_EQ(queue.flush(), 1);
+    queue.flush();
     EXPECT_EQ(appender.mMessages.size(), 1);
     AssertMessage(0, km::LogLevel::eDebug, "Test message");
 }
@@ -59,7 +59,7 @@ TEST_F(LoggerTest, FormatSeverityLevels) {
     logger.errorf("Error message ", km::Hex(0xDEADBEEF), " more text");
     logger.fatalf("Fatal message ", km::enabled(true));
 
-    EXPECT_EQ(queue.flush(), 5);
+    queue.flush();
     EXPECT_EQ(appender.mMessages.size(), 5);
 
     AssertMessage(0, km::LogLevel::eDebug, std::string_view(km::concat<km::kLogMessageSize>("Debug message ", 25)));
@@ -75,7 +75,6 @@ TEST_F(LoggerTest, SeverityLevels) {
     logger.error("Error message");
     logger.fatal("Fatal message");
 
-    EXPECT_EQ(queue.flush(), 4);
     EXPECT_EQ(appender.mMessages.size(), 4);
 
     AssertMessage(0, km::LogLevel::eInfo, "Info message");
@@ -86,7 +85,6 @@ TEST_F(LoggerTest, SeverityLevels) {
 
 TEST_F(LoggerTest, LoggerSubmit) {
     logger.submit(km::LogLevel::eDebug, "Direct submit message", std::source_location::current());
-    EXPECT_EQ(queue.flush(), 1);
     EXPECT_EQ(appender.mMessages.size(), 1);
     AssertMessage(0, km::LogLevel::eDebug, "Direct submit message");
 }
@@ -98,7 +96,7 @@ TEST_F(LoggerTest, QueueSubmit) {
         .logger = &logger,
         .message = "Submit message",
     };
-    queue.submit(message);
+    queue.recordMessage(message);
     EXPECT_EQ(queue.flush(), 1);
     EXPECT_EQ(appender.mMessages.size(), 1);
     AssertMessage(0, km::LogLevel::eDebug, "Submit message");
@@ -120,7 +118,7 @@ TEST_F(LoggerTest, ThreadSafe) {
 
     latch.arrive_and_wait();
     threads.clear();
-    EXPECT_EQ(queue.flush(), kQueueSize);
+    queue.flush();
     EXPECT_EQ(appender.mMessages.size(), kQueueSize);
     for (size_t i = 0; i < kQueueSize; ++i) {
         AssertMessage(i, km::LogLevel::eInfo, "Thread message");
@@ -129,9 +127,14 @@ TEST_F(LoggerTest, ThreadSafe) {
 
 TEST_F(LoggerTest, QueueOverflow) {
     for (size_t i = 0; i < kQueueSize * 2; ++i) {
-        logger.log("Overflow message");
+        queue.recordMessage({
+            .level = km::LogLevel::eInfo,
+            .location = std::source_location::current(),
+            .logger = &logger,
+            .message = "Overflow message",
+        });
     }
-    EXPECT_EQ(queue.flush(), kQueueSize);
+    queue.flush();
     EXPECT_EQ(queue.getDroppedCount(), kQueueSize);
     EXPECT_EQ(queue.getCommittedCount(), kQueueSize);
     EXPECT_EQ(appender.mMessages.size(), kQueueSize);
