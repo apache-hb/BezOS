@@ -315,7 +315,7 @@ namespace km {
     }
 
     template<size_t N, IsStreamFormat T>
-    inline stdx::StaticString<N> ToStaticString(const T& value) {
+    inline stdx::StaticString<N> toStaticString(const T& value) {
         struct OutStream final : public IOutStream {
             stdx::StaticString<N> result;
 
@@ -355,7 +355,7 @@ namespace km {
 
     template<typename T> requires (IsStreamFormat<T> && IsFormatSize<T> && !IsFormat<T>)
     inline constexpr auto format(T value) {
-        return ToStaticString<kFormatSize<T>>(value);
+        return toStaticString<kFormatSize<T>>(value);
     }
 
     template<IsFormatEx T>
@@ -378,38 +378,4 @@ namespace km {
     struct Format<OsStatusId> {
         static void format(IOutStream& out, OsStatusId value);
     };
-
-    enum class Align {
-        eLeft,
-        eRight,
-    };
-
-    struct FormatSpecifier {
-        Align align = Align::eRight;
-        unsigned width = 0;
-        char fill = ' ';
-    };
-
-    template<IsFormat T>
-    struct FormatOf {
-        T value;
-        FormatSpecifier specifier;
-    };
-
-    struct FormatBuilder {
-        FormatSpecifier values;
-
-        template<IsFormat T>
-        FormatOf<T> operator+(T value) const {
-            return { value, values };
-        }
-    };
-
-    constexpr FormatBuilder lpad(unsigned width, char fill = ' ') {
-        return { { Align::eLeft, width, fill } };
-    }
-
-    constexpr FormatBuilder rpad(unsigned width, char fill = ' ') {
-        return { { Align::eRight, width, fill } };
-    }
 }

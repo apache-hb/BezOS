@@ -168,7 +168,8 @@ constinit static DebugLog gDebugLog;
 constinit static km::SerialAppender gSerialAppender;
 constinit static km::VgaAppender gVgaAppender;
 
-constinit static km::Logger Init { "INIT" };
+constinit static km::Logger InitLog { "INIT" };
+constinit static km::Logger VfsLog { "VFS" };
 
 km::IOutStream *km::GetDebugStream() {
     return &gDebugLog;
@@ -197,6 +198,7 @@ enum {
 
 void km::SetupInitialGdt(void) {
     InitGdt(gBootGdt.entries, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
+    InitLog.log("GDT initialized");
 }
 
 void km::SetupApGdt(void) {
@@ -567,7 +569,7 @@ static Stage2MemoryInfo *InitStage2Memory(const boot::LaunchInfo& launch, const 
         .size = kPtAllocSize
     };
 
-    KmDebugMessage("[INIT] Page table memory: ", pteMapping, "\n");
+    InitLog.dbgf("Page table memory: ", pteMapping);
 
     SystemMemory *memory = new SystemMemory;
     KM_CHECK(memory != nullptr, "Failed to allocate memory for SystemMemory.");
@@ -700,71 +702,71 @@ static void LogSystemInfo(
     const ComPortInfo& com1Info
 ) {
 
-    Init.logf("System report.");
-    Init.println("| Component     | Property             | Status");
-    Init.println("|---------------+----------------------+-------");
+    InitLog.logf("System report.");
+    InitLog.println("| Component     | Property             | Status");
+    InitLog.println("|---------------+----------------------+-------");
 
     if (hvInfo.has_value()) {
-        Init.println("| /SYS/HV       | Hypervisor           | ", hvInfo->name);
-        Init.println("| /SYS/HV       | Max HvCPUID leaf     | ", Hex(hvInfo->maxleaf).pad(8, '0'));
-        Init.println("| /SYS/HV       | e9 debug port        | ", enabled(hasDebugPort));
+        InitLog.println("| /SYS/HV       | Hypervisor           | ", hvInfo->name);
+        InitLog.println("| /SYS/HV       | Max HvCPUID leaf     | ", Hex(hvInfo->maxleaf).pad(8, '0'));
+        InitLog.println("| /SYS/HV       | e9 debug port        | ", enabled(hasDebugPort));
     } else {
-        Init.println("| /SYS/HV       | Hypervisor           | Not present");
-        Init.println("| /SYS/HV       | Max HvCPUID leaf     | Not applicable");
-        Init.println("| /SYS/HV       | e9 debug port        | Not applicable");
+        InitLog.println("| /SYS/HV       | Hypervisor           | Not present");
+        InitLog.println("| /SYS/HV       | Max HvCPUID leaf     | Not applicable");
+        InitLog.println("| /SYS/HV       | e9 debug port        | Not applicable");
     }
 
-    Init.println("| /SYS/MB/CPU0  | Vendor               | ", processor.vendor);
-    Init.println("| /SYS/MB/CPU0  | Model name           | ", processor.brand);
-    Init.println("| /SYS/MB/CPU0  | Max CPUID leaf       | ", Hex(processor.maxleaf).pad(8, '0'));
-    Init.println("| /SYS/MB/CPU0  | Max physical address | ", processor.maxpaddr);
-    Init.println("| /SYS/MB/CPU0  | Max virtual address  | ", processor.maxvaddr);
-    Init.println("| /SYS/MB/CPU0  | XSAVE                | ", present(processor.xsave()));
-    Init.println("| /SYS/MB/CPU0  | TSC ratio            | ", processor.coreClock.tsc, "/", processor.coreClock.core);
+    InitLog.println("| /SYS/MB/CPU0  | Vendor               | ", processor.vendor);
+    InitLog.println("| /SYS/MB/CPU0  | Model name           | ", processor.brand);
+    InitLog.println("| /SYS/MB/CPU0  | Max CPUID leaf       | ", Hex(processor.maxleaf).pad(8, '0'));
+    InitLog.println("| /SYS/MB/CPU0  | Max physical address | ", processor.maxpaddr);
+    InitLog.println("| /SYS/MB/CPU0  | Max virtual address  | ", processor.maxvaddr);
+    InitLog.println("| /SYS/MB/CPU0  | XSAVE                | ", present(processor.xsave()));
+    InitLog.println("| /SYS/MB/CPU0  | TSC ratio            | ", processor.coreClock.tsc, "/", processor.coreClock.core);
 
     if (processor.hasNominalFrequency()) {
-        Init.println("| /SYS/MB/CPU0  | Bus clock            | ", uint32_t(processor.busClock / si::hertz), "hz");
+        InitLog.println("| /SYS/MB/CPU0  | Bus clock            | ", uint32_t(processor.busClock / si::hertz), "hz");
     } else {
-        Init.println("| /SYS/MB/CPU0  | Bus clock            | Not available");
+        InitLog.println("| /SYS/MB/CPU0  | Bus clock            | Not available");
     }
 
     if (processor.hasBusFrequency()) {
-        Init.println("| /SYS/MB/CPU0  | Base frequency       | ", uint16_t(processor.baseFrequency / si::megahertz), "mhz");
-        Init.println("| /SYS/MB/CPU0  | Max frequency        | ", uint16_t(processor.maxFrequency / si::megahertz), "mhz");
-        Init.println("| /SYS/MB/CPU0  | Bus frequency        | ", uint16_t(processor.busFrequency / si::megahertz), "mhz");
+        InitLog.println("| /SYS/MB/CPU0  | Base frequency       | ", uint16_t(processor.baseFrequency / si::megahertz), "mhz");
+        InitLog.println("| /SYS/MB/CPU0  | Max frequency        | ", uint16_t(processor.maxFrequency / si::megahertz), "mhz");
+        InitLog.println("| /SYS/MB/CPU0  | Bus frequency        | ", uint16_t(processor.busFrequency / si::megahertz), "mhz");
     } else {
-        Init.println("| /SYS/MB/CPU0  | Base frequency       | Not reported via CPUID");
-        Init.println("| /SYS/MB/CPU0  | Max frequency        | Not reported via CPUID");
-        Init.println("| /SYS/MB/CPU0  | Bus frequency        | Not reported via CPUID");
+        InitLog.println("| /SYS/MB/CPU0  | Base frequency       | Not reported via CPUID");
+        InitLog.println("| /SYS/MB/CPU0  | Max frequency        | Not reported via CPUID");
+        InitLog.println("| /SYS/MB/CPU0  | Bus frequency        | Not reported via CPUID");
     }
 
-    Init.println("| /SYS/MB/CPU0  | Local APIC           | ", present(processor.lapic()));
-    Init.println("| /SYS/MB/CPU0  | 2x APIC              | ", present(processor.x2apic()));
-    Init.println("| /SYS/MB/CPU0  | SMBIOS 32 address    | ", launch.smbios32Address);
-    Init.println("| /SYS/MB/CPU0  | SMBIOS 64 address    | ", launch.smbios64Address);
+    InitLog.println("| /SYS/MB/CPU0  | Local APIC           | ", present(processor.lapic()));
+    InitLog.println("| /SYS/MB/CPU0  | 2x APIC              | ", present(processor.x2apic()));
+    InitLog.println("| /SYS/MB/CPU0  | SMBIOS 32 address    | ", launch.smbios32Address);
+    InitLog.println("| /SYS/MB/CPU0  | SMBIOS 64 address    | ", launch.smbios64Address);
 
     for (size_t i = 0; i < launch.framebuffers.size(); i++) {
         const boot::FrameBuffer& display = launch.framebuffers[i];
-        Init.println("| /SYS/VIDEO", i, "   | Display resolution   | ", display.width, "x", display.height, "x", display.bpp);
-        Init.println("| /SYS/VIDEO", i, "   | Framebuffer size     | ", sm::bytes(display.size()));
-        Init.println("| /SYS/VIDEO", i, "   | Framebuffer address  | ", display.vaddr);
-        Init.println("| /SYS/VIDEO", i, "   | Display pitch        | ", display.pitch);
-        Init.println("| /SYS/VIDEO", i, "   | EDID                 | ", display.edid);
-        Init.println("| /SYS/VIDEO", i, "   | Red channel          | (mask=", display.redMaskSize, ",shift=", display.redMaskShift, ")");
-        Init.println("| /SYS/VIDEO", i, "   | Green channel        | (mask=", display.greenMaskSize, ",shift=", display.greenMaskShift, ")");
-        Init.println("| /SYS/VIDEO", i, "   | Blue channel         | (mask=", display.blueMaskSize, ",shift=", display.blueMaskShift, ")");
+        InitLog.println("| /SYS/VIDEO", i, "   | Display resolution   | ", display.width, "x", display.height, "x", display.bpp);
+        InitLog.println("| /SYS/VIDEO", i, "   | Framebuffer size     | ", sm::bytes(display.size()));
+        InitLog.println("| /SYS/VIDEO", i, "   | Framebuffer address  | ", display.vaddr);
+        InitLog.println("| /SYS/VIDEO", i, "   | Display pitch        | ", display.pitch);
+        InitLog.println("| /SYS/VIDEO", i, "   | EDID                 | ", display.edid);
+        InitLog.println("| /SYS/VIDEO", i, "   | Red channel          | (mask=", display.redMaskSize, ",shift=", display.redMaskShift, ")");
+        InitLog.println("| /SYS/VIDEO", i, "   | Green channel        | (mask=", display.greenMaskSize, ",shift=", display.greenMaskShift, ")");
+        InitLog.println("| /SYS/VIDEO", i, "   | Blue channel         | (mask=", display.blueMaskSize, ",shift=", display.blueMaskShift, ")");
     }
 
-    Init.println("| /SYS/MB/COM1  | Status               | ", com1Status);
-    Init.println("| /SYS/MB/COM1  | Port                 | ", Hex(com1Info.port));
-    Init.println("| /SYS/MB/COM1  | Baud rate            | ", km::com::kBaudRate / com1Info.divisor);
+    InitLog.println("| /SYS/MB/COM1  | Status               | ", com1Status);
+    InitLog.println("| /SYS/MB/COM1  | Port                 | ", Hex(com1Info.port));
+    InitLog.println("| /SYS/MB/COM1  | Baud rate            | ", km::com::kBaudRate / com1Info.divisor);
 
-    Init.println("| /BOOT         | Stack                | ", launch.stack);
-    Init.println("| /BOOT         | Kernel virtual       | ", launch.kernelVirtualBase);
-    Init.println("| /BOOT         | Kernel physical      | ", launch.kernelPhysicalBase);
-    Init.println("| /BOOT         | Boot Allocator       | ", launch.earlyMemory);
-    Init.println("| /BOOT         | INITRD               | ", launch.initrd);
-    Init.println("| /BOOT         | HHDM offset          | ", Hex(launch.hhdmOffset).pad(16, '0'));
+    InitLog.println("| /BOOT         | Stack                | ", launch.stack);
+    InitLog.println("| /BOOT         | Kernel virtual       | ", launch.kernelVirtualBase);
+    InitLog.println("| /BOOT         | Kernel physical      | ", launch.kernelPhysicalBase);
+    InitLog.println("| /BOOT         | Boot Allocator       | ", launch.earlyMemory);
+    InitLog.println("| /BOOT         | INITRD               | ", launch.initrd);
+    InitLog.println("| /BOOT         | HHDM offset          | ", Hex(launch.hhdmOffset).pad(16, '0'));
 }
 
 static void SetupInterruptStacks(uint16_t cs) {
@@ -856,7 +858,7 @@ static void CreateNotificationQueue() {
     MappingAllocation aqAllocation;
 
     if (OsStatus status = gMemory->map(kAqMemorySize, PageFlags::eData, MemoryType::eWriteBack, &aqAllocation)) {
-        KmDebugMessage("[INIT] Failed to map memory for notification queue: ", OsStatusId(status), "\n");
+        InitLog.fatalf("Failed to map memory for notification queue: ", OsStatusId(status));
         KM_PANIC("Failed to map memory for notification queue.");
     }
 
@@ -868,7 +870,7 @@ static void CreateNotificationQueue() {
 static void MakeFolder(const vfs::VfsPath& path) {
     sm::RcuSharedPtr<vfs::INode> node = nullptr;
     if (OsStatus status = gVfsRoot->mkpath(path, &node)) {
-        KmDebugMessage("[VFS] Failed to create path: '", path, "' ", OsStatusId(status), "\n");
+        VfsLog.warnf("[VFS] Failed to create path: '", path, "' ", OsStatusId(status));
     }
 }
 
@@ -886,7 +888,7 @@ static void MakeUser(vfs::VfsStringView name) {
 }
 
 static void MountRootVfs() {
-    KmDebugMessage("[VFS] Initializing VFS.\n");
+    VfsLog.logf("Initializing VFS.\n");
     gVfsRoot = new vfs::VfsRoot();
 
     MakePath("System", "Options");
@@ -906,12 +908,12 @@ static void MountRootVfs() {
         sm::RcuSharedPtr<vfs::INode> node = nullptr;
         vfs::VfsPath path = vfs::BuildPath("System", "Audit", "System.log");
         if (OsStatus status = gVfsRoot->create(path, &node)) {
-            KmDebugMessage("[VFS] Failed to create ", path, ": ", OsStatusId(status), "\n");
+            VfsLog.warnf("[VFS] Failed to create ", path, ": ", OsStatusId(status));
         }
 
         std::unique_ptr<vfs::IFileHandle> log;
         if (OsStatus status = vfs::OpenFileInterface(node, nullptr, 0, std::out_ptr(log))) {
-            KmDebugMessage("[VFS] Failed to open log file: ", OsStatusId(status), "\n");
+            VfsLog.warnf("[VFS] Failed to open log file: ", OsStatusId(status));
         }
     }
 
@@ -919,12 +921,12 @@ static void MountRootVfs() {
         sm::RcuSharedPtr<vfs::INode> node = nullptr;
         vfs::VfsPath path = vfs::BuildPath("Users", "Guest", "motd.txt");
         if (OsStatus status = gVfsRoot->create(path, &node)) {
-            KmDebugMessage("[VFS] Failed to create ", path, ": ", OsStatusId(status), "\n");
+            VfsLog.warnf("[VFS] Failed to create ", path, ": ", OsStatusId(status));
         }
 
         std::unique_ptr<vfs::IFileHandle> motd;
         if (OsStatus status = vfs::OpenFileInterface(node, nullptr, 0, std::out_ptr(motd))) {
-            KmDebugMessage("[VFS] Failed to open file: ", OsStatusId(status), "\n");
+            VfsLog.warnf("[VFS] Failed to open file: ", OsStatusId(status));
         }
 
         char data[] = "Welcome.\n";
@@ -935,7 +937,7 @@ static void MountRootVfs() {
         vfs::WriteResult result;
 
         if (OsStatus status = motd->write(request, &result)) {
-            KmDebugMessage("[VFS] Failed to write file: ", OsStatusId(status), "\n");
+            VfsLog.warnf("[VFS] Failed to write file: ", OsStatusId(status));
         }
     }
 }
@@ -947,14 +949,14 @@ static void CreatePlatformVfsNodes(const km::SmBiosTables *smbios, const acpi::A
         auto node = dev::SmBiosRoot::create(gVfsRoot->domain(), smbios);
 
         if (OsStatus status = gVfsRoot->mkdevice(vfs::BuildPath("Platform", "SMBIOS"), node)) {
-            KmDebugMessage("[VFS] Failed to create SMBIOS device: ", OsStatusId(status), "\n");
+            VfsLog.warnf("[VFS] Failed to create SMBIOS device: ", OsStatusId(status));
         }
     }
 
     {
         auto node = dev::AcpiRoot::create(gVfsRoot->domain(), acpi);
         if (OsStatus status = gVfsRoot->mkdevice(vfs::BuildPath("Platform", "ACPI"), node)) {
-            KmDebugMessage("[VFS] Failed to create ACPI device: ", OsStatusId(status), "\n");
+            VfsLog.warnf("Failed to create ACPI device: ", OsStatusId(status));
         }
     }
 }
@@ -1580,15 +1582,13 @@ void LaunchKernel(boot::LaunchInfo launch) {
     SerialPortStatus com1Status = InitSerialPort(com1Info);
 
     if (OsStatus status = debug::InitDebugStream(com2Info)) {
-        Init.warnf("Failed to initialize debug stream: ", OsStatusId(status));
+        InitLog.warnf("Failed to initialize debug stream: ", OsStatusId(status));
     }
 
     LogSystemInfo(launch, hvInfo, processor, hasDebugPort, com1Status, com1Info);
 
     gBootGdt = GetBootGdt();
     SetupInitialGdt();
-
-    KmHalt();
 
     XSaveConfig xsaveConfig {
         .target = kEnableXSave ? SaveMode::eXSave : SaveMode::eFxSave,
@@ -1598,12 +1598,15 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     InitFpuSave(xsaveConfig);
 
+
     //
     // Once we have the initial gdt setup we create the global allocator.
     // The IDT depends on the allocator to create its global ISR table.
     //
     Stage2MemoryInfo *stage2 = InitStage2Memory(launch, processor);
     gMemory = stage2->memory;
+
+    KmHalt();
 
     LogQueue::initGlobalLogQueue(128);
 

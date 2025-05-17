@@ -2,21 +2,21 @@ project('bezos', [ 'c', 'cpp' ],
     default_options : [
         'cpp_std=c++26',
         'c_std=c23',
+        'build.cpp_std=c++26',
+        'build.c_std=c23',
         'warning_level=3',
         'b_pie=false',
         'b_staticpic=false',
         'b_ndebug=true',
         'cpp_eh=none',
         'cpp_rtti=false',
-        'b_coverage=true',
-        'abseil-cpp:b_coverage=false',
+        'b_coverage=false',
+        'build.b_coverage=true',
     ],
     version : '0.0.1',
     license : 'GPL-3.0-only',
     meson_version : '>=1.1.0',
 )
-
-enable_aml = false
 
 cc = meson.get_compiler('c')
 cpp = meson.get_compiler('cpp')
@@ -43,8 +43,6 @@ common_args = [
     '-fno-omit-frame-pointer',
     '-Wthread-safety',
     '-Wfunction-effects',
-    '-Wmove',
-    '-Wconsumed',
     '-D_LIBCPP_VERBOSE_ABORT(...)=(__builtin_abort())',
 ]
 
@@ -69,6 +67,7 @@ deps = [ mp_units, sysapi, concurrentqueue, stb_sprintf, common ]
 
 compiler = find_program(cc.get_id())
 objcopy = find_program('objcopy')
+is_debug = get_option('buildtype').contains('debug')
 
 # Smp startup blob
 
@@ -97,9 +96,87 @@ smp = custom_target('smp.o',
     ],
 )
 
+aml_option = get_option('aml')
+
+sanitizer_src = []
+sanitizer_args = []
+
+stack_protector_option = get_option('stack_protector').disable_auto_if(not is_debug)
+stack_protector_args = [
+    '-fstack-protector-strong'
+]
+
+ubsan_option = get_option('ubsan').disable_auto_if(not is_debug)
+ubsan_args = [
+    '-fsanitize=undefined,nullability',
+    '-fno-sanitize=function',
+]
+
+if stack_protector_option.allowed()
+    sanitizer_src += files('src/sanitizer/stack.cpp')
+    sanitizer_args += stack_protector_args
+endif
+
+if ubsan_option.allowed()
+    sanitizer_src += files('src/sanitizer/ubsan.cpp')
+    sanitizer_args += ubsan_args
+endif
+
+kernel_args = [
+    '-fdebug-prefix-map=../../../=/'
+]
+
+kernel_c_args = c_args + kernel_args + sanitizer_args
+kernel_cpp_args = cpp_args + kernel_args + sanitizer_args
+
+kernel_kwargs = {
+    'c_args': c_args + kernel_args + sanitizer_args,
+    'cpp_args': cpp_args + kernel_args + sanitizer_args,
+}
+
+native_kwargs = {
+    'c_args': c_args,
+    'cpp_args': cpp_args,
+    'native': true,
+    'override_options' : [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
+}
+
+nosan_kwargs = {
+    'c_args': c_args,
+    'cpp_args': cpp_args,
+    'native': true,
+    'override_options' : [ 'b_sanitize=none', 'b_coverage=true' ],
+}
+
 # Kernel
 
-system_src = [
+logging_src = files(
+    'src/logger/logger.cpp',
+    'src/logger/global_logger.cpp',
+    'src/logger/vga_appender.cpp',
+    'src/logger/serial_appender.cpp',
+    'src/logger/e9_appender.cpp',
+)
+
+liblogging_kernel = static_library('logging', logging_src,
+    kwargs : kernel_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+liblogging_native = static_library('logging_native', logging_src,
+    kwargs : native_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+liblogging_nosanitize = static_library('logging_nosanitize', logging_src,
+    kwargs : nosan_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+system_src = files(
     'src/system/system.cpp',
     'src/system/schedule.cpp',
     'src/system/handle.cpp',
@@ -114,7 +191,12 @@ system_src = [
     'src/system/sanitize.cpp',
 
     'src/system/vm/mapping.cpp',
-]
+)
+
+rcu_src = files(
+    'src/std/rcu.cpp',
+    'src/std/rcuptr.cpp',
+)
 
 src = [
     tlsf.get_variable('sources'),
@@ -126,8 +208,7 @@ src = [
     'src/util/uuid.cpp',
 
     # RCU
-    'src/std/rcu.cpp',
-    'src/std/rcuptr.cpp',
+    rcu_src,
 
     # Memory management
     'src/memory/layout.cpp',
@@ -145,17 +226,11 @@ src = [
     'src/memory/heap.cpp',
     'src/memory/heap_command_list.cpp',
 
-    # Logging
-    'src/logger/logger.cpp',
-    'src/logger/global_logger.cpp',
-    'src/logger/vga_appender.cpp',
-    'src/logger/serial_appender.cpp',
-    'src/logger/e9_appender.cpp',
-
     # C and C++ Runtime
     'src/crt.cpp',
     'src/cxxrt.cpp',
     'src/crt_freestanding.cpp',
+    sanitizer_src,
 
     # Interrupt handling
     'src/isr/isr.cpp',
@@ -282,58 +357,30 @@ elif host_machine.cpu_family() == 'sparc64'
     ]
 endif
 
-if enable_aml
+if aml_option.allowed()
     src += [ 'src/acpi/aml.cpp', ]
 endif
 
-kernel_args = [
-    '-fdebug-prefix-map=../../../=/'
+kernel_libs = [
+    libs,
+    liblogging_kernel,
 ]
-
-kernel_c_args = c_args + kernel_args
-kernel_cpp_args = cpp_args + kernel_args
-
-stack_protector = get_option('stack-protector').disable_auto_if(not get_option('buildtype').contains('debug'))
-if stack_protector.allowed()
-    src += files(
-        'src/sanitizer/stack.cpp',
-    )
-    kernel_c_args += [ '-fstack-protector-strong' ]
-    kernel_cpp_args += [ '-fstack-protector-strong' ]
-endif
-
-ubsan = get_option('ubsan').disable_auto_if(not get_option('buildtype').contains('debug'))
-if ubsan.allowed()
-    src += files(
-        'src/sanitizer/ubsan.cpp',
-        # 'src/sanitizer/asan.cpp',
-    )
-    san_args = [
-        '-fsanitize=undefined,nullability',
-        '-fno-sanitize=function',
-        # '-fsanitize=kernel-address',
-        # '-mllvm', '-asan-globals=false',
-        # '-mllvm', '-asan-mapping-offset=0xdfffe00000000000',
-    ]
-    kernel_c_args += san_args
-    kernel_cpp_args += san_args
-endif
 
 kernel = static_library('kernel', src,
     include_directories : inc,
-    c_args : kernel_c_args + [ '-mllvm', '-asm-macro-max-nesting-depth=256', '-D__BEZOS__=1' ],
-    cpp_args : kernel_cpp_args + [ '-D__BEZOS__=1' ],
+    c_args : kernel_c_args + [ '-mllvm', '-asm-macro-max-nesting-depth=256' ],
+    cpp_args : kernel_cpp_args,
     dependencies : deps,
-    link_with : libs,
+    link_with : kernel_libs,
     override_options : [ 'b_coverage=false' ],
 )
 
 kmain = static_library('kernel-main', 'src/main.cpp',
     include_directories : inc,
-    c_args : kernel_c_args + [ '-D__BEZOS__=1' ],
-    cpp_args : kernel_cpp_args + [ '-D__BEZOS__=1' ],
+    c_args : kernel_c_args,
+    cpp_args : kernel_cpp_args,
     dependencies : deps,
-    link_with : libs + [ kernel ],
+    link_with : kernel,
     override_options : [ 'b_coverage=false' ],
 )
 
@@ -342,8 +389,8 @@ kmain = static_library('kernel-main', 'src/main.cpp',
 ###
 
 executable('bezos-limine.elf', 'src/boot/limine.cpp',
-    c_args : c_args + [ '-D__BEZOS__=1' ],
-    cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
+    c_args : c_args,
+    cpp_args : cpp_args,
     include_directories : inc,
     link_with : kmain,
     dependencies : [ limine, deps ],
@@ -358,8 +405,8 @@ executable('bezos-limine.elf', 'src/boot/limine.cpp',
 ###
 
 executable('bezos-hyper.elf', 'src/boot/hyper.cpp',
-    c_args : c_args + [ '-D__BEZOS__=1' ],
-    cpp_args : cpp_args + [ '-D__BEZOS__=1' ],
+    c_args : c_args,
+    cpp_args : cpp_args,
     include_directories : inc,
     link_with : kmain,
     dependencies : [ ultra, deps ],

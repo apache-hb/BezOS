@@ -45,6 +45,7 @@ foreach name, setup : pvtest_testcases
         dependencies : setup.get('dependencies', []) + [ pvtest, gtest_main ],
         native : true,
         pie : true,
+        override_options : [ 'b_coverage=true' ],
     )
 
     test('pvtest ' + name.strip(), exe,

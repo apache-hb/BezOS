@@ -25,12 +25,13 @@ pvtest_args = [
 ]
 
 libpvtest = static_library('pvtest', pvtest_src,
-    c_args : [ '-Wno-missing-designated-field-initializers' ],
+    c_args : pvtest_args,
     cpp_args : pvtest_args,
     include_directories : [ pvtest_inc, inc ],
     dependencies : pvtest_deps,
     native : true,
     pic : true,
+    override_options : [ 'b_coverage=true' ],
 )
 
 pvtest = declare_dependency(

@@ -2,7 +2,7 @@
 
 #include "acpi/hpet.hpp"
 #include "apic.hpp"
-#include "log.hpp"
+#include "logger/logger.hpp"
 #include "panic.hpp"
 #include "memory/address_space.hpp"
 #include "common/util/defer.hpp"
@@ -10,6 +10,8 @@
 #include <stddef.h>
 
 using namespace stdx::literals;
+
+static constinit km::Logger AcpiLog { "ACPI" };
 
 static bool ValidateChecksum(const uint8_t *bytes, size_t length) {
     uint32_t sum = 0;
@@ -25,7 +27,7 @@ static bool ValidateRsdpLocator(const acpi::RsdpLocator *rsdp) {
     case 0:
         return ValidateChecksum((const uint8_t*)rsdp, 20);
     default:
-        KmDebugMessage("[ACPI] Unknown RSDP revision: ", rsdp->revision, ". Interpreting as an XSDT.\n");
+        AcpiLog.warnf("Unknown RSDP revision: ", rsdp->revision, ". Interpreting as an XSDT.");
     case 2:
         return ValidateChecksum((const uint8_t*)rsdp, rsdp->length);
     }
@@ -39,8 +41,8 @@ static const acpi::RsdtHeader *MapTableEntry(sm::PhysicalAddress paddr, km::Addr
     uint32_t length = header->length;
 
     if (OsStatus status = memory.unmap(headerAllocation)) {
-        KmDebugMessage("[ACPI] Failed to unmap RSDT header: ", status, "\n");
-        KmDebugMessage("[ACPI] This is not a fatal error, but the mapping at ", (void*)header, " has been leaked.\n");
+        AcpiLog.warnf("Failed to unmap RSDT header: ", status);
+        AcpiLog.warnf("This is not a fatal error, but the mapping at ", (void*)header, " has been leaked.");
     }
 
     km::TlsfAllocation tableAllocation; // TODO: this leaks
@@ -52,13 +54,13 @@ static const acpi::RsdtHeader *MapTableEntry(sm::PhysicalAddress paddr, km::Addr
 static void DebugMadt(const acpi::Madt *madt) {
     acpi::Madt table = *madt;
 
-    KmDebugMessage("| /SYS/ACPI/APIC     | Local APIC address          | ", km::Hex(table.localApicAddress).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/APIC     | Flags                       | ", bool(table.flags & acpi::MadtFlags::ePcatCompat) ? stdx::StringView("PCAT compatible") : stdx::StringView("None"), "\n");
+    AcpiLog.println("| /SYS/ACPI/APIC     | Local APIC address          | ", km::Hex(table.localApicAddress).pad(8, '0'));
+    AcpiLog.println("| /SYS/ACPI/APIC     | Flags                       | ", bool(table.flags & acpi::MadtFlags::ePcatCompat) ? stdx::StringView("PCAT compatible") : stdx::StringView("None"));
 
     uint32_t index = 0;
     for (const acpi::MadtEntry *entry : table) {
-        KmDebugMessage("| /SYS/ACPI/APIC/", km::rpad(3) + index, " | Entry type                  | ", auto{entry->type}, "\n");
-        KmDebugMessage("| /SYS/ACPI/APIC/", km::rpad(3) + index, " | Entry length                | ", auto{entry->length}, "\n");
+        AcpiLog.println("| /SYS/ACPI/APIC/", km::Int(index).pad(3), " | Entry type                  | ", auto{entry->type});
+        AcpiLog.println("| /SYS/ACPI/APIC/", km::Int(index).pad(3), " | Entry length                | ", auto{entry->length});
 
         index += 1;
     }
@@ -67,92 +69,92 @@ static void DebugMadt(const acpi::Madt *madt) {
 static void DebugMcfg(const acpi::Mcfg *mcfg) {
     for (size_t i = 0; i < mcfg->allocationCount(); i++) {
         acpi::McfgAllocation allocation = mcfg->allocations[i];
-        KmDebugMessage("| /SYS/ACPI/MCFG/", km::rpad(3) + i, " | Address                     | ", km::PhysicalAddress(allocation.address), "\n");
-        KmDebugMessage("| /SYS/ACPI/MCFG/", km::rpad(3) + i, " | PCI Segment                 | ", km::Hex(allocation.segment).pad(4, '0'), "\n");
-        KmDebugMessage("| /SYS/ACPI/MCFG/", km::rpad(3) + i, " | Bus range                   | ",
-            km::Hex(allocation.startBusNumber).pad(2, '0'), "..", km::Hex(allocation.endBusNumber).pad(2, '0'), "\n");
+        AcpiLog.println("| /SYS/ACPI/MCFG/", km::Int(i).pad(3), " | Address                     | ", km::PhysicalAddress(allocation.address));
+        AcpiLog.println("| /SYS/ACPI/MCFG/", km::Int(i).pad(3), " | PCI Segment                 | ", km::Hex(allocation.segment).pad(4, '0'));
+        AcpiLog.println("| /SYS/ACPI/MCFG/", km::Int(i).pad(3), " | Bus range                   | ",
+            km::Hex(allocation.startBusNumber).pad(2), "..", km::Hex(allocation.endBusNumber).pad(2));
     }
 }
 
 static void DebugFadt(const acpi::Fadt *fadt) {
     acpi::Fadt table = *fadt;
 
-    KmDebugMessage("| /SYS/ACPI/FACP     | Firmware control            | ", km::Hex(table.firmwareCtrl).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | DSDT                        | ", km::Hex(table.dsdt).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Preferred PM profile        | ", table.preferredPmProfile, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | SCI interrupt               | ", table.sciInt, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | SMI command                 | ", km::Hex(table.smiCmd).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | ACPI enable                 | ", table.acpiEnable, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | ACPI disable                | ", table.acpiDisable, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | S4 BIOS request             | ", table.s4BiosReq, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | P-state control             | ", table.pstateCnt, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | PM1A event block            | ", km::Hex(table.pm1aEvtBlk).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | PM1B event block            | ", km::Hex(table.pm1bEvtBlk).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | PM1A control block          | ", km::Hex(table.pm1aCntBlk).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | PM1B control block          | ", km::Hex(table.pm1bCntBlk).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | PM2 control block           | ", km::Hex(table.pm2CntBlk).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | PM timer block              | ", km::Hex(table.pmTmrBlk).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | GPE0 block                  | ", km::Hex(table.gpe0Blk).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | GPE1 block                  | ", km::Hex(table.gpe1Blk).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | PM1 event length            | ", table.pm1EvtLen, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | PM1 control length          | ", table.pm1CntLen, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | PM2 control length          | ", table.pm2CntLen, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | PM timer length             | ", table.pmTmrLen, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | GPE0 block length           | ", table.gpe0BlkLen, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | GPE1 block length           | ", table.gpe1BlkLen, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | GPE1 base                   | ", table.gpe1Base, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | C-state control             | ", table.cstateCtl, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Worst C2 latency            | ", table.worstC2Latency, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Worst C3 latency            | ", table.worstC3Latency, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Flush size                  | ", table.flushSize, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Flush stride                | ", table.flushStride, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Duty offset                 | ", table.dutyOffset, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Duty width                  | ", table.dutyWidth, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Day alarm                   | ", table.dayAlrm, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Month alarm                 | ", table.monAlrm, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Century                     | ", table.century, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | IAPC boot arch              | ", auto{table.iapcBootArch}, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Flags                       | ", km::Hex(table.flags).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Reset register              | ", table.resetReg, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Reset value                 | ", km::Hex(table.resetValue).pad(2, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | ARM boot arch               | ", km::Hex(table.armBootArch).pad(4, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | FADT minor version          | ", table.fadtMinorVersion, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Extended firmware control   | ", km::Hex(table.x_firmwareCtrl).pad(16, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Extended DSDT               | ", km::Hex(table.x_dsdt).pad(16, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Extended PM1A event block   | ", table.x_pm1aEvtBlk, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Extended PM1B event block   | ", table.x_pm1bEvtBlk, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Extended PM1A control block | ", table.x_pm1aCntBlk, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Extended PM1B control block | ", table.x_pm1bCntBlk, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Extended PM2 control block  | ", table.x_pm2CntBlk, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Extended PM timer block     | ", table.x_pmTmrBlk, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Extended GPE0 block         | ", table.x_gpe0Blk, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Extended GPE1 block         | ", table.x_gpe1Blk, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Sleep control register      | ", table.sleepControlReg, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Sleep status register       | ", table.sleepStatusReg, "\n");
-    KmDebugMessage("| /SYS/ACPI/FACP     | Hypervisor vendor ID        | ", km::Hex(table.hypervisorVendor).pad(16), "\n");
+    AcpiLog.println("| /SYS/ACPI/FACP     | Firmware control            | ", km::Hex(table.firmwareCtrl).pad(8, '0'));
+    AcpiLog.println("| /SYS/ACPI/FACP     | DSDT                        | ", km::Hex(table.dsdt).pad(8, '0'));
+    AcpiLog.println("| /SYS/ACPI/FACP     | Preferred PM profile        | ", table.preferredPmProfile);
+    AcpiLog.println("| /SYS/ACPI/FACP     | SCI interrupt               | ", table.sciInt);
+    AcpiLog.println("| /SYS/ACPI/FACP     | SMI command                 | ", km::Hex(table.smiCmd).pad(8, '0'));
+    AcpiLog.println("| /SYS/ACPI/FACP     | ACPI enable                 | ", table.acpiEnable);
+    AcpiLog.println("| /SYS/ACPI/FACP     | ACPI disable                | ", table.acpiDisable);
+    AcpiLog.println("| /SYS/ACPI/FACP     | S4 BIOS request             | ", table.s4BiosReq);
+    AcpiLog.println("| /SYS/ACPI/FACP     | P-state control             | ", table.pstateCnt);
+    AcpiLog.println("| /SYS/ACPI/FACP     | PM1A event block            | ", km::Hex(table.pm1aEvtBlk).pad(8, '0'));
+    AcpiLog.println("| /SYS/ACPI/FACP     | PM1B event block            | ", km::Hex(table.pm1bEvtBlk).pad(8, '0'));
+    AcpiLog.println("| /SYS/ACPI/FACP     | PM1A control block          | ", km::Hex(table.pm1aCntBlk).pad(8, '0'));
+    AcpiLog.println("| /SYS/ACPI/FACP     | PM1B control block          | ", km::Hex(table.pm1bCntBlk).pad(8, '0'));
+    AcpiLog.println("| /SYS/ACPI/FACP     | PM2 control block           | ", km::Hex(table.pm2CntBlk).pad(8, '0'));
+    AcpiLog.println("| /SYS/ACPI/FACP     | PM timer block              | ", km::Hex(table.pmTmrBlk).pad(8, '0'));
+    AcpiLog.println("| /SYS/ACPI/FACP     | GPE0 block                  | ", km::Hex(table.gpe0Blk).pad(8, '0'));
+    AcpiLog.println("| /SYS/ACPI/FACP     | GPE1 block                  | ", km::Hex(table.gpe1Blk).pad(8, '0'));
+    AcpiLog.println("| /SYS/ACPI/FACP     | PM1 event length            | ", table.pm1EvtLen);
+    AcpiLog.println("| /SYS/ACPI/FACP     | PM1 control length          | ", table.pm1CntLen);
+    AcpiLog.println("| /SYS/ACPI/FACP     | PM2 control length          | ", table.pm2CntLen);
+    AcpiLog.println("| /SYS/ACPI/FACP     | PM timer length             | ", table.pmTmrLen);
+    AcpiLog.println("| /SYS/ACPI/FACP     | GPE0 block length           | ", table.gpe0BlkLen);
+    AcpiLog.println("| /SYS/ACPI/FACP     | GPE1 block length           | ", table.gpe1BlkLen);
+    AcpiLog.println("| /SYS/ACPI/FACP     | GPE1 base                   | ", table.gpe1Base);
+    AcpiLog.println("| /SYS/ACPI/FACP     | C-state control             | ", table.cstateCtl);
+    AcpiLog.println("| /SYS/ACPI/FACP     | Worst C2 latency            | ", table.worstC2Latency);
+    AcpiLog.println("| /SYS/ACPI/FACP     | Worst C3 latency            | ", table.worstC3Latency);
+    AcpiLog.println("| /SYS/ACPI/FACP     | Flush size                  | ", table.flushSize);
+    AcpiLog.println("| /SYS/ACPI/FACP     | Flush stride                | ", table.flushStride);
+    AcpiLog.println("| /SYS/ACPI/FACP     | Duty offset                 | ", table.dutyOffset);
+    AcpiLog.println("| /SYS/ACPI/FACP     | Duty width                  | ", table.dutyWidth);
+    AcpiLog.println("| /SYS/ACPI/FACP     | Day alarm                   | ", table.dayAlrm);
+    AcpiLog.println("| /SYS/ACPI/FACP     | Month alarm                 | ", table.monAlrm);
+    AcpiLog.println("| /SYS/ACPI/FACP     | Century                     | ", table.century);
+    AcpiLog.println("| /SYS/ACPI/FACP     | IAPC boot arch              | ", auto{table.iapcBootArch});
+    AcpiLog.println("| /SYS/ACPI/FACP     | Flags                       | ", km::Hex(table.flags).pad(8, '0'));
+    AcpiLog.println("| /SYS/ACPI/FACP     | Reset register              | ", table.resetReg);
+    AcpiLog.println("| /SYS/ACPI/FACP     | Reset value                 | ", km::Hex(table.resetValue).pad(2, '0'));
+    AcpiLog.println("| /SYS/ACPI/FACP     | ARM boot arch               | ", km::Hex(table.armBootArch).pad(4, '0'));
+    AcpiLog.println("| /SYS/ACPI/FACP     | FADT minor version          | ", table.fadtMinorVersion);
+    AcpiLog.println("| /SYS/ACPI/FACP     | Extended firmware control   | ", km::Hex(table.x_firmwareCtrl).pad(16, '0'));
+    AcpiLog.println("| /SYS/ACPI/FACP     | Extended DSDT               | ", km::Hex(table.x_dsdt).pad(16, '0'));
+    AcpiLog.println("| /SYS/ACPI/FACP     | Extended PM1A event block   | ", table.x_pm1aEvtBlk);
+    AcpiLog.println("| /SYS/ACPI/FACP     | Extended PM1B event block   | ", table.x_pm1bEvtBlk);
+    AcpiLog.println("| /SYS/ACPI/FACP     | Extended PM1A control block | ", table.x_pm1aCntBlk);
+    AcpiLog.println("| /SYS/ACPI/FACP     | Extended PM1B control block | ", table.x_pm1bCntBlk);
+    AcpiLog.println("| /SYS/ACPI/FACP     | Extended PM2 control block  | ", table.x_pm2CntBlk);
+    AcpiLog.println("| /SYS/ACPI/FACP     | Extended PM timer block     | ", table.x_pmTmrBlk);
+    AcpiLog.println("| /SYS/ACPI/FACP     | Extended GPE0 block         | ", table.x_gpe0Blk);
+    AcpiLog.println("| /SYS/ACPI/FACP     | Extended GPE1 block         | ", table.x_gpe1Blk);
+    AcpiLog.println("| /SYS/ACPI/FACP     | Sleep control register      | ", table.sleepControlReg);
+    AcpiLog.println("| /SYS/ACPI/FACP     | Sleep status register       | ", table.sleepStatusReg);
+    AcpiLog.println("| /SYS/ACPI/FACP     | Hypervisor vendor ID        | ", km::Hex(table.hypervisorVendor).pad(16));
 }
 
 static void DebugHpet(const acpi::Hpet *hpet) {
     acpi::Hpet table = *hpet;
 
-    KmDebugMessage("| /SYS/ACPI/HPET     | Event timer block ID        | ", km::Hex(table.evtTimerBlockId).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/HPET     | Base address                | ", table.baseAddress, "\n");
-    KmDebugMessage("| /SYS/ACPI/HPET     | HPET number                 | ", table.hpetNumber, "\n");
-    KmDebugMessage("| /SYS/ACPI/HPET     | Clock tick                  | ", auto{table.clockTick}, "\n");
-    KmDebugMessage("| /SYS/ACPI/HPET     | Page protection             | ", table.pageProtection, "\n");
+    AcpiLog.println("| /SYS/ACPI/HPET     | Event timer block ID        | ", km::Hex(table.evtTimerBlockId).pad(8, '0'));
+    AcpiLog.println("| /SYS/ACPI/HPET     | Base address                | ", table.baseAddress);
+    AcpiLog.println("| /SYS/ACPI/HPET     | HPET number                 | ", table.hpetNumber);
+    AcpiLog.println("| /SYS/ACPI/HPET     | Clock tick                  | ", auto{table.clockTick});
+    AcpiLog.println("| /SYS/ACPI/HPET     | Page protection             | ", table.pageProtection);
 }
 
 static void PrintRsdtEntry(const acpi::RsdtHeader *entry, sm::PhysicalAddress paddr) {
     acpi::RsdtHeader table = *entry;
-    KmDebugMessage("| /SYS/ACPI/", table.signature, "     | Address                     | ", paddr, "\n");
-    KmDebugMessage("| /SYS/ACPI/", table.signature, "     | Signature                   | '", stdx::StringView(table.signature), "'\n");
-    KmDebugMessage("| /SYS/ACPI/", table.signature, "     | Length                      | ", table.length, "\n");
-    KmDebugMessage("| /SYS/ACPI/", table.signature, "     | Revision                    | ", table.revision, "\n");
-    KmDebugMessage("| /SYS/ACPI/", table.signature, "     | OEM                         | ", stdx::StringView(table.oemid), "\n");
-    KmDebugMessage("| /SYS/ACPI/", table.signature, "     | Table ID                    | ", stdx::StringView(table.tableId), "\n");
-    KmDebugMessage("| /SYS/ACPI/", table.signature, "     | OEM revision                | ", table.oemRevision, "\n");
-    KmDebugMessage("| /SYS/ACPI/", table.signature, "     | Creator ID                  | ", km::Hex(table.creatorId), "\n");
-    KmDebugMessage("| /SYS/ACPI/", table.signature, "     | Creator revision            | ", table.creatorRevision, "\n");
+    AcpiLog.println("| /SYS/ACPI/", table.signature, "     | Address                     | ", paddr);
+    AcpiLog.println("| /SYS/ACPI/", table.signature, "     | Signature                   | '", stdx::StringView(table.signature), "'");
+    AcpiLog.println("| /SYS/ACPI/", table.signature, "     | Length                      | ", table.length);
+    AcpiLog.println("| /SYS/ACPI/", table.signature, "     | Revision                    | ", table.revision);
+    AcpiLog.println("| /SYS/ACPI/", table.signature, "     | OEM                         | ", stdx::StringView(table.oemid));
+    AcpiLog.println("| /SYS/ACPI/", table.signature, "     | Table ID                    | ", stdx::StringView(table.tableId));
+    AcpiLog.println("| /SYS/ACPI/", table.signature, "     | OEM revision                | ", table.oemRevision);
+    AcpiLog.println("| /SYS/ACPI/", table.signature, "     | Creator ID                  | ", km::Hex(table.creatorId));
+    AcpiLog.println("| /SYS/ACPI/", table.signature, "     | Creator revision            | ", table.creatorRevision);
 
     if (auto *madt = acpi::TableCast<acpi::Madt>(entry)) {
         DebugMadt(madt);
@@ -165,20 +167,20 @@ static void PrintRsdtEntry(const acpi::RsdtHeader *entry, sm::PhysicalAddress pa
     }
 
 #if 0
-    KmDebugMessage(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(entry), table.length)), "\n");
+    KmDebugMessage(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(entry), table.length)));
 #endif
 }
 
 static void PrintRsdt(const acpi::Rsdt *rsdt, const acpi::RsdpLocator *locator) {
-    KmDebugMessage("| /SYS/ACPI          | RSDT address                | ", km::Hex(locator->rsdtAddress).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI/RSDT     | Signature                   | '", stdx::StringView(rsdt->header.signature), "'\n");
+    AcpiLog.println("| /SYS/ACPI          | RSDT address                | ", km::Hex(locator->rsdtAddress).pad(8, '0'));
+    AcpiLog.println("| /SYS/ACPI/RSDT     | Signature                   | '", stdx::StringView(rsdt->header.signature), "'");
 }
 
 static void PrintXsdt(const acpi::Xsdt *xsdt, const acpi::RsdpLocator *locator) {
-    KmDebugMessage("| /SYS/ACPI          | RSDP length                 | ", locator->length, "\n");
-    KmDebugMessage("| /SYS/ACPI          | XSDT address                | ", km::Hex(locator->xsdtAddress).pad(16, '0'), "\n");
-    KmDebugMessage("| /SYS/ACPI          | Extended checksum           | ", locator->extendedChecksum, "\n");
-    KmDebugMessage("| /SYS/ACPI/XSDT     | Signature                   | '", stdx::StringView(xsdt->header.signature), "'\n");
+    AcpiLog.println("| /SYS/ACPI          | RSDP length                 | ", locator->length);
+    AcpiLog.println("| /SYS/ACPI          | XSDT address                | ", km::Hex(locator->xsdtAddress).pad(16, '0'));
+    AcpiLog.println("| /SYS/ACPI          | Extended checksum           | ", locator->extendedChecksum);
+    AcpiLog.println("| /SYS/ACPI/XSDT     | Signature                   | '", stdx::StringView(xsdt->header.signature), "'");
 }
 
 acpi::AcpiTables acpi::InitAcpi(sm::PhysicalAddress rsdpBaseAddress, km::AddressSpace& memory) {
@@ -191,10 +193,10 @@ acpi::AcpiTables acpi::InitAcpi(sm::PhysicalAddress rsdpBaseAddress, km::Address
     bool rsdpOk = ValidateRsdpLocator(locator);
     KM_CHECK(rsdpOk, "Invalid RSDP checksum.");
 
-    KmDebugMessage("| /SYS/ACPI          | RSDP signature              | '", stdx::StringView(locator->signature), "'\n");
-    KmDebugMessage("| /SYS/ACPI          | RSDP checksum               | ", rsdpOk ? stdx::StringView("Valid") : stdx::StringView("Invalid"), "\n");
-    KmDebugMessage("| /SYS/ACPI          | RSDP revision               | ", locator->revision, "\n");
-    KmDebugMessage("| /SYS/ACPI          | OEM                         | ", stdx::StringView(locator->oemid), "\n");
+    AcpiLog.println("| /SYS/ACPI          | RSDP signature              | '", stdx::StringView(locator->signature), "'");
+    AcpiLog.println("| /SYS/ACPI          | RSDP checksum               | ", rsdpOk ? stdx::StringView("Valid") : stdx::StringView("Invalid"));
+    AcpiLog.println("| /SYS/ACPI          | RSDP revision               | ", locator->revision);
+    AcpiLog.println("| /SYS/ACPI          | OEM                         | ", stdx::StringView(locator->oemid));
 
     return acpi::AcpiTables(rsdpAllocation, locator, memory);
 }
@@ -218,7 +220,7 @@ template<acpi::IsAcpiTable T>
 void SetUniqueTableEntry(const T** dst, const acpi::RsdtHeader *header) {
     if (const T *table = acpi::TableCast<T>(header)) {
         if (*dst != nullptr) {
-            KmDebugMessage("[ACPI] Multiple '", T::kSignature, "' tables found. This table should be unique. Using the first instance of this table.\n");
+            AcpiLog.warnf("[ACPI] Multiple '", T::kSignature, "' tables found. This table should be unique. Using the first instance of this table.");
             return;
         }
 
@@ -274,7 +276,7 @@ acpi::AcpiTables::AcpiTables(km::TlsfAllocation allocation, const RsdpLocator *l
 
 #if 0
     if (mDsdt != nullptr) {
-        KmDebugMessage(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(mDsdt), mDsdt->length)), "\n");
+        AcpiLog.println(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(mDsdt), mDsdt->length)));
     }
 #endif
 }

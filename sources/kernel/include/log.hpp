@@ -4,6 +4,7 @@
 #include "uart.hpp"
 
 #include "util/format.hpp"
+#include "util/format/specifier.hpp"
 
 namespace km {
     enum class DebugLogLockType {
@@ -43,7 +44,7 @@ void KmDebugWrite(const T& value) {
 }
 
 template<km::IsFormat T>
-void KmDebugWrite(km::FormatOf<T> value) {
+void KmDebugWrite(km::FormatObject<T> value) {
     char buffer[km::Format<T>::kStringSize];
     stdx::StringView result = km::Format<T>::toString(buffer, value.value);
     if (value.specifier.width <= result.count()) {

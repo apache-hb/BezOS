@@ -138,7 +138,7 @@ test_exe_kwargs = {
     'dependencies': [ gtest_main, gmock, sysapi, concurrentqueue, mp_units, common ],
     'override_options': [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
     'native': true,
-    'link_with': [ test_shim, fs_test_shim, memory_test_shim, system_test_lib ],
+    'link_with': [ test_shim, fs_test_shim, memory_test_shim, system_test_lib, liblogging_native ],
 }
 
 # Test cases
@@ -241,9 +241,6 @@ endforeach
 testcases = {
     'serial': [ 'serial.cpp', '../src/uart.cpp', ],
     'ipl': [ 'ipl.cpp' ],
-    'range allocator': [
-        'memory/range_allocator.cpp',
-    ],
     'page table': [
         'memory/pte.cpp',
     ],
@@ -406,7 +403,7 @@ testcases = {
     ],
 }
 
-if enable_aml
+if aml_option.allowed()
     testcases += {
         'aml details': [
             'acpi/detail.cpp',
@@ -651,7 +648,7 @@ testcases += {
         # this test must not be run with sanitizers, it ptraces itself
         # and purposely triggers segv and traps
         'override_options': [ 'b_sanitize=none', 'b_coverage=true' ],
-        'link_with' : [ no_sanitize_test_shim, no_sanitize_memory_test_shim ]
+        'link_with' : [ no_sanitize_test_shim, no_sanitize_memory_test_shim, liblogging_nosanitize ]
     },
     'apic': {
         'sources': [
@@ -665,7 +662,7 @@ testcases += {
         ],
         'dependencies': [ capstone, common ],
         'override_options': [ 'b_sanitize=none', 'b_coverage=true' ],
-        'link_with' : [ no_sanitize_test_shim, no_sanitize_memory_test_shim, mmio_test_shim ],
+        'link_with' : [ no_sanitize_test_shim, no_sanitize_memory_test_shim, mmio_test_shim, liblogging_nosanitize ],
     },
     'schedule': {
         'sources': [
@@ -673,7 +670,7 @@ testcases += {
         ],
         'dependencies': [ capstone, common ],
         'override_options': [ 'b_sanitize=none', 'b_coverage=true' ],
-        'link_with' : [ no_sanitize_test_shim, no_sanitize_memory_test_shim, no_sanitize_fs_test_lib, no_sanitize_system_test_lib, mmio_test_shim ],
+        'link_with' : [ no_sanitize_test_shim, no_sanitize_memory_test_shim, no_sanitize_fs_test_lib, no_sanitize_system_test_lib, mmio_test_shim, liblogging_nosanitize ],
     }
 }
 
@@ -701,7 +698,7 @@ endforeach
 
 # AML tests
 
-if enable_aml
+if aml_option.allowed()
     testcases = [
         'B450M-MORTAR',
         'H13SSL-N',

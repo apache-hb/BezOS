@@ -10,7 +10,7 @@ namespace km {
         km::TlsfAllocation mGuardHead;
         km::TlsfAllocation mGuardTail;
 
-        constexpr StackMappingAllocation(km::TlsfAllocation memory, km::TlsfAllocation address, km::TlsfAllocation head, km::TlsfAllocation tail) noexcept
+        StackMappingAllocation(km::TlsfAllocation memory, km::TlsfAllocation address, km::TlsfAllocation head, km::TlsfAllocation tail) noexcept
             : mMemoryAllocation(memory)
             , mAddressAllocation(address)
             , mGuardHead(head)

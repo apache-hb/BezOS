@@ -2,10 +2,13 @@
 
 #include "arch/cr4.hpp"
 #include "arch/xcr0.hpp"
-#include "log.hpp"
+#include "logger/logger.hpp"
+#include "panic.hpp"
 #include "util/cpuid.hpp"
 
 #include <algorithm>
+
+constinit static km::Logger Save { "XSAVE" };
 
 class NoSave final : public km::IFpuSave {
     km::SaveMode mode() const noexcept override { return km::SaveMode::eNoSave; }
@@ -108,9 +111,9 @@ class XSave final : public km::IFpuSave {
         setComponentMask(mask);
         loadBufferSize();
 
-        KmDebugMessage("[XSAVE] Buffer size: ", mBufferSize, " bytes\n");
-        KmDebugMessage("[XSAVE] Features: ", km::Hex(mUserFeatures), "\n");
-        KmDebugMessage("[XSAVE] Enabled: ", km::Hex(mEnabled), "\n");
+        Save.logf("Buffer size: ", mBufferSize, " bytes\n");
+        Save.logf("Features: ", km::Hex(mUserFeatures), "\n");
+        Save.logf("Enabled: ", km::Hex(mEnabled), "\n");
     }
 
     void initControlState() const {
@@ -168,7 +171,7 @@ km::IFpuSave *km::InitFpuSave(const XSaveConfig& config) {
     }
 
     if (choice != config.target) {
-        KmDebugMessage("[XSAVE] Mode ", config.target, " not supported, falling back to ", choice, " instead.\n");
+        Save.warnf("[XSAVE] Mode ", config.target, " not supported, falling back to ", choice, " instead.\n");
     }
 
     detail::SetupXSave(choice, config.features);

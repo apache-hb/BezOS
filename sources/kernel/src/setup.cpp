@@ -7,6 +7,7 @@
 #include "isr/isr.hpp"
 #include "kernel.hpp"
 #include "log.hpp"
+#include "logger/logger.hpp"
 #include "processor.hpp"
 #include "system/create.hpp"
 #include "system/schedule.hpp"
@@ -15,6 +16,8 @@
 
 static constexpr bool kEmitAddrToLine = true;
 static constexpr stdx::StringView kImagePath = "install/kernel/bin/bezos-limine.elf";
+
+static constinit km::Logger InitLog { "INIT" };
 
 km::PageMemoryTypeLayout km::SetupPat() {
     if (!x64::HasPatSupport()) {
@@ -25,7 +28,7 @@ km::PageMemoryTypeLayout km::SetupPat() {
 
     for (uint8_t i = 0; i < pat.count(); i++) {
         km::MemoryType type = pat.getEntry(i);
-        KmDebugMessage("[INIT] PAT[", i, "]: ", type, "\n");
+        InitLog.dbgf("PAT[", i, "]: ", type, "\n");
     }
 
     auto layout = GetDefaultPatLayout();
@@ -67,34 +70,34 @@ void km::WriteMtrrs(const km::PageBuilder& pm) {
 
     x64::MemoryTypeRanges mtrrs = x64::MemoryTypeRanges::get();
 
-    KmDebugMessage("[INIT] MTRR fixed support: ", present(mtrrs.fixedMtrrSupported()), "\n");
-    KmDebugMessage("[INIT] MTRR fixed enabled: ", enabled(mtrrs.fixedMtrrEnabled()), "\n");
-    KmDebugMessage("[INIT] MTRR fixed count: ", mtrrs.fixedMtrrCount(), "\n");
-    KmDebugMessage("[INIT] Default MTRR type: ", mtrrs.defaultType(), "\n");
+    InitLog.dbgf("MTRR fixed support: ", present(mtrrs.fixedMtrrSupported()), "\n");
+    InitLog.dbgf("MTRR fixed enabled: ", enabled(mtrrs.fixedMtrrEnabled()), "\n");
+    InitLog.dbgf("MTRR fixed count: ", mtrrs.fixedMtrrCount(), "\n");
+    InitLog.dbgf("Default MTRR type: ", mtrrs.defaultType(), "\n");
 
-    KmDebugMessage("[INIT] MTRR variable supported: ", enabled(HasVariableMtrrSupport(mtrrs)), "\n");
-    KmDebugMessage("[INIT] MTRR variable count: ", mtrrs.variableMtrrCount(), "\n");
-    KmDebugMessage("[INIT] MTRR write combining: ", enabled(mtrrs.hasWriteCombining()), "\n");
-    KmDebugMessage("[INIT] MTRRs enabled: ", enabled(mtrrs.enabled()), "\n");
+    InitLog.dbgf("MTRR variable supported: ", enabled(HasVariableMtrrSupport(mtrrs)), "\n");
+    InitLog.dbgf("MTRR variable count: ", mtrrs.variableMtrrCount(), "\n");
+    InitLog.dbgf("MTRR write combining: ", enabled(mtrrs.hasWriteCombining()), "\n");
+    InitLog.dbgf("MTRRs enabled: ", enabled(mtrrs.enabled()), "\n");
 
     if (mtrrs.fixedMtrrSupported()) {
         for (uint8_t i = 0; i < 11; i++) {
-            KmDebugMessage("[INIT] Fixed MTRR[", rpad(2) + i, "]: ");
+            InitLog.print("[INIT] Fixed MTRR[", Int(i).pad(2), "]: ");
             for (uint8_t j = 0; j < 8; j++) {
                 if (j != 0) {
-                    KmDebugMessage("| ");
+                    InitLog.print("| ");
                 }
 
-                KmDebugMessage(mtrrs.fixedMtrr((i * 11) + j), " ");
+                InitLog.print(mtrrs.fixedMtrr((i * 11) + j), " ");
             }
-            KmDebugMessage("\n");
+            InitLog.println();
         }
     }
 
     if (HasVariableMtrrSupport(mtrrs)) {
         for (uint8_t i = 0; i < mtrrs.variableMtrrCount(); i++) {
             x64::VariableMtrr mtrr = mtrrs.variableMtrr(i);
-            KmDebugMessage("[INIT] Variable MTRR[", i, "]: ", mtrr.type(), ", address: ", mtrr.baseAddress(pm), ", mask: ", Hex(mtrr.addressMask(pm)).pad(16, '0'), "\n");
+            InitLog.dbgf("Variable MTRR[", i, "]: ", mtrr.type(), ", address: ", mtrr.baseAddress(pm), ", mask: ", Hex(mtrr.addressMask(pm)).pad(16), "\n");
         }
     }
 
@@ -102,50 +105,50 @@ void km::WriteMtrrs(const km::PageBuilder& pm) {
 }
 
 void km::WriteMemoryMap(std::span<const boot::MemoryRegion> memmap) {
-    KmDebugMessage("[INIT] ", memmap.size(), " memory map entries.\n");
+    InitLog.dbgf(memmap.size(), " memory map entries.\n");
 
-    KmDebugMessage("| Entry | Address            | Size               | Type\n");
-    KmDebugMessage("|-------+--------------------+--------------------+-----------------------\n");
+    InitLog.println("| Entry | Address            | Size               | Type\n");
+    InitLog.println("|-------+--------------------+--------------------+-----------------------\n");
 
     for (size_t i = 0; i < memmap.size(); i++) {
         boot::MemoryRegion entry = memmap[i];
         MemoryRange range = entry.range;
 
-        KmDebugMessage("| ", Int(i).pad(4, '0'), "  | ", Hex(range.front.address).pad(16, '0'), " | ", rpad(18) + sm::bytes(range.size()), " | ", entry.type, "\n");
+        InitLog.println("| ", Int(i).pad(4), "  | ", Hex(range.front.address).pad(16), " | ", rpad(18) + sm::bytes(range.size()), " | ", entry.type, "\n");
     }
 
-    KmDebugMessage("[INIT] Usable memory: ", boot::UsableMemory(memmap), ", Reclaimable memory: ", boot::ReclaimableMemory(memmap), "\n");
+    InitLog.dbgf("Usable memory: ", boot::UsableMemory(memmap), ", Reclaimable memory: ", boot::ReclaimableMemory(memmap), "\n");
 }
 
 void km::DumpIsrState(const km::IsrContext *context) {
     KmDebugMessageUnlocked("| Register | Value\n");
     KmDebugMessageUnlocked("|----------+------\n");
-    KmDebugMessageUnlocked("| %RAX     | ", Hex(context->rax).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %RBX     | ", Hex(context->rbx).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %RCX     | ", Hex(context->rcx).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %RDX     | ", Hex(context->rdx).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %RDI     | ", Hex(context->rdi).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %RSI     | ", Hex(context->rsi).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %R8      | ", Hex(context->r8).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %R9      | ", Hex(context->r9).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %R10     | ", Hex(context->r10).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %R11     | ", Hex(context->r11).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %R12     | ", Hex(context->r12).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %R13     | ", Hex(context->r13).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %R14     | ", Hex(context->r14).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %R15     | ", Hex(context->r15).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %RBP     | ", Hex(context->rbp).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %RIP     | ", Hex(context->rip).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %CS      | ", Hex(context->cs).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %RFLAGS  | ", Hex(context->rflags).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %RSP     | ", Hex(context->rsp).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| %SS      | ", Hex(context->ss).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| Vector   | ", Hex(context->vector).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| Error    | ", Hex(context->error).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("| %RAX     | ", Hex(context->rax).pad(16), "\n");
+    KmDebugMessageUnlocked("| %RBX     | ", Hex(context->rbx).pad(16), "\n");
+    KmDebugMessageUnlocked("| %RCX     | ", Hex(context->rcx).pad(16), "\n");
+    KmDebugMessageUnlocked("| %RDX     | ", Hex(context->rdx).pad(16), "\n");
+    KmDebugMessageUnlocked("| %RDI     | ", Hex(context->rdi).pad(16), "\n");
+    KmDebugMessageUnlocked("| %RSI     | ", Hex(context->rsi).pad(16), "\n");
+    KmDebugMessageUnlocked("| %R8      | ", Hex(context->r8).pad(16), "\n");
+    KmDebugMessageUnlocked("| %R9      | ", Hex(context->r9).pad(16), "\n");
+    KmDebugMessageUnlocked("| %R10     | ", Hex(context->r10).pad(16), "\n");
+    KmDebugMessageUnlocked("| %R11     | ", Hex(context->r11).pad(16), "\n");
+    KmDebugMessageUnlocked("| %R12     | ", Hex(context->r12).pad(16), "\n");
+    KmDebugMessageUnlocked("| %R13     | ", Hex(context->r13).pad(16), "\n");
+    KmDebugMessageUnlocked("| %R14     | ", Hex(context->r14).pad(16), "\n");
+    KmDebugMessageUnlocked("| %R15     | ", Hex(context->r15).pad(16), "\n");
+    KmDebugMessageUnlocked("| %RBP     | ", Hex(context->rbp).pad(16), "\n");
+    KmDebugMessageUnlocked("| %RIP     | ", Hex(context->rip).pad(16), "\n");
+    KmDebugMessageUnlocked("| %CS      | ", Hex(context->cs).pad(16), "\n");
+    KmDebugMessageUnlocked("| %RFLAGS  | ", Hex(context->rflags).pad(16), "\n");
+    KmDebugMessageUnlocked("| %RSP     | ", Hex(context->rsp).pad(16), "\n");
+    KmDebugMessageUnlocked("| %SS      | ", Hex(context->ss).pad(16), "\n");
+    KmDebugMessageUnlocked("| Vector   | ", Hex(context->vector).pad(16), "\n");
+    KmDebugMessageUnlocked("| Error    | ", Hex(context->error).pad(16), "\n");
     KmDebugMessageUnlocked("\n");
 
     if (context->vector == isr::PF) {
-        KmDebugMessageUnlocked("| Faulting address | ", Hex(__get_cr2()).pad(16, '0'), "\n");
+        KmDebugMessageUnlocked("| Faulting address | ", Hex(__get_cr2()).pad(16), "\n");
 
         if (context->error & (1 << 0)) {
             KmDebugMessageUnlocked("PRESENT ");
@@ -184,9 +187,9 @@ void km::DumpIsrState(const km::IsrContext *context) {
 
     KmDebugMessageUnlocked("| MSR                 | Value\n");
     KmDebugMessageUnlocked("|---------------------+------\n");
-    KmDebugMessageUnlocked("| IA32_GS_BASE        | ", Hex(IA32_GS_BASE.load()).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| IA32_FS_BASE        | ", Hex(IA32_FS_BASE.load()).pad(16, '0'), "\n");
-    KmDebugMessageUnlocked("| IA32_KERNEL_GS_BASE | ", Hex(IA32_KERNEL_GS_BASE.load()).pad(16, '0'), "\n");
+    KmDebugMessageUnlocked("| IA32_GS_BASE        | ", Hex(IA32_GS_BASE.load()).pad(16), "\n");
+    KmDebugMessageUnlocked("| IA32_FS_BASE        | ", Hex(IA32_FS_BASE.load()).pad(16), "\n");
+    KmDebugMessageUnlocked("| IA32_KERNEL_GS_BASE | ", Hex(IA32_KERNEL_GS_BASE.load()).pad(16), "\n");
     KmDebugMessageUnlocked("\n");
 }
 
@@ -320,7 +323,7 @@ void km::InstallExceptionHandlers(SharedIsrTable *ist) {
             return *context;
         }
 
-        KmDebugMessageUnlocked("[BUG] CR2: ", Hex(__get_cr2()).pad(16, '0'), "\n");
+        KmDebugMessageUnlocked("[BUG] CR2: ", Hex(__get_cr2()).pad(16), "\n");
         DumpIsrContext(context, "Page fault (#PF)");
         DumpStackTrace(context);
         KM_PANIC("Kernel panic.");
