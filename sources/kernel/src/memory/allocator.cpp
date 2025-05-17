@@ -1,7 +1,7 @@
 #include "memory/pte.hpp"
 
-#include "log.hpp"
 #include "memory/paging.hpp"
+#include "logger/categories.hpp"
 
 using namespace km;
 
@@ -29,22 +29,21 @@ static void MapKernelPages(PageTables& memory, km::PhysicalAddress paddr, const 
 
         AddressMapping mapping = MappingOf(range, section);
         if (!mapping.alignsExactlyTo(x64::kPageSize)) {
-            KmDebugMessage("[INIT] Damaged kernel image: ", name, " is not page aligned.\n");
-            KmDebugMessage("[DATA] ", mapping, "\n");
+            MemLog.fatalf("Damaged kernel image: ", name, " is not page aligned. ", mapping);
             KM_PANIC("Kernel image is not page aligned.");
         }
 
         AddressMapping aligned = mapping.aligned(x64::kPageSize);
 
-        KmDebugMessage("[INIT] Mapping ", aligned, " - ", name, "\n");
+        MemLog.dbgf("Mapping ", aligned, " - ", name);
 
         if (OsStatus status = memory.map(aligned, flags)) {
-            KmDebugMessage("[INIT] Failed to map ", name, ": ", status, "\n");
+            MemLog.fatalf("Failed to map ", name, ": ", status);
             KM_PANIC("Failed to map kernel image.");
         }
     };
 
-    KmDebugMessage("[INIT] Mapping kernel pages.\n");
+    MemLog.dbgf("Mapping kernel pages.");
 
     mapKernelRange(__text_start, __text_end, PageFlags::eCode, ".text");
     mapKernelRange(__rodata_start, __rodata_end, PageFlags::eRead, ".rodata");
@@ -56,6 +55,6 @@ void km::MapKernel(km::PageTables& vmm, km::PhysicalAddress paddr, const void *v
 }
 
 void km::UpdateRootPageTable(const km::PageBuilder& pm, km::PageTables& vmm) {
-    KmDebugMessage("[INIT] PML4: ", vmm.root(), "\n");
+    MemLog.dbgf("Updating root page table: ", vmm.root());
     pm.setActiveMap(vmm.root());
 }

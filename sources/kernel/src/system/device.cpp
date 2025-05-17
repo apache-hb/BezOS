@@ -1,5 +1,6 @@
 #include "system/device.hpp"
 #include "devices/stream.hpp"
+#include "logger/categories.hpp"
 #include "system/system.hpp"
 #include "system/node.hpp"
 #include "system/process.hpp"
@@ -82,7 +83,7 @@ static OsStatus DeviceCreateNew(sys::InvokeContext *context, sys::DeviceOpenInfo
 
         status = vfs->mkdevice(info.path, vfsNode);
     } else {
-        KmDebugMessage("[VFS] Failed to create device '", info.path, "'::", info.interface, "\n");
+        VfsLog.fatalf("Failed to create device '", info.path, "'::", info.interface);
         return OsStatusInvalidType;
     }
 
@@ -91,7 +92,7 @@ static OsStatus DeviceCreateNew(sys::InvokeContext *context, sys::DeviceOpenInfo
     }
 
     if (vfsNode == nullptr) {
-        KmDebugMessage("[VFS] Internal failure when creating device '", info.path, "'::", info.interface, "\n");
+        VfsLog.fatalf("Internal failure when creating device '", info.path, "'::", info.interface);
         return OsStatusOutOfMemory;
     }
 

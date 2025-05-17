@@ -167,7 +167,7 @@ static void PrintRsdtEntry(const acpi::RsdtHeader *entry, sm::PhysicalAddress pa
     }
 
 #if 0
-    KmDebugMessage(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(entry), table.length)));
+    AcpiLog.println(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(entry), table.length)));
 #endif
 }
 

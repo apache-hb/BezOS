@@ -16,6 +16,10 @@ namespace km {
     public:
         constexpr VgaAppender() noexcept = default;
 
+        void setAddress(void *address) noexcept {
+            mTerminal.setAddress(address);
+        }
+
         static OsStatus create(boot::FrameBuffer fb, void *address, VgaAppender *appender) noexcept [[clang::allocating]];
     };
 }

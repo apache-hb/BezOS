@@ -173,6 +173,10 @@ namespace km {
 
         void print(stdx::StringView message);
 
+        void setAddress(void *address) {
+            mDisplay.setAddress(address);
+        }
+
         Canvas& display() { return mDisplay; }
         uint16_t currentRow() const { return mCurrentRow; }
         uint16_t currentColumn() const { return mCurrentColumn; }

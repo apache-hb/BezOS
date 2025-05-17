@@ -1,10 +1,10 @@
 #include "apic.hpp"
 
+#include "logger/categories.hpp"
 #include "memory/address_space.hpp"
 #include "arch/msr.hpp"
 
 #include "delay.hpp"
-#include "log.hpp"
 #include "panic.hpp"
 
 #include "util/cpuid.hpp"
@@ -36,7 +36,7 @@ void km::Disable8259Pic() {
     static constexpr uint8_t kSlavePin = 0x2;
     static constexpr uint8_t kSlaveId = 0x4;
 
-    KmDebugMessage("[INIT] Disabling 8259 PIC.\n");
+    IsrLog.dbgf("[INIT] Disabling 8259 PIC.");
 
     // start init sequence
     KmWriteByte(kCommandMasterPort, kInitStart);
@@ -58,7 +58,7 @@ void km::Disable8259Pic() {
     KmWriteByte(kDataMasterPort, 0xFF);
     KmWriteByte(kDataSlavePort, 0xFF);
 
-    KmDebugMessage("[INIT] PIC disabled\n");
+    IsrLog.dbgf("[INIT] PIC disabled.");
 }
 
 // apic setup
@@ -73,10 +73,10 @@ static void LogApicStartup(uint64_t msr) {
     stdx::StringView kind = bsp ? "Bootstrap Processor"_sv : "Application Processor"_sv;
 
     if (x2apic) {
-        KmDebugMessage("[APIC] Startup: ", km::Hex(msr), ", State: x2APIC enabled, Type: ", kind, "\n");
+        IsrLog.dbgf("[APIC] Startup: ", km::Hex(msr), ", State: x2APIC enabled, Type: ", kind, "\n");
     } else {
         km::PhysicalAddress base = msr & kApicAddressMask;
-        KmDebugMessage("[APIC] Startup: ", km::Hex(msr), ", Base address: ", base, ", State: ", km::enabled(enabled), ", Type: ", kind, "\n");
+        IsrLog.dbgf("[APIC] Startup: ", km::Hex(msr), ", Base address: ", base, ", State: ", km::enabled(enabled), ", Type: ", kind, "\n");
     }
 }
 
@@ -371,8 +371,8 @@ km::IoApic::IoApic(acpi::MadtEntry::IoApic entry, km::AddressSpace& memory)
     uint8_t acpiId = entry.ioApicId;
 
     if (ioapicId != acpiId) {
-        KmDebugMessage("[APIC] IOAPIC ID mismatch between acpi tables and hardware: ", ioapicId, " != ", acpiId, "\n");
-        KmDebugMessage("[APIC] Prefering IOAPIC ID reported by hardware: ", ioapicId, "\n");
+        AcpiLog.warnf("IOAPIC ID mismatch between acpi tables and hardware: ", ioapicId, " != ", acpiId);
+        AcpiLog.warnf("Prefering IOAPIC ID reported by hardware: ", ioapicId);
     }
 
     mId = ioapicId;
@@ -440,7 +440,7 @@ static km::apic::Trigger GetIsoTriggerMode(acpi::MadtEntry::InterruptSourceOverr
         return km::apic::Trigger::eLevel;
 
     default:
-        KmDebugMessage("[WARN] Unknown trigger mode: ", km::Hex(iso.flags & 0b1100), "\n");
+        IsrLog.warnf("Unknown trigger mode: ", km::Hex(iso.flags & 0b1100), ". Defaulting to edge triggered.\n");
         return km::apic::Trigger::eEdge;
     }
 }
@@ -454,7 +454,7 @@ static km::apic::Polarity GetIsoPolarity(acpi::MadtEntry::InterruptSourceOverrid
         return km::apic::Polarity::eActiveHigh;
 
     default:
-        KmDebugMessage("[WARN] Unknown polarity mode: ", km::Hex(iso.flags & 0b11), "\n");
+        IsrLog.warnf("[WARN] Unknown polarity mode: ", km::Hex(iso.flags & 0b11), ". Defaulting to active low.\n");
         return km::apic::Polarity::eActiveLow;
     }
 }
@@ -476,8 +476,8 @@ km::IoApicSet::IoApicSet(const acpi::Madt *madt, km::AddressSpace& memory)
 
         IoApic ioapic { entry, memory };
 
-        KmDebugMessage("[INIT] IOAPIC ", index, " ID: ", ioapic.id(), ", Version: ", ioapic.version(), "\n");
-        KmDebugMessage("[INIT] ISR base: ", ioapic.isrBase(), ", Inputs: ", ioapic.inputCount(), "\n");
+        AcpiLog.dbgf("[INIT] IOAPIC ", index, " ID: ", ioapic.id(), ", Version: ", ioapic.version());
+        AcpiLog.dbgf("[INIT] ISR base: ", ioapic.isrBase(), ", Inputs: ", ioapic.inputCount());
 
         mIoApics[index++] = ioapic;
     }
@@ -491,7 +491,7 @@ void km::IoApicSet::setRedirect(apic::IvtConfig config, uint32_t redirect, const
         }
     }
 
-    KmDebugMessage("[WARN] GSI ", redirect, " not found in any IOAPIC\n");
+    AcpiLog.warnf("GSI ", redirect, " not found in any IOAPIC");
 }
 
 void km::IoApicSet::setLegacyRedirect(apic::IvtConfig config, uint32_t redirect, const IApic *target) {
@@ -512,14 +512,14 @@ void km::IoApicSet::setLegacyRedirect(apic::IvtConfig config, uint32_t redirect,
 
         uint32_t isoGsi = iso.interrupt;
 
-        KmDebugMessage("[INIT] IRQ PIN ", redirect, " remapped to PIN ", isoGsi, " by MADT\n");
+        AcpiLog.dbgf("IRQ PIN ", redirect, " remapped to PIN ", isoGsi, " by MADT");
 
         setRedirect(fixup, isoGsi, target);
 
         return;
     }
 
-    KmDebugMessage("[INIT] IRQ PIN ", redirect, " redirected to APIC ", target->id(), ":", config.vector, "\n");
+    AcpiLog.dbgf("IRQ PIN ", redirect, " redirected to APIC ", target->id(), ":", config.vector);
 
     setRedirect(config, redirect, target);
 }

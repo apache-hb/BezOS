@@ -1,6 +1,6 @@
 #include "smbios.hpp"
 
-#include "log.hpp"
+#include "logger/categories.hpp"
 #include "memory/address_space.hpp"
 
 #include "common/util/defer.hpp"
@@ -18,14 +18,14 @@ constexpr km::MemoryRangeEx SmBiosTableRange(const T *table) {
 
 template<typename T>
 static km::VirtualRangeEx SmBiosMapTable(const T *table, km::AddressSpace& memory, km::TlsfAllocation *allocation [[gnu::nonnull]]) {
-    KmDebugMessage("[SMBIOS] Table: ", (void*)table, "\n");
-    KmDebugMessage(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(table), sizeof(T))), "\n");
+    BiosLog.dbgf("Table: ", (void*)table);
+    BiosLog.dbgf(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(table), sizeof(T))));
 
     void *address = memory.mapGenericObject(SmBiosTableRange(table), km::PageFlags::eRead, km::MemoryType::eWriteThrough, allocation);
     KM_CHECK(!allocation->isNull(), "Failed to map SMBIOS table");
 
-    KmDebugMessage("[SMBIOS] Table address: ", km::Hex(table->tableAddress).pad(sizeof(T::tableAddress) * 2), ", Size: ", auto{table->tableSize}, "\n");
-    KmDebugMessage(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(address), table->tableSize)), "\n");
+    BiosLog.dbgf("Table address: ", km::Hex(table->tableAddress).pad(sizeof(T::tableAddress) * 2), ", Size: ", auto{table->tableSize});
+    BiosLog.dbgf(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(address), table->tableSize)));
     return km::VirtualRangeEx::of(address, table->tableSize);
 }
 
@@ -93,10 +93,10 @@ constexpr bool TestEntryChecksum(std::span<const uint8_t> bytes, stdx::StringVie
     }
 
     if (sum != 0) {
-        KmDebugMessage("[SMBIOS] Invalid checksum for ", name, ": ", sum, "\n");
+        BiosLog.warnf("Invalid checksum for ", name, ": ", sum);
 
         if (ignoreChecksum) {
-            KmDebugMessage("[SMBIOS] The system operator has indicated that this checksum should be ignored. continuing...\n");
+            BiosLog.warnf("The system operator has indicated that this checksum should be ignored. continuing...");
             return true;
         }
     }
@@ -153,7 +153,7 @@ static OsStatus FindSmbios64(sm::PhysicalAddress address, bool ignoreChecksum, k
     const auto *smbios = memory.mapConst<smbios::Entry64>(address, allocation);
 
     if (smbios->anchor != smbios::Entry64::kAnchor0) {
-        KmDebugMessage("[SMBIOS] Invalid anchor: ", smbios->anchor, "\n");
+        BiosLog.warnf("Invalid anchor: ", smbios->anchor);
         return OsStatusInvalidData;
     }
 
@@ -170,7 +170,7 @@ static OsStatus FindSmbios32(sm::PhysicalAddress address, bool ignoreChecksum, k
     const auto *smbios = memory.mapConst<smbios::Entry32>(address, allocation);
 
     if (smbios->anchor0 != smbios::Entry32::kAnchor0) {
-        KmDebugMessage("[SMBIOS] Invalid anchor: ", smbios->anchor0, "\n");
+        BiosLog.warnf("Invalid anchor: ", smbios->anchor0);
         return OsStatusInvalidData;
     }
 

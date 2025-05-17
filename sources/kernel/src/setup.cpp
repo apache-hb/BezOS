@@ -28,7 +28,7 @@ km::PageMemoryTypeLayout km::SetupPat() {
 
     for (uint8_t i = 0; i < pat.count(); i++) {
         km::MemoryType type = pat.getEntry(i);
-        InitLog.dbgf("PAT[", i, "]: ", type, "\n");
+        InitLog.dbgf("PAT[", i, "]: ", type);
     }
 
     auto layout = GetDefaultPatLayout();
@@ -70,15 +70,15 @@ void km::WriteMtrrs(const km::PageBuilder& pm) {
 
     x64::MemoryTypeRanges mtrrs = x64::MemoryTypeRanges::get();
 
-    InitLog.dbgf("MTRR fixed support: ", present(mtrrs.fixedMtrrSupported()), "\n");
-    InitLog.dbgf("MTRR fixed enabled: ", enabled(mtrrs.fixedMtrrEnabled()), "\n");
-    InitLog.dbgf("MTRR fixed count: ", mtrrs.fixedMtrrCount(), "\n");
-    InitLog.dbgf("Default MTRR type: ", mtrrs.defaultType(), "\n");
+    InitLog.dbgf("MTRR fixed support: ", present(mtrrs.fixedMtrrSupported()));
+    InitLog.dbgf("MTRR fixed enabled: ", enabled(mtrrs.fixedMtrrEnabled()));
+    InitLog.dbgf("MTRR fixed count: ", mtrrs.fixedMtrrCount());
+    InitLog.dbgf("Default MTRR type: ", mtrrs.defaultType());
 
-    InitLog.dbgf("MTRR variable supported: ", enabled(HasVariableMtrrSupport(mtrrs)), "\n");
-    InitLog.dbgf("MTRR variable count: ", mtrrs.variableMtrrCount(), "\n");
-    InitLog.dbgf("MTRR write combining: ", enabled(mtrrs.hasWriteCombining()), "\n");
-    InitLog.dbgf("MTRRs enabled: ", enabled(mtrrs.enabled()), "\n");
+    InitLog.dbgf("MTRR variable supported: ", enabled(HasVariableMtrrSupport(mtrrs)));
+    InitLog.dbgf("MTRR variable count: ", mtrrs.variableMtrrCount());
+    InitLog.dbgf("MTRR write combining: ", enabled(mtrrs.hasWriteCombining()));
+    InitLog.dbgf("MTRRs enabled: ", enabled(mtrrs.enabled()));
 
     if (mtrrs.fixedMtrrSupported()) {
         for (uint8_t i = 0; i < 11; i++) {
@@ -97,7 +97,7 @@ void km::WriteMtrrs(const km::PageBuilder& pm) {
     if (HasVariableMtrrSupport(mtrrs)) {
         for (uint8_t i = 0; i < mtrrs.variableMtrrCount(); i++) {
             x64::VariableMtrr mtrr = mtrrs.variableMtrr(i);
-            InitLog.dbgf("Variable MTRR[", i, "]: ", mtrr.type(), ", address: ", mtrr.baseAddress(pm), ", mask: ", Hex(mtrr.addressMask(pm)).pad(16), "\n");
+            InitLog.dbgf("Variable MTRR[", i, "]: ", mtrr.type(), ", address: ", mtrr.baseAddress(pm), ", mask: ", Hex(mtrr.addressMask(pm)).pad(16));
         }
     }
 
@@ -105,19 +105,19 @@ void km::WriteMtrrs(const km::PageBuilder& pm) {
 }
 
 void km::WriteMemoryMap(std::span<const boot::MemoryRegion> memmap) {
-    InitLog.dbgf(memmap.size(), " memory map entries.\n");
+    InitLog.dbgf(memmap.size(), " memory map entries.");
 
-    InitLog.println("| Entry | Address            | Size               | Type\n");
-    InitLog.println("|-------+--------------------+--------------------+-----------------------\n");
+    InitLog.println("| Entry | Address            | Size               | Type");
+    InitLog.println("|-------+--------------------+--------------------+-----------------------");
 
     for (size_t i = 0; i < memmap.size(); i++) {
         boot::MemoryRegion entry = memmap[i];
         MemoryRange range = entry.range;
 
-        InitLog.println("| ", Int(i).pad(4), "  | ", Hex(range.front.address).pad(16), " | ", rpad(18) + sm::bytes(range.size()), " | ", entry.type, "\n");
+        InitLog.println("| ", Int(i).pad(4), "  | ", Hex(range.front.address).pad(16), " | ", rpad(18) + sm::bytes(range.size()), " | ", entry.type);
     }
 
-    InitLog.dbgf("Usable memory: ", boot::UsableMemory(memmap), ", Reclaimable memory: ", boot::ReclaimableMemory(memmap), "\n");
+    InitLog.dbgf("Usable memory: ", boot::UsableMemory(memmap), ", Reclaimable memory: ", boot::ReclaimableMemory(memmap));
 }
 
 void km::DumpIsrState(const km::IsrContext *context) {

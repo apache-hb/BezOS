@@ -1,6 +1,7 @@
 #include "hypervisor.hpp"
 
 #include "log.hpp"
+#include "logger/categories.hpp"
 #include "util/cpuid.hpp"
 
 #include <string.h>
@@ -54,7 +55,7 @@ pci::VendorId km::ProcessorInfo::vendorId() const {
         return pci::VendorId::eAMD;
     }
 
-    KmDebugMessage("Unknown CPU vendor: ", brand, ".\n");
+    CpuLog.warnf("Unknown CPU vendor: ", brand, ".");
     return pci::VendorId::eInvalid;
 }
 

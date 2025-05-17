@@ -40,6 +40,7 @@
 #include "isr/isr.hpp"
 #include "isr/runtime.hpp"
 #include "log.hpp"
+#include "logger/categories.hpp"
 #include "logger/serial_appender.hpp"
 #include "logger/vga_appender.hpp"
 #include "memory.hpp"
@@ -167,9 +168,6 @@ constinit static DebugLog gDebugLog;
 
 constinit static km::SerialAppender gSerialAppender;
 constinit static km::VgaAppender gVgaAppender;
-
-constinit static km::Logger InitLog { "INIT" };
-constinit static km::Logger VfsLog { "VFS" };
 
 km::IOutStream *km::GetDebugStream() {
     return &gDebugLog;
@@ -367,7 +365,7 @@ static KernelLayout BuildKernelLayout(
     km::MemoryRange committedPhysicalMemory = memory.reserve(kCommittedRegionSize);
     if (committedPhysicalMemory.isEmpty()) {
         WriteMemoryMap(memory.memmap);
-        KmDebugMessage("[INIT] Failed to reserve memory for committed region ", sm::bytes(kCommittedRegionSize), ".\n");
+        InitLog.fatalf("Failed to reserve memory for committed region ", sm::bytes(kCommittedRegionSize), ".");
         KM_PANIC("Failed to reserve memory for committed region.");
     }
 
@@ -378,11 +376,11 @@ static KernelLayout BuildKernelLayout(
 
     AddressMapping kernel = { kernelVirtualBase, kernelPhysicalBase, GetKernelSize() };
 
-    KmDebugMessage("[INIT] Kernel layout:\n");
-    KmDebugMessage("[INIT] Data         : ", data, "\n");
-    KmDebugMessage("[INIT] Committed    : ", committed, "\n");
-    KmDebugMessage("[INIT] Framebuffers : ", framebuffers, "\n");
-    KmDebugMessage("[INIT] Kernel       : ", kernel, "\n");
+    InitLog.dbgf("[INIT] Kernel layout:");
+    InitLog.dbgf("[INIT] Data         : ", data);
+    InitLog.dbgf("[INIT] Committed    : ", committed);
+    InitLog.dbgf("[INIT] Framebuffers : ", framebuffers);
+    InitLog.dbgf("[INIT] Kernel       : ", kernel);
 
     KM_CHECK(data.isValid(), "Invalid data range.");
     KM_CHECK(committedVirtualRange.isValid(), "Invalid committed range.");
@@ -429,7 +427,7 @@ static void MapDisplayRegions(PageTables& vmm, std::span<const boot::FrameBuffer
         // remap the framebuffer into its final location
         km::AddressMapping fb = { (void*)framebufferBase, framebuffer.paddr, framebuffer.size() };
         if (OsStatus status = vmm.map(fb, PageFlags::eData, MemoryType::eWriteCombine)) {
-            KmDebugMessage("[INIT] Failed to map framebuffer: ", fb, " ", OsStatusId(status), "\n");
+            InitLog.fatalf("Failed to map framebuffer: ", fb, " ", OsStatusId(status));
             KM_PANIC("Failed to map framebuffer.");
         }
 
@@ -444,7 +442,7 @@ static void MapKernelRegions(PageTables &vmm, const KernelLayout& layout) {
 
 static void MapDataRegion(PageTables &vmm, km::AddressMapping mapping) {
     if (OsStatus status = vmm.map(mapping, PageFlags::eData)) {
-        KmDebugMessage("[INIT] Failed to map data region: ", mapping, " ", OsStatusId(status), "\n");
+        InitLog.fatalf("Failed to map data region: ", mapping, " ", OsStatusId(status));
         KM_PANIC("Failed to map data region.");
     }
 }
@@ -502,7 +500,7 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
 
     PageTables vmm;
     if (OsStatus status = km::PageTables::create(&pm, pteMapping, PageFlags::eAll, &vmm)) {
-        KmDebugMessage("[INIT] Failed to create page tables: ", OsStatusId(status), "\n");
+        InitLog.fatalf("[INIT] Failed to create page tables: ", OsStatusId(status));
         KM_PANIC("Failed to create page tables.");
     }
 
@@ -528,9 +526,7 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
 
     // Now update the terminal to use the new memory layout
     if (!launch.framebuffers.empty()) {
-        gDirectTerminalLog.get()
-            .display()
-            .setAddress(layout.getFrameBuffer(launch.framebuffers, 0));
+        gVgaAppender.setAddress(layout.getFrameBuffer(launch.framebuffers, 0));
     }
 
     return Stage1MemoryInfo { allocator, earlyMemory, layout, std::span(framebuffers, launch.framebuffers.size()) };
@@ -606,7 +602,7 @@ static Stage2MemoryInfo *InitStage2Memory(const boot::LaunchInfo& launch, const 
 }
 
 static km::IsrContext SpuriousVector(km::IsrContext *ctx) noexcept [[clang::reentrant]] {
-    KmDebugMessage("[ISR] Spurious interrupt: ", ctx->vector, "\n");
+    IsrLog.warnf("Spurious interrupt: ", ctx->vector);
     km::IApic *pic = km::GetCpuLocalApic();
     pic->eoi();
     return *ctx;
@@ -671,16 +667,16 @@ static void InitBootTerminal(std::span<const boot::FrameBuffer> framebuffers) {
 static void UpdateSerialPort(ComPortInfo info) {
     info.skipLoopbackTest = true;
     if (OpenSerialResult com = OpenSerial(info); com.status == SerialPortStatus::eOk) {
-        gSerialLog = SerialLog(com.port);
-        gLogTargets.add(&gSerialLog);
+        SerialAppender::create(com.port, &gSerialAppender);
+        LogQueue::addGlobalAppender(&gSerialAppender);
     }
 }
 
 static SerialPortStatus InitSerialPort(ComPortInfo info) {
-    if (OpenSerialResult com1 = OpenSerial(info)) {
-        return com1.status;
+    if (OpenSerialResult com = OpenSerial(info)) {
+        return com.status;
     } else {
-        SerialAppender::create(com1.port, &gSerialAppender);
+        SerialAppender::create(com.port, &gSerialAppender);
         LogQueue::addGlobalAppender(&gSerialAppender);
         return SerialPortStatus::eOk;
     }
@@ -809,7 +805,7 @@ static void InitStage1Idt(uint16_t cs) {
     if (kSelfTestIdt) {
         km::LocalIsrTable *ist = GetLocalIsrTable();
         IsrCallback old = ist->install(64, [](km::IsrContext *context) noexcept [[clang::reentrant]] -> km::IsrContext {
-            KmDebugMessage("[TEST] Handled isr: ", context->vector, "\n");
+            SelfTestLog.dbgf("Handled isr: ", context->vector);
             return *context;
         });
 
@@ -888,7 +884,7 @@ static void MakeUser(vfs::VfsStringView name) {
 }
 
 static void MountRootVfs() {
-    VfsLog.logf("Initializing VFS.\n");
+    VfsLog.logf("Initializing VFS.");
     gVfsRoot = new vfs::VfsRoot();
 
     MakePath("System", "Options");
@@ -908,12 +904,12 @@ static void MountRootVfs() {
         sm::RcuSharedPtr<vfs::INode> node = nullptr;
         vfs::VfsPath path = vfs::BuildPath("System", "Audit", "System.log");
         if (OsStatus status = gVfsRoot->create(path, &node)) {
-            VfsLog.warnf("[VFS] Failed to create ", path, ": ", OsStatusId(status));
+            VfsLog.warnf("Failed to create ", path, ": ", OsStatusId(status));
         }
 
         std::unique_ptr<vfs::IFileHandle> log;
         if (OsStatus status = vfs::OpenFileInterface(node, nullptr, 0, std::out_ptr(log))) {
-            VfsLog.warnf("[VFS] Failed to open log file: ", OsStatusId(status));
+            VfsLog.warnf("Failed to open log file: ", OsStatusId(status));
         }
     }
 
@@ -921,12 +917,12 @@ static void MountRootVfs() {
         sm::RcuSharedPtr<vfs::INode> node = nullptr;
         vfs::VfsPath path = vfs::BuildPath("Users", "Guest", "motd.txt");
         if (OsStatus status = gVfsRoot->create(path, &node)) {
-            VfsLog.warnf("[VFS] Failed to create ", path, ": ", OsStatusId(status));
+            VfsLog.warnf("Failed to create ", path, ": ", OsStatusId(status));
         }
 
         std::unique_ptr<vfs::IFileHandle> motd;
         if (OsStatus status = vfs::OpenFileInterface(node, nullptr, 0, std::out_ptr(motd))) {
-            VfsLog.warnf("[VFS] Failed to open file: ", OsStatusId(status));
+            VfsLog.warnf("Failed to open file: ", OsStatusId(status));
         }
 
         char data[] = "Welcome.\n";
@@ -937,7 +933,7 @@ static void MountRootVfs() {
         vfs::WriteResult result;
 
         if (OsStatus status = motd->write(request, &result)) {
-            VfsLog.warnf("[VFS] Failed to write file: ", OsStatusId(status));
+            VfsLog.warnf("Failed to write file: ", OsStatusId(status));
         }
     }
 }
@@ -949,7 +945,7 @@ static void CreatePlatformVfsNodes(const km::SmBiosTables *smbios, const acpi::A
         auto node = dev::SmBiosRoot::create(gVfsRoot->domain(), smbios);
 
         if (OsStatus status = gVfsRoot->mkdevice(vfs::BuildPath("Platform", "SMBIOS"), node)) {
-            VfsLog.warnf("[VFS] Failed to create SMBIOS device: ", OsStatusId(status));
+            VfsLog.warnf("Failed to create SMBIOS device: ", OsStatusId(status));
         }
     }
 
@@ -962,20 +958,20 @@ static void CreatePlatformVfsNodes(const km::SmBiosTables *smbios, const acpi::A
 }
 
 static void MountInitArchive(MemoryRangeEx initrd, AddressSpace& memory) {
-    KmDebugMessage("[INIT] Mounting '/Init'\n");
+    VfsLog.logf("Mounting '/Init'");
 
     //
     // If the initrd is empty then it wasn't found in the boot parameters.
     // Not much we can do without an initrd.
     //
     if (initrd.isEmpty()) {
-        KmDebugMessage("[INIT] No initrd found.\n");
+        VfsLog.fatalf("No initrd found.");
         KM_PANIC("No initrd found.");
     }
 
     TlsfAllocation initrdMemory;
     if (OsStatus status = memory.map(km::alignedOut(initrd, x64::kPageSize), PageFlags::eRead, MemoryType::eWriteBack, &initrdMemory)) {
-        KmDebugMessage("[INIT] Failed to map initrd: ", OsStatusId(status), "\n");
+        VfsLog.fatalf("Failed to map initrd: ", OsStatusId(status));
         KM_PANIC("Failed to map initrd.");
     }
 
@@ -983,17 +979,17 @@ static void MountInitArchive(MemoryRangeEx initrd, AddressSpace& memory) {
 
     vfs::IVfsMount *mount = nullptr;
     if (OsStatus status = gVfsRoot->addMountWithParams(&vfs::TarFs::instance(), vfs::BuildPath("Init"), &mount, block)) {
-        KmDebugMessage("[VFS] Failed to mount initrd: ", OsStatusId(status), "\n");
+        VfsLog.fatalf("Failed to mount initrd: ", OsStatusId(status));
         KM_PANIC("Failed to mount initrd.");
     }
 }
 
 static void MountVolatileFolder() {
-    KmDebugMessage("[INIT] Mounting '/Volatile'\n");
+    VfsLog.logf("Mounting '/Volatile'");
 
     vfs::IVfsMount *mount = nullptr;
     if (OsStatus status = gVfsRoot->addMount(&vfs::RamFs::instance(), vfs::BuildPath("Volatile"), &mount)) {
-        KmDebugMessage("[VFS] Failed to mount '/Volatile' ", OsStatusId(status), "\n");
+        VfsLog.fatalf("Failed to mount '/Volatile' ", OsStatusId(status));
         KM_PANIC("Failed to mount volatile folder.");
     }
 }
@@ -1008,19 +1004,19 @@ static OsStatus LaunchInitProcess(sys::InvokeContext *invoke, OsProcessHandle *p
     };
 
     if (OsStatus status = sys::SysDeviceOpen(invoke, createInfo, &device)) {
-        KmDebugMessage("[VFS] Failed to create device ", createInfo.path, ": ", OsStatusId(status), "\n");
+        VfsLog.fatalf("Failed to create device ", createInfo.path, ": ", OsStatusId(status));
         return status;
     }
 
     defer { sys::SysDeviceClose(invoke, device); };
 
     if (OsStatus status = km::LoadElf2(invoke, device, process, &thread)) {
-        KmDebugMessage("[VFS] Failed to load init process: ", OsStatusId(status), "\n");
+        VfsLog.fatalf("Failed to load init process: ", OsStatusId(status));
         return status;
     }
 
     if (OsStatus status = sys::SysThreadSuspend(invoke, thread, false)) {
-        KmDebugMessage("[VFS] Failed to resume init thread: ", OsStatusId(status), "\n");
+        VfsLog.fatalf("Failed to resume init thread: ", OsStatusId(status));
         return status;
     }
 
@@ -1082,7 +1078,7 @@ static void InitSystem() {
     gSysSystem = new sys::System;
 
     if (OsStatus status = sys::System::create(gVfsRoot, &memory->pageTables(), &memory->pmmAllocator(), gSysSystem)) {
-        KmDebugMessage("[INIT] Failed to create system: ", OsStatusId(status), "\n");
+        SysLog.fatalf("Failed to create system: ", OsStatusId(status));
         KM_PANIC("Failed to create system.");
     }
 
@@ -1598,15 +1594,12 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     InitFpuSave(xsaveConfig);
 
-
     //
     // Once we have the initial gdt setup we create the global allocator.
     // The IDT depends on the allocator to create its global ISR table.
     //
     Stage2MemoryInfo *stage2 = InitStage2Memory(launch, processor);
     gMemory = stage2->memory;
-
-    KmHalt();
 
     LogQueue::initGlobalLogQueue(128);
 
@@ -1623,8 +1616,10 @@ void LaunchKernel(boot::LaunchInfo launch) {
     km::SmBiosTables smbios{};
 
     if (OsStatus status = FindSmbiosTables(smbiosOptions, gMemory->pageTables(), &smbios)) {
-        KmDebugMessage("[INIT] Failed to find SMBIOS tables: ", OsStatusId(status), "\n");
+        BiosLog.warnf("Failed to find SMBIOS tables: ", OsStatusId(status));
     }
+
+    KmHalt();
 
     //
     // On Oracle VirtualBox the COM1 port is functional but fails the loopback test.
@@ -1636,7 +1631,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     arch::Intrin::LongJumpState jmp{};
     if (auto value = arch::Intrin::setjmp(&jmp)) {
-        KmDebugMessage("[INIT] Long jump: ", value, "\n");
+        SelfTestLog.dbgf("Long jump: ", value);
     } else {
         arch::Intrin::longjmp(&jmp, 1);
     }
