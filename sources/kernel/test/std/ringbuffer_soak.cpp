@@ -1,7 +1,8 @@
 #include <gtest/gtest.h>
 #include <latch>
-#include <memory_resource>
 #include <thread>
+#include <fstream>
+#include <dlfcn.h>
 
 #include "allocator/tlsf.hpp"
 #include "common/compiler/compiler.hpp"
@@ -70,6 +71,11 @@ TEST_F(RingBufferSoakTest, MultithreadSoak) {
     producers.clear();
     consumer.request_stop();
     consumer.join();
+
+    std::string value;
+    while (queue.tryPop(value)) {
+        consumedCount += 1;
+    }
 
     ASSERT_NE(producedCount.load(), 0);
     ASSERT_EQ(consumedCount.load(), producedCount.load());
@@ -147,7 +153,7 @@ TEST_F(RingBufferSoakTest, ReentrantSoak) {
     }, nullptr);
 
     auto now = std::chrono::high_resolution_clock::now();
-    auto end = now + std::chrono::seconds(60);
+    auto end = now + std::chrono::seconds(120);
     while (now < end) {
         std::string value = "Hello, World!";
         queue.tryPush(value);
@@ -169,7 +175,13 @@ TEST_F(RingBufferSoakTest, ReentrantSoak) {
 
     ASSERT_FALSE(ipSamples.empty());
 
+    std::ofstream file("ringbuffer_soak_ip_samples.txt");
+
     for (const auto &[ip, count] : ipSamples) {
-        printf("IP: %p, Count: %zu\n", reinterpret_cast<void *>(ip), count);
+        Dl_info info;
+        dladdr((void*)ip, &info);
+        size_t baseAddress = (size_t)info.dli_fbase;
+        size_t relativeAddress = ip - baseAddress;
+        file << std::hex << relativeAddress << " " << std::dec << count << "\n";
     }
 }

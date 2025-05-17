@@ -98,6 +98,8 @@ smp = custom_target('smp.o',
 
 aml_option = get_option('aml')
 
+# Sanitizer configuration
+
 sanitizer_src = []
 sanitizer_args = []
 
@@ -129,6 +131,8 @@ kernel_args = [
 kernel_c_args = c_args + kernel_args + sanitizer_args
 kernel_cpp_args = cpp_args + kernel_args + sanitizer_args
 
+# Kwargs for different build types
+
 kernel_kwargs = {
     'c_args': c_args + kernel_args + sanitizer_args,
     'cpp_args': cpp_args + kernel_args + sanitizer_args,
@@ -148,7 +152,7 @@ nosan_kwargs = {
     'override_options' : [ 'b_sanitize=none', 'b_coverage=true' ],
 }
 
-# Kernel
+# Logging
 
 logging_src = files(
     'src/logger/logger.cpp',
@@ -175,6 +179,8 @@ liblogging_nosanitize = static_library('logging_nosanitize', logging_src,
     include_directories : inc,
     dependencies : deps,
 )
+
+# Kernel
 
 system_src = files(
     'src/system/system.cpp',

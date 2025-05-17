@@ -1,0 +1,11 @@
+<package name='no_aslr'>
+    <download file='no_aslr.zip'
+              url='https://github.com/kccqzy/no-aslr/archive/refs/heads/master.zip'
+              sha256=''
+              trim-root-folder='true'
+              archive='zip' />
+
+    <configure with='script'>
+        cc @SOURCE_ROOT@/no-aslr.c -o @BUILD_ROOT@/no_aslr
+    </configure>
+</package>

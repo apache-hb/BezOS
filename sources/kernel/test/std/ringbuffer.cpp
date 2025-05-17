@@ -119,6 +119,11 @@ TEST_F(RingBufferStringTest, ThreadSafe) {
     consumer.request_stop();
     consumer.join();
 
+    std::string value;
+    while (queue.tryPop(value)) {
+        consumedCount += 1;
+    }
+
     ASSERT_NE(producedCount.load(), 0);
     ASSERT_EQ(consumedCount.load(), producedCount.load());
 }
