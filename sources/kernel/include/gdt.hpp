@@ -213,7 +213,8 @@ namespace km {
     static_assert(std::is_standard_layout_v<x64::GdtEntry>);
     static_assert(std::is_standard_layout_v<SystemGdt>);
 
-    SystemGdt GetBootGdt();
+    [[gnu::const]]
+    SystemGdt GetBootGdt() noexcept;
 
     SystemGdt GetSystemGdt(const x64::TaskStateSegment *tss);
 }

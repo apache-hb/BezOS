@@ -95,7 +95,7 @@ namespace km {
 
         Canvas(Canvas geometry, uint8_t *address);
 
-        constexpr Canvas(sm::noinit)
+        constexpr Canvas() noexcept
             : mPhysical(nullptr)
             , mAddress(nullptr)
             , mWidth(0)
@@ -163,8 +163,8 @@ namespace km {
             , mColumnCount(display.width() / 8)
         { }
 
-        constexpr DirectTerminal(sm::noinit)
-            : mDisplay(sm::noinit{})
+        constexpr DirectTerminal() noexcept
+            : mDisplay()
             , mCurrentRow(0)
             , mCurrentColumn(0)
             , mRowCount(0)
@@ -223,9 +223,9 @@ namespace km {
 
         BufferedTerminal(Canvas display, Canvas backBuffer);
 
-        constexpr BufferedTerminal(sm::noinit)
-            : mDisplay(sm::noinit{})
-            , mBackBuffer(sm::noinit{})
+        constexpr BufferedTerminal() noexcept
+            : mDisplay()
+            , mBackBuffer()
             , mCurrentRow(0)
             , mCurrentColumn(0)
             , mRowCount(0)

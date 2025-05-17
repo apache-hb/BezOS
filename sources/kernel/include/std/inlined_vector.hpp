@@ -83,15 +83,15 @@ namespace sm {
 
         UTIL_NOCOPY(InlinedVector);
 
-        InlinedVector() noexcept [[clang::nonallocating]]
+        constexpr InlinedVector() noexcept [[clang::nonallocating]]
             : InlinedVector(Allocator{})
         { }
 
-        ~InlinedVector() noexcept [[clang::nonallocating]] {
+        constexpr ~InlinedVector() noexcept [[clang::nonallocating]] {
             destroy();
         }
 
-        InlinedVector(Allocator allocator) noexcept
+        constexpr InlinedVector(Allocator allocator) noexcept
             : mAllocator(allocator)
             , mSize(0)
         { }
@@ -175,6 +175,9 @@ namespace sm {
 
         T& back() noexcept [[clang::nonblocking]] { return *(end() - 1); }
         const T& back() const noexcept [[clang::nonblocking]] { return *(end() - 1); }
+
+        T& at(size_t index) noexcept [[clang::nonblocking]] { return *(begin() + index); }
+        const T& at(size_t index) const noexcept [[clang::nonblocking]] { return *(begin() + index); }
 
         T& operator[](size_t index) noexcept [[clang::nonblocking]] { return *(begin() + index); }
         const T& operator[](size_t index) const noexcept [[clang::nonblocking]] { return *(begin() + index); }
@@ -260,6 +263,15 @@ namespace sm {
             std::move(begin() + index + 1, end(), begin() + index);
             std::destroy_at(end());
             setSize(count() - 1);
+        }
+
+        void remove_if(T element) noexcept [[clang::nonallocating]] {
+            for (size_t i = 0; i < count(); i++) {
+                if (at(i) == element) {
+                    remove(i);
+                    i--;
+                }
+            }
         }
 
         friend void swap(InlinedVector& lhs, InlinedVector& rhs) noexcept [[clang::nonallocating]] {

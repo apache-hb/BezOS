@@ -145,6 +145,13 @@ src = [
     'src/memory/heap.cpp',
     'src/memory/heap_command_list.cpp',
 
+    # Logging
+    'src/logger/logger.cpp',
+    'src/logger/global_logger.cpp',
+    'src/logger/vga_appender.cpp',
+    'src/logger/serial_appender.cpp',
+    'src/logger/e9_appender.cpp',
+
     # C and C++ Runtime
     'src/crt.cpp',
     'src/cxxrt.cpp',

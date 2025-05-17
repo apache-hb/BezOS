@@ -78,18 +78,26 @@ namespace sm {
             return mCapacity - 1;
         }
 
+        bool isSetup() const noexcept [[clang::reentrant, clang::nonblocking]] {
+            return mStorage != nullptr;
+        }
+
+        void reset(T *storage, uint32_t capacity) noexcept {
+            mStorage.reset(storage);
+            mCapacity = capacity + 1;
+            mProducerHead.store(0);
+            mProducerTail.store(0);
+            mConsumerHead.store(0);
+            mConsumerTail.store(0);
+        }
+
         static OsStatus create(uint32_t capacity, AtomicRingQueue<T> *queue [[clang::noescape, gnu::nonnull]]) {
             if (capacity == 0) {
                 return OsStatusInvalidInput;
             }
 
             if (T *storage = new (std::nothrow) T[capacity + 1]) {
-                queue->mStorage.reset(storage);
-                queue->mCapacity = capacity + 1;
-                queue->mProducerHead.store(0);
-                queue->mProducerTail.store(0);
-                queue->mConsumerHead.store(0);
-                queue->mConsumerTail.store(0);
+                queue->reset(storage, capacity);
                 return OsStatusSuccess;
             }
 

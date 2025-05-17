@@ -10,6 +10,10 @@ OsStatus km::LogQueue::addAppender(ILogAppender *appender) {
     return mAppenders.add(appender);
 }
 
+void km::LogQueue::removeAppender(ILogAppender *appender) noexcept {
+    mAppenders.remove_if(appender);
+}
+
 OsStatus km::LogQueue::recordMessage(detail::LogMessage message) noexcept [[clang::reentrant]] {
     if (mQueue.tryPush(message)) {
         return OsStatusSuccess;
@@ -48,14 +52,13 @@ size_t km::LogQueue::flush() [[clang::nonreentrant]] {
     return count;
 }
 
+OsStatus km::LogQueue::resizeQueue(uint32_t newCapacity) noexcept [[clang::allocating]] {
+    return MessageQueue::create(newCapacity, &mQueue);
+}
+
 OsStatus km::LogQueue::create(uint32_t messageQueueCapacity, LogQueue *queue) noexcept [[clang::allocating]] {
     return MessageQueue::create(messageQueueCapacity, &queue->mQueue);
 }
-
-km::Logger::Logger(stdx::StringView name, LogQueue *queue)
-    : mQueue(queue)
-    , mName(name)
-{ }
 
 stdx::StringView km::Logger::getName() const noexcept [[clang::reentrant]] {
     return mName;

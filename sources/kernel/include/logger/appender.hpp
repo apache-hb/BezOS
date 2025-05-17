@@ -12,11 +12,12 @@ namespace km {
     static constexpr size_t kLogMessageSize = 256;
 
     enum class LogLevel : uint8_t {
-        eDebug = 0,
-        eInfo = 1,
-        eWarning = 2,
-        eError = 3,
-        eFatal = 4,
+        ePrint = 0,
+        eDebug = 1,
+        eInfo = 2,
+        eWarning = 3,
+        eError = 4,
+        eFatal = 5,
     };
 
     namespace detail {

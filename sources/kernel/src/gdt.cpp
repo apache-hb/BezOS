@@ -145,7 +145,7 @@ static constexpr km::SystemGdt kBootGdt = {
     },
 };
 
-km::SystemGdt km::GetBootGdt() {
+km::SystemGdt km::GetBootGdt() noexcept {
     return kBootGdt;
 }
 

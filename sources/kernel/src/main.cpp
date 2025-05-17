@@ -40,6 +40,8 @@
 #include "isr/isr.hpp"
 #include "isr/runtime.hpp"
 #include "log.hpp"
+#include "logger/serial_appender.hpp"
+#include "logger/vga_appender.hpp"
 #include "memory.hpp"
 #include "memory/allocator.hpp"
 #include "memory/stack_mapping.hpp"
@@ -128,7 +130,7 @@ class TerminalLog final : public IOutStream {
 
 public:
     constexpr TerminalLog()
-        : mTerminal(T(sm::noinit{}))
+        : mTerminal(T())
     { }
 
     constexpr TerminalLog(T terminal)
@@ -162,6 +164,11 @@ public:
 };
 
 constinit static DebugLog gDebugLog;
+
+constinit static km::SerialAppender gSerialAppender;
+constinit static km::VgaAppender gVgaAppender;
+
+constinit static km::Logger Init { "INIT" };
 
 km::IOutStream *km::GetDebugStream() {
     return &gDebugLog;
@@ -652,10 +659,11 @@ static km::Apic EnableBootApic(km::AddressSpace& memory, bool useX2Apic) {
 static void InitBootTerminal(std::span<const boot::FrameBuffer> framebuffers) {
     if (framebuffers.empty()) return;
 
-    boot::FrameBuffer framebuffer = framebuffers.front();
-    km::Canvas display { framebuffer, (uint8_t*)(framebuffer.vaddr) };
-    gDirectTerminalLog = DirectTerminal(display);
-    gLogTargets.add(&gDirectTerminalLog);
+    if (km::VgaAppender::create(framebuffers.front(), (void*)framebuffers.front().vaddr, &gVgaAppender) != OsStatusSuccess) {
+        return;
+    }
+
+    LogQueue::addGlobalAppender(&gVgaAppender);
 }
 
 static void UpdateSerialPort(ComPortInfo info) {
@@ -670,8 +678,8 @@ static SerialPortStatus InitSerialPort(ComPortInfo info) {
     if (OpenSerialResult com1 = OpenSerial(info)) {
         return com1.status;
     } else {
-        gSerialLog = SerialLog(com1.port);
-        gLogTargets.add(&gSerialLog);
+        SerialAppender::create(com1.port, &gSerialAppender);
+        LogQueue::addGlobalAppender(&gSerialAppender);
         return SerialPortStatus::eOk;
     }
 }
@@ -689,72 +697,74 @@ static void LogSystemInfo(
     ProcessorInfo processor,
     bool hasDebugPort,
     SerialPortStatus com1Status,
-    const ComPortInfo& com1Info) {
-    KmDebugMessage("[INIT] System report.\n");
-    KmDebugMessage("| Component     | Property             | Status\n");
-    KmDebugMessage("|---------------+----------------------+-------\n");
+    const ComPortInfo& com1Info
+) {
+
+    Init.logf("System report.");
+    Init.println("| Component     | Property             | Status");
+    Init.println("|---------------+----------------------+-------");
 
     if (hvInfo.has_value()) {
-        KmDebugMessage("| /SYS/HV       | Hypervisor           | ", hvInfo->name, "\n");
-        KmDebugMessage("| /SYS/HV       | Max HvCPUID leaf     | ", Hex(hvInfo->maxleaf).pad(8, '0'), "\n");
-        KmDebugMessage("| /SYS/HV       | e9 debug port        | ", enabled(hasDebugPort), "\n");
+        Init.println("| /SYS/HV       | Hypervisor           | ", hvInfo->name);
+        Init.println("| /SYS/HV       | Max HvCPUID leaf     | ", Hex(hvInfo->maxleaf).pad(8, '0'));
+        Init.println("| /SYS/HV       | e9 debug port        | ", enabled(hasDebugPort));
     } else {
-        KmDebugMessage("| /SYS/HV       | Hypervisor           | Not present\n");
-        KmDebugMessage("| /SYS/HV       | Max HvCPUID leaf     | Not applicable\n");
-        KmDebugMessage("| /SYS/HV       | e9 debug port        | Not applicable\n");
+        Init.println("| /SYS/HV       | Hypervisor           | Not present");
+        Init.println("| /SYS/HV       | Max HvCPUID leaf     | Not applicable");
+        Init.println("| /SYS/HV       | e9 debug port        | Not applicable");
     }
 
-    KmDebugMessage("| /SYS/MB/CPU0  | Vendor               | ", processor.vendor, "\n");
-    KmDebugMessage("| /SYS/MB/CPU0  | Model name           | ", processor.brand, "\n");
-    KmDebugMessage("| /SYS/MB/CPU0  | Max CPUID leaf       | ", Hex(processor.maxleaf).pad(8, '0'), "\n");
-    KmDebugMessage("| /SYS/MB/CPU0  | Max physical address | ", processor.maxpaddr, "\n");
-    KmDebugMessage("| /SYS/MB/CPU0  | Max virtual address  | ", processor.maxvaddr, "\n");
-    KmDebugMessage("| /SYS/MB/CPU0  | XSAVE                | ", present(processor.xsave()), "\n");
-    KmDebugMessage("| /SYS/MB/CPU0  | TSC ratio            | ", processor.coreClock.tsc, "/", processor.coreClock.core, "\n");
+    Init.println("| /SYS/MB/CPU0  | Vendor               | ", processor.vendor);
+    Init.println("| /SYS/MB/CPU0  | Model name           | ", processor.brand);
+    Init.println("| /SYS/MB/CPU0  | Max CPUID leaf       | ", Hex(processor.maxleaf).pad(8, '0'));
+    Init.println("| /SYS/MB/CPU0  | Max physical address | ", processor.maxpaddr);
+    Init.println("| /SYS/MB/CPU0  | Max virtual address  | ", processor.maxvaddr);
+    Init.println("| /SYS/MB/CPU0  | XSAVE                | ", present(processor.xsave()));
+    Init.println("| /SYS/MB/CPU0  | TSC ratio            | ", processor.coreClock.tsc, "/", processor.coreClock.core);
 
     if (processor.hasNominalFrequency()) {
-        KmDebugMessage("| /SYS/MB/CPU0  | Bus clock            | ", uint32_t(processor.busClock / si::hertz), "hz\n");
+        Init.println("| /SYS/MB/CPU0  | Bus clock            | ", uint32_t(processor.busClock / si::hertz), "hz");
     } else {
-        KmDebugMessage("| /SYS/MB/CPU0  | Bus clock            | Not available\n");
+        Init.println("| /SYS/MB/CPU0  | Bus clock            | Not available");
     }
 
     if (processor.hasBusFrequency()) {
-        KmDebugMessage("| /SYS/MB/CPU0  | Base frequency       | ", uint16_t(processor.baseFrequency / si::megahertz), "mhz\n");
-        KmDebugMessage("| /SYS/MB/CPU0  | Max frequency        | ", uint16_t(processor.maxFrequency / si::megahertz), "mhz\n");
-        KmDebugMessage("| /SYS/MB/CPU0  | Bus frequency        | ", uint16_t(processor.busFrequency / si::megahertz), "mhz\n");
+        Init.println("| /SYS/MB/CPU0  | Base frequency       | ", uint16_t(processor.baseFrequency / si::megahertz), "mhz");
+        Init.println("| /SYS/MB/CPU0  | Max frequency        | ", uint16_t(processor.maxFrequency / si::megahertz), "mhz");
+        Init.println("| /SYS/MB/CPU0  | Bus frequency        | ", uint16_t(processor.busFrequency / si::megahertz), "mhz");
     } else {
-        KmDebugMessage("| /SYS/MB/CPU0  | Base frequency       | Not reported via CPUID\n");
-        KmDebugMessage("| /SYS/MB/CPU0  | Max frequency        | Not reported via CPUID\n");
-        KmDebugMessage("| /SYS/MB/CPU0  | Bus frequency        | Not reported via CPUID\n");
+        Init.println("| /SYS/MB/CPU0  | Base frequency       | Not reported via CPUID");
+        Init.println("| /SYS/MB/CPU0  | Max frequency        | Not reported via CPUID");
+        Init.println("| /SYS/MB/CPU0  | Bus frequency        | Not reported via CPUID");
     }
 
-    KmDebugMessage("| /SYS/MB/CPU0  | Local APIC           | ", present(processor.lapic()), "\n");
-    KmDebugMessage("| /SYS/MB/CPU0  | 2x APIC              | ", present(processor.x2apic()), "\n");
-    KmDebugMessage("| /SYS/MB/CPU0  | SMBIOS 32 address    | ", launch.smbios32Address, "\n");
-    KmDebugMessage("| /SYS/MB/CPU0  | SMBIOS 64 address    | ", launch.smbios64Address, "\n");
+    Init.println("| /SYS/MB/CPU0  | Local APIC           | ", present(processor.lapic()));
+    Init.println("| /SYS/MB/CPU0  | 2x APIC              | ", present(processor.x2apic()));
+    Init.println("| /SYS/MB/CPU0  | SMBIOS 32 address    | ", launch.smbios32Address);
+    Init.println("| /SYS/MB/CPU0  | SMBIOS 64 address    | ", launch.smbios64Address);
 
     for (size_t i = 0; i < launch.framebuffers.size(); i++) {
         const boot::FrameBuffer& display = launch.framebuffers[i];
-        KmDebugMessage("| /SYS/VIDEO", i, "   | Display resolution   | ", display.width, "x", display.height, "x", display.bpp, "\n");
-        KmDebugMessage("| /SYS/VIDEO", i, "   | Framebuffer size     | ", sm::bytes(display.size()), "\n");
-        KmDebugMessage("| /SYS/VIDEO", i, "   | Framebuffer address  | ", display.vaddr, "\n");
-        KmDebugMessage("| /SYS/VIDEO", i, "   | Display pitch        | ", display.pitch, "\n");
-        KmDebugMessage("| /SYS/VIDEO", i, "   | EDID                 | ", display.edid, "\n");
-        KmDebugMessage("| /SYS/VIDEO", i, "   | Red channel          | (mask=", display.redMaskSize, ",shift=", display.redMaskShift, ")\n");
-        KmDebugMessage("| /SYS/VIDEO", i, "   | Green channel        | (mask=", display.greenMaskSize, ",shift=", display.greenMaskShift, ")\n");
-        KmDebugMessage("| /SYS/VIDEO", i, "   | Blue channel         | (mask=", display.blueMaskSize, ",shift=", display.blueMaskShift, ")\n");
+        Init.println("| /SYS/VIDEO", i, "   | Display resolution   | ", display.width, "x", display.height, "x", display.bpp);
+        Init.println("| /SYS/VIDEO", i, "   | Framebuffer size     | ", sm::bytes(display.size()));
+        Init.println("| /SYS/VIDEO", i, "   | Framebuffer address  | ", display.vaddr);
+        Init.println("| /SYS/VIDEO", i, "   | Display pitch        | ", display.pitch);
+        Init.println("| /SYS/VIDEO", i, "   | EDID                 | ", display.edid);
+        Init.println("| /SYS/VIDEO", i, "   | Red channel          | (mask=", display.redMaskSize, ",shift=", display.redMaskShift, ")");
+        Init.println("| /SYS/VIDEO", i, "   | Green channel        | (mask=", display.greenMaskSize, ",shift=", display.greenMaskShift, ")");
+        Init.println("| /SYS/VIDEO", i, "   | Blue channel         | (mask=", display.blueMaskSize, ",shift=", display.blueMaskShift, ")");
     }
 
-    KmDebugMessage("| /SYS/MB/COM1  | Status               | ", com1Status, "\n");
-    KmDebugMessage("| /SYS/MB/COM1  | Port                 | ", Hex(com1Info.port), "\n");
-    KmDebugMessage("| /SYS/MB/COM1  | Baud rate            | ", km::com::kBaudRate / com1Info.divisor, "\n");
+    Init.println("| /SYS/MB/COM1  | Status               | ", com1Status);
+    Init.println("| /SYS/MB/COM1  | Port                 | ", Hex(com1Info.port));
+    Init.println("| /SYS/MB/COM1  | Baud rate            | ", km::com::kBaudRate / com1Info.divisor);
 
-    KmDebugMessage("| /BOOT         | Stack                | ", launch.stack, "\n");
-    KmDebugMessage("| /BOOT         | Kernel virtual       | ", launch.kernelVirtualBase, "\n");
-    KmDebugMessage("| /BOOT         | Kernel physical      | ", launch.kernelPhysicalBase, "\n");
-    KmDebugMessage("| /BOOT         | Boot Allocator       | ", launch.earlyMemory, "\n");
-    KmDebugMessage("| /BOOT         | INITRD               | ", launch.initrd, "\n");
-    KmDebugMessage("| /BOOT         | HHDM offset          | ", Hex(launch.hhdmOffset).pad(16, '0'), "\n");
+    Init.println("| /BOOT         | Stack                | ", launch.stack);
+    Init.println("| /BOOT         | Kernel virtual       | ", launch.kernelVirtualBase);
+    Init.println("| /BOOT         | Kernel physical      | ", launch.kernelPhysicalBase);
+    Init.println("| /BOOT         | Boot Allocator       | ", launch.earlyMemory);
+    Init.println("| /BOOT         | INITRD               | ", launch.initrd);
+    Init.println("| /BOOT         | HHDM offset          | ", Hex(launch.hhdmOffset).pad(16, '0'));
 }
 
 static void SetupInterruptStacks(uint16_t cs) {
@@ -1570,13 +1580,15 @@ void LaunchKernel(boot::LaunchInfo launch) {
     SerialPortStatus com1Status = InitSerialPort(com1Info);
 
     if (OsStatus status = debug::InitDebugStream(com2Info)) {
-        KmDebugMessage("[INIT] Failed to initialize debug port: ", OsStatusId(status), "\n");
+        Init.warnf("Failed to initialize debug stream: ", OsStatusId(status));
     }
 
     LogSystemInfo(launch, hvInfo, processor, hasDebugPort, com1Status, com1Info);
 
     gBootGdt = GetBootGdt();
     SetupInitialGdt();
+
+    KmHalt();
 
     XSaveConfig xsaveConfig {
         .target = kEnableXSave ? SaveMode::eXSave : SaveMode::eFxSave,
