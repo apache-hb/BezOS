@@ -196,7 +196,7 @@ enum {
 
 void km::SetupInitialGdt(void) {
     InitGdt(gBootGdt.entries, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
-    InitLog.log("GDT initialized");
+    InitLog.info("GDT initialized");
 }
 
 void km::SetupApGdt(void) {
@@ -376,11 +376,11 @@ static KernelLayout BuildKernelLayout(
 
     AddressMapping kernel = { kernelVirtualBase, kernelPhysicalBase, GetKernelSize() };
 
-    InitLog.dbgf("[INIT] Kernel layout:");
-    InitLog.dbgf("[INIT] Data         : ", data);
-    InitLog.dbgf("[INIT] Committed    : ", committed);
-    InitLog.dbgf("[INIT] Framebuffers : ", framebuffers);
-    InitLog.dbgf("[INIT] Kernel       : ", kernel);
+    InitLog.dbgf("Kernel layout:");
+    InitLog.dbgf("Data         : ", data);
+    InitLog.dbgf("Committed    : ", committed);
+    InitLog.dbgf("Framebuffers : ", framebuffers);
+    InitLog.dbgf("Kernel       : ", kernel);
 
     KM_CHECK(data.isValid(), "Invalid data range.");
     KM_CHECK(committedVirtualRange.isValid(), "Invalid committed range.");
@@ -500,7 +500,7 @@ static Stage1MemoryInfo InitStage1Memory(const boot::LaunchInfo& launch, const k
 
     PageTables vmm;
     if (OsStatus status = km::PageTables::create(&pm, pteMapping, PageFlags::eAll, &vmm)) {
-        InitLog.fatalf("[INIT] Failed to create page tables: ", OsStatusId(status));
+        InitLog.fatalf("Failed to create page tables: ", OsStatusId(status));
         KM_PANIC("Failed to create page tables.");
     }
 
@@ -622,7 +622,7 @@ static km::Apic EnableBootApic(km::AddressSpace& memory, bool useX2Apic) {
     km::SharedIsrTable *sharedIst = km::GetSharedIsrTable();
 
     sharedIst->install(isr::kSpuriousVector, SpuriousVector);
-    KmDebugMessage("[INIT] APIC ID: ", apic->id(), ", Version: ", apic->version(), ", Spurious vector: ", isr::kSpuriousVector, "\n");
+    InitLog.infof("APIC ID: ", apic->id(), ", Version: ", apic->version(), ", Spurious vector: ", isr::kSpuriousVector);
 
     apic->setSpuriousVector(isr::kSpuriousVector);
     apic->enable();
@@ -630,7 +630,7 @@ static km::Apic EnableBootApic(km::AddressSpace& memory, bool useX2Apic) {
     if (kSelfTestApic) {
         km::LocalIsrTable *ist = km::GetLocalIsrTable();
         IsrCallback testIsr = [](km::IsrContext *ctx) noexcept [[clang::reentrant]] -> km::IsrContext {
-            KmDebugMessage("[TEST] Handled isr: ", ctx->vector, "\n");
+            TestLog.dbgf("Handled isr: ", ctx->vector);
             km::IApic *pic = km::GetCpuLocalApic();
             pic->eoi();
             return *ctx;
@@ -639,7 +639,7 @@ static km::Apic EnableBootApic(km::AddressSpace& memory, bool useX2Apic) {
         const IsrEntry *testInt = ist->allocate(testIsr);
         uint8_t testIdx = ist->index(testInt);
 
-        KmDebugMessage("[TEST] Testing self-IPI ", testIdx, "\n");
+        TestLog.dbgf("Testing self-IPI ", testIdx);
 
         //
         // Test that both self-IPI methods work.
@@ -698,7 +698,7 @@ static void LogSystemInfo(
     const ComPortInfo& com1Info
 ) {
 
-    InitLog.logf("System report.");
+    InitLog.infof("System report.");
     InitLog.println("| Component     | Property             | Status");
     InitLog.println("|---------------+----------------------+-------");
 
@@ -866,7 +866,7 @@ static void CreateNotificationQueue() {
 static void MakeFolder(const vfs::VfsPath& path) {
     sm::RcuSharedPtr<vfs::INode> node = nullptr;
     if (OsStatus status = gVfsRoot->mkpath(path, &node)) {
-        VfsLog.warnf("[VFS] Failed to create path: '", path, "' ", OsStatusId(status));
+        VfsLog.warnf("Failed to create path: '", path, "' ", OsStatusId(status));
     }
 }
 
@@ -884,7 +884,7 @@ static void MakeUser(vfs::VfsStringView name) {
 }
 
 static void MountRootVfs() {
-    VfsLog.logf("Initializing VFS.");
+    VfsLog.infof("Initializing VFS.");
     gVfsRoot = new vfs::VfsRoot();
 
     MakePath("System", "Options");
@@ -958,7 +958,7 @@ static void CreatePlatformVfsNodes(const km::SmBiosTables *smbios, const acpi::A
 }
 
 static void MountInitArchive(MemoryRangeEx initrd, AddressSpace& memory) {
-    VfsLog.logf("Mounting '/Init'");
+    VfsLog.infof("Mounting '/Init'");
 
     //
     // If the initrd is empty then it wasn't found in the boot parameters.
@@ -985,7 +985,7 @@ static void MountInitArchive(MemoryRangeEx initrd, AddressSpace& memory) {
 }
 
 static void MountVolatileFolder() {
-    VfsLog.logf("Mounting '/Volatile'");
+    VfsLog.infof("Mounting '/Volatile'");
 
     vfs::IVfsMount *mount = nullptr;
     if (OsStatus status = gVfsRoot->addMount(&vfs::RamFs::instance(), vfs::BuildPath("Volatile"), &mount)) {
@@ -1619,8 +1619,6 @@ void LaunchKernel(boot::LaunchInfo launch) {
         BiosLog.warnf("Failed to find SMBIOS tables: ", OsStatusId(status));
     }
 
-    KmHalt();
-
     //
     // On Oracle VirtualBox the COM1 port is functional but fails the loopback test.
     // If we are running on VirtualBox, retry the serial port initialization without the loopback test.
@@ -1654,6 +1652,8 @@ void LaunchKernel(boot::LaunchInfo launch) {
     }
 
     pci::ProbeConfigSpace(config.get(), rsdt.mcfg());
+
+    KmHalt();
 
     {
         static constexpr size_t kSchedulerMemorySize = sm::kilobytes(128).bytes();

@@ -11,25 +11,21 @@
 #include <bezos/status.h>
 
 namespace sm {
-    namespace detail {
-        /// @param index The index to check
-        /// @param start The start index of the circular buffer range.
-        /// @param end The end index of the circular buffer range.
-        constexpr bool isInCircular(uint32_t index, uint32_t start, uint32_t end) noexcept [[clang::reentrant, clang::nonblocking]] {
-            return (start <= end) ? (index >= start && index < end) : (index >= start || index < end);
-        }
-    }
-
     /// @brief A fixed size, multi-producer, single-consumer reentrant atomic ringbuffer.
     /// @cite FreeBSDRingBuffer
     template<typename T>
     class AtomicRingQueue {
+        static_assert(std::is_nothrow_move_constructible_v<T>
+                   && std::is_nothrow_move_assignable_v<T>
+                   && std::is_nothrow_destructible_v<T>
+                   && std::is_nothrow_default_constructible_v<T>);
+
         std::unique_ptr<T[]> mStorage;
         uint32_t mCapacity{0};
         std::atomic<uint32_t> mProducerHead{0};
+        std::atomic<uint32_t> mConsumerTail{0};
         std::atomic<uint32_t> mProducerTail{0};
         std::atomic<uint32_t> mConsumerHead{0};
-        std::atomic<uint32_t> mConsumerTail{0};
 
     public:
         constexpr AtomicRingQueue() noexcept = default;
@@ -102,7 +98,7 @@ namespace sm {
             mConsumerTail.store(0);
         }
 
-        static OsStatus create(uint32_t capacity, AtomicRingQueue<T> *queue [[clang::noescape, gnu::nonnull]]) {
+        static OsStatus create(uint32_t capacity, AtomicRingQueue<T> *queue [[clang::noescape, gnu::nonnull]]) noexcept {
             if (capacity == 0) {
                 return OsStatusInvalidInput;
             }

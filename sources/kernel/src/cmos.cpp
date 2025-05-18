@@ -25,7 +25,7 @@ static uint8_t ReadCmosRegister(uint8_t reg) {
     return KmReadByte(kCmosData);
 }
 
-void km::InitCmos(uint8_t century) {
+void km::InitCmos(uint8_t century) noexcept {
     gCenturyRegister = century;
 }
 

@@ -1,6 +1,7 @@
 #include "clock.hpp"
 
 #include "log.hpp"
+#include "logger/categories.hpp"
 #include "timer/tick_source.hpp"
 
 static constexpr auto kGregorianReform = std::chrono::years{1582} + std::chrono::months{10} + std::chrono::days{15};
@@ -55,16 +56,16 @@ km::Clock::Clock(DateTime start, ITickSource *counter)
     , mStartTicks(counter->ticks())
     , mFrequency(counter->frequency())
 {
-    KmDebugMessage("[CLOCK] Boot time: ", start.year, "-", start.month, "-", start.day, "T", start.hour, ":", start.minute, ":", start.second, "Z\n");
-    KmDebugMessage("[CLOCK] Boot ticks: ", mStartTicks, "\n");
-    KmDebugMessage("[CLOCK] Frequency: ", mFrequency, "\n");
+    ClockLog.infof("Boot time: ", start.year, "-", start.month, "-", start.day, "T", start.hour, ":", start.minute, ":", start.second, "Z");
+    ClockLog.infof("Boot ticks: ", mStartTicks);
+    ClockLog.infof("Frequency: ", mFrequency);
 }
 
 OsStatus km::Clock::stat(OsClockInfo *result) {
     auto name = [&] -> stdx::StringView {
         switch (mCounter->type()) {
         case km::TickSourceType::PIT8254:
-            return "Programmable Interval Timer";
+            return "Programmable Interval Timer 8254";
         case km::TickSourceType::HPET:
             return "High Precision Multimedia Timer";
         case km::TickSourceType::APIC:

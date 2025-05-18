@@ -1,9 +1,9 @@
 #include "isr/isr.hpp"
 
-#include "log.hpp"
+#include "logger/categories.hpp"
 #include "processor.hpp"
 
 km::IsrContext km::DefaultIsrHandler(km::IsrContext *context) noexcept [[clang::reentrant]] {
-    KmDebugMessage("[INT] ", km::GetCurrentCoreId(), " Unhandled interrupt: ", context->vector, " Error: ", context->error, "\n");
+    IsrLog.warnf(km::GetCurrentCoreId(), " Unhandled interrupt: ", context->vector, " Error: ", context->error, "\n");
     return *context;
 }

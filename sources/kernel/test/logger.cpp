@@ -61,7 +61,7 @@ TEST_F(LoggerTest, LogMessage) {
 
 TEST_F(LoggerTest, FormatSeverityLevels) {
     logger.dbgf("Debug message ", 25);
-    logger.logf("Info message", km::present(false));
+    logger.infof("Info message", km::present(false));
     logger.warnf("Warning message ", 1234);
     logger.errorf("Error message ", km::Hex(0xDEADBEEF), " more text");
     logger.fatalf("Fatal message ", km::enabled(true));
@@ -77,7 +77,7 @@ TEST_F(LoggerTest, FormatSeverityLevels) {
 }
 
 TEST_F(LoggerTest, SeverityLevels) {
-    logger.log("Info message");
+    logger.info("Info message");
     logger.warn("Warning message");
     logger.error("Error message");
     logger.fatal("Fatal message");
@@ -118,7 +118,7 @@ TEST_F(LoggerTest, ThreadSafe) {
         threads.emplace_back([this, &latch]() {
             latch.arrive_and_wait();
             for (size_t j = 0; j < (kQueueSize / kThreadCount); ++j) {
-                logger.log("Thread message");
+                logger.info("Thread message");
             }
         });
     }

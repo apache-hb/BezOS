@@ -36,7 +36,7 @@ void km::Disable8259Pic() {
     static constexpr uint8_t kSlavePin = 0x2;
     static constexpr uint8_t kSlaveId = 0x4;
 
-    IsrLog.dbgf("[INIT] Disabling 8259 PIC.");
+    IsrLog.dbgf("Disabling 8259 PIC.");
 
     // start init sequence
     KmWriteByte(kCommandMasterPort, kInitStart);
@@ -58,7 +58,7 @@ void km::Disable8259Pic() {
     KmWriteByte(kDataMasterPort, 0xFF);
     KmWriteByte(kDataSlavePort, 0xFF);
 
-    IsrLog.dbgf("[INIT] PIC disabled.");
+    IsrLog.dbgf("PIC disabled.");
 }
 
 // apic setup
@@ -73,10 +73,10 @@ static void LogApicStartup(uint64_t msr) {
     stdx::StringView kind = bsp ? "Bootstrap Processor"_sv : "Application Processor"_sv;
 
     if (x2apic) {
-        IsrLog.dbgf("[APIC] Startup: ", km::Hex(msr), ", State: x2APIC enabled, Type: ", kind, "\n");
+        IsrLog.dbgf("x2APIC Startup: ", km::Hex(msr), ", State: x2APIC enabled, Type: ", kind);
     } else {
         km::PhysicalAddress base = msr & kApicAddressMask;
-        IsrLog.dbgf("[APIC] Startup: ", km::Hex(msr), ", Base address: ", base, ", State: ", km::enabled(enabled), ", Type: ", kind, "\n");
+        IsrLog.dbgf("APIC Startup: ", km::Hex(msr), ", Base address: ", base, ", State: ", km::enabled(enabled), ", Type: ", kind);
     }
 }
 
@@ -440,7 +440,7 @@ static km::apic::Trigger GetIsoTriggerMode(acpi::MadtEntry::InterruptSourceOverr
         return km::apic::Trigger::eLevel;
 
     default:
-        IsrLog.warnf("Unknown trigger mode: ", km::Hex(iso.flags & 0b1100), ". Defaulting to edge triggered.\n");
+        IsrLog.warnf("Unknown trigger mode: ", km::Hex(iso.flags & 0b1100), ". Defaulting to edge triggered.");
         return km::apic::Trigger::eEdge;
     }
 }
@@ -454,7 +454,7 @@ static km::apic::Polarity GetIsoPolarity(acpi::MadtEntry::InterruptSourceOverrid
         return km::apic::Polarity::eActiveHigh;
 
     default:
-        IsrLog.warnf("[WARN] Unknown polarity mode: ", km::Hex(iso.flags & 0b11), ". Defaulting to active low.\n");
+        IsrLog.warnf("Unknown polarity mode: ", km::Hex(iso.flags & 0b11), ". Defaulting to active low.");
         return km::apic::Polarity::eActiveLow;
     }
 }
@@ -476,8 +476,8 @@ km::IoApicSet::IoApicSet(const acpi::Madt *madt, km::AddressSpace& memory)
 
         IoApic ioapic { entry, memory };
 
-        AcpiLog.dbgf("[INIT] IOAPIC ", index, " ID: ", ioapic.id(), ", Version: ", ioapic.version());
-        AcpiLog.dbgf("[INIT] ISR base: ", ioapic.isrBase(), ", Inputs: ", ioapic.inputCount());
+        AcpiLog.dbgf("IOAPIC ", index, " ID: ", ioapic.id(), ", Version: ", ioapic.version());
+        AcpiLog.dbgf("ISR base: ", ioapic.isrBase(), ", Inputs: ", ioapic.inputCount());
 
         mIoApics[index++] = ioapic;
     }
@@ -527,7 +527,7 @@ void km::IoApicSet::setLegacyRedirect(apic::IvtConfig config, uint32_t redirect,
 using EsrFormat = km::Format<km::apic::ErrorState>;
 
 void EsrFormat::format(km::IOutStream& out, km::apic::ErrorState esr) {
-    out.format("ESR(");
+    out.format("ErrorState(");
     bool first = true;
     auto append = [&](bool value, stdx::StringView name) {
         if (value) {

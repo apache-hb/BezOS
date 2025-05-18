@@ -6,7 +6,7 @@ void km::LogQueue::write(const LogMessageView& message) [[clang::nonreentrant]] 
     }
 }
 
-OsStatus km::LogQueue::addAppender(ILogAppender *appender) {
+OsStatus km::LogQueue::addAppender(ILogAppender *appender) noexcept {
     return mAppenders.add(appender);
 }
 
@@ -79,7 +79,7 @@ void km::Logger::dbg(stdx::StringView message, std::source_location location) no
     submit(LogLevel::eDebug, message, location);
 }
 
-void km::Logger::log(stdx::StringView message, std::source_location location) noexcept [[clang::reentrant]] {
+void km::Logger::info(stdx::StringView message, std::source_location location) noexcept [[clang::reentrant]] {
     submit(LogLevel::eInfo, message, location);
 }
 

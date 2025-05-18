@@ -1,3 +1,4 @@
+bench = dependency('benchmark-main', native : true, default_options : [ 'tests=disabled' ])
 
 test_sanitize_args = [
     '-fsanitize=nullability'
@@ -142,6 +143,32 @@ test_exe_kwargs = {
 }
 
 # Test cases
+
+benchcases = {
+    'ringbuffer': {
+        'sources': files('bench/ringbuffer.cpp'),
+        'link_with': [ libformat_bench ],
+    }
+}
+
+foreach name, setup : benchcases
+    exe = executable('bench-kernel-' + name.strip().replace(' ', '-'), setup['sources'],
+        c_args : setup.get('c_args', test_c_args),
+        cpp_args : setup.get('cpp_args', test_cpp_args),
+        link_args : setup.get('link_args', test_link_args),
+        link_with : setup.get('link_with', []),
+        include_directories : inc,
+        dependencies : setup.get('dependencies', []) + [ common, sysapi, bench ],
+        override_options : setup.get('override_options', [ 'b_sanitize=none', 'b_coverage=false' ]),
+        native : true,
+        pie : true,
+    )
+
+    benchmark(name, exe,
+        suite : 'kernel',
+        timeout : 120,
+    )
+endforeach
 
 testcases2 = {
     'static vector': {

@@ -26,30 +26,30 @@ namespace stdx {
     public:
         static constexpr size_t kMaxSize = N;
 
-        constexpr StaticStringBase()
+        constexpr StaticStringBase() noexcept
             : mSize(0)
         { }
 
-        constexpr StaticStringBase(T elem)
+        constexpr StaticStringBase(T elem) noexcept
             : mSize(1)
             , mStorage({ elem })
         { }
 
         template<size_t S> requires (S <= N)
-        constexpr StaticStringBase(const T (&str)[S])
+        constexpr StaticStringBase(const T (&str)[S]) noexcept
             : StaticStringBase(str, str + S - 1)
         { }
 
         template<typename R> requires IsRange<const T, R>
-        constexpr StaticStringBase(const R& range)
+        constexpr StaticStringBase(const R& range) noexcept
             : StaticStringBase(std::begin(range), std::end(range))
         { }
 
-        constexpr StaticStringBase(std::initializer_list<T> list)
+        constexpr StaticStringBase(std::initializer_list<T> list) noexcept
             : StaticStringBase(std::begin(list), std::end(list))
         { }
 
-        constexpr StaticStringBase(const T *front [[gnu::nonnull]], const T *back [[gnu::nonnull]]) {
+        constexpr StaticStringBase(const T *front [[gnu::nonnull]], const T *back [[gnu::nonnull]]) noexcept {
             init(front, back);
         }
 

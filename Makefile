@@ -83,6 +83,10 @@ check: | clean-coverage
 soak: | clean-coverage
 	meson test -C $(KERNEL_PATH) --suite kernel-soak
 
+.PHONY: bench
+bench: | clean-coverage
+	meson test -C $(KERNEL_PATH) --benchmark
+
 $(COVERAGE_REPORT): $(GCDA_FILES)
 	ninja -C $(KERNEL_PATH) coverage
 

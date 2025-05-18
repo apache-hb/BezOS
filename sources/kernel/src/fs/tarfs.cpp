@@ -7,12 +7,15 @@
 #include "fs/query.hpp"
 #include "fs/utils.hpp"
 #include "log.hpp"
+#include "logger/logger.hpp"
 
 #include <ranges>
 
 using namespace vfs;
 
 static constexpr size_t kTarBlockSize = 512;
+
+static constinit km::Logger TarLog { "TARFS" };
 
 OsStatus vfs::detail::ConvertTarPath(const char *path, VfsPath *result) {
     std::array<char, kTarNameSize> buffer{};
@@ -89,9 +92,9 @@ OsStatus vfs::ParseTar(km::BlockDevice *media, TarParseOptions options, sm::BTre
             // is a bug in the tarfs driver. Either way it is not safe
             // to continue.
             //
-            KmDebugMessage("[TARFS] Failed to read header at offset: ", km::Hex(offset).pad(16), "\n");
-            KmDebugMessage("[TARFS] The reported media size is: ", km::Hex(mediaSize).pad(16), "\n");
-            KmDebugMessage("[TARFS] This could indicate a faulty block device.\n");
+            TarLog.errorf("Failed to read header at offset: ", km::Hex(offset).pad(16));
+            TarLog.errorf("The reported media size is: ", km::Hex(mediaSize).pad(16));
+            TarLog.errorf("This could indicate a faulty block device.");
             return OsStatusInvalidInput;
         }
 
@@ -106,8 +109,8 @@ OsStatus vfs::ParseTar(km::BlockDevice *media, TarParseOptions options, sm::BTre
             //
             // If the magic is invalid, we may have overrun the tar file.
             //
-            KmDebugMessage("[TARFS] Invalid magic for entry at offset: ", km::Hex(offset).pad(16), "\n");
-            KmDebugMessage("[TARFS] Expected: '", TarPosixHeader::kMagic, "' Actual: '", header.magic, "'\n");
+            TarLog.errorf("Invalid magic for entry at offset: ", km::Hex(offset).pad(16));
+            TarLog.errorf("Expected: '", TarPosixHeader::kMagic, "' Actual: '", header.magic, "'");
             break;
         }
 
@@ -119,8 +122,8 @@ OsStatus vfs::ParseTar(km::BlockDevice *media, TarParseOptions options, sm::BTre
             uint64_t checksum = header.reportedChecksum();
             uint64_t actual = header.actualChecksum();
             if (checksum != actual) {
-                KmDebugMessage("[TARFS] Invalid checksum for entry: '", header.name, "'\n");
-                KmDebugMessage("[TARFS] Reported: ", km::Hex(checksum).pad(8), " Actual: ", km::Hex(actual).pad(8), "\n");
+                TarLog.errorf("Invalid checksum for entry: '", header.name, "'");
+                TarLog.errorf("Reported: ", km::Hex(checksum).pad(8), " Actual: ", km::Hex(actual).pad(8));
                 return OsStatusInvalidInput;
             }
         }
@@ -142,7 +145,7 @@ OsStatus vfs::ParseTar(km::BlockDevice *media, TarParseOptions options, sm::BTre
             // If the size of the file is larger than the media size,
             // the tar file is corrupt.
             //
-            KmDebugMessage("[TARFS] File size exceeds media size: ", header.name, "\n");
+            TarLog.errorf("File size exceeds media size: '", header.name, "'");
             return OsStatusInvalidInput;
         }
 
@@ -170,7 +173,7 @@ OsStatus vfs::ParseTar(km::BlockDevice *media, TarParseOptions options, sm::BTre
 
         VfsPath path;
         if (OsStatus status = detail::ConvertTarPath(header.name, &path)) {
-            KmDebugMessage("[TARFS] Failed to convert path: ", header.name, " = ", status, "\n");
+            TarLog.errorf("Failed to convert path: ", header.name, " = ", OsStatusId(status));
             return status;
         }
 
@@ -307,7 +310,7 @@ TarFsMount::TarFsMount(TarFs *tarfs, sm::RcuDomain *domain, sm::SharedPtr<km::IB
 {
     sm::BTreeMap<VfsPath, TarEntry> headers;
     if (OsStatus status = ParseTar(&mMedia, TarParseOptions{}, &headers)) {
-        KmDebugMessage("[TARFS] Failed to parse tar archive: ", status, "\n");
+        TarLog.errorf("Failed to parse tar archive: ", OsStatusId(status));
         return;
     }
 
@@ -317,7 +320,7 @@ TarFsMount::TarFsMount(TarFs *tarfs, sm::RcuDomain *domain, sm::SharedPtr<km::IB
 
         sm::RcuSharedPtr<INode> parent = nullptr;
         if (OsStatus status = walk(path, &parent)) {
-            KmDebugMessage("[TARFS] Failed to find parent for '", path, "' : ", status, "\n");
+            TarLog.warnf("Failed to find parent for '", path, "' : ", OsStatusId(status));
             continue;
         }
 
@@ -327,23 +330,23 @@ TarFsMount::TarFsMount(TarFs *tarfs, sm::RcuDomain *domain, sm::SharedPtr<km::IB
         } else if (type == VfsNodeType::eFolder) {
             node = sm::rcuMakeShared<TarFsFolder>(mDomain, header, parent, this);
         } else {
-            KmDebugMessage("[TARFS] Invalid node type for '", path, "'\n");
+            TarLog.warnf("Invalid node type for '", path, "'");
             continue;
         }
 
         if (node == nullptr) {
-            KmDebugMessage("[TARFS] Failed to create node for '", path, "'\n");
+            TarLog.warnf("Failed to create node for '", path, "'");
             continue;
         }
 
         std::unique_ptr<vfs::IFolderHandle> folder;
         if (OsStatus status = OpenFolderInterface(parent, nullptr, 0, std::out_ptr(folder))) {
-            KmDebugMessage("[TARFS] Failed to query folder for '", path, "' : ", status, "\n");
+            TarLog.warnf("Failed to query folder for '", path, "' : ", OsStatusId(status));
             continue;
         }
 
         if (OsStatus status = folder->mknode(name, node)) {
-            KmDebugMessage("[TARFS] Failed to add folder '", path, "' : ", status, "\n");
+            TarLog.warnf("Failed to add folder '", path, "' : ", OsStatusId(status));
         }
     }
 }

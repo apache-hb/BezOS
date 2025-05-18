@@ -376,6 +376,10 @@ namespace km {
 
     template<>
     struct Format<OsStatusId> {
+        // 16 for the extra message attatched to the hex code
+        // TODO: this should be done with an X-macro so the size can be known here
+        static constexpr size_t kStringSize = kFormatSize<km::Hex<OsStatus>> + 16;
+
         static void format(IOutStream& out, OsStatusId value);
     };
 }

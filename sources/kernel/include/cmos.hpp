@@ -37,7 +37,7 @@ namespace km {
     void DisableNmi();
     void EnableNmi();
 
-    void InitCmos(uint8_t century);
+    void InitCmos(uint8_t century) noexcept;
 
     DateTime ReadCmosClock();
 }

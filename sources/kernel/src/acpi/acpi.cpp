@@ -220,7 +220,7 @@ template<acpi::IsAcpiTable T>
 void SetUniqueTableEntry(const T** dst, const acpi::RsdtHeader *header) {
     if (const T *table = acpi::TableCast<T>(header)) {
         if (*dst != nullptr) {
-            AcpiLog.warnf("[ACPI] Multiple '", T::kSignature, "' tables found. This table should be unique. Using the first instance of this table.");
+            AcpiLog.warnf("Multiple '", T::kSignature, "' tables found. This table should be unique. Using the first instance of this table.");
             return;
         }
 

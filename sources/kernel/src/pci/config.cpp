@@ -77,7 +77,7 @@ pci::McfgConfigSpace::McfgConfigSpace(const acpi::Mcfg *mcfg, km::AddressSpace& 
         };
 
         if (region.base == nullptr) {
-            PciLog.fatalf("[PCI] Failed to map ECAM region ", range, "\n");
+            PciLog.fatalf("Failed to map ECAM region ", range, "\n");
             KM_PANIC("Failed to map ECAM region.");
         }
 
@@ -85,7 +85,7 @@ pci::McfgConfigSpace::McfgConfigSpace(const acpi::Mcfg *mcfg, km::AddressSpace& 
 
         auto ecam = km::VirtualRangeEx::of((void*)region.base, kEcamSize);
 
-        PciLog.logf("ECAM region ", i, ": ", range, " -> ", ecam);
+        PciLog.infof("ECAM region ", i, ": ", range, " -> ", ecam);
     }
 }
 

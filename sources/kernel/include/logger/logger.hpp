@@ -1,116 +1,8 @@
 #pragma once
 
-#include "std/inlined_vector.hpp"
-#include "std/ringbuffer.hpp"
-#include "std/shared_spinlock.hpp"
-#include "std/static_string.hpp"
-#include "util/format.hpp"
-
-#include "logger/appender.hpp"
+#include "logger/queue.hpp"
 
 namespace km {
-    class LogQueue {
-        using MessageQueue = sm::AtomicRingQueue<detail::LogMessage>;
-        using AppenderList = sm::InlinedVector<ILogAppender*, 4>;
-
-        [[clang::no_destroy]]
-        constinit static LogQueue GlobalLogQueue;
-
-        stdx::SharedSpinLock mLock;
-        AppenderList mAppenders;
-        MessageQueue mQueue;
-
-        /// @brief Number of messages that were dropped due to the queue being full.
-        std::atomic<uint32_t> mDroppedCount{0};
-
-        /// @brief Number of messages that were written out to the appenders.
-        std::atomic<uint32_t> mComittedCount{0};
-
-        void write(const LogMessageView& message) [[clang::nonreentrant]];
-    public:
-        OsStatus addAppender(ILogAppender *appender);
-        void removeAppender(ILogAppender *appender) noexcept;
-
-        OsStatus recordMessage(detail::LogMessage message) noexcept [[clang::reentrant]];
-        OsStatus submit(detail::LogMessage message) noexcept [[clang::reentrant]];
-
-        template<typename F>
-        OsStatus submitImmediate(const Logger *logger, F&& func) noexcept [[clang::reentrant]] {
-            struct QueueOutStream final : public IOutStream {
-                LogQueue *mQueue;
-                const Logger *mLogger;
-
-                void write(stdx::StringView message) noexcept [[clang::reentrant]] override {
-                    LogMessageView view {
-                        .message = message,
-                        .logger = mLogger,
-                        .level = LogLevel::ePrint,
-                    };
-
-                    CLANG_DIAGNOSTIC_PUSH();
-                    CLANG_DIAGNOSTIC_IGNORE("-Wfunction-effects");
-                    // Writing to the queue is not reentrant, but we hold the lock here so it is safe
-                    // to call.
-
-                    mQueue->write(view);
-
-                    CLANG_DIAGNOSTIC_POP();
-                }
-
-                QueueOutStream(const Logger *logger, LogQueue *queue) noexcept
-                    : mQueue(queue)
-                    , mLogger(logger)
-                { }
-            };
-
-            CLANG_DIAGNOSTIC_PUSH();
-            CLANG_DIAGNOSTIC_IGNORE("-Wfunction-effects");
-            // Formatting may not be reentrant, but only if the format function is not reentrant.
-            // We control the output buffer and know that it is reentrant.
-
-            QueueOutStream out { logger, this };
-            if (mLock.try_lock()) {
-                func(out);
-                mLock.unlock();
-                return OsStatusSuccess;
-            } else {
-                return OsStatusDeviceBusy;
-            }
-
-            CLANG_DIAGNOSTIC_POP();
-        }
-
-        size_t flush() [[clang::nonreentrant]];
-
-        uint32_t getDroppedCount(std::memory_order order = std::memory_order_seq_cst) const noexcept {
-            return mDroppedCount.load(order);
-        }
-
-        uint32_t getCommittedCount(std::memory_order order = std::memory_order_seq_cst) const noexcept {
-            return mComittedCount.load(order);
-        }
-
-        OsStatus resizeQueue(uint32_t newCapacity) noexcept [[clang::allocating]];
-
-        static OsStatus create(uint32_t messageQueueCapacity, LogQueue *queue) noexcept [[clang::allocating]];
-
-        static void initGlobalLogQueue(uint32_t messageQueueCapacity);
-
-        static constexpr LogQueue &getGlobalLogQueue() noexcept {
-            return GlobalLogQueue;
-        }
-
-        static OsStatus addGlobalAppender(ILogAppender *appender) {
-            return getGlobalLogQueue().addAppender(appender);
-        }
-
-        static void removeGlobalAppender(ILogAppender *appender) noexcept {
-            getGlobalLogQueue().removeAppender(appender);
-        }
-    };
-
-    constinit inline LogQueue LogQueue::GlobalLogQueue{};
-
     class Logger {
         LogQueue *mQueue;
         stdx::StringView mName;
@@ -125,7 +17,7 @@ namespace km {
         { }
 
         constexpr Logger(stdx::StringView name) noexcept
-            : Logger(name, &LogQueue::getGlobalLogQueue())
+            : Logger(name, &LogQueue::getGlobalQueue())
         { }
 
         stdx::StringView getName() const noexcept [[clang::reentrant]];
@@ -162,7 +54,7 @@ namespace km {
         }
 
         void dbg(stdx::StringView message, std::source_location location = std::source_location::current()) noexcept [[clang::reentrant]];
-        void log(stdx::StringView message, std::source_location location = std::source_location::current()) noexcept [[clang::reentrant]];
+        void info(stdx::StringView message, std::source_location location = std::source_location::current()) noexcept [[clang::reentrant]];
         void warn(stdx::StringView message, std::source_location location = std::source_location::current()) noexcept [[clang::reentrant]];
         void error(stdx::StringView message, std::source_location location = std::source_location::current()) noexcept [[clang::reentrant]];
         void fatal(stdx::StringView message, std::source_location location = std::source_location::current()) noexcept [[clang::reentrant]];
@@ -176,11 +68,11 @@ namespace km {
         }
 
         template<typename... Args>
-        void logfImpl(std::source_location location, Args&&... args) noexcept [[clang::reentrant]] {
+        void infofImpl(std::source_location location, Args&&... args) noexcept [[clang::reentrant]] {
             static_assert(sizeof...(Args) > 0, "No arguments provided");
 
             stdx::StaticString message = km::concat<kLogMessageSize>(std::forward<Args>(args)...);
-            log(message, location);
+            info(message, location);
         }
 
         template<typename... Args>
@@ -210,7 +102,7 @@ namespace km {
 }
 
 #define dbgf(...) dbgfImpl(std::source_location::current(), __VA_ARGS__)
-#define logf(...) logfImpl(std::source_location::current(), __VA_ARGS__)
+#define infof(...) infofImpl(std::source_location::current(), __VA_ARGS__)
 #define warnf(...) warnfImpl(std::source_location::current(), __VA_ARGS__)
 #define errorf(...) errorfImpl(std::source_location::current(), __VA_ARGS__)
 #define fatalf(...) fatalfImpl(std::source_location::current(), __VA_ARGS__)

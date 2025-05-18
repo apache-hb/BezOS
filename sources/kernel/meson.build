@@ -142,6 +142,7 @@ native_kwargs = {
     'c_args': c_args,
     'cpp_args': cpp_args,
     'native': true,
+    'build_by_default': false,
     'override_options' : [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
 }
 
@@ -149,8 +150,78 @@ nosan_kwargs = {
     'c_args': c_args,
     'cpp_args': cpp_args,
     'native': true,
+    'build_by_default': false,
     'override_options' : [ 'b_sanitize=none', 'b_coverage=true' ],
 }
+
+bench_kwargs = {
+    'c_args': c_args,
+    'cpp_args': cpp_args,
+    'native': true,
+    'build_by_default': false,
+    'override_options' : [ 'b_sanitize=none', 'b_coverage=false' ],
+}
+
+# RCU
+
+rcu_src = files(
+    'src/std/rcu.cpp',
+    'src/std/rcuptr.cpp',
+)
+
+librcu_kernel = static_library('rcu', rcu_src,
+    kwargs : kernel_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+librcu_native = static_library('rcu_native', rcu_src,
+    kwargs : native_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+librcu_nosanitize = static_library('rcu_nosanitize', rcu_src,
+    kwargs : nosan_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+librcu_bench = static_library('rcu_bench', rcu_src,
+    kwargs : bench_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+# Formatting
+
+format_src = files(
+    'src/util/format.cpp',
+)
+
+libformat_kernel = static_library('format', format_src,
+    kwargs : kernel_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+libformat_native = static_library('format_native', format_src,
+    kwargs : native_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+libformat_nosanitize = static_library('format_nosanitize', format_src,
+    kwargs : nosan_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+libformat_bench = static_library('format_bench', format_src,
+    kwargs : bench_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
 
 # Logging
 
@@ -199,22 +270,13 @@ system_src = files(
     'src/system/vm/mapping.cpp',
 )
 
-rcu_src = files(
-    'src/std/rcu.cpp',
-    'src/std/rcuptr.cpp',
-)
-
 src = [
     tlsf.get_variable('sources'),
 
     # Utilities
     'src/util/cpuid.cpp',
     'src/util/memory.cpp',
-    'src/util/format.cpp',
     'src/util/uuid.cpp',
-
-    # RCU
-    rcu_src,
 
     # Memory management
     'src/memory/layout.cpp',
@@ -369,6 +431,8 @@ endif
 
 kernel_libs = [
     libs,
+    librcu_kernel,
+    libformat_kernel,
     liblogging_kernel,
 ]
 

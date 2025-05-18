@@ -1,6 +1,6 @@
 #include "pci/pci.hpp"
 
-#include "log.hpp"
+#include "logger/categories.hpp"
 
 #include <utility>
 
@@ -23,13 +23,13 @@ void pci::ReadCapabilityList(IConfigSpace *config, uint8_t bus, uint8_t slot, ui
     int index = 0;
 
     while (true) {
-        KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "/C", index, " | Capability list      | ", km::Hex(offset).pad(2), "\n");
+        PciLog.println("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "/C", index, " | Capability list      | ", km::Hex(offset).pad(2));
 
         pci::Capability capability = pci::ReadCapability(config, bus, slot, function, offset);
 
-        KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "/C", index, " | Capability ID        | ", capability.id, "\n");
-        KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "/C", index, " | Next offset          | ", capability.next, "\n");
-        KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "/C", index, " | Capability           | ", capability.control, "\n");
+        PciLog.println("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "/C", index, " | Capability ID        | ", capability.id);
+        PciLog.println("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "/C", index, " | Next offset          | ", capability.next);
+        PciLog.println("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "/C", index, " | Capability           | ", capability.control);
 
         if (capability.next == 0)
             break;
@@ -97,17 +97,17 @@ static pci::ConfigHeader ProbePciFunction(pci::IConfigSpace *config, uint8_t bus
     auto slotId = km::format(km::Hex(slot).pad(2, '0', false));
     auto functionId = km::format(km::Hex(function).pad(2, '0', false));
 
-    KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "    | Vendor ID            | ", header.vendorId, "\n");
-    KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "    | Device ID            | ", header.deviceId, "\n");
-    KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "    | Command              | ", km::Hex(header.command).pad(4), "\n");
-    KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "    | Class                | ", header.cls, "\n");
-    KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "    | Programmable         | ", header.programmable, "\n");
-    KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "    | Revision             | ", header.revision, "\n");
-    KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "    | Type                 | ", header.type, "\n");
-    KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "    | Status               | ", km::Hex(std::to_underlying(header.status)).pad(4), "\n");
+    PciLog.println("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "    | Vendor ID            | ", header.vendorId);
+    PciLog.println("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "    | Device ID            | ", header.deviceId);
+    PciLog.println("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "    | Command              | ", km::Hex(header.command).pad(4));
+    PciLog.println("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "    | Class                | ", header.cls);
+    PciLog.println("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "    | Programmable         | ", header.programmable);
+    PciLog.println("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "    | Revision             | ", header.revision);
+    PciLog.println("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "    | Type                 | ", header.type);
+    PciLog.println("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "    | Status               | ", km::Hex(std::to_underlying(header.status)).pad(4));
 
     if (header.hasCapabilityList()) {
-        KmDebugMessage("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "    | Capability list head | ", km::Hex(header.capabilityOffset()), "\n");
+        PciLog.println("| /SYS/PCI/", busId, ".", slotId, ".", functionId, "    | Capability list head | ", km::Hex(header.capabilityOffset()));
         ReadCapabilityList(config, bus, slot, function, header);
     }
 
@@ -143,8 +143,8 @@ static void ProbeBusRange(pci::IConfigSpace *config, uint8_t first, uint8_t last
 }
 
 void pci::ProbeConfigSpace(IConfigSpace *config, const acpi::Mcfg *mcfg) {
-    KmDebugMessage("| PCI                 | Property              | Value\n");
-    KmDebugMessage("|---------------------+-----------------------+--------------------\n");
+    PciLog.println("| PCI                 | Property              | Value");
+    PciLog.println("|---------------------+-----------------------+--------------------");
 
     if (mcfg == nullptr) {
         ProbeBusRange(config, 0, 255);
