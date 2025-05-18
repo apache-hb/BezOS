@@ -2,9 +2,11 @@
 
 #include "arch/abi.hpp"
 #include "kernel.hpp"
-#include "log.hpp"
+#include "logger/logger.hpp"
 #include "panic.hpp"
 #include "util/format.hpp"
+
+constinit static km::Logger UbLog { "UBSAN" };
 
 /// LLVM Project begin - SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 /// Situations in which we might emit a check for the suitability of a
@@ -194,22 +196,22 @@ static void UbsanReportError(stdx::StringView message) {
     if (km::SystemMemory *memory = km::GetSystemMemory()) {
         void *rbp = __builtin_frame_address(0);
         x64::WalkStackFramesChecked(memory->systemTables(), (void**)rbp, [](void **frame, void *pc, stdx::StringView note) {
-            KmDebugMessageUnlocked("| ", (void*)frame, " | ", pc);
+            UbLog.print("| ", (void*)frame, " | ", pc);
             if (!note.isEmpty()) {
-                KmDebugMessageUnlocked(" ", note);
+                UbLog.print(" ", note);
             }
-            KmDebugMessageUnlocked("\n");
+            UbLog.println();
         });
 
 
         if (kEmitAddrToLine) {
-            KmDebugMessageUnlocked("llvm-addr2line -e ", kImagePath);
+            UbLog.print("llvm-addr2line -e ", kImagePath);
 
             x64::WalkStackFramesChecked(memory->systemTables(), (void**)rbp, [](void **, void *pc, stdx::StringView) {
-                KmDebugMessageUnlocked(" ", pc);
+                UbLog.print(" ", pc);
             });
 
-            KmDebugMessageUnlocked("\n");
+            UbLog.println();
         }
     }
 
@@ -217,68 +219,68 @@ static void UbsanReportError(stdx::StringView message) {
 }
 
 extern "C" UBSAN_API void __ubsan_handle_add_overflow(UbsanOverflowData *data, uintptr_t, uintptr_t) {
-    KmDebugMessage("[UBSAN] Add overflow: ", data->location, "\n");
+    UbLog.fatalf("[UBSAN] Add overflow: ", data->location);
     UbsanReportError("UBSAN Add Overflow");
 }
 
 extern "C" UBSAN_API void __ubsan_handle_sub_overflow(UbsanOverflowData *data, uintptr_t, uintptr_t) {
-    KmDebugMessage("[UBSAN] Sub overflow: ", data->location, "\n");
+    UbLog.fatalf("[UBSAN] Sub overflow: ", data->location);
     UbsanReportError("UBSAN Sub Overflow");
 }
 
 extern "C" UBSAN_API void __ubsan_handle_mul_overflow(UbsanOverflowData *data, uintptr_t, uintptr_t) {
-    KmDebugMessage("[UBSAN] Mul overflow: ", data->location, "\n");
+    UbLog.fatalf("[UBSAN] Mul overflow: ", data->location);
     UbsanReportError("UBSAN Mul Overflow");
 }
 
 extern "C" UBSAN_API void __ubsan_handle_divrem_overflow(UbsanOverflowData *data, uintptr_t, uintptr_t) {
-    KmDebugMessage("[UBSAN] Divrem overflow: ", data->location, "\n");
+    UbLog.fatalf("[UBSAN] Divrem overflow: ", data->location);
     UbsanReportError("UBSAN Divrem Overflow");
 }
 
 extern "C" UBSAN_API void __ubsan_handle_negate_overflow(UbsanOverflowData *data, uintptr_t) {
-    KmDebugMessage("[UBSAN] Negate overflow: ", data->location, "\n");
+    UbLog.fatalf("[UBSAN] Negate overflow: ", data->location);
     UbsanReportError("UBSAN Negate Overflow");
 }
 
 extern "C" UBSAN_API void __ubsan_handle_pointer_overflow(UbsanOverflowData *data, uintptr_t, uintptr_t) {
-    KmDebugMessage("[UBSAN] Pointer overflow: ", data->location, "\n");
+    UbLog.fatalf("[UBSAN] Pointer overflow: ", data->location);
     UbsanReportError("UBSAN Pointer Overflow");
 }
 
 extern "C" UBSAN_API void __ubsan_handle_builtin_unreachable(UbsanUnreachableData *data) {
-    KmDebugMessage("[UBSAN] Unreachable: ", data->location, "\n");
+    UbLog.fatalf("[UBSAN] Unreachable: ", data->location);
     UbsanReportError("UBSAN Unreachable");
 }
 
 extern "C" UBSAN_API void __ubsan_handle_missing_return(UbsanUnreachableData *data) {
-    KmDebugMessage("[UBSAN] Missing return: ", data->location, "\n");
+    UbLog.fatalf("[UBSAN] Missing return: ", data->location);
     UbsanReportError("UBSAN Missing Return");
 }
 
 extern "C" UBSAN_API void __ubsan_handle_nonnull_arg(UbsanNonnullArgData *data) {
-    KmDebugMessage("[UBSAN] Nonnull arg: ", data->location, "\n");
+    UbLog.fatalf("[UBSAN] Nonnull arg: ", data->location);
     UbsanReportError("UBSAN Nonnull Arg");
 }
 
 extern "C" UBSAN_API void __ubsan_handle_load_invalid_value(UbsanInvalidValueData *data, uintptr_t address) {
-    KmDebugMessage("[UBSAN] Load invalid value: ", data->location, "\n");
-    KmDebugMessage("[UBSAN] Type: ", *data->type, ", Address: ", (void*)address, "\n");
+    UbLog.fatalf("[UBSAN] Load invalid value: ", data->location);
+    UbLog.fatalf("[UBSAN] Type: ", *data->type, ", Address: ", (void*)address);
     UbsanReportError("UBSAN Load Invalid Value");
 }
 
 extern "C" UBSAN_API void __ubsan_handle_nonnull_return(UbsanNonnullReturnData *data) {
-    KmDebugMessage("[UBSAN] Nonnull return: ", data->location, "\n");
+    UbLog.fatalf("[UBSAN] Nonnull return: ", data->location);
     UbsanReportError("UBSAN Nonnull Return");
 }
 
 extern "C" UBSAN_API void __ubsan_handle_out_of_bounds(UbsanOutOfBoundsData *data, uintptr_t, uintptr_t) {
-    KmDebugMessage("[UBSAN] Out of bounds: ", data->location, "\n");
+    UbLog.fatalf("[UBSAN] Out of bounds: ", data->location);
     UbsanReportError("UBSAN Out of Bounds");
 }
 
 extern "C" UBSAN_API void __ubsan_handle_invalid_builtin(UbsanInvalidBuiltinData *data, uintptr_t) {
-    KmDebugMessage("[UBSAN] Invalid builtin: ", data->location, "\n");
+    UbLog.fatalf("[UBSAN] Invalid builtin: ", data->location);
     UbsanReportError("UBSAN Invalid Builtin");
 }
 
@@ -291,37 +293,37 @@ extern "C" UBSAN_API void __ubsan_handle_type_mismatch_v1(UbsanTypeMismatchDataV
         reason = "misaligned access";
     }
 
-    KmDebugMessage("[UBSAN] Type mismatch: ", data->location, " (", data->typeCheckKind, ")\n");
-    KmDebugMessage("[UBSAN] Type: ", *data->type, ", Address: ", (void*)address, ", Reason: ", reason, "\n");
-    KmDebugMessage("[UBSAN] Expected alignment: ", alignment, "\n");
+    UbLog.fatalf("[UBSAN] Type mismatch: ", data->location, " (", data->typeCheckKind, ")");
+    UbLog.fatalf("[UBSAN] Type: ", *data->type, ", Address: ", (void*)address, ", Reason: ", reason);
+    UbLog.fatalf("[UBSAN] Expected alignment: ", alignment);
 
     UbsanReportError("UBSAN Type Mismatch");
 }
 
 extern "C" UBSAN_API void __ubsan_handle_nonnull_return_v1(UbsanNonnullReturnData *data, UbsanSourceLocation *) {
-    KmDebugMessage("[UBSAN] Nonnull return: ", data->location, "\n");
+    UbLog.fatalf("[UBSAN] Nonnull return: ", data->location);
     UbsanReportError("UBSAN Nonnull Return");
 }
 
 extern "C" UBSAN_API void __ubsan_handle_alignment_assumption(UbsanAlignmentAssumptionData *data, uintptr_t, uintptr_t) {
-    KmDebugMessage("[UBSAN] Alignment assumption: ", data->location, "\n");
+    UbLog.fatalf("[UBSAN] Alignment assumption: ", data->location);
     UbsanReportError("UBSAN Alignment Assumption");
 }
 
 extern "C" UBSAN_API void __ubsan_handle_shift_out_of_bounds(UbsanShiftOutOfBoundsData *data, uintptr_t lhs, uintptr_t rhs) {
-    KmDebugMessage("[UBSAN] Shift out of bounds: ", data->location, "\n");
-    KmDebugMessage("[UBSAN] Shift ", lhs, " by ", rhs, "\n");
+    UbLog.fatalf("[UBSAN] Shift out of bounds: ", data->location);
+    UbLog.fatalf("[UBSAN] Shift ", lhs, " by ", rhs);
     UbsanReportError("UBSAN Shift Out of Bounds");
 }
 
 extern "C" UBSAN_API void __ubsan_handle_implicit_conversion(UbsanImplicitConversionData *data, uintptr_t lhs, uintptr_t rhs) {
-    KmDebugMessage("[UBSAN] Implicit conversion: ", data->location, "\n");
-    KmDebugMessage("[UBSAN] From: ", *data->fromType, ", To: ", *data->toType, "\n");
-    KmDebugMessage("[UBSAN] LHS: ", (void*)lhs, ", RHS: ", (void*)rhs, "\n");
+    UbLog.fatalf("[UBSAN] Implicit conversion: ", data->location);
+    UbLog.fatalf("[UBSAN] From: ", *data->fromType, ", To: ", *data->toType);
+    UbLog.fatalf("[UBSAN] LHS: ", (void*)lhs, ", RHS: ", (void*)rhs);
     UbsanReportError("UBSAN Implicit Conversion");
 }
 
 extern "C" UBSAN_API void __ubsan_handle_nullability_arg(UbsanNonnullArgData *data, uintptr_t) {
-    KmDebugMessage("[UBSAN] Nullability arg: ", data->location, "\n");
+    UbLog.fatalf("[UBSAN] Nullability arg: ", data->location);
     UbsanReportError("UBSAN Nullability Arg");
 }

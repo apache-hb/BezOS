@@ -1,6 +1,7 @@
 #include "gdt.h"
 #include "log.hpp"
 
+#include "logger/categories.hpp"
 #include "system/schedule.hpp"
 #include "system/thread.hpp"
 
@@ -82,7 +83,7 @@ void sys::InstallTimerIsr(km::SharedIsrTable *table) {
     km::IsrCallback old = table->install(km::isr::kTimerVector, ScheduleInt);
 
     if (old != km::DefaultIsrHandler && old != ScheduleInt) {
-        KmDebugMessage("Failed to install scheduler isr ", (void*)old, " != ", (void*)km::DefaultIsrHandler, "\n");
+        TaskLog.fatalf("Failed to install scheduler isr ", (void*)old, " != ", (void*)km::DefaultIsrHandler);
         KM_PANIC("Failed to install scheduler isr.");
     }
 }

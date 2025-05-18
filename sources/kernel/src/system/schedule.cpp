@@ -1,6 +1,6 @@
 #include "system/schedule.hpp"
 
-#include "log.hpp"
+#include "logger/categories.hpp"
 #include "panic.hpp"
 #include "std/spinlock.hpp"
 #include "system/thread.hpp"
@@ -14,7 +14,7 @@ sys::CpuLocalSchedule::CpuLocalSchedule(size_t tasks, GlobalSchedule *global)
     , mGlobal(global)
 {
     if (OsStatus status = sm::AtomicRingQueue<ThreadSchedulingInfo>::create(tasks, &mTaskQueue)) {
-        KmDebugMessage("[SCHED] Failed to create task queue: ", OsStatusId(status), "\n");
+        TaskLog.fatalf("[SCHED] Failed to create task queue: ", OsStatusId(status), "\n");
         KM_PANIC("Failed to create task queue");
     }
 }

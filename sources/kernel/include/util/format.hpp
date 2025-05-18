@@ -81,7 +81,7 @@ namespace km {
         char fill = '\0';
         bool prefix = true;
 
-        Hex(T value) noexcept [[clang::nonblocking]] : value(value) {}
+        Hex(T value) noexcept [[clang::reentrant, clang::nonblocking]] : value(value) {}
 
         Hex pad(size_t width, char fill = '0', bool prefix = true) const {
             Hex copy = *this;

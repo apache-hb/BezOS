@@ -5,6 +5,7 @@
 
 #include <bezos/start.h>
 
+#include "logger/categories.hpp"
 #include "system/system.hpp"
 
 #if 0
@@ -71,17 +72,17 @@ static OsStatus ApplyRelocations(vfs::IHandle *file, std::span<const elf::Elf64D
     }
 
     if (relaCount == 0 || relaStart == 0 || relaSize == 0 || relaEnt == 0) {
-        KmDebugMessage("[ELF] Invalid dynamic section relocations\n");
+        KmDebugMessage("Invalid dynamic section relocations\n");
         return OsStatusInvalidData;
     }
 
     if (relaSize % relaEnt != 0) {
-        KmDebugMessage("[ELF] Invalid dynamic section relocation size\n");
+        KmDebugMessage("Invalid dynamic section relocation size\n");
         return OsStatusInvalidData;
     }
 
     if (relaEnt != sizeof(elf::Elf64Rela)) {
-        KmDebugMessage("[ELF] Invalid dynamic section relocation entry size: ", relaEnt, " != ", sizeof(elf::Elf64Rela), "\n");
+        KmDebugMessage("Invalid dynamic section relocation entry size: ", relaEnt, " != ", sizeof(elf::Elf64Rela));
         return OsStatusInvalidData;
     }
 
@@ -91,7 +92,7 @@ static OsStatus ApplyRelocations(vfs::IHandle *file, std::span<const elf::Elf64D
         return status;
     }
 
-    KmDebugMessage("[ELF] Applying ", count, " relocations\n");
+    KmDebugMessage("Applying ", count, " relocations\n");
 
     for (size_t i = 0; i < count; i++) {
         const elf::Elf64Rela &rela = relas[i];
@@ -104,7 +105,7 @@ static OsStatus ApplyRelocations(vfs::IHandle *file, std::span<const elf::Elf64D
             *target = (uintptr_t)mapping.vaddr + rela.addend;
             break;
         default:
-            KmDebugMessage("[ELF] Unsupported relocation type ", km::Hex(rela.info & 0xFFFF), "\n");
+            KmDebugMessage("Unsupported relocation type ", km::Hex(rela.info & 0xFFFF));
             return OsStatusInvalidData;
         }
     }
@@ -116,13 +117,13 @@ static OsStatus ReadTlsInit(vfs::IHandle *file, const elf::ProgramHeader *tls, k
     km::AddressMapping tlsMapping{};
     OsStatus status = AllocateMemory(memory.pmmAllocator(), ptes, km::Pages(tls->memsz), &tlsMapping);
     if (status != OsStatusSuccess) {
-        KmDebugMessage("[ELF] Failed to allocate ", sm::bytes(tls->memsz), " for ELF program load sections. ", OsStatusId(status), "\n");
+        KmDebugMessage("Failed to allocate ", sm::bytes(tls->memsz), " for ELF program load sections. ", OsStatusId(status));
         return status;
     }
 
     void *tlsWindow = memory.map(tlsMapping.physicalRange(), km::PageFlags::eData);
     if (tlsWindow == nullptr) {
-        KmDebugMessage("[ELF] Failed to map TLS memory\n");
+        KmDebugMessage("Failed to map TLS memory\n");
         return OsStatusOutOfMemory;
     }
 
@@ -138,7 +139,7 @@ static OsStatus ReadTlsInit(vfs::IHandle *file, const elf::ProgramHeader *tls, k
     }
 
     if (result.read != tls->filesz) {
-        KmDebugMessage("[ELF] Failed to read TLS section\n");
+        KmDebugMessage("Failed to read TLS section\n");
         return OsStatusInvalidData;
     }
 
@@ -167,7 +168,7 @@ static OsStatus CreateThread(km::Process *process, km::SystemMemory& memory, km:
         .ss = (km::SystemGdt::eLongModeUserData * 0x8) | 0b11,
     };
 
-    KmDebugMessage("[ELF] Entry point: ", km::Hex(regs.rip), "\n");
+    KmDebugMessage("Entry point: ", km::Hex(regs.rip));
 
     //
     // Now allocate the stack for the main thread.
@@ -177,11 +178,11 @@ static OsStatus CreateThread(km::Process *process, km::SystemMemory& memory, km:
     km::PageFlags flags = km::PageFlags::eUser | km::PageFlags::eData;
     km::AddressMapping mapping{};
     if (OsStatus status = AllocateMemory(memory.pmmAllocator(), *process->ptes.get(), 4, &mapping)) {
-        KmDebugMessage("[ELF] Failed to allocate stack memory: ", OsStatusId(status), "\n");
+        KmDebugMessage("Failed to allocate stack memory: ", OsStatusId(status));
         return status;
     }
 
-    KmDebugMessage("[ELF] Stack: ", mapping, "\n");
+    KmDebugMessage("Stack: ", mapping);
 
     char *stack = (char*)memory.map(mapping.physicalRange(), flags);
     memset(stack, 0x00, kStackSize);
@@ -242,17 +243,17 @@ static OsStatus MapProgram(sys::InvokeContext *invoke, OsDeviceHandle file, OsPr
     OsFileInfo info{};
 
     if (OsStatus status = sys::SysDeviceInvoke(invoke, file, eOsFileStat, &info, sizeof(info))) {
-        KmDebugMessage("[ELF] Failed to stat file info. ", OsStatusId(status), "\n");
+        InitLog.warnf("Failed to stat file info. ", OsStatusId(status));
         return status;
     }
 
     if (OsStatus status = DeviceReadObject(invoke, file, 0, &header)) {
-        KmDebugMessage("[ELF] Failed to read elf header. ", OsStatusId(status), "\n");
+        InitLog.warnf("Failed to read elf header. ", OsStatusId(status));
         return status;
     }
 
     if (OsStatus status = km::detail::ValidateElfHeader(header, info.LogicalSize)) {
-        KmDebugMessage("[ELF] Invalid ELF header. ", OsStatusId(status), "\n");
+        InitLog.warnf("Invalid ELF header. ", OsStatusId(status));
         return status;
     }
 
@@ -260,18 +261,18 @@ static OsStatus MapProgram(sys::InvokeContext *invoke, OsDeviceHandle file, OsPr
     size_t phNum = header.phnum;
     size_t phEnt = header.phentsize;
     if (phOff == 0 || phNum == 0 || phEnt == 0) {
-        KmDebugMessage("[ELF] Invalid program header\n");
+        InitLog.warnf("Invalid program header\n");
         return OsStatusInvalidData;
     }
 
     sm::FixedArray<elf::ProgramHeader> phArray{phNum};
     if (OsStatus status = DeviceReadArray(invoke, file, phOff, std::span(phArray))) {
-        KmDebugMessage("[ELF] Failed to read program headers. ", OsStatusId(status), "\n");
+        InitLog.warnf("Failed to read program headers. ", OsStatusId(status));
         return status;
     }
 
     if (header.entry == 0) {
-        KmDebugMessage("[ELF] Invalid entry point\n");
+        InitLog.warnf("Invalid entry point\n");
         return OsStatusInvalidData;
     }
 
@@ -298,7 +299,7 @@ static OsStatus MapProgram(sys::InvokeContext *invoke, OsDeviceHandle file, OsPr
             };
 
             if (OsStatus status = sys::SysVmemCreate(invoke, vmemGuestCreateInfo, &guestAddress)) {
-                KmDebugMessage("[ELF] Failed to create guest memory. ", OsStatusId(status), "\n");
+                InitLog.warnf("Failed to create guest memory. ", OsStatusId(status));
                 return status;
             }
         }
@@ -313,7 +314,7 @@ static OsStatus MapProgram(sys::InvokeContext *invoke, OsDeviceHandle file, OsPr
         };
 
         if (OsStatus status = sys::SysVmemMap(invoke, vmemGuestMapInfo, &guestAddress)) {
-            KmDebugMessage("[ELF] Failed to map guest memory. ", OsStatusId(status), "\n");
+            InitLog.warnf("Failed to map guest memory. ", OsStatusId(status));
             return status;
         }
 
@@ -361,7 +362,7 @@ OsStatus km::LoadElf2(sys::InvokeContext *invoke, OsDeviceHandle file, OsProcess
     };
 
     if ((status = sys::SysVmemCreate(invoke, vmemCreateInfo, &startInfoGuestAddress))) {
-        KmDebugMessage("[ELF] Failed to create start info memory. ", OsStatusId(status), "\n");
+        InitLog.warnf("Failed to create start info memory. ", OsStatusId(status));
         goto cleanup;
     }
 
@@ -373,7 +374,7 @@ OsStatus km::LoadElf2(sys::InvokeContext *invoke, OsDeviceHandle file, OsProcess
     };
 
     if ((status = sys::SysVmemMap(invoke, vmemMapInfo, &startInfoAddress))) {
-        KmDebugMessage("[ELF] Failed to map start info memory into launcher. ", OsStatusId(status), "\n");
+        InitLog.warnf("Failed to map start info memory into launcher. ", OsStatusId(status));
         goto cleanup;
     }
 
@@ -384,7 +385,7 @@ OsStatus km::LoadElf2(sys::InvokeContext *invoke, OsDeviceHandle file, OsProcess
     };
 
     if ((status = sys::SysVmemCreate(invoke, stackCreateInfo, &stackGuestAddress))) {
-        KmDebugMessage("[ELF] Failed to create stack memory. ", OsStatusId(status), "\n");
+        InitLog.warnf("Failed to create stack memory. ", OsStatusId(status));
         goto cleanup;
     }
 
@@ -407,7 +408,7 @@ OsStatus km::LoadElf2(sys::InvokeContext *invoke, OsDeviceHandle file, OsProcess
     };
 
     if ((status = sys::SysThreadCreate(invoke, threadCreateInfo, &hThread))) {
-        KmDebugMessage("[ELF] Failed to launch init process thread. ", OsStatusId(status), "\n");
+        InitLog.warnf("Failed to launch init process thread. ", OsStatusId(status));
         goto cleanup;
     }
 
@@ -472,7 +473,7 @@ OsStatus km::LoadElf(std::unique_ptr<vfs::IFileHandle> file, SystemMemory& memor
         .main = main,
     };
 
-    KmDebugMessage("[ELF] Launching process: ", km::Hex(process->publicId()), "\n");
+    KmDebugMessage("Launching process: ", km::Hex(process->publicId()));
 
     *result = launch;
     return OsStatusSuccess;
@@ -501,24 +502,24 @@ OsStatus km::LoadElfProgram(vfs::IFileHandle *file, SystemMemory& memory, Proces
 
     km::VirtualRange loadMemory{};
     if (OsStatus status = detail::LoadMemorySize(phs, &loadMemory)) {
-        KmDebugMessage("[ELF] Failed to calculate load memory size. ", OsStatusId(status), "\n");
+        KmDebugMessage("Failed to calculate load memory size. ", OsStatusId(status));
         return status;
     }
 
-    KmDebugMessage("[ELF] Load memory range: ", loadMemory, "\n");
+    KmDebugMessage("Load memory range: ", loadMemory);
 
     km::AddressMapping loadMapping{};
     OsStatus status = AllocateMemory(memory.pmmAllocator(), *process->ptes.get(), Pages(loadMemory.size()), loadMemory.front, &loadMapping);
     if (status != OsStatusSuccess) {
-        KmDebugMessage("[ELF] Failed to allocate ", sm::bytes(loadMemory.size()), " for ELF program load sections. ", OsStatusId(status), "\n");
+        KmDebugMessage("Failed to allocate ", sm::bytes(loadMemory.size()), " for ELF program load sections. ", OsStatusId(status));
         return status;
     }
 
-    KmDebugMessage("[ELF] Load memory mapping: ", loadMapping, "\n");
+    KmDebugMessage("Load memory mapping: ", loadMapping);
 
     char *userWindow = (char*)memory.map(loadMapping.physicalRange(), PageFlags::eData);
     if (userWindow == nullptr) {
-        KmDebugMessage("[ELF] Failed to map user window\n");
+        KmDebugMessage("Failed to map user window\n");
         return OsStatusOutOfMemory;
     }
 
@@ -530,16 +531,16 @@ OsStatus km::LoadElfProgram(vfs::IFileHandle *file, SystemMemory& memory, Proces
 
     const elf::ProgramHeader *tls = FindTlsSection(phs);
     if (tls != nullptr) {
-        KmDebugMessage("[ELF] TLS section found\n");
+        KmDebugMessage("TLS section found\n");
     }
 
     const elf::ProgramHeader *dynamic = FindDynamicSection(phs);
     std::unique_ptr<elf::Elf64Dyn[]> dyn;
     if (dynamic == nullptr) {
-        KmDebugMessage("[ELF] Dynamic section not found\n");
+        KmDebugMessage("Dynamic section not found\n");
     } else {
         if (dynamic->filesz % sizeof(elf::Elf64Dyn) != 0) {
-            KmDebugMessage("[ELF] Invalid dynamic section size\n");
+            KmDebugMessage("Invalid dynamic section size\n");
             return OsStatusInvalidData;
         }
 
@@ -554,9 +555,9 @@ OsStatus km::LoadElfProgram(vfs::IFileHandle *file, SystemMemory& memory, Proces
         if (ph.type != elf::ProgramHeaderType::eLoad)
             continue;
 
-        KmDebugMessage("[ELF] Program Header type: ",
+        KmDebugMessage("Program Header type: ",
             km::Hex(std::to_underlying(ph.type)), ", flags: ", km::Hex(ph.flags), ", offset: ", km::Hex(ph.offset), ", filesize: ", km::Hex(ph.filesz),
-            ", memorysize: ", km::Hex(ph.memsz), ", virtual address: ", km::Hex(ph.vaddr), ", align: ", km::Hex(ph.align), "\n");
+            ", memorysize: ", km::Hex(ph.memsz), ", virtual address: ", km::Hex(ph.vaddr), ", align: ", km::Hex(ph.align));
 
         //
         // Distance between this program header load base and the ELF load base.
@@ -585,7 +586,7 @@ OsStatus km::LoadElfProgram(vfs::IFileHandle *file, SystemMemory& memory, Proces
             .offset = ph.offset,
         };
 
-        KmDebugMessage("[ELF] Section: ", km::Hex(base), " ", vaddr, " ", mapping, "\n");
+        KmDebugMessage("Section: ", km::Hex(base), " ", vaddr, " ", mapping);
 
         vfs::ReadResult readResult{};
         if (OsStatus status = file->read(request, &readResult)) {
@@ -593,8 +594,8 @@ OsStatus km::LoadElfProgram(vfs::IFileHandle *file, SystemMemory& memory, Proces
         }
 
         if (readResult.read != ph.filesz) {
-            KmDebugMessage("[ELF] Failed to read section: ", readResult.read, " != ", ph.filesz, "\n");
-            KmDebugMessage("[ELF] Section: ", mapping, "\n");
+            KmDebugMessage("Failed to read section: ", readResult.read, " != ", ph.filesz);
+            KmDebugMessage("Section: ", mapping);
             return OsStatusInvalidData;
         }
 

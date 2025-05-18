@@ -1,7 +1,6 @@
 #include "elf.hpp"
 
-#include "kernel.hpp"
-#include "log.hpp"
+#include "logger/categories.hpp"
 
 OsStatus km::detail::LoadMemorySize(std::span<const elf::ProgramHeader> phs, km::VirtualRange *range) {
     km::VirtualRange result{(void*)UINTPTR_MAX, 0};
@@ -29,29 +28,29 @@ OsStatus km::detail::LoadMemorySize(std::span<const elf::ProgramHeader> phs, km:
 
 OsStatus km::detail::ValidateElfHeader(const elf::Header &header, size_t size) {
     if (!header.isValid()) {
-        KmDebugMessage(
-            "[ELF] Invalid ELF header. Invalid header magic {",
+        InitLog.warnf(
+            "Invalid ELF header. Invalid header magic {",
             km::Hex(header.ident[0]).pad(2), ", ",
             km::Hex(header.ident[1]).pad(2), ", ",
             km::Hex(header.ident[2]).pad(2), ", ",
-            km::Hex(header.ident[3]).pad(2), "}.\n"
+            km::Hex(header.ident[3]).pad(2), "}."
         );
 
         return OsStatusInvalidData;
     }
 
     if (header.endian() != std::endian::little || header.elfClass() != elf::Class::eClass64 || header.objVersion() != 1) {
-        KmDebugMessage("[ELF] Unsupported ELF format. Only little endian, 64 bit, version 1 elf programs are supported.\n");
+        InitLog.warnf("Unsupported ELF format. Only little endian, 64 bit, version 1 elf programs are supported.");
         return OsStatusInvalidVersion;
     }
 
     if (header.type != elf::Type::eExecutable && header.type != elf::Type::eShared) {
-        KmDebugMessage("[ELF] Invalid ELF type. Only EXEC & DYN elf programs can be launched.\n");
+        InitLog.warnf("Invalid ELF type. Only EXEC & DYN elf programs can be launched.");
         return OsStatusInvalidData;
     }
 
     if (header.phentsize != sizeof(elf::ProgramHeader)) {
-        KmDebugMessage("[ELF] Invalid program header size.\n");
+        InitLog.warnf("Invalid program header size.");
         return OsStatusInvalidData;
     }
 
@@ -59,12 +58,12 @@ OsStatus km::detail::ValidateElfHeader(const elf::Header &header, size_t size) {
     uint64_t phend = phbegin + header.phnum * header.phentsize;
 
     if (phend > size) {
-        KmDebugMessage("[ELF] Invalid program header range.\n");
+        InitLog.warnf("Invalid program header range.");
         return OsStatusInvalidData;
     }
 
     if (header.entry == 0) {
-        KmDebugMessage("[ELF] Program has no entry point.\n");
+        InitLog.warnf("Program has no entry point.");
         return OsStatusInvalidData;
     }
 
@@ -80,13 +79,13 @@ static OsStatus InitNewThreadTls(km::TlsInit tlsInit, km::SystemMemory& memory, 
     km::AddressMapping tlsMapping{};
     OsStatus status = process->map(memory, km::Pages(tlsInit.memSize + sizeof(uintptr_t)), km::PageFlags::eUserData, km::MemoryType::eWriteBack, &tlsMapping);
     if (status != OsStatusSuccess) {
-        KmDebugMessage("[ELF] Failed to allocate ", sm::bytes(tlsInit.memSize + sizeof(uintptr_t)), " for ELF program load sections. ", status, "\n");
+        KmDebugMessage("Failed to allocate ", sm::bytes(tlsInit.memSize + sizeof(uintptr_t)), " for ELF program load sections. ", status, "\n");
         return status;
     }
 
     void *tlsWindow = memory.map(tlsMapping.physicalRange(), km::PageFlags::eData);
     if (tlsWindow == nullptr) {
-        KmDebugMessage("[ELF] Failed to map TLS memory\n");
+        KmDebugMessage("Failed to map TLS memory\n");
         return OsStatusOutOfMemory;
     }
 
@@ -103,7 +102,7 @@ static OsStatus InitNewThreadTls(km::TlsInit tlsInit, km::SystemMemory& memory, 
 
     size_t bssSize = tlsInit.bssSize();
     if (bssSize > 0) {
-        KmDebugMessage("[ELF] TLS BSS size: ", bssSize, " ", tlsMapping, "\n");
+        KmDebugMessage("TLS BSS size: ", bssSize, " ", tlsMapping, "\n");
         memset(((char*)tlsWindow + tlsInit.fileSize), 0, bssSize);
     }
 

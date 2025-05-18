@@ -251,6 +251,34 @@ liblogging_nosanitize = static_library('logging_nosanitize', logging_src,
     dependencies : deps,
 )
 
+# Paging
+
+paging_src = files(
+    'src/memory/memory.cpp',
+    'src/memory/pte.cpp',
+    'src/memory/table_allocator.cpp',
+    'src/memory/detail/table_list.cpp',
+    'src/memory/detail/control_block.cpp',
+)
+
+libpaging_kernel = static_library('paging', paging_src,
+    kwargs : kernel_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+libpaging_native = static_library('paging_native', paging_src,
+    kwargs : native_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+libpaging_nosanitize = static_library('paging_nosanitize', paging_src,
+    kwargs : nosan_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
 # Kernel
 
 system_src = files(
@@ -283,14 +311,9 @@ src = [
     'src/memory/allocator.cpp',
     'src/memory/page_allocator.cpp',
     'src/memory/page_allocator_command_list.cpp',
-    'src/memory/table_allocator.cpp',
-    'src/memory/pte.cpp',
     'src/memory/pte_command_list.cpp',
     'src/memory/tables.cpp',
-    'src/memory/memory.cpp',
     'src/memory/address_space.cpp',
-    'src/memory/detail/table_list.cpp',
-    'src/memory/detail/control_block.cpp',
     'src/memory/heap.cpp',
     'src/memory/heap_command_list.cpp',
 
@@ -434,6 +457,7 @@ kernel_libs = [
     librcu_kernel,
     libformat_kernel,
     liblogging_kernel,
+    libpaging_kernel,
 ]
 
 kernel = static_library('kernel', src,

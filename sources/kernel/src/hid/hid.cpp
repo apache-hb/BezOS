@@ -1,8 +1,8 @@
 #include "hid/hid.hpp"
 
-#include "log.hpp"
-
 #include "common/util/defer.hpp"
+#include "logger/categories.hpp"
+#include "logger/logger.hpp"
 #include "processor.hpp"
 
 static hid::Ps2Controller gController;
@@ -100,7 +100,7 @@ const km::IsrEntry *hid::InstallPs2KeyboardIsr(km::IoApicSet& ioApicSet, hid::Ps
 
         OsKey key = kScanMap[scancode];
         if (key == eKeyUnknown) {
-            KmDebugMessage("[PS2] Unknown scancode: ", km::Hex(ctx->vector), " = ", km::Hex(scancode), "\n");
+            Ps2Log.warnf("Unknown scancode: ", km::Hex(ctx->vector), " = ", km::Hex(scancode));
         }
 
         if (key == eKeyLShift || key == eKeyRShift) {
@@ -130,7 +130,7 @@ const km::IsrEntry *hid::InstallPs2KeyboardIsr(km::IoApicSet& ioApicSet, hid::Ps
     uint8_t index = ist->index(keyboardInt);
     hid::InstallPs2DeviceIsr(ioApicSet, controller.keyboard(), target, index);
 
-    KmDebugMessage("[PS2] Keyboard ISR: ", index, "\n");
+    Ps2Log.dbgf("Keyboard ISR: ", index);
 
     return keyboardInt;
 }
@@ -148,7 +148,7 @@ const km::IsrEntry *hid::InstallPs2MouseIsr(km::IoApicSet& ioApicSet, hid::Ps2Co
         km::IApic *apic = km::GetCpuLocalApic();
         defer { apic->eoi(); };
 
-        KmDebugMessage("[PS2] Mouse code: ", km::Hex(ctx->vector), " = ", km::Hex(code), " (", x, ", ", y, ")\n");
+        Ps2Log.dbgf("Mouse code: ", km::Hex(ctx->vector), " = ", km::Hex(code), " (", x, ", ", y, ")");
 
         return *ctx;
     });
@@ -156,7 +156,7 @@ const km::IsrEntry *hid::InstallPs2MouseIsr(km::IoApicSet& ioApicSet, hid::Ps2Co
     uint8_t index = ist->index(mouseInt);
     hid::InstallPs2DeviceIsr(ioApicSet, controller.mouse(), target, index);
 
-    KmDebugMessage("[PS2] Mouse ISR: ", index, "\n");
+    Ps2Log.dbgf("Mouse ISR: ", index);
 
     return mouseInt;
 }

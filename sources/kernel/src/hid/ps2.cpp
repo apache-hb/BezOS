@@ -1,8 +1,8 @@
 #include "hid/ps2.hpp"
 
 #include "delay.hpp"
-#include "log.hpp"
 #include "isr/isr.hpp"
+#include "logger/categories.hpp"
 
 #include <emmintrin.h>
 
@@ -163,12 +163,12 @@ static OsStatus SetupFirstChannel() {
 static bool SelfTestController() {
     uint8_t test = 0;
     if (OsStatus status = ReadCommandChecked(kSelfTest, &test)) {
-        KmDebugMessage("[PS2] PS/2 Controller communication failed: ", status, "\n");
+        Ps2Log.warnf("Controller communication failed: ", OsStatusId(status));
         return false;
     }
 
     if (test != kSelfTestOk) {
-        KmDebugMessage("[PS2] PS/2 Controller self test failed: ", km::Hex(kSelfTestOk).pad(2, '0'), " != ", km::Hex(test).pad(2, '0'), "\n");
+        Ps2Log.warnf("Controller self test failed: ", km::Hex(kSelfTestOk).pad(2, '0'), " != ", km::Hex(test).pad(2, '0'));
         return false;
     }
 
@@ -195,14 +195,14 @@ static bool TestSecondChannel() {
 static void TestPorts(bool *dualChannel [[gnu::nonnull]], bool *firstChannel [[gnu::nonnull]]) {
     uint8_t c1 = ReadCommand(kTestChannel1);
     if (c1 != 0) {
-        KmDebugMessage("[PS2] PS/2 Controller first port test failed: ", km::Hex(0).pad(2, '0'), " != ", km::Hex(c1).pad(2, '0'), "\n");
+        Ps2Log.warnf("Controller first port test failed: ", km::Hex(0).pad(2, '0'), " != ", km::Hex(c1).pad(2, '0'));
         *firstChannel = false;
     }
 
     if (*dualChannel) {
         uint8_t c2 = ReadCommand(kTestChannel2);
         if (c2 != 0) {
-            KmDebugMessage("[PS2] PS/2 Controller second port test failed: ", km::Hex(0).pad(2, '0'), " != ", km::Hex(c2).pad(2, '0'), "\n");
+            Ps2Log.warnf("Controller second port test failed: ", km::Hex(0).pad(2, '0'), " != ", km::Hex(c2).pad(2, '0'));
             *dualChannel = false;
         }
     }
@@ -211,7 +211,7 @@ static void TestPorts(bool *dualChannel [[gnu::nonnull]], bool *firstChannel [[g
 static hid::Ps2DeviceType CheckDeviceReset(stdx::StringView channel) {
     auto readData = [&](uint8_t *data, bool timeout = false) -> OsStatus {
         if (OsStatus status = ReadDataChecked(data, timeout)) {
-            KmDebugMessage("[PS2] PS/2 Controller communication on ", channel, " failed: ", status, "\n");
+            Ps2Log.warnf("Controller communication on ", channel, " failed: ", status);
             return status;
         }
 
@@ -237,18 +237,18 @@ static hid::Ps2DeviceType CheckDeviceReset(stdx::StringView channel) {
         OsStatus status = ReadDataChecked(&b0, true);
         if (status == OsStatusSuccess) break;
         if (status != OsStatusTimeout) {
-            KmDebugMessage("[PS2] PS/2 Controller ", channel, " communication error: ", status, "\n");
+            Ps2Log.warnf("Controller ", channel, " communication error: ", status);
             return hid::Ps2DeviceType::eDisabled;
         }
 
         if (timeout-- == 0) {
-            KmDebugMessage("[PS2] PS/2 Controller ", channel, " misbehaving: too many acks!\n");
+            Ps2Log.warnf("Controller ", channel, " misbehaving: too many acks!");
             return hid::Ps2DeviceType::eDisabled;
         }
     }
 
     if (!(b0 == kDeviceOk && b1 == kAck) && !(b0 == kAck && b1 == kDeviceOk)) {
-        KmDebugMessage("[PS2] PS/2 Controller ", channel, " reset failed: ", km::Hex(b0).pad(2, '0'), " ", km::Hex(b1).pad(2, '0'), "\n");
+        Ps2Log.warnf("Controller ", channel, " reset failed: ", km::Hex(b0).pad(2, '0'), " ", km::Hex(b1).pad(2, '0'));
         return hid::Ps2DeviceType::eDisabled;
     }
 
@@ -304,7 +304,7 @@ static hid::Ps2DeviceType CheckDeviceReset(stdx::StringView channel) {
         return hid::Ps2DeviceType::eSunKeyboard;
     }
 
-    KmDebugMessage("[PS2] PS/2 Controller ", channel, " unknown device type: ", km::Hex(type).pad(4, '0'), "\n");
+    Ps2Log.warnf("Controller ", channel, " unknown device type: ", km::Hex(type).pad(4, '0'));
 
     return hid::Ps2DeviceType::eDisabled;
 }
@@ -316,7 +316,7 @@ hid::Ps2ControllerResult hid::EnablePs2Controller() {
     FlushData();
 
     if (OsStatus status = SetupFirstChannel()) {
-        KmDebugMessage("[PS2] PS/2 Controller first channel setup failed. ", status, "\n");
+        Ps2Log.warnf("Channel 1 controller setup failed. ", OsStatusId(status));
 
         return Ps2ControllerResult { Ps2Controller(), Ps2ControllerStatus::eControllerSelfTestFailed };
     }
@@ -368,8 +368,8 @@ hid::Ps2ControllerResult hid::EnablePs2Controller() {
         std::swap(device1, device2);
     }
 
-    KmDebugMessage("[PS2] PS/2 Controller channel 1: ", device1.type(), "\n");
-    KmDebugMessage("[PS2] PS/2 Controller channel 2: ", device2.type(), "\n");
+    Ps2Log.infof("Controller channel 1: ", device1.type());
+    Ps2Log.infof("Controller channel 2: ", device2.type());
 
     return Ps2ControllerResult { Ps2Controller(device1, device2), Ps2ControllerStatus::eOk };
 }
@@ -408,7 +408,7 @@ void hid::Ps2Controller::setMouseResolution(uint8_t resolution) {
 void hid::Ps2Controller::enableIrqs(bool first, bool second) {
     uint8_t config = ReadCommand(kReadConfig);
 
-    KmDebugMessage("[PS2] PS/2 Controller IRQs: ", km::present(first), ", ", km::present(second), " (", km::Hex(config), ")\n");
+    Ps2Log.dbgf("Controller IRQs: ", km::present(first), ", ", km::present(second), " (", km::Hex(config), ")");
 
     if (first) {
         config |= kFirstInt;

@@ -14,3 +14,5 @@ constinit inline km::Logger PciLog { "PCI" };
 constinit inline km::Logger BiosLog { "SMBIOS" };
 constinit inline km::Logger TestLog { "TEST" };
 constinit inline km::Logger ClockLog { "CLOCK" };
+constinit inline km::Logger Ps2Log { "PS/2" };
+constinit inline km::Logger TaskLog { "TASK" };

@@ -1,8 +1,7 @@
 #include "memory/pte.hpp"
 
-#include "log.hpp"
-
 #include "common/util/defer.hpp"
+#include "logger/categories.hpp"
 
 using namespace km;
 
@@ -152,11 +151,6 @@ void PageTables::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags
 }
 
 void PageTables::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableList& buffer) noexcept [[clang::nonallocating]] {
-    if (!mPageManager->isCanonicalAddress(vaddr)) {
-        KmDebugMessage("Attempting to map address that isn't canonical: ", vaddr, "\n");
-        KM_PANIC("Invalid memory mapping.");
-    }
-
     auto [pml4e, pdpte, pdte, _] = GetAddressParts(vaddr);
 
     x64::PageMapLevel4 *l4 = pml4();
@@ -299,7 +293,7 @@ OsStatus PageTables::allocatePageTables(VirtualRange range, detail::PageTableLis
     // If the fast path fails then do a more expensive page table scan to
     // figure out the exact number of tables we need to allocate.
     //
-    KmDebugMessage("[MEM] Low memory, failed to allocate ", requiredPages, " page tables. Retrying using slow path.\n");
+    MemLog.warnf("Low memory, failed to allocate ", requiredPages, " page tables. Retrying with conservative page count.");
     requiredPages = countPagesForMapping(range);
     if (mAllocator.allocateList(requiredPages, list)) {
         return OsStatusSuccess;
@@ -308,9 +302,9 @@ OsStatus PageTables::allocatePageTables(VirtualRange range, detail::PageTableLis
     //
     // Last ditch effort to try and fulfill the request, compaction can be very expensive.
     //
-    KmDebugMessage("[MEM] Critically low memory. Performing emergency page compaction.\n");
+    MemLog.warnf("Critically low memory. Performing emergency page compaction.");
     size_t count = compactUnlocked();
-    KmDebugMessage("[MEM] Compacted ", count, " pages.\n");
+    MemLog.warnf("Compacted ", count, " pages.");
 
     if (mAllocator.allocateList(requiredPages, list)) {
         return OsStatusSuccess;

@@ -4,7 +4,7 @@
 #include <exception>
 
 #include "crt.hpp"
-#include "log.hpp"
+#include "logger/categories.hpp"
 #include "panic.hpp"
 
 #define STB_SPRINTF_IMPLEMENTATION
@@ -20,7 +20,7 @@ extern "C" int printf(const char *fmt, ...) {
     va_end(va);
 
     stdx::StringView message(buffer, buffer + result);
-    KmDebugMessage(message);
+    InitLog.printImmediate(message);
 
     return result;
 }
@@ -28,7 +28,7 @@ extern "C" int printf(const char *fmt, ...) {
 extern "C" void tlsf_default_assert(int cond, const char *msg) {
     if (!cond) {
         stdx::StringView message(msg, msg + std::char_traits<char>::length(msg));
-        KmDebugMessage("TLSF assertion failed: ", message, "\n");
+        InitLog.fatalf("TLSF assertion failed: ", message);
         KM_PANIC("TLSF assertion failed.");
     }
 }

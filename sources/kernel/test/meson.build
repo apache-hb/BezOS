@@ -236,6 +236,10 @@ testcases2 = {
     'crt': {
         'sources': files('crt.cpp', '../src/crt.cpp'),
     },
+    'page table': {
+        'sources': files('memory/pte.cpp'),
+        'link_with': [ libpaging_native, liblogging_native, test_shim ],
+    }
 }
 
 foreach name, setup : testcases2
@@ -268,9 +272,6 @@ endforeach
 testcases = {
     'serial': [ 'serial.cpp', '../src/uart.cpp', ],
     'ipl': [ 'ipl.cpp' ],
-    'page table': [
-        'memory/pte.cpp',
-    ],
     'page table command list +new': [
         'memory/pte_command_list.cpp',
     ],

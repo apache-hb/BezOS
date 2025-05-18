@@ -3,7 +3,7 @@
 #include "fs/ramfs.hpp"
 
 #include "fs/utils.hpp"
-#include "log.hpp"
+#include "logger/categories.hpp"
 
 using namespace vfs;
 
@@ -11,12 +11,12 @@ VfsRoot::VfsRoot() {
     // TODO: This isn't conducive to good error handling.
     //       Need to find a way of propagating errors up, maybe enable exceptions?
     if (OsStatus status = RamFs::instance().mount(&mDomain, std::out_ptr(mRootMount))) {
-        KmDebugMessage("Failed to mount root filesystem: ", unsigned(status), "\n");
+        VfsLog.fatalf("Failed to mount root filesystem: ", OsStatusId(status), "\n");
         KM_PANIC("Failed to mount root filesystem.");
     }
 
     if (OsStatus status = mRootMount->root(&mRootNode)) {
-        KmDebugMessage("Failed to get root node: ", unsigned(status), "\n");
+        VfsLog.fatalf("Failed to get root node: ", OsStatusId(status), "\n");
         KM_PANIC("Failed to get root node.");
     }
 }
