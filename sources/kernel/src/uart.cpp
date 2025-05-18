@@ -2,8 +2,10 @@
 
 #include "delay.hpp"
 
-#include "log.hpp"
+#include "logger/logger.hpp"
 #include <emmintrin.h>
+
+constinit inline km::Logger UartLog { "UART" };
 
 using namespace km::uart::detail;
 
@@ -93,7 +95,7 @@ size_t km::SerialPort::print(stdx::StringView src, unsigned timeout) noexcept [[
     return result;
 }
 
-OsStatus km::SerialPort::create(ComPortInfo info, SerialPort *port [[clang::noescape, gnu::nonnull]]) noexcept [[clang::blocking, clang::nonallocating]] {
+OsStatus km::SerialPort::create(ComPortInfo info, SerialPort *port [[clang::noescape, gnu::nonnull]]) noexcept [[clang::blocking]] {
     uint16_t base = info.port;
 
     // do initial scratch test
@@ -101,7 +103,7 @@ OsStatus km::SerialPort::create(ComPortInfo info, SerialPort *port [[clang::noes
         static constexpr uint8_t kScratchByte = 0x55;
         KmWriteByte(base + kScratch, kScratchByte);
         if (uint8_t read = KmReadByte(base + kScratch); read != kScratchByte) {
-            KmDebugMessage("[UART][", Hex(base), "] Scratch test failed ", Hex(read), " != ", Hex(kScratchByte), "\n");
+            UartLog.warnf("[", Hex(base), "] Scratch test failed ", Hex(read), " != ", Hex(kScratchByte), "\n");
             return OsStatusNotFound;
         }
     }
@@ -145,7 +147,7 @@ OsStatus km::SerialPort::create(ComPortInfo info, SerialPort *port [[clang::noes
         if (uint8_t read = KmReadByte(base + kData); read != kLoopbackByte) {
             KmWriteByte(base + kModemControl, 0x0F);
 
-            KmDebugMessage("[UART][", Hex(base), "] Loopback test failed ", Hex(read), " != ", Hex(kLoopbackByte), "\n");
+            UartLog.warnf("[", Hex(base), "] Loopback test failed ", Hex(read), " != ", Hex(kLoopbackByte));
             return OsStatusDeviceFault;
         }
 

@@ -177,7 +177,7 @@ namespace km {
             mDisplay.setAddress(address);
         }
 
-        Canvas& display() { return mDisplay; }
+        const Canvas& getCanvas() const noexcept { return mDisplay; }
         uint16_t currentRow() const { return mCurrentRow; }
         uint16_t currentColumn() const { return mCurrentColumn; }
         uint16_t rowCount() const { return mRowCount; }
@@ -222,7 +222,7 @@ namespace km {
         { }
 
         BufferedTerminal(DirectTerminal terminal, SystemMemory& memory)
-            : BufferedTerminal(terminal.display(), InMemoryCanvas(terminal.display(), memory))
+            : BufferedTerminal(terminal.getCanvas(), InMemoryCanvas(terminal.getCanvas(), memory))
         { }
 
         BufferedTerminal(Canvas display, Canvas backBuffer);

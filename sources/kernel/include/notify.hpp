@@ -1,12 +1,12 @@
 #pragma once
 
+#include "std/ringbuffer.hpp"
 #include "std/shared_spinlock.hpp"
 #include "std/spinlock.hpp"
 #include "util/absl.hpp"
 
 #include "std/rcuptr.hpp"
 #include "std/string.hpp"
-#include "std/queue.hpp"
 
 #include "util/uuid.hpp"
 
@@ -15,10 +15,27 @@ namespace km {
     class INotification;
     class ISubscriber;
 
-    struct NotificationQueueTraits : public moodycamel::ConcurrentQueueDefaultTraits {
-        static void *malloc(size_t size);
-        static void free(void *ptr);
+    using SendTime = OsInstant;
+
+    static constexpr uint32_t kDefaultTopicCapacity = 64;
+
+    class INotification : public sm::RcuIntrusivePtr<INotification> {
+        SendTime mInstant;
+
+    protected:
+        INotification(SendTime instant)
+            : mInstant(instant)
+        { }
+
+    public:
+        virtual ~INotification() = default;
+
+        SendTime instant() const {
+            return mInstant;
+        }
     };
+
+    using TopicQueue = sm::AtomicRingQueue<std::unique_ptr<INotification>>;
 
     class Topic {
         friend class NotificationStream;
@@ -28,7 +45,7 @@ namespace km {
 
         stdx::SpinLock mQueueLock;
 
-        moodycamel::ConcurrentQueue<std::unique_ptr<INotification>, NotificationQueueTraits> mQueue;
+        TopicQueue mQueue;
 
         stdx::SharedSpinLock mLock;
         sm::FlatHashSet<ISubscriber*> mSubscribers;
@@ -38,9 +55,10 @@ namespace km {
         void unsubscribe(ISubscriber *subscriber);
 
     public:
-        Topic(sm::uuid id, stdx::String name)
+        Topic(sm::uuid id, stdx::String name, TopicQueue queue)
             : mId(id)
             , mName(std::move(name))
+            , mQueue(std::move(queue))
         { }
 
         sm::uuid id() const {
@@ -71,24 +89,6 @@ struct std::hash<km::Topic> {
 };
 
 namespace km {
-    using SendTime = OsInstant;
-
-    class INotification : public sm::RcuIntrusivePtr<INotification> {
-        SendTime mInstant;
-
-    protected:
-        INotification(SendTime instant)
-            : mInstant(instant)
-        { }
-
-    public:
-        virtual ~INotification() = default;
-
-        SendTime instant() const {
-            return mInstant;
-        }
-    };
-
     class ISubscriber {
     public:
         virtual ~ISubscriber() = default;
@@ -120,7 +120,7 @@ namespace km {
             return addNotification(topic, new (std::nothrow) T(std::forward<Args>(args)...));
         }
 
-        Topic *createTopic(sm::uuid id, stdx::String name);
+        Topic *createTopic(sm::uuid id, stdx::String name, uint32_t capacity = kDefaultTopicCapacity);
         Topic *findTopic(sm::uuid id);
 
         ISubscriber *subscribe(Topic *topic, ISubscriber *subscriber);
@@ -129,6 +129,4 @@ namespace km {
 
         size_t processAll(size_t limit = 1024);
     };
-
-    void InitAqAllocator(void *memory, size_t size);
 }

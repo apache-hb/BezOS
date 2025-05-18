@@ -1,39 +1,19 @@
 #include "notify.hpp"
 
-#include "allocator/synchronized.hpp"
-#include "allocator/tlsf.hpp"
-#include "log.hpp"
+#include "logger/logger.hpp"
 
 using namespace km;
 
-using SynchronizedTlsfAllocator = mem::SynchronizedAllocator<mem::TlsfAllocator>;
-
-static mem::IAllocator *gNotificationAllocator = nullptr;
-
-void *km::NotificationQueueTraits::malloc(size_t size) {
-    return gNotificationAllocator->allocate(size);
-}
-
-void km::NotificationQueueTraits::free(void *ptr) {
-    gNotificationAllocator->deallocate(ptr, 0);
-}
-
-void km::InitAqAllocator(void *memory, size_t size) {
-    KM_CHECK(memory != nullptr, "Invalid memory for notification allocator.");
-    KM_CHECK(size > 0, "Invalid size for notification allocator.");
-    KM_CHECK(gNotificationAllocator == nullptr, "Notification allocator already initialized.");
-
-    gNotificationAllocator = new SynchronizedTlsfAllocator(memory, size);
-}
+constinit static km::Logger AqLog { "AQ" };
 
 OsStatus Topic::addNotification(INotification *notification) {
     if (notification == nullptr) {
-        KmDebugMessage("[AQ] Dropped notification due to memory exhaustion\n");
+        AqLog.warnf("Dropped notification due to memory exhaustion");
         return OsStatusOutOfMemory;
     }
 
-    // stdx::LockGuard guard(mQueueLock);
-    if (mQueue.enqueue(std::unique_ptr<INotification>{notification})) {
+    std::unique_ptr<INotification> ptr{notification};
+    if (mQueue.tryPush(ptr)) {
         return OsStatusSuccess;
     } else {
         return OsStatusOutOfMemory;
@@ -55,9 +35,8 @@ size_t Topic::process(size_t limit) {
     size_t count = 0;
 
     stdx::SharedLock guard(mLock);
-    // stdx::LockGuard guard2(mQueueLock);
 
-    while (mQueue.try_dequeue(notification)) {
+    while (mQueue.tryPop(notification)) {
         for (ISubscriber *subscriber : mSubscribers) {
             subscriber->notify(this, notification.get());
         }
@@ -74,17 +53,23 @@ OsStatus NotificationStream::addNotification(Topic *topic, INotification *notifi
     return topic->addNotification(notification);
 }
 
-Topic *NotificationStream::createTopic(sm::uuid id, stdx::String name) {
+Topic *NotificationStream::createTopic(sm::uuid id, stdx::String name, uint32_t capacity) {
     stdx::UniqueLock guard(mTopicLock);
 
-    auto [iter, ok] = mTopics.insert({ id, sm::makeUnique<Topic>(id, std::move(name)) });
+    TopicQueue queue;
+    if (OsStatus status = TopicQueue::create(capacity, &queue)) {
+        AqLog.warnf("Failed to create topic queue: ", OsStatusId(status));
+        return nullptr;
+    }
+
+    auto [iter, ok] = mTopics.insert({ id, sm::makeUnique<Topic>(id, std::move(name), std::move(queue)) });
     if (!ok) {
-        KmDebugMessage("[AQ] Failed to create topic\n");
+        AqLog.warnf("Failed to create topic ", name, ":", id);
         return nullptr;
     }
 
     auto& [key, value] = *iter;
-    KmDebugMessage("[AQ] Created topic '", value->name(), "'\n");
+    AqLog.dbgf("Created topic ", value->name(), ":", value->id());
     return value.get();
 }
 

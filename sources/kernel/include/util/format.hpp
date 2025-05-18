@@ -358,7 +358,7 @@ namespace km {
         return toStaticString<kFormatSize<T>>(value);
     }
 
-    template<IsFormatEx T>
+    template<IsFormatEx T> requires (!IsStreamFormat<T>)
     inline void format(IOutStream& out, const T& value) {
         out.write(Format<T>::toString(value));
     }

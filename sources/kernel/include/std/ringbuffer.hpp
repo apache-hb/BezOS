@@ -30,7 +30,17 @@ namespace sm {
     public:
         constexpr AtomicRingQueue() noexcept = default;
         UTIL_NOCOPY(AtomicRingQueue);
-        UTIL_DEFAULT_MOVE(AtomicRingQueue);
+
+        constexpr AtomicRingQueue(AtomicRingQueue&& other) noexcept
+            : mStorage(std::move(other.mStorage))
+            , mCapacity(other.mCapacity)
+            , mProducerHead(other.mProducerHead.load())
+            , mConsumerTail(other.mConsumerTail.load())
+            , mProducerTail(other.mProducerTail.load())
+            , mConsumerHead(other.mConsumerHead.load())
+        {
+            other.mCapacity = 0;
+        }
 
         bool tryPush(T& value) noexcept [[clang::reentrant, clang::nonblocking]] {
             uint32_t producerHead;

@@ -3,16 +3,8 @@
 #include "notify.hpp"
 
 class NotifyTest : public testing::Test {
-    static inline void *ptr = nullptr;
 public:
-    static void SetUpTestSuite() {
-        ptr = malloc(0x10000);
-        km::InitAqAllocator(ptr, 0x10000);
-    }
 
-    static void TearDownTestSuite() {
-        free(ptr);
-    }
 };
 
 TEST_F(NotifyTest, Construct) {

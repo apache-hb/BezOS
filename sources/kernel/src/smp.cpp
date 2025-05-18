@@ -5,8 +5,8 @@
 
 #include "gdt.hpp"
 #include "kernel.hpp"
+#include "logger/categories.hpp"
 #include "panic.hpp"
-#include "log.hpp"
 #include "pat.hpp"
 #include "processor.hpp"
 #include "syscall.hpp"
@@ -74,7 +74,7 @@ static constexpr km::PhysicalAddressEx kSmpInfo = 0x7000;
 static constexpr km::PhysicalAddressEx kSmpStart = 0x8000;
 
 extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
-    KmDebugMessage("[SMP] Starting Core.\n");
+    InitLog.dbgf("Starting Core.");
 
     km::SetupInitialGdt();
     km::LoadIdt();
@@ -89,7 +89,7 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
     km::SetupApGdt();
     km::XSaveInitApCore();
 
-    KmDebugMessage("[SMP] Started AP ", apic->id(), ", Spurious Vector: ", isr::kSpuriousVector, "\n");
+    InitLog.dbgf("Started AP ", apic->id(), ", Spurious Vector: ", isr::kSpuriousVector);
 
     apic->setSpuriousVector(isr::kSpuriousVector);
     apic->enable();
@@ -158,7 +158,7 @@ void km::InitSmp(
     TlsfAllocation smpInfoAlloc;
     TlsfAllocation smpStartAlloc;
 
-    KmDebugMessage("[SMP] Starting APs.\n");
+    InitLog.infof("Starting APs.");
     AddressSpace &addressSpace = memory.pageTables();
     PageTables &kernelTables = *addressSpace.tables();
 
@@ -170,7 +170,7 @@ void km::InitSmp(
     // Copy the SMP blob to the correct location.
     //
     if (OsStatus status = addressSpace.map(smpStartRange, PageFlags::eAll, MemoryType::eWriteBack, &smpStartAlloc)) {
-        KmDebugMessage("[SMP] Failed to map smp blob region: ", OsStatusId(status), "\n");
+        InitLog.fatalf("Failed to map smp blob region: ", OsStatusId(status));
         KM_PANIC("Failed to map smp blob region.");
     }
 
@@ -179,7 +179,7 @@ void km::InitSmp(
 
     uint32_t bspId = bsp->id();
 
-    KmDebugMessage("[SMP] BSP ID: ", bspId, "\n");
+    InitLog.dbgf("BSP ID: ", bspId);
 
     SmpInfoHeader *smpInfo = addressSpace.mapObject<SmpInfoHeader>(kSmpInfo, PageFlags::eData, MemoryType::eWriteBack, &smpInfoAlloc);
 
@@ -191,12 +191,12 @@ void km::InitSmp(
     AddressMapping smpStartIdentity = MappingOf(smpStartRange, (void*)kSmpStart.address);
 
     if (OsStatus status = kernelTables.map(smpInfoIdentity, PageFlags::eData, MemoryType::eWriteBack)) {
-        KmDebugMessage("[SMP] Failed to reserve identity mapping for smp info region: ", OsStatusId(status), "\n");
+        InitLog.fatalf("Failed to reserve identity mapping for smp info region: ", OsStatusId(status));
         KM_PANIC("Failed to reserve smp info region.");
     }
 
     if (OsStatus status = kernelTables.map(smpStartIdentity, PageFlags::eCode, MemoryType::eWriteBack)) {
-        KmDebugMessage("[SMP] Failed to reserve identity mapping for  smp blob region: ", OsStatusId(status), "\n");
+        InitLog.fatalf("Failed to reserve identity mapping for  smp blob region: ", OsStatusId(status));
         KM_PANIC("Failed to reserve smp blob region.");
     }
 
@@ -216,14 +216,14 @@ void km::InitSmp(
             continue;
 
         if (!localApic.isEnabled() && !localApic.isOnlineCapable()) {
-            KmDebugMessage("[SMP] Skipping APIC ID: ", localApic.apicId, ", core is marked as inoperable.\n");
+            InitLog.warnf("Skipping APIC ID: ", localApic.apicId, ", core is marked as inoperable.");
             continue;
         }
 
         smpInfo->stack = AllocSmpStack(memory);
         smpInfo->ready.clear();
 
-        KmDebugMessage("[SMP] Starting APIC ID: ", localApic.apicId, "\n");
+        InitLog.dbgf("Starting APIC ID: ", localApic.apicId);
 
         //
         // Send the INIT IPI
@@ -232,14 +232,14 @@ void km::InitSmp(
 
         // TODO: sleep
 
-        KmDebugMessage("[SMP] Sending SIPI to APIC ID: ", localApic.apicId, "\n");
+        InitLog.dbgf("Sending SIPI to APIC ID: ", localApic.apicId);
 
         //
         // Send the start IPI
         //
         bsp->sendIpi(localApic.apicId, apic::IpiAlert::sipi(kSmpStart));
 
-        KmDebugMessage("[SMP] Waiting for APIC ID: ", localApic.apicId, " to start.\n");
+        InitLog.dbgf("Waiting for APIC ID: ", localApic.apicId, " to start.");
 
         // TODO: should really have a condition variable here
         while (!smpInfo->ready.test()) {
@@ -258,12 +258,12 @@ void km::InitSmp(
     // Unmap the smp blob and info regions.
     //
     if (OsStatus status = addressSpace.unmap(smpInfoAlloc)) {
-        KmDebugMessage("[SMP] Failed to unmap smp info region: ", OsStatusId(status), "\n");
+        InitLog.fatalf("Failed to unmap smp info region: ", OsStatusId(status));
         KM_PANIC("Failed to unmap smp info region.");
     }
 
     if (OsStatus status = addressSpace.unmap(smpStartAlloc)) {
-        KmDebugMessage("[SMP] Failed to unmap smp blob region: ", OsStatusId(status), "\n");
+        InitLog.fatalf("Failed to unmap smp blob region: ", OsStatusId(status));
         KM_PANIC("Failed to unmap smp blob region.");
     }
 
@@ -271,12 +271,12 @@ void km::InitSmp(
     // And unmap the identity mappings.
     //
     if (OsStatus status = kernelTables.unmap(smpInfoIdentity.virtualRange())) {
-        KmDebugMessage("[SMP] Failed to unmap smp info region: ", OsStatusId(status), "\n");
+        InitLog.fatalf("Failed to unmap smp info region: ", OsStatusId(status));
         KM_PANIC("Failed to unmap smp info region.");
     }
 
     if (OsStatus status = kernelTables.unmap(smpStartIdentity.virtualRange())) {
-        KmDebugMessage("[SMP] Failed to unmap smp blob region: ", OsStatusId(status), "\n");
+        InitLog.fatalf("Failed to unmap smp blob region: ", OsStatusId(status));
         KM_PANIC("Failed to unmap smp blob region.");
     }
 }

@@ -4,6 +4,8 @@
 #include "logger/categories.hpp"
 #include "memory/address_space.hpp"
 
+using namespace stdx::literals;
+
 static constexpr uint8_t kOffsetMask = 0b1111'1100;
 
 static constexpr uint32_t kEnableBit = (1 << 31);
@@ -77,7 +79,7 @@ pci::McfgConfigSpace::McfgConfigSpace(const acpi::Mcfg *mcfg, km::AddressSpace& 
         };
 
         if (region.base == nullptr) {
-            PciLog.fatalf("Failed to map ECAM region ", range, "\n");
+            PciLog.fatalf("Failed to map ECAM region ", range);
             KM_PANIC("Failed to map ECAM region.");
         }
 
@@ -112,10 +114,10 @@ pci::IConfigSpace *pci::InitConfigSpace(const acpi::Mcfg *mcfg, km::AddressSpace
     size_t count = mcfg->allocationCount();
 
     if (count == 0) {
-        PciLog.warnf("No ECAM regions found in MCFG table.\n");
+        PciLog.warnf("No ECAM regions found in MCFG table.");
         return new PortConfigSpace{};
     }
 
-    PciLog.dbgf(count, " ECAM regions found in MCFG table.\n");
+    PciLog.dbgf(count, " ECAM ", (count == 1) ? "region"_sv : "regions"_sv, " found in MCFG table.");
     return new McfgConfigSpace{mcfg, memory};
 }

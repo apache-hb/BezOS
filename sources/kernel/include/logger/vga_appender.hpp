@@ -20,6 +20,10 @@ namespace km {
             mTerminal.setAddress(address);
         }
 
+        km::Canvas getCanvas() const noexcept {
+            return mTerminal.getCanvas();
+        }
+
         static OsStatus create(boot::FrameBuffer fb, void *address, VgaAppender *appender) noexcept [[clang::allocating]];
     };
 }

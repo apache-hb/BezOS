@@ -147,7 +147,6 @@ public:
 
 // load bearing constinit, clang has a bug in c++26 mode
 // where it doesnt emit a warning for global constructors in all cases.
-constinit static SerialLog gSerialLog;
 constinit static TerminalLog<DirectTerminal> gDirectTerminalLog;
 constinit static DebugPortLog gDebugPortLog;
 
@@ -850,16 +849,6 @@ PageTables& km::GetProcessPageTables() {
 }
 
 static void CreateNotificationQueue() {
-    static constexpr size_t kAqMemorySize = sm::kilobytes(128).bytes();
-    MappingAllocation aqAllocation;
-
-    if (OsStatus status = gMemory->map(kAqMemorySize, PageFlags::eData, MemoryType::eWriteBack, &aqAllocation)) {
-        InitLog.fatalf("Failed to map memory for notification queue: ", OsStatusId(status));
-        KM_PANIC("Failed to map memory for notification queue.");
-    }
-
-    InitAqAllocator(aqAllocation.baseAddress(), kAqMemorySize);
-
     gNotificationStream = new NotificationStream();
 }
 
@@ -1366,7 +1355,7 @@ static OsStatus LaunchThread(OsStatus(*entry)(void*), void *arg, stdx::String na
 }
 
 static OsStatus NotificationWork(void *) {
-    KmDebugMessage("[INIT] Beginning notification work.\n");
+    InitLog.dbgf("Beginning notification work.");
     while (true) {
         gNotificationStream->processAll();
         arch::Intrin::halt();
@@ -1377,14 +1366,14 @@ static OsStatus NotificationWork(void *) {
 
 static OsStatus KernelMasterTask() {
     auto *scheduler = gSysSystem->scheduler();
-    KmDebugMessage("[INIT] Kernel master task.\n");
+    InitLog.infof("Kernel master task.");
 
     LaunchThread(&NotificationWork, gNotificationStream, "NOTIFY");
 
     OsProcessHandle hInit = OS_HANDLE_INVALID;
     sys::InvokeContext invoke { gSysSystem, sys::GetCurrentProcess(), sys::GetCurrentThread() };
     if (OsStatus status = LaunchInitProcess(&invoke, &hInit)) {
-        KmDebugMessage("[INIT] Failed to create INIT process: ", OsStatusId(status), "\n");
+        InitLog.fatalf("Failed to create INIT process: ", OsStatusId(status));
         KM_PANIC("Failed to create init process.");
     }
 
@@ -1409,17 +1398,17 @@ static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioAp
 
     if (has8042) {
         hid::Ps2ControllerResult result = hid::EnablePs2Controller();
-        KmDebugMessage("[INIT] PS/2 controller: ", result.status, "\n");
+        InitLog.infof("PS/2 controller: ", result.status);
         if (result.status == hid::Ps2ControllerStatus::eOk) {
             ps2Controller = result.controller;
 
-            KmDebugMessage("[INIT] PS/2 keyboard: ", present(ps2Controller.hasKeyboard()), "\n");
-            KmDebugMessage("[INIT] PS/2 mouse: ", present(ps2Controller.hasMouse()), "\n");
+            InitLog.infof("PS/2 keyboard: ", present(ps2Controller.hasKeyboard()));
+            InitLog.infof("PS/2 mouse: ", present(ps2Controller.hasMouse()));
         } else {
             return;
         }
     } else {
-        KmDebugMessage("[INIT] No PS/2 controller found.\n");
+        InitLog.infof("No PS/2 controller found.");
         return;
     }
 
@@ -1445,7 +1434,7 @@ static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioAp
     {
         sm::RcuSharedPtr<vfs::INode> node = nullptr;
         if (OsStatus status = gVfsRoot->mkpath(hidPs2DevicePath.parent(), &node)) {
-            KmDebugMessage("[VFS] Failed to create ", hidPs2DevicePath.parent(), " folder: ", OsStatusId(status), "\n");
+            VfsLog.fatalf("Failed to create ", hidPs2DevicePath.parent(), " folder: ", OsStatusId(status));
             KM_PANIC("Failed to create keyboar device folder.");
         }
     }
@@ -1453,7 +1442,7 @@ static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioAp
     {
         auto device = sm::rcuMakeShared<dev::HidKeyboardDevice>(gVfsRoot->domain());
         if (OsStatus status = gVfsRoot->mkdevice(hidPs2DevicePath, device)) {
-            KmDebugMessage("[VFS] Failed to create ", hidPs2DevicePath, " device: ", OsStatusId(status), "\n");
+            VfsLog.fatalf("Failed to create ", hidPs2DevicePath, " device: ", OsStatusId(status));
             KM_PANIC("Failed to create keyboard device.");
         }
 
@@ -1467,15 +1456,15 @@ static void CreateDisplayDevice() {
     {
         sm::RcuSharedPtr<vfs::INode> node = nullptr;
         if (OsStatus status = gVfsRoot->mkpath(ddiPath.parent(), &node)) {
-            KmDebugMessage("[VFS] Failed to create ", ddiPath.parent(), " folder: ", OsStatusId(status), "\n");
+            VfsLog.fatalf("Failed to create ", ddiPath.parent(), " folder: ", OsStatusId(status));
             KM_PANIC("Failed to create display device folder.");
         }
     }
 
     {
-        auto device = sm::rcuMakeShared<dev::DisplayDevice>(gVfsRoot->domain(), gDirectTerminalLog.get().display());
+        auto device = sm::rcuMakeShared<dev::DisplayDevice>(gVfsRoot->domain(), gVgaAppender.getCanvas());
         if (OsStatus status = gVfsRoot->mkdevice(ddiPath, device)) {
-            KmDebugMessage("[VFS] Failed to create ", ddiPath, " device: ", OsStatusId(status), "\n");
+            VfsLog.fatalf("Failed to create ", ddiPath, " device: ", OsStatusId(status));
             KM_PANIC("Failed to create display device.");
         }
     }
@@ -1490,15 +1479,15 @@ static void LaunchKernelProcess(km::ApicTimer *apicTimer) {
     std::unique_ptr<sys::ProcessHandle> system;
     OsStatus status = sys::SysCreateRootProcess(gSysSystem, createInfo, std::out_ptr(system));
     if (status != OsStatusSuccess) {
-        KmDebugMessage("[INIT] Failed to create SYSTEM process: ", OsStatusId(status), "\n");
+        InitLog.fatalf("Failed to create SYSTEM process: ", OsStatusId(status));
         KM_PANIC("Failed to create SYSTEM process.");
     }
 
-    KmDebugMessage("[INIT] Create master task.\n");
+    InitLog.infof("Creating master task.");
 
     km::StackMappingAllocation stack;
     if (OsStatus status = gMemory->mapStack(kKernelStackSize, PageFlags::eData, &stack)) {
-        KmDebugMessage("[INIT] Failed to map kernel stack: ", OsStatusId(status), "\n");
+        InitLog.fatalf("Failed to map kernel stack: ", OsStatusId(status));
         KM_PANIC("Failed to map kernel stack.");
     }
 
@@ -1518,11 +1507,11 @@ static void LaunchKernelProcess(km::ApicTimer *apicTimer) {
     sys::InvokeContext invoke { gSysSystem, system->getProcess() };
     status = sys::SysThreadCreate(&invoke, threadInfo, &thread);
     if (status != OsStatusSuccess) {
-        KmDebugMessage("[INIT] Failed to create SYSTEM thread: ", OsStatusId(status), "\n");
+        InitLog.fatalf("Failed to create SYSTEM thread: ", OsStatusId(status));
         KM_PANIC("Failed to create SYSTEM thread.");
     }
 
-    KmDebugMessage("[INIT] Create master thread.\n");
+    InitLog.fatalf("Create master thread.");
 
     sys::EnterScheduler(gSysSystem->getCpuSchedule(km::GetCurrentCoreId()), apicTimer);
 }
@@ -1547,6 +1536,35 @@ static void InitUserApi() {
     AddMutexSystemCalls();
     AddProcessSystemCalls();
     AddClockSystemCalls();
+}
+
+static void DisplayHpetInfo(const km::HighPrecisionTimer& hpet) {
+    InitLog.println("|---- HPET -----------------");
+    InitLog.println("| Property      | Value");
+    InitLog.println("|---------------+-----------");
+    InitLog.println("| Vendor        | ", hpet.vendor());
+    InitLog.println("| Timer count   | ", hpet.timerCount());
+    InitLog.println("| Clock         | ", hpet.refclk());
+    InitLog.println("| Counter size  | ", hpet.counterSize() == hpet::Width::DWORD ? "32"_sv : "64"_sv);
+    InitLog.println("| Revision      | ", hpet.revision());
+    InitLog.println("| Ticks         | ", hpet.ticks());
+
+    auto comparators = hpet.comparators();
+    for (size_t i = 0; i < comparators.size(); i++) {
+        const auto& comparator = comparators[i];
+        auto config = comparator.config();
+        InitLog.println("| Comparator    | ", i);
+        InitLog.println("|  - Route Mask | ", comparator.routeMask());
+        InitLog.println("|  - Counter    | ", comparator.counter());
+        InitLog.println("|  - FSB        | ", comparator.fsbIntDelivery());
+        InitLog.println("|  - Periodic   | ", comparator.periodicSupport());
+        InitLog.println("|  - Width      | ", comparator.width() == hpet::Width::DWORD ? "32"_sv : "64"_sv);
+        InitLog.println("|  - Enabled    | ", config.enable);
+        InitLog.println("|  - Period     | ", config.period);
+        InitLog.println("|  - Mode       | ", config.mode == hpet::Width::DWORD ? "32"_sv : "64"_sv);
+        InitLog.println("|  - Trigger    | ", config.trigger == apic::Trigger::eLevel ? "Level"_sv : "Edge"_sv);
+        InitLog.println("|  - Route      | ", config.ioApicRoute);
+    }
 }
 
 void LaunchKernel(boot::LaunchInfo launch) {
@@ -1653,13 +1671,11 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     pci::ProbeConfigSpace(config.get(), rsdt.mcfg());
 
-    KmHalt();
-
     {
         static constexpr size_t kSchedulerMemorySize = sm::kilobytes(128).bytes();
         MappingAllocation allocation;
         if (OsStatus status = gMemory->map(kSchedulerMemorySize, PageFlags::eData, MemoryType::eWriteBack, &allocation)) {
-            KmDebugMessage("[INIT] Failed to allocate scheduler memory: ", OsStatusId(status), "\n");
+            InitLog.fatalf("Failed to allocate scheduler memory: ", OsStatusId(status));
             KM_PANIC("Failed to allocate scheduler memory.");
         }
 
@@ -1676,7 +1692,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
         return *ctx;
     });
     uint8_t timerIdx = ist->index(timerInt);
-    KmDebugMessage("[INIT] Timer ISR: ", timerIdx, "\n");
+    InitLog.dbgf("Timer ISR: ", timerIdx);
 
     stdx::StaticVector<km::ITickSource*, 4> tickSources;
 
@@ -1687,57 +1703,32 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     km::HighPrecisionTimer hpet;
     if (OsStatus status = km::InitHpet(rsdt, gMemory->pageTables(), &hpet)) {
-        KmDebugMessage("[INIT] Failed to initialize HPET: ", OsStatusId(status), "\n");
+        InitLog.warnf("Failed to initialize HPET: ", OsStatusId(status));
     } else {
         hpet.enable(true);
         tickSources.add(&hpet);
         tickSource = &hpet;
 
-        KmDebugMessage("|---- HPET -----------------\n");
-        KmDebugMessage("| Property      | Value\n");
-        KmDebugMessage("|---------------+-----------\n");
-        KmDebugMessage("| Vendor        | ", hpet.vendor(), "\n");
-        KmDebugMessage("| Timer count   | ", hpet.timerCount(), "\n");
-        KmDebugMessage("| Clock         | ", hpet.refclk(), "\n");
-        KmDebugMessage("| Counter size  | ", hpet.counterSize() == hpet::Width::DWORD ? "32"_sv : "64"_sv, "\n");
-        KmDebugMessage("| Revision      | ", hpet.revision(), "\n");
-        KmDebugMessage("| Ticks         | ", hpet.ticks(), "\n");
-
-        auto comparators = hpet.comparators();
-        for (size_t i = 0; i < comparators.size(); i++) {
-            const auto& comparator = comparators[i];
-            auto config = comparator.config();
-            KmDebugMessage("| Comparator    | ", i, "\n");
-            KmDebugMessage("|  - Route Mask | ", comparator.routeMask(), "\n");
-            KmDebugMessage("|  - Counter    | ", comparator.counter(), "\n");
-            KmDebugMessage("|  - FSB        | ", comparator.fsbIntDelivery(), "\n");
-            KmDebugMessage("|  - Periodic   | ", comparator.periodicSupport(), "\n");
-            KmDebugMessage("|  - Width      | ", comparator.width() == hpet::Width::DWORD ? "32"_sv : "64"_sv, "\n");
-            KmDebugMessage("|  - Enabled    | ", config.enable, "\n");
-            KmDebugMessage("|  - Period     | ", config.period, "\n");
-            KmDebugMessage("|  - Mode       | ", config.mode == hpet::Width::DWORD ? "32"_sv : "64"_sv, "\n");
-            KmDebugMessage("|  - Trigger    | ", config.trigger == apic::Trigger::eLevel ? "Level"_sv : "Edge"_sv, "\n");
-            KmDebugMessage("|  - Route      | ", config.ioApicRoute, "\n");
-        }
+        DisplayHpetInfo(hpet);
     }
 
-    KmDebugMessage("[INIT] Training APIC timer.\n");
+    InitLog.dbgf("Training APIC timer.");
     km::ITickSource *clockTicker = tickSource;
     ApicTimer apicTimer;
     InvariantTsc tsc;
 
     if (OsStatus status = km::TrainApicTimer(lapic.pointer(), tickSources.back(), &apicTimer)) {
-        KmDebugMessage("[INIT] Failed to train APIC timer: ", OsStatusId(status), "\n");
+        InitLog.warnf("Failed to train APIC timer: ", OsStatusId(status));
     } else {
-        KmDebugMessage("[INIT] APIC timer frequency: ", apicTimer.refclk(), "\n");
+        InitLog.infof("APIC timer frequency: ", apicTimer.refclk());
         tickSources.add(&apicTimer);
     }
 
     if (processor.invariantTsc) {
         if (OsStatus status = km::TrainInvariantTsc(tickSource, &tsc)) {
-            KmDebugMessage("[INIT] Failed to train invariant TSC: ", OsStatusId(status), "\n");
+            InitLog.warnf("Failed to train invariant TSC: ", OsStatusId(status));
         } else {
-            KmDebugMessage("[INIT] Invariant TSC frequency: ", tsc.frequency(), "\n");
+            InitLog.infof("Invariant TSC frequency: ", tsc.frequency());
             tickSources.add(&tsc);
             clockTicker = &tsc;
         }
@@ -1746,7 +1737,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     StartupSmp(rsdt, processor.umip(), &apicTimer);
 
     DateTime time = ReadCmosClock();
-    KmDebugMessage("[INIT] Current time: ", time.year, "-", time.month, "-", time.day, "T", time.hour, ":", time.minute, ":", time.second, "Z\n");
+    ClockLog.infof("Current time: ", time.year, "-", time.month, "-", time.day, "T", time.hour, ":", time.minute, ":", time.second, "Z");
 
     gClock = Clock { time, clockTicker };
 
