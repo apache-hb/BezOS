@@ -12,4 +12,4 @@ constinit inline km::Logger AcpiLog { "ACPI" };
 constinit inline km::Logger IsrLog { "ISR" };
 constinit inline km::Logger PciLog { "PCI" };
 constinit inline km::Logger BiosLog { "SMBIOS" };
-constinit inline km::Logger SelfTestLog { "TEST" };
+constinit inline km::Logger TestLog { "TEST" };

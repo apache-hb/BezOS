@@ -1,6 +1,6 @@
 #include "logger/logger.hpp"
 
-void km::LogQueue::write(const detail::LogMessage& message) [[clang::nonreentrant]] {
+void km::LogQueue::write(const LogMessageView& message) [[clang::nonreentrant]] {
     for (ILogAppender *appender : mAppenders) {
         appender->write(message);
     }
@@ -29,7 +29,7 @@ OsStatus km::LogQueue::submit(detail::LogMessage message) noexcept [[clang::reen
     CLANG_DIAGNOSTIC_IGNORE("-Wfunction-effects");
 
     if (mLock.try_lock()) {
-        write(message);
+        write({ message.location, message.message, message.logger, message.level });
         mLock.unlock();
         return OsStatusSuccess;
     } else {
@@ -43,7 +43,7 @@ size_t km::LogQueue::flush() [[clang::nonreentrant]] {
     size_t count = 0;
     detail::LogMessage message;
     while (mQueue.tryPop(message)) {
-        write(message);
+        write({ message.location, message.message, message.logger, message.level });
         count++;
     }
 

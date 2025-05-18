@@ -4,7 +4,7 @@
 
 namespace km {
     class E9Appender final : public ILogAppender {
-        void write(const detail::LogMessage& message) override;
+        void write(const LogMessageView& message) override;
     public:
         static constexpr uint16_t kLogPort = 0xE9;
 

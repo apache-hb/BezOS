@@ -29,10 +29,17 @@ namespace km {
         };
     }
 
+    struct LogMessageView {
+        std::source_location location;
+        stdx::StringView message;
+        const Logger *logger;
+        LogLevel level;
+    };
+
     class ILogAppender {
     public:
         virtual ~ILogAppender() = default;
 
-        virtual void write(const detail::LogMessage& message) [[clang::nonreentrant]] = 0;
+        virtual void write(const LogMessageView& message) [[clang::nonreentrant]] = 0;
     };
 }

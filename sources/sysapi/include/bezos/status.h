@@ -95,8 +95,10 @@ enum OsStatusId {
     /// @brief The device has misbehaved.
     OsStatusDeviceFault = 0x0015,
 
+    /// @brief The device is currently busy, trying again later may succeed.
     OsStatusDeviceBusy = 0x0016,
 
+    /// @brief The device is not ready to accept commands.
     OsStatusDeviceNotReady = 0x0017,
 
     /// @brief The node does not support the requested interface.

@@ -10,7 +10,7 @@ namespace km {
     class SerialAppender final : public ILogAppender {
         SerialPort mSerialPort;
 
-        void write(const detail::LogMessage& message) override;
+        void write(const LogMessageView& message) override;
 
     public:
         constexpr SerialAppender() noexcept = default;

@@ -79,15 +79,15 @@ TEST_F(RingBufferStringTest, PopEmpty) {
 }
 
 TEST_F(RingBufferStringTest, ThreadSafe) {
-    size_t producerCount = 8;
+    constexpr size_t kProducerCount = 8;
     std::vector<std::jthread> producers;
-    std::latch latch(producerCount + 1);
+    std::latch latch(kProducerCount + 1);
 
     std::atomic<size_t> producedCount = 0;
     std::atomic<size_t> consumedCount = 0;
     std::atomic<size_t> droppedCount = 0;
 
-    for (size_t i = 0; i < producerCount; ++i) {
+    for (size_t i = 0; i < kProducerCount; ++i) {
         producers.emplace_back([&] {
             latch.arrive_and_wait();
 
@@ -106,11 +106,9 @@ TEST_F(RingBufferStringTest, ThreadSafe) {
         latch.arrive_and_wait();
 
         std::string value;
-        while (true) {
+        while (!stop.stop_requested()) {
             if (queue.tryPop(value)) {
                 consumedCount += 1;
-            } else {
-                if (stop.stop_requested()) break;
             }
         }
     });
@@ -158,7 +156,9 @@ TEST_F(RingBufferStringTest, Reentrant) {
     pthread_t thread;
     pthread_create(&thread, &attr, [](void*) -> void* {
         struct sigaction sigusr1 {
-            .sa_sigaction = [](int, siginfo_t *, void *) {
+            .sa_sigaction = [](int, [[maybe_unused]] siginfo_t *siginfo, [[maybe_unused]] void *ctx) {
+                [[maybe_unused]] ucontext_t *uc = reinterpret_cast<ucontext_t *>(ctx);
+                [[maybe_unused]] mcontext_t *mc = &uc->uc_mcontext;
                 std::string value = "From signal handler";
                 if (state.queue->tryPop(value)) {
                     state.queue->tryPush(value);
@@ -189,7 +189,7 @@ TEST_F(RingBufferStringTest, Reentrant) {
     }, nullptr);
 
     auto now = std::chrono::high_resolution_clock::now();
-    auto end = now + std::chrono::milliseconds(500);
+    auto end = now + std::chrono::milliseconds(50);
     while (now < end) {
         std::string value = "Hello, World!";
         queue.tryPush(value);

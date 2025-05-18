@@ -2,8 +2,8 @@
 
 #include "logger/logger.hpp"
 
-void km::SerialAppender::write(const detail::LogMessage& message) {
-    auto& [level, _, logger, msg] = message;
+void km::SerialAppender::write(const LogMessageView& message) {
+    auto& [_, msg, logger, level] = message;
 
     if (level != LogLevel::ePrint) {
         mSerialPort.print("[");

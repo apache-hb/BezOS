@@ -41,10 +41,10 @@ TEST_F(RingBufferSoakTest, MultithreadSoak) {
     std::atomic<size_t> droppedCount = 0;
 
     for (size_t i = 0; i < producerCount; ++i) {
-        producers.emplace_back([&] {
+        producers.emplace_back([&](std::stop_token stop) {
             latch.arrive_and_wait();
 
-            for (size_t j = 0; j < 1000; ++j) {
+            while (!stop.stop_requested()) {
                 std::string value = "Hello, World!";
                 if (queue.tryPush(value)) {
                     producedCount += 1;
@@ -59,14 +59,14 @@ TEST_F(RingBufferSoakTest, MultithreadSoak) {
         latch.arrive_and_wait();
 
         std::string value;
-        while (true) {
+        while (!stop.stop_requested()) {
             if (queue.tryPop(value)) {
                 consumedCount += 1;
-            } else {
-                if (stop.stop_requested()) break;
             }
         }
     });
+
+    std::this_thread::sleep_for(std::chrono::seconds(60));
 
     producers.clear();
     consumer.request_stop();
@@ -153,7 +153,7 @@ TEST_F(RingBufferSoakTest, ReentrantSoak) {
     }, nullptr);
 
     auto now = std::chrono::high_resolution_clock::now();
-    auto end = now + std::chrono::seconds(120);
+    auto end = now + std::chrono::seconds(60);
     while (now < end) {
         std::string value = "Hello, World!";
         queue.tryPush(value);

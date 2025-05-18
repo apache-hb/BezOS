@@ -26,13 +26,59 @@ namespace km {
         /// @brief Number of messages that were written out to the appenders.
         std::atomic<uint32_t> mComittedCount{0};
 
-        void write(const detail::LogMessage& message) [[clang::nonreentrant]];
+        void write(const LogMessageView& message) [[clang::nonreentrant]];
     public:
         OsStatus addAppender(ILogAppender *appender);
         void removeAppender(ILogAppender *appender) noexcept;
 
         OsStatus recordMessage(detail::LogMessage message) noexcept [[clang::reentrant]];
         OsStatus submit(detail::LogMessage message) noexcept [[clang::reentrant]];
+
+        template<typename F>
+        OsStatus submitImmediate(const Logger *logger, F&& func) noexcept [[clang::reentrant]] {
+            struct QueueOutStream final : public IOutStream {
+                LogQueue *mQueue;
+                const Logger *mLogger;
+
+                void write(stdx::StringView message) noexcept [[clang::reentrant]] override {
+                    LogMessageView view {
+                        .message = message,
+                        .logger = mLogger,
+                        .level = LogLevel::ePrint,
+                    };
+
+                    CLANG_DIAGNOSTIC_PUSH();
+                    CLANG_DIAGNOSTIC_IGNORE("-Wfunction-effects");
+                    // Writing to the queue is not reentrant, but we hold the lock here so it is safe
+                    // to call.
+
+                    mQueue->write(view);
+
+                    CLANG_DIAGNOSTIC_POP();
+                }
+
+                QueueOutStream(const Logger *logger, LogQueue *queue) noexcept
+                    : mQueue(queue)
+                    , mLogger(logger)
+                { }
+            };
+
+            CLANG_DIAGNOSTIC_PUSH();
+            CLANG_DIAGNOSTIC_IGNORE("-Wfunction-effects");
+            // Formatting may not be reentrant, but only if the format function is not reentrant.
+            // We control the output buffer and know that it is reentrant.
+
+            QueueOutStream out { logger, this };
+            if (mLock.try_lock()) {
+                func(out);
+                mLock.unlock();
+                return OsStatusSuccess;
+            } else {
+                return OsStatusDeviceBusy;
+            }
+
+            CLANG_DIAGNOSTIC_POP();
+        }
 
         size_t flush() [[clang::nonreentrant]];
 
@@ -97,6 +143,22 @@ namespace km {
         template<typename... Args>
         void println(Args&&... args) noexcept [[clang::reentrant]] {
             print(std::forward<Args>(args)..., "\n");
+        }
+
+        template<typename... Args>
+        OsStatus printImmediate(Args&&... args) noexcept [[clang::reentrant]] {
+            static_assert(sizeof...(Args) > 0, "No arguments provided");
+
+            return mQueue->submitImmediate(this, [&](IOutStream& out) noexcept [[clang::reentrant]] {
+                CLANG_DIAGNOSTIC_PUSH();
+                CLANG_DIAGNOSTIC_IGNORE("-Wfunction-effects");
+                // Formatting may not be reentrant, but only if the format function is not reentrant.
+                // We control the output buffer and know that it is reentrant.
+
+                out.format(std::forward<Args>(args)...);
+
+                CLANG_DIAGNOSTIC_POP();
+            });
         }
 
         void dbg(stdx::StringView message, std::source_location location = std::source_location::current()) noexcept [[clang::reentrant]];

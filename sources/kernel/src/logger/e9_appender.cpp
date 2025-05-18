@@ -2,7 +2,7 @@
 
 #include "arch/intrin.hpp"
 
-void km::E9Appender::write(const detail::LogMessage& message) {
+void km::E9Appender::write(const LogMessageView& message) {
     for (char c : message.message) {
         arch::Intrin::outbyte(kLogPort, c);
     }

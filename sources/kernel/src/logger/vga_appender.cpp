@@ -2,8 +2,8 @@
 
 #include "logger/logger.hpp"
 
-void km::VgaAppender::write(const detail::LogMessage& message) {
-    auto& [level, _, logger, msg] = message;
+void km::VgaAppender::write(const LogMessageView& message) {
+    auto& [_, msg, logger, level] = message;
 
     if (level != LogLevel::ePrint) {
         mTerminal.print("[");

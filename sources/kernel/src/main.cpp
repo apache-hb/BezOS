@@ -805,7 +805,7 @@ static void InitStage1Idt(uint16_t cs) {
     if (kSelfTestIdt) {
         km::LocalIsrTable *ist = GetLocalIsrTable();
         IsrCallback old = ist->install(64, [](km::IsrContext *context) noexcept [[clang::reentrant]] -> km::IsrContext {
-            SelfTestLog.dbgf("Handled isr: ", context->vector);
+            TestLog.dbgf("Handled isr: ", context->vector);
             return *context;
         });
 
@@ -1631,7 +1631,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     arch::Intrin::LongJumpState jmp{};
     if (auto value = arch::Intrin::setjmp(&jmp)) {
-        SelfTestLog.dbgf("Long jump: ", value);
+        TestLog.dbgf("Long jump: ", value);
     } else {
         arch::Intrin::longjmp(&jmp, 1);
     }

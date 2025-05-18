@@ -7,8 +7,14 @@
 class TestAppender final : public km::ILogAppender {
 public:
     std::vector<km::detail::LogMessage> mMessages;
-    void write(const km::detail::LogMessage& message) noexcept override {
-        mMessages.push_back(message);
+
+    void write(const km::LogMessageView& message) noexcept override {
+        mMessages.push_back({
+            .level = message.level,
+            .location = message.location,
+            .logger = message.logger,
+            .message = message.message,
+        });
     }
 };
 
@@ -35,6 +41,7 @@ public:
     }
 
     void AssertMessage(size_t index, km::LogLevel level, std::string_view message) {
+        ASSERT_GT(appender.mMessages.size(), index);
         EXPECT_EQ(appender.mMessages[index].level, level);
         EXPECT_EQ(appender.mMessages[index].message, message);
         EXPECT_EQ(appender.mMessages[index].logger, &logger);
@@ -140,5 +147,40 @@ TEST_F(LoggerTest, QueueOverflow) {
     EXPECT_EQ(appender.mMessages.size(), kQueueSize);
     for (size_t i = 0; i < kQueueSize; ++i) {
         AssertMessage(i, km::LogLevel::eInfo, "Overflow message");
+    }
+}
+
+TEST_F(LoggerTest, ThreadSafeSubmitImmediate) {
+    constexpr size_t kThreadCount = 4;
+    std::latch latch(kThreadCount + 1);
+    std::atomic<size_t> messageCount = 0;
+
+    std::vector<std::jthread> threads;
+    for (size_t i = 0; i < kThreadCount; ++i) {
+        threads.emplace_back([&]() {
+            latch.arrive_and_wait();
+            for (size_t j = 0; j < (kQueueSize / kThreadCount); ++j) {
+                OsStatus status = logger.printImmediate("Thread message");
+                switch (status) {
+                case OsStatusSuccess:
+                    messageCount += 1;
+                    break;
+                case OsStatusDeviceBusy:
+                    // This is expected if the queue is full
+                    break;
+                default:
+                    FAIL() << "Unexpected status: " << static_cast<int>(status);
+                    break;
+                }
+            }
+        });
+    }
+
+    latch.arrive_and_wait();
+    threads.clear();
+    queue.flush();
+    EXPECT_EQ(appender.mMessages.size(), messageCount);
+    for (size_t i = 0; i < messageCount; ++i) {
+        AssertMessage(i, km::LogLevel::ePrint, "Thread message");
     }
 }

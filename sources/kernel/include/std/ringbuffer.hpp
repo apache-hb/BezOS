@@ -11,7 +11,16 @@
 #include <bezos/status.h>
 
 namespace sm {
-    /// @brief A fixed size, multi-producer, single-consumer atomic ringbuffer.
+    namespace detail {
+        /// @param index The index to check
+        /// @param start The start index of the circular buffer range.
+        /// @param end The end index of the circular buffer range.
+        constexpr bool isInCircular(uint32_t index, uint32_t start, uint32_t end) noexcept [[clang::reentrant, clang::nonblocking]] {
+            return (start <= end) ? (index >= start && index < end) : (index >= start || index < end);
+        }
+    }
+
+    /// @brief A fixed size, multi-producer, single-consumer reentrant atomic ringbuffer.
     /// @cite FreeBSDRingBuffer
     template<typename T>
     class AtomicRingQueue {
@@ -29,6 +38,8 @@ namespace sm {
 
         bool tryPush(T& value) noexcept [[clang::reentrant, clang::nonblocking]] {
             uint32_t producerHead;
+            uint32_t producerTail;
+            uint32_t producerTailNext;
             uint32_t producerNext;
             uint32_t consumerTail;
 
@@ -44,10 +55,10 @@ namespace sm {
 
             mStorage[producerHead] = std::move(value);
 
-            while (!mProducerTail.compare_exchange_strong(producerHead, producerNext)) {
-                // Spin until the tail is updated
-                _mm_pause();
-            }
+            do {
+                producerTail = mProducerTail.load();
+                producerTailNext = (producerTail + 1) % mCapacity;
+            } while (!mProducerTail.compare_exchange_strong(producerTail, producerTailNext));
 
             return true;
         }
