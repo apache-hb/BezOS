@@ -95,7 +95,7 @@ OsStatus sys::AddressSpaceManager::mapSegment(
 
     status = manager->retain(memory);
     if (status != OsStatusSuccess) {
-        KmDebugMessage("[VMM] Failed to retain memory: ", memory, " ", seg, " ", src, " ", OsStatusId(status), "\n");
+        MemLog.warnf("[VMM] Failed to retain memory: ", memory, " ", seg, " ", src, " ", OsStatusId(status), "\n");
         KM_ASSERT(status == OsStatusSuccess);
         return status;
     }
@@ -167,13 +167,13 @@ OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, AddressSpaceManag
 
             status = manager->retain(memory);
             if (status != OsStatusSuccess) {
-                KmDebugMessage("[VMM] Failed to retain memory: ", memory, " ", seg, " ", range, " ", OsStatusId(status), "\n");
+                MemLog.fatalf("Failed to retain memory: ", memory, " ", seg, " ", range, " ", OsStatusId(status));
                 KM_ASSERT(status == OsStatusSuccess);
             }
 
             status = mPageTables.map(mapping, flags, type);
             if (status != OsStatusSuccess) {
-                KmDebugMessage("[VMM] Failed to map memory: ", mapping, " ", seg, " ", range, " ", OsStatusId(status), "\n");
+                MemLog.fatalf("Failed to map memory: ", mapping, " ", seg, " ", range, " ", OsStatusId(status));
                 KM_ASSERT(status == OsStatusSuccess);
             }
 
@@ -182,11 +182,11 @@ OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, AddressSpaceManag
             *result = mapping.virtualRange();
             return OsStatusSuccess;
         } else {
-            KmDebugMessage("Unsupported mapping: ", seg, " ", range, "\n");
+            MemLog.fatalf("Unsupported mapping: ", seg, " ", range);
             KM_ASSERT(false);
         }
     } else if (end != mTable.end()) {
-        KmDebugMessage("Unsupported mapping: ", begin->second.range(), " ", end->second.range(), " ", range, "\n");
+        MemLog.fatalf("Unsupported mapping: ", begin->second.range(), " ", end->second.range(), " ", range);
         KM_ASSERT(false);
     }
 
@@ -259,7 +259,6 @@ OsStatus sys::AddressSpaceManager::splitSegment(MemoryManager *manager, Iterator
 OsStatus sys::AddressSpaceManager::unmapSegment(MemoryManager *manager, Iterator it, km::VirtualRange range, km::VirtualRange *remaining) [[clang::allocating]] {
     auto& segment = it->second;
     OsStatus status = OsStatusSuccess;
-    km::MemoryRange memory = segment.backing;
     km::VirtualRange seg = segment.range();
 
     km::VirtualRange subrange = km::intersection(seg, range);
@@ -290,57 +289,6 @@ OsStatus sys::AddressSpaceManager::unmapSegment(MemoryManager *manager, Iterator
         mTable.erase(it);
         *remaining = { seg.back, range.back };
         return OsStatusSuccess;
-    } else if (seg.contains(range) && range.front != seg.front) {
-        // |--------seg-------|
-        //       |--range--|
-        KmDebugMessage("Splitting segment: ", seg, ", ", range, "\n");
-        KM_PANIC("Unsupported mapping");
-        auto [lhs, rhs] = km::split(seg, range);
-        KM_ASSERT(!lhs.isEmpty() && !rhs.isEmpty());
-
-        km::TlsfAllocation lo, mid, hi;
-        if (OsStatus status = mHeap.split(segment.allocation, std::bit_cast<uintptr_t>(lhs.back), &lo, &mid)) {
-            return status;
-        }
-
-        if (OsStatus status = mHeap.split(mid, std::bit_cast<uintptr_t>(rhs.front), &mid, &hi)) {
-            return status;
-        }
-
-        km::MemoryRange loRange = { memory.front, memory.back + lhs.size() };
-        km::MemoryRange hiRange = { memory.back - rhs.size(), memory.back };
-        auto loSegment = AddressSegment { loRange, lo };
-        auto hiSegment = AddressSegment { hiRange, hi };
-        km::MemoryRange midRange = { memory.front + lhs.size(), memory.back - rhs.size() };
-
-        mTable.erase(it);
-
-        OsStatus status = manager->release(midRange);
-        KM_ASSERT(status == OsStatusSuccess);
-
-        addSegment(std::move(loSegment));
-        addSegment(std::move(hiSegment));
-
-        return OsStatusCompleted;
-    } else if (km::innerAdjacent(seg, range)) {
-        KmDebugMessage("Splitting segment: ", seg, ", ", range, "\n");
-        KM_PANIC("Unsupported mapping");
-        if (range.front == seg.front) {
-            // |--------seg-------|
-            // |--range--|
-            if (OsStatus status = splitSegment(manager, it, range.back, kLow)) {
-                return status;
-            }
-        } else {
-            KM_ASSERT(range.back == seg.back);
-            // |--------seg-------|
-            //          |--range--|
-            if (OsStatus status = splitSegment(manager, it, range.front, kHigh)) {
-                return status;
-            }
-        }
-
-        return OsStatusCompleted;
     } else {
         if (seg.front > range.front) {
             //       |--------seg-------|
@@ -474,7 +422,7 @@ OsStatus sys::AddressSpaceManager::unmap(MemoryManager *manager, km::VirtualRang
             auto inner = upper->second.range();
             auto intersect = km::intersection(range, inner);
             if (!intersect.isEmpty()) {
-                KmDebugMessage("Failed to unmap: ", range, ", ", inner, ", ", intersect, "\n");
+                MemLog.fatalf("Failed to unmap: ", range, ", ", inner, ", ", intersect);
                 KM_PANIC("internal error");
             }
         }
@@ -554,7 +502,7 @@ OsStatus sys::AddressSpaceManager::unmap(MemoryManager *manager, km::VirtualRang
             //       |-----range-----|
             return splitSegment(manager, begin, range.front, kHigh);
         } else {
-            KmDebugMessage("Invalid state: ", range, ", ", seg, "\n");
+            MemLog.fatalf("Invalid state: ", range, ", ", seg);
             KM_ASSERT(false);
         }
     } else if (end != segments().end()) {
@@ -616,10 +564,10 @@ OsStatus sys::AddressSpaceManager::unmap(MemoryManager *manager, km::VirtualRang
         } else if (lhsVirtualRange.contains(range.front)) {
             // |--------seg-------|
             //     |--------range-----|
-            KmDebugMessage("Invalid range state: ", range, ", ", lhsMapping, ", ", rhsMapping, "\n");
+            MemLog.fatalf("Invalid range state: ", range, ", ", lhsMapping, ", ", rhsMapping);
             KM_ASSERT(false);
         } else {
-            KmDebugMessage("Invalid state: ", range, ", ", lhsMapping, ", ", rhsMapping, "\n");
+            MemLog.fatalf("Invalid state: ", range, ", ", lhsMapping, ", ", rhsMapping);
             KM_ASSERT(false);
         }
     }

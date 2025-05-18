@@ -103,7 +103,7 @@ OsStatus km::SerialPort::create(ComPortInfo info, SerialPort *port [[clang::noes
         static constexpr uint8_t kScratchByte = 0x55;
         KmWriteByte(base + kScratch, kScratchByte);
         if (uint8_t read = KmReadByte(base + kScratch); read != kScratchByte) {
-            UartLog.warnf("[", Hex(base), "] Scratch test failed ", Hex(read), " != ", Hex(kScratchByte), "\n");
+            UartLog.warnf("[", Hex(base), "] Scratch test failed ", Hex(read), " != ", Hex(kScratchByte));
             return OsStatusNotFound;
         }
     }

@@ -1,5 +1,6 @@
 #include "memory/heap.hpp"
 #include "log.hpp"
+#include "logger/categories.hpp"
 #include "memory/range.hpp"
 
 #include "std/static_vector.hpp"
@@ -457,7 +458,7 @@ void TlsfHeap::free(TlsfAllocation address) noexcept [[clang::nonallocating]] {
 void TlsfHeap::freeAddress(PhysicalAddress address) noexcept [[clang::nonallocating]] {
     TlsfAllocation allocation;
     if (OsStatus status = findAllocation(address, &allocation)) {
-        KmDebugMessage("Failed to find allocation for ", address, " (", status, ")\n");
+        MemLog.fatalf("Failed to find allocation for ", address, " (", status, ")");
         KM_PANIC("Failed to find allocation for address");
     }
     free(allocation);

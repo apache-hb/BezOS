@@ -261,7 +261,7 @@ static OsStatus MapProgram(sys::InvokeContext *invoke, OsDeviceHandle file, OsPr
     size_t phNum = header.phnum;
     size_t phEnt = header.phentsize;
     if (phOff == 0 || phNum == 0 || phEnt == 0) {
-        InitLog.warnf("Invalid program header\n");
+        InitLog.warnf("Invalid program header");
         return OsStatusInvalidData;
     }
 
@@ -272,7 +272,7 @@ static OsStatus MapProgram(sys::InvokeContext *invoke, OsDeviceHandle file, OsPr
     }
 
     if (header.entry == 0) {
-        InitLog.warnf("Invalid entry point\n");
+        InitLog.warnf("Invalid entry point");
         return OsStatusInvalidData;
     }
 

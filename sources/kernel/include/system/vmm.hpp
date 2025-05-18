@@ -1,6 +1,7 @@
 #pragma once
 
 #include "log.hpp"
+#include "logger/categories.hpp"
 #include "memory/heap.hpp"
 #include "memory/layout.hpp"
 #include "memory/memory.hpp"
@@ -186,7 +187,7 @@ namespace sys {
         void dump() noexcept {
             stdx::LockGuard guard(mLock);
             for (const auto& [_, segment] : segments()) {
-                KmDebugMessage("Segment: ", segment.backing, " ", segment.range(), "\n");
+                MemLog.dbgf("Segment: ", segment.backing, " ", segment.range());
             }
         }
     };

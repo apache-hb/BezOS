@@ -3,6 +3,7 @@
 #include "gdt.hpp"
 #include "kernel.hpp"
 #include "log.hpp"
+#include "logger/categories.hpp"
 #include "thread.hpp"
 #include "user/user.hpp"
 
@@ -27,7 +28,7 @@ extern "C" OsCallResult KmSystemDispatchRoutine(km::SystemCallRegisterSet *regs)
         return handler(&context, regs);
     }
 
-    KmDebugMessage("[SYS] Unknown function ", km::Hex(regs->function), "\n");
+    UserLog.warnf("Unknown function ", km::Hex(regs->function));
     return OsCallResult { .Status = OsStatusInvalidFunction, .Value = 0 };
 }
 

@@ -19,7 +19,7 @@ void km::InitKernelThread(Apic pic) {
     };
 }
 
-km::CpuCoreId km::GetCurrentCoreId() {
+km::CpuCoreId km::GetCurrentCoreId() noexcept [[clang::reentrant]] {
     return CpuCoreId(tlsCoreInfo->lapicId);
 }
 

@@ -1051,7 +1051,7 @@ static void AddDebugSystemCalls() {
                 continue;
             }
 
-            KmDebugMessageUnlocked("[DBG:", process->getName(), ":", thread->getName(), "] ", message, "\n");
+            InitLog.println("[DBG:", process->getName(), ":", thread->getName(), "] ", message);
         }
 
         UnlockDebugLog();

@@ -1,4 +1,5 @@
 #include "log.hpp"
+#include "logger/categories.hpp"
 #include "memory/address_space.hpp"
 #include "memory/page_allocator.hpp"
 #include "system/vm/file.hpp"
@@ -18,7 +19,7 @@ OsStatus sys::MapFileToMemory(sm::RcuDomain *domain, vfs::IFileHandle *fileHandl
         return status;
     }
 
-    KmDebugMessage("[VMEM] Creating mapping: ", mapping, "\n");
+    MemLog.dbgf("Creating mapping: ", mapping);
 
     vfs::ReadRequest read {
         .begin = (char*)mapping.vaddr,
@@ -27,14 +28,14 @@ OsStatus sys::MapFileToMemory(sm::RcuDomain *domain, vfs::IFileHandle *fileHandl
     };
     vfs::ReadResult result {};
     if (OsStatus status = fileHandle->read(read, &result)) {
-        KmDebugMessage("[VMEM] Failed to read file mapping from ", front, " to ", back, ": ", OsStatusId(status), "\n");
+        MemLog.warnf("Failed to read file mapping from ", front, " to ", back, ": ", OsStatusId(status));
         pmm->release(memory);
         (void)ptes->unmap(mapping.virtualRange());
         return status;
     }
 
     if (result.read != size) {
-        KmDebugMessage("[VMEM] Mapping could not be fully read: ", result.read, " != ", size, "\n");
+        MemLog.warnf("[VMEM] Mapping could not be fully read: ", result.read, " != ", size);
         pmm->release(memory);
         (void)ptes->unmap(mapping.virtualRange());
         return OsStatusInvalidData;

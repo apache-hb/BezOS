@@ -128,7 +128,7 @@ sys::Thread::Thread(OsThreadCreateInfo createInfo, sm::RcuWeakPtr<Process> proce
 }
 
 OsStatus sys::Thread::suspend() {
-    KmDebugMessage("[TASK] Suspending thread ", mProcess.lock()->getName(), ":", getName(), "\n");
+    TaskLog.dbgf("Suspending thread ", mProcess.lock()->getName(), ":", getName());
     OsThreadState expected = eOsThreadQueued;
     while (!cmpxchgState(expected, eOsThreadSuspended)) {
         switch (expected) {
@@ -147,7 +147,7 @@ OsStatus sys::Thread::suspend() {
 }
 
 OsStatus sys::Thread::resume() {
-    KmDebugMessage("[TASK] Resuming thread ", mProcess.lock()->getName(), ":", getName(), "\n");
+    TaskLog.dbgf("Resuming thread ", mProcess.lock()->getName(), ":", getName());
     OsThreadState expected = eOsThreadSuspended;
     while (!cmpxchgState(expected, eOsThreadQueued)) {
         switch (expected) {

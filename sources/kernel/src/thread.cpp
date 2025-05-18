@@ -25,7 +25,7 @@ void *km::AllocateCpuLocalRegion() {
     return ptr;
 }
 
-static std::byte *GetCpuLocalBase() {
+static std::byte *GetCpuLocalBase() noexcept [[clang::nonblocking, clang::reentrant]] {
     KM_CHECK(km::IsCpuStorageSetup(), "CPU local storage not setup.");
 
     std::byte *tls = nullptr;
@@ -39,18 +39,18 @@ void km::InitCpuLocalRegion() {
     asm volatile ("mov %0, %%gs:0" :: "r"(data));
 }
 
-uint64_t km::GetCpuStorageOffset(const void *object) {
+uint64_t km::GetCpuStorageOffset(const void *object) noexcept [[clang::nonblocking, clang::reentrant]] {
     uintptr_t offset = (uintptr_t)object - (uintptr_t)__cpudata_start;
     return offset;
 }
 
-void *km::GetCpuLocalData(void *object) {
+void *km::GetCpuLocalData(void *object) noexcept [[clang::nonblocking, clang::reentrant]] {
     uintptr_t offset = GetCpuStorageOffset(object);
     std::byte *base = GetCpuLocalBase();
     return base + offset;
 }
 
-bool km::IsCpuStorageSetup() {
+bool km::IsCpuStorageSetup() noexcept [[clang::nonblocking, clang::reentrant]] {
     return IA32_GS_BASE.load() != 0;
 }
 

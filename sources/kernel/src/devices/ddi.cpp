@@ -1,6 +1,7 @@
 #include "devices/ddi.hpp"
 #include "fs/query.hpp"
 #include "kernel.hpp"
+#include "logger/categories.hpp"
 #include "panic.hpp"
 #include "system/vmm.hpp"
 
@@ -16,7 +17,7 @@ dev::DisplayHandle::DisplayHandle(sm::RcuSharedPtr<DisplayDevice> node, const vo
 
     auto& pm = km::GetProcessPageManager();
     if (OsStatus status = pm.mapExternal(range, km::PageFlags::eUser | km::PageFlags::eWrite, km::MemoryType::eWriteCombine, &mUserCanvas)) {
-        KmDebugMessage("[DDI] Failed to map display canvas: ", status, "\n");
+        UserLog.fatalf("Failed to map display canvas: ", OsStatusId(status));
         KM_PANIC("Failed to map display canvas.");
     }
 }

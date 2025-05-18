@@ -1,5 +1,6 @@
 #include "memory.hpp"
 
+#include "logger/categories.hpp"
 #include "memory/allocator.hpp"
 #include "memory/memory.hpp"
 #include "memory/stack_mapping.hpp"
@@ -38,7 +39,7 @@ void km::SystemMemory::reserve(AddressMapping mapping) {
 void km::SystemMemory::reservePhysical(MemoryRange range) {
     TlsfAllocation allocation;
     if (OsStatus status = mPageAllocator.reserve(range, &allocation)) {
-        KmDebugMessage("[MEM] Failed to reserve physical memory ", range, ": ", OsStatusId(status), "\n");
+        MemLog.warnf("Failed to reserve physical memory ", range, ": ", OsStatusId(status));
         return;
     }
 }

@@ -11,12 +11,12 @@ VfsRoot::VfsRoot() {
     // TODO: This isn't conducive to good error handling.
     //       Need to find a way of propagating errors up, maybe enable exceptions?
     if (OsStatus status = RamFs::instance().mount(&mDomain, std::out_ptr(mRootMount))) {
-        VfsLog.fatalf("Failed to mount root filesystem: ", OsStatusId(status), "\n");
+        VfsLog.fatalf("Failed to mount root filesystem: ", OsStatusId(status));
         KM_PANIC("Failed to mount root filesystem.");
     }
 
     if (OsStatus status = mRootMount->root(&mRootNode)) {
-        VfsLog.fatalf("Failed to get root node: ", OsStatusId(status), "\n");
+        VfsLog.fatalf("Failed to get root node: ", OsStatusId(status));
         KM_PANIC("Failed to get root node.");
     }
 }

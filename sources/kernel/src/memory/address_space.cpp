@@ -1,4 +1,5 @@
 #include "memory/address_space.hpp"
+#include "logger/categories.hpp"
 #include "memory/stack_mapping.hpp"
 #include "memory/tables.hpp"
 #include "memory/allocator.hpp"
@@ -7,7 +8,7 @@
 void km::AddressSpace::reserve(VirtualRange range) {
     TlsfAllocation allocation;
     if (OsStatus status = reserve(range.cast<sm::VirtualAddress>(), &allocation)) {
-        KmDebugMessage("[MEM] Failed to reserve virtual memory ", range, ": ", OsStatusId(status), "\n");
+        MemLog.warnf("Failed to reserve virtual memory ", range, ": ", OsStatusId(status));
     }
 }
 
@@ -53,13 +54,13 @@ void *km::AddressSpace::mapGenericObject(MemoryRangeEx range, PageFlags flags, M
     uintptr_t offset = (range.front.address & 0xFFF);
     MemoryRangeEx aligned = alignedOut(range, x64::kPageSize);
     if (aligned.isEmpty()) {
-        KmDebugMessage("[MEM] Failed to map object memory ", range, ": empty range\n");
+        MemLog.warnf("Failed to map object memory ", range, ": empty range");
         return nullptr;
     }
 
     TlsfAllocation memory;
     if (OsStatus status = map(aligned, flags, type, &memory)) {
-        KmDebugMessage("[MEM] Failed to map object memory ", aligned, ": ", OsStatusId(status), "\n");
+        MemLog.warnf("Failed to map object memory ", aligned, ": ", OsStatusId(status));
         return nullptr;
     }
 
@@ -137,17 +138,17 @@ OsStatus km::AddressSpace::unmapStack(StackMapping mapping) {
 
     std::array<TlsfAllocation, 3> results;
     if (OsStatus status = mVmemHeap.findAllocation(std::bit_cast<PhysicalAddress>(mapping.total.front), &results[0])) {
-        KmDebugMessage("Failed to find stack allocation 0: ", mapping.total, ", ", mapping.stack, "\n");
+        MemLog.warnf("Failed to find stack allocation 0: ", mapping.total, ", ", mapping.stack);
         return status;
     }
 
     if (OsStatus status = mVmemHeap.findAllocation(std::bit_cast<PhysicalAddress>(mapping.stack.vaddr), &results[1])) {
-        KmDebugMessage("Failed to find stack allocation 1\n");
+        MemLog.warnf("Failed to find stack allocation 1", OsStatusId(status));
         return status;
     }
 
     if (OsStatus status = mVmemHeap.findAllocation(std::bit_cast<PhysicalAddress>(mapping.total.back) - x64::kPageSize, &results[2])) {
-        KmDebugMessage("Failed to find stack allocation 2\n");
+        MemLog.warnf("Failed to find stack allocation 2 ", OsStatusId(status));
         return status;
     }
 

@@ -3,7 +3,6 @@
 #include <random>
 
 #include "memory/table_allocator.hpp"
-#include "log.hpp"
 
 using namespace km;
 
@@ -219,8 +218,6 @@ TEST_F(TableAllocatorTest, AllocateMany) {
         void *ptr = allocator.allocate(1);
         IsValidPtr(ptr);
 
-        KmDebugMessage("Allocated: ", ptr, "\n");
-
         ASSERT_FALSE(ptrs.contains(ptr)) << "Duplicate pointer: " << ptr;
 
         ptrs.insert(ptr);
@@ -323,7 +320,6 @@ TEST_F(TableAllocatorTest, Defragment) {
     for (size_t i = 0; i < count; i++) {
         size_t alloc = dist(gen);
         void *ptr = allocator.allocate(alloc);
-        KmDebugMessage("Allocated: ", ptr, " size: ", alloc, "\n");
         if (ptr == nullptr) continue;
 
         IsValidPtr(ptr);
@@ -339,7 +335,6 @@ TEST_F(TableAllocatorTest, Defragment) {
     }
 
     for (auto& [ptr, size] : ptrs) {
-        KmDebugMessage("Deallocating: ", ptr, " size: ", size, "\n");
         allocator.deallocate(ptr, size);
     }
 

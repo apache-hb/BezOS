@@ -6,7 +6,6 @@
 #include "debug/packet.hpp"
 #include "isr/isr.hpp"
 #include "kernel.hpp"
-#include "log.hpp"
 #include "logger/logger.hpp"
 #include "processor.hpp"
 #include "system/create.hpp"
@@ -16,8 +15,6 @@
 
 static constexpr bool kEmitAddrToLine = true;
 static constexpr stdx::StringView kImagePath = "install/kernel/bin/bezos-limine.elf";
-
-static constinit km::Logger InitLog { "INIT" };
 
 km::PageMemoryTypeLayout km::SetupPat() {
     if (!x64::HasPatSupport()) {
@@ -121,76 +118,76 @@ void km::WriteMemoryMap(std::span<const boot::MemoryRegion> memmap) {
 }
 
 void km::DumpIsrState(const km::IsrContext *context) {
-    KmDebugMessageUnlocked("| Register | Value\n");
-    KmDebugMessageUnlocked("|----------+------\n");
-    KmDebugMessageUnlocked("| %RAX     | ", Hex(context->rax).pad(16), "\n");
-    KmDebugMessageUnlocked("| %RBX     | ", Hex(context->rbx).pad(16), "\n");
-    KmDebugMessageUnlocked("| %RCX     | ", Hex(context->rcx).pad(16), "\n");
-    KmDebugMessageUnlocked("| %RDX     | ", Hex(context->rdx).pad(16), "\n");
-    KmDebugMessageUnlocked("| %RDI     | ", Hex(context->rdi).pad(16), "\n");
-    KmDebugMessageUnlocked("| %RSI     | ", Hex(context->rsi).pad(16), "\n");
-    KmDebugMessageUnlocked("| %R8      | ", Hex(context->r8).pad(16), "\n");
-    KmDebugMessageUnlocked("| %R9      | ", Hex(context->r9).pad(16), "\n");
-    KmDebugMessageUnlocked("| %R10     | ", Hex(context->r10).pad(16), "\n");
-    KmDebugMessageUnlocked("| %R11     | ", Hex(context->r11).pad(16), "\n");
-    KmDebugMessageUnlocked("| %R12     | ", Hex(context->r12).pad(16), "\n");
-    KmDebugMessageUnlocked("| %R13     | ", Hex(context->r13).pad(16), "\n");
-    KmDebugMessageUnlocked("| %R14     | ", Hex(context->r14).pad(16), "\n");
-    KmDebugMessageUnlocked("| %R15     | ", Hex(context->r15).pad(16), "\n");
-    KmDebugMessageUnlocked("| %RBP     | ", Hex(context->rbp).pad(16), "\n");
-    KmDebugMessageUnlocked("| %RIP     | ", Hex(context->rip).pad(16), "\n");
-    KmDebugMessageUnlocked("| %CS      | ", Hex(context->cs).pad(16), "\n");
-    KmDebugMessageUnlocked("| %RFLAGS  | ", Hex(context->rflags).pad(16), "\n");
-    KmDebugMessageUnlocked("| %RSP     | ", Hex(context->rsp).pad(16), "\n");
-    KmDebugMessageUnlocked("| %SS      | ", Hex(context->ss).pad(16), "\n");
-    KmDebugMessageUnlocked("| Vector   | ", Hex(context->vector).pad(16), "\n");
-    KmDebugMessageUnlocked("| Error    | ", Hex(context->error).pad(16), "\n");
-    KmDebugMessageUnlocked("\n");
+    InitLog.println("| Register | Value\n");
+    InitLog.println("|----------+------\n");
+    InitLog.println("| %RAX     | ", Hex(context->rax).pad(16));
+    InitLog.println("| %RBX     | ", Hex(context->rbx).pad(16));
+    InitLog.println("| %RCX     | ", Hex(context->rcx).pad(16));
+    InitLog.println("| %RDX     | ", Hex(context->rdx).pad(16));
+    InitLog.println("| %RDI     | ", Hex(context->rdi).pad(16));
+    InitLog.println("| %RSI     | ", Hex(context->rsi).pad(16));
+    InitLog.println("| %R8      | ", Hex(context->r8).pad(16));
+    InitLog.println("| %R9      | ", Hex(context->r9).pad(16));
+    InitLog.println("| %R10     | ", Hex(context->r10).pad(16));
+    InitLog.println("| %R11     | ", Hex(context->r11).pad(16));
+    InitLog.println("| %R12     | ", Hex(context->r12).pad(16));
+    InitLog.println("| %R13     | ", Hex(context->r13).pad(16));
+    InitLog.println("| %R14     | ", Hex(context->r14).pad(16));
+    InitLog.println("| %R15     | ", Hex(context->r15).pad(16));
+    InitLog.println("| %RBP     | ", Hex(context->rbp).pad(16));
+    InitLog.println("| %RIP     | ", Hex(context->rip).pad(16));
+    InitLog.println("| %CS      | ", Hex(context->cs).pad(16));
+    InitLog.println("| %RFLAGS  | ", Hex(context->rflags).pad(16));
+    InitLog.println("| %RSP     | ", Hex(context->rsp).pad(16));
+    InitLog.println("| %SS      | ", Hex(context->ss).pad(16));
+    InitLog.println("| Vector   | ", Hex(context->vector).pad(16));
+    InitLog.println("| Error    | ", Hex(context->error).pad(16));
+    InitLog.println("\n");
 
     if (context->vector == isr::PF) {
-        KmDebugMessageUnlocked("| Faulting address | ", Hex(__get_cr2()).pad(16), "\n");
+        InitLog.println("| Faulting address | ", Hex(__get_cr2()).pad(16));
 
         if (context->error & (1 << 0)) {
-            KmDebugMessageUnlocked("PRESENT ");
+            InitLog.print("PRESENT ");
         } else {
-            KmDebugMessageUnlocked("NOT PRESENT ");
+            InitLog.print("NOT PRESENT ");
         }
 
         if (context->error & (1 << 1)) {
-            KmDebugMessageUnlocked("WRITE ");
+            InitLog.print("WRITE ");
         } else {
-            KmDebugMessageUnlocked("READ ");
+            InitLog.print("READ ");
         }
 
         if (context->error & (1 << 2)) {
-            KmDebugMessageUnlocked("USER ");
+            InitLog.print("USER ");
         } else {
-            KmDebugMessageUnlocked("SUPERVISOR ");
+            InitLog.print("SUPERVISOR ");
         }
 
         if (context->error & (1 << 3)) {
-            KmDebugMessageUnlocked("RESERVED ");
+            InitLog.print("RESERVED ");
         }
 
         if (context->error & (1 << 4)) {
-            KmDebugMessageUnlocked("FETCH ");
+            InitLog.print("FETCH ");
         }
 
-        KmDebugMessageUnlocked("\n");
+        InitLog.println();
     }
 
     if (context->vector != isr::PF || context->error & (1 << 0)) {
         std::byte data[16];
         memcpy(data, (void*)context->rip, sizeof(data));
-        KmDebugMessageUnlocked(km::HexDump(data), "\n");
+        InitLog.printImmediate(km::HexDump(data), "\n");
     }
 
-    KmDebugMessageUnlocked("| MSR                 | Value\n");
-    KmDebugMessageUnlocked("|---------------------+------\n");
-    KmDebugMessageUnlocked("| IA32_GS_BASE        | ", Hex(IA32_GS_BASE.load()).pad(16), "\n");
-    KmDebugMessageUnlocked("| IA32_FS_BASE        | ", Hex(IA32_FS_BASE.load()).pad(16), "\n");
-    KmDebugMessageUnlocked("| IA32_KERNEL_GS_BASE | ", Hex(IA32_KERNEL_GS_BASE.load()).pad(16), "\n");
-    KmDebugMessageUnlocked("\n");
+    InitLog.println("| MSR                 | Value");
+    InitLog.println("|---------------------+------");
+    InitLog.println("| IA32_GS_BASE        | ", Hex(IA32_GS_BASE.load()).pad(16));
+    InitLog.println("| IA32_FS_BASE        | ", Hex(IA32_FS_BASE.load()).pad(16));
+    InitLog.println("| IA32_KERNEL_GS_BASE | ", Hex(IA32_KERNEL_GS_BASE.load()).pad(16));
+    InitLog.println();
 }
 
 void km::DumpCurrentStack() {
@@ -199,39 +196,39 @@ void km::DumpCurrentStack() {
 }
 
 void km::PrintStackTrace(const void *rbp) {
-    KmDebugMessageUnlocked("|----Stack trace-----+----------------\n");
-    KmDebugMessageUnlocked("| Frame              | Program Counter\n");
-    KmDebugMessageUnlocked("|--------------------+----------------\n");
+    InitLog.println("|----Stack trace-----+----------------");
+    InitLog.println("| Frame              | Program Counter");
+    InitLog.println("|--------------------+----------------");
 
     if (SystemMemory *memory = km::GetSystemMemory()) {
         x64::WalkStackFramesChecked(memory->systemTables(), (void**)rbp, [](void **frame, void *pc, stdx::StringView note) {
-            KmDebugMessageUnlocked("| ", (void*)frame, " | ", pc);
+            InitLog.print("| ", (void*)frame, " | ", pc);
             if (!note.isEmpty()) {
-                KmDebugMessageUnlocked(" ", note);
+                InitLog.print(" ", note);
             }
-            KmDebugMessageUnlocked("\n");
+            InitLog.println();
         });
     } else {
         x64::WalkStackFrames((void**)rbp, [](void **frame, void *pc) {
-            KmDebugMessageUnlocked("| ", (void*)frame, " | ", pc);
-            KmDebugMessageUnlocked("\n");
+            InitLog.print("| ", (void*)frame, " | ", pc);
+            InitLog.println();
         });
     }
 
     if (kEmitAddrToLine) {
-        KmDebugMessageUnlocked("llvm-addr2line -e ", kImagePath);
+        InitLog.print("llvm-addr2line -e ", kImagePath);
 
         if (SystemMemory *memory = km::GetSystemMemory()) {
             x64::WalkStackFramesChecked(memory->systemTables(), (void**)rbp, [](void **, void *pc, stdx::StringView) {
-                KmDebugMessageUnlocked(" ", pc);
+                InitLog.print(" ", pc);
             });
         } else {
             x64::WalkStackFrames((void**)rbp, [](void **, void *pc) {
-                KmDebugMessageUnlocked(" ", pc);
+                InitLog.print(" ", pc);
             });
         }
 
-        KmDebugMessageUnlocked("\n");
+        InitLog.println();
     }
 }
 
@@ -241,9 +238,9 @@ void km::DumpStackTrace(const km::IsrContext *context) {
 
 void km::DumpIsrContext(const km::IsrContext *context, stdx::StringView message) {
     if (km::IsCpuStorageSetup()) {
-        KmDebugMessageUnlocked("\n[BUG] ", message, " - ", km::GetCurrentCoreId(), "\n");
+        InitLog.println("\n[BUG] ", message, " - ", km::GetCurrentCoreId());
     } else {
-        KmDebugMessageUnlocked("\n[BUG] ", message, "\n");
+        InitLog.println("\n[BUG] ", message);
     }
 
     DumpIsrState(context);
@@ -255,7 +252,7 @@ static bool IsSupervisorFault(const km::IsrContext *context) {
 
 static void FaultProcess(km::IsrContext *context, stdx::StringView fault) {
     if (auto process = sys::GetCurrentProcess()) {
-        KmDebugMessageUnlocked("[PROC] Terminating ", process->getName(), ", due to ", fault, "\n");
+        SysLog.println("Terminating ", process->getName(), ", due to ", fault);
         process->destroy(km::GetSysSystem(), sys::ProcessDestroyInfo { .exitCode = 0, .reason = eOsProcessFaulted });
         DumpIsrState(context);
         DumpStackTrace(context);
@@ -277,7 +274,7 @@ void km::InstallExceptionHandlers(SharedIsrTable *ist) {
     });
 
     ist->install(isr::NMI, [](km::IsrContext *context) noexcept [[clang::reentrant]] -> km::IsrContext {
-        KmDebugMessageUnlocked("[INT] Non-maskable interrupt (#NM)\n");
+        IsrLog.errorf("Non-maskable interrupt (#NM)");
         DumpIsrState(context);
         return *context;
     });
@@ -323,7 +320,7 @@ void km::InstallExceptionHandlers(SharedIsrTable *ist) {
             return *context;
         }
 
-        KmDebugMessageUnlocked("[BUG] CR2: ", Hex(__get_cr2()).pad(16), "\n");
+        IsrLog.errorf("CR2: ", Hex(__get_cr2()).pad(16));
         DumpIsrContext(context, "Page fault (#PF)");
         DumpStackTrace(context);
         KM_PANIC("Kernel panic.");

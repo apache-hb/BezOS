@@ -70,7 +70,7 @@ static km::IsrContext ScheduleInt(km::IsrContext *context) noexcept [[clang::ree
     }
 
     if (oldThread != nullptr) {
-        KmDebugMessage("[SCHED] Dropping thread ", oldThread->getName(), " - ", km::GetCurrentCoreId(), "\n");
+        TaskLog.dbgf("Dropping thread ", oldThread->getName(), " - ", km::GetCurrentCoreId());
     }
 
     // Otherwise we idle until the next interrupt

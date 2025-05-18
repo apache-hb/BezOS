@@ -1,6 +1,7 @@
 #pragma once
 
 #include "log.hpp"
+#include "logger/categories.hpp"
 #include "memory/heap.hpp"
 #include "memory/range.hpp"
 #include "std/spinlock.hpp"
@@ -157,19 +158,19 @@ namespace sys {
             bool ok = true;
             for (const auto& [address, segment] : segments()) {
                 if (address != segment.range().back) {
-                    KmDebugMessage("Invalid address for Segment: ", segment.range(), " (owners: ", segment.owners.load(), ")\n");
-                    KmDebugMessage("Invalid address for Segment address: ", address, " != ", segment.range().back, "\n");
-                    KmDebugMessage("Invalid address for Segment range: ", segment.range(), "\n");
+                    MemLog.warnf("Invalid address for Segment: ", segment.range(), " (owners: ", segment.owners.load(), ")");
+                    MemLog.warnf("Invalid address for Segment address: ", address, " != ", segment.range().back);
+                    MemLog.warnf("Invalid address for Segment range: ", segment.range());
                     ok = false;
                 }
 
                 if (segment.owners.load() == 0) {
-                    KmDebugMessage("Unowned Segment: ", segment.range(), " (owners: ", segment.owners.load(), ")\n");
+                    MemLog.warnf("Unowned Segment: ", segment.range(), " (owners: ", segment.owners.load(), ")");
                     ok = false;
                 }
 
                 if (km::alignedOut(segment.range(), x64::kPageSize) != segment.range()) {
-                    KmDebugMessage("Misaligned Segment: ", segment.range(), " (owners: ", segment.owners.load(), ")\n");
+                    MemLog.warnf("Misaligned Segment: ", segment.range(), " (owners: ", segment.owners.load(), ")");
                     ok = false;
                 }
             }
@@ -179,7 +180,7 @@ namespace sys {
         void dump() {
             stdx::LockGuard guard(mLock);
             for (const auto& [_, segment] : segments()) {
-                KmDebugMessage("Segment: ", segment.range(), " (owners: ", segment.owners.load(), ")\n");
+                MemLog.dbgf("Segment: ", segment.range(), " (owners: ", segment.owners.load(), ")");
             }
         }
     };

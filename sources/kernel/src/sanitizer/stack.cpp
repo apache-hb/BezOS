@@ -2,6 +2,7 @@
 
 #include "arch/abi.hpp"
 #include "kernel.hpp"
+#include "logger/categories.hpp"
 
 static constexpr bool kEmitAddrToLine = true;
 static constexpr stdx::StringView kImagePath = "install/kernel/bin/bezos-limine.elf";
@@ -14,22 +15,22 @@ void __stack_chk_fail() {
     if (km::SystemMemory *memory = km::GetSystemMemory()) {
         void *rbp = __builtin_frame_address(0);
         x64::WalkStackFramesChecked(memory->systemTables(), (void**)rbp, [](void **frame, void *pc, stdx::StringView note) {
-            KmDebugMessageUnlocked("| ", (void*)frame, " | ", pc);
+            InitLog.print("| ", (void*)frame, " | ", pc);
             if (!note.isEmpty()) {
-                KmDebugMessageUnlocked(" ", note);
+                InitLog.print(" ", note);
             }
-            KmDebugMessageUnlocked("\n");
+            InitLog.println();
         });
 
 
         if (kEmitAddrToLine) {
-            KmDebugMessageUnlocked("llvm-addr2line -e ", kImagePath);
+            InitLog.print("llvm-addr2line -e ", kImagePath);
 
             x64::WalkStackFramesChecked(memory->systemTables(), (void**)rbp, [](void **, void *pc, stdx::StringView) {
-                KmDebugMessageUnlocked(" ", pc);
+                InitLog.print(" ", pc);
             });
 
-            KmDebugMessageUnlocked("\n");
+            InitLog.println();
         }
     }
 

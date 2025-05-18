@@ -13,7 +13,7 @@ namespace km {
 
     void InitKernelThread(Apic pic);
 
-    CpuCoreId GetCurrentCoreId();
+    CpuCoreId GetCurrentCoreId() noexcept [[clang::reentrant]];
     IApic *GetCpuLocalApic();
 }
 

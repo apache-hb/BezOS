@@ -1,8 +1,6 @@
-#include "log.hpp"
+#include "logger/categories.hpp"
 #include "panic.hpp"
 #include "util/memory.hpp"
-
-#include "crt.hpp"
 
 #include <new>
 
@@ -29,7 +27,7 @@ static void *OperatorNew(size_t size, size_t align, AllocFlags flags) [[clang::n
         return nullptr;
     }
 
-    KmDebugMessage("[CRT] Allocation of ", sm::bytes(size), " failed.\n");
+    MemLog.fatalf("[CRT] Allocation of ", sm::bytes(size), " failed.");
     KM_PANIC("Failed to allocate memory.");
 }
 

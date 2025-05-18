@@ -1,4 +1,5 @@
 #include "log.hpp"
+#include "logger/categories.hpp"
 #include "system/create.hpp"
 #include "system/schedule.hpp"
 #include "system/system.hpp"
@@ -16,7 +17,7 @@ OsStatus um::ReadPath(km::CallContext *context, OsPath user, vfs::VfsPath *path)
     }
 
     if (!vfs::VerifyPathText(text)) {
-        KmDebugMessage("[PROC] Invalid path: '", text, "'\n");
+        UserLog.dbgf("[PROC] Invalid path: '", text, "'");
         return OsStatusInvalidPath;
     }
 

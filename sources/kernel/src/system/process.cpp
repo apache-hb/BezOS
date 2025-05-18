@@ -228,7 +228,7 @@ OsStatus sys::Process::createProcess(System *system, ProcessCreateInfo info, Pro
 }
 
 OsStatus sys::Process::destroy(System *system, const ProcessDestroyInfo& info) {
-    KmDebugMessage("[SYS] Destroying process: ", getName(), " ", (info.reason), " - ", info.exitCode, "\n");
+    SysLog.dbgf("Destroying process: ", getName(), " ", (info.reason), " - ", info.exitCode);
 
     if (auto parent = mParent.lock()) {
         parent->removeChild(loanShared());
@@ -305,14 +305,14 @@ OsStatus sys::Process::vmemMapFile(System *system, VmemMapInfo info, vfs::IFileH
 
     if (info.baseAddress.isNull()) {
         if (OsStatus status = mAddressSpace.map(&system->mMemoryManager, memory, info.flags, km::MemoryType::eWriteBack, &mapping)) {
-            KmDebugMessage("[VMEM] Failed to allocate file mapping: ", info.baseAddress, " ", memory, " ", OsStatusId(status), "\n");
+            SysLog.warnf("Failed to allocate file mapping: ", info.baseAddress, " ", memory, " ", OsStatusId(status));
             OsStatus inner = system->mMemoryManager.release(memory);
             KM_ASSERT(inner == OsStatusSuccess);
             return status;
         }
     } else {
         if (OsStatus status = mAddressSpace.map(&system->mMemoryManager, info.baseAddress, memory, info.flags, km::MemoryType::eWriteBack, &mapping)) {
-            KmDebugMessage("[VMEM] Failed to map file: ", info.baseAddress, " ", memory, " ", OsStatusId(status), "\n");
+            SysLog.warnf("Failed to map file: ", info.baseAddress, " ", memory, " ", OsStatusId(status));
             OsStatus inner = system->mMemoryManager.release(memory);
             KM_ASSERT(inner == OsStatusSuccess);
             return status;
@@ -590,7 +590,7 @@ OsStatus sys::SysVmemCreate(InvokeContext *context, OsVmemCreateInfo info, void 
         return status;
     }
 
-    KmDebugMessage("[VMEM] Created vmem ", mapping, " (", vmemInfo.flags, ") in ", process->getName(), "\n");
+    SysLog.dbgf("Created vmem ", mapping, " (", vmemInfo.flags, ") in ", process->getName());
 
     *outVmem = (void*)mapping.vaddr;
 
@@ -616,7 +616,7 @@ OsStatus sys::SysVmemMap(InvokeContext *context, OsVmemMapInfo info, void **outV
         if (OsStatus status = process->vmemMapProcess(context->system, vmemInfo, src, &vm)) {
             return status;
         }
-        KmDebugMessage("[VMEM] Mapped vmem ", vm, " from process '", src->getName(), "' into '", process->getName(), "'\n");
+        SysLog.dbgf("Mapped vmem ", vm, " from process '", src->getName(), "' into '", process->getName(), "'");
         *outVmem = (void*)vm.front;
         return OsStatusSuccess;
     }
@@ -627,7 +627,7 @@ OsStatus sys::SysVmemMap(InvokeContext *context, OsVmemMapInfo info, void **outV
         if (OsStatus status = process->vmemMapFile(context->system, vmemInfo, file, &vm)) {
             return status;
         }
-        KmDebugMessage("[VMEM] Mapped vmem ", vm, " from file into '", process->getName(), "'\n");
+        SysLog.dbgf("Mapped vmem ", vm, " from file into '", process->getName(), "'");
         *outVmem = (void*)vm.front;
         return OsStatusSuccess;
     }
@@ -664,7 +664,7 @@ OsStatus sys::MapFileToMemory(vfs::IFileHandle *file, MemoryManager *mm, km::Add
     }
 
     if (read.read != size) {
-        KmDebugMessage("[VMEM] Read ", read.read, " bytes from file, expected ", size, "\n");
+        SysLog.fatalf("Read ", read.read, " bytes from file, expected ", size);
         KM_ASSERT(read.read == size);
     }
 

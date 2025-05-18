@@ -111,9 +111,9 @@ class XSave final : public km::IFpuSave {
         setComponentMask(mask);
         loadBufferSize();
 
-        Save.infof("Buffer size: ", mBufferSize, " bytes\n");
-        Save.infof("Features: ", km::Hex(mUserFeatures), "\n");
-        Save.infof("Enabled: ", km::Hex(mEnabled), "\n");
+        Save.infof("Buffer size: ", sm::bytes(mBufferSize));
+        Save.infof("Features: ", km::Hex(mUserFeatures));
+        Save.infof("Enabled: ", km::Hex(mEnabled));
     }
 
     void initControlState() const {
@@ -171,7 +171,7 @@ km::IFpuSave *km::InitFpuSave(const XSaveConfig& config) {
     }
 
     if (choice != config.target) {
-        Save.warnf("Mode ", config.target, " not supported, falling back to ", choice, " instead.\n");
+        Save.warnf("Mode ", config.target, " not supported, falling back to ", choice, " instead.");
     }
 
     detail::SetupXSave(choice, config.features);

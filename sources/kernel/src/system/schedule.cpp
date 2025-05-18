@@ -14,7 +14,7 @@ sys::CpuLocalSchedule::CpuLocalSchedule(size_t tasks, GlobalSchedule *global)
     , mGlobal(global)
 {
     if (OsStatus status = sm::AtomicRingQueue<ThreadSchedulingInfo>::create(tasks, &mTaskQueue)) {
-        TaskLog.fatalf("[SCHED] Failed to create task queue: ", OsStatusId(status), "\n");
+        TaskLog.fatalf("[SCHED] Failed to create task queue: ", OsStatusId(status));
         KM_PANIC("Failed to create task queue");
     }
 }

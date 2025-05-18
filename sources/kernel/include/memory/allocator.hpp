@@ -1,6 +1,7 @@
 #pragma once
 
 #include "log.hpp"
+#include "logger/categories.hpp"
 #include "memory/detail/tlsf.hpp"
 #include "memory/layout.hpp"
 
@@ -66,7 +67,7 @@ namespace km {
             KM_ASSERT(memory.isValid());
             KM_ASSERT(address.isValid());
             if (memory.size() != address.size()) {
-                KmDebugMessage("Memory and address allocations must be the same size. ", memory.size(), " != ", address.size(), "\n");
+                MemLog.fatalf("Memory and address allocations must be the same size. ", memory.size(), " != ", address.size(), "\n");
                 KM_PANIC("Memory and address allocations must be the same size.");
             }
 

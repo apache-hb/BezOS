@@ -66,6 +66,6 @@ void absl::raw_log_internal::RawLog(absl::LogSeverity, const char *file, int lin
     GTEST_FAIL() << "RawLog: " << file << ":" << line;
 }
 
-km::CpuCoreId km::GetCurrentCoreId() {
+km::CpuCoreId km::GetCurrentCoreId() noexcept [[clang::reentrant]] {
     return km::CpuCoreId(0);
 }

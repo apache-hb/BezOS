@@ -1,6 +1,7 @@
 #pragma once
 
 #include "log.hpp"
+#include "logger/categories.hpp"
 #include "memory/detail/tlsf.hpp"
 
 namespace km {
@@ -20,13 +21,13 @@ namespace km {
             KM_ASSERT(address.isValid());
 
             if (memory.size() != address.size()) {
-                KmDebugMessage("Memory size: ", memory.size(), " != total size: ", address.size(), "\n");
+                MemLog.fatalf("Memory size: ", memory.size(), " != total size: ", address.size(), "\n");
                 KM_ASSERT(memory.size() == address.size());
             }
 
             if (head.isValid()) {
                 if (head.range().back != address.range().front) {
-                    KmDebugMessage("Head: ", head.range(), " != Address: ", address.range(), "\n");
+                    MemLog.fatalf("Head: ", head.range(), " != Address: ", address.range(), "\n");
                 }
 
                 KM_ASSERT(head.range().back == address.range().front);
@@ -34,7 +35,7 @@ namespace km {
 
             if (tail.isValid()) {
                 if (tail.range().front != address.range().back) {
-                    KmDebugMessage("Tail: ", tail.range(), " != Address: ", address.range(), "\n");
+                    MemLog.fatalf("Tail: ", tail.range(), " != Address: ", address.range(), "\n");
                 }
 
                 KM_ASSERT(tail.range().front == address.range().back);

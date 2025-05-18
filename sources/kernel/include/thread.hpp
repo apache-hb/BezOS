@@ -19,9 +19,9 @@ namespace km {
     CpuLocalRegisters LoadTlsRegisters();
     void StoreTlsRegisters(CpuLocalRegisters registers);
 
-    void *GetCpuLocalData(void *object);
-    bool IsCpuStorageSetup();
-    uint64_t GetCpuStorageOffset(const void *object);
+    void *GetCpuLocalData(void *object) noexcept [[clang::nonblocking, clang::reentrant]];
+    bool IsCpuStorageSetup() noexcept [[clang::nonblocking, clang::reentrant]];
+    uint64_t GetCpuStorageOffset(const void *object) noexcept [[clang::nonblocking, clang::reentrant]];
 
     template<typename T>
     class CpuLocal {
@@ -30,15 +30,15 @@ namespace km {
     public:
         constexpr CpuLocal() = default;
 
-        T& get() {
+        T& get() noexcept [[clang::nonblocking, clang::reentrant]] {
             return *reinterpret_cast<T*>(GetCpuLocalData(this));
         }
 
-        T *operator&() {
+        T *operator&() noexcept [[clang::nonblocking, clang::reentrant]] {
             return &get();
         }
 
-        T *operator->() {
+        T *operator->() noexcept [[clang::nonblocking, clang::reentrant]] {
             return &get();
         }
 

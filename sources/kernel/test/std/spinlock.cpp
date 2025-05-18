@@ -158,7 +158,7 @@ TEST(SharedSpinLockTest, ManyWriters) {
     ASSERT_FALSE(error);
 }
 
-km::CpuCoreId km::GetCurrentCoreId() {
+km::CpuCoreId km::GetCurrentCoreId() noexcept [[clang::reentrant]] {
     return CpuCoreId((uint32_t)(std::hash<std::thread::id>{}(std::this_thread::get_id()) % UINT32_MAX));
 }
 
