@@ -17,15 +17,15 @@ constexpr km::MemoryRangeEx SmBiosTableRange(const T *table) {
 }
 
 template<typename T>
-static km::VirtualRangeEx SmBiosMapTable(const T *table, km::AddressSpace& memory, km::TlsfAllocation *allocation [[gnu::nonnull]]) {
+static km::VirtualRangeEx SmBiosMapTable(const T *table, km::AddressSpace& memory, km::TlsfAllocation *allocation [[clang::noescape, gnu::nonnull]]) {
     BiosLog.dbgf("Table: ", (void*)table);
-    BiosLog.dbgf(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(table), sizeof(T))));
+    BiosLog.printImmediate(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(table), sizeof(T))), "\n");
 
     void *address = memory.mapGenericObject(SmBiosTableRange(table), km::PageFlags::eRead, km::MemoryType::eWriteThrough, allocation);
     KM_CHECK(!allocation->isNull(), "Failed to map SMBIOS table");
 
     BiosLog.dbgf("Table address: ", km::Hex(table->tableAddress).pad(sizeof(T::tableAddress) * 2), ", Size: ", auto{table->tableSize});
-    BiosLog.dbgf(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(address), table->tableSize)));
+    BiosLog.printImmediate(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(address), table->tableSize)), "\n");
     return km::VirtualRangeEx::of(address, table->tableSize);
 }
 

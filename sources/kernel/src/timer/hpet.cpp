@@ -1,5 +1,6 @@
 #include "timer/hpet.hpp"
 #include "log.hpp"
+#include "logger/categories.hpp"
 #include "memory/address_space.hpp"
 
 // hpet id methods
@@ -186,14 +187,14 @@ OsStatus km::InitHpet(const acpi::AcpiTables& rsdt, AddressSpace& memory, HighPr
 
         acpi::GenericAddress baseAddress = hpet->baseAddress;
         if (baseAddress.addressSpace != acpi::AddressSpaceId::eSystemMemory) {
-            KmDebugMessage("[WARN] HPET base address (", baseAddress, ") is not in system memory. Currently unsupported.\n");
+            AcpiLog.warnf("HPET base address (", baseAddress, ") is not in system memory. Currently unsupported.");
             return OsStatusInvalidAddress;
         }
 
         TlsfAllocation allocation;
         hpet::MmioRegisters *mmio = memory.mapMmio<hpet::MmioRegisters>(km::PhysicalAddressEx { baseAddress.address }, PageFlags::eData, &allocation);
         if (mmio == nullptr) {
-            KmDebugMessage("[WARN] Failed to map HPET MMIO region.\n");
+            AcpiLog.warnf("Failed to map HPET MMIO region.");
             return OsStatusOutOfMemory;
         }
 
@@ -201,6 +202,6 @@ OsStatus km::InitHpet(const acpi::AcpiTables& rsdt, AddressSpace& memory, HighPr
         return OsStatusSuccess;
     }
 
-    KmDebugMessage("[ACPI] No HPET table found.\n");
+    AcpiLog.warnf("No HPET table found.");
     return OsStatusNotFound;
 }

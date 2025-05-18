@@ -1,7 +1,7 @@
 #include "pci/config.hpp"
 
 #include "delay.hpp"
-#include "log.hpp"
+#include "logger/categories.hpp"
 #include "memory/address_space.hpp"
 
 static constexpr uint8_t kOffsetMask = 0b1111'1100;
@@ -77,13 +77,15 @@ pci::McfgConfigSpace::McfgConfigSpace(const acpi::Mcfg *mcfg, km::AddressSpace& 
         };
 
         if (region.base == nullptr) {
-            KmDebugMessage("[PCI] Failed to map ECAM region ", range, "\n");
+            PciLog.fatalf("[PCI] Failed to map ECAM region ", range, "\n");
             KM_PANIC("Failed to map ECAM region.");
         }
 
         mRegions[i] = region;
 
-        KmDebugMessage("[PCI] ECAM region ", i, ": ", range, " -> ", (const void*)region.base, " (", (const void*)((char*)region.base + kEcamSize), ")", "\n");
+        auto ecam = km::VirtualRangeEx::of((void*)region.base, kEcamSize);
+
+        PciLog.logf("ECAM region ", i, ": ", range, " -> ", ecam);
     }
 }
 
@@ -97,23 +99,23 @@ uint32_t pci::McfgConfigSpace::read32(uint8_t bus, uint8_t slot, uint8_t functio
         return *(uint32_t*)((uint8_t*)region.base + address);
     }
 
-    KmDebugMessage("[PCI] ECAM region not found for bus ", bus, ", slot ", slot, ", function ", function, "\n");
+    PciLog.warnf("ECAM region not found for ", km::Hex(bus).pad(2), ":", km::Hex(slot).pad(2), ":", km::Hex(function).pad(2));
     return UINT32_MAX;
 }
 
 pci::IConfigSpace *pci::InitConfigSpace(const acpi::Mcfg *mcfg, km::AddressSpace& memory) {
     if (mcfg == nullptr) {
-        KmDebugMessage("[PCI] No MCFG table.\n");
+        PciLog.warnf("No MCFG table.");
         return new PortConfigSpace{};
     }
 
     size_t count = mcfg->allocationCount();
 
     if (count == 0) {
-        KmDebugMessage("[PCI] No ECAM regions found in MCFG table.\n");
+        PciLog.warnf("No ECAM regions found in MCFG table.\n");
         return new PortConfigSpace{};
     }
 
-    KmDebugMessage("[PCI] ", count, " ECAM regions found in MCFG table.\n");
+    PciLog.dbgf(count, " ECAM regions found in MCFG table.\n");
     return new McfgConfigSpace{mcfg, memory};
 }
