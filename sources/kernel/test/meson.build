@@ -239,7 +239,23 @@ testcases2 = {
     'page table': {
         'sources': files('memory/pte.cpp'),
         'link_with': [ libpaging_native, liblogging_native, test_shim ],
-    }
+    },
+    'rcu': {
+        'sources': [
+            files('std/rcu.cpp'),
+            tlsf.get_variable('sources'),
+        ],
+        'override_options': [ 'b_sanitize=thread', 'b_coverage=true' ],
+        'link_with': [ librcu_tsan, test_shim ],
+    },
+    'rcu soak': {
+        'sources': [
+            files('std/rcu_soak.cpp'),
+            tlsf.get_variable('sources'),
+        ],
+        'link_with': [ librcu_native, test_shim ],
+        'soak': true,
+    },
 }
 
 foreach name, setup : testcases2
@@ -634,14 +650,6 @@ testcases = {
             '../src/terminal/buffered.cpp',
         ],
         'dependencies' : [ stb_image_write ],
-    },
-    'rcu': {
-        'sources': [
-            'std/rcu.cpp',
-            '../src/std/rcu.cpp',
-        ],
-        'override_options': [ 'b_sanitize=thread', 'b_coverage=true' ],
-        'dependencies' : [ ],
     },
     # rcu shared ptrs are still unsound
     'rcuptr': {

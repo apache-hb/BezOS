@@ -1,8 +1,18 @@
 #pragma once
 
+#include "allocator/tlsf.hpp"
+#include "util/memory.hpp"
+
+#include <dlfcn.h>
+#include <format>
 #include <signal.h>
 #include <pthread.h>
+
+#include <filesystem>
+#include <map>
+#include <memory>
 #include <utility>
+#include <fstream>
 
 namespace ktest {
     static constexpr int kReentrantSignal = SIGUSR1;
@@ -60,4 +70,38 @@ namespace ktest {
     inline void AlertReentrantThread(pthread_t thread) {
         pthread_sigqueue(thread, kReentrantSignal, {0});
     }
+
+    class IpSampleStorage {
+        std::unique_ptr<std::byte[]> mStorage;
+        mem::TlsfAllocator mAllocator;
+
+        using Allocator = mem::AllocatorPointer<std::pair<const uintptr_t, uintptr_t>>;
+        std::map<uintptr_t, uintptr_t, std::less<uintptr_t>, Allocator> mIpSamples;
+    public:
+        IpSampleStorage(size_t size = sm::megabytes(1).bytes())
+            : mStorage(new std::byte[size])
+            , mAllocator(mStorage.get(), size)
+            , mIpSamples(Allocator(&mAllocator))
+        { }
+
+        void record(const mcontext_t *mc) {
+            uintptr_t ip = mc->gregs[REG_RIP];
+            mIpSamples[ip] += 1;
+        }
+
+        bool isEmpty() const {
+            return mIpSamples.empty();
+        }
+
+        void dump(const std::filesystem::path& path) const {
+            std::ofstream file(path);
+            for (const auto& [ip, count] : mIpSamples) {
+                Dl_info info;
+                dladdr((void*)ip, &info);
+                size_t baseAddress = (size_t)info.dli_fbase;
+                size_t offset = (size_t)ip - baseAddress;
+                file << std::format("0x{:x} {}\n", offset, count);
+            }
+        }
+    };
 }

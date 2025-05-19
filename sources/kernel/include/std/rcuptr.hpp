@@ -13,8 +13,8 @@ namespace sm {
         public:
             enum Release { eNone = 0, eStrong = (1 << 0), eWeak = (1 << 1) };
 
-            constexpr JointCount() = default;
-            constexpr JointCount(uint32_t strong, uint32_t weak)
+            constexpr JointCount() noexcept = default;
+            constexpr JointCount(uint32_t strong, uint32_t weak) noexcept
                 : mWeakCount(weak)
                 , mStrongCount(strong)
             { }
@@ -188,19 +188,19 @@ namespace sm {
 
         std::atomic<rcu::detail::ControlBlock*> mControl;
 
-        void exchangeControl(rcu::detail::ControlBlock *control) noexcept [[clang::reentrant, clang::nonblocking]] {
-            if (rcu::detail::ControlBlock *cb = mControl.exchange(control)) {
-                rcu::detail::RcuReleaseStrong(cb);
+        void replaceControl(rcu::detail::ControlBlock *control) noexcept [[clang::reentrant, clang::nonblocking]] {
+            if (rcu::detail::ControlBlock *old = mControl.exchange(control)) {
+                rcu::detail::RcuReleaseStrong(old);
             }
         }
 
         void release() noexcept [[clang::reentrant, clang::nonblocking]] {
-            exchangeControl(nullptr);
+            replaceControl(nullptr);
         }
 
         void acquire(rcu::detail::ControlBlock *control) noexcept [[clang::reentrant, clang::nonblocking]] {
             if (control != nullptr && rcu::detail::RcuAcqiureStrong(control)) {
-                exchangeControl(control);
+                replaceControl(control);
             } else {
                 release();
             }
@@ -215,7 +215,7 @@ namespace sm {
         constexpr RcuSharedPtr(rcu::detail::ControlBlock *control, rcu::detail::AdoptControl) noexcept [[clang::reentrant, clang::nonblocking]]
             : RcuSharedPtr()
         {
-            exchangeControl(control);
+            replaceControl(control);
         }
 
     public:
@@ -272,7 +272,7 @@ namespace sm {
         constexpr RcuSharedPtr(RcuSharedPtr&& other) noexcept [[clang::reentrant, clang::nonblocking]]
             : RcuSharedPtr()
         {
-            exchangeControl(other.mControl.exchange(nullptr));
+            replaceControl(other.mControl.exchange(nullptr));
         }
 
         /// @brief Move a shared pointer into this shared pointer.
@@ -283,7 +283,7 @@ namespace sm {
         /// @param other The shared pointer to move.
         /// @return A reference to this shared pointer.
         constexpr RcuSharedPtr& operator=(RcuSharedPtr&& other) noexcept [[clang::reentrant, clang::nonblocking]] {
-            exchangeControl(other.mControl.exchange(nullptr));
+            replaceControl(other.mControl.exchange(nullptr));
             return *this;
         }
 
@@ -300,7 +300,7 @@ namespace sm {
         constexpr RcuSharedPtr(RcuSharedPtr<O>&& other) noexcept [[clang::reentrant, clang::nonblocking]]
             : RcuSharedPtr()
         {
-            exchangeControl(other.mControl.exchange(nullptr));
+            replaceControl(other.mControl.exchange(nullptr));
         }
 
         /// @brief Take a weak reference to this shared pointer.
@@ -417,7 +417,7 @@ namespace sm {
         [[nodiscard("Verify allocation succeeded")]]
         bool reset(RcuDomain *domain [[gnu::nonnull]], T *ptr) noexcept [[clang::nonreentrant, clang::allocating]] {
             if (rcu::detail::ControlBlock *cb = rcu::detail::NewControlBlock(domain, ptr)) {
-                exchangeControl(cb);
+                replaceControl(cb);
                 return true;
             }
 

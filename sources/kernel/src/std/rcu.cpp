@@ -4,6 +4,10 @@
 #include <emmintrin.h>
 #include <new>
 
+//
+// RcuDomain implementation
+//
+
 sm::RcuDomain::~RcuDomain() noexcept {
     while (synchronize() > 0) {
         // repeatedly synchronize until all memory has been reclaimed.
@@ -16,7 +20,7 @@ size_t sm::RcuDomain::synchronize() noexcept [[clang::allocating, clang::blockin
     // loop until all readers have finished with data in this generation.
     //
     detail::RcuGeneration *generation = exchange();
-    while (generation->mGuard > 0) {
+    while (generation->isLocked()) {
         _mm_pause();
     }
 
@@ -52,6 +56,55 @@ OsStatus sm::RcuDomain::call(void *data, void(*fn)(void*)) [[clang::allocating, 
     return OsStatusOutOfMemory;
 }
 
+void sm::RcuDomain::enqueue(RcuObject *object, void(*fn)(void*)) noexcept [[clang::reentrant, clang::nonblocking, clang::nonallocating]] {
+    object->rcuRetireFn = fn;
+    append(object);
+}
+
+void sm::RcuDomain::append(RcuObject *object) noexcept [[clang::reentrant, clang::nonblocking, clang::nonallocating]] {
+    sm::RcuGuard guard(*this);
+    guard.append(object);
+}
+
+sm::detail::RcuGeneration *sm::RcuDomain::acquire() noexcept [[clang::reentrant, clang::nonblocking]] {
+    // Protect the current generation from being swapped out while we are
+    // acquiring it. We then update its reader count and release the guard.
+    // This prevents the generation from having its data cleaned up before the guard
+    // is acquired.
+    uint32_t state = mState.fetch_add(1, std::memory_order_acquire);
+    detail::RcuGeneration *current = &mGenerations[(state & kCurrentGeneration) ? 1 : 0];
+
+    current->lock(std::memory_order_acquire);
+
+    uint32_t newState = mState.fetch_sub(1, std::memory_order_release);
+
+    // The buffer should never be swapped out from under us.
+    KM_ASSERT((newState & kCurrentGeneration) == (state & kCurrentGeneration));
+
+    return current;
+}
+
+sm::detail::RcuGeneration *sm::RcuDomain::exchange() noexcept [[clang::reentrant]] {
+    uint32_t current = mState.load(std::memory_order_acquire) & kCurrentGeneration;
+    uint32_t expected = current;
+
+    while (!mState.compare_exchange_strong(expected, current ^ kCurrentGeneration, std::memory_order_acquire)) {
+        //
+        // The top bit of mState encodes the current generation. We need to wait
+        // until it is either the only bit set, or there is no bit set at all.
+        //
+        _mm_pause();
+
+        expected = current;
+    }
+
+    return &mGenerations[current ? 1 : 0];
+}
+
+//
+// RcuGeneration implementation
+//
+
 void sm::detail::RcuGeneration::append(RcuObject *object) noexcept [[clang::reentrant, clang::nonblocking]] {
     KM_ASSERT(mGuard > 0);
     KM_ASSERT(object->rcuRetireFn != nullptr);
@@ -85,50 +138,21 @@ size_t sm::detail::RcuGeneration::destroy() noexcept [[clang::nonreentrant]] {
     return count;
 }
 
-void sm::RcuDomain::enqueue(RcuObject *object, void(*fn)(void*)) noexcept [[clang::reentrant, clang::nonblocking, clang::nonallocating]] {
-    object->rcuRetireFn = fn;
-    append(object);
+void sm::detail::RcuGeneration::lock(std::memory_order order) noexcept [[clang::reentrant]] {
+    mGuard.fetch_add(1, order);
 }
 
-void sm::RcuDomain::append(RcuObject *object) noexcept [[clang::reentrant, clang::nonblocking, clang::nonallocating]] {
-    sm::RcuGuard guard(*this);
-    guard.append(object);
+void sm::detail::RcuGeneration::unlock(std::memory_order order) noexcept [[clang::reentrant]] {
+    mGuard.fetch_sub(1, order);
 }
 
-sm::detail::RcuGeneration *sm::RcuDomain::acquire() noexcept [[clang::reentrant, clang::nonblocking]] {
-    // Protect the current generation from being swapped out while we are
-    // acquiring it. We then update its reader count and release the guard.
-    // This prevents the generation from having its data cleaned up before the guard
-    // is acquired.
-    uint32_t state = mState.fetch_add(1, std::memory_order_acquire);
-    detail::RcuGeneration *current = &mGenerations[(state & kCurrentGeneration) ? 1 : 0];
-
-    current->mGuard.fetch_add(1, std::memory_order_acquire);
-
-    uint32_t newState = mState.fetch_sub(1, std::memory_order_release);
-
-    // The buffer should never be swapped out from under us.
-    KM_ASSERT((newState & kCurrentGeneration) == (state & kCurrentGeneration));
-
-    return current;
+bool sm::detail::RcuGeneration::isLocked(std::memory_order order) const noexcept [[clang::reentrant]] {
+    return mGuard.load(order) > 0;
 }
 
-sm::detail::RcuGeneration *sm::RcuDomain::exchange() noexcept [[clang::nonreentrant]] {
-    uint32_t initial = mState.load(std::memory_order_acquire) & kCurrentGeneration;
-    uint32_t state = initial;
-
-    while (!mState.compare_exchange_strong(state, initial ^ kCurrentGeneration, std::memory_order_acquire)) {
-        //
-        // The top bit of mState encodes the current generation. We need to wait
-        // until it is either the only bit set, or there is no bit set at all.
-        //
-        _mm_pause();
-
-        state = initial;
-    }
-
-    return &mGenerations[initial ? 1 : 0];
-}
+//
+// RcuGuard implementation
+//
 
 sm::RcuGuard::RcuGuard(RcuDomain& domain) noexcept [[clang::reentrant, clang::nonblocking]]
     : mGeneration(domain.acquire())
@@ -140,7 +164,8 @@ sm::RcuGuard::RcuGuard(RcuDomain& domain) noexcept [[clang::reentrant, clang::no
 }
 
 sm::RcuGuard::~RcuGuard() noexcept [[clang::reentrant, clang::nonblocking]] {
-    if (mGeneration) mGeneration->mGuard -= 1;
+    detail::RcuGeneration *generation = std::exchange(mGeneration, nullptr);
+    if (generation) generation->unlock(std::memory_order_release);
 }
 
 sm::RcuGuard::RcuGuard(RcuGuard&& other) noexcept [[clang::reentrant]]

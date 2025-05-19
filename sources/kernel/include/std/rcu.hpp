@@ -18,12 +18,10 @@ namespace sm {
         /// Each generation tracks the number of reader threads currently accessing it.
         /// As well as all the data that can be reclaimed once the last reader has finished.
         class RcuGeneration {
-            friend RcuDomain;
-            friend RcuGuard;
-
             std::atomic<uint32_t> mGuard{0};
             std::atomic<RcuObject*> mHead{nullptr};
 
+        public:
             /// @pre `mGuard.load() > 0`
             /// @pre `object->rcuRetireFn != nullptr`
             /// @post `mGuard.load() > 0`
@@ -34,6 +32,17 @@ namespace sm {
             ///
             /// @return The number of objects that were destroyed.
             size_t destroy() noexcept [[clang::nonreentrant, clang::blocking]];
+
+            /// @brief Lock the generation for appending an element.
+            /// This is not a blocking lock, and will always return immediately.
+            /// This prevents the generation from being cleaned up while we are adding elements to it.
+            void lock(std::memory_order order = std::memory_order_seq_cst) noexcept [[clang::reentrant]];
+
+            /// @brief Unlock the generation.
+            /// This notifies the generation that we are done with it and it can be cleaned up.
+            void unlock(std::memory_order order = std::memory_order_seq_cst) noexcept [[clang::reentrant]];
+
+            bool isLocked(std::memory_order order = std::memory_order_seq_cst) const noexcept [[clang::reentrant]];
         };
     }
 
@@ -95,8 +104,18 @@ namespace sm {
 
     private:
         static constexpr uint32_t kCurrentGeneration = (1u << (sizeof(uint32_t) * CHAR_BIT - 1));
+
+        /// @brief Guard for the RCU generations.
+        ///
+        /// @details The top bit encodes which generation is currently active, the remaining bits
+        ///          track the number of threads currently accessing the generation array.
+        ///          The generation must never be swapped when the reader count is non-zero.
         std::atomic<uint32_t> mState{0};
 
+        /// @brief Double buffered rcu generations.
+        ///
+        /// Generations are double buffered to allow for reclaimation to occur while new operations
+        /// are being added to the current generation.
         detail::RcuGeneration mGenerations[2];
 
         /// @pre `object->rcuRetireFn != nullptr`
@@ -111,7 +130,7 @@ namespace sm {
         /// @brief Exchange the current generation with a new one.
         ///
         /// @return The old generation.
-        detail::RcuGeneration *exchange() noexcept [[clang::nonreentrant]];
+        detail::RcuGeneration *exchange() noexcept [[clang::reentrant]];
     };
 
     /// @brief Intrusive pointer base type for RCU objects.
@@ -128,21 +147,34 @@ namespace sm {
     class RcuGuard {
         friend RcuDomain;
     public:
+        RcuGuard& operator=(RcuGuard&& other) = delete;
+        UTIL_NOCOPY(RcuGuard);
+
         RcuGuard(RcuDomain& domain) noexcept [[clang::reentrant, clang::nonblocking]];
         ~RcuGuard() noexcept [[clang::reentrant, clang::nonblocking]];
 
         RcuGuard(RcuGuard&& other) noexcept [[clang::reentrant]];
 
-        RcuGuard& operator=(RcuGuard&& other) = delete;
-
-        UTIL_NOCOPY(RcuGuard);
-
+        /// @brief Retire an object.
+        ///
+        /// Defer the reclaimation of an object until all readers in the current generation
+        /// have completed.
+        ///
+        /// @tparam T The type of object to reclaim.
+        ///
+        /// @param object The object to retire.
         template<std::derived_from<RcuObject> T>
         void retire(T *object [[gnu::nonnull]]) noexcept [[clang::reentrant, clang::nonblocking]] {
             KM_ASSERT(mGeneration != nullptr);
             enqueue(object, [](void *ptr) { delete static_cast<T*>(ptr); });
         }
 
+        /// @brief Enqueue a function to be called during reclaimation.
+        ///
+        /// @warning @p object is not automatically deleted, its memory must be managed externally.
+        ///
+        /// @param object The object to retire.
+        /// @param fn The function to call during reclaimation.
         void enqueue(RcuObject *object [[gnu::nonnull]], void(*fn [[gnu::nonnull]])(void*)) noexcept [[clang::reentrant, clang::nonblocking]];
 
     private:

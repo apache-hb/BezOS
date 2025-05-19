@@ -133,6 +133,12 @@ kernel_cpp_args = cpp_args + kernel_args + sanitizer_args
 
 # Kwargs for different build types
 
+# Kernel - targets the kernel image
+# Native - default testing target, has addrsan, ubsan, and coverage
+# NoSan - for tests that cant run with sanitizers only coverage
+# ThreadSan - for tests that need thread sanitizer
+# Bench - for benchmarks, no sanitizers, no coverage
+
 kernel_kwargs = {
     'c_args': c_args + kernel_args + sanitizer_args,
     'cpp_args': cpp_args + kernel_args + sanitizer_args,
@@ -152,6 +158,14 @@ nosan_kwargs = {
     'native': true,
     'build_by_default': false,
     'override_options' : [ 'b_sanitize=none', 'b_coverage=true' ],
+}
+
+tsan_kwargs = {
+    'c_args': c_args,
+    'cpp_args': cpp_args,
+    'native': true,
+    'build_by_default': false,
+    'override_options' : [ 'b_sanitize=thread', 'b_coverage=true' ],
 }
 
 bench_kwargs = {
@@ -183,6 +197,12 @@ librcu_native = static_library('rcu_native', rcu_src,
 
 librcu_nosanitize = static_library('rcu_nosanitize', rcu_src,
     kwargs : nosan_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+librcu_tsan = static_library('rcu_tsan', rcu_src,
+    kwargs : tsan_kwargs,
     include_directories : inc,
     dependencies : deps,
 )
