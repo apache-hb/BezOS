@@ -1,8 +1,11 @@
 #include <gtest/gtest.h>
 #include <latch>
+#include <random>
 #include <thread>
 
 #include "common/compiler/compiler.hpp"
+
+#include "reentrant.hpp"
 
 CLANG_DIAGNOSTIC_PUSH();
 // strings move assignment isnt nonblocking so clang rightly complains
@@ -14,7 +17,7 @@ CLANG_DIAGNOSTIC_IGNORE("-Wfunction-effects");
 
 CLANG_DIAGNOSTIC_POP();
 
-TEST(RingBufferTest, Construct) {
+TEST(RingBufferConstructTest, Construct) {
     sm::AtomicRingQueue<int> queue;
     OsStatus status = sm::AtomicRingQueue<int>::create(1024, &queue);
     ASSERT_EQ(OsStatusSuccess, status);
@@ -22,7 +25,7 @@ TEST(RingBufferTest, Construct) {
     ASSERT_EQ(queue.count(), 0);
 }
 
-TEST(RingBufferTest, ConstructString) {
+TEST(RingBufferConstructTest, ConstructString) {
     sm::AtomicRingQueue<std::string> queue;
     OsStatus status = sm::AtomicRingQueue<std::string>::create(1024, &queue);
     ASSERT_EQ(OsStatusSuccess, status);
@@ -30,7 +33,7 @@ TEST(RingBufferTest, ConstructString) {
     ASSERT_EQ(queue.count(), 0);
 }
 
-class RingBufferStringTest : public testing::Test {
+class RingBufferTest : public testing::Test {
 public:
     sm::AtomicRingQueue<std::string> queue;
     static constexpr size_t kCapacity = 1024;
@@ -43,13 +46,13 @@ public:
     }
 };
 
-TEST_F(RingBufferStringTest, Push) {
+TEST_F(RingBufferTest, Push) {
     std::string value = "Hello, World!";
     ASSERT_TRUE(queue.tryPush(value));
     ASSERT_EQ(queue.count(), 1);
 }
 
-TEST_F(RingBufferStringTest, Pop) {
+TEST_F(RingBufferTest, Pop) {
     std::string data = "Hello, World!";
     std::string value = auto{data};
     ASSERT_TRUE(queue.tryPush(value));
@@ -61,7 +64,7 @@ TEST_F(RingBufferStringTest, Pop) {
     ASSERT_EQ(queue.count(), 0);
 }
 
-TEST_F(RingBufferStringTest, PushFull) {
+TEST_F(RingBufferTest, PushFull) {
     for (size_t i = 0; i < kCapacity; ++i) {
         std::string value = "Hello, World!";
         ASSERT_TRUE(queue.tryPush(value));
@@ -72,13 +75,13 @@ TEST_F(RingBufferStringTest, PushFull) {
     ASSERT_FALSE(queue.tryPush(value));
 }
 
-TEST_F(RingBufferStringTest, PopEmpty) {
+TEST_F(RingBufferTest, PopEmpty) {
     std::string value;
     ASSERT_FALSE(queue.tryPop(value));
     ASSERT_EQ(queue.count(), 0);
 }
 
-TEST_F(RingBufferStringTest, ThreadSafe) {
+TEST_F(RingBufferTest, ThreadSafe) {
     constexpr size_t kProducerCount = 8;
     std::vector<std::jthread> producers;
     std::latch latch(kProducerCount + 1);
@@ -126,18 +129,37 @@ TEST_F(RingBufferStringTest, ThreadSafe) {
     ASSERT_EQ(consumedCount.load(), producedCount.load());
 }
 
-TEST_F(RingBufferStringTest, Reentrant) {
-    pthread_attr_t attr;
-    pthread_attr_init(&attr);
+struct State {
+    std::atomic<size_t> signals{0};
+    std::atomic<size_t> inThread{0};
+    std::atomic<size_t> inMainThread{0};
+    std::atomic<bool> done{false};
+    sm::AtomicRingQueue<std::string> *queue;
 
-    struct State {
-        std::atomic<size_t> signals{0};
-        std::atomic<size_t> inThread{0};
-        std::atomic<size_t> inMainThread{0};
-        std::atomic<bool> done{false};
-        sm::AtomicRingQueue<std::string> *queue;
-    };
+    pthread_t CreateTestThread() {
+        return ktest::CreateReentrantThread([&] {
+            while (!done.load()) {
+                std::string value = "Hello, World!";
+                if (queue->tryPop(value)) {
+                    queue->tryPush(value);
+                }
 
+                inThread += 1;
+            }
+        }, [&]([[maybe_unused]] siginfo_t *siginfo, [[maybe_unused]] void *ctx) {
+            [[maybe_unused]] ucontext_t *uc = reinterpret_cast<ucontext_t *>(ctx);
+            [[maybe_unused]] mcontext_t *mc = &uc->uc_mcontext;
+            std::string value = "From signal handler";
+            if (queue->tryPop(value)) {
+                queue->tryPush(value);
+            }
+
+            signals += 1;
+        });
+    }
+};
+
+TEST_F(RingBufferTest, Reentrant) {
     for (int i = 0; i < 100; i++) {
         std::string value = "Hello, World! " + std::to_string(i);
         if (queue.tryPush(value)) {
@@ -145,55 +167,16 @@ TEST_F(RingBufferStringTest, Reentrant) {
         }
     }
 
-    {
-        sigset_t set;
-        sigemptyset(&set);
-        sigaddset(&set, SIGUSR1);
-        pthread_sigmask(SIG_BLOCK, &set, nullptr);
-    }
+    State state {.queue = &queue};
 
-    static State state {.queue = &queue};
-    pthread_t thread;
-    pthread_create(&thread, &attr, [](void*) -> void* {
-        struct sigaction sigusr1 {
-            .sa_sigaction = [](int, [[maybe_unused]] siginfo_t *siginfo, [[maybe_unused]] void *ctx) {
-                [[maybe_unused]] ucontext_t *uc = reinterpret_cast<ucontext_t *>(ctx);
-                [[maybe_unused]] mcontext_t *mc = &uc->uc_mcontext;
-                std::string value = "From signal handler";
-                if (state.queue->tryPop(value)) {
-                    state.queue->tryPush(value);
-                }
-
-                state.signals += 1;
-            },
-            .sa_flags = SA_SIGINFO,
-        };
-        sigaction(SIGUSR1, &sigusr1, nullptr);
-
-        {
-            sigset_t set;
-            sigemptyset(&set);
-            sigaddset(&set, SIGUSR1);
-            sigprocmask(SIG_UNBLOCK, &set, nullptr);
-        }
-
-        while (!state.done.load()) {
-            std::string value = "Hello, World!";
-            if (state.queue->tryPop(value)) {
-                state.queue->tryPush(value);
-            }
-
-            state.inThread += 1;
-        }
-        return nullptr;
-    }, nullptr);
+    pthread_t thread = state.CreateTestThread();
 
     auto now = std::chrono::high_resolution_clock::now();
     auto end = now + std::chrono::milliseconds(50);
     while (now < end) {
         std::string value = "Hello, World!";
         queue.tryPush(value);
-        ASSERT_EQ(pthread_sigqueue(thread, SIGUSR1, {0}), 0);
+        ktest::AlertReentrantThread(thread);
         now = std::chrono::high_resolution_clock::now();
 
         queue.tryPop(value);
@@ -203,7 +186,49 @@ TEST_F(RingBufferStringTest, Reentrant) {
 
     state.done.store(true);
     pthread_join(thread, nullptr);
-    pthread_attr_destroy(&attr);
+
+    ASSERT_NE(state.signals.load(), 0);
+    ASSERT_NE(state.inThread.load(), 0);
+    ASSERT_NE(state.inMainThread.load(), 0);
+}
+
+TEST_F(RingBufferTest, MultiThreadReentrant) {
+    constexpr size_t kProducerCount = 8;
+
+    for (int i = 0; i < 100; i++) {
+        std::string value = "Hello, World! " + std::to_string(i);
+        if (queue.tryPush(value)) {
+            break;
+        }
+    }
+
+    State state {.queue = &queue};
+    std::vector<pthread_t> threads;
+
+    for (size_t i = 0; i < kProducerCount; i++) {
+        pthread_t thread = state.CreateTestThread();
+        threads.push_back(thread);
+    }
+
+    auto now = std::chrono::high_resolution_clock::now();
+    auto end = now + std::chrono::milliseconds(50);
+    std::mt19937 mt(0x1234);
+    std::uniform_int_distribution<size_t> dist(0, kProducerCount - 1);
+    while (now < end) {
+        std::string value = "Hello, World!";
+        queue.tryPush(value);
+        ktest::AlertReentrantThread(threads[dist(mt)]);
+        now = std::chrono::high_resolution_clock::now();
+
+        queue.tryPop(value);
+
+        state.inMainThread += 1;
+    }
+
+    state.done.store(true);
+    for (pthread_t thread : threads) {
+        pthread_join(thread, nullptr);
+    }
 
     ASSERT_NE(state.signals.load(), 0);
     ASSERT_NE(state.inThread.load(), 0);

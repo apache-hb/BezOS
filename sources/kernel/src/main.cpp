@@ -102,21 +102,6 @@ static constexpr bool kEnableXSave = true;
 // TODO: make this runtime configurable
 static constexpr size_t kMaxMessageSize = 0x1000;
 
-class SerialLog final : public IOutStream {
-    SerialPort mPort;
-
-public:
-    SerialLog(SerialPort port)
-        : mPort(port)
-    { }
-
-    constexpr SerialLog() { }
-
-    void write(stdx::StringView message) [[clang::nonreentrant]] override {
-        mPort.print(message);
-    }
-};
-
 class DebugPortLog final : public IOutStream {
     void write(stdx::StringView message) [[clang::nonreentrant]] override {
         for (char c : message) {
@@ -125,29 +110,8 @@ class DebugPortLog final : public IOutStream {
     }
 };
 
-template<typename T>
-class TerminalLog final : public IOutStream {
-    T mTerminal;
-
-public:
-    constexpr TerminalLog()
-        : mTerminal(T())
-    { }
-
-    constexpr TerminalLog(T terminal)
-        : mTerminal(terminal)
-    { }
-
-    void write(stdx::StringView message) [[clang::nonreentrant]] override {
-        mTerminal.print(message);
-    }
-
-    T& get() { return mTerminal; }
-};
-
 // load bearing constinit, clang has a bug in c++26 mode
 // where it doesnt emit a warning for global constructors in all cases.
-constinit static TerminalLog<DirectTerminal> gDirectTerminalLog;
 constinit static DebugPortLog gDebugPortLog;
 
 constinit static stdx::StaticVector<IOutStream*, 4> gLogTargets;
