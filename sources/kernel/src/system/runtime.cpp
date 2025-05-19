@@ -1,7 +1,8 @@
+#include "allocator/tlsf.hpp"
 #include "gdt.h"
-#include "log.hpp"
 
 #include "logger/categories.hpp"
+#include "processor.hpp"
 #include "system/schedule.hpp"
 #include "system/thread.hpp"
 
@@ -26,24 +27,6 @@ static constinit km::CpuLocal<sys::CpuLocalSchedule*> tlsSchedule;
 
 CPU_LOCAL
 static constinit km::CpuLocal<void*> tlsKernelStack;
-
-static constinit mem::IAllocator *gSchedulerAllocator = nullptr;
-
-void sys::SchedulerQueueTraits::init(void *memory, size_t size) {
-    KM_CHECK(memory != nullptr, "Invalid memory for scheduler allocator.");
-    KM_CHECK(size > 0, "Invalid size for scheduler allocator.");
-    KM_CHECK(gSchedulerAllocator == nullptr, "Scheduler allocator already initialized.");
-
-    gSchedulerAllocator = new SynchronizedTlsfAllocator(memory, size);
-}
-
-void *sys::SchedulerQueueTraits::malloc(size_t size) {
-    return gSchedulerAllocator->allocate(size);
-}
-
-void sys::SchedulerQueueTraits::free(void *ptr) {
-    gSchedulerAllocator->deallocate(ptr, 0);
-}
 
 static bool ScheduleInner(km::IsrContext *context, km::IsrContext *newContext) noexcept [[clang::reentrant]] {
     km::IApic *apic = km::GetCpuLocalApic();

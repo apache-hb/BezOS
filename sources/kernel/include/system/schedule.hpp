@@ -6,12 +6,13 @@
 
 #include "isr/isr.hpp"
 
+#include "processor.hpp"
 #include "std/ringbuffer.hpp"
 #include "std/shared_spinlock.hpp"
 
 #include "std/rcuptr.hpp"
-#include "std/queue.hpp"
 #include "system/access.hpp"
+#include "util/absl.hpp"
 
 namespace km {
     class ApicTimer;
@@ -55,13 +56,6 @@ namespace sys {
     struct SystemStats {
         size_t objects;
         size_t processes;
-    };
-
-    struct SchedulerQueueTraits : moodycamel::ConcurrentQueueDefaultTraits {
-        static void *malloc(size_t size);
-        static void free(void *ptr);
-
-        static void init(void *ptr, size_t size);
     };
 
     class CpuLocalSchedule {

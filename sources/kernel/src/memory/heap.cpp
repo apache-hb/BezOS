@@ -1,11 +1,9 @@
 #include "memory/heap.hpp"
-#include "log.hpp"
 #include "logger/categories.hpp"
 #include "memory/range.hpp"
 
 #include "std/static_vector.hpp"
 
-#include <numeric>
 #include <ranges>
 
 using TlsfBlock = km::detail::TlsfBlock;

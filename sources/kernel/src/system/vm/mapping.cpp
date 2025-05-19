@@ -1,4 +1,3 @@
-#include "log.hpp"
 #include "logger/categories.hpp"
 #include "memory/address_space.hpp"
 #include "memory/page_allocator.hpp"

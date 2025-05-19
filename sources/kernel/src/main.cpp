@@ -1671,17 +1671,6 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     pci::ProbeConfigSpace(config.get(), rsdt.mcfg());
 
-    {
-        static constexpr size_t kSchedulerMemorySize = sm::kilobytes(128).bytes();
-        MappingAllocation allocation;
-        if (OsStatus status = gMemory->map(kSchedulerMemorySize, PageFlags::eData, MemoryType::eWriteBack, &allocation)) {
-            InitLog.fatalf("Failed to allocate scheduler memory: ", OsStatusId(status));
-            KM_PANIC("Failed to allocate scheduler memory.");
-        }
-
-        sys::SchedulerQueueTraits::init(allocation.baseAddress(), kSchedulerMemorySize);
-    }
-
     km::LocalIsrTable *ist = GetLocalIsrTable();
 
     InitSystem();

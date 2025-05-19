@@ -4,9 +4,8 @@
 
 #include "std/inlined_vector.hpp"
 #include "std/ringbuffer.hpp"
-#include "std/shared_spinlock.hpp"
-
 #include "std/spinlock.hpp"
+
 #include "util/format.hpp"
 
 namespace km {
