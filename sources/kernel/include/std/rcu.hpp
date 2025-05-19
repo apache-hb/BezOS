@@ -18,6 +18,8 @@ namespace sm {
         /// Each generation tracks the number of reader threads currently accessing it.
         /// As well as all the data that can be reclaimed once the last reader has finished.
         class RcuGeneration {
+            friend RcuDomain;
+
             std::atomic<uint32_t> mGuard{0};
             std::atomic<RcuObject*> mHead{nullptr};
 

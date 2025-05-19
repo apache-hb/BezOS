@@ -99,6 +99,10 @@ namespace ktest {
             }
         }
 
+        size_t size() const {
+            return mIpSamples.size();
+        }
+
         void dump(const std::filesystem::path& path) const {
             std::ofstream file(path);
             for (const auto& [ip, count] : mIpSamples) {

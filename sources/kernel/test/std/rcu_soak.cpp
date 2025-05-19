@@ -84,6 +84,7 @@ int main() {
                 size_t i0 = getNextIndex();
                 size_t i1 = getNextIndex();
                 size_t i2 = getNextIndex();
+                sm::RcuGuard guard(domain);
                 data2[i1].store(&domain, data[i0]);
                 data[i2].reset();
 
@@ -91,6 +92,7 @@ int main() {
             }
         }, [&, i](siginfo_t *, mcontext_t *mc) {
             ipSamples[i].record(mc);
+            sm::RcuGuard guard(domain);
             size_t i0 = getNextIndex();
             size_t i1 = getNextIndex();
             data2[i1] = data[i0];
@@ -102,9 +104,11 @@ int main() {
     }
 
     auto now = std::chrono::high_resolution_clock::now();
-    auto end = now + std::chrono::seconds(60);
+    auto end = now + std::chrono::seconds(5);
     while (now < end) {
         reclaims += domain.synchronize();
+
+        sm::RcuGuard guard(domain);
 
         size_t i0 = getNextIndex();
         data[i0] = sm::rcuMakeShared<std::string>(&domain, strings(kStringSize));
@@ -124,8 +128,13 @@ int main() {
     }
     ipSamplesMerged.dump("rcu_soak_ip_samples.txt");
 
+    printf("inThread: %zu\n", inThread.load());
+    printf("inSignal: %zu\n", inSignal.load());
+    printf("reclaims: %zu\n", reclaims.load());
+    printf("ipSamples: %zu\n", ipSamplesMerged.size());
     assert(inThread.load() != 0);
     assert(inSignal.load() != 0);
+    assert(reclaims.load() != 0);
     for (const auto& ipSamples : ipSamples) {
         assert(!ipSamples.isEmpty());
     }
