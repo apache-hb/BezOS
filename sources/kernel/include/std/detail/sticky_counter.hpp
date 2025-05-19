@@ -31,11 +31,21 @@ namespace sm::detail {
             return (value & kZeroFlag) ? 0 : value;
         }
 
+        /// @brief Increment the counter if it is not zero.
+        ///
+        /// @return If the counter is greater than zero.
+        /// @retval true The counter was incremented and is greater than zero.
+        /// @retval false The counter is stuck at zero.
         bool increment(T delta, std::memory_order order = std::memory_order_seq_cst) noexcept [[clang::reentrant, clang::nonblocking]] {
             T value = mCount.fetch_add(delta, order);
             return (value & kZeroFlag) == 0;
         }
 
+        /// @brief Decrement the counter.
+        ///
+        /// @return If the counter was decremented to zero.
+        /// @retval true The counter was decremented to zero by this operation.
+        /// @retval false The counter is greater than zero or was already zero.
         bool decrement(T delta, std::memory_order order = std::memory_order_seq_cst) noexcept [[clang::reentrant, clang::nonblocking]] {
             if (mCount.fetch_sub(delta, order) == delta) {
                 T expected = 0;

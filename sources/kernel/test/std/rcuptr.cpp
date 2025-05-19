@@ -271,12 +271,22 @@ TEST(RcuPtrTest, Construct) {
     ASSERT_EQ(*ptr, "Hello, World!");
 }
 
-TEST(RcuPtrTest, AssignEmpty) {
+TEST(RcuPtrTest, AssignNull) {
     sm::RcuDomain domain;
     sm::RcuSharedPtr<std::string> ptr = {&domain, new std::string("Hello, World!")};
     ASSERT_EQ(domain.synchronize(), 0);
     ASSERT_EQ(*ptr, "Hello, World!");
     ptr = nullptr;
+    ASSERT_EQ(domain.synchronize(), 2);
+}
+
+TEST(RcuPtrTest, AssignEmpty) {
+    sm::RcuDomain domain;
+    sm::RcuSharedPtr<std::string> ptr = {&domain, new std::string("Hello, World!")};
+    sm::RcuSharedPtr<std::string> empty;
+    ASSERT_EQ(domain.synchronize(), 0);
+    ASSERT_EQ(*ptr, "Hello, World!");
+    ptr = empty;
     ASSERT_EQ(domain.synchronize(), 2);
 }
 

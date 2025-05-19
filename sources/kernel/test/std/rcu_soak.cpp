@@ -22,6 +22,7 @@ struct StringGenerator {
 TEST(RcuTest, ReentrantReclaimation) {
     static constexpr size_t kElementCount = 100000;
     static constexpr size_t kStringSize = 32;
+    static constexpr size_t kThreadCount = 8;
 
     sm::RcuDomain domain;
     std::vector<sm::RcuSharedPtr<std::string>> data;
@@ -40,8 +41,6 @@ TEST(RcuTest, ReentrantReclaimation) {
     std::atomic<size_t> inSignal = 0;
     std::atomic<size_t> reclaims = 0;
 
-    ktest::IpSampleStorage ipSamples;
-
     std::vector<size_t> indices;
 
     {
@@ -59,43 +58,71 @@ TEST(RcuTest, ReentrantReclaimation) {
         return index;
     };
 
-    pthread_t thread = ktest::CreateReentrantThread([&] {
+    std::vector<ktest::IpSampleStorage> ipSamples;
+    ipSamples.resize(kThreadCount);
+    std::vector<pthread_t> threads;
+
+    for (size_t i = 0; i < kThreadCount; i++) {
+        std::vector<size_t> listIndices;
         std::mt19937 mt(0x1234);
         std::uniform_int_distribution<size_t> dist(0, kElementCount - 1);
-        while (running) {
-            size_t i0 = dist(mt);
-            size_t i1 = dist(mt);
-            size_t i2 = dist(mt);
+        std::generate_n(std::back_inserter(listIndices), kElementCount, [&] {
+            return dist(mt);
+        });
+        pthread_t thread = ktest::CreateReentrantThread([&domain, &running, &inThread, &data, &data2, listIndices] {
+            size_t currentIndex = 0;
+            auto getNextIndex = [&] {
+                size_t index = listIndices[currentIndex];
+                currentIndex = (currentIndex + 1) % kElementCount;
+                return index;
+            };
+            while (running) {
+                size_t i0 = getNextIndex();
+                size_t i1 = getNextIndex();
+                size_t i2 = getNextIndex();
+                data2[i1] = data[i0];
+                data[i2].reset();
+
+                inThread += 1;
+            }
+        }, [&, i](siginfo_t *, mcontext_t *mc) {
+            ipSamples[i].record(mc);
+            size_t i0 = getNextIndex();
+            size_t i1 = getNextIndex();
             data2[i1] = data[i0];
-            data[i2].reset();
 
-            inThread += 1;
-        }
-    }, [&](siginfo_t *, mcontext_t *mc) {
-        ipSamples.record(mc);
-        size_t i0 = indices[getNextIndex()];
-        size_t i1 = indices[getNextIndex()];
-        data2[i1] = data[i0];
+            inSignal += 1;
+        });
 
-        inSignal += 1;
-    });
+        threads.push_back(thread);
+    }
 
     auto now = std::chrono::high_resolution_clock::now();
     auto end = now + std::chrono::seconds(60);
     while (now < end) {
         reclaims += domain.synchronize();
 
-        size_t i0 = indices[getNextIndex()];
+        size_t i0 = getNextIndex();
         data[i0] = sm::rcuMakeShared<std::string>(&domain, strings(kStringSize));
 
-        ktest::AlertReentrantThread(thread);
+        for (pthread_t thread : threads) {
+            ktest::AlertReentrantThread(thread);
+        }
         now = std::chrono::high_resolution_clock::now();
     }
     running = false;
-    pthread_join(thread, nullptr);
-    ipSamples.dump("rcu_ip_samples.txt");
+    for (pthread_t thread : threads) {
+        pthread_join(thread, nullptr);
+    }
+    auto& ipSamplesMerged = ipSamples[0];
+    for (size_t i = 1; i < ipSamples.size(); i++) {
+        ipSamplesMerged.merge(ipSamples[i]);
+    }
+    ipSamplesMerged.dump("rcu_soak_ip_samples.txt");
 
     ASSERT_NE(inThread.load(), 0);
     ASSERT_NE(inSignal.load(), 0);
-    ASSERT_FALSE(ipSamples.isEmpty());
+    for (const auto& ipSamples : ipSamples) {
+        ASSERT_FALSE(ipSamples.isEmpty());
+    }
 }

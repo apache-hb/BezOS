@@ -93,6 +93,12 @@ namespace ktest {
             return mIpSamples.empty();
         }
 
+        void merge(const IpSampleStorage& other) {
+            for (const auto& [ip, count] : other.mIpSamples) {
+                mIpSamples[ip] += count;
+            }
+        }
+
         void dump(const std::filesystem::path& path) const {
             std::ofstream file(path);
             for (const auto& [ip, count] : mIpSamples) {
