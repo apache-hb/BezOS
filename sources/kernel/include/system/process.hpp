@@ -38,12 +38,8 @@ namespace sys {
         sm::FlatHashSet<sm::RcuSharedPtr<Process>, sm::RcuHash<Process>, std::equal_to<>> mChildren;
         sm::FlatHashSet<sm::RcuSharedPtr<Thread>, sm::RcuHash<Thread>, std::equal_to<>> mThreads;
 
-        sm::FlatHashMap<sm::RcuDynamicPtr<IObject>, OsHandle, sm::RcuHash<IObject>, std::equal_to<>> mObjectHandles;
-
         /// @brief All the handles this process has open.
         sm::FlatHashMap<OsHandle, std::unique_ptr<IHandle>> mHandles;
-
-        sm::BTreeMultiMap<sm::RcuDynamicPtr<Process>, std::unique_ptr<IHandle>> mProcessHandles;
 
         AddressSpaceManager mAddressSpace;
 

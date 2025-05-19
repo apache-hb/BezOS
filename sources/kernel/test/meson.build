@@ -255,17 +255,24 @@ testcases2 = {
         ],
         'link_with': [ librcu_native, test_shim ],
         'soak': true,
+        'protocol': 'exitcode',
     },
 }
 
 foreach name, setup : testcases2
+    protocol = setup.get('protocol', 'gtest')
+    dependencies = [ common, sysapi ]
+    if protocol == 'gtest'
+        dependencies += [ gtest_main ]
+    endif
+
     exe = executable('test-kernel-' + name.strip().replace(' ', '-'), setup['sources'],
         c_args : setup.get('c_args', test_c_args),
         cpp_args : setup.get('cpp_args', test_cpp_args),
         link_args : setup.get('link_args', test_link_args),
         link_with : setup.get('link_with', []),
         include_directories : inc,
-        dependencies : setup.get('dependencies', []) + [ common, sysapi, gtest_main ],
+        dependencies : setup.get('dependencies', []) + dependencies,
         override_options : setup.get('override_options', [ 'b_sanitize=address,undefined', 'b_coverage=true' ]),
         native : true,
         pie : true,
@@ -280,7 +287,7 @@ foreach name, setup : testcases2
 
     test(name, exe,
         suite : suite,
-        protocol : 'gtest',
+        protocol : protocol,
         timeout : timeout,
     )
 endforeach
@@ -725,7 +732,7 @@ foreach name, kwargs : testcases
         suite : 'kernel',
         kwargs : testkwargs,
         env : {
-            'LSAN_OPTIONS': 'suppressions=' + meson.current_source_dir() / 'data/test/sanitizer/glib.supp',
+            # 'LSAN_OPTIONS': 'suppressions=' + meson.current_source_dir() / 'data/test/sanitizer/glib.supp',
             'MESON_SOURCE_ROOT': meson.current_source_dir(),
             'MESON_PREFIX': get_option('prefix'),
         }

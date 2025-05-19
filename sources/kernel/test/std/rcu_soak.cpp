@@ -1,10 +1,14 @@
-#include <gtest/gtest.h>
+#ifdef NDEBUG
+#   undef NDEBUG
+#endif
 
 #include <random>
 
 #include "std/rcu.hpp"
 #include "reentrant.hpp"
 #include "std/rcuptr.hpp"
+
+#include <assert.h>
 
 struct StringGenerator {
     std::mt19937 mt{ 0x1234 };
@@ -19,7 +23,7 @@ struct StringGenerator {
     }
 };
 
-TEST(RcuTest, ReentrantReclaimation) {
+int main() {
     static constexpr size_t kElementCount = 100000;
     static constexpr size_t kStringSize = 32;
     static constexpr size_t kThreadCount = 8;
@@ -80,7 +84,7 @@ TEST(RcuTest, ReentrantReclaimation) {
                 size_t i0 = getNextIndex();
                 size_t i1 = getNextIndex();
                 size_t i2 = getNextIndex();
-                data2[i1] = data[i0];
+                data2[i1].store(&domain, data[i0]);
                 data[i2].reset();
 
                 inThread += 1;
@@ -120,9 +124,9 @@ TEST(RcuTest, ReentrantReclaimation) {
     }
     ipSamplesMerged.dump("rcu_soak_ip_samples.txt");
 
-    ASSERT_NE(inThread.load(), 0);
-    ASSERT_NE(inSignal.load(), 0);
+    assert(inThread.load() != 0);
+    assert(inSignal.load() != 0);
     for (const auto& ipSamples : ipSamples) {
-        ASSERT_FALSE(ipSamples.isEmpty());
+        assert(!ipSamples.isEmpty());
     }
 }

@@ -7,6 +7,8 @@
 #include "std/rcu.hpp"
 #include "std/rcuptr.hpp"
 
+#include "common/compiler/compiler.hpp"
+
 std::string RandomString(int length, std::mt19937& mt) {
     std::string str;
     str.reserve(length);
@@ -314,7 +316,10 @@ TEST(RcuPtrTest, CopyAssignSelf) {
     sm::RcuSharedPtr<std::string> ptr = {&domain, new std::string("Hello, World!")};
     ASSERT_EQ(*ptr, "Hello, World!");
     ASSERT_EQ(domain.synchronize(), 0);
+    CLANG_DIAGNOSTIC_PUSH();
+    CLANG_DIAGNOSTIC_IGNORE("-Wself-assign-overloaded");
     ptr = ptr;
+    CLANG_DIAGNOSTIC_POP();
     ASSERT_EQ(domain.synchronize(), 0);
     ASSERT_EQ(*ptr, "Hello, World!");
 }

@@ -98,18 +98,6 @@ namespace sm {
             { }
         };
 
-        inline ControlBlock *TagPointer(ControlBlock *ptr, bool strong) {
-            return (ControlBlock*)((uintptr_t)ptr | (strong ? 0x1 : 0x0));
-        }
-
-        inline ControlBlock *UnTagPointer(ControlBlock *ptr) {
-            return (ControlBlock*)((uintptr_t)ptr & ~0x1);
-        }
-
-        inline bool IsTagged(ControlBlock *ptr) {
-            return (uintptr_t)ptr & 0x1;
-        }
-
         template<typename T>
         ControlBlock *NewControlBlock(RcuDomain *domain, T *value) {
             void (*finalize)(void*) = [](void *ptr) {
@@ -149,9 +137,6 @@ namespace sm {
     class RcuWeakPtr;
 
     template<typename T>
-    class RcuDynamicPtr;
-
-    template<typename T>
     concept IsIntrusivePtr = std::derived_from<T, rcu::detail::RcuIntrusivePtrTag>;
 
     template<typename O, typename Self>
@@ -172,6 +157,13 @@ namespace sm {
         return nullptr;
     }
 
+    /// @brief A shared pointer using RCU for deferred reclamation.
+    ///
+    /// Class invariants:
+    /// * if mControl->strongCount() > 0 the object is accessible
+    /// * if mControl->strongCount() == 0 the object is inaccessible
+    /// * if mControl->weakCount() > 0 the control block is accessible
+    /// * mControl->weakCount() must only be 0 once, the holder that decrements to 0 must release the object *and* must be the last holder.
     template<typename T>
     class RcuSharedPtr {
         static_assert(std::is_same_v<T, std::remove_cvref_t<T>>, "Cannot use RcuSharedPtr with reference types");
@@ -182,9 +174,6 @@ namespace sm {
 
         template<typename O>
         friend class RcuSharedPtr;
-
-        template<typename O>
-        friend class RcuDynamicPtr;
 
         std::atomic<rcu::detail::ControlBlock*> mControl;
 
@@ -339,7 +328,7 @@ namespace sm {
         /// @param expected The expected shared pointer.
         /// @param desired The desired shared pointer.
         /// @return True if the shared pointer was exchanged, false otherwise.
-        constexpr bool compare_exchange_weak(RcuSharedPtr& expected, RcuSharedPtr desired) {
+        constexpr bool compare_exchange_weak(RcuSharedPtr& expected, const RcuSharedPtr& desired) {
             rcu::detail::ControlBlock *oldControl = mControl.load();
             rcu::detail::ControlBlock *expectedControl = expected.mControl.load();
             rcu::detail::ControlBlock *desiredControl = desired.mControl.load();
@@ -356,19 +345,19 @@ namespace sm {
             return true;
         }
 
-        constexpr bool cmpxchg(RcuSharedPtr& expected, RcuSharedPtr desired) {
+        constexpr bool cmpxchg(RcuSharedPtr& expected, const RcuSharedPtr& desired) {
             return compare_exchange_strong(expected, desired);
         }
 
-        constexpr bool cmpxchgStrong(RcuSharedPtr& expected, RcuSharedPtr desired) {
+        constexpr bool cmpxchgStrong(RcuSharedPtr& expected, const RcuSharedPtr& desired) {
             return compare_exchange_strong(expected, desired);
         }
 
-        constexpr bool cmpxchgWeak(RcuSharedPtr& expected, RcuSharedPtr desired) {
+        constexpr bool cmpxchgWeak(RcuSharedPtr& expected, const RcuSharedPtr& desired) {
             return compare_exchange_weak(expected, desired);
         }
 
-        constexpr RcuSharedPtr exchange(RcuSharedPtr desired) {
+        constexpr RcuSharedPtr exchange(const RcuSharedPtr& desired) {
             return RcuSharedPtr(mControl.exchange(desired.mControl), rcu::detail::AdoptControl{});
         }
 
@@ -376,7 +365,8 @@ namespace sm {
             return *this;
         }
 
-        constexpr void store(RcuSharedPtr desired) {
+        constexpr void store(RcuDomain *domain, const RcuSharedPtr& desired) {
+            sm::RcuGuard guard(*domain);
             acquire(desired.mControl);
         }
 
@@ -450,11 +440,6 @@ namespace sm {
             return mControl == other.mControl;
         }
 
-        template<std::derived_from<T> O>
-        constexpr bool operator==(const RcuDynamicPtr<O>& other) const noexcept [[clang::reentrant, clang::nonblocking]] {
-            return mControl == other.mControl;
-        }
-
         constexpr bool operator==(std::nullptr_t) const noexcept [[clang::reentrant, clang::nonblocking]] {
             return mControl == nullptr;
         }
@@ -490,9 +475,6 @@ namespace sm {
 
         template<typename O>
         friend class RcuSharedPtr;
-
-        template<typename O>
-        friend class RcuDynamicPtr;
 
         std::atomic<rcu::detail::ControlBlock*> mControl;
 
@@ -619,144 +601,12 @@ namespace sm {
             return mControl == other.mControl;
         }
 
-        template<std::derived_from<T> O>
-        constexpr bool operator==(const RcuDynamicPtr<O>& other) const {
-            return mControl == other.mControl;
-        }
-
         constexpr bool operator==(std::nullptr_t) const {
             return mControl == nullptr;
         }
 
         template<typename O, typename Self>
         friend constexpr RcuWeakPtr<O> sm::rcuWeakPtrCast(const RcuWeakPtr<Self>& weak);
-    };
-
-    /// @brief A shared pointer that may be either a strong or weak pointer.
-    ///
-    /// Used inside other datastructures that may be recursive but want to retain
-    /// references to some objects but not others.
-    template<typename T>
-    class RcuDynamicPtr {
-        template<typename O>
-        friend class RcuWeakPtr;
-
-        template<typename O>
-        friend class RcuSharedPtr;
-
-        template<typename O>
-        friend class RcuDynamicPtr;
-
-        /// @brief The control block for this dynamic pointer.
-        /// @note The bottom bit is set if we are a strong pointer, otherwise it is
-        ///       a weak pointer.
-        std::atomic<rcu::detail::ControlBlock*> mControl;
-
-        void exchangeControl(rcu::detail::ControlBlock *control, bool strong) {
-            if (rcu::detail::ControlBlock *cb = mControl.exchange(rcu::detail::TagPointer(control, strong))) {
-                if (rcu::detail::IsTagged(cb)) {
-                    rcu::detail::RcuReleaseStrong(rcu::detail::UnTagPointer(cb));
-                } else {
-                    rcu::detail::RcuReleaseWeak(cb);
-                }
-            }
-        }
-
-        void release() {
-            exchangeControl(nullptr, false);
-        }
-
-        void acquire(rcu::detail::ControlBlock *control, bool strong) {
-            if (control == nullptr) {
-                release();
-            } else {
-                bool acquired = false;
-                if (strong) {
-                    acquired = rcu::detail::RcuAcqiureStrong(control);
-                } else {
-                    acquired = rcu::detail::RcuAcquireWeak(control);
-                }
-
-                if (acquired) {
-                    exchangeControl(control, strong);
-                } else {
-                    release();
-                }
-            }
-        }
-
-    public:
-        RcuDynamicPtr() = default;
-        RcuDynamicPtr(std::nullptr_t) : mControl(nullptr) { }
-
-        RcuDynamicPtr(sm::RcuSharedPtr<T> shared) : mControl(nullptr) {
-            acquire(shared.mControl.load(), true);
-        }
-
-        RcuDynamicPtr(sm::RcuWeakPtr<T> weak) : mControl(nullptr) {
-            acquire(weak.mControl.load(), false);
-        }
-
-        RcuDynamicPtr(const RcuDynamicPtr& other) : mControl(nullptr) {
-            rcu::detail::ControlBlock *control = other.mControl.load();
-            acquire(rcu::detail::UnTagPointer(control), rcu::detail::IsTagged(control));
-        }
-
-        RcuDynamicPtr& operator=(const RcuDynamicPtr& other) {
-            rcu::detail::ControlBlock *control = other.mControl.load();
-            acquire(rcu::detail::UnTagPointer(control), rcu::detail::IsTagged(control));
-            return *this;
-        }
-
-        RcuDynamicPtr(RcuDynamicPtr&& other) : mControl(nullptr) {
-            rcu::detail::ControlBlock *control = other.mControl.exchange(nullptr);
-            exchangeControl(rcu::detail::UnTagPointer(control), rcu::detail::IsTagged(control));
-        }
-
-        RcuDynamicPtr& operator=(RcuDynamicPtr&& other) {
-            rcu::detail::ControlBlock *control = other.mControl.exchange(nullptr);
-            exchangeControl(rcu::detail::UnTagPointer(control), rcu::detail::IsTagged(control));
-            return *this;
-        }
-
-        ~RcuDynamicPtr() {
-            release();
-        }
-
-        static RcuDynamicPtr ofStrong(sm::RcuSharedPtr<T> ptr) {
-            return RcuDynamicPtr(ptr.mControl, true);
-        }
-
-        static RcuDynamicPtr ofWeak(sm::RcuWeakPtr<T> ptr) {
-            return RcuDynamicPtr(ptr.mControl, false);
-        }
-
-        sm::RcuSharedPtr<T> lock() {
-            return sm::RcuSharedPtr<T>(rcu::detail::UnTagPointer(mControl), rcu::detail::AcquireControl{});
-        }
-
-        template<std::derived_from<T> O>
-        constexpr bool operator==(const RcuSharedPtr<O>& other) const {
-            return mControl == other.mControl;
-        }
-
-        template<std::derived_from<T> O>
-        constexpr bool operator==(const RcuWeakPtr<O>& other) const {
-            return mControl == other.mControl;
-        }
-
-        template<std::derived_from<T> O>
-        constexpr bool operator==(const RcuDynamicPtr<O>& other) const {
-            return mControl == other.mControl;
-        }
-
-        constexpr bool operator==(std::nullptr_t) const {
-            return mControl == nullptr;
-        }
-
-        constexpr size_t hash() const noexcept {
-            return std::hash<rcu::detail::ControlBlock*>{}(mControl);
-        }
     };
 
     template<typename T>
@@ -767,9 +617,6 @@ namespace sm {
             return ptr.hash();
         }
         constexpr size_t operator()(const RcuWeakPtr<T>& ptr) const noexcept {
-            return ptr.hash();
-        }
-        constexpr size_t operator()(const RcuDynamicPtr<T>& ptr) const noexcept {
             return ptr.hash();
         }
     };
@@ -849,13 +696,6 @@ struct std::hash<sm::RcuSharedPtr<T>> {
 template<typename T>
 struct std::hash<sm::RcuWeakPtr<T>> {
     constexpr size_t operator()(const sm::RcuWeakPtr<T>& ptr) const noexcept {
-        return ptr.hash();
-    }
-};
-
-template<typename T>
-struct std::hash<sm::RcuDynamicPtr<T>> {
-    constexpr size_t operator()(const sm::RcuDynamicPtr<T>& ptr) const noexcept {
         return ptr.hash();
     }
 };
