@@ -6,6 +6,7 @@
 #include "std/ringbuffer.hpp"
 #include "std/shared_spinlock.hpp"
 
+#include "std/spinlock.hpp"
 #include "util/format.hpp"
 
 namespace km {
@@ -16,7 +17,7 @@ namespace km {
         [[clang::no_destroy]]
         constinit static LogQueue sLogQueue;
 
-        stdx::SharedSpinLock mLock;
+        stdx::SpinLock mLock;
         AppenderList mAppenders;
         MessageQueue mQueue;
 
@@ -26,7 +27,8 @@ namespace km {
         /// @brief Number of messages that were written out to the appenders.
         std::atomic<uint32_t> mComittedCount{0};
 
-        void write(const LogMessageView& message) [[clang::nonreentrant]];
+        void write(const LogMessageView& message) [[clang::nonreentrant]] REQUIRES(mLock);
+        size_t writeAllMessages() REQUIRES(mLock);
     public:
         OsStatus addAppender(ILogAppender *appender) noexcept;
         void removeAppender(ILogAppender *appender) noexcept;

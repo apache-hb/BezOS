@@ -6,6 +6,19 @@ void km::LogQueue::write(const LogMessageView& message) [[clang::nonreentrant]] 
     }
 }
 
+size_t km::LogQueue::writeAllMessages() {
+    size_t count = 0;
+    detail::LogMessage message;
+    while (mQueue.tryPop(message)) {
+        write({ message.location, message.message, message.logger, message.level });
+        count++;
+    }
+
+    mComittedCount.fetch_add(count, std::memory_order_relaxed);
+
+    return count;
+}
+
 OsStatus km::LogQueue::addAppender(ILogAppender *appender) noexcept {
     return mAppenders.add(appender);
 }
@@ -29,6 +42,7 @@ OsStatus km::LogQueue::submit(detail::LogMessage message) noexcept [[clang::reen
     CLANG_DIAGNOSTIC_IGNORE("-Wfunction-effects");
 
     if (mLock.try_lock()) {
+        if (mQueue.isSetup()) writeAllMessages();
         write({ message.location, message.message, message.logger, message.level });
         mLock.unlock();
         return OsStatusSuccess;
@@ -40,16 +54,8 @@ OsStatus km::LogQueue::submit(detail::LogMessage message) noexcept [[clang::reen
 }
 
 size_t km::LogQueue::flush() [[clang::nonreentrant]] {
-    size_t count = 0;
-    detail::LogMessage message;
-    while (mQueue.tryPop(message)) {
-        write({ message.location, message.message, message.logger, message.level });
-        count++;
-    }
-
-    mComittedCount.fetch_add(count, std::memory_order_relaxed);
-
-    return count;
+    stdx::LockGuard guard(mLock);
+    return writeAllMessages();
 }
 
 OsStatus km::LogQueue::resizeQueue(uint32_t newCapacity) noexcept [[clang::allocating]] {
