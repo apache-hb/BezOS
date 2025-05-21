@@ -34,12 +34,15 @@ namespace sm {
             /// @brief Increment the weak and strong reference count.
             /// @return False if the strong reference count is zero, true otherwise.
             bool strongRetain() noexcept [[clang::reentrant, clang::nonblocking]] {
-                if (mStrongCount.increment(1)) {
-                    weakRetain();
-                    return true;
+                if (!mWeakCount.increment(1)) {
+                    return false;
                 }
 
-                return false;
+                if (!mStrongCount.increment(1)) {
+                    return false;
+                }
+
+                return true;
             }
 
             /// @brief Decrement the weak and strong reference count.

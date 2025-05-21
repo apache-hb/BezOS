@@ -257,6 +257,15 @@ testcases2 = {
         'soak': true,
         'protocol': 'exitcode',
     },
+    'rcuptr soak': {
+        'sources': [
+            files('std/rcuptr_soak.cpp'),
+            tlsf.get_variable('sources'),
+        ],
+        'link_with': [ librcu_native, test_shim ],
+        'soak': true,
+        'protocol': 'exitcode',
+    },
 }
 
 foreach name, setup : testcases2

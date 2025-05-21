@@ -2,140 +2,57 @@
 #   undef NDEBUG
 #endif
 
-#include <random>
-
 #include "std/rcu.hpp"
-#include "reentrant.hpp"
-#include "std/rcuptr.hpp"
+#include <thread>
+#include <vector>
 
-#include <assert.h>
-
-struct StringGenerator {
-    std::mt19937 mt{ 0x1234 };
-    std::uniform_int_distribution<> dist{ 0, CHAR_MAX };
-
-    std::string operator()(size_t size = 32) {
-        std::string str;
-        for (size_t j = 0; j < size; j++) {
-            str += dist(mt);
-        }
-        return str;
-    }
-};
+#include <cassert>
 
 int main() {
-    static constexpr size_t kElementCount = 100000;
-    static constexpr size_t kStringSize = 32;
     static constexpr size_t kThreadCount = 8;
 
     sm::RcuDomain domain;
-    std::vector<sm::RcuSharedPtr<std::string>> data;
-    std::vector<sm::RcuSharedPtr<std::string>> data2;
-    data.resize(kElementCount);
-    data2.resize(kElementCount);
 
-    StringGenerator strings;
-
-    for (size_t i = 0; i < kElementCount; i++) {
-        data[i] = sm::rcuMakeShared<std::string>(&domain, strings(kStringSize));
-    }
-
+    std::vector<std::jthread> threads;
     std::atomic<bool> running = true;
-    std::atomic<size_t> inThread = 0;
-    std::atomic<size_t> inSignal = 0;
-    std::atomic<size_t> reclaims = 0;
-
-    std::vector<size_t> indices;
-
-    {
-        std::mt19937 mt(0x1234);
-        std::uniform_int_distribution<size_t> dist(0, kElementCount - 1);
-        std::generate_n(std::back_inserter(indices), kElementCount, [&] {
-            return dist(mt);
-        });
-    }
-
-    std::atomic<size_t> currentIndex = 0;
-    auto getNextIndex = [&] {
-        size_t index = indices[currentIndex];
-        currentIndex = (currentIndex + 1) % kElementCount;
-        return index;
-    };
-
-    std::vector<ktest::IpSampleStorage> ipSamples;
-    ipSamples.resize(kThreadCount);
-    std::vector<pthread_t> threads;
+    static std::atomic<size_t> mallocs = 0;
+    static std::atomic<size_t> frees = 0;
+    static std::atomic<size_t> syncronizes = 0;
+    static std::atomic<size_t> reclaimed = 0;
 
     for (size_t i = 0; i < kThreadCount; i++) {
-        std::vector<size_t> listIndices;
-        std::mt19937 mt(0x1234);
-        std::uniform_int_distribution<size_t> dist(0, kElementCount - 1);
-        std::generate_n(std::back_inserter(listIndices), kElementCount, [&] {
-            return dist(mt);
-        });
-        pthread_t thread = ktest::CreateReentrantThread([&domain, &running, &inThread, &data, &data2, listIndices] {
-            size_t currentIndex = 0;
-            auto getNextIndex = [&] {
-                size_t index = listIndices[currentIndex];
-                currentIndex = (currentIndex + 1) % kElementCount;
-                return index;
-            };
+        threads.emplace_back([&] {
             while (running) {
-                size_t i0 = getNextIndex();
-                size_t i1 = getNextIndex();
-                size_t i2 = getNextIndex();
-                sm::RcuGuard guard(domain);
-                data2[i1].store(&domain, data[i0]);
-                data[i2].reset();
-
-                inThread += 1;
+                void *data = malloc(256);
+                mallocs += 1;
+                OsStatus status = domain.call(data, [](void *data) {
+                    free(data);
+                    frees += 1;
+                });
+                assert(status == OsStatusSuccess);
             }
-        }, [&, i](siginfo_t *, mcontext_t *mc) {
-            ipSamples[i].record(mc);
-            sm::RcuGuard guard(domain);
-            size_t i0 = getNextIndex();
-            size_t i1 = getNextIndex();
-            data2[i1] = data[i0];
-
-            inSignal += 1;
         });
-
-        threads.push_back(thread);
     }
 
-    auto now = std::chrono::high_resolution_clock::now();
-    auto end = now + std::chrono::seconds(60);
-    while (now < end) {
-        reclaims += domain.synchronize();
-
-        sm::RcuGuard guard(domain);
-
-        size_t i0 = getNextIndex();
-        data[i0] = sm::rcuMakeShared<std::string>(&domain, strings(kStringSize));
-
-        for (pthread_t thread : threads) {
-            ktest::AlertReentrantThread(thread);
+    threads.emplace_back([&] {
+        while (running) {
+            reclaimed += domain.synchronize();
+            syncronizes += 1;
         }
-        now = std::chrono::high_resolution_clock::now();
-    }
-    running = false;
-    for (pthread_t thread : threads) {
-        pthread_join(thread, nullptr);
-    }
-    auto& ipSamplesMerged = ipSamples[0];
-    for (size_t i = 1; i < ipSamples.size(); i++) {
-        ipSamplesMerged.merge(ipSamples[i]);
-    }
-    ipSamplesMerged.dump("rcu_soak_ip_samples.txt");
+    });
 
-    printf("inThread: %zu\n", inThread.load());
-    printf("inSignal: %zu\n", inSignal.load());
-    printf("reclaims: %zu\n", reclaims.load());
-    printf("ipSamples: %zu\n", ipSamplesMerged.size());
-    assert(inThread.load() != 0);
-    assert(inSignal.load() != 0);
-    assert(reclaims.load() != 0);
-    for (const auto& ipSamples : ipSamples) {
-        assert(!ipSamples.isEmpty());
+    std::this_thread::sleep_for(std::chrono::seconds(10));
+    running = false;
+    for (auto &thread : threads) {
+        thread.join();
     }
+
+    fprintf(stderr, "mallocs: %zu, frees: %zu, syncronizes: %zu, reclaimed: %zu\n",
+           mallocs.load(), frees.load(), syncronizes.load(), reclaimed.load());
+
+    assert(mallocs > 0);
+    assert(frees > 0);
+    assert(mallocs == frees);
+    assert(syncronizes > 0);
+    assert(reclaimed > 0);
 }
