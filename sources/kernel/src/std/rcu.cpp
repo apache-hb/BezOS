@@ -14,7 +14,7 @@ sm::RcuDomain::~RcuDomain() noexcept {
     size_t count = 0;
     while (count < std::size(mGenerations) + 1) {
         // repeatedly synchronize until all memory has been reclaimed.
-        if (synchronize() > 0) {
+        if (synchronize() == 0) {
             count += 1;
         } else {
             count = 0;

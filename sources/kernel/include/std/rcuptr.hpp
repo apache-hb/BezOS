@@ -48,8 +48,8 @@ namespace sm {
             /// @brief Decrement the weak and strong reference count.
             /// @return A mask of which reference counts were brought to zero by this operation.
             Release strongRelease() noexcept [[clang::reentrant, clang::nonblocking]] {
-                bool strongCleared = mStrongCount.decrement(1);
                 bool weakCleared = mWeakCount.decrement(1);
+                bool strongCleared = mStrongCount.decrement(1);
 
                 int result = eNone;
                 if (strongCleared)
