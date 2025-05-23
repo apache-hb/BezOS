@@ -56,6 +56,6 @@ int main() {
     assert(mallocs > 0);
     assert(frees > 0);
     assert(mallocs == frees);
-    // assert(syncronizes > 0);
+    assert(syncronizes > 0);
     assert(reclaimed > 0);
 }

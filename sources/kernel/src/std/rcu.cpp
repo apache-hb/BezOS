@@ -97,21 +97,16 @@ void sm::RcuDomain::append(RcuObject *object) noexcept [[clang::reentrant, clang
     guard.append(object);
 }
 
-sm::detail::RcuGeneration *sm::RcuDomain::acquire() noexcept [[clang::reentrant, clang::nonblocking]] {
+sm::detail::RcuGeneration *sm::RcuDomain::acquireReadLock() noexcept [[clang::reentrant, clang::nonblocking]] {
 #if SM_GENERATIONAL_RCU
     // Protect the current generation from being swapped out while we are
     // acquiring it. We then update its reader count and release the guard.
     // This prevents the generation from having its data cleaned up before the guard
     // is acquired.
     uint32_t state = mState.fetch_add(1);
-    detail::RcuGeneration *current = &mGenerations[(state & kCurrentGeneration) ? 1 : 0];
+    detail::RcuGeneration *current = currentGeneration(state);
 
     current->lock();
-
-    uint32_t newState = mState.fetch_sub(1);
-
-    // The buffer should never be swapped out from under us.
-    KM_ASSERT((newState & kCurrentGeneration) == (state & kCurrentGeneration));
 
     return current;
 #else
@@ -119,6 +114,12 @@ sm::detail::RcuGeneration *sm::RcuDomain::acquire() noexcept [[clang::reentrant,
     current->lock();
     return current;
 #endif
+}
+
+void sm::RcuDomain::releaseReadLock(detail::RcuGeneration *generation) noexcept [[clang::reentrant]] {
+    KM_ASSERT(generation == currentGeneration(mState.load()));
+    generation->unlock();
+    mState.fetch_sub(1);
 }
 
 sm::detail::RcuGeneration *sm::RcuDomain::exchange() noexcept [[clang::reentrant]] {
@@ -187,7 +188,8 @@ bool sm::detail::RcuGeneration::isLocked(std::memory_order order) const noexcept
 //
 
 sm::RcuGuard::RcuGuard(RcuDomain& domain) noexcept [[clang::reentrant, clang::nonblocking]]
-    : mGeneration(domain.acquire())
+    : mDomain(&domain)
+    , mGeneration(domain.acquireReadLock())
 {
     //
     // Copy the generation into the guard, acquiring also increments the reader
@@ -197,7 +199,9 @@ sm::RcuGuard::RcuGuard(RcuDomain& domain) noexcept [[clang::reentrant, clang::no
 
 sm::RcuGuard::~RcuGuard() noexcept [[clang::reentrant, clang::nonblocking]] {
     detail::RcuGeneration *generation = std::exchange(mGeneration, nullptr);
-    if (generation) generation->unlock();
+    if (generation) {
+        mDomain->releaseReadLock(generation);
+    }
 }
 
 sm::RcuGuard::RcuGuard(RcuGuard&& other) noexcept [[clang::reentrant]]

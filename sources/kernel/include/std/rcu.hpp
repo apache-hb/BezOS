@@ -127,7 +127,13 @@ namespace sm {
         ///
         /// @return The current generation.
         [[nodiscard]]
-        detail::RcuGeneration *acquire() noexcept [[clang::reentrant, clang::nonblocking]];
+        detail::RcuGeneration *acquireReadLock() noexcept [[clang::reentrant, clang::nonblocking]];
+
+        void releaseReadLock(detail::RcuGeneration *generation) noexcept [[clang::reentrant]];
+
+        detail::RcuGeneration *currentGeneration(uint32_t state) noexcept [[clang::reentrant]] {
+            return &mGenerations[state & kCurrentGeneration ? 1 : 0];
+        }
 
         /// @brief Exchange the current generation with a new one.
         ///
@@ -179,9 +185,18 @@ namespace sm {
         /// @param fn The function to call during reclaimation.
         void enqueue(RcuObject *object [[gnu::nonnull]], void(*fn [[gnu::nonnull]])(void*)) noexcept [[clang::reentrant, clang::nonblocking]];
 
+        constexpr bool operator==(const RcuGuard& other) const noexcept [[clang::reentrant, clang::nonblocking]] {
+            return mGeneration == other.mGeneration;
+        }
+
+        constexpr bool operator!=(const RcuGuard& other) const noexcept [[clang::reentrant, clang::nonblocking]] {
+            return mGeneration != other.mGeneration;
+        }
+
     private:
         void append(RcuObject *object) noexcept [[clang::reentrant, clang::nonblocking]];
 
+        RcuDomain *mDomain = nullptr;
         detail::RcuGeneration *mGeneration = nullptr;
     };
 }
