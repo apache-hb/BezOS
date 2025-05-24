@@ -1,15 +1,17 @@
-#include <random>
 #ifdef NDEBUG
 #   undef NDEBUG
 #endif
 
+#include "std/rcu_protect.hpp"
 #include "std/rcu.hpp"
+
 #include <thread>
 #include <vector>
+#include <random>
 
 #include <cassert>
 
-struct ObjectWithData : public sm::RcuObject {
+struct ObjectWithData : public sm::RcuProtect {
     unsigned data;
 
     ObjectWithData(unsigned d)
@@ -48,20 +50,27 @@ int main() {
                 while (running) {
                     sm::RcuGuard guard(domain);
                     size_t index = dist(mt);
-                    size_t op = dist(mt) % 2;
+                    size_t op = dist(mt) % 3;
                     if (op == 0) {
                         ObjectWithData *object = objects[index].load();
                         if (object != nullptr) {
                             sum += object->data;
                         }
+                    } else if (op == 1) {
+                        ObjectWithData *object = objects[index].load();
+                        if (!object) {
+                            mallocs += 1;
+                            objects[index].store(new ObjectWithData(dist(mt)));
+                        } else if (sm::rcuRetain(object)) {
+                            sum += object->data;
+                        }
                     } else {
-                        mallocs += 1;
-                        ObjectWithData *object = objects[index].exchange(new ObjectWithData(dist(mt)));
+                        ObjectWithData *object = objects[index].load();
                         if (object != nullptr) {
-                            sm::RcuGuard inner(domain);
-                            // assert(inner == guard);
-                            guard.retire(object);
-                            frees += 1;
+                            if (sm::rcuRetire(guard, object)) {
+                                objects[index].store(nullptr);
+                                frees += 1;
+                            }
                         }
                     }
                 }

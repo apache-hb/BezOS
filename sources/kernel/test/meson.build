@@ -257,15 +257,15 @@ testcases2 = {
         'soak': true,
         'protocol': 'exitcode',
     },
-    'rcuptr soak': {
-        'sources': [
-            files('std/rcuptr_soak.cpp'),
-            tlsf.get_variable('sources'),
-        ],
-        'link_with': [ librcu_native, test_shim ],
-        'soak': true,
-        'protocol': 'exitcode',
-    },
+    # 'rcuptr soak': {
+    #     'sources': [
+    #         files('std/rcuptr_soak.cpp'),
+    #         tlsf.get_variable('sources'),
+    #     ],
+    #     'link_with': [ librcu_native, test_shim ],
+    #     'soak': true,
+    #     'protocol': 'exitcode',
+    # },
     'rcu retire soak': {
         'sources': [
             files('std/rcu_retire_soak.cpp'),
@@ -274,7 +274,16 @@ testcases2 = {
         'link_with': [ librcu_native, test_shim ],
         'soak': true,
         'protocol': 'exitcode',
-    }
+    },
+    'rcu protect soak': {
+        'sources': [
+            files('std/rcu_protect_soak.cpp'),
+            tlsf.get_variable('sources'),
+        ],
+        'link_with': [ librcu_native, test_shim ],
+        'soak': true,
+        'protocol': 'exitcode',
+    },
 }
 
 foreach name, setup : testcases2

@@ -1,38 +1,33 @@
 #pragma once
 
+#include "std/detail/sticky_counter.hpp"
 #include "std/rcu.hpp"
 
 namespace sm {
-    template<std::derived_from<RcuObject> T>
-    class RcuProtect {
-        T *mObject = nullptr;
-        sm::RcuGuard mGuard;
+    class RcuProtect;
 
-    public:
-        constexpr RcuProtect() noexcept = default;
-        UTIL_NOCOPY(RcuProtect);
+    template<std::derived_from<RcuProtect> T>
+    bool rcuRetire(RcuGuard& guard, T *object) noexcept [[clang::reentrant, clang::nonblocking]];
 
-        RcuProtect(RcuDomain& domain, T *object) noexcept [[clang::reentrant, clang::nonblocking]]
-            : mObject(object)
-            , mGuard(domain)
-        {
-            KM_ASSERT(mObject != nullptr);
+    template<std::derived_from<RcuProtect> T>
+    bool rcuRetain(T *object) noexcept [[clang::reentrant, clang::nonblocking]];
+
+    class RcuProtect : public RcuObject {
+        detail::WaitFreeCounter<uint32_t> mOwners;
+
+        template<std::derived_from<RcuProtect> T>
+        friend bool rcuRetire(RcuGuard& guard, T *object) noexcept [[clang::reentrant, clang::nonblocking]] {
+            if (object->mOwners.decrement(1)) {
+                guard.retire(object);
+                return true;
+            }
+
+            return false;
         }
 
-        T *get() const noexcept [[clang::reentrant, clang::nonblocking]] {
-            return mObject;
-        }
-
-        const T *get() noexcept [[clang::reentrant, clang::nonblocking]] {
-            return mObject;
-        }
-
-        T *operator->() noexcept [[clang::reentrant, clang::nonblocking]] {
-            return get();
-        }
-
-        const T *operator->() const noexcept [[clang::reentrant, clang::nonblocking]] {
-            return get();
+        template<std::derived_from<RcuProtect> T>
+        friend bool rcuRetain(T *object) noexcept [[clang::reentrant, clang::nonblocking]] {
+            return object->mOwners.increment(1);
         }
     };
 }

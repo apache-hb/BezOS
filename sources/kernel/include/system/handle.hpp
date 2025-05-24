@@ -2,6 +2,7 @@
 
 #include <bezos/handle.h>
 
+#include "std/rcu_protect.hpp"
 #include "std/rcuptr.hpp"
 #include "system/create.hpp"
 
@@ -23,7 +24,7 @@ namespace sys {
         }
     };
 
-    class IObject : public sm::RcuIntrusivePtr<IObject> {
+    class IObject : public sm::RcuProtect {
     public:
         virtual ~IObject() = default;
 
