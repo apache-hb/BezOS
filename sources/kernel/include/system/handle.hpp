@@ -24,7 +24,7 @@ namespace sys {
         }
     };
 
-    class IObject : public sm::RcuProtect {
+    class IObject : public sm::RcuIntrusivePtr<IObject> {
     public:
         virtual ~IObject() = default;
 
