@@ -9,18 +9,18 @@ namespace sm::detail {
     ///
     /// @cite AtomicSharedPtr
     template<typename T>
-    class WaitFreeCounter {
+    class StickyCounter {
         static constexpr T kZeroFlag = T(1) << (sizeof(T) * CHAR_BIT) - 1;
         static constexpr T kPendingZeroFlag = T(1) << (sizeof(T) * CHAR_BIT) - 2;
 
         mutable std::atomic<T> mCount;
 
     public:
-        constexpr WaitFreeCounter(T initial = 1) noexcept
+        constexpr StickyCounter(T initial = 1) noexcept
             : mCount(initial)
         { }
 
-        UTIL_NOCOPY(WaitFreeCounter);
+        UTIL_NOCOPY(StickyCounter);
 
         T load(std::memory_order order = std::memory_order_seq_cst) const noexcept [[clang::reentrant, clang::nonblocking]] {
             T value = mCount.load(order);

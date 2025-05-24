@@ -12,6 +12,9 @@ namespace sm {
     class RcuGuard;
     class RcuObject;
 
+    using SimpleRetireCallback = void(*)(void *data);
+    using RetireCallback = void(*)(RcuDomain *domain, void *data);
+
     namespace detail {
         /// @brief A generation of the RCU domain.
         ///
@@ -33,7 +36,7 @@ namespace sm {
             /// @post `mGuard.load() == 0`
             ///
             /// @return The number of objects that were destroyed.
-            size_t destroy() noexcept [[clang::nonreentrant, clang::blocking]];
+            size_t destroy(RcuDomain *domain) noexcept [[clang::nonreentrant, clang::blocking]];
 
             /// @brief Lock the generation for appending an element.
             /// This is not a blocking lock, and will always return immediately.
@@ -86,7 +89,7 @@ namespace sm {
         /// @details This function is internally synchronized.
         template<std::derived_from<RcuObject> T>
         void retire(T *object [[gnu::nonnull]]) noexcept [[clang::reentrant, clang::nonblocking]] {
-            enqueue(object, [](void *ptr) { delete static_cast<T*>(ptr); });
+            enqueue(object, [](RcuDomain *domain [[maybe_unused]], void *ptr) { delete static_cast<T*>(ptr); });
         }
 
         /// @brief Enqueue a function to be called during reclaimation.
@@ -95,14 +98,14 @@ namespace sm {
         /// @param fn The function to call during reclaimation.
         ///
         /// @warning @p object is not automatically deleted, its memory must be managed externally.
-        void enqueue(RcuObject *object [[gnu::nonnull]], void(*fn [[gnu::nonnull]])(void*)) noexcept [[clang::reentrant, clang::nonblocking]];
+        void enqueue(RcuObject *object [[gnu::nonnull]], RetireCallback fn [[gnu::nonnull]]) noexcept [[clang::reentrant, clang::nonblocking]];
 
         /// @brief Defer a call to happen during reclaimation.
         ///
         /// @param data Argument to provide to @p fn
         /// @param fn Function to call during reclaimation
         [[nodiscard]]
-        OsStatus call(void *data, void(*fn [[gnu::nonnull]])(void*)) [[clang::allocating, clang::nonreentrant]];
+        OsStatus call(void *data, RetireCallback fn [[gnu::nonnull]]) [[clang::allocating, clang::nonreentrant]];
 
     private:
         static constexpr uint32_t kCurrentGeneration = (1u << (sizeof(uint32_t) * CHAR_BIT - 1));
@@ -131,7 +134,7 @@ namespace sm {
 
         void releaseReadLock(detail::RcuGeneration *generation) noexcept [[clang::reentrant]];
 
-        detail::RcuGeneration *currentGeneration(uint32_t state) noexcept [[clang::reentrant]] {
+        detail::RcuGeneration *selectGeneration(uint32_t state) noexcept [[clang::reentrant]] {
             return &mGenerations[state & kCurrentGeneration ? 1 : 0];
         }
 
@@ -148,7 +151,7 @@ namespace sm {
         friend detail::RcuGeneration;
 
         std::atomic<RcuObject*> rcuNextObject = nullptr;
-        void(*rcuRetireFn)(void*) = nullptr;
+        RetireCallback rcuRetireFn = nullptr;
     };
 
     /// @brief Manages the lifetime of a reader lock on a RCU domain.
@@ -174,7 +177,7 @@ namespace sm {
         template<std::derived_from<RcuObject> T>
         void retire(T *object [[gnu::nonnull]]) noexcept [[clang::reentrant, clang::nonblocking]] {
             KM_ASSERT(mGeneration != nullptr);
-            enqueue(object, [](void *ptr) { delete static_cast<T*>(ptr); });
+            enqueue(object, [](RcuDomain *domain [[maybe_unused]], void *ptr) { delete static_cast<T*>(ptr); });
         }
 
         /// @brief Enqueue a function to be called during reclaimation.
@@ -183,7 +186,9 @@ namespace sm {
         ///
         /// @param object The object to retire.
         /// @param fn The function to call during reclaimation.
-        void enqueue(RcuObject *object [[gnu::nonnull]], void(*fn [[gnu::nonnull]])(void*)) noexcept [[clang::reentrant, clang::nonblocking]];
+        void enqueue(RcuObject *object [[gnu::nonnull]], RetireCallback fn [[gnu::nonnull]]) noexcept [[clang::reentrant, clang::nonblocking]];
+
+        OsStatus call(void *data, RetireCallback fn [[gnu::nonnull]]) noexcept [[clang::allocating]];
 
         constexpr bool operator==(const RcuGuard& other) const noexcept [[clang::reentrant, clang::nonblocking]] {
             return mGeneration == other.mGeneration;

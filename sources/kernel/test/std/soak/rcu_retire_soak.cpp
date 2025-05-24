@@ -9,10 +9,10 @@
 
 #include <cassert>
 
-struct ObjectWithData : public sm::RcuObject {
+struct AtomicSharedPtr : public sm::RcuObject {
     unsigned data;
 
-    ObjectWithData(unsigned d)
+    AtomicSharedPtr(unsigned d)
         : data(d)
     { }
 };
@@ -35,10 +35,10 @@ int main() {
 
         std::mt19937 mt{0x1234};
         std::uniform_int_distribution<size_t> dist(0, kObjectCount - 1);
-        std::vector<std::atomic<ObjectWithData*>> objects { kObjectCount };
+        std::vector<std::atomic<AtomicSharedPtr*>> objects { kObjectCount };
         for (size_t i = 0; i < kObjectCount; i++) {
             mallocs += 1;
-            objects[i].store(new ObjectWithData(dist(mt)));
+            objects[i].store(new AtomicSharedPtr(dist(mt)));
         }
 
         for (size_t i = 0; i < kThreadCount; i++) {
@@ -50,13 +50,13 @@ int main() {
                     size_t index = dist(mt);
                     size_t op = dist(mt) % 2;
                     if (op == 0) {
-                        ObjectWithData *object = objects[index].load();
+                        AtomicSharedPtr *object = objects[index].load();
                         if (object != nullptr) {
                             sum += object->data;
                         }
                     } else {
                         mallocs += 1;
-                        ObjectWithData *object = objects[index].exchange(new ObjectWithData(dist(mt)));
+                        AtomicSharedPtr *object = objects[index].exchange(new AtomicSharedPtr(dist(mt)));
                         if (object != nullptr) {
                             sm::RcuGuard inner(domain);
                             // assert(inner == guard);
@@ -82,7 +82,7 @@ int main() {
         }
 
         for (size_t i = 0; i < kObjectCount; i++) {
-            ObjectWithData *object = objects[i].load();
+            AtomicSharedPtr *object = objects[i].load();
             if (object != nullptr) {
                 delete object;
                 frees += 1;

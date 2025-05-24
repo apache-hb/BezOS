@@ -27,7 +27,7 @@ int main() {
                 while (running) {
                     void *data = malloc(256);
                     mallocs += 1;
-                    OsStatus status = domain.call(data, [](void *data) {
+                    OsStatus status = domain.call(data, [](sm::RcuDomain *domain [[maybe_unused]], void *data) {
                         free(data);
                         frees += 1;
                     });

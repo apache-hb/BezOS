@@ -13,7 +13,7 @@ namespace sm {
     bool rcuRetain(T *object) noexcept [[clang::reentrant, clang::nonblocking]];
 
     class RcuProtect : public RcuObject {
-        detail::WaitFreeCounter<uint32_t> mOwners;
+        detail::StickyCounter<uint32_t> mOwners;
 
         template<std::derived_from<RcuProtect> T>
         friend bool rcuRetire(RcuGuard& guard, T *object) noexcept [[clang::reentrant, clang::nonblocking]] {

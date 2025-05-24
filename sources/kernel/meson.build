@@ -176,6 +176,40 @@ bench_kwargs = {
     'override_options' : [ 'b_sanitize=none', 'b_coverage=false' ],
 }
 
+# TLSF
+
+tlsf_src = tlsf.get_variable('sources')
+
+libtlsf_kernel = static_library('tlsf', tlsf_src,
+    kwargs : kernel_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+libtlsf_native = static_library('tlsf_native', tlsf_src,
+    kwargs : native_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+libtlsf_nosanitize = static_library('tlsf_nosanitize', tlsf_src,
+    kwargs : nosan_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+libtlsf_tsan = static_library('tlsf_tsan', tlsf_src,
+    kwargs : tsan_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+libtlsf_bench = static_library('tlsf_bench', tlsf_src,
+    kwargs : bench_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
 # RCU
 
 rcu_src = files(
@@ -319,8 +353,6 @@ system_src = files(
 )
 
 src = [
-    tlsf.get_variable('sources'),
-
     # Utilities
     'src/util/cpuid.cpp',
     'src/util/memory.cpp',
@@ -474,6 +506,7 @@ endif
 
 kernel_libs = [
     libs,
+    libtlsf_kernel,
     librcu_kernel,
     libformat_kernel,
     liblogging_kernel,

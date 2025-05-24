@@ -142,7 +142,7 @@ test_exe_kwargs = {
     'link_with': [ test_shim, fs_test_shim, memory_test_shim, system_test_lib, liblogging_native ],
 }
 
-# Test cases
+# Benchmarks
 
 benchcases = {
     'ringbuffer': {
@@ -170,7 +170,11 @@ foreach name, setup : benchcases
     )
 endforeach
 
-testcases2 = {
+##
+## Tests
+##
+
+testcases = {
     'static vector': {
         'sources': files('static_vector.cpp'),
         'link_with': [ test_shim ],
@@ -197,13 +201,6 @@ testcases2 = {
     },
     'ringbuffer': {
         'sources': files('std/ringbuffer.cpp'),
-    },
-    'ringbuffer soak': {
-        'sources': [
-            files('std/ringbuffer_soak.cpp'),
-            tlsf.get_variable('sources'),
-        ],
-        'soak': true,
     },
     'static string': {
         'sources': files('std/static_string.cpp'),
@@ -243,19 +240,16 @@ testcases2 = {
     'rcu': {
         'sources': [
             files('std/rcu.cpp'),
-            tlsf.get_variable('sources'),
         ],
         'override_options': [ 'b_sanitize=thread', 'b_coverage=true' ],
-        'link_with': [ librcu_tsan, test_shim ],
+        'link_with': [ libtlsf_tsan, librcu_tsan, test_shim ],
     },
-    'rcu soak': {
+    'rcu retire slots': {
         'sources': [
-            files('std/rcu_soak.cpp'),
-            tlsf.get_variable('sources'),
+            files('std/rcu_retire_slots.cpp'),
         ],
-        'link_with': [ librcu_native, test_shim ],
-        'soak': true,
-        'protocol': 'exitcode',
+        'override_options': [ 'b_sanitize=thread', 'b_coverage=true' ],
+        'link_with': [ libtlsf_tsan, librcu_tsan, test_shim ],
     },
     # 'rcuptr soak': {
     #     'sources': [
@@ -266,27 +260,55 @@ testcases2 = {
     #     'soak': true,
     #     'protocol': 'exitcode',
     # },
+}
+
+##
+## Soak tests
+##
+
+testcases += {
+    'rcu soak': {
+        'sources': [
+            files('std/soak/rcu_soak.cpp'),
+        ],
+        'link_with': [ libtlsf_native, librcu_native, test_shim ],
+        'soak': true,
+        'protocol': 'exitcode',
+    },
     'rcu retire soak': {
         'sources': [
-            files('std/rcu_retire_soak.cpp'),
-            tlsf.get_variable('sources'),
+            files('std/soak/rcu_retire_soak.cpp'),
         ],
-        'link_with': [ librcu_native, test_shim ],
+        'link_with': [ libtlsf_native, librcu_native, test_shim ],
         'soak': true,
         'protocol': 'exitcode',
     },
     'rcu protect soak': {
         'sources': [
-            files('std/rcu_protect_soak.cpp'),
-            tlsf.get_variable('sources'),
+            files('std/soak/rcu_protect_soak.cpp'),
         ],
-        'link_with': [ librcu_native, test_shim ],
+        'link_with': [ libtlsf_native, librcu_native, test_shim ],
         'soak': true,
         'protocol': 'exitcode',
     },
+    'rcu retire slots soak': {
+        'sources': [
+            files('std/soak/rcu_retire_slots_soak.cpp'),
+        ],
+        'link_with': [ libtlsf_native, librcu_native, test_shim ],
+        'soak': true,
+        'protocol': 'exitcode',
+    },
+    'ringbuffer soak': {
+        'sources': [
+            files('std/soak/ringbuffer_soak.cpp'),
+        ],
+        'soak': true,
+        'link_with': [ libtlsf_native ],
+    },
 }
 
-foreach name, setup : testcases2
+foreach name, setup : testcases
     protocol = setup.get('protocol', 'gtest')
     dependencies = [ common, sysapi ]
     if protocol == 'gtest'
@@ -684,16 +706,6 @@ testcases = {
             '../src/terminal/buffered.cpp',
         ],
         'dependencies' : [ stb_image_write ],
-    },
-    # rcu shared ptrs are still unsound
-    'rcuptr': {
-        'sources': [
-            'std/rcuptr.cpp',
-            '../src/std/rcu.cpp',
-            '../src/std/rcuptr.cpp',
-        ],
-        'override_options': [ 'b_sanitize=address', 'b_coverage=true' ],
-        'dependencies' : [ ],
     },
     # 'launch': {
     #     'sources': [

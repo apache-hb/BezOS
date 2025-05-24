@@ -7,8 +7,8 @@
 namespace sm {
     namespace rcu::detail {
         class JointCount {
-            sm::detail::WaitFreeCounter<uint32_t> mWeakCount;
-            sm::detail::WaitFreeCounter<uint32_t> mStrongCount;
+            sm::detail::StickyCounter<uint32_t> mWeakCount;
+            sm::detail::StickyCounter<uint32_t> mStrongCount;
 
         public:
             enum Release { eNone = 0, eStrong = (1 << 0), eWeak = (1 << 1) };
@@ -87,11 +87,11 @@ namespace sm {
         struct ControlBlock : public RcuObject {
             JointCount count;
             void *value;
-            void(*deleter)(void*);
+            RetireCallback deleter;
             RcuDomain *domain;
             RcuToken *token;
 
-            ControlBlock(void *v, void (*d)(void*), RcuDomain *r, RcuToken *t)
+            ControlBlock(void *v, RetireCallback d, RcuDomain *r, RcuToken *t)
                 : RcuObject()
                 , count(1, 1)
                 , value(v)
@@ -103,7 +103,7 @@ namespace sm {
 
         template<typename T>
         ControlBlock *NewControlBlock(RcuDomain *domain, T *value) {
-            void (*finalize)(void*) = [](void *ptr) {
+            RetireCallback finalize = [](RcuDomain *domain [[maybe_unused]], void *ptr) {
                 RcuToken *token = static_cast<RcuToken*>(ptr);
                 delete static_cast<T*>(token->value);
                 delete token;

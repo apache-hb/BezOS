@@ -8,8 +8,6 @@
 // RcuDomain implementation
 //
 
-#define SM_GENERATIONAL_RCU 1
-
 sm::RcuDomain::~RcuDomain() noexcept {
     size_t count = 0;
     while (count < std::size(mGenerations) + 1) {
@@ -26,7 +24,6 @@ sm::RcuDomain::~RcuDomain() noexcept {
 }
 
 size_t sm::RcuDomain::synchronize() noexcept [[clang::allocating, clang::blocking, clang::nonreentrant]] {
-#if SM_GENERATIONAL_RCU
     //
     // Swap out the current generation with a new one and then
     // loop until all readers have finished with data in this generation.
@@ -40,54 +37,16 @@ size_t sm::RcuDomain::synchronize() noexcept [[clang::allocating, clang::blockin
     // Once it is safe to do so we cleanup all the old state. exchange()
     // ensures that no new readers can be added to this generation.
     //
-    return generation->destroy();
-#else
-    detail::RcuGeneration *generation = &mGenerations[0];
-    while (generation->isLocked()) {
-        _mm_pause();
-    }
-
-    RcuObject *head = generation->mHead.exchange(nullptr);
-
-    size_t count = 0;
-    while (head != nullptr) {
-        RcuObject *next = head->rcuNextObject.load();
-        head->rcuRetireFn(head);
-        head = next;
-
-        count += 1;
-    }
-
-    return count;
-#endif
+    return generation->destroy(this);
 }
 
-OsStatus sm::RcuDomain::call(void *data, void(*fn)(void*)) [[clang::allocating, clang::nonreentrant]] {
-    struct RcuCall : public sm::RcuObject {
-        void *value;
-        void(*call)(void*);
-    };
-
-    if (RcuCall *call = new (std::nothrow) RcuCall()) {
-        RcuGuard guard(*this);
-
-        call->value = data;
-        call->call = fn;
-        call->rcuRetireFn = [](void *ptr) {
-            RcuCall *call = static_cast<RcuCall*>(ptr);
-            call->call(call->value);
-            delete call;
-        };
-
-        guard.append(call);
-
-        return OsStatusSuccess;
-    }
-
-    return OsStatusOutOfMemory;
+OsStatus sm::RcuDomain::call(void *data, RetireCallback fn) [[clang::allocating, clang::nonreentrant]] {
+    // TODO: extract out the call allocation so we only take a read lock if we allocate successfully.
+    RcuGuard guard(*this);
+    return guard.call(data, fn);
 }
 
-void sm::RcuDomain::enqueue(RcuObject *object, void(*fn)(void*)) noexcept [[clang::reentrant, clang::nonblocking, clang::nonallocating]] {
+void sm::RcuDomain::enqueue(RcuObject *object, RetireCallback fn) noexcept [[clang::reentrant, clang::nonblocking, clang::nonallocating]] {
     object->rcuRetireFn = fn;
     append(object);
 }
@@ -98,32 +57,25 @@ void sm::RcuDomain::append(RcuObject *object) noexcept [[clang::reentrant, clang
 }
 
 sm::detail::RcuGeneration *sm::RcuDomain::acquireReadLock() noexcept [[clang::reentrant, clang::nonblocking]] {
-#if SM_GENERATIONAL_RCU
     // Protect the current generation from being swapped out while we are
     // acquiring it. We then update its reader count and release the guard.
     // This prevents the generation from having its data cleaned up before the guard
     // is acquired.
     uint32_t state = mState.fetch_add(1);
-    detail::RcuGeneration *current = currentGeneration(state);
+    detail::RcuGeneration *current = selectGeneration(state);
 
     current->lock();
 
     return current;
-#else
-    detail::RcuGeneration *current = &mGenerations[0];
-    current->lock();
-    return current;
-#endif
 }
 
 void sm::RcuDomain::releaseReadLock(detail::RcuGeneration *generation) noexcept [[clang::reentrant]] {
-    KM_ASSERT(generation == currentGeneration(mState.load()));
+    KM_ASSERT(generation == selectGeneration(mState.load()));
     generation->unlock();
     mState.fetch_sub(1);
 }
 
 sm::detail::RcuGeneration *sm::RcuDomain::exchange() noexcept [[clang::reentrant]] {
-#if SM_GENERATIONAL_RCU
     uint32_t current = mState.load() & kCurrentGeneration;
     uint32_t expected = current;
 
@@ -136,9 +88,6 @@ sm::detail::RcuGeneration *sm::RcuDomain::exchange() noexcept [[clang::reentrant
     }
 
     return &mGenerations[current ? 1 : 0];
-#else
-    return &mGenerations[0];
-#endif
 }
 
 //
@@ -155,14 +104,14 @@ void sm::detail::RcuGeneration::append(RcuObject *object) noexcept [[clang::reen
     } while (!mHead.compare_exchange_strong(head, object));
 }
 
-size_t sm::detail::RcuGeneration::destroy() noexcept [[clang::nonreentrant]] {
+size_t sm::detail::RcuGeneration::destroy(RcuDomain *domain) noexcept [[clang::nonreentrant]] {
     KM_ASSERT(mGuard == 0);
 
     size_t count = 0;
     RcuObject *head = mHead.exchange(nullptr);
     while (head != nullptr) {
         RcuObject *next = head->rcuNextObject.load();
-        head->rcuRetireFn(head);
+        head->rcuRetireFn(domain, head);
         head = next;
 
         count += 1;
@@ -208,9 +157,32 @@ sm::RcuGuard::RcuGuard(RcuGuard&& other) noexcept [[clang::reentrant]]
     : mGeneration(std::exchange(other.mGeneration, nullptr))
 { }
 
-void sm::RcuGuard::enqueue(RcuObject *object [[gnu::nonnull]], void(*fn [[gnu::nonnull]])(void*)) noexcept [[clang::reentrant, clang::nonblocking]] {
+void sm::RcuGuard::enqueue(RcuObject *object, RetireCallback fn) noexcept [[clang::reentrant, clang::nonblocking]] {
     object->rcuRetireFn = fn;
     append(object);
+}
+
+OsStatus sm::RcuGuard::call(void *data, RetireCallback fn) noexcept [[clang::allocating]] {
+    struct RcuCall : public sm::RcuObject {
+        void *value;
+        RetireCallback call;
+    };
+
+    if (RcuCall *call = new (std::nothrow) RcuCall()) {
+        call->value = data;
+        call->call = fn;
+        call->rcuRetireFn = [](RcuDomain *domain, void *ptr) {
+            RcuCall *call = static_cast<RcuCall*>(ptr);
+            call->call(domain, call->value);
+            delete call;
+        };
+
+        append(call);
+
+        return OsStatusSuccess;
+    }
+
+    return OsStatusOutOfMemory;
 }
 
 void sm::RcuGuard::append(RcuObject *object) noexcept [[clang::reentrant, clang::nonblocking]] {

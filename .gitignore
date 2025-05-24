@@ -17,7 +17,6 @@ data/hyper/*
 /sources/system/subprojects/flanterm
 *.code-workspace
 .clangd
-soak/
 events.bin
 /sources/sysapi/subprojects/common
 /sources/kernel/subprojects/common
