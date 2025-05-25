@@ -298,6 +298,14 @@ testcases += {
         'soak': true,
         'link_with': [ libtlsf_native ],
     },
+    'rcu shared soak': {
+        'sources': [
+            files('std/soak/rcu_shared_soak.cpp'),
+        ],
+        'link_with': [ librcu_native, test_shim ],
+        'soak': true,
+        'protocol': 'exitcode',
+    },
 }
 
 foreach name, setup : testcases

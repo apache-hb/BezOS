@@ -83,12 +83,12 @@ namespace sm::detail {
             return mWeakCount.increment(count);
         }
 
-        void deferReleaseStrong(RcuGuard&, CounterInt count) noexcept {
+        void deferReleaseStrong(CounterInt count) noexcept {
             sm::RcuGuard inner(*mDomain);
             mSlots.retireStrong(inner, this, count);
         }
 
-        void deferReleaseWeak(RcuGuard&, CounterInt count) noexcept {
+        void deferReleaseWeak(CounterInt count) noexcept {
             sm::RcuGuard inner(*mDomain);
             mSlots.retireWeak(inner, this, count);
         }

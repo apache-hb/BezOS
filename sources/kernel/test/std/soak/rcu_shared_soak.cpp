@@ -1,3 +1,4 @@
+#include "std/rcu/atomic.hpp"
 #ifdef NDEBUG
 #   undef NDEBUG
 #endif
@@ -34,49 +35,6 @@ struct InnerObject {
     }
 };
 
-using Object = sm::detail::CountedObject<InnerObject>;
-
-struct AtomicSharedPtr {
-    std::atomic<Object*> mControl;
-
-    AtomicSharedPtr(sm::RcuDomain *domain)
-        : AtomicSharedPtr(domain, 0)
-    { }
-
-    AtomicSharedPtr(sm::RcuDomain *domain, unsigned d)
-        : mControl(new Object(domain, d))
-    { }
-
-    AtomicSharedPtr(AtomicSharedPtr&& other)
-        : mControl(other.mControl.load())
-    {
-        other.mControl.store(nullptr);
-    }
-
-    Object *load() {
-        Object *control = mControl.load();
-
-        if (control != nullptr && control->retainStrong(1)) {
-            return control;
-        }
-
-        return nullptr;
-    }
-
-    void store(Object *control) {
-        Object *old = mControl.exchange(control);
-        if (old != control) {
-            if (control != nullptr) {
-                control->retainStrong(1);
-            }
-
-            if (old != nullptr) {
-                old->deferReleaseStrong(1);
-            }
-        }
-    }
-};
-
 int main() {
     static constexpr size_t kThreadCount = 8;
     static constexpr size_t kObjectCount = 1024 * 1024;
@@ -89,14 +47,10 @@ int main() {
 
         std::mt19937 mt{0x1234};
         std::uniform_int_distribution<size_t> dist(0, kObjectCount - 1);
-        struct Storage {
-            alignas(alignof(AtomicSharedPtr)) char data[sizeof(AtomicSharedPtr)];
-        };
-        std::unique_ptr<Storage[]> storage(new Storage[kObjectCount]);
-        AtomicSharedPtr *objects = reinterpret_cast<AtomicSharedPtr*>(storage.get());
+        std::unique_ptr<sm::RcuAtomic<InnerObject>[]> objects(new sm::RcuAtomic<InnerObject>[kObjectCount]);
+
         for (size_t i = 0; i < kObjectCount; i++) {
-            new (&storage[i]) AtomicSharedPtr(&domain);
-            objects[i].mControl.load()->get().value = dist(mt);
+            objects[i].reset(&domain, dist(mt));
         }
 
         for (size_t i = 0; i < kThreadCount; i++) {
@@ -107,24 +61,20 @@ int main() {
                     size_t index0 = dist(mt);
                     size_t index1 = dist(mt);
                     size_t op = dist(mt) % 3;
-                    Object *object = nullptr;
 
                     {
                         sm::RcuGuard guard(domain);
+                        sm::RcuShared<InnerObject> object = nullptr;
                         object = objects[index0].load();
                         if (op == 0) {
                             if (object) {
-                                sum += object->get().value;
+                                sum += object.get()->value;
                             }
                         } else if (op == 1) {
                             if (object) {
                                 objects[index1].store(object);
                             }
                         }
-                    }
-
-                    if (object) {
-                        object->deferReleaseStrong(1);
                     }
                 }
             });
@@ -141,12 +91,6 @@ int main() {
         running = false;
         for (auto &thread : threads) {
             thread.join();
-        }
-
-        for (size_t i = 0; i < kObjectCount; i++) {
-            if (Object *object = objects[i].mControl.load()) {
-                object->deferReleaseStrong(1);
-            }
         }
     }
 
