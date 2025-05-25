@@ -1,0 +1,11 @@
+[wrap-file]
+directory = relacy-f1cee3b5d2875e4f66a9a53f2f344510bb04a0f6
+
+source_url = https://github.com/dvyukov/relacy/archive/f1cee3b5d2875e4f66a9a53f2f344510bb04a0f6.zip
+source_filename = relacy-f1cee3b5d2875e4f66a9a53f2f344510bb04a0f6.zip
+source_hash = b15502b4454a11c9ab136e356bedae932dbc4a7e44ec29c04e0d7959a38e127f
+
+patch_directory = relacy
+
+[provide]
+dependency_names = relacy

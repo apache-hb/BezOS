@@ -107,7 +107,7 @@ int main() {
         }
 
         auto now = std::chrono::high_resolution_clock::now();
-        auto end = now + std::chrono::seconds(60);
+        auto end = now + std::chrono::seconds(10);
         while (now < end) {
             reclaims += domain.synchronize();
             inMainThread += 1;

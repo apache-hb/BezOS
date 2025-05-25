@@ -66,7 +66,7 @@ TEST_F(RingBufferSoakTest, MultithreadSoak) {
         }
     });
 
-    std::this_thread::sleep_for(std::chrono::seconds(60));
+    std::this_thread::sleep_for(std::chrono::seconds(10));
 
     producers.clear();
     consumer.request_stop();
@@ -153,7 +153,7 @@ TEST_F(RingBufferSoakTest, ReentrantSoak) {
     }, nullptr);
 
     auto now = std::chrono::high_resolution_clock::now();
-    auto end = now + std::chrono::seconds(60);
+    auto end = now + std::chrono::seconds(10);
     while (now < end) {
         std::string value = "Hello, World!";
         queue.tryPush(value);

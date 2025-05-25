@@ -2,7 +2,6 @@
 
 #include <bezos/handle.h>
 
-#include "std/rcu_protect.hpp"
 #include "std/rcuptr.hpp"
 #include "system/create.hpp"
 

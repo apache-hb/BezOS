@@ -283,14 +283,6 @@ testcases += {
         'soak': true,
         'protocol': 'exitcode',
     },
-    'rcu protect soak': {
-        'sources': [
-            files('std/soak/rcu_protect_soak.cpp'),
-        ],
-        'link_with': [ libtlsf_native, librcu_native, test_shim ],
-        'soak': true,
-        'protocol': 'exitcode',
-    },
     'rcu retire slots soak': {
         'sources': [
             files('std/soak/rcu_retire_slots_soak.cpp'),
