@@ -1,6 +1,7 @@
 #pragma once
 
 #include "std/detail/counted.hpp"
+
 namespace sm {
     template<typename T>
     class RcuShared {
@@ -62,8 +63,7 @@ namespace sm {
 
         RcuShared& operator=(RcuShared<T>&& other) noexcept {
             if (this != &other) {
-                Counted *otherControl = std::exchange(other.mControl, nullptr);
-                Counted *old = std::exchange(mControl, otherControl);
+                Counted *old = exchangeControl(other.exchangeControl());
 
                 if (old) {
                     old->deferReleaseStrong(1);
@@ -77,7 +77,7 @@ namespace sm {
         }
 
         void reset() noexcept {
-            if (Counted *old = std::exchange(mControl, nullptr)) {
+            if (Counted *old = exchangeControl()) {
                 old->deferReleaseStrong(1);
             }
         }
@@ -88,6 +88,10 @@ namespace sm {
 
         operator bool() const noexcept {
             return get() != nullptr;
+        }
+
+        bool isValid() const noexcept {
+            return mControl;
         }
     };
 }

@@ -14,6 +14,8 @@
 static std::atomic<size_t> sum = 0;
 static std::atomic<size_t> syncronizes = 0;
 static std::atomic<size_t> reclaimed = 0;
+static std::atomic<size_t> swaps = 0;
+static std::atomic<size_t> failedSwaps = 0;
 
 static std::atomic<size_t> live = 0;
 
@@ -59,19 +61,24 @@ int main() {
                 while (running) {
                     size_t index0 = dist(mt);
                     size_t index1 = dist(mt);
-                    size_t op = dist(mt) % 3;
+                    size_t op = dist(mt) % 2;
 
                     {
                         sm::RcuGuard guard(domain);
-                        sm::RcuShared<InnerObject> object = nullptr;
-                        object = objects[index0].load();
+                        sm::RcuShared<InnerObject> object0 = objects[index0].load();
+                        sm::RcuShared<InnerObject> object1 = objects[index1].load();
                         if (op == 0) {
-                            if (object) {
-                                sum += object.get()->value;
+                            if (objects[index0].compare_exchange_weak(object0, object0)) {
+                                sum += object0.get()->value;
+                                swaps += 1;
+                            } else {
+                                failedSwaps += 1;
                             }
                         } else if (op == 1) {
-                            if (object) {
-                                objects[index1].store(object);
+                            if (objects[index0].compare_exchange_weak(object1, object0)) {
+                                swaps += 1;
+                            } else {
+                                failedSwaps += 1;
                             }
                         }
                     }
@@ -93,11 +100,13 @@ int main() {
         }
     }
 
-    fprintf(stderr, "syncronizes: %zu, reclaimed: %zu, live: %zu\n",
-           syncronizes.load(), reclaimed.load(), live.load());
+    fprintf(stderr, "syncronizes: %zu, reclaimed: %zu, live: %zu, swaps: %zu, failedSwaps: %zu\n",
+            syncronizes.load(), reclaimed.load(), live.load(), swaps.load(), failedSwaps.load());
 
     assert(syncronizes > 0);
     assert(reclaimed > 0);
     assert(sum > 0);
     assert(live == 0);
+    assert(swaps > 0);
+    assert(failedSwaps > 0);
 }

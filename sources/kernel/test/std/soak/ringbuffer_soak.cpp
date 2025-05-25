@@ -175,7 +175,7 @@ TEST_F(RingBufferSoakTest, ReentrantSoak) {
 
     ASSERT_FALSE(ipSamples.empty());
 
-    std::ofstream file("ringbuffer_soak_ip_samples.txt");
+    std::ofstream file(std::format("ringbuffer_reentrant_soak_ip_samples/{}.txt", getpid()));
 
     for (const auto &[ip, count] : ipSamples) {
         Dl_info info;

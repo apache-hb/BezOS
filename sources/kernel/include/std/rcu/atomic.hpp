@@ -52,6 +52,24 @@ namespace sm {
             }
         }
 
+        bool compare_exchange_weak(RcuShared<T>& expected, const RcuShared<T>& desired) noexcept {
+            Counted *expectedObject = expected.mControl;
+            Counted *desiredObject = desired.mControl;
+            if (!mControl.compare_exchange_strong(expectedObject, desiredObject)) {
+                expected = load();
+                return false;
+            } else {
+                if (desiredObject) {
+                    desiredObject->retainStrong(1);
+                }
+
+                if (expectedObject) {
+                    expectedObject->deferReleaseStrong(1);
+                }
+                return true;
+            }
+        }
+
         OsStatus reset(sm::RcuDomain *domain) noexcept {
             Counted *newObject = new (std::nothrow) Counted(domain);
             if (!newObject) {

@@ -1,3 +1,4 @@
+#include "std/rcu/atomic.hpp"
 #ifdef NDEBUG
 #   undef NDEBUG
 #endif
@@ -39,15 +40,13 @@ int main() {
 
     {
         sm::RcuDomain domain;
-        std::vector<sm::RcuSharedPtr<std::string>> data;
-        std::vector<sm::RcuSharedPtr<std::string>> data2;
-        data.resize(kElementCount);
-        data2.resize(kElementCount);
+        std::vector<sm::RcuAtomic<std::string>> data { kElementCount };
+        std::vector<sm::RcuAtomic<std::string>> data2 { kElementCount };
 
         StringGenerator strings;
 
         for (size_t i = 0; i < kElementCount; i++) {
-            data[i] = sm::rcuMakeShared<std::string>(&domain, strings(kStringSize));
+            data[i].reset(&domain, strings(kStringSize));
         }
 
         std::vector<size_t> indices;
@@ -88,17 +87,25 @@ int main() {
                     size_t i1 = getNextIndex();
                     size_t i2 = getNextIndex();
                     sm::RcuGuard guard(domain);
-                    data2[i1].store(&domain, data[i0]);
-                    data[i2].reset();
+                    if (sm::RcuShared object = data[i0].load()) {
+                        data2[i1].store(object);
+                        data[i2].reset();
+                    }
+
+                    if (sm::RcuShared object = data2[i2].load()) {
+                        data[i1].store(object);
+                    }
 
                     inThread += 1;
                 }
             }, [&, i](siginfo_t *, mcontext_t *mc) {
                 ipSamples[i].record(mc);
-                sm::RcuGuard guard(domain);
                 size_t i0 = getNextIndex();
                 size_t i1 = getNextIndex();
-                data2[i1] = data[i0];
+                sm::RcuGuard guard(domain);
+                if (sm::RcuShared object = data[i0].load()) {
+                    data2[i1].store(object);
+                }
 
                 inSignal += 1;
             });
@@ -129,7 +136,7 @@ int main() {
         for (size_t i = 1; i < ipSamples.size(); i++) {
             ipSamplesMerged.merge(ipSamples[i]);
         }
-        ipSamplesMerged.dump(std::format("rcu_soak_ip_samples/{}.txt", getpid()));
+        ipSamplesMerged.dump(std::format("rcu_reentrant_soak_ip_samples/{}.txt", getpid()));
 
         data.clear();
         data2.clear();

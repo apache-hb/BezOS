@@ -104,6 +104,7 @@ namespace ktest {
         }
 
         void dump(const std::filesystem::path& path) const {
+            std::filesystem::create_directories(path.parent_path());
             std::ofstream file(path);
             for (const auto& [ip, count] : mIpSamples) {
                 Dl_info info;

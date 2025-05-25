@@ -251,6 +251,12 @@ testcases = {
         'override_options': [ 'b_sanitize=thread', 'b_coverage=true' ],
         'link_with': [ libtlsf_tsan, librcu_tsan, test_shim ],
     },
+    'rcu shared': {
+        'sources': [
+            files('std/rcu_shared.cpp'),
+        ],
+        'link_with': [ librcu_native, test_shim ],
+    },
     # 'rcuptr soak': {
     #     'sources': [
     #         files('std/rcuptr_soak.cpp'),
@@ -301,6 +307,14 @@ testcases += {
     'rcu shared soak': {
         'sources': [
             files('std/soak/rcu_shared_soak.cpp'),
+        ],
+        'link_with': [ librcu_native, test_shim ],
+        'soak': true,
+        'protocol': 'exitcode',
+    },
+    'rcu cmpxchg soak': {
+        'sources': [
+            files('std/soak/rcu_cmpxchg_soak.cpp'),
         ],
         'link_with': [ librcu_native, test_shim ],
         'soak': true,
