@@ -10,8 +10,9 @@ project('bezos', [ 'c', 'cpp' ],
         'b_ndebug=true',
         'cpp_eh=none',
         'cpp_rtti=false',
-        'b_coverage=false',
+        'b_coverage=true',
         'build.b_coverage=true',
+        'abseil-cpp:b_coverage=false',
     ],
     version : '0.0.1',
     license : 'GPL-3.0-only',
@@ -142,6 +143,7 @@ kernel_cpp_args = cpp_args + kernel_args + sanitizer_args
 kernel_kwargs = {
     'c_args': c_args + kernel_args + sanitizer_args,
     'cpp_args': cpp_args + kernel_args + sanitizer_args,
+    'override_options': [ 'b_coverage=false' ],
 }
 
 native_kwargs = {

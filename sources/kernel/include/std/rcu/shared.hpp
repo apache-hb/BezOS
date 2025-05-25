@@ -11,6 +11,9 @@ namespace sm {
         template<typename U>
         friend class RcuAtomic;
 
+        template<typename U>
+        friend class RcuWeak;
+
         Counted *exchangeControl(Counted *other = nullptr) noexcept {
             return std::exchange(mControl, other);
         }
@@ -104,6 +107,10 @@ namespace sm {
 
         bool isValid() const noexcept {
             return mControl;
+        }
+
+        bool operator==(const RcuShared<T>& other) const noexcept {
+            return mControl == other.mControl;
         }
     };
 }

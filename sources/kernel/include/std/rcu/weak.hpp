@@ -23,6 +23,14 @@ namespace sm {
     public:
         constexpr RcuWeak() noexcept = default;
 
+        RcuWeak(const RcuShared<T>& object) noexcept
+            : mControl(object.mControl)
+        {
+            if (mControl) {
+                mControl->retainWeak(1);
+            }
+        }
+
         RcuWeak(const RcuWeak& other) noexcept
             : mControl(other.mControl)
         {

@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "std/rcu/atomic.hpp"
+#include "std/rcu/weak.hpp"
 
 class RcuSharedTest : public testing::Test {
 public:
@@ -20,4 +21,33 @@ TEST_F(RcuSharedTest, CompareExchangeFail) {
     sm::RcuShared<int> desired = atomic.load();
     ASSERT_FALSE(atomic.compare_exchange_weak(expected, desired));
     ASSERT_EQ(*expected.get(), 42);
+}
+
+TEST_F(RcuSharedTest, Copy) {
+    sm::RcuShared<int> shared(&domain, 42);
+    sm::RcuShared<int> copy = shared;
+    ASSERT_EQ(*copy.get(), 42);
+    ASSERT_EQ(shared.strongCount(), 2);
+    ASSERT_EQ(copy.strongCount(), 2);
+}
+
+TEST_F(RcuSharedTest, Weak) {
+    sm::RcuShared<int> shared(&domain, 42);
+    sm::RcuWeak<int> weak = shared;
+    ASSERT_EQ(*weak.lock().get(), 42);
+    ASSERT_GE(shared.strongCount(), 1);
+    ASSERT_EQ(weak.weakCount(), 1);
+}
+
+TEST_F(RcuSharedTest, WeakOnly) {
+    sm::RcuWeak<int> weak;
+
+    {
+        sm::RcuShared<int> shared(&domain, 42);
+        weak = shared;
+    }
+    domain.synchronize();
+
+    ASSERT_EQ(weak.lock(), nullptr);
+    ASSERT_EQ(weak.weakCount(), 1);
 }
