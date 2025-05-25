@@ -93,6 +93,14 @@ namespace sm {
             return mControl ? &mControl->get() : nullptr;
         }
 
+        const T *operator->() const noexcept {
+            return get();
+        }
+
+        T *operator->() noexcept {
+            return get();
+        }
+
         detail::CounterInt strongCount() const noexcept {
             return mControl ? mControl->strongCount() : 0;
         }

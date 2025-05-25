@@ -5,6 +5,9 @@
 
 class RcuSharedTest : public testing::Test {
 public:
+    static void SetUpTestSuite() {
+        setbuf(stdout, nullptr);
+    }
     sm::RcuDomain domain;
 };
 
@@ -50,4 +53,26 @@ TEST_F(RcuSharedTest, WeakOnly) {
 
     ASSERT_EQ(weak.lock(), nullptr);
     ASSERT_EQ(weak.weakCount(), 1);
+}
+
+TEST_F(RcuSharedTest, Store) {
+    sm::RcuAtomic<int> atomic(&domain, 42);
+    sm::RcuAtomic<int> atomic2(&domain, 100);
+
+    sm::RcuShared<int> shared = atomic.load();
+    atomic2.store(shared);
+    ASSERT_EQ(*atomic2.load().get(), 42);
+}
+
+class SharedObject : public sm::RcuIntrusive<SharedObject> {
+public:
+    sm::RcuShared<SharedObject> getShared() {
+        return loanShared();
+    }
+};
+
+TEST_F(RcuSharedTest, Intrusive) {
+    sm::RcuAtomic<SharedObject> atomic(&domain);
+    sm::RcuShared<SharedObject> object = atomic.load();
+    ASSERT_NE(object->getShared(), nullptr);
 }

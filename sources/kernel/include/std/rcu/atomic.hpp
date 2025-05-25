@@ -1,6 +1,7 @@
 #pragma once
 
 #include "std/detail/counted.hpp"
+#include "std/rcu/base.hpp"
 #include "std/rcu/shared.hpp"
 
 namespace sm {
@@ -21,11 +22,25 @@ namespace sm {
         template<typename... Args>
         RcuAtomic(sm::RcuDomain *domain, Args&&... args) noexcept
             : mControl(new (std::nothrow) Counted(domain, std::forward<Args>(args)...))
-        { }
+        {
+            if constexpr (HasIntrusiveRcuBase<T>) {
+                Counted *object = mControl.load();
+                if (object) {
+                    object->get().setWeak(mControl.load());
+                }
+            }
+        }
 
         RcuAtomic(sm::RcuDomain *domain) noexcept
             : mControl(new (std::nothrow) Counted(domain))
-        { }
+        {
+            if constexpr (HasIntrusiveRcuBase<T>) {
+                Counted *object = mControl.load();
+                if (object) {
+                    object->get().setWeak(mControl.load());
+                }
+            }
+        }
 
         ~RcuAtomic() noexcept {
             reset();
