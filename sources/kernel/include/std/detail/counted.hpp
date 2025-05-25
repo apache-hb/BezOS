@@ -20,7 +20,7 @@ namespace sm::detail {
 
         friend class RetireSlots<T>;
 
-        void destroy() noexcept {
+        void dispose() noexcept {
             std::destroy_at(&get());
         }
 
@@ -61,7 +61,7 @@ namespace sm::detail {
         EjectAction releaseStrong(CounterInt count) noexcept {
             if (mStrongCount.decrement(count)) {
                 if (mWeakCount.load() == 1) {
-                    destroy();
+                    dispose();
                     return EjectAction::eDestroy;
                 } else {
                     return EjectAction::eDelay;

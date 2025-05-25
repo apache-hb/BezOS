@@ -63,6 +63,14 @@ namespace sm {
             reset();
         }
 
+        detail::CounterInt strongCount() const noexcept {
+            return mControl ? mControl->strongCount() : 0;
+        }
+
+        detail::CounterInt weakCount() const noexcept {
+            return mControl ? (mControl->weakCount() - 1) : 0;
+        }
+
         void reset() noexcept {
             if (Counted *object = exchangeControl()) {
                 object->deferReleaseWeak(1);

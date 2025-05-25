@@ -1,4 +1,3 @@
-#include "std/rcu/atomic.hpp"
 #ifdef NDEBUG
 #   undef NDEBUG
 #endif
@@ -7,7 +6,7 @@
 
 #include "std/rcu.hpp"
 #include "reentrant.hpp"
-#include "std/rcuptr.hpp"
+#include "std/rcu/atomic.hpp"
 
 #include <assert.h>
 

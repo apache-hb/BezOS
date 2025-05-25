@@ -82,8 +82,20 @@ namespace sm {
             }
         }
 
-        T *get() const noexcept {
+        T *get() noexcept {
             return mControl ? &mControl->get() : nullptr;
+        }
+
+        const T *get() const noexcept {
+            return mControl ? &mControl->get() : nullptr;
+        }
+
+        detail::CounterInt strongCount() const noexcept {
+            return mControl ? mControl->strongCount() : 0;
+        }
+
+        detail::CounterInt weakCount() const noexcept {
+            return mControl ? (mControl->weakCount() - 1) : 0;
         }
 
         operator bool() const noexcept {

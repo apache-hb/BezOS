@@ -46,12 +46,6 @@ namespace sm {
             return nullptr;
         }
 
-        void reset() noexcept {
-            if (Counted *object = mControl.exchange(nullptr)) {
-                object->deferReleaseStrong(1);
-            }
-        }
-
         bool compare_exchange_weak(RcuShared<T>& expected, const RcuShared<T>& desired) noexcept {
             Counted *expectedObject = expected.mControl;
             Counted *desiredObject = desired.mControl;
@@ -67,6 +61,12 @@ namespace sm {
                     expectedObject->deferReleaseStrong(1);
                 }
                 return true;
+            }
+        }
+
+        void reset() noexcept {
+            if (Counted *object = mControl.exchange(nullptr)) {
+                object->deferReleaseStrong(1);
             }
         }
 
