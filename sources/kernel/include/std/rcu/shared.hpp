@@ -86,11 +86,11 @@ namespace sm {
         }
 
         T *get() noexcept {
-            return mControl ? &mControl->get() : nullptr;
+            return mControl ? mControl->get() : nullptr;
         }
 
         const T *get() const noexcept {
-            return mControl ? &mControl->get() : nullptr;
+            return mControl ? mControl->get() : nullptr;
         }
 
         const T *operator->() const noexcept {

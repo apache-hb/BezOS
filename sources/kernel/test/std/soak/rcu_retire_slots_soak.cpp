@@ -96,7 +96,7 @@ int main() {
         AtomicSharedPtr *objects = reinterpret_cast<AtomicSharedPtr*>(storage.get());
         for (size_t i = 0; i < kObjectCount; i++) {
             new (&storage[i]) AtomicSharedPtr(&domain);
-            objects[i].mControl.load()->get().value = dist(mt);
+            objects[i].mControl.load()->get()->value = dist(mt);
         }
 
         for (size_t i = 0; i < kThreadCount; i++) {
@@ -114,7 +114,7 @@ int main() {
                         object = objects[index0].load();
                         if (op == 0) {
                             if (object) {
-                                sum += object->get().value;
+                                sum += object->get()->value;
                             }
                         } else if (op == 1) {
                             if (object) {

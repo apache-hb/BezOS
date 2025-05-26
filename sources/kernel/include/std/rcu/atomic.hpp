@@ -37,7 +37,7 @@ namespace sm {
             if constexpr (HasIntrusiveRcuBase<T>) {
                 Counted *object = mControl.load();
                 if (object) {
-                    object->get().setWeak(mControl.load());
+                    object->get()->setWeak(mControl.load());
                 }
             }
         }

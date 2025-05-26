@@ -21,7 +21,7 @@ namespace sm::detail {
         friend class RetireSlots<T>;
 
         void dispose() noexcept {
-            std::destroy_at(&get());
+            std::destroy_at(get());
         }
 
     public:
@@ -42,12 +42,12 @@ namespace sm::detail {
             new (mStorage) T(std::forward<Args>(args)...);
         }
 
-        T& get() noexcept {
-            return *std::launder(reinterpret_cast<T*>(mStorage));
+        T *get() noexcept {
+            return std::launder(reinterpret_cast<T*>(mStorage));
         }
 
-        const T& get() const noexcept {
-            return *std::launder(reinterpret_cast<const T*>(mStorage));
+        const T *get() const noexcept {
+            return std::launder(reinterpret_cast<const T*>(mStorage));
         }
 
         CounterInt strongCount() const noexcept {
