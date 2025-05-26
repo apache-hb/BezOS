@@ -17,6 +17,10 @@ namespace task {
     public:
         constexpr SchedulerQueue() noexcept = default;
 
-        static OsStatus create(uint32_t capacity, SchedulerQueue *queue) noexcept;
+        static OsStatus create(uint32_t capacity, SchedulerQueue *queue [[gnu::nonnull]]) noexcept;
+    };
+
+    class Scheduler {
+
     };
 }

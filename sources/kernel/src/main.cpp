@@ -1345,7 +1345,6 @@ static OsStatus KernelMasterTask() {
         OsInstant now;
         gClock.time(&now);
         scheduler->tick(now);
-        arch::Intrin::halt();
     }
 
     return OsStatusSuccess;

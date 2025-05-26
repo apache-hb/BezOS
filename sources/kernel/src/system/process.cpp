@@ -474,6 +474,8 @@ OsStatus sys::SysProcessDestroy(InvokeContext *context, sys::ProcessHandle *hand
         .reason = reason,
     };
 
+    SysLog.dbgf("Destroying process: ", handle->getProcess()->getName(), " requested by ", context->process->getName(), " - ", info.exitCode, " - ", info.reason);
+
     return handle->destroyProcess(context->system, info);
 }
 
