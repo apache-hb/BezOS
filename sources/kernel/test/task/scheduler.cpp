@@ -49,6 +49,7 @@ TEST_F(SchedulerTest, ContextSwitch) {
         pthread_sigmask(SIG_BLOCK, &set, nullptr);
     }, [&]([[maybe_unused]] siginfo_t *siginfo, mcontext_t *mc) {
         if (done.load()) {
+            pthread_exit(nullptr);
             return;
         }
 
