@@ -257,6 +257,12 @@ testcases = {
         ],
         'link_with': [ librcu_native, test_shim ],
     },
+    'task scheduler': {
+        'sources': [
+            files('task/scheduler.cpp'),
+        ],
+        'link_with': [ libtask_native, test_shim ],
+    }
     # 'rcuptr soak': {
     #     'sources': [
     #         files('std/rcuptr_soak.cpp'),

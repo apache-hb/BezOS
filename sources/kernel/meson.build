@@ -335,6 +335,42 @@ libpaging_nosanitize = static_library('paging_nosanitize', paging_src,
     dependencies : deps,
 )
 
+# Task scheduling
+
+task_src = files(
+    'src/task/scheduler.cpp',
+)
+
+libtask_kernel = static_library('task', task_src,
+    kwargs : kernel_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+libtask_native = static_library('task_native', task_src,
+    kwargs : native_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+libtask_nosanitize = static_library('task_nosanitize', task_src,
+    kwargs : nosan_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+libtask_tsan = static_library('task_tsan', task_src,
+    kwargs : tsan_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+libtask_bench = static_library('task_bench', task_src,
+    kwargs : bench_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
 # Kernel
 
 system_src = files(

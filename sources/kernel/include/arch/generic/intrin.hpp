@@ -5,6 +5,7 @@
 namespace arch {
     struct GenericIntrin {
         using MachineState = void;
+        using FpuMachineState = void;
         using LongJumpState = void;
 
         /// @brief No operation. Does nothing.
