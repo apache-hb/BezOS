@@ -5,16 +5,29 @@
 #include "system/create.hpp"
 
 namespace task {
+    class SchedulerQueue;
+
+    enum class TaskStatus {
+        eIdle,
+        eRunning,
+        eSuspended,
+        eTerminated,
+    };
+
     /// @brief All state required to suspend or resume a thread.
     struct TaskState {
         sys::RegisterSet registers;
         km::PhysicalAddress pageMap;
-        km::StackMappingAllocation userStack;
-        km::StackMappingAllocation kernelStack;
+        uintptr_t tlsBase;
     };
 
-    struct SchedulerEntry {
+    class SchedulerEntry {
+        friend class SchedulerQueue;
+
+        std::atomic<TaskStatus> status;
         TaskState state;
+        km::StackMappingAllocation userStack;
+        km::StackMappingAllocation kernelStack;
     };
 
     /// @brief What should be done with the result of a scheduling operation.
@@ -27,8 +40,11 @@ namespace task {
     };
 
     class SchedulerQueue {
-        using EntryQueue = sm::AtomicRingQueue<SchedulerEntry>;
+        using EntryQueue = sm::AtomicRingQueue<SchedulerEntry*>;
         EntryQueue mQueue;
+        SchedulerEntry *mCurrentTask;
+
+        void setCurrentTask(SchedulerEntry *task) noexcept;
 
     public:
         constexpr SchedulerQueue() noexcept = default;
@@ -44,7 +60,7 @@ namespace task {
         ScheduleResult reschedule(TaskState *state [[gnu::nonnull]]) noexcept;
 
         /// @brief Enqueue a new task to the scheduler.
-        OsStatus enqueue(const TaskState &state) noexcept;
+        OsStatus enqueue(const TaskState &state, km::StackMappingAllocation userStack, km::StackMappingAllocation kernelStack, SchedulerEntry *entry) noexcept;
 
         static OsStatus create(uint32_t capacity, SchedulerQueue *queue [[gnu::nonnull]]) noexcept;
     };

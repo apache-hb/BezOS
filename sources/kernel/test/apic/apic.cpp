@@ -1,4 +1,6 @@
 #include <gtest/gtest.h>
+#include <linux/prctl.h>
+#include <sys/prctl.h>
 
 #include "apic.hpp"
 

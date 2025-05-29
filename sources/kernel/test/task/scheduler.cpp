@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <thread>
 
 #include "reentrant.hpp"
 #include "task/scheduler.hpp"
@@ -32,7 +33,6 @@ public:
 TEST_F(SchedulerTest, ContextSwitch) {
     OsStatus status = OsStatusSuccess;
     std::atomic<size_t> signals = 0;
-    std::atomic<size_t> switches = 0;
     std::unique_ptr<x64::page[]> stack0{ new x64::page[4] };
     std::unique_ptr<x64::page[]> stack1{ new x64::page[4] };
     std::atomic<size_t> counter0 = 0;
@@ -41,7 +41,7 @@ TEST_F(SchedulerTest, ContextSwitch) {
 
     auto [thread, handle] = ktest::CreateReentrantThreadPair([&] {
         while (!done.load()) {
-            switches += 1;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
         sigset_t set;
         sigemptyset(&set);
@@ -103,6 +103,9 @@ TEST_F(SchedulerTest, ContextSwitch) {
         mc->gregs[REG_EFL] = static_cast<greg_t>(state.registers.rflags);
     });
 
+    task::SchedulerEntry task0;
+    task::SchedulerEntry task1;
+
     status = queue.enqueue({
         .registers = {
             .rdi = reinterpret_cast<uintptr_t>(&counter0),
@@ -110,7 +113,7 @@ TEST_F(SchedulerTest, ContextSwitch) {
             .rsp = reinterpret_cast<uintptr_t>(stack0.get() + 4) - 0x8,
             .rip = reinterpret_cast<uintptr_t>(TestThread0),
         }
-    });
+    }, km::StackMappingAllocation{}, km::StackMappingAllocation{}, &task0);
     ASSERT_EQ(status, OsStatusSuccess);
 
     status = queue.enqueue({
@@ -120,7 +123,7 @@ TEST_F(SchedulerTest, ContextSwitch) {
             .rsp = reinterpret_cast<uintptr_t>(stack1.get() + 4) - 0x8,
             .rip = reinterpret_cast<uintptr_t>(TestThread1),
         }
-    });
+    }, km::StackMappingAllocation{}, km::StackMappingAllocation{}, &task1);
     ASSERT_EQ(status, OsStatusSuccess);
 
     auto now = std::chrono::high_resolution_clock::now();
@@ -137,8 +140,7 @@ TEST_F(SchedulerTest, ContextSwitch) {
     pthread_join(thread, nullptr);
     delete handle;
 
-    ASSERT_NE(signals.load(), 0);
-    ASSERT_NE(switches.load(), 0);
-    ASSERT_NE(counter0.load(), 0);
-    ASSERT_NE(counter1.load(), 0);
+    EXPECT_NE(signals.load(), 0);
+    EXPECT_NE(counter0.load(), 0);
+    EXPECT_NE(counter1.load(), 0);
 }

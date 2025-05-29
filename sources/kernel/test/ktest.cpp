@@ -428,6 +428,8 @@ void kmtest::Machine::initAddressSpace() {
 }
 
 void kmtest::Machine::setup() {
+    prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY);
+
     cs_err err = cs_open(CS_ARCH_X86, CS_MODE_64, &gCapstone);
     if (err != CS_ERR_OK) {
         perror("cs_open");

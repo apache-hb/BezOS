@@ -183,6 +183,8 @@ struct IoApicTestState {
 class MmioTest : public ::testing::Test {
 public:
     void SetUp() override {
+		prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY);
+
         // apic mmio region is always in the first 4gb
         // mapped as prot none to catch any access
         // in the sigsegv handler we check if the access is a read or write
