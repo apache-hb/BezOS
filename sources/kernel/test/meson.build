@@ -196,6 +196,10 @@ testcases = {
     'string': {
         'sources': files('std/string.cpp'),
     },
+    'btree': {
+        'sources': files('std/btree.cpp'),
+        'link_with': [ test_shim ],
+    },
     'spinlock': {
         'sources': files('std/spinlock.cpp'),
     },

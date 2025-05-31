@@ -62,6 +62,10 @@ namespace task {
         /// @brief Enqueue a new task to the scheduler.
         OsStatus enqueue(const TaskState &state, km::StackMappingAllocation userStack, km::StackMappingAllocation kernelStack, SchedulerEntry *entry) noexcept;
 
+        size_t getTaskCount() const noexcept {
+            return mQueue.count();
+        }
+
         static OsStatus create(uint32_t capacity, SchedulerQueue *queue [[gnu::nonnull]]) noexcept;
     };
 
