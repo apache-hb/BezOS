@@ -28,9 +28,10 @@ common_args = [
     '-fmacro-prefix-map=' + meson.current_source_dir() + '=/',
     '-fmacro-prefix-map=../../../=/',
 
-    '-Wno-gnu-anonymous-struct',
-    '-Wno-gnu-case-range',
     '-Wno-gcc-compat',
+    '-Wno-gnu-anonymous-struct',
+    '-Wno-gnu-empty-struct',
+    '-Wno-gnu-case-range',
     '-Wno-gnu-designator',
     '-Wno-gnu-conditional-omitted-operand',
     '-Wno-gnu-include-next',

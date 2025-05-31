@@ -1,3 +1,8 @@
+#include <random>
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
+
 #include <gtest/gtest.h>
 
 #include "std/container/btree.hpp"
@@ -5,78 +10,47 @@
 using namespace sm;
 using namespace sm::detail;
 
-constexpr auto kKeyLayout = sm::Layout::of<uint64_t>();
-constexpr auto kValueLayout = sm::Layout::of<uint64_t>();
-constexpr size_t kTargetSize = sm::kilobytes(4).bytes();
+class BTreeTest : public testing::Test {
+public:
+    static void SetUpTestSuite() {
+        setbuf(stdout, nullptr);
+    }
+};
 
-using TestNode = BTreeNode<uint64_t, uint64_t>;
+TEST_F(BTreeTest, NodeInsert) {
+    TreeNodeLeaf<int, int> node{nullptr};
+    EXPECT_EQ(node.insert({1, 10}), InsertResult::eSuccess);
+    EXPECT_EQ(*node.find(1), 10);
 
-TEST(BTreeNodeTest, ComputeMaxOrder) {
-    constexpr size_t kMaxOrder = computeMaxOrder(kKeyLayout, kValueLayout, kTargetSize);
-    EXPECT_EQ(kMaxOrder, 240);
+    EXPECT_EQ(node.insert({2, 20}), InsertResult::eSuccess);
+    EXPECT_EQ(*node.find(2), 20);
+
+    EXPECT_EQ(node.insert({1, 15}), InsertResult::eSuccess);
+    EXPECT_EQ(*node.find(1), 15);
+
+    EXPECT_EQ(node.insert({3, 30}), InsertResult::eSuccess);
+    EXPECT_EQ(*node.find(3), 30);
+
+    EXPECT_EQ(node.insert({20, 20}), InsertResult::eSuccess);
+    EXPECT_EQ(node.insert({5, 50}), InsertResult::eSuccess);
+
+    EXPECT_EQ(*node.find(20), 20);
+    EXPECT_EQ(*node.find(5), 50);
+    EXPECT_EQ(node.count(), 5);
 }
 
-TEST(BTreeNodeTest, ComputeNodeSize) {
-    constexpr size_t kMaxOrder = computeMaxOrder(kKeyLayout, kValueLayout, kTargetSize);
-    constexpr size_t kSize = computeNodeSize(kKeyLayout, kValueLayout, kMaxOrder);
-    EXPECT_LE(kSize, kTargetSize);
+TEST_F(BTreeTest, Insert) {
+    BTreeMap<int, int> tree;
+    for (size_t i = 0; i < 10000; i++) {
+        tree.insert(i, i * 10);
+    }
 }
 
-TEST(BTreeNodeTest, ComputeNodeSizeWithAlign) {
-    struct alignas(16) Key {
-        uint64_t v;
-    };
-    constexpr auto keyLayout = sm::Layout::of<Key>();
-    constexpr size_t kMaxOrder = computeMaxOrder(keyLayout, kValueLayout, kTargetSize);
-    constexpr size_t kSize = computeNodeSize(keyLayout, kValueLayout, kMaxOrder);
-    EXPECT_LE(kSize, kTargetSize);
+TEST_F(BTreeTest, InsertRandom) {
+    BTreeMap<int, int> tree;
+    std::mt19937 mt(0x1234);
+    std::uniform_int_distribution<int> dist(0, 10000);
+    for (size_t i = 0; i < 10000; i++) {
+        tree.insert(dist(mt), i * 10);
+    }
 }
-
-TEST(BTreeNodeTest, FlagDataOffset) {
-    constexpr size_t order = computeMaxOrder(kKeyLayout, kValueLayout, kTargetSize);
-    TestNode *node = TestNode::create(order);
-    EXPECT_NE(node, nullptr);
-    EXPECT_EQ(node->getOrder(), order);
-    EXPECT_TRUE(node->isLeaf());
-    TestNode::destroy(node);
-}
-
-TEST(BTreeLayoutTest, FlagDataOffset) {
-    constexpr size_t order = computeMaxOrder(kKeyLayout, kValueLayout, kTargetSize);
-    constexpr auto layout = BTreeNodeLayout::of<uint64_t, uint64_t>();
-    constexpr auto flagDataOffset = layout.flagDataOffset(order);
-    constexpr auto flagDataSize = layout.flagDataSize(order);
-    constexpr auto keyDataOffset = layout.keyDataOffset(order);
-    constexpr auto keyDataSize = layout.keyDataSize(order);
-    constexpr auto valueDataOffset = layout.valueDataOffset(order);
-    constexpr auto valueDataSize = layout.valueDataSize(order);
-
-    ASSERT_EQ(flagDataOffset, 0);
-    ASSERT_EQ(flagDataSize, sm::roundup(order, 4zu) / 4);
-    ASSERT_TRUE((keyDataOffset + sizeof(BTreeNodeHeader)) % kKeyLayout.align == 0);
-    ASSERT_TRUE((valueDataOffset + sizeof(BTreeNodeHeader)) % kValueLayout.align == 0);
-    ASSERT_LE((keyDataOffset + keyDataSize), valueDataOffset);
-    ASSERT_LE((valueDataOffset + valueDataSize), kTargetSize);
-}
-
-TEST(BTreeNodeTest, Create) {
-    TestNode *node = TestNode::create(0xFF);
-    EXPECT_NE(node, nullptr);
-    EXPECT_EQ(node->getOrder(), 0xFF);
-    EXPECT_TRUE(node->isLeaf());
-    TestNode::destroy(node);
-}
-
-#if 0
-TEST(BTreeNodeTest, Insert) {
-    TestNode *node = TestNode::create(0xFF);
-    EXPECT_NE(node, nullptr);
-
-    node->insert(0, 100, 200);
-    EXPECT_EQ(*node->getKey(0), 100);
-    EXPECT_EQ(*node->getValue(0), 200);
-    EXPECT_TRUE(node->isLeaf());
-
-    TestNode::destroy(node);
-}
-#endif
