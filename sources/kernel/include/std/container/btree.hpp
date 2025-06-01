@@ -190,11 +190,22 @@ namespace sm {
             TreeNodeInternal(bool leaf, TreeNodeHeader *parent) noexcept
                 : Super(leaf, parent)
             { }
+
         public:
+            TreeNodeInternal(TreeNodeHeader *parent) noexcept
+                : TreeNodeInternal(false, parent)
+            { }
+
             using Super::count;
             using Super::capacity;
+            using Super::key;
+            using Super::value;
 
-            Leaf *getChild(const Key& key) const noexcept {
+            Leaf *getLeaf(size_t index) const noexcept {
+                return mChildren[index];
+            }
+
+            Leaf *findChild(const Key& key) const noexcept {
                 for (size_t i = 0; i < Super::count(); i++) {
                     if (Super::key(i) > key) {
                         return mChildren[i];
@@ -205,23 +216,24 @@ namespace sm {
             }
 
             InsertResult rebalance(const Entry& entry, Leaf *newLeaf) noexcept {
-                if (count() >= capacity()) {
+                size_t n = count();
+                if (n >= capacity()) {
                     return InsertResult::eFull;
                 }
 
-                for (size_t i = 0; i < count(); i++) {
+                for (size_t i = 0; i < n; i++) {
                     if (Super::key(i) == entry.key) {
                         Super::value(i) = entry.value;
                         return InsertResult::eSuccess;
                     } else if (Super::key(i) > entry.key) {
                         // Shift the keys and values to make space for the new key.
-                        for (size_t j = count(); j > i; j--) {
-                            Super::key(j) = Super::value(j - 1);
-                            Super::value(j) = Super::value(j - 1);
+                        for (size_t j = n; j > i; j--) {
+                            key(j) = Super::key(j - 1);
+                            value(j) = Super::value(j - 1);
                             mChildren[j + 1] = mChildren[j];
                         }
-                        Super::key(i) = entry.key;
-                        Super::value(i) = entry.value;
+                        key(i) = entry.key;
+                        value(i) = entry.value;
                         mChildren[i + 1] = newLeaf;
                         Super::mCount += 1;
                         return InsertResult::eSuccess;
@@ -229,11 +241,22 @@ namespace sm {
                 }
 
                 // If we reach here, the key is greater than all existing keys.
-                Super::key(count()) = entry.key;
-                Super::value(count()) = entry.value;
-                mChildren[count() + 1] = newLeaf;
+                key(n) = entry.key;
+                value(n) = entry.value;
+                mChildren[n + 1] = newLeaf;
                 Super::mCount += 1;
                 return InsertResult::eSuccess;
+            }
+
+            void initAsRoot(Leaf *lhs, Leaf *rhs, const Entry& entry) noexcept {
+                mChildren[0] = lhs;
+                mChildren[1] = rhs;
+                key(0) = entry.key;
+                value(0) = entry.value;
+                Super::mCount = 1;
+
+                lhs->setParent(this);
+                rhs->setParent(this);
             }
 
             ~TreeNodeInternal() noexcept {
@@ -258,21 +281,14 @@ namespace sm {
             TreeNodeRoot(Leaf *lhs, Leaf *rhs, const Entry& entry) noexcept
                 : Super(false, nullptr)
             {
-                // Initialize the root with two children and an entry
-                Super::mChildren[0] = lhs;
-                Super::mChildren[1] = rhs;
-                Super::key(0) = entry.key;
-                Super::value(0) = entry.value;
-                Super::mCount = 1;
-
-                lhs->setParent(this);
-                rhs->setParent(this);
+                Super::initAsRoot(lhs, rhs, entry);
             }
         };
 
         template<typename Node, typename... Args>
         Node *newNode(Args&&... args) noexcept {
             void *memory = aligned_alloc(alignof(Node), sizeof(Node));
+            printf("Allocating new node at %p\n", memory);
             return new (memory) Node(std::forward<Args>(args)...);
         }
 
@@ -304,17 +320,29 @@ namespace sm {
         using InternalNode = detail::TreeNodeInternal<Key, Value>;
         using LeafNode = detail::TreeNodeLeaf<Key, Value>;
 
-        RootNode *mRootNode;
+        LeafNode *mRootNode;
 
         void splitNode(LeafNode *leaf, const Entry& entry) noexcept {
             Entry midpoint;
-            InternalNode *parent = static_cast<InternalNode*>(leaf->getParent());
-            LeafNode *newLeaf = detail::newNode<LeafNode>(parent);
-            leaf->splitInto(newLeaf, entry, &midpoint);
+
+            // Splitting the root node is a special case.
             if (leaf == mRootNode) {
-                mRootNode = newNode<RootNode>(leaf, newLeaf, midpoint);
+                InternalNode *newRoot = detail::newNode<InternalNode>(nullptr);
+                LeafNode *newLeaf = leaf->isLeaf() ? detail::newNode<LeafNode>(newRoot) : detail::newNode<InternalNode>(newRoot);
+                leaf->splitInto(newLeaf, entry, &midpoint);
+                printf("Split root node: %p to %p with parent %p\n", leaf, newLeaf, newRoot);
+                newRoot->initAsRoot(leaf, newLeaf, midpoint);
+                mRootNode = newRoot;
             } else {
-                rebalance(leaf, newLeaf, midpoint);
+                InternalNode *parent = static_cast<InternalNode*>(leaf->getParent());
+                LeafNode *newLeaf = leaf->isLeaf() ? detail::newNode<LeafNode>(parent) : detail::newNode<InternalNode>(parent);
+                leaf->splitInto(newLeaf, entry, &midpoint);
+                printf("Split node: %p to %p with parent %p\n", leaf, newLeaf, parent);
+                if (leaf == mRootNode) {
+                    mRootNode = newNode<RootNode>(leaf, newLeaf, midpoint);
+                } else {
+                    rebalance(leaf, newLeaf, midpoint);
+                }
             }
         }
 
@@ -334,10 +362,21 @@ namespace sm {
                 }
             } else {
                 InternalNode *internalNode = static_cast<InternalNode*>(node);
-                LeafNode *child = internalNode->getChild(entry.key);
+                LeafNode *child = internalNode->findChild(entry.key);
                 insertInto(child, entry);
             }
         }
+
+        bool nodeContains(const LeafNode *node, const Key& key) const noexcept {
+            if (node->isLeaf()) {
+                return node->find(key) != nullptr;
+            } else {
+                const auto *internalNode = static_cast<const InternalNode*>(node);
+                const LeafNode *child = internalNode->findChild(key);
+                return nodeContains(child, key);
+            }
+        }
+
     public:
         constexpr BTreeMap() noexcept
             : mRootNode(nullptr)
@@ -355,10 +394,53 @@ namespace sm {
 
         void insert(const Key& key, const Value& value) noexcept {
             if (mRootNode == nullptr) {
-                mRootNode = detail::newNode<RootNode>();
+                mRootNode = detail::newNode<LeafNode>(nullptr);
             }
 
             insertInto(mRootNode, Entry{key, value});
+        }
+
+        bool contains(const Key& key) const noexcept {
+            if (mRootNode == nullptr) {
+                return false;
+            }
+
+            return nodeContains(mRootNode, key);
+        }
+
+        void validate() const noexcept {
+            if (!mRootNode) {
+                return; // Empty tree is valid
+            }
+
+            size_t depth = 0;
+            InternalNode *current = static_cast<InternalNode*>(mRootNode);
+            while (current) {
+                depth++;
+                if (current->isLeaf()) {
+                    break; // Reached a leaf node
+                }
+                current = static_cast<InternalNode*>(current->getLeaf(0));
+            }
+
+            // walk the tree and ensure the depth is consistent
+            auto validateNode = [&](this auto&& validateNode, const LeafNode *node, size_t currentDepth) {
+                if (node->isLeaf()) {
+                    if (currentDepth != depth) {
+                        throw std::runtime_error("Tree depth inconsistency detected");
+                    }
+                    return;
+                }
+
+                const InternalNode *internalNode = static_cast<const InternalNode*>(node);
+
+                for (size_t i = 0; i < internalNode->count(); i++) {
+                    validateNode(internalNode->getLeaf(i), currentDepth + 1);
+                }
+                validateNode(internalNode->getLeaf(internalNode->count()), currentDepth + 1); // Last child
+            };
+
+            validateNode(mRootNode, 1);
         }
     };
 }
