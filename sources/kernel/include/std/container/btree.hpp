@@ -380,15 +380,12 @@ namespace sm {
                 } else {
                     if (InternalNode *parent = static_cast<InternalNode*>(mCurrentNode->getParent())) {
                         size_t newIndex = parent->indexOfChild(mCurrentNode);
-                        printf("Exit Leaf %p %zu -> %p %zu\n", mCurrentNode, mCurrentIndex, parent, newIndex);
 
                         mCurrentIndex = newIndex + 1;
                         mCurrentNode = parent;
                     } else {
                         mCurrentNode = nullptr;
                         mCurrentIndex = 0;
-
-                        printf("Complete Leaf\n");
                     }
                 }
             } else {
@@ -396,21 +393,17 @@ namespace sm {
                     InternalNode *internal = static_cast<InternalNode*>(mCurrentNode);
                     LeafNode *newNode = internal->child(mCurrentIndex);
 
-                    printf("Enter %p %zu -> %p %zu\n", mCurrentNode, mCurrentIndex, newNode, 0);
                     mCurrentNode = newNode;
                     mCurrentIndex = 0;
                 } else {
                     if (InternalNode *parent = static_cast<InternalNode*>(mCurrentNode->getParent())) {
                         size_t newIndex = parent->indexOfChild(mCurrentNode);
-                        printf("Exit Internal %p %zu -> %p %zu\n", mCurrentNode, mCurrentIndex, parent, newIndex);
 
                         mCurrentIndex = newIndex + 1;
                         mCurrentNode = parent;
                     } else {
                         mCurrentNode = nullptr;
                         mCurrentIndex = 0;
-
-                        printf("Complete Internal\n");
                     }
                 }
             }
