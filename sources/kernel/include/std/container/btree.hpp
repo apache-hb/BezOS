@@ -86,13 +86,20 @@ namespace sm {
             Value mValues[kOrder];
 
         protected:
+            void shiftEntry(size_t index) noexcept {
+                for (size_t i = count(); i > index; i--) {
+                    key(i) = key(i - 1);
+                    value(i) = value(i - 1);
+                }
+            }
+
+        public:
             Key& key(size_t index) noexcept { return mKeys[index]; }
             const Key& key(size_t index) const noexcept { return mKeys[index]; }
 
             Value& value(size_t index) noexcept { return mValues[index]; }
             const Value& value(size_t index) const noexcept { return mValues[index]; }
 
-        public:
             TreeNodeLeaf(TreeNodeHeader *parent) noexcept
                 : TreeNodeLeaf(true, parent)
             { }
@@ -112,10 +119,7 @@ namespace sm {
                         return InsertResult::eSuccess;
                     } else if (key(i) > entry.key) {
                         // Shift the keys and values to make space for the new key.
-                        for (size_t j = count(); j > i; j--) {
-                            mKeys[j] = mKeys[j - 1];
-                            mValues[j] = mValues[j - 1];
-                        }
+                        shiftEntry(i);
                         key(i) = entry.key;
                         value(i) = entry.value;
                         mCount += 1;
@@ -130,22 +134,29 @@ namespace sm {
                 return InsertResult::eSuccess;
             }
 
-            Value *find(const Key& k) noexcept {
+            size_t indexOf(const Key& k) const noexcept {
                 for (size_t i = 0; i < mCount; i++) {
                     if (key(i) == k) {
-                        return &value(i);
+                        return i;
                     }
                 }
-                return nullptr; // Key not found
+                return SIZE_MAX; // Key not found
+            }
+
+            Value *find(const Key& k) noexcept {
+                size_t index = indexOf(k);
+                if (index == SIZE_MAX) {
+                    return nullptr; // Key not found
+                }
+                return &value(index);
             }
 
             const Value *find(const Key& k) const noexcept {
-                for (size_t i = 0; i < mCount; i++) {
-                    if (key(i) == k) {
-                        return &value(i);
-                    }
+                size_t index = indexOf(k);
+                if (index == SIZE_MAX) {
+                    return nullptr; // Key not found
                 }
-                return nullptr; // Key not found
+                return &value(index);
             }
 
             size_t count() const noexcept {
@@ -157,14 +168,15 @@ namespace sm {
             }
 
             void splitInto(TreeNodeLeaf *newLeaf, const Entry& entry, Entry *midpoint) noexcept {
-                Entry middle = {mKeys[kOrder / 2], mValues[kOrder / 2]};
+                const size_t halfOrder = kOrder / 2;
+                Entry middle = {mKeys[halfOrder], mValues[halfOrder]};
                 // copy the top half of the keys and values to the new leaf
-                for (size_t i = kOrder / 2; i < mCount; i++) {
-                    newLeaf->key(i - kOrder / 2) = key(i);
-                    newLeaf->value(i - kOrder / 2) = value(i);
+                for (size_t i = halfOrder; i < mCount; i++) {
+                    newLeaf->key(i - halfOrder) = key(i);
+                    newLeaf->value(i - halfOrder) = value(i);
                 }
-                newLeaf->mCount = mCount - kOrder / 2;
-                mCount = kOrder / 2;
+                newLeaf->mCount = mCount - halfOrder;
+                mCount = halfOrder;
 
                 // insert the new entry into the correct leaf
                 if (entry.key < middle.key) {
@@ -201,6 +213,14 @@ namespace sm {
             using Super::key;
             using Super::value;
 
+            Leaf *&child(size_t index) noexcept {
+                return mChildren[index];
+            }
+
+            Leaf * const& child(size_t index) const noexcept {
+                return mChildren[index];
+            }
+
             Leaf *getLeaf(size_t index) const noexcept {
                 return mChildren[index];
             }
@@ -208,11 +228,20 @@ namespace sm {
             Leaf *findChild(const Key& key) const noexcept {
                 for (size_t i = 0; i < Super::count(); i++) {
                     if (Super::key(i) > key) {
-                        return mChildren[i];
+                        return child(i);
                     }
                 }
 
-                return mChildren[Super::count()]; // Return the last child if key is greater than all keys
+                return child(Super::count()); // Return the last child if key is greater than all keys
+            }
+
+            size_t indexOfChild(const Leaf *leaf) const noexcept {
+                for (size_t i = 0; i < Super::count() + 1; i++) {
+                    if (child(i) == leaf) {
+                        return i;
+                    }
+                }
+                return SIZE_MAX; // Not found
             }
 
             InsertResult rebalance(const Entry& entry, Leaf *newLeaf) noexcept {
@@ -227,14 +256,13 @@ namespace sm {
                         return InsertResult::eSuccess;
                     } else if (Super::key(i) > entry.key) {
                         // Shift the keys and values to make space for the new key.
+                        Super::shiftEntry(i);
                         for (size_t j = n; j > i; j--) {
-                            key(j) = Super::key(j - 1);
-                            value(j) = Super::value(j - 1);
-                            mChildren[j + 1] = mChildren[j];
+                            child(j + 1) = child(j);
                         }
                         key(i) = entry.key;
                         value(i) = entry.value;
-                        mChildren[i + 1] = newLeaf;
+                        child(i + 1) = newLeaf;
                         Super::mCount += 1;
                         return InsertResult::eSuccess;
                     }
@@ -243,14 +271,14 @@ namespace sm {
                 // If we reach here, the key is greater than all existing keys.
                 key(n) = entry.key;
                 value(n) = entry.value;
-                mChildren[n + 1] = newLeaf;
+                child(n + 1) = newLeaf;
                 Super::mCount += 1;
                 return InsertResult::eSuccess;
             }
 
             void initAsRoot(Leaf *lhs, Leaf *rhs, const Entry& entry) noexcept {
-                mChildren[0] = lhs;
-                mChildren[1] = rhs;
+                child(0) = lhs;
+                child(1) = rhs;
                 key(0) = entry.key;
                 value(0) = entry.value;
                 Super::mCount = 1;
@@ -261,8 +289,7 @@ namespace sm {
 
             ~TreeNodeInternal() noexcept {
                 for (size_t i = 0; i < Super::count() + 1; i++) {
-                    Leaf *child = mChildren[i];
-                    deleteNode<Key, Value>(child);
+                    deleteNode<Key, Value>(child(i));
                 }
             }
         };
@@ -288,7 +315,6 @@ namespace sm {
         template<typename Node, typename... Args>
         Node *newNode(Args&&... args) noexcept {
             void *memory = aligned_alloc(alignof(Node), sizeof(Node));
-            printf("Allocating new node at %p\n", memory);
             return new (memory) Node(std::forward<Args>(args)...);
         }
 
@@ -308,6 +334,90 @@ namespace sm {
         }
     }
 
+    struct BTreeStats {
+        size_t leafCount = 0;
+        size_t internalNodeCount = 0;
+        size_t depth = 0;
+        size_t memoryUsage = 0;
+    };
+
+    template<typename Key, typename Value>
+    class BTreeMapIterator {
+        using Entry = detail::Entry<Key, Value>;
+        using RootNode = detail::TreeNodeRoot<Key, Value>;
+        using InternalNode = detail::TreeNodeInternal<Key, Value>;
+        using LeafNode = detail::TreeNodeLeaf<Key, Value>;
+
+        LeafNode *mCurrentNode;
+        size_t mCurrentIndex;
+
+    public:
+        BTreeMapIterator(LeafNode *node, size_t index) noexcept
+            : mCurrentNode(node)
+            , mCurrentIndex(index)
+        { }
+
+        std::pair<const Key&, Value&> operator*() noexcept {
+            return {mCurrentNode->key(mCurrentIndex), mCurrentNode->value(mCurrentIndex)};
+        }
+
+        std::pair<const Key&, const Value&> operator*() const noexcept {
+            return {mCurrentNode->key(mCurrentIndex), mCurrentNode->value(mCurrentIndex)};
+        }
+
+        bool operator==(const BTreeMapIterator& other) const noexcept {
+            return mCurrentNode == other.mCurrentNode && mCurrentIndex == other.mCurrentIndex;
+        }
+
+        bool operator!=(const BTreeMapIterator& other) const noexcept {
+            return mCurrentNode != other.mCurrentNode || mCurrentIndex != other.mCurrentIndex;
+        }
+
+        BTreeMapIterator& operator++() noexcept {
+            if (mCurrentNode->isLeaf()) {
+                if (mCurrentIndex + 1 < mCurrentNode->count()) {
+                    mCurrentIndex += 1;
+                } else {
+                    if (InternalNode *parent = static_cast<InternalNode*>(mCurrentNode->getParent())) {
+                        size_t newIndex = parent->indexOfChild(mCurrentNode);
+                        printf("Exit Leaf %p %zu -> %p %zu\n", mCurrentNode, mCurrentIndex, parent, newIndex);
+
+                        mCurrentIndex = newIndex + 1;
+                        mCurrentNode = parent;
+                    } else {
+                        mCurrentNode = nullptr;
+                        mCurrentIndex = 0;
+
+                        printf("Complete Leaf\n");
+                    }
+                }
+            } else {
+                if (mCurrentIndex + 1 < mCurrentNode->count()) {
+                    InternalNode *internal = static_cast<InternalNode*>(mCurrentNode);
+                    LeafNode *newNode = internal->child(mCurrentIndex);
+
+                    printf("Enter %p %zu -> %p %zu\n", mCurrentNode, mCurrentIndex, newNode, 0);
+                    mCurrentNode = newNode;
+                    mCurrentIndex = 0;
+                } else {
+                    if (InternalNode *parent = static_cast<InternalNode*>(mCurrentNode->getParent())) {
+                        size_t newIndex = parent->indexOfChild(mCurrentNode);
+                        printf("Exit Internal %p %zu -> %p %zu\n", mCurrentNode, mCurrentIndex, parent, newIndex);
+
+                        mCurrentIndex = newIndex + 1;
+                        mCurrentNode = parent;
+                    } else {
+                        mCurrentNode = nullptr;
+                        mCurrentIndex = 0;
+
+                        printf("Complete Internal\n");
+                    }
+                }
+            }
+            return *this;
+        }
+    };
+
     template<
         typename Key,
         typename Value,
@@ -322,27 +432,33 @@ namespace sm {
 
         LeafNode *mRootNode;
 
-        void splitNode(LeafNode *leaf, const Entry& entry) noexcept {
+        void splitRootNode(LeafNode *leaf, const Entry& entry) noexcept {
             Entry midpoint;
+            InternalNode *newRoot = detail::newNode<InternalNode>(nullptr);
+            LeafNode *newLeaf = leaf->isLeaf() ? detail::newNode<LeafNode>(newRoot) : detail::newNode<InternalNode>(newRoot);
+            leaf->splitInto(newLeaf, entry, &midpoint);
+            newRoot->initAsRoot(leaf, newLeaf, midpoint);
+            mRootNode = newRoot;
+        }
 
+        void splitInnerNode(LeafNode *leaf, const Entry& entry) noexcept {
+            Entry midpoint;
+            InternalNode *parent = static_cast<InternalNode*>(leaf->getParent());
+            LeafNode *newLeaf = leaf->isLeaf() ? detail::newNode<LeafNode>(parent) : detail::newNode<InternalNode>(parent);
+            leaf->splitInto(newLeaf, entry, &midpoint);
+            if (leaf == mRootNode) {
+                mRootNode = newNode<RootNode>(leaf, newLeaf, midpoint);
+            } else {
+                rebalance(leaf, newLeaf, midpoint);
+            }
+        }
+
+        void splitNode(LeafNode *leaf, const Entry& entry) noexcept {
             // Splitting the root node is a special case.
             if (leaf == mRootNode) {
-                InternalNode *newRoot = detail::newNode<InternalNode>(nullptr);
-                LeafNode *newLeaf = leaf->isLeaf() ? detail::newNode<LeafNode>(newRoot) : detail::newNode<InternalNode>(newRoot);
-                leaf->splitInto(newLeaf, entry, &midpoint);
-                printf("Split root node: %p to %p with parent %p\n", leaf, newLeaf, newRoot);
-                newRoot->initAsRoot(leaf, newLeaf, midpoint);
-                mRootNode = newRoot;
+                splitRootNode(leaf, entry);
             } else {
-                InternalNode *parent = static_cast<InternalNode*>(leaf->getParent());
-                LeafNode *newLeaf = leaf->isLeaf() ? detail::newNode<LeafNode>(parent) : detail::newNode<InternalNode>(parent);
-                leaf->splitInto(newLeaf, entry, &midpoint);
-                printf("Split node: %p to %p with parent %p\n", leaf, newLeaf, parent);
-                if (leaf == mRootNode) {
-                    mRootNode = newNode<RootNode>(leaf, newLeaf, midpoint);
-                } else {
-                    rebalance(leaf, newLeaf, midpoint);
-                }
+                splitInnerNode(leaf, entry);
             }
         }
 
@@ -361,8 +477,8 @@ namespace sm {
                     splitNode(node, entry);
                 }
             } else {
-                InternalNode *internalNode = static_cast<InternalNode*>(node);
-                LeafNode *child = internalNode->findChild(entry.key);
+                InternalNode *internal = static_cast<InternalNode*>(node);
+                LeafNode *child = internal->findChild(entry.key);
                 insertInto(child, entry);
             }
         }
@@ -371,13 +487,15 @@ namespace sm {
             if (node->isLeaf()) {
                 return node->find(key) != nullptr;
             } else {
-                const auto *internalNode = static_cast<const InternalNode*>(node);
-                const LeafNode *child = internalNode->findChild(key);
+                const auto *internal = static_cast<const InternalNode*>(node);
+                const LeafNode *child = internal->findChild(key);
                 return nodeContains(child, key);
             }
         }
 
     public:
+        using Iterator = BTreeMapIterator<Key, Value>;
+
         constexpr BTreeMap() noexcept
             : mRootNode(nullptr)
         { }
@@ -406,6 +524,45 @@ namespace sm {
             }
 
             return nodeContains(mRootNode, key);
+        }
+
+        Iterator find(const Key& key) noexcept {
+            if (mRootNode == nullptr) {
+                return end();
+            }
+
+            LeafNode *current = mRootNode;
+            while (current) {
+                if (current->isLeaf()) {
+                    size_t index = current->indexOf(key);
+                    if (index != SIZE_MAX) {
+                        return Iterator(current, index);
+                    }
+                    return end();
+                } else {
+                    InternalNode *internal = static_cast<InternalNode*>(current);
+                    current = internal->findChild(key);
+                }
+            }
+
+            return end();
+        }
+
+        Iterator begin() noexcept {
+            if (mRootNode == nullptr) {
+                return Iterator(nullptr, 0);
+            }
+
+            LeafNode *current = mRootNode;
+            while (!current->isLeaf()) {
+                current = static_cast<InternalNode*>(current)->getLeaf(0);
+            }
+
+            return Iterator(current, 0);
+        }
+
+        Iterator end() noexcept {
+            return Iterator(nullptr, 0);
         }
 
         void validate() const noexcept {
