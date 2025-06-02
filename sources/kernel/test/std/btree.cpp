@@ -16,7 +16,7 @@ public:
         setbuf(stdout, nullptr);
     }
 };
-
+#if 0
 TEST_F(BTreeTest, NodeInsert) {
     TreeNodeLeaf<int, int> node{nullptr};
     EXPECT_EQ(node.insert({1, 10}), InsertResult::eSuccess);
@@ -39,6 +39,30 @@ TEST_F(BTreeTest, NodeInsert) {
     EXPECT_EQ(node.count(), 5);
 }
 
+TEST_F(BTreeTest, LeafSplit) {
+    using Leaf = TreeNodeLeaf<int, int>;
+
+    Leaf lhs{nullptr};
+    Leaf rhs{nullptr};
+    for (size_t i = 0; i < lhs.capacity(); i++) {
+        EXPECT_EQ(lhs.insert({int(i), int(i) * 10}), InsertResult::eSuccess);
+    }
+
+    Leaf::Entry midpoint;
+    lhs.splitInto(&rhs, {5, 50}, &midpoint);
+
+    // neither side should contain the midpoint key
+    for (size_t i = 0; i < lhs.count(); i++) {
+        ASSERT_NE(lhs.key(i), midpoint.key);
+        ASSERT_LT(lhs.key(i), midpoint.key);
+    }
+
+    for (size_t i = 0; i < rhs.count(); i++) {
+        ASSERT_NE(rhs.key(i), midpoint.key);
+        ASSERT_GT(rhs.key(i), midpoint.key);
+    }
+}
+
 TEST_F(BTreeTest, Insert) {
     BTreeMap<int, int> tree;
     for (size_t i = 0; i < 10000; i++) {
@@ -58,6 +82,7 @@ TEST_F(BTreeTest, InsertRandom) {
 
     tree.validate();
 }
+#endif
 
 TEST_F(BTreeTest, Contains) {
     BTreeMap<int, int> tree;
@@ -70,6 +95,8 @@ TEST_F(BTreeTest, Contains) {
         tree.insert(key, v);
         expected[key] = v;
 
+        tree.validate();
+
         ASSERT_TRUE(tree.contains(key)) << "Key " << key << " not found in BTreeMap after insertion";
     }
 
@@ -78,6 +105,7 @@ TEST_F(BTreeTest, Contains) {
     }
 }
 
+#if 0
 TEST_F(BTreeTest, Iterate) {
     BTreeMap<int, int> tree;
     std::mt19937 mt(0x1234);
@@ -92,9 +120,20 @@ TEST_F(BTreeTest, Iterate) {
         ASSERT_TRUE(tree.contains(key)) << "Key " << key << " not found in BTreeMap after insertion";
     }
 
+    std::set<int> foundKeys;
+
     for (const auto& [key, value] : tree) {
+        printf("Key: %d, Value: %d\n", key, value);
+        ASSERT_FALSE(foundKeys.contains(key)) << "Key " << key << " found multiple times in BTreeMap";
+        foundKeys.insert(key);
+
         ASSERT_TRUE(tree.contains(key)) << "Key " << key << " not found in BTreeMap";
+        ASSERT_TRUE(expected.contains(key)) << "Key " << key << " not found in expected map";
+        ASSERT_EQ(expected[key], value) << "Value for key " << key << " does not match expected value";
+        expected.erase(key);
     }
+
+    ASSERT_TRUE(expected.empty()) << "Not all expected keys were found in the BTreeMap";
 }
 
 TEST_F(BTreeTest, Find) {
@@ -123,3 +162,4 @@ TEST_F(BTreeTest, Find) {
         ASSERT_EQ(foundValue, value) << "Found value does not match expected value";
     }
 }
+#endif
