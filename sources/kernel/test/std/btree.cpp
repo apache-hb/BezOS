@@ -16,7 +16,54 @@ public:
         setbuf(stdout, nullptr);
     }
 };
-#if 0
+
+TEST_F(BTreeTest, LeafSplitMany) {
+    TreeNodeLeaf<int, int> node{nullptr};
+    std::mt19937 mt(0x1234);
+    std::uniform_int_distribution<int> dist(0, 10000);
+
+    // generate random-ish keys with no duplicates
+    std::vector<int> keys;
+    for (size_t i = 0; i < node.capacity(); i++) {
+        keys.push_back(i * 10);
+    }
+    std::shuffle(keys.begin(), keys.end(), mt);
+
+    for (size_t i = 0; i < node.capacity(); i++) {
+        int k = keys[i];
+        int v = dist(mt);
+        ASSERT_EQ(node.insert({k, v}), InsertResult::eSuccess);
+    }
+
+    ASSERT_EQ(node.insert({5, 50}), InsertResult::eFull);
+    ASSERT_EQ(node.count(), node.capacity());
+
+    TreeNodeLeaf<int, int> rhs{nullptr};
+    TreeNodeLeaf<int, int>::Entry midpoint;
+    int key = dist(mt);
+    node.splitInto(&rhs, {key, key * 10}, &midpoint);
+    // neither side should contain the midpoint key
+    for (size_t i = 0; i < node.count(); i++) {
+        ASSERT_LT(node.key(i), midpoint.key);
+    }
+
+    for (size_t i = 0; i < rhs.count(); i++) {
+        ASSERT_GT(rhs.key(i), midpoint.key);
+    }
+
+    // both sides should be sorted and at least
+    ASSERT_TRUE(std::is_sorted(&node.key(0), &node.key(node.count() - 1), [](const auto& a, const auto& b) {
+        return a < b;
+    }));
+
+    ASSERT_TRUE(std::is_sorted(&rhs.key(0), &rhs.key(rhs.count() - 1), [](const auto& a, const auto& b) {
+        return a < b;
+    }));
+
+    ASSERT_EQ(node.count(), node.capacity() / 2);
+    ASSERT_EQ(rhs.count(), node.capacity() / 2);
+}
+
 TEST_F(BTreeTest, NodeInsert) {
     TreeNodeLeaf<int, int> node{nullptr};
     EXPECT_EQ(node.insert({1, 10}), InsertResult::eSuccess);
@@ -82,7 +129,6 @@ TEST_F(BTreeTest, InsertRandom) {
 
     tree.validate();
 }
-#endif
 
 TEST_F(BTreeTest, Contains) {
     BTreeMap<int, int> tree;
