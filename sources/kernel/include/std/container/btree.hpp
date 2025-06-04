@@ -8,10 +8,9 @@
 #include "panic.hpp"
 
 #include <functional>
+
 #include <limits.h>
 #include <stdlib.h>
-
-#include <array>
 
 namespace sm {
     namespace detail {
@@ -106,8 +105,11 @@ namespace sm {
             Entry popFront() noexcept {
                 KM_ASSERT(mCount > 0);
                 Entry entry = {key(0), value(0)};
+                for (size_t i = 0; i < count() - 1; i++) {
+                    key(i) = key(i + 1);
+                    value(i) = value(i + 1);
+                }
                 mCount -= 1;
-                shiftEntry(0); // Shift all entries down
                 return entry;
             }
 
@@ -154,30 +156,40 @@ namespace sm {
 
             InsertResult insert(const Entry& entry) noexcept {
                 size_t n = count();
-                if (n >= capacity()) {
-                    return InsertResult::eFull;
-                }
 
                 for (size_t i = 0; i < n; i++) {
                     if (key(i) == entry.key) {
                         value(i) = entry.value;
-                        printf("Update key %d at index %zu in leaf %p %zu\n", entry.key, i, this, mCount);
                         return InsertResult::eSuccess;
                     } else if (key(i) > entry.key) {
+                        if (n >= capacity()) {
+                            return InsertResult::eFull;
+                        }
                         // Shift the keys and values to make space for the new key.
                         mCount += 1;
                         shiftEntry(i);
                         emplace(i, entry);
-                        printf("Insert key %d at index %zu in leaf %p %zu\n", entry.key, i, this, mCount);
                         return InsertResult::eSuccess;
                     }
+                }
+
+                if (n >= capacity()) {
+                    return InsertResult::eFull;
                 }
 
                 // If we reach here, the key is greater than all existing keys.
                 mCount += 1;
                 emplace(n, entry);
-                printf("Append key %d at index %zu in leaf %p %zu\n", entry.key, n, this, mCount);
                 return InsertResult::eSuccess;
+            }
+
+            size_t upperBound(const Key& k) const noexcept {
+                for (size_t i = 0; i < count(); i++) {
+                    if (key(i) > k) {
+                        return i;
+                    }
+                }
+                return count();
             }
 
             size_t indexOf(const Key& k) const noexcept {
@@ -222,12 +234,13 @@ namespace sm {
                 // guardrails
                 KM_ASSERT(newLeaf->count() == 0);
                 KM_ASSERT(this->count() == this->capacity());
+                if (this->find(entry.key) != nullptr) {
+                    printf("Key %d already exists in leaf node %p %d\n", entry.key, this, this->isLeaf());
+                    this->dump();
+                    KM_ASSERT(this->find(entry.key) == nullptr);
+                }
 
                 size_t half = capacity() / 2;
-
-                dump();
-
-                printf("Copying %zu keys from leaf %p to new leaf %p\n", half, this, newLeaf);
 
                 Entry middle = {key(half), value(half)};
 
@@ -245,14 +258,28 @@ namespace sm {
                     *midpoint = this->popBack();
                 } else {
                     newLeaf->insert(entry);
-                    *midpoint = middle;
+                    *midpoint = newLeaf->popFront();
                 }
 
-                printf("Node %p has %zu keys, %p has %zu keys midpoint=%d entry=%d this->tail=%d other->head=%d\n",
-                       newLeaf, newLeaf->count(), this, this->count(), midpoint->key, entry.key, key(mCount - 1), newLeaf->key(0));
+                if (newLeaf->count() != newLeaf->capacity() / 2) {
+                    printf("New leaf node %p has %zu keys, expected at least %zu (%zu/2) %d\n",
+                           newLeaf, newLeaf->count(), newLeaf->capacity() / 2, newLeaf->capacity(), midpoint->key);
 
                 this->dump();
                 newLeaf->dump();
+
+                    KM_ASSERT(newLeaf->count() == newLeaf->capacity() / 2);
+                }
+
+                if (this->count() != this->capacity() / 2) {
+                    printf("Current leaf node %p has %zu keys, expected at least %zu (%zu/2) %d\n",
+                           this, this->count(), this->capacity() / 2, this->capacity(), midpoint->key);
+
+                    this->dump();
+                    newLeaf->dump();
+
+                    KM_ASSERT(this->count() == this->capacity() / 2);
+                }
             }
 
             void dump() {
@@ -328,13 +355,13 @@ namespace sm {
 
             InsertResult rebalance(const Entry& midpoint, Leaf *newLeaf) noexcept {
                 size_t n = count();
+                for (size_t i = 0; i < n; i++) {
+                    KM_ASSERT(Super::key(i) != midpoint.key);
+                    if (Super::key(i) > midpoint.key) {
                 if (n >= capacity()) {
                     return InsertResult::eFull;
                 }
 
-                for (size_t i = 0; i < n; i++) {
-                    KM_ASSERT(Super::key(i) != midpoint.key);
-                    if (Super::key(i) > midpoint.key) {
                         // Shift the keys and values to make space for the new key.
                         Super::mCount += 1;
                         Super::shiftEntry(i);
@@ -343,16 +370,18 @@ namespace sm {
                         }
                         Super::emplace(i, midpoint);
                         child(i + 1) = newLeaf;
-                        printf("Insert internal key %d at index %zu in internal node %p\n", midpoint.key, i, this);
                         return InsertResult::eSuccess;
                     }
+                }
+
+                if (n >= capacity()) {
+                    return InsertResult::eFull;
                 }
 
                 // If we reach here, the key is greater than all existing keys.
                 Super::mCount += 1;
                 Super::emplace(n, midpoint);
                 child(n + 1) = newLeaf;
-                printf("Append internal key %d at index %zu in internal node %p\n", midpoint.key, n, this);
                 return InsertResult::eSuccess;
             }
 
@@ -374,15 +403,9 @@ namespace sm {
                 if (entry.key < middle.key) {
                     this->insert(middle);
                     *midpoint = entry;
-
-                    printf("Node %p has %zu keys\n",
-                           this, this->count());
                 } else {
                     other->insert(entry);
                     *midpoint = middle;
-
-                    printf("Node %p has %zu keys\n",
-                           other, other->count());
                 }
             }
 
@@ -399,6 +422,30 @@ namespace sm {
             ~TreeNodeInternal() noexcept {
                 for (size_t i = 0; i < Super::count() + 1; i++) {
                     deleteNode<Key, Value>(child(i));
+                }
+            }
+
+            void dump() {
+                printf("Leaf node %p:\n", this);
+                printf("  Count: %zu\n", count());
+                printf("  Keys: [");
+                for (size_t i = 0; i < count(); i++) {
+                    printf("%d, ", key(i));
+                }
+                printf("]\n");
+                printf("  Children: [");
+                for (size_t i = 0; i < count() + 1; i++) {
+                    printf("%p, ", child(i));
+                }
+                printf("]\n");
+
+                for (size_t i = 0; i < count() + 1; i++) {
+                    Leaf *childNode = child(i);
+                    if (childNode->isLeaf()) {
+                        static_cast<TreeNodeLeaf<Key, Value>*>(childNode)->dump();
+                    } else {
+                        static_cast<TreeNodeInternal<Key, Value>*>(childNode)->dump();
+                    }
                 }
             }
         };
@@ -467,11 +514,17 @@ namespace sm {
         { }
 
         std::pair<const Key&, Value&> operator*() noexcept {
-            return {mCurrentNode->key(mCurrentIndex), mCurrentNode->value(mCurrentIndex)};
+            auto& key = mCurrentNode->key(mCurrentIndex);
+            auto& value = mCurrentNode->value(mCurrentIndex);
+            printf("Iterating over key %d at index %zu in node %p\n", key, mCurrentIndex, mCurrentNode);
+            return {key, value};
         }
 
         std::pair<const Key&, const Value&> operator*() const noexcept {
-            return {mCurrentNode->key(mCurrentIndex), mCurrentNode->value(mCurrentIndex)};
+            auto& key = mCurrentNode->key(mCurrentIndex);
+            auto& value = mCurrentNode->value(mCurrentIndex);
+            printf("Iterating over key %d at index %zu in node %p\n", key, mCurrentIndex, mCurrentNode);
+            return {key, value};
         }
 
         bool operator==(const BTreeMapIterator& other) const noexcept {
@@ -548,8 +601,6 @@ namespace sm {
             LeafNode *newLeaf = leaf->isLeaf() ? detail::newNode<LeafNode>(newRoot) : detail::newNode<InternalNode>(newRoot);
             leaf->splitInto(newLeaf, entry, &midpoint);
             newRoot->initAsRoot(leaf, newLeaf, midpoint);
-
-            printf("Split root node: (lhs=%p, rhs=%p, root=%p)\n", leaf, newLeaf, newRoot);
             mRootNode = newRoot;
         }
 
@@ -559,10 +610,8 @@ namespace sm {
             InternalNode *parent = static_cast<InternalNode*>(leaf->getParent());
             LeafNode *newLeaf = isLeaf ? detail::newNode<LeafNode>(parent) : detail::newNode<InternalNode>(parent);
             if (isLeaf) {
-                printf("Split leaf node: %p %p\n", leaf, newLeaf);
                 leaf->splitInto(newLeaf, entry, &midpoint);
             } else {
-                printf("Split internal node: %p %p\n", leaf, newLeaf);
                 static_cast<InternalNode*>(leaf)->splitInto(static_cast<InternalNode*>(newLeaf), entry, &midpoint);
             }
 
@@ -575,6 +624,12 @@ namespace sm {
 
         void splitNode(LeafNode *leaf, const Entry& entry) noexcept {
             // Splitting the root node is a special case.
+            if (leaf->find(entry.key) != nullptr) {
+                printf("Key %d already exists in node %p\n", entry.key, leaf);
+                leaf->dump();
+                KM_PANIC("Key already exists in node");
+            }
+
             if (leaf == mRootNode) {
                 splitRootNode(leaf, entry);
             } else {
@@ -584,7 +639,7 @@ namespace sm {
 
         void rebalance(LeafNode *node, LeafNode *newLeaf, const Entry& midpoint) noexcept {
             InternalNode *parent = static_cast<InternalNode*>(node->getParent());
-            auto result = parent->rebalance(midpoint, newLeaf);
+            detail::InsertResult result = parent->rebalance(midpoint, newLeaf);
             if (result == detail::InsertResult::eFull) {
                 splitNode(parent, midpoint);
             }
@@ -592,19 +647,26 @@ namespace sm {
 
         void insertInto(LeafNode *node, const Entry& entry) noexcept {
             if (node->isLeaf()) {
-                auto result = node->insert(entry);
+                detail::InsertResult result = node->insert(entry);
                 if (result == detail::InsertResult::eFull) {
+                    if (node->find(entry.key) != nullptr) {
+                        printf("What %d already exists in node %p\n", entry.key, node);
+                        node->dump();
+                        KM_PANIC("Key already exists in node");
+                    }
                     splitNode(node, entry);
                 }
             } else {
                 InternalNode *internal = static_cast<InternalNode*>(node);
-                size_t index = internal->findChildIndex(entry.key);
+                size_t index = internal->upperBound(entry.key);
+
                 if (index != 0) {
                     if (internal->key(index - 1) == entry.key) {
                         internal->value(index - 1) = entry.value; // Update existing key
                         return;
                     }
                 }
+
                 KM_ASSERT(internal->find(entry.key) == nullptr);
                 LeafNode *child = internal->child(index);
                 insertInto(child, entry);
@@ -617,7 +679,7 @@ namespace sm {
             } else {
                 const auto *internal = static_cast<const InternalNode*>(node);
                 size_t index = internal->findChildIndex(key);
-                if (index != internal->count() && internal->key(index) == key) {
+                if (index != 0 && internal->key(index - 1) == key) {
                     return true; // Found the key in the internal node
                 } else {
                     // Key is greater than all keys in this node, check the last child
