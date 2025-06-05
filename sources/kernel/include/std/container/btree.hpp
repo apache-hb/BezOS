@@ -77,7 +77,7 @@ namespace sm {
 
             static constexpr size_t kOrder = std::max(3zu, computeMaxOrder(Layout::of<Key>(), Layout::of<Value>(), sm::kilobytes(4).bytes()));
 
-        protected:
+        public:
             /// @brief The number of keys and values in the node.
             uint32_t mCount = 0;
 
@@ -265,8 +265,8 @@ namespace sm {
                     printf("New leaf node %p has %zu keys, expected at least %zu (%zu/2) %d\n",
                            newLeaf, newLeaf->count(), newLeaf->capacity() / 2, newLeaf->capacity(), midpoint->key);
 
-                this->dump();
-                newLeaf->dump();
+                    this->dump();
+                    newLeaf->dump();
 
                     KM_ASSERT(newLeaf->count() == newLeaf->capacity() / 2);
                 }
@@ -282,8 +282,9 @@ namespace sm {
                 }
             }
 
-            void dump() {
+            void dump() const {
                 printf("Leaf node %p:\n", this);
+                printf("  IsLeaf: %d\n", Super::isLeaf());
                 printf("  Count: %zu\n", count());
                 printf("  Keys: [");
                 for (size_t i = 0; i < count(); i++) {
@@ -315,6 +316,39 @@ namespace sm {
             using Super::capacity;
             using Super::key;
             using Super::value;
+            using Super::mCount;
+            using Super::emplace;
+
+            struct ChildEntry {
+                Leaf *child;
+                Entry entry;
+            };
+
+            ChildEntry popBackChild() noexcept {
+                KM_ASSERT(count() > 0);
+                Entry entry = {key(count() - 1), value(count() - 1)};
+                Leaf *leaf = child(count() - 1);
+                mCount -= 1;
+                return ChildEntry{leaf, entry};
+            }
+
+            /// @brief Returns the first element and the child node before it.
+            ChildEntry popFrontChild() noexcept {
+                KM_ASSERT(count() > 0);
+                Entry entry = {key(0), value(0)};
+                Leaf *leaf = child(0);
+                for (size_t i = 0; i < count() - 1; i++) {
+                    key(i) = key(i + 1);
+                    value(i) = value(i + 1);
+                }
+
+                for (size_t i = 0; i < count(); i++) {
+                    child(i) = child(i + 1);
+                }
+
+                mCount -= 1;
+                return entry;
+            }
 
             Leaf *&child(size_t index) noexcept {
                 KM_ASSERT(index < Super::count() + 1);
@@ -353,22 +387,27 @@ namespace sm {
                 return SIZE_MAX; // Not found
             }
 
+            InsertResult insert(const Entry& entry, Leaf *leaf) noexcept {
+                return InsertResult::eFull;
+            }
+
             InsertResult rebalance(const Entry& midpoint, Leaf *newLeaf) noexcept {
                 size_t n = count();
+
                 for (size_t i = 0; i < n; i++) {
-                    KM_ASSERT(Super::key(i) != midpoint.key);
-                    if (Super::key(i) > midpoint.key) {
-                if (n >= capacity()) {
-                    return InsertResult::eFull;
-                }
+                    KM_ASSERT(key(i) != midpoint.key);
+                    if (key(i) > midpoint.key) {
+                        if (n >= capacity()) {
+                            return InsertResult::eFull;
+                        }
 
                         // Shift the keys and values to make space for the new key.
-                        Super::mCount += 1;
+                        mCount += 1;
                         Super::shiftEntry(i);
                         for (size_t j = n; j > i; j--) {
                             child(j + 1) = child(j);
                         }
-                        Super::emplace(i, midpoint);
+                        emplace(i, midpoint);
                         child(i + 1) = newLeaf;
                         return InsertResult::eSuccess;
                     }
@@ -379,33 +418,50 @@ namespace sm {
                 }
 
                 // If we reach here, the key is greater than all existing keys.
-                Super::mCount += 1;
-                Super::emplace(n, midpoint);
+                mCount += 1;
+                emplace(n, midpoint);
                 child(n + 1) = newLeaf;
                 return InsertResult::eSuccess;
             }
 
+            /// @brief Split the internal node into two nodes to accommodate a new entry and leaf.
             void splitInto(TreeNodeInternal *other, const Entry& entry, Entry *midpoint) noexcept {
+                // guardrails
+                KM_ASSERT(other->count() == 0);
+                KM_ASSERT(this->count() == this->capacity());
+                if (this->findChild(entry.key) != nullptr) {
+                    printf("Key %d already exists in internal node %p %d\n", entry.key, this, this->isLeaf());
+                    this->dump();
+                    KM_PANIC("Key already exists in internal node");
+                }
+                KM_ASSERT(!this->isLeaf());
+                KM_ASSERT(!other->isLeaf());
+
                 const size_t kHalfOrder = Super::kOrder / 2;
-                const size_t kStart = kHalfOrder + 1;
-                Entry middle = {Super::key(kHalfOrder), Super::value(kHalfOrder)};
+
+                Entry middle = {key(kHalfOrder), value(kHalfOrder)};
+                Leaf *middleLeaf = child(kHalfOrder + 1);
 
                 // copy the top half of the keys and values to the new internal node
-                other->mCount = Super::count() - kStart;
-                for (size_t i = kStart; i < Super::count(); i++) {
-                    other->key(i - kStart) = Super::key(i);
-                    other->value(i - kStart) = Super::value(i);
-                    other->child(i - kStart) = child(i);
+                other->mCount = kHalfOrder;
+                for (size_t i = 0; i < kHalfOrder; i++) {
+                    other->key(i) = key(i + kHalfOrder);
+                    other->value(i) = value(i + kHalfOrder);
+
+                    Leaf *childNode = child(i + kHalfOrder);
+                    childNode->setParent(other);
+                    other->child(i) = childNode;
                 }
-                Super::mCount = kHalfOrder;
+                mCount = kHalfOrder;
 
                 // insert the new entry into the correct internal node
                 if (entry.key < middle.key) {
-                    this->insert(middle);
-                    *midpoint = entry;
+                    this->insert(entry);
+                    other->rebalance(middle, middleLeaf);
+                    *midpoint = this->popBack();
                 } else {
                     other->insert(entry);
-                    *midpoint = middle;
+                    *midpoint = other->popFront();
                 }
             }
 
@@ -420,13 +476,14 @@ namespace sm {
             }
 
             ~TreeNodeInternal() noexcept {
-                for (size_t i = 0; i < Super::count() + 1; i++) {
+                for (size_t i = 0; i < count() + 1; i++) {
                     deleteNode<Key, Value>(child(i));
                 }
             }
 
-            void dump() {
+            void dump() const {
                 printf("Leaf node %p:\n", this);
+                printf("  IsLeaf: %d\n", Super::isLeaf());
                 printf("  Count: %zu\n", count());
                 printf("  Keys: [");
                 for (size_t i = 0; i < count(); i++) {
@@ -526,7 +583,7 @@ namespace sm {
             return NodeIndex{parent, newIndex};
         }
 
-        void nextLeafEntry() {
+        void nextLeafEntry() noexcept {
             if (mCurrentIndex + 1 < mCurrentNode->count()) {
                 mCurrentIndex += 1;
             } else {
@@ -536,7 +593,7 @@ namespace sm {
             }
         }
 
-        void nextInternalEntry() {
+        void nextInternalEntry() noexcept {
             if (mCurrentIndex < mCurrentNode->count()) {
                 InternalNode *internal = static_cast<InternalNode*>(mCurrentNode);
                 LeafNode *newNode = internal->child(mCurrentIndex + 1);
@@ -559,14 +616,12 @@ namespace sm {
         std::pair<const Key&, Value&> operator*() noexcept {
             auto& key = mCurrentNode->key(mCurrentIndex);
             auto& value = mCurrentNode->value(mCurrentIndex);
-            printf("Iterating over key %d at index %zu in node %p\n", key, mCurrentIndex, mCurrentNode);
             return {key, value};
         }
 
         std::pair<const Key&, const Value&> operator*() const noexcept {
             auto& key = mCurrentNode->key(mCurrentIndex);
             auto& value = mCurrentNode->value(mCurrentIndex);
-            printf("Iterating over key %d at index %zu in node %p\n", key, mCurrentIndex, mCurrentNode);
             return {key, value};
         }
 
@@ -608,6 +663,7 @@ namespace sm {
             LeafNode *newLeaf = leaf->isLeaf() ? detail::newNode<LeafNode>(newRoot) : detail::newNode<InternalNode>(newRoot);
             leaf->splitInto(newLeaf, entry, &midpoint);
             newRoot->initAsRoot(leaf, newLeaf, midpoint);
+            printf("New root node %p created with entry %d\n", newRoot, midpoint.key);
             mRootNode = newRoot;
         }
 
@@ -619,6 +675,7 @@ namespace sm {
             if (isLeaf) {
                 leaf->splitInto(newLeaf, entry, &midpoint);
             } else {
+                printf("Splitting internal node %p with entry %d\n", leaf, entry.key);
                 static_cast<InternalNode*>(leaf)->splitInto(static_cast<InternalNode*>(newLeaf), entry, &midpoint);
             }
 
@@ -691,6 +748,11 @@ namespace sm {
                 } else {
                     // Key is greater than all keys in this node, check the last child
                     LeafNode *child = internal->child(index);
+                    if (child == nullptr) {
+                        internal->dump();
+                        printf("Child at index %zu is null in node %p\n", index, internal);
+                        KM_PANIC("Child node is null in BTreeMap");
+                    }
                     return nodeContains(child, key);
                 }
             }

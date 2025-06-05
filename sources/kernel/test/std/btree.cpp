@@ -120,12 +120,62 @@ TEST_F(BTreeTest, LeafSplit) {
     }
 }
 
-TEST_F(BTreeTest, Contains) {
+TEST_F(BTreeTest, InternalNodeSplit) {
+    using Leaf = TreeNodeLeaf<int, int>;
+    using Internal = TreeNodeInternal<int, int>;
+    Internal lhs{nullptr};
+    Internal rhs{nullptr};
+
+    std::vector<Leaf*> leaves;
+
+    lhs.mCount = lhs.capacity();
+
+    for (size_t i = 0; i < lhs.capacity(); i++) {
+        leaves.push_back(newNode<Leaf>(&lhs));
+        leaves.back()->insert({ int(i) * 100, int(i) * 100 });
+        lhs.child(i) = leaves.back();
+    }
+
+    for (size_t i = 0; i < lhs.capacity(); i++) {
+        lhs.key(i) = int(i);
+        lhs.value(i) = int(i) * 10;
+    }
+
+    Leaf::Entry midpoint;
+    lhs.splitInto(&rhs, {930, 50}, &midpoint);
+
+    // neither side should contain the midpoint key
+    for (size_t i = 0; i < lhs.count(); i++) {
+        ASSERT_NE(lhs.key(i), midpoint.key);
+        ASSERT_LT(lhs.key(i), midpoint.key);
+        ASSERT_NE(lhs.child(i), nullptr);
+    }
+
+    for (size_t i = 0; i < rhs.count(); i++) {
+        ASSERT_NE(rhs.key(i), midpoint.key);
+        ASSERT_GT(rhs.key(i), midpoint.key);
+        ASSERT_NE(rhs.child(i), nullptr);
+    }
+}
+
+struct BTreeSizedTest : public testing::TestWithParam<size_t> {
+public:
+    static void SetUpTestSuite() {
+        setbuf(stdout, nullptr);
+    }
+};
+
+INSTANTIATE_TEST_SUITE_P(
+    Contains, BTreeSizedTest,
+    testing::Values(1000, 1000'0, 1000'00, 1000'000));
+
+TEST_P(BTreeSizedTest, Contains) {
+    size_t count = GetParam();
     BTreeMap<int, int> tree;
     std::mt19937 mt(0x1234);
-    std::uniform_int_distribution<int> dist(0, 10000);
+    std::uniform_int_distribution<int> dist(0, count);
     std::map<int, int> expected;
-    for (size_t i = 0; i < 10000; i++) {
+    for (size_t i = 0; i < count; i++) {
         int key = dist(mt);
         int v = i * 10;
         tree.insert(key, v);
@@ -141,12 +191,17 @@ TEST_F(BTreeTest, Contains) {
     }
 }
 
-TEST_F(BTreeTest, Iterate) {
+INSTANTIATE_TEST_SUITE_P(
+    Iterate, BTreeSizedTest,
+    testing::Values(1000, 1000'0, 1000'00, 1000'000));
+
+TEST_P(BTreeSizedTest, Iterate) {
+    size_t count = GetParam();
     BTreeMap<int, int> tree;
     std::mt19937 mt(0x1234);
-    std::uniform_int_distribution<int> dist(0, 10000);
+    std::uniform_int_distribution<int> dist(0, count);
     std::map<int, int> expected;
-    for (size_t i = 0; i < 10000; i++) {
+    for (size_t i = 0; i < count; i++) {
         int key = dist(mt);
         int v = i * 10;
         tree.insert(key, v);
@@ -158,7 +213,6 @@ TEST_F(BTreeTest, Iterate) {
     std::set<int> foundKeys;
 
     for (const auto& [key, value] : tree) {
-        printf("Key: %d, Value: %d\n", key, value);
         ASSERT_FALSE(foundKeys.contains(key)) << "Key " << key << " found multiple times in BTreeMap";
         foundKeys.insert(key);
 
@@ -178,13 +232,18 @@ TEST_F(BTreeTest, Iterate) {
     ASSERT_TRUE(expected.empty()) << "Not all expected keys were found in the BTreeMap";
 }
 
-#if 0
-TEST_F(BTreeTest, Find) {
+INSTANTIATE_TEST_SUITE_P(
+    Find, BTreeSizedTest,
+    testing::Values(1000, 1000'0, 1000'00, 1000'000));
+
+TEST_P(BTreeSizedTest, Find) {
     BTreeMap<int, int> tree;
     std::mt19937 mt(0x1234);
-    std::uniform_int_distribution<int> dist(0, 10000);
+
+    size_t count = GetParam();
+    std::uniform_int_distribution<int> dist(0, count);
     std::map<int, int> expected;
-    for (size_t i = 0; i < 10000; i++) {
+    for (size_t i = 0; i < count; i++) {
         int key = dist(mt);
         int v = i * 10;
         tree.insert(key, v);
@@ -205,4 +264,3 @@ TEST_F(BTreeTest, Find) {
         ASSERT_EQ(foundValue, value) << "Found value does not match expected value";
     }
 }
-#endif
