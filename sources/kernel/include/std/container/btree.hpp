@@ -387,11 +387,56 @@ namespace sm {
                 return SIZE_MAX; // Not found
             }
 
-            InsertResult insert(const Entry& entry, Leaf *leaf) noexcept {
-                return InsertResult::eFull;
+            /// @brief Insert a new entry and the leaf node above it into the internal node.
+            InsertResult insertChild(const Entry& entry, Leaf *leaf) noexcept {
+                size_t n = count();
+
+                for (size_t i = 0; i < n; i++) {
+                    if (key(i) == entry.key) {
+                        printf("Key %d already exists in internal node %p at %zu\n", entry.key, this, i);
+                        dump();
+                        KM_ASSERT(key(i) != entry.key);
+                    }
+
+                    if (key(i) > entry.key) {
+                        if (n >= capacity()) {
+                            return InsertResult::eFull;
+                        }
+
+                        // Shift the keys and values to make space for the new key.
+                        mCount += 1;
+                        Super::shiftEntry(i);
+                        for (size_t j = n; j > i; j--) {
+                            child(j + 1) = child(j);
+                        }
+                        emplace(i, entry);
+                        child(i + 1) = leaf;
+                        return InsertResult::eSuccess;
+                    }
+                }
+
+                if (n >= capacity()) {
+                    return InsertResult::eFull;
+                }
+
+                // If we reach here, the key is greater than all existing keys.
+                mCount += 1;
+                emplace(n, entry);
+                child(n + 1) = leaf;
+                return InsertResult::eSuccess;
             }
 
             InsertResult rebalance(const Entry& midpoint, Leaf *newLeaf) noexcept {
+                KM_ASSERT(newLeaf != nullptr);
+
+                for (size_t i = 0; i < count(); i++) {
+                    if (child(i) == nullptr) {
+                        printf("Child node at index %zu is null in internal node %p\n", i, this);
+                        this->dump();
+                        KM_PANIC("Child node is null in BTreeMap");
+                    }
+                }
+
                 size_t n = count();
 
                 for (size_t i = 0; i < n; i++) {
@@ -429,13 +474,23 @@ namespace sm {
                 // guardrails
                 KM_ASSERT(other->count() == 0);
                 KM_ASSERT(this->count() == this->capacity());
-                if (this->findChild(entry.key) != nullptr) {
-                    printf("Key %d already exists in internal node %p %d\n", entry.key, this, this->isLeaf());
-                    this->dump();
-                    KM_PANIC("Key already exists in internal node");
+                for (size_t i = 0; i < Super::count(); i++) {
+                    if (key(i) == entry.key) {
+                        printf("Key %d already exists in internal node %p %d\n", entry.key, this, this->isLeaf());
+                        this->dump();
+                        KM_PANIC("Key already exists in internal node");
+                    }
                 }
                 KM_ASSERT(!this->isLeaf());
                 KM_ASSERT(!other->isLeaf());
+
+                for (size_t i = 0; i < count(); i++) {
+                    if (child(i) == nullptr) {
+                        printf("Child node at index %zu is null in internal node %p\n", i, this);
+                        this->dump();
+                        KM_PANIC("Child node is null in BTreeMap");
+                    }
+                }
 
                 const size_t kHalfOrder = Super::kOrder / 2;
 
@@ -443,25 +498,38 @@ namespace sm {
                 Leaf *middleLeaf = child(kHalfOrder + 1);
 
                 // copy the top half of the keys and values to the new internal node
-                other->mCount = kHalfOrder;
-                for (size_t i = 0; i < kHalfOrder; i++) {
-                    other->key(i) = key(i + kHalfOrder);
-                    other->value(i) = value(i + kHalfOrder);
+                other->mCount = kHalfOrder - 1;
+                for (size_t i = 0; i < kHalfOrder - 1; i++) {
+                    other->key(i) = key(i + kHalfOrder + 1);
+                    other->value(i) = value(i + kHalfOrder + 1);
+                }
 
+                for (size_t i = 0; i < kHalfOrder; i++) {
                     Leaf *childNode = child(i + kHalfOrder);
+                    if (childNode == nullptr) {
+                        printf("Child node at index %zu is null in internal node %p\n", i + kHalfOrder, this);
+                        this->dump();
+                        KM_ASSERT(childNode != nullptr);
+                    }
                     childNode->setParent(other);
                     other->child(i) = childNode;
                 }
+
                 mCount = kHalfOrder;
 
-                // insert the new entry into the correct internal node
-                if (entry.key < middle.key) {
+                this->dump();
+                other->dump();
+
+                if (entry.key < key(count() - 1)) {
                     this->insert(entry);
-                    other->rebalance(middle, middleLeaf);
+                    other->insertChild(middle, middleLeaf);
                     *midpoint = this->popBack();
+                } else if (entry.key < middle.key) {
+                    other->insert(middle);
+                    *midpoint = entry;
                 } else {
                     other->insert(entry);
-                    *midpoint = other->popFront();
+                    *midpoint = middle;
                 }
             }
 
@@ -490,14 +558,18 @@ namespace sm {
                     printf("%d, ", key(i));
                 }
                 printf("]\n");
-                printf("  Children: [");
-                for (size_t i = 0; i < count() + 1; i++) {
-                    printf("%p, ", child(i));
-                }
-                printf("]\n");
+                // printf("  Children: [");
+                // for (size_t i = 0; i < count() + 1; i++) {
+                //     printf("%p, ", child(i));
+                // }
+                // printf("]\n");
 
                 for (size_t i = 0; i < count() + 1; i++) {
                     Leaf *childNode = child(i);
+                    if (childNode == nullptr) {
+                        continue;
+                    }
+
                     if (childNode->isLeaf()) {
                         static_cast<TreeNodeLeaf<Key, Value>*>(childNode)->dump();
                     } else {

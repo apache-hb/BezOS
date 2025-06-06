@@ -128,17 +128,12 @@ TEST_F(BTreeTest, InternalNodeSplit) {
 
     std::vector<Leaf*> leaves;
 
-    lhs.mCount = lhs.capacity();
+    lhs.initAsRoot(newNode<Leaf>(nullptr), newNode<Leaf>(nullptr), {256, 50});
 
     for (size_t i = 0; i < lhs.capacity(); i++) {
         leaves.push_back(newNode<Leaf>(&lhs));
         leaves.back()->insert({ int(i) * 100, int(i) * 100 });
-        lhs.child(i) = leaves.back();
-    }
-
-    for (size_t i = 0; i < lhs.capacity(); i++) {
-        lhs.key(i) = int(i);
-        lhs.value(i) = int(i) * 10;
+        lhs.insertChild({ int(i) * 100 - 1, int(i) }, leaves.back());
     }
 
     Leaf::Entry midpoint;
@@ -148,13 +143,23 @@ TEST_F(BTreeTest, InternalNodeSplit) {
     for (size_t i = 0; i < lhs.count(); i++) {
         ASSERT_NE(lhs.key(i), midpoint.key);
         ASSERT_LT(lhs.key(i), midpoint.key);
-        ASSERT_NE(lhs.child(i), nullptr);
+    }
+
+    for (size_t i = 0; i < lhs.count() + 1; i++) {
+        Leaf* child = lhs.child(i);
+        ASSERT_NE(child, nullptr);
+        ASSERT_EQ(child->getParent(), &lhs);
     }
 
     for (size_t i = 0; i < rhs.count(); i++) {
         ASSERT_NE(rhs.key(i), midpoint.key);
         ASSERT_GT(rhs.key(i), midpoint.key);
-        ASSERT_NE(rhs.child(i), nullptr);
+    }
+
+    for (size_t i = 0; i < rhs.count() + 1; i++) {
+        Leaf* child = rhs.child(i);
+        ASSERT_NE(child, nullptr);
+        ASSERT_EQ(child->getParent(), &rhs);
     }
 }
 
