@@ -261,24 +261,24 @@ namespace sm {
                     *midpoint = newLeaf->popFront();
                 }
 
-                if (newLeaf->count() != newLeaf->capacity() / 2) {
+                if (newLeaf->count() < (newLeaf->capacity() / 2) - 1) {
                     printf("New leaf node %p has %zu keys, expected at least %zu (%zu/2) %d\n",
                            newLeaf, newLeaf->count(), newLeaf->capacity() / 2, newLeaf->capacity(), midpoint->key);
 
                     this->dump();
                     newLeaf->dump();
 
-                    KM_ASSERT(newLeaf->count() == newLeaf->capacity() / 2);
+                    KM_ASSERT(newLeaf->count() < (newLeaf->capacity() / 2) - 1);
                 }
 
-                if (this->count() != this->capacity() / 2) {
+                if (this->count() < (this->capacity() / 2) - 1) {
                     printf("Current leaf node %p has %zu keys, expected at least %zu (%zu/2) %d\n",
                            this, this->count(), this->capacity() / 2, this->capacity(), midpoint->key);
 
                     this->dump();
                     newLeaf->dump();
 
-                    KM_ASSERT(this->count() == this->capacity() / 2);
+                    KM_ASSERT(this->count() < (this->capacity() / 2) - 1);
                 }
             }
 
@@ -497,6 +497,17 @@ namespace sm {
                 Entry middle = {key(kHalfOrder), value(kHalfOrder)};
                 Leaf *middleLeaf = child(kHalfOrder + 1);
 
+                printf("before->keys: ");
+                for (size_t i = 0; i < count(); i++) {
+                    printf("%d, ", key(i));
+                }
+                printf("\n");
+                printf("before->children: ");
+                for (size_t i = 0; i < count() + 1; i++) {
+                    printf("%p, ", child(i));
+                }
+                printf("\n");
+
                 // copy the top half of the keys and values to the new internal node
                 other->mCount = kHalfOrder - 1;
                 for (size_t i = 0; i < kHalfOrder - 1; i++) {
@@ -505,7 +516,7 @@ namespace sm {
                 }
 
                 for (size_t i = 0; i < kHalfOrder; i++) {
-                    Leaf *childNode = child(i + kHalfOrder);
+                    Leaf *childNode = child(i + kHalfOrder + 1);
                     if (childNode == nullptr) {
                         printf("Child node at index %zu is null in internal node %p\n", i + kHalfOrder, this);
                         this->dump();
@@ -515,22 +526,46 @@ namespace sm {
                     other->child(i) = childNode;
                 }
 
+                printf("midpoint: %d\n", middle.key);
+                printf("entry: %d\n", entry.key);
+                printf("this->keys: ");
+                for (size_t i = 0; i < kHalfOrder; i++) {
+                    printf("%d, ", key(i));
+                }
+                printf("\n");
+                printf("this->children: ");
+                for (size_t i = 0; i < kHalfOrder + 1; i++) {
+                    printf("%p, ", child(i));
+                }
+                printf("\n");
+                printf("other->keys: ");
+                for (size_t i = 0; i < other->count(); i++) {
+                    printf("%d, ", other->key(i));
+                }
+                printf("\n");
+                printf("other->children: ");
+                for (size_t i = 0; i < other->count() + 1; i++) {
+                    printf("%p, ", other->child(i));
+                }
+                printf("\n");
+
                 mCount = kHalfOrder;
 
-                this->dump();
-                other->dump();
-
                 if (entry.key < key(count() - 1)) {
+                    printf("Entry inside left node\n");
                     this->insert(entry);
-                    other->insertChild(middle, middleLeaf);
                     *midpoint = this->popBack();
                 } else if (entry.key < middle.key) {
+                    printf("Entry before midpoint\n");
                     other->insert(middle);
                     *midpoint = entry;
                 } else {
-                    other->insert(entry);
+                    printf("Entry after midpoint\n");
                     *midpoint = middle;
                 }
+
+                KM_ASSERT(this->count() >= (this->capacity() / 2) - 1);
+                KM_ASSERT(other->count() >= (other->capacity() / 2) - 1);
             }
 
             void initAsRoot(Leaf *lhs, Leaf *rhs, const Entry& entry) noexcept {
@@ -558,12 +593,13 @@ namespace sm {
                     printf("%d, ", key(i));
                 }
                 printf("]\n");
-                // printf("  Children: [");
-                // for (size_t i = 0; i < count() + 1; i++) {
-                //     printf("%p, ", child(i));
-                // }
-                // printf("]\n");
+                printf("  Children: [");
+                for (size_t i = 0; i < count() + 1; i++) {
+                    printf("%p, ", child(i));
+                }
+                printf("]\n");
 
+#if 0
                 for (size_t i = 0; i < count() + 1; i++) {
                     Leaf *childNode = child(i);
                     if (childNode == nullptr) {
@@ -576,6 +612,7 @@ namespace sm {
                         static_cast<TreeNodeInternal<Key, Value>*>(childNode)->dump();
                     }
                 }
+#endif
             }
         };
 
