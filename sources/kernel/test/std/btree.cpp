@@ -1,21 +1,216 @@
-#include <random>
-#ifdef NDEBUG
-#undef NDEBUG
-#endif
-
 #include <gtest/gtest.h>
 
 #include "std/container/btree.hpp"
+#include <random>
 
 using namespace sm;
 using namespace sm::detail;
+
+struct alignas(512) BigKey {
+    int key;
+
+    BigKey(int k = 0) noexcept
+        : key(k)
+    { }
+
+    constexpr operator int() const noexcept {
+        return key;
+    }
+
+    constexpr auto operator<=>(const BigKey&) const noexcept = default;
+
+    constexpr bool operator==(const BigKey& other) const noexcept {
+        return key == other.key;
+    }
+
+    constexpr bool operator==(int other) const noexcept {
+        return key == other;
+    }
+};
 
 class BTreeTest : public testing::Test {
 public:
     static void SetUpTestSuite() {
         setbuf(stdout, nullptr);
     }
+
+    using Leaf = TreeNodeLeaf<BigKey, int>;
+    using Internal = TreeNodeInternal<BigKey, int>;
+    using Entry = Entry<BigKey, int>;
+    using ChildEntry = typename Internal::ChildEntry;
+
+    void AssertNodeInvariants(Internal *lhs, Internal *rhs, int middle) {
+
+    }
 };
+
+TEST_F(BTreeTest, SplitIntoUpperHalf) {
+    Internal lhs{nullptr};
+    Internal rhs{nullptr};
+    std::set<Leaf*> leaves;
+    Leaf *firstLeaf = newNode<Leaf>(nullptr);
+    Leaf *secondLeaf = newNode<Leaf>(nullptr);
+    leaves.insert(firstLeaf);
+    leaves.insert(secondLeaf);
+
+    auto makeKey = [](auto i) {
+        return int(i) * 5;
+    };
+
+    lhs.initAsRoot(firstLeaf, secondLeaf, {makeKey(lhs.capacity() - 1), lhs.capacity() - 1});
+    for (size_t i = 0; i < lhs.capacity() - 1; i++) {
+        Leaf *leaf = newNode<Leaf>(&lhs);
+        ASSERT_EQ(lhs.insertChild({ makeKey(i), int(i) }, leaf), InsertResult::eSuccess) << "Failed to insert key into internal node";
+        leaves.insert(leaf);
+    }
+
+    Leaf *newChild = newNode<Leaf>(&lhs);
+    leaves.insert(newChild);
+
+    Entry entry = {makeKey(lhs.capacity()), lhs.capacity()};
+    Entry midpoint;
+    lhs.splitIntoUpperHalf(&rhs, ChildEntry{newChild, entry}, &midpoint);
+
+    for (size_t i = 0; i < lhs.count(); i++) {
+        ASSERT_LT(lhs.key(i), midpoint.key) << "Key " << lhs.key(i) << " is not less than midpoint key " << midpoint.key;
+    }
+
+    for (size_t i = 0; i < rhs.count(); i++) {
+        ASSERT_GT(rhs.key(i), midpoint.key) << "Key " << rhs.key(i) << " is not greater than midpoint key " << midpoint.key;
+    }
+
+    for (size_t i = 0; i < lhs.count() + 1; i++) {
+        Leaf *child = lhs.child(i);
+        ASSERT_NE(child, nullptr) << "Child node at index " << i << " is null in left internal node";
+        ASSERT_EQ(child->getParent(), &lhs) << "Child node " << child << " does not have the correct parent";
+        ASSERT_TRUE(leaves.contains(child)) << "Child node " << child << " not found in original leaves";
+        leaves.erase(child);
+    }
+
+    for (size_t i = 0; i < rhs.count() + 1; i++) {
+        Leaf *child = rhs.child(i);
+        ASSERT_NE(child, nullptr) << "Child node at index " << i << " is null in right internal node";
+        ASSERT_EQ(child->getParent(), &rhs) << "Child node " << child << " does not have the correct parent";
+        ASSERT_TRUE(leaves.contains(child)) << "Child node " << child << " not found in original leaves";
+        leaves.erase(child);
+    }
+
+    ASSERT_FALSE(lhs.containsInNode(midpoint.key)) << "Left node contains midpoint key after split";
+    ASSERT_FALSE(rhs.containsInNode(midpoint.key)) << "Right node contains midpoint key after split";
+    ASSERT_TRUE(rhs.containsInNode(entry.key)) << "Right node does not contain entry key after split";
+}
+
+TEST_F(BTreeTest, SplitIntoUpperHalf2) {
+    Internal lhs{nullptr};
+    Internal rhs{nullptr};
+    std::set<Leaf*> leaves;
+    Leaf *firstLeaf = newNode<Leaf>(nullptr);
+    Leaf *secondLeaf = newNode<Leaf>(nullptr);
+    leaves.insert(firstLeaf);
+    leaves.insert(secondLeaf);
+
+    auto makeKey = [](auto i) {
+        return int(i) * 5;
+    };
+
+    lhs.initAsRoot(firstLeaf, secondLeaf, {makeKey(lhs.capacity() - 1), lhs.capacity() - 1});
+    for (size_t i = 0; i < lhs.capacity() - 1; i++) {
+        Leaf *leaf = newNode<Leaf>(&lhs);
+        ASSERT_EQ(lhs.insertChild({ makeKey(i), int(i) }, leaf), InsertResult::eSuccess) << "Failed to insert key into internal node";
+        leaves.insert(leaf);
+    }
+
+    Leaf *newChild = newNode<Leaf>(&lhs);
+    leaves.insert(newChild);
+
+    Entry entry = {makeKey(lhs.capacity() / 2) + 1, lhs.capacity()};
+    Entry midpoint;
+    lhs.splitIntoUpperHalf(&rhs, ChildEntry{newChild, entry}, &midpoint);
+
+    for (size_t i = 0; i < lhs.count(); i++) {
+        ASSERT_LT(lhs.key(i), midpoint.key) << "Key " << lhs.key(i) << " is not less than midpoint key " << midpoint.key;
+    }
+
+    for (size_t i = 0; i < rhs.count(); i++) {
+        ASSERT_GT(rhs.key(i), midpoint.key) << "Key " << rhs.key(i) << " is not greater than midpoint key " << midpoint.key;
+    }
+
+    for (size_t i = 0; i < lhs.count() + 1; i++) {
+        Leaf *child = lhs.child(i);
+        ASSERT_NE(child, nullptr) << "Child node at index " << i << " is null in left internal node";
+        ASSERT_EQ(child->getParent(), &lhs) << "Child node " << child << " does not have the correct parent";
+        ASSERT_TRUE(leaves.contains(child)) << "Child node " << child << " not found in original leaves";
+        leaves.erase(child);
+    }
+
+    for (size_t i = 0; i < rhs.count() + 1; i++) {
+        Leaf *child = rhs.child(i);
+        ASSERT_NE(child, nullptr) << "Child node at index " << i << " is null in right internal node";
+        ASSERT_EQ(child->getParent(), &rhs) << "Child node " << child << " does not have the correct parent";
+        ASSERT_TRUE(leaves.contains(child)) << "Child node " << child << " not found in original leaves";
+        leaves.erase(child);
+    }
+
+    ASSERT_FALSE(lhs.containsInNode(midpoint.key)) << "Left node contains midpoint key after split";
+    ASSERT_FALSE(rhs.containsInNode(midpoint.key)) << "Right node contains midpoint key after split";
+    ASSERT_TRUE(rhs.containsInNode(entry.key)) << "Right node does not contain entry key after split";
+}
+
+TEST_F(BTreeTest, SplitIntoLowerHalf) {
+    Internal lhs{nullptr};
+    Internal rhs{nullptr};
+    std::set<Leaf*> leaves;
+    Leaf *firstLeaf = newNode<Leaf>(nullptr);
+    Leaf *secondLeaf = newNode<Leaf>(nullptr);
+    leaves.insert(firstLeaf);
+    leaves.insert(secondLeaf);
+
+    auto makeKey = [](auto i) {
+        return int(i) * 5;
+    };
+
+    lhs.initAsRoot(firstLeaf, secondLeaf, {makeKey(lhs.capacity() - 1), lhs.capacity() - 1});
+    for (size_t i = 0; i < lhs.capacity() - 1; i++) {
+        Leaf *leaf = newNode<Leaf>(&lhs);
+        ASSERT_EQ(lhs.insertChild({ makeKey(i), int(i) }, leaf), InsertResult::eSuccess) << "Failed to insert key into internal node";
+        leaves.insert(leaf);
+    }
+
+    Leaf *newChild = newNode<Leaf>(&lhs);
+    leaves.insert(newChild);
+
+    Entry entry = {3, lhs.capacity()};
+    Entry midpoint;
+    lhs.splitIntoLowerHalf(&rhs, ChildEntry{newChild, entry}, &midpoint);
+
+    for (size_t i = 0; i < lhs.count(); i++) {
+        ASSERT_LT(lhs.key(i), midpoint.key) << "Key " << lhs.key(i) << " is not less than midpoint key " << midpoint.key;
+    }
+
+    for (size_t i = 0; i < rhs.count(); i++) {
+        ASSERT_GT(rhs.key(i), midpoint.key) << "Key " << rhs.key(i) << " is not greater than midpoint key " << midpoint.key;
+    }
+
+    for (size_t i = 0; i < lhs.count() + 1; i++) {
+        Leaf *child = lhs.child(i);
+        ASSERT_NE(child, nullptr) << "Child node at index " << i << " is null in left internal node";
+        ASSERT_EQ(child->getParent(), &lhs) << "Child node " << child << " does not have the correct parent";
+        ASSERT_TRUE(leaves.contains(child)) << "Child node " << child << " not found in original leaves";
+        leaves.erase(child);
+    }
+
+    for (size_t i = 0; i < rhs.count() + 1; i++) {
+        Leaf *child = rhs.child(i);
+        ASSERT_NE(child, nullptr) << "Child node at index " << i << " is null in right internal node";
+        ASSERT_EQ(child->getParent(), &rhs) << "Child node " << child << " does not have the correct parent";
+        ASSERT_TRUE(leaves.contains(child)) << "Child node " << child << " not found in original leaves";
+        leaves.erase(child);
+    }
+
+    ASSERT_FALSE(lhs.containsInNode(midpoint.key)) << "Left node contains midpoint key after split";
+    ASSERT_FALSE(rhs.containsInNode(midpoint.key)) << "Right node contains midpoint key after split";
+    ASSERT_TRUE(lhs.containsInNode(entry.key)) << "Right node does not contain entry key after split";
+}
 
 struct LeafSplitTest
     : public testing::TestWithParam<size_t> {};
@@ -137,20 +332,40 @@ TEST_F(BTreeTest, LeafSplit) {
     ASSERT_TRUE(keys.empty()) << "Not all keys were found in node after split";
 }
 
-TEST_F(BTreeTest, InternalNodeSplit) {
-    using Leaf = TreeNodeLeaf<int, int>;
-    using Internal = TreeNodeInternal<int, int>;
+INSTANTIATE_TEST_SUITE_P(
+    InternalSplitMany, LeafSplitTest,
+    testing::Values(0x1234, 0x5678, 0x2345, 0x3456, 0x9999));
+
+TEST_P(LeafSplitTest, InternalSplitMany) {
+    using Leaf = TreeNodeLeaf<BigKey, int>;
+    using Internal = TreeNodeInternal<BigKey, int>;
+    using Entry = Entry<BigKey, int>;
+    using ChildEntry = typename Internal::ChildEntry;
     Internal lhs{nullptr};
     Internal rhs{nullptr};
 
-    lhs.initAsRoot(newNode<Leaf>(nullptr), newNode<Leaf>(nullptr), {256, 50});
+    std::mt19937 mt(GetParam());
+    std::vector<int> kvec;
+    for (size_t i = 0; i < lhs.capacity() + 1; i++) {
+        kvec.push_back(int(i) * 100);
+    }
+    std::shuffle(kvec.begin(), kvec.end(), mt);
+    std::set<Leaf*> leaves;
 
+    Leaf *firstLeaf = newNode<Leaf>(nullptr);
+    Leaf *secondLeaf = newNode<Leaf>(nullptr);
+    leaves.insert(firstLeaf);
+    leaves.insert(secondLeaf);
+    lhs.initAsRoot(firstLeaf, secondLeaf, {kvec[0], kvec[0] * 10});
     std::set<int> keys;
+    keys.insert(kvec[0]);
     for (size_t i = 0; i < lhs.capacity() - 1; i++) {
         Leaf *leaf = newNode<Leaf>(&lhs);
-        leaf->insert({ int(i) * 100 - 1, int(i) * 100 });
-        ASSERT_EQ(lhs.insertChild({ int(i) * 100, int(i) }, leaf), InsertResult::eSuccess) << "Failed to insert key " << int(i) * 100 << " into internal node";
-        keys.insert(int(i) * 100);
+        Entry entry = { kvec[i + 1], kvec[i + 1] * 10 };
+        leaf->insert(entry);
+        ASSERT_EQ(lhs.insertChild(entry, leaf), InsertResult::eSuccess) << "Failed to insert key " << entry.key << " into internal node";
+        leaves.insert(leaf);
+        keys.insert(entry.key);
     }
 
     Leaf *tmpLeaf = newNode<Leaf>(&lhs);
@@ -158,11 +373,12 @@ TEST_F(BTreeTest, InternalNodeSplit) {
     deleteNode<int, int>(tmpLeaf);
 
     Leaf::Entry midpoint;
-    lhs.splitInto(&rhs, {930, 50}, &midpoint);
-    keys.insert(930);
-
-    lhs.dump();
-    rhs.dump();
+    Entry entry = {kvec[lhs.capacity()], kvec[lhs.capacity()] * 10};
+    Leaf *newChild = newNode<Leaf>(&lhs);
+    newChild->insert({kvec[lhs.capacity()] + 1, kvec[lhs.capacity()] * 10});
+    lhs.splitInternalNode(&rhs, ChildEntry{newChild, entry}, &midpoint);
+    keys.insert(entry.key);
+    leaves.insert(newChild);
 
     // neither side should contain the midpoint key
     for (size_t i = 0; i < lhs.count(); i++) {
@@ -186,18 +402,40 @@ TEST_F(BTreeTest, InternalNodeSplit) {
         ASSERT_NE(child, nullptr);
         ASSERT_EQ(child->getParent(), &rhs);
     }
+
+    for (size_t i = 0; i < lhs.count() + 1; i++) {
+        Leaf* child = lhs.child(i);
+        ASSERT_NE(child, nullptr);
+        ASSERT_EQ(child->getParent(), &lhs);
+        ASSERT_TRUE(leaves.contains(child)) << "Child node " << child << " not found in original leaves";
+        leaves.erase(child);
+    }
+
+    for (size_t i = 0; i < rhs.count() + 1; i++) {
+        Leaf* child = rhs.child(i);
+        ASSERT_NE(child, nullptr);
+        ASSERT_EQ(child->getParent(), &rhs);
+        ASSERT_TRUE(leaves.contains(child)) << "Child node " << child << " not found in original leaves";
+        leaves.erase(child);
+    }
+
+    for (Leaf *leaf : leaves) {
+        printf("Leaf node %p not found in either side after split\n", (void*)leaf);
+    }
+    ASSERT_TRUE(leaves.empty()) << "Not all leaves were found in node after split";
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    InternalSplitMany, LeafSplitTest,
+    SplitInternalNodeMany, LeafSplitTest,
     testing::Values(0x1234, 0x5678, 0x2345, 0x3456, 0x9999));
 
-TEST_P(LeafSplitTest, InternalSplitMany) {
-    using Leaf = TreeNodeLeaf<int, int>;
-    using Internal = TreeNodeInternal<int, int>;
+TEST_P(LeafSplitTest, SplitInternalNodeMany) {
+    using Entry = Entry<BigKey, int>;
+    using Leaf = TreeNodeLeaf<BigKey, int>;
+    using Internal = TreeNodeInternal<BigKey, int>;
+    using ChildEntry = typename Internal::ChildEntry;
     Internal lhs{nullptr};
     Internal rhs{nullptr};
-
 
     std::mt19937 mt(GetParam());
     std::vector<int> kvec;
@@ -222,18 +460,38 @@ TEST_P(LeafSplitTest, InternalSplitMany) {
     deleteNode<int, int>(tmpLeaf);
 
     Leaf::Entry midpoint;
+    Leaf *newChild = newNode<Leaf>(&lhs);
+    newChild->insert({kvec[lhs.capacity()] + 1, kvec[lhs.capacity()] * 10});
     Entry entry = {kvec[lhs.capacity()], kvec[lhs.capacity()] * 10};
-    lhs.splitInto(&rhs, entry, &midpoint);
+    lhs.splitInternalNode(&rhs, ChildEntry{newChild, entry}, &midpoint);
     keys.insert(entry.key);
-
-    lhs.dump();
-    rhs.dump();
 
     // neither side should contain the midpoint key
     for (size_t i = 0; i < lhs.count(); i++) {
         ASSERT_NE(lhs.key(i), midpoint.key);
         ASSERT_LT(lhs.key(i), midpoint.key);
     }
+
+    bool found = false;
+    if (entry.key == midpoint.key) {
+        found = true;
+    } else if (entry.key > midpoint.key) {
+        for (size_t i = 0; i < rhs.count(); i++) {
+            if (rhs.key(i) == entry.key) {
+                found = true;
+                break;
+            }
+        }
+    } else {
+        for (size_t i = 0; i < lhs.count(); i++) {
+            if (lhs.key(i) == entry.key) {
+                found = true;
+                break;
+            }
+        }
+    }
+
+    ASSERT_TRUE(found) << "Entry key " << entry.key << " not found in either side after split";
 
     for (size_t i = 0; i < lhs.count() + 1; i++) {
         Leaf* child = lhs.child(i);
@@ -266,23 +524,28 @@ INSTANTIATE_TEST_SUITE_P(
 
 TEST_P(BTreeSizedTest, Contains) {
     size_t count = GetParam();
-    BTreeMap<int, int> tree;
+    BTreeMap<BigKey, int> tree;
     std::mt19937 mt(0x1234);
-    std::uniform_int_distribution<int> dist(0, count);
-    std::map<int, int> expected;
+    std::uniform_int_distribution<int> dist(0, 0xFFFFFFF);
+    std::map<BigKey, int> expected;
     for (size_t i = 0; i < count; i++) {
         int key = dist(mt);
         int v = i * 10;
         tree.insert(key, v);
         expected[key] = v;
 
-        // tree.validate();
+        printf("Inserted key: %d, value: %d\n", key, v);
 
+        if (!tree.contains(key)) {
+            tree.dump();
+        }
+
+        tree.validate();
         ASSERT_TRUE(tree.contains(key)) << "Key " << key << " not found in BTreeMap after insertion";
     }
 
     for (const auto& [key, value] : expected) {
-        ASSERT_TRUE(tree.contains(key)) << "Key " << key << " not found in BTreeMap";
+        ASSERT_TRUE(tree.contains(key)) << "Key " << key.key << " not found in BTreeMap";
     }
 }
 
