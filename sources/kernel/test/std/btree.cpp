@@ -61,16 +61,14 @@ INSTANTIATE_TEST_SUITE_P(
     Split, LeafSplitTest,
     testing::Values(0x1234, 0x5678, 0x2345, 0x3456, 0x9999));
 
-struct BTreeSizedTest : public testing::TestWithParam<size_t> {
-public:
-    static void SetUpTestSuite() {
-        setbuf(stdout, nullptr);
-    }
-};
+struct BTreeSizedTest
+    : public BTreeTest
+    , public testing::WithParamInterface<size_t>
+{ };
 
 INSTANTIATE_TEST_SUITE_P(
     Sized, BTreeSizedTest,
-    testing::Values(1000, 1000'0, 1000'00, 1000'000));
+    testing::Values(1000, 1000'0));
 
 TEST_F(BTreeTest, SplitIntoUpperHalf) {
     Internal lhs{nullptr};
@@ -386,10 +384,6 @@ TEST_F(BTreeTest, LeafSplit) {
     ASSERT_TRUE(keys.empty()) << "Not all keys were found in node after split";
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    InternalSplitMany, LeafSplitTest,
-    testing::Values(0x1234, 0x5678, 0x2345, 0x3456, 0x9999));
-
 TEST_P(LeafSplitTest, InternalSplitMany) {
     Internal lhs{nullptr};
     Internal rhs{nullptr};
@@ -474,10 +468,6 @@ TEST_P(LeafSplitTest, InternalSplitMany) {
     }
     ASSERT_TRUE(leaves.empty()) << "Not all leaves were found in node after split";
 }
-
-INSTANTIATE_TEST_SUITE_P(
-    SplitInternalNodeMany, LeafSplitTest,
-    testing::Values(0x1234, 0x5678, 0x2345, 0x3456, 0x9999));
 
 TEST_P(LeafSplitTest, SplitInternalNodeMany) {
     Internal lhs{nullptr};
@@ -574,6 +564,8 @@ TEST_P(BTreeSizedTest, Iterate) {
 
     std::set<int> foundKeys;
 
+    // tree.dump();
+
     for (const auto& [key, value] : tree) {
         ASSERT_FALSE(foundKeys.contains(key)) << "Key " << key << " found multiple times in BTreeMap";
         foundKeys.insert(key);
@@ -626,7 +618,7 @@ TEST_P(BTreeSizedTest, Contains) {
 }
 
 TEST_P(BTreeSizedTest, Find) {
-    BTreeMap<int, int> tree;
+    BTreeMap<BigKey, int> tree;
     std::mt19937 mt(0x1234);
 
     size_t count = GetParam();

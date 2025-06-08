@@ -36,6 +36,10 @@ namespace sm {
             void setParent(TreeNodeHeader *parent) noexcept {
                 mParent = parent;
             }
+
+            bool isRootNode() const noexcept {
+                return getParent() == nullptr;
+            }
         };
 
         constexpr size_t computeNodeSize(Layout keyLayout, Layout valueLayout, size_t order) {
@@ -115,7 +119,7 @@ namespace sm {
 
             void verifyIndex(size_t index) const noexcept {
                 if (index >= count()) {
-                    printf("Index %zu out of bounds for node with %zu keys\n", index, count());
+                    printf("Index %zu out of bounds for node %p with %zu keys\n", index, this, count());
                     KM_PANIC("Index out of bounds in TreeNodeLeaf");
                 }
             }
@@ -755,46 +759,31 @@ namespace sm {
         LeafNode *mCurrentNode;
         size_t mCurrentIndex;
 
-        static NodeIndex walkToParentNode(LeafNode *current) noexcept {
-            InternalNode *parent = static_cast<InternalNode*>(current->getParent());
-            if (parent == nullptr) {
-                return NodeIndex{nullptr, 0};
-            }
+        void increment() noexcept {
+            if (mCurrentNode->isLeaf()) {
+                while (mCurrentIndex == mCurrentNode->count() && !mCurrentNode->isRootNode()) {
+                    InternalNode *parent = static_cast<InternalNode*>(static_cast<InternalNode*>(mCurrentNode)->getParent());
+                    size_t newIndex = parent->indexOfChild(mCurrentNode);
+                    // printf("%p:%zu <- %p:%zu\n", parent, newIndex, mCurrentNode, mCurrentIndex);
+                    mCurrentIndex = newIndex;
+                    mCurrentNode = parent;
+                }
 
-            size_t newIndex = parent->indexOfChild(current) + 1;
-            if (newIndex >= parent->count()) {
-                return walkToParentNode(parent);
-            }
-
-            return NodeIndex{parent, newIndex};
-        }
-
-        void nextLeafEntry() noexcept {
-            if (mCurrentIndex + 1 < mCurrentNode->count()) {
-                mCurrentIndex += 1;
+                if (mCurrentNode->isRootNode() && mCurrentIndex + 1 > mCurrentNode->count()) {
+                    mCurrentNode = nullptr; // Reached the end of the tree
+                    mCurrentIndex = 0;
+                    return;
+                }
             } else {
-                auto [newNode, newIndex] = walkToParentNode(mCurrentNode);
-                printf("Walking to next node from leaf %p: %p, index %zu\n", mCurrentNode, newNode, newIndex);
-                mCurrentNode = newNode;
-                mCurrentIndex = newIndex;
-            }
-        }
-
-        void nextInternalEntry() noexcept {
-            if (mCurrentIndex <= mCurrentNode->count()) {
-                InternalNode *internal = static_cast<InternalNode*>(mCurrentNode);
-                LeafNode *newNode = internal->child(mCurrentIndex);
-
-                printf("Entering child %zu of internal node %p: %p\n",
-                       mCurrentIndex, mCurrentNode, newNode);
-
-                mCurrentNode = newNode;
+                InternalNode *childNode = static_cast<InternalNode*>(static_cast<InternalNode*>(mCurrentNode)->child(mCurrentIndex + 1));
+                // printf("%p:%zu -> %p:%zu\n", mCurrentNode, mCurrentIndex, childNode, 0);
+                mCurrentNode = childNode;
+                while (!mCurrentNode->isLeaf()) {
+                    InternalNode *newNode = static_cast<InternalNode*>(static_cast<InternalNode*>(mCurrentNode)->child(0));
+                    // printf("%p:%zu -> %p:%zu\n", mCurrentNode, mCurrentIndex, newNode, 0);
+                    mCurrentNode = newNode;
+                }
                 mCurrentIndex = 0;
-            } else {
-                auto [newNode, newIndex] = walkToParentNode(mCurrentNode);
-                printf("Walking to next node from internal %p: %p, index %zu\n", mCurrentNode, newNode, newIndex);
-                mCurrentNode = newNode;
-                mCurrentIndex = newIndex;
             }
         }
 
@@ -807,12 +796,14 @@ namespace sm {
         std::pair<const Key&, Value&> operator*() noexcept {
             auto& key = mCurrentNode->key(mCurrentIndex);
             auto& value = mCurrentNode->value(mCurrentIndex);
+            // printf("%p:%zu = {%d, %d}\n", mCurrentNode, mCurrentIndex, (int)key, (int)value);
             return {key, value};
         }
 
         std::pair<const Key&, const Value&> operator*() const noexcept {
             auto& key = mCurrentNode->key(mCurrentIndex);
             auto& value = mCurrentNode->value(mCurrentIndex);
+            // printf("%p:%zu = {%d, %d}\n", mCurrentNode, mCurrentIndex, (int)key, (int)value);
             return {key, value};
         }
 
@@ -825,11 +816,12 @@ namespace sm {
         }
 
         BTreeMapIterator& operator++() noexcept {
-            if (mCurrentNode->isLeaf()) {
-                nextLeafEntry();
-            } else {
-                nextInternalEntry();
+            if (mCurrentNode->isLeaf() && ++mCurrentIndex < mCurrentNode->count()) {
+                return *this;
             }
+
+            increment();
+
             return *this;
         }
     };
@@ -1003,7 +995,11 @@ namespace sm {
                     return end();
                 } else {
                     InternalNode *internal = static_cast<InternalNode*>(current);
-                    current = internal->findChild(key);
+                    size_t index = internal->findChildIndex(key);
+                    if (index != 0 && internal->key(index - 1) == key) {
+                        return Iterator(current, index - 1); // Found the key in the internal node
+                    }
+                    current = internal->child(index);
                 }
             }
 
