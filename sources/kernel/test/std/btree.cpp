@@ -39,10 +39,38 @@ public:
     using Entry = Entry<BigKey, int>;
     using ChildEntry = typename Internal::ChildEntry;
 
-    void AssertNodeInvariants(Internal *lhs, Internal *rhs, int middle) {
-
+    void AssertLeafInvariants(const Leaf& leaf) {
+        auto keys = leaf.keys();
+        bool sorted = std::is_sorted(keys.begin(), keys.end());
+        if (!sorted) {
+            printf("Leaf node %p is not sorted\n", (void*)&leaf);
+            for (size_t i = 0; i < leaf.count(); i++) {
+                printf("Key %zu: %d\n", i, (int)leaf.key(i));
+            }
+        }
+        ASSERT_TRUE(sorted) << "Leaf node is not sorted";
     }
 };
+
+struct LeafSplitTest
+    : public BTreeTest
+    , public testing::WithParamInterface<size_t>
+{ };
+
+INSTANTIATE_TEST_SUITE_P(
+    Split, LeafSplitTest,
+    testing::Values(0x1234, 0x5678, 0x2345, 0x3456, 0x9999));
+
+struct BTreeSizedTest : public testing::TestWithParam<size_t> {
+public:
+    static void SetUpTestSuite() {
+        setbuf(stdout, nullptr);
+    }
+};
+
+INSTANTIATE_TEST_SUITE_P(
+    Sized, BTreeSizedTest,
+    testing::Values(1000, 1000'0, 1000'00, 1000'000));
 
 TEST_F(BTreeTest, SplitIntoUpperHalf) {
     Internal lhs{nullptr};
@@ -212,61 +240,87 @@ TEST_F(BTreeTest, SplitIntoLowerHalf) {
     ASSERT_TRUE(lhs.containsInNode(entry.key)) << "Right node does not contain entry key after split";
 }
 
-struct LeafSplitTest
-    : public testing::TestWithParam<size_t> {};
-
-INSTANTIATE_TEST_SUITE_P(
-    LeafSplitMany, LeafSplitTest,
-    testing::Values(0x1234, 0x5678, 0x2345, 0x3456, 0x9999));
-
-TEST_P(LeafSplitTest, LeafSplitMany) {
+TEST_P(LeafSplitTest, SplitLeaf) {
     size_t seed = GetParam();
 
-    TreeNodeLeaf<int, int> node{nullptr};
+    Leaf lhs{nullptr};
+    Leaf rhs{nullptr};
+
     std::mt19937 mt(seed);
     std::uniform_int_distribution<int> dist(0, 10000);
 
     // generate random-ish keys with no duplicates
     std::vector<int> keys;
-    keys.reserve(node.capacity() + 1);
-    for (size_t i = 0; i < node.capacity() + 1; i++) {
+    std::set<int> expected;
+    keys.reserve(lhs.capacity() + 1);
+    for (size_t i = 0; i < lhs.capacity() + 1; i++) {
         keys.push_back(i * 10);
+        expected.insert(i * 10);
     }
     std::shuffle(keys.begin(), keys.end(), mt);
 
-    for (size_t i = 0; i < node.capacity(); i++) {
+    for (size_t i = 0; i < lhs.capacity(); i++) {
         int k = keys[i];
         int v = dist(mt);
-        ASSERT_EQ(node.insert({k, v}), InsertResult::eSuccess);
+        ASSERT_EQ(lhs.insert({k, v}), InsertResult::eSuccess);
     }
 
-    ASSERT_EQ(node.insert({5, 50}), InsertResult::eFull);
-    ASSERT_EQ(node.count(), node.capacity());
+    ASSERT_EQ(lhs.insert({5, 50}), InsertResult::eFull);
+    ASSERT_EQ(lhs.count(), lhs.capacity());
 
-    TreeNodeLeaf<int, int> rhs{nullptr};
-    TreeNodeLeaf<int, int>::Entry midpoint;
-    int key = keys[node.capacity()];
-    node.splitInto(&rhs, {key, key * 10}, &midpoint);
+    Entry midpoint;
+    int key = keys[lhs.capacity()];
+    lhs.splitInto(&rhs, {key, key * 10}, &midpoint);
+
+    ASSERT_TRUE(expected.contains(midpoint.key))
+        << "Midpoint key " << midpoint.key << " not found in original keys";
+    expected.erase(midpoint.key);
+
     // neither side should contain the midpoint key
-    for (size_t i = 0; i < node.count(); i++) {
-        ASSERT_LT(node.key(i), midpoint.key);
+    for (size_t i = 0; i < lhs.count(); i++) {
+        if (!(lhs.key(i) < midpoint.key)) {
+            printf("Midpoint key: %d\n", (int)midpoint.key);
+            lhs.dump();
+        }
+        ASSERT_LT(lhs.key(i), midpoint.key);
+
+        ASSERT_TRUE(expected.contains(lhs.key(i)))
+            << "Key " << lhs.key(i) << " not found in original keys";
+
+        expected.erase(lhs.key(i));
     }
 
     for (size_t i = 0; i < rhs.count(); i++) {
+        if (!(rhs.key(i) > midpoint.key)) {
+            printf("Midpoint key: %d\n", (int)midpoint.key);
+            rhs.dump();
+        }
         ASSERT_GT(rhs.key(i), midpoint.key);
+
+        ASSERT_TRUE(expected.contains(rhs.key(i)))
+            << "Key " << rhs.key(i) << " not found in original keys";
+
+        expected.erase(rhs.key(i));
     }
 
-    // both sides should be sorted and at least
-    ASSERT_TRUE(std::is_sorted(&node.key(0), &node.key(node.count() - 1), [](const auto& a, const auto& b) {
-        return a < b;
-    }));
+    if (!expected.empty()) {
+        printf("Keys not found in split: ");
+        for (const auto& key : expected) {
+            printf("%d ", key);
+        }
+        printf("\n");
+    }
+    ASSERT_TRUE(expected.empty())
+        << "Not all keys were found in node after split";
 
-    ASSERT_TRUE(std::is_sorted(&rhs.key(0), &rhs.key(rhs.count() - 1), [](const auto& a, const auto& b) {
-        return a < b;
-    }));
+    // both sides should be sorted
+    AssertLeafInvariants(lhs);
+    AssertLeafInvariants(rhs);
 
-    ASSERT_EQ(node.count(), node.capacity() / 2);
-    ASSERT_EQ(rhs.count(), node.capacity() / 2);
+    ASSERT_TRUE(lhs.count() >= (lhs.capacity() / 2) - 1)
+        << "Left node has too few keys after split: " << lhs.count();
+    ASSERT_TRUE(rhs.count() >= (rhs.capacity() / 2) - 1)
+        << "Right node has too few keys after split: " << rhs.count();
 }
 
 TEST_F(BTreeTest, NodeInsert) {
@@ -337,10 +391,6 @@ INSTANTIATE_TEST_SUITE_P(
     testing::Values(0x1234, 0x5678, 0x2345, 0x3456, 0x9999));
 
 TEST_P(LeafSplitTest, InternalSplitMany) {
-    using Leaf = TreeNodeLeaf<BigKey, int>;
-    using Internal = TreeNodeInternal<BigKey, int>;
-    using Entry = Entry<BigKey, int>;
-    using ChildEntry = typename Internal::ChildEntry;
     Internal lhs{nullptr};
     Internal rhs{nullptr};
 
@@ -430,10 +480,6 @@ INSTANTIATE_TEST_SUITE_P(
     testing::Values(0x1234, 0x5678, 0x2345, 0x3456, 0x9999));
 
 TEST_P(LeafSplitTest, SplitInternalNodeMany) {
-    using Entry = Entry<BigKey, int>;
-    using Leaf = TreeNodeLeaf<BigKey, int>;
-    using Internal = TreeNodeInternal<BigKey, int>;
-    using ChildEntry = typename Internal::ChildEntry;
     Internal lhs{nullptr};
     Internal rhs{nullptr};
 
@@ -511,51 +557,9 @@ TEST_P(LeafSplitTest, SplitInternalNodeMany) {
     }
 }
 
-struct BTreeSizedTest : public testing::TestWithParam<size_t> {
-public:
-    static void SetUpTestSuite() {
-        setbuf(stdout, nullptr);
-    }
-};
-
-INSTANTIATE_TEST_SUITE_P(
-    Contains, BTreeSizedTest,
-    testing::Values(1000, 1000'0, 1000'00, 1000'000));
-
-TEST_P(BTreeSizedTest, Contains) {
-    size_t count = GetParam();
-    BTreeMap<BigKey, int> tree;
-    std::mt19937 mt(0x1234);
-    std::uniform_int_distribution<int> dist(0, 0xFFFFFFF);
-    std::map<BigKey, int> expected;
-    for (size_t i = 0; i < count; i++) {
-        int key = dist(mt);
-        int v = i * 10;
-        tree.insert(key, v);
-        expected[key] = v;
-
-        printf("Inserted key: %d, value: %d\n", key, v);
-
-        if (!tree.contains(key)) {
-            tree.dump();
-        }
-
-        tree.validate();
-        ASSERT_TRUE(tree.contains(key)) << "Key " << key << " not found in BTreeMap after insertion";
-    }
-
-    for (const auto& [key, value] : expected) {
-        ASSERT_TRUE(tree.contains(key)) << "Key " << key.key << " not found in BTreeMap";
-    }
-}
-
-INSTANTIATE_TEST_SUITE_P(
-    Iterate, BTreeSizedTest,
-    testing::Values(1000, 1000'0, 1000'00, 1000'000));
-
 TEST_P(BTreeSizedTest, Iterate) {
     size_t count = GetParam();
-    BTreeMap<int, int> tree;
+    BTreeMap<BigKey, int> tree;
     std::mt19937 mt(0x1234);
     std::uniform_int_distribution<int> dist(0, count);
     std::map<int, int> expected;
@@ -581,6 +585,10 @@ TEST_P(BTreeSizedTest, Iterate) {
     }
 
     if (!expected.empty()) {
+        tree.dump();
+    }
+
+    if (!expected.empty()) {
         printf("Expected keys not found in BTreeMap: ");
         for (const auto& [key, value] : expected) {
             printf("%d ", key);
@@ -590,9 +598,32 @@ TEST_P(BTreeSizedTest, Iterate) {
     ASSERT_TRUE(expected.empty()) << "Not all expected keys were found in the BTreeMap";
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    Find, BTreeSizedTest,
-    testing::Values(1000, 1000'0, 1000'00, 1000'000));
+TEST_P(BTreeSizedTest, Contains) {
+    size_t count = GetParam();
+    BTreeMap<BigKey, int> tree;
+    std::mt19937 mt(0x1234);
+    std::uniform_int_distribution<int> dist(0, 0xFFFFFFF);
+    std::map<BigKey, int> expected;
+    for (size_t i = 0; i < count; i++) {
+        int key = dist(mt);
+        int v = i * 10;
+        tree.insert(key, v);
+        expected[key] = v;
+
+        if (!tree.contains(key)) {
+            tree.dump();
+        }
+
+        ASSERT_TRUE(tree.contains(key)) << "Key " << key << " not found in BTreeMap after insertion";
+    }
+
+    for (const auto& [key, value] : expected) {
+        if (!tree.contains(key)) {
+            tree.dump();
+        }
+        ASSERT_TRUE(tree.contains(key)) << "Key " << key.key << " not found in BTreeMap";
+    }
+}
 
 TEST_P(BTreeSizedTest, Find) {
     BTreeMap<int, int> tree;

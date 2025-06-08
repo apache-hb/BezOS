@@ -235,14 +235,18 @@ namespace sm {
                 return key(count() - 1);
             }
 
-            /// @brief Split the leaf node into two nodes to accommodate a new entry.
-            ///
-            /// @param newLeaf The new leaf node that will hold the keys greater than the midpoint.
-            /// @param entry The entry that caused the split.
-            /// @param[out] midpoint The midpoint entry that will be used to insert into the parent node.
-            void splitInto(TreeNodeLeaf *newLeaf, const Entry& entry, Entry *midpoint) noexcept {
+            std::span<const Key> keys() const noexcept {
+                return std::span<const Key>(mKeys, count());
+            }
+
+            std::span<Key> keys() noexcept {
+                return std::span<Key>(mKeys, count());
+            }
+
+            /// @brief Split the internal node into two nodes to accommodate a new entry and leaf.
+            void splitInto(TreeNodeLeaf *other, const Entry& entry, Entry *midpoint) noexcept {
                 // guardrails
-                KM_ASSERT(newLeaf->count() == 0);
+                KM_ASSERT(other->count() == 0);
                 KM_ASSERT(this->count() == this->capacity());
                 if (this->find(entry.key) != nullptr) {
                     printf("Key %d already exists in leaf node %p %d\n", (int)entry.key, this, this->isLeaf());
@@ -250,35 +254,37 @@ namespace sm {
                     KM_ASSERT(this->find(entry.key) == nullptr);
                 }
 
+                bool isOdd = (capacity() & 1);
                 size_t half = capacity() / 2;
+                size_t otherSize = half + (isOdd ? 1 : 0);
 
                 Entry middle = {key(half), value(half)};
 
                 // copy the top half of the keys and values to the new leaf
-                newLeaf->mCount = half;
-                for (size_t i = 0; i < half; i++) {
-                    newLeaf->key(i) = key(i + half);
-                    newLeaf->value(i) = value(i + half);
+                other->mCount = otherSize;
+                for (size_t i = 0; i < otherSize; i++) {
+                    other->key(i) = key(i + half);
+                    other->value(i) = value(i + half);
                 }
                 mCount = half;
 
                 if (entry.key < middle.key) {
                     this->insert(entry);
-                    newLeaf->insert(middle);
+                    other->insert(middle);
                     *midpoint = this->popBack();
                 } else {
-                    newLeaf->insert(entry);
-                    *midpoint = newLeaf->popFront();
+                    other->insert(entry);
+                    *midpoint = other->popFront();
                 }
 
-                if (newLeaf->count() < (newLeaf->capacity() / 2) - 1) {
+                if (other->count() < (other->capacity() / 2) - 1) {
                     printf("New leaf node %p has %zu keys, expected at least %zu (%zu/2) %d\n",
-                           newLeaf, newLeaf->count(), newLeaf->capacity() / 2, newLeaf->capacity(), (int)midpoint->key);
+                           other, other->count(), other->capacity() / 2, other->capacity(), (int)midpoint->key);
 
                     this->dump();
-                    newLeaf->dump();
+                    other->dump();
 
-                    KM_ASSERT(newLeaf->count() < (newLeaf->capacity() / 2) - 1);
+                    KM_ASSERT(other->count() < (other->capacity() / 2) - 1);
                 }
 
                 if (this->count() < (this->capacity() / 2) - 1) {
@@ -286,7 +292,7 @@ namespace sm {
                            this, this->count(), this->capacity() / 2, this->capacity(), (int)midpoint->key);
 
                     this->dump();
-                    newLeaf->dump();
+                    other->dump();
 
                     KM_ASSERT(this->count() < (this->capacity() / 2) - 1);
                 }
@@ -425,9 +431,6 @@ namespace sm {
 
             /// @brief Insert a new entry and the leaf node above it into the internal node.
             InsertResult insertChild(const Entry& entry, Leaf *leaf) noexcept {
-                if (entry.key == 167160334) {
-                    printf("TreeNodeInternal::insertChild called with entry %d %p in node %p\n", (int)entry.key, leaf, this);
-                }
                 size_t n = count();
 
                 for (size_t i = 0; i < n; i++) {
@@ -439,14 +442,7 @@ namespace sm {
 
                     if (key(i) > entry.key) {
                         if (n >= capacity()) {
-                            if (entry.key == 167160334) {
-                                printf("%p is full\n", this);
-                            }
                             return InsertResult::eFull;
-                        }
-
-                        if (entry.key == 167160334) {
-                            printf("Entry %d is less than key %d at index %zu in internal node %p\n", (int)entry.key, (int)key(i), i, this);
                         }
 
                         // Shift the keys and values to make space for the new key.
@@ -463,14 +459,7 @@ namespace sm {
                 }
 
                 if (n >= capacity()) {
-                    if (entry.key == 167160334) {
-                        printf("%p is full\n", this);
-                    }
                     return InsertResult::eFull;
-                }
-
-                if (entry.key == 167160334) {
-                    printf("Entry %d is greater than all keys in internal node %p\n", (int)entry.key, this);
                 }
 
                 // If we reach here, the key is greater than all existing keys.
@@ -484,10 +473,6 @@ namespace sm {
             /// @brief Split the internal node into two nodes to accommodate a new entry.
             __attribute__((deprecated("very wrong", "splitInternalNode")))
             void splitInto(TreeNodeInternal *other, const Entry& entry, Entry *midpoint) noexcept {
-                if (entry.key == 172096225) {
-                    printf("TreeNodeInternal::splitInto called with entry %d in node %p\n", (int)entry.key, this);
-                }
-
                 // guardrails
                 KM_ASSERT(other->count() == 0);
                 KM_ASSERT(this->count() == this->capacity());
@@ -535,15 +520,12 @@ namespace sm {
                 mCount = kHalfOrder;
 
                 if (entry.key < key(count() - 1)) {
-                    printf("Entry inside left node\n");
                     this->insert(entry);
                     *midpoint = this->popBack();
                 } else if (entry.key < middle.key) {
-                    printf("Entry before midpoint\n");
                     other->insert(middle);
                     *midpoint = entry;
                 } else {
-                    printf("Entry after midpoint\n");
                     *midpoint = middle;
                 }
 
@@ -591,10 +573,6 @@ namespace sm {
 
             /// @brief Split the internal node into two nodes to accommodate a new entry and leaf.
             void splitInternalNode(TreeNodeInternal *other, const ChildEntry& entry, Entry *midpoint) noexcept {
-                if (entry.entry.key == 172096225) {
-                    printf("TreeNodeInternal::splitInto called with entry %d in node %p\n", (int)entry.entry.key, this);
-                }
-
                 // guardrails
                 KM_ASSERT(other->count() == 0);
                 KM_ASSERT(this->count() == this->capacity());
@@ -640,6 +618,18 @@ namespace sm {
             ~TreeNodeInternal() noexcept {
                 for (size_t i = 0; i < count() + 1; i++) {
                     deleteNode<Key, Value>(child(i));
+                }
+            }
+
+            void validate() const noexcept {
+                auto keySet = Super::keys();
+                bool sorted = std::is_sorted(keySet.begin(), keySet.end());
+                if (!sorted) {
+                    printf("Internal node %p is not sorted\n", this);
+                    for (size_t i = 0; i < count(); i++) {
+                        printf("Key %zu: %d\n", i, (int)key(i));
+                    }
+                    KM_PANIC("Internal node keys are not sorted");
                 }
             }
 
@@ -733,22 +723,12 @@ namespace sm {
             using InternalNode = TreeNodeInternal<Key, Value>;
             KM_ASSERT(node->isLeaf() == newNode->isLeaf());
 
-            if (entry.key == 172096225) {
-                printf("splitNodeInto called with entry %d in node %p %p\n", (int)entry.key, node, newNode);
-            }
-
             if (node->isLeaf()) {
                 node->splitInto(newNode, entry, midpoint);
             } else {
                 InternalNode *internalNode = static_cast<InternalNode*>(node);
                 InternalNode *otherInternal = static_cast<InternalNode*>(newNode);
                 internalNode->splitInto(otherInternal, entry, midpoint);
-            }
-
-            if (entry.key == 172096225) {
-                detail::dumpNode<Key, Value>(node);
-                detail::dumpNode<Key, Value>(newNode);
-                printf("Midpoint: %d\n", (int)midpoint->key);
             }
         }
     }
@@ -775,15 +755,15 @@ namespace sm {
         LeafNode *mCurrentNode;
         size_t mCurrentIndex;
 
-        static NodeIndex walkToNextNode(LeafNode *current) noexcept {
+        static NodeIndex walkToParentNode(LeafNode *current) noexcept {
             InternalNode *parent = static_cast<InternalNode*>(current->getParent());
             if (parent == nullptr) {
                 return NodeIndex{nullptr, 0};
             }
 
-            size_t newIndex = parent->indexOfChild(current);
-            if (newIndex == parent->count()) {
-                return walkToNextNode(parent);
+            size_t newIndex = parent->indexOfChild(current) + 1;
+            if (newIndex >= parent->count()) {
+                return walkToParentNode(parent);
             }
 
             return NodeIndex{parent, newIndex};
@@ -793,21 +773,26 @@ namespace sm {
             if (mCurrentIndex + 1 < mCurrentNode->count()) {
                 mCurrentIndex += 1;
             } else {
-                auto [newNode, newIndex] = walkToNextNode(mCurrentNode);
+                auto [newNode, newIndex] = walkToParentNode(mCurrentNode);
+                printf("Walking to next node from leaf %p: %p, index %zu\n", mCurrentNode, newNode, newIndex);
                 mCurrentNode = newNode;
                 mCurrentIndex = newIndex;
             }
         }
 
         void nextInternalEntry() noexcept {
-            if (mCurrentIndex < mCurrentNode->count()) {
+            if (mCurrentIndex <= mCurrentNode->count()) {
                 InternalNode *internal = static_cast<InternalNode*>(mCurrentNode);
-                LeafNode *newNode = internal->child(mCurrentIndex + 1);
+                LeafNode *newNode = internal->child(mCurrentIndex);
+
+                printf("Entering child %zu of internal node %p: %p\n",
+                       mCurrentIndex, mCurrentNode, newNode);
 
                 mCurrentNode = newNode;
                 mCurrentIndex = 0;
             } else {
-                auto [newNode, newIndex] = walkToNextNode(mCurrentNode);
+                auto [newNode, newIndex] = walkToParentNode(mCurrentNode);
+                printf("Walking to next node from internal %p: %p, index %zu\n", mCurrentNode, newNode, newIndex);
                 mCurrentNode = newNode;
                 mCurrentIndex = newIndex;
             }
@@ -865,13 +850,10 @@ namespace sm {
         LeafNode *mRootNode;
 
         void splitRootNode(LeafNode *leaf, const Entry& entry) noexcept {
-            if (entry.key == 172096225) {
-                printf("BTreeMap::splitRootNode called with entry %d in node %p\n", (int)entry.key, leaf);
-            }
-
             Entry midpoint;
+            bool isLeaf = leaf->isLeaf();
             InternalNode *newRoot = detail::newNode<InternalNode>(nullptr);
-            LeafNode *newLeaf = leaf->isLeaf() ? detail::newNode<LeafNode>(newRoot) : detail::newNode<InternalNode>(newRoot);
+            LeafNode *newLeaf = isLeaf ? detail::newNode<LeafNode>(newRoot) : detail::newNode<InternalNode>(newRoot);
             detail::splitNode(leaf, newLeaf, entry, &midpoint);
 
             newRoot->initAsRoot(leaf, newLeaf, midpoint);
@@ -880,27 +862,16 @@ namespace sm {
         }
 
         void splitLeafNode(LeafNode *leaf, const Entry& entry) noexcept {
-            if (entry.key == 172096225) {
-                printf("BTreeMap::splitInnerNode called with entry %d in node %p\n", (int)entry.key, leaf);
-            }
-
             Entry midpoint;
             bool isLeaf = leaf->isLeaf();
             InternalNode *parent = static_cast<InternalNode*>(leaf->getParent());
             LeafNode *newLeaf = isLeaf ? detail::newNode<LeafNode>(parent) : detail::newNode<InternalNode>(parent);
             detail::splitNode(leaf, newLeaf, entry, &midpoint);
 
-            if (leaf == mRootNode) {
-                mRootNode = newNode<RootNode>(leaf, newLeaf, midpoint);
-            } else {
-                insertNewLeaf(parent, newLeaf, midpoint);
-            }
+            insertNewLeaf(parent, newLeaf, midpoint);
         }
 
         void splitNode(LeafNode *leaf, const Entry& entry) noexcept {
-            if (entry.key == 172096225) {
-                printf("BTreeMap::splitInto called with entry %d in node %p\n", (int)entry.key, leaf);
-            }
             if (leaf->find(entry.key) != nullptr) {
                 printf("Key %d already exists in node %p\n", (int)entry.key, leaf);
                 leaf->dump();
@@ -918,10 +889,9 @@ namespace sm {
         void splitInternalNode(InternalNode *parent, const Entry& entry, LeafNode *leaf) noexcept {
             InternalNode *newNode = detail::newNode<InternalNode>(parent->getParent());
 
-
             if (parent == mRootNode) {
                 Entry midpoint;
-                detail::splitNode(parent, newNode, entry, &midpoint);
+                parent->splitInternalNode(newNode, ChildEntry{leaf, entry}, &midpoint);
                 mRootNode = detail::newNode<RootNode>(parent, newNode, midpoint);
             } else {
                 Entry midpoint;
@@ -935,10 +905,6 @@ namespace sm {
         /// @param parent The parent internal node where the new leaf will be inserted.
         /// @param newLeaf The new leaf node to be inserted.
         void insertNewLeaf(InternalNode *parent, LeafNode *newLeaf, const Entry& midpoint) noexcept {
-            if (midpoint.key == 167160334) {
-                printf("BTreeMap::insertNewLeaf called with entry %d in node %p %p\n", (int)midpoint.key, parent, newLeaf);
-            }
-
             detail::InsertResult result = parent->insertChild(midpoint, newLeaf);
             if (result == detail::InsertResult::eFull) {
                 splitInternalNode(parent, midpoint, newLeaf);
@@ -946,9 +912,6 @@ namespace sm {
         }
 
         void insertInto(LeafNode *node, const Entry& entry) noexcept {
-            if (entry.key == 172096225) {
-                printf("BTreeMap::insertInto called with entry %d in node %p\n", (int)entry.key, node);
-            }
             if (node->isLeaf()) {
                 detail::InsertResult result = node->insert(entry);
                 if (result == detail::InsertResult::eFull) {
