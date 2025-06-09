@@ -187,6 +187,15 @@ namespace sm {
                 return InsertResult::eSuccess;
             }
 
+            void remove(size_t index) noexcept {
+                verifyIndex(index);
+                for (size_t i = index; i < count(); i++) {
+                    key(i) = key(i + 1);
+                    value(i) = value(i + 1);
+                }
+                mCount -= 1;
+            }
+
             size_t upperBound(const Key& k) const noexcept {
                 for (size_t i = 0; i < count(); i++) {
                     if (key(i) > k) {
@@ -475,7 +484,6 @@ namespace sm {
             }
 
             /// @brief Split the internal node into two nodes to accommodate a new entry.
-            __attribute__((deprecated("very wrong", "splitInternalNode")))
             void splitInto(TreeNodeInternal *other, const Entry& entry, Entry *midpoint) noexcept {
                 // guardrails
                 KM_ASSERT(other->count() == 0);
@@ -651,21 +659,6 @@ namespace sm {
                     printf("%p, ", child(i));
                 }
                 printf("]\n");
-
-#if 0
-                for (size_t i = 0; i < count() + 1; i++) {
-                    Leaf *childNode = child(i);
-                    if (childNode == nullptr) {
-                        continue;
-                    }
-
-                    if (childNode->isLeaf()) {
-                        static_cast<TreeNodeLeaf<Key, Value>*>(childNode)->dump();
-                    } else {
-                        static_cast<TreeNodeInternal<Key, Value>*>(childNode)->dump();
-                    }
-                }
-#endif
             }
         };
 
@@ -947,6 +940,27 @@ namespace sm {
             }
         }
 
+        /// @brief Merge two leaf nodes into one.
+        ///
+        /// @param leaf The leaf to merge into.
+        /// @param other The other leaf to merge from.
+        /// @param middle The entry that is between the two nodes.
+        void mergeLeafNode(LeafNode *leaf, LeafNode *other, const Entry& middle) noexcept {
+            KM_ASSERT(leaf->isLeaf() == other->isLeaf());
+            KM_ASSERT(leaf->getParent() == other->getParent());
+            KM_ASSERT(leaf->capacity() < (leaf->count() + other->count() + 1));
+
+            leaf->insert(middle);
+            size_t start = leaf->count();
+            leaf->mCount += other->count();
+            for (size_t i = 0; i < other->count(); i++) {
+                leaf->emplace(i + start, {other->key(i), other->value(i)});
+            }
+            other->mCount = 0; // Clear the other node
+            other->setParent(nullptr); // Detach the other node from the tree
+            detail::deleteNode<Key, Value>(other); // Free the memory of the other node
+        }
+
     public:
         using Iterator = BTreeMapIterator<Key, Value>;
 
@@ -970,6 +984,36 @@ namespace sm {
             }
 
             insertInto(mRootNode, Entry{key, value});
+        }
+
+        void remove(const Key& key) noexcept {
+            erase(find(key));
+        }
+
+        void erase(Iterator it) noexcept {
+            if (it == end()) {
+                return; // Nothing to erase
+            }
+
+            // TODO: this
+
+            LeafNode *node = it.mCurrentNode;
+            if (node->isLeaf()) {
+                if ((node->count() - 1) < (node->capacity() / 2) - 1) {
+                    // The node is smaller than the minimum size, we need to merge it with a sibling
+                    // find the smallest sibling node
+                    if (node->isRootNode()) {
+                        node->remove(it.mCurrentIndex);
+                    } else {
+                        InternalNode *parent = static_cast<InternalNode*>(node->getParent());
+
+                    }
+                } else {
+                    node->remove(it.mCurrentIndex);
+                }
+            } else {
+
+            }
         }
 
         bool contains(const Key& key) const noexcept {
