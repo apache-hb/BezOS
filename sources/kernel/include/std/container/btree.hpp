@@ -234,6 +234,18 @@ namespace sm {
                 return mCount;
             }
 
+            bool isFull() const noexcept {
+                return count() == capacity();
+            }
+
+            bool isUnderFilled() const noexcept {
+                return count() < leastCount();
+            }
+
+            constexpr size_t leastCount() const noexcept {
+                return (capacity() / 2) - 1;
+            }
+
             constexpr size_t capacity() const noexcept {
                 return kOrder;
             }
@@ -290,24 +302,24 @@ namespace sm {
                     *midpoint = other->popFront();
                 }
 
-                if (other->count() < (other->capacity() / 2) - 1) {
+                if (other->isUnderFilled()) {
                     printf("New leaf node %p has %zu keys, expected at least %zu (%zu/2) %d\n",
                            other, other->count(), other->capacity() / 2, other->capacity(), (int)midpoint->key);
 
                     this->dump();
                     other->dump();
 
-                    KM_ASSERT(other->count() < (other->capacity() / 2) - 1);
+                    KM_ASSERT(!other->isUnderFilled());
                 }
 
-                if (this->count() < (this->capacity() / 2) - 1) {
+                if (this->isUnderFilled()) {
                     printf("Current leaf node %p has %zu keys, expected at least %zu (%zu/2) %d\n",
                            this, this->count(), this->capacity() / 2, this->capacity(), (int)midpoint->key);
 
                     this->dump();
                     other->dump();
 
-                    KM_ASSERT(this->count() < (this->capacity() / 2) - 1);
+                    KM_ASSERT(!this->isUnderFilled());
                 }
             }
 
@@ -425,7 +437,7 @@ namespace sm {
             }
 
             size_t indexOfChild(const Leaf *leaf) const noexcept {
-                for (size_t i = 0; i < Super::count() + 1; i++) {
+                for (size_t i = 0; i < count() + 1; i++) {
                     if (child(i) == leaf) {
                         return i;
                     }
@@ -434,12 +446,88 @@ namespace sm {
             }
 
             bool containsLeafInNode(const Leaf *leaf) const noexcept {
-                for (size_t i = 0; i < Super::count() + 1; i++) {
+                for (size_t i = 0; i < count() + 1; i++) {
                     if (child(i) == leaf) {
                         return true;
                     }
                 }
                 return false;
+            }
+
+            void removeEntry(size_t index) noexcept {
+                KM_ASSERT(index < count());
+                for (size_t i = index; i < count() - 1; i++) {
+                    key(i) = key(i + 1);
+                    value(i) = value(i + 1);
+                }
+
+                for (size_t i = index; i < count(); i++) {
+                    child(i) = child(i + 1);
+                }
+
+                mCount -= 1;
+            }
+
+            Entry promoteFront() noexcept {
+                Entry entry = {key(0), value(0)};
+                Leaf *leaf = child(0);
+                if (leaf->isLeaf()) {
+                    Entry promoted = leaf->popFront();
+                    key(0) = promoted.key;
+                    value(0) = promoted.value;
+                    return entry;
+                } else {
+                    TreeNodeInternal *internal = static_cast<TreeNodeInternal*>(leaf);
+                    Entry promoted = internal->promoteFront();
+                    key(0) = promoted.key;
+                    value(0) = promoted.value;
+                    return entry;
+                }
+            }
+
+            Entry promoteBack() noexcept {
+                Entry entry = {key(count() - 1), value(count() - 1)};
+                Leaf *leaf = child(count());
+                if (leaf->isLeaf()) {
+                    Entry promoted = leaf->popFront();
+                    key(count() - 1) = promoted.key;
+                    value(count() - 1) = promoted.value;
+                    return entry;
+                } else {
+                    TreeNodeInternal *internal = static_cast<TreeNodeInternal*>(leaf);
+                    Entry promoted = internal->promoteFront();
+                    key(count() - 1) = promoted.key;
+                    value(count() - 1) = promoted.value;
+                    return entry;
+                }
+            }
+
+            void removeAndPromoteChild(size_t index) noexcept {
+                Leaf *lhsChild = child(index);
+                Leaf *rhsChild = child(index + 1);
+                size_t lhsSize = lhsChild->count();
+                size_t rhsSize = rhsChild->count();
+                if (lhsSize > rhsSize) {
+                    // Promote from the left child
+                    if (lhsChild->isLeaf()) {
+                        Entry promoted = lhsChild->popBack();
+                        emplace(index, promoted);
+                    } else {
+                        TreeNodeInternal *lhsInternal = static_cast<TreeNodeInternal*>(lhsChild);
+                        Entry promoted = lhsInternal->promoteBack();
+                        emplace(index, promoted);
+                    }
+                } else {
+                    // Promote from the right child
+                    if (rhsChild->isLeaf()) {
+                        Entry promoted = rhsChild->popFront();
+                        emplace(index, promoted);
+                    } else {
+                        TreeNodeInternal *rhsInternal = static_cast<TreeNodeInternal*>(rhsChild);
+                        Entry promoted = rhsInternal->promoteFront();
+                        emplace(index, promoted);
+                    }
+                }
             }
 
             /// @brief Insert a new entry and the leaf node above it into the internal node.
@@ -728,6 +816,55 @@ namespace sm {
                 internalNode->splitInto(otherInternal, entry, midpoint);
             }
         }
+
+        template<typename Key, typename Value>
+        struct BTreeMapCommon {
+            using Leaf = TreeNodeLeaf<Key, Value>;
+            using Internal = TreeNodeInternal<Key, Value>;
+            using Entry = Entry<Key, Value>;
+            using ChildEntry = typename Internal::ChildEntry;
+
+            static void splitNode(Leaf *node, Leaf *newNode, const Entry& entry, Entry *midpoint) noexcept {
+                KM_ASSERT(node->isLeaf() == newNode->isLeaf());
+
+                if (node->isLeaf()) {
+                    node->splitInto(newNode, entry, midpoint);
+                } else {
+                    Internal *internalNode = static_cast<Internal*>(node);
+                    Internal *otherInternal = static_cast<Internal*>(newNode);
+                    internalNode->splitInto(otherInternal, entry, midpoint);
+                }
+            }
+
+            static void deleteNode(TreeNodeHeader *node) noexcept {
+                if (node->isLeaf()) {
+                    Leaf *leaf = static_cast<Leaf*>(node);
+                    std::destroy_at(leaf);
+                } else {
+                    Internal *internal = static_cast<Internal*>(node);
+                    std::destroy_at(internal);
+                }
+
+                free(static_cast<void*>(node));
+            }
+
+            static bool isNodeTerminal(const TreeNodeHeader *node) noexcept {
+                if (node->isLeaf()) {
+                    const Leaf *leaf = static_cast<const Leaf*>(node);
+                    return leaf->isUnderFilled();
+                } else {
+                    const Internal *internal = static_cast<const Internal*>(node);
+                    size_t terminalCount = 0;
+                    for (size_t i = 0; i < internal->count() + 1; i++) {
+                        if (internal->child(i)->isUnderFilled()) {
+                            terminalCount += 1;
+                        }
+                    }
+
+                    return terminalCount < (internal->leastCount());
+                }
+            }
+        };
     }
 
     struct BTreeStats {
@@ -826,6 +963,7 @@ namespace sm {
         typename Equal = std::equal_to<Key>
     >
     class BTreeMap {
+        using Common = detail::BTreeMapCommon<Key, Value>;
         using Entry = detail::Entry<Key, Value>;
         using ChildEntry = detail::TreeNodeInternal<Key, Value>::ChildEntry;
         using RootNode = detail::TreeNodeRoot<Key, Value>;
@@ -839,7 +977,7 @@ namespace sm {
             bool isLeaf = leaf->isLeaf();
             InternalNode *newRoot = detail::newNode<InternalNode>(nullptr);
             LeafNode *newLeaf = isLeaf ? detail::newNode<LeafNode>(newRoot) : detail::newNode<InternalNode>(newRoot);
-            detail::splitNode(leaf, newLeaf, entry, &midpoint);
+            Common::splitNode(leaf, newLeaf, entry, &midpoint);
 
             newRoot->initAsRoot(leaf, newLeaf, midpoint);
             printf("New root node %p created with entry %d\n", newRoot, (int)midpoint.key);
@@ -851,7 +989,7 @@ namespace sm {
             bool isLeaf = leaf->isLeaf();
             InternalNode *parent = static_cast<InternalNode*>(leaf->getParent());
             LeafNode *newLeaf = isLeaf ? detail::newNode<LeafNode>(parent) : detail::newNode<InternalNode>(parent);
-            detail::splitNode(leaf, newLeaf, entry, &midpoint);
+            Common::splitNode(leaf, newLeaf, entry, &midpoint);
 
             insertNewLeaf(parent, newLeaf, midpoint);
         }
@@ -958,7 +1096,7 @@ namespace sm {
             }
             other->mCount = 0; // Clear the other node
             other->setParent(nullptr); // Detach the other node from the tree
-            detail::deleteNode<Key, Value>(other); // Free the memory of the other node
+            Common::deleteNode(other); // Free the memory of the other node
         }
 
     public:
@@ -973,7 +1111,7 @@ namespace sm {
 
         ~BTreeMap() noexcept {
             if (mRootNode) {
-                detail::deleteNode<Key, Value>(mRootNode);
+                Common::deleteNode(mRootNode);
                 mRootNode = nullptr;
             }
         }
@@ -998,21 +1136,14 @@ namespace sm {
             // TODO: this
 
             LeafNode *node = it.mCurrentNode;
-            if (node->isLeaf()) {
-                if ((node->count() - 1) < (node->capacity() / 2) - 1) {
-                    // The node is smaller than the minimum size, we need to merge it with a sibling
-                    // find the smallest sibling node
-                    if (node->isRootNode()) {
-                        node->remove(it.mCurrentIndex);
-                    } else {
-                        InternalNode *parent = static_cast<InternalNode*>(node->getParent());
-
-                    }
-                } else {
+            if (node->isRootNode()) {
+                if (node->isLeaf()) {
                     node->remove(it.mCurrentIndex);
+                } else {
+                    node->removeAndPromoteChild(it.mCurrentIndex);
                 }
             } else {
-
+                KM_PANIC("Unimplemented");
             }
         }
 

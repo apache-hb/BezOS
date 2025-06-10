@@ -645,3 +645,7 @@ TEST_P(BTreeSizedTest, Find) {
         ASSERT_EQ(foundValue, value) << "Found value does not match expected value";
     }
 }
+
+TEST_F(BTreeTest, PromoteLeaf) {
+
+}
