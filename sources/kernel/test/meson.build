@@ -200,6 +200,10 @@ testcases = {
         'sources': files('std/btree.cpp'),
         'link_with': [ test_shim ],
     },
+    'btree map': {
+        'sources': files('std/btree_map.cpp'),
+        'link_with': [ test_shim ],
+    },
     'spinlock': {
         'sources': files('std/spinlock.cpp'),
     },

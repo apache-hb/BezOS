@@ -52,7 +52,7 @@ namespace sm {
                  + sm::roundup(valueLayout.size * order, valueLayout.align);
         }
 
-        constexpr size_t computeMaxOrder(Layout keyLayout, Layout valueLayout, size_t targetSize) {
+        constexpr size_t computeMaxLeafOrder(Layout keyLayout, Layout valueLayout, size_t targetSize) {
             // The order is the number of keys/values per node.
             // We need to ensure that the total size of the node does not exceed the target size.
             // The node consists of:
@@ -79,7 +79,7 @@ namespace sm {
         public:
             using Entry = Entry<Key, Value>;
 
-            static constexpr size_t kOrder = std::max(3zu, computeMaxOrder(Layout::of<Key>(), Layout::of<Value>(), sm::kilobytes(4).bytes()));
+            static constexpr size_t kOrder = std::max(3zu, computeMaxLeafOrder(Layout::of<Key>(), Layout::of<Value>(), sm::kilobytes(4).bytes()));
 
         public:
             /// @brief The number of keys and values in the node.
@@ -799,25 +799,6 @@ namespace sm {
         }
 
         template<typename Key, typename Value>
-        void splitNode(
-            TreeNodeLeaf<Key, Value> *node,
-            TreeNodeLeaf<Key, Value> *newNode,
-            const Entry<Key, Value>& entry,
-            Entry<Key, Value> *midpoint
-        ) noexcept {
-            using InternalNode = TreeNodeInternal<Key, Value>;
-            KM_ASSERT(node->isLeaf() == newNode->isLeaf());
-
-            if (node->isLeaf()) {
-                node->splitInto(newNode, entry, midpoint);
-            } else {
-                InternalNode *internalNode = static_cast<InternalNode*>(node);
-                InternalNode *otherInternal = static_cast<InternalNode*>(newNode);
-                internalNode->splitInto(otherInternal, entry, midpoint);
-            }
-        }
-
-        template<typename Key, typename Value>
         struct BTreeMapCommon {
             using Leaf = TreeNodeLeaf<Key, Value>;
             using Internal = TreeNodeInternal<Key, Value>;
@@ -846,23 +827,6 @@ namespace sm {
                 }
 
                 free(static_cast<void*>(node));
-            }
-
-            static bool isNodeTerminal(const TreeNodeHeader *node) noexcept {
-                if (node->isLeaf()) {
-                    const Leaf *leaf = static_cast<const Leaf*>(node);
-                    return leaf->isUnderFilled();
-                } else {
-                    const Internal *internal = static_cast<const Internal*>(node);
-                    size_t terminalCount = 0;
-                    for (size_t i = 0; i < internal->count() + 1; i++) {
-                        if (internal->child(i)->isUnderFilled()) {
-                            terminalCount += 1;
-                        }
-                    }
-
-                    return terminalCount < (internal->leastCount());
-                }
             }
         };
     }
