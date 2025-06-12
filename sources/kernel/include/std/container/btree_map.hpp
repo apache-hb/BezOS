@@ -421,11 +421,13 @@ namespace sm::detail {
 
         template<typename T, typename... Args>
         static T* newNode(Args&&... args) noexcept {
-            void *ptr = aligned_alloc(alignof(T), sizeof(T));
-            return new (ptr) T(std::forward<Args>(args)...);
+            if (void *ptr = aligned_alloc(alignof(T), sizeof(T))) {
+                return new (ptr) T(std::forward<Args>(args)...);
+            }
+
+            return nullptr;
         }
     };
-
 }
 
 namespace sm {
@@ -518,6 +520,14 @@ namespace sm {
             }
 
             insert(mRoot, Entry{key, value});
+        }
+
+        bool contains(const Key& key) const noexcept {
+            if (mRoot == nullptr) {
+                return false;
+            }
+
+            return false;
         }
     };
 }

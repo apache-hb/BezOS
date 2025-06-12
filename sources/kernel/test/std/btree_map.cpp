@@ -325,6 +325,8 @@ TEST_F(BTreeMapTest, InternalInsertRandom) {
     bool sorted = std::is_sorted(keySet.begin(), keySet.end());
     ASSERT_TRUE(sorted) << "Internal node keys should be sorted";
     for (size_t i = 0; i < internal.count(); i++) {
-        ASSERT_NE(internal.child(i), nullptr) << "Child node at index " << i << " should not be null";
+        LeafNode *child = internal.child(i);
+        ASSERT_NE(child, nullptr) << "Child node at index " << i << " should not be null";
+        ASSERT_EQ(child->getParent(), &internal) << "Child node parent should match internal node";
     }
 }
