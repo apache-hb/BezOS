@@ -3,6 +3,8 @@
 #include "panic.hpp"
 #include "util/memory.hpp"
 
+#include "common/util/util.hpp"
+
 #include <stdlib.h>
 
 namespace sm::detail {
@@ -77,6 +79,7 @@ namespace sm::detail {
             using Super::setCount;
         public:
             using Super::count;
+            using Super::isRootNode;
 
             std::span<Key> keys() noexcept {
                 return std::span<Key>(mKeys, count());
@@ -119,6 +122,10 @@ namespace sm::detail {
             { }
 
             constexpr size_t capacity() const noexcept {
+                return kLeafOrder;
+            }
+
+            static constexpr size_t maxCapacity() noexcept {
                 return kLeafOrder;
             }
 
@@ -248,6 +255,7 @@ namespace sm::detail {
             using Super::setCount;
         public:
             using Super::count;
+            using Super::isRootNode;
 
             std::span<Key> keys() noexcept {
                 return std::span<Key>(mKeys, count());
@@ -275,7 +283,21 @@ namespace sm::detail {
                 return std::span<const LeafNode*>(mChildren, count() + 1);
             }
 
+            LeafNode *&child(size_t index) noexcept {
+                KM_ASSERT(index < count() + 1);
+                return mChildren[index];
+            }
+
+            LeafNode * const& child(size_t index) const noexcept {
+                KM_ASSERT(index < count() + 1);
+                return mChildren[index];
+            }
+
             constexpr size_t capacity() const noexcept {
+                return kInternalOrder;
+            }
+
+            static constexpr size_t maxCapacity() noexcept {
                 return kInternalOrder;
             }
 
@@ -303,9 +325,31 @@ namespace sm::detail {
                 mChildren[index] = static_cast<LeafNode*>(node);
             }
 
-            InsertResult insert(LeafNode *child) noexcept {
+            void transferTo(InternalNode *other, size_t size) noexcept {
+                KM_ASSERT(other->isEmpty());
+
+                size_t start = count() - size;
+
+                other->setCount(size);
+
+                for (size_t i = 0; i < size; i++) {
+                    other->key(i) = key(i + start + 1);
+                }
+
+                for (size_t i = 0; i < size + 1; i++) {
+                    other->takeNode(i, child(i + start));
+                }
+
+                setCount(count() - size);
+            }
+
+            void splitInternalInto(InternalNode *other, LeafNode *leaf) noexcept {
+
+            }
+
+            InsertResult insert(LeafNode *leaf) noexcept {
                 size_t n = count();
-                Key k = child->min();
+                Key k = leaf->min();
 
                 for (size_t i = 0; i < n; i++) {
                     if (key(i) > k) {
@@ -316,12 +360,13 @@ namespace sm::detail {
                         // Shift the keys and values to make space for the new key.
                         setCount(n + 1);
                         for (size_t j = n; j > i; j--) {
-                            emplace(j, key(j - 1));
+                            key(j) = key(j - 1);
                         }
                         for (size_t j = n; j > i; j--) {
                             child(j + 1) = child(j);
                         }
-                        emplace(i, child);
+                        key(i) = k;
+                        takeNode(i + 1, leaf);
                         return InsertResult::eSuccess;
                     }
                 }
@@ -332,7 +377,8 @@ namespace sm::detail {
 
                 // If we reach here, the key is greater than all existing keys.
                 setCount(n + 1);
-                emplace(n, child);
+                key(n) = k;
+                takeNode(n + 1, leaf);
                 return InsertResult::eSuccess;
             }
 
@@ -340,6 +386,24 @@ namespace sm::detail {
                 KM_ASSERT(index < count() + 1);
                 mKeys[index] = child->min();
                 takeNode(index, child);
+            }
+
+            void initAsRoot(LeafNode *lhs, LeafNode *rhs) noexcept {
+                KM_ASSERT(isRootNode());
+                setCount(1);
+                mKeys[0] = rhs->min();
+                takeNode(0, lhs);
+                takeNode(1, rhs);
+            }
+
+            Key min() const noexcept {
+                KM_ASSERT(!isEmpty());
+                return key(0);
+            }
+
+            Key max() const noexcept {
+                KM_ASSERT(!isEmpty());
+                return key(count() - 1);
             }
         };
 
@@ -359,6 +423,101 @@ namespace sm::detail {
         static T* newNode(Args&&... args) noexcept {
             void *ptr = aligned_alloc(alignof(T), sizeof(T));
             return new (ptr) T(std::forward<Args>(args)...);
+        }
+    };
+
+}
+
+namespace sm {
+    template<typename Key, typename Value>
+    class BTreeMap {
+        using Common = sm::detail::BTreeMapCommon<Key, Value>;
+        using Node = Common::BaseNode;
+        using Leaf = Common::LeafNode;
+        using Internal = Common::InternalNode;
+        using Entry = Common::NodeEntry;
+
+        template<typename T, typename... Args>
+        static T *newNode(Args&&... args) noexcept {
+            return Common::template newNode<T>(std::forward<Args>(args)...);
+        }
+
+        Node *mRoot;
+
+        void splitInternalNode(Internal *node, Leaf *leaf) noexcept {
+
+        }
+
+        void insertNewLeaf(Internal *parent, Leaf *leaf) noexcept {
+            if (parent->isFull()) {
+                splitInternalNode(parent, leaf);
+            } else {
+                parent->insert(leaf);
+            }
+        }
+
+        void splitLeafChildNode(Leaf *node, const Entry& entry) noexcept {
+            Internal *parent = node->getParent();
+            Leaf *newLeaf = newNode<Leaf>(parent);
+            node->splitLeafInto(newLeaf, entry);
+            insertNewLeaf(parent, newLeaf);
+        }
+
+        void splitLeafRootNode(Leaf *node, const Entry& entry) noexcept {
+            Internal *parent = newNode<Internal>(nullptr);
+            Leaf *newLeaf = newNode<Leaf>(parent);
+            node->splitLeafInto(newLeaf, entry);
+            parent->initAsRoot(node, newLeaf);
+            mRoot = parent;
+        }
+
+        void splitLeafNode(Leaf *node, const Entry& entry) noexcept {
+            if (node == mRoot) {
+                splitLeafRootNode(node, entry);
+            } else {
+                splitLeafChildNode(node, entry);
+            }
+        }
+
+        void insertIntoLeaf(Leaf *node, const Entry& entry) noexcept {
+            detail::InsertResult result = node->insert(entry);
+            if (result == detail::InsertResult::eFull) {
+                splitNode(node, entry);
+            }
+        }
+
+        void insertIntoInternal(Internal *node, const Entry& entry) noexcept {
+
+        }
+
+        void insert(Node *node, const Entry& entry) noexcept {
+            if (node->isLeaf()) {
+                insertIntoLeaf(static_cast<Leaf*>(node), entry);
+            } else {
+                insertIntoInternal(static_cast<Internal*>(node), entry);
+            }
+        }
+    public:
+        BTreeMap() noexcept
+            : mRoot(nullptr)
+        { }
+
+        UTIL_NOCOPY(BTreeMap);
+        UTIL_NOMOVE(BTreeMap);
+
+        ~BTreeMap() noexcept {
+            if (mRoot) {
+                Common::destroyNode(mRoot);
+                mRoot = nullptr;
+            }
+        }
+
+        void insert(const Key& key, const Value& value) noexcept {
+            if (mRoot == nullptr) {
+                mRoot = newNode<Leaf>(nullptr);
+            }
+
+            insert(mRoot, Entry{key, value});
         }
     };
 }

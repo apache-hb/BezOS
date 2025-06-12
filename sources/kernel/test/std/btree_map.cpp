@@ -252,3 +252,79 @@ TEST_F(BTreeMapTest, SplitLeafNodeLowValue) {
     ASSERT_EQ(other.min(), (leaf.capacity() / 2)) << "Other leaf min key should match expected";
     ASSERT_EQ(other.max(), leaf.capacity() - 1) << "Other leaf max key should match expected";
 }
+
+TEST_F(BTreeMapTest, InternalInsert) {
+    std::map<int, int> expectedKeys;
+    InternalNode internal{nullptr};
+    std::uniform_int_distribution<int> dist(0, INT_MAX);
+
+    LeafNode *lhs = Common::newNode<LeafNode>(&internal);
+    LeafNode *rhs = Common::newNode<LeafNode>(&internal);
+    lhs->insert({0, 0});
+    rhs->insert({1, 10});
+    internal.initAsRoot(lhs, rhs);
+
+    for (size_t i = 1; i < internal.capacity(); i++) {
+        int key = i * 10;
+        Entry entry = {key, key * 10};
+        LeafNode *leaf = Common::newNode<LeafNode>(&internal);
+        leaf->insert(entry);
+        ASSERT_EQ(internal.insert(leaf), InsertResult::eSuccess) << "Failed to insert key into internal node";
+    }
+
+    LeafNode *leaf = Common::newNode<LeafNode>(&internal);
+    leaf->insert({ INT_MAX, INT_MAX });
+    ASSERT_EQ(internal.insert(leaf), InsertResult::eFull) << "Internal node should be full after insertions";
+    Common::destroyNode(leaf);
+
+    ASSERT_TRUE(internal.isFull()) << "Internal node should be full after insertions";
+    ASSERT_EQ(internal.count(), internal.capacity()) << "Internal node count should match capacity";
+    auto keys = internal.keys();
+
+    bool sorted = std::is_sorted(keys.begin(), keys.end());
+    ASSERT_TRUE(sorted) << "Internal node keys should be sorted";
+    for (size_t i = 0; i < internal.count(); i++) {
+        ASSERT_NE(internal.child(i), nullptr) << "Child node at index " << i << " should not be null";
+    }
+}
+
+TEST_F(BTreeMapTest, InternalInsertRandom) {
+    InternalNode internal{nullptr};
+    std::uniform_int_distribution<int> dist(0, INT_MAX);
+    std::vector<int> keys;
+    std::mt19937 mt(0x1234); // Fixed seed for reproducibility
+    for (size_t i = 0; i < internal.capacity() + 1; i++) {
+        int key = i * 10;
+        keys.push_back(key);
+    }
+    std::shuffle(keys.begin(), keys.end(), mt);
+
+    LeafNode *lhs = Common::newNode<LeafNode>(&internal);
+    LeafNode *rhs = Common::newNode<LeafNode>(&internal);
+    lhs->insert({keys[0], 0});
+    rhs->insert({keys[1], 10});
+    internal.initAsRoot(lhs, rhs);
+
+    for (size_t i = 1; i < internal.capacity(); i++) {
+        int key = keys[i];
+        Entry entry = {key, key * 10};
+        LeafNode *leaf = Common::newNode<LeafNode>(&internal);
+        leaf->insert(entry);
+        ASSERT_EQ(internal.insert(leaf), InsertResult::eSuccess) << "Failed to insert key into internal node";
+    }
+
+    LeafNode *leaf = Common::newNode<LeafNode>(&internal);
+    leaf->insert({ INT_MAX, INT_MAX });
+    ASSERT_EQ(internal.insert(leaf), InsertResult::eFull) << "Internal node should be full after insertions";
+    Common::destroyNode(leaf);
+
+    ASSERT_TRUE(internal.isFull()) << "Internal node should be full after insertions";
+    ASSERT_EQ(internal.count(), internal.capacity()) << "Internal node count should match capacity";
+    auto keySet = internal.keys();
+
+    bool sorted = std::is_sorted(keySet.begin(), keySet.end());
+    ASSERT_TRUE(sorted) << "Internal node keys should be sorted";
+    for (size_t i = 0; i < internal.count(); i++) {
+        ASSERT_NE(internal.child(i), nullptr) << "Child node at index " << i << " should not be null";
+    }
+}
