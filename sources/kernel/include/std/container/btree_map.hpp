@@ -137,9 +137,10 @@ namespace sm::detail {
             void transferTo(LeafNode *other, size_t size) noexcept {
                 KM_ASSERT(other->isEmpty());
 
+                size_t start = count() - size;
                 other->setCount(size);
                 for (size_t i = 0; i < size; i++) {
-                    other->emplace(other->count() - size + i, get(i));
+                    other->emplace(i, get(i + start));
                 }
                 setCount(count() - size);
             }
@@ -224,6 +225,16 @@ namespace sm::detail {
                 KM_ASSERT(!isEmpty());
                 return get(count() - 1);
             }
+
+            Key min() const noexcept {
+                KM_ASSERT(!isEmpty());
+                return key(0);
+            }
+
+            Key max() const noexcept {
+                KM_ASSERT(!isEmpty());
+                return key(count() - 1);
+            }
         };
 
         static constexpr size_t kInternalOrder = std::max(3zu, (kTargetSize - sizeof(BaseNode)) / (sizeof(Key) + sizeof(LeafNode*)));
@@ -286,18 +297,49 @@ namespace sm::detail {
                 }
             }
 
-            void takeNode(BaseNode *node, size_t index) noexcept {
+            void takeNode(size_t index, BaseNode *node) noexcept {
                 KM_ASSERT(index < count() + 1);
                 node->setParent(this);
                 mChildren[index] = static_cast<LeafNode*>(node);
             }
 
-            void splitInternalInto(InternalNode *other, const NodeEntry& entry) noexcept {
+            InsertResult insert(LeafNode *child) noexcept {
+                size_t n = count();
+                Key k = child->min();
 
+                for (size_t i = 0; i < n; i++) {
+                    if (key(i) > k) {
+                        if (n >= capacity()) {
+                            return InsertResult::eFull;
+                        }
+
+                        // Shift the keys and values to make space for the new key.
+                        setCount(n + 1);
+                        for (size_t j = n; j > i; j--) {
+                            emplace(j, key(j - 1));
+                        }
+                        for (size_t j = n; j > i; j--) {
+                            child(j + 1) = child(j);
+                        }
+                        emplace(i, child);
+                        return InsertResult::eSuccess;
+                    }
+                }
+
+                if (n >= capacity()) {
+                    return InsertResult::eFull;
+                }
+
+                // If we reach here, the key is greater than all existing keys.
+                setCount(n + 1);
+                emplace(n, child);
+                return InsertResult::eSuccess;
             }
 
-            void insert(const NodeEntry& entry, LeafNode *child) noexcept {
-                KM_ASSERT(entry.key < child->head().key);
+            void emplace(size_t index, LeafNode *child) noexcept {
+                KM_ASSERT(index < count() + 1);
+                mKeys[index] = child->min();
+                takeNode(index, child);
             }
         };
 
