@@ -72,8 +72,8 @@ namespace sm::detail {
 
             void emplace(size_t index, const NodeEntry& entry) noexcept {
                 KM_ASSERT(index < count() + 1);
-                mKeys[index] = entry.key;
-                mValues[index] = entry.value;
+                key(index) = entry.key;
+                value(index) = entry.value;
             }
 
             using Super::setCount;
@@ -250,7 +250,7 @@ namespace sm::detail {
             using Super = BaseNode;
 
             Key mKeys[kInternalOrder];
-            LeafNode *mChildren[kInternalOrder + 1];
+            BaseNode *mChildren[kInternalOrder + 1];
 
             using Super::setCount;
         public:
@@ -275,20 +275,20 @@ namespace sm::detail {
                 return mKeys[index];
             }
 
-            std::span<LeafNode*> children() noexcept {
-                return std::span<LeafNode*>(mChildren, count() + 1);
+            std::span<BaseNode*> children() noexcept {
+                return std::span<BaseNode*>(mChildren, count() + 1);
             }
 
-            std::span<const LeafNode*> children() const noexcept {
-                return std::span<const LeafNode*>(mChildren, count() + 1);
+            std::span<const BaseNode*> children() const noexcept {
+                return std::span<const BaseNode*>(mChildren, count() + 1);
             }
 
-            LeafNode *&child(size_t index) noexcept {
+            BaseNode *&child(size_t index) noexcept {
                 KM_ASSERT(index < count() + 1);
                 return mChildren[index];
             }
 
-            LeafNode * const& child(size_t index) const noexcept {
+            BaseNode * const& child(size_t index) const noexcept {
                 KM_ASSERT(index < count() + 1);
                 return mChildren[index];
             }
@@ -333,27 +333,58 @@ namespace sm::detail {
                 other->setCount(size);
 
                 for (size_t i = 0; i < size; i++) {
-                    other->key(i) = key(i + start + 1);
+                    other->key(i) = key(i + start);
                 }
+
+                printf("before: [");
+                for (size_t i = 0; i < count() + 1; i++) {
+                    printf("%p, ", static_cast<void*>(mChildren[i]));
+                }
+                printf("]\n");
 
                 for (size_t i = 0; i < size + 1; i++) {
                     other->takeNode(i, child(i + start));
                 }
 
-                setCount(count() - size);
+                setCount(count() - size - 1);
+
+                printf("this: [");
+                for (size_t i = 0; i < count() + 1; i++) {
+                    printf("%p, ", static_cast<void*>(mChildren[i]));
+                }
+                printf("]\n");
+                printf("other: [");
+                for (size_t i = 0; i < other->count() + 1; i++) {
+                    printf("%p, ", static_cast<void*>(other->mChildren[i]));
+                }
+                printf("]\n");
             }
 
-            void splitInternalInto(InternalNode *other, LeafNode *leaf) noexcept {
+            void splitInternalInto(InternalNode *other, BaseNode *leaf) noexcept {
+                KM_ASSERT(isFull());
+                bool isOdd = (count() & 1);
+                size_t half = capacity() / 2;
+                size_t otherSize = half + (isOdd ? 1 : 0);
 
+                Key middleKey = key(half);
+                Key entryKey = minKey(leaf);
+
+                transferTo(other, otherSize);
+
+                if (entryKey < middleKey) {
+                    this->insert(leaf);
+                } else {
+                    other->insert(leaf);
+                }
             }
 
-            InsertResult insert(LeafNode *leaf) noexcept {
+            InsertResult insert(BaseNode *leaf) noexcept {
                 size_t n = count();
-                Key k = leaf->min();
+                Key k = minKey(leaf);
 
                 for (size_t i = 0; i < n; i++) {
                     if (key(i) > k) {
-                        if (n >= capacity()) {
+                        if (n == capacity()) {
                             return InsertResult::eFull;
                         }
 
@@ -371,7 +402,7 @@ namespace sm::detail {
                     }
                 }
 
-                if (n >= capacity()) {
+                if (n == capacity()) {
                     return InsertResult::eFull;
                 }
 
@@ -382,16 +413,16 @@ namespace sm::detail {
                 return InsertResult::eSuccess;
             }
 
-            void emplace(size_t index, LeafNode *child) noexcept {
+            void emplace(size_t index, BaseNode *child) noexcept {
                 KM_ASSERT(index < count() + 1);
-                mKeys[index] = child->min();
+                mKeys[index] = minKey(child);
                 takeNode(index, child);
             }
 
-            void initAsRoot(LeafNode *lhs, LeafNode *rhs) noexcept {
+            void initAsRoot(BaseNode *lhs, BaseNode *rhs) noexcept {
                 KM_ASSERT(isRootNode());
                 setCount(1);
-                mKeys[0] = rhs->min();
+                mKeys[0] = minKey(rhs);
                 takeNode(0, lhs);
                 takeNode(1, rhs);
             }
@@ -417,6 +448,48 @@ namespace sm::detail {
             }
 
             free(static_cast<void*>(node));
+        }
+
+        static bool nodeContains(const BaseNode *node, const Key& key) noexcept {
+            if (node->isLeaf()) {
+                const LeafNode *leaf = static_cast<const LeafNode*>(node);
+                for (size_t i = 0; i < leaf->count(); i++) {
+                    if (leaf->key(i) == key) {
+                        return true;
+                    }
+                }
+                return false;
+            } else {
+                const InternalNode *internal = static_cast<const InternalNode*>(node);
+                for (size_t i = 0; i < internal->count(); i++) {
+                    if (internal->key(i) < key) {
+                        return nodeContains(internal->child(i), key);
+                    }
+                }
+
+                // If we reach here, the key is greater than all existing keys.
+                return nodeContains(internal->child(internal->count()), key);
+            }
+        }
+
+        static Key minKey(const BaseNode *node) noexcept {
+            if (node->isLeaf()) {
+                const LeafNode *leaf = static_cast<const LeafNode*>(node);
+                return leaf->min();
+            } else {
+                const InternalNode *internal = static_cast<const InternalNode*>(node);
+                return internal->min();
+            }
+        }
+
+        static Key maxKey(const BaseNode *node) noexcept {
+            if (node->isLeaf()) {
+                const LeafNode *leaf = static_cast<const LeafNode*>(node);
+                return leaf->max();
+            } else {
+                const InternalNode *internal = static_cast<const InternalNode*>(node);
+                return internal->max();
+            }
         }
 
         template<typename T, typename... Args>
@@ -446,11 +519,30 @@ namespace sm {
 
         Node *mRoot;
 
-        void splitInternalNode(Internal *node, Leaf *leaf) noexcept {
-
+        void splitInternalRootNode(Internal *node, Node *leaf) noexcept {
+            Internal *parent = newNode<Internal>(nullptr);
+            Internal *other = newNode<Internal>(parent);
+            node->splitInternalInto(other, leaf);
+            parent->initAsRoot(node, other);
+            mRoot = parent;
         }
 
-        void insertNewLeaf(Internal *parent, Leaf *leaf) noexcept {
+        void splitInternalChildNode(Internal *node, Node *leaf) noexcept {
+            Internal *parent = node->getParent();
+            Internal *other = newNode<Internal>(parent);
+            node->splitInternalInto(other, leaf);
+            insertNewLeaf(parent, other);
+        }
+
+        void splitInternalNode(Internal *node, Node *leaf) noexcept {
+            if (node == mRoot) {
+                splitInternalRootNode(node, leaf);
+            } else {
+                splitInternalChildNode(node, leaf);
+            }
+        }
+
+        void insertNewLeaf(Internal *parent, Node *leaf) noexcept {
             if (parent->isFull()) {
                 splitInternalNode(parent, leaf);
             } else {
@@ -484,15 +576,25 @@ namespace sm {
         void insertIntoLeaf(Leaf *node, const Entry& entry) noexcept {
             detail::InsertResult result = node->insert(entry);
             if (result == detail::InsertResult::eFull) {
-                splitNode(node, entry);
+                splitLeafNode(node, entry);
             }
         }
 
         void insertIntoInternal(Internal *node, const Entry& entry) noexcept {
+            for (size_t i = 0; i < node->count(); i++) {
+                if (node->key(i) > entry.key) {
+                    Node *child = node->child(i);
+                    insertIntoNode(child, entry);
+                    return;
+                }
+            }
 
+            // If we reach here, the key is greater than all existing keys.
+            Node *child = node->child(node->count());
+            insertIntoNode(child, entry);
         }
 
-        void insert(Node *node, const Entry& entry) noexcept {
+        void insertIntoNode(Node *node, const Entry& entry) noexcept {
             if (node->isLeaf()) {
                 insertIntoLeaf(static_cast<Leaf*>(node), entry);
             } else {
@@ -519,7 +621,7 @@ namespace sm {
                 mRoot = newNode<Leaf>(nullptr);
             }
 
-            insert(mRoot, Entry{key, value});
+            insertIntoNode(mRoot, Entry{key, value});
         }
 
         bool contains(const Key& key) const noexcept {
@@ -527,7 +629,7 @@ namespace sm {
                 return false;
             }
 
-            return false;
+            return Common::nodeContains(mRoot, key);
         }
     };
 }

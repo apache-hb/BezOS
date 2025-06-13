@@ -11,6 +11,7 @@ public:
     using InternalNode = Common::InternalNode;
     using Entry = Common::NodeEntry;
     using InsertResult = sm::detail::InsertResult;
+    using Map = sm::BTreeMap<std::string, int>;
 
     std::string RandomString(size_t length) {
         static const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -133,10 +134,16 @@ TEST_F(BTreeMapStringTest, SplitLeafNodeLowValue) {
 class BTreeMapTest : public testing::Test {
 public:
     using Common = sm::detail::BTreeMapCommon<int, int>;
+    using BaseNode = Common::BaseNode;
     using LeafNode = Common::LeafNode;
     using InternalNode = Common::InternalNode;
     using Entry = Common::NodeEntry;
     using InsertResult = sm::detail::InsertResult;
+    using Map = sm::BTreeMap<int, int>;
+
+    static void SetUpTestSuite() {
+        setbuf(stdout, nullptr);
+    }
 
     void AssertLeafFull(LeafNode& leaf) {
         ASSERT_EQ(leaf.insert({INT_MAX, INT_MAX}), InsertResult::eFull) << "Leaf node should be full after insertions";
@@ -325,8 +332,122 @@ TEST_F(BTreeMapTest, InternalInsertRandom) {
     bool sorted = std::is_sorted(keySet.begin(), keySet.end());
     ASSERT_TRUE(sorted) << "Internal node keys should be sorted";
     for (size_t i = 0; i < internal.count(); i++) {
-        LeafNode *child = internal.child(i);
+        BaseNode *child = internal.child(i);
         ASSERT_NE(child, nullptr) << "Child node at index " << i << " should not be null";
         ASSERT_EQ(child->getParent(), &internal) << "Child node parent should match internal node";
     }
 }
+
+TEST_F(BTreeMapTest, SplitInternal) {
+    InternalNode internal{nullptr};
+    std::uniform_int_distribution<int> dist(0, INT_MAX);
+    std::vector<int> keys;
+    std::mt19937 mt(0x1234); // Fixed seed for reproducibility
+    for (size_t i = 0; i < internal.capacity() + 1; i++) {
+        int key = i * 10;
+        keys.push_back(key);
+    }
+    std::shuffle(keys.begin(), keys.end(), mt);
+
+    LeafNode *lhs = Common::newNode<LeafNode>(&internal);
+    LeafNode *rhs = Common::newNode<LeafNode>(&internal);
+    lhs->insert({keys[0], 0});
+    rhs->insert({keys[1], 10});
+    internal.initAsRoot(lhs, rhs);
+
+    for (size_t i = 1; i < internal.capacity(); i++) {
+        int key = keys[i];
+        Entry entry = {key, key * 10};
+        LeafNode *leaf = Common::newNode<LeafNode>(&internal);
+        leaf->insert(entry);
+        ASSERT_EQ(internal.insert(leaf), InsertResult::eSuccess) << "Failed to insert key into internal node";
+    }
+
+    LeafNode *leaf = Common::newNode<LeafNode>(&internal);
+    leaf->insert({ INT_MAX, INT_MAX });
+    ASSERT_EQ(internal.insert(leaf), InsertResult::eFull) << "Internal node should be full after insertions";
+    Common::destroyNode(leaf);
+
+    ASSERT_TRUE(internal.isFull()) << "Internal node should be full after insertions";
+    ASSERT_EQ(internal.count(), internal.capacity()) << "Internal node count should match capacity";
+    auto keySet = internal.keys();
+
+    bool sorted = std::is_sorted(keySet.begin(), keySet.end());
+    ASSERT_TRUE(sorted) << "Internal node keys should be sorted";
+    for (size_t i = 0; i < internal.count(); i++) {
+        BaseNode *child = internal.child(i);
+        ASSERT_NE(child, nullptr) << "Child node at index " << i << " should not be null";
+        ASSERT_EQ(child->getParent(), &internal) << "Child node parent should match internal node";
+    }
+
+    LeafNode *newLeaf = Common::newNode<LeafNode>(&internal);
+    newLeaf->insert({ INT_MAX, INT_MAX });
+    InternalNode other{nullptr};
+    printf("leaf %p\n", (void*)newLeaf);
+    internal.splitInternalInto(&other, newLeaf);
+
+    ASSERT_EQ(internal.count() + other.count(), internal.capacity() + 1) << "Total count after split should equal capacity";
+    auto lhsKeys = internal.keys();
+    auto rhsKeys = other.keys();
+    bool lhsSorted = std::is_sorted(lhsKeys.begin(), lhsKeys.end());
+    bool rhsSorted = std::is_sorted(rhsKeys.begin(), rhsKeys.end());
+    ASSERT_TRUE(lhsSorted) << "Left internal node keys should be sorted";
+    ASSERT_TRUE(rhsSorted) << "Right internal node keys should be sorted";
+
+    for (size_t i = 0; i < internal.count(); i++) {
+        BaseNode *child = internal.child(i);
+        ASSERT_NE(child, nullptr) << "Child node at index " << i << " should not be null";
+        ASSERT_EQ(child->getParent(), &internal) << "Child node parent should match left internal node";
+    }
+
+    for (size_t i = 0; i < other.count(); i++) {
+        BaseNode *child = other.child(i);
+        ASSERT_NE(child, nullptr) << "Child node at index " << i << " should not be null";
+        ASSERT_EQ(child->getParent(), &other) << "Child node parent should match right internal node";
+    }
+
+    std::vector<int> intersectionKeys;
+    std::set_intersection(
+        lhsKeys.begin(), lhsKeys.end(),
+        rhsKeys.begin(), rhsKeys.end(),
+        std::back_inserter(intersectionKeys)
+    );
+
+    ASSERT_TRUE(intersectionKeys.empty()) << "No keys should be in both internal nodes after split";
+
+    auto lhsChildren = internal.children();
+    auto rhsChildren = other.children();
+    std::vector<BaseNode*> intersectionChildren;
+    std::set_intersection(
+        lhsChildren.begin(), lhsChildren.end(),
+        rhsChildren.begin(), rhsChildren.end(),
+        std::back_inserter(intersectionChildren)
+    );
+    ASSERT_TRUE(intersectionChildren.empty()) << "No children should be in both internal nodes after split";
+}
+
+#if 0
+TEST_F(BTreeMapTest, MapInsert) {
+    InternalNode internal{nullptr};
+    std::uniform_int_distribution<int> dist(0, INT_MAX);
+    std::vector<int> keys;
+    std::mt19937 mt(0x1234); // Fixed seed for reproducibility
+    for (size_t i = 0; i < 0x1000 * 4; i++) {
+        int key = i * 10;
+        keys.push_back(key);
+    }
+    std::shuffle(keys.begin(), keys.end(), mt);
+
+    Map map;
+    for (const auto& key : keys) {
+        int value = key * 10;
+        map.insert(key, value);
+
+        ASSERT_TRUE(map.contains(key)) << "Map should contain key " << key;
+    }
+
+    for (const auto& key : keys) {
+        ASSERT_TRUE(map.contains(key)) << "Map should still contain key " << key;
+    }
+}
+#endif
