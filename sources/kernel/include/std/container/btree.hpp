@@ -799,7 +799,7 @@ namespace sm {
         }
 
         template<typename Key, typename Value>
-        struct BPlusTreeMapCommon {
+        struct BTreeMapCommon {
             using Leaf = TreeNodeLeaf<Key, Value>;
             using Internal = TreeNodeInternal<Key, Value>;
             using Entry = Entry<Key, Value>;
@@ -927,7 +927,7 @@ namespace sm {
         typename Equal = std::equal_to<Key>
     >
     class BTreeMap {
-        using Common = detail::BPlusTreeMapCommon<Key, Value>;
+        using Common = detail::BTreeMapCommon<Key, Value>;
         using Entry = detail::Entry<Key, Value>;
         using ChildEntry = detail::TreeNodeInternal<Key, Value>::ChildEntry;
         using RootNode = detail::TreeNodeRoot<Key, Value>;
