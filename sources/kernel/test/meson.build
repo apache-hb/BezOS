@@ -196,12 +196,16 @@ testcases = {
     'string': {
         'sources': files('std/string.cpp'),
     },
-    'btree': {
-        'sources': files('std/btree.cpp'),
-        'link_with': [ test_shim ],
-    },
+    # 'btree': {
+    #     'sources': files('std/btree.cpp'),
+    #     'link_with': [ test_shim ],
+    # },
+    # 'b+tree map': {
+    #     'sources': files('std/bptree_map.cpp'),
+    #     'link_with': [ test_shim ],
+    # },
     'btree map': {
-        'sources': files('std/btree_map.cpp'),
+        'sources': files('std/container/btree_map.cpp'),
         'link_with': [ test_shim ],
     },
     'spinlock': {

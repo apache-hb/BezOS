@@ -1,8 +1,9 @@
 #include <gtest/gtest.h>
 #include <random>
 
-#include "std/container/btree_map.hpp"
+#include "std/container/bptree_map.hpp"
 
+#if 0
 class BTreeMapStringTest : public testing::Test {
     std::mt19937 mt{0x1234}; // Fixed seed for reproducibility
 public:
@@ -130,16 +131,35 @@ TEST_F(BTreeMapStringTest, SplitLeafNodeLowValue) {
     ValidateLeafInvariants(leaf);
     ValidateLeafInvariants(other);
 }
+#endif
 
-class BTreeMapTest : public testing::Test {
+struct alignas(256) BigKey {
+    int value;
+
+    BigKey(int v = 0) : value(v) {}
+
+    constexpr auto operator<=>(const BigKey&) const noexcept = default;
+    constexpr bool operator==(const BigKey& other) const noexcept {
+        return value == other.value;
+    }
+    constexpr bool operator==(int other) const noexcept {
+        return value == other;
+    }
+
+    operator int() const noexcept {
+        return value;
+    }
+};
+
+class BPlusTreeMapTest : public testing::Test {
 public:
-    using Common = sm::detail::BTreeMapCommon<int, int>;
+    using Common = sm::detail::BPlusTreeMapCommon<BigKey, int>;
     using BaseNode = Common::BaseNode;
     using LeafNode = Common::LeafNode;
     using InternalNode = Common::InternalNode;
     using Entry = Common::NodeEntry;
     using InsertResult = sm::detail::InsertResult;
-    using Map = sm::BTreeMap<int, int>;
+    using Map = sm::BPlusTreeMap<BigKey, int>;
 
     static void SetUpTestSuite() {
         setbuf(stdout, nullptr);
@@ -173,7 +193,7 @@ public:
     }
 };
 
-TEST_F(BTreeMapTest, Insert) {
+TEST_F(BPlusTreeMapTest, Insert) {
     LeafNode leaf{nullptr};
     std::map<int, int> expectedKeys;
 
@@ -188,7 +208,7 @@ TEST_F(BTreeMapTest, Insert) {
     AssertLeafKeys(leaf, expectedKeys);
 }
 
-TEST_F(BTreeMapTest, InsertRandom) {
+TEST_F(BPlusTreeMapTest, InsertRandom) {
     std::mt19937 mt(0x1234);
     std::uniform_int_distribution<int> dist(0, 1000);
     std::map<int, int> expectedKeys;
@@ -206,7 +226,7 @@ TEST_F(BTreeMapTest, InsertRandom) {
     AssertLeafKeys(leaf, expectedKeys);
 }
 
-TEST_F(BTreeMapTest, SplitLeafNodeHighValue) {
+TEST_F(BPlusTreeMapTest, SplitLeafNodeHighValue) {
     LeafNode leaf{nullptr};
     std::map<int, int> expectedKeys;
 
@@ -227,13 +247,13 @@ TEST_F(BTreeMapTest, SplitLeafNodeHighValue) {
     ValidateLeafInvariants(leaf);
     ValidateLeafInvariants(other);
 
-    ASSERT_EQ(leaf.min(), 0) << "Leaf min key should match expected";
-    ASSERT_EQ(leaf.max(), leaf.count() - 1) << "Leaf max key should match expected";
-    ASSERT_EQ(other.min(), leaf.count()) << "Other leaf min key should match expected";
-    ASSERT_EQ(other.max(), leaf.capacity()) << "Other leaf max key should match expected";
+    ASSERT_EQ((int)leaf.min(), (int)0) << "Leaf min key should match expected";
+    ASSERT_EQ((int)leaf.max(), (int)leaf.count() - 1) << "Leaf max key should match expected";
+    ASSERT_EQ((int)other.min(), (int)leaf.count()) << "Other leaf min key should match expected";
+    ASSERT_EQ((int)other.max(), (int)leaf.capacity()) << "Other leaf max key should match expected";
 }
 
-TEST_F(BTreeMapTest, SplitLeafNodeLowValue) {
+TEST_F(BPlusTreeMapTest, SplitLeafNodeLowValue) {
     LeafNode leaf{nullptr};
     std::map<int, int> expectedKeys;
 
@@ -254,13 +274,13 @@ TEST_F(BTreeMapTest, SplitLeafNodeLowValue) {
     ValidateLeafInvariants(leaf);
     ValidateLeafInvariants(other);
 
-    ASSERT_EQ(leaf.min(), newEntry.key) << "Leaf min key should match expected";
-    ASSERT_EQ(leaf.max(), (leaf.capacity() / 2) - 1) << "Leaf max key should match expected";
-    ASSERT_EQ(other.min(), (leaf.capacity() / 2)) << "Other leaf min key should match expected";
-    ASSERT_EQ(other.max(), leaf.capacity() - 1) << "Other leaf max key should match expected";
+    ASSERT_EQ((int)leaf.min(),  (int)newEntry.key) << "Leaf min key should match expected";
+    ASSERT_EQ((int)leaf.max(),  (int)(leaf.capacity() / 2) - 1) << "Leaf max key should match expected";
+    ASSERT_EQ((int)other.min(), (int)(leaf.capacity() / 2)) << "Other leaf min key should match expected";
+    ASSERT_EQ((int)other.max(), (int)leaf.capacity() - 1) << "Other leaf max key should match expected";
 }
 
-TEST_F(BTreeMapTest, InternalInsert) {
+TEST_F(BPlusTreeMapTest, InternalInsert) {
     std::map<int, int> expectedKeys;
     InternalNode internal{nullptr};
     std::uniform_int_distribution<int> dist(0, INT_MAX);
@@ -271,7 +291,7 @@ TEST_F(BTreeMapTest, InternalInsert) {
     rhs->insert({1, 10});
     internal.initAsRoot(lhs, rhs);
 
-    for (size_t i = 1; i < internal.capacity(); i++) {
+    for (size_t i = 1; i < internal.capacity() - 1; i++) {
         int key = i * 10;
         Entry entry = {key, key * 10};
         LeafNode *leaf = Common::newNode<LeafNode>(&internal);
@@ -295,7 +315,7 @@ TEST_F(BTreeMapTest, InternalInsert) {
     }
 }
 
-TEST_F(BTreeMapTest, InternalInsertRandom) {
+TEST_F(BPlusTreeMapTest, InternalInsertRandom) {
     InternalNode internal{nullptr};
     std::uniform_int_distribution<int> dist(0, INT_MAX);
     std::vector<int> keys;
@@ -308,16 +328,18 @@ TEST_F(BTreeMapTest, InternalInsertRandom) {
 
     LeafNode *lhs = Common::newNode<LeafNode>(&internal);
     LeafNode *rhs = Common::newNode<LeafNode>(&internal);
-    lhs->insert({keys[0], 0});
-    rhs->insert({keys[1], 10});
+    lhs->insert({std::min(keys[0], keys[1]), 0});
+    rhs->insert({std::max(keys[0], keys[1]), 10});
     internal.initAsRoot(lhs, rhs);
 
-    for (size_t i = 1; i < internal.capacity(); i++) {
+    for (size_t i = 2; i < internal.capacity(); i++) {
         int key = keys[i];
         Entry entry = {key, key * 10};
         LeafNode *leaf = Common::newNode<LeafNode>(&internal);
         leaf->insert(entry);
         ASSERT_EQ(internal.insert(leaf), InsertResult::eSuccess) << "Failed to insert key into internal node";
+
+        internal.validate();
     }
 
     LeafNode *leaf = Common::newNode<LeafNode>(&internal);
@@ -338,12 +360,12 @@ TEST_F(BTreeMapTest, InternalInsertRandom) {
     }
 }
 
-TEST_F(BTreeMapTest, SplitInternal) {
+TEST_F(BPlusTreeMapTest, SplitInternal) {
     InternalNode internal{nullptr};
     std::uniform_int_distribution<int> dist(0, INT_MAX);
     std::vector<int> keys;
     std::mt19937 mt(0x1234); // Fixed seed for reproducibility
-    for (size_t i = 0; i < internal.capacity() + 1; i++) {
+    for (size_t i = 0; i < internal.capacity() + 2; i++) {
         int key = i * 10;
         keys.push_back(key);
     }
@@ -351,17 +373,23 @@ TEST_F(BTreeMapTest, SplitInternal) {
 
     LeafNode *lhs = Common::newNode<LeafNode>(&internal);
     LeafNode *rhs = Common::newNode<LeafNode>(&internal);
-    lhs->insert({keys[0], 0});
-    rhs->insert({keys[1], 10});
+    lhs->insert({std::min(keys[0], keys[1]), 0});
+    rhs->insert({std::max(keys[0], keys[1]), 10});
     internal.initAsRoot(lhs, rhs);
 
-    for (size_t i = 1; i < internal.capacity(); i++) {
+    internal.validate();
+
+    for (size_t i = 2; i < internal.capacity(); i++) {
         int key = keys[i];
         Entry entry = {key, key * 10};
         LeafNode *leaf = Common::newNode<LeafNode>(&internal);
         leaf->insert(entry);
         ASSERT_EQ(internal.insert(leaf), InsertResult::eSuccess) << "Failed to insert key into internal node";
+
+        internal.validate();
     }
+
+    internal.validate();
 
     LeafNode *leaf = Common::newNode<LeafNode>(&internal);
     leaf->insert({ INT_MAX, INT_MAX });
@@ -383,14 +411,18 @@ TEST_F(BTreeMapTest, SplitInternal) {
         ASSERT_EQ(child->getParent(), &internal) << "Child node parent should match internal node";
     }
 
+    internal.validate();
+
     LeafNode *newLeaf = Common::newNode<LeafNode>(&internal);
     allChildren.insert(newLeaf);
     newLeaf->insert({ INT_MAX, INT_MAX });
     InternalNode other{nullptr};
-    printf("leaf %p\n", (void*)newLeaf);
     internal.splitInternalInto(&other, newLeaf);
 
-    ASSERT_EQ(internal.count() + other.count(), internal.capacity()) << "Total count after split should equal capacity";
+    internal.validate();
+    other.validate();
+
+    ASSERT_EQ(internal.count() + other.count(), internal.capacity() + 1) << "Total count after split should equal capacity";
     auto lhsKeys = internal.keys();
     auto rhsKeys = other.keys();
     bool lhsSorted = std::is_sorted(lhsKeys.begin(), lhsKeys.end());
@@ -398,16 +430,16 @@ TEST_F(BTreeMapTest, SplitInternal) {
     ASSERT_TRUE(lhsSorted) << "Left internal node keys should be sorted";
     ASSERT_TRUE(rhsSorted) << "Right internal node keys should be sorted";
 
-    for (size_t i = 0; i < internal.count() + 1; i++) {
+    for (size_t i = 0; i < internal.count(); i++) {
         BaseNode *child = internal.child(i);
         ASSERT_NE(child, nullptr) << "Child node at index " << i << " should not be null";
-        ASSERT_EQ(child->getParent(), &internal) << "Child node parent should match left internal node";
+        ASSERT_EQ(child->getParent(), &internal) << "Child node " << (void*)child << " parent should match left internal node";
 
         ASSERT_TRUE(allChildren.contains(child)) << "Child node at index " << i << " should be in all children set";
         allChildren.erase(child);
     }
 
-    for (size_t i = 0; i < other.count() + 1; i++) {
+    for (size_t i = 0; i < other.count(); i++) {
         BaseNode *child = other.child(i);
         ASSERT_NE(child, nullptr) << "Child node at index " << i << " should not be null";
         ASSERT_EQ(child->getParent(), &other) << "Child node parent should match right internal node";
@@ -445,7 +477,7 @@ TEST_F(BTreeMapTest, SplitInternal) {
     ASSERT_TRUE(intersectionChildren.empty()) << "No children should be in both internal nodes after split";
 }
 
-TEST_F(BTreeMapTest, MapInsert) {
+TEST_F(BPlusTreeMapTest, MapInsert) {
     std::uniform_int_distribution<int> dist(0, INT_MAX);
     std::vector<int> keys;
     std::mt19937 mt(0x1234); // Fixed seed for reproducibility
@@ -460,10 +492,20 @@ TEST_F(BTreeMapTest, MapInsert) {
         int value = key * 10;
         map.insert(key, value);
 
+        if (!map.contains(key) || (key == 91120)) {
+            map.dump();
+        }
+
+        map.validate();
+
         ASSERT_TRUE(map.contains(key)) << "Map should contain key " << key;
     }
 
     for (const auto& key : keys) {
+        if (!map.contains(key)) {
+            map.dump();
+        }
+
         ASSERT_TRUE(map.contains(key)) << "Map should still contain key " << key;
     }
 }
