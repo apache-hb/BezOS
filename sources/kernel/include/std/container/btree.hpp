@@ -119,7 +119,7 @@ namespace sm {
 
             void verifyIndex(size_t index) const noexcept {
                 if (index >= count()) {
-                    printf("Index %zu out of bounds for node %p with %zu keys\n", index, this, count());
+                    printf("Index %zu out of bounds for node %p with %zu keys\n", index, (void*)this, count());
                     KM_PANIC("Index out of bounds in TreeNodeLeaf");
                 }
             }
@@ -269,7 +269,7 @@ namespace sm {
                 KM_ASSERT(other->count() == 0);
                 KM_ASSERT(this->count() == this->capacity());
                 if (this->find(entry.key) != nullptr) {
-                    printf("Key %d already exists in leaf node %p %d\n", (int)entry.key, this, this->isLeaf());
+                    printf("Key %d already exists in leaf node %p %d\n", (int)entry.key, (void*)this, this->isLeaf());
                     this->dump();
                     KM_ASSERT(this->find(entry.key) == nullptr);
                 }
@@ -299,7 +299,7 @@ namespace sm {
 
                 if (other->isUnderFilled()) {
                     printf("New leaf node %p has %zu keys, expected at least %zu (%zu/2) %d\n",
-                           other, other->count(), other->capacity() / 2, other->capacity(), (int)midpoint->key);
+                           (void*)other, other->count(), other->capacity() / 2, other->capacity(), (int)midpoint->key);
 
                     this->dump();
                     other->dump();
@@ -309,7 +309,7 @@ namespace sm {
 
                 if (this->isUnderFilled()) {
                     printf("Current leaf node %p has %zu keys, expected at least %zu (%zu/2) %d\n",
-                           this, this->count(), this->capacity() / 2, this->capacity(), (int)midpoint->key);
+                           (void*)this, this->count(), this->capacity() / 2, this->capacity(), (int)midpoint->key);
 
                     this->dump();
                     other->dump();
@@ -328,7 +328,7 @@ namespace sm {
             }
 
             void dump() const {
-                printf("Leaf node %p:\n", this);
+                printf("Leaf node %p:\n", (void*)this);
                 printf("  IsLeaf: %d\n", Super::isLeaf());
                 printf("  Count: %zu\n", count());
                 printf("  Keys: [");
@@ -527,7 +527,7 @@ namespace sm {
 
                 for (size_t i = 0; i < n; i++) {
                     if (key(i) == entry.key) {
-                        printf("Key %d already exists in internal node %p at %zu\n", (int)entry.key, this, i);
+                        printf("Key %d already exists in internal node %p at %zu\n", (int)entry.key, (void*)this, i);
                         dump();
                         KM_ASSERT(key(i) != entry.key);
                     }
@@ -569,7 +569,7 @@ namespace sm {
                 KM_ASSERT(this->count() == this->capacity());
                 for (size_t i = 0; i < Super::count(); i++) {
                     if (key(i) == entry.key) {
-                        printf("Key %d already exists in internal node %p %d\n", (int)entry.key, this, this->isLeaf());
+                        printf("Key %d already exists in internal node %p %d\n", (int)entry.key, (void*)this, this->isLeaf());
                         this->dump();
                         KM_PANIC("Key already exists in internal node");
                     }
@@ -579,7 +579,7 @@ namespace sm {
 
                 for (size_t i = 0; i < count(); i++) {
                     if (child(i) == nullptr) {
-                        printf("Child node at index %zu is null in internal node %p\n", i, this);
+                        printf("Child node at index %zu is null in internal node %p\n", i, (void*)this);
                         this->dump();
                         KM_PANIC("Child node is null in BTreeMap");
                     }
@@ -588,7 +588,6 @@ namespace sm {
                 const size_t kHalfOrder = Super::kOrder / 2;
 
                 Entry middle = {key(kHalfOrder), value(kHalfOrder)};
-                Leaf *middleLeaf = child(kHalfOrder + 1);
 
                 // copy the top half of the keys and values to the new internal node
                 other->setCount(kHalfOrder - 1);
@@ -600,7 +599,7 @@ namespace sm {
                 for (size_t i = 0; i < kHalfOrder; i++) {
                     Leaf *childNode = child(i + kHalfOrder + 1);
                     if (childNode == nullptr) {
-                        printf("Child node at index %zu is null in internal node %p\n", i + kHalfOrder, this);
+                        printf("Child node at index %zu is null in internal node %p\n", i + kHalfOrder, (void*)this);
                         this->dump();
                         KM_ASSERT(childNode != nullptr);
                     }
@@ -669,7 +668,7 @@ namespace sm {
                 KM_ASSERT(this->count() == this->capacity());
                 for (size_t i = 0; i < Super::count(); i++) {
                     if (key(i) == entry.entry.key) {
-                        printf("Key %d already exists in internal node %p %d\n", (int)entry.entry.key, this, this->isLeaf());
+                        printf("Key %d already exists in internal node %p %d\n", (int)entry.entry.key, (void*)this, this->isLeaf());
                         this->dump();
                         KM_PANIC("Key already exists in internal node");
                     }
@@ -679,7 +678,7 @@ namespace sm {
 
                 for (size_t i = 0; i < count(); i++) {
                     if (child(i) == nullptr) {
-                        printf("Child node at index %zu is null in internal node %p\n", i, this);
+                        printf("Child node at index %zu is null in internal node %p\n", i, (void*)this);
                         this->dump();
                         KM_PANIC("Child node is null in BTreeMap");
                     }
@@ -713,7 +712,7 @@ namespace sm {
                 auto keySet = Super::keys();
                 bool sorted = std::is_sorted(keySet.begin(), keySet.end());
                 if (!sorted) {
-                    printf("Internal node %p is not sorted\n", this);
+                    printf("Internal node %p is not sorted\n", (void*)this);
                     for (size_t i = 0; i < count(); i++) {
                         printf("Key %zu: %d\n", i, (int)key(i));
                     }
@@ -722,7 +721,7 @@ namespace sm {
             }
 
             void dump() const {
-                printf("Leaf node %p:\n", this);
+                printf("Leaf node %p:\n", (void*)this);
                 printf("  IsLeaf: %d\n", Super::isLeaf());
                 printf("  Count: %zu\n", count());
                 printf("  Keys: [");
@@ -732,27 +731,9 @@ namespace sm {
                 printf("]\n");
                 printf("  Children: [");
                 for (size_t i = 0; i < count() + 1; i++) {
-                    printf("%p, ", child(i));
+                    printf("%p, ", (void*)child(i));
                 }
                 printf("]\n");
-            }
-        };
-
-        template<typename Key, typename Value>
-        class TreeNodeRoot : public TreeNodeInternal<Key, Value> {
-            using Super = TreeNodeInternal<Key, Value>;
-            using Leaf = TreeNodeLeaf<Key, Value>;
-            using Entry = Entry<Key, Value>;
-
-        public:
-            TreeNodeRoot() noexcept
-                : Super(true, nullptr)
-            { }
-
-            TreeNodeRoot(Leaf *lhs, Leaf *rhs, const Entry& entry) noexcept
-                : Super(false, nullptr)
-            {
-                Super::initAsRoot(lhs, rhs, entry);
             }
         };
 
@@ -829,7 +810,6 @@ namespace sm {
     template<typename Key, typename Value>
     class BTreeMapIterator {
         using Entry = detail::Entry<Key, Value>;
-        using RootNode = detail::TreeNodeRoot<Key, Value>;
         using InternalNode = detail::TreeNodeInternal<Key, Value>;
         using LeafNode = detail::TreeNodeLeaf<Key, Value>;
 
@@ -918,7 +898,6 @@ namespace sm {
         using Common = detail::BTreeMapCommon<Key, Value>;
         using Entry = detail::Entry<Key, Value>;
         using ChildEntry = detail::TreeNodeInternal<Key, Value>::ChildEntry;
-        using RootNode = detail::TreeNodeRoot<Key, Value>;
         using InternalNode = detail::TreeNodeInternal<Key, Value>;
         using LeafNode = detail::TreeNodeLeaf<Key, Value>;
 
@@ -932,7 +911,7 @@ namespace sm {
             Common::splitNode(leaf, newLeaf, entry, &midpoint);
 
             newRoot->initAsRoot(leaf, newLeaf, midpoint);
-            printf("New root node %p created with entry %d\n", newRoot, (int)midpoint.key);
+            printf("New root node %p created with entry %d\n", (void*)newRoot, (int)midpoint.key);
             mRootNode = newRoot;
         }
 
@@ -948,7 +927,7 @@ namespace sm {
 
         void splitNode(LeafNode *leaf, const Entry& entry) noexcept {
             if (leaf->find(entry.key) != nullptr) {
-                printf("Key %d already exists in node %p\n", (int)entry.key, leaf);
+                printf("Key %d already exists in node %p\n", (int)entry.key, (void*)leaf);
                 leaf->dump();
                 KM_PANIC("Key already exists in node");
             }
@@ -967,7 +946,9 @@ namespace sm {
             if (parent == mRootNode) {
                 Entry midpoint;
                 parent->splitInternalNode(newNode, ChildEntry{leaf, entry}, &midpoint);
-                mRootNode = detail::newNode<RootNode>(parent, newNode, midpoint);
+                InternalNode *newRoot = detail::newNode<InternalNode>(nullptr);
+                newRoot->initAsRoot(parent, newNode, midpoint);
+                mRootNode = newRoot;
             } else {
                 Entry midpoint;
                 parent->splitInternalNode(newNode, ChildEntry{leaf, entry}, &midpoint);
@@ -1022,7 +1003,7 @@ namespace sm {
                     LeafNode *child = internal->child(index);
                     if (child == nullptr) {
                         internal->dump();
-                        printf("Child at index %zu is null in node %p\n", index, internal);
+                        printf("Child at index %zu is null in node %p\n", index, (void*)internal);
                         KM_PANIC("Child node is null in BTreeMap");
                     }
                     return nodeContains(child, key);
@@ -1165,14 +1146,14 @@ namespace sm {
                     return;
                 }
                 if (node->isLeaf()) {
-                    printf("Leaf node %p at depth %d with %zu keys: [", node, currentDepth, node->count());
+                    printf("Leaf node %p at depth %d with %zu keys: [", (void*)node, currentDepth, node->count());
                     for (size_t i = 0; i < node->count(); i++) {
                         printf("%d, ", (int)node->key(i));
                     }
                     printf("]\n");
                 } else {
                     const InternalNode *internal = static_cast<const InternalNode*>(node);
-                    printf("Internal node %p at depth %d with %zu keys: [", internal, currentDepth, internal->count());
+                    printf("Internal node %p at depth %d with %zu keys: [", (void*)internal, currentDepth, internal->count());
                     for (size_t i = 0; i < internal->count(); i++) {
                         printf("%d, ", (int)internal->key(i));
                     }
@@ -1183,7 +1164,7 @@ namespace sm {
                 }
             };
 
-            printf("BTreeMap root node %p:\n", mRootNode);
+            printf("BTreeMap root node %p:\n", (void*)mRootNode);
             dumpNode(mRootNode, 0);
         }
 
@@ -1218,7 +1199,7 @@ namespace sm {
                     size_t lowerBound = (node->capacity() / 2) - 1;
                     if (node->count() < lowerBound) {
                         printf("Node %p at depth %zu has %zu keys, expected at least %zu (%zu/2)\n",
-                               node, currentDepth, node->count(), lowerBound, node->capacity());
+                               (void*)node, currentDepth, node->count(), lowerBound, node->capacity());
                     }
                     KM_ASSERT(node->count() >= lowerBound);
                 }
@@ -1234,14 +1215,14 @@ namespace sm {
                     LeafNode *prev = internalNode->getLeaf(i);
                     LeafNode *next = internalNode->getLeaf(i + 1);
                     if (prev == nullptr || next == nullptr) {
-                        printf("Child node at index %zu is null in internal node %p\n", i, internalNode);
+                        printf("Child node at index %zu is null in internal node %p\n", i, (void*)internalNode);
                         this->dump();
                         KM_PANIC("Child node is null in BTreeMap");
                     }
                     for (size_t j = 0; j < prev->count(); j++) {
                         if (prev->key(j) >= internalNode->key(i)) {
                             printf("Key %d in previous node %p at depth %zu is not less than key %d in internal node %p\n",
-                                   (int)prev->key(j), prev, currentDepth, (int)internalNode->key(i), internalNode);
+                                   (int)prev->key(j), prev, currentDepth, (int)internalNode->key(i), (void*)internalNode);
 
                             dump();
                         }
@@ -1251,7 +1232,7 @@ namespace sm {
                     for (size_t j = 0; j < next->count(); j++) {
                         if (internalNode->key(i) >= next->key(j)) {
                             printf("Key %d in internal node %p at depth %zu is not less than key %d in next node %p\n",
-                                   (int)internalNode->key(i), internalNode, currentDepth, (int)next->key(j), next);
+                                   (int)internalNode->key(i), (void*)internalNode, currentDepth, (int)next->key(j), next);
                             dump();
                         }
                         KM_ASSERT(internalNode->key(i) < next->key(j));
@@ -1261,7 +1242,7 @@ namespace sm {
                 for (size_t i = 0; i < internalNode->count() + 1; i++) {
                     LeafNode *child = internalNode->getLeaf(i);
                     if (child == nullptr) {
-                        printf("Child node at index %zu is null in internal node %p\n", i, internalNode);
+                        printf("Child node at index %zu is null in internal node %p\n", i, (void*)internalNode);
                         this->dump();
                         KM_PANIC("Child node is null in BTreeMap");
                     }
