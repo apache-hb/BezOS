@@ -372,6 +372,9 @@ TEST_F(BTreeMapTest, SplitInternal) {
     ASSERT_EQ(internal.count(), internal.capacity()) << "Internal node count should match capacity";
     auto keySet = internal.keys();
 
+    auto internalChildren = internal.children();
+    std::set<BaseNode*> allChildren { internalChildren.begin(), internalChildren.end() };
+
     bool sorted = std::is_sorted(keySet.begin(), keySet.end());
     ASSERT_TRUE(sorted) << "Internal node keys should be sorted";
     for (size_t i = 0; i < internal.count(); i++) {
@@ -381,12 +384,13 @@ TEST_F(BTreeMapTest, SplitInternal) {
     }
 
     LeafNode *newLeaf = Common::newNode<LeafNode>(&internal);
+    allChildren.insert(newLeaf);
     newLeaf->insert({ INT_MAX, INT_MAX });
     InternalNode other{nullptr};
     printf("leaf %p\n", (void*)newLeaf);
     internal.splitInternalInto(&other, newLeaf);
 
-    ASSERT_EQ(internal.count() + other.count(), internal.capacity() + 1) << "Total count after split should equal capacity";
+    ASSERT_EQ(internal.count() + other.count(), internal.capacity()) << "Total count after split should equal capacity";
     auto lhsKeys = internal.keys();
     auto rhsKeys = other.keys();
     bool lhsSorted = std::is_sorted(lhsKeys.begin(), lhsKeys.end());
@@ -394,17 +398,32 @@ TEST_F(BTreeMapTest, SplitInternal) {
     ASSERT_TRUE(lhsSorted) << "Left internal node keys should be sorted";
     ASSERT_TRUE(rhsSorted) << "Right internal node keys should be sorted";
 
-    for (size_t i = 0; i < internal.count(); i++) {
+    for (size_t i = 0; i < internal.count() + 1; i++) {
         BaseNode *child = internal.child(i);
         ASSERT_NE(child, nullptr) << "Child node at index " << i << " should not be null";
         ASSERT_EQ(child->getParent(), &internal) << "Child node parent should match left internal node";
+
+        ASSERT_TRUE(allChildren.contains(child)) << "Child node at index " << i << " should be in all children set";
+        allChildren.erase(child);
     }
 
-    for (size_t i = 0; i < other.count(); i++) {
+    for (size_t i = 0; i < other.count() + 1; i++) {
         BaseNode *child = other.child(i);
         ASSERT_NE(child, nullptr) << "Child node at index " << i << " should not be null";
         ASSERT_EQ(child->getParent(), &other) << "Child node parent should match right internal node";
+
+        ASSERT_TRUE(allChildren.contains(child)) << "Child node at index " << i << " should be in all children set";
+        allChildren.erase(child);
     }
+
+    if (!allChildren.empty()) {
+        printf("Remaining children after split:\n");
+        for (const auto& child : allChildren) {
+            printf("%p, ", static_cast<void*>(child));
+        }
+        printf("\n");
+    }
+    ASSERT_TRUE(allChildren.empty()) << "All children should be accounted for after split";
 
     std::vector<int> intersectionKeys;
     std::set_intersection(
@@ -426,9 +445,7 @@ TEST_F(BTreeMapTest, SplitInternal) {
     ASSERT_TRUE(intersectionChildren.empty()) << "No children should be in both internal nodes after split";
 }
 
-#if 0
 TEST_F(BTreeMapTest, MapInsert) {
-    InternalNode internal{nullptr};
     std::uniform_int_distribution<int> dist(0, INT_MAX);
     std::vector<int> keys;
     std::mt19937 mt(0x1234); // Fixed seed for reproducibility
@@ -450,4 +467,3 @@ TEST_F(BTreeMapTest, MapInsert) {
         ASSERT_TRUE(map.contains(key)) << "Map should still contain key " << key;
     }
 }
-#endif

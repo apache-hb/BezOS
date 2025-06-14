@@ -37,6 +37,10 @@ namespace sm::detail {
                 , mParent(parent)
             { }
 
+            virtual ~BaseNode() noexcept = default;
+
+            virtual bool contains(const Key& key) const noexcept = 0;
+
             size_t count() const noexcept {
                 return mCount;
             }
@@ -242,6 +246,15 @@ namespace sm::detail {
                 KM_ASSERT(!isEmpty());
                 return key(count() - 1);
             }
+
+            bool contains(const Key& key) const noexcept {
+                for (size_t i = 0; i < count(); i++) {
+                    if (mKeys[i] == key) {
+                        return true;
+                    }
+                }
+                return false;
+            }
         };
 
         static constexpr size_t kInternalOrder = std::max(3zu, (kTargetSize - sizeof(BaseNode)) / (sizeof(Key) + sizeof(LeafNode*)));
@@ -307,6 +320,15 @@ namespace sm::detail {
 
             bool isEmpty() const noexcept {
                 return count() == 0;
+            }
+
+            size_t upperBound(const Key& key) const noexcept {
+                for (size_t i = 0; i < count(); i++) {
+                    if (mKeys[i] > key) {
+                        return i;
+                    }
+                }
+                return count(); // Return the last index if key is greater than all keys
             }
 
             InternalNode(InternalNode *parent) noexcept
@@ -435,6 +457,12 @@ namespace sm::detail {
             Key max() const noexcept {
                 KM_ASSERT(!isEmpty());
                 return key(count() - 1);
+            }
+
+            bool contains(const Key& key) const noexcept {
+                size_t index = upperBound(key);
+                BaseNode *node = child(index);
+                return node->contains(key);
             }
         };
 
@@ -629,7 +657,7 @@ namespace sm {
                 return false;
             }
 
-            return Common::nodeContains(mRoot, key);
+            return mRoot->contains(key); // Common::nodeContains(mRoot, key);
         }
     };
 }
