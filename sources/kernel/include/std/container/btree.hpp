@@ -81,7 +81,7 @@ namespace sm {
 
             static constexpr size_t kOrder = std::max(3zu, computeMaxLeafOrder(Layout::of<Key>(), Layout::of<Value>(), sm::kilobytes(4).bytes()));
 
-        public:
+        private:
             /// @brief The number of keys and values in the node.
             uint32_t mCount = 0;
 
@@ -100,20 +100,20 @@ namespace sm {
             }
 
             Entry popBack() noexcept {
-                KM_ASSERT(mCount > 0);
-                Entry entry = {key(mCount - 1), value(mCount - 1)};
-                mCount -= 1;
+                KM_ASSERT(count() > 0);
+                Entry entry = {key(count() - 1), value(count() - 1)};
+                setCount(count() - 1);
                 return entry;
             }
 
             Entry popFront() noexcept {
-                KM_ASSERT(mCount > 0);
+                KM_ASSERT(count() > 0);
                 Entry entry = {key(0), value(0)};
                 for (size_t i = 0; i < count() - 1; i++) {
                     key(i) = key(i + 1);
                     value(i) = value(i + 1);
                 }
-                mCount -= 1;
+                setCount(count() - 1);
                 return entry;
             }
 
@@ -130,24 +130,14 @@ namespace sm {
                 value(index) = entry.value;
             }
 
-            Key& key(size_t index) noexcept {
-                verifyIndex(index);
-                return mKeys[index];
+            auto& key(this auto&& self, size_t index) noexcept {
+                self.verifyIndex(index);
+                return self.mKeys[index];
             }
 
-            const Key& key(size_t index) const noexcept {
-                verifyIndex(index);
-                return mKeys[index];
-            }
-
-            Value& value(size_t index) noexcept {
-                verifyIndex(index);
-                return mValues[index];
-            }
-
-            const Value& value(size_t index) const noexcept {
-                verifyIndex(index);
-                return mValues[index];
+            auto& value(this auto&& self, size_t index) noexcept {
+                self.verifyIndex(index);
+                return self.mValues[index];
             }
 
             TreeNodeLeaf(TreeNodeHeader *parent) noexcept
@@ -170,7 +160,7 @@ namespace sm {
                             return InsertResult::eFull;
                         }
                         // Shift the keys and values to make space for the new key.
-                        mCount += 1;
+                        setCount(n + 1);
                         shiftEntry(i);
                         emplace(i, entry);
                         return InsertResult::eSuccess;
@@ -182,7 +172,7 @@ namespace sm {
                 }
 
                 // If we reach here, the key is greater than all existing keys.
-                mCount += 1;
+                setCount(n + 1);
                 emplace(n, entry);
                 return InsertResult::eSuccess;
             }
@@ -193,7 +183,7 @@ namespace sm {
                     key(i) = key(i + 1);
                     value(i) = value(i + 1);
                 }
-                mCount -= 1;
+                setCount(count() - 1);
             }
 
             size_t upperBound(const Key& k) const noexcept {
@@ -206,7 +196,7 @@ namespace sm {
             }
 
             size_t indexOf(const Key& k) const noexcept {
-                for (size_t i = 0; i < mCount; i++) {
+                for (size_t i = 0; i < count(); i++) {
                     if (key(i) == k) {
                         return i;
                     }
@@ -232,6 +222,11 @@ namespace sm {
 
             size_t count() const noexcept {
                 return mCount;
+            }
+
+            void setCount(size_t count) noexcept {
+                KM_ASSERT(count <= capacity());
+                mCount = count;
             }
 
             bool isFull() const noexcept {
@@ -286,12 +281,12 @@ namespace sm {
                 Entry middle = {key(half), value(half)};
 
                 // copy the top half of the keys and values to the new leaf
-                other->mCount = otherSize;
+                other->setCount(otherSize);
                 for (size_t i = 0; i < otherSize; i++) {
                     other->key(i) = key(i + half);
                     other->value(i) = value(i + half);
                 }
-                mCount = half;
+                setCount(half);
 
                 if (entry.key < middle.key) {
                     this->insert(entry);
@@ -363,10 +358,10 @@ namespace sm {
             { }
 
             using Super::count;
+            using Super::setCount;
             using Super::capacity;
             using Super::key;
             using Super::value;
-            using Super::mCount;
             using Super::emplace;
             using Super::minKey;
             using Super::maxKey;
@@ -381,7 +376,7 @@ namespace sm {
                 KM_ASSERT(count() > 0);
                 Entry entry = {key(count() - 1), value(count() - 1)};
                 Leaf *leaf = child(count() - 1);
-                mCount -= 1;
+                setCount(count() - 1);
                 return ChildEntry{leaf, entry};
             }
 
@@ -399,18 +394,14 @@ namespace sm {
                     child(i) = child(i + 1);
                 }
 
-                mCount -= 1;
+                setCount(count() - 1);
+
                 return entry;
             }
 
-            Leaf *&child(size_t index) noexcept {
-                KM_ASSERT(index < Super::count() + 1);
-                return mChildren[index];
-            }
-
-            Leaf * const& child(size_t index) const noexcept {
-                KM_ASSERT(index < Super::count() + 1);
-                return mChildren[index];
+            auto& child(this auto&& self, size_t index) noexcept {
+                KM_ASSERT(index < self.count() + 1);
+                return self.mChildren[index];
             }
 
             void takeChild(size_t index, Leaf *leaf) noexcept {
@@ -465,7 +456,7 @@ namespace sm {
                     child(i) = child(i + 1);
                 }
 
-                mCount -= 1;
+                setCount(count() - 1);
             }
 
             Entry promoteFront() noexcept {
@@ -547,7 +538,7 @@ namespace sm {
                         }
 
                         // Shift the keys and values to make space for the new key.
-                        mCount += 1;
+                        setCount(n + 1);
                         Super::shiftEntry(i);
                         for (size_t j = n; j > i; j--) {
                             child(j + 1) = child(j);
@@ -564,7 +555,7 @@ namespace sm {
                 }
 
                 // If we reach here, the key is greater than all existing keys.
-                mCount += 1;
+                setCount(n + 1);
                 emplace(n, entry);
                 leaf->setParent(this);
                 child(n + 1) = leaf;
@@ -600,7 +591,7 @@ namespace sm {
                 Leaf *middleLeaf = child(kHalfOrder + 1);
 
                 // copy the top half of the keys and values to the new internal node
-                other->mCount = kHalfOrder - 1;
+                other->setCount(kHalfOrder - 1);
                 for (size_t i = 0; i < kHalfOrder - 1; i++) {
                     other->key(i) = key(i + kHalfOrder + 1);
                     other->value(i) = value(i + kHalfOrder + 1);
@@ -617,7 +608,7 @@ namespace sm {
                     other->child(i) = childNode;
                 }
 
-                mCount = kHalfOrder;
+                setCount(kHalfOrder);
 
                 if (entry.key < key(count() - 1)) {
                     this->insert(entry);
@@ -637,7 +628,7 @@ namespace sm {
                 size_t half = capacity() / 2;
                 Entry middle = {key(half), value(half)};
 
-                other->mCount = half;
+                other->setCount(half);
                 for (size_t i = 0; i < half; i++) {
                     other->key(i) = key(i + half + 1);
                     other->value(i) = value(i + half + 1);
@@ -650,7 +641,7 @@ namespace sm {
                     other->takeChild(i, leaf);
                 }
 
-                mCount = half;
+                setCount(half);
                 *midpoint = middle;
             }
 
@@ -706,13 +697,10 @@ namespace sm {
             }
 
             void initAsRoot(Leaf *lhs, Leaf *rhs, const Entry& entry) noexcept {
-                Super::mCount = 1;
-                child(0) = lhs;
-                child(1) = rhs;
+                setCount(1);
+                takeChild(0, lhs);
+                takeChild(1, rhs);
                 Super::emplace(0, entry);
-
-                lhs->setParent(this);
-                rhs->setParent(this);
             }
 
             ~TreeNodeInternal() noexcept {
