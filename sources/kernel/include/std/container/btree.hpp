@@ -224,9 +224,9 @@ namespace sm {
                 return mCount;
             }
 
-            void setCount(size_t count) noexcept {
-                KM_ASSERT(count <= capacity());
-                mCount = count;
+            void setCount(size_t newCount) noexcept {
+                KM_ASSERT(newCount <= capacity());
+                mCount = newCount;
             }
 
             bool isFull() const noexcept {
@@ -245,6 +245,14 @@ namespace sm {
                 return kOrder;
             }
 
+            constexpr static size_t maxCapacity() noexcept {
+                return kOrder;
+            }
+
+            constexpr static size_t minCapacity() noexcept {
+                return (maxCapacity() / 2) - 1;
+            }
+
             const Key& minKey() const noexcept {
                 KM_ASSERT(count() > 0);
                 return key(0);
@@ -255,12 +263,23 @@ namespace sm {
                 return key(count() - 1);
             }
 
-            std::span<const Key> keys() const noexcept {
-                return std::span<const Key>(mKeys, count());
-            }
+            std::span<Key> keys() noexcept { return std::span(mKeys, count()); }
+            std::span<const Key> keys() const noexcept { return std::span(mKeys, count()); }
 
-            std::span<Key> keys() noexcept {
-                return std::span<Key>(mKeys, count());
+            std::span<Value> values() noexcept { return std::span(mValues, count()); }
+            std::span<const Value> values() const noexcept { return std::span(mValues, count()); }
+
+            void claim(TreeNodeLeaf *other) noexcept {
+                KM_ASSERT(other->isLeaf());
+                KM_ASSERT(other->getParent() == this->getParent());
+
+                // Move the keys and values from the other leaf to this leaf
+                for (size_t i = 0; i < other->count(); i++) {
+                    this->insert({other->key(i), other->value(i)});
+                }
+
+                // TODO: clear values from other leaf
+                other->setCount(0);
             }
 
             /// @brief Split the internal node into two nodes to accommodate a new entry and leaf.
@@ -457,6 +476,24 @@ namespace sm {
                 }
 
                 setCount(count() - 1);
+            }
+
+            void mergeLeafNodes(Leaf *lhs, Leaf *rhs) noexcept {
+                KM_ASSERT(lhs->isLeaf() && rhs->isLeaf());
+                KM_ASSERT(lhs->getParent() == this);
+                KM_ASSERT(rhs->getParent() == this);
+
+                size_t lhsIndex = indexOfChild(lhs);
+                size_t rhsIndex = indexOfChild(rhs);
+                KM_ASSERT((lhsIndex + 1) == rhsIndex); // Ensure they are adjacent
+
+                Entry middle = {key(rhsIndex), value(rhsIndex)};
+                lhs->insert(middle);
+                lhs->claim(rhs);
+
+                Entry tail = lhs->popBack();
+                key(rhsIndex) = tail.key;
+                value(rhsIndex) = tail.value;
             }
 
             /// @brief Insert a new entry and the leaf node above it into the internal node.
@@ -656,6 +693,43 @@ namespace sm {
                 printf("]\n");
             }
         };
+
+        template<typename Key, typename Value>
+        void rebalanceOrMergeLeaf(TreeNodeLeaf<Key, Value> *lhs, TreeNodeLeaf<Key, Value> *rhs) noexcept {
+            using Leaf = TreeNodeLeaf<Key, Value>;
+            using Internal = TreeNodeInternal<Key, Value>;
+
+            KM_ASSERT(lhs->isLeaf() && rhs->isLeaf());
+            KM_ASSERT(lhs->getParent() == rhs->getParent());
+
+            if (!lhs->isUnderFilled() && !rhs->isUnderFilled()) {
+                // Neither leaf is underfilled, no action needed
+                return;
+            }
+
+            Internal *parent = static_cast<Internal*>(lhs->getParent());
+            size_t lhsCount = lhs->count();
+            size_t rhsCount = rhs->count();
+
+            KM_ASSERT(lhsCount + rhsCount >= Leaf::minCapacity());
+
+            // Check if we can rebalance the leaves
+            bool canRebalance = (lhsCount + rhsCount) >= (Leaf::minCapacity() * 2);
+
+            if (!canRebalance) {
+                // Merge into the left node and delete the right node
+                parent->mergeLeafNodes(lhs, rhs);
+                deleteNode<Key, Value>(rhs);
+            } else {
+                KM_PANIC("Unimplemented");
+
+                if (lhs->isUnderFilled()) {
+
+                } else {
+                    KM_ASSERT(rhs->isUnderFilled());
+                }
+            }
+        }
 
         template<typename Key, typename Value>
         void dumpNode(const TreeNodeLeaf<Key, Value> *node) noexcept {

@@ -30,6 +30,8 @@ struct alignas(512) BigKey {
 
 class BTreeTest : public testing::Test {
 public:
+    std::mt19937 mt{0x1234};
+
     static void SetUpTestSuite() {
         setbuf(stdout, nullptr);
     }
@@ -38,6 +40,21 @@ public:
     using Internal = TreeNodeInternal<BigKey, int>;
     using Entry = Entry<BigKey, int>;
     using ChildEntry = typename Internal::ChildEntry;
+
+    std::vector<int> GenerateKeys(size_t count) {
+        std::vector<int> keys;
+        keys.reserve(count);
+        for (size_t i = 0; i < count; i++) {
+            keys.push_back(int(i * 10));
+        }
+        return keys;
+    }
+
+    std::vector<int> GenerateRandomKeys(size_t count) {
+        std::vector<int> keys = GenerateKeys(count);
+        std::shuffle(keys.begin(), keys.end(), mt);
+        return keys;
+    }
 
     void AssertLeafInvariants(const Leaf& leaf) {
         auto keys = leaf.keys();
@@ -209,24 +226,64 @@ TEST_F(BTreeTest, SplitIntoLowerHalf) {
     ASSERT_TRUE(lhs.containsInNode(entry.key)) << "Right node does not contain entry key after split";
 }
 
-TEST_P(LeafSplitTest, SplitLeaf) {
-    size_t seed = GetParam();
+TEST_F(BTreeTest, MergeLeafNodes) {
+    Internal internal{nullptr};
 
+    Leaf *firstLeaf = newNode<Leaf>(nullptr);
+    Leaf *secondLeaf = newNode<Leaf>(nullptr);
+
+    int v = 0;
+    for (size_t i = 0; i < Leaf::minCapacity() - 1; i++) {
+        v += 1;
+        firstLeaf->insert({ v, v * 10 });
+    }
+
+    v += 1;
+    int rootMiddle = v;
+
+    for (size_t i = 0; i < Leaf::minCapacity() - 1; i++) {
+        v += 1;
+        secondLeaf->insert({ v, v * 10 });
+    }
+
+    internal.initAsRoot(firstLeaf, secondLeaf, { rootMiddle, rootMiddle * 10 });
+
+    for (size_t i = internal.count(); i < internal.capacity(); i++) {
+        Leaf *leaf = newNode<Leaf>(&internal);
+        int middle = v + 1;
+
+        v += 1;
+
+        for (size_t j = 0; j < Leaf::minCapacity() - 1; j++) {
+            v += 1;
+            leaf->insert({ v, v * 10 });
+        }
+
+        internal.insertChild({ middle, middle * 10 }, leaf);
+    }
+
+    Leaf *lhs = internal.child(Internal::maxCapacity() / 2);
+    Leaf *rhs = internal.child(Internal::maxCapacity() / 2 + 1);
+    ASSERT_TRUE(lhs->isUnderFilled()) << "Left leaf is not underfilled: " << lhs->count();
+    ASSERT_TRUE(rhs->isUnderFilled()) << "Right leaf is not underfilled: " << rhs->count();
+
+    internal.mergeLeafNodes(lhs, rhs);
+
+    internal.validate();
+}
+
+TEST_P(LeafSplitTest, SplitLeaf) {
     Leaf lhs{nullptr};
     Leaf rhs{nullptr};
 
-    std::mt19937 mt(seed);
+    mt.seed(GetParam());
     std::uniform_int_distribution<int> dist(0, 10000);
 
     // generate random-ish keys with no duplicates
-    std::vector<int> keys;
     std::set<int> expected;
-    keys.reserve(lhs.capacity() + 1);
-    for (size_t i = 0; i < lhs.capacity() + 1; i++) {
-        keys.push_back(i * 10);
-        expected.insert(i * 10);
-    }
-    std::shuffle(keys.begin(), keys.end(), mt);
+    size_t size = lhs.capacity() + 1;
+    std::vector<int> keys = GenerateRandomKeys(size);
+    std::copy(keys.begin(), keys.end(), std::inserter(expected, expected.end()));
 
     for (size_t i = 0; i < lhs.capacity(); i++) {
         int k = keys[i];
@@ -359,12 +416,8 @@ TEST_P(LeafSplitTest, InternalSplitMany) {
     Internal lhs{nullptr};
     Internal rhs{nullptr};
 
-    std::mt19937 mt(GetParam());
-    std::vector<int> kvec;
-    for (size_t i = 0; i < lhs.capacity() + 1; i++) {
-        kvec.push_back(int(i) * 100);
-    }
-    std::shuffle(kvec.begin(), kvec.end(), mt);
+    mt.seed(GetParam());
+    std::vector<int> kvec = GenerateRandomKeys(lhs.capacity() + 1);
     std::set<Leaf*> leaves;
 
     Leaf *firstLeaf = newNode<Leaf>(nullptr);
@@ -425,12 +478,8 @@ TEST_P(LeafSplitTest, SplitInternalNodeMany) {
     Internal lhs{nullptr};
     Internal rhs{nullptr};
 
-    std::mt19937 mt(GetParam());
-    std::vector<int> kvec;
-    for (size_t i = 0; i < lhs.capacity() + 1; i++) {
-        kvec.push_back(int(i) * 100);
-    }
-    std::shuffle(kvec.begin(), kvec.end(), mt);
+    mt.seed(GetParam());
+    std::vector<int> kvec = GenerateRandomKeys(lhs.capacity() + 1);
 
     lhs.initAsRoot(newNode<Leaf>(nullptr), newNode<Leaf>(nullptr), {kvec[0], kvec[0] * 10});
     std::set<int> keys;
