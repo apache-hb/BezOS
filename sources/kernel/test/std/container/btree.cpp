@@ -77,6 +77,33 @@ public:
             leaves.erase(child);
         }
     }
+
+    void DumpNode(const Leaf *node, int currentDepth) {
+        for (int i = 0; i < currentDepth; i++) {
+            printf("  ");
+        }
+        if (node == nullptr) {
+            printf("Node is null at depth %d\n", currentDepth);
+            return;
+        }
+        if (node->isLeaf()) {
+            printf("%p %d %zu: [", (void*)node, currentDepth, node->count());
+            for (size_t i = 0; i < node->count(); i++) {
+                printf("%d, ", (int)node->key(i));
+            }
+            printf("]\n");
+        } else {
+            const Internal *internal = static_cast<const Internal*>(node);
+            printf("%p %d %zu: [", (void*)internal, currentDepth, internal->count());
+            for (size_t i = 0; i < internal->count(); i++) {
+                printf("%d, ", (int)internal->key(i));
+            }
+            printf("]\n");
+            for (size_t i = 0; i < internal->count() + 1; i++) {
+                DumpNode(internal->getLeaf(i), currentDepth + 1);
+            }
+        }
+    };
 };
 
 struct LeafSplitTest
@@ -232,18 +259,24 @@ TEST_F(BTreeTest, MergeLeafNodes) {
     Leaf *firstLeaf = newNode<Leaf>(nullptr);
     Leaf *secondLeaf = newNode<Leaf>(nullptr);
 
+    std::set<int> expected;
+
     int v = 0;
     for (size_t i = 0; i < Leaf::minCapacity() - 1; i++) {
         v += 1;
         firstLeaf->insert({ v, v * 10 });
+
+        expected.insert(v);
     }
 
     v += 1;
     int rootMiddle = v;
+    expected.insert(rootMiddle);
 
     for (size_t i = 0; i < Leaf::minCapacity() - 1; i++) {
         v += 1;
         secondLeaf->insert({ v, v * 10 });
+        expected.insert(v);
     }
 
     internal.initAsRoot(firstLeaf, secondLeaf, { rootMiddle, rootMiddle * 10 });
@@ -257,9 +290,11 @@ TEST_F(BTreeTest, MergeLeafNodes) {
         for (size_t j = 0; j < Leaf::minCapacity() - 1; j++) {
             v += 1;
             leaf->insert({ v, v * 10 });
+            expected.insert(v);
         }
 
         internal.insertChild({ middle, middle * 10 }, leaf);
+        expected.insert(middle);
     }
 
     Leaf *lhs = internal.child(Internal::maxCapacity() / 2);
@@ -267,9 +302,17 @@ TEST_F(BTreeTest, MergeLeafNodes) {
     ASSERT_TRUE(lhs->isUnderFilled()) << "Left leaf is not underfilled: " << lhs->count();
     ASSERT_TRUE(rhs->isUnderFilled()) << "Right leaf is not underfilled: " << rhs->count();
 
+    DumpNode(&internal, 0);
+
     internal.mergeLeafNodes(lhs, rhs);
 
     internal.validate();
+
+    DumpNode(&internal, 0);
+
+    ASSERT_EQ(internal.count(), internal.capacity() - 1) << "Internal leaf not deleted";
+
+    deleteNode<BigKey, int>(rhs);
 }
 
 TEST_P(LeafSplitTest, SplitLeaf) {
@@ -306,7 +349,7 @@ TEST_P(LeafSplitTest, SplitLeaf) {
     for (size_t i = 0; i < lhs.count(); i++) {
         if (!(lhs.key(i) < midpoint.key)) {
             printf("Midpoint key: %d\n", (int)midpoint.key);
-            lhs.dump();
+            lhs.dump(0);
         }
         ASSERT_LT(lhs.key(i), midpoint.key);
 
@@ -319,7 +362,7 @@ TEST_P(LeafSplitTest, SplitLeaf) {
     for (size_t i = 0; i < rhs.count(); i++) {
         if (!(rhs.key(i) > midpoint.key)) {
             printf("Midpoint key: %d\n", (int)midpoint.key);
-            rhs.dump();
+            rhs.dump(0);
         }
         ASSERT_GT(rhs.key(i), midpoint.key);
 
@@ -674,6 +717,4 @@ TEST_F(BTreeTest, Erase) {
         ASSERT_FALSE(tree.contains(key)) << "Key " << key << " found in BTreeMap after removal";
         ASSERT_TRUE(expected.find(key) == expected.end()) << "Key " << key << " found in expected map after removal";
     }
-
-    tree.dump();
 }

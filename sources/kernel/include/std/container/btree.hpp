@@ -12,689 +12,778 @@
 #include <limits.h>
 #include <stdlib.h>
 
-namespace sm {
-    namespace detail {
-        class TreeNodeHeader {
-            static constexpr auto kLeafFlag = uint16_t(1 << ((sizeof(uint16_t) * CHAR_BIT) - 1));
-            bool mIsLeaf;
-            TreeNodeHeader *mParent;
+namespace sm::detail {
+    enum class InsertResult {
+        eSuccess,
+        eFull,
+    };
 
-        public:
-            constexpr TreeNodeHeader(bool leaf, TreeNodeHeader *parent) noexcept
-                : mIsLeaf(leaf)
-                , mParent(parent)
-            { }
+    class TreeNodeHeader {
+        static constexpr auto kLeafFlag = uint16_t(1 << ((sizeof(uint16_t) * CHAR_BIT) - 1));
+        bool mIsLeaf;
+        TreeNodeHeader *mParent;
 
-            constexpr bool isLeaf() const noexcept {
-                return mIsLeaf;
-            }
+    public:
+        constexpr TreeNodeHeader(bool leaf, TreeNodeHeader *parent) noexcept
+            : mIsLeaf(leaf)
+            , mParent(parent)
+        { }
 
-            TreeNodeHeader *getParent() const noexcept {
-                return mParent;
-            }
-
-            void setParent(TreeNodeHeader *parent) noexcept {
-                mParent = parent;
-            }
-
-            bool isRootNode() const noexcept {
-                return getParent() == nullptr;
-            }
-        };
-
-        constexpr size_t computeNodeSize(Layout keyLayout, Layout valueLayout, size_t order) {
-            // The node consists of:
-            // - Node overhead: sizeof(TreeNodeHeader)
-            // - Keys: sizeof(Key) * order
-            // - Values: sizeof(Value) * order
-            return sizeof(TreeNodeHeader)
-                 + sm::roundup(keyLayout.size * order, keyLayout.align)
-                 + sm::roundup(valueLayout.size * order, valueLayout.align);
+        constexpr bool isLeaf() const noexcept {
+            return mIsLeaf;
         }
 
-        constexpr size_t computeMaxLeafOrder(Layout keyLayout, Layout valueLayout, size_t targetSize) {
-            // The order is the number of keys/values per node.
-            // We need to ensure that the total size of the node does not exceed the target size.
-            // The node consists of:
-            // - Node overhead: sizeof(TreeNodeHeader)
-            // - Keys: sizeof(Key) * order
-            // - Values: sizeof(Value) * order
-            return (targetSize - sizeof(TreeNodeHeader)) / (keyLayout.size + valueLayout.size);
+        TreeNodeHeader *getParent() const noexcept {
+            return mParent;
         }
 
-        enum class InsertResult {
-            eSuccess,
-            eFull,
+        void setParent(TreeNodeHeader *parent) noexcept {
+            mParent = parent;
+        }
+
+        bool isRootNode() const noexcept {
+            return getParent() == nullptr;
+        }
+    };
+
+    constexpr size_t computeNodeSize(Layout keyLayout, Layout valueLayout, size_t order) {
+        // The node consists of:
+        // - Node overhead: sizeof(TreeNodeHeader)
+        // - Keys: sizeof(Key) * order
+        // - Values: sizeof(Value) * order
+        return sizeof(TreeNodeHeader)
+                + sm::roundup(keyLayout.size * order, keyLayout.align)
+                + sm::roundup(valueLayout.size * order, valueLayout.align);
+    }
+
+    constexpr size_t computeMaxLeafOrder(Layout keyLayout, Layout valueLayout, size_t targetSize) {
+        // The order is the number of keys/values per node.
+        // We need to ensure that the total size of the node does not exceed the target size.
+        // The node consists of:
+        // - Node overhead: sizeof(TreeNodeHeader)
+        // - Keys: sizeof(Key) * order
+        // - Values: sizeof(Value) * order
+        return (targetSize - sizeof(TreeNodeHeader)) / (keyLayout.size + valueLayout.size);
+    }
+
+    template<typename Key, typename Value>
+    struct Entry {
+        Key key;
+        Value value;
+    };
+
+    template<typename Key, typename Value>
+    class TreeNodeLeaf : public TreeNodeHeader {
+        using Super = TreeNodeHeader;
+    public:
+        using Entry = Entry<Key, Value>;
+
+        static constexpr size_t kOrder = std::max(3zu, computeMaxLeafOrder(Layout::of<Key>(), Layout::of<Value>(), sm::kilobytes(4).bytes()));
+
+    private:
+        /// @brief The number of keys and values in the node.
+        uint32_t mCount = 0;
+
+    protected:
+        /// @brief The keys in the node.
+        Key mKeys[kOrder];
+
+        /// @brief The values in the node.
+        Value mValues[kOrder];
+
+        void shiftEntry(size_t index) noexcept {
+            for (size_t i = count() - 1; i > index; i--) {
+                key(i) = key(i - 1);
+                value(i) = value(i - 1);
+            }
+        }
+
+        void verifyIndex(size_t index) const noexcept {
+            if (index >= count()) {
+                printf("Index %zu out of bounds for node %p with %zu keys\n", index, (void*)this, count());
+                KM_PANIC("Index out of bounds in TreeNodeLeaf");
+            }
+        }
+
+    public:
+        Entry popBack() noexcept {
+            KM_ASSERT(count() > 0);
+            Entry entry = {key(count() - 1), value(count() - 1)};
+            setCount(count() - 1);
+            return entry;
+        }
+
+        Entry popFront() noexcept {
+            KM_ASSERT(count() > 0);
+            Entry entry = {key(0), value(0)};
+            for (size_t i = 0; i < count() - 1; i++) {
+                key(i) = key(i + 1);
+                value(i) = value(i + 1);
+            }
+            setCount(count() - 1);
+            return entry;
+        }
+
+        void emplace(size_t index, const Entry& entry) noexcept {
+            key(index) = entry.key;
+            value(index) = entry.value;
+        }
+
+        auto& key(this auto&& self, size_t index) noexcept {
+            self.verifyIndex(index);
+            return self.mKeys[index];
+        }
+
+        auto& value(this auto&& self, size_t index) noexcept {
+            self.verifyIndex(index);
+            return self.mValues[index];
+        }
+
+        TreeNodeLeaf(TreeNodeHeader *parent) noexcept
+            : TreeNodeLeaf(true, parent)
+        { }
+
+        TreeNodeLeaf(bool isLeaf, TreeNodeHeader *parent) noexcept
+            : Super(isLeaf, parent)
+        { }
+
+        InsertResult insert(const Entry& entry) noexcept {
+            size_t n = count();
+
+            for (size_t i = 0; i < n; i++) {
+                if (key(i) == entry.key) {
+                    value(i) = entry.value;
+                    return InsertResult::eSuccess;
+                } else if (key(i) > entry.key) {
+                    if (n >= capacity()) {
+                        return InsertResult::eFull;
+                    }
+                    // Shift the keys and values to make space for the new key.
+                    setCount(n + 1);
+                    shiftEntry(i);
+                    emplace(i, entry);
+                    return InsertResult::eSuccess;
+                }
+            }
+
+            if (n >= capacity()) {
+                return InsertResult::eFull;
+            }
+
+            // If we reach here, the key is greater than all existing keys.
+            setCount(n + 1);
+            emplace(n, entry);
+            return InsertResult::eSuccess;
+        }
+
+        void remove(size_t index) noexcept {
+            verifyIndex(index);
+            for (size_t i = index; i < count() - 1; i++) {
+                key(i) = key(i + 1);
+                value(i) = value(i + 1);
+            }
+            setCount(count() - 1);
+        }
+
+        size_t upperBound(const Key& k) const noexcept {
+            for (size_t i = 0; i < count(); i++) {
+                if (key(i) > k) {
+                    return i;
+                }
+            }
+            return count();
+        }
+
+        size_t indexOf(const Key& k) const noexcept {
+            for (size_t i = 0; i < count(); i++) {
+                if (key(i) == k) {
+                    return i;
+                }
+            }
+            return SIZE_MAX; // Key not found
+        }
+
+        Value *find(const Key& k) noexcept {
+            size_t index = indexOf(k);
+            if (index == SIZE_MAX) {
+                return nullptr; // Key not found
+            }
+            return &value(index);
+        }
+
+        const Value *find(const Key& k) const noexcept {
+            size_t index = indexOf(k);
+            if (index == SIZE_MAX) {
+                return nullptr; // Key not found
+            }
+            return &value(index);
+        }
+
+        size_t count() const noexcept {
+            return mCount;
+        }
+
+        void setCount(size_t newCount) noexcept {
+            KM_ASSERT(newCount <= capacity());
+            mCount = newCount;
+        }
+
+        bool isFull() const noexcept {
+            return count() == capacity();
+        }
+
+        bool isUnderFilled() const noexcept {
+            return count() < leastCount();
+        }
+
+        constexpr size_t leastCount() const noexcept {
+            return (capacity() / 2) - 1;
+        }
+
+        constexpr size_t capacity() const noexcept {
+            return kOrder;
+        }
+
+        constexpr static size_t maxCapacity() noexcept {
+            return kOrder;
+        }
+
+        constexpr static size_t minCapacity() noexcept {
+            return (maxCapacity() / 2) - 1;
+        }
+
+        const Key& minKey() const noexcept {
+            KM_ASSERT(count() > 0);
+            return key(0);
+        }
+
+        const Key& maxKey() const noexcept {
+            KM_ASSERT(count() > 0);
+            return key(count() - 1);
+        }
+
+        std::span<Key> keys() noexcept { return std::span(mKeys, count()); }
+        std::span<const Key> keys() const noexcept { return std::span(mKeys, count()); }
+
+        std::span<Value> values() noexcept { return std::span(mValues, count()); }
+        std::span<const Value> values() const noexcept { return std::span(mValues, count()); }
+
+        void claim(TreeNodeLeaf *other) noexcept {
+            KM_ASSERT(other->isLeaf());
+            KM_ASSERT(other->getParent() == this->getParent());
+
+            // Move the keys and values from the other leaf to this leaf
+            for (size_t i = 0; i < other->count(); i++) {
+                KM_ASSERT(this->insert({other->key(i), other->value(i)}) == InsertResult::eSuccess);
+            }
+
+            // TODO: clear values from other leaf
+            other->setCount(0);
+        }
+
+        /// @brief Split the internal node into two nodes to accommodate a new entry and leaf.
+        void splitInto(TreeNodeLeaf *other, const Entry& entry, Entry *midpoint) noexcept {
+            // guardrails
+            KM_ASSERT(other->count() == 0);
+            KM_ASSERT(this->count() == this->capacity());
+            if (this->find(entry.key) != nullptr) {
+                printf("Key %d already exists in leaf node %p %d\n", (int)entry.key, (void*)this, this->isLeaf());
+                this->dump(0);
+                KM_ASSERT(this->find(entry.key) == nullptr);
+            }
+
+            bool isOdd = (capacity() & 1);
+            size_t half = capacity() / 2;
+            size_t otherSize = half + (isOdd ? 1 : 0);
+
+            Entry middle = {key(half), value(half)};
+
+            // copy the top half of the keys and values to the new leaf
+            other->setCount(otherSize);
+            for (size_t i = 0; i < otherSize; i++) {
+                other->key(i) = key(i + half);
+                other->value(i) = value(i + half);
+            }
+            setCount(half);
+
+            if (entry.key < middle.key) {
+                this->insert(entry);
+                other->insert(middle);
+                *midpoint = this->popBack();
+            } else {
+                other->insert(entry);
+                *midpoint = other->popFront();
+            }
+
+            if (other->isUnderFilled()) {
+                printf("New leaf node %p has %zu keys, expected at least %zu (%zu/2) %d\n",
+                        (void*)other, other->count(), other->capacity() / 2, other->capacity(), (int)midpoint->key);
+
+                this->dump(0);
+                other->dump(0);
+
+                KM_ASSERT(!other->isUnderFilled());
+            }
+
+            if (this->isUnderFilled()) {
+                printf("Current leaf node %p has %zu keys, expected at least %zu (%zu/2) %d\n",
+                        (void*)this, this->count(), this->capacity() / 2, this->capacity(), (int)midpoint->key);
+
+                this->dump(0);
+                other->dump(0);
+
+                KM_ASSERT(!this->isUnderFilled());
+            }
+        }
+
+        void validate() const noexcept {
+            auto keySet = keys();
+            bool isSorted = std::is_sorted(keySet.begin(), keySet.end());
+            if (!isSorted) {
+                printf("Leaf node %p is not sorted\n", (void*)this);
+                for (size_t i = 0; i < count(); i++) {
+                    printf("Key %zu: %d\n", i, (int)key(i));
+                }
+                KM_PANIC("Leaf node keys are not sorted");
+            }
+        }
+
+        bool containsInNode(const Key& key) const noexcept {
+            for (size_t i = 0; i < count(); i++) {
+                if (this->key(i) == key) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        void dump(int depth) const {
+            for (int i = 0; i < depth; i++) {
+                printf("  ");
+            }
+            printf("%p %d %zu: [ ", (void*)this, depth, count());
+            for (size_t i = 0; i < count(); i++) {
+                printf("%d, ", (int)key(i));
+            }
+            printf("]\n");
+        }
+    };
+
+    template<typename Key, typename Value>
+    class TreeNodeInternal : public TreeNodeLeaf<Key, Value> {
+        using Leaf = TreeNodeLeaf<Key, Value>;
+        using Super = TreeNodeLeaf<Key, Value>;
+        using Entry = Entry<Key, Value>;
+
+    protected:
+        Leaf *mChildren[Super::kOrder + 1]{};
+
+        TreeNodeInternal(bool leaf, TreeNodeHeader *parent) noexcept
+            : Super(leaf, parent)
+        { }
+
+    public:
+        TreeNodeInternal(TreeNodeHeader *parent) noexcept
+            : TreeNodeInternal(false, parent)
+        { }
+
+        using Super::count;
+        using Super::setCount;
+        using Super::capacity;
+        using Super::key;
+        using Super::value;
+        using Super::emplace;
+        using Super::minKey;
+        using Super::maxKey;
+        using Super::upperBound;
+
+        struct ChildEntry {
+            Leaf *child;
+            Entry entry;
         };
 
-        template<typename Key, typename Value>
-        struct Entry {
-            Key key;
-            Value value;
-        };
+        ChildEntry popBackChild() noexcept {
+            KM_ASSERT(count() > 0);
+            Entry entry = {key(count() - 1), value(count() - 1)};
+            Leaf *leaf = child(count() - 1);
+            setCount(count() - 1);
+            return ChildEntry{leaf, entry};
+        }
 
-        template<typename Key, typename Value>
-        class TreeNodeLeaf : public TreeNodeHeader {
-            using Super = TreeNodeHeader;
-        public:
-            using Entry = Entry<Key, Value>;
+        /// @brief Returns the first element and the child node before it.
+        ChildEntry popFrontChild() noexcept {
+            KM_ASSERT(count() > 0);
+            Entry entry = {key(0), value(0)};
+            Leaf *leaf = child(0);
+            for (size_t i = 0; i < count() - 1; i++) {
+                key(i) = key(i + 1);
+                value(i) = value(i + 1);
+            }
 
-            static constexpr size_t kOrder = std::max(3zu, computeMaxLeafOrder(Layout::of<Key>(), Layout::of<Value>(), sm::kilobytes(4).bytes()));
+            for (size_t i = 0; i < count(); i++) {
+                child(i) = child(i + 1);
+            }
 
-        private:
-            /// @brief The number of keys and values in the node.
-            uint32_t mCount = 0;
+            setCount(count() - 1);
 
-        protected:
-            /// @brief The keys in the node.
-            Key mKeys[kOrder];
+            return entry;
+        }
 
-            /// @brief The values in the node.
-            Value mValues[kOrder];
+        auto& child(this auto&& self, size_t index) noexcept {
+            KM_ASSERT(index < self.count() + 1);
+            return self.mChildren[index];
+        }
 
-            void shiftEntry(size_t index) noexcept {
-                for (size_t i = count() - 1; i > index; i--) {
-                    key(i) = key(i - 1);
-                    value(i) = value(i - 1);
+        void takeChild(size_t index, Leaf *leaf) noexcept {
+            leaf->setParent(this);
+            child(index) = leaf;
+        }
+
+        Leaf *getLeaf(size_t index) const noexcept {
+            return mChildren[index];
+        }
+
+        size_t findChildIndex(const Key& key) const noexcept {
+            for (size_t i = 0; i < Super::count(); i++) {
+                if (Super::key(i) > key) {
+                    return i;
                 }
             }
 
-            void verifyIndex(size_t index) const noexcept {
-                if (index >= count()) {
-                    printf("Index %zu out of bounds for node %p with %zu keys\n", index, (void*)this, count());
-                    KM_PANIC("Index out of bounds in TreeNodeLeaf");
+            return Super::count(); // Return the last index if key is greater than all keys
+        }
+
+        Leaf *findChild(const Key& key) const noexcept {
+            return child(findChildIndex(key));
+        }
+
+        size_t indexOfChild(const Leaf *leaf) const noexcept {
+            for (size_t i = 0; i < count() + 1; i++) {
+                if (child(i) == leaf) {
+                    return i;
                 }
             }
+            return SIZE_MAX; // Not found
+        }
 
-        public:
-            Entry popBack() noexcept {
-                KM_ASSERT(count() > 0);
-                Entry entry = {key(count() - 1), value(count() - 1)};
-                setCount(count() - 1);
-                return entry;
-            }
-
-            Entry popFront() noexcept {
-                KM_ASSERT(count() > 0);
-                Entry entry = {key(0), value(0)};
-                for (size_t i = 0; i < count() - 1; i++) {
-                    key(i) = key(i + 1);
-                    value(i) = value(i + 1);
-                }
-                setCount(count() - 1);
-                return entry;
-            }
-
-            void emplace(size_t index, const Entry& entry) noexcept {
-                key(index) = entry.key;
-                value(index) = entry.value;
-            }
-
-            auto& key(this auto&& self, size_t index) noexcept {
-                self.verifyIndex(index);
-                return self.mKeys[index];
-            }
-
-            auto& value(this auto&& self, size_t index) noexcept {
-                self.verifyIndex(index);
-                return self.mValues[index];
-            }
-
-            TreeNodeLeaf(TreeNodeHeader *parent) noexcept
-                : TreeNodeLeaf(true, parent)
-            { }
-
-            TreeNodeLeaf(bool isLeaf, TreeNodeHeader *parent) noexcept
-                : Super(isLeaf, parent)
-            { }
-
-            InsertResult insert(const Entry& entry) noexcept {
-                size_t n = count();
-
-                for (size_t i = 0; i < n; i++) {
-                    if (key(i) == entry.key) {
-                        value(i) = entry.value;
-                        return InsertResult::eSuccess;
-                    } else if (key(i) > entry.key) {
-                        if (n >= capacity()) {
-                            return InsertResult::eFull;
-                        }
-                        // Shift the keys and values to make space for the new key.
-                        setCount(n + 1);
-                        shiftEntry(i);
-                        emplace(i, entry);
-                        return InsertResult::eSuccess;
-                    }
-                }
-
-                if (n >= capacity()) {
-                    return InsertResult::eFull;
-                }
-
-                // If we reach here, the key is greater than all existing keys.
-                setCount(n + 1);
-                emplace(n, entry);
-                return InsertResult::eSuccess;
-            }
-
-            void remove(size_t index) noexcept {
-                verifyIndex(index);
-                for (size_t i = index; i < count() - 1; i++) {
-                    key(i) = key(i + 1);
-                    value(i) = value(i + 1);
-                }
-                setCount(count() - 1);
-            }
-
-            size_t upperBound(const Key& k) const noexcept {
-                for (size_t i = 0; i < count(); i++) {
-                    if (key(i) > k) {
-                        return i;
-                    }
-                }
-                return count();
-            }
-
-            size_t indexOf(const Key& k) const noexcept {
-                for (size_t i = 0; i < count(); i++) {
-                    if (key(i) == k) {
-                        return i;
-                    }
-                }
-                return SIZE_MAX; // Key not found
-            }
-
-            Value *find(const Key& k) noexcept {
-                size_t index = indexOf(k);
-                if (index == SIZE_MAX) {
-                    return nullptr; // Key not found
-                }
-                return &value(index);
-            }
-
-            const Value *find(const Key& k) const noexcept {
-                size_t index = indexOf(k);
-                if (index == SIZE_MAX) {
-                    return nullptr; // Key not found
-                }
-                return &value(index);
-            }
-
-            size_t count() const noexcept {
-                return mCount;
-            }
-
-            void setCount(size_t newCount) noexcept {
-                KM_ASSERT(newCount <= capacity());
-                mCount = newCount;
-            }
-
-            bool isFull() const noexcept {
-                return count() == capacity();
-            }
-
-            bool isUnderFilled() const noexcept {
-                return count() < leastCount();
-            }
-
-            constexpr size_t leastCount() const noexcept {
-                return (capacity() / 2) - 1;
-            }
-
-            constexpr size_t capacity() const noexcept {
-                return kOrder;
-            }
-
-            constexpr static size_t maxCapacity() noexcept {
-                return kOrder;
-            }
-
-            constexpr static size_t minCapacity() noexcept {
-                return (maxCapacity() / 2) - 1;
-            }
-
-            const Key& minKey() const noexcept {
-                KM_ASSERT(count() > 0);
-                return key(0);
-            }
-
-            const Key& maxKey() const noexcept {
-                KM_ASSERT(count() > 0);
-                return key(count() - 1);
-            }
-
-            std::span<Key> keys() noexcept { return std::span(mKeys, count()); }
-            std::span<const Key> keys() const noexcept { return std::span(mKeys, count()); }
-
-            std::span<Value> values() noexcept { return std::span(mValues, count()); }
-            std::span<const Value> values() const noexcept { return std::span(mValues, count()); }
-
-            void claim(TreeNodeLeaf *other) noexcept {
-                KM_ASSERT(other->isLeaf());
-                KM_ASSERT(other->getParent() == this->getParent());
-
-                // Move the keys and values from the other leaf to this leaf
-                for (size_t i = 0; i < other->count(); i++) {
-                    this->insert({other->key(i), other->value(i)});
-                }
-
-                // TODO: clear values from other leaf
-                other->setCount(0);
-            }
-
-            /// @brief Split the internal node into two nodes to accommodate a new entry and leaf.
-            void splitInto(TreeNodeLeaf *other, const Entry& entry, Entry *midpoint) noexcept {
-                // guardrails
-                KM_ASSERT(other->count() == 0);
-                KM_ASSERT(this->count() == this->capacity());
-                if (this->find(entry.key) != nullptr) {
-                    printf("Key %d already exists in leaf node %p %d\n", (int)entry.key, (void*)this, this->isLeaf());
-                    this->dump();
-                    KM_ASSERT(this->find(entry.key) == nullptr);
-                }
-
-                bool isOdd = (capacity() & 1);
-                size_t half = capacity() / 2;
-                size_t otherSize = half + (isOdd ? 1 : 0);
-
-                Entry middle = {key(half), value(half)};
-
-                // copy the top half of the keys and values to the new leaf
-                other->setCount(otherSize);
-                for (size_t i = 0; i < otherSize; i++) {
-                    other->key(i) = key(i + half);
-                    other->value(i) = value(i + half);
-                }
-                setCount(half);
-
-                if (entry.key < middle.key) {
-                    this->insert(entry);
-                    other->insert(middle);
-                    *midpoint = this->popBack();
-                } else {
-                    other->insert(entry);
-                    *midpoint = other->popFront();
-                }
-
-                if (other->isUnderFilled()) {
-                    printf("New leaf node %p has %zu keys, expected at least %zu (%zu/2) %d\n",
-                           (void*)other, other->count(), other->capacity() / 2, other->capacity(), (int)midpoint->key);
-
-                    this->dump();
-                    other->dump();
-
-                    KM_ASSERT(!other->isUnderFilled());
-                }
-
-                if (this->isUnderFilled()) {
-                    printf("Current leaf node %p has %zu keys, expected at least %zu (%zu/2) %d\n",
-                           (void*)this, this->count(), this->capacity() / 2, this->capacity(), (int)midpoint->key);
-
-                    this->dump();
-                    other->dump();
-
-                    KM_ASSERT(!this->isUnderFilled());
+        bool containsLeafInNode(const Leaf *leaf) const noexcept {
+            for (size_t i = 0; i < count() + 1; i++) {
+                if (child(i) == leaf) {
+                    return true;
                 }
             }
+            return false;
+        }
 
-            bool containsInNode(const Key& key) const noexcept {
-                for (size_t i = 0; i < count(); i++) {
-                    if (this->key(i) == key) {
-                        return true;
-                    }
-                }
-                return false;
+        void removeEntry(size_t index) noexcept {
+            KM_ASSERT(index < count());
+            for (size_t i = index; i < count() - 1; i++) {
+                key(i) = key(i + 1);
+                value(i) = value(i + 1);
             }
 
-            void dump() const {
-                printf("Leaf node %p:\n", (void*)this);
-                printf("  IsLeaf: %d\n", Super::isLeaf());
-                printf("  Count: %zu\n", count());
-                printf("  Keys: [");
-                for (size_t i = 0; i < count(); i++) {
-                    printf("%d, ", (int)key(i));
-                }
-                printf("]\n");
-            }
-        };
-
-        template<typename Key, typename Value>
-        class TreeNodeInternal : public TreeNodeLeaf<Key, Value> {
-            using Leaf = TreeNodeLeaf<Key, Value>;
-            using Super = TreeNodeLeaf<Key, Value>;
-            using Entry = Entry<Key, Value>;
-
-        protected:
-            Leaf *mChildren[Super::kOrder + 1]{};
-
-            TreeNodeInternal(bool leaf, TreeNodeHeader *parent) noexcept
-                : Super(leaf, parent)
-            { }
-
-        public:
-            TreeNodeInternal(TreeNodeHeader *parent) noexcept
-                : TreeNodeInternal(false, parent)
-            { }
-
-            using Super::count;
-            using Super::setCount;
-            using Super::capacity;
-            using Super::key;
-            using Super::value;
-            using Super::emplace;
-            using Super::minKey;
-            using Super::maxKey;
-            using Super::upperBound;
-
-            struct ChildEntry {
-                Leaf *child;
-                Entry entry;
-            };
-
-            ChildEntry popBackChild() noexcept {
-                KM_ASSERT(count() > 0);
-                Entry entry = {key(count() - 1), value(count() - 1)};
-                Leaf *leaf = child(count() - 1);
-                setCount(count() - 1);
-                return ChildEntry{leaf, entry};
+            for (size_t i = index; i < count(); i++) {
+                child(i) = child(i + 1);
             }
 
-            /// @brief Returns the first element and the child node before it.
-            ChildEntry popFrontChild() noexcept {
-                KM_ASSERT(count() > 0);
-                Entry entry = {key(0), value(0)};
-                Leaf *leaf = child(0);
-                for (size_t i = 0; i < count() - 1; i++) {
-                    key(i) = key(i + 1);
-                    value(i) = value(i + 1);
+            setCount(count() - 1);
+        }
+
+        void mergeLeafNodes(Leaf *lhs, Leaf *rhs) noexcept {
+            KM_ASSERT(lhs->isLeaf() && rhs->isLeaf());
+            KM_ASSERT(lhs->getParent() == this);
+            KM_ASSERT(rhs->getParent() == this);
+
+            size_t lhsIndex = indexOfChild(lhs);
+            size_t rhsIndex = indexOfChild(rhs);
+            KM_ASSERT((lhsIndex + 1) == rhsIndex); // Ensure they are adjacent
+
+            Entry middle = {key(lhsIndex), value(lhsIndex)};
+            lhs->insert(middle);
+            lhs->claim(rhs);
+
+            key(lhsIndex) = key(rhsIndex);
+            value(lhsIndex) = value(rhsIndex);
+
+            removeEntry(rhsIndex);
+        }
+
+        /// @brief Insert a new entry and the leaf node above it into the internal node.
+        InsertResult insertChild(const Entry& entry, Leaf *leaf) noexcept {
+            size_t n = count();
+
+            for (size_t i = 0; i < n; i++) {
+                if (key(i) == entry.key) {
+                    printf("Key %d already exists in internal node %p at %zu\n", (int)entry.key, (void*)this, i);
+                    dump(0);
+                    KM_ASSERT(key(i) != entry.key);
                 }
 
-                for (size_t i = 0; i < count(); i++) {
-                    child(i) = child(i + 1);
-                }
-
-                setCount(count() - 1);
-
-                return entry;
-            }
-
-            auto& child(this auto&& self, size_t index) noexcept {
-                KM_ASSERT(index < self.count() + 1);
-                return self.mChildren[index];
-            }
-
-            void takeChild(size_t index, Leaf *leaf) noexcept {
-                leaf->setParent(this);
-                child(index) = leaf;
-            }
-
-            Leaf *getLeaf(size_t index) const noexcept {
-                return mChildren[index];
-            }
-
-            size_t findChildIndex(const Key& key) const noexcept {
-                for (size_t i = 0; i < Super::count(); i++) {
-                    if (Super::key(i) > key) {
-                        return i;
-                    }
-                }
-
-                return Super::count(); // Return the last index if key is greater than all keys
-            }
-
-            Leaf *findChild(const Key& key) const noexcept {
-                return child(findChildIndex(key));
-            }
-
-            size_t indexOfChild(const Leaf *leaf) const noexcept {
-                for (size_t i = 0; i < count() + 1; i++) {
-                    if (child(i) == leaf) {
-                        return i;
-                    }
-                }
-                return SIZE_MAX; // Not found
-            }
-
-            bool containsLeafInNode(const Leaf *leaf) const noexcept {
-                for (size_t i = 0; i < count() + 1; i++) {
-                    if (child(i) == leaf) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-
-            void removeEntry(size_t index) noexcept {
-                KM_ASSERT(index < count());
-                for (size_t i = index; i < count() - 1; i++) {
-                    key(i) = key(i + 1);
-                    value(i) = value(i + 1);
-                }
-
-                for (size_t i = index; i < count(); i++) {
-                    child(i) = child(i + 1);
-                }
-
-                setCount(count() - 1);
-            }
-
-            void mergeLeafNodes(Leaf *lhs, Leaf *rhs) noexcept {
-                KM_ASSERT(lhs->isLeaf() && rhs->isLeaf());
-                KM_ASSERT(lhs->getParent() == this);
-                KM_ASSERT(rhs->getParent() == this);
-
-                size_t lhsIndex = indexOfChild(lhs);
-                size_t rhsIndex = indexOfChild(rhs);
-                KM_ASSERT((lhsIndex + 1) == rhsIndex); // Ensure they are adjacent
-
-                Entry middle = {key(rhsIndex), value(rhsIndex)};
-                lhs->insert(middle);
-                lhs->claim(rhs);
-
-                Entry tail = lhs->popBack();
-                key(rhsIndex) = tail.key;
-                value(rhsIndex) = tail.value;
-            }
-
-            /// @brief Insert a new entry and the leaf node above it into the internal node.
-            InsertResult insertChild(const Entry& entry, Leaf *leaf) noexcept {
-                size_t n = count();
-
-                for (size_t i = 0; i < n; i++) {
-                    if (key(i) == entry.key) {
-                        printf("Key %d already exists in internal node %p at %zu\n", (int)entry.key, (void*)this, i);
-                        dump();
-                        KM_ASSERT(key(i) != entry.key);
+                if (key(i) > entry.key) {
+                    if (n >= capacity()) {
+                        return InsertResult::eFull;
                     }
 
-                    if (key(i) > entry.key) {
-                        if (n >= capacity()) {
-                            return InsertResult::eFull;
-                        }
-
-                        // Shift the keys and values to make space for the new key.
-                        setCount(n + 1);
-                        Super::shiftEntry(i);
-                        for (size_t j = n; j > i; j--) {
-                            child(j + 1) = child(j);
-                        }
-                        emplace(i, entry);
-                        leaf->setParent(this);
-                        child(i + 1) = leaf;
-                        return InsertResult::eSuccess;
+                    // Shift the keys and values to make space for the new key.
+                    setCount(n + 1);
+                    Super::shiftEntry(i);
+                    for (size_t j = n; j > i; j--) {
+                        child(j + 1) = child(j);
                     }
+                    emplace(i, entry);
+                    leaf->setParent(this);
+                    child(i + 1) = leaf;
+                    return InsertResult::eSuccess;
                 }
-
-                if (n >= capacity()) {
-                    return InsertResult::eFull;
-                }
-
-                // If we reach here, the key is greater than all existing keys.
-                setCount(n + 1);
-                emplace(n, entry);
-                leaf->setParent(this);
-                child(n + 1) = leaf;
-                return InsertResult::eSuccess;
             }
 
-            void transferTo(TreeNodeInternal *other, size_t count) noexcept {
-                other->setCount(count - 1);
-                for (size_t i = 0; i < count - 1; i++) {
-                    other->key(i) = key(i + count + 1);
-                    other->value(i) = value(i + count + 1);
-                }
-
-                for (size_t i = 0; i < count; i++) {
-                    Leaf *childNode = child(i + count + 1);
-                    other->takeChild(i, childNode);
-                }
-
-                setCount(count);
+            if (n >= capacity()) {
+                return InsertResult::eFull;
             }
 
-            /// @brief Split the internal node into two nodes to accommodate a new entry.
-            void splitInto(TreeNodeInternal *other, const Entry& entry, Entry *midpoint) noexcept {
-                // guardrails
-                KM_ASSERT(other->count() == 0);
-                KM_ASSERT(this->count() == this->capacity());
-                KM_ASSERT(!this->isLeaf());
-                KM_ASSERT(!other->isLeaf());
+            // If we reach here, the key is greater than all existing keys.
+            setCount(n + 1);
+            emplace(n, entry);
+            leaf->setParent(this);
+            child(n + 1) = leaf;
+            return InsertResult::eSuccess;
+        }
 
-                const size_t kHalfOrder = Super::kOrder / 2;
-
-                Entry middle = {key(kHalfOrder), value(kHalfOrder)};
-
-                transferTo(other, kHalfOrder);
-
-                if (entry.key < maxKey()) {
-                    this->insert(entry);
-                    *midpoint = this->popBack();
-                } else if (entry.key < middle.key) {
-                    other->insert(middle);
-                    *midpoint = entry;
-                } else {
-                    *midpoint = middle;
-                }
-
-                KM_ASSERT(this->count() >= (this->capacity() / 2) - 1);
-                KM_ASSERT(other->count() >= (other->capacity() / 2) - 1);
+        void transferTo(TreeNodeInternal *other, size_t count) noexcept {
+            other->setCount(count - 1);
+            for (size_t i = 0; i < count - 1; i++) {
+                other->key(i) = key(i + count + 1);
+                other->value(i) = value(i + count + 1);
             }
 
-            void transferInto(TreeNodeInternal *other, Entry *midpoint) noexcept {
-                size_t half = capacity() / 2;
-                Entry middle = {key(half), value(half)};
+            for (size_t i = 0; i < count; i++) {
+                Leaf *childNode = child(i + count + 1);
+                other->takeChild(i, childNode);
+            }
 
-                other->setCount(half);
-                for (size_t i = 0; i < half; i++) {
-                    other->key(i) = key(i + half + 1);
-                    other->value(i) = value(i + half + 1);
-                }
+            setCount(count);
+        }
 
-                KM_ASSERT(!other->containsInNode(middle.key));
+        /// @brief Split the internal node into two nodes to accommodate a new entry.
+        void splitInto(TreeNodeInternal *other, const Entry& entry, Entry *midpoint) noexcept {
+            // guardrails
+            KM_ASSERT(other->count() == 0);
+            KM_ASSERT(this->count() == this->capacity());
+            KM_ASSERT(!this->isLeaf());
+            KM_ASSERT(!other->isLeaf());
 
-                for (size_t i = 0; i < half + 1; i++) {
-                    Leaf *leaf = child(i + half + 1);
-                    other->takeChild(i, leaf);
-                }
+            const size_t kHalfOrder = Super::kOrder / 2;
 
-                setCount(half);
+            Entry middle = {key(kHalfOrder), value(kHalfOrder)};
+
+            transferTo(other, kHalfOrder);
+
+            if (entry.key < maxKey()) {
+                this->insert(entry);
+                *midpoint = this->popBack();
+            } else if (entry.key < middle.key) {
+                other->insert(middle);
+                *midpoint = entry;
+            } else {
                 *midpoint = middle;
             }
 
-            void splitIntoUpperHalf(TreeNodeInternal *other, const ChildEntry& entry, Entry *midpoint) noexcept {
-                /// Divide this node into another, assuming that the entry is greater than the midpoint
-                /// | 1 | 2 | 3 | 4 | 5 |
-                ///            ^^^^^^^^^^ entry is within this area
-                /// Extract the middle node into a local
-                /// Retain first M/2 entries and (M/2)+1 leaves and transfer the remaining to the other node.
-                /// Then insert the new entry and leaf into the other node
+            KM_ASSERT(this->count() >= (this->capacity() / 2) - 1);
+            KM_ASSERT(other->count() >= (other->capacity() / 2) - 1);
+        }
 
-                transferInto(other, midpoint);
-                other->insertChild(entry.entry, entry.child);
+        void transferInto(TreeNodeInternal *other, Entry *midpoint) noexcept {
+            size_t half = capacity() / 2;
+            Entry middle = {key(half), value(half)};
+
+            other->setCount(half);
+            for (size_t i = 0; i < half; i++) {
+                other->key(i) = key(i + half + 1);
+                other->value(i) = value(i + half + 1);
             }
 
-            void splitIntoLowerHalf(TreeNodeInternal *other, const ChildEntry& entry, Entry *midpoint) noexcept {
-                transferInto(other, midpoint);
-                this->insertChild(entry.entry, entry.child);
+            KM_ASSERT(!other->containsInNode(middle.key));
+
+            for (size_t i = 0; i < half + 1; i++) {
+                Leaf *leaf = child(i + half + 1);
+                other->takeChild(i, leaf);
             }
 
-            /// @brief Split the internal node into two nodes to accommodate a new entry and leaf.
-            void splitInternalNode(TreeNodeInternal *other, const ChildEntry& entry, Entry *midpoint) noexcept {
-                // guardrails
-                KM_ASSERT(other->count() == 0);
-                KM_ASSERT(this->count() == this->capacity());
-                for (size_t i = 0; i < Super::count(); i++) {
-                    if (key(i) == entry.entry.key) {
-                        printf("Key %d already exists in internal node %p %d\n", (int)entry.entry.key, (void*)this, this->isLeaf());
-                        this->dump();
-                        KM_PANIC("Key already exists in internal node");
-                    }
+            setCount(half);
+            *midpoint = middle;
+        }
+
+        void splitIntoUpperHalf(TreeNodeInternal *other, const ChildEntry& entry, Entry *midpoint) noexcept {
+            /// Divide this node into another, assuming that the entry is greater than the midpoint
+            /// | 1 | 2 | 3 | 4 | 5 |
+            ///            ^^^^^^^^^^ entry is within this area
+            /// Extract the middle node into a local
+            /// Retain first M/2 entries and (M/2)+1 leaves and transfer the remaining to the other node.
+            /// Then insert the new entry and leaf into the other node
+
+            transferInto(other, midpoint);
+            other->insertChild(entry.entry, entry.child);
+        }
+
+        void splitIntoLowerHalf(TreeNodeInternal *other, const ChildEntry& entry, Entry *midpoint) noexcept {
+            transferInto(other, midpoint);
+            this->insertChild(entry.entry, entry.child);
+        }
+
+        /// @brief Split the internal node into two nodes to accommodate a new entry and leaf.
+        void splitInternalNode(TreeNodeInternal *other, const ChildEntry& entry, Entry *midpoint) noexcept {
+            // guardrails
+            KM_ASSERT(other->count() == 0);
+            KM_ASSERT(this->count() == this->capacity());
+            for (size_t i = 0; i < Super::count(); i++) {
+                if (key(i) == entry.entry.key) {
+                    printf("Key %d already exists in internal node %p %d\n", (int)entry.entry.key, (void*)this, this->isLeaf());
+                    this->dump(0);
+                    KM_PANIC("Key already exists in internal node");
                 }
-                KM_ASSERT(!this->isLeaf());
-                KM_ASSERT(!other->isLeaf());
+            }
+            KM_ASSERT(!this->isLeaf());
+            KM_ASSERT(!other->isLeaf());
 
+            for (size_t i = 0; i < count(); i++) {
+                if (child(i) == nullptr) {
+                    printf("Child node at index %zu is null in internal node %p\n", i, (void*)this);
+                    this->dump(0);
+                    KM_PANIC("Child node is null in BTreeMap");
+                }
+            }
+
+            size_t half = capacity() / 2;
+            if (entry.entry.key > key(half)) {
+                splitIntoUpperHalf(other, entry, midpoint);
+            } else {
+                splitIntoLowerHalf(other, entry, midpoint);
+            }
+
+            KM_ASSERT(this->count() >= (this->capacity() / 2) - 1);
+            KM_ASSERT(other->count() >= (other->capacity() / 2) - 1);
+        }
+
+        void initAsRoot(Leaf *lhs, Leaf *rhs, const Entry& entry) noexcept {
+            setCount(1);
+            takeChild(0, lhs);
+            takeChild(1, rhs);
+            Super::emplace(0, entry);
+        }
+
+        ~TreeNodeInternal() noexcept {
+            for (size_t i = 0; i < count() + 1; i++) {
+                deleteNode<Key, Value>(child(i));
+            }
+        }
+
+        void validate() const noexcept {
+            auto keySet = Super::keys();
+            bool sorted = std::is_sorted(keySet.begin(), keySet.end());
+            if (!sorted) {
+                printf("Internal node %p is not sorted\n", (void*)this);
                 for (size_t i = 0; i < count(); i++) {
-                    if (child(i) == nullptr) {
-                        printf("Child node at index %zu is null in internal node %p\n", i, (void*)this);
-                        this->dump();
-                        KM_PANIC("Child node is null in BTreeMap");
-                    }
+                    printf("Key %zu: %d\n", i, (int)key(i));
+                }
+                KM_PANIC("Internal node keys are not sorted");
+            }
+
+            for (size_t i = 0; i < count() + 1; i++) {
+                Leaf *childNode = child(i);
+                if (childNode == nullptr) {
+                    printf("Child node at index %zu is null in internal node %p\n", i, (void*)this);
+                    KM_PANIC("Child node is null in BTreeMap");
+                }
+                if (childNode->getParent() != this) {
+                    printf("Child node %p has parent %p, expected %p\n", (void*)childNode, (void*)childNode->getParent(), (void*)this);
+                    KM_PANIC("Child node parent mismatch in BTreeMap");
                 }
 
-                size_t half = capacity() / 2;
-                if (entry.entry.key > key(half)) {
-                    splitIntoUpperHalf(other, entry, midpoint);
+                if (childNode->isLeaf()) {
+                    static_cast<const Leaf*>(childNode)->validate();
                 } else {
-                    splitIntoLowerHalf(other, entry, midpoint);
-                }
-
-                KM_ASSERT(this->count() >= (this->capacity() / 2) - 1);
-                KM_ASSERT(other->count() >= (other->capacity() / 2) - 1);
-            }
-
-            void initAsRoot(Leaf *lhs, Leaf *rhs, const Entry& entry) noexcept {
-                setCount(1);
-                takeChild(0, lhs);
-                takeChild(1, rhs);
-                Super::emplace(0, entry);
-            }
-
-            ~TreeNodeInternal() noexcept {
-                for (size_t i = 0; i < count() + 1; i++) {
-                    deleteNode<Key, Value>(child(i));
+                    static_cast<const TreeNodeInternal*>(childNode)->validate();
                 }
             }
 
-            void validate() const noexcept {
-                auto keySet = Super::keys();
-                bool sorted = std::is_sorted(keySet.begin(), keySet.end());
-                if (!sorted) {
-                    printf("Internal node %p is not sorted\n", (void*)this);
-                    for (size_t i = 0; i < count(); i++) {
-                        printf("Key %zu: %d\n", i, (int)key(i));
+            for (size_t i = 0; i < count(); i++) {
+                Leaf *current = child(i);
+                Leaf *next = child(i + 1);
+                for (size_t j = 0; j < current->count(); j++) {
+                    if (!(current->key(j) < Super::key(i))) {
+                        dump(0);
+                        printf("Key %zu: %d, expected < %d\n", j, (int)current->key(j), (int)Super::key(i));
                     }
-                    KM_PANIC("Internal node keys are not sorted");
+                    KM_ASSERT(current->key(j) < Super::key(i));
+                }
+                for (size_t j = 0; j < next->count(); j++) {
+                    if (!(Super::key(i) < next->key(j))) {
+                        dump(0);
+                        printf("Key %zu: %d, expected > %d\n", j, (int)next->key(j), (int)Super::key(i));
+                    }
+                    KM_ASSERT(Super::key(i) < next->key(j));
                 }
             }
+        }
 
-            void dump() const {
-                printf("Leaf node %p:\n", (void*)this);
-                printf("  IsLeaf: %d\n", Super::isLeaf());
-                printf("  Count: %zu\n", count());
-                printf("  Keys: [");
-                for (size_t i = 0; i < count(); i++) {
-                    printf("%d, ", (int)key(i));
-                }
-                printf("]\n");
-                printf("  Children: [");
-                for (size_t i = 0; i < count() + 1; i++) {
-                    printf("%p, ", (void*)child(i));
-                }
-                printf("]\n");
+        void dump(int depth) const {
+            for (int i = 0; i < depth; i++) {
+                printf("  ");
             }
-        };
+            printf("%p %d %zu: [ ", (void*)this, depth, count());
+            for (size_t i = 0; i < count(); i++) {
+                printf("%d, ", (int)key(i));
+            }
+            printf("]\n");
 
-        template<typename Key, typename Value>
+            for (size_t i = 0; i < count() + 1; i++) {
+                Leaf *inner = child(i);
+                if (inner->isLeaf()) {
+                    static_cast<const Leaf*>(inner)->dump(depth + 1);
+                } else {
+                    static_cast<const TreeNodeInternal<Key, Value>*>(inner)->dump(depth + 1);
+                }
+            }
+        }
+    };
+
+    template<typename Key, typename Value>
+    void dumpNode(const TreeNodeLeaf<Key, Value> *node) noexcept {
+        if (node->isLeaf()) {
+            static_cast<const TreeNodeLeaf<Key, Value>*>(node)->dump();
+        } else {
+            static_cast<const TreeNodeInternal<Key, Value>*>(node)->dump();
+        }
+    }
+
+    template<typename Node, typename... Args>
+    Node *newNode(Args&&... args) noexcept {
+        void *memory = aligned_alloc(alignof(Node), sizeof(Node));
+        return new (memory) Node(std::forward<Args>(args)...);
+    }
+
+    template<typename Key, typename Value>
+    void deleteNode(TreeNodeHeader *node) noexcept {
+        using LeafNode = TreeNodeLeaf<Key, Value>;
+        using InternalNode = TreeNodeInternal<Key, Value>;
+        if (node->isLeaf()) {
+            LeafNode *leaf = static_cast<LeafNode*>(node);
+            std::destroy_at(leaf);
+        } else {
+            InternalNode *internal = static_cast<InternalNode*>(node);
+            std::destroy_at(internal);
+        }
+
+        free(static_cast<void*>(node));
+    }
+
+    template<typename Key, typename Value>
+    struct BTreeMapCommon {
+        using Leaf = TreeNodeLeaf<Key, Value>;
+        using Internal = TreeNodeInternal<Key, Value>;
+        using Entry = Entry<Key, Value>;
+        using ChildEntry = typename Internal::ChildEntry;
+
         void rebalanceOrMergeLeaf(TreeNodeLeaf<Key, Value> *lhs, TreeNodeLeaf<Key, Value> *rhs) noexcept {
             using Leaf = TreeNodeLeaf<Key, Value>;
             using Internal = TreeNodeInternal<Key, Value>;
@@ -719,7 +808,7 @@ namespace sm {
             if (!canRebalance) {
                 // Merge into the left node and delete the right node
                 parent->mergeLeafNodes(lhs, rhs);
-                deleteNode<Key, Value>(rhs);
+                deleteNode(rhs);
             } else {
                 KM_PANIC("Unimplemented");
 
@@ -731,69 +820,33 @@ namespace sm {
             }
         }
 
-        template<typename Key, typename Value>
-        void dumpNode(const TreeNodeLeaf<Key, Value> *node) noexcept {
+        static void splitNode(Leaf *node, Leaf *newNode, const Entry& entry, Entry *midpoint) noexcept {
+            KM_ASSERT(node->isLeaf() == newNode->isLeaf());
+
             if (node->isLeaf()) {
-                static_cast<const TreeNodeLeaf<Key, Value>*>(node)->dump();
+                node->splitInto(newNode, entry, midpoint);
             } else {
-                static_cast<const TreeNodeInternal<Key, Value>*>(node)->dump();
+                Internal *internalNode = static_cast<Internal*>(node);
+                Internal *otherInternal = static_cast<Internal*>(newNode);
+                internalNode->splitInto(otherInternal, entry, midpoint);
             }
         }
 
-        template<typename Node, typename... Args>
-        Node *newNode(Args&&... args) noexcept {
-            void *memory = aligned_alloc(alignof(Node), sizeof(Node));
-            return new (memory) Node(std::forward<Args>(args)...);
-        }
-
-        template<typename Key, typename Value>
-        void deleteNode(TreeNodeHeader *node) noexcept {
-            using LeafNode = TreeNodeLeaf<Key, Value>;
-            using InternalNode = TreeNodeInternal<Key, Value>;
+        static void deleteNode(TreeNodeHeader *node) noexcept {
             if (node->isLeaf()) {
-                LeafNode *leaf = static_cast<LeafNode*>(node);
+                Leaf *leaf = static_cast<Leaf*>(node);
                 std::destroy_at(leaf);
             } else {
-                InternalNode *internal = static_cast<InternalNode*>(node);
+                Internal *internal = static_cast<Internal*>(node);
                 std::destroy_at(internal);
             }
 
             free(static_cast<void*>(node));
         }
+    };
+}
 
-        template<typename Key, typename Value>
-        struct BTreeMapCommon {
-            using Leaf = TreeNodeLeaf<Key, Value>;
-            using Internal = TreeNodeInternal<Key, Value>;
-            using Entry = Entry<Key, Value>;
-            using ChildEntry = typename Internal::ChildEntry;
-
-            static void splitNode(Leaf *node, Leaf *newNode, const Entry& entry, Entry *midpoint) noexcept {
-                KM_ASSERT(node->isLeaf() == newNode->isLeaf());
-
-                if (node->isLeaf()) {
-                    node->splitInto(newNode, entry, midpoint);
-                } else {
-                    Internal *internalNode = static_cast<Internal*>(node);
-                    Internal *otherInternal = static_cast<Internal*>(newNode);
-                    internalNode->splitInto(otherInternal, entry, midpoint);
-                }
-            }
-
-            static void deleteNode(TreeNodeHeader *node) noexcept {
-                if (node->isLeaf()) {
-                    Leaf *leaf = static_cast<Leaf*>(node);
-                    std::destroy_at(leaf);
-                } else {
-                    Internal *internal = static_cast<Internal*>(node);
-                    std::destroy_at(internal);
-                }
-
-                free(static_cast<void*>(node));
-            }
-        };
-    }
-
+namespace sm {
     struct BTreeStats {
         size_t leafCount = 0;
         size_t internalNodeCount = 0;
