@@ -50,6 +50,16 @@ public:
         }
         ASSERT_TRUE(sorted) << "Leaf node is not sorted";
     }
+
+    void AssertChildNodeInvariants(const Internal& node, std::set<Leaf*>& leaves) {
+        for (size_t i = 0; i < node.count() + 1; i++) {
+            Leaf *child = node.child(i);
+            ASSERT_NE(child, nullptr) << "Child node at index " << i << " is null in left internal node";
+            ASSERT_EQ(child->getParent(), &node) << "Child node " << child << " does not have the correct parent";
+            ASSERT_TRUE(leaves.contains(child)) << "Child node " << child << " not found in original leaves";
+            leaves.erase(child);
+        }
+    }
 };
 
 struct LeafSplitTest
@@ -105,21 +115,8 @@ TEST_F(BTreeTest, SplitIntoUpperHalf) {
         ASSERT_GT(rhs.key(i), midpoint.key) << "Key " << rhs.key(i) << " is not greater than midpoint key " << midpoint.key;
     }
 
-    for (size_t i = 0; i < lhs.count() + 1; i++) {
-        Leaf *child = lhs.child(i);
-        ASSERT_NE(child, nullptr) << "Child node at index " << i << " is null in left internal node";
-        ASSERT_EQ(child->getParent(), &lhs) << "Child node " << child << " does not have the correct parent";
-        ASSERT_TRUE(leaves.contains(child)) << "Child node " << child << " not found in original leaves";
-        leaves.erase(child);
-    }
-
-    for (size_t i = 0; i < rhs.count() + 1; i++) {
-        Leaf *child = rhs.child(i);
-        ASSERT_NE(child, nullptr) << "Child node at index " << i << " is null in right internal node";
-        ASSERT_EQ(child->getParent(), &rhs) << "Child node " << child << " does not have the correct parent";
-        ASSERT_TRUE(leaves.contains(child)) << "Child node " << child << " not found in original leaves";
-        leaves.erase(child);
-    }
+    AssertChildNodeInvariants(lhs, leaves);
+    AssertChildNodeInvariants(rhs, leaves);
 
     ASSERT_FALSE(lhs.containsInNode(midpoint.key)) << "Left node contains midpoint key after split";
     ASSERT_FALSE(rhs.containsInNode(midpoint.key)) << "Right node contains midpoint key after split";
@@ -161,21 +158,8 @@ TEST_F(BTreeTest, SplitIntoUpperHalf2) {
         ASSERT_GT(rhs.key(i), midpoint.key) << "Key " << rhs.key(i) << " is not greater than midpoint key " << midpoint.key;
     }
 
-    for (size_t i = 0; i < lhs.count() + 1; i++) {
-        Leaf *child = lhs.child(i);
-        ASSERT_NE(child, nullptr) << "Child node at index " << i << " is null in left internal node";
-        ASSERT_EQ(child->getParent(), &lhs) << "Child node " << child << " does not have the correct parent";
-        ASSERT_TRUE(leaves.contains(child)) << "Child node " << child << " not found in original leaves";
-        leaves.erase(child);
-    }
-
-    for (size_t i = 0; i < rhs.count() + 1; i++) {
-        Leaf *child = rhs.child(i);
-        ASSERT_NE(child, nullptr) << "Child node at index " << i << " is null in right internal node";
-        ASSERT_EQ(child->getParent(), &rhs) << "Child node " << child << " does not have the correct parent";
-        ASSERT_TRUE(leaves.contains(child)) << "Child node " << child << " not found in original leaves";
-        leaves.erase(child);
-    }
+    AssertChildNodeInvariants(lhs, leaves);
+    AssertChildNodeInvariants(rhs, leaves);
 
     ASSERT_FALSE(lhs.containsInNode(midpoint.key)) << "Left node contains midpoint key after split";
     ASSERT_FALSE(rhs.containsInNode(midpoint.key)) << "Right node contains midpoint key after split";
@@ -217,21 +201,8 @@ TEST_F(BTreeTest, SplitIntoLowerHalf) {
         ASSERT_GT(rhs.key(i), midpoint.key) << "Key " << rhs.key(i) << " is not greater than midpoint key " << midpoint.key;
     }
 
-    for (size_t i = 0; i < lhs.count() + 1; i++) {
-        Leaf *child = lhs.child(i);
-        ASSERT_NE(child, nullptr) << "Child node at index " << i << " is null in left internal node";
-        ASSERT_EQ(child->getParent(), &lhs) << "Child node " << child << " does not have the correct parent";
-        ASSERT_TRUE(leaves.contains(child)) << "Child node " << child << " not found in original leaves";
-        leaves.erase(child);
-    }
-
-    for (size_t i = 0; i < rhs.count() + 1; i++) {
-        Leaf *child = rhs.child(i);
-        ASSERT_NE(child, nullptr) << "Child node at index " << i << " is null in right internal node";
-        ASSERT_EQ(child->getParent(), &rhs) << "Child node " << child << " does not have the correct parent";
-        ASSERT_TRUE(leaves.contains(child)) << "Child node " << child << " not found in original leaves";
-        leaves.erase(child);
-    }
+    AssertChildNodeInvariants(lhs, leaves);
+    AssertChildNodeInvariants(rhs, leaves);
 
     ASSERT_FALSE(lhs.containsInNode(midpoint.key)) << "Left node contains midpoint key after split";
     ASSERT_FALSE(rhs.containsInNode(midpoint.key)) << "Right node contains midpoint key after split";
@@ -441,27 +412,8 @@ TEST_P(LeafSplitTest, InternalSplitMany) {
         ASSERT_GT(rhs.key(i), midpoint.key);
     }
 
-    for (size_t i = 0; i < rhs.count() + 1; i++) {
-        Leaf* child = rhs.child(i);
-        ASSERT_NE(child, nullptr);
-        ASSERT_EQ(child->getParent(), &rhs);
-    }
-
-    for (size_t i = 0; i < lhs.count() + 1; i++) {
-        Leaf* child = lhs.child(i);
-        ASSERT_NE(child, nullptr);
-        ASSERT_EQ(child->getParent(), &lhs);
-        ASSERT_TRUE(leaves.contains(child)) << "Child node " << child << " not found in original leaves";
-        leaves.erase(child);
-    }
-
-    for (size_t i = 0; i < rhs.count() + 1; i++) {
-        Leaf* child = rhs.child(i);
-        ASSERT_NE(child, nullptr);
-        ASSERT_EQ(child->getParent(), &rhs);
-        ASSERT_TRUE(leaves.contains(child)) << "Child node " << child << " not found in original leaves";
-        leaves.erase(child);
-    }
+    AssertChildNodeInvariants(lhs, leaves);
+    AssertChildNodeInvariants(rhs, leaves);
 
     for (Leaf *leaf : leaves) {
         printf("Leaf node %p not found in either side after split\n", (void*)leaf);
@@ -646,6 +598,33 @@ TEST_P(BTreeSizedTest, Find) {
     }
 }
 
-TEST_F(BTreeTest, PromoteLeaf) {
+TEST_F(BTreeTest, Erase) {
+    BTreeMap<BigKey, int> tree;
+    std::mt19937 mt(0x1234);
+    std::uniform_int_distribution<int> dist(0, 1000000);
+    std::map<int, int> expected;
 
+    for (size_t i = 0; i < 1000; i++) {
+        int key = dist(mt);
+        int v = i * 10;
+        tree.insert(key, v);
+        expected[key] = v;
+    }
+
+    auto takeRandomKey = [&]() {
+        auto it = expected.begin();
+        std::advance(it, dist(mt) % expected.size());
+        auto key = it->first;
+        expected.erase(it);
+        return key;
+    };
+
+    for (size_t i = 0; i < 100; i++) {
+        auto key = takeRandomKey();
+        tree.remove(key);
+        ASSERT_FALSE(tree.contains(key)) << "Key " << key << " found in BTreeMap after removal";
+        ASSERT_TRUE(expected.find(key) == expected.end()) << "Key " << key << " found in expected map after removal";
+    }
+
+    tree.dump();
 }
