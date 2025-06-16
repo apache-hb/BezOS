@@ -499,13 +499,70 @@ namespace sm::detail {
             KM_ASSERT((lhsIndex + 1) == rhsIndex); // Ensure they are adjacent
 
             Entry middle = {key(lhsIndex), value(lhsIndex)};
+
+            if (rhsIndex == count()) {
+                lhs->insert(middle);
+                lhs->claim(rhs);
+                setCount(count() - 1);
+            } else {
+                lhs->insert(middle);
+                lhs->claim(rhs);
+
+                if (rhsIndex != count()) {
+                    key(lhsIndex) = key(rhsIndex);
+                    value(lhsIndex) = value(rhsIndex);
+                }
+
+                removeEntry(rhsIndex);
+            }
+        }
+
+        void rebalanceIntoLowerLeafNode(Leaf *lhs, Leaf *rhs) noexcept {
+            KM_ASSERT(lhs->isLeaf() && rhs->isLeaf());
+            size_t lhsCount = lhs->count();
+            size_t lhsIndex = indexOfChild(lhs);
+            Entry middle = {key(lhsIndex), value(lhsIndex)};
+
+            KM_ASSERT(lhsCount < Leaf::minCapacity());
+
+            size_t itemsToMove = Leaf::minCapacity() - lhsCount;
             lhs->insert(middle);
-            lhs->claim(rhs);
+            for (size_t i = 0; i < itemsToMove; i++) {
+                lhs->insert(rhs->popFront());
+            }
 
-            key(lhsIndex) = key(rhsIndex);
-            value(lhsIndex) = value(rhsIndex);
+            Entry newMiddle = lhs->popBack();
+            key(lhsIndex) = newMiddle.key;
+            value(lhsIndex) = newMiddle.value;
+        }
 
-            removeEntry(rhsIndex);
+        void rebalanceIntoUpperLeafNode(Leaf *lhs, Leaf *rhs) noexcept {
+            KM_ASSERT(lhs->isLeaf() && rhs->isLeaf());
+            size_t rhsCount = rhs->count();
+            size_t rhsIndex = indexOfChild(rhs);
+            Entry middle = {key(rhsIndex - 1), value(rhsIndex - 1)};
+
+            size_t itemsToMove = Leaf::minCapacity() - rhsCount;
+            rhs->insert(middle);
+            for (size_t i = 0; i < itemsToMove; i++) {
+                rhs->insert(lhs->popBack());
+            }
+
+            Entry newMiddle = rhs->popFront();
+            key(rhsIndex - 1) = newMiddle.key;
+            value(rhsIndex - 1) = newMiddle.value;
+        }
+
+        void rebalanceLeafNodes(Leaf *lhs, Leaf *rhs) noexcept {
+            KM_ASSERT(lhs->isLeaf() && rhs->isLeaf());
+            size_t lhsCount = lhs->count();
+            size_t rhsCount = rhs->count();
+
+            if (lhsCount < rhsCount) {
+                rebalanceIntoLowerLeafNode(lhs, rhs);
+            } else {
+                rebalanceIntoUpperLeafNode(lhs, rhs);
+            }
         }
 
         /// @brief Insert a new entry and the leaf node above it into the internal node.
@@ -635,23 +692,8 @@ namespace sm::detail {
             // guardrails
             KM_ASSERT(other->count() == 0);
             KM_ASSERT(this->count() == this->capacity());
-            for (size_t i = 0; i < Super::count(); i++) {
-                if (key(i) == entry.entry.key) {
-                    printf("Key %d already exists in internal node %p %d\n", (int)entry.entry.key, (void*)this, this->isLeaf());
-                    this->dump(0);
-                    KM_PANIC("Key already exists in internal node");
-                }
-            }
             KM_ASSERT(!this->isLeaf());
             KM_ASSERT(!other->isLeaf());
-
-            for (size_t i = 0; i < count(); i++) {
-                if (child(i) == nullptr) {
-                    printf("Child node at index %zu is null in internal node %p\n", i, (void*)this);
-                    this->dump(0);
-                    KM_PANIC("Child node is null in BTreeMap");
-                }
-            }
 
             size_t half = capacity() / 2;
             if (entry.entry.key > key(half)) {
@@ -784,7 +826,7 @@ namespace sm::detail {
         using Entry = Entry<Key, Value>;
         using ChildEntry = typename Internal::ChildEntry;
 
-        void rebalanceOrMergeLeaf(TreeNodeLeaf<Key, Value> *lhs, TreeNodeLeaf<Key, Value> *rhs) noexcept {
+        static void rebalanceOrMergeLeaf(TreeNodeLeaf<Key, Value> *lhs, TreeNodeLeaf<Key, Value> *rhs) noexcept {
             using Leaf = TreeNodeLeaf<Key, Value>;
             using Internal = TreeNodeInternal<Key, Value>;
 
@@ -810,13 +852,7 @@ namespace sm::detail {
                 parent->mergeLeafNodes(lhs, rhs);
                 deleteNode(rhs);
             } else {
-                KM_PANIC("Unimplemented");
-
-                if (lhs->isUnderFilled()) {
-
-                } else {
-                    KM_ASSERT(rhs->isUnderFilled());
-                }
+                parent->rebalanceLeafNodes(lhs, rhs);
             }
         }
 
@@ -1050,6 +1086,22 @@ namespace sm {
             }
         }
 
+        void rebalanceInnerLeafNode(LeafNode *node) noexcept {
+            InternalNode *parent = static_cast<InternalNode*>(node->getParent());
+            size_t index = parent->indexOfChild(node);
+
+            LeafNode *adjacentNode;
+            if (index == 0) {
+                adjacentNode = parent->getLeaf(1);
+            } else {
+                LeafNode *tmp = parent->getLeaf(index - 1);
+                adjacentNode = node;
+                node = tmp;
+            }
+
+            Common::rebalanceOrMergeLeaf(node, adjacentNode);
+        }
+
         void eraseFromRootLeafNode(MutIterator it) {
             LeafNode *node = it.getCurrentNode();
             size_t index = it.getCurrentNodeIndex();
@@ -1096,6 +1148,8 @@ namespace sm {
             size_t index = it.getCurrentNodeIndex();
             KM_ASSERT(!node->isRootNode() && node->isLeaf());
             node->remove(index);
+
+            rebalanceInnerLeafNode(node);
         }
 
         void eraseFromInnerInternalNode(MutIterator it) {

@@ -703,7 +703,7 @@ TEST_F(BTreeTest, Erase) {
         expected[key] = v;
     }
 
-    auto takeRandomKey = [&]() {
+    auto takeRandomKey = [&] {
         auto it = expected.begin();
         std::advance(it, dist(mt) % expected.size());
         auto key = it->first;
@@ -711,10 +711,12 @@ TEST_F(BTreeTest, Erase) {
         return key;
     };
 
-    for (size_t i = 0; i < 100; i++) {
+    for (size_t i = 0; i < 400; i++) {
         auto key = takeRandomKey();
         tree.remove(key);
         ASSERT_FALSE(tree.contains(key)) << "Key " << key << " found in BTreeMap after removal";
         ASSERT_TRUE(expected.find(key) == expected.end()) << "Key " << key << " found in expected map after removal";
     }
+
+    tree.dump();
 }
