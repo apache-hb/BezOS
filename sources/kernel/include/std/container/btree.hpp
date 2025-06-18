@@ -1100,6 +1100,8 @@ namespace sm {
             }
 
             Common::rebalanceOrMergeLeaf(node, adjacentNode);
+
+            mergeRecursive(node);
         }
 
         void eraseFromRootLeafNode(MutIterator it) {
@@ -1161,6 +1163,8 @@ namespace sm {
             LeafNode *child = internal->getLeaf(index);
             Entry promoted = promoteBack(child);
             internal->emplace(index, promoted);
+
+            mergeRecursive(child);
         }
 
         void eraseFromInnerNode(MutIterator it) {
@@ -1180,6 +1184,30 @@ namespace sm {
             } else {
                 eraseFromInnerNode(it);
             }
+        }
+
+        void mergeRecursive(LeafNode *node) noexcept {
+            InternalNode *parent = static_cast<InternalNode*>(node->getParent());
+            while (parent != nullptr) {
+                parent = mergeInnerNodeIfNeeded(parent);
+            }
+        }
+
+        InternalNode *mergeInnerNodeIfNeeded(InternalNode *node) noexcept {
+            if (!node->isUnderFilled()) {
+                return static_cast<InternalNode*>(node->getParent()); // Node is not underfilled, no action needed
+            }
+
+            // If the root node has a single child, promote the child to become the new root.
+            if (node->isRootNode() && node->count() == 1) {
+                LeafNode *child = node->getLeaf(0);
+                child->setParent(nullptr);
+                mRootNode = child; // Promote the only child to root
+                deleteNode<Key, Value>(node);
+                return nullptr; // No parent to return to
+            }
+
+            return static_cast<InternalNode*>(node->getParent());
         }
 
         MutIterator findInNode(const Key& key) noexcept {
@@ -1321,7 +1349,7 @@ namespace sm {
         size_t countElements() const noexcept {
             size_t count = 0;
 
-            auto countNode = [&](this auto&& self, const LeafNode *node) {
+            auto countNode = [&](this auto&& self, const LeafNode *node) -> void {
                 count += node->count();
                 if (!node->isLeaf()) {
                     const InternalNode *internal = static_cast<const InternalNode*>(node);
@@ -1333,6 +1361,27 @@ namespace sm {
 
             countNode(mRootNode);
             return count;
+        }
+
+        void gatherStats(LeafNode *node, BTreeStats &stats, size_t currentDepth) const noexcept {
+            if (node->isLeaf()) {
+                stats.leafCount += 1;
+                stats.memoryUsage += sizeof(LeafNode);
+            } else {
+                stats.internalNodeCount += 1;
+                stats.memoryUsage += sizeof(InternalNode);
+            }
+
+            stats.depth = std::max(stats.depth, currentDepth);
+            if (node->isLeaf()) {
+                return; // Reached a leaf node, no further children
+            }
+
+            const InternalNode *internal = static_cast<const InternalNode*>(node);
+            for (size_t i = 0; i < internal->count() + 1; i++) {
+                LeafNode *child = internal->getLeaf(i);
+                gatherStats(child, stats, currentDepth + 1);
+            }
         }
 
     public:
@@ -1428,6 +1477,14 @@ namespace sm {
             }
 
             validateRootNode();
+        }
+
+        BTreeStats stats() const noexcept {
+            BTreeStats stats{};
+            if (mRootNode) {
+                gatherStats(mRootNode, stats, 0);
+            }
+            return stats;
         }
     };
 }

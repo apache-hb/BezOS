@@ -302,13 +302,9 @@ TEST_F(BTreeTest, MergeLeafNodes) {
     ASSERT_TRUE(lhs->isUnderFilled()) << "Left leaf is not underfilled: " << lhs->count();
     ASSERT_TRUE(rhs->isUnderFilled()) << "Right leaf is not underfilled: " << rhs->count();
 
-    DumpNode(&internal, 0);
-
     internal.mergeLeafNodes(lhs, rhs);
 
     internal.validate();
-
-    DumpNode(&internal, 0);
 
     ASSERT_EQ(internal.count(), internal.capacity() - 1) << "Internal leaf not deleted";
 
@@ -692,7 +688,6 @@ TEST_P(BTreeSizedTest, Find) {
 
 TEST_F(BTreeTest, Erase) {
     BTreeMap<BigKey, int> tree;
-    std::mt19937 mt(0x1234);
     std::uniform_int_distribution<int> dist(0, 1000000);
     std::map<int, int> expected;
 
@@ -717,6 +712,28 @@ TEST_F(BTreeTest, Erase) {
         ASSERT_FALSE(tree.contains(key)) << "Key " << key << " found in BTreeMap after removal";
         ASSERT_TRUE(expected.find(key) == expected.end()) << "Key " << key << " found in expected map after removal";
     }
+}
 
-    tree.dump();
+TEST_F(BTreeTest, Stats) {
+    BTreeMap<BigKey, int> tree;
+    std::uniform_int_distribution<int> dist(0, 1000000);
+    std::map<int, int> expected;
+
+    for (size_t i = 0; i < 1000; i++) {
+        int key = dist(mt);
+        int v = i * 10;
+        tree.insert(key, v);
+        expected[key] = v;
+    }
+
+    ASSERT_EQ(tree.count(), expected.size()) << "BTreeMap count does not match expected size";
+
+    auto stats = tree.stats();
+    ASSERT_GT(stats.leafCount, 0) << "Leaf count should be greater than 0";
+    ASSERT_GT(stats.internalNodeCount, 0) << "Internal node count should be greater than 0";
+    ASSERT_GT(stats.memoryUsage, 0) << "Key count should be greater than 0";
+    ASSERT_GT(stats.depth, 0) << "Depth should be greater than 0";
+
+    printf("BTreeMap stats: leafCount=%zu, internalNodeCount=%zu, memoryUsage=%zu, depth=%zu\n",
+           stats.leafCount, stats.internalNodeCount, stats.memoryUsage, stats.depth);
 }
