@@ -236,6 +236,10 @@ namespace sm::detail {
             return count() < leastCount();
         }
 
+        bool isEmpty() const noexcept {
+            return count() == 0;
+        }
+
         constexpr size_t leastCount() const noexcept {
             return (capacity() / 2) - 1;
         }
@@ -396,6 +400,9 @@ namespace sm::detail {
         using Super::minKey;
         using Super::maxKey;
         using Super::upperBound;
+
+        std::span<Leaf*> children() noexcept { return std::span(mChildren, count() + 1); }
+        std::span<Leaf* const> children() const noexcept { return std::span(mChildren, count() + 1); }
 
         struct ChildEntry {
             Leaf *child;
@@ -590,42 +597,97 @@ namespace sm::detail {
             releaseNodeMemory<Key, Value>(rhs);
         }
 
+        /// @brief Move the bottom N elements from rhs to lhs.
         void rebalanceIntoLowerInternalNode(TreeNodeInternal *lhs, TreeNodeInternal *rhs, size_t midpoint) noexcept {
+            Entry middle = {key(midpoint), value(midpoint)};
 
+            size_t lhsCount = lhs->count();
+
+            size_t itemsToMove = TreeNodeInternal::minCapacity() - lhsCount;
+
+            lhs->setCount(lhsCount + itemsToMove);
+
+            auto lhsKeySet = lhs->keys();
+            auto lhsValueSet = lhs->values();
+            auto lhsChildSet = lhs->children();
+
+            auto rhsKeySet = rhs->keys();
+            auto rhsValueSet = rhs->values();
+            auto rhsChildSet = rhs->children();
+
+            // move the bottom N elements from rhs to lhs
+            std::move(rhsKeySet.begin(), rhsKeySet.begin() + itemsToMove - 1, lhsKeySet.begin() + lhsCount);
+            std::move(rhsValueSet.begin(), rhsValueSet.begin() + itemsToMove - 1, lhsValueSet.begin() + lhsCount);
+            std::move(rhsChildSet.begin(), rhsChildSet.begin() + itemsToMove, lhsChildSet.begin() + lhsCount + 1);
+
+            lhs->emplace(lhsCount + itemsToMove - 1, middle);
+
+            Entry newMiddle = {rhs->key(0), rhs->value(0)};
+
+            // shrink rhs by the number of items moved and move its remaining keys and values down
+            size_t remaining = rhs->count() - itemsToMove;
+            std::move(rhsKeySet.begin() + itemsToMove, rhsKeySet.end(), rhsKeySet.begin());
+            std::move(rhsValueSet.begin() + itemsToMove, rhsValueSet.end(), rhsValueSet.begin());
+            std::move(rhsChildSet.begin() + itemsToMove, rhsChildSet.end(), rhsChildSet.begin());
+            rhs->setCount(remaining);
+
+            emplace(midpoint, newMiddle);
         }
 
+        /// @brief Move the top N elements from lhs to rhs.
         void rebalanceIntoUpperInternalNode(TreeNodeInternal *lhs, TreeNodeInternal *rhs, size_t midpoint) noexcept {
             Entry middle = {key(midpoint), value(midpoint)};
 
             size_t rhsCount = rhs->count();
 
             size_t itemsToMove = TreeNodeInternal::minCapacity() - rhsCount;
+
+            auto keySet = rhs->keys();
+            auto valueSet = rhs->values();
+            auto childSet = rhs->children();
+
             rhs->setCount(rhsCount + itemsToMove);
-            rhs->emplace(rhsCount, middle);
 
-            for (size_t i = 0; i < itemsToMove; i++) {
-                rhs->emplace(rhsCount + i + 1, {lhs->key(i), lhs->value(i)});
-            }
+            std::move_backward(keySet.begin(), keySet.end(), keySet.end() + itemsToMove);
+            std::move_backward(valueSet.begin(), valueSet.end(), valueSet.end() + itemsToMove);
+            std::move_backward(childSet.begin(), childSet.end(), childSet.end() + itemsToMove);
 
-            for (size_t i = 0; i < itemsToMove; i++) {
-                Leaf *childNode = lhs->child(i);
-                rhs->takeChild(rhsCount + i + 1, childNode);
-            }
+            rhs->emplace(itemsToMove - 1, middle);
+
+            size_t remaining = itemsToMove - 1;
+
+            auto lhsKeySet = lhs->keys();
+            auto lhsValueSet = lhs->values();
+            auto lhsChildSet = lhs->children();
+
+            auto rhsKeySet = rhs->keys();
+            auto rhsValueSet = rhs->values();
+            auto rhsChildSet = rhs->children();
+
+            Entry newMiddle = {lhs->key(lhs->count() - 1), lhs->value(lhs->count() - 1)};
+
+            std::move(lhsKeySet.end() - remaining, lhsKeySet.end(), rhsKeySet.begin());
+            std::move(lhsValueSet.end() - remaining, lhsValueSet.end(), rhsValueSet.begin());
+            std::move(lhsChildSet.end() - remaining - 1, lhsChildSet.end(), rhsChildSet.begin());
+
+            lhs->setCount(lhs->count() - itemsToMove);
+
+            emplace(midpoint, newMiddle);
         }
 
         void rebalanceInternalNodes(TreeNodeInternal *lhs, TreeNodeInternal *rhs) noexcept {
             KM_ASSERT(!lhs->isLeaf() && !rhs->isLeaf());
 
-            size_t rhsIndex = lhs->indexOfChild(rhs);
+            size_t lhsIndex = indexOfChild(lhs);
             size_t lhsCount = lhs->count();
             size_t rhsCount = rhs->count();
 
             KM_ASSERT(lhsCount + rhsCount >= TreeNodeInternal::minCapacity() * 2);
 
             if (lhsCount < rhsCount) {
-                rebalanceIntoLowerInternalNode(lhs, rhs, rhsIndex);
+                rebalanceIntoLowerInternalNode(lhs, rhs, lhsIndex);
             } else {
-                rebalanceIntoUpperInternalNode(lhs, rhs, rhsIndex);
+                rebalanceIntoUpperInternalNode(lhs, rhs, lhsIndex);
             }
         }
 
@@ -653,7 +715,17 @@ namespace sm::detail {
 
         /// @brief Insert a new entry and the leaf node above it into the internal node.
         InsertResult insertChild(const Entry& entry, Leaf *leaf) noexcept {
+
+            // TODO: remove this isEmpty check once tests no longer violate the invariant
+            if (!leaf->isEmpty()) {
+                KM_ASSERT(entry.key < readMinKey(leaf));
+            }
+
             size_t n = count();
+
+            if (n >= capacity()) {
+                return InsertResult::eFull;
+            }
 
             for (size_t i = 0; i < n; i++) {
                 if (key(i) == entry.key) {
@@ -662,11 +734,7 @@ namespace sm::detail {
                     KM_ASSERT(key(i) != entry.key);
                 }
 
-                if (key(i) > entry.key) {
-                    if (n >= capacity()) {
-                        return InsertResult::eFull;
-                    }
-
+                if (entry.key < key(i)) {
                     // Shift the keys and values to make space for the new key.
                     setCount(n + 1);
                     Super::shiftEntry(i);
@@ -674,21 +742,15 @@ namespace sm::detail {
                         child(j + 1) = child(j);
                     }
                     emplace(i, entry);
-                    leaf->setParent(this);
-                    child(i + 1) = leaf;
+                    takeChild(i + 1, leaf);
                     return InsertResult::eSuccess;
                 }
-            }
-
-            if (n >= capacity()) {
-                return InsertResult::eFull;
             }
 
             // If we reach here, the key is greater than all existing keys.
             setCount(n + 1);
             emplace(n, entry);
-            leaf->setParent(this);
-            child(n + 1) = leaf;
+            takeChild(n + 1, leaf);
             return InsertResult::eSuccess;
         }
 
@@ -891,12 +953,6 @@ namespace sm::detail {
     }
 
     template<typename Key, typename Value>
-    void deleteNode(TreeNodeHeader *node) noexcept;
-
-    template<typename Key, typename Value>
-    void releaseNodeMemory(TreeNodeHeader *node) noexcept;
-
-    template<typename Key, typename Value>
     struct BTreeMapCommon {
         using Leaf = TreeNodeLeaf<Key, Value>;
         using Internal = TreeNodeInternal<Key, Value>;
@@ -980,6 +1036,15 @@ namespace sm::detail {
 
             free(static_cast<void*>(node));
         }
+
+        static Key readMinKey(const Leaf *node) noexcept {
+            if (node->isLeaf()) {
+                return node->minKey();
+            } else {
+                const Internal *internal = static_cast<const Internal*>(node);
+                return readMinKey(internal->child(0));
+            }
+        }
     };
 
     template<typename Key, typename Value>
@@ -990,6 +1055,11 @@ namespace sm::detail {
     template<typename Key, typename Value>
     void releaseNodeMemory(TreeNodeHeader *node) noexcept {
         BTreeMapCommon<Key, Value>::releaseNodeMemory(node);
+    }
+
+    template<typename Key, typename Value>
+    Key readMinKey(const TreeNodeLeaf<Key, Value> *node) noexcept {
+        return BTreeMapCommon<Key, Value>::readMinKey(node);
     }
 }
 

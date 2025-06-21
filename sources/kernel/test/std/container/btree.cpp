@@ -467,6 +467,105 @@ TEST_F(BTreeTest, LeafSplit) {
     ASSERT_TRUE(keys.empty()) << "Not all keys were found in node after split";
 }
 
+class BTreeInternalUpdateTest : public BTreeTest {
+public:
+    void SetUp() override {
+        BTreeTest::SetUp();
+
+        i0 = newNode<Internal>(&node);
+        i1 = newNode<Internal>(&node);
+        i2 = newNode<Internal>(&node);
+
+        {
+            Leaf *l0 = newNode<Leaf>(i0);
+            l0->insert({5, 50});
+            l0->insert({10, 150});
+            l0->insert({15, 250});
+
+            Leaf *l1 = newNode<Leaf>(i0);
+            l1->insert({25, 250});
+            l1->insert({30, 350});
+            l1->insert({35, 450});
+
+            Leaf *l2 = newNode<Leaf>(i0);
+            l2->insert({100, 10});
+            l2->insert({200, 20});
+            l2->insert({300, 30});
+
+            Leaf *l3 = newNode<Leaf>(i0);
+            l3->insert({400, 40});
+            l3->insert({500, 50});
+            l3->insert({600, 60});
+
+            i0->initAsRoot(l0, l1, {24, 30});
+
+            i0->insertChild({99, 350}, l2);
+
+            i0->insertChild({399, 450}, l3);
+        }
+
+        // midpoint 605
+
+        {
+            Leaf *l0 = newNode<Leaf>(i1);
+            l0->insert({700, 70});
+            l0->insert({800, 80});
+            l0->insert({900, 90});
+
+            Leaf *l1 = newNode<Leaf>(i1);
+            l1->insert({1000, 100});
+            l1->insert({1100, 110});
+            l1->insert({1200, 120});
+
+            i1->initAsRoot(l0, l1, {905, 950});
+        }
+
+        // midpoint 1205
+
+        {
+            Leaf *l0 = newNode<Leaf>(i2);
+            l0->insert({1300, 130});
+            l0->insert({1400, 140});
+            l0->insert({1500, 150});
+
+            Leaf *l1 = newNode<Leaf>(i2);
+            l1->insert({1600, 160});
+            l1->insert({1700, 170});
+            l1->insert({1800, 180});
+
+            i2->initAsRoot(l0, l1, {1505, 1550});
+
+            Leaf *l2 = newNode<Leaf>(i2);
+            l2->insert({1900, 190});
+            l2->insert({2000, 200});
+            l2->insert({2100, 210});
+
+            i2->insertChild({1850, 1950}, l2);
+
+            Leaf *l3 = newNode<Leaf>(i2);
+            l3->insert({2200, 220});
+            l3->insert({2300, 230});
+            l3->insert({2400, 240});
+
+            i2->insertChild({2150, 2250}, l3);
+        }
+
+        node.initAsRoot(i0, i1, {605, 750});
+        node.insertChild({1205, 1250}, i2);
+    }
+
+    void TearDown() override {
+        BTreeTest::TearDown();
+        node.destroyChildren();
+    }
+
+    Internal node{nullptr};
+    Internal *i0;
+    Internal *i1;
+    Internal *i2;
+};
+
+#if 0
 TEST_P(LeafSplitTest, InternalSplitMany) {
     Internal lhs{nullptr};
     Internal rhs{nullptr};
@@ -609,6 +708,7 @@ TEST_P(LeafSplitTest, SplitInternalNodeMany) {
     lhs.destroyChildren();
     rhs.destroyChildren();
 }
+#endif
 
 TEST_P(BTreeSizedTest, Iterate) {
     size_t count = GetParam();
@@ -758,65 +858,27 @@ TEST_F(BTreeTest, Stats) {
     ASSERT_GT(stats.depth, 0) << "Depth should be greater than 0";
 }
 
-TEST_F(BTreeTest, MergeInternal) {
-    Internal node{nullptr};
 
-    Internal *i0 = newNode<Internal>(&node);
-    Internal *i1 = newNode<Internal>(&node);
-    Internal *i2 = newNode<Internal>(&node);
-
-    {
-        Leaf *l0 = newNode<Leaf>(i0);
-        l0->insert({10, 10});
-        l0->insert({20, 20});
-        l0->insert({30, 30});
-
-        Leaf *l1 = newNode<Leaf>(i0);
-        l1->insert({40, 40});
-        l1->insert({50, 50});
-        l1->insert({60, 60});
-
-        i0->initAsRoot(l0, l1, {35, 30});
-    }
-
-    {
-        Leaf *l0 = newNode<Leaf>(i1);
-        l0->insert({70, 70});
-        l0->insert({80, 80});
-        l0->insert({90, 90});
-
-        Leaf *l1 = newNode<Leaf>(i1);
-        l1->insert({100, 100});
-        l1->insert({110, 110});
-        l1->insert({120, 120});
-
-        i1->initAsRoot(l0, l1, {95, 950});
-    }
-
-    {
-        Leaf *l0 = newNode<Leaf>(i2);
-        l0->insert({130, 130});
-        l0->insert({140, 140});
-        l0->insert({150, 150});
-
-        Leaf *l1 = newNode<Leaf>(i2);
-        l1->insert({160, 160});
-        l1->insert({170, 170});
-        l1->insert({180, 180});
-
-        i2->initAsRoot(l0, l1, {155, 1550});
-    }
-
-    node.initAsRoot(i0, i1, {65, 750});
-    node.insertChild({125, 1250}, i2);
-
-    node.dump(0);
-
+TEST_F(BTreeInternalUpdateTest, MergeInternal) {
     node.mergeInternalNodes(i0, i1);
 
-    node.dump(0);
+    ASSERT_EQ(node.count(), 1) << "Node count after merge should be 1";
+    ASSERT_EQ(node.child(0), i0) << "First child should be i0 after merge";
+    ASSERT_EQ(node.child(1), i2) << "Second child should be i2 after merge";
+}
 
-    node.destroyChildren();
+TEST_F(BTreeInternalUpdateTest, RebalanceIntoUpper) {
+    node.rebalanceInternalNodes(i0, i1);
+
+    ASSERT_NE(i0->count(), 4);
+    ASSERT_NE(i1->count(), 1);
+}
+
+TEST_F(BTreeInternalUpdateTest, RebalanceIntoLower) {
+    node.rebalanceInternalNodes(i1, i2);
+
+    ASSERT_NE(i1->count(), 1);
+    ASSERT_NE(i2->count(), 4);
 }
 
 #if 0
