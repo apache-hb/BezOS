@@ -620,6 +620,11 @@ namespace sm::detail {
             std::move(rhsValueSet.begin(), rhsValueSet.begin() + itemsToMove - 1, lhsValueSet.begin() + lhsCount);
             std::move(rhsChildSet.begin(), rhsChildSet.begin() + itemsToMove, lhsChildSet.begin() + lhsCount + 1);
 
+            // TODO: not great, should copy using takeChild
+            for (Leaf *child : lhs->children()) {
+                child->setParent(lhs);
+            }
+
             lhs->emplace(lhsCount + itemsToMove - 1, middle);
 
             Entry newMiddle = {rhs->key(0), rhs->value(0)};
@@ -669,6 +674,11 @@ namespace sm::detail {
             std::move(lhsKeySet.end() - remaining, lhsKeySet.end(), rhsKeySet.begin());
             std::move(lhsValueSet.end() - remaining, lhsValueSet.end(), rhsValueSet.begin());
             std::move(lhsChildSet.end() - remaining - 1, lhsChildSet.end(), rhsChildSet.begin());
+
+            // TODO: not great, should copy using takeChild
+            for (Leaf *child : rhs->children()) {
+                child->setParent(rhs);
+            }
 
             lhs->setCount(lhs->count() - itemsToMove);
 
@@ -976,7 +986,6 @@ namespace sm::detail {
 
             if (!canRebalance) {
                 parent->mergeInternalNodes(lhs, rhs);
-                deleteNode(lhs);
             } else {
                 parent->rebalanceInternalNodes(lhs, rhs);
             }
@@ -1281,8 +1290,6 @@ namespace sm {
             }
 
             Common::rebalanceOrMergeLeaf(node, adjacentNode);
-
-            mergeRecursive(node);
         }
 
         void rebalanceInnerInternalNode(InternalNode *node) noexcept {
@@ -1299,96 +1306,147 @@ namespace sm {
             }
 
             Common::rebalanceOrMergeInternal(node, adjacentNode);
-
-            mergeRecursive(node);
         }
 
-        void eraseFromRootLeafNode(MutIterator it) {
+        LeafNode *eraseFromRootLeafNode(MutIterator it) {
             LeafNode *node = it.getCurrentNode();
             size_t index = it.getCurrentNodeIndex();
 
             KM_ASSERT(node->isRootNode() && node->isLeaf());
 
             node->remove(index);
+
+            return node;
         }
 
-        void eraseFromRootInternalNode(MutIterator it) {
+        LeafNode *eraseFromRootInternalNode(MutIterator it) {
             LeafNode *node = it.getCurrentNode();
             KM_ASSERT(node->isRootNode() && !node->isLeaf());
 
             InternalNode *internal = static_cast<InternalNode*>(node);
             size_t index = it.getCurrentNodeIndex();
             LeafNode *child = internal->getLeaf(index);
-            Entry promoted = promoteBack(child);
-            internal->emplace(index, promoted);
+            Promotion promoted = promoteBack(child);
+            internal->emplace(index, promoted.entry);
+
+            return promoted.leaf;
         }
 
-        Entry promoteBack(LeafNode *node) {
+        struct Promotion {
+            Entry entry;
+            LeafNode *leaf;
+        };
+
+        Promotion promoteBack(LeafNode *node) {
             KM_ASSERT(node->count() > 0);
             if (node->isLeaf()) {
-                return node->popBack();
+                return Promotion { node->popBack(), node };
             } else {
                 InternalNode *internal = static_cast<InternalNode*>(node);
-                Entry promoted = promoteBack(internal->getLeaf(internal->count()));
+                Promotion promoted = promoteBack(internal->getLeaf(internal->count()));
                 return promoted;
             }
         }
 
-        void eraseFromRootNode(MutIterator it) {
+        LeafNode *eraseFromRootNode(MutIterator it) {
             LeafNode *node = it.getCurrentNode();
             KM_ASSERT(node->isRootNode());
             if (node->isLeaf()) {
-                eraseFromRootLeafNode(it);
+                return eraseFromRootLeafNode(it);
             } else {
-                eraseFromRootInternalNode(it);
+                return eraseFromRootInternalNode(it);
             }
         }
 
-        void eraseFromInnerLeafNode(MutIterator it) {
+        LeafNode *eraseFromInnerLeafNode(MutIterator it) {
             LeafNode *node = it.getCurrentNode();
             size_t index = it.getCurrentNodeIndex();
             KM_ASSERT(!node->isRootNode() && node->isLeaf());
             node->remove(index);
 
-            rebalanceInnerLeafNode(node);
+            return node;
         }
 
-        void eraseFromInnerInternalNode(MutIterator it) {
+        LeafNode *eraseFromInnerInternalNode(MutIterator it) {
             LeafNode *node = it.getCurrentNode();
             KM_ASSERT(!node->isRootNode() && !node->isLeaf());
 
             InternalNode *internal = static_cast<InternalNode*>(node);
             size_t index = it.getCurrentNodeIndex();
             LeafNode *child = internal->getLeaf(index);
-            Entry promoted = promoteBack(child);
-            internal->emplace(index, promoted);
+            Promotion promoted = promoteBack(child);
+            internal->emplace(index, promoted.entry);
 
-            rebalanceInnerInternalNode(internal);
-
-            mergeRecursive(child);
+            return promoted.leaf;
         }
 
-        void eraseFromInnerNode(MutIterator it) {
+        LeafNode *eraseFromInnerNode(MutIterator it) {
             LeafNode *node = it.getCurrentNode();
             KM_ASSERT(!node->isRootNode());
             if (node->isLeaf()) {
-                eraseFromInnerLeafNode(it);
+                return eraseFromInnerLeafNode(it);
             } else {
-                eraseFromInnerInternalNode(it);
+                return eraseFromInnerInternalNode(it);
+            }
+        }
+
+        LeafNode *eraseNodeElement(MutIterator it) {
+            LeafNode *node = it.getCurrentNode();
+            if (node->isRootNode()) {
+                return eraseFromRootNode(it);
+            } else {
+                return eraseFromInnerNode(it);
             }
         }
 
         void eraseFromNode(MutIterator it) {
-            LeafNode *node = it.getCurrentNode();
-            if (node->isRootNode()) {
-                eraseFromRootNode(it);
+            LeafNode *node = eraseNodeElement(it);
+            if (!node->isRootNode()) {
+                InternalNode *parent = static_cast<InternalNode*>(node->getParent());
+                rebalanceInnerLeafNode(node);
+                mergeRecursive(parent);
             } else {
-                eraseFromInnerNode(it);
+                mergeRootNodeIfNeeded(node);
             }
         }
 
-        void mergeRecursive(LeafNode *node) noexcept {
-            InternalNode *parent = static_cast<InternalNode*>(node->getParent());
+        void mergeRootNodeIfNeeded(LeafNode *node) noexcept {
+            if (!node->isUnderFilled()) {
+                return;
+            }
+
+            if (node->count() == 0) {
+                // root node is empty, delete it
+                KM_ASSERT(mRootNode == node);
+                mRootNode = nullptr;
+                detail::releaseNodeMemory<Key, Value>(node);
+            } else if (node->count() == 1 && !node->isLeaf()) {
+                InternalNode *internal = static_cast<InternalNode*>(node);
+                LeafNode *lhs = internal->child(0);
+                LeafNode *rhs = internal->child(1);
+
+                size_t lhsCount = lhs->count();
+                size_t rhsCount = rhs->count();
+
+                if (lhsCount + rhsCount < LeafNode::maxCapacity()) {
+                    if (lhs->isLeaf()) {
+                        KM_ASSERT(rhs->isLeaf());
+                        internal->mergeLeafNodes(lhs, rhs);
+                    } else {
+                        KM_ASSERT(!rhs->isLeaf());
+                        internal->mergeInternalNodes(static_cast<InternalNode*>(lhs), static_cast<InternalNode*>(rhs));
+                    }
+                } else {
+                    return;
+                }
+
+                lhs->setParent(nullptr);
+                mRootNode = lhs;
+                detail::releaseNodeMemory<Key, Value>(internal);
+            }
+        }
+
+        void mergeRecursive(InternalNode *parent) noexcept {
             while (parent != nullptr) {
                 parent = mergeInnerNodeIfNeeded(parent);
             }
@@ -1399,22 +1457,20 @@ namespace sm {
                 return static_cast<InternalNode*>(node->getParent()); // Node is not underfilled, no action needed
             }
 
-            // If the root node has a single child, promote the child to become the new root.
-            if (node->isRootNode() && node->count() == 1) {
-                LeafNode *child = node->getLeaf(0);
-                child->setParent(nullptr);
-                mRootNode = child; // Promote the only child to root
-                deleteNode<Key, Value>(node);
+            if (node->isRootNode()) {
+                mergeRootNodeIfNeeded(node);
                 return nullptr; // No parent to return to
             }
 
-            if (!node->isRootNode()) {
-                if (node->isUnderFilled() && !node->isLeaf()) {
+            InternalNode *parent = static_cast<InternalNode*>(node->getParent());
 
+            if (!node->isRootNode()) {
+                if (node->isUnderFilled()) {
+                    rebalanceInnerInternalNode(static_cast<InternalNode*>(node));
                 }
             }
 
-            return static_cast<InternalNode*>(node->getParent());
+            return parent;
         }
 
         MutIterator findInNode(const Key& key) noexcept {
@@ -1498,11 +1554,18 @@ namespace sm {
                     if (node->count() < lowerBound) {
                         printf("Node %p at depth %zu has %zu keys, expected at least %zu (%zu/2)\n",
                                (void*)node, currentDepth, node->count(), lowerBound, node->capacity());
+
+                        dump();
                     }
                     KM_ASSERT(node->count() >= lowerBound);
                 }
 
                 if (node->isLeaf()) {
+                    if (currentDepth != depth) {
+                        printf("Leaf node %p at depth %zu does not match expected depth %zu\n",
+                               (void*)node, currentDepth, depth);
+                        dump();
+                    }
                     KM_ASSERT(currentDepth == depth);
                     return;
                 }
@@ -1520,7 +1583,7 @@ namespace sm {
                     for (size_t j = 0; j < prev->count(); j++) {
                         if (prev->key(j) >= internalNode->key(i)) {
                             printf("Key %d in previous node %p at depth %zu is not less than key %d in internal node %p\n",
-                                   (int)prev->key(j), prev, currentDepth, (int)internalNode->key(i), (void*)internalNode);
+                                   (int)prev->key(j), (void*)prev, currentDepth, (int)internalNode->key(i), (void*)internalNode);
 
                             dump();
                         }
@@ -1530,7 +1593,7 @@ namespace sm {
                     for (size_t j = 0; j < next->count(); j++) {
                         if (internalNode->key(i) >= next->key(j)) {
                             printf("Key %d in internal node %p at depth %zu is not less than key %d in next node %p\n",
-                                   (int)internalNode->key(i), (void*)internalNode, currentDepth, (int)next->key(j), next);
+                                   (int)internalNode->key(i), (void*)internalNode, currentDepth, (int)next->key(j), (void*)next);
                             dump();
                         }
                         KM_ASSERT(internalNode->key(i) < next->key(j));
@@ -1543,6 +1606,11 @@ namespace sm {
                         printf("Child node at index %zu is null in internal node %p\n", i, (void*)internalNode);
                         this->dump();
                         KM_PANIC("Child node is null in BTreeMap");
+                    }
+                    if (child->getParent() != internalNode) {
+                        printf("Child node %p has parent %p, expected %p\n", (void*)child, (void*)child->getParent(), (void*)internalNode);
+                        this->dump();
+                        KM_PANIC("Child node parent mismatch in BTreeMap");
                     }
                     KM_ASSERT(child->getParent() == internalNode);
                     validateNode(child, currentDepth + 1);

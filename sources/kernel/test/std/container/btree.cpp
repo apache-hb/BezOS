@@ -881,7 +881,6 @@ TEST_F(BTreeInternalUpdateTest, RebalanceIntoLower) {
     ASSERT_NE(i2->count(), 4);
 }
 
-#if 0
 TEST_F(BTreeTest, EraseAll) {
     BTreeMap<BigKey, int> tree;
     std::uniform_int_distribution<int> dist(0, 1000000);
@@ -904,10 +903,11 @@ TEST_F(BTreeTest, EraseAll) {
 
     while (!expected.empty()) {
         auto key = takeRandomKey();
+        ASSERT_TRUE(tree.contains(key)) << "Key " << key << " not found in BTreeMap before removal";
         tree.remove(key);
+        ASSERT_FALSE(tree.contains(key)) << "Key " << key << " found in BTreeMap after removal";
         tree.validate();
         ASSERT_FALSE(tree.contains(key)) << "Key " << key << " found in BTreeMap after removal";
         ASSERT_TRUE(expected.find(key) == expected.end()) << "Key " << key << " found in expected map after removal";
     }
 }
-#endif
