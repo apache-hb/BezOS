@@ -103,7 +103,11 @@ public:
                 DumpNode(internal->getLeaf(i), currentDepth + 1);
             }
         }
-    };
+    }
+
+    int GetIndex(int x, int y, int z) {
+        return (z * Leaf::maxCapacity() * (Internal::maxCapacity() + 1)) + (y * Leaf::maxCapacity()) + x;
+    }
 };
 
 struct LeafSplitTest
@@ -165,6 +169,9 @@ TEST_F(BTreeTest, SplitIntoUpperHalf) {
     ASSERT_FALSE(lhs.containsInNode(midpoint.key)) << "Left node contains midpoint key after split";
     ASSERT_FALSE(rhs.containsInNode(midpoint.key)) << "Right node contains midpoint key after split";
     ASSERT_TRUE(rhs.containsInNode(entry.key)) << "Right node does not contain entry key after split";
+
+    lhs.destroyChildren();
+    rhs.destroyChildren();
 }
 
 TEST_F(BTreeTest, SplitIntoUpperHalf2) {
@@ -208,6 +215,10 @@ TEST_F(BTreeTest, SplitIntoUpperHalf2) {
     ASSERT_FALSE(lhs.containsInNode(midpoint.key)) << "Left node contains midpoint key after split";
     ASSERT_FALSE(rhs.containsInNode(midpoint.key)) << "Right node contains midpoint key after split";
     ASSERT_TRUE(rhs.containsInNode(entry.key)) << "Right node does not contain entry key after split";
+
+
+    lhs.destroyChildren();
+    rhs.destroyChildren();
 }
 
 TEST_F(BTreeTest, SplitIntoLowerHalf) {
@@ -251,6 +262,9 @@ TEST_F(BTreeTest, SplitIntoLowerHalf) {
     ASSERT_FALSE(lhs.containsInNode(midpoint.key)) << "Left node contains midpoint key after split";
     ASSERT_FALSE(rhs.containsInNode(midpoint.key)) << "Right node contains midpoint key after split";
     ASSERT_TRUE(lhs.containsInNode(entry.key)) << "Right node does not contain entry key after split";
+
+    lhs.destroyChildren();
+    rhs.destroyChildren();
 }
 
 TEST_F(BTreeTest, MergeLeafNodes) {
@@ -309,6 +323,8 @@ TEST_F(BTreeTest, MergeLeafNodes) {
     ASSERT_EQ(internal.count(), internal.capacity() - 1) << "Internal leaf not deleted";
 
     deleteNode<BigKey, int>(rhs);
+
+    internal.destroyChildren();
 }
 
 TEST_P(LeafSplitTest, SplitLeaf) {
@@ -511,6 +527,10 @@ TEST_P(LeafSplitTest, InternalSplitMany) {
         printf("Leaf node %p not found in either side after split\n", (void*)leaf);
     }
     ASSERT_TRUE(leaves.empty()) << "Not all leaves were found in node after split";
+
+
+    lhs.destroyChildren();
+    rhs.destroyChildren();
 }
 
 TEST_P(LeafSplitTest, SplitInternalNodeMany) {
@@ -585,6 +605,9 @@ TEST_P(LeafSplitTest, SplitInternalNodeMany) {
         ASSERT_NE(child, nullptr);
         ASSERT_EQ(child->getParent(), &rhs);
     }
+
+    lhs.destroyChildren();
+    rhs.destroyChildren();
 }
 
 TEST_P(BTreeSizedTest, Iterate) {
@@ -733,7 +756,96 @@ TEST_F(BTreeTest, Stats) {
     ASSERT_GT(stats.internalNodeCount, 0) << "Internal node count should be greater than 0";
     ASSERT_GT(stats.memoryUsage, 0) << "Key count should be greater than 0";
     ASSERT_GT(stats.depth, 0) << "Depth should be greater than 0";
-
-    printf("BTreeMap stats: leafCount=%zu, internalNodeCount=%zu, memoryUsage=%zu, depth=%zu\n",
-           stats.leafCount, stats.internalNodeCount, stats.memoryUsage, stats.depth);
 }
+
+TEST_F(BTreeTest, MergeInternal) {
+    Internal node{nullptr};
+
+    Internal *i0 = newNode<Internal>(&node);
+    Internal *i1 = newNode<Internal>(&node);
+    Internal *i2 = newNode<Internal>(&node);
+
+    {
+        Leaf *l0 = newNode<Leaf>(i0);
+        l0->insert({10, 10});
+        l0->insert({20, 20});
+        l0->insert({30, 30});
+
+        Leaf *l1 = newNode<Leaf>(i0);
+        l1->insert({40, 40});
+        l1->insert({50, 50});
+        l1->insert({60, 60});
+
+        i0->initAsRoot(l0, l1, {35, 30});
+    }
+
+    {
+        Leaf *l0 = newNode<Leaf>(i1);
+        l0->insert({70, 70});
+        l0->insert({80, 80});
+        l0->insert({90, 90});
+
+        Leaf *l1 = newNode<Leaf>(i1);
+        l1->insert({100, 100});
+        l1->insert({110, 110});
+        l1->insert({120, 120});
+
+        i1->initAsRoot(l0, l1, {95, 950});
+    }
+
+    {
+        Leaf *l0 = newNode<Leaf>(i2);
+        l0->insert({130, 130});
+        l0->insert({140, 140});
+        l0->insert({150, 150});
+
+        Leaf *l1 = newNode<Leaf>(i2);
+        l1->insert({160, 160});
+        l1->insert({170, 170});
+        l1->insert({180, 180});
+
+        i2->initAsRoot(l0, l1, {155, 1550});
+    }
+
+    node.initAsRoot(i0, i1, {65, 750});
+    node.insertChild({125, 1250}, i2);
+
+    node.dump(0);
+
+    node.mergeInternalNodes(i0, i1);
+
+    node.dump(0);
+
+    node.destroyChildren();
+}
+
+#if 0
+TEST_F(BTreeTest, EraseAll) {
+    BTreeMap<BigKey, int> tree;
+    std::uniform_int_distribution<int> dist(0, 1000000);
+    std::map<int, int> expected;
+
+    for (size_t i = 0; i < 1000; i++) {
+        int key = dist(mt);
+        int v = i * 10;
+        tree.insert(key, v);
+        expected[key] = v;
+    }
+
+    auto takeRandomKey = [&] {
+        auto it = expected.begin();
+        std::advance(it, dist(mt) % expected.size());
+        auto key = it->first;
+        expected.erase(it);
+        return key;
+    };
+
+    while (!expected.empty()) {
+        auto key = takeRandomKey();
+        tree.remove(key);
+        tree.validate();
+        ASSERT_FALSE(tree.contains(key)) << "Key " << key << " found in BTreeMap after removal";
+        ASSERT_TRUE(expected.find(key) == expected.end()) << "Key " << key << " found in expected map after removal";
+    }
+}
+#endif

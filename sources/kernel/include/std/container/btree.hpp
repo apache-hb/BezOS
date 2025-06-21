@@ -565,6 +565,92 @@ namespace sm::detail {
             }
         }
 
+        void mergeInternalNodes(TreeNodeInternal *lhs, TreeNodeInternal *rhs) noexcept {
+            KM_ASSERT(!lhs->isLeaf() && !rhs->isLeaf());
+
+            size_t lhsIndex = indexOfChild(lhs);
+            size_t lhsCount = lhs->count();
+            size_t rhsCount = rhs->count();
+
+            KM_ASSERT(lhsCount + rhsCount >= TreeNodeInternal::minCapacity());
+
+            Entry middle = {key(lhsIndex), value(lhsIndex)};
+            lhs->claimInternal(middle, rhs);
+
+            // shuffle the remaining internal nodes over one position
+            for (size_t i = lhsIndex; i < count() - 1; i++) {
+                key(i) = key(i + 1);
+                value(i) = value(i + 1);
+            }
+            for (size_t i = lhsIndex + 1; i < count(); i++) {
+                child(i) = child(i + 1);
+            }
+            setCount(count() - 1);
+
+            releaseNodeMemory<Key, Value>(rhs);
+        }
+
+        void rebalanceIntoLowerInternalNode(TreeNodeInternal *lhs, TreeNodeInternal *rhs, size_t midpoint) noexcept {
+
+        }
+
+        void rebalanceIntoUpperInternalNode(TreeNodeInternal *lhs, TreeNodeInternal *rhs, size_t midpoint) noexcept {
+            Entry middle = {key(midpoint), value(midpoint)};
+
+            size_t rhsCount = rhs->count();
+
+            size_t itemsToMove = TreeNodeInternal::minCapacity() - rhsCount;
+            rhs->setCount(rhsCount + itemsToMove);
+            rhs->emplace(rhsCount, middle);
+
+            for (size_t i = 0; i < itemsToMove; i++) {
+                rhs->emplace(rhsCount + i + 1, {lhs->key(i), lhs->value(i)});
+            }
+
+            for (size_t i = 0; i < itemsToMove; i++) {
+                Leaf *childNode = lhs->child(i);
+                rhs->takeChild(rhsCount + i + 1, childNode);
+            }
+        }
+
+        void rebalanceInternalNodes(TreeNodeInternal *lhs, TreeNodeInternal *rhs) noexcept {
+            KM_ASSERT(!lhs->isLeaf() && !rhs->isLeaf());
+
+            size_t rhsIndex = lhs->indexOfChild(rhs);
+            size_t lhsCount = lhs->count();
+            size_t rhsCount = rhs->count();
+
+            KM_ASSERT(lhsCount + rhsCount >= TreeNodeInternal::minCapacity() * 2);
+
+            if (lhsCount < rhsCount) {
+                rebalanceIntoLowerInternalNode(lhs, rhs, rhsIndex);
+            } else {
+                rebalanceIntoUpperInternalNode(lhs, rhs, rhsIndex);
+            }
+        }
+
+        void claimInternal(const Entry& entry, TreeNodeInternal *other) noexcept {
+            KM_ASSERT(!other->isLeaf());
+            KM_ASSERT(other->getParent() == this->getParent());
+
+            size_t n = count();
+            setCount(n + other->count() + 1);
+            emplace(n, entry);
+
+            // Move the keys and values from the other internal node to this internal node
+            for (size_t i = 0; i < other->count(); i++) {
+                emplace(n + i + 1, {other->key(i), other->value(i)});
+            }
+
+            for (size_t i = 0; i < other->count() + 1; i++) {
+                Leaf *childNode = other->child(i);
+                takeChild(n + i + 1, childNode);
+            }
+
+            // Clear the other internal node
+            other->setCount(0);
+        }
+
         /// @brief Insert a new entry and the leaf node above it into the internal node.
         InsertResult insertChild(const Entry& entry, Leaf *leaf) noexcept {
             size_t n = count();
@@ -713,7 +799,7 @@ namespace sm::detail {
             Super::emplace(0, entry);
         }
 
-        ~TreeNodeInternal() noexcept {
+        void destroyChildren() noexcept {
             for (size_t i = 0; i < count() + 1; i++) {
                 deleteNode<Key, Value>(child(i));
             }
@@ -805,19 +891,10 @@ namespace sm::detail {
     }
 
     template<typename Key, typename Value>
-    void deleteNode(TreeNodeHeader *node) noexcept {
-        using LeafNode = TreeNodeLeaf<Key, Value>;
-        using InternalNode = TreeNodeInternal<Key, Value>;
-        if (node->isLeaf()) {
-            LeafNode *leaf = static_cast<LeafNode*>(node);
-            std::destroy_at(leaf);
-        } else {
-            InternalNode *internal = static_cast<InternalNode*>(node);
-            std::destroy_at(internal);
-        }
+    void deleteNode(TreeNodeHeader *node) noexcept;
 
-        free(static_cast<void*>(node));
-    }
+    template<typename Key, typename Value>
+    void releaseNodeMemory(TreeNodeHeader *node) noexcept;
 
     template<typename Key, typename Value>
     struct BTreeMapCommon {
@@ -826,10 +903,30 @@ namespace sm::detail {
         using Entry = Entry<Key, Value>;
         using ChildEntry = typename Internal::ChildEntry;
 
-        static void rebalanceOrMergeLeaf(TreeNodeLeaf<Key, Value> *lhs, TreeNodeLeaf<Key, Value> *rhs) noexcept {
-            using Leaf = TreeNodeLeaf<Key, Value>;
-            using Internal = TreeNodeInternal<Key, Value>;
+        static void rebalanceOrMergeInternal(Internal *lhs, Internal *rhs) noexcept {
+            KM_ASSERT(!lhs->isLeaf() && !rhs->isLeaf());
+            KM_ASSERT(lhs->getParent() == rhs->getParent());
 
+            if (!lhs->isUnderFilled() && !rhs->isUnderFilled()) {
+                // Neither internal node is underfilled, no action needed
+                return;
+            }
+
+            Internal *parent = static_cast<Internal*>(lhs->getParent());
+            size_t lhsCount = lhs->count();
+            size_t rhsCount = rhs->count();
+
+            bool canRebalance = (lhsCount + rhsCount) >= (Internal::minCapacity() * 2);
+
+            if (!canRebalance) {
+                parent->mergeInternalNodes(lhs, rhs);
+                deleteNode(lhs);
+            } else {
+                parent->rebalanceInternalNodes(lhs, rhs);
+            }
+        }
+
+        static void rebalanceOrMergeLeaf(Leaf *lhs, Leaf *rhs) noexcept {
             KM_ASSERT(lhs->isLeaf() && rhs->isLeaf());
             KM_ASSERT(lhs->getParent() == rhs->getParent());
 
@@ -869,17 +966,31 @@ namespace sm::detail {
         }
 
         static void deleteNode(TreeNodeHeader *node) noexcept {
-            if (node->isLeaf()) {
-                Leaf *leaf = static_cast<Leaf*>(node);
-                std::destroy_at(leaf);
-            } else {
+            if (!node->isLeaf()) {
                 Internal *internal = static_cast<Internal*>(node);
-                std::destroy_at(internal);
+                internal->destroyChildren();
             }
+
+            releaseNodeMemory(node);
+        }
+
+        static void releaseNodeMemory(TreeNodeHeader *node) noexcept {
+            Leaf *leaf = static_cast<Leaf*>(node);
+            std::destroy_at(leaf);
 
             free(static_cast<void*>(node));
         }
     };
+
+    template<typename Key, typename Value>
+    void deleteNode(TreeNodeHeader *node) noexcept {
+        BTreeMapCommon<Key, Value>::deleteNode(node);
+    }
+
+    template<typename Key, typename Value>
+    void releaseNodeMemory(TreeNodeHeader *node) noexcept {
+        BTreeMapCommon<Key, Value>::releaseNodeMemory(node);
+    }
 }
 
 namespace sm {
@@ -1104,6 +1215,24 @@ namespace sm {
             mergeRecursive(node);
         }
 
+        void rebalanceInnerInternalNode(InternalNode *node) noexcept {
+            InternalNode *parent = static_cast<InternalNode*>(node->getParent());
+            size_t index = parent->indexOfChild(node);
+
+            InternalNode *adjacentNode;
+            if (index == 0) {
+                adjacentNode = static_cast<InternalNode*>(parent->getLeaf(1));
+            } else {
+                InternalNode *tmp = static_cast<InternalNode*>(parent->getLeaf(index - 1));
+                adjacentNode = node;
+                node = tmp;
+            }
+
+            Common::rebalanceOrMergeInternal(node, adjacentNode);
+
+            mergeRecursive(node);
+        }
+
         void eraseFromRootLeafNode(MutIterator it) {
             LeafNode *node = it.getCurrentNode();
             size_t index = it.getCurrentNodeIndex();
@@ -1164,6 +1293,8 @@ namespace sm {
             Entry promoted = promoteBack(child);
             internal->emplace(index, promoted);
 
+            rebalanceInnerInternalNode(internal);
+
             mergeRecursive(child);
         }
 
@@ -1205,6 +1336,12 @@ namespace sm {
                 mRootNode = child; // Promote the only child to root
                 deleteNode<Key, Value>(node);
                 return nullptr; // No parent to return to
+            }
+
+            if (!node->isRootNode()) {
+                if (node->isUnderFilled() && !node->isLeaf()) {
+
+                }
             }
 
             return static_cast<InternalNode*>(node->getParent());
