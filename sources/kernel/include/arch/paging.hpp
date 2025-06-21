@@ -1,5 +1,7 @@
 #pragma once
 
+#include "arch/intrin.hpp"
+
 #include "util/memory.hpp"
 
 #include <stdint.h>
