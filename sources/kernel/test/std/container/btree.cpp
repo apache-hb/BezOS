@@ -39,7 +39,7 @@ public:
     using Leaf = TreeNodeLeaf<BigKey, int>;
     using Internal = TreeNodeInternal<BigKey, int>;
     using Entry = Entry<BigKey, int>;
-    using ChildEntry = typename Internal::ChildEntry;
+    using ChildEntry = typename BTreeMapCommon<BigKey, int>::ChildEntry;
 
     std::vector<int> GenerateKeys(size_t count) {
         std::vector<int> keys;
