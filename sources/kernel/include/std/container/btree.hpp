@@ -10,9 +10,13 @@
 #include <functional>
 
 #include <limits.h>
+#include <set>
 #include <stdlib.h>
 
 namespace sm::detail {
+    static std::set<void*> allocations;
+    static bool noisy = false;
+
     enum class InsertResult {
         eSuccess,
         eFull,
@@ -959,6 +963,7 @@ namespace sm::detail {
     template<typename Node, typename... Args>
     Node *newNode(Args&&... args) noexcept {
         void *memory = aligned_alloc(alignof(Node), sizeof(Node));
+        allocations.insert(memory);
         return new (memory) Node(std::forward<Args>(args)...);
     }
 
@@ -986,8 +991,14 @@ namespace sm::detail {
 
             if (!canRebalance) {
                 parent->mergeInternalNodes(lhs, rhs);
+                if (noisy) {
+                    printf("mergeInternalNodes nodes %p and %p\n", (void*)lhs, (void*)rhs);
+                }
             } else {
                 parent->rebalanceInternalNodes(lhs, rhs);
+                if (noisy) {
+                    printf("rebalanceInternalNodes nodes %p and %p\n", (void*)lhs, (void*)rhs);
+                }
             }
         }
 
@@ -1011,9 +1022,15 @@ namespace sm::detail {
 
             if (!canRebalance) {
                 // Merge into the left node and delete the right node
+                if (noisy) {
+                    printf("mergeLeafNodes nodes %p and %p\n", (void*)lhs, (void*)rhs);
+                }
                 parent->mergeLeafNodes(lhs, rhs);
                 deleteNode(rhs);
             } else {
+                if (noisy) {
+                    printf("rebalanceLeafNodes nodes %p and %p\n", (void*)lhs, (void*)rhs);
+                }
                 parent->rebalanceLeafNodes(lhs, rhs);
             }
         }
@@ -1031,6 +1048,10 @@ namespace sm::detail {
         }
 
         static void deleteNode(TreeNodeHeader *node) noexcept {
+            if (noisy) {
+                printf("deleteNode node %p\n", (void*)node);
+            }
+
             if (!node->isLeaf()) {
                 Internal *internal = static_cast<Internal*>(node);
                 internal->destroyChildren();
@@ -1040,10 +1061,16 @@ namespace sm::detail {
         }
 
         static void releaseNodeMemory(TreeNodeHeader *node) noexcept {
+            if (noisy) {
+                printf("Releasing node %p\n", (void*)node);
+            }
+
             Leaf *leaf = static_cast<Leaf*>(node);
             std::destroy_at(leaf);
 
             free(static_cast<void*>(node));
+
+            allocations.erase(node);
         }
 
         static Key readMinKey(const Leaf *node) noexcept {
@@ -1289,7 +1316,17 @@ namespace sm {
                 node = tmp;
             }
 
+            if (detail::noisy) {
+                printf("Rebalancing leaf node %p with adjacent node %p\n", (void*)node, (void*)adjacentNode);
+                dump();
+            }
+
             Common::rebalanceOrMergeLeaf(node, adjacentNode);
+
+            if (detail::noisy) {
+                printf("After rebalancing leaf node %p with adjacent node %p\n", (void*)node, (void*)adjacentNode);
+                dump();
+            }
         }
 
         void rebalanceInnerInternalNode(InternalNode *node) noexcept {
@@ -1401,6 +1438,12 @@ namespace sm {
 
         void eraseFromNode(MutIterator it) {
             LeafNode *node = eraseNodeElement(it);
+
+            if (detail::noisy) {
+                dump();
+            }
+
+            KM_ASSERT(node->isLeaf());
             if (!node->isRootNode()) {
                 InternalNode *parent = static_cast<InternalNode*>(node->getParent());
                 rebalanceInnerLeafNode(node);
@@ -1408,13 +1451,13 @@ namespace sm {
             } else {
                 mergeRootNodeIfNeeded(node);
             }
+
+            if (detail::noisy) {
+                dump();
+            }
         }
 
         void mergeRootNodeIfNeeded(LeafNode *node) noexcept {
-            if (!node->isUnderFilled()) {
-                return;
-            }
-
             if (node->count() == 0) {
                 // root node is empty, delete it
                 KM_ASSERT(mRootNode == node);
@@ -1427,22 +1470,37 @@ namespace sm {
 
                 size_t lhsCount = lhs->count();
                 size_t rhsCount = rhs->count();
+                KM_ASSERT(lhs->isLeaf() == rhs->isLeaf());
 
-                if (lhsCount + rhsCount < LeafNode::maxCapacity()) {
-                    if (lhs->isLeaf()) {
-                        KM_ASSERT(rhs->isLeaf());
+                bool leafChildren = lhs->isLeaf() && rhs->isLeaf();
+
+                bool canMerge = (lhsCount + rhsCount) < LeafNode::maxCapacity();
+                if (canMerge) {
+                    if (leafChildren) {
                         internal->mergeLeafNodes(lhs, rhs);
                     } else {
-                        KM_ASSERT(!rhs->isLeaf());
                         internal->mergeInternalNodes(static_cast<InternalNode*>(lhs), static_cast<InternalNode*>(rhs));
                     }
                 } else {
                     return;
                 }
 
+                if (detail::noisy) {
+                    printf("mergeRootNodeIfNeeded: %p %p %p %p\n", (void*)mRootNode, (void*)node,
+                           (void*)lhs, (void*)rhs);
+                }
+
                 lhs->setParent(nullptr);
                 mRootNode = lhs;
                 detail::releaseNodeMemory<Key, Value>(internal);
+
+                if (leafChildren) {
+                    detail::releaseNodeMemory<Key, Value>(rhs);
+                }
+            }
+
+            if (detail::noisy) {
+                printf("mergeRootNodeIfNeeded: %p %p\n", (void*)mRootNode, (void*)node);
             }
         }
 
@@ -1685,6 +1743,9 @@ namespace sm {
         }
 
         void remove(const Key& key) noexcept {
+            if (key == 809887) {
+                detail::noisy = true;
+            }
             erase(find(key));
         }
 

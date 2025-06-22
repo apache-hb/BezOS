@@ -901,13 +901,26 @@ TEST_F(BTreeTest, EraseAll) {
         return key;
     };
 
+    tree.dump();
+
     while (!expected.empty()) {
         auto key = takeRandomKey();
+        std::array k = { 809887, 810505, 810929, 811351, 811717, 883044, 915065 };
+        if (std::find(k.begin(), k.end(), key) != k.end() || detail::noisy) {
+            printf("Removing key %d from BTreeMap\n", key);
+            tree.dump();
+        }
         ASSERT_TRUE(tree.contains(key)) << "Key " << key << " not found in BTreeMap before removal";
         tree.remove(key);
+        if (std::find(k.begin(), k.end(), key) != k.end() || detail::noisy) {
+            tree.dump();
+        }
         ASSERT_FALSE(tree.contains(key)) << "Key " << key << " found in BTreeMap after removal";
-        tree.validate();
         ASSERT_FALSE(tree.contains(key)) << "Key " << key << " found in BTreeMap after removal";
         ASSERT_TRUE(expected.find(key) == expected.end()) << "Key " << key << " found in expected map after removal";
+    }
+
+    for (auto ptr : allocations) {
+        printf("Memory leak detected: %p\n", (void*)ptr);
     }
 }
