@@ -905,22 +905,49 @@ TEST_F(BTreeTest, EraseAll) {
 
     while (!expected.empty()) {
         auto key = takeRandomKey();
-        std::array k = { 809887, 810505, 810929, 811351, 811717, 883044, 915065 };
-        if (std::find(k.begin(), k.end(), key) != k.end() || detail::noisy) {
-            printf("Removing key %d from BTreeMap\n", key);
-            tree.dump();
-        }
         ASSERT_TRUE(tree.contains(key)) << "Key " << key << " not found in BTreeMap before removal";
         tree.remove(key);
-        if (std::find(k.begin(), k.end(), key) != k.end() || detail::noisy) {
-            tree.dump();
-        }
         ASSERT_FALSE(tree.contains(key)) << "Key " << key << " found in BTreeMap after removal";
         ASSERT_FALSE(tree.contains(key)) << "Key " << key << " found in BTreeMap after removal";
         ASSERT_TRUE(expected.find(key) == expected.end()) << "Key " << key << " found in expected map after removal";
     }
+}
 
-    for (auto ptr : allocations) {
-        printf("Memory leak detected: %p\n", (void*)ptr);
+TEST_F(BTreeTest, EraseForwards) {
+    BTreeMap<BigKey, int> tree;
+    std::uniform_int_distribution<int> dist(0, 1000000);
+    std::map<int, int> expected;
+
+    for (size_t i = 0; i < 10000; i++) {
+        int key = dist(mt);
+        int v = i * 10;
+        tree.insert(key, v);
+        expected[key] = v;
+    }
+
+    for (auto& [key, value] : expected) {
+        ASSERT_TRUE(tree.contains(key)) << "Key " << key << " not found in BTreeMap before removal";
+        tree.remove(key);
+        ASSERT_FALSE(tree.contains(key)) << "Key " << key << " found in BTreeMap after removal";
+    }
+}
+
+TEST_F(BTreeTest, EraseBackwards) {
+    BTreeMap<BigKey, int> tree;
+    std::uniform_int_distribution<int> dist(0, 1000000);
+    std::map<int, int> expected;
+
+    for (size_t i = 0; i < 10000; i++) {
+        int key = dist(mt);
+        int v = i * 10;
+        tree.insert(key, v);
+        expected[key] = v;
+    }
+
+    for (auto it = expected.rbegin(); it != expected.rend(); ++it) {
+        auto& [key, value] = *it;
+        ASSERT_TRUE(tree.contains(key)) << "Key " << key << " not found in BTreeMap before removal";
+        tree.remove(key);
+        ASSERT_FALSE(tree.contains(key)) << "Key " << key << " found in BTreeMap after removal";
     }
 }
