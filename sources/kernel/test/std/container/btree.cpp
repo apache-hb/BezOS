@@ -36,10 +36,11 @@ public:
         setbuf(stdout, nullptr);
     }
 
-    using Leaf = TreeNodeLeaf<BigKey, int>;
-    using Internal = TreeNodeInternal<BigKey, int>;
-    using Entry = Entry<BigKey, int>;
-    using ChildEntry = typename BTreeMapCommon<BigKey, int>::ChildEntry;
+    using Common = BTreeMapCommon<BigKey, int>;
+    using Leaf = typename Common::Leaf;
+    using Internal = typename Common::Internal;
+    using Entry = typename Common::Entry;
+    using ChildEntry = typename Common::ChildEntry;
 
     std::vector<int> GenerateKeys(size_t count) {
         std::vector<int> keys;
@@ -427,8 +428,6 @@ TEST_F(BTreeTest, NodeInsert) {
 }
 
 TEST_F(BTreeTest, LeafSplit) {
-    using Leaf = TreeNodeLeaf<int, int>;
-
     std::set<int> keys;
     Leaf lhs{nullptr};
     Leaf rhs{nullptr};
@@ -437,7 +436,7 @@ TEST_F(BTreeTest, LeafSplit) {
         keys.insert(int(i));
     }
 
-    Leaf::Entry midpoint;
+    Entry midpoint;
     lhs.splitInto(&rhs, {999, 50}, &midpoint);
     keys.insert(999);
 
