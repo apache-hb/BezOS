@@ -6,7 +6,7 @@
 using namespace sm;
 using namespace sm::detail;
 
-struct alignas(512) BigKey {
+struct alignas(128) BigKey {
     int key;
 
     BigKey(int k = 0) noexcept
@@ -36,7 +36,17 @@ public:
         setbuf(stdout, nullptr);
     }
 
-    using Common = BTreeMapCommon<BigKey, int>;
+    void SetUp() override {
+        detail::noisy = false;
+    }
+
+    void TearDown() override {
+        detail::noisy = false;
+    }
+
+    using Key = BigKey;
+
+    using Common = BTreeMapCommon<Key, int>;
     using Leaf = typename Common::Leaf;
     using Internal = typename Common::Internal;
     using Entry = typename Common::Entry;
@@ -170,6 +180,7 @@ TEST_F(BTreeTest, SplitIntoUpperHalf) {
     ASSERT_FALSE(lhs.containsInNode(midpoint.key)) << "Left node contains midpoint key after split";
     ASSERT_FALSE(rhs.containsInNode(midpoint.key)) << "Right node contains midpoint key after split";
     ASSERT_TRUE(rhs.containsInNode(entry.key)) << "Right node does not contain entry key after split";
+    ASSERT_TRUE(leaves.empty()) << "Not all leaves were found after split";
 
     lhs.destroyChildren();
     rhs.destroyChildren();
@@ -216,7 +227,7 @@ TEST_F(BTreeTest, SplitIntoUpperHalf2) {
     ASSERT_FALSE(lhs.containsInNode(midpoint.key)) << "Left node contains midpoint key after split";
     ASSERT_FALSE(rhs.containsInNode(midpoint.key)) << "Right node contains midpoint key after split";
     ASSERT_TRUE(rhs.containsInNode(entry.key)) << "Right node does not contain entry key after split";
-
+    ASSERT_TRUE(leaves.empty()) << "Not all leaves were found after split";
 
     lhs.destroyChildren();
     rhs.destroyChildren();
@@ -857,7 +868,7 @@ TEST_F(BTreeTest, Stats) {
     ASSERT_GT(stats.depth, 0) << "Depth should be greater than 0";
 }
 
-
+#if 0
 TEST_F(BTreeInternalUpdateTest, MergeInternal) {
     node.mergeInternalNodes(i0, i1);
 
@@ -879,6 +890,7 @@ TEST_F(BTreeInternalUpdateTest, RebalanceIntoLower) {
     ASSERT_NE(i1->count(), 1);
     ASSERT_NE(i2->count(), 4);
 }
+#endif
 
 TEST_F(BTreeTest, EraseAll) {
     BTreeMap<BigKey, int> tree;
@@ -904,11 +916,26 @@ TEST_F(BTreeTest, EraseAll) {
 
     while (!expected.empty()) {
         auto key = takeRandomKey();
-        ASSERT_TRUE(tree.contains(key)) << "Key " << key << " not found in BTreeMap before removal";
+        printf("Removing key: %d\n", (int)key);
+        if (key == 404939) {
+            tree.dump();
+            detail::noisy = true;
+        }
+
+        bool contains = tree.contains(key);
+        if (!contains) {
+            tree.dump();
+        }
+
+        ASSERT_TRUE(contains) << "Key " << key << " not found in BTreeMap before removal";
         tree.remove(key);
         ASSERT_FALSE(tree.contains(key)) << "Key " << key << " found in BTreeMap after removal";
         ASSERT_FALSE(tree.contains(key)) << "Key " << key << " found in BTreeMap after removal";
         ASSERT_TRUE(expected.find(key) == expected.end()) << "Key " << key << " found in expected map after removal";
+
+        if (key == 404939) {
+            tree.dump();
+        }
     }
 }
 

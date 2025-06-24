@@ -13,6 +13,8 @@
 #include <stdlib.h>
 
 namespace sm::detail {
+    bool noisy = false;
+
     enum class InsertResult {
         eSuccess,
         eFull,
@@ -82,7 +84,6 @@ namespace sm::detail {
         class Leaf : public TreeNodeHeader {
             using Super = TreeNodeHeader;
         public:
-
             static constexpr size_t kOrder = std::max(3zu, computeMaxLeafOrder(Layout::of<Key>(), Layout::of<Value>(), sm::kilobytes(4).bytes()));
 
         private:
@@ -246,7 +247,7 @@ namespace sm::detail {
             }
 
             constexpr size_t leastCount() const noexcept {
-                return (capacity() / 2) - 1;
+                return std::max(1zu, (capacity() / 2) - 1);
             }
 
             constexpr size_t capacity() const noexcept {
@@ -258,7 +259,7 @@ namespace sm::detail {
             }
 
             constexpr static size_t minCapacity() noexcept {
-                return (maxCapacity() / 2) - 1;
+                return std::max(1zu, (maxCapacity() / 2) - 1);
             }
 
             const Key& minKey() const noexcept {
@@ -407,6 +408,14 @@ namespace sm::detail {
             using Super::minKey;
             using Super::maxKey;
             using Super::upperBound;
+
+            static constexpr size_t leafCapacity() noexcept {
+                return Leaf::maxCapacity() + 1;
+            }
+
+            size_t leafCount() const noexcept {
+                return count() + 1;
+            }
 
             std::span<Leaf*> children() noexcept { return std::span(mChildren, count() + 1); }
             std::span<Leaf* const> children() const noexcept { return std::span(mChildren, count() + 1); }
@@ -789,11 +798,11 @@ namespace sm::detail {
                 KM_ASSERT(!this->isLeaf());
                 KM_ASSERT(!other->isLeaf());
 
-                const size_t kHalfOrder = Super::kOrder / 2;
+                const size_t half = capacity() / 2;
 
-                Entry middle = {key(kHalfOrder), value(kHalfOrder)};
+                Entry middle = {key(half), value(half)};
 
-                transferTo(other, kHalfOrder);
+                transferTo(other, half);
 
                 if (entry.key < maxKey()) {
                     this->insert(entry);
@@ -805,29 +814,34 @@ namespace sm::detail {
                     *midpoint = middle;
                 }
 
-                KM_ASSERT(this->count() >= (this->capacity() / 2) - 1);
-                KM_ASSERT(other->count() >= (other->capacity() / 2) - 1);
+                KM_ASSERT(this->count() >= this->leastCount());
+                KM_ASSERT(other->count() >= other->leastCount());
             }
 
             void transferInto(Internal *other, Entry *midpoint) noexcept {
+                // 512: (capacity() = 7, half = 3)
+                // 256: (capacity() = 15, half = 7)
+                // 128: (capacity() = 30, half = 15)
+                bool isOdd = (capacity() & 1);
                 size_t half = capacity() / 2;
                 Entry middle = {key(half), value(half)};
 
-                other->setCount(half);
-                for (size_t i = 0; i < half; i++) {
+                other->setCount(half - (isOdd ? 0 : 1));
+
+                for (size_t i = 0; i < half - (isOdd ? 0 : 1); i++) {
                     other->key(i) = key(i + half + 1);
                     other->value(i) = value(i + half + 1);
                 }
 
-                KM_ASSERT(!other->containsInNode(middle.key));
-
-                for (size_t i = 0; i < half + 1; i++) {
+                for (size_t i = 0; i < half + (isOdd ? 1 : 0); i++) {
                     Leaf *leaf = child(i + half + 1);
                     other->takeChild(i, leaf);
                 }
 
                 setCount(half);
                 *midpoint = middle;
+
+                KM_ASSERT(!other->containsInNode(middle.key));
             }
 
             void splitIntoUpperHalf(Internal *other, const ChildEntry& entry, Entry *midpoint) noexcept {
@@ -945,6 +959,75 @@ namespace sm::detail {
                     } else {
                         static_cast<const Internal*>(inner)->dump(depth + 1);
                     }
+                }
+            }
+        };
+
+        /// @brief Tracks the number of internal and leaf nodes that will need to be split if
+        ///        the bottom node is full.
+        ///        This is used to provide resilience against OOM ocurring during insertions.
+        class InsertMemoryTracker {
+            size_t mFullInternalNodes;
+            void *mNodes;
+
+            void *drainNode() noexcept {
+                if (mNodes == nullptr) {
+                    return nullptr;
+                }
+
+                void *current = mNodes;
+                void *next = *(void**)current;
+                mNodes = next;
+                return current;
+            }
+
+        public:
+            constexpr InsertMemoryTracker() noexcept
+                : mFullInternalNodes(0)
+                , mNodes(nullptr)
+            { }
+
+            void track(Internal *node) noexcept {
+                if (node->isFull()) {
+                    if (node->isRootNode()) {
+                        // Splitting the root node requires an extra allocation for the new root
+                        mFullInternalNodes += 2;
+                    } else {
+                        mFullInternalNodes += 1;
+                    }
+                }
+            }
+
+            OsStatus allocateMemory() noexcept {
+                for (size_t i = 0; i < mFullInternalNodes; i++) {
+                    void *node = aligned_alloc(alignof(Internal), sizeof(Internal));
+                    if (node == nullptr) {
+                        releaseRemaining();
+                        return OsStatusOutOfMemory;
+                    }
+
+                    *(void**)node = mNodes;
+                    mNodes = node;
+                }
+
+                return OsStatusSuccess;
+            }
+
+            template<typename... A>
+            [[gnu::returns_nonnull]]
+            Internal *takeNode(A&&... args) noexcept {
+                void *ptr = drainNode();
+                if (ptr == nullptr) {
+                    printf("Ran out of memory in tracker with %zu nodes\n", mFullInternalNodes);
+                }
+                KM_ASSERT(ptr != nullptr);
+
+                return new (ptr) Internal(std::forward<A>(args)...);
+            }
+
+            void releaseRemaining() {
+                while (void *node = drainNode()) {
+                    free(node);
                 }
             }
         };
@@ -1172,53 +1255,83 @@ namespace sm {
         using ChildEntry = typename Common::ChildEntry;
         using InternalNode = typename Common::Internal;
         using LeafNode = typename Common::Leaf;
+        using InsertMemoryTracker = typename Common::InsertMemoryTracker;
         using MutIterator = BTreeMapIterator<Key, Value>;
 
         LeafNode *mRootNode;
 
-        void splitRootNode(LeafNode *leaf, const Entry& entry) noexcept {
+        OsStatus splitRootNode(LeafNode *leaf, const Entry& entry) noexcept {
             Entry midpoint;
             bool isLeaf = leaf->isLeaf();
             InternalNode *newRoot = detail::newNode<InternalNode>(nullptr);
             LeafNode *newLeaf = isLeaf ? detail::newNode<LeafNode>(newRoot) : detail::newNode<InternalNode>(newRoot);
+
+            if (newRoot == nullptr || newLeaf == nullptr) {
+                if (newRoot) {
+                    detail::deleteNode<Key, Value>(newRoot);
+                }
+
+                if (newLeaf) {
+                    detail::deleteNode<Key, Value>(newLeaf);
+                }
+
+                return OsStatusOutOfMemory;
+            }
+
             Common::splitNode(leaf, newLeaf, entry, &midpoint);
 
             newRoot->initAsRoot(leaf, newLeaf, midpoint);
             mRootNode = newRoot;
+
+            return OsStatusSuccess;
         }
 
-        void splitLeafNode(LeafNode *leaf, const Entry& entry) noexcept {
+        OsStatus splitLeafNode(LeafNode *leaf, const Entry& entry, InsertMemoryTracker& tracker) noexcept {
             Entry midpoint;
             bool isLeaf = leaf->isLeaf();
             InternalNode *parent = static_cast<InternalNode*>(leaf->getParent());
+
+            if (OsStatus status = tracker.allocateMemory()) {
+                return status;
+            }
+
             LeafNode *newLeaf = isLeaf ? detail::newNode<LeafNode>(parent) : detail::newNode<InternalNode>(parent);
+            if (newLeaf == nullptr) {
+                tracker.releaseRemaining();
+                return OsStatusOutOfMemory;
+            }
+
             Common::splitNode(leaf, newLeaf, entry, &midpoint);
 
-            insertNewLeaf(parent, newLeaf, midpoint);
+            insertNewLeaf(parent, newLeaf, midpoint, tracker);
+
+            tracker.releaseRemaining();
+
+            return OsStatusSuccess;
         }
 
-        void splitNode(LeafNode *leaf, const Entry& entry) noexcept {
+        OsStatus splitNode(LeafNode *leaf, const Entry& entry, InsertMemoryTracker& tracker) noexcept {
             // Splitting the root node is a special case.
             if (leaf == mRootNode) {
-                splitRootNode(leaf, entry);
+                return splitRootNode(leaf, entry);
             } else {
-                splitLeafNode(leaf, entry);
+                return splitLeafNode(leaf, entry, tracker);
             }
         }
 
-        void splitInternalNode(InternalNode *parent, const Entry& entry, LeafNode *leaf) noexcept {
-            InternalNode *newNode = detail::newNode<InternalNode>(parent->getParent());
+        void splitInternalNode(InternalNode *parent, const Entry& entry, LeafNode *leaf, InsertMemoryTracker& tracker) noexcept {
+            InternalNode *newNode = tracker.takeNode(parent->getParent());
 
             if (parent == mRootNode) {
                 Entry midpoint;
                 parent->splitInternalNode(newNode, ChildEntry{leaf, entry}, &midpoint);
-                InternalNode *newRoot = detail::newNode<InternalNode>(nullptr);
+                InternalNode *newRoot = tracker.takeNode(nullptr);
                 newRoot->initAsRoot(parent, newNode, midpoint);
                 mRootNode = newRoot;
             } else {
                 Entry midpoint;
                 parent->splitInternalNode(newNode, ChildEntry{leaf, entry}, &midpoint);
-                insertNewLeaf(static_cast<InternalNode*>(parent->getParent()), newNode, midpoint);
+                insertNewLeaf(static_cast<InternalNode*>(parent->getParent()), newNode, midpoint, tracker);
             }
         }
 
@@ -1226,19 +1339,20 @@ namespace sm {
         ///
         /// @param parent The parent internal node where the new leaf will be inserted.
         /// @param newLeaf The new leaf node to be inserted.
-        void insertNewLeaf(InternalNode *parent, LeafNode *newLeaf, const Entry& midpoint) noexcept {
+        void insertNewLeaf(InternalNode *parent, LeafNode *newLeaf, const Entry& midpoint, InsertMemoryTracker& tracker) noexcept {
             detail::InsertResult result = parent->insertChild(midpoint, newLeaf);
             if (result == detail::InsertResult::eFull) {
-                splitInternalNode(parent, midpoint, newLeaf);
+                splitInternalNode(parent, midpoint, newLeaf, tracker);
             }
         }
 
-        void insertInto(LeafNode *node, const Entry& entry) noexcept {
+        OsStatus insertInto(LeafNode *node, const Entry& entry, InsertMemoryTracker& tracker) noexcept {
             if (node->isLeaf()) {
                 detail::InsertResult result = node->insert(entry);
                 if (result == detail::InsertResult::eFull) {
-                    splitNode(node, entry);
+                    return splitNode(node, entry, tracker);
                 }
+                return OsStatusSuccess;
             } else {
                 InternalNode *internal = static_cast<InternalNode*>(node);
                 size_t index = internal->upperBound(entry.key);
@@ -1246,20 +1360,28 @@ namespace sm {
                 if (index != 0) {
                     if (internal->key(index - 1) == entry.key) {
                         internal->value(index - 1) = entry.value; // Update existing key
-                        return;
+                        return OsStatusSuccess;
                     }
                 }
 
+                tracker.track(internal);
+
                 KM_ASSERT(internal->find(entry.key) == nullptr);
                 LeafNode *child = internal->child(index);
-                insertInto(child, entry);
+                return insertInto(child, entry, tracker);
             }
         }
 
         bool nodeContains(const LeafNode *node, const Key& key) const noexcept {
             if (node->isLeaf()) {
+                if (detail::noisy) {
+                    printf("Checking if leaf node %p contains key %d\n", (void*)node, (int)key);
+                }
                 return node->find(key) != nullptr;
             } else {
+                if (detail::noisy) {
+                    printf("Checking if internal node %p contains key %d\n", (void*)node, (int)key);
+                }
                 const auto *internal = static_cast<const InternalNode*>(node);
                 size_t index = internal->findChildIndex(key);
                 if (index != 0 && internal->key(index - 1) == key) {
@@ -1283,6 +1405,11 @@ namespace sm {
                 LeafNode *tmp = parent->getLeaf(index - 1);
                 adjacentNode = node;
                 node = tmp;
+            }
+
+            if (detail::noisy) {
+                printf("Rebalancing leaf node %p with adjacent node %p %zu %zu\n", (void*)node, (void*)adjacentNode,
+                       node->count(), adjacentNode->count());
             }
 
             Common::rebalanceOrMergeLeaf(node, adjacentNode);
@@ -1325,6 +1452,11 @@ namespace sm {
             Promotion promoted = promoteBack(child);
             internal->emplace(index, promoted.entry);
 
+            if (detail::noisy) {
+                printf("Promoted entry %d from child %p to internal node %p %zu\n",
+                       (int)promoted.entry.key, (void*)promoted.leaf, (void*)internal, node->count());
+            }
+
             return promoted.leaf;
         }
 
@@ -1336,9 +1468,15 @@ namespace sm {
         Promotion promoteBack(LeafNode *node) {
             KM_ASSERT(node->count() > 0);
             if (node->isLeaf()) {
+                if (detail::noisy) {
+                    printf("Promoting back from leaf node %p %zu\n", (void*)node, node->count());
+                }
                 return Promotion { node->popBack(), node };
             } else {
                 InternalNode *internal = static_cast<InternalNode*>(node);
+                if (detail::noisy) {
+                    printf("Promoting back from internal node %p %zu\n", (void*)internal, internal->count());
+                }
                 Promotion promoted = promoteBack(internal->getLeaf(internal->count()));
                 return promoted;
             }
@@ -1398,9 +1536,16 @@ namespace sm {
         void eraseFromNode(MutIterator it) {
             LeafNode *node = eraseNodeElement(it);
 
+            if (detail::noisy) {
+                printf("erase node %p %zu\n", (void*)node, node->count());
+            }
+
             KM_ASSERT(node->isLeaf());
             if (!node->isRootNode()) {
                 InternalNode *parent = static_cast<InternalNode*>(node->getParent());
+                if (detail::noisy) {
+                    printf("erase parent %p %zu\n", (void*)parent, parent->count());
+                }
                 rebalanceInnerLeafNode(node);
                 mergeRecursive(parent);
             } else {
@@ -1410,6 +1555,9 @@ namespace sm {
 
         void mergeRootNodeIfNeeded(LeafNode *node) noexcept {
             if (node->count() == 0) {
+                if (detail::noisy) {
+                    printf("Root node %p is empty, deleting it\n", (void*)node);
+                }
                 // root node is empty, delete it
                 KM_ASSERT(mRootNode == node);
                 mRootNode = nullptr;
@@ -1419,21 +1567,40 @@ namespace sm {
                 LeafNode *lhs = internal->child(0);
                 LeafNode *rhs = internal->child(1);
 
-                size_t lhsCount = lhs->count();
-                size_t rhsCount = rhs->count();
                 KM_ASSERT(lhs->isLeaf() == rhs->isLeaf());
-
                 bool leafChildren = lhs->isLeaf() && rhs->isLeaf();
 
-                bool canMerge = (lhsCount + rhsCount) < LeafNode::maxCapacity();
-                if (canMerge) {
-                    if (leafChildren) {
+                if (leafChildren) {
+                    size_t lhsCount = lhs->count();
+                    size_t rhsCount = rhs->count();
+                    bool canMerge = (lhsCount + rhsCount) < LeafNode::maxCapacity();
+                    if (detail::noisy) {
+                        printf("Root node has leaf children, %zu + %zu = %zu, can merge: %s\n",
+                               lhsCount, rhsCount, lhsCount + rhsCount,
+                               canMerge ? "yes" : "no");
+                    }
+                    if (canMerge) {
                         internal->mergeLeafNodes(lhs, rhs);
                     } else {
-                        internal->mergeInternalNodes(static_cast<InternalNode*>(lhs), static_cast<InternalNode*>(rhs));
+                        return;
                     }
                 } else {
-                    return;
+                    InternalNode *lhsInternal = static_cast<InternalNode*>(lhs);
+                    InternalNode *rhsInternal = static_cast<InternalNode*>(rhs);
+                    size_t lhsCount = lhsInternal->leafCount();
+                    size_t rhsCount = rhsInternal->leafCount();
+                    bool canMerge = (lhsCount + rhsCount) <= InternalNode::leafCapacity();
+
+                    if (detail::noisy) {
+                        printf("Root node has internal children, %zu + %zu = %zu, can merge: %s\n",
+                               lhsCount, rhsCount, lhsCount + rhsCount,
+                               canMerge ? "yes" : "no");
+                    }
+                    if (canMerge) {
+                        internal->mergeInternalNodes(lhsInternal, rhsInternal);
+                    } else {
+                        return;
+                    }
                 }
 
                 lhs->setParent(nullptr);
@@ -1455,6 +1622,11 @@ namespace sm {
         InternalNode *mergeInnerNodeIfNeeded(InternalNode *node) noexcept {
             if (!node->isUnderFilled()) {
                 return static_cast<InternalNode*>(node->getParent()); // Node is not underfilled, no action needed
+            }
+
+            if (detail::noisy) {
+                printf("Trying to merge internal node %p %zu keys %s\n",
+                       (void*)node, node->count(), node->isLeaf() ? "leaf" : "internal");
             }
 
             if (node->isRootNode()) {
@@ -1676,12 +1848,17 @@ namespace sm {
             }
         }
 
-        void insert(const Key& key, const Value& value) noexcept {
+        OsStatus insert(const Key& key, const Value& value) noexcept {
             if (mRootNode == nullptr) {
                 mRootNode = detail::newNode<LeafNode>(nullptr);
             }
 
-            insertInto(mRootNode, Entry{key, value});
+            if (mRootNode == nullptr) {
+                return OsStatusOutOfMemory;
+            }
+
+            InsertMemoryTracker tracker;
+            return insertInto(mRootNode, Entry{key, value}, tracker);
         }
 
         void remove(const Key& key) noexcept {
@@ -1697,8 +1874,21 @@ namespace sm {
         }
 
         bool contains(const Key& key) const noexcept {
+            if (key == 75065) {
+                printf("Searching for key %d in BTreeMap\n", (int)key);
+                detail::noisy = true;
+            }
+
             if (mRootNode == nullptr) {
+                if (detail::noisy) {
+                    printf("BTreeMap is empty, key %d not found\n", (int)key);
+                }
+
                 return false;
+            }
+
+            if (detail::noisy) {
+                printf("Searching for key %d in BTreeMap\n", (int)key);
             }
 
             return nodeContains(mRootNode, key);
