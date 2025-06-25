@@ -200,6 +200,26 @@ testcases = {
         'sources': files('std/container/btree.cpp'),
         'link_with': [ test_shim ],
     },
+    'btree 128': {
+        'sources': files('std/container/btree.cpp'),
+        'link_with': [ test_shim ],
+        'cpp_args': [ test_cpp_args, '-DBTREE_KEY_SIZE=128' ]
+    },
+    'btree 256': {
+        'sources': files('std/container/btree.cpp'),
+        'link_with': [ test_shim ],
+        'cpp_args': [ test_cpp_args, '-DBTREE_KEY_SIZE=256' ]
+    },
+    'btree 1024': {
+        'sources': files('std/container/btree.cpp'),
+        'link_with': [ test_shim ],
+        'cpp_args': [ test_cpp_args, '-DBTREE_KEY_SIZE=1024' ]
+    },
+    'btree 2048': {
+        'sources': files('std/container/btree.cpp'),
+        'link_with': [ test_shim ],
+        'cpp_args': [ test_cpp_args, '-DBTREE_KEY_SIZE=2048' ]
+    },
     'spinlock': {
         'sources': files('std/spinlock.cpp'),
     },

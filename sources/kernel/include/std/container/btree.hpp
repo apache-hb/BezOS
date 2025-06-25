@@ -13,8 +13,6 @@
 #include <stdlib.h>
 
 namespace sm::detail {
-    bool noisy = false;
-
     enum class InsertResult {
         eSuccess,
         eFull,
@@ -1374,14 +1372,8 @@ namespace sm {
 
         bool nodeContains(const LeafNode *node, const Key& key) const noexcept {
             if (node->isLeaf()) {
-                if (detail::noisy) {
-                    printf("Checking if leaf node %p contains key %d\n", (void*)node, (int)key);
-                }
                 return node->find(key) != nullptr;
             } else {
-                if (detail::noisy) {
-                    printf("Checking if internal node %p contains key %d\n", (void*)node, (int)key);
-                }
                 const auto *internal = static_cast<const InternalNode*>(node);
                 size_t index = internal->findChildIndex(key);
                 if (index != 0 && internal->key(index - 1) == key) {
@@ -1405,11 +1397,6 @@ namespace sm {
                 LeafNode *tmp = parent->getLeaf(index - 1);
                 adjacentNode = node;
                 node = tmp;
-            }
-
-            if (detail::noisy) {
-                printf("Rebalancing leaf node %p with adjacent node %p %zu %zu\n", (void*)node, (void*)adjacentNode,
-                       node->count(), adjacentNode->count());
             }
 
             Common::rebalanceOrMergeLeaf(node, adjacentNode);
@@ -1452,11 +1439,6 @@ namespace sm {
             Promotion promoted = promoteBack(child);
             internal->emplace(index, promoted.entry);
 
-            if (detail::noisy) {
-                printf("Promoted entry %d from child %p to internal node %p %zu\n",
-                       (int)promoted.entry.key, (void*)promoted.leaf, (void*)internal, node->count());
-            }
-
             return promoted.leaf;
         }
 
@@ -1468,15 +1450,9 @@ namespace sm {
         Promotion promoteBack(LeafNode *node) {
             KM_ASSERT(node->count() > 0);
             if (node->isLeaf()) {
-                if (detail::noisy) {
-                    printf("Promoting back from leaf node %p %zu\n", (void*)node, node->count());
-                }
                 return Promotion { node->popBack(), node };
             } else {
                 InternalNode *internal = static_cast<InternalNode*>(node);
-                if (detail::noisy) {
-                    printf("Promoting back from internal node %p %zu\n", (void*)internal, internal->count());
-                }
                 Promotion promoted = promoteBack(internal->getLeaf(internal->count()));
                 return promoted;
             }
@@ -1536,17 +1512,9 @@ namespace sm {
         void eraseFromNode(MutIterator it) {
             LeafNode *node = eraseNodeElement(it);
 
-            if (detail::noisy) {
-                printf("erase node %p %zu\n", (void*)node, node->count());
-            }
-
             KM_ASSERT(node->isLeaf());
             if (!node->isRootNode()) {
                 InternalNode *parent = static_cast<InternalNode*>(node->getParent());
-                if (detail::noisy) {
-                    printf("erase parent %p %zu\n", (void*)parent, parent->count());
-                }
-
                 rebalanceInnerLeafNode(node);
                 mergeRecursive(parent);
             } else {
@@ -1557,17 +1525,11 @@ namespace sm {
         bool mergeRootNodeIfNeeded(LeafNode *node) noexcept {
             if (node->count() == 0) {
                 if (node->isLeaf()) {
-                    if (detail::noisy) {
-                        printf("Root leaf %p is empty, deleting it\n", (void*)node);
-                    }
                     // root node is empty, delete it
                     KM_ASSERT(mRootNode == node);
                     mRootNode = nullptr;
                     detail::releaseNodeMemory<Key, Value>(node);
                 } else {
-                    if (detail::noisy) {
-                        printf("Root internal node %p is empty, promoting child\n", (void*)node);
-                    }
                     InternalNode *internal = static_cast<InternalNode*>(node);
                     KM_ASSERT(internal->count() == 0);
                     KM_ASSERT(internal->child(0) != nullptr);
@@ -1590,11 +1552,6 @@ namespace sm {
                     size_t lhsCount = lhs->count();
                     size_t rhsCount = rhs->count();
                     bool canMerge = (lhsCount + rhsCount) < LeafNode::maxCapacity();
-                    if (detail::noisy) {
-                        printf("Root node has leaf children, %zu + %zu = %zu, can merge: %s\n",
-                               lhsCount, rhsCount, lhsCount + rhsCount,
-                               canMerge ? "yes" : "no");
-                    }
                     if (canMerge) {
                         internal->mergeLeafNodes(lhs, rhs);
                     } else {
@@ -1607,11 +1564,6 @@ namespace sm {
                     size_t rhsCount = rhsInternal->leafCount();
                     bool canMerge = (lhsCount + rhsCount) <= InternalNode::leafCapacity();
 
-                    if (detail::noisy) {
-                        printf("Root node has internal children, %zu + %zu = %zu, can merge: %s\n",
-                               lhsCount, rhsCount, lhsCount + rhsCount,
-                               canMerge ? "yes" : "no");
-                    }
                     if (canMerge) {
                         internal->mergeInternalNodes(lhsInternal, rhsInternal);
                     } else {
@@ -1642,11 +1594,6 @@ namespace sm {
         InternalNode *mergeInnerNodeIfNeeded(InternalNode *node) noexcept {
             if (!node->isUnderFilled()) {
                 return static_cast<InternalNode*>(node->getParent()); // Node is not underfilled, no action needed
-            }
-
-            if (detail::noisy) {
-                printf("Trying to merge internal node %p %zu keys %s\n",
-                       (void*)node, node->count(), node->isLeaf() ? "leaf" : "internal");
             }
 
             if (node->isRootNode()) {
@@ -1890,21 +1837,8 @@ namespace sm {
         }
 
         bool contains(const Key& key) const noexcept {
-            if (key == 646206) {
-                printf("Searching for key %d in BTreeMap\n", (int)key);
-                detail::noisy = true;
-            }
-
             if (mRootNode == nullptr) {
-                if (detail::noisy) {
-                    printf("BTreeMap is empty, key %d not found\n", (int)key);
-                }
-
                 return false;
-            }
-
-            if (detail::noisy) {
-                printf("Searching for key %d in BTreeMap\n", (int)key);
             }
 
             return nodeContains(mRootNode, key);

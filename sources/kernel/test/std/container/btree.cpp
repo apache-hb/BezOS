@@ -6,7 +6,11 @@
 using namespace sm;
 using namespace sm::detail;
 
-struct alignas(128) BigKey {
+#ifndef BTREE_KEY_SIZE
+#   define BTREE_KEY_SIZE sizeof(int)
+#endif
+
+struct alignas(BTREE_KEY_SIZE) BigKey {
     int key;
 
     BigKey(int k = 0) noexcept
@@ -34,14 +38,6 @@ public:
 
     static void SetUpTestSuite() {
         setbuf(stdout, nullptr);
-    }
-
-    void SetUp() override {
-        detail::noisy = false;
-    }
-
-    void TearDown() override {
-        detail::noisy = false;
     }
 
     using Key = BigKey;
@@ -912,30 +908,14 @@ TEST_F(BTreeTest, EraseAll) {
         return key;
     };
 
-    tree.dump();
-
     while (!expected.empty()) {
         auto key = takeRandomKey();
-        printf("Removing key: %d\n", (int)key);
-        if (key == 653896) {
-            tree.dump();
-            detail::noisy = true;
-        }
-
         bool contains = tree.contains(key);
-        if (!contains) {
-            tree.dump();
-        }
-
         ASSERT_TRUE(contains) << "Key " << key << " not found in BTreeMap before removal";
         tree.remove(key);
         ASSERT_FALSE(tree.contains(key)) << "Key " << key << " found in BTreeMap after removal";
         ASSERT_FALSE(tree.contains(key)) << "Key " << key << " found in BTreeMap after removal";
         ASSERT_TRUE(expected.find(key) == expected.end()) << "Key " << key << " found in expected map after removal";
-
-        if (key == 653896) {
-            tree.dump();
-        }
     }
 }
 
