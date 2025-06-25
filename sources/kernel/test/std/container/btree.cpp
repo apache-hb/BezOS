@@ -917,7 +917,7 @@ TEST_F(BTreeTest, EraseAll) {
     while (!expected.empty()) {
         auto key = takeRandomKey();
         printf("Removing key: %d\n", (int)key);
-        if (key == 404939) {
+        if (key == 653896) {
             tree.dump();
             detail::noisy = true;
         }
@@ -933,7 +933,7 @@ TEST_F(BTreeTest, EraseAll) {
         ASSERT_FALSE(tree.contains(key)) << "Key " << key << " found in BTreeMap after removal";
         ASSERT_TRUE(expected.find(key) == expected.end()) << "Key " << key << " found in expected map after removal";
 
-        if (key == 404939) {
+        if (key == 653896) {
             tree.dump();
         }
     }

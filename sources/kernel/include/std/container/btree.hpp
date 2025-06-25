@@ -247,11 +247,11 @@ namespace sm::detail {
             }
 
             constexpr size_t leastCount() const noexcept {
-                return std::max(1zu, (capacity() / 2) - 1);
+                return Leaf::minCapacity();
             }
 
             constexpr size_t capacity() const noexcept {
-                return kOrder;
+                return Leaf::maxCapacity();
             }
 
             constexpr static size_t maxCapacity() noexcept {
@@ -1546,6 +1546,7 @@ namespace sm {
                 if (detail::noisy) {
                     printf("erase parent %p %zu\n", (void*)parent, parent->count());
                 }
+
                 rebalanceInnerLeafNode(node);
                 mergeRecursive(parent);
             } else {
@@ -1553,15 +1554,30 @@ namespace sm {
             }
         }
 
-        void mergeRootNodeIfNeeded(LeafNode *node) noexcept {
+        bool mergeRootNodeIfNeeded(LeafNode *node) noexcept {
             if (node->count() == 0) {
-                if (detail::noisy) {
-                    printf("Root node %p is empty, deleting it\n", (void*)node);
+                if (node->isLeaf()) {
+                    if (detail::noisy) {
+                        printf("Root leaf %p is empty, deleting it\n", (void*)node);
+                    }
+                    // root node is empty, delete it
+                    KM_ASSERT(mRootNode == node);
+                    mRootNode = nullptr;
+                    detail::releaseNodeMemory<Key, Value>(node);
+                } else {
+                    if (detail::noisy) {
+                        printf("Root internal node %p is empty, promoting child\n", (void*)node);
+                    }
+                    InternalNode *internal = static_cast<InternalNode*>(node);
+                    KM_ASSERT(internal->count() == 0);
+                    KM_ASSERT(internal->child(0) != nullptr);
+                    LeafNode *child = internal->child(0);
+                    child->setParent(nullptr);
+                    mRootNode = child;
+                    detail::releaseNodeMemory<Key, Value>(internal);
                 }
-                // root node is empty, delete it
-                KM_ASSERT(mRootNode == node);
-                mRootNode = nullptr;
-                detail::releaseNodeMemory<Key, Value>(node);
+
+                return true;
             } else if (node->count() == 1 && !node->isLeaf()) {
                 InternalNode *internal = static_cast<InternalNode*>(node);
                 LeafNode *lhs = internal->child(0);
@@ -1582,7 +1598,7 @@ namespace sm {
                     if (canMerge) {
                         internal->mergeLeafNodes(lhs, rhs);
                     } else {
-                        return;
+                        return false;
                     }
                 } else {
                     InternalNode *lhsInternal = static_cast<InternalNode*>(lhs);
@@ -1599,7 +1615,7 @@ namespace sm {
                     if (canMerge) {
                         internal->mergeInternalNodes(lhsInternal, rhsInternal);
                     } else {
-                        return;
+                        return false;
                     }
                 }
 
@@ -1610,7 +1626,11 @@ namespace sm {
                 if (leafChildren) {
                     detail::releaseNodeMemory<Key, Value>(rhs);
                 }
+
+                return true;
             }
+
+            return false;
         }
 
         void mergeRecursive(InternalNode *parent) noexcept {
@@ -1636,11 +1656,7 @@ namespace sm {
 
             InternalNode *parent = static_cast<InternalNode*>(node->getParent());
 
-            if (!node->isRootNode()) {
-                if (node->isUnderFilled()) {
-                    rebalanceInnerInternalNode(static_cast<InternalNode*>(node));
-                }
-            }
+            rebalanceInnerInternalNode(static_cast<InternalNode*>(node));
 
             return parent;
         }
@@ -1874,7 +1890,7 @@ namespace sm {
         }
 
         bool contains(const Key& key) const noexcept {
-            if (key == 75065) {
+            if (key == 646206) {
                 printf("Searching for key %d in BTreeMap\n", (int)key);
                 detail::noisy = true;
             }
