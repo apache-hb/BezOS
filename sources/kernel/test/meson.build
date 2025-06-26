@@ -216,26 +216,31 @@ testcases = {
     'btree': {
         'sources': files('std/container/btree.cpp'),
         'link_with': [ test_shim ],
+        'timeout': 60,
     },
     'btree 128': {
         'sources': files('std/container/btree.cpp'),
         'link_with': [ test_shim ],
-        'cpp_args': [ test_cpp_args, '-DBTREE_KEY_SIZE=128' ]
+        'cpp_args': [ test_cpp_args, '-DBTREE_KEY_SIZE=128' ],
+        'timeout': 30,
     },
     'btree 256': {
         'sources': files('std/container/btree.cpp'),
         'link_with': [ test_shim ],
-        'cpp_args': [ test_cpp_args, '-DBTREE_KEY_SIZE=256' ]
+        'cpp_args': [ test_cpp_args, '-DBTREE_KEY_SIZE=256' ],
+        'timeout': 30,
     },
     'btree 1024': {
         'sources': files('std/container/btree.cpp'),
         'link_with': [ test_shim ],
-        'cpp_args': [ test_cpp_args, '-DBTREE_KEY_SIZE=1024' ]
+        'cpp_args': [ test_cpp_args, '-DBTREE_KEY_SIZE=1024' ],
+        'timeout': 30,
     },
     'btree 2048': {
         'sources': files('std/container/btree.cpp'),
         'link_with': [ test_shim ],
-        'cpp_args': [ test_cpp_args, '-DBTREE_KEY_SIZE=2048' ]
+        'cpp_args': [ test_cpp_args, '-DBTREE_KEY_SIZE=2048' ],
+        'timeout': 30,
     },
     'spinlock': {
         'sources': files('std/spinlock.cpp'),
@@ -304,15 +309,6 @@ testcases = {
         ],
         'link_with': [ libtask_native, test_shim ],
     }
-    # 'rcuptr soak': {
-    #     'sources': [
-    #         files('std/rcuptr_soak.cpp'),
-    #         tlsf.get_variable('sources'),
-    #     ],
-    #     'link_with': [ librcu_native, test_shim ],
-    #     'soak': true,
-    #     'protocol': 'exitcode',
-    # },
 }
 
 ##
@@ -403,7 +399,7 @@ foreach name, setup : testcases
         pie : true,
     )
 
-    timeout = 5
+    timeout = setup.get('timeout', 5)
     suite = 'kernel'
     if setup.get('soak', false)
         timeout = 60 * 5

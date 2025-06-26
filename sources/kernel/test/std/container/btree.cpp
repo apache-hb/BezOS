@@ -864,6 +864,40 @@ TEST_F(BTreeTest, Stats) {
     ASSERT_GT(stats.depth, 0) << "Depth should be greater than 0";
 }
 
+TEST_F(BTreeTest, FindNotFound) {
+    BTreeMap<BigKey, int> tree;
+    std::map<int, int> expected;
+
+    for (size_t i = 0; i < 1000; i++) {
+        int key = i;
+        int v = i * 10;
+        tree.insert(key, v);
+        expected[key] = v;
+    }
+
+    for (const auto& [key, value] : expected) {
+        auto it = tree.find(key);
+        ASSERT_NE(it, tree.end()) << "Key " << key << " not found in BTreeMap";
+    }
+
+    {
+        auto it = tree.find(-1);
+        ASSERT_EQ(it, tree.end()) << "Find should return end iterator for negative key";
+    }
+    {
+        auto it = tree.find(1001);
+        ASSERT_EQ(it, tree.end()) << "Find should return end iterator for key greater than max";
+    }
+    {
+        auto it = tree.find(INT_MAX);
+        ASSERT_EQ(it, tree.end()) << "Find should return end iterator for non-existent key";
+    }
+    {
+        auto it = tree.find(INT_MIN);
+        ASSERT_EQ(it, tree.end()) << "Find should return end iterator for non-existent key";
+    }
+}
+
 #if 0
 TEST_F(BTreeInternalUpdateTest, MergeInternal) {
     node.mergeInternalNodes(i0, i1);
@@ -893,7 +927,7 @@ TEST_F(BTreeTest, EraseAll) {
     std::uniform_int_distribution<int> dist(0, 1000000);
     std::map<int, int> expected;
 
-    for (size_t i = 0; i < 1000; i++) {
+    for (size_t i = 0; i < 50000; i++) {
         int key = dist(mt);
         int v = i * 10;
         tree.insert(key, v);
@@ -924,7 +958,7 @@ TEST_F(BTreeTest, EraseForwards) {
     std::uniform_int_distribution<int> dist(0, 1000000);
     std::map<int, int> expected;
 
-    for (size_t i = 0; i < 10000; i++) {
+    for (size_t i = 0; i < 50000; i++) {
         int key = dist(mt);
         int v = i * 10;
         tree.insert(key, v);
@@ -943,7 +977,7 @@ TEST_F(BTreeTest, EraseBackwards) {
     std::uniform_int_distribution<int> dist(0, 1000000);
     std::map<int, int> expected;
 
-    for (size_t i = 0; i < 10000; i++) {
+    for (size_t i = 0; i < 50000; i++) {
         int key = dist(mt);
         int v = i * 10;
         tree.insert(key, v);
@@ -963,18 +997,22 @@ TEST_F(BTreeTest, ClearTree) {
     std::uniform_int_distribution<int> dist(0, 1000000);
     std::map<int, int> expected;
 
-    for (size_t i = 0; i < 10000; i++) {
+    for (size_t i = 0; i < 50000; i++) {
         int key = dist(mt);
         int v = i * 10;
         tree.insert(key, v);
         expected[key] = v;
     }
 
+    tree.validate();
+
     ASSERT_EQ(tree.count(), expected.size()) << "BTreeMap count does not match expected size";
 
     tree.clear();
     ASSERT_EQ(tree.count(), 0) << "BTreeMap count should be 0 after clear";
     ASSERT_TRUE(tree.isEmpty()) << "BTreeMap should be empty after clear";
+
+    tree.validate();
 
     auto stats = tree.stats();
     ASSERT_EQ(stats.leafCount, 0) << "Leaf count should be 0 after clear";

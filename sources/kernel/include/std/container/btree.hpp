@@ -479,7 +479,8 @@ namespace sm::detail {
                         return i;
                     }
                 }
-                return SIZE_MAX; // Not found
+
+                KM_PANIC("Leaf not found in internal node");
             }
 
             bool containsLeafInNode(const Leaf *leaf) const noexcept {
@@ -773,49 +774,6 @@ namespace sm::detail {
                 return InsertResult::eSuccess;
             }
 
-            void transferTo(Internal *other, size_t count) noexcept {
-                other->setCount(count - 1);
-                for (size_t i = 0; i < count - 1; i++) {
-                    other->key(i) = key(i + count + 1);
-                    other->value(i) = value(i + count + 1);
-                }
-
-                for (size_t i = 0; i < count; i++) {
-                    Leaf *childNode = child(i + count + 1);
-                    other->takeChild(i, childNode);
-                }
-
-                setCount(count);
-            }
-
-            /// @brief Split the internal node into two nodes to accommodate a new entry.
-            void splitInto(Internal *other, const Entry& entry, Entry *midpoint) noexcept {
-                // guardrails
-                KM_ASSERT(other->count() == 0);
-                KM_ASSERT(this->count() == this->capacity());
-                KM_ASSERT(!this->isLeaf());
-                KM_ASSERT(!other->isLeaf());
-
-                const size_t half = capacity() / 2;
-
-                Entry middle = {key(half), value(half)};
-
-                transferTo(other, half);
-
-                if (entry.key < maxKey()) {
-                    this->insert(entry);
-                    *midpoint = this->popBack();
-                } else if (entry.key < middle.key) {
-                    other->insert(middle);
-                    *midpoint = entry;
-                } else {
-                    *midpoint = middle;
-                }
-
-                KM_ASSERT(this->count() >= this->leastCount());
-                KM_ASSERT(other->count() >= other->leastCount());
-            }
-
             void transferInto(Internal *other, Entry *midpoint) noexcept {
                 // 512: (capacity() = 7, half = 3)
                 // 256: (capacity() = 15, half = 7)
@@ -1085,6 +1043,9 @@ namespace sm::detail {
             if (node->isLeaf()) {
                 node->splitInto(newNode, entry, midpoint);
             } else {
+                // TODO: this branch has no coverage
+                // it is invoked by splitRootNode but it would seem that the root node is never split
+                // while its an internal node, which doesnt make sense.
                 Internal *internalNode = static_cast<Internal*>(node);
                 Internal *otherInternal = static_cast<Internal*>(newNode);
                 internalNode->splitInto(otherInternal, entry, midpoint);
