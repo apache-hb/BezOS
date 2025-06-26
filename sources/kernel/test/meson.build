@@ -1,4 +1,9 @@
-bench = dependency('benchmark-main', native : true, default_options : [ 'tests=disabled' ])
+bench = dependency('benchmark-main',
+    native : true,
+    default_options : [
+        'tests=disabled',
+    ]
+)
 
 test_sanitize_args = [
     '-fsanitize=nullability'
@@ -101,6 +106,15 @@ test_shim = static_library('test_shim', test_shim_src,
     native : true,
 )
 
+test_shim_bench = static_library('test_shim_bench', test_shim_src,
+    include_directories : inc,
+    c_args : test_c_args,
+    cpp_args : test_cpp_args,
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
+    native : true,
+    override_options : [ 'b_sanitize=none', 'b_coverage=false' ],
+)
+
 fs_test_shim = static_library('fs_test_shim', fs_test_src,
     include_directories : inc,
     c_args : test_c_args + test_sanitize_args,
@@ -148,6 +162,9 @@ benchcases = {
     'ringbuffer': {
         'sources': files('bench/ringbuffer.cpp'),
         'link_with': [ libformat_bench ],
+    },
+    'btree': {
+        'sources': files('std/container/btree_bench.cpp'),
     }
 }
 
@@ -349,6 +366,21 @@ testcases += {
         'link_with': [ librcu_native, test_shim ],
         'soak': true,
         'protocol': 'exitcode',
+    },
+    'btree stress': {
+        'sources': [
+            files('std/container/btree_stress.cpp'),
+        ],
+        'link_with': [ test_shim ],
+        'soak': true,
+        'protocol': 'exitcode',
+    },
+    'btree fuzz': {
+        'sources': [
+            files('std/container/btree_fuzz.cpp'),
+        ],
+        'link_with': [ test_shim ],
+        'soak': true,
     },
 }
 

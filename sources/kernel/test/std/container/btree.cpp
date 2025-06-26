@@ -957,3 +957,28 @@ TEST_F(BTreeTest, EraseBackwards) {
         ASSERT_FALSE(tree.contains(key)) << "Key " << key << " found in BTreeMap after removal";
     }
 }
+
+TEST_F(BTreeTest, ClearTree) {
+    BTreeMap<BigKey, int> tree;
+    std::uniform_int_distribution<int> dist(0, 1000000);
+    std::map<int, int> expected;
+
+    for (size_t i = 0; i < 10000; i++) {
+        int key = dist(mt);
+        int v = i * 10;
+        tree.insert(key, v);
+        expected[key] = v;
+    }
+
+    ASSERT_EQ(tree.count(), expected.size()) << "BTreeMap count does not match expected size";
+
+    tree.clear();
+    ASSERT_EQ(tree.count(), 0) << "BTreeMap count should be 0 after clear";
+    ASSERT_TRUE(tree.isEmpty()) << "BTreeMap should be empty after clear";
+
+    auto stats = tree.stats();
+    ASSERT_EQ(stats.leafCount, 0) << "Leaf count should be 0 after clear";
+    ASSERT_EQ(stats.internalNodeCount, 0) << "Internal node count should be 0 after clear";
+    ASSERT_EQ(stats.memoryUsage, 0) << "Memory usage should be 0 after clear";
+    ASSERT_EQ(stats.depth, 0) << "Depth should be 0 after clear";
+}

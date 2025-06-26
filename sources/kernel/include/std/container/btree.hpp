@@ -1805,10 +1805,7 @@ namespace sm {
         UTIL_NOMOVE(BTreeMap);
 
         ~BTreeMap() noexcept {
-            if (mRootNode) {
-                Common::deleteNode(mRootNode);
-                mRootNode = nullptr;
-            }
+            clear();
         }
 
         OsStatus insert(const Key& key, const Value& value) noexcept {
@@ -1875,6 +1872,17 @@ namespace sm {
             }
 
             return countElements();
+        }
+
+        bool isEmpty() const noexcept {
+            return mRootNode == nullptr;
+        }
+
+        void clear() noexcept {
+            if (mRootNode) {
+                Common::deleteNode(mRootNode);
+                mRootNode = nullptr;
+            }
         }
 
         void dump() const noexcept {
