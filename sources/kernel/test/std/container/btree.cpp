@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "std/container/btree.hpp"
+#include "absl/container/btree_map.h"
 #include <random>
 
 using namespace sm;
@@ -1021,4 +1022,60 @@ TEST_F(BTreeTest, ClearTree) {
     ASSERT_EQ(stats.internalNodeCount, 0) << "Internal node count should be 0 after clear";
     ASSERT_EQ(stats.memoryUsage, 0) << "Memory usage should be 0 after clear";
     ASSERT_EQ(stats.depth, 0) << "Depth should be 0 after clear";
+}
+
+TEST_F(BTreeTest, CustomAllocator) {
+    static std::mt19937 mt(0x1234);
+    static std::uniform_int_distribution<int> dist(0, 10);
+
+    struct FlakeyAllocator {
+        void *allocate(size_t size) {
+            int chance = dist(mt);
+            if (chance == 0 || chance == 1) {
+                return nullptr;
+            }
+
+            return malloc(size);
+        }
+
+        void *allocateAligned(size_t size, size_t alignment) {
+            int chance = dist(mt);
+            if (chance == 0 || chance == 1) {
+                return nullptr;
+            }
+
+            return aligned_alloc(alignment, size);
+        }
+
+        void deallocate(void *ptr, size_t) noexcept {
+            free(ptr);
+        }
+    };
+
+    FlakeyAllocator flakey;
+    BTreeMap<BigKey, int, std::less<BigKey>, std::equal_to<BigKey>, FlakeyAllocator> tree(flakey);
+    absl::btree_map<int, int> baseline;
+
+    int oomCount = 0;
+
+    for (size_t i = 0; i < 10000; i++) {
+        OsStatus status = tree.insert(i, i * 10);
+        if (status == OsStatusSuccess) {
+            baseline.insert({i, i * 10});
+        } else {
+            ASSERT_EQ(status, OsStatusOutOfMemory) << "Unexpected status: " << status;
+            oomCount += 1;
+        }
+    }
+
+    ASSERT_NE(oomCount, 0) << "Expected some out-of-memory errors during insertion";
+
+    ASSERT_EQ(tree.count(), baseline.size()) << "BTreeMap count does not match baseline size";
+    for (const auto& [key, value] : baseline) {
+        auto it = tree.find(key);
+        auto [foundKey, foundValue] = *it;
+        ASSERT_NE(it, tree.end()) << "Key " << key << " not found in BTreeMap";
+        ASSERT_EQ(foundKey, key) << "Found key does not match expected key";
+        ASSERT_EQ(foundValue, value) << "Found value does not match expected value";
+    }
 }
