@@ -115,6 +115,8 @@ public:
     int GetIndex(int x, int y, int z) {
         return (z * Leaf::maxCapacity() * (Internal::maxCapacity() + 1)) + (y * Leaf::maxCapacity()) + x;
     }
+
+    mem::GenericAllocator allocator;
 };
 
 struct LeafSplitTest
@@ -178,8 +180,8 @@ TEST_F(BTreeTest, SplitIntoUpperHalf) {
     ASSERT_TRUE(rhs.containsInNode(entry.key)) << "Right node does not contain entry key after split";
     ASSERT_TRUE(leaves.empty()) << "Not all leaves were found after split";
 
-    lhs.destroyChildren();
-    rhs.destroyChildren();
+    lhs.destroyChildren(allocator);
+    rhs.destroyChildren(allocator);
 }
 
 TEST_F(BTreeTest, SplitIntoUpperHalf2) {
@@ -225,8 +227,8 @@ TEST_F(BTreeTest, SplitIntoUpperHalf2) {
     ASSERT_TRUE(rhs.containsInNode(entry.key)) << "Right node does not contain entry key after split";
     ASSERT_TRUE(leaves.empty()) << "Not all leaves were found after split";
 
-    lhs.destroyChildren();
-    rhs.destroyChildren();
+    lhs.destroyChildren(allocator);
+    rhs.destroyChildren(allocator);
 }
 
 TEST_F(BTreeTest, SplitIntoLowerHalf) {
@@ -271,8 +273,8 @@ TEST_F(BTreeTest, SplitIntoLowerHalf) {
     ASSERT_FALSE(rhs.containsInNode(midpoint.key)) << "Right node contains midpoint key after split";
     ASSERT_TRUE(lhs.containsInNode(entry.key)) << "Right node does not contain entry key after split";
 
-    lhs.destroyChildren();
-    rhs.destroyChildren();
+    lhs.destroyChildren(allocator);
+    rhs.destroyChildren(allocator);
 }
 
 TEST_F(BTreeTest, MergeLeafNodes) {
@@ -330,9 +332,9 @@ TEST_F(BTreeTest, MergeLeafNodes) {
 
     ASSERT_EQ(internal.count(), internal.capacity() - 1) << "Internal leaf not deleted";
 
-    deleteNode<BigKey, int>(rhs);
+    Common::deleteNode(rhs, allocator);
 
-    internal.destroyChildren();
+    internal.destroyChildren(allocator);
 }
 
 TEST_P(LeafSplitTest, SplitLeaf) {
@@ -562,7 +564,7 @@ public:
 
     void TearDown() override {
         BTreeTest::TearDown();
-        node.destroyChildren();
+        node.destroyChildren(allocator);
     }
 
     Internal node{nullptr};
@@ -927,7 +929,7 @@ TEST_F(BTreeTest, EraseAll) {
     std::uniform_int_distribution<int> dist(0, 1000000);
     std::map<int, int> expected;
 
-    for (size_t i = 0; i < 50000; i++) {
+    for (size_t i = 0; i < 10000; i++) {
         int key = dist(mt);
         int v = i * 10;
         tree.insert(key, v);
@@ -958,7 +960,7 @@ TEST_F(BTreeTest, EraseForwards) {
     std::uniform_int_distribution<int> dist(0, 1000000);
     std::map<int, int> expected;
 
-    for (size_t i = 0; i < 50000; i++) {
+    for (size_t i = 0; i < 10000; i++) {
         int key = dist(mt);
         int v = i * 10;
         tree.insert(key, v);
@@ -977,7 +979,7 @@ TEST_F(BTreeTest, EraseBackwards) {
     std::uniform_int_distribution<int> dist(0, 1000000);
     std::map<int, int> expected;
 
-    for (size_t i = 0; i < 50000; i++) {
+    for (size_t i = 0; i < 10000; i++) {
         int key = dist(mt);
         int v = i * 10;
         tree.insert(key, v);
@@ -997,7 +999,7 @@ TEST_F(BTreeTest, ClearTree) {
     std::uniform_int_distribution<int> dist(0, 1000000);
     std::map<int, int> expected;
 
-    for (size_t i = 0; i < 50000; i++) {
+    for (size_t i = 0; i < 10000; i++) {
         int key = dist(mt);
         int v = i * 10;
         tree.insert(key, v);

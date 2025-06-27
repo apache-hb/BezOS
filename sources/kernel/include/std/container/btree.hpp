@@ -1,5 +1,6 @@
 #pragma once
 
+#include "allocator/allocator.hpp"
 #include "common/util/util.hpp"
 
 #include "std/layout.hpp"
@@ -582,7 +583,8 @@ namespace sm::detail {
                 }
             }
 
-            void mergeInternalNodes(Internal *lhs, Internal *rhs) noexcept {
+            template<mem::Allocator Allocator>
+            void mergeInternalNodes(Internal *lhs, Internal *rhs, Allocator& allocator) noexcept {
                 KM_ASSERT(!lhs->isLeaf() && !rhs->isLeaf());
 
                 size_t lhsIndex = indexOfChild(lhs);
@@ -604,7 +606,7 @@ namespace sm::detail {
                 }
                 setCount(count() - 1);
 
-                releaseNodeMemory<Key, Value>(rhs);
+                BTreeMapCommon::releaseNodeMemory(rhs, allocator);
             }
 
             /// @brief Move the bottom N elements from rhs to lhs.
@@ -843,9 +845,10 @@ namespace sm::detail {
                 Super::emplace(0, entry);
             }
 
-            void destroyChildren() noexcept {
+            template<mem::Allocator Allocator>
+            void destroyChildren(Allocator& allocator) noexcept {
                 for (size_t i = 0; i < count() + 1; i++) {
-                    deleteNode<Key, Value>(child(i));
+                    BTreeMapCommon::deleteNode(child(i), allocator);
                 }
             }
 
@@ -954,11 +957,12 @@ namespace sm::detail {
                 }
             }
 
-            OsStatus allocateMemory() noexcept {
+            template<mem::Allocator Allocator>
+            OsStatus allocateMemory(Allocator& allocator) noexcept {
                 for (size_t i = 0; i < mFullInternalNodes; i++) {
-                    void *node = aligned_alloc(alignof(Internal), sizeof(Internal));
+                    void *node = allocator.allocateAligned(sizeof(Internal), alignof(Internal));
                     if (node == nullptr) {
-                        releaseRemaining();
+                        releaseRemaining(allocator);
                         return OsStatusOutOfMemory;
                     }
 
@@ -981,14 +985,16 @@ namespace sm::detail {
                 return new (ptr) Internal(std::forward<A>(args)...);
             }
 
-            void releaseRemaining() {
+            template<mem::Allocator Allocator>
+            void releaseRemaining(Allocator& allocator) {
                 while (void *node = drainNode()) {
-                    free(node);
+                    allocator.deallocate(node, sizeof(Internal));
                 }
             }
         };
 
-        static void rebalanceOrMergeInternal(Internal *lhs, Internal *rhs) noexcept {
+        template<mem::Allocator Allocator>
+        static void rebalanceOrMergeInternal(Internal *lhs, Internal *rhs, Allocator& allocator) noexcept {
             KM_ASSERT(!lhs->isLeaf() && !rhs->isLeaf());
             KM_ASSERT(lhs->getParent() == rhs->getParent());
 
@@ -1004,13 +1010,14 @@ namespace sm::detail {
             bool canRebalance = (lhsCount + rhsCount) >= (Internal::minCapacity() * 2);
 
             if (!canRebalance) {
-                parent->mergeInternalNodes(lhs, rhs);
+                parent->mergeInternalNodes(lhs, rhs, allocator);
             } else {
                 parent->rebalanceInternalNodes(lhs, rhs);
             }
         }
 
-        static void rebalanceOrMergeLeaf(Leaf *lhs, Leaf *rhs) noexcept {
+        template<mem::Allocator Allocator>
+        static void rebalanceOrMergeLeaf(Leaf *lhs, Leaf *rhs, Allocator& allocator) noexcept {
             KM_ASSERT(lhs->isLeaf() && rhs->isLeaf());
             KM_ASSERT(lhs->getParent() == rhs->getParent());
 
@@ -1031,7 +1038,7 @@ namespace sm::detail {
             if (!canRebalance) {
                 // Merge into the left node and delete the right node
                 parent->mergeLeafNodes(lhs, rhs);
-                deleteNode(rhs);
+                BTreeMapCommon::deleteNode(rhs, allocator);
             } else {
                 parent->rebalanceLeafNodes(lhs, rhs);
             }
@@ -1052,20 +1059,23 @@ namespace sm::detail {
             }
         }
 
-        static void deleteNode(TreeNodeHeader *node) noexcept {
+        template<mem::Allocator Allocator>
+        static void deleteNode(TreeNodeHeader *node, Allocator& allocator) noexcept {
             if (!node->isLeaf()) {
                 Internal *internal = static_cast<Internal*>(node);
-                internal->destroyChildren();
+                internal->destroyChildren(allocator);
             }
 
-            releaseNodeMemory(node);
+            releaseNodeMemory(node, allocator);
         }
 
-        static void releaseNodeMemory(TreeNodeHeader *node) noexcept {
+        template<mem::Allocator Allocator>
+        static void releaseNodeMemory(TreeNodeHeader *node, Allocator& allocator) noexcept {
+            bool isLeaf = node->isLeaf();
             Leaf *leaf = static_cast<Leaf*>(node);
             std::destroy_at(leaf);
 
-            free(static_cast<void*>(node));
+            allocator.deallocate(static_cast<void*>(node), isLeaf ? sizeof(Leaf) : sizeof(Internal));
         }
 
         static Key readMinKey(const Leaf *node) noexcept {
@@ -1091,16 +1101,6 @@ namespace sm::detail {
         } else {
             static_cast<const TreeNodeInternal<Key, Value>*>(node)->dump();
         }
-    }
-
-    template<typename Key, typename Value>
-    void deleteNode(TreeNodeHeader *node) noexcept {
-        BTreeMapCommon<Key, Value>::deleteNode(node);
-    }
-
-    template<typename Key, typename Value>
-    void releaseNodeMemory(TreeNodeHeader *node) noexcept {
-        BTreeMapCommon<Key, Value>::releaseNodeMemory(node);
     }
 
     template<typename Key, typename Value>
@@ -1206,7 +1206,8 @@ namespace sm {
         typename Key,
         typename Value,
         typename Compare = std::less<Key>,
-        typename Equal = std::equal_to<Key>
+        typename Equal = std::equal_to<Key>,
+        mem::Allocator Allocator = mem::GenericAllocator
     >
     class BTreeMap {
         using Common = detail::BTreeMapCommon<Key, Value>;
@@ -1217,21 +1218,36 @@ namespace sm {
         using InsertMemoryTracker = typename Common::InsertMemoryTracker;
         using MutIterator = BTreeMapIterator<Key, Value>;
 
+        [[no_unique_address]] Allocator mAllocator;
         LeafNode *mRootNode;
+
+        template<typename T, typename... Args>
+        T *allocateNode(Args&&... args) noexcept {
+            void *ptr = mAllocator.allocateAligned(sizeof(T), alignof(T));
+            if (ptr == nullptr) {
+                return nullptr;
+            }
+            return new (ptr) T(std::forward<Args>(args)...);
+        }
+
+        template<typename T>
+        void destroyNode(T *node) noexcept {
+            Common::deleteNode(node, mAllocator);
+        }
 
         OsStatus splitRootNode(LeafNode *leaf, const Entry& entry) noexcept {
             Entry midpoint;
             bool isLeaf = leaf->isLeaf();
-            InternalNode *newRoot = detail::newNode<InternalNode>(nullptr);
-            LeafNode *newLeaf = isLeaf ? detail::newNode<LeafNode>(newRoot) : detail::newNode<InternalNode>(newRoot);
+            InternalNode *newRoot = allocateNode<InternalNode>(nullptr);
+            LeafNode *newLeaf = isLeaf ? allocateNode<LeafNode>(newRoot) : allocateNode<InternalNode>(newRoot);
 
             if (newRoot == nullptr || newLeaf == nullptr) {
                 if (newRoot) {
-                    detail::deleteNode<Key, Value>(newRoot);
+                    destroyNode(newRoot);
                 }
 
                 if (newLeaf) {
-                    detail::deleteNode<Key, Value>(newLeaf);
+                    destroyNode(newLeaf);
                 }
 
                 return OsStatusOutOfMemory;
@@ -1250,13 +1266,13 @@ namespace sm {
             bool isLeaf = leaf->isLeaf();
             InternalNode *parent = static_cast<InternalNode*>(leaf->getParent());
 
-            if (OsStatus status = tracker.allocateMemory()) {
+            if (OsStatus status = tracker.allocateMemory(mAllocator)) {
                 return status;
             }
 
-            LeafNode *newLeaf = isLeaf ? detail::newNode<LeafNode>(parent) : detail::newNode<InternalNode>(parent);
+            LeafNode *newLeaf = isLeaf ? allocateNode<LeafNode>(parent) : allocateNode<InternalNode>(parent);
             if (newLeaf == nullptr) {
-                tracker.releaseRemaining();
+                tracker.releaseRemaining(mAllocator);
                 return OsStatusOutOfMemory;
             }
 
@@ -1264,7 +1280,7 @@ namespace sm {
 
             insertNewLeaf(parent, newLeaf, midpoint, tracker);
 
-            tracker.releaseRemaining();
+            tracker.releaseRemaining(mAllocator);
 
             return OsStatusSuccess;
         }
@@ -1281,15 +1297,14 @@ namespace sm {
         void splitInternalNode(InternalNode *parent, const Entry& entry, LeafNode *leaf, InsertMemoryTracker& tracker) noexcept {
             InternalNode *newNode = tracker.takeNode(parent->getParent());
 
+            Entry midpoint;
+            parent->splitInternalNode(newNode, ChildEntry{leaf, entry}, &midpoint);
+
             if (parent == mRootNode) {
-                Entry midpoint;
-                parent->splitInternalNode(newNode, ChildEntry{leaf, entry}, &midpoint);
                 InternalNode *newRoot = tracker.takeNode(nullptr);
                 newRoot->initAsRoot(parent, newNode, midpoint);
                 mRootNode = newRoot;
             } else {
-                Entry midpoint;
-                parent->splitInternalNode(newNode, ChildEntry{leaf, entry}, &midpoint);
                 insertNewLeaf(static_cast<InternalNode*>(parent->getParent()), newNode, midpoint, tracker);
             }
         }
@@ -1360,7 +1375,7 @@ namespace sm {
                 node = tmp;
             }
 
-            Common::rebalanceOrMergeLeaf(node, adjacentNode);
+            Common::rebalanceOrMergeLeaf(node, adjacentNode, mAllocator);
         }
 
         void rebalanceInnerInternalNode(InternalNode *node) noexcept {
@@ -1376,7 +1391,7 @@ namespace sm {
                 node = tmp;
             }
 
-            Common::rebalanceOrMergeInternal(node, adjacentNode);
+            Common::rebalanceOrMergeInternal(node, adjacentNode, mAllocator);
         }
 
         LeafNode *eraseFromRootLeafNode(MutIterator it) {
@@ -1489,7 +1504,7 @@ namespace sm {
                     // root node is empty, delete it
                     KM_ASSERT(mRootNode == node);
                     mRootNode = nullptr;
-                    detail::releaseNodeMemory<Key, Value>(node);
+                    Common::releaseNodeMemory(node, mAllocator);
                 } else {
                     InternalNode *internal = static_cast<InternalNode*>(node);
                     KM_ASSERT(internal->count() == 0);
@@ -1497,7 +1512,7 @@ namespace sm {
                     LeafNode *child = internal->child(0);
                     child->setParent(nullptr);
                     mRootNode = child;
-                    detail::releaseNodeMemory<Key, Value>(internal);
+                    Common::releaseNodeMemory(internal, mAllocator);
                 }
 
                 return true;
@@ -1526,7 +1541,7 @@ namespace sm {
                     bool canMerge = (lhsCount + rhsCount) <= InternalNode::leafCapacity();
 
                     if (canMerge) {
-                        internal->mergeInternalNodes(lhsInternal, rhsInternal);
+                        internal->mergeInternalNodes(lhsInternal, rhsInternal, mAllocator);
                     } else {
                         return false;
                     }
@@ -1534,10 +1549,10 @@ namespace sm {
 
                 lhs->setParent(nullptr);
                 mRootNode = lhs;
-                detail::releaseNodeMemory<Key, Value>(internal);
+                Common::releaseNodeMemory(internal, mAllocator);
 
                 if (leafChildren) {
-                    detail::releaseNodeMemory<Key, Value>(rhs);
+                    Common::releaseNodeMemory(rhs, mAllocator);
                 }
 
                 return true;
@@ -1759,7 +1774,13 @@ namespace sm {
         using Iterator = MutIterator;
 
         constexpr BTreeMap() noexcept
-            : mRootNode(nullptr)
+            : mAllocator(Allocator{})
+            , mRootNode(nullptr)
+        { }
+
+        constexpr BTreeMap(Allocator allocator) noexcept
+            : mAllocator(std::move(allocator))
+            , mRootNode(nullptr)
         { }
 
         UTIL_NOCOPY(BTreeMap);
@@ -1771,7 +1792,7 @@ namespace sm {
 
         OsStatus insert(const Key& key, const Value& value) noexcept {
             if (mRootNode == nullptr) {
-                mRootNode = detail::newNode<LeafNode>(nullptr);
+                mRootNode = allocateNode<LeafNode>(nullptr);
             }
 
             if (mRootNode == nullptr) {
@@ -1841,7 +1862,7 @@ namespace sm {
 
         void clear() noexcept {
             if (mRootNode) {
-                Common::deleteNode(mRootNode);
+                destroyNode(mRootNode);
                 mRootNode = nullptr;
             }
         }

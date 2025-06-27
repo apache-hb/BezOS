@@ -111,6 +111,28 @@ namespace mem {
     };
 
     template<typename T>
+    concept Allocator = requires (T it, size_t n, size_t align) {
+        { it.allocate(n) } -> std::same_as<void*>;
+        { it.allocateAligned(n, align) } -> std::same_as<void*>;
+        { it.deallocate(std::declval<T*>(), n) } noexcept;
+    };
+
+    class GenericAllocator {
+    public:
+        void *allocate(size_t size) {
+            return std::malloc(size);
+        }
+
+        void *allocateAligned(size_t size, size_t align) {
+            return std::aligned_alloc(align, size);
+        }
+
+        void deallocate(void *ptr, size_t) noexcept {
+            std::free(ptr);
+        }
+    };
+
+    template<typename T>
     class GlobalAllocator {
     public:
         using value_type = T;
