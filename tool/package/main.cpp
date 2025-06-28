@@ -1373,6 +1373,8 @@ static void ReadPackageBody(XmlNode root, PackageInfo& packageInfo, Scope& scope
             EvalSwitchTag(action, scope, [&](XmlNode child) {
                 ReadPackageBody(child, packageInfo, scope);
             });
+        } else {
+            throw std::runtime_error(std::format("Unknown package step {} in package {}", step, packageInfo.name));
         }
     }
 }

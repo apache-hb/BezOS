@@ -5,6 +5,20 @@
     - `native` programs will run on the build machine.
     -->
 
+    <!--
+    Predefined global variables:
+    - `@REPO@` is the path to the repository.
+    - `@PREFIX@` is the path to the global installation folder.
+    - `@SOURCE@` is the path to the global source folder.
+    - `@BUILD@` is the path to the global build folder.
+
+    Package specific predefined variables:
+    - `@PACKAGE@` is the path to the package folder of the current package.
+    - `@SOURCE_ROOT@` is the path to the source folder for this build.
+    - `@BUILD_ROOT@` is the path to the build folder for this build.
+    - `@INSTALL_ROOT@` is the path to the installation folder for this build.
+    -->
+
     <xi:include href='packages/tools/pkg-config.xml' />
 
     <xi:include href='packages/tools/llvm.xml' />
@@ -40,6 +54,7 @@
 
     <xi:include href='packages/lib/capstone.xml' />
     <xi:include href='packages/tools/gdb.xml' />
+    <xi:include href='packages/tools/aflpp.xml' />
 
     <switch on='${mode}'>
         <case it='debug'>

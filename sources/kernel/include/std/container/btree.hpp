@@ -295,11 +295,7 @@ namespace sm::detail {
                 // guardrails
                 KM_ASSERT(other->count() == 0);
                 KM_ASSERT(this->count() == this->capacity());
-                if (this->find(entry.key) != nullptr) {
-                    printf("Key %d already exists in leaf node %p %d\n", (int)entry.key, (void*)this, this->isLeaf());
-                    this->dump(0);
-                    KM_ASSERT(this->find(entry.key) == nullptr);
-                }
+                KM_ASSERT(this->find(entry.key) == nullptr);
 
                 bool isOdd = (capacity() & 1);
                 size_t half = capacity() / 2;
@@ -324,25 +320,8 @@ namespace sm::detail {
                     *midpoint = other->popFront();
                 }
 
-                if (other->isUnderFilled()) {
-                    printf("New leaf node %p has %zu keys, expected at least %zu (%zu/2) %d\n",
-                            (void*)other, other->count(), other->capacity() / 2, other->capacity(), (int)midpoint->key);
-
-                    this->dump(0);
-                    other->dump(0);
-
-                    KM_ASSERT(!other->isUnderFilled());
-                }
-
-                if (this->isUnderFilled()) {
-                    printf("Current leaf node %p has %zu keys, expected at least %zu (%zu/2) %d\n",
-                            (void*)this, this->count(), this->capacity() / 2, this->capacity(), (int)midpoint->key);
-
-                    this->dump(0);
-                    other->dump(0);
-
-                    KM_ASSERT(!this->isUnderFilled());
-                }
+                KM_ASSERT(!other->isUnderFilled());
+                KM_ASSERT(!this->isUnderFilled());
             }
 
             void validate() const noexcept {
@@ -750,11 +729,7 @@ namespace sm::detail {
                 }
 
                 for (size_t i = 0; i < n; i++) {
-                    if (key(i) == entry.key) {
-                        printf("Key %d already exists in internal node %p at %zu\n", (int)entry.key, (void*)this, i);
-                        dump(0);
-                        KM_ASSERT(key(i) != entry.key);
-                    }
+                    KM_ASSERT(key(i) != entry.key);
 
                     if (entry.key < key(i)) {
                         // Shift the keys and values to make space for the new key.

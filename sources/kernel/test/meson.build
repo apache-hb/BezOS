@@ -242,6 +242,11 @@ testcases = {
         'cpp_args': [ test_cpp_args, '-DBTREE_KEY_SIZE=2048' ],
         'timeout': 30,
     },
+    'btree string': {
+        'sources': files('std/container/btree_string.cpp'),
+        'link_with': [ test_shim ],
+        'timeout': 30,
+    },
     'spinlock': {
         'sources': files('std/spinlock.cpp'),
     },

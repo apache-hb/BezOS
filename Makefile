@@ -8,14 +8,19 @@ PREFIX := install
 PKGTOOL := install/tool/bin/package.elf
 PKGTOOL_MESON := build/tool/build.ninja
 PKGTOOL_SRC := tool/package/main.cpp tool/meson.build
+PKGTOOL_BUILD := $(BUILDDIR)/tool
 
 $(PKGTOOL_MESON): $(PKGTOOL_SRC)
 	-(cd tool && meson setup $(ROOT)/build/tool --prefix $(ROOT)/install/tool) > /dev/null
 
 $(PKGTOOL): $(PKGTOOL_MESON) $(PKGTOOL_SRC)
-	meson install -C build/tool --quiet
+	meson install -C $(PKGTOOL_BUILD) --quiet
 
 pkgtool: $(PKGTOOL)
+
+.PHONY: pkgtool-clean
+pkgtool-clean:
+	@rm -rf $(PKGTOOL_BUILD)
 
 # repo building with pkgtool
 

@@ -1,0 +1,23 @@
+<package name='afl++'>
+    <download file='afl-v4.32c.tar.gz'
+              url='https://github.com/AFLplusplus/AFLplusplus/archive/refs/tags/v4.32c.tar.gz'
+              sha256='dc7f59a11ce8cf67a3ed09a5ac78028c6f793b239b21fd83e5b2370cea166926'
+              trim-root-folder='true'
+              archive='tar'
+              git='https://github.com/AFLplusplus/AFLplusplus.git'
+              commit='c340a022e2546488c15f85593d0f37e30eeaab3a' />
+
+    <require package='llvm' />
+
+    <build with='script'>
+        <options NO_NYX='1' STATIC='1' NO_PYTHON='1' />
+        <env CC='@PREFIX@/llvm/bin/clang'
+             CXX='@PREFIX@/llvm/bin/clang++'
+             LD='@PREFIX@/llvm/bin/ld.lld'
+             PREFIX='@INSTALL_ROOT@' />
+    </build>
+
+    <install with='make' targets='install'>
+        <env PREFIX='@INSTALL_ROOT@' />
+    </install>
+</package>
