@@ -1202,6 +1202,13 @@ namespace sm {
         }
     };
 
+    /// @brief B-Tree Map.
+    ///
+    /// @tparam Key The type of the keys in the map.
+    /// @tparam Value The type of the values in the map.
+    /// @tparam Compare The comparison function for keys, must be a stateless default constructible object.
+    /// @tparam Equal The equality function for keys, must be a stateless default constructible object.
+    /// @tparam Allocator The allocator to use for memory management.
     template<
         typename Key,
         typename Value,
@@ -1219,6 +1226,8 @@ namespace sm {
         using MutIterator = BTreeMapIterator<Key, Value>;
 
         [[no_unique_address]] Allocator mAllocator;
+        [[no_unique_address]] Compare mCompare{};
+        [[no_unique_address]] Equal mEqual{};
         LeafNode *mRootNode;
 
         template<typename T, typename... Args>

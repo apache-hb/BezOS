@@ -10,12 +10,6 @@ void km::BugCheck(stdx::StringView, std::source_location) noexcept [[clang::nonb
     __builtin_trap();
 }
 
-[[noreturn]]
-void KmBugCheck(stdx::StringView, stdx::StringView, unsigned int) noexcept [[clang::nonblocking]] {
-    assert(false && "KmBugCheck called in benchmark");
-    __builtin_trap();
-}
-
 static void BM_AbseilBtreeInsert(benchmark::State& state) {
     absl::btree_map<int, int> btree;
     std::unique_ptr<int[]> keys(new int[state.range(0)]);
