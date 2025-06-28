@@ -11,7 +11,7 @@ PKGTOOL_SRC := tool/package/main.cpp tool/meson.build
 PKGTOOL_BUILD := $(BUILDDIR)/tool
 
 $(PKGTOOL_MESON): $(PKGTOOL_SRC)
-	-(cd tool && meson setup $(ROOT)/build/tool --prefix $(ROOT)/install/tool) > /dev/null
+	-(cd tool && meson setup $(ROOT)/build/tool --prefix $(ROOT)/install/tool)
 
 $(PKGTOOL): $(PKGTOOL_MESON) $(PKGTOOL_SRC)
 	meson install -C $(PKGTOOL_BUILD) --quiet
@@ -32,7 +32,7 @@ REPO_SRC := $(strip $(shell find repo/ -type f -name "*.xml"))
 
 .PHONY: $(REPO)
 $(REPO): $(PKGTOOL) $(REPO_SRC)
-	$(PKGTOOL) --config $(REPO_CONFIG) --repo $(REPO_DB) --output build --prefix install --workspace bezos.code-workspace --clangd kernel sysapi system
+	$(PKGTOOL) --config $(REPO_CONFIG) --target repo/targets/x86_64.xml --repo $(REPO_DB) --output build --prefix install --workspace bezos.code-workspace --clangd kernel sysapi system
 
 repo: $(REPO) $(REPO_SRC)
 
@@ -112,7 +112,7 @@ ROOT := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 .DEFAULT_GOAL := repo
 
 $(OVMF_CODE) $(OVMF_VARS): $(OVMF_REPOFILE)
-	$(PKGTOOL) --config $(REPO_CONFIG) --repo $(REPO_DB) --output build --prefix install --reinstall ovmf
+	$(PKGTOOL) --config $(REPO_CONFIG) --target repo/targets/x86_64.xml --repo $(REPO_DB) --output build --prefix install --reinstall ovmf
 
 install-ovmf: $(OVMF_CODE) $(OVMF_VARS)
 

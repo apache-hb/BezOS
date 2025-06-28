@@ -376,13 +376,6 @@ testcases += {
         'soak': true,
         'protocol': 'exitcode',
     },
-    'btree fuzz': {
-        'sources': [
-            files('std/container/btree_fuzz.cpp'),
-        ],
-        'link_with': [ test_shim ],
-        'soak': true,
-    },
 }
 
 foreach name, setup : testcases
@@ -415,6 +408,30 @@ foreach name, setup : testcases
         suite : suite,
         protocol : protocol,
         timeout : timeout,
+    )
+endforeach
+
+fuzztests = {
+    'btree': {
+        'sources': files('std/container/btree_fuzz.cpp'),
+    }
+}
+
+foreach name, setup : fuzztests
+    formatted_name = name.strip().replace(' ', '-')
+    exe = executable('test-fuzz-' + formatted_name, setup['sources'],
+        c_args : test_c_args + [ '-fsanitize=fuzzer' ],
+        cpp_args : test_cpp_args + [ '-fsanitize=fuzzer' ],
+        link_args : test_link_args + [ '-fsanitize=fuzzer' ],
+        include_directories : inc,
+        link_with : [ test_shim ],
+        dependencies : [ sysapi, mp_units, common ],
+        override_options : [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
+        native : true,
+    )
+
+    run_target('fuzz-' + formatted_name,
+        command : [ exe ]
     )
 endforeach
 

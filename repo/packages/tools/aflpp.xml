@@ -9,11 +9,13 @@
 
     <require package='llvm' />
 
-    <build with='script'>
-        <options NO_NYX='1' STATIC='1' NO_PYTHON='1' />
+    <build with='make' targets='source-only' cwd='@SOURCE_ROOT@'>
+        <options NO_NYX='1' STATIC='1' NO_PYTHON='1' LLVM_UNSUPPORTED='0' />
         <env CC='@PREFIX@/llvm/bin/clang'
              CXX='@PREFIX@/llvm/bin/clang++'
              LD='@PREFIX@/llvm/bin/ld.lld'
+             CFLAGS='-I@PREFIX@/llvm/include'
+             CXXFLAGS='-I@PREFIX@/llvm/include'
              PREFIX='@INSTALL_ROOT@' />
     </build>
 

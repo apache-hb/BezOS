@@ -179,7 +179,21 @@ enum ConfigureProgram {
     eShell, // run a shell script
     eScript,
     eAutoconf,
+    eMake, // run a Makefile
 };
+
+static std::string_view ConfigureProgramToString(ConfigureProgram program) {
+    switch (program) {
+        case eConfigureNone: return "none";
+        case eMeson: return "meson";
+        case eCMake: return "cmake";
+        case eShell: return "shell";
+        case eScript: return "script";
+        case eAutoconf: return "autoconf";
+        case eMake: return "make";
+    }
+    return "unknown";
+}
 
 struct ScriptExec {
     fs::path script;
@@ -187,12 +201,17 @@ struct ScriptExec {
     std::map<std::string, std::string> env;
 };
 
+// TODO: use this rather than buildstep and configurestep fields
+struct ProgramExecution {
+    ConfigureProgram program{eConfigureNone};
+    std::vector<std::string> args;
+    std::map<std::string, std::string> env;
+    std::map<std::string, std::string> options;
+};
+
 struct ConfigureStep {
     // type of configure step
     ConfigureProgram configure{eConfigureNone};
-
-    // path to shell script to use if shell configure step
-    fs::path shellScript;
 
     // args to pass to shell script
     std::vector<std::string> args;
@@ -215,13 +234,19 @@ struct ConfigureStep {
     // path to meson/cmake native file
     std::string nativeFile;
 
+    // The body of a shell script to run if it was specified inline
+    // instead of a path to a script file.
     std::string scriptBody;
 };
 
 struct BuildStep {
     ConfigureProgram program{eConfigureNone};
 
+    std::string buildToolPath;
+    std::string scriptBody;
+
     std::string targets;
+    std::string cwd;
 
     std::map<std::string, std::string> env;
 
@@ -264,6 +289,8 @@ struct PackageInfo {
     std::vector<RequirePackage> dependencies;
 
     std::vector<ConfigureStep> configureSteps;
+
+    std::vector<BuildStep> buildSteps;
 
     std::vector<ScriptExec> scripts;
 
@@ -343,10 +370,17 @@ static int execute(const std::vector<std::string>& cmd, Args&&... args) {
                         logger.logf("env: {}={}", key, value);
                     }
                 },
-                [&](auto&& arg) { }
+                [&](const auto& arg) { }
             };
 
-            (visitor(std::forward<Args>(args)), ...);
+            std::apply(
+                [&](auto&&... args) {
+                    (visitor(args), ...);
+                },
+                std::forward_as_tuple(std::forward<Args>(args)...)
+            );
+
+            // (visitor(args), ...);
         }
     }
     return sp::call(cmd, std::forward<Args>(args)...);
@@ -1316,6 +1350,62 @@ static void ReadVarElement(XmlNode root, Scope& scope) {
     }
 }
 
+static BuildStep ReadBuildStep(XmlNode root, PackageInfo& packageInfo, Scope& scope) {
+    BuildStep step;
+
+    auto type = scope.GetProperty(root, "with");
+    step.cwd = scope.TryGetProperty(root, "cwd").value_or("");
+    step.program = [&] -> ConfigureProgram {
+        if (type == "meson") return eMeson;
+        if (type == "cmake") return eCMake;
+        if (type == "shell") {
+            step.buildToolPath = scope.GetProperty(root, "script");
+            return eShell;
+        }
+        if (type == "script") {
+            step.scriptBody = root.content();
+            return eScript;
+        }
+        if (type == "make") {
+            step.targets = scope.GetProperty(root, "targets");
+            return eMake;
+        }
+        throw std::runtime_error("Unknown build type: '" + type + "' in package build step '" + packageInfo.name + "'");
+    }();
+
+    for (XmlNode child : root.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
+        if (child.name() == "env"sv) {
+            for (const auto& [key, value] : child.properties()) {
+                std::string option = value;
+                scope.SubstituteVariables(option);
+                if (step.env.contains(key)) {
+                    throw std::runtime_error("Duplicate env variable " + key);
+                }
+                step.env[key] = option;
+            }
+        } else if (child.name() == "arg"sv) {
+            step.args.push_back(child.content());
+        } else if (child.name() == "switch"sv) {
+            EvalSwitchTag(child, scope, [&](XmlNode node) {
+                ReadBuildStep(node, packageInfo, scope);
+            });
+        } else if (child.name() == "options"sv) {
+            for (const auto& [key, value] : child.properties()) {
+                std::string option = value;
+                scope.SubstituteVariables(option);
+                if (step.options.contains(key)) {
+                    throw std::runtime_error("Duplicate option " + key);
+                }
+                step.options[key] = option;
+            }
+        } else {
+            throw std::runtime_error(std::format("Unknown build step element '{}' in package '{}'", child.name(), packageInfo.name));
+        }
+    }
+
+    return step;
+}
+
 static void ReadPackageBody(XmlNode root, PackageInfo& packageInfo, Scope& scope) {
     for (XmlNode action : root.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
         auto step = NodeName(action);
@@ -1373,8 +1463,10 @@ static void ReadPackageBody(XmlNode root, PackageInfo& packageInfo, Scope& scope
             EvalSwitchTag(action, scope, [&](XmlNode child) {
                 ReadPackageBody(child, packageInfo, scope);
             });
+        } else if (step == "build") {
+            packageInfo.buildSteps.push_back(ReadBuildStep(action, packageInfo, scope));
         } else {
-            throw std::runtime_error(std::format("Unknown package step {} in package {}", step, packageInfo.name));
+            throw std::runtime_error(std::format("Unknown package step '{}' in package '{}'", step, packageInfo.name));
         }
     }
 }
@@ -1730,36 +1822,114 @@ static void ConfigurePackage(const PackageInfo& package) {
     gPackageDb->RaiseTargetStatus(package.name, eConfigured);
 }
 
-static void BuildPackage(const PackageInfo& package) {
-    if (!gPackageDb->ShouldRunStep(package.name, eBuilt)) {
-        return;
-    }
-
+static void RunBuildStep(const PackageInfo& package, const BuildStep& step) {
     logger.logf("{}: build", package.name);
 
     auto [out, err] = package.GetLogFiles("build");
 
     std::string builddir = package.GetBuildFolder().string();
+    if (!step.cwd.empty()) {
+        builddir = step.cwd;
+        ReplacePackagePlaceholders(builddir, package);
+    }
 
-    auto buildProgram = package.guessBuildProgram();
+    auto buildProgram = step.program;
+
+    std::map<std::string, std::string> env = step.env;
+    for (auto& [_, value] : env) {
+        ReplacePackagePlaceholders(value, package);
+    }
 
     if (buildProgram == eMeson) {
         logger.logf("{}: build program meson", package.name);
         auto result = execute({ "meson", "compile" }, sp::cwd{builddir});
         if (result != 0) {
+            logger.logf("{}: build failed with exit code {}", package.name, result);
+            logger.logf("Error logs: {}", err.string());
+            logger.logf("Output logs: {}", out.string());
             throw std::runtime_error("Failed to build package " + package.name);
         }
     } else if (buildProgram == eCMake) {
         logger.logf("{}: build program cmake", package.name);
         auto result = execute({ "cmake", "--build", builddir }, sp::cwd{builddir});
         if (result != 0) {
+            logger.logf("{}: build failed with exit code {}", package.name, result);
+            logger.logf("Error logs: {}", err.string());
+            logger.logf("Output logs: {}", out.string());
             throw std::runtime_error("Failed to build package " + package.name);
         }
     } else if (buildProgram == eAutoconf) {
         logger.logf("{}: build program autoconf", package.name);
         auto result = execute({ "make", "-j" + std::to_string(std::thread::hardware_concurrency()), "-Otarget" }, sp::cwd{builddir});
         if (result != 0) {
+            logger.logf("{}: build failed with exit code {}", package.name, result);
+            logger.logf("Error logs: {}", err.string());
+            logger.logf("Output logs: {}", out.string());
             throw std::runtime_error("Failed to build package " + package.name);
+        }
+    } else if (buildProgram == eMake) {
+        logger.logf("{}: build program make", package.name);
+        std::vector<std::string> args = { "make" };
+
+        for (const auto& target : (step.targets | stdv::split(' '))) {
+            std::string targetString = std::string(target.begin(), target.end());
+            ReplacePackagePlaceholders(targetString, package);
+            args.push_back(targetString);
+        }
+
+        for (const auto& arg : step.args) {
+            std::string argString = arg;
+            ReplacePackagePlaceholders(argString, package);
+            args.push_back(argString);
+        }
+
+        for (const auto& [key, value] : step.options) {
+            std::string option = value;
+            ReplacePackagePlaceholders(option, package);
+            args.push_back(key + "=" + option);
+        }
+
+        args.push_back("-j" + std::to_string(std::thread::hardware_concurrency()));
+        auto result = execute(args, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()}, sp::environment{env});
+        if (result != 0) {
+            logger.logf("{}: build failed with exit code {}", package.name, result);
+            logger.logf("Error logs: {}", err.string());
+            logger.logf("Output logs: {}", out.string());
+            throw std::runtime_error("Failed to build package " + package.name);
+        }
+    } else {
+        throw std::runtime_error(std::format("Unknown build program '{}' for '{}'", ConfigureProgramToString(buildProgram), package.name));
+    }
+}
+
+static BuildStep GuessBuildStep(const PackageInfo& package) {
+    assert(package.buildSteps.empty() && "Package already has build steps");
+
+    auto program = package.guessBuildProgram();
+    switch (program) {
+    case eMeson:
+        return BuildStep{ .program = eMeson };
+    case eCMake:
+        return BuildStep{ .program = eCMake };
+    case eAutoconf:
+        return BuildStep{ .program = eAutoconf };
+    default:
+        throw std::runtime_error("Unknown build program for " + package.name);
+    }
+}
+
+static void BuildPackage(const PackageInfo& package) {
+    if (!gPackageDb->ShouldRunStep(package.name, eBuilt)) {
+        return;
+    }
+
+    if (package.buildSteps.empty()) {
+        // Guess the build step if not provided
+        auto step = GuessBuildStep(package);
+        RunBuildStep(package, step);
+    } else {
+        for (const auto& step : package.buildSteps) {
+            RunBuildStep(package, step);
         }
     }
 
@@ -2393,6 +2563,8 @@ int main(int argc, const char **argv) try {
 
     logger.mVerbose = parser.get<bool>("--verbose");
     bool daemon = parser.get<bool>("--daemon");
+    logger.logv("Verbose output enabled");
+
     if (daemon) {
         return RunDaemon(parser);
     } else {

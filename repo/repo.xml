@@ -54,10 +54,10 @@
 
     <xi:include href='packages/lib/capstone.xml' />
     <xi:include href='packages/tools/gdb.xml' />
-    <xi:include href='packages/tools/aflpp.xml' />
 
     <switch on='${mode}'>
         <case it='debug'>
+            <xi:include href='packages/tools/aflpp.xml' />
             <xi:include href='packages/tools/funqual.xml' />
         </case>
     </switch>

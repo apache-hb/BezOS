@@ -1,42 +1,97 @@
-#include <gtest/gtest.h>
+#include "absl/container/btree_map.h"
+#ifdef NDEBUG
+#   undef NDEBUG
+#endif
 
-#include <absl/container/btree_map.h>
+#include <fstream>
+
 #include "std/container/btree.hpp"
-#include <random>
 
-TEST(BTreeFuzzTest, Fuzz) {
-    sm::BTreeMap<int, int> tree;
-    absl::btree_map<int, int> baseline;
+#include <assert.h>
 
-    std::mt19937 mtValues(0x1234);
-    std::mt19937 mtActions(0x5678);
-    std::uniform_int_distribution<int> distValues(INT_MIN, INT_MAX);
-    std::uniform_int_distribution<int> distActions(0, 3); // 0 = insert, 1 = insert, 2 = find, 3 = remove
+struct alignas(256) BigKey {
+    uint32_t key;
 
-    static constexpr size_t kFuzzIterations = 100000;
-    for (size_t i = 0; i < kFuzzIterations; i++) {
-        int key = distValues(mtValues);
-        int value = distValues(mtValues);
-        int action = distActions(mtActions);
-        if (action == 0 || action == 1) { // Insert
+    BigKey(uint32_t k = 0) noexcept
+        : key(k)
+    { }
+
+    constexpr operator int() const noexcept {
+        return key;
+    }
+
+    constexpr auto operator<=>(const BigKey&) const noexcept = default;
+
+    constexpr bool operator==(const BigKey& other) const noexcept {
+        return key == other.key;
+    }
+
+    constexpr bool operator==(uint32_t other) const noexcept {
+        return key == other;
+    }
+};
+
+struct [[gnu::packed]] Action {
+    uint8_t type;
+    uint32_t key;
+    uint32_t value;
+};
+
+size_t getFileSize(std::ifstream &file) {
+    file.seekg(0, std::ios::end);
+    size_t size = file.tellg();
+    file.seekg(0, std::ios::beg);
+    return size;
+}
+
+extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
+    if (size < sizeof(Action)) {
+        return 0; // Not enough data to process any actions
+    }
+
+    std::vector<Action> actions;
+    size_t actionCount = size / sizeof(Action);
+    actions.resize(actionCount + 1);
+    std::memcpy(actions.data(), data, size);
+
+    sm::BTreeMap<BigKey, uint32_t> tree;
+    absl::btree_map<BigKey, uint32_t> baseline;
+
+    for (const auto &action : actions) {
+        uint32_t key = action.key;
+        uint32_t value = action.value;
+        switch (action.type % 3) {
+        case 0: { // Insert
             tree.insert(key, value);
             baseline[key] = value;
-            ASSERT_TRUE(tree.contains(key)) << "Key " << key << " not found in BTreeMap after insertion";
-        } else if (action == 2) { // Find
+
+            assert(baseline.find(key) != baseline.end() && "Key not found in baseline after insert");
+            assert(tree.find(key) != tree.end() && "Key not found in tree after insert");
+            break;
+        }
+        case 1: { // Find
+            auto baselineIt = baseline.find(key);
             auto it = tree.find(key);
             if (it != tree.end()) {
+                assert(baselineIt != baseline.end() && "Key found in tree but not in baseline");
                 auto [foundKey, foundValue] = *it;
-                ASSERT_EQ(foundKey, key);
-                ASSERT_TRUE(baseline.contains(key)) << "Key " << key << " not found in baseline map";
+                assert(foundKey == key && "Found key does not match action key");
+                assert(foundValue == baselineIt->second && "Found value does not match action value");
             } else {
-                ASSERT_FALSE(tree.contains(key));
-                ASSERT_FALSE(baseline.contains(key)) << "Key " << key << " found in baseline map but not in BTreeMap";
+                assert(baselineIt == baseline.end() && "Key not found in tree but exists in baseline");
             }
-        } else if (action == 3) { // Remove
+            break;
+        }
+        case 2: { // Remove
             tree.remove(key);
             baseline.erase(key);
-            ASSERT_FALSE(tree.contains(key));
-            ASSERT_FALSE(baseline.contains(key)) << "Key " << key << " found in baseline map after removal";
+
+            assert(baseline.find(key) == baseline.end() && "Key not removed from baseline");
+            assert(tree.find(key) == tree.end() && "Key not removed from tree");
+            break;
+        }
         }
     }
+
+    return 0;
 }
