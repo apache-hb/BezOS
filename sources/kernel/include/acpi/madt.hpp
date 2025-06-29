@@ -87,6 +87,10 @@ namespace acpi {
 
         const MadtEntry *operator*();
 
+        const MadtEntry *load() const noexcept {
+            return reinterpret_cast<const MadtEntry*>(mCurrent);
+        }
+
         friend bool operator!=(const MadtIterator& lhs, const MadtIterator& rhs);
     };
 
@@ -106,7 +110,7 @@ namespace acpi {
         }
 
         MadtIterator end() const {
-            return MadtIterator { reinterpret_cast<const uint8_t*>(this) + header.length };
+            return MadtIterator { entries + header.length - sizeof(Madt) };
         }
 
         uint32_t ioApicCount() const;
@@ -123,6 +127,12 @@ struct km::Format<acpi::MadtEntryType> {
             return "Local APIC";
         case acpi::MadtEntryType::eIoApic:
             return "IO APIC";
+        case acpi::MadtEntryType::eInterruptSourceOverride:
+            return "Interrupt Source Override";
+        case acpi::MadtEntryType::eNmiSource:
+            return "NMI Source";
+        case acpi::MadtEntryType::eLocalApicNmi:
+            return "Local APIC NMI";
         default:
             return km::Format<uint8_t>::toString(buffer, static_cast<uint8_t>(type));
         }

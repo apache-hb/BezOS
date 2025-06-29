@@ -33,7 +33,7 @@ namespace km {
         void removeAppender(ILogAppender *appender) noexcept;
 
         OsStatus recordMessage(detail::LogMessage message) noexcept [[clang::reentrant]];
-        OsStatus submit(detail::LogMessage message) noexcept [[clang::reentrant]];
+        OsStatus submit(detail::LogMessage message) noexcept [[clang::reentrant, clang::nonallocating]];
 
         template<typename F>
         OsStatus submitImmediate(const Logger *logger, F&& func) noexcept [[clang::reentrant]] {
@@ -50,6 +50,8 @@ namespace km {
 
                     CLANG_DIAGNOSTIC_PUSH();
                     CLANG_DIAGNOSTIC_IGNORE("-Wfunction-effects");
+                    CLANG_DIAGNOSTIC_IGNORE("-Wthread-safety-analysis");
+
                     // Writing to the output is not reentrant, but we hold the lock here so it is safe
                     // to call.
 

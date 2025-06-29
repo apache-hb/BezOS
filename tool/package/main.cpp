@@ -1923,6 +1923,10 @@ static void BuildPackage(const PackageInfo& package) {
         return;
     }
 
+    if (package.buildSteps.empty() && package.configureSteps.empty()) {
+        return;
+    }
+
     if (package.buildSteps.empty()) {
         // Guess the build step if not provided
         auto step = GuessBuildStep(package);

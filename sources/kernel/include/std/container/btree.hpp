@@ -151,7 +151,7 @@ namespace sm::detail {
             InsertResult insert(const Entry& entry) noexcept {
                 size_t n = count();
 
-                for (size_t i = 0; i < n; i++) {
+                for (size_t i = start(); i < n; i++) {
                     if (key(i) == entry.key) {
                         value(i) = entry.value;
                         return InsertResult::eSuccess;
@@ -388,6 +388,7 @@ namespace sm::detail {
             using Super::minKey;
             using Super::maxKey;
             using Super::upperBound;
+            using Super::start;
 
             static constexpr size_t leafCapacity() noexcept {
                 return Leaf::maxCapacity() + 1;
@@ -466,7 +467,7 @@ namespace sm::detail {
             }
 
             bool containsLeafInNode(const Leaf *leaf) const noexcept {
-                for (size_t i = 0; i < count() + 1; i++) {
+                for (size_t i = start(); i < count() + 1; i++) {
                     if (child(i) == leaf) {
                         return true;
                     }
@@ -526,9 +527,22 @@ namespace sm::detail {
 
                 size_t itemsToMove = Leaf::minCapacity() - lhsCount;
                 lhs->insert(middle);
-                for (size_t i = 0; i < itemsToMove; i++) {
-                    lhs->insert(rhs->popFront());
-                }
+
+                size_t newLhsCount = lhs->count();
+                lhs->setCount(newLhsCount + itemsToMove);
+
+                auto lhsKeySet = lhs->keys();
+                auto lhsValueSet = lhs->values();
+                auto rhsKeySet = rhs->keys();
+                auto rhsValueSet = rhs->values();
+
+                std::move(rhsKeySet.begin(), rhsKeySet.begin() + itemsToMove, lhsKeySet.begin() + newLhsCount);
+                std::move(rhsValueSet.begin(), rhsValueSet.begin() + itemsToMove, lhsValueSet.begin() + newLhsCount);
+
+                std::move(rhsKeySet.begin() + itemsToMove, rhsKeySet.end(), rhsKeySet.begin());
+                std::move(rhsValueSet.begin() + itemsToMove, rhsValueSet.end(), rhsValueSet.begin());
+
+                rhs->setCount(rhs->count() - itemsToMove);
 
                 Entry newMiddle = lhs->popBack();
                 key(lhsIndex) = newMiddle.key;

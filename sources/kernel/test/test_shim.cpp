@@ -29,6 +29,14 @@ public:
 void km::LockDebugLog() { }
 void km::UnlockDebugLog() { }
 
+void KmIdle() {
+    while (1) { }
+}
+
+void KmHalt() {
+    while (1) { }
+}
+
 km::IOutStream *km::GetDebugStream() {
     static TestStream sTestStream;
     return &sTestStream;

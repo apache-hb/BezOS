@@ -84,8 +84,8 @@ clean:
 check: | clean-coverage
 	meson test -C $(KERNEL_PATH) --suite kernel --suite pvtest
 
-.PHONY: soak
-soak: | clean-coverage
+.PHONY: stress
+stress: | clean-coverage
 	meson test -C $(KERNEL_PATH) --suite kernel-soak
 
 .PHONY: bench

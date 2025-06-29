@@ -78,10 +78,20 @@ static void PassLoopbackTest(testing::StrictMock<MockSerial>& serial, uint16_t b
     EXPECT_CALL(serial, write8(base + kModemControl, 0x0F));
 }
 
-TEST(SerialTest, OpenSerialOk) {
-    testing::StrictMock<MockSerial> serial(km::com::kComPort1);
-    kmtest::devices().add(&serial);
+class SerialTest : public testing::Test {
+public:
+    testing::StrictMock<MockSerial> serial{km::com::kComPort1};
 
+    void SetUp() override {
+        kmtest::devices().add(&serial);
+    }
+
+    void TearDown() override {
+        kmtest::devices().remove(&serial);
+    }
+};
+
+TEST_F(SerialTest, OpenSerialOk) {
     uint8_t loopback;
     uint8_t scratch;
 
@@ -106,10 +116,7 @@ TEST(SerialTest, OpenSerialOk) {
     EXPECT_EQ(result.status, km::SerialPortStatus::eOk);
 }
 
-TEST(SerialTest, OpenSerialScratchFail) {
-    testing::StrictMock<MockSerial> serial(km::com::kComPort1);
-    kmtest::devices().add(&serial);
-
+TEST_F(SerialTest, OpenSerialScratchFail) {
     uint8_t scratch;
 
     {
@@ -136,10 +143,7 @@ TEST(SerialTest, OpenSerialScratchFail) {
     EXPECT_EQ(result.status, km::SerialPortStatus::eScratchTestFailed);
 }
 
-TEST(SerialTest, OpenSerialLoopbackFail) {
-    testing::StrictMock<MockSerial> serial(km::com::kComPort1);
-    kmtest::devices().add(&serial);
-
+TEST_F(SerialTest, OpenSerialLoopbackFail) {
     uint8_t scratch;
     uint8_t loopback;
 
@@ -176,10 +180,7 @@ TEST(SerialTest, OpenSerialLoopbackFail) {
     EXPECT_EQ(result.status, km::SerialPortStatus::eLoopbackTestFailed);
 }
 
-TEST(SerialTest, SkipLookbackTest) {
-    testing::StrictMock<MockSerial> serial(km::com::kComPort1);
-    kmtest::devices().add(&serial);
-
+TEST_F(SerialTest, SkipLookbackTest) {
     uint8_t scratch;
 
     {
@@ -201,10 +202,7 @@ TEST(SerialTest, SkipLookbackTest) {
     EXPECT_EQ(result.status, km::SerialPortStatus::eOk);
 }
 
-TEST(SerialTest, SkipScratchTest) {
-    testing::StrictMock<MockSerial> serial(km::com::kComPort1);
-    kmtest::devices().add(&serial);
-
+TEST_F(SerialTest, SkipScratchTest) {
     uint8_t loopback;
 
     {

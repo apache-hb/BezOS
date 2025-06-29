@@ -46,6 +46,17 @@ namespace kmtest {
             device->connect(*this);
         }
 
+        void remove(IPeripheral *device) {
+            std::erase(mPeripherals, device);
+            for (auto it = mPortMap.begin(); it != mPortMap.end();) {
+                if (it->second == device) {
+                    it = mPortMap.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        }
+
         void setDefault(IPeripheral *device) {
             mDefault = device;
         }

@@ -298,16 +298,16 @@ testcases = {
         'sources': files('crt.cpp', '../src/crt.cpp'),
     },
     # TODO: these are broken due to some quite arkane issues with abseil and sanitizers
-    # 'serial': {
-    #     'sources': files('serial.cpp', '../src/uart.cpp'),
-    #     'dependencies': [ gmock ],
-    #     'link_with': [ libtest_shim, liblogging_native ],
-    # },
+    'serial': {
+        'sources': files('serial.cpp', '../src/uart.cpp'),
+        'dependencies': [ gmock ],
+        'link_with': [ libtest_shim, liblogging_native ],
+    },
     # 'query': {
     #     'sources': files('system/query.cpp'),
     #     'dependencies': [ mp_units ],
     #     'link_with': [
-    #         test_shim,
+    #         libtest_shim,
     #         librcu_native,
     #         libtlsf_native,
     #         libsystem_native,

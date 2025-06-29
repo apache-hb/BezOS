@@ -6,7 +6,7 @@
 
 bool gContextSwitched = false;
 
-[[noreturn]]
+[[noreturn, clang::optnone]]
 void ContextSwitchHandler(void *rip, void *rsp, void *rbp) {
     gContextSwitched = true;
     asm volatile(
@@ -19,6 +19,7 @@ void ContextSwitchHandler(void *rip, void *rsp, void *rbp) {
     std::unreachable();
 }
 
+[[clang::optnone]]
 void ContextSwitchTestBody(int arg) {
     if (arg != 0) return;
 

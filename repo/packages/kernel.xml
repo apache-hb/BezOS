@@ -10,6 +10,7 @@
     <source path='kernel' />
 
     <configure with='meson'>
+        <options buildtype='release' />
         <cross-file path='@SOURCE_ROOT@/data/kernel.ini' />
         <native-file path='@SOURCE_ROOT@/data/host.ini' />
         <env PKG_CONFIG_PATH_FOR_BUILD="@PREFIX@/capstone/lib/pkgconfig" />

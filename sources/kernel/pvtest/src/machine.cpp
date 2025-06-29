@@ -5,8 +5,10 @@
 
 #include <atomic>
 #include <format>
+#include <linux/prctl.h>
 #include <sys/mman.h>
 #include <rpmalloc.h>
+#include <sys/prctl.h>
 
 static int gSharedMemoryFd = -1;
 static sm::VirtualAddress gSharedHostMemory = nullptr;
@@ -92,6 +94,8 @@ km::VirtualRangeEx pv::Machine::getSharedMemory() {
 }
 
 void pv::Machine::init() {
+    prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY);
+
     PV_POSIX_CHECK((gSharedMemoryFd = memfd_create("pv_host", 0)));
     PV_POSIX_CHECK(ftruncate64(gSharedMemoryFd, kSharedMemorySize));
     PV_POSIX_ASSERT((gSharedHostMemory = mmap(nullptr, kSharedMemorySize, PROT_READ | PROT_WRITE, MAP_SHARED, gSharedMemoryFd, 0)) != MAP_FAILED);

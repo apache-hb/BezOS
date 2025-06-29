@@ -37,7 +37,7 @@ OsStatus km::LogQueue::recordMessage(detail::LogMessage message) noexcept [[clan
     return OsStatusOutOfMemory;
 }
 
-OsStatus km::LogQueue::submit(detail::LogMessage message) noexcept [[clang::reentrant]] {
+OsStatus km::LogQueue::submit(detail::LogMessage message) noexcept [[clang::reentrant, clang::nonallocating]] {
     CLANG_DIAGNOSTIC_PUSH();
     CLANG_DIAGNOSTIC_IGNORE("-Wfunction-effects");
 
@@ -70,7 +70,7 @@ stdx::StringView km::Logger::getName() const noexcept [[clang::reentrant]] {
     return mName;
 }
 
-void km::Logger::submit(LogLevel level, stdx::StringView message, std::source_location location) noexcept [[clang::reentrant]] {
+void km::Logger::submit(LogLevel level, stdx::StringView message, std::source_location location) noexcept [[clang::reentrant, clang::nonallocating]] {
     detail::LogMessage logMessage {
         .level = level,
         .location = location,
@@ -97,6 +97,6 @@ void km::Logger::error(stdx::StringView message, std::source_location location) 
     submit(LogLevel::eError, message, location);
 }
 
-void km::Logger::fatal(stdx::StringView message, std::source_location location) noexcept [[clang::reentrant]] {
+void km::Logger::fatal(stdx::StringView message, std::source_location location) noexcept [[clang::reentrant, clang::nonallocating]] {
     submit(LogLevel::eFatal, message, location);
 }

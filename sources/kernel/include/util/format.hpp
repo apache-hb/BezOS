@@ -331,11 +331,11 @@ namespace km {
     }
 
     template<size_t N, typename... T>
-    inline stdx::StaticString<N> concat(T&&... args) noexcept [[clang::reentrant]] {
+    inline stdx::StaticString<N> concat(T&&... args) noexcept [[clang::reentrant, clang::nonallocating]] {
         struct OutStream final : public IOutStream {
             stdx::StaticString<N> result;
 
-            void write(stdx::StringView message) noexcept [[clang::reentrant]] override {
+            void write(stdx::StringView message) noexcept [[clang::reentrant, clang::nonallocating]] override {
                 result.add(message);
             }
         };

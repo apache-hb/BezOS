@@ -169,7 +169,7 @@ tsan_kwargs = {
     'cpp_args': test_cpp_args,
     'native': true,
     'build_by_default': false,
-    'override_options' : [ 'b_sanitize=thread', 'b_coverage=true', 'b_ndebug=false' ],
+    'override_options' : [ 'b_sanitize=thread', 'b_coverage=false', 'b_ndebug=false' ],
 }
 
 bench_kwargs = {

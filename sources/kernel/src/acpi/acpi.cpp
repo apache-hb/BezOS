@@ -13,6 +13,8 @@ using namespace stdx::literals;
 
 static constinit km::Logger AcpiLog { "ACPI" };
 
+static constexpr bool kLogAcpiHex = true;
+
 static bool ValidateChecksum(const uint8_t *bytes, size_t length) {
     uint32_t sum = 0;
     for (size_t i = 0; i < length; i++) {
@@ -146,6 +148,11 @@ static void DebugHpet(const acpi::Hpet *hpet) {
 
 static void PrintRsdtEntry(const acpi::RsdtHeader *entry, sm::PhysicalAddress paddr) {
     acpi::RsdtHeader table = *entry;
+
+    if constexpr (kLogAcpiHex) {
+        AcpiLog.printlnImmediate(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(entry), table.length)));
+    }
+
     AcpiLog.println("| /SYS/ACPI/", table.signature, "     | Address                     | ", paddr);
     AcpiLog.println("| /SYS/ACPI/", table.signature, "     | Signature                   | '", stdx::StringView(table.signature), "'");
     AcpiLog.println("| /SYS/ACPI/", table.signature, "     | Length                      | ", table.length);
@@ -165,10 +172,6 @@ static void PrintRsdtEntry(const acpi::RsdtHeader *entry, sm::PhysicalAddress pa
     } else if (auto *hpet = acpi::TableCast<acpi::Hpet>(entry)) {
         DebugHpet(hpet);
     }
-
-#if 0
-    AcpiLog.println(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(entry), table.length)));
-#endif
 }
 
 static void PrintRsdt(const acpi::Rsdt *rsdt, const acpi::RsdpLocator *locator) {
@@ -187,7 +190,7 @@ acpi::AcpiTables acpi::InitAcpi(sm::PhysicalAddress rsdpBaseAddress, km::Address
     km::TlsfAllocation rsdpAllocation;
 
     // map the rsdp table
-    const acpi::RsdpLocator *locator = memory.mapConst<acpi::RsdpLocator>(std::bit_cast<sm::PhysicalAddress>(rsdpBaseAddress), &rsdpAllocation);
+    const acpi::RsdpLocator *locator = memory.mapConst<acpi::RsdpLocator>(rsdpBaseAddress, &rsdpAllocation);
 
     // validate that the table is ok to use
     bool rsdpOk = ValidateRsdpLocator(locator);
@@ -202,13 +205,13 @@ acpi::AcpiTables acpi::InitAcpi(sm::PhysicalAddress rsdpBaseAddress, km::Address
 }
 
 acpi::MadtIterator& acpi::MadtIterator::operator++() {
-    uint8_t length = *(mCurrent + 1);
-    mCurrent += length;
+    const MadtEntry *entry = load();
+    mCurrent += entry->length;
     return *this;
 }
 
 const acpi::MadtEntry *acpi::MadtIterator::operator*() {
-    return reinterpret_cast<const MadtEntry*>(mCurrent);
+    return load();
 }
 
 bool acpi::operator!=(const MadtIterator& lhs, const MadtIterator& rhs) {
