@@ -1,10 +1,6 @@
-#include "absl/container/btree_map.h"
-#ifdef NDEBUG
-#   undef NDEBUG
-#endif
-
 #include <fstream>
 
+#include "absl/container/btree_map.h"
 #include "std/container/btree.hpp"
 
 #include <assert.h>

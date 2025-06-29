@@ -1,7 +1,3 @@
-#ifdef NDEBUG
-#   undef NDEBUG
-#endif
-
 #include "std/rcu/atomic.hpp"
 #include "std/rcu.hpp"
 

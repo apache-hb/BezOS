@@ -1,7 +1,3 @@
-#ifdef NDEBUG
-#   undef NDEBUG
-#endif
-
 #include "std/detail/counted.hpp"
 #include "std/rcu.hpp"
 

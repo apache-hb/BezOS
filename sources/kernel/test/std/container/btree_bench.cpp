@@ -29,7 +29,7 @@ static void BM_AbseilBtreeInsert(benchmark::State& state) {
 }
 
 BENCHMARK(BM_AbseilBtreeInsert)
-    ->Range(32, 8 << 10);
+    ->Range(32, 8 << 14);
 
 static void BM_BezosBtreeInsert(benchmark::State& state) {
     sm::BTreeMap<int, int> btree;
@@ -50,4 +50,4 @@ static void BM_BezosBtreeInsert(benchmark::State& state) {
 }
 
 BENCHMARK(BM_BezosBtreeInsert)
-    ->Range(32, 8 << 10);
+    ->Range(32, 8 << 14);

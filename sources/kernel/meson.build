@@ -7,14 +7,6 @@ project('bezos', [ 'c', 'cpp' ],
         'warning_level=3',
         'b_pie=false',
         'b_staticpic=false',
-        'b_ndebug=true',
-        'cpp_eh=none',
-        'cpp_rtti=false',
-        'b_coverage=true',
-        'build.b_coverage=true',
-        'abseil-cpp:b_coverage=false',
-        'benchmark:b_coverage=false',
-        'benchmark:b_sanitize=none',
     ],
     version : '0.0.1',
     license : 'GPL-3.0-only',
@@ -66,7 +58,6 @@ sysapi = subproject('sysapi').get_variable('sysapi_dep')
 common = subproject('common').get_variable('common_dep')
 
 inc = [ inc, absl.get_variable('absl_include_dir'), tlsf.get_variable('includes') ]
-libs = [ absl.get_variable('absl_container_lib') ]
 deps = [ mp_units, sysapi, concurrentqueue, stb_sprintf, common ]
 
 compiler = find_program(cc.get_id())
@@ -135,6 +126,14 @@ kernel_args = [
 kernel_c_args = c_args + kernel_args + sanitizer_args
 kernel_cpp_args = cpp_args + kernel_args + sanitizer_args
 
+test_args = [
+    '-fdebug-prefix-map=../../../=/',
+    '-DNDEBUG_SANITIZER=1'
+]
+
+test_c_args = c_args + test_args
+test_cpp_args = cpp_args + test_args
+
 # Kwargs for different build types
 
 # Kernel - targets the kernel image
@@ -144,41 +143,41 @@ kernel_cpp_args = cpp_args + kernel_args + sanitizer_args
 # Bench - for benchmarks, no sanitizers, no coverage
 
 kernel_kwargs = {
-    'c_args': c_args + kernel_args + sanitizer_args,
-    'cpp_args': cpp_args + kernel_args + sanitizer_args,
-    'override_options': [ 'b_coverage=false' ],
+    'c_args': kernel_c_args,
+    'cpp_args': kernel_cpp_args,
+    'override_options': [ 'b_sanitize=none', 'b_coverage=false', 'b_ndebug=true' ],
 }
 
 native_kwargs = {
-    'c_args': c_args,
-    'cpp_args': cpp_args,
+    'c_args': test_c_args,
+    'cpp_args': test_cpp_args,
     'native': true,
     'build_by_default': false,
-    'override_options' : [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
+    'override_options' : [ 'b_sanitize=address,undefined', 'b_coverage=true', 'b_ndebug=false' ],
 }
 
 nosan_kwargs = {
-    'c_args': c_args,
-    'cpp_args': cpp_args,
+    'c_args': test_c_args,
+    'cpp_args': test_cpp_args,
     'native': true,
     'build_by_default': false,
-    'override_options' : [ 'b_sanitize=none', 'b_coverage=true' ],
+    'override_options' : [ 'b_sanitize=none', 'b_coverage=true', 'b_ndebug=false' ],
 }
 
 tsan_kwargs = {
-    'c_args': c_args,
-    'cpp_args': cpp_args,
+    'c_args': test_c_args,
+    'cpp_args': test_cpp_args,
     'native': true,
     'build_by_default': false,
-    'override_options' : [ 'b_sanitize=thread', 'b_coverage=true' ],
+    'override_options' : [ 'b_sanitize=thread', 'b_coverage=true', 'b_ndebug=false' ],
 }
 
 bench_kwargs = {
-    'c_args': c_args,
-    'cpp_args': cpp_args,
+    'c_args': test_c_args,
+    'cpp_args': test_cpp_args,
     'native': true,
     'build_by_default': false,
-    'override_options' : [ 'b_sanitize=none', 'b_coverage=false' ],
+    'override_options' : [ 'b_sanitize=none', 'b_coverage=false', 'b_ndebug=false' ],
 }
 
 # TLSF
@@ -213,6 +212,57 @@ libtlsf_bench = static_library('tlsf_bench', tlsf_src,
     kwargs : bench_kwargs,
     include_directories : inc,
     dependencies : deps,
+)
+
+# Abseil
+
+absl_inc = [
+    absl.get_variable('absl_include_dir'),
+]
+
+## Abseil hash
+
+absl_hash_src = [
+    absl.get_variable('absl_hash_sources')
+]
+
+libabsl_hash_kernel = static_library('absl_hash', absl_hash_src,
+    kwargs : kernel_kwargs,
+    include_directories : absl_inc,
+)
+
+libabsl_hash_native = static_library('absl_hash_native', absl_hash_src,
+    kwargs : native_kwargs,
+    include_directories : absl_inc,
+)
+
+libabsl_hash_nosanitize = static_library('absl_hash_nosanitize', absl_hash_src,
+    kwargs : nosan_kwargs,
+    include_directories : absl_inc,
+)
+
+## Abseil container
+
+absl_container_src = [
+    absl.get_variable('absl_container_sources')
+]
+
+libabsl_container_kernel = static_library('absl_container', absl_container_src,
+    kwargs : kernel_kwargs,
+    include_directories : absl_inc,
+    link_with : [ libabsl_hash_kernel ],
+)
+
+libabsl_container_native = static_library('absl_container_native', absl_container_src,
+    kwargs : native_kwargs,
+    include_directories : absl_inc,
+    link_with : [ libabsl_hash_native ],
+)
+
+libabsl_container_nosanitize = static_library('absl_container_nosanitize', absl_container_src,
+    kwargs : nosan_kwargs,
+    include_directories : absl_inc,
+    link_with : [ libabsl_hash_nosanitize ],
 )
 
 # RCU
@@ -374,7 +424,72 @@ libtask_bench = static_library('task_bench', task_src,
     dependencies : deps,
 )
 
-# Kernel
+# Memory
+
+memory_src = files(
+    'src/memory/layout.cpp',
+    'src/memory/allocator.cpp',
+    'src/memory/page_allocator.cpp',
+    'src/memory/page_allocator_command_list.cpp',
+    'src/memory/pte_command_list.cpp',
+    'src/memory/tables.cpp',
+    'src/memory/address_space.cpp',
+    'src/memory/heap.cpp',
+    'src/memory/heap_command_list.cpp',
+)
+
+libmemory_kernel = static_library('memory', memory_src,
+    kwargs : kernel_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+libmemory_native = static_library('memory_native', memory_src,
+    kwargs : native_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+libmemory_nosanitize = static_library('memory_nosanitize', memory_src,
+    kwargs : nosan_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+# VFS
+
+vfs_src = files(
+    'src/fs/vfs.cpp',
+    'src/fs/path.cpp',
+    'src/fs/node.cpp',
+    'src/fs/handle.cpp',
+    'src/fs/device.cpp',
+    'src/fs/folder.cpp',
+    'src/fs/utils.cpp',
+    'src/fs/identify.cpp',
+    'src/fs/query.cpp',
+    'src/fs/iterator.cpp',
+)
+
+libvfs_kernel = static_library('vfs', vfs_src,
+    kwargs : kernel_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+libvfs_native = static_library('vfs_native', vfs_src,
+    kwargs : native_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+libvfs_nosanitize = static_library('vfs_nosanitize', vfs_src,
+    kwargs : nosan_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+# System
 
 system_src = files(
     'src/system/system.cpp',
@@ -393,22 +508,31 @@ system_src = files(
     'src/system/vm/mapping.cpp',
 )
 
+libsystem_kernel = static_library('system', system_src,
+    kwargs : kernel_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+libsystem_native = static_library('system_native', system_src,
+    kwargs : native_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+libsystem_nosanitize = static_library('system_nosanitize', system_src,
+    kwargs : nosan_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+# Kernel
+
 src = [
     # Utilities
     'src/util/cpuid.cpp',
     'src/util/memory.cpp',
     'src/util/uuid.cpp',
-
-    # Memory management
-    'src/memory/layout.cpp',
-    'src/memory/allocator.cpp',
-    'src/memory/page_allocator.cpp',
-    'src/memory/page_allocator_command_list.cpp',
-    'src/memory/pte_command_list.cpp',
-    'src/memory/tables.cpp',
-    'src/memory/address_space.cpp',
-    'src/memory/heap.cpp',
-    'src/memory/heap_command_list.cpp',
 
     # C and C++ Runtime
     'src/crt.cpp',
@@ -469,18 +593,6 @@ src = [
     'src/arch/dr.cpp',
     'src/boot.cpp',
 
-    # VFS
-    'src/fs/vfs.cpp',
-    'src/fs/path.cpp',
-    'src/fs/node.cpp',
-    'src/fs/handle.cpp',
-    'src/fs/device.cpp',
-    'src/fs/folder.cpp',
-    'src/fs/utils.cpp',
-    'src/fs/identify.cpp',
-    'src/fs/query.cpp',
-    'src/fs/iterator.cpp',
-
     # VFS drivers
     'src/fs/ramfs.cpp',
     'src/fs/tarfs.cpp',
@@ -515,7 +627,6 @@ src = [
     'src/notify.cpp',
 
     'src/system/runtime.cpp',
-    system_src,
 
     'src/syscall.cpp',
     'src/processor.cpp',
@@ -546,11 +657,15 @@ if aml_option.allowed()
 endif
 
 kernel_libs = [
-    libs,
+    libabsl_hash_kernel,
+    libabsl_container_kernel,
     libtlsf_kernel,
     librcu_kernel,
     libformat_kernel,
     liblogging_kernel,
+    libmemory_kernel,
+    libvfs_kernel,
+    libsystem_kernel,
     libpaging_kernel,
 ]
 
@@ -560,7 +675,7 @@ kernel = static_library('kernel', src,
     cpp_args : kernel_cpp_args,
     dependencies : deps,
     link_with : kernel_libs,
-    override_options : [ 'b_coverage=false' ],
+    override_options : kernel_kwargs['override_options'],
 )
 
 kmain = static_library('kernel-main', 'src/main.cpp',
@@ -569,7 +684,7 @@ kmain = static_library('kernel-main', 'src/main.cpp',
     cpp_args : kernel_cpp_args,
     dependencies : deps,
     link_with : kernel,
-    override_options : [ 'b_coverage=false' ],
+    override_options : kernel_kwargs['override_options'],
 )
 
 ###
@@ -585,7 +700,7 @@ executable('bezos-limine.elf', 'src/boot/limine.cpp',
     link_depends : 'data/linker-limine.ld',
     link_args : [ '-T', meson.current_source_dir() / 'data/linker-limine.ld' ],
     install : true,
-    override_options : [ 'b_coverage=false' ],
+    override_options : kernel_kwargs['override_options'],
 )
 
 ###
@@ -601,7 +716,7 @@ executable('bezos-hyper.elf', 'src/boot/hyper.cpp',
     link_depends : 'data/linker-hyper.ld',
     link_args : [ '-T', meson.current_source_dir() / 'data/linker-hyper.ld' ],
     install : true,
-    override_options : [ 'b_coverage=false' ],
+    override_options : kernel_kwargs['override_options'],
 )
 
 # Unit tests

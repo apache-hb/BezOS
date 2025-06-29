@@ -1,7 +1,4 @@
 #include <random>
-#ifdef NDEBUG
-#   undef NDEBUG
-#endif
 
 #include "std/rcu.hpp"
 #include <thread>

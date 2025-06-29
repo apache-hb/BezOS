@@ -10,13 +10,13 @@ test_sanitize_args = [
 ]
 
 # native executables dont have all default_options applied
-test_c_args = c_args + [ '-std=gnu23', '-DUTIL_TESTING=1' ]
+test_c_args = c_args + [ '-std=gnu23', '-DUTIL_TESTING=1', '-DNDEBUG_SANITIZER=1' ]
 
 # use NDEBUG_SANITIZER to disable some abseil debug tools,
 # it causes issues with the freestanding patches ive made
 test_cpp_args = cpp_args + [ '-std=gnu++26', '-DUTIL_TESTING=1', '-DNDEBUG_SANITIZER=1' ]
 
-test_link_args = [ ]
+test_link_args = [ test_sanitize_args ]
 
 test_shim_src = [
     'test_shim.cpp',
@@ -96,23 +96,36 @@ operator_new_shim_test = static_library('operator_new_shim_test', new_shim_test_
     cpp_args : test_cpp_args,
     dependencies : [ gtest, common ],
     native : true,
+    override_options : native_kwargs['override_options'],
 )
 
-test_shim = static_library('test_shim', test_shim_src,
+libtest_shim = static_library('test_shim', test_shim_src,
+    include_directories : inc,
+    c_args : test_c_args,
+    cpp_args : test_cpp_args,
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
+    link_with : [ libabsl_container_native ],
+    native : true,
+    override_options : native_kwargs['override_options'],
+)
+
+libtest_shim_tsan = static_library('test_shim_tsan', test_shim_src,
+    include_directories : inc,
+    c_args : test_c_args + test_sanitize_args,
+    cpp_args : test_cpp_args + test_sanitize_args,
+    link_args : test_sanitize_args,
+    dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
+    native : true,
+    override_options : tsan_kwargs['override_options'],
+)
+
+libtest_shim_nosanitize = static_library('test_shim_nosanitize', test_shim_src,
     include_directories : inc,
     c_args : test_c_args,
     cpp_args : test_cpp_args,
     dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
     native : true,
-)
-
-test_shim_bench = static_library('test_shim_bench', test_shim_src,
-    include_directories : inc,
-    c_args : test_c_args,
-    cpp_args : test_cpp_args,
-    dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
-    native : true,
-    override_options : [ 'b_sanitize=none', 'b_coverage=false' ],
+    override_options : nosan_kwargs['override_options'],
 )
 
 fs_test_shim = static_library('fs_test_shim', fs_test_src,
@@ -121,7 +134,7 @@ fs_test_shim = static_library('fs_test_shim', fs_test_src,
     cpp_args : test_cpp_args + test_sanitize_args,
     link_args : test_sanitize_args,
     dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
-    override_options: [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
+    override_options : native_kwargs['override_options'],
     native : true,
 )
 
@@ -131,7 +144,7 @@ system_test_lib = static_library('system_test', system_test_src,
     cpp_args : test_cpp_args + test_sanitize_args,
     link_args : test_sanitize_args,
     dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
-    override_options: [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
+    override_options : native_kwargs['override_options'],
     native : true,
 )
 
@@ -141,7 +154,7 @@ memory_test_shim = static_library('memory_test_shim', memory_test_src,
     cpp_args : test_cpp_args + test_sanitize_args,
     link_args : test_sanitize_args,
     dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
-    override_options: [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
+    override_options : native_kwargs['override_options'],
     native : true,
 )
 
@@ -150,10 +163,10 @@ test_exe_kwargs = {
     'c_args': test_c_args + test_sanitize_args,
     'cpp_args': test_cpp_args + test_sanitize_args,
     'link_args': test_sanitize_args,
-    'dependencies': [ gtest_main, gmock, sysapi, concurrentqueue, mp_units, common ],
-    'override_options': [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
+    'dependencies': [ gtest_main, sysapi, concurrentqueue, mp_units, common ],
+    'override_options': native_kwargs['override_options'],
     'native': true,
-    'link_with': [ test_shim, fs_test_shim, memory_test_shim, system_test_lib, liblogging_native ],
+    'link_with': [ libtest_shim, fs_test_shim, memory_test_shim, system_test_lib, liblogging_native ],
 }
 
 # Benchmarks
@@ -164,7 +177,7 @@ benchcases = {
         'link_with': [ libformat_bench ],
     },
     'btree': {
-        'sources': files('std/container/btree_bench.cpp'),
+        'sources': files('std/container/btree_bench.cpp')
     }
 }
 
@@ -176,7 +189,7 @@ foreach name, setup : benchcases
         link_with : setup.get('link_with', []),
         include_directories : inc,
         dependencies : setup.get('dependencies', []) + [ common, sysapi, bench ],
-        override_options : setup.get('override_options', [ 'b_sanitize=none', 'b_coverage=false' ]),
+        override_options : setup.get('override_options', bench_kwargs['override_options']),
         native : true,
         pie : true,
     )
@@ -194,14 +207,14 @@ endforeach
 testcases = {
     'static vector': {
         'sources': files('static_vector.cpp'),
-        'link_with': [ test_shim ],
+        'link_with': [ libtest_shim ],
     },
     'fixed deque': {
         'sources': files('fixed_deque.cpp')
     },
     'vector': {
         'sources': files('vector.cpp'),
-        'link_with': [ test_shim ],
+        'link_with': [ libtest_shim ],
     },
     'inlined vector': {
         'sources': files('std/inlined_vector.cpp'),
@@ -215,36 +228,36 @@ testcases = {
     },
     'btree': {
         'sources': files('std/container/btree.cpp'),
-        'link_with': [ test_shim ],
+        'link_with': [ libtest_shim ],
         'timeout': 60,
     },
     'btree 128': {
         'sources': files('std/container/btree.cpp'),
-        'link_with': [ test_shim ],
+        'link_with': [ libtest_shim ],
         'cpp_args': [ test_cpp_args, '-DBTREE_KEY_SIZE=128' ],
         'timeout': 30,
     },
     'btree 256': {
         'sources': files('std/container/btree.cpp'),
-        'link_with': [ test_shim ],
+        'link_with': [ libtest_shim ],
         'cpp_args': [ test_cpp_args, '-DBTREE_KEY_SIZE=256' ],
         'timeout': 30,
     },
     'btree 1024': {
         'sources': files('std/container/btree.cpp'),
-        'link_with': [ test_shim ],
+        'link_with': [ libtest_shim ],
         'cpp_args': [ test_cpp_args, '-DBTREE_KEY_SIZE=1024' ],
         'timeout': 30,
     },
     'btree 2048': {
         'sources': files('std/container/btree.cpp'),
-        'link_with': [ test_shim ],
+        'link_with': [ libtest_shim ],
         'cpp_args': [ test_cpp_args, '-DBTREE_KEY_SIZE=2048' ],
         'timeout': 30,
     },
     'btree string': {
         'sources': files('std/container/btree_string.cpp'),
-        'link_with': [ test_shim ],
+        'link_with': [ libtest_shim ],
         'timeout': 30,
     },
     'spinlock': {
@@ -264,7 +277,7 @@ testcases = {
     },
     'memory range': {
         'sources': files('memory_range.cpp'),
-        'link_with': [ test_shim ],
+        'link_with': [ libtest_shim ],
     },
     'pat': {
         'sources': files('page_attribute_table.cpp', '../src/pat.cpp', '../src/util/cpuid.cpp'),
@@ -284,35 +297,55 @@ testcases = {
     'crt': {
         'sources': files('crt.cpp', '../src/crt.cpp'),
     },
+    # TODO: these are broken due to some quite arkane issues with abseil and sanitizers
+    # 'serial': {
+    #     'sources': files('serial.cpp', '../src/uart.cpp'),
+    #     'dependencies': [ gmock ],
+    #     'link_with': [ libtest_shim, liblogging_native ],
+    # },
+    # 'query': {
+    #     'sources': files('system/query.cpp'),
+    #     'dependencies': [ mp_units ],
+    #     'link_with': [
+    #         test_shim,
+    #         librcu_native,
+    #         libtlsf_native,
+    #         libsystem_native,
+    #         libpaging_native,
+    #         libmemory_native,
+    #         liblogging_native,
+    #         libvfs_native,
+    #     ],
+    # },
     'page table': {
         'sources': files('memory/pte.cpp'),
-        'link_with': [ libpaging_native, liblogging_native, test_shim ],
+        'link_with': [ libtest_shim, libpaging_native, liblogging_native, ],
     },
     'rcu': {
         'sources': [
             files('std/rcu.cpp'),
         ],
-        'override_options': [ 'b_sanitize=thread', 'b_coverage=true' ],
-        'link_with': [ libtlsf_tsan, librcu_tsan, test_shim ],
+        'override_options': tsan_kwargs['override_options'],
+        'link_with': [ libtlsf_tsan, librcu_tsan, libtest_shim_tsan ],
     },
     'rcu retire slots': {
         'sources': [
             files('std/rcu_retire_slots.cpp'),
         ],
-        'override_options': [ 'b_sanitize=thread', 'b_coverage=true' ],
-        'link_with': [ libtlsf_tsan, librcu_tsan, test_shim ],
+        'override_options': tsan_kwargs['override_options'],
+        'link_with': [ libtlsf_tsan, librcu_tsan, libtest_shim_tsan ],
     },
     'rcu shared': {
         'sources': [
             files('std/rcu_shared.cpp'),
         ],
-        'link_with': [ librcu_native, test_shim ],
+        'link_with': [ librcu_native, libtest_shim ],
     },
     'task scheduler': {
         'sources': [
             files('task/scheduler.cpp'),
         ],
-        'link_with': [ libtask_native, test_shim ],
+        'link_with': [ libtask_native, libtest_shim ],
     }
 }
 
@@ -325,7 +358,7 @@ testcases += {
         'sources': [
             files('std/soak/rcu_soak.cpp'),
         ],
-        'link_with': [ libtlsf_native, librcu_native, test_shim ],
+        'link_with': [ libtlsf_native, librcu_native, libtest_shim ],
         'soak': true,
         'protocol': 'exitcode',
     },
@@ -333,7 +366,7 @@ testcases += {
         'sources': [
             files('std/soak/rcu_retire_soak.cpp'),
         ],
-        'link_with': [ libtlsf_native, librcu_native, test_shim ],
+        'link_with': [ libtlsf_native, librcu_native, libtest_shim ],
         'soak': true,
         'protocol': 'exitcode',
     },
@@ -341,7 +374,7 @@ testcases += {
         'sources': [
             files('std/soak/rcu_retire_slots_soak.cpp'),
         ],
-        'link_with': [ libtlsf_native, librcu_native, test_shim ],
+        'link_with': [ libtlsf_native, librcu_native, libtest_shim ],
         'soak': true,
         'protocol': 'exitcode',
     },
@@ -356,7 +389,7 @@ testcases += {
         'sources': [
             files('std/soak/rcu_shared_soak.cpp'),
         ],
-        'link_with': [ librcu_native, test_shim ],
+        'link_with': [ librcu_native, libtest_shim ],
         'soak': true,
         'protocol': 'exitcode',
     },
@@ -364,7 +397,7 @@ testcases += {
         'sources': [
             files('std/soak/rcu_cmpxchg_soak.cpp'),
         ],
-        'link_with': [ librcu_native, test_shim ],
+        'link_with': [ librcu_native, libtest_shim ],
         'soak': true,
         'protocol': 'exitcode',
     },
@@ -372,7 +405,7 @@ testcases += {
         'sources': [
             files('std/container/btree_stress.cpp'),
         ],
-        'link_with': [ test_shim ],
+        'link_with': [ libtest_shim ],
         'soak': true,
         'protocol': 'exitcode',
     },
@@ -392,7 +425,7 @@ foreach name, setup : testcases
         link_with : setup.get('link_with', []),
         include_directories : inc,
         dependencies : setup.get('dependencies', []) + dependencies,
-        override_options : setup.get('override_options', [ 'b_sanitize=address,undefined', 'b_coverage=true' ]),
+        override_options : setup.get('override_options', native_kwargs['override_options']),
         native : true,
         pie : true,
     )
@@ -424,9 +457,9 @@ foreach name, setup : fuzztests
         cpp_args : test_cpp_args + [ '-fsanitize=fuzzer' ],
         link_args : test_link_args + [ '-fsanitize=fuzzer' ],
         include_directories : inc,
-        link_with : [ test_shim ],
+        link_with : [ libtest_shim ],
         dependencies : [ sysapi, mp_units, common ],
-        override_options : [ 'b_sanitize=address,undefined', 'b_coverage=true' ],
+        override_options : native_kwargs['override_options'],
         native : true,
     )
 
@@ -436,7 +469,6 @@ foreach name, setup : fuzztests
 endforeach
 
 testcases = {
-    'serial': [ 'serial.cpp', '../src/uart.cpp', ],
     'ipl': [ 'ipl.cpp' ],
     'page table command list +new': [
         'memory/pte_command_list.cpp',
@@ -546,9 +578,6 @@ testcases = {
     # 'transaction': [
     #     'system/transaction.cpp',
     # ],
-    'query': [
-        'system/query.cpp',
-    ],
     'handles': [
         'system/handles.cpp',
     ],
@@ -752,6 +781,7 @@ mmio_test_shim = static_library('mmio_test_shim', mmio_test_src,
     c_args : test_c_args,
     cpp_args : test_cpp_args,
     dependencies : [ gtest, sysapi, concurrentqueue, mp_units, capstone, common ],
+    override_options : nosan_kwargs['override_options'],
     native : true,
 )
 
@@ -760,7 +790,7 @@ no_sanitize_test_shim = static_library('no_sanitize_test_shim', test_shim_src,
     c_args : test_c_args,
     cpp_args : test_cpp_args,
     dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
-    override_options: [ 'b_sanitize=none', 'b_coverage=true' ],
+    override_options : nosan_kwargs['override_options'],
     native : true,
 )
 
@@ -769,7 +799,7 @@ no_sanitize_fs_test_lib = static_library('no_sanitize_fs_test', fs_test_src,
     c_args : test_c_args,
     cpp_args : test_cpp_args,
     dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
-    override_options: [ 'b_sanitize=none', 'b_coverage=true' ],
+    override_options : nosan_kwargs['override_options'],
     native : true,
 )
 
@@ -778,16 +808,7 @@ no_sanitize_memory_test_shim = static_library('no_sanitize_memory_test_shim', me
     c_args : test_c_args,
     cpp_args : test_cpp_args,
     dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
-    override_options: [ 'b_sanitize=none', 'b_coverage=true' ],
-    native : true,
-)
-
-no_sanitize_system_test_lib = static_library('no_sanitize_system_test', system_test_src,
-    include_directories : inc,
-    c_args : test_c_args,
-    cpp_args : test_cpp_args,
-    dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
-    override_options: [ 'b_sanitize=none', 'b_coverage=true' ],
+    override_options : nosan_kwargs['override_options'],
     native : true,
 )
 
@@ -801,12 +822,6 @@ testcases = {
         ],
         'dependencies' : [ stb_image_write ],
     },
-    # 'launch': {
-    #     'sources': [
-    #         'emulated/launch.cpp',
-    #     ],
-    #     'dependencies' : [ libvirt ],
-    # }
 }
 
 testcases += {
@@ -821,9 +836,7 @@ testcases += {
             '../src/acpi/format.cpp',
         ],
         'dependencies': [ capstone, common ],
-        # this test must not be run with sanitizers, it ptraces itself
-        # and purposely triggers segv and traps
-        'override_options': [ 'b_sanitize=none', 'b_coverage=true' ],
+        'override_options': nosan_kwargs['override_options'],
         'link_with' : [ no_sanitize_test_shim, no_sanitize_memory_test_shim, liblogging_nosanitize ]
     },
     'apic': {
@@ -837,17 +850,32 @@ testcases += {
             '../src/acpi/format.cpp',
         ],
         'dependencies': [ capstone, common ],
-        'override_options': [ 'b_sanitize=none', 'b_coverage=true' ],
-        'link_with' : [ no_sanitize_test_shim, no_sanitize_memory_test_shim, mmio_test_shim, liblogging_nosanitize ],
-    },
-    'schedule': {
-        'sources': [
-            'system/schedule.cpp',
+        'override_options': nosan_kwargs['override_options'],
+        'link_with' : [
+            no_sanitize_test_shim,
+            no_sanitize_memory_test_shim,
+            mmio_test_shim,
+            liblogging_nosanitize
         ],
-        'dependencies': [ capstone, common ],
-        'override_options': [ 'b_sanitize=none', 'b_coverage=true' ],
-        'link_with' : [ no_sanitize_test_shim, no_sanitize_memory_test_shim, no_sanitize_fs_test_lib, no_sanitize_system_test_lib, mmio_test_shim, liblogging_nosanitize ],
-    }
+    },
+    # TODO: also broken due to abseil and sanitizers
+    # 'schedule': {
+    #     'sources': [
+    #         'system/schedule.cpp',
+    #     ],
+    #     'dependencies': [ capstone, common ],
+    #     'override_options': nosan_kwargs['override_options'],
+    #     'link_with' : [
+    #         libtest_shim_nosanitize,
+    #         librcu_nosanitize,
+    #         libvfs_nosanitize,
+    #         libmemory_nosanitize,
+    #         libpaging_nosanitize,
+    #         libsystem_nosanitize,
+    #         liblogging_nosanitize,
+    #         libabsl_container_nosanitize
+    #     ],
+    # }
 }
 
 foreach name, kwargs : testcases

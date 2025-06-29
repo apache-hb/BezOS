@@ -1,7 +1,3 @@
-#ifdef NDEBUG
-#   undef NDEBUG
-#endif
-
 #include <absl/container/btree_map.h>
 #include "std/container/btree.hpp"
 #include <random>

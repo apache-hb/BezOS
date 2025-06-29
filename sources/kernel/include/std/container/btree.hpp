@@ -67,6 +67,7 @@ namespace sm::detail {
         return (targetSize - sizeof(TreeNodeHeader)) / (keyLayout.size + valueLayout.size);
     }
 
+    /// @brief Dont use this, its here because I cant bother to rewrite test cases. Always use the allocator instead.
     template<typename Node, typename... Args>
     Node *newNode(Args&&... args) noexcept {
         void *memory = aligned_alloc(alignof(Node), sizeof(Node));
@@ -103,11 +104,8 @@ namespace sm::detail {
                 }
             }
 
-            void verifyIndex(size_t index) const noexcept {
-                if (index >= count()) {
-                    printf("Index %zu out of bounds for node %p with %zu keys\n", index, (void*)this, count());
-                    KM_PANIC("Index out of bounds in TreeNodeLeaf");
-                }
+            size_t start() const noexcept {
+                return 0;
             }
 
         public:
@@ -135,12 +133,10 @@ namespace sm::detail {
             }
 
             auto& key(this auto&& self, size_t index) noexcept {
-                self.verifyIndex(index);
                 return self.mKeys[index];
             }
 
             auto& value(this auto&& self, size_t index) noexcept {
-                self.verifyIndex(index);
                 return self.mValues[index];
             }
 
@@ -182,7 +178,6 @@ namespace sm::detail {
             }
 
             void remove(size_t index) noexcept {
-                verifyIndex(index);
                 for (size_t i = index; i < count() - 1; i++) {
                     key(i) = key(i + 1);
                     value(i) = value(i + 1);
@@ -271,20 +266,27 @@ namespace sm::detail {
                 return key(count() - 1);
             }
 
-            std::span<Key> keys() noexcept { return std::span(mKeys, count()); }
-            std::span<const Key> keys() const noexcept { return std::span(mKeys, count()); }
+            std::span<Key> keys() noexcept { return std::span(mKeys + start(), count()); }
+            std::span<const Key> keys() const noexcept { return std::span(mKeys + start(), count()); }
 
-            std::span<Value> values() noexcept { return std::span(mValues, count()); }
-            std::span<const Value> values() const noexcept { return std::span(mValues, count()); }
+            std::span<Value> values() noexcept { return std::span(mValues + start(), count()); }
+            std::span<const Value> values() const noexcept { return std::span(mValues + start(), count()); }
 
             void claim(Leaf *other) noexcept {
                 KM_ASSERT(other->isLeaf());
                 KM_ASSERT(other->getParent() == this->getParent());
 
+                size_t oldCount = count();
                 // Move the keys and values from the other leaf to this leaf
-                for (size_t i = 0; i < other->count(); i++) {
-                    KM_ASSERT(this->insert({other->key(i), other->value(i)}) == InsertResult::eSuccess);
-                }
+                setCount(oldCount + other->count());
+
+                auto thisKeys = keys();
+                auto thisValues = values();
+                auto otherKeys = other->keys();
+                auto otherValues = other->values();
+
+                std::move(otherKeys.begin(), otherKeys.end(), thisKeys.begin() + oldCount);
+                std::move(otherValues.begin(), otherValues.end(), thisValues.begin() + oldCount);
 
                 // TODO: clear values from other leaf
                 other->setCount(0);
