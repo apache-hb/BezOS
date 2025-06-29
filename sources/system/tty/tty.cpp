@@ -150,6 +150,10 @@ class VtDisplay {
     void *mAddress;
     flanterm_context *mContext;
 
+    static void *ft_malloc(size_t size) {
+        return malloc(size);
+    }
+
     static void ft_free(void *ptr, size_t) {
         free(ptr);
     }
@@ -157,6 +161,7 @@ class VtDisplay {
 public:
     VtDisplay() {
         DebugLog("hhhh");
+
         OsDeviceCreateInfo createInfo = {
             .Path = OsMakePath(kDisplayDevicePath),
             .InterfaceGuid = kOsDisplayClassGuid,
@@ -298,14 +303,14 @@ OS_EXTERN
 void ClientStart(const struct OsClientStartInfo *) {
     DebugLog("TTY0: Starting TTY0...");
 
-    VtDisplay display{};
 
     DebugLog("fff");
 
-    KeyboardDevice keyboard{};
 
     DebugLog("ggg");
 
+    VtDisplay display{};
+    KeyboardDevice keyboard{};
     OsHidEvent event{};
     char buffer[256]{};
 

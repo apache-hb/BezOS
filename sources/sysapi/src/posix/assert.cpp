@@ -7,7 +7,14 @@
 
 static void PosixDefaultAssert(const char *expr, const char *file, unsigned line) {
     OsDebugMessage(eOsLogError, "POSIX assertion failed");
-    // DebugLog(eOsLogError, "POSIX assertion failed: %s, file %s, line %u\n", expr, file, line);
+    char buffer[256];
+    size_t len = snprintf(buffer, sizeof(buffer), "POSIX assertion failed: %s, file %s, line %u\n", expr, file, line);
+    OsDebugMessageInfo messageInfo = {
+        .Front = buffer,
+        .Back = buffer + len,
+        .Info = eOsLogError,
+    };
+    OsDebugMessage(messageInfo);
     abort();
 }
 
