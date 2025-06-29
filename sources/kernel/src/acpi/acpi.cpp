@@ -54,13 +54,14 @@ static const acpi::RsdtHeader *MapTableEntry(sm::PhysicalAddress paddr, km::Addr
 }
 
 static void DebugMadt(const acpi::Madt *madt) {
-    acpi::Madt table = *madt;
+    // Cant copy madt to a local variable because its begin() and end() methods return iterators
+    // that reference a pointer to itself, so it must not be moved.
 
-    AcpiLog.println("| /SYS/ACPI/APIC     | Local APIC address          | ", km::Hex(table.localApicAddress).pad(8, '0'));
-    AcpiLog.println("| /SYS/ACPI/APIC     | Flags                       | ", bool(table.flags & acpi::MadtFlags::ePcatCompat) ? stdx::StringView("PCAT compatible") : stdx::StringView("None"));
+    AcpiLog.println("| /SYS/ACPI/APIC     | Local APIC address          | ", km::Hex(madt->localApicAddress).pad(8, '0'));
+    AcpiLog.println("| /SYS/ACPI/APIC     | Flags                       | ", bool(madt->flags & acpi::MadtFlags::ePcatCompat) ? stdx::StringView("PCAT compatible") : stdx::StringView("None"));
 
     uint32_t index = 0;
-    for (const acpi::MadtEntry *entry : table) {
+    for (const acpi::MadtEntry *entry : *madt) {
         AcpiLog.println("| /SYS/ACPI/APIC/", km::Int(index).pad(3), " | Entry type                  | ", auto{entry->type});
         AcpiLog.println("| /SYS/ACPI/APIC/", km::Int(index).pad(3), " | Entry length                | ", auto{entry->length});
 

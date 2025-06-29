@@ -91,6 +91,10 @@ namespace acpi {
             return reinterpret_cast<const MadtEntry*>(mCurrent);
         }
 
+        const void *addressOf() const noexcept {
+            return mCurrent;
+        }
+
         friend bool operator!=(const MadtIterator& lhs, const MadtIterator& rhs);
     };
 
