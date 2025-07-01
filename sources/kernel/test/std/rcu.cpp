@@ -243,7 +243,7 @@ TEST(RcuTest, ReentrantReclaimation) {
 
             inThread += 1;
         }
-    }, [&](siginfo_t *, mcontext_t *) {
+    }, [&](siginfo_t *, ucontext_t *) {
         size_t i0 = indices[getNextIndex()];
         size_t i1 = indices[getNextIndex()];
         data2[i1] = data[i0];

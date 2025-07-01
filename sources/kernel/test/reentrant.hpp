@@ -50,8 +50,7 @@ namespace ktest {
             struct sigaction sigusr1 {
                 .sa_sigaction = [](int, [[maybe_unused]] siginfo_t *siginfo, [[maybe_unused]] void *ctx) {
                     ucontext_t *uc = reinterpret_cast<ucontext_t *>(ctx);
-                    mcontext_t *mc = &uc->uc_mcontext;
-                    tlsState->signal(siginfo, mc);
+                    tlsState->signal(siginfo, uc);
                 },
                 .sa_flags = SA_SIGINFO,
             };
@@ -99,8 +98,7 @@ namespace ktest {
             struct sigaction sigusr1 {
                 .sa_sigaction = [](int, [[maybe_unused]] siginfo_t *siginfo, [[maybe_unused]] void *ctx) {
                     ucontext_t *uc = reinterpret_cast<ucontext_t *>(ctx);
-                    mcontext_t *mc = &uc->uc_mcontext;
-                    tlsState->signal(siginfo, mc);
+                    tlsState->signal(siginfo, uc);
                 },
                 .sa_flags = SA_SIGINFO,
             };

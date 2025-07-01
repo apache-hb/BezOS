@@ -1,5 +1,6 @@
 #pragma once
 
+#include "arch/xsave.hpp"
 #include "memory/stack_mapping.hpp"
 #include "std/ringbuffer.hpp"
 #include "system/create.hpp"
@@ -29,6 +30,7 @@ namespace task {
     /// @brief All state required to suspend or resume a thread.
     struct TaskState {
         sys::RegisterSet registers;
+        x64::XSave *xsave;
         km::PhysicalAddress pageMap;
         uintptr_t tlsBase;
     };
@@ -46,6 +48,10 @@ namespace task {
 
         void terminate() noexcept;
         bool isClosed() const noexcept;
+
+        TaskState& getState() noexcept {
+            return state;
+        }
     };
 
     /// @brief What should be done with the result of a scheduling operation.
@@ -102,6 +108,10 @@ namespace task {
 
         size_t getTaskCount() const noexcept {
             return mQueue.count();
+        }
+
+        SchedulerEntry *getCurrentTask() const noexcept {
+            return mCurrentTask;
         }
 
         static OsStatus create(uint32_t capacity, SchedulerQueue *queue [[gnu::nonnull]]) noexcept;

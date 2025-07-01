@@ -146,7 +146,7 @@ struct State {
 
                 inThread += 1;
             }
-        }, [&]([[maybe_unused]] siginfo_t *siginfo, [[maybe_unused]] mcontext_t *mc) {
+        }, [&]([[maybe_unused]] siginfo_t *siginfo, [[maybe_unused]] ucontext_t *uc) {
             std::string value = "From signal handler";
             if (queue->tryPop(value)) {
                 queue->tryPush(value);

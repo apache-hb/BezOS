@@ -4,23 +4,96 @@
 #include "reentrant.hpp"
 #include "task/scheduler.hpp"
 
+/// lifted from llvm compiler-rt
+[[gnu::target("general-regs-only")]]
+size_t ucontextSize(void *ctx) {
+    // Added in Linux kernel 3.4.0, merged to glibc in 2.16
+#ifndef FP_XSTATE_MAGIC1
+#   define FP_XSTATE_MAGIC1 0x46505853U
+#endif
+    // See kernel arch/x86/kernel/fpu/signal.c for details.
+    const auto *fpregs = static_cast<ucontext_t *>(ctx)->uc_mcontext.fpregs;
+    // The member names differ across header versions, but the actual layout
+    // is always the same.  So avoid using members, just use arithmetic.
+    const uint32_t *after_xmm = reinterpret_cast<const uint32_t *>(fpregs + 1) - 24;
+    if (after_xmm[12] == FP_XSTATE_MAGIC1)
+        return reinterpret_cast<const char *>(fpregs) + after_xmm[13] -
+            static_cast<const char *>(ctx);
+
+    return sizeof(ucontext_t);
+}
+
+static task::SchedulerEntry *gCurrentEntry = nullptr;
+
+struct ThreadTestState {
+    std::atomic<bool> running{true};
+    std::atomic<size_t> counter{0};
+    task::SchedulerEntry *entry;
+    task::SchedulerQueue *queue;
+};
+
 [[gnu::target("general-regs-only")]]
 static void TestThread0(void *arg) {
-    std::atomic<size_t> *counter = static_cast<std::atomic<size_t> *>(arg);
+    ThreadTestState *state = static_cast<ThreadTestState *>(arg);
+    task::SchedulerQueue *queue = state->queue;
+    task::SchedulerEntry *entry = state->entry;
+    // printf("TestThread0: %p\n", (void*)entry);
     while (true) {
-        *counter += 1;
+        state->counter += 1;
+
+        if (queue->getCurrentTask() != entry) {
+            state->counter.store(0x12345678);
+            break;
+        }
+
+        // ASSERT_EQ(queue->getCurrentTask(), entry);
+    }
+
+    while (true) {
+
     }
 }
 
 [[gnu::target("general-regs-only")]]
 static void TestThread1(void *arg) {
-    std::atomic<size_t> *counter = static_cast<std::atomic<size_t> *>(arg);
+    ThreadTestState *state = static_cast<ThreadTestState *>(arg);
+    task::SchedulerQueue *queue = state->queue;
+    task::SchedulerEntry *entry = state->entry;
+    // printf("TestThread1: %p\n", (void*)entry);
     while (true) {
-        *counter += 1;
+        state->counter += 1;
+
+        if (queue->getCurrentTask() != entry) {
+            state->counter.store(0x12345678);
+            break;
+        }
+
+        // ASSERT_EQ(queue->getCurrentTask(), entry);
+    }
+
+    while (true) {
+
     }
 }
 
-static bool tryContextSwitch(task::SchedulerQueue& queue, mcontext_t *mc) {
+[[gnu::target("general-regs-only"), gnu::naked]]
+static void IdleThread() {
+    asm("1:\n jmp 1b");
+}
+
+static bool tryContextSwitch(task::SchedulerQueue& queue, ucontext_t *uc) {
+    mcontext_t *mc = &uc->uc_mcontext;
+    x64::XSave *xsave = nullptr;
+#if 0
+    size_t ucSize = ucontextSize(uc) - offsetof(ucontext_t, uc_mcontext.fpregs);
+    printf("uc: %zu, %zu\n", ucontextSize(uc), ucSize);
+    if (task::SchedulerEntry *currentTask = queue.getCurrentTask()) {
+        task::TaskState& taskState = currentTask->getState();
+        xsave = taskState.xsave;
+        memcpy(xsave, &uc->uc_mcontext.fpregs, ucSize);
+        printf("Copied task fpu state\n");
+    }
+#endif
     task::TaskState state {
         .registers = {
             .rax = static_cast<uintptr_t>(mc->gregs[REG_RAX]),
@@ -42,10 +115,12 @@ static bool tryContextSwitch(task::SchedulerQueue& queue, mcontext_t *mc) {
             .rip = static_cast<uintptr_t>(mc->gregs[REG_RIP]),
             .rflags = static_cast<uintptr_t>(mc->gregs[REG_EFL]),
             .cs = static_cast<uintptr_t>((mc->gregs[REG_CSGSFS] >> 0) & 0xFFFF),
-        }
+        },
+        .xsave = xsave,
     };
 
     if (queue.reschedule(&state) == task::ScheduleResult::eIdle) {
+        mc->gregs[REG_RIP] = reinterpret_cast<greg_t>(IdleThread);
         return false;
     }
 
@@ -68,26 +143,43 @@ static bool tryContextSwitch(task::SchedulerQueue& queue, mcontext_t *mc) {
     mc->gregs[REG_RIP] = static_cast<greg_t>(state.registers.rip);
     mc->gregs[REG_EFL] = static_cast<greg_t>(state.registers.rflags);
 
+#if 0
+    printf("Copying new fpu state %p\n", (void*)state.xsave);
+    if (state.xsave != nullptr) {
+        memcpy(&uc->uc_mcontext.fpregs, state.xsave, ucSize);
+    }
+
+    printf("Copied new fpu state\n");
+#endif
     return true;
 }
 
 class SchedulerTest : public testing::Test {
 public:
+    static void SetUpTestSuite() {
+        setbuf(stdout, nullptr);
+    }
+
     void SetUp() override {
+        gCurrentEntry = nullptr;
         OsStatus status = task::SchedulerQueue::create(64, &queue);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
     task::SchedulerQueue queue;
 
-    OsStatus enqueueCounterTask(std::atomic<size_t> *counter, x64::page *stack, void (*task)(void *), task::SchedulerEntry *entry) {
+    OsStatus enqueueCounterTask(ThreadTestState *state, x64::page *stack, x64::XSave *xsave, void (*task)(void *), task::SchedulerEntry *entry) {
+        state->entry = entry;
+        state->queue = &queue;
+
         OsStatus status = queue.enqueue({
             .registers = {
-                .rdi = reinterpret_cast<uintptr_t>(counter),
+                .rdi = reinterpret_cast<uintptr_t>(state),
                 .rbp = reinterpret_cast<uintptr_t>(stack + 4) - 0x8,
                 .rsp = reinterpret_cast<uintptr_t>(stack + 4) - 0x8,
                 .rip = reinterpret_cast<uintptr_t>(task),
-            }
+            },
+            .xsave = xsave,
         }, km::StackMappingAllocation{}, km::StackMappingAllocation{}, entry);
         return status;
     }
@@ -116,8 +208,14 @@ TEST_F(SchedulerTest, ContextSwitch) {
     std::atomic<size_t> signals = 0;
     std::unique_ptr<x64::page[]> stack0{ new x64::page[4] };
     std::unique_ptr<x64::page[]> stack1{ new x64::page[4] };
-    std::atomic<size_t> counter0 = 0;
-    std::atomic<size_t> counter1 = 0;
+
+    // use big sizes, linux doesnt have an easy way to determine the size required to save
+    // fpu state.
+    std::unique_ptr<x64::page[]> xsave0{ new x64::page[4] };
+    std::unique_ptr<x64::page[]> xsave1{ new x64::page[4] };
+
+    ThreadTestState state0;
+    ThreadTestState state1;
     std::atomic<bool> done = false;
 
     auto [thread, handle] = ktest::CreateReentrantThreadPair([&] {
@@ -128,15 +226,17 @@ TEST_F(SchedulerTest, ContextSwitch) {
         sigemptyset(&set);
         sigaddset(&set, ktest::kReentrantSignal);
         pthread_sigmask(SIG_BLOCK, &set, nullptr);
-    }, [&]([[maybe_unused]] siginfo_t *siginfo, mcontext_t *mc) {
+    }, [&]([[maybe_unused]] siginfo_t *siginfo, ucontext_t *uc) {
         if (done.load()) {
             pthread_exit(nullptr);
             return;
         }
 
-        if (!tryContextSwitch(queue, mc)) {
+        if (!tryContextSwitch(queue, uc)) {
             return; // No task to switch to
         }
+
+        // printf("Context switch done\n");
 
         signals += 1;
     });
@@ -144,10 +244,10 @@ TEST_F(SchedulerTest, ContextSwitch) {
     task::SchedulerEntry task0;
     task::SchedulerEntry task1;
 
-    status = enqueueCounterTask(&counter0, stack0.get(), TestThread0, &task0);
+    status = enqueueCounterTask(&state0, stack0.get(), (x64::XSave*)xsave0.get(), TestThread0, &task0);
     ASSERT_EQ(status, OsStatusSuccess);
 
-    status = enqueueCounterTask(&counter1, stack1.get(), TestThread1, &task1);
+    status = enqueueCounterTask(&state1, stack1.get(), (x64::XSave*)xsave1.get(), TestThread1, &task1);
     ASSERT_EQ(status, OsStatusSuccess);
 
     runQueue(thread, std::chrono::milliseconds(250));
@@ -160,8 +260,8 @@ TEST_F(SchedulerTest, ContextSwitch) {
     delete handle;
 
     EXPECT_NE(signals.load(), 0);
-    EXPECT_NE(counter0.load(), 0);
-    EXPECT_NE(counter1.load(), 0);
+    EXPECT_NE(state0.counter.load(), 0);
+    EXPECT_NE(state1.counter.load(), 0);
 }
 
 TEST_F(SchedulerTest, Terminate) {
@@ -169,8 +269,11 @@ TEST_F(SchedulerTest, Terminate) {
     std::atomic<size_t> signals = 0;
     std::unique_ptr<x64::page[]> stack0{ new x64::page[4] };
     std::unique_ptr<x64::page[]> stack1{ new x64::page[4] };
-    std::atomic<size_t> counter0 = 0;
-    std::atomic<size_t> counter1 = 0;
+    std::unique_ptr<x64::page[]> xsave0{ new x64::page[4] };
+    std::unique_ptr<x64::page[]> xsave1{ new x64::page[4] };
+
+    ThreadTestState state0;
+    ThreadTestState state1;
     std::atomic<bool> done = false;
 
     std::atomic<size_t> savedCounter0 = 0;
@@ -183,13 +286,13 @@ TEST_F(SchedulerTest, Terminate) {
         sigemptyset(&set);
         sigaddset(&set, ktest::kReentrantSignal);
         pthread_sigmask(SIG_BLOCK, &set, nullptr);
-    }, [&]([[maybe_unused]] siginfo_t *siginfo, mcontext_t *mc) {
+    }, [&]([[maybe_unused]] siginfo_t *siginfo, ucontext_t *uc) {
         if (done.load()) {
             pthread_exit(nullptr);
             return;
         }
 
-        if (!tryContextSwitch(queue, mc)) {
+        if (!tryContextSwitch(queue, uc)) {
             return; // No task to switch to
         }
 
@@ -199,10 +302,10 @@ TEST_F(SchedulerTest, Terminate) {
     task::SchedulerEntry task0;
     task::SchedulerEntry task1;
 
-    status = enqueueCounterTask(&counter0, stack0.get(), TestThread0, &task0);
+    status = enqueueCounterTask(&state0, stack0.get(), (x64::XSave*)xsave0.get(), TestThread0, &task0);
     ASSERT_EQ(status, OsStatusSuccess);
 
-    status = enqueueCounterTask(&counter1, stack1.get(), TestThread1, &task1);
+    status = enqueueCounterTask(&state1, stack1.get(), (x64::XSave*)xsave1.get(), TestThread1, &task1);
     ASSERT_EQ(status, OsStatusSuccess);
 
     runQueue(thread, std::chrono::milliseconds(250), [&](auto elapsed) {
@@ -213,9 +316,9 @@ TEST_F(SchedulerTest, Terminate) {
         // Once the task is terminated, it should not be rescheduled.
         if (task0.isClosed()) {
             if (savedCounter0.load() == 0) {
-                savedCounter0.store(counter0.load());
+                savedCounter0.store(state0.counter.load());
             } else {
-                ASSERT_EQ(savedCounter0.load(), counter0.load());
+                ASSERT_EQ(savedCounter0.load(), state0.counter.load());
             }
         }
     });
@@ -229,10 +332,10 @@ TEST_F(SchedulerTest, Terminate) {
     delete handle;
 
     EXPECT_NE(signals.load(), 0);
-    EXPECT_NE(counter0.load(), 0);
-    EXPECT_NE(counter1.load(), 0);
+    EXPECT_NE(state0.counter.load(), 0);
+    EXPECT_NE(state1.counter.load(), 0);
     EXPECT_NE(savedCounter0.load(), 0);
-    EXPECT_EQ(counter0.load(), savedCounter0.load());
+    EXPECT_EQ(state0.counter.load(), savedCounter0.load());
     EXPECT_TRUE(task0.isClosed());
 }
 
@@ -241,8 +344,11 @@ TEST_F(SchedulerTest, ExhaustThreads) {
     std::atomic<size_t> signals = 0;
     std::unique_ptr<x64::page[]> stack0{ new x64::page[4] };
     std::unique_ptr<x64::page[]> stack1{ new x64::page[4] };
-    std::atomic<size_t> counter0 = 0;
-    std::atomic<size_t> counter1 = 0;
+    std::unique_ptr<x64::page[]> xsave0{ new x64::page[4] };
+    std::unique_ptr<x64::page[]> xsave1{ new x64::page[4] };
+
+    ThreadTestState state0;
+    ThreadTestState state1;
     std::atomic<bool> done = false;
 
     std::atomic<size_t> savedCounter0 = 0;
@@ -255,13 +361,13 @@ TEST_F(SchedulerTest, ExhaustThreads) {
         sigemptyset(&set);
         sigaddset(&set, ktest::kReentrantSignal);
         pthread_sigmask(SIG_BLOCK, &set, nullptr);
-    }, [&]([[maybe_unused]] siginfo_t *siginfo, mcontext_t *mc) {
+    }, [&]([[maybe_unused]] siginfo_t *siginfo, ucontext_t *uc) {
         if (done.load()) {
             pthread_exit(nullptr);
             return;
         }
 
-        if (!tryContextSwitch(queue, mc)) {
+        if (!tryContextSwitch(queue, uc)) {
             return; // No task to switch to
         }
 
@@ -271,13 +377,12 @@ TEST_F(SchedulerTest, ExhaustThreads) {
     task::SchedulerEntry task0;
     task::SchedulerEntry task1;
 
-    status = enqueueCounterTask(&counter0, stack0.get(), TestThread0, &task0);
+    status = enqueueCounterTask(&state0, stack0.get(), (x64::XSave*)xsave0.get(), TestThread0, &task0);
     ASSERT_EQ(status, OsStatusSuccess);
 
-    status = enqueueCounterTask(&counter1, stack1.get(), TestThread1, &task1);
+    status = enqueueCounterTask(&state1, stack1.get(), (x64::XSave*)xsave1.get(), TestThread1, &task1);
     ASSERT_EQ(status, OsStatusSuccess);
 
-    printf("Task 0: %p, Task 1: %p\n", (void*)&task0, (void*)&task1);
     runQueue(thread, std::chrono::milliseconds(250), [&](auto elapsed) {
         if (elapsed > std::chrono::milliseconds(100)) {
             task0.terminate();
@@ -287,9 +392,9 @@ TEST_F(SchedulerTest, ExhaustThreads) {
         // Once the task is terminated, it should not be rescheduled.
         if (task0.isClosed()) {
             if (savedCounter0.load() == 0) {
-                savedCounter0.store(counter0.load());
+                savedCounter0.store(state0.counter.load());
             } else {
-                ASSERT_EQ(savedCounter0.load(), counter0.load());
+                ASSERT_EQ(savedCounter0.load(), state0.counter.load());
             }
         }
     });
@@ -303,10 +408,10 @@ TEST_F(SchedulerTest, ExhaustThreads) {
     delete handle;
 
     EXPECT_NE(signals.load(), 0);
-    EXPECT_NE(counter0.load(), 0);
-    EXPECT_NE(counter1.load(), 0);
+    EXPECT_NE(state0.counter.load(), 0);
+    EXPECT_NE(state1.counter.load(), 0);
     EXPECT_NE(savedCounter0.load(), 0);
-    EXPECT_EQ(counter0.load(), savedCounter0.load());
+    EXPECT_EQ(state0.counter.load(), savedCounter0.load());
     EXPECT_TRUE(task0.isClosed());
     EXPECT_TRUE(task1.isClosed());
 }
