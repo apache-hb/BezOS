@@ -26,6 +26,7 @@ namespace vfs {
 
     class FolderMixin {
         using Container = sm::BTreeMap<VfsString, sm::RcuSharedPtr<INode>, std::less<>>;
+        using MapIterator = typename Container::iterator;
 
         stdx::SharedSpinLock mLock;
         Container mChildren GUARDED_BY(mLock);
@@ -34,7 +35,7 @@ namespace vfs {
     public:
         struct Iterator {
             VfsString name;
-            Container::iterator current;
+            MapIterator current;
             uint32_t generation;
         };
 

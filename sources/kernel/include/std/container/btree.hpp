@@ -119,7 +119,7 @@ namespace sm::detail {
             Entry popFront() noexcept {
                 KM_ASSERT(count() > 0);
                 Entry entry = {key(0), value(0)};
-                for (size_t i = 0; i < count() - 1; i++) {
+                for (size_t i = start(); i < count() - 1; i++) {
                     key(i) = key(i + 1);
                     value(i) = value(i + 1);
                 }
@@ -178,7 +178,7 @@ namespace sm::detail {
             }
 
             void remove(size_t index) noexcept {
-                for (size_t i = index; i < count() - 1; i++) {
+                for (size_t i = start() + index; i < count() - 1; i++) {
                     key(i) = key(i + 1);
                     value(i) = value(i + 1);
                 }
@@ -186,7 +186,7 @@ namespace sm::detail {
             }
 
             size_t upperBound(const Key& k) const noexcept {
-                for (size_t i = 0; i < count(); i++) {
+                for (size_t i = start(); i < count(); i++) {
                     if (key(i) > k) {
                         return i;
                     }
@@ -195,7 +195,7 @@ namespace sm::detail {
             }
 
             size_t indexOf(const Key& k) const noexcept {
-                for (size_t i = 0; i < count(); i++) {
+                for (size_t i = start(); i < count(); i++) {
                     if (key(i) == k) {
                         return i;
                     }

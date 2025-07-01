@@ -303,14 +303,14 @@ OS_EXTERN
 void ClientStart(const struct OsClientStartInfo *) {
     DebugLog("TTY0: Starting TTY0...");
 
+    VtDisplay display{};
 
     DebugLog("fff");
 
+    KeyboardDevice keyboard{};
 
     DebugLog("ggg");
 
-    VtDisplay display{};
-    KeyboardDevice keyboard{};
     OsHidEvent event{};
     char buffer[256]{};
 

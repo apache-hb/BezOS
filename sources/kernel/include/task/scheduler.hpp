@@ -7,11 +7,23 @@
 namespace task {
     class SchedulerQueue;
 
+    /// @brief Task status state transitions.
     enum class TaskStatus {
+        /// @brief The task is not currently running but can be resumed.
         eIdle,
+
+        /// @brief The task is currently running on a core.
         eRunning,
+
+        /// @brief The task is currently waiting for a resource or event.
         eSuspended,
+
+        /// @brief Terminal state, once a task reaches this state it can not be resumed.
+        /// @note A task with this state can still be executing, but it will not be scheduled again.
         eTerminated,
+
+        /// @brief The task is closed, it has been removed from the scheduler queue and will not be scheduled again.
+        eClosed,
     };
 
     /// @brief All state required to suspend or resume a thread.
@@ -24,10 +36,16 @@ namespace task {
     class SchedulerEntry {
         friend class SchedulerQueue;
 
-        std::atomic<TaskStatus> status;
+        std::atomic<TaskStatus> status{TaskStatus::eIdle};
         TaskState state;
         km::StackMappingAllocation userStack;
         km::StackMappingAllocation kernelStack;
+
+    public:
+        constexpr SchedulerEntry() noexcept = default;
+
+        void terminate() noexcept;
+        bool isClosed() const noexcept;
     };
 
     /// @brief What should be done with the result of a scheduling operation.
@@ -46,6 +64,22 @@ namespace task {
 
         void setCurrentTask(SchedulerEntry *task) noexcept;
 
+        bool takeNextTask(SchedulerEntry **next) noexcept;
+
+        /// @brief Try to transition a task to the idle state.
+        ///
+        /// @return If the task was successfully moved to the idle state.
+        /// @retval true The task was moved to the idle state.
+        /// @retval false The task was not moved, it should be dropped from the queue.
+        static bool moveTaskToIdle(SchedulerEntry *task) noexcept;
+
+        /// @brief Try to transition a task to the running state.
+        ///
+        /// @return If the task was successfully moved to the running state.
+        /// @retval true The task was moved to the running state.
+        /// @retval false The task was not moved, it should be dropped from the queue.
+        static bool moveTaskToRunning(SchedulerEntry *task) noexcept;
+
     public:
         constexpr SchedulerQueue() noexcept = default;
 
@@ -60,6 +94,8 @@ namespace task {
         ScheduleResult reschedule(TaskState *state [[gnu::nonnull]]) noexcept;
 
         /// @brief Enqueue a new task to the scheduler.
+        ///
+        /// @warning @p entry must have a stable address, it will be stored in the queue.
         OsStatus enqueue(const TaskState &state, km::StackMappingAllocation userStack, km::StackMappingAllocation kernelStack, SchedulerEntry *entry) noexcept;
 
         size_t getTaskCount() const noexcept {

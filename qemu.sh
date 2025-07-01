@@ -20,7 +20,7 @@ serial_canbus()
 
 repobld()
 {
-    install/tool/bin/package.elf --config repo/repo.xml --target repo/targets/x86_64.xml --output build --prefix install --rebuild $@ --total
+    install/tool/bin/package.elf --config repo/repo.xml --target repo/targets/x86_64.xml --output build --prefix install --rebuild $@
 }
 
 # Check if a different iso is requested
@@ -108,7 +108,8 @@ elif [ "$MODE" = "test" ]; then
 
     qemu-system-x86_64 $QEMUARGS $(serial_chardev qemu-serial.txt) $(serial_canbus) $ARGS
 else
-    repobld kernel || exit 1
+    repobld kernel sysapi system || exit 1
+    repobld initrd --total || exit 1
 
     set -x
     qemu-system-x86_64 $QEMUARGS $(serial_chardev qemu-serial.txt) $ARGS

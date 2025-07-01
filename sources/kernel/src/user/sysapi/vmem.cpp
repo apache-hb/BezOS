@@ -37,9 +37,16 @@ OsCallResult um::VmemMap(km::System *system, km::CallContext *context, km::Syste
 
     OsVmemMapInfo mapInfo{};
 
+    SysLog.dbgf("VmemMap: UserMapInfo: ", km::Hex(userMapInfo));
+
     if (OsStatus status = context->readObject(userMapInfo, &mapInfo)) {
+        SysLog.dbgf("VmemMap: Failed to read map info: ", OsStatusId(status));
         return km::CallError(status);
     }
+
+    SysLog.dbgf("VmemMap: SrcAddress: ", km::Hex(mapInfo.SrcAddress), ", DstAddress: ", km::Hex(mapInfo.DstAddress),
+                  ", Size: ", km::Hex(mapInfo.Size), ", Access: ", km::Hex(mapInfo.Access), ", Source: ",
+                  km::Hex(mapInfo.Source), ", Process: ", km::Hex(mapInfo.Process));
 
     sys::InvokeContext invoke { system->sys, sys::GetCurrentProcess() };
     void *vaddr = nullptr;

@@ -74,8 +74,6 @@ static constexpr km::PhysicalAddressEx kSmpInfo = 0x7000;
 static constexpr km::PhysicalAddressEx kSmpStart = 0x8000;
 
 extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
-    InitLog.dbgf("Starting Core.");
-
     km::SetupInitialGdt();
     km::LoadIdt();
 
@@ -223,8 +221,6 @@ void km::InitSmp(
         smpInfo->stack = AllocSmpStack(memory);
         smpInfo->ready.clear();
 
-        InitLog.dbgf("Starting APIC ID: ", localApic.apicId);
-
         //
         // Send the INIT IPI
         //
@@ -232,14 +228,10 @@ void km::InitSmp(
 
         // TODO: sleep
 
-        InitLog.dbgf("Sending SIPI to APIC ID: ", localApic.apicId);
-
         //
         // Send the start IPI
         //
         bsp->sendIpi(localApic.apicId, apic::IpiAlert::sipi(kSmpStart));
-
-        InitLog.dbgf("Waiting for APIC ID: ", localApic.apicId, " to start.");
 
         // TODO: should really have a condition variable here
         while (!smpInfo->ready.test()) {

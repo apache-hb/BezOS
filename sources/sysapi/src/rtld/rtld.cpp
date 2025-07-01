@@ -172,6 +172,7 @@ static OsStatus RtldMapProgram(OsDeviceHandle file, OsProcessHandle process, uin
     elf::Header header;
 
     if (OsStatus status = ElfReadHeader(file, &header)) {
+        OsDebugMessage(eOsLogInfo, "Failed to read ELF header");
         return status;
     }
 
@@ -188,6 +189,7 @@ static OsStatus RtldMapProgram(OsDeviceHandle file, OsProcessHandle process, uin
     };
 
     if (OsStatus status = OsVmemMap(mapInfo, &elfPhMappingBase)) {
+        OsDebugMessage(eOsLogInfo, "Failed to map ELF program headers");
         return status;
     }
 
@@ -223,6 +225,7 @@ static OsStatus RtldMapProgram(OsDeviceHandle file, OsProcessHandle process, uin
 
             void *guestAddress = nullptr;
             if (OsStatus status = OsVmemCreate(vmemGuestCreateInfo, &guestAddress)) {
+                OsDebugMessage(eOsLogInfo, "Failed to create guest memory for program header");
                 return status;
             }
         }
@@ -237,13 +240,16 @@ static OsStatus RtldMapProgram(OsDeviceHandle file, OsProcessHandle process, uin
         };
         void *guestAddress = nullptr;
 
+        // TODO: handle misaligned mappings
         if (OsStatus status = OsVmemMap(vmemGuestMapInfo, &guestAddress)) {
+            OsDebugMessage(eOsLogInfo, "Failed to map program header into guest memory");
             return status;
         }
     }
 
     if (const elf::ProgramHeader *tls = FindTlsSection(phs)) {
         if (OsStatus status = RtldTlsInit(file, process, *tls, tlsInfo)) {
+            OsDebugMessage(eOsLogInfo, "Failed to initialize TLS");
             return status;
         }
     }
@@ -255,6 +261,7 @@ OsStatus RtldStartProgram(const RtldStartInfo *StartInfo, OsThreadHandle *OutThr
     uintptr_t entry = 0;
     RtldTlsInitInfo tlsInfo{};
     if (OsStatus status = RtldMapProgram(StartInfo->Program, StartInfo->Process, &entry, &tlsInfo)) {
+        OsDebugMessage(eOsLogInfo, "Failed to map program");
         return status;
     }
 
@@ -268,6 +275,7 @@ OsStatus RtldStartProgram(const RtldStartInfo *StartInfo, OsThreadHandle *OutThr
     };
 
     if (OsStatus status = OsVmemCreate(startInfoCreateInfo, &startInfoGuestAddress)) {
+        OsDebugMessage(eOsLogInfo, "Failed to create start info memory");
         return status;
     }
 
@@ -279,6 +287,7 @@ OsStatus RtldStartProgram(const RtldStartInfo *StartInfo, OsThreadHandle *OutThr
     };
 
     if (OsStatus status = OsVmemMap(startInfoMapInfo, &startInfoGuestAddress)) {
+        OsDebugMessage(eOsLogInfo, "Failed to map start info memory");
         return status;
     }
 
@@ -295,6 +304,7 @@ OsStatus RtldStartProgram(const RtldStartInfo *StartInfo, OsThreadHandle *OutThr
     };
     void *stackGuestAddress = nullptr;
     if (OsStatus status = OsVmemCreate(stackCreateInfo, &stackGuestAddress)) {
+        OsDebugMessage(eOsLogInfo, "Failed to create stack memory");
         return status;
     }
 
@@ -307,6 +317,7 @@ OsStatus RtldStartProgram(const RtldStartInfo *StartInfo, OsThreadHandle *OutThr
     RtldTls tls{};
     if (tlsInfo.TlsDataSize != 0 || tlsInfo.TlsBssSize != 0) {
         if (OsStatus status = RtldCreateTls(StartInfo->Process, &tlsInfo, &tls)) {
+            OsDebugMessage(eOsLogInfo, "Failed to create TLS");
             return status;
         }
     }
@@ -328,6 +339,7 @@ OsStatus RtldStartProgram(const RtldStartInfo *StartInfo, OsThreadHandle *OutThr
 
     OsThreadHandle threadHandle = OS_HANDLE_INVALID;
     if (OsStatus status = OsThreadCreate(threadCreateInfo, &threadHandle)) {
+        OsDebugMessage(eOsLogInfo, "Failed to create thread");
         return status;
     }
 
@@ -349,6 +361,7 @@ OsStatus RtldCreateTls(OsProcessHandle Process, struct RtldTlsInitInfo *TlsInfo,
 
     void *guestAddress = nullptr;
     if (OsStatus status = OsVmemCreate(createInfo, &guestAddress)) {
+        OsDebugMessage(eOsLogInfo, "Failed to create TLS memory");
         return status;
     }
 
@@ -361,6 +374,7 @@ OsStatus RtldCreateTls(OsProcessHandle Process, struct RtldTlsInitInfo *TlsInfo,
         .Source = Process,
     };
     if (OsStatus status = OsVmemMap(mapTlsInfo, &tlsAddress)) {
+        OsDebugMessage(eOsLogInfo, "Failed to map TLS memory");
         return status;
     }
 

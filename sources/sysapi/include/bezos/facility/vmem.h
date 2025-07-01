@@ -49,6 +49,7 @@ typedef uint32_t OsMemoryAccess;
 
 struct OsVmemMapInfo {
     /// @brief The address from the source object to map.
+    /// @note Must be a multiple of the system page size.
     OsAddress SrcAddress;
 
     /// @brief The address in the destination process to map the memory at.

@@ -159,7 +159,6 @@ enum {
 
 void km::SetupInitialGdt(void) {
     InitGdt(gBootGdt.entries, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
-    InitLog.info("GDT initialized");
 }
 
 void km::SetupApGdt(void) {
@@ -1566,6 +1565,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     gBootGdt = GetBootGdt();
     SetupInitialGdt();
+    InitLog.info("GDT initialized");
 
     XSaveConfig xsaveConfig {
         .target = kEnableXSave ? SaveMode::eXSave : SaveMode::eFxSave,
