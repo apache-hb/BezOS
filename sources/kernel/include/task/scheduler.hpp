@@ -80,6 +80,8 @@ namespace task {
         /// @retval false The task was not moved, it should be dropped from the queue.
         static bool moveTaskToRunning(SchedulerEntry *task) noexcept;
 
+        static bool keepTaskRunning(SchedulerEntry *task) noexcept;
+
     public:
         constexpr SchedulerQueue() noexcept = default;
 

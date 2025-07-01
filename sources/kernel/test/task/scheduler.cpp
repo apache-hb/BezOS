@@ -235,3 +235,78 @@ TEST_F(SchedulerTest, Terminate) {
     EXPECT_EQ(counter0.load(), savedCounter0.load());
     EXPECT_TRUE(task0.isClosed());
 }
+
+TEST_F(SchedulerTest, ExhaustThreads) {
+    OsStatus status = OsStatusSuccess;
+    std::atomic<size_t> signals = 0;
+    std::unique_ptr<x64::page[]> stack0{ new x64::page[4] };
+    std::unique_ptr<x64::page[]> stack1{ new x64::page[4] };
+    std::atomic<size_t> counter0 = 0;
+    std::atomic<size_t> counter1 = 0;
+    std::atomic<bool> done = false;
+
+    std::atomic<size_t> savedCounter0 = 0;
+
+    auto [thread, handle] = ktest::CreateReentrantThreadPair([&] {
+        while (!done.load()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        sigset_t set;
+        sigemptyset(&set);
+        sigaddset(&set, ktest::kReentrantSignal);
+        pthread_sigmask(SIG_BLOCK, &set, nullptr);
+    }, [&]([[maybe_unused]] siginfo_t *siginfo, mcontext_t *mc) {
+        if (done.load()) {
+            pthread_exit(nullptr);
+            return;
+        }
+
+        if (!tryContextSwitch(queue, mc)) {
+            return; // No task to switch to
+        }
+
+        signals += 1;
+    });
+
+    task::SchedulerEntry task0;
+    task::SchedulerEntry task1;
+
+    status = enqueueCounterTask(&counter0, stack0.get(), TestThread0, &task0);
+    ASSERT_EQ(status, OsStatusSuccess);
+
+    status = enqueueCounterTask(&counter1, stack1.get(), TestThread1, &task1);
+    ASSERT_EQ(status, OsStatusSuccess);
+
+    printf("Task 0: %p, Task 1: %p\n", (void*)&task0, (void*)&task1);
+    runQueue(thread, std::chrono::milliseconds(250), [&](auto elapsed) {
+        if (elapsed > std::chrono::milliseconds(100)) {
+            task0.terminate();
+            task1.terminate();
+        }
+
+        // Once the task is terminated, it should not be rescheduled.
+        if (task0.isClosed()) {
+            if (savedCounter0.load() == 0) {
+                savedCounter0.store(counter0.load());
+            } else {
+                ASSERT_EQ(savedCounter0.load(), counter0.load());
+            }
+        }
+    });
+
+    done.store(true);
+
+    for (size_t i = 0; i < 10; ++i) {
+        ktest::AlertReentrantThread(thread);
+    }
+    pthread_join(thread, nullptr);
+    delete handle;
+
+    EXPECT_NE(signals.load(), 0);
+    EXPECT_NE(counter0.load(), 0);
+    EXPECT_NE(counter1.load(), 0);
+    EXPECT_NE(savedCounter0.load(), 0);
+    EXPECT_EQ(counter0.load(), savedCounter0.load());
+    EXPECT_TRUE(task0.isClosed());
+    EXPECT_TRUE(task1.isClosed());
+}

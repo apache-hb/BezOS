@@ -19,6 +19,8 @@ void task::SchedulerEntry::terminate() noexcept {
             return;
         }
     }
+
+    printf("Terminating task %p\n", (void*)this);
 }
 
 bool task::SchedulerEntry::isClosed() const noexcept {
@@ -42,7 +44,7 @@ bool task::SchedulerQueue::moveTaskToIdle(SchedulerEntry *task) noexcept {
             // If the task is terminated, it should be moved to the closed state
             // and removed from the queue.
             task->status.store(TaskStatus::eClosed);
-            printf("Moved task %p to closed state\n", task);
+            printf("Task %p is terminated, moving to closed state\n", task);
             return false;
         case task::TaskStatus::eClosed:
             KM_PANIC("Closed task should not be in the queue");
@@ -70,7 +72,7 @@ bool task::SchedulerQueue::moveTaskToRunning(SchedulerEntry *task) noexcept {
             // If the task is terminated, it should be moved to the closed state
             // and removed from the queue.
             task->status.store(TaskStatus::eClosed);
-            printf("Moved task %p to closed state\n", task);
+            printf("Cannot resume %p, moving to closed state\n", task);
             return false;
         case task::TaskStatus::eClosed:
             KM_PANIC("Closed task should not be in the queue");
@@ -79,6 +81,30 @@ bool task::SchedulerQueue::moveTaskToRunning(SchedulerEntry *task) noexcept {
     }
 
     return true;
+}
+
+bool task::SchedulerQueue::keepTaskRunning(SchedulerEntry *task) noexcept {
+    switch (task->status.load()) {
+    case TaskStatus::eRunning:
+        // The task is already running, no need to change its state.
+        return true;
+    case TaskStatus::eIdle:
+        KM_PANIC("Task is idle, should not be the current task");
+        return false;
+    case TaskStatus::eSuspended:
+        // If the task is suspended, it should not be moved to running.
+        return false;
+    case TaskStatus::eTerminated:
+        // If the task is terminated, it should be moved to the closed state
+        // and removed from the queue.
+        task->status.store(TaskStatus::eClosed);
+        printf("Cannot resume %p, moving to closed state\n", task);
+        return false;
+    case TaskStatus::eClosed:
+        // Closed tasks should not be in the queue, this is a bug.
+        KM_PANIC("Closed task should not be in the queue");
+        return false;
+    }
 }
 
 void task::SchedulerQueue::setCurrentTask(SchedulerEntry *task) noexcept {
@@ -111,7 +137,21 @@ bool task::SchedulerQueue::takeNextTask(SchedulerEntry **next) noexcept {
 task::ScheduleResult task::SchedulerQueue::reschedule(TaskState *state [[gnu::nonnull]]) noexcept {
     SchedulerEntry *newTask;
     if (!takeNextTask(&newTask)) {
-        return (mCurrentTask == nullptr) ? task::ScheduleResult::eIdle : task::ScheduleResult::eResume;
+        //
+        // This handles the case where there are no tasks in the queue.
+        // If nothing at all is scheduled then we should idle the CPU.
+        // If there is a current task we need to check if it can continue running.
+        //
+        if (mCurrentTask == nullptr) {
+            return ScheduleResult::eIdle;
+        }
+
+        if (!keepTaskRunning(mCurrentTask)) {
+            mCurrentTask = nullptr;
+            return ScheduleResult::eIdle;
+        }
+
+        return ScheduleResult::eResume;
     }
 
     if (mCurrentTask != nullptr) {
@@ -121,7 +161,7 @@ task::ScheduleResult task::SchedulerQueue::reschedule(TaskState *state [[gnu::no
     setCurrentTask(newTask);
 
     *state = newTask->state;
-    return task::ScheduleResult::eResume;
+    return ScheduleResult::eResume;
 }
 
 OsStatus task::SchedulerQueue::enqueue(const TaskState &state, km::StackMappingAllocation userStack, km::StackMappingAllocation kernelStack, SchedulerEntry *entry) noexcept {
