@@ -26,11 +26,31 @@ size_t ucontextSize(void *ctx) {
 static task::SchedulerEntry *gCurrentEntry = nullptr;
 
 struct ThreadTestState {
+    std::unique_ptr<x64::page[]> stackStorage;
+    std::unique_ptr<x64::page[]> xsaveStorage;
     std::atomic<bool> running{true};
     std::atomic<size_t> counter{0};
     task::SchedulerEntry *entry;
     task::SchedulerQueue *queue;
 };
+
+static void initTestState(ThreadTestState *state) {
+    state->stackStorage = std::make_unique<x64::page[]>(4);
+    // Use a big number of pages to ensure we have enough space for the xsave state
+    // Linux has no easy way to determine the size required to save the fpu state.
+    state->xsaveStorage = std::make_unique<x64::page[]>(4);
+    state->entry = nullptr;
+    state->queue = nullptr;
+}
+
+static ThreadTestState newTestState() {
+    return ThreadTestState {
+        .stackStorage = std::make_unique<x64::page[]>(4),
+        .xsaveStorage = std::make_unique<x64::page[]>(4),
+        .entry = nullptr,
+        .queue = nullptr,
+    };
+}
 
 [[gnu::target("general-regs-only")]]
 static void TestThread0(void *arg) {
@@ -168,9 +188,11 @@ public:
 
     task::SchedulerQueue queue;
 
-    OsStatus enqueueCounterTask(ThreadTestState *state, x64::page *stack, x64::XSave *xsave, void (*task)(void *), task::SchedulerEntry *entry) {
+    OsStatus enqueueCounterTask(ThreadTestState *state, void (*task)(void *), task::SchedulerEntry *entry) {
         state->entry = entry;
         state->queue = &queue;
+        x64::page *stack = state->stackStorage.get();
+        x64::page *xsave = state->xsaveStorage.get();
 
         OsStatus status = queue.enqueue({
             .registers = {
@@ -179,7 +201,7 @@ public:
                 .rsp = reinterpret_cast<uintptr_t>(stack + 4) - 0x8,
                 .rip = reinterpret_cast<uintptr_t>(task),
             },
-            .xsave = xsave,
+            .xsave = (x64::XSave*)(xsave),
         }, km::StackMappingAllocation{}, km::StackMappingAllocation{}, entry);
         return status;
     }
@@ -209,16 +231,9 @@ public:
 TEST_F(SchedulerTest, ContextSwitch) {
     OsStatus status = OsStatusSuccess;
     std::atomic<size_t> signals = 0;
-    std::unique_ptr<x64::page[]> stack0{ new x64::page[4] };
-    std::unique_ptr<x64::page[]> stack1{ new x64::page[4] };
 
-    // use big sizes, linux doesnt have an easy way to determine the size required to save
-    // fpu state.
-    std::unique_ptr<x64::page[]> xsave0{ new x64::page[4] };
-    std::unique_ptr<x64::page[]> xsave1{ new x64::page[4] };
-
-    ThreadTestState state0;
-    ThreadTestState state1;
+    ThreadTestState state0 = newTestState();
+    ThreadTestState state1 = newTestState();
     std::atomic<bool> done = false;
 
     auto [thread, handle] = ktest::CreateReentrantThreadPair([&] {
@@ -247,13 +262,17 @@ TEST_F(SchedulerTest, ContextSwitch) {
     task::SchedulerEntry task0;
     task::SchedulerEntry task1;
 
-    status = enqueueCounterTask(&state0, stack0.get(), (x64::XSave*)xsave0.get(), TestThread0, &task0);
+    status = enqueueCounterTask(&state0, TestThread0, &task0);
     ASSERT_EQ(status, OsStatusSuccess);
 
-    status = enqueueCounterTask(&state1, stack1.get(), (x64::XSave*)xsave1.get(), TestThread1, &task1);
+    status = enqueueCounterTask(&state1, TestThread1, &task1);
     ASSERT_EQ(status, OsStatusSuccess);
 
-    runQueue(thread, std::chrono::milliseconds(250));
+    runQueue(thread, [&](auto elapsed) {
+        return state0.counter.load() != 0 && state1.counter.load() != 0 &&
+               elapsed > std::chrono::milliseconds(100);
+    });
+
     done.store(true);
 
     for (size_t i = 0; i < 10; ++i) {
@@ -270,13 +289,9 @@ TEST_F(SchedulerTest, ContextSwitch) {
 TEST_F(SchedulerTest, Terminate) {
     OsStatus status = OsStatusSuccess;
     std::atomic<size_t> signals = 0;
-    std::unique_ptr<x64::page[]> stack0{ new x64::page[4] };
-    std::unique_ptr<x64::page[]> stack1{ new x64::page[4] };
-    std::unique_ptr<x64::page[]> xsave0{ new x64::page[4] };
-    std::unique_ptr<x64::page[]> xsave1{ new x64::page[4] };
 
-    ThreadTestState state0;
-    ThreadTestState state1;
+    ThreadTestState state0 = newTestState();
+    ThreadTestState state1 = newTestState();
     std::atomic<bool> done = false;
 
     std::atomic<size_t> savedCounter0 = 0;
@@ -305,10 +320,10 @@ TEST_F(SchedulerTest, Terminate) {
     task::SchedulerEntry task0;
     task::SchedulerEntry task1;
 
-    status = enqueueCounterTask(&state0, stack0.get(), (x64::XSave*)xsave0.get(), TestThread0, &task0);
+    status = enqueueCounterTask(&state0, TestThread0, &task0);
     ASSERT_EQ(status, OsStatusSuccess);
 
-    status = enqueueCounterTask(&state1, stack1.get(), (x64::XSave*)xsave1.get(), TestThread1, &task1);
+    status = enqueueCounterTask(&state1, TestThread1, &task1);
     ASSERT_EQ(status, OsStatusSuccess);
 
     runQueue(thread, [&](auto elapsed) {
@@ -351,13 +366,9 @@ TEST_F(SchedulerTest, Terminate) {
 TEST_F(SchedulerTest, ExhaustThreads) {
     OsStatus status = OsStatusSuccess;
     std::atomic<size_t> signals = 0;
-    std::unique_ptr<x64::page[]> stack0{ new x64::page[4] };
-    std::unique_ptr<x64::page[]> stack1{ new x64::page[4] };
-    std::unique_ptr<x64::page[]> xsave0{ new x64::page[4] };
-    std::unique_ptr<x64::page[]> xsave1{ new x64::page[4] };
 
-    ThreadTestState state0;
-    ThreadTestState state1;
+    ThreadTestState state0 = newTestState();
+    ThreadTestState state1 = newTestState();
     std::atomic<bool> done = false;
 
     std::atomic<size_t> savedCounter0 = 0;
@@ -386,10 +397,10 @@ TEST_F(SchedulerTest, ExhaustThreads) {
     task::SchedulerEntry task0;
     task::SchedulerEntry task1;
 
-    status = enqueueCounterTask(&state0, stack0.get(), (x64::XSave*)xsave0.get(), TestThread0, &task0);
+    status = enqueueCounterTask(&state0, TestThread0, &task0);
     ASSERT_EQ(status, OsStatusSuccess);
 
-    status = enqueueCounterTask(&state1, stack1.get(), (x64::XSave*)xsave1.get(), TestThread1, &task1);
+    status = enqueueCounterTask(&state1, TestThread1, &task1);
     ASSERT_EQ(status, OsStatusSuccess);
 
     runQueue(thread, [&](auto elapsed) {
@@ -429,4 +440,84 @@ TEST_F(SchedulerTest, ExhaustThreads) {
     EXPECT_EQ(state0.counter.load(), savedCounter0.load());
     EXPECT_TRUE(task0.isClosed());
     EXPECT_TRUE(task1.isClosed());
+}
+
+TEST_F(SchedulerTest, ManyThreads) {
+    OsStatus status = OsStatusSuccess;
+    std::atomic<size_t> signals = 0;
+
+    static constexpr size_t kMaxThreads = 128;
+    std::vector<std::unique_ptr<ThreadTestState>> states;
+    states.reserve(kMaxThreads);
+    for (size_t i = 0; i < kMaxThreads; ++i) {
+        auto& state = states.emplace_back(std::make_unique<ThreadTestState>());
+        initTestState(state.get());
+    }
+
+    std::vector<task::SchedulerEntry> entries{kMaxThreads};
+
+    std::atomic<bool> done = false;
+
+    auto [thread, handle] = ktest::CreateReentrantThreadPair([&] {
+        while (!done.load()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        sigset_t set;
+        sigemptyset(&set);
+        sigaddset(&set, ktest::kReentrantSignal);
+        pthread_sigmask(SIG_BLOCK, &set, nullptr);
+    }, [&]([[maybe_unused]] siginfo_t *siginfo, ucontext_t *uc) {
+        if (done.load()) {
+            pthread_exit(nullptr);
+            return;
+        }
+
+        if (!tryContextSwitch(queue, uc)) {
+            return; // No task to switch to
+        }
+
+        signals += 1;
+    });
+
+    std::atomic<size_t> index = 0;
+    for (size_t i = 0; i < 3; i++) {
+        size_t next = index.fetch_add(1);
+        status = enqueueCounterTask(states[next].get(), TestThread0, &entries[next]);
+        ASSERT_EQ(status, OsStatusSuccess);
+    }
+
+    size_t maxIndex = 0;
+
+    runQueue(thread, [&](auto elapsed) {
+        size_t next = index.fetch_add(1);
+        if (next < kMaxThreads) {
+            status = enqueueCounterTask(states[next].get(), TestThread1, &entries[next]);
+            if (status == OsStatusOutOfMemory) {
+                index = kMaxThreads + 1; // Stop adding more threads
+            } else {
+                maxIndex = std::max(maxIndex, next);
+            }
+        }
+
+        for (size_t i = 0; i <= maxIndex; ++i) {
+            if (states[i]->counter.load() == 0) {
+                return false; // Not all threads have run yet
+            }
+        }
+
+        return elapsed > std::chrono::milliseconds(250);
+    });
+
+    done.store(true);
+
+    for (size_t i = 0; i < 10; ++i) {
+        ktest::AlertReentrantThread(thread);
+    }
+    pthread_join(thread, nullptr);
+    delete handle;
+
+    EXPECT_NE(signals.load(), 0);
+    for (size_t i = 0; i <= maxIndex; ++i) {
+        EXPECT_NE(states[i]->counter.load(), 0) << "Thread " << i << " did not run";
+    }
 }

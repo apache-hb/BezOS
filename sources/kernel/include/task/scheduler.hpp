@@ -68,6 +68,10 @@ namespace task {
         EntryQueue mQueue;
         SchedulerEntry *mCurrentTask;
 
+        /// @brief A rescue task that stores a task when the scheduler queue is totally full.
+        /// Prevents leaking the current task when the queue is full.
+        std::atomic<SchedulerEntry*> mRescueTask;
+
         void setCurrentTask(SchedulerEntry *task) noexcept;
 
         bool takeNextTask(SchedulerEntry **next) noexcept;

@@ -108,7 +108,8 @@ void task::SchedulerQueue::setCurrentTask(SchedulerEntry *task) noexcept {
 
         if (addToQueue) {
             if (!mQueue.tryPush(mCurrentTask)) {
-                KM_PANIC("Failed to push old state back to the queue");
+                SchedulerEntry *rescueTask = mRescueTask.exchange(mCurrentTask);
+                KM_ASSERT(rescueTask == nullptr);
             }
         }
     }
@@ -163,6 +164,14 @@ task::ScheduleResult task::SchedulerQueue::reschedule(TaskState *state [[gnu::no
 OsStatus task::SchedulerQueue::enqueue(const TaskState &state, km::StackMappingAllocation userStack, km::StackMappingAllocation kernelStack, SchedulerEntry *entry) noexcept {
     KM_ASSERT(entry->status.load() == TaskStatus::eIdle);
 
+    if (SchedulerEntry *rescueTask = mRescueTask.load()) {
+        if (mQueue.tryPush(rescueTask)) {
+            mRescueTask.store(nullptr);
+        } else {
+            return OsStatusOutOfMemory;
+        }
+    }
+
     entry->state = state;
     entry->userStack = userStack;
     entry->kernelStack = kernelStack;
@@ -176,5 +185,6 @@ OsStatus task::SchedulerQueue::enqueue(const TaskState &state, km::StackMappingA
 
 OsStatus task::SchedulerQueue::create(uint32_t capacity, SchedulerQueue *queue) noexcept {
     queue->mCurrentTask = nullptr;
+    queue->mRescueTask = nullptr;
     return EntryQueue::create(capacity, &queue->mQueue);
 }
