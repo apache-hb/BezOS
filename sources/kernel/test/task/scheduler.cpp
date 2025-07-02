@@ -185,21 +185,24 @@ public:
     }
 
     template<typename F>
-    void runQueue(pthread_t thread, std::chrono::milliseconds duration, F&& func) {
+    void runQueue(pthread_t thread, F&& func) {
         auto start = std::chrono::high_resolution_clock::now();
         auto now = start;
-        auto end = start + duration;
-        while (now < end) {
+        while (true) {
             ktest::AlertReentrantThread(thread);
             auto newTime = std::chrono::high_resolution_clock::now();
             auto elapsed = newTime - start;
             now = newTime;
-            func(elapsed);
+            if (func(elapsed)) {
+                break;
+            }
         }
     }
 
     void runQueue(pthread_t thread, std::chrono::milliseconds duration) {
-        runQueue(thread, duration, [](auto) {});
+        runQueue(thread, [duration](auto elapsed) -> bool {
+            return elapsed > duration;
+        });
     }
 };
 
@@ -308,7 +311,11 @@ TEST_F(SchedulerTest, Terminate) {
     status = enqueueCounterTask(&state1, stack1.get(), (x64::XSave*)xsave1.get(), TestThread1, &task1);
     ASSERT_EQ(status, OsStatusSuccess);
 
-    runQueue(thread, std::chrono::milliseconds(250), [&](auto elapsed) {
+    runQueue(thread, [&](auto elapsed) {
+        if (state0.counter.load() == 0 || state1.counter.load() == 0) {
+            return false;
+        }
+
         if (elapsed > std::chrono::milliseconds(100)) {
             task0.terminate();
         }
@@ -318,9 +325,11 @@ TEST_F(SchedulerTest, Terminate) {
             if (savedCounter0.load() == 0) {
                 savedCounter0.store(state0.counter.load());
             } else {
-                ASSERT_EQ(savedCounter0.load(), state0.counter.load());
+                EXPECT_EQ(savedCounter0.load(), state0.counter.load());
             }
         }
+
+        return task0.isClosed() && elapsed > std::chrono::milliseconds(250);
     });
 
     done.store(true);
@@ -383,7 +392,11 @@ TEST_F(SchedulerTest, ExhaustThreads) {
     status = enqueueCounterTask(&state1, stack1.get(), (x64::XSave*)xsave1.get(), TestThread1, &task1);
     ASSERT_EQ(status, OsStatusSuccess);
 
-    runQueue(thread, std::chrono::milliseconds(250), [&](auto elapsed) {
+    runQueue(thread, [&](auto elapsed) {
+        if (state0.counter.load() == 0 || state1.counter.load() == 0) {
+            return false;
+        }
+
         if (elapsed > std::chrono::milliseconds(100)) {
             task0.terminate();
             task1.terminate();
@@ -394,9 +407,11 @@ TEST_F(SchedulerTest, ExhaustThreads) {
             if (savedCounter0.load() == 0) {
                 savedCounter0.store(state0.counter.load());
             } else {
-                ASSERT_EQ(savedCounter0.load(), state0.counter.load());
+                EXPECT_EQ(savedCounter0.load(), state0.counter.load());
             }
         }
+
+        return task0.isClosed() && task1.isClosed() && elapsed > std::chrono::milliseconds(250);
     });
 
     done.store(true);
