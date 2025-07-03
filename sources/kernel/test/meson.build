@@ -341,9 +341,9 @@ testcases = {
         ],
         'link_with': [ librcu_native, libtest_shim ],
     },
-    'task scheduler': {
+    'task scheduler queue': {
         'sources': [
-            files('task/scheduler.cpp'),
+            files('task/scheduler_queue.cpp'),
         ],
         'link_with': [ libtask_native, libtest_shim ],
     }

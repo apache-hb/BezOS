@@ -391,7 +391,7 @@ libpaging_nosanitize = static_library('paging_nosanitize', paging_src,
 # Task scheduling
 
 task_src = files(
-    'src/task/scheduler.cpp',
+    'src/task/scheduler_queue.cpp',
 )
 
 libtask_kernel = static_library('task', task_src,
