@@ -396,6 +396,8 @@ namespace sm::detail {
             using Super::maxKey;
             using Super::upperBound;
             using Super::start;
+            using Super::keys;
+            using Super::values;
 
             static constexpr size_t leafCapacity() noexcept {
                 return Leaf::maxCapacity() + 1;
@@ -405,8 +407,8 @@ namespace sm::detail {
                 return count() + 1;
             }
 
-            std::span<Leaf*> children() noexcept { return std::span(mChildren, count() + 1); }
-            std::span<Leaf* const> children() const noexcept { return std::span(mChildren, count() + 1); }
+            std::span<Leaf*> children() noexcept { return std::span(mChildren + start(), count() + 1); }
+            std::span<Leaf* const> children() const noexcept { return std::span(mChildren + start(), count() + 1); }
 
             ChildEntry popBackChild() noexcept {
                 KM_ASSERT(count() > 0);
@@ -421,14 +423,14 @@ namespace sm::detail {
                 KM_ASSERT(count() > 0);
                 Entry entry = {key(0), value(0)};
                 Leaf *leaf = child(0);
-                for (size_t i = 0; i < count() - 1; i++) {
-                    key(i) = key(i + 1);
-                    value(i) = value(i + 1);
-                }
 
-                for (size_t i = 0; i < count(); i++) {
-                    child(i) = child(i + 1);
-                }
+                auto keySet = keys();
+                auto valueSet = values();
+                auto childSet = children();
+
+                std::move(keySet.begin() + 1, keySet.end(), keySet.begin());
+                std::move(valueSet.begin() + 1, valueSet.end(), valueSet.begin());
+                std::move(childSet.begin() + 1, childSet.end(), childSet.begin());
 
                 setCount(count() - 1);
 
@@ -484,14 +486,13 @@ namespace sm::detail {
 
             void removeEntry(size_t index) noexcept {
                 KM_ASSERT(index < count());
-                for (size_t i = index; i < count() - 1; i++) {
-                    key(i) = key(i + 1);
-                    value(i) = value(i + 1);
-                }
+                auto keySet = keys();
+                auto valueSet = values();
+                auto childSet = children();
 
-                for (size_t i = index; i < count(); i++) {
-                    child(i) = child(i + 1);
-                }
+                std::move(keySet.begin() + index + 1, keySet.end(), keySet.begin() + index);
+                std::move(valueSet.begin() + index + 1, valueSet.end(), valueSet.begin() + index);
+                std::move(childSet.begin() + index + 1, childSet.end(), childSet.begin() + index);
 
                 setCount(count() - 1);
             }
@@ -564,8 +565,22 @@ namespace sm::detail {
 
                 size_t itemsToMove = Leaf::minCapacity() - rhsCount;
                 rhs->insert(middle);
-                for (size_t i = 0; i < itemsToMove; i++) {
-                    rhs->insert(lhs->popBack());
+
+                {
+                    rhs->setCount(rhs->count() + itemsToMove);
+
+                    auto rhsKeySet = rhs->keys();
+                    auto rhsValueSet = rhs->values();
+                    auto lhsKeySet = lhs->keys();
+                    auto lhsValueSet = lhs->values();
+
+                    std::move_backward(rhsKeySet.begin(), rhsKeySet.end() - itemsToMove, rhsKeySet.end());
+                    std::move_backward(rhsValueSet.begin(), rhsValueSet.end() - itemsToMove, rhsValueSet.end());
+
+                    std::move(lhsKeySet.end() - itemsToMove, lhsKeySet.end(), rhsKeySet.begin());
+                    std::move(lhsValueSet.end() - itemsToMove, lhsValueSet.end(), rhsValueSet.begin());
+
+                    lhs->setCount(lhs->count() - itemsToMove);
                 }
 
                 Entry newMiddle = rhs->popFront();
@@ -599,13 +614,13 @@ namespace sm::detail {
                 lhs->claimInternal(middle, rhs);
 
                 // shuffle the remaining internal nodes over one position
-                for (size_t i = lhsIndex; i < count() - 1; i++) {
-                    key(i) = key(i + 1);
-                    value(i) = value(i + 1);
-                }
-                for (size_t i = lhsIndex + 1; i < count(); i++) {
-                    child(i) = child(i + 1);
-                }
+                auto keySet = keys();
+                auto valueSet = values();
+                auto childSet = children();
+                std::move(keySet.begin() + lhsIndex + 1, keySet.end(), keySet.begin() + lhsIndex);
+                std::move(valueSet.begin() + lhsIndex + 1, valueSet.end(), valueSet.begin() + lhsIndex);
+                std::move(childSet.begin() + lhsIndex + 1 + 1, childSet.end(), childSet.begin() + lhsIndex + 1);
+
                 setCount(count() - 1);
 
                 BTreeMapCommon::releaseNodeMemory(rhs, allocator);
@@ -634,7 +649,6 @@ namespace sm::detail {
                 std::move(rhsValueSet.begin(), rhsValueSet.begin() + itemsToMove - 1, lhsValueSet.begin() + lhsCount);
                 std::move(rhsChildSet.begin(), rhsChildSet.begin() + itemsToMove, lhsChildSet.begin() + lhsCount + 1);
 
-                // TODO: not great, should copy using takeChild
                 for (Leaf *child : lhs->children()) {
                     child->setParent(lhs);
                 }
@@ -689,7 +703,6 @@ namespace sm::detail {
                 std::move(lhsValueSet.end() - remaining, lhsValueSet.end(), rhsValueSet.begin());
                 std::move(lhsChildSet.end() - remaining - 1, lhsChildSet.end(), rhsChildSet.begin());
 
-                // TODO: not great, should copy using takeChild
                 for (Leaf *child : rhs->children()) {
                     child->setParent(rhs);
                 }
@@ -724,13 +737,24 @@ namespace sm::detail {
                 emplace(n, entry);
 
                 // Move the keys and values from the other internal node to this internal node
-                for (size_t i = 0; i < other->count(); i++) {
-                    emplace(n + i + 1, {other->key(i), other->value(i)});
+                {
+                    auto keySet = keys();
+                    auto valueSet = values();
+                    auto otherKeySet = other->keys();
+                    auto otherValueSet = other->values();
+
+                    std::move(otherKeySet.begin(), otherKeySet.end(), keySet.begin() + n + 1);
+                    std::move(otherValueSet.begin(), otherValueSet.end(), valueSet.begin() + n + 1);
                 }
 
-                for (size_t i = 0; i < other->count() + 1; i++) {
-                    Leaf *childNode = other->child(i);
-                    takeChild(n + i + 1, childNode);
+                {
+                    auto childSet = children();
+                    auto otherChildSet = other->children();
+
+                    std::move(otherChildSet.begin(), otherChildSet.end(), childSet.begin() + n + 1);
+                    for (Leaf *child : childSet) {
+                        child->setParent(this);
+                    }
                 }
 
                 // Clear the other internal node
@@ -784,14 +808,23 @@ namespace sm::detail {
 
                 other->setCount(half - (isOdd ? 0 : 1));
 
-                for (size_t i = 0; i < half - (isOdd ? 0 : 1); i++) {
-                    other->key(i) = key(i + half + 1);
-                    other->value(i) = value(i + half + 1);
+                {
+                    auto keySet = keys();
+                    auto valueSet = values();
+                    auto otherKeySet = other->keys();
+                    auto otherValueSet = other->values();
+
+                    std::move(keySet.begin() + half + 1, keySet.end(), otherKeySet.begin());
+                    std::move(valueSet.begin() + half + 1, valueSet.end(), otherValueSet.begin());
                 }
 
-                for (size_t i = 0; i < half + (isOdd ? 1 : 0); i++) {
-                    Leaf *leaf = child(i + half + 1);
-                    other->takeChild(i, leaf);
+                {
+                    auto childSet = children();
+                    auto otherChildSet = other->children();
+                    std::move(childSet.begin() + half + 1, childSet.end(), otherChildSet.begin());
+                    for (auto *child : otherChildSet) {
+                        child->setParent(other);
+                    }
                 }
 
                 setCount(half);

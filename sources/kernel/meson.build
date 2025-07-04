@@ -177,7 +177,7 @@ bench_kwargs = {
     'cpp_args': test_cpp_args,
     'native': true,
     'build_by_default': false,
-    'override_options' : [ 'b_sanitize=none', 'b_coverage=false', 'b_ndebug=false' ],
+    'override_options' : [ 'b_sanitize=none', 'b_coverage=false', 'b_ndebug=false', 'buildtype=release' ],
 }
 
 # TLSF
