@@ -90,6 +90,11 @@ namespace task {
         /// @retval false The task was not moved, it should be dropped from the queue.
         static bool moveTaskToRunning(SchedulerEntry *task) noexcept;
 
+        /// @brief Decide if a task should continue running or if it needs to be dequeued.
+        ///
+        /// @return If the task should continue running.
+        /// @retval true The task should continue running.
+        /// @retval false The task should be dequeued.
         static bool keepTaskRunning(SchedulerEntry *task) noexcept;
 
     public:

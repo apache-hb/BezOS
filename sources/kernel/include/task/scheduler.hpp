@@ -1,10 +1,11 @@
 #pragma once
 
+#include "processor.hpp"
 #include "task/scheduler_queue.hpp"
 
 namespace task {
     class Scheduler {
-        sm::BTreeMap<int, SchedulerQueue> mQueues;
+        sm::BTreeMap<km::CpuCoreId, SchedulerQueue> mQueues;
 
     public:
     };

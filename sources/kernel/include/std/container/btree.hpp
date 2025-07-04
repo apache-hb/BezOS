@@ -119,10 +119,10 @@ namespace sm::detail {
             Entry popFront() noexcept {
                 KM_ASSERT(count() > 0);
                 Entry entry = {key(0), value(0)};
-                for (size_t i = start(); i < count() - 1; i++) {
-                    key(i) = key(i + 1);
-                    value(i) = value(i + 1);
-                }
+                auto keySet = keys();
+                auto valueSet = values();
+                std::move(keySet.begin() + 1, keySet.end(), keySet.begin());
+                std::move(valueSet.begin() + 1, valueSet.end(), valueSet.begin());
                 setCount(count() - 1);
                 return entry;
             }
@@ -178,10 +178,10 @@ namespace sm::detail {
             }
 
             void remove(size_t index) noexcept {
-                for (size_t i = start() + index; i < count() - 1; i++) {
-                    key(i) = key(i + 1);
-                    value(i) = value(i + 1);
-                }
+                auto keySet = keys();
+                auto valueSet = values();
+                std::move(keySet.begin() + index + 1, keySet.end(), keySet.begin() + index);
+                std::move(valueSet.begin() + index + 1, valueSet.end(), valueSet.begin() + index);
                 setCount(count() - 1);
             }
 
@@ -277,18 +277,20 @@ namespace sm::detail {
                 KM_ASSERT(other->getParent() == this->getParent());
 
                 size_t oldCount = count();
+
                 // Move the keys and values from the other leaf to this leaf
                 setCount(oldCount + other->count());
 
-                auto thisKeys = keys();
-                auto thisValues = values();
-                auto otherKeys = other->keys();
-                auto otherValues = other->values();
+                {
+                    auto thisKeys = keys();
+                    auto thisValues = values();
+                    auto otherKeys = other->keys();
+                    auto otherValues = other->values();
 
-                std::move(otherKeys.begin(), otherKeys.end(), thisKeys.begin() + oldCount);
-                std::move(otherValues.begin(), otherValues.end(), thisValues.begin() + oldCount);
+                    std::move(otherKeys.begin(), otherKeys.end(), thisKeys.begin() + oldCount);
+                    std::move(otherValues.begin(), otherValues.end(), thisValues.begin() + oldCount);
+                }
 
-                // TODO: clear values from other leaf
                 other->setCount(0);
             }
 
@@ -307,9 +309,14 @@ namespace sm::detail {
 
                 // copy the top half of the keys and values to the new leaf
                 other->setCount(otherSize);
-                for (size_t i = 0; i < otherSize; i++) {
-                    other->key(i) = key(i + half);
-                    other->value(i) = value(i + half);
+                {
+                    auto thisKeys = this->keys();
+                    auto thisValues = this->values();
+                    auto otherKeys = other->keys();
+                    auto otherValues = other->values();
+
+                    std::move(thisKeys.begin() + half, thisKeys.end(), otherKeys.begin());
+                    std::move(thisValues.begin() + half, thisValues.end(), otherValues.begin());
                 }
                 setCount(half);
 
