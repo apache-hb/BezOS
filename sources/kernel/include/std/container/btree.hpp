@@ -81,6 +81,19 @@ namespace sm::detail {
             Value value;
         };
 
+        class Leaf;
+
+        using KeySpan = std::span<Key>;
+        using ConstKeySpan = std::span<const Key>;
+        using ValueSpan = std::span<Value>;
+        using ConstValueSpan = std::span<const Value>;
+        using ChildSpan = std::span<Leaf*>;
+        using ConstChildSpan = std::span<Leaf* const>;
+
+        using KeyIterator = typename KeySpan::iterator;
+        using ValueIterator = typename ValueSpan::iterator;
+        using ChildIterator = typename ChildSpan::iterator;
+
         class Leaf : public TreeNodeHeader {
             using Super = TreeNodeHeader;
         public:
@@ -186,12 +199,9 @@ namespace sm::detail {
             }
 
             size_t upperBound(const Key& k) const noexcept {
-                for (size_t i = start(); i < count(); i++) {
-                    if (key(i) > k) {
-                        return i;
-                    }
-                }
-                return count();
+                auto keySet = keys();
+                auto it = std::upper_bound(keySet.begin(), keySet.end(), k);
+                return std::distance(keySet.begin(), it);
             }
 
             size_t indexOf(const Key& k) const noexcept {
