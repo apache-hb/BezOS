@@ -22,11 +22,13 @@ namespace sm::detail {
     class TreeNodeHeader {
         static constexpr auto kLeafFlag = uint16_t(1 << ((sizeof(uint16_t) * CHAR_BIT) - 1));
         bool mIsLeaf;
+        uint16_t mParentIndex;
         TreeNodeHeader *mParent;
 
     public:
-        constexpr TreeNodeHeader(bool leaf, TreeNodeHeader *parent) noexcept
+        constexpr TreeNodeHeader(bool leaf, TreeNodeHeader *parent, uint16_t parentIndex = UINT16_MAX) noexcept
             : mIsLeaf(leaf)
+            , mParentIndex(parentIndex)
             , mParent(parent)
         { }
 
@@ -38,8 +40,16 @@ namespace sm::detail {
             return mParent;
         }
 
+        size_t getParentIndex() const noexcept {
+            return mParentIndex;
+        }
+
         void setParent(TreeNodeHeader *parent) noexcept {
             mParent = parent;
+        }
+
+        void setParentIndex(uint16_t parentIndex) noexcept {
+            mParentIndex = parentIndex;
         }
 
         bool isRootNode() const noexcept {
@@ -445,6 +455,28 @@ namespace sm::detail {
         struct Internal : public Leaf {
             using Super = Leaf;
 
+            void updateChildIndices(size_t start, size_t end) noexcept {
+                auto childSet = children();
+                for (size_t i = start; i < end; i++) {
+                    childSet[i]->setParentIndex(static_cast<uint16_t>(i));
+                }
+            }
+
+            void updateChildIndices() noexcept {
+                updateChildIndices(0, count() + 1);
+            }
+
+            void updateChildClaims(size_t start, size_t end) noexcept {
+                auto childSet = children();
+                for (size_t i = start; i < end; i++) {
+                    takeChild(i, childSet[i]);
+                }
+            }
+
+            void updateChildClaims() noexcept {
+                updateChildClaims(0, count() + 1);
+            }
+
         protected:
             Leaf *mChildren[Super::kOrder + 1]{};
 
@@ -505,6 +537,8 @@ namespace sm::detail {
 
                 setCount(count() - 1);
 
+                updateChildIndices();
+
                 return entry;
             }
 
@@ -515,7 +549,8 @@ namespace sm::detail {
 
             void takeChild(size_t index, Leaf *leaf) noexcept {
                 leaf->setParent(this);
-                child(index) = leaf;
+                leaf->setParentIndex(static_cast<uint16_t>(index));
+                mChildren[index] = leaf;
             }
 
             Leaf *getLeaf(size_t index) const noexcept {
@@ -545,13 +580,20 @@ namespace sm::detail {
             }
 
             size_t indexOfChild(const Leaf *leaf) const noexcept {
+                return leaf->getParentIndex();
+#if 0
                 for (size_t i = 0; i < count() + 1; i++) {
                     if (child(i) == leaf) {
+                        if (leaf->getParentIndex() != i) {
+                            printf("Leaf %p has parent index %zu, expected %zu\n", (void*)leaf, leaf->getParentIndex(), i);
+                        }
+                        KM_ASSERT(leaf->getParentIndex() == i);
                         return i;
                     }
                 }
 
                 KM_PANIC("Leaf not found in internal node");
+#endif
             }
 
             bool containsLeafInNode(const Leaf *leaf) const noexcept {
@@ -574,6 +616,8 @@ namespace sm::detail {
                 std::move(childSet.begin() + index + 1, childSet.end(), childSet.begin() + index);
 
                 setCount(count() - 1);
+
+                updateChildIndices(index, count() + 1);
             }
 
             void mergeLeafNodes(Leaf *lhs, Leaf *rhs) noexcept {
@@ -702,6 +746,8 @@ namespace sm::detail {
 
                 setCount(count() - 1);
 
+                updateChildIndices(lhsIndex + 1, count() + 1);
+
                 BTreeMapCommon::releaseNodeMemory(rhs, allocator);
             }
 
@@ -728,10 +774,6 @@ namespace sm::detail {
                 std::move(rhsValueSet.begin(), rhsValueSet.begin() + itemsToMove - 1, lhsValueSet.begin() + lhsCount);
                 std::move(rhsChildSet.begin(), rhsChildSet.begin() + itemsToMove, lhsChildSet.begin() + lhsCount + 1);
 
-                for (Leaf *child : lhs->children()) {
-                    child->setParent(lhs);
-                }
-
                 lhs->emplace(lhsCount + itemsToMove - 1, middle);
 
                 Entry newMiddle = {rhs->key(0), rhs->value(0)};
@@ -741,7 +783,11 @@ namespace sm::detail {
                 std::move(rhsKeySet.begin() + itemsToMove, rhsKeySet.end(), rhsKeySet.begin());
                 std::move(rhsValueSet.begin() + itemsToMove, rhsValueSet.end(), rhsValueSet.begin());
                 std::move(rhsChildSet.begin() + itemsToMove, rhsChildSet.end(), rhsChildSet.begin());
+
                 rhs->setCount(remaining);
+
+                lhs->updateChildClaims(lhsCount + 1, lhsCount + itemsToMove + 1);
+                rhs->updateChildIndices();
 
                 emplace(midpoint, newMiddle);
             }
@@ -782,11 +828,10 @@ namespace sm::detail {
                 std::move(lhsValueSet.end() - remaining, lhsValueSet.end(), rhsValueSet.begin());
                 std::move(lhsChildSet.end() - remaining - 1, lhsChildSet.end(), rhsChildSet.begin());
 
-                for (Leaf *child : rhs->children()) {
-                    child->setParent(rhs);
-                }
-
                 lhs->setCount(lhs->count() - itemsToMove);
+
+                rhs->updateChildClaims(0, itemsToMove);
+                rhs->updateChildIndices(itemsToMove, rhs->count() + 1);
 
                 emplace(midpoint, newMiddle);
             }
@@ -831,9 +876,7 @@ namespace sm::detail {
                     auto otherChildSet = other->children();
 
                     std::move(otherChildSet.begin(), otherChildSet.end(), childSet.begin() + n + 1);
-                    for (Leaf *child : childSet) {
-                        child->setParent(this);
-                    }
+                    updateChildClaims(n + 1, count() + 1);
                 }
 
                 // Clear the other internal node
@@ -859,7 +902,7 @@ namespace sm::detail {
                     setCount(n + 1);
                     Super::shiftEntry(index);
                     for (size_t j = n; j > index; j--) {
-                        child(j + 1) = child(j);
+                        takeChild(j + 1, child(j));
                     }
                     emplace(index, entry);
                     takeChild(index + 1, leaf);
@@ -887,7 +930,7 @@ namespace sm::detail {
                         setCount(n + 1);
                         Super::shiftEntry(i);
                         for (size_t j = n; j > i; j--) {
-                            child(j + 1) = child(j);
+                            takeChild(j + 1, child(j));
                         }
                         emplace(i, entry);
                         takeChild(i + 1, leaf);
@@ -935,9 +978,7 @@ namespace sm::detail {
                     auto childSet = children();
                     auto otherChildSet = other->children();
                     std::move(childSet.begin() + half + 1, childSet.end(), otherChildSet.begin());
-                    for (auto *child : otherChildSet) {
-                        child->setParent(other);
-                    }
+                    other->updateChildClaims();
                 }
 
                 setCount(half);
@@ -1875,6 +1916,11 @@ namespace sm {
                         printf("Child node %p has parent %p, expected %p\n", (void*)child, (void*)child->getParent(), (void*)internalNode);
                         this->dump();
                         KM_PANIC("Child node parent mismatch in BTreeMap");
+                    }
+                    if (child->getParentIndex() != i) {
+                        printf("Child node %p has parent index %zu, expected %zu\n", (void*)child, child->getParentIndex(), i);
+                        this->dump();
+                        KM_PANIC("Child node parent index mismatch in BTreeMap");
                     }
                     KM_ASSERT(child->getParent() == internalNode);
                     validateNode(child, currentDepth + 1);

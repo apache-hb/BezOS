@@ -953,6 +953,7 @@ TEST_F(BTreeTest, EraseAll) {
         bool contains = tree.contains(key);
         ASSERT_TRUE(contains) << "Key " << key << " not found in BTreeMap before removal";
         tree.remove(key);
+        tree.validate();
         ASSERT_FALSE(tree.contains(key)) << "Key " << key << " found in BTreeMap after removal";
         ASSERT_FALSE(tree.contains(key)) << "Key " << key << " found in BTreeMap after removal";
         ASSERT_TRUE(expected.find(key) == expected.end()) << "Key " << key << " found in expected map after removal";
