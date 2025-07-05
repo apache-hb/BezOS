@@ -74,6 +74,12 @@ namespace sm::detail {
         return new (memory) Node(std::forward<Args>(args)...);
     }
 
+
+    static constexpr bool kUseLowerBoundForLeafInsert = true;
+    static constexpr bool kUseLowerBoundForLeafFind = true;
+    static constexpr bool kUseLowerBoundForInternalInsert = true;
+    static constexpr bool kUseUpperBoundForInternalFind = true;
+
     template<typename Key, typename Value>
     struct BTreeMapCommon {
         struct Entry {
@@ -161,7 +167,32 @@ namespace sm::detail {
                 : Super(isLeaf, parent)
             { }
 
-            InsertResult insert(const Entry& entry) noexcept {
+            InsertResult insertViaLowerBound(const Entry& entry) noexcept {
+                size_t index = lowerBound(entry.key);
+                size_t n = count();
+
+                if (index == count()) {
+                    if (n >= capacity()) {
+                        return InsertResult::eFull;
+                    }
+                    setCount(n + 1);
+                    emplace(n, entry);
+                } else if (key(index) == entry.key) {
+                    value(index) = entry.value;
+                } else {
+                    if (n >= capacity()) {
+                        return InsertResult::eFull;
+                    }
+                    // Shift the keys and values to make space for the new key.
+                    setCount(n + 1);
+                    shiftEntry(index);
+                    emplace(index, entry);
+                }
+
+                return InsertResult::eSuccess;
+            }
+
+            InsertResult insertViaScan(const Entry& entry) noexcept {
                 size_t n = count();
 
                 for (size_t i = start(); i < n; i++) {
@@ -190,6 +221,14 @@ namespace sm::detail {
                 return InsertResult::eSuccess;
             }
 
+            InsertResult insert(const Entry& entry) noexcept {
+                if constexpr (kUseLowerBoundForLeafInsert) {
+                    return insertViaLowerBound(entry);
+                } else {
+                    return insertViaScan(entry);
+                }
+            }
+
             void remove(size_t index) noexcept {
                 auto keySet = keys();
                 auto valueSet = values();
@@ -204,13 +243,35 @@ namespace sm::detail {
                 return std::distance(keySet.begin(), it);
             }
 
-            size_t indexOf(const Key& k) const noexcept {
+            size_t lowerBound(const Key& k) const noexcept {
+                auto keySet = keys();
+                auto it = std::lower_bound(keySet.begin(), keySet.end(), k);
+                return std::distance(keySet.begin(), it);
+            }
+
+            size_t indexOfScan(const Key& k) const noexcept {
                 for (size_t i = start(); i < count(); i++) {
                     if (key(i) == k) {
                         return i;
                     }
                 }
                 return SIZE_MAX; // Key not found
+            }
+
+            size_t indexOfViaLowerBound(const Key& k) const noexcept {
+                size_t index = lowerBound(k);
+                if (index != count() && key(index) == k) {
+                    return index; // Key found
+                }
+                return SIZE_MAX;
+            }
+
+            size_t indexOf(const Key& k) const noexcept {
+                if constexpr (kUseLowerBoundForLeafFind) {
+                    return indexOfViaLowerBound(k);
+                } else {
+                    return indexOfScan(k);
+                }
             }
 
             Value *find(const Key& k) noexcept {
@@ -461,7 +522,7 @@ namespace sm::detail {
                 return mChildren[index];
             }
 
-            size_t findChildIndex(const Key& key) const noexcept {
+            size_t findChildViaScan(const Key& key) const noexcept {
                 for (size_t i = 0; i < Super::count(); i++) {
                     if (Super::key(i) > key) {
                         return i;
@@ -471,8 +532,16 @@ namespace sm::detail {
                 return Super::count(); // Return the last index if key is greater than all keys
             }
 
-            Leaf *findChild(const Key& key) const noexcept {
-                return child(findChildIndex(key));
+            size_t findChildViaUpperBound(const Key& k) const noexcept {
+                return Super::upperBound(k);
+            }
+
+            size_t findChildIndex(const Key& key) const noexcept {
+                if constexpr (kUseUpperBoundForInternalFind) {
+                    return findChildViaUpperBound(key);
+                } else {
+                    return findChildViaScan(key);
+                }
             }
 
             size_t indexOfChild(const Leaf *leaf) const noexcept {
@@ -771,9 +840,34 @@ namespace sm::detail {
                 other->setCount(0);
             }
 
-            /// @brief Insert a new entry and the leaf node above it into the internal node.
-            InsertResult insertChild(const Entry& entry, Leaf *leaf) noexcept {
+            InsertResult insertChildViaLowerBound(const Entry& entry, Leaf *leaf) noexcept {
+                size_t n = count();
+                if (n >= capacity()) {
+                    return InsertResult::eFull;
+                }
 
+                size_t index = Super::lowerBound(entry.key);
+                if (index == n) {
+                    setCount(n + 1);
+                    emplace(n, entry);
+                    takeChild(n + 1, leaf);
+                    return InsertResult::eSuccess;
+                } else {
+                    KM_ASSERT(key(index) != entry.key);
+
+                    // Shift the keys and values to make space for the new key.
+                    setCount(n + 1);
+                    Super::shiftEntry(index);
+                    for (size_t j = n; j > index; j--) {
+                        child(j + 1) = child(j);
+                    }
+                    emplace(index, entry);
+                    takeChild(index + 1, leaf);
+                    return InsertResult::eSuccess;
+                }
+            }
+
+            InsertResult insertChildViaScan(const Entry& entry, Leaf *leaf) noexcept {
                 // TODO: remove this isEmpty check once tests no longer violate the invariant
                 if (!leaf->isEmpty()) {
                     KM_ASSERT(entry.key < readMinKey(leaf));
@@ -806,6 +900,15 @@ namespace sm::detail {
                 emplace(n, entry);
                 takeChild(n + 1, leaf);
                 return InsertResult::eSuccess;
+            }
+
+            /// @brief Insert a new entry and the leaf node above it into the internal node.
+            InsertResult insertChild(const Entry& entry, Leaf *leaf) noexcept {
+                if constexpr (kUseLowerBoundForInternalInsert) {
+                    return insertChildViaLowerBound(entry, leaf);
+                } else {
+                    return insertChildViaScan(entry, leaf);
+                }
             }
 
             void transferInto(Internal *other, Entry *midpoint) noexcept {

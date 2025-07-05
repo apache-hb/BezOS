@@ -447,6 +447,8 @@ TEST_F(BTreeTest, LeafSplit) {
         keys.insert(int(i));
     }
 
+    ASSERT_EQ(lhs.count(), lhs.capacity());
+
     Entry midpoint;
     lhs.splitInto(&rhs, {999, 50}, &midpoint);
     keys.insert(999);
