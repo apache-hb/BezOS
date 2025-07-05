@@ -74,11 +74,12 @@ namespace sm::detail {
         return new (memory) Node(std::forward<Args>(args)...);
     }
 
-
     static constexpr bool kUseLowerBoundForLeafInsert = true;
     static constexpr bool kUseLowerBoundForLeafFind = true;
     static constexpr bool kUseLowerBoundForInternalInsert = true;
     static constexpr bool kUseUpperBoundForInternalFind = true;
+    static constexpr bool kTreeDebug = false;
+    static constexpr size_t kTargetNodeSize = sm::kilobytes(1).bytes();
 
     template<typename Key, typename Value>
     struct BTreeMapCommon {
@@ -103,7 +104,7 @@ namespace sm::detail {
         class Leaf : public TreeNodeHeader {
             using Super = TreeNodeHeader;
         public:
-            static constexpr size_t kOrder = std::max(3zu, computeMaxLeafOrder(Layout::of<Key>(), Layout::of<Value>(), sm::kilobytes(4).bytes()));
+            static constexpr size_t kOrder = std::max(3zu, computeMaxLeafOrder(Layout::of<Key>(), Layout::of<Value>(), kTargetNodeSize));
 
         private:
             /// @brief The number of keys and values in the node.
@@ -523,13 +524,14 @@ namespace sm::detail {
             }
 
             size_t findChildViaScan(const Key& key) const noexcept {
-                for (size_t i = 0; i < Super::count(); i++) {
-                    if (Super::key(i) > key) {
+                auto keySet = keys();
+                for (size_t i = 0; i < keySet.size(); i++) {
+                    if (keySet[i] > key) {
                         return i;
                     }
                 }
 
-                return Super::count(); // Return the last index if key is greater than all keys
+                return keySet.size(); // Return the last index if key is greater than all keys
             }
 
             size_t findChildViaUpperBound(const Key& k) const noexcept {
@@ -545,22 +547,10 @@ namespace sm::detail {
             }
 
             size_t indexOfChild(const Leaf *leaf) const noexcept {
-                for (size_t i = 0; i < count() + 1; i++) {
-                    if (child(i) == leaf) {
-                        return i;
-                    }
-                }
-
-                KM_PANIC("Leaf not found in internal node");
-            }
-
-            bool containsLeafInNode(const Leaf *leaf) const noexcept {
-                for (size_t i = start(); i < count() + 1; i++) {
-                    if (child(i) == leaf) {
-                        return true;
-                    }
-                }
-                return false;
+                auto childSet = children();
+                auto it = std::find(childSet.begin(), childSet.end(), leaf);
+                KM_CHECK(it != childSet.end(), "Leaf not found in internal node");
+                return std::distance(childSet.begin(), it);
             }
 
             void removeEntry(size_t index) noexcept {
@@ -582,8 +572,12 @@ namespace sm::detail {
                 KM_ASSERT(rhs->getParent() == this);
 
                 size_t lhsIndex = indexOfChild(lhs);
-                size_t rhsIndex = indexOfChild(rhs);
-                KM_ASSERT((lhsIndex + 1) == rhsIndex); // Ensure they are adjacent
+                size_t rhsIndex = lhsIndex + 1;
+
+                if constexpr (kTreeDebug) {
+                    rhsIndex = indexOfChild(rhs);
+                    KM_ASSERT((lhsIndex + 1) == rhsIndex); // Ensure they are adjacent
+                }
 
                 Entry middle = {key(lhsIndex), value(lhsIndex)};
 
@@ -728,8 +722,8 @@ namespace sm::detail {
                 std::move(rhsValueSet.begin(), rhsValueSet.begin() + itemsToMove - 1, lhsValueSet.begin() + lhsCount);
                 std::move(rhsChildSet.begin(), rhsChildSet.begin() + itemsToMove, lhsChildSet.begin() + lhsCount + 1);
 
-                for (Leaf *child : lhs->children()) {
-                    child->setParent(lhs);
+                for (size_t i = lhsCount + 1; i < lhs->count() + 1; i++) {
+                    lhsChildSet[i]->setParent(lhs);
                 }
 
                 lhs->emplace(lhsCount + itemsToMove - 1, middle);
@@ -782,8 +776,8 @@ namespace sm::detail {
                 std::move(lhsValueSet.end() - remaining, lhsValueSet.end(), rhsValueSet.begin());
                 std::move(lhsChildSet.end() - remaining - 1, lhsChildSet.end(), rhsChildSet.begin());
 
-                for (Leaf *child : rhs->children()) {
-                    child->setParent(rhs);
+                for (size_t i = 0; i < itemsToMove; i++) {
+                    rhsChildSet[i]->setParent(rhs);
                 }
 
                 lhs->setCount(lhs->count() - itemsToMove);
@@ -831,8 +825,8 @@ namespace sm::detail {
                     auto otherChildSet = other->children();
 
                     std::move(otherChildSet.begin(), otherChildSet.end(), childSet.begin() + n + 1);
-                    for (Leaf *child : childSet) {
-                        child->setParent(this);
+                    for (size_t i = n + 1; i < count() + 1; i++) {
+                        child(i)->setParent(this);
                     }
                 }
 

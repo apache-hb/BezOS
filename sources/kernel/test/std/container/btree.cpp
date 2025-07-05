@@ -450,8 +450,8 @@ TEST_F(BTreeTest, LeafSplit) {
     ASSERT_EQ(lhs.count(), lhs.capacity());
 
     Entry midpoint;
-    lhs.splitInto(&rhs, {999, 50}, &midpoint);
-    keys.insert(999);
+    lhs.splitInto(&rhs, {lhs.capacity() * 2, 50}, &midpoint);
+    keys.insert(lhs.capacity() * 2);
 
     // neither side should contain the midpoint key
     for (size_t i = 0; i < lhs.count(); i++) {
@@ -854,7 +854,7 @@ TEST_F(BTreeTest, Stats) {
     std::uniform_int_distribution<int> dist(0, 1000000);
     std::map<int, int> expected;
 
-    for (size_t i = 0; i < 1000; i++) {
+    for (size_t i = 0; i < Leaf::maxCapacity() * 10; i++) {
         int key = dist(mt);
         int v = i * 10;
         tree.insert(key, v);
