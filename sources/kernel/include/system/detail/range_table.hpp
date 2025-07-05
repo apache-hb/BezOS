@@ -11,7 +11,7 @@ namespace sys::detail {
         using Segment = T;
         using Range = decltype(std::declval<Segment>().range());
         using Address = typename Range::ValueType;
-        using Map = sm::BTreeMap<Address, Segment>;
+        using Map = sm::AbslBTreeMap<Address, Segment>;
     private:
         Map mSegments;
     public:

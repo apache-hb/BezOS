@@ -196,7 +196,7 @@ namespace vfs {
     /// @param result The parsed tar archive.
     ///
     /// @return The status of the operation.
-    OsStatus ParseTar(km::BlockDevice *media, TarParseOptions options, sm::BTreeMap<VfsPath, TarEntry> *result);
+    OsStatus ParseTar(km::BlockDevice *media, TarParseOptions options, sm::AbslBTreeMap<VfsPath, TarEntry> *result);
 
     class TarFsMount final : public IVfsMount {
         sm::SharedPtr<km::IBlockDriver> mBlock;

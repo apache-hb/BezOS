@@ -18,7 +18,7 @@ namespace vfs {
     class VfsRoot {
         sm::RcuDomain mDomain;
 
-        sm::BTreeMap<VfsPath, std::unique_ptr<IVfsMount>> mMounts GUARDED_BY(mLock);
+        sm::AbslBTreeMap<VfsPath, std::unique_ptr<IVfsMount>> mMounts GUARDED_BY(mLock);
         std::unique_ptr<IVfsMount> mRootMount;
         sm::RcuSharedPtr<INode> mRootNode;
 

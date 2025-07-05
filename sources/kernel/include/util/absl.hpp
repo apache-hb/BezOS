@@ -10,7 +10,7 @@
 
 namespace sm {
     template<typename TKey, typename TValue, typename TCompare = std::less<TKey>, typename TAllocator = mem::GlobalAllocator<std::pair<const TKey, TValue>>>
-    using BTreeMap = absl::btree_map<TKey, TValue, TCompare, TAllocator>;
+    using AbslBTreeMap = absl::btree_map<TKey, TValue, TCompare, TAllocator>;
 
     template<typename TKey, typename TValue, typename TCompare = std::less<TKey>, typename TAllocator = mem::GlobalAllocator<std::pair<const TKey, TValue>>>
     using BTreeMultiMap = absl::btree_multimap<TKey, TValue, TCompare, TAllocator>;

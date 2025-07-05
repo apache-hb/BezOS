@@ -5,7 +5,7 @@
 
 namespace task {
     class Scheduler {
-        sm::BTreeMap<km::CpuCoreId, SchedulerQueue> mQueues;
+        sm::AbslBTreeMap<km::CpuCoreId, SchedulerQueue> mQueues;
 
     public:
     };

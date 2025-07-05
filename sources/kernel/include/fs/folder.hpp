@@ -25,7 +25,7 @@ namespace vfs {
     concept FolderNodeType = FolderLookup<T> && std::derived_from<T, INode>;
 
     class FolderMixin {
-        using Container = sm::BTreeMap<VfsString, sm::RcuSharedPtr<INode>, std::less<>>;
+        using Container = sm::AbslBTreeMap<VfsString, sm::RcuSharedPtr<INode>, std::less<>>;
         using MapIterator = typename Container::iterator;
 
         stdx::SharedSpinLock mLock;

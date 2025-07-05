@@ -75,7 +75,7 @@ OsStatus vfs::detail::ConvertTarPath(const char *path, VfsPath *result) {
     return OsStatusSuccess;
 }
 
-OsStatus vfs::ParseTar(km::BlockDevice *media, TarParseOptions options, sm::BTreeMap<VfsPath, TarEntry> *result) {
+OsStatus vfs::ParseTar(km::BlockDevice *media, TarParseOptions options, sm::AbslBTreeMap<VfsPath, TarEntry> *result) {
     TarPosixHeader header{};
     uint64_t offset = 0;
     const uint64_t mediaSize = media->size();
@@ -308,7 +308,7 @@ TarFsMount::TarFsMount(TarFs *tarfs, sm::RcuDomain *domain, sm::SharedPtr<km::IB
     , mMedia(mBlock.get())
     , mRootNode(sm::rcuMakeShared<TarFsFolder>(mDomain, TarEntry{}, nullptr, this))
 {
-    sm::BTreeMap<VfsPath, TarEntry> headers;
+    sm::AbslBTreeMap<VfsPath, TarEntry> headers;
     if (OsStatus status = ParseTar(&mMedia, TarParseOptions{}, &headers)) {
         TarLog.errorf("Failed to parse tar archive: ", OsStatusId(status));
         return;
