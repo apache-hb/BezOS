@@ -6,7 +6,6 @@
 #include "fs/node.hpp"
 #include "fs/query.hpp"
 #include "fs/utils.hpp"
-#include "log.hpp"
 #include "logger/logger.hpp"
 
 #include <ranges>

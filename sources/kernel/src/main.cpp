@@ -57,6 +57,7 @@
 #include "system/process.hpp"
 #include "system/schedule.hpp"
 #include "system/system.hpp"
+#include "task/scheduler.hpp"
 #include "thread.hpp"
 #include "uart.hpp"
 #include "smbios.hpp"
@@ -1692,6 +1693,14 @@ void LaunchKernel(boot::LaunchInfo launch) {
     ClockLog.infof("Current time: ", time.year, "-", time.month, "-", time.day, "T", time.hour, ":", time.minute, ":", time.second, "Z");
 
     gClock = Clock { time, clockTicker };
+
+    task::Scheduler scheduler;
+    if (OsStatus status = task::Scheduler::create(&scheduler)) {
+        InitLog.fatalf("Failed to initialize scheduler: ", OsStatusId(status));
+        KM_PANIC("Failed to initialize scheduler.");
+    }
+
+    KmHalt();
 
     CreateVfsDevices(&smbios, &rsdt, launch.initrd);
     InitUserApi();

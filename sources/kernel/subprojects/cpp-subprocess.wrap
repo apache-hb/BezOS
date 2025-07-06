@@ -1,0 +1,8 @@
+[wrap-git]
+url = https://github.com/arun11299/cpp-subprocess
+revision = HEAD
+
+patch_directory = cpp-subprocess
+
+[provide]
+dependency_names = cpp-subprocess

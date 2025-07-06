@@ -392,6 +392,7 @@ libpaging_nosanitize = static_library('paging_nosanitize', paging_src,
 
 task_src = files(
     'src/task/scheduler_queue.cpp',
+    'src/task/scheduler.cpp',
 )
 
 libtask_kernel = static_library('task', task_src,
@@ -667,6 +668,7 @@ kernel_libs = [
     libvfs_kernel,
     libsystem_kernel,
     libpaging_kernel,
+    libtask_kernel,
 ]
 
 kernel = static_library('kernel', src,
@@ -723,11 +725,11 @@ executable('bezos-hyper.elf', 'src/boot/hyper.cpp',
 
 gtest = dependency('gtest', native : true)
 gmock = dependency('gmock', native : true)
-# libvirt = dependency('libvirt', native : true)
 stb_image_write = dependency('stb_image_write')
 capstone = dependency('capstone', native : true)
 gtest_main = dependency('gtest_main', native : true)
 testkwargs = { 'protocol' : 'gtest', 'timeout': 5 }
 
 subdir('pvtest')
+subdir('ktest')
 subdir('test')
