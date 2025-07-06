@@ -232,3 +232,21 @@ TEST_F(RingBufferTest, MultiThreadReentrant) {
     ASSERT_NE(state.inThread.load(), 0);
     ASSERT_NE(state.inMainThread.load(), 0);
 }
+
+TEST(RingBufferOrderTest, Order) {
+    sm::AtomicRingQueue<size_t> queue;
+    OsStatus status = sm::AtomicRingQueue<size_t>::create(64, &queue);
+    ASSERT_EQ(OsStatusSuccess, status);
+
+    for (size_t i = 0; i < 64; i++) {
+        size_t value = i * 10;
+        ASSERT_TRUE(queue.tryPush(value));
+    }
+
+    ASSERT_EQ(queue.count(), 64);
+    for (size_t i = 0; i < 64; i++) {
+        size_t value;
+        ASSERT_TRUE(queue.tryPop(value));
+        ASSERT_EQ(value, i * 10) << "Value at index " << i << " is incorrect";
+    }
+}

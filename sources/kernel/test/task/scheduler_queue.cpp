@@ -521,3 +521,88 @@ TEST_F(SchedulerTest, ManyThreads) {
         EXPECT_NE(states[i]->counter.load(), 0) << "Thread " << i << " did not run";
     }
 }
+
+TEST_F(SchedulerTest, ScheduleFrequency) {
+    OsStatus status = OsStatusSuccess;
+    std::atomic<size_t> signals = 0;
+
+    static constexpr size_t kMaxThreads = 32;
+    std::vector<std::unique_ptr<ThreadTestState>> states;
+    states.reserve(kMaxThreads);
+    for (size_t i = 0; i < kMaxThreads; ++i) {
+        auto& state = states.emplace_back(std::make_unique<ThreadTestState>());
+        initTestState(state.get());
+    }
+
+    std::vector<task::SchedulerEntry> entries{kMaxThreads};
+
+    std::atomic<bool> done = false;
+    std::atomic<bool> error = false;
+    std::atomic<bool> missingTask = false;
+    std::map<task::SchedulerEntry*, size_t> threadScheduleCount;
+
+    for (size_t i = 0; i < 32; i++) {
+        status = enqueueCounterTask(states[i].get(), TestThread0, &entries[i]);
+        threadScheduleCount[&entries[i]] = 0;
+        ASSERT_EQ(status, OsStatusSuccess);
+    }
+
+    auto [thread, handle] = ktest::CreateReentrantThreadPair([&] {
+        while (!done.load()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        sigset_t set;
+        sigemptyset(&set);
+        sigaddset(&set, ktest::kReentrantSignal);
+        pthread_sigmask(SIG_BLOCK, &set, nullptr);
+    }, [&]([[maybe_unused]] siginfo_t *siginfo, ucontext_t *uc) {
+        if (done.load()) {
+            pthread_exit(nullptr);
+            return;
+        }
+
+        if (!tryContextSwitch(queue, uc)) {
+            error = true;
+            return; // No task to switch to
+        }
+
+        if (!threadScheduleCount.contains(queue.getCurrentTask())) {
+            missingTask = true;
+        }
+        threadScheduleCount[queue.getCurrentTask()] += 1;
+
+        signals += 1;
+    });
+
+    size_t maxIndex = 0;
+
+    runQueue(thread, [&](auto elapsed) {
+        for (size_t i = 0; i <= maxIndex; ++i) {
+            if (states[i]->counter.load() == 0) {
+                return false; // Not all threads have run yet
+            }
+        }
+
+        return elapsed > std::chrono::milliseconds(250);
+    });
+
+    done.store(true);
+
+    for (size_t i = 0; i < 10; ++i) {
+        ktest::AlertReentrantThread(thread);
+    }
+    pthread_join(thread, nullptr);
+    delete handle;
+
+    ASSERT_FALSE(error) << "An error occurred during the test";
+    ASSERT_FALSE(missingTask) << "A task was not found in the thread schedule count";
+
+    EXPECT_NE(signals.load(), 0);
+    for (size_t i = 0; i <= maxIndex; ++i) {
+        EXPECT_NE(states[i]->counter.load(), 0) << "Thread " << i << " did not run";
+    }
+
+    for (const auto& [entry, count] : threadScheduleCount) {
+        printf("Entry %p was scheduled %zu times\n", (void*)entry, count);
+    }
+}

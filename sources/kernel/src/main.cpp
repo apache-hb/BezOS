@@ -1727,40 +1727,45 @@ static void IdleThread() {
     );
 }
 
+static task::SchedulerQueue *scheduler;
+static std::atomic<size_t> gTask0Count{0};
+static std::atomic<size_t> gTask1Count{0};
+
 static bool tryContextSwitch(task::SchedulerQueue& queue, km::IsrContext *isrContext) {
-    task::SchedulerEntry *current = queue.getCurrentTask();
-    // task::TaskState& currentState = current->getState();
-    // x64::XSave *xsave = currentState.xsave;
-    // XSaveStoreState(xsave);
+    x64::XSave *xsave = nullptr;
+    if (task::SchedulerEntry *current = queue.getCurrentTask()) {
+        task::TaskState& currentState = current->getState();
+        xsave = currentState.xsave;
+        XSaveStoreState(xsave);
+    }
 
     task::TaskState state {
         .registers = {
-            .rax = static_cast<uintptr_t>(isrContext->rax),
-            .rbx = static_cast<uintptr_t>(isrContext->rbx),
-            .rcx = static_cast<uintptr_t>(isrContext->rcx),
-            .rdx = static_cast<uintptr_t>(isrContext->rdx),
-            .rdi = static_cast<uintptr_t>(isrContext->rdi),
-            .rsi = static_cast<uintptr_t>(isrContext->rsi),
-            .r8 = static_cast<uintptr_t>(isrContext->r8),
-            .r9 = static_cast<uintptr_t>(isrContext->r9),
-            .r10 = static_cast<uintptr_t>(isrContext->r10),
-            .r11 = static_cast<uintptr_t>(isrContext->r11),
-            .r12 = static_cast<uintptr_t>(isrContext->r12),
-            .r13 = static_cast<uintptr_t>(isrContext->r13),
-            .r14 = static_cast<uintptr_t>(isrContext->r14),
-            .r15 = static_cast<uintptr_t>(isrContext->r15),
-            .rbp = static_cast<uintptr_t>(isrContext->rbp),
-            .rsp = static_cast<uintptr_t>(isrContext->rsp),
-            .rip = static_cast<uintptr_t>(isrContext->rip),
-            .rflags = static_cast<uintptr_t>(isrContext->rflags),
-            .cs = static_cast<uintptr_t>(isrContext->cs),
-            .ss = static_cast<uintptr_t>(isrContext->ss),
+            .rax = isrContext->rax,
+            .rbx = isrContext->rbx,
+            .rcx = isrContext->rcx,
+            .rdx = isrContext->rdx,
+            .rdi = isrContext->rdi,
+            .rsi = isrContext->rsi,
+            .r8 = isrContext->r8,
+            .r9 = isrContext->r9,
+            .r10 = isrContext->r10,
+            .r11 = isrContext->r11,
+            .r12 = isrContext->r12,
+            .r13 = isrContext->r13,
+            .r14 = isrContext->r14,
+            .r15 = isrContext->r15,
+            .rbp = isrContext->rbp,
+            .rsp = isrContext->rsp,
+            .rip = isrContext->rip,
+            .rflags = isrContext->rflags,
+            .cs = isrContext->cs,
+            .ss = isrContext->ss,
         },
-        // .xsave = xsave,
+        .xsave = xsave,
     };
 
     if (queue.reschedule(&state) == task::ScheduleResult::eIdle) {
-        TaskLog.dbgf("No work to schedule, moving to idle task. Current task: ", (void*)current);
         isrContext->rip = reinterpret_cast<uintptr_t>(IdleThread);
         return false;
     }
@@ -1785,21 +1790,26 @@ static bool tryContextSwitch(task::SchedulerQueue& queue, km::IsrContext *isrCon
     isrContext->rflags = state.registers.rflags;
     isrContext->cs = state.registers.cs;
     isrContext->ss = state.registers.ss;
-    // XSaveLoadState(state.xsave);
+    XSaveLoadState(state.xsave);
 
     return true;
 }
 
-static task::SchedulerQueue *scheduler;
-
+[[clang::optnone]]
 static void Task0(task::SchedulerEntry *entry) {
+    volatile register int rdx asm("rdx") = 1234;
+
     while (true) {
-        SysLog.infof("Task 0 running.");
+        // SysLog.infof("Task 0 running. ", rdx);
+
+        gTask0Count += 1;
+
+        KM_CHECK(rdx == 1234, "Task 0: rdx is not 1234");
 
         task::SchedulerEntry *current = scheduler->getCurrentTask();
         if (current != entry) {
             km::SharedIsrTable *ist = km::GetSharedIsrTable();
-            ist->install(isr::kTimerVector, [](km::IsrContext *isrContext) noexcept [[clang::reentrant]] -> km::IsrContext {
+            ist->install(isr::kTimerVector, [](km::IsrContext*) noexcept [[clang::reentrant]] -> km::IsrContext {
                 KmHalt();
             });
             SysLog.warnf("Task 0 is not the current task, expected: ", (void*)entry, ", got: ", (void*)current);
@@ -1808,14 +1818,20 @@ static void Task0(task::SchedulerEntry *entry) {
     }
 }
 
+[[clang::optnone]]
 static void Task1(task::SchedulerEntry *entry) {
+    volatile register int rdx asm("rdx") = 5678;
     while (true) {
-        SysLog.infof("Task 1 running.");
+        // SysLog.infof("Task 1 running. ", rdx);
+
+        gTask1Count += 1;
+
+        KM_CHECK(rdx == 5678, "Task 1: rdx is not 5678");
 
         task::SchedulerEntry *current = scheduler->getCurrentTask();
         if (current != entry) {
             km::SharedIsrTable *ist = km::GetSharedIsrTable();
-            ist->install(isr::kTimerVector, [](km::IsrContext *isrContext) noexcept [[clang::reentrant]] -> km::IsrContext {
+            ist->install(isr::kTimerVector, [](km::IsrContext*) noexcept [[clang::reentrant]] -> km::IsrContext {
                 KmHalt();
             });
             SysLog.warnf("Task 1 is not the current task, expected: ", (void*)entry, ", got: ", (void*)current);
@@ -1840,6 +1856,7 @@ static void TestSchedulerQueue(km::SharedIsrTable *ist, km::ApicTimer *apicTimer
 
     status = scheduler->enqueue({
         .registers = {
+            .rdx = 1234,
             .rdi = reinterpret_cast<uintptr_t>(&task0),
             .rbp = reinterpret_cast<uintptr_t>(task0Stack.get() + 4) - 0x8,
             .rsp = reinterpret_cast<uintptr_t>(task0Stack.get() + 4) - 0x8,
@@ -1862,6 +1879,7 @@ static void TestSchedulerQueue(km::SharedIsrTable *ist, km::ApicTimer *apicTimer
 
     status = scheduler->enqueue({
         .registers = {
+            .rdx = 5678,
             .rdi = reinterpret_cast<uintptr_t>(&task1),
             .rbp = reinterpret_cast<uintptr_t>(task1Stack.get() + 4) - 0x8,
             .rsp = reinterpret_cast<uintptr_t>(task1Stack.get() + 4) - 0x8,
@@ -1878,11 +1896,7 @@ static void TestSchedulerQueue(km::SharedIsrTable *ist, km::ApicTimer *apicTimer
         KM_PANIC("Failed to enqueue task 1.");
     }
 
-    InitLog.infof("Enqueued task 0: ", (void*)&task0, ", task 1: ", (void*)&task1);
-
     ist->install(isr::kTimerVector, [](km::IsrContext *isrContext) noexcept [[clang::reentrant]] -> km::IsrContext {
-        TaskLog.infof("Timer ISR invoked, attempting context switch.");
-
         km::IApic *apic = km::GetCpuLocalApic();
         defer { apic->eoi(); };
 
@@ -1893,7 +1907,7 @@ static void TestSchedulerQueue(km::SharedIsrTable *ist, km::ApicTimer *apicTimer
         return *isrContext;
     });
 
-    static constexpr std::chrono::milliseconds kDefaultTimeSlice = std::chrono::milliseconds(5);
+    static constexpr std::chrono::milliseconds kDefaultTimeSlice = std::chrono::milliseconds(25);
 
     km::IApic *apic = km::GetCpuLocalApic();
     auto frequency = apicTimer->frequency();

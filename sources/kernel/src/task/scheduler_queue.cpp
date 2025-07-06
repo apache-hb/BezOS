@@ -105,6 +105,7 @@ bool task::SchedulerQueue::keepTaskRunning(SchedulerEntry *task) noexcept {
 
 void task::SchedulerQueue::setCurrentTask(SchedulerEntry *task) noexcept {
     KM_ASSERT(task->status.load() == TaskStatus::eRunning);
+    KM_ASSERT(task != mCurrentTask);
 
     if (mCurrentTask != nullptr) {
         bool addToQueue = moveTaskToIdle(mCurrentTask);
@@ -138,6 +139,7 @@ bool task::SchedulerQueue::takeNextTask(SchedulerEntry **next) noexcept {
 
 task::ScheduleResult task::SchedulerQueue::reschedule(TaskState *state [[gnu::nonnull]]) noexcept {
     SchedulerEntry *newTask;
+
     if (!takeNextTask(&newTask)) {
         //
         // This handles the case where there are no tasks in the queue.
