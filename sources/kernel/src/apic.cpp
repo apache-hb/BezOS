@@ -431,6 +431,14 @@ void km::IoApic::setRedirect(apic::IvtConfig config, uint32_t redirect, const IA
     write(ioredirect + 1, entry >> 32);
 }
 
+void km::IoApic::clearRedirect(uint32_t redirect) {
+    uint32_t ioredirect = (redirect - mIsrBase) * 2 + 0x10;
+
+    uint32_t low = read(ioredirect + 0);
+    low |= kMasked; // Mask the entry
+    write(ioredirect + 0, low);
+}
+
 static km::apic::Trigger GetIsoTriggerMode(acpi::MadtEntry::InterruptSourceOverride iso) {
     switch (iso.flags & 0b1100) {
     case 0b0000:
@@ -522,6 +530,40 @@ void km::IoApicSet::setLegacyRedirect(apic::IvtConfig config, uint32_t redirect,
     AcpiLog.dbgf("IRQ PIN ", redirect, " redirected to APIC ", target->id(), ":", config.vector);
 
     setRedirect(config, redirect, target);
+}
+
+void km::IoApicSet::clearRedirect(uint32_t redirect) {
+    for (IoApic& ioApic : mIoApics) {
+        if (IoApicContainsGsi(ioApic, redirect)) {
+            ioApic.clearRedirect(redirect);
+            return;
+        }
+    }
+
+    AcpiLog.warnf("GSI ", redirect, " not found in any IOAPIC");
+}
+
+void km::IoApicSet::clearLegacyRedirect(uint32_t redirect) {
+    for (const acpi::MadtEntry *entry : *mMadt) {
+        if (entry->type != acpi::MadtEntryType::eInterruptSourceOverride)
+            continue;
+
+        const acpi::MadtEntry::InterruptSourceOverride iso = entry->iso;
+        if (iso.source != redirect)
+            continue;
+
+        uint32_t isoGsi = iso.interrupt;
+
+        AcpiLog.dbgf("Clearing IRQ PIN ", redirect, " that was remapped to PIN ", isoGsi, " by MADT");
+
+        clearRedirect(isoGsi);
+
+        return;
+    }
+
+    AcpiLog.dbgf("IRQ PIN ", redirect, " cleared from IOAPIC");
+
+    clearRedirect(redirect);
 }
 
 using EsrFormat = km::Format<km::apic::ErrorState>;

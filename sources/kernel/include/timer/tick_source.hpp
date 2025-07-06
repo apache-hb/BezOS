@@ -23,6 +23,8 @@ namespace km {
         virtual hertz refclk() const = 0;
         virtual hertz frequency() const = 0;
         virtual uint64_t ticks() const = 0;
+
+        virtual void enable(bool) noexcept { }
     };
 
     void BusySleep(ITickSource *timer, std::chrono::microseconds duration);

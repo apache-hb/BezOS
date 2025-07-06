@@ -57,6 +57,7 @@ bool task::SchedulerQueue::moveTaskToRunning(SchedulerEntry *task) noexcept {
     if (!task->status.compare_exchange_strong(expected, TaskStatus::eRunning)) {
         switch (expected) {
         case task::TaskStatus::eRunning:
+            TaskLog.errorf("Task ", (void*)task, " is already running, it should not be scheduled again.");
             KM_PANIC("Task is already running, should not be scheduled again");
             break;
         case task::TaskStatus::eIdle:
@@ -103,6 +104,8 @@ bool task::SchedulerQueue::keepTaskRunning(SchedulerEntry *task) noexcept {
 }
 
 void task::SchedulerQueue::setCurrentTask(SchedulerEntry *task) noexcept {
+    KM_ASSERT(task->status.load() == TaskStatus::eRunning);
+
     if (mCurrentTask != nullptr) {
         bool addToQueue = moveTaskToIdle(mCurrentTask);
 
@@ -120,6 +123,9 @@ void task::SchedulerQueue::setCurrentTask(SchedulerEntry *task) noexcept {
 bool task::SchedulerQueue::takeNextTask(SchedulerEntry **next) noexcept {
     SchedulerEntry *newTask;
 
+    //
+    // Take a task from the queue, drop any tasks that are not able to be scheduled.
+    //
     while (mQueue.tryPop(newTask)) {
         if (moveTaskToRunning(newTask)) {
             *next = newTask;

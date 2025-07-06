@@ -9,11 +9,13 @@ limine_dep = declare_dependency(include_directories : '.')
 
 meson.override_dependency('limine', limine_dep)
 
-limine_install = executable('limine-install', 'limine.c', native : true)
+if meson.is_subproject()
+    limine_install = executable('limine-install', 'limine.c', native : true)
 
-meson.override_find_program('limine-install', limine_install)
+    meson.override_find_program('limine-install', limine_install)
+else
+    executable('limine-install', 'limine.c', install : true)
 
-if not meson.is_subproject()
     data = [
         'BOOTX64.EFI',
         'BOOTIA32.EFI',

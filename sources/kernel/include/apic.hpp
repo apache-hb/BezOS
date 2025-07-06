@@ -322,6 +322,8 @@ namespace km {
         /// @param target The target APIC to send the interrupt to
         void setRedirect(apic::IvtConfig config, uint32_t redirect, const IApic *target);
 
+        void clearRedirect(uint32_t redirect);
+
         bool present() const { return !mMmio.isNull(); }
     };
 
@@ -351,6 +353,10 @@ namespace km {
         /// @param redirect The redirection table entry to update
         /// @param target The target APIC to send the interrupt to
         void setLegacyRedirect(apic::IvtConfig config, uint32_t redirect, const IApic *target);
+
+        void clearRedirect(uint32_t redirect);
+
+        void clearLegacyRedirect(uint32_t redirect);
     };
 
     Apic InitBspApic(km::AddressSpace& memory, bool useX2Apic);

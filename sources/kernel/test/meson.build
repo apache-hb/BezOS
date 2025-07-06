@@ -345,7 +345,7 @@ testcases = {
         'sources': [
             files('task/scheduler_queue.cpp'),
         ],
-        'link_with': [ libtask_native, libtest_shim ],
+        'link_with': [ libtask_native, liblogging_native, libtest_shim ],
     }
 }
 
