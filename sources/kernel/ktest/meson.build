@@ -18,7 +18,7 @@ libtest_image = static_library('test_image', src,
 
 ktest_ld = meson.project_source_root() / 'data/test/linker/linker-test.ld'
 
-executable('start.elf', 'start.cpp',
+ktest_start_image = executable('start.elf', 'start.cpp',
     include_directories : inc,
     c_args : kernel_c_args,
     cpp_args : kernel_cpp_args,
@@ -34,4 +34,16 @@ libvirt = dependency('libvirt', native : true)
 ktest_runner = executable('ktest_runner', 'runner.cpp',
     dependencies : [ libvirt, argparse, subprocess ],
     native : true,
+)
+
+test('kernel start', ktest_runner,
+    args : [
+        '--kernel', ktest_start_image.full_path(),
+        '--limine-install', limine_install.full_path(),
+    ],
+    env : {
+        'MESON_PREFIX': get_option('prefix'),
+    },
+    depends : [ ktest_start_image, limine_install ],
+    suite : 'virt'
 )
