@@ -119,6 +119,10 @@ namespace task {
             return mQueue.count();
         }
 
+        size_t getCapacity() const noexcept {
+            return mQueue.capacity();
+        }
+
         SchedulerEntry *getCurrentTask() const noexcept {
             return mCurrentTask;
         }

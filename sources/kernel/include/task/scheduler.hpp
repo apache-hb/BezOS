@@ -5,11 +5,17 @@
 
 namespace task {
     class Scheduler {
-        sm::AbslBTreeMap<km::CpuCoreId, SchedulerQueue*> mQueues;
+        struct QueueInfo {
+            SchedulerQueue *queue;
+        };
+
+        sm::AbslBTreeMap<km::CpuCoreId, QueueInfo> mQueues;
 
     public:
         OsStatus addQueue(km::CpuCoreId coreId, SchedulerQueue *queue) noexcept;
-        OsStatus addTask(const TaskState &state, km::StackMappingAllocation userStack, km::StackMappingAllocation kernelStack, SchedulerEntry *entry) noexcept;
+        OsStatus enqueue(const TaskState &state, km::StackMappingAllocation userStack, km::StackMappingAllocation kernelStack, SchedulerEntry *entry) noexcept;
+
+        ScheduleResult reschedule(km::CpuCoreId coreId, TaskState *state) noexcept;
 
         static OsStatus create(Scheduler *scheduler) noexcept;
     };

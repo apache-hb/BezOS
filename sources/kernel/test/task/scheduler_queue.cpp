@@ -602,7 +602,18 @@ TEST_F(SchedulerTest, ScheduleFrequency) {
         EXPECT_NE(states[i]->counter.load(), 0) << "Thread " << i << " did not run";
     }
 
+    size_t sum = 0;
+
     for (const auto& [entry, count] : threadScheduleCount) {
-        printf("Entry %p was scheduled %zu times\n", (void*)entry, count);
+        sum += count;
+    }
+
+    size_t avg = sum / threadScheduleCount.size();
+    size_t lowerBound = avg * 9 / 10;
+    size_t upperBound = avg * 11 / 10;
+
+    for (const auto& [entry, count] : threadScheduleCount) {
+        EXPECT_GE(count, lowerBound) << "Thread " << entry << " was scheduled too often";
+        EXPECT_LE(count, upperBound) << "Thread " << entry << " was scheduled too infrequently";
     }
 }
