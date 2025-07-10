@@ -276,7 +276,9 @@ TEST_F(SchedulerTest, Schedule) {
     carriers.clear(); // Wait for all threads to finish
     done.store(true);
     for (pthread_t thread : threads) {
-        pthread_kill(thread, SIGUSR1);
+        for (size_t i = 0; i < 10; ++i) {
+            ktest::AlertReentrantThread(thread);
+        }
     }
 
     for (size_t i = 0; i < kQueueMaxTasks; ++i) {
