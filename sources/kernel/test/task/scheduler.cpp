@@ -1,4 +1,3 @@
-#include <barrier>
 #include <gtest/gtest.h>
 #include <latch>
 #include <thread>
@@ -94,9 +93,9 @@ public:
     static constexpr size_t kQueueMaxTasks = kQueueCount * kQueueTaskCount;
 
     task::Scheduler scheduler;
-    std::vector<task::SchedulerQueue> queues{ kQueueCount };
-    std::vector<task::SchedulerEntry> entries{ kQueueMaxTasks };
-    std::vector<ThreadTestState> states{ kQueueMaxTasks };
+    std::unique_ptr<task::SchedulerQueue[]> queues{ new task::SchedulerQueue[kQueueCount] };
+    std::unique_ptr<task::SchedulerEntry[]> entries{ new task::SchedulerEntry[kQueueMaxTasks] };
+    std::unique_ptr<ThreadTestState[]> states{ new ThreadTestState[kQueueMaxTasks] };
     std::vector<pthread_t> threads{ kQueueCount };
 };
 
@@ -213,6 +212,8 @@ TEST_F(SchedulerTest, Schedule) {
 
     sigaction(SIGUSR1, &sigusr1, nullptr);
 
+    threads.resize(kQueueCount);
+
     for (size_t i = 0; i < kQueueCount; ++i) {
         struct ArgPack {
             km::CpuCoreId coreId;
@@ -274,6 +275,9 @@ TEST_F(SchedulerTest, Schedule) {
 
     carriers.clear(); // Wait for all threads to finish
     done.store(true);
+    for (pthread_t thread : threads) {
+        pthread_kill(thread, SIGUSR1);
+    }
 
     for (size_t i = 0; i < kQueueMaxTasks; ++i) {
         EXPECT_NE(states[i].counter.load(), 0) << "Thread " << i << " did not run";
