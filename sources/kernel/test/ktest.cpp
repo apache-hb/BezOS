@@ -3,6 +3,7 @@
 #include "log.hpp"
 #include "common/util/defer.hpp"
 
+#include "logger/categories.hpp"
 #include "util/format.hpp"
 
 #include <capstone.h>
@@ -148,7 +149,7 @@ static void SetRegOperand(mcontext_t *mc, x86_reg reg, uint64_t value) {
     case X86_REG_R14: mc->gregs[REG_R14] = value; break;
     case X86_REG_R15: mc->gregs[REG_R15] = value; break;
     default:
-        KmDebugMessageUnlocked("unknown register ", std::to_underlying(reg), "\n");
+        TestLog.printlnImmediate("unknown register ", std::to_underlying(reg));
         exit(1);
         return;
     }
@@ -209,7 +210,7 @@ void kmtest::Machine::rdmsr(mcontext_t *mcontext, cs_insn *insn) {
         return;
     }
 
-    KmDebugMessageUnlocked("unknown rdmsr: ", km::Hex(msr), "\n");
+    TestLog.printlnImmediate("unknown rdmsr: ", km::Hex(msr));
     exit(1);
 }
 
@@ -227,7 +228,7 @@ void kmtest::Machine::wrmsr(mcontext_t *mcontext, cs_insn *insn) {
         return;
     }
 
-    KmDebugMessageUnlocked("unknown wrmsr: ", km::Hex(msr), "\n");
+    TestLog.printlnImmediate("unknown wrmsr: ", km::Hex(msr));
     exit(1);
 }
 

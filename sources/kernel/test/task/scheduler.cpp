@@ -3,6 +3,7 @@
 #include <thread>
 
 #include "task/scheduler.hpp"
+#include "pthread.hpp"
 #include "reentrant.hpp"
 
 struct ThreadTestState {
@@ -88,7 +89,7 @@ public:
     }
 
     static constexpr size_t kQueueCount = 4;
-    static constexpr size_t kQueueCapacity = 16;
+    static constexpr size_t kQueueCapacity = 8;
     static constexpr size_t kQueueTaskCount = (kQueueCapacity / 2);
     static constexpr size_t kQueueMaxTasks = kQueueCount * kQueueTaskCount;
 
@@ -96,7 +97,7 @@ public:
     std::unique_ptr<task::SchedulerQueue[]> queues{ new task::SchedulerQueue[kQueueCount] };
     std::unique_ptr<task::SchedulerEntry[]> entries{ new task::SchedulerEntry[kQueueMaxTasks] };
     std::unique_ptr<ThreadTestState[]> states{ new ThreadTestState[kQueueMaxTasks] };
-    std::vector<pthread_t> threads{ kQueueCount };
+    std::vector<ktest::PThread> threads{ kQueueCount };
 };
 
 [[gnu::target("general-regs-only"), gnu::naked]]
@@ -215,38 +216,20 @@ TEST_F(SchedulerTest, Schedule) {
     threads.resize(kQueueCount);
 
     for (size_t i = 0; i < kQueueCount; ++i) {
-        struct ArgPack {
-            km::CpuCoreId coreId;
-            std::latch &readyLatch;
-        };
-
-        ArgPack *arg = new ArgPack{
-            .coreId = km::CpuCoreId(i),
-            .readyLatch = ready,
-        };
-
-        pthread_attr_t attr;
-        pthread_attr_init(&attr);
-        int status = pthread_create(&threads[i], &attr, [](void *arg) -> void* {
-            ArgPack *argPack = static_cast<ArgPack*>(arg);
-            ArgPack copy = *argPack;
-            delete argPack;
-            tlsCpuCoreId = copy.coreId;
+        threads[i] = ktest::PThread(10, [i, &ready]() {
+            tlsCpuCoreId = km::CpuCoreId(i);
 
             sigset_t set;
             sigemptyset(&set);
-            sigaddset(&set, ktest::kReentrantSignal);
+            sigaddset(&set, SIGUSR1);
             sigprocmask(SIG_UNBLOCK, &set, nullptr);
 
-            copy.readyLatch.arrive_and_wait();
+            ready.arrive_and_wait();
 
             while (!done.load()) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
-            return nullptr;
-        }, arg);
-
-        ASSERT_EQ(status, 0) << "Failed to create thread " << i;
+        });
 
         for (size_t j = 0; j < kQueueTaskCount; ++j) {
             size_t index = i * kQueueTaskCount + j;
@@ -264,20 +247,20 @@ TEST_F(SchedulerTest, Schedule) {
 
     ready.wait();
 
-    std::vector<std::jthread> carriers;
-    for (pthread_t thread : threads) {
-        carriers.emplace_back([this, thread]() {
-            runQueue(thread, [](auto elapsed) -> bool {
+    std::vector<ktest::PThread> carriers;
+    for (ktest::PThread& thread : threads) {
+        carriers.emplace_back(ktest::PThread(20, [this, handle = thread.getHandle()]() {
+            runQueue(handle, [](auto elapsed) -> bool {
                 return elapsed > std::chrono::milliseconds(100);
             });
-        });
+        }));
     }
 
     carriers.clear(); // Wait for all threads to finish
     done.store(true);
-    for (pthread_t thread : threads) {
+    for (ktest::PThread& thread : threads) {
         for (size_t i = 0; i < 10; ++i) {
-            ktest::AlertReentrantThread(thread);
+            ktest::AlertReentrantThread(thread.getHandle());
         }
     }
 

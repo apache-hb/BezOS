@@ -13,33 +13,12 @@
 #include "absl/container/internal/raw_hash_set.cc"
 #include "processor.hpp"
 
-class TestStream final : public km::IOutStream {
-    std::mutex mLock;
-public:
-    void write(stdx::StringView message) override {
-        std::lock_guard guard(mLock);
-
-        for (char c : message) {
-            if (c == '\0') continue;
-            std::cout << c;
-        }
-    }
-};
-
-void km::LockDebugLog() { }
-void km::UnlockDebugLog() { }
-
 void KmIdle() {
     while (1) { }
 }
 
 void KmHalt() {
     while (1) { }
-}
-
-km::IOutStream *km::GetDebugStream() {
-    static TestStream sTestStream;
-    return &sTestStream;
 }
 
 #pragma clang diagnostic push

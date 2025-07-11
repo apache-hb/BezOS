@@ -22,47 +22,57 @@
 
 #include "clock.hpp"
 #include "cmos.hpp"
-#include "debug/debug.hpp"
 #include "delay.hpp"
+
+#include "debug/debug.hpp"
+
 #include "devices/ddi.hpp"
 #include "devices/hid.hpp"
 #include "devices/sysfs.hpp"
-#include "display.hpp"
 #include "drivers/block/ramblk.hpp"
-#include "elf.hpp"
+#include "fs/vfs.hpp"
 #include "fs/path.hpp"
 #include "fs/utils.hpp"
-#include "fs/vfs.hpp"
+#include "fs/tarfs.hpp"
+#include "fs/ramfs.hpp"
+
+#include "elf.hpp"
 #include "gdt.hpp"
+#include "log.hpp"
+#include "hypervisor.hpp"
+
 #include "hid/hid.hpp"
 #include "hid/ps2.hpp"
-#include "hypervisor.hpp"
 #include "isr/isr.hpp"
 #include "isr/runtime.hpp"
-#include "log.hpp"
+
+#include "logger/logger.hpp"
 #include "logger/categories.hpp"
 #include "logger/serial_appender.hpp"
 #include "logger/vga_appender.hpp"
+#include "logger/e9_appender.hpp"
+
 #include "memory.hpp"
-#include "memory/allocator.hpp"
 #include "memory/stack_mapping.hpp"
 #include "notify.hpp"
 #include "panic.hpp"
 #include "processor.hpp"
 #include "setup.hpp"
 #include "smp.hpp"
+
 #include "std/static_vector.hpp"
+
 #include "syscall.hpp"
 #include "system/invoke.hpp"
 #include "system/process.hpp"
 #include "system/schedule.hpp"
 #include "system/system.hpp"
+
 #include "task/scheduler.hpp"
 #include "thread.hpp"
 #include "uart.hpp"
 #include "smbios.hpp"
 #include "pci/pci.hpp"
-#include "logger/logger.hpp"
 
 #include "timer/pit.hpp"
 #include "timer/hpet.hpp"
@@ -82,9 +92,6 @@
 
 #include "util/memory.hpp"
 
-#include "fs/vfs.hpp"
-#include "fs/tarfs.hpp"
-#include "fs/ramfs.hpp"
 #include "xsave.hpp"
 
 using namespace km;
@@ -103,44 +110,9 @@ static constexpr bool kEnableXSave = true;
 // TODO: make this runtime configurable
 static constexpr size_t kMaxMessageSize = 0x1000;
 
-class DebugPortLog final : public IOutStream {
-    void write(stdx::StringView message) [[clang::nonreentrant]] override {
-        for (char c : message) {
-            __outbyte(0xE9, c);
-        }
-    }
-};
-
-// load bearing constinit, clang has a bug in c++26 mode
-// where it doesnt emit a warning for global constructors in all cases.
-constinit static DebugPortLog gDebugPortLog;
-
-constinit static stdx::StaticVector<IOutStream*, 4> gLogTargets;
-
-class DebugLog final : public IOutStream {
-public:
-    constexpr DebugLog() { }
-
-    void write(stdx::StringView message) [[clang::nonreentrant]] override {
-        for (IOutStream *target : gLogTargets) {
-            target->write(message);
-        }
-    }
-};
-
-constinit static DebugLog gDebugLog;
-
 constinit static km::SerialAppender gSerialAppender;
 constinit static km::VgaAppender gVgaAppender;
-
-km::IOutStream *km::GetDebugStream() {
-    return &gDebugLog;
-}
-
-// qemu e9 port check - i think bochs does something else
-static bool KmTestDebugPort(void) {
-    return __inbyte(0xE9) == 0xE9;
-}
+constinit static km::E9Appender gDebugPortAppender;
 
 constinit km::CpuLocal<SystemGdt> km::tlsSystemGdt;
 constinit km::CpuLocal<x64::TaskStateSegment> km::tlsTaskState;
@@ -981,11 +953,11 @@ static std::tuple<std::optional<HypervisorInfo>, bool> QueryHostHypervisor() {
     bool hasDebugPort = false;
 
     if (hvInfo.transform([](const HypervisorInfo& info) { return info.platformHasDebugPort(); }).value_or(false)) {
-        hasDebugPort = KmTestDebugPort();
+        hasDebugPort = E9Appender::isAvailable();
     }
 
     if (hasDebugPort) {
-        gLogTargets.add(&gDebugPortLog);
+        LogQueue::addGlobalAppender(&gDebugPortAppender);
     }
 
     return std::make_tuple(hvInfo, hasDebugPort);
@@ -1007,8 +979,6 @@ static void AddDebugSystemCalls() {
             return CallError(status);
         }
 
-        LockDebugLog();
-
         for (const auto& segment : stdv::split(message, "\n"sv)) {
             std::string_view segmentView{segment};
             if (segmentView.empty()) {
@@ -1017,8 +987,6 @@ static void AddDebugSystemCalls() {
 
             InitLog.println("[DBG:", process->getName(), ":", thread->getName(), "] ", message);
         }
-
-        UnlockDebugLog();
 
         return CallOk(0zu);
     });

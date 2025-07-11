@@ -7,6 +7,7 @@
 
 #include "arch/msr.hpp"
 #include "common/util/util.hpp"
+#include "common/compiler/compiler.hpp"
 
 #include <concepts>
 
@@ -131,24 +132,29 @@ namespace x64 {
     };
 }
 
+CLANG_DIAGNOSTIC_PUSH();
+CLANG_DIAGNOSTIC_IGNORE("-Wfunction-effects");
+
 [[gnu::nodebug, gnu::always_inline]]
-static inline void __fxsave(x64::FxSave *buffer) {
+static inline void __fxsave(x64::FxSave *buffer) noexcept [[clang::reentrant]] {
     _fxsave(buffer);
 }
 
 [[gnu::nodebug, gnu::always_inline]]
-static inline void __fxrstor(x64::FxSave *buffer) {
+static inline void __fxrstor(x64::FxSave *buffer) noexcept [[clang::reentrant]] {
     _fxrstor(buffer);
 }
 
 [[gnu::nodebug, gnu::always_inline, gnu::target("xsave")]]
-static inline void __xsave(x64::XSave *buffer, uint64_t mask) {
+static inline void __xsave(x64::XSave *buffer, uint64_t mask) noexcept [[clang::reentrant]] {
     _xsave64(buffer, mask);
 }
 
 [[gnu::nodebug, gnu::always_inline, gnu::target("xsave")]]
-static inline void __xrstor(x64::XSave *buffer, uint64_t mask) {
+static inline void __xrstor(x64::XSave *buffer, uint64_t mask) noexcept [[clang::reentrant]] {
     _xrstor64(buffer, mask);
 }
+
+CLANG_DIAGNOSTIC_POP();
 
 UTIL_BITFLAGS(x64::XSaveFeature);

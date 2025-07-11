@@ -11,27 +11,27 @@
 constinit static km::Logger Save { "XSAVE" };
 
 class NoSave final : public km::IFpuSave {
-    km::SaveMode mode() const noexcept override { return km::SaveMode::eNoSave; }
+    km::SaveMode mode() const noexcept [[clang::nonblocking, clang::reentrant]] override { return km::SaveMode::eNoSave; }
 
 public:
-    size_t size() const noexcept override { return 0; }
-    void save(void *) const noexcept override { }
-    void restore(void *) const noexcept override { }
+    size_t size() const noexcept [[clang::nonblocking, clang::reentrant]] override { return 0; }
+    void save(void *) const noexcept [[clang::reentrant]] override { }
+    void restore(void *) const noexcept [[clang::reentrant]] override { }
 
     static constinit NoSave gInstance;
 };
 
 class FxSave final : public km::IFpuSave {
-    km::SaveMode mode() const noexcept override { return km::SaveMode::eFxSave; }
+    km::SaveMode mode() const noexcept [[clang::nonblocking, clang::reentrant]] override { return km::SaveMode::eFxSave; }
 
 public:
-    size_t size() const noexcept override { return sizeof(x64::FxSave); }
+    size_t size() const noexcept [[clang::nonblocking, clang::reentrant]] override { return sizeof(x64::FxSave); }
 
-    void save(void *buffer) const noexcept override {
+    void save(void *buffer) const noexcept [[clang::reentrant]] override {
         __fxsave(reinterpret_cast<x64::FxSave *>(buffer));
     }
 
-    void restore(void *buffer) const noexcept override {
+    void restore(void *buffer) const noexcept [[clang::reentrant]] override {
         __fxrstor(reinterpret_cast<x64::FxSave *>(buffer));
     }
 
@@ -65,7 +65,7 @@ class XSave final : public km::IFpuSave {
     /// @brief All currently enabled components
     uint64_t mEnabled = 0;
 
-    km::SaveMode mode() const noexcept override { return km::SaveMode::eXSave; }
+    km::SaveMode mode() const noexcept[[clang::nonblocking, clang::reentrant]]  override { return km::SaveMode::eXSave; }
 
     uint64_t queryBufferSize() {
         sm::CpuId cpuid = sm::CpuId::count(0xD, 1);
@@ -127,15 +127,15 @@ class XSave final : public km::IFpuSave {
     }
 
 public:
-    size_t size() const noexcept override { return sizeof(x64::XSave) + mBufferSize; }
+    size_t size() const noexcept [[clang::nonblocking, clang::reentrant]] override { return sizeof(x64::XSave) + mBufferSize; }
 
     [[gnu::target("xsave")]]
-    void save(void *buffer) const noexcept override {
+    void save(void *buffer) const noexcept [[clang::reentrant]] override {
         __xsave(reinterpret_cast<x64::XSave *>(buffer), mEnabled);
     }
 
     [[gnu::target("xsave")]]
-    void restore(void *buffer) const noexcept override {
+    void restore(void *buffer) const noexcept [[clang::reentrant]] override {
         __xrstor(reinterpret_cast<x64::XSave *>(buffer), mEnabled);
     }
 
@@ -201,15 +201,15 @@ void km::XSaveInitApCore() {
     gFpuSave->init();
 }
 
-size_t km::XSaveSize() {
+size_t km::XSaveSize() noexcept [[clang::nonblocking, clang::reentrant]] {
     return gFpuSave->size();
 }
 
-void km::XSaveStoreState(x64::XSave *area) {
+void km::XSaveStoreState(x64::XSave *area) noexcept [[clang::reentrant]] {
     gFpuSave->save(area);
 }
 
-void km::XSaveLoadState(x64::XSave *area) {
+void km::XSaveLoadState(x64::XSave *area) noexcept [[clang::reentrant]] {
     gFpuSave->restore(area);
 }
 

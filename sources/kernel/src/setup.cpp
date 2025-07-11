@@ -12,6 +12,7 @@
 #include "system/schedule.hpp"
 #include "thread.hpp"
 #include "system/process.hpp"
+#include "util/format/specifier.hpp"
 
 static constexpr bool kEmitAddrToLine = true;
 static constexpr stdx::StringView kImagePath = "install/kernel/bin/bezos-limine.elf";
