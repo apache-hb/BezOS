@@ -126,7 +126,7 @@ namespace task {
             return mQueue.capacity();
         }
 
-        SchedulerEntry *getCurrentTask() const noexcept {
+        SchedulerEntry *getCurrentTask() const noexcept [[clang::reentrant]] {
             return mCurrentTask;
         }
 

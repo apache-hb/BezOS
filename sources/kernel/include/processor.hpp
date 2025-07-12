@@ -14,7 +14,7 @@ namespace km {
     void InitKernelThread(Apic pic);
 
     CpuCoreId GetCurrentCoreId() noexcept [[clang::reentrant]];
-    IApic *GetCpuLocalApic();
+    IApic *GetCpuLocalApic() noexcept [[clang::reentrant]];
 }
 
 template<>

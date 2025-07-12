@@ -23,6 +23,6 @@ km::CpuCoreId km::GetCurrentCoreId() noexcept [[clang::reentrant]] {
     return CpuCoreId(tlsCoreInfo->lapicId);
 }
 
-km::IApic *km::GetCpuLocalApic() {
+km::IApic *km::GetCpuLocalApic() noexcept [[clang::reentrant]] {
     return *tlsCoreInfo->pic;
 }

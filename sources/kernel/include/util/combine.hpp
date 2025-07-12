@@ -49,11 +49,11 @@ namespace sm {
             return *this;
         }
 
-        T *pointer() { return reinterpret_cast<T *>(mStorage); }
-        T **address() { return reinterpret_cast<T **>(&mStorage); }
+        T *pointer() noexcept [[clang::reentrant]] { return reinterpret_cast<T *>(mStorage); }
+        T **address() noexcept [[clang::reentrant]] { return reinterpret_cast<T **>(&mStorage); }
 
-        T *operator*() { return pointer(); }
-        T *operator->() { return pointer(); }
-        T **operator&() { return address(); }
+        T *operator*() noexcept [[clang::reentrant]] { return pointer(); }
+        T *operator->() noexcept [[clang::reentrant]] { return pointer(); }
+        T **operator&() noexcept [[clang::reentrant]] { return address(); }
     };
 }

@@ -1583,8 +1583,7 @@ static void DisplayHpetInfo(const km::HighPrecisionTimer& hpet) {
     }
 }
 
-static void TestSchedulerQueue(km::SharedIsrTable *ist, km::ApicTimer *apicTimer);
-static bool tryContextSwitch(km::IsrContext *isrContext);
+static bool tryContextSwitch(km::IsrContext *isrContext) noexcept [[clang::reentrant]];
 
 static task::Scheduler *gScheduler;
 
@@ -1792,19 +1791,15 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     gClock = Clock { time, clockTicker };
 
-    enterSchedulerLoop(GetCpuLocalApic(), &apicTimer);
-
-    TestSchedulerQueue(km::GetSharedIsrTable(), &apicTimer);
-
-    KmHalt();
-
     CreateVfsDevices(&smbios, &rsdt, launch.initrd);
     InitUserApi();
-
     CreateNotificationQueue();
-
     ConfigurePs2Controller(rsdt, ioApicSet, lapic.pointer(), ist);
     CreateDisplayDevice();
+
+    enterSchedulerLoop(GetCpuLocalApic(), &apicTimer);
+
+    KmHalt();
 
     LaunchKernelProcess(&apicTimer);
 
@@ -1823,11 +1818,7 @@ static void IdleThread() {
     );
 }
 
-static task::SchedulerQueue *scheduler;
-static std::atomic<size_t> gTask0Count{0};
-static std::atomic<size_t> gTask1Count{0};
-
-static bool tryContextSwitch(km::IsrContext *isrContext) {
+static bool tryContextSwitch(km::IsrContext *isrContext) noexcept [[clang::reentrant]] {
     x64::XSave *xsave = nullptr;
     km::CpuCoreId coreId = km::GetCurrentCoreId();
     task::SchedulerQueue *queue = tlsQueue.get();
@@ -1891,135 +1882,4 @@ static bool tryContextSwitch(km::IsrContext *isrContext) {
     XSaveLoadState(state.xsave);
 
     return true;
-}
-
-[[clang::optnone]]
-static void Task0(task::SchedulerEntry *entry) {
-    volatile register int rdx asm("rdx") = 1234;
-
-    while (true) {
-        // SysLog.infof("Task 0 running. ", rdx);
-
-        gTask0Count += 1;
-
-        KM_CHECK(rdx == 1234, "Task 0: rdx is not 1234");
-
-        task::SchedulerEntry *current = scheduler->getCurrentTask();
-        if (current != entry) {
-            km::SharedIsrTable *ist = km::GetSharedIsrTable();
-            ist->install(isr::kTimerVector, [](km::IsrContext*) noexcept [[clang::reentrant]] -> km::IsrContext {
-                KmHalt();
-            });
-            SysLog.warnf("Task 0 is not the current task, expected: ", (void*)entry, ", got: ", (void*)current);
-            KM_PANIC("Task 0 is not the current task.");
-        }
-    }
-}
-
-[[clang::optnone]]
-static void Task1(task::SchedulerEntry *entry) {
-    volatile register int rdx asm("rdx") = 5678;
-    while (true) {
-        // SysLog.infof("Task 1 running. ", rdx);
-
-        gTask1Count += 1;
-
-        KM_CHECK(rdx == 5678, "Task 1: rdx is not 5678");
-
-        task::SchedulerEntry *current = scheduler->getCurrentTask();
-        if (current != entry) {
-            km::SharedIsrTable *ist = km::GetSharedIsrTable();
-            ist->install(isr::kTimerVector, [](km::IsrContext*) noexcept [[clang::reentrant]] -> km::IsrContext {
-                KmHalt();
-            });
-            SysLog.warnf("Task 1 is not the current task, expected: ", (void*)entry, ", got: ", (void*)current);
-            KM_PANIC("Task 1 is not the current task.");
-        }
-    }
-}
-
-static void TestSchedulerQueue(km::SharedIsrTable *ist, km::ApicTimer *apicTimer) {
-    OsStatus status = OsStatusSuccess;
-
-    scheduler = new task::SchedulerQueue();
-
-    if (OsStatus status = task::SchedulerQueue::create(64, scheduler)) {
-        InitLog.fatalf("Failed to initialize scheduler: ", OsStatusId(status));
-        KM_PANIC("Failed to initialize scheduler.");
-    }
-
-    x64::XSave *task0XSave = CreateXSave();
-    std::unique_ptr<x64::page[]> task0Stack{ new x64::page[4] };
-    task::SchedulerEntry task0;
-
-    status = scheduler->enqueue({
-        .registers = {
-            .rdx = 1234,
-            .rdi = reinterpret_cast<uintptr_t>(&task0),
-            .rbp = reinterpret_cast<uintptr_t>(task0Stack.get() + 4) - 0x8,
-            .rsp = reinterpret_cast<uintptr_t>(task0Stack.get() + 4) - 0x8,
-            .rip = reinterpret_cast<uintptr_t>(&Task0),
-            .rflags = 0x202, // IF set, no other flags
-            .cs = SystemGdt::eLongModeCode * 0x8,
-            .ss = SystemGdt::eLongModeData * 0x8,
-        },
-        .xsave = task0XSave,
-    }, km::StackMappingAllocation{}, km::StackMappingAllocation{}, &task0);
-
-    if (status != OsStatusSuccess) {
-        InitLog.fatalf("Failed to enqueue task 0: ", OsStatusId(status));
-        KM_PANIC("Failed to enqueue task 0.");
-    }
-
-    x64::XSave *task1XSave = CreateXSave();
-    std::unique_ptr<x64::page[]> task1Stack{ new x64::page[4] };
-    task::SchedulerEntry task1;
-
-    status = scheduler->enqueue({
-        .registers = {
-            .rdx = 5678,
-            .rdi = reinterpret_cast<uintptr_t>(&task1),
-            .rbp = reinterpret_cast<uintptr_t>(task1Stack.get() + 4) - 0x8,
-            .rsp = reinterpret_cast<uintptr_t>(task1Stack.get() + 4) - 0x8,
-            .rip = reinterpret_cast<uintptr_t>(&Task1),
-            .rflags = 0x202, // IF set, no other flags
-            .cs = SystemGdt::eLongModeCode * 0x8,
-            .ss = SystemGdt::eLongModeData * 0x8,
-        },
-        .xsave = task1XSave,
-    }, km::StackMappingAllocation{}, km::StackMappingAllocation{}, &task1);
-
-    if (status != OsStatusSuccess) {
-        InitLog.fatalf("Failed to enqueue task 1: ", OsStatusId(status));
-        KM_PANIC("Failed to enqueue task 1.");
-    }
-
-    ist->install(isr::kTimerVector, [](km::IsrContext *isrContext) noexcept [[clang::reentrant]] -> km::IsrContext {
-        km::IApic *apic = km::GetCpuLocalApic();
-        defer { apic->eoi(); };
-
-        if (tryContextSwitch(isrContext)) {
-            return *isrContext;
-        }
-
-        return *isrContext;
-    });
-
-    static constexpr std::chrono::milliseconds kDefaultTimeSlice = std::chrono::milliseconds(25);
-
-    km::IApic *apic = km::GetCpuLocalApic();
-    auto frequency = apicTimer->frequency();
-    auto ticks = (frequency * kDefaultTimeSlice.count()) / 1000;
-    apic->setTimerDivisor(km::apic::TimerDivide::e1);
-    apic->setInitialCount(uint64_t(ticks / si::hertz));
-
-    apic->cfgIvtTimer(km::apic::IvtConfig {
-        .vector = km::isr::kTimerVector,
-        .polarity = km::apic::Polarity::eActiveHigh,
-        .trigger = km::apic::Trigger::eEdge,
-        .enabled = true,
-        .timer = km::apic::TimerMode::ePeriodic,
-    });
-
-    KmIdle();
 }
