@@ -98,7 +98,10 @@ namespace task {
         static bool keepTaskRunning(SchedulerEntry *task) noexcept;
 
     public:
-        constexpr SchedulerQueue() noexcept = default;
+        constexpr SchedulerQueue() noexcept
+            : mCurrentTask(nullptr)
+            , mRescueTask(nullptr)
+        { }
 
         /// @brief Reschedule the current thread.
         ///

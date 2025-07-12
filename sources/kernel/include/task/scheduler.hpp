@@ -14,6 +14,7 @@ namespace task {
     public:
         OsStatus addQueue(km::CpuCoreId coreId, SchedulerQueue *queue) noexcept;
         OsStatus enqueue(const TaskState &state, km::StackMappingAllocation userStack, km::StackMappingAllocation kernelStack, SchedulerEntry *entry) noexcept;
+        SchedulerQueue *getQueue(km::CpuCoreId coreId) noexcept;
 
         ScheduleResult reschedule(km::CpuCoreId coreId, TaskState *state) noexcept;
 

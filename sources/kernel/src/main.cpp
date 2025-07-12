@@ -103,7 +103,7 @@ namespace stdv = std::ranges::views;
 static constexpr bool kUseX2Apic = true;
 static constexpr bool kSelfTestIdt = true;
 static constexpr bool kSelfTestApic = true;
-static constexpr bool kEnableSmp = false;
+static constexpr bool kEnableSmp = true;
 
 static constexpr bool kEnableXSave = true;
 
@@ -673,6 +673,7 @@ static void LogSystemInfo(
 
     InitLog.println("| /SYS/MB/CPU0  | Local APIC           | ", present(processor.lapic()));
     InitLog.println("| /SYS/MB/CPU0  | 2x APIC              | ", present(processor.x2apic()));
+    InitLog.println("| /SYS/MB/CPU0  | Invariant TSC        | ", present(processor.invariantTsc));
     InitLog.println("| /SYS/MB/CPU0  | SMBIOS 32 address    | ", launch.smbios32Address);
     InitLog.println("| /SYS/MB/CPU0  | SMBIOS 64 address    | ", launch.smbios64Address);
 
@@ -1212,7 +1213,68 @@ static void EnableUmip(bool enable) {
     }
 }
 
-static void StartupSmp(const acpi::AcpiTables& rsdt, bool umip, km::ApicTimer *apicTimer) {
+static constexpr std::chrono::milliseconds kDefaultTimeSlice = std::chrono::milliseconds(25);
+
+static void enterSchedulerLoop(km::IApic *apic, km::ApicTimer *apicTimer) {
+    auto frequency = apicTimer->frequency();
+    auto ticks = (frequency * kDefaultTimeSlice.count()) / 1000;
+    apic->setTimerDivisor(km::apic::TimerDivide::e1);
+    apic->setInitialCount(uint64_t(ticks / si::hertz));
+
+    apic->cfgIvtTimer(km::apic::IvtConfig {
+        .vector = km::isr::kTimerVector,
+        .polarity = km::apic::Polarity::eActiveHigh,
+        .trigger = km::apic::Trigger::eEdge,
+        .enabled = true,
+        .timer = km::apic::TimerMode::ePeriodic,
+    });
+
+    KmIdle();
+}
+
+static void heartbeatTask(km::CpuCoreId cpuCoreId, km::ITickSource *tickSource) {
+    hertz frequency = tickSource->frequency();
+    uint64_t start = tickSource->ticks();
+
+    while (true) {
+        uint64_t now = tickSource->ticks();
+        if (now - start >= (frequency * 2) / si::hertz) {
+            start = now;
+            TestLog.dbgf("Heartbeat on CPU ", cpuCoreId, " at ", now, " ticks (", frequency, ")");
+        }
+    }
+}
+
+CPU_LOCAL
+static constinit km::CpuLocal<task::SchedulerQueue*> tlsQueue;
+
+static void enqueueHeartbeatTask(task::SchedulerQueue *queue, km::ITickSource *tickSource, task::SchedulerEntry *task) {
+    x64::XSave *taskXSave = CreateXSave();
+    x64::page *taskStack = new x64::page[4];
+    km::CpuCoreId cpuCoreId = km::GetCurrentCoreId();
+
+    OsStatus status = queue->enqueue({
+        .registers = {
+            .rdi = static_cast<uintptr_t>(cpuCoreId),
+            .rsi = reinterpret_cast<uintptr_t>(tickSource),
+            .rbp = reinterpret_cast<uintptr_t>(taskStack + 4) - 0x8,
+            .rsp = reinterpret_cast<uintptr_t>(taskStack + 4) - 0x8,
+            .rip = reinterpret_cast<uintptr_t>(&heartbeatTask),
+            .rflags = 0x202, // IF set, no other flags
+            .cs = SystemGdt::eLongModeCode * 0x8,
+            .ss = SystemGdt::eLongModeData * 0x8,
+        },
+        .xsave = taskXSave,
+    }, km::StackMappingAllocation{}, km::StackMappingAllocation{}, task);
+
+
+    if (status != OsStatusSuccess) {
+        InitLog.fatalf("Failed to enqueue heartbeat task: ", OsStatusId(status));
+        KM_PANIC("Failed to enqueue heartbeat task.");
+    }
+}
+
+static void StartupSmp(const acpi::AcpiTables& rsdt, bool umip, km::ITickSource *tickSource, bool invariantTsc, task::Scheduler *scheduler) {
     //
     // TODO:
     // Create the scheduler and system objects before we startup SMP so that
@@ -1227,16 +1289,39 @@ static void StartupSmp(const acpi::AcpiTables& rsdt, bool umip, km::ApicTimer *a
         // scheduler is ready to be used. The scheduler requires the system to switch
         // to using cpu local isr tables, which must happen after smp startup.
         //
-        InitSmp(*GetSystemMemory(), GetCpuLocalApic(), rsdt, [&launchScheduler, umip, apicTimer](IApic *) {
+        InitSmp(*GetSystemMemory(), GetCpuLocalApic(), rsdt, [&launchScheduler, umip, tickSource, invariantTsc, scheduler](IApic *apic) {
             while (!launchScheduler.test()) {
                 _mm_pause();
             }
 
             EnableUmip(umip);
 
-            auto *scheduler = gSysSystem->scheduler();
-            scheduler->initCpuSchedule(km::GetCurrentCoreId(), 128);
-            sys::EnterScheduler(gSysSystem->getCpuSchedule(km::GetCurrentCoreId()), apicTimer);
+            km::ITickSource *bestTickSource = tickSource;
+
+            ApicTimer apicTimer;
+            InvariantTsc tsc;
+
+            if (OsStatus status = km::TrainApicTimer(apic, bestTickSource, &apicTimer)) {
+                InitLog.warnf("Failed to train APIC timer: ", OsStatusId(status));
+            } else {
+                InitLog.infof("APIC timer frequency: ", apicTimer.refclk());
+            }
+
+            if (invariantTsc) {
+                if (OsStatus status = km::TrainInvariantTsc(bestTickSource, &tsc)) {
+                    InitLog.warnf("Failed to train invariant TSC: ", OsStatusId(status));
+                } else {
+                    InitLog.infof("Invariant TSC frequency: ", tsc.frequency());
+                    bestTickSource = &tsc;
+                }
+            }
+
+            task::SchedulerEntry entry;
+
+            tlsQueue = scheduler->getQueue(km::GetCurrentCoreId());
+            task::SchedulerQueue *queue = tlsQueue.get();
+            enqueueHeartbeatTask(queue, bestTickSource, &entry);
+            enterSchedulerLoop(GetCpuLocalApic(), &apicTimer);
         });
     }
 
@@ -1499,6 +1584,9 @@ static void DisplayHpetInfo(const km::HighPrecisionTimer& hpet) {
 }
 
 static void TestSchedulerQueue(km::SharedIsrTable *ist, km::ApicTimer *apicTimer);
+static bool tryContextSwitch(km::IsrContext *isrContext);
+
+static task::Scheduler *gScheduler;
 
 void LaunchKernel(boot::LaunchInfo launch) {
     NormalizeProcessorState();
@@ -1659,12 +1747,51 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     ioApicSet.clearLegacyRedirect(irq::kTimer);
 
-    StartupSmp(rsdt, processor.umip(), &apicTimer);
+    gScheduler = new task::Scheduler;
+    task::Scheduler::create(gScheduler);
+    std::unique_ptr<task::SchedulerQueue[]> queues = std::make_unique<task::SchedulerQueue[]>(rsdt.madt()->lapicCount());
+
+    for (const acpi::MadtEntry *madt : *rsdt.madt()) {
+        if (madt->type != acpi::MadtEntryType::eLocalApic)
+            continue;
+
+        const acpi::MadtEntry::LocalApic localApic = madt->apic;
+
+        if (!localApic.isEnabled() && !localApic.isOnlineCapable()) {
+            continue;
+        }
+
+        task::SchedulerQueue& queue = queues[localApic.apicId];
+        task::SchedulerQueue::create(64, &queue);
+
+        gScheduler->addQueue(km::CpuCoreId(localApic.apicId), &queue);
+    }
+
+    tlsQueue = gScheduler->getQueue(km::GetCurrentCoreId());
+
+    task::SchedulerEntry entry;
+    enqueueHeartbeatTask(tlsQueue.get(), clockTicker, &entry);
+
+    km::SharedIsrTable *sharedIst = km::GetSharedIsrTable();
+    sharedIst->install(isr::kTimerVector, [](km::IsrContext *isrContext) noexcept [[clang::reentrant]] -> km::IsrContext {
+        km::IApic *apic = km::GetCpuLocalApic();
+        defer { apic->eoi(); };
+
+        if (tryContextSwitch(isrContext)) {
+            return *isrContext;
+        }
+
+        return *isrContext;
+    });
+
+    StartupSmp(rsdt, processor.umip(), clockTicker, processor.invariantTsc, gScheduler);
 
     DateTime time = ReadCmosClock();
-    ClockLog.infof("Current time: ", time.year, "-", time.month, "-", time.day, "T", time.hour, ":", time.minute, ":", time.second, "Z");
+    ClockLog.infof("Current time: ", time);
 
     gClock = Clock { time, clockTicker };
+
+    enterSchedulerLoop(GetCpuLocalApic(), &apicTimer);
 
     TestSchedulerQueue(km::GetSharedIsrTable(), &apicTimer);
 
@@ -1699,9 +1826,11 @@ static task::SchedulerQueue *scheduler;
 static std::atomic<size_t> gTask0Count{0};
 static std::atomic<size_t> gTask1Count{0};
 
-static bool tryContextSwitch(task::SchedulerQueue& queue, km::IsrContext *isrContext) {
+static bool tryContextSwitch(km::IsrContext *isrContext) {
     x64::XSave *xsave = nullptr;
-    if (task::SchedulerEntry *current = queue.getCurrentTask()) {
+    km::CpuCoreId coreId = km::GetCurrentCoreId();
+    task::SchedulerQueue *queue = tlsQueue.get();
+    if (task::SchedulerEntry *current = queue->getCurrentTask()) {
         task::TaskState& currentState = current->getState();
         xsave = currentState.xsave;
         XSaveStoreState(xsave);
@@ -1733,7 +1862,7 @@ static bool tryContextSwitch(task::SchedulerQueue& queue, km::IsrContext *isrCon
         .xsave = xsave,
     };
 
-    if (queue.reschedule(&state) == task::ScheduleResult::eIdle) {
+    if (gScheduler->reschedule(coreId, &state) == task::ScheduleResult::eIdle) {
         isrContext->rip = reinterpret_cast<uintptr_t>(IdleThread);
         return false;
     }
@@ -1868,7 +1997,7 @@ static void TestSchedulerQueue(km::SharedIsrTable *ist, km::ApicTimer *apicTimer
         km::IApic *apic = km::GetCpuLocalApic();
         defer { apic->eoi(); };
 
-        if (tryContextSwitch(*scheduler, isrContext)) {
+        if (tryContextSwitch(isrContext)) {
             return *isrContext;
         }
 

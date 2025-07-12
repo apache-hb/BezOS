@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+#include "util/format.hpp"
+
 namespace km {
     static constexpr uint16_t kDefaultYear = 2000;
     static constexpr uint8_t k12HourClock = (1 << 1);
@@ -41,3 +43,10 @@ namespace km {
 
     DateTime ReadCmosClock();
 }
+
+template<>
+struct km::Format<km::DateTime> {
+    static void format(km::IOutStream& out, km::DateTime time) {
+        out.format(time.year, "-", time.month, "-", time.day, "T", time.hour, ":", time.minute, ":", time.second, "Z");
+    }
+};

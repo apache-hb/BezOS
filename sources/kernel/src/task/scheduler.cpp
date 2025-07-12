@@ -16,6 +16,12 @@ OsStatus task::Scheduler::enqueue(const TaskState &state, km::StackMappingAlloca
     return OsStatusOutOfMemory;
 }
 
+task::SchedulerQueue *task::Scheduler::getQueue(km::CpuCoreId coreId) noexcept {
+    auto it = mQueues.find(coreId);
+    KM_ASSERT(it != mQueues.end());
+    return it->second.queue;
+}
+
 task::ScheduleResult task::Scheduler::reschedule(km::CpuCoreId coreId, TaskState *state) noexcept {
     auto it = mQueues.find(coreId);
     KM_ASSERT(it != mQueues.end());

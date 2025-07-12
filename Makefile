@@ -3,6 +3,8 @@
 BUILDDIR := build
 PREFIX := install
 
+.DEFAULT_GOAL := all
+
 # pkgtool build rules
 
 PKGTOOL := install/tool/bin/package.elf
@@ -97,6 +99,10 @@ $(COVERAGE_REPORT): $(GCDA_FILES)
 
 coverage: | $(COVERAGE_REPORT)
 	@echo "Coverage report generated at $(COVERAGE_REPORT)"
+
+.PHONY: kernel
+kernel:
+	ninja -C $(KERNEL_PATH)
 
 # vm testing
 
