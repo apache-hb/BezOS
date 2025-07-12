@@ -1749,7 +1749,8 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     gScheduler = new task::Scheduler;
     task::Scheduler::create(gScheduler);
-    std::unique_ptr<task::SchedulerQueue[]> queues = std::make_unique<task::SchedulerQueue[]>(rsdt.madt()->lapicCount());
+    size_t cpuCount = kEnableSmp ? rsdt.madt()->lapicCount() : 1;
+    std::unique_ptr<task::SchedulerQueue[]> queues = std::make_unique<task::SchedulerQueue[]>(cpuCount);
 
     for (const acpi::MadtEntry *madt : *rsdt.madt()) {
         if (madt->type != acpi::MadtEntryType::eLocalApic)
