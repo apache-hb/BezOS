@@ -40,6 +40,9 @@ namespace stdx {
 
     public:
         using value_type = T;
+        using reference = T&;
+        using const_reference = const T&;
+        using size_type = size_t;
 
         ~Vector() {
             releaseMemory();

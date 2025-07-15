@@ -346,6 +346,7 @@ testcases = {
             files('task/scheduler_queue.cpp'),
         ],
         'link_with': [ libtask_native, liblogging_native, libtest_shim ],
+        'dependencies': [ mp_units ],
     },
     # TODO: this test is run without sanitizers until I can figure out why addrsan doesnt like
     # sigqueue happening on multiple threads
@@ -355,6 +356,7 @@ testcases = {
         ],
         'override_options': nosan_kwargs['override_options'],
         'link_with': [ libtask_nosanitize, liblogging_nosanitize, libtest_shim_nosanitize ],
+        'dependencies': [ mp_units ],
     }
 }
 

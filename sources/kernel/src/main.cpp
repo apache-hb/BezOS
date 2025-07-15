@@ -1583,7 +1583,7 @@ static void DisplayHpetInfo(const km::HighPrecisionTimer& hpet) {
     }
 }
 
-static bool tryContextSwitch(km::IsrContext *isrContext) noexcept [[clang::reentrant]];
+static bool tryContextSwitch(km::IsrContext *isrContext) noexcept;
 
 static task::Scheduler *gScheduler;
 
@@ -1818,7 +1818,7 @@ static void IdleThread() {
     );
 }
 
-static bool tryContextSwitch(km::IsrContext *isrContext) noexcept [[clang::reentrant]] {
+static bool tryContextSwitch(km::IsrContext *isrContext) noexcept {
     x64::XSave *xsave = nullptr;
     km::CpuCoreId coreId = km::GetCurrentCoreId();
     task::SchedulerQueue *queue = tlsQueue.get();

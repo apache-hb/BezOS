@@ -6,6 +6,7 @@
 #include "system/create.hpp"
 
 namespace task {
+    class Waitable;
     class SchedulerQueue;
 
     /// @brief Task status state transitions.

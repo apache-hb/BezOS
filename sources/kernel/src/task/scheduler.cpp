@@ -1,33 +1,40 @@
 #include "task/scheduler.hpp"
 
 OsStatus task::Scheduler::addQueue(km::CpuCoreId coreId, SchedulerQueue *queue) noexcept {
-    mQueues.insert({coreId, QueueInfo{queue}});
+    if (OsStatus status = mQueues.insert(coreId, QueueInfo{queue})) {
+        return status;
+    }
+    mAvailableTaskCount.add(queue->getTaskCount(), std::memory_order_relaxed);
     return OsStatusSuccess;
 }
 
 OsStatus task::Scheduler::enqueue(const TaskState &state, km::StackMappingAllocation userStack, km::StackMappingAllocation kernelStack, SchedulerEntry *entry) noexcept {
-    for (auto& [_, queueInfo] : mQueues) {
-        SchedulerQueue *queue = queueInfo.queue;
+    if (!mAvailableTaskCount.consume()) {
+        return OsStatusOutOfMemory;
+    }
+
+    for (auto taskQueue : mQueues) {
+        SchedulerQueue *queue = taskQueue.second.queue;
         if (queue->enqueue(state, userStack, kernelStack, entry) == OsStatusSuccess) {
             return OsStatusSuccess;
         }
     }
 
+    mAvailableTaskCount.add(1);
     return OsStatusOutOfMemory;
 }
 
 task::SchedulerQueue *task::Scheduler::getQueue(km::CpuCoreId coreId) noexcept {
     auto it = mQueues.find(coreId);
     KM_ASSERT(it != mQueues.end());
-    return it->second.queue;
+    return (*it).second.queue;
 }
 
 task::ScheduleResult task::Scheduler::reschedule(km::CpuCoreId coreId, TaskState *state) noexcept {
     auto it = mQueues.find(coreId);
     KM_ASSERT(it != mQueues.end());
 
-    auto& [_, queueInfo] = *it;
-    SchedulerQueue *queue = queueInfo.queue;
+    SchedulerQueue *queue = (*it).second.queue;
 
     return queue->reschedule(state);
 }
