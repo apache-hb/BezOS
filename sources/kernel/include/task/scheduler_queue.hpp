@@ -6,7 +6,7 @@
 #include "system/create.hpp"
 
 namespace task {
-    class Waitable;
+    class Mutex;
     class SchedulerQueue;
 
     /// @brief Task status state transitions.
@@ -72,6 +72,8 @@ namespace task {
         /// @brief A rescue task that stores a task when the scheduler queue is totally full.
         /// Prevents leaking the current task when the queue is full.
         std::atomic<SchedulerEntry*> mRescueTask;
+
+        stdx::Vector2<SchedulerEntry*> mSleepingTasks;
 
         void setCurrentTask(SchedulerEntry *task) noexcept;
 

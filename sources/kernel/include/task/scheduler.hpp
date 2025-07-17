@@ -7,7 +7,7 @@
 #include "clock.hpp"
 
 namespace task {
-    class Waitable;
+    class Mutex;
 
     class AvailableTaskCount {
         std::atomic<uint32_t> mAvailable{0};
@@ -51,7 +51,7 @@ namespace task {
         ScheduleResult reschedule(km::CpuCoreId coreId, TaskState *state) noexcept;
 
         OsStatus sleep(SchedulerEntry *entry, km::os_instant timeout) noexcept;
-        OsStatus wait(SchedulerEntry *entry, Waitable *waitable, km::os_instant timeout) noexcept;
+        OsStatus wait(SchedulerEntry *entry, Mutex *waitable, km::os_instant timeout) noexcept;
 
         static OsStatus create(Scheduler *scheduler) noexcept;
     };

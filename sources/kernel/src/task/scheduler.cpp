@@ -1,4 +1,5 @@
 #include "task/scheduler.hpp"
+#include "task/mutex.hpp"
 
 OsStatus task::Scheduler::addQueue(km::CpuCoreId coreId, SchedulerQueue *queue) noexcept {
     if (OsStatus status = mQueues.insert(coreId, QueueInfo{queue})) {
@@ -37,6 +38,14 @@ task::ScheduleResult task::Scheduler::reschedule(km::CpuCoreId coreId, TaskState
     SchedulerQueue *queue = (*it).second.queue;
 
     return queue->reschedule(state);
+}
+
+OsStatus task::Scheduler::sleep(SchedulerEntry *entry, km::os_instant timeout) noexcept {
+
+}
+
+OsStatus task::Scheduler::wait(SchedulerEntry *entry, Mutex *waitable, km::os_instant timeout) noexcept {
+    return waitable->wait(entry, timeout);
 }
 
 OsStatus task::Scheduler::create(Scheduler *scheduler) noexcept {

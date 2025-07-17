@@ -9,7 +9,7 @@
 namespace task {
     class SchedulerEntry;
 
-    class Waitable {
+    class Mutex {
         struct WaitEntry {
             SchedulerEntry *entry;
             km::os_instant timeout;
@@ -22,7 +22,7 @@ namespace task {
         stdx::Vector2<WaitEntry> mWaiters;
 
     public:
-        constexpr Waitable() noexcept = default;
+        constexpr Mutex() noexcept = default;
 
         OsStatus wait(SchedulerEntry *entry, km::os_instant timeout) noexcept;
 
