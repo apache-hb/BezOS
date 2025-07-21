@@ -10,16 +10,7 @@ namespace task {
     class SchedulerEntry;
 
     class Mutex {
-        struct WaitEntry {
-            SchedulerEntry *entry;
-            km::os_instant timeout;
-
-            bool operator<(const WaitEntry& other) const noexcept {
-                return timeout < other.timeout;
-            }
-        };
-
-        stdx::Vector2<WaitEntry> mWaiters;
+        stdx::Vector2<SchedulerEntry*> mWaiters;
 
     public:
         constexpr Mutex() noexcept = default;

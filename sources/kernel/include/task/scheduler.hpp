@@ -10,20 +10,21 @@ namespace task {
     class Mutex;
 
     class AvailableTaskCount {
-        std::atomic<uint32_t> mAvailable{0};
+        std::atomic<int32_t> mAvailable;
 
     public:
-        bool consume() noexcept {
-            while (true) {
-                uint32_t current = mAvailable.load();
-                if (current == 0) {
-                    return false; // No tasks available
-                }
+        constexpr AvailableTaskCount(uint32_t initialCount = 0) noexcept
+            : mAvailable(initialCount)
+        { }
 
-                if (mAvailable.compare_exchange_weak(current, current - 1)) {
-                    return true; // Successfully consumed a task
-                }
+        bool consume() noexcept {
+            int32_t current = mAvailable.fetch_sub(1);
+            if (current > 0) {
+                return true;
             }
+
+            mAvailable.fetch_add(1); // Restore the count if we went below zero
+            return false; // No tasks available
         }
 
         void add(uint32_t count, std::memory_order order = std::memory_order_seq_cst) noexcept {

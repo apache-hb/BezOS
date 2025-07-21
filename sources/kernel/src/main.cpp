@@ -1215,6 +1215,7 @@ static void EnableUmip(bool enable) {
 
 static constexpr std::chrono::milliseconds kDefaultTimeSlice = std::chrono::milliseconds(25);
 
+[[noreturn]]
 static void enterSchedulerLoop(km::IApic *apic, km::ApicTimer *apicTimer) {
     auto frequency = apicTimer->frequency();
     auto ticks = (frequency * kDefaultTimeSlice.count()) / 1000;
@@ -1852,6 +1853,7 @@ static bool tryContextSwitch(km::IsrContext *isrContext) noexcept {
             .ss = isrContext->ss,
         },
         .xsave = xsave,
+        .tlsBase = IA32_FS_BASE.load(),
     };
 
     if (gScheduler->reschedule(coreId, &state) == task::ScheduleResult::eIdle) {
@@ -1879,6 +1881,7 @@ static bool tryContextSwitch(km::IsrContext *isrContext) noexcept {
     isrContext->rflags = state.registers.rflags;
     isrContext->cs = state.registers.cs;
     isrContext->ss = state.registers.ss;
+    IA32_FS_BASE.store(state.tlsBase);
     XSaveLoadState(state.xsave);
 
     return true;

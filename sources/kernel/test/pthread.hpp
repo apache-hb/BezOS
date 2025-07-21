@@ -65,6 +65,20 @@ namespace ktest {
             pthread_attr_destroy(&attr);
         }
 
+        template<typename F>
+        explicit PThread(F&& func) {
+            int status = pthread_create(&mThread, nullptr, [](void *arg) -> void* {
+                F *f = static_cast<F*>(arg);
+                (*f)();
+                delete f;
+                return nullptr;
+            }, new F(std::forward<F>(func)));
+
+            if (status != 0) {
+                throw std::runtime_error(std::format("Failed to create thread: {}", strerror(status)));
+            }
+        }
+
         void join() {
             if (mThread) {
                 pthread_join(mThread, nullptr);

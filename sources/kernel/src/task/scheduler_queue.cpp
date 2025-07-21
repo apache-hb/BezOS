@@ -2,9 +2,65 @@
 
 #include "panic.hpp"
 
+template<typename T>
+static void atomicMax(std::atomic<T> &target, T value) noexcept {
+    T current = target.load();
+    while (current < value && !target.compare_exchange_weak(current, value)) {
+    }
+}
+
+task::WakeResult task::SchedulerEntry::wakeIfTimeout(km::os_instant now) noexcept {
+    if (mSleepUntil.load() > now) {
+        // If the task is still sleeping, do not change its state.
+        return WakeResult::eSleep;
+    }
+
+    TaskStatus expected = TaskStatus::eSuspended;
+    while (!mStatus.compare_exchange_strong(expected, TaskStatus::eIdle)) {
+        switch (expected) {
+        case task::TaskStatus::eRunning:
+            KM_PANIC("Task is running, should not be in the sleep queue");
+            continue;
+        case task::TaskStatus::eSuspended:
+            KM_PANIC("compare_exchange_strong should not fail");
+            continue;
+        case task::TaskStatus::eIdle:
+            continue;
+        case task::TaskStatus::eTerminated:
+        case task::TaskStatus::eClosed:
+            return WakeResult::eDiscard;
+        }
+    }
+
+    return WakeResult::eWake;
+}
+
+void task::SchedulerEntry::wake() noexcept {
+    mSleepUntil.store(km::os_instant::min());
+}
+
+bool task::SchedulerEntry::sleep(km::os_instant timeout) noexcept {
+    TaskStatus expected = TaskStatus::eIdle;
+    while (!mStatus.compare_exchange_strong(expected, TaskStatus::eSuspended)) {
+        switch (expected) {
+        case task::TaskStatus::eClosed:
+        case task::TaskStatus::eTerminated:
+            // If the task is closed or terminated then theres no point in sleeping it.
+            return false;
+        case task::TaskStatus::eRunning:
+        case task::TaskStatus::eIdle:
+        case task::TaskStatus::eSuspended:
+            atomicMax(mSleepUntil, timeout);
+            continue;
+        }
+    }
+
+    return true;
+}
+
 void task::SchedulerEntry::terminate() noexcept {
     TaskStatus expected = TaskStatus::eIdle;
-    while (!status.compare_exchange_strong(expected, TaskStatus::eTerminated)) {
+    while (!mStatus.compare_exchange_strong(expected, TaskStatus::eTerminated)) {
         switch (expected) {
         case task::TaskStatus::eRunning:
         case task::TaskStatus::eIdle:
@@ -22,12 +78,12 @@ void task::SchedulerEntry::terminate() noexcept {
 }
 
 bool task::SchedulerEntry::isClosed() const noexcept {
-    return status.load() == TaskStatus::eClosed;
+    return mStatus.load() == TaskStatus::eClosed;
 }
 
 bool task::SchedulerQueue::moveTaskToIdle(SchedulerEntry *task) noexcept {
     TaskStatus expected = TaskStatus::eRunning;
-    if (!task->status.compare_exchange_strong(expected, TaskStatus::eIdle)) {
+    if (!task->mStatus.compare_exchange_strong(expected, TaskStatus::eIdle)) {
         switch (expected) {
         case task::TaskStatus::eRunning:
             KM_PANIC("Task is already running, compare exchange should not fail");
@@ -41,7 +97,7 @@ bool task::SchedulerQueue::moveTaskToIdle(SchedulerEntry *task) noexcept {
         case task::TaskStatus::eTerminated:
             // If the task is terminated, it should be moved to the closed state
             // and removed from the queue.
-            task->status.store(TaskStatus::eClosed);
+            task->mStatus.store(TaskStatus::eClosed);
             return false;
         case task::TaskStatus::eClosed:
             KM_PANIC("Closed task should not be in the queue");
@@ -54,7 +110,7 @@ bool task::SchedulerQueue::moveTaskToIdle(SchedulerEntry *task) noexcept {
 
 bool task::SchedulerQueue::moveTaskToRunning(SchedulerEntry *task) noexcept {
     TaskStatus expected = TaskStatus::eIdle;
-    if (!task->status.compare_exchange_strong(expected, TaskStatus::eRunning)) {
+    if (!task->mStatus.compare_exchange_strong(expected, TaskStatus::eRunning)) {
         switch (expected) {
         case task::TaskStatus::eRunning:
             TaskLog.errorf("Task ", (void*)task, " is already running, it should not be scheduled again.");
@@ -69,7 +125,7 @@ bool task::SchedulerQueue::moveTaskToRunning(SchedulerEntry *task) noexcept {
         case task::TaskStatus::eTerminated:
             // If the task is terminated, it should be moved to the closed state
             // and removed from the queue.
-            task->status.store(TaskStatus::eClosed);
+            task->mStatus.store(TaskStatus::eClosed);
             return false;
         case task::TaskStatus::eClosed:
             KM_PANIC("Closed task should not be in the queue");
@@ -81,7 +137,7 @@ bool task::SchedulerQueue::moveTaskToRunning(SchedulerEntry *task) noexcept {
 }
 
 bool task::SchedulerQueue::keepTaskRunning(SchedulerEntry *task) noexcept {
-    switch (task->status.load()) {
+    switch (task->mStatus.load()) {
     case TaskStatus::eRunning:
         // The task is already running, no need to change its state.
         return true;
@@ -94,7 +150,7 @@ bool task::SchedulerQueue::keepTaskRunning(SchedulerEntry *task) noexcept {
     case TaskStatus::eTerminated:
         // If the task is terminated, it should be moved to the closed state
         // and removed from the queue.
-        task->status.store(TaskStatus::eClosed);
+        task->mStatus.store(TaskStatus::eClosed);
         return false;
     case TaskStatus::eClosed:
         // Closed tasks should not be in the queue, this is a bug.
@@ -103,8 +159,38 @@ bool task::SchedulerQueue::keepTaskRunning(SchedulerEntry *task) noexcept {
     }
 }
 
+size_t task::SchedulerQueue::wakeSleepingTasks(km::os_instant now) noexcept {
+    size_t woken = 0;
+
+    for (auto it = mSleepingTasks.begin(); it != mSleepingTasks.end();) {
+        SchedulerEntry *task = *it;
+        task::WakeResult result = task->wakeIfTimeout(now);
+        switch (result) {
+        case task::WakeResult::eSleep:
+            // The task is still sleeping, do not remove it from the list.
+            ++it;
+            continue;
+        case task::WakeResult::eWake:
+            woken += 1;
+            // The task was woken up, remove it from the list.
+            it = mSleepingTasks.erase(it);
+
+            // This must never fail, if it does then this queue has been overfilled.
+            KM_ASSERT(mQueue.tryPush(task));
+            continue;
+        case task::WakeResult::eDiscard:
+            woken += 1;
+            // The task was discarded, remove it from the list.
+            it = mSleepingTasks.erase(it);
+            continue;
+        }
+    }
+
+    return woken;
+}
+
 void task::SchedulerQueue::setCurrentTask(SchedulerEntry *task) noexcept {
-    KM_ASSERT(task->status.load() == TaskStatus::eRunning);
+    KM_ASSERT(task->mStatus.load() == TaskStatus::eRunning);
     KM_ASSERT(task != mCurrentTask);
 
     if (mCurrentTask != nullptr) {
@@ -151,7 +237,7 @@ task::ScheduleResult task::SchedulerQueue::reschedule(TaskState *state [[gnu::no
         }
 
         if (!keepTaskRunning(mCurrentTask)) {
-            mCurrentTask->state = *state;
+            mCurrentTask->mState = *state;
             mCurrentTask = nullptr;
             return ScheduleResult::eIdle;
         }
@@ -160,17 +246,17 @@ task::ScheduleResult task::SchedulerQueue::reschedule(TaskState *state [[gnu::no
     }
 
     if (mCurrentTask != nullptr) {
-        mCurrentTask->state = *state;
+        mCurrentTask->mState = *state;
     }
 
     setCurrentTask(newTask);
 
-    *state = newTask->state;
+    *state = newTask->mState;
     return ScheduleResult::eResume;
 }
 
 OsStatus task::SchedulerQueue::enqueue(const TaskState &state, km::StackMappingAllocation userStack, km::StackMappingAllocation kernelStack, SchedulerEntry *entry) noexcept {
-    KM_ASSERT(entry->status.load() == TaskStatus::eIdle);
+    KM_ASSERT(entry->mStatus.load() == TaskStatus::eIdle);
 
     if (SchedulerEntry *rescueTask = mRescueTask.load()) {
         if (mQueue.tryPush(rescueTask)) {
@@ -180,9 +266,9 @@ OsStatus task::SchedulerQueue::enqueue(const TaskState &state, km::StackMappingA
         }
     }
 
-    entry->state = state;
-    entry->userStack = userStack;
-    entry->kernelStack = kernelStack;
+    entry->mState = state;
+    entry->mUserStack = userStack;
+    entry->mKernelStack = kernelStack;
 
     if (!mQueue.tryPush(entry)) {
         return OsStatusOutOfMemory;

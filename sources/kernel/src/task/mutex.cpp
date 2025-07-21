@@ -1,14 +1,22 @@
 #include "task/mutex.hpp"
+#include "task/scheduler_queue.hpp"
 
 OsStatus task::Mutex::wait(SchedulerEntry *entry, km::os_instant timeout) noexcept {
-    WaitEntry waitEntry {
-        .entry = entry,
-        .timeout = timeout
-    };
+    if (!entry->sleep(timeout)) {
+        return OsStatusThreadTerminated;
+    }
 
-    return mWaiters.add(waitEntry);
+    if (OsStatus status = mWaiters.add(entry)) {
+        KM_CHECK(status == OsStatusSuccess, "Failed to add wait entry to mutex waiters");
+    }
+
+    return OsStatusSuccess;
 }
 
 OsStatus task::Mutex::alert() noexcept {
+    for (SchedulerEntry *entry : mWaiters) {
+        entry->wake();
+    }
+    mWaiters.clear();
     return OsStatusSuccess;
 }

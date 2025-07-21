@@ -121,6 +121,9 @@ enum OsStatusId {
 
     /// @brief The requested resource was found, but is not available.
     OsStatusNotAvailable = 0x001e,
+
+    /// @brief The thread was terminated.
+    OsStatusThreadTerminated = 0x001f,
 };
 
 #define OS_SUCCESS(status) ((status) == OsStatusSuccess)

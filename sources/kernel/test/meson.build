@@ -357,6 +357,14 @@ testcases = {
         'override_options': nosan_kwargs['override_options'],
         'link_with': [ libtask_nosanitize, liblogging_nosanitize, libtest_shim_nosanitize ],
         'dependencies': [ mp_units ],
+    },
+    'task scheduler sleep': {
+        'sources': [
+            files('task/scheduler_sleep.cpp'),
+        ],
+        'override_options': nosan_kwargs['override_options'],
+        'link_with': [ libtask_nosanitize, liblogging_nosanitize, libtest_shim_nosanitize ],
+        'dependencies': [ mp_units ],
     }
 }
 

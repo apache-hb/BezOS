@@ -5,7 +5,7 @@ OsStatus task::Scheduler::addQueue(km::CpuCoreId coreId, SchedulerQueue *queue) 
     if (OsStatus status = mQueues.insert(coreId, QueueInfo{queue})) {
         return status;
     }
-    mAvailableTaskCount.add(queue->getTaskCount(), std::memory_order_relaxed);
+    mAvailableTaskCount.add(queue->getCapacity(), std::memory_order_relaxed);
     return OsStatusSuccess;
 }
 
@@ -41,7 +41,7 @@ task::ScheduleResult task::Scheduler::reschedule(km::CpuCoreId coreId, TaskState
 }
 
 OsStatus task::Scheduler::sleep(SchedulerEntry *entry, km::os_instant timeout) noexcept {
-
+    return entry->sleep(timeout) ? OsStatusSuccess : OsStatusThreadTerminated;
 }
 
 OsStatus task::Scheduler::wait(SchedulerEntry *entry, Mutex *waitable, km::os_instant timeout) noexcept {

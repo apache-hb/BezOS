@@ -5,6 +5,8 @@
 #include "std/ringbuffer.hpp"
 #include "system/create.hpp"
 
+#include "clock.hpp"
+
 namespace task {
     class Mutex;
     class SchedulerQueue;
@@ -36,13 +38,25 @@ namespace task {
         uintptr_t tlsBase;
     };
 
+    enum class WakeResult {
+        /// @brief The task was woken up and is ready to run.
+        eWake,
+
+        /// @brief The task was woken up but should be discarded.
+        eDiscard,
+
+        /// @brief The task is still sleeping and should not be woken up.
+        eSleep,
+    };
+
     class SchedulerEntry {
         friend class SchedulerQueue;
 
-        std::atomic<TaskStatus> status{TaskStatus::eIdle};
-        TaskState state;
-        km::StackMappingAllocation userStack;
-        km::StackMappingAllocation kernelStack;
+        std::atomic<TaskStatus> mStatus{TaskStatus::eIdle};
+        std::atomic<km::os_instant> mSleepUntil{km::os_instant::min()};
+        TaskState mState;
+        km::StackMappingAllocation mUserStack;
+        km::StackMappingAllocation mKernelStack;
 
     public:
         constexpr SchedulerEntry() noexcept = default;
@@ -50,8 +64,17 @@ namespace task {
         void terminate() noexcept;
         bool isClosed() const noexcept;
 
+        bool sleep(km::os_instant timeout) noexcept;
+        WakeResult wakeIfTimeout(km::os_instant now) noexcept;
+
+        km::os_instant timeout() const noexcept {
+            return mSleepUntil.load();
+        }
+
+        void wake() noexcept;
+
         TaskState& getState() noexcept {
-            return state;
+            return mState;
         }
     };
 
@@ -99,6 +122,10 @@ namespace task {
         /// @retval true The task should continue running.
         /// @retval false The task should be dequeued.
         static bool keepTaskRunning(SchedulerEntry *task) noexcept;
+
+        /// @brief Wake all sleeping tasks that have reached their timeout.
+        /// @return The number of tasks that were woken up.
+        size_t wakeSleepingTasks(km::os_instant now) noexcept;
 
     public:
         constexpr SchedulerQueue() noexcept

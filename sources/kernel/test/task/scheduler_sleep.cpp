@@ -6,6 +6,25 @@
 #include "pthread.hpp"
 #include "reentrant.hpp"
 
+/// lifted from llvm compiler-rt
+[[gnu::target("general-regs-only")]]
+size_t ucontextSize(void *ctx) {
+    // Added in Linux kernel 3.4.0, merged to glibc in 2.16
+#ifndef FP_XSTATE_MAGIC1
+#   define FP_XSTATE_MAGIC1 0x46505853U
+#endif
+    // See kernel arch/x86/kernel/fpu/signal.c for details.
+    const auto *fpregs = static_cast<ucontext_t *>(ctx)->uc_mcontext.fpregs;
+    // The member names differ across header versions, but the actual layout
+    // is always the same.  So avoid using members, just use arithmetic.
+    const uint32_t *after_xmm = reinterpret_cast<const uint32_t *>(fpregs + 1) - 24;
+    if (after_xmm[12] == FP_XSTATE_MAGIC1)
+        return reinterpret_cast<const char *>(fpregs) + after_xmm[13] -
+            static_cast<const char *>(ctx);
+
+    return sizeof(ucontext_t);
+}
+
 struct ThreadTestState {
     std::unique_ptr<x64::page[]> stackStorage;
     std::unique_ptr<x64::page[]> xsaveStorage;
@@ -105,17 +124,30 @@ static void IdleThread() {
     asm("1:\n jmp 1b");
 }
 
+[[clang::no_builtin("memcpy"), gnu::target("general-regs-only")]]
+static void copy(void *dst, void *src, size_t size) {
+    asm volatile (
+        "rep movsb"
+        : "=D"(dst), "=S"(src), "=c"(size)
+        : "0"(dst), "1"(src), "2"(size)
+        : "memory"
+    );
+}
+
+[[gnu::target("general-regs-only")]]
 static bool tryContextSwitch(task::Scheduler& scheduler, km::CpuCoreId id, ucontext_t *uc) {
     mcontext_t *mc = &uc->uc_mcontext;
     x64::XSave *xsave = nullptr;
-#if 0
+
+    task::SchedulerQueue &queue = *scheduler.getQueue(id);
+
     size_t ucSize = ucontextSize(uc) - offsetof(ucontext_t, uc_mcontext.fpregs);
     if (task::SchedulerEntry *currentTask = queue.getCurrentTask()) {
         task::TaskState& taskState = currentTask->getState();
         xsave = taskState.xsave;
-        memcpy(xsave, &uc->uc_mcontext.fpregs, ucSize);
+        copy(xsave, &uc->uc_mcontext.fpregs, ucSize);
     }
-#endif
+
     task::TaskState state {
         .registers = {
             .rax = static_cast<uintptr_t>(mc->gregs[REG_RAX]),
@@ -165,14 +197,10 @@ static bool tryContextSwitch(task::Scheduler& scheduler, km::CpuCoreId id, ucont
     mc->gregs[REG_RIP] = static_cast<greg_t>(state.registers.rip);
     mc->gregs[REG_EFL] = static_cast<greg_t>(state.registers.rflags);
 
-#if 0
-    printf("Copying new fpu state %p\n", (void*)state.xsave);
     if (state.xsave != nullptr) {
-        memcpy(&uc->uc_mcontext.fpregs, state.xsave, ucSize);
+        copy(&uc->uc_mcontext.fpregs, state.xsave, ucSize);
     }
 
-    printf("Copied new fpu state\n");
-#endif
     return true;
 }
 
@@ -213,45 +241,44 @@ TEST_F(SchedulerTest, Schedule) {
 
     threads.resize(kQueueCount);
 
-    try {
-        for (size_t i = 0; i < kQueueCount; ++i) {
-            threads[i] = ktest::PThread(10, [i, &ready]() {
-                tlsCpuCoreId = km::CpuCoreId(i);
+    for (size_t i = 0; i < kQueueCount; ++i) {
+        threads[i] = ktest::PThread([i, &ready]() {
+            tlsCpuCoreId = km::CpuCoreId(i);
 
-                sigset_t set;
-                sigemptyset(&set);
-                sigaddset(&set, SIGUSR1);
-                sigprocmask(SIG_UNBLOCK, &set, nullptr);
+            sigset_t set;
+            sigemptyset(&set);
+            sigaddset(&set, SIGUSR1);
+            sigprocmask(SIG_UNBLOCK, &set, nullptr);
 
-                ready.arrive_and_wait();
+            ready.arrive_and_wait();
 
-                while (!done.load()) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
-                }
-            });
-
-            for (size_t j = 0; j < kQueueTaskCount; ++j) {
-                size_t index = i * kQueueTaskCount + j;
-                auto& state = states[index];
-                task::SchedulerEntry& entry = entries[index];
-
-                initTestState(&state);
-                state.entry = &entry;
-                state.queue = &queues[i];
-
-                OsStatus status = enqueueCounterTask(&state, TestThread0, &entry);
-                ASSERT_EQ(status, OsStatusSuccess);
+            while (!done.load()) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
+        });
+
+        for (size_t j = 0; j < kQueueTaskCount; ++j) {
+            size_t index = i * kQueueTaskCount + j;
+            auto& state = states[index];
+            task::SchedulerEntry& entry = entries[index];
+
+            initTestState(&state);
+            state.entry = &entry;
+            state.queue = &queues[i];
+
+            OsStatus status = enqueueCounterTask(&state, TestThread0, &entry);
+            if (status != OsStatusSuccess) {
+                done.store(true);
+            }
+            ASSERT_EQ(status, OsStatusSuccess) << "Failed to enqueue task for queue " << i << ", index " << j;
         }
-    } catch (const std::exception &e) {
-        GTEST_SKIP() << "Failed to create threads: " << e.what();
     }
 
     ready.wait();
 
     std::vector<ktest::PThread> carriers;
     for (ktest::PThread& thread : threads) {
-        carriers.emplace_back(ktest::PThread(20, [this, handle = thread.getHandle()]() {
+        carriers.emplace_back(ktest::PThread([this, handle = thread.getHandle()]() {
             runQueue(handle, [](auto elapsed) -> bool {
                 return elapsed > std::chrono::milliseconds(100);
             });

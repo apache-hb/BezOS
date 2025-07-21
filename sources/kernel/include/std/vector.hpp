@@ -487,6 +487,12 @@ namespace stdx {
             std::destroy_at(--mBack);
         }
 
+        constexpr iterator erase(iterator it) {
+            size_t index = it - mFront;
+            remove(index);
+            return mFront + index;
+        }
+
         constexpr void erase(const T& value) {
             auto it = std::find(mFront, mBack, value);
             if (it != mBack) {
