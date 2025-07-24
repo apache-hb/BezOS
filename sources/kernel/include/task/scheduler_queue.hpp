@@ -7,6 +7,10 @@
 
 #include "clock.hpp"
 
+namespace sys {
+    class Thread;
+}
+
 namespace task {
     class Mutex;
     class SchedulerQueue;
@@ -51,7 +55,9 @@ namespace task {
 
     class SchedulerEntry {
         friend class SchedulerQueue;
+        friend class Scheduler;
 
+        uint64_t mId;
         std::atomic<TaskStatus> mStatus{TaskStatus::eIdle};
         std::atomic<km::os_instant> mSleepUntil{km::os_instant::min()};
         TaskState mState;
@@ -69,6 +75,10 @@ namespace task {
 
         km::os_instant timeout() const noexcept {
             return mSleepUntil.load();
+        }
+
+        uint64_t getId() const noexcept {
+            return mId;
         }
 
         void wake() noexcept;

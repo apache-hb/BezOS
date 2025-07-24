@@ -6,6 +6,7 @@
 #include "memory/layout.hpp"
 #include "system/base.hpp"
 #include "system/create.hpp"
+#include "task/scheduler_queue.hpp"
 #include "xsave.hpp"
 
 #include <stdlib.h>
@@ -17,6 +18,9 @@ namespace sys {
 
     class Thread final : public BaseObject<eOsHandleThread> {
         sm::RcuWeakPtr<Process> mProcess;
+
+        /// @brief Intrusive sheduler entry block.
+        task::SchedulerEntry mSchedulerEntry;
 
         RegisterSet mCpuState;
         XSaveState mFpuState{nullptr, &km::DestroyXSave};
@@ -55,6 +59,8 @@ namespace sys {
         bool cmpxchgState(OsThreadState &expected, OsThreadState newState) {
             return mThreadState.compare_exchange_strong(expected, newState);
         }
+
+        static sm::RcuSharedPtr<Thread> getAssociatedThread(task::SchedulerEntry *entry);
     };
 
     class ThreadHandle final : public BaseHandle<Thread> {

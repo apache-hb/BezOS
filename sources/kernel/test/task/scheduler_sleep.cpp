@@ -32,6 +32,7 @@ struct ThreadTestState {
     std::atomic<size_t> counter{0};
     task::SchedulerEntry *entry;
     task::SchedulerQueue *queue;
+    task::Scheduler *scheduler;
 };
 
 static void initTestState(ThreadTestState *state) {
@@ -45,7 +46,7 @@ static void initTestState(ThreadTestState *state) {
 [[gnu::target("general-regs-only")]]
 static void TestThread0(void *arg) {
     ThreadTestState *state = static_cast<ThreadTestState *>(arg);
-    // printf("TestThread0: %p\n", (void*)entry);
+
     while (true) {
         state->counter += 1;
 
@@ -77,6 +78,7 @@ public:
 
     OsStatus enqueueCounterTask(ThreadTestState *state, void (*task)(void *), task::SchedulerEntry *entry) {
         state->entry = entry;
+        state->scheduler = &scheduler;
         x64::page *stack = state->stackStorage.get();
         x64::page *xsave = state->xsaveStorage.get();
 
@@ -274,6 +276,9 @@ TEST_F(SchedulerTest, Schedule) {
         }
     }
 
+    task::SchedulerEntry *entry = &entries[0];
+    scheduler.sleep(entry, km::os_instant::max());
+
     ready.wait();
 
     std::vector<ktest::PThread> carriers;
@@ -293,7 +298,9 @@ TEST_F(SchedulerTest, Schedule) {
         }
     }
 
-    for (size_t i = 0; i < kQueueMaxTasks; ++i) {
+    EXPECT_EQ(states[0].counter.load(), 0) << "Thread 0 should not have run";
+
+    for (size_t i = 1; i < kQueueMaxTasks; ++i) {
         EXPECT_NE(states[i].counter.load(), 0) << "Thread " << i << " did not run";
         printf("Thread %zu ran %zu times\n", i, states[i].counter.load());
     }

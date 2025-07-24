@@ -14,6 +14,9 @@ OsStatus task::Scheduler::enqueue(const TaskState &state, km::StackMappingAlloca
         return OsStatusOutOfMemory;
     }
 
+    uint64_t taskId = mNextTaskId.fetch_add(1, std::memory_order_relaxed);
+    entry->mId = taskId;
+
     for (auto taskQueue : mQueues) {
         SchedulerQueue *queue = taskQueue.second.queue;
         if (queue->enqueue(state, userStack, kernelStack, entry) == OsStatusSuccess) {

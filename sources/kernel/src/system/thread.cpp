@@ -183,6 +183,15 @@ OsStatus sys::Thread::destroy(System *, OsThreadState reason) {
     return OsStatusSuccess;
 }
 
+sm::RcuSharedPtr<sys::Thread> sys::Thread::getAssociatedThread(task::SchedulerEntry *entry) {
+    // This is all kinds of unsafe, but I know that a scheduler entry is always part of a thread.
+    static constexpr size_t offset = offsetof(Thread, mSchedulerEntry);
+    uintptr_t ptr = reinterpret_cast<uintptr_t>(entry);
+    ptr -= offset;
+    Thread *thread = reinterpret_cast<Thread *>(ptr);
+    return thread->loanShared();
+}
+
 sys::XSaveState sys::NewXSaveState() {
     return sys::XSaveState { km::CreateXSave(), &km::DestroyXSave };
 }

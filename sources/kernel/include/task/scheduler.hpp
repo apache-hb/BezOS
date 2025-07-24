@@ -32,7 +32,7 @@ namespace task {
         }
 
         uint32_t available(std::memory_order order = std::memory_order_seq_cst) const noexcept {
-            return mAvailable.load(order);
+            return std::max(0, mAvailable.load(order));
         }
     };
 
@@ -43,6 +43,7 @@ namespace task {
 
         sm::BTreeMap<km::CpuCoreId, QueueInfo> mQueues;
         AvailableTaskCount mAvailableTaskCount;
+        std::atomic<uint64_t> mNextTaskId{1};
 
     public:
         OsStatus addQueue(km::CpuCoreId coreId, SchedulerQueue *queue) noexcept;
