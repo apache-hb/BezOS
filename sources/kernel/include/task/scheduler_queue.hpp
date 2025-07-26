@@ -1,8 +1,9 @@
 #pragma once
 
 #include "arch/xsave.hpp"
-#include "memory/stack_mapping.hpp"
+#include "memory/range.hpp"
 #include "std/ringbuffer.hpp"
+#include "std/vector.hpp"
 #include "system/create.hpp"
 
 #include "clock.hpp"

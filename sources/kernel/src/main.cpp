@@ -68,6 +68,7 @@
 #include "system/schedule.hpp"
 #include "system/system.hpp"
 
+#include "task/runtime.hpp"
 #include "task/scheduler.hpp"
 #include "thread.hpp"
 #include "uart.hpp"
@@ -1266,7 +1267,7 @@ static void enqueueHeartbeatTask(task::SchedulerQueue *queue, km::ITickSource *t
             .ss = SystemGdt::eLongModeData * 0x8,
         },
         .xsave = taskXSave,
-    }, km::StackMappingAllocation{}, km::StackMappingAllocation{}, task);
+    }, task);
 
 
     if (status != OsStatusSuccess) {
@@ -1584,8 +1585,6 @@ static void DisplayHpetInfo(const km::HighPrecisionTimer& hpet) {
     }
 }
 
-static bool tryContextSwitch(km::IsrContext *isrContext) noexcept;
-
 static task::Scheduler *gScheduler;
 
 void LaunchKernel(boot::LaunchInfo launch) {
@@ -1776,12 +1775,10 @@ void LaunchKernel(boot::LaunchInfo launch) {
     km::SharedIsrTable *sharedIst = km::GetSharedIsrTable();
     sharedIst->install(isr::kTimerVector, [](km::IsrContext *isrContext) noexcept [[clang::reentrant]] -> km::IsrContext {
         km::IApic *apic = km::GetCpuLocalApic();
-        defer { apic->eoi(); };
 
-        if (tryContextSwitch(isrContext)) {
-            return *isrContext;
-        }
+        task::switchCurrentContext(gScheduler, tlsQueue.get(), isrContext);
 
+        apic->eoi();
         return *isrContext;
     });
 
@@ -1807,82 +1804,4 @@ void LaunchKernel(boot::LaunchInfo launch) {
     KM_PANIC("Test bugcheck.");
 
     KmHalt();
-}
-
-[[gnu::naked]]
-static void IdleThread() {
-    asm volatile (
-        "1:\n"
-        "sti\n"
-        "hlt\n"
-        "jmp 1b\n"
-    );
-}
-
-static bool tryContextSwitch(km::IsrContext *isrContext) noexcept {
-    x64::XSave *xsave = nullptr;
-    km::CpuCoreId coreId = km::GetCurrentCoreId();
-    task::SchedulerQueue *queue = tlsQueue.get();
-    if (task::SchedulerEntry *current = queue->getCurrentTask()) {
-        task::TaskState& currentState = current->getState();
-        xsave = currentState.xsave;
-        XSaveStoreState(xsave);
-    }
-
-    task::TaskState state {
-        .registers = {
-            .rax = isrContext->rax,
-            .rbx = isrContext->rbx,
-            .rcx = isrContext->rcx,
-            .rdx = isrContext->rdx,
-            .rdi = isrContext->rdi,
-            .rsi = isrContext->rsi,
-            .r8 = isrContext->r8,
-            .r9 = isrContext->r9,
-            .r10 = isrContext->r10,
-            .r11 = isrContext->r11,
-            .r12 = isrContext->r12,
-            .r13 = isrContext->r13,
-            .r14 = isrContext->r14,
-            .r15 = isrContext->r15,
-            .rbp = isrContext->rbp,
-            .rsp = isrContext->rsp,
-            .rip = isrContext->rip,
-            .rflags = isrContext->rflags,
-            .cs = isrContext->cs,
-            .ss = isrContext->ss,
-        },
-        .xsave = xsave,
-        .tlsBase = IA32_FS_BASE.load(),
-    };
-
-    if (gScheduler->reschedule(coreId, &state) == task::ScheduleResult::eIdle) {
-        isrContext->rip = reinterpret_cast<uintptr_t>(IdleThread);
-        return false;
-    }
-
-    isrContext->rax = state.registers.rax;
-    isrContext->rbx = state.registers.rbx;
-    isrContext->rcx = state.registers.rcx;
-    isrContext->rdx = state.registers.rdx;
-    isrContext->rdi = state.registers.rdi;
-    isrContext->rsi = state.registers.rsi;
-    isrContext->r8 = state.registers.r8;
-    isrContext->r9 = state.registers.r9;
-    isrContext->r10 = state.registers.r10;
-    isrContext->r11 = state.registers.r11;
-    isrContext->r12 = state.registers.r12;
-    isrContext->r13 = state.registers.r13;
-    isrContext->r14 = state.registers.r14;
-    isrContext->r15 = state.registers.r15;
-    isrContext->rbp = state.registers.rbp;
-    isrContext->rsp = state.registers.rsp;
-    isrContext->rip = state.registers.rip;
-    isrContext->rflags = state.registers.rflags;
-    isrContext->cs = state.registers.cs;
-    isrContext->ss = state.registers.ss;
-    IA32_FS_BASE.store(state.tlsBase);
-    XSaveLoadState(state.xsave);
-
-    return true;
 }

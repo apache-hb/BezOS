@@ -65,6 +65,7 @@ namespace task {
         SchedulerQueue *getQueue(km::CpuCoreId coreId) noexcept;
 
         ScheduleResult reschedule(km::CpuCoreId coreId, TaskState *state) noexcept;
+        ScheduleResult reschedule(SchedulerQueue *queue, TaskState *state) noexcept;
 
         OsStatus sleep(SchedulerEntry *entry, km::os_instant timeout) noexcept;
         OsStatus wait(SchedulerEntry *entry, Mutex *waitable, km::os_instant timeout) noexcept;

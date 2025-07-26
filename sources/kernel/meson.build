@@ -395,6 +395,8 @@ task_src = files(
     'src/task/scheduler_queue.cpp',
     'src/task/scheduler.cpp',
     'src/task/mutex.cpp',
+    'src/task/runtime.cpp',
+    'src/task/runtime.S',
 )
 
 libtask_kernel = static_library('task', task_src,

@@ -40,6 +40,11 @@ task::ScheduleResult task::Scheduler::reschedule(km::CpuCoreId coreId, TaskState
 
     SchedulerQueue *queue = (*it).second.queue;
 
+    return reschedule(queue, state);
+}
+
+task::ScheduleResult task::Scheduler::reschedule(SchedulerQueue *queue, TaskState *state) noexcept {
+    // Eventually there will be logic for thread migration here, but for now just forward to the queue.
     return queue->reschedule(state);
 }
 

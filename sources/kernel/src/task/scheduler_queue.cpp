@@ -1,5 +1,6 @@
 #include "task/scheduler_queue.hpp"
 
+#include "logger/categories.hpp"
 #include "panic.hpp"
 
 template<typename T>
