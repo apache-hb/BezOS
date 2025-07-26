@@ -255,7 +255,7 @@ task::ScheduleResult task::SchedulerQueue::reschedule(TaskState *state [[gnu::no
     return ScheduleResult::eResume;
 }
 
-OsStatus task::SchedulerQueue::enqueue(const TaskState &state, km::StackMappingAllocation userStack, km::StackMappingAllocation kernelStack, SchedulerEntry *entry) noexcept {
+OsStatus task::SchedulerQueue::enqueue(const TaskState &state, SchedulerEntry *entry) noexcept {
     KM_ASSERT(entry->mStatus.load() == TaskStatus::eIdle);
 
     if (SchedulerEntry *rescueTask = mRescueTask.load()) {
@@ -267,8 +267,6 @@ OsStatus task::SchedulerQueue::enqueue(const TaskState &state, km::StackMappingA
     }
 
     entry->mState = state;
-    entry->mUserStack = userStack;
-    entry->mKernelStack = kernelStack;
 
     if (!mQueue.tryPush(entry)) {
         return OsStatusOutOfMemory;

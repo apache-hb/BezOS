@@ -17,6 +17,10 @@ namespace task {
             : mAvailable(initialCount)
         { }
 
+        constexpr AvailableTaskCount(AvailableTaskCount &&other) noexcept
+            : mAvailable(other.mAvailable.load())
+        { }
+
         bool consume() noexcept {
             int32_t current = mAvailable.fetch_sub(1);
             if (current > 0) {
@@ -46,8 +50,18 @@ namespace task {
         std::atomic<uint64_t> mNextTaskId{1};
 
     public:
+        Scheduler() = default;
+
+        Scheduler(Scheduler &&other) noexcept
+            : mQueues(std::move(other.mQueues))
+            , mAvailableTaskCount(std::move(other.mAvailableTaskCount))
+            , mNextTaskId(other.mNextTaskId.load())
+        { }
+
+        constexpr Scheduler &operator=(Scheduler&& other) noexcept = delete;
+
         OsStatus addQueue(km::CpuCoreId coreId, SchedulerQueue *queue) noexcept;
-        OsStatus enqueue(const TaskState &state, km::StackMappingAllocation userStack, km::StackMappingAllocation kernelStack, SchedulerEntry *entry) noexcept;
+        OsStatus enqueue(const TaskState &state, SchedulerEntry *entry) noexcept;
         SchedulerQueue *getQueue(km::CpuCoreId coreId) noexcept;
 
         ScheduleResult reschedule(km::CpuCoreId coreId, TaskState *state) noexcept;

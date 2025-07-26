@@ -9,7 +9,7 @@ OsStatus task::Scheduler::addQueue(km::CpuCoreId coreId, SchedulerQueue *queue) 
     return OsStatusSuccess;
 }
 
-OsStatus task::Scheduler::enqueue(const TaskState &state, km::StackMappingAllocation userStack, km::StackMappingAllocation kernelStack, SchedulerEntry *entry) noexcept {
+OsStatus task::Scheduler::enqueue(const TaskState &state, SchedulerEntry *entry) noexcept {
     if (!mAvailableTaskCount.consume()) {
         return OsStatusOutOfMemory;
     }
@@ -19,7 +19,7 @@ OsStatus task::Scheduler::enqueue(const TaskState &state, km::StackMappingAlloca
 
     for (auto taskQueue : mQueues) {
         SchedulerQueue *queue = taskQueue.second.queue;
-        if (queue->enqueue(state, userStack, kernelStack, entry) == OsStatusSuccess) {
+        if (queue->enqueue(state, entry) == OsStatusSuccess) {
             return OsStatusSuccess;
         }
     }

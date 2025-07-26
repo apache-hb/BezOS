@@ -61,8 +61,6 @@ namespace task {
         std::atomic<TaskStatus> mStatus{TaskStatus::eIdle};
         std::atomic<km::os_instant> mSleepUntil{km::os_instant::min()};
         TaskState mState;
-        km::StackMappingAllocation mUserStack;
-        km::StackMappingAllocation mKernelStack;
 
     public:
         constexpr SchedulerEntry() noexcept = default;
@@ -156,7 +154,7 @@ namespace task {
         /// @brief Enqueue a new task to the scheduler.
         ///
         /// @warning @p entry must have a stable address, it will be stored in the queue.
-        OsStatus enqueue(const TaskState &state, km::StackMappingAllocation userStack, km::StackMappingAllocation kernelStack, SchedulerEntry *entry) noexcept;
+        OsStatus enqueue(const TaskState &state, SchedulerEntry *entry) noexcept;
 
         size_t getTaskCount() const noexcept {
             return mQueue.count();

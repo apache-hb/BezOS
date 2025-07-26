@@ -1930,8 +1930,28 @@ namespace sm {
             , mRootNode(nullptr)
         { }
 
+        constexpr BTreeMap(BTreeMap&& other) noexcept
+            : mAllocator(std::move(other.mAllocator))
+            , mCompare(std::move(other.mCompare))
+            , mEqual(std::move(other.mEqual))
+            , mRootNode(other.mRootNode)
+        {
+            other.mRootNode = nullptr;
+        }
+
+        constexpr BTreeMap& operator=(BTreeMap&& other) noexcept {
+            if (this != &other) {
+                clear();
+                mAllocator = std::move(other.mAllocator);
+                mCompare = std::move(other.mCompare);
+                mEqual = std::move(other.mEqual);
+                mRootNode = other.mRootNode;
+                other.mRootNode = nullptr;
+            }
+            return *this;
+        }
+
         UTIL_NOCOPY(BTreeMap);
-        UTIL_NOMOVE(BTreeMap);
 
         ~BTreeMap() noexcept {
             clear();

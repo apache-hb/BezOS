@@ -1,5 +1,6 @@
 #pragma once
 
+#include "memory/range.hpp"
 #include "system/vmem.hpp"
 
 namespace sys {

@@ -166,7 +166,7 @@ test_exe_kwargs = {
     'dependencies': [ gtest_main, sysapi, concurrentqueue, mp_units, common ],
     'override_options': native_kwargs['override_options'],
     'native': true,
-    'link_with': [ libtest_shim, fs_test_shim, memory_test_shim, system_test_lib, liblogging_native ],
+    'link_with': [ libtest_shim, fs_test_shim, memory_test_shim, system_test_lib, liblogging_native, libtask_native ],
 }
 
 # Benchmarks

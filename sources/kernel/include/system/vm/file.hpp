@@ -1,5 +1,6 @@
 #pragma once
 
+#include "memory/address_space.hpp"
 #include "memory/layout.hpp"
 #include "system/vmem.hpp"
 #include "fs/interface.hpp"

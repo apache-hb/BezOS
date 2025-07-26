@@ -90,7 +90,7 @@ public:
                 .rip = reinterpret_cast<uintptr_t>(task),
             },
             .xsave = (x64::XSave*)(xsave),
-        }, km::StackMappingAllocation{}, km::StackMappingAllocation{}, entry);
+        }, entry);
         return status;
     }
 
