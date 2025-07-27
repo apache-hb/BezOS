@@ -1005,9 +1005,9 @@ static void InitSystem() {
         KM_PANIC("Failed to create system.");
     }
 
-    auto *scheduler = gSysSystem->scheduler();
-    scheduler->initCpuSchedule(km::GetCurrentCoreId(), 128);
-    sys::InstallTimerIsr(GetSharedIsrTable());
+    // auto *scheduler = gSysSystem->scheduler();
+    // scheduler->initCpuSchedule(km::GetCurrentCoreId(), 128);
+    // sys::InstallTimerIsr(GetSharedIsrTable());
 }
 
 sys::System *km::GetSysSystem() {
@@ -1587,6 +1587,18 @@ static void DisplayHpetInfo(const km::HighPrecisionTimer& hpet) {
 
 static task::Scheduler *gScheduler;
 
+static void installSchedulerIsr() {
+    km::SharedIsrTable *sharedIst = km::GetSharedIsrTable();
+    sharedIst->install(isr::kTimerVector, [](km::IsrContext *isrContext) noexcept [[clang::reentrant]] -> km::IsrContext {
+        km::IApic *apic = km::GetCpuLocalApic();
+
+        task::switchCurrentContext(gScheduler, tlsQueue.get(), isrContext);
+
+        apic->eoi();
+        return *isrContext;
+    });
+}
+
 void LaunchKernel(boot::LaunchInfo launch) {
     NormalizeProcessorState();
     SetDebugLogLock(DebugLogLockType::eNone);
@@ -1693,6 +1705,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     pci::ProbeConfigSpace(config.get(), rsdt.mcfg());
 
     km::LocalIsrTable *ist = GetLocalIsrTable();
+    installSchedulerIsr();
 
     InitSystem();
 
@@ -1771,16 +1784,6 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     task::SchedulerEntry entry;
     enqueueHeartbeatTask(tlsQueue.get(), clockTicker, &entry);
-
-    km::SharedIsrTable *sharedIst = km::GetSharedIsrTable();
-    sharedIst->install(isr::kTimerVector, [](km::IsrContext *isrContext) noexcept [[clang::reentrant]] -> km::IsrContext {
-        km::IApic *apic = km::GetCpuLocalApic();
-
-        task::switchCurrentContext(gScheduler, tlsQueue.get(), isrContext);
-
-        apic->eoi();
-        return *isrContext;
-    });
 
     StartupSmp(rsdt, processor.umip(), clockTicker, processor.invariantTsc, gScheduler);
 

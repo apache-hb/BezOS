@@ -184,6 +184,10 @@ namespace sys {
 
         static void setActiveMap(const AddressSpaceManager *map) noexcept;
 
+        km::PhysicalAddress getPageMap() const noexcept [[clang::nonallocating]] {
+            return mPageTables.root();
+        }
+
         void dump() noexcept {
             stdx::LockGuard guard(mLock);
             for (const auto& [_, segment] : segments()) {

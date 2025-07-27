@@ -1,6 +1,7 @@
 #include "task/runtime.hpp"
 #include "task/scheduler.hpp"
 #include "task/scheduler_queue.hpp"
+#include "system/thread.hpp"
 
 #include "arch/xsave.hpp"
 #include "isr/isr.hpp"
@@ -9,7 +10,7 @@
 
 extern "C" void __x86_64_idle() noexcept;
 
-void task::switchCurrentContext(Scheduler *scheduler, task::SchedulerQueue *queue, km::IsrContext *isrContext) noexcept {
+bool task::switchCurrentContext(Scheduler *scheduler, task::SchedulerQueue *queue, km::IsrContext *isrContext) noexcept {
     x64::XSave *xsave = nullptr;
     if (task::SchedulerEntry *current = queue->getCurrentTask()) {
         task::TaskState& currentState = current->getState();
@@ -46,7 +47,7 @@ void task::switchCurrentContext(Scheduler *scheduler, task::SchedulerQueue *queu
 
     if (scheduler->reschedule(queue, &state) == task::ScheduleResult::eIdle) {
         isrContext->rip = reinterpret_cast<uintptr_t>(__x86_64_idle);
-        return;
+        return false;
     }
 
     isrContext->rax = state.registers.rax;
@@ -71,4 +72,6 @@ void task::switchCurrentContext(Scheduler *scheduler, task::SchedulerQueue *queu
     isrContext->ss = state.registers.ss;
     IA32_FS_BASE.store(state.tlsBase);
     km::XSaveLoadState(state.xsave);
+
+    return true;
 }

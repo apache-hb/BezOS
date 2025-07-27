@@ -3,6 +3,7 @@
 #include "system/process.hpp"
 #include "system/system.hpp"
 
+#include "task/scheduler.hpp"
 #include "thread.hpp"
 #include "xsave.hpp"
 #include "gdt.h"
@@ -162,6 +163,20 @@ OsStatus sys::Thread::resume() {
     }
 
     return OsStatusSuccess;
+}
+
+OsStatus sys::Thread::attach(task::Scheduler *scheduler) {
+    task::TaskState state {
+        .registers = mCpuState,
+        .xsave = mFpuState.get(),
+        .tlsBase = mTlsAddress,
+    };
+
+    return scheduler->enqueue(state, &mSchedulerEntry);
+}
+
+km::PhysicalAddress sys::Thread::getPageMap() {
+    return mProcess.lock()->getPageMap();
 }
 
 OsStatus sys::Thread::destroy(System *, OsThreadState reason) {

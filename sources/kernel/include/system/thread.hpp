@@ -11,16 +11,24 @@
 
 #include <stdlib.h>
 
+namespace task {
+    class Scheduler;
+}
+
 namespace sys {
     using XSaveState = std::unique_ptr<x64::XSave, decltype(&km::DestroyXSave)>;
 
     XSaveState NewXSaveState() [[clang::allocating]];
 
+    struct ThreadSchedulerEntry : public task::SchedulerEntry {
+        km::StackMapping kernelStack;
+    };
+
     class Thread final : public BaseObject<eOsHandleThread> {
         sm::RcuWeakPtr<Process> mProcess;
 
         /// @brief Intrusive sheduler entry block.
-        task::SchedulerEntry mSchedulerEntry;
+        ThreadSchedulerEntry mSchedulerEntry;
 
         RegisterSet mCpuState;
         XSaveState mFpuState{nullptr, &km::DestroyXSave};
@@ -52,6 +60,10 @@ namespace sys {
 
         OsStatus suspend();
         OsStatus resume();
+
+        OsStatus attach(task::Scheduler *scheduler);
+
+        km::PhysicalAddress getPageMap();
 
         OsStatus destroy(System *system, OsThreadState reason);
         OsThreadState state() const { return mThreadState.load(); }

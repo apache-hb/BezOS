@@ -120,6 +120,10 @@ OsStatus sys::Process::findHandle(OsHandle handle, OsHandleType type, IHandle **
     return OsStatusInvalidHandle;
 }
 
+km::PhysicalAddress sys::Process::getPageMap() const {
+    return mAddressSpace.getPageMap();
+}
+
 OsStatus sys::Process::currentHandle(OsProcessAccess access, OsProcessHandle *handle) {
     return resolveObject(loanShared(), access, handle);
 }

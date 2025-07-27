@@ -1,7 +1,6 @@
 #pragma once
 
 #include "arch/xsave.hpp"
-#include "memory/range.hpp"
 #include "std/ringbuffer.hpp"
 #include "std/vector.hpp"
 #include "system/create.hpp"
@@ -39,7 +38,6 @@ namespace task {
     struct TaskState {
         sys::RegisterSet registers;
         x64::XSave *xsave;
-        km::PhysicalAddress pageMap;
         uintptr_t tlsBase;
     };
 
