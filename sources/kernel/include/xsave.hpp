@@ -37,7 +37,7 @@ namespace km {
         const ProcessorInfo *cpuInfo;
     };
 
-    IFpuSave *InitFpuSave(const XSaveConfig& config);
+    IFpuSave *initFpuSave(const XSaveConfig& config);
 
     void XSaveInitApCore();
     size_t XSaveSize() noexcept [[clang::nonblocking, clang::reentrant]];

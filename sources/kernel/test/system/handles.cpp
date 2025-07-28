@@ -14,9 +14,9 @@ struct TestData {
         if (status != OsStatusSuccess) {
             throw std::runtime_error(std::format("Failed to create system {}", status));
         }
-        for (size_t i = 0; i < 4; i++) {
-            system.scheduler()->initCpuSchedule(km::CpuCoreId(i), 64);
-        }
+        // for (size_t i = 0; i < 4; i++) {
+        //     system.scheduler()->initCpuSchedule(km::CpuCoreId(i), 64);
+        // }
     }
 };
 

@@ -131,7 +131,7 @@ enum {
     kIstIrq = 4,
 };
 
-void km::SetupInitialGdt(void) {
+void km::setupInitialGdt(void) {
     InitGdt(gBootGdt.entries, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
 }
 
@@ -600,7 +600,7 @@ static void InitBootTerminal(std::span<const boot::FrameBuffer> framebuffers) {
     LogQueue::addGlobalAppender(&gVgaAppender);
 }
 
-static void UpdateSerialPort(ComPortInfo info) {
+static void updateSerialPort(ComPortInfo info) {
     info.skipLoopbackTest = true;
     if (OpenSerialResult com = OpenSerial(info); com.status == SerialPortStatus::eOk) {
         SerialAppender::create(com.port, &gSerialAppender);
@@ -625,7 +625,7 @@ static void InitPortDelay(const std::optional<HypervisorInfo>& hvInfo) {
     KmSetPortDelayMethod(delay);
 }
 
-static void LogSystemInfo(
+static void displaySystemInfo(
     const boot::LaunchInfo& launch,
     std::optional<HypervisorInfo> hvInfo,
     ProcessorInfo processor,
@@ -728,7 +728,7 @@ static void SetupInterruptStacks(uint16_t cs) {
     UpdateIdtEntry(isr::MCE, cs, x64::Privilege::eSupervisor, kIstNmi);
 }
 
-static void InitStage1Idt(uint16_t cs) {
+static void initStage1Idt(uint16_t cs) {
     //
     // Disable the PIC before enabling interrupts otherwise we
     // get flooded by timer interrupts.
@@ -786,7 +786,7 @@ PageTables& km::GetProcessPageTables() {
     return GetProcessPageManager().getPageTables();
 }
 
-static void CreateNotificationQueue() {
+static void createNotificationQueue() {
     gNotificationStream = new NotificationStream();
 }
 
@@ -996,7 +996,7 @@ static void AddDebugSystemCalls() {
 
 static sys::System *gSysSystem = nullptr;
 
-static void InitSystem() {
+static void initSystem() {
     auto *memory = GetSystemMemory();
     gSysSystem = new sys::System;
 
@@ -1276,7 +1276,7 @@ static void enqueueHeartbeatTask(task::SchedulerQueue *queue, km::ITickSource *t
     }
 }
 
-static void StartupSmp(const acpi::AcpiTables& rsdt, bool umip, km::ITickSource *tickSource, bool invariantTsc, task::Scheduler *scheduler) {
+static void startupSmp(const acpi::AcpiTables& rsdt, bool umip, km::ITickSource *tickSource, bool invariantTsc, task::Scheduler *scheduler) {
     //
     // TODO:
     // Create the scheduler and system objects before we startup SMP so that
@@ -1384,22 +1384,22 @@ static OsStatus NotificationWork(void *) {
 }
 
 static OsStatus KernelMasterTask() {
-    auto *scheduler = gSysSystem->scheduler();
-    InitLog.infof("Kernel master task.");
+    // auto *scheduler = gSysSystem->scheduler();
+    // InitLog.infof("Kernel master task.");
 
-    LaunchThread(&NotificationWork, gNotificationStream, "NOTIFY");
+    // LaunchThread(&NotificationWork, gNotificationStream, "NOTIFY");
 
-    OsProcessHandle hInit = OS_HANDLE_INVALID;
-    sys::InvokeContext invoke { gSysSystem, sys::GetCurrentProcess(), sys::GetCurrentThread() };
-    if (OsStatus status = LaunchInitProcess(&invoke, &hInit)) {
-        InitLog.fatalf("Failed to create INIT process: ", OsStatusId(status));
-        KM_PANIC("Failed to create init process.");
-    }
+    // OsProcessHandle hInit = OS_HANDLE_INVALID;
+    // sys::InvokeContext invoke { gSysSystem, sys::GetCurrentProcess(), sys::GetCurrentThread() };
+    // if (OsStatus status = LaunchInitProcess(&invoke, &hInit)) {
+    //     InitLog.fatalf("Failed to create INIT process: ", OsStatusId(status));
+    //     KM_PANIC("Failed to create init process.");
+    // }
 
     while (true) {
-        OsInstant now;
-        gClock.time(&now);
-        scheduler->tick(now);
+        // OsInstant now;
+        // gClock.time(&now);
+        // scheduler->tick(now);
     }
 
     return OsStatusSuccess;
@@ -1407,7 +1407,7 @@ static OsStatus KernelMasterTask() {
 
 static constexpr bool kEnableMouse = false;
 
-static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioApicSet, const IApic *apic, LocalIsrTable *ist) {
+static void configurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioApicSet, const IApic *apic, LocalIsrTable *ist) {
     static hid::Ps2Controller ps2Controller;
 
     bool has8042 = rsdt.has8042Controller();
@@ -1468,7 +1468,7 @@ static void ConfigurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioAp
     }
 }
 
-static void CreateDisplayDevice() {
+static void createDisplayDevice() {
     vfs::VfsPath ddiPath{OS_DEVICE_DDI_RAMFB};
 
     {
@@ -1531,20 +1531,20 @@ static void LaunchKernelProcess(km::ApicTimer *apicTimer) {
 
     InitLog.fatalf("Create master thread.");
 
-    sys::EnterScheduler(gSysSystem->getCpuSchedule(km::GetCurrentCoreId()), apicTimer);
+    KM_PANIC("aaaa");
 }
 
-static void InitVfs() {
+static void initVfs() {
     MountRootVfs();
     MountVolatileFolder();
 }
 
-static void CreateVfsDevices(const km::SmBiosTables *smbios, const acpi::AcpiTables *acpi, MemoryRangeEx initrd) {
+static void createVfsDevices(const km::SmBiosTables *smbios, const acpi::AcpiTables *acpi, MemoryRangeEx initrd) {
     CreatePlatformVfsNodes(smbios, acpi);
     MountInitArchive(initrd, GetSystemMemory()->pageTables());
 }
 
-static void InitUserApi() {
+static void initUserApi() {
     AddHandleSystemCalls();
     AddDebugSystemCalls();
     AddDeviceSystemCalls();
@@ -1556,7 +1556,7 @@ static void InitUserApi() {
     AddClockSystemCalls();
 }
 
-static void DisplayHpetInfo(const km::HighPrecisionTimer& hpet) {
+static void displayHpetInfo(const km::HighPrecisionTimer& hpet) {
     InitLog.println("|---- HPET -----------------");
     InitLog.println("| Property      | Value");
     InitLog.println("|---------------+-----------");
@@ -1631,10 +1631,10 @@ void LaunchKernel(boot::LaunchInfo launch) {
         InitLog.warnf("Failed to initialize debug stream: ", OsStatusId(status));
     }
 
-    LogSystemInfo(launch, hvInfo, processor, hasDebugPort, com1Status, com1Info);
+    displaySystemInfo(launch, hvInfo, processor, hasDebugPort, com1Status, com1Info);
 
-    gBootGdt = GetBootGdt();
-    SetupInitialGdt();
+    gBootGdt = getBootGdt();
+    setupInitialGdt();
     InitLog.info("GDT initialized");
 
     XSaveConfig xsaveConfig {
@@ -1643,7 +1643,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
         .cpuInfo = &processor,
     };
 
-    InitFpuSave(xsaveConfig);
+    initFpuSave(xsaveConfig);
 
     //
     // Once we have the initial gdt setup we create the global allocator.
@@ -1654,10 +1654,10 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     LogQueue::initGlobalLogQueue(128);
 
-    InitStage1Idt(SystemGdt::eLongModeCode);
-    EnableInterrupts();
+    initStage1Idt(SystemGdt::eLongModeCode);
+    enableInterrupts();
 
-    InitVfs();
+    initVfs();
 
     SmBiosLoadOptions smbiosOptions {
         .smbios32Address = launch.smbios32Address,
@@ -1675,7 +1675,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     // If we are running on VirtualBox, retry the serial port initialization without the loopback test.
     //
     if (com1Status == SerialPortStatus::eLoopbackTestFailed && smbios.isOracleVirtualBox()) {
-        UpdateSerialPort(com1Info);
+        updateSerialPort(com1Info);
     }
 
     arch::Intrin::LongJumpState jmp{};
@@ -1707,7 +1707,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     km::LocalIsrTable *ist = GetLocalIsrTable();
     installSchedulerIsr();
 
-    InitSystem();
+    initSystem();
 
     const IsrEntry *timerInt = ist->allocate([](km::IsrContext *ctx) noexcept [[clang::reentrant]] -> km::IsrContext {
         km::IApic *apic = km::GetCpuLocalApic();
@@ -1732,7 +1732,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
         tickSources.add(&hpet);
         tickSource = &hpet;
 
-        DisplayHpetInfo(hpet);
+        displayHpetInfo(hpet);
     }
 
     InitLog.dbgf("Training APIC timer.");
@@ -1785,18 +1785,18 @@ void LaunchKernel(boot::LaunchInfo launch) {
     task::SchedulerEntry entry;
     enqueueHeartbeatTask(tlsQueue.get(), clockTicker, &entry);
 
-    StartupSmp(rsdt, processor.umip(), clockTicker, processor.invariantTsc, gScheduler);
+    startupSmp(rsdt, processor.umip(), clockTicker, processor.invariantTsc, gScheduler);
 
     DateTime time = ReadCmosClock();
     ClockLog.infof("Current time: ", time);
 
     gClock = Clock { time, clockTicker };
 
-    CreateVfsDevices(&smbios, &rsdt, launch.initrd);
-    InitUserApi();
-    CreateNotificationQueue();
-    ConfigurePs2Controller(rsdt, ioApicSet, lapic.pointer(), ist);
-    CreateDisplayDevice();
+    createVfsDevices(&smbios, &rsdt, launch.initrd);
+    initUserApi();
+    createNotificationQueue();
+    configurePs2Controller(rsdt, ioApicSet, lapic.pointer(), ist);
+    createDisplayDevice();
 
     enterSchedulerLoop(GetCpuLocalApic(), &apicTimer);
 

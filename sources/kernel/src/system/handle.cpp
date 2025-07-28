@@ -45,21 +45,23 @@ OsStatus sys::SysHandleStat(InvokeContext *context, OsHandle handle, OsHandleInf
 }
 
 OsStatus sys::SysHandleWait(InvokeContext *context, OsHandle handle, OsInstant timeout) {
-    IHandle *source = context->process->getHandle(handle);
-    if (!source) {
-        return OsStatusInvalidHandle;
-    }
+    return OsStatusNotSupported; // TODO: Implement handle wait
 
-    if (source->hasGenericAccess(eOsAccessWait)) {
-        return OsStatusAccessDenied;
-    }
+    // IHandle *source = context->process->getHandle(handle);
+    // if (!source) {
+    //     return OsStatusInvalidHandle;
+    // }
 
-    auto weak = source->getObject();
-    auto object = weak.lock();
-    if (!object) {
-        return OsStatusInvalidHandle;
-    }
+    // if (source->hasGenericAccess(eOsAccessWait)) {
+    //     return OsStatusAccessDenied;
+    // }
 
-    auto schedule = context->system->scheduler();
-    return schedule->wait(context->thread, object, timeout);
+    // auto weak = source->getObject();
+    // auto object = weak.lock();
+    // if (!object) {
+    //     return OsStatusInvalidHandle;
+    // }
+
+    // auto schedule = context->system->scheduler();
+    // return schedule->wait(context->thread, object, timeout);
 }

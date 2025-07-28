@@ -74,7 +74,7 @@ static constexpr km::PhysicalAddressEx kSmpInfo = 0x7000;
 static constexpr km::PhysicalAddressEx kSmpStart = 0x8000;
 
 extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
-    km::SetupInitialGdt();
+    km::setupInitialGdt();
     km::LoadIdt();
 
     km::Apic apic = km::InitApApic(header->memory->pageTables(), header->bspApic);
@@ -93,7 +93,7 @@ extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
     apic->enable();
     apic->eoi();
 
-    km::EnableInterrupts();
+    km::enableInterrupts();
 
     //
     // Copy the callback and user pointer, the header will be unmapped after
@@ -129,7 +129,7 @@ static SmpInfoHeader SetupSmpInfoHeader(
         .startAddress = (uintptr_t)KmSmpStartup,
         .pat = x64::LoadPatMsr(),
         .pml4 = uint32_t(pml4.address),
-        .gdt = km::GetBootGdt(),
+        .gdt = km::getBootGdt(),
         .gdtr = {
             .limit = sizeof(SmpInfoHeader::gdt) - 1,
             .base = offsetof(SmpInfoHeader, gdt) + kSmpInfo.address,

@@ -662,6 +662,10 @@ void sys::AddressSpaceManager::setActiveMap(const AddressSpaceManager *map) noex
     CLANG_DIAGNOSTIC_POP();
 }
 
+km::PhysicalAddress sys::AddressSpaceManager::getPageMap() const noexcept [[clang::nonallocating]] {
+    return mPageTables.root();
+}
+
 void sys::AddressSpaceManager::destroy(MemoryManager *manager) [[clang::allocating]] {
     stdx::LockGuard guard(mLock);
     auto it = segments().begin();

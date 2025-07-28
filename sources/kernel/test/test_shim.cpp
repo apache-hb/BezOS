@@ -39,7 +39,7 @@ constinit absl::base_internal::AtomicHook<absl::raw_log_internal::InternalLogFun
     absl::raw_log_internal::internal_log_function(DefaultInternalLog);
 
 void km::DisableInterrupts() { }
-void km::EnableInterrupts() { }
+void km::enableInterrupts() { }
 
 void absl::base_internal::ThrowStdOutOfRange(const char *message) {
     throw std::out_of_range(message);

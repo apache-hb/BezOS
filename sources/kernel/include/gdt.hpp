@@ -214,7 +214,7 @@ namespace km {
     static_assert(std::is_standard_layout_v<SystemGdt>);
 
     [[gnu::const]]
-    SystemGdt GetBootGdt() noexcept;
+    SystemGdt getBootGdt() noexcept;
 
     SystemGdt GetSystemGdt(const x64::TaskStateSegment *tss);
 }

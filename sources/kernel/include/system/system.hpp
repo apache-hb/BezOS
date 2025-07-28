@@ -13,6 +13,7 @@
 #include "system/query.hpp"
 #include "system/schedule.hpp"
 #include "system/invoke.hpp"
+#include "task/scheduler.hpp"
 
 #include <compare> // IWYU pragma: keep
 
@@ -34,7 +35,7 @@ namespace sys {
         stdx::SharedSpinLock mLock;
         sm::RcuDomain mDomain;
 
-        GlobalSchedule mSchedule;
+        task::Scheduler mScheduler;
 
         km::AddressSpace *mSystemTables;
 
@@ -52,7 +53,7 @@ namespace sys {
 
         System(System&& other)
             : mPidCounter(other.mPidCounter.load())
-            , mSchedule(std::move(other.mSchedule))
+            , mScheduler(std::move(other.mScheduler))
             , mSystemTables(other.mSystemTables)
             , mPageAllocator(other.mPageAllocator)
             , mVfsRoot(other.mVfsRoot)
@@ -90,14 +91,6 @@ namespace sys {
 
         OsProcessId nextProcessId() {
             return mPidCounter.fetch_add(1);
-        }
-
-        GlobalSchedule *scheduler() {
-            return &mSchedule;
-        }
-
-        CpuLocalSchedule *getCpuSchedule(km::CpuCoreId cpu) {
-            return mSchedule.getCpuSchedule(cpu);
         }
 
         [[nodiscard]]

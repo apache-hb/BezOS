@@ -28,7 +28,7 @@ km::SystemMemory *km::GetSystemMemory() {
     KM_PANIC("GetSystemMemory is not implemented in the kernel test environment.");
 }
 
-void km::SetupInitialGdt() {
+void km::setupInitialGdt() {
     KM_PANIC("SetupInitialGdt is not implemented in the kernel test environment.");
 }
 
@@ -76,8 +76,8 @@ void km::testing::InitKernelTest(boot::LaunchInfo) {
 
     InitSerialPort(com1Info);
 
-    gBootGdt = GetBootGdt();
-    SetupInitialGdt();
+    gBootGdt = getBootGdt();
+    setupInitialGdt();
 
     LogQueue::initGlobalLogQueue(128);
 

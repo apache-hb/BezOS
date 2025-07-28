@@ -60,18 +60,18 @@ OsStatus sys::Thread::stat(ThreadStat *info) {
 }
 
 void sys::Thread::saveState(RegisterSet& regs) {
-    mCpuState = regs;
-    mTlsAddress = IA32_FS_BASE.load();
-    if (mFpuState) {
-        km::XSaveStoreState(mFpuState.get());
-    }
+    // mCpuState = regs;
+    // mTlsAddress = IA32_FS_BASE.load();
+    // if (mFpuState) {
+    //     km::XSaveStoreState(mFpuState.get());
+    // }
 }
 
 sys::RegisterSet sys::Thread::loadState() {
-    IA32_FS_BASE = mTlsAddress;
-    if (mFpuState) {
-        km::XSaveLoadState(mFpuState.get());
-    }
+    // IA32_FS_BASE = mTlsAddress;
+    // if (mFpuState) {
+    //     km::XSaveLoadState(mFpuState.get());
+    // }
 
     if (auto process = mProcess.lock()) {
         process->loadPageTables();
@@ -98,13 +98,14 @@ sys::Thread::Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> 
 
 sys::Thread::Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, sys::XSaveState fpuState, km::StackMapping kernelStack)
     : Super(createInfo.name)
-    , mProcess(process)
     , mCpuState(createInfo.cpuState)
     , mFpuState(std::move(fpuState))
     , mTlsAddress(createInfo.tlsAddress)
-    , mKernelStack(kernelStack)
     , mThreadState(createInfo.state)
 {
+    mProcess = process;
+    mKernelStack = kernelStack;
+
     if (mThreadState == eOsThreadRunning || mThreadState == eOsThreadQueued) {
         mThreadState = eOsThreadQueued;
     } else {
@@ -114,13 +115,14 @@ sys::Thread::Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> 
 
 sys::Thread::Thread(OsThreadCreateInfo createInfo, sm::RcuWeakPtr<Process> process, sys::XSaveState fpuState, km::StackMapping kernelStack)
     : Super(createInfo.Name)
-    , mProcess(process)
     , mCpuState(MakeRegisterSet(createInfo.CpuState, isSupervisor()))
     , mFpuState(std::move(fpuState))
     , mTlsAddress(createInfo.TlsAddress)
-    , mKernelStack(kernelStack)
     , mThreadState(createInfo.Flags)
 {
+    mProcess = process;
+    mKernelStack = kernelStack;
+
     if (mThreadState == eOsThreadRunning || mThreadState == eOsThreadQueued) {
         mThreadState = eOsThreadQueued;
     } else {
@@ -172,7 +174,7 @@ OsStatus sys::Thread::attach(task::Scheduler *scheduler) {
         .tlsBase = mTlsAddress,
     };
 
-    return scheduler->enqueue(state, &mSchedulerEntry);
+    return scheduler->enqueue(state, this);
 }
 
 km::PhysicalAddress sys::Thread::getPageMap() {
@@ -189,6 +191,8 @@ OsStatus sys::Thread::destroy(System *, OsThreadState reason) {
     }
 #endif
 
+    terminate();
+
     if (auto process = mProcess.lock()) {
         process->removeThread(loanShared());
     }
@@ -196,15 +200,6 @@ OsStatus sys::Thread::destroy(System *, OsThreadState reason) {
     mThreadState = reason;
 
     return OsStatusSuccess;
-}
-
-sm::RcuSharedPtr<sys::Thread> sys::Thread::getAssociatedThread(task::SchedulerEntry *entry) {
-    // This is all kinds of unsafe, but I know that a scheduler entry is always part of a thread.
-    static constexpr size_t offset = offsetof(Thread, mSchedulerEntry);
-    uintptr_t ptr = reinterpret_cast<uintptr_t>(entry);
-    ptr -= offset;
-    Thread *thread = reinterpret_cast<Thread *>(ptr);
-    return thread->loanShared();
 }
 
 sys::XSaveState sys::NewXSaveState() {

@@ -17,13 +17,12 @@ static constexpr size_t kDefaultKernelStackSize = 4;
 OsStatus sys::System::addThreadObject(sm::RcuSharedPtr<Thread> object) {
     stdx::UniqueLock guard(mLock);
     mObjects.insert(object);
-    return mSchedule.addThread(object);
+    return object->attach(&mScheduler);
 }
 
 void sys::System::removeThreadObject(sm::RcuWeakPtr<Thread> object) {
     stdx::UniqueLock guard(mLock);
     mObjects.erase(object);
-    mSchedule.removeThread(object);
 }
 
 void sys::System::addProcessObject(sm::RcuSharedPtr<Process> object) {

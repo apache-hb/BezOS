@@ -269,7 +269,7 @@ namespace km {
     void DisableNmi();
     void EnableNmi();
     void DisableInterrupts();
-    void EnableInterrupts();
+    void enableInterrupts();
 
     /// @brief RAII guard to disable interrupts.
     class IntGuard {
@@ -282,7 +282,7 @@ namespace km {
         }
 
         ~IntGuard() {
-            EnableInterrupts();
+            enableInterrupts();
         }
     };
 

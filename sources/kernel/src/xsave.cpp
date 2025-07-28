@@ -158,7 +158,7 @@ constinit XSave XSave::gInstance{};
 
 static constinit km::IFpuSave *gFpuSave = nullptr;
 
-km::IFpuSave *km::InitFpuSave(const XSaveConfig& config) {
+km::IFpuSave *km::initFpuSave(const XSaveConfig& config) {
     SaveMode choice = config.target;
     const ProcessorInfo *cpuInfo = config.cpuInfo;
 

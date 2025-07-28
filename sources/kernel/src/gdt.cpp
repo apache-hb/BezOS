@@ -145,12 +145,12 @@ static constexpr km::SystemGdt kBootGdt = {
     },
 };
 
-km::SystemGdt km::GetBootGdt() noexcept {
+km::SystemGdt km::getBootGdt() noexcept {
     return kBootGdt;
 }
 
 km::SystemGdt km::GetSystemGdt(const x64::TaskStateSegment *tss) {
-    SystemGdt gdt = GetBootGdt();
+    SystemGdt gdt = getBootGdt();
 
     gdt.setTss(tss);
 

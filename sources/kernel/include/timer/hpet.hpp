@@ -135,7 +135,7 @@ namespace km {
         uint8_t revision() const;
         uint8_t hpetNumber() const { return mTable.hpetNumber; }
 
-        void enable(bool enabled);
+        void enable(bool enabled) override;
 
         bool isTimerActive(uint8_t timer) const;
 

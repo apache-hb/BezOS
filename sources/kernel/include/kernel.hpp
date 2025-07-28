@@ -17,7 +17,7 @@ namespace km {
     class AddressSpace;
 
     void SetupApGdt(void);
-    void SetupInitialGdt(void);
+    void setupInitialGdt(void);
 
     Scheduler *GetScheduler();
     SystemMemory *GetSystemMemory();

@@ -20,21 +20,24 @@ namespace sys {
 
     XSaveState NewXSaveState() [[clang::allocating]];
 
-    struct ThreadSchedulerEntry : public task::SchedulerEntry {
-        km::StackMapping kernelStack;
+    class ThreadSchedulerEntry : public task::SchedulerEntry {
+    protected:
+        sm::RcuWeakPtr<Process> mProcess;
+        km::StackMapping mKernelStack;
+
+    public:
+        sm::RcuSharedPtr<Process> getProcess() {
+            return mProcess.lock();
+        }
     };
 
-    class Thread final : public BaseObject<eOsHandleThread> {
-        sm::RcuWeakPtr<Process> mProcess;
-
-        /// @brief Intrusive sheduler entry block.
-        ThreadSchedulerEntry mSchedulerEntry;
-
+    class Thread final
+        : public BaseObject<eOsHandleThread>
+        , public ThreadSchedulerEntry
+    {
         RegisterSet mCpuState;
         XSaveState mFpuState{nullptr, &km::DestroyXSave};
         reg_t mTlsAddress;
-
-        km::StackMapping mKernelStack;
         std::atomic<OsThreadState> mThreadState;
 
     public:
@@ -71,8 +74,6 @@ namespace sys {
         bool cmpxchgState(OsThreadState &expected, OsThreadState newState) {
             return mThreadState.compare_exchange_strong(expected, newState);
         }
-
-        static sm::RcuSharedPtr<Thread> getAssociatedThread(task::SchedulerEntry *entry);
     };
 
     class ThreadHandle final : public BaseHandle<Thread> {

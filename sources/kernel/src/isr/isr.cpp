@@ -72,6 +72,6 @@ void km::DisableInterrupts() {
     __cli();
 }
 
-void km::EnableInterrupts() {
+void km::enableInterrupts() {
     __sti();
 }
