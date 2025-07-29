@@ -632,6 +632,7 @@ src = [
     'src/notify.cpp',
 
     'src/system/runtime.cpp',
+    'src/system/runtime2.cpp',
 
     'src/syscall.cpp',
     'src/processor.cpp',

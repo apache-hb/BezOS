@@ -1247,13 +1247,13 @@ static void heartbeatTask(km::CpuCoreId cpuCoreId, km::ITickSource *tickSource) 
     }
 }
 
-CPU_LOCAL
-static constinit km::CpuLocal<task::SchedulerQueue*> tlsQueue;
-
-static void enqueueHeartbeatTask(task::SchedulerQueue *queue, km::ITickSource *tickSource, task::SchedulerEntry *task) {
+static void enqueueHeartbeatTask(km::ITickSource *tickSource, task::SchedulerEntry *task) {
+    task::SchedulerQueue *queue = sys::getTlsQueue();
     x64::XSave *taskXSave = CreateXSave();
     x64::page *taskStack = new x64::page[4];
     km::CpuCoreId cpuCoreId = km::GetCurrentCoreId();
+
+    InitLog.dbgf("Enqueuing heartbeat task on queue ", (void*)queue);
 
     OsStatus status = queue->enqueue({
         .registers = {
@@ -1269,14 +1269,13 @@ static void enqueueHeartbeatTask(task::SchedulerQueue *queue, km::ITickSource *t
         .xsave = taskXSave,
     }, task);
 
-
     if (status != OsStatusSuccess) {
         InitLog.fatalf("Failed to enqueue heartbeat task: ", OsStatusId(status));
         KM_PANIC("Failed to enqueue heartbeat task.");
     }
 }
 
-static void startupSmp(const acpi::AcpiTables& rsdt, bool umip, km::ITickSource *tickSource, bool invariantTsc, task::Scheduler *scheduler) {
+static void startupSmp(const acpi::AcpiTables& rsdt, bool umip, km::ITickSource *tickSource, bool invariantTsc) {
     //
     // TODO:
     // Create the scheduler and system objects before we startup SMP so that
@@ -1291,7 +1290,7 @@ static void startupSmp(const acpi::AcpiTables& rsdt, bool umip, km::ITickSource 
         // scheduler is ready to be used. The scheduler requires the system to switch
         // to using cpu local isr tables, which must happen after smp startup.
         //
-        InitSmp(*GetSystemMemory(), GetCpuLocalApic(), rsdt, [&launchScheduler, umip, tickSource, invariantTsc, scheduler](IApic *apic) {
+        InitSmp(*GetSystemMemory(), GetCpuLocalApic(), rsdt, [&launchScheduler, umip, tickSource, invariantTsc](IApic *apic) {
             while (!launchScheduler.test()) {
                 _mm_pause();
             }
@@ -1318,11 +1317,9 @@ static void startupSmp(const acpi::AcpiTables& rsdt, bool umip, km::ITickSource 
                 }
             }
 
+            sys::setupApScheduler();
             task::SchedulerEntry entry;
-
-            tlsQueue = scheduler->getQueue(km::GetCurrentCoreId());
-            task::SchedulerQueue *queue = tlsQueue.get();
-            enqueueHeartbeatTask(queue, bestTickSource, &entry);
+            enqueueHeartbeatTask(bestTickSource, &entry);
             enterSchedulerLoop(GetCpuLocalApic(), &apicTimer);
         });
     }
@@ -1488,7 +1485,6 @@ static void createDisplayDevice() {
     }
 }
 
-[[noreturn]]
 static void LaunchKernelProcess(km::ApicTimer *apicTimer) {
     sys::ProcessCreateInfo createInfo {
         .name = stdx::StringView::ofString("SYSTEM"),
@@ -1530,8 +1526,6 @@ static void LaunchKernelProcess(km::ApicTimer *apicTimer) {
     }
 
     InitLog.fatalf("Create master thread.");
-
-    KM_PANIC("aaaa");
 }
 
 static void initVfs() {
@@ -1583,20 +1577,6 @@ static void displayHpetInfo(const km::HighPrecisionTimer& hpet) {
         InitLog.println("|  - Trigger    | ", config.trigger == apic::Trigger::eLevel ? "Level"_sv : "Edge"_sv);
         InitLog.println("|  - Route      | ", config.ioApicRoute);
     }
-}
-
-static task::Scheduler *gScheduler;
-
-static void installSchedulerIsr() {
-    km::SharedIsrTable *sharedIst = km::GetSharedIsrTable();
-    sharedIst->install(isr::kTimerVector, [](km::IsrContext *isrContext) noexcept [[clang::reentrant]] -> km::IsrContext {
-        km::IApic *apic = km::GetCpuLocalApic();
-
-        task::switchCurrentContext(gScheduler, tlsQueue.get(), isrContext);
-
-        apic->eoi();
-        return *isrContext;
-    });
 }
 
 void LaunchKernel(boot::LaunchInfo launch) {
@@ -1705,7 +1685,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     pci::ProbeConfigSpace(config.get(), rsdt.mcfg());
 
     km::LocalIsrTable *ist = GetLocalIsrTable();
-    installSchedulerIsr();
+    sys::installSchedulerIsr();
 
     initSystem();
 
@@ -1759,33 +1739,12 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     ioApicSet.clearLegacyRedirect(irq::kTimer);
 
-    gScheduler = new task::Scheduler;
-    task::Scheduler::create(gScheduler);
-    size_t cpuCount = kEnableSmp ? rsdt.madt()->lapicCount() : 1;
-    std::unique_ptr<task::SchedulerQueue[]> queues = std::make_unique<task::SchedulerQueue[]>(cpuCount);
-
-    for (const acpi::MadtEntry *madt : *rsdt.madt()) {
-        if (madt->type != acpi::MadtEntryType::eLocalApic)
-            continue;
-
-        const acpi::MadtEntry::LocalApic localApic = madt->apic;
-
-        if (!localApic.isEnabled() && !localApic.isOnlineCapable()) {
-            continue;
-        }
-
-        task::SchedulerQueue& queue = queues[localApic.apicId];
-        task::SchedulerQueue::create(64, &queue);
-
-        gScheduler->addQueue(km::CpuCoreId(localApic.apicId), &queue);
-    }
-
-    tlsQueue = gScheduler->getQueue(km::GetCurrentCoreId());
+    sys::setupGlobalScheduler(kEnableSmp, rsdt);
 
     task::SchedulerEntry entry;
-    enqueueHeartbeatTask(tlsQueue.get(), clockTicker, &entry);
+    enqueueHeartbeatTask(clockTicker, &entry);
 
-    startupSmp(rsdt, processor.umip(), clockTicker, processor.invariantTsc, gScheduler);
+    startupSmp(rsdt, processor.umip(), clockTicker, processor.invariantTsc);
 
     DateTime time = ReadCmosClock();
     ClockLog.infof("Current time: ", time);
@@ -1797,6 +1756,8 @@ void LaunchKernel(boot::LaunchInfo launch) {
     createNotificationQueue();
     configurePs2Controller(rsdt, ioApicSet, lapic.pointer(), ist);
     createDisplayDevice();
+
+    LaunchKernelProcess(&apicTimer);
 
     enterSchedulerLoop(GetCpuLocalApic(), &apicTimer);
 

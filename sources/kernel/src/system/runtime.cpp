@@ -26,7 +26,7 @@ CPU_LOCAL
 static constinit km::CpuLocal<sys::CpuLocalSchedule*> tlsSchedule;
 
 CPU_LOCAL
-static constinit km::CpuLocal<void*> tlsKernelStack;
+static constinit km::CpuLocal<void*> tlsKernelStack_old;
 
 static bool ScheduleInner(km::IsrContext *context, km::IsrContext *newContext) noexcept [[clang::reentrant]] {
     km::IApic *apic = km::GetCpuLocalApic();
@@ -37,7 +37,7 @@ static bool ScheduleInner(km::IsrContext *context, km::IsrContext *newContext) n
         void *syscallStack = nullptr;
         if (schedule->scheduleNextContext(context, newContext, &syscallStack)) {
             // We need to set the syscall stack pointer to the new thread's stack
-            tlsKernelStack = syscallStack;
+            tlsKernelStack_old = syscallStack;
             return true;
         }
     }
@@ -74,7 +74,7 @@ void sys::InstallTimerIsr(km::SharedIsrTable *table) {
 void sys::EnterScheduler(CpuLocalSchedule *scheduler, km::ApicTimer *apicTimer) {
     km::IApic *apic = km::GetCpuLocalApic();
     tlsSchedule = scheduler;
-    KmSystemCallStackTlsOffset = tlsKernelStack.tlsOffset();
+    KmSystemCallStackTlsOffset = tlsKernelStack_old.tlsOffset();
 
     auto frequency = apicTimer->frequency();
     auto ticks = (frequency * kDefaultTimeSlice.count()) / 1000;
@@ -92,6 +92,7 @@ void sys::EnterScheduler(CpuLocalSchedule *scheduler, km::ApicTimer *apicTimer) 
     KmIdle();
 }
 
+#if 0
 sm::RcuSharedPtr<sys::Process> sys::GetCurrentProcess() {
     if (auto schedule = tlsSchedule.get()) {
         return schedule->currentProcess();
@@ -142,3 +143,4 @@ void sys::YieldCurrentThread() {
 
     __x86_64_resume(&next);
 }
+#endif

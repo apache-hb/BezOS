@@ -18,6 +18,11 @@ namespace km {
     class ApicTimer;
 }
 
+namespace task {
+    class Scheduler;
+    class SchedulerQueue;
+}
+
 namespace sys {
     class GlobalSchedule;
     class CpuLocalSchedule;
@@ -156,4 +161,11 @@ namespace sys {
     sm::RcuSharedPtr<Process> GetCurrentProcess();
     sm::RcuSharedPtr<Thread> GetCurrentThread();
     void YieldCurrentThread();
+
+    void installSchedulerIsr();
+    void setupApScheduler();
+    void setupGlobalScheduler(bool enableSmp, acpi::AcpiTables& rsdt);
+
+    task::SchedulerQueue *getTlsQueue();
+    task::Scheduler *getScheduler();
 }
