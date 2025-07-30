@@ -191,8 +191,13 @@ size_t task::SchedulerQueue::wakeSleepingTasks(km::os_instant now) noexcept {
 }
 
 void task::SchedulerQueue::setCurrentTask(SchedulerEntry *task) noexcept {
-    KM_ASSERT(task->mStatus.load() == TaskStatus::eRunning);
     KM_ASSERT(task != mCurrentTask);
+    // Ideally here the task should be in the running state, this may not always be the case
+    // though. If the user terminates a thread right now it will be in the terminated state.
+    // This is acceptable as the terminated state is a valid state for a currently running task.
+    // We linearize the task state as if it was terminated while running rather than idle.
+    // Closed is not acceptable here however.
+    KM_ASSERT(task->mStatus.load() != TaskStatus::eClosed);
 
     if (mCurrentTask != nullptr) {
         bool addToQueue = moveTaskToIdle(mCurrentTask);

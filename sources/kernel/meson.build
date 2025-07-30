@@ -8,6 +8,8 @@ project('bezos', [ 'c', 'cpp' ],
         'b_pie=false',
         'b_staticpic=false',
         'b_coverage=true',
+
+        'gtest:b_coverage=false',
     ],
     version : '0.0.1',
     license : 'GPL-3.0-only',
@@ -128,7 +130,7 @@ kernel_c_args = c_args + kernel_args + sanitizer_args
 kernel_cpp_args = cpp_args + kernel_args + sanitizer_args
 
 test_args = [
-    '-fdebug-prefix-map=../../../=/',
+    # '-fdebug-prefix-map=../../../=/',
     '-DNDEBUG_SANITIZER=1'
 ]
 
