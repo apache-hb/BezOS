@@ -3,9 +3,9 @@
 #include <stddef.h>
 
 namespace pv {
-    void *SharedObjectMalloc(size_t size);
-    void *SharedObjectAlignedAlloc(size_t align, size_t size);
-    void SharedObjectFree(void *ptr);
+    void *sharedObjectMalloc(size_t size);
+    void *sharedObjectAlignedAlloc(size_t align, size_t size);
+    void sharedObjectFree(void *ptr);
 
     template<typename T>
     struct SharedAllocator {
@@ -17,11 +17,11 @@ namespace pv {
         SharedAllocator(const SharedAllocator<U> &) { }
 
         T *allocate(size_t n) {
-            return static_cast<T *>(SharedObjectAlignedAlloc(alignof(T), n * sizeof(T)));
+            return static_cast<T *>(sharedObjectAlignedAlloc(alignof(T), n * sizeof(T)));
         }
 
         void deallocate(T *ptr, size_t) noexcept {
-            SharedObjectFree(ptr);
+            sharedObjectFree(ptr);
         }
 
         constexpr bool operator==(const SharedAllocator &) const noexcept {
@@ -31,7 +31,7 @@ namespace pv {
 }
 
 #define PVTEST_SHARED_OBJECT(name) \
-    static void *operator new(size_t size) { return pv::SharedObjectAlignedAlloc(alignof(name), size); } \
-    static void *operator new[](size_t size) { return pv::SharedObjectAlignedAlloc(alignof(name), size); } \
-    static void operator delete(void *ptr) noexcept { pv::SharedObjectFree(ptr); } \
-    static void operator delete[](void *ptr) noexcept { pv::SharedObjectFree(ptr); }
+    static void *operator new(size_t size) { return pv::sharedObjectAlignedAlloc(alignof(name), size); } \
+    static void *operator new[](size_t size) { return pv::sharedObjectAlignedAlloc(alignof(name), size); } \
+    static void operator delete(void *ptr) noexcept { pv::sharedObjectFree(ptr); } \
+    static void operator delete[](void *ptr) noexcept { pv::sharedObjectFree(ptr); }

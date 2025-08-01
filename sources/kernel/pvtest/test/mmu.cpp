@@ -63,7 +63,7 @@ TEST_F(PvMmuTest, PagingInit) {
     status = km::PageTables::create(machine->getPageBuilder(), guestInitMemory, km::PageFlags::eAll, &ptes);
     ASSERT_EQ(status, OsStatusSuccess) << "Failed to create page tables";
 
-    std::atomic<bool> *barrier = new (pv::SharedObjectMalloc(sizeof(std::atomic<bool>))) std::atomic<bool>(false);
+    std::atomic<bool> *barrier = new (pv::sharedObjectMalloc(sizeof(std::atomic<bool>))) std::atomic<bool>(false);
 
     void *guest = memory->getGuestMemory();
     km::AddressMapping guestMapping {
@@ -80,7 +80,7 @@ TEST_F(PvMmuTest, PagingInit) {
 
     machine->getCore(0)->setCr3(cr3);
 
-    x64::page *stack = (x64::page*)pv::SharedObjectAlignedAlloc(alignof(x64::page), sizeof(x64::page) * 2);
+    x64::page *stack = (x64::page*)pv::sharedObjectAlignedAlloc(alignof(x64::page), sizeof(x64::page) * 2);
     char *base = (char*)(stack + 2);
     *(uint64_t*)base = 0;
     machine->bspInit({
@@ -100,5 +100,5 @@ TEST_F(PvMmuTest, PagingInit) {
     int eq = memcmp(guestInitMemory.vaddr, kMessage, sizeof(kMessage));
     ASSERT_EQ(eq, 0) << "Failed to read mmio message";
 
-    pv::SharedObjectFree(barrier);
+    pv::sharedObjectFree(barrier);
 }

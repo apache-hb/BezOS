@@ -30,6 +30,9 @@ pvtest_testcases = {
         'link_args' : [ ],
         'link_with': [ liblogging_nosanitize ],
     },
+    'msr': {
+        'sources': files('msr.cpp')
+    },
     # 'idt': {
     #     'sources': files(
     #         'test/idt.cpp',

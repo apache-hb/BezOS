@@ -1,4 +1,5 @@
 #include "pvtest/machine.hpp"
+#include "pvtest/msr.hpp"
 #include "pvtest/system.hpp"
 #include "pvtest/pvtest.hpp"
 #include "setup.hpp"
@@ -9,11 +10,13 @@
 #include <sys/mman.h>
 #include <rpmalloc.h>
 #include <sys/prctl.h>
+#include <signal.h>
 
 static int gSharedMemoryFd = -1;
 static sm::VirtualAddress gSharedHostMemory = nullptr;
 static std::atomic<uintptr_t> gSharedHostBase;
 static constexpr size_t kSharedMemorySize = sm::gigabytes(2).bytes();
+static pv::Machine *gMachine = nullptr;
 
 static void *RpMallocSharedMap(size_t size, size_t align, size_t *offset, size_t *mappedSize) {
     size_t mapSize = size + align;
@@ -75,9 +78,10 @@ static rpmalloc_interface_t gMallocInterface {
     .error_callback = RpMallocError,
 };
 
-pv::Machine::Machine(size_t cores, off64_t memorySize)
+pv::Machine::Machine(size_t cores, off64_t memorySize, IModelRegisterSet *msrs)
     : mPageBuilder(48, 48, km::GetDefaultPatLayout())
     , mMemory(memorySize)
+    , mMsrSet(msrs)
 {
     mCores.reserve(cores + 1);
     for (size_t i = 0; i < cores; i++) {
@@ -85,8 +89,177 @@ pv::Machine::Machine(size_t cores, off64_t memorySize)
     }
 }
 
+pv::Machine::~Machine() {
+    if (mSigStack.ss_sp) {
+        free(mSigStack.ss_sp);
+    }
+
+    if (mInstruction) {
+        cs_free(mInstruction, 1);
+    }
+
+    if (mCapstone) {
+        cs_close(&mCapstone);
+    }
+}
+
 void pv::Machine::bspInit(mcontext_t mcontext) {
     mCores[0].sendInitMessage(mcontext);
+}
+
+void pv::Machine::emulate_cli(mcontext_t *mcontext, cs_insn *insn) { }
+void pv::Machine::emulate_sti(mcontext_t *mcontext, cs_insn *insn) { }
+void pv::Machine::emulate_lidt(mcontext_t *mcontext, cs_insn *insn) { }
+void pv::Machine::emulate_lgdt(mcontext_t *mcontext, cs_insn *insn) { }
+void pv::Machine::emulate_ltr(mcontext_t *mcontext, cs_insn *insn) { }
+void pv::Machine::emulate_in(mcontext_t *mcontext, cs_insn *insn) { }
+void pv::Machine::emulate_out(mcontext_t *mcontext, cs_insn *insn) { }
+void pv::Machine::emulate_invlpg(mcontext_t *mcontext, cs_insn *insn) { }
+void pv::Machine::emulate_swapgs(mcontext_t *mcontext, cs_insn *insn) { }
+
+void pv::Machine::emulate_rdmsr(mcontext_t *mcontext, cs_insn *insn) {
+    if (mMsrSet == nullptr) {
+        SignalAssert("Unexpected rdmsr without msr set\n");
+    }
+
+    uint32_t msr = mcontext->gregs[REG_RCX] & 0xFFFFFFFF;
+
+    uint64_t value = mMsrSet->rdmsr(msr);
+    mcontext->gregs[REG_RAX] = value & 0xFFFFFFFF;
+    mcontext->gregs[REG_RDX] = (value >> 32) & 0xFFFFFFFF;
+    mcontext->gregs[REG_RIP] += insn->size;
+}
+
+void pv::Machine::emulate_wrmsr(mcontext_t *mcontext, cs_insn *insn) {
+    if (mMsrSet == nullptr) {
+        SignalAssert("Unexpected wrmsr without msr set\n");
+    }
+
+    uint32_t msr = mcontext->gregs[REG_RCX] & 0xFFFFFFFF;
+    uint32_t low = mcontext->gregs[REG_RAX] & 0xFFFFFFFF;
+    uint32_t high = mcontext->gregs[REG_RDX] & 0xFFFFFFFF;
+
+    uint64_t value = low | ((uint64_t)high << 32);
+    mMsrSet->wrmsr(msr, value);
+
+    mcontext->gregs[REG_RIP] += insn->size;
+}
+
+void pv::Machine::emulate_hlt(mcontext_t *mcontext, cs_insn *insn) { }
+void pv::Machine::emulate_iretq(mcontext_t *mcontext, cs_insn *insn) { }
+void pv::Machine::emulate_mmu(mcontext_t *mcontext, cs_insn *insn) { }
+
+void pv::Machine::sigsegv(mcontext_t *mcontext) {
+    uintptr_t rip = mcontext->gregs[REG_RIP];
+    size_t size = 15;
+    uint64_t pc = rip;
+    const uint8_t *ptr = (const uint8_t *)pc;
+    if (!cs_disasm_iter(mCapstone, &ptr, &size, &pc, mInstruction)) {
+        cs_err cserr = cs_errno(mCapstone);
+        PV_POSIX_ERROR(EINVAL, "cs_disasm_iter failed: %s (%d)\n", cs_strerror(cserr), cserr);
+    }
+
+    SignalLog("%p: %s %s %p\n", (void*)rip, mInstruction->mnemonic, mInstruction->op_str, (void*)mcontext->gregs[REG_CR2]);
+
+    switch (mInstruction->id) {
+    case X86_INS_RDMSR:
+        emulate_rdmsr(mcontext, mInstruction);
+        break;
+    case X86_INS_WRMSR:
+        emulate_wrmsr(mcontext, mInstruction);
+        break;
+    case X86_INS_IN:
+        emulate_in(mcontext, mInstruction);
+        break;
+    case X86_INS_OUT:
+        emulate_out(mcontext, mInstruction);
+        break;
+    case X86_INS_LGDT:
+        emulate_lgdt(mcontext, mInstruction);
+        break;
+    case X86_INS_LIDT:
+        emulate_lidt(mcontext, mInstruction);
+        break;
+    case X86_INS_LTR:
+        emulate_ltr(mcontext, mInstruction);
+        break;
+    case X86_INS_INVLPG:
+        emulate_invlpg(mcontext, mInstruction);
+        break;
+    case X86_INS_SWAPGS:
+        emulate_swapgs(mcontext, mInstruction);
+        break;
+    case X86_INS_HLT:
+        emulate_hlt(mcontext, mInstruction);
+        break;
+    case X86_INS_IRETQ:
+        emulate_iretq(mcontext, mInstruction);
+        break;
+    case X86_INS_CLI:
+        emulate_cli(mcontext, mInstruction);
+        break;
+    case X86_INS_STI:
+        emulate_sti(mcontext, mInstruction);
+        break;
+
+    default:
+        // If the sigsegv is not due to a privileged instruction, its probably a page fault
+        emulate_mmu(mcontext, mInstruction);
+        break;
+    }
+}
+
+void pv::Machine::initSingleThread() {
+    gMachine = this;
+
+    size_t sigstksz = SIGSTKSZ;
+    mSigStack = stack_t {
+        .ss_sp = malloc(sigstksz),
+        .ss_flags = 0,
+        .ss_size = sigstksz,
+    };
+
+    if (cs_err err = cs_open(CS_ARCH_X86, CS_MODE_64, &mCapstone)) {
+        PV_POSIX_ERROR(err, "cs_open: %s (%d)\n", cs_strerror(err), err);
+    }
+
+    cs_option(mCapstone, CS_OPT_DETAIL, CS_OPT_ON);
+
+    mInstruction = cs_malloc(mCapstone);
+    if (!mInstruction) {
+        PV_POSIX_ERROR(ENOMEM, "cs_malloc: %s\n", strerror(ENOMEM));
+    }
+
+    sigset_t sigset;
+    PV_POSIX_CHECK(sigprocmask(SIG_BLOCK, nullptr, &sigset));
+    PV_POSIX_CHECK(sigdelset(&sigset, SIGSEGV));
+    PV_POSIX_CHECK(sigdelset(&sigset, SIGILL));
+    PV_POSIX_CHECK(sigprocmask(SIG_SETMASK, &sigset, nullptr));
+
+    PV_POSIX_CHECK(sigaltstack(&mSigStack, nullptr));
+
+    struct sigaction sigill {
+        .sa_sigaction = [](int, siginfo_t *, void *context) {
+            ucontext_t *ucontext = reinterpret_cast<ucontext_t *>(context);
+            mcontext_t *mcontext = &ucontext->uc_mcontext;
+            gMachine->sigsegv(mcontext);
+            SignalLog("sigill handled: %p\n", (void*)mcontext->gregs[REG_RIP]);
+        },
+        .sa_flags = SA_SIGINFO | SA_ONSTACK,
+    };
+
+    struct sigaction sigsegv {
+        .sa_sigaction = [](int, siginfo_t *, void *context) {
+            ucontext_t *ucontext = reinterpret_cast<ucontext_t *>(context);
+            mcontext_t *mcontext = &ucontext->uc_mcontext;
+            gMachine->sigsegv(mcontext);
+            SignalLog("sigsegv handled: %p\n", (void*)mcontext->gregs[REG_RIP]);
+        },
+        .sa_flags = SA_SIGINFO | SA_ONSTACK,
+    };
+
+    PV_POSIX_CHECK(sigaction(SIGILL, &sigill, nullptr));
+    PV_POSIX_CHECK(sigaction(SIGSEGV, &sigsegv, nullptr));
 }
 
 km::VirtualRangeEx pv::Machine::getSharedMemory() {
@@ -125,14 +298,14 @@ void pv::Machine::finalizeChild() {
     rpmalloc_thread_finalize();
 }
 
-void *pv::SharedObjectMalloc(size_t size) {
+void *pv::sharedObjectMalloc(size_t size) {
     return rpmalloc(size);
 }
 
-void *pv::SharedObjectAlignedAlloc(size_t align, size_t size) {
+void *pv::sharedObjectAlignedAlloc(size_t align, size_t size) {
     return rpaligned_alloc(align, size);
 }
 
-void pv::SharedObjectFree(void *ptr) {
+void pv::sharedObjectFree(void *ptr) {
     return rpfree(ptr);
 }

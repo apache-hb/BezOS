@@ -15,7 +15,7 @@ static constinit km::Logger AcpiLog { "ACPI" };
 
 static constexpr bool kLogAcpiHex = true;
 
-static bool ValidateChecksum(const uint8_t *bytes, size_t length) {
+static bool validateChecksum(const uint8_t *bytes, size_t length) {
     uint32_t sum = 0;
     for (size_t i = 0; i < length; i++) {
         sum += bytes[i];
@@ -24,18 +24,18 @@ static bool ValidateChecksum(const uint8_t *bytes, size_t length) {
     return (sum & 0xFF) == 0;
 }
 
-static bool ValidateRsdpLocator(const acpi::RsdpLocator *rsdp) {
+bool acpi::detail::validateRsdpLocator(const acpi::RsdpLocator *rsdp) {
     switch (rsdp->revision) {
     case 0:
-        return ValidateChecksum((const uint8_t*)rsdp, 20);
+        return validateChecksum((const uint8_t*)rsdp, 20);
     default:
         AcpiLog.warnf("Unknown RSDP revision: ", rsdp->revision, ". Interpreting as an XSDT.");
     case 2:
-        return ValidateChecksum((const uint8_t*)rsdp, rsdp->length);
+        return validateChecksum((const uint8_t*)rsdp, rsdp->length);
     }
 }
 
-static const acpi::RsdtHeader *MapTableEntry(sm::PhysicalAddress paddr, km::AddressSpace& memory) {
+static const acpi::RsdtHeader *mapTableEntry(sm::PhysicalAddress paddr, km::AddressSpace& memory, km::TlsfAllocation *tableAllocation) {
     km::TlsfAllocation headerAllocation;
 
     // first map the header
@@ -47,10 +47,8 @@ static const acpi::RsdtHeader *MapTableEntry(sm::PhysicalAddress paddr, km::Addr
         AcpiLog.warnf("This is not a fatal error, but the mapping at ", (void*)header, " has been leaked.");
     }
 
-    km::TlsfAllocation tableAllocation; // TODO: this leaks
-
     // then use the headers length to ensure we map the entire table
-    return memory.mapConst<acpi::RsdtHeader>(km::MemoryRangeEx::of(paddr, length), &tableAllocation);
+    return memory.mapConst<acpi::RsdtHeader>(km::MemoryRangeEx::of(paddr, length), tableAllocation);
 }
 
 static void DebugMadt(const acpi::Madt *madt) {
@@ -194,7 +192,7 @@ acpi::AcpiTables acpi::InitAcpi(sm::PhysicalAddress rsdpBaseAddress, km::Address
     const acpi::RsdpLocator *locator = memory.mapConst<acpi::RsdpLocator>(rsdpBaseAddress, &rsdpAllocation);
 
     // validate that the table is ok to use
-    bool rsdpOk = ValidateRsdpLocator(locator);
+    bool rsdpOk = detail::validateRsdpLocator(locator);
     KM_CHECK(rsdpOk, "Invalid RSDP checksum.");
 
     AcpiLog.println("| /SYS/ACPI          | RSDP signature              | '", stdx::StringView(locator->signature), "'");
@@ -248,7 +246,8 @@ acpi::AcpiTables::AcpiTables(km::TlsfAllocation allocation, const RsdpLocator *l
 
         for (uint32_t i = 0; i < mRsdtEntryCount; i++) {
             sm::PhysicalAddress paddr = sm::PhysicalAddress { locator->entries[i] };
-            const acpi::RsdtHeader *header = MapTableEntry(paddr, memory);
+            km::TlsfAllocation tableAllocation; // TODO: this leaks
+            const acpi::RsdtHeader *header = mapTableEntry(paddr, memory, &tableAllocation);
 
             SetUniqueTableEntry(&mMadt, header);
             SetUniqueTableEntry(&mMcfg, header);
@@ -275,7 +274,8 @@ acpi::AcpiTables::AcpiTables(km::TlsfAllocation allocation, const RsdpLocator *l
 
     if (mFadt != nullptr) {
         uint64_t address = (revision() == 0) ? mFadt->dsdt : mFadt->x_dsdt;
-        mDsdt = MapTableEntry(sm::PhysicalAddress { address }, memory);
+        km::TlsfAllocation tableAllocation; // TODO: this leaks
+        mDsdt = mapTableEntry(sm::PhysicalAddress { address }, memory, &tableAllocation);
     }
 
 #if 0

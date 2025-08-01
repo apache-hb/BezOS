@@ -90,3 +90,7 @@ namespace acpi {
 
     acpi::AcpiTables InitAcpi(sm::PhysicalAddress rsdpBaseAddress, km::AddressSpace& memory);
 }
+
+namespace acpi::detail {
+    bool validateRsdpLocator(const acpi::RsdpLocator *rsdp);
+}
