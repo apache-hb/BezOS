@@ -65,12 +65,7 @@ class XSave final : public km::IFpuSave {
     /// @brief All currently enabled components
     uint64_t mEnabled = 0;
 
-    km::SaveMode mode() const noexcept[[clang::nonblocking, clang::reentrant]]  override { return km::SaveMode::eXSave; }
-
-    uint64_t queryBufferSize() {
-        sm::CpuId cpuid = sm::CpuId::count(0xD, 1);
-        return cpuid.ebx;
-    }
+    km::SaveMode mode() const noexcept[[clang::nonblocking, clang::reentrant]] override { return km::SaveMode::eXSave; }
 
     uint64_t storeComponentState(uint64_t mask) const {
         //

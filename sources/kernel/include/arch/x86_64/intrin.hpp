@@ -150,6 +150,18 @@ namespace arch {
             return ret;
         }
 
+        [[gnu::always_inline, gnu::nodebug, gnu::used]]
+        static void xsetbv0(uint64_t value) noexcept [[clang::reentrant, clang::nonallocating]] {
+            asm volatile("xsetbv" :: "a"(value), "c"(0) : "memory");
+        }
+
+        [[gnu::always_inline, gnu::nodebug, gnu::used, nodiscard]]
+        static uint64_t xgetbv0() noexcept [[clang::reentrant, clang::nonallocating]] {
+            uint64_t value;
+            asm volatile("xgetbv" : "=a"(value) : "c"(0));
+            return value;
+        }
+
         [[gnu::always_inline, gnu::nodebug, gnu::returns_twice, gnu::nonnull(1), gnu::used]]
         static int64_t setjmp(LongJumpState *state) noexcept asm("__x86_64_setjmp");
 

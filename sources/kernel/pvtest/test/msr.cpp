@@ -3,7 +3,7 @@
 
 #include "pvtest/machine.hpp"
 
-class BasicMsrSet : public pv::IModelRegisterSet {
+class TestMachine : public pv::Machine {
     size_t mReadCount = 0;
     size_t mWriteCount = 0;
 
@@ -21,6 +21,7 @@ class BasicMsrSet : public pv::IModelRegisterSet {
     }
 
 public:
+    using Machine::Machine;
     size_t getReadCount() const { return mReadCount; }
     size_t getWriteCount() const { return mWriteCount; }
 };
@@ -36,7 +37,7 @@ public:
     }
 
     void SetUp() override {
-        machine = new pv::Machine(1, sm::gigabytes(1).bytes(), &msrs);
+        machine = new TestMachine(1, sm::gigabytes(1).bytes());
         ASSERT_NE(machine, nullptr);
 
         machine->initSingleThread();
@@ -46,22 +47,21 @@ public:
         delete machine;
     }
 
-    BasicMsrSet msrs;
-    pv::Machine *machine = nullptr;
+    TestMachine *machine = nullptr;
 };
 
 TEST_F(PvMsrTest, BasicRdmsr) {
-    ASSERT_EQ(msrs.getReadCount(), 0);
-    ASSERT_EQ(msrs.getWriteCount(), 0);
+    ASSERT_EQ(machine->getReadCount(), 0);
+    ASSERT_EQ(machine->getWriteCount(), 0);
 
     arch::IntrinX86_64::wrmsr(1000, 2000);
 
-    ASSERT_EQ(msrs.getReadCount(), 0);
-    ASSERT_EQ(msrs.getWriteCount(), 1);
+    ASSERT_EQ(machine->getReadCount(), 0);
+    ASSERT_EQ(machine->getWriteCount(), 1);
 
     uint64_t value = arch::IntrinX86_64::rdmsr(0x1234);
     ASSERT_EQ(value, 0x1234 * 2);
 
-    ASSERT_EQ(msrs.getReadCount(), 1);
-    ASSERT_EQ(msrs.getWriteCount(), 1);
+    ASSERT_EQ(machine->getReadCount(), 1);
+    ASSERT_EQ(machine->getWriteCount(), 1);
 }

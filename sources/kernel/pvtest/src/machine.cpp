@@ -1,5 +1,4 @@
 #include "pvtest/machine.hpp"
-#include "pvtest/msr.hpp"
 #include "pvtest/system.hpp"
 #include "pvtest/pvtest.hpp"
 #include "setup.hpp"
@@ -78,10 +77,66 @@ static rpmalloc_interface_t gMallocInterface {
     .error_callback = RpMallocError,
 };
 
-pv::Machine::Machine(size_t cores, off64_t memorySize, IModelRegisterSet *msrs)
+void pv::setRegisterOperand(mcontext_t *mcontext, x86_reg reg, uint64_t value) noexcept {
+    switch (reg) {
+    case X86_REG_RAX: mcontext->gregs[REG_RAX] = value; break;
+    case X86_REG_RBX: mcontext->gregs[REG_RBX] = value; break;
+    case X86_REG_RCX: mcontext->gregs[REG_RCX] = value; break;
+    case X86_REG_RDX: mcontext->gregs[REG_RDX] = value; break;
+    case X86_REG_RSI: mcontext->gregs[REG_RSI] = value; break;
+    case X86_REG_RDI: mcontext->gregs[REG_RDI] = value; break;
+    case X86_REG_RBP: mcontext->gregs[REG_RBP] = value; break;
+    case X86_REG_RSP: mcontext->gregs[REG_RSP] = value; break;
+    case X86_REG_R8:  mcontext->gregs[REG_R8]  = value; break;
+    case X86_REG_R9:  mcontext->gregs[REG_R9]  = value; break;
+    case X86_REG_R10: mcontext->gregs[REG_R10] = value; break;
+    case X86_REG_R11: mcontext->gregs[REG_R11] = value; break;
+    case X86_REG_R12: mcontext->gregs[REG_R12] = value; break;
+    case X86_REG_R13: mcontext->gregs[REG_R13] = value; break;
+    case X86_REG_R14: mcontext->gregs[REG_R14] = value; break;
+    case X86_REG_R15: mcontext->gregs[REG_R15] = value; break;
+    default:
+        SignalAssert("pv::CpuCore::setRegisterOperand() unknown register %d\n", std::to_underlying(reg));
+    }
+}
+
+uint64_t pv::getRegisterOperand(mcontext_t *mcontext, x86_reg reg) noexcept {
+    switch (reg) {
+    case X86_REG_RAX: return mcontext->gregs[REG_RAX];
+    case X86_REG_RBX: return mcontext->gregs[REG_RBX];
+    case X86_REG_RCX: return mcontext->gregs[REG_RCX];
+    case X86_REG_RDX: return mcontext->gregs[REG_RDX];
+    case X86_REG_RSI: return mcontext->gregs[REG_RSI];
+    case X86_REG_RDI: return mcontext->gregs[REG_RDI];
+    case X86_REG_RBP: return mcontext->gregs[REG_RBP];
+    case X86_REG_RSP: return mcontext->gregs[REG_RSP];
+    case X86_REG_R8:  return mcontext->gregs[REG_R8];
+    case X86_REG_R9:  return mcontext->gregs[REG_R9];
+    case X86_REG_R10: return mcontext->gregs[REG_R10];
+    case X86_REG_R11: return mcontext->gregs[REG_R11];
+    case X86_REG_R12: return mcontext->gregs[REG_R12];
+    case X86_REG_R13: return mcontext->gregs[REG_R13];
+    case X86_REG_R14: return mcontext->gregs[REG_R14];
+    case X86_REG_R15: return mcontext->gregs[REG_R15];
+    case X86_REG_RIP: return mcontext->gregs[REG_RIP];
+    default:
+        SignalAssert("pv::CpuCore::getRegisterOperand() unknown register %d\n", std::to_underlying(reg));
+    }
+}
+
+uint64_t pv::getOperand(mcontext_t *mcontext, cs_x86_op operand) noexcept {
+    if (operand.type == X86_OP_REG) {
+        return getRegisterOperand(mcontext, operand.reg);
+    } else if (operand.type == X86_OP_IMM) {
+        return operand.imm;
+    } else {
+        SignalAssert("pv::getOperand() unknown operand type %d\n", std::to_underlying(operand.type));
+    }
+}
+
+pv::Machine::Machine(size_t cores, off64_t memorySize)
     : mPageBuilder(48, 48, km::GetDefaultPatLayout())
     , mMemory(memorySize)
-    , mMsrSet(msrs)
 {
     mCores.reserve(cores + 1);
     for (size_t i = 0; i < cores; i++) {
@@ -118,29 +173,21 @@ void pv::Machine::emulate_invlpg(mcontext_t *mcontext, cs_insn *insn) { }
 void pv::Machine::emulate_swapgs(mcontext_t *mcontext, cs_insn *insn) { }
 
 void pv::Machine::emulate_rdmsr(mcontext_t *mcontext, cs_insn *insn) {
-    if (mMsrSet == nullptr) {
-        SignalAssert("Unexpected rdmsr without msr set\n");
-    }
-
     uint32_t msr = mcontext->gregs[REG_RCX] & 0xFFFFFFFF;
 
-    uint64_t value = mMsrSet->rdmsr(msr);
+    uint64_t value = rdmsr(msr);
     mcontext->gregs[REG_RAX] = value & 0xFFFFFFFF;
     mcontext->gregs[REG_RDX] = (value >> 32) & 0xFFFFFFFF;
     mcontext->gregs[REG_RIP] += insn->size;
 }
 
 void pv::Machine::emulate_wrmsr(mcontext_t *mcontext, cs_insn *insn) {
-    if (mMsrSet == nullptr) {
-        SignalAssert("Unexpected wrmsr without msr set\n");
-    }
-
     uint32_t msr = mcontext->gregs[REG_RCX] & 0xFFFFFFFF;
     uint32_t low = mcontext->gregs[REG_RAX] & 0xFFFFFFFF;
     uint32_t high = mcontext->gregs[REG_RDX] & 0xFFFFFFFF;
 
     uint64_t value = low | ((uint64_t)high << 32);
-    mMsrSet->wrmsr(msr, value);
+    wrmsr(msr, value);
 
     mcontext->gregs[REG_RIP] += insn->size;
 }
@@ -148,6 +195,61 @@ void pv::Machine::emulate_wrmsr(mcontext_t *mcontext, cs_insn *insn) {
 void pv::Machine::emulate_hlt(mcontext_t *mcontext, cs_insn *insn) { }
 void pv::Machine::emulate_iretq(mcontext_t *mcontext, cs_insn *insn) { }
 void pv::Machine::emulate_mmu(mcontext_t *mcontext, cs_insn *insn) { }
+
+void pv::Machine::emulateReadControl(mcontext_t *mcontext, cs_insn *insn, x86_reg reg, uint64_t value) {
+
+}
+
+void pv::Machine::emulateWriteControl(mcontext_t *mcontext, cs_insn *insn, x86_reg reg, uint64_t value) {
+
+}
+
+static bool isControlRegisterOperand(cs_x86_op *op) {
+    return op->type == X86_OP_REG && (op->reg >= X86_REG_CR0 && op->reg <= X86_REG_CR15);
+}
+
+void pv::Machine::emulate_mov(mcontext_t *mcontext, cs_insn *insn) {
+    if (mcontext->gregs[REG_CR2] != 0) {
+        emulate_mmu(mcontext, insn);
+        return;
+    }
+
+    cs_detail *detail = insn->detail;
+    cs_x86 x86 = detail->x86;
+    // mov with a control register as its first operand is a write
+    if (isControlRegisterOperand(&x86.operands[0])) {
+        cs_x86_op *op = &x86.operands[0];
+        if (op->access != CS_AC_WRITE) {
+            SignalAssert("pv::Machine::emulate_mov() control register %s is not a write\n", cs_reg_name(mCapstone, op->reg));
+        }
+        emulateWriteControl(mcontext, insn, op->reg, getOperand(mcontext, x86.operands[1]));
+    } else if (isControlRegisterOperand(&x86.operands[1])) {
+        // mov with a control register as its second operand is a read
+        cs_x86_op *op = &x86.operands[1];
+        if (op->access != CS_AC_READ) {
+            SignalAssert("pv::Machine::emulate_mov() control register %s is not a read\n", cs_reg_name(mCapstone, op->reg));
+        }
+        emulateReadControl(mcontext, insn, op->reg, getOperand(mcontext, x86.operands[0]));
+    }
+
+    SignalAssert("pv::Machine::emulate_mov() unhandled instruction %p %s %s\n", (void*)mcontext->gregs[REG_RIP], insn->mnemonic, insn->op_str);
+}
+
+void pv::Machine::emulate_xgetbv(mcontext_t *mcontext, cs_insn *insn) {
+    uint32_t reg = mcontext->gregs[REG_RCX] & 0xFFFFFFFF;
+    uint64_t value = xgetbv(reg);
+    mcontext->gregs[REG_RAX] = value & 0xFFFFFFFF;
+    mcontext->gregs[REG_RDX] = (value >> 32) & 0xFFFFFFFF;
+    mcontext->gregs[REG_RIP] += insn->size;
+}
+
+void pv::Machine::emulate_xsetbv(mcontext_t *mcontext, cs_insn *insn) {
+    uint32_t reg = mcontext->gregs[REG_RCX] & 0xFFFFFFFF;
+    uint64_t value = mcontext->gregs[REG_RAX] & 0xFFFFFFFF;
+    value |= ((uint64_t)(mcontext->gregs[REG_RDX] & 0xFFFFFFFF) << 32);
+    xsetbv(reg, value);
+    mcontext->gregs[REG_RIP] += insn->size;
+}
 
 void pv::Machine::sigsegv(mcontext_t *mcontext) {
     uintptr_t rip = mcontext->gregs[REG_RIP];
@@ -200,6 +302,16 @@ void pv::Machine::sigsegv(mcontext_t *mcontext) {
         break;
     case X86_INS_STI:
         emulate_sti(mcontext, mInstruction);
+        break;
+    case X86_INS_MOV:
+        /* This could be either a control register read/write or a page fault we need to emulate */
+        emulate_mov(mcontext, mInstruction);
+        break;
+    case X86_INS_XGETBV:
+        emulate_xgetbv(mcontext, mInstruction);
+        break;
+    case X86_INS_XSETBV:
+        emulate_xsetbv(mcontext, mInstruction);
         break;
 
     default:

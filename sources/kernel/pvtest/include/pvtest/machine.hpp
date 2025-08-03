@@ -8,11 +8,14 @@ namespace pv {
     class CpuCore;
     class IModelRegisterSet;
 
+    uint64_t getOperand(mcontext_t *mcontext, cs_x86_op operand) noexcept;
+    void setRegisterOperand(mcontext_t *mcontext, x86_reg reg, uint64_t value) noexcept;
+    uint64_t getRegisterOperand(mcontext_t *mcontext, x86_reg reg) noexcept;
+
     class Machine {
         km::PageBuilder mPageBuilder;
         Memory mMemory;
         std::vector<CpuCore, SharedAllocator<CpuCore>> mCores;
-        IModelRegisterSet *mMsrSet = nullptr;
 
         csh mCapstone{};
         cs_insn *mInstruction{};
@@ -35,9 +38,17 @@ namespace pv {
         void emulate_iretq(mcontext_t *mcontext, cs_insn *insn);
         void emulate_mmu(mcontext_t *mcontext, cs_insn *insn);
 
+        void emulateReadControl(mcontext_t *mcontext, cs_insn *insn, x86_reg reg, uint64_t value);
+        void emulateWriteControl(mcontext_t *mcontext, cs_insn *insn, x86_reg reg, uint64_t value);
+
+        void emulate_mov(mcontext_t *mcontext, cs_insn *insn);
+
+        void emulate_xgetbv(mcontext_t *mcontext, cs_insn *insn);
+        void emulate_xsetbv(mcontext_t *mcontext, cs_insn *insn);
+
     public:
-        Machine(size_t cores, off64_t memorySize = sm::gigabytes(16).bytes(), IModelRegisterSet *msrs = nullptr);
-        ~Machine();
+        Machine(size_t cores, off64_t memorySize = sm::gigabytes(16).bytes());
+        virtual ~Machine();
 
         km::PageBuilder *getPageBuilder() { return &mPageBuilder; }
         Memory *getMemory() { return &mMemory; }
@@ -80,5 +91,19 @@ namespace pv {
 
         static void initChild();
         static void finalizeChild();
+
+        virtual uint64_t xgetbv(uint32_t) { return 0; }
+        virtual void xsetbv(uint32_t, uint64_t) { }
+
+        virtual uint64_t rdmsr(uint32_t) { return 0; }
+        virtual void wrmsr(uint32_t, uint64_t) { }
+
+        virtual uint64_t readCr0() { return 0; }
+        virtual uint64_t readCr3() { return 0; }
+        virtual uint64_t readCr4() { return 0; }
+
+        virtual void writeCr0(uint64_t) { }
+        virtual void writeCr3(uint64_t) { }
+        virtual void writeCr4(uint64_t) { }
     };
 }
