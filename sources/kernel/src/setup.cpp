@@ -143,6 +143,7 @@ void km::DumpIsrState(const km::IsrContext *context) {
     InitLog.println("| %SS      | ", Hex(context->ss).pad(16));
     InitLog.println("| Vector   | ", Hex(context->vector).pad(16));
     InitLog.println("| Error    | ", Hex(context->error).pad(16));
+    InitLog.println("| %CR3     | ", Hex(__get_cr3()).pad(16));
     InitLog.println("\n");
 
     if (context->vector == isr::PF) {

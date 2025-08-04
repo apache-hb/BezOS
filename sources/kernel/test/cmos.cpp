@@ -16,7 +16,7 @@ TEST(CmosTest, ConvertBcd) {
         .century = 0,
     };
 
-    DateTime date = detail::ConvertCmosToDate(regs);
+    DateTime date = detail::convertCmosToDate(regs);
     ASSERT_EQ(date.second, 45);
     ASSERT_EQ(date.minute, 59);
     ASSERT_EQ(date.hour, 23);
@@ -37,7 +37,7 @@ TEST(CmosTest, ConvertBcd12Hour) {
         .century = 0,
     };
 
-    DateTime date = detail::ConvertCmosToDate(regs);
+    DateTime date = detail::convertCmosToDate(regs);
     ASSERT_EQ(date.second, 45);
     ASSERT_EQ(date.minute, 59);
     ASSERT_EQ(date.hour, 11);
@@ -58,7 +58,7 @@ TEST(CmosTest, ConvertBcd12HourHighHour) {
         .century = 0,
     };
 
-    DateTime date = detail::ConvertCmosToDate(regs);
+    DateTime date = detail::convertCmosToDate(regs);
     ASSERT_EQ(date.second, 45);
     ASSERT_EQ(date.minute, 59);
     ASSERT_EQ(date.hour, 19);
@@ -79,7 +79,7 @@ TEST(CmosTest, ConvertBcd24Hour) {
         .century = 0,
     };
 
-    DateTime date = detail::ConvertCmosToDate(regs);
+    DateTime date = detail::convertCmosToDate(regs);
     ASSERT_EQ(date.second, 45);
     ASSERT_EQ(date.minute, 59);
     ASSERT_EQ(date.hour, 7);
@@ -100,7 +100,7 @@ TEST(CmosTest, HourRollover) {
         .century = 0,
     };
 
-    DateTime date = detail::ConvertCmosToDate(regs);
+    DateTime date = detail::convertCmosToDate(regs);
     ASSERT_EQ(date.second, 45);
     ASSERT_EQ(date.minute, 59);
     ASSERT_EQ(date.hour, 1);
@@ -121,7 +121,7 @@ TEST(CmosTest, MinuteRollover) {
         .century = 0,
     };
 
-    DateTime date = detail::ConvertCmosToDate(regs);
+    DateTime date = detail::convertCmosToDate(regs);
     ASSERT_EQ(date.second, 45);
     ASSERT_EQ(date.minute, 1);
     ASSERT_EQ(date.hour, 23);
@@ -142,7 +142,7 @@ TEST(CmosTest, SecondRollover) {
         .century = 0,
     };
 
-    DateTime date = detail::ConvertCmosToDate(regs);
+    DateTime date = detail::convertCmosToDate(regs);
     ASSERT_EQ(date.second, 2);
     ASSERT_EQ(date.minute, 51);
     ASSERT_EQ(date.hour, 20);
@@ -163,7 +163,7 @@ TEST(CmosTest, MultiRollover) {
         .century = 0,
     };
 
-    DateTime date = detail::ConvertCmosToDate(regs);
+    DateTime date = detail::convertCmosToDate(regs);
     ASSERT_EQ(date.second, 2);
     ASSERT_EQ(date.minute, 3);
     ASSERT_EQ(date.hour, 21);
@@ -184,7 +184,7 @@ TEST(CmosTest, BcdCentury) {
         .century = 0x20,
     };
 
-    DateTime date = detail::ConvertCmosToDate(regs);
+    DateTime date = detail::convertCmosToDate(regs);
     ASSERT_EQ(date.second, 50);
     ASSERT_EQ(date.minute, 50);
     ASSERT_EQ(date.hour, 20);
@@ -205,7 +205,7 @@ TEST(CmosTest, DecimalCentury) {
         .century = 20,
     };
 
-    DateTime date = detail::ConvertCmosToDate(regs);
+    DateTime date = detail::convertCmosToDate(regs);
     ASSERT_EQ(date.second, 50);
     ASSERT_EQ(date.minute, 50);
     ASSERT_EQ(date.hour, 20);

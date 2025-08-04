@@ -184,7 +184,7 @@ bool sys::CpuLocalSchedule::scheduleNextContext(km::IsrContext *context, km::Isr
 
     if (oldThread != nullptr) {
         auto oldRegs = SaveThreadContext(context);
-        oldThread->saveState(oldRegs);
+        // oldThread->saveState(oldRegs);
     }
 
 #if 0
@@ -197,8 +197,8 @@ bool sys::CpuLocalSchedule::scheduleNextContext(km::IsrContext *context, km::Isr
     }
 #endif
 
-    auto newRegs = newThread->loadState();
-    *next = LoadThreadContext(newRegs);
+    // auto newRegs = newThread->loadState();
+    // *next = LoadThreadContext(newRegs);
     *syscallStack = newThread->getKernelStack().baseAddress();
     return true;
 }
@@ -356,7 +356,7 @@ OsStatus sys::GlobalSchedule::wait(sm::RcuSharedPtr<Thread> thread, sm::RcuShare
     return OsStatusSuccess;
 }
 
-OsStatus sys::GlobalSchedule::signal(sm::RcuSharedPtr<IObject> object, OsInstant now) {
+OsStatus sys::GlobalSchedule::signal(sm::RcuSharedPtr<IObject> object, OsInstant) {
     stdx::UniqueLock guard(mLock);
     auto iter = mWaitQueue.find(object);
     if (iter == mWaitQueue.end()) {
@@ -369,9 +369,6 @@ OsStatus sys::GlobalSchedule::signal(sm::RcuSharedPtr<IObject> object, OsInstant
         queue.pop();
 
         if (auto thread = entry.thread.lock()) {
-            OsStatus state = (entry.timeout < now) ? OsStatusTimeout : OsStatusCompleted;
-            thread->setSignalStatus(state);
-
             if (OsStatus status = resume(thread)) {
                 return status;
             }

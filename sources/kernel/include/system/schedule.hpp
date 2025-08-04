@@ -164,7 +164,7 @@ namespace sys {
 
     void installSchedulerIsr();
     void setupApScheduler();
-    void setupGlobalScheduler(bool enableSmp, acpi::AcpiTables& rsdt);
+    void setupGlobalScheduler(bool enableSmp, acpi::AcpiTables& rsdt, task::Scheduler *scheduler);
 
     task::SchedulerQueue *getTlsQueue();
     task::Scheduler *getScheduler();

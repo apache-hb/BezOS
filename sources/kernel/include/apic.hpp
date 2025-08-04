@@ -163,7 +163,6 @@ namespace km {
             alignas(0x10) uint32_t dst;
             alignas(0x10) uint32_t dfr;
             alignas(0x10) uint32_t spurious;
-
         };
     }
 

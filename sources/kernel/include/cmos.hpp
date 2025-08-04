@@ -32,16 +32,16 @@ namespace km {
             uint8_t century;
         };
 
-        CmosRegisters ReadCmosRegisters(uint8_t centuryRegister);
-        DateTime ConvertCmosToDate(CmosRegisters registers);
+        CmosRegisters readCmosRegisters(uint8_t centuryRegister);
+        DateTime convertCmosToDate(CmosRegisters registers);
     }
 
     void DisableNmi();
     void EnableNmi();
 
-    void InitCmos(uint8_t century) noexcept;
+    void initCmos(uint8_t century) noexcept;
 
-    DateTime ReadCmosClock();
+    DateTime readCmosClock();
 }
 
 template<>

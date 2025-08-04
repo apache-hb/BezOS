@@ -52,21 +52,16 @@ namespace sys {
 
         OsStatus stat(ThreadStat *info);
 
-        void saveState(RegisterSet& regs);
-        RegisterSet loadState();
+        void loadState();
         reg_t getTlsAddress() const { return mTlsAddress; }
         km::StackMapping getKernelStack() const { return mKernelStack; }
 
         bool isSupervisor();
 
-        void setSignalStatus(OsStatus status);
-
         OsStatus suspend();
         OsStatus resume();
 
         OsStatus attach(task::Scheduler *scheduler);
-
-        km::PhysicalAddress getPageMap();
 
         OsStatus destroy(System *system, OsThreadState reason);
         OsThreadState state() const { return mThreadState.load(); }

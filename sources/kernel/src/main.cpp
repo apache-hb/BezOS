@@ -105,7 +105,7 @@ static constexpr bool kUseX2Apic = true;
 static constexpr bool kSelfTestIdt = true;
 static constexpr bool kSelfTestApic = true;
 static constexpr bool kEnableSmp = true;
-
+static constexpr bool kEnableMouse = false;
 static constexpr bool kEnableXSave = true;
 
 // TODO: make this runtime configurable
@@ -148,7 +148,7 @@ void km::SetupApGdt(void) {
         .iopbOffset = sizeof(x64::TaskStateSegment),
     };
 
-    tlsSystemGdt = km::GetSystemGdt(&tlsTaskState);
+    tlsSystemGdt = km::getSystemGdt(&tlsTaskState);
     InitGdt(tlsSystemGdt->entries, SystemGdt::eLongModeCode, SystemGdt::eLongModeData);
     __ltr(SystemGdt::eTaskState0 * 0x8);
 
@@ -938,12 +938,12 @@ static OsStatus LaunchInitProcess(sys::InvokeContext *invoke, OsProcessHandle *p
     defer { sys::SysDeviceClose(invoke, device); };
 
     if (OsStatus status = km::LoadElf2(invoke, device, process, &thread)) {
-        VfsLog.fatalf("Failed to load init process: ", OsStatusId(status));
+        SysLog.fatalf("Failed to load init process: ", OsStatusId(status));
         return status;
     }
 
     if (OsStatus status = sys::SysThreadSuspend(invoke, thread, false)) {
-        VfsLog.fatalf("Failed to resume init thread: ", OsStatusId(status));
+        SysLog.fatalf("Failed to resume init thread: ", OsStatusId(status));
         return status;
     }
 
@@ -1253,8 +1253,6 @@ static void enqueueHeartbeatTask(km::ITickSource *tickSource, task::SchedulerEnt
     x64::page *taskStack = new x64::page[4];
     km::CpuCoreId cpuCoreId = km::GetCurrentCoreId();
 
-    InitLog.dbgf("Enqueuing heartbeat task on queue ", (void*)queue);
-
     OsStatus status = queue->enqueue({
         .registers = {
             .rdi = static_cast<uintptr_t>(cpuCoreId),
@@ -1276,12 +1274,6 @@ static void enqueueHeartbeatTask(km::ITickSource *tickSource, task::SchedulerEnt
 }
 
 static void startupSmp(const acpi::AcpiTables& rsdt, bool umip, km::ITickSource *tickSource, bool invariantTsc) {
-    //
-    // TODO:
-    // Create the scheduler and system objects before we startup SMP so that
-    // the AP cores have a scheduler to attach to.
-    //
-
     std::atomic_flag launchScheduler = ATOMIC_FLAG_INIT;
 
     if constexpr (kEnableSmp) {
@@ -1318,8 +1310,8 @@ static void startupSmp(const acpi::AcpiTables& rsdt, bool umip, km::ITickSource 
             }
 
             sys::setupApScheduler();
-            task::SchedulerEntry entry;
-            enqueueHeartbeatTask(bestTickSource, &entry);
+            // task::SchedulerEntry entry;
+            // enqueueHeartbeatTask(bestTickSource, &entry);
             enterSchedulerLoop(GetCpuLocalApic(), &apicTimer);
         });
     }
@@ -1381,17 +1373,16 @@ static OsStatus NotificationWork(void *) {
 }
 
 static OsStatus KernelMasterTask() {
-    // auto *scheduler = gSysSystem->scheduler();
-    // InitLog.infof("Kernel master task.");
+    InitLog.infof("Kernel master task.");
 
-    // LaunchThread(&NotificationWork, gNotificationStream, "NOTIFY");
+    LaunchThread(&NotificationWork, gNotificationStream, "NOTIFY");
 
-    // OsProcessHandle hInit = OS_HANDLE_INVALID;
-    // sys::InvokeContext invoke { gSysSystem, sys::GetCurrentProcess(), sys::GetCurrentThread() };
-    // if (OsStatus status = LaunchInitProcess(&invoke, &hInit)) {
-    //     InitLog.fatalf("Failed to create INIT process: ", OsStatusId(status));
-    //     KM_PANIC("Failed to create init process.");
-    // }
+    OsProcessHandle hInit = OS_HANDLE_INVALID;
+    sys::InvokeContext invoke { gSysSystem, sys::GetCurrentProcess(), sys::GetCurrentThread() };
+    if (OsStatus status = LaunchInitProcess(&invoke, &hInit)) {
+        InitLog.fatalf("Failed to create INIT process: ", OsStatusId(status));
+        KM_PANIC("Failed to create init process.");
+    }
 
     while (true) {
         // OsInstant now;
@@ -1401,8 +1392,6 @@ static OsStatus KernelMasterTask() {
 
     return OsStatusSuccess;
 }
-
-static constexpr bool kEnableMouse = false;
 
 static void configurePs2Controller(const acpi::AcpiTables& rsdt, IoApicSet& ioApicSet, const IApic *apic, LocalIsrTable *ist) {
     static hid::Ps2Controller ps2Controller;
@@ -1485,7 +1474,7 @@ static void createDisplayDevice() {
     }
 }
 
-static void LaunchKernelProcess(km::ApicTimer *apicTimer) {
+static void LaunchKernelProcess(km::ITickSource *tickSource) {
     sys::ProcessCreateInfo createInfo {
         .name = stdx::StringView::ofString("SYSTEM"),
         .state = eOsProcessSupervisor,
@@ -1510,6 +1499,8 @@ static void LaunchKernelProcess(km::ApicTimer *apicTimer) {
     OsThreadCreateInfo threadInfo {
         .Name = "SYSTEM MASTER TASK",
         .CpuState = {
+            .rsi = reinterpret_cast<uintptr_t>(tickSource),
+            .rdi = static_cast<uintptr_t>(km::GetCurrentCoreId()),
             .rbp = 0x0,
             .rsp = std::bit_cast<uintptr_t>(stack.stackBaseAddress() - 0x8),
             .rip = (uintptr_t)&KernelMasterTask,
@@ -1671,7 +1662,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     acpi::AcpiTables rsdt = acpi::InitAcpi(launch.rsdpAddress, gMemory->pageTables());
     const acpi::Fadt *fadt = rsdt.fadt();
-    InitCmos(fadt->century);
+    initCmos(fadt->century);
 
     uint32_t ioApicCount = rsdt.ioApicCount();
     KM_CHECK(ioApicCount > 0, "No IOAPICs found.");
@@ -1739,14 +1730,14 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     ioApicSet.clearLegacyRedirect(irq::kTimer);
 
-    sys::setupGlobalScheduler(kEnableSmp, rsdt);
+    sys::setupGlobalScheduler(kEnableSmp, rsdt, &gSysSystem->mScheduler);
 
-    task::SchedulerEntry entry;
-    enqueueHeartbeatTask(clockTicker, &entry);
+    // task::SchedulerEntry entry;
+    // enqueueHeartbeatTask(clockTicker, &entry);
 
     startupSmp(rsdt, processor.umip(), clockTicker, processor.invariantTsc);
 
-    DateTime time = ReadCmosClock();
+    DateTime time = readCmosClock();
     ClockLog.infof("Current time: ", time);
 
     gClock = Clock { time, clockTicker };
@@ -1757,7 +1748,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     configurePs2Controller(rsdt, ioApicSet, lapic.pointer(), ist);
     createDisplayDevice();
 
-    LaunchKernelProcess(&apicTimer);
+    LaunchKernelProcess(clockTicker);
 
     enterSchedulerLoop(GetCpuLocalApic(), &apicTimer);
 

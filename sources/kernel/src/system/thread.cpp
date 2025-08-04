@@ -59,25 +59,12 @@ OsStatus sys::Thread::stat(ThreadStat *info) {
     return OsStatusSuccess;
 }
 
-void sys::Thread::saveState(RegisterSet& regs) {
-    // mCpuState = regs;
-    // mTlsAddress = IA32_FS_BASE.load();
-    // if (mFpuState) {
-    //     km::XSaveStoreState(mFpuState.get());
-    // }
-}
-
-sys::RegisterSet sys::Thread::loadState() {
-    // IA32_FS_BASE = mTlsAddress;
-    // if (mFpuState) {
-    //     km::XSaveLoadState(mFpuState.get());
-    // }
-
+void sys::Thread::loadState() {
     if (auto process = mProcess.lock()) {
         process->loadPageTables();
+    } else {
+        TaskLog.warnf("Thread ", getName(), " has no associated process, cannot load page tables.");
     }
-
-    return mCpuState;
 }
 
 bool sys::Thread::isSupervisor() {
@@ -86,10 +73,6 @@ bool sys::Thread::isSupervisor() {
     }
 
     return false;
-}
-
-void sys::Thread::setSignalStatus(OsStatus status) {
-    mCpuState.rax = status;
 }
 
 sys::Thread::Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, x64::XSave *fpuState, km::StackMapping kernelStack)
@@ -174,11 +157,10 @@ OsStatus sys::Thread::attach(task::Scheduler *scheduler) {
         .tlsBase = mTlsAddress,
     };
 
-    return scheduler->enqueue(state, this);
-}
+    state.registers.cs = isSupervisor() ? (GDT_64BIT_CODE * 0x8) : ((GDT_64BIT_USER_CODE * 0x8) | 0b11);
+    state.registers.ss = isSupervisor() ? (GDT_64BIT_DATA * 0x8) : ((GDT_64BIT_USER_DATA * 0x8) | 0b11);
 
-km::PhysicalAddress sys::Thread::getPageMap() {
-    return mProcess.lock()->getPageMap();
+    return scheduler->enqueue(state, this);
 }
 
 OsStatus sys::Thread::destroy(System *, OsThreadState reason) {

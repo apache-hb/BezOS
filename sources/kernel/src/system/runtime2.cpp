@@ -23,8 +23,8 @@ static constinit km::CpuLocal<void*> tlsKernelStack;
 CPU_LOCAL
 static constinit km::CpuLocal<task::SchedulerQueue*> tlsQueue;
 
-void sys::setupGlobalScheduler(bool enableSmp, acpi::AcpiTables& rsdt) {
-    gScheduler = new task::Scheduler;
+void sys::setupGlobalScheduler(bool enableSmp, acpi::AcpiTables& rsdt, task::Scheduler *scheduler) {
+    gScheduler = scheduler;
     task::Scheduler::create(gScheduler);
     size_t cpuCount = enableSmp ? rsdt.madt()->lapicCount() : 1;
     task::SchedulerQueue *queues = new task::SchedulerQueue[cpuCount];
@@ -74,9 +74,12 @@ void sys::installSchedulerIsr() {
 
         task::SchedulerQueue *queue = tlsQueue.get();
         if (task::switchCurrentContext(gScheduler, queue, isrContext)) {
-            // task::SchedulerEntry *entry = queue->getCurrentTask();
-            // sys::Thread *thread = static_cast<sys::Thread*>(entry);
-            // thread->loadState();
+            task::SchedulerEntry *entry = queue->getCurrentTask();
+            sys::Thread *thread = static_cast<sys::Thread*>(entry);
+            km::StackMapping kernelStack = thread->getKernelStack();
+
+            thread->loadState();
+            tlsKernelStack = kernelStack.baseAddress();
         }
 
         apic->eoi();

@@ -31,13 +31,13 @@ namespace sm {
             static std::chrono::system_clock::time_point to_sys(time_point time);
         };
 
-        constexpr bool IsHex(char c) {
+        constexpr bool isHex(char c) {
             return (c >= '0' && c <= '9')
                 || (c >= 'a' && c <= 'f')
                 || (c >= 'A' && c <= 'F');
         }
 
-        constexpr uint8_t HexNibble(char c) {
+        constexpr uint8_t hexNibble(char c) {
             if (c >= '0' && c <= '9') {
                 return c - '0';
             } else if (c >= 'a' && c <= 'f') {
@@ -49,16 +49,16 @@ namespace sm {
             return 0;
         }
 
-        constexpr bool ReadOctects(const char *str, size_t n, uint8_t *dst) {
+        constexpr bool readOctects(const char *str, size_t n, uint8_t *dst) {
             for (size_t i = 0; i < n; i++) {
                 char c0 = str[(i * 2) + 0];
                 char c1 = str[(i * 2) + 1];
 
-                if (!IsHex(c0) || !IsHex(c1)) {
+                if (!isHex(c0) || !isHex(c1)) {
                     return false;
                 }
 
-                dst[i] = (HexNibble(c0) << 4) | HexNibble(c1);
+                dst[i] = (hexNibble(c0) << 4) | hexNibble(c1);
             }
 
             return true;
@@ -340,19 +340,19 @@ namespace sm {
 
             uuid tmp = uuid::nil();
 
-            if (!detail::ReadOctects(head, 4, tmp.octets)) assert(false);
+            if (!detail::readOctects(head, 4, tmp.octets)) assert(false);
             if (head[8] != '-') assert(false);
 
-            if (!detail::ReadOctects(head + 9, 2, tmp.octets + 4)) assert(false);
+            if (!detail::readOctects(head + 9, 2, tmp.octets + 4)) assert(false);
             if (head[13] != '-') assert(false);
 
-            if (!detail::ReadOctects(head + 14, 2, tmp.octets + 6)) assert(false);
+            if (!detail::readOctects(head + 14, 2, tmp.octets + 6)) assert(false);
             if (head[18] != '-') assert(false);
 
-            if (!detail::ReadOctects(head + 19, 2, tmp.octets + 8)) assert(false);
+            if (!detail::readOctects(head + 19, 2, tmp.octets + 8)) assert(false);
             if (head[23] != '-') assert(false);
 
-            if (!detail::ReadOctects(head + 24, 6, tmp.octets + 10)) assert(false);
+            if (!detail::readOctects(head + 24, 6, tmp.octets + 10)) assert(false);
 
             return tmp;
         }

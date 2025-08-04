@@ -25,7 +25,7 @@ static uint8_t ReadCmosRegister(uint8_t reg) {
     return KmReadByte(kCmosData);
 }
 
-void km::InitCmos(uint8_t century) noexcept {
+void km::initCmos(uint8_t century) noexcept {
     gCenturyRegister = century;
 }
 
@@ -40,7 +40,7 @@ static void DateComponentOverflow(uint8_t& value, uint8_t& next, uint8_t max) {
     }
 }
 
-km::detail::CmosRegisters km::detail::ReadCmosRegisters(uint8_t centuryRegister) {
+km::detail::CmosRegisters km::detail::readCmosRegisters(uint8_t centuryRegister) {
     km::NmiGuard guard;
 
     return km::detail::CmosRegisters {
@@ -57,7 +57,7 @@ km::detail::CmosRegisters km::detail::ReadCmosRegisters(uint8_t centuryRegister)
     };
 }
 
-km::DateTime km::detail::ConvertCmosToDate(detail::CmosRegisters registers) {
+km::DateTime km::detail::convertCmosToDate(detail::CmosRegisters registers) {
     auto [regB, second, minute, hour, day, month, year, century] = registers;
 
     bool is12Hour = regB & k12HourClock;
@@ -100,7 +100,7 @@ km::DateTime km::detail::ConvertCmosToDate(detail::CmosRegisters registers) {
     };
 }
 
-km::DateTime km::ReadCmosClock() {
-    auto regs = detail::ReadCmosRegisters(gCenturyRegister);
-    return detail::ConvertCmosToDate(regs);
+km::DateTime km::readCmosClock() {
+    auto regs = detail::readCmosRegisters(gCenturyRegister);
+    return detail::convertCmosToDate(regs);
 }

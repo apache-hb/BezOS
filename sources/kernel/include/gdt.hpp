@@ -47,7 +47,7 @@ namespace x64 {
 
     UTIL_BITFLAGS(Access);
 
-    constexpr uint64_t BuildSegmentDescriptor(Flags flags, Access access, uint32_t limit, uint32_t base = 0) {
+    constexpr uint64_t buildSegmentDescriptor(Flags flags, Access access, uint32_t limit, uint32_t base = 0) {
         return (uint64_t)(base & 0xFF000000) << 32
              | (uint64_t)(flags) << 52
              | (uint64_t)(access) << 40
@@ -129,7 +129,7 @@ namespace x64 {
 
     static_assert(sizeof(TssEntry) == 0x10);
 
-    static constexpr TssEntry NewTssEntry(const TaskStateSegment *tss, uint8_t dpl) {
+    static constexpr TssEntry newTssEntry(const TaskStateSegment *tss, uint8_t dpl) {
         return TssEntry(tss, Privilege(dpl));
     }
 
@@ -142,7 +142,7 @@ namespace x64 {
 
     public:
         constexpr GdtEntry(Flags flags, Access access, uint32_t limit, uint32_t base = 0)
-            : GdtEntry(BuildSegmentDescriptor(flags, access, limit, base))
+            : GdtEntry(buildSegmentDescriptor(flags, access, limit, base))
         { }
 
         constexpr GdtEntry() : GdtEntry(0) { }
@@ -204,7 +204,7 @@ namespace km {
         x64::GdtEntry entries[eCount];
 
         void setTss(const x64::TaskStateSegment *tss) {
-            x64::TssEntry entry = x64::NewTssEntry(tss, 0);
+            x64::TssEntry entry = x64::newTssEntry(tss, 0);
 
             memcpy(&entries[SystemGdt::eTaskState0], &entry, sizeof(entry));
         }
@@ -216,7 +216,7 @@ namespace km {
     [[gnu::const]]
     SystemGdt getBootGdt() noexcept;
 
-    SystemGdt GetSystemGdt(const x64::TaskStateSegment *tss);
+    SystemGdt getSystemGdt(const x64::TaskStateSegment *tss);
 }
 
 template<>
