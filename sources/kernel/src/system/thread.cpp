@@ -4,13 +4,12 @@
 #include "system/system.hpp"
 
 #include "task/scheduler.hpp"
-#include "thread.hpp"
 #include "xsave.hpp"
 #include "gdt.h"
 
 #include <bezos/handle.h>
 
-static sys::RegisterSet MakeRegisterSet(OsMachineContext machine, bool supervisor) {
+static sys::RegisterSet makeRegisterSet(OsMachineContext machine, bool supervisor) {
     uint64_t cs = supervisor ? (GDT_64BIT_CODE * 0x8) : ((GDT_64BIT_USER_CODE * 0x8) | 0b11);
     uint64_t ss = supervisor ? (GDT_64BIT_DATA * 0x8) : ((GDT_64BIT_USER_DATA * 0x8) | 0b11);
 
@@ -98,7 +97,7 @@ sys::Thread::Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> 
 
 sys::Thread::Thread(OsThreadCreateInfo createInfo, sm::RcuWeakPtr<Process> process, sys::XSaveState fpuState, km::StackMapping kernelStack)
     : Super(createInfo.Name)
-    , mCpuState(MakeRegisterSet(createInfo.CpuState, isSupervisor()))
+    , mCpuState(makeRegisterSet(createInfo.CpuState, isSupervisor()))
     , mFpuState(std::move(fpuState))
     , mTlsAddress(createInfo.TlsAddress)
     , mThreadState(createInfo.Flags)
@@ -327,6 +326,10 @@ OsStatus sys::SysThreadStat(InvokeContext *context, OsThreadHandle handle, OsThr
     return OsStatusSuccess;
 }
 
+// TODO: tty.elf/init.elf crash because suspend and resume don't work as expected anymore
+// ... as in they dont work at all.
+// Currently the scheduler requires that a sleeping thread has an object to sleep on,
+// but during thread startup if the thread is started suspended it is not sleeping on anything.
 OsStatus sys::SysThreadSuspend(InvokeContext *context, OsThreadHandle handle, bool suspend) {
     ThreadHandle *hThread = nullptr;
     if (OsStatus status = SysFindHandle(context, handle, &hThread)) {

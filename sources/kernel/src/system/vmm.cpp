@@ -656,6 +656,8 @@ void sys::AddressSpaceManager::setActiveMap(const AddressSpaceManager *map) noex
     CLANG_DIAGNOSTIC_PUSH();
     CLANG_DIAGNOSTIC_IGNORE("-Wthread-safety");
 
+    MemLog.dbgf("Setting active address space: ", map->mPageTables.root());
+
     const km::PageBuilder *pm = map->mPageTables.pageManager();
     pm->setActiveMap(map->mPageTables.root());
 

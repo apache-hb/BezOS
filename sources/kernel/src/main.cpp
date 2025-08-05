@@ -110,6 +110,7 @@ static constexpr bool kEnableXSave = true;
 
 // TODO: make this runtime configurable
 static constexpr size_t kMaxMessageSize = 0x1000;
+static constexpr std::chrono::milliseconds kDefaultTimeSlice = std::chrono::milliseconds(25);
 
 constinit static km::SerialAppender gSerialAppender;
 constinit static km::VgaAppender gVgaAppender;
@@ -544,7 +545,7 @@ static km::IsrContext SpuriousVector(km::IsrContext *ctx) noexcept [[clang::reen
     return *ctx;
 }
 
-static km::Apic EnableBootApic(km::AddressSpace& memory, bool useX2Apic) {
+static km::Apic enableBootApic(km::AddressSpace& memory, bool useX2Apic) {
     km::Apic apic = InitBspApic(memory, useX2Apic);
 
     // setup tls now that we have the lapic id
@@ -590,7 +591,7 @@ static km::Apic EnableBootApic(km::AddressSpace& memory, bool useX2Apic) {
     return apic;
 }
 
-static void InitBootTerminal(std::span<const boot::FrameBuffer> framebuffers) {
+static void initBootTerminal(std::span<const boot::FrameBuffer> framebuffers) {
     if (framebuffers.empty()) return;
 
     if (km::VgaAppender::create(framebuffers.front(), (void*)framebuffers.front().vaddr, &gVgaAppender) != OsStatusSuccess) {
@@ -608,7 +609,7 @@ static void updateSerialPort(ComPortInfo info) {
     }
 }
 
-static SerialPortStatus InitSerialPort(ComPortInfo info) {
+static SerialPortStatus initSerialPort(ComPortInfo info) {
     if (OpenSerialResult com = OpenSerial(info)) {
         return com.status;
     } else {
@@ -618,7 +619,7 @@ static SerialPortStatus InitSerialPort(ComPortInfo info) {
     }
 }
 
-static void InitPortDelay(const std::optional<HypervisorInfo>& hvInfo) {
+static void initPortDelay(const std::optional<HypervisorInfo>& hvInfo) {
     bool isKvm = hvInfo.transform([](const HypervisorInfo& hv) { return hv.isKvm(); }).value_or(false);
     x64::PortDelay delay = isKvm ? x64::PortDelay::eNone : x64::PortDelay::ePostCode;
 
@@ -702,7 +703,7 @@ static void displaySystemInfo(
     InitLog.println("| /BOOT         | HHDM offset          | ", Hex(launch.hhdmOffset).pad(16, '0'));
 }
 
-static void SetupInterruptStacks(uint16_t cs) {
+static void setupInterruptStacks(uint16_t cs) {
     SystemMemory *memory = GetSystemMemory();
     gBootTss = x64::TaskStateSegment {
         .ist1 = (uintptr_t)memory->allocateStack(kTssStackSize).vaddr + kTssStackSize,
@@ -737,7 +738,7 @@ static void initStage1Idt(uint16_t cs) {
 
     InitInterrupts(cs);
     InstallExceptionHandlers(GetSharedIsrTable());
-    SetupInterruptStacks(cs);
+    setupInterruptStacks(cs);
 
     if (kSelfTestIdt) {
         km::LocalIsrTable *ist = GetLocalIsrTable();
@@ -752,7 +753,7 @@ static void initStage1Idt(uint16_t cs) {
     }
 }
 
-static void NormalizeProcessorState() {
+static void normalizeProcessorState() {
     x64::Cr0 cr0 = x64::Cr0::of(x64::Cr0::PG | x64::Cr0::WP | x64::Cr0::NE | x64::Cr0::ET | x64::Cr0::PE);
     x64::Cr0::store(cr0);
 
@@ -921,7 +922,7 @@ static void MountVolatileFolder() {
     }
 }
 
-static OsStatus LaunchInitProcess(sys::InvokeContext *invoke, OsProcessHandle *process) {
+static OsStatus launchInitProcess(sys::InvokeContext *invoke, OsProcessHandle *process) {
     OsDeviceHandle device = OS_HANDLE_INVALID;
     OsThreadHandle thread = OS_HANDLE_INVALID;
     sys::DeviceOpenInfo createInfo {
@@ -950,7 +951,7 @@ static OsStatus LaunchInitProcess(sys::InvokeContext *invoke, OsProcessHandle *p
     return OsStatusSuccess;
 }
 
-static std::tuple<std::optional<HypervisorInfo>, bool> QueryHostHypervisor() {
+static std::tuple<std::optional<HypervisorInfo>, bool> queryHostHypervisor() {
     std::optional<HypervisorInfo> hvInfo = GetHypervisorInfo();
     bool hasDebugPort = false;
 
@@ -1206,15 +1207,13 @@ static void AddClockSystemCalls() {
     });
 }
 
-static void EnableUmip(bool enable) {
+static void enableUmip(bool enable) {
     if (enable) {
         x64::Cr4 cr4 = x64::Cr4::load();
         cr4.set(x64::Cr4::UMIP);
         x64::Cr4::store(cr4);
     }
 }
-
-static constexpr std::chrono::milliseconds kDefaultTimeSlice = std::chrono::milliseconds(25);
 
 [[noreturn]]
 static void enterSchedulerLoop(km::IApic *apic, km::ApicTimer *apicTimer) {
@@ -1234,45 +1233,6 @@ static void enterSchedulerLoop(km::IApic *apic, km::ApicTimer *apicTimer) {
     KmIdle();
 }
 
-static void heartbeatTask(km::CpuCoreId cpuCoreId, km::ITickSource *tickSource) {
-    hertz frequency = tickSource->frequency();
-    uint64_t start = tickSource->ticks();
-
-    while (true) {
-        uint64_t now = tickSource->ticks();
-        if (now - start >= (frequency * 2) / si::hertz) {
-            start = now;
-            TestLog.dbgf("Heartbeat on CPU ", cpuCoreId, " at ", now, " ticks (", frequency, ")");
-        }
-    }
-}
-
-static void enqueueHeartbeatTask(km::ITickSource *tickSource, task::SchedulerEntry *task) {
-    task::SchedulerQueue *queue = sys::getTlsQueue();
-    x64::XSave *taskXSave = CreateXSave();
-    x64::page *taskStack = new x64::page[4];
-    km::CpuCoreId cpuCoreId = km::GetCurrentCoreId();
-
-    OsStatus status = queue->enqueue({
-        .registers = {
-            .rdi = static_cast<uintptr_t>(cpuCoreId),
-            .rsi = reinterpret_cast<uintptr_t>(tickSource),
-            .rbp = reinterpret_cast<uintptr_t>(taskStack + 4) - 0x8,
-            .rsp = reinterpret_cast<uintptr_t>(taskStack + 4) - 0x8,
-            .rip = reinterpret_cast<uintptr_t>(&heartbeatTask),
-            .rflags = 0x202, // IF set, no other flags
-            .cs = SystemGdt::eLongModeCode * 0x8,
-            .ss = SystemGdt::eLongModeData * 0x8,
-        },
-        .xsave = taskXSave,
-    }, task);
-
-    if (status != OsStatusSuccess) {
-        InitLog.fatalf("Failed to enqueue heartbeat task: ", OsStatusId(status));
-        KM_PANIC("Failed to enqueue heartbeat task.");
-    }
-}
-
 static void startupSmp(const acpi::AcpiTables& rsdt, bool umip, km::ITickSource *tickSource, bool invariantTsc) {
     std::atomic_flag launchScheduler = ATOMIC_FLAG_INIT;
 
@@ -1287,7 +1247,7 @@ static void startupSmp(const acpi::AcpiTables& rsdt, bool umip, km::ITickSource 
                 _mm_pause();
             }
 
-            EnableUmip(umip);
+            enableUmip(umip);
 
             km::ITickSource *bestTickSource = tickSource;
 
@@ -1310,8 +1270,6 @@ static void startupSmp(const acpi::AcpiTables& rsdt, bool umip, km::ITickSource 
             }
 
             sys::setupApScheduler();
-            // task::SchedulerEntry entry;
-            // enqueueHeartbeatTask(bestTickSource, &entry);
             enterSchedulerLoop(GetCpuLocalApic(), &apicTimer);
         });
     }
@@ -1335,7 +1293,7 @@ static void startupSmp(const acpi::AcpiTables& rsdt, bool umip, km::ITickSource 
 
 static constexpr size_t kKernelStackSize = 0x4000;
 
-static OsStatus LaunchThread(OsStatus(*entry)(void*), void *arg, stdx::String name) {
+static OsStatus launchThread(OsStatus(*entry)(void*), void *arg, stdx::String name) {
     km::StackMappingAllocation stack;
     if (OsStatus status = gMemory->mapStack(kKernelStackSize, PageFlags::eData, &stack)) {
         return status;
@@ -1372,14 +1330,14 @@ static OsStatus NotificationWork(void *) {
     return OsStatusSuccess;
 }
 
-static OsStatus KernelMasterTask() {
+static OsStatus kernelMasterTask() {
     InitLog.infof("Kernel master task.");
 
-    LaunchThread(&NotificationWork, gNotificationStream, "NOTIFY");
+    launchThread(&NotificationWork, gNotificationStream, "NOTIFY");
 
     OsProcessHandle hInit = OS_HANDLE_INVALID;
     sys::InvokeContext invoke { gSysSystem, sys::GetCurrentProcess(), sys::GetCurrentThread() };
-    if (OsStatus status = LaunchInitProcess(&invoke, &hInit)) {
+    if (OsStatus status = launchInitProcess(&invoke, &hInit)) {
         InitLog.fatalf("Failed to create INIT process: ", OsStatusId(status));
         KM_PANIC("Failed to create init process.");
     }
@@ -1474,7 +1432,7 @@ static void createDisplayDevice() {
     }
 }
 
-static void LaunchKernelProcess(km::ITickSource *tickSource) {
+static void launchKernelProcess(km::ITickSource *tickSource) {
     sys::ProcessCreateInfo createInfo {
         .name = stdx::StringView::ofString("SYSTEM"),
         .state = eOsProcessSupervisor,
@@ -1503,7 +1461,7 @@ static void LaunchKernelProcess(km::ITickSource *tickSource) {
             .rdi = static_cast<uintptr_t>(km::GetCurrentCoreId()),
             .rbp = 0x0,
             .rsp = std::bit_cast<uintptr_t>(stack.stackBaseAddress() - 0x8),
-            .rip = (uintptr_t)&KernelMasterTask,
+            .rip = (uintptr_t)&kernelMasterTask,
         },
         .Flags = eOsThreadRunning,
     };
@@ -1571,10 +1529,10 @@ static void displayHpetInfo(const km::HighPrecisionTimer& hpet) {
 }
 
 void LaunchKernel(boot::LaunchInfo launch) {
-    NormalizeProcessorState();
+    normalizeProcessorState();
     SetDebugLogLock(DebugLogLockType::eNone);
-    InitBootTerminal(launch.framebuffers);
-    auto [hvInfo, hasDebugPort] = QueryHostHypervisor();
+    initBootTerminal(launch.framebuffers);
+    auto [hvInfo, hasDebugPort] = queryHostHypervisor();
 
 #if 0
     TestCanvas(gDirectTerminalLog.get().display());
@@ -1582,9 +1540,9 @@ void LaunchKernel(boot::LaunchInfo launch) {
 #endif
 
     ProcessorInfo processor = GetProcessorInfo();
-    EnableUmip(processor.umip());
+    enableUmip(processor.umip());
 
-    InitPortDelay(hvInfo);
+    initPortDelay(hvInfo);
 
     ComPortInfo com2Info = {
         .port = km::com::kComPort2,
@@ -1596,7 +1554,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
         .divisor = km::com::kBaud9600,
     };
 
-    SerialPortStatus com1Status = InitSerialPort(com1Info);
+    SerialPortStatus com1Status = initSerialPort(com1Info);
 
     if (OsStatus status = debug::InitDebugStream(com2Info)) {
         InitLog.warnf("Failed to initialize debug stream: ", OsStatusId(status));
@@ -1658,7 +1616,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     bool useX2Apic = kUseX2Apic && processor.x2apic();
 
-    auto lapic = EnableBootApic(gMemory->pageTables(), useX2Apic);
+    auto lapic = enableBootApic(gMemory->pageTables(), useX2Apic);
 
     acpi::AcpiTables rsdt = acpi::InitAcpi(launch.rsdpAddress, gMemory->pageTables());
     const acpi::Fadt *fadt = rsdt.fadt();
@@ -1732,9 +1690,6 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     sys::setupGlobalScheduler(kEnableSmp, rsdt, &gSysSystem->mScheduler);
 
-    // task::SchedulerEntry entry;
-    // enqueueHeartbeatTask(clockTicker, &entry);
-
     startupSmp(rsdt, processor.umip(), clockTicker, processor.invariantTsc);
 
     DateTime time = readCmosClock();
@@ -1748,13 +1703,13 @@ void LaunchKernel(boot::LaunchInfo launch) {
     configurePs2Controller(rsdt, ioApicSet, lapic.pointer(), ist);
     createDisplayDevice();
 
-    LaunchKernelProcess(clockTicker);
+    launchKernelProcess(clockTicker);
 
     enterSchedulerLoop(GetCpuLocalApic(), &apicTimer);
 
     KmHalt();
 
-    LaunchKernelProcess(&apicTimer);
+    launchKernelProcess(&apicTimer);
 
     KM_PANIC("Test bugcheck.");
 
