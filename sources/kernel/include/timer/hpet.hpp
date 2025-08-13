@@ -107,7 +107,7 @@ namespace km {
         static_assert(offsetof(MmioRegisters, comparators) == 0x100);
     }
 
-    OsStatus InitHpet(const acpi::AcpiTables& rsdt, AddressSpace& memory, HighPrecisionTimer *timer);
+    OsStatus setupHpet(const acpi::AcpiTables& rsdt, AddressSpace& memory, HighPrecisionTimer *timer);
 
     class HighPrecisionTimer final : public ITickSource {
         acpi::Hpet mTable;
@@ -142,6 +142,6 @@ namespace km {
         std::span<hpet::Comparator> comparators();
         std::span<const hpet::Comparator> comparators() const;
 
-        friend OsStatus km::InitHpet(const acpi::AcpiTables& rsdt, AddressSpace& memory, HighPrecisionTimer *timer);
+        friend OsStatus km::setupHpet(const acpi::AcpiTables& rsdt, AddressSpace& memory, HighPrecisionTimer *timer);
     };
 }

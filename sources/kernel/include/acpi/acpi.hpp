@@ -53,6 +53,11 @@ namespace acpi {
         }
     };
 
+    struct AcpiSetupOptions {
+        km::PhysicalAddressEx rsdpBaseAddress;
+        bool ignoreInvalidRsdpChecksum = false;
+    };
+
     class AcpiTables {
         km::TlsfAllocation mRsdpAllocation;
         const RsdpLocator *mRsdpLocator;
@@ -64,6 +69,8 @@ namespace acpi {
         size_t mRsdtEntryCount;
 
     public:
+        constexpr AcpiTables() = default;
+
         AcpiTables(km::TlsfAllocation allocation, const RsdpLocator *locator, km::AddressSpace& memory);
 
         const RsdpLocator *locator() const { return mRsdpLocator; }
@@ -86,9 +93,12 @@ namespace acpi {
         const Mcfg *mcfg() const { return mMcfg; }
         const Fadt *fadt() const { return mFadt; }
         const RsdtHeader *dsdt() const { return mDsdt; }
+
+        [[nodiscard]]
+        static OsStatus setup(const AcpiSetupOptions& options, km::AddressSpace& memory, AcpiTables *tables [[gnu::nonnull, clang::noescape]]);
     };
 
-    acpi::AcpiTables InitAcpi(sm::PhysicalAddress rsdpBaseAddress, km::AddressSpace& memory);
+    acpi::AcpiTables setupAcpi(sm::PhysicalAddress rsdpBaseAddress, km::AddressSpace& memory);
 }
 
 namespace acpi::detail {

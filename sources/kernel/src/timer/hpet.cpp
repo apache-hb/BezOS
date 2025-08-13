@@ -179,9 +179,9 @@ std::span<const km::hpet::Comparator> km::HighPrecisionTimer::comparators() cons
     return std::span<const hpet::Comparator>(begin, end);
 }
 
-OsStatus km::InitHpet(const acpi::AcpiTables& rsdt, AddressSpace& memory, HighPrecisionTimer *timer) {
+OsStatus km::setupHpet(const acpi::AcpiTables& rsdt, AddressSpace& memory, HighPrecisionTimer *timer) {
     for (const acpi::RsdtHeader *header : rsdt.entries()) {
-        const acpi::Hpet *hpet = acpi::TableCast<acpi::Hpet>(header);
+        const acpi::Hpet *hpet = acpi::tableCast<acpi::Hpet>(header);
         if (hpet == nullptr)
             continue;
 

@@ -1,4 +1,4 @@
-#include "logger/logger.hpp"
+#include "logger/queue.hpp"
 #include "panic.hpp"
 
 void km::LogQueue::initGlobalLogQueue(uint32_t messageQueueCapacity) {

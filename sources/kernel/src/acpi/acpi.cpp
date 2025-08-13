@@ -51,7 +51,7 @@ static const acpi::RsdtHeader *mapTableEntry(sm::PhysicalAddress paddr, km::Addr
     return memory.mapConst<acpi::RsdtHeader>(km::MemoryRangeEx::of(paddr, length), tableAllocation);
 }
 
-static void DebugMadt(const acpi::Madt *madt) {
+static void displayMadt(const acpi::Madt *madt) {
     // Cant copy madt to a local variable because its begin() and end() methods return iterators
     // that reference a pointer to itself, so it must not be moved.
 
@@ -67,7 +67,7 @@ static void DebugMadt(const acpi::Madt *madt) {
     }
 }
 
-static void DebugMcfg(const acpi::Mcfg *mcfg) {
+static void displayMcfg(const acpi::Mcfg *mcfg) {
     for (size_t i = 0; i < mcfg->allocationCount(); i++) {
         acpi::McfgAllocation allocation = mcfg->allocations[i];
         AcpiLog.println("| /SYS/ACPI/MCFG/", km::Int(i).pad(3), " | Address                     | ", km::PhysicalAddress(allocation.address));
@@ -77,7 +77,7 @@ static void DebugMcfg(const acpi::Mcfg *mcfg) {
     }
 }
 
-static void DebugFadt(const acpi::Fadt *fadt) {
+static void displayFadt(const acpi::Fadt *fadt) {
     acpi::Fadt table = *fadt;
 
     AcpiLog.println("| /SYS/ACPI/FACP     | Firmware control            | ", km::Hex(table.firmwareCtrl).pad(8, '0'));
@@ -135,7 +135,7 @@ static void DebugFadt(const acpi::Fadt *fadt) {
     AcpiLog.println("| /SYS/ACPI/FACP     | Hypervisor vendor ID        | ", km::Hex(table.hypervisorVendor).pad(16));
 }
 
-static void DebugHpet(const acpi::Hpet *hpet) {
+static void displayHpet(const acpi::Hpet *hpet) {
     acpi::Hpet table = *hpet;
 
     AcpiLog.println("| /SYS/ACPI/HPET     | Event timer block ID        | ", km::Hex(table.evtTimerBlockId).pad(8, '0'));
@@ -162,14 +162,14 @@ static void PrintRsdtEntry(const acpi::RsdtHeader *entry, sm::PhysicalAddress pa
     AcpiLog.println("| /SYS/ACPI/", table.signature, "     | Creator ID                  | ", km::Hex(table.creatorId));
     AcpiLog.println("| /SYS/ACPI/", table.signature, "     | Creator revision            | ", table.creatorRevision);
 
-    if (auto *madt = acpi::TableCast<acpi::Madt>(entry)) {
-        DebugMadt(madt);
-    } else if (auto *mcfg = acpi::TableCast<acpi::Mcfg>(entry)) {
-        DebugMcfg(mcfg);
-    } else if (auto *fadt = acpi::TableCast<acpi::Fadt>(entry)) {
-        DebugFadt(fadt);
-    } else if (auto *hpet = acpi::TableCast<acpi::Hpet>(entry)) {
-        DebugHpet(hpet);
+    if (auto *madt = acpi::tableCast<acpi::Madt>(entry)) {
+        displayMadt(madt);
+    } else if (auto *mcfg = acpi::tableCast<acpi::Mcfg>(entry)) {
+        displayMcfg(mcfg);
+    } else if (auto *fadt = acpi::tableCast<acpi::Fadt>(entry)) {
+        displayFadt(fadt);
+    } else if (auto *hpet = acpi::tableCast<acpi::Hpet>(entry)) {
+        displayHpet(hpet);
     }
 }
 
@@ -185,7 +185,46 @@ static void PrintXsdt(const acpi::Xsdt *xsdt, const acpi::RsdpLocator *locator) 
     AcpiLog.println("| /SYS/ACPI/XSDT     | Signature                   | '", stdx::StringView(xsdt->header.signature), "'");
 }
 
-acpi::AcpiTables acpi::InitAcpi(sm::PhysicalAddress rsdpBaseAddress, km::AddressSpace& memory) {
+OsStatus acpi::AcpiTables::setup(const AcpiSetupOptions& options, km::AddressSpace& memory, AcpiTables *tables [[gnu::nonnull, clang::noescape]]) {
+    km::TlsfAllocation rsdpAllocation;
+
+    // map the rsdp table
+    const acpi::RsdpLocator *locator = memory.mapConst<acpi::RsdpLocator>(options.rsdpBaseAddress, &rsdpAllocation);
+
+    return OsStatusNotFound;
+
+    if (!locator) {
+        AcpiLog.errorf("Failed to map RSDP at ", options.rsdpBaseAddress);
+        return OsStatusOutOfMemory;
+    }
+
+    if (locator->signature != acpi::RsdpLocator::kSignature) {
+        AcpiLog.errorf("Invalid RSDP signature at ", options.rsdpBaseAddress, ". Expected '", acpi::RsdpLocator::kSignature, "', got '", stdx::StringView(locator->signature), "'");
+        (void)memory.unmap(rsdpAllocation);
+        return OsStatusInvalidData;
+    }
+
+    bool rsdpOk = detail::validateRsdpLocator(locator);
+    if (!rsdpOk) {
+        AcpiLog.warnf("Invalid RSDP checksum ", options.rsdpBaseAddress, ". This may cause ACPI to not work correctly.");
+
+        if (!options.ignoreInvalidRsdpChecksum) {
+            AcpiLog.errorf("ACPI setup failed due to invalid RSDP checksum.");
+            (void)memory.unmap(rsdpAllocation);
+            return OsStatusInvalidData;
+        }
+    }
+
+    AcpiLog.println("| /SYS/ACPI          | RSDP signature              | '", stdx::StringView(locator->signature), "'");
+    AcpiLog.println("| /SYS/ACPI          | RSDP checksum               | ", rsdpOk ? stdx::StringView("Valid") : stdx::StringView("Invalid"));
+    AcpiLog.println("| /SYS/ACPI          | RSDP revision               | ", locator->revision);
+    AcpiLog.println("| /SYS/ACPI          | OEM                         | ", stdx::StringView(locator->oemid));
+
+    *tables = acpi::AcpiTables(rsdpAllocation, locator, memory);
+    return OsStatusSuccess;
+}
+
+acpi::AcpiTables acpi::setupAcpi(sm::PhysicalAddress rsdpBaseAddress, km::AddressSpace& memory) {
     km::TlsfAllocation rsdpAllocation;
 
     // map the rsdp table
@@ -220,7 +259,7 @@ bool acpi::operator!=(const MadtIterator& lhs, const MadtIterator& rhs) {
 
 template<acpi::IsAcpiTable T>
 void SetUniqueTableEntry(const T** dst, const acpi::RsdtHeader *header) {
-    if (const T *table = acpi::TableCast<T>(header)) {
+    if (const T *table = acpi::tableCast<T>(header)) {
         if (*dst != nullptr) {
             AcpiLog.warnf("Multiple '", T::kSignature, "' tables found. This table should be unique. Using the first instance of this table.");
             return;

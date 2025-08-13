@@ -29,7 +29,7 @@ namespace km {
     );
 
     template<typename F>
-    void InitSmp(SystemMemory& memory, IApic *bsp, const acpi::AcpiTables& acpiTables, F&& callback) {
+    void setupSmp(SystemMemory& memory, IApic *bsp, const acpi::AcpiTables& acpiTables, F&& callback) {
         void *user = new F(std::forward<F>(callback));
         SmpInitCallback cb = [](IApic *apic, void *user) {
             auto *callback = reinterpret_cast<F*>(user);

@@ -28,5 +28,5 @@ namespace km {
         void setCount(uint16_t count);
     };
 
-    IntervalTimer InitPit(hertz frequency, IoApicSet& ioApicSet, IApic *apic, uint8_t irq);
+    IntervalTimer setupPit(hertz frequency, IoApicSet& ioApicSet, IApic *apic, uint8_t irq);
 }

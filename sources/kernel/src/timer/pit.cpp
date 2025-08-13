@@ -45,7 +45,7 @@ void km::IntervalTimer::setCount(uint16_t value) {
     KmWriteByte(kChannel0, (value >> 8) & 0xFF);
 }
 
-km::IntervalTimer km::InitPit(hertz frequency, IoApicSet& ioApicSet, IApic *apic, uint8_t irq) {
+km::IntervalTimer km::setupPit(hertz frequency, IoApicSet& ioApicSet, IApic *apic, uint8_t irq) {
     IntervalTimer pit;
     pit.setFrequency(frequency);
 

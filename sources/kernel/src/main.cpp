@@ -69,7 +69,6 @@
 #include "system/system.hpp"
 
 #include "task/runtime.hpp"
-#include "task/scheduler.hpp"
 #include "thread.hpp"
 #include "uart.hpp"
 #include "smbios.hpp"
@@ -110,6 +109,8 @@ static constexpr bool kEnableXSave = true;
 
 // TODO: make this runtime configurable
 static constexpr size_t kMaxMessageSize = 0x1000;
+static constexpr size_t kKernelStackSize = 0x4000;
+static constexpr auto kTssStackSize = x64::kPageSize * 16;
 static constexpr std::chrono::milliseconds kDefaultTimeSlice = std::chrono::milliseconds(25);
 
 constinit static km::SerialAppender gSerialAppender;
@@ -121,9 +122,6 @@ constinit km::CpuLocal<x64::TaskStateSegment> km::tlsTaskState;
 
 static constinit x64::TaskStateSegment gBootTss{};
 static constinit SystemGdt gBootGdt{};
-
-// static constexpr auto kRspStackSize = x64::kPageSize * 8;
-static constexpr auto kTssStackSize = x64::kPageSize * 16;
 
 enum {
     kIstTrap = 1,
@@ -1005,10 +1003,6 @@ static void initSystem() {
         SysLog.fatalf("Failed to create system: ", OsStatusId(status));
         KM_PANIC("Failed to create system.");
     }
-
-    // auto *scheduler = gSysSystem->scheduler();
-    // scheduler->initCpuSchedule(km::GetCurrentCoreId(), 128);
-    // sys::InstallTimerIsr(GetSharedIsrTable());
 }
 
 sys::System *km::GetSysSystem() {
@@ -1181,7 +1175,9 @@ static void AddVmemSystemCalls() {
 
     AddSystemCall(eOsCallVmemMap, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         System system = GetSystem();
-        return um::VmemMap(&system, context, regs);
+        auto result = um::VmemMap(&system, context, regs);
+        InitLog.dbgf("VmemMap result: ", OsStatusId(result.Status));
+        return result;
     });
 
     AddSystemCall(eOsCallVmemRelease, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
@@ -1242,7 +1238,7 @@ static void startupSmp(const acpi::AcpiTables& rsdt, bool umip, km::ITickSource 
         // scheduler is ready to be used. The scheduler requires the system to switch
         // to using cpu local isr tables, which must happen after smp startup.
         //
-        InitSmp(*GetSystemMemory(), GetCpuLocalApic(), rsdt, [&launchScheduler, umip, tickSource, invariantTsc](IApic *apic) {
+        setupSmp(*GetSystemMemory(), GetCpuLocalApic(), rsdt, [&launchScheduler, umip, tickSource, invariantTsc](IApic *apic) {
             while (!launchScheduler.test()) {
                 _mm_pause();
             }
@@ -1254,14 +1250,14 @@ static void startupSmp(const acpi::AcpiTables& rsdt, bool umip, km::ITickSource 
             ApicTimer apicTimer;
             InvariantTsc tsc;
 
-            if (OsStatus status = km::TrainApicTimer(apic, bestTickSource, &apicTimer)) {
+            if (OsStatus status = km::trainApicTimer(apic, bestTickSource, &apicTimer)) {
                 InitLog.warnf("Failed to train APIC timer: ", OsStatusId(status));
             } else {
                 InitLog.infof("APIC timer frequency: ", apicTimer.refclk());
             }
 
             if (invariantTsc) {
-                if (OsStatus status = km::TrainInvariantTsc(bestTickSource, &tsc)) {
+                if (OsStatus status = km::trainInvariantTsc(bestTickSource, &tsc)) {
                     InitLog.warnf("Failed to train invariant TSC: ", OsStatusId(status));
                 } else {
                     InitLog.infof("Invariant TSC frequency: ", tsc.frequency());
@@ -1290,8 +1286,6 @@ static void startupSmp(const acpi::AcpiTables& rsdt, bool umip, km::ITickSource 
         launchScheduler.test_and_set();
     }
 }
-
-static constexpr size_t kKernelStackSize = 0x4000;
 
 static OsStatus launchThread(OsStatus(*entry)(void*), void *arg, stdx::String name) {
     km::StackMappingAllocation stack;
@@ -1595,7 +1589,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     km::SmBiosTables smbios{};
 
-    if (OsStatus status = FindSmbiosTables(smbiosOptions, gMemory->pageTables(), &smbios)) {
+    if (OsStatus status = findSmbiosTables(smbiosOptions, gMemory->pageTables(), &smbios)) {
         BiosLog.warnf("Failed to find SMBIOS tables: ", OsStatusId(status));
     }
 
@@ -1618,7 +1612,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     auto lapic = enableBootApic(gMemory->pageTables(), useX2Apic);
 
-    acpi::AcpiTables rsdt = acpi::InitAcpi(launch.rsdpAddress, gMemory->pageTables());
+    acpi::AcpiTables rsdt = acpi::setupAcpi(launch.rsdpAddress, gMemory->pageTables());
     const acpi::Fadt *fadt = rsdt.fadt();
     initCmos(fadt->century);
 
@@ -1626,7 +1620,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     KM_CHECK(ioApicCount > 0, "No IOAPICs found.");
     IoApicSet ioApicSet{ rsdt.madt(), gMemory->pageTables() };
 
-    std::unique_ptr<pci::IConfigSpace> config{pci::InitConfigSpace(rsdt.mcfg(), gMemory->pageTables())};
+    std::unique_ptr<pci::IConfigSpace> config{pci::setupConfigSpace(rsdt.mcfg(), gMemory->pageTables())};
     if (!config) {
         KM_PANIC("Failed to initialize PCI config space.");
     }
@@ -1648,13 +1642,13 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     stdx::StaticVector<km::ITickSource*, 4> tickSources;
 
-    km::IntervalTimer pit = km::InitPit(100 * si::hertz, ioApicSet, lapic.pointer(), timerIdx);
+    km::IntervalTimer pit = km::setupPit(100 * si::hertz, ioApicSet, lapic.pointer(), timerIdx);
 
     tickSources.add(&pit);
     km::ITickSource *tickSource = &pit;
 
     km::HighPrecisionTimer hpet;
-    if (OsStatus status = km::InitHpet(rsdt, gMemory->pageTables(), &hpet)) {
+    if (OsStatus status = km::setupHpet(rsdt, gMemory->pageTables(), &hpet)) {
         InitLog.warnf("Failed to initialize HPET: ", OsStatusId(status));
     } else {
         hpet.enable(true);
@@ -1669,7 +1663,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     ApicTimer apicTimer;
     InvariantTsc tsc;
 
-    if (OsStatus status = km::TrainApicTimer(lapic.pointer(), tickSources.back(), &apicTimer)) {
+    if (OsStatus status = km::trainApicTimer(lapic.pointer(), tickSources.back(), &apicTimer)) {
         InitLog.warnf("Failed to train APIC timer: ", OsStatusId(status));
     } else {
         InitLog.infof("APIC timer frequency: ", apicTimer.refclk());
@@ -1677,7 +1671,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
     }
 
     if (processor.invariantTsc) {
-        if (OsStatus status = km::TrainInvariantTsc(tickSource, &tsc)) {
+        if (OsStatus status = km::trainInvariantTsc(tickSource, &tsc)) {
             InitLog.warnf("Failed to train invariant TSC: ", OsStatusId(status));
         } else {
             InitLog.infof("Invariant TSC frequency: ", tsc.frequency());
@@ -1707,11 +1701,5 @@ void LaunchKernel(boot::LaunchInfo launch) {
 
     enterSchedulerLoop(GetCpuLocalApic(), &apicTimer);
 
-    KmHalt();
-
-    launchKernelProcess(&apicTimer);
-
     KM_PANIC("Test bugcheck.");
-
-    KmHalt();
 }

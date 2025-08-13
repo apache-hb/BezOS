@@ -22,8 +22,8 @@ cpp = meson.get_compiler('cpp')
 inc = include_directories('include')
 
 common_args = [
-    '-fmacro-prefix-map=' + meson.current_source_dir() + '=/',
-    '-fmacro-prefix-map=../../../=/',
+    # '-fmacro-prefix-map=' + meson.current_source_dir() + '=/',
+    # '-fmacro-prefix-map=../../../=/',
 
     '-Wno-gcc-compat',
     '-Wno-gnu-anonymous-struct',
@@ -391,6 +391,31 @@ libpaging_nosanitize = static_library('paging_nosanitize', paging_src,
     dependencies : deps,
 )
 
+# ACPI
+
+acpi_src = files(
+    'src/acpi/acpi.cpp',
+    'src/acpi/format.cpp',
+)
+
+libacpi_kernel = static_library('acpi', acpi_src,
+    kwargs : kernel_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+libacpi_native = static_library('acpi_native', acpi_src,
+    kwargs : native_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+libacpi_nosanitize = static_library('acpi_nosanitize', acpi_src,
+    kwargs : nosan_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
 # Task scheduling
 
 task_src = files(
@@ -533,14 +558,60 @@ libsystem_nosanitize = static_library('system_nosanitize', system_src,
     dependencies : deps,
 )
 
-# Kernel
+# Utilities
 
-src = [
-    # Utilities
+util_src = files(
     'src/util/cpuid.cpp',
     'src/util/memory.cpp',
     'src/util/uuid.cpp',
+)
 
+libutil_kernel = static_library('util', util_src,
+    kwargs : kernel_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+libutil_native = static_library('util_native', util_src,
+    kwargs : native_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+libutil_nosanitize = static_library('util_nosanitize', util_src,
+    kwargs : nosan_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+# APIC
+
+apic_src = files(
+    'src/apic.cpp',
+    'src/delay.cpp',
+)
+
+libapic_kernel = static_library('apic', apic_src,
+    kwargs : kernel_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+libapic_native = static_library('apic_native', apic_src,
+    kwargs : native_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+libapic_nosanitize = static_library('apic_nosanitize', apic_src,
+    kwargs : nosan_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+# Kernel
+
+src = [
     # C and C++ Runtime
     'src/crt.cpp',
     'src/cxxrt.cpp',
@@ -557,11 +628,10 @@ src = [
     'src/gdt.cpp',
     'src/pat.cpp',
     'src/check.cpp',
-    'src/apic.cpp',
     'src/uart.cpp',
     'src/hypervisor.cpp',
     'src/smbios.cpp',
-    'src/delay.cpp',
+    # 'src/delay.cpp',
     'src/cmos.cpp',
     'src/debug.cpp',
     'src/xsave.cpp',
@@ -581,10 +651,6 @@ src = [
     # PCI
     'src/pci/pci.cpp',
     'src/pci/config.cpp',
-
-    # ACPI
-    'src/acpi/acpi.cpp',
-    'src/acpi/format.cpp',
 
     # HID
     'src/hid/hid.cpp',
@@ -669,9 +735,12 @@ kernel_libs = [
     libabsl_container_kernel,
     libtlsf_kernel,
     librcu_kernel,
+    libutil_kernel,
     libformat_kernel,
     liblogging_kernel,
     libmemory_kernel,
+    libacpi_kernel,
+    libapic_kernel,
     libvfs_kernel,
     libsystem_kernel,
     libpaging_kernel,

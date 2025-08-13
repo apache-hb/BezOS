@@ -5,7 +5,7 @@ using namespace std::chrono_literals;
 static constexpr std::chrono::milliseconds kTrainDuration = 10ms;
 static constexpr auto kTrainSteps = 10;
 
-OsStatus km::TrainInvariantTsc(ITickSource *refclk, InvariantTsc *timer) {
+OsStatus km::trainInvariantTsc(ITickSource *refclk, InvariantTsc *timer) {
     uint64_t sum = 0;
 
     for (auto i = 0; i < kTrainSteps; i++) {

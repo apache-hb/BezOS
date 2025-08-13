@@ -60,5 +60,5 @@ namespace pci {
         uint32_t read32(uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset) override;
     };
 
-    IConfigSpace *InitConfigSpace(const acpi::Mcfg *mcfg, km::AddressSpace& memory);
+    IConfigSpace *setupConfigSpace(const acpi::Mcfg *mcfg, km::AddressSpace& memory);
 }

@@ -60,7 +60,7 @@ namespace acpi {
     };
 
     template<IsAcpiTable T>
-    const T *TableCast(const RsdtHeader *header) {
+    const T *tableCast(const RsdtHeader *header) {
         if (header->signature == T::kSignature) {
             return reinterpret_cast<const T*>(header);
         }

@@ -8,7 +8,7 @@ namespace km {
     class IApic;
     class ApicTimer;
 
-    OsStatus TrainApicTimer(IApic *apic, ITickSource *refclk, ApicTimer *timer);
+    OsStatus trainApicTimer(IApic *apic, ITickSource *refclk, ApicTimer *timer);
 
     class ApicTimer final : public ITickSource {
         hertz mFrequency = hertz::zero();
@@ -27,6 +27,6 @@ namespace km {
         hertz frequency() const override { return mFrequency; }
         uint64_t ticks() const override;
 
-        friend OsStatus km::TrainApicTimer(IApic *apic, ITickSource *refclk, ApicTimer *timer);
+        friend OsStatus km::trainApicTimer(IApic *apic, ITickSource *refclk, ApicTimer *timer);
     };
 }

@@ -105,7 +105,7 @@ uint32_t pci::McfgConfigSpace::read32(uint8_t bus, uint8_t slot, uint8_t functio
     return UINT32_MAX;
 }
 
-pci::IConfigSpace *pci::InitConfigSpace(const acpi::Mcfg *mcfg, km::AddressSpace& memory) {
+pci::IConfigSpace *pci::setupConfigSpace(const acpi::Mcfg *mcfg, km::AddressSpace& memory) {
     if (mcfg == nullptr) {
         PciLog.warnf("No MCFG table.");
         return new PortConfigSpace{};

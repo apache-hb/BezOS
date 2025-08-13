@@ -622,7 +622,7 @@ OsStatus sys::SysVmemMap(InvokeContext *context, OsVmemMapInfo info, void **outV
         if (OsStatus status = process->vmemMapProcess(context->system, vmemInfo, src, &vm)) {
             return status;
         }
-        SysLog.dbgf("Mapped vmem ", vm, " from process '", src->getName(), "' into '", process->getName(), "'");
+        SysLog.dbgf("Mapped vmem ", vm, " from process '", src->getName(), "' (", src->getAddressSpaceManager()->getPageMap(), ") into '", process->getName(), "' (", process->getAddressSpaceManager()->getPageMap(), ")");
         *outVmem = (void*)vm.front;
         return OsStatusSuccess;
     }
@@ -633,7 +633,7 @@ OsStatus sys::SysVmemMap(InvokeContext *context, OsVmemMapInfo info, void **outV
         if (OsStatus status = process->vmemMapFile(context->system, vmemInfo, file, &vm)) {
             return status;
         }
-        SysLog.dbgf("Mapped vmem ", vm, " from file into '", process->getName(), "'");
+        SysLog.dbgf("Mapped vmem ", vm, " from file into '", process->getName(), "' (", process->getAddressSpaceManager()->getPageMap(), ")");
         *outVmem = (void*)vm.front;
         return OsStatusSuccess;
     }

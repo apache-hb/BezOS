@@ -193,7 +193,7 @@ static OsStatus FindSmbios32(sm::PhysicalAddress address, bool ignoreChecksum, k
     return OsStatusSuccess;
 }
 
-OsStatus km::FindSmbiosTables(SmBiosLoadOptions options, km::AddressSpace& memory, SmBiosTables *tables [[gnu::nonnull]]) {
+OsStatus km::findSmbiosTables(SmBiosLoadOptions options, km::AddressSpace& memory, SmBiosTables *tables [[gnu::nonnull]]) {
     //
     // Store the status as a local so that we can return the last error if both fail.
     //

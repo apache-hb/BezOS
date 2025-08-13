@@ -11,7 +11,7 @@ static constexpr x64::RoModelRegister<0x10> IA32_TSC;
 namespace km {
     class InvariantTsc;
 
-    OsStatus TrainInvariantTsc(ITickSource *refclk, InvariantTsc *tsc);
+    OsStatus trainInvariantTsc(ITickSource *refclk, InvariantTsc *tsc);
 
     class InvariantTsc final : public ITickSource {
         hertz mFrequency;
@@ -28,6 +28,6 @@ namespace km {
         hertz frequency() const override { return mFrequency; }
         uint64_t ticks() const override { return __builtin_ia32_rdtsc(); }
 
-        friend OsStatus km::TrainInvariantTsc(ITickSource *refclk, InvariantTsc *tsc);
+        friend OsStatus km::trainInvariantTsc(ITickSource *refclk, InvariantTsc *tsc);
     };
 }

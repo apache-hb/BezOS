@@ -174,5 +174,5 @@ namespace km {
     };
 
     [[nodiscard]]
-    OsStatus FindSmbiosTables(SmBiosLoadOptions options, km::AddressSpace& memory, SmBiosTables *tables [[gnu::nonnull]]);
+    OsStatus findSmbiosTables(SmBiosLoadOptions options, km::AddressSpace& memory, SmBiosTables *tables [[gnu::nonnull]]);
 }

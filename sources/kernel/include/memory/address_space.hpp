@@ -108,8 +108,6 @@ namespace km {
             return mapObject<T>(range, flags, MemoryType::eUncached);
         }
 
-#pragma region New address space api
-
         void *mapGenericObject(MemoryRangeEx range, PageFlags flags, MemoryType type, TlsfAllocation *allocation [[gnu::nonnull]]);
 
         template<typename T> requires (std::is_standard_layout_v<T>)
@@ -212,7 +210,5 @@ namespace km {
 
         [[nodiscard]]
         static OsStatus create(const AddressSpace *source [[gnu::nonnull]], AddressMapping pteMemory, PageFlags flags, VirtualRangeEx vmem, AddressSpace *space [[clang::noescape, gnu::nonnull]]);
-
-#pragma endregion
     };
 }

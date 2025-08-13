@@ -11,7 +11,7 @@ uint64_t km::ApicTimer::ticks() const {
     return mApic->getCurrentCount();
 }
 
-OsStatus km::TrainApicTimer(IApic *apic, ITickSource *refclk, ApicTimer *timer) {
+OsStatus km::trainApicTimer(IApic *apic, ITickSource *refclk, ApicTimer *timer) {
     apic->setTimerDivisor(apic::TimerDivide::e1);
 
     uint64_t sum = 0;

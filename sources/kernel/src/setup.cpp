@@ -119,8 +119,8 @@ void km::WriteMemoryMap(std::span<const boot::MemoryRegion> memmap) {
 }
 
 void km::DumpIsrState(const km::IsrContext *context) {
-    InitLog.println("| Register | Value\n");
-    InitLog.println("|----------+------\n");
+    InitLog.println("| Register | Value");
+    InitLog.println("|----------+------");
     InitLog.println("| %RAX     | ", Hex(context->rax).pad(16));
     InitLog.println("| %RBX     | ", Hex(context->rbx).pad(16));
     InitLog.println("| %RCX     | ", Hex(context->rcx).pad(16));
@@ -144,7 +144,6 @@ void km::DumpIsrState(const km::IsrContext *context) {
     InitLog.println("| Vector   | ", Hex(context->vector).pad(16));
     InitLog.println("| Error    | ", Hex(context->error).pad(16));
     InitLog.println("| %CR3     | ", Hex(__get_cr3()).pad(16));
-    InitLog.println("\n");
 
     if (context->vector == isr::PF) {
         InitLog.println("| Faulting address | ", Hex(__get_cr2()).pad(16));
@@ -240,9 +239,9 @@ void km::DumpStackTrace(const km::IsrContext *context) {
 
 void km::DumpIsrContext(const km::IsrContext *context, stdx::StringView message) {
     if (km::IsCpuStorageSetup()) {
-        InitLog.println("\n[BUG] ", message, " - ", km::GetCurrentCoreId());
+        InitLog.println("[BUG] ", message, " - ", km::GetCurrentCoreId());
     } else {
-        InitLog.println("\n[BUG] ", message);
+        InitLog.println("[BUG] ", message);
     }
 
     DumpIsrState(context);
