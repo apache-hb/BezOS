@@ -194,7 +194,9 @@ void pv::Machine::emulate_wrmsr(mcontext_t *mcontext, cs_insn *insn) {
 
 void pv::Machine::emulate_hlt(mcontext_t *mcontext, cs_insn *insn) { }
 void pv::Machine::emulate_iretq(mcontext_t *mcontext, cs_insn *insn) { }
-void pv::Machine::emulate_mmu(mcontext_t *mcontext, cs_insn *insn) { }
+void pv::Machine::emulate_mmu(mcontext_t *mcontext, cs_insn *insn) {
+
+}
 
 void pv::Machine::emulateReadControl(mcontext_t *mcontext, cs_insn *insn, x86_reg reg, uint64_t value) {
 

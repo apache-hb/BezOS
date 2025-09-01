@@ -35,7 +35,7 @@ public:
     }
 
     void SetUp() override {
-        machine = new pv::Machine(4);
+        machine = new pv::Machine(2);
         ASSERT_NE(machine, nullptr);
 
         pv::Memory *memory = machine->getMemory();
@@ -85,20 +85,23 @@ public:
 };
 
 struct Context {
-    km::PhysicalAddressEx address;
+    km::AddressMapping acpiTableMemory;
     std::atomic<bool> barrier;
     pv::Machine *machine;
     km::AddressMapping pteMapping;
     sm::VirtualAddress kernelMemoryRange;
 };
 
-void TestEmulateMmio(Context *context) {
+void TestLoadAcpiTables(Context *context) {
     OsStatus status = OsStatusSuccess;
     pv::Machine *machine = context->machine;
     km::AddressMapping pteHostMapping = context->pteMapping;
 
     km::AddressSpace addressSpace;
     acpi::AcpiTables tables;
+
+    acpi::RsdpLocator *locator = (acpi::RsdpLocator*)context->acpiTableMemory.vaddr;
+    InitLog.dbgf(locator->signature, " RSDP Locator: ", sm::VirtualAddress(locator));
 
     status = km::AddressSpace::create(machine->getPageBuilder(), pteHostMapping, km::PageFlags::eAll, km::VirtualRangeEx::of(context->kernelMemoryRange, sizeof(x64::page) * 256), &addressSpace);
     ASSERT_EQ(status, OsStatusSuccess) << "Failed to create address space";
@@ -108,10 +111,12 @@ void TestEmulateMmio(Context *context) {
 
     machine->getCore(0)->setCr3(cr3);
 
-    status = acpi::AcpiTables::setup({
-        .rsdpBaseAddress = context->address,
+    acpi::AcpiSetupOptions options {
+        .rsdpBaseAddress = context->acpiTableMemory.paddr.address,
         .ignoreInvalidRsdpChecksum = false,
-    }, addressSpace, &tables);
+    };
+
+    status = acpi::AcpiTables::setup(options, addressSpace, &tables);
     ASSERT_EQ(status, OsStatusSuccess) << "Failed to setup ACPI";
 
     context->barrier.store(true);
@@ -166,7 +171,7 @@ TEST_F(AcpiTest, AcpiInit) {
 
     InitLog.infof("Address: ", acpiTableMemory.paddr);
     Context *context = new (pv::sharedObjectMalloc(sizeof(Context))) Context {
-        .address = acpiTableMemory.paddr.address,
+        .acpiTableMemory = acpiTableMemory,
         .machine = machine,
         .pteMapping = pteHostMapping,
         .kernelMemoryRange = pteHostMemory,
@@ -177,7 +182,7 @@ TEST_F(AcpiTest, AcpiInit) {
             [REG_RDI] = (greg_t)context,
             [REG_RSP] = (greg_t)(base - 0x8),
             [REG_RBP] = (greg_t)(base - 0x8),
-            [REG_RIP] = (greg_t)TestEmulateMmio,
+            [REG_RIP] = (greg_t)TestLoadAcpiTables,
         }
     });
 

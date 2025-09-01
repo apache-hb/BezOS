@@ -188,8 +188,9 @@ static void PrintXsdt(const acpi::Xsdt *xsdt, const acpi::RsdpLocator *locator) 
 OsStatus acpi::AcpiTables::setup(const AcpiSetupOptions& options, km::AddressSpace& memory, AcpiTables *tables [[gnu::nonnull, clang::noescape]]) {
     km::TlsfAllocation rsdpAllocation;
 
-    // map the rsdp table
     const acpi::RsdpLocator *locator = memory.mapConst<acpi::RsdpLocator>(options.rsdpBaseAddress, &rsdpAllocation);
+
+    AcpiLog.infof("RSDP locator at ", options.rsdpBaseAddress, " mapped to ", sm::VirtualAddress(locator));
 
     if (!locator) {
         AcpiLog.errorf("Failed to map RSDP at ", options.rsdpBaseAddress);

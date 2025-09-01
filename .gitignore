@@ -20,3 +20,4 @@ data/hyper/*
 events.bin
 /sources/sysapi/subprojects/common
 /sources/kernel/subprojects/common
+.wraplock

@@ -158,6 +158,7 @@ OsStatus pv::CpuCore::resolveVirtualAddress(sm::VirtualAddress address, sm::Phys
     }
 
     *result = sm::PhysicalAddress { mPageBuilder->address(t1) };
+    SignalLog("Resolved %p -> %p\n", (void*)address, (void*)result->address);
     return OsStatusSuccess;
 }
 
@@ -188,6 +189,7 @@ void pv::CpuCore::emulate_hlt(mcontext_t *, cs_insn *) { }
 void pv::CpuCore::emulate_iretq(mcontext_t *, cs_insn *) { }
 
 void pv::CpuCore::emulate_mmu(mcontext_t *mcontext, cs_insn *insn) {
+    SignalLog("Handling page fault for %p\n", (void*)mcontext->gregs[REG_CR2]);
     uintptr_t cr2 = mcontext->gregs[REG_CR2];
     if (cr2 != 0) {
         sm::PhysicalAddress real;

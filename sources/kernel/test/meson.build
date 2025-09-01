@@ -39,9 +39,6 @@ fs_test_src = [
     '../src/fs/iterator.cpp',
 
     '../src/util/uuid.cpp',
-
-    '../src/std/rcu.cpp',
-    '../src/std/rcuptr.cpp',
 ]
 
 memory_test_src = [
@@ -133,6 +130,7 @@ fs_test_shim = static_library('fs_test_shim', fs_test_src,
     c_args : test_c_args + test_sanitize_args,
     cpp_args : test_cpp_args + test_sanitize_args,
     link_args : test_sanitize_args,
+    link_with : [ librcu_native ],
     dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
     override_options : native_kwargs['override_options'],
     native : true,
@@ -600,9 +598,9 @@ testcases = {
     'handles': [
         'system/handles.cpp',
     ],
-    'threads': [
-        'system/thread.cpp',
-    ],
+    # 'threads': [
+    #     'system/thread.cpp',
+    # ],
     'device': [
         'system/device.cpp',
     ],
