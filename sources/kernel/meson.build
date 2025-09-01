@@ -63,7 +63,6 @@ common = subproject('common').get_variable('common_dep')
 inc = [ inc, absl.get_variable('absl_include_dir'), tlsf.get_variable('includes') ]
 deps = [ mp_units, sysapi, concurrentqueue, stb_sprintf, common ]
 
-compiler = find_program(cc.get_id())
 objcopy = find_program('objcopy')
 is_debug = get_option('buildtype').contains('debug')
 
@@ -79,7 +78,7 @@ smp_blob = custom_target('smp',
         '-I', meson.current_source_dir() / 'include',
         '-o', '@OUTPUT@',
         '-nostdlib', '-nostdlib++', '-ffreestanding',
-        '-fuse-ld=ld'
+        '-fuse-ld=ld', '--ld-path=' + meson.get_external_property('gnu_ld'),
     ],
 )
 
