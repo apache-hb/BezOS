@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+message CreateSysrootRequest {
+  string sysroot = 1;
+  repeated string overlays = 2;
+}
+
+message DestroySysrootRequest {
+  string sysroot = 1;
+}
+
+message BasicResponse {
+  string message = 1;
+  bool success = 2;
+}
+
+service OverlayFsService {
+  rpc CreateSysroot (CreateSysrootRequest) returns (stream BasicResponse);
+  rpc DestroySysroot (DestroySysrootRequest) returns (stream BasicResponse);
+}

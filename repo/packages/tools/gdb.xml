@@ -13,7 +13,8 @@
              AR='@PREFIX@/llvm/bin/llvm-ar'
              LD='@PREFIX@/llvm/bin/ld.lld'
              CFLAGS='-march=native -mtune=native -O2'
-             CXXFLAGS='-march=native -mtune=native -O2' />
+             CXXFLAGS='-march=native -mtune=native -O2'
+             LDFLAGS='-Wl,--undefined-version' />
 
         <options disable-werror=''
                  enable-lto=''

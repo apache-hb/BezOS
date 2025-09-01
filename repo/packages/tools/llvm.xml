@@ -14,7 +14,7 @@
         <patch file='@REPO@/patches/llvm/add-signal-safe-attributes.patch' />
     </download>
 
-    <package name='llvm' from='llvm-project-src'>
+    <package name='llvm' version='21.0.0' from='llvm-project-src'>
         <configure with='cmake'>
             <source path='@SOURCE_ROOT@/llvm' />
 

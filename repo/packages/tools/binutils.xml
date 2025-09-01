@@ -1,0 +1,25 @@
+<collection name='gnu binutils'>
+    <download name='binutils-src'
+        file='binutils-2.45.tar.gz'
+        url='https://mirror.csclub.uwaterloo.ca/gnu/binutils/binutils-2.45.tar.gz'
+        trim-root-folder='true'
+        sha256='8a3eb4b10e7053312790f21ee1a38f7e2bbd6f4096abb590d3429e5119592d96'
+        archive='tar' />
+
+    <package name='native-binutils' from='binutils-src'>
+        <require package='gcc' />
+        <require package='llvm' />
+
+        <configure with='autoconf'>
+            <env CC='@PREFIX@/llvm/bin/clang'
+                 CXX='@PREFIX@/llvm/bin/clang++'
+                 AR='@PREFIX@/llvm/bin/llvm-ar'
+                 LD='@PREFIX@/llvm/bin/ld.lld'
+                 CFLAGS='-march=native -mtune=native -O2'
+                 CXXFLAGS='-march=native -mtune=native -O2'
+                 LDFLAGS='-Wl,--undefined-version' />
+
+            <options enable-ld='default' />
+        </configure>
+    </package>
+</collection>

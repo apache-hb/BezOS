@@ -1009,6 +1009,45 @@ static void CopyData(struct archive *a, std::ostream& os) {
     }
 }
 
+static void RemoveFolderIfExists(const fs::path& path) {
+    if (fs::exists(path)) {
+        fs::remove_all(path);
+    }
+}
+
+static void CopyArchiveEntryContent(struct archive *a, struct archive_entry *entry, std::ofstream& os) {
+    if (archive_entry_size(entry) > 0) {
+        CopyData(a, os);
+    }
+}
+
+static void CopyArchiveEntry(struct archive *a, struct archive_entry *entry, const fs::path& dst, const fs::path& entryPath) {
+    fs::path path = entryPath;
+    fs::path file = dst / path;
+
+    std::ofstream os(file, std::ios::binary);
+    if (!os.is_open()) {
+        //
+        // Slightly crappy retry logic in case we get a slightly deformed archive file
+        // that doesn't create parent directories for files.
+        //
+        if (!fs::exists(file.parent_path())) {
+            fs::create_directories(file.parent_path());
+        } else {
+            throw std::runtime_error("Failed to open file "s + file.string());
+        }
+
+        std::ofstream os2(file, std::ios::binary);
+        if (!os2.is_open()) {
+            throw std::runtime_error("Failed to open file "s + file.string());
+        }
+
+        CopyArchiveEntryContent(a, entry, os2);
+    } else {
+        CopyArchiveEntryContent(a, entry, os);
+    }
+}
+
 static void ExtractArchive(std::string_view name, const fs::path& archive, const fs::path& dst, bool trimRootFolder) {
     fs::remove_all(dst);
     fs::create_directories(dst);
@@ -1064,16 +1103,7 @@ static void ExtractArchive(std::string_view name, const fs::path& archive, const
         fs::path path = entryPath;
         fs::path file = dst / path;
 
-        {
-            std::ofstream os(file, std::ios::binary);
-            if (!os.is_open()) {
-                throw std::runtime_error("Failed to open file "s + path.string());
-            }
-
-            if (archive_entry_size(entry) > 0) {
-                CopyData(a, os);
-            }
-        }
+        CopyArchiveEntry(a, entry, dst, entryPath);
 
         // preserve mtime
         auto mtime = archive_entry_mtime(entry);
@@ -1296,11 +1326,14 @@ static void AddWorkspacePackage(PackageInfo packageInfo, std::string name) {
 static Download ReadDownloadTags(XmlNode node, Scope& scope) {
     auto name = scope.TryGetProperty(node, "name").value_or("");
     auto url = scope.GetProperty(node, "url");
-    auto file = scope.GetProperty(node, "file");
     auto archive = scope.TryGetProperty(node, "archive");
     auto trimRootFolder = scope.TryGetProperty(node, "trim-root-folder").value_or("false") == "true";
     auto install = scope.TryGetProperty(node, "install").value_or("false") == "true";
     auto sha256 = scope.TryGetProperty(node, "sha256");
+
+    auto file = scope.TryGetProperty(node, "file").or_else([&] {
+        return std::optional{fs::path(url).filename().string()};
+    });
 
     GitRepo repo;
     if (auto git = scope.TryGetProperty(node, "git")) {
@@ -1309,7 +1342,7 @@ static Download ReadDownloadTags(XmlNode node, Scope& scope) {
         repo.commit = scope.TryGetProperty(node, "commit").value_or("");
     }
 
-    return Download{name, url, file, archive.value_or(""), sha256, trimRootFolder, install, repo};
+    return Download{name, url, file.value(), archive.value_or(""), sha256, trimRootFolder, install, repo};
 }
 
 static void ReadDownloadConfig(XmlNode root, Scope& scope) {
@@ -1723,9 +1756,7 @@ static void RunConfigureStep(const PackageInfo& package, const ConfigureStep& st
         }
     } else if (step.configure == eCMake) {
         std::string configureTool = step.configureToolPath.empty() ? "cmake" : step.configureToolPath;
-        if (fs::exists(builddir)) {
-            fs::remove_all(builddir);
-        }
+        RemoveFolderIfExists(builddir);
 
         std::vector<std::string> args = {
             configureTool, "-S", cwd, "-B", builddir,
@@ -1746,9 +1777,7 @@ static void RunConfigureStep(const PackageInfo& package, const ConfigureStep& st
             throw std::runtime_error("Failed to configure package " + package.name);
         }
     } else if (step.configure == eAutoconf) {
-        if (fs::exists(builddir)) {
-            fs::remove_all(builddir);
-        }
+        RemoveFolderIfExists(builddir);
 
         fs::create_directories(builddir);
 
@@ -2173,8 +2202,20 @@ static void ReadTargetElement(XmlNode root, Scope& scope) {
     }
 }
 
+static std::set<std::string> gVisitedPackages;
+
 static void VisitPackage(const PackageInfo& packageInfo) {
     assert(!packageInfo.name.empty() && "Package name cannot be empty");
+
+    //
+    // Small optimization, NOT required for correctness. We keep track of
+    // visited packages to avoid re-processing them multiple times in the
+    // case of shared dependencies. Functions are idempotent so this is just
+    // to not print duplicate logs.
+    //
+    if (auto [it, inserted] = gVisitedPackages.insert(packageInfo.name); !inserted) {
+        return;
+    }
 
     auto deps = gPackageDb->GetPackageDependencies(packageInfo.name);
     for (const auto& dep : deps) {
@@ -2225,6 +2266,12 @@ static void CheckRequiredTools(PackageDb& db) {
     checkTool("ninja");
     checkTool("make");
     checkTool("patch");
+
+    //
+    // fuse-overlayfs was scrapped because it was too slow, will need to implement a daemon
+    // mode to keep mounts alive between builds for tooling like clangd.
+    //
+
     // checkTool("fuse-overlayfs");
 
     if (!ok) {
@@ -2233,21 +2280,10 @@ static void CheckRequiredTools(PackageDb& db) {
 }
 
 static void ErasePackageData(const std::string& name) {
-    if (fs::exists(PackageBuildPath(name))) {
-        fs::remove_all(PackageBuildPath(name));
-    }
-
-    if (fs::exists(PackageInstallPath(name))) {
-        fs::remove_all(PackageInstallPath(name));
-    }
-
-    if (fs::exists(PackageLogPath(name))) {
-        fs::remove_all(PackageLogPath(name));
-    }
-
-    if (fs::exists(PackageImportPath(name))) {
-        fs::remove_all(PackageImportPath(name));
-    }
+    RemoveFolderIfExists(PackageBuildPath(name));
+    RemoveFolderIfExists(PackageInstallPath(name));
+    RemoveFolderIfExists(PackageLogPath(name));
+    RemoveFolderIfExists(PackageImportPath(name));
 }
 
 static int RunPackageTool(argparse::ArgumentParser& parser) {
@@ -2335,9 +2371,13 @@ static int RunPackageTool(argparse::ArgumentParser& parser) {
 
     ReadRepoElement(repoRoot, rootScope);
 
+    std::set<std::string> packagesToVisit;
+
     auto applyStateLowering = [&](std::string flag, PackageStatus status) {
         auto all = parser.get<std::vector<std::string>>(flag);
         for (const auto& name : all) {
+            packagesToVisit.insert(name);
+
             if (recurseStateLowering) {
                 auto deps = gPackageDb->GetDependantPackages(name);
                 for (const auto& dep : deps) {
@@ -2348,6 +2388,7 @@ static int RunPackageTool(argparse::ArgumentParser& parser) {
 
                     if (hard) {
                         gWorkspace.RelinkPackage(dep);
+                        packagesToVisit.insert(dep);
                     }
 
                     gPackageDb->LowerPackageStatus(dep, status);
@@ -2361,6 +2402,7 @@ static int RunPackageTool(argparse::ArgumentParser& parser) {
                         PackageInfo info;
                         if (gWorkspace.TryGetPackage(dep, info)) {
                             gWorkspace.RelinkPackage(dep);
+                            packagesToVisit.insert(dep);
                         }
                     }
                 }
@@ -2402,7 +2444,11 @@ static int RunPackageTool(argparse::ArgumentParser& parser) {
         }
     }
 
-    for (auto& pkgName : gPackageDb->GetToplevelPackages()) {
+    if (packagesToVisit.empty()) {
+        packagesToVisit = gPackageDb->GetToplevelPackages();
+    }
+
+    for (auto& pkgName : packagesToVisit) {
         PackageInfo info;
         if (!gWorkspace.TryGetPackage(pkgName, info)) {
             continue;
