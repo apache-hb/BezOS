@@ -74,11 +74,12 @@ smp_blob = custom_target('smp',
     output : 'smp',
     depend_files : 'data/smp.ld',
     command : [
-        compiler, '@INPUT@', '-fPIC',
+        cc.cmd_array(), '@INPUT@', '-fPIC',
         '-T', meson.current_source_dir() / 'data/smp.ld',
         '-I', meson.current_source_dir() / 'include',
         '-o', '@OUTPUT@',
         '-nostdlib', '-nostdlib++', '-ffreestanding',
+        '-fuse-ld=ld'
     ],
 )
 

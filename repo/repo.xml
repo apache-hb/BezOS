@@ -36,9 +36,9 @@
     <xi:include href='packages/hyper.xml' />
     <xi:include href='packages/limine.xml' />
 
-    <xi:include href='packages/sysapi.xml' />
-
     <xi:include href='packages/tools/llvm-libcxx.xml' />
+
+    <xi:include href='packages/sysapi.xml' />
 
     <!-- <xi:include href='packages/lib/abseil.xml' /> -->
     <!-- <xi:include href='packages/tools/protobuf.xml' /> -->

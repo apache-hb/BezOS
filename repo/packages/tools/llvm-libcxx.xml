@@ -1,7 +1,7 @@
 <collection name='llvm'>
     <package name='llvm-libcxx' from='llvm-project-src'>
         <require package='llvm' />
-        <require package='sysapi' />
+        <require package='sysapi-headers' />
 
         <configure with='cmake'>
             <source path='@SOURCE_ROOT@/runtimes' />

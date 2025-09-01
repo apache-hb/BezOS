@@ -2,6 +2,7 @@
     <source path='sysapi' />
 
     <require package='llvm' />
+    <require package='llvm-libcxx' />
     <require package='llvm-compiler-rt' />
     <require package='common' symlink='subprojects/common' />
 

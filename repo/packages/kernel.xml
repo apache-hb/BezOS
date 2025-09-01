@@ -1,6 +1,8 @@
 <package name='kernel'>
     <require package='hyper' />
     <require package='llvm' />
+    <require package='llvm-libcxx' />
+    <require package='llvm-compiler-rt' />
     <require package='gcc' />
     <require package='limine' symlink='subprojects/limine' />
     <require package='sysapi' symlink='subprojects/sysapi' />

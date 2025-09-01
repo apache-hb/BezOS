@@ -825,6 +825,7 @@ static PackageDb *gPackageDb;
 struct Workspace {
     std::map<std::string, PackageInfo> packages;
     bool removeOrphans{false};
+    argo::json workspace{argo::json::object_e};
 
     auto& getPackage(const std::string& name) {
         if (!packages.contains(name)) {
@@ -863,8 +864,6 @@ struct Workspace {
         info = packages.at(name);
         return true;
     }
-
-    argo::json workspace{argo::json::object_e};
 
     void AddPackage(PackageInfo info) {
         if (packages.contains(info.name)) {
@@ -2189,6 +2188,8 @@ static void VisitPackage(const PackageInfo& packageInfo) {
         VisitPackage(info);
     }
 
+    logger.verbosef("Processing package {} {}", packageInfo.name, GetPackageStatusString(gPackageDb->GetPackageStatus(packageInfo.name)));
+
     ConnectDependencies(packageInfo);
     ConfigurePackage(packageInfo);
     BuildPackage(packageInfo);
@@ -2383,7 +2384,9 @@ static int RunPackageTool(argparse::ArgumentParser& parser) {
         gCloneRepos.insert(name);
     }
 
-    // gPackageDb->DumpTargetStates();
+    if (logger.mVerbose) {
+        gPackageDb->DumpTargetStates();
+    }
 
     // Download and extract everything first, we do this now
     // so that we can setup a chroot without it requiring internet

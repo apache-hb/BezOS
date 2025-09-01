@@ -191,8 +191,6 @@ OsStatus acpi::AcpiTables::setup(const AcpiSetupOptions& options, km::AddressSpa
     // map the rsdp table
     const acpi::RsdpLocator *locator = memory.mapConst<acpi::RsdpLocator>(options.rsdpBaseAddress, &rsdpAllocation);
 
-    return OsStatusNotFound;
-
     if (!locator) {
         AcpiLog.errorf("Failed to map RSDP at ", options.rsdpBaseAddress);
         return OsStatusOutOfMemory;
