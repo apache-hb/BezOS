@@ -127,7 +127,7 @@ static SmpInfoHeader SetupSmpInfoHeader(
 
     return SmpInfoHeader {
         .startAddress = (uintptr_t)KmSmpStartup,
-        .pat = x64::LoadPatMsr(),
+        .pat = x64::loadPatMsr(),
         .pml4 = uint32_t(pml4.address),
         .gdt = km::getBootGdt(),
         .gdtr = {

@@ -38,7 +38,6 @@
 
 #include "elf.hpp"
 #include "gdt.hpp"
-#include "log.hpp"
 #include "hypervisor.hpp"
 
 #include "hid/hid.hpp"
@@ -551,7 +550,6 @@ static km::Apic enableBootApic(km::AddressSpace& memory, bool useX2Apic) {
     km::InitCpuLocalRegion();
     km::RuntimeIsrManager::cpuInit();
 
-    SetDebugLogLock(DebugLogLockType::eSpinLock);
     km::InitKernelThread(apic);
 
     km::SharedIsrTable *sharedIst = km::GetSharedIsrTable();
@@ -1524,7 +1522,6 @@ static void displayHpetInfo(const km::HighPrecisionTimer& hpet) {
 
 void LaunchKernel(boot::LaunchInfo launch) {
     normalizeProcessorState();
-    SetDebugLogLock(DebugLogLockType::eNone);
     initBootTerminal(launch.framebuffers);
     auto [hvInfo, hasDebugPort] = queryHostHypervisor();
 
@@ -1620,9 +1617,9 @@ void LaunchKernel(boot::LaunchInfo launch) {
     KM_CHECK(ioApicCount > 0, "No IOAPICs found.");
     IoApicSet ioApicSet{ rsdt.madt(), gMemory->pageTables() };
 
-    std::unique_ptr<pci::IConfigSpace> config{pci::setupConfigSpace(rsdt.mcfg(), gMemory->pageTables())};
-    if (!config) {
-        KM_PANIC("Failed to initialize PCI config space.");
+    std::unique_ptr<pci::IConfigSpace> config;
+    if (OsStatus status = pci::setupConfigSpace(rsdt.mcfg(), gMemory->pageTables(), std::out_ptr(config))) {
+        InitLog.warnf("Failed to initialize PCI config space: ", OsStatusId(status));
     }
 
     pci::ProbeConfigSpace(config.get(), rsdt.mcfg());

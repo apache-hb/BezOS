@@ -1,10 +1,9 @@
 #pragma once
 
 #include "acpi/mcfg.hpp"
+#include "memory/heap.hpp"
 
 #include <stdint.h>
-
-#include <memory>
 
 namespace km {
     class AddressSpace;
@@ -34,31 +33,52 @@ namespace pci {
     };
 
     struct EcamRegion {
+        km::TlsfAllocation mapping;
         uint8_t first;
         uint8_t last;
 
-        volatile void *base;
-
         bool contains(uint8_t bus) const {
             return first <= bus && last >= bus;
+        }
+
+        volatile void *baseAddress() const {
+            return std::bit_cast<void*>(mapping.address());
         }
     };
 
     class McfgConfigSpace final : public IConfigSpace {
         const acpi::Mcfg *mMcfg;
-        std::unique_ptr<EcamRegion[]> mRegions;
+        EcamRegion mRegions[];
+
+        EcamRegion &regionAt(uint8_t index) {
+            return mRegions[index];
+        }
+
+        McfgConfigSpace(const acpi::Mcfg *mcfg)
+            : mMcfg(mcfg)
+        { }
+
     public:
-        McfgConfigSpace(const acpi::Mcfg *mcfg, km::AddressSpace& memory);
+        McfgConfigSpace() = default;
 
         ConfigSpaceType type() const override { return ConfigSpaceType::eMcfg; }
         uint32_t read32(uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset) override;
+
+        [[nodiscard]]
+        static OsStatus create(const acpi::Mcfg *mcfg, km::AddressSpace& memory, McfgConfigSpace **space [[gnu::nonnull]]) [[clang::allocating]];
     };
 
     class PortConfigSpace final : public IConfigSpace {
     public:
         ConfigSpaceType type() const override { return ConfigSpaceType::ePort; }
         uint32_t read32(uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset) override;
+
+        [[nodiscard]]
+        static OsStatus create(PortConfigSpace **space [[gnu::nonnull]]) [[clang::allocating]];
     };
 
     IConfigSpace *setupConfigSpace(const acpi::Mcfg *mcfg, km::AddressSpace& memory);
+
+    [[nodiscard]]
+    OsStatus setupConfigSpace(const acpi::Mcfg *mcfg, km::AddressSpace& memory, IConfigSpace **space) [[clang::allocating]];
 }

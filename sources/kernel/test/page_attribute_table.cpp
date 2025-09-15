@@ -7,12 +7,12 @@ TEST(PageAttributeTableTest, WriteBounds) {
 
     uint64_t before = pat;
 
-    x64::detail::SetPatEntry(pat, 0, km::MemoryType::eUncachedOverridable);
+    x64::detail::setPatEntry(pat, 0, km::MemoryType::eUncachedOverridable);
 
-    ASSERT_EQ(x64::detail::GetPatEntry(pat, 0), km::MemoryType::eUncachedOverridable);
+    ASSERT_EQ(x64::detail::getPatEntry(pat, 0), km::MemoryType::eUncachedOverridable);
 
     for (int i = 1; i < 8; i++) {
-        ASSERT_EQ(x64::detail::GetPatEntry(pat, i), x64::detail::GetPatEntry(before, i));
+        ASSERT_EQ(x64::detail::getPatEntry(pat, i), x64::detail::getPatEntry(before, i));
     }
 }
 
@@ -20,11 +20,11 @@ TEST(PageAttributeTableTest, WriteAll) {
     uint64_t pat = 0;
 
     for (int i = 0; i < 8; i++) {
-        x64::detail::SetPatEntry(pat, i, km::MemoryType::eUncachedOverridable);
+        x64::detail::setPatEntry(pat, i, km::MemoryType::eUncachedOverridable);
     }
 
     for (int i = 0; i < 8; i++) {
-        ASSERT_EQ(x64::detail::GetPatEntry(pat, i), km::MemoryType::eUncachedOverridable);
+        ASSERT_EQ(x64::detail::getPatEntry(pat, i), km::MemoryType::eUncachedOverridable);
     }
 }
 

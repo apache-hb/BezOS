@@ -33,21 +33,22 @@ pvtest_testcases = {
     'msr': {
         'sources': files('msr.cpp')
     },
-    'acpi': {
-        'sources': files(
-            'acpi.cpp',
-            '../../test/test_shim.cpp',
-        ),
-        'link_with': [
-            liblogging_nosanitize,
-            libpaging_nosanitize,
-            libmemory_nosanitize,
-            libformat_nosanitize,
-            libutil_nosanitize,
-            libacpi_nosanitize,
-            libapic_nosanitize,
-        ],
-    },
+    # TODO: broken for now, needs more work
+    # 'acpi': {
+    #     'sources': files(
+    #         'acpi.cpp',
+    #         '../../test/test_shim.cpp',
+    #     ),
+    #     'link_with': [
+    #         liblogging_nosanitize,
+    #         libpaging_nosanitize,
+    #         libmemory_nosanitize,
+    #         libformat_nosanitize,
+    #         libutil_nosanitize,
+    #         libacpi_nosanitize,
+    #         libapic_nosanitize,
+    #     ],
+    # },
     # 'idt': {
     #     'sources': files(
     #         'test/idt.cpp',

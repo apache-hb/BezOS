@@ -8,26 +8,26 @@
 
 namespace x64 {
     namespace detail {
-        void SetPatEntry(uint64_t& pat, uint8_t index, km::MemoryType type);
-        km::MemoryType GetPatEntry(uint64_t pat, uint8_t index);
+        void setPatEntry(uint64_t& pat, uint8_t index, km::MemoryType type);
+        km::MemoryType getPatEntry(uint64_t pat, uint8_t index);
     }
 
     /// @brief Test if the processor supports the Page Attribute Table (PAT).
     ///
     /// @return True if the processor supports the PAT, false otherwise.
-    bool HasPatSupport(void);
+    bool hasPatSupport(void);
 
     /// @brief Test if the processor supports the Memory Type Range Registers (MTRRs).
     ///
     /// @return True if the processor supports the MTRRs, false otherwise.
-    bool HasMtrrSupport(void);
+    bool hasMtrrSupport(void);
 
     /// @brief Load the value of the PAT MSR.
     ///
     /// @pre HasPatSupport() = true
     ///
     /// @return The value of the PAT MSR.
-    uint64_t LoadPatMsr(void);
+    uint64_t loadPatMsr(void);
 
     class PageAttributeTable {
         uint64_t mValue;

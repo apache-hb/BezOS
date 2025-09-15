@@ -18,7 +18,7 @@ static constexpr bool kEmitAddrToLine = true;
 static constexpr stdx::StringView kImagePath = "install/kernel/bin/bezos-limine.elf";
 
 km::PageMemoryTypeLayout km::SetupPat() {
-    if (!x64::HasPatSupport()) {
+    if (!x64::hasPatSupport()) {
         return PageMemoryTypeLayout { };
     }
 
@@ -62,7 +62,7 @@ void km::SetupMtrrs(x64::MemoryTypeRanges& mtrrs, const km::PageBuilder& pm) {
 }
 
 void km::WriteMtrrs(const km::PageBuilder& pm) {
-    if (!x64::HasMtrrSupport()) {
+    if (!x64::hasMtrrSupport()) {
         return;
     }
 

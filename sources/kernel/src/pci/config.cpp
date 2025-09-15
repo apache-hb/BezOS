@@ -59,46 +59,67 @@ uint32_t pci::PortConfigSpace::read32(uint8_t bus, uint8_t slot, uint8_t functio
     return KmReadLong(kDataPort);
 }
 
+OsStatus pci::PortConfigSpace::create(PortConfigSpace **space [[gnu::nonnull]]) [[clang::allocating]] {
+    void *ptr = aligned_alloc(alignof(PortConfigSpace), sizeof(PortConfigSpace));
+    if (ptr == nullptr) {
+        return OsStatusOutOfMemory;
+    }
+
+    *space = new (ptr) PortConfigSpace();
+    return OsStatusSuccess;
+}
+
 // MMIO-based PCI configuration space read
 
-pci::McfgConfigSpace::McfgConfigSpace(const acpi::Mcfg *mcfg, km::AddressSpace& memory)
-    : mMcfg(mcfg)
-    , mRegions(new (std::nothrow) EcamRegion[mMcfg->allocationCount()])
-{
-    KM_CHECK(mRegions != nullptr, "Failed to allocate ECAM region control blocks.");
+OsStatus pci::McfgConfigSpace::create(const acpi::Mcfg *mcfg, km::AddressSpace& memory, McfgConfigSpace **space [[gnu::nonnull]]) [[clang::allocating]] {
+    void *ptr = aligned_alloc(alignof(McfgConfigSpace), sizeof(McfgConfigSpace) + (sizeof(EcamRegion) * mcfg->allocationCount()));
+    if (ptr == nullptr) {
+        return OsStatusOutOfMemory;
+    }
 
-    for (size_t i = 0; i < mMcfg->allocationCount(); i++) {
-        const acpi::McfgAllocation& allocation = mMcfg->allocations[i];
+    McfgConfigSpace *result = new (ptr) McfgConfigSpace(mcfg);
 
-        km::MemoryRange range = { allocation.address, allocation.address + kEcamSize };
+    for (size_t i = 0; i < mcfg->allocationCount(); i++) {
+        const acpi::McfgAllocation& allocation = mcfg->allocations[i];
 
-        EcamRegion region = {
-            .first = allocation.startBusNumber,
-            .last = allocation.endBusNumber,
-            .base = memory.map(range, km::PageFlags::eData, km::MemoryType::eWriteThrough)
-        };
+        km::MemoryRangeEx range = km::MemoryRangeEx::of(allocation.address, kEcamSize);
 
-        if (region.base == nullptr) {
+        km::TlsfAllocation mapping;
+
+        if (OsStatus status = memory.map(range, km::PageFlags::eData, km::MemoryType::eUncached, &mapping)) {
             PciLog.fatalf("Failed to map ECAM region ", range);
-            KM_PANIC("Failed to map ECAM region.");
+            for (size_t j = 0; j < i; j++) {
+                (void)memory.unmap(result->regionAt(j).mapping);
+            }
+            free(result);
+            return status;
         }
 
-        mRegions[i] = region;
+        EcamRegion region = {
+            .mapping = mapping,
+            .first = allocation.startBusNumber,
+            .last = allocation.endBusNumber
+        };
 
-        auto ecam = km::VirtualRangeEx::of((void*)region.base, kEcamSize);
+        result->regionAt(i) = region;
+
+        auto ecam = km::VirtualRangeEx::of((void*)region.baseAddress(), kEcamSize);
 
         PciLog.infof("ECAM region ", i, ": ", range, " -> ", ecam);
     }
+
+    *space = result;
+    return OsStatusSuccess;
 }
 
 uint32_t pci::McfgConfigSpace::read32(uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset) {
     for (size_t i = 0; i < mMcfg->allocationCount(); i++) {
-        EcamRegion region = mRegions[i];
+        const EcamRegion& region = mRegions[i];
         if (!region.contains(bus)) continue;
 
         uint32_t address = (uint32_t(bus) << 20) | (uint32_t(slot) << 15) | (uint32_t(function) << 12) | offset;
 
-        return *(uint32_t*)((uint8_t*)region.base + address);
+        return *(uint32_t*)((uint8_t*)region.baseAddress() + address);
     }
 
     PciLog.warnf("ECAM region not found for ", km::Hex(bus).pad(2), ":", km::Hex(slot).pad(2), ":", km::Hex(function).pad(2));
@@ -106,18 +127,26 @@ uint32_t pci::McfgConfigSpace::read32(uint8_t bus, uint8_t slot, uint8_t functio
 }
 
 pci::IConfigSpace *pci::setupConfigSpace(const acpi::Mcfg *mcfg, km::AddressSpace& memory) {
+    IConfigSpace *space;
+    if (OsStatus status = setupConfigSpace(mcfg, memory, &space)) {
+        PciLog.fatalf("Failed to setup PCI config space: ", OsStatusId(status));
+        return nullptr;
+    }
+    return space;
+}
+
+OsStatus pci::setupConfigSpace(const acpi::Mcfg *mcfg, km::AddressSpace& memory, IConfigSpace **space) [[clang::allocating]] {
     if (mcfg == nullptr) {
         PciLog.warnf("No MCFG table.");
-        return new PortConfigSpace{};
+        return PortConfigSpace::create(std::bit_cast<PortConfigSpace**>(space));
     }
 
     size_t count = mcfg->allocationCount();
-
     if (count == 0) {
         PciLog.warnf("No ECAM regions found in MCFG table.");
-        return new PortConfigSpace{};
+        return PortConfigSpace::create(std::bit_cast<PortConfigSpace**>(space));
     }
 
     PciLog.dbgf(count, " ECAM ", (count == 1) ? "region"_sv : "regions"_sv, " found in MCFG table.");
-    return new McfgConfigSpace{mcfg, memory};
+    return McfgConfigSpace::create(mcfg, memory, std::bit_cast<McfgConfigSpace**>(space));
 }
