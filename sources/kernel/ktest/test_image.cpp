@@ -67,7 +67,6 @@ static km::SerialPortStatus InitSerialPort(km::ComPortInfo info) {
 
 void km::testing::InitKernelTest(boot::LaunchInfo) {
     NormalizeProcessorState();
-    SetDebugLogLock(DebugLogLockType::eNone);
 
     ComPortInfo com1Info = {
         .port = km::com::kComPort1,

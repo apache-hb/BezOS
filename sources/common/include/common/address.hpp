@@ -23,12 +23,15 @@ namespace sm {
             : address(0)
         { }
 
+        [[nodiscard]]
         constexpr auto operator<=>(const Address& other) const noexcept [[clang::nonblocking]] = default;
 
+        [[nodiscard]]
         constexpr bool isNull() const noexcept [[clang::nonblocking]] {
             return address == 0;
         }
 
+        [[nodiscard]]
         constexpr bool isAlignedTo(size_t alignment) const noexcept [[clang::nonblocking]] {
             return (address % alignment) == 0;
         }

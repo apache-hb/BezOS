@@ -194,27 +194,27 @@ namespace km {
     class [[nodiscard]] TlsfAllocation {
         friend class TlsfHeap;
 
-        detail::TlsfBlock *block{nullptr};
+        detail::TlsfBlock *mBlock{nullptr};
 
         TlsfAllocation(detail::TlsfBlock *block) noexcept [[clang::nonblocking]];
 
     public:
         constexpr TlsfAllocation() noexcept = default;
 
-        constexpr detail::TlsfBlock *getBlock() const noexcept [[clang::nonblocking]] { return block; }
-        constexpr bool isNull() const noexcept [[clang::nonblocking]] { return block == nullptr; }
-        constexpr bool isValid() const noexcept [[clang::nonblocking]] { return block != nullptr; }
+        constexpr detail::TlsfBlock *getBlock() const noexcept [[clang::nonblocking]] { return mBlock; }
+        constexpr bool isNull() const noexcept [[clang::nonblocking]] { return mBlock == nullptr; }
+        constexpr bool isValid() const noexcept [[clang::nonblocking]] { return mBlock != nullptr; }
 
         constexpr size_t size() const noexcept [[clang::nonblocking]] {
-            return block->size;
+            return mBlock->size;
         }
 
         constexpr PhysicalAddress address() const noexcept [[clang::nonblocking]] {
-            return PhysicalAddress(block->offset);
+            return PhysicalAddress(mBlock->offset);
         }
 
         constexpr MemoryRange range() const noexcept [[clang::nonblocking]] {
-            return MemoryRange::of(block->offset, block->size);
+            return MemoryRange::of(mBlock->offset, mBlock->size);
         }
 
         constexpr auto operator<=>(const TlsfAllocation&) const noexcept [[clang::nonblocking]] = default;

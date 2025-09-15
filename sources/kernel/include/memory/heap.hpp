@@ -1,8 +1,8 @@
 #pragma once
 
-#include "memory/detail/pool.hpp"
 #include "memory/range.hpp"
-#include "memory/detail/tlsf.hpp"
+#include "memory/detail/pool.hpp"
+#include "memory/detail/tlsf.hpp" // IWYU pragma: export
 
 namespace km {
     struct TlsfHeapStats {
@@ -149,6 +149,8 @@ namespace km {
         TlsfAllocation aligned_alloc(size_t align, size_t size) [[clang::allocating]];
 
         /// @brief Free an allocation.
+        ///
+        /// @param ptr The allocation to free.
         void free(TlsfAllocation ptr) noexcept [[clang::nonallocating]];
 
         void freeAddress(PhysicalAddress address) noexcept [[clang::nonallocating]];
@@ -203,6 +205,8 @@ namespace km {
         OsStatus reserve(MemoryRange range, TlsfAllocation *result [[gnu::nonnull]]) [[clang::allocating]];
 
         /// @brief Gather statistics about the heap.
+        ///
+        /// @return The current heap statistics.
         TlsfHeapStats stats() const noexcept [[clang::nonallocating]];
 
         /// @brief Resets the heap to its initial state.

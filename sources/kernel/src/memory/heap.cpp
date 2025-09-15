@@ -62,7 +62,7 @@ namespace {
 }
 
 TlsfAllocation::TlsfAllocation(detail::TlsfBlock *block) noexcept [[clang::nonblocking]]
-    : block(block)
+    : mBlock(block)
 {
     if (block != nullptr) {
         KM_CHECK(!block->isFree(), "Allocation was not created from an allocated block");
@@ -415,7 +415,7 @@ km::TlsfAllocation TlsfHeap::allocBestFit(size_t align, size_t size) [[clang::al
         nextListBlock = nextListBlock->propNextFree();
     }
 
-    return nullptr;
+    return km::TlsfAllocation{};
 }
 
 km::TlsfAllocation TlsfHeap::aligned_alloc(size_t align, size_t size) {
