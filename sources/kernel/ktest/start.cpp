@@ -1,3 +1,4 @@
+#include "logger/categories.hpp"
 #include "test_image.hpp"
 #include "logger/logger.hpp"
 

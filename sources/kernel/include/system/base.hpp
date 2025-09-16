@@ -42,14 +42,17 @@ namespace sys {
     protected:
         stdx::SharedSpinLock mLock;
 
-        BaseObject(ObjectName name) noexcept
-            : mName(name)
-        {
-            mName.resize(strnlen(name.data(), name.capacity()));
+        BaseObject(ObjectName name) {
+            setNameUnlocked(name);
         }
 
         ObjectName getNameUnlocked() const REQUIRES_SHARED(mLock) {
             return mName;
+        }
+
+        void setNameUnlocked(ObjectName name) REQUIRES(mLock) {
+            mName = name;
+            mName.resize(strnlen(name.data(), name.capacity()));
         }
 
     public:

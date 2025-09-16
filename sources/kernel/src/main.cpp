@@ -1426,7 +1426,7 @@ static void createDisplayDevice() {
 
 static void launchKernelProcess(km::ITickSource *tickSource) {
     sys::ProcessCreateInfo createInfo {
-        .name = stdx::StringView::ofString("SYSTEM"),
+        .name = stdx::StringView("SYSTEM\0"),
         .state = eOsProcessSupervisor,
     };
     std::unique_ptr<sys::ProcessHandle> system;

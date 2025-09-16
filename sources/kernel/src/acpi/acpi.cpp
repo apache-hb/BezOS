@@ -2,6 +2,7 @@
 
 #include "acpi/hpet.hpp"
 #include "apic.hpp"
+#include "logger/categories.hpp"
 #include "logger/logger.hpp"
 #include "panic.hpp"
 #include "memory/address_space.hpp"
@@ -10,8 +11,6 @@
 #include <stddef.h>
 
 using namespace stdx::literals;
-
-static constinit km::Logger AcpiLog { "ACPI" };
 
 static constexpr bool kLogAcpiHex = true;
 

@@ -3,8 +3,6 @@
 #include "boot.hpp"
 #include "logger/logger.hpp"
 
-constinit inline km::Logger TestLog { "TEST" };
-
 #define KTEST_SECTION __attribute__((section(".rodata.testing")))
 
 namespace km::testing {

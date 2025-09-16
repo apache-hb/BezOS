@@ -1,5 +1,6 @@
 #pragma once
 
+#include "arch/cr3.hpp"
 #include "arch/intrin.hpp"
 #include "arch/paging.hpp"
 
@@ -141,9 +142,9 @@ namespace km {
         }
 
         void setActiveMap(PhysicalAddress map) const noexcept {
-            uint64_t reg = __get_cr3();
-            reg = (reg & ~mAddressMask) | map.address;
-            __set_cr3(reg);
+            x64::Cr3 cr3 = x64::Cr3::load();
+            cr3.setAddress(map.address & mAddressMask);
+            x64::Cr3::store(cr3);
         }
 
         constexpr bool isCanonicalAddress(uintptr_t addr) const noexcept [[clang::nonblocking]] {
