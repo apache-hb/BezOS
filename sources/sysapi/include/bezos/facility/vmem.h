@@ -10,6 +10,8 @@ extern "C" {
 /// @{
 
 enum {
+    /// @brief No access to the address space.
+    /// All reads, writes, and attempts to execute code will fault.
     eOsMemoryNoAccess = 0,
 
     eOsMemoryRead     = (1 << 0),
@@ -22,7 +24,7 @@ enum {
 
     /// @brief Commit virtual address space
     /// Committed space is accessible and can be read or written.
-    /// @note Implies @c eOsMemoryReserved when invoking @c OsVmemCreate.
+    /// @note Implies @c eOsMemoryReserve when invoking @c OsVmemCreate.
     eOsMemoryCommit   = (1 << 4),
 
     /// @brief Discard a range of memory.

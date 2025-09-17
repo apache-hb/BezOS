@@ -135,7 +135,16 @@ void sys::YieldCurrentThread() {
 
     arch::IntrinX86_64::cli();
 
-    task::switchCurrentContext(gScheduler, tlsQueue.get(), &context);
+    task::SchedulerQueue *queue = tlsQueue.get();
+
+    if (task::switchCurrentContext(gScheduler, queue, &context)) {
+        task::SchedulerEntry *entry = queue->getCurrentTask();
+        sys::Thread *thread = static_cast<sys::Thread*>(entry);
+        km::StackMapping kernelStack = thread->getKernelStack();
+
+        thread->loadState();
+        tlsKernelStack = kernelStack.baseAddress();
+    }
 
     if ((context.cs & 0b11) != 0) {
         __swapgs();
