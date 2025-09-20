@@ -1187,6 +1187,21 @@ TEST_F(TlsfHeapTest, OomDoesntLeakBlocks) {
     pointers.clear();
 }
 
+TEST_F(TlsfHeapTest, AllocateAt) {
+    TlsfHeap heap;
+    km::MemoryRange range{0x1000, 0x10000};
+    OsStatus status = TlsfHeap::create(range, &heap);
+    EXPECT_EQ(status, OsStatusSuccess);
+
+    TlsfAllocation addr = heap.allocateAt(km::PhysicalAddressEx{0x2000}, 0x100);
+    EXPECT_TRUE(addr.isValid());
+    EXPECT_EQ(addr.address().address, 0x2000);
+
+    auto stats = heap.stats();
+    EXPECT_EQ(stats.usedMemory, 0x100);
+    EXPECT_EQ(stats.freeMemory, range.size() - 0x100);
+}
+
 #if 0
 TEST_F(TlsfHeapTest, CreateMany) {
     std::mt19937 random{0x1234};

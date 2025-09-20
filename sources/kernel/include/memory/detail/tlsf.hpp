@@ -217,6 +217,10 @@ namespace km {
             return MemoryRange::of(mBlock->offset, mBlock->size);
         }
 
+        constexpr operator bool() const noexcept [[clang::nonblocking]] {
+            return mBlock != nullptr;
+        }
+
         constexpr auto operator<=>(const TlsfAllocation&) const noexcept [[clang::nonblocking]] = default;
     };
 }

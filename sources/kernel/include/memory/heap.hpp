@@ -46,7 +46,7 @@ namespace km {
         BitMap mInnerFreeMap[detail::kMaxMemoryClass];
         BitMap mTopLevelFreeMap;
 
-        TlsfBlock *findFreeBlock(size_t size, size_t *listIndex) noexcept [[clang::nonblocking]];
+        TlsfBlock *findFreeBlock(size_t size, size_t *listIndex) const noexcept [[clang::nonblocking]];
 
         bool checkBlock(TlsfBlock *block, size_t listIndex, size_t size, size_t align, TlsfAllocation *result) [[clang::allocating]];
 
@@ -61,6 +61,8 @@ namespace km {
         void mergeBlock(TlsfBlock *block, TlsfBlock *prev) noexcept [[clang::nonallocating]];
 
         void resizeBlock(TlsfBlock *block, size_t newSize) noexcept [[clang::nonallocating]];
+
+        OsStatus splitBlockForAllocationIfRequired(TlsfBlock *block, size_t alignedOffset) noexcept [[clang::allocating]];
 
         void init() noexcept;
 
@@ -93,10 +95,23 @@ namespace km {
 
         constexpr TlsfHeap() noexcept = default;
 
+        /// @brief Validate internal data structures.
+        ///
+        /// @note This is an expensive operation and should only be used for debugging.
         void validate() noexcept [[clang::nonallocating]];
 
+        /// @brief Compact internal data structures.
+        ///
+        /// @return Statistics about the compaction operation.
         TlsfCompactStats compact();
 
+        /// @brief Allocate a block of memory.
+        ///
+        /// Equivalent to `aligned_alloc(alignof(std::max_align_t), size)`.
+        ///
+        /// @param size The size of the block to allocate.
+        ///
+        /// @return The allocation, or a null allocation on failure.
         [[nodiscard]]
         TlsfAllocation malloc(size_t size) [[clang::allocating]];
 
@@ -111,12 +126,15 @@ namespace km {
         ///
         /// Grows an allocation to a larger size if there is adjacent space available. If there
         /// is no adjacent space available, the allocation fails and the original
-        /// allocation is unchanged.
+        /// allocation is unchanged. Cannot be used to shrink allocations, see @ref shrink.
         ///
         /// @param ptr The allocation to grow.
         /// @param size The new size of the allocation.
         ///
         /// @return The status of the operation.
+        /// @retval OsStatusSuccess The operation was successful, @p result contains the new allocation.
+        /// @retval OsStatusInvalidInput The new size is less than the current size.
+        /// @retval OsStatusOutOfMemory There is no adjacent space available, the original allocation is unchanged.
         [[nodiscard]]
         OsStatus grow(TlsfAllocation ptr, size_t size, TlsfAllocation *result [[gnu::nonnull]]) [[clang::allocating]];
 
@@ -145,14 +163,43 @@ namespace km {
         OsStatus resize(TlsfAllocation ptr, size_t size, TlsfAllocation *result [[gnu::nonnull]]) [[clang::allocating]];
 
         /// @brief Allocate an aligned allocation.
+        ///
+        /// @param align The alignment of the allocation.
+        /// @param size The size of the allocation.
+        ///
+        /// @return The allocation, or a null allocation on failure.
         [[nodiscard]]
         TlsfAllocation aligned_alloc(size_t align, size_t size) [[clang::allocating]];
+
+        /// @brief Allocate a block of memory with a preferred address.
+        ///
+        /// @param align The alignment of the allocation.
+        /// @param size The size of the allocation.
+        /// @param hint The preferred address of the allocation, may be ignored if the address is not available.
+        ///
+        /// @return The allocation, or a null allocation on failure.
+        [[nodiscard]]
+        TlsfAllocation allocateWithHint(size_t align, size_t size, PhysicalAddressEx hint) [[clang::allocating]];
+
+        /// @brief Allocate a block of memory at a specific address.
+        ///
+        /// Like @ref allocateWithHint, but the address is mandatory. The allocation
+        /// will fail if the address is not available.
+        ///
+        /// @param address The address to allocate the memory at.
+        /// @param size The size of the allocation.
+        ///
+        /// @return The allocation, or a null allocation on failure.
+        [[nodiscard]]
+        TlsfAllocation allocateAt(PhysicalAddressEx address, size_t size) [[clang::allocating]];
 
         /// @brief Free an allocation.
         ///
         /// @param ptr The allocation to free.
         void free(TlsfAllocation ptr) noexcept [[clang::nonallocating]];
 
+        /// @brief Free an allocation by its address.
+        /// @warning If you're using this function, you're doing it wrong.
         void freeAddress(PhysicalAddress address) noexcept [[clang::nonallocating]];
 
         /// @brief Find an allocation by its address.
@@ -213,9 +260,24 @@ namespace km {
         /// @warning Invalidates all outstanding allocations.
         void reset() noexcept [[clang::nonallocating]];
 
+        /// @brief Create a heap from a single contiguous range.
+        ///
+        /// @param range The range to create the heap from.
+        /// @param[out] heap The resulting heap.
+        /// @return The result of the operation.
+        /// @retval OsStatusSuccess The operation was successful, the heap was created.
         [[nodiscard]]
         static OsStatus create(MemoryRange range, TlsfHeap *heap [[clang::noescape, gnu::nonnull]]) [[clang::allocating]];
 
+        /// @brief Create a heap from multiple discontiguous ranges.
+        ///
+        /// @pre @p ranges must not be empty, and must be sorted in ascending order.
+        ///
+        /// @param ranges The ranges to create the heap from.
+        /// @param[out] heap The resulting heap.
+        ///
+        /// @return The result of the operation.
+        /// @retval OsStatusSuccess The operation was successful, the heap was created.
         [[nodiscard]]
         static OsStatus create(std::span<const MemoryRange> ranges, TlsfHeap *heap [[clang::noescape, gnu::nonnull]]) [[clang::allocating]];
     };

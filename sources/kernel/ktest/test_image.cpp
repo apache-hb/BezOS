@@ -3,6 +3,7 @@
 #include "arch/cr0.hpp"
 #include "arch/cr4.hpp"
 #include "kernel.hpp"
+#include "logger/categories.hpp"
 #include "logger/serial_appender.hpp"
 #include "syscall.hpp"
 

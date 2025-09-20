@@ -5,7 +5,8 @@ project('sysapi', [ 'c', 'cpp' ],
         'cpp_rtti=false',
         'cpp_eh=none',
         'b_pie=true',
-    ]
+    ],
+    version : '0.1.0',
 )
 
 inc = include_directories('include')
@@ -73,6 +74,8 @@ bezos_dep = declare_dependency(
 
 meson.override_dependency('bezos', bezos_dep)
 
+stb = dependency('stb')
+
 src = [
     'src/rtld/rtld.cpp',
 ]
@@ -80,7 +83,7 @@ src = [
 librtld = static_library('rtld', src,
     name_prefix : '',
     include_directories : [ inc ],
-    dependencies : [ bezos_dep, common ],
+    dependencies : [ bezos_dep, common, stb ],
     install : true,
 )
 
@@ -99,7 +102,6 @@ custom_target('crtstart',
     install_dir : get_option('libdir'),
 )
 
-stb = dependency('stb')
 rpmalloc = subproject('rpmalloc')
 
 src = [
@@ -167,3 +169,29 @@ pkgconfig.generate(libposix,
     version : meson.project_version(),
     requires : [ 'bezos-sysapi' ],
 )
+
+doxygen = find_program('doxygen', required : get_option('docs'))
+if doxygen.found()
+    source_dir = meson.project_source_root()
+
+    doxy_cdata = configuration_data()
+    doxy_cdata.set('VERSION', meson.project_version())
+    doxy_cdata.set('SOURCES', source_dir)
+    doxy_cdata.set('ROOT_SOURCE_DIR', source_dir)
+    doxy_cdata.set('INCLUDE_PATHS', source_dir / 'include')
+    doxy_cdata.set('CLANG_DATABASE', meson.global_build_root() / 'compile_commands.json')
+
+    doxy_cfg = configure_file(
+        input : 'data/Doxyfile.in',
+        output : 'Doxyfile',
+        configuration : doxy_cdata
+    )
+
+    custom_target('docs',
+        input : doxy_cfg,
+        output : 'html',
+        command: [ doxygen, doxy_cfg ],
+        install : true,
+        install_dir : get_option('datadir') / 'doc',
+    )
+endif

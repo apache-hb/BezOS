@@ -13,6 +13,7 @@
 #include "private.hpp"
 
 #define STB_SPRINTF_IMPLEMENTATION 1
+#define STB_SPRINTF_STATIC 1
 #include "stb_sprintf.h"
 
 struct OsImplPosixFile {

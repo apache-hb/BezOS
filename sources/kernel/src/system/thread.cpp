@@ -132,7 +132,7 @@ OsStatus sys::Thread::suspend() {
 }
 
 OsStatus sys::Thread::resume() {
-    TaskLog.dbgf("Resuming thread ", mProcess.lock()->getName(), ":", getName());
+    TaskLog.dbgf("Resuming thread ", mProcess.lock()->getName(), ":", getName(), " (", mProcess.lock()->getAddressSpaceManager()->getPageMap(), ")");
     OsThreadState expected = eOsThreadSuspended;
     while (!cmpxchgState(expected, eOsThreadQueued)) {
         switch (expected) {

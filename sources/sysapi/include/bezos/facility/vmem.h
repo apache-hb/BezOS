@@ -49,6 +49,7 @@ enum {
 /// Bits [9:31] are reserved and must be zero.
 typedef uint32_t OsMemoryAccess;
 
+/// @brief Parameters for mapping memory from one object to another.
 struct OsVmemMapInfo {
     /// @brief The address from the source object to map.
     /// @note Must be a multiple of the system page size.
@@ -66,6 +67,7 @@ struct OsVmemMapInfo {
     OsMemoryAccess Access;
 
     /// @brief The source object to map the memory from.
+    /// @note Cannot be @a OS_HANDLE_INVALID.
     OsHandle Source;
 
     /// @brief The destination object to map the memory to.
@@ -75,6 +77,7 @@ struct OsVmemMapInfo {
     OsTxHandle Transaction;
 };
 
+/// @brief Parameters for creating a new area of memory in a process.
 struct OsVmemCreateInfo {
     /// @brief The base address to map the memory at.
     /// If @c eOsMemoryAddressHint is set in the access flags, then this is a hint. If the range is already in use
@@ -82,6 +85,14 @@ struct OsVmemCreateInfo {
     /// in use the operation will fail.
     /// If this is @c NULL then the system will choose the address.
     /// @note If @c eOsMemoryAddressHint is set, then the address must not be @c NULL.
+    ///
+    /// Rules for the base address:
+    /// | eOsMemoryAddressHint | BaseAddress      | Result                                                     |
+    /// |----------------------|------------------|------------------------------------------------------------|
+    /// | Not set              | NULL             | Allocates at position chosen by OS.                        |
+    /// | Not set              | Non-NULL         | Allocates at specified address, fails if not possible.     |
+    /// | Set                  | NULL             | Invalid parameter.                                         |
+    /// | Set                  | Non-NULL         | Allocates at specified address or another if not possible. |
     OsAnyPointer BaseAddress;
 
     /// @brief The minimum size of the address space.
@@ -96,7 +107,7 @@ struct OsVmemCreateInfo {
     OsMemoryAccess Access;
 
     /// @brief The process handle to create the address space for.
-    /// If this is OS_HANDLE_INVALID, then the address space is created for the current process.
+    /// If this is @a OS_HANDLE_INVALID, then the address space is created for the current process.
     OsProcessHandle Process;
 
     /// @brief The transaction this address space is associated with.

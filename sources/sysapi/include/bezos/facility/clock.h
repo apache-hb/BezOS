@@ -9,6 +9,7 @@ extern "C" {
 /// @defgroup OsClock Clock
 /// @{
 
+/// @brief The max size of a clock name.
 #define OS_CLOCK_NAME_MAX 64
 
 typedef uint64_t OsClockFrequencyHz;
@@ -22,7 +23,7 @@ struct OsClockInfo {
     /// @note This may not be accurate, it is provided as a best effort.
     OsClockFrequencyHz FrequencyHz;
 
-    /// @brief The boot time of the system.
+    /// @brief The time this clock was started.
     OsInstant BootTime;
 };
 

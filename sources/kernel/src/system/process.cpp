@@ -596,7 +596,7 @@ OsStatus sys::SysVmemCreate(InvokeContext *context, OsVmemCreateInfo info, void 
         return status;
     }
 
-    SysLog.dbgf("Created vmem ", mapping, " (", vmemInfo.flags, ") in ", process->getName());
+    SysLog.dbgf("Created vmem ", mapping, " (", vmemInfo.flags, ") in ", process->getName(), " (", process->getAddressSpaceManager()->getPageMap(), ")");
 
     *outVmem = (void*)mapping.vaddr;
 

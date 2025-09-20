@@ -109,7 +109,7 @@ elif [ "$MODE" = "test" ]; then
     qemu-system-x86_64 $QEMUARGS $(serial_chardev qemu-serial.txt) $(serial_canbus) $ARGS
 else
     repobld kernel sysapi system || exit 1
-    repobld initrd bezos-limine --total || exit 1
+    repobld initrd bezos-limine bezos-hyper --total || exit 1
 
     set -x
     qemu-system-x86_64 $QEMUARGS $(serial_chardev qemu-serial.txt) $ARGS

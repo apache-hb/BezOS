@@ -24,7 +24,7 @@ struct OsProcessInfo {
 };
 
 inline OsStatus OsInvokeProcessGetInfo(OsDeviceHandle Handle, struct OsProcessInfo *OutInfo) {
-    return OsDeviceCall(Handle, eOsProcessInfo, OutInfo, sizeof(struct OsProcessInfo));
+    return OsDeviceInvoke(Handle, eOsProcessInfo, OutInfo, sizeof(struct OsProcessInfo));
 }
 
 #define OS_DEVICE_PROCESS_LIST "Processes"
@@ -41,7 +41,7 @@ struct OsProcessListData {
 };
 
 inline OsStatus OsInvokeProcessListGet(OsDeviceHandle Handle, struct OsProcessListData *OutData) {
-    return OsDeviceCall(Handle, eOsProcessListGet, OutData, sizeof(struct OsProcessListData));
+    return OsDeviceInvoke(Handle, eOsProcessListGet, OutData, sizeof(struct OsProcessListData));
 }
 
 #ifdef __cplusplus

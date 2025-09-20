@@ -15,6 +15,10 @@ static OsCallResult NewVmemCreate(km::System *system, km::CallContext *context, 
         return km::CallError(status);
     }
 
+    SysLog.dbgf("VmemCreate: BaseAddress: ", createInfo.BaseAddress, ", Size: ", km::Hex(createInfo.Size),
+                  ", Alignment: ", km::Hex(createInfo.Alignment), ", Access: ", km::Hex(createInfo.Access),
+                  ", Process: ", km::Hex(createInfo.Process));
+
     sys::InvokeContext invoke { system->sys, sys::GetCurrentProcess() };
     void *vaddr = nullptr;
     if (OsStatus status = sys::SysVmemCreate(&invoke, createInfo, &vaddr)) {
@@ -36,8 +40,6 @@ OsCallResult um::VmemMap(km::System *system, km::CallContext *context, km::Syste
     uint64_t userMapInfo = regs->arg0;
 
     OsVmemMapInfo mapInfo{};
-
-    SysLog.dbgf("VmemMap: UserMapInfo: ", km::Hex(userMapInfo));
 
     if (OsStatus status = context->readObject(userMapInfo, &mapInfo)) {
         SysLog.dbgf("VmemMap: Failed to read map info: ", OsStatusId(status));

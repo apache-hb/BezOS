@@ -1,1 +1,2 @@
 option('headers', type : 'boolean', value : false)
+option('docs', type : 'feature', description : 'Build documentation')

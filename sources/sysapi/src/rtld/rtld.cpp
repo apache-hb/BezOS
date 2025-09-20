@@ -16,7 +16,26 @@
 #include <span>
 #include <stdlib.h>
 
+#define STB_SPRINTF_IMPLEMENTATION 1
+#define STB_SPRINTF_STATIC 1
+#include "stb_sprintf.h"
+
 namespace elf = os::elf;
+
+static void RtldPrintf(const char *fmt, ...) {
+    char buffer[1024];
+    va_list args;
+    va_start(args, fmt);
+    int size = stbsp_vsnprintf(buffer, sizeof(buffer), fmt, args);
+    va_end(args);
+
+    OsDebugMessageInfo messageInfo {
+        .Front = buffer,
+        .Back = buffer + size,
+        .Info = eOsLogDebug,
+    };
+    OsDebugMessage(messageInfo);
+}
 
 static const elf::ProgramHeader *FindProgramHeader(std::span<const elf::ProgramHeader> phs, elf::ProgramHeaderType type) {
     for (const auto& header : phs) {
@@ -168,6 +187,33 @@ static OsStatus RtldTlsInit(OsDeviceHandle file, OsProcessHandle process, const 
     return OsStatusSuccess;
 }
 
+static OsStatus RtldGetMemoryRange(std::span<const elf::ProgramHeader> phs, size_t *outBegin, size_t *outEnd) {
+    uintptr_t minAddr = UINTPTR_MAX;
+    uintptr_t maxAddr = 0;
+
+    for (const elf::ProgramHeader &ph : phs) {
+        if (ph.type != elf::ProgramHeaderType::eLoad) {
+            continue;
+        }
+
+        if (ph.vaddr < minAddr) {
+            minAddr = ph.vaddr;
+        }
+
+        if (ph.vaddr + ph.memsz > maxAddr) {
+            maxAddr = ph.vaddr + ph.memsz;
+        }
+    }
+
+    if (minAddr == UINTPTR_MAX || maxAddr == 0 || maxAddr <= minAddr) {
+        return OsStatusInvalidData;
+    }
+
+    *outBegin = sm::rounddown<size_t>(minAddr, 0x1000);
+    *outEnd = sm::roundup<size_t>(maxAddr, 0x1000);
+    return OsStatusSuccess;
+}
+
 static OsStatus RtldMapProgram(OsDeviceHandle file, OsProcessHandle process, uintptr_t *entry, RtldTlsInitInfo *tlsInfo) {
     elf::Header header;
 
@@ -202,11 +248,77 @@ static OsStatus RtldMapProgram(OsDeviceHandle file, OsProcessHandle process, uin
     *entry = header.entry;
     std::span<elf::ProgramHeader> phs(reinterpret_cast<elf::ProgramHeader*>(elfPhMapping), header.phnum);
 
+    size_t memoryBegin = 0;
+    size_t memoryEnd = 0;
+    if (OsStatus status = RtldGetMemoryRange(phs, &memoryBegin, &memoryEnd)) {
+        OsDebugMessage(eOsLogInfo, "Failed to get memory range");
+        return status;
+    }
+
+    RtldPrintf("Allocating memory: %p-%p", (void*)memoryBegin, (void*)memoryEnd);
+
+    OsVmemCreateInfo vmemGuestCreateInfo {
+        .BaseAddress = OsAnyPointer(memoryBegin),
+        .Size = memoryEnd - memoryBegin,
+        .Access = eOsMemoryRead | eOsMemoryWrite | eOsMemoryExecute | eOsMemoryCommit | eOsMemoryDiscard,
+        .Process = process,
+    };
+    void *guestAddress = nullptr;
+    if (OsStatus status = OsVmemCreate(vmemGuestCreateInfo, &guestAddress)) {
+        OsDebugMessage(eOsLogInfo, "Failed to create guest memory");
+        return status;
+    }
+
+    if (guestAddress != (void*)memoryBegin) {
+        OsDebugMessage(eOsLogInfo, "Guest memory allocated at wrong address");
+        return OsStatusInvalidData;
+    }
+
+    OsVmemMapInfo vmemGuestMapInfo {
+        .SrcAddress = OsAddress(guestAddress),
+        .Size = memoryEnd - memoryBegin,
+        .Access = eOsMemoryWrite,
+        .Source = process,
+    };
+    if (OsStatus status = OsVmemMap(vmemGuestMapInfo, &guestAddress)) {
+        OsDebugMessage(eOsLogInfo, "Failed to map guest memory");
+        return status;
+    }
+
     for (const elf::ProgramHeader &ph : phs) {
         if (ph.type != elf::ProgramHeaderType::eLoad) {
             continue;
         }
 
+        char *base = reinterpret_cast<char*>(guestAddress) + (ph.vaddr - memoryBegin);
+        OsDeviceReadRequest read {
+            .BufferFront = base,
+            .BufferBack = base + ph.filesz,
+            .Offset = ph.offset,
+            .Timeout = OS_TIMEOUT_INFINITE,
+        };
+
+        RtldPrintf("Loading segment: %p-%p to %p", (void*)ph.vaddr, (void*)(ph.vaddr + ph.memsz), base);
+
+        OsSize size = 0;
+        if (OsStatus status = OsDeviceRead(file, read, &size)) {
+            OsDebugMessage(eOsLogInfo, "Failed to read program header");
+            return status;
+        }
+
+        if (size != ph.filesz) {
+            OsDebugMessage(eOsLogInfo, "Failed to read full program header");
+            return OsStatusInvalidData;
+        }
+
+        RtldPrintf("First 16 bytes: %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x",
+            (uint8_t)base[0], (uint8_t)base[1], (uint8_t)base[2], (uint8_t)base[3],
+            (uint8_t)base[4], (uint8_t)base[5], (uint8_t)base[6], (uint8_t)base[7],
+            (uint8_t)base[8], (uint8_t)base[9], (uint8_t)base[10], (uint8_t)base[11],
+            (uint8_t)base[12], (uint8_t)base[13], (uint8_t)base[14], (uint8_t)base[15]);
+
+
+#if 0
         OsMemoryAccess access = eOsMemoryNoAccess;
         if (ph.flags & (1 << 0))
             access |= eOsMemoryExecute;
@@ -245,6 +357,9 @@ static OsStatus RtldMapProgram(OsDeviceHandle file, OsProcessHandle process, uin
             OsDebugMessage(eOsLogInfo, "Failed to map program header into guest memory");
             return status;
         }
+#endif
+
+
     }
 
     if (const elf::ProgramHeader *tls = FindTlsSection(phs)) {
@@ -258,6 +373,7 @@ static OsStatus RtldMapProgram(OsDeviceHandle file, OsProcessHandle process, uin
 }
 
 OsStatus RtldStartProgram(const RtldStartInfo *StartInfo, OsThreadHandle *OutThread) {
+    RtldPrintf("Starting program in process %llx", StartInfo->Process);
     uintptr_t entry = 0;
     RtldTlsInitInfo tlsInfo{};
     if (OsStatus status = RtldMapProgram(StartInfo->Program, StartInfo->Process, &entry, &tlsInfo)) {
@@ -314,6 +430,7 @@ OsStatus RtldStartProgram(const RtldStartInfo *StartInfo, OsThreadHandle *OutThr
         .TlsBssSize = tlsInfo.TlsBssSize,
     };
 
+    RtldPrintf("Entry point: %p", (void*)entry);
     RtldTls tls{};
     if (tlsInfo.TlsDataSize != 0 || tlsInfo.TlsBssSize != 0) {
         if (OsStatus status = RtldCreateTls(StartInfo->Process, &tlsInfo, &tls)) {
@@ -343,6 +460,7 @@ OsStatus RtldStartProgram(const RtldStartInfo *StartInfo, OsThreadHandle *OutThr
         return status;
     }
 
+    RtldPrintf("Created thread %llx in process %llx", threadHandle, StartInfo->Process);
     *OutThread = threadHandle;
     return OsStatusSuccess;
 }

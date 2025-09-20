@@ -6,10 +6,10 @@
 
 #include <ranges>
 
-using TlsfBlock = km::detail::TlsfBlock;
-using TlsfHeap = km::TlsfHeap;
-using TlsfHeapStats = km::TlsfHeapStats;
-using TlsfAllocation = km::TlsfAllocation;
+using km::detail::TlsfBlock;
+using km::TlsfHeap;
+using km::TlsfHeapStats;
+using km::TlsfAllocation;
 
 namespace {
     template<size_t N>
@@ -69,7 +69,7 @@ TlsfAllocation::TlsfAllocation(detail::TlsfBlock *block) noexcept [[clang::nonbl
     }
 }
 
-TlsfBlock *TlsfHeap::findFreeBlock(size_t size, size_t *listIndex) noexcept [[clang::nonblocking]] {
+TlsfBlock *TlsfHeap::findFreeBlock(size_t size, size_t *listIndex) const noexcept [[clang::nonblocking]] {
     KM_CHECK(size > 0, "size must be greater than 0");
 
     uint8_t memoryClass = detail::SizeToMemoryClass(size);
@@ -132,6 +132,10 @@ OsStatus TlsfHeap::create(MemoryRange range, TlsfHeap *heap [[clang::noescape, g
 
     BlockPtr *freeList = new (std::nothrow) BlockPtr[freeListCount];
     if (freeList == nullptr) {
+        //
+        // We can leak the nullBlock here, as the pool its allocated from
+        // will be freed when we leave this function early.
+        //
         return OsStatusOutOfMemory;
     }
 
@@ -157,15 +161,20 @@ OsStatus TlsfHeap::create(std::span<const MemoryRange> ranges, TlsfHeap *heap [[
     }
 
     size_t reserved = 0;
-    // iterate over all the holes in the range and reserve them
+
+    //
+    // Iterate over all the holes in the range and reserve them
+    //
     for (size_t i = 0; i < ranges.size() - 1; i++) {
         const MemoryRange& range = ranges[i];
         const MemoryRange& next = ranges[i + 1];
         if (range.back.address < next.front.address) {
             MemoryRange hole = { range.back.address, next.front.address };
 
-            // leaking the allocation here is fine, the memory isnt usable anyway.
+            //
+            // Leaking the allocation here is fine, the memory isnt usable anyway
             // and the allocation handle will be freed when the heap is destroyed.
+            //
             TlsfAllocation allocation;
             if (OsStatus status = heap->reserve(hole, &allocation)) {
                 return status;
@@ -286,7 +295,7 @@ km::TlsfCompactStats TlsfHeap::compact() {
 }
 
 km::TlsfAllocation TlsfHeap::malloc(size_t size) [[clang::allocating]] {
-    return aligned_alloc(8, size);
+    return aligned_alloc(alignof(std::max_align_t), size);
 }
 
 void TlsfHeap::resizeBlock(TlsfBlock *block, size_t newSize) noexcept [[clang::nonallocating]] {
@@ -306,32 +315,51 @@ OsStatus TlsfHeap::grow(TlsfAllocation ptr, size_t size, TlsfAllocation *result)
     TlsfBlock *block = ptr.getBlock();
     KM_CHECK(!block->isFree(), "Block is not free");
 
+    //
+    // If the size is the same, just return the same allocation.
+    //
     if (size == block->size) {
         *result = ptr;
         return OsStatusSuccess;
     }
 
+    //
+    // This function only grows allocations, shrinking should be done with shrink().
+    //
     if (size < block->size) {
         return OsStatusInvalidInput;
     }
 
-    // Expand the block
+    //
+    // Try to expand the block into the adjacent block if it's free.
+    // If its not available, the allocation fails.
+    //
     TlsfBlock *next = block->next;
     if (next == nullptr || !next->isFree()) {
         return OsStatusOutOfMemory;
     }
 
-    // the extra size needed to grow the current block to the requested size
+    //
+    // Try and claim the extra size needed to grow the block, we only need to check
+    // one block after this one as adjacent blocks are merged when freed.
+    //
     size_t extraSize = size - block->size;
     if (next->size >= extraSize) {
         block->size = size;
         next->offset += extraSize;
+
+        //
+        // Try and merge this block with the adjacent block if we used all of its space.
+        //
         if (next->size == extraSize) {
             KM_CHECK(next != mNullBlock, "Next block is null");
             takeBlockFromFreeList(next);
             mergeBlock(next, block);
             *result = TlsfAllocation(next);
         } else {
+            //
+            // Otherwise just resize the next block to account for the space we took.
+            //
             if (next != mNullBlock) {
                 resizeBlock(next, next->size - extraSize);
             } else {
@@ -374,16 +402,23 @@ OsStatus TlsfHeap::resize(TlsfAllocation ptr, size_t size, TlsfAllocation *resul
     }
 
     TlsfBlock *block = ptr.getBlock();
+    //
+    // Early out if the size is the same as the current size.
+    //
     if (size == block->size) {
         *result = ptr;
         return OsStatusSuccess;
     }
 
     if (size < block->size) {
-        // Shrink the block
+        //
+        // Shrink the block.
+        //
         return shrink(ptr, size, result);
     } else {
-        // Expand the block
+        //
+        // Expand the block.
+        //
         return grow(ptr, size, result);
     }
 }
@@ -423,6 +458,39 @@ km::TlsfAllocation TlsfHeap::aligned_alloc(size_t align, size_t size) {
     if (result.isValid()) {
         mMallocCount += 1;
     }
+    return result;
+}
+
+TlsfAllocation TlsfHeap::allocateWithHint(size_t align, size_t size, PhysicalAddressEx hint) [[clang::allocating]] {
+    if (auto allocation = allocateAt(hint, size)) {
+        return allocation;
+    }
+
+    //
+    // TODO: We could be smarter here and try and find the closest block to the hint
+    //
+    return allocBestFit(align, size);
+}
+
+TlsfAllocation TlsfHeap::allocateAt(PhysicalAddressEx address, size_t size) [[clang::allocating]] {
+    //
+    // Check preconditions.
+    //
+    if (!address.isAlignedTo(alignof(std::max_align_t))) {
+        return TlsfAllocation{};
+    }
+
+    if (size == 0) {
+        return TlsfAllocation{};
+    }
+
+    MemoryRange range = MemoryRange::of(address.address, size);
+
+    TlsfAllocation result;
+    if (reserve(range, &result) != OsStatusSuccess) {
+        return TlsfAllocation{};
+    }
+
     return result;
 }
 
@@ -532,28 +600,42 @@ OsStatus TlsfHeap::splitv(TlsfAllocation ptr, std::span<const PhysicalAddress> p
     static_assert(sizeof(TlsfAllocation) == sizeof(TlsfBlock*), "We reuse the result buffer to store allocated blocks");
 
     MemoryRange range = ptr.range();
-    // There must be points to split
+
+    //
+    // There must be points to split.
+    //
     if (points.empty()) {
         return OsStatusInvalidInput;
     }
 
-    // The results buffer must be large enough to hold all results
+    //
+    // The results buffer must be large enough to hold all results.
+    //
     if (points.size() >= (results.size() + 1)) {
         return OsStatusInvalidInput;
     }
 
+    //
+    // If we're building with hardening enabled, perform extra checks on the input.
+    //
     if constexpr (kEnableSplitVectorHardening) {
-        // All points must be sorted in ascending order
+        //
+        // All points must be sorted in ascending order.
+        //
         if (!std::ranges::is_sorted(points)) {
             return OsStatusInvalidInput;
         }
 
-        // There must be no duplicate elements
+        //
+        // There must be no duplicate elements.
+        //
         if (std::ranges::adjacent_find(points) != std::ranges::end(points)) {
             return OsStatusInvalidInput;
         }
 
-        // All points must be within the range of the pointer
+        //
+        // All points must be within the range of the pointer.
+        //
         for (PhysicalAddress point : points) {
             if (!range.contains(point) || range.front == point || range.back == point) {
                 return OsStatusInvalidInput;
@@ -561,11 +643,18 @@ OsStatus TlsfHeap::splitv(TlsfAllocation ptr, std::span<const PhysicalAddress> p
         }
     }
 
+    //
+    // We borrow the results buffer to store the new blocks we need to allocate
+    // for the splits.
     // TODO: is this kosher?
+    //
     TlsfBlock **storage = reinterpret_cast<TlsfBlock**>(results.data());
     for (size_t i = 1; i < points.size() + 1; i++) {
         TlsfBlock *block = mBlockPool.construct();
         if (block == nullptr) {
+            //
+            // If we fail to allocate here we need to roll back all the previous allocations.
+            //
             for (size_t j = i; j > 1; j--) {
                 mBlockPool.destroy(storage[j - 1]);
             }
@@ -592,6 +681,28 @@ OsStatus TlsfHeap::splitv(TlsfAllocation ptr, std::span<const PhysicalAddress> p
     return OsStatusSuccess;
 }
 
+OsStatus TlsfHeap::splitBlockForAllocationIfRequired(TlsfBlock *block, size_t alignedOffset) noexcept [[clang::allocating]] {
+    if ((alignedOffset != block->offset) && block->prev == nullptr) {
+        TlsfBlock *newBlock = mBlockPool.construct(TlsfBlock {
+            .offset = block->offset,
+            .size = alignedOffset - block->offset,
+            .prev = nullptr,
+            .next = block,
+        });
+        if (newBlock == nullptr) {
+            return OsStatusOutOfMemory;
+        }
+
+        block->prev = newBlock;
+        block->offset = alignedOffset;
+        block->size -= newBlock->size;
+        newBlock->markTaken();
+        releaseBlockToFreeList(newBlock);
+    }
+
+    return OsStatusSuccess;
+}
+
 OsStatus TlsfHeap::reserve(MemoryRange range, TlsfAllocation *result) [[clang::allocating]] {
     compact();
 
@@ -604,22 +715,8 @@ OsStatus TlsfHeap::reserve(MemoryRange range, TlsfAllocation *result) [[clang::a
                 return OsStatusNotAvailable;
             }
 
-            if ((range.front.address != block->offset) && block->prev == nullptr) {
-                TlsfBlock *newBlock = mBlockPool.construct(TlsfBlock {
-                    .offset = block->offset,
-                    .size = range.front.address - block->offset,
-                    .prev = nullptr,
-                    .next = block,
-                });
-                if (newBlock == nullptr) {
-                    return OsStatusOutOfMemory;
-                }
-
-                block->prev = newBlock;
-                block->offset = range.front.address;
-                block->size -= newBlock->size;
-                newBlock->markTaken();
-                releaseBlockToFreeList(newBlock);
+            if (OsStatus status = splitBlockForAllocationIfRequired(block, range.front.address)) {
+                return status;
             }
 
             if (!reserveBlock(block, range.size(), range.front.address, detail::GetListIndex(block->size), result)) {
@@ -672,8 +769,10 @@ bool TlsfHeap::reserveBlock(TlsfBlock *block, size_t size, size_t alignedOffset,
     size_t missingAlignment = alignedOffset - block->offset;
     BlockBuffer<2> buffer(&mBlockPool);
 
+    //
     // Precompute the number of blocks that need to be created, in the case we cant allocate
     // the new blocks then we bail early to avoid complex rollback logic.
+    //
     size_t innerSize = block->size;
     size_t requiredBlocks = 0;
     if (missingAlignment > 0) {
