@@ -270,17 +270,36 @@ OsStatus sys::Process::destroy(System *system, const ProcessDestroyInfo& info) {
 OsStatus sys::Process::vmemCreate(System *system, VmemCreateInfo info, km::AddressMapping *mapping) {
     km::MemoryRange memory;
 
-    if (OsStatus status = system->mMemoryManager.allocate(info.size, info.alignment, &memory)) {
+    if (info.addressIsHint && info.baseAddress.isNull()) {
+        return OsStatusInvalidInput;
+    }
+
+    //
+    // Allocate the physical memory backing the virtual memory range.
+    //
+    auto& mm = system->mMemoryManager;
+    if (OsStatus status = mm.allocate(info.size, info.alignment, &memory)) {
         return status;
     }
 
+    //
+    // Implement the required allocation contract, see documentation for OsVmemCreateInfo#BaseAddress
+    // for the truth table.
+    //
+
     km::AddressMapping result;
-    if (OsStatus status = mAddressSpace.map(&system->mMemoryManager, info.size, info.alignment, info.flags, km::MemoryType::eWriteBack, &result)) {
-        OsStatus inner = system->mMemoryManager.release(memory);
+    if (OsStatus status = mAddressSpace.allocateVirtual(memory, info.baseAddress, info.size, info.alignment, info.addressIsHint, info.flags, &result)) {
+        SysLog.infof("Failed to allocate virtual memory: ", info.baseAddress, " ", memory, " ", OsStatusId(status));
+        OsStatus inner = mm.release(memory);
         KM_ASSERT(inner == OsStatusSuccess);
         return status;
     }
 
+    //
+    // If the requested memory is to be zeroed, map it into the kernel address space
+    // temporarily, zero it, then unmap it again.
+    // TODO: have a pool of zeroed pages to map in here instead of doing this.
+    //
     if (info.zeroMemory) {
         km::AddressMapping kernelMapping;
         if (OsStatus status = system->mSystemTables->map(memory, km::PageFlags::eData, km::MemoryType::eWriteBack, &kernelMapping)) {
@@ -435,7 +454,7 @@ OsStatus sys::SysProcessCreate(InvokeContext *context, sm::RcuSharedPtr<Process>
     TxHandle *hTx = nullptr;
 
     // If there is a transaction, ensure we can append to it.
-    if ((context->tx != OS_HANDLE_INVALID)) {
+    if (context->tx != OS_HANDLE_INVALID) {
         if (OsStatus status = SysFindHandle(context, context->tx, &hTx)) {
             return status;
         }
@@ -450,6 +469,8 @@ OsStatus sys::SysProcessCreate(InvokeContext *context, sm::RcuSharedPtr<Process>
     if (OsStatus status = CreateProcessInner(context->system, info.Name, info.Flags, parent, args, id, &hResult)) {
         return status;
     }
+
+    SysLog.dbgf("Creating process: ", hResult->getProcess()->getName(), " (", (uint64_t)hResult->getProcess()->getId(), ")");
 
     parent->addChild(hResult->getProcess());
     context->process->addHandle(hResult);

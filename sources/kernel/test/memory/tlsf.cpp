@@ -1193,7 +1193,7 @@ TEST_F(TlsfHeapTest, AllocateAt) {
     OsStatus status = TlsfHeap::create(range, &heap);
     EXPECT_EQ(status, OsStatusSuccess);
 
-    TlsfAllocation addr = heap.allocateAt(km::PhysicalAddressEx{0x2000}, 0x100);
+    TlsfAllocation addr = heap.allocateAt(0x2000, 0x100);
     EXPECT_TRUE(addr.isValid());
     EXPECT_EQ(addr.address().address, 0x2000);
 

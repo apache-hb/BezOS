@@ -10,3 +10,5 @@ using ssize_t = ptrdiff_t;
 #else
 #   define TEST_ASSERT(x) ((void)0)
 #endif
+
+#define outparam gnu::nonnull, clang::noescape

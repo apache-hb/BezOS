@@ -23,11 +23,15 @@ namespace km {
         TlsfHeapStats heap;
     };
 
+    using VmemAllocation = GenericTlsfAllocation<sm::VirtualAddress>;
+
     class AddressSpace {
+        using VmemHeap = GenericTlsfHeap<sm::VirtualAddress>;
+
         stdx::SpinLock mLock;
 
         PageTables mTables;
-        TlsfHeap mVmemHeap GUARDED_BY(mLock);
+        VmemHeap mVmemHeap GUARDED_BY(mLock);
 
     public:
         UTIL_NOCOPY(AddressSpace);

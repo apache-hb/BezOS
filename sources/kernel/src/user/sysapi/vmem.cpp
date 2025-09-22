@@ -1,4 +1,5 @@
 #include "system/create.hpp"
+#include "system/process.hpp"
 #include "system/system.hpp"
 #include "user/sysapi.hpp"
 
@@ -15,16 +16,18 @@ static OsCallResult NewVmemCreate(km::System *system, km::CallContext *context, 
         return km::CallError(status);
     }
 
-    SysLog.dbgf("VmemCreate: BaseAddress: ", createInfo.BaseAddress, ", Size: ", km::Hex(createInfo.Size),
+    SysLog.dbgf("VmemCreate(", sys::GetCurrentProcess()->getName(), "): BaseAddress: ", createInfo.BaseAddress, ", Size: ", km::Hex(createInfo.Size),
                   ", Alignment: ", km::Hex(createInfo.Alignment), ", Access: ", km::Hex(createInfo.Access),
                   ", Process: ", km::Hex(createInfo.Process));
 
     sys::InvokeContext invoke { system->sys, sys::GetCurrentProcess() };
     void *vaddr = nullptr;
     if (OsStatus status = sys::SysVmemCreate(&invoke, createInfo, &vaddr)) {
+        SysLog.dbgf("VmemCreate: Failed to create vmem: ", OsStatusId(status));
         return km::CallError(status);
     }
 
+    SysLog.dbgf("VmemCreate: Created vmem at ", vaddr);
     return km::CallOk(vaddr);
 }
 

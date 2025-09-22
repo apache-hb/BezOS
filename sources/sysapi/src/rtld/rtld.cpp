@@ -143,9 +143,48 @@ static OsStatus ElfReadHeader(OsDeviceHandle device, elf::Header *result) {
     return OsStatusSuccess;
 }
 
+#if 0
+static OsStatus RemoteMemCopy(void *dst, const void *src, size_t size, OsProcessHandle process) {
+    OsVmemMapInfo mapSourceInfo {
+        .SrcAddress = OsAddress(src),
+        .Size = size,
+        .Access = eOsMemoryRead,
+        .Source = process,
+    };
+
+    OsVmemMapInfo mapDestinationInfo {
+        .SrcAddress = OsAddress(dst),
+        .Size = size,
+        .Access = eOsMemoryWrite,
+        .Source = process,
+    };
+
+    void *sourceMapping = nullptr;
+    if (OsStatus status = OsVmemMap(mapSourceInfo, &sourceMapping)) {
+        RtldPrintf("Failed to map source memory for remote copy: ", OsStatusId(status));
+        return status;
+    }
+
+    void *destinationMapping = nullptr;
+    if (OsStatus status = OsVmemMap(mapDestinationInfo, &destinationMapping)) {
+        RtldPrintf("Failed to map destination memory for remote copy: ", OsStatusId(status));
+        OsVmemRelease(sourceMapping, size);
+        return status;
+    }
+
+    memcpy(destinationMapping, sourceMapping, size);
+
+    OsVmemRelease(sourceMapping, size);
+    OsVmemRelease(destinationMapping, size);
+
+    return OsStatusSuccess;
+}
+#endif
+
 static OsStatus RtldTlsInit(OsDeviceHandle file, OsProcessHandle process, const elf::ProgramHeader &ph, RtldTlsInitInfo *tlsInfo) {
+    void *initAddress = (void*)ph.vaddr;
+#if 0
     if (ph.memsz != ph.filesz && ph.filesz != 0) {
-        void *initAddress = nullptr;
         OsVmemCreateInfo vmemGuestCreateInfo {
             .BaseAddress = OsAnyPointer(ph.vaddr),
             .Size = sm::roundup<uint64_t>(ph.memsz, 0x1000),
@@ -154,17 +193,15 @@ static OsStatus RtldTlsInit(OsDeviceHandle file, OsProcessHandle process, const 
         };
 
         if (OsStatus status = OsVmemCreate(vmemGuestCreateInfo, &initAddress)) {
-            OsDebugMessage(eOsLogInfo, "Failed to create TLS memory");
+            OsDebugMessage(eOsLogInfo, "Failed to create TLS init memory");
             return status;
         }
     }
 
-    void *initAddress = nullptr;
-
     if (ph.filesz != 0) {
         OsVmemMapInfo vmemGuestMapInfo {
             .SrcAddress = ph.offset,
-            .DstAddress = ph.vaddr,
+            .DstAddress = OsAddress(ph.vaddr),
             .Size = ph.filesz,
             .Access = eOsMemoryRead,
             .Source = file,
@@ -176,7 +213,7 @@ static OsStatus RtldTlsInit(OsDeviceHandle file, OsProcessHandle process, const 
             return status;
         }
     }
-
+#endif
     *tlsInfo = RtldTlsInitInfo {
         .InitAddress = initAddress,
         .TlsDataSize = ph.filesz,

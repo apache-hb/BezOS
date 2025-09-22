@@ -1,3 +1,4 @@
 option('ubsan', type : 'feature', value : 'auto')
 option('stack_protector', type : 'feature', value : 'auto')
 option('aml', type : 'feature', value : 'disabled')
+option('docs', type : 'feature', description : 'Build documentation')

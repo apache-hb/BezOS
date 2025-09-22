@@ -1,5 +1,6 @@
 #pragma once
 
+#include "std/std.hpp"
 #include "memory/range.hpp"
 #include "memory/detail/pool.hpp"
 #include "memory/detail/tlsf.hpp" // IWYU pragma: export
@@ -136,7 +137,7 @@ namespace km {
         /// @retval OsStatusInvalidInput The new size is less than the current size.
         /// @retval OsStatusOutOfMemory There is no adjacent space available, the original allocation is unchanged.
         [[nodiscard]]
-        OsStatus grow(TlsfAllocation ptr, size_t size, TlsfAllocation *result [[gnu::nonnull]]) [[clang::allocating]];
+        OsStatus grow(TlsfAllocation ptr, size_t size, TlsfAllocation *result [[outparam]]) [[clang::allocating]];
 
         /// @brief Shrink an allocation to a smaller size.
         ///
@@ -148,7 +149,7 @@ namespace km {
         ///
         /// @return The status of the operation.
         [[nodiscard]]
-        OsStatus shrink(TlsfAllocation ptr, size_t size, TlsfAllocation *result [[gnu::nonnull]]) [[clang::allocating]];
+        OsStatus shrink(TlsfAllocation ptr, size_t size, TlsfAllocation *result [[outparam]]) [[clang::allocating]];
 
         /// @brief Resize an allocation to a new size.
         ///
@@ -157,10 +158,11 @@ namespace km {
         ///
         /// @param ptr The allocation to resize.
         /// @param size The new size of the allocation.
+        /// @param[out] result The resulting allocation if successful, otherwise unchanged.
         ///
         /// @return The status of the operation.
         [[nodiscard]]
-        OsStatus resize(TlsfAllocation ptr, size_t size, TlsfAllocation *result [[gnu::nonnull]]) [[clang::allocating]];
+        OsStatus resize(TlsfAllocation ptr, size_t size, TlsfAllocation *result [[outparam]]) [[clang::allocating]];
 
         /// @brief Allocate an aligned allocation.
         ///
@@ -179,7 +181,7 @@ namespace km {
         ///
         /// @return The allocation, or a null allocation on failure.
         [[nodiscard]]
-        TlsfAllocation allocateWithHint(size_t align, size_t size, PhysicalAddressEx hint) [[clang::allocating]];
+        TlsfAllocation allocateWithHint(size_t align, size_t size, uintptr_t hint) [[clang::allocating]];
 
         /// @brief Allocate a block of memory at a specific address.
         ///
@@ -191,7 +193,7 @@ namespace km {
         ///
         /// @return The allocation, or a null allocation on failure.
         [[nodiscard]]
-        TlsfAllocation allocateAt(PhysicalAddressEx address, size_t size) [[clang::allocating]];
+        TlsfAllocation allocateAt(uintptr_t address, size_t size) [[clang::allocating]];
 
         /// @brief Free an allocation.
         ///
@@ -204,7 +206,7 @@ namespace km {
 
         /// @brief Find an allocation by its address.
         /// @warning If you're using this function, you're doing it wrong.
-        OsStatus findAllocation(PhysicalAddress address, TlsfAllocation *result [[gnu::nonnull]]) noexcept [[clang::nonallocating]];
+        OsStatus findAllocation(PhysicalAddress address, TlsfAllocation *result [[outparam]]) noexcept [[clang::nonallocating]];
 
         /// @brief Split an allocation into two allocations.
         ///
@@ -219,7 +221,7 @@ namespace km {
         ///
         /// @return The status of the operation.
         [[nodiscard]]
-        OsStatus split(TlsfAllocation ptr, PhysicalAddress midpoint, TlsfAllocation *lo [[gnu::nonnull]], TlsfAllocation *hi [[gnu::nonnull]]) [[clang::allocating]];
+        OsStatus split(TlsfAllocation ptr, PhysicalAddress midpoint, TlsfAllocation *lo [[outparam]], TlsfAllocation *hi [[outparam]]) [[clang::allocating]];
 
         /// @brief Split an allocation many times.
         ///
@@ -249,11 +251,12 @@ namespace km {
         /// @retval OsStatusNotAvailable The range is already in use, no memory was reserved.
         /// @retval OsStatusNotFound The range is not managed by this heap, no memory was reserved.
         [[nodiscard]]
-        OsStatus reserve(MemoryRange range, TlsfAllocation *result [[gnu::nonnull]]) [[clang::allocating]];
+        OsStatus reserve(MemoryRange range, TlsfAllocation *result [[outparam]]) [[clang::allocating]];
 
         /// @brief Gather statistics about the heap.
         ///
         /// @return The current heap statistics.
+        [[nodiscard]]
         TlsfHeapStats stats() const noexcept [[clang::nonallocating]];
 
         /// @brief Resets the heap to its initial state.
@@ -264,10 +267,11 @@ namespace km {
         ///
         /// @param range The range to create the heap from.
         /// @param[out] heap The resulting heap.
+        ///
         /// @return The result of the operation.
         /// @retval OsStatusSuccess The operation was successful, the heap was created.
         [[nodiscard]]
-        static OsStatus create(MemoryRange range, TlsfHeap *heap [[clang::noescape, gnu::nonnull]]) [[clang::allocating]];
+        static OsStatus create(MemoryRange range, TlsfHeap *heap [[outparam]]) [[clang::allocating]];
 
         /// @brief Create a heap from multiple discontiguous ranges.
         ///
@@ -279,6 +283,297 @@ namespace km {
         /// @return The result of the operation.
         /// @retval OsStatusSuccess The operation was successful, the heap was created.
         [[nodiscard]]
-        static OsStatus create(std::span<const MemoryRange> ranges, TlsfHeap *heap [[clang::noescape, gnu::nonnull]]) [[clang::allocating]];
+        static OsStatus create(std::span<const MemoryRange> ranges, TlsfHeap *heap [[outparam]]) [[clang::allocating]];
+    };
+
+    template<typename T>
+    class GenericTlsfHeap {
+        static_assert(sizeof(T) == sizeof(uintptr_t), "T must be the same size as an address");
+
+        TlsfHeap mHeap;
+
+    public:
+        using Self = GenericTlsfHeap<T>;
+        using Address = T;
+        using Range = AnyRange<T>;
+        using Allocation = GenericTlsfAllocation<Address>;
+
+        UTIL_NOCOPY(GenericTlsfHeap);
+        UTIL_DEFAULT_MOVE(GenericTlsfHeap);
+
+        constexpr GenericTlsfHeap() noexcept = default;
+
+        /// @brief Allocate a block of memory.
+        ///
+        /// Equivalent to `alignedAlloc(alignof(std::max_align_t), size)`.
+        ///
+        /// @param size The size of the block to allocate.
+        ///
+        /// @return The allocation, or a null allocation on failure.
+        [[nodiscard]]
+        Allocation malloc(size_t size) [[clang::allocating]] {
+            return Allocation{mHeap.malloc(size).getBlock()};
+        }
+
+        /// @brief Deleted realloc for documentation.
+        ///
+        /// Realloc cannot be implemented, the underlying memory may not be acessible. Therefore
+        /// the api contract of realloc cannot be fulfilled. See @ref shrink and @ref grow for
+        /// alternatives.
+        Allocation realloc(Allocation ptr, size_t size) = delete("realloc is not supported");
+
+        /// @brief Grow an allocation to a larger size.
+        ///
+        /// Grows an allocation to a larger size if there is adjacent space available. If there
+        /// is no adjacent space available, the allocation fails and the original
+        /// allocation is unchanged. Cannot be used to shrink allocations, see @ref shrink.
+        ///
+        /// @param ptr The allocation to grow.
+        /// @param size The new size of the allocation.
+        ///
+        /// @return The status of the operation.
+        /// @retval OsStatusSuccess The operation was successful, @p result contains the new allocation.
+        /// @retval OsStatusInvalidInput The new size is less than the current size.
+        /// @retval OsStatusOutOfMemory There is no adjacent space available, the original allocation is unchanged.
+        [[nodiscard]]
+        OsStatus grow(Allocation ptr, size_t size, Allocation *result [[outparam]]) [[clang::allocating]] {
+            TlsfAllocation out;
+            if (OsStatus status = mHeap.grow(TlsfAllocation{ptr.getBlock()}, size, &out)) {
+                return status;
+            }
+
+            *result = Allocation{out.getBlock()};
+            return OsStatusSuccess;
+        }
+
+        /// @brief Shrink an allocation to a smaller size.
+        ///
+        /// Shrinks an allocation to a smaller size. If control structures cannot be
+        /// allocated, the allocation fails and the original allocation is unchanged.
+        ///
+        /// @param ptr The allocation to shrink.
+        /// @param size The new size of the allocation.
+        ///
+        /// @return The status of the operation.
+        [[nodiscard]]
+        OsStatus shrink(Allocation ptr, size_t size, Allocation *result [[outparam]]) [[clang::allocating]] {
+            TlsfAllocation out;
+            if (OsStatus status = mHeap.shrink(TlsfAllocation{ptr.getBlock()}, size, &out)) {
+                return status;
+            }
+
+            *result = Allocation{out.getBlock()};
+            return OsStatusSuccess;
+        }
+
+        /// @brief Resize an allocation to a new size.
+        ///
+        /// Resizes an allocation to a new size using adjacent space. If this operation
+        /// fails the original allocation is unchanged.
+        ///
+        /// @param ptr The allocation to resize.
+        /// @param size The new size of the allocation.
+        /// @param[out] result The resulting allocation if successful, otherwise unchanged.
+        ///
+        /// @return The status of the operation.
+        [[nodiscard]]
+        OsStatus resize(Allocation ptr, size_t size, Allocation *result [[outparam]]) [[clang::allocating]] {
+            TlsfAllocation out;
+            if (OsStatus status = mHeap.resize(TlsfAllocation{ptr.getBlock()}, size, &out)) {
+                return status;
+            }
+
+            *result = Allocation{out.getBlock()};
+            return OsStatusSuccess;
+        }
+
+        /// @brief Allocate an aligned allocation.
+        ///
+        /// @param align The alignment of the allocation.
+        /// @param size The size of the allocation.
+        ///
+        /// @return The allocation, or a null allocation on failure.
+        [[nodiscard]]
+        Allocation alignedAlloc(size_t align, size_t size) [[clang::allocating]] {
+            return Allocation{mHeap.aligned_alloc(align, size).getBlock()};
+        }
+
+        /// @brief Allocate a block of memory with a preferred address.
+        ///
+        /// @param align The alignment of the allocation.
+        /// @param size The size of the allocation.
+        /// @param hint The preferred address of the allocation, may be ignored if the address is not available.
+        ///
+        /// @return The allocation, or a null allocation on failure.
+        [[nodiscard]]
+        Allocation allocateWithHint(size_t align, size_t size, Address hint) [[clang::allocating]] {
+            return Allocation{mHeap.allocateWithHint(align, size, hint.address).getBlock()};
+        }
+
+        /// @brief Allocate a block of memory at a specific address.
+        ///
+        /// Like @ref allocateWithHint, but the address is mandatory. The allocation
+        /// will fail if the address is not available.
+        ///
+        /// @param address The address to allocate the memory at.
+        /// @param size The size of the allocation.
+        ///
+        /// @return The allocation, or a null allocation on failure.
+        [[nodiscard]]
+        Allocation allocateAt(Address address, size_t size) [[clang::allocating]] {
+            return Allocation{mHeap.allocateAt(address.address, size).getBlock()};
+        }
+
+        /// @brief Free an allocation.
+        ///
+        /// @param ptr The allocation to free.
+        void free(Allocation ptr) noexcept [[clang::nonallocating]] {
+            mHeap.free(TlsfAllocation{ptr.getBlock()});
+        }
+
+        /// @brief Split an allocation into two allocations.
+        ///
+        /// Splits an allocation into two allocations at the specified midpoint. The
+        /// original allocation is shrunk and the second allocation covers the remaining
+        /// space. The first allocation is returned in @p lo and second allocation is returned in @p hi
+        ///
+        /// @param ptr The allocation to split.
+        /// @param midpoint The address to split the allocation at.
+        /// @param[out] lo The first allocation.
+        /// @param[out] hi The second allocation.
+        ///
+        /// @return The status of the operation.
+        [[nodiscard]]
+        OsStatus split(Allocation ptr, Address midpoint, Allocation *lo [[outparam]], Allocation *hi [[outparam]]) [[clang::allocating]] {
+            TlsfAllocation outLo;
+            TlsfAllocation outHi;
+            if (OsStatus status = mHeap.split(TlsfAllocation{ptr.getBlock()}, PhysicalAddress{midpoint}, &outLo, &outHi)) {
+                return status;
+            }
+
+            *lo = Allocation{outLo.getBlock()};
+            *hi = Allocation{outHi.getBlock()};
+            return OsStatusSuccess;
+        }
+
+        /// @brief Split an allocation many times.
+        ///
+        /// @pre @p points must not empty, must be sorted in ascending order, contain no duplicate elements,
+        ///      and must contain no points outside the allocation.
+        /// @pre @p results must have a size of at least `points.size() + 1`
+        ///
+        /// @post If the operation fails the contents of @p results is undefined.
+        /// @post If the operation succeeds the original allocation is invalidated.
+        ///
+        /// @param ptr The allocation to split.
+        /// @param points The list of points to split at.
+        /// @param results Storage for the resulting split pointers.
+        ///
+        /// @return OsStatusSuccess if the operation is successful, otherwise a status code
+        [[nodiscard]]
+        OsStatus splitv(Allocation ptr, std::span<const Address> points, std::span<Allocation> results) [[clang::allocating]] {
+            const PhysicalAddress *ptrIn = std::bit_cast<const PhysicalAddress*>(points.data());
+            std::span<const PhysicalAddress> p { ptrIn, points.size() };
+
+            TlsfAllocation *resIn = std::bit_cast<TlsfAllocation*>(results.data());
+            std::span<TlsfAllocation> r { resIn, results.size() };
+            return mHeap.splitv(TlsfAllocation{ptr.getBlock()}, p, r);
+        }
+
+        /// @brief Reserve a range of memory.
+        ///
+        /// @param range The range to reserve.
+        /// @param[out] result The resulting allocation if successful, required to release the memory later.
+        ///
+        /// @return The result of the operation.
+        /// @retval OsStatusSuccess The operation was successful, memory was reserved.
+        /// @retval OsStatusOutOfMemory Failed to allocate control structures, no memory was reserved.
+        /// @retval OsStatusNotAvailable The range is already in use, no memory was reserved.
+        /// @retval OsStatusNotFound The range is not managed by this heap, no memory was reserved.
+        [[nodiscard]]
+        OsStatus reserve(Range range, Allocation *result [[outparam]]) [[clang::allocating]] {
+            TlsfAllocation out;
+            MemoryRange r { range.front.address, range.back.address };
+            if (OsStatus status = mHeap.reserve(r, &out)) {
+                return status;
+            }
+
+            *result = Allocation{out.getBlock()};
+            return OsStatusSuccess;
+        }
+
+        /// @brief Find an allocation by its address.
+        /// @warning If you're using this function, you're doing it wrong.
+        OsStatus findAllocation(Address address, Allocation *result [[outparam]]) noexcept [[clang::nonallocating]] {
+            TlsfAllocation out;
+            if (OsStatus status = mHeap.findAllocation(PhysicalAddress{address.address}, &out)) {
+                return status;
+            }
+
+            *result = Allocation{out.getBlock()};
+            return OsStatusSuccess;
+        }
+
+        /// @brief Validate internal data structures.
+        ///
+        /// @note This is an expensive operation and should only be used for debugging.
+        void validate() noexcept [[clang::nonallocating]] {
+            mHeap.validate();
+        }
+
+        /// @brief Compact internal data structures.
+        ///
+        /// @return Statistics about the compaction operation.
+        TlsfCompactStats compact() {
+            return mHeap.compact();
+        }
+
+        /// @brief Gather statistics about the heap.
+        ///
+        /// @return The current heap statistics.
+        [[nodiscard]]
+        TlsfHeapStats stats() const noexcept [[clang::nonallocating]] {
+            return mHeap.stats();
+        }
+
+        /// @brief Resets the heap to its initial state.
+        ///
+        /// @warning Invalidates all outstanding allocations.
+        void reset() noexcept [[clang::nonallocating]] {
+            mHeap.reset();
+        }
+
+        /// @brief Create a heap from a single contiguous range.
+        ///
+        /// @param range The range to create the heap from.
+        /// @param[out] heap The resulting heap.
+        ///
+        /// @return The result of the operation.
+        /// @retval OsStatusSuccess The operation was successful, the heap was created.
+        [[nodiscard]]
+        static OsStatus create(Range range, Self *heap [[outparam]]) [[clang::allocating]] {
+            MemoryRange r { range.front.address, range.back.address };
+            return TlsfHeap::create(r, &heap->mHeap);
+        }
+
+        /// @brief Create a heap from multiple discontiguous ranges.
+        ///
+        /// @pre @p ranges must not be empty, and must be sorted in ascending order.
+        ///
+        /// @param ranges The ranges to create the heap from.
+        /// @param[out] heap The resulting heap.
+        ///
+        /// @return The result of the operation.
+        /// @retval OsStatusSuccess The operation was successful, the heap was created.
+        [[nodiscard]]
+        static OsStatus create(std::span<const Range> ranges, Self *heap [[outparam]]) [[clang::allocating]] {
+            //
+            // TODO: I'm not sure if this is technically allowed, but the layouts are the same
+            // for all ranges so this should be safe.
+            //
+            const MemoryRange *ptr = std::bit_cast<const MemoryRange*>(ranges.data());
+            std::span<const MemoryRange> r { ptr, ranges.size() };
+            return TlsfHeap::create(r, &heap->mHeap);
+        }
     };
 }

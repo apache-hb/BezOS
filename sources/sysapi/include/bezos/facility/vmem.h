@@ -121,6 +121,11 @@ struct OsVmemCreateInfo {
 /// @param[out] OutBase The base address of the address space.
 ///
 /// @return The status of the operation.
+///
+/// @retval OsStatusSuccess The operation was successful, @p OutBase contains the base address of the new memory.
+/// @retval OsStatusInvalidInput One or more parameters are invalid.
+/// @retval OsStatusOutOfMemory There is not enough memory to complete the operation.
+/// @retval OsStatusNotFound The requested address range is not already in use.
 extern OsStatus OsVmemCreate(struct OsVmemCreateInfo CreateInfo, OsAnyPointer *OutBase);
 
 /// @brief Alias memory from one objects address space to another.

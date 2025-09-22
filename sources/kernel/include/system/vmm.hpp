@@ -108,6 +108,8 @@ namespace sys {
 
         OsStatus splitSegment(MemoryManager *manager, Iterator it, const void *midpoint, ReleaseSide side) [[clang::allocating]] REQUIRES(mLock);
         OsStatus unmapSegment(MemoryManager *manager, Iterator it, km::VirtualRange range, km::VirtualRange *remaining) [[clang::allocating]] REQUIRES(mLock);
+
+        OsStatus splitAtAddress(MemoryManager *manager, sm::VirtualAddress address) [[clang::allocating]] REQUIRES(mLock);
     public:
         UTIL_NOCOPY(AddressSpaceManager);
 
@@ -161,6 +163,20 @@ namespace sys {
         /// @brief Map physical memory that is not managed by the system memory manager.
         [[nodiscard]]
         OsStatus mapExternal(km::MemoryRange memory, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping) [[clang::allocating]];
+
+        /// @brief Allocate virtual memory in this address space and back it with physical memory from the memory manager.
+        ///
+        /// @param memory The range of physical memory to back the allocation with.
+        /// @param address The address to allocate at, or null to allocate anywhere.
+        /// @param size The size of the allocation.
+        /// @param align The alignment of the allocation.
+        /// @param addressIsHint If true, the address is a hint and may be ignored.
+        /// @param flags The page flags to use for the mapping.
+        /// @param[out] result The resulting mapping.
+        ///
+        /// @return The status of the operation.
+        [[nodiscard]]
+        OsStatus allocateVirtual(km::MemoryRange memory, sm::VirtualAddress address, size_t size, size_t align, bool addressIsHint, km::PageFlags flags, km::AddressMapping *result) [[clang::allocating]];
 
         [[nodiscard]]
         OsStatus unmap(MemoryManager *manager, km::VirtualRange range) [[clang::allocating]];

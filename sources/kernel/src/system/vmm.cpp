@@ -181,6 +181,39 @@ OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, AddressSpaceManag
             addSegment(std::move(newSegment));
             *result = mapping.virtualRange();
             return OsStatusSuccess;
+        } else if (seg.back == range.back) {
+            //
+            // Map the high part of a segment
+            //
+            OsStatus status = OsStatusSuccess;
+            size_t offset = (uintptr_t)range.front - (uintptr_t)seg.front;
+            km::MemoryRange memory = { segment.backing.front + offset, segment.backing.back };
+            km::AddressMapping mapping {
+                .vaddr = std::bit_cast<const void*>(allocation.address()),
+                .paddr = memory.front,
+                .size = memory.size(),
+            };
+
+            status = manager->retain(memory);
+            if (status != OsStatusSuccess) {
+                MemLog.fatalf("Failed to retain memory: ", memory, " ", seg, " ", range, " ", OsStatusId(status));
+                KM_ASSERT(status == OsStatusSuccess);
+            }
+
+            status = mPageTables.map(mapping, flags, type);
+            if (status != OsStatusSuccess) {
+                MemLog.fatalf("Failed to map memory: ", mapping, " ", seg, " ", range, " ", OsStatusId(status));
+                KM_ASSERT(status == OsStatusSuccess);
+            }
+
+            //
+            // TODO: this retains the low part of the segment, we should split it instead
+            //
+
+            AddressSegment newSegment { memory, allocation };
+            addSegment(std::move(newSegment));
+            *result = mapping.virtualRange();
+            return OsStatusSuccess;
         } else {
             MemLog.fatalf("Unsupported mapping: ", seg, " ", range);
             KM_ASSERT(false);
@@ -311,6 +344,10 @@ OsStatus sys::AddressSpaceManager::unmapSegment(MemoryManager *manager, Iterator
     }
 }
 
+OsStatus sys::AddressSpaceManager::splitAtAddress(MemoryManager *manager, sm::VirtualAddress address) [[clang::allocating]] {
+    return OsStatusNotSupported;
+}
+
 OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, sm::VirtualAddress address, km::MemoryRange memory, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping) [[clang::allocating]] {
     // TODO: on the error case memory is a bit busted
     km::VirtualRange range = { address, address + memory.size() };
@@ -365,6 +402,47 @@ OsStatus sys::AddressSpaceManager::mapExternal(km::MemoryRange memory, km::PageF
     addSegment(std::move(segment));
 
     *mapping = result;
+    return OsStatusSuccess;
+}
+
+OsStatus sys::AddressSpaceManager::allocateVirtual(km::MemoryRange memory, sm::VirtualAddress address, size_t size, size_t align, bool addressIsHint, km::PageFlags flags, km::AddressMapping *result) [[clang::allocating]] {
+    stdx::LockGuard guard(mLock);
+
+    km::TlsfAllocation allocation;
+
+    if (addressIsHint) {
+        KM_ASSERT(!address.isNull());
+        allocation = mHeap.allocateWithHint(align, size, address.address);
+        if (allocation.isNull()) {
+            return OsStatusOutOfMemory;
+        }
+    } else if (!address.isNull()) {
+        if (OsStatus status = mHeap.reserve({ address.address, address.address + size }, &allocation)) {
+            SysLog.infof("Failed to reserve memory: ", OsStatusId(status));
+            return status;
+        }
+    } else {
+        allocation = mHeap.aligned_alloc(align, size);
+        if (allocation.isNull()) {
+            return OsStatusOutOfMemory;
+        }
+    }
+
+    km::AddressMapping mapping {
+        .vaddr = std::bit_cast<const void*>(allocation.address()),
+        .paddr = memory.front,
+        .size = size,
+    };
+
+    if (OsStatus status = mPageTables.map(mapping, flags, km::MemoryType::eWriteBack)) {
+        mHeap.free(allocation);
+        return status;
+    }
+
+    auto segment = AddressSegment { memory, allocation };
+    addSegment(std::move(segment));
+
+    *result = mapping;
     return OsStatusSuccess;
 }
 

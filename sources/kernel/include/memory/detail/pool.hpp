@@ -67,7 +67,7 @@ namespace km {
                 return false;
             }
 
-            size_t freeSlots() const noexcept [[clang::nonallocating]] {
+            size_t countFreeSlots() const noexcept [[clang::nonallocating]] {
                 size_t result = 0;
                 size_t index = firstFreeIndex;
                 while (index < count) {
@@ -82,7 +82,7 @@ namespace km {
             }
 
             bool isEmpty() const noexcept [[clang::nonallocating]] {
-                return freeSlots() == capacity();
+                return countFreeSlots() == capacity();
             }
 
             void init(size_t blockCount) noexcept [[clang::nonallocating]] {
@@ -244,7 +244,7 @@ namespace km {
             size_t totalSlots = 0;
             size_t controlMemory = mBlocks.count() * sizeof(Block*);
             for (Block *block : mBlocks) {
-                size_t freeBlocks = block->freeSlots();
+                size_t freeBlocks = block->countFreeSlots();
                 freeSlots += freeBlocks;
                 totalSlots += block->count;
                 controlMemory += sizeof(Block) + (sizeof(Item) * freeBlocks);

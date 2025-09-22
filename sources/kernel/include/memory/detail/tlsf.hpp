@@ -196,9 +196,9 @@ namespace km {
 
         detail::TlsfBlock *mBlock{nullptr};
 
+    public:
         TlsfAllocation(detail::TlsfBlock *block) noexcept [[clang::nonblocking]];
 
-    public:
         constexpr TlsfAllocation() noexcept = default;
 
         constexpr detail::TlsfBlock *getBlock() const noexcept [[clang::nonblocking]] { return mBlock; }
@@ -222,5 +222,60 @@ namespace km {
         }
 
         constexpr auto operator<=>(const TlsfAllocation&) const noexcept [[clang::nonblocking]] = default;
+    };
+
+    template<typename T>
+    class [[nodiscard]] GenericTlsfAllocation {
+        template<typename U>
+        friend class GenericTlsfHeap;
+
+        detail::TlsfBlock *mBlock{nullptr};
+
+    public:
+        constexpr GenericTlsfAllocation(detail::TlsfBlock *block) noexcept [[clang::nonblocking]]
+            : mBlock(block)
+        { }
+
+        using Address = T;
+        using Range = AnyRange<T>;
+
+        constexpr GenericTlsfAllocation() noexcept = default;
+
+        [[nodiscard]]
+        constexpr detail::TlsfBlock *getBlock() const noexcept [[clang::nonblocking]] {
+            return mBlock;
+        }
+
+        [[nodiscard]]
+        constexpr bool isNull() const noexcept [[clang::nonblocking]] {
+            return mBlock == nullptr;
+        }
+
+        [[nodiscard]]
+        constexpr bool isValid() const noexcept [[clang::nonblocking]] {
+            return mBlock != nullptr;
+        }
+
+        [[nodiscard]]
+        constexpr size_t size() const noexcept [[clang::nonblocking]] {
+            return mBlock->size;
+        }
+
+        [[nodiscard]]
+        constexpr Address address() const noexcept [[clang::nonblocking]] {
+            return Address{mBlock->offset};
+        }
+
+        [[nodiscard]]
+        constexpr Range range() const noexcept [[clang::nonblocking]] {
+            return Range::of(address(), mBlock->size);
+        }
+
+        [[nodiscard]]
+        constexpr operator bool() const noexcept [[clang::nonblocking]] {
+            return isValid();
+        }
+
+        constexpr auto operator<=>(const GenericTlsfAllocation&) const noexcept [[clang::nonblocking]] = default;
     };
 }

@@ -67,6 +67,7 @@ namespace sys {
         OsStatus stat(ProcessStat *info);
         bool isSupervisor() const { return mState & eOsProcessSupervisor; }
 
+        ProcessId getId() const { return mId; }
         IHandle *getHandle(OsHandle handle);
         void addHandle(IHandle *handle);
         OsStatus removeHandle(IHandle *handle);

@@ -310,7 +310,7 @@ void TlsfHeap::resizeBlock(TlsfBlock *block, size_t newSize) noexcept [[clang::n
     }
 }
 
-OsStatus TlsfHeap::grow(TlsfAllocation ptr, size_t size, TlsfAllocation *result) [[clang::allocating]] {
+OsStatus TlsfHeap::grow(TlsfAllocation ptr, size_t size, TlsfAllocation *result [[outparam]]) [[clang::allocating]] {
     KM_CHECK(ptr.isValid(), "Invalid address");
     TlsfBlock *block = ptr.getBlock();
     KM_CHECK(!block->isFree(), "Block is not free");
@@ -374,7 +374,7 @@ OsStatus TlsfHeap::grow(TlsfAllocation ptr, size_t size, TlsfAllocation *result)
     return OsStatusOutOfMemory;
 }
 
-OsStatus TlsfHeap::shrink(TlsfAllocation ptr, size_t size, TlsfAllocation *result) [[clang::allocating]] {
+OsStatus TlsfHeap::shrink(TlsfAllocation ptr, size_t size, TlsfAllocation *result [[outparam]]) [[clang::allocating]] {
     TlsfBlock *block = ptr.getBlock();
     if (size == block->size) {
         *result = ptr;
@@ -396,7 +396,7 @@ OsStatus TlsfHeap::shrink(TlsfAllocation ptr, size_t size, TlsfAllocation *resul
     return OsStatusSuccess;
 }
 
-OsStatus TlsfHeap::resize(TlsfAllocation ptr, size_t size, TlsfAllocation *result) [[clang::allocating]] {
+OsStatus TlsfHeap::resize(TlsfAllocation ptr, size_t size, TlsfAllocation *result [[outparam]]) [[clang::allocating]] {
     if (size == 0) {
         return OsStatusInvalidInput;
     }
@@ -461,7 +461,7 @@ km::TlsfAllocation TlsfHeap::aligned_alloc(size_t align, size_t size) {
     return result;
 }
 
-TlsfAllocation TlsfHeap::allocateWithHint(size_t align, size_t size, PhysicalAddressEx hint) [[clang::allocating]] {
+TlsfAllocation TlsfHeap::allocateWithHint(size_t align, size_t size, uintptr_t hint) [[clang::allocating]] {
     if (auto allocation = allocateAt(hint, size)) {
         return allocation;
     }
@@ -472,11 +472,11 @@ TlsfAllocation TlsfHeap::allocateWithHint(size_t align, size_t size, PhysicalAdd
     return allocBestFit(align, size);
 }
 
-TlsfAllocation TlsfHeap::allocateAt(PhysicalAddressEx address, size_t size) [[clang::allocating]] {
+TlsfAllocation TlsfHeap::allocateAt(uintptr_t address, size_t size) [[clang::allocating]] {
     //
     // Check preconditions.
     //
-    if (!address.isAlignedTo(alignof(std::max_align_t))) {
+    if ((address % alignof(std::max_align_t)) != 0) {
         return TlsfAllocation{};
     }
 
@@ -484,7 +484,7 @@ TlsfAllocation TlsfHeap::allocateAt(PhysicalAddressEx address, size_t size) [[cl
         return TlsfAllocation{};
     }
 
-    MemoryRange range = MemoryRange::of(address.address, size);
+    MemoryRange range = MemoryRange::of(address, size);
 
     TlsfAllocation result;
     if (reserve(range, &result) != OsStatusSuccess) {
@@ -530,7 +530,7 @@ void TlsfHeap::freeAddress(PhysicalAddress address) noexcept [[clang::nonallocat
     free(allocation);
 }
 
-OsStatus TlsfHeap::findAllocation(PhysicalAddress address, TlsfAllocation *result) noexcept [[clang::nonallocating]] {
+OsStatus TlsfHeap::findAllocation(PhysicalAddress address, TlsfAllocation *result [[outparam]]) noexcept [[clang::nonallocating]] {
     TlsfBlock *block = mNullBlock;
     while (block != nullptr) {
         if (block->offset == address) {
@@ -567,7 +567,7 @@ void TlsfHeap::splitBlock(TlsfBlock *block, PhysicalAddress midpoint, TlsfAlloca
     *hi = TlsfAllocation(newBlock);
 }
 
-OsStatus TlsfHeap::split(TlsfAllocation ptr, PhysicalAddress midpoint, TlsfAllocation *lo, TlsfAllocation *hi) [[clang::allocating]] {
+OsStatus TlsfHeap::split(TlsfAllocation ptr, PhysicalAddress midpoint, TlsfAllocation *lo [[outparam]], TlsfAllocation *hi [[outparam]]) [[clang::allocating]] {
     TlsfBlock *block = ptr.getBlock();
     KM_CHECK(block != nullptr, "Block is null");
     KM_CHECK(block != mNullBlock, "Block is null");
@@ -682,7 +682,7 @@ OsStatus TlsfHeap::splitv(TlsfAllocation ptr, std::span<const PhysicalAddress> p
 }
 
 OsStatus TlsfHeap::splitBlockForAllocationIfRequired(TlsfBlock *block, size_t alignedOffset) noexcept [[clang::allocating]] {
-    if ((alignedOffset != block->offset) && block->prev == nullptr) {
+    if (alignedOffset != block->offset && block->prev == nullptr) {
         TlsfBlock *newBlock = mBlockPool.construct(TlsfBlock {
             .offset = block->offset,
             .size = alignedOffset - block->offset,
@@ -703,7 +703,7 @@ OsStatus TlsfHeap::splitBlockForAllocationIfRequired(TlsfBlock *block, size_t al
     return OsStatusSuccess;
 }
 
-OsStatus TlsfHeap::reserve(MemoryRange range, TlsfAllocation *result) [[clang::allocating]] {
+OsStatus TlsfHeap::reserve(MemoryRange range, TlsfAllocation *result [[outparam]]) [[clang::allocating]] {
     compact();
 
     TlsfBlock *block = mNullBlock;

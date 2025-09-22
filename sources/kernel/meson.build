@@ -809,3 +809,29 @@ testkwargs = { 'protocol' : 'gtest', 'timeout': 5 }
 subdir('pvtest')
 subdir('ktest')
 subdir('test')
+
+# doxygen = find_program('doxygen', required : get_option('docs'))
+# if doxygen.found()
+#     source_dir = meson.project_source_root()
+
+#     doxy_cdata = configuration_data()
+#     doxy_cdata.set('VERSION', meson.project_version())
+#     doxy_cdata.set('SOURCES', source_dir)
+#     doxy_cdata.set('ROOT_SOURCE_DIR', source_dir)
+#     doxy_cdata.set('INCLUDE_PATHS', source_dir / 'include')
+#     doxy_cdata.set('CLANG_DATABASE', meson.global_build_root() / 'compile_commands.json')
+
+#     doxy_cfg = configure_file(
+#         input : 'data/Doxyfile.in',
+#         output : 'Doxyfile',
+#         configuration : doxy_cdata
+#     )
+
+#     custom_target('docs',
+#         input : doxy_cfg,
+#         output : 'html',
+#         command: [ doxygen, doxy_cfg ],
+#         install : true,
+#         install_dir : get_option('datadir') / 'doc',
+#     )
+# endif
