@@ -111,11 +111,11 @@ namespace km {
 
     class HighPrecisionTimer final : public ITickSource {
         acpi::Hpet mTable;
-        TlsfAllocation mAllocation;
+        VmemAllocation mAllocation;
         hpet::MmioRegisters *mMmioRegion;
         hpet::HpetId mId;
 
-        HighPrecisionTimer(const acpi::Hpet *hpet, TlsfAllocation allocation, hpet::MmioRegisters *mmio);
+        HighPrecisionTimer(const acpi::Hpet *hpet, VmemAllocation allocation, hpet::MmioRegisters *mmio);
 
     public:
         HighPrecisionTimer()

@@ -183,7 +183,7 @@ void sys::SetProcessInitArgs(sys::System *system, sys::Process *process, std::sp
         }, &data);
         KM_ASSERT(status == OsStatusSuccess);
 
-        km::TlsfAllocation allocation;
+        km::VmemAllocation allocation;
         status = system->mSystemTables->map(data.physicalRangeEx(), km::PageFlags::eData, km::MemoryType::eWriteCombine, &allocation);
         KM_ASSERT(status == OsStatusSuccess);
 

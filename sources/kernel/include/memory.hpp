@@ -80,7 +80,7 @@ namespace km {
         OsStatus map(size_t size, PageFlags flags, MemoryType type, MappingAllocation *allocation [[gnu::nonnull]]);
 
         [[nodiscard]]
-        OsStatus map(MemoryRangeEx memory, PageFlags flags, MemoryType type, TlsfAllocation *allocation [[gnu::nonnull]]);
+        OsStatus map(MemoryRangeEx memory, PageFlags flags, MemoryType type, VmemAllocation *allocation [[gnu::nonnull]]);
 
         [[nodiscard]]
         OsStatus unmap(MappingAllocation allocation);

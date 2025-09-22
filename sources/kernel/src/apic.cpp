@@ -128,7 +128,7 @@ void km::X2Apic::writeIcr(uint32_t dst, uint32_t cmd) {
 // local apic free functions
 
 static km::LocalApic MapLocalApic(uint64_t msr, km::AddressSpace& memory) {
-    km::TlsfAllocation allocation;
+    km::VmemAllocation allocation;
     static constexpr size_t kApicSize = 0x400;
 
     KM_CHECK(msr & kApicEnableBit, "APIC not enabled");
@@ -350,7 +350,7 @@ static constexpr uint32_t kIoApicId = 0x0;
 static constexpr uint32_t kIoApicVersion = 0x1;
 static constexpr uint32_t kIoApicArbitration = 0x2;
 
-static sm::VirtualAddressOf<km::detail::IoApicMmio> mapIoApic(km::AddressSpace& memory, acpi::MadtEntry::IoApic entry, km::TlsfAllocation *allocation) {
+static sm::VirtualAddressOf<km::detail::IoApicMmio> mapIoApic(km::AddressSpace& memory, acpi::MadtEntry::IoApic entry, km::VmemAllocation *allocation) {
     return memory.mapMmio<km::detail::IoApicMmio>(entry.address, km::PageFlags::eData, allocation);
 }
 

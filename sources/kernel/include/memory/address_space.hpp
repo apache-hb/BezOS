@@ -4,6 +4,7 @@
 #include "memory/paging.hpp"
 #include "memory/pte.hpp"
 #include "memory/range.hpp"
+#include "memory/vmm_heap.hpp"
 
 #include <type_traits>
 
@@ -23,11 +24,7 @@ namespace km {
         TlsfHeapStats heap;
     };
 
-    using VmemAllocation = GenericTlsfAllocation<sm::VirtualAddress>;
-
     class AddressSpace {
-        using VmemHeap = GenericTlsfHeap<sm::VirtualAddress>;
-
         stdx::SpinLock mLock;
 
         PageTables mTables;
@@ -112,41 +109,41 @@ namespace km {
             return mapObject<T>(range, flags, MemoryType::eUncached);
         }
 
-        void *mapGenericObject(MemoryRangeEx range, PageFlags flags, MemoryType type, TlsfAllocation *allocation [[gnu::nonnull]]);
+        void *mapGenericObject(MemoryRangeEx range, PageFlags flags, MemoryType type, VmemAllocation *allocation [[gnu::nonnull]]);
 
         template<typename T> requires (std::is_standard_layout_v<T>)
         [[nodiscard]]
-        T *mapObject(MemoryRangeEx range, PageFlags flags, MemoryType type, TlsfAllocation *allocation [[gnu::nonnull]]) {
+        T *mapObject(MemoryRangeEx range, PageFlags flags, MemoryType type, VmemAllocation *allocation [[gnu::nonnull]]) {
             return (T*)mapGenericObject(range, flags, type, allocation);
         }
 
         template<typename T> requires (std::is_standard_layout_v<T>)
         [[nodiscard]]
-        T *mapObject(PhysicalAddressEx paddr, PageFlags flags, MemoryType type, TlsfAllocation *allocation [[gnu::nonnull]]) {
+        T *mapObject(PhysicalAddressEx paddr, PageFlags flags, MemoryType type, VmemAllocation *allocation [[gnu::nonnull]]) {
             return mapObject<T>(MemoryRangeEx::of(paddr, sizeof(T)), flags, type, allocation);
         }
 
         template<typename T> requires (std::is_standard_layout_v<T>)
         [[nodiscard]]
-        const T *mapConst(MemoryRangeEx range, TlsfAllocation *allocation [[gnu::nonnull]]) {
+        const T *mapConst(MemoryRangeEx range, VmemAllocation *allocation [[gnu::nonnull]]) {
             return (const T*)mapGenericObject(range, PageFlags::eRead, MemoryType::eWriteBack, allocation);
         }
 
         template<typename T> requires (std::is_standard_layout_v<T>)
         [[nodiscard]]
-        const T *mapConst(PhysicalAddressEx paddr, TlsfAllocation *allocation [[gnu::nonnull]]) {
+        const T *mapConst(PhysicalAddressEx paddr, VmemAllocation *allocation [[gnu::nonnull]]) {
             return mapConst<T>(MemoryRangeEx::of(paddr, sizeof(T)), allocation);
         }
 
         template<typename T> requires (std::is_standard_layout_v<T>)
         [[nodiscard]]
-        T *mapMmio(PhysicalAddressEx paddr, PageFlags flags, TlsfAllocation *allocation [[gnu::nonnull]]) {
+        T *mapMmio(PhysicalAddressEx paddr, PageFlags flags, VmemAllocation *allocation [[gnu::nonnull]]) {
             return mapObject<T>(MemoryRangeEx::of(paddr, sizeof(T)), flags, MemoryType::eUncached, allocation);
         }
 
         template<typename T> requires (std::is_standard_layout_v<T>)
         [[nodiscard]]
-        T *mapMmio(MemoryRangeEx range, PageFlags flags, TlsfAllocation *allocation [[gnu::nonnull]]) {
+        T *mapMmio(MemoryRangeEx range, PageFlags flags, VmemAllocation *allocation [[gnu::nonnull]]) {
             return mapObject<T>(range, flags, MemoryType::eUncached, allocation);
         }
 
@@ -174,7 +171,7 @@ namespace km {
         PhysicalAddress root() const { return mTables.root(); }
 
         [[nodiscard]]
-        OsStatus map(MemoryRangeEx memory, PageFlags flags, MemoryType type, TlsfAllocation *allocation [[gnu::nonnull]]);
+        OsStatus map(MemoryRangeEx memory, PageFlags flags, MemoryType type, VmemAllocation *allocation [[gnu::nonnull]]);
 
         [[nodiscard]]
         OsStatus map(TlsfAllocation memory, PageFlags flags, MemoryType type, MappingAllocation *allocation [[gnu::nonnull]]);
@@ -192,7 +189,7 @@ namespace km {
         OsStatus reserve(size_t size, TlsfAllocation *result [[gnu::nonnull]]);
 
         [[nodiscard]]
-        OsStatus reserve(VirtualRangeEx range, TlsfAllocation *result [[gnu::nonnull]]);
+        OsStatus reserve(VirtualRangeEx range, VmemAllocation *result [[gnu::nonnull]]);
 
         void release(TlsfAllocation allocation) noexcept;
 
@@ -200,7 +197,7 @@ namespace km {
         OsStatus unmap(MappingAllocation allocation);
 
         [[nodiscard]]
-        OsStatus unmap(TlsfAllocation allocation);
+        OsStatus unmap(VmemAllocation allocation);
 
         AddressSpaceStats stats() noexcept {
             stdx::LockGuard guard(mLock);

@@ -50,7 +50,7 @@ TEST_F(AddressSpaceConstructTest, Construct) {
 
 TEST_F(AddressSpaceTest, Map) {
     MemoryRangeEx range { 0x1000, 0x4000 };
-    TlsfAllocation allocation;
+    VmemAllocation allocation;
     OsStatus status = space.map(range, PageFlags::eData, MemoryType::eWriteBack, &allocation);
     ASSERT_EQ(status, OsStatusSuccess);
 }

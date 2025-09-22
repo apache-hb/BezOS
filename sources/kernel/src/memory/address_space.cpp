@@ -6,27 +6,20 @@
 #include "panic.hpp"
 
 void km::AddressSpace::reserve(VirtualRange range) {
-    TlsfAllocation allocation;
+    VmemAllocation allocation;
     if (OsStatus status = reserve(range.cast<sm::VirtualAddress>(), &allocation)) {
         MemLog.warnf("Failed to reserve virtual memory ", range, ": ", OsStatusId(status));
     }
 }
 
-OsStatus km::AddressSpace::reserve(VirtualRangeEx range, TlsfAllocation *result [[gnu::nonnull]]) {
+OsStatus km::AddressSpace::reserve(VirtualRangeEx range, VmemAllocation *result [[gnu::nonnull]]) {
     if (range.isEmpty() || (range != alignedOut(range, x64::kPageSize))) {
         return OsStatusInvalidInput;
     }
 
     stdx::LockGuard guard(mLock);
 
-    VmemAllocation allocation;
-
-    if (OsStatus status = mVmemHeap.reserve(range, &allocation)) {
-        return status;
-    }
-
-    *result = TlsfAllocation{allocation.getBlock()};
-    return OsStatusSuccess;
+    return mVmemHeap.reserve(range, result);
 }
 
 OsStatus km::AddressSpace::unmap(VirtualRange range) {
@@ -50,7 +43,7 @@ OsStatus km::AddressSpace::unmap(VirtualRange range) {
     return OsStatusSuccess;
 }
 
-void *km::AddressSpace::mapGenericObject(MemoryRangeEx range, PageFlags flags, MemoryType type, TlsfAllocation *allocation) {
+void *km::AddressSpace::mapGenericObject(MemoryRangeEx range, PageFlags flags, MemoryType type, VmemAllocation *allocation) {
     uintptr_t offset = (range.front.address & 0xFFF);
     MemoryRangeEx aligned = alignedOut(range, x64::kPageSize);
     if (aligned.isEmpty()) {
@@ -58,7 +51,7 @@ void *km::AddressSpace::mapGenericObject(MemoryRangeEx range, PageFlags flags, M
         return nullptr;
     }
 
-    TlsfAllocation memory;
+    VmemAllocation memory;
     if (OsStatus status = map(aligned, flags, type, &memory)) {
         MemLog.warnf("Failed to map object memory ", aligned, ": ", OsStatusId(status));
         return nullptr;
@@ -76,7 +69,7 @@ void *km::AddressSpace::map(MemoryRange range, PageFlags flags, MemoryType type)
         return nullptr;
     }
 
-    TlsfAllocation result;
+    VmemAllocation result;
     if (map(range.cast<km::PhysicalAddressEx>(), flags, type, &result) != OsStatusSuccess) {
         return nullptr;
     }
@@ -169,7 +162,7 @@ void km::AddressSpace::updateHigherHalfMappings(const PageTables *source) {
     km::copyHigherHalfMappings(&mTables, source);
 }
 
-OsStatus km::AddressSpace::map(MemoryRangeEx memory, PageFlags flags, MemoryType type, TlsfAllocation *allocation) {
+OsStatus km::AddressSpace::map(MemoryRangeEx memory, PageFlags flags, MemoryType type, VmemAllocation *allocation) {
     if (memory.isEmpty() || (memory != alignedOut(memory, x64::kPageSize))) {
         return OsStatusInvalidInput;
     }
@@ -196,18 +189,18 @@ OsStatus km::AddressSpace::map(MemoryRangeEx memory, PageFlags flags, MemoryType
 
     KM_CHECK(!vmem.isNull(), "Memory allocation is null");
 
-    *allocation = TlsfAllocation{vmem.getBlock()};
+    *allocation = vmem;
     return OsStatusSuccess;
 }
 
 OsStatus km::AddressSpace::map(TlsfAllocation memory, PageFlags flags, MemoryType type, MappingAllocation *allocation) {
-    TlsfAllocation result;
+    VmemAllocation result;
 
     if (OsStatus status = map(memory.range().cast<km::PhysicalAddressEx>(), flags, type, &result)) {
         return status;
     }
 
-    *allocation = MappingAllocation::unchecked(memory, result);
+    *allocation = MappingAllocation::unchecked(memory, TlsfAllocation{result.getBlock()});
     return OsStatusSuccess;
 }
 
@@ -256,7 +249,7 @@ OsStatus km::AddressSpace::mapStack(MemoryRangeEx memory, PageFlags flags, std::
     };
 
     if (OsStatus status = mVmemHeap.splitv(vmem, points, results)) {
-        OsStatus inner = unmap(TlsfAllocation{vmem.getBlock()});
+        OsStatus inner = unmap(vmem);
         KM_ASSERT(inner == OsStatusSuccess);
         return status;
     }
@@ -268,7 +261,7 @@ OsStatus km::AddressSpace::mapStack(MemoryRangeEx memory, PageFlags flags, std::
     };
 
     if (OsStatus status = mTables.map(m, flags, MemoryType::eWriteBack)) {
-        OsStatus inner = unmap(TlsfAllocation{vmem.getBlock()});
+        OsStatus inner = unmap(vmem);
         KM_ASSERT(inner == OsStatusSuccess);
         for (auto& result : results) {
             mVmemHeap.free(result);
@@ -306,10 +299,10 @@ void km::AddressSpace::release(TlsfAllocation allocation) noexcept {
 }
 
 OsStatus km::AddressSpace::unmap(MappingAllocation allocation) {
-    return unmap(allocation.virtualAllocation());
+    return unmap(VmemAllocation{allocation.virtualAllocation().getBlock()});
 }
 
-OsStatus km::AddressSpace::unmap(TlsfAllocation allocation) {
+OsStatus km::AddressSpace::unmap(VmemAllocation allocation) {
     if (OsStatus status = mTables.unmap(allocation.range().cast<const void*>())) {
         return status;
     }

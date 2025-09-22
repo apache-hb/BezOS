@@ -17,7 +17,7 @@ constexpr km::MemoryRangeEx SmBiosTableRange(const T *table) {
 }
 
 template<typename T>
-static km::VirtualRangeEx SmBiosMapTable(const T *table, km::AddressSpace& memory, km::TlsfAllocation *allocation [[clang::noescape, gnu::nonnull]]) {
+static km::VirtualRangeEx SmBiosMapTable(const T *table, km::AddressSpace& memory, km::VmemAllocation *allocation [[outparam]]) {
     BiosLog.dbgf("Table: ", (void*)table);
     BiosLog.printImmediate(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(table), sizeof(T))), "\n");
 
@@ -149,7 +149,7 @@ size_t km::smbios::GetStructSize(const StructHeader *header) {
     return size;
 }
 
-static OsStatus FindSmbios64(sm::PhysicalAddress address, bool ignoreChecksum, km::AddressSpace& memory, const smbios::Entry64 **entry, km::TlsfAllocation *allocation) {
+static OsStatus FindSmbios64(sm::PhysicalAddress address, bool ignoreChecksum, km::AddressSpace& memory, const smbios::Entry64 **entry, km::VmemAllocation *allocation) {
     const auto *smbios = memory.mapConst<smbios::Entry64>(address, allocation);
 
     if (smbios->anchor != smbios::Entry64::kAnchor0) {
@@ -166,7 +166,7 @@ static OsStatus FindSmbios64(sm::PhysicalAddress address, bool ignoreChecksum, k
     return OsStatusSuccess;
 }
 
-static OsStatus FindSmbios32(sm::PhysicalAddress address, bool ignoreChecksum, km::AddressSpace& memory, const smbios::Entry32 **entry, km::TlsfAllocation *allocation) {
+static OsStatus FindSmbios32(sm::PhysicalAddress address, bool ignoreChecksum, km::AddressSpace& memory, const smbios::Entry32 **entry, km::VmemAllocation *allocation) {
     const auto *smbios = memory.mapConst<smbios::Entry32>(address, allocation);
 
     if (smbios->anchor0 != smbios::Entry32::kAnchor0) {
@@ -202,7 +202,7 @@ OsStatus km::findSmbiosTables(SmBiosLoadOptions options, km::AddressSpace& memor
     SmBiosTables result{};
 
     if (options.smbios64Address != nullptr && !options.ignore64BitEntry) {
-        km::TlsfAllocation allocation;
+        km::VmemAllocation allocation;
         status = FindSmbios64(options.smbios64Address, options.ignoreChecksum, memory, &result.entry64, &allocation);
         if (status == OsStatusSuccess) {
 
@@ -218,7 +218,7 @@ OsStatus km::findSmbiosTables(SmBiosLoadOptions options, km::AddressSpace& memor
     }
 
     if (options.smbios32Address != nullptr && !options.ignore32BitEntry) {
-        km::TlsfAllocation allocation;
+        km::VmemAllocation allocation;
         status = FindSmbios32(options.smbios32Address, options.ignoreChecksum, memory, &result.entry32, &allocation);
         if (status == OsStatusSuccess) {
 

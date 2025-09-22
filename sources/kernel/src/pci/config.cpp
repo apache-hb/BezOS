@@ -84,7 +84,7 @@ OsStatus pci::McfgConfigSpace::create(const acpi::Mcfg *mcfg, km::AddressSpace& 
 
         km::MemoryRangeEx range = km::MemoryRangeEx::of(allocation.address, kEcamSize);
 
-        km::TlsfAllocation mapping;
+        km::VmemAllocation mapping;
 
         if (OsStatus status = memory.map(range, km::PageFlags::eData, km::MemoryType::eUncached, &mapping)) {
             PciLog.fatalf("Failed to map ECAM region ", range);

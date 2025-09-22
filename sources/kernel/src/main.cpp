@@ -893,7 +893,7 @@ static void MountInitArchive(MemoryRangeEx initrd, AddressSpace& memory) {
         KM_PANIC("No initrd found.");
     }
 
-    TlsfAllocation initrdMemory;
+    VmemAllocation initrdMemory;
     if (OsStatus status = memory.map(km::alignedOut(initrd, x64::kPageSize), PageFlags::eRead, MemoryType::eWriteBack, &initrdMemory)) {
         VfsLog.fatalf("Failed to map initrd: ", OsStatusId(status));
         KM_PANIC("Failed to map initrd.");

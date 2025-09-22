@@ -2,7 +2,7 @@
 
 #include "acpi/acpi.hpp"
 #include "arch/paging.hpp"
-#include "memory/detail/tlsf.hpp"
+#include "memory/vmm_heap.hpp"
 #include "util/combine.hpp"
 #include "util/absl.hpp"
 
@@ -245,7 +245,7 @@ namespace km {
         static constexpr uint32_t kIcr1 = 0x310;
         static constexpr uint32_t kIcr0 = 0x300;
 
-        TlsfAllocation mAllocation;
+        VmemAllocation mAllocation;
         sm::VirtualAddress mAddress{nullptr};
 
         volatile uint32_t& reg(uint16_t offset) const;
@@ -258,7 +258,7 @@ namespace km {
     public:
         constexpr LocalApic() = default;
 
-        constexpr LocalApic(TlsfAllocation allocation, sm::VirtualAddress base) noexcept
+        constexpr LocalApic(VmemAllocation allocation, sm::VirtualAddress base) noexcept
             : mAllocation(allocation)
             , mAddress(base)
         { }
@@ -292,7 +292,7 @@ namespace km {
     }
 
     class IoApic {
-        km::TlsfAllocation mAllocation;
+        km::VmemAllocation mAllocation;
         sm::VirtualAddressOf<detail::IoApicMmio> mMmio{nullptr};
         uint32_t mIsrBase;
         uint8_t mId;

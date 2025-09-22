@@ -34,8 +34,8 @@ bool acpi::detail::validateRsdpLocator(const acpi::RsdpLocator *rsdp) {
     }
 }
 
-static const acpi::RsdtHeader *mapTableEntry(sm::PhysicalAddress paddr, km::AddressSpace& memory, km::TlsfAllocation *tableAllocation) {
-    km::TlsfAllocation headerAllocation;
+static const acpi::RsdtHeader *mapTableEntry(sm::PhysicalAddress paddr, km::AddressSpace& memory, km::VmemAllocation *tableAllocation) {
+    km::VmemAllocation headerAllocation;
 
     // first map the header
     const acpi::RsdtHeader *header = memory.mapConst<acpi::RsdtHeader>(paddr, &headerAllocation);
@@ -185,7 +185,7 @@ static void PrintXsdt(const acpi::Xsdt *xsdt, const acpi::RsdpLocator *locator) 
 }
 
 OsStatus acpi::AcpiTables::setup(const AcpiSetupOptions& options, km::AddressSpace& memory, AcpiTables *tables [[gnu::nonnull, clang::noescape]]) {
-    km::TlsfAllocation rsdpAllocation;
+    km::VmemAllocation rsdpAllocation;
 
     const acpi::RsdpLocator *locator = memory.mapConst<acpi::RsdpLocator>(options.rsdpBaseAddress, &rsdpAllocation);
 
@@ -223,7 +223,7 @@ OsStatus acpi::AcpiTables::setup(const AcpiSetupOptions& options, km::AddressSpa
 }
 
 acpi::AcpiTables acpi::setupAcpi(sm::PhysicalAddress rsdpBaseAddress, km::AddressSpace& memory) {
-    km::TlsfAllocation rsdpAllocation;
+    km::VmemAllocation rsdpAllocation;
 
     // map the rsdp table
     const acpi::RsdpLocator *locator = memory.mapConst<acpi::RsdpLocator>(rsdpBaseAddress, &rsdpAllocation);
@@ -267,7 +267,7 @@ void SetUniqueTableEntry(const T** dst, const acpi::RsdtHeader *header) {
     }
 }
 
-acpi::AcpiTables::AcpiTables(km::TlsfAllocation allocation, const RsdpLocator *locator, km::AddressSpace& memory)
+acpi::AcpiTables::AcpiTables(km::VmemAllocation allocation, const RsdpLocator *locator, km::AddressSpace& memory)
     : mRsdpAllocation(allocation)
     , mRsdpLocator(locator)
     , mMadt(nullptr)
@@ -283,7 +283,7 @@ acpi::AcpiTables::AcpiTables(km::TlsfAllocation allocation, const RsdpLocator *l
 
         for (uint32_t i = 0; i < mRsdtEntryCount; i++) {
             sm::PhysicalAddress paddr = sm::PhysicalAddress { locator->entries[i] };
-            km::TlsfAllocation tableAllocation; // TODO: this leaks
+            km::VmemAllocation tableAllocation; // TODO: this leaks
             const acpi::RsdtHeader *header = mapTableEntry(paddr, memory, &tableAllocation);
 
             SetUniqueTableEntry(&mMadt, header);
@@ -296,7 +296,7 @@ acpi::AcpiTables::AcpiTables(km::TlsfAllocation allocation, const RsdpLocator *l
         }
     };
 
-    km::TlsfAllocation rsdtAllocation;
+    km::VmemAllocation rsdtAllocation;
     defer { KM_ASSERT(memory.unmap(rsdtAllocation) == OsStatusSuccess); };
 
     if (revision() == 0) {
@@ -311,7 +311,7 @@ acpi::AcpiTables::AcpiTables(km::TlsfAllocation allocation, const RsdpLocator *l
 
     if (mFadt != nullptr) {
         uint64_t address = (revision() == 0) ? mFadt->dsdt : mFadt->x_dsdt;
-        km::TlsfAllocation tableAllocation; // TODO: this leaks
+        km::VmemAllocation tableAllocation; // TODO: this leaks
         mDsdt = mapTableEntry(sm::PhysicalAddress { address }, memory, &tableAllocation);
     }
 

@@ -106,7 +106,7 @@ void km::hpet::Comparator::configure(ComparatorConfig config) {
 
 // hpet methods
 
-km::HighPrecisionTimer::HighPrecisionTimer(const acpi::Hpet *hpet, TlsfAllocation allocation, hpet::MmioRegisters *mmio)
+km::HighPrecisionTimer::HighPrecisionTimer(const acpi::Hpet *hpet, VmemAllocation allocation, hpet::MmioRegisters *mmio)
     : mTable(*hpet)
     , mAllocation(allocation)
     , mMmioRegion(mmio)
@@ -191,7 +191,7 @@ OsStatus km::setupHpet(const acpi::AcpiTables& rsdt, AddressSpace& memory, HighP
             return OsStatusInvalidAddress;
         }
 
-        TlsfAllocation allocation;
+        VmemAllocation allocation;
         hpet::MmioRegisters *mmio = memory.mapMmio<hpet::MmioRegisters>(km::PhysicalAddressEx { baseAddress.address }, PageFlags::eData, &allocation);
         if (mmio == nullptr) {
             AcpiLog.warnf("Failed to map HPET MMIO region.");

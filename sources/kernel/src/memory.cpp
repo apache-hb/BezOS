@@ -63,7 +63,7 @@ void *km::SystemMemory::map(MemoryRange range, PageFlags flags, MemoryType type)
     //
     uintptr_t offset = (range.front.address & 0xFFF);
 
-    TlsfAllocation memory;
+    VmemAllocation memory;
     if (mTables.map(range.cast<km::PhysicalAddressEx>(), flags, type, &memory) != OsStatusSuccess) {
         return nullptr;
     }
@@ -108,7 +108,7 @@ OsStatus km::SystemMemory::map(size_t size, PageFlags flags, MemoryType type, Ma
     return OsStatusSuccess;
 }
 
-OsStatus km::SystemMemory::map(MemoryRangeEx memory, PageFlags flags, MemoryType type, TlsfAllocation *allocation) {
+OsStatus km::SystemMemory::map(MemoryRangeEx memory, PageFlags flags, MemoryType type, VmemAllocation *allocation) {
     return mTables.map(memory, flags, type, allocation);
 }
 

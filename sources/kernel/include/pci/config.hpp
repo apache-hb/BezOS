@@ -2,6 +2,7 @@
 
 #include "acpi/mcfg.hpp"
 #include "memory/heap.hpp"
+#include "memory/vmm_heap.hpp"
 
 #include <stdint.h>
 
@@ -33,7 +34,7 @@ namespace pci {
     };
 
     struct EcamRegion {
-        km::TlsfAllocation mapping;
+        km::VmemAllocation mapping;
         uint8_t first;
         uint8_t last;
 

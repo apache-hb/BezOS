@@ -3,6 +3,7 @@
 #include "acpi/madt.hpp"
 #include "acpi/fadt.hpp"
 #include "acpi/mcfg.hpp"
+#include "memory/vmm_heap.hpp"
 #include "util/signature.hpp"
 #include "memory/detail/tlsf.hpp"
 
@@ -59,7 +60,7 @@ namespace acpi {
     };
 
     class AcpiTables {
-        km::TlsfAllocation mRsdpAllocation;
+        km::VmemAllocation mRsdpAllocation;
         const RsdpLocator *mRsdpLocator;
         const Madt *mMadt;
         const Mcfg *mMcfg;
@@ -71,7 +72,7 @@ namespace acpi {
     public:
         constexpr AcpiTables() = default;
 
-        AcpiTables(km::TlsfAllocation allocation, const RsdpLocator *locator, km::AddressSpace& memory);
+        AcpiTables(km::VmemAllocation allocation, const RsdpLocator *locator, km::AddressSpace& memory);
 
         const RsdpLocator *locator() const { return mRsdpLocator; }
         uint32_t revision() const { return mRsdpLocator->revision; }

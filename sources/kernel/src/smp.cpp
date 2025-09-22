@@ -153,8 +153,8 @@ void km::InitSmp(
     SmpInitCallback callback,
     void *user
 ) {
-    TlsfAllocation smpInfoAlloc;
-    TlsfAllocation smpStartAlloc;
+    VmemAllocation smpInfoAlloc;
+    VmemAllocation smpStartAlloc;
 
     InitLog.infof("Starting APs.");
     AddressSpace &addressSpace = memory.pageTables();
