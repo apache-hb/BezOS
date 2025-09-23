@@ -35,7 +35,7 @@ OsStatus PageAllocator::splitv(TlsfAllocation ptr, std::span<const PhysicalAddre
 
 OsStatus PageAllocator::split(TlsfAllocation allocation, PhysicalAddress midpoint, TlsfAllocation *lo [[gnu::nonnull]], TlsfAllocation *hi [[gnu::nonnull]]) [[clang::allocating]] {
     stdx::LockGuard guard(mLock);
-    return mMemoryHeap.split(allocation, midpoint, lo, hi);
+    return mMemoryHeap.split(allocation, midpoint.address, lo, hi);
 }
 
 void PageAllocator::free(TlsfAllocation allocation) noexcept [[clang::nonallocating]] {

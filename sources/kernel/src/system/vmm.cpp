@@ -5,10 +5,10 @@
 
 #include "common/util/defer.hpp"
 
-OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, size_t size, size_t align, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping) [[clang::allocating]] {
+OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, size_t size, size_t align, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping [[outparam]]) [[clang::allocating]] {
     stdx::LockGuard guard(mLock);
 
-    km::TlsfAllocation allocation = mHeap.aligned_alloc(align, size);
+    km::VmemAllocation allocation = mHeap.alignedAlloc(align, size);
     if (allocation.isNull()) {
         return OsStatusOutOfMemory;
     }
@@ -39,10 +39,10 @@ OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, size_t size, size
     return OsStatusSuccess;
 }
 
-OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, km::MemoryRange range, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping) [[clang::allocating]] {
+OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, km::MemoryRange range, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping [[outparam]]) [[clang::allocating]] {
     stdx::LockGuard guard(mLock);
 
-    km::TlsfAllocation allocation = mHeap.aligned_alloc(x64::kPageSize, range.size());
+    km::VmemAllocation allocation = mHeap.alignedAlloc(x64::kPageSize, range.size());
     if (allocation.isNull()) {
         return OsStatusOutOfMemory;
     }
@@ -71,7 +71,7 @@ OsStatus sys::AddressSpaceManager::mapSegment(
     MemoryManager *manager, Iterator it,
     km::VirtualRange src, km::VirtualRange dst,
     km::PageFlags flags, km::MemoryType type,
-    km::TlsfAllocation allocation
+    km::VmemAllocation allocation
 ) [[clang::allocating]] {
     OsStatus status = OsStatusSuccess;
     auto& segment = it->second;
@@ -117,7 +117,7 @@ OsStatus sys::AddressSpaceManager::mapSegment(
 
         auto allocRange = allocation.range();
 
-        km::TlsfAllocation lo, mid, hi;
+        km::VmemAllocation lo, mid, hi;
         if (OsStatus status = mHeap.split(allocation, allocRange.front + frontOffset, &lo, &mid)) {
             return status;
         }
@@ -138,7 +138,7 @@ OsStatus sys::AddressSpaceManager::mapSegment(
     return OsStatusSuccess;
 }
 
-OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, AddressSpaceManager *other, km::VirtualRange range, km::PageFlags flags, km::MemoryType type, km::VirtualRange *result) [[clang::allocating]] {
+OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, AddressSpaceManager *other, km::VirtualRange range, km::PageFlags flags, km::MemoryType type, km::VirtualRange *result [[outparam]]) [[clang::allocating]] {
     stdx::LockGuard guard(mLock);
     stdx::LockGuard guard2(other->mLock); // TODO: this can deadlock
 
@@ -148,7 +148,7 @@ OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, AddressSpaceManag
         return OsStatusNotFound;
     }
 
-    km::TlsfAllocation allocation = mHeap.aligned_alloc(alignof(x64::page), range.size());
+    km::VmemAllocation allocation = mHeap.alignedAlloc(alignof(x64::page), range.size());
     if (allocation.isNull()) {
         return OsStatusOutOfMemory;
     }
@@ -246,7 +246,7 @@ void sys::AddressSpaceManager::addSegment(AddressSegment &&segment) noexcept [[c
     mTable.insert(std::move(segment));
 }
 
-void sys::AddressSpaceManager::addNoAccessSegment(km::TlsfAllocation allocation) noexcept [[clang::allocating]] {
+void sys::AddressSpaceManager::addNoAccessSegment(km::VmemAllocation allocation) noexcept [[clang::allocating]] {
     auto segment = AddressSegment { km::MemoryRange{}, allocation };
     addSegment(std::move(segment));
 }
@@ -259,7 +259,7 @@ OsStatus sys::AddressSpaceManager::splitSegment(MemoryManager *manager, Iterator
     size_t frontOffset = (uintptr_t)midpoint - (uintptr_t)seg.front;
     size_t backOffset = (uintptr_t)seg.back - (uintptr_t)midpoint;
 
-    km::TlsfAllocation lo, hi;
+    km::VmemAllocation lo, hi;
     if (OsStatus status = mHeap.split(segment.allocation, std::bit_cast<uintptr_t>(midpoint), &lo, &hi)) {
         return status;
     }
@@ -348,7 +348,7 @@ OsStatus sys::AddressSpaceManager::splitAtAddress(MemoryManager *manager, sm::Vi
     return OsStatusNotSupported;
 }
 
-OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, sm::VirtualAddress address, km::MemoryRange memory, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping) [[clang::allocating]] {
+OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, sm::VirtualAddress address, km::MemoryRange memory, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping [[outparam]]) [[clang::allocating]] {
     // TODO: on the error case memory is a bit busted
     km::VirtualRange range = { address, address + memory.size() };
     if (OsStatus status = unmap(manager, range)) {
@@ -357,10 +357,10 @@ OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, sm::VirtualAddres
         }
     }
 
-    km::TlsfAllocation allocation;
+    km::VmemAllocation allocation;
 
     stdx::LockGuard guard(mLock);
-    if (OsStatus status = mHeap.reserve(range.cast<km::PhysicalAddress>(), &allocation)) {
+    if (OsStatus status = mHeap.reserve(range.cast<sm::VirtualAddress>(), &allocation)) {
         return status;
     }
 
@@ -382,10 +382,10 @@ OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, sm::VirtualAddres
     return OsStatusSuccess;
 }
 
-OsStatus sys::AddressSpaceManager::mapExternal(km::MemoryRange memory, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping) [[clang::allocating]] {
+OsStatus sys::AddressSpaceManager::mapExternal(km::MemoryRange memory, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping [[outparam]]) [[clang::allocating]] {
     stdx::LockGuard guard(mLock);
 
-    km::TlsfAllocation allocation = mHeap.aligned_alloc(alignof(x64::page), memory.size());
+    km::VmemAllocation allocation = mHeap.alignedAlloc(alignof(x64::page), memory.size());
 
     km::AddressMapping result {
         .vaddr = std::bit_cast<const void*>(allocation.address()),
@@ -405,10 +405,10 @@ OsStatus sys::AddressSpaceManager::mapExternal(km::MemoryRange memory, km::PageF
     return OsStatusSuccess;
 }
 
-OsStatus sys::AddressSpaceManager::allocateVirtual(km::MemoryRange memory, sm::VirtualAddress address, size_t size, size_t align, bool addressIsHint, km::PageFlags flags, km::AddressMapping *result) [[clang::allocating]] {
+OsStatus sys::AddressSpaceManager::allocateVirtual(km::MemoryRange memory, sm::VirtualAddress address, size_t size, size_t align, bool addressIsHint, km::PageFlags flags, km::AddressMapping *result [[outparam]]) [[clang::allocating]] {
     stdx::LockGuard guard(mLock);
 
-    km::TlsfAllocation allocation;
+    km::VmemAllocation allocation;
 
     if (addressIsHint) {
         KM_ASSERT(!address.isNull());
@@ -422,7 +422,7 @@ OsStatus sys::AddressSpaceManager::allocateVirtual(km::MemoryRange memory, sm::V
             return status;
         }
     } else {
-        allocation = mHeap.aligned_alloc(align, size);
+        allocation = mHeap.alignedAlloc(align, size);
         if (allocation.isNull()) {
             return OsStatusOutOfMemory;
         }
@@ -544,8 +544,8 @@ OsStatus sys::AddressSpaceManager::unmap(MemoryManager *manager, km::VirtualRang
 
             km::AddressMapping subrange = mapping.subrange(range);
 
-            std::array<km::TlsfAllocation, 3> allocations;
-            std::array<km::PhysicalAddress, 2> points = {
+            std::array<km::VmemAllocation, 3> allocations;
+            std::array<sm::VirtualAddress, 2> points = {
                 (uintptr_t)range.front,
                 (uintptr_t)range.back,
             };
@@ -704,16 +704,15 @@ sys::AddressSpaceManagerStats sys::AddressSpaceManager::stats() noexcept [[clang
     CLANG_DIAGNOSTIC_POP();
 }
 
-OsStatus sys::AddressSpaceManager::create(const km::PageBuilder *pm, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager [[clang::noescape, gnu::nonnull]]) [[clang::allocating]] {
-    km::TlsfHeap heap;
+OsStatus sys::AddressSpaceManager::create(const km::PageBuilder *pm, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager [[outparam]]) [[clang::allocating]] {
+    km::VmemHeap heap;
     km::PageTables pt;
-    km::MemoryRange range { (uintptr_t)vmem.front, (uintptr_t)vmem.back };
 
     if (OsStatus status = km::PageTables::create(pm, pteMemory, flags, &pt)) {
         return status;
     }
 
-    if (OsStatus status = km::TlsfHeap::create(range, &heap)) {
+    if (OsStatus status = km::VmemHeap::create(vmem.cast<sm::VirtualAddress>(), &heap)) {
         return status;
     }
 
@@ -721,7 +720,7 @@ OsStatus sys::AddressSpaceManager::create(const km::PageBuilder *pm, km::Address
     return OsStatusSuccess;
 }
 
-OsStatus sys::AddressSpaceManager::create(const km::AddressSpace *pt, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager [[clang::noescape, gnu::nonnull]]) [[clang::allocating]] {
+OsStatus sys::AddressSpaceManager::create(const km::AddressSpace *pt, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager [[outparam]]) [[clang::allocating]] {
     if (OsStatus status = AddressSpaceManager::create(pt->pageManager(), pteMemory, flags, vmem, manager)) {
         return status;
     }

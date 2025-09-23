@@ -221,7 +221,7 @@ namespace km {
         ///
         /// @return The status of the operation.
         [[nodiscard]]
-        OsStatus split(TlsfAllocation ptr, PhysicalAddress midpoint, TlsfAllocation *lo [[outparam]], TlsfAllocation *hi [[outparam]]) [[clang::allocating]];
+        OsStatus split(TlsfAllocation ptr, uintptr_t midpoint, TlsfAllocation *lo [[outparam]], TlsfAllocation *hi [[outparam]]) [[clang::allocating]];
 
         /// @brief Split an allocation many times.
         ///
@@ -447,7 +447,7 @@ namespace km {
         OsStatus split(Allocation ptr, Address midpoint, Allocation *lo [[outparam]], Allocation *hi [[outparam]]) [[clang::allocating]] {
             TlsfAllocation outLo;
             TlsfAllocation outHi;
-            if (OsStatus status = mHeap.split(TlsfAllocation{ptr.getBlock()}, PhysicalAddress{midpoint}, &outLo, &outHi)) {
+            if (OsStatus status = mHeap.split(TlsfAllocation{ptr.getBlock()}, midpoint.address, &outLo, &outHi)) {
                 return status;
             }
 

@@ -567,7 +567,7 @@ void TlsfHeap::splitBlock(TlsfBlock *block, PhysicalAddress midpoint, TlsfAlloca
     *hi = TlsfAllocation(newBlock);
 }
 
-OsStatus TlsfHeap::split(TlsfAllocation ptr, PhysicalAddress midpoint, TlsfAllocation *lo [[outparam]], TlsfAllocation *hi [[outparam]]) [[clang::allocating]] {
+OsStatus TlsfHeap::split(TlsfAllocation ptr, uintptr_t midpoint, TlsfAllocation *lo [[outparam]], TlsfAllocation *hi [[outparam]]) [[clang::allocating]] {
     TlsfBlock *block = ptr.getBlock();
     KM_CHECK(block != nullptr, "Block is null");
     KM_CHECK(block != mNullBlock, "Block is null");
@@ -580,7 +580,7 @@ OsStatus TlsfHeap::split(TlsfAllocation ptr, PhysicalAddress midpoint, TlsfAlloc
         return OsStatusInvalidInput;
     }
 
-    size_t size = midpoint.address - base.address;
+    size_t size = midpoint - base.address;
 
     if ((size == block->size) || (size > block->size) || (size == 0)) {
         return OsStatusInvalidInput;
@@ -724,7 +724,16 @@ OsStatus TlsfHeap::reserve(MemoryRange range, TlsfAllocation *result [[outparam]
             }
 
             return OsStatusSuccess;
+        } else if (blockRange.overlaps(range)) {
+            //
+            // If the range overlaps with an existing allocation then we know it is not available
+            // because all free adjacent ranges are merged together.
+            //
+            return OsStatusNotAvailable;
         }
+
+        MemLog.infof("Block: ", sm::VirtualAddress(block->offset), " (", block->size, ") does not contain range ", range);
+        MemLog.infof("Next: ", (void*)block->next, " Prev: ", (void*)block->prev);
 
         block = block->prev;
     }

@@ -317,7 +317,7 @@ TEST_F(TlsfHeapTest, Split) {
 
     auto base = addr.address();
     TlsfAllocation lo, hi;
-    status = heap.split(addr, base + 0x50, &lo, &hi);
+    status = heap.split(addr, base.address + 0x50, &lo, &hi);
     ASSERT_EQ(status, OsStatusSuccess);
 
     EXPECT_EQ(lo.address(), base);
@@ -345,7 +345,7 @@ TEST_F(TlsfHeapTest, SplitRelease) {
     auto base = addr.address();
 
     TlsfAllocation lo, hi;
-    status = heap.split(addr, base + 0x50, &lo, &hi);
+    status = heap.split(addr, base.address + 0x50, &lo, &hi);
     ASSERT_EQ(status, OsStatusSuccess);
 
     EXPECT_EQ(lo.address(), base);
@@ -1375,7 +1375,7 @@ TEST_F(TlsfHeapTest, ResizeAllocSingle) {
             if (distribution(random) % 10 == 0) {
                 size_t newSize = (size / 2);
                 TlsfAllocation lo, hi;
-                if (heap.split(ptr, base + newSize, &lo, &hi) == OsStatusSuccess) {
+                if (heap.split(ptr, base.address + newSize, &lo, &hi) == OsStatusSuccess) {
                     EXPECT_TRUE(lo.isValid());
                     EXPECT_TRUE(hi.isValid());
                     EXPECT_EQ(lo.address().address, base.address);

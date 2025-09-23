@@ -1,6 +1,5 @@
 #pragma once
 
-#include "log.hpp"
 #include "logger/categories.hpp"
 #include "memory/heap.hpp"
 #include "memory/layout.hpp"
@@ -8,6 +7,7 @@
 #include "memory/paging.hpp"
 #include "memory/pte.hpp"
 
+#include "memory/vmm_heap.hpp"
 #include "std/spinlock.hpp"
 #include "system/detail/range_table.hpp"
 
@@ -22,7 +22,7 @@ namespace sys {
 
     struct AddressSegment {
         km::MemoryRange backing;
-        km::TlsfAllocation allocation;
+        km::VmemAllocation allocation;
 
         km::AddressMapping mapping() const noexcept [[clang::nonallocating]] {
             auto front = allocation.address();
@@ -64,13 +64,13 @@ namespace sys {
         Table mTable GUARDED_BY(mLock);
         km::AddressMapping mPteMemory;
         km::PageTables mPageTables GUARDED_BY(mLock);
-        km::TlsfHeap mHeap GUARDED_BY(mLock);
+        km::VmemHeap mHeap GUARDED_BY(mLock);
 
         Map& segments() noexcept REQUIRES(mLock) {
             return mTable.segments();
         }
 
-        AddressSpaceManager(km::AddressMapping pteMemory, km::PageTables&& pt, km::TlsfHeap &&heap) noexcept
+        AddressSpaceManager(km::AddressMapping pteMemory, km::PageTables&& pt, km::VmemHeap &&heap) noexcept
             : mPteMemory(pteMemory)
             , mPageTables(std::move(pt))
             , mHeap(std::move(heap))
@@ -88,7 +88,7 @@ namespace sys {
         void eraseMany(MemoryManager *manager, km::VirtualRange range) noexcept [[clang::allocating]] REQUIRES(mLock);
 
         void addSegment(AddressSegment &&segment) noexcept [[clang::allocating]] REQUIRES(mLock);
-        void addNoAccessSegment(km::TlsfAllocation allocation) noexcept [[clang::allocating]] REQUIRES(mLock);
+        void addNoAccessSegment(km::VmemAllocation allocation) noexcept [[clang::allocating]] REQUIRES(mLock);
 
         /// @param manager The memory manager to use.
         /// @param it The iterator to the segment to map.
@@ -103,7 +103,7 @@ namespace sys {
             km::VirtualRange dst,
             km::PageFlags flags,
             km::MemoryType type,
-            km::TlsfAllocation allocation
+            km::VmemAllocation allocation
         ) [[clang::allocating]] REQUIRES(mLock);
 
         OsStatus splitSegment(MemoryManager *manager, Iterator it, const void *midpoint, ReleaseSide side) [[clang::allocating]] REQUIRES(mLock);
@@ -146,23 +146,23 @@ namespace sys {
 
         /// @brief Allocate new memory in the current address space.
         [[nodiscard]]
-        OsStatus map(MemoryManager *manager, size_t size, size_t align, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping) [[clang::allocating]];
+        OsStatus map(MemoryManager *manager, size_t size, size_t align, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping [[outparam]]) [[clang::allocating]];
 
         /// @brief Map a segment of memory into this address space, allocating virtual address space for it.
         [[nodiscard]]
-        OsStatus map(MemoryManager *manager, km::MemoryRange range, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping) [[clang::allocating]];
+        OsStatus map(MemoryManager *manager, km::MemoryRange range, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping [[outparam]]) [[clang::allocating]];
 
         /// @brief Map memory from another address space into newly allocated space in this address space.
         [[nodiscard]]
-        OsStatus map(MemoryManager *manager, AddressSpaceManager *other, km::VirtualRange range, km::PageFlags flags, km::MemoryType type, km::VirtualRange *result) [[clang::allocating]];
+        OsStatus map(MemoryManager *manager, AddressSpaceManager *other, km::VirtualRange range, km::PageFlags flags, km::MemoryType type, km::VirtualRange *result [[outparam]]) [[clang::allocating]];
 
         /// @brief Map physical memory into this address space at a fixed address.
         [[nodiscard]]
-        OsStatus map(MemoryManager *manager, sm::VirtualAddress address, km::MemoryRange memory, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping) [[clang::allocating]];
+        OsStatus map(MemoryManager *manager, sm::VirtualAddress address, km::MemoryRange memory, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping [[outparam]]) [[clang::allocating]];
 
         /// @brief Map physical memory that is not managed by the system memory manager.
         [[nodiscard]]
-        OsStatus mapExternal(km::MemoryRange memory, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping) [[clang::allocating]];
+        OsStatus mapExternal(km::MemoryRange memory, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping [[outparam]]) [[clang::allocating]];
 
         /// @brief Allocate virtual memory in this address space and back it with physical memory from the memory manager.
         ///
@@ -176,7 +176,7 @@ namespace sys {
         ///
         /// @return The status of the operation.
         [[nodiscard]]
-        OsStatus allocateVirtual(km::MemoryRange memory, sm::VirtualAddress address, size_t size, size_t align, bool addressIsHint, km::PageFlags flags, km::AddressMapping *result) [[clang::allocating]];
+        OsStatus allocateVirtual(km::MemoryRange memory, sm::VirtualAddress address, size_t size, size_t align, bool addressIsHint, km::PageFlags flags, km::AddressMapping *result [[outparam]]) [[clang::allocating]];
 
         [[nodiscard]]
         OsStatus unmap(MemoryManager *manager, km::VirtualRange range) [[clang::allocating]];
@@ -192,14 +192,6 @@ namespace sys {
             return mPteMemory;
         }
 
-        [[nodiscard]]
-        static OsStatus create(const km::PageBuilder *pm, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager [[clang::noescape, gnu::nonnull]]) [[clang::allocating]];
-
-        [[nodiscard]]
-        static OsStatus create(const km::AddressSpace *pt, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager [[clang::noescape, gnu::nonnull]]) [[clang::allocating]];
-
-        static void setActiveMap(const AddressSpaceManager *map) noexcept;
-
         km::PhysicalAddress getPageMap() const noexcept [[clang::nonallocating]];
 
         void dump() noexcept {
@@ -208,5 +200,13 @@ namespace sys {
                 MemLog.dbgf("Segment: ", segment.backing, " ", segment.range());
             }
         }
+
+        [[nodiscard]]
+        static OsStatus create(const km::PageBuilder *pm, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager [[outparam]]) [[clang::allocating]];
+
+        [[nodiscard]]
+        static OsStatus create(const km::AddressSpace *pt, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager [[outparam]]) [[clang::allocating]];
+
+        static void setActiveMap(const AddressSpaceManager *map) noexcept;
     };
 }
